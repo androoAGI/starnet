@@ -82,3 +82,16 @@ jobs:
 
       - name: The source-regex steps CRLF used to break
         run: npm run test:fast -- checkpoint-default-on source-text-integrity module-scope-shadowing
+
+      # The other Windows-only breakage: report() used to process.exit() while a spawned child's
+      # handles were live, which aborts libuv on Windows ("Assertion failed: !(handle->flags &
+      # UV_HANDLE_CLOSING)") and killed the step with 0xC0000409 on the line AFTER it printed OK.
+      # test:http died at step 6/83 and runs in NO workflow at all, so nothing saw it.
+      #
+      # These three spawn a sidecar AND reported before their cleanup, so they were the reliable
+      # reproducers -- update-preparation aborted on 7 runs in 8. The fix is in test/_assert.js and
+      # is global, so this is a smoke test for the whole class, not just these files. Kept to a
+      # 3-step subset (~7s local) rather than the full 83-step list so the leg stays cheap enough
+      # for every PR; the full test:http still belongs in CI somewhere, on some platform.
+      - name: Child-spawning http steps run without a libuv abort
+        run: npm run test:http -- update-preparation workspace-owner workspace-lineage
