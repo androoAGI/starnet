@@ -790,7 +790,7 @@ const App = (() => {
     if (p === 'fireworks') return 'Fireworks API key';
     if (p === 'perplexity') return 'pplx-...  -  perplexity.ai/settings/api';
     if (p === 'cerebras') return 'Cerebras API key';
-    if (p === 'qwencloud') return 'sk-...  -  dashscope.console.aliyun.com/apiKey';
+    if (p === 'qwencloud') return 'sk-...  -  modelstudio.console.alibabacloud.com (China: dashscope.console.aliyun.com)';
     if (p === 'custom') return 'optional API key for this endpoint';
     return 'sk-or-...  -  openrouter.ai/keys';
   }
@@ -810,7 +810,7 @@ const App = (() => {
       fireworks: 'https://fireworks.ai/account/api-keys',
       perplexity: 'https://www.perplexity.ai/settings/api',
       cerebras: 'https://cloud.cerebras.ai',
-      qwencloud: 'https://dashscope.console.aliyun.com/apiKey',
+      qwencloud: 'https://modelstudio.console.alibabacloud.com/?tab=playground#/api-key',
       // not a key page: managed credits are obtained by LINKING a station in the STORE
       starnet: 'https://account.starnetos.com',
       openrouter: 'https://openrouter.ai/keys'

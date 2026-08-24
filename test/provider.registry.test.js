@@ -59,7 +59,7 @@ module.exports = (async () => {
   const qwencloud = profiles.find(p => p.id === 'qwencloud');
   const rawQwencloud = factory.getProviderProfile('qwencloud');
   A.ok(rawQwencloud && rawQwencloud.adapter === 'openai-compatible', 'QwenCloud uses the openai-compatible adapter');
-  A.ok(qwencloud && qwencloud.baseUrl === 'https://dashscope.aliyuncs.com/compatible-mode/v1', 'QwenCloud default base URL is DashScope compatible-mode');
+  A.ok(qwencloud && qwencloud.baseUrl === 'https://dashscope-intl.aliyuncs.com/compatible-mode/v1', 'QwenCloud default base URL is the intl compatible-mode host');
   A.ok(qwencloud && qwencloud.keyEnv.indexOf('DASHSCOPE_API_KEY') >= 0, 'QwenCloud reads DASHSCOPE_API_KEY first');
   A.eq(rawQwencloud.priceFamily, 'qwen', 'QwenCloud declares the qwen price family');
   A.eq(qwencloud.supportsTools, true, 'QwenCloud profile asserts tool support');

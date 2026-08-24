@@ -57,10 +57,17 @@ use any model you allow.</p>
 <li><b>Account sign-in:</b> ChatGPT (Codex), Grok, and Kimi for Coding. These use the provider's
 sign-in flow instead of asking you to paste an API key.</li>
 <li><b>Direct API keys:</b> OpenRouter, OpenAI, Anthropic, Google Gemini, xAI, Groq, Mistral,
-DeepSeek, Together AI, Fireworks AI, Perplexity, Cerebras, and Qwen Cloud (Alibaba DashScope).</li>
+DeepSeek, Together AI, Fireworks AI, Perplexity, Cerebras, and Qwen Cloud (Alibaba Model Studio /
+DashScope).</li>
 <li><b>Local and custom:</b> Ollama on your machine, or any custom endpoint that speaks the
 OpenAI-compatible wire format.</li>
 </ul>
+<p><b>Qwen Cloud endpoint:</b> the default OpenAI-compatible base URL is
+<code>https://dashscope-intl.aliyuncs.com/compatible-mode/v1</code> (the international Qwen Cloud host).
+If your API key is from the China Model Studio console, set
+<code>DASHSCOPE_BASE_URL</code> (or <code>QWENCLOUD_BASE_URL</code> / <code>QWEN_BASE_URL</code>) to
+<code>https://dashscope.aliyuncs.com/compatible-mode/v1</code> before starting the sidecar, or paste
+that URL in the provider connect screen.</p>
 <div class="callout"><b>Release note:</b> these docs track current source. The stable installer linked
 from the site can lag while the next Windows and macOS builds pass signing and notarization.</div>
 

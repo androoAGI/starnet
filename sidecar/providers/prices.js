@@ -272,7 +272,7 @@
   ];
 
   // Alibaba Model Studio / DashScope list rates (USD per Mtok, standard tier), approximate 2026-08.
-  // Verified against help.aliyun.com model pricing snapshots; family fallbacks stay conservative.
+  // Sourced from public pricing docs; family fallbacks stay conservative until tests pin each id.
   const QWEN = [
     [/^qwen3\.5-plus/i,               { in: 0.40, out: 1.20 }],
     [/^qwen3\.5-flash/i,              { in: 0.10, out: 0.40 }],
