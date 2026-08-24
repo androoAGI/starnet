@@ -1,0 +1,40 @@
+# Line endings — the checkout must match what the tests assert.
+#
+# Git for Windows installs with core.autocrlf=true by default. Without this file every
+# Windows clone lands a CRLF worktree while the index is LF, and the source-regex tests in
+# test/ (which match hardcoded \n, e.g. test/checkpoint-default-on.test.js) fail on files
+# they were never meant to read. `npm run test:fast` — THE merge gate — died at step 56/683
+# on a clean Windows clone. CI only runs the gate on ubuntu-latest, so nothing caught it.
+#
+# Normalize to LF in the repo AND in the worktree, on every platform. Node, PowerShell 5.1,
+# Tauri and the sidecar all read LF fine on Windows; the tests do not read CRLF fine anywhere.
+* text=auto eol=lf
+
+# Binary assets: never touched by eol conversion. `text=auto` already detects these, but
+# stating them keeps a stray heuristic miss from corrupting a sprite sheet or an installer.
+*.png   binary
+*.jpg   binary
+*.jpeg  binary
+*.gif   binary
+*.webp  binary
+*.ico   binary
+*.icns  binary
+*.mp3   binary
+*.wav   binary
+*.ogg   binary
+*.opus  binary
+*.mp4   binary
+*.webm  binary
+*.woff  binary
+*.woff2 binary
+*.ttf   binary
+*.otf   binary
+*.pdf   binary
+*.zip   binary
+*.gz    binary
+*.exe   binary
+*.dll   binary
+*.dmg   binary
+*.node  binary
+*.onnx  binary
+*.wasm  binary
