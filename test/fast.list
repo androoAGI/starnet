@@ -1,4 +1,5 @@
 # Fast test gate steps - run in order by scripts/run-fast-tests.mjs. One path per line.
+test/checkout-eol-integrity.test.js
 test/schema.test.js
 test/contract.test.js
 test/events-contract.test.js

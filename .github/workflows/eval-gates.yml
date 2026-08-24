@@ -47,3 +47,38 @@ jobs:
           name: eval-gate-receipt
           path: qa/eval-receipts/last-gate-receipt.json
           if-no-files-found: ignore
+
+  # ---------------------------------------------------------------------------------------
+  # windows-checkout — the gate's own portability, proven on the platform that breaks it.
+  #
+  # test:fast runs on ubuntu-latest everywhere else in CI (here and in release-train.yml),
+  # so nothing in this repo ever executed it on Windows. It did not pass: Git for Windows
+  # installs core.autocrlf=true, the repo had no .gitattributes, and every Windows clone
+  # got a CRLF worktree that the source-regex tests cannot read — the gate died at step
+  # 56/683 in test/checkpoint-default-on.test.js on a clean clone. Windows is a first-class
+  # shipping platform for this product, so a Windows contributor could not run the gate.
+  #
+  # Deliberately forces the hostile setting rather than trusting the runner's default: this
+  # job must reproduce a real contributor's clone, not a lucky one. With .gitattributes in
+  # place, eol=lf wins over autocrlf and the checkout lands LF anyway — which is the claim
+  # under test. Scoped to the eol guard plus the source-regex steps that CRLF actually
+  # breaks, so the leg stays cheap enough to run on every PR.
+  # ---------------------------------------------------------------------------------------
+  windows-checkout:
+    runs-on: windows-latest
+    timeout-minutes: 10
+    steps:
+      - name: Clone the way Git for Windows ships (core.autocrlf=true)
+        run: git config --global core.autocrlf true
+
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Checkout is LF despite autocrlf=true
+        run: node test/checkout-eol-integrity.test.js
+
+      - name: The source-regex steps CRLF used to break
+        run: npm run test:fast -- checkpoint-default-on source-text-integrity module-scope-shadowing
