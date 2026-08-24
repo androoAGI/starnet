@@ -157,8 +157,16 @@ async function main() {
   const sigs = await captureSignatures();
 
   if (BLESS) {
-    writeFileSync(GOLDENS, JSON.stringify({ w: SIG_W, h: SIG_H, threshold: THRESHOLD, blessedAt: new Date().toISOString(), states: sigs }));
-    console.log(`\nblessed ${Object.keys(sigs).length} golden signatures (thr ${THRESHOLD}) → ${GOLDENS}`);
+    // Stamp WHERE the baseline was blessed, not just when. A golden signature is a rendering of
+    // this UI by one browser on one OS; a different box renders the same source differently, and
+    // without provenance the diff below cannot tell "the UI regressed" from "you are not the
+    // machine that blessed this". blessedOn is additive — an older baseline simply has none.
+    writeFileSync(GOLDENS, JSON.stringify({
+      w: SIG_W, h: SIG_H, threshold: THRESHOLD, blessedAt: new Date().toISOString(),
+      blessedOn: { platform: process.platform, arch: process.arch, node: process.version },
+      states: sigs
+    }));
+    console.log(`\nblessed ${Object.keys(sigs).length} golden signatures (thr ${THRESHOLD}) on ${process.platform}/${process.arch} → ${GOLDENS}`);
     process.exit(0);
   }
 
@@ -181,6 +189,33 @@ async function main() {
   if (flagged.length) {
     console.log(`\n${flagged.length} frame(s) CHANGED beyond animation noise — the vision model should read ONLY these:`);
     flagged.forEach((f) => console.log(`  ${f.frame || f.name}  ${f.reason || 'diff=' + f.diff}`));
+    /* NAME THE OTHER EXPLANATION. A pixel baseline is machine-bound, so a foreign box flags every
+       frame and the line above then reads as a regression it cannot actually prove. Two signals
+       separate the cases, and both are stated rather than guessed at: whether the blessing platform
+       differs from this one, and whether EVERY frame moved — a real regression touches the surfaces
+       it broke, a rendering difference touches all of them. The gate is NOT softened: this still
+       exits 3 and still demands a human verdict. It just stops asserting the wrong cause.
+       (Measured while porting the gates to Windows: a baseline blessed on another box flagged 16 of
+       16 frames, and pristine trunk reproduced the same diffs to within 0.03 — so nothing had
+       regressed at all.) */
+    const here = process.platform + '/' + process.arch;
+    const there = golden.blessedOn ? golden.blessedOn.platform + '/' + golden.blessedOn.arch : null;
+    const allMoved = flagged.length === Object.keys(golden.states || {}).length;
+    if (there && there !== here) {
+      console.log(`\n  NOTE: this baseline was blessed on ${there}; you are on ${here}. Cross-platform`);
+      console.log('        pixel drift is expected and is NOT evidence of a regression.');
+    } else if (!there) {
+      console.log(`\n  NOTE: this baseline carries no blessedOn stamp, so the machine that produced it is`);
+      console.log(`        unknown. If it was not this one (${here}), some drift is expected.`);
+    }
+    if (allMoved) {
+      console.log('\n  NOTE: EVERY baseline frame moved. That pattern points at the rendering environment');
+      console.log('        rather than a code change — a real regression rarely touches all of them.');
+    }
+    if ((there && there !== here) || !there || allMoved) {
+      console.log('\n  To tell them apart: re-run this gate on a pristine trunk checkout. Identical diffs');
+      console.log('        mean the environment, not your change. `npm run golden:bless` re-baselines here.');
+    }
     process.exit(3);
   }
   console.log('\nGOLDEN PASS — no visual regressions (every frame within the animation-noise threshold' + (excused.length ? `; ${excused.length} known-noisy frame(s) excused as dismissed` : '') + ')');
