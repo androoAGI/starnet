@@ -18,7 +18,7 @@
   "expectedClaimCount": 37,
   "releaseSurface": {
     "algorithm": "sha256",
-    "sourceCommit": "93627e619413d16207f03f301cbe1e60bb0d09ff",
+    "sourceCommit": "da23c072912d54bb2391d764f2c70c96651e2e34",
     "pathSetSha256": "77c7cefbdaf746b68ae98b176644d3d9ddf2519175bb3ed53931be9819e6750c",
     "files": [
       {
@@ -703,8 +703,8 @@
       },
       {
         "path": "frontend/app/spacebg.js",
-        "bytes": 70850,
-        "sha256": "b10225c88501b6e7b9a9884dbeb66bbc14b390f9276d3b9b05c23c0038ce98c2"
+        "bytes": 69647,
+        "sha256": "2fb332fd1ae714e05a3b044007d9e947900f12764859555aa27736bc83290013"
       },
       {
         "path": "frontend/app/specialties.js",
@@ -788,8 +788,8 @@
       },
       {
         "path": "frontend/app/topbar.js",
-        "bytes": 5995,
-        "sha256": "fd7cc485ef01eb62c403db9bbee0cf5925c3efec65f734d813b5b2ff4ba43130"
+        "bytes": 5878,
+        "sha256": "a6fa90e1aaab0366c0083c3c758fe944bd8b9d73003df5c1863788cfb5d741a3"
       },
       {
         "path": "frontend/app/topicmatch.js",
