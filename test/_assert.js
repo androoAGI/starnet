@@ -78,10 +78,49 @@ function fnBody(src, header) {
 
 let reported = false;
 
+/* 300ms, and the number is measured rather than picked. The grace below does double duty: it stops a
+   stuck test hanging, AND it keeps the force-exit clear of the abort window, because a handle is only
+   dangerous to exit on while it is CLOSING — once settled, process.exit() on a stably-open server is
+   fine. Sweeping the crashing test at N=12 per value put that window under 50ms:
+       grace=0ms -> 8/12 aborts (i.e. the original bug)   grace=50/150/300/500ms -> 0/12
+   300ms is 6x the observed floor. It is not free: ~53 of 79 test:http steps and ~51 of 684 test:fast
+   steps leak a handle and wait it out, so every 1s of grace costs the two gates about 100s together.
+   At 2000ms that alone pushed test:http past its own 600s budget. Raise it only with evidence. */
+const EXIT_GRACE_MS = Number(process.env.STARNET_TEST_EXIT_GRACE_MS || 300);
+
+/* REPORT MUST NOT process.exit() (2026-08-25, Windows portability). It used to, and that cost two
+   things beyond the obvious one.
+   1. THE ABORT. Exiting hard while a spawned child's handles are still live trips libuv on Windows —
+      `Assertion failed: !(handle->flags & UV_HANDLE_CLOSING), file src\win\async.c, line 94` — and the
+      process dies with 0xC0000409 on the line AFTER it printed OK, so the runner scores that step
+      FAILED. test/update-preparation.http.test.js aborted on 7 runs in 8 and stopped `npm run test:http`
+      dead at step 6/83. test:fast is ubuntu-only in CI and test:http runs in no workflow at all, so
+      nothing ever saw it.
+   2. THE SKIPPED CLEANUP. process.exit() inside a try SKIPS ITS finally. Every test that reported before
+      its cleanup was orphaning its spawned sidecar and leaking its temp workspace on every run, on every
+      platform. Draining runs those finally blocks — 38 test files have real code after report().
+   The old hard exit did protect against something real: a test holding a live handle would otherwise HANG,
+   which is worse than a crash. So keep that as a FALLBACK rather than dropping it. The grace timer is
+   UNREF'D, and that is the whole trick — an unref'd timer cannot by itself hold the process open, so a
+   clean test still exits the instant its loop empties and pays no delay at all (measured: 0ms). Only a
+   genuinely stuck test reaches the timer, and it gets force-exited with the correct code instead of
+   hanging the suite. */
 function report(title) {
+  if (reported) return;   // draining means code after report() runs; never report twice
   reported = true;
   console.log((title || 'tests') + ': ' + (fail ? (fail + ' problem(s), ' + pass + ' ok') : ('OK (' + pass + ' assertions)')));
-  process.exit(fail ? 1 : 0);
+  process.exitCode = fail ? 1 : 0;
+  const grace = setTimeout(() => {
+    /* Reaching here means the loop did NOT empty: this file still holds a live handle after its
+       last assertion — an unkilled child, an open server or socket, a ref'd interval. It used to
+       be invisible because process.exit() killed it for free. Say so instead of paying for it in
+       silence: every line below is a real leak, and the step's wall clock includes this whole
+       wait. Deliberately NOT the word FAIL — the assertions passed and the step stays green. */
+    console.log('[slow-exit] ' + (title || 'tests') + ': held the event loop open for ' + EXIT_GRACE_MS +
+                'ms after report() — a handle is leaking; force-exiting ' + (fail ? 1 : 0) + '.');
+    process.exit(fail ? 1 : 0);
+  }, EXIT_GRACE_MS);
+  if (typeof grace.unref === 'function') grace.unref();
 }
 
 /* SILENT-EARLY-EXIT GUARD (2026-07-25). Calling report() is necessary but not sufficient: a file can EXIT
