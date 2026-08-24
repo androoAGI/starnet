@@ -10,7 +10,7 @@ module.exports = (async () => {
   A.ok(ids.indexOf('openai') >= 0, 'openai is registered');
   A.ok(ids.indexOf('anthropic') >= 0, 'anthropic is registered');
   A.ok(ids.indexOf('gemini') >= 0, 'gemini is registered');
-  ['xai', 'groq', 'mistral', 'deepseek', 'together', 'fireworks', 'perplexity', 'cerebras'].forEach(id => {
+  ['xai', 'groq', 'mistral', 'deepseek', 'together', 'fireworks', 'perplexity', 'cerebras', 'qwencloud'].forEach(id => {
     A.ok(ids.indexOf(id) >= 0, id + ' is registered');
   });
   A.ok(ids.indexOf('grok') >= 0, 'grok (OAuth) is registered');
@@ -31,13 +31,15 @@ module.exports = (async () => {
   A.eq(factory.normalizeProviderId('together-ai', ''), 'together', 'Together alias normalizes');
   A.eq(factory.normalizeProviderId('fireworks-ai', ''), 'fireworks', 'Fireworks alias normalizes');
   A.eq(factory.normalizeProviderId('sonar', ''), 'perplexity', 'Perplexity alias normalizes');
+  A.eq(factory.normalizeProviderId('dashscope', ''), 'qwencloud', 'DashScope alias normalizes to qwencloud');
+  A.eq(factory.normalizeProviderId('qwen', ''), 'qwencloud', 'qwen alias normalizes to qwencloud');
   A.eq(factory.normalizeProviderId('', 'openrouter'), 'openrouter', 'fallback is honored');
   A.eq(factory.defaultReasoningEffortForProvider('codex'), 'low', 'codex default reasoning');
   A.eq(factory.defaultReasoningEffortForProvider('ollama'), 'none', 'ollama default reasoning');
   A.eq(factory.providerRequiresKey('openai'), true, 'openai requires a key');
   A.eq(factory.providerRequiresKey('anthropic'), true, 'anthropic requires a key');
   A.eq(factory.providerRequiresKey('gemini'), true, 'gemini requires a key');
-  ['xai', 'groq', 'mistral', 'deepseek', 'together', 'fireworks', 'perplexity', 'cerebras'].forEach(id => {
+  ['xai', 'groq', 'mistral', 'deepseek', 'together', 'fireworks', 'perplexity', 'cerebras', 'qwencloud'].forEach(id => {
     A.eq(factory.providerRequiresKey(id), true, id + ' requires a key');
   });
   A.eq(factory.providerRequiresKey('ollama'), false, 'ollama is keyless');
@@ -54,10 +56,17 @@ module.exports = (async () => {
   A.ok(together && together.baseUrl === 'https://api.together.ai/v1', 'Together profile uses its current official base URL');
   const perplexity = profiles.find(p => p.id === 'perplexity');
   A.ok(perplexity && perplexity.baseUrl === 'https://api.perplexity.ai', 'Perplexity profile uses Sonar base URL');
+  const qwencloud = profiles.find(p => p.id === 'qwencloud');
+  const rawQwencloud = factory.getProviderProfile('qwencloud');
+  A.ok(rawQwencloud && rawQwencloud.adapter === 'openai-compatible', 'QwenCloud uses the openai-compatible adapter');
+  A.ok(qwencloud && qwencloud.baseUrl === 'https://dashscope.aliyuncs.com/compatible-mode/v1', 'QwenCloud default base URL is DashScope compatible-mode');
+  A.ok(qwencloud && qwencloud.keyEnv.indexOf('DASHSCOPE_API_KEY') >= 0, 'QwenCloud reads DASHSCOPE_API_KEY first');
+  A.eq(rawQwencloud.priceFamily, 'qwen', 'QwenCloud declares the qwen price family');
+  A.eq(qwencloud.supportsTools, true, 'QwenCloud profile asserts tool support');
 
   const p = factory.selectProvider({ provider: 'ollama', fetch: async () => new Response(JSON.stringify({ data: [] }), { status: 200 }) });
   A.ok(p && typeof p.stream === 'function' && typeof p.listModels === 'function', 'factory returns an adapter for OpenAI-compatible profiles');
-  for (const id of ['xai', 'groq', 'mistral', 'deepseek', 'together', 'fireworks', 'perplexity', 'cerebras']) {
+  for (const id of ['xai', 'groq', 'mistral', 'deepseek', 'together', 'fireworks', 'perplexity', 'cerebras', 'qwencloud']) {
     const hosted = factory.selectProvider({ provider: id, fetch: async () => new Response(JSON.stringify({ data: [] }), { status: 200 }) });
     A.ok(hosted && typeof hosted.stream === 'function' && typeof hosted.listModels === 'function', 'factory returns OpenAI-compatible adapter for ' + id);
   }
@@ -71,6 +80,7 @@ module.exports = (async () => {
     A.eq(factory.getProviderProfile(id).wireReasoningEffort, true, id + ' documents the reasoning_effort wire param');
   });
   A.ok(!factory.getProviderProfile('custom').wireReasoningEffort, 'custom endpoints never assume reasoning_effort support');
+  A.ok(!factory.getProviderProfile('qwencloud').wireReasoningEffort, 'QwenCloud does not assume OpenAI reasoning_effort on the wire');
 
   // profile hints reach the adapter: Perplexity refuses tools up front and sends no stream_options
   {

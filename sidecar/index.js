@@ -17822,6 +17822,11 @@ function handleCodexStatus(req, res) {
 // GET /api/auth/codex/models — the ACCOUNT's real Codex model list (live-discovered with a fresh token), so
 // the connect screen offers exactly the slugs the backend will accept. Falls back to the provider's curated
 // list (and reports the error) when not connected / discovery fails, so the dropdown is never empty.
+function catalogSupportsTools(m) {
+  if (typeof m.supportsTools === 'boolean') return m.supportsTools;
+  const params = Array.isArray(m && m.supported_parameters) ? m.supported_parameters : [];
+  return params.indexOf('tools') >= 0 ? true : null;
+}
 function publicModel(m) {
   return {
     id: m.id,
@@ -17829,8 +17834,11 @@ function publicModel(m) {
     context_length: m.context_length || 0,
     max_completion_tokens: m.max_completion_tokens || null,
     pricing: m.pricing || null,
-    supportsTools: m.supportsTools !== false,
-    supportsReasoning: !!m.supportsReasoning,
+    // null = honestly unknown (custom endpoints + most OpenAI-compatible catalogs omit capability
+    // metadata). Never coerce unknown -> true (false-refuses task runs) or unknown -> false
+    // (false-refuses capable models on stale catalogs).
+    supportsTools: catalogSupportsTools(m),
+    supportsReasoning: m.supportsReasoning === true,
     supported_parameters: Array.isArray(m.supported_parameters) ? m.supported_parameters : [],
     reasoningEfforts: Array.isArray(m.reasoningEfforts) ? m.reasoningEfforts : []
   };

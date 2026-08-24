@@ -181,6 +181,23 @@ module.exports = (async () => {
     A.eq(toolPosts.every(c => JSON.parse(c.init.body).tools !== undefined), true, 'no retry ever removed the tools payload');
   }
 
+  // supported_parameters without 'tools' stays unknown (null), not false — only an explicit 'tools' entry is positive proof
+  {
+    const fetchImpl = async () => new Response(JSON.stringify({
+      data: [
+        { id: 'with-tools', supported_parameters: ['tools', 'temperature'] },
+        { id: 'without-tools', supported_parameters: ['temperature', 'top_p'] },
+        { id: 'bare' }
+      ]
+    }), { status: 200 });
+    const p = makeOpenAICompatibleProvider({ fetch: fetchImpl, baseUrl: 'http://local/v1' });
+    const models = await p.listModels();
+    const byId = id => models.find(m => m.id === id);
+    A.eq(byId('with-tools').supportsTools, true, 'supported_parameters containing tools => true');
+    A.eq(byId('without-tools').supportsTools, null, 'supported_parameters without tools => unknown, not false');
+    A.eq(byId('bare').supportsTools, null, 'no supported_parameters => unknown');
+  }
+
   // profile-level tool capability is the fallback when the catalog is silent; catalog booleans win
   {
     const fetchImpl = async (url, init) => {

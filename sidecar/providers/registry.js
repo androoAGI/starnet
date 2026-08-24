@@ -476,6 +476,34 @@
       order: 44
     },
     {
+      id: 'qwencloud',
+      priceFamily: 'qwen',   // prices.js table — DashScope /models may omit token pricing
+      aliases: ['qwen', 'dashscope', 'qwen-cloud', 'alibaba'],
+      name: 'Qwen Cloud',
+      label: 'QWENCLOUD',
+      endpoint: 'dashscope.aliyuncs.com/compatible-mode/v1',
+      blurb: 'Alibaba Model Studio (DashScope) OpenAI-compatible API',
+      live: true,
+      adapter: 'openai-compatible',
+      apiMode: 'chat_completions',
+      authType: 'api_key',
+      keyRequired: true,
+      keyEnv: ['DASHSCOPE_API_KEY', 'QWENCLOUD_API_KEY', 'QWEN_API_KEY'],
+      modelsRequireAuth: true,
+      // Documented compatible-mode endpoint; override via DASHSCOPE_BASE_URL for intl/regional hosts.
+      baseUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
+      baseUrlEnv: ['DASHSCOPE_BASE_URL', 'QWENCLOUD_BASE_URL', 'QWEN_BASE_URL'],
+      modelsPath: '/models',
+      defaultReasoningEffort: 'medium',
+      unmetered: false,
+      credentialPool: true,
+      supportsTools: true,   // DashScope chat completions support function calling; catalog may omit the flag
+      supportsReasoning: null,
+      // DashScope uses enable_thinking on select models, not OpenAI's reasoning_effort wire param.
+      wireReasoningEffort: false,
+      order: 45
+    },
+    {
       id: 'ollama',
       aliases: ['ollama-local'],
       name: 'Ollama',
