@@ -224,8 +224,31 @@ const Updates = (() => {
     return body.receipt;
   }
 
-  function cancelPreparation() {
-    return fetch('/api/update/cancel', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' }).catch(() => null);
+  /* THE THAW IS THE ONLY WAY OUT, SO ITS OUTCOME MATTERS. /api/update/prepare sets an in-memory
+     `updateWritesFrozen` on the sidecar and NOTHING clears it but this route — no TTL, no expiry.
+     Verified against a live sidecar: after prepare, /api/activity answered 423
+     UPDATE_MUTATIONS_FROZEN at 1s, 3s and 6s idle, and /api/update/status still reported
+     frozen:true. So a swallowed failure here leaves the station refusing every durable write —
+     saves, transcripts, ledgers — for the rest of the process's life.
+     This used to be `.catch(() => null)` with the caller clearing its state unconditionally, which
+     is the worst pairing: the one failure the Commander MUST hear about was the one we discarded.
+     Worse, the two failures are CORRELATED — a sidecar sick enough to fail the install is exactly
+     the one that will fail the thaw. So retry a little, then report honestly.
+     A non-2xx or a thrown fetch is the real signal; the body is only consulted to catch a 200 that
+     still admits frozen:true (the live route answers frozen:false on success).
+     Retries are immediate and deliberately un-delayed: awaiting a timer here would deadlock anywhere
+     setTimeout is stubbed to a no-op (the gate's own sandbox does exactly that, so it can drive the
+     poll loop at lines 119/123 without recursing), and a hang on the thaw path would be strictly
+     worse than the missed backoff. */
+  async function cancelPreparation() {
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        const r = await fetch('/api/update/cancel', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
+        let body = null; try { body = await r.json(); } catch (_) {}
+        if (r && r.ok && !(body && body.frozen === true)) return { thawed: true };
+      } catch (_) { /* fall through to the next attempt */ }
+    }
+    return { thawed: false };
   }
 
   // Count of sidecar-CONFIRMED live runs (Channels.busy flips on real agent.run.start/end,
@@ -299,11 +322,20 @@ const Updates = (() => {
       notify('StarNet update installed - restarting', 'good');
     } catch (e) {
       installing = false;   // install failed; the app lives on, so the quit guard resumes normally
-      await cancelPreparation();
+      const cancel = await cancelPreparation();
       state.preparationReceipt = null;
       state.phase = 'available';
       state.error = cleanError(e);
-      notify('Update install failed - ' + state.error, 'warn');
+      /* A FAILED THAW IS NOT A FOOTNOTE. Clearing the receipt above says "we are out of the update"
+         — true of this page, not of the sidecar, which stays frozen until someone thaws it or
+         restarts it. Saying only "install failed" there sends the Commander back to a station that
+         will refuse every durable write in silence. Name it, and name the one remedy that works. */
+      if (!cancel.thawed) {
+        state.error = state.error + ' — and the station is still frozen for update';
+        notify('Update install failed AND the station is still frozen — saves, transcripts and ledgers will fail until you restart StarNet', 'bad');
+      } else {
+        notify('Update install failed - ' + state.error, 'warn');
+      }
     } finally {
       busy = false;
       emit();
