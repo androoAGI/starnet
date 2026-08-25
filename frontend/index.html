@@ -232,6 +232,7 @@
                   <button type="button" id="btn-starnet-link" class="btn">🔗 LINK YOUR STARNET ACCOUNT ▸</button>
                   <button type="button" id="btn-starnet-open" class="btn hidden">↗ OPEN PAGE</button>
                   <button type="button" id="btn-starnet-credits" class="btn hidden">＄ ADD CREDITS ▸</button>
+                  <button type="button" id="btn-starnet-switch" class="btn hidden">↻ USE A DIFFERENT ACCOUNT</button>
                 </div>
                 <div class="dim hint" id="starnet-hint">Runs on your StarNet subscription — no API key to find or paste. You’ll confirm a short code in your browser; StarNet never handles your payment details in the app.</div>
               </div>
@@ -377,6 +378,8 @@
         StarNet <b>could not read your saved station</b> — the local station service didn't answer.
         Your save has <b>not</b> been deleted or touched; it just can't be reached right now.
         StarNet is retrying automatically and will resume your station the moment it reconnects.
+        If it cannot recover, <b>START COMPLETELY FRESH</b> safely sets the old local station aside.
+        It does not remove your StarNet account link or purchased credits.
       </div>
     </header>
     <div class="ov-foot">
@@ -386,6 +389,7 @@
       <div class="connect-actions ov-actions">
         <button id="btn-unreachable-restart" class="btn-xl" hidden>⏻ RESTART STATION SERVICE</button>
         <button id="btn-unreachable-retry" class="btn-xl">⟳ RETRY NOW</button>
+        <button id="btn-unreachable-fresh" class="btn" hidden>✦ START COMPLETELY FRESH</button>
       </div>
     </div>
   </div>
@@ -820,6 +824,7 @@ document.write('<script src="' + ((window.__STARNET_API__ || '') + '/shared/spec
 <script src="app/save.js"></script>
 <script src="app/cloudsavecore.js"></script><!-- pure retry/health brain (unit-tested); MUST load before cloudsave.js -->
 <script src="app/cloudsave.js"></script>
+<script src="app/freshstart.js"></script><!-- desktop escape: quarantine local station even when sidecar HTTP is unavailable -->
 <script src="app/backup.js"></script>
 <script src="app/dialogue.js"></script>
 <script src="app/wakemind.js"></script><!-- Interview 2.0: the pure engine behind the awakening's LIVE generated beats -->

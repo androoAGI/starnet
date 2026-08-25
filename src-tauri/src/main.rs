@@ -12,6 +12,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod credentials;
+mod fresh_start;
 mod lifecycle_preferences;
 
 use std::collections::BTreeMap;
@@ -61,9 +62,34 @@ struct AppState {
     lifecycle_preferences_path: PathBuf,
     lifecycle_preferences: Mutex<LifecyclePreferences>,
     close_exit_pending: AtomicBool,
+    // Pauses the crash guardian while an explicit restart/reset owns the child lifecycle.
+    recovery_in_progress: AtomicBool,
     // Flipped true the instant the app starts exiting, so the guardian thread stops
     // respawning the sidecar during an intentional quit.
     shutting_down: AtomicBool,
+}
+
+/// Serializes user-driven recovery commands and keeps the guardian paused until every return path
+/// (including errors) has finished. Tauri commands may run concurrently, so a plain load/store can
+/// let Restart and Start Fresh kill/spawn/move the same station at the same time.
+struct RecoveryOperation<'a> {
+    flag: &'a AtomicBool,
+}
+
+impl Drop for RecoveryOperation<'_> {
+    fn drop(&mut self) {
+        self.flag.store(false, Ordering::SeqCst);
+    }
+}
+
+fn begin_recovery(state: &AppState) -> Result<RecoveryOperation<'_>, String> {
+    state
+        .recovery_in_progress
+        .compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst)
+        .map_err(|_| "another station recovery is already running".to_string())?;
+    Ok(RecoveryOperation {
+        flag: &state.recovery_in_progress,
+    })
 }
 
 #[cfg(unix)]
@@ -1902,6 +1928,9 @@ fn spawn_guardian(app: AppHandle) {
             if st.shutting_down.load(Ordering::SeqCst) {
                 break;
             }
+            if st.recovery_in_progress.load(Ordering::SeqCst) {
+                continue;
+            }
 
             // Decide under the lock, respawn after releasing it — spawn_sidecar takes the same lock
             // itself, so respawning while holding it would deadlock. `needs_respawn` covers TWO cases:
@@ -3386,7 +3415,11 @@ fn starnet_restart_sidecar(state: State<AppState>) -> Result<bool, String> {
     if st.shutting_down.load(Ordering::SeqCst) {
         return Err("StarNet is shutting down".to_string());
     }
-    log_startup(&st.startup_log, "restart: user requested a station service restart");
+    let _recovery = begin_recovery(st)?;
+    log_startup(
+        &st.startup_log,
+        "restart: user requested a station service restart",
+    );
     // Take the child out under the lock, terminate it after releasing (spawn_sidecar re-takes the lock).
     let prior = st.sidecar.lock().ok().and_then(|mut g| g.take());
     if let Some(mut child) = prior {
@@ -3399,6 +3432,96 @@ fn starnet_restart_sidecar(state: State<AppState>) -> Result<bool, String> {
         format!("restart: respawned sidecar listening={listening}"),
     );
     Ok(listening)
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct FreshStartView {
+    ok: bool,
+    listening: bool,
+    quarantine: Option<String>,
+    browser_data_cleared: bool,
+}
+
+/// Last-resort recovery for a station service that cannot answer HTTP at all. The sidecar-backed
+/// START FRESH route cannot help in that state, so the desktop shell stops its own child, moves the
+/// entire workspace generation to a reversible quarantine, seals a clean generation against legacy
+/// re-migration, and respawns with the same OS-keychain credentials. Purchased credits therefore
+/// remain account-bound and are re-injected into the clean sidecar; this command never clears them.
+#[tauri::command]
+fn starnet_start_fresh(
+    window: tauri::WebviewWindow,
+    state: State<AppState>,
+) -> Result<FreshStartView, String> {
+    let st: &AppState = state.inner();
+    if st.shutting_down.load(Ordering::SeqCst) {
+        return Err("StarNet is shutting down".to_string());
+    }
+    let _recovery = begin_recovery(st)?;
+    log_startup(
+        &st.startup_log,
+        "fresh-start: explicit unreachable-screen reset requested",
+    );
+
+    let prior = st.sidecar.lock().ok().and_then(|mut guard| guard.take());
+    let stopped_pid = prior.as_ref().map(Child::id);
+    if let Some(mut child) = prior {
+        terminate_sidecar_child(&mut child);
+        let _ = child.wait();
+    }
+
+    let mut acknowledged = legacy_workspace_paths(&st.root, &st.workspaces);
+    if let Some(parent) = st.workspaces.parent() {
+        push_unique_path(&mut acknowledged, parent.join("update-snapshots"));
+    }
+    let prepared =
+        fresh_start::quarantine_and_prepare(&st.workspaces, &acknowledged, stopped_pid, now_ms());
+    let prepared = match prepared {
+        Ok(value) => value,
+        Err(error) => {
+            let listening = spawn_sidecar(st);
+            log_startup(
+                &st.startup_log,
+                format!("fresh-start: refused ({error}); original station respawn listening={listening}"),
+            );
+            return Err(error);
+        }
+    };
+
+    // The reset deliberately preserves only the protected StarNet credit-account link record.
+    // Adopt a transient plaintext token into the OS keychain before the new sidecar starts, matching boot.
+    migrate_credits_token_from_plaintext(&st.workspaces);
+    // The packaged origin belongs only to StarNet. Clearing it natively removes localStorage,
+    // IndexedDB, cookies, service workers and caches on both WebView2 and WKWebView. JS repeats the
+    // namespaced localStorage clear as a fallback, and will refuse to reload if neither layer proves it.
+    let browser_data_cleared = match window.clear_all_browsing_data() {
+        Ok(()) => true,
+        Err(error) => {
+            log_startup(
+                &st.startup_log,
+                format!("fresh-start: native browser-data clear failed; renderer fallback required ({error})"),
+            );
+            false
+        }
+    };
+    let listening = spawn_sidecar(st);
+    let quarantine = prepared
+        .quarantine
+        .as_ref()
+        .map(|path| path.to_string_lossy().to_string());
+    log_startup(
+        &st.startup_log,
+        format!(
+            "fresh-start: clean workspace activated quarantine={:?} listening={listening}",
+            quarantine
+        ),
+    );
+    Ok(FreshStartView {
+        ok: true,
+        listening,
+        quarantine,
+        browser_data_cleared,
+    })
 }
 
 #[tauri::command]
@@ -3502,6 +3625,7 @@ fn main() {
             starnet_set_autostart,
             starnet_lifecycle_status,
             starnet_restart_sidecar,
+            starnet_start_fresh,
             starnet_set_start_minimized,
             starnet_set_close_to_tray
         ])
@@ -3554,6 +3678,7 @@ fn main() {
                 lifecycle_preferences_path,
                 lifecycle_preferences: Mutex::new(lifecycle_preferences),
                 close_exit_pending: AtomicBool::new(false),
+                recovery_in_progress: AtomicBool::new(false),
                 shutting_down: AtomicBool::new(false),
             };
             // Before spawning OUR sidecar: terminate any orphan sidecars left behind by a

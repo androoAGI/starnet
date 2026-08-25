@@ -68,8 +68,9 @@ jobs:
       # Second failure mode (run 31543047777): the raw binary resolves but CDP never comes up —
       # Chrome's sandbox crashes under Ubuntu 24's unprivileged-userns restrictions and the
       # tests' fixed 10s connect window has no margin for a cold first launch. SKYNET_CHROME is
-      # a PATH, not a flag list, so install a wrapper that injects the CI-required flags, then
-      # PROVE CDP answers within the tests' own 10s budget before letting the gate run.
+      # a PATH, not a flag list, so install a wrapper that injects the CI-required flags. Warm
+      # the binary once with a bounded cold-start budget, then PROVE a fresh-profile launch
+      # answers within the tests' own 10s budget before letting the gate run.
       - name: Resolve Chrome binary for e2e gate tests
         run: |
           set -euo pipefail
@@ -84,11 +85,34 @@ jobs:
           echo "SKYNET_CHROME=$WRAP" >> "$GITHUB_ENV"
           echo "::notice::e2e gate tests will use $WRAP -> $CHROME (+ --no-sandbox --disable-dev-shm-usage)"
 
-      - name: Prove Chrome CDP comes up inside the tests' 10s window
+      - name: Warm Chrome, then prove CDP comes up inside the tests' 10s window
         run: |
           set -euo pipefail
+
+          # Hosted runner images can spend more than 10 seconds on Chrome's first process startup
+          # (shared-library paging, crashpad and DBus discovery). That says nothing about the warm
+          # launches made by the gate tests. Give exactly one cold launch a bounded 60s budget.
+          "$SKYNET_CHROME" --headless=new --no-first-run --remote-debugging-port=9332 \
+            --user-data-dir="$RUNNER_TEMP/chrome-cold-warmup" about:blank > "$RUNNER_TEMP/chrome-cold-warmup.log" 2>&1 &
+          CPID=$!
+          ok=""
+          for i in $(seq 1 240); do
+            if curl -fsS http://127.0.0.1:9332/json/list > /dev/null 2>&1; then ok=1; break; fi
+            if ! kill -0 "$CPID" 2>/dev/null; then break; fi
+            sleep 0.25
+          done
+          if [ -z "$ok" ]; then
+            echo "::error::Chrome's bounded cold warmup did not answer within 60s. Chrome output follows."
+            cat "$RUNNER_TEMP/chrome-cold-warmup.log" || true
+            exit 1
+          fi
+          kill "$CPID" 2>/dev/null || true
+          wait "$CPID" 2>/dev/null || true
+
+          # The warmup is not the proof. A second launch gets a fresh user-data directory and must
+          # satisfy the same 10-second CDP budget used by scripts/lib/cdp.mjs.
           "$SKYNET_CHROME" --headless=new --no-first-run --remote-debugging-port=9333 \
-            --user-data-dir="$RUNNER_TEMP/chrome-warmup" about:blank > "$RUNNER_TEMP/chrome-warmup.log" 2>&1 &
+            --user-data-dir="$RUNNER_TEMP/chrome-cdp-proof" about:blank > "$RUNNER_TEMP/chrome-cdp-proof.log" 2>&1 &
           CPID=$!
           ok=""
           for i in $(seq 1 40); do
@@ -97,12 +121,13 @@ jobs:
             sleep 0.25
           done
           if [ -z "$ok" ]; then
-            echo "::error::Chrome CDP did not answer within 10s on this runner — the e2e gate tests would fail. Chrome output follows."
-            cat "$RUNNER_TEMP/chrome-warmup.log" || true
+            echo "::error::Warm Chrome CDP did not answer within the tests' 10s budget. Chrome output follows."
+            cat "$RUNNER_TEMP/chrome-cdp-proof.log" || true
             exit 1
           fi
           kill "$CPID" 2>/dev/null || true
-          echo "::notice::Chrome CDP answered within the 10s test budget (warm cache for the gate run)."
+          wait "$CPID" 2>/dev/null || true
+          echo "::notice::Warm Chrome CDP answered within the tests' 10s budget."
 
       - name: Fast test gate (red = the whole train stops)
         run: npm run test:fast

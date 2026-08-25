@@ -1,6 +1,6 @@
 [package]
 name = "skynet-desktop"
-version = "0.10.9"
+version = "0.10.10"
 description = "StarNet native desktop shell for the gamified AI-agent harness"
 authors = ["StarNet"]
 edition = "2021"

@@ -104,6 +104,10 @@
        stops the station is the one that stays silent. */
     const REARM = 1.25;
     const warned = { low: false, exhausted: false };
+    // Local reservations are already subtracted from cache.balanceUsd. Add them back only when deciding whether
+    // the ACCOUNT is low; otherwise two concurrent healthy runs could make each other's temporary holds look
+    // like settled spend. Admission continues to use the raw cache and therefore cannot oversubscribe funds.
+    const reservations = new Map();
     const emitFn = typeof opts.emit === 'function' ? opts.emit : null;
     // number or getter — index.js passes a getter so a live per-run cap change is picked up without a restart
     function lowThreshold() {
@@ -112,14 +116,14 @@
       return n > 0 ? n : 0;   // 0 (or unset/garbage) disables the warning entirely
     }
 
-    // The ONLY writer of cache.balanceUsd. Every caller goes through here so the crossing check cannot be
-    // bypassed. `null` means "unknown" (fail-closed) and must never be treated as a low balance — that would
-    // fire a scary warning every time a background POST invalidates the cache.
-    function setBalance(v) {
-      const b = (v == null) ? null : num(v);
-      cache.balanceUsd = b;
-      cache.at = clock.now();
-      if (b == null) return;                      // unknown ≠ low
+    // Warning evaluation is separate from cache mutation because a managed debit is a RESERVATION, not spend.
+    // An uncapped run reserves the whole wallet, temporarily taking spendable balance to $0; treating that hold
+    // as exhaustion produced a false "$0 left" warning on every input. Settlement below calls this explicitly,
+    // while refresh/refund paths evaluate it through setBalance as before.
+    function evaluateWarning(available) {
+      if (available == null) return;              // unknown ≠ low
+      let b = available;
+      for (const held of reservations.values()) b += held;
       const t = lowThreshold();
       if (!emitFn || !(t > 0)) return;
 
@@ -136,14 +140,24 @@
       if (b > t * REARM) { warned.low = false; warned.exhausted = false; }   // topped up — arm for next time
     }
 
+    // The ONLY writer of cache.balanceUsd. Every caller goes through here so authority ordering and warning
+    // classification cannot drift apart. `warn === false` is reserved for temporary billing holds.
+    function setBalance(v, warn) {
+      const b = (typeof v === 'number' && isFinite(v)) ? v : null;
+      cache.balanceUsd = b;
+      cache.at = clock.now();
+      if (warn !== false) evaluateWarning(b);
+    }
+
     // A background debit/credit POST FAILED, so the optimistic cache no longer reflects a state we can trust
     // (the debit may or may not have landed on the backend). Rather than let the cache DRIFT — and admit later
     // runs against a fictional balance — INVALIDATE it (null). The next admission then fail-closes cleanly
     // (payment.balance() throws -> billing returns managed_credit_unavailable) and refresh() re-reads the
     // authoritative backend balance right before that admission, self-healing the drift. Loud on the way out.
-    function onPostFailure(stage, e) {
-      setBalance(null);          // fail-closed until the next authoritative refresh reconciles ('unknown', never 'low')
-      try { console.warn('[credits] ' + stage + ' POST failed (status ' + ((e && e.status) || '?') + '); invalidating cached balance -> next managed run fail-closes until refresh reconciles'); } catch (_) {}
+    function onPostFailure(stage, e, seq) {
+      const current = seq == null || seq === authoritySeq;
+      if (current) setBalance(null);   // fail-closed until the next authoritative refresh reconciles
+      try { console.warn('[credits] ' + stage + ' POST failed (status ' + ((e && e.status) || '?') + '); ' + (current ? 'invalidating cached balance -> next managed run fail-closes until refresh reconciles' : 'newer balance authority already won; leaving it intact')); } catch (_) {}
       onError(stage, e);
     }
 
@@ -152,27 +166,60 @@
       if (apiKey) h['Authorization'] = 'Bearer ' + apiKey;
       return h;
     }
-    function acct(id) { return str(id) || accountId; }
+    // The bearer and account are one identity established when this adapter is built. Callers may not redirect
+    // a linked token's balance/debit/history to an arbitrary or stale account id; env setups already build their
+    // adapter with the env account, while linked setups build it with the confirmed account from credits.json.
+    function acct() { return accountId; }
+
+    const requestTimeoutMs = (typeof opts.requestTimeoutMs === 'number' && isFinite(opts.requestTimeoutMs) && opts.requestTimeoutMs > 0)
+      ? Math.floor(opts.requestTimeoutMs) : 8000;
+    async function boundedJson(target, init, parseErrorBody) {
+      const ctl = typeof AbortController === 'function' ? new AbortController() : null;
+      let timer = null;
+      const request = Object.assign({}, init || {}, ctl ? { signal: ctl.signal } : {});
+      if (ctl) timer = setTimeout(() => ctl.abort(), requestTimeoutMs);
+      try {
+        const response = await doFetch(target, request);
+        // Fetch resolves at headers, not at the end of the response body. The timeout owns both phases so a
+        // half-responsive credits service cannot strand admission/status/history on an endless JSON body.
+        let body = {};
+        if (response && typeof response.json === 'function' && (response.ok || parseErrorBody)) {
+          try { body = await response.json(); }
+          catch (error) {
+            if (error && error.name === 'AbortError') throw error;
+            body = {};
+          }
+        }
+        return { response, body };
+      }
+      finally { if (timer) clearTimeout(timer); }
+    }
 
     async function getJson(pathAndQuery) {
       if (!doFetch) throw new Error('no fetch');
-      const r = await doFetch(url + pathAndQuery, { method: 'GET', headers: headers() });
+      const result = await boundedJson(url + pathAndQuery, { method: 'GET', headers: headers() }, false);
+      const r = result.response;
       if (!r || !r.ok) { const e = new Error('credits GET ' + pathAndQuery + ' failed'); e.status = r && r.status; throw e; }
-      return r.json();
+      return result.body;
     }
     async function postJson(pathName, payload) {
       if (!doFetch) throw new Error('no fetch');
-      const r = await doFetch(url + pathName, { method: 'POST', headers: headers(), body: JSON.stringify(payload || {}) });
-      const body = (r && typeof r.json === 'function') ? await r.json().catch(() => ({})) : {};
+      const result = await boundedJson(url + pathName, { method: 'POST', headers: headers(), body: JSON.stringify(payload || {}) }, true);
+      const r = result.response;
+      const body = result.body;
       if (!r || !r.ok) { const e = new Error('credits POST ' + pathName + ' failed'); e.status = r && r.status; e.body = body; throw e; }
       return body || {};
     }
 
     // pull the authoritative balance and reconcile the cache. Awaited by the host at boot and right before
     // a managed run's admission, so the sync balance() below is fresh. Never throws to the caller.
-    async function refresh(id) {
+    // Every balance-affecting network request gets one ticket. A delayed old GET/POST may finish, but it cannot
+    // overwrite a newer top-up refresh, debit, credit, or auth verdict with yesterday's zero/failure.
+    let authoritySeq = 0;
+    async function refresh() {
+      const seq = ++authoritySeq;
       try {
-        const j = await getJson('/v1/balance?account=' + encodeURIComponent(acct(id)));
+        const j = await getJson('/v1/balance?account=' + encodeURIComponent(acct()));
         const rawBalance = j && (j.balanceUsd != null ? j.balanceUsd : j.balance);
         // The cloud contract says NUMBER. Missing/NaN/string data is "unavailable", never zero: num(undefined)
         // used to turn a malformed 200 into $0 and the onboarding screen then told a paid customer to buy more.
@@ -184,20 +231,26 @@
         const b = rawBalance;
         // Plan state is whatever the backend just said, INCLUDING null — a cancelled subscription must be
         // able to clear the tier line, not leave the last-known plan on screen forever.
-        cache.subscription = (j && typeof j.subscription === 'object') ? j.subscription : null;
-        if (j && j.manageUrl) cache.manageUrl = str(j.manageUrl);
-        cache.authStatus = 'valid';
-        cache.lastErrorStatus = 0;
-        setBalance(b);
+        // Requests can overlap (creator poll, STORE refresh, WAKE). An older `$0` response must never arrive
+        // after a newer funded response and overwrite it. Only the newest-started refresh may mutate truth.
+        if (seq === authoritySeq) {
+          cache.subscription = (j && typeof j.subscription === 'object') ? j.subscription : null;
+          if (j && j.manageUrl) cache.manageUrl = str(j.manageUrl);
+          cache.authStatus = 'valid';
+          cache.lastErrorStatus = 0;
+          setBalance(b);
+        }
         return b;
       } catch (e) {
         // Never keep a stale dollar amount after an authoritative refresh failed. This was the 0.10.8
         // escape: a station revoked on the account site kept its cached $0, so the app asserted both
         // "LINKED" and "no credits" while the real account held $22 and listed no linked stations.
-        setBalance(null);
         const status = Number(e && e.status) || 0;
-        cache.lastErrorStatus = status;
-        cache.authStatus = (status === 401 || status === 403) ? 'invalid' : 'unavailable';
+        if (seq === authoritySeq) {
+          setBalance(null);
+          cache.lastErrorStatus = status;
+          cache.authStatus = (status === 401 || status === 403) ? 'invalid' : 'unavailable';
+        }
         onError('refresh', e);
         return null;
       }
@@ -212,21 +265,43 @@
       },
       debit(id, usd, meta) {
         const amt = num(usd);
-        // The optimistic hold is what makes the warning TIMELY: it lands the moment the run reserves,
-        // not a round-trip later. The authoritative response below re-runs the same check with the
-        // real number — the latch means the user still only sees it once.
-        if (cache.balanceUsd != null) setBalance(Math.max(0, cache.balanceUsd - amt));
-        postJson('/v1/debit', { account: acct(id), usd: amt, meta: meta || {} })
-          .then(body => { if (body && body.balanceUsd != null) setBalance(num(body.balanceUsd)); })
-          .catch(e => onPostFailure('debit', e));
+        const seq = ++authoritySeq;
+        // The optimistic hold keeps synchronous admission safe while the debit POST is in flight.
+        // Warning evaluation deliberately waits for settlement: this number includes reserved funds.
+        // This is available balance after a temporary reservation, not settled account spend. In the default
+        // uncapped path `amt` is the whole wallet, so evaluating it would fabricate exhaustion every run.
+        if (cache.balanceUsd != null) setBalance(Math.max(0, cache.balanceUsd - amt), false);
+        postJson('/v1/debit', { account: acct(), usd: amt, meta: meta || {} })
+          .then(body => {
+            if (!body || body.balanceUsd == null) return;
+            if (typeof body.balanceUsd !== 'number' || !isFinite(body.balanceUsd)) {
+              const malformed = new Error('credits debit response contained a non-numeric balance');
+              malformed.code = 'credits_balance_invalid';
+              return onPostFailure('debit', malformed, seq);
+            }
+            if (seq === authoritySeq) setBalance(body.balanceUsd, false);
+          })
+          .catch(e => onPostFailure('debit', e, seq));
         return { ok: true };
       },
       credit(id, usd, meta) {
         const amt = num(usd);
-        if (cache.balanceUsd != null) setBalance(cache.balanceUsd + amt);   // optimistic refund
-        postJson('/v1/credit', { account: acct(id), usd: amt, meta: meta || {} })
-          .then(body => { if (body && body.balanceUsd != null) setBalance(num(body.balanceUsd)); })
-          .catch(e => onPostFailure('credit', e));
+        const seq = ++authoritySeq;
+        // The owning reservation remains in reservations until billing.finishRun returns. Suppress this
+        // intermediate mutation; finishRun evaluates after removing that hold, and the POST response below
+        // evaluates the authoritative balance as well.
+        if (cache.balanceUsd != null) setBalance(cache.balanceUsd + amt, false);   // optimistic refund
+        postJson('/v1/credit', { account: acct(), usd: amt, meta: meta || {} })
+          .then(body => {
+            if (!body || body.balanceUsd == null) return;
+            if (typeof body.balanceUsd !== 'number' || !isFinite(body.balanceUsd)) {
+              const malformed = new Error('credits credit response contained a non-numeric balance');
+              malformed.code = 'credits_balance_invalid';
+              return onPostFailure('credit', malformed, seq);
+            }
+            if (seq === authoritySeq) setBalance(body.balanceUsd);
+          })
+          .catch(e => onPostFailure('credit', e, seq));
         return { ok: true };
       }
     };
@@ -239,13 +314,28 @@
       o = o || {};
       const capUsd = num(o.capUsd);
       if (!(capUsd > 0)) return billing.beginRun({ mode: 'byok', runId: str(o.runId), agentId: str(o.agentId) });
-      return billing.beginRun({ mode: 'managed', accountId: acct(o.accountId), runId: str(o.runId), agentId: str(o.agentId), capUsd });
+      const out = billing.beginRun({ mode: 'managed', accountId: acct(), runId: str(o.runId), agentId: str(o.agentId), capUsd });
+      const status = out && out.ok && out.managed ? billing.status(str(o.runId)) : null;
+      if (status && !status.settled) reservations.set(str(o.runId), num(out.reservedUsd));
+      return out;
     }
-    function finishRun(o) { return billing.finishRun(o || {}); }
+    function finishRun(o) {
+      o = o || {};
+      const runId = str(o.runId);
+      const out = billing.finishRun(o);
+      // Refunds synchronously update the cache before billing returns. Remove this run's hold, then evaluate
+      // the settled account balance (raw availability + any OTHER live reservations). A run that consumes its
+      // entire reservation has no refund call, so this seam is also what preserves real exhaustion warnings.
+      if (out && out.ok && out.mode === 'managed' && out.settled) {
+        reservations.delete(runId);
+        evaluateWarning(cache.balanceUsd);
+      }
+      return out;
+    }
 
     async function history(id, limit) {
       try {
-        const j = await getJson('/v1/history?account=' + encodeURIComponent(acct(id)) + '&limit=' + (Number(limit) > 0 ? Math.floor(Number(limit)) : 20));
+        const j = await getJson('/v1/history?account=' + encodeURIComponent(acct()) + '&limit=' + (Number(limit) > 0 ? Math.floor(Number(limit)) : 20));
         return { entries: Array.isArray(j && j.entries) ? j.entries : [] };
       } catch (e) { onError('history', e); return { entries: [], error: 'unreachable' }; }
     }

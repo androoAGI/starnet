@@ -24,7 +24,9 @@
         keychain account "credits:device", strips `deviceToken` from the file, and injects it back at every
         sidecar spawn as STARNET_CREDITS_TOKEN. So `deviceToken` in the file is TRANSIENT on desktop —
         present between the link and the adoption moments later, absent afterwards.
-        Precedence in loadSavedSync: file token (fresh link, pre-adoption) -> injected env token (adopted).
+        Precedence in loadSavedSync: file token (fresh link, pre-adoption) -> this process's freshly linked
+        session token -> injected env token (adopted at launch). The session token MUST beat envToken after a
+        relink: envToken is frozen at process launch and can still be the revoked account's old keychain token.
         A bare/dev sidecar has no keychain and no injector, so the file keeps the token exactly as before —
         this is additive and never breaks a non-desktop deploy.
 
@@ -60,6 +62,8 @@
     const DIR = deps.dir;
     const now = deps.now || (() => 0);   // host (index.js) injects the wall clock; default is inert (determinism law)
     const file = (P && DIR) ? P.join(DIR, 'credits.json') : '';
+    const requestTimeoutMs = (typeof deps.requestTimeoutMs === 'number' && isFinite(deps.requestTimeoutMs) && deps.requestTimeoutMs > 0)
+      ? Math.floor(deps.requestTimeoutMs) : 8000;
 
     // code -> { pollSecret, at }. The pollSecret is the secret half of the pairing; it never leaves the sidecar.
     const pending = new Map();
@@ -68,10 +72,24 @@
 
     async function postJson(pathName, payload) {
       if (!doFetch) throw new Error('no fetch');
-      const r = await doFetch(cloudUrl + pathName, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload || {}) });
-      const body = (r && typeof r.json === 'function') ? await r.json().catch(() => ({})) : {};
-      if (!r || !r.ok) { const e = new Error('link POST ' + pathName + ' failed'); e.status = r && r.status; e.body = body; throw e; }
-      return body || {};
+      const ctl = typeof AbortController === 'function' ? new AbortController() : null;
+      let timer = null;
+      if (ctl) timer = setTimeout(() => ctl.abort(), requestTimeoutMs);
+      let r;
+      try {
+        r = await doFetch(cloudUrl + pathName, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload || {}),
+          signal: ctl ? ctl.signal : undefined
+        });
+        // Fetch resolves when headers arrive. Keep the same bound armed through body consumption or a
+        // peer can send headers and strand link/start or link/poll forever on a stalled JSON body.
+        const body = (r && typeof r.json === 'function') ? await r.json().catch(error => {
+          if (error && error.name === 'AbortError') throw error;
+          return {};
+        }) : {};
+        if (!r || !r.ok) { const e = new Error('link POST ' + pathName + ' failed'); e.status = r && r.status; e.body = body; throw e; }
+        return body || {};
+      } finally { if (timer) clearTimeout(timer); }
     }
 
     // Ask the cloud for a fresh pairing code. Stashes the pollSecret in memory; returns only the public bits.
@@ -95,8 +113,16 @@
       if (!p) return { status: 'unknown' };
       const j = await postJson('/v1/link/poll', { code, pollSecret: p.pollSecret });
       const status = str(j.status) || 'pending';
-      if (status === 'confirmed' && j.deviceToken) {
-        const rec = { url: cloudUrl, deviceToken: str(j.deviceToken), accountId: str(j.accountId), linkedAt: now() };
+      if (status === 'confirmed') {
+        const deviceToken = str(j.deviceToken).trim();
+        const accountId = str(j.accountId).trim();
+        // A confirmation is an identity handoff, not merely a status word. Persisting a token without the
+        // account it belongs to would let later balance calls fall back to a different/default account.
+        if (!deviceToken || !accountId) {
+          pending.delete(code);
+          return { status: 'invalid', error: 'invalid_confirmation' };
+        }
+        const rec = { url: cloudUrl, deviceToken, accountId, linkedAt: now() };
         await persist(rec);
         unlinked = false;   // a fresh link overrides an earlier unlink in this process
         pending.delete(code);
@@ -144,7 +170,10 @@
         const j = JSON.parse(raw);
         const fileToken = str(j && j.deviceToken).trim();
         if (fileToken) sessionToken = fileToken;   // pre-adoption read: remember it before the shell strips the file
-        const token = fileToken || envToken || sessionToken;
+        // A newly linked token belongs to the account in THIS file. envToken was captured when the sidecar
+        // launched and may still be the old/revoked keychain token during a same-process relink. Once we have
+        // proved a fresh file token, remember it and keep it authoritative after the shell strips the file.
+        const token = fileToken || sessionToken || envToken;
         if (j && j.url && token) {
           return { url: trimSlash(j.url), deviceToken: token, accountId: str(j.accountId), linkedAt: j.linkedAt || 0 };
         }

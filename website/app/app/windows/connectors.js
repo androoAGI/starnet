@@ -1312,13 +1312,14 @@
       '</div>';
     }
     async function kyRefresh() {
-      try {
-        const j = await (await fetch('/api/servicekeys')).json();
-        const list = (j && j.keys) || [];
-        const n = body.querySelector('#ky-mine-n'); if (n) n.textContent = String(list.length);
-        kyListEl.innerHTML = list.length ? list.map(kyRow).join('')
-          : '<div class="mc-detail">No API keys connected yet — choose a platform in CATALOG, or add a custom key below.</div>';
-      } catch (_) { kyListEl.innerHTML = '<div class="mc-detail">sidecar offline — start it to manage keys.</div>'; }
+      // same law as readJSON's banner above: an errored read must never render as a CONFIRMED
+      // empty key list, and a refusal (403 plain-text) is not an offline station.
+      const res = await readJSON('/api/servicekeys');
+      if (!res.ok) { kyListEl.innerHTML = readFailLine(res, 'sidecar offline — start it to manage keys.'); return; }
+      const list = (res.json && res.json.keys) || [];
+      const n = body.querySelector('#ky-mine-n'); if (n) n.textContent = String(list.length);
+      kyListEl.innerHTML = list.length ? list.map(kyRow).join('')
+        : '<div class="mc-detail">No API keys connected yet — choose a platform in CATALOG, or add a custom key below.</div>';
     }
     body.querySelector('#ky-add').addEventListener('click', async () => {
       const name = (kyNameEl.value || '').trim(), key = (kyKeyEl.value || '').trim(), docsUrl = (kyDocsEl.value || '').trim();
@@ -1326,8 +1327,12 @@
       if (!name) { kyMsgEl.textContent = 'give the platform a name first'; sfx('bad'); kyNameEl.focus(); return; }
       if (!key) { kyMsgEl.textContent = 'paste the API key'; sfx('bad'); kyKeyEl.focus(); return; }
       try {
-        const j = await (await postJSON('/api/servicekeys', { name, key, docsUrl })).json().catch(() => ({}));
-        if (j.error && !j.key) { kyMsgEl.textContent = '✕ ' + j.error; sfx('bad'); return; }
+        // a non-JSON refusal parses to {} — without the r.ok check that {} reads as "saved".
+        // A body that carries `key` is a structured verdict (saved:false = live-this-session,
+        // handled below) even on a 500, so only a key-less answer is a refusal.
+        const r = await postJSON('/api/servicekeys', { name, key, docsUrl });
+        const j = await r.json().catch(() => ({}));
+        if (!j.key && (!r.ok || j.error)) { kyMsgEl.textContent = '✕ ' + (j.error || ('the station refused (HTTP ' + r.status + ') — the key was NOT saved')); sfx('bad'); return; }
         // saved:false still means LIVE this session — surface the persistence truth instead of a flat "saved".
         kyMsgEl.classList.toggle('ok', j.saved !== false);
         kyMsgEl.textContent = j.saved === false
@@ -1344,10 +1349,11 @@
       const rowEl = ev.target.closest('.mc-row'); const id = rowEl && rowEl.dataset.id; if (!id) return;
       if (btn.dataset.kyAct === 'remove') {
         try {
-          const j = await (await postJSON('/api/servicekeys/remove', { id })).json().catch(() => ({}));
-          if (j.error && !j.ok) { kyMsgEl.classList.remove('ok'); kyMsgEl.textContent = '✕ ' + j.error; sfx('bad'); }
+          const r = await postJSON('/api/servicekeys/remove', { id });
+          const j = await r.json().catch(() => ({}));
+          if (!r.ok || (j.error && !j.ok)) { kyMsgEl.classList.remove('ok'); kyMsgEl.textContent = '✕ ' + (j.error || ('the station refused (HTTP ' + r.status + ') — the key was NOT removed')); sfx('bad'); }
           else { sfx('tick'); notify('Key removed'); }
-        } catch (_) { sfx('bad'); }
+        } catch (_) { kyMsgEl.classList.remove('ok'); kyMsgEl.textContent = '✕ could not reach the sidecar — the key was NOT removed'; sfx('bad'); }
         ccRefresh(); kyRefresh();
       }
     });
@@ -1357,10 +1363,18 @@
       const isAutonomy = cb.dataset.kyAct === 'autonomy';
       cb.disabled = true;
       try {
-        const j = isAutonomy
-          ? await (await postJSON('/api/servicekeys/autonomy', { id, autonomous: cb.checked })).json().catch(() => ({}))
-          : await (await postJSON('/api/servicekeys/toggle', { id, enabled: cb.checked })).json().catch(() => ({}));
-        if (j.error && !j.ok) { cb.checked = !cb.checked; sfx('bad'); notify('✕ ' + j.error); }
+        // the unattended-grant switch: a ticked box the station never recorded is a false grant
+        // readout, so any non-ok answer reverts the checkbox to the state the harness can prove.
+        const r = isAutonomy
+          ? await postJSON('/api/servicekeys/autonomy', { id, autonomous: cb.checked })
+          : await postJSON('/api/servicekeys/toggle', { id, enabled: cb.checked });
+        const j = await r.json().catch(() => ({}));
+        if (j.key && j.saved === false) {
+          // structured 500: the switch IS live this session (list + env already updated) — keep the
+          // box truthful to the live state and surface the persistence gap instead of reverting.
+          sfx('bad'); notify('⚠ the switch is live for this session, but saving to disk failed — it may not survive a restart', 'warn');
+        }
+        else if (!r.ok || (j.error && !j.ok)) { cb.checked = !cb.checked; sfx('bad'); notify('✕ ' + (j.error || ('the station refused (HTTP ' + r.status + ') — nothing changed'))); }
         else sfx('tick');
       } catch (_) { cb.checked = !cb.checked; sfx('bad'); }
       cb.disabled = false;

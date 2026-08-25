@@ -310,6 +310,115 @@ function boot(port, workspaces, attemptsLeft, extraEnv) {
       }
     }
 
+    // ---- managed credits: WRONG AUTO-LINK -> SWITCH ACCOUNT -> FUNDED WAKE -----------------------
+    // Real host, sockets, filesystem, pairing, balance authority, billing admission, and provider stream.
+    // This is Brandon's exact shape: launch-time keychain/env still carries the old $0 account, the paid
+    // account owns $22, and the user switches accounts from genesis. The newly confirmed identity must own
+    // every balance/debit/inference call and the run must reach the model instead of being denied at WAKE.
+    {
+      const calls = [];
+      const readReq = rq => new Promise(resolve => { let s = ''; rq.on('data', c => { s += c; }); rq.on('end', () => resolve(s)); });
+      const cloud = http.createServer(async (rq, rs) => {
+        const raw = await readReq(rq);
+        let body = {}; try { body = raw ? JSON.parse(raw) : {}; } catch (_) {}
+        const auth = String(rq.headers.authorization || '');
+        const u = new URL(String(rq.url || '/'), 'http://cloud.local');
+        calls.push({ path: u.pathname, account: u.searchParams.get('account') || body.account || '', auth });
+        const json = (code, value) => { rs.writeHead(code, { 'Content-Type': 'application/json' }); rs.end(JSON.stringify(value)); };
+        if (u.pathname === '/v1/link/start') return json(200, {
+          code: 'STAR-PAID', pollSecret: 'poll-paid', verifyUrl: 'https://account.example/link', expiresAt: Date.now() + 60000
+        });
+        if (u.pathname === '/v1/link/poll') return json(200, {
+          status: 'confirmed', deviceToken: 'snd_paid_22', accountId: 'acct_paid_22'
+        });
+        if (u.pathname === '/v1/models') return json(200, { data: [{ id: 'test/model', name: 'Test Model' }] });
+        if (u.pathname === '/v1/balance') {
+          if (auth === 'Bearer snd_old_zero' && u.searchParams.get('account') === 'acct_wrong_zero') return json(200, { balanceUsd: 0 });
+          if (auth === 'Bearer snd_paid_22' && u.searchParams.get('account') === 'acct_paid_22') return json(200, { balanceUsd: 22 });
+          return json(401, { error: 'wrong identity' });
+        }
+        if (u.pathname === '/v1/history') return json(200, { entries: [] });
+        if (u.pathname === '/v1/debit') {
+          if (auth !== 'Bearer snd_paid_22' || body.account !== 'acct_paid_22') return json(401, { error: 'wrong identity' });
+          return json(200, { ok: true, balanceUsd: 12 });
+        }
+        if (u.pathname === '/v1/credit') {
+          if (auth !== 'Bearer snd_paid_22' || body.account !== 'acct_paid_22') return json(401, { error: 'wrong identity' });
+          return json(200, { ok: true, balanceUsd: 22 });
+        }
+        if (u.pathname === '/v1/chat/completions') {
+          if (auth !== 'Bearer snd_paid_22') return json(401, { error: 'wrong identity' });
+          rs.writeHead(200, { 'Content-Type': 'text/event-stream' });
+          rs.write('data: ' + JSON.stringify({ choices: [{ delta: { content: 'OK' } }] }) + '\n\n');
+          rs.write('data: ' + JSON.stringify({ choices: [{ delta: {}, finish_reason: 'stop' }], usage: { prompt_tokens: 1, completion_tokens: 1 } }) + '\n\n');
+          rs.end('data: [DONE]\n\n');
+          return;
+        }
+        return json(404, {});
+      });
+      await new Promise(r => cloud.listen(0, HOST, r));
+      const cloudUrl = 'http://' + HOST + ':' + cloud.address().port;
+      const paidWs = fs.mkdtempSync(path.join(os.tmpdir(), 'sk-credits-paid-switch-'));
+      fs.mkdirSync(path.join(paidWs, '.secrets'), { recursive: true });
+      fs.writeFileSync(path.join(paidWs, '.secrets', 'credits.json'), JSON.stringify({
+        url: cloudUrl, accountId: 'acct_wrong_zero', linkedAt: now - 1000
+      }));
+      const pb = await boot(port + 121, paidWs, 20, {
+        STARNET_CLOUD_URL: cloudUrl,
+        STARNET_CREDITS_TOKEN: 'snd_old_zero',
+        STARNET_CREDITS_ACCOUNT: 'acct_env_stale',
+        STARNET_FULL_ACCESS: '1'
+      });
+      const PB = 'http://' + HOST + ':' + pb.port;
+      try {
+        const ptok = await bootToken(PB, PB);
+        const ph = { 'Content-Type': 'application/json', 'X-StarNet-Token': ptok, Origin: PB };
+        const request = async (method, p, value) => {
+          const rr = await fetch(PB + p, { method, headers: ph, body: value == null ? undefined : JSON.stringify(value) });
+          const text = await rr.text(); let parsed = null; try { parsed = JSON.parse(text); } catch (_) {}
+          return { status: rr.status, body: parsed, text };
+        };
+        const wrong = await request('GET', '/api/credits?history=0');
+        A.eq(wrong.body.balanceUsd, 0, 'precondition: launch-time linked account is authoritatively $0');
+        A.eq(wrong.body.accountId, 'acct_wrong_zero', 'precondition: $0 belongs to the wrong linked account, not the paid account');
+
+        const unlinked = await request('POST', '/api/credits/unlink', {});
+        A.eq(unlinked.body.unlinked, true, 'genesis switch-account action clears the old sidecar link');
+        const start = await request('POST', '/api/credits/link/start', { deviceName: 'StarNet Station' });
+        A.eq(start.body.code, 'STAR-PAID', 'switch account starts the ordinary one-code pairing flow');
+        const paired = await request('POST', '/api/credits/link/poll', { code: start.body.code });
+        A.eq(paired.body.linked, true, 'newly confirmed paid account is accepted as linked');
+        A.eq(paired.body.accountId, 'acct_paid_22', 'active adapter identity is the account that was just confirmed');
+        A.eq(paired.body.balanceUsd, 22, 'link confirmation carries the paid account authoritative $22 balance');
+
+        // Simulate desktop adoption: the shell moved the fresh bearer into Keychain and stripped the file.
+        // The already-running sidecar must keep using the fresh linked identity, never its stale launch env.
+        fs.writeFileSync(path.join(paidWs, '.secrets', 'credits.json'), JSON.stringify({
+          url: cloudUrl, accountId: 'acct_paid_22', linkedAt: now
+        }));
+        const funded = await request('GET', '/api/credits?history=0');
+        A.eq(funded.body.balanceUsd, 22, 'after token adoption the running station still reads $22, never the old $0');
+        A.eq(funded.body.accountId, 'acct_paid_22', 'after token adoption the paid account remains the active identity');
+
+        const run = await request('POST', '/api/run', {
+          provider: 'starnet', model: 'test/model', agentId: 'paid-wake', internal: true,
+          messages: [{ role: 'user', content: 'Reply with exactly: OK' }]
+        });
+        A.eq(run.status, 200, 'funded StarNet WAKE enters the real streaming run route');
+        A.ok(run.text.indexOf('agent.token') >= 0, 'funded WAKE reaches the managed model and streams its reply');
+        A.ok(run.text.indexOf('Out of managed credit') < 0, 'funded WAKE is never denied as out of credits');
+        const paidCalls = calls.filter(c => ['/v1/balance', '/v1/debit', '/v1/credit', '/v1/chat/completions'].includes(c.path) && c.account !== 'acct_wrong_zero');
+        A.ok(paidCalls.length >= 3 && paidCalls.every(c => c.auth === 'Bearer snd_paid_22'),
+          'balance, billing, and inference all use the newly linked paid bearer after the switch');
+      } finally {
+        try { pb.child.kill(); } catch (_) {}
+        try { if (cloud.closeAllConnections) cloud.closeAllConnections(); } catch (_) {}
+        await new Promise(r => { let done = false; const fin = () => { if (!done) { done = true; r(); } }; try { cloud.close(fin); } catch (_) { fin(); } setTimeout(fin, 1000); });
+        await sleep(150);
+        try { fs.rmSync(paidWs, { recursive: true, force: true }); } catch (_) {}
+      }
+    }
+
     // ---- provider registry/catalog routes: dynamic provider surface boots and remains token-gated ----
     const providersNoTok = await fetch(B + '/api/providers');
     A.eq(providersNoTok.status, 403, 'GET /api/providers WITHOUT a token -> 403');

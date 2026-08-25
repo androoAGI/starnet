@@ -279,7 +279,7 @@ const Harness = (() => {
   // Called again after a link/unlink so selecting STARNET does not wait for a page reload.
   async function refreshCreditsConfigured() {
     try {
-      const r = await fetch('/api/credits', { cache: 'no-store' });
+      const r = await fetch('/api/credits?history=0', { cache: 'no-store' });
       const j = (r && r.ok) ? await r.json() : null;
       _configuredByProvider.starnet = !!(j && j.configured);
     } catch (_) { _configuredByProvider.starnet = false; }

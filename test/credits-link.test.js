@@ -33,7 +33,11 @@ function fakeCloud(opts) {
         if (!state.confirmed) return json({ status: 'pending' });
         if (state.released) return json({ status: 'consumed' });
         state.released = true;
-        return json({ status: 'confirmed', deviceToken: 'snd_devtoken_abc', accountId: 'acct_42' });
+        return json({
+          status: 'confirmed',
+          deviceToken: Object.prototype.hasOwnProperty.call(opts, 'deviceToken') ? opts.deviceToken : 'snd_devtoken_abc',
+          accountId: Object.prototype.hasOwnProperty.call(opts, 'accountId') ? opts.accountId : 'acct_42'
+        });
       }
       return json({}, false);
     }
@@ -118,6 +122,46 @@ function fakeCloud(opts) {
     A.eq(cloud.calls.filter(c => c.url.indexOf('/v1/link/poll') >= 0).length, 0, 'no poll network call for an unknown code');
   }
 
+  // ---- INVALID CONFIRMATION: status alone is not identity. Never persist a bearer without its account. ----
+  {
+    const badDir = path.join(tmp, 'bad-confirm');
+    const cloud = fakeCloud({ code: 'STAR-BAD1', accountId: '' });
+    const link = makeCreditsLink({ cloudUrl: 'https://cloud.example', fetch: cloud.fetch, fsp, fs, pathMod: path, dir: badDir, now: () => 4500 });
+    await link.start('Station'); cloud.confirm();
+    const p = await link.poll('STAR-BAD1');
+    A.eq(p.status, 'invalid', 'a confirmation without an account id is rejected');
+    A.eq(p.error, 'invalid_confirmation', 'the malformed identity handoff is explicit');
+    A.eq(link.hasSaved(), false, 'a malformed confirmation never persists a spending credential');
+  }
+
+  // ---- LINK REQUEST TIMEOUT: a dead cloud cannot leave the creator waiting forever. ----
+  {
+    const hung = (url, init) => new Promise((resolve, reject) => {
+      if (init && init.signal) init.signal.addEventListener('abort', () => reject(Object.assign(new Error('aborted'), { name: 'AbortError' })), { once: true });
+    });
+    const link = makeCreditsLink({ cloudUrl: 'https://cloud.example', fetch: hung, fsp, fs, pathMod: path, dir: path.join(tmp, 'hung'), now: () => 4600, requestTimeoutMs: 5 });
+    let timedOut = false;
+    try { await link.start('Station'); } catch (e) { timedOut = e && e.name === 'AbortError'; }
+    A.eq(timedOut, true, 'a hung link-start request aborts within the configured bound');
+    A.eq(link.hasSaved(), false, 'a timed-out link request persists nothing');
+  }
+
+  // Fetch resolves at headers. A cloud that then stalls its JSON body is still a hung request and owes the
+  // same bound; clearing the timer at headers used to strand the creator indefinitely.
+  {
+    const stalledBody = (url, init) => Promise.resolve({
+      ok: true, status: 200,
+      json: () => new Promise((resolve, reject) => {
+        if (init && init.signal) init.signal.addEventListener('abort', () => reject(Object.assign(new Error('aborted'), { name: 'AbortError' })), { once: true });
+      })
+    });
+    const link = makeCreditsLink({ cloudUrl: 'https://cloud.example', fetch: stalledBody, fsp, fs, pathMod: path, dir: path.join(tmp, 'stalled-body'), now: () => 4700, requestTimeoutMs: 5 });
+    let timedOut = false;
+    try { await link.start('Station'); } catch (e) { timedOut = e && e.name === 'AbortError'; }
+    A.eq(timedOut, true, 'link-start also aborts when headers arrive but the JSON body stalls');
+    A.eq(link.hasSaved(), false, 'a body-timeout persists no partial link identity');
+  }
+
   // ---- KEYCHAIN ADOPTION: the desktop strips `deviceToken` from credits.json and injects it at spawn as
   //      STARNET_CREDITS_TOKEN. The station must stay linked across that move, and the non-secret fields
   //      (url/accountId/linkedAt) must survive it — they are NOT part of what gets adopted. ----
@@ -179,6 +223,12 @@ function fakeCloud(opts) {
     });
     A.eq(link.loadSavedSync().deviceToken, 'snd_fresh_from_link', 'the file token wins over a stale injected one');
     A.eq(link.tokenAtRest(), 'file', 'and it reports the token is still on disk (not yet adopted)');
+    // The shell now adopts the NEW token and strips it from the file. This running sidecar's envToken is still
+    // frozen to the OLD launch-time keychain value; the remembered fresh token must continue to win.
+    fs.writeFileSync(pFile, JSON.stringify({ url: 'https://cloud.example', accountId: 'acct_new', linkedAt: 9 }));
+    const afterAdopt = link.loadSavedSync();
+    A.eq(afterAdopt.deviceToken, 'snd_fresh_from_link', 'after relink adoption, the fresh session token beats the stale launch-time keychain token');
+    A.eq(afterAdopt.accountId, 'acct_new', 'the winning fresh token remains bound to the newly confirmed account');
   }
 
   // ---- UNLINK BEATS THE INJECTED TOKEN: process.env still holds the token after the keychain entry is

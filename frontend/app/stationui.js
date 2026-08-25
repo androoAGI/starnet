@@ -3865,7 +3865,8 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
      panels can never disagree about whether this station has credits. */
   let creditsProv = { state: 'absent', balanceUsd: null, tier: '' };
   function refreshCreditsProvider() {
-    return Harness.api.get('/api/credits').catch(() => ({ configured: false }))
+    const prior = creditsProv;
+    return Harness.api.get('/api/credits?history=0').catch(e => ({ configured: false, unavailable: !/http 404\b/.test(String((e && e.message) || e)) }))
       .then(j => {
         if (j && j.configured) {
           creditsProv = {
@@ -3873,9 +3874,13 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
             // not proof of a live link either. Keep the provider reachable for refresh/recovery while painting
             // the narrower "LINK SAVED" state. A definitive 401/403 arrives as configured:false below.
             state: j.linkStatus === 'unavailable' ? 'saved' : 'linked',
-            balanceUsd: (j.balanceUsd == null ? null : j.balanceUsd),
+            balanceUsd: (typeof j.balanceUsd === 'number' && isFinite(j.balanceUsd)) ? j.balanceUsd : null,
             tier: (j.subscription && j.subscription.tier) ? String(j.subscription.tier) : ''
           };
+          return creditsProv;
+        }
+        if (j && j.unavailable && (prior.state === 'linked' || prior.state === 'saved')) {
+          creditsProv = { state: 'saved', balanceUsd: null, tier: prior.tier || '' };
           return creditsProv;
         }
         return Harness.api.get('/api/credits/linkable').catch(() => ({ available: false }))
@@ -4737,8 +4742,12 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
   // STORE / MANAGED CREDITS — populate #credits-store from the real /api/credits payload. The endpoint 404s unless
   // a credits backend is configured, so an UNconfigured install renders NOTHING here (no dead STORE, no fake balance
   // — the honesty law). Balance + history are read from the adapter; PURCHASE opens the external buy page.
-  let _creditsLinkPoll = null;   // module-scoped so a re-render / panel re-open always cancels a stale poll loop
-  function stopLinkPoll() { if (_creditsLinkPoll) { clearInterval(_creditsLinkPoll); _creditsLinkPoll = null; } }
+  let _creditsLinkPoll = null, _creditsLinkPollBusy = false, _creditsLinkGeneration = 0;
+  function stopLinkPoll() {
+    _creditsLinkGeneration++;
+    _creditsLinkPollBusy = false;
+    if (_creditsLinkPoll) { clearInterval(_creditsLinkPoll); _creditsLinkPoll = null; }
+  }
 
   function wireCredits(body) {
     const host = body.querySelector('#credits-store');
@@ -4860,7 +4869,7 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
         ? kcInvoke('harness_clear_credits_token').then(() => true).catch(() => false)
         : Promise.resolve(true);
       forgetKeychain
-        .then(() => Harness.api.post('/api/credits/unlink', {}))
+        .then(ok => { if (!ok && kcInvoke) throw new Error('keychain unlink failed'); return Harness.api.post('/api/credits/unlink', {}); })
         // Symmetric to the link path: a station that just gave up its credential must stop reporting
         // that it can run on credits, or STARNET stays selectable and every run fails at admission.
         .then(() => (H() && H().refreshCreditsConfigured) ? H().refreshCreditsConfigured() : null)
@@ -4908,19 +4917,22 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
 
   // Ask the sidecar for a pairing code, then show it + poll until the user confirms on the site.
   function startCreditsLink(body, host) {
+    stopLinkPoll();
+    const generation = _creditsLinkGeneration;
     const state = host.querySelector('#credits-link-state');
     const btn = host.querySelector('#credits-link');
     if (btn) btn.disabled = true;
     if (state) state.innerHTML = '<div class="set-row dim">Requesting a link code…</div>';
     Harness.api.post('/api/credits/link/start', { deviceName: 'StarNet Station' })
-      .then(r => { if (!r.ok) throw new Error('start failed'); return r.j; })
-      .then(j => { if (!j || !j.code) throw new Error('no code'); showCreditsLinkCode(body, host, j); })
-      .catch(() => { renderCreditsLinkCard(body, host, 'Could not reach the link service — try again.'); });
+      .then(r => { if (generation !== _creditsLinkGeneration) return null; if (!r.ok) throw new Error('start failed'); return r.j; })
+      .then(j => { if (generation !== _creditsLinkGeneration) return; if (!j || !j.code) throw new Error('no code'); showCreditsLinkCode(body, host, j); })
+      .catch(() => { if (generation === _creditsLinkGeneration) renderCreditsLinkCard(body, host, 'Could not reach the link service — try again.'); });
   }
 
   // Show the STAR-XXXX code prominently (VT323/CRT), open the verify page, and poll every 2s until linked/expired.
   function showCreditsLinkCode(body, host, j) {
     stopLinkPoll();
+    const generation = _creditsLinkGeneration;
     const expiresAt = Number(j.expiresAt) || 0;
     host.innerHTML =
       '<h4 class="ms-h">LINK STATION <span class="dim">— confirm in your browser</span></h4>' +
@@ -4933,10 +4945,13 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
     openExternal(j.verifyUrl);   // auto-open once so the user lands straight on the confirm page
     const statusEl = host.querySelector('#credits-link-status');
     const tick = () => {
+      if (generation !== _creditsLinkGeneration || _creditsLinkPollBusy) return;
       if (expiresAt && Date.now() > expiresAt) { stopLinkPoll(); renderCreditsLinkCard(body, host, 'That code expired — start again.'); return; }
+      _creditsLinkPollBusy = true;
       Harness.api.post('/api/credits/link/poll', { code: j.code })
         .then(r => (r && r.ok) ? r.j : {})
         .then(p => {
+          if (generation !== _creditsLinkGeneration) return;
           if (p && p.linked) {
             stopLinkPoll(); sfx('sale');
             // Hand the freshly minted device token to the OS keychain immediately. The token is a
@@ -4952,11 +4967,12 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
               .then(() => { refreshCreditsProvider().catch(() => {}); wireCredits(body); });
             return;
           }
-          if (p && (p.status === 'expired' || p.status === 'consumed' || p.status === 'unknown')) {
+          if (p && (p.status === 'expired' || p.status === 'consumed' || p.status === 'unknown' || p.status === 'invalid')) {
             stopLinkPoll(); renderCreditsLinkCard(body, host, 'That code is no longer valid — start again.');
           } else if (statusEl) { statusEl.textContent = 'Waiting for confirmation…'; }
         })
-        .catch(() => {});
+        .catch(() => {})
+        .finally(() => { if (generation === _creditsLinkGeneration) _creditsLinkPollBusy = false; });
     };
     _creditsLinkPoll = setInterval(tick, 2000);
   }

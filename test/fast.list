@@ -132,6 +132,8 @@ test/desktop-installed-cdp-forwarding.test.js
 test/cloudsavecore.test.js
 test/cloudsave-refusal.test.js
 test/cloudsave-unknown.test.js
+test/freshstart.test.js
+test/desktop-fresh-start-contract.test.js
 test/cloudsave-unload.test.js
 test/fullscreen.test.js
 test/titlebar.test.js
@@ -541,6 +543,7 @@ test/stationbake.materials.test.js
 test/stationbake.seam.test.js
 test/stationbake.hull.test.js
 test/canvas-loss-recovery.test.js
+test/stage-context-loss.test.js
 test/conveyor.test.js
 test/pipeline.test.js
 test/pipeline.join-loop.test.js
@@ -652,6 +655,7 @@ test/release-ritual.test.js
 test/release-installer-selection.test.mjs
 test/opensource-readiness.test.js
 test/source-release-mirror.test.js
+test/release-train-chrome-warmup.test.js
 test/release-train-provenance.test.js
 test/desktop-build-macos-notarization.test.js
 test/desktop-artifact-open.test.js
@@ -682,4 +686,5 @@ test/sandbox-no-silent-fallback.test.js
 test/execution-profiles-ui.test.js
 test/failopen.test.js
 test/failopen-ratchet.test.js
+test/frontend-fetch-truth-ratchet.test.js
 test/loop-verdict.test.js

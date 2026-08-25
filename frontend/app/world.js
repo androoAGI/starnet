@@ -733,6 +733,96 @@ const World = (() => {
     futileRecoveries = bakeProbe ? 0 : futileRecoveries + 1;
   }
 
+  /* ---------- STAGE CONTEXT LOSS — the OTHER way the station goes black ----------
+     User report, 2026-08-24: the whole viewport black — no agents, no props — HUD alive,
+     every 10-20 minutes, permanent until an app restart. The bake watchdog above cannot see
+     that mode: it probes the OFFSCREEN bake plate, and in this failure the offscreen caches
+     are fine — it is the VISIBLE stage's own 2D context that died. A dead 2D context no-ops
+     every draw call silently, so the loop keeps "painting" a canvas that displays nothing.
+     preventDefault() on 'contextlost' asks the browser to restore it, but when
+     'contextrestored' never arrives (repeated GPU-process resets do this) the page holds the
+     only reference to a context that will never work again. The ONLY recovery then is a new
+     canvas element with a new context — invalidating caches cannot help.
+
+     Detection is the same philosophy as the bake sentinel: the frame's last act paints ONE
+     opaque black pixel at (0,0) (invisible — that corner is vignetted space). A live context
+     leaves alpha 255 there; a dead one leaves the transparent void of its zeroed backing
+     store. `isContextLost()` is consulted too when the runtime offers it, but the pixel is
+     the proof that needs no cooperation. */
+  let stageProbeArmed = false;   // set by the first opaque heartbeat read — proof this stage CAN paint (a fresh canvas is transparent and innocent)
+  let stageProbeOff = false;     // getImageData refused for SECURITY (tainted) — disable, never spam. Other throws are treated as loss, not taint.
+  let stageDeadSince = 0;        // first probe that found the heartbeat gone (0 = healthy); survives a rebuild until a healthy read proves the cure
+  let lastStageProbeAt = 0;
+  let stageRebuilds = 0;         // total stage rebuilds this session (telemetry for _dbgStageState)
+  let stageFutile = 0;           // rebuilds not yet proven by a healthy read — only THIS rate-limits retries (same law as futileRecoveries)
+  let lastStageRebuildAt = 0;
+  const STAGE_GRACE_MS = 3000;   // give 'contextrestored' its chance first, and absorb innocent one-probe blanks (a resize clears the bitmap mid-frame)
+
+  // the frame's last act: one opaque pixel a dead context cannot fake (see block comment above)
+  function paintStageHeartbeat() {
+    if (!ctx) return;
+    try {
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over';
+      ctx.fillStyle = '#000';
+      ctx.fillRect(0, 0, 1, 1);
+    } catch (_) {}
+  }
+
+  function stageWentBlank() {
+    if (stageProbeOff || !cv || !ctx || cv.width < 2 || cv.height < 2) return false;
+    try {
+      const a = ctx.getImageData(0, 0, 1, 1).data[3];
+      if (a > 0) { stageProbeArmed = true; return false; }
+      return stageProbeArmed;   // transparent before the first proven paint is a fresh canvas, not a loss
+    } catch (e) {
+      if (e && e.name === 'SecurityError') { stageProbeOff = true; return false; }   // tainted: unknowable forever, stand down
+      return stageProbeArmed;   // a lost context may THROW on readback — an unreadable stage is no healthier than a blank one
+    }
+  }
+
+  function watchStageLoss(now) {
+    if (now - lastStageProbeAt < PROBE_MS) return;
+    lastStageProbeAt = now;
+    let lost = false;
+    try { lost = !!(ctx && typeof ctx.isContextLost === 'function' && ctx.isContextLost()); } catch (_) {}
+    if (!lost && !stageWentBlank()) { stageDeadSince = 0; stageFutile = 0; return; }
+    if (!stageDeadSince) { stageDeadSince = now; return; }
+    if (now - stageDeadSince < STAGE_GRACE_MS) return;   // the restore window (and the innocent-blank filter)
+    /* Same backoff law the bake watchdog earned live: never rate-limit the remedy on a timer,
+       rate-limit it on whether it WORKED. A rebuild is proven by the next healthy heartbeat
+       read (which clears stageFutile above); until then further attempts wait out the cooldown. */
+    if (stageFutile > 0 && now - lastStageRebuildAt < RECOVER_COOLDOWN_MS) return;
+    lastStageRebuildAt = now;
+    stageFutile++;   // provisional — the first healthy probe after the rebuild clears it
+    rebuildStage('context dead ' + Math.round((now - stageDeadSince) / 1000) + 's with no restore');
+    // the REST of this frame draws onto the fresh context — detect and heal share one frame, no black flash
+  }
+
+  /* The dead canvas is unsalvageable; its replacement must be indistinguishable: same attributes
+     (id carries the CSS), same bitmap size, same input wiring (the old node's listeners died with
+     it), same ResizeObserver watch. Everything else in the file reaches the stage through the
+     closure `cv`/`ctx`, so swapping those two references completes the transplant. */
+  function rebuildStage(reason) {
+    if (!cv) return false;
+    try {
+      const old = cv, fresh = document.createElement('canvas');
+      for (const a of old.attributes) { try { fresh.setAttribute(a.name, a.value); } catch (_) {} }
+      fresh.width = old.width; fresh.height = old.height;
+      const g = fresh.getContext('2d');
+      if (!g) return false;
+      if (old.parentNode) old.parentNode.replaceChild(fresh, old);
+      cv = fresh; ctx = g;
+      drag = null; hoverAgent = null; hoverBeltTile = null; hoverOutbox = null;   // pointer state died with the old node
+      wireStageInput();
+      try { if (ro) { ro.disconnect(); ro.observe(cv.parentElement || cv); } } catch (_) {}
+      resize();
+      stageRebuilds++;
+      try { console.warn('[world] stage canvas rebuilt (' + reason + ') — rebuild #' + stageRebuilds); } catch (_) {}
+      return true;
+    } catch (e) { return false; }
+  }
+
   /* ---------- G0.7 empty-room honesty: can this agent's runs actually pass the COMPUTE GATE? ----------
      Only decidable for a BAY-BOUND agent — the bay's room is the capability seam the sidecar resolves
      tools from (station.bayObjects mirrors resolveTools' input, incl. the dedicated-PC rule). The HERO
@@ -1068,6 +1158,23 @@ const World = (() => {
     } catch (e) {}
     window.addEventListener('resize', resize);
 
+    wireStageInput();
+    // you just came back to the tab → for a few seconds the agent is likelier to look up and notice you
+    try { document.addEventListener('visibilitychange', () => { if (!document.hidden) userReturnUntil = performance.now() + 3000; }); } catch (e) {}
+    connectChannelBridge();   // open the SSE bridge so real inbound work animates as boxes on the belts
+    pollFeedState();          // feed truth (channels/cron) for the NO FEED intake nag — server-proven, refreshed slowly
+    pollShipStats();          // SHIPPED TODAY truth (completed runs since local midnight) — reload-proof
+    pollAffinity();           // the PROVEN social graph — who the run log says works together (biases idle social beats)
+    setInterval(pollFeedState, 60000);   // listenersBound guards init's one-time block, so these arm exactly once
+    setInterval(pollShipStats, 60000);
+    setInterval(pollAffinity, 300000);   // the graph moves on the timescale of DAYS — a 5min refresh is already generous
+  }
+
+  /* Every handler the stage canvas owns, bound to the CURRENT `cv`. Called once from init
+     (listenersBound-guarded) and again by rebuildStage() — a replacement canvas arrives with
+     no listeners, and the old node's set died with it, so re-wiring can never double-bind.
+     Handlers close over `cv`/`ctx` etc. through the module scope, so they follow the swap. */
+  function wireStageInput() {
     /* CANVAS CONTEXT LOSS (see recoverLostCanvases). preventDefault() on 'contextlost' is what
        ASKS the browser to restore the context — without it there is no 'contextrestored' and the
        stage stays dead. Both are cheap no-ops on runtimes that never fire them; the watchdog is
@@ -1102,7 +1209,16 @@ const World = (() => {
     cv.addEventListener('mousemove', ev => {
       if (drag) {
         const c = toCanvas(ev);
-        panX += c.x - drag.sx; panY += c.y - drag.sy; drag.sx = c.x; drag.sy = c.y; drag.moved = true;
+        // CLICK vs PAN: a real mouse click almost always carries 1–2px of jitter between down and up.
+        // Flagging moved on ANY movement made mouseup swallow those as "drags", so prop clicks (OUTBOX,
+        // boards, bays) randomly did nothing. A pan only starts once cumulative travel clears ~4px;
+        // under that the press stays a click and the camera holds still.
+        if (!drag.moved) {
+          drag.acc = (drag.acc || 0) + Math.hypot(c.x - drag.sx, c.y - drag.sy);
+          if (drag.acc <= 4) { drag.sx = c.x; drag.sy = c.y; return; }
+          drag.moved = true;
+        }
+        panX += c.x - drag.sx; panY += c.y - drag.sy; drag.sx = c.x; drag.sy = c.y;
         cv.style.cursor = 'grabbing'; return;
       }
       const wp = toWorld(ev);
@@ -1160,15 +1276,6 @@ const World = (() => {
       if (inf && onIntakeFeed) onIntakeFeed(inf.id);
     });
     cv.addEventListener('mouseleave', () => { if (kindleArmed) kindleHolding = false; hoverAgent = null; hoverBeltTile = null; hoverOutbox = null; if (!drag) cv.style.cursor = 'default'; });
-    // you just came back to the tab → for a few seconds the agent is likelier to look up and notice you
-    try { document.addEventListener('visibilitychange', () => { if (!document.hidden) userReturnUntil = performance.now() + 3000; }); } catch (e) {}
-    connectChannelBridge();   // open the SSE bridge so real inbound work animates as boxes on the belts
-    pollFeedState();          // feed truth (channels/cron) for the NO FEED intake nag — server-proven, refreshed slowly
-    pollShipStats();          // SHIPPED TODAY truth (completed runs since local midnight) — reload-proof
-    pollAffinity();           // the PROVEN social graph — who the run log says works together (biases idle social beats)
-    setInterval(pollFeedState, 60000);   // listenersBound guards init's one-time block, so these arm exactly once
-    setInterval(pollShipStats, 60000);
-    setInterval(pollAffinity, 300000);   // the graph moves on the timescale of DAYS — a 5min refresh is already generous
   }
 
   function resize() {
@@ -5543,6 +5650,7 @@ const World = (() => {
     if (bakeDirty || !cache) rebake();
     watchCanvasLoss(now);   // a zeroed bake plate heals here, BEFORE it can paint a black station
     if (bakeDirty || !cache) rebake();
+    watchStageLoss(now);    // a DEAD stage context heals here too — the rest of this frame draws onto the replacement
     tick(dt, now);
 
     ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.imageSmoothingEnabled = false;
@@ -5783,6 +5891,7 @@ const World = (() => {
     // (station growth headline now lives in the top bar's STATION chip — see xpstore.pushTopbar)
     drawCurve(now); // barrel-warp the whole feed IN-CANVAS — the original (dot-matrix-era) curve, no dots
     drawCRT(now);   // scanlines + fade, painted in-canvas at device-px OVER the warped feed (no moiré)
+    paintStageHeartbeat();   // the frame's last act: the one opaque pixel a dead stage context cannot fake (see watchStageLoss)
     // NOTE: the next rAF is scheduled by the frame() crash-guard wrapper, BEFORE this body runs — never here.
   }
 
@@ -6945,8 +7054,14 @@ const World = (() => {
     for (const p of geo.props) {
       if (p.t !== 'outbox') continue;
       const x0 = p.x * T, y0 = p.y * T - 34;
-      const x1 = (p.x + (p.w || 1)) * T, y1 = (p.y + (p.h || 1)) * T + 12;
-      if (wp.x >= x0 && wp.x < x1 && wp.y >= y0 && wp.y < y1) return p;
+      const yBot = (p.y + (p.h || 1)) * T;
+      const x1 = (p.x + (p.w || 1)) * T, y1 = yBot + 12;
+      // the SHIPPED pallet draws WIDER than the chute (4 crate columns ≈ 42px vs a 24px footprint) and
+      // sits below it — clicking an outer crate used to be a dead click. Below the bottom edge the hit
+      // box widens to the pallet's real span; above it stays the footprint so a neighbouring bay/board
+      // click is never shadowed.
+      const pad = wp.y >= yBot ? 12 : 0;
+      if (wp.x >= x0 - pad && wp.x < x1 + pad && wp.y >= y0 && wp.y < y1) return p;
     }
     return null;
   }
@@ -8832,6 +8947,25 @@ const World = (() => {
     probe: bakeProbe ? { x: bakeProbe.x, y: bakeProbe.y } : null,
     probeOff, recoveries, blank: bakeWentBlank()
   });
+  /* STAGE-DEATH REPRO (the 2026-08-24 fully-black report). There is no JS API to lose a 2D
+     context on demand, so reproduce its EFFECT on the live context instance: every draw call
+     no-ops and the backing store is gone, while getImageData keeps answering (with the zeros
+     a dead stage really reads). The watchdog cannot tell this from the real thing — which is
+     the point. Recovery swaps the whole canvas, so the patched context is discarded with it. */
+  const _dbgKillStageContext = () => {
+    if (!cv || !ctx) return false;
+    for (const k of ['drawImage', 'fillRect', 'strokeRect', 'clearRect', 'fill', 'stroke', 'fillText', 'strokeText', 'putImageData']) {
+      try { ctx[k] = () => {}; } catch (_) {}
+    }
+    try { cv.width = cv.width; } catch (_) {}   // zero the visible bitmap, as the lost backing store does
+    return true;
+  };
+  // the stage watchdog's current knowledge — lets a verify script assert the REBUILD, not just returned pixels
+  const _dbgStageState = () => ({
+    armed: stageProbeArmed, probeOff: stageProbeOff, deadSince: stageDeadSince,
+    rebuilds: stageRebuilds, futile: stageFutile,
+    lost: (() => { try { return !!(ctx && typeof ctx.isContextLost === 'function' && ctx.isContextLost()); } catch (_) { return false; } })()
+  });
   // belt-legibility readout for CDP verify scripts: the EXACT state the renderer draws from (never a re-derivation)
   const _dbgBeltLegibility = () => ({
     beltCount: beltTileSet ? beltTileSet.size : 0,
@@ -8867,7 +9001,7 @@ const World = (() => {
       const errors = (routingPlan && routingPlan.errors ? routingPlan.errors : []).filter(e => !e.warn);
       return planPoster.flush().then(s => Object.assign({ errors: errors, hash: routingPlan ? routingPlan.hash : null }, s));
     },
-    loadStation, spawn, spawnAgent, despawnAgent, setSkin, relabel, setActivityFor, agentRunsLive, dropRun: noteRunEnd, focusBody, lockBody, cameraMode, setCinecamIdle, setChatFocus, chatFocusPing, start, stop, setActivity, wakeIn, beginAwakening, setWakeProgress, igniteSpark, armKindle, kindleHold, camPushIn, camCreep, camPunch, camPullBack, awakenTurn, truthPulse, beginFlood, collapseFlood, endAwakening, releaseAwakening, say, focusAgent, getActivity: () => activity, getUse: () => (agent ? agent.usingProp : null), setOnClick, setOnArcade, setOnOutbox, setOnMissionBoard, setOnTrophyCase, setOnBayAssign, setOnIntakeFeed, setOnIntakeSample, refit, pauseBridge, resumeBridge, linkState, _dbgSeedRun, _dbgAgeRun, _dbgReconcile, _dbgSweep, _dbgLinkState, _dbgDropBridge, _dbgCurveState, _dbgLoseCurveContext, _dbgLoseCanvases, _dbgCanvasLoss, _dbgBeltLegibility, _dbgPropClientPoint, _dbgSleep, _dbgUseProp, _dbgArrive, _dbgLeisure,
+    loadStation, spawn, spawnAgent, despawnAgent, setSkin, relabel, setActivityFor, agentRunsLive, dropRun: noteRunEnd, focusBody, lockBody, cameraMode, setCinecamIdle, setChatFocus, chatFocusPing, start, stop, setActivity, wakeIn, beginAwakening, setWakeProgress, igniteSpark, armKindle, kindleHold, camPushIn, camCreep, camPunch, camPullBack, awakenTurn, truthPulse, beginFlood, collapseFlood, endAwakening, releaseAwakening, say, focusAgent, getActivity: () => activity, getUse: () => (agent ? agent.usingProp : null), setOnClick, setOnArcade, setOnOutbox, setOnMissionBoard, setOnTrophyCase, setOnBayAssign, setOnIntakeFeed, setOnIntakeSample, refit, pauseBridge, resumeBridge, linkState, _dbgSeedRun, _dbgAgeRun, _dbgReconcile, _dbgSweep, _dbgLinkState, _dbgDropBridge, _dbgCurveState, _dbgLoseCurveContext, _dbgLoseCanvases, _dbgCanvasLoss, _dbgKillStageContext, _dbgStageState, _dbgBeltLegibility, _dbgPropClientPoint, _dbgSleep, _dbgUseProp, _dbgArrive, _dbgLeisure,
     // AGENT GROWTH: XpStore pushes pre-computed Xp.compute() snapshots here; pulseLevelUp fires
     // the addressed body's gold ring. The colony headline is the top-bar STATION chip.
     setXp: (agentId, a) => {

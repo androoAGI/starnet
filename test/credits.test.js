@@ -96,6 +96,21 @@ function fakeFetch(seed) {
     A.eq(c.snapshot().balanceUsd, null, 'missing balance data can never become a fabricated $0');
   }
 
+  // A response is not complete merely because headers arrived. Keep the request deadline armed while the
+  // JSON body is consumed or a half-responsive balance service can hang WAKE/status forever.
+  {
+    const stalledBody = (url, init) => Promise.resolve({
+      ok: true, status: 200,
+      json: () => new Promise((resolve, reject) => {
+        if (init && init.signal) init.signal.addEventListener('abort', () => reject(Object.assign(new Error('aborted'), { name: 'AbortError' })), { once: true });
+      })
+    });
+    const c = makeCredits({ url: 'https://credits.example', accountId: 'acct', fetch: stalledBody, requestTimeoutMs: 5 });
+    A.eq(await c.refresh(), null, 'a stalled balance body terminates at the configured request deadline');
+    A.eq(c.snapshot().balanceUsd, null, 'body timeout cannot fabricate or retain a dollar value');
+    A.eq(c.snapshot().authStatus, 'unavailable', 'body timeout is availability trouble, not revocation');
+  }
+
   // ---- MANAGED RUN via the backend: reserve holds the balance, refund returns the unspent headroom ----
   {
     const ff = fakeFetch({ acct: 10 });
@@ -117,6 +132,85 @@ function fakeFetch(seed) {
     A.eq(credited.length, 1, 'settle posts exactly one credit (the refund) to the backend');
     A.eq(credited[0].body.usd, 2.5, 'refund returns the unused headroom (cap 4 − spend 1.5)');
     A.ok(Math.abs(ff.book.acct - 8.5) < 1e-9, 'backend balance ends at start − actual spend (10 − 1.5)');
+  }
+
+  // ---- ACCOUNT IDENTITY IS ADAPTER-BOUND: no stale caller/env value may redirect a linked bearer. ----
+  {
+    const ff = fakeFetch({ acct: 9, stale_account: 0 });
+    const c = makeCredits({ url: 'https://credits.example', accountId: 'acct', fetch: ff.fetch });
+    A.eq(await c.refresh('stale_account'), 9, 'refresh ignores a caller-supplied account and reads the adapter account');
+    A.ok(ff.calls[0].url.includes('account=acct'), 'the balance request carries the account bound to this bearer');
+    const adm = c.beginRun({ accountId: 'stale_account', runId: 'identity-run', agentId: 'a', capUsd: 1 });
+    A.eq(adm.ok, true, 'the bound funded account admits even when a stale caller account is supplied');
+    await flush();
+    const debit = ff.calls.find(x => x.url.includes('/v1/debit'));
+    A.eq(debit.body.account, 'acct', 'the debit cannot be redirected away from the bearer-bound account');
+    await c.history('stale_account', 5);
+    const history = ff.calls.find(x => x.url.includes('/v1/history'));
+    A.ok(history.url.includes('account=acct'), 'history also stays on the bearer-bound account');
+  }
+
+  // ---- OVERLAPPING REFRESHES: a slower old zero/failure cannot overwrite a newer funded answer. ----
+  {
+    const pending = [];
+    const fetchImpl = () => new Promise(resolve => pending.push(resolve));
+    const c = makeCredits({ url: 'https://credits.example', accountId: 'acct', fetch: fetchImpl });
+    const old = c.refresh();
+    const fresh = c.refresh();
+    pending[1]({ ok: true, status: 200, json: async () => ({ balanceUsd: 22 }) });
+    A.eq(await fresh, 22, 'newer funded refresh completes');
+    pending[0]({ ok: true, status: 200, json: async () => ({ balanceUsd: 0 }) });
+    A.eq(await old, 0, 'the older request may still return its own historical answer to its caller');
+    A.eq(c.snapshot().balanceUsd, 22, 'but the older $0 cannot overwrite the newer funded cache');
+    A.eq(c.snapshot().authStatus, 'valid', 'the newer successful authority remains valid');
+  }
+  {
+    const pending = [];
+    const fetchImpl = () => new Promise(resolve => pending.push(resolve));
+    const c = makeCredits({ url: 'https://credits.example', accountId: 'acct', fetch: fetchImpl });
+    const old = c.refresh();
+    const fresh = c.refresh();
+    pending[1]({ ok: true, status: 200, json: async () => ({ balanceUsd: 22 }) });
+    await fresh;
+    pending[0]({ ok: false, status: 503, json: async () => ({ error: 'old outage' }) });
+    await old;
+    A.eq(c.snapshot().balanceUsd, 22, 'a stale failed refresh cannot erase a newer funded balance');
+    A.eq(c.snapshot().authStatus, 'valid', 'a stale failure cannot downgrade newer valid authentication');
+  }
+
+  // A delayed mutation response is the same race in the other direction: an old debit that once reached $0
+  // must not land after a top-up refresh and strand the newly funded user again.
+  {
+    let balanceReads = 0;
+    let resolveDebit;
+    const fetchImpl = (url) => {
+      const u = String(url);
+      if (u.includes('/v1/balance')) {
+        balanceReads++;
+        const amount = balanceReads === 1 ? 10 : 22;
+        return Promise.resolve({ ok: true, status: 200, json: async () => ({ balanceUsd: amount }) });
+      }
+      if (u.includes('/v1/debit')) return new Promise(resolve => { resolveDebit = resolve; });
+      return Promise.resolve({ ok: true, status: 200, json: async () => ({}) });
+    };
+    const c = makeCredits({ url: 'https://credits.example', accountId: 'acct', fetch: fetchImpl });
+    await c.refresh();
+    A.eq(c.beginRun({ runId: 'old-debit', agentId: 'a', capUsd: 2 }).ok, true, 'precondition: the old debit starts');
+    A.eq(await c.refresh(), 22, 'a newer top-up refresh sees the funded balance');
+    resolveDebit({ ok: true, status: 200, json: async () => ({ balanceUsd: 0 }) });
+    await flush(); await flush();
+    A.eq(c.snapshot().balanceUsd, 22, 'the delayed old debit zero cannot overwrite the newer top-up truth');
+  }
+
+  // ---- BOUNDED AUTHORITY: a hung cloud balance check becomes unavailable instead of hanging WAKE forever. ----
+  {
+    const fetchImpl = (url, init) => new Promise((resolve, reject) => {
+      if (init && init.signal) init.signal.addEventListener('abort', () => reject(Object.assign(new Error('aborted'), { name: 'AbortError' })), { once: true });
+    });
+    const c = makeCredits({ url: 'https://credits.example', accountId: 'acct', fetch: fetchImpl, requestTimeoutMs: 5 });
+    A.eq(await c.refresh(), null, 'a hung balance request settles as unavailable within the configured bound');
+    A.eq(c.snapshot().balanceUsd, null, 'timeout never fabricates a dollar value');
+    A.eq(c.snapshot().authStatus, 'unavailable', 'timeout is availability trouble, not zero or revocation');
   }
 
   // ---- EXHAUSTED balance: admission fails CLOSED before any debit/model work ----
@@ -196,6 +290,18 @@ function fakeFetch(seed) {
     A.eq(c.snapshot().balanceUsd, 10, 'cache is trustworthy again after refresh');
   }
 
+  // ---- MALFORMED MUTATION RESPONSE: a string/NaN balance is UNKNOWN, never numeric zero. ----
+  {
+    const fetchImpl = async (url) => String(url).includes('/v1/balance')
+      ? { ok: true, status: 200, json: async () => ({ balanceUsd: 10 }) }
+      : { ok: true, status: 200, json: async () => ({ ok: true, balanceUsd: '6.00' }) };
+    const c = makeCredits({ url: 'https://credits.example', accountId: 'acct', fetch: fetchImpl });
+    await c.refresh();
+    A.eq(c.beginRun({ runId: 'malformed-post', agentId: 'a', capUsd: 4 }).ok, true, 'precondition: funded admission succeeds');
+    await flush(); await flush();
+    A.eq(c.snapshot().balanceUsd, null, 'a malformed POST balance invalidates the cache instead of becoming $0');
+  }
+
   /* ---- LOW-BALANCE WARNING -------------------------------------------------------------------
      The value of this feature is entirely in WHEN it fires. Firing every debit makes it noise the
      user learns to ignore; firing once and never re-arming means the second time they run dry it
@@ -265,6 +371,79 @@ function fakeFetch(seed) {
     f.book.acct = 10;   await c.refresh('acct');   // clears threshold x 1.25
     f.book.acct = 4;    await c.refresh('acct');
     A.eq(low().length, 2, 'a real top-up re-arms, so the NEXT time they run dry they are told');
+  }
+
+  {
+    // Regression (2026-08-24 field report): an uncapped managed run reserves the WHOLE wallet, so the
+    // temporary hold takes the spendable cache to $0 before settlement refunds the unused headroom. That
+    // reservation is not account exhaustion and must never produce the scary $0 warning on every input.
+    const { c, low } = withWarn(22);
+    await c.refresh('acct');
+    for (let i = 1; i <= 3; i++) {
+      const balance = c.snapshot().balanceUsd;
+      c.beginRun({ accountId: 'acct', runId: 'wallet-' + i, capUsd: balance });
+      c.finishRun({ runId: 'wallet-' + i, usd: 0.10 });
+      await flush(); await flush();
+      await c.refresh('acct');
+    }
+    A.eq(low().length, 0, 'full-wallet reservation/refund cycles never masquerade as account exhaustion');
+    A.ok(Math.abs(c.snapshot().balanceUsd - 21.70) < 1e-9, 'the settled cache still tracks the three real debits');
+  }
+
+  {
+    // Suppressing the temporary hold must not suppress a REAL exhausted balance: when a run consumes its
+    // entire reservation there is no refund POST to carry the final $0, so finishRun must evaluate settlement.
+    const { c, low } = withWarn(20);
+    await c.refresh('acct');
+    c.beginRun({ accountId: 'acct', runId: 'spent-all', capUsd: 20 });
+    c.finishRun({ runId: 'spent-all', usd: 20 });
+    await flush(); await flush();
+    A.eq(low().length, 1, 'a run that truly spends the remaining wallet emits one warning at settlement');
+    A.eq(low()[0].payload.balanceUsd, 0, 'real exhaustion still reports the settled $0 balance');
+    A.eq(low()[0].payload.exhausted, true, 'real exhaustion remains classified as exhausted');
+  }
+
+  {
+    // Other live runs' reservations are holds too. Settling run A while run B still holds the rest of the
+    // wallet must evaluate the account total, not the temporarily spendable cache left under B's hold.
+    const { c, low } = withWarn(22);
+    await c.refresh('acct');
+    c.beginRun({ accountId: 'acct', runId: 'concurrent-a', capUsd: 11 });
+    c.beginRun({ accountId: 'acct', runId: 'concurrent-b', capUsd: 11 });
+    c.finishRun({ runId: 'concurrent-a', usd: 1 });
+    await flush(); await flush();
+    A.eq(low().length, 0, 'settling beside another live reservation does not fabricate a low balance');
+    c.finishRun({ runId: 'concurrent-b', usd: 1 });
+    await flush(); await flush();
+    A.eq(low().length, 0, 'both healthy concurrent settlements remain quiet');
+    A.ok(Math.abs(c.snapshot().balanceUsd - 20) < 1e-9, 'concurrent settlements retain the real account balance');
+  }
+
+  {
+    // A partial refund can leave the account genuinely low. Its settled balance, not the temporary $0 hold,
+    // is the number the warning must carry.
+    const { c, low } = withWarn(20);
+    await c.refresh('acct');
+    c.beginRun({ accountId: 'acct', runId: 'settled-low', capUsd: 20 });
+    c.finishRun({ runId: 'settled-low', usd: 16 });
+    await flush(); await flush();
+    A.eq(low().length, 1, 'a genuinely low post-settlement balance still warns once');
+    A.eq(low()[0].payload.balanceUsd, 4, 'the warning reports the settled balance instead of the reservation hold');
+    A.eq(low()[0].payload.exhausted, false, 'a positive settled balance is low, not exhausted');
+  }
+
+  {
+    // An idempotent begin for an already-settled run must not resurrect its old reservation in warning math.
+    const { c, f, low } = withWarn(20);
+    await c.refresh('acct');
+    c.beginRun({ accountId: 'acct', runId: 'settled-replay', capUsd: 10 });
+    c.finishRun({ runId: 'settled-replay', usd: 1 });
+    await flush(); await flush();
+    A.eq(c.beginRun({ accountId: 'acct', runId: 'settled-replay', capUsd: 10 }).ok, true, 'settled admission replay stays idempotent');
+    f.book.acct = 4;
+    await c.refresh('acct');
+    A.eq(low().length, 1, 'settled admission replay cannot hide a later genuine low balance');
+    A.eq(low()[0].payload.balanceUsd, 4, 'the replay adds no phantom reservation to warning math');
   }
 
   {

@@ -9271,7 +9271,11 @@ function handleBudgetStatus(req, res) {
    dead balance. Never emits a secret (no api key, no account internals beyond the display id). Read-only. ---- */
 async function handleCredits(req, res) {
   if (!credits.configured()) { res.writeHead(404, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }); return res.end(JSON.stringify({ configured: false })); }
-  await credits.refresh(CREDITS_ACCOUNT).catch(swallow('credits.refresh'));   // reconcile the cached balance before we report it
+  const summaryOnly = /(?:\?|&)history=0(?:&|$)/.test(String(req && req.url || ''));
+  // History is display-only. Start it beside the authoritative balance read so a slow activity endpoint cannot
+  // double the STORE wait; the creator/WAKE summary path skips it entirely.
+  const historyPromise = summaryOnly ? Promise.resolve({ entries: [] }) : credits.history(null, 20).catch(() => ({ entries: [] }));
+  await credits.refresh().catch(swallow('credits.refresh'));   // adapter owns the active bearer+account identity
   const snap = credits.snapshot();
   const linkSaved = !CREDITS_URL && creditsLink.hasSaved();
   // The account page can revoke a station without touching this machine. In that case the old local file /
@@ -9287,7 +9291,7 @@ async function handleCredits(req, res) {
       reason: 'link_revoked'
     });
   }
-  const hist = await credits.history(CREDITS_ACCOUNT, 20).catch(() => ({ entries: [] }));
+  const hist = await historyPromise;
   const linkStatus = linkSaved
     ? (snap.authStatus === 'valid' ? 'linked' : 'unavailable')
     : (CREDITS_URL ? 'env' : 'none');
@@ -9314,6 +9318,7 @@ async function handleCredits(req, res) {
     tokenAtRest: !CREDITS_URL ? creditsLink.tokenAtRest() : 'env',
     keychainAvailable: DESKTOP_SHELL,
     history: Array.isArray(hist.entries) ? hist.entries : [],
+    historyIncluded: !summaryOnly,
     reachable: !hist.error
   }));
 }
@@ -9354,8 +9359,28 @@ async function handleCreditsLinkPoll(req, res) {
   try {
     const r = await creditsLink.poll(code);
     if (r && r.status === 'confirmed') {
-      await rebuildCredits();   // the device token is now persisted — build the live adapter + warm the balance
-      return creditsJson(res, 200, { linked: true, accountId: r.accountId });
+      const balanceUsd = await rebuildCredits();   // build from the JUST-persisted token/account + verify its balance
+      const snap = credits.snapshot();
+      const linkedAccount = String((snap && snap.accountId) || '');
+      // The confirmed account, active adapter account, and balance request must be one identity. Never tell the
+      // UI "linked" if an env override/stale credential caused the adapter to resolve a different account.
+      if (!linkedAccount || linkedAccount !== String(r.accountId || '')) {
+        await creditsLink.clearSaved().catch(swallow('credits.link.account-mismatch.clear', null));
+        await rebuildCredits().catch(swallow('credits.link.account-mismatch.rebuild', null));
+        return creditsJson(res, 409, { linked: false, error: 'link_account_mismatch' });
+      }
+      if (snap.authStatus === 'invalid') {
+        await creditsLink.clearSaved().catch(swallow('credits.link.rejected.clear', null));
+        await rebuildCredits().catch(swallow('credits.link.rejected.rebuild', null));
+        return creditsJson(res, 401, { linked: false, status: 'invalid', error: 'link_token_rejected' });
+      }
+      const balanceVerified = typeof balanceUsd === 'number' && isFinite(balanceUsd);
+      return creditsJson(res, 200, {
+        linked: true,
+        accountId: linkedAccount,
+        balanceUsd: balanceVerified ? balanceUsd : null,
+        balanceVerified
+      });
     }
     return creditsJson(res, 200, { linked: false, status: (r && r.status) || 'pending' });
   } catch (e) { return creditsJson(res, 502, { error: (e && e.message) || 'link_poll_failed' }); }
@@ -13943,7 +13968,7 @@ async function runOnce(o) {
     : stationMaxIters;
   const managedRun = credits.configured() && !providerUnmetered;
   if (managedRun) {
-    await credits.refresh(CREDITS_ACCOUNT).catch(swallow('credits.refresh'));   // reconcile the cached balance right before admission
+    await credits.refresh().catch(swallow('credits.refresh'));   // adapter owns the active bearer+account identity
     // A managed reservation needs a FINITE cap to hold. With no opt-in cap the wallet itself is the run's
     // only ceiling: reserve the full available balance — the least-limiting finite number there is — and
     // settle refunds whatever the run didn't use. The reservation is also the loop's maxCostUsd (below),

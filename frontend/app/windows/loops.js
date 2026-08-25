@@ -654,7 +654,11 @@
 
   async function watch() {
     let j;
-    try { j = await (await fetch('/api/loops', { headers: { 'X-StarNet-Token': window.__STARNET_API_TOKEN__ || '' } })).json(); }
+    try {
+      const r = await fetch('/api/loops', { headers: { 'X-StarNet-Token': window.__STARNET_API_TOKEN__ || '' } });
+      if (!r.ok) return;                        // an errored read must not clear the waiting badge
+      j = await r.json();
+    }
     catch (_) { return; }                       // station offline — say nothing rather than guess
     const loops = (j && j.loops) || [];
     let waiting = 0;
