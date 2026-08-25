@@ -854,16 +854,23 @@ const Harness = (() => {
     try {
       const r = await fetch('/api/halt', { method: 'POST', headers: { 'Content-Type': 'application/json' } });
       const j = await r.json().catch(() => ({}));
+      // A FAILED E-STOP IS NOT AN EMPTY ONE. Without this branch a 4xx/5xx fell through to the totals
+      // below, every n() missed on the error body, and the caller received {halted: 0} — the exact
+      // receipt a SUCCESSFUL stop of an idle station returns. The toast then read "HALT — stopped 0
+      // runs" while the sidecar had never processed the halt and the runs kept spending. Report the
+      // request's own outcome so the caller can tell "nothing was running" from "nobody answered".
+      if (!r.ok) return { ok: false, halted: 0, reason: 'the sidecar answered HTTP ' + r.status };
       // honest total: run controllers (browser/hub/force-fired beats) + cron leases + the driver-path beat —
       // everything the server ACTUALLY aborted, so the HALT toast never under-reports what the E-STOP stopped.
       const n = k => (j && typeof j[k] === 'number') ? j[k] : 0;
       return {
+        ok: true,
         halted: n('halted') + n('cronAborted') + n('beatAborted'),
         nightshiftHaltPersisted: j.nightshiftHaltPersisted,
         cronHaltPersisted: j.cronHaltPersisted,
         loopsHaltPersisted: j.loopsHaltPersisted
       };
-    } catch (_) { return { halted: 0 }; }
+    } catch (_) { return { ok: false, halted: 0, reason: 'the sidecar was unreachable' }; }
   }
 
   // answer a live permission.prompt: decision ∈ once|always|full|deny. Resolves the run's paused dispatch so it

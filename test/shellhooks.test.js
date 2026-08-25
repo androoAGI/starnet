@@ -195,11 +195,20 @@ const mk = (extra) => makeShellHooks(Object.assign({ spawn, fsp, pathMod: path, 
       A.eq(hooks.length, 0, 'no hooks file -> no hooks');
       A.eq(errors.length, 0, 'and no complaints — most stations will never write one');
     }
-  } finally { await fsp.rm(DIR, { recursive: true, force: true }); }
+  /* RETRY THE TEARDOWN, DON'T JUST FORCE IT (2026-08-25, Windows). This file spawns REAL child
+     processes with cwd: DIR — that is the point of the module under test — and on Windows a live
+     process's working directory is LOCKED, so rmdir fails with EBUSY until the last child is fully
+     gone. `force: true` does not cover that: it suppresses ENOENT, not EBUSY. Under load the children
+     exit slower, the rm throws, and the throw escapes to the catch below — turning THE merge gate red
+     on a test whose assertions all passed. Seen exactly once in a full run, and 0/12 in isolation,
+     which is the signature of a load-dependent race rather than a broken test.
+     maxRetries is Node's built-in answer, and it retries precisely the Windows codes at fault
+     (EBUSY/EPERM/ENOTEMPTY/EMFILE/ENFILE). Error path only: when the dir is free it behaves as before. */
+  } finally { await fsp.rm(DIR, { recursive: true, force: true, maxRetries: 20, retryDelay: 50 }); }
 
   A.report('shellhooks.test');
 })().catch(async (e) => {
-  try { await fsp.rm(DIR, { recursive: true, force: true }); } catch (_) {}
+  try { await fsp.rm(DIR, { recursive: true, force: true, maxRetries: 20, retryDelay: 50 }); } catch (_) {}
   console.log('FAIL: shellhooks.test threw -- ' + (e && e.stack || e));
   process.exit(1);
 });

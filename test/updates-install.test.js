@@ -29,7 +29,10 @@ function makeCase(opts) {
       if (o.prepareFails) return { ok: false, status: 409, json: async () => ({ ok: false, code: 'UPDATE_SNAPSHOT_FAILED' }) };
       return { ok: true, status: 200, json: async () => ({ ok: true, receipt: { id: 'receipt-1' } }) };
     }
-    if (url === '/api/update/cancel') return { ok: true, status: 200, json: async () => ({ ok: true }) };
+    if (url === '/api/update/cancel') {
+      if (o.cancelFails) return { ok: false, status: 500, json: async () => ({ error: 'sidecar unwell' }) };
+      return { ok: true, status: 200, json: async () => ({ ok: true }) };
+    }
     throw new Error('unexpected fetch ' + url);
   };
   const context = {
@@ -77,6 +80,27 @@ async function ready(c) { await c.updates.init(); await c.updates.check(true, 't
     await ready(c); await c.updates.install();
     A.eq(c.calls.includes('/api/update/cancel'), true, 'native install failure explicitly unfreezes the sidecar');
     A.eq(c.updates.isInstalling(), false, 'quit guard is restored after native failure');
+  }
+  /* THE THAW CAN FAIL TOO, AND THEN THE STATION IS STUCK. /api/update/prepare sets an in-memory
+     freeze on the sidecar that NOTHING clears but /api/update/cancel — no TTL. Verified against a
+     live sidecar: after prepare, /api/activity answered 423 UPDATE_MUTATIONS_FROZEN at 1s, 3s and
+     6s idle, and /api/update/status still said frozen:true. cancelPreparation used to be
+     `.catch(() => null)` while the caller cleared its state unconditionally, so a failed thaw left
+     the Commander on a station that refused every durable write in silence — and the two failures
+     are CORRELATED, since a sidecar sick enough to fail the install fails the thaw too. */
+  {
+    const notices = [];
+    const c = makeCase({ installFails: true, cancelFails: true });
+    await c.updates.init({ notify: (message, kind) => notices.push({ message, kind }) });
+    await c.updates.check(true, 'test');
+    await c.updates.install();
+    const cancels = c.calls.filter(x => x === '/api/update/cancel').length;
+    A.ok(cancels > 1, 'a failed thaw is retried rather than abandoned on the first refusal (saw ' + cancels + ')');
+    const last = notices[notices.length - 1] || {};
+    A.ok(/still frozen/i.test(last.message || ''), 'the Commander is told the station is STILL FROZEN, not just that the install failed');
+    A.ok(/restart/i.test(last.message || ''), 'the notice names the one remedy that actually clears an in-memory freeze');
+    A.eq(last.kind, 'bad', 'a station left frozen is a fault, not routine warning chrome');
+    A.eq(c.updates.isInstalling(), false, 'quit guard is still restored when the thaw fails');
   }
   A.report('updates-install.test');
 })().catch(e => { console.error(e); process.exit(1); });

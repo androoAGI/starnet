@@ -18,7 +18,7 @@
   "expectedClaimCount": 37,
   "releaseSurface": {
     "algorithm": "sha256",
-    "sourceCommit": "c4a58809390f1cf2a65541a2f87a5b33c72dca54",
+    "sourceCommit": "af3f21c3aba20cf89f9ae3f03cdd697c66c46c20",
     "pathSetSha256": "4a4d5044dc5f1a8aa7e16d752bd899dc2b027dcd621bea4ae61df6a29d6a6912",
     "files": [
       {
@@ -293,8 +293,8 @@
       },
       {
         "path": "frontend/app/harness.js",
-        "bytes": 80461,
-        "sha256": "cf52311ad6a58dcd12c6b062373144dbba51c39096755f1aebaadb61518ed0e1"
+        "bytes": 81137,
+        "sha256": "5f9141c2ba5687a712258cd83f1c8990c3d3c26545bf6966e22f6c23dc9b6621"
       },
       {
         "path": "frontend/app/hint.js",
@@ -658,8 +658,8 @@
       },
       {
         "path": "frontend/app/safety.js",
-        "bytes": 3995,
-        "sha256": "0d9c166d2786022f6118fe5cfb1e8553513ecf3578d2b07dcd093424c030f3b8"
+        "bytes": 5397,
+        "sha256": "86888cbab20eeb38974ff18463ae6b99966544109b27fcde9e042aa559f96347"
       },
       {
         "path": "frontend/app/save.js",
@@ -708,8 +708,8 @@
       },
       {
         "path": "frontend/app/spacebg.js",
-        "bytes": 70850,
-        "sha256": "b10225c88501b6e7b9a9884dbeb66bbc14b390f9276d3b9b05c23c0038ce98c2"
+        "bytes": 69647,
+        "sha256": "2fb332fd1ae714e05a3b044007d9e947900f12764859555aa27736bc83290013"
       },
       {
         "path": "frontend/app/specialties.js",
@@ -793,8 +793,8 @@
       },
       {
         "path": "frontend/app/topbar.js",
-        "bytes": 5995,
-        "sha256": "fd7cc485ef01eb62c403db9bbee0cf5925c3efec65f734d813b5b2ff4ba43130"
+        "bytes": 5878,
+        "sha256": "a6fa90e1aaab0366c0083c3c758fe944bd8b9d73003df5c1863788cfb5d741a3"
       },
       {
         "path": "frontend/app/topicmatch.js",
@@ -838,8 +838,8 @@
       },
       {
         "path": "frontend/app/updates.js",
-        "bytes": 21543,
-        "sha256": "23aafa786148895ec5d92174ef83cf86ba8910529f2a387be3ba3720d1e96e41"
+        "bytes": 24000,
+        "sha256": "79dad479014f8b3fe78d2f8fbc860bb15bc58c14fc3b06b034712952dfcdc82c"
       },
       {
         "path": "frontend/app/verdictfollowup.js",
@@ -978,8 +978,8 @@
       },
       {
         "path": "frontend/css/app.css",
-        "bytes": 382811,
-        "sha256": "b6a3e3723352842c061417f4a54b29a97bb5ddebe743aa50fb3c5567c2d04dee"
+        "bytes": 383787,
+        "sha256": "77d35f11ff2a9c2790b3e7478321bc5e007532376d25fe2f6080fc82778e9779"
       },
       {
         "path": "frontend/css/asciifx.css",

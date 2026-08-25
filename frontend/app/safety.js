@@ -20,8 +20,13 @@
     // server's `runs` map BEFORE /api/halt counted it — so the toast said "stopped 0 runs" while runs were in
     // fact being stopped. Counting on the server before local teardown keeps the number real; the local abort
     // still lands milliseconds later (and the server-side abort has already ended the loops' spend either way).
-    let receipt = { halted: 0 };
+    // Default to UNPROVEN, not to zero. If Harness is missing from this page, or haltAll returns
+    // nothing, no stop was ever attempted — and "stopped 0 runs" would be a claim about the station
+    // rather than an admission about us.
+    let receipt = { ok: false, halted: 0, reason: 'the harness was unavailable in this page' };
     try { if (typeof Harness !== 'undefined' && Harness.haltAll) receipt = await Harness.haltAll() || receipt; } catch (_) {}
+    // Local streams are aborted either way: a server that never answered is exactly when the browser's
+    // own in-flight run most needs killing.
     try { if (typeof Chat !== 'undefined' && Chat.abort) Chat.abort(); } catch (_) {}
     const n = receipt && typeof receipt.halted === 'number' ? receipt.halted : 0;
     const persistence = [
@@ -30,10 +35,21 @@
       ['loopsHaltPersisted', 'loops']
     ];
     const failed = persistence.filter(([field]) => receipt && receipt[field] === false).map(([, label]) => label);
-    const msg = 'HALT — stopped ' + n + ' run' + (n === 1 ? '' : 's') + (failed.length
-      ? ' now · restart protection failed for ' + failed.join(', ') + '; retry E-STOP before restarting'
-      : '');
-    try { if (typeof StationUI !== 'undefined' && StationUI.notify) StationUI.notify(msg, failed.length ? 'bad' : 'warn'); } catch (_) {}
+    /* THE REQUEST'S OWN OUTCOME COMES FIRST. A halt whose request 500'd or never arrived used to render
+       "HALT — stopped 0 runs" in routine `warn` chrome — visually identical to a clean stop of an idle
+       station, on the one control the Commander presses when money is being spent and files written.
+       Proven against a live station before the fix: an HTTP 500 and a network failure BOTH produced
+       exactly {msg: 'HALT — stopped 0 runs', kind: 'warn'}.
+       Only `ok === false` counts as failure: a receipt with no `ok` at all is a legacy/simulated one and
+       keeps the old reading, so this stays additive to the /api/halt contract. */
+    const msg = receipt && receipt.ok === false
+      ? 'E-STOP FAILED — ' + (receipt.reason || 'the stop was not confirmed') +
+        '. Runs may still be live: press E-STOP again, and quit StarNet if it keeps failing'
+      : 'HALT — stopped ' + n + ' run' + (n === 1 ? '' : 's') + (failed.length
+        ? ' now · restart protection failed for ' + failed.join(', ') + '; retry E-STOP before restarting'
+        : '');
+    const kind = (receipt && receipt.ok === false) || failed.length ? 'bad' : 'warn';
+    try { if (typeof StationUI !== 'undefined' && StationUI.notify) StationUI.notify(msg, kind); } catch (_) {}
     try { if (typeof SFX !== 'undefined' && SFX.alarm) SFX.alarm(); } catch (_) {}
   }
   // Alt+H is a global E-STOP — it fires even while typing (an emergency stop must never be swallowed by focus).
