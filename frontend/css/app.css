@@ -1932,7 +1932,18 @@ body.no-curve #stage-wrap::before { background: none; box-shadow: none; }
   max-width: 1780px; width: 100%; height: 100%; max-height: none;
   display: flex; flex-direction: column; margin: 0 auto;
 }
-#screen-connect .ov-grid { flex: 1; min-height: 0; overflow-y: auto; }
+/* THREE COLUMNS, THREE SCROLLERS (2026-08-25). The grid used to be the single scroll container,
+   so the tallest column decided the scroll for all three: reaching 03 THE BRAIN's model field
+   dragged 01 APPEARANCE and 02 IDENTITY off the top, and at a normal laptop height the shared cut
+   sliced whatever row it landed on — the SKIN thumbnails mid-row, the MODEL input mid-text.
+   Measured on a 1582x904 viewport: grid clientH 526 vs scrollH 615, so 89px sat below the fold
+   with the columns themselves overflow:visible and no affordance that anything continued.
+   The three columns are three INDEPENDENT decisions, so give each its own scroll region: a short
+   column now shows all of itself while a tall one scrolls alone, and nothing is bisected by a cut
+   that belongs to a different column. WAKE OVERSEER lives outside this grid and stays reachable
+   either way. */
+#screen-connect .ov-grid { flex: 1; min-height: 0; overflow-y: hidden; }
+#screen-connect .ov-grid > * { overflow-y: auto; min-height: 0; scrollbar-width: thin; }
 #screen-future .ov-panel { max-width: 980px; align-self: center; margin: auto; }
 .ov-head { padding: 12px 22px 0; }
 .ov-title-row { display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap; margin-top: 8px; }
