@@ -806,7 +806,8 @@ const Marketplace = (() => {
         '<div class="mkt-skin-stage-frame"><img id="mkt-skin-stage-img" alt="" draggable="false"></div>' +
         '<figcaption class="mkt-skin-stage-name"><span class="mkt-stage-lbl">LIVE PREVIEW —</span> <span id="mkt-skin-stage-name"></span></figcaption>' +
       '</figure>';
-    return '<div class="mkt-skinbar"><label class="mkt-skinlabel">APPEARANCE <span class="mkt-hint">— the character this agent wears (your call, any class)</span></label>' +
+    return '<div class="mkt-skinbar"><div class="mkt-skin-head"><span class="mkt-skinlabel">APPEARANCE <span class="mkt-hint">— the character this agent wears (your call, any class)</span></span>' +
+      '<button type="button" class="bb sm mkt-randomize-skin" aria-label="Randomize appearance, preferring characters not already in the crew" title="prefer a character not already in the crew">⤨ RANDOMIZE</button></div>' +
       '<div class="mkt-skin-section">' +
         '<div class="skin-picker" id="mkt-skin-picker">' + thumbs + '</div>' +
         stage +
@@ -2096,26 +2097,24 @@ const Marketplace = (() => {
      that would tear the focused input out from under the Commander mid-word. Every name-driven surface is
      therefore patched in place (counter, helper, aria-invalid, and every .mkt-candidate-name echo including the
      CTA's). Called from wireDossier so it re-binds on both a full stage render and a dossier-only repaint. */
-  function wireSummonConfig(sc) {
-    const nameIn = sc.querySelector('#mkt-summon-name');
-    if (nameIn) nameIn.addEventListener('input', () => {
-      pickedSummonName = nameIn.value;
-      const s = (focusAgent && Specialties.get(focusAgent)) || null;
-      root.querySelectorAll('.mkt-candidate-name').forEach(e => { e.textContent = summonCandidateName(s); });
-      const used = ((typeof AgentId !== 'undefined' && AgentId.normalizeName) ? AgentId.normalizeName(pickedSummonName) : String(pickedSummonName || '')).length;
-      const max = (ctx && ctx.displayNameLimit) || (typeof AgentId !== 'undefined' && AgentId.NAME_MAX) || 18;
-      const count = root.querySelector('.mkt-name-count'); if (count) { count.textContent = used + ' / ' + max; count.classList.toggle('over', used > max); }
-      const issue = summonNameIssue(), dup = summonNameConflict();
-      const help = root.querySelector('.mkt-name-help');
-      if (help) {
-        help.textContent = issue === 'too-long' ? 'too long — shorten this name before summoning'
-          : dup ? 'duplicate name — summon requires a second confirmation; the agent id will remain unique'
-          : 'blank uses the proposed default: ' + summonCandidateName(s);
-        help.classList.toggle('warn', !!(issue || dup));
-      }
-      nameIn.setAttribute('aria-invalid', issue ? 'true' : 'false');
+  function wireRandomizeSkin(sc, skinWrap, showSkin) {
+    const randomize = sc.querySelector('.mkt-randomize-skin');
+    if (!randomize) return;
+    randomize.addEventListener('click', () => {
+      const ids = (typeof DATA !== 'undefined' && DATA.SKINS) ? Object.keys(DATA.SKINS) : [];
+      const used = (ctx && typeof ctx.usedSkins === 'function') ? ctx.usedSkins() : [];
+      const next = (typeof AvatarRandomizer !== 'undefined' && AvatarRandomizer.pick)
+        ? AvatarRandomizer.pick(ids, used, Math.random) : null;
+      if (!next) return;
+      pickedSummonSkin = next;
+      skinWrap.querySelectorAll('.skin-thumb').forEach(x => x.classList.toggle('sel', x.dataset.skin === next));
+      showSkin(next);
+      const chosen = skinWrap.querySelector('.skin-thumb[data-skin="' + next + '"]');
+      if (chosen && chosen.scrollIntoView) chosen.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+      sfx('click');
     });
-
+  }
+  function wireSummonConfig(sc) {
     const skinWrap = sc.querySelector('#mkt-skin-picker');
     if (skinWrap) {
       // stage handle (assigned by the mount below): drive THIS stage, not the module-level shortcut — the
@@ -2136,6 +2135,7 @@ const Marketplace = (() => {
       const stageImg = sc.querySelector('#mkt-skin-stage-img');
       const stageName = sc.querySelector('#mkt-skin-stage-name');
       if (stageImg && typeof SkinStage !== 'undefined') skinStage = SkinStage.mount(stageImg, stageName, pickedSummonSkin);
+      wireRandomizeSkin(sc, skinWrap, skin => { if (skinStage) skinStage.show(skin); });
     }
 
     // SUMMON model picker: fill the catalog async, then track the choice ('' model → inherit the orchestrator's).
@@ -2156,6 +2156,27 @@ const Marketplace = (() => {
         if (help) help.innerHTML = modelHelpHTML((focusAgent && Specialties.get(focusAgent)) || null);
       });
     }
+
+    // Wire the name last so the model-picker seam stays compact and easy to source-lock. Typing still patches
+    // only existing nodes — it never repaints the dossier or tears out the focused input.
+    const nameIn = sc.querySelector('#mkt-summon-name');
+    if (nameIn) nameIn.addEventListener('input', () => {
+      pickedSummonName = nameIn.value;
+      const s = (focusAgent && Specialties.get(focusAgent)) || null;
+      root.querySelectorAll('.mkt-candidate-name').forEach(e => { e.textContent = summonCandidateName(s); });
+      const used = ((typeof AgentId !== 'undefined' && AgentId.normalizeName) ? AgentId.normalizeName(pickedSummonName) : String(pickedSummonName || '')).length;
+      const max = (ctx && ctx.displayNameLimit) || (typeof AgentId !== 'undefined' && AgentId.NAME_MAX) || 18;
+      const count = root.querySelector('.mkt-name-count'); if (count) { count.textContent = used + ' / ' + max; count.classList.toggle('over', used > max); }
+      const issue = summonNameIssue(), dup = summonNameConflict();
+      const help = root.querySelector('.mkt-name-help');
+      if (help) {
+        help.textContent = issue === 'too-long' ? 'too long — shorten this name before summoning'
+          : dup ? 'duplicate name — summon requires a second confirmation; the agent id will remain unique'
+          : 'blank uses the proposed default: ' + summonCandidateName(s);
+        help.classList.toggle('warn', !!(issue || dup));
+      }
+      nameIn.setAttribute('aria-invalid', issue ? 'true' : 'false');
+    });
   }
 
   function wireDossier(scope) {

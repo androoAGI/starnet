@@ -512,6 +512,7 @@ test/prepare-node.test.js
 test/summon.id.test.js
 test/summon-desk-prompt.test.js
 test/recruit-identity-ui.test.js
+test/avatar-randomizer.test.js
 test/subagents.test.js
 test/orchestration.test.js
 test/domain-terminal.test.js

@@ -1196,6 +1196,7 @@ const App = (() => {
       currentSpecialtyId: agent.specialtyId || null,
       nextAgentName: className => AgentId.allocName(className, liveAgents()),
       nameConflict: name => AgentId.nameConflict(name, liveAgents()),
+      usedSkins: () => liveAgents().map(a => a && a.skin).filter(Boolean),
       displayNameLimit: AgentId.NAME_MAX
     });
     // surface the REAL concurrency ceiling in the bay so "summon as many as you like" doesn't imply they all
