@@ -724,6 +724,9 @@ button.mkt-archive-head:focus-visible { outline: 2px solid var(--gold); outline-
   box-shadow: var(--raise); }
 .mkt-skinlabel { display: block; color: var(--ph); letter-spacing: 1px; font-size: 13px; margin-bottom: 8px;
   text-shadow: 0 1px 0 #000, 0 0 8px var(--ph-glow2); }
+.mkt-skin-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 8px; }
+.mkt-skin-head .mkt-skinlabel { margin-bottom: 0; }
+.mkt-randomize-skin { flex: 0 0 auto; }
 /* two columns: a scrolling well of large thumbs on the left, the live stage pinned right */
 .mkt-skin-section { display: flex; gap: 13px; align-items: stretch; }
 .mkt-skin-section .skin-picker { flex: 1 1 auto; min-width: 0; display: grid;
@@ -789,6 +792,7 @@ button.mkt-archive-head:focus-visible { outline: 2px solid var(--gold); outline-
   border-bottom: 1px solid var(--ph-faint); }
 .mkt-config .mkt-skinbar:last-child { border-bottom: 0; }
 .mkt-config .mkt-skinlabel { margin-bottom: 10px; }
+.mkt-config .mkt-skin-head .mkt-skinlabel { margin-bottom: 0; }
 /* the helper line under a field: what the current setting actually resolves to (see modelHelpHTML) */
 .mkt-field-help { color: var(--ph-dim); font-size: 11.5px; line-height: 1.5; letter-spacing: .3px; margin-top: 8px; max-width: 62ch; }
 .mkt-field-help b { color: var(--ph-bright); font-weight: normal; }
