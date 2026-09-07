@@ -7,13 +7,17 @@ severity: P1
 status: fixed
 found: 2026-09-06
 lane: release-0110
-fix: fe5be77a9
+fix: 86560bea9
 origin: owner
 report: Owner 0.11.0 installer test, 2026-09-06, bay name screenshot
 affected: Windows 0.11.0 candidate 2cfdcb04e
 family: bay-labels
-installer: unverified
-recovery: unconfirmed
+installer: verified
+installerVersion: 0.11.0
+installerSha256: 15a7b01c839f3f628bebcc9ae4290d08d42bcc308a8688f396a586e345bde463
+installerEvidence: Signed Windows candidate bd65c7737 installed; exact-source smoke 9/9 GREEN, native desktop nameplates visually inspected, and owner accepted the proportional tags.
+recovery: confirmed
+recoveryEvidence: Owner tested the installed bd65c7737 correction and replied looks great in the release task on 2026-09-06.
 ---
 
 # Bay names are unreadable at normal station zoom
@@ -34,7 +38,7 @@ Owner bay-name screenshot (2026-09-06). Original frontend/app/propsprites.js use
 
 ## Verdict
 
-The owner rejected source repair fe5be77a9 in installed candidate 5eb4ac201: its minimum screen size and collision stacking made names dominate the zoomed-out station. The follow-up restores compact top-mounted tags that scale with each bay, retains the post-lighting contrast improvement, and bounds long names to one line with an ellipsis. Live source preview confirms proportional shrinking at distant zoom. Replacement installer and owner recovery remain unverified.
+The owner rejected source repair fe5be77a9 in installed candidate 5eb4ac201: its minimum screen size and collision stacking made names dominate the zoomed-out station. Follow-up 86560bea9 restores compact top-mounted tags that scale with each bay, retains the post-lighting contrast improvement, and bounds long names to one line with an ellipsis. Live source preview confirms proportional shrinking at distant zoom. The owner accepted the installed bd65c7737 correction; native Windows inspection also confirms the compact tags on the real station. This does not claim a physical Mac label retest.
 
 ## Regression
 

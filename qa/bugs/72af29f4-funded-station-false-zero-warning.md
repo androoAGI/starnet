@@ -10,7 +10,7 @@ lane: reliability-followup
 fix:
 origin: customer
 report: support-2026-08-24-funded-station-false-zero-warning
-affected: Exact affected build/platform not recorded in sanitized evidence
+affected: Windows, reported 2026-08-23/24; exact build and affected account balance receipt unavailable
 family: recovery-truth
 installer: unverified
 recovery: unconfirmed
@@ -29,6 +29,8 @@ On the reported linked station compare current authoritative balance, selected e
 ## Evidence
 
 docs/EMAIL_BUG_FOLLOWUP_2026-09-04.md; test/credits-link.test.js
+
+Release verification 2026-09-06 re-read the original support thread. The reporter explicitly identified Windows and described a zero-credit notification on every input while work continued and purchased credits were consumed. The thread contains no authoritative balance snapshot or later recovery receipt. Candidate bd65c7737 passes the full fast and HTTP gates, including the paid-link lifecycle regressions; this does not correlate the original account to one of the repaired mechanisms.
 
 ## Verdict
 

@@ -34,6 +34,8 @@ docs/EMAIL_BUG_FOLLOWUP_2026-09-04.md; test/station-recovery.e2e.test.js
 
 Keep open in engineering intake despite upstream issue closure. Related station-recovery fixes and tag ancestry do not prove this customer path. Requires physical Mac, exact installer and link-state receipts.
 
+Release verification 2026-09-06: CI 34070924471 built and notarized both Mac architectures for bd65c7737. Intel installed acceptance passed Finder launch, sidecar startup, legacy-state preservation and restart. That fixture does not exercise a paid account or the affected Apple Silicon keychain/relink path. The exact current fast/HTTP gates also pass the paid-link regressions. Physical affected-account acceptance remains outstanding.
+
 ## Regression
 
 Exact before/after customer reproduction is pending; see Repro and Verdict.

@@ -10,7 +10,7 @@ lane: reliability-followup
 fix:
 origin: customer
 report: support-2026-09-01-once-routine-reported-missing
-affected: Exact affected build/platform not recorded in sanitized evidence
+affected: Windows 11 v0.10.12; version corrected by reporter in follow-up on 2026-09-01
 family: durability-and-visibility
 installer: unverified
 recovery: unconfirmed
@@ -29,6 +29,8 @@ Customer path: create an ONCE routine from INBOX, open Active Routines, then res
 ## Evidence
 
 docs/EMAIL_BUG_FOLLOWUP_2026-09-04.md; test/cron.api.test.js
+
+Release verification 2026-09-06 re-read the original support thread and attached Markdown report. The reporter corrected v0.9.0 to v0.10.12 and identified Windows 11. INBOX → FIRES AT RESEARCHER → ONCE returned success twice, while AUTOMATION showed NO ROUTINES YET, including after restart. No job ID, save/list response, or later recovery confirmation was supplied. The exact candidate bd65c7737 passes the full 101-suite HTTP gate; those local fixtures do not establish the historical disappearance's cause.
 
 ## Verdict
 

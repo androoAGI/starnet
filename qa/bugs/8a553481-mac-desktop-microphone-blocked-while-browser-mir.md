@@ -7,7 +7,7 @@ severity: P1
 status: open
 found: 2026-09-06
 lane: agent/voice-agents-mac-0906
-fix:
+fix: d65f8f538
 origin: customer
 report: Owner relayed customer report on 2026-09-06
 affected: MacBook Pro M1 Max; app version and macOS version unknown
@@ -32,6 +32,8 @@ Customer reports Speak and Hands-Free Mic work in a mirrored localhost browser s
 
 Owner-relayed customer report, 2026-09-06. At base 3d31e373e, src-tauri/tauri.conf.json enables hardened runtime and uses entitlements.plist; src-tauri/Info.plist declares NSMicrophoneUsageDescription, but src-tauri/entitlements.plist omits `com.apple.security.device.audio-input`. Apple documents this resource entitlement at https://developer.apple.com/documentation/bundleresources/entitlements/com.apple.security.device.audio-input . Test anchor: test/desktop-voice-bundle.test.js.
 
+Release verification: d65f8f538 is the exact entitlement repair. Build-only CI 34070924471 for bd65c7737 completed both Mac builds and both notarization jobs; Intel installed acceptance passed Finder launch, sidecar startup, legacy-state preservation and restart. These checks establish packaging/launch acceptance, not physical microphone capture or affected M1 Max recovery. The physical allow/deny/reset/restart test remains required.
+
 ## Verdict
 
 Source packaging gap repaired in this lane. Report remains open until the affected signed Mac installer is tested; this source finding is consistent with the report, not proof of customer recovery.
@@ -43,4 +45,3 @@ The desktop voice bundle regression now checks hardened runtime, the configured 
 ## Sibling coverage
 
 {"adapters":[{"target":"signed macOS WKWebView","state":"blocked","reason":"No Mac hardware or signed candidate is available on this Windows host."},{"target":"desktop bundle configuration","state":"covered","test":"test/desktop-voice-bundle.test.js","scenario":"hardened runtime microphone purpose and entitlement","gate":"fast"}],"entrypoints":[{"target":"Speak mic denial and retry","state":"covered","test":"test/voice.button.test.js","scenario":"recorder denied then re-granted","gate":"fast"},{"target":"Hands-Free Mic physical capture","state":"blocked","reason":"Requires the affected signed macOS app and a real microphone."}],"displays":[{"target":"Mac desktop recovery copy","state":"covered","test":"test/voice.button.test.js","scenario":"desktop Mac recovery directs to system microphone settings","gate":"fast"},{"target":"browser mirror","state":"blocked","reason":"Customer reports success; this lane has not reproduced their browser hardware capture."}],"lifecycle":[{"target":"permission prompt timeout and late grant","state":"covered","test":"test/voice.button.test.js","scenario":"recorder timeout recovers the button","gate":"fast"},{"target":"signed Mac allow deny reset restart","state":"blocked","reason":"Release acceptance must test the actual signed artifact on Apple Silicon."}]}
-

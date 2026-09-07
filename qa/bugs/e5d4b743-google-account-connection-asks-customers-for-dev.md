@@ -34,7 +34,7 @@ Owner screenshot and live local DOM at 127.0.0.1:8791 showed Gmail → SET UP. B
 
 ## Verdict
 
-Source implementation committed at cb8385c56. Public activation is still blocked on a StarNet-owned Google Desktop OAuth registration and Google approval; no real Google account or installer acceptance is claimed. This record stays open until the requested customer flow can be activated.
+Source implementation committed at cb8385c56. The StarNet Desktop OAuth registration, five Workspace APIs, declared scopes and build secret are configured and included in the signed bd65c7737 installer. On 2026-09-06, the public home/privacy/terms URLs were saved in Google Branding and the console confirmed Branding changes saved. Native installed Windows inspection showed Gmail → SIGN IN WITH GOOGLE, with no application-client credential form. Google's Verification Center still reports branding and data-access verification incomplete. Real consent/operations/refresh/removal/revocation/restart and the privacy disclosure/verification work remain outstanding. This record stays open until the requested customer flow can be activated; a sign-in button is not account-connection proof.
 
 ## Regression
 
@@ -107,7 +107,7 @@ Before: fresh Gmail card required client ID and client secret input. After: the 
     {
       "target": "real installed Google consent on Windows and macOS",
       "state": "blocked",
-      "reason": "No StarNet Google registration is configured and no candidate installer has completed real Google consent."
+      "reason": "StarNet Desktop registration is bundled in the signed candidate, but real-account consent/lifecycle acceptance and Google verification remain incomplete."
     }
   ],
   "lifecycle": [

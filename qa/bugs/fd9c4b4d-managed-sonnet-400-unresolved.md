@@ -35,6 +35,8 @@ docs/EMAIL_BUG_FOLLOWUP_2026-09-04.md; test/provider.openai-compatible.test.js
 
 Keep open. BYOK admission, model identity and malformed-history fixes are related hypotheses, not proof of the production cause. Requires deployed-route trace and exact affected artifact reproduction.
 
+Release verification 2026-09-06: a fresh GitHub read still ends with the 2026-09-05 v0.10.13 managed-Sonnet failure; no reporter recovery was added. Fly CLI reports no access token and the available Fly dashboard browser redirects to sign-in. Candidate bd65c7737 passes the compatible-adapter and paid-link regressions in the full fast/HTTP gates. Production credentials and a current sanitized request correlation are still needed; no live customer request or account was changed.
+
 ## Regression
 
 Exact before/after customer reproduction is pending; see Repro and Verdict.

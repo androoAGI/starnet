@@ -34,6 +34,8 @@ docs/EMAIL_BUG_FOLLOWUP_2026-09-04.md; test/provider-recovery.e2e.test.js
 
 Open investigation, not an established billing defect. No customer run ledger was supplied. Seeded idle awaiting orders is not itself a scheduler failure; do not fix by inventing activity or adding arbitrary caps.
 
+Release verification 2026-09-06: the exact bd65c7737 Guardian and 130/130 journey assertions pass, including idle-state truth checks. The owner's installed station reports zero active runs and retains a healthy daily routine after upgrade; that is a different station, not a substitute for the affected customer's usage ledger. No affected-account cost reconciliation or customer recovery can be claimed without the missing run/provider/background-work evidence.
+
 ## Regression
 
 Exact before/after customer reproduction is pending; see Repro and Verdict.
