@@ -37,6 +37,7 @@ test/e2e.worker-access.test.js
 test/e2e.pathtrust.test.js
 test/e2e.subagent-background.test.js
 test/google-signin.e2e.test.js
+test/google-release-deferred.e2e.test.js
 test/e2e.mcp-connector.test.js
 test/e2e.mcp-session-expiry.test.js
 test/e2e.idempotency.test.js

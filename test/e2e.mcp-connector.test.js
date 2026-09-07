@@ -130,7 +130,7 @@ function startMockOpenRouter() {
 
 function boot(port, env, attemptsLeft) {
   return new Promise((resolve, reject) => {
-    const child = spawn(process.execPath, [INDEX], {
+    const child = spawn(process.execPath, ['--require', path.join(__dirname, 'fixtures/google-future-release.cjs'), INDEX], {
       // This suite deliberately exercises legacy/no-client setup. A locally
       // staged publisher registration must not replace its explicit fixtures.
       // Native Desktop PKCE is covered separately by google-signin.e2e.test.js.

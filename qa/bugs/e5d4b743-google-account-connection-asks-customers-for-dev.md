@@ -4,7 +4,7 @@ slug: google-account-connection-asks-customers-for-dev
 title: Google account connection asks customers for developer credentials
 surface: onboarding
 severity: P1
-status: open
+status: fixed
 found: 2026-09-06
 lane: agent/google-account-signin
 fix: cb8385c56
@@ -33,6 +33,17 @@ Google service cards ask the customer to configure a Google Cloud project and pa
 Owner screenshot and live local DOM at 127.0.0.1:8791 showed Gmail → SET UP. Before repair, `frontend/app/windows/connectors.js` rendered `data-cc-oclientid` and `data-cc-oclientsecret`. Regression coverage: `test/google-connector.test.js`.
 
 ## Verdict
+
+2026-09-07 scope decision: the owner deferred Google Workspace integrations from 0.11.0.
+The original developer-credential prompt is source-fixed by cb8385c56 and was absent
+in signed 49d859186 installed acceptance. All five real fixture reads passed after
+that upgrade, with a real Docs reconnect. The new release instead explicitly defers
+the integrations, retains saved grants, blocks OAuth/runtime use and omits the
+publisher registration; see `docs/RELEASE_0.11.0_GOOGLE_DEFERRAL.md` and
+`test/google-release-deferred.e2e.test.js`. Close the original prompt defect as
+source-fixed. This does not certify public Google activation, all lifecycle paths,
+or the replacement installer: those remain separate future-release acceptance work.
+The earlier paragraphs below describe the former activation-in-0.11.0 scope.
 
 Source implementation committed at cb8385c56. The StarNet Desktop OAuth registration, five Workspace APIs, declared scopes and build secret are configured and included in the signed bd65c7737 installer. Native installed Windows inspection showed Gmail → SIGN IN WITH GOOGLE, with no application-client credential form. Real consent and bounded operations now pass for all five services on installed Windows. The corrected privacy disclosure is published; Google confirmed domain ownership, verified the branding, and published it. Data-access verification remains unsubmitted pending its required demo and review material. Real-account refresh/removal/revocation/restart and physical Mac acceptance remain outstanding. An additional in-app disclosure before consent is verified in the seeded UI and requires a rebuilt installer. This record stays open until the requested customer flow can be activated for distribution.
 

@@ -4074,6 +4074,8 @@ let connectorOauth = connectorState.oauth;
 /* Publisher-owned Desktop registration wins for new sign-ins. Keep launch configuration out of the
    shared OAuth-client cache; old grants retain their own client for refresh. Legacy Web clients remain readable. */
 const GOOGLE_OAUTH_AS = 'https://accounts.google.com';
+const googleConnectorDeferred = cfg => googleClientConfig.RELEASE_DEFERRED && !!cfg &&
+  (cfg.googleApi || cfg.transport !== 'stdio' && googleClientConfig.isWorkspaceUrl(cfg.url));
 const GOOGLE_DESKTOP_CLIENT = googleClientConfig.loadDesktopClient({ env: process.env,
   readFile: () => fs.readFileSync(path.join(__dirname, 'mcp', 'google-client.json'), 'utf8') });
 const GOOGLE_OAUTH_ENV_CLIENT = (() => {
@@ -4200,6 +4202,7 @@ function mcpStdioIsolationError(cfg) {
 }
 const connectors = makeConnectorManager({
   makeTransport: (cfg) => {
+    if (googleConnectorDeferred(cfg)) throw new Error(googleClientConfig.DEFERRED);
     if (cfg && cfg.transport === 'http' && googleApiTransport.productForUrl(cfg.url)) return googleApiTransport.makeGoogleTransport(cfg);
     if (!cfg || cfg.transport !== 'stdio') return makeHttpTransport(cfg);
     const aid = String(cfg.agentId || '');
@@ -4286,6 +4289,9 @@ function classifyOauthRefreshError(msg) {
   return 'network';   // fetch failed / timed out / DNS / connection reset / private-host refusal — the AS never answered
 }
 async function ensureConnectorOauthToken(id, force) {
+  if (googleConnectorDeferred(connectorConfigs.find(c => c && c.id === id))) {
+    return { token: '', refreshError: { kind: 'unavailable', message: googleClientConfig.DEFERRED } };
+  }
   const t = connectorOauth.byId[id];
   if (!t || !t.accessToken) return { token: '', refreshError: null };
   if ((force === true || mcpOauth.needsRefresh(t.expiresAt, Date.now())) && t.refreshToken && t.tokenEndpoint) {
@@ -4344,6 +4350,11 @@ async function ensureConnectorOauthToken(id, force) {
 }
 // configure a connector, injecting a fresh OAuth bearer for oauth connectors (kept out of the persisted config).
 async function configureConnectorCfg(cfg, options) {
+  if (googleConnectorDeferred(cfg)) {
+    // Runtime-only suspension. Never write enabled:false over the owner's saved preference or grant.
+    await connectors.configure(cfg.id, Object.assign({}, cfg, { enabled: false, token: '', tokenProvider: null }), options);
+    return { ok: false, state: 'down', toolCount: 0, releaseDeferred: true, error: googleClientConfig.DEFERRED };
+  }
   if (cfg && cfg.transport === 'stdio' && cfg.enabled !== false &&
       !(Array.isArray(cfg.missingFields) && cfg.missingFields.length) && !(options && options.deferConnect)) {
     const aid = String(cfg.agentId || '');
@@ -10780,7 +10791,11 @@ async function handleToolsetToggle(req, res) {
 /* ---- /api/connectors: the Connectors panel manages MCP servers. A token is accepted here, persisted to the
    protected sibling file, and NEVER echoed back (list/status carry `hasToken` only, never the value). ---- */
 function connectedConnectorSnapshot() {
-  return connectors.list().map(c => c && c.oauth
+  return connectors.list().map(c => googleConnectorDeferred(c)
+    ? Object.assign({}, c, { releaseDeferred: true, signInAvailable: false, detail: googleClientConfig.DEFERRED,
+      oauth: !!connectorConfigs.find(cfg => cfg.id === c.id)?.oauth, oauthAuthorized: false,
+      credentialSaved: !!connectorOauth.byId[c.id]?.accessToken })
+    : c && c.oauth
     ? Object.assign({}, c, { oauthAuthorized: !!(connectorOauth.byId[c.id] && connectorOauth.byId[c.id].accessToken), account: require('./mcp/account.js').publicAccount(connectorOauth.byId[c.id]) })
     : c);
 }
@@ -10868,8 +10883,10 @@ function handleConnectorCatalog(req, res) {
   const markNeedsClient = (e) => {
     if (e.staticOauth) e.needsClient = !connectorOauthClient(e.staticOauth.authorizationServer).clientId;
     if (e.googleApi) {
-      e.signInAvailable = !e.needsClient;
-      if (!e.signInAvailable) e.signInMessage = googleClientConfig.UNAVAILABLE;
+      e.releaseDeferred = googleConnectorDeferred(e);
+      if (e.releaseDeferred) e.blurb = 'Planned for a later update. ' + e.blurb.replace(' Sign in with Google to connect your account.', '');
+      e.signInAvailable = !e.releaseDeferred && !e.needsClient;
+      if (!e.signInAvailable) e.signInMessage = e.releaseDeferred ? googleClientConfig.DEFERRED : googleClientConfig.UNAVAILABLE;
     }
   };
   payload.connectors.forEach(markNeedsClient);
@@ -10885,6 +10902,7 @@ async function handleConnectorOauthClient(req, res) {
   let body; try { body = JSON.parse(await readBody(req, 8192)) || {}; } catch (e) { return json(400, { error: 'bad json' }); }
   const entry = connectorCatalog.get(String(body.id || '').trim());
   if (!entry || !entry.staticOauth) return json(400, { error: 'not a pre-registered-client connector' });
+  if (googleConnectorDeferred(entry)) return json(503, { error: googleClientConfig.DEFERRED, code: 'google_release_deferred' });
   const as = entry.staticOauth.authorizationServer;
   const clientId = String(body.clientId || '').trim();
   const clientSecret = String(body.clientSecret || '').trim();
@@ -10909,6 +10927,7 @@ async function handleConnectorUpsert(req, res) {
   const url = String(body.url || (transport === 'http' ? (prev.url || '') : '')).trim();
   const command = String(body.command || (transport === 'stdio' ? (prev.command || '') : '')).trim();
   if (transport === 'http' && !url) return json(400, { error: 'a server URL is required' });
+  if (googleConnectorDeferred({ transport, url })) return json(503, { ok: false, saved: false, error: googleClientConfig.DEFERRED, code: 'google_release_deferred' });
   if (transport === 'stdio' && !command) return json(400, { error: 'a stdio command is required' });
   const agentId = String(body.agentId || (transport === 'stdio' ? (prev.agentId || '') : '')).trim();
   const cwd = transport === 'stdio' ? String(Object.prototype.hasOwnProperty.call(body, 'cwd') ? body.cwd : (prev.cwd || '')).trim() : '';
@@ -11084,6 +11103,7 @@ async function handleConnectorOauthStart(req, res) {
   const target = resolveConnectorOauthTarget(String(body.id || '').trim(), connectorCatalog, connectorConfigs);
   if (target.error) return json(target.status || 400, { error: target.error });
   const entry = target.entry;
+  if (googleConnectorDeferred(entry)) return json(503, { error: googleClientConfig.DEFERRED, code: 'google_release_deferred', signInAvailable: false });
   const rawAttempt = String(body.attemptId || '').trim();
   const attemptId = /^[A-Za-z0-9_-]{8,80}$/.test(rawAttempt) ? rawAttempt : crypto.randomBytes(12).toString('hex');
   if (connectorOauthAttempts.has(attemptId)) return json(409, { error: 'this sign-in attempt is already running', attemptId });

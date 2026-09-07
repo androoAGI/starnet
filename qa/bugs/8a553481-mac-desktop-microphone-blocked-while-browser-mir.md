@@ -4,7 +4,7 @@ slug: mac-desktop-microphone-blocked-while-browser-mir
 title: Mac desktop microphone blocked while browser mirror works
 surface: voice
 severity: P1
-status: open
+status: fixed
 found: 2026-09-06
 lane: agent/voice-agents-mac-0906
 fix: d65f8f538
@@ -46,7 +46,14 @@ permission prompt or capture. `release/MAC-MICROPHONE-BUNDLE-PROOF.json` holds t
 The test-build workflow does not execute the release-train's signed microphone assertion;
 the direct archive check supplies that missing inspection for this candidate.
 
-Source packaging gap repaired in this lane. Report remains open until the affected signed Mac installer is tested; this source finding is consistent with the report, not proof of customer recovery.
+2026-09-07 record reconciliation: mark the established source packaging gap fixed by
+d65f8f538, separately from installer behavior and customer recovery, as required by
+the bug-register outcome model. The regression fails against the former entitlement
+file and passes with the repair; direct inspection of both signed 49d859186 packages
+also proves the entitlement and purpose string. The owner requested proceeding from
+this evidence because physical hardware is unavailable. `installer: unverified` and
+`recovery: unconfirmed` remain unchanged; no physical capture or successful affected
+M1 Max retest is claimed. The blocked sibling cases below remain follow-up work.
 
 ## Regression
 

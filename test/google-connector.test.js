@@ -97,12 +97,19 @@ const catalog = require('../sidecar/mcp/catalog.js');
     const stage = (raw, optional = false) => spawnSync(process.execPath, [path.join(stageRoot, 'scripts/stage-google-client.mjs'), ...(optional ? ['--optional'] : [])], {
       encoding: 'utf8', env: { ...process.env, STARNET_GOOGLE_DESKTOP_CLIENT_JSON: raw, NODE_OPTIONS: '' }
     });
+    const staged = path.join(stageRoot, 'sidecar/mcp/google-client.json');
+    fs.writeFileSync(staged, JSON.stringify(installed));
+    assert.equal(stage(JSON.stringify(installed)).status, 0, 'deferred release succeeds even with inherited publisher configuration');
+    assert.equal(fs.existsSync(staged), false, 'deferred release removes stale staged registration');
+    assert.equal(stage('').status, 0, 'deferred release does not require Google registration');
+    // Verify the future enabled build still enforces its registration contract.
+    const clientModule = path.join(stageRoot, 'sidecar/mcp/google-client.js');
+    fs.writeFileSync(clientModule, fs.readFileSync(clientModule, 'utf8').replace('const RELEASE_DEFERRED = true;', 'const RELEASE_DEFERRED = false;'));
     assert.equal(stage('').status, 1, 'public builds refuse absent registration');
     assert.equal(stage(JSON.stringify({ web: installed.installed })).status, 1, 'web secrets never enter a desktop package');
     const malformed = stage('not-json-SENSITIVE-CANARY');
     assert.equal(malformed.status, 1); assert.ok(!malformed.stderr.includes('SENSITIVE-CANARY'));
     assert.equal(stage(JSON.stringify(installed)).status, 0);
-    const staged = path.join(stageRoot, 'sidecar/mcp/google-client.json');
     assert.equal(JSON.parse(fs.readFileSync(staged, 'utf8')).installed.client_id, installed.installed.client_id);
     assert.equal(fs.statSync(staged).mode & 0o444, 0o444, 'installed native metadata remains readable across OS accounts');
     assert.equal(stage('', true).status, 0);

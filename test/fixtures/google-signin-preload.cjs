@@ -1,4 +1,5 @@
 'use strict';
+require('./google-future-release.cjs');
 // Synthetic provider for the sidecar and seeded UI acceptance checks. Never loaded
 // by product code. No production network or Google account is used by these tests.
 const fs = require('node:fs');
