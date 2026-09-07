@@ -1231,13 +1231,41 @@
     }
     // OAuth sign-in: start the flow, open the provider's consent (browser tab on desktop, popup in a browser),
     // then poll until the connector connects — but only if the consent window actually opened.
-    async function ccSignIn(id, msgOut, labelOverride) {
+    async function ccSignIn(id, msgOut, labelOverride, googleDisclosed = false) {
       // progress lands in the caller's message line: the catalog's by default, the MCP CONNECTORS pane's when the
       // ⏼ RE-SIGN-IN row action drives this (the user is looking at that tab — the catalog line is off-screen).
       const out = msgOut || ccMsgEl;
       if (ccPending.has(id)) { sfx('bad'); out.classList.remove('ok'); out.textContent = 'a sign-in is already in progress for this connector…'; return; }
-      ccPending.add(id);   // one in-flight sign-in per connector — no duplicate popups / concurrent pollers
       const e = ccEntry(id); const label = labelOverride || (e && e.name) || id;
+      // Disclose the actual model/data path in the app immediately before Google consent.
+      // No OAuth attempt exists until the explicit Continue action; dismissing this panel is not consent.
+      if (!googleDisclosed && ((e && e.googleApi) || /^(gmail|google-(drive|calendar|docs|sheets))$/.test(id))) {
+        body.querySelectorAll('.google-disclosure').forEach(node => node.remove());
+        const notice = document.createElement('section');
+        notice.className = 'ext-editor mc-form google-disclosure';
+        notice.setAttribute('role', 'group');
+        notice.setAttribute('aria-label', 'Google connection and data use');
+        notice.innerHTML = '<strong>CONNECT ' + esc(label.toUpperCase()) + '</strong>' +
+          '<p>' + esc((e && e.blurb) || 'Connect the selected Google service using the permissions you approve in Google.') + '</p>' +
+          '<p>When an agent uses this connection, content from the Google service can be sent to your selected AI model provider. With StarNet Credits, those requests also pass through the StarNet credits gateway.</p>' +
+          '<p>Sign-in credentials are saved on this device. Conversations, files and memories may retain content from your requests. Removing the connection clears its saved credentials; it does not erase previous work or revoke access in your Google account.</p>' +
+          '<p><a class="bb sm" href="https://starnetos.com/legal/privacy#google-workspace" target="_blank" rel="noopener">Google data use and removal details ↗</a></p>' +
+          '<div class="mc-acts"><button class="bb sm" data-google-continue>CONTINUE TO GOOGLE</button><button class="bb sm" data-google-cancel>CANCEL</button></div>';
+        out.classList.remove('ok'); out.textContent = '';
+        out.before(notice);
+        const proceed = notice.querySelector('[data-google-continue]');
+        proceed.addEventListener('click', () => {
+          if (!body.isConnected || !notice.isConnected) return;
+          proceed.disabled = true; notice.remove();
+          ccSignIn(id, msgOut, labelOverride, true);
+        });
+        notice.querySelector('[data-google-cancel]').addEventListener('click', () => {
+          notice.remove(); out.textContent = 'Google sign-in cancelled — no connection was started.';
+        });
+        notice.scrollIntoView({ block: 'center' }); proceed.focus({ preventScroll: true });
+        return;
+      }
+      ccPending.add(id);   // one in-flight sign-in per connector — no duplicate popups / concurrent pollers
       out.classList.remove('ok'); out.textContent = 'starting sign-in for ' + label + '…';
       const attemptId = 'cc_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 10);
       const controller = new AbortController();
