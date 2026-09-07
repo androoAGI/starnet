@@ -34,7 +34,7 @@ Owner screenshot and live local DOM at 127.0.0.1:8791 showed Gmail → SET UP. B
 
 ## Verdict
 
-Source implementation committed at cb8385c56. The StarNet Desktop OAuth registration, five Workspace APIs, declared scopes and build secret are configured and included in the signed bd65c7737 installer. On 2026-09-06, the public home/privacy/terms URLs were saved in Google Branding and the console confirmed Branding changes saved. Native installed Windows inspection showed Gmail → SIGN IN WITH GOOGLE, with no application-client credential form. Google's Verification Center still reports branding and data-access verification incomplete. Real consent/operations/refresh/removal/revocation/restart and the privacy disclosure/verification work remain outstanding. This record stays open until the requested customer flow can be activated; a sign-in button is not account-connection proof.
+Source implementation committed at cb8385c56. The StarNet Desktop OAuth registration, five Workspace APIs, declared scopes and build secret are configured and included in the signed bd65c7737 installer. Native installed Windows inspection showed Gmail → SIGN IN WITH GOOGLE, with no application-client credential form. The corrected privacy disclosure is now published; Google confirmed domain ownership, verified the branding, and published it. Data-access verification remains unsubmitted pending its required demo and review material. Real consent/operations/refresh/removal/revocation/restart remain outstanding. This record stays open until the requested customer flow can be activated; a sign-in button is not account-connection proof.
 
 ## Regression
 
