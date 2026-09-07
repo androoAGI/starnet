@@ -38,6 +38,14 @@ Release verification 2026-09-06: CI 34070924471 built and notarized both Mac arc
 
 ## Regression
 
+2026-09-06: owner reports no available Mac tester and requests work from known evidence.
+The three pending cloud repairs, including magic-link SameSite session recovery, are now
+deployed and verified as documented in `docs/RELEASE_FOLLOWTHROUGH_2026-09-06.md`. Issue #2
+was re-read: the original symptom is the native STATION DATA UNREACHABLE screen after
+reload/unlink, not merely a browser sign-in redirect. Therefore the cloud cookie repair
+is not relabeled as this report's proven cause. Source recovery regressions pass; affected
+Apple Silicon recovery remains unconfirmed.
+
 Exact before/after customer reproduction is pending; see Repro and Verdict.
 
 2026-09-05, source repair `c364e991d`: live sidecar reproductions proved that delayed

@@ -39,6 +39,19 @@ Release verification 2026-09-06: a fresh GitHub read still ends with the 2026-09
 
 ## Regression
 
+2026-09-06 follow-through after owner restored Fly access: production `src/app.js` matched
+`cc81e768`, predating the three committed gateway repairs. Deployed cloud commit `b83271e`
+after 221/221 tests, 22 live local checks (one catalog check explicitly skipped), a restore
+drill, and a separately verified production backup. All 18 deployed source files match the
+candidate; all 112,082 predeployment ledger rows remain byte-equivalent as ordered records.
+The service is healthy and retains its single machine and volume. Direct synthetic Sonnet 5
+requests, with and without tools/high reasoning, succeeded from the production host. The
+deployed gateway module also completed a real Sonnet request using an isolated in-memory
+account; a deliberate invalid-model 400 carried matching response/body request IDs and no
+raw metadata. This repairs the missing production diagnostic capability; it does not prove
+the historical customer's 400 was caused by that gap. Record remains open for the affected
+request/retest. See `docs/RELEASE_FOLLOWTHROUGH_2026-09-06.md`.
+
 Exact before/after customer reproduction is pending; see Repro and Verdict.
 
 2026-09-05, source repair `c364e991d` improves diagnosis without asserting a production

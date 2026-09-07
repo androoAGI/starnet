@@ -31,13 +31,14 @@
 <div class="docs-shell" style="grid-template-columns:1fr; max-width:860px;">
   <main class="docs-main">
 <h1>StarNet Privacy</h1>
-<p><em>Last reviewed: 2026-07-25, against the shipping code.</em></p>
+<p><em>Google connector disclosure reviewed: 2026-09-06, against the 0.11.0 candidate. Other sections last reviewed: 2026-07-25.</em></p>
 <p>StarNet is a <strong>local-first desktop app</strong>. It runs a small server (the "sidecar") on your own
 machine (<code>localhost</code>) and does the agent work there. Out of the box there is <strong>no StarNet
 account and nothing of yours on a StarNet server</strong> — the app talks only to the providers you
 choose, with your own keys. There is exactly one opt-in exception: if you choose to buy
 <strong>StarNet Credits</strong>, that creates an account on our billing service. It is described in full
-under <em>StarNet Credits</em> below, and nothing in this document changes for you unless you buy them.
+under <em>StarNet Credits</em> below. Optional connections to services such as Google have their own
+data flows, described below, whether you use your own model key or StarNet Credits.
 This document is written in plain English and is grounded in an audit of the actual code —
 not aspirations.</p>
 <p>Support questions: androo.agi@gmail.com.</p>
@@ -49,7 +50,9 @@ not aspirations.</p>
   none are present. The desktop app does make the automatic update-manifest request described
   below; that request carries no user data or app identifier. This stays true whether or not you
   buy credits — buying credits adds a billing account, not tracking.</li>
-<li><strong>Your data stays on your machine</strong>, under your OS user's app-data directory —
+<li><strong>Your saved station data lives on your machine</strong>, under your OS user's app-data directory.
+  Content used in agent work can also be sent to your selected model provider and connected services,
+  as described below. Local storage paths are —
   Windows: <code>%APPDATA%\ai.skynet.harness\workspaces\</code>; macOS:
   <code>~/Library/Application Support/ai.skynet.harness/workspaces/</code>; Linux:
   <code>~/.local/share/ai.skynet.harness/workspaces/</code>. (The developer-mode sidecar uses
@@ -129,6 +132,32 @@ sent</strong> — it's the same request your browser would make to view that fil
 integrity is cryptographically verified against a key baked into the app before anything is
 installed. You can stop automatic checks by turning off <strong>AUTO-CHECK FOR UPDATES</strong> in
 <strong>SYSTEM &gt; SETTINGS &gt; UPDATES</strong>; the Update Center still lets you check manually.</p>
+<h3 id="google-workspace" style="scroll-margin-top:5rem;">7. Google Workspace — only when you connect an account</h3>
+<p>StarNet's local connector calls the Google services you authorize, using the permissions you
+approve in Google's consent screen. Gmail, Drive, Calendar, Docs and Sheets are connected separately.
+Google also supplies the account identity shown with a connected service.</p>
+<ul>
+<li><strong>Gmail:</strong> search and read messages, threads and attachments; create drafts and send drafts.</li>
+<li><strong>Drive:</strong> search files, read file metadata, export file content, and create or update
+  file metadata within the permissions granted.</li>
+<li><strong>Calendar:</strong> read calendars, events and availability.</li>
+<li><strong>Docs and Sheets:</strong> read, create and edit documents or spreadsheets.</li>
+</ul>
+<p><strong>Use in agent work.</strong> Content returned by these tools can become part of the agent's
+conversation and requests to your chosen model provider. If you use StarNet Credits, those model
+requests also pass through StarNet's credits gateway. Local execution of the Google connector does
+not mean that Google-derived content remains exclusively on your device. The provider you choose
+has its own data-handling terms. Saved conversations, downloaded artifacts and agent memories may
+retain content from this work.</p>
+<p><strong>Credentials and disconnecting.</strong> Google sign-in credentials and connector configuration
+are stored in plaintext JSON under your local StarNet workspace, including recovery copies; these
+connector credentials are not stored in the OS keychain. Removing a connected service verifies removal
+of its saved configuration and credentials from the active state and its recovery copy before reporting
+success. This does not delete prior conversations, artifacts, memories or documents in Google, and it
+does not itself revoke StarNet's authorization in your Google account. Manage or revoke that authorization
+separately through <a href="https://myaccount.google.com/connections" target="_blank" rel="noopener">your Google account's third-party connections</a>.
+Revocation stops future authorized access; it does not erase copies already saved locally or sent to
+a model provider. Delete those separately using the relevant app or provider controls.</p>
 <h2>What StarNet stores on your machine (and how)</h2>
 <p>Everything below lives under your per-user app-data directory (see the paths in "The short
 version" above for Windows/macOS/Linux). It never leaves your machine except as described
@@ -180,6 +209,11 @@ always under the service name <code>ai.skynet.harness</code>.</p>
 <td><strong>Plaintext</strong> JSON on disk</td>
 </tr>
 <tr>
+<td>Google and other connector configuration, account identity and OAuth credentials</td>
+<td><code>connectors/state.json</code> and its recovery copy</td>
+<td><strong>Plaintext</strong> JSON on disk, including access/refresh tokens; not the OS keychain</td>
+</tr>
+<tr>
 <td>ChatGPT / Codex sign-in token</td>
 <td><code>codex/tokens.json</code></td>
 <td><strong>Plaintext</strong> JSON on disk</td>
@@ -226,7 +260,8 @@ tests), the OS keychain isn't reachable, so those bot tokens <strong>fall back t
 (<code>channels/secrets.json</code>). This is called out plainly in the code rather than hidden.</p>
 <p>These integration secrets are <strong>plaintext even on desktop</strong> today: the <strong>Spotify</strong> OAuth token
 (<code>.secrets/spotify.json</code>) and the <strong>ChatGPT/Codex</strong>, <strong>Grok</strong>, and <strong>Kimi</strong> sign-in tokens
-(<code>codex/tokens.json</code>, <code>grok/tokens.json</code>, and <code>kimi/tokens.json</code>). If that matters to you,
+(<code>codex/tokens.json</code>, <code>grok/tokens.json</code>, and <code>kimi/tokens.json</code>), plus
+<strong>Google and other connector OAuth credentials</strong> (<code>connectors/state.json</code> and its recovery copy). If that matters to you,
 keep those integrations off. (Transcripts are run through a redaction step at write-time to avoid
 capturing secret-shaped tokens in your chat history, but the transcript file itself is plaintext.)</p>
 <p>Because this data sits in plaintext files under your user profile, anyone with access to your
@@ -237,8 +272,9 @@ Windows user account can read it. Protect your machine account accordingly.</p>
 <li>We do <strong>not</strong> collect crash reports.</li>
 <li>We do <strong>not</strong> require a StarNet account. Unless you buy credits, no account exists, and no
   StarNet backend holds anything of yours.</li>
-<li>We do <strong>not</strong> sell, share, or transmit your conversations, keys, or files to anyone —
-  the only outbound traffic is the specific, purpose-built requests listed above.</li>
+<li>We do <strong>not</strong> sell your conversations, keys, or files. The app transmits content and
+  authentication information as needed for the model requests and connected-service operations
+  described above.</li>
 <li>We do <strong>not</strong> store your prompts or your agents' replies on our servers, even on the credits
   path — see below.</li>
 </ul>
@@ -271,6 +307,10 @@ app-data folder for your OS — Windows: <code>%APPDATA%\ai.skynet.harness\</cod
 If you ever ran the developer-mode sidecar on Windows, also delete <code>%LOCALAPPDATA%\StarNet\</code>.
 Provider API keys and channel tokens held in the OS keychain can be removed there too (search
 your credential manager / keychain for <code>ai.skynet.harness</code>).</p>
+<p>Deleting local files or uninstalling StarNet does not revoke permissions granted in a Google
+account or remove data already held by Google or a model provider. For connected Google accounts,
+follow the <a href="#google-workspace">disconnect and revocation steps above</a>. Copies in backups
+you made outside the workspace must also be deleted separately.</p>
 <h2>This website (starnetos.com)</h2>
 <p>The website you're reading is a static site with no accounts, no cookies, no analytics, and no
 tracking scripts. Two things are worth stating plainly:</p>

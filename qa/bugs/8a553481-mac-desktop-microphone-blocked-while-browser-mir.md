@@ -36,6 +36,16 @@ Release verification: d65f8f538 is the exact entitlement repair. Build-only CI 3
 
 ## Verdict
 
+2026-09-06 owner explicitly requested proceeding from available evidence because no physical
+Mac tester is available. Direct inspection of both signed 0.11.0 updater archives now proves
+the shipped application version, hardened-runtime flag, true audio-input entitlement and
+microphone purpose string. The entitlement's CodeDirectory slot hash and every executable
+code-page hash match in both architectures; the updater signatures separately verify. This
+is stronger packaging evidence than source inspection and does not certify a physical
+permission prompt or capture. `release/MAC-MICROPHONE-BUNDLE-PROOF.json` holds the local receipt.
+The test-build workflow does not execute the release-train's signed microphone assertion;
+the direct archive check supplies that missing inspection for this candidate.
+
 Source packaging gap repaired in this lane. Report remains open until the affected signed Mac installer is tested; this source finding is consistent with the report, not proof of customer recovery.
 
 ## Regression
@@ -44,4 +54,4 @@ The desktop voice bundle regression now checks hardened runtime, the configured 
 
 ## Sibling coverage
 
-{"adapters":[{"target":"signed macOS WKWebView","state":"blocked","reason":"No Mac hardware or signed candidate is available on this Windows host."},{"target":"desktop bundle configuration","state":"covered","test":"test/desktop-voice-bundle.test.js","scenario":"hardened runtime microphone purpose and entitlement","gate":"fast"}],"entrypoints":[{"target":"Speak mic denial and retry","state":"covered","test":"test/voice.button.test.js","scenario":"recorder denied then re-granted","gate":"fast"},{"target":"Hands-Free Mic physical capture","state":"blocked","reason":"Requires the affected signed macOS app and a real microphone."}],"displays":[{"target":"Mac desktop recovery copy","state":"covered","test":"test/voice.button.test.js","scenario":"desktop Mac recovery directs to system microphone settings","gate":"fast"},{"target":"browser mirror","state":"blocked","reason":"Customer reports success; this lane has not reproduced their browser hardware capture."}],"lifecycle":[{"target":"permission prompt timeout and late grant","state":"covered","test":"test/voice.button.test.js","scenario":"recorder timeout recovers the button","gate":"fast"},{"target":"signed Mac allow deny reset restart","state":"blocked","reason":"Release acceptance must test the actual signed artifact on Apple Silicon."}]}
+{"adapters":[{"target":"signed macOS WKWebView","state":"blocked","reason":"Both signed candidates are available and their microphone bundle declarations are verified directly, but no physical Mac capture is available; owner requested proceeding from source/package evidence."},{"target":"desktop bundle configuration","state":"covered","test":"test/desktop-voice-bundle.test.js","scenario":"hardened runtime microphone purpose and entitlement","gate":"fast"}],"entrypoints":[{"target":"Speak mic denial and retry","state":"covered","test":"test/voice.button.test.js","scenario":"recorder denied then re-granted","gate":"fast"},{"target":"Hands-Free Mic physical capture","state":"blocked","reason":"Requires the affected signed macOS app and a real microphone."}],"displays":[{"target":"Mac desktop recovery copy","state":"covered","test":"test/voice.button.test.js","scenario":"desktop Mac recovery directs to system microphone settings","gate":"fast"},{"target":"browser mirror","state":"blocked","reason":"Customer reports success; this lane has not reproduced their browser hardware capture."}],"lifecycle":[{"target":"permission prompt timeout and late grant","state":"covered","test":"test/voice.button.test.js","scenario":"recorder timeout recovers the button","gate":"fast"},{"target":"signed Mac allow deny reset restart","state":"blocked","reason":"Physical capture and permission lifecycle remain unverified; the owner has no Mac tester for this release preparation."}]}
