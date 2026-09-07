@@ -4,10 +4,10 @@ slug: late-cancelled-loop-settlement-strands-the-resum
 title: Late cancelled loop settlement strands the resumed iteration
 surface: autonomy
 severity: P1
-status: open
+status: fixed
 found: 2026-09-07
 lane: release-blockers-0907
-fix:
+fix: 035513a6d
 origin: audit
 ---
 

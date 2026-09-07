@@ -4,7 +4,7 @@
 One tracked file per bug under `qa/bugs/`; this is only the index. File a new bug with
 `node scripts/qa/bugs.mjs --new --title "..." --surface <surface>`.
 
-**7** open (open+claimed) of 77 total — 0 P0 · 7 P1 · 0 P2
+**6** open (open+claimed) of 77 total — 0 P0 · 6 P1 · 0 P2
 
 Engineering status is separate from delivery and customer recovery. Legacy rows without origin are not a customer census.
 
@@ -57,13 +57,13 @@ User/owner reports: **34** · source fixed: **28** · installer verified: **1** 
 | P0 | fixed | sessions | [An attachment-bearing user turn is dropped from the durable transcript and the PREVIOUS turn is written in its place — the string-only scan at index.js:11299 fa](bugs/e7dcb889-an-attachment-bearing-user-turn-is-dropped-from.md) | sweep/sessions | 6afeb9ee |
 | P0 | fixed | skills | [skill.view's hydrate-then-bump stores the RENDERED SKILL.md as the skill's body, so every view→persist cycle re-appends '## Setup' and '## Support Files' — unbo](bugs/c70f8965-skill-view-s-hydrate-then-bump-stores-the-render.md) | sweep/skills | 598ab4a4 |
 | P1 | open | autonomy | [Customer cannot explain idle behavior and unexpectedly high usage](bugs/acb47320-idle-usage-customer-unexplained.md) | reliability-followup | — |
-| P1 | open | autonomy | [Late cancelled loop settlement strands the resumed iteration](bugs/24b375c9-late-cancelled-loop-settlement-strands-the-resum.md) | release-blockers-0907 | — |
 | P1 | open | autonomy | [Customer reports an ONCE routine absent from Active Routines](bugs/c2a6c3c8-once-routine-reported-missing.md) | reliability-followup | — |
 | P1 | open | onboarding | [Mac paid onboarding becomes unreachable after reload and relink](bugs/eaaa3ec8-mac-onboarding-unreachable-after-link.md) | reliability-followup | — |
 | P1 | open | providers | [Funded working station still displays a zero-credit warning](bugs/72af29f4-funded-station-false-zero-warning.md) | reliability-followup | — |
 | P1 | open | providers | [Managed Sonnet request still returns an uncorrelated HTTP 400](bugs/fd9c4b4d-managed-sonnet-400-unresolved.md) | reliability-followup | — |
 | P1 | open | world | [Customer viewport becomes blank after ten to twenty minutes](bugs/9256a771-viewport-black-after-idle.md) | reliability-followup | — |
 | P1 | fixed | autonomy | [cron-store's armAt never receives the host defaultTz, so a tz-less cron routine's FIRST nextRunAt is UTC-anchored while every later advance uses local — the mar](bugs/f47a1e3a-cron-store-s-armat-never-receives-the-host-defau.md) | sweep/autonomy | 226cec3c |
+| P1 | fixed | autonomy | [Late cancelled loop settlement strands the resumed iteration](bugs/24b375c9-late-cancelled-loop-settlement-strands-the-resum.md) | release-blockers-0907 | 035513a6d |
 | P1 | fixed | autonomy | [Persisted E-STOP cannot be resumed from the desktop control](bugs/8f911536-persisted-e-stop-cannot-be-resumed-from-the-desk.md) | estop-recovery-0907 | acdf5160c |
 | P1 | fixed | channels | [A lost-race consent tap stamps "▸ ✅ Allow once" onto the message before resolveConsent is asked, so a DENIED request keeps a permanent "approved" record](bugs/64563ad9-a-lost-race-consent-tap-stamps-allow-once-onto-t.md) | sweep/channels | 96fe108d |
 | P1 | fixed | channels | [`channel.targets` derives "reachable now" from the adapter handle's existence, so an errored (or still-connecting) channel is reported connected while telegramS](bugs/a199ee3c-channel-targets-derives-reachable-now-from-the-a.md) | sweep/channels | 96fe108d |
@@ -132,7 +132,7 @@ User/owner reports: **34** · source fixed: **28** · installer verified: **1** 
 | Surface | Open |
 | --- | --- |
 | channels | 0 |
-| autonomy | 3 |
+| autonomy | 2 |
 | providers | 2 |
 | safecell | 0 |
 | sessions | 0 |
