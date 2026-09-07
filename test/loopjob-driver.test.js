@@ -559,5 +559,37 @@ function world(opts) {
     A.eq(w.drv.abortLease('missing'), false, 'targeted cancellation is idempotent for an absent lease');
   }
 
+  // Cancellation can arrive after the provider finished, while check/harvest is
+  // still pending. A late result belongs to that cancelled generation only.
+  for (const seam of ['check', 'harvest', 'harvest-reject']) {
+    let releaseOld, rejectOld, checks = 0, harvests = 0;
+    const delayed = new Promise((resolve, reject) => { releaseOld = resolve; rejectOld = reject; });
+    const w = world({
+      check: () => ++checks === 1 && seam === 'check' ? delayed : null,
+      harvest: () => {
+        harvests++;
+        return harvests === 1 && seam !== 'check' ? delayed : { text: 'new work', title: 'new work' };
+      }
+    });
+    w.seed({});
+    w.tick(T0);
+    await w.finish({ text: 'old provider completed' });
+    await w.flush();
+    A.eq(w.drv.abortLease('l1', 'paused by the Commander'), true, seam + ': cancel during pending host work');
+    A.eq(w.tick(T0 + MIN).fired, 1, seam + ': resume starts a replacement');
+    const replacement = w.drv.leases.get('l1');
+    A.eq(replacement.runId, 'run2', seam + ': replacement owns its lease');
+    if (seam === 'harvest-reject') rejectOld(new Error('late old harvest failed'));
+    else releaseOld({ text: 'late old result', title: 'late old result' });
+    await w.flush();
+    A.eq(w.drv.leases.get('l1'), replacement, seam + ': late completion must not delete replacement ownership');
+    A.eq(w.loop().iterations[0].outcome, 'cancelled', seam + ': cancellation remains terminal');
+    if (seam === 'check') A.eq(harvests, 0, 'late check cannot start harvest after cancellation');
+    await w.finish({ text: 'replacement completes' });
+    await w.flush();
+    A.eq(w.loop().iterations[1].outcome, 'candidate', seam + ': replacement completes instead of stranding RUNNING');
+    A.eq(w.drv.leases.size, 0, seam + ': replacement releases its own lease');
+  }
+
   A.report('loopjob-driver (LOOP tick driver)');
 })().catch(e => { console.log('FAIL: unexpected throw — ' + (e && e.stack || e)); process.exit(1); });

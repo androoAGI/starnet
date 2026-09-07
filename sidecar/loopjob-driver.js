@@ -184,6 +184,9 @@
        zombie ceiling and stall the loop for maxRunMs. */
     function settle(loopId, runId, result) {
       const lease = leases.get(loopId);
+      // A cancelled pass may finish its check/harvest after RESUME has fired a
+      // replacement. Only the current generation can persist or release ownership.
+      if (!lease || lease.runId !== runId) return false;
       const pending = lease && lease.runId === runId ? lease.settlement : null;
       const at = pending ? pending.at : now();
       const prev = store.getLoop(getLoops(), loopId);
@@ -425,7 +428,11 @@
             // after-minus-before, so without it a pass would stage files that were already dirty when the
             // loop started — the Commander's own work, swept into a commit a later rejection reverts.
             return checkP.then(verdict => beforeP.then(before =>
-              Promise.resolve().then(() => harvest(fresh, withText, iterN, { before: before, check: verdict })).then(
+              Promise.resolve().then(() => {
+                const live = leases.get(loop.id);
+                if (!live || live.runId !== runId || (ac.signal && ac.signal.aborted)) return null;
+                return harvest(fresh, withText, iterN, { before: before, check: verdict });
+              }).then(
               (h) => settle(loop.id, runId, Object.assign(
                 { status: 'ok', check: verdict },
                 h || {},
@@ -451,6 +458,8 @@
           }
         )
         .catch((e) => {
+          const live = leases.get(loop.id);
+          if (!live || live.runId !== runId) return;
           try { leases.delete(loop.id); } catch (_) {}
           note('decline', fresh, { runId: runId, reason: 'settle-threw', binding: 'internal', detail: { err: String((e && e.message) || e).slice(0, 200) } });
         });
