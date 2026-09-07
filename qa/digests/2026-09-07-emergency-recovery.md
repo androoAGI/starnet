@@ -54,4 +54,27 @@ This is a real sidecar and real frontend; the HTTP endpoints were not mocked.
 The live UI is the source app in a browser on Windows, not the customer's installed
 WebView2 executable. Installer verification and customer recovery remain unconfirmed.
 No reinstall, data wipe, public upload or release publication is part of this receipt.
-Full gate/build outcomes will be recorded after completion.
+Premerge gates passed: 731/731 fast, 103/103 HTTP, and 30/30 customer journeys, all exit 0.
+Focused current claims validation passed 64 assertions. Merged as c1f326410 after syncing
+with b80fa5212; the merged Git tree exactly matched the tested worktree. Existing integration
+qa/STATUS.md bytes were preserved (SHA-256 26d524b8d5208abfaef433b2da92a4697c6eb3cdccfbec9b06cd5ddb291b144c).
+
+Windows Tauri build --no-bundle --ci -- --offline succeeded. Executable SHA-256:
+bb71628c6c74dd2a58ffb42a232e5f56b996583492511f7ae87f893fb7e2230f.
+The staged emergency-control.js exactly matched source, SHA-256:
+90e15e8c83771b455ccf4fdfcfdfa2b7d52bdb7b41c5c739f1b0d892ce2df39c.
+This is build/resource verification only, not installed WebView2 behavior or an NSIS installer.
+The release coordinator was notified that its earlier b80 candidate needs rebuilding and
+installed stop/restart/explicit-resume acceptance. No public publication occurred.
+
+Postmerge gates on c1f326410 also passed: fast 731/731 and HTTP 103/103, exit 0.
+The source did not advance during these runs. The release lane is independently repairing a
+late-cancellation loop lease race found by its own reproduction; a passing loops-check here
+does not refute that evidence. Its new candidate includes emergency recovery.
+
+At the release coordinator's request, scripts/qa/emergency-native-proof.mjs and its adjacent
+input documentation provide a standalone disposable-hosted-Windows native acceptance helper.
+It binds the actual native executable/source identity and executed script hash, clicks the
+real controls, records HTTP responses and persisted flags, and compares protected settings
+through stop/restart/resume/restart. Local validation is syntax/help/refusal only; a native
+PASS still requires execution by the release lane against its exact installed candidate.
