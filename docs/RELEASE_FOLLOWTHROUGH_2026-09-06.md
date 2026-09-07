@@ -75,9 +75,27 @@ Run `5451d600-a49e-4410-8d99-d713c8087687` successfully created one unsent test 
 searched only the exact test subject in drafts, and read the matching message. Its durable
 tool trace contains those three successful operations and no send operation. Gmail's own
 UI independently showed exactly one matching draft with the requested subject and body.
-Drive also completed real Google consent and its callback reported five available tools;
-Drive operations and the other services/lifecycle cases remain unverified. The Clients page
+Drive, Docs, Sheets and Calendar also completed real Google consent. The Clients page
 lists StarNet Desktop and StarNet Account (web); both belong in the verification demo.
+
+Subsequent installed-candidate runs exercised 20 actual Google API calls: Gmail draft
+creation/search/read (3), Docs creation/update/read plus Sheets creation/write/read/format
+and Drive folder creation/rename/search/metadata/export (12), and Calendar calendar/event
+lookup, event read, free/busy and repeated read (5). All completed successfully. Four
+additional internal task-list calls are not counted as Google calls. Only dedicated
+verification fixtures were used; the Gmail message stayed an unsent draft and the Calendar
+fixture was dated January 2000 with no attendees or reminders. Installed connector state
+reported all five authorized and up. This proves these operations on Windows, not every
+tool, physical Mac behavior, or every real-account revocation/recovery path.
+
+The review also found the Google data-transfer disclosure existed on the privacy page but
+was absent before in-app sign-in. The new connector panel now explains model-provider and
+credits-gateway transfer, local credential storage, retained work and removal/revocation
+before an explicit Continue to Google action. Cancel begins no OAuth attempt. The actual
+seeded UI verified all five Continue routes, zero requests on opening/cancel, unchanged
+non-Google sign-in, a detached panel unable to start sign-in, and readable 900px layout
+without horizontal overflow. The source fix supersedes the bd65 package for the next build;
+the prior package's acceptance receipts must not be relabeled as proof of this change.
 
 ## Local distribution-folder reconciliation
 

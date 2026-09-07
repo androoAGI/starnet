@@ -34,7 +34,7 @@ Owner screenshot and live local DOM at 127.0.0.1:8791 showed Gmail → SET UP. B
 
 ## Verdict
 
-Source implementation committed at cb8385c56. The StarNet Desktop OAuth registration, five Workspace APIs, declared scopes and build secret are configured and included in the signed bd65c7737 installer. Native installed Windows inspection showed Gmail → SIGN IN WITH GOOGLE, with no application-client credential form. The corrected privacy disclosure is now published; Google confirmed domain ownership, verified the branding, and published it. Data-access verification remains unsubmitted pending its required demo and review material. Real consent/operations/refresh/removal/revocation/restart remain outstanding. This record stays open until the requested customer flow can be activated; a sign-in button is not account-connection proof.
+Source implementation committed at cb8385c56. The StarNet Desktop OAuth registration, five Workspace APIs, declared scopes and build secret are configured and included in the signed bd65c7737 installer. Native installed Windows inspection showed Gmail → SIGN IN WITH GOOGLE, with no application-client credential form. Real consent and bounded operations now pass for all five services on installed Windows. The corrected privacy disclosure is published; Google confirmed domain ownership, verified the branding, and published it. Data-access verification remains unsubmitted pending its required demo and review material. Real-account refresh/removal/revocation/restart and physical Mac acceptance remain outstanding. An additional in-app disclosure before consent is verified in the seeded UI and requires a rebuilt installer. This record stays open until the requested customer flow can be activated for distribution.
 
 ## Regression
 
@@ -45,8 +45,10 @@ catalog action to MANAGE SERVICE. In a dedicated test conversation, run
 search_messages (429 ms), and read_message (231 ms), with no uncertain mutations and no
 send call. Gmail's own web UI independently returned exactly one matching unsent draft
 with the requested test subject/body. This verifies Gmail's real installed connection and
-these operations. Drive's real consent also completed with five available tools; its
-operations remain unverified. Other services, restart/refresh/removal/revocation and the Google review
+these operations. Subsequent real runs ddc0e3a3-7018-48ca-9ba9-f48b6d62f96c and
+38f2b951-ac99-4f71-9a99-f4c0aef9c82f verified 12 Docs/Sheets/Drive calls and five Calendar
+calls respectively, all successful and limited to dedicated fixtures. All five connections
+report authorized and up. Restart/refresh/removal/revocation and the Google review
 remain outstanding. The project has two OAuth clients (Desktop and Account web), both of
 which must be covered by the verification material. No demo video has been submitted.
 
