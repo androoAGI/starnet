@@ -9,6 +9,7 @@ import { createHash } from 'node:crypto';
 import { spawn, spawnSync } from 'node:child_process';
 import net from 'node:net';
 import { CDP, evalJS, sleep } from '../lib/cdp.mjs';
+import { startUiOnlyOpenRouter, uiOnlyProviderBaseEnv } from './beginner-run.mjs';
 
 const args = {};
 if (process.argv.includes('--help')) {
@@ -50,7 +51,10 @@ if (!fs.existsSync(path.join(workspace, 'agent.save.json'))) {
 const receipt = { schema: 'starnet.emergency-native-proof.v1', result: 'FAIL', startedAt: new Date().toISOString(), executable: { path: exe, sha256: exeHash }, scriptSha256: scriptHash, phases: [], note: 'Disposable hosted VM; real installed EXE/CDP/API/disk. No model-execution or customer-recovery claim.' };
 const network = [];
 const trace = entry => { const row = { at: new Date().toISOString(), phase, ...entry }; network.push(row); fs.appendFileSync(path.join(out, 'network.jsonl'), JSON.stringify(row) + '\n'); };
-let phase = 'setup', child, cdp, launches = 0;
+let phase = 'setup', child, cdp, launches = 0, fixture;
+const fixtureModel = 'anthropic/claude-haiku-4.5';
+const fixtureKey = 'sk-or-beginner-ui-only-placeholder';
+const fixtureCounts = { credentialChecks: 0, catalogs: 0, completions: 0 };
 async function until(fn, label, timeout = 60000) {
   const end = Date.now() + timeout;
   while (Date.now() < end) { const value = await fn(); if (value) return value; await sleep(250); }
@@ -72,8 +76,9 @@ async function launch() {
   const debugPort = await port(); ++launches;
   const env = { ...process.env };
   for (const name of Object.keys(env)) if (/^(SKYNET|STARNET)_/.test(name)) delete env[name];
-  // Nonfunctional fixture credential only; no real provider keys or model calls are needed.
-  Object.assign(env, { SKYNET_OPENROUTER_KEY: 'sk-or-v1-native-proof-not-a-real-key', SKYNET_DEFAULT_MODEL: 'anthropic/claude-haiku-4.5', WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS: '--remote-debugging-port=' + debugPort, WEBVIEW2_USER_DATA_FOLDER: path.join(out, 'webview-profile') });
+  // The real resume gate validates a key and streams a preflight. Both go to the
+  // existing loopback-only Beginner fixture, never a public model endpoint.
+  Object.assign(env, uiOnlyProviderBaseEnv('ui-only', fixture.base), { SKYNET_OPENROUTER_KEY: fixtureKey, SKYNET_DEFAULT_MODEL: fixtureModel, WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS: '--remote-debugging-port=' + debugPort, WEBVIEW2_USER_DATA_FOLDER: path.join(out, 'webview-profile') });
   child = spawn(exe, [], { cwd: install, env, windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] });
   child.on('error', e => fs.appendFileSync(path.join(out, 'process.log'), String(e) + '\n'));
   for (const stream of [child.stdout, child.stderr]) stream.on('data', d => fs.appendFileSync(path.join(out, 'process.log'), d));
@@ -109,7 +114,7 @@ async function launch() {
   if (args['expected-build-sha']) assert.equal(native.sha, args['expected-build-sha'], 'native source SHA mismatch');
   receipt.nativeBuild = native;
   receipt.phases.push({ phase: 'launch-' + launches, origin: new URL(target.url).origin, scriptUrl: loaded.url, scriptSha256: hash(source.scriptSource) });
-  await until(() => evalJS(cdp, '!!document.querySelector("#screen-game.active")'), 'seeded native station entered; T0 may need to onboard it first');
+  await enterSavedStation();
 }
 async function api(route, body) {
   const r = await evalJS(cdp, `(async()=>{const r=await fetch(${JSON.stringify(route)},{method:${JSON.stringify(body === undefined ? 'GET' : 'POST')},cache:'no-store',headers:{'Content-Type':'application/json','X-StarNet-Token':window.__STARNET_API_TOKEN__},${body === undefined ? '' : 'body:' + JSON.stringify(JSON.stringify(body)) + ','}});return {status:r.status,data:await r.json()};})()`);
@@ -117,10 +122,36 @@ async function api(route, body) {
   return r.data;
 }
 async function click(selector) {
-  const p = await evalJS(cdp, `(()=>{const e=document.querySelector(${JSON.stringify(selector)});if(!e||e.disabled||e.hidden)return null;const r=e.getBoundingClientRect();return r.width&&r.height?{x:r.x+r.width/2,y:r.y+r.height/2}:null})()`);
+  await evalJS(cdp, `document.querySelector(${JSON.stringify(selector)})?.scrollIntoView({block:'center',behavior:'instant'})`);
+  const p = await evalJS(cdp, `(()=>{const e=document.querySelector(${JSON.stringify(selector)});if(!e||e.disabled||e.hidden)return null;const r=e.getBoundingClientRect();return r.width&&r.height&&r.y>=0&&r.bottom<=innerHeight?{x:r.x+r.width/2,y:r.y+r.height/2}:null})()`);
   assert.ok(p, 'control is not visible/enabled: ' + selector);
   await cdp.send('Input.dispatchMouseEvent', { type: 'mousePressed', button: 'left', clickCount: 1, ...p });
   await cdp.send('Input.dispatchMouseEvent', { type: 'mouseReleased', button: 'left', clickCount: 1, ...p });
+}
+async function keypress(key, code, windowsVirtualKeyCode, modifiers = 0) {
+  const event = { key, code, windowsVirtualKeyCode, modifiers };
+  await cdp.send('Input.dispatchKeyEvent', { type: 'keyDown', ...event });
+  await cdp.send('Input.dispatchKeyEvent', { type: 'keyUp', ...event });
+}
+async function type(selector, value) {
+  await click(selector);
+  await keypress('a', 'KeyA', 65, 2); // Ctrl+A, then real text input.
+  await cdp.send('Input.insertText', { text: value });
+  await keypress('Tab', 'Tab', 9);
+}
+async function enterSavedStation() {
+  const screen = await until(() => evalJS(cdp, `document.querySelector('#screen-game.active') ? 'game' : document.querySelector('#screen-connect.active.recovery') ? 'resume' : null`), 'saved station game or real resume gate');
+  if (screen === 'game') return;
+  await click('.prov[data-prov="openrouter"]');
+  await until(() => evalJS(cdp, `document.querySelector('#model-count')?.textContent === '(1 in catalog)'`), 'local fixture model catalog');
+  await type('#in-key', fixtureKey);
+  await type('#in-model', fixtureModel);
+  await keypress('Escape', 'Escape', 27);
+  const before = fixtureCounts.completions;
+  await click('#btn-wake');
+  await until(() => evalJS(cdp, `!!document.querySelector('#screen-game.active')`), 'RESUME STATION completed via real controls and local wire');
+  assert.ok(fixtureCounts.completions > before, 'resume did not prove the local provider wire');
+  receipt.phases.push({ phase: 'station-entry-' + launches, method: 'real-resume-controls', localProvider: { ...fixtureCounts } });
 }
 async function proveClick(start, route) {
   await until(() => {
@@ -155,6 +186,11 @@ async function check(label, halted, baseline) {
   receipt.phases.push({ phase: label, state, persisted: disk, protectedSha256: hash(protectedState()) });
 }
 try {
+  fixture = await startUiOnlyOpenRouter(fixtureModel);
+  fixture.server.on('request', (req, res) => {
+    const field = req.url?.includes('/auth/key') ? 'credentialChecks' : req.url?.includes('/models') ? 'catalogs' : req.url?.includes('/chat/completions') ? 'completions' : null;
+    if (field) res.on('finish', () => { if (res.statusCode === 200) ++fixtureCounts[field]; });
+  });
   await launch();
   // Seed nonempty, individually paused jobs behind a real halt; no provider execution occurs.
   await api('/api/halt', {});
@@ -194,6 +230,8 @@ finally {
     } catch (e) { receipt.captureError = String(e); }
   }
   await stopOwned().catch(e => { receipt.result = 'FAIL'; receipt.cleanupError = String(e); process.exitCode = 1; });
+  if (fixture) { fixture.server.closeAllConnections(); await new Promise(resolve => fixture.server.close(resolve)); }
+  receipt.localProvider = { ...fixtureCounts };
   receipt.finishedAt = new Date().toISOString();
   fs.writeFileSync(path.join(out, 'receipt.json'), JSON.stringify(receipt, null, 2) + '\n');
   console.log(receipt.result + ' installed emergency recovery: ' + path.join(out, 'receipt.json'));

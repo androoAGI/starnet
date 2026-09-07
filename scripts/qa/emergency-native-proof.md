@@ -8,7 +8,8 @@ the CDP helper uses Node's built-in WebSocket and fetch, with no extra dependenc
 Install the exact candidate through the existing T0 workflow first. Close that installed
 app before this helper starts. Pass the installed executable path, not the installer path.
 The native shell, installed sidecar and frontend resources must all come from the same
-candidate. Checkout this helper and `scripts/lib/cdp.mjs` in the tooling workspace.
+candidate. Checkout the full tooling tree: this helper imports `scripts/lib/cdp.mjs`
+and the existing local fixture from `scripts/qa/beginner-run.mjs` (and its imports).
 
 ```powershell
 $candidateExe = Join-Path $installDir 'StarNet.exe' # use the actual filename installed by T0
@@ -39,11 +40,13 @@ Inputs:
   valid `RUNNER_TEMP` and `APPDATA`. Never set these on an owner's machine to bypass the guard.
 
 The helper uses a separate retained WebView2 cache directory under `--out` through all three
-launches. It injects a nonfunctional placeholder OpenRouter key into the child process only,
-so a seeded station can enter without a real provider credential. It neither verifies nor
-claims model execution. Existing channel/provider credentials must not be provisioned in
-this disposable test profile. If the native connect gate still requires onboarding, the
-helper fails with that explicit timeout; it does not hide the gate or mutate the UI to pass.
+launches. It starts the existing Beginner Run OpenRouter fixture on loopback and directs the
+child's OpenRouter base URL to it. At a saved-station resume gate it clicks OpenRouter, types
+the fixture's dummy key and model through CDP input events, and clicks RESUME STATION. The
+fixture answers the real credential check, model catalog, and mandatory streamed preflight;
+the receipt counts successful local requests. No real credentials or public model calls are
+used. Existing channel/provider credentials must not be provisioned in this disposable
+profile. The helper never hides the gate or changes DOM values/localStorage to bypass it.
 
 It first prepares one disabled routine and one individually paused loop behind an E-STOP,
 then arms scheduler intent and clears setup halts. The measured cycle clicks the real System
