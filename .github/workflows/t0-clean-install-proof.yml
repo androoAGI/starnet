@@ -193,10 +193,11 @@ jobs:
           if ($env:CANDIDATE_MANIFEST) {
             $manifest = $env:CANDIDATE_MANIFEST | ConvertFrom-Json
             if ("v$($manifest.version)" -ne $env:TAG) { throw 'Candidate manifest version mismatch' }
-            $signaturePath = "$env:INSTALLER.sig"
-            if (-not (Test-Path -LiteralPath $signaturePath)) { throw 'Installer updater signature missing' }
-            $signature = (Get-Content -LiteralPath $signaturePath -Raw).Trim()
-            if ($manifest.platforms.'windows-x86_64'.signature -cne $signature) { throw 'Candidate manifest does not bind this signed installer' }
+            # Private builds store updater signatures separately from the Windows
+            # installer artifact. Verify the manifest's signature against the bytes.
+            Set-Content -LiteralPath candidate-installer.sig -Value $manifest.platforms.'windows-x86_64'.signature -Encoding utf8NoBOM
+            node scripts/minisign-verify.mjs "--artifact=$env:INSTALLER" --sig=candidate-installer.sig
+            if ($LASTEXITCODE -ne 0) { throw 'Candidate manifest signature does not verify against this installer' }
             Set-Content -LiteralPath candidate-latest.json -Value $env:CANDIDATE_MANIFEST -Encoding utf8NoBOM
             $cli += '--tag-feed-path=candidate-latest.json'
           } else { $cli += '--cases=idle-close,close-to-tray' }
