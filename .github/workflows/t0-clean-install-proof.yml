@@ -79,8 +79,17 @@ jobs:
           if ($env:BUILD_RUN_ID -notmatch '^\d+$') { throw 'Invalid build run ID' }
           if ($env:EXPECTED_SHA256 -notmatch '^[a-fA-F0-9]{64}$') { throw 'Expected SHA-256 is required' }
           $run = gh api "repos/$env:GITHUB_REPOSITORY/actions/runs/$env:BUILD_RUN_ID" | ConvertFrom-Json
-          if ($LASTEXITCODE -ne 0 -or $run.path -notin @('.github/workflows/desktop-build.yml', '.github/workflows/release-train.yml') -or $run.status -ne 'completed') { throw 'Not a completed desktop build or release train' }
-          if ($run.path -eq '.github/workflows/release-train.yml' -and $run.conclusion -ne 'success') { throw 'Release train must be successful' }
+          if ($LASTEXITCODE -ne 0 -or $run.path -notin @('.github/workflows/desktop-build.yml', '.github/workflows/release-train.yml')) { throw 'Not a desktop build or release train' }
+          if ($run.path -eq '.github/workflows/desktop-build.yml' -and $run.status -ne 'completed') { throw 'Desktop build must be completed' }
+          if ($run.path -eq '.github/workflows/release-train.yml') {
+            # Prove the immutable Windows artifact while the independent Mac legs finish.
+            # This does not authorize publication before the whole train succeeds.
+            $jobs = gh api "repos/$env:GITHUB_REPOSITORY/actions/runs/$env:BUILD_RUN_ID/jobs?per_page=100" | ConvertFrom-Json
+            if ($LASTEXITCODE -ne 0) { throw 'Release job lookup failed' }
+            $windows = @($jobs.jobs | Where-Object { $_.name -like 'build (windows-latest, win-x64,*' })
+            if ($windows.Count -ne 1 -or $windows[0].conclusion -ne 'success') { throw 'Signed Windows release job must be successful' }
+            if ($run.status -eq 'completed' -and $run.conclusion -ne 'success') { throw 'Completed release train must be successful' }
+          }
           # Checkout happens after first-launch proof and cleans GITHUB_WORKSPACE.
           # Keep the verified installer outside it for the later signature check.
           $candidateDir = Join-Path $env:RUNNER_TEMP 'starnet-candidate'
