@@ -81,9 +81,12 @@
       // A first pass at this paragraph reworded it and turned the claims audit BLOCKED. The claim is
       // still true and still stated, so the honest repair is to keep the canonical phrase here rather
       // than re-point the audit needle at whatever the copy happens to say now.
-      '<p class="set-about dim">Remote http(s) MCP servers. Secrets are stored locally by the sidecar and never displayed. ' +
-        'Looking to chat with your agent <i>from</i> Slack or Telegram instead? That’s the <b>CHANNELS</b> window.</p>' +
+      '<div id="mc-overview" class="mc-overview" role="status"></div>' +
+      '<div id="mc-notices"></div>' +
       '<div id="mc-list" class="mc-list"><span class="loading pulse">loading…</span></div>' +
+      '<details class="mc-adv"><summary>About connected services</summary>' +
+        '<p class="set-about">Remote http(s) MCP servers. Secrets are stored locally by the sidecar and never displayed. ' +
+        'Looking to chat with your agent <i>from</i> Slack or Telegram instead? That’s the <b>CHANNELS</b> window.</p></details>' +
       '<div class="sec"><span class="sec-l" id="mc-form-h">ADD A CONNECTOR</span><span class="sec-r"></span><span class="sec-nd"></span></div>' +
       '<div class="mc-form" id="mc-form">' +
         '<input id="mc-id" class="key-input" placeholder="id — e.g. github (a-z 0-9 _ -)" autocomplete="off" spellcheck="false" maxlength="40">' +
@@ -305,7 +308,7 @@
       { id: 'toolsets', label: 'BUILT-IN ABILITIES', glyph: '▤', desc: 'Inspect an agent’s capability grants. Switches apply in ASK mode; Full Access overrides them. Connected services still need working credentials.', build: frag(secToolsets) },
       { id: 'catalog', label: 'CATALOG', glyph: '⊞', desc: 'Find a service by name or what you want to do. Choose it to see the setup required; YOUR SERVICES shows saved setups, not a live connection guarantee.', build: frag(secCatalog) },
       { id: 'keys', label: 'SAVED API CONNECTIONS', glyph: '⊟', desc: 'The platform credentials your agents actually hold, plus a safe drop for a custom API the catalog does not list.', build: frag(secKeys) },
-      { id: 'mcp', label: 'CONNECTED SERVICES', glyph: '⧉', desc: 'External tool servers your agents can call — GitHub, Slack, a database. Inspect connection status, reconnect, or edit advanced settings. Tool access follows the agent’s effective permissions.', build: frag(secMcp) },
+      { id: 'mcp', label: 'CONNECTED SERVICES', glyph: '⧉', desc: 'Manage service access, check connection status, and reconnect when needed.', build: frag(secMcp) },
       { id: 'custom', label: 'CREATE / ADVANCED', glyph: '＋', desc: 'Configure a custom server, API, skill package, hook or plugin.', build: frag('<div class="ab-router-grid"><button class="ab-route" data-ab-to="mcp">Add a custom MCP server</button><button class="ab-route" data-ab-to="keys">Add a custom API key</button><button class="ab-route" data-ab-to="exchange">Import a skill package</button><button class="ab-route" data-ab-to="extensions">Create hooks and plugins</button></div>') },
       { id: 'extensions', label: 'EXTENSIONS', glyph: '⌥', desc: 'Automate a step or extend StarNet with your own code.', build: frag(secExt) }
     ].concat(lanes.reduce((acc, l) => acc.concat(l.sections), [])), {
@@ -746,7 +749,7 @@
       idInput.disabled = false;
       ['#mc-id', '#mc-label', '#mc-url', '#mc-token', '#mc-headers', '#mc-timeout', '#mc-command', '#mc-args', '#mc-cwd', '#mc-env']
         .forEach(s => { const el = body.querySelector(s); if (el) el.value = ''; });
-      const adv = body.querySelector('.mc-adv'); if (adv) adv.open = false;   // a cleared form is the simple form again
+      const adv = body.querySelector('#mc-form .mc-adv'); if (adv) adv.open = false;   // a cleared form is the simple form again
       setTransport('http');
     }
     cancelBtn.addEventListener('click', () => { resetForm(); msgEl.textContent = ''; sfx('click'); });
@@ -777,7 +780,7 @@
         body.querySelector('#mc-headers').value = hKeys.map(k => k + ': ' + (c.headers[k] === '<redacted>' ? '' : c.headers[k])).join('\n');
         // Unfold the advanced block when this connector actually HAS advanced settings — otherwise an
         // edit would silently hide the headers/timeout it is about to re-save, which reads as data loss.
-        const adv = body.querySelector('.mc-adv');
+        const adv = body.querySelector('#mc-form .mc-adv');
         if (adv) adv.open = hKeys.length > 0 || !!(c.timeoutMs && c.timeoutMs !== 30000);
       }
       formH.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
@@ -794,10 +797,10 @@
       const b = c.releaseDeferred ? ['var(--gold)', '○ deferred'] : badge(c.state);
       const tools = (c.tools && c.tools.length) ? '<div class="mc-tools">' + c.tools.map(t => '<code>' + esc(t) + '</code>').join('') + '</div>' : '';
       const detail = (c.state === 'error' && c.detail) ? '<div class="mc-detail">' + esc(c.detail) + '</div>' : '';
-      const next = c.releaseDeferred ? c.detail : !c.enabled ? 'Turn on the switch above to let agents use this service.'
+      const next = c.releaseDeferred ? (c.credentialSaved ? 'Saved connection retained.' : 'Unavailable in this release.') : !c.enabled ? 'Turn on the switch above to let agents use this service.'
         : c.oauth && (c.authRequired || !c.oauthAuthorized) ? 'Sign in below to restore access to this account.'
-        : c.state === 'error' ? 'Check the error below, then reload to retry. Use Edit if the connection details changed.'
-        : c.state === 'up' ? 'Connected. Tell your agent what you want to do with this service.' : '';
+        : c.state === 'error' ? 'Open the error details below, then reload to retry.'
+        : '';
       const where = c.transport === 'stdio'
         ? ('<span class="mc-tag">stdio</span> <code>' + esc([c.command].concat(c.args || []).join(' ')) + '</code>' + (c.hasEnv ? ' · env set' : '') +
            '<div class="mc-hint">isolated owner: ' + esc(c.agentId || 'unbound') + ' · persistent Safe Cell</div>')
@@ -807,14 +810,19 @@
           + (c.releaseDeferred ? (c.credentialSaved ? ' · saved connection retained' : '') : c.oauth ? (c.authRequired ? ' · OAuth grant rejected — sign in again' : (c.oauthAuthorized ? ' · OAuth authorized' : ' · OAuth sign-in needed')) : (c.hasToken ? ' · token saved' : ''))
           + (c.hasHeaders ? ' · headers set' : ''));
       const timeout = (c.timeoutMs && c.timeoutMs !== 30000) ? '<span class="dim"> · ' + Math.round(c.timeoutMs / 1000) + 's</span>' : '';
-      return '<div class="mc-row" data-id="' + esc(c.id) + '" data-enabled="' + (c.enabled ? '1' : '0') + '" style="--ci:' + (ri || 0) + '">' +
+      return '<div class="mc-row" data-service data-id="' + esc(c.id) + '" data-enabled="' + (c.enabled ? '1' : '0') + '" style="--ci:' + (ri || 0) + '">' +
         '<div class="mc-top">' +
           '<span class="set-row mc-enable"><input type="checkbox" data-act="toggle"' + (c.enabled ? ' checked' : '') + (c.releaseDeferred ? ' disabled' : '') + ' aria-label="Enable connector ' + esc(c.id) + '"></span>' +
-          '<b>' + esc(c.label || c.id) + '</b> <span class="dim">' + esc(c.id) + '</span>' +
+          '<b>' + esc(c.label || c.id) + '</b>' +
           '<span class="mc-state" style="color:' + b[0] + '">' + b[1] + (c.toolCount ? ' · ' + c.toolCount + ' tool' + (c.toolCount === 1 ? '' : 's') : '') + '</span></div>' +
-        '<div class="mc-url dim">' + where + timeout + '</div>' +
-        '<div class="mc-hint">' + (c.account && c.account.email ? 'Account at last sign-in: ' + esc(c.account.email) : 'Account identity: not verified by StarNet.') + ' Browser logins are separate from this connection.</div>' +
-        (next ? '<div class="mc-hint">' + esc(next) + '</div>' : '') + detail + tools +
+        (c.account && c.account.email ? '<div class="mc-summary">Account at last sign-in: ' + esc(c.account.email) + '</div>' : '') +
+        (next ? '<div class="mc-summary">' + esc(next) + '</div>' : '') +
+        '<details class="mc-inspect"><summary>' + (detail ? 'Error &amp; connection details' : 'Connection details') + (c.tools && c.tools.length ? ' · ' + c.tools.length + ' tools' : '') + '</summary>' +
+          '<div class="mc-hint">Service ID: <code>' + esc(c.id) + '</code></div>' +
+          '<div class="mc-url dim">' + where + timeout + '</div>' +
+          '<div class="mc-hint">' + (c.account && c.account.email ? '' : 'Account identity: not verified by StarNet. ') + 'Browser logins are separate from this connection.</div>' +
+          detail + tools +
+        '</details>' +
         '<div class="mc-acts">' +
           // an OAuth connector's stored grant can die provider-side (token revoked, DCR client deleted) — a state
           // RELOAD can't cure (it reconnects with the same dead grant) and EDIT can't reach (its form is the
@@ -824,7 +832,7 @@
           (c.oauth && !c.releaseDeferred ? '<button class="bb xs" data-act="resign" title="' + (c.oauthAuthorized
             ? 're-run the browser OAuth sign-in — the fix for a revoked or expired grant">⏼ RE-SIGN-IN'
             : 'open the browser OAuth sign-in">⏼ SIGN IN') + '</button>' : '') +
-          (c.releaseDeferred ? '<button class="bb xs" disabled>DEFERRED</button>' :
+          (c.releaseDeferred ? '' :
           '<button class="bb xs" data-act="reload">↻ RELOAD</button>' +
           '<button class="bb xs" data-act="edit">✎ EDIT</button>') +
           '<button class="bb xs danger" data-act="remove">✕ REMOVE</button>' +
@@ -836,7 +844,20 @@
         const j = await Harness.api.get('/api/connectors');
         const list = (j && j.connectors) || []; lastList = list;
         renderHandoffs(list);
-        if (list.length) { listEl.innerHTML = list.map(row).join(''); }
+        const overview = body.querySelector('#mc-overview');
+        const notices = body.querySelector('#mc-notices');
+        const connected = list.filter(c => !c.releaseDeferred && c.state === 'up').length;
+        const deferred = list.filter(c => c.releaseDeferred);
+        const attention = list.filter(c => !c.releaseDeferred && (c.state === 'error' || c.authRequired)).length;
+        overview.textContent = list.length + ' service' + (list.length === 1 ? '' : 's') + ' · ' + connected + ' connected' + (deferred.length ? ' · ' + deferred.length + ' deferred' : '') + (attention ? ' · ' + attention + ' need attention' : '');
+        // A release-wide explanation belongs once above the list, not in every saved service.
+        notices.innerHTML = Array.from(new Set(deferred.map(c => c.detail).filter(Boolean))).map(note =>
+          '<div class="mc-notice"><b>Service availability</b>' + esc(note) + '</div>').join('');
+        if (list.length) {
+          const expanded = new Set(Array.from(listEl.querySelectorAll('.mc-inspect[open]')).map(el => el.closest('.mc-row').dataset.id));
+          listEl.innerHTML = list.map(row).join('');
+          listEl.querySelectorAll('.mc-inspect').forEach(el => { el.open = expanded.has(el.closest('.mc-row').dataset.id); });
+        }
         else {
           listEl.innerHTML = '<div class="empty-state"><span class="es-glyph">⧉</span>' +
             '<b>NO CONNECTORS YET</b><span>Attach an MCP server to give your agents external tools — GitHub, Slack, a database.</span>' +
@@ -845,7 +866,11 @@
           if (cta) cta.addEventListener('click', () => { sfx('click'); const idf = body.querySelector('#mc-id'); if (idf) idf.focus(); });
         }
         wireRemoveButtons();
-      } catch (_) { listEl.innerHTML = '<div class="mc-detail">sidecar offline — start it to manage connectors.</div>'; }
+      } catch (_) {
+        body.querySelector('#mc-overview').textContent = 'Service status unavailable';
+        body.querySelector('#mc-notices').textContent = '';
+        listEl.innerHTML = '<div class="mc-detail">Could not read connections. Retry when the station is available.</div>';
+      }
     }
     const postJSON = (path, payload) => fetch(path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
 

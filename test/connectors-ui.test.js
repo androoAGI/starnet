@@ -315,5 +315,24 @@ function fakeStack(tools) {
   A.eq(availability({available:false, enabled:true, placed:false, profileGranted:false, switchEffective:true}), 'NEEDS PROP', 'ASK mode without any grant identifies missing equipment');
   A.eq(availability({available:false, enabled:true, placed:true, switchEffective:false}), 'UNAVAILABLE', 'missing host grant never implies availability');
 
+  // Production row rendering: the glance must preserve status and recovery actions while technical
+  // detail stays available behind one disclosure. Escaping still applies inside the folded content.
+  const renderService = vm.runInNewContext('(' + A.fnBody(station, 'function row(') + ')', {
+    esc: s => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;'),
+    badge: s => ['var(--ph)', s]
+  });
+  const deferredRow = renderService({id:'google-sheets',label:'Google Sheets',releaseDeferred:true,credentialSaved:true,oauth:true,url:'https://example.test',detail:'Shared release explanation'},0);
+  const glance = deferredRow.replace(/<details[\s\S]*?<\/details>/g, '');
+  A.ok(glance.includes('Google Sheets') && glance.includes('deferred') && glance.includes('Saved connection retained.'), 'deferred glance preserves service, availability and retained setup');
+  A.ok(!glance.includes('https://') && !glance.includes('Account identity') && !glance.includes('Shared release explanation'), 'technical caveats and repeated release prose do not compete in the glance');
+  A.ok(/<details class="mc-inspect">/.test(deferredRow) && !/<details[^>]*\bopen\b/.test(deferredRow), 'connection details start folded');
+  A.ok(!/data-act="(?:reload|edit|resign)"/.test(deferredRow) && /data-act="remove"/.test(deferredRow), 'deferred service keeps removal without offering unavailable connection actions');
+  const rejectedRow = renderService({id:'expired',oauth:true,oauthAuthorized:true,authRequired:true,enabled:true,state:'error',url:'https://example.test',detail:'Rejected <grant>'},0);
+  A.ok(rejectedRow.includes('Sign in below') && rejectedRow.includes('data-act="resign"'), 'rejected OAuth grant has a visible recovery instruction and sign-in action');
+  A.ok(rejectedRow.includes('Error &amp; connection details') && rejectedRow.includes('Rejected &lt;grant>'), 'complete error stays inspectable and escaped');
+  A.ok(!rejectedRow.includes('· OAuth authorized'), 'stored rejected OAuth grant does not claim authorization');
+  const toolsRow = renderService({id:'docs',state:'up',enabled:true,tools:['read_docs','search_docs'],toolCount:2,url:'https://example.test'},0);
+  A.ok(toolsRow.includes('2 tools') && /<details[\s\S]*read_docs[\s\S]*search_docs[\s\S]*<\/details>/.test(toolsRow), 'tools remain fully inspectable without an always-expanded tool wall');
+  A.ok(/\.mc-row\s*\{[^}]*flex-direction:\s*column/.test(css), 'shared record cards stack instead of inheriting the legacy horizontal header');
   A.report('connectors-ui');
 })().catch(e => { console.log('FAIL: threw ' + (e && e.stack || e)); process.exit(1); });

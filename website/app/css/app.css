@@ -4315,16 +4315,40 @@ body.crew-rail-off #screen-game.active {
 
 /* ---------- CONNECTORS panel (MCP) ---------- */
 .mc-list { display: flex; flex-direction: column; gap: 8px; margin: 4px 0 14px; }
-.mc-row { border: 1px solid var(--ph-dim); border-radius: var(--r-sm); padding: 8px 10px; background: rgba(0,0,0,.35); box-shadow: var(--raise); }
+.mc-row { display: flex; flex-direction: column; align-items: stretch; gap: 8px; min-width: 0; border: 1px solid var(--ph-dim); border-radius: var(--r-sm); padding: 14px 16px; background: rgba(0,0,0,.35); box-shadow: var(--raise); font-size: 16px; line-height: 1.45; letter-spacing: .2px; overflow-wrap: anywhere; }
 .mc-top { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
-.mc-top b { color: var(--ph-bright); font-weight: normal; letter-spacing: .5px; }
-.mc-state { margin-left: auto; font-size: 13px; white-space: nowrap; }
-.mc-url { font-size: 12px; word-break: break-all; margin-top: 2px; }
-.mc-detail { font-size: 12px; color: var(--bad); margin-top: 4px; }
+.mc-top b { color: var(--ph-bright); font-size: 21px; font-weight: normal; letter-spacing: .5px; min-width: 0; overflow-wrap: anywhere; }
+.mc-state { margin-left: auto; font-size: 16px; }
+.mc-url { font-size: 16px; word-break: normal; overflow-wrap: anywhere; margin-top: 2px; line-height: 1.45; }
+.mc-detail { font-size: 16px; color: var(--bad); margin-top: 4px; line-height: 1.45; overflow-wrap: anywhere; }
 .mc-tools { margin-top: 6px; display: flex; flex-wrap: wrap; gap: 4px; }
-.mc-tools code { font-size: 11px; color: var(--ph); border: 1px solid var(--ph-dim); border-radius: 4px; padding: 1px 5px; background: rgba(0,0,0,.4); }
+.mc-tools code { font-size: 15px; color: var(--ph); border: 1px solid var(--ph-dim); border-radius: 4px; padding: 1px 5px; background: rgba(0,0,0,.4); overflow-wrap: anywhere; min-width: 0; }
 .mc-acts { margin-top: 8px; display: flex; gap: 6px; flex-wrap: wrap; }
 .mc-form { display: flex; flex-direction: column; gap: 6px; }
+/* These are stacked records, unlike the old mission-card .mc-row flex header in style.css.
+   Keep title/status, readable context, and actions on separate lines across every consumer. */
+.mc-row > * { min-width: 0; }
+.mc-row .mc-acts { margin-top: 2px; }
+.mc-row .bb.xs { font-size: 14px; min-height: 32px; letter-spacing: .5px; }
+.mc-row .mc-tag { font-size: 14px; }
+.mc-summary { color: var(--text); font-size: 16px; line-height: 1.45; }
+.mc-overview { color: var(--ph-bright); font-size: 18px; margin: 6px 0 12px; }
+.mc-notice { padding: 12px 14px; border-left: 2px solid var(--gold); background: rgba(var(--gold-rgb),.055); color: var(--text); font-size: 16px; line-height: 1.5; margin-bottom: 12px; }
+.mc-notice b { display: block; color: var(--gold); font-size: 18px; margin-bottom: 4px; }
+.mc-inspect { border-top: 1px solid var(--ui-edge); padding-top: 6px; }
+.mc-inspect > summary { cursor: pointer; color: var(--ph); font-size: 16px; padding: 4px 0; }
+.mc-inspect > summary:focus-visible { outline: 2px solid var(--ph-bright); outline-offset: 2px; }
+.mc-inspect[open] > summary { margin-bottom: 8px; }
+.mc-inspect .mc-hint { margin: 6px 0; }
+.mc-inspect .mc-url { color: var(--text); }
+.mc-row[data-service] { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px 12px; }
+.mc-row[data-service] > :is(.mc-top, .mc-summary) { grid-column: 1 / -1; }
+.mc-row[data-service] > .mc-inspect { align-self: start; }
+.mc-row[data-service] > .mc-acts { align-self: start; justify-content: flex-end; max-width: 280px; }
+@media (max-width: 800px) {
+  .mc-row[data-service] { grid-template-columns: minmax(0, 1fr); }
+  .mc-row[data-service] > .mc-acts { justify-content: flex-start; max-width: none; }
+}
 /* EXTENSIONS authoring: two fields side by side on a wide panel, stacked when the console is narrow. No
    colours or chrome of its own — it inherits .key-input / .bb so it can never drift from the control floor. */
 .ext-workspace { container-type: inline-size; }
@@ -4435,7 +4459,7 @@ body.crew-rail-off #screen-game.active {
    would have crushed the key to a 13px slab. Net box height is within a pixel of before. */
 .bb.xs { font-size: 11px; padding: 5px 9px; }
 /* connector add/edit form: one-line help, transport toggle, key:value textareas, transport tag on a row */
-.mc-hint { font-size: 11px; color: var(--ph-dim); margin: -2px 0 2px; line-height: 1.35; }
+.mc-hint { font-size: 16px; color: var(--text); margin: 2px 0 6px; line-height: 1.45; overflow-wrap: anywhere; }
 .mc-hint code { color: var(--ph); }
 /* shared per-agent MODEL PICKER (native grouped <select> + optional effort select) — used by the dossier
    CONFIG card AND the recruitment bay, so it lives here in the global sheet. Phosphor-terminal styling. */
