@@ -26,6 +26,10 @@ on:
         description: "Optional prepared updater manifest for the private candidate; includes updater-smoke when supplied"
         required: false
         default: ""
+      native_recovery:
+        description: "Also prove the installed emergency Stop/restart/Resume control on a disposable station"
+        required: false
+        default: "false"
 
 jobs:
   prove:
@@ -207,6 +211,25 @@ jobs:
           node @cli
           if ($LASTEXITCODE -ne 0) { throw 'Candidate shell lifecycle failed' }
 
+      - name: Installed native emergency recovery
+        if: inputs.build_run_id != '' && inputs.native_recovery == 'true'
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          if ($env:RUNNER_ENVIRONMENT -ne 'github-hosted') { throw 'Disposable hosted VM required' }
+          # Preserve the unmodified first-launch station before making the separate
+          # seeded control fixture. T0 and G1 evidence above retain their own scope.
+          $ws = [IO.Path]::GetFullPath((Join-Path $env:APPDATA 'ai.skynet.harness/workspaces'))
+          $appRoot = [IO.Path]::GetFullPath((Join-Path $env:APPDATA 'ai.skynet.harness'))
+          $saved = [IO.Path]::GetFullPath((Join-Path $env:RUNNER_TEMP 't0-original-workspace'))
+          $tempRoot = [IO.Path]::GetFullPath($env:RUNNER_TEMP)
+          if (-not $ws.StartsWith($appRoot + [IO.Path]::DirectorySeparatorChar, [StringComparison]::OrdinalIgnoreCase) -or -not $saved.StartsWith($tempRoot + [IO.Path]::DirectorySeparatorChar, [StringComparison]::OrdinalIgnoreCase)) { throw 'Fixture paths escaped their intended roots' }
+          if (Test-Path -LiteralPath $saved) { throw 'Original station snapshot already exists' }
+          if (Test-Path -LiteralPath $ws) { Move-Item -LiteralPath $ws -Destination $saved }
+          $exeHash = (Get-FileHash -LiteralPath $env:EXE -Algorithm SHA256).Hash.ToLowerInvariant()
+          node scripts/qa/emergency-native-proof.mjs --exe $env:EXE --install-dir $env:INSTALL_DIR --out (Join-Path $env:RUNNER_TEMP 'emergency-native-proof') --expected-exe-sha256 $exeHash --expected-build-sha $env:CANDIDATE_SOURCE
+          if ($LASTEXITCODE -ne 0) { throw 'Installed emergency recovery acceptance failed' }
+
       - name: Collect candidate lifecycle evidence
         if: always() && inputs.build_run_id != ''
         shell: pwsh
@@ -214,6 +237,16 @@ jobs:
           New-Item -ItemType Directory -Force candidate-evidence | Out-Null
           if (Test-Path candidate-lifecycle.json) { Copy-Item -LiteralPath candidate-lifecycle.json -Destination candidate-evidence/ }
           if (Test-Path candidate-latest.json) { Copy-Item -LiteralPath candidate-latest.json -Destination candidate-evidence/ }
+          $native = Join-Path $env:RUNNER_TEMP 'emergency-native-proof'
+          if (Test-Path -LiteralPath $native) {
+            New-Item -ItemType Directory -Force candidate-evidence/emergency-native-proof | Out-Null
+            Get-ChildItem -LiteralPath $native -File | Copy-Item -Destination candidate-evidence/emergency-native-proof/
+            $nativeReceipt = Join-Path $native 'receipt.json'
+            if (-not (Test-Path -LiteralPath $nativeReceipt) -or (Get-Content -LiteralPath $nativeReceipt -Raw | ConvertFrom-Json).result -ne 'PASS') {
+              $profile = Join-Path $native 'webview-profile'
+              if (Test-Path -LiteralPath $profile) { Copy-Item -LiteralPath $profile -Destination candidate-evidence/emergency-native-proof/webview-profile -Recurse }
+            }
+          }
           $log = Join-Path $env:APPDATA 'ai.skynet.harness/startup.log'
           if (Test-Path -LiteralPath $log) { Copy-Item -LiteralPath $log -Destination candidate-evidence/startup.log }
 
