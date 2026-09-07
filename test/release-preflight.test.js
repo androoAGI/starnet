@@ -225,12 +225,19 @@ A.ok(!parseGateLog('').ok, 'empty log rejected');
 {
   const io = fakeRepo({ files: {
     '.dogfood/t0-clean-install-20260821/t0-clean-install-status.json': JSON.stringify({ version: '0.10.8', verdict: 'PASS' }),
-    '.dogfood/g1/packaged-lifecycle-receipt.json': JSON.stringify({ tag: 'v0.10.8', ok: true }),
+    '.dogfood/g1/packaged-lifecycle-receipt.json': JSON.stringify({ meta: {tag: 'v0.10.8'}, verdict: 'PASS', cases: ['idle-close', 'close-to-tray', 'updater-smoke'].map(name => ({name, result: 'PASS'})) }),
     'qa/installed/last-smoke.json': JSON.stringify({ schemaVersion: 3, appVersion: '0.10.8', result: 'GREEN', stampIso: '2026-08-20T12:00:00Z' })
   } });
   const r = runPreflight(CTX, io);
   A.eq(byId(r, 't0').status, 'PASS', 'T0 receipt for target → PASS');
   A.eq(byId(r, 'g1').status, 'PASS', 'G1 receipt for target → PASS');
+  const {buildReceipt} = require('../scripts/qa/packaged-lifecycle.mjs');
+  const checkG1 = receipt => byId(runPreflight(CTX, fakeRepo({files:{'.dogfood/g1/packaged-lifecycle-receipt.json':JSON.stringify(receipt)}})), 'g1').status;
+  const full = buildReceipt({meta:{tag:'v0.10.8'},cases:['idle-close','close-to-tray','updater-smoke'].map(name=>({name,result:'PASS'}))});
+  A.eq(checkG1(full), 'PASS', 'actual G1 writer output is recognized');
+  A.eq(checkG1(buildReceipt({meta:{tag:'v0.10.8'},cases:full.cases.slice(0,2)})), 'WARN', 'passing subset cannot clear full G1');
+  A.eq(checkG1({...full, meta:{tag:'v0.10.7'}}), 'WARN', 'different release cannot clear G1');
+  A.eq(checkG1({...full, cases:full.cases.map(c=>c.name==='updater-smoke'?{...c,result:'FAIL'}:c)}), 'WARN', 'summary PASS cannot hide failing updater case');
   A.eq(byId(r, 'soak').status, 'PASS', 'fresh schema-3 GREEN soak stamp for target → PASS');
   const r2 = runPreflight(CTX, fakeRepo({ files: { 'qa/installed/last-smoke.json': JSON.stringify({ appVersion: '0.10.7', verdict: 'GREEN', stampIso: '2026-08-20T12:00:00Z' }) } }));
   A.eq(byId(r2, 'soak').status, 'WARN', 'a soak of the PREVIOUS version is not a soak of the target');

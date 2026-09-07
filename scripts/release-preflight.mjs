@@ -278,7 +278,14 @@ export function runPreflight(ctx, io) {
         if (n === 'packaged-lifecycle-receipt.json') {
           const t = io.readText(p);
           if (t == null) continue;
-          try { const j = JSON.parse(stripBom(t)); if (tag && (j.tag === tag || j.expectedVersion === target) && (j.ok === true || /pass/i.test(String(j.verdict || '')))) g1 = p; } catch {}
+          try {
+            const j = JSON.parse(stripBom(t));
+            const names = ['idle-close', 'close-to-tray', 'updater-smoke'];
+            const complete = Array.isArray(j.cases) && names.every(name => j.cases.filter(c => c.name === name && c.result === 'PASS').length === 1) && j.cases.every(c => c.result === 'PASS');
+            // The real G1 writer puts its tag in meta. A passing subset is useful
+            // evidence, but cannot clear the complete packaged-lifecycle release gate.
+            if (tag && (j.meta?.tag === tag || j.tag === tag || j.expectedVersion === target) && j.verdict === 'PASS' && complete) g1 = p;
+          } catch {}
         } else if (!/\./.test(n)) walk(p, depth + 1);
       }
     };

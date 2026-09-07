@@ -22,6 +22,10 @@ on:
         description: "Required expected installer SHA-256 when build_run_id is supplied"
         required: false
         default: ""
+      candidate_manifest:
+        description: "Optional prepared updater manifest for the private candidate; includes updater-smoke when supplied"
+        required: false
+        default: ""
 
 jobs:
   prove:
@@ -181,9 +185,22 @@ jobs:
       - name: Candidate shell close and reopen acceptance
         if: inputs.build_run_id != ''
         shell: pwsh
+        env:
+          CANDIDATE_MANIFEST: ${{ inputs.candidate_manifest }}
         run: |
           $ErrorActionPreference = 'Stop'
-          node scripts/qa/packaged-lifecycle.mjs "--exe=$env:EXE" "--install-dir=$env:INSTALL_DIR" "--tag=$env:TAG" --cases=idle-close,close-to-tray --out=candidate-lifecycle.json
+          $cli = @('scripts/qa/packaged-lifecycle.mjs', "--exe=$env:EXE", "--install-dir=$env:INSTALL_DIR", "--tag=$env:TAG", '--out=candidate-lifecycle.json')
+          if ($env:CANDIDATE_MANIFEST) {
+            $manifest = $env:CANDIDATE_MANIFEST | ConvertFrom-Json
+            if ("v$($manifest.version)" -ne $env:TAG) { throw 'Candidate manifest version mismatch' }
+            $signaturePath = "$env:INSTALLER.sig"
+            if (-not (Test-Path -LiteralPath $signaturePath)) { throw 'Installer updater signature missing' }
+            $signature = (Get-Content -LiteralPath $signaturePath -Raw).Trim()
+            if ($manifest.platforms.'windows-x86_64'.signature -cne $signature) { throw 'Candidate manifest does not bind this signed installer' }
+            Set-Content -LiteralPath candidate-latest.json -Value $env:CANDIDATE_MANIFEST -Encoding utf8NoBOM
+            $cli += '--tag-feed-path=candidate-latest.json'
+          } else { $cli += '--cases=idle-close,close-to-tray' }
+          node @cli
           if ($LASTEXITCODE -ne 0) { throw 'Candidate shell lifecycle failed' }
 
       - name: Collect candidate lifecycle evidence
@@ -192,6 +209,7 @@ jobs:
         run: |
           New-Item -ItemType Directory -Force candidate-evidence | Out-Null
           if (Test-Path candidate-lifecycle.json) { Copy-Item -LiteralPath candidate-lifecycle.json -Destination candidate-evidence/ }
+          if (Test-Path candidate-latest.json) { Copy-Item -LiteralPath candidate-latest.json -Destination candidate-evidence/ }
           $log = Join-Path $env:APPDATA 'ai.skynet.harness/startup.log'
           if (Test-Path -LiteralPath $log) { Copy-Item -LiteralPath $log -Destination candidate-evidence/startup.log }
 
