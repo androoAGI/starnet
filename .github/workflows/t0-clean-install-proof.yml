@@ -186,11 +186,18 @@ jobs:
           node scripts/qa/packaged-lifecycle.mjs "--exe=$env:EXE" "--install-dir=$env:INSTALL_DIR" "--tag=$env:TAG" --cases=idle-close,close-to-tray --out=candidate-lifecycle.json
           if ($LASTEXITCODE -ne 0) { throw 'Candidate shell lifecycle failed' }
 
+      - name: Collect candidate lifecycle evidence
+        if: always() && inputs.build_run_id != ''
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force candidate-evidence | Out-Null
+          if (Test-Path candidate-lifecycle.json) { Copy-Item -LiteralPath candidate-lifecycle.json -Destination candidate-evidence/ }
+          $log = Join-Path $env:APPDATA 'ai.skynet.harness/startup.log'
+          if (Test-Path -LiteralPath $log) { Copy-Item -LiteralPath $log -Destination candidate-evidence/startup.log }
+
       - uses: actions/upload-artifact@v4
         if: always() && inputs.build_run_id != ''
         with:
           name: candidate-shell-lifecycle
           if-no-files-found: warn
-          path: |
-            candidate-lifecycle.json
-            ~/AppData/Roaming/ai.skynet.harness/startup.log
+          path: candidate-evidence/
