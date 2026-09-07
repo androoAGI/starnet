@@ -183,6 +183,50 @@ export function boundSamples(samples, max) {
   return out;
 }
 
+// Compare complete history at one fixed watermark, not two moving newest-500 windows.
+// New routine runs can complete between the pre-stop read and the post-boot read.
+// Pagination errors must fail the restart measurement, never become an empty history.
+export async function readRunHistory(json, through) {
+  const ids = [], seen = new Set(), cursors = new Set();
+  let watermark = through, cursor = '';
+  do {
+    const query = new URLSearchParams({ agent: '*', limit: '500' });
+    if (watermark != null) query.set('through', String(watermark));
+    if (cursor) query.set('beforeRunId', cursor);
+    const response = await json('GET', '/api/runs?' + query);
+    const body = response && response.body;
+    if (response.status !== 200 || !body || !Array.isArray(body.runs) ||
+        !Number.isFinite(body.snapshotAt) || body.snapshotAt <= 0) throw new Error('run history snapshot unreadable');
+    if (watermark != null && body.snapshotAt !== watermark) throw new Error('run history watermark changed');
+    watermark = body.snapshotAt;
+    for (const row of body.runs) {
+      if (!row || typeof row.runId !== 'string' || !row.runId || seen.has(row.runId)) throw new Error('invalid or duplicate run history identity');
+      seen.add(row.runId); ids.push(row.runId);
+    }
+    cursor = body.nextCursor || '';
+    if (cursor && (!body.runs.length || cursors.has(cursor) || cursor !== body.runs[body.runs.length - 1].runId)) throw new Error('run history cursor did not advance');
+    if (cursor) cursors.add(cursor);
+  } while (cursor);
+  return { ids, through: watermark };
+}
+
+// The fixture's process-exit handler deletes its scratch roots. Copy both roots while
+// the sidecar is stopped, before disposal, so a failed receipt remains investigable.
+export function preserveSoakState(fixture, outDir) {
+  const root = path.join(path.resolve(outDir), 'forensics');
+  if (fs.existsSync(root)) throw new Error('refusing to overwrite soak forensics: ' + root);
+  fs.mkdirSync(root, { recursive: true });
+  const copies = {};
+  for (const name of ['workspace', 'profile']) {
+    const source = path.resolve(fixture[name]);
+    const destination = path.join(root, name);
+    if (destination === source || destination.startsWith(source + path.sep)) throw new Error('forensics destination overlaps fixture');
+    fs.cpSync(source, destination, { recursive: true, errorOnExist: true, force: false });
+    copies[name] = destination;
+  }
+  return copies;
+}
+
 function tail(xs, fraction) { return xs.slice(Math.floor(xs.length * (1 - fraction))); }
 function minutesFrom(t0, t) { return (t - t0) / 60_000; }
 
@@ -415,7 +459,7 @@ export function evaluate(input) {
         const missing = [...b].filter((id) => !a.has(id));
         if (missing.length) lost[k] = missing.slice(0, 20);
       }
-      return { at: r.at, epoch: r.epoch, bootMs: r.bootMs ?? null, stopMode: r.stopMode || null, counts: Object.fromEntries(Object.keys(r.before || {}).map((k) => [k, { before: (r.before[k] || []).length, after: ((r.after || {})[k] || []).length }])), lost, ok: Object.keys(lost).length === 0 && r.error == null, error: r.error || null };
+      return { at: r.at, epoch: r.epoch, bootMs: r.bootMs ?? null, stopMode: r.stopMode || null, runHistoryThrough: r.runHistoryThrough ?? null, counts: Object.fromEntries(Object.keys(r.before || {}).map((k) => [k, { before: (r.before[k] || []).length, after: ((r.after || {})[k] || []).length }])), lost, ok: Object.keys(lost).length === 0 && r.error == null, error: r.error || null };
     });
     rules.restart = { pass: cycles.length > 0 && cycles.every((c) => c.ok), actual: { cycles: cycles.length, failed: cycles.filter((c) => !c.ok).length, detail: cycles, reason: cycles.length ? undefined : 'no restart cycle completed' }, expected: { cycles: '>= 1', lost: 'none' }, why: RULES.restart.why };
   }
@@ -557,14 +601,15 @@ export async function runSoak(drivers, opts, hooks) {
   const trail = [];             // GET /api/cron store snapshots: { at, jobs: { id: { nextRunAt, enabled, lastError } } }
   let lastStoreReadAt = null;
 
-  const entities = async () => {
+  const entities = async (runThrough) => {
     const out = { agents: [], routines: [], runs: [], turns: [] };
     try { const d = await drivers.json('GET', '/api/diagnostics'); const n = d.body && d.body.report && d.body.report.agentCount; out.agents = Array.from({ length: Number(n) || 0 }, (_, i) => 'agent#' + i); } catch (e) { out.agents = null; }
     try { const c = await drivers.json('GET', '/api/cron'); out.routines = (c.body && c.body.jobs || []).map((j) => j.id); } catch (e) { out.routines = null; }
-    try { const r = await drivers.json('GET', '/api/runs?agent=*&limit=500'); out.runs = (r.body && r.body.runs || []).map((x) => x.runId); } catch (e) { out.runs = null; }
+    const history = await readRunHistory((m, r) => drivers.json(m, r), runThrough);
+    out.runs = history.ids;
     try { const t = await drivers.json('GET', `/api/transcript?agent=${SOAK_AGENT}&stream=${SOAK_STREAM}&limit=500`); out.turns = (t.body && t.body.turns || []).map((x, i) => i + '|' + (x.ts || '') + '|' + (x.role || '')); } catch (e) { out.turns = null; }
     for (const k of Object.keys(out)) if (out[k] === null) delete out[k];   // unreadable before → cannot judge; never a fake empty set
-    return out;
+    return { values: out, runThrough: history.through };
   };
 
   const seed = async () => {
@@ -665,7 +710,9 @@ export async function runSoak(drivers, opts, hooks) {
   const restartCycle = async () => {
     const rec = { at: now(), epoch: state.epoch, before: null, after: null, bootMs: null, stopMode: drivers.stopMode || null, error: null };
     try {
-      rec.before = await entities();
+      const before = await entities();
+      rec.before = before.values;
+      rec.runHistoryThrough = before.runThrough;
       await readStore(null);
       const pid = drivers.pid();
       await drivers.stop();
@@ -683,7 +730,7 @@ export async function runSoak(drivers, opts, hooks) {
       rec.bootMs = now() - t;
       state.epoch++;
       state.processSnapshots.push({ at: now(), event: 'restart', epoch: state.epoch, pid: booted.pid, bootMs: rec.bootMs });
-      rec.after = await entities();
+      rec.after = (await entities(rec.runHistoryThrough)).values;
     } catch (e) { rec.error = String(e && e.message); }
     state.restarts.push(rec);
     log(`[soak] restart #${state.restarts.length}: boot ${rec.bootMs}ms ${rec.error ? 'ERROR ' + rec.error : ''}`);
@@ -926,6 +973,13 @@ async function main() {
   mock.close();
   const meta = { sidecarHead: gitHead(repo), platform: `${process.platform} ${os.release()} ${os.arch()}`, node: process.version, host: os.hostname(), stopMode: drivers.stopMode, provider: 'mock (in-process OpenRouter double)', mockCalls: mock.calls.total, mockSlowCalls: mock.calls.slow, cronEvents: result.accounting && result.accounting.events || null, workspace: fixture.workspace, auxPasses: opts.aux ? 'default' : 'disabled (SKYNET_AUX_BUDGET=0)' };
   const receipt = buildReceipt(Object.assign({}, result, { meta }));
+  try { receipt.meta.forensics = preserveSoakState(fixture, outDir); }
+  catch (e) {
+    receipt.meta.forensicsError = String(e && e.message || e);
+    receipt.verdict = 'FAIL';
+    receipt.failedRules.push('forensics');
+    receipt.rules.forensics = { pass: false, actual: { error: receipt.meta.forensicsError }, expected: { preserved: true }, why: 'restart failures must retain the scratch state before fixture cleanup' };
+  }
   fs.writeFileSync(path.join(outDir, 'soak-receipt.json'), JSON.stringify(receipt, null, 2));
   fs.writeFileSync(path.join(outDir, 'SUMMARY.md'), renderSummary(receipt));
   await fixture.dispose();

@@ -36,6 +36,48 @@ function healthyInput(samples, extra) {
 (async () => {
   const M = await import('../scripts/qa/soak.mjs');
 
+  // Full, anchored history must survive capped-page rollover; genuine deletion still fails.
+  {
+    const assert = require('node:assert/strict');
+    const original = Array.from({ length: 1001 }, (_, i) => ({ runId: 'run-' + (1000 - i), ts: 1000 - i }));
+    let rows = original.slice();
+    const json = async (_, route) => {
+      const q = new URL(route, 'http://fixture').searchParams;
+      const through = Number(q.get('through') || 2000);
+      const visible = rows.filter(r => r.ts <= through);
+      const start = q.has('beforeRunId') ? visible.findIndex(r => r.runId === q.get('beforeRunId')) + 1 : 0;
+      const page = visible.slice(start, start + 500);
+      return { status: 200, body: { runs: page, snapshotAt: through, nextCursor: start + 500 < visible.length ? page.at(-1).runId : '' } };
+    };
+    const before = await M.readRunHistory(json);
+    A.eq(before.ids.length, 1001, 'restart snapshot reads beyond two capped pages');
+    rows.unshift({ runId: 'new-after-snapshot', ts: 2001 });
+    A.eq((await M.readRunHistory(json, before.through)).ids, before.ids, 'new run does not roll an old row out of anchored comparison');
+    rows = rows.filter(r => r.runId !== 'run-0');
+    const after = await M.readRunHistory(json, before.through);
+    A.eq(before.ids.filter(id => !after.ids.includes(id)), ['run-0'], 'genuine loss beyond first 500 rows remains detectable');
+    await assert.rejects(() => M.readRunHistory(async () => ({ status: 500, body: {} })), /unreadable/);
+    await assert.rejects(() => M.readRunHistory(async () => ({ status: 200, body: { runs: [], snapshotAt: 2001 } }), 2000), /watermark changed/);
+    await assert.rejects(() => M.readRunHistory(async () => ({ status: 200, body: { runs: [{ runId: 'repeat' }], snapshotAt: 2000, nextCursor: 'repeat' } })), /duplicate|advance/);
+    A.ok(true, 'unreadable, unstable and looping history fail loudly');
+  }
+
+  {
+    const fs = require('node:fs'), os = require('node:os'), path = require('node:path');
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'starnet-soak-preservation-test-'));
+    try {
+      const fixture = { workspace: path.join(root, 'workspace'), profile: path.join(root, 'profile') };
+      for (const dir of Object.values(fixture)) fs.mkdirSync(dir);
+      fs.writeFileSync(path.join(fixture.workspace, 'runs.jsonl'), '{"runId":"retained"}\n');
+      fs.writeFileSync(path.join(fixture.profile, 'state.json'), '{"kept":true}');
+      const saved = M.preserveSoakState(fixture, path.join(root, 'out'));
+      fs.rmSync(fixture.workspace, { recursive: true }); fs.rmSync(fixture.profile, { recursive: true });
+      A.eq(fs.readFileSync(path.join(saved.workspace, 'runs.jsonl'), 'utf8'), '{"runId":"retained"}\n', 'history remains after fixture disposal');
+      A.eq(fs.readFileSync(path.join(saved.profile, 'state.json'), 'utf8'), '{"kept":true}', 'profile remains after fixture disposal');
+      A.throws(() => M.preserveSoakState(fixture, path.join(root, 'out')), 'forensic evidence cannot be overwritten');
+    } finally { fs.rmSync(root, { recursive: true, force: true }); }
+  }
+
   // ---- parseArgs
   {
     const d = M.parseArgs([]);
@@ -204,7 +246,7 @@ function healthyInput(samples, extra) {
       async stop() { alive = false; stopped++; },
       isAlive: () => alive,
       childrenOf: async () => [],
-      async json(m, r) { const key = m + ' ' + r.split('?')[0]; if (r.startsWith('/api/runs')) return { status: 200, body: { runs: Array.from({ length: runCount }, (_, i) => ({ runId: 'run' + i })) } }; if (r.startsWith('/api/transcript')) return { status: 200, body: { turns: Array.from({ length: runCount * 2 }, (_, i) => ({ ts: i, role: i % 2 ? 'assistant' : 'user' })) } }; const h = jsonRoutes[key]; if (!h) throw new Error('no fake route ' + key); return h(); },
+      async json(m, r) { const key = m + ' ' + r.split('?')[0]; if (r.startsWith('/api/runs')) return { status: 200, body: { runs: Array.from({ length: runCount }, (_, i) => ({ runId: 'run' + i })), snapshotAt: Number(new URL(r, 'http://fixture').searchParams.get('through') || t), nextCursor: '' } }; if (r.startsWith('/api/transcript')) return { status: 200, body: { turns: Array.from({ length: runCount * 2 }, (_, i) => ({ ts: i, role: i % 2 ? 'assistant' : 'user' })) } }; const h = jsonRoutes[key]; if (!h) throw new Error('no fake route ' + key); return h(); },
       async runConversation() { runCount++; t += 300; return { reason: 'done', toolOk: true }; },
       rss: async () => 90 * 1048576,
       workspaceBytes: () => 5000 + runCount,
