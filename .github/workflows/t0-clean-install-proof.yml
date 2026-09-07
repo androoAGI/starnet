@@ -63,9 +63,12 @@ jobs:
           if ($env:EXPECTED_SHA256 -notmatch '^[a-fA-F0-9]{64}$') { throw 'Expected SHA-256 is required' }
           $run = gh api "repos/$env:GITHUB_REPOSITORY/actions/runs/$env:BUILD_RUN_ID" | ConvertFrom-Json
           if ($LASTEXITCODE -ne 0 -or $run.path -ne '.github/workflows/desktop-build.yml' -or $run.status -ne 'completed') { throw 'Not a completed desktop-build run' }
-          gh run download $env:BUILD_RUN_ID --repo $env:GITHUB_REPOSITORY --name starnet-win-x64 --dir dist
+          # Checkout happens after first-launch proof and cleans GITHUB_WORKSPACE.
+          # Keep the verified installer outside it for the later signature check.
+          $candidateDir = Join-Path $env:RUNNER_TEMP 'starnet-candidate'
+          gh run download $env:BUILD_RUN_ID --repo $env:GITHUB_REPOSITORY --name starnet-win-x64 --dir $candidateDir
           if ($LASTEXITCODE -ne 0) { throw 'Candidate artifact download failed' }
-          $installers = @(Get-ChildItem dist -Recurse -Filter '*-setup.exe')
+          $installers = @(Get-ChildItem -LiteralPath $candidateDir -Recurse -Filter '*-setup.exe')
           if ($installers.Count -ne 1) { throw 'Expected exactly one candidate installer' }
           $installer = $installers[0]
           $hash = (Get-FileHash $installer.FullName -Algorithm SHA256).Hash.ToLower()
