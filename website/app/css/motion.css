@@ -356,48 +356,45 @@ button:active {
 /* ============================================================
    8 · TOGGLE SWITCHES — inset phosphor switches.
    Checkbox stays in the DOM (a11y + label click) but is visually
-   replaced by a beveled slider with a lit grip and a clear ON mark.
+   replaced by a quiet inset track and a solid sliding handle.
    Scoped to .set-row so only Settings-style toggles are affected.
    ============================================================ */
 .set-row input[type=checkbox], .mkt input[type=checkbox] {
   -webkit-appearance: none; appearance: none;
   position: relative; vertical-align: middle;
-  width: 38px; height: 20px; margin: 0 8px 0 0; padding: 0;
-  border: 1px solid var(--ph-dim); border-radius: 3px;
-  background: var(--glass), linear-gradient(180deg, rgba(var(--ph-rgb),.09), rgba(var(--ph-rgb),.02)), var(--panel2);
-  box-shadow: inset 0 2px 4px rgba(0,0,0,.75), 0 1px 0 rgba(var(--ph-bright-rgb),.12);
+  box-sizing: border-box; width: 44px; height: 24px; margin: 0 8px 0 0; padding: 0;
+  border: 1px solid var(--ph-dim); border-radius: 5px;
+  background: var(--panel2);
+  box-shadow: inset 0 1px 3px rgba(0,0,0,.65);
   cursor: pointer; flex: 0 0 auto;
   transition: border-color var(--t-fast) var(--ease-soft),
               background-color var(--t-fast) var(--ease-soft),
               box-shadow var(--t-fast) var(--ease-soft);
 }
 .set-row input[type=checkbox]::before, .mkt input[type=checkbox]::before {
-  content: '○'; position: absolute; right: 5px; top: 1px;
-  color: var(--ph-dim); font: 12px/16px 'VT323', monospace; text-shadow: none;
+  content: none;
 }
 .set-row input[type=checkbox]::after, .mkt input[type=checkbox]::after {
   content: ''; position: absolute; top: 2px; left: 2px;
-  width: 14px; height: 14px; border-radius: 2px;
-  background: linear-gradient(90deg, transparent 4px, rgba(0,0,0,.4) 4px 5px, transparent 5px 8px, rgba(0,0,0,.4) 8px 9px, transparent 9px),
-    linear-gradient(180deg, var(--ph-dim), color-mix(in srgb, var(--ph-dim) 45%, var(--panel2)));
-  box-shadow: inset 0 1px 0 rgba(var(--ph-bright-rgb),.35), inset 0 -1px 0 rgba(0,0,0,.5), 0 1px 3px rgba(0,0,0,.8);
+  width: 18px; height: 18px; border-radius: 3px;
+  background: color-mix(in srgb, var(--ph) 65%, var(--panel2));
+  box-shadow: inset 0 1px 0 rgba(var(--ph-bright-rgb),.25), 0 1px 2px rgba(0,0,0,.5);
   transition: transform var(--t-fast) var(--ease-out),
               background-color var(--t-fast) var(--ease-soft),
               box-shadow var(--t-fast) var(--ease-soft);
 }
 .set-row input[type=checkbox]:checked, .mkt input[type=checkbox]:checked {
   border-color: var(--ph);
-  background: var(--glass), linear-gradient(180deg, rgba(var(--ph-rgb),.28), rgba(var(--ph-rgb),.08)), var(--panel2);
-  box-shadow: inset 0 1px 4px rgba(0,0,0,.6), 0 0 7px var(--ph-glow2);
+  background: color-mix(in srgb, var(--ph) 20%, var(--panel2));
+  box-shadow: inset 0 1px 3px rgba(0,0,0,.45);
 }
 .set-row input[type=checkbox]:checked::before, .mkt input[type=checkbox]:checked::before {
-  content: 'I'; right: auto; left: 6px; color: var(--ph-bright); text-shadow: 0 0 5px var(--ph-glow);
+  content: none;
 }
 .set-row input[type=checkbox]:checked::after, .mkt input[type=checkbox]:checked::after {
-  transform: translateX(18px);
-  background: linear-gradient(90deg, transparent 4px, rgba(0,0,0,.35) 4px 5px, transparent 5px 8px, rgba(0,0,0,.35) 8px 9px, transparent 9px),
-    linear-gradient(180deg, var(--ph-bright), var(--ph));
-  box-shadow: inset 0 1px 0 rgba(255,255,255,.45), inset 0 -1px 0 rgba(0,0,0,.35), 0 0 7px var(--ph-glow2);
+  transform: translateX(20px);
+  background: var(--ph-bright);
+  box-shadow: inset 0 1px 0 rgba(var(--ph-bright-rgb),.45), 0 1px 2px rgba(0,0,0,.5);
 }
 .set-row input[type=checkbox]:hover:not(:disabled), .mkt input[type=checkbox]:hover:not(:disabled) {
   border-color: var(--ph-bright);
@@ -406,7 +403,7 @@ button:active {
   outline: 2px solid var(--ph-bright); outline-offset: 3px;
 }
 .set-row input[type=checkbox]:disabled, .mkt input[type=checkbox]:disabled {
-  opacity: 0.45; cursor: not-allowed;
+  opacity: 0.6; cursor: not-allowed;
 }
 /* keep the label text aligned with the new pill — ONLY on rows that carry a
    checkbox (a text-only .set-row keeps its block flow). :has() is supported in
