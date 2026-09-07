@@ -69,6 +69,28 @@ Official references:
 - https://developers.google.com/workspace/workspace-api-user-data-developer-policy
 - https://developers.google.com/workspace/gmail/api/auth/scopes
 
+Follow-up at 23:04 EDT: the installed signed Windows candidate completed real Gmail
+consent. Its callback reported six tools and the native catalog displayed MANAGE SERVICE.
+Run `5451d600-a49e-4410-8d99-d713c8087687` successfully created one unsent test draft,
+searched only the exact test subject in drafts, and read the matching message. Its durable
+tool trace contains those three successful operations and no send operation. Gmail's own
+UI independently showed exactly one matching draft with the requested subject and body.
+Drive also completed real Google consent and its callback reported five available tools;
+Drive operations and the other services/lifecycle cases remain unverified. The Clients page
+lists StarNet Desktop and StarNet Account (web); both belong in the verification demo.
+
+## Local distribution-folder reconciliation
+
+The release folder's top-level installer and feed still described the superseded unsigned
+`d611e156a` candidate. Those exact files and their notes/checksum/receipt are preserved in
+`release/history/unsigned-d611e156a`. The root now holds the signed `bd65c7737` Windows
+installer, both finalized Mac DMGs, and both signed Mac updater archives. Every source and
+staged asset hash was checked; the three updater signatures verify against the baked key.
+`SHA256SUMS.txt` and `CANDIDATE-RECEIPT.json` now cover these five current assets. Test notes
+describe the accepted compact single-line bay tags rather than the abandoned wrapping
+behavior. The old unsigned `latest.json` was archived, with no root feed or public release
+created. This reconciles local packaging; it does not change the installed executable.
+
 ## Desktop verification and limits
 
 - Fresh StarNet fast gate: 729/729, exit zero; no desktop runtime code changed in this follow-through.

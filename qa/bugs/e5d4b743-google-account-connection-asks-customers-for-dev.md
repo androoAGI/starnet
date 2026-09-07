@@ -38,6 +38,18 @@ Source implementation committed at cb8385c56. The StarNet Desktop OAuth registra
 
 ## Regression
 
+2026-09-06 23:04 EDT installed Windows acceptance: signed bd65c7737 completed real
+Google consent for Gmail, returned "Gmail connected" with six tools, and changed the native
+catalog action to MANAGE SERVICE. In a dedicated test conversation, run
+5451d600-a49e-4410-8d99-d713c8087687 recorded three successful calls: create_draft (540 ms),
+search_messages (429 ms), and read_message (231 ms), with no uncertain mutations and no
+send call. Gmail's own web UI independently returned exactly one matching unsent draft
+with the requested test subject/body. This verifies Gmail's real installed connection and
+these operations. Drive's real consent also completed with five available tools; its
+operations remain unverified. Other services, restart/refresh/removal/revocation and the Google review
+remain outstanding. The project has two OAuth clients (Desktop and Account web), both of
+which must be covered by the verification material. No demo video has been submitted.
+
 2026-09-06 release follow-through: published the audited Google disclosure to
 https://starnetos.com/legal/privacy from a website branch based on the currently live
 46b944c source, with only the privacy page changed among 3,944 staged files. Verified the
