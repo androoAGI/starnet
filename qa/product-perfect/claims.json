@@ -18,7 +18,7 @@
   "expectedClaimCount": 37,
   "releaseSurface": {
     "algorithm": "sha256",
-    "sourceCommit": "7bee8eb5fe1d643e965f5b30fc03a5749828ade9",
+    "sourceCommit": "1611844713cfb4d88061ace1f786040436c59605",
     "pathSetSha256": "8c036b2c47145e2b8e32ce97c06843562a7539326538d35b72db895d9af4bcba",
     "files": [
       {
@@ -148,8 +148,8 @@
       },
       {
         "path": "frontend/app/chat.js",
-        "bytes": 639658,
-        "sha256": "2fd3ecad96d21ec2f8056f9a7d21d4cb81cf37cae2a72cfe14247b11d8149785"
+        "bytes": 640149,
+        "sha256": "624b6a707c67f74358b8951fb175a1d6cdc827dab905c297821e0decf9200a18"
       },
       {
         "path": "frontend/app/chatresize.js",
@@ -323,8 +323,8 @@
       },
       {
         "path": "frontend/app/harness.js",
-        "bytes": 81909,
-        "sha256": "96582941fea47e1f0dee31bd87f5f11320df926c014b54448f36db5850e21561"
+        "bytes": 82000,
+        "sha256": "a25e1ae384299b82618b756f4b7c6aa710b664320509bfcbd158d8087a092e16"
       },
       {
         "path": "frontend/app/hint.js",
