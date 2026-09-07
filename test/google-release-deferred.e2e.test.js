@@ -28,6 +28,7 @@ const { RELEASE_DEFERRED, isWorkspaceUrl } = require('../sidecar/mcp/google-clie
     const cards = catalog.connectors.filter(c => c.googleApi);
     assert.equal(cards.length, 5);
     assert.ok(cards.every(c => c.releaseDeferred && c.signInAvailable === false && /deferred/.test(c.signInMessage)));
+    assert.ok(cards.every(c => c.blurb.split('Planned for a later update.').length === 2 && !c.blurb.includes('Sign in with Google')));
     assert.ok(catalog.groups.flatMap(g => g.connectors).filter(c => c.googleApi).every(c => c.releaseDeferred));
     const rows = (await fixture.json('GET', '/api/connectors')).body.connectors;
     for (const cfg of configs) {

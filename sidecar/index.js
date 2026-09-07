@@ -10884,7 +10884,7 @@ function handleConnectorCatalog(req, res) {
     if (e.staticOauth) e.needsClient = !connectorOauthClient(e.staticOauth.authorizationServer).clientId;
     if (e.googleApi) {
       e.releaseDeferred = googleConnectorDeferred(e);
-      if (e.releaseDeferred) e.blurb = 'Planned for a later update. ' + e.blurb.replace(' Sign in with Google to connect your account.', '');
+      if (e.releaseDeferred) e.blurb = 'Planned for a later update. ' + e.blurb.replace(/^Planned for a later update\. /, '').replace(' Sign in with Google to connect your account.', '');
       e.signInAvailable = !e.releaseDeferred && !e.needsClient;
       if (!e.signInAvailable) e.signInMessage = e.releaseDeferred ? googleClientConfig.DEFERRED : googleClientConfig.UNAVAILABLE;
     }
