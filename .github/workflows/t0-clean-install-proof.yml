@@ -200,8 +200,7 @@ jobs:
           if ($env:CANDIDATE_MANIFEST) {
             $manifest = $env:CANDIDATE_MANIFEST | ConvertFrom-Json
             if ("v$($manifest.version)" -ne $env:TAG) { throw 'Candidate manifest version mismatch' }
-            # Private builds store updater signatures separately from the Windows
-            # installer artifact. Verify the manifest's signature against the bytes.
+            # Verify the manifest signature against the preserved installer bytes.
             Set-Content -LiteralPath candidate-installer.sig -Value $manifest.platforms.'windows-x86_64'.signature -Encoding utf8NoBOM
             node scripts/minisign-verify.mjs "--artifact=$env:INSTALLER" --sig=candidate-installer.sig
             if ($LASTEXITCODE -ne 0) { throw 'Candidate manifest signature does not verify against this installer' }

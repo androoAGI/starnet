@@ -186,6 +186,13 @@ try {
   receipt.result = 'PASS';
 } catch (e) { receipt.error = String(e.stack || e); process.exitCode = 1; }
 finally {
+  if (cdp) {
+    try {
+      const shot = await cdp.send('Page.captureScreenshot', { format: 'png' });
+      fs.writeFileSync(path.join(out, 'native-final.png'), Buffer.from(shot.data, 'base64'));
+      fs.writeFileSync(path.join(out, 'native-final-dom.txt'), await evalJS(cdp, 'document.body.innerText'));
+    } catch (e) { receipt.captureError = String(e); }
+  }
   await stopOwned().catch(e => { receipt.result = 'FAIL'; receipt.cleanupError = String(e); process.exitCode = 1; });
   receipt.finishedAt = new Date().toISOString();
   fs.writeFileSync(path.join(out, 'receipt.json'), JSON.stringify(receipt, null, 2) + '\n');
