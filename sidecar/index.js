@@ -14802,6 +14802,7 @@ async function handleRun(req, res) {
       key, keyPool: body && body.keyPool, model, system: (projectLine || projectRules) ? (String(system || '') + projectLine + projectRules) : system, messages: runMessages, agentId, isTask, provider: runProvider, baseUrl, reasoningEffort, fallbackModels, fallbackProviders,
       emit, signal: ac.signal, runId, trigger: 'directive', internal, evidence,
       initialTaint: hasUserAttachments ? 'user attachment' : null,
+      retryUserRunId: body && body.retryUserRunId,
       surface: 'interactive', prompt: promptConsent, pathPrompt: promptPathTrust, summon: summonRequest,   // team.summon → live summonAgent() round-trip; pathPrompt → NS-5 "work in <root>?" bless
       loginPrompt: askHuman,   // attended browser login: browser.login's two consent asks ride the same fail-closed permission.prompt channel
       idempotencyScope: connectorContinuationScope,
@@ -16862,11 +16863,24 @@ async function runOnce(o) {
   // wiped, or any caller that only sent the new directive) AND it names an explicit workstream, seed the
   // conversation from the durable server transcript so the agent remembers the dialogue. Never overrides real
   // history the caller already supplied; gated to an explicit streamId (the global catch-all is not auto-seeded).
+  // A retry is a new execution of an existing user turn. Reuse only the latest durable user
+  // row whose run, agent, stream and text all match; equal text alone never deduplicates a send.
+  let retryDirective = null;
+  if (streamId && !internal && typeof o.retryUserRunId === 'string' && o.retryUserRunId.length <= 200) {
+    const latest = transcriptStore.history(streamId, { limit: 1200 }).filter(row => row.role === 'user').pop();
+    if (latest && latest.sourceRunId === o.retryUserRunId && latest.agentId === agentId
+      && latest.content === redact(latestUserText(messages))) retryDirective = latest;
+  }
   let convo = messages;
   try {
     if (!o.recovery && !o.groupTools && !internal && streamId && Array.isArray(messages) && messages.filter(m => m && m.role !== 'system').length <= 1) {
       const seed = transcriptStore.reconstruct(streamId, { limit: 100 });
-      if (seed.length) convo = seed.concat(messages);   // prior dialogue first, the new directive stays last
+      if (seed.length) {
+        // Keep the incoming turn (including attachment blocks), but not its older retry copy or
+        // the failed attempt's trailing assistant/tool rows in the automatically restored prefix.
+        const at = retryDirective ? seed.map(m => m.role === 'user' && m.content === retryDirective.content).lastIndexOf(true) : -1;
+        convo = (at >= 0 ? seed.slice(0, at) : seed).concat(messages);
+      }   // prior dialogue first, the new directive stays last
     }
   } catch (_) { /* resume is best-effort; a bad transcript never blocks a run */ }
   // Recovery history is already a provider-valid, fully-paired durable checkpoint. Do not prepend a new
@@ -17221,7 +17235,7 @@ async function runOnce(o) {
       if (execution.journalStarted()) {
         // Retirement is ordered strictly: each transcript row is fsync/read-back proven, then the journal records
         // that acknowledgement, then (and only then) is the recovery copy removed. A throw leaves it discoverable.
-        if (title) transcriptStore.appendStrict({ streamId: o.streamId, agentId, role: 'user', content: title, sourceRunId: runId });
+        if (title && !retryDirective) transcriptStore.appendStrict({ streamId: o.streamId, agentId, role: 'user', content: title, sourceRunId: runId });
         if (result && Array.isArray(result.messages)) transcriptStore.appendNewStrict(o.streamId, agentId, result.messages, { sourceRunId: runId });
         const retirement = runJournal.finishAndRetire(runId, {
           reason: (result && result.reason) || 'error', turns: finalTurns, tokens: finalTokens, usd: finalUsd,
@@ -17231,7 +17245,7 @@ async function runOnce(o) {
           console.warn('[run-journal] retained unsettled run for review:', runId, retirement.state && retirement.state.status);
         }
       } else {
-        if (title) transcriptStore.append({ streamId: o.streamId, agentId, role: 'user', content: title });
+        if (title && !retryDirective) transcriptStore.append({ streamId: o.streamId, agentId, role: 'user', content: title });
         if (result && Array.isArray(result.messages)) transcriptStore.appendNew(o.streamId, agentId, result.messages);
       }
     } catch (_) {}

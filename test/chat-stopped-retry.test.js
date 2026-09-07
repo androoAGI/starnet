@@ -40,7 +40,7 @@ const retryFn = /function\s+retryLast\s*\(\s*\)\s*\{([\s\S]*?)\n\s*\}/.exec(src)
 A.ok(retryFn, 'retryLast exists');
 A.ok(/h\[h\.length\s*-\s*1\]\.error\s*\|\|\s*h\[h\.length\s*-\s*1\]\.stopped/.test(retryFn[1]),
   'retryLast discards a stopped partial assistant tail before re-running');
-A.ok(/send\s*\(\s*text\s*,\s*\{\s*retry:\s*true\s*\}\s*\)/.test(retryFn[1]),
+A.ok(/send\s*\(\s*text\s*,\s*\{\s*retry:\s*true\s*,\s*retryUserRunId:/.test(retryFn[1]),
   'Try again uses the existing no-duplicate retry send path');
 
 // Reload/switch reconstructs the same recovery affordance from durable history once the stream is idle.
@@ -65,4 +65,19 @@ A.ok(/function\s+retryLast[\s\S]*?if\s*\(\s*!activeWs\s*\)\s*return[\s\S]*?if\s*
   A.ok(firstSend > 0 && busyGuard > 0 && busyGuard < firstSend, 'the busy guard precedes the retry send');
 }
 
+// The run reference stays on the original user turn across repeated retries.
+{
+  const vm = require('node:vm');
+  const body = /function\s+retryLast\s*\(\s*\)\s*\{([\s\S]*?)\n\s{2}\}/.exec(src)[0];
+  const sent = [];
+  const context = { activeWs: { runIds: ['latest-attempt'], history: [
+    { role: 'user', content: 'same request', sourceRunId: 'original-user-run' },
+    { role: 'assistant', content: 'failed', error: true }
+  ] }, isBusy: () => false, localLine: () => {}, load: () => {}, send: (text, opts) => sent.push({ text, opts }) };
+  vm.createContext(context); vm.runInContext(body + '; retryLast();', context);
+  A.eq(sent[0].opts.retryUserRunId, 'original-user-run', 'retry references the original user run, not the latest retry attempt');
+  delete context.activeWs.history[0].sourceRunId;
+  vm.runInContext('retryLast();', context);
+  A.eq(sent[1].opts.retryUserRunId, 'latest-attempt', 'legacy local history falls back to its confirmed last run');
+}
 A.report('chat-stopped-retry.test');

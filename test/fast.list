@@ -464,6 +464,7 @@ test/newhero-reset.test.js
 test/harness-internal.test.js
 test/chat-runmeta.test.js
 test/chat-stopped-retry.test.js
+test/retry-user-transcript.http.test.js
 test/comms-history-pin.test.js
 test/composer-paste-limit.test.js
 test/chat-linkify.test.js
