@@ -1,4 +1,4 @@
-/* The removed global E-STOP must not return through a menu or hotkey.
+/* Legacy stop-only hotkey stays retired. Explicit state-backed recovery is owner-authorized.
    Per-conversation Stop and the backend halt receipt remain separate capabilities. */
 'use strict';
 const fs = require('node:fs');
@@ -9,7 +9,8 @@ const read = file => fs.readFileSync(path.join(root, file), 'utf8');
 const html = read('frontend/index.html');
 const chat = read('frontend/app/chat.js');
 const harness = read('frontend/app/harness.js');
-A.ok(!/id="estop-btn"|app\/safety\.js|Alt\+H/.test(html), 'no global-stop control or script is loaded by the station');
+A.ok(!/id="estop-btn"|app\/safety\.js|Alt\+H/.test(html), 'legacy stop-only control and hotkey remain retired');
+A.ok(html.includes('app/emergency-control.js') && html.includes('id="automation-stop-toggle"') && html.includes('id="automation-resume"'), 'bundled desktop includes state-backed stop/resume and discoverable recovery');
 A.ok(!fs.existsSync(path.join(root, 'frontend/app/safety.js')), 'the retired global hotkey handler is removed');
 A.ok(/id="chat-stop"/.test(html) && /function stopActive\(/.test(chat), 'COMMS keeps its per-conversation Stop control');
 for (const field of ['nightshiftHaltPersisted', 'cronHaltPersisted', 'loopsHaltPersisted']) {

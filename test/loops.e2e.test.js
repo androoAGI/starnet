@@ -273,7 +273,7 @@ async function until(B, headers, pred, label, ms) {
     A.eq(loopCalls(), callsAtHalt, 'and not one loop iteration happened after the halt');
 
     // ---- and it lifts only on an explicit unhalt -----------------------------------------------------------
-    const un = await fetch(B + '/api/loops/control', { method: 'POST', headers, body: JSON.stringify({ action: 'unhalt' }) });
+    const un = await fetch(B + '/api/halt/resume', { method: 'POST', headers, body: JSON.stringify({ confirm: true }) });
     A.eq(un.status, 200, 'unhalt accepted');
     A.eq((await un.json()).halted, false, 'the durable halt is lifted');
     await until(B, headers, () => loopCalls() > callsAtHalt, 'work to resume after an explicit unhalt');

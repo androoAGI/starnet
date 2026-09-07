@@ -85,6 +85,12 @@ function kill(child) { return new Promise(r => { try { child.on('exit', () => r(
     s = await status();
     A.eq(s.halted, false, 're-writing the autonomy dial lifts the halt');
     A.ok(s.binding !== 'halt', 'the binding is no longer halt (got ' + s.binding + ')');
+    await fetch(B + '/api/halt', { method: 'POST', headers });
+    const unified = await fetch(B + '/api/halt/resume', { method: 'POST', headers, body: JSON.stringify({ confirm: true }) });
+    A.eq(unified.status, 200, 'dedicated recovery resumes without writing the dial');
+    s = await status();
+    A.eq(s.halted, false, 'dedicated recovery clears the night shift halt');
+    A.ok(s.binding !== 'halt', 'the real night shift gate is open after dedicated recovery');
   } finally {
     await kill(child);
     try { fs.rmSync(ws, { recursive: true, force: true }); } catch (_) {}

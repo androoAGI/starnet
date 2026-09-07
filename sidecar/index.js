@@ -9053,6 +9053,8 @@ const ROUTES = [
   { m: 'GET', exact: '/api/diagnostics', h: handleDiagnostics },   // T3.9 paste-ready bug report
   { m: 'POST', exact: '/api/diagnostics/live', h: handleLiveDoctor }, // opt-in live model/execution/MCP/channel proof
   { m: 'POST', exact: '/api/halt', h: handleHalt },
+  { m: 'GET', exact: '/api/halt', h: handleHaltStatus },
+  { m: 'POST', exact: '/api/halt/resume', h: handleHaltResume },
   { m: 'POST', exact: '/api/consent', h: handleConsent },
   { m: 'POST', exact: '/api/consent/ack', h: handleConsentAck },   // EL-11: the browser attests the prompt is human-visible
   { m: 'POST', exact: '/api/consent/answer', h: handleConsentAnswer },   // in-turn clarify: the Commander's live answer to a brief.ask card
@@ -18449,6 +18451,59 @@ async function handleLiveDoctor(req, res) {
 // runs (the `runs` Map) AND any messaging-hub/Telegram runs (the hub keeps each run's AbortController in its
 // inflight map). Idempotent. Each run's own finally cleans its maps + auto-denies any open consent prompt; hub
 // runs are marked `superseded` first so their (now stale) partial reply isn't delivered after the kill.
+// This snapshot is deliberately independent of arm intent and permission posture.
+// A running timer is not proof that a subsystem is allowed to execute work.
+function haltStatus() {
+  const subsystems = {
+    cron: { halted: !!cronHalted },
+    nightshift: { halted: nightshift.isHalted(nightshiftState) },
+    loops: { halted: !!loopsHalted }
+  };
+  return { halted: Object.values(subsystems).some(s => s.halted), subsystems };
+}
+function haltJson(res, code, body) {
+  res.writeHead(code, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
+  res.end(JSON.stringify(body));
+}
+function handleHaltStatus(req, res) { haltJson(res, 200, haltStatus()); }
+
+// Resume is NOT a posture write: preserve all grants, budgets, arm intent, and per-job pauses.
+// After body parsing the state transitions are synchronous, so a concurrent stop cannot be
+// interleaved halfway through this operation. Each disk write/read-back precedes its live lift.
+async function handleHaltResume(req, res) {
+  let body;
+  try { body = JSON.parse(await readBody(req, 4096, res)); }
+  catch (_) { if (!res.headersSent) haltJson(res, 400, { error: 'bad json' }); return; }
+  if (!body || body.confirm !== true) return haltJson(res, 400, { error: 'explicit confirm:true is required to resume' });
+  const errors = {};
+  const attempt = (name, fn) => { try { fn(); } catch (e) { errors[name] = String(e && e.message || e); } };
+  attempt('cron', () => { liftCronHalt(); });
+  attempt('nightshift', () => {
+    if (nightshift.isHalted(nightshiftState)) {
+      saveNightshiftHalt(nightshift.clearHalt(nightshiftState, Date.now()));
+    }
+    if (nightshiftShouldArm() && !nightshiftTimer) armNightshift();
+  });
+  attempt('loops', () => {
+    if (loopsHalted) { saveLoopsHalted(false); loopsHalted = false; }
+    armLoops(true);
+  });
+  const state = haltStatus();
+  const ok = !state.halted && Object.keys(errors).length === 0;
+  haltJson(res, ok ? 200 : 503, { ok, ...state, errors });
+}
+
+// Unlike ordinary beat accounting, a stop/resume receipt owes a durable read-back.
+function saveNightshiftHalt(next) {
+  const intended = nightshift.toEnvelope(next, Date.now());
+  const receipt = saveJsonVerified({
+    save: () => saveResilient(NIGHTSHIFT_STATE_FILE, intended),
+    load: () => loadResilient(NIGHTSHIFT_STATE_FILE, 'nightshift'),
+    proof: got => JSON.stringify(got) === JSON.stringify(intended)
+  });
+  if (!receipt.ok) throw new Error('night shift halt durable read-back failed: ' + receipt.error);
+  nightshiftState = next;
+}
 function handleHalt(req, res) {
   if (typeof groupSessions !== 'undefined') groupSessions.halt().catch(e => console.warn('[groups] halt persistence failed:', e.message));
   const tgInflight = (telegram && telegram.hub && telegram.hub._internals) ? telegram.hub._internals.inflight : null;
@@ -18474,7 +18529,7 @@ function handleHalt(req, res) {
   // dial is re-written (handleAutonomyPosture → nightshift.clearHalt). Truthful telemetry: status now reports halted.
   let nightshiftHaltPersisted = true;
   const haltedNightshiftState = nightshift.engageHalt(nightshiftState, Date.now());
-  try { saveNightshiftState(haltedNightshiftState); }
+  try { saveNightshiftHalt(haltedNightshiftState); }
   catch (e) {
     // E-STOP still governs this process immediately, but a failed disk write is not a restart-durability claim.
     nightshiftState = haltedNightshiftState;
@@ -18486,7 +18541,7 @@ function handleHalt(req, res) {
   // claiming "N routines armed" — so the tray held the process alive AFTER the user paused. The flag persists
   // (survives restart) and lifts only on an explicit resume (POST /api/cron/arm or an autonomy-dial re-write).
   let cronHaltPersisted = true;
-  if (cronArmed) {
+  {
     // Immediate safety is RAM-owned and must never depend on disk. Retry the durable stamp on every E-STOP while
     // armed, including after an earlier failed attempt left cronHalted=true only in this process.
     cronHalted = true;
@@ -18514,7 +18569,7 @@ function handleHalt(req, res) {
   try { subagents.interruptAll(); } catch (_) {}   // Phase 1: E-STOP aborts watchable background workers too
   try { cronLock.release(); } catch (_) {}  // G4.3: drop any cron lock this process holds so an E-STOP mid-tick never wedges the next tick (standalone halt-block addition; G2 will add connectors.close here)
   res.writeHead(200, { 'Content-Type': 'application/json' });
-  res.end(JSON.stringify({ halted, cronAborted, beatAborted, loopAborted, terminalStops, nightshiftHaltPersisted, cronHaltPersisted, loopsHaltPersisted }));   // honest counts + per-subsystem restart-durability receipts
+  res.end(JSON.stringify({ halted, cronAborted, beatAborted, loopAborted, terminalStops, nightshiftHaltPersisted, cronHaltPersisted, loopsHaltPersisted, state: haltStatus() }));   // honest counts + per-subsystem restart-durability receipts
 }
 
 // POST /api/channels/telegram/connect { token, key?, model, provider? } — the Messaging tab hands over the
