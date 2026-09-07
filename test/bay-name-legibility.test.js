@@ -16,17 +16,20 @@ const bay = { t: 'bay', x: 10, y: 10, w: 2, h: 2, agentId: 'agent-one', dockName
 for (const dpr of [1, 1.25, 2]) for (const zoom of [.5, 1, 2, 4, 8]) {
   const out = paint([bay], zoom, dpr);
   assert.equal(out.text.map(t => t.s).join(''), 'ULTRON', 'the sixth character is not silently discarded');
-  assert.ok(out.text.every(t => t.fontPx >= 16 - .001 && t.fontPx <= 22 + .001), 'name remains legible in CSS pixels at all camera/device scales');
+  assert.equal(out.text[0].fontPx, 7 * zoom / dpr, 'the physical tag shrinks with the bay; there is no screen-size floor');
+  assert.deepEqual(out.boxes, paint([bay], 1).boxes, 'zoom and DPI never enlarge or move the tag in station space');
 }
-assert.equal(paint([{ ...bay, dockName: 'Renamed Agent' }], 2).text.map(t => t.s).join(''), 'RENAMED AGENT', 'rename reads current roster projection');
+assert.equal(paint([{ ...bay, dockName: 'Nova' }], 2).text[0].s, 'NOVA', 'rename reads current roster projection');
 assert.equal(paint([{ ...bay, agentId: 'tg_other', dockName: null }], 2).text[0].s, 'OTHER', 'missing roster name uses the real binding');
 assert.equal(paint([{ ...bay, agentId: null }], 2).text.length, 0, 'unassigned bay never claims an agent');
 const nearby = paint([bay, { ...bay, x: 12, agentId: 'two', dockName: 'RESEARCHER' }, { ...bay, x: 14, agentId: 'three', dockName: 'RESEARCHER TWO' }], .5);
+assert.ok(nearby.boxes.every(box => box.y === nearby.boxes[0].y), 'dense tags stay anchored above their bays instead of stacking into a floating list');
 for (let i = 0; i < nearby.boxes.length; i++) for (let j = i + 1; j < nearby.boxes.length; j++) {
   const a = nearby.boxes[i], b = nearby.boxes[j];
   assert.ok(a.x + a.w <= b.x || b.x + b.w <= a.x || a.y + a.h <= b.y || b.y + b.h <= a.y, 'adjacent names do not overprint');
 }
 const long = paint([{ ...bay, dockName: 'A very long research specialist name that cannot fit on a bay' }], 1);
-assert.equal(long.text.length, 2); assert.ok(long.text.at(-1).s.endsWith('…'), 'overlong names use two bounded lines and honest ellipsis');
-assert.ok(long.text.every(t => t.fontPx >= 16), 'long names wrap instead of shrinking');
-console.log('bay-name-legibility: complete names, zoom/DPI floor, rename, binding, dense bays and long names PASS');
+assert.equal(long.text.length, 1); assert.ok(long.text[0].s.endsWith('…'), 'overlong names stay on one compact line with an honest ellipsis');
+assert.ok(long.boxes[0].w <= bay.w * PS.TILE, 'a tag never grows wider than its bay');
+assert.equal(long.boxes[0].h, paint([bay], 1).boxes[0].h, 'long names never grow a taller card');
+console.log('bay-name-legibility: compact tags, proportional zoom/DPI, rename, binding, fixed anchors and bounded long names PASS');

@@ -11218,69 +11218,43 @@ const PropSprites = (() => {
     return { x, y, r: e.r, c: e.c, a: e.a * k };
   }
 
-  // Names are signage, not shaded furniture. Both the live station and REFIT
-  // call this after their light pass, using their current camera scale. Rasterize
-  // directly into the final canvas so zoom never enlarges an 8px cached glyph.
+  // Compact physical nameplates, painted after lighting for contrast. Geometry
+  // stays in station units: zooming out shrinks the tag together with its bay.
   const bayTextLayouts = new Map();
   function drawBayNames(props, scale, dpr) {
     if (!ctx || !props.length || !(scale > 0)) return;
-    const unit = (dpr || 1) / scale;
-    const font = Math.max(16 * unit, Math.min(9, 22 * unit));
-    const maxWidth = 132 * unit, pad = 5 * unit, line = font * 1.05;
+    const font = 7, pad = 1, h = 9;
     ctx.save();
     try {
       ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over';
       ctx.font = font + "px 'VT323','Courier New',monospace";
       ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-      const placed = [];
       for (const p of props) {
         if (!p.agentId) continue;
         const name = String(p.dockName || String(p.agentId).replace(/^tg_/, '')).toUpperCase();
-        const key = name + '|' + font.toFixed(3) + '|' + maxWidth.toFixed(3);
+        const maxWidth = Math.max(8, (p.w || 1) * TILE - pad * 2);
+        const key = name + '|' + maxWidth;
         let layout = bayTextLayouts.get(key);
         if (!layout) {
-          const chars = Array.from(name), lines = [''];
-          for (const ch of chars) {
-            let i = lines.length - 1;
-            if (ctx.measureText(lines[i] + ch).width > maxWidth && lines[i]) {
-              if (lines.length === 2) {
-                while (lines[i] && ctx.measureText(lines[i] + '…').width > maxWidth) lines[i] = Array.from(lines[i]).slice(0, -1).join('');
-                lines[i] += '…'; break;
-              }
-              const space = lines[i].lastIndexOf(' ');
-              if (space > 0) {
-                const tail = lines[i].slice(space + 1);
-                lines[i] = lines[i].slice(0, space);
-                lines.push(tail);
-              } else lines.push('');
-              i++;
-            }
-            lines[i] += ch;
+          let text = name;
+          if (ctx.measureText(text).width > maxWidth) {
+            const chars = Array.from(text);
+            while (chars.length && ctx.measureText(chars.join('') + '…').width > maxWidth) chars.pop();
+            text = chars.join('') + '…';
           }
-          layout = { lines, width: Math.max(...lines.map(s => ctx.measureText(s).width)) + pad * 2 };
+          layout = { text, width: ctx.measureText(text).width + pad * 2 };
           if (bayTextLayouts.size >= 256) bayTextLayouts.clear();
           bayTextLayouts.set(key, layout);
         }
         const x = (p.x + (p.w || 1) / 2) * TILE;
         const anchor = p.y * TILE - (p.mount === 'surface' ? SURFACE_RISE : 0) + 1;
-        const h = line * layout.lines.length + 4 * unit;
         const box = { x: x - layout.width / 2, y: anchor - h / 2, w: layout.width, h };
-        // Dense neighbouring bays stack their signs instead of overprinting names.
-        for (let attempt = 0; attempt < placed.length; attempt++) {
-          const hit = placed.find(b => box.x < b.x + b.w + unit && box.x + box.w + unit > b.x && box.y < b.y + b.h + unit && box.y + box.h + unit > b.y);
-          if (!hit) break;
-          box.y = hit.y - box.h - 2 * unit;
-        }
-        placed.push(box);
         ctx.shadowBlur = 0;
         ctx.fillStyle = '#0b1916'; ctx.fillRect(box.x, box.y, box.w, box.h);
-        ctx.strokeStyle = '#65c9ad'; ctx.lineWidth = unit;
+        ctx.strokeStyle = '#65c9ad'; ctx.lineWidth = 0.5;
         ctx.strokeRect(box.x, box.y, box.w, box.h);
-        if (box.y + box.h < anchor) {
-          ctx.beginPath(); ctx.moveTo(x, box.y + box.h); ctx.lineTo(x, anchor); ctx.stroke();
-        }
-        ctx.fillStyle = '#d6fff0'; ctx.shadowColor = '#5ad1b3'; ctx.shadowBlur = 2 * (dpr || 1);
-        layout.lines.forEach((s, i) => ctx.fillText(s, x, box.y + 2 * unit + line * (i + 0.5)));
+        ctx.fillStyle = '#d6fff0'; ctx.shadowColor = '#5ad1b3'; ctx.shadowBlur = Math.min(scale, 2 * (dpr || 1));
+        ctx.fillText(layout.text, x, anchor);
       }
     } finally { ctx.restore(); }
   }

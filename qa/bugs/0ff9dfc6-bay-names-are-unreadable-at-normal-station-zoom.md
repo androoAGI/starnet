@@ -34,11 +34,11 @@ Owner bay-name screenshot (2026-09-06). Original frontend/app/propsprites.js use
 
 ## Verdict
 
-Source repair fe5be77a9 is implemented and live proof is recorded. Exact installer behavior and owner recovery remain unverified.
+The owner rejected source repair fe5be77a9 in installed candidate 5eb4ac201: its minimum screen size and collision stacking made names dominate the zoomed-out station. The follow-up restores compact top-mounted tags that scale with each bay, retains the post-lighting contrast improvement, and bounds long names to one line with an ellipsis. Live source preview confirms proportional shrinking at distant zoom. Replacement installer and owner recovery remain unverified.
 
 ## Regression
 
-The previous implementation silently discarded the sixth character and rasterized names into the shaded sprite. The executable render recorder checks complete ULTRON, a 16–22 CSS-pixel font floor across five zooms and three device scales, live rename/binding, unassigned bays, adjacent label collisions and bounded long names. Live screenshots confirm the six named bays at fitted and closer zoom and in REFIT.
+The original implementation silently discarded the sixth character and rasterized names into the shaded sprite. The executable render recorder now checks complete ULTRON, proportional scaling across five zooms and three device scales, live rename/binding, unassigned bays, fixed anchors without floating stacks, and single-line truncation within the bay footprint. Live follow-up screenshots confirm compact tags at normal scale and shrinking tags at distant zoom; the earlier REFIT proof covered the shared post-lighting entry point.
 
 ## Sibling coverage
 
@@ -48,7 +48,7 @@ The previous implementation silently discarded the sixth character and rasterize
       "target": "shared canvas name renderer",
       "state": "covered",
       "test": "test/bay-name-legibility.test.js",
-      "scenario": "real renderer emits full labels, bounded font size and non-overlapping signs",
+      "scenario": "real renderer emits compact proportional tags, fixed anchors and bay-width-bounded long names",
       "gate": "fast"
     }
   ],
