@@ -79,7 +79,8 @@ jobs:
           if ($env:BUILD_RUN_ID -notmatch '^\d+$') { throw 'Invalid build run ID' }
           if ($env:EXPECTED_SHA256 -notmatch '^[a-fA-F0-9]{64}$') { throw 'Expected SHA-256 is required' }
           $run = gh api "repos/$env:GITHUB_REPOSITORY/actions/runs/$env:BUILD_RUN_ID" | ConvertFrom-Json
-          if ($LASTEXITCODE -ne 0 -or $run.path -ne '.github/workflows/desktop-build.yml' -or $run.status -ne 'completed') { throw 'Not a completed desktop-build run' }
+          if ($LASTEXITCODE -ne 0 -or $run.path -notin @('.github/workflows/desktop-build.yml', '.github/workflows/release-train.yml') -or $run.status -ne 'completed') { throw 'Not a completed desktop build or release train' }
+          if ($run.path -eq '.github/workflows/release-train.yml' -and $run.conclusion -ne 'success') { throw 'Release train must be successful' }
           # Checkout happens after first-launch proof and cleans GITHUB_WORKSPACE.
           # Keep the verified installer outside it for the later signature check.
           $candidateDir = Join-Path $env:RUNNER_TEMP 'starnet-candidate'
