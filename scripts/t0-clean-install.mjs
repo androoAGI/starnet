@@ -263,6 +263,8 @@ function writeSummary(allResults, loopsRun) {
   const json = {
     generatedAt: nowIso(),
     lane: 'T0-clean-install-proof',
+    version: tauriVersion(),
+    installer: latest.find(r => r.id === 't0.1-release-installer')?.artifacts?.installer || null,
     verdict,
     cleanInstallProofReady,
     loopsRun,

@@ -76,6 +76,22 @@ try {
     assert.equal(res.status, 0, res.stderr || res.stdout);
     const status = JSON.parse(fs.readFileSync(path.join(out, 't0-clean-install-status.json'), 'utf8'));
     assert.equal(status.cleanInstallProofReady, true);
+    assert.equal(status.version, JSON.parse(fs.readFileSync(path.join(ROOT, 'src-tauri', 'tauri.conf.json'), 'utf8')).version);
+    assert.equal(status.installer.sha256, hash);
+    // Exercise the real receipt consumer: the old writer said green but omitted the
+    // version, so release-preflight continued to say the completed T0 was owed.
+    const recognition = spawnSync(process.execPath, ['--input-type=module', '-e', `
+      import {runPreflight} from './scripts/release-preflight.mjs';
+      const receipt = ${JSON.stringify(status)};
+      const io = {
+        readText: p => p.endsWith('/t0-clean-install-status.json') ? JSON.stringify(receipt) : null,
+        listDir: p => p === '.dogfood' ? ['t0-clean-install-test'] : [],
+        exists: () => false, stat: () => null, exec: () => ({status: 1, stdout: '', stderr: 'fixture unavailable'}), now: () => Date.now()
+      };
+      const result = runPreflight({version: receipt.version, phase: 'post-bump'}, io);
+      if (result.rows.find(r => r.id === 't0')?.status !== 'PASS') throw Error('validated T0 not recognized');
+    `], {cwd: ROOT, encoding: 'utf8'});
+    assert.equal(recognition.status, 0, recognition.stderr);
     assert.equal(status.verdict, 'green');
     assert.equal(status.nextAction, null);
   }
