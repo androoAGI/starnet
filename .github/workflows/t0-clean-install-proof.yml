@@ -14,16 +14,29 @@ on:
       tag:
         description: "Release tag whose staged draft installer to prove, e.g. v0.10.0"
         required: true
+      build_run_id:
+        description: "Optional private desktop-build run; proves its exact installer before a draft exists"
+        required: false
+        default: ""
+      installer_sha256:
+        description: "Required expected installer SHA-256 when build_run_id is supplied"
+        required: false
+        default: ""
 
 jobs:
   prove:
     runs-on: windows-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      actions: read
     env:
       GH_TOKEN: ${{ secrets.RELEASES_TOKEN }}
       REPO: androoAGI/starnet-releases
       TAG: ${{ inputs.tag }}
     steps:
       - name: Download staged draft installer
+        if: inputs.build_run_id == ''
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
@@ -33,13 +46,39 @@ jobs:
           if ($null -eq $installer) { throw "no installer asset on $env:TAG" }
           "INSTALLER=$($installer.FullName)" >> $env:GITHUB_ENV
 
+      - name: Download and verify private candidate installer
+        if: inputs.build_run_id != ''
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BUILD_RUN_ID: ${{ inputs.build_run_id }}
+          EXPECTED_SHA256: ${{ inputs.installer_sha256 }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          if ($env:BUILD_RUN_ID -notmatch '^\d+$') { throw 'Invalid build run ID' }
+          if ($env:EXPECTED_SHA256 -notmatch '^[a-fA-F0-9]{64}$') { throw 'Expected SHA-256 is required' }
+          $run = gh api "repos/$env:GITHUB_REPOSITORY/actions/runs/$env:BUILD_RUN_ID" | ConvertFrom-Json
+          if ($LASTEXITCODE -ne 0 -or $run.path -ne '.github/workflows/desktop-build.yml' -or $run.status -ne 'completed') { throw 'Not a completed desktop-build run' }
+          gh run download $env:BUILD_RUN_ID --repo $env:GITHUB_REPOSITORY --name starnet-win-x64 --dir dist
+          if ($LASTEXITCODE -ne 0) { throw 'Candidate artifact download failed' }
+          $installers = @(Get-ChildItem dist -Recurse -Filter '*-setup.exe')
+          if ($installers.Count -ne 1) { throw 'Expected exactly one candidate installer' }
+          $installer = $installers[0]
+          $hash = (Get-FileHash $installer.FullName -Algorithm SHA256).Hash.ToLower()
+          if ($hash -ne $env:EXPECTED_SHA256.ToLower()) { throw 'Installer hash mismatch' }
+          $signature = Get-AuthenticodeSignature $installer.FullName
+          if ($signature.Status -ne 'Valid') { throw "Installer signature is $($signature.Status)" }
+          "INSTALLER=$($installer.FullName)" >> $env:GITHUB_ENV
+          "CANDIDATE_SOURCE=$($run.head_sha)" >> $env:GITHUB_ENV
+          "CANDIDATE_BUILD_RUN=$env:BUILD_RUN_ID" >> $env:GITHUB_ENV
+
       - name: Install silently (default per-user path) and record identity
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
           $h = Get-FileHash $env:INSTALLER -Algorithm SHA256
           $bytes = (Get-Item $env:INSTALLER).Length
-          $p = Start-Process -FilePath $env:INSTALLER -ArgumentList '/S' -PassThru -Wait
+          $p = Start-Process -FilePath $env:INSTALLER -ArgumentList '/S' -WindowStyle Hidden -PassThru -Wait
           if ($p.ExitCode -ne 0) { throw "installer exited $($p.ExitCode)" }
           $exe = Get-ChildItem "$env:LOCALAPPDATA" -Recurse -Filter 'skynet-desktop.exe' -ErrorAction SilentlyContinue |
             Where-Object { $_.FullName -match 'StarNet' } | Select-Object -First 1
@@ -54,7 +93,7 @@ jobs:
         run: |
           $ErrorActionPreference = 'Stop'
           $env:WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS = '--remote-debugging-port=9333'
-          $proc = Start-Process -FilePath $env:EXE -PassThru
+          $proc = Start-Process -FilePath $env:EXE -WindowStyle Hidden -PassThru
           $targets = $null
           foreach ($i in 1..120) {
             Start-Sleep -Seconds 1
@@ -97,6 +136,8 @@ jobs:
               sha256 = $env:INSTALLER_SHA256
               bytes  = [long]$env:INSTALLER_BYTES
               tag    = $env:TAG
+              buildRun = $env:CANDIDATE_BUILD_RUN
+              sourceCommit = $env:CANDIDATE_SOURCE
             }
             install = [ordered]@{
               succeeded       = $true
@@ -125,3 +166,31 @@ jobs:
           name: clean-install-proof-${{ inputs.tag }}
           if-no-files-found: error
           path: clean-install-proof.json
+
+      # The clean-machine proof above runs before checkout or setup-node. Once it is
+      # captured, also exercise the actual shell close/reopen cases on this disposable VM.
+      # Updater feed acceptance remains owed against the eventual staged draft.
+      - uses: actions/checkout@v4
+        if: inputs.build_run_id != ''
+
+      - uses: actions/setup-node@v4
+        if: inputs.build_run_id != ''
+        with:
+          node-version: 22
+
+      - name: Candidate shell close and reopen acceptance
+        if: inputs.build_run_id != ''
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          node scripts/qa/packaged-lifecycle.mjs "--exe=$env:EXE" "--install-dir=$env:INSTALL_DIR" "--tag=$env:TAG" --cases=idle-close,close-to-tray --out=candidate-lifecycle.json
+          if ($LASTEXITCODE -ne 0) { throw 'Candidate shell lifecycle failed' }
+
+      - uses: actions/upload-artifact@v4
+        if: always() && inputs.build_run_id != ''
+        with:
+          name: candidate-shell-lifecycle
+          if-no-files-found: warn
+          path: |
+            candidate-lifecycle.json
+            ~/AppData/Roaming/ai.skynet.harness/startup.log
