@@ -18,8 +18,8 @@
   "expectedClaimCount": 37,
   "releaseSurface": {
     "algorithm": "sha256",
-    "sourceCommit": "1611844713cfb4d88061ace1f786040436c59605",
-    "pathSetSha256": "8c036b2c47145e2b8e32ce97c06843562a7539326538d35b72db895d9af4bcba",
+    "sourceCommit": "acdf5160cccc95a82850ddf976e9d6036bec556e",
+    "pathSetSha256": "4283566a35504333c2be893e2fba1667db676f962a57c4225e0e3fb1915c9305",
     "files": [
       {
         "path": "INSTALL.md",
@@ -38,8 +38,8 @@
       },
       {
         "path": "RELEASE_NOTES.md",
-        "bytes": 1649,
-        "sha256": "10162e3875987439b9053c3cc1794e22b10d4d4113c3cbfe53846e3071c9473e"
+        "bytes": 1891,
+        "sha256": "1fd8db8e17b1cb0ef84016718793dffefe4eb479d6e1273779156448d45cd869"
       },
       {
         "path": "TERMS.md",
@@ -257,6 +257,11 @@
         "sha256": "d7b4ca483e22188dda3ab450b0679703fbcde3cf0b29e7e4bbddcaa0de62d038"
       },
       {
+        "path": "frontend/app/emergency-control.js",
+        "bytes": 5120,
+        "sha256": "90e15e8c83771b455ccf4fdfcfdfa2b7d52bdb7b41c5c739f1b0d892ce2df39c"
+      },
+      {
         "path": "frontend/app/equipmenthelp.js",
         "bytes": 4502,
         "sha256": "2ebba409c22ae274f10af0157681b16ea1f16af014449a9330487921b42ec39d"
@@ -433,8 +438,8 @@
       },
       {
         "path": "frontend/app/navdock.js",
-        "bytes": 11654,
-        "sha256": "79a6d3f48581c17b2295d7e7e4ca21b0fc06c219fa3270e715920e10526dd660"
+        "bytes": 11719,
+        "sha256": "6aad5700f5ec37bb5014b5b99dbcb4787e2eee99ad71e758261396b5f0790324"
       },
       {
         "path": "frontend/app/nightnudge.js",
@@ -1118,8 +1123,8 @@
       },
       {
         "path": "frontend/index.html",
-        "bytes": 81204,
-        "sha256": "0118cc4f234abb2c5c20f90b10d9a91980980670331fc5868429bfc0d17d2fe0"
+        "bytes": 81744,
+        "sha256": "d6dccd4b55f2351bbbaafaccf5aeaef4fc43ec3f17c6bb1a2056f6ad524849bc"
       },
       {
         "path": "frontend/js/arcade.js",
