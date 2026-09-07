@@ -151,8 +151,13 @@ source_hash_after=$(shasum -a 256 "$legacy/agent.save.json" | awk '{print $1}')
 quit_cleanly
 
 python3 - "$receipt" "$dmg" "$installed" "$launch_port" "$source_hash_before" "$require_notarized" <<'PY'
-import datetime, hashlib, json, os, platform, sys
+import datetime, hashlib, json, os, platform, plistlib, sys
 receipt, dmg, installed, port, source_hash, required = sys.argv[1:]
+with open(os.path.join(installed, "Contents", "Info.plist"), "rb") as handle:
+    version = plistlib.load(handle)["CFBundleShortVersionString"]
+assert isinstance(version, str) and version, "installed bundle version missing"
+if os.environ.get("STARNET_EXPECTED_VERSION"):
+    assert version == os.environ["STARNET_EXPECTED_VERSION"], "wrong installed version"
 with open(dmg, "rb") as handle:
     digest = hashlib.sha256(handle.read()).hexdigest()
 value = {
@@ -160,8 +165,8 @@ value = {
     "generatedAt": datetime.datetime.now(datetime.timezone.utc).isoformat(),
     "machine": {"architecture": platform.machine(), "runner": "macos-15-intel"},
     "artifact": {"path": os.path.basename(dmg), "sha256": digest, "notarizedRequired": required == "true"},
-    "install": {"path": installed, "finderLaunch": True, "sidecarListening": True, "portObserved": bool(port)},
-    "upgrade": {"from": "0.9.0", "to": "0.10.0", "sourcePreservedSha256": source_hash, "restartSurvived": True}
+    "install": {"path": installed, "version": version, "finderLaunch": True, "sidecarListening": True, "portObserved": bool(port)},
+    "upgrade": {"from": "0.9.0", "to": version, "sourcePreservedSha256": source_hash, "restartSurvived": True}
 }
 with open(receipt, "w", encoding="utf-8") as handle:
     json.dump(value, handle, indent=2)
