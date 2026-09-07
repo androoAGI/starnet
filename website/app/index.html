@@ -485,6 +485,7 @@
       </div>
       <span class="tb-sep" aria-hidden="true"></span>
       <div class="tb-status">
+        <button class="bb xs" id="automation-resume" hidden style="display:none" data-tip="Resume automation stopped by E-STOP">RESUME AUTOMATION</button>
         <div class="tb-connection">
           <svg class="tb-link-mark" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 8v5M5 17v-4h14v4"/><rect x="9" y="2" width="6" height="6" rx="1"/><rect x="2" y="17" width="6" height="5" rx="1"/><rect x="16" y="17" width="6" height="5" rx="1"/></svg>
           <div class="tb-link-copy"><span id="sig" title="local sidecar uplink">UPLINK <b aria-hidden="true">▂▄▆█</b></span><span id="status-pill">ONLINE</span></div>
@@ -681,6 +682,8 @@
         <button class="bb" data-term="settings" data-hint="settings"><span class="bb-i">⚙</span><span class="bb-tx"><b>SETTINGS</b><small>keys, models, voice, data</small></span></button>
         <button class="bb" data-term="updates" data-hint="update"><span class="bb-i">↑</span><span class="bb-tx"><b>UPDATES</b><small>version &amp; release notes</small></span></button>
         <button class="bb" data-term="notifs" data-hint="notification"><span class="bb-i">▲</span><span class="bb-tx"><b>NOTIFICATIONS</b><small>alerts &amp; unread events</small></span><span id="nf-badge" class="badge"></span></button>
+        <button class="bb" id="automation-stop-toggle"><span class="bb-i">■</span><span class="bb-tx"><b>CHECK STOP STATE</b><small>Checking routines, night shift &amp; loops…</small></span></button>
+        <button class="bb" id="automation-stop-retry" hidden style="display:none">RETRY STOP — repair restart protection</button>
       </div>
     </div>
     <!-- WIDGET RAIL (widgets.js) — the bottom bar's dead middle; #term-strip (stationui.js) docks
@@ -850,6 +853,7 @@ document.write('<script src="' + ((window.__STARNET_API__ || '') + '/shared/spec
 <script src="app/windows/connectors.js"></script><!-- TOOLSETS & CONNECTORS — toolset kill-switches, MCP manager, catalog + service keys (Spotify flow embedded) -->
 <script src="app/windows/messaging.js"></script><!-- CHANNELS — messaging platforms catalog (Telegram/Discord/Slack/Matrix/Signal cards) -->
 <script src="app/navdock.js"></script>
+<script src="app/emergency-control.js"></script>
 <script src="app/chatresize.js"></script>
 <script src="app/leftrail.js"></script><!-- hide/show the CREW rail (◂ in the rail header · ▸ CREW drawer tab on the stage edge); persisted per machine -->
 

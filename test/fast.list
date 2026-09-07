@@ -729,3 +729,4 @@ test/workflow-takeover.test.js
 test/workflow-takeover-ui.test.js
 test/task-conversation.test.js
 test/task-conversation-ui.test.js
+test/emergency-control.test.js
