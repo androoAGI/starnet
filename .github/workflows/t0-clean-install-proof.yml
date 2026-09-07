@@ -30,9 +30,22 @@ on:
         description: "Also prove the installed emergency Stop/restart/Resume control on a disposable station"
         required: false
         default: "false"
+      intel_dmg_sha256:
+        description: "Optional Intel candidate DMG hash for an additional native Mac proof"
+        required: false
+        default: ""
+      candidate_sha:
+        description: "Required frozen source commit for the optional Intel proof"
+        required: false
+        default: ""
+      intel_only:
+        description: "Run only the optional Intel proof"
+        required: false
+        default: "false"
 
 jobs:
   prove:
+    if: inputs.intel_only != 'true'
     runs-on: windows-latest
     timeout-minutes: 30
     permissions:
@@ -255,3 +268,42 @@ jobs:
           name: candidate-shell-lifecycle
           if-no-files-found: warn
           path: candidate-evidence/
+
+  intel-prove:
+    if: inputs.intel_dmg_sha256 != ''
+    runs-on: macos-15-intel
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      actions: read
+    env:
+      GH_TOKEN: ${{ github.token }}
+      BUILD_RUN_ID: ${{ inputs.build_run_id }}
+      CANDIDATE_SHA: ${{ inputs.candidate_sha }}
+      DMG_SHA256: ${{ inputs.intel_dmg_sha256 }}
+      EXPECTED_TAG: ${{ inputs.tag }}
+      STARNET_REQUIRE_NOTARIZED: 'true'
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download and verify frozen Intel candidate
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$BUILD_RUN_ID" =~ ^[0-9]+$ && "$CANDIDATE_SHA" =~ ^[a-f0-9]{40}$ && "$DMG_SHA256" =~ ^[a-f0-9]{64}$ ]]
+          source=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$BUILD_RUN_ID" --jq .head_sha)
+          [[ "$source" == "$CANDIDATE_SHA" ]]
+          gh run download "$BUILD_RUN_ID" --repo "$GITHUB_REPOSITORY" --name starnet-darwin-x64 --dir candidate
+          test "$(find candidate -type f -name '*.dmg' | wc -l | tr -d ' ')" = 1
+          dmg=$(find candidate -type f -name '*.dmg')
+          actual=$(shasum -a 256 "$dmg" | awk '{print $1}')
+          [[ "$actual" == "$DMG_SHA256" ]]
+          echo "CANDIDATE_DMG=$dmg" >> "$GITHUB_ENV"
+      - name: Verify installed version, Finder launch and preserved migration
+        shell: bash
+        run: STARNET_EXPECTED_VERSION="${EXPECTED_TAG#v}" bash scripts/verify-macos-intel-installed.sh "$CANDIDATE_DMG" intel-macos-installed-acceptance.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: intel-candidate-acceptance
+          if-no-files-found: warn
+          path: intel-macos-installed-acceptance.json
