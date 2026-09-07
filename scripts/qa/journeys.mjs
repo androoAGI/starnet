@@ -20,14 +20,14 @@
  *   (b) every >30s streaming turn died from a fixed AbortSignal.timeout (connectGuard, 46e1cf22) —
  *       the controllable mock holds a stream open well past any fixed connect timer to prove a long
  *       turn survives; the interrupt journeys prove a deliberately-killed run ends HONESTLY.
- *   (c) features breaking under interruption — J2 E-STOP / panel-close / reload-mid-run.
+ *   (c) features breaking under interruption — J2 conversation Stop / panel-close / reload-mid-run.
  *
  * WHAT EACH JOURNEY ASSERTS (all via the DEV __SKYNET_TEST__ probe + real DOM + real Workstreams/
  * Channels globals — never a mutated fixture):
  *   J1  task-lifecycle + taskboard truth — drive a directive; at each step board rows === backend
  *       workstream store (kind:'task' only), RUNNING/DONE chip === Channels.isBusy truth, topbar +
  *       crew WORKING/IDLE counts === event-reduced truth.
- *   J2  interrupt truth — start a run held in-flight, then (a) E-STOP, (b) close the panel, (c)
+ *   J2  interrupt truth — start a run held in-flight, then (a) conversation Stop, (b) close the panel, (c)
  *       reload the page; after each assert an HONEST end state (no forever-RUNNING chip, no orphan
  *       board row, truth-after-disconnect honored).
  *   J3  double-send / rapid-toggle — fire two directives fast, toggle panels mid-run; assert no
@@ -539,7 +539,7 @@ async function journeyTaskLifecycle(cdp, A, mock) {
   A.ok('J1/exactly-one-new-task', taskCountAfter === taskCountBefore + 1, `taskStore ${taskCountBefore} → ${taskCountAfter} (plain chat must NOT add a card)`);
 }
 
-/* ═══════════════════════════ J2 — interrupt truth (E-STOP / panel-close / reload) ═══════════════════════════
+/* ═══════════════════════════ J2 — interrupt truth (conversation Stop / panel-close / reload) ═══════════════════════════
  * Each variant starts a run HELD in-flight by the mock (so it's genuinely RUNNING), interrupts it, then asserts
  * the UI settles into an HONEST end state: nothing busy, no forever-RUNNING chip, no orphan board row.  */
 async function startHeldRun(cdp, A, mock, title) {
@@ -569,14 +569,23 @@ async function startHeldRun(cdp, A, mock, title) {
     if (b) { busyId = tid; break; }
     await sleep(150);
   }
+  // Busy can precede the provider request. Wait for a genuinely parked stream so a premature
+  // mock release cannot accidentally turn an ineffective Stop into an apparent successful run.
+  for (let i = 0; i < 50 && mock.control.openCount() === 0; i++) await sleep(150);
+  A.ok('J2/provider-stream-held', mock.control.openCount() > 0, 'parked provider streams=' + mock.control.openCount());
   return { tid, busyId };
 }
 async function assertHonestAfterInterrupt(cdp, A, mock, label, tid) {
-  // release the parked stream so the sidecar/provider isn't left dangling for teardown (the client already
-  // aborted; this just lets the mock's socket close cleanly). Then wait for the client to settle to idle.
-  mock.control.release();
+  // Do NOT finish the provider for the app: Stop must cause the real cancellation while the
+  // provider stays held. Only release after recording the outcome, for failed-case cleanup.
   const idle = await waitIdle(cdp, 80);
   A.ok(`J2/${label}/settles-idle`, idle, idle ? 'no channel busy after interrupt' : 'a channel stayed busy (truth-after-disconnect NOT honored)');
+  const snapshot = await backendSnapshot();
+  A.ok(`J2/${label}/backend-idle`, !!snapshot && Array.isArray(snapshot.runs) && snapshot.runs.length === 0,
+    snapshot ? 'live backend runs=' + JSON.stringify(snapshot.runs) : 'backend snapshot unavailable');
+  for (let i = 0; i < 20 && mock.control.openCount() > 0; i++) await sleep(100);
+  A.ok(`J2/${label}/provider-stream-closed`, mock.control.openCount() === 0, 'parked provider streams=' + mock.control.openCount());
+  mock.control.release();
   // reopen the board and sweep parity — the key assertions: no forever-RUNNING chip, no orphan row.
   await openBoard(cdp);
   await parityCheck(cdp, A, `J2.${label}`);
@@ -586,13 +595,25 @@ async function assertHonestAfterInterrupt(cdp, A, mock, label, tid) {
   }
 }
 
-async function journeyInterruptEstop(cdp, A, mock) {
+async function clickConversationStop(cdp, A, tid, label) {
+  // The global E-STOP/Alt+H UI was deliberately removed in 418b3d95a. Exercise the
+  // current user control, including reopening the precise conversation after panel close.
+  const result = await evalJS(cdp, `(async () => {
+    App.openWorkstream(${J(tid)});
+    await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+    const button = document.querySelector('#chat-stop');
+    if (Workstreams.active()?.id !== ${J(tid)} || !button || button.disabled || !button.getClientRects().length) return 'STOP_NOT_AVAILABLE';
+    button.click(); return 'clicked';
+  })()`).catch(e => 'ERR:' + e.message);
+  A.ok('J2/' + label + '/current-stop-clicked', result === 'clicked', result);
+}
+
+async function journeyInterruptStop(cdp, A, mock) {
   await evalJS(cdp, closeOnly).catch(() => {});
-  const { tid, busyId } = await startHeldRun(cdp, A, mock, 'estop me: a very long running task');
-  A.ok('J2/estop/run-held-live', !!busyId, busyId ? 'run held in-flight on ' + busyId : 'run never went in-flight');
-  // fire the global E-STOP (Alt+H) — the real emergency-stop path.
-  await evalJS(cdp, "window.dispatchEvent(new KeyboardEvent('keydown', { key:'h', code:'KeyH', altKey:true, bubbles:true }))").catch(() => {});
-  await assertHonestAfterInterrupt(cdp, A, mock, 'estop', tid);
+  const { tid, busyId } = await startHeldRun(cdp, A, mock, 'stop this conversation: a very long running task');
+  A.ok('J2/stop/run-held-live', !!busyId, busyId ? 'run held in-flight on ' + busyId : 'run never went in-flight');
+  await clickConversationStop(cdp, A, tid, 'stop');
+  await assertHonestAfterInterrupt(cdp, A, mock, 'stop', tid);
 }
 
 async function journeyInterruptPanelClose(cdp, A, mock) {
@@ -613,10 +634,9 @@ async function journeyInterruptPanelClose(cdp, A, mock) {
     await sleep(120);
   }
   A.ok('J2/panel-close/run-survives-close', !!stillBusy, stillBusy ? 'run still in-flight after panel close (channel survived)' : 'closing the panel killed the run (regression!)');
-  // now END the survived run the real way a user would after re-finding it: the global E-STOP. (Releasing the
-  // mock stream alone is unreliable here — closing the panel can tear down the stream reader before the trailing
-  // stop token is processed, so we drive the actual stop path.) Then assert honest completion: no orphan, no stuck.
-  await evalJS(cdp, "window.dispatchEvent(new KeyboardEvent('keydown', { key:'h', code:'KeyH', altKey:true, bubbles:true }))").catch(() => {});
+  // Reopen the surviving conversation and use its Stop control; closing a panel alone
+  // must never cancel work, and completing the provider fixture is not evidence of Stop.
+  await clickConversationStop(cdp, A, tid, 'panel-close');
   await assertHonestAfterInterrupt(cdp, A, mock, 'panel-close', tid);
 }
 
@@ -1057,7 +1077,7 @@ async function main() {
     // The journeys, in priority order. Each is isolated in a try; a throw is a hard fail (exit 3), not a crash.
     const JOURNEYS = [
       { id: 'J1', name: 'task-lifecycle + taskboard truth', needs: 'cdp', fn: (A) => journeyTaskLifecycle(cdp, A, mock) },
-      { id: 'J2a', name: 'interrupt: E-STOP mid-run', needs: 'cdp', fn: (A) => journeyInterruptEstop(cdp, A, mock) },
+      { id: 'J2a', name: 'interrupt: conversation Stop mid-run', needs: 'cdp', fn: (A) => journeyInterruptStop(cdp, A, mock) },
       { id: 'J2b', name: 'interrupt: panel-close mid-run', needs: 'cdp', fn: (A) => journeyInterruptPanelClose(cdp, A, mock) },
       { id: 'J2c', name: 'interrupt: reload mid-run', needs: 'cdp', fn: (A) => journeyInterruptReload(cdp, A, mock) },
       { id: 'J3', name: 'double-send / rapid-toggle', needs: 'cdp', fn: (A) => journeyDoubleSend(cdp, A, mock, diag) },
