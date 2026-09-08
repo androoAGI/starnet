@@ -4,10 +4,10 @@ slug: deliverable-note-overrides-stop
 title: Deliverable naming instruction conflicts with explicit stop limits
 surface: autonomy
 severity: P2
-status: open
+status: fixed
 found: 2026-09-08
 lane: report-0110-0908
-fix:
+fix: 72a8a3043c263cd53ed353daed2042e256c8e236
 origin: customer
 report: Sanitized customer report copied by owner into local task on 2026-09-07
 affected: StarNet v0.11.0; ChatGPT/Codex; GPT-6 Astra Medium; Trusted Project; Ask; customer OS unknown
@@ -70,3 +70,7 @@ Before: naming is mandatory after writes. After: both instruction surfaces make 
     }
   ]
 }
+
+## Verification limits
+
+HTTP gate: 104/104 green; customer journeys: 30/30 green. Source fixes and local fixture/browser proof do not establish installed-desktop verification or customer recovery. The full fast gate is recorded in the lane verification receipt.
