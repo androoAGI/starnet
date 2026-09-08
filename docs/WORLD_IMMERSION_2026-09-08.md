@@ -61,3 +61,13 @@ The normal live sample measured 17.8 ms median rendering against the new turn's 
 baseline, with no exceptions. Forced GPU loss kept the actual station lit on the CPU path.
 An independent real-WebGL check matched GPU/CPU output within 1/255 across 33 cases and
 13,635 color-channel comparisons, including curve off/on, borders, colors and quiet fields.
+
+The owner's circled screenshot identified a different defect: the raised wall receiver
+was included in the heavy floor ambient, while floor-plane visibility prevented lights
+from reaching it. The resulting black stripe was composited over foreground prop tops.
+WorldLight now intersects only that heavy ambient with the physical deck footprint in
+both the exact-path and mask/chunk branches. The shared receiver stays intact. A live
+close-up confirms readable wall panels and cabinet tops with no broad black overlay.
+The actual-Canvas regression failed before the fix and passed after: raised-wall alpha
+179 -> 41, while deck alpha stays 179 and falls to 89 under its source. It covers a prop
+crossing the boundary, empty space, clipped corners and matching chunk boundaries.

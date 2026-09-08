@@ -450,6 +450,7 @@ test/world-immersion-characters.test.js
 test/prop-light-response.test.js
 test/worldsurface.test.js
 test/worldlight.test.js
+test/worldlight-receiver.test.mjs
 test/state-truth-overlap.test.js
 test/world-setskin.test.js
 test/capprop-map.contract.test.js
