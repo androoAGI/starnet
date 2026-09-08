@@ -55,6 +55,7 @@ const World = (() => {
      Both feed the GL path and the CPU LUT path IDENTICALLY — drawCurveGL's probe compares the two and defects
      to CPU on divergence, so they must never drift apart. */
   const CRT = { scan: 0.38, pitch: 1, fade: 0.25, glow: 0.13, curve: 0.09, vig: 0.30, over: 1.20, dust: 0.5, aberr: 0.2, grain: 0.16, bloom: 0.25, emit: 0.9, mask: 0, bleed: 0, roll: 0 };   // 2026-09-03 'old TV' pass (Andrew: "90s Bandersnatch vibes"): pitch-2 lines, an RGB phosphor mask, colour bleed, more bow + vignette, a faint rolling sync bar. mask/bleed/roll = drawCRT   // bloom = phosphor bloom strength (drawBloom) · emit = prop light-source strength (drawPropLights)
+  CRT.film = 0;
   if (typeof WorldRenderer !== 'undefined' && WorldRenderer.enabled()) Object.assign(CRT, WorldRenderer.PHOSPHOR);
   let _warpCv = null, _warpCtx = null;   // the barrel-warp snapshot buffer — see drawCurve()
   let _lut = null, _lutKey = '', _outImg = null;   // CPU per-pixel barrel-warp inverse-map LUT + output buffer — see buildLUT()/drawCurveCPU()
@@ -6109,6 +6110,14 @@ const World = (() => {
         ctx.fillStyle = g; ctx.fillRect(0, y - hh, W, hh * 2);
       }
     }
+    if (CRT.film > 0) {
+      // A thin neutral film compresses contrast: highlights/mids settle while
+      // blacks get a small matte lift. Shared after both warp paths, before grain.
+      ctx.globalCompositeOperation = 'source-over';
+      ctx.globalAlpha = Math.min(.5, CRT.film);
+      ctx.fillStyle = '#121418'; ctx.fillRect(0, 0, W, H);
+      ctx.globalAlpha = 1;
+    }
     if (CRT.fade > 0) {                               // soft faded matte (cool-neutral, no yellow) — CRT.fade
       ctx.globalCompositeOperation = 'lighter';
       ctx.fillStyle = 'rgba(' + Math.round(11 * CRT.fade) + ',' + Math.round(12 * CRT.fade) + ',' + Math.round(15 * CRT.fade) + ',1)';
@@ -6118,7 +6127,7 @@ const World = (() => {
       // 'overlay' around mid-gray so grain modulates without lifting black levels; the tile is built
       // ONCE and only its pattern offset changes each frame (a whole-number jitter derived from `now`,
       // quantized to ~15fps so it reads as phosphor noise, not smooth scrolling texture).
-      const fi = Math.floor(now / 66);
+      const fi = reduceMotion() ? 0 : Math.floor(now / 66);
       const jx = (fi * 53) % GRAIN_S, jy = (fi * 97) % GRAIN_S;
       ctx.globalCompositeOperation = 'overlay';
       ctx.globalAlpha = Math.min(0.25, CRT.grain);

@@ -71,3 +71,13 @@ close-up confirms readable wall panels and cabinet tops with no broad black over
 The actual-Canvas regression failed before the fix and passed after: raised-wall alpha
 179 -> 41, while deck alpha stays 179 and falls to 89 under its source. It covers a prop
 crossing the boundary, empty space, clipped corners and matching chunk boundaries.
+
+The corrected wall source passed the full 738-step fast gate. Live refit, cached-canvas
+recovery, reduced motion and reload also passed against the owner's updated 46-prop save.
+
+The owner then requested a darker faded-film finish while retaining the lighting. A .18
+source-over matte (#121418) now compresses highlights and midtones toward a slightly lifted
+black, followed by .05 fine grain. This common screen pass follows both GPU/CPU warps and
+adds no texture allocation. Reduced motion freezes the grain phase. The film is adjustable
+in the existing CRT lab and its Clean preset resets it to zero. Live normal/cinema/crew
+captures confirm the darker finish retains the corrected wall and equipment readability.
