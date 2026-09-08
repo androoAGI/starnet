@@ -38,6 +38,8 @@ After repair, a second real fs.list task (efda4881-d4f3-4558-b65f-9ce314e8ffba) 
 
 Current regression: test/growth-rating-upgrade.e2e.test.js passes 24 assertions, including persisted roster identity, existing legacy feedback replay, hero and specialist ratings while save is blocked, duplicate handling, restart persistence, and rejection of stale identities after a genuinely new station is created. test/xpstore.test.js passes 89 assertions; test/work-rating-control.test.js passes 5.
 
+Full integrated-candidate gates: test:fast 733/733 and test:http 105/105, exit 0. The rating customer journey is registered in both the HTTP gate and the customer-journey campaign.
+
 Source anchors: frontend/app/app.js resumeInto preserves unknown creation dates; frontend/app/xpstore.js recordWorkRating parses failed HTTP responses; frontend/app/chat.js workRateControl displays the returned actionable error and preserves retry controls.
 
 ## Verdict

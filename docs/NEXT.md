@@ -1,10 +1,10 @@
 # NEXT.md — current priorities & task queue
 
-## IN PROGRESS — 2026-09-08 rating repair integration (agent/rating-repair-0908)
+## DONE — 2026-09-08 legacy rating save repair (agent/rating-repair-0908)
 
 Own lane: preserve legacy station identity on resume and surface rating failure reasons.
 Before/after real UI and same-run HTTP proof recorded in bug 1fc69e6a; source fix a55a1ed07.
-Final integrated fast/HTTP gates are running before fast-forward to trunk. Customer installer recovery remains unverified.
+Integrated candidate gates: fast 733/733 and HTTP 105/105 passed. Customer installer recovery remains unverified.
 
 
 
