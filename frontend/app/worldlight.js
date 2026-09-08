@@ -392,7 +392,8 @@ const WorldLight = (() => {
     function drawAtmosphere(ctx, frame) {
       if (!ctx || disposed || !geo || !fixtureLights.length || !(config.atmosphere > 0)) return;
       frame = frame || {}; if (frame.reducedMotion) return;
-      const time = finite(frame.now, 0) * 0.00004, gain = clamp(config.atmosphere, 0, 1);
+      const dust = clamp(finite(frame.dust, 1), 0, 2); if (!(dust > 0)) return;
+      const time = finite(frame.now, 0) * 0.00004, gain = clamp(config.atmosphere * dust, 0, 1);
       ctx.save(); clipFloor(ctx); ctx.globalCompositeOperation = 'screen';
       for (let i = 0; i < Math.min(fixtureLights.length, 48); i++) {
         const l = fixtureLights[i];

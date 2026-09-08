@@ -71,14 +71,15 @@ A.ok(Light.visibilityPolygon(mounted, northWalls, 64).every(p => p.y >= 36 - 0.0
 // A Canvas command adapter checks invalidation and lifecycle, not raster appearance.
 // Pixel and performance proof belongs to the integrated seeded app.
 let allocations = 0;
-const surfaces = [], draws = [];
+const surfaces = [], draws = [], fills = [];
 function canvasFactory(w, h) {
   allocations++;
   const listeners = {}, stack = [], context = {
     globalAlpha: 0.3, globalCompositeOperation: 'multiply', imageSmoothingEnabled: true,
     lost: false, isContextLost() { return this.lost; },
     setTransform() {}, clearRect() {}, beginPath() {}, rect() {}, clip() {}, moveTo() {}, lineTo() {},
-    closePath() {}, fillRect() {}, fill() {}, drawImage(...args) { draws.push(args); },
+    closePath() {}, fillRect(...args) { fills.push({ context: this, style: this.fillStyle, args }); },
+    fill() {}, drawImage(...args) { draws.push(args); },
     createRadialGradient: () => ({ addColorStop() {} }), createLinearGradient: () => ({ addColorStop() {} }),
     save() { stack.push([this.globalAlpha, this.globalCompositeOperation, this.imageSmoothingEnabled]); },
     restore() { [this.globalAlpha, this.globalCompositeOperation, this.imageSmoothingEnabled] = stack.pop(); }
@@ -158,5 +159,24 @@ const chunkBuilds = chunkEngine.stats().visibilityBuilds;
 chunkEngine.render(output, Object.assign({}, frame, { lights: [Object.assign({}, source, { originX: 31, originY: 30 })] }));
 A.ok(chunkEngine.stats().visibilityBuilds > chunkBuilds, 'changing the planar origin invalidates a cached light polygon');
 chunkEngine.dispose();
+
+const atmosphere = Light.create({ canvasFactory }); atmosphere.setGeometry(station(true));
+atmosphere.render(output, { fixtures: [{ x: 30, y: 30, r: 18, rgb: '255,192,104' }] });
+const motes = () => fills.filter(f => f.context === output && f.args[2] === 1 && f.args[3] === 1);
+const moteStart = motes().length;
+atmosphere.drawAtmosphere(output, { now: 0, dust: 0 });
+A.eq(motes().length, moteStart, 'zero dust draws no atmospheric motes');
+atmosphere.drawAtmosphere(output, { now: 0 });
+const defaultMotes = motes().slice(moteStart);
+A.eq(defaultMotes.length, 2, 'omitted dust gain preserves the existing two motes per visible fixture');
+atmosphere.drawAtmosphere(output, { now: 0, dust: 0.5 });
+const halfMotes = motes().slice(moteStart + 2);
+const alphaOf = f => Number(f.style.slice(f.style.lastIndexOf(',') + 1, -1));
+A.ok(Math.abs(alphaOf(halfMotes[0]) * 2 - alphaOf(defaultMotes[0])) < 0.000001,
+  'positive dust gain scales mote opacity');
+const beforeReduced = motes().length;
+atmosphere.drawAtmosphere(output, { now: 0, dust: 2, reducedMotion: true });
+A.eq(motes().length, beforeReduced, 'reduced motion suppresses motes even with positive dust gain');
+atmosphere.dispose();
 
 A.report('WorldLight spatial illumination');
