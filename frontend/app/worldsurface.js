@@ -240,7 +240,9 @@ const WorldSurface = (() => {
     p(0, 0, CELL, h, pal.shade);
     if (!d) return true;
     const belt = Math.max(5, Math.round(h * 0.64)), foot = Math.max(belt + 2, h - 5);
-    const lx = mod(wx, material === 'panelled' ? 36 : 24);
+    // Four-tile period also matches the geometry renderer's face-strip cache:
+    // its side/corner sampling must see the same frame as the straight face.
+    const lx = mod(wx, material === 'panelled' ? 48 : 24);
     // Three value bands make the wall read as vertical construction. Large
     // recessed bays provide room for the occasional rail or service fitting.
     p(0, 0, CELL, 3, pal.deep); p(0, 3, CELL, 2, pal.edge);
@@ -268,7 +270,7 @@ const WorldSurface = (() => {
         p(7 - lx, y - 1, 2, 5, pal.recess); p(7 - lx, y - 1, 1, 4, pal.fine);
       }
     } else {
-      const pitch = material === 'panelled' ? 36 : 24;
+      const pitch = material === 'panelled' ? 48 : 24;
       p(3 - lx, 7, pitch - 6, Math.max(1, belt - 9), pal.recess);
       p(4 - lx, 8, pitch - 8, Math.max(1, belt - 11), pal.shade);
       p(4 - lx, 8, pitch - 8, 1, pal.soft);
