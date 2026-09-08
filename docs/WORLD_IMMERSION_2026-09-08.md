@@ -89,3 +89,8 @@ without tint, blur, raised blacks or dimming full-white emitters. Fine grain sta
 physical room/prop lighting, wall receiver correction and .28 sharpening are unchanged.
 Normal and close-up live captures confirm readable cabinet tops, darker shadows and clear
 screen details, with fade/bloom both zero in the running renderer.
+
+Clear-finish verification: all 738 fast steps passed. Actual Canvas sampling matched the
+density curve within one color value, kept black exactly [0,0,0], preserved pixel positions,
+and confirmed film-off identity plus static reduced-motion grain. The live station rendered
+without exceptions through both WebGL and forced context-loss CPU fallback.
