@@ -1,5 +1,10 @@
 # StarNet world generation II
 
+Status, 2026-09-08: the owner rejected and cancelled the separate New Horizon rebuild.
+Its source, generated assets, website mirror, tests, and entry wiring were removed in
+`445edcde0`; the preceding source tree and preview station were restored. This document
+describes the earlier experiment and is historical context, not an active rebuild queue.
+
 Owner request: rebuild the 2D world with a generational improvement in material art,
 lighting, depth and interaction quality while preserving the complete existing mechanics.
 
