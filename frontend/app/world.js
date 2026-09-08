@@ -14,6 +14,7 @@
 'use strict';
 
 const World = (() => {
+  const sceneRenderer = typeof WorldRenderer !== 'undefined' ? WorldRenderer.create() : null;
   let shadowReceiverGeo = null, shadowReceiverPath = null;
   let propShadowLayer = null;
   let T = 12;
@@ -5781,7 +5782,10 @@ const World = (() => {
         { x: 0, y: 0, w: cache.baseCv.width, h: cache.baseCv.height });
     }
 
-    ctx.drawImage(cache.baseCv, 0, 0);
+    if (sceneRenderer) {
+      sceneRenderer.begin({ geo, cache, now, scale, panX, panY, width: cv.width, height: cv.height, reducedMotion: reduceMotion() });
+      sceneRenderer.drawBase(ctx);
+    } else ctx.drawImage(cache.baseCv, 0, 0);
 
     // conveyor belts (floor machinery) + the live transport sim — local frame, under entities
     if (geo && geo.belts && typeof Conveyor !== 'undefined') {
@@ -5938,21 +5942,28 @@ const World = (() => {
        paints. One pass rather than per-item so a shadow can never land on a neighbour's body: the props
        and bodies are y-sorted and paint OVER this. The synthetic auto-desk casts one too. */
     drawPropShadows();
-    items.sort((a, b) => a.y - b.y);
-    for (const it of items) it.draw();
+    if (sceneRenderer) {
+      sceneRenderer.drawEntities(ctx, items);
+    } else {
+      items.sort((a, b) => a.y - b.y);
+      for (const it of items) it.draw();
+    }
     if (convey) convey.drawBoxes(ctx, now, T);   // boxes ride on top of the belts
     if (ghost) ghost.draw(ctx, now, T, 8);       // the projection + its WOULD-captions (NAG_FONT size)
     drawHandoffBoxes(now);   // Stage 2: lead→worker delegation boxes fly over the entities
     drawQueueJam(now);   // the live backlog as a physical jam of waiting crates at the INTAKE (world-space, under the lightmap)
     drawShippedPallet(now);   // SHIPPED TODAY: completed jobs stack as product crates at the OUTBOX (server-truth count)
 
-    ctx.drawImage(cache.lightCv, 0, 0);
-    ctx.save();
-    try {
-      clipInteriorLight();
-      drawGlows(now);
-      drawPropLights(now, propLights);   // the props that are light SOURCES put their colour on the deck and on whoever stands near (world-space, additive)
-    } finally { ctx.restore(); }
+    const nextLight = sceneRenderer && sceneRenderer.drawLight(ctx, propLights, { ambient: StationBake.LIGHT.ambient, emission: CRT.emit });
+    if (!nextLight) {
+      ctx.drawImage(cache.lightCv, 0, 0);
+      ctx.save();
+      try {
+        clipInteriorLight();
+        drawGlows(now);
+        drawPropLights(now, propLights);
+      } finally { ctx.restore(); }
+    }
     drawNavLights(now);   // small running lights on validated exterior armour mounts
     drawDust(now);   // Slice 3: tiny motes drifting through the light pools (world-space, additive, over the glows)
     drawDeskFlashes(now);   // G0.4/G0.8: red distress strobe over a desk whose run just died (additive, with the glows)
@@ -6004,6 +6015,7 @@ const World = (() => {
     drawCurve(now); // barrel-warp the whole feed IN-CANVAS — the original (dot-matrix-era) curve, no dots
     drawCRT(now);   // scanlines + fade, painted in-canvas at device-px OVER the warped feed (no moiré)
     paintStageHeartbeat();   // the frame's last act: the one opaque pixel a dead stage context cannot fake (see watchStageLoss)
+    if (sceneRenderer) sceneRenderer.finish();
     // NOTE: the next rAF is scheduled by the frame() crash-guard wrapper, BEFORE this body runs — never here.
   }
 
@@ -9606,6 +9618,7 @@ const World = (() => {
     // the live station document (read-only) — the station-quest generator reads props[] to detect the
     // OUTBOX / MISSION-BOARD standing gaps and to resolve a placement. Null when no station is loaded (headless).
     stationDoc: () => (station && station.doc ? station.doc() : null),
+    renderStats: () => sceneRenderer ? sceneRenderer.stats() : { generation: 'classic' },
     // G1c — the live SlagLog ring (read-only): the most-recent wasted-spend post-mortems the floor has diagnosed.
     // The maintenance-quest generator (maintqueststore.js) tallies these by cause; a recurring cause mints a
     // fix-it quest. Returns a fresh copy (slaglog owns the ring); [] when the log isn't loaded (headless/title).

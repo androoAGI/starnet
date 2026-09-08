@@ -93,6 +93,7 @@ const Build = (() => {
   let root, cv, ctx, tip, hintEl, undoBtn, redoBtn, propCard, dpr = 1, ro = null;
   let raf = 0, frameRetryTimer = 0, running = false, frameFailures = 0;
   let cache = null, cacheGeo = null, bakeDirty = true, bakeDirtyRects = null, bakeDirtyRectsGlobal = false, bakeVisibleOnly = false, valPlan = null, valLive = null;   // valPlan = live RoutingPlan (cost-safety ghosts); valLive = energized-belt tile set
+  const sceneRenderer = typeof WorldRenderer !== 'undefined' ? WorldRenderer.create() : null;
   let planDirty = true;   // routing-plan cache flag: set by EDITS (station.onChange / open), never by pure pans — see rebake()
   const flashes = [];   // {rects, t0, bad} place/delete confirmations
   // short human labels for the routing-validation overlay (cost-safety: surfaced before any paid run)
@@ -4619,6 +4620,9 @@ const Build = (() => {
     ctx.setTransform(zoom, 0, 0, zoom, panX, panY);
     ctx.imageSmoothingEnabled = false;
     const ox = cache.origin.tx * t, oy = cache.origin.ty * t;
+    if (sceneRenderer) sceneRenderer.begin({ geo: cacheGeo, cache, now, scale: zoom,
+      panX: panX + ox * zoom, panY: panY + oy * zoom, width: cv.width, height: cv.height,
+      reducedMotion: typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches });
     /* the ground, in world space under the bake — REFIT blits the station at (ox,oy), so the
        clearing must be placed there too, not at the origin like the live world.
 
@@ -4643,11 +4647,19 @@ const Build = (() => {
     drawLayer('conveyor', () => drawConveyor(now, t));   // belts (floor) → props → boxes ride on top
     drawLayer('props', () => drawProps(now));
     drawLayer('boxes', () => drawConveyorBoxes(now, t));
+    let nextLight = false;
     drawLayer('light', () => {
-      if (StationBake.drawLight) StationBake.drawLight(ctx, cache, ox, oy, drawVisibleRect);
-      else ctx.drawImage(cache.lightCv, ox, oy);
+      if (sceneRenderer) {
+        ctx.save(); ctx.translate(ox, oy);
+        try { nextLight = sceneRenderer.drawLight(ctx, framePropLights, { ambient: StationBake.LIGHT.ambient, emission: .9 }); }
+        finally { ctx.restore(); }
+      }
+      if (!nextLight) {
+        if (StationBake.drawLight) StationBake.drawLight(ctx, cache, ox, oy, drawVisibleRect);
+        else ctx.drawImage(cache.lightCv, ox, oy);
+      }
     });
-    drawLayer('glows', () => drawGlows(now));
+    if (!nextLight) drawLayer('glows', () => drawGlows(now));
     drawLayer('flashes', () => drawFlashes(now, t));
     drawLayer('validation', () => drawRoutingValidation(t, now));   // plain-words callouts on any broken piece, IN build mode (cost-safety + guidance)
     drawLayer('beltEndpoints', () => drawBeltEndpointGlow(t, now)); // BELT tool armed → INTAKE glows FROM, BAY/OUTBOX glow TO (what connects to what)
@@ -4672,6 +4684,7 @@ const Build = (() => {
     if (tool === 'prop' && propThumbs.length && now - lastThumbTs >= 40) { paintThumbs(now); lastThumbTs = now; }
 
     frameFailures = 0;
+    if (sceneRenderer) sceneRenderer.finish();
     if (root) {
       root.dataset.renderState = 'ready';
       root.dataset.renderFailures = '0';
@@ -4882,9 +4895,10 @@ const Build = (() => {
 
   // placeable props — drawn in WORLD tile coords (camera maps world*t, the bake is origin-shifted
   // to match). Lit (work=true) so the editor previews screens alive; y-sorted for clean overlap.
-  let frameBayLabels = [];
+  let frameBayLabels = [], framePropLights = [];
   function drawProps(now) {
     frameBayLabels = [];
+    framePropLights = [];
     if (typeof PropSprites === 'undefined') return;
     const list = station.props();
     if (!list.length) return;
@@ -4923,6 +4937,12 @@ const Build = (() => {
         frameBayLabels.push(dp);
       }
       PropSprites.draw(dp, true);
+      if (PropSprites.lightOf && cacheGeo) {
+        // REFIT previews placed equipment in its powered pose, as its art already does.
+        // Source positions are rebased once from model tiles into the light map frame.
+        const l = PropSprites.lightOf(dp, true, true), o = cacheGeo.origin;
+        if (l) framePropLights.push(Object.assign({}, l, { x: l.x - o.tx * tp, y: l.y - o.ty * tp }));
+      }
     }
   }
   /* 4 tiles = 48px at TILE 12. The worst upward overshoot in the whole prop catalog is 21px above a
