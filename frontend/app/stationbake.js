@@ -21,7 +21,7 @@ const StationBake = (() => {
   // `wallDk` used to live here too — a fourth wall tone that was in fact the SHELL, painted over the
   // hull plate on every exterior edge. It moved to the hull palette as `edge` (2026-08-06); nothing
   // outside a room is a wall tone any more.
-  const wallTop = '#4a463a', wallFace = '#2b2820', hullC = '#191712';
+  const wallTop = '#4a463a', wallFace = '#2b2820', hullC = '#f2f0ea';
   const wallCap = '#7c7258';   // the lit TOP surface of a tall wall — bright on purpose: it survives the ambient bake and defines wall height at any zoom
 
   /* PER-ROOM WALL PALETTE. The four constants above used to paint every wall in the station one
@@ -101,7 +101,7 @@ const StationBake = (() => {
   function wallPal(z) {
     let p = wallPalCache && wallPalCache.get(z);
     if (p) return p;
-    const base = (G && G.wallBaseOf && G.wallBaseOf(z)) || '#3a3b41';
+    const base = (G && G.wallBaseOf && G.wallBaseOf(z)) || '#f2f0ea';
     p = { base, face: shade(base, WALL_TONE.face), top: shade(base, WALL_TONE.top), cap: shade(base, WALL_TONE.cap) };
     if (!wallPalCache) wallPalCache = new Map();
     wallPalCache.set(z, p);
@@ -339,35 +339,11 @@ const StationBake = (() => {
      of the shared derivation — the same freedom every material already had over its bands, veins
      and dressing. The shell you always had is now a skin you can re-colour. */
   const STATION_TONE = hullC;
-  /* ---- THE VACUUM CLAMP: why a hull hue cannot be used at face value ----
-     Every other surface in this bake is painted UNDER the ambient mask, which multiplies it down by
-     0.77 before you ever see it. The hull is the one surface deliberately left OUTSIDE that mask —
-     the skirt hangs in void and renders at its raw baked tones. So the FLOOR_STYLES palette, whose
-     hues were chosen to sit in a dark substrate band *once ambient has taken them down*, renders
-     roughly four times brighter out there than the same hue does inside the room.
-
-     Measured on the shipped bake, down the middle of a south wall: the station's own shell tops out
-     at luma 37, TIMBER at 51, STONE at 55, BRICK at 58 — and brick's mortar spiked to 86, brighter
-     than the lit wall crown (79) and the brightest thing on the whole exterior. That is exactly the
-     "doesn't look right, needs to be more cohesive" read (Andrew, 2026-08-05): a building glowing
-     harder than the station it is bolted to.
-
-     So a chosen hue is clamped into the shell's own value band before anything derives from it.
-     Scaling all three channels by one factor preserves the hue exactly — it is a pure exposure
-     change, which is the honest model for "this surface gets no light". The floor lifts near-black
-     hues (ONYX) so a shell never goes pure void, and the cap is what keeps BONE from painting a
-     blazing white building — the same standing law that killed light mode three times. */
-  const HULL_LUMA_CAP = 28, HULL_LUMA_FLOOR = 13;
-  /* ...EXCEPT AT THE BRIGHT POLE. The clamp above exists to stop a hue picked as a FLOOR SUBSTRATE
-     from accidentally glowing when it is used on the one surface ambient never touches. But BONE and
-     WHITE are not accidents — they are the palette's deliberate bright end, and nobody lands on them
-     by mistake. Flattening them to 28 alongside RUST and COBALT does not make the station cohesive,
-     it just makes the palette lie: you pick WHITE and get another dark grey wall.
-     So a hue that is already unambiguously bright (luma over the pole) clamps to its own, much
-     higher ceiling instead. A white building then really is the brightest thing outside — above the
-     lit wall crown at 79, below the ceiling lamps at 127 — which is exactly what a whitewashed wall
-     looks like at night, and it stays strictly OPT-IN: you have to go and choose it. */
-  const HULL_BRIGHT_POLE = 150, HULL_BRIGHT_CAP = 85;
+  /* Keep colored shells readable without flattening them into white. These ceilings are
+     applied before the existing deck-to-void exposure gradient. White is the default finish;
+     it gets a separate headroom band so selecting it cannot resolve to dark grey. */
+  const HULL_LUMA_CAP = 48, HULL_LUMA_FLOOR = 20;
+  const HULL_BRIGHT_POLE = 150, HULL_BRIGHT_CAP = 130;
   const vacuum = hex => {
     const n = parseInt(String(hex).slice(1), 16);
     const r = (n >> 16) & 255, g = (n >> 8) & 255, b = n & 255;
@@ -386,7 +362,7 @@ const StationBake = (() => {
      wrong for restating the SAME material at a different brightness, which is what a shell ramp is.
      Ceiling: nothing on the exterior may out-shine the lit wall crown by much — see the vacuum note
      — so a lift is scaled back if it would carry the result past it. */
-  const HULL_LIFT_CEIL = 115;
+  const HULL_LIFT_CEIL = 190;
   const lift = (hex, k) => {
     const n = parseInt(String(hex).slice(1), 16);
     let r = ((n >> 16) & 255) * k, g = ((n >> 8) & 255) * k, b = (n & 255) * k;
