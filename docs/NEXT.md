@@ -1,5 +1,12 @@
 # NEXT.md — current priorities & task queue
 
+## IN PROGRESS — 2026-09-08 rating repair integration (gent/rating-repair-0908)
+
+Own lane: preserve legacy station identity on resume and surface rating failure reasons.
+Before/after real UI and same-run HTTP proof recorded in bug 1fc69e6a; source fix a55a1ed07.
+Final integrated fast/HTTP gates are running before fast-forward to trunk. Customer installer recovery remains unverified.
+
+
 
 ## MERGED — 2026-09-06 per-agent voices and Mac microphone (`agent/voice-agents-mac-0906`)
 
