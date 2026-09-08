@@ -29,7 +29,7 @@ const NextScene = (() => {
     return PALETTE.ceramic;
   }
   function project(station) {
-    const doc = documentOf(station), tiles = new Map(), rooms = new Map(), source = doc.rooms || {};
+    const doc = documentOf(station), tiles = new Map(), rooms = new Map(), rectangles = [], source = doc.rooms || {};
     for (const id of Array.isArray(doc.order) ? doc.order : Object.keys(source)) {
       const room = source[id]; if (!room) continue;
       let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
@@ -38,6 +38,7 @@ const NextScene = (() => {
         const bx = Math.floor(num(r.x2, ax + num(r.w, 1) - 1)), by = Math.floor(num(r.y2, ay + num(r.h, 1) - 1));
         if (bx < ax || by < ay) continue;
         if ((bx - ax + 1) * (by - ay + 1) > 250000) throw new Error('Room exceeds scene tile budget');
+        rectangles.push({ x: ax * TILE, y: ay * TILE, w: (bx - ax + 1) * TILE, h: (by - ay + 1) * TILE });
         for (let y = ay; y <= by; y++) for (let x = ax; x <= bx; x++) {
           if (tiles.size >= 250000 && !tiles.has(key(x, y))) throw new Error('Station exceeds scene tile budget');
           tiles.set(key(x, y), { x, y, room: id });
@@ -51,7 +52,7 @@ const NextScene = (() => {
       const t = tiles.get(key(Math.floor(num(p.x)), Math.floor(num(p.y))));
       if (t && t.room !== (doc.meta && doc.meta.trunkRoomId)) sealed.add(t.room);
     }
-    const model = { doc, tiles, rooms, sealed, edges: [], fixtures: [], chunkTiles: new Map() }, seen = new Set();
+    const model = { doc, tiles, rooms, rectangles, sealed, edges: [], fixtures: [], chunkTiles: new Map() }, seen = new Set();
     for (const t of tiles.values()) {
       const cid = key(Math.floor(t.x * TILE / CHUNK), Math.floor(t.y * TILE / CHUNK));
       if (!model.chunkTiles.has(cid)) model.chunkTiles.set(cid, []); model.chunkTiles.get(cid).push(t);
@@ -155,6 +156,7 @@ const NextScene = (() => {
         if (side === 'w') g.fillRect(x, y, 5, TILE); if (side === 'e') g.fillRect(x + TILE - 5, y, 5, TILE);
       }
     }
+    function clipFloor(g) { g.beginPath(); for (const r of model.rectangles) g.rect(r.x, r.y, r.w, r.h); g.clip(); }
     function belt(g, x, y, direction, now, active) {
       const d = DIR[direction] || DIR.e; g.save(); g.translate((x + .5) * TILE, (y + .5) * TILE); g.rotate(Math.atan2(d[1], d[0]));
       g.fillStyle = '#15282d'; g.fillRect(-16, -11, 32, 22); g.fillStyle = '#8a8571'; g.fillRect(-16, -11, 32, 2); g.fillRect(-16, 9, 32, 2);
@@ -194,7 +196,15 @@ const NextScene = (() => {
           g.save(); g.beginPath(); points.forEach((p, i) => i ? g.lineTo(p.x, p.y) : g.moveTo(p.x, p.y)); g.closePath(); g.clip();
           const gradient = g.createRadialGradient(s.x, s.y, 1, s.x, s.y, s.r);
           for (const [stop, v] of [[0, 1], [.25, .75], [.52, .38], [.78, .09], [1, 0]]) gradient.addColorStop(stop, rgba(s.color, strength * v));
-          g.globalCompositeOperation = mode; g.fillStyle = gradient; g.fillRect(s.x - s.r, s.y - s.r, s.r * 2, s.r * 2); g.restore();
+          g.globalCompositeOperation = mode; g.fillStyle = gradient; g.fillRect(s.x - s.r, s.y - s.r, s.r * 2, s.r * 2);
+          if (mode === 'screen' && s.kind === 'window') {
+            // A north viewport throws a faint widening shaft down onto the deck.
+            // It shares the source's visibility polygon and the exact floor mask.
+            const shaft = g.createLinearGradient(s.x, s.y, s.x + 24, s.y + 116);
+            shaft.addColorStop(0, rgba(s.color, .085)); shaft.addColorStop(.5, rgba(s.color, .033)); shaft.addColorStop(1, rgba(s.color, 0));
+            g.fillStyle = shaft; g.beginPath(); g.moveTo(s.x - 8, s.y); g.lineTo(s.x + 8, s.y); g.lineTo(s.x + 50, s.y + 116); g.lineTo(s.x - 2, s.y + 116); g.closePath(); g.fill();
+          }
+          g.restore();
         }
       }
       for (const g of [shade, glow]) { g.setTransform(1, 0, 0, 1, 0, 0); g.globalCompositeOperation = 'destination-in'; g.drawImage(c.floor, 0, 0); g.globalCompositeOperation = 'source-over'; }
@@ -252,8 +262,10 @@ const NextScene = (() => {
       const dx = best ? x - best.x : 12, dy = best ? y - best.y : 20, d = Math.hypot(dx, dy) || 1, length = Math.min(h * .65, 28);
       const ex = x + dx / d * length, ey = y + dy / d * length, nx = -dy / d * w / 2, ny = dx / d * w / 2;
       const gradient = g.createLinearGradient(x, y, ex + .01, ey + .01); gradient.addColorStop(0, 'rgba(6,19,24,.36)'); gradient.addColorStop(1, 'rgba(6,19,24,0)');
+      g.save(); clipFloor(g);
       g.fillStyle = gradient; g.beginPath(); g.moveTo(x + nx, y + ny); g.lineTo(ex + nx * .8, ey + ny * .8); g.lineTo(ex - nx * .8, ey - ny * .8); g.lineTo(x - nx, y - ny); g.closePath(); g.fill();
       g.fillStyle = 'rgba(5,20,23,.25)'; g.beginPath(); g.ellipse(x, y + 1, w * .47, Math.min(6, w * .16), 0, 0, TAU); g.fill();
+      g.restore();
     }
     const selectedId = s => typeof s === 'string' ? s : s && (s.id || s.agentId || s.propId);
     function draw(frame = {}, art = {}) {
