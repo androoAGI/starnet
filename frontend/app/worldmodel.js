@@ -129,57 +129,32 @@ const WorldModel = (() => {
   };
   function grantLabelForProp(propType) { const c = CAP_PROP_MAP[propType]; return c ? (CAP_LABEL[c] || c) : null; }   // prop -> plain power word (or null = inert decor)
 
-  /* the paint palette — each is a floor BASE colour; every other floor detail
-     (seams / rivets / vents / hatches) is derived from it via U.shade in the bake.
-     The COLOURED bases stay in a dark low-value SUBSTRATE band (floor, not accent light) so the
-     CRT phosphor + warm room-light pools read on top — their variety comes from spreading the HUE
-     across the wheel, not from brightness. bone + onyx are the deliberate exceptions: the bright
-     and near-black ends of the value range, for decks that want stark contrast. This catalog is the
-     sole source: add a colour here and it appears in the SURFACE palette's COLOUR row AND as a room floor
-     style automatically. */
+  /* Shared paint hues. Default HULL/DECKING aliases are white so saved default worlds
+     inherit the new finish without rewriting room data. Other hues retain their character
+     at a lighter exposure, including the deliberately darkest option, ONYX. */
   const FLOOR_STYLES = {
-    // 2026-09-02: hull #33302a -> #3c3429, decking #2c2924 -> #342d25. The stock hab is what every
-    // new station boots on and it measured the greyest room in the building (mean chroma 11 on a
-    // furnished floor vs 22 on oak). Same value band, a notch of warmth — the lamp pools finally
-    // have a colour to land on. Every other swatch is untouched.
-    hull:     { base: '#3a3b41', label: 'HULL' },
-    corridor: { base: '#31333a', label: 'DECKING' },
-    cobalt:   { base: '#2b3340', label: 'COBALT' },
-    rust:     { base: '#3a302a', label: 'RUST' },
-    sterile:  { base: '#34383a', label: 'STERILE' },
-    crimson:  { base: '#3a2b2b', label: 'CRIMSON' },
-    verdant:  { base: '#2c3a2e', label: 'VERDANT' },
-    // extended spectrum — warm → cool, same dark substrate band, each a distinct hue
-    ember:    { base: '#402a1c', label: 'EMBER' },
-    amber:    { base: '#3c3420', label: 'AMBER' },
-    moss:     { base: '#34391f', label: 'MOSS' },
-    teal:     { base: '#213a3c', label: 'TEAL' },
-    indigo:   { base: '#282a48', label: 'INDIGO' },
-    violet:   { base: '#332941', label: 'VIOLET' },
-    orchid:   { base: '#3e2a3a', label: 'ORCHID' },
-    // natural tones — the hues the PLANK / TURF materials were drawn for. Same dark substrate
-    // band as everything above: a wood deck is a DARK wood deck, so the room-light pools still
-    // read on top of it. (Any material still renders in any hue — these are just the fitting ones.)
-    walnut:   { base: '#3b2b20', label: 'WALNUT' },
-    oak:      { base: '#46372a', label: 'OAK' },
-    ash:      { base: '#3a3630', label: 'ASH' },
-    fern:     { base: '#2a3f24', label: 'FERN' },
-    // MEADOW — fern's warm twin, added for TURF (2026-07-25). Real grass is olive: red and green
-    // close together with blue well under both. FERN is a blue-leaning green, and because vivid()
-    // drives the DOMINANT channel hardest, its lifts run toward pure green rather than the
-    // yellow-green of a lawn. Raising red and dropping blue is what buys the olive.
-    meadow:   { base: '#374024', label: 'MEADOW' },
-    // value poles — the bright + near-black ends of the range (stark, deliberate)
+    hull:     { base: '#f2f0ea', label: 'HULL' },
+    corridor: { base: '#f2f0ea', label: 'DECKING' },
+    cobalt:   { base: '#414d60', label: 'COBALT' },
+    rust:     { base: '#57483f', label: 'RUST' },
+    sterile:  { base: '#4e5457', label: 'STERILE' },
+    crimson:  { base: '#574141', label: 'CRIMSON' },
+    verdant:  { base: '#425745', label: 'VERDANT' },
+    ember:    { base: '#603f2a', label: 'EMBER' },
+    amber:    { base: '#5a4e30', label: 'AMBER' },
+    moss:     { base: '#4e562f', label: 'MOSS' },
+    teal:     { base: '#32575a', label: 'TEAL' },
+    indigo:   { base: '#3c3f6c', label: 'INDIGO' },
+    violet:   { base: '#4d3e62', label: 'VIOLET' },
+    orchid:   { base: '#5d3f57', label: 'ORCHID' },
+    walnut:   { base: '#594130', label: 'WALNUT' },
+    oak:      { base: '#69533f', label: 'OAK' },
+    ash:      { base: '#575148', label: 'ASH' },
+    fern:     { base: '#3f5f36', label: 'FERN' },
+    meadow:   { base: '#536036', label: 'MEADOW' },
     bone:     { base: '#e7e3d9', label: 'BONE' },
-    /* WHITE — bone's neutral twin, added 2026-08-05 for the SHELL axis (Andrew: "lets add white as a
-       colour for the shell"). BONE is a warm cream; this is the achromatic pole, which is what reads
-       as PAINT rather than as stone. It matters most on a hull: the exterior is the one surface with
-       no ambient over it, so it is the only place a white actually stays white — and a whitewashed
-       STUCCO or CLAPBOARD building is the point of having it. See the bright-pole band in
-       stationbake's vacuum(), which is what keeps it from being clamped into the dark shell band
-       along with every ordinary hue. */
     white:    { base: '#f2f0ea', label: 'WHITE' },
-    onyx:     { base: '#0e0e12', label: 'ONYX' },
+    onyx:     { base: '#15151b', label: 'ONYX' },
   };
 
   /* the deck MATERIAL catalog — the second floor axis, orthogonal to colour.
@@ -255,14 +230,13 @@ const WorldModel = (() => {
      `suggest` is the hue a material defaults to when the room carries no explicit hullStyle. Unlike
      the wall axis — where `suggest` is only a UI convenience — this one binds in the MODEL, because
      a hull's default has to be a tone the material was drawn for: TIMBER at the station's own
-     #191712 is black wood, which is nobody's cabin. `station` alone suggests null, meaning "keep
-     the shell's own tone" — the literal legacy constants, so every station already built renders
-     pixel-identical until someone paints it.
+     #191712 is black wood, which is nobody's cabin. `station` suggests white, so new and existing
+     unpainted shells share the default finish.
 
      Adding one here is the whole job: give it a recipe in stationbake's HULL_RECIPES and it appears
      in the REFIT SURFACE palette's HULL target automatically. */
   const HULL_MATERIALS = {
-    station:   { label: 'STATION',   suggest: null,     blurb: 'riveted hull plate — the shell you launched with' },
+    station:   { label: 'STATION',   suggest: 'white',     blurb: 'riveted hull plate — the shell you launched with' },
     monocoque: { label: 'MONOCOQUE', suggest: 'bone', blurb: 'large inset alloy panels with recessed joints and protected edge rails' },
     timber:    { label: 'TIMBER',    suggest: 'walnut', blurb: 'stacked log courses — the cabin' },
     clapboard: { label: 'CLAPBOARD', suggest: 'ash',    blurb: 'lapped siding boards — the farmhouse' },
@@ -328,7 +302,7 @@ const WorldModel = (() => {
     return 'hull';
   };
   /* THE AUTHORITY on a room's exterior shell (stationbake's HULL_RECIPES fallback is only for
-     geometry arriving without one). Defaults to `station` so nothing already built moves. */
+     geometry arriving without one). Defaults to `station`; unpainted shells inherit its white finish. */
   const hullMatOfRoom = rm => (rm && HULL_MATERIALS[rm.hullMat]) ? rm.hullMat : 'station';
   /* A HULL'S HUE, or null for "the shell's own tone". Explicit paint wins; otherwise the material's
      own suggested hue (see the HULL_MATERIALS note on why this binds in the model and the wall

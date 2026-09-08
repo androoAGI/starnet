@@ -8,10 +8,7 @@
    painted. The recipe output itself is what these tests can actually see, and it is what the REFIT
    palette chips draw too.
 
-   THE LOAD-BEARING PROPERTY IS THE LEGACY ONE. `station` at a null hue must emit the five literal
-   constants the shell was painted with before this axis existed, or every station already built
-   changes appearance on upgrade and every Guardian golden has to be re-blessed. That is asserted
-   colour-by-colour below and it is the test to look at first when a hull change breaks something. */
+   Default and legacy station shells inherit white; explicit paint remains authoritative. */
 
 const A = require('./_assert.js');
 
@@ -84,37 +81,14 @@ for (let i = 0; i < HULLS.length; i++) {
 // dispatcher default), and on this axis it would look like the feature simply doing nothing.
 A.eq(sig(sample('no-such-shell', '#3b2b20')), sigs.station, 'an unknown shell falls back to station');
 
-/* ---------- THE SHELL IS A SKIN NOW, NOT A PARALLEL PALETTE (2026-08-06) ----------
-
-   This block used to assert the opposite: that `station` at a null hue emitted the pre-axis
-   constants VERBATIM, so every station already built stayed pixel-identical. That guarantee was
-   the defect. A room on those constants was not wearing the STATION skin — it could not be
-   re-toned, it did not answer to the catalog, and beside a re-clad neighbour it read as a
-   different material (Andrew, on his own save: "the default still has the previous default mixed
-   in ... make sure the previous shell walls are 100% gone").
-
-   What replaces it is the property that actually matters, and it is strictly stronger:
-     · the DEFAULT still LOOKS like the shipped shell — every pre-axis tone has a counterpart
-       within a couple of units per channel, so nobody's station visibly changed;
-     · but it is reached through the ordinary (material → hue → ramp) path, so the same ladder
-       re-colours. The old constants could only ever be that one grey. */
+/* Default and legacy shells use the ordinary white paint path. */
 
 const chan = hex => { const n = parseInt(hex.slice(1), 16); return [(n >> 16) & 255, (n >> 8) & 255, n & 255]; };
-const dist = (a, b) => { const x = chan(a), y = chan(b); return Math.max(Math.abs(x[0] - y[0]), Math.abs(x[1] - y[1]), Math.abs(x[2] - y[2])); };
-const painted = sample('station', null, 6, 40)
-  .map(o => o[5]).filter(c => typeof c === 'string' && /^#[0-9a-f]{6}$/i.test(c));
-const nearest = c => Math.min(...painted.map(p => dist(p, c)));
 
-// the pre-axis shell, tone by tone — seam / rim+arc / bolt, then the six-stop skirt ramp
-// ...at the shell's EXPOSURE (2026-09-03): the whole exterior is scaled darker by one constant, so the
-// shipped ladder is expected at that exposure — the same tones, less light on them.
 const X = StationBake.HULL_EXPOSURE || 1;
-const exposed = (hex, k) => '#' + chan(hex).map(v => Math.max(0, Math.min(255, Math.round(v * k))).toString(16).padStart(2, '0')).join('');
-// the plate ring sits at the deck line and takes the full exposure
-for (const c0 of ['#231f17', '#28241b', '#302b21']) {
-  const c = exposed(c0, X);
-  A.ok(nearest(c) <= 5, 'the default shell still LOOKS like the shipped one at ' + c + ' (off by ' + nearest(c) + ')');
-}
+A.eq(sig(sample('station', null, 6, 40)), sig(sample('station', WorldModel.FLOOR_STYLES.white.base, 6, 40)), 'unpainted shell renders exactly like WHITE');
+A.eq(WorldModel.FLOOR_STYLES.hull.base, WorldModel.FLOOR_STYLES.white.base, 'saved HULL decks inherit white');
+A.eq(WorldModel.FLOOR_STYLES.corridor.base, WorldModel.FLOOR_STYLES.white.base, 'saved DECKING inherits white');
 // ...and the skirt FADES (2026-09-06): each stop of the ladder is read at its own exposure down the wall, foot
 // first — the same six tones, the light on them falling off from the deck line into the void. The chip's skirt
 // is the sampled height minus its plate ring (sampleHull's own split), so the ladder is asked at that height.
@@ -124,10 +98,6 @@ A.eq(RX.length, 6, 'the fade answers one exposure per ramp stop');
 A.ok(RX.every((k, i) => i === 0 || k >= RX[i - 1] - 1e-9), 'the exposure never rises again on the way down the skirt');
 A.ok(RX[0] < RX[5], 'the skirt actually fades — its foot is darker than its top (' + RX[0].toFixed(3) + ' → ' + RX[5].toFixed(3) + ')');
 A.ok(Math.abs(RX[5] - X) < 0.05, 'the top of the skirt sits at the deck-line exposure (' + RX[5].toFixed(3) + ' vs ' + X + ')');
-['#0b0a07', '#100e09', '#16130d', '#1f1b12', '#2a251a', '#3f3a2c'].forEach((c0, i) => {
-  const c = exposed(c0, RX[i]);
-  A.ok(nearest(c) <= 5, 'the default skirt still LOOKS like the shipped ladder at ' + c + ' (stop ' + i + ', off by ' + nearest(c) + ')');
-});
 // ...and it is genuinely a skin: the same ladder in another colour, which the constants could not be
 A.ok(sig(sample('station', null, 6, 40)) !== sig(sample('station', '#2b3340', 6, 40)),
   'a station shell painted COBALT differs from the untouched shell');
@@ -167,7 +137,7 @@ A.ok(!!WorldModel.FLOOR_STYLES.white, 'WHITE is in the palette');
 const ordinary = ['rust', 'cobalt', 'walnut', 'verdant'];
 for (const sid of ordinary) {
   const peak = brightestOf('stucco', WorldModel.FLOOR_STYLES[sid].base);
-  A.ok(peak < 90, 'an ordinary hue (' + sid + ') is clamped into the shell band — peak ' + Math.round(peak));
+  A.ok(peak > 75 && peak < 110, 'an ordinary hue (' + sid + ') is brighter but stays below white — peak ' + Math.round(peak));
 }
 for (const sid of ['white', 'bone']) {
   const peak = brightestOf('stucco', WorldModel.FLOOR_STYLES[sid].base);
@@ -218,7 +188,7 @@ A.ok(room.ok, 'test room placed');
 const R = room.id;
 
 A.eq(st.hullMatOfRoom(R), 'station', 'a fresh room wears the station shell');
-A.eq(st.projectGeometry().hullBaseOf(R), null, '...at the shell’s own tone — null, not a stand-in colour');
+A.eq(st.projectGeometry().hullBaseOf(R), WorldModel.FLOOR_STYLES.white.base, '...at the default white finish');
 
 A.ok(st.setHull(R, { mat: 'timber' }).ok, 'setHull clads a room in timber');
 A.eq(st.hullMatOfRoom(R), 'timber', 'the material stuck');
@@ -266,7 +236,7 @@ for (const id of legacyDoc.order) { delete legacyDoc.rooms[id].hullMat; delete l
 const revived = WorldModel.deserialize(legacyDoc);
 for (const id of legacyDoc.order) {
   A.eq(revived.hullMatOfRoom(id), 'station', 'a pre-axis room revives wearing the station shell (' + id + ')');
-  A.eq(revived.projectGeometry().hullBaseOf(id), null, '...at the shell’s own tone (' + id + ')');
+  A.eq(revived.projectGeometry().hullBaseOf(id), WorldModel.FLOOR_STYLES.white.base, '...at the default white finish (' + id + ')');
 }
 
 /* ---------- TWO SKINS MAY NOT FIGHT OVER THE SAME SKIRT PIXEL ----------
