@@ -128,4 +128,70 @@ for (const base of ['#3a3b41', '#e7e3d9', '#0e0e12', '#402a1c']) {
 }
 Surface.invalidate();
 A.eq(Array.from(patch('alloy').pixels), Array.from(patch('alloy').pixels), 'discarding color cache preserves deterministic artwork');
+
+function fixtureGeometry(dx = 0, dy = 0) {
+  const f = { TILE: 12, COLS: 30 + dx, ROWS: 16 + dy, W: (30 + dx) * 12, H: (16 + dy) * 12,
+    origin: { tx: -9 - dx, ty: -7 - dy }, zoneGrid: Array((30 + dx) * (16 + dy)).fill(null),
+    idx: (x, y) => y * (30 + dx) + x, wallMatOf: () => 'bulkhead', wallBaseOf: () => '#3a3b41',
+    kindOf: z => z === 'right' ? 'lab' : 'hab', isCorridor: () => false,
+    chamfers: [[2 + dx, 5 + dy, 'tl'], [25 + dx, 5 + dy, 'tr']] };
+  for (let y = 5 + dy; y < 13 + dy; y++) for (let x = 2 + dx; x < 26 + dx; x++)
+    f.zoneGrid[f.idx(x, y)] = x < 14 + dx ? 'left' : 'right';
+  f.walkable = (x, y) => Surface.zoneAt(f, x, y) != null;
+  f.canStep = (x, y, nx, ny) => Surface.zoneAt(f, x, y) != null && Surface.zoneAt(f, nx, ny) != null;
+  return f;
+}
+const fg = fixtureGeometry(), fixtures = Surface.planFixtures(fg), oldGrid = fg.zoneGrid.slice();
+A.ok(fixtures.length >= 3 && fixtures.length <= 4, 'long room faces get a restrained practical-fixture rhythm');
+A.eq(Surface.planFixtures(fg), fixtures, 'fixture placement is deterministic');
+A.eq(fg.zoneGrid, oldGrid, 'fixture planning never mutates station geometry');
+for (const f of fixtures) {
+  A.eq(Surface.zoneAt(fg, f.tileX, f.tileY - 1), null, 'fixture mount is a solid north face, never a door or open join');
+  A.ok(!fg.chamfers.some(c => c[0] === f.tileX && c[1] === f.tileY), 'fixtures never overlap chamfer artwork');
+  A.ok(fg.walkable(Math.floor(f.x / 12), Math.floor(f.y / 12)), 'fixture emission sample lands on clear deck');
+  A.eq(Surface.zoneAt(fg, Math.floor(f.x / 12), Math.floor(f.y / 12)), f.zone, 'fixture light sample remains in its own room');
+  A.ok(f.fixtureY < f.tileY * 12 && f.fixtureY > f.tileY * 12 - 30, 'fixture housing stands below the crown on the vertical face');
+}
+for (const z of ['left', 'right']) {
+  const roomLights = fixtures.filter(f => f.zone === z);
+  A.ok(roomLights.every((f, i) => !i || f.tileX - roomLights[i - 1].tileX >= 6), z + ' practical fixtures keep six-tile spacing');
+}
+A.eq(fixtures.find(f => f.zone === 'left').rgb, '255,222,179', 'hab housings emit warm white');
+A.eq(fixtures.find(f => f.zone === 'right').rgb, '215,232,246', 'lab housings emit cool white');
+for (const mat of ['viewport', 'hedge', 'wainscot', 'unknown'])
+  A.eq(Surface.planFixtures({ ...fg, wallMatOf: () => mat }).length, 0, mat + ' receives no fixtures over specialized wall artwork');
+A.eq(Surface.planFixtures(fg, { wallUp: 0 }).length, 0, 'flattened walls have no invented tall fixture mounts');
+A.eq(Surface.planFixtures(fg, { maxFixtures: 2 }).length, 2, 'fixture count obeys the explicit budget');
+A.eq(Surface.planFixtures(fg, { maxFixtures: 0 }).length, 0, 'zero fixture budget paints no hardware or source');
+A.eq(Surface.planFixtures({ ...fg, walkable: () => false }).length, 0, 'inaccessible deck cannot receive a fake reachable emission source');
+
+const painted = canvas(fg.W, fg.H), returned = Surface.paintFixtures(painted.getContext('2d'), fg);
+A.eq(returned, fixtures, 'painted fixture records are the actual source-planner output');
+for (const f of fixtures) {
+  const emitter = painted.pixels[(f.fixtureY + 2) * fg.W + f.fixtureX];
+  const rgb = f.rgb.split(',').map(Number), expected = (0xff000000 | rgb[0] << 16 | rgb[1] << 8 | rgb[2]) >>> 0;
+  A.eq(emitter, expected, 'source color matches the visible fixture lens');
+}
+const viewport = { x: 123, y: 26, w: 76, h: 57 }, fixtureChunk = canvas(viewport.w, viewport.h), fc = fixtureChunk.getContext('2d');
+fc.translate(-viewport.x, -viewport.y);
+A.eq(Surface.paintFixtures(fc, fg, { viewport }), fixtures, 'chunk culling preserves offscreen sources that spill light into the chunk');
+let fixtureParity = true;
+for (let y = 0; y < viewport.h; y++) for (let x = 0; x < viewport.w; x++)
+  if (fixtureChunk.pixels[y * viewport.w + x] !== painted.pixels[(y + viewport.y) * fg.W + x + viewport.x]) fixtureParity = false;
+A.ok(fixtureParity, 'fixture hardware has exact chunk/monolithic pixel parity');
+
+const physical = (f, origin) => ({ id: f.id, x: f.x + origin.tx * 12, y: f.y + origin.ty * 12,
+  fixtureX: f.fixtureX + origin.tx * 12, fixtureY: f.fixtureY + origin.ty * 12 });
+const grown = fixtureGeometry(5, 3);
+A.eq(Surface.planFixtures(grown).map(f => physical(f, grown.origin)), fixtures.map(f => physical(f, fg.origin)), 'bounds expansion preserves physical lamps and their source anchors');
+
+const openNorth = fixtureGeometry();
+for (let x = 3; x < 14; x++) openNorth.zoneGrid[openNorth.idx(x, 4)] = 'above';
+A.ok(Surface.planFixtures(openNorth).every(f => f.zone !== 'left'), 'a north opening cannot receive an invisible wall-mounted lamp');
+const halls = fixtureGeometry(); halls.isCorridor = () => true;
+A.eq(Surface.planFixtures(halls).length, 2, 'long hall faces get only one fixture per run');
+const narrow = fixtureGeometry();
+for (let y = 0; y < narrow.ROWS; y++) for (let x = 8; x < narrow.COLS; x++) narrow.zoneGrid[narrow.idx(x, y)] = null;
+narrow.isCorridor = () => true;
+A.eq(Surface.planFixtures(narrow).length, 0, 'short corridor mouths receive no extra light hardware');
 A.report('worldsurface');
