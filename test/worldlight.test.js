@@ -64,6 +64,27 @@ const crosslit = Light.shadowFor({ x: 35, y: 30, width: 8, height: 20 },
 A.ok(crosslit.length < shadow.length, 'opposing equal lights soften the directional shadow rather than selecting an arbitrary long one');
 A.ok(shadow.penumbra > 0 && shadow.contactAlpha > 0 && shadow.contactAlpha < 0.25,
   'grounding has a bounded soft edge and contact component');
+const areaLight = Light.normalizeLight(Object.assign({}, source, { softness: 2 }), false);
+const edgeTransmission = Light.visibilityFraction(areaLight, 65, 18.5, open);
+A.ok(edgeTransmission > 0 && edgeTransmission < 1, 'a doorway shadow has a real partial-visibility penumbra');
+A.eq(Light.visibilityFraction(areaLight, 65, 18.5, closed), 0, 'softening never transmits through a sealed wall');
+A.eq(Light.visibilityFraction(areaLight, 65, 30, open), 1, 'clear sightlines retain the accepted full pool brightness');
+const wallAdjacent = Light.normalizeLight({ x: 47.6, y: 30, r: 50, softness: 4 }, true);
+A.ok(Light.emitterOrigins(wallAdjacent, closed, 5).every(o => o.x < 48),
+  'an emitter next to a wall never samples light from the neighboring room');
+A.eq(Light.visibilityFraction(wallAdjacent, 65, 30, closed), 0, 'wide apertures cannot leak around their own wall plane');
+A.eq(Light.emitterOrigins(areaLight, open, 1).length, 1, 'low quality retains a single wall-aware origin');
+const sampledEdge = Light.lightAt(65, 18.5, [areaLight], open);
+A.ok(Math.abs(sampledEdge.strength - areaLight.a * Light.falloff(Math.hypot(35, -11.5) / areaLight.r) * edgeTransmission) < 0.000001,
+  'sprite samples use the same fractional visibility as the cached area-light map');
+A.eq(Light.normalizeLight({ x: 30, y: 30, r: 50 }, true).beam, null,
+  'a room illumination pool does not invent a directional shaft');
+const housedSource = { x: 30, y: 30, r: 50, rgb: '255,222,179', emitX: 30, emitY: 10, normalX: 0, normalY: 2 };
+const housedLight = Light.normalizeLight(housedSource, true);
+A.eq(housedLight.beam.dy, 1, 'physical housing normals normalize independently of source energy');
+A.eq(housedLight.beam.y, 10, 'shaft retains the physical housing position rather than the floor anchor');
+A.ok(housedLight.beam.length > 20 && housedLight.beam.strength < 0.06,
+  'projected housing shaft reaches its floor with restrained, finite intensity');
 
 const northWalls = [{ x1: 0, y1: 36, x2: 200, y2: 36 }, { x1: 108, y1: 36, x2: 108, y2: 100 }];
 const raised = { x: 102, y: 31.6, r: 26, c: [255, 220, 170], a: 0.22 };
@@ -194,9 +215,31 @@ const halfMotes = motes().slice(moteStart + 2);
 const alphaOf = f => Number(f.style.slice(f.style.lastIndexOf(',') + 1, -1));
 A.ok(Math.abs(alphaOf(halfMotes[0]) * 2 - alphaOf(defaultMotes[0])) < 0.000001,
   'positive dust gain scales mote opacity');
+A.ok(Math.abs(alphaOf(defaultMotes[0]) - 0.25 * 0.86 * 0.55 * Light.falloff(0.5)) < 0.000001,
+  'motes are illuminated by local falloff rather than constant brightness throughout a room');
 const beforeReduced = motes().length;
 atmosphere.drawAtmosphere(output, { now: 0, dust: 2, reducedMotion: true });
 A.eq(motes().length, beforeReduced, 'reduced motion suppresses motes even with positive dust gain');
 atmosphere.dispose();
+
+const shafts = Light.create({ canvasFactory }); shafts.setGeometry(station(true));
+shafts.render(output, { fixtures: [housedSource], reducedMotion: true });
+A.eq(shafts.stats().shafts, 1, 'only the explicitly supplied physical fixture produces a shaft');
+A.eq(shafts.stats().beamBuilds, 1, 'static housing shaft has its own cached visibility-masked stamp');
+const shaftAllocations = allocations;
+shafts.render(output, { fixtures: [housedSource], reducedMotion: true });
+A.eq(allocations, shaftAllocations, 'a static shaft allocates nothing on subsequent frames or reduced motion');
+const beforeAperture = shafts.stats().visibilityBuilds;
+shafts.render(output, { fixtures: [Object.assign({}, housedSource, { softness: 0 })] });
+A.ok(shafts.stats().visibilityBuilds > beforeAperture, 'aperture changes invalidate both lighting and shaft visibility');
+const beforeHousing = shafts.stats().beamBuilds;
+shafts.render(output, { fixtures: [Object.assign({}, housedSource, { emitY: 12 })] });
+A.eq(shafts.stats().beamBuilds, beforeHousing + 1, 'moving visible housing rebuilds its shaft even if the planar origin is unchanged');
+const shaftStamp = surfaces[surfaces.length - 1]; shaftStamp.getContext('2d').lost = true;
+shafts.render(output);
+A.eq(shafts.stats().contextRecoveries, 1, 'a silently lost shaft stamp is rebuilt with the other cached resources');
+shafts.configure({ shafts: 0 }); shafts.render(output);
+A.eq(shafts.stats().shafts, 0, 'shaft gain can be disabled without changing accepted ambient or fixture pools');
+shafts.dispose();
 
 A.report('WorldLight spatial illumination');
