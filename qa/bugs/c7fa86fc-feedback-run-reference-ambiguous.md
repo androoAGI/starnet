@@ -92,7 +92,7 @@ Before: rating text contains neither task nor run ID. After: each control identi
     {
       "target": "customer recovery",
       "state": "blocked",
-      "reason": "Actual customer run IDs were not supplied; no existing learned records were rewritten."
+      "reason": "Sanitized customer run IDs were supplied, but the customer saved state is not available here; no existing learned records were rewritten. Supported correction: Commander Dossier > Goals > Forget > Confirm forget."
     }
   ]
 }
