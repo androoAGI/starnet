@@ -190,7 +190,8 @@ const SPRITES = (() => {
   /* Local light is optional presentation data; it never selects a pose or changes game state.
      drawBody's fourth argument is { reducedMotion, skipGroundShadow,
        light: { color: [r,g,b], strength, dx, dy } }.
-     skipGroundShadow lets the scene own its wall-clipped cast/contact pass without doubling it.
+     skipGroundShadow lets the scene own its wall-clipped cast/contact pass without doubling it;
+     authored emissive spill, such as ULTRON's red pool, stays part of the skin's presentation.
      Direction points FROM the body TOWARD the source in world axes. Quantize small changes before
      caching at native sprite resolution, shared across agents. No scene readback or canvas filter.
      The 128-frame LRU bounds GPU/bitmap storage even when the whole skin catalog is in view. */
@@ -577,7 +578,7 @@ const SPRITES = (() => {
     // like the dossier portrait (b.noShadow), where there's no floor and it scales into a blocky bar.
     // NOTE: fed the RAW b.px/b.py, not the device-snapped ones. Snapping the pool while the body
     // itself is sub-unit would let the shadow tick a pixel while the feet slid smoothly over it.
-    if (!b.noShadow && !(appearance && appearance.skipGroundShadow)) {
+    if (!b.noShadow) {
       const lift = Math.max(0, -bob);           // bob is +down; a negative bob has raised the body
       if (set === 'ultron') {
         // the station leader's menacing red spill — a wider, slower pulse beneath his own pool
@@ -585,9 +586,11 @@ const SPRITES = (() => {
       }
       // a perched body adds its seatLift to the shadow's lift: the pool tightens + fades the higher the
       // seat, instead of claiming full floor contact the raised feet don't have
-      const shadow = b.sitting ? { lift: lift + seatLift, alpha: 0.6, spread: 0.8 } : { lift };
-      if (light) shadow.direction = { x: -light.dx, y: -light.dy * 0.62 };
-      groundShadow(ctx, b.px, b.py, shR, shadow);
+      if (!(appearance && appearance.skipGroundShadow)) {
+        const shadow = b.sitting ? { lift: lift + seatLift, alpha: 0.6, spread: 0.8 } : { lift };
+        if (light) shadow.direction = { x: -light.dx, y: -light.dy * 0.62 };
+        groundShadow(ctx, b.px, b.py, shR, shadow);
+      }
     }
     const prevSmooth = ctx.imageSmoothingEnabled;
     const prevQuality = ctx.imageSmoothingQuality;
