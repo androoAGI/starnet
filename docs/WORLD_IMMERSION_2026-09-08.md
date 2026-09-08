@@ -32,3 +32,12 @@ restrained directional tint. It overlays the original draw in its existing depth
 Only 35 rigid silhouettes are eligible; cargo stacks, bedding and other state-dependent
 shapes are excluded. Mounted props keep their existing height. The response cache is
 capped at 96 entries and 1 MiB, and invalid/lost surfaces fall back to the original art.
+
+Final visual checkpoint: all 42 sources remain active, four physical wall fixtures provide
+shafts, and the furniture pass uses 18 cached overlays (265,344 bytes). Across the normal,
+cinema and crew captures it reused overlays for 4,225 draws without an allocation failure.
+The normal 120-frame headless sample measured 21.1 ms median rendering versus the earlier
+20.7 ms baseline; these are software-browser observations, not a hardware frame-rate claim.
+The final live editor, reduced-motion, cached-bake recovery and reload checks passed again.
+Review caught and corrected a classic-mode shadow fallback: native body rendering remains
+active whenever no replacement light sample is available.

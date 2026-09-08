@@ -21,6 +21,8 @@ assert.deepEqual(calls, ['back', 'front']);
 assert.equal(renderer.stats().frames, 1);
 assert.equal(renderer.stats().entities, 2);
 assert.equal(renderer.drawLight({}, [], {}), false, 'legacy fallback is explicit when lighting engine is absent');
+assert.equal(renderer.prepareLight([], {}), false);
+assert.equal(renderer.sampleLight(12, 12), null, 'missing light engine retains the native sprite/shadow path');
 renderer.dispose();
 assert.equal(renderer.stats().samples, 0);
 
@@ -56,4 +58,13 @@ live.prepareLight([], {});
 assert.equal(live.sampleLight(12, 12).sources, 0, 'stopped work removes illumination before the next sprite');
 live.dispose();
 assert.equal(live.sampleLight(12, 12), null);
+const classicScope = { module: { exports: {} }, URLSearchParams, location: { search: '?world=classic' },
+  WorldLight: { create() { throw new Error('classic must not initialize replacement light'); } } };
+vm.runInNewContext(fs.readFileSync(require.resolve('../frontend/app/worldrenderer.js'), 'utf8'), classicScope);
+const classic = classicScope.module.exports.create();
+classic.begin({ now: 10, geo, cache });
+assert.equal(classic.prepareLight([{ x: 12 }]), false);
+assert.equal(classic.sampleLight(12, 12), null, 'classic has no replacement shadow and must use the legacy body appearance');
+classic.drawGrounding({}, [{}]);
+assert.equal(classic.drawLight({}, [], {}), false);
 console.log('worldrenderer: depth order, camera geometry, lifecycle and measured-only statistics passed');

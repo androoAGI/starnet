@@ -6694,8 +6694,9 @@ const World = (() => {
       const prevA = ctx.globalAlpha;
       if (bornA < 1) ctx.globalAlpha = prevA * bornA;
       let geom = null;
+      const bodyLight = sceneRenderer && sceneRenderer.sampleLight(who.px, who.py);
       if (typeof SPRITES !== 'undefined' && SPRITES.ready) geom = SPRITES.drawBody(ctx, who, now,
-        sceneRenderer ? { reducedMotion: reduceMotion(), light: sceneRenderer.sampleLight(who.px, who.py),
+        bodyLight ? { reducedMotion: reduceMotion(), light: bodyLight,
           skipGroundShadow: !who.seated && !who.lying } : undefined);
       // Do not flash the cyan procedural body while the real default skin is actively loading.
       // A genuine load failure still clears `loading` and gets the honest fallback on the next frame.
