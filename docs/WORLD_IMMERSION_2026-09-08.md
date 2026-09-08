@@ -81,3 +81,11 @@ black, followed by .05 fine grain. This common screen pass follows both GPU/CPU 
 adds no texture allocation. Reduced motion freezes the grain phase. The film is adjustable
 in the existing CRT lab and its Clean preset resets it to zero. Live normal/cinema/crew
 captures confirm the darker finish retains the corrected wall and equipment readability.
+
+The owner found that matte finish too foggy. The current default removes the gray black
+lift and additive fade entirely, and disables the full-frame blurred bloom. A .28 density
+curve mixes each pixel with its squared color at the same coordinates, deepening mids
+without tint, blur, raised blacks or dimming full-white emitters. Fine grain stays at .05;
+physical room/prop lighting, wall receiver correction and .28 sharpening are unchanged.
+Normal and close-up live captures confirm readable cabinet tops, darker shadows and clear
+screen details, with fade/bloom both zero in the running renderer.

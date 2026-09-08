@@ -6111,11 +6111,12 @@ const World = (() => {
       }
     }
     if (CRT.film > 0) {
-      // A thin neutral film compresses contrast: highlights/mids settle while
-      // blacks get a small matte lift. Shared after both warp paths, before grain.
-      ctx.globalCompositeOperation = 'source-over';
+      // A restrained density curve: mix C with C*C, so mids deepen while true
+      // black and emissive highlights stay intact. No gray lift or blurred copy.
+      // Shared after both warp paths, before grain; same-size self-blit is sharp.
+      ctx.globalCompositeOperation = 'multiply';
       ctx.globalAlpha = Math.min(.5, CRT.film);
-      ctx.fillStyle = '#121418'; ctx.fillRect(0, 0, W, H);
+      ctx.drawImage(cv, 0, 0);
       ctx.globalAlpha = 1;
     }
     if (CRT.fade > 0) {                               // soft faded matte (cool-neutral, no yellow) — CRT.fade

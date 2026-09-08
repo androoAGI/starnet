@@ -8,8 +8,8 @@ const WorldRenderer = (() => {
   const GENERATION = 'II';
   // Tuned in the running CRT lab: retain a visible tube while resolving material
   // highlights and sprite detail instead of smearing them into the same grey band.
-  const PHOSPHOR = Object.freeze({ scan: .16, pitch: 1, fade: .06, curve: .04, vig: .14,
-    over: 1.08, dust: .35, aberr: 0, grain: .05, bloom: .08, sharpen: .28, film: .18 });
+  const PHOSPHOR = Object.freeze({ scan: .16, pitch: 1, fade: 0, curve: .04, vig: .14,
+    over: 1.08, dust: .35, aberr: 0, grain: .05, bloom: 0, sharpen: .28, film: .28 });
   // Five-tap local contrast, bounded by the existing neighbourhood. Flat light
   // gradients stay quiet; no bright/dark ringing is introduced beyond an edge.
   const DETAIL_GLSL = `

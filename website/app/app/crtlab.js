@@ -209,7 +209,7 @@
     sliders.push(buildSlider(body, crt, 'grain', 0, 0.25, 0.01));  // film grain over the warped feed
     sliders.push(buildSlider(body, crt, 'bloom', 0, 1, 0.05));     // phosphor bloom — the bright things haze outward (world.js drawBloom)
     sliders.push(buildSlider(body, crt, 'sharpen', 0, .6, .02)); // bounded edge detail before the CRT grain
-    sliders.push(buildSlider(body, crt, 'film', 0, .5, .01)); // neutral matte over the lit scene
+    sliders.push(buildSlider(body, crt, 'film', 0, .5, .01)); // density curve; no lifted blacks or blur
     sliders.push(buildSlider(body, crt, 'mask', 0, 0.6, 0.02));    // RGB aperture-grille mask over the feed
     sliders.push(buildSlider(body, crt, 'bleed', 0, 0.6, 0.02));   // horizontal colour bleed (beam spread)
     sliders.push(buildSlider(body, crt, 'roll', 0, 0.5, 0.02));    // the faint rolling sync bar
