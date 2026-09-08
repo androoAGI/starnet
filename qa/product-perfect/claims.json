@@ -18,8 +18,8 @@
   "expectedClaimCount": 37,
   "releaseSurface": {
     "algorithm": "sha256",
-    "sourceCommit": "e9177c31300b16fdab2c4343a34f62f97f5ac6c9",
-    "pathSetSha256": "336f229448fd055ba679527f7d7ec8f4c1f11d2f2b3ae865004700e612104fbc",
+    "sourceCommit": "7b25447c8497f34a710a98fce0b1aaba8eecba1c",
+    "pathSetSha256": "893f2c9ca526a94879691b5c9b01adbcd4d30b3619c1a50fbbfbd64f7e227bb9",
     "files": [
       {
         "path": "INSTALL.md",
@@ -1170,56 +1170,6 @@
         "path": "frontend/js/util.js",
         "bytes": 31079,
         "sha256": "c5e152e347f2733b640419b15ef7f96fffcd677900413a02bb69b752e2485b49"
-      },
-      {
-        "path": "frontend/world-next/art.js",
-        "bytes": 19113,
-        "sha256": "366effd8d44e390207b2db4e67fa4d4d7f72b695b8c09cd614cd9d10c880c2db"
-      },
-      {
-        "path": "frontend/world-next/bridge.js",
-        "bytes": 28678,
-        "sha256": "92829b2d2c41ae29183e514acbe4b1a94549689830507cf275d7b864c583e22c"
-      },
-      {
-        "path": "frontend/world-next/characters.js",
-        "bytes": 2185,
-        "sha256": "2655856cb4c38f9b0805400ea0e8ddb292fa80433e045d7bb3d1aa6a44b4a4b6"
-      },
-      {
-        "path": "frontend/world-next/client.js",
-        "bytes": 29177,
-        "sha256": "5257756dac86abd9444bcde23876c27d86a9121f321f6110e0b41aea0ecd8d08"
-      },
-      {
-        "path": "frontend/world-next/index.html",
-        "bytes": 2975,
-        "sha256": "edad072a238576fbd7953c4717b90c4f5ba6aa265f36f4d392caa73a5280b0ec"
-      },
-      {
-        "path": "frontend/world-next/orientation.js",
-        "bytes": 1636,
-        "sha256": "3cac00d0141a080f4bbdc793bfc9f3dc174c354ffbc34a5a4f957541bae1502a"
-      },
-      {
-        "path": "frontend/world-next/records.js",
-        "bytes": 4853,
-        "sha256": "6a4e25b6d53a7b9edfdcd7581a9fd6c246f1567bd3139ff3c95890db7ace9f9e"
-      },
-      {
-        "path": "frontend/world-next/scene.js",
-        "bytes": 39292,
-        "sha256": "fc19637debc4450e4eba550690a2348c093c054d94f75af133763421a8c6bb9a"
-      },
-      {
-        "path": "frontend/world-next/simulation.js",
-        "bytes": 4428,
-        "sha256": "19faf8eaf55be903ad2b31bf539ec247b03262a44de2ce8015a416e0c20bd8c4"
-      },
-      {
-        "path": "frontend/world-next/world-next.css",
-        "bytes": 11328,
-        "sha256": "f136b73ed9a46632387355ce27e5492540163c547f9db5586b3129a70d2001a4"
       }
     ]
   },

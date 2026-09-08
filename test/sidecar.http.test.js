@@ -167,11 +167,6 @@ function boot(port, workspaces, attemptsLeft, extraEnv) {
     A.ok(/__STARNET_API_TOKEN__/.test(injected), 'served index.html bootstraps the API token for browser mode');
     apiToken = await bootToken(B, B);
     A.ok(apiToken.length >= 32, 'served index.html carries a high-entropy API token');
-    const freshEntry = await (await fetch(B + '/world-next/index.html')).text();
-    A.ok(freshEntry.includes(apiToken), 'fresh client entry receives the same scoped browser token');
-    A.ok(freshEntry.includes('scene.js') && !freshEntry.includes('worldrenderer.js'), 'fresh entry serves its independent renderer');
-    const freshModule = await (await fetch(B + '/world-next/scene.js')).text();
-    A.ok(!freshModule.includes(apiToken), 'static scene source never receives authentication injection');
     const tok = { 'X-StarNet-Token': apiToken };
     const tauriOrigin = 'http://tauri.localhost';
 
