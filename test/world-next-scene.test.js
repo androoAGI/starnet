@@ -54,6 +54,13 @@ A.eq(Scene.material(roomFinish, -3, 0).recipe, 'plank', 'tile paint changes colo
 editable.setDeck('left', { style: 'bone' });
 A.eq(Scene.material(roomFinish, -3, 0).style, 'bone', 'a whole-room repaint visibly clears the old tile override');
 A.eq(Scene.material({ kind: 'bridge', floorMat: null }).recipe, CanonicalModel.ROOM_KINDS.bridge.mat, 'null material follows the canonical room-kind default');
+const lamp = Scene.emissionOf({ id: 'lamp', t: 'desklamp', x: -3, y: -2, w: 1, h: 1 }, { cx: -80, anchorY: -32, h: 24 });
+A.eq([lamp.x, lamp.y, lamp.originX, lamp.originY], [-77, -52, -80, -48], 'new lamp emission uses its visible art anchor and separate floor-plane origin');
+A.ok(Scene.visible(open, lamp, -80, -24), 'the new lamp source illuminates its own room');
+A.eq(Scene.emissionOf({ t: 'plant' }), null, 'unlit decorative art does not acquire invented emissions');
+A.eq(Scene.emissionOf({ t: 'whiteboard' }), null, 'a nonluminous whiteboard has no display light');
+A.ok(Scene.emissionOf({ t: 'holotable', x: 0, y: 0 }).color[1] > Scene.emissionOf({ t: 'holotable', x: 0, y: 0 }).color[0], 'new holographic art supplies a local cool light');
+A.ok(Scene.emissionOf({ t: 'vat', x: 0, y: 0 }).color[0] > Scene.emissionOf({ t: 'vat', x: 0, y: 0 }).color[2], 'new reactor art supplies a local warm light');
 
 // Canvas command adapter exercises the new composition API, invalidation and sort
 // without pretending that commands establish live raster appearance.
@@ -113,4 +120,19 @@ function renderedFloor(style, mat) {
 const materialSignatures = Object.keys(Scene.MATERIALS).map(m => renderedFloor('sterile', m));
 A.eq(new Set(materialSignatures).size, Object.keys(Scene.MATERIALS).length, 'all eighteen material choices issue visibly distinct floor drawing commands');
 A.ok(renderedFloor('cobalt', 'plank') !== renderedFloor('ember', 'plank'), 'changing saved finish changes the actual floor paint commands');
+const layering = Scene.create(canvasFactory(800, 600), { canvasFactory }), layers = [];
+const layeringArt = {
+  getSpec: type => ({ flat: type === 'rug' }),
+  drawProp: (ctx, prop, now, state) => layers.push({ id: prop.id, mountRise: state.mountRise }),
+  drawAgent: (ctx, agent) => layers.push({ id: agent.id })
+};
+layering.draw({ station: station(), width: 800, height: 600, reducedMotion: true,
+  agents: [{ id: 'visitor', x: -2.5, y: .5 }], props: [
+    { id: 'mounted', t: 'mug', x: -3, y: -1, w: 1, h: 1, host: 'table', mountRise: 23 },
+    { id: 'table', t: 'sidetable', x: -3, y: -1, w: 2, h: 2 },
+    { id: 'floor-rug', t: 'rug', x: -4, y: -2, w: 4, h: 4 }
+  ] }, layeringArt);
+A.eq(layers.map(p => p.id), ['floor-rug', 'visitor', 'table', 'mounted'], 'floor decals draw before standing bodies; mounted objects draw after their host even with a smaller footprint');
+A.eq(layers.find(p => p.id === 'mounted').mountRise, 23, 'exact caller-resolved mount rise reaches the new art adapter');
+layering.dispose();
 A.report('World Next independent scene');

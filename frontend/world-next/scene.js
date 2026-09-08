@@ -34,6 +34,24 @@ const NextScene = (() => {
     soft: [3, 2], grate: [1, 1], hex: [1, 1], plank: [5, 1], turf: [0, 0], diamond: [1, 1], resin: [0, 0],
     ceramic: [3, 3], cargo: [3, 2], runner: [2, 2], treadway: [3, 2], meshway: [3, 3] });
   const KIND_MATERIAL = { hab: 'spine', bridge: 'panel', lab: 'tile', factory: 'tread', quarters: 'soft', storage: 'tread', corridor: 'spine' };
+  const EMITTERS = {
+    lamp: { types: 'desklamp arc_floorlight', color: [255, 206, 127], radius: 78, strength: .64, height: null },
+    orrery: { types: 'holotable wartable research_corelens treasury_pnl_holo plasmaglobe', color: [108, 215, 214], radius: 118, strength: .46, height: .60 },
+    reactor: { types: 'vat tube etsy_dyevat treasury_token_furnace lavalamp tank connector_portal', color: [255, 164, 91], radius: 108, strength: .47, height: .52 },
+    display: { types: 'missionboard bigscreen screens ticker chartwall calwall bridge_tacscreen war_pivotpanel commswall gigs_thumbwall arc_indexwall tv', color: [116, 198, 211], radius: 108, strength: .29, height: .62 },
+    terminal: { types: 'deskterminal crt_pile arc_microfiche', color: [121, 209, 185], radius: 70, strength: .23, height: .62 },
+    workstation: { types: 'desk desk2 console consoleL pixelrig bench', color: [125, 202, 188], radius: 88, strength: .18, height: .64 }
+  };
+  const EMITTER_BY_TYPE = new Map();
+  for (const [family, spec] of Object.entries(EMITTERS)) for (const type of spec.types.split(' ')) EMITTER_BY_TYPE.set(type, Object.assign({ family }, spec));
+  function emissionOf(prop, artBounds) {
+    const spec = prop && EMITTER_BY_TYPE.get(prop.t); if (!spec) return null;
+    const w = num(prop.w, 1), h = num(prop.h, 1), cx = (num(prop.x) + w / 2) * TILE, floorY = (num(prop.y) + h) * TILE;
+    const b = artBounds || { cx, anchorY: floorY - (prop.host ? 16 : 0), h: Math.min(78, h * TILE + 26) };
+    return { x: num(b.cx, cx) + (spec.family === 'lamp' ? 3 : 0), y: num(b.anchorY, floorY) - (spec.family === 'lamp' ? 20 : num(b.h, 48) * spec.height),
+      originX: cx, originY: (num(prop.y) + h / 2) * TILE, r: spec.radius + Math.min(28, w * TILE * .15),
+      color: spec.color, strength: spec.strength, kind: 'prop', propId: prop.id || null };
+  }
   function material(room, tx, ty) {
     const name = String(room && (room.name || room.title) || '').toLowerCase(), kind = room && room.kind;
     let base = PALETTE.ceramic;
@@ -83,18 +101,18 @@ const NextScene = (() => {
         const eid = (vertical ? 'v' : 'h') + line + ':' + along; if (seen.has(eid)) continue; seen.add(eid);
         const e = { x: t.x, y: t.y, side, room: t.room, exterior: !adjacent, vertical, line, along }; model.edges.push(e);
         if (side === 'n' && !adjacent && ((t.x % 4 + 4) % 4 === 1)) model.fixtures.push({ x: (t.x + .5) * TILE, y: t.y * TILE + 3,
-          r: TILE * 5, color: [146, 210, 222], strength: .30, kind: 'window', edge: e });
+          r: TILE * 3.7, color: [128, 188, 223], strength: .20, kind: 'window', edge: e });
       }
     }
     // Architectural light discs have visible housings. Their constant light says
     // nothing about task activity; live emissions are supplied separately by the client.
     for (const room of rooms.values()) {
-      const narrow = room.room.kind === 'corridor', step = narrow ? 4 : 5;
+      const narrow = room.room.kind === 'corridor', step = narrow ? 4 : 6;
       for (let y = room.y0 + Math.min(2, Math.floor((room.y1 - room.y0) / 2)); y <= room.y1; y += step)
         for (let x = room.x0 + Math.min(2, Math.floor((room.x1 - room.x0) / 2)); x <= room.x1; x += step) {
           const t = tiles.get(key(x, y)); if (!t || t.room !== room.id) continue;
-          model.fixtures.push({ x: (x + .5) * TILE, y: (y + .5) * TILE, r: TILE * (narrow ? 4.2 : 5.4),
-            color: room.palette.botanical ? [242, 221, 166] : [255, 216, 165], strength: narrow ? .67 : .79, kind: 'floor', room: room.id });
+          model.fixtures.push({ x: (x + .5) * TILE, y: (y + .5) * TILE, r: TILE * (narrow ? 3.2 : 4.6),
+            color: room.palette.botanical ? [249, 202, 124] : [255, 195, 113], strength: narrow ? .67 : .79, kind: 'floor', room: room.id });
         }
     }
     return model;
@@ -250,7 +268,8 @@ const NextScene = (() => {
       shade.fillStyle = 'rgba(5,19,26,.44)'; shade.fillRect(0, 0, CHUNK, CHUNK); for (const g of [shade, glow]) g.setTransform(1, 0, 0, 1, -c.x, -c.y);
       for (const s of local) {
         const points = polygon(s, quality === 'low' ? 36 : 72);
-        for (const [g, mode, strength] of [[shade, 'destination-out', s.strength], [glow, 'screen', s.strength * .20]]) {
+        const radiance = s.kind === 'window' ? .16 : s.kind === 'prop' ? .24 : .22;
+        for (const [g, mode, strength] of [[shade, 'destination-out', s.strength], [glow, 'screen', s.strength * radiance]]) {
           g.save(); g.beginPath(); points.forEach((p, i) => i ? g.lineTo(p.x, p.y) : g.moveTo(p.x, p.y)); g.closePath(); g.clip();
           const gradient = g.createRadialGradient(s.x, s.y, 1, s.x, s.y, s.r);
           for (const [stop, v] of [[0, 1], [.25, .75], [.52, .38], [.78, .09], [1, 0]]) gradient.addColorStop(stop, rgba(s.color, strength * v));
@@ -338,7 +357,12 @@ const NextScene = (() => {
       ctx.setTransform(dpr * camera.zoom, 0, 0, dpr * camera.zoom, dpr * (width / 2 - camera.x * camera.zoom), dpr * (height / 2 - camera.y * camera.zoom)); ctx.imageSmoothingEnabled = false;
       const vx = camera.x - width / camera.zoom / 2 - 96, vy = camera.y - height / camera.zoom / 2 - 96, vw = width / camera.zoom + 192, vh = height / camera.zoom + 192;
       const inView = (x, y, w = 0, h = 0) => x + w >= vx && y + h >= vy && x <= vx + vw && y <= vy + vh;
-      latestLights = model.fixtures.concat((frame.lights || []).filter(s => Number.isFinite(+s.x) && Number.isFinite(+s.y) && +s.r > 0).map(s => ({ x: +s.x, y: +s.y, r: clamp(+s.r, 1, 640),
+      const agents = Array.isArray(frame.agents) ? frame.agents : [], props = Array.isArray(frame.props) ? frame.props : model.doc.props || [];
+      const active = new Set(agents.filter(a => a.working).map(a => a.id));
+      const stateOf = p => ({ working: active.has(p.agentId), selected: selectedId(frame.selection) === p.id,
+        tileSize: TILE, mountRise: num(p.mountRise, p.host ? 16 : 0) });
+      const propLights = props.filter(p => EMITTER_BY_TYPE.has(p.t)).map(p => emissionOf(p, art.getBounds ? art.getBounds(p, stateOf(p)) : null)).filter(Boolean);
+      latestLights = model.fixtures.concat(propLights, (frame.lights || []).filter(s => Number.isFinite(+s.x) && Number.isFinite(+s.y) && +s.r > 0).map(s => ({ x: +s.x, y: +s.y, r: clamp(+s.r, 1, 640),
         color: s.color || s.c || [166, 220, 229], strength: clamp(num(s.strength, num(s.a)), 0, 1), originX: num(s.originX, +s.x), originY: num(s.originY, +s.y) })));
       const visibleChunks = [];
       for (const id of model.chunkTiles.keys()) { const [cx, cy] = id.split(',').map(Number); if (!inView(cx * CHUNK, cy * CHUNK, CHUNK, CHUNK)) continue; const c = getChunk(id); illuminate(c, latestLights, frame.quality || 'high'); visibleChunks.push(c); ctx.drawImage(c.floor, c.x, c.y); }
@@ -346,11 +370,20 @@ const NextScene = (() => {
         const [x, y] = position.split(',').map(Number); if (!model.tiles.has(key(x, y)) || !inView(x * TILE, y * TILE, TILE, TILE)) continue;
         const active = !still && frame.flowingBelts && (frame.flowingBelts instanceof Set ? frame.flowingBelts.has(position) : frame.flowingBelts.includes(position)); belt(ctx, x, y, typeof v === 'string' ? v : v.dir, now, !!active);
       }
-      const agents = Array.isArray(frame.agents) ? frame.agents : [], props = Array.isArray(frame.props) ? frame.props : model.doc.props || [], active = new Set(agents.filter(a => a.working).map(a => a.id)), items = [];
+      const items = [], propsById = new Map(props.map(p => [p.id, p]));
+      // Paint and routing inlays belong beneath every standing object regardless
+      // of their document order or footprint height.
+      const flat = p => p.flat === true || !!(art.getSpec && art.getSpec(p.t).flat);
+      for (const p of props) if (flat(p) && inView(num(p.x) * TILE, num(p.y) * TILE, num(p.w, 1) * TILE, num(p.h, 1) * TILE)) {
+        if (art.drawProp) art.drawProp(ctx, p, now, stateOf(p));
+      }
       for (const p of props) {
+        if (flat(p)) continue;
         const x = num(p.x) * TILE, y = num(p.y) * TILE, w = num(p.w, 1) * TILE, h = num(p.h, 1) * TILE; if (!inView(x - 16, y - 64, w + 32, h + 80)) continue;
-        grounding(ctx, x + w / 2, y + h - 3, Math.max(16, w * .7), 38);
-        items.push({ y: y + h, draw: () => { if (art.drawProp) art.drawProp(ctx, p, now, { working: active.has(p.agentId), selected: selectedId(frame.selection) === p.id, tileSize: TILE }); } });
+        if (!p.host) grounding(ctx, x + w / 2, y + h - 3, Math.max(16, w * .7), 38);
+        const host = p.host && propsById.get(typeof p.host === 'object' ? p.host.id : p.host);
+        const sortY = host ? (num(host.y) + num(host.h, 1)) * TILE + .25 : y + h;
+        items.push({ y: sortY, draw: () => { if (art.drawProp) art.drawProp(ctx, p, now, stateOf(p)); } });
       }
       for (const a of agents) { const x = num(a.x) * TILE, y = num(a.y) * TILE; if (!inView(x - 20, y - 72, 40, 80)) continue; grounding(ctx, x, y, 19, 45); items.push({ y, draw: () => { if (art.drawAgent) art.drawAgent(ctx, a, now); } }); }
       for (const e of model.edges) if (inView(e.x * TILE - 20, e.y * TILE - WALL, TILE + 40, TILE + WALL + 36)) items.push({ y: (e.side === 'n' ? e.y : e.y + 1) * TILE + (e.side === 's' ? .5 : -.5), draw: () => wall(ctx, e) });
@@ -377,9 +410,10 @@ const NextScene = (() => {
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0); frames++; frameMs = typeof performance !== 'undefined' ? +(performance.now() - started).toFixed(2) : 0; return true;
     }
     return { draw, bounds: station => bounds(station || model || priorStation), tileAt,
-      stats: () => ({ frames, geometryBuilds, chunkBuilds, lightBuilds, chunks: chunks.size, polygons: polygons.size, tiles: model ? model.tiles.size : 0, lights: latestLights.length, camera: latestCamera, frameMs, disposed }),
+      stats: () => ({ frames, geometryBuilds, chunkBuilds, lightBuilds, chunks: chunks.size, polygons: polygons.size, tiles: model ? model.tiles.size : 0,
+        lights: latestLights.length, architecturalLights: model ? model.fixtures.length : 0, propLights: latestLights.filter(s => s.kind === 'prop').length, camera: latestCamera, frameMs, disposed }),
       dispose() { disposed = true; for (const c of chunks.values()) for (const v of [c.floor, c.shade, c.glow]) release(v); chunks.clear(); polygons.clear(); latestLights = []; } };
   }
-  return { create, project, bounds, tileAt, canCross, rayLength, visibility, visible, material, STYLE_COLORS, MATERIALS, TILE, WALL };
+  return { create, project, bounds, tileAt, canCross, rayLength, visibility, visible, material, emissionOf, STYLE_COLORS, MATERIALS, TILE, WALL };
 })();
 if (typeof module !== 'undefined' && module.exports) module.exports = NextScene;
