@@ -35,7 +35,11 @@ async function api(url,body){const r=await fetch(base+url,{headers,method:body==
 async function run(agentId){
   const r=await fetch(base+'/api/run',{method:'POST',headers,body:JSON.stringify({agentId,key:'sk-or-v1-rating-fixture',model:'test/model',messages:[{role:'user',content:'Write a brief welcome note.'}]})});
   const events=(await r.text()).split('\n').filter(Boolean).map(s=>JSON.parse(s));
-  const end=events.find(e=>e.name==='agent.run.end'); A.eq(end&&end.payload.reason,'done',agentId+' completed a real local-provider run');return end.payload.runId;
+  const end=events.find(e=>e.name==='agent.run.end'); A.eq(end&&end.payload.reason,'done',agentId+' completed a real local-provider run');
+  const history=await api('/api/runs?agent='+agentId);
+  const row=history.body.runs.find(r=>r.runId===end.payload.runId);
+  A.ok(row && row.identityFallback === false,agentId+' ran as its persistent roster identity, not a fallback');
+  return end.payload.runId;
 }
 (async()=>{
   mock.listen(0,'127.0.0.1');await once(mock,'listening');
@@ -43,6 +47,7 @@ async function run(agentId){
     await boot();
     const legacy={schema:'starnet.save',version:6,updatedAt:Date.now()+1800000,agent:{id:'agent',name:'Legacy hero',onboarded:true,model:'test/model',stats:Xp.fresh()},agents:[{id:'scribe',name:'Scribe',createdAt:123,stats:Xp.fresh()}],stationStats:Xp.fresh()};
     A.ok((await api('/api/save',legacy)).body.ok,'store the pre-update legacy save; future stamp models a held background sync');
+    A.ok((await api('/api/roster',{agents:[{agentId:'agent',name:'Legacy hero',model:'test/model',provider:'openrouter'},{agentId:'scribe',name:'Scribe',model:'test/model',provider:'openrouter'}]})).body.ok,'persist the actual hero and specialist roster');
     const priorRun=await run('agent');
     A.ok((await api('/api/growth/ratings',{runId:priorRun,verdict:'great',epoch:1})).body.ok,'legacy feedback exists before the update');
     const runIds=[await run('agent'),await run('scribe')];

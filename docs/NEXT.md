@@ -1,6 +1,6 @@
 # NEXT.md — current priorities & task queue
 
-## IN PROGRESS — 2026-09-08 rating repair integration (gent/rating-repair-0908)
+## IN PROGRESS — 2026-09-08 rating repair integration (agent/rating-repair-0908)
 
 Own lane: preserve legacy station identity on resume and surface rating failure reasons.
 Before/after real UI and same-run HTTP proof recorded in bug 1fc69e6a; source fix a55a1ed07.
