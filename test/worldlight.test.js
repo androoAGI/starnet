@@ -55,6 +55,15 @@ A.eq(Light.lightAt(65, 30, [source], closed).strength, 0, 'sample is dark across
 A.ok(Light.lightAt(65, 30, [source], open).strength > 0, 'sample measures actual transmission through the door');
 const shadow = Light.shadowFor({ x: 35, y: 30, width: 8, height: 20 }, [source], closed);
 A.ok(shadow.dx > 0 && Math.abs(shadow.dy) < 0.001, 'ground shadow points away from the visible source');
+const tint = Light.lightAt(35, 30, [source, source, source], closed);
+A.eq(tint.color.join(','), source.c.join(','), 'overlapping warm emitters retain their colour instead of clipping to white');
+A.ok(tint.dx < -0.99 && Math.abs(tint.dy) < 0.001, 'sprite-light direction points from the body toward the actual source');
+A.ok(tint.strength <= 1 && tint.energy > 1, 'sprite-light strength stays bounded while additive energy remains measurable');
+const crosslit = Light.shadowFor({ x: 35, y: 30, width: 8, height: 20 },
+  [source, Object.assign({}, source, { x: 40 })], closed);
+A.ok(crosslit.length < shadow.length, 'opposing equal lights soften the directional shadow rather than selecting an arbitrary long one');
+A.ok(shadow.penumbra > 0 && shadow.contactAlpha > 0 && shadow.contactAlpha < 0.25,
+  'grounding has a bounded soft edge and contact component');
 
 const northWalls = [{ x1: 0, y1: 36, x2: 200, y2: 36 }, { x1: 108, y1: 36, x2: 108, y2: 100 }];
 const raised = { x: 102, y: 31.6, r: 26, c: [255, 220, 170], a: 0.22 };
@@ -77,7 +86,7 @@ function canvasFactory(w, h) {
   const listeners = {}, stack = [], context = {
     globalAlpha: 0.3, globalCompositeOperation: 'multiply', imageSmoothingEnabled: true,
     lost: false, isContextLost() { return this.lost; },
-    setTransform() {}, clearRect() {}, beginPath() {}, rect() {}, clip() {}, moveTo() {}, lineTo() {},
+    setTransform() {}, clearRect() {}, beginPath() {}, rect() {}, clip() {}, moveTo() {}, lineTo() {}, ellipse() {},
     closePath() {}, fillRect(...args) { fills.push({ context: this, style: this.fillStyle, args }); },
     fill() {}, drawImage(...args) { draws.push(args); },
     createRadialGradient: () => ({ addColorStop() {} }), createLinearGradient: () => ({ addColorStop() {} }),
@@ -93,7 +102,16 @@ function canvasFactory(w, h) {
 const engine = Light.create({ canvasFactory }), output = canvasFactory(96, 60).getContext('2d');
 engine.setGeometry(station(true));
 const frame = { fixtures: [{ x: 30, y: 30, r: 50, rgb: '255,192,104' }], lights: [source], ambient: 0.82 };
-A.ok(engine.render(output, frame), 'renderer accepts the station geometry and existing source shapes');
+const beforePrepare = allocations;
+A.ok(engine.prepare(frame), 'current frame can be prepared before any composite pass');
+A.ok(engine.sample(35, 30).strength > 0 && engine.sample(35, 30).dx < 0,
+  'first-frame sprites and grounding immediately sample their current light');
+A.eq(allocations, beforePrepare, 'preparation does not allocate raster surfaces');
+A.eq(engine.stats().staticBuilds, 0, 'preparation does not prematurely composite the light map');
+engine.drawGrounding(output, [{ x: 35, y: 30, width: 8, height: 20 }]);
+A.eq(output.globalAlpha, 0.3, 'grounding restores the caller alpha');
+A.eq(output.globalCompositeOperation, 'multiply', 'grounding restores the caller blend mode');
+A.ok(engine.render(output), 'renderer can composite the prepared frame without supplying it twice');
 const first = engine.stats(), allocBefore = allocations;
 engine.render(output, frame);
 A.eq(engine.stats().staticBuilds, first.staticBuilds, 'steady fixtures reuse their composed map');
@@ -105,7 +123,9 @@ A.eq(output.globalCompositeOperation, 'multiply', 'illumination restores the cal
 engine.render(output, Object.assign({}, frame, { lights: [Object.assign({}, source, { a: 0.5 })] }));
 A.eq(engine.stats().visibilityBuilds, first.visibilityBuilds, 'emission changes reuse visibility and gradient stamps');
 A.eq(engine.stats().dynamicBuilds, first.dynamicBuilds + 1, 'emission changes update the visible map');
-engine.render(output, { lights: [], fixtures: [], ambient: 0.62 });
+engine.prepare({ lights: [], fixtures: [], ambient: 0.62 });
+A.eq(engine.sample(30, 30).strength, 0, 'source removal reaches sprites before the later lighting composite');
+engine.render(output);
 A.eq(engine.sample(30, 30).strength, 0, 'removed sources immediately disappear from the renderer state');
 A.ok(Math.abs(engine.stats().ambient - 0.58) < 0.00001, 'high room brightness maps to the new readable exposure');
 engine.render(output, { lights: [], fixtures: [], ambient: 0.82 });
@@ -129,7 +149,7 @@ let prevented = false;
 lostMap.getContext('2d').lost = true;
 lostMap.emit('contextlost', { preventDefault() { prevented = true; } });
 A.ok(prevented, 'canvas context loss requests restoration rather than abandoning the renderer');
-A.ok(recovery.render(output, frame), 'lost cached map is recreated and rendered from the same source state');
+A.ok(recovery.render(output), 'lost cached map is recreated and rendered from the prepared source state');
 A.eq(recovery.stats().contextRecoveries, 1, 'resource recovery has a measured receipt');
 A.eq(recovery.stats().geometryRevision, 2, 'resource recovery invalidates geometry-bound visibility and maps');
 A.ok(recovery.sample(30, 30).strength > 0, 'sources survive recovery without a fabricated lighting transition');
