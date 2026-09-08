@@ -2838,7 +2838,10 @@ const App = (() => {
   /* ---------- resume ---------- */
   function resumeInto(saved) {
     agent = saved.agent;
-    if (!(Number(agent.createdAt) > 0)) agent.createdAt = Math.max(1, Number(saved.updatedAt) || Date.now());
+    // A legacy hero without createdAt already belongs to growth epoch 1 on the sidecar.
+    // Resuming is not founding a new station: inventing a timestamp here rejects every crew rating
+    // until the debounced save lands, and can strand existing epoch-1 feedback on another generation.
+    // Keep the missing date unknown. Only onWake creates a new Commander identity.
     if (!agent.role) agent.role = 'orchestrator';  // older hero saves predate the role field — the first agent is the lead
     agentDocs(agent);                              // seed config docs for older saves that predate them
     stripLegacyVoiceBlock(agent);                  // one-time: drop the old awakening's inline VOICE & MANNER so it doesn't double up with the archetype layer

@@ -102,3 +102,5 @@ test/discovery-documents.http.test.js
 test/workflow-takeover.http.test.js
 test/task-conversation.http.test.js
 test/emergency-recovery.http.test.js
+
+test/growth-rating-upgrade.e2e.test.js

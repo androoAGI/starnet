@@ -236,6 +236,27 @@ Promise.resolve(catchup).then(async summary => {
   }));
   A.eq(replayed.applied, false, 'same-tab canonical duplicate cannot mint XP twice');
 
+  const rejectedXp = catchSpec.stats.xp;
+  for (const [status, error, expected] of [
+    [409, 'station generation changed; reload before rating', 'Station changed'],
+    [404, 'rateable run not found', 'saved run history'],
+    [409, 'run did not produce rateable agent work', 'did not finish'],
+    [403, 'forbidden', 'connection was rejected'],
+    [503, 'rating history unavailable', 'history is unavailable'],
+    [500, 'C:/private/storage/path', 'could not save']
+  ]) {
+    const rejected = await XpStore.recordWorkRating({ runId: 'rejected', verdict: 'great' }, async () => ({
+      ok: false, status, json: async () => ({ ok: false, error })
+    }));
+    A.ok(!rejected.ok && rejected.status === status && rejected.error.includes(expected), 'rejected HTTP ' + status + ' preserves the actionable failure');
+    A.ok(!rejected.error.includes('private'), 'rating UI does not expose raw storage errors');
+  }
+  const offline = await XpStore.recordWorkRating({ runId: 'offline', verdict: 'great' }, async () => { throw new Error('offline'); });
+  A.ok(!offline.ok && offline.error.includes('Cannot reach'), 'transport failure is distinguished from run rejection');
+  const malformed = await XpStore.recordWorkRating({ runId: 'bad-body', verdict: 'great' }, async () => ({ok:true,status:200,json:async()=>{throw new Error('not JSON');}}));
+  A.ok(!malformed.ok, 'an invalid acknowledgement cannot mint XP');
+  A.eq(catchSpec.stats.xp, rejectedXp, 'rejected ratings never change XP');
+
   const rollbackHero = { id: 'agent', name: 'OVERSEER', stats: Xp.fresh() };
   const rollbackSpec = { id: 'scribe', name: 'SCRIBE', stats: Xp.fresh() };
   const rollbackRoster = new Map([['agent', rollbackHero], ['scribe', rollbackSpec]]);

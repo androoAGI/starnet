@@ -2911,7 +2911,7 @@ const Chat = (() => {
       if (!accepted || !accepted.ok) {
         done = false;
         buttons.forEach(b => { b.disabled = false; });
-        try { if (typeof StationUI !== 'undefined' && StationUI.notify) StationUI.notify('Rating was not saved — try again.', 'bad'); } catch (_) {}
+        try { if (typeof StationUI !== 'undefined' && StationUI.notify) StationUI.notify((accepted && accepted.error) || 'Rating was not saved — try again.', 'bad'); } catch (_) {}
         return;
       }
       btns.remove();
