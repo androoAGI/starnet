@@ -68,6 +68,9 @@ for (const mat of Surface.WALLS) {
   A.ok(!wallSigs.has(sig), mat + ' wall material is distinct'); wallSigs.add(sig);
   A.ok(c.marks.every(([x, y, w, h]) => x >= 0 && y >= 0 && x + w <= 48 && y + h <= 39), mat + ' never paints crown or deck pixels');
   A.eq(new Set(cv.pixels.slice(48 * 38)).size, 1, mat + ' continuous floor-contact row');
+  const repeat = canvas(48, 39);
+  for (let x = 0; x < 4; x++) Surface.paintWallTile(repeat.getContext('2d'), mat, '#2b3340', x * 12, 0, 12, 39, x + 4);
+  A.eq(Array.from(repeat.pixels), Array.from(cv.pixels), mat + ' repeats at the geometry renderer face-strip boundary');
 }
 for (const mat of ['viewport', 'wainscot', 'hedge', 'unknown']) {
   const cv = canvas(12, 39);

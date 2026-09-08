@@ -145,10 +145,10 @@ const WorldSurface = (() => {
       p(0, 0, CELL, CELL, pal.field);
       // Integer, staggered hexagons. Every segment is clipped locally, so the
       // lattice crosses chunk and zone boundaries without an edge artifact.
-      for (let ry = Math.floor(wy / 8) - 1; ry <= Math.floor((wy + 12) / 8); ry++) {
-        const oy = ry * 8 - wy, shift = mod(ry, 2) * 6;
-        for (let rx = Math.floor((wx - shift) / 12) - 1; rx <= Math.floor((wx + 12 - shift) / 12); rx++) {
-          const ox = rx * 12 + shift - wx;
+      for (let rx = Math.floor(wx / 9) - 1; rx <= Math.floor((wx + 12) / 9); rx++) {
+        const ox = rx * 9 - wx, shift = mod(rx, 2) * 4;
+        for (let ry = Math.floor((wy - shift) / 8) - 1; ry <= Math.floor((wy + 12 - shift) / 8); ry++) {
+          const oy = ry * 8 + shift - wy;
           p(ox + 3, oy, 6, 1, pal.recess); p(ox + 4, oy + 1, 4, 1, pal.fine);
           for (let k = 0; k < 3; k++) {
             p(ox + 2 - k, oy + k + 1, 1, 1, pal.recess);
