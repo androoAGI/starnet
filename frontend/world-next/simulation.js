@@ -7,8 +7,8 @@ const NextSimulation = (() => {
     let model=null,geo=null,doc=null,actors=[],clock=0;
     const traversable=(x,y)=>!!(geo&&geo.walkable(x-geo.origin.tx,y-geo.origin.ty));
     function nearest(x,y){
-      x=Math.floor(x);y=Math.floor(y);if(traversable(x,y))return{x:x+.5,y:y+.88};
-      for(let r=1;r<100;r++)for(let dy=-r;dy<=r;dy++)for(let dx=-r;dx<=r;dx++)if((Math.abs(dx)===r||Math.abs(dy)===r)&&traversable(x+dx,y+dy))return{x:x+dx+.5,y:y+dy+.88};
+      x=Math.floor(x);y=Math.floor(y);if(traversable(x,y))return{x:x+.5,y:y+.5};
+      for(let r=1;r<100;r++)for(let dy=-r;dy<=r;dy++)for(let dx=-r;dx<=r;dx++)if((Math.abs(dx)===r||Math.abs(dy)===r)&&traversable(x+dx,y+dy))return{x:x+dx+.5,y:y+dy+.5};
       return null;
     }
     function setStation(next){
@@ -19,7 +19,11 @@ const NextSimulation = (() => {
       if(!geo||!target||!a||a.unplaced)return[];
       const o=geo.origin,start={x:Math.floor(a.x)-o.tx,y:Math.floor(a.y)-o.ty},end={x:Math.floor(target.x)-o.tx,y:Math.floor(target.y)-o.ty};
       const p=geo.path(start.x,start.y,end.x,end.y);
-      return(p||[]).map(t=>({x:(Array.isArray(t)?t[0]:t.x)+o.tx+.5,y:(Array.isArray(t)?t[1]:t.y)+o.ty+.88}));
+      if(!p)return[];
+      const route=p.map(t=>({x:(Array.isArray(t)?t[0]:t.x)+o.tx+.5,y:(Array.isArray(t)?t[1]:t.y)+o.ty+.5}));
+      const center={x:Math.floor(a.x)+.5,y:Math.floor(a.y)+.5};
+      if(Math.hypot(a.x-center.x,a.y-center.y)>.001)route.unshift(center);
+      return route;
     }
     function deskFor(id){return doc&&doc.props.find(p=>p.agentId===id&&/desk|console|bench|pixelrig/.test(p.t))||doc&&doc.props.find(p=>p.agentId===id);}
     function setRoster(roster){
@@ -29,9 +33,9 @@ const NextSimulation = (() => {
           {name:r.name||id,color:r.color||['#99cbd2','#e0ad70','#accb93'][i%3],appearance:i%3,role:r.role||'Crew member'});});
     }
     function updateWork(runList,online){
-      for(const a of actors){const run=(runList||[]).find(r=>(r.agentId===a.id||r.agent_id===a.id)&&/^(running|working|active|streaming|awaiting_approval)$/.test(r.status||r.state));
-        const next=!!run&&online;if(next&&!a.working){const d=deskFor(a.id);if(d)a.path=path(a,nearest(d.x+d.w/2,d.y+d.h));}
-        a.working=next;a.runId=run&&run.runId||run&&run.id||null;a.workUnknown=!online;
+      for(const a of actors){const run=(runList||[]).find(r=>(r.agentId===a.id||r.agent_id===a.id)&&/^(running|working|active|streaming|awaiting_approval|waiting|unknown)$/.test(r.status||r.state));
+        const status=run&&(run.status||run.state),next=!!run&&online&&!/^(waiting|awaiting_approval|unknown)$/.test(status);if(next&&!a.working){const d=deskFor(a.id);if(d)a.path=path(a,nearest(d.x+d.w/2,d.y+d.h));}
+        a.working=next;a.waiting=!!online&&/^(waiting|awaiting_approval)$/.test(status);a.runId=run&&run.runId||run&&run.id||null;a.workUnknown=!online||status==='unknown';
       }
     }
     function move(id,x,y){const a=actors.find(a=>a.id===id),target=nearest(x,y);if(!a||!target)return false;const route=path(a,target);if(!route.length)return false;a.path=route;a.wait=20;return true;}
@@ -40,7 +44,7 @@ const NextSimulation = (() => {
       for(const a of actors){if(a.unplaced)continue;a.moving=false;
         while(a.path.length&&Math.hypot(a.path[0].x-a.x,a.path[0].y-a.y)<.08)a.path.shift();
         if(a.path.length){const target=a.path[0],dx=target.x-a.x,dy=target.y-a.y,d=Math.hypot(dx,dy),step=Math.min(d,dt*2.1);a.x+=dx/d*step;a.y+=dy/d*step;a.moving=true;a.dir=Math.abs(dx)>Math.abs(dy)?dx>0?'east':'west':dy>0?'south':'north';}
-        else if(a.working){a.dir='north';a.wait=4;}
+        else if(a.working||a.waiting||a.workUnknown){a.dir='north';a.wait=4;}
         else if((a.wait-=dt)<=0){const n=hash(a.id+Math.floor(clock/5)),dx=n%13-6,dy=(n>>>8)%11-5;const target=nearest(a.x+dx,a.y+dy);a.path=path(a,target);a.wait=5+(n%7);}
       }
       return actors;
