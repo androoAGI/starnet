@@ -18,7 +18,7 @@
   "expectedClaimCount": 37,
   "releaseSurface": {
     "algorithm": "sha256",
-    "sourceCommit": "430987ee65634df2349b03dd398075af00972eb4",
+    "sourceCommit": "057c61597bc379e1933dde123e9e25f36bc1bea0",
     "pathSetSha256": "893f2c9ca526a94879691b5c9b01adbcd4d30b3619c1a50fbbfbd64f7e227bb9",
     "files": [
       {
@@ -198,8 +198,8 @@
       },
       {
         "path": "frontend/app/crtlab.js",
-        "bytes": 22139,
-        "sha256": "459dda0c13f8f3f0ef6eefa13e2b15af243901d5471c2ae03c92e7a2e96dc449"
+        "bytes": 22310,
+        "sha256": "8321058535242be2a4c143897c1a86628e490c03b496de6bb21e5597517d3263"
       },
       {
         "path": "frontend/app/ctxgauge.js",
@@ -758,8 +758,8 @@
       },
       {
         "path": "frontend/app/stationbake.js",
-        "bytes": 344992,
-        "sha256": "fc8530a1919e1809e1162cfc72ef98401d99b152a6937bdfbfd68eca8d8839cd"
+        "bytes": 349049,
+        "sha256": "1a9c244e049701f7c5a9ca93c021b98eeb40a4c2acb187f237c2c85b7e8d383c"
       },
       {
         "path": "frontend/app/stationcommands.js",
@@ -1013,8 +1013,8 @@
       },
       {
         "path": "frontend/app/world.js",
-        "bytes": 721589,
-        "sha256": "345956e93a99247faca54ed03f66292f7e3719e8cc145efdc520211f0fa0d49c"
+        "bytes": 722651,
+        "sha256": "5838006c779e02250a5a67b7293c39d294d2d6413e89a701334fa6fc79f54cab"
       },
       {
         "path": "frontend/app/worldlab.js",
@@ -1033,13 +1033,13 @@
       },
       {
         "path": "frontend/app/worldrenderer.js",
-        "bytes": 6760,
-        "sha256": "e6a5c89295e79845fdf28cf605f86fa457a012c773280242035f319fe330f886"
+        "bytes": 9036,
+        "sha256": "d8e588af7211d90ddc1e280a3dcb526e331ed42ca9f6400e72c3f43896d2d433"
       },
       {
         "path": "frontend/app/worldsurface.js",
-        "bytes": 26308,
-        "sha256": "8647389704e4a20fe9d30b556423bfb65034738eb9b0afa3ec953e3b8ce1f16f"
+        "bytes": 26498,
+        "sha256": "63ac3322080c0536d204b020b08418186d10ff7f565f37e14e058b522d12c76f"
       },
       {
         "path": "frontend/app/xp.js",
