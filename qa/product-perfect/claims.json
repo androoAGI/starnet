@@ -18,7 +18,7 @@
   "expectedClaimCount": 37,
   "releaseSurface": {
     "algorithm": "sha256",
-    "sourceCommit": "ec3c22605530fe5507823216326e70a86966fb99",
+    "sourceCommit": "dc1377749190c1562ef0a98aba538f35fc2d0364",
     "pathSetSha256": "4283566a35504333c2be893e2fba1667db676f962a57c4225e0e3fb1915c9305",
     "files": [
       {
@@ -68,8 +68,8 @@
       },
       {
         "path": "frontend/app/app.js",
-        "bytes": 379376,
-        "sha256": "1555bfa330dc46407a5faa6d663f1d29eb29c64f73b807e524ae56223b6e0813"
+        "bytes": 379642,
+        "sha256": "5689e59eb4511694148deeaefdf58c995270b7cdc81c9acb51d1c335c4b4d36d"
       },
       {
         "path": "frontend/app/armconfirm.js",
@@ -148,8 +148,8 @@
       },
       {
         "path": "frontend/app/chat.js",
-        "bytes": 642475,
-        "sha256": "e325d81717e7ab1726da56d06443bbe688224fd2784812941fed129682327865"
+        "bytes": 642507,
+        "sha256": "03e3bab374260fcf5f44486234d6146fe89615774bf6257fe40b65df388afcbd"
       },
       {
         "path": "frontend/app/chatresize.js",
@@ -1028,8 +1028,8 @@
       },
       {
         "path": "frontend/app/xpstore.js",
-        "bytes": 20141,
-        "sha256": "0cf148d93a0324861e2eccd19f4a9fb6e288387c9d783b21f92ae0319e4f210b"
+        "bytes": 21245,
+        "sha256": "4c01ff53de1543cba6e51feee4be35b27d3586f6515f7f8b8bf6f6dd3cbe08d6"
       },
       {
         "path": "frontend/app/zones.js",
