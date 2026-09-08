@@ -58,6 +58,11 @@ Observed in the running app on 2026-09-07/08:
   then DONE. The live station reported `floorMat: hex` and `floorStyle: sterile`.
 - Used the catalog's TURN control to place a chair. The live station reported 44 props and
   `p50: { t: chair, x: 22, y: 19, r: 1 }`.
+- Drew a new HAB room and a two-tile-wide connecting corridor in REFIT. The saved live world
+  reported four rooms, four halls, a 540 x 506 rendering extent and 47 light sources. Undoing
+  both additions restored the original three-room, three-hall layout with 44 props.
+- Activated CRT LAB's Clean preset with the keyboard and observed dust, scan, grain and
+  aberration become zero. Restored World II phosphor and observed dust 0.35 and scan 0.26.
 - Observed EMBER in the transfer corridor and later in the conservatory while crew were
   idle or walking, without inventing a working state.
 - Sent `Run the world proof` in COMMS. The real sidecar run
@@ -77,8 +82,12 @@ context recovery, full lamp collection and atmosphere controls. The focused chec
 68 lighting assertions, 309 material assertions, display ordering and lifecycle, material
 seams, hulls, room lighting, CRT probes, canvas recovery and agent clicking.
 
-The repository-wide fast gate is recorded in the task's final verification output. This
-document is not a release-readiness or completed-migration receipt. Installed Windows/macOS
+`npm run test:fast` passed all **734 steps** at committed candidate
+`d4525026ce618128b5e8b10b1f3f751204a991f3`. The local log is
+`dev/world-next-fast-final.log`. The website mirror is synchronized. The required source
+manifest was mechanically re-locked; all 37 reviewed claims and their verdicts were preserved.
+
+This document is not a release-readiness or completed-migration receipt. Installed Windows/macOS
 packages, real paid model providers, full production saves and every rare mechanic have not
 been replayed in this acceptance session. Art superiority over other games is not asserted.
 
