@@ -1,6 +1,8 @@
 /* StarNet WorldLight — spatial illumination for the station's local pixel frame.
  * All sources are supplied by the world: this module invents no activity or fixtures.
  * setGeometry() must follow each projection/bake, including edits that move the origin.
+ * prepare(frame) exposes current illumination before bodies and shadows are drawn;
+ * render(ctx[, frame]) composites it later. Both preserve the caller's world transform.
  * render() replaces the old lightCv, fixture glow and prop emission passes. It preserves
  * the caller's world transform and canvas state. The interior path comes from the bake;
  * walls come from projectGeometry.canStep, including the actual sealed-airlock state.
@@ -131,14 +133,23 @@ const WorldLight = (() => {
   }
 
   function lightAt(x, y, lights, segments) {
-    const rgb = [0, 0, 0]; let strongest = null, strength = 0;
+    const rgb = [0, 0, 0]; let strongest = null, strength = 0, energy = 0, dx = 0, dy = 0;
     for (const l of lights) {
       if (!visibleAt(l, x, y, segments)) continue;
       const v = l.a * falloff(Math.hypot(x - l.x, y - l.y) / l.r);
       for (let i = 0; i < 3; i++) rgb[i] += l.c[i] * v;
+      const o = originOf(l), d = Math.hypot(o.x - x, o.y - y);
+      if (d > EPS) { dx += (o.x - x) / d * v; dy += (o.y - y) / d * v; }
+      energy += v;
       if (v > strength) { strength = v; strongest = l; }
     }
-    return { rgb: rgb.map(v => Math.round(clamp(v, 0, 255))), strength, source: strongest };
+    const direction = Math.hypot(dx, dy);
+    // A weighted colour retains warm/cool identity when overlapping emitters would
+    // saturate additive rgb to white. Direction points from the body TO the light.
+    return { rgb: rgb.map(v => Math.round(clamp(v, 0, 255))), strength, source: strongest,
+      color: rgb.map(v => energy > EPS ? Math.round(clamp(v / energy, 0, 255)) : 0),
+      dx: direction > EPS ? dx / direction : 0, dy: direction > EPS ? dy / direction : 0,
+      energy, coherence: energy > EPS ? clamp(direction / energy, 0, 1) : 0 };
   }
 
   function shadowFor(body, lights, segments) {
@@ -146,11 +157,13 @@ const WorldLight = (() => {
     if (!Number.isFinite(x) || !Number.isFinite(y)) return null;
     const hit = lightAt(x, y, lights, segments), src = hit.source;
     const origin = src ? originOf(src) : null;
-    const dx = origin ? x - origin.x : 0.35, dy = origin ? y - origin.y : 0.8;
-    const d = Math.hypot(dx, dy) || 1, height = clamp(finite(body.height, 18), 2, 90);
-    return { x, y, dx: dx / d, dy: dy / d, width: clamp(finite(body.width, 8), 2, 140),
-      length: height * (src ? clamp(d / src.r, 0.15, 0.7) : 0.3),
-      alpha: clamp(finite(body.opacity, 0.22) * (0.65 + hit.strength), 0, 0.42) };
+    const d = origin ? Math.hypot(x - origin.x, y - origin.y) : 1;
+    const height = clamp(finite(body.height, 18), 2, 90), width = clamp(finite(body.width, 8), 2, 140);
+    return { x, y, dx: src ? -hit.dx : 0.4, dy: src ? -hit.dy : 0.9165, width,
+      length: height * (src ? clamp(d / src.r, 0.15, 0.7) * (0.35 + hit.coherence * 0.65) : 0.3),
+      penumbra: clamp(width * 0.16 + height * 0.035, 0.7, 5),
+      alpha: clamp(finite(body.opacity, 0.22) * (0.65 + hit.strength), 0, 0.42),
+      contactAlpha: clamp(finite(body.opacity, 0.22) * 0.8, 0, 0.24) };
   }
 
   function create(options) {
@@ -162,10 +175,11 @@ const WorldLight = (() => {
     let interiorPath = null, interiorMask = null, surfaceMask = null, surfaceChunks = [];
     let baseDark = null, baseGlow = null, frameDark = null, frameGlow = null;
     let fixtureKey = '', frameKey = '', fixtureLights = [], currentLights = [], stampPixels = 0, disposed = false;
+    let preparedFrame = null, preparedLights = [];
     const stamps = new Map(), canvasWatches = new Map(), lostCanvases = new Set();
     let resourcesDirty = false, retryResourcesAt = 0;
     const metrics = { geometryRevision: 0, staticBuilds: 0, dynamicBuilds: 0, visibilityBuilds: 0,
-      frames: 0, lastBuildMs: 0, droppedSources: 0, supported: true, contextLosses: 0, contextRecoveries: 0 };
+      frames: 0, preparations: 0, lastBuildMs: 0, droppedSources: 0, supported: true, contextLosses: 0, contextRecoveries: 0 };
     function lost(c) {
       if (!lostCanvases.has(c)) { lostCanvases.add(c); metrics.contextLosses++; }
       resourcesDirty = true;
@@ -211,6 +225,7 @@ const WorldLight = (() => {
       const w = Math.max(1, Math.ceil(width * ratio)), h = Math.max(1, Math.ceil(height * ratio));
       baseDark = makeCanvas(w, h); baseGlow = makeCanvas(w, h); frameDark = makeCanvas(w, h); frameGlow = makeCanvas(w, h);
       clearStamps(); fixtureKey = ''; frameKey = ''; fixtureLights = []; currentLights = [];
+      preparedFrame = null; preparedLights = [];
       resourcesDirty = false; retryResourcesAt = 0; metrics.geometryRevision++; return metrics.supported;
     }
 
@@ -348,16 +363,28 @@ const WorldLight = (() => {
       metrics.staticBuilds++;
     }
 
-    function render(ctx, frame) {
-      if (disposed || !geo || !ctx || !ensureResources()) return false;
-      frame = frame || {}; const started = clock(), q = QUALITY[quality];
+    function prepare(frame) {
+      if (disposed || !geo) return false;
+      frame = frame || {}; const q = QUALITY[quality];
       if (Number.isFinite(+frame.ambient)) config.ambient = +frame.ambient;
       const sourceFixtures = frame.fixtures || [], sourceProps = frame.lights || [];
-      const fixtures = sourceFixtures.map(s => normalizeLight(s, true, finite(frame.fixtureGain, 1))).filter(Boolean).slice(0, q.maxSources);
-      const lights = sourceProps.map(s => normalizeLight(s, false, finite(frame.emission, config.emission))).filter(Boolean).slice(0, q.maxSources);
-      metrics.droppedSources = Math.max(0, sourceFixtures.length - fixtures.length) + Math.max(0, sourceProps.length - lights.length);
+      fixtureLights = sourceFixtures.map(s => normalizeLight(s, true, finite(frame.fixtureGain, 1))).filter(Boolean).slice(0, q.maxSources);
+      preparedLights = sourceProps.map(s => normalizeLight(s, false, finite(frame.emission, config.emission))).filter(Boolean).slice(0, q.maxSources);
+      currentLights = fixtureLights.concat(preparedLights); preparedFrame = frame;
+      metrics.droppedSources = Math.max(0, sourceFixtures.length - fixtureLights.length) + Math.max(0, sourceProps.length - preparedLights.length);
+      metrics.preparations++; return true;
+    }
+
+    function render(ctx, frame) {
+      if (disposed || !geo || !ctx) return false;
+      // Retain the supplied frame through backing-store recovery, which correctly
+      // invalidates all geometry-dependent caches and their normalized sources.
+      const nextFrame = frame === undefined ? preparedFrame || {} : frame;
+      const started = clock(); if (!ensureResources()) return false;
+      prepare(nextFrame);
+      const fixtures = fixtureLights, lights = preparedLights;
       const fk = signature(fixtures) + '|' + config.ambient + ',' + config.wallAmbient + ',' + config.fixtureTint;
-      if (fk !== fixtureKey) { rebuildStatic(fixtures); fixtureLights = fixtures; fixtureKey = fk; frameKey = ''; }
+      if (fk !== fixtureKey) { rebuildStatic(fixtures); fixtureKey = fk; frameKey = ''; }
       const dk = signature(lights) + '|' + finite(config.propLift, 0.65);
       if (dk !== frameKey) {
         const d = reset(frameDark), glow = reset(frameGlow);
@@ -365,7 +392,6 @@ const WorldLight = (() => {
         paint(d, lights, finite(config.propLift, 0.65), 'destination-out'); paint(glow, lights, 1, 'screen');
         frameKey = dk; metrics.dynamicBuilds++;
       }
-      currentLights = fixtureLights.concat(lights);
       ctx.save();
       ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over'; ctx.imageSmoothingEnabled = ratio < 1;
       ctx.drawImage(frameDark, 0, 0, width, height); ctx.globalCompositeOperation = 'screen';
@@ -378,13 +404,26 @@ const WorldLight = (() => {
       ctx.save(); clipFloor(ctx); ctx.globalCompositeOperation = 'multiply';
       for (const body of (bodies || [])) {
         const s = shadowFor(body, currentLights, segments); if (!s) continue;
-        const nx = -s.dy * s.width / 2, ny = s.dx * s.width / 2;
+        ctx.save();
+        // The silhouette can spread around a foot, but never through a bulkhead.
+        const polygon = visibilityPolygon({ x: s.x, y: s.y, r: s.length + s.width }, segments, 24);
+        ctx.beginPath(); polygon.forEach((p, i) => i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y)); ctx.closePath(); ctx.clip();
         const ex = s.x + s.dx * s.length, ey = s.y + s.dy * s.length;
-        const gradient = ctx.createLinearGradient(s.x, s.y, ex + 0.01, ey + 0.01);
-        gradient.addColorStop(0, 'rgba(4,7,16,' + s.alpha + ')'); gradient.addColorStop(1, 'rgba(4,7,16,0)');
-        ctx.fillStyle = gradient; ctx.beginPath(); ctx.moveTo(s.x + nx, s.y + ny);
-        ctx.lineTo(ex + nx * 0.7, ey + ny * 0.7); ctx.lineTo(ex - nx * 0.7, ey - ny * 0.7);
-        ctx.lineTo(s.x - nx, s.y - ny); ctx.closePath(); ctx.fill();
+        // Nested low-opacity silhouettes form a bounded penumbra without a blur
+        // filter that would smear pixels or spill beyond the floor/wall masks.
+        for (const band of [1, 0.55, 0]) {
+          const near = s.width * 0.43 + s.penumbra * band * 0.2;
+          const far = s.width * 0.34 + s.penumbra * band;
+          const gradient = ctx.createLinearGradient(s.x, s.y, ex + 0.01, ey + 0.01);
+          gradient.addColorStop(0, 'rgba(4,7,16,' + s.alpha / 3 + ')'); gradient.addColorStop(1, 'rgba(4,7,16,0)');
+          ctx.fillStyle = gradient; ctx.beginPath(); ctx.moveTo(s.x - s.dy * near, s.y + s.dx * near);
+          ctx.lineTo(ex - s.dy * far, ey + s.dx * far); ctx.lineTo(ex + s.dy * far, ey - s.dx * far);
+          ctx.lineTo(s.x + s.dy * near, s.y - s.dx * near); ctx.closePath(); ctx.fill();
+        }
+        const contact = ctx.createRadialGradient(s.x, s.y, 0, s.x, s.y, s.width * 0.52);
+        contact.addColorStop(0, 'rgba(3,6,12,' + s.contactAlpha + ')'); contact.addColorStop(1, 'rgba(3,6,12,0)');
+        ctx.fillStyle = contact; ctx.beginPath(); ctx.ellipse(s.x, s.y, s.width * 0.52, Math.max(0.65, s.width * 0.14), 0, 0, TAU); ctx.fill();
+        ctx.restore();
       }
       ctx.restore();
     }
@@ -419,9 +458,10 @@ const WorldLight = (() => {
       disposed = true; for (const c of [baseDark, baseGlow, frameDark, frameGlow]) release(c);
       baseDark = null; baseGlow = null; frameDark = null; frameGlow = null;
       clearStamps(); currentLights = []; fixtureLights = []; geo = null; surfaceMask = null; interiorPath = null;
+      preparedFrame = null; preparedLights = [];
       interiorMask = null; surfaceChunks = [];
     }
-    return { setGeometry, render, drawGrounding, drawAtmosphere, configure, dispose,
+    return { setGeometry, prepare, render, drawGrounding, drawAtmosphere, configure, dispose,
       sample: (x, y) => lightAt(x, y, currentLights, segments),
       stats: () => Object.assign({}, metrics, { quality, width, height, resolution: +ratio.toFixed(4),
         segments: segments.length, sources: currentLights.length, cachedStamps: stamps.size,
