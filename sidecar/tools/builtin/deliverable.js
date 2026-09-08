@@ -61,7 +61,7 @@
       // (a plain chat run with no cabinet) are exactly the ones that could never supply one.
       name: 'deliverable_note', capability: 'deliverable', scope: 'write', requiresConsent: false, timeoutMs: 5000,
       description: 'Name the work you produced in this task, so the Commander can find it later in DELIVERABLES. '
-        + 'Call this ONCE, at the end, only when you actually created or changed files. '
+        + 'Optional: call this ONCE, at the end, only when you actually created or changed files. Skip it when the user limits actions, says no further actions, or asks you to stop after the requested change. '
         + 'title: a short plain-English name for the thing you made (not a filename). '
         + 'summary: one sentence saying what it is, in the same plain language. '
         + 'kind: doc | data | page | patch | image | files. '
