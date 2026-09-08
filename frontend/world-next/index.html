@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#0c171c">
+  <title>StarNet · New Horizon</title>
+  <link rel="stylesheet" href="world-next.css">
+</head>
+<body>
+  <canvas id="world" aria-label="StarNet New Horizon interactive station"></canvas>
+  <header class="flight-header">
+    <div class="identity"><span class="orbit-mark" aria-hidden="true">✦</span><div><b>STARNET</b><span id="station-name">NEW HORIZON</span></div><span class="edition">NEW WORLD<br>DEVELOPMENT</span></div>
+    <div class="flight-controls"><span id="connection" data-state="connecting">Connecting to station</span><button id="overview" aria-label="Fit the whole station">⌘ <span>Overview</span></button><button id="focus" aria-label="Focus selected crew member">◎ <span>Follow crew</span></button></div>
+  </header>
+  <aside class="crew-rail" aria-label="Station crew"><div class="eyebrow">ABOARD THE STATION <span id="crew-count">—</span></div><div id="crew-list"></div><button class="text-button" id="crew-manage">Crew & capabilities ↗</button></aside>
+  <nav id="room-nav" aria-label="Station rooms"></nav>
+  <aside id="panel" class="panel" hidden><header><div><span class="eyebrow" id="panel-kicker">STATION</span><h1 id="panel-title"></h1></div><button id="panel-close" aria-label="Close panel">×</button></header><div id="panel-body"></div></aside>
+  <aside id="inspector" class="inspector" hidden></aside>
+  <div class="world-hint" id="world-hint">Drag to look around · Scroll to zoom · Click a crew member to talk</div>
+  <footer class="command-dock"><div class="dock-group"><button data-panel="build" id="open-build"><span>▧</span> Build</button><button data-panel="comms" id="open-comms"><span>◌</span> Comms</button><button data-panel="work" id="open-work"><span>≋</span> Work</button><button data-panel="crew" id="open-crew"><span>♙</span> Crew</button></div><div class="dock-divider"></div><button id="undo" aria-label="Undo station edit" disabled>↶</button><button id="redo" aria-label="Redo station edit" disabled>↷</button><span id="save-state">Loading station</span><button id="settings" aria-label="World settings">⚙</button></footer>
+  <div id="toast" role="status" hidden></div>
+  <div id="loading" class="loading"><div class="loading-orbit">✦</div><span class="eyebrow">STARNET / NEW HORIZON</span><h1>A new world is taking shape.</h1><p id="loading-message">Connecting the fresh world client to your station.</p></div>
+  <script src="../app/pipeline.js"></script>
+  <script src="../app/worldmodel.js"></script>
+  <script src="bridge.js"></script>
+  <script src="simulation.js"></script>
+  <script src="characters.js"></script>
+  <script src="art.js"></script>
+  <script src="scene.js"></script>
+  <script src="client.js"></script>
+</body>
+</html>
