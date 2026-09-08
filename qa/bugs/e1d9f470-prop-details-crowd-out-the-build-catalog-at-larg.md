@@ -4,7 +4,7 @@ slug: prop-details-crowd-out-the-build-catalog-at-larg
 title: Prop details crowd out the build catalog at larger UI scales
 surface: world
 severity: P2
-status: open
+status: fixed
 found: 2026-09-07
 lane: prop-panel-0907
 fix: c6f77fff4
@@ -34,7 +34,7 @@ Owner supplied Screenshot 2026-09-07 161249.png. Seeded live reproduction at 136
 
 ## Verdict
 
-Source repair committed as c6f77fff4. Record remains open pending the full gate and delivery. Installer and customer recovery remain unverified.
+Source repair committed as c6f77fff4 and verified in the seeded running app. The compact summary retains the name, appearance/ability classification, dimensions and actions; full descriptions remain under About this prop. Installer and customer recovery remain unverified.
 
 ## Regression
 
