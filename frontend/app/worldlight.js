@@ -190,10 +190,10 @@ const WorldLight = (() => {
       energy, coherence: energy > EPS ? clamp(direction / energy, 0, 1) : 0 };
   }
 
-  function shadowFor(body, lights, segments) {
+  function shadowFor(body, lights, segments, preparedHit) {
     const x = finite(body.x, body.px), y = finite(body.y, body.py);
     if (!Number.isFinite(x) || !Number.isFinite(y)) return null;
-    const hit = lightAt(x, y, lights, segments), src = hit.source;
+    const hit = preparedHit || lightAt(x, y, lights, segments), src = hit.source;
     const origin = src ? originOf(src) : null;
     const d = origin ? Math.hypot(x - origin.x, y - origin.y) : 1;
     const height = clamp(finite(body.height, 18), 2, 90), width = clamp(finite(body.width, 8), 2, 140);
@@ -208,16 +208,42 @@ const WorldLight = (() => {
     options = options || {};
     let quality = QUALITY[options.quality] ? options.quality : 'high';
     let config = Object.assign({ ambient: 0.82, wallAmbient: 0.28, fixtureTint: 0.17,
-      emission: 1, propLift: 0.65, atmosphere: 0.25, shafts: 1 }, options);
+      emission: 1, propLift: 0.65, atmosphere: 0.25, shafts: 1, sampleCacheLimit: 512 }, options);
     let geo = null, geometryOptions = {}, segments = [], width = 1, height = 1, ratio = 1;
     let interiorPath = null, interiorMask = null, surfaceMask = null, surfaceChunks = [];
     let baseDark = null, baseGlow = null, frameDark = null, frameGlow = null;
     let fixtureKey = '', frameKey = '', fixtureLights = [], currentLights = [], stampPixels = 0, disposed = false;
     let preparedFrame = null, preparedLights = [];
-    const stamps = new Map(), canvasWatches = new Map(), lostCanvases = new Set();
+    const stamps = new Map(), canvasWatches = new Map(), lostCanvases = new Set(), samples = new Map();
+    let sampleKey = null;
     let resourcesDirty = false, retryResourcesAt = 0;
     const metrics = { geometryRevision: 0, staticBuilds: 0, dynamicBuilds: 0, visibilityBuilds: 0,
-      frames: 0, preparations: 0, beamBuilds: 0, lastBuildMs: 0, droppedSources: 0, supported: true, contextLosses: 0, contextRecoveries: 0 };
+      frames: 0, preparations: 0, beamBuilds: 0, lastBuildMs: 0, droppedSources: 0, supported: true, contextLosses: 0, contextRecoveries: 0,
+      configRevision: 0, sampleCacheHits: 0, sampleCacheMisses: 0, sampleCacheEvictions: 0, sampleCacheInvalidations: 0 };
+    const sampleLimit = () => clamp(Math.floor(finite(config.sampleCacheLimit, 512)), 0, 2048);
+    function invalidateSamples() {
+      samples.clear(); sampleKey = null; metrics.sampleCacheInvalidations++;
+    }
+    function sample(x, y) {
+      x = +x; y = +y;
+      if (disposed || !Number.isFinite(x) || !Number.isFinite(y)) return lightAt(0, 0, [], segments);
+      // Exact float keys: furniture reuses its sample, while a moving body never
+      // receives the value from the other side of a doorway or a rounded pixel.
+      const key = x + ',' + y, cached = samples.get(key);
+      if (cached) {
+        samples.delete(key); samples.set(key, cached); metrics.sampleCacheHits++; return cached;
+      }
+      metrics.sampleCacheMisses++;
+      const hit = lightAt(x, y, currentLights, segments), limit = sampleLimit();
+      // Descriptors are read-only so a sprite's tint adjustment cannot poison the
+      // next furniture/crew draw sharing this exact physical position.
+      Object.freeze(hit.rgb); Object.freeze(hit.color); Object.freeze(hit);
+      if (limit) {
+        while (samples.size >= limit) { samples.delete(samples.keys().next().value); metrics.sampleCacheEvictions++; }
+        samples.set(key, hit);
+      }
+      return hit;
+    }
     function lost(c) {
       if (!lostCanvases.has(c)) { lostCanvases.add(c); metrics.contextLosses++; }
       resourcesDirty = true;
@@ -264,6 +290,7 @@ const WorldLight = (() => {
       baseDark = makeCanvas(w, h); baseGlow = makeCanvas(w, h); frameDark = makeCanvas(w, h); frameGlow = makeCanvas(w, h);
       clearStamps(); fixtureKey = ''; frameKey = ''; fixtureLights = []; currentLights = [];
       preparedFrame = null; preparedLights = [];
+      invalidateSamples();
       resourcesDirty = false; retryResourcesAt = 0; metrics.geometryRevision++; return metrics.supported;
     }
 
@@ -442,6 +469,12 @@ const WorldLight = (() => {
       preparedLights = sourceProps.map(s => normalizeLight(s, false, finite(frame.emission, config.emission))).filter(Boolean).slice(0, q.maxSources);
       currentLights = fixtureLights.concat(preparedLights); preparedFrame = frame;
       for (const light of currentLights) light.origins = emitterOrigins(light, segments, q.areaSamples);
+      // Sample energy must respond to even sub-byte changes. Raster map keys may
+      // quantize alpha for reuse; this key deliberately retains its exact value.
+      const exact = lights => lights.map(l => keyOf(l) + ',' + l.a + ',' + beamKey(l)).join(';');
+      const nextSampleKey = metrics.geometryRevision + '/' + metrics.configRevision + '/' + quality + '/' + config.ambient +
+        '|fixtures:' + exact(fixtureLights) + '|props:' + exact(preparedLights);
+      if (nextSampleKey !== sampleKey) { invalidateSamples(); sampleKey = nextSampleKey; }
       metrics.droppedSources = Math.max(0, sourceFixtures.length - fixtureLights.length) + Math.max(0, sourceProps.length - preparedLights.length);
       metrics.preparations++; return true;
     }
@@ -474,7 +507,8 @@ const WorldLight = (() => {
       if (disposed || !ctx || !geo) return;
       ctx.save(); clipFloor(ctx); ctx.globalCompositeOperation = 'multiply';
       for (const body of (bodies || [])) {
-        const s = shadowFor(body, currentLights, segments); if (!s) continue;
+        const s = shadowFor(body, currentLights, segments,
+          sample(finite(body.x, body.px), finite(body.y, body.py))); if (!s) continue;
         ctx.save();
         // The silhouette can spread around a foot, but never through a bulkhead.
         const polygon = visibilityPolygon({ x: s.x, y: s.y, r: s.length + s.width }, segments, 24);
@@ -527,6 +561,7 @@ const WorldLight = (() => {
     function configure(next) {
       if (!next || disposed) return;
       config = Object.assign({}, config, next);
+      metrics.configRevision++; invalidateSamples();
       if (QUALITY[next.quality] && next.quality !== quality) { quality = next.quality; if (geo) setGeometry(geo, geometryOptions); }
       else { fixtureKey = ''; frameKey = ''; }
     }
@@ -535,12 +570,13 @@ const WorldLight = (() => {
       baseDark = null; baseGlow = null; frameDark = null; frameGlow = null;
       clearStamps(); currentLights = []; fixtureLights = []; geo = null; surfaceMask = null; interiorPath = null;
       preparedFrame = null; preparedLights = [];
+      invalidateSamples();
       interiorMask = null; surfaceChunks = [];
     }
-    return { setGeometry, prepare, render, drawGrounding, drawAtmosphere, configure, dispose,
-      sample: (x, y) => lightAt(x, y, currentLights, segments),
+    return { setGeometry, prepare, render, drawGrounding, drawAtmosphere, configure, dispose, sample,
       stats: () => Object.assign({}, metrics, { quality, width, height, resolution: +ratio.toFixed(4),
         segments: segments.length, sources: currentLights.length, cachedStamps: stamps.size, areaSamples: QUALITY[quality].areaSamples,
+        sampleCacheSize: samples.size, sampleCacheLimit: sampleLimit(),
         shafts: fixtureLights.filter(l => l.beam && l.beam.strength > 0 && config.shafts > 0).length,
         ambient: clamp(0.208 + finite(config.ambient, 0.82) * 0.6, 0, 0.9),
         cacheBytes: 4 * stampPixels + (baseDark ? baseDark.width * baseDark.height * 16 : 0), disposed }) };
