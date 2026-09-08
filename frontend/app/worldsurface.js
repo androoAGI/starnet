@@ -18,7 +18,7 @@
 'use strict';
 
 const WorldSurface = (() => {
-  const VERSION = 1;
+  const VERSION = 2;
   const CELL = 12;
   const MATERIALS = Object.freeze([
     'spine', 'alloy', 'plate', 'panel', 'tile', 'tread', 'soft', 'grate', 'hex',
@@ -82,12 +82,17 @@ const WorldSurface = (() => {
     const lx = mod(wx + stagger, w), ly = mod(wy, h);
     const panelX = Math.floor((wx + stagger) / w), seed = hash(panelX, row, 31);
     p(0, 0, CELL, CELL, seed % 3 === 0 ? pal.raised : pal.field);
-    // A quiet broad face bounded by a one-pixel seam and its catchlight. The
-    // seam has two tones; the face does not get a box drawn inside every tile.
+    // One physical plate, with a recessed gasket and a turned upper lip. The
+    // opposite edges fall into the joint; large faces stay quiet between them.
+    // All four edges belong to this same world-anchored panel, including clips.
     p(-lx, -ly, w, 1, pal.recess);
-    p(-lx, 1 - ly, w, 1, pal.fine);
+    p(1 - lx, 1 - ly, w - 2, 1, pal.edge);
     p(-lx, -ly, 1, h, pal.recess);
     p(1 - lx, 2 - ly, 1, h - 2, pal.fine);
+    p(2 - lx, h - 2 - ly, w - 3, 1, pal.shade);
+    p(1 - lx, h - 1 - ly, w - 1, 1, pal.recess);
+    p(w - 2 - lx, 2 - ly, 1, h - 4, pal.soft);
+    p(w - 1 - lx, 1 - ly, 1, h - 2, pal.recess);
     if (opts.bolts) {
       bolt(p, 3 - lx, 3 - ly, pal);
       bolt(p, w - 5 - lx, h - 5 - ly, pal);
@@ -175,6 +180,11 @@ const WorldSurface = (() => {
       p(0, 0, CELL, CELL, block % 3 ? pal.field : pal.raised);
       if (mod(ty, 3) === 0) p(0, 0, CELL, 1, pal.soft);
       if (mod(tx, 3) === 0) p(0, 0, 1, CELL, pal.soft);
+      // A shallow clearcoat roll-off spans a whole poured slab. It is a
+      // material finish, never a reflected object or an invented light source.
+      const lx = mod(wx, 36), ly = mod(wy, 36);
+      p(3 - lx, 3 - ly, 29, 2, pal.raised);
+      p(5 - lx, 5 - ly, 24, 1, pal.fine);
       if (hash(tx, ty, 102) % 13 === 2) p(2, 8, 6, 1, pal.fine);
       return true;
     }
@@ -190,15 +200,27 @@ const WorldSurface = (() => {
       for (let y = -ly + 4; y < CELL; y += 6) p(34 - lx, y, 2, 1, pal.shade);
       if (q.row % 3 === 0) p(4 - lx, 4 - ly, 6, 1, pal.warm);
     } else if (mat === 'alloy') {
+      p(4 - lx, 3 - ly, 14, 2, pal.raised);
+      p(5 - lx, 5 - ly, 11, 1, pal.fine);
       p(3 - lx, 20 - ly, 8, 1, pal.soft);
       p(21 - lx, 4 - ly, 1, 13, pal.shade);
+    } else if (mat === 'plate') {
+      // Wear stays at a panel's service edge instead of becoming floor noise.
+      if (q.seed % 5 === 1) {
+        p(4 - lx, h - 5 - ly, 7, 1, pal.soft);
+        p(6 - lx, h - 4 - ly, 4, 1, pal.fine);
+      }
     } else if (mat === 'panel') {
       p(3 - lx, 8 - ly, 14, 1, pal.soft); p(20 - lx, 4 - ly, 2, 1, pal.recess);
     } else if (mat === 'tile' || mat === 'ceramic') {
       p(2 - lx, 2 - ly, w - 3, h - 3, mod(q.panelX + q.row, 2) ? pal.raised : pal.field);
       p(2 - lx, 2 - ly, w - 4, 1, pal.edge);
       p(w - 2 - lx, 3 - ly, 1, h - 4, pal.shade);
-      if (mat === 'ceramic') p(4 - lx, 4 - ly, 7, 1, pal.fine);
+      p(3 - lx, h - 2 - ly, w - 5, 1, pal.shade);
+      if (mat === 'ceramic') {
+        p(4 - lx, 4 - ly, 12, 2, pal.raised);
+        p(5 - lx, 6 - ly, 9, 1, pal.fine);
+      }
     } else if (mat === 'tread' || mat === 'treadway') {
       for (let i = 0; i < 2; i++) {
         const y = 3 + i * 6;
@@ -247,39 +269,51 @@ const WorldSurface = (() => {
     // recessed bays provide room for the occasional rail or service fitting.
     p(0, 0, CELL, 3, pal.deep); p(0, 3, CELL, 2, pal.edge);
     p(0, 5, CELL, belt - 5, pal.shade);
+    p(0, 5, CELL, 1, pal.fine);                       // crown undercut catches a narrow rim
     p(0, belt, CELL, h - belt, pal.recess);
     p(0, belt, CELL, 1, pal.deep); p(0, belt + 1, CELL, 1, pal.fine);
     p(0, foot, CELL, h - foot, pal.shade);
-    p(0, foot, CELL, 1, pal.edge); p(0, h - 1, CELL, 1, pal.deep);
+    p(0, foot, CELL, 1, pal.edge);
+    p(0, foot + 1, CELL, 1, pal.base);                // bevelled kick-plate nose
+    p(0, h - 2, CELL, 1, pal.recess); p(0, h - 1, CELL, 1, pal.deep);
 
     if (material === 'courses') {
       for (let y = 7, row = 0; y < foot; y += 6, row++) {
         const cx = mod(wx + mod(row, 2) * 12, 24);
         p(0, y, CELL, 1, pal.deep); p(0, y + 1, CELL, 1, pal.fine);
         p(-cx, y + 1, 1, 5, pal.recess);
+        p(1 - cx, y + 2, 1, 3, pal.soft);
       }
     } else if (material === 'ribbed') {
       for (let x = 1; x < CELL; x += 4) {
         p(x, 6, 2, Math.max(1, belt - 7), pal.recess);
         p(x, 6, 1, Math.max(1, belt - 7), pal.fine);
+        p(x + 2, 6, 1, Math.max(1, belt - 7), pal.soft);
       }
     } else if (material === 'pipework') {
       for (const y of [Math.round(h * 0.26), Math.round(h * 0.46)]) {
         p(0, y + 2, CELL, 2, pal.deep); p(0, y, CELL, 3, pal.base);
         p(0, y, CELL, 1, pal.metal);
+        p(0, y + 2, CELL, 1, pal.shade);
         p(7 - lx, y - 1, 2, 5, pal.recess); p(7 - lx, y - 1, 1, 4, pal.fine);
       }
     } else {
       const pitch = material === 'panelled' ? 48 : 24;
       p(3 - lx, 7, pitch - 6, Math.max(1, belt - 9), pal.recess);
-      p(4 - lx, 8, pitch - 8, Math.max(1, belt - 11), pal.shade);
-      p(4 - lx, 8, pitch - 8, 1, pal.soft);
+      p(4 - lx, 8, pitch - 8, Math.max(1, belt - 11), pal.base);
+      p(4 - lx, 8, pitch - 8, 1, pal.fine);
+      p(5 - lx, 9, pitch - 10, 2, pal.raised);
+      p(4 - lx, 9, 1, Math.max(1, belt - 13), pal.soft);
+      p(pitch - 5 - lx, 9, 1, Math.max(1, belt - 12), pal.shade);
+      p(5 - lx, belt - 4, pitch - 10, 1, pal.shade);
+      p(4 - lx, belt - 3, pitch - 8, 1, pal.deep);
       if (material === 'service') {
         for (let y = belt + 4; y < foot - 1; y += 3) p(4 - lx, y, 15, 1, pal.deep);
         p(16 - lx, 10, 3, 6, pal.deep); p(16 - lx, 10, 1, 5, pal.warm);
       } else if (material === 'bulkhead') {
         p(7 - lx, belt + 4, 10, Math.max(1, foot - belt - 6), pal.deep);
         p(8 - lx, belt + 5, 8, Math.max(1, foot - belt - 8), pal.recess);
+        p(8 - lx, belt + 4, 8, 1, pal.shade);
       } else if (material === 'plating') {
         p(5 - lx, 10, 3, 1, pal.fine); p(17 - lx, belt - 5, 2, 2, pal.recess);
       }
@@ -290,6 +324,10 @@ const WorldSurface = (() => {
       p(-lx, 3, 3, h - 4, pal.deep); p(1 - lx, 4, 2, h - 6, pal.base);
       p(1 - lx, 4, 1, h - 6, pal.edge);
       p(1 - lx, 7, 1, 1, pal.metal); p(1 - lx, h - 5, 1, 1, pal.metal);
+      // Flat gussets tie the existing upright into the dado. Their silhouette
+      // stays inside the face and repeats with the renderer's four-tile strip.
+      p(2 - lx, belt - 2, 2, 4, pal.deep);
+      p(2 - lx, belt - 2, 2, 1, pal.fine);
     }
     return true;
   }
@@ -379,6 +417,7 @@ const WorldSurface = (() => {
             x: c.anchor.tx * T + T / 2, y: c.anchor.ty * T + T / 2,
             r: T * (corridor ? 4.5 : 6.5), rgb, gain: corridor ? 0.64 : 0.82,
             fixtureX, fixtureY, tileX: c.tx, tileY: y,
+            emitX: fixtureX, emitY: fixtureY + 2.5, normalX: 0, normalY: 1,
             base: geo.wallBaseOf ? geo.wallBaseOf(z) : '#3a3b41'
           });
         }
@@ -396,15 +435,19 @@ const WorldSurface = (() => {
       if (v && (x + 5 <= v.x || x - 5 >= v.x + v.w || y + 6 <= v.y || y - 2 >= v.y + v.h)) continue;
       const p = palette(f.base, detailOf(opts));
       const mark = (dx, dy, w, h, c) => { ctx.fillStyle = c; ctx.fillRect(x + dx, y + dy, w, h); };
-      mark(-1, -2, 2, 2, p.deep);                         // bolted mount under crown
+      mark(-2, -2, 4, 2, p.deep);                         // bolted saddle under crown
+      mark(-1, -2, 2, 1, p.shade);
       mark(-4, 1, 9, 5, p.deep);                         // housing casts a hard shadow
       mark(-5, 1, 1, 3, p.recess); mark(4, 1, 1, 3, p.recess);
       mark(-4, 0, 8, 4, p.base); mark(-4, 0, 8, 1, p.metal);
+      mark(-2, 0, 4, 1, p.edge);                        // angled top instead of a flat bright box
       mark(-3, 1, 6, 2, p.deep);
       const lens = f.rgb === '215,232,246' ? '#d7e8f6' : '#ffdeb3';
       mark(-3, 2, 6, 1, lens);                            // the actual visible emitter
       mark(-3, 3, 6, 1, p.warm);                        // down-facing reflector lip
       mark(-4, 1, 1, 1, p.edge); mark(3, 1, 1, 1, p.edge);
+      mark(-4, 3, 1, 2, p.shade); mark(3, 3, 1, 2, p.shade);
+      mark(-2, 4, 4, 1, p.recess);                      // recessed underside leaves the lens readable
     }
     return fixtures;
   }

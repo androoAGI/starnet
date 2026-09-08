@@ -198,4 +198,44 @@ const narrow = fixtureGeometry();
 for (let y = 0; y < narrow.ROWS; y++) for (let x = 8; x < narrow.COLS; x++) narrow.zoneGrid[narrow.idx(x, y)] = null;
 narrow.isCorridor = () => true;
 A.eq(Surface.planFixtures(narrow).length, 0, 'short corridor mouths receive no extra light hardware');
+
+// Dimensional detail uses the approved selected-colour ramp, never replacement
+// colours, and remains material finish rather than animated light or telemetry.
+const approvedColors = new Set(Object.values(Surface.palette('#3a3b41')).map(h => (0xff000000 | parseInt(h.slice(1), 16)) >>> 0));
+for (const mat of Surface.MATERIALS)
+  A.ok(patch(mat).pixels.every(p => approvedColors.has(p)), mat + ' depth accents stay inside the existing selected-paint palette');
+const pixelLuma = value => luma('#' + (value & 0xffffff).toString(16).padStart(6, '0'));
+const bevel = canvas(24, 24), bevelCtx = bevel.getContext('2d');
+for (let y = 0; y < 2; y++) for (let x = 0; x < 2; x++)
+  Surface.paintFloorTile(bevelCtx, 'plate', '#3a3b41', x * 12, y * 12, 12, x, y);
+const atPlate = (x, y) => bevel.pixels[y * 24 + x];
+A.ok(pixelLuma(atPlate(14, 1)) > pixelLuma(atPlate(14, 12)), 'a plate upper lip catches light above its quiet face');
+A.ok(pixelLuma(atPlate(14, 23)) < pixelLuma(atPlate(14, 12)), 'the opposite plate edge falls into a recessed contact seam');
+A.ok(pixelLuma(atPlate(23, 12)) < pixelLuma(atPlate(12, 12)), 'east plate edge has a physical undercut without expanding the footprint');
+
+// Broad finish ribbons must crop just like their surrounding floor. This catches
+// slab-sized detail accidentally anchored to each chunk or to the camera frame.
+for (const material of ['resin', 'ceramic', 'alloy', 'plate']) {
+  const mg = geometry(); mg.matOf = () => material; mg.baseColorOf = () => '#3a3b41';
+  const all = Surface.bake(mg, { canvasFactory: canvas }).baseCv;
+  const v = { x: 29, y: 25, w: 71, h: 49 };
+  const cut = Surface.bake(mg, { canvasFactory: canvas, viewport: v }).baseCv;
+  let matches = true;
+  for (let y = 0; y < v.h; y++) for (let x = 0; x < v.w; x++)
+    if (cut.pixels[y * v.w + x] !== all.pixels[(y + v.y) * all.width + x + v.x]) matches = false;
+  A.ok(matches, material + ' plate bevels and shallow finish highlights are exact chunk crops');
+}
+
+for (const f of fixtures) {
+  A.eq([f.emitX, f.emitY], [f.fixtureX, f.fixtureY + 2.5], 'beam origin is the existing visible lens center');
+  A.eq([f.normalX, f.normalY], [0, 1], 'a down-facing reflector emits toward the real deck');
+  A.ok(f.emitY < f.y, 'beam visual anchor stays above its reachable floor sample');
+  const lensPixel = painted.pixels[Math.floor(f.emitY) * fg.W + Math.floor(f.emitX)];
+  const components = f.rgb.split(',').map(Number);
+  A.eq(lensPixel, (0xff000000 | components[0] << 16 | components[1] << 8 | components[2]) >>> 0, 'beam metadata points to actual source-coloured hardware');
+  A.eq([f.x, f.y], [f.tileX * 12 + 6, (f.tileY + 1) * 12 + 6], 'fixture detailing does not move accepted light-pool samples');
+}
+A.ok(painted.getContext('2d').marks.every(([x, y, w, h]) => fixtures.some(f =>
+  x >= f.fixtureX - 5 && x + w <= f.fixtureX + 5 && y >= f.fixtureY - 2 && y + h <= f.fixtureY + 6)),
+  'new mount, reflector and end-cap pixels remain inside each existing housing silhouette');
 A.report('worldsurface');
