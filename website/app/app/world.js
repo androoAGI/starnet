@@ -5971,7 +5971,7 @@ const World = (() => {
       } finally { ctx.restore(); }
     }
     drawNavLights(now);   // small running lights on validated exterior armour mounts
-    if (!(sceneRenderer && sceneRenderer.drawAtmosphere(ctx))) drawDust(now);
+    if (!(sceneRenderer && sceneRenderer.drawAtmosphere(ctx, { dust: CRT.dust }))) drawDust(now);
     drawDeskFlashes(now);   // G0.4/G0.8: red distress strobe over a desk whose run just died (additive, with the glows)
     drawAwakenLight(now);   // the soul kindling: ignition spark + a growing halo + motes (world-space additive, awakening only)
     // the AWAKENING veil — now a SPOTLIGHT on the newborn (center light, corners dark) that warms cold->dawn,

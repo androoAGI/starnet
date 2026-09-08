@@ -72,9 +72,9 @@ const WorldRenderer = (() => {
     function drawGrounding(ctx, bodies) {
       if (lighting && lighting.drawGrounding) lighting.drawGrounding(ctx, bodies || []);
     }
-    function drawAtmosphere(ctx) {
+    function drawAtmosphere(ctx, params) {
       if (!lighting || !lighting.drawAtmosphere) return false;
-      lighting.drawAtmosphere(ctx, { now: frame.now, reducedMotion: !!frame.reducedMotion });
+      lighting.drawAtmosphere(ctx, Object.assign({ now: frame.now, reducedMotion: !!frame.reducedMotion }, params || {}));
       return true;
     }
     function drawLight(ctx, lights, params) {

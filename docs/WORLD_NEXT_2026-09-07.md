@@ -43,5 +43,45 @@ external game engine was installed.
 
 ## Evidence
 
-Implementation and verification results will be recorded here as they are observed. This
-document is not a release-readiness or completed-migration receipt.
+The isolated acceptance station runs at `http://127.0.0.1:9207` using
+`node dev/seed.js --keep`. It started with three rooms, three connecting halls, 43 props,
+50 belt tiles and three crew members. The fixture compiler reported zero routing warnings.
+The local scripted model runs at port 9208; it is an explicit test provider, not an external
+model quality demonstration. `dev/world-next-seed.cjs` validates without writing by default
+and refuses to overwrite an unrelated scratch workspace.
+
+Observed in the running app on 2026-09-07/08:
+
+- Viewed the new materials, practical fixtures, wall occlusion and crew depth in the world
+  and REFIT. Eighteen deck materials and seven industrial wall finishes have new painters.
+- Changed COMMAND from cobalt alloy to sterile hex through SURFACE, used Undo and Redo,
+  then DONE. The live station reported `floorMat: hex` and `floorStyle: sterile`.
+- Used the catalog's TURN control to place a chair. The live station reported 44 props and
+  `p50: { t: chair, x: 22, y: 19, r: 1 }`.
+- Observed EMBER in the transfer corridor and later in the conservatory while crew were
+  idle or walking, without inventing a working state.
+- Sent `Run the world proof` in COMMS. The real sidecar run
+  `79d6546e-057f-4703-b6ab-80c8d30b0803` displayed WORKING then RUN COMPLETE, executed the
+  filesystem tool, and wrote the 1,782-byte `agent/world-next-proof.html` file. Its saved-file
+  link was present and clicked; an inline browser view of the downloaded file was not proven.
+- Stopped only this worktree's sidecar and restarted with `--keep`. DOM diagnostics again
+  reported the hex deck, rotated chair, 44 props, 50 belt tiles, NOVA/EMBER/FERN and an online
+  event connection. The artifact remained on disk.
+- One warm 120-frame sample at high quality reported 42 light sources, zero dropped sources,
+  about 6.8 MB of lighting caches, rendering median 2.1 ms and p95 2.8 ms. This measures the
+  instrumented rendering pass on this machine; it excludes earlier simulation/background
+  work and is not a whole-frame, large-station or cross-hardware performance guarantee.
+
+Independent review caught and corrected raised-source occlusion, exact chunk masks,
+context recovery, full lamp collection and atmosphere controls. The focused checks cover
+68 lighting assertions, 309 material assertions, display ordering and lifecycle, material
+seams, hulls, room lighting, CRT probes, canvas recovery and agent clicking.
+
+The repository-wide fast gate is recorded in the task's final verification output. This
+document is not a release-readiness or completed-migration receipt. Installed Windows/macOS
+packages, real paid model providers, full production saves and every rare mechanic have not
+been replayed in this acceptance session. Art superiority over other games is not asserted.
+
+For a direct visual comparison, append `?world=classic` to the preview URL. The new renderer
+is the default; `?worldlab=1` adds a read-only development diagnostic panel, and `?crtlab=1`
+opens the existing art-tuning controls with a World II phosphor preset.

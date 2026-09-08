@@ -20,7 +20,7 @@
     compare.style.cssText = 'color:#ffc882;padding:7px';
     bar.append(capture, compare); host.appendChild(bar);
     const output = document.createElement('pre'); output.id = 'world-lab-output';
-    output.style.cssText = 'white-space:pre-wrap;max-height:50vh;overflow:auto;margin:0;font:12px monospace;color:#ccdde0';
+    output.style.cssText = 'white-space:pre-wrap;max-height:50vh;overflow:auto;margin:0;font:12px VT323,monospace;color:#ccdde0';
     output.textContent = 'Capture records the current frame, station, crew and real event history.';
     host.appendChild(output); document.body.appendChild(host);
     capture.addEventListener('click', () => {
