@@ -33,7 +33,8 @@ const NextSimulation = (() => {
           {name:r.name||id,color:r.color||['#99cbd2','#e0ad70','#accb93'][i%3],appearance:i%3,role:r.role||'Crew member'});});
     }
     function updateWork(runList,online){
-      for(const a of actors){const run=(runList||[]).find(r=>(r.agentId===a.id||r.agent_id===a.id)&&/^(running|working|active|streaming|awaiting_approval|waiting|unknown)$/.test(r.status||r.state));
+      const priority=r=>/^(running|working|active|streaming)$/.test(r.status||r.state)?3:/^(waiting|awaiting_approval)$/.test(r.status||r.state)?2:1;
+      for(const a of actors){const run=(runList||[]).filter(r=>(r.runId||r.id)&&(r.agentId===a.id||r.agent_id===a.id)&&/^(running|working|active|streaming|awaiting_approval|waiting|unknown)$/.test(r.status||r.state)).sort((a,b)=>priority(b)-priority(a))[0];
         const status=run&&(run.status||run.state),next=!!run&&online&&!/^(waiting|awaiting_approval|unknown)$/.test(status);if(next&&!a.working){const d=deskFor(a.id);if(d)a.path=path(a,nearest(d.x+d.w/2,d.y+d.h));}
         a.working=next;a.waiting=!!online&&/^(waiting|awaiting_approval)$/.test(status);a.runId=run&&run.runId||run&&run.id||null;a.workUnknown=!online||status==='unknown';
       }

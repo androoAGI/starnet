@@ -2,7 +2,6 @@
 'use strict';
 const fs=require('node:fs'),path=require('node:path'),net=require('node:net'),assert=require('node:assert/strict');
 const W=require('../frontend/app/worldmodel.js'),catalog=require('../frontend/world-next/catalog.json').items;
-const existing=require('./world-next-seed.cjs');
 const specs=new Map(catalog.map(x=>[x.id,x]));
 function createStation(now=Date.now()){
  const d=W.defaultDoc(now),spawn=d.meta.spawnRoomId;d.meta.name='NEW HORIZON';
