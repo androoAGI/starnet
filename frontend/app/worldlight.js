@@ -294,14 +294,18 @@ const WorldLight = (() => {
       resourcesDirty = false; retryResourcesAt = 0; metrics.geometryRevision++; return metrics.supported;
     }
 
-    function clipFloor(g) {
-      if (interiorPath) { g.clip(interiorPath); return; }
+    function clipDeckFootprint(g) {
       g.beginPath();
       if (geo && geo.allRects) {
         const T = finite(geometryOptions.tileSize, finite(geo.TILE, 12));
         for (const r of geo.allRects) g.rect(r.x1 * T, r.y1 * T, (r.x2 - r.x1 + 1) * T, (r.y2 - r.y1 + 1) * T);
       }
       g.clip();
+    }
+
+    function clipFloor(g) {
+      if (interiorPath) { g.clip(interiorPath); return; }
+      clipDeckFootprint(g);
       // Exact bake masks below preserve the curved corner, including wall feet.
       // With geometry alone, omit corner tiles conservatively instead of lighting
       // the wedge of outer space that lies inside a rectangular room footprint.
@@ -444,14 +448,19 @@ const WorldLight = (() => {
         d.fillStyle = 'rgba(4,8,18,' + wall + ')'; d.fillRect(0, 0, width, height); d.globalCompositeOperation = 'source-over';
       }
       const inside = hasSurface() ? clamp((ambient - wall) / (1 - wall), 0, 1) : ambient;
+      // The exact interior receiver also contains projected, raised wall faces.
+      // Floor visibility stops at the physical wall plane, so no light can carve
+      // the heavy deck ambient out of those faces. Keep that ambient on the deck:
+      // otherwise it forms a black stripe across walls AND foreground prop tops.
       if (!interiorPath && hasInteriorMask()) {
         // Reuse an existing frame surface during the static build. No extra
         // station-sized canvas is needed for REFIT's chunked silhouette union.
-        const floor = reset(frameDark); paintFloorMask(floor); floor.globalCompositeOperation = 'source-in';
+        const floor = reset(frameDark); floor.save(); clipDeckFootprint(floor);
+        paintFloorMask(floor); floor.restore(); floor.globalCompositeOperation = 'source-in';
         floor.fillStyle = 'rgba(5,9,22,' + inside + ')'; floor.fillRect(0, 0, width, height);
         d.drawImage(frameDark, 0, 0, width, height);
       } else {
-        d.save(); clipFloor(d); d.fillStyle = 'rgba(5,9,22,' + inside + ')';
+        d.save(); clipDeckFootprint(d); clipFloor(d); d.fillStyle = 'rgba(5,9,22,' + inside + ')';
         d.fillRect(0, 0, width, height); d.restore();
       }
       paint(d, lights, 1, 'destination-out');
