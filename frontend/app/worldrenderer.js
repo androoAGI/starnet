@@ -9,7 +9,43 @@ const WorldRenderer = (() => {
   // Tuned in the running CRT lab: retain a visible tube while resolving material
   // highlights and sprite detail instead of smearing them into the same grey band.
   const PHOSPHOR = Object.freeze({ scan: .16, pitch: 1, fade: .06, curve: .04, vig: .14,
-    over: 1.08, dust: .35, aberr: .025, grain: .015, bloom: .08 });
+    over: 1.08, dust: .35, aberr: 0, grain: .015, bloom: .08, sharpen: .28 });
+  // Five-tap local contrast, bounded by the existing neighbourhood. Flat light
+  // gradients stay quiet; no bright/dark ringing is introduced beyond an edge.
+  const DETAIL_GLSL = `
+    vec3 detailAt(vec2 uv, vec3 col) {
+      if(uSharp <= 0.0) return col;
+      vec3 c = texture2D(uTex, uv).rgb;
+      vec3 a = texture2D(uTex, uv + vec2(uInvW, 0.0)).rgb;
+      vec3 b = texture2D(uTex, uv - vec2(uInvW, 0.0)).rgb;
+      vec3 d = texture2D(uTex, uv + vec2(0.0, uInvH)).rgb;
+      vec3 e = texture2D(uTex, uv - vec2(0.0, uInvH)).rgb;
+      vec3 lo = min(c, min(min(a,b), min(d,e)));
+      vec3 hi = max(c, max(max(a,b), max(d,e)));
+      vec3 span = hi-lo;
+      float gate = clamp((max(span.r,max(span.g,span.b))*255.0-5.0)/20.0,0.0,1.0);
+      return clamp(col + (c-(a+b+d+e)*0.25)*uSharp*gate, min(lo,col), max(hi,col));
+    }
+  `;
+  function sharpenSample(pixels, index, width, height, amount) {
+    const c = pixels[index];
+    if (!(amount > 0)) return c;
+    const x = index % width;
+    const a = pixels[x + 1 < width ? index + 1 : index], b = pixels[x ? index - 1 : index];
+    const d = pixels[index + width < width * height ? index + width : index], e = pixels[index >= width ? index - width : index];
+    if (c === a && c === b && c === d && c === e) return c;
+    const r=c&255,g=(c>>>8)&255,bl=(c>>>16)&255;
+    const lr=Math.min(r,a&255,b&255,d&255,e&255),hr=Math.max(r,a&255,b&255,d&255,e&255);
+    const lg=Math.min(g,(a>>>8)&255,(b>>>8)&255,(d>>>8)&255,(e>>>8)&255),hg=Math.max(g,(a>>>8)&255,(b>>>8)&255,(d>>>8)&255,(e>>>8)&255);
+    const lb=Math.min(bl,(a>>>16)&255,(b>>>16)&255,(d>>>16)&255,(e>>>16)&255),hb=Math.max(bl,(a>>>16)&255,(b>>>16)&255,(d>>>16)&255,(e>>>16)&255);
+    const gate=Math.min(1,Math.max(0,(Math.max(hr-lr,hg-lg,hb-lb)-5)/20));
+    if (!gate) return c;
+    const k=Math.min(.6,amount)*gate*.25;
+    const rr=Math.round(Math.max(lr,Math.min(hr,r+(r*4-((a&255)+(b&255)+(d&255)+(e&255)))*k)));
+    const gg=Math.round(Math.max(lg,Math.min(hg,g+(g*4-(((a>>>8)&255)+((b>>>8)&255)+((d>>>8)&255)+((e>>>8)&255)))*k)));
+    const bb=Math.round(Math.max(lb,Math.min(hb,bl+(bl*4-(((a>>>16)&255)+((b>>>16)&255)+((d>>>16)&255)+((e>>>16)&255)))*k)));
+    return ((c&0xff000000)|(bb<<16)|(gg<<8)|rr)>>>0;
+  }
   const FRAME_WINDOW = 120;
   const finite = (v, fallback) => Number.isFinite(Number(v)) ? Number(v) : fallback;
   const clock = () => typeof performance !== 'undefined' ? performance.now() : Date.now();
@@ -75,7 +111,7 @@ const WorldRenderer = (() => {
     }
     function prepareLight(lights, params) {
       if (!lighting || classic) return false;
-      preparedLight = Object.assign({ lights: lights || [], fixtures: (baked.lamps || baked.flickers || []).concat(baked.wallFixtures || []), fixtureGain: .82,
+      preparedLight = Object.assign({ lights: lights || [], fixtures: (baked.lamps || baked.flickers || []).concat(baked.wallFixtures || []), fixtureGain: .79,
         now: frame.now, reducedMotion: !!frame.reducedMotion }, params || {});
       // Prepare before the depth pass: a CRT that stops working must stop lighting
       // its operator and casting a shadow in this very frame, including after rebake.
@@ -123,6 +159,6 @@ const WorldRenderer = (() => {
     }
     return { begin, drawBase, prepareLight, sampleLight, drawEntities, drawGrounding, drawAtmosphere, drawLight, finish, stats, dispose };
   }
-  return { GENERATION, PHOSPHOR, enabled: () => !classic, create, visibleRect, intersects, sortedItems, percentile };
+  return { GENERATION, PHOSPHOR, DETAIL_GLSL, sharpenSample, enabled: () => !classic, create, visibleRect, intersects, sortedItems, percentile };
 })();
 if (typeof module !== 'undefined' && module.exports) module.exports = WorldRenderer;

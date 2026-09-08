@@ -11,6 +11,21 @@ assert.deepEqual(R.visibleRect({ scale: 2, panX: -20, panY: 14, width: 800, heig
 assert.ok(R.intersects({ x: 0, y: 0, w: 10, h: 10 }, { x: 12, y: 0, w: 1, h: 1 }, 3), 'raised art margins remain visible');
 assert.ok(!R.intersects({ x: 0, y: 0, w: 10, h: 10 }, { x: 12, y: 0, w: 1, h: 1 }, 0));
 assert.equal(R.percentile([], .95), null, 'no fabricated performance before sampling');
+const packed = (r,g=r,b=r,a=255) => ((a<<24)|(b<<16)|(g<<8)|r)>>>0;
+const flat = new Uint32Array(9).fill(packed(67,91,113));
+assert.equal(R.sharpenSample(flat,4,3,3,.6),flat[4],'sharpening adds no brightness or tint to a flat surface');
+const edge = new Uint32Array([packed(0),packed(40),packed(160),packed(0),packed(130),packed(160),packed(0),packed(40),packed(160)]);
+assert.ok((R.sharpenSample(edge,4,3,3,.28)&255)>130,'a soft edge gains local definition');
+assert.equal(R.sharpenSample(edge,4,3,3,0),edge[4],'zero strength is pixel-identical');
+for(let i=0;i<edge.length;i++) {
+  const result=R.sharpenSample(edge,i,3,3,.6);
+  assert.ok((result&255)<=160,'clipping prevents overshoot beyond the existing bright edge');
+  assert.equal(result>>>24,255,'opaque coverage survives sharpening');
+}
+const quiet = new Uint32Array(9).fill(packed(40)); quiet[4]=packed(43);
+assert.equal(R.sharpenSample(quiet,4,3,3,.6),quiet[4],'faint gradients and noise are below the detail threshold');
+const border = new Uint32Array([packed(40),packed(200),packed(40),packed(40)]);
+assert.equal(R.sharpenSample(border,2,2,2,.6),border[2],'neighbour taps never wrap across image rows');
 const renderer = R.create();
 assert.equal(renderer.stats().renderMedianMs, null);
 const calls = [];

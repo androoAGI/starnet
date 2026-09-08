@@ -60,6 +60,7 @@ const World = (() => {
   let _lut = null, _lutKey = '', _outImg = null;   // CPU per-pixel barrel-warp inverse-map LUT + output buffer — see buildLUT()/drawCurveCPU()
   let _gl = null, _glc = null, _glProg = null, _glTex = null, _glKLoc = null, _glAberrLoc = null, _glVigLoc = null, _glOverLoc = null, _glReady = false, _glFailed = false;   // GPU barrel-warp (WebGL) — see initGL()/drawCurveGL()
   let _glProbeOk = false, _glProbeTries = 0, _glProbeSkip = 0, _glProbeClean = 0, _glProbeCv = null;   // one-time GL output sanity probe — see drawCurveGL()
+  let _glSharpLoc = null, _glInvWLoc = null, _glInvHLoc = null;
   function glContextLost(gl) {
     try { return !!(gl && typeof gl.isContextLost === 'function' && gl.isContextLost()); }
     catch (_) { return true; }   // an unreadable context is no safer to blit than a proven-lost one
@@ -6170,8 +6171,9 @@ const World = (() => {
   // triangle mesh: a mesh draws the picture as thousands of triangles whose seams line up into the diagonal
   // stripes; a per-pixel remap has no triangles, so there are no seams and no diagonal lines. Curve is identical.
   // the two aperture knobs, clamped to sane ranges — read by BOTH warp paths so they can never disagree
-  function vigAmt() { const v = +CRT.vig; return Number.isFinite(v) ? (v < 0 ? 0 : v > 1 ? 1 : v) : 0.30; }
-  function overAmt() { const o = +CRT.over; return Number.isFinite(o) && o >= 1 ? (o > 1.6 ? 1.6 : o) : 1; }
+  function vigAmt() { if (CRT.curve <= 0) return 0; const v = +CRT.vig; return Number.isFinite(v) ? (v < 0 ? 0 : v > 1 ? 1 : v) : 0.30; }
+  function overAmt() { if (CRT.curve <= 0) return 1; const o = +CRT.over; return Number.isFinite(o) && o >= 1 ? (o > 1.6 ? 1.6 : o) : 1; }
+  function sharpAmt() { return typeof WorldRenderer !== 'undefined' ? Math.max(0, Math.min(.6, +CRT.sharpen || 0)) : 0; }
 
   function buildLUT(k, W, H) {
     const over = overAmt();
@@ -6201,8 +6203,8 @@ const World = (() => {
     _lut = lut; _lutKey = key;
   }
   function drawCurve(now) {
-    if (!cv || CRT.curve <= 0 || document.body.classList.contains('no-scan')) return;
-    const k = CRT.curve, W = cv.width, H = cv.height;
+    if (!cv || (CRT.curve <= 0 && !sharpAmt()) || document.body.classList.contains('no-scan')) return;
+    const k = Math.max(0, +CRT.curve || 0), W = cv.width, H = cv.height;
     if (!_glFailed && drawCurveGL(k, W, H)) return;   // GPU path (near-free); on any failure it flips _glFailed
     drawCurveCPU(k, W, H);                             // CPU fallback (per-pixel LUT) — identical look, heavier
   }
@@ -6224,7 +6226,8 @@ const World = (() => {
       if (!_gl) throw new Error('no webgl');
       const gl = _gl;
       const vs = 'attribute vec2 aPos; varying vec2 vUv; void main(){ vUv = aPos*0.5+0.5; gl_Position = vec4(aPos,0.0,1.0); }';
-      const fs = 'precision highp float; varying vec2 vUv; uniform sampler2D uTex; uniform float uK; uniform float uAberr; uniform float uVig; uniform float uOver;\n' +
+      const fs = 'precision highp float; varying vec2 vUv; uniform sampler2D uTex; uniform float uK; uniform float uAberr; uniform float uVig; uniform float uOver; uniform float uSharp; uniform float uInvW; uniform float uInvH;\n' +
+        (typeof WorldRenderer !== 'undefined' ? WorldRenderer.DETAIL_GLSL : 'vec3 detailAt(vec2 uv,vec3 col){return col;}\n') +
         'void main(){\n' +
         // uOver shrinks the output radius BEFORE the inverse, so the corner lands inside the warp's reach
         // instead of falling out of domain and being filled black. uOver = 1.0 is the old behaviour exactly.
@@ -6244,6 +6247,7 @@ const World = (() => {
         '    float b = texture2D(uTex, sUv - offs).b;\n' +
         '    col = vec3(r, gg, b);\n' +
         '  } else { col = texture2D(uTex, sUv).rgb; }\n' +
+        '  col = detailAt(sUv,col);\n' +
         '  float vig = clamp(1.0-uVig*ro*ro, 0.0, 1.0);\n' +
         '  gl_FragColor = vec4(col*vig, 1.0);\n' +
         '}';
@@ -6266,6 +6270,8 @@ const World = (() => {
       gl.uniform1i(gl.getUniformLocation(prog, 'uTex'), 0);
       _glKLoc = gl.getUniformLocation(prog, 'uK'); _glAberrLoc = gl.getUniformLocation(prog, 'uAberr');
       _glVigLoc = gl.getUniformLocation(prog, 'uVig'); _glOverLoc = gl.getUniformLocation(prog, 'uOver');
+      _glSharpLoc = gl.getUniformLocation(prog, 'uSharp');
+      _glInvWLoc = gl.getUniformLocation(prog, 'uInvW'); _glInvHLoc = gl.getUniformLocation(prog, 'uInvH');
       _glProg = prog; _glReady = true;
       return true;
     } catch (e) { _gl = null; return abandonCurveGL('WebGL curve unavailable: ' + ((e && e.message) || String(e))); }
@@ -6294,6 +6300,9 @@ const World = (() => {
       if (_glAberrLoc) gl.uniform1f(_glAberrLoc, Math.max(0, CRT.aberr || 0));
       if (_glVigLoc) gl.uniform1f(_glVigLoc, vigAmt());
       if (_glOverLoc) gl.uniform1f(_glOverLoc, overAmt());
+      if (_glSharpLoc) gl.uniform1f(_glSharpLoc, sharpAmt());
+      if (_glInvWLoc) gl.uniform1f(_glInvWLoc, 1 / W);
+      if (_glInvHLoc) gl.uniform1f(_glInvHLoc, 1 / H);
       gl.drawArrays(gl.TRIANGLES, 0, 3);
       // Context loss is deliberately checked AGAIN after GPU work and BEFORE the destructive clear below.
       // WebGL commands on a lost context are specified to no-op instead of throwing; without this guard the
@@ -6345,7 +6354,12 @@ const World = (() => {
     const src = _warpCtx.getImageData(0, 0, W, H), s32 = new Uint32Array(src.data.buffer);
     if (!_outImg || _outImg.width !== W || _outImg.height !== H) _outImg = ctx.createImageData(W, H);
     const d32 = new Uint32Array(_outImg.data.buffer), lut = _lut, BLACK = 0xFF000000;
-    for (let i = 0; i < d32.length; i++) { const s = lut[i]; d32[i] = s < 0 ? BLACK : s32[s]; }
+    const sharp = sharpAmt();
+    if (sharp) {
+      for (let i = 0; i < d32.length; i++) { const s = lut[i]; d32[i] = s < 0 ? BLACK : WorldRenderer.sharpenSample(s32, s, W, H, sharp); }
+    } else {
+      for (let i = 0; i < d32.length; i++) { const s = lut[i]; d32[i] = s < 0 ? BLACK : s32[s]; }
+    }
     ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.putImageData(_outImg, 0, 0);
     // Edge vignette — the exact darkening complement of the shader's `1 - uVig·ro²`, so the CPU fallback
     // stays pixel-equivalent to the GPU path (drawCurveGL's probe compares them). A stop at gradient
