@@ -186,3 +186,45 @@ test('permission methods require explicit caller action and disposal closes reso
   f.bridge.dispose(); assert.equal(f.sources[0].closed, true); assert.equal(f.bridge.snapshot().connection.status, 'disconnected');
   await assert.rejects(f.bridge.send('agent', 'hello'), /disposed/);
 });
+test('real control payloads inherit only their enclosing attended run id and consent settles by receipt', async t => {
+  let feed, promptReady;
+  const seenPrompt = new Promise(resolve => { promptReady = resolve; });
+  const encoder = new TextEncoder();
+  const f = fixture({ override: (path, init) => {
+    if (path === '/api/run') return new Response(new ReadableStream({ start(controller) {
+      feed = controller;
+      const rows = [event('agent.run.start'), event('agent.run.start', { runId: 'child', agentId: 'worker' }),
+        { name: 'permission.prompt', payload: { agentId: 'agent', promptId: 'question', tool: 'brief.ask', scope: 'read',
+          argsSummary: JSON.stringify({ question: 'Which folder?', options: ['A', 'B'], mode: 'choice' }) } },
+        { name: 'crew.summon.request', payload: { agentId: 'agent', requestId: 'summon', name: 'Researcher' } }];
+      controller.enqueue(encoder.encode(rows.map(JSON.stringify).join('\n') + '\n'));
+    } }));
+    if (path === '/api/consent/answer') return reply({ ok: false });
+    return null;
+  } });
+  t.after(() => f.bridge.dispose()); await f.bridge.start();
+  f.bridge.subscribe(s => { if (s.prompts.length && s.summons.length) promptReady(s); });
+  const run = f.bridge.send('agent', 'Organize this');
+  const state = await seenPrompt;
+  assert.equal(state.prompts[0].runId, 'lead'); assert.equal(state.summons[0].runId, 'lead');
+  assert.equal(state.conversations.agent.status, 'waiting');
+  assert.equal(state.runs.find(r => r.runId === 'lead').status, 'waiting');
+  await f.bridge.answerPrompt('lead', 'question', 'A');
+  assert.equal(f.bridge.snapshot().prompts.length, 1, 'a refused answer cannot remove the waiting prompt');
+  await f.bridge.respondPermission('lead', 'question', 'deny');
+  assert.equal(f.bridge.snapshot().prompts.length, 0);
+  feed.enqueue(encoder.encode(JSON.stringify(event('agent.run.end', { reason: 'cancelled' })) + '\n')); feed.close();
+  assert.equal((await run).reason, 'cancelled');
+});
+test('durable transcript and history readers retain wire records without inventing live activity', async t => {
+  const turns = [{ streamId: 'saved_session', agentId: 'agent', role: 'assistant', content: 'Saved answer', ts: 10, sourceRunId: 'old-run' },
+    { streamId: 'saved_session', agentId: 'agent', role: 'tool', content: 'Written', ts: 11, toolCallId: 'call1' }];
+  const f = fixture({ override: path => path === '/api/transcript' ? reply({ stream: 'saved_session', turns }) :
+    path === '/api/runs' ? reply({ runs: [{ runId: 'old-run', reason: 'done' }], nextCursor: 'older', snapshotAt: 500 }) : null });
+  t.after(() => f.bridge.dispose());
+  assert.deepEqual((await f.bridge.readTranscript('saved_session', { agentId: 'agent', limit: 42 })).turns, turns);
+  assert.equal((await f.bridge.listRuns({ agentId: '*', through: 500 })).nextCursor, 'older');
+  assert.equal((await f.bridge.savedSessions()).workstreams[0].id, 'kept');
+  assert.deepEqual(f.bridge.snapshot().runs, []); assert.deepEqual(f.bridge.snapshot().conversations, {});
+  await assert.rejects(f.bridge.readTranscript('../escaped'), /Invalid conversation/);
+});
