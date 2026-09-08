@@ -313,6 +313,92 @@ const WorldSurface = (() => {
     const kinds = { hab: 'spine', corridor: 'spine', bridge: 'panel', lab: 'tile', factory: 'tread', storage: 'tread', quarters: 'soft' };
     return kinds[geo.kindOf && geo.kindOf(z)] || 'plate';
   }
+  function planFixtures(geo, opts = {}) {
+    if (!geo || !geo.zoneGrid) return [];
+    const T = geo.TILE || CELL, ox = geo.origin && geo.origin.tx || 0, oy = geo.origin && geo.origin.ty || 0;
+    const limit = clamp(Number.isFinite(opts.maxFixtures) ? Math.floor(opts.maxFixtures) : 96, 0, 128);
+    if (!limit) return [];
+    const up = clamp(Number.isFinite(opts.wallUp) ? Math.round(opts.wallUp) : 30, 0, 64);
+    const corUp = clamp(Number.isFinite(opts.corUp) ? Math.round(opts.corUp) : up, 0, 64);
+    const chamfers = new Set((geo.chamfers || []).map(c => c[0] + ',' + c[1]));
+    const output = [];
+    const solidNorth = (x, y, z) => {
+      if (z == null || zoneAt(geo, x, y - 1) != null || chamfers.has(x + ',' + y)) return false;
+      const mat = geo.wallMatOf ? geo.wallMatOf(z) : 'bulkhead';
+      // Windows and natural/timber walls retain their specialized art. A sealed
+      // room seam also stays untouched: its short interior face has no tall crown.
+      return wallSet.has(mat);
+    };
+    const floorAnchor = (x, y, z) => {
+      // The north wall's visible face ends inside its first tile. Put the light
+      // sample on clear deck below that face, moving past furniture if necessary.
+      for (let dy = 1; dy <= 3; dy++) {
+        const ny = y + dy;
+        if (zoneAt(geo, x, ny) !== z) break;
+        if (geo.canStep && !geo.canStep(x, ny - 1, x, ny)) break;
+        if (!geo.walkable || geo.walkable(x, ny)) return { tx: x, ty: ny };
+      }
+      return null;
+    };
+    for (let y = 0; y < geo.ROWS && output.length < limit; y++) {
+      for (let x = 0; x < geo.COLS && output.length < limit; x++) {
+        const z = zoneAt(geo, x, y);
+        if (!solidNorth(x, y, z)) continue;
+        const start = x;
+        while (x + 1 < geo.COLS && zoneAt(geo, x + 1, y) === z && solidNorth(x + 1, y, z)) x++;
+        const end = x, length = end - start + 1, corridor = !!(geo.isCorridor && geo.isCorridor(z));
+        const rise = corridor ? corUp : up;
+        if (length < (corridor ? 8 : 3) || rise < 12) continue;
+        const candidates = [], inset = length > 4 ? 1 : 0;
+        for (let tx = start + inset; tx <= end - inset; tx++) {
+          const anchor = floorAnchor(tx, y, z);
+          if (anchor) candidates.push({ tx, anchor });
+        }
+        if (!candidates.length) continue;
+        // Pitch is fixed in the signed physical tile frame. A bounds expansion
+        // therefore does not slide the existing lamps or their illumination.
+        let selected = candidates.filter(c => mod(c.tx + ox, 6) === 3);
+        if (corridor) selected = [];  // one practical fixture, only on a long hall
+        if (!selected.length) selected = [candidates[Math.floor(candidates.length / 2)]];
+        for (const c of selected) {
+          if (output.length >= limit) break;
+          const fixtureX = c.tx * T + Math.floor(T / 2), fixtureY = y * T - rise + 6;
+          const kind = geo.kindOf && geo.kindOf(z);
+          const rgb = kind === 'lab' ? '215,232,246' : '255,222,179';
+          output.push({
+            id: 'wall:' + (c.tx + ox) + ',' + (y + oy), kind: 'wall-fixture', zone: z,
+            x: c.anchor.tx * T + T / 2, y: c.anchor.ty * T + T / 2,
+            r: T * (corridor ? 4.5 : 6.5), rgb, gain: corridor ? 0.64 : 0.82,
+            fixtureX, fixtureY, tileX: c.tx, tileY: y,
+            base: geo.wallBaseOf ? geo.wallBaseOf(z) : '#3a3b41'
+          });
+        }
+      }
+    }
+    return output;
+  }
+  function paintFixtures(ctx, geo, opts = {}) {
+    const fixtures = planFixtures(geo, opts), v = opts.viewport;
+    if (!ctx) return fixtures;
+    for (const f of fixtures) {
+      const x = f.fixtureX, y = f.fixtureY;
+      // Culling affects paint only. Every chunk receives the same source list,
+      // including lamps beyond its edge whose light can still fall inside it.
+      if (v && (x + 5 <= v.x || x - 5 >= v.x + v.w || y + 6 <= v.y || y - 2 >= v.y + v.h)) continue;
+      const p = palette(f.base, detailOf(opts));
+      const mark = (dx, dy, w, h, c) => { ctx.fillStyle = c; ctx.fillRect(x + dx, y + dy, w, h); };
+      mark(-1, -2, 2, 2, p.deep);                         // bolted mount under crown
+      mark(-4, 1, 9, 5, p.deep);                         // housing casts a hard shadow
+      mark(-5, 1, 1, 3, p.recess); mark(4, 1, 1, 3, p.recess);
+      mark(-4, 0, 8, 4, p.base); mark(-4, 0, 8, 1, p.metal);
+      mark(-3, 1, 6, 2, p.deep);
+      const lens = f.rgb === '215,232,246' ? '#d7e8f6' : '#ffdeb3';
+      mark(-3, 2, 6, 1, lens);                            // the actual visible emitter
+      mark(-3, 3, 6, 1, p.warm);                        // down-facing reflector lip
+      mark(-4, 1, 1, 1, p.edge); mark(3, 1, 1, 1, p.edge);
+    }
+    return fixtures;
+  }
   function paintTrim(ctx, geo, x, y, base, detail) {
     const T = geo.TILE || CELL, p = brush(ctx, x * T, y * T, T), pal = palette(base, detail);
     const n = edgeKind(geo, x, y, x, y - 1) === 'wall', s = edgeKind(geo, x, y, x, y + 1) === 'wall';
@@ -359,7 +445,7 @@ const WorldSurface = (() => {
   }
   const invalidate = () => palettes.clear();
   return Object.freeze({ VERSION, MATERIALS, WALLS, palette, hash, materialOf, zoneAt, edgeKind,
-    paintFloorTile, paintWallTile, paintTrim, paint, bake, invalidate });
+    paintFloorTile, paintWallTile, planFixtures, paintFixtures, paintTrim, paint, bake, invalidate });
 })();
 
 if (typeof module !== 'undefined' && module.exports) module.exports = WorldSurface;
