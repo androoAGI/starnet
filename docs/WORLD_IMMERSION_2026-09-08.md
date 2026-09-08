@@ -41,3 +41,7 @@ The normal 120-frame headless sample measured 21.1 ms median rendering versus th
 The final live editor, reduced-motion, cached-bake recovery and reload checks passed again.
 Review caught and corrected a classic-mode shadow fallback: native body rendering remains
 active whenever no replacement light sample is available.
+
+Final gate: npm run test:fast passed all 736 steps on the corrected source. The classic
+browser check recorded 174 native body draws and 1,950 shadow ellipses with no replacement
+appearance argument and no exceptions. Website mirror synchronization is complete.
