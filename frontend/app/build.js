@@ -669,6 +669,7 @@ const Build = (() => {
     let box = inspector.querySelector('.refit-equipment-info');
     if (!box) {
       box = document.createElement('div'); box.className = 'refit-equipment-info';
+      box.id = 'refit-prop-details';
       const preview = inspector.querySelector('#refit-selected-prop');
       preview.insertBefore(box, preview.querySelector('.refit-placement-note'));
     }
@@ -797,8 +798,15 @@ const Build = (() => {
         const b = document.createElement('button'); b.type = 'button'; b.className = 'bb refit-prop-section'; b.dataset.propSection = id;
         b.textContent = SECTION_NAMES[id]; b.onclick = () => chooseLibrarySection(id); sections.appendChild(b);
       }
-      const details = document.createElement('button'); details.type = 'button'; details.className = 'bb sm refit-details-toggle'; details.textContent = 'ABOUT THIS PROP →';
-      details.onclick = () => { workspace.classList.add('show-details'); workspace.querySelector('.refit-details-back').focus(); };
+      const details = document.createElement('button'); details.type = 'button'; details.className = 'bb sm refit-details-toggle'; details.textContent = 'DETAILS ▾';
+      details.setAttribute('aria-expanded', 'false');
+      details.setAttribute('aria-controls', 'refit-prop-details');
+      details.onclick = () => {
+        const expanded = workspace.classList.toggle('show-details');
+        details.setAttribute('aria-expanded', String(expanded));
+        details.textContent = expanded ? 'LESS ▴' : 'DETAILS ▾';
+        details.scrollIntoView({ block: 'nearest' });
+      };
       browser.append(sections, renderAbilityOverview(), search);
       const shelves = document.createElement('div'); shelves.className = 'refit-shelves';
       const categoryMenu = document.createElement('details'); categoryMenu.className = 'refit-category-menu';
@@ -825,8 +833,6 @@ const Build = (() => {
       const gridHost = document.createElement('div'); gridHost.id = 'refit-propgrid-host';
       shelves.appendChild(gridHost); browser.appendChild(shelves); workspace.appendChild(browser);
       const inspector = document.createElement('aside'); inspector.className = 'refit-propinspector'; inspector.setAttribute('aria-label', 'Selected equipment details');
-      const back = document.createElement('button'); back.type = 'button'; back.className = 'bb sm refit-details-back'; back.textContent = '← BACK TO PROPS';
-      back.onclick = () => { workspace.classList.remove('show-details'); details.focus(); }; inspector.appendChild(back);
       const preview = document.createElement('section'); preview.id = 'refit-selected-prop';
       preview.className = 'refit-selected-prop'; preview.setAttribute('aria-label', 'Selected prop');
       inspector.appendChild(preview);
@@ -4235,7 +4241,7 @@ const Build = (() => {
       const categoryMenu = root.querySelector('.refit-category-menu[open]');
       if (categoryMenu) { categoryMenu.open = false; categoryMenu.querySelector('summary').focus(); return; }
       const details = root.querySelector('.refit-propworkspace.show-details');
-      if (details) { details.classList.remove('show-details'); details.querySelector('.refit-details-toggle').focus(); return; }
+      if (details) { const toggle = details.querySelector('.refit-details-toggle'); toggle.click(); toggle.focus(); return; }
       if (drag) { releaseDrag(); hideTip(); setCursor(); return; }       // cancel an in-progress edit first
       if (connectFrom) { connectFrom = null; hideTip(); return; }        // then a half-made connection
       if (dupe) { dupe = null; hideTip(); setHint(); return; }           // then the armed copy
