@@ -18,7 +18,7 @@
   "expectedClaimCount": 37,
   "releaseSurface": {
     "algorithm": "sha256",
-    "sourceCommit": "057c61597bc379e1933dde123e9e25f36bc1bea0",
+    "sourceCommit": "53d1329d4ef816a987b1d74946358376b7adaa63",
     "pathSetSha256": "893f2c9ca526a94879691b5c9b01adbcd4d30b3619c1a50fbbfbd64f7e227bb9",
     "files": [
       {
@@ -1023,8 +1023,8 @@
       },
       {
         "path": "frontend/app/worldlight.js",
-        "bytes": 34713,
-        "sha256": "4c9add200496493f1c0aefc971db0920c84a786d66f6b38dc6bcf12032c62eb1"
+        "bytes": 35199,
+        "sha256": "f128b5a9a6e71c4f71d884496117e6446ebdd2fc837493a9c62dc0a7a57f2f50"
       },
       {
         "path": "frontend/app/worldmodel.js",
