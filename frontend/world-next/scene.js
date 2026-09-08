@@ -20,13 +20,32 @@ const NextScene = (() => {
     graphite: { floor: [75, 91, 97], seam: '#293e47', accent: '#94b1ad', wall: '#a3b5b1' },
     enamel: { floor: [119, 132, 120], seam: '#52605a', accent: '#c5b58e', wall: '#c3c9b4' }
   };
-  function material(room) {
+  // Persisted finish IDs are a document contract. These are freshly authored
+  // sanctuary pigments; no old texture, palette code or material painter is loaded.
+  const STYLE_COLORS = Object.freeze({
+    hull: [94, 108, 110], corridor: [74, 87, 92], cobalt: [75, 104, 143], rust: [136, 102, 80],
+    sterile: [125, 137, 130], crimson: [145, 89, 91], verdant: [95, 128, 107], ember: [155, 99, 66],
+    amber: [151, 132, 77], moss: [119, 127, 85], teal: [72, 131, 137], indigo: [96, 101, 153],
+    violet: [126, 103, 153], orchid: [149, 103, 133], walnut: [123, 96, 73], oak: [149, 122, 87],
+    ash: [122, 123, 109], fern: [83, 126, 83], meadow: [124, 141, 88], bone: [181, 177, 151],
+    white: [193, 196, 185], onyx: [44, 53, 61]
+  });
+  const MATERIALS = Object.freeze({ spine: [4, 3], alloy: [4, 3], plate: [2, 2], panel: [4, 1], tile: [1, 1], tread: [2, 2],
+    soft: [3, 2], grate: [1, 1], hex: [1, 1], plank: [5, 1], turf: [0, 0], diamond: [1, 1], resin: [0, 0],
+    ceramic: [3, 3], cargo: [3, 2], runner: [2, 2], treadway: [3, 2], meshway: [3, 3] });
+  const KIND_MATERIAL = { hab: 'spine', bridge: 'panel', lab: 'tile', factory: 'tread', quarters: 'soft', storage: 'tread', corridor: 'spine' };
+  function material(room, tx, ty) {
     const name = String(room && (room.name || room.title) || '').toLowerCase(), kind = room && room.kind;
-    if (/garden|botan|sanctuary|greenhouse|habitat/.test(name) || kind === 'quarters' || kind === 'hab') return PALETTE.sanctuary;
-    if (kind === 'factory' || kind === 'storage') return PALETTE.copper;
-    if (kind === 'lab') return PALETTE.enamel;
-    if (kind === 'bridge' || kind === 'corridor') return PALETTE.graphite;
-    return PALETTE.ceramic;
+    let base = PALETTE.ceramic;
+    if (/garden|botan|sanctuary|greenhouse|habitat/.test(name) || kind === 'quarters' || kind === 'hab') base = PALETTE.sanctuary;
+    else if (kind === 'factory' || kind === 'storage') base = PALETTE.copper;
+    else if (kind === 'lab') base = PALETTE.enamel;
+    else if (kind === 'bridge' || kind === 'corridor') base = PALETTE.graphite;
+    const override = Number.isFinite(tx) && Number.isFinite(ty) && room && room.floorPaint && room.floorPaint[key(tx, ty)];
+    const style = STYLE_COLORS[override] ? override : room && STYLE_COLORS[room.floorStyle] ? room.floorStyle : null;
+    const recipe = room && MATERIALS[room.floorMat] ? room.floorMat : KIND_MATERIAL[kind] || 'plate';
+    const floor = style ? STYLE_COLORS[style] : base.floor;
+    return Object.assign({}, base, { floor, style, recipe, seam: style ? tint(floor, -43) : base.seam });
   }
   function project(station) {
     const doc = documentOf(station), tiles = new Map(), rooms = new Map(), rectangles = [], source = doc.rooms || {};
@@ -138,17 +157,56 @@ const NextScene = (() => {
       chunks.clear(); polygons.clear(); model = project(station); priorStation = station; priorRevision = revision; geometryBuilds++;
     }
     function floorTile(g, t) {
-      const p = model.rooms.get(t.room).palette, x = t.x * TILE, y = t.y * TILE, h = hash(Math.floor(t.x / 2), Math.floor(t.y / 2), 193);
+      const p = material(model.rooms.get(t.room).room, t.x, t.y), x = t.x * TILE, y = t.y * TILE;
+      const pitch = MATERIALS[p.recipe], mx = pitch[0] ? ((t.x % pitch[0]) + pitch[0]) % pitch[0] : -1, my = pitch[1] ? ((t.y % pitch[1]) + pitch[1]) % pitch[1] : -1;
+      const h = hash(Math.floor(t.x / (pitch[0] || 4)), Math.floor(t.y / (pitch[1] || 4)), 193);
       g.fillStyle = tint(p.floor, h % 7 - 3); g.fillRect(x, y, TILE, TILE);
-      if ((t.y & 1) === 0) { g.fillStyle = p.seam; g.fillRect(x, y, TILE, 2); g.fillStyle = tint(p.floor, 13); g.fillRect(x + 1, y + 2, TILE - 1, 1); }
-      if ((t.x & 1) === 0) { g.fillStyle = p.seam; g.fillRect(x, y, 2, TILE); g.fillStyle = tint(p.floor, 8); g.fillRect(x + 2, y + 2, 1, TILE - 2); }
-      if ((t.x & 1) === 0 && (t.y & 1) === 0) {
+      if (my === 0) { g.fillStyle = p.seam; g.fillRect(x, y, TILE, 2); g.fillStyle = tint(p.floor, 13); g.fillRect(x + 1, y + 2, TILE - 1, 1); }
+      if (mx === 0) { g.fillStyle = p.seam; g.fillRect(x, y, 2, TILE); g.fillStyle = tint(p.floor, 8); g.fillRect(x + 2, y + 2, 1, TILE - 2); }
+      if (p.recipe === 'plate' && mx === 0 && my === 0) {
         g.fillStyle = tint(p.floor, -16); g.fillRect(x + 6, y + 7, 10, 2); g.fillStyle = p.accent; g.fillRect(x + 6, y + 6, 8, 1);
         g.fillStyle = '#425153'; g.fillRect(x + 6, y + 12, 2, 2); g.fillStyle = '#b6bca2'; g.fillRect(x + 6, y + 12, 1, 1);
       }
-      if (p.botanical && h % 8 === 0) {
-        g.fillStyle = '#405e4c'; g.fillRect(x + 22, y + 3, 7, 25); g.fillStyle = '#243e35'; g.fillRect(x + 24, y + 4, 3, 23);
-        for (let i = 0; i < 5; i++) { g.fillStyle = i & 1 ? '#698467' : '#839579'; g.fillRect(x + 23 + (i & 1) * 2, y + 6 + i * 4, 3, 2); }
+      const line = (x1, y1, x2, y2, color, width = 1) => { g.strokeStyle = color; g.lineWidth = width; g.beginPath(); g.moveTo(x1, y1); g.lineTo(x2, y2); g.stroke(); };
+      if (p.recipe === 'spine') {
+        if (mx === 0) { g.fillStyle = tint(p.floor, -31); g.fillRect(x + 5, y, 5, TILE); g.fillStyle = p.accent; g.fillRect(x + 6, y + 7, 1, 15); }
+        if (my === 0 && mx === 2) { g.fillStyle = tint(p.floor, -23); g.fillRect(x + 8, y + 5, 16, 2); }
+      } else if (p.recipe === 'alloy') {
+        if (my === 0) { g.fillStyle = tint(p.floor, 17); g.fillRect(x + 3, y + 4, TILE - 3, 2); }
+        g.fillStyle = tint(p.floor, 5); g.fillRect(x + 6 + h % 5, y + 16, 14, 1);
+        if (mx === 0 && my === 0) { g.fillStyle = tint(p.floor, -30); g.fillRect(x + 6, y + 8, 3, 3); }
+      } else if (p.recipe === 'panel') {
+        g.fillStyle = tint(p.floor, -18); g.fillRect(x, y + 27, TILE, 3); g.fillStyle = tint(p.floor, 9); g.fillRect(x, y + 26, TILE, 1);
+        if (mx === 0) { g.fillStyle = p.accent; g.fillRect(x + 5, y + 6, 7, 2); }
+      } else if (p.recipe === 'tile' || p.recipe === 'ceramic') {
+        g.fillStyle = tint(p.floor, p.recipe === 'tile' ? 8 : 4); g.fillRect(x + 5, y + 5, 9, 1);
+        if (p.recipe === 'ceramic' && mx === 1 && my === 1) { g.fillStyle = tint(p.floor, -8); g.fillRect(x + 14, y + 14, 4, 4); g.fillStyle = tint(p.floor, 10); g.fillRect(x + 15, y + 15, 2, 2); }
+      } else if (p.recipe === 'tread' || p.recipe === 'treadway') {
+        for (const [dx, dy] of [[8, 10], [21, 23]]) { line(x + dx - 4, y + dy + 2, x + dx + 4, y + dy - 2, tint(p.floor, -24), 3); line(x + dx - 4, y + dy + 1, x + dx + 4, y + dy - 3, tint(p.floor, 13)); }
+        if (p.recipe === 'treadway' && mx === 0) { g.fillStyle = p.accent; g.fillRect(x + 5, y, 2, TILE); }
+      } else if (p.recipe === 'soft') {
+        for (let i = 0; i < 5; i++) { const n = hash(t.x, t.y, i * 31); g.fillStyle = tint(p.floor, i & 1 ? 6 : -6); g.fillRect(x + 5 + n % 23, y + 5 + (n >>> 5) % 23, 2, 1); }
+        if (mx === 0 && my === 0) { g.fillStyle = tint(p.floor, -17); g.fillRect(x + 4, y + 4, 2, 2); }
+      } else if (p.recipe === 'grate' || p.recipe === 'meshway') {
+        g.fillStyle = tint(p.floor, -33); g.fillRect(x + 4, y + 4, 24, 24);
+        if (p.recipe === 'grate') for (let i = 0; i < 4; i++) { g.fillStyle = tint(p.floor, 5); g.fillRect(x + 5 + i * 6, y + 5, 3, 22); g.fillStyle = tint(p.floor, 20); g.fillRect(x + 5 + i * 6, y + 5, 1, 22); }
+        else for (let i = 0; i < 4; i++) { g.fillStyle = tint(p.floor, 3); g.fillRect(x + 5, y + 6 + i * 6, 22, 2); g.fillStyle = tint(p.floor, -4); g.fillRect(x + 6 + i * 6, y + 5, 2, 22); }
+      } else if (p.recipe === 'hex' || p.recipe === 'diamond') {
+        const points = p.recipe === 'hex' ? [[16, 3], [29, 10], [29, 23], [16, 30], [3, 23], [3, 10]] : [[16, 4], [28, 16], [16, 28], [4, 16]];
+        g.fillStyle = tint(p.floor, p.recipe === 'hex' ? 6 : -13); g.beginPath(); points.forEach(([dx, dy], i) => i ? g.lineTo(x + dx, y + dy) : g.moveTo(x + dx, y + dy)); g.closePath(); g.fill();
+        line(x + points[0][0], y + points[0][1], x + points[1][0], y + points[1][1], tint(p.floor, 17));
+      } else if (p.recipe === 'plank') {
+        for (let i = 0; i < 2; i++) { const n = hash(t.x, t.y, 53 + i); g.fillStyle = tint(p.floor, i ? 7 : -9); g.fillRect(x + 4 + n % 8, y + 9 + i * 12, 12 + (n >>> 6) % 9, 1); }
+        if (mx === 0) { g.fillStyle = tint(p.floor, -26); g.fillRect(x + 5, y + 7, 1, 2); g.fillRect(x + 5, y + 24, 1, 2); }
+      } else if (p.recipe === 'turf') {
+        for (let i = 0; i < 7; i++) { const n = hash(t.x, t.y, i * 17), px = x + 3 + n % 24, py = y + 5 + (n >>> 6) % 22; g.fillStyle = tint(p.floor, i & 1 ? -11 : 12); g.fillRect(px, py - 3, 2, 5); g.fillRect(px - 2, py - 1, 5, 2); }
+      } else if (p.recipe === 'resin') {
+        g.fillStyle = tint(p.floor, 5); g.fillRect(x + 3, y + 9, 23, 1); g.fillStyle = tint(p.floor, 2); g.fillRect(x + 8, y + 10, 20, 1);
+      } else if (p.recipe === 'cargo') {
+        if (mx === 0) { g.fillStyle = tint(p.floor, -29); g.fillRect(x + 4, y, 6, TILE); g.fillStyle = p.accent; g.fillRect(x + 5, y + 5, 4, 2); g.fillRect(x + 5, y + 24, 4, 2); }
+        else if (my === 0) { g.fillStyle = tint(p.floor, -30); g.fillRect(x + 13, y + 11, 8, 8); g.fillStyle = tint(p.floor, 6); g.fillRect(x + 15, y + 13, 4, 4); }
+      } else if (p.recipe === 'runner') {
+        const offset = mx === 0 ? 5 : 25; g.fillStyle = tint(p.floor, -20); g.fillRect(x + offset, y, 2, TILE); g.fillStyle = p.accent; g.fillRect(x + offset + 2, y, 1, TILE);
       }
       for (const [side, d] of Object.entries(DIR)) if (!model.tiles.has(key(t.x + d[0], t.y + d[1]))) {
         g.fillStyle = 'rgba(10,25,29,.24)';
@@ -322,6 +380,6 @@ const NextScene = (() => {
       stats: () => ({ frames, geometryBuilds, chunkBuilds, lightBuilds, chunks: chunks.size, polygons: polygons.size, tiles: model ? model.tiles.size : 0, lights: latestLights.length, camera: latestCamera, frameMs, disposed }),
       dispose() { disposed = true; for (const c of chunks.values()) for (const v of [c.floor, c.shade, c.glow]) release(v); chunks.clear(); polygons.clear(); latestLights = []; } };
   }
-  return { create, project, bounds, tileAt, canCross, rayLength, visibility, visible, material, TILE, WALL };
+  return { create, project, bounds, tileAt, canCross, rayLength, visibility, visible, material, STYLE_COLORS, MATERIALS, TILE, WALL };
 })();
 if (typeof module !== 'undefined' && module.exports) module.exports = NextScene;
