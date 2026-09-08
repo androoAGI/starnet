@@ -4926,9 +4926,15 @@ const Build = (() => {
     const vx1 = (cv.width - panX) / zt + PROP_CULL_PAD, vy1 = (cv.height - panY) / zt + PROP_CULL_PAD;
     let bayNames = null;   // aid -> name, resolved once per paint (the roster read is a callback into app.js)
     for (const p of order) {
-      if (p.x > vx1 || p.y > vy1 || p.x + (p.w || 1) - 1 < vx0 || p.y + (p.h || 1) - 1 < vy0) continue;
       const m = mountMap.get(p.id);
       let dp = m ? Object.assign({}, p, { mount: m }) : p;
+      if (PropSprites.lightOf && cacheGeo) {
+        // Light can reach into the viewport even when the emitting sprite is culled.
+        const l = PropSprites.lightOf(dp, true, true), o = cacheGeo.origin;
+        if (l) framePropLights.push(Object.assign({}, l, { x: l.x - o.tx * tp, y: l.y - o.ty * tp,
+          originX: (p.x + (p.w || 1) / 2 - o.tx) * tp, originY: (p.y + (p.h || 1) / 2 - o.ty) * tp }));
+      }
+      if (p.x > vx1 || p.y > vy1 || p.x + (p.w || 1) - 1 < vx0 || p.y + (p.h || 1) - 1 < vy0) continue;
       // the editor draws the same gantry plate the live world does: a bound bay wears its agent's NAME
       if (p.t === 'bay' && p.agentId) {
         if (!bayNames) { bayNames = new Map(); for (const a of ((opts && typeof opts.agents === 'function' && opts.agents()) || [])) bayNames.set(a.id, a.name); }
@@ -4937,12 +4943,6 @@ const Build = (() => {
         frameBayLabels.push(dp);
       }
       PropSprites.draw(dp, true);
-      if (PropSprites.lightOf && cacheGeo) {
-        // REFIT previews placed equipment in its powered pose, as its art already does.
-        // Source positions are rebased once from model tiles into the light map frame.
-        const l = PropSprites.lightOf(dp, true, true), o = cacheGeo.origin;
-        if (l) framePropLights.push(Object.assign({}, l, { x: l.x - o.tx * tp, y: l.y - o.ty * tp }));
-      }
     }
   }
   /* 4 tiles = 48px at TILE 12. The worst upward overshoot in the whole prop catalog is 21px above a

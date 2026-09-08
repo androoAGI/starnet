@@ -93,6 +93,7 @@ const Build = (() => {
   let root, cv, ctx, tip, hintEl, undoBtn, redoBtn, propCard, dpr = 1, ro = null;
   let raf = 0, frameRetryTimer = 0, running = false, frameFailures = 0;
   let cache = null, cacheGeo = null, bakeDirty = true, bakeDirtyRects = null, bakeDirtyRectsGlobal = false, bakeVisibleOnly = false, valPlan = null, valLive = null;   // valPlan = live RoutingPlan (cost-safety ghosts); valLive = energized-belt tile set
+  const sceneRenderer = typeof WorldRenderer !== 'undefined' ? WorldRenderer.create() : null;
   let planDirty = true;   // routing-plan cache flag: set by EDITS (station.onChange / open), never by pure pans — see rebake()
   const flashes = [];   // {rects, t0, bad} place/delete confirmations
   // short human labels for the routing-validation overlay (cost-safety: surfaced before any paid run)
@@ -4619,6 +4620,9 @@ const Build = (() => {
     ctx.setTransform(zoom, 0, 0, zoom, panX, panY);
     ctx.imageSmoothingEnabled = false;
     const ox = cache.origin.tx * t, oy = cache.origin.ty * t;
+    if (sceneRenderer) sceneRenderer.begin({ geo: cacheGeo, cache, now, scale: zoom,
+      panX: panX + ox * zoom, panY: panY + oy * zoom, width: cv.width, height: cv.height,
+      reducedMotion: typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches });
     /* the ground, in world space under the bake — REFIT blits the station at (ox,oy), so the
        clearing must be placed there too, not at the origin like the live world.
 
@@ -4643,11 +4647,19 @@ const Build = (() => {
     drawLayer('conveyor', () => drawConveyor(now, t));   // belts (floor) → props → boxes ride on top
     drawLayer('props', () => drawProps(now));
     drawLayer('boxes', () => drawConveyorBoxes(now, t));
+    let nextLight = false;
     drawLayer('light', () => {
-      if (StationBake.drawLight) StationBake.drawLight(ctx, cache, ox, oy, drawVisibleRect);
-      else ctx.drawImage(cache.lightCv, ox, oy);
+      if (sceneRenderer) {
+        ctx.save(); ctx.translate(ox, oy);
+        try { nextLight = sceneRenderer.drawLight(ctx, framePropLights, { ambient: StationBake.LIGHT.ambient, emission: .9 }); }
+        finally { ctx.restore(); }
+      }
+      if (!nextLight) {
+        if (StationBake.drawLight) StationBake.drawLight(ctx, cache, ox, oy, drawVisibleRect);
+        else ctx.drawImage(cache.lightCv, ox, oy);
+      }
     });
-    drawLayer('glows', () => drawGlows(now));
+    if (!nextLight) drawLayer('glows', () => drawGlows(now));
     drawLayer('flashes', () => drawFlashes(now, t));
     drawLayer('validation', () => drawRoutingValidation(t, now));   // plain-words callouts on any broken piece, IN build mode (cost-safety + guidance)
     drawLayer('beltEndpoints', () => drawBeltEndpointGlow(t, now)); // BELT tool armed → INTAKE glows FROM, BAY/OUTBOX glow TO (what connects to what)
@@ -4672,6 +4684,7 @@ const Build = (() => {
     if (tool === 'prop' && propThumbs.length && now - lastThumbTs >= 40) { paintThumbs(now); lastThumbTs = now; }
 
     frameFailures = 0;
+    if (sceneRenderer) sceneRenderer.finish();
     if (root) {
       root.dataset.renderState = 'ready';
       root.dataset.renderFailures = '0';
@@ -4882,9 +4895,10 @@ const Build = (() => {
 
   // placeable props — drawn in WORLD tile coords (camera maps world*t, the bake is origin-shifted
   // to match). Lit (work=true) so the editor previews screens alive; y-sorted for clean overlap.
-  let frameBayLabels = [];
+  let frameBayLabels = [], framePropLights = [];
   function drawProps(now) {
     frameBayLabels = [];
+    framePropLights = [];
     if (typeof PropSprites === 'undefined') return;
     const list = station.props();
     if (!list.length) return;
@@ -4912,9 +4926,15 @@ const Build = (() => {
     const vx1 = (cv.width - panX) / zt + PROP_CULL_PAD, vy1 = (cv.height - panY) / zt + PROP_CULL_PAD;
     let bayNames = null;   // aid -> name, resolved once per paint (the roster read is a callback into app.js)
     for (const p of order) {
-      if (p.x > vx1 || p.y > vy1 || p.x + (p.w || 1) - 1 < vx0 || p.y + (p.h || 1) - 1 < vy0) continue;
       const m = mountMap.get(p.id);
       let dp = m ? Object.assign({}, p, { mount: m }) : p;
+      if (PropSprites.lightOf && cacheGeo) {
+        // Light can reach into the viewport even when the emitting sprite is culled.
+        const l = PropSprites.lightOf(dp, true, true), o = cacheGeo.origin;
+        if (l) framePropLights.push(Object.assign({}, l, { x: l.x - o.tx * tp, y: l.y - o.ty * tp,
+          originX: (p.x + (p.w || 1) / 2 - o.tx) * tp, originY: (p.y + (p.h || 1) / 2 - o.ty) * tp }));
+      }
+      if (p.x > vx1 || p.y > vy1 || p.x + (p.w || 1) - 1 < vx0 || p.y + (p.h || 1) - 1 < vy0) continue;
       // the editor draws the same gantry plate the live world does: a bound bay wears its agent's NAME
       if (p.t === 'bay' && p.agentId) {
         if (!bayNames) { bayNames = new Map(); for (const a of ((opts && typeof opts.agents === 'function' && opts.agents()) || [])) bayNames.set(a.id, a.name); }

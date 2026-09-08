@@ -15,6 +15,9 @@
 'use strict';
 
 const StationBake = (() => {
+  const nextSurfaces = () => typeof WorldSurface !== 'undefined' &&
+    (typeof WorldRenderer === 'undefined' || WorldRenderer.enabled());
+  let wallFixtures = [];
   /* palette + geometry knobs — verbatim from v7 world.js/render.js */
   const pad = 7;
   const NFACE = 9, FACEW = 4;
@@ -1579,6 +1582,11 @@ const StationBake = (() => {
   // Finish belongs to the material, not to the room. Keep it inside the tile and
   // anchored to world coordinates so refit swatches and chunked decks agree.
   function paintDeck(b, mat, base, x, y, X, Y, z, n, fd) {
+    if (nextSurfaces()) {
+      const origin = G && G.origin || { tx: 0, ty: 0 };
+      WorldSurface.paintFloorTile(b, mat, base, X, Y, T, x + origin.tx, y + origin.ty, { detail: fd });
+      return;
+    }
     paintDeckRecipe(b, mat, base, x, y, X, Y, z, n, fd);
     if (fd <= 0 || mat === 'alloy' || mat === 'turf' || mat === 'plank' || mat === 'grate' || mat === 'meshway' || mat === 'soft') return;
     const seed = hp(x, y, 317), yy = Y + 3 + seed % 5;
@@ -1650,7 +1658,7 @@ const StationBake = (() => {
          history on it rather than a fill. World-tile keyed like every other mark (chunk parity), never
          zone keyed (a re-roll at a room join would draw the seam the deck painters were fixed to hide).
          Rides floorDetail, so 0 is still the flat unadorned deck. */
-      const base = shade(G.baseColorOf(r.z, x, y), lowFreq(x, y) * 0.05 * fd);
+      const base = nextSurfaces() ? G.baseColorOf(r.z, x, y) : shade(G.baseColorOf(r.z, x, y), lowFreq(x, y) * 0.05 * fd);
       const X = x * T, Y = y * T, n = h2(x, y, r.z);
       const sh = d => shade(base, d * fd);
       paintDeck(b, mat, base, x, y, X, Y, r.z, n, fd);
@@ -1671,7 +1679,7 @@ const StationBake = (() => {
       // Wear follows the central circulation lane; storage edges stay quieter.
       // Geometry-derived dressing, not a claim about recorded foot traffic.
       const lane = Math.abs(x - (r.x1 + r.x2) / 2) <= 1.5;
-      const wear = Math.max(0, DEPTH.floorWear) * (lane ? 1 : 0.35) * (mat === 'alloy' ? 0.18 : 1);
+      const wear = nextSurfaces() ? 0 : Math.max(0, DEPTH.floorWear) * (lane ? 1 : 0.35) * (mat === 'alloy' ? 0.18 : 1);
       if (wear > 0.001 && !MAT_NO_WEAR[mat]) {
         const wa = a => (a * wear).toFixed(3);
         if (n % 9 === 1) px(X + (n % 6), Y + 3 + (n % 8), 4 + (n % 3), 1, 'rgba(0,0,0,' + wa(0.18) + ')');          // boot scuff streak
@@ -1910,12 +1918,14 @@ const StationBake = (() => {
     crown(b, X, topY - capH, T, 1, shade(pal.cap, 0.30));                          // 1px lighter top edge
     b.fillStyle = shade(pal.cap, -0.45); b.fillRect(X, topY - 1, T, 1);            // 1px darker seam beneath
     // THE FACE — per material
-    (WALL_RECIPES[wallMatOf(e.z)] || WALL_RECIPES.plating)(b, pal, X, topY, h, e, n, room, Y + inFace);
+    const nextWall = nextSurfaces() && WorldSurface.paintWallTile(b, wallMatOf(e.z), pal.base,
+      X, topY, T, h, e.x, { detail: DEPTH.wallDetail });
+    if (!nextWall) (WALL_RECIPES[wallMatOf(e.z)] || WALL_RECIPES.plating)(b, pal, X, topY, h, e, n, room, Y + inFace);
     /* THE SEGMENT FRAME (2026-09-03, from the reference): a wall is built of panels, and each panel has a
        thick bevelled edge — lit on top and the west, shaded on the east — that catches the ceiling light
        and separates it from its neighbour. Two tiles per segment. Painted over the recipe so every material
        reads as panels bolted to the frame; `wallDetail` scales it. */
-    if (DEPTH.wallDetail > 0.001) {   // rooms AND hallways (2026-09-05): a hallway framed differently from the room it buds off reads as a different building
+    if (!nextWall && DEPTH.wallDetail > 0.001) {   // generation II owns its panel framing
       const seg = ((e.x % 2) + 2) % 2, wd = Math.max(0, DEPTH.wallDetail);
       const fr = shade(pal.face, 0.22 * wd), fd2 = shade(pal.face, -0.45 * wd), fx = shade(pal.face, -0.62 * wd);
       b.fillStyle = fr; b.fillRect(X, topY + 2, T, 1);                                 // lit top rail of the panel
@@ -2398,7 +2408,8 @@ const StationBake = (() => {
         const recipe = WALL_RECIPES[matId] || WALL_RECIPES.plating;
         for (let i = 0; i < STRIP_TILES; i++) {
           const tx = tx0 + i;
-          recipe(g, pal, i * T, 0, h, { x: tx, y: ty, z: null }, h2(tx, ty, 'nwall'), true, h);
+          if (!(nextSurfaces() && WorldSurface.paintWallTile(g, matId, pal.base, i * T, 0, T, h, tx, { detail: DEPTH.wallDetail })))
+            recipe(g, pal, i * T, 0, h, { x: tx, y: ty, z: null }, h2(tx, ty, 'nwall'), true, h);
         }
         // Curved/side faces are solid structure, not additional windows. Glass
         // edge tints carry low alpha; reading their RGB as opaque paint made
@@ -3646,6 +3657,13 @@ const StationBake = (() => {
      bakes near its shipped strength and only the dark/bright extremes move. */
   const POOL_REF = 96;
   function additiveFloorPass(b, draw) {
+    if (nextSurfaces()) {
+      // Collect the same fixture anchors, without baking a second illumination system
+      // into the albedo. The new light compositor models these sources after entities.
+      const sourcePlate = canvas(1, 1);
+      draw(sourcePlate.getContext('2d'));
+      return;
+    }
     const k = Math.max(0, Math.min(1, DEPTH.poolAlbedo));
     if (k <= 0.001) { draw(b); return; }
     const layer = canvas(CW, CH);
@@ -4798,6 +4816,8 @@ const StationBake = (() => {
     }
 
     bakeRoomLighting(b);   // after the chamfers, so a rounded corner is lit like every other surface
+    if (nextSurfaces() && WorldSurface.paintFixtures) wallFixtures = WorldSurface.paintFixtures(b, G,
+      { wallUp: WALL.up, corUp: WALL.corUp, viewport: { x: VX, y: VY, w: CW, h: CH } });
 
     // faint room name plates (the v7 floor-code stencil, generalized)
     b.font = "7px 'VT323','Courier New',monospace"; b.fillStyle = 'rgba(255,255,255,0.07)'; b.textAlign = 'left';
@@ -4831,7 +4851,7 @@ const StationBake = (() => {
     crownReach = new Map();   // ...and the corner crown's measured reach, which the mask erase reads back
     VX = viewport ? viewport.x : 0; VY = viewport ? viewport.y : 0;
     CW = viewport ? viewport.w : W; CH = viewport ? viewport.h : H;
-    lampPos = []; chamferAt = {}; extN = new Set();
+    lampPos = []; wallFixtures = []; chamferAt = {}; extN = new Set();
     extNByCol = null;   // ...and the tall-north-face column index the corner ring's depth clip reads
     for (const [cx, cy, k] of geo.chamfers) chamferAt[cx + ',' + cy] = k;
     buildEdges();
@@ -4931,7 +4951,7 @@ const StationBake = (() => {
     const { lightCv, interiorCv, flickers, lamps } = buildLightMap();
     const navLights = hullNavLights(baseCv, interiorCv), interiorPath = interiorLightPath(interiorCv);
     const doorOccluders = buildDoorOccluders(baseCv);
-    return { baseCv, lightCv, interiorCv, interiorPath, navLights, doorOccluders, W: geo.W, H: geo.H, origin: geo.origin, flickers, lamps, viewport: viewport || { x: 0, y: 0, w: geo.W, h: geo.H } };
+    return { baseCv, lightCv, interiorCv, interiorPath, navLights, doorOccluders, W: geo.W, H: geo.H, origin: geo.origin, flickers, lamps, wallFixtures, viewport: viewport || { x: 0, y: 0, w: geo.W, h: geo.H } };
   }
 
   function bake(geo) {
@@ -5023,7 +5043,8 @@ const StationBake = (() => {
     const viewport = chunkViewport(geo, cx, cy);
     const baked = bakeViewport(geo, viewport);
     return { key: chunkKey(cx, cy), cx, cy, x: viewport.x, y: viewport.y, w: viewport.w, h: viewport.h,
-      baseCv: baked.baseCv, lightCv: baked.lightCv, flickers: baked.flickers, lamps: baked.lamps || [], usedAt: usedAt || 0 };
+      baseCv: baked.baseCv, lightCv: baked.lightCv, interiorCv: baked.interiorCv,
+      flickers: baked.flickers, lamps: baked.lamps || [], wallFixtures: baked.wallFixtures || [], usedAt: usedAt || 0 };
   }
   function pruneChunkMap(chunkMap, maxRetainedChunks, requiredKeys) {
     if (!maxRetainedChunks || chunkMap.size <= maxRetainedChunks) return { evicted: 0 };
@@ -5072,6 +5093,7 @@ const StationBake = (() => {
     return {
       chunked: true, chunks, chunkMap, chunkPx: CHUNK_PX, generation,
       W: geo.W, H: geo.H, origin: geo.origin, flickers: uniqueFlickers(chunks), lamps: uniqueFlickers(chunks, 'lamps'),
+      wallFixtures: uniqueFlickers(chunks, 'wallFixtures'),
       stats: { chunkCount: chunks.length, rebakedChunks: dirty.length + visibleBaked, reusedChunks: reuse ? Math.max(0, chunks.length - dirty.length - visibleBaked) : 0,
         dirtyChunks: dirty.map(d => d.key), visibleChunks: visible ? Array.from(visibleKeys) : null,
         evictedChunks: pruned.evicted, fullReset: !reuse }
@@ -5123,7 +5145,10 @@ const StationBake = (() => {
           ctx.fillRect(r % (cols * T), (r >>> 8) % h, 1, 1);
         }
       }
-      for (let i = 0; i < cols; i++) recipe(ctx, pal, i * T, 0, h, { x: i, y: 0, z: 'sample' }, h2(i, 0, 'sample'), true, h);
+      for (let i = 0; i < cols; i++) {
+        if (!(nextSurfaces() && WorldSurface.paintWallTile(ctx, matId, pal.base, i * T, 0, T, h, i, { detail: DEPTH.wallDetail })))
+          recipe(ctx, pal, i * T, 0, h, { x: i, y: 0, z: 'sample' }, h2(i, 0, 'sample'), true, h);
+      }
     } finally { T = prevT; viewportRects = prevRects; }
   }
 

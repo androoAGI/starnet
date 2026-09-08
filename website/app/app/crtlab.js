@@ -11,6 +11,7 @@
   if (!/[?&]crtlab\b/.test(location.search)) return;
 
   const CRT_DEFAULTS = { scan: 0.38, pitch: 1, fade: 0.25, glow: 0.13, curve: 0.09, vig: 0.30, over: 1.20, dust: 0.5, aberr: 0.2, grain: 0.16, bloom: 0.25, emit: 0.9, mask: 0, bleed: 0, roll: 0 };
+  if (typeof WorldRenderer !== 'undefined' && WorldRenderer.enabled()) Object.assign(CRT_DEFAULTS, WorldRenderer.PHOSPHOR);
   // MUST MIRROR StationBake.LIGHT — RESET writes these back over the live object (same contract as
   // WALL_DEFAULTS below). Dulled 2026-08-15 alongside the bake; a stale mirror here would make RESET
   // restore the brighter station that no longer ships.
@@ -30,6 +31,7 @@
   const TUBE_CSSVAR = { clear: ['--tube-clear', '%'], mid: ['--tube-mid', '%'], midA: ['--tube-mid-a', ''], edgeA: ['--tube-edge-a', ''], inset: ['--tube-inset', 'px'] };
 
   const PRESETS = {
+    'World II: phosphor': { crt: { scan: 0.26, pitch: 1, fade: 0.18, curve: 0.06, vig: 0.20, over: 1.13, dust: 0.35, aberr: 0.08, grain: 0.06, bloom: 0.14 } },
     'Clean (off)':     { crt: { scan: 0, fade: 0, dust: 0, aberr: 0, grain: 0 } },
     'Soft fade':       { crt: { scan: 0.06, pitch: 2, fade: 1.0 } },
     'Faded film':      { crt: { scan: 0.05, pitch: 2, fade: 2.0 } },

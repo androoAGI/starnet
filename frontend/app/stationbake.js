@@ -17,6 +17,7 @@
 const StationBake = (() => {
   const nextSurfaces = () => typeof WorldSurface !== 'undefined' &&
     (typeof WorldRenderer === 'undefined' || WorldRenderer.enabled());
+  let wallFixtures = [];
   /* palette + geometry knobs — verbatim from v7 world.js/render.js */
   const pad = 7;
   const NFACE = 9, FACEW = 4;
@@ -4815,6 +4816,8 @@ const StationBake = (() => {
     }
 
     bakeRoomLighting(b);   // after the chamfers, so a rounded corner is lit like every other surface
+    if (nextSurfaces() && WorldSurface.paintFixtures) wallFixtures = WorldSurface.paintFixtures(b, G,
+      { wallUp: WALL.up, corUp: WALL.corUp, viewport: { x: VX, y: VY, w: CW, h: CH } });
 
     // faint room name plates (the v7 floor-code stencil, generalized)
     b.font = "7px 'VT323','Courier New',monospace"; b.fillStyle = 'rgba(255,255,255,0.07)'; b.textAlign = 'left';
@@ -4848,7 +4851,7 @@ const StationBake = (() => {
     crownReach = new Map();   // ...and the corner crown's measured reach, which the mask erase reads back
     VX = viewport ? viewport.x : 0; VY = viewport ? viewport.y : 0;
     CW = viewport ? viewport.w : W; CH = viewport ? viewport.h : H;
-    lampPos = []; chamferAt = {}; extN = new Set();
+    lampPos = []; wallFixtures = []; chamferAt = {}; extN = new Set();
     extNByCol = null;   // ...and the tall-north-face column index the corner ring's depth clip reads
     for (const [cx, cy, k] of geo.chamfers) chamferAt[cx + ',' + cy] = k;
     buildEdges();
@@ -4948,7 +4951,7 @@ const StationBake = (() => {
     const { lightCv, interiorCv, flickers, lamps } = buildLightMap();
     const navLights = hullNavLights(baseCv, interiorCv), interiorPath = interiorLightPath(interiorCv);
     const doorOccluders = buildDoorOccluders(baseCv);
-    return { baseCv, lightCv, interiorCv, interiorPath, navLights, doorOccluders, W: geo.W, H: geo.H, origin: geo.origin, flickers, lamps, viewport: viewport || { x: 0, y: 0, w: geo.W, h: geo.H } };
+    return { baseCv, lightCv, interiorCv, interiorPath, navLights, doorOccluders, W: geo.W, H: geo.H, origin: geo.origin, flickers, lamps, wallFixtures, viewport: viewport || { x: 0, y: 0, w: geo.W, h: geo.H } };
   }
 
   function bake(geo) {
@@ -5040,7 +5043,8 @@ const StationBake = (() => {
     const viewport = chunkViewport(geo, cx, cy);
     const baked = bakeViewport(geo, viewport);
     return { key: chunkKey(cx, cy), cx, cy, x: viewport.x, y: viewport.y, w: viewport.w, h: viewport.h,
-      baseCv: baked.baseCv, lightCv: baked.lightCv, flickers: baked.flickers, lamps: baked.lamps || [], usedAt: usedAt || 0 };
+      baseCv: baked.baseCv, lightCv: baked.lightCv, interiorCv: baked.interiorCv,
+      flickers: baked.flickers, lamps: baked.lamps || [], wallFixtures: baked.wallFixtures || [], usedAt: usedAt || 0 };
   }
   function pruneChunkMap(chunkMap, maxRetainedChunks, requiredKeys) {
     if (!maxRetainedChunks || chunkMap.size <= maxRetainedChunks) return { evicted: 0 };
@@ -5089,6 +5093,7 @@ const StationBake = (() => {
     return {
       chunked: true, chunks, chunkMap, chunkPx: CHUNK_PX, generation,
       W: geo.W, H: geo.H, origin: geo.origin, flickers: uniqueFlickers(chunks), lamps: uniqueFlickers(chunks, 'lamps'),
+      wallFixtures: uniqueFlickers(chunks, 'wallFixtures'),
       stats: { chunkCount: chunks.length, rebakedChunks: dirty.length + visibleBaked, reusedChunks: reuse ? Math.max(0, chunks.length - dirty.length - visibleBaked) : 0,
         dirtyChunks: dirty.map(d => d.key), visibleChunks: visible ? Array.from(visibleKeys) : null,
         evictedChunks: pruned.evicted, fullReset: !reuse }

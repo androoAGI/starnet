@@ -11,6 +11,7 @@
   if (!/[?&]crtlab\b/.test(location.search)) return;
 
   const CRT_DEFAULTS = { scan: 0.38, pitch: 1, fade: 0.25, glow: 0.13, curve: 0.09, vig: 0.30, over: 1.20, dust: 0.5, aberr: 0.2, grain: 0.16, bloom: 0.25, emit: 0.9, mask: 0, bleed: 0, roll: 0 };
+  if (typeof WorldRenderer !== 'undefined' && WorldRenderer.enabled()) Object.assign(CRT_DEFAULTS, WorldRenderer.PHOSPHOR);
   // MUST MIRROR StationBake.LIGHT — RESET writes these back over the live object (same contract as
   // WALL_DEFAULTS below). Dulled 2026-08-15 alongside the bake; a stale mirror here would make RESET
   // restore the brighter station that no longer ships.

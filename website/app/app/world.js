@@ -14,6 +14,7 @@
 'use strict';
 
 const World = (() => {
+  const sceneRenderer = typeof WorldRenderer !== 'undefined' ? WorldRenderer.create() : null;
   let shadowReceiverGeo = null, shadowReceiverPath = null;
   let propShadowLayer = null;
   let T = 12;
@@ -54,6 +55,7 @@ const World = (() => {
      Both feed the GL path and the CPU LUT path IDENTICALLY — drawCurveGL's probe compares the two and defects
      to CPU on divergence, so they must never drift apart. */
   const CRT = { scan: 0.38, pitch: 1, fade: 0.25, glow: 0.13, curve: 0.09, vig: 0.30, over: 1.20, dust: 0.5, aberr: 0.2, grain: 0.16, bloom: 0.25, emit: 0.9, mask: 0, bleed: 0, roll: 0 };   // 2026-09-03 'old TV' pass (Andrew: "90s Bandersnatch vibes"): pitch-2 lines, an RGB phosphor mask, colour bleed, more bow + vignette, a faint rolling sync bar. mask/bleed/roll = drawCRT   // bloom = phosphor bloom strength (drawBloom) · emit = prop light-source strength (drawPropLights)
+  if (typeof WorldRenderer !== 'undefined' && WorldRenderer.enabled()) Object.assign(CRT, WorldRenderer.PHOSPHOR);
   let _warpCv = null, _warpCtx = null;   // the barrel-warp snapshot buffer — see drawCurve()
   let _lut = null, _lutKey = '', _outImg = null;   // CPU per-pixel barrel-warp inverse-map LUT + output buffer — see buildLUT()/drawCurveCPU()
   let _gl = null, _glc = null, _glProg = null, _glTex = null, _glKLoc = null, _glAberrLoc = null, _glVigLoc = null, _glOverLoc = null, _glReady = false, _glFailed = false;   // GPU barrel-warp (WebGL) — see initGL()/drawCurveGL()
@@ -5781,7 +5783,10 @@ const World = (() => {
         { x: 0, y: 0, w: cache.baseCv.width, h: cache.baseCv.height });
     }
 
-    ctx.drawImage(cache.baseCv, 0, 0);
+    if (sceneRenderer) {
+      sceneRenderer.begin({ geo, cache, now, scale, panX, panY, width: cv.width, height: cv.height, reducedMotion: reduceMotion() });
+      sceneRenderer.drawBase(ctx);
+    } else ctx.drawImage(cache.baseCv, 0, 0);
 
     // conveyor belts (floor machinery) + the live transport sim — local frame, under entities
     if (geo && geo.belts && typeof Conveyor !== 'undefined') {
@@ -5861,7 +5866,10 @@ const World = (() => {
         // frame and the covers (drawOver, below). Same copy-on-write idiom as the nameplate above.
         if (sleeper) dp = Object.assign(dp === p ? Object.assign({}, p) : dp, { sleeper: true });
         items.push({ y: sy, draw: () => { if (propOnScreen(dp)) PropSprites.draw(dp, work, live); } });
-        if (PropSprites.lightOf) { const lt = PropSprites.lightOf(dp, work, reduceMotion()); if (lt) propLights.push(lt); }   // this prop is a light SOURCE this frame — painted over the lightmap (drawPropLights)
+        if (PropSprites.lightOf) {
+          const lt = PropSprites.lightOf(dp, work, reduceMotion());
+          if (lt) propLights.push(Object.assign({}, lt, { originX: (p.x + (p.w || 1) / 2) * T, originY: (p.y + (p.h || 1) / 2) * T }));
+        }
         // SEAT-FRONT SLIVER: a stool/chair's pad front rim redraws just IN FRONT of its (lifted) sitter,
         // so the body's lap tucks INTO the pad — the couch trick, at single-seat scale. Sorted a hair
         // past the body's own key (sitter.seatPy) and well short of the next tile row.
@@ -5906,7 +5914,7 @@ const World = (() => {
     } });
     if (desk && !deskPropId && typeof PropSprites !== 'undefined' && PropSprites.lightOf) {   // the auto-desk's CRT lights the deck while the hero works, like any placed workstation
       const lt = PropSprites.lightOf({ t: 'desk', x: desk.tx, y: desk.ty, w: desk.w, h: desk.h }, !!(agent && agent.working), reduceMotion());
-      if (lt) propLights.push(lt);
+      if (lt) propLights.push(Object.assign({}, lt, { originX: (desk.tx + desk.w / 2) * T, originY: (desk.ty + desk.h / 2) * T }));
     }
     if (seat && !deskPropId) items.push({ y: (seat.ty + 1) * T, draw: () => drawSeatChair(seat.tx, seat.ty, seat.cx) });
   // a PLACED hero desk's chair is drawn by the workstation loop above; draw here only for the synthetic auto-desk
@@ -5938,23 +5946,32 @@ const World = (() => {
        paints. One pass rather than per-item so a shadow can never land on a neighbour's body: the props
        and bodies are y-sorted and paint OVER this. The synthetic auto-desk casts one too. */
     drawPropShadows();
-    items.sort((a, b) => a.y - b.y);
-    for (const it of items) it.draw();
+    if (sceneRenderer) sceneRenderer.drawGrounding(ctx, [agent, ...crew].filter(b => b && !b.unplaced && !b.seated && !b.lying)
+      .map(b => ({ x: bodyPosX(b), y: bodyPosY(b), width: 7, height: 20, opacity: .16 })));
+    if (sceneRenderer) {
+      sceneRenderer.drawEntities(ctx, items);
+    } else {
+      items.sort((a, b) => a.y - b.y);
+      for (const it of items) it.draw();
+    }
     if (convey) convey.drawBoxes(ctx, now, T);   // boxes ride on top of the belts
     if (ghost) ghost.draw(ctx, now, T, 8);       // the projection + its WOULD-captions (NAG_FONT size)
     drawHandoffBoxes(now);   // Stage 2: lead→worker delegation boxes fly over the entities
     drawQueueJam(now);   // the live backlog as a physical jam of waiting crates at the INTAKE (world-space, under the lightmap)
     drawShippedPallet(now);   // SHIPPED TODAY: completed jobs stack as product crates at the OUTBOX (server-truth count)
 
-    ctx.drawImage(cache.lightCv, 0, 0);
-    ctx.save();
-    try {
-      clipInteriorLight();
-      drawGlows(now);
-      drawPropLights(now, propLights);   // the props that are light SOURCES put their colour on the deck and on whoever stands near (world-space, additive)
-    } finally { ctx.restore(); }
+    const nextLight = sceneRenderer && sceneRenderer.drawLight(ctx, propLights, { ambient: StationBake.LIGHT.ambient, emission: CRT.emit });
+    if (!nextLight) {
+      ctx.drawImage(cache.lightCv, 0, 0);
+      ctx.save();
+      try {
+        clipInteriorLight();
+        drawGlows(now);
+        drawPropLights(now, propLights);
+      } finally { ctx.restore(); }
+    }
     drawNavLights(now);   // small running lights on validated exterior armour mounts
-    drawDust(now);   // Slice 3: tiny motes drifting through the light pools (world-space, additive, over the glows)
+    if (!(sceneRenderer && sceneRenderer.drawAtmosphere(ctx))) drawDust(now);
     drawDeskFlashes(now);   // G0.4/G0.8: red distress strobe over a desk whose run just died (additive, with the glows)
     drawAwakenLight(now);   // the soul kindling: ignition spark + a growing halo + motes (world-space additive, awakening only)
     // the AWAKENING veil — now a SPOTLIGHT on the newborn (center light, corners dark) that warms cold->dawn,
@@ -6004,6 +6021,7 @@ const World = (() => {
     drawCurve(now); // barrel-warp the whole feed IN-CANVAS — the original (dot-matrix-era) curve, no dots
     drawCRT(now);   // scanlines + fade, painted in-canvas at device-px OVER the warped feed (no moiré)
     paintStageHeartbeat();   // the frame's last act: the one opaque pixel a dead stage context cannot fake (see watchStageLoss)
+    if (sceneRenderer) sceneRenderer.finish();
     // NOTE: the next rAF is scheduled by the frame() crash-guard wrapper, BEFORE this body runs — never here.
   }
 
@@ -9606,6 +9624,7 @@ const World = (() => {
     // the live station document (read-only) — the station-quest generator reads props[] to detect the
     // OUTBOX / MISSION-BOARD standing gaps and to resolve a placement. Null when no station is loaded (headless).
     stationDoc: () => (station && station.doc ? station.doc() : null),
+    renderStats: () => sceneRenderer ? sceneRenderer.stats() : { generation: 'classic' },
     // G1c — the live SlagLog ring (read-only): the most-recent wasted-spend post-mortems the floor has diagnosed.
     // The maintenance-quest generator (maintqueststore.js) tallies these by cause; a recurring cause mints a
     // fix-it quest. Returns a fresh copy (slaglog owns the ring); [] when the log isn't loaded (headless/title).
