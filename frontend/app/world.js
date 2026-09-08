@@ -5945,6 +5945,7 @@ const World = (() => {
     /* THE SHADOW PASS — every standing prop's cast shadow, on the deck (over the rugs), before any item
        paints. One pass rather than per-item so a shadow can never land on a neighbour's body: the props
        and bodies are y-sorted and paint OVER this. The synthetic auto-desk casts one too. */
+    if (sceneRenderer) sceneRenderer.prepareLight(propLights, { ambient: StationBake.LIGHT.ambient, emission: CRT.emit });
     drawPropShadows();
     if (sceneRenderer) sceneRenderer.drawGrounding(ctx, [agent, ...crew].filter(b => b && !b.unplaced && !b.seated && !b.lying)
       .map(b => ({ x: bodyPosX(b), y: bodyPosY(b), width: 7, height: 20, opacity: .16 })));
@@ -6683,7 +6684,9 @@ const World = (() => {
       const prevA = ctx.globalAlpha;
       if (bornA < 1) ctx.globalAlpha = prevA * bornA;
       let geom = null;
-      if (typeof SPRITES !== 'undefined' && SPRITES.ready) geom = SPRITES.drawBody(ctx, who, now);
+      if (typeof SPRITES !== 'undefined' && SPRITES.ready) geom = SPRITES.drawBody(ctx, who, now,
+        sceneRenderer ? { reducedMotion: reduceMotion(), light: sceneRenderer.sampleLight(who.px, who.py),
+          skipGroundShadow: !who.seated && !who.lying } : undefined);
       // Do not flash the cyan procedural body while the real default skin is actively loading.
       // A genuine load failure still clears `loading` and gets the honest fallback on the next frame.
       if (!geom && !(typeof SPRITES !== 'undefined' && SPRITES.loading)) drawFallback(now, who);

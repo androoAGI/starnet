@@ -23,4 +23,37 @@ assert.equal(renderer.stats().entities, 2);
 assert.equal(renderer.drawLight({}, [], {}), false, 'legacy fallback is explicit when lighting engine is absent');
 renderer.dispose();
 assert.equal(renderer.stats().samples, 0);
+
+// A physical source disappearing must affect the body in that very depth pass.
+// Preparing light after drawing the body leaves a one-frame false work glow.
+const vm = require('node:vm');
+const fs = require('node:fs');
+let prepared = null;
+const sequence = [];
+const fakeLight = {
+  setGeometry() { prepared = null; },
+  prepare(frame) { prepared = frame; sequence.push('prepare'); },
+  sample(x, y) { return { x, y, sources: prepared.lights.length }; },
+  drawGrounding() { sequence.push('ground:' + prepared.lights.length); },
+  render() { sequence.push('composite:' + prepared.lights.length); return true; },
+  dispose() { prepared = null; }
+};
+const scope = { module: { exports: {} }, WorldLight: { create: () => fakeLight } };
+vm.runInNewContext(fs.readFileSync(require.resolve('../frontend/app/worldrenderer.js'), 'utf8'), scope);
+const live = scope.module.exports.create();
+const geo = { TILE: 12 }, cache = { W: 48, H: 48, lamps: [{ x: 12 }], wallFixtures: [{ x: 24 }] };
+live.begin({ now: 10, geo, cache });
+assert.equal(live.sampleLight(10, 10), null, 'never samples stale sources before preparation');
+live.prepareLight([{ x: 12, y: 12 }], { emission: .9 });
+assert.equal(prepared.fixtures.length, 2, 'both physical fixture collections reach the same sample');
+live.drawGrounding({}, [{}]);
+live.drawEntities({}, [{ y: 1, draw: () => sequence.push('body:' + live.sampleLight(12, 12).sources) }]);
+live.drawLight({}, []);
+assert.deepEqual(sequence, ['prepare', 'ground:1', 'body:1', 'composite:1']);
+live.begin({ now: 20, geo, cache });
+assert.equal(live.sampleLight(12, 12), null);
+live.prepareLight([], {});
+assert.equal(live.sampleLight(12, 12).sources, 0, 'stopped work removes illumination before the next sprite');
+live.dispose();
+assert.equal(live.sampleLight(12, 12), null);
 console.log('worldrenderer: depth order, camera geometry, lifecycle and measured-only statistics passed');

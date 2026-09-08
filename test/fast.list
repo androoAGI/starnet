@@ -445,6 +445,7 @@ test/window-minimize.test.js
 test/nightshift-steer-ui.test.js
 test/world-agent-click.test.js
 test/worldrenderer.test.js
+test/world-immersion-characters.test.js
 test/worldsurface.test.js
 test/worldlight.test.js
 test/state-truth-overlap.test.js

@@ -8,8 +8,8 @@ const WorldRenderer = (() => {
   const GENERATION = 'II';
   // Tuned in the running CRT lab: retain a visible tube while resolving material
   // highlights and sprite detail instead of smearing them into the same grey band.
-  const PHOSPHOR = Object.freeze({ scan: .26, pitch: 1, fade: .18, curve: .06, vig: .20,
-    over: 1.13, dust: .35, aberr: .08, grain: .06, bloom: .14 });
+  const PHOSPHOR = Object.freeze({ scan: .16, pitch: 1, fade: .06, curve: .04, vig: .14,
+    over: 1.08, dust: .35, aberr: .025, grain: .015, bloom: .08 });
   const FRAME_WINDOW = 120;
   const finite = (v, fallback) => Number.isFinite(Number(v)) ? Number(v) : fallback;
   const clock = () => typeof performance !== 'undefined' ? performance.now() : Date.now();
@@ -39,7 +39,7 @@ const WorldRenderer = (() => {
   }
   function create(options) {
     options = options || {};
-    let geometry = null, baked = null, lighting = null, frame = null;
+    let geometry = null, baked = null, lighting = null, frame = null, preparedLight = null;
     let frames = 0, rebuilds = 0, entityCount = 0, lastStart = 0, startedAt = 0;
     let elapsed = [], durations = [], lightDurations = [], lightingMs = 0;
     const push = (array, value) => { array.push(value); if (array.length > FRAME_WINDOW) array.shift(); };
@@ -53,7 +53,7 @@ const WorldRenderer = (() => {
       if (frame.geo !== geometry || frame.cache !== baked) {
         geometry = frame.geo; baked = frame.cache; rebuilds++;
         if (canLight()) {
-          if (!lighting) lighting = WorldLight.create({ quality: 'high' });
+          if (!lighting) lighting = WorldLight.create({ quality: 'high', wallAmbient: .16, fixtureTint: .24 });
           lighting.setGeometry(geometry, { width: baked.W, height: baked.H,
             tileSize: geometry.TILE, interiorPath: baked.interiorPath, interiorMask: baked.interiorCv, surfaceMask: baked.baseCv,
             surfaceChunks: baked.chunks });
@@ -61,6 +61,7 @@ const WorldRenderer = (() => {
       }
       entityCount = 0;
       lightingMs = 0;
+      preparedLight = null;
     }
     function drawBase(ctx) {
       if (baked && baked.baseCv) ctx.drawImage(baked.baseCv, 0, 0);
@@ -72,6 +73,18 @@ const WorldRenderer = (() => {
     function drawGrounding(ctx, bodies) {
       if (lighting && lighting.drawGrounding) lighting.drawGrounding(ctx, bodies || []);
     }
+    function prepareLight(lights, params) {
+      if (!lighting || classic) return false;
+      preparedLight = Object.assign({ lights: lights || [], fixtures: (baked.lamps || baked.flickers || []).concat(baked.wallFixtures || []), fixtureGain: .82,
+        now: frame.now, reducedMotion: !!frame.reducedMotion }, params || {});
+      // Prepare before the depth pass: a CRT that stops working must stop lighting
+      // its operator and casting a shadow in this very frame, including after rebake.
+      if (lighting.prepare) lighting.prepare(preparedLight);
+      return true;
+    }
+    function sampleLight(x, y) {
+      return preparedLight && lighting && lighting.sample ? lighting.sample(x, y) : null;
+    }
     function drawAtmosphere(ctx, params) {
       if (!lighting || !lighting.drawAtmosphere) return false;
       lighting.drawAtmosphere(ctx, Object.assign({ now: frame.now, reducedMotion: !!frame.reducedMotion }, params || {}));
@@ -80,8 +93,8 @@ const WorldRenderer = (() => {
     function drawLight(ctx, lights, params) {
       if (!lighting || classic) return false;
       const t = clock();
-      const rendered = lighting.render(ctx, Object.assign({ lights: lights || [], fixtures: (baked.lamps || baked.flickers || []).concat(baked.wallFixtures || []),
-        now: frame.now, reducedMotion: !!frame.reducedMotion }, params || {}));
+      if (!preparedLight) prepareLight(lights, params);
+      const rendered = lighting.prepare ? lighting.render(ctx) : lighting.render(ctx, preparedLight);
       lightingMs = clock() - t;
       return rendered;
     }
@@ -97,14 +110,18 @@ const WorldRenderer = (() => {
         renderMedianMs: percentile(durations, .5), renderP95Ms: percentile(durations, .95),
         lightingMedianMs: percentile(lightDurations, .5), samples: durations.length,
         viewport: frame ? visibleRect(frame) : null,
+        appearance: {
+          crew: typeof SPRITES !== 'undefined' && SPRITES.bodyAppearanceStats ? SPRITES.bodyAppearanceStats() : null,
+          props: typeof PropSprites !== 'undefined' && PropSprites.lightResponseStats ? PropSprites.lightResponseStats() : null
+        },
         lighting: lighting && lighting.stats ? lighting.stats() : null };
     }
     function dispose() {
       if (lighting && lighting.dispose) lighting.dispose();
-      lighting = null; geometry = null; baked = null; frame = null;
+      lighting = null; geometry = null; baked = null; frame = null; preparedLight = null;
       elapsed = []; durations = []; lightDurations = []; lastStart = 0;
     }
-    return { begin, drawBase, drawEntities, drawGrounding, drawAtmosphere, drawLight, finish, stats, dispose };
+    return { begin, drawBase, prepareLight, sampleLight, drawEntities, drawGrounding, drawAtmosphere, drawLight, finish, stats, dispose };
   }
   return { GENERATION, PHOSPHOR, enabled: () => !classic, create, visibleRect, intersects, sortedItems, percentile };
 })();
