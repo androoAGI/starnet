@@ -49,7 +49,7 @@
 .refit-start em { color: var(--ph); font-size: 10px; letter-spacing: 1px; font-style: normal; }
 .refit-start-key { position: absolute; right: 10px; top: 12px; opacity: .5; }
 .refit-start:hover { border-color: var(--ph); background: var(--ph-faint); }
-.refit-overlay[data-tool="prop"] .refit-palette { display: block; overflow: hidden; padding: 0; }
+.refit-overlay[data-tool="prop"] .refit-palette { display: block; overflow-y: auto; padding: 0; }
 .refit-propworkspace { height: 100%; min-height: 0; display: flex; flex-direction: column; gap: 10px; }
 .refit-propbrowser { display: flex; flex-direction: column; min-width: 0; min-height: calc(340px * var(--sn-unzoom,1)); overflow-y: auto; flex: 1; gap: 7px; }
 .refit-propworkspace.is-core-view .refit-core-access { display: none; }
@@ -124,12 +124,12 @@
 .refit-placement-note { display: block; grid-column: 1 / -1; font-size: 10px; color: var(--ph-dim); line-height: 1.35; }
 .refit-propinspector .refit-equipment-info { grid-column: 1 / -1; display: block; padding: 6px 0; margin: 0; border: 0; border-top: 1px solid var(--ui-edge); background: none; color: var(--ph-dim); font-size: 11px; line-height: 1.3; }
 .refit-purpose { margin: 0 0 6px; color: var(--ph-bright); }
-/* Keep browsing primary: the full explanation belongs to the existing details view.
+/* Keep browsing primary: details expand in place without enlarging the preview.
    A complete gallery row remains available even when UI scaling makes the chrome taller. */
-.refit-propworkspace:not(.show-details) .refit-propinspector { padding: 6px; }
-.refit-propworkspace:not(.show-details) .refit-selected-prop { grid-template-columns: 36px minmax(0,1fr); }
-.refit-propworkspace:not(.show-details) .refit-preview-art { min-height: 36px; }
-.refit-propworkspace:not(.show-details) .refit-preview-art canvas { width: 34px; height: 34px; }
+.refit-propworkspace .refit-propinspector { padding: 6px; }
+.refit-propworkspace .refit-selected-prop { grid-template-columns: 36px minmax(0,1fr); }
+.refit-propworkspace .refit-preview-art { min-height: 36px; }
+.refit-propworkspace .refit-preview-art canvas { width: 34px; height: 34px; }
 .refit-propworkspace:not(.show-details) :is(.refit-equipment-info,.refit-placement-note) { display: none; }
 .refit-propworkspace:not(.show-details) :is(.equipment-status,.refit-equipment-scope) { display: none; }
 .equipment-status { margin-bottom: 6px; }
@@ -138,17 +138,11 @@
 .refit-propworkspace.show-details .refit-equipment-detail { display: block; }
 .refit-prop-more { display: flex; gap: 5px; margin-top: 5px; }
 .refit-prop-more .bb { flex: 1; min-width: 0; padding: 4px 2px; margin: 0; font-size: 10px; letter-spacing: .3px; }
-.refit-propworkspace.show-details .refit-prop-more { display: none; }
 .refit-designs { padding: 3px; font-size: 10px; }
 .refit-propinspector .refit-input { font-size: 12px; max-width: 100%; }
 .refit-dock .refit-details-toggle { display: flex; order: 1; justify-content: center; padding: 3px; margin-top: 4px; font-size: 10px; }
-.refit-dock .refit-details-back { display: none; margin-bottom: 12px; }
-.refit-propworkspace.show-details .refit-propbrowser, .refit-propworkspace.show-details .refit-details-toggle { display: none; }
-.refit-propworkspace.show-details .refit-propinspector { flex: 1; overflow-y: auto; padding: 10px; }
-.refit-propworkspace.show-details :is(.refit-equipment-info,.refit-placement-note,.refit-preview-grant) { display: block; }
-.refit-propworkspace.show-details .refit-details-back { display: flex; }
-.refit-propworkspace.show-details .refit-selected-prop { grid-template-columns: 84px minmax(0,1fr); }
-.refit-propworkspace.show-details .refit-preview-art canvas { width: 82px; height: 76px; }
+.refit-propworkspace.show-details .refit-equipment-info { display: block; max-height: calc(140px * var(--sn-unzoom,1)); overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; }
+.refit-propworkspace .refit-placement-note { display: none; }
 .refit-dock :is(button,input,select,summary):focus-visible { outline: 2px solid var(--ph-bright); outline-offset: 2px; }
 .refit-finline { max-height: calc(100vh * var(--sn-unzoom,1) - 150px); overflow-y: auto; }
 @container (max-width: 270px) {
