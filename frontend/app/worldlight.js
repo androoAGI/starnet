@@ -12,9 +12,9 @@
 const WorldLight = (() => {
   const TAU = Math.PI * 2, EPS = 1e-7;
   const QUALITY = Object.freeze({
-    high: Object.freeze({ rays: 96, mapPixels: 2400000, stampPixels: 6000000, maxSources: 512 }),
-    balanced: Object.freeze({ rays: 64, mapPixels: 1200000, stampPixels: 3000000, maxSources: 384 }),
-    low: Object.freeze({ rays: 40, mapPixels: 600000, stampPixels: 1500000, maxSources: 256 })
+    high: Object.freeze({ rays: 96, areaSamples: 5, mapPixels: 2400000, stampPixels: 6000000, maxSources: 512 }),
+    balanced: Object.freeze({ rays: 64, areaSamples: 3, mapPixels: 1200000, stampPixels: 3000000, maxSources: 384 }),
+    low: Object.freeze({ rays: 40, areaSamples: 1, mapPixels: 600000, stampPixels: 1500000, maxSources: 256 })
   });
   const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
   const finite = (v, fallback) => Number.isFinite(+v) ? +v : fallback;
@@ -101,11 +101,36 @@ const WorldLight = (() => {
   }
 
   function visibleAt(light, x, y, segments) {
+    return visibleFrom(light, x, y, segments, originOf(light));
+  }
+
+  function visibleFrom(light, x, y, segments, o) {
     if (Math.hypot(x - light.x, y - light.y) > light.r) return false;
-    const o = originOf(light), dx = x - o.x, dy = y - o.y, d = Math.hypot(dx, dy);
+    const dx = x - o.x, dy = y - o.y, d = Math.hypot(dx, dy);
     if (d < EPS) return true;
     for (const s of segments) if (rayDistance(o.x, o.y, dx / d, dy / d, s) < d - EPS) return false;
     return true;
+  }
+
+  function emitterOrigins(light, segments, count) {
+    const center = originOf(light), radius = clamp(finite(light.softness, 0), 0, 4);
+    if (!(radius > 0) || count === 1) return [center];
+    const offsets = count === 3 ? [[-1, 0], [1, 0]] : [[-1, 0], [1, 0], [0, -1], [0, 1]];
+    return [center].concat(offsets.map(([dx, dy]) => {
+      const o = { x: center.x + dx * radius, y: center.y + dy * radius };
+      // An area emitter adjacent to a wall cannot place part of its luminous
+      // aperture in the next room. Retain that sample at the physical origin.
+      const gate = { x: center.x, y: center.y, r: radius + 1 };
+      return visibleAt(gate, o.x, o.y, segments) ? o : center;
+    }));
+  }
+
+  function visibilityFraction(light, x, y, segments) {
+    if (Math.hypot(x - light.x, y - light.y) > light.r) return 0;
+    const origins = light.origins || emitterOrigins(light, segments, 5);
+    let visible = 0;
+    for (const o of origins) if (visibleFrom(light, x, y, segments, o)) visible++;
+    return visible / origins.length;
   }
 
   // Smooth, finite reach: no hard circular edge, no infinite inverse-square tail.
@@ -128,15 +153,28 @@ const WorldLight = (() => {
     const fixturePower = fixture && Math.abs(rawGain - 0.22) < 0.000001 ? 1 : rawGain;
     const a = clamp(finite(source.a, fixture ? 0.86 : 0) * finite(gain, 1) * (fixture ? fixturePower : 1), 0, 1);
     if (a <= 0) return null;
-    return { x: +source.x, y: +source.y, r: clamp(+source.r, 1, 768), c, a, fixture: !!fixture,
-      originX: finite(source.originX, +source.x), originY: finite(source.originY, +source.y) };
+    const light = { x: +source.x, y: +source.y, r: clamp(+source.r, 1, 768), c, a, fixture: !!fixture,
+      originX: finite(source.originX, +source.x), originY: finite(source.originY, +source.y),
+      softness: clamp(finite(source.softness, fixture ? 1.2 : 0.7), 0, 4), beam: null };
+    // A shaft requires the supplied physical housing and its outward normal.
+    // Ordinary room pools and screen emission never manufacture a visible cone.
+    const b = source.beam || { x: source.emitX, y: source.emitY, dx: source.normalX, dy: source.normalY };
+    const dx = finite(b.dx, 0), dy = finite(b.dy, 0), norm = Math.hypot(dx, dy);
+    if (Number.isFinite(+b.x) && Number.isFinite(+b.y) && norm > EPS) {
+      const reach = Math.hypot(+b.x - light.x, +b.y - light.y);
+      light.beam = { x: +b.x, y: +b.y, dx: dx / norm, dy: dy / norm,
+        length: clamp(finite(b.length, reach + light.r * 0.32), 1, Math.min(256, reach + light.r)),
+        width: clamp(finite(b.width, light.r * 0.18), 2, 36),
+        strength: clamp(finite(b.strength, 0.055), 0, 0.12) };
+    }
+    return light;
   }
 
   function lightAt(x, y, lights, segments) {
     const rgb = [0, 0, 0]; let strongest = null, strength = 0, energy = 0, dx = 0, dy = 0;
     for (const l of lights) {
-      if (!visibleAt(l, x, y, segments)) continue;
-      const v = l.a * falloff(Math.hypot(x - l.x, y - l.y) / l.r);
+      const transmission = visibilityFraction(l, x, y, segments); if (!transmission) continue;
+      const v = l.a * falloff(Math.hypot(x - l.x, y - l.y) / l.r) * transmission;
       for (let i = 0; i < 3; i++) rgb[i] += l.c[i] * v;
       const o = originOf(l), d = Math.hypot(o.x - x, o.y - y);
       if (d > EPS) { dx += (o.x - x) / d * v; dy += (o.y - y) / d * v; }
@@ -170,7 +208,7 @@ const WorldLight = (() => {
     options = options || {};
     let quality = QUALITY[options.quality] ? options.quality : 'high';
     let config = Object.assign({ ambient: 0.82, wallAmbient: 0.28, fixtureTint: 0.17,
-      emission: 1, propLift: 0.65, atmosphere: 0.25 }, options);
+      emission: 1, propLift: 0.65, atmosphere: 0.25, shafts: 1 }, options);
     let geo = null, geometryOptions = {}, segments = [], width = 1, height = 1, ratio = 1;
     let interiorPath = null, interiorMask = null, surfaceMask = null, surfaceChunks = [];
     let baseDark = null, baseGlow = null, frameDark = null, frameGlow = null;
@@ -179,7 +217,7 @@ const WorldLight = (() => {
     const stamps = new Map(), canvasWatches = new Map(), lostCanvases = new Set();
     let resourcesDirty = false, retryResourcesAt = 0;
     const metrics = { geometryRevision: 0, staticBuilds: 0, dynamicBuilds: 0, visibilityBuilds: 0,
-      frames: 0, preparations: 0, lastBuildMs: 0, droppedSources: 0, supported: true, contextLosses: 0, contextRecoveries: 0 };
+      frames: 0, preparations: 0, beamBuilds: 0, lastBuildMs: 0, droppedSources: 0, supported: true, contextLosses: 0, contextRecoveries: 0 };
     function lost(c) {
       if (!lostCanvases.has(c)) { lostCanvases.add(c); metrics.contextLosses++; }
       resourcesDirty = true;
@@ -289,10 +327,12 @@ const WorldLight = (() => {
       return !resourcesDirty && !!baseDark && !!baseGlow && !!frameDark && !!frameGlow;
     }
 
-    const keyOf = l => l.x + ',' + l.y + ',' + l.r + ',' + l.c.join(',') + ',' + finite(l.originX, l.x) + ',' + finite(l.originY, l.y);
-    const signature = lights => lights.map(l => keyOf(l) + ',' + Math.round(l.a * 255)).join(';');
-    function stamp(light) {
-      const key = keyOf(light);
+    const keyOf = l => l.x + ',' + l.y + ',' + l.r + ',' + l.c.join(',') + ',' + finite(l.originX, l.x) + ',' + finite(l.originY, l.y) + ',' + l.softness;
+    const beamKey = l => l.beam ? Object.values(l.beam).join(',') : '';
+    const signature = lights => lights.map(l => keyOf(l) + ',' + Math.round(l.a * 255) + ',' + beamKey(l)).join(';');
+    function stamp(light, beamOnly) {
+      if (beamOnly && (!light.beam || !(light.beam.strength > 0))) return null;
+      const key = (beamOnly ? 'beam:' + beamKey(light) + ':' : '') + keyOf(light);
       const old = stamps.get(key);
       if (old) { stamps.delete(key); stamps.set(key, old); return old; }
       const size = Math.max(2, Math.min(Math.ceil(light.r * 2 * ratio), Math.floor(Math.sqrt(QUALITY[quality].stampPixels))));
@@ -303,13 +343,28 @@ const WorldLight = (() => {
       const canvas = makeCanvas(size, size); if (!canvas) return null;
       const g = canvas.getContext('2d'), x = light.x - light.r, y = light.y - light.r;
       g.setTransform(size / (light.r * 2), 0, 0, size / (light.r * 2), -x * size / (light.r * 2), -y * size / (light.r * 2));
-      const polygon = visibilityPolygon(light, segments, QUALITY[quality].rays);
-      metrics.visibilityBuilds++;
-      g.beginPath(); polygon.forEach((p, i) => i ? g.lineTo(p.x, p.y) : g.moveTo(p.x, p.y)); g.closePath(); g.clip();
-      clipFloor(g);
       const gradient = g.createRadialGradient(light.x, light.y, 0, light.x, light.y, light.r);
       for (const t of [0, 0.14, 0.3, 0.5, 0.7, 0.86, 1]) gradient.addColorStop(t, 'rgba(' + light.c.join(',') + ',' + falloff(t) + ')');
-      g.fillStyle = gradient; g.fillRect(x, y, light.r * 2, light.r * 2);
+      const origins = light.origins || emitterOrigins(light, segments, QUALITY[quality].areaSamples);
+      g.globalCompositeOperation = 'lighter';
+      for (const o of origins) {
+        const polygon = visibilityPolygon(Object.assign({}, light, { originX: o.x, originY: o.y }), segments, QUALITY[quality].rays);
+        g.save(); g.globalAlpha = 1 / origins.length;
+        g.beginPath(); polygon.forEach((p, i) => i ? g.lineTo(p.x, p.y) : g.moveTo(p.x, p.y)); g.closePath(); g.clip();
+        clipFloor(g);
+        if (beamOnly) paintBeam(g, light);
+        else { g.fillStyle = gradient; g.fillRect(x, y, light.r * 2, light.r * 2); }
+        g.restore();
+      }
+      g.globalAlpha = 1; g.globalCompositeOperation = 'source-over';
+      if (beamOnly) {
+        // Keep the visible shaft within the same finite light reach, even when
+        // its projected wall housing is above the floor's visibility origin.
+        g.globalCompositeOperation = 'destination-in'; g.fillStyle = gradient;
+        g.fillRect(x, y, light.r * 2, light.r * 2); g.globalCompositeOperation = 'source-over';
+        metrics.beamBuilds++;
+      }
+      metrics.visibilityBuilds++;
       if (!interiorPath && hasInteriorMask()) {
         // A small temporary stamp mask unions chunk alpha before destination-in;
         // applying chunks one at a time would erase each preceding chunk's light.
@@ -326,10 +381,24 @@ const WorldLight = (() => {
       return result;
     }
 
-    function paint(g, lights, amount, mode) {
+    function paintBeam(g, light) {
+      const b = light.beam, ex = b.x + b.dx * b.length, ey = b.y + b.dy * b.length;
+      const gradient = g.createLinearGradient(b.x, b.y, ex, ey);
+      gradient.addColorStop(0, 'rgba(' + light.c.join(',') + ',' + b.strength / 3 + ')');
+      gradient.addColorStop(0.35, 'rgba(' + light.c.join(',') + ',' + b.strength * 0.27 + ')');
+      gradient.addColorStop(1, 'rgba(' + light.c.join(',') + ',0)'); g.fillStyle = gradient;
+      for (const band of [1, 0.72, 0.46]) {
+        const near = 1.7 * band, far = b.width * 0.5 * band;
+        g.beginPath(); g.moveTo(b.x - b.dy * near, b.y + b.dx * near);
+        g.lineTo(ex - b.dy * far, ey + b.dx * far); g.lineTo(ex + b.dy * far, ey - b.dx * far);
+        g.lineTo(b.x + b.dy * near, b.y - b.dx * near); g.closePath(); g.fill();
+      }
+    }
+
+    function paint(g, lights, amount, mode, beamOnly) {
       g.globalCompositeOperation = mode;
       for (const l of lights) {
-        const s = stamp(l); if (!s) continue;
+        const s = stamp(l, beamOnly); if (!s) continue;
         g.globalAlpha = clamp(l.a * amount, 0, 1); g.drawImage(s.canvas, s.x, s.y, s.size, s.size);
       }
       g.globalAlpha = 1; g.globalCompositeOperation = 'source-over';
@@ -360,6 +429,7 @@ const WorldLight = (() => {
       }
       paint(d, lights, 1, 'destination-out');
       paint(glow, lights, finite(config.fixtureTint, 0.17), 'screen');
+      if (config.shafts > 0) paint(glow, lights, clamp(config.shafts, 0, 2), 'screen', true);
       metrics.staticBuilds++;
     }
 
@@ -371,6 +441,7 @@ const WorldLight = (() => {
       fixtureLights = sourceFixtures.map(s => normalizeLight(s, true, finite(frame.fixtureGain, 1))).filter(Boolean).slice(0, q.maxSources);
       preparedLights = sourceProps.map(s => normalizeLight(s, false, finite(frame.emission, config.emission))).filter(Boolean).slice(0, q.maxSources);
       currentLights = fixtureLights.concat(preparedLights); preparedFrame = frame;
+      for (const light of currentLights) light.origins = emitterOrigins(light, segments, q.areaSamples);
       metrics.droppedSources = Math.max(0, sourceFixtures.length - fixtureLights.length) + Math.max(0, sourceProps.length - preparedLights.length);
       metrics.preparations++; return true;
     }
@@ -383,7 +454,7 @@ const WorldLight = (() => {
       const started = clock(); if (!ensureResources()) return false;
       prepare(nextFrame);
       const fixtures = fixtureLights, lights = preparedLights;
-      const fk = signature(fixtures) + '|' + config.ambient + ',' + config.wallAmbient + ',' + config.fixtureTint;
+      const fk = signature(fixtures) + '|' + config.ambient + ',' + config.wallAmbient + ',' + config.fixtureTint + ',' + config.shafts;
       if (fk !== fixtureKey) { rebuildStatic(fixtures); fixtureKey = fk; frameKey = ''; }
       const dk = signature(lights) + '|' + finite(config.propLift, 0.65);
       if (dk !== frameKey) {
@@ -441,7 +512,12 @@ const WorldLight = (() => {
           const x = l.x + Math.sin(time + seed * TAU) * l.r * 0.45;
           const y = l.y + (((seed + time * 0.35) % 1) - 0.5) * l.r;
           if (!visibleAt(l, x, y, segments)) continue;
-          ctx.fillStyle = 'rgba(' + l.c.join(',') + ',' + gain * l.a * 0.55 + ')';
+          // Exact curved masks clip monolithic worlds. For chunk-only callers,
+          // omit motes on corner tiles rather than risk a bright pixel in space.
+          const T = finite(geometryOptions.tileSize, finite(geo.TILE, 12));
+          if (!interiorPath && (geo.chamfers || []).some(c => c[0] === Math.floor(x / T) && c[1] === Math.floor(y / T))) continue;
+          const intensity = falloff(Math.hypot(x - l.x, y - l.y) / l.r);
+          ctx.fillStyle = 'rgba(' + l.c.join(',') + ',' + gain * l.a * 0.55 * intensity + ')';
           ctx.fillRect(Math.round(x), Math.round(y), 1, 1);
         }
       }
@@ -464,10 +540,12 @@ const WorldLight = (() => {
     return { setGeometry, prepare, render, drawGrounding, drawAtmosphere, configure, dispose,
       sample: (x, y) => lightAt(x, y, currentLights, segments),
       stats: () => Object.assign({}, metrics, { quality, width, height, resolution: +ratio.toFixed(4),
-        segments: segments.length, sources: currentLights.length, cachedStamps: stamps.size,
+        segments: segments.length, sources: currentLights.length, cachedStamps: stamps.size, areaSamples: QUALITY[quality].areaSamples,
+        shafts: fixtureLights.filter(l => l.beam && l.beam.strength > 0 && config.shafts > 0).length,
         ambient: clamp(0.208 + finite(config.ambient, 0.82) * 0.6, 0, 0.9),
         cacheBytes: 4 * stampPixels + (baseDark ? baseDark.width * baseDark.height * 16 : 0), disposed }) };
   }
-  return { create, buildSegments, visibilityPolygon, visibleAt, rayDistance, falloff, normalizeLight, lightAt, shadowFor, QUALITY };
+  return { create, buildSegments, visibilityPolygon, visibleAt, visibilityFraction, emitterOrigins,
+    rayDistance, falloff, normalizeLight, lightAt, shadowFor, QUALITY };
 })();
 if (typeof module !== 'undefined' && module.exports) module.exports = WorldLight;
