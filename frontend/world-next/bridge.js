@@ -11,7 +11,7 @@
   const clone = v => v == null ? v : JSON.parse(JSON.stringify(v));
   const equal = (a, b) => JSON.stringify(a) === JSON.stringify(b);
   const active = r => ['working', 'waiting', 'unknown'].includes(r.status);
-  const validId = id => typeof id === 'string' && /^[A-Za-z0-9_-]{1,128}$/.test(id);
+  const validId = id => typeof id === 'string' && /^[A-Za-z0-9_-]{1,40}$/.test(id);
   function fail(message, code) { const e = new Error(message); e.code = code; return e; }
   class NextBridge {
     static create(options) { return new NextBridge(options); }
@@ -60,6 +60,34 @@
       if (typeof body === 'string') { try { body = JSON.parse(body); } catch (_) { return Promise.reject(fail('Request body must be JSON.', 'body')); } }
       if (method === 'GET' && body !== undefined) return Promise.reject(fail('GET requests cannot have a body.', 'body'));
       return this._request(url.pathname + url.search, body, { method, text: !!options.text, signal: options.signal });
+    }
+    // Durable read surfaces. These never claim a recovered run is currently active and never
+    // overwrite the current session. Transcript records may include toolCalls/toolCallId/sourceRunId.
+    async savedSessions() {
+      const result = await this._request('/api/save?agent=' + encodeURIComponent(this._owner));
+      if (!result || !Object.prototype.hasOwnProperty.call(result, 'save')) throw fail('Invalid saved-session response.', 'protocol');
+      const doc = result.save;
+      return { workstreams: clone((doc && doc.workstreams) || []), activeId: (doc && doc.activeId) || null,
+        generalId: (doc && doc.generalId) || null, recovery: clone(result.recovery || null), degraded: !!result.degraded };
+    }
+    async readTranscript(streamId, options = {}) {
+      if (typeof streamId !== 'string' || !/^[A-Za-z0-9_-]{1,64}$/.test(streamId)) throw fail('Invalid conversation id.', 'stream');
+      const agentId = options.agentId || this._owner;
+      if (!validId(agentId)) throw fail('Invalid agent id.', 'agent');
+      const limit = Math.max(1, Math.min(500, Math.floor(Number(options.limit) || 200)));
+      const query = new URLSearchParams({ stream: streamId, agent: agentId, limit: String(limit) });
+      const result = await this._request('/api/transcript?' + query);
+      if (!result || !Array.isArray(result.turns)) throw fail('Invalid transcript response.', 'protocol');
+      return clone(result);
+    }
+    async listRuns(options = {}) {
+      const agentId = options.agentId || '*';
+      if (agentId !== '*' && !validId(agentId)) throw fail('Invalid agent id.', 'agent');
+      const query = new URLSearchParams({ agent: agentId, limit: String(Math.max(1, Math.min(500, Math.floor(Number(options.limit) || 100)))) });
+      for (const field of ['runId', 'beforeRunId', 'since', 'through']) if (options[field] != null) query.set(field, String(options[field]));
+      const result = await this._request('/api/runs?' + query);
+      if (!result || !Array.isArray(result.runs)) throw fail('Invalid run-history response.', 'protocol');
+      return clone(result);
     }
     async _request(path, body, options = {}) {
       this._assert();
@@ -289,6 +317,9 @@
           if (event.name === 'agent.run.start' && !leadRunId && p.agentId === agentId) {
             leadRunId = p.runId; conversation.runId = leadRunId; conversation.status = 'working'; userMessage.status = 'sent';
           }
+          // These control payloads intentionally omit runId in the frozen backend contract.
+          // Their enclosing attended HTTP request is the authority; never infer from another agent's live run.
+          if (!p.runId && leadRunId && ['permission.prompt', 'permission.response', 'crew.summon.request'].includes(event.name)) p.runId = leadRunId;
           if (p.runId === leadRunId && leadRunId) {
             if (event.name === 'agent.token') { output += String(p.delta || ''); conversation.text = output; conversation.status = 'working'; }
             if (event.name === 'agent.tool_call') { output = ''; conversation.text = ''; conversation.status = 'working'; }
@@ -327,11 +358,26 @@
       this._runs.get(runId).cancelRequested = true; this._publish(); return { requested: true, runId };
     }
     acknowledgePrompt(runId, promptId) { return this._request('/api/consent/ack', { runId, promptId }); }
-    respondPermission(runId, promptId, decision) {
-      if (!['once', 'session', 'always', 'deny', 'full'].includes(decision)) return Promise.reject(fail('Invalid permission decision.', 'permission'));
-      return this._request('/api/consent', { runId, promptId, decision });
+    _settlePrompt(runId, promptId) {
+      this._state.prompts = this._state.prompts.filter(p => !(p.runId === runId && p.promptId === promptId));
+      const run = this._runs.get(runId);
+      if (run && run.status === 'waiting') run.status = 'working';
+      for (const conversation of Object.values(this._state.conversations)) {
+        if (conversation.runId === runId && conversation.status === 'waiting') conversation.status = 'working';
+      }
+      this._publish();
     }
-    answerPrompt(runId, promptId, answer) { return this._request('/api/consent/answer', { runId, promptId, answer: String(answer), receipt: true }); }
+    async respondPermission(runId, promptId, decision) {
+      if (!['once', 'session', 'always', 'deny', 'full'].includes(decision)) throw fail('Invalid permission decision.', 'permission');
+      const receipt = await this._request('/api/consent', { runId, promptId, decision });
+      if (receipt && receipt.ok === true) this._settlePrompt(runId, promptId);
+      return receipt;
+    }
+    async answerPrompt(runId, promptId, answer) {
+      const receipt = await this._request('/api/consent/answer', { runId, promptId, answer: String(answer), receipt: true });
+      if (receipt && receipt.ok === true) this._settlePrompt(runId, promptId);
+      return receipt;
+    }
     dispose() {
       if (this._disposed) return;
       this._disposed = true; clearInterval(this._timer);
