@@ -363,6 +363,15 @@ const WorldSurface = (() => {
         for (const c of selected) {
           if (output.length >= limit) break;
           const fixtureX = c.tx * T + Math.floor(T / 2), fixtureY = y * T - rise + 6;
+          if (fixtureX < 5 || fixtureY < 2 || fixtureX + 5 > geo.W || fixtureY + 6 > geo.H) continue;
+          // Tall faces can project into a narrow gap between stacked rooms.
+          // Never paint a late fixture over another room's existing deck, nor
+          // emit light for housing clipped completely beyond the cached plate.
+          let occluded = false;
+          for (let row = Math.floor((fixtureY - 2) / T); row <= Math.floor((fixtureY + 5) / T); row++) {
+            if (zoneAt(geo, c.tx, row) != null) { occluded = true; break; }
+          }
+          if (occluded) continue;
           const kind = geo.kindOf && geo.kindOf(z);
           const rgb = kind === 'lab' ? '215,232,246' : '255,222,179';
           output.push({

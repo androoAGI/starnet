@@ -161,6 +161,7 @@ A.eq(fixtures.find(f => f.zone === 'right').rgb, '215,232,246', 'lab housings em
 for (const mat of ['viewport', 'hedge', 'wainscot', 'unknown'])
   A.eq(Surface.planFixtures({ ...fg, wallMatOf: () => mat }).length, 0, mat + ' receives no fixtures over specialized wall artwork');
 A.eq(Surface.planFixtures(fg, { wallUp: 0 }).length, 0, 'flattened walls have no invented tall fixture mounts');
+A.eq(Surface.planFixtures(fixtureGeometry(0, -2), { wallUp: 64 }).length, 0, 'cropped-off fixture hardware cannot emit an invisible practical light');
 A.eq(Surface.planFixtures(fg, { maxFixtures: 2 }).length, 2, 'fixture count obeys the explicit budget');
 A.eq(Surface.planFixtures(fg, { maxFixtures: 0 }).length, 0, 'zero fixture budget paints no hardware or source');
 A.eq(Surface.planFixtures({ ...fg, walkable: () => false }).length, 0, 'inaccessible deck cannot receive a fake reachable emission source');
@@ -188,6 +189,9 @@ A.eq(Surface.planFixtures(grown).map(f => physical(f, grown.origin)), fixtures.m
 const openNorth = fixtureGeometry();
 for (let x = 3; x < 14; x++) openNorth.zoneGrid[openNorth.idx(x, 4)] = 'above';
 A.ok(Surface.planFixtures(openNorth).every(f => f.zone !== 'left'), 'a north opening cannot receive an invisible wall-mounted lamp');
+const stacked = fixtureGeometry();
+for (let x = 2; x < 26; x++) stacked.zoneGrid[stacked.idx(x, 3)] = 'upper-deck';
+A.ok(Surface.planFixtures(stacked).every(f => f.zone === 'upper-deck'), 'late fixture painting never stamps hardware onto another stacked room deck');
 const halls = fixtureGeometry(); halls.isCorridor = () => true;
 A.eq(Surface.planFixtures(halls).length, 2, 'long hall faces get only one fixture per run');
 const narrow = fixtureGeometry();
