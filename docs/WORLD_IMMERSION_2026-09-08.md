@@ -45,3 +45,19 @@ active whenever no replacement light sample is available.
 Final gate: npm run test:fast passed all 736 steps on the corrected source. The classic
 browser check recorded 174 native body draws and 1,950 shadow ellipses with no replacement
 appearance argument and no exceptions. Website mirror synchronization is complete.
+
+## Wall balance and sharpening follow-up
+
+The owner requested softer wall shading, a slight brightness correction, and sharpening.
+World II wall/floor shade now uses one bounded coverage field rather than stacked edge,
+cast and corner bands. At the current settings the north-wall falloff starts around 24%
+and corners around 27%, with a 34% maximum. Broad wall bands use lighter existing palette
+tones; narrow contact rows remain. Native pixel falloff stays consistent across bake chunks.
+
+A .28 edge-detail pass runs before CRT grain/scanlines, on both GPU and CPU paths. It skips
+quiet gradients and clamps each result to existing neighboring colors to avoid halos.
+Channel separation is zero at the new default; fixture gain moves only from .82 to .79.
+The normal live sample measured 17.8 ms median rendering against the new turn's 18.3 ms
+baseline, with no exceptions. Forced GPU loss kept the actual station lit on the CPU path.
+An independent real-WebGL check matched GPU/CPU output within 1/255 across 33 cases and
+13,635 color-channel comparisons, including curve off/on, borders, colors and quiet fields.
