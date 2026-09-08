@@ -44,25 +44,50 @@ A.eq(Light.normalizeLight({ x: 0, y: 0, r: 10, c: [1, 2, 3], a: 0 }, false), nul
 A.eq(Light.normalizeLight({ x: 0, y: 0, r: Infinity, c: [1, 2, 3], a: 1 }, false).r, 768,
   'oversized radii are bounded before allocation');
 A.eq(Light.normalizeLight({ x: 'invalid', y: 0, r: 10 }, true), null, 'malformed positions never reach canvas');
+const legacyFixture = Light.normalizeLight({ x: 30, y: 30, r: 110, rgb: '255,192,104', gain: 0.22 }, true);
+A.eq(legacyFixture.a, 0.86, 'replacement restores room fixture energy formerly supplied by a separate diffuse pass');
+A.eq(legacyFixture.r, 110, 'replacement preserves the bake radius and its existing two-axis coverage');
+A.eq(Light.normalizeLight({ x: 30, y: 30, r: 110, gain: 0 }, true), null, 'zero fixture gain remains off');
+A.eq(Light.normalizeLight({ x: 30, y: 30, r: 110, gain: 0.5 }, true).a, 0.43, 'nonlegacy fixture gains retain their intended relative strength');
+A.eq(Light.normalizeLight({ x: 30, y: 30, r: 110, gain: 0.22, a: 0 }, true), null,
+  'legacy gain compensation never revives an explicitly unlit source');
 A.eq(Light.lightAt(65, 30, [source], closed).strength, 0, 'sample is dark across a sealed wall');
 A.ok(Light.lightAt(65, 30, [source], open).strength > 0, 'sample measures actual transmission through the door');
 const shadow = Light.shadowFor({ x: 35, y: 30, width: 8, height: 20 }, [source], closed);
 A.ok(shadow.dx > 0 && Math.abs(shadow.dy) < 0.001, 'ground shadow points away from the visible source');
 
+const northWalls = [{ x1: 0, y1: 36, x2: 200, y2: 36 }, { x1: 108, y1: 36, x2: 108, y2: 100 }];
+const raised = { x: 102, y: 31.6, r: 26, c: [255, 220, 170], a: 0.22 };
+A.ok(!Light.visibleAt(raised, 102, 51.6, northWalls), 'regression setup: raised visual source appears outside its room plane');
+const mounted = Light.normalizeLight(Object.assign({}, raised, { originX: 102, originY: 42 }), false);
+A.ok(Light.visibleAt(mounted, 102, 51.6, northWalls), 'a mounted north-wall lamp illuminates its own floor from its planar origin');
+A.ok(!Light.visibleAt(mounted, 114, 42, northWalls), 'a mounted lamp still cannot illuminate through the adjacent wall');
+A.eq(mounted.y, 31.6, 'floor-plane visibility preserves the visible emitter position');
+A.ok(Math.abs(Light.lightAt(102, 51.6, [mounted], northWalls).strength - 0.22 * Light.falloff(20 / 26)) < 0.00001,
+  'mounted lamp falloff remains centered on the visible emitter');
+A.ok(Light.visibilityPolygon(mounted, northWalls, 64).every(p => p.y >= 36 - 0.00001 && p.x <= 108 + 0.00001),
+  'mounted source visibility polygon respects wall planes while covering the visible falloff bounds');
+
 // A Canvas command adapter checks invalidation and lifecycle, not raster appearance.
 // Pixel and performance proof belongs to the integrated seeded app.
 let allocations = 0;
+const surfaces = [], draws = [];
 function canvasFactory(w, h) {
   allocations++;
-  const stack = [], context = {
+  const listeners = {}, stack = [], context = {
     globalAlpha: 0.3, globalCompositeOperation: 'multiply', imageSmoothingEnabled: true,
+    lost: false, isContextLost() { return this.lost; },
     setTransform() {}, clearRect() {}, beginPath() {}, rect() {}, clip() {}, moveTo() {}, lineTo() {},
-    closePath() {}, fillRect() {}, fill() {}, drawImage() {},
+    closePath() {}, fillRect() {}, fill() {}, drawImage(...args) { draws.push(args); },
     createRadialGradient: () => ({ addColorStop() {} }), createLinearGradient: () => ({ addColorStop() {} }),
     save() { stack.push([this.globalAlpha, this.globalCompositeOperation, this.imageSmoothingEnabled]); },
     restore() { [this.globalAlpha, this.globalCompositeOperation, this.imageSmoothingEnabled] = stack.pop(); }
   };
-  return { width: w, height: h, getContext: () => context };
+  const canvas = { width: w, height: h, getContext: () => context,
+    addEventListener(name, fn) { listeners[name] = fn; },
+    removeEventListener(name, fn) { if (listeners[name] === fn) delete listeners[name]; },
+    emit(name, event) { if (listeners[name]) listeners[name](event || {}); }, listeners };
+  surfaces.push(canvas); return canvas;
 }
 const engine = Light.create({ canvasFactory }), output = canvasFactory(96, 60).getContext('2d');
 engine.setGeometry(station(true));
@@ -96,5 +121,42 @@ engine.dispose();
 A.eq(engine.stats().sources, 0, 'dispose releases source state');
 A.eq(engine.stats().cachedStamps, 0, 'dispose releases the light stamp cache');
 A.eq(engine.render(output, frame), false, 'disposed engines do not draw');
+
+const recovery = Light.create({ canvasFactory }); recovery.setGeometry(station(true));
+const lostMap = surfaces[surfaces.length - 4]; recovery.render(output, frame);
+let prevented = false;
+lostMap.getContext('2d').lost = true;
+lostMap.emit('contextlost', { preventDefault() { prevented = true; } });
+A.ok(prevented, 'canvas context loss requests restoration rather than abandoning the renderer');
+A.ok(recovery.render(output, frame), 'lost cached map is recreated and rendered from the same source state');
+A.eq(recovery.stats().contextRecoveries, 1, 'resource recovery has a measured receipt');
+A.eq(recovery.stats().geometryRevision, 2, 'resource recovery invalidates geometry-bound visibility and maps');
+A.ok(recovery.sample(30, 30).strength > 0, 'sources survive recovery without a fabricated lighting transition');
+A.eq(Object.keys(lostMap.listeners).length, 0, 'released maps detach their event handlers');
+const lostStamp = surfaces[surfaces.length - 1]; lostStamp.getContext('2d').lost = true;
+A.ok(recovery.render(output, frame), 'isContextLost catches a lost stamp even without a delivered event');
+A.eq(recovery.stats().contextRecoveries, 2, 'silent stamp loss triggers another rebuild');
+const restoredMap = surfaces[surfaces.length - 6]; restoredMap.emit('contextrestored');
+recovery.render(output, frame);
+A.eq(recovery.stats().contextRecoveries, 3, 'restoration invalidates cached pixels even when context reports healthy');
+recovery.dispose();
+
+const chunkEngine = Light.create({ canvasFactory }), chunkA = canvasFactory(48, 60), chunkB = canvasFactory(48, 60);
+const floorA = canvasFactory(48, 60), floorB = canvasFactory(48, 60);
+chunkEngine.setGeometry(station(true), { surfaceChunks: [
+  { baseCv: chunkA, interiorCv: floorA, x: 0, y: 0, w: 48, h: 60 },
+  { baseCv: chunkB, interiorCv: floorB, x: 48, y: 0, w: 48, h: 60 }
+] });
+const beforeChunk = draws.length;
+A.ok(chunkEngine.render(output, frame), 'REFIT can illuminate chunked station geometry without a whole-station mask');
+const chunkDraws = draws.slice(beforeChunk);
+A.ok(chunkDraws.some(d => d[0] === chunkA && d[1] === 0) && chunkDraws.some(d => d[0] === chunkB && d[1] === 48),
+  'architecture silhouette retains each chunk world offset');
+A.ok(chunkDraws.some(d => d[0] === floorA) && chunkDraws.some(d => d[0] === floorB),
+  'both exact curved floor masks contribute to the illumination union');
+const chunkBuilds = chunkEngine.stats().visibilityBuilds;
+chunkEngine.render(output, Object.assign({}, frame, { lights: [Object.assign({}, source, { originX: 31, originY: 30 })] }));
+A.ok(chunkEngine.stats().visibilityBuilds > chunkBuilds, 'changing the planar origin invalidates a cached light polygon');
+chunkEngine.dispose();
 
 A.report('WorldLight spatial illumination');

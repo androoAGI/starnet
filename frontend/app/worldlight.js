@@ -17,6 +17,7 @@ const WorldLight = (() => {
   const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
   const finite = (v, fallback) => Number.isFinite(+v) ? +v : fallback;
   const clock = () => typeof performance !== 'undefined' ? performance.now() : Date.now();
+  const originOf = l => ({ x: finite(l.originX, l.x), y: finite(l.originY, l.y) });
 
   // Contiguous boundaries become one segment, so a long wall has two ray endpoints,
   // not hundreds. Open joins and thresholds transmit light; a sealed seam does not.
@@ -72,33 +73,36 @@ const WorldLight = (() => {
   }
 
   function nearbySegments(segments, light) {
-    const x0 = light.x - light.r, x1 = light.x + light.r, y0 = light.y - light.r, y1 = light.y + light.r;
+    const o = originOf(light);
+    const x0 = Math.min(o.x, light.x - light.r), x1 = Math.max(o.x, light.x + light.r);
+    const y0 = Math.min(o.y, light.y - light.r), y1 = Math.max(o.y, light.y + light.r);
     return segments.filter(s => Math.max(s.x1, s.x2) >= x0 && Math.min(s.x1, s.x2) <= x1 &&
       Math.max(s.y1, s.y2) >= y0 && Math.min(s.y1, s.y2) <= y1);
   }
 
   function visibilityPolygon(light, segments, rays) {
     if (!light || !(light.r > 0)) return [];
+    const o = originOf(light), reach = light.r + Math.hypot(o.x - light.x, o.y - light.y);
     const local = nearbySegments(segments || [], light), angles = [], count = clamp(rays | 0 || 64, 24, 192);
     for (let i = 0; i < count; i++) angles.push(i * TAU / count);
     for (const s of local) for (const [x, y] of [[s.x1, s.y1], [s.x2, s.y2]]) {
-      const a = Math.atan2(y - light.y, x - light.x);
+      const a = Math.atan2(y - o.y, x - o.x);
       for (const offset of [-0.00001, 0, 0.00001]) angles.push(((a + offset) % TAU + TAU) % TAU);
     }
     angles.sort((a, b) => a - b);
     return angles.map(angle => {
       const dx = Math.cos(angle), dy = Math.sin(angle);
-      let d = light.r;
-      for (const s of local) d = Math.min(d, rayDistance(light.x, light.y, dx, dy, s));
-      return { x: light.x + dx * d, y: light.y + dy * d };
+      let d = reach;
+      for (const s of local) d = Math.min(d, rayDistance(o.x, o.y, dx, dy, s));
+      return { x: o.x + dx * d, y: o.y + dy * d };
     });
   }
 
   function visibleAt(light, x, y, segments) {
-    const dx = x - light.x, dy = y - light.y, d = Math.hypot(dx, dy);
-    if (d > light.r) return false;
+    if (Math.hypot(x - light.x, y - light.y) > light.r) return false;
+    const o = originOf(light), dx = x - o.x, dy = y - o.y, d = Math.hypot(dx, dy);
     if (d < EPS) return true;
-    for (const s of segments) if (rayDistance(light.x, light.y, dx / d, dy / d, s) < d - EPS) return false;
+    for (const s of segments) if (rayDistance(o.x, o.y, dx / d, dy / d, s) < d - EPS) return false;
     return true;
   }
 
@@ -115,9 +119,15 @@ const WorldLight = (() => {
     if (typeof c === 'string') c = c.split(',').map(Number);
     if (!Array.isArray(c) || c.length < 3) return null;
     c = c.slice(0, 3).map(n => Math.round(clamp(finite(n, 0), 0, 255)));
-    const a = clamp(finite(source.a, fixture ? 0.86 : 0) * finite(gain, 1) * (fixture ? finite(source.gain, 1) : 1), 0, 1);
+    // The bake's .22 ROOM_FIXTURE_GAIN was only the highlight on top of a separate
+    // .46 diffuse room cut. This replacement owns BOTH: restore that legacy source
+    // to full fixture energy, while keeping explicit zero and other gains intact.
+    const rawGain = finite(source.gain, 1);
+    const fixturePower = fixture && Math.abs(rawGain - 0.22) < 0.000001 ? 1 : rawGain;
+    const a = clamp(finite(source.a, fixture ? 0.86 : 0) * finite(gain, 1) * (fixture ? fixturePower : 1), 0, 1);
     if (a <= 0) return null;
-    return { x: +source.x, y: +source.y, r: clamp(+source.r, 1, 768), c, a, fixture: !!fixture };
+    return { x: +source.x, y: +source.y, r: clamp(+source.r, 1, 768), c, a, fixture: !!fixture,
+      originX: finite(source.originX, +source.x), originY: finite(source.originY, +source.y) };
   }
 
   function lightAt(x, y, lights, segments) {
@@ -135,7 +145,8 @@ const WorldLight = (() => {
     const x = finite(body.x, body.px), y = finite(body.y, body.py);
     if (!Number.isFinite(x) || !Number.isFinite(y)) return null;
     const hit = lightAt(x, y, lights, segments), src = hit.source;
-    const dx = src ? x - src.x : 0.35, dy = src ? y - src.y : 0.8;
+    const origin = src ? originOf(src) : null;
+    const dx = origin ? x - origin.x : 0.35, dy = origin ? y - origin.y : 0.8;
     const d = Math.hypot(dx, dy) || 1, height = clamp(finite(body.height, 18), 2, 90);
     return { x, y, dx: dx / d, dy: dy / d, width: clamp(finite(body.width, 8), 2, 140),
       length: height * (src ? clamp(d / src.r, 0.15, 0.7) : 0.3),
@@ -148,37 +159,59 @@ const WorldLight = (() => {
     let config = Object.assign({ ambient: 0.82, wallAmbient: 0.28, fixtureTint: 0.17,
       emission: 1, propLift: 0.65, atmosphere: 0.25 }, options);
     let geo = null, geometryOptions = {}, segments = [], width = 1, height = 1, ratio = 1;
-    let interiorPath = null, surfaceMask = null, baseDark = null, baseGlow = null, frameDark = null, frameGlow = null;
+    let interiorPath = null, interiorMask = null, surfaceMask = null, surfaceChunks = [];
+    let baseDark = null, baseGlow = null, frameDark = null, frameGlow = null;
     let fixtureKey = '', frameKey = '', fixtureLights = [], currentLights = [], stampPixels = 0, disposed = false;
-    const stamps = new Map();
+    const stamps = new Map(), canvasWatches = new Map(), lostCanvases = new Set();
+    let resourcesDirty = false, retryResourcesAt = 0;
     const metrics = { geometryRevision: 0, staticBuilds: 0, dynamicBuilds: 0, visibilityBuilds: 0,
-      frames: 0, lastBuildMs: 0, droppedSources: 0, supported: true };
+      frames: 0, lastBuildMs: 0, droppedSources: 0, supported: true, contextLosses: 0, contextRecoveries: 0 };
+    function lost(c) {
+      if (!lostCanvases.has(c)) { lostCanvases.add(c); metrics.contextLosses++; }
+      resourcesDirty = true;
+    }
     const makeCanvas = (w, h) => {
       let c;
       if (typeof options.canvasFactory === 'function') c = options.canvasFactory(w, h);
       else if (typeof OffscreenCanvas !== 'undefined') c = new OffscreenCanvas(w, h);
       else if (typeof document !== 'undefined') { c = document.createElement('canvas'); c.width = w; c.height = h; }
       if (!c || !c.getContext || !c.getContext('2d')) { metrics.supported = false; return null; }
+      if (typeof c.addEventListener === 'function') {
+        const onLost = e => { if (e && e.preventDefault) e.preventDefault(); lost(c); };
+        const onRestored = () => { lostCanvases.delete(c); resourcesDirty = true; retryResourcesAt = 0; };
+        c.addEventListener('contextlost', onLost); c.addEventListener('contextrestored', onRestored);
+        canvasWatches.set(c, [onLost, onRestored]);
+      }
       return c;
     };
     const reset = c => { const g = c.getContext('2d'); g.setTransform(1, 0, 0, 1, 0, 0); g.globalAlpha = 1;
       g.globalCompositeOperation = 'source-over'; g.clearRect(0, 0, c.width, c.height); g.setTransform(ratio, 0, 0, ratio, 0, 0); return g; };
-    const release = c => { if (c) { c.width = 1; c.height = 1; } };
+    const release = c => {
+      if (!c) return;
+      const handlers = canvasWatches.get(c);
+      if (handlers && typeof c.removeEventListener === 'function') {
+        c.removeEventListener('contextlost', handlers[0]); c.removeEventListener('contextrestored', handlers[1]);
+      }
+      canvasWatches.delete(c); lostCanvases.delete(c); c.width = 1; c.height = 1;
+    };
     const clearStamps = () => { for (const s of stamps.values()) release(s.canvas); stamps.clear(); stampPixels = 0; };
 
     function setGeometry(next, opts) {
       if (disposed) return false;
+      metrics.supported = true;
       geo = next; geometryOptions = opts || {};
       width = Math.max(1, finite(geometryOptions.width, finite(geo && geo.W, 1)));
       height = Math.max(1, finite(geometryOptions.height, finite(geo && geo.H, 1)));
       ratio = Math.min(1, 8192 / width, 8192 / height, Math.sqrt(QUALITY[quality].mapPixels / (width * height)));
       interiorPath = geometryOptions.interiorPath || null; surfaceMask = geometryOptions.surfaceMask || null;
+      interiorMask = geometryOptions.interiorMask || null;
+      surfaceChunks = Array.isArray(geometryOptions.surfaceChunks) ? geometryOptions.surfaceChunks : [];
       segments = buildSegments(geo, geometryOptions.tileSize);
       for (const c of [baseDark, baseGlow, frameDark, frameGlow]) release(c);
       const w = Math.max(1, Math.ceil(width * ratio)), h = Math.max(1, Math.ceil(height * ratio));
       baseDark = makeCanvas(w, h); baseGlow = makeCanvas(w, h); frameDark = makeCanvas(w, h); frameGlow = makeCanvas(w, h);
       clearStamps(); fixtureKey = ''; frameKey = ''; fixtureLights = []; currentLights = [];
-      metrics.geometryRevision++; return metrics.supported;
+      resourcesDirty = false; retryResourcesAt = 0; metrics.geometryRevision++; return metrics.supported;
     }
 
     function clipFloor(g) {
@@ -189,9 +222,59 @@ const WorldLight = (() => {
         for (const r of geo.allRects) g.rect(r.x1 * T, r.y1 * T, (r.x2 - r.x1 + 1) * T, (r.y2 - r.y1 + 1) * T);
       }
       g.clip();
+      // Exact bake masks below preserve the curved corner, including wall feet.
+      // With geometry alone, omit corner tiles conservatively instead of lighting
+      // the wedge of outer space that lies inside a rectangular room footprint.
+      if (!interiorMask && !surfaceChunks.some(c => c.interiorCv) && geo && geo.chamfers && geo.chamfers.length) {
+        const T = finite(geometryOptions.tileSize, finite(geo.TILE, 12)), seen = new Set();
+        g.beginPath(); g.rect(0, 0, width, height);
+        for (const c of geo.chamfers) {
+          const key = c[0] + ',' + c[1]; if (seen.has(key)) continue; seen.add(key);
+          g.rect(c[0] * T, c[1] * T, T, T);
+        }
+        g.clip('evenodd');
+      }
     }
 
-    const keyOf = l => l.x + ',' + l.y + ',' + l.r + ',' + l.c.join(',');
+    const hasInteriorMask = () => !!interiorMask || surfaceChunks.some(c => c.interiorCv);
+    const hasSurface = () => !!surfaceMask || surfaceChunks.some(c => c.baseCv);
+    function drawChunk(g, c, image) {
+      g.drawImage(image, finite(c.x, 0), finite(c.y, 0), finite(c.w, image.width), finite(c.h, image.height));
+    }
+    function paintFloorMask(g, bounds) {
+      if (interiorMask) { g.drawImage(interiorMask, 0, 0, width, height); return; }
+      for (const c of surfaceChunks) {
+        if (bounds && (finite(c.x, 0) >= bounds.x + bounds.size || finite(c.y, 0) >= bounds.y + bounds.size ||
+          finite(c.x, 0) + finite(c.w, c.interiorCv ? c.interiorCv.width : 0) <= bounds.x ||
+          finite(c.y, 0) + finite(c.h, c.interiorCv ? c.interiorCv.height : 0) <= bounds.y)) continue;
+        if (c.interiorCv) drawChunk(g, c, c.interiorCv);
+        else {
+          g.save(); clipFloor(g); g.fillStyle = '#fff';
+          g.fillRect(finite(c.x, 0), finite(c.y, 0), finite(c.w, 0), finite(c.h, 0)); g.restore();
+        }
+      }
+    }
+
+    function ensureResources() {
+      const inspect = c => {
+        if (!c) return;
+        const g = c.getContext('2d');
+        if (g && typeof g.isContextLost === 'function' && g.isContextLost()) lost(c);
+      };
+      for (const c of [baseDark, baseGlow, frameDark, frameGlow]) inspect(c);
+      for (const s of stamps.values()) inspect(s.canvas);
+      if (resourcesDirty) {
+        if (clock() < retryResourcesAt) return false;
+        // Recreate rather than trust restored backing pixels: restoration clears
+        // both raster content and canvas state while our source keys stay equal.
+        metrics.contextRecoveries++; setGeometry(geo, geometryOptions);
+        for (const c of [baseDark, baseGlow, frameDark, frameGlow]) inspect(c);
+        if (resourcesDirty) retryResourcesAt = clock() + 250;
+      }
+      return !resourcesDirty && !!baseDark && !!baseGlow && !!frameDark && !!frameGlow;
+    }
+
+    const keyOf = l => l.x + ',' + l.y + ',' + l.r + ',' + l.c.join(',') + ',' + finite(l.originX, l.x) + ',' + finite(l.originY, l.y);
     const signature = lights => lights.map(l => keyOf(l) + ',' + Math.round(l.a * 255)).join(';');
     function stamp(light) {
       const key = keyOf(light);
@@ -212,6 +295,17 @@ const WorldLight = (() => {
       const gradient = g.createRadialGradient(light.x, light.y, 0, light.x, light.y, light.r);
       for (const t of [0, 0.14, 0.3, 0.5, 0.7, 0.86, 1]) gradient.addColorStop(t, 'rgba(' + light.c.join(',') + ',' + falloff(t) + ')');
       g.fillStyle = gradient; g.fillRect(x, y, light.r * 2, light.r * 2);
+      if (!interiorPath && hasInteriorMask()) {
+        // A small temporary stamp mask unions chunk alpha before destination-in;
+        // applying chunks one at a time would erase each preceding chunk's light.
+        const mask = makeCanvas(size, size);
+        if (mask) {
+          const m = mask.getContext('2d');
+          m.setTransform(size / (light.r * 2), 0, 0, size / (light.r * 2), -x * size / (light.r * 2), -y * size / (light.r * 2));
+          paintFloorMask(m, { x, y, size: light.r * 2 }); g.save(); g.setTransform(1, 0, 0, 1, 0, 0);
+          g.globalCompositeOperation = 'destination-in'; g.drawImage(mask, 0, 0); g.restore(); release(mask);
+        }
+      }
       const result = { canvas, x, y, size: light.r * 2, pixels: size * size };
       stamps.set(key, result); stampPixels += result.pixels;
       return result;
@@ -232,20 +326,30 @@ const WorldLight = (() => {
       // survives, with a new readable floor: .70/.64/.58 rather than crushed black.
       const ambient = clamp(0.208 + finite(config.ambient, 0.82) * 0.6, 0, 0.9);
       // The silhouette owns the exterior shade. Empty space remains transparent.
-      if (surfaceMask && wall > 0) {
-        d.drawImage(surfaceMask, 0, 0, width, height); d.globalCompositeOperation = 'source-in';
+      if (hasSurface() && wall > 0) {
+        if (surfaceMask) d.drawImage(surfaceMask, 0, 0, width, height);
+        else for (const c of surfaceChunks) if (c.baseCv) drawChunk(d, c, c.baseCv);
+        d.globalCompositeOperation = 'source-in';
         d.fillStyle = 'rgba(4,8,18,' + wall + ')'; d.fillRect(0, 0, width, height); d.globalCompositeOperation = 'source-over';
       }
-      d.save(); clipFloor(d);
-      const inside = surfaceMask ? clamp((ambient - wall) / (1 - wall), 0, 1) : ambient;
-      d.fillStyle = 'rgba(5,9,22,' + inside + ')'; d.fillRect(0, 0, width, height); d.restore();
+      const inside = hasSurface() ? clamp((ambient - wall) / (1 - wall), 0, 1) : ambient;
+      if (!interiorPath && hasInteriorMask()) {
+        // Reuse an existing frame surface during the static build. No extra
+        // station-sized canvas is needed for REFIT's chunked silhouette union.
+        const floor = reset(frameDark); paintFloorMask(floor); floor.globalCompositeOperation = 'source-in';
+        floor.fillStyle = 'rgba(5,9,22,' + inside + ')'; floor.fillRect(0, 0, width, height);
+        d.drawImage(frameDark, 0, 0, width, height);
+      } else {
+        d.save(); clipFloor(d); d.fillStyle = 'rgba(5,9,22,' + inside + ')';
+        d.fillRect(0, 0, width, height); d.restore();
+      }
       paint(d, lights, 1, 'destination-out');
       paint(glow, lights, finite(config.fixtureTint, 0.17), 'screen');
       metrics.staticBuilds++;
     }
 
     function render(ctx, frame) {
-      if (disposed || !geo || !ctx || !baseDark || !frameDark) return false;
+      if (disposed || !geo || !ctx || !ensureResources()) return false;
       frame = frame || {}; const started = clock(), q = QUALITY[quality];
       if (Number.isFinite(+frame.ambient)) config.ambient = +frame.ambient;
       const sourceFixtures = frame.fixtures || [], sourceProps = frame.lights || [];
@@ -314,6 +418,7 @@ const WorldLight = (() => {
       disposed = true; for (const c of [baseDark, baseGlow, frameDark, frameGlow]) release(c);
       baseDark = null; baseGlow = null; frameDark = null; frameGlow = null;
       clearStamps(); currentLights = []; fixtureLights = []; geo = null; surfaceMask = null; interiorPath = null;
+      interiorMask = null; surfaceChunks = [];
     }
     return { setGeometry, render, drawGrounding, drawAtmosphere, configure, dispose,
       sample: (x, y) => lightAt(x, y, currentLights, segments),
