@@ -1,4 +1,79 @@
-# StarNet world generation II
+# StarNet New Horizon — independent client rebuild
+
+## Current implementation — 2026-09-08
+
+The owner rejected the World II retrofit below as a texture redesign. It is superseded
+by the independent client at `frontend/world-next/index.html`. The owner explicitly asked
+to discard the old visual style, textures, renderer, and interface. Earlier rules to retain
+those visuals do not apply to this lane.
+
+The new entry imports only the canonical WorldModel and Pipeline mechanics modules.
+It loads none of the old world, simulation, bake, renderer, prop renderer, lighting,
+textures, sprite sheets, CRT filters, or interface. The 144 object catalog rows are pure
+compatibility metadata. Existing sidecar save, runtime, capabilities, consent, and routing
+contracts remain authoritative; shared events/schema were not changed.
+
+New implementation:
+
+- Independent 32px world, centered camera, chunked geometry, 48px cutaway architecture,
+  18 fresh floor materials, saved finish/tile paint support, windows, planet and stars.
+- Occluded light maps, warm fixtures and cooler windows, luminous prop sources, directional
+  grounding, feet sorting, floor decal pass, and canonical table-host elevation.
+- 20 original PixelLab prop masters from 21 generations, plus original code silhouettes.
+  All catalog IDs map explicitly; related props share master families.
+- Three original human crew appearances, each with eight idle facings and four directions
+  of eight-frame walking animation. All 120 frames are local with generation provenance.
+- New navigation, crew rail, build catalog, inspector, Comms, capability view, recorded
+  conversations, deliverables with inert HTML preview, workshop reader, and diagnostics.
+- Room/hall creation, prop placement/movement/removal, surfaces, undo/redo, canonical
+  rotation/mirroring, assignments, briefs, airlocks, and junction configuration.
+- Separate authenticated data bridge with save conflict/readback checks, envelope
+  preservation, routing receipts, SSE reconciliation, run streams and consent responses.
+- New movement with canonical navigation geometry. Centered physical routes and a
+  current-tile-center waypoint prevent corner clipping when redirected mid-walk.
+
+Preview: `http://127.0.0.1:9207/world-next/index.html`, served from isolated worktree
+`C:\Users\andro\gen-trees\world-next-0907`. The integration tree was not feature edited.
+`dev/world-next-fresh-seed.cjs` validates the authored five-wing station by default.
+Its `--write` option only replaces the stopped, named dev fixture after backing up its
+previous station; other save fields remain intact. Start through `node dev/seed.js --keep`.
+
+Observed in the running independent client:
+
+- Original art loaded successfully: 120 crew frames and all 20 prop masters.
+- Plant placement at (14,5) saved 57 props to disk. Undo saved 56 props again and reload
+  recovered the restored station.
+- Comms completed a request and real filesystem tool write through the sidecar. This
+  fixture uses a local scripted proof model, not an external LLM.
+- After reload, durable history exposed the verified 1,782-byte write receipt and the
+  Deliverables view discovered/read `world-next-proof.html`.
+- Connection, waiting and unknown activity states are distinct; working requires an
+  identified observed run and an available connection.
+
+Focused coverage includes all catalog metadata and rotations, character files, blocked
+paths, redirection, airlocks, signed coordinates, save conflicts, partial routing failure,
+prompt receipts, material distinctions, light occlusion, and floor/mounted sorting.
+Current gate logs are `dev/world-next-fresh-focused.log`, `dev/world-next-fresh-fast.log`,
+and `dev/world-next-fresh-http.log`; read completed logs for actual results.
+
+Remaining migration: first-run credentials, crew recruitment/identity/model editing,
+voice, attachments, advanced projects/quests/automation, editable workshop routines,
+and the full former session-management UI. Existing backend mechanics remain available,
+but their old panels are not claimed as ported. The old entry is retained during migration;
+the new client has a distinct entry and is not silently deployed as the production default.
+Per-wall/hull authoring, richer actions, bespoke prop direction paintings, additional
+world dressing, keyboard world navigation, and wider device checks also remain.
+
+Quality above Stardew Valley or Terraria is an owner judgment, not something established
+by tests or asset counts. This is a working independent world client; complete application
+parity and final art acceptance remain open.
+
+## Superseded first attempt — historical notes only
+
+The remainder records the rejected retrofit and its previous test results. Those results
+do not establish completion or verification of the independent client above.
+
+### StarNet world generation II
 
 Owner request: rebuild the 2D world with a generational improvement in material art,
 lighting, depth and interaction quality while preserving the complete existing mechanics.

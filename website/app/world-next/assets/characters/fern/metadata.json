@@ -1,0 +1,79 @@
+{
+  "group_id": "08688a56-204a-45ce-b91e-8e67d6eb1308",
+  "states": [
+    {
+      "character": {
+        "id": "d14eea98-3927-4a92-a883-9cdd5fea278d",
+        "name": "Idle",
+        "prompt": "Original sophisticated pixel-art orbital botanist, adult woman warm brown skin, long dark hair in a high bun, sage green long expedition coat with rolled cream sleeves, pale utility vest, copper belt pouches, dark charcoal pants and olive boots. Holds no tool in neutral pose, elegant practical explorer, strong readable green and ivory silhouette, intentional crisp pixel clusters with limited palette ramps, serious atmospheric science fiction game, not cute not chibi no weapons. Full body grounded feet, low-topdown game sprite.",
+        "size": {
+          "width": 64,
+          "height": 64
+        },
+        "template_id": "mannequin",
+        "directions": 8,
+        "view": "low top-down",
+        "created_at": "2026-09-08T02:56:32.469395+00:00"
+      },
+      "folder": "Idle",
+      "frames": {
+        "rotations": {
+          "south": "Idle/rotations/south.png",
+          "south-east": "Idle/rotations/south-east.png",
+          "east": "Idle/rotations/east.png",
+          "north-east": "Idle/rotations/north-east.png",
+          "north": "Idle/rotations/north.png",
+          "north-west": "Idle/rotations/north-west.png",
+          "west": "Idle/rotations/west.png",
+          "south-west": "Idle/rotations/south-west.png"
+        },
+        "animations": {
+          "animating": {
+            "east": [
+              "Idle/animations/animating/east/frame_000.png",
+              "Idle/animations/animating/east/frame_001.png",
+              "Idle/animations/animating/east/frame_002.png",
+              "Idle/animations/animating/east/frame_003.png",
+              "Idle/animations/animating/east/frame_004.png",
+              "Idle/animations/animating/east/frame_005.png",
+              "Idle/animations/animating/east/frame_006.png",
+              "Idle/animations/animating/east/frame_007.png"
+            ],
+            "north": [
+              "Idle/animations/animating/north/frame_000.png",
+              "Idle/animations/animating/north/frame_001.png",
+              "Idle/animations/animating/north/frame_002.png",
+              "Idle/animations/animating/north/frame_003.png",
+              "Idle/animations/animating/north/frame_004.png",
+              "Idle/animations/animating/north/frame_005.png",
+              "Idle/animations/animating/north/frame_006.png",
+              "Idle/animations/animating/north/frame_007.png"
+            ],
+            "west": [
+              "Idle/animations/animating/west/frame_000.png",
+              "Idle/animations/animating/west/frame_001.png",
+              "Idle/animations/animating/west/frame_002.png",
+              "Idle/animations/animating/west/frame_003.png",
+              "Idle/animations/animating/west/frame_004.png",
+              "Idle/animations/animating/west/frame_005.png",
+              "Idle/animations/animating/west/frame_006.png",
+              "Idle/animations/animating/west/frame_007.png"
+            ],
+            "south": [
+              "Idle/animations/animating/south/frame_000.png",
+              "Idle/animations/animating/south/frame_001.png",
+              "Idle/animations/animating/south/frame_002.png",
+              "Idle/animations/animating/south/frame_003.png",
+              "Idle/animations/animating/south/frame_004.png",
+              "Idle/animations/animating/south/frame_005.png",
+              "Idle/animations/animating/south/frame_006.png",
+              "Idle/animations/animating/south/frame_007.png"
+            ]
+          }
+        }
+      }
+    }
+  ],
+  "export_version": "3.1",
+  "export_date": "2026-09-08T03:12:12.082871"
+}
