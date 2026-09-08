@@ -101,3 +101,7 @@ framing. Selected clear industrial: scan .10, density .38, grain .035, vignette 
 It gives the metalwork and crew colors more separation with less screen texture, while
 retaining the established warm/cool light sources. Fade and bloom remain zero; sharpening
 stays .28. No geometry, sprites, light sources, or saved-world data changed in this pass.
+
+The selected defaults were verified from the running preview: all 44 current sources active,
+none dropped, and no exceptions. Refitting, cached-canvas recovery and reload preserved the
+owner's 46-prop layout. The final source passed all 738 fast-gate steps.
