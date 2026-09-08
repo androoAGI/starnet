@@ -94,3 +94,10 @@ Clear-finish verification: all 738 fast steps passed. Actual Canvas sampling mat
 density curve within one color value, kept black exactly [0,0,0], preserved pixel positions,
 and confirmed film-off identity plus static reduced-motion grain. The live station rendered
 without exceptions through both WebGL and forced context-loss CPU fallback.
+
+Final art-direction choice after the owner delegated the look: compared the current,
+clear industrial and deeper cinema treatments in the live CRT lab at the same camera
+framing. Selected clear industrial: scan .10, density .38, grain .035, vignette .16.
+It gives the metalwork and crew colors more separation with less screen texture, while
+retaining the established warm/cool light sources. Fade and bloom remain zero; sharpening
+stays .28. No geometry, sprites, light sources, or saved-world data changed in this pass.

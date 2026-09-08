@@ -6,10 +6,10 @@
 'use strict';
 const WorldRenderer = (() => {
   const GENERATION = 'II';
-  // Tuned in the running CRT lab: retain a visible tube while resolving material
-  // highlights and sprite detail instead of smearing them into the same grey band.
-  const PHOSPHOR = Object.freeze({ scan: .16, pitch: 1, fade: 0, curve: .04, vig: .14,
-    over: 1.08, dust: .35, aberr: 0, grain: .05, bloom: 0, sharpen: .28, film: .28 });
+  // Live-compared industrial finish: deep mids, readable cool/warm equipment,
+  // crisp materials, and restrained tube texture without a lifted-black veil.
+  const PHOSPHOR = Object.freeze({ scan: .10, pitch: 1, fade: 0, curve: .04, vig: .16,
+    over: 1.08, dust: .35, aberr: 0, grain: .035, bloom: 0, sharpen: .28, film: .38 });
   // Five-tap local contrast, bounded by the existing neighbourhood. Flat light
   // gradients stay quiet; no bright/dark ringing is introduced beyond an edge.
   const DETAIL_GLSL = `
