@@ -18,7 +18,7 @@
   "expectedClaimCount": 37,
   "releaseSurface": {
     "algorithm": "sha256",
-    "sourceCommit": "7b25447c8497f34a710a98fce0b1aaba8eecba1c",
+    "sourceCommit": "453aaf19b397cb5858da25f9439cd2c412e5a77f",
     "pathSetSha256": "893f2c9ca526a94879691b5c9b01adbcd4d30b3619c1a50fbbfbd64f7e227bb9",
     "files": [
       {
@@ -198,8 +198,8 @@
       },
       {
         "path": "frontend/app/crtlab.js",
-        "bytes": 22075,
-        "sha256": "8fe767d66c3fb21f56d05e676d5eaab0fb5a50e780393ed975d23b37acf55678"
+        "bytes": 22139,
+        "sha256": "459dda0c13f8f3f0ef6eefa13e2b15af243901d5471c2ae03c92e7a2e96dc449"
       },
       {
         "path": "frontend/app/ctxgauge.js",
@@ -528,8 +528,8 @@
       },
       {
         "path": "frontend/app/propsprites.js",
-        "bytes": 762968,
-        "sha256": "34547b3ef874e1da4a9ae8d4186816ea02c28298e7c48f578ab65d89b8fee610"
+        "bytes": 769416,
+        "sha256": "6fc99269e7a657312e8dcd1b69027221c0c97f373b1a377c186fd4c65e62680e"
       },
       {
         "path": "frontend/app/prospect.js",
@@ -1013,8 +1013,8 @@
       },
       {
         "path": "frontend/app/world.js",
-        "bytes": 720766,
-        "sha256": "6ef17ee614bb38848b741f8759d2d75ab3847e2be9fd12a9c952d017c44beee2"
+        "bytes": 721541,
+        "sha256": "9e9b07b2413daaa39ada5ad061213bd2a48ad2a0451589383e52f0b907038ddc"
       },
       {
         "path": "frontend/app/worldlab.js",
@@ -1023,8 +1023,8 @@
       },
       {
         "path": "frontend/app/worldlight.js",
-        "bytes": 24826,
-        "sha256": "4c0ce0ed8e453bedbd04276f7915911c821227bb17b8a613000f7fda14e97ce8"
+        "bytes": 34713,
+        "sha256": "4c9add200496493f1c0aefc971db0920c84a786d66f6b38dc6bcf12032c62eb1"
       },
       {
         "path": "frontend/app/worldmodel.js",
@@ -1033,13 +1033,13 @@
       },
       {
         "path": "frontend/app/worldrenderer.js",
-        "bytes": 5715,
-        "sha256": "e4b5f0bc8fc83ba56768d4b18e9466998b88877f87d5df58ea6d2f42b7efa761"
+        "bytes": 6760,
+        "sha256": "e6a5c89295e79845fdf28cf605f86fa457a012c773280242035f319fe330f886"
       },
       {
         "path": "frontend/app/worldsurface.js",
-        "bytes": 24003,
-        "sha256": "1f6bb61c7bc2dfa1ac2deec1dbedc4ccd9e32691330a62f338b895e452fdfe3f"
+        "bytes": 26308,
+        "sha256": "8647389704e4a20fe9d30b556423bfb65034738eb9b0afa3ec953e3b8ce1f16f"
       },
       {
         "path": "frontend/app/xp.js",
@@ -1153,8 +1153,8 @@
       },
       {
         "path": "frontend/js/assets.js",
-        "bytes": 33711,
-        "sha256": "9679c68c2156f445cf972f32a9a22e732248e9a5e794f6ab46198a7cd6d4f483"
+        "bytes": 39941,
+        "sha256": "1a055aadcf4abc5661267df140f03f59ea7208af4a1f9e30baa1716275438bd7"
       },
       {
         "path": "frontend/js/audio.js",
