@@ -209,6 +209,14 @@ test('local lighting reuses native-size frames across agents and leaves the draw
   assert.equal(sceneGrounding.ctx.ellipses.length, 0, 'scene grounding has one authoritative shadow pass');
   assert.equal(sceneGrounding.frame.image, first, 'scene grounding keeps the cached native lighting');
   assert.deepEqual(sceneGrounding.frame.args, ctx.draws.at(-1).args, 'skipping the shadow does not disable planted breathing');
+  const leader = draw(sprites, body({ id: 'ULTRON' }), 1000, appearance);
+  const groundedLeader = draw(sprites, body({ id: 'ULTRON' }), 1000, { ...appearance, skipGroundShadow: true });
+  const authoredSpill = leader.ctx.ellipses.filter(ellipse => ellipse.color === '#ff4a3d');
+  assert.ok(authoredSpill.length > 0, 'leader has its established emissive spill');
+  assert.deepEqual(groundedLeader.ctx.ellipses, authoredSpill,
+    'scene grounding skips native cast/contact shadows while preserving the complete authored spill');
+  const portrait = draw(sprites, body({ id: 'ULTRON', noShadow: true }), 1000, { ...appearance, skipGroundShadow: true });
+  assert.equal(portrait.ctx.ellipses.length, 0, 'off-floor portraits still suppress all ground cues');
 });
 
 test('appearance LRU bounds live bitmaps and rebuilds a lost context instead of keeping a blank body', async () => {
