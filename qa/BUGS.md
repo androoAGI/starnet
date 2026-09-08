@@ -4,11 +4,11 @@
 One tracked file per bug under `qa/bugs/`; this is only the index. File a new bug with
 `node scripts/qa/bugs.mjs --new --title "..." --surface <surface>`.
 
-**6** open (open+claimed) of 77 total — 0 P0 · 6 P1 · 0 P2
+**6** open (open+claimed) of 78 total — 0 P0 · 6 P1 · 0 P2
 
 Engineering status is separate from delivery and customer recovery. Legacy rows without origin are not a customer census.
 
-User/owner reports: **34** · source fixed: **28** · installer verified: **1** · customer confirmed: **1** · still reported failing: **1** · recovery unconfirmed: **32**.
+User/owner reports: **35** · source fixed: **29** · installer verified: **1** · customer confirmed: **1** · still reported failing: **1** · recovery unconfirmed: **33**.
 
 | Report | Family | Source | Installer | Customer |
 | --- | --- | --- | --- | --- |
@@ -41,6 +41,7 @@ User/owner reports: **34** · source fixed: **28** · installer verified: **1** 
 | [Session recommendations ignore user goals and actual work](bugs/a55c0020-session-recommendations-ignore-user-goals-and-ac.md) | session-starters | fixed | unverified | unconfirmed |
 | [Centered room lighting leaves sides dark and creates hotspots](bugs/741832d8-centered-room-lighting-leaves-sides-dark-and-cre.md) | room-lighting | fixed | unverified | unconfirmed |
 | [Custom phosphor theme desaturates approved room lighting](bugs/850fdcfa-custom-phosphor-theme-desaturates-approved-room.md) | room-lighting | fixed | unverified | unconfirmed |
+| [Prop details crowd out the build catalog at larger UI scales](bugs/e1d9f470-prop-details-crowd-out-the-build-catalog-at-larg.md) | prop-catalog-layout | fixed | unverified | unconfirmed |
 | [Quest log tiny text and undifferentiated card grid](bugs/74be01cc-quest-log-tiny-text-and-undifferentiated-card-gr.md) | quest-journal | fixed | unverified | unconfirmed |
 | [Raised room corners excluded from interior lighting](bugs/52397fc0-raised-room-corners-excluded-from-interior-light.md) | room-lighting | fixed | unverified | unconfirmed |
 | [Recipe Bay deep shelf collapses initial cards into slivers](bugs/8ac0662a-recipe-bay-deep-shelf-collapses-initial-cards-in.md) | recipe-layout | fixed | unverified | unconfirmed |
@@ -119,6 +120,7 @@ User/owner reports: **34** · source fixed: **28** · installer verified: **1** 
 | P2 | fixed | world | [Custom phosphor theme desaturates approved room lighting](bugs/850fdcfa-custom-phosphor-theme-desaturates-approved-room.md) | agent/room-lighting-strip | ba3e66447 |
 | P2 | fixed | world | [DELETE announces success on a failed request and leaves the row — same missing `resp.ok` check in ROUTINES, LOOPS and CONNECTORS](bugs/aa9cd1cd-delete-announces-success-on-a-failed-request-and.md) | sweep/world | 8e68bf5c |
 | P2 | fixed | world | [`open()` has no `if (chanES) return` guard, so a re-entry (DATA › IMPORT → reentry → enterGame → resumeBridge) inside an SSE retry backoff leaves two live Event](bugs/d459160f-open.md) | sweep/world | f4d03511 |
+| P2 | fixed | world | [Prop details crowd out the build catalog at larger UI scales](bugs/e1d9f470-prop-details-crowd-out-the-build-catalog-at-larg.md) | prop-panel-0907 | c6f77fff4 |
 | P2 | fixed | world | [Quest log tiny text and undifferentiated card grid](bugs/74be01cc-quest-log-tiny-text-and-undifferentiated-card-gr.md) | agent/quest-journal-revamp | 55a30d5d7 |
 | P2 | fixed | world | [Raised room corners excluded from interior lighting](bugs/52397fc0-raised-room-corners-excluded-from-interior-light.md) | agent/room-lighting-strip | 624e58ede |
 | P2 | fixed | world | [Recipe Bay deep shelf collapses initial cards into slivers](bugs/8ac0662a-recipe-bay-deep-shelf-collapses-initial-cards-in.md) | release-0110 | fe5be77a9 |
