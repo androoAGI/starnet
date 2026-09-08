@@ -73,4 +73,4 @@ Before: naming is mandatory after writes. After: both instruction surfaces make 
 
 ## Verification limits
 
-HTTP gate: 104/104 green; customer journeys: 30/30 green. Source fixes and local fixture/browser proof do not establish installed-desktop verification or customer recovery. The full fast gate is recorded in the lane verification receipt.
+HTTP gate: 104/104 green; customer journeys: 30/30 green. Source fixes and local fixture/browser proof do not establish installed-desktop verification or customer recovery. Full fast gate: 732/732 green on source commit 72a8a3043 with the reviewed source hash refresh. Logs: dev/report-fast-locked.log, dev/report-http.log, dev/report-customer-journeys.log; live browser evidence: dev/report-live.log (local, ignored).
