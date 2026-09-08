@@ -45,9 +45,11 @@ workstations/workflows, and abilities at 1366x768/115%, 1280x720/150%,
 About this prop -> Back to props (including focus restoration) passed in all 15 cases.
 No browser warnings or exceptions. Scale was emulated with the production body zoom
 and reciprocal CSS variable; physical device/installer behavior was not tested.
-Local evidence: .prop-layout-proof.mjs and .prop-layout-results.json in the isolated lane.
+Local evidence: .tmp/prop-panel-proof/.prop-layout-proof.mjs and .prop-layout-results.json in the isolated lane.
 Fast gate stopped at 83/731 (media-service missing dependency). npm ci then failed
 with ENOSPC. Customer journeys failed at 12/30 (Telegram owner-pair acknowledgement).
+Resume: dependencies installed successfully; all 30 customer journeys passed, and the
+committed layout passed the 15 live cases again. Fast-gate completion pending.
 
 
 ## Sibling coverage
