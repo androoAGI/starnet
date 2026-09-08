@@ -4,11 +4,11 @@
 One tracked file per bug under `qa/bugs/`; this is only the index. File a new bug with
 `node scripts/qa/bugs.mjs --new --title "..." --surface <surface>`.
 
-**6** open (open+claimed) of 78 total — 0 P0 · 6 P1 · 0 P2
+**6** open (open+claimed) of 79 total — 0 P0 · 6 P1 · 0 P2
 
 Engineering status is separate from delivery and customer recovery. Legacy rows without origin are not a customer census.
 
-User/owner reports: **35** · source fixed: **29** · installer verified: **1** · customer confirmed: **1** · still reported failing: **1** · recovery unconfirmed: **33**.
+User/owner reports: **36** · source fixed: **30** · installer verified: **1** · customer confirmed: **1** · still reported failing: **1** · recovery unconfirmed: **34**.
 
 | Report | Family | Source | Installer | Customer |
 | --- | --- | --- | --- | --- |
@@ -36,6 +36,7 @@ User/owner reports: **35** · source fixed: **29** · installer verified: **1** 
 | [Website station preview fails when hosting beacon is blocked](bugs/b3b8d28f-website-station-preview-fails-when-hosting-beaco.md) | deployment-integrity | fixed | not-applicable | unconfirmed |
 | [Dense service cards squeeze technical prose into tiny columns](bugs/734b469e-dense-service-cards-squeeze-technical-prose-into.md) | record-readability | fixed | unverified | unconfirmed |
 | [Station button redesign escaped the bottom navigation](bugs/d28ba8f4-station-button-redesign-escaped-the-bottom-navig.md) | dock-style-scope | fixed | unverified | unconfirmed |
+| [Agent work rating fails with a generic not saved message](bugs/1fc69e6a-agent-work-rating-fails-with-a-generic-not-saved.md) | work-rating | fixed | unverified | unconfirmed |
 | [COMMS starters suggest arbitrary tasks and lose session context](bugs/e84d1dfd-comms-starters-suggest-arbitrary-tasks-and-lose.md) | session-starters | fixed | unverified | unconfirmed |
 | [Context extraction card uses a flat surface outside the current theme](bugs/b87dbc17-context-extraction-card-uses-a-flat-surface-outs.md) | context-presentation | fixed | unverified | unconfirmed |
 | [Session recommendations ignore user goals and actual work](bugs/a55c0020-session-recommendations-ignore-user-goals-and-ac.md) | session-starters | fixed | unverified | unconfirmed |
@@ -110,6 +111,7 @@ User/owner reports: **35** · source fixed: **29** · installer verified: **1** 
 | P2 | fixed | providers | [The ledger's `unmetered` flag is a stamped verdict with zero readers — every ledger USD aggregate (/api/budget, day/global caps) counts subscription dollars tha](bugs/4007eb1f-the-ledger-s-unmetered-flag-is-a-stamped-verdict.md) | sweep/providers | fdbb12a2 |
 | P2 | fixed | release | [t5.1 prerequisite gate accepts T0–T4 verdicts with no installer-hash or freshness binding, though t3.2 already binds T0's recorded installer sha256 to the binar](bugs/4bd953e0-t5-1-prerequisite-gate-accepts-t0-t4-verdicts-wi.md) | sweep/release | b76e340c |
 | P2 | fixed | safecell | [A mid-run "Full access" click writes a per-agent '*' wildcard with no readout and no revoke anywhere, and the same wildcard is read by that agent's UNATTENDED r](bugs/13646d93-a-mid-run-full-access-click-writes-a-per-agent-w.md) | sweep/safecell | 226cec3c |
+| P2 | fixed | sessions | [Agent work rating fails with a generic not saved message](bugs/1fc69e6a-agent-work-rating-fails-with-a-generic-not-saved.md) | agent/rating-repair-0908 | a55a1ed07 |
 | P2 | fixed | sessions | [COMMS starters suggest arbitrary tasks and lose session context](bugs/e84d1dfd-comms-starters-suggest-arbitrary-tasks-and-lose.md) | agent/useful-starters-0906 | 33d995fed |
 | P2 | fixed | sessions | [Context extraction card uses a flat surface outside the current theme](bugs/b87dbc17-context-extraction-card-uses-a-flat-surface-outs.md) | release-0110 | fe5be77a9 |
 | P2 | fixed | sessions | [Session recommendations ignore user goals and actual work](bugs/a55c0020-session-recommendations-ignore-user-goals-and-ac.md) | agent/useful-starters-0906 | 51768e661 |
