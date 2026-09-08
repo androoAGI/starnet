@@ -2536,6 +2536,11 @@ const Chat = (() => {
     // drives; phase 2 holds the run until they click Done. Password honesty is part of the card copy.
     if (t === 'browser.login') return 'open a browser window so YOU can log in to ' + (ev.argsSummary || 'a website') + ' (you type your password in that window — the agent never sees it)';
     if (t === 'browser.login.done') return 'wait while you log in to ' + (ev.argsSummary || 'the website') + ' in the browser window — click Done here when you\'ve finished';
+    if (/^fs[._](?:write|append|edit|patch)$/.test(t)) {
+      let target = ev.argsSummary || 'a file';
+      try { target = JSON.parse(target).path || 'a file'; } catch (_) {}
+      return 'change ' + target;
+    }
     if (/write|append|edit/.test(t)) return 'write ' + (ev.argsSummary || 'a file');
     if (t === 'brief.ask') return 'ask you a quick question about the task';   // clarify card renders its own body
     return t.replace(/_/g, '.') + (ev.argsSummary ? ' ' + ev.argsSummary : '');
@@ -2674,6 +2679,12 @@ const Chat = (() => {
     if (p && p.tool === 'brief.ask') return clarifyRow(p, ws);   // a question, not a grade — its own card
     const r = row('agent'); r.d.classList.add('tool'); r.d.classList.add('consent');
     r.body.appendChild(document.createTextNode('▣ ' + name + ' wants to ' + actionPhrase(p) + ' '));
+    if (/^fs[._](?:write|append|edit|patch)$/.test(String(p.tool || ''))) {
+      const detail = document.createElement('details'); detail.className = 'consent-payload';
+      const label = document.createElement('summary'); label.textContent = 'Inspect proposed change (secret patterns redacted)';
+      const payload = document.createElement('pre'); payload.textContent = p.argsSummary || '(payload unavailable)';
+      detail.appendChild(label); detail.appendChild(payload); r.body.appendChild(detail);
+    }
     const btns = document.createElement('span'); btns.className = 'consent-btns';
     let decided = false;
     async function decide(decision, doneLabel, isDeny) {
@@ -2880,6 +2891,7 @@ const Chat = (() => {
   // render the rate-the-work control into `host` (a span/div). onSettle fires after the verdict flashes.
   const WORKRATE_COACH_KEY = 'starnet.workrate.seen';
   function workRateControl(host, agentId, runId, onSettle) {
+    host.setAttribute('data-rate-run', runId);
     // one-time explainer: the FIRST rate surface a Commander ever sees gets one honest line about what a
     // verdict does (👍 mints size-weighted XP + raises satisfaction/trust; 👌/👎 only move the satisfaction
     // meter, never XP, never a penalty — see xp.js scoreEvent/verdictQuality). Retired permanently after one
@@ -2899,7 +2911,13 @@ const Chat = (() => {
     // already routes by the agentId param; the label must agree with it (truthful telemetry).
     let ratee = name;
     try { if (typeof App !== 'undefined' && App.agentName) ratee = App.agentName(agentId || 'agent') || name; } catch (_) {}
+    const ratedMeta = runMeta(runId);
+    const ratedWork = runWork.get(runId);
+    const ratedTask = String((ratedMeta && ratedMeta.directive) || (ratedWork && ratedWork.title) || '').replace(/\s+/g, ' ').trim();
     lbl.textContent = '◈ rate ' + ratee + '’s work — ';
+    const ref = document.createElement('div'); ref.className = 'work-rate-reference';
+    ref.textContent = (ratedTask ? ratedTask.slice(0, 240) + (ratedTask.length > 240 ? '…' : '') + ' · ' : '') + 'run ' + runId;
+    host.appendChild(ref);
     const btns = document.createElement('span'); btns.className = 'consent-btns';
     host.appendChild(lbl); host.appendChild(btns);
     let done = false;
@@ -2935,6 +2953,17 @@ const Chat = (() => {
   }
   // STANDALONE rate-the-work beat (when a run produced NO memory proposal) — its own gold-inset row in the ONE
   // post-run slot. Hero-only, mirroring the curiosity/suggestion beats.
+  function retirePriorRatings(streamId) {
+    if (!log) return;
+    for (const host of log.querySelectorAll('[data-rate-run]')) {
+      const meta = runMeta(host.getAttribute('data-rate-run'));
+      if (!meta || meta.streamId !== streamId) continue;
+      const standalone = host.closest('.work-rate');
+      if (standalone && beatCards) beatCards.expire('rate');
+      // Retire only the rating controls; a memory proposal keeps its own lifecycle.
+      host.remove();
+    }
+  }
   function workRateBeat(agentId, runId) {
     if (!log) return false;
     clearNudge();   // claim the one post-run beat slot, retiring any prior gentle nudge
@@ -2971,8 +3000,16 @@ const Chat = (() => {
      as a scored candidate instead of racing it in on an arm delay. Same three verdicts as
      maybeStandaloneRate, except the free moment answers 'ready' instead of rendering — every gate below is
      byte-identical to the pre-spine ladder. */
+  function ratingRunSuperseded(runId) {
+    const origin = runMeta(runId);
+    const stream = origin && origin.streamId && typeof Workstreams !== 'undefined' ? Workstreams.get(origin.streamId) : null;
+    return !!(stream && stream.runIds && stream.runIds.length && stream.runIds[stream.runIds.length - 1] !== runId);
+  }
   function rateStatus(agentId, runId) {
     if (!log || !runId || workRatedRuns.has(runId)) return 'never';
+    if (ratingRunSuperseded(runId)) return 'never';
+    const origin = runMeta(runId);
+    if (origin && origin.streamId && activeWs && activeWs.id !== origin.streamId) return 'blocked';
     // S1 SPECIALIST RATE-STARVE FIX. This was hero-only, which starved every summoned specialist of the PRIMARY
     // leveling beat: an interactive run in a specialist-bound workstream could only ever be rated if it happened
     // to also produce a memory turn-in card (the one other control that routes by the run's own agentId). So a
@@ -3830,7 +3867,7 @@ const Chat = (() => {
     head.body.appendChild(queueNote);
     head.body.appendChild(slot);
     // RATE THE WORK first (the primary leveling beat), THEN curate memories below — two honest judgments, one card.
-    if (batch.runId && !workRatedRuns.has(batch.runId)) {
+    if (batch.runId && !workRatedRuns.has(batch.runId) && !ratingRunSuperseded(batch.runId)) {
       const rate = document.createElement('div'); rate.className = 'turnin-rate';
       head.body.insertBefore(rate, slot);
       workRateControl(rate, batch.agentId || 'agent', batch.runId, () => vanish(rate));
@@ -4972,7 +5009,7 @@ const Chat = (() => {
       followedUp.add(runId);
       clearNudge();
       const r = row('agent'); r.d.classList.add('nudge');
-      r.body.textContent = (verdict === 'miss' ? '▼ what missed?' : '◆ what would have made it a hit?') + ' — one tap and every agent here works that way from now on.';
+      r.body.textContent = (verdict === 'miss' ? '▼ what missed?' : '◆ what would have made it a hit?') + ' — feedback for run ' + runId + '. One tap updates the briefing for future runs.';
       autoscroll();
       const meta = runMeta(runId);
       const choiceRow = choices(VerdictFollowup.chips(verdict), item => {
@@ -8230,7 +8267,7 @@ const Chat = (() => {
         projectRoot: ws.projectRoot || undefined,   // project-anchored session: the sidecar injects the folder context ONLY if the root is still a standing blessed grant (truthful)
         placed: (typeof World !== 'undefined' && World.heroCaps) ? World.heroCaps(ws.agentId || 'agent') : [],   // THE MOAT: this run's TOOL reach = the agent's REAL placed props (dish→web · cabinet→files · workbench→terminal · …); compute is the freebie
         stationPlaced: (typeof World !== 'undefined' && World.stationCaps) ? World.stationCaps() : [],   // Class Loadouts (shared-gear): station-wide gear for SKILL availability — a desk-only specialist still gets its class skills when the STATION has the gear (tools stay room-scoped via `placed`)
-        onRunId: id => { thisRunId = id; if (retryDirectiveTurn && !retryDirectiveTurn.sourceRunId) retryDirectiveTurn.sourceRunId = id; if (starterId) StarterStore.started(starterId, id); runStartedAt = Date.now(); try { RUN_META.set(id, { isTask: !!isTask, title: (ws && ws.title) || '', directive: String(text || ''), correctionOf: correctionOf, intentOfferText: intentOfferText, fromRecipe: fromRecipe, recipeId: recipeId, agentId: ws.agentId || 'agent', rec: recClaimRun(id, ws.agentId || 'agent') }); if (RUN_META.size > 60) RUN_META.delete(RUN_META.keys().next().value); } catch (_) {} Channels.setRunId(ws.id, id, Date.now()); if (walkedToDesk && Channels.setStatus) Channels.setStatus(ws.id, 'working…'); if (isActiveWs(ws)) { syncStatus(); renderPresence(); } if (typeof Workstreams !== 'undefined') { Workstreams.appendRun(ws.id, id); if (typeof App !== 'undefined' && App.refreshRail) App.refreshRail(); } },
+        onRunId: id => { retirePriorRatings(ws.id); thisRunId = id; if (retryDirectiveTurn && !retryDirectiveTurn.sourceRunId) retryDirectiveTurn.sourceRunId = id; if (starterId) StarterStore.started(starterId, id); runStartedAt = Date.now(); try { RUN_META.set(id, { streamId: ws.id, isTask: !!isTask, title: (ws && ws.title) || '', directive: String(text || ''), correctionOf: correctionOf, intentOfferText: intentOfferText, fromRecipe: fromRecipe, recipeId: recipeId, agentId: ws.agentId || 'agent', rec: recClaimRun(id, ws.agentId || 'agent') }); if (RUN_META.size > 60) RUN_META.delete(RUN_META.keys().next().value); } catch (_) {} Channels.setRunId(ws.id, id, Date.now()); if (walkedToDesk && Channels.setStatus) Channels.setStatus(ws.id, 'working…'); if (isActiveWs(ws)) { syncStatus(); renderPresence(); } if (typeof Workstreams !== 'undefined') { Workstreams.appendRun(ws.id, id); if (typeof App !== 'undefined' && App.refreshRail) App.refreshRail(); } },
         onToken: d => { acc += d; Channels.appendToken(ws.id, d); if (isActiveWs(ws)) { if (activeLiveRow) activeLiveRow.append(d); if (!isTask) World.say(acc); } if (willSpeak) pushSpeech(false); App.refreshUsage(); },
         onTerminalReset: () => { acc = ''; spokenIdx = 0; Channels.setAcc(ws.id, ''); },
         onUsage: (u) => { if (u && u.model) ranModel = u.model; App.refreshUsage(); },

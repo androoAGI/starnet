@@ -5784,3 +5784,9 @@ button:disabled, select:disabled, input:disabled, textarea:disabled {
 .gx-quests .q-achievement, .gx-quests .q-plan-complete { padding: 6px 0; }
 .gx-quests .q-deferred { margin: 12px 0; }
 .gx-quests .q-life-quest .consent-btns { flex-wrap: wrap; }
+
+/* Exact mutation review stays scrollable without clipping the payload. */
+.consent-payload { margin: 8px 0; }
+.consent-payload summary { cursor: pointer; }
+.consent-payload pre { max-height: 320px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; user-select: text; }
+.work-rate-reference { margin: 4px 0; overflow-wrap: anywhere; user-select: text; }

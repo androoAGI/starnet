@@ -1753,9 +1753,10 @@ function workshopOf(agentId) { try { return workshopStore.hasGrant(String(agentI
    run row either, and the note should die with it rather than resurface attached to something else later.
    FIFO-evicted rather than unbounded because runIds come from a live loop and a leak here would be permanent. */
 /* Appended to the watched surface's system prefix (handleRun). Constant, so the cached prefix stays byte-stable. */
-const DELIVERABLE_NOTE_CLAUSE = '\n\nWhen a task ends with files you created or changed, call deliverable_note once to '
+const DELIVERABLE_NOTE_CLAUSE = '\n\nDeliverable naming is optional. When a task ends with files you created or changed, you may call deliverable_note once to '
   + 'name them: a short plain-English title and one sentence saying what the thing is. Describe it; do not judge it. '
-  + 'The station records the outcome, cost, file list and crew itself.';
+  + 'Skip this tool when the user limits actions, says no further actions, or asks you to stop after the requested change. '
+  + 'The station records the outcome, cost, file list and crew itself even without a note.';
 const DELIVERABLE_NOTES_MAX = 64;
 const deliverableNotes = (() => {
   const bag = new Map();
@@ -2193,20 +2194,21 @@ async function probeChannelRunConfig(config, timeoutMs) {
   const c = config || {};
   if (!c.ok) return { ok: false, error: String(c.error || 'agent provider is not configured') };
   const providerId = normalizeProvider(c.provider);
+  const reasoningEffort = resolveReasoningEffort(providerId, c.reasoningEffort);
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), Number.isFinite(timeoutMs) ? Math.max(1000, timeoutMs) : 30000);
   if (timer && timer.unref) timer.unref();
   try {
     let provider;
     if (providerUsesCodex(providerId)) {
-      provider = selectProvider({ provider: providerId, fetch: globalThis.fetch, token: await ensureCodexAccessToken(), renewToken: forceRefreshCodexAccessToken, baseUrl: c.baseUrl, reasoningEffort: 'none' });
+      provider = selectProvider({ provider: providerId, fetch: globalThis.fetch, token: await ensureCodexAccessToken(), renewToken: forceRefreshCodexAccessToken, baseUrl: c.baseUrl, reasoningEffort });
     } else if (providerUsesDeviceOAuth(providerId)) {
-      provider = selectProvider({ provider: providerId, fetch: globalThis.fetch, token: await ensureOAuthAccessToken(providerId), headers: oauthInferenceHeaders(providerId), baseUrl: c.baseUrl, reasoningEffort: 'none' });
+      provider = selectProvider({ provider: providerId, fetch: globalThis.fetch, token: await ensureOAuthAccessToken(providerId), headers: oauthInferenceHeaders(providerId), baseUrl: c.baseUrl, reasoningEffort });
     } else {
-      provider = selectProvider({ provider: providerId, fetch: globalThis.fetch, key: c.key, baseUrl: c.baseUrl, reasoningEffort: 'none' });
+      provider = selectProvider({ provider: providerId, fetch: globalThis.fetch, key: c.key, baseUrl: c.baseUrl, reasoningEffort });
     }
     let answered = false;
-    for await (const ev of provider.stream({ model: c.model, messages: [{ role: 'user', content: 'Reply exactly OK.' }], reasoningEffort: 'none', signal: ctrl.signal })) {
+    for await (const ev of provider.stream({ model: c.model, messages: [{ role: 'user', content: 'Reply exactly OK.' }], reasoningEffort, signal: ctrl.signal })) {
       if (ev && ((ev.type === 'text' && ev.delta) || ev.type === 'done')) answered = true;
     }
     if (!answered) return { ok: false, error: 'the selected model accepted the request but returned no response' };
@@ -18334,6 +18336,7 @@ async function handleLiveDoctor(req, res) {
   // SELECTED MODEL: one tiny inference through the exact provider adapter + credential source a normal run uses.
   const providerId = normalizeProvider((rec && rec.provider) || (runtimeKey ? 'openrouter' : (codexTokens && codexTokens.access_token ? 'codex' : 'openrouter')));
   const model = String((rec && rec.model) || '').trim();
+  const reasoningEffort = resolveReasoningEffort(providerId, rec && rec.reasoningEffort);
   targets.push({ kind: 'provider', id: providerId, label: providerId + (model ? ' / ' + model : ''), probe: async () => {
     const profile = getProviderProfile(providerId);
     const baseUrl = providerRuntimeBaseUrl(providerId, '');
@@ -18346,14 +18349,14 @@ async function handleLiveDoctor(req, res) {
     try {
       let provider;
       if (providerUsesCodex(providerId)) {
-        provider = selectProvider({ provider: providerId, fetch: globalThis.fetch, token: await ensureCodexAccessToken(), renewToken: forceRefreshCodexAccessToken, baseUrl, reasoningEffort: 'none' });
+        provider = selectProvider({ provider: providerId, fetch: globalThis.fetch, token: await ensureCodexAccessToken(), renewToken: forceRefreshCodexAccessToken, baseUrl, reasoningEffort });
       } else if (providerUsesDeviceOAuth(providerId)) {
-        provider = selectProvider({ provider: providerId, fetch: globalThis.fetch, token: await ensureOAuthAccessToken(providerId), headers: oauthInferenceHeaders(providerId), baseUrl, reasoningEffort: 'none' });
+        provider = selectProvider({ provider: providerId, fetch: globalThis.fetch, token: await ensureOAuthAccessToken(providerId), headers: oauthInferenceHeaders(providerId), baseUrl, reasoningEffort });
       } else {
-        provider = selectProvider({ provider: providerId, fetch: globalThis.fetch, key, baseUrl, reasoningEffort: 'none' });
+        provider = selectProvider({ provider: providerId, fetch: globalThis.fetch, key, baseUrl, reasoningEffort });
       }
       let answered = false;
-      for await (const ev of provider.stream({ model, messages: [{ role: 'user', content: 'Reply exactly OK.' }], reasoningEffort: 'none', signal: ctrl.signal })) {
+      for await (const ev of provider.stream({ model, messages: [{ role: 'user', content: 'Reply exactly OK.' }], reasoningEffort, signal: ctrl.signal })) {
         if (ev && ((ev.type === 'text' && ev.delta) || ev.type === 'done')) answered = true;
       }
       return answered
@@ -19441,6 +19444,10 @@ function handleOAuthLogout(req, res, id) {
 // actually cares about), else the compact args. Never echoes secrets (redact() also runs on the emitted event).
 function consentSummary(call) {
   const a = (call && call.args) || {};
+  // Approval is the place to inspect the proposed mutation, not the capped run-log digest.
+  if (/^fs[._](?:write|append|edit|patch)$/.test(String(call && call.name || ''))) {
+    try { return JSON.stringify(redact(a), null, 2); } catch (_) { return '[mutation payload unavailable]'; }
+  }
   if (typeof a.path === 'string' && a.path) return a.path;
   try { const s = JSON.stringify(a); return s.length > 80 ? s.slice(0, 77) + '…' : s; } catch (_) { return ''; }
 }

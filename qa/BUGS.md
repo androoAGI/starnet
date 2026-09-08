@@ -4,11 +4,11 @@
 One tracked file per bug under `qa/bugs/`; this is only the index. File a new bug with
 `node scripts/qa/bugs.mjs --new --title "..." --surface <surface>`.
 
-**6** open (open+claimed) of 79 total — 0 P0 · 6 P1 · 0 P2
+**6** open (open+claimed) of 83 total — 0 P0 · 6 P1 · 0 P2
 
 Engineering status is separate from delivery and customer recovery. Legacy rows without origin are not a customer census.
 
-User/owner reports: **36** · source fixed: **30** · installer verified: **1** · customer confirmed: **1** · still reported failing: **1** · recovery unconfirmed: **34**.
+User/owner reports: **40** · source fixed: **34** · installer verified: **1** · customer confirmed: **1** · still reported failing: **1** · recovery unconfirmed: **38**.
 
 | Report | Family | Source | Installer | Customer |
 | --- | --- | --- | --- | --- |
@@ -23,17 +23,21 @@ User/owner reports: **36** · source fixed: **30** · installer verified: **1** 
 | [Connector times out waiting for a buffered SSE reply](bugs/11341152-connector-buffered-sse-times-out.md) | protocol-lifecycle | fixed | unverified | unconfirmed |
 | [Google account connection asks customers for developer credentials](bugs/e5d4b743-google-account-connection-asks-customers-for-dev.md) | google-sign-in | fixed | unverified | unconfirmed |
 | [Valid BYOK wake is blocked by an empty managed wallet](bugs/2b6d70fb-byok-blocked-by-empty-managed-wallet.md) | execution-configuration | fixed | unverified | unconfirmed |
+| [Live Doctor overrides selected model reasoning with none](bugs/2a9cb952-doctor-forces-unsupported-reasoning.md) | execution-configuration | fixed | unverified | unconfirmed |
 | [Gemini rejects the turn after a tool call loses its signature](bugs/0d63e5d1-gemini-loses-tool-signature.md) | tool-history | fixed | unverified | unconfirmed |
 | [Linked account warning confuses provider quota with disconnection](bugs/6c54d22e-linked-state-confused-with-quota.md) | recovery-truth | fixed | unverified | unconfirmed |
 | [Managed model selection retains the wrong provider identity](bugs/7ed4a93c-managed-selection-keeps-wrong-provider.md) | catalog-truth | fixed | unverified | unconfirmed |
 | [Routed OpenRouter conversation fails on orphan tool results](bugs/112199f5-openrouter-orphan-tool-results.md) | tool-history | fixed | unverified | unconfirmed |
 | [Doctor works but sample ignores the saved provider](bugs/c978e7b7-sample-ignores-saved-provider.md) | execution-configuration | fixed | unverified | unconfirmed |
 | [Tier picker reports available managed models missing](bugs/ddea3c5d-tiers-ignore-managed-catalog.md) | catalog-truth | fixed | unverified | unconfirmed |
+| [File approval hides the proposed edit and patch payload](bugs/48c51661-file-approval-omits-mutation.md) | informed-approval | fixed | unverified | unconfirmed |
 | [Add agents silently fails when group backend is unavailable](bugs/0245a284-add-agents-silently-fails-when-group-backend-is.md) | group-chat-picker | fixed | unverified | unconfirmed |
+| [Feedback cards do not identify the run being rated](bugs/c7fa86fc-feedback-run-reference-ambiguous.md) | feedback-attribution | fixed | unverified | unconfirmed |
 | [Sent group attachments appear only in the shared shelf](bugs/de0bb232-sent-group-attachments-appear-only-in-the-shared.md) | message-attachments | fixed | unverified | unconfirmed |
 | [Mac desktop microphone blocked while browser mirror works](bugs/8a553481-mac-desktop-microphone-blocked-while-browser-mir.md) | desktop-microphone | fixed | unverified | unconfirmed |
 | [Bay names are unreadable at normal station zoom](bugs/0ff9dfc6-bay-names-are-unreadable-at-normal-station-zoom.md) | bay-labels | fixed | verified | confirmed |
 | [Website station preview fails when hosting beacon is blocked](bugs/b3b8d28f-website-station-preview-fails-when-hosting-beaco.md) | deployment-integrity | fixed | not-applicable | unconfirmed |
+| [Deliverable naming instruction conflicts with explicit stop limits](bugs/5a35bcfe-deliverable-note-overrides-stop.md) | task-scope | fixed | unverified | unconfirmed |
 | [Dense service cards squeeze technical prose into tiny columns](bugs/734b469e-dense-service-cards-squeeze-technical-prose-into.md) | record-readability | fixed | unverified | unconfirmed |
 | [Station button redesign escaped the bottom navigation](bugs/d28ba8f4-station-button-redesign-escaped-the-bottom-navig.md) | dock-style-scope | fixed | unverified | unconfirmed |
 | [Agent work rating fails with a generic not saved message](bugs/1fc69e6a-agent-work-rating-fails-with-a-generic-not-saved.md) | work-rating | fixed | unverified | unconfirmed |
@@ -73,6 +77,7 @@ User/owner reports: **36** · source fixed: **30** · installer verified: **1** 
 | P1 | fixed | channels | [Connector times out waiting for a buffered SSE reply](bugs/11341152-connector-buffered-sse-times-out.md) | reliability-followup | 6adda1348 |
 | P1 | fixed | onboarding | [Google account connection asks customers for developer credentials](bugs/e5d4b743-google-account-connection-asks-customers-for-dev.md) | agent/google-account-signin | cb8385c56 |
 | P1 | fixed | providers | [Valid BYOK wake is blocked by an empty managed wallet](bugs/2b6d70fb-byok-blocked-by-empty-managed-wallet.md) | reliability-followup | 5b5f50a1d |
+| P1 | fixed | providers | [Live Doctor overrides selected model reasoning with none](bugs/2a9cb952-doctor-forces-unsupported-reasoning.md) | report-0110-0908 | 72a8a3043c263cd53ed353daed2042e256c8e236 |
 | P1 | fixed | providers | [Gemini rejects the turn after a tool call loses its signature](bugs/0d63e5d1-gemini-loses-tool-signature.md) | reliability-followup | fe30cc1b4 |
 | P1 | fixed | providers | [Linked account warning confuses provider quota with disconnection](bugs/6c54d22e-linked-state-confused-with-quota.md) | reliability-followup | 756ebec88 |
 | P1 | fixed | providers | [Managed model selection retains the wrong provider identity](bugs/7ed4a93c-managed-selection-keeps-wrong-provider.md) | reliability-followup | 17b9e1341 |
@@ -85,9 +90,11 @@ User/owner reports: **36** · source fixed: **30** · installer verified: **1** 
 | P1 | fixed | release | [Reconciler mistakes related repairs for reported bug resolution](bugs/7528f593-related-fix-prose-promotes-customer-report.md) | reliability-audit | ef5585145 |
 | P1 | fixed | release | [release-cut.mjs stages latest.json with no cryptographic signature check, and no downstream gate does one either — t1 checks .sig mtime, t5 text-compares it, ve](bugs/26af4a9a-release-cut-mjs-stages-latest-json-with-no-crypt.md) | sweep/release | b315063b |
 | P1 | fixed | safecell | [An errored /api/projects is rendered as a CONFIRMED EMPTY trust ledger ("NO TRUSTED PROJECTS") and silently wipes the persisted project scope](bugs/e05cdba8-an-errored-api-projects-is-rendered-as-a-confirm.md) | sweep/safecell | ed200caa |
+| P1 | fixed | safecell | [File approval hides the proposed edit and patch payload](bugs/48c51661-file-approval-omits-mutation.md) | report-0110-0908 | 72a8a3043c263cd53ed353daed2042e256c8e236 |
 | P1 | fixed | safecell | [The Projects rail's ADD doorway records a NON-canonical path grant, so blessing a folder reached through a junction/symlink reports success and grants nothing](bugs/cf0cd4cd-the-projects-rail-s-add-doorway-records-a-non-ca.md) | sweep/safecell | 226cec3c |
 | P1 | fixed | sessions | [Add agents silently fails when group backend is unavailable](bugs/0245a284-add-agents-silently-fails-when-group-backend-is.md) | comms-add-agents-0906 | cf6b3ca03c372c404bcb46997a56d570d7747d70 |
 | P1 | fixed | sessions | [checkpoint snapshot() uses the SYNC loadIndex despite being async — after an index+bak loss it re-stamps a 1-entry index that permanently blocks the git rebuild](bugs/d5621e9b-checkpoint-snapshot.md) | sweep/sessions | b315063b |
+| P1 | fixed | sessions | [Feedback cards do not identify the run being rated](bugs/c7fa86fc-feedback-run-reference-ambiguous.md) | report-0110-0908 | 72a8a3043c263cd53ed353daed2042e256c8e236 |
 | P1 | fixed | sessions | [Retry duplicates the user message after restart](bugs/b30c1c8e-retry-duplicates-the-user-message-after-restart.md) | overnight-retry-history-0907 | 1611844713cfb4d88061ace1f786040436c59605 |
 | P1 | fixed | sessions | [Sent group attachments appear only in the shared shelf](bugs/de0bb232-sent-group-attachments-appear-only-in-the-shared.md) | release-0110 | fe5be77a9 |
 | P1 | fixed | sessions | [Workshop reports a completed web tool when its entry file is missing](bugs/097269b5-workshop-reports-a-completed-web-tool-when-its-e.md) | agent/release-ui-audit-0906 | 44a8c3006 |
@@ -102,6 +109,7 @@ User/owner reports: **36** · source fixed: **30** · installer verified: **1** 
 | P1 | fixed | world | [ROUTINES › REVOKE ACCESS toasts "access revoked" (green) on a 4xx/5xx — bare `fetch` resolves, so the unattended grant survives its own success message](bugs/fd0f7223-routines-revoke-access-toasts-access-revoked.md) | sweep/world | 3f0d1205 |
 | P1 | fixed | world | [Website station preview fails when hosting beacon is blocked](bugs/b3b8d28f-website-station-preview-fails-when-hosting-beaco.md) | website-station-boot-0905 | 27560918e |
 | P2 | fixed | autonomy | [Cancelled edit starts a replacement language server](bugs/37059128-cancelled-edit-starts-a-replacement-language-ser.md) | reliability-audit | 547dd03d7 |
+| P2 | fixed | autonomy | [Deliverable naming instruction conflicts with explicit stop limits](bugs/5a35bcfe-deliverable-note-overrides-stop.md) | report-0110-0908 | 72a8a3043c263cd53ed353daed2042e256c8e236 |
 | P2 | fixed | autonomy | [routine.create's default `arm:true` bypasses the documented single resume seam and clears the durable cron E-STOP — the workshop auto-arm path at index.js:8214](bugs/300b34ab-routine-create-s-default-arm.md) | sweep/autonomy | 6afeb9ee |
 | P2 | fixed | channels | [Dense service cards squeeze technical prose into tiny columns](bugs/734b469e-dense-service-cards-squeeze-technical-prose-into.md) | agent/ui-density-audit | 221775a85 |
 | P2 | fixed | channels | [E-STOP silences the channel reply path via the supersede flag, so a deliberately stopped run is indistinguishable from a crashed bot on the phone](bugs/600f4982-e-stop-silences-the-channel-reply-path-via-the-s.md) | sweep/channels | 96fe108d |

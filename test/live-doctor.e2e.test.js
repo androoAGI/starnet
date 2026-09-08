@@ -68,7 +68,7 @@ function providerFixture() {
     const server = http.createServer((req, res) => {
       if (req.url.includes('/models')) {
         res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ data: [{ id: 'doctor/model', context_length: 8000, pricing: { prompt: '0', completion: '0' } }] }));
+        res.end(JSON.stringify({ data: [{ id: 'openai/gpt-5', context_length: 8000, supported_parameters: ['reasoning', 'tools'], pricing: { prompt: '0', completion: '0' } }] }));
         return;
       }
       if (!req.url.includes('/chat/completions')) { res.writeHead(404); res.end(); return; }
@@ -76,6 +76,7 @@ function providerFixture() {
       req.on('data', d => { raw += d; });
       req.on('end', () => {
         requests.push(JSON.parse(raw));
+        if (requests.at(-1).reasoning?.effort === 'none') { res.writeHead(400, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: { message: "Unsupported value: 'none'" } })); return; }
         res.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache' });
         res.write('data: ' + JSON.stringify({ choices: [{ delta: { content: 'OK' } }] }) + '\n\n');
         res.write('data: ' + JSON.stringify({ choices: [{ delta: {}, finish_reason: 'stop' }], usage: { prompt_tokens: 4, completion_tokens: 1, total_tokens: 5 } }) + '\n\n');
@@ -95,20 +96,20 @@ test('real host proves selected model and effective execution backend without le
   const fixture = SidecarFixture.create({ prefix: 'sk-live-doctor-', timeoutMs: 20000, env: {
     SKYNET_OPENROUTER_BASE: provider.baseUrl, STARNET_OPENROUTER_BASE: provider.baseUrl,
     SKYNET_OPENROUTER_KEY: secret, STARNET_OPENROUTER_KEY: secret,
-    SKYNET_DEFAULT_MODEL: 'doctor/model', STARNET_DEFAULT_MODEL: 'doctor/model',
+    SKYNET_DEFAULT_MODEL: 'openai/gpt-5', STARNET_DEFAULT_MODEL: 'openai/gpt-5',
     SKYNET_TELEGRAM_API_BASE: telegram.baseUrl, STARNET_TELEGRAM_API_BASE: telegram.baseUrl
   } });
   try {
     await fixture.start();
     const roster = await fixture.json('POST', '/api/roster', { updatedAt: Date.now(), agents: [{
-      agentId: 'doctor', name: 'Doctor', system: 'diagnose', provider: 'openrouter', model: 'doctor/model', executionProfile: 'trusted-project'
+      agentId: 'doctor', name: 'Doctor', system: 'diagnose', provider: 'openrouter', model: 'openai/gpt-5', reasoningEffort: 'medium', executionProfile: 'trusted-project'
     }] });
     assert.equal(roster.status, 200);
     const connector = await fixture.json('POST', '/api/connectors', { id: 'doctor-mcp', label: 'Doctor MCP', transport: 'http', url: mcp.url, enabled: true });
     assert.equal(connector.status, 200);
     assert.equal(connector.body.connected, true);
     const channel = await fixture.json('POST', '/api/channels/telegram/connect', {
-      token: '123456:DOCTOR_FIXTURE', key: secret, model: 'doctor/model', provider: 'openrouter', agentId: 'doctor', agentName: 'Doctor', system: 'diagnose'
+      token: '123456:DOCTOR_FIXTURE', key: secret, model: 'openai/gpt-5', provider: 'openrouter', agentId: 'doctor', agentName: 'Doctor', system: 'diagnose'
     });
     assert.equal(channel.status, 200);
     await waitUntil(async () => (await fixture.json('GET', '/api/channels/telegram/status')).body.connected === true, 5000);
@@ -120,6 +121,7 @@ test('real host proves selected model and effective execution backend without le
     const result = await fixture.json('POST', '/api/diagnostics/live', { confirmedLiveProbes: true, agentId: 'doctor' });
     assert.equal(result.status, 200, result.text);
     assert.equal(provider.requests.length, 1, 'exactly one selected-model request was made');
+    assert.equal(provider.requests[0].reasoning?.effort, 'medium', 'doctor preserves the selected agent reasoning');
     assert.deepEqual(provider.requests[0].messages, [{ role: 'user', content: 'Reply exactly OK.' }]);
     const rows = result.body.report.rows;
     const model = rows.find(r => r.kind === 'provider');

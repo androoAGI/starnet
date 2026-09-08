@@ -19,6 +19,7 @@ test/diagnostics-dead-engine.test.js
 test/bootguard.test.js
 test/live-doctor.test.js
 test/live-doctor-ui.test.js
+test/report-0110-regressions.test.js
 test/outbound-failure-diagnosability.test.js
 test/reflect.test.js
 test/memcore.test.js

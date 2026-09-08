@@ -19,6 +19,7 @@ test/full-access.e2e.test.js
 test/output-recovery.e2e.test.js
 test/project-root.e2e.test.js
 test/live-doctor.e2e.test.js
+test/report-0110.e2e.test.js
 test/scout.http.test.js
 test/discovery.http.test.js
 test/outcomes.http.test.js
