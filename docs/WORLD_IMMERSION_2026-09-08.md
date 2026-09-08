@@ -26,3 +26,9 @@ The CRT pass now uses less additive fade, chromatic separation and grain so the 
 pixel art remains legible. Its development preset reads the canonical renderer values.
 Crew and furniture lighting cache sizes are exposed in the renderer's read-only stats;
 they are measured counts, never an inferred performance claim.
+
+Furniture uses the same current light sample for a native-pixel, inward highlight and
+restrained directional tint. It overlays the original draw in its existing depth slot.
+Only 35 rigid silhouettes are eligible; cargo stacks, bedding and other state-dependent
+shapes are excluded. Mounted props keep their existing height. The response cache is
+capped at 96 entries and 1 MiB, and invalid/lost surfaces fall back to the original art.

@@ -5672,6 +5672,16 @@ const World = (() => {
       (y+h+pad)*scale+panY>=0 && (y-pad)*scale+panY<=cv.height;
   }
 
+  function drawLitProp(p, work, live) {
+    PropSprites.draw(p, work, live);
+    if (!sceneRenderer || !PropSprites.canLightResponse || !PropSprites.canLightResponse(p)) return;
+    // Sample the physical footprint, not elevated sprite pixels inside the
+    // projected wall. The response stays in this item's existing depth slot.
+    const light = sceneRenderer.sampleLight((p.x + (p.w || 1) / 2) * T,
+      (p.y + (p.h || 1) * .65) * T);
+    PropSprites.drawLightResponse(p, light);
+  }
+
   function paintPropShadows(g) {
     g.save();
     try {
@@ -5865,7 +5875,7 @@ const World = (() => {
         // OCCUPIED BED: the base pass holds the quilt back so the sleeper can be drawn between the
         // frame and the covers (drawOver, below). Same copy-on-write idiom as the nameplate above.
         if (sleeper) dp = Object.assign(dp === p ? Object.assign({}, p) : dp, { sleeper: true });
-        items.push({ y: sy, draw: () => { if (propOnScreen(dp)) PropSprites.draw(dp, work, live); } });
+        items.push({ y: sy, draw: () => { if (propOnScreen(dp)) drawLitProp(dp, work, live); } });
         if (PropSprites.lightOf) {
           const lt = PropSprites.lightOf(dp, work, reduceMotion());
           if (lt) propLights.push(Object.assign({}, lt, { originX: (p.x + (p.w || 1) / 2) * T, originY: (p.y + (p.h || 1) / 2) * T }));
@@ -5899,7 +5909,7 @@ const World = (() => {
                   : (typeof PropSprites !== 'undefined' && PropSprites.has('chair')) ? 'chair' : null;
       if (seatT) {
         PropSprites.setCtx(ctx); PropSprites.setNow(now);
-        PropSprites.draw({ t: seatT, x: sx, y: ty, w: 1, h: 1 }, false);
+        drawLitProp({ t: seatT, x: sx, y: ty, w: 1, h: 1 }, false);
       } else F_chair(sx * T, ty * T);
     }
     if (desk && !deskPropId) items.push({ y: (desk.ty + desk.h) * T, draw: () => {   // skip the synthetic desk when a PLACED workstation prop is the hero's desk (the prop draws itself)
@@ -5909,7 +5919,7 @@ const World = (() => {
       const live = work ? { heat: heatFor(agent.id), prog: deskProgFor(agent.id) } : null;
       if (typeof PropSprites !== 'undefined' && PropSprites.has('desk')) {
         PropSprites.setCtx(ctx); PropSprites.setNow(now);
-        PropSprites.draw({ t: 'desk', x: desk.tx, y: desk.ty, w: desk.w, h: desk.h }, work, live);
+        drawLitProp({ t: 'desk', x: desk.tx, y: desk.ty, w: desk.w, h: desk.h }, work, live);
       } else F_desk(desk.tx * T, desk.ty * T, desk.w * T, desk.h * T, { x: desk.tx, work, heat: live ? live.heat : 0, prog: live ? live.prog : null });
     } });
     if (desk && !deskPropId && typeof PropSprites !== 'undefined' && PropSprites.lightOf) {   // the auto-desk's CRT lights the deck while the hero works, like any placed workstation
