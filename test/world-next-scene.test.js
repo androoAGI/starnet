@@ -1,6 +1,7 @@
 'use strict';
 const A = require('./_assert.js');
 const Scene = require('../frontend/world-next/scene.js');
+const CanonicalModel = require('../frontend/app/worldmodel.js');
 function station(closed = false) {
   return { order: ['left', 'hall', 'right'], meta: { trunkRoomId: 'left' }, rooms: {
     left: { name: 'Sanctuary', kind: 'quarters', rects: [{ x1: -4, y1: -2, x2: -1, y2: 1 }] },
@@ -40,6 +41,19 @@ A.ok(box.x <= -4 * 32 - 17 && box.y <= -2 * 32 - 48 && box.y + box.height >= 2 *
   'camera bounds include tall north architecture and the south cutaway face');
 A.ok(Number.isFinite(Scene.bounds({}).cx), 'an empty station still has usable camera bounds');
 A.ok(Scene.material({ name: 'Botanical Garden' }).botanical, 'botanical architectural treatment follows the actual room identity');
+A.eq(Object.keys(Scene.STYLE_COLORS).sort(), Object.keys(CanonicalModel.FLOOR_STYLES).sort(), 'every persisted finish has a new scene pigment');
+A.eq(Object.keys(Scene.MATERIALS).sort(), Object.keys(CanonicalModel.FLOOR_MATERIALS).sort(), 'every persisted floor material has a new scene recipe');
+const editable = CanonicalModel.create(station());
+A.ok(editable.setDeck('left', { style: 'cobalt', mat: 'plank' }).ok, 'canonical whole-room deck update succeeds');
+const roomFinish = editable.doc().rooms.left;
+A.eq([Scene.material(roomFinish).style, Scene.material(roomFinish).recipe], ['cobalt', 'plank'], 'new scene reads both axes of the canonical setDeck result');
+A.ok(editable.paintTiles('left', [[-3, 0]], 'ember').ok, 'canonical tile paint accepts world coordinates');
+A.eq(Scene.material(roomFinish, -3, 0).style, 'ember', 'painted negative-coordinate tile uses its saved override');
+A.eq(Scene.material(roomFinish, -2, 0).style, 'cobalt', 'neighboring unpainted tile retains the room finish');
+A.eq(Scene.material(roomFinish, -3, 0).recipe, 'plank', 'tile paint changes color while retaining the independently selected material');
+editable.setDeck('left', { style: 'bone' });
+A.eq(Scene.material(roomFinish, -3, 0).style, 'bone', 'a whole-room repaint visibly clears the old tile override');
+A.eq(Scene.material({ kind: 'bridge', floorMat: null }).recipe, CanonicalModel.ROOM_KINDS.bridge.mat, 'null material follows the canonical room-kind default');
 
 // Canvas command adapter exercises the new composition API, invalidation and sort
 // without pretending that commands establish live raster appearance.
@@ -47,9 +61,9 @@ let allocations = 0;
 const contexts = [];
 function canvasFactory(w, h) {
   allocations++;
-  const stack = [], g = { globalAlpha: 1, globalCompositeOperation: 'source-over', imageSmoothingEnabled: false,
-    lost: false, isContextLost() { return this.lost; }, setTransform() {}, clearRect() {}, fillRect() {}, strokeRect() {},
-    beginPath() {}, closePath() {}, moveTo() {}, lineTo() {}, arc() {}, ellipse() {}, rect() {}, clip() {}, fill() {}, stroke() {},
+  const stack = [], g = { globalAlpha: 1, globalCompositeOperation: 'source-over', imageSmoothingEnabled: false, commands: [],
+    lost: false, isContextLost() { return this.lost; }, setTransform() {}, clearRect() {}, fillRect(...v) { this.commands.push(['rect', this.fillStyle, ...v]); }, strokeRect() {},
+    beginPath() {}, closePath() {}, moveTo() {}, lineTo() {}, arc() {}, ellipse() {}, rect() {}, clip() {}, fill() { this.commands.push(['fill', this.fillStyle]); }, stroke() { this.commands.push(['stroke', this.strokeStyle]); },
     drawImage() {}, translate() {}, rotate() {},
     createLinearGradient: () => ({ addColorStop() {} }), createRadialGradient: () => ({ addColorStop() {} }),
     save() { stack.push([this.globalAlpha, this.globalCompositeOperation]); },
@@ -90,4 +104,13 @@ A.ok(scene.stats().chunkBuilds > chunksBeforeLoss, 'the scene repaints a lost su
 scene.dispose();
 A.eq(scene.stats().chunks, 0, 'dispose releases cached floor and lighting surfaces');
 A.eq(scene.draw(frame, art), false, 'a disposed scene does not draw');
+function renderedFloor(style, mat) {
+  const cv = canvasFactory(400, 300), s = Scene.create(cv, { canvasFactory });
+  const floorContextIndex = contexts.length;
+  s.draw({ station: { rooms: { r: { floorStyle: style, floorMat: mat, rects: [{ x1: 0, y1: 0, x2: 5, y2: 3 }] } } }, width: 400, height: 300, reducedMotion: true });
+  const signature = JSON.stringify(contexts[floorContextIndex].commands); s.dispose(); return signature;
+}
+const materialSignatures = Object.keys(Scene.MATERIALS).map(m => renderedFloor('sterile', m));
+A.eq(new Set(materialSignatures).size, Object.keys(Scene.MATERIALS).length, 'all eighteen material choices issue visibly distinct floor drawing commands');
+A.ok(renderedFloor('cobalt', 'plank') !== renderedFloor('ember', 'plank'), 'changing saved finish changes the actual floor paint commands');
 A.report('World Next independent scene');
