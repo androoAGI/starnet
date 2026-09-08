@@ -56,6 +56,17 @@ prompt receipts, material distinctions, light occlusion, and floor/mounted sorti
 Current gate logs are `dev/world-next-fresh-focused.log`, `dev/world-next-fresh-fast.log`,
 and `dev/world-next-fresh-http.log`; read completed logs for actual results.
 
+Final verification at source receipt `685ea70e9`: focused suites passed, the complete fast
+gate passed **738 steps**, and the full HTTP gate passed **103 steps**. The added entry
+bootstrap assertions also passed the real sidecar HTTP suite (**507 assertions**).
+Live follow-up verified a rotated diner table saved with a 2x3 footprint; repainting the
+atrium visibly changed it to teal/hex; creating a new room expanded geometry and saved.
+Undo restored each test edit. Stopping the preview changed every crew status to activity
+unconfirmed. After sidecar restart and page reload, the same 972-tile, 9-room/hall,
+56-prop, 4-belt station recovered with 47 architectural lights and 12 prop lights.
+The durable HTML artifact rendered inside the new inert sandboxed preview after restart.
+These are local fixture observations, not an external-model or broad device benchmark.
+
 Remaining migration: first-run credentials, crew recruitment/identity/model editing,
 voice, attachments, advanced projects/quests/automation, editable workshop routines,
 and the full former session-management UI. Existing backend mechanics remain available,
