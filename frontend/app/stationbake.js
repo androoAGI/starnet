@@ -1762,7 +1762,73 @@ const StationBake = (() => {
     }
   }
 
+  /* World II has a separate spatial light map. Its architectural floor shade is
+     therefore ONE bounded field: overlapping wall feet and corners select the
+     strongest coverage, rather than multiplying three dark bands into black.
+     Pixel rows retain the native grid; the falloff is sampled in world pixels,
+     so neither tile edges nor cropped bake viewports restart the profile. */
+  function wallFloorShadow(geo, wallEdges, viewport, options = {}) {
+    const t=geo.TILE||12,v=viewport||{x:0,y:0,w:geo.W,h:geo.H};
+    const width=Math.max(0,Math.ceil(v.w)),height=Math.max(0,Math.ceil(v.h));
+    const field=new Uint8Array(width*height),at=geo.idx||((x,y)=>y*geo.COLS+x);
+    const finite=(v,f)=>Number.isFinite(v)?v:f;
+    const edge=Math.max(0,finite(options.edgeAO,DEPTH.edgeAO)),cast=Math.max(0,finite(options.wallShadow,DEPTH.wallShadow));
+    const corner=Math.max(0,finite(options.cornerAO,DEPTH.cornerAO)),south=Math.max(0,finite(options.southFoot,DEPTH.southFoot));
+    const wallUp=Math.max(0,finite(options.wallUp,WALL.up)),corUp=Math.max(0,finite(options.corUp,WALL.corUp));
+    const sides=new Map(),clampAlpha=a=>Math.round(Math.max(0,Math.min(.34,a))*255);
+    const put=(x,y,w,h,zone,alphaAt)=>{
+      const x0=Math.max(0,Math.floor(x-v.x)),y0=Math.max(0,Math.floor(y-v.y));
+      const x1=Math.min(width,Math.ceil(x+w-v.x)),y1=Math.min(height,Math.ceil(y+h-v.y));
+      for(let yy=y0;yy<y1;yy++)for(let xx=x0;xx<x1;xx++) {
+        const px=xx+v.x,py=yy+v.y,tx=Math.floor(px/t),ty=Math.floor(py/t);
+        if(tx<0||ty<0||tx>=geo.COLS||ty>=geo.ROWS||geo.zoneGrid[at(tx,ty)]!==zone)continue;
+        const a=clampAlpha(alphaAt(px-x+.5,py-y+.5)),i=yy*width+xx;
+        if(a>field[i])field[i]=a;
+      }
+    };
+    const ease=(distance,reach)=>Math.pow(Math.max(0,1-distance/reach),1.7);
+    for(const e of wallEdges||[]) {
+      if(e.door||e.open)continue;
+      const x=e.x*t,y=e.y*t,key=e.x+','+e.y;
+      let pair=sides.get(key);if(!pair)sides.set(key,pair={...e,n:false,s:false,w:false,e:false});pair[e.side]=true;
+      if(e.side==='n') {
+        const reach=Math.max(5,Math.round((e.room?wallUp:corUp)*.46)),peak=Math.max(edge*.18,cast*.50);
+        put(x,y+(e.room?NFACE:5),t,reach,e.z,(_,dy)=>peak*ease(dy,reach));
+      } else if(e.side==='w') {
+        const reach=e.room?6:4,peak=Math.max(edge*.14,cast*.24);
+        put(x,y,reach,t,e.z,dx=>peak*ease(dx,reach));
+      } else if(e.side==='e') {
+        const reach=e.room?3:2,peak=Math.max(edge*.09,cast*.18);
+        put(x+t-reach,y,reach,t,e.z,dx=>peak*ease(reach-dx,reach));
+      } else if(e.side==='s'&&south>.001) {
+        const reach=e.room?4:3,peak=Math.max(edge*.14,cast*.20)*south;
+        put(x,y+t-reach,t,reach,e.z,(_,dy)=>peak*ease(reach-dy,reach));
+      }
+    }
+    if(corner>.001)for(const pair of sides.values()) {
+      const x=pair.x*t,y=pair.y*t,reach=Math.max(3,Math.round(t*.55));
+      const putCorner=(ax,ay,right,down)=>put(right?ax-reach:ax,down?ay-reach:ay,reach,reach,pair.z,(dx,dy)=>{
+        const distance=Math.hypot(right?reach-dx:dx,down?reach-dy:dy);
+        return corner*.58*ease(distance,reach);
+      });
+      if(pair.n&&pair.w)putCorner(x,y+(pair.room?NFACE:5),false,false);
+      if(pair.n&&pair.e)putCorner(x+t,y+(pair.room?NFACE:5),true,false);
+      if(south>.001&&pair.s&&pair.w)putCorner(x,y+t,false,true);
+      if(south>.001&&pair.s&&pair.e)putCorner(x+t,y+t,true,true);
+    }
+    return{alpha:field,width,height,x:v.x,y:v.y};
+  }
+  function bakeWorldIIFloorShadow(b) {
+    if(Math.max(DEPTH.edgeAO,DEPTH.wallShadow,DEPTH.cornerAO)<=.001)return;
+    const field=wallFloorShadow(G,edges,{x:VX,y:VY,w:CW,h:CH});
+    for(let y=0;y<field.height;y++)for(let x=0;x<field.width;) {
+      const alpha=field.alpha[y*field.width+x];if(!alpha){x++;continue;}
+      let end=x+1;while(end<field.width&&field.alpha[y*field.width+end]===alpha)end++;
+      b.fillStyle='rgba(6,7,10,'+(alpha/255).toFixed(4)+')';b.fillRect(VX+x,VY+y,end-x,1);x=end;
+    }
+  }
   function bakeEdgeAO(b) {
+    if(nextSurfaces()){bakeWorldIIFloorShadow(b);return;}
     // base edge AO — the short shade band hugging every wall foot (verbatim legacy look).
     // DEPTH.edgeAO scales the pass (1 = the shipped band, 0 = off) so it can be dialled in the
     // CRT LAB like every other depth cue; it used to be the one hardcoded band in the bake, which
@@ -5195,7 +5261,7 @@ const StationBake = (() => {
      doorway and keeps its sill, track, guide ticks and light spill. */
   const seamOpenJoins = geo => [...classifyJoins(geo)].sort();
 
-  return { bake, bakeIncremental, dirtyChunks, visibleChunks, missingVisibleChunks, drawBase, drawLight, sampleMaterial, sampleWall, sampleHull, seamOpenJoins, CHUNK_PX, LIGHT, WALL, DEPTH, SHAPE, get HULL_EXPOSURE() { return hullLit(); }, hullRampExposure };
+  return { bake, bakeIncremental, dirtyChunks, visibleChunks, missingVisibleChunks, drawBase, drawLight, sampleMaterial, sampleWall, sampleHull, seamOpenJoins, wallFloorShadow, CHUNK_PX, LIGHT, WALL, DEPTH, SHAPE, get HULL_EXPOSURE() { return hullLit(); }, hullRampExposure };
 })();
 
 if (typeof module !== 'undefined' && module.exports) module.exports = StationBake;

@@ -267,11 +267,13 @@ const WorldSurface = (() => {
     const lx = mod(wx, material === 'panelled' ? 48 : 24);
     // Three value bands make the wall read as vertical construction. Large
     // recessed bays provide room for the occasional rail or service fitting.
-    p(0, 0, CELL, 3, pal.deep); p(0, 3, CELL, 2, pal.edge);
+    p(0, 0, CELL, 1, pal.deep); p(0, 1, CELL, 2, pal.recess); p(0, 3, CELL, 2, pal.edge);
     p(0, 5, CELL, belt - 5, pal.shade);
     p(0, 5, CELL, 1, pal.fine);                       // crown undercut catches a narrow rim
-    p(0, belt, CELL, h - belt, pal.recess);
-    p(0, belt, CELL, 1, pal.deep); p(0, belt + 1, CELL, 1, pal.fine);
+    // The dado is a vertical material face, not a second broad cast shadow.
+    // Keep its narrow joint while letting the existing shade tone carry the bay.
+    p(0, belt, CELL, h - belt, pal.shade);
+    p(0, belt, CELL, 1, pal.recess); p(0, belt + 1, CELL, 1, pal.soft);
     p(0, foot, CELL, h - foot, pal.shade);
     p(0, foot, CELL, 1, pal.edge);
     p(0, foot + 1, CELL, 1, pal.base);                // bevelled kick-plate nose

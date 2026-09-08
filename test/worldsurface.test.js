@@ -238,4 +238,17 @@ for (const f of fixtures) {
 A.ok(painted.getContext('2d').marks.every(([x, y, w, h]) => fixtures.some(f =>
   x >= f.fixtureX - 5 && x + w <= f.fixtureX + 5 && y >= f.fixtureY - 2 && y + h <= f.fixtureY + 6)),
   'new mount, reflector and end-cap pixels remain inside each existing housing silhouette');
+// Broad material faces carry the existing shade tone. Only narrow physical
+// joints retain the deepest tone, so light-map shade does not blacken a dado.
+const wallRamp = Surface.palette('#2b3340');
+const wallPixel = name => (0xff000000 | parseInt(wallRamp[name].slice(1), 16)) >>> 0;
+for (const material of ['ribbed', 'panelled']) {
+  const cv = canvas(12, 39);
+  Surface.paintWallTile(cv.getContext('2d'), material, '#2b3340', 0, 0, 12, 39, 0);
+  const px = (x, y) => cv.pixels[y * 12 + x];
+  A.eq(px(6, 0), wallPixel('deep'), material + ' retains its one-pixel crown contact');
+  A.eq([px(6, 1), px(6, 2)], [wallPixel('recess'), wallPixel('recess')], material + ' crown undercut eases into the existing recess tone');
+  A.eq([px(6, 27), px(6, 30), px(6, 33)], Array(3).fill(wallPixel('shade')), material + ' lower wall is a material face rather than a broad dark cast band');
+  A.eq(px(6, 38), wallPixel('deep'), material + ' retains its exact floor-contact row');
+}
 A.report('worldsurface');
