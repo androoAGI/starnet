@@ -38,10 +38,15 @@ body.glass-demo .gd-agent-toggle span { min-width: 0; overflow: hidden; text-ove
 body.glass-demo .gd-agent-toggle svg { width: 10px; height: 10px; flex: none; color: var(--ph); opacity: .7; }
 body.glass-demo .gd-agent-toggle:is(:hover,[aria-expanded="true"]) { border-color: var(--gd-edge); background: var(--gd-hover); }
 body.glass-demo #chat-panel #gc-add-agents {
-  min-height: 26px; padding: 3px 6px; font: 13px/1 'VT323',monospace; letter-spacing: .2px;
-  color: var(--ph); background: transparent; border: 1px solid transparent;
-  border-radius: 3px; box-shadow: none;
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px; flex: 0 0 auto;
+  min-height: 28px; padding: 4px 8px; font: 14px/1 'VT323',monospace; letter-spacing: .5px;
+  color: var(--ph-bright); background: rgba(var(--ph-rgb),.05); border: 1px solid var(--gd-edge);
+  border-radius: 3px; box-shadow: inset 0 1px 0 var(--gd-light);
 }
+body.glass-demo #chat-panel #gc-add-agents::before,
+body.glass-demo #chat-panel #gc-add-agents::after { content: none; }
+body.glass-demo #chat-panel #gc-add-agents svg { width: 12px; height: 12px; flex: none; stroke-linecap: square; }
+body.glass-demo #chat-panel #gc-add-agents span { white-space: nowrap; }
 /* One glass composer: writing and tools share a single edge. */
 body.glass-demo #chat-panel #chat-inputrow {
   margin: 8px; padding: 0; gap: 0; border: 1px solid var(--gd-edge); border-radius: 4px;
@@ -184,7 +189,27 @@ body.glass-demo #chat-log .cmsg .body { line-height: 1.45; overflow-wrap: anywhe
 body.glass-demo #chat-log .cmsg.agent.err { --gd-message-left: var(--bad); }
 body.glass-demo #chat-log .cmsg.agent.err .body { color: var(--text); }
 body.glass-demo #chat-log .cmsg.agent.err .who { color: var(--bad); }
-body.glass-demo #chat-log .cmsg-copy { width: 23px; height: 21px; padding: 0; top: 7px; border-color: var(--gd-edge); background: var(--panel2); border-radius: 3px; font-size: 14px; }
+/* The existing clipboard result classes drive the icon; copying still owns its true state. */
+body.glass-demo #chat-log :is(.cmsg-copy,.md-copy) {
+  width: 26px; height: 24px; padding: 0; font-size: 0; line-height: 0;
+  border: 1px solid var(--gd-edge); border-radius: 3px; color: var(--ph);
+  background: var(--gd-face); box-shadow: inset 0 1px 0 var(--gd-light); text-shadow: none;
+  transition: opacity var(--t-fast) var(--ease-soft), color var(--t-fast) var(--ease-soft), border-color var(--t-fast) var(--ease-soft);
+}
+body.glass-demo #chat-log .cmsg-copy { top: 5px; }
+body.glass-demo #chat-log :is(.cmsg-copy,.md-copy)::before {
+  content: ""; position: absolute; inset: 4px 5px; background: currentColor;
+  mask: url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2016%2016%22%3E%3Cpath%20d%3D%22M5.5%205.5h8v8h-8zM10.5%203V2.5h-8v8H3%22%20fill%3D%22none%22%20stroke%3D%22white%22%20stroke-width%3D%221.4%22%20stroke-linecap%3D%22square%22%20stroke-linejoin%3D%22miter%22%2F%3E%3C%2Fsvg%3E") center / 14px 14px no-repeat;
+}
+body.glass-demo #chat-log :is(.cmsg-copy,.md-copy):is(:hover,:focus-visible) {
+  opacity: 1; color: var(--ph-bright); border-color: var(--ph-dim); background: var(--gd-hover);
+}
+body.glass-demo #chat-log :is(.cmsg-copy,.md-copy).copied { color: var(--ok); border-color: var(--ok); opacity: 1; }
+body.glass-demo #chat-log :is(.cmsg-copy,.md-copy).copied::before { mask-image: url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2016%2016%22%3E%3Cpath%20d%3D%22M3%208l3%203%207-7%22%20fill%3D%22none%22%20stroke%3D%22white%22%20stroke-width%3D%221.4%22%20stroke-linecap%3D%22square%22%20stroke-linejoin%3D%22miter%22%2F%3E%3C%2Fsvg%3E"); }
+body.glass-demo #chat-log :is(.cmsg-copy,.md-copy).copy-failed { color: var(--bad); border-color: var(--bad); opacity: 1; }
+body.glass-demo #chat-log :is(.cmsg-copy,.md-copy).copy-failed::before { mask-image: url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2016%2016%22%3E%3Cpath%20d%3D%22M3%203l10%2010M13%203L3%2013%22%20fill%3D%22none%22%20stroke%3D%22white%22%20stroke-width%3D%221.4%22%20stroke-linecap%3D%22square%22%20stroke-linejoin%3D%22miter%22%2F%3E%3C%2Fsvg%3E"); }
+body.glass-demo #chat-log .cmsg.agent:not(.tool):not(.consent):not(.turnin):not(.nudge):not(.deliverable) > .cmsg-head { padding-right: 28px; }
+body.glass-demo #chat-log .cmsg.user > .cmsg-head { padding-left: 28px; }
 body.glass-demo #chat-panel :is(.choice,.queued-pill,.chat-attach-chip,.chat-attach-view .filechip,.comms-newpill) {
   border: 1px solid var(--gd-edge); border-radius: 3px; background: rgba(var(--ph-rgb),.04);
   box-shadow: inset 0 1px 0 var(--gd-light); text-shadow: none;
@@ -213,7 +238,7 @@ body.glass-demo .live-voice-panel :is(.lv-head,.lv-controls,.lv-details) { borde
 body.glass-demo .live-voice-panel :is(.lv-controls button,.lv-endpoint,.lv-retry,.lv-x) { border: 1px solid var(--gd-edge); border-radius: 3px; background-color: var(--gd-comms-well); box-shadow: inset 0 1px 0 var(--gd-light); }
 @media (prefers-reduced-motion: reduce) {
   body.glass-demo :is(#model-dock,#chat-slash,.gd-agent-menu),
-  body.glass-demo #chat-panel :is(.chat-tools button,.chat-send,.chat-editline,#chat-inputrow,#gc-add-agents,.gd-agent-toggle,.cmsg.agent,.cmsg.user) { transition: none; }
+  body.glass-demo #chat-panel :is(.chat-tools button,.chat-send,.chat-editline,#chat-inputrow,#gc-add-agents,.gd-agent-toggle,.cmsg.agent,.cmsg.user,.cmsg-copy,.md-copy) { transition: none; }
 }
 
 /* Outcome colours stay distinct from ordinary glass selection. */

@@ -8,7 +8,8 @@
     live:'M2 6v4M5 3v10M8 5v6M11 2v12M14 6v4',
     on:'M2 6h3l3-3v10l-3-3H2zM11 5v6M14 3v10',
     off:'M2 6h3l3-3v10l-3-3H2zM11 6l4 4M15 6l-4 4',
-    chevron:'M4 6l4 4 4-4'
+    chevron:'M4 6l4 4 4-4',
+    add:'M8 3v10M3 8h10'
   };
   function icon(kind) {
     const svg = document.createElementNS('http://www.w3.org/2000/svg','svg');
@@ -21,6 +22,18 @@
   function paint(button, kind) {
     if(!button || button.querySelector('svg')?.dataset.gdIcon === kind) return;
     const old=button.querySelector('svg'); if(old)old.replaceWith(icon(kind));else button.prepend(icon(kind));
+  }
+  function enhanceAddAgents() {
+    const addAgents=document.querySelector('#gc-add-agents');if(!addAgents)return false;
+    const caption=document.createElement('span');caption.textContent='ADD AGENTS';
+    addAgents.setAttribute('aria-label','Add agents');
+    addAgents.replaceChildren(icon('add'),caption);return true;
+  }
+  // Group chat can attach its control after the demo has loaded.
+  if(!enhanceAddAgents()) {
+    const host=document.querySelector('#comms-idbar');
+    const pending=new MutationObserver(()=>{if(enhanceAddAgents())pending.disconnect();});
+    if(host)pending.observe(host,{childList:true});
   }
   paint(document.querySelector('#chat-send'),'send');
   paint(document.querySelector('#chat-mic'),'mic');
