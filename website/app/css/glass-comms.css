@@ -139,11 +139,11 @@ body.glass-demo #model-dock {
   backdrop-filter: blur(9px); -webkit-backdrop-filter: blur(9px);
 }
 body.glass-demo #model-dock .model-dock-head {
-  display: flex; flex-direction: column; align-items: flex-start; gap: 3px; margin: -10px -10px 1px; padding: 11px 13px;
+  display: grid; grid-template-columns: minmax(0,1fr) auto; align-items: center; gap: 10px; margin: -10px -10px 1px; padding: 11px 12px;
   border-bottom: 1px solid var(--gd-edge); background: linear-gradient(180deg,rgba(var(--ph-rgb),.14),rgba(var(--ph-rgb),.025));
   box-shadow: inset 0 1px 0 var(--gd-light); border-radius: 5px 5px 0 0;
 }
-body.glass-demo #model-dock .model-dock-current-model { font-size: 16px; font-weight: normal; text-align: left; max-width: 100%; }
+body.glass-demo #model-dock .model-dock-current-model { order: -1; font-size: 16px; font-weight: normal; text-align: left; text-transform: uppercase; letter-spacing: .2px; max-width: 100%; }
 body.glass-demo #model-dock .model-dock-provider { font-size: 14px; letter-spacing: .6px; color: var(--text); opacity: .8; }
 body.glass-demo #model-dock-search {
   padding: 8px 9px; font: 16px/1.25 'VT323',monospace; background: var(--gd-face);
@@ -171,16 +171,17 @@ body.glass-demo #model-dock .model-dock-effort.sel {
   color: var(--ph-bright); background: var(--gd-hover);
   box-shadow: inset 0 1px 0 var(--gd-light), inset 0 -2px 0 rgba(var(--ph-rgb),.65);
 }
-body.glass-demo #model-dock .model-dock-list { min-height: 0; flex: 1 1 auto; max-height: 260px; border-color: var(--gd-edge); padding-block: 2px; }
+body.glass-demo #model-dock .model-dock-list { min-height: 0; flex: 1 1 auto; max-height: 260px; border-color: var(--gd-edge); border-top: 0; padding-block: 2px; }
 body.glass-demo #model-dock .model-dock-group { border: 0; font-size: 14px; padding: 8px 8px 4px; letter-spacing: .6px; color: var(--text); opacity: .8; }
 body.glass-demo #model-dock .model-dock-row { padding: 9px 8px; border: 1px solid rgba(var(--ph-rgb),.12); border-radius: 4px; margin-block: 4px;
   background: var(--gd-face); box-shadow: inset 0 1px 0 var(--gd-light); }
 body.glass-demo #model-dock .model-dock-row:not(.fallback) .model-dock-row-name { font-size: 16px; color: var(--text); }
-body.glass-demo #model-dock .model-dock-row-effort { font-size: 14px; color: var(--text); opacity: .7; }
+body.glass-demo #model-dock .model-dock-row-effort { font-size: 14px; color: var(--text); opacity: 0; }
+body.glass-demo #model-dock .model-dock-row:is(.sel,:hover,:focus-visible) .model-dock-row-effort { opacity: .8; }
 body.glass-demo #model-dock .model-dock-row.sel { background: var(--gd-hover); border-color: var(--gd-edge); box-shadow: inset 2px 0 0 var(--ph), inset 0 1px 0 var(--gd-light); }
 body.glass-demo #model-dock .model-dock-row.sel .model-dock-row-name { color: var(--ph-bright); }
 body.glass-demo #model-dock .model-dock-row:is(:hover,:focus-visible) { background: var(--gd-hover); border-color: var(--gd-edge); box-shadow: inset 0 1px 0 var(--gd-light),0 2px 8px rgba(0,0,0,.2); }
-body.glass-demo #model-dock .model-dock-foot { justify-content: space-between; gap: 8px; }
+body.glass-demo #model-dock .model-dock-foot { grid-template-columns: auto auto; justify-content: space-between; gap: 8px; }
 body.glass-demo #model-dock .model-dock-foot :is(button,a) {
   min-height: 30px; padding: 5px 8px; font-size: 16px; color: var(--text); border: 1px solid var(--gd-edge); border-radius: 4px;
   background: var(--gd-face); box-shadow: inset 0 1px 0 var(--gd-light);

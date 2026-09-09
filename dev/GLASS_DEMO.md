@@ -194,3 +194,11 @@ Replaced the seven individually framed reasoning buttons with one inset glass tr
 Live proof: track client/scroll width both 326px; all seven options client/scroll width both 44px, computed border width 0px. MIN remained selected. Tab from model search focused OFF with a solid focus outline without changing MIN; Escape closed and Enter reopened the model picker. Empty draft preserved, browser warning/error log empty, menu left open for review.
 
 readability (21), control-floor-theming (125), website-app-sync (8) and diff whitespace checks passed. Website mirror synchronized. Full fast was not rerun for this CSS-only refinement; its existing release-manifest failure remains documented above. No merge or release.
+
+## Model menu hierarchy polish - 2026-09-09
+
+Reduced the model header to one row: current model first in station-style uppercase, provider metadata aligned right. Removed the redundant rule above the model list. Per-model reasoning tags now appear on selection, hover or keyboard focus, with their space reserved to prevent label movement. Footer actions size to their contents. Glass surfaces, reasoning track, readable type sizes and the StarNet subscription action are preserved.
+
+Live proof: header height reduced from 64.4px to 42.5px, client/scroll width both 348px. Subscription action client/scroll width both 162px (previously 255px). Model popup client/scroll width both 348px. Hovering the Sonnet row revealed its MIN tag at opacity .8 while the actual selected reasoning remained MIN. Final model claude haiku latest, 484px rail, empty draft and subscription destination preserved. Browser warning/error log empty; final menu open for review.
+
+readability (21), comms-responsive-text (5), control-floor-theming (125), website-app-sync (8) and diff whitespace checks passed. Website mirror synchronized. Full fast was not rerun for this CSS-only refinement; the prior release-manifest failure remains unresolved. No merge or release.
