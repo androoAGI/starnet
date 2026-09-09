@@ -93,3 +93,9 @@
 .refit-overlay .refit-tiers .bb.active { border-color: var(--ph); background: rgba(var(--ph-rgb),.13); box-shadow: none; }
 
 .refit-overlay :is(.refit-mattile.active,.refit-hue.active) { border-color: var(--ph); box-shadow: 0 0 0 1px rgba(var(--ph-rgb),.2); }
+
+/* Give catalog names and previews more room without growing the tool controls. */
+.refit-overlay .refit-dock { width: min(calc(380px * var(--sn-unzoom,1)),calc(100% - 76px)); }
+.refit-overlay[data-tool="prop"] .refit-mode-section { padding-block: 6px; }
+.refit-overlay[data-tool="prop"] #refit-tools { gap: 6px; }
+.refit-overlay[data-tool="prop"] .refit-toolset-label { padding-bottom: 3px; }
