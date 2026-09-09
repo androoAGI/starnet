@@ -4,10 +4,10 @@ slug: agent-session-focus-commands-can-unexpectedly-re
 title: Agent session focus commands can unexpectedly retarget the composer
 surface: sessions
 severity: P1
-status: open
+status: fixed
 found: 2026-09-09
 lane: session-switch-investigation-0909
-fix:
+fix: 086a74ba5d499f74d1829978291eeadeb22848f5
 origin: customer
 report: User-relayed report on 2026-09-09: StarNet randomly changes sessions and the next message goes to the wrong session
 affected: Reporter build/platform unknown; reproduced in seeded browser on source 41253b0bd, version 0.11.0
@@ -62,18 +62,88 @@ Existing tests pass: node test/station-commands.test.js (128 assertions), node t
 
 ## Verdict
 
-Open. A concrete unsolicited-navigation mechanism is reproduced; its correlation with this reporter's incident is unconfirmed. No product code changed, no fix merged, no installer/reporter recovery claimed.
+Source-fixed in 086a74ba5d499f74d1829978291eeadeb22848f5; generated website mirror synchronized in 697126681. The confirmed delayed-voice-reply jump is removed. Model focus requests now carry execution-context stream/run identity and require the still-current foreground run, unchanged UI navigation generation, and an empty composer without attachments. Upload-time navigation invalidates a pending submission. Deliberate session clicks and a valid current-run focus request still work.
 
-Recommended repair direction: carry origin and navigation-generation context across model-driven focus requests and reject stale/background navigation; voice delivery should target the call's bound session independently of the visible composer. Preserve explicit user navigation and per-session drafts. Verify with delayed commands after a user switches sessions, focused creates, voice input while browsing, and typing/attachment sends during a switch.
+The reporter's exact run/platform and whether they were using voice remain unknown. This fixes reproduced mechanisms matching the symptom; it does not establish installer delivery or customer recovery. Live voice remains bound to its starting session. Explicit new speech continues to address that bound session; incoming assistant speech no longer navigates.
 
 ## Regression
 
-Investigation only. Live pre-fix frontend routing evidence is above. Full test:fast, test:http, customer journeys, installer testing and backend message execution were not run or claimed; the two existing focused suites passed. A repair needs a failing regression plus the normal gates.
+Before: the actual seeded browser callback for a delayed assistant reply changed the selected title from Reading and typing to Voice call and replaced draft for reading session with an empty composer. The callback was exposed for deterministic invocation without altering its logic; no microphone/provider was required. The new test/session-focus-safety.test.js failed on the original callback with expected reading, actual call.
+
+Independent before-fix attachment proof, executing the original submitComposer function from git: after upload completion the sent turn was {session:other,text:origin message}, and the other draft became empty.
+
+After: scripts/qa/session-focus-live.cjs passes in the real seeded app with eight controls: delayed reply leaves selection/draft/binding intact; the subsequent Send records the message only in the selected session; current foreground request succeeds; background focus and focused creation refuse without partial creation; leaving and returning cannot revive old focus; current draft blocks focus; upload navigation sends to neither session and preserves the new draft. Zero browser page errors. Model transport and attachment upload completion are controlled; no paid model or real microphone/installer execution is claimed.
+
+Focused gates: session-focus-safety, station-commands (135 assertions), station-tools (67 assertions), voice-live-ui, and voice-flow passed. Full gates pending; do not infer installer or customer recovery from source tests.
+
+Reproducible live runner: scripts/qa/session-focus-live.cjs. Run against an isolated dev/seed.js --keep instance only, using STARNET_PLAYWRIGHT_MODULE and STARNET_CHROME when the browser runtime is bundled externally. Captured output: qa/evidence/session-focus-0909.json.
 
 ## Sibling coverage
 
-Investigation scope, not a closure claim:
-- Adapters: model session.focus traced to frontend; focus:true creation code-traced; provider-specific execution untested.
-- Entrypoints: injected station.switch_session reproduced; real model tool choice and microphone-driven voice path untested.
-- Displays: seeded Chrome UI reproduced; installed Windows and macOS shells untested.
-- Lifecycle: draft survives switching away and back; delayed commands, multiple pages, restart and attachment-in-flight races remain untested.
+{
+  "adapters": [
+    {
+      "target": "shared model session tools across providers",
+      "state": "covered",
+      "test": "test/station-tools.test.js",
+      "scenario": "execution context supplies focus and focused-create provenance; model arguments cannot forge it",
+      "gate": "fast"
+    },
+    {
+      "target": "real paid-provider and microphone execution",
+      "state": "blocked",
+      "reason": "Deterministic tool/voice callback injection was used; no customer credentials or physical microphone were exercised."
+    }
+  ],
+  "entrypoints": [
+    {
+      "target": "session.focus and focus:true creation",
+      "state": "covered",
+      "test": "test/station-commands.test.js",
+      "scenario": "stale requests refuse before navigation or partial creation; background creation remains available",
+      "gate": "fast"
+    },
+    {
+      "target": "delayed assistant speech",
+      "state": "covered",
+      "test": "test/session-focus-safety.test.js",
+      "scenario": "assistant callback preserves selected session and draft",
+      "gate": "fast"
+    },
+    {
+      "target": "direct and group composer submissions",
+      "state": "covered",
+      "test": "test/session-focus-safety.test.js",
+      "scenario": "upload-time navigation including leave-and-return cancels stale submissions",
+      "gate": "fast"
+    }
+  ],
+  "displays": [
+    {
+      "target": "logical selected session and composer draft",
+      "state": "covered",
+      "test": "test/session-focus-safety.test.js",
+      "scenario": "speech callback and attachment completion leave the currently displayed draft intact",
+      "gate": "fast"
+    },
+    {
+      "target": "installed Windows and macOS shells",
+      "state": "blocked",
+      "reason": "Live seeded Chrome proof passed; packaged installer and physical macOS testing were not available in this source repair."
+    }
+  ],
+  "lifecycle": [
+    {
+      "target": "run supersession, completion and user navigation",
+      "state": "covered",
+      "test": "test/session-focus-safety.test.js",
+      "scenario": "run id, busy state and navigation generation reject stale focus while allowing a current foreground run",
+      "gate": "fast"
+    },
+    {
+      "target": "installer restart and customer recovery",
+      "state": "blocked",
+      "reason": "No installed build was replaced and the reporter has not retested; both remain explicitly unverified."
+    }
+  ]
+}

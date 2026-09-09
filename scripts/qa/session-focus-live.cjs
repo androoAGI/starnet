@@ -59,6 +59,15 @@ const { makeStationTools } = require('../../sidecar/tools/builtin/station.js');
       await page.evaluate(({id,verb,args})=>StationCommands.run(id,verb,args),{id,verb,args});
       return acks.find(a=>a.id===id);
     }}});
+    await page.locator('#chat-send').click();
+    await page.waitForFunction(id=>window.proofRuns.some(r=>r.streamId===id),ids.b);
+    proof.replyFollowup=await page.evaluate(ids=>({
+      selectedSessionReceived:Workstreams.get(ids.b).history.some(m=>m.role==='user'&&m.content==='Draft for the reading session'),
+      callSessionReceived:Workstreams.get(ids.a).history.some(m=>m.role==='user'&&m.content==='Draft for the reading session')
+    }),ids);
+    assert.equal(proof.replyFollowup.selectedSessionReceived,true);
+    assert.equal(proof.replyFollowup.callSessionReceived,false);
+
     const foreground=await start('Focus proof foreground');
     const opened=await tools.focusTool.run({session:ids.a},foreground);
     proof.currentRequest={accepted:!opened.content.startsWith('REFUSED:'),selected:await page.evaluate(id=>Workstreams.activeId()===id,ids.a)};
