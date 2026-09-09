@@ -15,13 +15,16 @@
 'use strict';
 
 const StationBake = (() => {
+  const nextSurfaces = () => typeof WorldSurface !== 'undefined' &&
+    (typeof WorldRenderer === 'undefined' || WorldRenderer.enabled());
+  let wallFixtures = [];
   /* palette + geometry knobs — verbatim from v7 world.js/render.js */
   const pad = 7;
   const NFACE = 9, FACEW = 4;
   // `wallDk` used to live here too — a fourth wall tone that was in fact the SHELL, painted over the
   // hull plate on every exterior edge. It moved to the hull palette as `edge` (2026-08-06); nothing
   // outside a room is a wall tone any more.
-  const wallTop = '#4a463a', wallFace = '#2b2820', hullC = '#f2f0ea';
+  const wallTop = '#4a463a', wallFace = '#2b2820', hullC = '#191712';
   const wallCap = '#7c7258';   // the lit TOP surface of a tall wall — bright on purpose: it survives the ambient bake and defines wall height at any zoom
 
   /* PER-ROOM WALL PALETTE. The four constants above used to paint every wall in the station one
@@ -101,7 +104,7 @@ const StationBake = (() => {
   function wallPal(z) {
     let p = wallPalCache && wallPalCache.get(z);
     if (p) return p;
-    const base = (G && G.wallBaseOf && G.wallBaseOf(z)) || '#f2f0ea';
+    const base = (G && G.wallBaseOf && G.wallBaseOf(z)) || '#3a3b41';
     p = { base, face: shade(base, WALL_TONE.face), top: shade(base, WALL_TONE.top), cap: shade(base, WALL_TONE.cap) };
     if (!wallPalCache) wallPalCache = new Map();
     wallPalCache.set(z, p);
@@ -339,11 +342,35 @@ const StationBake = (() => {
      of the shared derivation — the same freedom every material already had over its bands, veins
      and dressing. The shell you always had is now a skin you can re-colour. */
   const STATION_TONE = hullC;
-  /* Keep colored shells readable without flattening them into white. These ceilings are
-     applied before the existing deck-to-void exposure gradient. White is the default finish;
-     it gets a separate headroom band so selecting it cannot resolve to dark grey. */
-  const HULL_LUMA_CAP = 48, HULL_LUMA_FLOOR = 20;
-  const HULL_BRIGHT_POLE = 150, HULL_BRIGHT_CAP = 130;
+  /* ---- THE VACUUM CLAMP: why a hull hue cannot be used at face value ----
+     Every other surface in this bake is painted UNDER the ambient mask, which multiplies it down by
+     0.77 before you ever see it. The hull is the one surface deliberately left OUTSIDE that mask —
+     the skirt hangs in void and renders at its raw baked tones. So the FLOOR_STYLES palette, whose
+     hues were chosen to sit in a dark substrate band *once ambient has taken them down*, renders
+     roughly four times brighter out there than the same hue does inside the room.
+
+     Measured on the shipped bake, down the middle of a south wall: the station's own shell tops out
+     at luma 37, TIMBER at 51, STONE at 55, BRICK at 58 — and brick's mortar spiked to 86, brighter
+     than the lit wall crown (79) and the brightest thing on the whole exterior. That is exactly the
+     "doesn't look right, needs to be more cohesive" read (Andrew, 2026-08-05): a building glowing
+     harder than the station it is bolted to.
+
+     So a chosen hue is clamped into the shell's own value band before anything derives from it.
+     Scaling all three channels by one factor preserves the hue exactly — it is a pure exposure
+     change, which is the honest model for "this surface gets no light". The floor lifts near-black
+     hues (ONYX) so a shell never goes pure void, and the cap is what keeps BONE from painting a
+     blazing white building — the same standing law that killed light mode three times. */
+  const HULL_LUMA_CAP = 28, HULL_LUMA_FLOOR = 13;
+  /* ...EXCEPT AT THE BRIGHT POLE. The clamp above exists to stop a hue picked as a FLOOR SUBSTRATE
+     from accidentally glowing when it is used on the one surface ambient never touches. But BONE and
+     WHITE are not accidents — they are the palette's deliberate bright end, and nobody lands on them
+     by mistake. Flattening them to 28 alongside RUST and COBALT does not make the station cohesive,
+     it just makes the palette lie: you pick WHITE and get another dark grey wall.
+     So a hue that is already unambiguously bright (luma over the pole) clamps to its own, much
+     higher ceiling instead. A white building then really is the brightest thing outside — above the
+     lit wall crown at 79, below the ceiling lamps at 127 — which is exactly what a whitewashed wall
+     looks like at night, and it stays strictly OPT-IN: you have to go and choose it. */
+  const HULL_BRIGHT_POLE = 150, HULL_BRIGHT_CAP = 85;
   const vacuum = hex => {
     const n = parseInt(String(hex).slice(1), 16);
     const r = (n >> 16) & 255, g = (n >> 8) & 255, b = n & 255;
@@ -362,7 +389,7 @@ const StationBake = (() => {
      wrong for restating the SAME material at a different brightness, which is what a shell ramp is.
      Ceiling: nothing on the exterior may out-shine the lit wall crown by much — see the vacuum note
      — so a lift is scaled back if it would carry the result past it. */
-  const HULL_LIFT_CEIL = 190;
+  const HULL_LIFT_CEIL = 115;
   const lift = (hex, k) => {
     const n = parseInt(String(hex).slice(1), 16);
     let r = ((n >> 16) & 255) * k, g = ((n >> 8) & 255) * k, b = (n & 255) * k;
@@ -906,7 +933,7 @@ const StationBake = (() => {
   // FALLBACK ONLY — projected geometry always carries matOf, so this map is not what you see in
   // game. WorldModel.ROOM_KINDS[kind].mat is the authority; keep the two in step.
   const MAT_BY_KIND = { hab: 'spine', corridor: 'spine', bridge: 'panel', lab: 'tile', factory: 'tread', storage: 'tread', quarters: 'soft' };
-  const MAT_PITCH = { alloy: [4, 3], plate: [2, 2], panel: [4, 1], tile: [2, 2], tread: [2, 2], soft: [3, 2], grate: [1, 1], hex: [1, 1], plank: [5, 1], turf: [1, 1], spine: [4, 3], diamond: [1, 1], resin: [4, 4], ceramic: [3, 3], cargo: [3, 2], runner: [2, 2], treadway: [3, 2], meshway: [3, 3] };
+  const MAT_PITCH = { alloy: [4, 3], plate: [2, 2], panel: [4, 1], tile: [2, 2], tread: [2, 2], soft: [3, 2], grate: [1, 1], hex: [1, 1], plank: [5, 1], turf: [1, 1], spine: [4, 3], diamond: [1, 1], resin: [4, 4], ceramic: [3, 3], cargo: [3, 2], runner: [2, 2], treadway: [3, 2], meshway: [3, 3], basalt: [3, 2], parquet: [3, 3], rubber: [2, 2], slotted: [3, 2], terrazzo: [4, 4], octile: [2, 2] };
   const MAT_NO_WEAR = { tile: 1, grate: 1, turf: 1, ceramic: 1, resin: 1 };   // gloss, open mesh, growth, and a poured or glazed floor take no boot scuffs   // gloss, open mesh and growth don't take boot scuffs
   // the room's deck material — the model's per-room choice when it has one, else the kind default
   // (a station built before the material axis existed has none, and bakes exactly as it always did).
@@ -1555,6 +1582,11 @@ const StationBake = (() => {
   // Finish belongs to the material, not to the room. Keep it inside the tile and
   // anchored to world coordinates so refit swatches and chunked decks agree.
   function paintDeck(b, mat, base, x, y, X, Y, z, n, fd) {
+    if (nextSurfaces() || (typeof WorldSurface !== 'undefined' && ['basalt', 'parquet', 'rubber', 'slotted', 'terrazzo', 'octile'].includes(mat))) {
+      const origin = G && G.origin || { tx: 0, ty: 0 };
+      WorldSurface.paintFloorTile(b, mat, base, X, Y, T, x + origin.tx, y + origin.ty, { detail: fd });
+      return;
+    }
     paintDeckRecipe(b, mat, base, x, y, X, Y, z, n, fd);
     if (fd <= 0 || mat === 'alloy' || mat === 'turf' || mat === 'plank' || mat === 'grate' || mat === 'meshway' || mat === 'soft') return;
     const seed = hp(x, y, 317), yy = Y + 3 + seed % 5;
@@ -1626,7 +1658,7 @@ const StationBake = (() => {
          history on it rather than a fill. World-tile keyed like every other mark (chunk parity), never
          zone keyed (a re-roll at a room join would draw the seam the deck painters were fixed to hide).
          Rides floorDetail, so 0 is still the flat unadorned deck. */
-      const base = shade(G.baseColorOf(r.z, x, y), lowFreq(x, y) * 0.05 * fd);
+      const base = nextSurfaces() ? G.baseColorOf(r.z, x, y) : shade(G.baseColorOf(r.z, x, y), lowFreq(x, y) * 0.05 * fd);
       const X = x * T, Y = y * T, n = h2(x, y, r.z);
       const sh = d => shade(base, d * fd);
       paintDeck(b, mat, base, x, y, X, Y, r.z, n, fd);
@@ -1647,7 +1679,7 @@ const StationBake = (() => {
       // Wear follows the central circulation lane; storage edges stay quieter.
       // Geometry-derived dressing, not a claim about recorded foot traffic.
       const lane = Math.abs(x - (r.x1 + r.x2) / 2) <= 1.5;
-      const wear = Math.max(0, DEPTH.floorWear) * (lane ? 1 : 0.35) * (mat === 'alloy' ? 0.18 : 1);
+      const wear = nextSurfaces() ? 0 : Math.max(0, DEPTH.floorWear) * (lane ? 1 : 0.35) * (mat === 'alloy' ? 0.18 : 1);
       if (wear > 0.001 && !MAT_NO_WEAR[mat]) {
         const wa = a => (a * wear).toFixed(3);
         if (n % 9 === 1) px(X + (n % 6), Y + 3 + (n % 8), 4 + (n % 3), 1, 'rgba(0,0,0,' + wa(0.18) + ')');          // boot scuff streak
@@ -1730,7 +1762,73 @@ const StationBake = (() => {
     }
   }
 
+  /* World II has a separate spatial light map. Its architectural floor shade is
+     therefore ONE bounded field: overlapping wall feet and corners select the
+     strongest coverage, rather than multiplying three dark bands into black.
+     Pixel rows retain the native grid; the falloff is sampled in world pixels,
+     so neither tile edges nor cropped bake viewports restart the profile. */
+  function wallFloorShadow(geo, wallEdges, viewport, options = {}) {
+    const t=geo.TILE||12,v=viewport||{x:0,y:0,w:geo.W,h:geo.H};
+    const width=Math.max(0,Math.ceil(v.w)),height=Math.max(0,Math.ceil(v.h));
+    const field=new Uint8Array(width*height),at=geo.idx||((x,y)=>y*geo.COLS+x);
+    const finite=(v,f)=>Number.isFinite(v)?v:f;
+    const edge=Math.max(0,finite(options.edgeAO,DEPTH.edgeAO)),cast=Math.max(0,finite(options.wallShadow,DEPTH.wallShadow));
+    const corner=Math.max(0,finite(options.cornerAO,DEPTH.cornerAO)),south=Math.max(0,finite(options.southFoot,DEPTH.southFoot));
+    const wallUp=Math.max(0,finite(options.wallUp,WALL.up)),corUp=Math.max(0,finite(options.corUp,WALL.corUp));
+    const sides=new Map(),clampAlpha=a=>Math.round(Math.max(0,Math.min(.34,a))*255);
+    const put=(x,y,w,h,zone,alphaAt)=>{
+      const x0=Math.max(0,Math.floor(x-v.x)),y0=Math.max(0,Math.floor(y-v.y));
+      const x1=Math.min(width,Math.ceil(x+w-v.x)),y1=Math.min(height,Math.ceil(y+h-v.y));
+      for(let yy=y0;yy<y1;yy++)for(let xx=x0;xx<x1;xx++) {
+        const px=xx+v.x,py=yy+v.y,tx=Math.floor(px/t),ty=Math.floor(py/t);
+        if(tx<0||ty<0||tx>=geo.COLS||ty>=geo.ROWS||geo.zoneGrid[at(tx,ty)]!==zone)continue;
+        const a=clampAlpha(alphaAt(px-x+.5,py-y+.5)),i=yy*width+xx;
+        if(a>field[i])field[i]=a;
+      }
+    };
+    const ease=(distance,reach)=>Math.pow(Math.max(0,1-distance/reach),1.7);
+    for(const e of wallEdges||[]) {
+      if(e.door||e.open)continue;
+      const x=e.x*t,y=e.y*t,key=e.x+','+e.y;
+      let pair=sides.get(key);if(!pair)sides.set(key,pair={...e,n:false,s:false,w:false,e:false});pair[e.side]=true;
+      if(e.side==='n') {
+        const reach=Math.max(5,Math.round((e.room?wallUp:corUp)*.46)),peak=Math.max(edge*.18,cast*.50);
+        put(x,y+(e.room?NFACE:5),t,reach,e.z,(_,dy)=>peak*ease(dy,reach));
+      } else if(e.side==='w') {
+        const reach=e.room?6:4,peak=Math.max(edge*.14,cast*.24);
+        put(x,y,reach,t,e.z,dx=>peak*ease(dx,reach));
+      } else if(e.side==='e') {
+        const reach=e.room?3:2,peak=Math.max(edge*.09,cast*.18);
+        put(x+t-reach,y,reach,t,e.z,dx=>peak*ease(reach-dx,reach));
+      } else if(e.side==='s'&&south>.001) {
+        const reach=e.room?4:3,peak=Math.max(edge*.14,cast*.20)*south;
+        put(x,y+t-reach,t,reach,e.z,(_,dy)=>peak*ease(reach-dy,reach));
+      }
+    }
+    if(corner>.001)for(const pair of sides.values()) {
+      const x=pair.x*t,y=pair.y*t,reach=Math.max(3,Math.round(t*.55));
+      const putCorner=(ax,ay,right,down)=>put(right?ax-reach:ax,down?ay-reach:ay,reach,reach,pair.z,(dx,dy)=>{
+        const distance=Math.hypot(right?reach-dx:dx,down?reach-dy:dy);
+        return corner*.58*ease(distance,reach);
+      });
+      if(pair.n&&pair.w)putCorner(x,y+(pair.room?NFACE:5),false,false);
+      if(pair.n&&pair.e)putCorner(x+t,y+(pair.room?NFACE:5),true,false);
+      if(south>.001&&pair.s&&pair.w)putCorner(x,y+t,false,true);
+      if(south>.001&&pair.s&&pair.e)putCorner(x+t,y+t,true,true);
+    }
+    return{alpha:field,width,height,x:v.x,y:v.y};
+  }
+  function bakeWorldIIFloorShadow(b) {
+    if(Math.max(DEPTH.edgeAO,DEPTH.wallShadow,DEPTH.cornerAO)<=.001)return;
+    const field=wallFloorShadow(G,edges,{x:VX,y:VY,w:CW,h:CH});
+    for(let y=0;y<field.height;y++)for(let x=0;x<field.width;) {
+      const alpha=field.alpha[y*field.width+x];if(!alpha){x++;continue;}
+      let end=x+1;while(end<field.width&&field.alpha[y*field.width+end]===alpha)end++;
+      b.fillStyle='rgba(6,7,10,'+(alpha/255).toFixed(4)+')';b.fillRect(VX+x,VY+y,end-x,1);x=end;
+    }
+  }
   function bakeEdgeAO(b) {
+    if(nextSurfaces()){bakeWorldIIFloorShadow(b);return;}
     // base edge AO — the short shade band hugging every wall foot (verbatim legacy look).
     // DEPTH.edgeAO scales the pass (1 = the shipped band, 0 = off) so it can be dialled in the
     // CRT LAB like every other depth cue; it used to be the one hardcoded band in the bake, which
@@ -1879,19 +1977,44 @@ const StationBake = (() => {
     const n = h2(e.x, e.y, 'nwall');
     // dark hull lip above the crown (the old NCAP band, pushed up with the wall) — the SHELL seen
     // from outside, so it takes the room's own hull skin rather than a module constant.
-    b.fillStyle = hullEdge(e.z); b.fillRect(X, topY - capH - 2, T, 2);
+    // NORTH-LIP-CROWN-BEGIN
+    // Joined side crowns already occupy these pixels. A north wall's exterior
+    // lip must not cut a dark stripe through them; keep their original colour
+    // and exposure, without adding any wall area or another crown-mask record.
+    b.fillStyle = hullEdge(e.z);
+    const at = (x, y) => x < 0 || y < 0 || x >= G.COLS || y >= G.ROWS ? null : G.zoneGrid[G.idx(x, y)];
+    for (let py = topY - capH - 2; py < topY - capH; py++) {
+      const ty = Math.floor(py / T), keep = [];
+      for (const dir of [-1, 1]) {
+        const nx = e.x + dir, owner = at(nx, e.y);
+        if (owner == null || !(G.canStep(e.x, e.y, nx, e.y) || G.canStep(nx, e.y, e.x, e.y))) continue;
+        if (at(nx, ty) !== owner || at(e.x, ty) != null || chamferAt[nx + ',' + ty]) continue;
+        const cw = sideCapW(), x = dir < 0 ? X + 1 : X + T - 1 - cw;
+        keep.push([x, x + cw]);
+      }
+      keep.sort((a, b) => a[0] - b[0]);
+      let from = X;
+      for (const [a, z] of keep) {
+        if (a > from) b.fillRect(from, py, a - from, 1);
+        from = Math.max(from, z);
+      }
+      if (from < X + T) b.fillRect(from, py, X + T - from, 1);
+    }
+    // NORTH-LIP-CROWN-END
     // lit crown — opaque cap band, 1px lighter top edge, 1px darker seam beneath. Kept BRIGHT:
     // after the ambient bake this continuous line defines the wall height at any zoom.
     crown(b, X, topY - capH, T, capH, pal.cap);
     crown(b, X, topY - capH, T, 1, shade(pal.cap, 0.30));                          // 1px lighter top edge
     b.fillStyle = shade(pal.cap, -0.45); b.fillRect(X, topY - 1, T, 1);            // 1px darker seam beneath
     // THE FACE — per material
-    (WALL_RECIPES[wallMatOf(e.z)] || WALL_RECIPES.plating)(b, pal, X, topY, h, e, n, room, Y + inFace);
+    const nextWall = nextSurfaces() && WorldSurface.paintWallTile(b, wallMatOf(e.z), pal.base,
+      X, topY, T, h, e.x, { detail: DEPTH.wallDetail });
+    if (!nextWall) (WALL_RECIPES[wallMatOf(e.z)] || WALL_RECIPES.plating)(b, pal, X, topY, h, e, n, room, Y + inFace);
     /* THE SEGMENT FRAME (2026-09-03, from the reference): a wall is built of panels, and each panel has a
        thick bevelled edge — lit on top and the west, shaded on the east — that catches the ceiling light
        and separates it from its neighbour. Two tiles per segment. Painted over the recipe so every material
        reads as panels bolted to the frame; `wallDetail` scales it. */
-    if (DEPTH.wallDetail > 0.001) {   // rooms AND hallways (2026-09-05): a hallway framed differently from the room it buds off reads as a different building
+    if (!nextWall && DEPTH.wallDetail > 0.001) {   // generation II owns its panel framing
       const seg = ((e.x % 2) + 2) % 2, wd = Math.max(0, DEPTH.wallDetail);
       const fr = shade(pal.face, 0.22 * wd), fd2 = shade(pal.face, -0.45 * wd), fx = shade(pal.face, -0.62 * wd);
       b.fillStyle = fr; b.fillRect(X, topY + 2, T, 1);                                 // lit top rail of the panel
@@ -2374,7 +2497,8 @@ const StationBake = (() => {
         const recipe = WALL_RECIPES[matId] || WALL_RECIPES.plating;
         for (let i = 0; i < STRIP_TILES; i++) {
           const tx = tx0 + i;
-          recipe(g, pal, i * T, 0, h, { x: tx, y: ty, z: null }, h2(tx, ty, 'nwall'), true, h);
+          if (!(nextSurfaces() && WorldSurface.paintWallTile(g, matId, pal.base, i * T, 0, T, h, tx, { detail: DEPTH.wallDetail })))
+            recipe(g, pal, i * T, 0, h, { x: tx, y: ty, z: null }, h2(tx, ty, 'nwall'), true, h);
         }
         // Curved/side faces are solid structure, not additional windows. Glass
         // edge tints carry low alpha; reading their RGB as opaque paint made
@@ -3622,6 +3746,13 @@ const StationBake = (() => {
      bakes near its shipped strength and only the dark/bright extremes move. */
   const POOL_REF = 96;
   function additiveFloorPass(b, draw) {
+    if (nextSurfaces()) {
+      // Collect the same fixture anchors, without baking a second illumination system
+      // into the albedo. The new light compositor models these sources after entities.
+      const sourcePlate = canvas(1, 1);
+      draw(sourcePlate.getContext('2d'));
+      return;
+    }
     const k = Math.max(0, Math.min(1, DEPTH.poolAlbedo));
     if (k <= 0.001) { draw(b); return; }
     const layer = canvas(CW, CH);
@@ -4774,6 +4905,8 @@ const StationBake = (() => {
     }
 
     bakeRoomLighting(b);   // after the chamfers, so a rounded corner is lit like every other surface
+    if (nextSurfaces() && WorldSurface.paintFixtures) wallFixtures = WorldSurface.paintFixtures(b, G,
+      { wallUp: WALL.up, corUp: WALL.corUp, viewport: { x: VX, y: VY, w: CW, h: CH } });
 
     // faint room name plates (the v7 floor-code stencil, generalized)
     b.font = "7px 'VT323','Courier New',monospace"; b.fillStyle = 'rgba(255,255,255,0.07)'; b.textAlign = 'left';
@@ -4807,7 +4940,7 @@ const StationBake = (() => {
     crownReach = new Map();   // ...and the corner crown's measured reach, which the mask erase reads back
     VX = viewport ? viewport.x : 0; VY = viewport ? viewport.y : 0;
     CW = viewport ? viewport.w : W; CH = viewport ? viewport.h : H;
-    lampPos = []; chamferAt = {}; extN = new Set();
+    lampPos = []; wallFixtures = []; chamferAt = {}; extN = new Set();
     extNByCol = null;   // ...and the tall-north-face column index the corner ring's depth clip reads
     for (const [cx, cy, k] of geo.chamfers) chamferAt[cx + ',' + cy] = k;
     buildEdges();
@@ -4907,7 +5040,7 @@ const StationBake = (() => {
     const { lightCv, interiorCv, flickers, lamps } = buildLightMap();
     const navLights = hullNavLights(baseCv, interiorCv), interiorPath = interiorLightPath(interiorCv);
     const doorOccluders = buildDoorOccluders(baseCv);
-    return { baseCv, lightCv, interiorCv, interiorPath, navLights, doorOccluders, W: geo.W, H: geo.H, origin: geo.origin, flickers, lamps, viewport: viewport || { x: 0, y: 0, w: geo.W, h: geo.H } };
+    return { baseCv, lightCv, interiorCv, interiorPath, navLights, doorOccluders, W: geo.W, H: geo.H, origin: geo.origin, flickers, lamps, wallFixtures, viewport: viewport || { x: 0, y: 0, w: geo.W, h: geo.H } };
   }
 
   function bake(geo) {
@@ -4999,7 +5132,8 @@ const StationBake = (() => {
     const viewport = chunkViewport(geo, cx, cy);
     const baked = bakeViewport(geo, viewport);
     return { key: chunkKey(cx, cy), cx, cy, x: viewport.x, y: viewport.y, w: viewport.w, h: viewport.h,
-      baseCv: baked.baseCv, lightCv: baked.lightCv, flickers: baked.flickers, lamps: baked.lamps || [], usedAt: usedAt || 0 };
+      baseCv: baked.baseCv, lightCv: baked.lightCv, interiorCv: baked.interiorCv,
+      flickers: baked.flickers, lamps: baked.lamps || [], wallFixtures: baked.wallFixtures || [], usedAt: usedAt || 0 };
   }
   function pruneChunkMap(chunkMap, maxRetainedChunks, requiredKeys) {
     if (!maxRetainedChunks || chunkMap.size <= maxRetainedChunks) return { evicted: 0 };
@@ -5048,6 +5182,7 @@ const StationBake = (() => {
     return {
       chunked: true, chunks, chunkMap, chunkPx: CHUNK_PX, generation,
       W: geo.W, H: geo.H, origin: geo.origin, flickers: uniqueFlickers(chunks), lamps: uniqueFlickers(chunks, 'lamps'),
+      wallFixtures: uniqueFlickers(chunks, 'wallFixtures'),
       stats: { chunkCount: chunks.length, rebakedChunks: dirty.length + visibleBaked, reusedChunks: reuse ? Math.max(0, chunks.length - dirty.length - visibleBaked) : 0,
         dirtyChunks: dirty.map(d => d.key), visibleChunks: visible ? Array.from(visibleKeys) : null,
         evictedChunks: pruned.evicted, fullReset: !reuse }
@@ -5099,7 +5234,10 @@ const StationBake = (() => {
           ctx.fillRect(r % (cols * T), (r >>> 8) % h, 1, 1);
         }
       }
-      for (let i = 0; i < cols; i++) recipe(ctx, pal, i * T, 0, h, { x: i, y: 0, z: 'sample' }, h2(i, 0, 'sample'), true, h);
+      for (let i = 0; i < cols; i++) {
+        if (!(nextSurfaces() && WorldSurface.paintWallTile(ctx, matId, pal.base, i * T, 0, T, h, i, { detail: DEPTH.wallDetail })))
+          recipe(ctx, pal, i * T, 0, h, { x: i, y: 0, z: 'sample' }, h2(i, 0, 'sample'), true, h);
+      }
     } finally { T = prevT; viewportRects = prevRects; }
   }
 
@@ -5146,7 +5284,7 @@ const StationBake = (() => {
      doorway and keeps its sill, track, guide ticks and light spill. */
   const seamOpenJoins = geo => [...classifyJoins(geo)].sort();
 
-  return { bake, bakeIncremental, dirtyChunks, visibleChunks, missingVisibleChunks, drawBase, drawLight, sampleMaterial, sampleWall, sampleHull, seamOpenJoins, CHUNK_PX, LIGHT, WALL, DEPTH, SHAPE, get HULL_EXPOSURE() { return hullLit(); }, hullRampExposure };
+  return { bake, bakeIncremental, dirtyChunks, visibleChunks, missingVisibleChunks, drawBase, drawLight, sampleMaterial, sampleWall, sampleHull, seamOpenJoins, wallFloorShadow, CHUNK_PX, LIGHT, WALL, DEPTH, SHAPE, get HULL_EXPOSURE() { return hullLit(); }, hullRampExposure };
 })();
 
 if (typeof module !== 'undefined' && module.exports) module.exports = StationBake;
