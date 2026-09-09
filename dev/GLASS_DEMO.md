@@ -265,3 +265,17 @@ Verified the sample preview and the real session list visually. The three live r
 Owner rejected the tick/corner treatment. Restored Read to the simple empty 12px glass square with its faint inherited tint and quiet theme color. Removed the tick and corner decorations; the filled illuminated core continues to identify Unread. Updated the sample preview wording.
 
 Live proof: preview reports a 1px border, 2px radius, 12px footprint, zero inner stroke, no corner background and no animation. All three read sessions in the real app have zero inner stroke; Glass UI exploration stays active. Website mirror (8), session-indicators (32) and diff whitespace checks passed. Full fast was not repeated for this CSS-only restoration; its existing release-manifest failure remains documented above.
+
+
+## Glass widget rails and library - 2026-09-09
+
+Owner requested the PIN A WIDGET affordance match the newer glass identity. Both rails now use compact 28px glass controls with a crisp CSS plus, 14px label and the station hover/active treatment. The widget library shares the glass surface and blur, a framed stroke X, readable search, a unified category track, glass source rows/actions, and matching setup inputs. The editor heading drops its inherited wide tracking and decorative rule. All changes are scoped to body.glass-demo; widgets.js, source access, feed values and saved layout behavior are unchanged.
+
+Live proof on the real seeded :9199 app at 1049x912, with the owner's red theme and 302px COMMS rail:
+- Both empty-rail triggers measured 119.41x28px, with 14px labels and 11px plus strokes. The bottom navigation remained in place.
+- Top and bottom pickers opened beside their own triggers. The library measured 340px overall, with equal 338px client/scroll widths and 9px backdrop blur. All three category labels fit; their client/scroll widths matched. Search used 16px type and returned the honest No matching widgets state.
+- Your widgets and Pinned showed their real empty states. Connected apps showed the real StarNet source. Opened its unsaved setup form: all inputs used 16px type, the select retained its chevron, and the scrollable form had equal 308px client/scroll widths. The final heading measured 18px with .5px tracking, zero padding and no decorative rule.
+- Escape from the form closed the top picker and returned focus to its trigger with aria-expanded=false. The X did the same for the bottom trigger. Tab from the last preset wrapped to the close control. Browser warning/error log was empty.
+- Left the bottom picker open on Your widgets for review. No widget was created, fetched, pinned, deleted or connected. Populated widget readouts, external account flows, reduced-motion OS behavior and installed-desktop execution were not exercised.
+
+Checks passed: widgets (78 assertions), widgetfeed (70), readability (21), control-floor-theming (125), website-app-sync (8) and diff whitespace. Website mirror synchronized. Full fast was not repeated for this CSS-only pass; its previously verified 10 release-manifest failures remain unresolved. No merge or release.

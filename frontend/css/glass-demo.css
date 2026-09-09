@@ -387,3 +387,140 @@ body.glass-demo #stage-wrap {
 /* The sheet's top pull handle and maximize control own sizing, including after undocking. */
 body.glass-demo .term:not(.pw) > .term-resize,
 body.glass-demo .term:not(.pw) .term-foot-grip { display: none; }
+
+/* Widget rails and their library share the station's smoked glass and readable controls. */
+body.glass-demo #screen-game .widget-rail .wg-add {
+  width: 28px; height: 28px; min-width: 28px; padding: 0; gap: 0;
+  border: 1px solid var(--gd-edge); border-radius: 4px;
+  background: var(--gd-face); color: var(--ph); box-shadow: var(--gd-shadow);
+  font-size: 0; text-shadow: none;
+}
+body.glass-demo #screen-game .widget-rail .wg-add::before {
+  content: ''; flex: 0 0 11px; width: 11px; height: 11px;
+  background: linear-gradient(currentColor,currentColor) center / 11px 1px no-repeat,
+    linear-gradient(currentColor,currentColor) center / 1px 11px no-repeat;
+}
+body.glass-demo #screen-game .widget-rail[data-empty="1"] .wg-add {
+  width: auto; padding: 0 9px; gap: 7px;
+}
+body.glass-demo #screen-game .widget-rail[data-empty="1"] .wg-add::after {
+  font: 14px/1 'VT323',monospace; letter-spacing: .6px;
+}
+body.glass-demo #screen-game .widget-rail .wg-add:is(:hover,:focus-visible,[aria-expanded="true"]) {
+  color: var(--ph-bright); border-color: var(--ph-dim); background: var(--gd-hover);
+  box-shadow: inset 0 1px 0 var(--gd-light),0 0 9px rgba(var(--ph-rgb),.07);
+}
+body.glass-demo #screen-game .widget-rail .wg-add:focus-visible {
+  outline: 1px solid var(--ph); outline-offset: 2px;
+}
+body.glass-demo .wg-library {
+  padding: 10px; gap: 9px; border: 1px solid var(--gd-edge); border-radius: 5px;
+  background: var(--gd-face); color: var(--text); text-shadow: none;
+  box-shadow: inset 0 1px 0 var(--gd-light),0 12px 30px rgba(0,0,0,.4);
+  backdrop-filter: blur(9px);
+}
+body.glass-demo .wg-library-header {
+  margin: -10px -10px 0; padding: 9px 10px; gap: 9px;
+  border-bottom: 1px solid var(--gd-edge);
+  background: linear-gradient(110deg,rgba(var(--ph-rgb),.09),transparent 80%);
+}
+body.glass-demo .wg-library h2 {
+  font: 18px/1 'VT323',monospace; letter-spacing: 1.2px; color: var(--ph-bright);
+}
+body.glass-demo .wg-library-count { font: 14px/1 'VT323',monospace; }
+body.glass-demo .wg-library .wg-library-close {
+  position: relative; flex: 0 0 26px; width: 26px; height: 26px;
+  border: 1px solid var(--gd-edge); border-radius: 3px;
+  background: rgba(var(--ph-rgb),.04); color: var(--ph);
+  box-shadow: inset 0 1px 0 var(--gd-light); font-size: 0;
+}
+body.glass-demo .wg-library-close::before,
+body.glass-demo .wg-library-close::after {
+  content: ''; position: absolute; width: 11px; height: 1px; left: 6.5px; top: 11.5px;
+  background: currentColor; transform: rotate(45deg);
+}
+body.glass-demo .wg-library-close::after { transform: rotate(-45deg); }
+body.glass-demo .wg-library .wg-library-close:hover {
+  color: var(--bad); border-color: var(--bad); background: rgba(255,75,65,.08); box-shadow: none;
+}
+body.glass-demo .wg-library .wg-library-search,
+body.glass-demo .wg-library .wg-studio-input {
+  border: 1px solid var(--gd-edge); border-radius: 3px;
+  background-color: rgba(var(--ph-rgb),.035); color: var(--text);
+  box-shadow: inset 0 1px 0 rgba(var(--ph-bright-rgb),.05);
+  font: 16px/1.35 'VT323',monospace;
+}
+body.glass-demo .wg-library .wg-library-search {
+  height: 32px; min-height: 32px; padding: 5px 9px;
+}
+body.glass-demo .wg-library-filters {
+  gap: 2px; padding: 3px; border: 1px solid var(--gd-edge); border-radius: 4px;
+  background: rgba(var(--ph-rgb),.025);
+}
+body.glass-demo .wg-library-filters button {
+  flex: 1 1 auto; min-width: 0; min-height: 28px; padding: 4px 5px;
+  border: 0; border-radius: 2px; font: 14px/1 'VT323',monospace; white-space: nowrap;
+}
+body.glass-demo .wg-library-filters button[aria-pressed="true"] {
+  color: var(--ph-bright); background: var(--gd-hover);
+  box-shadow: inset 0 1px 0 var(--gd-light),inset 0 -1px 0 var(--ph-dim);
+}
+body.glass-demo .wg-library-list { padding: 2px; }
+body.glass-demo .wg-library-empty {
+  padding: 6px 1px 12px; font: 16px/1.35 'VT323',monospace; color: var(--text);
+}
+body.glass-demo .wg-library :is(.wg-studio-button,.wg-library-action) {
+  min-height: 29px; padding: 5px 8px; border: 1px solid var(--gd-edge); border-radius: 3px;
+  background: var(--gd-face); box-shadow: inset 0 1px 0 var(--gd-light); color: var(--ph);
+  font: 15px/1.1 'VT323',monospace;
+}
+body.glass-demo .wg-library .wg-studio-primary {
+  color: var(--ph-bright); background: var(--gd-hover); border-color: var(--ph-dim);
+}
+body.glass-demo .wg-library :is(.wg-studio-button,.wg-library-action):not(:disabled):hover {
+  color: var(--ph-bright); border-color: var(--ph-dim); background: var(--gd-hover);
+}
+body.glass-demo .wg-library :is(button,input,textarea,select):focus-visible {
+  outline: 1px solid var(--ph); outline-offset: 1px;
+}
+body.glass-demo .wg-library button:disabled { opacity: .4; }
+body.glass-demo .wg-library :is(.wg-studio-actions,.wg-presets) { gap: 6px; margin: 9px 1px; }
+body.glass-demo .wg-library .wg-presets .wg-studio-button { font-size: 14px; }
+body.glass-demo .wg-library :is(.wg-studio-note,.wg-studio-message,.wg-studio-error) {
+  margin: 10px 1px; font: 15px/1.35 'VT323',monospace;
+}
+body.glass-demo .wg-library .wg-studio-heading {
+  display: block; margin: 11px 1px; padding: 0; letter-spacing: .5px;
+  font: 18px/1.2 'VT323',monospace;
+}
+body.glass-demo .wg-library .wg-studio-heading::after { content: none; }
+body.glass-demo .wg-library :is(.wg-app-row,.wg-library-card) {
+  gap: 8px; padding: 8px; margin-bottom: 5px;
+  border: 1px solid var(--gd-edge); border-radius: 4px; background: var(--gd-face);
+  box-shadow: inset 0 1px 0 rgba(var(--ph-bright-rgb),.06);
+}
+body.glass-demo .wg-library :is(.wg-app-row,.wg-library-card):is(:hover,:focus-within) {
+  background: var(--gd-hover); border-color: var(--ph-dim);
+}
+body.glass-demo .wg-library .wg-app-caption strong { font: 16px/1.2 'VT323',monospace; }
+body.glass-demo .wg-library .wg-app-caption small { margin-top: 3px; font: 14px/1.2 'VT323',monospace; }
+body.glass-demo .wg-library .wg-studio-field { gap: 5px; margin: 10px 1px; font: 14px/1.2 'VT323',monospace; }
+body.glass-demo .wg-library .wg-studio-input { padding: 6px 8px; }
+body.glass-demo .wg-library select.wg-studio-input { padding-right: 24px; }
+body.glass-demo .wg-library .wg-lbl { font-size: 15px; }
+body.glass-demo .wg-library :is(.wg-src,.wg-sub.wg-ticktext) { font-size: 14px; }
+body.glass-demo .wg-library .wg-val { font-size: 16px; }
+body.glass-demo .wg-library-actions { gap: 3px; }
+body.glass-demo .wg-library .wg-library-action { min-height: 27px; padding: 4px 5px; font-size: 14px; }
+body.glass-demo .wg-library .wg-detail-reading {
+  padding: 10px; border: 1px solid var(--gd-edge); border-radius: 4px; background: var(--gd-face);
+  box-shadow: inset 0 1px 0 var(--gd-light);
+}
+body.glass-demo .wg-library .wg-detail-reading :is(li,a) { font-size: 16px; }
+body.glass-demo .wg-library button {
+  transition: color var(--t-fast) var(--ease-soft),border-color var(--t-fast) var(--ease-soft),
+    background-color var(--t-fast) var(--ease-soft),box-shadow var(--t-fast) var(--ease-soft);
+}
+@media (prefers-reduced-motion: reduce) {
+  body.glass-demo .wg-library button { transition: none; }
+}
