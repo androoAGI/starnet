@@ -83,3 +83,14 @@ assert.equal(classic.sampleLight(12, 12), null, 'classic has no replacement shad
 classic.drawGrounding({}, [{}]);
 assert.equal(classic.drawLight({}, [], {}), false);
 console.log('worldrenderer: depth order, camera geometry, lifecycle and measured-only statistics passed');
+
+const hudGeo = { TILE: 12, COLS: 4, ROWS: 2, W: 48, zoneGrid: ['a','a','b','b','a','a','b','b'], nameOf: id => ({a:'COMMAND',b:'FABRICATION'})[id] };
+const hudView = {x:0,y:0,w:20,h:20};
+assert.equal(R.cameraReadout({geo:hudGeo,viewport:hudView,linked:true}).label,'CAM · COMMAND');
+assert.equal(R.cameraReadout({geo:hudGeo,viewport:{...hudView,w:48},linked:true}).label,'CAM · STATION OVERVIEW');
+assert.equal(R.cameraReadout({geo:hudGeo,viewport:hudView,subject:{px:30,py:12,name:'EMBER'},linked:true}).label,'CAM · FABRICATION · EMBER');
+assert.equal(R.cameraReadout({geo:hudGeo,viewport:{...hudView,x:-100},linked:true}).label,'CAM · STATION VIEW');
+assert.equal(R.cameraReadout({linked:false}).feed,'FEED: RECONNECTING');
+assert.equal(R.cameraReadout({linked:true,paused:true}).state,'paused');
+assert.equal(R.cameraReadout({linked:true}).indicator,'● LIVE');
+console.log('worldrenderer: camera room, subject and connection readouts passed');

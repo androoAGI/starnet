@@ -5784,3 +5784,15 @@ button:disabled, select:disabled, input:disabled, textarea:disabled {
 .gx-quests .q-achievement, .gx-quests .q-plan-complete { padding: 6px 0; }
 .gx-quests .q-deferred { margin: 12px 0; }
 .gx-quests .q-life-quest .consent-btns { flex-wrap: wrap; }
+
+/* The station and its interface share one restrained glass treatment. Canvas
+   already draws its own fine scanlines; avoid a second dominant grille. */
+body:has(#screen-game.active)::after { opacity: .62; }
+body:has(#screen-game.active)::before {
+  background: radial-gradient(ellipse 120% 90% at 50% 38%, transparent 55%, rgba(0,0,0,var(--page-vignette, .42)) 100%);
+}
+.cam-hud .cam-label { max-width: calc(100% - 170px); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cam-hud .cam-rec { color: var(--ph-dim); animation: none; text-shadow: none; }
+.cam-hud[data-feed="live"] .cam-rec { color: var(--ok); }
+.cam-hud[data-feed="paused"] .cam-rec { color: var(--warn); }
+.cam-hud[data-feed="offline"] .cam-rec, .cam-hud[data-feed="offline"] .cam-feed { color: var(--link-down); }

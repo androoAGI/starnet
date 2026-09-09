@@ -5726,6 +5726,24 @@ const World = (() => {
     try{ctx.setTransform(1,0,0,1,0,0);ctx.drawImage(layer.image,0,0);}finally{ctx.restore();}
   }
 
+  let cameraHudNodes = null, cameraHudAt = -Infinity;
+  function updateCameraHud(now) {
+    if (now - cameraHudAt < 250 || typeof WorldRenderer === 'undefined') return;
+    cameraHudAt = now;
+    if (!cameraHudNodes) {
+      const root = document.querySelector('.cam-hud'); if (!root) return;
+      cameraHudNodes = { root, label: root.querySelector('.cam-label'), rec: root.querySelector('.cam-rec'), feed: root.querySelector('.cam-feed') };
+    }
+    const subject = camLock ? bodyForAgent(camLock.id) : null;
+    const readout = WorldRenderer.cameraReadout({geo,
+      viewport: WorldRenderer.visibleRect({scale,panX,panY,width:cv.width,height:cv.height}),
+      subject: subject && !subject.unplaced ? {name:subject.name,px:bodyPosX(subject),py:bodyPosY(subject)} : null,
+      linked: !!chanES && chanES.readyState === 1 && !linkDown(now), paused: bridgePaused});
+    const n=cameraHudNodes;
+    for (const [node,text] of [[n.label,readout.label],[n.rec,readout.indicator],[n.feed,readout.feed]])
+      if(node && node.textContent!==text)node.textContent=text;
+    if(n.root.getAttribute('data-feed')!==readout.state)n.root.setAttribute('data-feed',readout.state);
+  }
   function frameBody(now) {
     const dt = Math.min(64, now - last); last = now; fnow = now;
     linkStaleDim = linkDown(now);   // recompute the honest link state before any telemetry is drawn this frame
@@ -6034,6 +6052,7 @@ const World = (() => {
     drawCurve(now); // barrel-warp the whole feed IN-CANVAS — the original (dot-matrix-era) curve, no dots
     drawCRT(now);   // scanlines + fade, painted in-canvas at device-px OVER the warped feed (no moiré)
     paintStageHeartbeat();   // the frame's last act: the one opaque pixel a dead stage context cannot fake (see watchStageLoss)
+    updateCameraHud(now);
     if (sceneRenderer) sceneRenderer.finish();
     // NOTE: the next rAF is scheduled by the frame() crash-guard wrapper, BEFORE this body runs — never here.
   }

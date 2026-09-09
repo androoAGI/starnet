@@ -208,7 +208,7 @@ const WorldLight = (() => {
     options = options || {};
     let quality = QUALITY[options.quality] ? options.quality : 'high';
     let config = Object.assign({ ambient: 0.82, wallAmbient: 0.28, fixtureTint: 0.17,
-      emission: 1, propLift: 0.65, atmosphere: 0.25, shafts: 1, sampleCacheLimit: 512 }, options);
+      emission: 1, propLift: 0.65, propTint: 1, atmosphere: 0.25, shafts: 1, sampleCacheLimit: 512 }, options);
     let geo = null, geometryOptions = {}, segments = [], width = 1, height = 1, ratio = 1;
     let interiorPath = null, interiorMask = null, surfaceMask = null, surfaceChunks = [];
     let baseDark = null, baseGlow = null, frameDark = null, frameGlow = null;
@@ -498,11 +498,11 @@ const WorldLight = (() => {
       const fixtures = fixtureLights, lights = preparedLights;
       const fk = signature(fixtures) + '|' + config.ambient + ',' + config.wallAmbient + ',' + config.fixtureTint + ',' + config.shafts;
       if (fk !== fixtureKey) { rebuildStatic(fixtures); fixtureKey = fk; frameKey = ''; }
-      const dk = signature(lights) + '|' + finite(config.propLift, 0.65);
+      const dk = signature(lights) + '|' + finite(config.propLift, 0.65) + '|' + finite(config.propTint, 1);
       if (dk !== frameKey) {
         const d = reset(frameDark), glow = reset(frameGlow);
         d.drawImage(baseDark, 0, 0, width, height); glow.drawImage(baseGlow, 0, 0, width, height);
-        paint(d, lights, finite(config.propLift, 0.65), 'destination-out'); paint(glow, lights, 1, 'screen');
+        paint(d, lights, finite(config.propLift, 0.65), 'destination-out'); paint(glow, lights, clamp(finite(config.propTint, 1), 0, 1), 'screen');
         frameKey = dk; metrics.dynamicBuilds++;
       }
       ctx.save();

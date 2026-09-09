@@ -73,6 +73,23 @@ const WorldRenderer = (() => {
     const sorted = values.slice().sort((a, b) => a - b);
     return Math.round(sorted[Math.min(sorted.length - 1, Math.floor((sorted.length - 1) * quantile))] * 100) / 100;
   }
+  function cameraReadout(input) {
+    const {geo, viewport, subject, linked, paused} = input || {};
+    const state = paused ? 'paused' : linked ? 'live' : 'offline';
+    let place = 'STATION VIEW';
+    if (geo && viewport) {
+      const x = subject ? subject.px : viewport.x + viewport.w / 2;
+      const y = subject ? subject.py : viewport.y + viewport.h / 2;
+      const T = geo.TILE || 12, tx = Math.floor(x / T), ty = Math.floor(y / T);
+      const id = tx >= 0 && ty >= 0 && tx < geo.COLS && ty < geo.ROWS ? geo.zoneGrid[ty * geo.COLS + tx] : null;
+      if (!subject && viewport.w >= geo.W * .8) place = 'STATION OVERVIEW';
+      else if (id != null && typeof geo.nameOf === 'function') place = geo.nameOf(id) || place;
+      if (subject && subject.name) place += ' · ' + subject.name;
+    }
+    return { label: 'CAM · ' + place, state,
+      indicator: state === 'live' ? '● LIVE' : state === 'paused' ? 'Ⅱ PAUSED' : '● OFFLINE',
+      feed: state === 'live' ? 'FEED: LIVE' : state === 'paused' ? 'FEED: PAUSED' : 'FEED: RECONNECTING' };
+  }
   function create(options) {
     options = options || {};
     let geometry = null, baked = null, lighting = null, frame = null, preparedLight = null;
@@ -89,7 +106,7 @@ const WorldRenderer = (() => {
       if (frame.geo !== geometry || frame.cache !== baked) {
         geometry = frame.geo; baked = frame.cache; rebuilds++;
         if (canLight()) {
-          if (!lighting) lighting = WorldLight.create({ quality: 'high', wallAmbient: .16, fixtureTint: .24 });
+          if (!lighting) lighting = WorldLight.create({ quality: 'high', wallAmbient: .16, fixtureTint: .16, propTint: .48 });
           lighting.setGeometry(geometry, { width: baked.W, height: baked.H,
             tileSize: geometry.TILE, interiorPath: baked.interiorPath, interiorMask: baked.interiorCv, surfaceMask: baked.baseCv,
             surfaceChunks: baked.chunks });
@@ -159,6 +176,6 @@ const WorldRenderer = (() => {
     }
     return { begin, drawBase, prepareLight, sampleLight, drawEntities, drawGrounding, drawAtmosphere, drawLight, finish, stats, dispose };
   }
-  return { GENERATION, PHOSPHOR, DETAIL_GLSL, sharpenSample, enabled: () => !classic, create, visibleRect, intersects, sortedItems, percentile };
+  return { GENERATION, PHOSPHOR, DETAIL_GLSL, sharpenSample, enabled: () => !classic, create, cameraReadout, visibleRect, intersects, sortedItems, percentile };
 })();
 if (typeof module !== 'undefined' && module.exports) module.exports = WorldRenderer;
