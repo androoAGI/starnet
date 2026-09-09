@@ -1,0 +1,73 @@
+/* Channels: compact navigation, clear setup, and theme-aware glass surfaces. */
+.channels-console.sn-menu .con-rail-list { padding: 10px 8px; gap: 4px; }
+.channels-console.sn-menu .con-rail-item { display: flex; flex: 0 0 auto; min-height: 38px; gap: 8px; padding: 9px 10px; margin: 0; border-radius: 7px; background: transparent; }
+.channels-console.sn-menu .con-rail-label { font-size: 14px; letter-spacing: .15px; line-height: 1.3; }
+.channels-console.sn-menu .con-rail-item:hover,.channels-console.sn-menu .con-rail-item[aria-selected="true"] { color: var(--ph-bright); background: var(--menu-glass); border-color: rgba(var(--ph-rgb),.3); box-shadow: inset 0 1px 0 rgba(var(--ph-bright-rgb),.1); }
+.channels-console .con-rail-item.active .ch-rail-dot.st-off { color: var(--ph-dim); }
+.channels-console .con-pane { padding: 22px; }
+.channels-console .ch-intro h3 { margin: 0; color: var(--ph-bright); font-size: 24px; font-weight: normal; }
+.channels-console .ch-intro p { margin: 8px 0 20px; color: var(--ph-dim); font-size: 15px; line-height: 1.5; }
+.channels-console .ch-sum { margin: 0; display: grid; gap: 8px; }
+.channels-console .ch-bots-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 12px; margin: 0 0 10px; font-size: 17px; letter-spacing: .15px; text-transform: none; color: var(--ph-bright); }
+.channels-console .ch-bots-head .dim { font-size: 13px; }
+.channels-console .ch-sum-row { width: 100%; display: flex; align-items: center; gap: 14px; margin: 0; padding: 14px 16px; border: 1px solid rgba(var(--ph-rgb),.18); border-radius: 10px; background: var(--menu-glass); box-shadow: inset 0 1px 0 rgba(var(--ph-bright-rgb),.08); text-align: left; }
+.channels-console .ch-sum-row::before,.channels-console .ch-card::before { display: none; }
+.channels-console .ch-sum-row:hover { transform: none; border-color: rgba(var(--ph-rgb),.5); background: rgba(var(--ph-rgb),.09); }
+.channels-console .ch-sum-copy { display: grid; gap: 5px; min-width: 0; flex: 1; }
+.channels-console .ch-sum-t { font-size: 16px; letter-spacing: .4px; color: var(--ph-bright); }
+.channels-console .ch-sum-help { font-size: 13px; line-height: 1.3; color: var(--ph-dim); }
+.channels-console .ch-sum-arrow { font-size: 24px; color: var(--ph-dim); }
+.channels-console .ch-state { white-space: normal; overflow-wrap: anywhere; font-size: 13px; letter-spacing: .1px; max-width: 48%; }
+.channels-console .ch-preferences { margin-top: 20px; border: 1px solid rgba(var(--ph-rgb),.18); border-radius: 10px; padding: 16px; background: var(--menu-glass); }
+.channels-console .ch-optin { display: flex; gap: 20px; align-items: center; margin: 0; padding: 0; border: 0; background: none; cursor: pointer; }
+.channels-console .ch-optin-copy { display: grid; gap: 6px; flex: 1; }
+.channels-console .ch-optin-t { font-size: 16px; color: var(--ph-bright); }
+.term.channels-console .ch-optin-d { display: block; margin: 0; font-size: 13px; line-height: 1.45; }
+.channels-console .ch-optin input[type="checkbox"] { appearance: none; flex: 0 0 36px; width: 36px; height: 21px; min-height: 0; margin: 0; padding: 0; border: 1px solid rgba(var(--ph-rgb),.35); border-radius: 20px; background: rgba(0,0,0,.25); position: relative; cursor: pointer; }
+.channels-console .ch-optin input[type="checkbox"]::after { content: ''; position: absolute; left: 3px; top: 3px; width: 13px; height: 13px; border: 0; border-radius: 50%; background: var(--ph-dim); transform: none; box-shadow: none; }
+.channels-console .ch-optin input[type="checkbox"]:checked { background: rgba(var(--ph-rgb),.18); border-color: var(--ph); }
+.channels-console .ch-optin input[type="checkbox"]:checked::after { left: 18px; transform: none; background: var(--ph-bright); }
+.term.channels-console .ch-headless { margin: 16px 0 0; font-size: 13px; line-height: 1.5; color: var(--ph-dim); }
+.channels-console .ch-headless b { color: var(--ph); font-weight: normal; }
+.channels-console .ch-card,.channels-console .ch-card:hover,.channels-console .ch-card.on { padding: 0; margin: 0; border: 0; background: transparent; box-shadow: none; transform: none; }
+.channels-console .ch-title { font-size: 17px; letter-spacing: .5px; text-shadow: none; }
+.channels-console .ch-head { gap: 16px; margin-bottom: 8px; }
+.channels-console .ch-answers { font-size: 13px; line-height: 1.5; }
+.term.channels-console .ch-tagline { margin: 8px 0 18px; font-size: 15px; line-height: 1.5; opacity: 1; }
+.channels-console :is(.ch-setup,.ch-connection,.ch-bots) { padding: 18px; margin: 0 0 16px; border: 1px solid rgba(var(--ph-rgb),.18); border-radius: 12px; background: var(--menu-glass); box-shadow: inset 0 1px 0 rgba(var(--ph-bright-rgb),.07); }
+.channels-console .ch-setup > summary { font-size: 14px; line-height: 1.5; letter-spacing: .4px; color: var(--ph); cursor: pointer; }
+.channels-console .ch-steps { margin: 16px 0 12px; padding-left: 24px; font-size: 15px; line-height: 1.5; }
+.channels-console .ch-steps li { padding-left: 5px; margin: 0 0 12px; }
+.channels-console .ch-steps li:last-child { margin-bottom: 0; }
+.channels-console .ch-steps li::marker { color: var(--ph-dim); }
+.term.channels-console .ch-note { font-size: 13px; line-height: 1.5; margin: 12px 0 0; opacity: 1; }
+.channels-console .ch-section-title { font-size: 17px; font-weight: normal; color: var(--ph-bright); margin: 0 0 16px; letter-spacing: .1px; }
+.channels-console .ch-lbl { font-size: 14px; line-height: 1.5; letter-spacing: .1px; text-transform: none; margin: 16px 0 7px; }
+.channels-console .ch-lbl .dim { font-size: 12px; }
+.channels-console .ch-card :is(input.key-input,select.key-input) { box-sizing: border-box; width: 100%; max-width: none; min-height: 42px; margin: 0; padding: 11px 13px; border: 1px solid rgba(var(--ph-rgb),.28); border-radius: 8px; background-color: rgba(0,0,0,.2); box-shadow: inset 0 1px 0 rgba(var(--ph-rgb),.05); font: inherit; font-size: 15px; color: var(--ph-bright); letter-spacing: .2px; text-shadow: none; }
+.channels-console .ch-card select.key-input { appearance: none; padding-right: 34px; background-image: linear-gradient(45deg,transparent 50%,var(--ph-dim) 50%),linear-gradient(135deg,var(--ph-dim) 50%,transparent 50%); background-position: calc(100% - 18px) 50%,calc(100% - 13px) 50%; background-size: 5px 5px; background-repeat: no-repeat; }
+.channels-console .ch-card input.key-input::placeholder { color: var(--ph-dim); opacity: .65; }
+.channels-console .ch-card .set-save { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 16px; }
+.channels-console .ch-card .bb { padding: 9px 12px; min-height: 34px; border: 1px solid rgba(var(--ph-rgb),.25); border-radius: 7px; background: rgba(var(--ph-rgb),.04); box-shadow: none; font-size: 13px; letter-spacing: .2px; text-shadow: none; }
+.channels-console .ch-card .bb[id$="-connect"] { background: rgba(var(--ph-rgb),.11); border-color: rgba(var(--ph-rgb),.5); color: var(--ph-bright); }
+.channels-console .ch-card .bb:hover { background: rgba(var(--ph-rgb),.15); border-color: var(--ph); }
+.channels-console .ch-card .bb.danger { color: var(--bad); }
+.channels-console :is(button,input,select,summary):focus-visible { outline: 2px solid var(--ph); outline-offset: 3px; }
+.channels-console .msg { font-size: 14px; line-height: 1.5; overflow-wrap: anywhere; }
+.channels-console .msg:empty { display: none; }
+.channels-console .ch-bots .ch-setup { margin: 14px 0 0; background: rgba(0,0,0,.1); box-shadow: none; }
+.channels-console .tg-bot-row { flex-wrap: wrap; gap: 8px; padding: 12px 0; }
+.channels-console .tg-bot-name { flex: 1 1 220px; font-size: 14px; white-space: normal; }
+.channels-console .tg-bot-row .ch-state { font-size: 12px; }
+@media (max-width: 680px) {
+ .channels-console .con-pane { padding: 14px; }
+ .channels-console :is(.ch-setup,.ch-connection,.ch-bots) { padding: 14px; }
+ .channels-console .ch-sum-row { flex-wrap: wrap; gap: 8px; padding: 12px; }
+ .channels-console .ch-sum-copy { flex-basis: 100%; }
+ .channels-console .ch-sum-row .ch-state { margin-left: 0; max-width: none; text-align: left; }
+ .channels-console .ch-sum-arrow { margin-left: auto; }
+}
+
+.term.channels-console :is(.ch-intro h3,.ch-section-title) { display: block; padding: 0; letter-spacing: .2px; border: 0; background: none; box-shadow: none; text-shadow: none; }
+.term.channels-console :is(.ch-intro h3,.ch-section-title)::before,.term.channels-console :is(.ch-intro h3,.ch-section-title)::after { display: none; }
+.channels-console .ch-sum-row { padding-top: 11px; padding-bottom: 11px; }

@@ -29,7 +29,7 @@
           'Paste it below and connect. StarNet will show a one-time owner pairing <code>/pair</code> command.',
           'Send that owner pairing command to your bot in Telegram. Only then can the bot accept your DMs.'
         ],
-        note: 'The token is stored locally by the sidecar and never displayed.',
+        note: 'Your token is saved on this machine and never displayed.',
         fieldsHtml: '<label class="ch-lbl" for="tg-token">BOT TOKEN <span class="dim">— from @BotFather</span></label>' +
           '<input id="tg-token" type="password" class="key-input" placeholder="123456789:ABCdef..." autocomplete="off" spellcheck="false">',
         read: (b) => ({ token: (b.querySelector('#tg-token').value || '').trim() }),
@@ -41,12 +41,12 @@
         // token + agent — the sidecar validates the token with getMe before anything persists.
         extraHtml:
           '<div class="ch-bots" id="tg-owner">' +
-            '<div class="ch-bots-head">OWNER ENROLLMENT <span class="dim" id="tg-owner-state">not paired</span></div>' +
+            '<div class="ch-bots-head">Pair your Telegram account <span class="dim" id="tg-owner-state">not paired</span></div>' +
             '<p class="ch-note">Pair this local app with your Telegram account before a new bot accepts DMs. The code is shown here once and expires in 10 minutes.</p>' +
             '<div class="set-save"><button class="bb xs" id="tg-owner-pair">PAIR OWNER</button> <button class="bb xs danger" id="tg-owner-revoke" style="display:none">REVOKE OWNER</button></div>' +
           '</div>' +
           '<div class="ch-bots" id="tg-bots">' +
-            '<div class="ch-bots-head">AGENT BOTS <span class="dim">— a separate Telegram contact per agent</span></div>' +
+            '<div class="ch-bots-head">Agent bots <span class="dim">A separate Telegram contact per agent</span></div>' +
             '<div id="tg-bots-list"></div>' +
             '<details class="ch-setup" id="tg-bot-addbox"><summary>ADD A BOT</summary>' +
               '<ol class="ch-steps">' +
@@ -64,14 +64,14 @@
 
       { id: 'discord', title: 'DISCORD', pre: 'dc', accent: '#7c83f5',
         // HONESTY: server/channel messages need a chat allowlist no production path supplies yet — DMs only today.
-        tagline: 'Two-way chat on Discord — DM your bot and it replies. (DMs only for now — server channels aren\'t wired yet.)',
+        tagline: 'DM your Discord bot to talk to your agent. Server channels are not supported yet.',
         verb: 'receiving',
         steps: [
           'Open the <b>Discord Developer Portal</b> → <b>New Application</b> → <b>Bot</b> → <b>Reset Token</b> → copy the token.',
           'Enable <b>MESSAGE CONTENT INTENT</b> on the Bot page (required to read your messages), then invite the bot to a server (OAuth2 → URL Generator → <code>bot</code> scope).',
           'Paste the token below and connect.'
         ],
-        note: 'The token is stored locally by the sidecar and never displayed.',
+        note: 'Your token is saved on this machine and never displayed.',
         fieldsHtml: '<label class="ch-lbl" for="dc-token">BOT TOKEN <span class="dim">— from the Discord Developer Portal</span></label>' +
           '<input id="dc-token" type="password" class="key-input" placeholder="MTE...Bot token" autocomplete="off" spellcheck="false">',
         read: (b) => ({ token: (b.querySelector('#dc-token').value || '').trim() }),
@@ -83,7 +83,7 @@
       { id: 'slack', title: 'SLACK', pre: 'sl', accent: '#b98ec8',
         // HONESTY: channel messages need a chat allowlist no production path supplies yet — DMs only today.
         // audit finding 5: Slack appears in BOTH panels — say which direction THIS one is.
-        tagline: 'Your agent inside your Slack workspace — DM it and it replies. (DMs only for now — channels aren\'t wired yet. Want the agent to USE Slack as a tool instead? That\'s ⇄ ABILITIES.)',
+        tagline: 'DM your Slack app to talk to your agent. Channel conversations are not supported yet. To let your agent use Slack as a tool, open ABILITIES.',
         verb: 'receiving',
         steps: [
           'Open <b>api.slack.com/apps</b> → <b>Create New App</b> → From scratch.',
@@ -91,7 +91,7 @@
           'Under <b>OAuth &amp; Permissions</b> add bot scopes <code>chat:write</code>, <code>im:history</code>, <code>channels:history</code> → <b>Install to Workspace</b> → copy the <b>bot token</b> (starts <code>xoxb-</code>).',
           'Under <b>Event Subscriptions</b> subscribe the bot to <code>message.im</code>.'
         ],
-        note: 'Both tokens are stored locally by the sidecar and never displayed.',
+        note: 'Both tokens are saved on this machine and never displayed.',
         fieldsHtml: '<label class="ch-lbl" for="sl-bot-token">BOT TOKEN <span class="dim">— xoxb-…, from OAuth &amp; Permissions</span></label>' +
           '<input id="sl-bot-token" type="password" class="key-input" placeholder="xoxb-..." autocomplete="off" spellcheck="false">' +
           '<label class="ch-lbl" for="sl-app-token">APP-LEVEL TOKEN <span class="dim">— xapp-…, from Socket Mode</span></label>' +
@@ -156,30 +156,34 @@
     // mounts ALL panes into `body` up-front, so the body.querySelector wiring + wire source-guards are untouched.
     // The "keeps working headless" promise is FULL-CONTRAST (a real capability, not fine print), lifted out of the
     // opacity-.55 intro. The opt-in label reads as a plain sentence with its description on its own line.
+    const platformHints = {
+      telegram: 'Private messages · optional bot per agent',
+      discord: 'Private messages · requires a Discord bot',
+      slack: 'Private messages · requires a Slack app',
+      matrix: 'Room conversations · requires a bot account',
+      signal: 'Private messages · self-hosted bridge'
+    };
     const overviewHtml =
-      '<p class="set-about">Reach your agents from real messaging apps. A connected channel talks to the <b>same agent</b> you see here ' +
-        '(same memory, tools, and workspace) — and on Telegram you can give <b>each agent its own bot</b>, a separate contact that always answers as that agent (see AGENT BOTS on the TELEGRAM pane).</p>' +
-      // HONESTY (2026-07-15): closing the desktop app STOPS the sidecar (the shell reaps it on exit), so "works
-      // with the app closed" was a false promise — and some channels deliberately discard the offline backlog on
-      // reconnect (anti-stale-directive). Claim exactly what the harness proves: headless of THIS window, alive
-      // only while the station runs, with the honest offline notice named instead of implied delivery.
-      '<p class="ch-headless">It keeps working <b>headless</b> — a DM runs your agent even with this window closed, as long as the station app is running. Messages sent while the station is fully off are <b>not</b> processed — you get an honest "I was offline" note instead.</p>' +
-      '<label class="set-row ch-optin"><input type="checkbox" id="ch-notify"> <span class="ch-optin-t">Message me on my connected channels when my agent finishes autonomous work</span>' +
-        '<span class="ch-optin-d dim">A routine that runs on its own and produces something pings you on every channel you\'ve connected.</span></label>' +
-      '<div id="ch-notify-msg" class="msg"></div>' +
-      // live platform summary — painted from the SAME proven bulk status as the cards (never a second truth).
-      '<div class="ch-sum"><div class="ch-bots-head">PLATFORMS <span class="dim">— pick one to set it up</span></div>' +
+      '<div class="ch-intro"><h3>Chat with your agents anywhere</h3>' +
+        '<p>Connect a messaging app to the same agents, memory, tools, and workspace you use here.</p></div>' +
+      '<div class="ch-sum"><div class="ch-bots-head">Choose an app <span class="dim">Setup instructions included</span></div>' +
         CHANNEL_CATALOG.map(c =>
-          '<button type="button" class="ch-sum-row" data-ch="' + c.id + '" style="--accent:' + c.accent + '">' +
-            '<span class="ch-sum-t">' + c.title + (c.advanced ? ' <span class="ch-adv">ADVANCED</span>' : '') + '</span>' +
-            '<span class="ch-state st-off" id="' + c.pre + '-sum">checking…</span>' +
+          '<button type="button" class="ch-sum-row" data-ch="' + c.id + '">' +
+            '<span class="ch-sum-copy"><span class="ch-sum-t">' + c.title + '</span>' +
+              '<span class="ch-sum-help">' + platformHints[c.id] + '</span></span>' +
+            '<span class="ch-state st-off" id="' + c.pre + '-sum">checking…</span><span class="ch-sum-arrow" aria-hidden="true">›</span>' +
           '</button>').join('') +
-      '</div>';
+      '</div>' +
+      '<div class="ch-preferences"><label class="set-row ch-optin"><span class="ch-optin-copy">' +
+        '<span class="ch-optin-t">Send completed-work updates</span>' +
+        '<span class="ch-optin-d dim">When autonomous work produces a result, notify me on every connected channel.</span></span>' +
+        '<input type="checkbox" id="ch-notify"></label><div id="ch-notify-msg" class="msg"></div></div>' +
+      '<p class="ch-headless"><b>Keep StarNet running.</b> You can close this window. Messages sent while the station app is fully off are not processed; you receive an "I was offline" note instead.</p>';
     function cardHtml(c) {
       return '<div class="ch-card" id="ch-card-' + c.id + '" style="--accent:' + c.accent + '">' +
           '<div class="ch-head">' +
             '<div class="ch-id">' +
-              '<h4 class="ch-title">' + c.title + (c.advanced ? ' <span class="ch-adv">ADVANCED · SELF-HOSTED</span>' : '') + '</h4>' +
+              (c.advanced ? '<span class="ch-adv">SELF-HOSTED BRIDGE</span>' : '') +
               '<span class="ch-answers" id="' + c.pre + '-answers"></span>' +
             '</div>' +
             '<span class="ch-state" id="' + c.pre + '-status">checking…</span>' +
@@ -192,14 +196,14 @@
             '<ol class="ch-steps"><li>' + c.steps.join('</li><li>') + '</li></ol>' +
             (c.note ? '<p class="ch-note">' + c.note + '</p>' : '') +
           '</details>' +
-          c.fieldsHtml +
+          '<section class="ch-connection"><h3 class="ch-section-title">Connection details</h3>' + c.fieldsHtml +
           '<div class="set-save">' +
             '<button class="bb sm" id="' + c.pre + '-connect">⏼ CONNECT</button> ' +
             '<button class="bb sm danger" id="' + c.pre + '-disconnect" style="display:none">⏏ DISCONNECT</button> ' +
             '<button class="bb xs danger" id="' + c.pre + '-forget" style="display:none" title="' + (c.id === 'signal' ? 'removes the saved bridge URL and registered number from this machine' : 'permanently deletes the saved token from this machine (record + OS keychain) — you’d have to set it up again') + '">' + (c.id === 'signal' ? '✕ REMOVE CONFIGURATION' : '⌫ FORGET') + '</button>' +
           '</div>' +
           '<div id="' + c.pre + '-msg" class="msg"></div>' +
-          (c.extraHtml || '') +
+          '</section>' + (c.extraHtml || '') +
         '</div>';
     }
     // no per-platform glyphs anywhere in this window — abstract marks read as wrong-logo noise next to real

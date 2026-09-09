@@ -130,3 +130,7 @@
 .agent-dossier .ag-growth-empty { padding: 24px; border: 1px solid rgba(var(--ph-rgb),.2); border-radius: 12px; background: var(--menu-glass); }
 .agent-dossier .ag-growth-empty h3 { font-size: 22px; font-weight: normal; margin: 0 0 12px; }
 .agent-dossier .ag-growth-empty p { font-size: 15px; line-height: 1.6; margin: 0; color: var(--ph-dim); }
+
+.agent-dossier .ag-portrait-well { box-sizing: content-box; border: 1px solid rgba(var(--ph-rgb),.24); border-radius: 14px; background: radial-gradient(ellipse at 50% 90%,rgba(var(--ph-rgb),.16),transparent 70%),rgba(0,0,0,.14); box-shadow: inset 0 1px 0 rgba(var(--ph-bright-rgb),.12); }
+.agent-dossier #ag-portrait { border: 0; background: transparent; box-shadow: none; }
+.agent-dossier :is(.ag-ptick,.ag-psweep) { display: none; }
