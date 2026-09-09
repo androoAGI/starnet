@@ -18,8 +18,8 @@
   "expectedClaimCount": 37,
   "releaseSurface": {
     "algorithm": "sha256",
-    "sourceCommit": "aad31a42931dc9c874feb2a4be2c433981cf171d",
-    "pathSetSha256": "aa82b901b007fa2cb5fd94679557c8def3d25b461b5aa720ac9aaacf7a0560ac",
+    "sourceCommit": "5a3b9adc2f57fee0ab5290e0324f4ed9a6c24a0f",
+    "pathSetSha256": "893f2c9ca526a94879691b5c9b01adbcd4d30b3619c1a50fbbfbd64f7e227bb9",
     "files": [
       {
         "path": "INSTALL.md",
@@ -180,11 +180,6 @@
         "path": "frontend/app/codexsignin.js",
         "bytes": 6741,
         "sha256": "be98d47e7937a6b706428be3fa2585f55544aab84b6e0bbfaa5e741e8736ff48"
-      },
-      {
-        "path": "frontend/app/commandroom.js",
-        "bytes": 16078,
-        "sha256": "a94f01802802b2f968a45fcdbc80ff4213d568a737cdad66510178051645f005"
       },
       {
         "path": "frontend/app/confbeats.js",
@@ -1018,8 +1013,8 @@
       },
       {
         "path": "frontend/app/world.js",
-        "bytes": 723945,
-        "sha256": "30f7f1fa19530fdf3ae15c8904397f429dd89352da9583190cb50fd2c3535e1a"
+        "bytes": 723117,
+        "sha256": "1cfc01a30f8fd9274d2524964ad61ea1ba6df9ecdf20ed79893531a0c7496daa"
       },
       {
         "path": "frontend/app/worldlab.js",
@@ -1148,8 +1143,8 @@
       },
       {
         "path": "frontend/index.html",
-        "bytes": 81958,
-        "sha256": "f43d7716650c4378f54981a80eca9ccb1830d0820aa181586ebfdb3c5cbdbb94"
+        "bytes": 81915,
+        "sha256": "d37c6967ce52a2e375cf8a361e121a46eeb46329f2dcf9cfb0aeec818dabbd43"
       },
       {
         "path": "frontend/js/arcade.js",

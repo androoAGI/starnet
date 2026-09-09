@@ -83,12 +83,6 @@ try {
   console.log('FAIL harness :: ' + (error && error.stack || error));
   failures.push('harness');
 } finally {
-  // Let Chromium release its renderer/crash-handler files before deleting the
-  // owned profile. SIGKILL on Windows can orphan a locked chrome_debug.log.
-  try { if (cdp) await Promise.race([cdp.send('Browser.close'), sleep(1500)]); } catch {}
-  if (chrome.exitCode == null) await Promise.race([
-    new Promise(resolve => chrome.once('exit', resolve)), sleep(1500)
-  ]);
   try { cdp?.ws.close(); } catch {}
   await Promise.all([stopChild(chrome), stopChild(sidecar)]);
   const resolvedRoot = root.replace(/\\/g, '/');
