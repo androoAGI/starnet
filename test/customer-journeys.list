@@ -40,3 +40,6 @@ test/managed-image.e2e.test.js
 
 # Reported session jumps and wrong-session submissions.
 test/session-focus-safety.test.js
+
+# Saved equipment, profile grants and Ollama provider wire.
+test/tool-projection.e2e.test.js

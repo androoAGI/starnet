@@ -18,7 +18,7 @@
   "expectedClaimCount": 37,
   "releaseSurface": {
     "algorithm": "sha256",
-    "sourceCommit": "767bf92528589609e018b066a0fd6045d31edd3e",
+    "sourceCommit": "c6cd5e79e07b33aff88611c5ebd5cdc87f3bd24a",
     "pathSetSha256": "4283566a35504333c2be893e2fba1667db676f962a57c4225e0e3fb1915c9305",
     "files": [
       {
@@ -328,8 +328,8 @@
       },
       {
         "path": "frontend/app/harness.js",
-        "bytes": 82000,
-        "sha256": "a25e1ae384299b82618b756f4b7c6aa710b664320509bfcbd158d8087a092e16"
+        "bytes": 82082,
+        "sha256": "7a8d852a666efa41dd0a6fb7c5e6e8865ac19c35a1ff56f73bf246fe8872c426"
       },
       {
         "path": "frontend/app/hint.js",

@@ -1,5 +1,13 @@
 # NEXT.md — current priorities & task queue
 
+## IN PROGRESS — 2026-09-09 tool projection integration (agent/tool-projection-0909)
+
+Owner authorized repair and merge. Source repair 3c95b184f preserves saved room equipment when
+an interactive client omits placement, preserves explicit empty placement, and corrects toolset
+agent/lead disclosure. Fast 735/735 and HTTP 108/108 passed; customer journeys and integration
+checks are in progress. Customer report 432df352 remains open for the uncorrelated Trusted Project
+symptom; installer and reporter recovery are unverified. Receipt: qa/digests/2026-09-09-tool-projection.md.
+
 ## MERGED — 2026-09-09 voice continuity (`agent/voice-continuity-0909`)
 
 Owner authorized sentence buffering, ordered audio recovery, cutoff diagnostics, noise-onset investigation and merge. Plan: docs/VOICE_CONTINUITY_PLAN_2026-09-09.md. Customer record: e1051446. Merged ab1cd74be; fast 734/734 before and after merge; customer journeys 33/33. Real Kokoro synthesis and browser playback completed. Installer and acoustic recovery remain unverified.
