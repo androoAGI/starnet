@@ -18,7 +18,7 @@
   "expectedClaimCount": 37,
   "releaseSurface": {
     "algorithm": "sha256",
-    "sourceCommit": "296e78fefa231bc9b8382dab7c0c84d5dbd0d5d2",
+    "sourceCommit": "b0bf211b32e1c1dc3c7e59b849c2e633f28e738e",
     "pathSetSha256": "aa82b901b007fa2cb5fd94679557c8def3d25b461b5aa720ac9aaacf7a0560ac",
     "files": [
       {
@@ -183,8 +183,8 @@
       },
       {
         "path": "frontend/app/commandroom.js",
-        "bytes": 15872,
-        "sha256": "f58276348603de57bda59cbc77476c91d0092492715da43e8464000a1f164655"
+        "bytes": 16049,
+        "sha256": "e31a729843ce03c12e024c80a71e0d0d26268b58367c20881b39f143e91fcd55"
       },
       {
         "path": "frontend/app/confbeats.js",
