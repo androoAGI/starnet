@@ -244,3 +244,10 @@ Live verification:
 - Real provider execution, live consent prompts, a populated project session list and the OS reduced-motion setting were not exercised. Their transition logic is covered by the real channel/session reducer tests; reduced-motion rules are source-checked. No fake live state was injected into the owner's station.
 
 Checks: JS syntax for app.js and changed tests; registered session-indicators (32 assertions), consent-visibility (24), channels (53), workstreams (193), projects-view (69), session-power-tools (130), session-creation (19), readability (21), comms-responsive-text (5), station-tooltip (427), control-floor-theming (125), website-app-sync (8) and the standalone approval regression all passed. The transition test uses the real Channels and Workstreams modules with a controlled clock, including working/unread/read, save hydration, same-agent session isolation, approval priority, pause exclusion and failure recovery. Website mirror synchronized. Full fast stopped at step 286/736 with the same 10 existing qa-product-perfect-claims release-manifest failures. Gate remains red; no merge or release.
+
+
+## Etched read indicator - 2026-09-09
+
+Refined the read state with a subtle 1px etched checkmark, a slightly lighter theme-derived stroke and a shaded glass face. It remains 12px and static, visually quieter than the filled unread core. No state logic or other indicator changed. Preview wording now describes the checkmark.
+
+Live proof: sample preview showed the 6x4px checkmark with 1px strokes at .85 opacity; all three read signals in the real station showed the same stroke, 12px size and no animation. Glass UI exploration remained active. Website mirror (8), readability (21), session-indicators (32) and diff whitespace checks passed. Full fast was not repeated for this CSS-only refinement; its existing release-manifest failures remain documented above.
