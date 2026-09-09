@@ -9,12 +9,47 @@
   const dockIcons = {
     crew: '<path d="M5 2h5v5H5zM3 14v-4h9v4M12 3h2v4M14 10h1v4"/>',
     work: '<path d="M3 2h10v12H3zM6 5h4M6 8h4M6 11h2"/>',
-    build: '<path d="M2 2h5v5H2zM2 9h5v5H2zM9 9h5v5H9zM11.5 2v5M9 4.5h5"/>',
+    build: '<path d="M2 2h8l4 3-2 2-3-2H2zM6 5v9h3V5"/>',
     system: '<path d="M4 4h8v8H4zM6 6h4v4H6zM6 1v3M10 1v3M6 12v3M10 12v3M1 6h3M1 10h3M12 6h3M12 10h3"/>'
   };
   Object.entries(dockIcons).forEach(([group, paths]) => {
     const icon = document.querySelector('#bottombar [data-group="'+group+'"] > .bb-grp .bb-gi');
     if (icon) { icon.setAttribute('aria-hidden','true'); icon.innerHTML = '<svg viewBox="0 0 16 16" focusable="false" aria-hidden="true">'+paths+'</svg>'; }
+  });
+
+  const windowPaths = {
+    maximize:'M3 3h10v10H3zM3 5h10',
+    restore:'M6 3h7v7M3 6h7v7H3z',
+    minimize:'M3 11h10',
+    close:'M4 4l8 8M12 4l-8 8'
+  };
+  const svgIcon = path => '<svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="'+path+'"/></svg>';
+  function paintWindowButton(button, kind, label) {
+    button.classList.add('gd-window-button');
+    button.setAttribute('aria-label',label); button.setAttribute('data-tip',label);
+    if (button.dataset.glyph !== kind) { button.innerHTML=svgIcon(windowPaths[kind]);button.dataset.glyph=kind; }
+  }
+  const menuPaths = {
+    agents:'M5 2h6v5H5zM3 14v-4h10v4',
+    recruit:'M3 3h4v4H3zM1 14v-4h8v4M12 4v6M9 7h6',
+    commander:'M4 3h8v10H4zM6 6h4M6 9h4',
+    tasks:'M2 3h4v4H2zM8 5h6M2 10h4v4H2zM8 12h6',
+    deliverables:'M2 5h12v9H2zM2 5l3-3h6l3 3M6 8h4',
+    recipes:'M3 2h10v12H3zM6 5h4M6 8h4M6 11h2',
+    automation:'M3 6V3h10v4M11 5l2 2 2-2M13 10v3H3V9M1 11l2-2 2 2',
+    quests:'M4 14V2h8l-2 3 2 3H4',
+    refit:'M2 3h12v10H2zM7 3v10M7 8h7',
+    connectors:'M3 2v4M7 2v4M2 6h6v4H2zM5 10v3h8V9',
+    messaging:'M2 3h12v9H7l-3 2v-2H2zM5 6h6M5 9h4',
+    manual:'M8 4L2 2v10l6 2 6-2V2zM8 4v10',
+    settings:'M2 4h12M2 8h12M2 12h12M5 2v4M11 6v4M7 10v4',
+    updates:'M8 12V2M4 6l4-4 4 4M2 11v3h12v-3',
+    notifs:'M5 3h6v7l2 2H3l2-2zM7 14h2'
+  };
+  document.querySelectorAll('#bottombar .bb-menu .bb').forEach(button=>{
+    const key=button.dataset.term || ({'bb-recruit':'recruit','bb-missions':'recipes','bb-build':'refit'})[button.id];
+    const icon=button.querySelector('.bb-i');
+    if(icon && menuPaths[key]){icon.setAttribute('aria-hidden','true');icon.innerHTML=svgIcon(menuPaths[key]);}
   });
 
   const states = new Map();
@@ -35,7 +70,7 @@
     w.style.animation = 'none'; w.style.transform = 'none';
     Object.assign(w.style, {left:b.x+'px',top:(b.bottom-h)+'px',width:b.width+'px',height:h+'px',maxWidth:b.width+'px',maxHeight:available+'px'});
     w.classList.add('term-moved','gd-docked');
-    s.expand.textContent = s.expanded ? 'RESTORE' : 'EXPAND';
+    paintWindowButton(s.expand, s.expanded ? 'restore' : 'maximize', s.expanded ? 'Restore window size' : 'Maximize window');
     s.expand.setAttribute('aria-expanded',String(s.expanded));
     s.dock.hidden = true;
     if (animate && !matchMedia('(prefers-reduced-motion: reduce)').matches)
@@ -55,11 +90,17 @@
       b.addEventListener('click',e=>{e.stopPropagation();action();}); controls.append(b); return b;
     };
     s.dock = button('DOCK',()=>{s.docked=true;s.expanded=false;seat(w,s,true);});
+    paintWindowButton(button('MINIMIZE',()=>w._minimize()),'minimize','Minimize window');
     s.expand = button('EXPAND',()=>{
       if (!s.docked) s.docked=true;
       s.expanded=!s.expanded;seat(w,s);
     });
-    button('MINIMIZE',()=>w._minimize());
+    const close=head.querySelector('.term-x');
+    if(close){
+      paintWindowButton(close,'close',close.getAttribute('aria-label') || 'Close window');
+      close.addEventListener('mousedown',e=>e.stopPropagation());
+      close.addEventListener('dblclick',e=>e.stopPropagation());
+    }
     head.addEventListener('dblclick',e=>{
       if(e.target.closest('button'))return;
       e.preventDefault();e.stopImmediatePropagation();w._minimize();
@@ -94,7 +135,7 @@
       let moved=false;
       const move=ev=>{
         if(moved || Math.hypot(ev.clientX-startX,ev.clientY-startY)<4)return;
-        moved=true;s.docked=false;s.expanded=false;s.dock.hidden=false;s.expand.textContent='EXPAND';
+        moved=true;s.docked=false;s.expanded=false;s.dock.hidden=false;paintWindowButton(s.expand,'maximize','Maximize window');
         s.expand.setAttribute('aria-expanded','false');w.classList.remove('gd-docked');
         w.style.maxWidth='calc(100vw * var(--sn-unzoom,1) - 24px)';
       };

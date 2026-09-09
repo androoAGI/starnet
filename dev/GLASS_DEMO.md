@@ -9,9 +9,9 @@ This isolated branch is a design demo of the real StarNet frontend and sidecar, 
 - Hover CREW and SESSIONS rows: both use the same glass gradient, edge and highlight.
 - Bottom SYSTEM > SETTINGS opens a sheet above the existing dock.
 - Drag the small top handle vertically, or focus it and use Up/Down. Home makes it compact; End expands it.
-- EXPAND / RESTORE switches between a compact sheet and the available height.
+- The square maximize / restore icon switches between a compact sheet and the available height.
 - Drag the title to move the window freely; DOCK returns it to the bottom.
-- MINIMIZE puts it in the existing minimized-window strip; select the strip button to restore it.
+- The minimize line icon puts it in the existing minimized-window strip; select the strip button to restore it.
 - Open an agent dossier to try the same shell with another real panel.
 - Settings > Appearance still controls the phosphor theme, CRT and text size.
 - CREW / WORK / BUILD / SYSTEM remain in their existing bottom position.

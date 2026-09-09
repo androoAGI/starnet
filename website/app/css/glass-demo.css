@@ -265,3 +265,46 @@ body.glass-demo #left .ws-dot.working {
   border: 0; background: repeating-linear-gradient(to top,var(--ph-bright) 0 3px,transparent 3px 4px);
 }
 body.glass-demo #left .ws-dot.needsyou { border: 0; background: var(--gold); }
+
+/* Compact action and square lamps. State colours continue to use the existing session classes. */
+body.glass-demo #left #ws-new { height: 25px; padding: 2px 8px; font-size: 15px; letter-spacing: .6px; text-shadow: 0 0 4px var(--ph-glow2); }
+body.glass-demo #left .ws-dot { width: 6px; height: 6px; border-radius: 1px; box-shadow: inset 0 1px 0 rgba(255,255,255,.12); }
+body.glass-demo #left .ws-dot.seen { background: rgba(var(--ph-rgb),.12); border: 1px solid var(--ph-dim); }
+body.glass-demo #left .ws-dot.working { background: var(--ph-bright); }
+body.glass-demo #left .ws-dot.unseen { box-shadow: 0 0 4px rgba(var(--gold-rgb),.25); }
+/* Small, familiar window glyphs on station glass. */
+body.glass-demo .gd-sheet .gd-controls { gap: 4px; }
+body.glass-demo .gd-sheet :is(.gd-window-button,.term-x) {
+  width: 27px; height: 25px; min-width: 27px; padding: 0; display: inline-flex;
+  align-items: center; justify-content: center; border: 1px solid var(--gd-edge); border-radius: 3px;
+  background: rgba(var(--ph-rgb),.04); color: var(--ph); box-shadow: inset 0 1px 0 rgba(var(--ph-bright-rgb),.06);
+}
+body.glass-demo .gd-sheet :is(.gd-window-button,.term-x) svg,
+body.glass-demo #bottombar .bb-menu .bb-i svg {
+  width: 15px; height: 15px; display: block; fill: none; stroke: currentColor;
+  stroke-width: 1.3; stroke-linecap: square; stroke-linejoin: miter;
+}
+body.glass-demo .gd-sheet :is(.gd-window-button,.term-x):hover { background: var(--gd-hover); border-color: var(--ph-dim); color: var(--ph-bright); }
+body.glass-demo .gd-sheet .term-x:hover { color: var(--bad); border-color: var(--bad); background: rgba(255,75,65,.08); box-shadow: none; }
+body.glass-demo .gd-sheet :is(.gd-window-button,.term-x):focus-visible { outline: 1px solid var(--ph); outline-offset: 2px; }
+/* The dock opens one quiet glass menu with clear destinations, not a stack of keycaps. */
+body.glass-demo #screen-game #bottombar .bb-menu {
+  width: 320px; min-width: 0; max-width: calc(100vw - 24px); max-height: min(500px,70vh); overflow-y: auto;
+  padding: 7px; gap: 3px; bottom: calc(100% + 10px);
+  border: 1px solid rgba(var(--ph-rgb),.3); border-radius: 5px;
+  background: linear-gradient(145deg,rgba(var(--ph-rgb),.09),transparent 65%),var(--panel);
+  box-shadow: inset 0 1px 0 var(--gd-light), 0 12px 35px rgba(0,0,0,.6);
+}
+body.glass-demo #screen-game #bottombar .bb-menu .bb {
+  min-height: 55px; padding: 9px 10px; gap: 11px; border: 1px solid transparent; border-radius: 3px;
+  background: transparent; box-shadow: none; text-shadow: none; color: var(--ph); transform: none;
+}
+body.glass-demo #screen-game #bottombar .bb-menu .bb:is(:hover,:focus-visible,.active) {
+  border-color: var(--gd-edge); background: var(--gd-hover); box-shadow: inset 0 1px 0 var(--gd-light); color: var(--ph-bright);
+}
+body.glass-demo #screen-game #bottombar .bb-menu .bb.active { box-shadow: inset 2px 0 0 var(--ph),inset 0 1px 0 var(--gd-light); }
+body.glass-demo #screen-game #bottombar .bb-menu .bb-i { width: 22px; flex-basis: 22px; align-self: center; opacity: .8; }
+body.glass-demo #screen-game #bottombar .bb-menu .bb-i svg { width: 18px; height: 18px; }
+body.glass-demo #screen-game #bottombar .bb-menu .bb-tx { gap: 4px; }
+body.glass-demo #screen-game #bottombar .bb-menu .bb-tx b { font: 17px/1 'VT323',monospace; letter-spacing: 1px; }
+body.glass-demo #screen-game #bottombar .bb-menu .bb-tx small { font: 13px/1.25 'VT323',monospace; letter-spacing: .15px; white-space: normal; overflow: visible; color: var(--ph-dim); }
