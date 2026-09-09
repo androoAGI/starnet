@@ -542,6 +542,18 @@ async function runApprovalScenario() {
     // layer wasn't armed and the settle call errored without consuming a completion budget).
     const callsBeforeApprove = mock.directiveCalls();
     A.ok('approval/run-blocked-while-waiting', !endedEarly && callsBeforeApprove >= 1 && callsBeforeApprove <= 2, `agent.run.end seen=${endedEarly}; directive completions so far=${callsBeforeApprove} (expect 2 while paused: settle+tool; ${mock.callCount()} total incl. background)`);
+    // The session lamp must reach the same pending state as COMMS within its existing 1s refresh.
+    let sessionLamp = null;
+    for (let i = 0; i < 15; i++) {
+      sessionLamp = await evalJS(cdp, `(() => {
+        const row = document.querySelector('#workstreams .ws-row.sel'), dot = row?.querySelector('.ws-dot');
+        return { approval: !!dot?.classList.contains('approval'), label: row?.querySelector('.ws-meta')?.textContent || '' };
+      })()`).catch(() => null);
+      if (sessionLamp?.approval && sessionLamp.label === 'Approval needed') break;
+      await sleep(100);
+    }
+    A.ok('approval/session-indicator', !!sessionLamp?.approval && sessionLamp.label === 'Approval needed',
+      JSON.stringify(sessionLamp));
     await capture(cdp, OUT_DIR, 'tool-run-with-approval_awaiting');
 
     // APPROVE ONCE → the paused dispatch resolves, the tool runs, the result flows back, the run resumes.

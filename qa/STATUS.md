@@ -1,5 +1,7 @@
 **2026-09-09 starter shell:** `agent/world-next-0907` -> `f68403588`; new starter HAB uses the owner-selected white shell (`bone`, #e7e3d9). Existing saves and all other rendering settings retained. Pre/post fast **744/744 GREEN**; live fresh-save composition and persisted shell verified. See `qa/digests/2026-09-09-starter-white-shell.md`.
 
+**2026-09-09 glass interface candidate verification (not merged):** `agent/glass-demo-0909` at regression candidate `028b0d321`, synchronized with trunk `f672e33e`. Default glass boot, Escape dialog-focus repair and worker-rendered Appearance previews verified. Fast **752/752**, HTTP **108/108**, customer journeys **34/34**, live journeys **139/139**, behavioral audit **47/47**, fresh-user UI **6/6** PASS. Merge rehearsal clean; source claims current. Product-wide release remains NOT READY with seven existing P1 reports and outstanding trunk/installed proof. See `qa/digests/2026-09-09-glass-interface.md`. No merge, push, installer or release.
+
 **2026-09-09 approved world merge:** `agent/world-next-0907` -> `0656a655e`; exact approved rendering and dark palette retained, 24 floor materials, physical lighting, softened CRT grain and joined wall crowns. Pre/post fast **744/744 GREEN**; HTTP **108/108 GREEN** on identical source. Live grade/settings/save parity, Build, reload and canvas recovery passed; preview remains :9207. See `qa/digests/2026-09-09-approved-world.md`. Existing QA/Rooms edits preserved.
 
 **2026-09-09 merge digest (INBOX ROWS):** `agent/inbox-row-preview-0909` → `32a1e304e`; agent-first rows, wrapping titles and 15px latest-message previews; live demo :9234 verified; pre-merge and post-merge `test:fast` 733/733 GREEN. Repeated Windows Chromium-profile cleanup failure repaired and verified. Existing QA/handoff edits preserved.
@@ -1574,7 +1576,7 @@ own runner (Q1 Guardian, Q2 Beginner Run, Q4 Janitor) or the Overseer digest; th
 | Crew member | Question it answers | Last run | Result | Open findings |
 | --- | --- | --- | --- | --- |
 | Green Guardian | Is trunk green and does the app still boot + look right? | 2026-09-04 03:17Z @ adc35964 | GREEN | 0 |
-| Beginner Run | Can a brand-new user reach first value, unassisted? | 2026-09-03T17:30:38.463Z · ui-only · 140120ms | PASS | 0 |
+| Beginner Run | Can a brand-new user reach first value, unassisted? | 2026-09-09T23:03:29.193Z · ui-only · 115702ms | PASS | 0 |
 | Truth Auditor | Does the UI show what actually happened? | 2026-07-01 23:28Z (in Guardian cycle) | GREEN | 0 |
 | Visual Auditor | Is the rendered game coherent? (needs eyes) | — (local /loop; not headless) | — | 0 |
 | Overseer | What broke today, what needs Andrew? | 2026-07-01 (digest rendered) | 0 P0 · 106 P2 | — |

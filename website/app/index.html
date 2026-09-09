@@ -41,11 +41,14 @@
 <link rel="stylesheet" href="css/refit-kit.css">
 <link rel="stylesheet" href="css/refit-polish.css?v=3">
 <link rel="stylesheet" href="css/utility-menus.css?v=1">
+<link rel="stylesheet" href="css/glass-demo.css">
+<link rel="stylesheet" href="css/glass-comms.css">
+<link rel="stylesheet" href="css/readability.css"><!-- Shared readable text roles at STANDARD; cabinet and CRT geometry are unchanged. -->
 
 <link rel="stylesheet" href="css/titlebar.css"><!-- custom window chrome (Windows desktop shell): themed titlebar + MIN/MAX/CLOSE; inert unless body.sn-chrome (titlebar.js) -->
 
 </head>
-<body class="theme-amber">
+<body class="theme-amber glass-demo">
 
 <!-- ============ BOOT VEIL ============ -->
 <!-- The ONLY screen that ships class="active": a neutral phosphor holding-card shown during init()'s async
@@ -621,11 +624,11 @@
           <b id="model-dock-current-model" class="model-dock-current-model">-</b>
         </div>
         <input id="model-dock-search" class="model-dock-search" type="text" placeholder="Search models" autocomplete="off" spellcheck="false" aria-label="Search models">
-        <div id="model-dock-efforts" class="model-dock-efforts" role="listbox" aria-label="Reasoning effort"></div>
+        <div id="model-dock-efforts" class="model-dock-efforts" role="group" aria-label="Reasoning effort"></div>
         <div id="model-dock-list" class="model-dock-list scrolly" role="listbox" aria-label="Available models"></div>
         <div class="model-dock-foot">
           <button id="model-dock-refresh" type="button">REFRESH</button>
-          <button id="model-dock-settings" type="button">SETTINGS</button>
+          <a id="model-dock-subscription" href="https://www.starnetos.com/pricing" target="_blank" rel="noopener noreferrer" aria-label="StarNet subscription (opens in your browser)"><span>STARNET SUBSCRIPTION</span><span aria-hidden="true">↗</span></a>
         </div>
       </div>
       <button id="voice-toggle" class="voice-toggle" title="agent voice" aria-label="Agent voice" aria-pressed="true"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2.2 6.1h2.1L7.7 3.3v9.4L4.3 9.9H2.2z" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="miter"/><g fill="none" stroke="currentColor" stroke-width="1.4"><path d="M10.3 6a3.2 3.2 0 0 1 0 4"/><path d="M12.4 4a6.2 6.2 0 0 1 0 8"/></g></svg></button>
@@ -725,7 +728,8 @@
 <link rel="stylesheet" href="demo.css"><!-- WEBSITE EMBED ONLY: half-strength glass for the downscaled iframe -->
 <script src="demo-boot.js?v=20260905-current-station-v4"></script><!-- WEBSITE EMBED ONLY: seeds the captured demo save + DEV seam before any store reads -->
 <script src="app/bootguard.js"></script><!-- BOOT GUARD: installs the window error/unhandledrejection listeners before anything else can fail silently, then verifies the critical module globals after DOMContentLoaded (fatal banner names the file). Reads no state — the ONE script allowed ahead of legacymigrate -->
-<script src="app/legacymigrate.js"></script><!-- FIRST store-touching script: migrate starnet.* localStorage keys -> starnet.* before any store reads -->
+<script src="app/legacymigrate.js"></script>
+<script src="app/glass-boot.js"></script><!-- FIRST store-touching script: migrate starnet.* localStorage keys -> starnet.* before any store reads -->
 <script src="js/util.js"></script>
 <script src="app/asciifx.js"></script><!-- ASCII-motion kit (AsciiFX): decode/dissolve/typewriter primitives; must load before its consumers (chat.js, stationui.js) -->
 <script src="js/audio.js"></script>
@@ -851,6 +855,7 @@ document.write('<script src="' + ((window.__STARNET_API__ || '') + '/shared/spec
 <script src="app/lifecycle.js"></script><!-- Lane 4D: launch-at-login toggle + live "what keeps running when closed" summary -->
 
 <script src="app/deliverables.js"></script><!-- backend-backed run artifact + Workshop library with bounded safe previews -->
+<script src="app/backdrop-preview.js"></script>
 <script src="app/stationui.js"></script>
 <!-- extracted station windows — each registers itself via StationUI.registerWindow, so they MUST load after stationui.js and before app.js init -->
 <script src="app/windows/trophies.js"></script><!-- TROPHY CASE — real earned achievements + the LIVING TOOLS shelf -->
@@ -946,5 +951,7 @@ document.write('<script src="' + ((window.__STARNET_API__ || '') + '/shared/spec
 <script src="app/autosessions.js"></script><!-- surface an unattended cron/routine run as a readable SESSION: cron.fire → adopt a 'cron-<runId>' workstream (busy, no focus-steal), cron.result → fold its durable transcript; boot backfill for runs finished while closed. Read-only on U.bus (after app.js so App/Workstreams/Channels/Chat/U exist) -->
 <script src="app/warroom.js"></script>
 <script src="app/worldlab.js"></script>
+<script src="app/glass-demo.js"></script>
+<script src="app/glass-comms.js"></script>
 </body>
 </html>

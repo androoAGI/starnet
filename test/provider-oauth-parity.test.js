@@ -67,8 +67,10 @@ for (const [file, src] of NORMALIZERS) {
   for (const id of OAUTH_IDS) {
     A.ok(new RegExp("p === '" + id + "'[^\\n]*return '" + id + "'").test(src),
       file + " normalize keeps '" + id + "' its own provider id");
-    A.ok(new RegExp("p !== '" + id + "'").test(src),
-      file + " providerNeedsKey knows '" + id + "' is keyless (OAuth tokens live sidecar-side)");
+    if (file !== 'frontend/app/modeldock.js') {
+      A.ok(new RegExp("p !== '" + id + "'").test(src),
+        file + " providerNeedsKey knows '" + id + "' is keyless (OAuth tokens live sidecar-side)");
+    }
   }
   // and the id must never be an alias that normalizes AWAY to another provider (a fold = a line testing the
   // id and returning a DIFFERENT provider id; returning non-provider values, e.g. reasoning-effort defaults
@@ -78,6 +80,36 @@ for (const [file, src] of NORMALIZERS) {
     const others = [...ALL_PROVIDER_IDS].filter(x => x !== id).join('|');
     A.ok(!new RegExp("p === '" + id + "'[^\\n]*return '(" + others + ")'").test(src),
       file + " never folds '" + id + "' into another provider id");
+  }
+}
+
+/* The quick picker delegates authentication to Harness and no longer owns a key-warning helper.
+   Exercise its actual selection handler for every registry OAuth provider, with no browser key API. */
+{
+  const vm = require('node:vm');
+  const Dock = require('../frontend/app/modeldock.js');
+  const handler = dockSrc.slice(dockSrc.indexOf('  function applyModel(item)'), dockSrc.indexOf('  function applyEffort(id)'));
+  A.ok(handler.includes('function applyModel(item)'), 'quick-picker selection handler is exercised');
+  for (const id of OAUTH_IDS) {
+    const picked = { id: id + '/catalog-model', provider: id, supportsReasoning: false };
+    const state = {};
+    const context = {
+      provider: () => 'openrouter', normalizeProvider: Dock.labels.normProvider,
+      currentEffort: () => 'medium', clampEffortForModel: Dock.efforts.clamp,
+      Harness: {
+        setProv: value => { state.provider = value; }, setModel: value => { state.model = value; },
+        setReasoningEffort: value => { state.effort = value; },
+        getKey: () => { throw new Error('OAuth selection must not require a browser key'); }
+      },
+      opts: { apply: value => { state.applied = value; } },
+      reflect() {}, renderList() {}, closeDock: () => { state.closed = true; }
+    };
+    vm.runInNewContext(handler + '\nthis.choose = applyModel;', context);
+    A.notThrows(() => context.choose(picked), 'quick picker accepts ' + id + ' without a browser key');
+    A.eq([state.provider, state.model], [id, picked.id], 'quick picker preserves ' + id + ' transport identity');
+    A.eq([state.applied?.provider, state.applied?.model, state.applied?.reason], [id, picked.id, 'model'],
+      'quick picker persists the ' + id + ' selection');
+    A.ok(state.closed, 'quick picker closes after selecting ' + id);
   }
 }
 
