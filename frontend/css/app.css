@@ -2891,6 +2891,8 @@ body:not(.no-flicker) #screen-game.active { animation: flick 7s infinite; }
    Rhythm survives every palette, and this is the one state on a fail-closed deny timer — so the
    more urgent beat is honest rather than decorative. */
 .ws-dot.needsyou { background: var(--gold); animation: wsPulseUrgent .72s ease-in-out infinite; }
+.ws-dot.connecting { background: transparent; border: 1px dashed var(--ph-dim); animation: none; }
+.ws-dot.failed { background: var(--bad); animation: none; box-shadow: none; }
 @keyframes wsPulseUrgent {
   0%, 100% { opacity: 1; box-shadow: 0 0 8px rgba(var(--gold-rgb), .7); }
   50% { opacity: .18; box-shadow: 0 0 2px rgba(var(--gold-rgb), .3); }

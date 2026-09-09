@@ -5,7 +5,7 @@ const start=source.indexOf('  function railRowState(w) {');
 const end=source.indexOf('  /* ---------- INBOX row extras',start);
 assert(start>=0 && end>start);
 let pending={tool:'shell'}, busy=true;
-const context={Channels:{pendingOf:()=>pending,isBusy:()=>busy,statusOf:()=> 'working',startedAtOf:()=>0},Workstreams:{unread:()=>false},railRelTime:()=> 'now'};
+const context={Channels:{pendingOf:()=>pending,isBusy:()=>busy,statusOf:()=> 'working',runIdOf:()=> 'test-run',elapsedOf:()=>0,startedAtOf:()=>0},Workstreams:{unread:()=>false},railRelTime:()=> 'now'};
 const state=vm.runInNewContext(source.slice(start,end)+'\nrailRowState',context);
 const w={id:'test-session'};
 assert(state(w).dot.includes('approval'));

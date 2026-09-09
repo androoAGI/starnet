@@ -223,3 +223,24 @@ Verification: new registered model-reasoning-presets regression passed 3245 asse
 ## Plain reasoning labels - 2026-09-09
 
 Owner refinement: renamed the primary presets to LOW, MEDIUM, HIGH and MAX. Available-level mapping, exact saved values, Advanced and highest-level reachability are unchanged. Live glass menu confirmed all four labels fit at 79px client/scroll widths, with claude haiku latest / MIN preserved, Advanced collapsed and COMMS at 484px. Registered reasoning regression (3245) and website mirror (8) checks passed; JS syntax and diff whitespace passed. Full fast was not repeated for this label change; its existing 10 release-manifest failures above remain unresolved.
+
+
+## Session signal family - 2026-09-09
+
+Replaced the flat 6px session lamps with fixed 12px glass bezels. Read uses an empty outline; unread has a steady illuminated core; confirmed work scans inside the frame; approval shows a red exclamation with a slow 1.6s light pulse; an agent question uses two message strokes; failed runs show a steady cross; connecting has a dotted frame and center point. Only confirmed work and pending approvals animate. Shapes remain distinct without color or motion. Reduced-motion CSS disables the scan/pulse and keeps the working stroke visible. Project folder lamps retain their existing small squares; sessions inside Projects share the new signal treatment.
+
+Truth and interaction fixes:
+- Channels.runIdOf must confirm a run before the working state is shown. Connecting gets its own signal and label rather than a false work timer.
+- The working timer uses Channels.elapsedOf, excluding accumulated approval pauses.
+- Pending questions, approvals and recorded failures have separate classes. Real pending prompts remain visible even before a run-start event and take priority over working/unread.
+- Read/unread still come from the original Workstreams timestamps and open-session rules. No counters, activity, runs or read receipts are invented.
+- Row accessible names and hover tips now explain every state. The existing one-second ticker updates adopted tooltip text in place, including a visible tooltip, and updates project-scoped session rows too. The glyph is decorative to screen readers because the row names the state.
+
+A separate labeled sample preview is served at /dev/session-indicators.html. It uses the actual shared styles for all seven states without manufacturing jobs or approval prompts in the station. The preview's sample labels are not live telemetry.
+
+Live verification:
+- Real app: all three current sessions honestly showed read; each lamp measured 12px, no animation. Row height stayed 34.39px and client/scroll widths both 231px on the final inspected rail. Arrow navigation focused General and showed its current read tooltip; Enter opened it. Returned to Glass UI exploration, claude haiku latest / MIN and empty draft. Browser warning/error log empty.
+- Sample preview: all seven frames measured 12px. Only working's inner stroke had gd-session-scan; only approval's outer frame had gd-approval-pulse. Unread/read/reply/failure/connecting had no animation. Screenshot inspection confirmed distinct filled, hollow, scan, exclamation, message and cross silhouettes with the red glass theme. The preview clearly identifies all rows as samples.
+- Real provider execution, live consent prompts, a populated project session list and the OS reduced-motion setting were not exercised. Their transition logic is covered by the real channel/session reducer tests; reduced-motion rules are source-checked. No fake live state was injected into the owner's station.
+
+Checks: JS syntax for app.js and changed tests; registered session-indicators (32 assertions), consent-visibility (24), channels (53), workstreams (193), projects-view (69), session-power-tools (130), session-creation (19), readability (21), comms-responsive-text (5), station-tooltip (427), control-floor-theming (125), website-app-sync (8) and the standalone approval regression all passed. The transition test uses the real Channels and Workstreams modules with a controlled clock, including working/unread/read, save hydration, same-agent session isolation, approval priority, pause exclusion and failure recovery. Website mirror synchronized. Full fast stopped at step 286/736 with the same 10 existing qa-product-perfect-claims release-manifest failures. Gate remains red; no merge or release.
