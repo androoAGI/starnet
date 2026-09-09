@@ -1,0 +1,95 @@
+/* Refit shares the menu glass language. Keep the existing canvas, tool groups,
+   responsive dock geometry, state classes, and editor actions intact. */
+.refit-overlay {
+  --refit-glass: linear-gradient(135deg,rgba(var(--ph-rgb),.075),rgba(var(--ph-rgb),.015));
+  --refit-edge: rgba(var(--ph-rgb),.2);
+}
+.refit-overlay .refit-top { background: var(--panel); border-bottom: 1px solid var(--refit-edge); box-shadow: 0 8px 24px rgba(0,0,0,.2); gap: 8px; }
+.refit-overlay .refit-title { background: none; color: var(--ph-bright); box-shadow: none; padding: 0 8px; font-size: 17px; letter-spacing: 1.6px; }
+.refit-overlay .refit-top .bb { min-height: 30px; border-color: var(--refit-edge); background: var(--refit-glass); box-shadow: inset 0 1px rgba(var(--ph-rgb),.06); border-radius: 7px; letter-spacing: .5px; }
+.refit-overlay .refit-top :is(.refit-zoom,.refit-cluster) { gap: 2px; }
+.refit-overlay .refit-top .refit-primary { color: var(--ph-bright); background: rgba(var(--ph-rgb),.16); border-color: rgba(var(--ph-rgb),.5); text-shadow: none; }
+.refit-overlay .refit-top .bb:disabled { opacity: .35; }
+.refit-overlay .refit-dock { border-color: var(--refit-edge); border-radius: 12px; background: var(--refit-glass),var(--panel); box-shadow: 0 12px 36px rgba(0,0,0,.4),inset 0 1px rgba(var(--ph-rgb),.08); backdrop-filter: blur(16px); }
+.refit-overlay .refit-dock-head { padding: 12px; border-bottom: 1px solid var(--refit-edge); background: none; }
+.refit-overlay .refit-dock-head-t { font-size: 14px; letter-spacing: 1px; }
+.refit-overlay #refit-kit-toggle { border-color: var(--refit-edge); background: transparent; box-shadow: none; border-radius: 6px; }
+.refit-overlay .refit-mode-section { background: none; padding: 10px; border-bottom: 1px solid var(--refit-edge); }
+.refit-overlay #refit-tools { gap: 10px; }
+.refit-overlay .refit-toolset-label { font-size: 10px; letter-spacing: .8px; padding-bottom: 5px; }
+.refit-overlay .refit-dock .refit-tool { border: 1px solid var(--refit-edge); border-radius: 7px; background: var(--refit-glass); box-shadow: none; min-height: 30px; padding: 5px 7px; }
+.refit-overlay .refit-dock .refit-tool:hover { background: rgba(var(--ph-rgb),.1); border-color: rgba(var(--ph-rgb),.4); }
+.refit-overlay .refit-dock .refit-tool.active { background: rgba(var(--ph-rgb),.14); border-color: var(--ph); box-shadow: inset 0 1px rgba(var(--ph-rgb),.16); }
+.refit-overlay .refit-tool.active::before { display: none; }
+.refit-overlay .refit-tool .refit-key { border: 0; font-size: 10px; }
+.refit-overlay .refit-option-section { padding: 12px; }
+.refit-overlay .refit-section-label { color: var(--ph-dim); letter-spacing: .8px; margin-bottom: 5px; }
+.refit-overlay .refit-selectnote { line-height: 1.4; font-size: 14px; gap: 10px; }
+.refit-overlay .refit-selectnote > .ui-overline { display: none; }
+.refit-overlay .refit-selectnote b { font-size: 24px; letter-spacing: .2px; }
+.refit-overlay .refit-start { min-height: 0; padding: 14px; border-radius: 9px; background: var(--refit-glass); border-color: var(--refit-edge); gap: 5px; }
+.refit-overlay .refit-start em { margin-top: 3px; }
+.refit-overlay .refit-hint { padding: 11px 12px; background: rgba(0,0,0,.12); border-top: 1px solid var(--refit-edge); }
+.refit-overlay :is(.refit-prop-sections,.refit-agents) { gap: 6px; }
+.refit-overlay :is(.refit-prop-sections .bb,.refit-kind,.refit-propcats .refit-propcat) { border-radius: 7px; border-color: var(--refit-edge); background: var(--refit-glass); box-shadow: none; }
+.refit-overlay :is(.refit-prop-sections .active,.refit-kind.active,.refit-propcats .refit-propcat.active) { background: rgba(var(--ph-rgb),.13); border-color: var(--ph); box-shadow: none; }
+.refit-overlay :is(.refit-category-menu > summary,.refit-propcats,.refit-ability-overview,.refit-propinspector) { border-radius: 8px; border-color: var(--refit-edge); }
+.refit-overlay .refit-category-menu > summary { background: var(--refit-glass); }
+.refit-overlay .refit-propcats { padding: 8px; background: var(--panel); }
+.refit-overlay .refit-dock .refit-proptile { border-radius: 8px; border-color: var(--refit-edge); background: var(--refit-glass); box-shadow: none; }
+.refit-overlay .refit-dock .refit-proptile.active { border-color: var(--ph); background: rgba(var(--ph-rgb),.12); box-shadow: none; }
+.refit-overlay .refit-dock .refit-proptile.active::after { display: none; }
+.refit-overlay .refit-dock .refit-core-card { min-height: 32px; padding-block: 6px; }
+.refit-overlay :is(.refit-mattile,.refit-hue,.refit-linetile) { border-radius: 8px; border-color: var(--refit-edge); box-shadow: none; }
+/* Every nested card uses the same frame, including Room, Workstation and Portal. */
+.refit-overlay .refit-guide { background: rgba(0,0,0,.48); backdrop-filter: blur(6px); }
+.refit-overlay .refit-guide-card { box-sizing: border-box; max-height: calc(100% - 32px); overflow-y: auto; scrollbar-width: thin; scrollbar-color: var(--ph-dim) transparent; padding: 24px; border: 1px solid var(--refit-edge); border-radius: 14px; background: var(--refit-glass),var(--panel); box-shadow: 0 24px 70px rgba(0,0,0,.55),inset 0 1px rgba(var(--ph-rgb),.12); }
+.refit-overlay .refit-guide-card h3 { display: block; margin: 0 0 16px; padding: 0; background: none; color: var(--ph-bright); font-size: 26px; font-weight: 400; letter-spacing: .3px; line-height: 1.15; box-shadow: none; }
+.refit-overlay .refit-guide-card :is(p,li,.step-fact) { line-height: 1.45; }
+.refit-overlay .refit-guide-card .refit-sec { margin: 18px 0 8px; padding-top: 14px; border-color: var(--refit-edge); font-size: 12px; letter-spacing: 1px; }
+.refit-overlay :is(.refit-input,.refit-num,.refit-searchfield) { border: 1px solid var(--refit-edge); border-radius: 8px; background: rgba(0,0,0,.18); box-shadow: inset 0 1px 3px rgba(0,0,0,.15); color: var(--ph-bright); text-shadow: none; }
+.refit-overlay .refit-guide-card .refit-input { padding: 10px 12px; font-size: 16px; }
+.refit-overlay :is(.refit-input,.refit-num,.refit-searchfield):focus { border-color: var(--ph); box-shadow: 0 0 0 2px rgba(var(--ph-rgb),.1); }
+.refit-overlay .refit-guide-card :is(.bb,.btn-sm) { border-radius: 7px; border-color: var(--refit-edge); background: var(--refit-glass); box-shadow: none; min-height: 32px; padding: 7px 11px; letter-spacing: .4px; }
+.refit-overlay .refit-guide-card :is(.active,.sel,.refit-primary) { border-color: var(--ph); background: rgba(var(--ph-rgb),.14); color: var(--ph-bright); text-shadow: none; }
+.refit-overlay .refit-guide-card .refit-danger { color: var(--bad); border-color: var(--bad); }
+.refit-overlay .refit-guide-card .refit-danger.armed { color: var(--ink); background: var(--bad); }
+.refit-overlay .refit-actions { gap: 8px; padding-top: 14px; margin-top: 16px; border-top: 1px solid var(--refit-edge); }
+.refit-overlay .refit-room-card .refit-guide-card { width: min(460px,92vw); }
+.refit-overlay .refit-workflow-editor .refit-guide-card { padding: 0; overflow: hidden; }
+.refit-overlay .workflow-header { background: var(--refit-glass); border-color: var(--refit-edge); }
+.refit-overlay .workflow-footer { background: rgba(0,0,0,.1); border-color: var(--refit-edge); }
+.refit-overlay .workflow-start-options .workflow-choice { border-radius: 10px; }
+.refit-overlay .trg-form { border: 1px solid var(--refit-edge); border-radius: 10px; background: rgba(0,0,0,.12); }
+.refit-overlay .refit-finline { border: 1px solid var(--refit-edge); border-radius: 10px; background: var(--refit-glass),var(--panel); box-shadow: 0 12px 30px rgba(0,0,0,.35); padding: 12px; }
+.refit-overlay .refit-finline .fl-title { background: none; color: var(--ph-bright); padding: 0; letter-spacing: .6px; }
+.refit-overlay .refit-finline .fl-step { border-radius: 6px; padding: 8px; background: transparent; border: 1px solid transparent; box-shadow: none; }
+.refit-overlay .refit-finline .fl-step:hover { border-color: var(--refit-edge); background: rgba(var(--ph-rgb),.07); }
+.refit-overlay .refit-guide-wide { width: min(800px,calc(100% - 32px)); }
+.refit-guide-kicker { display: block; font-size: 12px; letter-spacing: 1.2px; color: var(--ph-dim); margin-bottom: 10px; }
+.refit-overlay .refit-guide-lead { font-size: 17px; margin-bottom: 22px; }
+.refit-overlay .refit-steps { gap: 12px; margin-bottom: 20px; }
+.refit-overlay .refit-step { border: 1px solid var(--refit-edge); border-radius: 10px; padding: 12px; background: rgba(0,0,0,.1); gap: 10px; }
+.refit-overlay .refit-step-art { border-radius: 6px; background: rgba(0,0,0,.1); }
+.refit-overlay .refit-step b { letter-spacing: .4px; }
+.refit-overlay .refit-step > span:not(.refit-step-n) { font-size: 15px; line-height: 1.45; }
+.refit-overlay .refit-guide-foot { font-size: 15px; }
+.refit-guide-shortcuts { display: flex; flex-wrap: wrap; gap: 8px 20px; font-size: 14px; color: var(--ph-dim); padding: 16px 0; margin-top: 12px; border-top: 1px solid var(--refit-edge); }
+.refit-overlay :is(button,input,textarea,select,summary):focus-visible { outline: 2px solid var(--ph-bright); outline-offset: 2px; }
+@media(max-width: 640px) {
+  .refit-overlay .refit-guide-card { padding: 18px; }
+  .refit-overlay .refit-workflow-editor .refit-guide-card { padding: 0; }
+  .refit-overlay .refit-top { gap: 4px; }
+  .refit-overlay .refit-top .bb { padding-inline: 6px; }
+}
+
+.refit-overlay .refit-dock :is(.refit-prop-more .bb,.refit-preview-actions .bb) { border-radius: 6px; background: var(--refit-glass); border-color: var(--refit-edge); box-shadow: none; }
+.refit-overlay .refit-linetile { padding: 12px; background: var(--refit-glass); }
+.refit-overlay .refit-linetile.active { border-color: var(--ph); background: rgba(var(--ph-rgb),.12); box-shadow: none; }
+.refit-room-help { font-size: 14px; color: var(--ph-dim); margin: 12px 0; }
+.refit-room-help summary { cursor: pointer; padding: 8px 0; color: var(--ph); }
+
+.refit-overlay .refit-tiers .bb { border: 1px solid var(--refit-edge); border-radius: 7px; background: var(--refit-glass); box-shadow: none; }
+.refit-overlay .refit-tiers .bb.active { border-color: var(--ph); background: rgba(var(--ph-rgb),.13); box-shadow: none; }
+
+.refit-overlay :is(.refit-mattile.active,.refit-hue.active) { border-color: var(--ph); box-shadow: 0 0 0 1px rgba(var(--ph-rgb),.2); }
