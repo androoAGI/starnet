@@ -17,13 +17,13 @@ function harness() {
     window: {}, navigator: {}, localStorage: { getItem: () => null },
     performance: { now: () => now }, setTimeout: () => 1, clearTimeout() {}, setInterval: () => 1, clearInterval() {},
     VoiceStream: {open:hooks=>{streams.push(hooks);return {push(){},cancel(){}};}},
-    Voice: { isSpeaking: () => false, stopSpeaking() { interruptions.push('speech'); } },
+    Voice: { isSpeaking: () => sandbox.agentTalking || false, stopSpeaking(reason, details) { interruptions.push({reason,details}); } },
     Chat: { isBusy:()=>true, stopActive:()=>stops.push('cancel'), sendOrQueue: text => { sent.push(text); return { state: 'sent' }; } },
     fetch: (url, opts) => new Promise(resolve => requests.push({ url, opts, resolve: text => resolve({ ok: true, json: async () => ({ text }) }) }))
   };
   const expose = `
     _test: {
-      boot() { active = true; paused = false; sessionSeq++; context = {sampleRate:16000}; calibratedUntil = 0; },
+      boot(sampleRate = 16000) { active = true; paused = false; sessionSeq++; context = {sampleRate}; calibratedUntil = 0; },
       take(frames) { recording = true; utteranceSeq++; utterance = frames; utteranceSamples = frames.reduce((n,f)=>n+f.length,0); lastVoicedSamples = utteranceSamples; },
       partial() { requestPartial(utterance, utteranceSeq); },
       stream(frames, text) {streamAvailable = true;beginStream(frames, utteranceSeq, text);},
@@ -33,7 +33,7 @@ function harness() {
   vm.runInNewContext(source.replace('return { init, start, end, isActive:', 'return { ' + expose + 'init, start, end, isActive:') + '\nthis.live = VoiceLive;', sandbox);
   const api = sandbox.live._test;
   api.boot();
-  return { api, requests, sent, stops, interruptions, streams, node, tick: () => { now += 1000; }, frame: level => {
+  return { api, requests, sent, stops, interruptions, streams, node, sandbox, tick: () => { now += 1000; }, frame: level => {
     now += 128; api.frame({inputBuffer:{getChannelData:()=>new Float32Array(2048).fill(level)}});
   } };
 }
@@ -51,6 +51,18 @@ const audio = () => Array.from({length:8}, () => new Float32Array(1000).fill(0.1
   {
     const h = harness();h.frame(.1);h.frame(.1);h.frame(.1);
     assert.equal(h.interruptions.length,1,'speech onset interrupts even before the old reply has audio');
+  }
+  {
+    const h=harness(); h.sandbox.agentTalking=true;
+    // 2048/48000: three loud frames used to interrupt after only 128 ms.
+    h.api.boot(48000);
+    h.frame(.1); h.frame(.1); h.frame(.1); h.frame(0);
+    assert.equal(h.interruptions.length,0,'brief noise during playback does not interrupt');
+    for (let i=0;i<8;i++) h.frame(.1);
+    assert.equal(h.interruptions.length,1,'sustained microphone activity still permits barge-in');
+    assert.equal(h.interruptions[0].reason,'microphone_activity');
+    assert.ok(h.interruptions[0].details.onsetMs >= 300);
+    assert.equal(h.interruptions[0].details.agentTalking,true);
   }
   {
     const h = harness();
@@ -134,3 +146,31 @@ const audio = () => Array.from({length:8}, () => new Float32Array(1000).fill(0.1
   }
   console.log('voice-flow.test.js: adaptive timing and 6 voice flow scenarios passed');
 })().catch(e => { console.error(e); process.exitCode = 1; });
+
+// Execute the production chat closure with a deterministic clock; no duplicate implementation.
+{
+  const chat=fs.readFileSync(require('node:path').join(__dirname,'../frontend/app/chat.js'),'utf8');
+  const start=chat.indexOf('    let speechTimer = null, speechPendingSince = 0;');
+  const end=chat.indexOf('\n    try {',start);
+  assert.ok(start>0 && end>start);
+  function buffer() {
+    let now=10000, next=0; const timers=new Map(), chunks=[];
+    const ctx={Voice:{speakChunk:s=>chunks.push(s)},willSpeak:true,speechOwner:()=>true,speakSafe:s=>s,spokenIdx:0,acc:'',name:'agent',speechOpts:{},Date:{now:()=>now},
+      setTimeout:(fn,ms)=>{timers.set(++next,{fn,at:now+ms});return next;},clearTimeout:id=>timers.delete(id)};
+    vm.createContext(ctx);vm.runInContext(chat.slice(start,end)+'\nthis.push=pushSpeech;',ctx);
+    return {ctx,chunks,timers,token:s=>{ctx.acc+=s;ctx.push(false);},wait:ms=>{now+=ms;for(const [id,t] of [...timers])if(t.at<=now){timers.delete(id);t.fn();}}};
+  }
+  const b=buffer(); b.token('Hello, ');b.token('the weather today ');
+  assert.equal(b.chunks.length,0,'opening comma and 18 characters remain buffered');
+  b.token('looks pleasant for a walk. ');
+  assert.equal(b.chunks[0],'Hello, the weather today looks pleasant for a walk. ');
+  const c=buffer(); const clause='This substantial opening explains the complete context before we continue, ';
+  c.token(clause);c.wait(1199);assert.equal(c.chunks.length,0);
+  c.wait(1);assert.equal(c.chunks[0],clause,'deadline flushes substantial clause without another token');
+  c.token('and the final tail');c.ctx.push(true,c.ctx.acc);
+  assert.equal(c.chunks.join(''),c.ctx.acc,'final tail preserved exactly once');
+  assert.equal(c.timers.size,0,'finalization cancels pending timer');
+  const d=buffer();d.token('Dr. Smith has 3.14 apples, ');assert.equal(d.chunks.length,0,'abbreviation and decimal are not sentence boundaries');
+  d.ctx.speechOwner=()=>false;d.wait(1200);assert.equal(d.chunks.length,0,'ownership loss suppresses timer output');
+  console.log('voice-flow: sentence buffering and deadline regressions passed');
+}
