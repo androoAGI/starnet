@@ -258,3 +258,10 @@ Live proof: sample preview showed the 6x4px checkmark with 1px strokes at .85 op
 Owner felt the read shape was still off. The closed outline plus tick read as a checkbox when repeated down the session list. Replaced the read-only perimeter with two dim opposing 4px registration corners around the etched tick, borrowing the camera overlay's geometry. Reduced the glass fill and removed the shadow. The 12px footprint, tick, stored read state and all other indicator designs remain unchanged.
 
 Verified the sample preview and the real session list visually. The three live read signals have transparent perimeter borders, the expected 4px corner strokes, a 12px footprint and no animation. Glass UI exploration remains selected. Website mirror (8), readability (21), session-indicators (32) and diff whitespace checks passed. Full fast was not repeated for this CSS-only shape refinement; the existing release-manifest failures remain unresolved.
+
+
+## Return to the empty read square - 2026-09-09
+
+Owner rejected the tick/corner treatment. Restored Read to the simple empty 12px glass square with its faint inherited tint and quiet theme color. Removed the tick and corner decorations; the filled illuminated core continues to identify Unread. Updated the sample preview wording.
+
+Live proof: preview reports a 1px border, 2px radius, 12px footprint, zero inner stroke, no corner background and no animation. All three read sessions in the real app have zero inner stroke; Glass UI exploration stays active. Website mirror (8), session-indicators (32) and diff whitespace checks passed. Full fast was not repeated for this CSS-only restoration; its existing release-manifest failure remains documented above.

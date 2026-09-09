@@ -269,22 +269,9 @@ body.glass-demo #left :is(#workstreams .ws-row,#projects .proj-sess-full) > .ws-
 }
 body.glass-demo #left :is(#workstreams .ws-row,#projects .proj-sess-full) > .ws-dot::before,
 body.glass-demo #left :is(#workstreams .ws-row,#projects .proj-sess-full) > .ws-dot::after { content: ''; position: absolute; box-sizing: border-box; }
-/* Read: an etched tick between open registration corners, rather than a checkbox frame. */
+/* Read rests as an empty glass square; the filled core belongs to unread activity. */
 body.glass-demo #left :is(#workstreams .ws-row,#projects .proj-sess-full) > .ws-dot.seen {
-  color: color-mix(in srgb,var(--text) 60%,var(--ph-dim)); border-color: transparent; border-radius: 0;
-  background: linear-gradient(145deg,color-mix(in srgb,currentColor 9%,transparent),transparent 75%);
-  box-shadow: none;
-}
-body.glass-demo #left :is(#workstreams .ws-row,#projects .proj-sess-full) > .ws-dot.seen::before {
-  left: 2px; top: 2px; width: 6px; height: 4px; border-left: 1px solid currentColor; border-bottom: 1px solid currentColor;
-  transform: rotate(-45deg); opacity: .85;
-}
-body.glass-demo #left :is(#workstreams .ws-row,#projects .proj-sess-full) > .ws-dot.seen::after {
-  inset: -1px; opacity: .55;
-  background: linear-gradient(currentColor,currentColor) left top / 4px 1px no-repeat,
-    linear-gradient(currentColor,currentColor) left top / 1px 4px no-repeat,
-    linear-gradient(currentColor,currentColor) right bottom / 4px 1px no-repeat,
-    linear-gradient(currentColor,currentColor) right bottom / 1px 4px no-repeat;
+  color: color-mix(in srgb,var(--text) 50%,var(--ph-dim));
 }
 body.glass-demo #left :is(#workstreams .ws-row,#projects .proj-sess-full) > .ws-dot.unseen { color: var(--gold); box-shadow: inset 0 1px 0 var(--gd-light), 0 0 6px rgba(var(--gold-rgb),.18); }
 body.glass-demo #left :is(#workstreams .ws-row,#projects .proj-sess-full) > .ws-dot.unseen::before { inset: 2px; border-radius: 1px; background: currentColor; box-shadow: inset 0 1px 0 rgba(255,255,255,.3); }
