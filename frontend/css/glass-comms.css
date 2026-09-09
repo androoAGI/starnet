@@ -1,0 +1,295 @@
+/* COMMS material study, loaded only by the opt-in glass demo. */
+body.glass-demo {
+  --gd-comms-edge: rgba(var(--ph-rgb),.2);
+  --gd-comms-well: color-mix(in srgb, var(--panel2) 76%, var(--ink));
+  --gd-pop: linear-gradient(150deg, rgba(var(--ph-rgb),.08), transparent 60%), var(--panel2);
+}
+body.glass-demo #chat-panel { container: glass-comms / inline-size; }
+/* Identity stays in the rail, with the same compact proportions as CREW. */
+body.glass-demo #chat-panel .comms-idbar {
+  position: relative; z-index: 6; display: flex; align-items: center; gap: 9px;
+  margin: 0 8px; padding: 10px 2px; border: 0; border-bottom: 1px solid var(--gd-comms-edge);
+  border-radius: 0; background: transparent; box-shadow: none;
+}
+body.glass-demo #chat-panel .comms-idbar[hidden] { display: none; }
+body.glass-demo #chat-panel .comms-portrait {
+  flex: 0 0 34px; width: 34px; height: 44px; border: 1px solid var(--gd-edge); border-radius: 3px;
+  background: rgba(var(--ph-rgb),.025); box-shadow: inset 0 1px 0 var(--gd-light);
+}
+body.glass-demo #chat-panel .comms-portrait img { width: 28px; height: 38px; object-fit: contain; }
+body.glass-demo #chat-panel .comms-identity { display: flex; flex-direction: column; flex: 1; min-width: 0; gap: 2px; }
+body.glass-demo #chat-panel .comms-overline { display: none; }
+body.glass-demo #chat-panel .comms-agent-model {
+  flex: none; min-width: 0; font-size: 11px; letter-spacing: .4px; line-height: 1.2;
+  text-align: left; color: var(--text); opacity: .65;
+}
+body.glass-demo #chat-panel .comms-agent-model.comms-agent-warn { color: var(--warn); opacity: 1; }
+body.glass-demo #chat-panel .comms-agent-wrap { position: static; width: 100%; max-width: none; }
+body.glass-demo #chat-panel .comms-agent-wrap.gd-agent-enhanced::after,
+body.glass-demo .gd-agent-enhanced .comms-agent-sigil,
+body.glass-demo [data-gd-agent-source] { display: none !important; }
+body.glass-demo .gd-agent-toggle {
+  display: flex; align-items: center; justify-content: space-between; gap: 7px;
+  width: 100%; min-width: 0; min-height: 25px; padding: 1px 4px; margin-left: -4px;
+  border: 1px solid transparent; border-radius: 3px; background: transparent;
+  color: var(--ph-bright); font: 20px/1.1 'VT323',monospace; text-align: left; letter-spacing: .8px; text-transform: uppercase;
+}
+body.glass-demo .gd-agent-toggle span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+body.glass-demo .gd-agent-toggle svg { width: 10px; height: 10px; flex: none; color: var(--ph); opacity: .7; }
+body.glass-demo .gd-agent-toggle:is(:hover,[aria-expanded="true"]) { border-color: var(--gd-edge); background: var(--gd-hover); }
+body.glass-demo #chat-panel #gc-add-agents {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px; flex: 0 0 auto;
+  min-height: 28px; padding: 4px 8px; font: 14px/1 'VT323',monospace; letter-spacing: .5px;
+  color: var(--ph-bright); background: rgba(var(--ph-rgb),.05); border: 1px solid var(--gd-edge);
+  border-radius: 3px; box-shadow: inset 0 1px 0 var(--gd-light);
+}
+body.glass-demo #chat-panel #gc-add-agents::before,
+body.glass-demo #chat-panel #gc-add-agents::after { content: none; }
+body.glass-demo #chat-panel #gc-add-agents svg { width: 12px; height: 12px; flex: none; stroke-linecap: square; }
+body.glass-demo #chat-panel #gc-add-agents span { white-space: nowrap; }
+/* One glass composer: writing and tools share a single edge. */
+body.glass-demo #chat-panel #chat-inputrow {
+  margin: 8px; padding: 0; gap: 0; border: 1px solid var(--gd-edge); border-radius: 4px;
+  background: var(--gd-face); box-shadow: inset 0 1px 0 var(--gd-light);
+  transition: border-color var(--t-fast) var(--ease-soft);
+}
+body.glass-demo #chat-panel #chat-inputrow:focus-within { border-color: rgba(var(--ph-rgb),.45); }
+body.glass-demo #chat-panel .chat-editline {
+  gap: 0; padding: 0; border: 0; border-radius: 0;
+  background: transparent; box-shadow: none;
+}
+body.glass-demo #chat-panel .chat-editline:focus-within { box-shadow: none; }
+body.glass-demo #chat-panel .chat-editline .prompt { display: none; }
+body.glass-demo #chat-panel #chat-input {
+  min-height: 52px; padding: 12px 10px; border: 0; font: 16px/1.4 'VT323',monospace;
+  color: var(--ph-bright); text-shadow: none; background: none; box-shadow: none;
+}
+body.glass-demo #chat-panel #chat-input::placeholder { color: var(--text); opacity: .65; font-size: 15px; }
+body.glass-demo #chat-panel .chat-send {
+  width: 28px; height: 28px; min-width: 28px; margin: 10px 8px 10px 0; padding: 5px;
+  border: 1px solid var(--gd-edge); border-radius: 3px; color: var(--ph-bright);
+  background: rgba(var(--ph-rgb),.08); box-shadow: inset 0 1px 0 var(--gd-light); text-shadow: none;
+}
+body.glass-demo #chat-panel .chat-send svg { display: block; width: 16px; height: 16px; }
+body.glass-demo #chat-panel .chat-send .cs-label { display: none; }
+body.glass-demo #chat-panel .chat-send::before,
+body.glass-demo #chat-panel .chat-send::after { content: none; }
+body.glass-demo #chat-panel .chat-tools {
+  gap: 3px; padding: 5px; flex-wrap: wrap; border-top: 1px solid rgba(var(--ph-rgb),.1);
+}
+body.glass-demo #chat-panel :is(.chat-attach-btn,.voice-toggle,.mic-btn,.chat-stop) {
+  flex: 0 0 28px; width: 28px; min-width: 28px; height: 28px; padding: 0; margin: 0;
+  display: inline-flex; align-items: center; justify-content: center;
+  border: 1px solid transparent; border-radius: 3px; background: transparent;
+  color: var(--ph); box-shadow: none; text-shadow: none;
+}
+body.glass-demo #chat-panel .chat-stop[hidden] { display: none; }
+body.glass-demo #chat-panel .chat-tools #voice-toggle { margin-left: auto; }
+body.glass-demo #chat-panel :is(.chat-attach-btn,.voice-toggle,.mic-btn,.chat-stop) svg {
+  width: 16px; height: 16px; filter: none; stroke-linecap: square; stroke-linejoin: miter;
+}
+body.glass-demo #chat-panel .model-dock-toggle {
+  flex: 0 1 auto; min-width: 62px; max-width: 220px; width: auto; height: 28px; padding: 0 6px; gap: 5px;
+  border: 0; border-radius: 3px; background: transparent;
+  color: var(--ph); box-shadow: none; text-shadow: none;
+}
+body.glass-demo #chat-panel .model-dock-model-name { font-size: 13px; max-width: none; letter-spacing: .15px; }
+body.glass-demo #chat-panel .model-dock-effort-chip { font-size: 10px; color: var(--ph); }
+body.glass-demo #chat-panel :is(.chat-send,.chat-attach-btn,.voice-toggle,.mic-btn,#gc-add-agents):hover {
+  border-color: rgba(var(--ph-rgb),.5); background: var(--gd-hover); color: var(--ph-bright); box-shadow: inset 0 1px 0 var(--gd-light);
+}
+body.glass-demo #chat-panel .model-dock-toggle:is(:hover,.on) :is(.model-dock-model-name,.model-dock-effort-chip),
+body.glass-demo #chat-panel .model-dock-toggle:is(:hover,.on) .model-dock-effort-chip::before { color: var(--ph-bright); text-shadow: none; }
+body.glass-demo #chat-panel .voice-live[aria-pressed="true"] {
+  color: var(--ph-bright); border-color: var(--ph); background: rgba(var(--ph-rgb),.14); box-shadow: inset 0 -1px 0 var(--ph);
+}
+body.glass-demo #chat-panel .voice-toggle.off { color: var(--ph-dim); background: transparent; }
+body.glass-demo #chat-panel .voice-toggle.off:hover { color: var(--ph-bright); background: rgba(var(--ph-rgb),.1); }
+/* The model is a bare glass readout; only keyboard focus gets an outline. */
+body.glass-demo #chat-panel .model-dock-toggle:is(:hover,.on) { background: var(--gd-hover); box-shadow: none; }
+body.glass-demo #chat-panel .model-dock-toggle::after {
+  content: ''; flex: 0 0 5px; width: 5px; height: 5px; margin: -3px 2px 0 3px;
+  border-right: 1px solid currentColor; border-bottom: 1px solid currentColor; transform: rotate(45deg); opacity: .8;
+}
+body.glass-demo #chat-panel .model-dock-toggle.on::after { transform: rotate(225deg); margin-top: 3px; }
+body.glass-demo #chat-panel :is(.mic-btn.rec,.chat-stop:not([hidden])) { color: var(--bad); border-color: var(--bad); background: color-mix(in srgb, var(--bad) 9%, var(--panel2)); }
+body.glass-demo #chat-panel :is(.chat-tools button,.chat-send,#gc-add-agents,.gd-agent-toggle) {
+  transition: background-color var(--t-fast) var(--ease-soft), border-color var(--t-fast) var(--ease-soft), color var(--t-fast) var(--ease-soft);
+}
+body.glass-demo #chat-panel button:focus-visible,
+body.glass-demo .gd-agent-menu button:focus-visible { outline: 1px solid var(--ph-bright); outline-offset: 2px; }
+@container comms-composer (max-width: 310px) {
+  body.glass-demo #chat-panel :is(.chat-attach-btn,.voice-toggle,.mic-btn,.chat-stop) { flex-basis: 28px; width: 28px; height: 28px; }
+  body.glass-demo #chat-panel .model-dock-toggle { height: 28px; padding-inline: 5px; }
+  body.glass-demo #chat-panel .model-dock-effort-chip { display: none; }
+}
+@container comms-composer (max-width: 240px) {
+  body.glass-demo #chat-panel .model-dock-toggle { order: -1; flex-basis: 100%; }
+  body.glass-demo #chat-panel .chat-tools #voice-toggle { margin-left: auto; }
+  body.glass-demo #chat-panel .chat-send { min-width: 28px; }
+}
+/* Pickers share the crew card's thin edge, restrained inset highlight and row selection. */
+body.glass-demo :is(#model-dock,.gd-agent-menu,#chat-slash,.model-dock-tip) {
+  background: var(--gd-pop); border: 1px solid rgba(var(--ph-rgb),.32); border-radius: 5px;
+  box-shadow: inset 0 1px 0 var(--gd-light), 0 10px 28px rgba(0,0,0,.35);
+}
+body.glass-demo #model-dock {
+  padding: 10px; gap: 9px; width: min(350px,calc(100vw - 34px)); max-height: min(65vh,480px);
+  background: var(--gd-face); border-color: var(--gd-edge); box-shadow: var(--gd-shadow);
+  backdrop-filter: blur(9px); -webkit-backdrop-filter: blur(9px);
+}
+body.glass-demo #model-dock .model-dock-head {
+  display: grid; grid-template-columns: minmax(0,1fr) auto; align-items: center; gap: 10px; margin: -10px -10px 1px; padding: 11px 12px;
+  border-bottom: 1px solid var(--gd-edge); background: linear-gradient(180deg,rgba(var(--ph-rgb),.14),rgba(var(--ph-rgb),.025));
+  box-shadow: inset 0 1px 0 var(--gd-light); border-radius: 5px 5px 0 0;
+}
+body.glass-demo #model-dock .model-dock-current-model { order: -1; font-size: 16px; font-weight: normal; text-align: left; text-transform: uppercase; letter-spacing: .2px; max-width: 100%; }
+body.glass-demo #model-dock .model-dock-provider { font-size: 14px; letter-spacing: .6px; color: var(--text); opacity: .8; }
+body.glass-demo #model-dock-search {
+  padding: 8px 9px; font: 16px/1.25 'VT323',monospace; background: var(--gd-face);
+  border: 1px solid var(--gd-edge); box-shadow: inset 0 1px 0 var(--gd-light); border-radius: 4px;
+}
+body.glass-demo #model-dock-search:focus { border-color: var(--ph); background: var(--gd-hover); }
+body.glass-demo #model-dock-search::placeholder { color: var(--text); opacity: .8; }
+/* One inset glass track, with only the selected level illuminated. */
+body.glass-demo #model-dock .model-dock-efforts {
+  position: relative; display: flex; flex-direction: column; gap: 3px; margin-top: 20px;
+}
+body.glass-demo #model-dock :is(.model-dock-presets,.model-dock-exact) {
+  display: flex; flex-wrap: wrap; gap: 2px; padding: 3px; border: 1px solid var(--gd-edge); border-radius: 4px;
+  background: var(--gd-face); box-shadow: inset 0 1px 0 var(--gd-light);
+}
+body.glass-demo #model-dock .model-dock-advanced summary { color: var(--text); opacity: .8; }
+body.glass-demo #model-dock .model-dock-advanced summary:is(:hover,:focus-visible) { color: var(--ph-bright); opacity: 1; background: var(--gd-hover); }
+body.glass-demo #model-dock .model-dock-exact-value { color: var(--text); }
+body.glass-demo #model-dock .model-dock-reasoning-note { color: var(--text); }
+body.glass-demo #model-dock .model-dock-efforts::before {
+  content: 'REASONING'; position: absolute; top: -20px; left: 2px; padding: 0; color: var(--text); opacity: .8;
+  font: 14px/1.2 'VT323',monospace; letter-spacing: .6px;
+}
+body.glass-demo #model-dock .model-dock-effort {
+  flex: 1 1 0; min-width: 30px; height: 28px; padding: 0 2px; border: 0; border-radius: 2px;
+  font-size: 14px; letter-spacing: .2px; color: var(--text); background: transparent; box-shadow: none;
+}
+body.glass-demo #model-dock .model-dock-effort:is(:hover,:focus-visible) { background: var(--gd-hover); color: var(--ph-bright); }
+body.glass-demo #model-dock .model-dock-effort:focus-visible { outline: 1px solid var(--ph-bright); outline-offset: -1px; }
+body.glass-demo #model-dock .model-dock-effort.sel {
+  color: var(--ph-bright); background: var(--gd-hover);
+  box-shadow: inset 0 1px 0 var(--gd-light), inset 0 -2px 0 rgba(var(--ph-rgb),.65);
+}
+body.glass-demo #model-dock .model-dock-list { min-height: 0; flex: 1 1 auto; max-height: 260px; border-color: var(--gd-edge); border-top: 0; padding-block: 2px; }
+body.glass-demo #model-dock .model-dock-group { border: 0; font-size: 14px; padding: 8px 8px 4px; letter-spacing: .6px; color: var(--text); opacity: .8; }
+body.glass-demo #model-dock .model-dock-row { padding: 9px 8px; border: 1px solid rgba(var(--ph-rgb),.12); border-radius: 4px; margin-block: 4px;
+  background: var(--gd-face); box-shadow: inset 0 1px 0 var(--gd-light); }
+body.glass-demo #model-dock .model-dock-row:not(.fallback) .model-dock-row-name { font-size: 16px; color: var(--text); }
+body.glass-demo #model-dock .model-dock-row-effort { font-size: 14px; color: var(--text); opacity: 0; }
+body.glass-demo #model-dock .model-dock-row:is(.sel,:hover,:focus-visible) .model-dock-row-effort { opacity: .8; }
+body.glass-demo #model-dock .model-dock-row.sel { background: var(--gd-hover); border-color: var(--gd-edge); box-shadow: inset 2px 0 0 var(--ph), inset 0 1px 0 var(--gd-light); }
+body.glass-demo #model-dock .model-dock-row.sel .model-dock-row-name { color: var(--ph-bright); }
+body.glass-demo #model-dock .model-dock-row:is(:hover,:focus-visible) { background: var(--gd-hover); border-color: var(--gd-edge); box-shadow: inset 0 1px 0 var(--gd-light),0 2px 8px rgba(0,0,0,.2); }
+body.glass-demo #model-dock .model-dock-foot { grid-template-columns: auto auto; justify-content: space-between; gap: 8px; }
+body.glass-demo #model-dock .model-dock-foot :is(button,a) {
+  min-height: 30px; padding: 5px 8px; font-size: 16px; color: var(--text); border: 1px solid var(--gd-edge); border-radius: 4px;
+  background: var(--gd-face); box-shadow: inset 0 1px 0 var(--gd-light);
+}
+body.glass-demo #model-dock .model-dock-foot :is(button,a):is(:hover,:focus-visible) { color: var(--ph-bright); background: var(--gd-hover); }
+body.glass-demo .gd-agent-menu { position: absolute; top: calc(100% + 5px); left: 7px; right: 7px; z-index: 90; padding: 5px; max-height: 260px; overflow-y: auto; }
+body.glass-demo .gd-agent-option { display: flex; align-items: center; justify-content: space-between; width: 100%; padding: 9px; font: 16px/1.2 'VT323',monospace; text-align: left; color: var(--ph); background: transparent; border: 1px solid transparent; border-radius: 3px; }
+body.glass-demo .gd-agent-option[aria-selected="true"] { background: rgba(var(--ph-rgb),.09); border-color: var(--gd-edge); color: var(--ph-bright); box-shadow: inset 2px 0 0 var(--ph); }
+body.glass-demo .gd-agent-option:hover { background: var(--gd-hover); border-color: var(--gd-edge); }
+body.glass-demo #chat-slash { padding: 5px; }
+body.glass-demo #chat-slash .slash-head { padding: 7px; background: var(--panel2); border-color: var(--gd-edge); }
+body.glass-demo #chat-slash .slash-item { border: 1px solid transparent; border-radius: 3px; padding: 7px; }
+body.glass-demo #chat-slash .slash-item.sel { background: var(--gd-hover); border-color: var(--gd-edge); }
+/* The attribute still controls visibility; only transform and opacity animate across it. */
+body.glass-demo :is(#model-dock,#chat-slash,.gd-agent-menu) {
+  opacity: 1; transform: translateY(0);
+  transition: opacity var(--t-fast) var(--ease-soft), transform var(--t-fast) var(--ease-out), display var(--t-fast) allow-discrete;
+}
+body.glass-demo :is(#model-dock,#chat-slash,.gd-agent-menu)[hidden] { display: none !important; opacity: 0; transform: translateY(7px); }
+@starting-style { body.glass-demo :is(#model-dock,#chat-slash,.gd-agent-menu):not([hidden]) { opacity: 0; transform: translateY(7px); } }
+/* Conversation rows pick up the same glass highlight as CREW on inspection. */
+body.glass-demo #chat-log { padding: 10px 8px; gap: 7px; background: transparent; }
+body.glass-demo #chat-log .cmsg.agent:not(.tool):not(.consent):not(.turnin):not(.nudge):not(.deliverable):not(.reply),
+body.glass-demo #chat-log .cmsg.user {
+  padding: 7px 9px 8px; border: 1px solid transparent; border-radius: 3px;
+  border-left-color: var(--gd-message-left,transparent); border-right-color: var(--gd-message-right,transparent);
+  background: linear-gradient(130deg,rgba(var(--ph-rgb),.025),transparent 70%);
+  box-shadow: none;
+  transition: border-color var(--t-fast) var(--ease-soft), background-color var(--t-fast) var(--ease-soft);
+}
+body.glass-demo #chat-log .cmsg.agent { --gd-message-left: rgba(var(--ph-rgb),.22); }
+body.glass-demo #chat-log .cmsg.user { --gd-message-right: rgba(var(--gold-rgb),.35); max-width: 90%; }
+body.glass-demo #chat-log .cmsg:is(.agent,.user):not(.tool):not(.consent):not(.turnin):not(.nudge):not(.deliverable):not(.reply):is(:hover,:focus-within) {
+  border-color: var(--gd-edge); background: var(--gd-hover); box-shadow: inset 0 1px 0 var(--gd-light);
+  border-left-color: var(--gd-message-left,var(--gd-edge)); border-right-color: var(--gd-message-right,var(--gd-edge));
+}
+body.glass-demo #chat-log .cmsg.user:is(:hover,:focus-within) { --gd-message-right: var(--gold); }
+body.glass-demo #chat-log .cmsg .cmsg-head { margin: 1px 0 6px; min-height: 18px; }
+body.glass-demo #chat-log .cmsg .who { font-size: 15px; line-height: 1.2; letter-spacing: .7px; }
+body.glass-demo #chat-log .cmsg .cmsg-ts { font-size: 11px; letter-spacing: .5px; }
+body.glass-demo #chat-log .cmsg.agent .who { color: var(--ph); }
+body.glass-demo #chat-log .cmsg.user .who { opacity: .9; margin-right: 0; }
+body.glass-demo #chat-log .cmsg .body { line-height: 1.45; overflow-wrap: anywhere; }
+body.glass-demo #chat-log .cmsg.agent.err { --gd-message-left: var(--bad); }
+body.glass-demo #chat-log .cmsg.agent.err .body { color: var(--text); }
+body.glass-demo #chat-log .cmsg.agent.err .who { color: var(--bad); }
+/* The existing clipboard result classes drive the icon; copying still owns its true state. */
+body.glass-demo #chat-log :is(.cmsg-copy,.md-copy) {
+  width: 26px; height: 24px; padding: 0; font-size: 0; line-height: 0;
+  border: 1px solid var(--gd-edge); border-radius: 3px; color: var(--ph);
+  background: var(--gd-face); box-shadow: inset 0 1px 0 var(--gd-light); text-shadow: none;
+  transition: opacity var(--t-fast) var(--ease-soft), color var(--t-fast) var(--ease-soft), border-color var(--t-fast) var(--ease-soft);
+}
+body.glass-demo #chat-log .cmsg-copy { top: 5px; }
+body.glass-demo #chat-log :is(.cmsg-copy,.md-copy)::before {
+  content: ""; position: absolute; inset: 4px 5px; background: currentColor;
+  mask: url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2016%2016%22%3E%3Cpath%20d%3D%22M5.5%205.5h8v8h-8zM10.5%203V2.5h-8v8H3%22%20fill%3D%22none%22%20stroke%3D%22white%22%20stroke-width%3D%221.4%22%20stroke-linecap%3D%22square%22%20stroke-linejoin%3D%22miter%22%2F%3E%3C%2Fsvg%3E") center / 14px 14px no-repeat;
+}
+body.glass-demo #chat-log :is(.cmsg-copy,.md-copy):is(:hover,:focus-visible) {
+  opacity: 1; color: var(--ph-bright); border-color: var(--ph-dim); background: var(--gd-hover);
+}
+body.glass-demo #chat-log :is(.cmsg-copy,.md-copy).copied { color: var(--ok); border-color: var(--ok); opacity: 1; }
+body.glass-demo #chat-log :is(.cmsg-copy,.md-copy).copied::before { mask-image: url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2016%2016%22%3E%3Cpath%20d%3D%22M3%208l3%203%207-7%22%20fill%3D%22none%22%20stroke%3D%22white%22%20stroke-width%3D%221.4%22%20stroke-linecap%3D%22square%22%20stroke-linejoin%3D%22miter%22%2F%3E%3C%2Fsvg%3E"); }
+body.glass-demo #chat-log :is(.cmsg-copy,.md-copy).copy-failed { color: var(--bad); border-color: var(--bad); opacity: 1; }
+body.glass-demo #chat-log :is(.cmsg-copy,.md-copy).copy-failed::before { mask-image: url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2016%2016%22%3E%3Cpath%20d%3D%22M3%203l10%2010M13%203L3%2013%22%20fill%3D%22none%22%20stroke%3D%22white%22%20stroke-width%3D%221.4%22%20stroke-linecap%3D%22square%22%20stroke-linejoin%3D%22miter%22%2F%3E%3C%2Fsvg%3E"); }
+body.glass-demo #chat-log .cmsg.agent:not(.tool):not(.consent):not(.turnin):not(.nudge):not(.deliverable) > .cmsg-head { padding-right: 28px; }
+body.glass-demo #chat-log .cmsg.user > .cmsg-head { padding-left: 28px; }
+body.glass-demo #chat-panel :is(.choice,.queued-pill,.chat-attach-chip,.chat-attach-view .filechip,.comms-newpill) {
+  border: 1px solid var(--gd-edge); border-radius: 3px; background: rgba(var(--ph-rgb),.04);
+  box-shadow: inset 0 1px 0 var(--gd-light); text-shadow: none;
+}
+body.glass-demo #chat-panel .choice { padding: 6px 8px; font-size: 14px; letter-spacing: .35px; color: var(--ph); }
+body.glass-demo #chat-panel .choice.quiet { font-size: 12px; color: var(--text); opacity: .7; border-color: transparent; background: transparent; box-shadow: none; }
+body.glass-demo #chat-panel .choice:is(:hover,:focus-visible) { color: var(--ph-bright); border-color: var(--ph-dim); background: var(--gd-hover); }
+body.glass-demo #chat-panel :is(.tool-chip,.run-card,.comms-presence,.cmsg.consent,.cmsg.reply,.cmsg.turnin) { border-radius: 4px; background-color: color-mix(in srgb,var(--panel2) 65%,transparent); box-shadow: inset 0 1px 0 var(--gd-light); }
+body.glass-demo #chat-panel .tool-chip { border-color: var(--gd-comms-edge); }
+body.glass-demo #chat-panel .cmsg-empty { text-align: left; opacity: 1; padding: 9px 2px; }
+body.glass-demo #chat-panel .cmsg-empty-line { font-size: 18px; color: var(--ph-bright); letter-spacing: .4px; line-height: 1.2; }
+body.glass-demo #chat-panel .cmsg-empty-hint { font-size: 14px; line-height: 1.4; color: var(--text); opacity: .7; margin: 7px 0 12px; }
+body.glass-demo #chat-panel .cmsg-starter { width: 100%; padding: 10px 9px; text-align: left; border-color: transparent; background: rgba(var(--ph-rgb),.025); border-radius: 3px; box-shadow: none; }
+body.glass-demo #chat-panel .cmsg-starter:is(:hover,:focus-visible) { border-color: var(--gd-edge); background: var(--gd-hover); box-shadow: inset 0 1px 0 var(--gd-light); }
+body.glass-demo #chat-panel .cmsg-starter-title { font-size: 16px; line-height: 1.2; letter-spacing: .4px; color: var(--ph-bright); }
+body.glass-demo #chat-panel .cmsg-starter-detail { font-size: 13px; line-height: 1.4; color: var(--text); opacity: .75; }
+/* Associated group and live-voice surfaces use the same material without changing their state logic. */
+body.glass-demo :is(.gc-picker .gc-sect-list,.gc-question,.gc-state,.gc-card,.gc-bubble) { background: var(--gd-face); border-color: var(--gd-edge); border-radius: 4px; box-shadow: inset 0 1px 0 var(--gd-light); }
+body.glass-demo .gc-picker .gc-row { border-color: var(--gd-comms-edge); padding: 11px 10px; }
+body.glass-demo .gc-picker .gc-row:hover { background: var(--gd-hover); }
+body.glass-demo .gc-picker .gc-nm { font-size: 17px; }
+body.glass-demo .gc-picker .gc-tag { font-size: 13px; }
+body.glass-demo .gc-picker .bb { border: 1px solid var(--gd-edge); border-radius: 3px; box-shadow: inset 0 1px 0 var(--gd-light); background: rgba(var(--ph-rgb),.04); }
+body.glass-demo .live-voice-panel { background: var(--gd-pop); border: 1px solid var(--gd-edge); border-radius: 5px; box-shadow: var(--gd-shadow); }
+body.glass-demo .live-voice-panel :is(.lv-head,.lv-controls,.lv-details) { border-color: var(--gd-edge); }
+body.glass-demo .live-voice-panel :is(.lv-controls button,.lv-endpoint,.lv-retry,.lv-x) { border: 1px solid var(--gd-edge); border-radius: 3px; background-color: var(--gd-comms-well); box-shadow: inset 0 1px 0 var(--gd-light); }
+@media (prefers-reduced-motion: reduce) {
+  body.glass-demo :is(#model-dock,#chat-slash,.gd-agent-menu),
+  body.glass-demo #chat-panel :is(.chat-tools button,.chat-send,.chat-editline,#chat-inputrow,#gc-add-agents,.gd-agent-toggle,.cmsg.agent,.cmsg.user,.cmsg-copy,.md-copy) { transition: none; }
+}
+
+/* Outcome colours stay distinct from ordinary glass selection. */
+body.glass-demo #chat-panel .choice.suggested,
+body.glass-demo #chat-panel .choice.confirm { color: var(--gold); border-color: color-mix(in srgb,var(--gold) 50%,transparent); }
+body.glass-demo #chat-panel .choice.sel { color: var(--ph-bright); border-color: var(--ph); background: rgba(var(--ph-rgb),.13); }
+body.glass-demo #chat-panel .chat-attach-chip.err { color: var(--bad); border-color: var(--bad); }
+body.glass-demo .gc-state.bad { border-left-color: var(--bad); }
+body.glass-demo .gc-state.hold { border-left-color: var(--gold); }

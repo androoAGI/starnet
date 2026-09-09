@@ -467,6 +467,7 @@ test/personality-no-sample.test.js
 test/modelpicker.test.js
 test/model-provider-reconcile.test.js
 test/agent-model-select.test.js
+test/model-reasoning-presets.test.js
 test/provider-connections-ui.test.js
 test/newhero-reset.test.js
 test/harness-internal.test.js
@@ -607,6 +608,7 @@ test/toolsearch.test.js
 test/consent.interactive.test.js
 test/consentwait.test.js
 test/consent-visibility.test.js
+test/session-indicators.test.js
 test/estop-persistence-ui.test.js
 test/channels.adapter.test.js
 test/channels.proxy-fetch.test.js
@@ -661,6 +663,7 @@ test/connector-required.test.js
 test/toolsets.test.js
 test/commander-dossier-css.test.js
 test/comms-responsive-text.test.js
+test/readability.test.js
 test/dossier-skin-accessibility.test.js
 test/control-floor-theming.test.js
 test/crew-rail-fit.test.js
@@ -678,6 +681,11 @@ test/queryspine-wiring.test.js
 test/widgets.test.js
 test/widgetfeed.test.js
 test/terminal-resize.test.js
+test/glass-interactions.test.js
+test/backdrop-preview.test.js
+test/glass-comms.test.cjs
+test/glass-approval.test.cjs
+test/model-subscription.test.cjs
 test/terminal-position.test.js
 test/poweruser-shell-repairs.test.js
 test/terminal-sessions.test.js

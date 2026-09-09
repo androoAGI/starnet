@@ -23,7 +23,10 @@ A.ok(/pointerdown/.test(src) && /pointermove/.test(src) && /pointerup/.test(src)
 A.ok(/pointercancel/.test(src), 'an interrupted pointer resize still commits a reachable final size');
 A.ok(/ArrowLeft/.test(src) && /ArrowRight/.test(src) && /ArrowUp/.test(src) && /ArrowDown/.test(src), 'resize affordance supports all keyboard arrow directions');
 A.ok(/aria-label[^\n]+Resize/.test(src), 'resize affordance has an explicit accessible name');
-A.ok(/function\s+fitTermInViewport[\s\S]{0,500}resizeTermTo/.test(src) && /function\s+resizeTermTo[\s\S]{0,400}clampTerminalSize/.test(src), 'viewport repair clamps dimensions before position');
+// Inspect the function's ordering, not a fixed character budget consumed by comments and presentation hooks.
+const fitBody = src.slice(src.indexOf('  function fitTermInViewport('), src.indexOf('  function visibleCount('));
+A.ok(fitBody.indexOf('resizeTermTo(') >= 0 && fitBody.indexOf('resizeTermTo(') < fitBody.indexOf('visibleTerminalRect(')
+  && /function\s+resizeTermTo[\s\S]{0,400}clampTerminalSize/.test(src), 'viewport repair clamps dimensions before position');
 A.ok(/minWidth/.test(src) && /maxWidth/.test(src) && /minHeight/.test(src) && /maxHeight/.test(src), 'per-window min/max dimensions are explicit');
 A.ok(/termSize\[key\]\s*=\s*\{\s*width:\s*next\.width,\s*height:\s*next\.height\s*\}/.test(src), 'pointermove updates the live size map before viewport repair can consult it');
 A.ok(/const p = termPos\[key\][\s\S]{0,450}w\.style\.animation = 'none'[\s\S]{0,180}w\.style\.transform = 'none'/.test(src), 'persisted coordinates suppress centered entrance keyframes before restoring the rectangle');

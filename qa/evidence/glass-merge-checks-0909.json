@@ -1,0 +1,90 @@
+{
+  "candidateCommit": "26d483abc341d5ef2ee7db3dcee18e3c4102a77e",
+  "runtimeCommit": "bd390967817b0fbc98e3add6604351910912b172",
+  "integratedTrunk": "209ce13579ba919329d96886ed1c0b2e9997ecfe",
+  "mergeRehearsal": "clean",
+  "merged": false,
+  "released": false,
+  "gates": [
+    {
+      "command": "test:fast",
+      "result": "pass",
+      "exitCode": 0,
+      "steps": 752,
+      "log": "C:\\Users\\andro\\AppData\\Local\\Temp\\starnet-glass-final-starter-test-fast.log",
+      "sha256": "f96b149c0c4d4c58590beb43a79f724925f622e1ef5922f5859d29678055e3b8",
+      "candidateCommit": "26d483abc341d5ef2ee7db3dcee18e3c4102a77e"
+    },
+    {
+      "command": "test:http",
+      "result": "pass",
+      "exitCode": 0,
+      "steps": 108,
+      "log": "C:\\Users\\andro\\AppData\\Local\\Temp\\starnet-glass-final-test-http.log",
+      "sha256": "0e6642a419660b48b1a6b7ffcb76e3f16b668783da03b15851e525c8c23c7ca5",
+      "candidateCommit": "028b0d3217d60528296d8673cadbd26fc0c7d668"
+    },
+    {
+      "command": "qa:customer-journeys",
+      "result": "pass",
+      "exitCode": 0,
+      "steps": 34,
+      "log": "C:\\Users\\andro\\AppData\\Local\\Temp\\starnet-glass-final-qa-customer-journeys.log",
+      "sha256": "ca39f1404a9858929c7b5781923c35b57613967180baf7c58ff86b1cee86ad46",
+      "candidateCommit": "028b0d3217d60528296d8673cadbd26fc0c7d668"
+    }
+  ],
+  "browserChecks": {
+    "interactions": {
+      "pass": true,
+      "uncaughtErrors": [],
+      "cycles": 5,
+      "workerPreviews": 8,
+      "p95FrameMs": 16.6,
+      "longestTaskMs": 144
+    },
+    "journeys": {
+      "passed": 139,
+      "total": 139,
+      "softFailures": 0
+    },
+    "behavioralAudit": {
+      "passed": 47,
+      "total": 47
+    },
+    "freshUser": {
+      "passed": 6,
+      "total": 6,
+      "elapsedMs": 122395,
+      "boundary": "UI-only first-command model boundary; no authenticated deliverable claim",
+      "candidateCommit": "26d483abc341d5ef2ee7db3dcee18e3c4102a77e"
+    }
+  },
+  "releaseAudits": {
+    "claimsPlanning": {
+      "result": "pass",
+      "exitCode": 0,
+      "claims": 37,
+      "lockedSurfaceFiles": 239
+    },
+    "claimsTerminal": {
+      "result": "blocked",
+      "exitCode": 2,
+      "reason": "Existing pending proof obligations are preserved"
+    },
+    "ready": {
+      "result": "not-ready",
+      "exitCode": 1,
+      "openP1": 7,
+      "guardianReceipt": "missing in this worktree",
+      "installedSmoke": "unverified",
+      "trunkReceipts": "Passing branch journeys and Beginner Run need post-merge exact-trunk receipts"
+    }
+  },
+  "limits": [
+    "Local seeded Chrome and disposable controlled-provider fixtures; installed builds unverified.",
+    "Existing customer P1 reports remain open.",
+    "Timing samples describe this run, not a universal hardware guarantee."
+  ],
+  "lateIntegration": "The only executable delta after the HTTP/customer campaign is room.hullStyle = bone for new starter rooms. Backend and corresponding UI flow code are unchanged. Full fast and fresh-user UI were rerun afterward."
+}

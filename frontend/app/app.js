@@ -3525,33 +3525,24 @@ const App = (() => {
     if (h < 24) return h + 'h';
     return Math.floor(h / 24) + 'd';
   }
-  // the live presentation of one row: the dot class (pulsing run / gold attention / idle lane color), the compact
-  // right-edge meta (elapsed while busy, relative stamp when idle), and the busy/attn flags + full status word for
-  // the hover tooltip. Pure read of Channels + the record — no mutation.
-  /* THE DOT ANSWERS EXACTLY ONE QUESTION: whose turn is this session on?
-       FLASHING      — live right now. Phosphor = the agent is working; GOLD = it is paused on YOU
-                       (an approval, which is the one state burning down a fail-closed deny timer).
-       STEADY BRIGHT — finished, and you have NOT seen the output yet. This is the "ready" state.
-       FADED         — you have seen everything here. Nothing is owed in either direction.
-     The dot used to encode the kanban LANE instead, which inverted the very glance it exists for: a
-     read 'active' session sat at --ph-bright with a glow while an UNREAD 'todo' session sat at
-     --ph-dim, so seen sessions looked louder than unseen ones. Lane moved to the row tooltip — the
-     task board is the surface that owns it, and for a 'chat' stream (most of the rail) lane is
-     inferred rather than chosen, so it was never a fact worth the loudest pixel in the row. */
+  // The session lamp reads only recorded activity and the session's own live channel.
+  // Approval/reply outrank working, then failure, unread and read. Connection latency is
+  // distinct from confirmed work, and elapsed excludes the Commander's approval pauses.
   function railRowState(w) {
     const pending = typeof Channels !== 'undefined' && Channels.pendingOf(w.id);
     if (pending) {
       const question = pending.tool === 'brief.ask';
-      return { dot: 'ws-dot needsyou', meta: question ? 'Reply needed' : 'Approval needed', busy: Channels.isBusy(w.id), attn: true, status: question ? 'waiting for your answer' : 'awaiting your approval' };
+      return { dot: question ? 'ws-dot needsyou reply' : 'ws-dot needsyou approval', meta: question ? 'Reply needed' : 'Approval needed', busy: Channels.isBusy(w.id), attn: true, status: question ? 'waiting for your answer' : 'awaiting your approval' };
     }
     if (typeof Channels !== 'undefined' && Channels.isBusy(w.id)) {
+      if (!Channels.runIdOf(w.id)) {
+        return { dot: 'ws-dot connecting', meta: 'Connecting', busy: true, attn: false, status: 'connecting to the model' };
+      }
       const status = Channels.statusOf(w.id);
       const started = Channels.startedAtOf(w.id);
-      // EL-11: a pending consent gets an EXPLICIT marker on its own row (not just the dot recolor) — a
-      // background session's paused run must be findable at a glance before the sidecar's deny timer runs out.
-      return { dot: 'ws-dot working', meta: started ? railFmtElapsed(Date.now() - started) : '…', busy: true, attn: false, status };
+      return { dot: 'ws-dot working', meta: started ? railFmtElapsed(Channels.elapsedOf(w.id, Date.now())) : '…', busy: true, attn: false, status };
     }
-    if (w.lastRunOk === false) return { dot: 'ws-dot needsyou', meta: 'FAILED', busy: false, attn: true, status: 'last run failed — open to inspect' };
+    if (w.lastRunOk === false) return { dot: 'ws-dot needsyou failed', meta: 'FAILED', busy: false, attn: true, status: 'last run failed — open to inspect' };
     // a DELIVERY session ('workshop-<runId>' — idle-built work) that hasn't been reviewed is a decision the
     // Commander owes, not just an unread chat: say REVIEW on the row itself (2026-07-15 UX audit — the ⚒ prefix
     // alone didn't distinguish "your agent made you something" from ordinary unread activity).
@@ -3563,8 +3554,8 @@ const App = (() => {
     // faded the instant you actually look at it — which is what makes a glance down the rail mean
     // something. The ⚒ REVIEW branch above keeps its own wording: a BUILD waiting is a different
     // errand from a reply waiting, even though both are "unseen".
-    if (Workstreams.unread(w)) return { dot: 'ws-dot unseen', meta: railRelTime(w.lastActiveAt), busy: false, attn: false, status: '' };
-    return { dot: 'ws-dot seen', meta: railRelTime(w.lastActiveAt), busy: false, attn: false, status: '' };
+    if (Workstreams.unread(w)) return { dot: 'ws-dot unseen', meta: railRelTime(w.lastActiveAt), busy: false, attn: false, status: 'unread activity' };
+    return { dot: 'ws-dot seen', meta: railRelTime(w.lastActiveAt), busy: false, attn: false, status: 'read' };
   }
   /* ---------- INBOX row extras (SESSION ROWS = inbox) ----------
      Both lines are rendered ALWAYS and hidden by CSS in COMPACT, so the setting is a pure repaint —
@@ -3591,10 +3582,19 @@ const App = (() => {
     return (latest.role === 'user' ? 'You: ' : '') + short;
   }
   function railModelFull(w) { return (w.lastModel || '').trim(); }
-  function railRowLabel(w, st) {
+  function railRowLabel(w, st, project = false) {
     const title = w.title || 'General', name = railAgentName(w);
-    return title + ' session' + (name === title ? '' : ', ' + name) + (st.attn ? ', ' + st.meta : '')
-      + (Workstreams.unread(w) ? ', not seen yet' : '') + '; Enter to open; Shift+F10 for actions';
+    return title + ' session' + (name === title ? '' : ', ' + name) + (st.status ? ', ' + st.status : '')
+      + (Workstreams.unread(w) && !st.dot.includes('unseen') ? ', unread activity' : '')
+      + (project ? '; Enter to open' : '; Enter to open; Shift+F10 for actions');
+  }
+  function railRowTip(w, st, project = false) {
+    const full = railModelFull(w);
+    return (w.title || 'General') + (w.archived ? ' · archived' : '') + (st.status ? ' · ' + st.status : '')
+      + (Workstreams.unread(w) && !st.dot.includes('unseen') ? ' · unread activity' : '')
+      + (w.kind === 'task' ? ' · board: ' + w.lane : '')
+      + (full ? ' · last run on ' + full : '')
+      + (project ? ' — open this session' : ' — Shift+F10 or right-click for actions');
   }
   function rowClass(w, st, activeId) {
     return 'ws-row' + (w.id === activeId ? ' sel' : '') + (st.busy ? ' busy' : '') + (st.attn ? ' attn' : '')
@@ -3631,19 +3631,11 @@ const App = (() => {
     ul.innerHTML = rows.map((w, index) => {
       const title = w.title || 'General';
       const st = railRowState(w);
-      const full = railModelFull(w);
       const group = headers.get(w.id);
       const groupHead = group ? '<li class="ws-auto-group" role="presentation"><button type="button" data-ws-group="' + U.esc(group.key) + '" aria-expanded="' + railExpanded.has(group.key) + '"><span>' + U.esc(group.name) + '</span><small>' + U.esc(railAgentName(w)) + ' · ' + group.rows.length + ' run' + (group.rows.length === 1 ? '' : 's') + ' · ' + (railExpanded.has(group.key) ? 'collapse' : 'show history') + '</small></button></li>' : '';
-      const tip = title + (w.archived ? ' · archived' : '') + (st.status ? ' · ' + st.status : '')
-        + (Workstreams.unread(w) ? ' · not seen yet' : '')
-        // LANE lives here now rather than in the dot. Only a board DIRECTIVE ('task') actually chose
-        // its lane; a plain chat's lane is inferred, so naming it on every row would dress a guess
-        // up as a decision. The board remains the surface that owns and edits this.
-        + (w.kind === 'task' ? ' · board: ' + w.lane : '')
-        + (full ? ' · last run on ' + full : '')   // the UNABBREVIATED id the row had to shorten
-        + ' — Shift+F10 or right-click for actions';
+      const tip = railRowTip(w, st);
       return groupHead + '<li class="' + rowClass(w, st, activeId) + '" data-id="' + U.esc(w.id) + '" tabindex="' + (w.id === railFocusId ? '0' : '-1') + '" role="option" aria-selected="' + (w.id === activeId ? 'true' : 'false') + '" aria-posinset="' + (index + 1) + '" aria-setsize="' + rows.length + '" aria-label="' + U.esc(railRowLabel(w, st)) + '" aria-keyshortcuts="Shift+F10" title="' + U.esc(tip) + '">' +
-        '<span class="' + st.dot + '"></span>' +
+        '<span class="' + st.dot + '" aria-hidden="true"></span>' +
         (w.pinned ? '<span class="ws-pin" aria-hidden="true">★</span>' : '') +
         '<span class="ws-agent" aria-hidden="true">' + U.esc(railAgentName(w)) + '</span>' +
         '<span class="ws-title">' + U.esc(title) + '</span>' +
@@ -3716,17 +3708,24 @@ const App = (() => {
     const pending = railPendingIds();
     if ([...pending].sort().join('\n') !== railAttentionKey) { renderRail(); return; }
     const activeId = Workstreams.activeId();
-    ul.querySelectorAll('.ws-row').forEach(li => {
+    document.querySelectorAll('#workstreams .ws-row,#projects .proj-sess-full').forEach(li => {
       if (li.querySelector('.ws-rename')) return;   // leave a row alone while its title is being edited in place
-      const w = Workstreams.get(li.dataset.id); if (!w) return;
+      const project = li.classList.contains('proj-sess-full');
+      const w = Workstreams.get(project ? li.dataset.ws : li.dataset.id); if (!w) return;
       const st = railRowState(w);
       const dot = li.querySelector('.ws-dot'); if (dot && dot.className !== st.dot) dot.className = st.dot;
       const meta = li.querySelector('.ws-meta'); if (meta && meta.textContent !== st.meta) meta.textContent = st.meta;
       // Refresh the latest visible message without rebuilding the row or disturbing focus/scroll.
       const rec = li.querySelector('.ws-receipt');
       if (rec) { const next = railReceipt(w); if (rec.textContent !== next) rec.textContent = next; }
-      const cls = rowClass(w, st, activeId); if (li.className !== cls) li.className = cls;
-      const label = railRowLabel(w, st); if (li.getAttribute('aria-label') !== label) li.setAttribute('aria-label', label);
+      const cls = rowClass(w, st, activeId) + (project ? ' proj-sess-full' : ''); if (li.className !== cls) li.className = cls;
+      const label = railRowLabel(w, st, project); if (li.getAttribute('aria-label') !== label) li.setAttribute('aria-label', label);
+      // Tooltip adoption moves title into data-tip. Update whichever owns it so a live
+      // approval/resume/completion cannot leave the previous state on hover or focus.
+      const tip = railRowTip(w, st, project), tipAttr = li.hasAttribute('title') ? 'title' : 'data-tip';
+      if (li.getAttribute(tipAttr) !== tip) li.setAttribute(tipAttr, tip);
+      const card = el('station-tip');
+      if (card && !card.hidden && li.getAttribute('aria-describedby') === 'station-tip' && card.textContent !== tip) card.textContent = tip;
     });
   }
   function armRailTicker() { if (!railTicker) railTicker = setInterval(updateRailLive, 1000); }
@@ -4226,8 +4225,8 @@ const App = (() => {
         const w = byId[s.id];
         const st = w ? railRowState(w) : { dot: 'ws-dot', meta: s.rel, busy: false, attn: false };
         const cls = w ? rowClass(w, st, activeId) : ('ws-row' + (s.id === activeId ? ' sel' : ''));
-        return '<li class="' + cls + ' proj-sess-full" data-ws="' + U.esc(s.id) + '" tabindex="0" role="button" aria-label="' + U.esc(s.title + ' session; Enter to open') + '"' + (s.id === activeId ? ' aria-current="true"' : '') + ' title="' + U.esc(s.title + ' — open this session') + '">' +
-          '<span class="' + st.dot + '"></span>' +
+        return '<li class="' + cls + ' proj-sess-full" data-ws="' + U.esc(s.id) + '" tabindex="0" role="button" aria-label="' + U.esc(w ? railRowLabel(w, st, true) : s.title + ' session; Enter to open') + '"' + (s.id === activeId ? ' aria-current="true"' : '') + ' title="' + U.esc(w ? railRowTip(w, st, true) : s.title + ' — open this session') + '">' +
+          '<span class="' + st.dot + '" aria-hidden="true"></span>' +
           '<span class="ws-title">' + U.esc(s.title) + '</span>' +
           '<span class="ws-meta">' + U.esc(st.meta || s.rel) + '</span>' +
           '</li>';
