@@ -1,7 +1,11 @@
 /* Settings: shared glass language, scoped to this console and its expanded controls. */
 .settings-console .con-pane { padding: 22px; }
 .settings-console .con-sec-desc { font-size: 16px; line-height: 1.5; margin-bottom: 20px; }
-.settings-console .con-rail-item { min-height: 43px; font-size: 14px; }
+.settings-console.sn-menu .con-rail-list { padding: 8px; gap: 4px; }
+.settings-console.sn-menu .con-rail-item { flex: 0 0 auto; min-height: 36px; grid-template-columns: 16px minmax(0,1fr); gap: 8px; padding: 8px 10px; margin: 0; border-radius: 7px; background: transparent; font-size: 14px; line-height: 1.25; }
+.settings-console.sn-menu .con-rail-label { font-size: 14px; letter-spacing: .15px; line-height: 1.25; }
+.settings-console.sn-menu .con-rail-item:hover { background: rgba(var(--ph-rgb),.055); border-color: rgba(var(--ph-rgb),.16); }
+.settings-console.sn-menu .con-rail-item[aria-selected="true"] { color: var(--ph-bright); background: var(--menu-glass); border-color: rgba(var(--ph-rgb),.3); box-shadow: inset 0 1px 0 rgba(var(--ph-bright-rgb),.1); }
 .settings-console .settings-group { margin: 0 0 18px; padding: 20px; border: 1px solid rgba(var(--ph-rgb), .18); border-radius: 12px; background: var(--menu-glass); box-shadow: inset 0 1px 0 rgba(var(--ph-bright-rgb), .08); scroll-margin-top: 16px; }
 .settings-console .settings-group:empty { display: none; }
 .settings-console .settings-group > .ms-h:first-child { margin-top: 0; }
@@ -100,5 +104,4 @@
 .settings-console .set-theme.settings-swatch { position: relative; flex: 0 0 40px; width: 40px; height: 40px; min-width: 40px; padding: 0; border: 3px solid rgba(0,0,0,.35); border-radius: 8px; background: var(--sw); color: #111; box-shadow: inset 0 1px 0 rgba(255,255,255,.3); }
 .settings-console .settings-swatch:hover { outline: 1px solid var(--ph-dim); outline-offset: 3px; }
 .settings-console .settings-swatch[aria-pressed="true"] { outline: 2px solid var(--ph-bright); outline-offset: 3px; background: var(--sw); }
-.settings-console .settings-swatch[aria-pressed="true"]::after { content: '✓'; position: absolute; inset: 0; display: grid; place-items: center; font: bold 20px/1 sans-serif; color: #111; text-shadow: 0 1px 1px rgba(255,255,255,.5); }
 .settings-console .set-theme.settings-swatch-custom { margin-left: 8px; background: linear-gradient(135deg, #ff8585 0%, #ffce7b 22%, #a5e6a0 43%, #8bd9ef 64%, #b4a2ee 82%, #efa3d0 100%); }
