@@ -61,6 +61,13 @@ test('managed chat ignores stale request endpoints and credentials across provid
       assert.equal(calls.at(-1).key, 'Bearer fixture-linked-token');
       assert.equal(calls.at(-1).url, '/v1/chat/completions');
     }
+    // Without a linked account, arbitrary request credentials must not impersonate managed access.
+    fs.unlinkSync(savedPath);
+    await fixture.restart({ STARNET_CREDITS_TOKEN: '', SKYNET_CREDITS_TOKEN: '' });
+    const beforeUnlinked = calls.length;
+    const unlinked = await fixture.request('/api/run', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ provider: 'starnet', key: 'fixture-custom-key', baseUrl: cloud + '/v1', model: 'test/model', messages: [{ role: 'user', content: 'hello' }] }) });
+    assert.equal(unlinked.status, 400);
+    assert.equal(calls.length, beforeUnlinked, 'unlinked managed request must not reach a provider');
     console.log('AFTER: stale endpoint repaired; custom routing preserved; switching back uses linked endpoint/token; desktop-token restart passed.');
   } finally { await fixture.dispose(); server.closeAllConnections(); await new Promise(r => server.close(r)); }
 });
