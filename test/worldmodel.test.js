@@ -937,4 +937,56 @@ A.eq(JSON.stringify(WM.deserialize({ rooms: {}, order: [], props: [], edges: [{ 
   A.eq(JSON.stringify(WM.deserialize(old.serialize()).serialize().rooms), before, 'existing station dimensions are never recomposed');
 }
 
+/* ---- new deck catalogs use the existing placement, palette and persistence paths ---- */
+{
+  const oldMaterials = ['spine', 'alloy', 'runner', 'treadway', 'meshway', 'plate', 'diamond', 'cargo', 'panel', 'tile', 'ceramic', 'resin', 'tread', 'soft', 'grate', 'hex', 'plank', 'turf'];
+  const additions = { basalt: 'BASALT', parquet: 'PARQUET', rubber: 'RUBBER' };
+  A.eq(WM.MAT_ORDER.filter(id => !additions[id]), oldMaterials, 'new decks retain every previous picker entry in its original order');
+  A.eq(new Set(WM.MAT_ORDER).size, WM.MAT_ORDER.length, 'the material picker has no duplicate entries');
+  for (const [mid, label] of Object.entries(additions)) {
+    const st = WM.create(), id = st.spawnRoomId(), def = st.FLOOR_MATERIALS[mid];
+    A.ok(def && st.MAT_ORDER.includes(mid), mid + ' appears in the catalog-backed surface picker');
+    A.eq(def.label, label, mid + ' has its named material swatch');
+    A.ok(st.FLOOR_STYLES[def.suggest], mid + ' suggests a real, overridable picker hue');
+    st.setFloor(id, 'cobalt');
+    st.paintTiles(id, [[2, 2]], 'crimson');
+    const paint = JSON.stringify(st.roomById(id).floorPaint), previous = st.matOfRoom(id);
+    A.ok(st.setMaterial(id, mid).ok, mid + ' can be applied through the material-only action');
+    A.eq(st.roomById(id).floorStyle, 'cobalt', mid + ' never forces its suggested colour into the model');
+    A.eq(JSON.stringify(st.roomById(id).floorPaint), paint, mid + ' preserves existing tile paint');
+    A.eq(st.projectGeometry().matOf(id), mid, mid + ' reaches the renderer geometry');
+    st.undo(); A.eq(st.matOfRoom(id), previous, mid + ' material selection undoes');
+    st.redo(); A.eq(st.matOfRoom(id), mid, mid + ' material selection redoes');
+    const restored = WM.deserialize(JSON.parse(JSON.stringify(st.serialize())));
+    A.eq(restored.roomById(id).floorMat, mid, mid + ' persists as its explicit material ID');
+    A.eq(restored.projectGeometry().matOf(id), mid, mid + ' remains the renderer material after reload');
+    A.eq(JSON.stringify(restored.roomById(id).floorPaint), paint, mid + ' keeps tile paint after reload');
+    const beforeDeck = JSON.stringify(restored.roomById(id));
+    A.ok(restored.setDeck(id, { mat: mid, style: def.suggest }).ok, mid + ' accepts the surface picker deck action');
+    A.eq(restored.roomById(id).floorStyle, def.suggest, mid + ' applies the explicitly selected hue');
+    A.eq(restored.roomById(id).floorPaint, {}, mid + ' whole-deck action clears per-tile paint');
+    restored.undo();
+    A.eq(JSON.stringify(restored.roomById(id)), beforeDeck, mid + ' whole-deck action restores hue and paint in one undo');
+    const placed = st.addRoom({ kind: 'lab', floorMat: mid, rect: { x1: 24, y1: 0, x2: 32, y2: 8 } });
+    A.ok(placed.ok, mid + ' is accepted when placing a room');
+    A.eq(st.projectGeometry().matOf(placed.id), mid, mid + ' survives new-room projection');
+  }
+  // Catalog extension must not reinterpret existing saves or inherited defaults.
+  for (const mid of oldMaterials) {
+    const doc = WM.defaultDoc(1), id = doc.meta.spawnRoomId;
+    doc.rooms[id].floorMat = mid;
+    const restored = WM.deserialize(JSON.parse(JSON.stringify(doc)));
+    A.eq(restored.roomById(id).floorMat, mid, mid + ' existing saved ID is retained');
+    A.eq(restored.matOfRoom(id), mid, mid + ' existing save keeps its effective material');
+  }
+  const defaults = { hab: 'spine', bridge: 'panel', lab: 'tile', factory: 'tread', quarters: 'soft', storage: 'tread', corridor: 'spine' };
+  for (const [kind, mid] of Object.entries(defaults)) {
+    const doc = WM.defaultDoc(1), id = doc.meta.spawnRoomId;
+    doc.rooms[id].kind = kind; doc.rooms[id].floorMat = null;
+    const restored = WM.deserialize(doc);
+    A.eq(restored.matOfRoom(id), mid, kind + ' inherited deck stays unchanged');
+    A.eq(restored.roomById(id).floorMat, null, kind + ' inherited deck is not rewritten as an override');
+  }
+}
+
 A.report('worldmodel');
