@@ -2958,7 +2958,7 @@ body.rows-inbox #workstreams .ws-title {
 body.rows-inbox #workstreams .ws-rename { grid-area: title; }
 body.rows-inbox #workstreams .ws-receipt {
   display: block; grid-area: recpt; min-width: 0;
-  font-size: 13px; line-height: 1.2; color: var(--ph-dim);
+  font-size: 15px; line-height: 1.25; color: var(--ph-dim);
   letter-spacing: .1px; text-shadow: none;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
