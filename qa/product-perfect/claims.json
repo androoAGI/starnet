@@ -18,7 +18,7 @@
   "expectedClaimCount": 37,
   "releaseSurface": {
     "algorithm": "sha256",
-    "sourceCommit": "b0bf211b32e1c1dc3c7e59b849c2e633f28e738e",
+    "sourceCommit": "aad31a42931dc9c874feb2a4be2c433981cf171d",
     "pathSetSha256": "aa82b901b007fa2cb5fd94679557c8def3d25b461b5aa720ac9aaacf7a0560ac",
     "files": [
       {
@@ -183,8 +183,8 @@
       },
       {
         "path": "frontend/app/commandroom.js",
-        "bytes": 16049,
-        "sha256": "e31a729843ce03c12e024c80a71e0d0d26268b58367c20881b39f143e91fcd55"
+        "bytes": 16078,
+        "sha256": "a94f01802802b2f968a45fcdbc80ff4213d568a737cdad66510178051645f005"
       },
       {
         "path": "frontend/app/confbeats.js",
@@ -1018,8 +1018,8 @@
       },
       {
         "path": "frontend/app/world.js",
-        "bytes": 723919,
-        "sha256": "c38915977d2d1171860777dc91f9ed7cf84beb746a942ecfd2f20e68d559ad4f"
+        "bytes": 723945,
+        "sha256": "30f7f1fa19530fdf3ae15c8904397f429dd89352da9583190cb50fd2c3535e1a"
       },
       {
         "path": "frontend/app/worldlab.js",
