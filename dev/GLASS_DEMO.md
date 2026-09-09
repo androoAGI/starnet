@@ -1,8 +1,8 @@
-# Glass UI local demo
+# Glass UI merge candidate
 
-Open http://127.0.0.1:9199/?glass=1 in a browser. Without `?glass=1`, the normal presentation is used.
+Open http://127.0.0.1:9199/ in a browser. Glass is now the default presentation from the first paint. `?glass=1` remains compatible; `?glass=0` is an explicit diagnostic fallback.
 
-This isolated branch is a design demo of the real StarNet frontend and sidecar, not an installed release. Its save lives in `dev/.scratch-workspace`. No production station data or provider keys were copied.
+This isolated branch is the glass interface merge candidate for the real StarNet frontend and sidecar, not an installed release. Its save lives in `dev/.scratch-workspace`. No production station data or provider keys were copied.
 
 ## Try it
 
@@ -32,7 +32,9 @@ The current demo is keyless: browsing and UI controls work; real model runs need
 
 ## Implementation
 
-`frontend/app/glass-demo.js` is opt-in, with `frontend/css/glass-demo.css` loaded only for the demo URL. Window-manager hooks reuse minimize, let the docked sheet own its geometry, and route close/minimize/restore through its interruptible motion controller. The generated website mirror is synchronized.
+`frontend/app/glass-boot.js` selects the default material before the app initializes, after BootGuard and legacy migration. The glass styles and controllers are loaded statically. The internal glass-demo filenames are retained for compatibility. Window-manager hooks reuse minimize, let the docked sheet own its geometry, and route close/minimize/restore through its interruptible motion controller. The generated website mirror is synchronized.
+
+The current integration audit is recorded in [the glass interface receipt](../qa/digests/2026-09-09-glass-interface.md). The sections below retain the earlier demo checks and their original limits.
 
 ## Live verification
 

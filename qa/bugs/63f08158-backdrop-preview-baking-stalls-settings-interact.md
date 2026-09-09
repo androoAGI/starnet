@@ -27,4 +27,4 @@ Cold-browser traces before: longest task 1439-1559ms; getImageData consumed 1231
 
 ## Verdict
 
-GPU readbacks and synchronous procedural sample generation ran on the UI thread. The same rendering functions now run in a worker with CPU-backed scratch canvases. Compatibility fallback preserves real thumbnails when a worker cannot run. Awaiting final candidate checks; installed desktop remains unverified.
+GPU readbacks and synchronous procedural sample generation ran on the UI thread. The same rendering functions now run in a worker with CPU-backed scratch canvases. Compatibility fallback preserves real thumbnails when a worker cannot run. All eight previews render in the worker in the combined-candidate live sweep; its longest main-thread task is 144ms and the full fast gate passes 752/752. See qa/digests/2026-09-09-glass-interface.md. Installed desktop remains unverified.

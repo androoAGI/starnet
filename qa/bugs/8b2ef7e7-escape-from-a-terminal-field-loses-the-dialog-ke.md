@@ -29,4 +29,4 @@ Live :9199 before: focusedTag=BODY, insideWindow=false, windows=1 after the seco
 
 ## Verdict
 
-The shared key handler called blur(), discarding the dialog keyboard boundary. Returning focus to the dialog preserves the two-step Escape behavior and existing unsaved-draft guard. Source repair awaiting final candidate checks; installed desktop not verified.
+The shared key handler called blur(), discarding the dialog keyboard boundary. Returning focus to the dialog preserves the two-step Escape behavior and existing unsaved-draft guard. The combined-candidate live sweep and full fast gate (752/752) pass. See qa/digests/2026-09-09-glass-interface.md. Installed desktop is not verified.

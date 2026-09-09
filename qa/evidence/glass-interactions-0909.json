@@ -418,133 +418,134 @@
       "function": "(program)",
       "url": "",
       "line": 0,
-      "selfMs": 430.31
+      "selfMs": 446.303
     },
     {
       "function": "(idle)",
       "url": "",
       "line": 0,
-      "selfMs": 153.937
-    },
-    {
-      "function": "getImageData",
-      "url": "",
-      "line": 0,
-      "selfMs": 29.599
-    },
-    {
-      "function": "drawCurveGL",
-      "url": "app/world.js",
-      "line": 6244,
-      "selfMs": 12.985
+      "selfMs": 183.548
     },
     {
       "function": "getBoundingClientRect",
       "url": "",
       "line": 0,
-      "selfMs": 12.595
-    },
-    {
-      "function": "drawImage",
-      "url": "",
-      "line": 0,
-      "selfMs": 9.586
-    },
-    {
-      "function": "getBoundingClientRect",
-      "url": "",
-      "line": 0,
-      "selfMs": 9.568
-    },
-    {
-      "function": "draw",
-      "url": "app/spacebg.js",
-      "line": 443,
-      "selfMs": 6.403
-    },
-    {
-      "function": "query",
-      "url": "",
-      "line": 5607,
-      "selfMs": 6.149
+      "selfMs": 14.952
     },
     {
       "function": "texImage2D",
       "url": "",
       "line": 0,
-      "selfMs": 5.695
+      "selfMs": 11.632
+    },
+    {
+      "function": "query",
+      "url": "",
+      "line": 5607,
+      "selfMs": 10.255
+    },
+    {
+      "function": "getBoundingClientRect",
+      "url": "",
+      "line": 0,
+      "selfMs": 9.778
+    },
+    {
+      "function": "draw",
+      "url": "app/spacebg.js",
+      "line": 443,
+      "selfMs": 9.693
+    },
+    {
+      "function": "isElementHiddenForAria",
+      "url": "",
+      "line": 3368,
+      "selfMs": 9.331
+    },
+    {
+      "function": "getBoundingClientRect",
+      "url": "",
+      "line": 0,
+      "selfMs": 8.181
+    },
+    {
+      "function": "drawCurveGL",
+      "url": "app/world.js",
+      "line": 6305,
+      "selfMs": 7.99
+    },
+    {
+      "function": "querySelector",
+      "url": "",
+      "line": 0,
+      "selfMs": 6.408
     },
     {
       "function": "drawImage",
       "url": "",
       "line": 0,
-      "selfMs": 4.812
-    },
-    {
-      "function": "getImageData",
-      "url": "",
-      "line": 0,
-      "selfMs": 4.777
+      "selfMs": 5.139
     }
   ],
   "performance": {
-    "frames": 2435,
+    "frames": 2533,
     "p95FrameMs": 16.600000000000364,
-    "longTasks": 14,
+    "longTasks": 15,
     "slowest": [
       {
-        "start": 8623.099999997765,
-        "duration": 87,
+        "start": 2259,
+        "duration": 144,
         "phase": "glass:open settings"
       },
       {
-        "start": 13704.099999997765,
-        "duration": 81,
+        "start": 2519.39999999851,
+        "duration": 123,
         "phase": "glass:open settings"
       },
       {
-        "start": 15617.199999999255,
-        "duration": 71,
+        "start": 4124.099999997765,
+        "duration": 110,
+        "phase": "glass:open settings"
+      },
+      {
+        "start": 7984.89999999851,
+        "duration": 86,
+        "phase": "glass:open settings"
+      },
+      {
+        "start": 9764.29999999702,
+        "duration": 76,
+        "phase": "glass:open settings"
+      },
+      {
+        "start": 16360.699999999255,
+        "duration": 69,
         "phase": "glass:close window"
       },
       {
-        "start": 10272,
-        "duration": 69,
-        "phase": "glass:open settings"
-      },
-      {
-        "start": 3429.300000000745,
-        "duration": 67,
-        "phase": "glass:open settings"
-      },
-      {
-        "start": 7465.199999999255,
-        "duration": 67,
-        "phase": "glass:open settings"
-      },
-      {
-        "start": 9263.699999999255,
+        "start": 11394.699999999255,
         "duration": 66,
         "phase": "glass:open settings"
       },
       {
-        "start": 5128.599999997765,
-        "duration": 64,
+        "start": 6104.39999999851,
+        "duration": 65,
         "phase": "glass:open settings"
       },
       {
-        "start": 6702.89999999851,
-        "duration": 61,
+        "start": 6764,
+        "duration": 63,
         "phase": "glass:open settings"
       },
       {
-        "start": 2340.199999999255,
-        "duration": 60,
+        "start": 4845.79999999702,
+        "duration": 56,
         "phase": "glass:open settings"
       }
     ]
   },
   "pass": true,
-  "sourceCommit": "db3ae6bb4a5c450886e5f8a5a0ff0575e96e4117",
-  "runtime": "Headless local Chrome against seeded :9199; installed desktop unverified"
+  "sourceCommit": "33fc363994db693552405b8a8dbea99b80bb9212",
+  "candidateCommit": "00d976c3a0d13594809e0fe36794681240af54e3",
+  "runtime": "Headless local Chrome against seeded :9199 after the approved world integration; installed desktop unverified"
 }

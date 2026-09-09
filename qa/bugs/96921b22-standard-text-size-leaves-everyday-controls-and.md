@@ -34,7 +34,7 @@ Before-fix live DOM at the local demo: crew status/level and summary 11px; ALL/A
 
 ## Verdict
 
-Shared source repair and seeded-browser verification completed at STANDARD, with compact/wide viewport and enlarged-text checks. See dev/GLASS_DEMO.md for the before/after receipt, passing focused checks and 32 customer-journey suites. Full fast remains blocked by the pre-existing release-manifest failures. Installed application verification and owner acceptance remain separate from source repair.
+Shared source repair and seeded-browser verification completed at STANDARD, with compact/wide viewport and enlarged-text checks. See dev/GLASS_DEMO.md for the before/after receipt, passing focused checks and 32 customer-journey suites. The final combined-candidate full fast gate now passes 752/752; current viewport and enlarged-text proof is in qa/evidence/glass-interactions-0909.json and qa/digests/2026-09-09-glass-interface.md. Installed application verification and owner acceptance remain separate from source repair.
 
 ## Regression
 
