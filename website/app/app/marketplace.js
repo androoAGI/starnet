@@ -1205,7 +1205,7 @@ const Marketplace = (() => {
     const who = (ctx && ctx.agentName) || 'your agent';
     const steps = (r.steps && r.steps.length) ? '<div class="mkt-block"><div class="bh">HOW IT WORKS</div><ol class="mkt-starters mkt-sop-steps">' +
       r.steps.map(x => '<li>' + esc(x) + '</li>').join('') + '</ol></div>' : '';
-    const accept = (r.acceptance && r.acceptance.length) ? '<div class="mkt-block"><div class="bh">ACCEPTANCE — host-checked when the run ends</div><ul class="mkt-starters mkt-sop-accept">' +
+    const accept = (r.acceptance && r.acceptance.length) ? '<div class="mkt-block"><div class="bh">RESULT CHECKS</div><ul class="mkt-starters mkt-sop-accept">' +
       r.acceptance.map(a => '<li>◇ ' + esc(Recipes.acceptanceLabel(a)) + '</li>').join('') + '</ul></div>' : '';
     // fork provenance: a forked custom names its parent (a live jump would be nice but the parent may be gone).
     const parent = (r.source === 'fork' && r.forkedFrom) ? Recipes.get(r.forkedFrom) : null;
@@ -1214,8 +1214,8 @@ const Marketplace = (() => {
     const cadHint = r.cadence
       ? '<div class="mkt-r-cadhint">◷ naturally recurring — suggests <b>' + esc(cadenceLabel(r.cadence)) + '</b></div>' : '';
     // TWEAK + EXPORT are on EVERY dossier (fork/export any recipe); EDIT/DELETE only on your own customs.
-    const tweakBtn = '<button class="bb sm mkt-recipe-tweak" data-id="' + esc(r.id) + '">✎ TWEAK</button>';
-    const exportBtn = '<button class="bb sm mkt-recipe-export" data-id="' + esc(r.id) + '" title="download this recipe as a portable JSON file">⇩ EXPORT</button>';
+    const tweakBtn = '<button class="bb sm mkt-recipe-tweak" data-id="' + esc(r.id) + '">CUSTOMIZE A COPY</button>';
+    const exportBtn = '<button class="bb sm mkt-recipe-export" data-id="' + esc(r.id) + '" title="download this recipe as a portable JSON file">DOWNLOAD RECIPE</button>';
     const custActs = r.custom
       ? '<div class="mkt-cta-row">' + tweakBtn +
         '<button class="bb sm mkt-recipe-edit" data-id="' + esc(r.id) + '">✐ EDIT</button>' + exportBtn +
@@ -1233,15 +1233,27 @@ const Marketplace = (() => {
       (p.required ? '' : ' <span class="mkt-opt">(optional)</span>') + '</span>' + paramControlHTML(p, p.default || '') + '</label>';
     const requiredFields = (r.params || []).filter(p => p.required).map(field).join('');
     const optionalFields = (r.params || []).filter(p => !p.required).map(field).join('');
+    const tabs = ['Options', 'Workflow', 'Reuse'].map((label, i) =>
+      '<button type="button" role="tab" id="recipe-detail-tab-' + i + '" aria-controls="recipe-detail-panel-' + i +
+      '" aria-selected="' + (i === 0) + '" tabindex="' + (i === 0 ? '0' : '-1') + '" data-recipe-panel="' + i + '">' + label + '</button>').join('');
+    const panel = (i, html) => '<div class="mkt-recipe-detail-panel" role="tabpanel" id="recipe-detail-panel-' + i +
+      '" aria-labelledby="recipe-detail-tab-' + i + '"' + (i ? ' hidden' : '') + '>' + html + '</div>';
+    const options = optionalFields || intakeRows
+      ? '<p class="mkt-detail-note">Adjust what matters. You can leave the rest as it is.</p>' + optionalFields + intakeRows
+      : '<p class="mkt-detail-note">No extra options for this recipe. It is ready with the details above.</p>';
+    const workflow = steps + accept +
+      '<details class="mkt-recipe-instructions"><summary>View full instructions</summary><pre id="mkt-l-preview"></pre></details>';
+    const reuse = '<p class="mkt-detail-note">Make a version of your own, or run this recipe on a schedule.</p>' +
+      '<div class="mkt-reuse-actions">' + custActs +
+      '<button class="bb sm mkt-launch-options" data-id="' + esc(r.id) + '">SET UP A SCHEDULE</button></div>' +
+      liveRoutineBadgeHTML(r) + forkLine;
     return '<div class="mkt-dos-scroll mkt-recipe-simple"><div class="mkt-dos-hero">' +
       '<div class="mkt-dos-hi"><div class="mkt-dos-name">' + esc(r.name) + '</div>' +
       '<div class="mkt-dos-tag">' + esc(r.tagline) + '</div></div></div>' +
       '<div class="mkt-inline-launch">' + requiredFields +
-      '<details class="mkt-brief"><summary>Options &amp; recipe details</summary>' + optionalFields + intakeRows +
-      steps + '<div class="mkt-block"><div class="bh">INSTRUCTIONS</div><pre>' + esc(r.task) + '</pre></div>' +
-      accept + recipeGearHTML(r) + recipeSkillsHTML(r) + lastRunHTML(r) + driftHTML(r) +
-      liveRoutineBadgeHTML(r) + forkLine + cadHint + custActs +
-      '<button class="bb sm mkt-launch-options" data-id="' + esc(r.id) + '">MORE SETUP / SCHEDULE</button></details>' +
+      '<details class="mkt-brief mkt-recipe-details"><summary>Options &amp; recipe details</summary>' +
+      '<div class="mkt-recipe-detail-tabs" role="tablist" aria-label="Recipe details">' + tabs + '</div>' +
+      panel(0, options) + panel(1, workflow) + panel(2, reuse) + '</details>' +
       '<button class="mkt-cta-main mkt-do-launch">▸ START SESSION</button>' +
       '<div class="mkt-cta-sub">Opens a new session with ' + esc(who) + '.</div></div></div>';
 
@@ -2197,6 +2209,20 @@ const Marketplace = (() => {
   function wireDossier(scope) {
     const sc = scope || root; if (!sc) return;
     wireSummonConfig(sc);
+    const detailTabs = Array.from(sc.querySelectorAll('[data-recipe-panel]'));
+    const selectDetailTab = btn => {
+      detailTabs.forEach(t => { const active = t === btn; t.setAttribute('aria-selected', String(active)); t.tabIndex = active ? 0 : -1; });
+      sc.querySelectorAll('.mkt-recipe-detail-panel').forEach(p => { p.hidden = p.id !== btn.getAttribute('aria-controls'); });
+    };
+    detailTabs.forEach((btn, i) => {
+      btn.addEventListener('click', () => selectDetailTab(btn));
+      btn.addEventListener('keydown', e => {
+        if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(e.key)) return;
+        e.preventDefault();
+        const next = e.key === 'Home' ? 0 : e.key === 'End' ? detailTabs.length - 1 : (i + (e.key === 'ArrowRight' ? 1 : -1) + detailTabs.length) % detailTabs.length;
+        selectDetailTab(detailTabs[next]); detailTabs[next].focus();
+      });
+    });
     const inlineLaunch = sc.querySelector('.mkt-inline-launch');
     if (inlineLaunch && focusRecipe) wireLaunchForm(inlineLaunch, Recipes.get(focusRecipe));
     const dosBack = sc.querySelector('.mkt-dos-back');
@@ -2275,7 +2301,9 @@ const Marketplace = (() => {
     });
     const optionsBtn = sc.querySelector('.mkt-launch-options');
     if (optionsBtn) optionsBtn.addEventListener('click', () => {
-      launchId = optionsBtn.dataset.id; launchMode = 'run'; launchCadence = null; view = 'launch';
+      launchId = optionsBtn.dataset.id; launchMode = 'routine';
+      const r = Recipes.get(launchId);
+      launchCadence = r && r.cadence && cadenceOpt(r.cadence) ? r.cadence : 'morning'; view = 'launch';
       loadCronJobs(); renderStage();
     });
     const edit = sc.querySelector('.mkt-edit');

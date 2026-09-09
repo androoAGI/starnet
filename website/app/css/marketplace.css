@@ -1092,3 +1092,28 @@ button.mkt-archive-head:focus-visible { outline: 2px solid var(--gold); outline-
 .mkt-inline-launch > .mkt-cta-main { width: 100%; margin-top: 8px; }
 .mkt-library-more { margin: 22px 6px 0; color: var(--ph-dim); }
 .mkt-library-more > summary { cursor: pointer; padding: 10px 0; }
+
+/* The expanded recipe area is a small editor, with one purpose visible at a time. */
+.mkt-recipe-detail-tabs { display: flex; gap: 4px; padding: 4px; margin-top: 14px;
+  border: 1px solid var(--ph-faint); border-radius: 7px; background: rgba(0,0,0,.16); }
+.mkt-recipe-detail-tabs button { flex: 1; font: inherit; font-size: 13px; padding: 9px 6px;
+  color: var(--ph-dim); background: transparent; border: 1px solid transparent; border-radius: 5px; cursor: pointer; }
+.mkt-recipe-detail-tabs button[aria-selected="true"] { color: var(--ph-bright); border-color: var(--ui-edge);
+  background: var(--ui-face); box-shadow: inset 0 1px 0 var(--ui-highlight); }
+.mkt-recipe-detail-tabs button:focus-visible { outline: 2px solid var(--ph); outline-offset: 2px; }
+.mkt-recipe-detail-panel { padding: 16px 2px 6px; }
+.mkt-recipe-detail-panel[hidden] { display: none; }
+.mkt-detail-note { margin: 0 0 16px; font-size: 14px; line-height: 1.5; color: var(--ph-dim); }
+.mkt-recipe-detail-panel .mkt-intake { margin: 18px 0; gap: 10px; }
+.mkt-recipe-detail-panel .mkt-lbl-hint { display: block; margin-top: 5px; font-size: 12px; }
+.mkt-recipe-detail-panel .mkt-sop-steps { padding-left: 22px; margin: 8px 0; }
+.mkt-recipe-detail-panel .mkt-sop-steps li { padding: 7px 0 7px 5px; font-size: 14px; line-height: 1.5; }
+.mkt-recipe-detail-panel .mkt-sop-steps li::marker { color: var(--ph-dim); }
+.mkt-recipe-instructions { border-top: 1px solid var(--ph-faint); padding-top: 12px; }
+.mkt-recipe-instructions pre { white-space: pre-wrap; overflow-wrap: anywhere; font: inherit; font-size: 13px;
+  line-height: 1.65; color: var(--text); padding: 12px; background: rgba(0,0,0,.15); border-radius: 6px; }
+.mkt-reuse-actions, .mkt-reuse-actions .mkt-cta-row { display: flex; flex-wrap: wrap; gap: 8px; }
+.mkt-reuse-actions { flex-direction: column; align-items: flex-start; }
+
+.mkt-recipe-detail-panel .mkt-sop-steps li { background: none; border: 0; box-shadow: none; }
+.mkt-recipe-detail-panel .mkt-sop-steps li::before { content: none; }
