@@ -81,8 +81,8 @@
         '<div class="brief-v">Choose the task, agent and time. Results appear in Active Routines. It uses the selected agent’s model and access. Without an existing grant or Full Access, terminal and connected tools are off unless you grant them below; placing a WORKBENCH on the floor does not grant them unattended access.</div></div>' +
       '<div id="rt-create-state" class="set-about" role="status">Checking whether scheduling is enabled…</div>' +
       '<div class="mc-form">' +
-        '<input id="rt-name" class="key-input" placeholder="name — e.g. Morning AI brief" maxlength="80" autocomplete="off">' +
-        '<textarea id="rt-prompt" class="key-input" rows="2" placeholder="what should it do each run? e.g. search for new AI-policy news and summarize the top 3" style="resize:vertical"></textarea>' +
+        '<label class="sn-menu-field">Name<input id="rt-name" class="key-input" placeholder="name — e.g. Morning AI brief" maxlength="80" autocomplete="off"></label>' +
+        '<label class="sn-menu-field">What should it do?<textarea id="rt-prompt" class="key-input" rows="2" placeholder="what should it do each run? e.g. search for new AI-policy news and summarize the top 3" style="resize:vertical"></textarea></label>' +
         // WHEN — the schedule PICKER (frontend/app/schedpicker.js). It owns the `#rt-sched` text input and
         // types into it, so the preview below, #rt-add, the QA journey and every existing selector are
         // unchanged; without the module we fall back to that same bare input, never to a dead form.
@@ -94,17 +94,20 @@
         '<div id="rt-preview" class="dim" style="min-height:1em;font-size:.9em"></div>' +
         '<div class="rt-agent-pick" role="group" aria-label="Routine agent">' + roster.map(agentButton).join('') + '</div>' +
         '<input id="rt-agent" type="hidden" value="' + esc(routineAgentId) + '">' +
-        '<details class="brief-block" style="margin:4px 0"><summary>ADVANCED RUNTIME</summary>' +
-          '<div class="mc-form" style="margin-top:8px">' +
-            '<input id="rt-skills" class="key-input" placeholder="saved skills (comma-separated names)">' +
-            '<input id="rt-context" class="key-input" placeholder="upstream routine ids (comma-separated)">' +
-            '<input id="rt-workdir" class="key-input" placeholder="approved project folder (optional absolute path)">' +
-            '<input id="rt-script" class="key-input" placeholder="pre-check script (relative to workspace/project)">' +
-            '<label class="rt-term"><input type="checkbox" id="rt-no-agent"> script only — do not call a model</label>' +
-            '<input id="rt-toolsets" class="key-input" placeholder="allowed toolsets (comma-separated; blank = station defaults)">' +
-            '<select id="rt-deliver" class="key-input"><option value="local">keep result in StarNet</option><option value="origin">return result to this conversation</option></select>' +
-            '<label class="rt-term"><input type="checkbox" id="rt-continue"> keep delivery continuable in its conversation</label>' +
-          '</div>' +
+        '<details class="sn-menu-options"><summary>Advanced options</summary>' +
+          '<div class="sn-menu-tabs" role="group" aria-label="Advanced schedule options">' +
+          ['Context', 'Execution', 'Delivery'].map((label, i) => '<button type="button" data-auto-tab="' + i + '" aria-pressed="' + (i === 0) + '">' + label + '</button>').join('') + '</div>' +
+          '<div data-auto-panel="0"><p class="sn-menu-note">Give each run the files and background it needs.</p>' +
+            '<label class="sn-menu-field">Project folder<input id="rt-workdir" class="key-input" placeholder="Approved absolute path (optional)"></label>' +
+            '<label class="sn-menu-field">Saved skills<input id="rt-skills" class="key-input" placeholder="Skill names, separated by commas"></label>' +
+            '<label class="sn-menu-field">Results from other routines<input id="rt-context" class="key-input" placeholder="Routine IDs, separated by commas"></label></div>' +
+          '<div data-auto-panel="1" hidden><p class="sn-menu-note">Optional script and tool restrictions for this job.</p>' +
+            '<label class="sn-menu-field">Pre-check script<input id="rt-script" class="key-input" placeholder="Path relative to the project"></label>' +
+            '<label class="rt-term"><input type="checkbox" id="rt-no-agent"> Run the script only, without a model</label>' +
+            '<label class="sn-menu-field">Allowed toolsets<input id="rt-toolsets" class="key-input" placeholder="Comma-separated; blank uses station defaults"></label></div>' +
+          '<div data-auto-panel="2" hidden><p class="sn-menu-note">Choose where the result goes.</p>' +
+            '<label class="sn-menu-field">Result destination<select id="rt-deliver" class="key-input"><option value="local">Keep in StarNet</option><option value="origin">Return to this conversation</option></select></label>' +
+            '<label class="rt-term"><input type="checkbox" id="rt-continue"> Allow follow-up in that conversation</label></div>' +
         '</details>' +
         // UNATTENDED TERMINAL GRANT — default OFF, and it must stay a deliberate tick: this is the one control
         // that lets a scheduled run execute commands with nobody watching. The label states the risk plainly

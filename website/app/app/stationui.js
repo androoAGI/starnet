@@ -923,7 +923,7 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
     // the wide shell PLUS the section-rail markup, so its size is owned by CSS (.term.console) — a
     // per-panel inline width must NOT be applied there, an inline 500px would starve the rail.
     // `opts.wide` is the same width with no rail, for the grid/multi-column windows.
-    if (opts && opts.console) w.classList.add('console');
+    if (opts && opts.console) w.classList.add('console', 'sn-menu');
     else if (opts && opts.wide) w.classList.add('wide');
     if (opts && opts.className) w.classList.add(opts.className);
     w._sizeLimits = terminalLimits(opts);

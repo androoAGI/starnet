@@ -50,14 +50,14 @@
        have nothing to show until they do (this is a sandbox product; nothing is locked). */
     const secStart =
       '<div class="lp-wiz">' +
-        '<div class="lp-step-h"><span class="lp-num">1</span> WHAT KIND OF LOOP?</div>' +
+        '<div class="lp-step-h">Choose a workflow</div>' +
         '<div id="lp-shapes" class="lp-shapes"></div>' +
         '<div id="lp-s2" class="lp-stage" hidden>' +
-          '<div class="lp-step-h"><span class="lp-num">2</span> WHAT SHOULD IT WORK ON?</div>' +
+          '<div class="lp-step-h">Your goal</div>' +
           '<div id="lp-form" class="mc-form"></div>' +
         '</div>' +
         '<div id="lp-s3" class="lp-stage" hidden>' +
-          '<div class="lp-step-h"><span class="lp-num">3</span> READY</div>' +
+          '<div class="lp-step-h">Review and start</div>' +
           '<div id="lp-ready" class="lp-ready"></div>' +
           '<button class="bb sm lp-go" id="lp-create">✦ START THIS LOOP</button>' +
         '</div>' +
@@ -444,7 +444,7 @@
             roster.map(a => '<button type="button" class="rt-agent-btn' + (a.id === loopAgentId ? ' active' : '') + '" data-agent="' + esc(a.id) + '" style="--rt-agent-color:' + esc(a.color || 'var(--ph)') + '">' +
               '<span class="rt-agent-dot"></span><span class="rt-agent-name">' + esc(a.name || a.id) + '</span></button>').join('') +
           '</div></label>' +
-        '<details class="lp-adv"><summary>more options</summary>' +
+        '<details class="lp-adv"><summary>Budget &amp; instructions</summary>' +
           '<label class="mc-lbl">Stop for the day after <span class="dim">(0 = no limit)</span>' +
             '<div class="lp-dir"><span class="dim">$</span><input id="lp-cap" class="key-input" type="number" min="0" step="0.5" value="' + esc(String(dailyCap)) + '"></div></label>' +
           '<details class="lp-preview"><summary>what the agent will be told</summary><pre id="lp-prev"></pre></details>' +

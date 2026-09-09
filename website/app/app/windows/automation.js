@@ -41,11 +41,18 @@
       pane.innerHTML = '<label for="auto-away-agent">AGENT</label><select id="auto-away-agent" class="key-input">' + H.present.map(a => '<option value="' + H.esc(a.id) + '">' + H.esc(a.name || a.id) + '</option>').join('') + '</select><div id="auto-away-body"></div>' +
         '<details class="cf-group"><summary>Self-directed work and initiative</summary><p>Queued builds are jobs you chose. The station’s autonomy settings also control whether agents propose or choose their own jobs.</p><button class="bb sm" id="auto-initiative">CONFIGURE INITIATIVE</button></details>';
     }});
-    StationUI.h.mountConsole(body, 'automation', sections, { search: false, groups: [
-      { id: 'schedule', label: 'ON A SCHEDULE', sections: ['routines', 'routines-create'] },
-      { id: 'goal', label: 'UNTIL A GOAL IS COMPLETE', sections: ['loops', 'loops-start'] },
-      { id: 'away', label: 'WHILE I’M AWAY', sections: ['away'] }
-    ] });
+    const labels = { routines: 'Scheduled jobs', 'routines-create': 'New schedule', loops: 'Goal loops', 'loops-start': 'New goal loop', away: 'Away work' };
+    const hints = { routines: 'Next runs and recent results', 'routines-create': 'Repeat a task at a chosen time', loops: 'Progress and work to review', 'loops-start': 'Work toward a defined stopping point', away: 'Queued work between messages' };
+    sections.forEach(sec => { sec.label = labels[sec.id] || sec.label; });
+    StationUI.h.mountConsole(body, 'automation', sections, { search: false });
+    body.querySelectorAll('.con-rail-item').forEach(item => {
+      const hint = document.createElement('span'); hint.className = 'sn-menu-nav-note';
+      hint.textContent = hints[item.dataset.section] || ''; item.appendChild(hint);
+    });
+    body.querySelectorAll('[data-auto-tab]').forEach(button => button.addEventListener('click', () => {
+      body.querySelectorAll('[data-auto-tab]').forEach(b => b.setAttribute('aria-pressed', String(b === button)));
+      body.querySelectorAll('[data-auto-panel]').forEach(p => { p.hidden = p.dataset.autoPanel !== button.dataset.autoTab; });
+    }));
     built.forEach(b => { if (typeof b.wire === 'function') b.wire(); });
     const picker = body.querySelector('#auto-away-agent');
     const awayBody = body.querySelector('#auto-away-body');
@@ -92,5 +99,5 @@
     }
   }
 
-  StationUI.registerWindow('automation', 'AUTOMATION', buildAutomation, { console: true });
+  StationUI.registerWindow('automation', 'AUTOMATION', buildAutomation, { console: true, className: 'sn-menu' });
 })();
