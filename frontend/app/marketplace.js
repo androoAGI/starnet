@@ -267,7 +267,7 @@ const Marketplace = (() => {
     StationUI.toggleTerm('marketplace', plainTitle(), body => {
       body.classList.add('mkt-window-body');
       if (!body.contains(mounted)) body.appendChild(mounted);
-    }, { wide: true, className: 'mkt-window', onClose: () => release(mounted) });
+    }, { wide: true, console: tab === 'recipes', className: 'mkt-window', onClose: () => release(mounted) });
     const q = root.querySelector('#mkt-q');
     if (q) q.addEventListener('input', () => { query = (q.value || '').toLowerCase().trim(); renderStage(); restoreSearchFocus(); });
     root.addEventListener('keydown', onKey);
