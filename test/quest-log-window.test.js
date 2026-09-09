@@ -225,4 +225,25 @@ body._questDrafts.set('q:first', { evidence: 'Unsaved result', dirty: true });
 A.eq(ctx.windowDirty(draftWindow), true, 'a draft in another mission still triggers the existing unsaved-close guard');
 body._questDrafts.set('q:first', { evidence: '', dirty: false });
 A.eq(ctx.windowDirty(draftWindow), false, 'recorded or clean cached fields do not block closing');
+// Mixed-goal snapshots must not present every metric as belonging to the current focus.
+vm.runInContext(station.slice(station.indexOf('  function journeyHtml()'), station.indexOf('  function lifeGoalsHtml()')), ctx);
+let journeySnapshot = {
+  activeGoal: { id: 'g1', text: 'Learn <piano>', done: 1, total: 3, next: 'Practice' },
+  goals: [{ id: 'g2', text: 'Change careers' }],
+  metrics: [
+    { id: 'm1', label: 'Practice', goalId: 'g1', current: 1, target: 10 },
+    { id: 'm2', label: 'Applications', goalId: 'g2', current: 2, target: 20 },
+    { id: 'm3', label: 'Hours', current: 3, target: 30 },
+    { id: 'm4', label: 'Legacy', goalId: 'missing', current: 0, target: 1 }
+  ]
+};
+ctx.JourneyStore = { status: () => journeySnapshot };
+const progressMarkup = ctx.journeyHtml();
+A.ok(progressMarkup.includes('Goal: Learn &lt;piano&gt;'), 'focused metric uses the actual goal and escapes its title');
+A.ok(progressMarkup.includes('Goal: Change careers'), 'another goal metric keeps its own goal label');
+A.ok(progressMarkup.includes('General metric · no linked goal'), 'unlinked metrics never imply a focused goal association');
+A.ok(progressMarkup.includes('Linked to another goal'), 'missing goal records do not invent a goal title');
+A.ok(progressMarkup.includes('Linked to your current focus: Learn &lt;piano&gt;'), 'metric editor explains the same focus used by metric creation');
+journeySnapshot = { metrics: [] };
+A.ok(ctx.journeyHtml().includes('No focused goal. This metric will be tracked independently'), 'no-focus editor explains that the new metric will be independent');
 A.report('quest-log-window.test');

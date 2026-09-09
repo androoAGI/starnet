@@ -8476,16 +8476,23 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
     const total = goal ? Math.max(0, Number(goal.total) | 0) : 0;
     const goalPct = total ? Math.max(0, Math.min(100, Math.round(done * 100 / total))) : 0;
     const goalHtml = goal && goal.text
-      ? '<div class="q-journey-goal"><span class="q-ns-eyebrow">ACTIVE LIFE GOAL</span><div class="q-journey-title">' + esc(goal.text) + '</div>'
+      ? '<div class="q-journey-goal"><span class="q-ns-eyebrow">CURRENT FOCUS</span><div class="q-journey-title">' + esc(goal.text) + '</div>'
         + '<div class="arc-bar q-bar"><div class="q-bar-fill" style="width:' + goalPct + '%"></div></div>'
         + '<div class="sub">' + done + ' of ' + total + ' planned steps completed' + (goal.next ? ' &middot; next: ' + esc(goal.next) : ' &middot; outcome still requires confirmation') + '</div></div>'
       : '<div class="sub dim">Add a goal in Goals to connect these records to what you want to achieve.</div>';
 
+    const metricGoalLabel = m => {
+      if (!m.goalId) return 'General metric · no linked goal';
+      const linked = (Array.isArray(j.goals) ? j.goals : []).find(g => g.id === m.goalId)
+        || (goal && goal.id === m.goalId ? goal : null);
+      return linked && linked.text ? 'Goal: ' + linked.text : 'Linked to another goal';
+    };
     const metricRows = (Array.isArray(j.metrics) ? j.metrics : []).map(m => {
       const p = (typeof Journey !== 'undefined' && Journey.metricProgress) ? Journey.metricProgress(m) : null;
       const unit = m.unit ? ' ' + esc(m.unit) : '';
       return '<div class="q-metric" data-mid="' + esc(m.id) + '"><div class="q-hd"><span class="nm">' + esc(m.label) + '</span>'
         + '<span class="gx-tag">' + esc(String(m.current)) + unit + ' / ' + esc(String(m.target)) + unit + '</span></div>'
+        + '<div class="sub dim q-metric-goal">' + esc(metricGoalLabel(m)) + '</div>'
         + (p ? '<div class="arc-bar q-bar"><div class="q-bar-fill" style="width:' + p.pct + '%"></div></div>' : '')
         + '<div class="q-metric-actions"><input class="q-metric-current" type="number" step="any" value="' + esc(String(m.current)) + '" aria-label="Current value for ' + esc(m.label) + '">'
         + '<input class="q-metric-note" type="text" maxlength="240" placeholder="evidence note (optional)" aria-label="Evidence note">'
@@ -8494,10 +8501,12 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
     }).join('');
     const metricsHtml = '<details class="q-progress-section"><summary><span>Outcome metrics</span><span class="q-section-note">Numbers you track</span></summary><div class="q-section-body">'
       + (metricRows || '<div class="sub dim">Track something measurable, like hours practiced or applications sent. Record your starting point and the result you want.</div>')
-      + '<details class="q-metric-editor"><summary>Add a metric</summary><div class="q-metric-create">'
+      + '<details class="q-metric-editor"><summary>Add a metric</summary><div class="q-section-body"><div class="sub dim">'
+      + (goal && goal.id ? 'Linked to your current focus: ' + esc(goal.text || 'your focused goal') : 'No focused goal. This metric will be tracked independently; choose a focus in Goals to link a new metric.')
+      + '</div><div class="q-metric-create">'
       + '<label class="q-metric-name-field">Metric name<input class="q-metric-label" maxlength="100" placeholder="For example: monthly revenue"></label>'
       + '<label>Starting value<input class="q-metric-baseline" type="number" step="any" placeholder="0"></label><label>Target value<input class="q-metric-target" type="number" step="any" placeholder="100"></label>'
-      + '<label>Unit<input class="q-metric-unit" maxlength="24" placeholder="For example: USD"></label><button class="consent-btn q-metric-add">ADD METRIC</button></div></details></div></details>';
+      + '<label>Unit<input class="q-metric-unit" maxlength="24" placeholder="For example: USD"></label><button class="consent-btn q-metric-add">ADD METRIC</button></div></div></details></div></details>';
 
     const domainLabel = d => (typeof Journey !== 'undefined' && Journey.DOMAIN_LABEL && Journey.DOMAIN_LABEL[d]) || String(d || '').toUpperCase();
     const mastery = (Array.isArray(j.mastery) ? j.mastery : []).slice().sort((a, b) => Number(b.count || 0) - Number(a.count || 0));
@@ -8521,7 +8530,7 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
     const proofLabel = (kind, authority) => authority === 'commander-confirmed' ? 'You confirmed' : kind === 'metric' ? 'You recorded' : 'StarNet recorded';
     const growthHtml = progression ? '<div class="q-commander-growth"><div class="q-journey-title">COMMANDER LEVEL ' + progression.level + '</div>'
       + '<div class="sub">' + progression.points + ' achievement points · ' + progression.pointsToNextLevel + ' to the next level</div>'
-      + '<div class="sub dim">Recorded actions, metric checkpoints, and confirmed goals build your history. Setbacks never erase it.</div>'
+      + '<div class="sub dim">Confirmed goal activity and recorded metric checkpoints earn points across your goals. Confirming a completed goal earns 100 points. Setbacks never erase your history.</div>'
       + achievements.map(a => '<details class="sub q-achievement"><summary>◆ ' + esc(a.title || a.kind || 'Goal progress') + ' <span class="gx-tag">+' + (Number(a.points) || 0) + '</span></summary>'
         + '<div>' + esc(a.evidence || '') + '</div><div class="dim">' + proofLabel(a.kind, a.verifiedBy) + '</div></details>').join('') + '</div>' : '';
     const outcomeHtml = recent.length ? '<div class="q-proof-list">' + recent.map(o => '<div class="sub"><span class="q-outcome">' + esc(o.kind) + '</span> '
@@ -8742,14 +8751,14 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
         + (open.length ? 'Choose another category to find your next action.' : 'Set a direction or refresh your quests when you are ready for what comes next.') + '</p></div>')
       + '</section></div>';
     const questViews = [
-      ['available', 'Quests', 'Choose a quest to see what to do and how it is completed.'],
-      ['goals', 'Goals', 'Set your direction, plan the next steps, and manage your focus.'],
-      ['progress', 'Progress', 'Follow your recorded achievements and the numbers that matter to you.'],
+      ['available', 'Quests', 'Turn your long-term goals into small, actionable steps. Quests also include station setup and questions that help StarNet understand you.'],
+      ['goals', 'Goals', 'Define what you want to achieve long term, then choose a goal to focus on. Its plan breaks the goal into smaller steps.'],
+      ['progress', 'Progress', 'Your recorded progress across all goals: planned steps, tracked metrics, and earned achievements.'],
       ['completed', 'Completed', 'Look back at finished quests and their results.']
     ];
     body.classList.add('quests-content');
     body.innerHTML = '<div class="gx gx-quests">'
-      + '<header class="q-journal-header"><div><span class="q-journal-eyebrow">YOUR QUESTS</span><h2>Make progress that matters</h2></div>'
+      + '<header class="q-journal-header"><div><span class="q-journal-eyebrow">YOUR QUESTS</span><h2>Small steps toward your goals</h2></div>'
       + journalCount + '</header>'
       + '<div class="q-view-tabs" role="tablist" aria-label="Quest sections">' + questViews.map(v =>
         '<button type="button" role="tab" id="q-tab-' + v[0] + '" data-quest-view="' + v[0] + '" aria-controls="q-view-' + v[0] + '">' + v[1]
