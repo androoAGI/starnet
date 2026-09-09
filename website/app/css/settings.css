@@ -101,5 +101,4 @@
 .settings-console .settings-swatch:hover { outline: 1px solid var(--ph-dim); outline-offset: 3px; }
 .settings-console .settings-swatch[aria-pressed="true"] { outline: 2px solid var(--ph-bright); outline-offset: 3px; background: var(--sw); }
 .settings-console .settings-swatch[aria-pressed="true"]::after { content: '✓'; position: absolute; inset: 0; display: grid; place-items: center; font: bold 20px/1 sans-serif; color: #111; text-shadow: 0 1px 1px rgba(255,255,255,.5); }
-.settings-console .settings-swatch-custom span { font-size: 22px; }
-.settings-console .settings-swatch-custom[aria-pressed="true"] span { visibility: hidden; }
+.settings-console .set-theme.settings-swatch-custom { margin-left: 8px; background: linear-gradient(135deg, #ff8585 0%, #ffce7b 22%, #a5e6a0 43%, #8bd9ef 64%, #b4a2ee 82%, #efa3d0 100%); }
