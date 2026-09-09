@@ -661,6 +661,7 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
     // A minimized (display:none) window reads 0 for every offset — the repair would compute 8,8 and
     // PERSIST it. Refuse at the primitive (marker-keyed; headless DOMs read 0 for visible nodes too).
     if (minimized[resolvedKey] || (w.classList && w.classList.contains('term-min-hidden'))) return;
+    if (w._fitDockedSheet && w._fitDockedSheet()) return; // Docked presentation owns its measured band.
     const savedSize = termSize[resolvedKey];
     if (savedSize) resizeTermTo(w, resolvedKey, savedSize.width, savedSize.height, persist);
     // A window whose CURRENT box outgrows the viewport (TEXT SIZE zoom-up, or a monitor shrink with
@@ -929,6 +930,7 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
     w._sizeLimits = terminalLimits(opts);
     const savedSize = termSize[key];
     if (savedSize) resizeTermTo(w, key, savedSize.width, savedSize.height, false);
+    w._minimize = () => minimizeTerm(key); // Shared window action used by the opt-in glass demo.
     w._onClose = opts && opts.onClose;
     w._opener = opener;
     // a11y: a floating window is a real modal dialog — label it by its title, make it focusable.

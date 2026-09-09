@@ -1,0 +1,78 @@
+/* Local, opt-in glass study. Shared materials stay on body for live theme changes. */
+body.glass-demo {
+  --gd-edge: rgba(var(--ph-rgb), .24);
+  --gd-light: rgba(var(--ph-bright-rgb), .13);
+  --gd-face: linear-gradient(165deg, rgba(var(--ph-rgb), .075), transparent 46%), color-mix(in srgb, var(--panel) 92%, transparent);
+  --gd-hover: linear-gradient(120deg, rgba(var(--ph-rgb), .14), rgba(var(--ph-rgb), .035) 70%);
+  --gd-shadow: inset 0 1px 0 var(--gd-light), 0 6px 24px rgba(0,0,0,.3);
+}
+.glass-demo :is(#left,#chat-panel,#topbar,#bottombar) {
+  background: var(--gd-face); border: 1px solid var(--gd-edge); border-radius: 5px;
+  box-shadow: var(--gd-shadow);
+}
+.glass-demo :is(#left,#chat-panel,#topbar,#bottombar)::before { opacity: .55; }
+.glass-demo :is(#left h3,#chat-panel h3,.ws-head,.term-head) {
+  background: linear-gradient(180deg, rgba(var(--ph-rgb),.14), rgba(var(--ph-rgb),.025));
+  border-bottom: 1px solid var(--gd-edge); box-shadow: inset 0 1px 0 var(--gd-light);
+  color: var(--ph-bright);
+}
+body.glass-demo #crew .crew-row,
+body.glass-demo #left #workstreams .ws-row {
+  border: 1px solid transparent; border-radius: 4px;
+  background: transparent; box-shadow: none; transform: none;
+  transition: background var(--t-fast) var(--ease-soft), border-color var(--t-fast) var(--ease-soft), box-shadow var(--t-fast) var(--ease-soft);
+}
+body.glass-demo #crew .crew-row { margin: 3px 4px; padding: 11px 8px; }
+body.glass-demo #left #workstreams .ws-row { margin: 3px 4px; padding: 11px 8px; min-height: 48px; }
+body.glass-demo #crew .crew-row:is(:hover,:focus-visible,.selected),
+body.glass-demo #left #workstreams .ws-row:is(:hover,:focus-visible,:focus-within,.sel) {
+  background: var(--gd-hover); border-color: var(--gd-edge);
+  box-shadow: inset 0 1px 0 var(--gd-light), 0 2px 8px rgba(0,0,0,.2); transform: none;
+}
+body.glass-demo #crew .crew-row:focus-visible,
+body.glass-demo #left #workstreams .ws-row:focus-visible { outline: 1px solid var(--ph); outline-offset: -2px; }
+.glass-demo :is(.crew-portrait,.comms-portrait) {
+  border: 1px solid var(--gd-edge); background: rgba(0,0,0,.25); box-shadow: inset 0 1px 6px rgba(0,0,0,.5);
+}
+.glass-demo #chat-log { background: rgba(0,0,0,.1); box-shadow: none; }
+.glass-demo #chat-panel #chat-inputrow { background: var(--gd-face); border-color: var(--gd-edge); box-shadow: var(--gd-shadow); }
+.glass-demo #chat-panel .chat-editline { background: rgba(0,0,0,.3); border-color: var(--gd-edge); }
+.glass-demo .term-scrim { background: rgba(0,0,0,.12); backdrop-filter: none; }
+body.glass-demo .term:not(.pw) {
+  background: var(--gd-face); border: 1px solid var(--gd-edge);
+  box-shadow: inset 0 1px 0 var(--gd-light), 0 14px 44px rgba(0,0,0,.55);
+  border-radius: 6px; backdrop-filter: blur(7px);
+}
+.glass-demo .term::before { opacity: .45; }
+.glass-demo .term:not(.pw) .term-title { background: none; color: var(--ph-bright); box-shadow: none; padding: 3px 0; }
+.glass-demo .term :is(.term-brk,.term-led,.term-grade) { display: none; }
+.glass-demo .term :is(.con-rail,.con-content,.con-pane,.term-body,.term-foot) { background-color: transparent; }
+.glass-demo .term .con-rail { border-right: 1px solid var(--gd-edge); background: rgba(0,0,0,.12); }
+.glass-demo .term .con-item { border-radius: 4px; }
+.glass-demo .term .con-item:is(:hover,.on) { background: var(--gd-hover); box-shadow: inset 0 1px 0 var(--gd-light); }
+.glass-demo .term-foot { border-top-color: var(--gd-edge); opacity: .6; }
+.glass-demo .term.gd-sheet { min-height: 0; min-width: 0; }
+.glass-demo .gd-sheet .term-head { padding-top: 14px; min-height: 43px; }
+.glass-demo .gd-sheet .term-title { flex: 1; }
+.glass-demo .gd-controls { display: flex; gap: 5px; margin-left: auto; }
+.glass-demo .gd-controls button {
+  font: inherit; font-size: 12px; letter-spacing: .5px; padding: 3px 8px; cursor: pointer;
+  color: var(--ph); background: rgba(0,0,0,.22); border: 1px solid var(--gd-edge); border-radius: 3px;
+}
+.glass-demo .gd-controls button:is(:hover,:focus-visible) { color: var(--ph-bright); background: var(--gd-hover); border-color: var(--ph); }
+.glass-demo .gd-pull {
+  position: absolute; top: 0; left: 30%; width: 40%; height: 12px; z-index: 12;
+  border: 0; background: none; cursor: ns-resize; touch-action: none;
+}
+.glass-demo .gd-pull::after { content: ''; position: absolute; left: calc(50% - 23px); top: 4px; width: 46px; height: 3px; border-radius: 3px; background: var(--ph-dim); }
+.glass-demo .gd-pull:is(:hover,:focus-visible)::after { background: var(--ph); box-shadow: 0 0 8px var(--ph-glow2); }
+.glass-demo .gd-sheet .term-body { min-height: 0; flex: 1; }
+.glass-demo .gd-sheet.gd-docked > .term-resize { display: none; }
+.glass-demo .gd-badge { position: fixed; bottom: 3px; right: 12px; z-index: 970; pointer-events: none; font: 10px 'VT323',monospace; letter-spacing: 1px; color: var(--ph-dim); }
+@media (prefers-reduced-motion: reduce) { body.glass-demo #crew .crew-row, body.glass-demo #left #workstreams .ws-row { transition: none; } }
+
+/* Quiet inner chrome so the pane reads as one sheet of glass. */
+body.glass-demo .term:not(.pw) .term-title { border: 0; background: none; box-shadow: none; }
+body.glass-demo .term :is(.prov-card,.ab-router,.cf-group,.mc-row,.cc-card) {
+  border-color: var(--gd-edge); background: var(--gd-hover); box-shadow: inset 0 1px 0 var(--gd-light);
+}
