@@ -76,3 +76,64 @@ body.glass-demo .term:not(.pw) .term-title { border: 0; background: none; box-sh
 body.glass-demo .term :is(.prov-card,.ab-router,.cf-group,.mc-row,.cc-card) {
   border-color: var(--gd-edge); background: var(--gd-hover); box-shadow: inset 0 1px 0 var(--gd-light);
 }
+/* Session tools: one recessed search well and a quiet segmented glass switch. */
+body.glass-demo #left .ws-rail-search { padding: 10px 8px 6px; }
+body.glass-demo #left #ws-search {
+  height: 34px; padding: 8px 10px; border: 1px solid var(--gd-edge); border-radius: 6px;
+  background: linear-gradient(180deg, rgba(0,0,0,.18), transparent), rgba(var(--ph-rgb),.025);
+  color: var(--ph-bright); box-shadow: inset 0 1px 5px rgba(0,0,0,.24); text-shadow: none;
+  transition: border-color var(--t-fast) var(--ease-soft), box-shadow var(--t-fast) var(--ease-soft);
+}
+body.glass-demo #left #ws-search::placeholder { color: var(--ph-dim); opacity: .85; letter-spacing: .3px; }
+body.glass-demo #left #ws-search:is(:hover,:focus) { border-color: rgba(var(--ph-rgb),.45); }
+body.glass-demo #left #ws-search:focus { outline: 1px solid var(--ph-dim); outline-offset: 2px; box-shadow: inset 0 1px 0 var(--gd-light); }
+body.glass-demo #left .ws-kind-filter {
+  gap: 3px; padding: 3px; margin: 8px 0 3px; border: 1px solid var(--gd-edge);
+  border-radius: 7px; background: rgba(0,0,0,.18); box-shadow: inset 0 1px 4px rgba(0,0,0,.18);
+}
+body.glass-demo #left .ws-kind-filter button {
+  height: 27px; padding: 4px 6px; border: 1px solid transparent; border-radius: 4px;
+  color: var(--ph-dim); background: transparent; box-shadow: none; text-shadow: none;
+  letter-spacing: .7px; transform: none;
+}
+body.glass-demo #left .ws-kind-filter button:is(:hover,[aria-pressed="true"]) {
+  color: var(--ph-bright); border-color: var(--gd-edge); background: var(--gd-hover);
+  box-shadow: inset 0 1px 0 var(--gd-light);
+}
+body.glass-demo #left #ws-new {
+  height: 27px; padding: 3px 10px; border: 1px solid var(--gd-edge); border-radius: 5px;
+  color: var(--ph); background: var(--gd-hover); box-shadow: inset 0 1px 0 var(--gd-light);
+  font-size: 12px; line-height: 1; letter-spacing: .8px; text-shadow: none;
+}
+body.glass-demo #left #ws-new:hover { color: var(--ph-bright); border-color: rgba(var(--ph-rgb),.5); background: rgba(var(--ph-rgb),.17); }
+body.glass-demo #left :is(#ws-new,.ws-kind-filter button):focus-visible {
+  outline: 1px solid var(--ph); outline-offset: 2px;
+}
+/* Four equal glass tabs: softer silhouettes, a single edge, no stacked keycap bevel. */
+body.glass-demo #screen-game #bottombar { gap: 6px; padding-inline: 10px; }
+body.glass-demo #screen-game #bottombar .bb-group > .bb-grp {
+  height: 32px; min-width: 96px; padding: 0 13px; gap: 7px;
+  border: 1px solid var(--gd-edge); border-radius: 7px;
+  background: linear-gradient(180deg, rgba(var(--ph-rgb),.075), rgba(var(--ph-rgb),.02));
+  color: var(--ph); box-shadow: inset 0 1px 0 var(--gd-light);
+  text-shadow: none; font-size: 15px; letter-spacing: 1.1px; transform: none;
+  transition: background var(--t-fast) var(--ease-soft), border-color var(--t-fast) var(--ease-soft), color var(--t-fast) var(--ease-soft);
+}
+body.glass-demo #screen-game #bottombar .bb-group > .bb-grp:is(:hover,:focus-visible),
+body.glass-demo #screen-game #bottombar .bb-group.open > .bb-grp {
+  color: var(--ph-bright); border-color: rgba(var(--ph-rgb),.45);
+  background: var(--gd-hover); box-shadow: inset 0 1px 0 var(--gd-light); transform: none;
+}
+body.glass-demo #screen-game #bottombar .bb-group.has-active > .bb-grp {
+  box-shadow: inset 0 1px 0 var(--gd-light), inset 0 -2px 0 rgba(var(--gold-rgb),.65);
+}
+body.glass-demo #screen-game #bottombar .bb-grp:focus-visible { outline: 1px solid var(--ph); outline-offset: 2px; }
+body.glass-demo #screen-game #bottombar .bb-gi { width: 16px; opacity: .8; font-size: 14px; }
+@media (max-width: 720px) {
+  body.glass-demo #screen-game #bottombar { gap: 4px; padding-inline: 6px; }
+  body.glass-demo #screen-game #bottombar .bb-group > .bb-grp { min-width: 0; padding-inline: 9px; gap: 5px; font-size: 14px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  body.glass-demo #left #ws-search,
+  body.glass-demo #screen-game #bottombar .bb-group > .bb-grp { transition: none; }
+}
