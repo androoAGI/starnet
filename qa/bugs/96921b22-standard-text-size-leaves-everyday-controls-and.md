@@ -4,10 +4,10 @@ slug: standard-text-size-leaves-everyday-controls-and
 title: Standard text size leaves everyday controls and labels hard to read
 surface: world
 severity: P2
-status: open
+status: fixed
 found: 2026-09-09
 lane: agent/glass-demo-0909
-fix:
+fix: bb7df320ebad0f89338818730aba8503f5532091
 origin: owner
 report: Owner reports widespread complaints about STANDARD readability, 2026-09-09, in the local glass UI task
 affected: 0.11.0 source and local demo; affected customer installer versions unknown
@@ -32,13 +32,13 @@ Users need enlarged text to read ordinary labels and controls, while enlarging e
 
 Before-fix live DOM at the local demo: crew status/level and summary 11px; ALL/AUTOMATED 11px; COMMS model metadata 11px and effort 10px; Settings rail labels 13px and backdrop names 11px; dossier agent state 10px and prompt-file descriptions 12px; Tasks explanatory note 12px. STANDARD body zoom was exactly 1. Legacy inline captions and component styles defeat a single inherited body font size. Source anchor and regression: test/readability.test.js. Shared implementation: frontend/css/readability.css.
 
-## Regression
-
-The registered readability gate bounds metadata, controls, prose and agent-name sizes, checks primary entry-point coverage, and prevents repairing text with viewport zoom or universal icon-affecting rules. Live before/after geometry and interaction verification is recorded in dev/GLASS_DEMO.md.
-
 ## Verdict
 
 Shared source repair and seeded-browser verification completed at STANDARD, with compact/wide viewport and enlarged-text checks. See dev/GLASS_DEMO.md for the before/after receipt, passing focused checks and 32 customer-journey suites. Full fast remains blocked by the pre-existing release-manifest failures. Installed application verification and owner acceptance remain separate from source repair.
+
+## Regression
+
+The registered readability gate bounds metadata, controls, prose and agent-name sizes, checks primary entry-point coverage, and prevents repairing text with viewport zoom or universal icon-affecting rules. Live before/after geometry and interaction verification is recorded in dev/GLASS_DEMO.md.
 
 ## Sibling coverage
 
