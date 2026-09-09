@@ -1,12 +1,7 @@
-/* Opt-in local material/interaction demo: ?glass=1. Uses real app windows and data. */
+/* Station glass window controller. Uses the existing windows, controls and real data. */
 (() => {
   'use strict';
-  if (new URLSearchParams(location.search).get('glass') !== '1') return;
-  document.body.classList.add('glass-demo');
-  const css = document.createElement('link'); css.rel = 'stylesheet'; css.href = 'css/glass-demo.css'; document.head.append(css);
-  const commsCss = document.createElement('link'); commsCss.rel='stylesheet'; commsCss.href='css/glass-comms.css'; document.head.append(commsCss);
-  const commsScript = document.createElement('script'); commsScript.src='app/glass-comms.js'; document.body.append(commsScript);
-  const badge = document.createElement('span'); badge.className = 'gd-badge'; badge.textContent = 'GLASS DEMO'; document.body.append(badge);
+  if (!document.body.classList.contains('glass-demo')) return;
   // One small, square-stroke instrument icon set; decorative, so labels remain plain text.
   const dockIcons = {
     crew: '<path d="M5 2h5v5H5zM3 14v-4h9v4M12 3h2v4M14 10h1v4"/>',

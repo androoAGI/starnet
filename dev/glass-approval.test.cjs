@@ -1,22 +1,2 @@
-'use strict';
-const fs=require('node:fs'), vm=require('node:vm'), assert=require('node:assert/strict');
-const source=fs.readFileSync('frontend/app/app.js','utf8');
-const start=source.indexOf('  function railRowState(w) {');
-const end=source.indexOf('  /* ---------- INBOX row extras',start);
-assert(start>=0 && end>start);
-let pending={tool:'shell'}, busy=true;
-const context={Channels:{pendingOf:()=>pending,isBusy:()=>busy,statusOf:()=> 'working',runIdOf:()=> 'test-run',elapsedOf:()=>0,startedAtOf:()=>0},Workstreams:{unread:()=>false},railRelTime:()=> 'now'};
-const state=vm.runInNewContext(source.slice(start,end)+'\nrailRowState',context);
-const w={id:'test-session'};
-assert(state(w).dot.includes('approval'));
-assert.equal(state(w).meta,'Approval needed');
-pending={tool:'brief.ask'};
-assert(!state(w).dot.includes('approval'));
-assert.equal(state(w).meta,'Reply needed');
-pending=null;
-assert.equal(state(w).dot,'ws-dot working');
-busy=false;w.lastRunOk=false;
-assert(!state(w).dot.includes('approval'));
-delete w.lastRunOk;
-assert.equal(state(w).dot,'ws-dot seen');
-console.log('approval indicator: 8 assertions passed (approval, question, resolution, failure, idle)');
+/* Compatibility entry point; the required fast gate owns this regression. */
+require('../test/glass-approval.test.cjs');

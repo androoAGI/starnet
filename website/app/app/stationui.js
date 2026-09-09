@@ -941,7 +941,7 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
     w._sizeLimits = terminalLimits(opts);
     const savedSize = termSize[key];
     if (savedSize) resizeTermTo(w, key, savedSize.width, savedSize.height, false);
-    w._minimize = () => minimizeTerm(key); // Shared window action used by the opt-in glass demo.
+    w._minimize = () => minimizeTerm(key); // Shared window action used by the glass controller.
     w._onClose = opts && opts.onClose;
     w._opener = opener;
     // a11y: a floating window is a real modal dialog — label it by its title, make it focusable.
@@ -1045,7 +1045,7 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
         // A field with its own Esc handler (search-clear, rename-cancel) already stopped propagation before us.
         const ae = document.activeElement;
         const inField = ae && w.contains(ae) && ae.matches && ae.matches('input, textarea, [contenteditable=""], [contenteditable="true"]');
-        if (inField) { try { ae.blur(); } catch (_) {} return; }
+        if (inField) { try { w.focus({ preventScroll: true }); } catch (_) {} return; }
         requestCloseTerm(key);   // unsaved-draft guard
         return;
       }

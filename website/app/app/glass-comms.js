@@ -1,4 +1,4 @@
-/* Progressive COMMS chrome for ?glass=1. The real controls keep owning roster, send and voice state. */
+/* Progressive COMMS glass chrome. The real controls keep owning roster, send and voice state. */
 (() => {
   'use strict';
   if (!document.body.classList.contains('glass-demo')) return;

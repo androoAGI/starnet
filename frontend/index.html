@@ -32,12 +32,15 @@
 <link rel="stylesheet" href="css/panelchrome.css"><!-- PANEL CHROME premium pass: molded header strips, recessed instrument housings, keycap dock triggers on the four game-screen panels -->
 <link rel="stylesheet" href="css/interface.css">
 <link rel="stylesheet" href="css/refit-kit.css">
+<link rel="stylesheet" href="css/glass-demo.css">
+<link rel="stylesheet" href="css/glass-comms.css">
 <link rel="stylesheet" href="css/readability.css"><!-- Shared readable text roles at STANDARD; cabinet and CRT geometry are unchanged. -->
 
 <link rel="stylesheet" href="css/titlebar.css"><!-- custom window chrome (Windows desktop shell): themed titlebar + MIN/MAX/CLOSE; inert unless body.sn-chrome (titlebar.js) -->
 
 </head>
 <body class="theme-amber">
+<script src="app/glass-boot.js"></script>
 
 <!-- ============ BOOT VEIL ============ -->
 <!-- The ONLY screen that ships class="active": a neutral phosphor holding-card shown during init()'s async
@@ -932,5 +935,6 @@ document.write('<script src="' + ((window.__STARNET_API__ || '') + '/shared/spec
 <script src="app/autosessions.js"></script><!-- surface an unattended cron/routine run as a readable SESSION: cron.fire → adopt a 'cron-<runId>' workstream (busy, no focus-steal), cron.result → fold its durable transcript; boot backfill for runs finished while closed. Read-only on U.bus (after app.js so App/Workstreams/Channels/Chat/U exist) -->
 <script src="app/warroom.js"></script>
 <script src="app/glass-demo.js"></script>
+<script src="app/glass-comms.js"></script>
 </body>
 </html>

@@ -672,6 +672,10 @@ test/queryspine-wiring.test.js
 test/widgets.test.js
 test/widgetfeed.test.js
 test/terminal-resize.test.js
+test/glass-interactions.test.js
+test/glass-comms.test.cjs
+test/glass-approval.test.cjs
+test/model-subscription.test.cjs
 test/terminal-position.test.js
 test/poweruser-shell-repairs.test.js
 test/terminal-sessions.test.js
