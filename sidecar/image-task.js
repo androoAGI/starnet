@@ -12,19 +12,16 @@
 })(typeof globalThis !== 'undefined' ? globalThis : this, function () {
   'use strict';
 
-  const ACTION = '(?:create|generate|make|draw|render|illustrate|produce)';
-  const SUBJECT = '(?:image|picture|illustration|artwork|graphic)';
-  const ACTION_THEN_SUBJECT = new RegExp('\\b' + ACTION + '\\b[\\s\\S]{0,120}\\b' + SUBJECT + 's?\\b', 'i');
-  const SUBJECT_THEN_ACTION = new RegExp('\\b' + SUBJECT + 's?\\b[\\s\\S]{0,80}\\b' + ACTION + '\\b', 'i');
-  const INHERENTLY_VISUAL_ACTION = /\b(?:draw|illustrate)\b/i;
-  const NEGATED = new RegExp('\\b(?:do not|don(?:\'|\\u2019|`)t|never)\\s+' + ACTION + '\\b', 'i');
+  // This classification imposes a host-side STUDIO requirement before the model runs.
+  // Require a direct request for visual content, not nearby keywords or the verbs
+  // "draw"/"illustrate" alone. Ambiguous requests retain the ordinary tool path.
+  const EXPLICIT_IMAGE_REQUEST = /^(?:please\s+)?(?:(?:can|could|would|will)\s+you\s+(?:please\s+)?)?(?:create|generate|make|draw|render|illustrate|produce)\s+(?:me\s+)?(?:(?:an?|the|some)\s+)?(?:(?:new|raster|photorealistic|realistic|digital)\s+)?(?:images?|pictures?|illustrations?|artwork|graphics?)\s+(?:of|depicting|showing)\s+\S/i;
+  // Code/vector/text deliverables are not proof of a raster STUDIO requirement.
+  const OTHER_MEDIUM = /\b(?:svg|html|css|canvas|mermaid|ascii|unicode|docker|container|disk|iso)\b/i;
 
-  // Conservative on purpose: a false negative keeps the ordinary task path, while a
-  // false positive would demand a new image from a request that only discusses images.
   function classify(text) {
     const src = String(text || '').trim();
-    if (!src || NEGATED.test(src)) return null;
-    if (!ACTION_THEN_SUBJECT.test(src) && !SUBJECT_THEN_ACTION.test(src) && !INHERENTLY_VISUAL_ACTION.test(src)) return null;
+    if (!EXPLICIT_IMAGE_REQUEST.test(src) || OTHER_MEDIUM.test(src)) return null;
     return { kind: 'image-generation' };
   }
 
