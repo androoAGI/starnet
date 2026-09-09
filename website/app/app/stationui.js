@@ -1747,15 +1747,16 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
   // while calibrating), the milestone trophy case, and the station-prestige rollup. All read off the pure
   // Xp engine; the satisfaction marker rides the agent's own suit colour so it reads as "this unit's measure".
   function agGrowth(a) {
-    if (typeof Xp === 'undefined' || !a.stats) return '<p class="dim">Growth metrics unavailable.</p>';
+    if (typeof Xp === 'undefined' || !a.stats) return '<div class="ag-growth-empty"><h3>Waiting for growth data</h3><p>Growth metrics unavailable. This agent’s XP and achievements will appear when its activity data is available.</p></div>';
     const g = Xp.compute(a.stats);
     const cat = Xp.milestones(a.stats);
     const earned = cat.filter(m => m.earned).length, locked = cat.length - earned;
+    const nextMilestone = cat.find(m => !m.earned);
     const pad2 = n => (n < 10 ? '0' : '') + n;
     const mark = a.color || 'var(--ph-bright)';
 
     const progression =
-      '<div>' +
+      '<div class="ag-xp-panel">' +
       '<div class="gx-sec"><span class="gx-ref">▣</span><span class="gx-title">Progression</span><span class="gx-tag">LV ' + g.level + '&rarr;' + (g.level + 1) + '</span></div>' +
       '<div class="gx-row" style="margin-bottom:6px;"><span class="gx-lbl">This level</span>' +
         '<span class="gx-val" style="font-size:15px;">' + g.inLevel + ' <span class="gx-dim">/</span> ' + g.span + ' <span class="gx-dim" style="font-size:11px;">XP</span></span></div>' +
@@ -1764,7 +1765,7 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
       '<div class="gx-well"><span class="gx-lbl">Positive feedback</span><span class="v">' + g.positiveFeedback + '</span></div>' +
       // what a level actually MEANS (UX sweep 2026-07-15): honest — levels gate nothing (sandbox law);
       // they are the agent's proven track record from work you rated well.
-      '<div class="gx-row gx-dim" style="font-size:11px;margin-top:4px;">levels unlock nothing — they’re this agent’s track record, earned from work you rated well</div>' +
+      '<div class="gx-row gx-dim" style="font-size:11px;margin-top:4px;">Earn XP from completed work and feedback. Levels celebrate progress; every capability is available from the start.</div>' +
       '</div>';
 
     const confnum = g.known ? (g.confidence + '<span style="font-size:18px;color:var(--ph-dim);">%</span>') : '—';
@@ -1822,12 +1823,12 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
       '<span class="gx-band cal">READING</span></div></div>';
 
     const tros = cat.map(m =>
-      '<div class="gx-tro ' + (m.earned ? 'on' : 'off') + '">' +
+      '<div class="gx-tro ' + (m.earned ? 'on' : 'off') + (nextMilestone && m.id === nextMilestone.id ? ' ag-next-trophy' : '') + '">' +
       '<div style="display:flex;align-items:center;gap:6px;"><span class="gl">' + (m.earned ? '&#9733;' : '&#9675;') + '</span><span class="nm">' + m.label + '</span></div>' +
-      '<div class="sub">' + (m.earned ? 'EARNED' : '&#9656; ' + m.hint) + '</div></div>').join('');
+      '<div class="sub">' + (m.earned ? 'EARNED · ' + m.hint : m.hint) + '</div></div>').join('');
     const trophies =
       '<div class="gx-trohead"><div class="gx-sec" style="flex:1;margin:0;border:0;height:auto;"><span class="gx-ref">▦</span><span class="gx-title">Trophy case</span></div>' +
-      '<span class="gx-tag">' + pad2(earned) + ' earned &middot; ' + pad2(locked) + ' locked</span></div>' +
+      '<span class="gx-tag">' + pad2(earned) + ' earned &middot; ' + pad2(locked) + ' to earn</span></div>' +
       '<div class="gx-tros">' + tros + '</div>';
 
     const sStats = (typeof XpStore !== 'undefined' && XpStore.stationStats) ? XpStore.stationStats() : null;
@@ -1851,11 +1852,13 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
        window titled AGENT DOSSIER, on a tab labelled GROWTH, with the agent selected and named in the left rail,
        and with LEVEL already one of BRIEF's three stat wells. Four restatements of context the user already had,
        occupying the top of the pane. The level chip survives (it belongs beside a level bar); the rest is gone. */
-    return '<div class="gx">' +
-      '<div class="gx-head"><div class="gx-clear"><span class="k">LEVEL</span><span class="v">' + pad2(g.level) + '</span></div></div>' +
-      '<div class="gx-2">' + progression + confidence + reliabilityBlk + practiceBlk + '</div>' +
-      trophies + station +
-      '</div>';
+    return '<div class="gx ag-growth">' +
+      '<div class="ag-growth-hero"><div class="ag-level-badge"><span>LEVEL</span><strong>' + pad2(g.level) + '</strong></div>' +
+      '<div class="ag-growth-heading"><span class="ag-growth-eyebrow">AGENT PROGRESSION</span><h3>' + esc(a.name || 'Agent') + '</h3><p>' + g.xp.toLocaleString() + ' total XP · ' + earned + ' of ' + cat.length + ' achievements earned</p>' + progression + '</div></div>' +
+      (nextMilestone ? '<div class="ag-next-challenge"><span>CHALLENGE TO AIM FOR</span><b>' + nextMilestone.label + '</b><span>' + nextMilestone.hint + '</span></div>' : '') +
+      '<section class="ag-achievements">' + trophies + '</section>' +
+      '<div class="ag-growth-section-title">Performance &amp; learning</div><div class="gx-2">' + confidence + reliabilityBlk + practiceBlk + '</div>' +
+      station + '</div>';
   }
 
   /* Fill the B3 PRACTICE block for `agentId`. Reads through Harness.agentSkillsRead so a FAILED read renders
@@ -1947,7 +1950,7 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
       '</div><div class="cf-desc">' + f.desc + '</div>';
     if (editing) {
       return '<div class="cf cf-on">' + head +
-        '<textarea class="cf-ta" id="cf-ta-' + f.key + '" spellcheck="false" placeholder="' + esc(f.ph) + '">' + esc(val) + '</textarea>' +
+        '<textarea class="cf-ta" id="cf-ta-' + f.key + '" aria-label="' + esc(f.file) + '" spellcheck="false" placeholder="' + esc(f.ph) + '">' + esc(val) + '</textarea>' +
         '<div class="cf-acts"><button class="bb sm" data-save="' + f.key + '">SAVE</button>' +
         '<button class="bb sm" data-cancel="' + f.key + '">CANCEL</button></div></div>';
     }
@@ -1969,14 +1972,14 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
     // the rail already names the agent. "PROVENANCE / TRACED ✓" is the one claim the header made that the pane
     // does not otherwise state up front, and it earns its keep — the rest is dropped.
     return '<div class="gx">' +
-      '<div class="gx-head"><div class="gx-clear"><span class="k">TRACED</span><span class="v">&#10003;</span></div></div>' +
+      '<div class="ag-reflection-panel">' +
       // P1-10 REFLECTION controls — the master on/off + the cooldown, both HONORED live at the reflect gate in the
       // sidecar (station-wide, not per-agent — the reflect loop is a station engine). Plus a plain scope note.
       '<div class="gx-sec"><span class="gx-ref">◈</span><span class="gx-title">Reflection</span></div>' +
       '<div class="mc-note" id="mc-scope">How the station learns from finished work.</div>' +
       '<label class="set-row"><input type="checkbox" id="mc-reflect-on"> REFLECTION ON <span class="dim">— propose memories after a completed task</span></label>' +
-      '<div class="set-row"><label for="mc-cooldown">COOLDOWN (MINUTES)</label><input id="mc-cooldown" class="key-input" type="number" min="0" max="60" step="1" style="max-width:90px" title="minimum gap between turn-in beats per agent"></div>' +
-      '<div class="mc-acts"><button class="bb sm" id="mc-reflect-save">SAVE</button><span class="msg" id="mc-reflect-msg"></span></div>' +
+      '<div class="set-row"><label for="mc-cooldown">TIME BETWEEN SUGGESTIONS (MINUTES)</label><input id="mc-cooldown" class="key-input" type="number" min="0" max="60" step="1" style="max-width:90px" title="minimum gap between turn-in beats per agent"></div>' +
+      '<div class="mc-acts"><button class="bb sm" id="mc-reflect-save">SAVE</button><span class="msg" id="mc-reflect-msg"></span></div></div>' +
       // AWAITING A VERDICT — the durable high-stakes deck. Runs that finish while nobody is watching (a routine, a
       // night shift, a channel message) can raise a credential/PII/standing-instruction belief; it is neither kept
       // nor dropped until the Commander rules on it, and it waits HERE across restarts. Hidden until non-empty.
@@ -2862,6 +2865,8 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
   }
 
   function buildAgents(body) {
+    const dossierWindow = body.closest('.term');
+    if (dossierWindow) dossierWindow.classList.add('agent-dossier');
     if (!present.length) {
       // shared empty-state vocabulary rather than a bare paragraph (no agents = nothing to dossier)
       body.innerHTML = '<div class="empty-state" style="margin:32px auto;"><span class="es-glyph">▯</span>' +
@@ -2938,9 +2943,9 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
          change it. This is the array order and mountConsole renders it verbatim; there is no other list. */
       { id: 'brief', label: 'BRIEF', glyph: '▤', desc: 'Who this agent is, how it is set up, and what it can do.',
         build: frag(agHead(a, act) + agBrief(a)) },
-      { id: 'growth', label: 'GROWTH', glyph: '★', desc: 'XP ladder, satisfaction gauge, trophy case, and station prestige.',
+      { id: 'growth', label: 'GROWTH', glyph: '★', desc: 'Level up through real work. Track XP, achievements, and performance.',
         build: frag(agGrowth(a)) },
-      { id: 'record', label: 'RECORD', glyph: '▦', desc: 'What this agent has actually done — run history, dead-run post-mortems, and workspace restore points.',
+      { id: 'record', label: 'RECORD', glyph: '▦', desc: 'Review work, understand failed runs, and find restore points.',
         build: (elx) => {
           mountLane('logbook')(elx);
           elx.insertAdjacentHTML('beforeend', '<div class="sec"><span class="sec-l">RESTORE POINTS</span><span class="sec-r"></span><span class="sec-nd"></span></div>');
@@ -2952,9 +2957,9 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
              lane that adds or renames a block cannot silently fall out of its own contents. */
           addSectionJumpNav(elx);
         } },
-      { id: 'memory', label: 'MEMORY', glyph: '◈', desc: 'Every belief this agent has kept, traced to the run that earned it.',
+      { id: 'memory', label: 'MEMORY', glyph: '◈', desc: 'Review saved memories, their sources, and how the station learns.',
         build: frag(agMemory(a)) },
-      { id: 'config', label: 'CONFIG', glyph: '▣', desc: 'Everything you can change about this agent — its prompt files, how it behaves, and how it looks.',
+      { id: 'config', label: 'CONFIG', glyph: '▣', desc: 'Adjust this agent’s instructions, model, access, and appearance.',
         build: frag(agConfig(a)) }
     ], {
       // tabsTop: the five section tabs (BRIEF/GROWTH/RECORD/MEMORY/CONFIG) render as a horizontal strip at the
@@ -3101,7 +3106,7 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
      console is height:auto AND CSS-centred, so every tab whose content is a different length re-centres the whole
      window: measured live, the tab strip you just clicked moved between y=236 (CONFIG) and y=387 (RESTORE) — up to
      151px out from under the cursor, on the control you are actively using. The pane scrolls; the chrome holds still. */
-  function openAgent(i) { sel = i; if (open.agents) { if (minimized.agents) restoreTerm('agents'); rerender('agents'); } else toggleTerm('agents', 'AGENT DOSSIER', buildAgents, { console: true, feature: true, className: 'dossier' }); }
+  function openAgent(i) { sel = i; if (open.agents) { if (minimized.agents) restoreTerm('agents'); rerender('agents'); } else toggleTerm('agents', 'AGENT DOSSIER', buildAgents, { console: true, className: 'dossier' }); }
 
   /* ============== SKILLS — capability readout (mirrors the sidecar CAP_REGISTRY) ==============
      The agent's real tools come from the OBJECTS at its workstation (object = capability — see
@@ -8999,7 +9004,7 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
 
   /* ============== lifecycle ============== */
   const BUILDERS = {
-    agents:   ['AGENT DOSSIER',          buildAgents,    { console: true, feature: true }],
+    agents:   ['AGENT DOSSIER',          buildAgents,    { console: true, className: 'dossier' }],
     // WINDOW SIZE = one of two shells (2026-08-13): default PANEL, or WIDE (`console` = wide + rail,
     // `wide` = wide width only). The old per-window pixel widths (460/540/560/620/640/760/1000) are
     // gone — they made eight windows read as eight unrelated apps. A window earns WIDE only by having
