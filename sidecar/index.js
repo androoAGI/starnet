@@ -2052,11 +2052,12 @@ function envFirst(names) {
 function providerRuntimeKey(provider, explicitKey) {
   const id = normalizeProvider(provider);
   if (registryProviderUsesCodex(id)) return '';
-  const explicit = String(explicitKey || '').trim();
-  if (explicit) return explicit;
+
   // 'starnet' managed provider: the bearer is the linked device token, resolved from the credits config
   // (env CREDITS_* override or the linked .secrets/credits.json record) — never an env API key.
   if (id === 'starnet') return String(resolveCreditsConfig().apiKey || '').trim();
+  const explicit = String(explicitKey || '').trim();
+  if (explicit) return explicit;
   const runtime = String(runtimeKeys[id] || '').trim();
   if (runtime) return runtime;
   const profile = getProviderProfile(id);
@@ -2074,14 +2075,17 @@ function providerRuntimeKeyPool(provider, explicitPool) {
 }
 function providerRuntimeBaseUrl(provider, explicitBaseUrl) {
   const id = normalizeProvider(provider);
-  const explicit = String(explicitBaseUrl || '').trim();
-  if (explicit) return explicit;
+
   // 'starnet' managed provider: baseUrl = the linked cloud URL + '/v1' (the inference proxy lives there).
   // Resolved live so linking/unlinking a station reconfigures it with no restart (mirrors the credits adapter).
   if (id === 'starnet') {
     const u = String(resolveCreditsConfig().url || '').trim().replace(/\/+$/, '');
     return u ? (u + '/v1') : '';
   }
+  // Managed credentials and destination belong to the same linked account. A stale per-run
+  // BYOK endpoint must never redirect the device token away from that account's service.
+  const explicit = String(explicitBaseUrl || '').trim();
+  if (explicit) return explicit;
   const runtime = String(runtimeBaseUrls[id] || '').trim();
   if (runtime) return runtime;
   const profile = getProviderProfile(id);
