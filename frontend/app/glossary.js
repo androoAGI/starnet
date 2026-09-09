@@ -81,7 +81,6 @@
     kudos:        'the good ratings you give an agent’s work — they raise its satisfaction and earn it XP.',
     leash:        'the cap on how many jobs an agent may do on its own before it stops and waits for you.',
     beat:         'one small unattended job the station does while you’re away — the daily limit caps how many.',
-    'e-stop':     'the emergency stop — it halts every unattended job at once until you re-arm autonomy.',
     'restore point': 'a saved snapshot of an agent’s workspace you can roll it back to.',
     uplink:       'the live link to your local sidecar — full bars while telemetry flows, red when it drops.'
   };

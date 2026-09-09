@@ -10,7 +10,7 @@ const html = read('frontend/index.html');
 const chat = read('frontend/app/chat.js');
 const harness = read('frontend/app/harness.js');
 A.ok(!/id="estop-btn"|app\/safety\.js|Alt\+H/.test(html), 'legacy stop-only control and hotkey remain retired');
-A.ok(html.includes('app/emergency-control.js') && html.includes('id="automation-stop-toggle"') && html.includes('id="automation-resume"'), 'bundled desktop includes state-backed stop/resume and discoverable recovery');
+A.ok(html.includes('app/emergency-control.js') && !html.includes('id="automation-stop-toggle"') && !html.includes('id="automation-stop-retry"') && html.includes('id="automation-resume"'), 'global stop actions are removed; legacy saved pauses retain discoverable recovery');
 A.ok(!fs.existsSync(path.join(root, 'frontend/app/safety.js')), 'the retired global hotkey handler is removed');
 A.ok(/id="chat-stop"/.test(html) && /function stopActive\(/.test(chat), 'COMMS keeps its per-conversation Stop control');
 for (const field of ['nightshiftHaltPersisted', 'cronHaltPersisted', 'loopsHaltPersisted']) {
