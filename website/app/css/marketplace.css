@@ -1065,3 +1065,30 @@ button.mkt-archive-head:focus-visible { outline: 2px solid var(--gold); outline-
   padding: 0; font-size: 21px; letter-spacing: 1px; margin-bottom: 12px; }
 .mkt-stage.form .mkt-in { border-color: var(--ui-edge); box-shadow: var(--ui-well); }
 .mkt-stage.form .mkt-save-acts { border-color: var(--ui-edge); }
+
+/* Recipe library: crew-like glass selection and a single, inline launch. */
+.mkt-recipes .mkt-rows .mkt-card {
+  grid-template-columns: 42px minmax(0, 1fr); gap: 12px; padding: 14px 12px;
+  border: 1px solid transparent; border-radius: 8px;
+  background: linear-gradient(135deg, rgba(var(--ph-rgb), .06), rgba(var(--ph-rgb), .015));
+  box-shadow: inset 0 1px 0 rgba(var(--ph-bright-rgb), .04);
+}
+.mkt-recipes .mkt-rows .mkt-card:hover,
+.mkt-recipes .mkt-rows .mkt-card.sel {
+  border-color: rgba(var(--ph-rgb), .3);
+  background: linear-gradient(125deg, rgba(var(--ph-bright-rgb), .14), rgba(var(--ph-rgb), .07) 48%, rgba(var(--ph-rgb), .025));
+  box-shadow: inset 0 1px 0 rgba(var(--ph-bright-rgb), .2), inset 0 -1px 0 rgba(var(--ph-rgb), .08), 0 5px 18px rgba(0,0,0,.12);
+  backdrop-filter: blur(12px);
+}
+.mkt-recipes .mkt-rows .mkt-card .mkt-coin { --coin: 42px; }
+.mkt-recipes .mkt-card-side { display: none; }
+.mkt-recipes .mkt-rows .mkt-card .mkt-tag { line-height: 1.4; }
+.mkt-recipes .mkt-recipe-simple { padding-top: 24px; }
+.mkt-recipes .mkt-recipe-simple .mkt-dos-hero { border: 0; padding-bottom: 8px; }
+.mkt-recipes .mkt-recipe-simple .mkt-dos-tag { margin-top: 12px; font-size: 16px; line-height: 1.5; color: var(--text); }
+.mkt-inline-launch .mkt-p-lbl { margin: 16px 0; }
+.mkt-inline-launch .mkt-p-lbl-t { margin-bottom: 6px; }
+.mkt-inline-launch > .mkt-brief { margin: 20px 0; border: 0; background: none; }
+.mkt-inline-launch > .mkt-cta-main { width: 100%; margin-top: 8px; }
+.mkt-library-more { margin: 22px 6px 0; color: var(--ph-dim); }
+.mkt-library-more > summary { cursor: pointer; padding: 10px 0; }
