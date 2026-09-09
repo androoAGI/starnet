@@ -76,7 +76,14 @@ test('managed images: saved credits route generates, bills, survives restart and
       return (await r.text()).split('\n').filter(Boolean).map(x => JSON.parse(x));
     };
     for (const round of [0, 1]) {
-      if (round) await fixture.restart();
+      if (round) {
+        // Desktop adopts the file token into its keychain, then injects it on restart.
+        const linkPath = path.join(fixture.workspace, '.secrets/credits.json');
+        const saved = JSON.parse(fs.readFileSync(linkPath, 'utf8'));
+        delete saved.deviceToken;
+        fs.writeFileSync(linkPath, JSON.stringify(saved));
+        await fixture.restart({ STARNET_CREDITS_TOKEN: deviceToken });
+      }
       const before = store ? store.balance(account) : balance;
       const events = await run('managed-image-' + round);
       assert.equal(events.filter(e => e.name === 'agent.run.end').at(-1)?.payload.reason, 'done', JSON.stringify(events.filter(e => /error/.test(e.name))));
