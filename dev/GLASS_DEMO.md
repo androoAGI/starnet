@@ -161,3 +161,13 @@ Owner feedback: the model selector stretches too wide along the composer footer.
 Live proof at the owner's current 484px COMMS rail: selector width fell from 330px to 152px, while the model name remained 16px. Composer toolbar client/scroll width both 464px; selector client/scroll width both 150px. The model menu opened normally (348px client/scroll width), and Escape closed it. Empty draft, active model and rail width were preserved.
 
 readability (21), comms-responsive-text (5), control-floor-theming (125) and website-app-sync (8) passed. Website mirror synchronized. Full fast was not repeated for this CSS adjustment; its previously recorded release-manifest failure remains unresolved. No merge or release.
+
+## Borderless model control and cleaner picker - 2026-09-09
+
+Removed the model toggle's resting, hover, open and missing-key border treatments. It now has a small stateful chevron and a soft glass hover; keyboard focus retains its accessible outline. The real missing-key condition still colors the model name amber and keeps its Settings action inside the menu.
+
+The popup has a stacked provider/model heading, a recessed search underline, a labeled REASONING row, brighter model names, crew-style row hover/selection, a quiet left-accent credential notice, and compact footer actions. A stronger glass backing and blur separate the menu from the transcript. No selection, provider, credential, effort or execution logic changed.
+
+Live proof: toggle computed border-width 0px both closed and open, with a compact 166px width at the original 484px rail. Search for haiku filtered the real catalog; Escape closed the menu and returned focus, and Enter reopened it with search focused. At a 302px rail, toolbar client/scroll width both 282px and toggle client/scroll both 131px. Popup client/scroll width both 348px; all seven reasoning controls fit their labels. Restored the exact 484px rail, original model/MED effort and empty draft. Browser warnings/errors were empty; left the model popup open for review.
+
+readability (21), comms-responsive-text (5), control-floor-theming (125), website-app-sync (8) and diff whitespace checks passed. Website mirror synchronized. Full fast was not repeated for this CSS refinement; its previously recorded release-manifest failures remain unresolved. Real model execution and installed builds were not verified; no merge or release.

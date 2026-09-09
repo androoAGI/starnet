@@ -90,22 +90,28 @@ body.glass-demo #chat-panel :is(.chat-attach-btn,.voice-toggle,.mic-btn,.chat-st
 }
 body.glass-demo #chat-panel .model-dock-toggle {
   flex: 0 1 auto; min-width: 62px; max-width: 220px; width: auto; height: 28px; padding: 0 6px; gap: 5px;
-  border: 1px solid transparent; border-radius: 3px; background: transparent;
+  border: 0; border-radius: 3px; background: transparent;
   color: var(--ph); box-shadow: none; text-shadow: none;
 }
 body.glass-demo #chat-panel .model-dock-model-name { font-size: 13px; max-width: none; letter-spacing: .15px; }
 body.glass-demo #chat-panel .model-dock-effort-chip { font-size: 10px; color: var(--ph); }
-body.glass-demo #chat-panel :is(.chat-send,.chat-attach-btn,.voice-toggle,.mic-btn,.model-dock-toggle,#gc-add-agents):hover {
+body.glass-demo #chat-panel :is(.chat-send,.chat-attach-btn,.voice-toggle,.mic-btn,#gc-add-agents):hover {
   border-color: rgba(var(--ph-rgb),.5); background: var(--gd-hover); color: var(--ph-bright); box-shadow: inset 0 1px 0 var(--gd-light);
 }
 body.glass-demo #chat-panel .model-dock-toggle:is(:hover,.on) :is(.model-dock-model-name,.model-dock-effort-chip),
 body.glass-demo #chat-panel .model-dock-toggle:is(:hover,.on) .model-dock-effort-chip::before { color: var(--ph-bright); text-shadow: none; }
-body.glass-demo #chat-panel :is(.model-dock-toggle.on,.voice-live[aria-pressed="true"]) {
+body.glass-demo #chat-panel .voice-live[aria-pressed="true"] {
   color: var(--ph-bright); border-color: var(--ph); background: rgba(var(--ph-rgb),.14); box-shadow: inset 0 -1px 0 var(--ph);
 }
 body.glass-demo #chat-panel .voice-toggle.off { color: var(--ph-dim); background: transparent; }
 body.glass-demo #chat-panel .voice-toggle.off:hover { color: var(--ph-bright); background: rgba(var(--ph-rgb),.1); }
-body.glass-demo #chat-panel .model-dock-toggle.needs-key { border-color: color-mix(in srgb, var(--warn) 50%, transparent); }
+/* The model is a bare glass readout; only keyboard focus gets an outline. */
+body.glass-demo #chat-panel .model-dock-toggle:is(:hover,.on) { background: var(--gd-hover); box-shadow: none; }
+body.glass-demo #chat-panel .model-dock-toggle::after {
+  content: ''; flex: 0 0 5px; width: 5px; height: 5px; margin: -3px 2px 0 3px;
+  border-right: 1px solid currentColor; border-bottom: 1px solid currentColor; transform: rotate(45deg); opacity: .8;
+}
+body.glass-demo #chat-panel .model-dock-toggle.on::after { transform: rotate(225deg); margin-top: 3px; }
 body.glass-demo #chat-panel .model-dock-toggle.needs-key .model-dock-model-name { color: var(--warn); }
 body.glass-demo #chat-panel :is(.mic-btn.rec,.chat-stop:not([hidden])) { color: var(--bad); border-color: var(--bad); background: color-mix(in srgb, var(--bad) 9%, var(--panel2)); }
 body.glass-demo #chat-panel :is(.chat-tools button,.chat-send,#gc-add-agents,.gd-agent-toggle) {
@@ -128,27 +134,52 @@ body.glass-demo :is(#model-dock,.gd-agent-menu,#chat-slash,.model-dock-tip) {
   background: var(--gd-pop); border: 1px solid rgba(var(--ph-rgb),.32); border-radius: 5px;
   box-shadow: inset 0 1px 0 var(--gd-light), 0 10px 28px rgba(0,0,0,.35);
 }
-body.glass-demo #model-dock { padding: 9px; gap: 8px; width: min(350px,calc(100vw - 34px)); max-height: min(65vh,460px); }
-body.glass-demo #model-dock .model-dock-head { border-color: var(--gd-edge); padding: 2px 2px 8px; }
-body.glass-demo #model-dock .model-dock-current-model { font-size: 15px; font-weight: normal; }
-body.glass-demo #model-dock .model-dock-provider { font-size: 11px; letter-spacing: .6px; }
+body.glass-demo #model-dock {
+  padding: 10px; gap: 9px; width: min(350px,calc(100vw - 34px)); max-height: min(65vh,480px);
+  background: linear-gradient(145deg,rgba(var(--ph-rgb),.09),transparent 65%),color-mix(in srgb,var(--panel2) 90%,var(--ink));
+  backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+}
+body.glass-demo #model-dock .model-dock-head {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 3px; border: 0; padding: 2px 3px 1px;
+}
+body.glass-demo #model-dock .model-dock-current-model { font-size: 16px; font-weight: normal; text-align: left; max-width: 100%; }
+body.glass-demo #model-dock .model-dock-provider { font-size: 14px; letter-spacing: .6px; color: var(--text); opacity: .8; }
 body.glass-demo #model-dock-search {
-  padding: 8px 9px; font: 15px/1.25 'VT323',monospace; background: var(--gd-comms-well);
-  border-color: var(--gd-edge); box-shadow: inset 0 1px 3px rgba(0,0,0,.15); border-radius: 3px;
+  padding: 8px 9px; font: 16px/1.25 'VT323',monospace; background: rgba(var(--ph-rgb),.035);
+  border: 0; border-bottom: 1px solid var(--gd-edge); box-shadow: none; border-radius: 2px;
 }
-body.glass-demo #model-dock .model-dock-efforts { display: flex; flex-wrap: wrap; gap: 3px; padding: 0; border: 0; border-radius: 3px; }
-body.glass-demo #model-dock .model-dock-effort { flex: 1; min-width: 30px; height: 26px; border: 1px solid transparent; font-size: 12px; color: var(--ph); }
-body.glass-demo #model-dock :is(.model-dock-effort.sel,.model-dock-row.sel) {
-  color: var(--ph-bright); background: rgba(var(--ph-rgb),.12); border-color: var(--gd-edge); box-shadow: inset 0 -1px 0 var(--ph);
+body.glass-demo #model-dock-search:focus { border-bottom-color: var(--ph); background: rgba(var(--ph-rgb),.065); }
+body.glass-demo #model-dock-search::placeholder { color: var(--text); opacity: .8; }
+body.glass-demo #model-dock .model-dock-efforts { display: flex; flex-wrap: wrap; gap: 4px; padding: 0; border: 0; }
+body.glass-demo #model-dock .model-dock-efforts::before {
+  content: 'REASONING'; flex-basis: 100%; padding: 1px 3px 2px; color: var(--text); opacity: .8;
+  font: 14px/1.2 'VT323',monospace; letter-spacing: .6px;
 }
-body.glass-demo #model-dock .model-dock-list { min-height: 0; flex: 1 1 auto; max-height: 260px; border-color: var(--gd-edge); }
-body.glass-demo #model-dock .model-dock-group { border: 0; font-size: 11px; padding: 11px 7px 5px; letter-spacing: 1px; }
-body.glass-demo #model-dock .model-dock-row { padding: 8px 7px; border: 1px solid transparent; border-radius: 3px; margin-block: 2px; }
-body.glass-demo #model-dock .model-dock-row-name { font-size: 15px; }
-body.glass-demo #model-dock .model-dock-row.fallback.sel .model-dock-row-name { color: var(--ph-bright); }
+body.glass-demo #model-dock .model-dock-effort {
+  flex: 1; min-width: 30px; height: 26px; border: 0; font-size: 14px; color: var(--text);
+}
+body.glass-demo #model-dock .model-dock-effort:is(:hover,:focus-visible) { background: var(--gd-hover); color: var(--ph-bright); }
+body.glass-demo #model-dock .model-dock-effort.sel {
+  color: var(--ph-bright); background: rgba(var(--ph-rgb),.12); box-shadow: inset 0 -1px 0 var(--ph);
+}
+body.glass-demo #model-dock .model-dock-list { min-height: 0; flex: 1 1 auto; max-height: 260px; border-color: var(--gd-edge); padding-block: 2px; }
+body.glass-demo #model-dock .model-dock-group { border: 0; font-size: 14px; padding: 8px 8px 4px; letter-spacing: .6px; color: var(--text); opacity: .8; }
+body.glass-demo #model-dock .model-dock-row { padding: 8px; border: 1px solid transparent; border-radius: 3px; margin-block: 1px; }
+body.glass-demo #model-dock .model-dock-row:not(.fallback) .model-dock-row-name { font-size: 16px; color: var(--text); }
+body.glass-demo #model-dock .model-dock-row-effort { font-size: 14px; color: var(--text); opacity: .7; }
+body.glass-demo #model-dock .model-dock-row.sel { background: rgba(var(--ph-rgb),.1); border-color: var(--gd-edge); box-shadow: inset 2px 0 0 var(--ph); }
+body.glass-demo #model-dock .model-dock-row.sel .model-dock-row-name { color: var(--ph-bright); }
 body.glass-demo #model-dock .model-dock-row:is(:hover,:focus-visible) { background: var(--gd-hover); border-color: var(--gd-edge); }
-body.glass-demo #model-dock .model-dock-keywarn { font-size: 13px; padding: 8px; border-color: color-mix(in srgb,var(--warn) 40%,transparent); background: color-mix(in srgb,var(--warn) 6%,var(--panel2)); }
-body.glass-demo #model-dock .model-dock-foot button { font-size: 13px; border-color: var(--gd-edge); background: rgba(var(--ph-rgb),.04); box-shadow: inset 0 1px 0 var(--gd-light); }
+body.glass-demo #model-dock .model-dock-keywarn {
+  font-size: 14px; padding: 7px 9px; margin: 0; border: 0; border-left: 2px solid color-mix(in srgb,var(--warn) 60%,transparent);
+  border-radius: 0; background: color-mix(in srgb,var(--warn) 5%,transparent);
+}
+body.glass-demo #model-dock .model-dock-keywarn:hover { background: color-mix(in srgb,var(--warn) 10%,transparent); }
+body.glass-demo #model-dock .model-dock-foot { justify-content: space-between; gap: 8px; }
+body.glass-demo #model-dock .model-dock-foot button {
+  flex: 0 1 auto; min-height: 28px; padding: 5px 8px; font-size: 16px; color: var(--text); border: 0; background: transparent; box-shadow: none;
+}
+body.glass-demo #model-dock .model-dock-foot button:is(:hover,:focus-visible) { color: var(--ph-bright); background: var(--gd-hover); }
 body.glass-demo .gd-agent-menu { position: absolute; top: calc(100% + 5px); left: 7px; right: 7px; z-index: 90; padding: 5px; max-height: 260px; overflow-y: auto; }
 body.glass-demo .gd-agent-option { display: flex; align-items: center; justify-content: space-between; width: 100%; padding: 9px; font: 16px/1.2 'VT323',monospace; text-align: left; color: var(--ph); background: transparent; border: 1px solid transparent; border-radius: 3px; }
 body.glass-demo .gd-agent-option[aria-selected="true"] { background: rgba(var(--ph-rgb),.09); border-color: var(--gd-edge); color: var(--ph-bright); box-shadow: inset 2px 0 0 var(--ph); }
