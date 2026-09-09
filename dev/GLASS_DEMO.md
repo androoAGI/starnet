@@ -106,3 +106,11 @@ Checks:
 - group-chat-picker, composer-paste-limit (25), comms-responsive-text (5), control-floor (121), and website-app-sync (8) passed. The generated website mirror is synchronized.
 - Full npm run test:fast stopped at step 286/733 with the same 10 qa-product-perfect-claims release-manifest failures documented above. The full suite is not green; no merge or release was performed.
 - The keyless demo has one agent. Real model execution, switching between two live agents, active voice recording/live voice, and populated attachment/tool states were not live-tested. Those associated surfaces were styled without changing their backend state logic.
+
+## COMMS identity correction - 2026-09-09
+
+Owner feedback: the names were too small and the hierarchy did not fit the station. The header now uses an inset crew-style glass card, a 40 x 52 portrait, and a full-width 26px uppercase agent name. Removed the redundant ON THE LINE overline; model information and Add agents sit beneath the name. Message speaker names increased from 11px to 17px while timestamps remain secondary. Group conversations keep their existing flex header layout.
+
+Live DOM proof: NOVA header 26px, speaker name 17px, header height 76px; no horizontal header overflow at the original 354px rail or the narrowed 303px rail. Agent menu opened and Escape returned focus. Restored the exact original rail width and preserved the empty draft. Final reload showed the revised typography with no browser warnings/errors. Group header appearance was not live-tested with multiple agents.
+
+comms-responsive-text (5), control-floor (121), website-app-sync (8) passed; mirror synchronization and final diff whitespace check passed. This CSS-only adjustment did not repeat the full suite; the existing release-manifest failure remains documented above.
