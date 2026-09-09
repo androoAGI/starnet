@@ -162,7 +162,7 @@ function jsonResp(obj, status) { return { status: status || 200, json: async () 
 
   // ---- G. no API key -> clean, actionable error ----
   const T4 = makeImageTools({ openrouter: { apiKey: '' }, fsp, pathMod: path, root: ROOT, fetchImpl: async () => jsonResp({}) });
-  let noKey = false; try { await T4.generateTool.run({ prompt: 'q' }, ctx); } catch (e) { noKey = /API key/i.test(e.message); }
+  let noKey = false; try { await T4.generateTool.run({ prompt: 'q' }, ctx); } catch (e) { noKey = /media connection/i.test(e.message); }
   A.ok(noKey, 'image_generate errors helpfully when no OpenRouter key is configured');
 
   // ---- H. browserVision: reusable vision callback for browser.vision ----
@@ -241,8 +241,8 @@ function jsonResp(obj, status) { return { status: status || 200, json: async () 
     A.ok(/may not support vision/.test(empty), 'empty session answer surfaces as a not-vision-capable error');
 
     // I5. image_generate is UNCHANGED: still requires the OpenRouter key even when auxVision exists
-    let genKey = false; try { await TA.generateTool.run({ prompt: 'x' }, ctx); } catch (e) { genKey = /API key/i.test(e.message); }
-    A.ok(genKey, 'image_generate still needs the OpenRouter key (image OUTPUT genuinely requires it)');
+    let genKey = false; try { await TA.generateTool.run({ prompt: 'x' }, ctx); } catch (e) { genKey = /media connection/i.test(e.message); }
+    A.ok(genKey, 'image_generate requires a media route; a vision callback alone cannot generate images');
   }
 
   try { await fsp.rm(ROOT, { recursive: true, force: true }); } catch (_) {}

@@ -21,16 +21,25 @@ A.eq(direct.keySource, 'run', 'the route records that the run key authorized gen
 const borrowed = ImageTask.resolveRoute({ providerId: 'gemini', runKey: 'gemini-key', stationOpenRouterKey: 'station-or-key' });
 A.eq(borrowed.key, 'station-or-key', 'a non-OpenRouter run uses the separately connected station OpenRouter key');
 A.eq(borrowed.keySource, 'station', 'the route never relabels the configured provider key');
+const managedInput = { providerId: 'starnet', runKey: 'untrusted-request-key', providerBaseUrl: 'https://wrong.example/v1', managedKey: 'device-token', managedBaseUrl: 'https://account.starnetos.com/v1/' };
+const managed = ImageTask.resolveRoute(managedInput);
+A.eq(managed, { ok: true, provider: 'starnet', key: 'device-token', baseUrl: 'https://account.starnetos.com/v1', keySource: 'managed' }, 'credits-only route keeps the linked credential and endpoint together');
+for (const providerId of ['gemini', 'codex', 'custom', 'anthropic']) {
+  A.eq(ImageTask.resolveRoute({ ...managedInput, providerId }).provider, 'starnet', providerId + ' conversation can generate using linked credits');
+}
+A.eq(ImageTask.resolveRoute({ ...managedInput, managedBaseUrl: '', stationOpenRouterKey: 'byok' }).ok, false, 'missing managed endpoint cannot leak device token or silently spend BYOK');
+A.eq(ImageTask.resolveRoute({ ...managedInput, managedKey: '' }).ok, false, 'missing managed credential fails closed');
+A.eq(ImageTask.admissionBlocker({ hasStudio: true, studioEnabled: true, route: managed }), null, 'linked credits admit generation without an OpenRouter key');
 const impossible = ImageTask.resolveRoute({ providerId: 'gemini', runKey: 'gemini-key', stationOpenRouterKey: '' });
 A.eq(impossible.ok, false, 'a Gemini key alone is not treated as an OpenRouter STUDIO route');
-A.eq(impossible.code, 'openrouter-key-required', 'the incompatible credential path has an exact blocker code');
+A.eq(impossible.code, 'media-route-required', 'the incompatible credential path has an exact blocker code');
 
 const noGear = ImageTask.admissionBlocker({ hasStudio: false, studioEnabled: false, route: direct, providerId: 'openrouter', model: 'x' });
 A.ok(/Open REFIT, place a STUDIO/.test(noGear), 'missing gear names the exact REFIT action');
 const disabled = ImageTask.admissionBlocker({ hasStudio: true, studioEnabled: false, route: direct });
 A.ok(/MEDIA STUDIO is disabled/.test(disabled) && /ABILITIES > TOOLSETS/.test(disabled), 'disabled STUDIO names the exact toolset action instead of asking for another prop');
 const noRoute = ImageTask.admissionBlocker({ hasStudio: true, studioEnabled: true, route: impossible, providerId: 'gemini', model: 'gemini-2.5-pro' });
-A.ok(/gemini \/ gemini-2\.5-pro/.test(noRoute) && /SETTINGS > PROVIDERS/.test(noRoute), 'incompatible model/key path names both the configured route and exact fix');
+A.ok(/gemini \/ gemini-2\.5-pro/.test(noRoute) && /link this station/.test(noRoute), 'incompatible model/key path names both the configured route and exact fix');
 A.eq(ImageTask.admissionBlocker({ hasStudio: true, studioEnabled: true, route: direct }), null, 'a placed, enabled STUDIO plus compatible credential is admitted');
 
 // Completion is artifact-backed. Successful prose, successful unrelated tools, or a generic file
@@ -56,7 +65,7 @@ const runHost = indexSource.slice(indexSource.indexOf('async function runOnce(o)
 const admissionAt = runHost.indexOf('ImageTask.admissionBlocker');
 const loopAt = runHost.indexOf('result = await runAgentLoop');
 A.ok(admissionAt >= 0 && loopAt > admissionAt, 'the STUDIO blocker runs before the configured model/fallback loop');
-A.ok(/makeImageTools\(\{ openrouter: studioRoute\.ok \? \{ apiKey: studioRoute\.key, model, baseUrl: studioOpenRouterBase/.test(runHost), 'the image tool receives only the compatible resolved key and base route');
+A.ok(/makeImageTools\(\{ openrouter: studioRoute\.ok \? \{ apiKey: studioRoute\.key, model, baseUrl: studioRoute\.baseUrl/.test(runHost), 'the image tool receives only the compatible resolved key and base route');
 A.ok(/\(taskBrief \|\| imageTask\).*agent\.run\.end/.test(runHost), 'a provisional image-task done event is buffered until artifact settlement');
 A.ok(/ImageTask\.enforceCompletion\(result, execution\.artifactList\(\)/.test(runHost), 'the real artifact ledger settles image completion');
 A.ok(/reason: taskQuestionAsked \? 'clarifying' : \(\(result && result\.reason\)/.test(runHost), 'the emitted terminal uses the artifact-corrected result reason');

@@ -100,8 +100,8 @@ async function run(base, token, body) {
       messages: [{ role: 'user', content: 'Create an image of a red cube' }]
     });
     const blockedError = blocked.find(e => e.name === 'agent.run.error');
-    A.ok(blockedError && /configured for custom \/ test\/model/.test(blockedError.payload.message), 'configured model/key mismatch surfaces the exact STUDIO blocker');
-    A.ok(/SETTINGS > PROVIDERS/.test(blockedError.payload.message), 'the blocker tells the user exactly how to authorize generation');
+    A.ok(blockedError && /for custom \/ test\/model/.test(blockedError.payload.message), 'configured model/key mismatch surfaces the exact STUDIO blocker');
+    A.ok(/link this station/.test(blockedError.payload.message), 'the blocker tells the user exactly how to authorize generation');
     A.eq(provider.requests.length, beforeBlocked, 'an impossible route never calls the configured model or a fallback');
     A.eq(blocked.filter(e => e.name === 'agent.run.end').pop().payload.reason, 'error', 'the impossible route ends error, never OK');
 
