@@ -646,10 +646,8 @@ const VoiceLive = (() => {
 
   function onAssistant(part) {
     part = part || {};
-    // The first spoken chunk is also a focus event for the CALL'S session. The Commander may browse
-    // elsewhere while the agent works, but the answering agent brings its bound conversation back;
-    // it never adopts whichever rail item happens to be selected when the reply arrives.
-    ensureBoundFocus();
+    // Speech updates the call panel only. A delayed reply must never navigate away from
+    // the session the Commander selected or replace its composer draft. Call ownership stays bound.
     caption('agent', part.text || '', !part.opening);
   }
   // the agent's live output RMS, straight off the tap on its playback chain. Stored, not drawn: the mic
