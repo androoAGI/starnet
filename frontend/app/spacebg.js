@@ -1272,8 +1272,8 @@ const SpaceBG = (() => {
 
   /* ------------------------------------------------------- shared: SURFACE backdrops ---- */
   /* Everything the station can float ABOVE (ocean, city, and whatever comes next) shares the
-     same three problems, so they share the same three helpers: a deck of drifting cloud, a
-     haze that kills contrast with distance, and the parallax depths that put them in order.
+     same three problems, so they share the same three helpers: a deck of cloud, a haze that
+     kills contrast with distance, and the parallax depths that put them in order.
 
      Depth semantics: d is the fraction of the camera pan a layer follows. The station sits at
      d=1. Anything BELOW it follows less — the further down, the smaller d. So a surface at 0.10
@@ -1289,9 +1289,70 @@ const SpaceBG = (() => {
     c.fillRect(0, 0, w, h);
   }
 
-  /* One toroidal deck of soft cloud. Returns a canvas to be tiled at SURF.cloud. `dark` builds
-     the SHADOW deck instead (the same shapes in negative) — shadows belong to clouds, so the
-     two decks drift together and the shadow deck rides the SURFACE depth, not the cloud depth. */
+  /* PIXEL CLOUDS (2026-09-09). The first cloud decks were soft radial puffs at 15% alpha, and on
+     a live station they read as smudges on the lens — fog with no shape, which is exactly what a
+     puff gradient IS. A cloud seen from above is an OBJECT: a lobed cumulus mass with a hard
+     outline, a lit rim on the sun side, a shaded rim on the far side and a flat body between.
+     Built from overlapping discs into a coverage field, edged by a hash dither (so the outline is
+     ragged at the pixel scale, never anti-aliased), and shaded in THREE flat tones by probing the
+     field a few pixels up-light and down-light: a probe that falls outside the cloud on the lit
+     side makes the pixel rim, and so on. Toroidal by construction — every write wraps.
+       opts: spread (px^2 per cloud) · min/vary (radius as a fraction of min(w,h)) · body/lit/shade
+       colours · alpha (0-1) · light [x,y] (direction TOWARD the light) · rim (px) · `edge` makes
+       every thin edge take the lit tone (an underlit night cloud glows all round, not on one
+       side) · `mask` paints one flat colour from the same shapes — the cloud's SHADOW plate. */
+  function buildPixelClouds(w, h, rnd, opts) {
+    const o = opts || {};
+    const cv = mkCv(w, h), c = cv.getContext('2d');
+    const F = new Float32Array(w * h);                       // coverage field, wrapped
+    const n = Math.max(3, Math.round((w * h) / (o.spread || 220000)));
+    const idx = (x, y) => (((y % h) + h) % h) * w + (((x % w) + w) % w);
+    for (let i = 0; i < n; i++) {
+      const cx = rnd() * w, cy = rnd() * h;
+      const R = (o.min || 0.05) * Math.min(w, h) * (1 + rnd() * (o.vary == null ? 1.2 : o.vary));
+      const lobes = [];
+      for (let p = 0, L = 7 + Math.floor(rnd() * 8); p < L; p++) {
+        // a cauliflower, wind-sheared: lobes bunched near the middle, wider than tall
+        const a = rnd() * Math.PI * 2, dd = Math.pow(rnd(), 0.7);
+        lobes.push([cx + Math.cos(a) * dd * R * 1.1, cy + Math.sin(a) * dd * R * 0.55, R * (0.34 + 0.42 * rnd()) * (1 - dd * 0.35)]);
+      }
+      const B = Math.ceil(R * 2.0);
+      for (let y = Math.floor(cy - B); y <= cy + B; y++) {
+        for (let x = Math.floor(cx - B * 1.3); x <= cx + B * 1.3; x++) {
+          let f = 0;
+          for (const [lx, ly, lr] of lobes) { const d = 1 - Math.hypot(x - lx, y - ly) / lr; if (d > f) f = d; }
+          if (f <= 0) continue;
+          const k = idx(x, y);
+          if (f > F[k]) F[k] = f;
+        }
+      }
+    }
+    const img = c.createImageData(w, h), D = img.data;
+    const [lx, ly] = o.light || [-0.6, -0.8];
+    const rim = o.rim || 3;
+    const A = Math.round(255 * (o.alpha == null ? 0.9 : o.alpha));
+    const body = o.body || [180, 188, 202], lit = o.lit || [220, 226, 238], shade = o.shade || [122, 132, 152];
+    const out = (x, y) => F[idx(Math.round(x), Math.round(y))] <= 0.02;
+    for (let y = 0; y < h; y++) {
+      for (let x = 0; x < w; x++) {
+        const f = F[y * w + x];
+        if (f <= 0) continue;
+        // dithered outline: the thinner the coverage, the likelier the pixel drops out
+        if (f < 0.12 && hashDither(x, y) + 0.5 > f / 0.12) continue;
+        let col = body;
+        if (o.mask) col = o.mask;
+        else if (o.edge) { if (out(x + rim, y) || out(x - rim, y) || out(x, y + rim) || out(x, y - rim)) col = lit; }
+        else if (out(x + lx * rim, y + ly * rim)) col = lit;
+        else if (out(x - lx * rim, y - ly * rim)) col = shade;
+        const p = (y * w + x) * 4;
+        D[p] = col[0]; D[p + 1] = col[1]; D[p + 2] = col[2]; D[p + 3] = A;
+      }
+    }
+    c.putImageData(img, 0, 0);
+    return cv;
+  }
+
+  /* the old soft cloud deck — still used by OCEAN until its rewrite lands; then it goes. */
   function buildCloudDeck(w, h, rnd, opts) {
     const o = opts || {};
     const cv = mkCv(w, h), c = cv.getContext('2d');
@@ -1300,7 +1361,6 @@ const SpaceBG = (() => {
     for (let i = 0; i < n; i++) {
       const cx = rnd() * w, cy = rnd() * h;
       const R = (o.min || 0.06) * Math.min(w, h) + rnd() * (o.vary || 0.10) * Math.min(w, h);
-      // a cloud is a clump of puffs, never one disc — 5-9 lobes with a flattened, wind-sheared spread
       for (let p = 0, lobes = 5 + Math.floor(rnd() * 5); p < lobes; p++) {
         const lx = cx + (rnd() - 0.5) * R * 2.1, ly = cy + (rnd() - 0.5) * R * 1.1;
         puff9(c, w, h, lx, ly, R * (0.42 + 0.5 * rnd()), tint, (o.alpha || 0.15) * (0.55 + 0.6 * rnd()));
@@ -1498,128 +1558,254 @@ const SpaceBG = (() => {
   };
 
   /* ---------------------------------------------------------- BACKDROP: NIGHT CITY ---- */
-  /* A city at night from altitude: a lattice of light, arterials, and the orange dome of its own
-     light pollution. Roads are axis-aligned on purpose — that is both what most cities look like
-     from directly above AND the only thing that tiles seamlessly on a torus (a diagonal only
-     wraps if its slope is rational in w/h; the river gets the sine treatment instead). */
+  /* A city at night from altitude. REBUILT 2026-09-09 — the first cut had the right idea (an
+     axis-aligned lattice of sodium lamps, districts, a river the grid bends around, an orange
+     dome) at a tenth of the light: measured live, its lamps sat at 6-40% alpha under a 13% warm
+     veil and a CRT pass that halves contrast, so what reached the screen was a faint brown grid
+     that read as a texture, not a place. Nobody could see the city.
+
+     What a city looks like from straight above at night, and what this now draws:
+       - STREETS ARE LINES OF LAMPS. Bright, regular, continuous — the lattice is the subject.
+         Arterials are wider and hotter and BRIDGE the river; side streets stop at the water.
+       - BLOCKS ARE BUILDINGS. The grid encloses blocks, and a block is lit by what stands on it:
+         downtown blocks carry towers — footprints packed with cool white windows on a 2px
+         lattice — dense districts line their streets with warm windows, suburbs scatter a few
+         porch lights, parks stay dark. District comes from ONE density field, so downtown,
+         suburb and park all fall out of the same map instead of three systems.
+       - THE RIVER IS DARK, and it answers the city back: embankment lamps along both banks and
+         the bank lights smeared into the water beneath them.
+       - THE DOME. Light pollution over the dense parts, additive, breathing slightly.
+       - LIVE: traffic runs the arterials as 2px dashes (warm one way, red the other), and a
+         dozen red beacons on the tallest towers blink out of phase. Reduced motion holds the
+         beacons steady and the cars still.
+       - CLOUDS are hard-edged pixel cumulus, UNDERLIT: dark body, every thin edge glowing the
+         city's orange. That the light is BELOW the cloud is the strongest altitude cue there is.
+     Roads stay axis-aligned on purpose — that is what most cities look like from directly above
+     AND the only thing that tiles seamlessly on a torus; the river gets the sine treatment.
+     Every mark on the ground plate is a hard pixel written into one wrapped buffer, so a lamp is
+     a lamp and not a smear, and the tile seams by construction. */
 
   const CITY_BG = {
     label: 'NIGHT CITY',
     blurb: 'Somewhere with power. A grid of light, far below.',
     base: '#06050a',
+    PAL: {
+      GROUND: [10, 9, 15], PARK: [6, 12, 9], WATER: [3, 6, 16], ROOF: [22, 21, 30],
+      LAMP: [255, 186, 104], LAMP_HI: [255, 228, 172],
+      WIN_W: [255, 220, 156], WIN_C: [170, 218, 255], WIN_HI: [255, 250, 236],
+      BEACON: [255, 56, 48], HEAD: [255, 246, 214], TAIL: [255, 80, 60],
+      DOME: [255, 148, 58], DOME_HI: [255, 190, 100],
+      CLOUD: [66, 46, 46], CLOUD_LIT: [150, 96, 66],
+      HAZE: [58, 34, 28], HAZE_A: 0.03,
+    },
 
     build(w, h, rnd) {
-      const area = w * h;
+      const P = CITY_BG.PAL, area = w * h;
       const cityCv = mkCv(w, h), c = cityCv.getContext('2d');
-      c.fillStyle = '#0a0810'; c.fillRect(0, 0, w, h);
-
-      /* districts: where the light is dense and where it is not. Sampled by everything below,
-         so parks, industry and downtown all fall out of one field instead of three systems. */
-      const cores = [];
-      for (let i = 0, n = 3 + Math.floor(rnd() * 3); i < n; i++) cores.push({ x: rnd() * w, y: rnd() * h, r: (0.18 + 0.20 * rnd()) * Math.min(w, h), s: 0.5 + rnd() });
-      const darks = [];
-      for (let i = 0, n = 2 + Math.floor(rnd() * 3); i < n; i++) darks.push({ x: rnd() * w, y: rnd() * h, r: (0.06 + 0.10 * rnd()) * Math.min(w, h) });
+      const img = c.createImageData(w, h), D = img.data;
+      for (let i = 0; i < area; i++) { D[i * 4] = P.GROUND[0]; D[i * 4 + 1] = P.GROUND[1]; D[i * 4 + 2] = P.GROUND[2]; D[i * 4 + 3] = 255; }
+      // wrapped, alpha-blended pixel write — every mark on the ground plate goes through this
+      const put = (x, y, col, a) => {
+        const p = (((((y | 0) % h) + h) % h) * w + ((((x | 0) % w) + w) % w)) * 4;
+        D[p] += (col[0] - D[p]) * a; D[p + 1] += (col[1] - D[p + 1]) * a; D[p + 2] += (col[2] - D[p + 2]) * a;
+      };
       // toroidal distance — the field must agree across the seam or the grid density steps at the wrap
       const dt = (a, b, m) => { const d = Math.abs(a - b) % m; return Math.min(d, m - d); };
+
+      /* districts: where the light is dense and where it is not. Sampled by everything below. */
+      const cores = [];
+      for (let i = 0, n = 3 + Math.floor(rnd() * 3); i < n; i++) cores.push({ x: rnd() * w, y: rnd() * h, r: (0.18 + 0.20 * rnd()) * Math.min(w, h), s: 0.5 + rnd() });
+      const parks = [];
+      for (let i = 0, n = 2 + Math.floor(rnd() * 3); i < n; i++) parks.push({ x: rnd() * w, y: rnd() * h, r: (0.05 + 0.08 * rnd()) * Math.min(w, h) });
       function density(x, y) {
         let v = 0.12;
         for (const k of cores) { const d = Math.hypot(dt(x, k.x, w), dt(y, k.y, h)); v += k.s * Math.max(0, 1 - d / k.r); }
-        for (const k of darks) { const d = Math.hypot(dt(x, k.x, w), dt(y, k.y, h)); if (d < k.r) v *= 0.10 + 0.9 * (d / k.r); }
-        return Math.min(1.4, v);
+        for (const k of parks) { const d = Math.hypot(dt(x, k.x, w), dt(y, k.y, h)); if (d < k.r) v *= 0.05 + 0.95 * (d / k.r); }
+        return Math.min(1.5, v);
+      }
+      const inPark = (x, y) => parks.some(k => Math.hypot(dt(x, k.x, w), dt(y, k.y, h)) < k.r * 0.9);
+
+      /* THE RIVER — one sine band, periodic in w, that the side streets refuse to cross. Cities
+         bend around water, and that bend is most of what stops a lattice reading as graph paper. */
+      const rivY = h * (0.2 + 0.6 * rnd()), rivAmp = h * (0.06 + 0.07 * rnd()), rivPh = rnd() * 7, rivHalf = h * (0.02 + 0.016 * rnd());
+      const rivAt = x => rivY + rivAmp * Math.sin((x / w) * Math.PI * 2 + rivPh);
+      const rivD = (x, y) => Math.abs(((y - rivAt(x)) % h + h * 1.5) % h - h * 0.5);
+      const inRiver = (x, y) => rivD(x, y) < rivHalf;
+      for (let y = 0; y < h; y++) {
+        for (let x = 0; x < w; x++) {
+          if (inPark(x, y)) put(x, y, P.PARK, 0.9);
+          const rd = rivD(x, y);
+          if (rd < rivHalf + 1) put(x, y, P.WATER, rd < rivHalf ? 1 : 0.5);
+        }
       }
 
-      /* THE RIVER — one sine band, periodic in w, that the grid refuses to cross. Cities bend
-         around water, and that bend is most of what stops a lattice reading as graph paper. */
-      const rivY = h * (0.2 + 0.6 * rnd()), rivAmp = h * (0.06 + 0.07 * rnd()), rivPh = rnd() * 7, rivHalf = h * (0.018 + 0.016 * rnd());
-      const rivAt = x => rivY + rivAmp * Math.sin((x / w) * Math.PI * 2 + rivPh);
-      const inRiver = (x, y) => { const d = Math.abs(((y - rivAt(x)) % h + h * 1.5) % h - h * 0.5); return d < rivHalf; };
-
-      /* ---- the grid: irregular spacing, brightness by district ---- */
+      /* ---- the grid: irregular spacing, one in five an arterial ---- */
       const roadsV = [], roadsH = [];
-      for (let x = rnd() * 40; x < w; x += 26 + rnd() * 46) roadsV.push({ p: x, big: rnd() < 0.22 });
-      for (let y = rnd() * 40; y < h; y += 26 + rnd() * 46) roadsH.push({ p: y, big: rnd() < 0.22 });
+      for (let x = rnd() * 40; x < w - 20; x += 24 + rnd() * 50) roadsV.push({ p: Math.round(x), big: rnd() < 0.2 });
+      for (let y = rnd() * 40; y < h - 20; y += 24 + rnd() * 50) roadsH.push({ p: Math.round(y), big: rnd() < 0.2 });
 
-      const lampStep = 7;
+      /* ---- BLOCKS: what stands between the roads. Drawn BEFORE the roads, so the lamps sit on top. ---- */
+      const towers = [];
+      const xs = roadsV.map(r => r.p), ys = roadsH.map(r => r.p);
+      const block = (x0, y0, x1, y1) => {
+        const bw = x1 - x0 - 5, bh = y1 - y0 - 5;
+        if (bw < 6 || bh < 6) return;
+        const bx = x0 + 3, by = y0 + 3, mx = x0 + (x1 - x0) / 2, my = y0 + (y1 - y0) / 2;
+        if (inRiver(mx, my) || inPark(mx, my)) return;
+        const d = density(mx, my);
+        const kind = d > 1.05 && rnd() < 0.8 ? 2 : d > 0.55 ? 1 : 0;
+        /* ⛔ ONE PIXEL IS NOT A LIGHT. The first cut of this rebuild scattered 1px windows in two
+           colours and the CRT pass (scanlines + chromatic aberration) turned them into coloured
+           static — the city read as noise. Every light on this plate is now a 2px DASH, a block
+           keeps ONE window colour, and windows sit in ROWS along building edges: structure the
+           eye can group, not points it has to average. */
+        const dash = (x, y, col, a, vert) => { put(x, y, col, a); put(vert ? x : x + 1, vert ? y + 1 : y, col, a); };
+        // a building: a dark roof slab rimmed with windows, the rim brighter on the street side
+        const building = (fx0, fy0, fx1, fy1, col, on, gain) => {
+          for (let y = fy0; y < fy1; y++) for (let x = fx0; x < fx1; x++) put(x, y, P.ROOF, 1);
+          for (let x = fx0 + 1; x < fx1 - 2; x += 3) {
+            if (rnd() < on) dash(x, fy0, col, gain * (0.7 + 0.3 * rnd()), false);
+            if (rnd() < on) dash(x, fy1 - 1, col, gain * (0.7 + 0.3 * rnd()), false);
+          }
+          for (let y = fy0 + 1; y < fy1 - 2; y += 3) {
+            if (rnd() < on) dash(fx0, y, col, gain * (0.7 + 0.3 * rnd()), true);
+            if (rnd() < on) dash(fx1 - 1, y, col, gain * (0.7 + 0.3 * rnd()), true);
+          }
+        };
+        if (kind === 2) {
+          // TOWERS: the block is a grid of footprints, cool-white rimmed, a rooftop light on the tall
+          const cool = rnd() < 0.8, col = cool ? P.WIN_C : P.WIN_W;
+          const cols = Math.max(1, Math.round(bw / 15)), rows = Math.max(1, Math.round(bh / 15));
+          const fw = bw / cols, fh = bh / rows;
+          for (let r = 0; r < rows; r++) {
+            for (let q = 0; q < cols; q++) {
+              if (rnd() < 0.10) continue;                           // a vacant lot
+              const fx0 = Math.round(bx + q * fw) + 1, fy0 = Math.round(by + r * fh) + 1;
+              const fx1 = Math.round(bx + (q + 1) * fw) - 1, fy1 = Math.round(by + (r + 1) * fh) - 1;
+              if (fx1 - fx0 < 4 || fy1 - fy0 < 4) continue;
+              const tall = rnd() < 0.4;
+              building(fx0, fy0, fx1, fy1, col, tall ? 0.85 : 0.6, tall ? 1 : 0.75);
+              if (tall) {
+                const cx = (fx0 + fx1) >> 1, cy = (fy0 + fy1) >> 1;
+                for (const [ox, oy] of [[0, 0], [1, 0], [0, 1], [1, 1]]) put(cx + ox, cy + oy, P.WIN_HI, 0.9);
+                if (rnd() < 0.5) towers.push({ x: cx + 1, y: cy + 1 });
+              }
+            }
+          }
+        } else if (kind === 1) {
+          // DENSE: low buildings line the streets — a warm rim of windows round the whole block,
+          // and a few lit yards inside
+          const col = rnd() < 0.9 ? P.WIN_W : P.WIN_C;
+          building(bx, by, bx + bw, by + bh, col, 0.45 + 0.45 * Math.min(1, d), 0.95);
+          for (let i = 0, n = Math.round(bw * bh / 200 * d); i < n; i++) dash(bx + 2 + rnd() * (bw - 4), by + 2 + rnd() * (bh - 4), col, 0.4 + 0.4 * rnd(), rnd() < 0.5);
+        } else {
+          // SUBURB: a scatter of warm porch lights, in short rows where a lane runs
+          for (let i = 0, n = Math.round(bw * bh / 160 * (0.3 + d)); i < n; i++) dash(bx + rnd() * (bw - 2), by + rnd() * (bh - 2), P.WIN_W, 0.25 + 0.4 * rnd(), false);
+        }
+      };
+      for (let i = 0; i < xs.length; i++) {
+        const x0 = xs[i], x1 = i + 1 < xs.length ? xs[i + 1] : xs[0] + w;
+        for (let j = 0; j < ys.length; j++) {
+          const y0 = ys[j], y1 = j + 1 < ys.length ? ys[j + 1] : ys[0] + h;
+          block(x0, y0, x1, y1);
+        }
+      }
+
+      /* ---- ROADS: the lattice is the subject. A street is a CONTINUOUS line of sodium light (the
+              road surface under its lamps — what every satellite night frame actually shows) with
+              brighter 2px lamps along it; arterials are two pixels wide, hotter, and bridge the
+              river. Side streets stop at the water. Everything dims across parks. ---- */
+      const lampStep = 6;
+      const lineA = (d, big, park) => Math.min(0.85, (big ? 0.55 : 0.32) * Math.min(1.2, d) + (big ? 0.26 : 0.14)) * (park ? 0.5 : 1);
+      const lampA = (d, big, park) => Math.min(1, (big ? 0.80 : 0.65) * Math.min(1.2, d) + (big ? 0.35 : 0.25)) * (park ? 0.5 : 1);
       for (const r of roadsV) {
-        for (let y = 0; y < h; y += lampStep) {
-          if (inRiver(r.p, y)) continue;
-          const d = density(r.p, y);
-          if (rnd() > d * 0.85) continue;
-          const a = Math.min(0.85, (r.big ? 0.42 : 0.24) * d + 0.06);
-          c.fillStyle = 'rgba(255,196,120,' + a.toFixed(3) + ')';
-          c.fillRect(r.p, y, r.big ? 2 : 1, 2);
+        const ph = (rnd() * lampStep) | 0;
+        for (let y = 0; y < h; y++) {
+          if (inRiver(r.p, y) && !r.big) continue;
+          const d = density(r.p, y), park = inPark(r.p, y);
+          put(r.p, y, P.LAMP, lineA(d, r.big, park)); if (r.big) put(r.p + 1, y, P.LAMP, lineA(d, true, park));
+          if ((y + ph) % lampStep === 0) {
+            const a = lampA(d, r.big, park);
+            put(r.p, y, r.big ? P.LAMP_HI : P.LAMP, a); put(r.p, y + 1, r.big ? P.LAMP_HI : P.LAMP, a * 0.8);
+            if (r.big) { put(r.p + 1, y, P.LAMP_HI, a); put(r.p + 1, y + 1, P.LAMP_HI, a * 0.8); }
+          }
         }
       }
       for (const r of roadsH) {
-        for (let x = 0; x < w; x += lampStep) {
-          if (inRiver(x, r.p)) continue;
-          const d = density(x, r.p);
-          if (rnd() > d * 0.85) continue;
-          const a = Math.min(0.85, (r.big ? 0.42 : 0.24) * d + 0.06);
-          c.fillStyle = 'rgba(255,196,120,' + a.toFixed(3) + ')';
-          c.fillRect(x, r.p, 2, r.big ? 2 : 1);
+        const ph = (rnd() * lampStep) | 0;
+        for (let x = 0; x < w; x++) {
+          if (inRiver(x, r.p) && !r.big) continue;
+          const d = density(x, r.p), park = inPark(x, r.p);
+          put(x, r.p, P.LAMP, lineA(d, r.big, park)); if (r.big) put(x, r.p + 1, P.LAMP, lineA(d, true, park));
+          if ((x + ph) % lampStep === 0) {
+            const a = lampA(d, r.big, park);
+            put(x, r.p, r.big ? P.LAMP_HI : P.LAMP, a); put(x + 1, r.p, r.big ? P.LAMP_HI : P.LAMP, a * 0.8);
+            if (r.big) { put(x, r.p + 1, P.LAMP_HI, a); put(x + 1, r.p + 1, P.LAMP_HI, a * 0.8); }
+          }
         }
       }
-
-      /* ---- windows: the fill light between the roads. Cooler than the sodium streets. ---- */
-      const winN = Math.min(20000, Math.round(area / 420));
-      for (let i = 0; i < winN; i++) {
-        const x = rnd() * w, y = rnd() * h;
-        if (inRiver(x, y)) continue;
-        const d = density(x, y);
-        if (rnd() > d * 0.55) continue;
-        const warm = rnd() < 0.72;
-        c.fillStyle = warm
-          ? 'rgba(255,214,150,' + (0.10 + 0.5 * rnd() * d).toFixed(3) + ')'
-          : 'rgba(180,220,255,' + (0.10 + 0.4 * rnd() * d).toFixed(3) + ')';
-        c.fillRect(x, y, 1, 1);
+      // where two arterials cross: a hot 2x2
+      for (const rv of roadsV) {
+        if (!rv.big) continue;
+        for (const rh of roadsH) {
+          if (!rh.big || inRiver(rv.p, rh.p)) continue;
+          for (const [ox, oy] of [[0, 0], [1, 0], [0, 1], [1, 1]]) put(rv.p + ox, rh.p + oy, P.WIN_HI, 0.95);
+        }
       }
-
-      /* ---- the river answers the city back: a dim reflected smear, no lamps of its own ---- */
-      for (let x = 0; x < w; x += 3) {
+      // embankments: a lit line along both banks, and the bank lights smeared into the water
+      for (let x = 0; x < w; x++) {
         const y = rivAt(x), d = density(x, y);
-        c.fillStyle = 'rgba(120,140,190,' + (0.03 + 0.05 * d * rnd()).toFixed(3) + ')';
-        c.fillRect(x, ((y + (rnd() - 0.5) * rivHalf * 1.6) % h + h) % h, 2, 1);
+        for (const s of [-1, 1]) {
+          put(x, y + s * (rivHalf + 2), P.LAMP, Math.min(0.7, 0.18 + 0.45 * d));
+          if (x % 5 === 0) { put(x, y + s * (rivHalf + 2), P.LAMP_HI, Math.min(0.9, 0.25 + 0.55 * d)); put(x + 1, y + s * (rivHalf + 2), P.LAMP_HI, Math.min(0.9, 0.25 + 0.55 * d) * 0.8); }
+        }
       }
+      for (let x = 0; x < w; x += 2) {
+        const y = rivAt(x), d = density(x, y);
+        if (rnd() > 0.5 * d + 0.15) continue;
+        const len = 2 + ((rnd() * 4) | 0), s = rnd() < 0.5 ? -1 : 1, col = rnd() < 0.7 ? P.LAMP : P.WIN_C;
+        for (let k = 1; k <= len; k++) put(x, y + s * (rivHalf - k), col, (0.10 + 0.14 * d) * (1 - k / (len + 1)));
+      }
+      c.putImageData(img, 0, 0);
 
-      /* ---- LIGHT POLLUTION: the orange dome over the dense parts. Drawn additively so it
-              blooms over the lattice instead of veiling it. ---- */
+      /* Distance wash. Deliberately WARM, not the blue-grey a daylight haze would be: the only
+         thing lighting this air is the city underneath it, so the veil takes the city's colour.
+         Thin — the dome below does the glowing; a heavy veil is what buried the first city. */
+      hazeOver(c, w, h, P.HAZE, P.HAZE_A);
+
+      /* ---- LIGHT POLLUTION: the orange dome over the dense parts, additive, so it blooms over
+              the lattice instead of veiling it. Wide low dome plus a tighter hotter core. ---- */
       const glowCv = mkCv(w, h), gc = glowCv.getContext('2d');
       gc.globalCompositeOperation = 'lighter';
-      // two passes: a wide low dome plus a tighter hotter core, so downtown reads hotter than
-      // the suburbs instead of the whole map sharing one flat orange.
       for (const k of cores) {
-        puff9(gc, w, h, k.x, k.y, k.r * 1.25, [255, 148, 58], 0.10 * k.s);
-        puff9(gc, w, h, k.x, k.y, k.r * 0.55, [255, 186, 96], 0.09 * k.s);
+        puff9(gc, w, h, k.x, k.y, k.r * 1.3, P.DOME, 0.17 * k.s);
+        puff9(gc, w, h, k.x, k.y, k.r * 0.55, P.DOME_HI, 0.13 * k.s);
       }
 
-      /* ---- cloud deck, underlit by the city (this is the tell that the light is BELOW) ---- */
-      const cloudCv = buildCloudDeck(w, h, mulberry32(0xC17914), { spread: 165000, min: 0.05, vary: 0.10, alpha: 0.13, tint: [255, 176, 110] });
+      /* ---- the cloud deck, underlit by the city (this is the tell that the light is BELOW) ---- */
+      const cloudCv = buildPixelClouds(w, h, mulberry32(0xC17914), { spread: 150000, min: 0.035, vary: 1.0, body: P.CLOUD, lit: P.CLOUD_LIT, shade: P.CLOUD, alpha: 0.82, edge: true, rim: 3 });
 
-      /* ---- TRAFFIC: live dots that run the arterials. The only moving thing down there. ---- */
+      /* ---- TRAFFIC on the arterials, and the BEACONS on the tallest towers ---- */
       const traffic = [];
       const bigV = roadsV.filter(r => r.big), bigH = roadsH.filter(r => r.big);
-      const carN = Math.min(180, Math.round(area / 18000));
+      const carN = Math.min(220, Math.round(area / 15000));
       for (let i = 0; i < carN; i++) {
         const vert = bigV.length && (!bigH.length || rnd() < 0.5);
         const lane = vert ? bigV[Math.floor(rnd() * bigV.length)] : bigH[Math.floor(rnd() * bigH.length)];
         if (!lane) continue;
-        traffic.push({
-          vert, p: lane.p, u: rnd(), spd: (0.010 + 0.022 * rnd()) * (rnd() < 0.5 ? -1 : 1),
-          warm: rnd() < 0.5,
-        });
+        traffic.push({ vert, p: lane.p, u: rnd(), spd: (0.010 + 0.022 * rnd()) * (rnd() < 0.5 ? -1 : 1), warm: rnd() < 0.5 });
+      }
+      const beacons = [];
+      for (let i = 0; i < towers.length && beacons.length < 12; i++) {
+        const t = towers[Math.floor(rnd() * towers.length)];
+        beacons.push({ x: t.x, y: t.y, ph: rnd() * 10, rate: 900 + rnd() * 1800 });
       }
 
-      /* Distance wash. Deliberately WARM, not the blue-grey a daylight haze would be: the only
-         thing lighting this air is the city underneath it, so the veil takes the city's colour.
-         A cool wash here measured blue-dominant overall and read as generic night, not sodium. */
-      hazeOver(c, w, h, [58, 34, 28], 0.13);
-
-      return { cityCv, glowCv, cloudCv, traffic };
+      return { cityCv, glowCv, cloudCv, traffic, beacons };
     },
 
     draw(ctx, w, h, now, cam, st) {
-      const t = now / 1000;
+      const P = CITY_BG.PAL, t = now / 1000;
       const gx = parX(cam, SURF.deck), gy = parY(cam, SURF.deck);
       tile2(ctx, st.cityCv, w, h, gx, gy);
 
@@ -1629,18 +1815,25 @@ const SpaceBG = (() => {
       ctx.globalCompositeOperation = 'source-over';
       ctx.globalAlpha = 1;
 
+      const still = reduceMotion();
       // traffic — slow, and only on the arterials. Headlights warm one way, tail-lights red the other.
       for (const car of st.traffic) {
-        car.u += car.spd / 1000 * 16;                 // ~frame-rate independent enough for a 1px dot
-        if (car.u > 1) car.u -= 1; else if (car.u < 0) car.u += 1;
+        if (!still) { car.u += car.spd / 1000 * 16; if (car.u > 1) car.u -= 1; else if (car.u < 0) car.u += 1; }
         const x = car.vert ? car.p : car.u * w, y = car.vert ? car.u * h : car.p;
         const sx = ((x + gx) % w + w) % w, sy = ((y + gy) % h + h) % h;
-        ctx.fillStyle = car.warm ? 'rgba(255,236,190,0.85)' : 'rgba(255,120,90,0.75)';
-        ctx.fillRect(sx, sy, 1, 1);
+        ctx.fillStyle = rgba(car.warm ? P.HEAD : P.TAIL, 0.9);
+        ctx.fillRect(sx, sy, car.vert ? 1 : 2, car.vert ? 2 : 1);
+      }
+      // beacons — out of phase, a red point in a dim halo; steady under reduced motion
+      for (const b of st.beacons) {
+        if (!still && Math.sin(now / b.rate + b.ph) < 0.35) continue;
+        const sx = ((b.x + gx) % w + w) % w, sy = ((b.y + gy) % h + h) % h;
+        ctx.fillStyle = rgba(P.BEACON, 0.35); ctx.fillRect(sx - 1, sy - 1, 3, 3);
+        ctx.fillStyle = rgba(P.BEACON, 1); ctx.fillRect(sx, sy, 1, 1);
       }
 
       // the underlit cloud deck, close to the station — again, the parallax gap is the altitude
-      ctx.globalAlpha = 0.82;
+      ctx.globalAlpha = 0.9;
       tile2(ctx, st.cloudCv, w, h, parX(cam, SURF.cloud) + t * 4.5, parY(cam, SURF.cloud) + t * 1.3);
       ctx.globalAlpha = 1;
     },
