@@ -393,7 +393,7 @@ async function opensWithin(t, ms) {
     t.Voice.setSpeakReplies(true);
     t.Voice.speak('hello commander, systems are nominal', 'agent'); await tick(40);
     const title = String(t.nodes['voice-toggle'].title || '');
-    A.ok(/real voice|backup voice/i.test(title), 'voice degrade: honest reason pinned on the speaker-toggle tooltip (telemetry preserved)');
+    A.ok(/Speech interrupted|real voice|backup voice/i.test(title), 'voice degrade: honest reason pinned on the speaker-toggle tooltip (telemetry preserved)');
     A.ok(!t.statusLog.some(s => /real voice|backup voice|voice provider/i.test(String(s))), 'voice degrade: outage banner is NEVER pushed to the COMMS status bar');
     A.ok(!/real voice|backup voice/i.test(String(t.nodes['chat-status'].textContent || '')), 'voice degrade: #chat-status text carries no voice-outage banner');
   }
@@ -448,7 +448,7 @@ async function opensWithin(t, ms) {
     A.ok(t.Voice.isSpeaking() === false, 'post-play failure: speaking state is cleared (no stuck agent turn)');
     A.ok(states.includes('ready'), 'post-play failure: coordinator returns to ready');
     A.ok(levels.some(level => level === 0), 'post-play failure: live output meter receives its terminal zero');
-    A.ok(revoked === 1, 'post-play failure: playback blob URL is revoked exactly once');
+    A.ok(revoked === 2, 'post-play failure: both bounded playback attempts release their blob URL');
   }
 
   // --- a FAILED neural chunk NEVER invokes speechSynthesis.speak (robotic path deleted) ---------
@@ -495,6 +495,61 @@ async function opensWithin(t, ms) {
     A.ok(state.spoken.some(s => /fourth to close/.test(s)), 'blip: the LAST sentence of the reply is still synthesized (reply spoken through to the end)');
     A.ok(state.spoken.some(s => /second sentence/.test(s)), 'blip: the sentence after the failure is spoken (cold-off never guillotines a live reply)');
     A.ok(state.spoken.some(s => /Third sentence/.test(s)), 'blip: every remaining sentence is spoken, not just the one after the failure');
+  }
+
+  {
+    const received=[];const t=boot({Audio:AutoEndAudio,fetch:(url,o)=>{
+      if (String(url).includes('/api/tts')) received.push(JSON.parse(o.body).text);
+      return Promise.resolve({ok:true,headers:{get:()=> 'audio/wav'},blob:async()=>({size:128}),json:async()=>({})});
+    }});
+    t.Voice.setSpeakReplies(true);
+    const sentence='This opening clause, followed by enough context to make the whole sentence comfortably longer than one hundred and forty characters, must remain one synthesis request.';
+    t.Voice.speak(sentence,'agent');await tick(30);
+    A.eq(received.join('|'),sentence,'continuity: no second comma splitter inside voice queue');
+  }
+  // Continuity: prefetch completes out of order, playback retries remain in order, no missing tail.
+  {
+    const pending = [], played = []; let failFirst = true;
+    class OrderedAudio extends MockAudio {
+      play() { const text = this.src; played.push(text);
+        setTimeout(() => { if (this.onplay) this.onplay();
+          if (failFirst) { failFirst = false; this.error = {code: 3}; if (this.onerror) this.onerror(); }
+          else if (this.onended) this.onended(); }, 0);
+        return Promise.resolve();
+      }
+    }
+    const t = boot({ Audio: OrderedAudio, fetch: (url,o) => String(url).includes('/api/tts')
+      ? new Promise(resolve=>pending.push({text:JSON.parse(o.body).text, resolve}))
+      : Promise.resolve({ok:true,json:async()=>({})}) });
+    t.sandbox.URL.createObjectURL = blob => blob.text;
+    t.Voice.setSpeakReplies(true);
+    t.Voice.speakChunk('First complete sentence.', 'agent');
+    t.Voice.speakChunk('Second complete sentence.', 'agent');
+    t.Voice.endReply();
+    A.eq(pending.length, 2, 'continuity: next sentence synthesizes ahead of playback');
+    pending[1].resolve({ok:true,headers:{get:()=> 'audio/wav'},blob:async()=>({size:128,text:pending[1].text})});
+    await tick(10); A.eq(played.length,0,'continuity: ready second sentence cannot overtake first');
+    pending[0].resolve({ok:true,headers:{get:()=> 'audio/wav'},blob:async()=>({size:128,text:pending[0].text})});
+    await tick(40);
+    A.eq(played.join('|'),'First complete sentence.|First complete sentence.|Second complete sentence.', 'continuity: failed playback retries same audio before later sentence');
+    A.eq(t.Voice.isReplyPending(),false,'continuity: successful retry drains final tail');
+  }
+  {
+    const requests=[];
+    const t=boot({Audio:AutoEndAudio,fetch:(url,o)=> {
+      if (!String(url).includes('/api/tts')) return Promise.resolve({ok:true,json:async()=>({})});
+      requests.push(JSON.parse(o.body).text);
+      return Promise.resolve({ok:false,status:503,headers:{get:()=> 'application/json'},json:async()=>({reason:'unavailable'})});
+    }});
+    t.Voice.setSpeakReplies(true);const token=t.Voice.replyToken();
+    t.Voice.speakChunk('The failed sentence.', 'agent', {replyToken:token});
+    t.Voice.endReply();await tick(30);
+    A.eq(requests.length,3,'continuity: synthesis exhaustion bounded to three attempts');
+    A.ok(/Speech interrupted/.test(t.nodes['voice-toggle'].title),'continuity: exhaustion is visible immediately');
+    t.Voice.speakChunk('Late text from the same failed reply.', 'agent', {replyToken:token});
+    A.eq(requests.length,3,'continuity: late producer cannot restart interrupted reply');
+    A.ok(t.Voice.speechDiagnostics().some(e=>e.reason==='synthesis_failure'),'continuity: synthesis cutoff is attributed');
+    A.ok(!t.Voice.speechDiagnostics().some(e=>JSON.stringify(e).includes('The failed sentence')),'continuity: diagnostics omit reply text');
   }
 
   // --- Local Live pins one voice AND one serving engine for the whole conversation ------------
@@ -616,7 +671,7 @@ async function opensWithin(t, ms) {
     const t = boot({ fetch: countingFetch(state, 'no key; edge: edge timeout') });
     t.Voice.setSpeakReplies(true);
     t.Voice.speak('first line on a keyless station', 'agent'); await tick(40);
-    A.eq(state.tts, 2, 'keyless + edge blip: the transient RETRY fires (2 round-trips, not 1)');
+    A.eq(state.tts, 3, 'keyless + edge blip: two bounded retries retain the chunk');
     A.ok(!/needs an OpenRouter, Gemini, or OpenAI credential/.test(String(t.nodes['voice-toggle'].title || '')),
       'keyless + edge blip: the tooltip does NOT demand a credential for a network blip');
     // the SHORT (4s) cold-off, not the 60s billing one → the next reply re-probes
@@ -649,7 +704,7 @@ async function opensWithin(t, ms) {
     t.Voice.setSpeakReplies(true);
     t.Voice.speak('a line during a rate limit', 'agent'); await tick(40);
     A.ok(!/out of credits/.test(String(t.nodes['voice-toggle'].title || '')), 'a per-minute 429 is NOT reported as "out of credits"');
-    A.eq(state.tts, 2, 'a per-minute 429 IS retried');
+    A.eq(state.tts, 3, 'a per-minute 429 is retried twice');
   }
   // ...but OpenAI's terminal insufficient_quota (also a 429) must stay in the billing class.
   {

@@ -889,13 +889,18 @@ const VoiceLive = (() => {
     }
     // An additive margin remains usable for a distant microphone; multiplying a slightly noisy floor by 2.8
     // classified quiet syllables as silence and closed the turn while the Commander was still speaking.
-    const threshold = Math.max(0.008, noiseFloor + (agentTalking ? 0.025 : 0.006));
+    const replyPending = typeof Voice !== 'undefined' && Voice.isReplyPending && Voice.isReplyPending();
+    const outputActive = agentTalking || replyPending;
+    const threshold = Math.max(0.008, noiseFloor + (outputActive ? 0.025 : 0.006));
     const voiced = rms > threshold;
     if (!recording) {
       if (!voiced) noiseFloor = noiseFloor * 0.995 + rms * 0.005;
       keepPreRoll(frame, frameMs);
       speechFrames = voiced ? speechFrames + 1 : 0;
-      if (speechFrames >= 3) {
+      const speechOnsetMs = speechFrames * frameMs;
+      // A short speaker/noise burst is not enough evidence to cut off a playing sentence.
+      // Sustained energy still cannot prove human speech; retain measurements for acoustic diagnosis.
+      if (speechFrames >= 3 && (!outputActive || speechOnsetMs >= 300)) {
         // Speech resumed before the final transcript returned: this was a thinking pause, not a new
         // request. Cancel the stale result and extend the original audio instead of submitting half a thought.
         let continuation = [], resumedText = '', resumedTiming = null;
@@ -921,7 +926,9 @@ const VoiceLive = (() => {
         lastPartialAt = performance.now();
         silenceMs = 0;
         // Invalidate the old reply even if its first audio is still being generated.
-        if (typeof Voice !== 'undefined' && Voice.stopSpeaking) Voice.stopSpeaking();
+        if (typeof Voice !== 'undefined' && Voice.stopSpeaking) Voice.stopSpeaking('microphone_activity', {
+          rms, threshold, noiseFloor, agentTalking, replyPending: !!replyPending, outputRms: agentLevel, onsetMs: speechOnsetMs, sampleRate: context.sampleRate
+        });
         setState('hearing');
         if ($('lv-heard')) $('lv-heard').textContent = resumedText || 'Listening…';
       }
@@ -952,6 +959,12 @@ const VoiceLive = (() => {
       return false;
     }
     stream = acquired;
+    if (typeof Voice !== 'undefined' && Voice.recordSpeechEvent) {
+      const track = acquired.getAudioTracks && acquired.getAudioTracks()[0];
+      const settings = track && track.getSettings ? track.getSettings() : {};
+      Voice.recordSpeechEvent('microphone_settings', { echoCancellation: settings.echoCancellation,
+        noiseSuppression: settings.noiseSuppression, autoGainControl: settings.autoGainControl, sampleRate: settings.sampleRate });
+    }
     stream.getAudioTracks().forEach(track => { track.enabled = !paused; });
     const track = stream.getAudioTracks()[0];
     if (track) track.onended = () => { if (active && seq === sessionSeq) scheduleReconnect('Microphone disconnected.'); };
@@ -1102,7 +1115,7 @@ const VoiceLive = (() => {
   function bargeIn() {
     if (!active) return;
     if (paused) { togglePause(); return; }
-    if (typeof Voice !== 'undefined' && Voice.stopSpeaking) Voice.stopSpeaking();
+    if (typeof Voice !== 'undefined' && Voice.stopSpeaking) Voice.stopSpeaking('microphone_button');
     if (dictation && Voice.resumeCoordinator) Voice.resumeCoordinator();
     setState('listening');
     caption('user', 'Listening…');
@@ -1219,7 +1232,7 @@ const VoiceLive = (() => {
       // older saved state or API callers; close it before attaching this persistent microphone.
       if (Voice.inVoiceMode && Voice.inVoiceMode() && Voice.stopConvo) Voice.stopConvo();
       if (Voice.setLocalTts) Voice.setLocalTts(true);
-      if (Voice.attachCoordinator) Voice.attachCoordinator({ onState, onAssistant, onOutputLevel, onTiming });
+      if (Voice.attachCoordinator) Voice.attachCoordinator({ onState, onAssistant, onOutputLevel, onTiming, onSpeechInterrupted: value => setTransientError(value.message, 10000) });
     }
     try {
       fetch('/api/local-voice/warm', { method: 'POST' }).catch(() => {});
@@ -1427,7 +1440,10 @@ const VoiceLive = (() => {
       recordAgentTurn(text, done);
       return;
     }
-    if (type === 'input_audio_buffer.speech_started') { setState('hearing'); return; }
+    if (type === 'input_audio_buffer.speech_started') {
+      if (typeof Voice !== 'undefined' && Voice.recordSpeechEvent) Voice.recordSpeechEvent('provider_speech_started', { mode: 'realtime' });
+      setState('hearing'); return;
+    }
     if (type === 'response.created') { setState('thinking'); return; }
     if (type === 'output_audio_buffer.started' || type === 'response.output_audio.delta') { setState('speaking'); return; }
     if (type === 'response.done' || type === 'output_audio_buffer.stopped') { if (active) setState('listening'); return; }
