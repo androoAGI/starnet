@@ -18,11 +18,11 @@
 'use strict';
 
 const WorldSurface = (() => {
-  const VERSION = 4;
+  const VERSION = 5;
   const CELL = 12;
   const MATERIALS = Object.freeze([
     'spine', 'alloy', 'plate', 'panel', 'tile', 'tread', 'soft', 'grate', 'hex',
-    'plank', 'turf', 'diamond', 'resin', 'ceramic', 'cargo', 'runner', 'treadway', 'meshway', 'basalt', 'parquet', 'rubber'
+    'plank', 'turf', 'diamond', 'resin', 'ceramic', 'cargo', 'runner', 'treadway', 'meshway', 'basalt', 'parquet', 'rubber', 'slotted', 'terrazzo', 'octile'
   ]);
   const WALLS = Object.freeze(['bulkhead', 'courses', 'service', 'plating', 'ribbed', 'panelled', 'pipework']);
   const materialSet = new Set(MATERIALS), wallSet = new Set(WALLS);
@@ -124,6 +124,67 @@ const WorldSurface = (() => {
     const tx = Math.floor(worldTx || 0), ty = Math.floor(worldTy || 0), wx = tx * CELL, wy = ty * CELL;
     p(0, 0, CELL, CELL, pal.base);
     if (!d) return true;
+
+    if (mat === 'spine' || mat === 'alloy') {
+      // Broad flush sheets, not bevelled access hatches. A one-pixel seal owns
+      // each shared joint; the surface never acquires a raised perimeter frame.
+      const row = Math.floor(wy / 36), shift = mat === 'alloy' ? mod(row, 2) * 24 : 0;
+      const col = Math.floor((wx + shift) / 48), lx = mod(wx + shift, 48), ly = mod(wy, 36);
+      const n = hash(col, row, mat === 'spine' ? 210 : 211);
+      p(0, 0, CELL, CELL, n % 5 === 0 ? pal.field : pal.base);
+      p(-lx, 0, 1, CELL, pal.shade); p(0, -ly, CELL, 1, pal.shade);
+      // Quiet brushing belongs to the physical sheet, with generous clear space.
+      for (let i = 0; i < 3; i++) {
+        const a = hash(n, i, 212), x = 5 + a % 19, y = 7 + (a >>> 10) % 22;
+        p(x - lx, y - ly, 8 + (a >>> 18) % 8, 1, i === 1 ? pal.field : pal.soft);
+      }
+      if (mat === 'spine') {
+        // A narrow recessed service race follows the sheet, at floor level.
+        p(42 - lx, 0, 6, CELL, pal.shade); p(43 - lx, 0, 1, CELL, pal.recess);
+        p(44 - lx, 0, 3, CELL, pal.soft);
+        for (let y = 5; y < 34; y += 8) p(45 - lx, y - ly, 2, 2, pal.shade);
+      } else if (n % 4 === 0) {
+        p(12 - lx, 26 - ly, 11, 1, pal.soft); p(19 - lx, 25 - ly, 7, 1, pal.field);
+      }
+      return true;
+    }
+    if (mat === 'slotted') {
+      const lx = mod(wx, 36), ly = mod(wy, 24), n = hash(Math.floor(wx / 36), Math.floor(wy / 24), 220);
+      p(0, 0, CELL, CELL, n % 4 === 0 ? pal.field : pal.base);
+      p(-lx, 0, 1, CELL, pal.shade); p(0, -ly, CELL, 1, pal.shade);
+      for (let y = 5; y < 22; y += 6) for (let x = 5; x < 32; x += 16) {
+        // Rounded slots cut into a continuous sheet, with a narrow lower lip.
+        p(x + 1 - lx, y - ly, 8, 1, pal.shade);
+        p(x - lx, y + 1 - ly, 10, 2, pal.recess);
+        p(x + 1 - lx, y + 3 - ly, 8, 1, pal.raised);
+      }
+      return true;
+    }
+    if (mat === 'terrazzo') {
+      const lx = mod(wx, 48), ly = mod(wy, 48), n = hash(Math.floor(wx / 48), Math.floor(wy / 48), 230);
+      p(0, 0, CELL, CELL, n % 4 === 0 ? pal.base : pal.field);
+      p(-lx, 0, 1, CELL, pal.soft); p(0, -ly, CELL, 1, pal.soft);
+      // Irregular mineral chips are sparse enough to stay legible under CRT grain.
+      for (let i = 0; i < 24; i++) {
+        const a = hash(n, i, 231), x = 3 + a % 42, y = 3 + (a >>> 10) % 42;
+        const color = i % 6 === 0 ? pal.warm : i % 4 === 0 ? pal.shade : i % 3 === 0 ? pal.raised : pal.fine;
+        const width = 2 + (a >>> 20) % 3;
+        p(x - lx, y - ly, width, 1, color);
+        if (i % 2 === 0) p(x + 1 - lx, y + 1 - ly, width - 1, 1, color);
+      }
+      return true;
+    }
+    if (mat === 'octile') {
+      const lx = mod(wx, 24), ly = mod(wy, 24), n = hash(Math.floor(wx / 24), Math.floor(wy / 24), 240);
+      p(0, 0, CELL, CELL, pal.recess);
+      for (let y = 0; y < 24; y++) {
+        const inset = Math.max(0, 5 - y, y - 18), w = 24 - inset * 2;
+        p(inset - lx, y - ly, w, 1, pal.shade);
+        if (y > 0 && y < 23) p(inset + 1 - lx, y - ly, w - 2, 1, n % 4 === 0 ? pal.base : pal.field);
+      }
+      p(6 - lx, 2 - ly, 12, 1, pal.raised);
+      return true;
+    }
 
     if (mat === 'plank') {
       for (let row = 0; row < 2; row++) {
@@ -243,27 +304,18 @@ const WorldSurface = (() => {
       return true;
     }
 
-    const w = mat === 'spine' ? 36 : mat === 'tile' ? 12 : 24;
+    const w = mat === 'tile' ? 12 : 24;
     const h = mat === 'panel' ? 12 : mat === 'tile' ? 12 : 24;
-    const q = floorPanel(p, pal, wx, wy, w, h, { stagger: mat === 'panel', bolts: mat === 'alloy' || mat === 'cargo' });
+    const q = floorPanel(p, pal, wx, wy, w, h, { stagger: mat === 'panel', bolts: mat === 'cargo' });
     const lx = q.lx, ly = q.ly;
     // A few quiet machining strokes stay attached to a whole plate's field.
-    if (['spine', 'alloy', 'plate', 'panel', 'cargo'].includes(mat)) {
+    if (['plate', 'panel', 'cargo'].includes(mat)) {
       for (let i = 0; i < 3; i++) {
         const n = hash(q.seed, i, 97);
         p(3 + n % (w - 10) - lx, 3 + (n >>> 8) % (h - 6) - ly, 3 + (n >>> 16) % 4, 1, i === 1 ? pal.fine : pal.soft);
       }
     }
-    if (mat === 'spine') {
-      p(32 - lx, 0, 4, CELL, pal.recess); p(32 - lx, 0, 1, CELL, pal.fine);
-      for (let y = -ly + 4; y < CELL; y += 6) p(34 - lx, y, 2, 1, pal.shade);
-      p(4 - lx, 3 - ly, 24, 1, pal.raised); p(28 - lx, 4 - ly, 1, 14, pal.shade);
-      if (q.row % 3 === 0) p(4 - lx, 4 - ly, 6, 1, pal.warm);
-    } else if (mat === 'alloy') {
-      p(4 - lx, 3 - ly, 14, 2, pal.raised); p(5 - lx, 5 - ly, 11, 1, pal.fine);
-      p(3 - lx, 20 - ly, 8, 1, pal.soft); p(21 - lx, 4 - ly, 1, 13, pal.shade);
-      p(17 - lx, 18 - ly, 3, 2, pal.recess); p(17 - lx, 18 - ly, 2, 1, pal.fine);
-    } else if (mat === 'plate') {
+    if (mat === 'plate') {
       if (q.seed % 3 === 1) { p(4 - lx, h - 5 - ly, 7, 1, pal.soft); p(6 - lx, h - 4 - ly, 4, 1, pal.fine); }
       p(w - 5 - lx, 3 - ly, 2, 2, pal.shade); p(w - 5 - lx, 3 - ly, 1, 1, pal.fine);
     } else if (mat === 'panel') {

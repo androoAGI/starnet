@@ -144,7 +144,7 @@ for (const mat of WALLS) {
 
 // New selectable decks keep their authored recipe in the compatibility renderer.
 global.WorldSurface = require('../frontend/app/worldsurface.js');
-for (const mat of ['basalt', 'parquet', 'rubber']) {
+for (const mat of ['basalt', 'parquet', 'rubber', 'slotted', 'terrazzo', 'octile']) {
   global.WorldRenderer = { enabled: () => true };
   const authored = sample(mat, 6, 4);
   global.WorldRenderer = { enabled: () => false };

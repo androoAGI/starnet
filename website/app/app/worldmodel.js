@@ -218,8 +218,11 @@ const WorldModel = (() => {
     basalt:   { label: 'BASALT',   pitch: [3, 2], suggest: 'hull' },
     parquet:  { label: 'PARQUET',  pitch: [3, 3], suggest: 'walnut' },
     rubber:   { label: 'RUBBER',   pitch: [2, 2], suggest: 'corridor' },
+    slotted:  { label: 'SLOTTED',  pitch: [3, 2], suggest: 'corridor' },
+    terrazzo: { label: 'TERRAZZO', pitch: [4, 4], suggest: 'hull' },
+    octile:   { label: 'OCTILE',   pitch: [2, 2], suggest: 'sterile' },
   };
-  const MAT_ORDER = ['spine', 'alloy', 'runner', 'treadway', 'meshway', 'plate', 'diamond', 'cargo', 'panel', 'tile', 'ceramic', 'resin', 'tread', 'soft', 'grate', 'hex', 'plank', 'turf', 'basalt', 'parquet', 'rubber'];
+  const MAT_ORDER = ['spine', 'alloy', 'runner', 'treadway', 'meshway', 'plate', 'diamond', 'cargo', 'panel', 'tile', 'ceramic', 'resin', 'tread', 'soft', 'grate', 'hex', 'plank', 'turf', 'basalt', 'parquet', 'rubber', 'slotted', 'terrazzo', 'octile'];
 
   /* the WALL material catalog — the deck's opposite number. Walls carry the same two axes as the
      floor (hue × recipe) and read from the same FLOOR_STYLES hue catalog, because a room should be
