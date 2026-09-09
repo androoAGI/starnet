@@ -18,7 +18,7 @@
 'use strict';
 
 const WorldSurface = (() => {
-  const VERSION = 2;
+  const VERSION = 3;
   const CELL = 12;
   const MATERIALS = Object.freeze([
     'spine', 'alloy', 'plate', 'panel', 'tile', 'tread', 'soft', 'grate', 'hex',
@@ -268,7 +268,7 @@ const WorldSurface = (() => {
     // Three value bands make the wall read as vertical construction. Large
     // recessed bays provide room for the occasional rail or service fitting.
     p(0, 0, CELL, 1, pal.deep); p(0, 1, CELL, 2, pal.recess); p(0, 3, CELL, 2, pal.edge);
-    p(0, 5, CELL, belt - 5, pal.shade);
+    p(0, 5, CELL, belt - 5, pal.soft);
     p(0, 5, CELL, 1, pal.fine);                       // crown undercut catches a narrow rim
     // The dado is a vertical material face, not a second broad cast shadow.
     // Keep its narrow joint while letting the existing shade tone carry the bay.
@@ -301,20 +301,25 @@ const WorldSurface = (() => {
       }
     } else {
       const pitch = material === 'panelled' ? 48 : 24;
-      p(3 - lx, 7, pitch - 6, Math.max(1, belt - 9), pal.recess);
+      p(3 - lx, 7, pitch - 6, Math.max(1, belt - 9), pal.shade);
       p(4 - lx, 8, pitch - 8, Math.max(1, belt - 11), pal.base);
       p(4 - lx, 8, pitch - 8, 1, pal.fine);
-      p(5 - lx, 9, pitch - 10, 2, pal.raised);
+      p(5 - lx, 9, pitch - 10, 1, pal.fine);
       p(4 - lx, 9, 1, Math.max(1, belt - 13), pal.soft);
       p(pitch - 5 - lx, 9, 1, Math.max(1, belt - 12), pal.shade);
       p(5 - lx, belt - 4, pitch - 10, 1, pal.shade);
-      p(4 - lx, belt - 3, pitch - 8, 1, pal.deep);
+      p(4 - lx, belt - 3, pitch - 8, 1, pal.recess);
+      // Flush plate fixings share the props' one-pixel metal edge language.
+      // Keep the face quiet: seams and wear belong to the perimeter.
+      p(5 - lx, 10, 1, 1, pal.metal);
+      p(pitch - 6 - lx, belt - 5, 1, 1, pal.fine);
+      p(7 - lx, belt - 4, 4, 1, pal.soft);
       if (material === 'service') {
         for (let y = belt + 4; y < foot - 1; y += 3) p(4 - lx, y, 15, 1, pal.deep);
         p(16 - lx, 10, 3, 6, pal.deep); p(16 - lx, 10, 1, 5, pal.warm);
       } else if (material === 'bulkhead') {
-        p(7 - lx, belt + 4, 10, Math.max(1, foot - belt - 6), pal.deep);
-        p(8 - lx, belt + 5, 8, Math.max(1, foot - belt - 8), pal.recess);
+        p(7 - lx, belt + 4, 10, Math.max(1, foot - belt - 6), pal.recess);
+        p(8 - lx, belt + 5, 8, Math.max(1, foot - belt - 8), pal.shade);
         p(8 - lx, belt + 4, 8, 1, pal.shade);
       } else if (material === 'plating') {
         p(5 - lx, 10, 3, 1, pal.fine); p(17 - lx, belt - 5, 2, 2, pal.recess);
@@ -323,7 +328,7 @@ const WorldSurface = (() => {
     // Uprights support the crown. Kept continuous through the dado and toe so
     // neighboring panels look attached to one structure at near and far zoom.
     if (material !== 'courses' && material !== 'ribbed') {
-      p(-lx, 3, 3, h - 4, pal.deep); p(1 - lx, 4, 2, h - 6, pal.base);
+      p(-lx, 3, 3, h - 4, pal.recess); p(1 - lx, 4, 2, h - 6, pal.base);
       p(1 - lx, 4, 1, h - 6, pal.edge);
       p(1 - lx, 7, 1, 1, pal.metal); p(1 - lx, h - 5, 1, 1, pal.metal);
       // Flat gussets tie the existing upright into the dado. Their silhouette
@@ -414,10 +419,13 @@ const WorldSurface = (() => {
           if (occluded) continue;
           const kind = geo.kindOf && geo.kindOf(z);
           const rgb = kind === 'lab' ? '215,232,246' : '255,222,179';
+          // Alternate practical task lamps in the fixed physical grid. Their
+          // smaller, stronger pools leave unlit intervals and never lift ambient.
+          const taskLamp = !corridor && mod(c.tx + ox, 12) === 3;
           output.push({
             id: 'wall:' + (c.tx + ox) + ',' + (y + oy), kind: 'wall-fixture', zone: z,
             x: c.anchor.tx * T + T / 2, y: c.anchor.ty * T + T / 2,
-            r: T * (corridor ? 4.5 : 6.5), rgb, gain: corridor ? 0.64 : 0.82,
+            r: T * (corridor ? 4.5 : taskLamp ? 5.8 : 6.5), rgb, gain: corridor ? 0.64 : taskLamp ? 1.16 : 0.82,
             fixtureX, fixtureY, tileX: c.tx, tileY: y,
             emitX: fixtureX, emitY: fixtureY + 2.5, normalX: 0, normalY: 1,
             base: geo.wallBaseOf ? geo.wallBaseOf(z) : '#3a3b41'
