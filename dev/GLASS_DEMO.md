@@ -251,3 +251,10 @@ Checks: JS syntax for app.js and changed tests; registered session-indicators (3
 Refined the read state with a subtle 1px etched checkmark, a slightly lighter theme-derived stroke and a shaded glass face. It remains 12px and static, visually quieter than the filled unread core. No state logic or other indicator changed. Preview wording now describes the checkmark.
 
 Live proof: sample preview showed the 6x4px checkmark with 1px strokes at .85 opacity; all three read signals in the real station showed the same stroke, 12px size and no animation. Glass UI exploration remained active. Website mirror (8), readability (21), session-indicators (32) and diff whitespace checks passed. Full fast was not repeated for this CSS-only refinement; its existing release-manifest failures remain documented above.
+
+
+## Open-corner read silhouette - 2026-09-09
+
+Owner felt the read shape was still off. The closed outline plus tick read as a checkbox when repeated down the session list. Replaced the read-only perimeter with two dim opposing 4px registration corners around the etched tick, borrowing the camera overlay's geometry. Reduced the glass fill and removed the shadow. The 12px footprint, tick, stored read state and all other indicator designs remain unchanged.
+
+Verified the sample preview and the real session list visually. The three live read signals have transparent perimeter borders, the expected 4px corner strokes, a 12px footprint and no animation. Glass UI exploration remains selected. Website mirror (8), readability (21), session-indicators (32) and diff whitespace checks passed. Full fast was not repeated for this CSS-only shape refinement; the existing release-manifest failures remain unresolved.
