@@ -128,7 +128,7 @@ for (const fn of ['start', 'startDictation']) {
   assert.match(bodyOf(fn), /bindSession\(\)/, fn + '() binds the call to the session it was opened in');
 }
 assert.match(bodyOf('handleTranscript'), /ensureBoundFocus\(\)/, 'every utterance routes to the BOUND session, not whatever is focused');
-assert.match(bodyOf('onAssistant'), /ensureBoundFocus\(\)/, 'the bound agent replying brings back its own session instead of adopting the browsed one');
+assert.doesNotMatch(bodyOf('onAssistant'), /ensureBoundFocus\(\)/, 'a delayed assistant reply preserves the browsed session and its draft');
 assert.match(bodyOf('rebind'), /Voice\.stopSpeaking\(\)/, 'a voice-commanded rebind cuts queued audio owned by the former session');
 assert.match(bodyOf('finish'), /boundWsId = null/, 'the binding dies with the call');
 assert.match(source, /boundSession\(\) \|\| Workstreams\.active\(\)/, "the panel reports the CALL's session, not the browsed one");

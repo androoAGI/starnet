@@ -247,6 +247,7 @@ const StationCommands = (() => {
       if (agentId && typeof App !== 'undefined' && App.agents && !(App.agents() || []).some(x => x && x.id === agentId)) {
         throw new Error('no crew member with id "' + agentId + '" — use station.crew for the roster, or omit agentId');
       }
+      if (a && a.focus) requireCurrentFocus(a.origin);
       const ws = Workstreams.create(title, { agentId: agentId || undefined, activate: !!(a && a.focus) });
       if (!ws) throw new Error('the station could not create the session');
       if (a && a.focus && typeof Chat !== 'undefined' && Chat.load) { try { Chat.load(ws); } catch (_) {} }
@@ -260,15 +261,15 @@ const StationCommands = (() => {
        they did not ask to be. */
     'station.switch_session': async (a) => {
       const hit = resolveSession(a && a.session);
+      requireCurrentFocus(a && a.origin);
       const ws = Workstreams.switch(hit.w.id);
       if (!ws) throw new Error('the station could not switch sessions');
       if (typeof Chat !== 'undefined' && Chat.load) { try { Chat.load(ws); } catch (_) {} }
       await persistWorkstreams(save => save.activeId === ws.id && (save.workstreams || []).some(w => w && w.id === ws.id));
       try { await reconcile(ws.id); } catch (_) {}
-      /* A switch that happens DURING a live voice call came through the call (the Commander said "open X"),
-         so the call follows the Commander there. A UI click never routes through this verb, so browsing
-         other sessions while speaking can never re-target the call (VoiceLive holds its own binding). */
-      try { if (typeof VoiceLive !== 'undefined' && VoiceLive.isActive && VoiceLive.isActive() && VoiceLive.rebind) VoiceLive.rebind(ws.id); } catch (_) {}
+      // Only the call-owning run may rebind voice. An unrelated run cannot transfer the call.
+      try { if (typeof VoiceLive !== 'undefined' && VoiceLive.isActive && VoiceLive.isActive() && VoiceLive.rebind
+          && VoiceLive.boundSessionId && VoiceLive.boundSessionId() === a.origin.streamId) VoiceLive.rebind(ws.id); } catch (_) {}
       return { id: ws.id, title: ws.title != null ? ws.title : 'General', durable: true };
     },
 
@@ -382,6 +383,12 @@ const StationCommands = (() => {
       return folded;
     })();
     return reconciling[key].finally(() => { delete reconciling[key]; });
+  }
+
+  function requireCurrentFocus(origin) {
+    if (typeof Chat === 'undefined' || !Chat.canFocusSession || !Chat.canFocusSession(origin)) {
+      throw new Error('session focus was left unchanged: the originating run is no longer current or the Commander has a draft; do not retry the switch automatically');
+    }
   }
 
   async function run(id, verb, args) {
