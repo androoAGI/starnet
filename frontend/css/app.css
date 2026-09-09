@@ -2918,9 +2918,8 @@ body:not(.no-flicker) #screen-game.active { animation: flick 7s infinite; }
    are ALWAYS in the DOM and simply display:none in COMPACT, so switching the setting is a repaint —
    renderRail is never re-run, and rail focus, scroll position and an in-place rename all survive it.
 
-   Three lines, not four: a preview of the last message is the line that clips to uselessness in a rail
-   that is 232px and does not widen (--crew-w), so what the row gains instead is provenance —
-   WHO ran it, WHAT it is, and WHICH model over HOW MANY messages. */
+   Agent above the wrapping session title, then a quiet latest-message excerpt.
+   Rows grow with the title; rail width and surrounding controls stay unchanged. */
 .ws-agent, .ws-receipt { display: none; }
 /* SCOPED TO #workstreams ON PURPOSE. The PROJECTS rail reuses this exact row vocabulary in its own
    <ul id="projects"> (see the .ws-row.proj-row block below), so an unscoped `body.rows-inbox .ws-row`
@@ -2935,7 +2934,7 @@ body.rows-inbox #workstreams .ws-row {
     "dot   agent pin   meta"
     "title title title title"
     "recpt recpt recpt recpt";
-  gap: 1px 8px; padding: 6px 8px 7px;
+  gap: 4px 8px; padding: 10px 10px 11px; min-height: 78px;
 }
 body.rows-inbox #workstreams .ws-row > .ws-dot { grid-area: dot; }
 body.rows-inbox #workstreams .ws-agent {
@@ -2947,7 +2946,11 @@ body.rows-inbox #workstreams .ws-row.sel .ws-agent,
 body.rows-inbox #workstreams .ws-row.busy .ws-agent { color: var(--ph); }
 body.rows-inbox #workstreams .ws-pin { grid-area: pin; }
 body.rows-inbox #workstreams .ws-row > .ws-meta { grid-area: meta; }
-body.rows-inbox #workstreams .ws-title { grid-area: title; font-size: 15px; line-height: 1.1; }
+body.rows-inbox #workstreams .ws-title {
+  grid-area: title; font-size: 16px; line-height: 1.2;
+  color: var(--ph-bright); white-space: normal; overflow-wrap: anywhere;
+  overflow: visible; text-overflow: clip; text-shadow: none;
+}
 /* RENAME-IN-PLACE swaps the title span for an input (app.js replaceWith), and an element with no
    grid-area gets AUTO-PLACED — in a 3-row template that lands it outside the title row entirely
    (measured: 112x48 in a 175px row, and the row grew 76->83px). It inherits the title's cell so
@@ -2955,8 +2958,8 @@ body.rows-inbox #workstreams .ws-title { grid-area: title; font-size: 15px; line
 body.rows-inbox #workstreams .ws-rename { grid-area: title; }
 body.rows-inbox #workstreams .ws-receipt {
   display: block; grid-area: recpt; min-width: 0;
-  font-size: 11px; line-height: 1.1; color: var(--ph-dim);
-  letter-spacing: .8px; font-variant-numeric: tabular-nums;
+  font-size: 13px; line-height: 1.2; color: var(--ph-dim);
+  letter-spacing: .1px; text-shadow: none;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 /* the kebab overlays the meta corner on hover exactly as it does in COMPACT (see the rule below that
