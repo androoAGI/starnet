@@ -114,3 +114,15 @@
 .sn-menu .cc-alternatives > summary { padding: 7px; cursor: pointer; }
 .sn-menu .cc-alternatives .cc-card { margin-top: 8px; }
 .sn-menu .cc-on { border-color: rgba(var(--ph-rgb), .55); }
+
+/* Abilities navigation and setup filters share one quiet selection language. */
+.term.sn-menu .con-intents { display: grid; gap: 7px; padding: 0 0 16px; border: 0; background: none; box-shadow: none; }
+.term.sn-menu .con-intent { min-height: 44px; padding: 12px 14px; border: 1px solid transparent; border-radius: 9px; background: rgba(var(--ph-rgb), .035); color: var(--ph-dim); box-shadow: none; text-shadow: none; text-align: left; font: inherit; font-size: 15px; letter-spacing: .3px; }
+.term.sn-menu .con-intent[aria-pressed="true"] { color: var(--ph-bright); background: var(--menu-glass); border-color: rgba(var(--ph-rgb), .28); box-shadow: inset 0 1px 0 rgba(var(--ph-bright-rgb), .12); }
+.term.sn-menu .cc-filters { display: flex; flex-wrap: wrap; gap: 5px; padding: 5px; width: fit-content; border: 1px solid rgba(var(--ph-rgb), .13); border-radius: 11px; background: rgba(var(--ph-rgb), .025); box-shadow: none; }
+.term.sn-menu .cc-filter { min-height: 36px; padding: 8px 11px; border: 1px solid transparent; border-radius: 7px; color: var(--ph-dim); background: transparent; box-shadow: none; text-shadow: none; font-size: 13px; letter-spacing: .2px; }
+.term.sn-menu .cc-filter.active { color: var(--ph-bright); border-color: rgba(var(--ph-rgb), .28); background: var(--menu-glass); box-shadow: inset 0 1px 0 rgba(var(--ph-bright-rgb), .12); }
+.term.sn-menu :is(.cc-filter,.con-intent):hover { color: var(--ph-bright); background-color: rgba(var(--ph-rgb), .09); }
+.term.sn-menu :is(.cc-filter,.con-intent):focus-visible { outline: 2px solid var(--ph); outline-offset: 3px; }
+.sn-menu .cc-brand { width: 44px; height: 44px; flex: 0 0 44px; display: grid; place-items: center; padding: 10px; box-sizing: border-box; border-radius: 10px; color: var(--ph-bright); background: rgba(var(--ph-rgb), .065); box-shadow: inset 0 1px 0 rgba(var(--ph-bright-rgb), .1); font-size: 19px; }
+.sn-menu .cc-brand svg { width: 100%; height: 100%; fill: currentColor; }
