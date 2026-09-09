@@ -151,18 +151,25 @@ body.glass-demo #model-dock-search {
 }
 body.glass-demo #model-dock-search:focus { border-color: var(--ph); background: var(--gd-hover); }
 body.glass-demo #model-dock-search::placeholder { color: var(--text); opacity: .8; }
-body.glass-demo #model-dock .model-dock-efforts { display: flex; flex-wrap: wrap; gap: 4px; padding: 0; border: 0; }
+/* One inset glass track, with only the selected level illuminated. */
+body.glass-demo #model-dock .model-dock-efforts {
+  position: relative; display: flex; flex-wrap: wrap; align-items: center; gap: 2px;
+  margin-top: 20px; padding: 3px; border: 1px solid var(--gd-edge); border-radius: 4px;
+  background: var(--gd-face); box-shadow: inset 0 1px 0 var(--gd-light);
+}
 body.glass-demo #model-dock .model-dock-efforts::before {
-  content: 'REASONING'; flex-basis: 100%; padding: 1px 3px 2px; color: var(--text); opacity: .8;
+  content: 'REASONING'; position: absolute; top: -20px; left: 2px; padding: 0; color: var(--text); opacity: .8;
   font: 14px/1.2 'VT323',monospace; letter-spacing: .6px;
 }
 body.glass-demo #model-dock .model-dock-effort {
-  flex: 1; min-width: 30px; height: 28px; border: 1px solid var(--gd-edge); border-radius: 3px; font-size: 14px; color: var(--text);
-  background: var(--gd-face); box-shadow: inset 0 1px 0 var(--gd-light);
+  flex: 1 1 0; min-width: 30px; height: 28px; padding: 0 2px; border: 0; border-radius: 2px;
+  font-size: 14px; letter-spacing: .2px; color: var(--text); background: transparent; box-shadow: none;
 }
 body.glass-demo #model-dock .model-dock-effort:is(:hover,:focus-visible) { background: var(--gd-hover); color: var(--ph-bright); }
+body.glass-demo #model-dock .model-dock-effort:focus-visible { outline: 1px solid var(--ph-bright); outline-offset: -1px; }
 body.glass-demo #model-dock .model-dock-effort.sel {
-  color: var(--ph-bright); background: var(--gd-hover); border-color: var(--ph); box-shadow: inset 0 1px 0 var(--gd-light), inset 0 -1px 0 var(--ph);
+  color: var(--ph-bright); background: var(--gd-hover);
+  box-shadow: inset 0 1px 0 var(--gd-light), inset 0 -2px 0 rgba(var(--ph-rgb),.65);
 }
 body.glass-demo #model-dock .model-dock-list { min-height: 0; flex: 1 1 auto; max-height: 260px; border-color: var(--gd-edge); padding-block: 2px; }
 body.glass-demo #model-dock .model-dock-group { border: 0; font-size: 14px; padding: 8px 8px 4px; letter-spacing: .6px; color: var(--text); opacity: .8; }

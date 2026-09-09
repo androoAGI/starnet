@@ -186,3 +186,11 @@ Live proof:
 - Final browser warning/error log was empty. Left the glass picker open for review. Payment, account sign-in and an installed desktop browser launch were not exercised.
 
 Checks: JS syntax; dev/model-subscription.test.cjs browser-default, simulated desktop-bridge success and failure feedback; model-provider-reconcile (9), agent-model-select (65), readability (21), comms-responsive-text (5), control-floor-theming (125), website-app-sync (8), all passed. Final destination/handler refinement was rechecked with these focused gates. Full fast stopped at step 286/734 with the same 10 qa-product-perfect-claims release-manifest failures already documented; it is not green. Website mirror synchronized. No merge or release.
+
+## Unified reasoning track - 2026-09-09
+
+Replaced the seven individually framed reasoning buttons with one inset glass track. Unselected options are borderless, evenly sized labels; the selected option alone has the glass fill and a short illuminated lower edge. REASONING stays above the track, and keyboard focus remains visible inside it. Existing options, model-specific availability and selection handlers are unchanged.
+
+Live proof: track client/scroll width both 326px; all seven options client/scroll width both 44px, computed border width 0px. MIN remained selected. Tab from model search focused OFF with a solid focus outline without changing MIN; Escape closed and Enter reopened the model picker. Empty draft preserved, browser warning/error log empty, menu left open for review.
+
+readability (21), control-floor-theming (125), website-app-sync (8) and diff whitespace checks passed. Website mirror synchronized. Full fast was not rerun for this CSS-only refinement; its existing release-manifest failure remains documented above. No merge or release.
