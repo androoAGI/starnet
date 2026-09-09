@@ -1344,6 +1344,11 @@ const SpaceBG = (() => {
         else if (o.edge) { if (out(x + rim, y) || out(x - rim, y) || out(x, y + rim) || out(x, y - rim)) col = lit; }
         else if (out(x + lx * rim, y + ly * rim)) col = lit;
         else if (out(x - lx * rim, y - ly * rim)) col = shade;
+        // CREASES: the seams between lobes sit low in the coverage field — shade them (dithered), so
+        // a cloud is a cauliflower of domes rather than one flat cutout
+        else if (f + hashDither(x, y) * 0.10 < (o.crease == null ? 0.26 : o.crease)) col = shade;
+        // and the lit dome tops: high coverage on the sun side of each lobe
+        else if (!o.edge && f > 0.62 && out(x + lx * rim * 4, y + ly * rim * 4) === false && F[idx(Math.round(x + lx * rim * 2), Math.round(y + ly * rim * 2))] < f - 0.12) col = lit;
         const p = (y * w + x) * 4;
         D[p] = col[0]; D[p + 1] = col[1]; D[p + 2] = col[2]; D[p + 3] = A;
       }
@@ -1352,188 +1357,165 @@ const SpaceBG = (() => {
     return cv;
   }
 
-  /* the old soft cloud deck — still used by OCEAN until its rewrite lands; then it goes. */
-  function buildCloudDeck(w, h, rnd, opts) {
-    const o = opts || {};
-    const cv = mkCv(w, h), c = cv.getContext('2d');
-    const n = Math.max(5, Math.round((w * h) / (o.spread || 190000)));
-    const tint = o.tint || [235, 244, 255];
-    for (let i = 0; i < n; i++) {
-      const cx = rnd() * w, cy = rnd() * h;
-      const R = (o.min || 0.06) * Math.min(w, h) + rnd() * (o.vary || 0.10) * Math.min(w, h);
-      for (let p = 0, lobes = 5 + Math.floor(rnd() * 5); p < lobes; p++) {
-        const lx = cx + (rnd() - 0.5) * R * 2.1, ly = cy + (rnd() - 0.5) * R * 1.1;
-        puff9(c, w, h, lx, ly, R * (0.42 + 0.5 * rnd()), tint, (o.alpha || 0.15) * (0.55 + 0.6 * rnd()));
-      }
-    }
-    return cv;
-  }
-
   /* --------------------------------------------------------------- BACKDROP: OCEAN ---- */
-  /* Open water from altitude.
+  /* Open water from altitude. REBUILT 2026-09-09 on the bones of the 07-24 rewrite.
 
-     THE MISTAKE THIS IS A REWRITE OF (2026-07-24, Andrew: "it looks like stars"): the first
-     version drew the sea as SPARSE BRIGHT MARKS ON A DARK FIELD and gave the glint the same
-     shape as the star twinkle — isolated 1px points, independently fading in and out. That is
-     not a description of water, it is the definition of a starfield, so it read as one.
+     THE MISTAKE THAT REWRITE FIXED still binds (Andrew: "it looks like stars"): water is a
+     CONTINUOUS SURFACE, never sparse bright marks on a dark field. Every pixel is water, waves
+     are a modulation of it, foam sits on crests, and glitter is DENSE and lies on a BRIGHT sheen —
+     the properties a starfield can never have. The sun is never in frame (law 3).
 
-     Water is a CONTINUOUS SURFACE: every pixel is water, and waves are a modulation of it, never
-     marks scattered on top of a dark background. So the deck is built as a real wave field —
-     four crossing waves summed per pixel through an ImageData buffer, quantized into a handful
-     of flat bands so it stays pixel-art rather than turning into a smooth photograph. The finest
-     wave deliberately runs fast in y and slow in x, which lays the field into HORIZONTAL STREAKS;
-     that anisotropy is what the eye actually reads as a water surface seen from above.
+     What that rewrite got wrong, measured live: everything was SOFT. The sea ran from [3,13,23]
+     to [22,45,53] — a 30-unit range that a CRT pass halves to nothing — its clouds were 18% radial
+     puffs, and the whole frame read as a dark blue smudge with paler smudges on it. A surface
+     seen from altitude is not soft. It is the hardest-edged thing in nature.
 
-     Foam sits on the crests of that same field and glitter is DENSE and lies on a BRIGHT sheen —
-     the two properties a starfield can never have (stars are sparse, independent, and on black).
-     The sun is never in frame (law 3); you only see what it does to the water. */
+     What is different now:
+       1. A WIDE, HARD SEA RAMP. Seven flat steps from navy to teal-grey, hash-dithered at the band
+          edges so no contour ring is ever drawn, and two ramps (deep vs shallow water) chosen by a
+          slow noise so the sea has broad colour structure as well as waves.
+       2. CREST LINES. Wherever a band steps up toward the sun, the pixel on the lit side is drawn
+          in a single bright crest tone — the 1px highlight line that IS pixel-art water, in every
+          game that ever drew a sea. The line follows the wave field, so it is never a pattern.
+       3. THE WATER MOVES. Four plates, the fine texture wave advanced a quarter cycle in each,
+          stepped every FRAME_MS: the classic stepped ripple loop, exact on the torus because the
+          wave is an integer number of cycles across the tile. Reduced motion holds plate 0.
+       4. A REAL SHEEN. The sun's answer is a visible bright patch now, and the glitter in it is
+          twice as dense and bright — still dashes, still only inside the sheen.
+       5. PIXEL CLOUDS. Hard-edged cumulus with a lit rim, a shaded rim and a HARD SHADOW on the
+          water from the same shapes, offset down-sun. The shadow rides the deck depth and the
+          cloud rides the cloud depth, so panning pulls them apart — that gap is the altitude.
+     The LIGHT block is still scaled AS A SET: the station stays the brightest thing on screen. */
 
   const OCEAN_BG = {
     label: 'OCEAN',
     blurb: 'Open water, a long way down. Sun on the swell.',
     base: '#05101c',
+    FRAMES: 4, FRAME_MS: 340,
 
-    /* THE LIGHT BLOCK — every luminance in this backdrop, in one place.
-       The station must stay the brightest thing on screen; it is the subject and it is lit from
-       within. Measured live at 1440x900, backdrop luma / station luma: THE VOID sits at 0.53,
-       NIGHT CITY 0.62, DEEP FIELD 0.45. The first OCEAN came in at 1.25 — BRIGHTER than the
-       station — which inverted the composition and made the station read as a dark cutout
-       pasted onto a bright picture (Andrew, 2026-07-24: "the lighting is way off compared to
-       the station"). Everything below was scaled down together to land near 0.55.
-
-       Scale these AS A SET. Dimming the water while leaving the highlights hot would push the
-       pop-out ratio back up and turn the sea into a starfield again — which is the exact bug
-       this backdrop was already rebuilt once to fix. */
     LIGHT: {
-      DEEP: [3, 13, 23],            // trough
-      CREST: [22, 45, 53],          // crest
-      FOAM: [58, 76, 83],           // broken water on the highest crests
-      SHEEN: [17, 20, 19],          // additive specular boost at the centre of the sun's answer
-      FOAM_RGB: '108,130,140', FOAM_A: [0.05, 0.17],
-      GLITTER_RGB: '150,182,196', GLITTER_A: 0.38,
-      HAZE: [18, 34, 45], HAZE_A: 0.20,
-      CLOUD: [100, 113, 132], CLOUD_A: 0.18,
-      WISP: [108, 120, 136], WISP_A: 0.08,
-      SHADOW: [2, 7, 14], SHADOW_A: 0.14,
+      SEA: [[4, 14, 30], [6, 22, 44], [10, 34, 58], [16, 50, 72], [24, 70, 90], [36, 92, 108], [54, 118, 128]],
+      SEA2: [[3, 18, 26], [5, 28, 38], [8, 42, 50], [14, 58, 62], [22, 78, 78], [34, 100, 94], [52, 124, 112]],
+      CREST: [96, 156, 166],          // the 1px lit line on a wave's sun-side step
+      FOAM: [150, 184, 190],          // broken water on the highest band
+      SHEEN: [34, 36, 30],            // additive lift at the centre of the sun's answer
+      FOAM_RGB: '160,196,204', FOAM_A: [0.10, 0.30],
+      GLITTER_RGB: '214,238,246', GLITTER_A: 0.75,
+      HAZE: [18, 34, 45], HAZE_A: 0.12,
+      CLOUD: [164, 176, 194], CLOUD_LIT: [236, 240, 248], CLOUD_SHADE: [92, 108, 134], CLOUD_A: 0.94,
+      WISP: [140, 154, 176], WISP_LIT: [200, 208, 222], WISP_SHADE: [90, 104, 128], WISP_A: 0.55,
+      SHADOW: [2, 8, 18], SHADOW_A: 0.62,
     },
 
     build(w, h, rnd) {
-      /* THE SEA IS BUILT AT HALF RESOLUTION and blitted back up by tile2 (which always draws a
-         tile at the full w x h, whatever the source size). Two reasons, both good: the per-pixel
-         wave pass is 4x cheaper — a full-res 4K build measured 442ms, which is a visible hitch on
-         the one-shot resize rebuild — and the 2x upscale gives the water CHUNKIER pixels, which
-         sits better beside the station's own art than a fine smooth field does. Toroidality
-         survives scaling: the source wraps in its own space, so the blit wraps in ours. */
-      const SW = Math.max(1, Math.ceil(w / 2)), SH = Math.max(1, Math.ceil(h / 2));
-      const area = SW * SH;
-      const seaCv = mkCv(SW, SH), sc = seaCv.getContext('2d');
+      /* THE SEA IS BUILT AT HALF RESOLUTION and blitted back up by tile2: the per-pixel wave pass
+         is 4x cheaper (four plates now, not one) and the 2x upscale gives the water CHUNKIER
+         pixels, which sits better beside the station's own art than a fine field does. */
+      const SW = Math.max(1, Math.ceil(w / 2)), SH = Math.max(1, Math.ceil(h / 2)), area = SW * SH;
+      const LT = OCEAN_BG.LIGHT, NF = OCEAN_BG.FRAMES, LEVELS = LT.SEA.length;
 
-      /* ---- THE WAVE FIELD ----
-         Each wave is an integer number of cycles across the tile, so every one is periodic on the
-         torus and the tile cannot seam. The last is the texture wave: many cycles in y, few in x. */
+      /* ---- THE WAVE FIELD — each wave an integer number of cycles across the tile, so every one
+              is periodic on the torus. The last is the texture wave: many cycles in y, few in x
+              (horizontal streaks are what the eye reads as water from above), and the ONE that
+              advances between plates. ---- */
       const wi = (a, b) => a + Math.floor(rnd() * (b - a + 1));
       const waves = [
-        { nx: wi(1, 2), ny: wi(1, 2), a: 0.36 },        // the long swell
-        { nx: wi(2, 4), ny: -wi(1, 3), a: 0.26 },       // a second swell, crossing
-        { nx: wi(5, 8), ny: wi(3, 6), a: 0.20 },        // chop
-        { nx: wi(2, 4), ny: wi(22, 34), a: 0.18 },      // TEXTURE: fast in y, slow in x -> streaks
+        { nx: wi(1, 2), ny: wi(1, 2), a: 0.34, step: 0 },          // the long swell
+        { nx: wi(2, 4), ny: -wi(1, 3), a: 0.24, step: 0 },         // a second swell, crossing
+        { nx: wi(5, 8), ny: wi(3, 6), a: 0.20, step: 0 },          // chop
+        { nx: wi(2, 4), ny: wi(22, 34), a: 0.22, step: 1 / NF },   // TEXTURE: fast in y, slow in x, and it moves
       ];
-      // Precompute each wave's phase per column and per row, in LUT units. The inner loop then
-      // costs an add, a mask and a table read per wave instead of a Math.sin.
       for (const v of waves) {
-        v.px = new Float32Array(SW);
-        v.py = new Float32Array(SH);
-        const ph = rnd();
+        v.px = new Float32Array(SW); v.ph = rnd();
         for (let x = 0; x < SW; x++) v.px[x] = (v.nx * x / SW) * SIN_N;
-        for (let y = 0; y < SH; y++) v.py[y] = ((v.ny * y / SH) + ph) * SIN_N;
       }
-
-      /* the specular sheen: where the sun answers back. Toroidal distance, so it wraps too. */
+      // the specular sheen: where the sun answers back. Toroidal distance, so it wraps too.
       const gx = rnd() * SW, gy = rnd() * SH, gR = Math.min(SW, SH) * (0.34 + 0.12 * rnd());
       const dt = (a, b, m) => { const d = Math.abs(a - b) % m; return Math.min(d, m - d); };
+      const deep = wrapNoiseXY(Math.max(2, Math.round(2 * w / h)), 2, rnd);   // deep navy vs shallower teal
+      // foam candidates, fixed across plates so foam does not flicker at the plate rate
+      const foam = [];
+      for (let i = 0, n = Math.min(5200, Math.round(area / 900)); i < n; i++) foam.push({ x: rnd() * SW, y: (rnd() * SH) | 0, len: 1 + Math.round(rnd() * 3), a: rnd() });
 
-      const LT = OCEAN_BG.LIGHT;
-      const DEEP = LT.DEEP, CREST = LT.CREST, FOAM = LT.FOAM, SHEEN = LT.SHEEN;   // NB: not SH — that is the half-res height
-      const LEVELS = 7;                                  // quantize into flat bands = pixel art, not a photo
-
-      const img = sc.createImageData(SW, SH), D = img.data;
-      const w0 = waves[0], w1 = waves[1], w2 = waves[2], w3 = waves[3];
-      let p = 0;
-      for (let y = 0; y < SH; y++) {
-        const y0 = w0.py[y], y1 = w1.py[y], y2 = w2.py[y], y3 = w3.py[y];
-        for (let x = 0; x < SW; x++) {
-          const v = w0.a * SIN_LUT[((w0.px[x] + y0) | 0) & SIN_MASK]
-                  + w1.a * SIN_LUT[((w1.px[x] + y1) | 0) & SIN_MASK]
-                  + w2.a * SIN_LUT[((w2.px[x] + y2) | 0) & SIN_MASK]
-                  + w3.a * SIN_LUT[((w3.px[x] + y3) | 0) & SIN_MASK];
-          let t = v * 0.5 + 0.5;                         // 0 = trough, 1 = crest
-          t = Math.round(t * LEVELS) / LEVELS;           // flat bands
-
-          const sheen = Math.max(0, 1 - Math.hypot(dt(x, gx, SW), dt(y, gy, SH)) / gR);
-          const s2 = sheen * sheen;
-
-          let r = DEEP[0] + (CREST[0] - DEEP[0]) * t + SHEEN[0] * s2;
-          let g = DEEP[1] + (CREST[1] - DEEP[1]) * t + SHEEN[1] * s2;
-          let b = DEEP[2] + (CREST[2] - DEEP[2]) * t + SHEEN[2] * s2;
-          if (t > 0.88) {                                // foam breaks on the highest crests only
-            const f = (t - 0.88) / 0.12;
-            r += (FOAM[0] - r) * f; g += (FOAM[1] - g) * f; b += (FOAM[2] - b) * f;
-          }
-          D[p] = r; D[p + 1] = g; D[p + 2] = b; D[p + 3] = 255;
-          p += 4;
+      const band = new Uint8Array(area), lvl = new Float32Array(area);
+      const frames = [];
+      for (let k = 0; k < NF; k++) {
+        for (const v of waves) {
+          v.py = new Float32Array(SH);
+          const ph = v.ph + k * v.step;
+          for (let y = 0; y < SH; y++) v.py[y] = ((v.ny * y / SH) + ph) * SIN_N;
         }
+        const w0 = waves[0], w1 = waves[1], w2 = waves[2], w3 = waves[3];
+        // pass 1: the field, quantized under a hash dither (no contour rings)
+        for (let y = 0, i = 0; y < SH; y++) {
+          const y0 = w0.py[y], y1 = w1.py[y], y2 = w2.py[y], y3 = w3.py[y];
+          for (let x = 0; x < SW; x++, i++) {
+            const v = w0.a * SIN_LUT[((w0.px[x] + y0) | 0) & SIN_MASK]
+                    + w1.a * SIN_LUT[((w1.px[x] + y1) | 0) & SIN_MASK]
+                    + w2.a * SIN_LUT[((w2.px[x] + y2) | 0) & SIN_MASK]
+                    + w3.a * SIN_LUT[((w3.px[x] + y3) | 0) & SIN_MASK];
+            const t = v * 0.5 + 0.5;                       // 0 = trough, 1 = crest
+            lvl[i] = t;
+            band[i] = Math.max(0, Math.min(LEVELS - 1, Math.round((t + hashDither(x, y + k * 977) * 0.5 / LEVELS) * (LEVELS - 1))));
+          }
+        }
+        // pass 2: colour, crest lines, sheen, foam
+        const seaCv = mkCv(SW, SH), sc = seaCv.getContext('2d');
+        const img = sc.createImageData(SW, SH), D = img.data;
+        for (let y = 0, i = 0, p = 0; y < SH; y++) {
+          for (let x = 0; x < SW; x++, i++, p += 4) {
+            const b = band[i];
+            const pal = deep(x / SW, y / SH) + hashDither(x, y) * 0.3 > 0.5 ? LT.SEA : LT.SEA2;
+            let col = pal[b];
+            // CREST LINE: a step up from the down-sun neighbour means this pixel faces the sun
+            if (b >= 3 && b > band[((y + 1) % SH) * SW + ((x + 1) % SW)]) col = LT.CREST;
+            const sheen = Math.max(0, 1 - Math.hypot(dt(x, gx, SW), dt(y, gy, SH)) / gR), s2 = sheen * sheen;
+            let r = col[0] + LT.SHEEN[0] * s2, g = col[1] + LT.SHEEN[1] * s2, bl = col[2] + LT.SHEEN[2] * s2;
+            if (b === LEVELS - 1 && lvl[i] > 0.86) {       // foam breaks on the highest crests only
+              const f = Math.min(1, (lvl[i] - 0.86) / 0.10);
+              r += (LT.FOAM[0] - r) * f; g += (LT.FOAM[1] - g) * f; bl += (LT.FOAM[2] - bl) * f;
+            }
+            D[p] = r; D[p + 1] = g; D[p + 2] = bl; D[p + 3] = 255;
+          }
+        }
+        sc.putImageData(img, 0, 0);
+        // FOAM STREAKS — short bright dashes lying ALONG the surface, on the crests of this plate
+        for (const f of foam) {
+          const t = lvl[f.y * SW + (f.x | 0)];
+          if (t < 0.74) continue;
+          const lit = Math.min(1, (t - 0.74) / 0.22);
+          hdash(sc, SW, f.x, f.y, f.len + Math.round(lit * 2), 'rgba(' + LT.FOAM_RGB + ',' + (LT.FOAM_A[0] + LT.FOAM_A[1] * lit * f.a).toFixed(3) + ')');
+        }
+        hazeOver(sc, SW, SH, LT.HAZE, LT.HAZE_A);         // distance wash on the deck only
+        frames.push(seaCv);
       }
-      sc.putImageData(img, 0, 0);
 
-      /* ---- FOAM STREAKS — short bright dashes lying ALONG the surface, on the crests. Drawn as
-              dashes rather than dots for the same reason the texture wave is anisotropic. ---- */
-      const foamN = Math.min(5200, Math.round(area / 950));
-      for (let i = 0; i < foamN; i++) {
-        const x = rnd() * SW, y = (rnd() * SH) | 0;
-        const v = w0.a * SIN_LUT[(((w0.nx * x / SW) * SIN_N + w0.py[y]) | 0) & SIN_MASK]
-                + w3.a * SIN_LUT[(((w3.nx * x / SW) * SIN_N + w3.py[y]) | 0) & SIN_MASK];
-        if (v < 0.30) continue;                          // crests only
-        const lit = Math.min(1, (v - 0.30) / 0.34);
-        hdash(sc, SW, x, y, 1 + Math.round(rnd() * 3 + lit * 2),
-          'rgba(' + LT.FOAM_RGB + ',' + (LT.FOAM_A[0] + LT.FOAM_A[1] * lit * rnd()).toFixed(3) + ')');
-      }
-
-      /* ---- THE GLITTER — live, and the thing most likely to regress into stars. It stays honest
-              because it is DENSE, it is short DASHES not points, and it only exists inside the
-              bright sheen. Sparse + isolated + on dark is the starfield look; this is none of it. */
-      // normalized against the HALF-res field the sheen was placed in, so the glitter lands on
-      // the sheen after the 2x blit rather than a quarter of the way across the tile.
+      /* ---- THE GLITTER — live, dense, short dashes, only inside the sheen. Normalised against
+              the half-res field so it lands on the sheen after the 2x blit. ---- */
       const sparks = [];
-      const sparkN = Math.min(900, Math.round(area / 700));
-      for (let i = 0; i < sparkN; i++) {
+      for (let i = 0, n = Math.min(1100, Math.round(area / 560)); i < n; i++) {
         const ang = rnd() * Math.PI * 2, rad = Math.sqrt(rnd()) * gR * 0.92;
-        sparks.push({
-          x: (gx + Math.cos(ang) * rad) / SW, y: (gy + Math.sin(ang) * rad * 0.75) / SH,
-          ph: rnd() * 6.283, sp: 0.9 + rnd() * 2.2, len: 2 + Math.round(rnd() * 2),
-        });
+        sparks.push({ x: (gx + Math.cos(ang) * rad) / SW, y: (gy + Math.sin(ang) * rad * 0.75) / SH, ph: rnd() * 6.283, sp: 0.9 + rnd() * 2.2, len: 2 + Math.round(rnd() * 2) });
       }
 
-      /* ---- cloud + shadow decks (same shapes, different depth) ---- */
-      const cloudCv = buildCloudDeck(w, h, mulberry32(0x0CEA11), { spread: 118000, min: 0.05, vary: 0.10, alpha: LT.CLOUD_A, tint: LT.CLOUD });
-      const shadowCv = buildCloudDeck(w, h, mulberry32(0x0CEA11), { spread: 118000, min: 0.05, vary: 0.10, alpha: LT.SHADOW_A, tint: LT.SHADOW });
-      // a second, thinner deck much closer in — two cloud layers moving at different rates is the
-      // cheapest honest way to say "there is air between you and the water".
-      const wispCv = buildCloudDeck(w, h, mulberry32(0x0CEA22), { spread: 260000, min: 0.09, vary: 0.16, alpha: LT.WISP_A, tint: LT.WISP });
+      /* ---- cloud, shadow and wisp decks — the same seed builds cloud and shadow, so the shadow
+              is the cloud's own shape ---- */
+      const cl = { spread: 130000, min: 0.03, vary: 1.0 };
+      const cloudCv = buildPixelClouds(w, h, mulberry32(0x0CEA11), Object.assign({ body: LT.CLOUD, lit: LT.CLOUD_LIT, shade: LT.CLOUD_SHADE, alpha: LT.CLOUD_A, light: [-0.6, -0.8], rim: 3 }, cl));
+      const shadowCv = buildPixelClouds(w, h, mulberry32(0x0CEA11), Object.assign({ mask: LT.SHADOW, alpha: LT.SHADOW_A }, cl));
+      const wispCv = buildPixelClouds(w, h, mulberry32(0x0CEA22), { spread: 320000, min: 0.03, vary: 0.8, body: LT.WISP, lit: LT.WISP_LIT, shade: LT.WISP_SHADE, alpha: LT.WISP_A, light: [-0.6, -0.8], rim: 2 });
 
-      hazeOver(sc, SW, SH, LT.HAZE, LT.HAZE_A);          // distance wash on the deck only
-
-      return { seaCv, cloudCv, shadowCv, wispCv, sparks };
+      return { frames, cloudCv, shadowCv, wispCv, sparks };
     },
 
     draw(ctx, w, h, now, cam, st) {
-      const t = now / 1000;
+      const t = now / 1000, LT = OCEAN_BG.LIGHT;
+      const k = reduceMotion() ? 0 : Math.floor(now / OCEAN_BG.FRAME_MS) % st.frames.length;
       const sx = parX(cam, SURF.deck) + t * 1.5, sy = parY(cam, SURF.deck) + t * 0.5;
-      tile2(ctx, st.seaCv, w, h, sx, sy);
+      tile2(ctx, st.frames[k], w, h, sx, sy);
 
-      // cloud SHADOWS lie ON the water (deck depth) but travel on the wind, so they slide across it
-      ctx.globalAlpha = 0.8;
-      tile2(ctx, st.shadowCv, w, h, parX(cam, SURF.deck) + t * 5.5, parY(cam, SURF.deck) + t * 1.6);
-      ctx.globalAlpha = 1;
+      // cloud SHADOWS lie ON the water (deck depth) but travel with the clouds, thrown down-sun
+      tile2(ctx, st.shadowCv, w, h, parX(cam, SURF.deck) + t * 5.5 + 44, parY(cam, SURF.deck) + t * 1.6 + 52);
 
       /* THE GLITTER. Sea glint snaps rather than breathing, so the twinkle is sharpened with a
          fourth power — but MANY are lit at once, which is what separates a shimmering patch of
@@ -1544,14 +1526,13 @@ const SpaceBG = (() => {
         const a = q * q * q * q;
         if (a < 0.06) continue;
         const x = ((s.x * w + sx) % w + w) % w, y = ((s.y * h + sy) % h + h) % h;
-        ctx.fillStyle = 'rgba(' + OCEAN_BG.LIGHT.GLITTER_RGB + ',' + (a * OCEAN_BG.LIGHT.GLITTER_A).toFixed(3) + ')';
-        ctx.fillRect(x, y, s.len, 1);                    // a dash along the surface, never a dot
+        ctx.fillStyle = 'rgba(' + LT.GLITTER_RGB + ',' + (a * LT.GLITTER_A).toFixed(3) + ')';
+        ctx.fillRect(Math.round(x), Math.round(y), s.len, 1);   // a dash along the surface, never a dot
       }
 
       // the cloud decks, much closer to the station — the parallax gap here IS the altitude
-      ctx.globalAlpha = 0.92;
       tile2(ctx, st.cloudCv, w, h, parX(cam, SURF.cloud) + t * 5.5, parY(cam, SURF.cloud) + t * 1.6);
-      ctx.globalAlpha = 0.75;
+      ctx.globalAlpha = 0.85;
       tile2(ctx, st.wispCv, w, h, parX(cam, SURF.cloud * 1.55) + t * 13, parY(cam, SURF.cloud * 1.55) + t * 3.6);
       ctx.globalAlpha = 1;
     },
