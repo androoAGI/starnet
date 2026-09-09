@@ -4,10 +4,10 @@ slug: spoken-replies-fragment-at-punctuation-and-omit
 title: Spoken replies fragment at punctuation and omit failed audio chunks
 surface: voice
 severity: P1
-status: open
+status: fixed
 found: 2026-09-09
 lane: agent/voice-continuity-0909
-fix:
+fix: 7e83246fa
 origin: customer
 report: Owner-relayed customer report in task on 2026-09-09
 affected: Build and platform unknown
@@ -32,7 +32,7 @@ Baseline ed768880a: executing frontend/app/chat.js:8236 emitted "Hello, " alone.
 
 ## Verdict
 
-Source repair in progress. Affected installer and customer acoustic recovery remain unverified.
+Source repair verified with production-closure regressions and fault injection in the seeded browser runtime. Affected installer, physical echo behavior and customer recovery remain unverified.
 
 ## Regression
 
