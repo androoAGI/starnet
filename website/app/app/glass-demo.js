@@ -4,6 +4,8 @@
   if (new URLSearchParams(location.search).get('glass') !== '1') return;
   document.body.classList.add('glass-demo');
   const css = document.createElement('link'); css.rel = 'stylesheet'; css.href = 'css/glass-demo.css'; document.head.append(css);
+  const commsCss = document.createElement('link'); commsCss.rel='stylesheet'; commsCss.href='css/glass-comms.css'; document.head.append(commsCss);
+  const commsScript = document.createElement('script'); commsScript.src='app/glass-comms.js'; document.body.append(commsScript);
   const badge = document.createElement('span'); badge.className = 'gd-badge'; badge.textContent = 'GLASS DEMO'; document.body.append(badge);
   // One small, square-stroke instrument icon set; decorative, so labels remain plain text.
   const dockIcons = {

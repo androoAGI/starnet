@@ -82,3 +82,27 @@ Removed both the lower-right resize control and decorative footer grip from glas
 The cabinet gaps now expose an opaque, theme-derived glass bed instead of the near-black body background. Rail shadows are shallower, and the camera casing uses the same fine glass edge instead of the previous black outer ring. Grid spacing and panel dimensions are preserved.
 
 Live on the current custom blue theme: the shared bed resolved to srgb(0.04235, 0.08957, 0.22526); the camera edge had no black outer shadow. Both corner grip elements computed display:none. Maximize/restore and top-handle ArrowUp/ArrowDown worked. Window-minimize (20), control-floor (117), terminal-resize (16), and website-app-sync (8) assertions passed; diff whitespace check passed. This CSS-only pass did not rerun the full suite; its existing release-manifest failure is documented above.
+
+## COMMS glass pass - 2026-09-09
+
+The opt-in loader now includes glass-comms.css and glass-comms.js. COMMS has a compact agent header, a recessed writing field, matched send/attachment/audio controls, glass model and command menus, and fine-edged message, choice, empty-state, and group-agent cards. Theme variables carry the active phosphor colour throughout. Recording, muted audio, missing keys, errors, and suggested decisions retain their existing state semantics. The live-voice panel, tool cards, and attachment previews have matching material rules.
+
+The agent picker progressively mirrors the original roster select and dispatches its original change event only when the selected agent changes. Selecting the current agent is a no-op for session routing. Keyboard navigation supports arrows, Home/End, Escape and Tab. Escape in the model picker returns focus to its toggle. Closing pickers become inert while their opacity/translate transition completes; reduced motion disables these transitions.
+
+Live checks on the final local demo:
+- Visually inspected the COMMS rail, message/error cards, composer and expanded model picker in the current red theme.
+- At a 300px COMMS rail, the panel, header, composer and tools had no horizontal overflow at both standard and 145% text size. Restored STANDARD afterward.
+- Agent picker opened by keyboard, selected NOVA, and closed with focus returned; selecting NOVA retained Glass UI exploration.
+- Model search filtered the real model list; Escape closed it and returned focus to the model toggle.
+- Slash input opened the real command list without executing a command. Cleared the test draft.
+- ADD AGENTS showed the actual current membership and no-changes state. Cancelled without saving.
+- General displayed the real empty conversation and three glass starter cards; returned to Glass UI exploration without sending a starter.
+- Final reload preserved the conversation and theme; placeholder rendered Message followed by a middle dot and / commands, with an empty draft.
+- The inspected browser warning/error log was empty.
+
+Checks:
+- Syntax checks passed for glass-comms.js and glass-demo.js; diff whitespace check passed.
+- dev/glass-comms.test.cjs passed same-agent no-op, canonical changed-agent event routing, and focus-return cases.
+- group-chat-picker, composer-paste-limit (25), comms-responsive-text (5), control-floor (121), and website-app-sync (8) passed. The generated website mirror is synchronized.
+- Full npm run test:fast stopped at step 286/733 with the same 10 qa-product-perfect-claims release-manifest failures documented above. The full suite is not green; no merge or release was performed.
+- The keyless demo has one agent. Real model execution, switching between two live agents, active voice recording/live voice, and populated attachment/tool states were not live-tested. Those associated surfaces were styled without changing their backend state logic.
