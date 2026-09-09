@@ -243,31 +243,6 @@ const ModelDock = (() => {
     });
   }
 
-  // Does this provider require an API key to run at all? (Codex uses OAuth; ollama/custom are keyless
-  // local/self-hosted endpoints.) Mirrors Harness.providerNeedsKey, kept local so the dock has no new dep.
-  function providerNeedsKey(p) {
-    p = normalizeProvider(p);
-    // starnet joins the keyless set: its bearer is the linked device token, never a pasted key.
-    return p !== 'codex' && p !== 'grok' && p !== 'kimi' && p !== 'ollama' && p !== 'custom' && p !== 'starnet';
-  }
-  // TRUTHFUL: is the ACTIVE provider missing a real, run-able credential? Uses Harness.hasStoredCredential
-  // (never fabricated by DEVMODE) so the warning only shows when a run would genuinely fail for lack of a key —
-  // and disappears the instant a key is stored. This is the pre-RUN surfacing of harness.js's 'no API key set'.
-  function activeNeedsKey() {
-    const p = provider();
-    // STARNET has no key to miss, but it CAN be selected on a station that is not linked (a save can
-    // carry the provider across an unlink). That still cannot run, so it still warns — just truthfully.
-    if (p === 'starnet') {
-      try { return !(typeof Harness !== 'undefined' && Harness.configured && Harness.configured('starnet')); }
-      catch (_) { return false; }
-    }
-    if (!providerNeedsKey(p)) return false;
-    try {
-      if (typeof Harness !== 'undefined' && Harness.hasStoredCredential) return !Harness.hasStoredCredential(p);
-    } catch (_) {}
-    return false;
-  }
-
   function providerEnabled(p) {
     p = normalizeProvider(p || provider());
     if (p === provider()) return true;
@@ -641,37 +616,6 @@ const ModelDock = (() => {
       '<div class="mdt-hint">click to change model &amp; effort</div>';
   }
 
-  // Inline no-key warning: if the ACTIVE provider needs a key and none is stored, flag the resting chip and
-  // drop a one-tap "add a key in Settings" row inside the dock — surfaced BEFORE the user hits RUN (which would
-  // otherwise be the first time they learn, via harness.js's honest 'no API key set' backstop). Provable from
-  // backend state (hasStoredCredential); vanishes the instant a key lands, so it never lies.
-  function renderKeyWarning() {
-    const needs = activeNeedsKey();
-    const toggle = el('model-dock-toggle');
-    if (toggle) toggle.classList.toggle('needs-key', needs);
-    const head = el('model-dock-head') || (el('model-dock') && el('model-dock').querySelector('.model-dock-head'));
-    let warn = el('model-dock-keywarn');
-    if (!needs) { if (warn) warn.remove(); return; }
-    if (!warn) {
-      warn = document.createElement('button');
-      warn.id = 'model-dock-keywarn';
-      warn.type = 'button';
-      warn.className = 'model-dock-keywarn';
-      warn.addEventListener('click', openSettings);
-      // sits directly under the head, above the search box, so it reads as the first thing when the dock opens
-      const dock = el('model-dock');
-      if (head && head.parentNode) head.parentNode.insertBefore(warn, head.nextSibling);
-      else if (dock) dock.insertBefore(warn, dock.firstChild);
-    }
-    // The remedy has to match the credential. Telling a credits user to "add a key" sends them looking
-    // for a field that does not exist for this provider.
-    const msg = provider() === 'starnet'
-      ? 'this station isn’t linked to a StarNet account — link it in SETTINGS to run on credits'
-      : 'no ' + esc(providerLabel(provider())) + ' key — this model can’t run yet. add one in SETTINGS';
-    warn.innerHTML = '<span class="mdw-glyph" aria-hidden="true">⚠</span>' +
-      '<span class="mdw-txt">' + msg + '</span>';
-  }
-
   function reflect() {
     const current = getModel();
     const p = provider();
@@ -691,7 +635,6 @@ const ModelDock = (() => {
       chrome.nameEl.classList.toggle('empty', !short);
     }
     if (chrome) updateTip(chrome.tip);
-    renderKeyWarning();
     renderEfforts();
   }
 
@@ -755,10 +698,20 @@ const ModelDock = (() => {
     if (open) closeDock(); else openDock();
   }
 
-  function openSettings() {
+  // The model picker's account door always leads to StarNet. It does not change the
+  // active provider, promise a working model, or start a subscription transaction.
+  function openSubscription(event) {
+    const invoke = (typeof window !== 'undefined' && window.__TAURI__ && window.__TAURI__.core)
+      ? window.__TAURI__.core.invoke : null;
+    if (!invoke) return; // Browser: the anchor's normal target=_blank navigation owns this.
+    event.preventDefault();
     closeDock();
-    const button = document.querySelector('.bb[data-term="settings"]');
-    if (button) button.click();
+    Promise.resolve().then(() => invoke('open_external_url', { url: 'https://www.starnetos.com/pricing' }))
+      .catch(() => {
+        if (typeof StationUI !== 'undefined' && StationUI.notify) {
+          StationUI.notify('Could not open your browser. Visit www.starnetos.com/pricing for your StarNet subscription.', 'warn');
+        }
+      });
   }
 
   function wire() {
@@ -767,7 +720,7 @@ const ModelDock = (() => {
     const toggle = el('model-dock-toggle');
     const search = el('model-dock-search');
     const refresh = el('model-dock-refresh');
-    const settings = el('model-dock-settings');
+    const subscription = el('model-dock-subscription');
     if (toggle) {
       // this handler stops propagation (the outside-click closer below must not see its own opening
       // press), which also means audio.js's delegated click cue never reaches the document — so the
@@ -785,7 +738,7 @@ const ModelDock = (() => {
     }
     if (search) search.addEventListener('input', renderList);
     if (refresh) refresh.addEventListener('click', () => fetchModels(true));
-    if (settings) settings.addEventListener('click', openSettings);
+    if (subscription) subscription.addEventListener('click', openSubscription);
     document.addEventListener('click', ev => {
       const dock = el('model-dock'), button = el('model-dock-toggle');
       if (!open || !dock || !button) return;

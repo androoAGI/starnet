@@ -112,7 +112,6 @@ body.glass-demo #chat-panel .model-dock-toggle::after {
   border-right: 1px solid currentColor; border-bottom: 1px solid currentColor; transform: rotate(45deg); opacity: .8;
 }
 body.glass-demo #chat-panel .model-dock-toggle.on::after { transform: rotate(225deg); margin-top: 3px; }
-body.glass-demo #chat-panel .model-dock-toggle.needs-key .model-dock-model-name { color: var(--warn); }
 body.glass-demo #chat-panel :is(.mic-btn.rec,.chat-stop:not([hidden])) { color: var(--bad); border-color: var(--bad); background: color-mix(in srgb, var(--bad) 9%, var(--panel2)); }
 body.glass-demo #chat-panel :is(.chat-tools button,.chat-send,#gc-add-agents,.gd-agent-toggle) {
   transition: background-color var(--t-fast) var(--ease-soft), border-color var(--t-fast) var(--ease-soft), color var(--t-fast) var(--ease-soft);
@@ -136,19 +135,21 @@ body.glass-demo :is(#model-dock,.gd-agent-menu,#chat-slash,.model-dock-tip) {
 }
 body.glass-demo #model-dock {
   padding: 10px; gap: 9px; width: min(350px,calc(100vw - 34px)); max-height: min(65vh,480px);
-  background: linear-gradient(145deg,rgba(var(--ph-rgb),.09),transparent 65%),color-mix(in srgb,var(--panel2) 90%,var(--ink));
-  backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+  background: var(--gd-face); border-color: var(--gd-edge); box-shadow: var(--gd-shadow);
+  backdrop-filter: blur(9px); -webkit-backdrop-filter: blur(9px);
 }
 body.glass-demo #model-dock .model-dock-head {
-  display: flex; flex-direction: column; align-items: flex-start; gap: 3px; border: 0; padding: 2px 3px 1px;
+  display: flex; flex-direction: column; align-items: flex-start; gap: 3px; margin: -10px -10px 1px; padding: 11px 13px;
+  border-bottom: 1px solid var(--gd-edge); background: linear-gradient(180deg,rgba(var(--ph-rgb),.14),rgba(var(--ph-rgb),.025));
+  box-shadow: inset 0 1px 0 var(--gd-light); border-radius: 5px 5px 0 0;
 }
 body.glass-demo #model-dock .model-dock-current-model { font-size: 16px; font-weight: normal; text-align: left; max-width: 100%; }
 body.glass-demo #model-dock .model-dock-provider { font-size: 14px; letter-spacing: .6px; color: var(--text); opacity: .8; }
 body.glass-demo #model-dock-search {
-  padding: 8px 9px; font: 16px/1.25 'VT323',monospace; background: rgba(var(--ph-rgb),.035);
-  border: 0; border-bottom: 1px solid var(--gd-edge); box-shadow: none; border-radius: 2px;
+  padding: 8px 9px; font: 16px/1.25 'VT323',monospace; background: var(--gd-face);
+  border: 1px solid var(--gd-edge); box-shadow: inset 0 1px 0 var(--gd-light); border-radius: 4px;
 }
-body.glass-demo #model-dock-search:focus { border-bottom-color: var(--ph); background: rgba(var(--ph-rgb),.065); }
+body.glass-demo #model-dock-search:focus { border-color: var(--ph); background: var(--gd-hover); }
 body.glass-demo #model-dock-search::placeholder { color: var(--text); opacity: .8; }
 body.glass-demo #model-dock .model-dock-efforts { display: flex; flex-wrap: wrap; gap: 4px; padding: 0; border: 0; }
 body.glass-demo #model-dock .model-dock-efforts::before {
@@ -156,30 +157,28 @@ body.glass-demo #model-dock .model-dock-efforts::before {
   font: 14px/1.2 'VT323',monospace; letter-spacing: .6px;
 }
 body.glass-demo #model-dock .model-dock-effort {
-  flex: 1; min-width: 30px; height: 26px; border: 0; font-size: 14px; color: var(--text);
+  flex: 1; min-width: 30px; height: 28px; border: 1px solid var(--gd-edge); border-radius: 3px; font-size: 14px; color: var(--text);
+  background: var(--gd-face); box-shadow: inset 0 1px 0 var(--gd-light);
 }
 body.glass-demo #model-dock .model-dock-effort:is(:hover,:focus-visible) { background: var(--gd-hover); color: var(--ph-bright); }
 body.glass-demo #model-dock .model-dock-effort.sel {
-  color: var(--ph-bright); background: rgba(var(--ph-rgb),.12); box-shadow: inset 0 -1px 0 var(--ph);
+  color: var(--ph-bright); background: var(--gd-hover); border-color: var(--ph); box-shadow: inset 0 1px 0 var(--gd-light), inset 0 -1px 0 var(--ph);
 }
 body.glass-demo #model-dock .model-dock-list { min-height: 0; flex: 1 1 auto; max-height: 260px; border-color: var(--gd-edge); padding-block: 2px; }
 body.glass-demo #model-dock .model-dock-group { border: 0; font-size: 14px; padding: 8px 8px 4px; letter-spacing: .6px; color: var(--text); opacity: .8; }
-body.glass-demo #model-dock .model-dock-row { padding: 8px; border: 1px solid transparent; border-radius: 3px; margin-block: 1px; }
+body.glass-demo #model-dock .model-dock-row { padding: 9px 8px; border: 1px solid rgba(var(--ph-rgb),.12); border-radius: 4px; margin-block: 4px;
+  background: var(--gd-face); box-shadow: inset 0 1px 0 var(--gd-light); }
 body.glass-demo #model-dock .model-dock-row:not(.fallback) .model-dock-row-name { font-size: 16px; color: var(--text); }
 body.glass-demo #model-dock .model-dock-row-effort { font-size: 14px; color: var(--text); opacity: .7; }
-body.glass-demo #model-dock .model-dock-row.sel { background: rgba(var(--ph-rgb),.1); border-color: var(--gd-edge); box-shadow: inset 2px 0 0 var(--ph); }
+body.glass-demo #model-dock .model-dock-row.sel { background: var(--gd-hover); border-color: var(--gd-edge); box-shadow: inset 2px 0 0 var(--ph), inset 0 1px 0 var(--gd-light); }
 body.glass-demo #model-dock .model-dock-row.sel .model-dock-row-name { color: var(--ph-bright); }
-body.glass-demo #model-dock .model-dock-row:is(:hover,:focus-visible) { background: var(--gd-hover); border-color: var(--gd-edge); }
-body.glass-demo #model-dock .model-dock-keywarn {
-  font-size: 14px; padding: 7px 9px; margin: 0; border: 0; border-left: 2px solid color-mix(in srgb,var(--warn) 60%,transparent);
-  border-radius: 0; background: color-mix(in srgb,var(--warn) 5%,transparent);
-}
-body.glass-demo #model-dock .model-dock-keywarn:hover { background: color-mix(in srgb,var(--warn) 10%,transparent); }
+body.glass-demo #model-dock .model-dock-row:is(:hover,:focus-visible) { background: var(--gd-hover); border-color: var(--gd-edge); box-shadow: inset 0 1px 0 var(--gd-light),0 2px 8px rgba(0,0,0,.2); }
 body.glass-demo #model-dock .model-dock-foot { justify-content: space-between; gap: 8px; }
-body.glass-demo #model-dock .model-dock-foot button {
-  flex: 0 1 auto; min-height: 28px; padding: 5px 8px; font-size: 16px; color: var(--text); border: 0; background: transparent; box-shadow: none;
+body.glass-demo #model-dock .model-dock-foot :is(button,a) {
+  min-height: 30px; padding: 5px 8px; font-size: 16px; color: var(--text); border: 1px solid var(--gd-edge); border-radius: 4px;
+  background: var(--gd-face); box-shadow: inset 0 1px 0 var(--gd-light);
 }
-body.glass-demo #model-dock .model-dock-foot button:is(:hover,:focus-visible) { color: var(--ph-bright); background: var(--gd-hover); }
+body.glass-demo #model-dock .model-dock-foot :is(button,a):is(:hover,:focus-visible) { color: var(--ph-bright); background: var(--gd-hover); }
 body.glass-demo .gd-agent-menu { position: absolute; top: calc(100% + 5px); left: 7px; right: 7px; z-index: 90; padding: 5px; max-height: 260px; overflow-y: auto; }
 body.glass-demo .gd-agent-option { display: flex; align-items: center; justify-content: space-between; width: 100%; padding: 9px; font: 16px/1.2 'VT323',monospace; text-align: left; color: var(--ph); background: transparent; border: 1px solid transparent; border-radius: 3px; }
 body.glass-demo .gd-agent-option[aria-selected="true"] { background: rgba(var(--ph-rgb),.09); border-color: var(--gd-edge); color: var(--ph-bright); box-shadow: inset 2px 0 0 var(--ph); }

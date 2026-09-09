@@ -171,3 +171,18 @@ The popup has a stacked provider/model heading, a recessed search underline, a l
 Live proof: toggle computed border-width 0px both closed and open, with a compact 166px width at the original 484px rail. Search for haiku filtered the real catalog; Escape closed the menu and returned focus, and Enter reopened it with search focused. At a 302px rail, toolbar client/scroll width both 282px and toggle client/scroll both 131px. Popup client/scroll width both 348px; all seven reasoning controls fit their labels. Restored the exact 484px rail, original model/MED effort and empty draft. Browser warnings/errors were empty; left the model popup open for review.
 
 readability (21), comms-responsive-text (5), control-floor-theming (125), website-app-sync (8) and diff whitespace checks passed. Website mirror synchronized. Full fast was not repeated for this CSS refinement; its previously recorded release-manifest failures remain unresolved. Real model execution and installed builds were not verified; no merge or release.
+
+## CREW glass material and StarNet subscription door - 2026-09-09
+
+Owner correction: the model popup still looked flat and the OpenRouter-key warning was obsolete. The popup now uses exactly CREW's --gd-face, --gd-edge and --gd-shadow; its heading matches the rail's illuminated strip. Search, model rows, reasoning controls and footer actions carry the same glass face and inset light. Selected/hovered model rows use CREW's --gd-hover gradient. The compact bottom toggle stays borderless.
+
+Removed the shared picker-only missing-key notice, amber chip treatment and their unused credential helpers. Replaced its footer Settings action with STARNET SUBSCRIPTION, pointing to the public https://www.starnetos.com/pricing page verified during this pass. This is a navigation action, not a claimed account status or a provider switch. Existing provider/model selection, credential checks in the harness, catalog reconciliation and runtime errors remain authoritative. Browser activation preserves the native secure new-tab link; desktop activation uses the existing open_external_url bridge and reports launch failures with the public URL.
+
+Live proof:
+- Popup and CREW background values matched exactly, including the 165-degree gradient and theme-colored translucent base. Selected model and selected CREW row both resolved to the same 120-degree highlight.
+- No model-dock-keywarn element or obsolete key notice in the glass or normal app. Final footer href was the verified public subscription page; model toggle border width was 0px.
+- At a 302px COMMS rail, toolbar client/scroll width both 282px. Popup client/scroll width both 348px; subscription action client/scroll width both 255px. Restored the 484px rail and empty draft.
+- Haiku search filtered the real catalog; Escape closed it. Final model/effort remained claude haiku latest / MIN as observed during this pass. No model or effort selections were made by these checks.
+- Final browser warning/error log was empty. Left the glass picker open for review. Payment, account sign-in and an installed desktop browser launch were not exercised.
+
+Checks: JS syntax; dev/model-subscription.test.cjs browser-default, simulated desktop-bridge success and failure feedback; model-provider-reconcile (9), agent-model-select (65), readability (21), comms-responsive-text (5), control-floor-theming (125), website-app-sync (8), all passed. Final destination/handler refinement was rechecked with these focused gates. Full fast stopped at step 286/734 with the same 10 qa-product-perfect-claims release-manifest failures already documented; it is not green. Website mirror synchronized. No merge or release.

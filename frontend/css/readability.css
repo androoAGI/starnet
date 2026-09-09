@@ -77,7 +77,7 @@ body #model-dock :is(.model-dock-provider,.model-dock-group,.model-dock-keywarn,
 body :is(.slash-desc,.slash-cat,.slash-head) {
   font-size: var(--sn-type-meta) !important; line-height: 1.35; letter-spacing: .4px;
 }
-body #model-dock .model-dock-foot button { font-size: var(--sn-type-control) !important; }
+body #model-dock .model-dock-foot :is(button,a) { font-size: var(--sn-type-control) !important; }
 body #model-dock .model-dock-effort { min-width: 32px; }
 body :is(.bb-menu small,.gd-menu-detail) { opacity: .85; color: var(--text); }
 /* Shared windows, forms, records and agent configuration. */
