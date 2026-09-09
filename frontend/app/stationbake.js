@@ -20,6 +20,7 @@ const StationBake = (() => {
   let wallFixtures = [];
   /* palette + geometry knobs — verbatim from v7 world.js/render.js */
   const pad = 7;
+  // One bulkhead section for room and hallway walls, including their corner art.
   const NFACE = 9, FACEW = 4;
   // `wallDk` used to live here too — a fourth wall tone that was in fact the SHELL, painted over the
   // hull plate on every exterior edge. It moved to the hull palette as `edge` (2026-08-06); nothing
@@ -704,7 +705,7 @@ const StationBake = (() => {
   // shipped 'Towering' preset sets corUp 15) — a corUp above up would then under-invalidate on a
   // chunk bake and leave a stale strip of wall behind.
   const dirtyPadPx = () => pad + Math.max(WALL.skirt, Math.max(WALL.up, WALL.corUp) + WALL.capH + 8) + 48;
-  let G, T, HR, W, H, VX, VY, CW, CH, lampPos, edges, chamferAt, extN, openJoins;
+  let G, T, HR, W, H, VX, VY, CW, CH, lampPos, edges, chamferAt, extN, openJoins, joins;
   const h2 = (x, y, s) => U.hash(x + ',' + y + ',' + (s || ''));
 
   /* ---------- THE ONE ROUNDED-CORNER RASTER ----------
@@ -870,6 +871,60 @@ const StationBake = (() => {
   };
   const pairIsSill = (x1, y1, x2, y2) => !isOpenJoin(x1, y1, x2 > x1 ? 'e' : 's') && !deckContinues(x1, y1, x2, y2);
 
+  /* Connection dressing follows the union of actual floor tiles. A zone boundary is
+     neither a wall nor a jamb: a single L-shaped hallway can have an entrance return,
+     while a broad room-to-room join can have none. Keep this planner independent of
+     canvas state so viewport chunks, the painter and geometry regressions agree. */
+  function connectionPlan(g) {
+    const t = g.TILE || 12, cols = g.COLS, rows = g.ROWS, idx = g.idx;
+    const at = (x, y) => x < 0 || y < 0 || x >= cols || y >= rows ? null : g.zoneGrid[idx(x, y)];
+    const corners = new Set((g.chamfers || []).map(c => c[0] + ',' + c[1]));
+    const crosses = (x, y, nx, ny) => at(x, y) != null && at(nx, ny) != null &&
+      (g.canStep(x, y, nx, ny) || g.canStep(nx, ny, x, y));
+    const northWall = (x, y) => at(x, y) != null && at(x, y - 1) == null && !corners.has(x + ',' + y);
+    const mouths = [];
+    for (let y = 1; y < rows; y++) for (let x = 0; x < cols; x++) {
+      if (!crosses(x, y, x, y - 1)) continue;
+      const x1 = x; while (x + 1 < cols && crosses(x + 1, y, x + 1, y - 1)) x++;
+      const left = northWall(x1 - 1, y) ? at(x1 - 1, y) : null;
+      const right = northWall(x + 1, y) ? at(x + 1, y) : null;
+      if (left != null || right != null) mouths.push({ x1, x2: x, y, left, right });
+    }
+    // Choose an existing long wall and split its conduit wherever floor connects.
+    // No cable crosses a doorway, and a side branch cannot relocate the whole run.
+    const pieces = [];
+    const solid = (x, y, dx, dy) => at(x, y) != null && !corners.has(x + ',' + y) &&
+      at(x, y) !== at(x + dx, y + dy) && !crosses(x, y, x + dx, y + dy);
+    for (const r of g.allRects || []) {
+      if (!g.isCorridor(r.z)) continue;
+      const vertical = r.y2 - r.y1 > r.x2 - r.x1;
+      const from = vertical ? r.y1 : r.x1, to = vertical ? r.y2 : r.x2;
+      const wall = (c, high) => vertical ? solid(high ? r.x2 : r.x1, c, high ? 1 : -1, 0)
+        : solid(c, high ? r.y2 : r.y1, 0, high ? 1 : -1);
+      let low = false; for (let c = from; c <= to; c++) if (wall(c, false)) { low = true; break; }
+      const high = !low, cross = vertical ? (high ? (r.x2 + 1) * t - 3 : r.x1 * t + 2)
+        : (high ? (r.y2 + 1) * t - 3 : r.y1 * t + 2);
+      for (let c = from; c <= to; c++) {
+        if (!wall(c, high)) continue;
+        const start = c; while (c + 1 <= to && wall(c + 1, high)) c++;
+        pieces.push({ vertical, cross, from: start * t, to: (c + 1) * t });
+      }
+    }
+    // Separate aligned hallway footprints share one continuous cable, with a cap
+    // only at a real endpoint. Sorting also removes dependence on room creation order.
+    pieces.sort((a, b) => Number(a.vertical) - Number(b.vertical) || a.cross - b.cross || a.from - b.from);
+    const runs = [];
+    for (const p of pieces) {
+      const last = runs[runs.length - 1];
+      if (last && last.vertical === p.vertical && last.cross === p.cross && last.to >= p.from) last.to = Math.max(last.to, p.to);
+      else runs.push({ ...p });
+    }
+    const conduits = runs.filter(r => r.to - r.from > 4).map(r => r.vertical
+      ? { x: r.cross, y: r.from + 2, w: 1, h: r.to - r.from - 4 }
+      : { x: r.from + 2, y: r.cross, w: r.to - r.from - 4, h: 1 });
+    return { mouths, conduits };
+  }
+
   /* derive the wall edges from the zone grid (generalizes world.js's single-room IIFE).
      a boundary edge is where a zone tile faces a different/void neighbour; chamfer tiles
      are skipped (the curved pass handles them); door adjacencies become threshold edges. */
@@ -878,6 +933,7 @@ const StationBake = (() => {
     const G_ = G, idx = G.idx, COLS = G.COLS, ROWS = G.ROWS, zg = G.zoneGrid;
     const dirs = { n: [0, -1], s: [0, 1], w: [-1, 0], e: [1, 0] };
     openJoins = classifyJoins(G);
+    joins = connectionPlan(G);
     for (let y = 0; y < ROWS; y++) for (let x = 0; x < COLS; x++) {
       const z = zg[idx(x, y)];
       if (z == null) continue;
@@ -1793,15 +1849,15 @@ const StationBake = (() => {
       let pair=sides.get(key);if(!pair)sides.set(key,pair={...e,n:false,s:false,w:false,e:false});pair[e.side]=true;
       if(e.side==='n') {
         const reach=Math.max(5,Math.round((e.room?wallUp:corUp)*.46)),peak=Math.max(edge*.18,cast*.50);
-        put(x,y+(e.room?NFACE:5),t,reach,e.z,(_,dy)=>peak*ease(dy,reach));
+        put(x,y+NFACE,t,reach,e.z,(_,dy)=>peak*ease(dy,reach));
       } else if(e.side==='w') {
-        const reach=e.room?6:4,peak=Math.max(edge*.14,cast*.24);
+        const reach=6,peak=Math.max(edge*.14,cast*.24);
         put(x,y,reach,t,e.z,dx=>peak*ease(dx,reach));
       } else if(e.side==='e') {
-        const reach=e.room?3:2,peak=Math.max(edge*.09,cast*.18);
+        const reach=3,peak=Math.max(edge*.09,cast*.18);
         put(x+t-reach,y,reach,t,e.z,dx=>peak*ease(reach-dx,reach));
       } else if(e.side==='s'&&south>.001) {
-        const reach=e.room?4:3,peak=Math.max(edge*.14,cast*.20)*south;
+        const reach=4,peak=Math.max(edge*.14,cast*.20)*south;
         put(x,y+t-reach,t,reach,e.z,(_,dy)=>peak*ease(reach-dy,reach));
       }
     }
@@ -1811,8 +1867,8 @@ const StationBake = (() => {
         const distance=Math.hypot(right?reach-dx:dx,down?reach-dy:dy);
         return corner*.58*ease(distance,reach);
       });
-      if(pair.n&&pair.w)putCorner(x,y+(pair.room?NFACE:5),false,false);
-      if(pair.n&&pair.e)putCorner(x+t,y+(pair.room?NFACE:5),true,false);
+      if(pair.n&&pair.w)putCorner(x,y+NFACE,false,false);
+      if(pair.n&&pair.e)putCorner(x+t,y+NFACE,true,false);
       if(south>.001&&pair.s&&pair.w)putCorner(x,y+t,false,true);
       if(south>.001&&pair.s&&pair.e)putCorner(x+t,y+t,true,true);
     }
@@ -1838,7 +1894,7 @@ const StationBake = (() => {
       b.fillStyle = 'rgba(0,0,0,' + (0.25 * ea).toFixed(3) + ')';
       for (const e of edges) {
         if (e.door) continue;
-        const X = e.x * T, Y = e.y * T, d = e.room ? 8 : 4, ds = e.room ? 5 : 3;
+        const X = e.x * T, Y = e.y * T, d = 8, ds = 5;
         if (e.side === 'n') b.fillRect(X, Y, T, d);
         // the SOUTH band belongs to DEPTH.southFoot, which owns every dark mark at that edge —
         // it is the same black rule, and leaving half of it here is what made turning the other
@@ -1878,7 +1934,7 @@ const StationBake = (() => {
       if (!both) continue;
       const cx = k.indexOf(','), x = +k.slice(0, cx), y = +k.slice(cx + 1);
       const X = x * T, Y = y * T;
-      const topY = Y + (sd.room ? NFACE : 5);   // floor starts below the north face (matches bakeWallCastShadow's seam)
+      const topY = Y + NFACE;   // floor starts below the north face (matches bakeWallCastShadow's seam)
       const put = (ax, ay, right, down) => {    // corner point + which way the squares grow
         for (let i = 0; i < R.length; i++) {
           const r = R[i], a = s * A[i];
@@ -1913,7 +1969,7 @@ const StationBake = (() => {
       if (e.side === 'n') {
         // the floor seam of a tall north face sits inFace px below the tile top; the legacy short
         // wall (up:0) contacts the floor at the same inFace line, so seed the cast there either way.
-        const inFace = e.room ? NFACE : 5;
+        const inFace = NFACE;
         const seam = Y + inFace;
         const h = Math.max(6, Math.round((e.room ? WALL.up : WALL.corUp) * 0.55));                       // rooms throw a taller floor shadow than corridors
         // 4 bands easing 1 → 0 in alpha over the shadow height (raised-cosine-ish falloff, discretized)
@@ -1931,11 +1987,11 @@ const StationBake = (() => {
         }
       } else if (e.side === 'w') {
         // deepen the west wall foot: two inward bands so the wall base reads shaded (steps in x)
-        const w = e.room ? 9 : 5, bw = 2;
+        const w = 9, bw = 2;
         b.fillStyle = cool(s * 0.5); b.fillRect(X, Y, bw, T);
         b.fillStyle = cool(s * 0.22); b.fillRect(X + bw, Y, w - bw, T);
       } else if (e.side === 'e') {
-        const w = e.room ? 3 : 2, bw = 1;
+        const w = 3, bw = 1;
         b.fillStyle = cool(s * 0.40); b.fillRect(X + T - bw, Y, bw, T);
         b.fillStyle = cool(s * 0.12); b.fillRect(X + T - w, Y, w - bw, T);
       }
@@ -1949,7 +2005,7 @@ const StationBake = (() => {
   function bakeTallNorthFace(b, e, X, Y) {
     const room = e.room;
     const up = Math.max(0, Math.round(room ? WALL.up : WALL.corUp));
-    const inFace = room ? NFACE : 5;
+    const inFace = NFACE;
 
     // up === 0 → the EXACT legacy short wall (verbatim from the pre-tall-wall bake): a dark
     // hull cap band above the seam, the plain face + rib, the floor-contact line, the seam
@@ -3448,7 +3504,7 @@ const StationBake = (() => {
         if (!e.open && !deckContinues(e.x, e.y, e.x + dx, e.y + dy)) bakeThreshold(b, e, X, Y);
         continue;
       }
-      const fw = e.room ? FACEW : 2, out = e.room ? 4 : 2, face = e.room ? NFACE : 5;
+      const fw = FACEW, out = FACEW, face = NFACE;
       const dep = fw + 1;
       // the SIDE faces (s/w/e) and interior seams carry the room's own wall tone too — otherwise a
       // cobalt room's tall north wall would meet three brown-grey walls at its corners. As of
@@ -3561,45 +3617,34 @@ const StationBake = (() => {
     }
   }
 
-  // A north-facing room wall rises above the deck. Its corridor opening needs
-  // two splayed return faces down that full height, not the corridor's short
-  // side rails carried straight through the wall. Derive runs from real doors.
+  // The ends of a standing north wall turn into the connected passage. This
+  // applies equally to rooms, hallway branches and same-zone L-shaped footprints.
+  // Each return belongs to the actual adjacent wall, never to a zone-id seam.
   function bakeCorridorMouths(b) {
-    const rows = new Map();
-    for (const e of edges) {
-      if (e.side !== 'n' || !e.room || !e.door || e.open) continue;
-      const other = G.zoneGrid[G.idx(e.x, e.y - 1)];
-      if (!G.isCorridor(other)) continue;
-      const key = e.z + ',' + e.y;
-      if (!rows.has(key)) rows.set(key, []);
-      rows.get(key).push(e);
-    }
-    for (const row of rows.values()) {
-      row.sort((a, b) => a.x - b.x);
-      for (let i = 0; i < row.length;) {
-        const first = row[i]; let last = first;
-        while (++i < row.length && row[i].x === last.x + 1) last = row[i];
-        const x0 = first.x * T, x1 = (last.x + 1) * T, Y = first.y * T;
-        const up = Math.max(0, Math.round(WALL.up)); if (up < 4) continue;
-        const top = Y - up, foot = Y + NFACE, capH = Math.max(2, Math.round(WALL.capH));
-        const reach = Math.min(6, Math.max(1, Math.floor((x1 - x0 - 8) / 2)));
-        const pal = wallPal(first.z);
-        const occlusion = { x: x0 - T * 2, y: top - capH, w: x1 - x0 + T * 4, h: foot - top + capH + 1, sortY: foot + 0.5, rects: [] };
-        // Include the solid wall shoulders too: hiding an arm behind the jamb
-        // must not leave it visible again on the wall immediately beside it.
-        for (const e of edges) {
-          if (e.z !== first.z || e.y !== first.y || e.side !== 'n' || e.door) continue;
-          const x = e.x * T;
-          if (x < occlusion.x || x >= occlusion.x + occlusion.w) continue;
-          const y = e.exterior ? top - capH : Y;
-          occlusion.rects.push([x, y, T, foot - y + 1]);
-        }
-        // The room face now owns the old corridor crown pixels beside the
-        // opening. Leaving those crown records behind makes dark vertical bars
-        // in the lighting mask even after the wall art painted over the rails.
-        const lx = x0 - sideCapW() - 2, rx = x1 + sideCapW() + 2;
+    const capH = Math.max(2, Math.round(WALL.capH));
+    for (const mouth of joins.mouths) {
+      const x0 = mouth.x1 * T, x1 = (mouth.x2 + 1) * T, Y = mouth.y * T;
+      const sides = [mouth.left, mouth.right].map((z, side) => z == null ? null : {
+        z, side, edge: side ? x1 : x0, up: Math.max(0, Math.round(G.isCorridor(z) ? WALL.corUp : WALL.up))
+      }).filter(s => s && s.up >= 4);
+      if (!sides.length) continue;
+      const top = Y - Math.max(...sides.map(s => s.up)), foot = Y + NFACE;
+      const reach = Math.min(6, Math.max(1, Math.floor((x1 - x0 - 8) / 2)));
+      const occlusion = { x: x0 - T * 2, y: top - capH, w: x1 - x0 + T * 4,
+        h: foot - top + capH + 1, sortY: foot + 0.5, rects: [] };
+      for (const e of edges) {
+        if (e.y !== mouth.y || e.side !== 'n' || e.door) continue;
+        const x = e.x * T;
+        if (x < occlusion.x || x >= occlusion.x + occlusion.w) continue;
+        const y = e.exterior ? Y - Math.max(0, Math.round(e.room ? WALL.up : WALL.corUp)) - capH : Y;
+        occlusion.rects.push([x, y, T, foot - y + 1]);
+      }
+      // The standing shoulders replace the old low corridor crowns. Retire only
+      // crown coverage beside real jambs; an open, unwalled end keeps its own art.
+      for (const s of sides) {
+        const lx = s.edge - sideCapW() - 2, rx = s.edge + sideCapW() + 2, ty = Y - s.up;
         crownRects = crownRects.flatMap(([x, y, w, h]) => {
-          const ax = Math.max(x, lx), ay = Math.max(y, top), bx = Math.min(x + w, rx), by = Math.min(y + h, foot + 1);
+          const ax = Math.max(x, lx), ay = Math.max(y, ty), bx = Math.min(x + w, rx), by = Math.min(y + h, foot + 1);
           if (ax >= bx || ay >= by) return [[x, y, w, h]];
           const keep = [];
           if (y < ay) keep.push([x, y, w, ay - y]);
@@ -3608,37 +3653,40 @@ const StationBake = (() => {
           if (bx < x + w) keep.push([bx, ay, x + w - bx, by - ay]);
           return keep;
         });
-        // Repaint only the open throat from its original deck recipes. This
-        // removes the short corridor rail ends without flattening either wall.
-        b.save(); b.beginPath(); b.rect(x0, top - capH, x1 - x0, foot - top + capH + 1); b.clip();
-        const tiles = { x1: first.x, x2: last.x, y1: Math.floor((top - capH) / T), y2: Math.floor(foot / T) };
-        for (const r of G.allRects) {
-          if ((r.x2 + 1) * T <= x0 || r.x1 * T >= x1 || (r.y2 + 1) * T <= top - capH || r.y1 * T > foot) continue;
-          (G.isCorridor(r.z) ? bakeCorridorFloor : bakeDeck)(b, r, tiles);
-        }
-        b.restore();
-        for (let side = 0; side < 2; side++) {
-          const edge = side ? x1 : x0;
-          for (let y = top; y <= foot; y++) {
-            const t = (y - top) / (foot - top), w = 1 + Math.round(reach * (1 - t));
-            const x = side ? edge - w : edge;
-            occlusion.rects.push([x, y, w, 1]);
-            b.fillStyle = shade(pal.face, (side ? 0.08 : -0.18) - 0.16 * t); b.fillRect(x, y, w, 1);
-            const inner = side ? x : edge + w - 1;
-            b.fillStyle = shade(pal.base, -0.65); b.fillRect(inner, y, 1, 1);
-            if (w > 2) { b.fillStyle = shade(pal.face, side ? 0.22 : -0.03); b.fillRect(side ? inner + 1 : inner - 1, y, 1, 1); }
-          }
-          // The crown ends turn into the opening; never bridge over its centre.
-          for (let k = 0; k < capH; k++) {
-            const w = 1 + Math.round(reach * (k + 1) / capH), x = side ? edge - w : edge;
-            occlusion.rects.push([x, top - capH + k, w, 1]);
-            crown(b, x, top - capH + k, w, 1, pal.cap);
-            crown(b, side ? x : edge + w - 1, top - capH + k, 1, 1, shade(pal.cap, 0.30));
-          }
-          b.fillStyle = shade(pal.cap, -0.45); b.fillRect(side ? edge - reach - 1 : edge, top - 1, reach + 1, 1);
-        }
-        doorOcclusion.push(occlusion);
       }
+      // Recover only the low rail pixels beside real jambs. Repainting the whole
+      // throat would erase the uninterrupted side wall at a one-sided L/partial
+      // join and could wipe a legitimate material transition across its centre.
+      b.save(); b.beginPath();
+      const repairWidth = Math.max(FACEW + 1, reach + 1);
+      for (const s of sides) b.rect(s.side ? s.edge - repairWidth : s.edge, Y - s.up - capH, repairWidth, s.up + NFACE + capH + 1);
+      b.clip();
+      const tiles = { x1: mouth.x1, x2: mouth.x2, y1: Math.floor((top - capH) / T), y2: Math.floor(foot / T) };
+      for (const r of G.allRects) {
+        if ((r.x2 + 1) * T <= x0 || r.x1 * T >= x1 || (r.y2 + 1) * T <= top - capH || r.y1 * T > foot) continue;
+        (G.isCorridor(r.z) ? bakeCorridorFloor : bakeDeck)(b, r, tiles);
+      }
+      b.restore();
+      for (const s of sides) {
+        const { side, edge } = s, ty = Y - s.up, pal = wallPal(s.z);
+        for (let y = ty; y <= foot; y++) {
+          const t = (y - ty) / (foot - ty), w = 1 + Math.round(reach * (1 - t));
+          const x = side ? edge - w : edge;
+          occlusion.rects.push([x, y, w, 1]);
+          b.fillStyle = shade(pal.face, (side ? 0.08 : -0.18) - 0.16 * t); b.fillRect(x, y, w, 1);
+          const inner = side ? x : edge + w - 1;
+          b.fillStyle = shade(pal.base, -0.65); b.fillRect(inner, y, 1, 1);
+          if (w > 2) { b.fillStyle = shade(pal.face, side ? 0.22 : -0.03); b.fillRect(side ? inner + 1 : inner - 1, y, 1, 1); }
+        }
+        for (let k = 0; k < capH; k++) {
+          const w = 1 + Math.round(reach * (k + 1) / capH), x = side ? edge - w : edge;
+          occlusion.rects.push([x, ty - capH + k, w, 1]);
+          crown(b, x, ty - capH + k, w, 1, pal.cap);
+          crown(b, side ? x : edge + w - 1, ty - capH + k, 1, 1, shade(pal.cap, 0.30));
+        }
+        b.fillStyle = shade(pal.cap, -0.45); b.fillRect(side ? edge - reach - 1 : edge, ty - 1, reach + 1, 1);
+      }
+      doorOcclusion.push(occlusion);
     }
   }
 
@@ -3880,28 +3928,9 @@ const StationBake = (() => {
 
   function bakeCorridorDressing(b) {
     additiveFloorPass(b, bakeCorridorPools);
-    for (const r of G.allRects) {
-      if (!G.isCorridor(r.z)) continue;
-      const vertical = (r.y2 - r.y1) > (r.x2 - r.x1);
-      const cx = (r.x1 + r.x2 + 1) / 2 * T, cy = (r.y1 + r.y2 + 1) / 2 * T;
-      b.globalCompositeOperation = 'source-over';
-      /* THE CABLE RUN HANGS ON A WALL (2026-08-05). It is conduit — "a coloured cable run on the
-         wall side" — and it was pinned to the corridor's first row/column unconditionally. Lay a
-         hallway along a room's face and that flank is not a wall at all but an OPEN JOIN, so a 1px
-         #a3402e line at luma 91 got painted straight down the boundary between the two decks: the
-         brightest thing for 70px in either direction, and one more border where the floors are meant
-         to meet. Take whichever flank actually carries wall; if neither does — a passage open on
-         both long sides — there is nothing to hang it on, so it doesn't run. */
-      const openFlank = (fx, fy, n, dx, dy, side) => { for (let i = 0; i < n; i++) if (isOpenJoin(fx + dx * i, fy + dy * i, side)) return true; return false; };
-      const span = (vertical ? (r.y2 - r.y1) : (r.x2 - r.x1)) + 1;
-      const lo = vertical ? !openFlank(r.x1, r.y1, span, 0, 1, 'w') : !openFlank(r.x1, r.y1, span, 1, 0, 'n');
-      const hi = vertical ? !openFlank(r.x2, r.y1, span, 0, 1, 'e') : !openFlank(r.x1, r.y2, span, 1, 0, 's');
-      if (lo || hi) {
-        b.fillStyle = '#a3402e';
-        if (vertical) b.fillRect(lo ? r.x1 * T + 2 : (r.x2 + 1) * T - 3, r.y1 * T + 2, 1, (r.y2 - r.y1 + 1) * T - 4);
-        else b.fillRect(r.x1 * T + 2, lo ? r.y1 * T + 2 : (r.y2 + 1) * T - 3, (r.x2 - r.x1 + 1) * T - 4, 1);
-      }
-    }
+    b.globalCompositeOperation = 'source-over';
+    b.fillStyle = '#a3402e';
+    for (const r of joins.conduits) b.fillRect(r.x, r.y, r.w, r.h);
   }
 
   /* THE SKIRT — the tall exterior wall seen from outside, and the surface that carries a hull skin.
@@ -4347,7 +4376,7 @@ const StationBake = (() => {
     // The visible north wall FACE is inside; its cap above topY is outside.
     for (const e of edges) if (e.side === 'n' && !e.door && !e.open) {
       const up = Math.max(0, Math.round(e.room ? WALL.up : WALL.corUp));
-      b.fillRect(e.x*T, e.y*T-up, T, up+(e.room ? NFACE : 5));
+      b.fillRect(e.x*T, e.y*T-up, T, up+(NFACE));
     }
     // A raised corner face extends above and outside its floor tile. Reuse the
     // painter's clipped spans so it receives the same light as the straight wall.
@@ -4875,7 +4904,7 @@ const StationBake = (() => {
          corner is joining instead of restarting at the arc. */
       const cMat = wallMatOf(cZone);
       const cUp = Math.max(0, Math.round(cRoom ? WALL.up : WALL.corUp));
-      const cStrip = faceStrip(cMat, cPal, cUp + (cRoom ? NFACE : 5));
+      const cStrip = faceStrip(cMat, cPal, cUp + NFACE);
       bakeCornerCrown(b, cPal, cEd, cStrip, kind, X, Y, ax, ay, Rc, HR, cCapW,
                       cornerCapFar(kind, cCapW, Math.max(2, Math.round(WALL.capH))), cCy, reach,
                       hullEdge(cZone));
@@ -5261,7 +5290,7 @@ const StationBake = (() => {
      doorway and keeps its sill, track, guide ticks and light spill. */
   const seamOpenJoins = geo => [...classifyJoins(geo)].sort();
 
-  return { bake, bakeIncremental, dirtyChunks, visibleChunks, missingVisibleChunks, drawBase, drawLight, sampleMaterial, sampleWall, sampleHull, seamOpenJoins, wallFloorShadow, CHUNK_PX, LIGHT, WALL, DEPTH, SHAPE, get HULL_EXPOSURE() { return hullLit(); }, hullRampExposure };
+  return { bake, bakeIncremental, dirtyChunks, visibleChunks, missingVisibleChunks, drawBase, drawLight, sampleMaterial, sampleWall, sampleHull, seamOpenJoins, connectionPlan, wallFloorShadow, CHUNK_PX, LIGHT, WALL, DEPTH, SHAPE, get HULL_EXPOSURE() { return hullLit(); }, hullRampExposure };
 })();
 
 if (typeof module !== 'undefined' && module.exports) module.exports = StationBake;
