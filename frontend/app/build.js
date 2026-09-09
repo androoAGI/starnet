@@ -544,6 +544,8 @@ const Build = (() => {
     const on = isSearching();
     const workspace = root.querySelector('.refit-propworkspace');
     workspace.dataset.section = propSection; workspace.classList.toggle('is-searching', on);
+    const overview = workspace.querySelector('.refit-ability-overview');
+    if (overview) overview.hidden = propSection !== 'abilities' || on;
     workspace.classList.toggle('is-core-view', !on && propSection === 'abilities' && !propAbility);
     root.querySelectorAll('[data-prop-section]').forEach(b => {
       const active = !on && b.dataset.propSection === propSection;

@@ -99,3 +99,23 @@
 .refit-overlay[data-tool="prop"] .refit-mode-section { padding-block: 6px; }
 .refit-overlay[data-tool="prop"] #refit-tools { gap: 6px; }
 .refit-overlay[data-tool="prop"] .refit-toolset-label { padding-bottom: 3px; }
+
+/* The gallery gets the remaining height; obsolete 540px/340px minima made its
+   ancestors scroll before users could even reach the first row of props. */
+.refit-overlay .refit-ability-overview[hidden] { display: none; }
+.refit-overlay[data-tool="prop"] .refit-option-section { min-height: 466px; flex: 1 0 466px; overflow: visible; }
+.refit-overlay[data-tool="prop"] .refit-palette { overflow: visible; }
+.refit-overlay .refit-propbrowser { min-height: 0; flex: 1 1 0; overflow: visible; }
+.refit-overlay .refit-shelves { min-height: 0; flex: 1 1 0; }
+.refit-overlay #refit-propgrid-host { min-height: 180px; overscroll-behavior: contain; }
+.refit-overlay .refit-propworkspace { min-height: 440px; }
+.refit-overlay .refit-propworkspace.show-details .refit-equipment-info { max-height: 90px; }
+/* Keep all ten tools available in a compact grid on laptop-height windows. */
+@media(max-height: 800px) {
+  .refit-overlay[data-tool="prop"] #refit-tools { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 4px; }
+  .refit-overlay[data-tool="prop"] :is(.refit-toolset,.refit-toolset-buttons) { display: contents; }
+  .refit-overlay[data-tool="prop"] :is(.refit-toolset-label,.refit-key) { display: none; }
+  .refit-overlay[data-tool="prop"] .refit-dock .refit-tool { font-size: 11px; gap: 4px; padding: 5px; min-height: 28px; }
+  .refit-overlay[data-tool="prop"] :is(.refit-tool-belt,.refit-tool-line) { grid-column: span 2; }
+  .refit-overlay[data-tool="prop"] .refit-dock-head { padding-block: 8px; }
+}
