@@ -3772,7 +3772,7 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
       '<button class="es-cta" type="button">+ ADD ONE</button></div></div>';
     if (lane === 'active') return '<div class="kb-empty-col"><div class="empty-state">' +
       '<span class="es-glyph">▶</span><b>NOTHING IN FLIGHT</b>' +
-      '<span>Assign a TO DO task and it moves here while the agent works.</span></div></div>';
+      '<span>Start a To do task to begin work. Review its result here afterward.</span></div></div>';
     return '<div class="kb-empty-col"><div class="empty-state">' +
       '<span class="es-glyph">✓</span><b>NO COMPLETED TASKS YET</b>' +
       '<span>Tasks you review and mark complete appear here.</span></div></div>';
@@ -3829,21 +3829,28 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
     // shared tail: rename + pin + archive on every lane (title= is adopted into the station tooltip).
     // One .kb-meta-keys unit so the housekeeping cluster right-aligns AND wraps as a whole — never
     // a stranded ⌫ on its own row (the raggedness the keycap restyle made visible).
-    const tail = '<span class="kb-meta-keys">' +
-      '<button data-act="rename" title="rename this task">✎</button>' +
-      '<button data-act="pin" title="' + (s.pinned ? 'unpin' : 'pin to the top of its column') + '">' + (s.pinned ? '★' : '☆') + '</button>' +
-      '<button data-act="arch" title="archive — recover from the COMMS rail&#39;s ARCHIVED toggle">⌫</button></span>';
+    const tail = '<details class="kb-more"><summary>More</summary><span class="kb-meta-keys">' +
+      '<button data-act="rename">Rename</button>' +
+      '<button data-act="pin">' + (s.pinned ? 'Unpin' : 'Pin to top') + '</button>' +
+      (s.lane === 'active' ? '<button data-act="queue">Back to To do</button>' : '') +
+      (s.lane === 'shipped' ? '<button data-act="repeat" title="Review a schedule; nothing runs until you save and enable it">Repeat on a schedule</button>' : '') +
+      '<button data-act="arch" title="Recover from the COMMS rail’s Archived view">Archive</button></span></details>';
+    const started = (s.history || []).some(m => m.role === 'user');
     const acts = s.lane === 'todo'
-      ? '<button class="assign" data-act="assign">▶ ASSIGN</button><button data-act="open">↗ OPEN</button>' + tail
+      ? '<button class="assign" data-act="assign">' + (started ? 'CONTINUE' : 'START') + '</button><button data-act="open">OPEN</button>' + tail
       : s.lane === 'active'
-        ? '<button data-act="ship" title="Mark this task complete; this does not publish or send anything">✓ MARK COMPLETE</button><button data-act="queue" title="send back to TO DO">↩ QUEUE</button><button data-act="open">↗ OPEN</button>' + tail
-        : '<button data-act="reopen">↺ REOPEN</button><button data-act="open">↗ OPEN</button><button data-act="repeat" title="Review a schedule for this task; nothing runs until you save and enable it">◷ REPEAT…</button>' + tail;
+        ? '<button data-act="open">OPEN</button><button data-act="ship" title="Mark this task complete; this does not publish or send anything">MARK COMPLETE</button>' + tail
+        : '<button data-act="open">OPEN RESULT</button><button data-act="reopen">REOPEN</button>' + tail;
+    const messages = (typeof Workstreams !== 'undefined' && Workstreams.visibleMessages) ? Workstreams.visibleMessages(s) : (s.history || []);
+    const last = messages.filter(m => (m.role === 'user' || m.role === 'assistant') && typeof m.content === 'string' && m.content.trim()).slice(-1)[0];
+    const preview = last ? last.content.replace(/\s+/g, ' ').trim() : '';
     return '<div class="kb-card' + (s.pinned ? ' pinned' : '') + '" draggable="true" data-id="' + s.id + '" role="button" tabindex="0" aria-label="' + esc(s.title || 'untitled') + ' — open conversation" style="--ci:' + (i || 0) + '">' +
       '<div class="kb-title">' + esc(s.title || 'untitled') + '</div>' +
       '<div class="kb-meta">' + agentChip(s) + '<span class="kb-time" data-t="' + (s.lastActiveAt || s.createdAt) + '">' + clock(s.lastActiveAt || s.createdAt) + '</span>' +
       (runs ? '<span>' + runs + '</span>' : '') +
       (dv ? '<span class="kb-deliv">' + dv + ' deliverable' + (dv === 1 ? '' : 's') + '</span>' : '') + '</div>' +
       stateChip(s) +
+      (preview ? '<p class="kb-preview"><span>' + (last.role === 'assistant' ? 'Latest reply' : 'Request') + '</span>' + esc(preview.slice(0, 180)) + (preview.length > 180 ? '…' : '') + '</p>' : '') +
       '<div class="kb-acts">' + acts + '</div></div>';
   }
   // LIVE board refresh (P1, 2026-08-04): renderRail pokes the board on EVERY rail change (run start/end,
@@ -3876,15 +3883,17 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
       : null;
     const keepScroll = live ? Array.from(body.querySelectorAll('.kb-col')).map(c => c.scrollTop) : null;
     const streams = boardStreams();
+    const openMenus = live ? Array.from(body.querySelectorAll('.kb-more[open]')).map(d => d.closest('.kb-card').dataset.id) : [];
     body.innerHTML =
-      '<div class="work-entry"><span class="ui-overline">PLAN → RUN → REVIEW</span><button type="button" class="bb sm" data-work-to="outbox">OUTBOX</button><button type="button" class="bb sm" data-work-to="deliverables">LIBRARY</button></div>' +
-      '<div class="kb-add"><input id="kb-in" maxlength="80" placeholder="add a planned task…" autocomplete="off">' +
-      '<button class="bb sm" id="kb-add">+ ADD</button></div>' +
+      '<div class="kb-heading"><header class="kb-header"><h2>Your tasks</h2><p>Plan, start, and review your work.</p></header><div class="work-entry"><button type="button" class="bb sm" data-work-to="outbox">OUTBOX</button><button type="button" class="bb sm" data-work-to="deliverables">LIBRARY</button></div></div>' +
+      '<div class="kb-add"><input id="kb-in" aria-label="New task" maxlength="80" placeholder="What would you like to get done?" autocomplete="off">' +
+      '<button class="bb sm" id="kb-add">ADD TASK</button></div><p class="kb-add-note">Adding saves your plan. Start sends the task to its agent.</p>' +
       '<div class="kb-cols">' +
       COLS.map(([lane, label]) => {
         const items = streams.filter(s => s.lane === lane);
         return '<div class="kb-col"><h4>' + label + ' <i>' + items.length + '</i>' +
           (lane === 'active' ? activeAggregate(items) : '') + '</h4>' +
+          '<p class="kb-lane-note">' + ({todo:'Planned tasks, ready when you are.',active:'Ongoing work and results to review.',shipped:'Tasks you marked complete.'}[lane]) + '</p>' +
           (items.length ? items.map(card).join('') : kbEmpty(lane)) + '</div>';
       }).join('') +
       '</div>' +
@@ -3927,6 +3936,10 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
     }
     body.querySelectorAll('.kb-card').forEach(c => {
       const id = c.dataset.id;
+      c.querySelectorAll('.kb-more').forEach(d => {
+        d.open = openMenus.includes(id);
+        d.addEventListener('click', ev => ev.stopPropagation());
+      });
       c.querySelectorAll('.kb-acts button').forEach(b => b.addEventListener('click', ev => {
         ev.stopPropagation();   // a button click is not a card-body (open) click
         const act = b.dataset.act; sfx('click');
@@ -9054,7 +9067,7 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
     // (TERM_ALIAS). UPDATES stays its own SYSTEM-dock window (Andrew's call — an update is a
     // check-it-now surface, not a setting).
     updates:  ['UPDATE CENTER',          buildUpdates,   {}],
-    tasks:    ['TASK BOARD',             buildTasks,     { wide: true }],   // three kanban lanes side by side
+    tasks:    ['TASK BOARD',             buildTasks,     { console: true, className: 'tasks-win' }],   // three kanban lanes side by side
     // DELIVERABLES is console-WIDE (a project rail beside the cards needs the room) and holds a STEADY height for
     // the same reason the dossier does: a never-moved window is CSS-centred, so a content-fit box would re-centre
     // itself every time a card's details drawer opens — the row you just clicked would slide out from under you.
