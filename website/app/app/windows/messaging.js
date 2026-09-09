@@ -156,6 +156,10 @@
     // mounts ALL panes into `body` up-front, so the body.querySelector wiring + wire source-guards are untouched.
     // The "keeps working headless" promise is FULL-CONTRAST (a real capability, not fine print), lifted out of the
     // opacity-.55 intro. The opt-in label reads as a plain sentence with its description on its own line.
+    function channelLogo(id) {
+      const mark = typeof ClassIcons !== 'undefined' ? ClassIcons.brandIcon(id) : '';
+      return mark ? '<span class="ch-logo" aria-hidden="true">' + mark + '</span>' : '';
+    }
     const platformHints = {
       telegram: 'Private messages · optional bot per agent',
       discord: 'Private messages · requires a Discord bot',
@@ -169,7 +173,7 @@
       '<div class="ch-sum"><div class="ch-bots-head">Choose an app <span class="dim">Setup instructions included</span></div>' +
         CHANNEL_CATALOG.map(c =>
           '<button type="button" class="ch-sum-row" data-ch="' + c.id + '">' +
-            '<span class="ch-sum-copy"><span class="ch-sum-t">' + c.title + '</span>' +
+            channelLogo(c.id) + '<span class="ch-sum-copy"><span class="ch-sum-t">' + c.title + '</span>' +
               '<span class="ch-sum-help">' + platformHints[c.id] + '</span></span>' +
             '<span class="ch-state st-off" id="' + c.pre + '-sum">checking…</span><span class="ch-sum-arrow" aria-hidden="true">›</span>' +
           '</button>').join('') +
@@ -206,16 +210,17 @@
           '</section>' + (c.extraHtml || '') +
         '</div>';
     }
-    // no per-platform glyphs anywhere in this window — abstract marks read as wrong-logo noise next to real
-    // platform names (Andrew, 2026-07-24). The rail glyph slot is hidden via the .channels-console class.
+    // Real platform marks share the station theme and stay decorative beside the text labels.
     mountConsole(body, 'messaging', [
       { id: 'overview', label: 'OVERVIEW', build: (pane) => { pane.innerHTML = overviewHtml; } }
     ].concat(CHANNEL_CATALOG.map(c => ({
-      id: c.id, label: c.title,
+      id: c.id, label: c.title, glyph: channelLogo(c.id),
       build: (pane) => { pane.innerHTML = cardHtml(c); }
     }))));
     // rail truth dots: one per platform tab, painted from the same proven status as its card (paintCard).
     for (const c of CHANNEL_CATALOG) {
+      const heading = body.querySelector('.con-sec[data-section="' + c.id + '"] .sec-l');
+      if (heading) heading.insertAdjacentHTML('afterbegin', channelLogo(c.id));
       const tab = body.querySelector('#con-tab-messaging-' + c.id);
       if (tab) {
         const d = document.createElement('span');
