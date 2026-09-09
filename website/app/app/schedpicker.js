@@ -89,10 +89,12 @@
         (tz ? '<span class="sp-tz">your time · ' + esc(tz) + '</span>' : '') +
       '</div>';
     return '<div class="sp" data-sp data-mode="daily">' +
+      (opts.compact ? '<label class="sp-frequency">Repeat<select class="sp-mode-select" aria-label="Repeat">' +
+        MODES.map(m => '<option value="' + m.id + '">' + esc(({ daily: 'Every day', weekly: 'Selected days', monthly: 'Every month', interval: 'Every few hours or minutes', once: 'Just once', advanced: 'Custom schedule' })[m.id]) + '</option>').join('') + '</select></label>' :
       '<div class="sp-modes" role="group" aria-label="how often it runs">' +
         MODES.map(m => '<button type="button" class="sp-mode' + (m.id === 'daily' ? ' active' : '') + '" data-mode="' +
           m.id + '" aria-pressed="' + (m.id === 'daily' ? 'true' : 'false') + '">' + esc(m.label) + '</button>').join('') +
-      '</div>' +
+      '</div>' ) +
       '<div class="sp-pane" data-show="weekly"><span class="sp-lbl">on</span><div class="sp-days">' + dayChips + '</div></div>' +
       '<div class="sp-pane" data-show="monthly"><span class="sp-lbl">on the</span>' +
         '<select data-f="dom" aria-label="day of the month">' + optionsHTML(domOpts(), 1) + '</select>' +
@@ -195,6 +197,7 @@
 
     function paint() {
       el.dataset.mode = mode;
+      const frequency = el.querySelector('.sp-mode-select'); if (frequency) frequency.value = mode;
       el.querySelectorAll('.sp-mode').forEach(b => {
         const on = b.dataset.mode === mode;
         b.classList.toggle('active', on);
@@ -238,7 +241,10 @@
         paint(); emit();
       }
     });
-    el.addEventListener('change', ev => { if (ev.target.closest('select, input[type=number]')) emit(); });
+    el.addEventListener('change', ev => {
+      if (ev.target.matches('.sp-mode-select')) { mode = ev.target.value; paint(); emit(); if (mode === 'advanced' && input) input.focus(); return; }
+      if (ev.target.closest('select, input[type=number]')) emit();
+    });
     el.addEventListener('input', ev => { if (ev.target.closest('input[type=number]')) emit(); });
 
     /* set(scheduleString) — open the picker ON an existing schedule (the reschedule flow). Anything

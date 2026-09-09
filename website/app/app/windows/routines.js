@@ -77,26 +77,23 @@
       // re-slots it under its row after each refresh.
       '<div id="rt-out" class="msg rt-out" hidden></div>';
     const secCreate =
-      '<div class="brief-block"><div class="brief-k">RUN THIS TASK ON A SCHEDULE</div>' +
-        '<div class="brief-v">Choose the task, agent and time. Results appear in Active Routines. It uses the selected agent’s model and access. Without an existing grant or Full Access, terminal and connected tools are off unless you grant them below; placing a WORKBENCH on the floor does not grant them unattended access.</div></div>' +
-      '<div id="rt-create-state" class="set-about" role="status">Checking whether scheduling is enabled…</div>' +
-      '<div class="mc-form">' +
-        '<label class="sn-menu-field">Name<input id="rt-name" class="key-input" placeholder="name — e.g. Morning AI brief" maxlength="80" autocomplete="off"></label>' +
-        '<label class="sn-menu-field">What should it do?<textarea id="rt-prompt" class="key-input" rows="2" placeholder="what should it do each run? e.g. search for new AI-policy news and summarize the top 3" style="resize:vertical"></textarea></label>' +
+      '<div class="mc-form rt-simple-create">' +
+        '<div class="rt-identity"><label class="sn-menu-field">Name<input id="rt-name" class="key-input" placeholder="e.g. Morning research brief" maxlength="80" autocomplete="off"></label>' +
+        '<label class="sn-menu-field">Agent<select id="rt-agent-select" class="key-input">' + roster.map(a => '<option value="' + esc(a.id) + '"' + (a.id === routineAgentId ? ' selected' : '') + '>' + esc(a.name || a.id) + '</option>').join('') + '</select></label></div>' +
+        '<div hidden><div class="rt-agent-pick">' + roster.map(agentButton).join('') + '</div></div><input id="rt-agent" type="hidden" value="' + esc(routineAgentId) + '">' +
+        '<label class="sn-menu-field">What should it do?<textarea id="rt-prompt" class="key-input" rows="2" placeholder="e.g. Find three research updates and summarize them with source links." style="resize:vertical"></textarea></label>' +
         // WHEN — the schedule PICKER (frontend/app/schedpicker.js). It owns the `#rt-sched` text input and
         // types into it, so the preview below, #rt-add, the QA journey and every existing selector are
         // unchanged; without the module we fall back to that same bare input, never to a dead form.
-        '<div class="rt-when" id="rt-when"><div class="rt-when-k">WHEN SHOULD IT RUN?</div>' +
+        '<div class="rt-when" id="rt-when"><div class="rt-when-k">When</div>' +
         (typeof SchedPicker !== 'undefined'
-          ? SchedPicker.html({ inputId: 'rt-sched' })
+          ? SchedPicker.html({ inputId: 'rt-sched', compact: true })
           : '<input id="rt-sched" class="key-input" placeholder="schedule — every 30m · 0 9 * * * · in 2h" autocomplete="off">') +
         '</div>' +
         '<div id="rt-preview" class="dim" style="min-height:1em;font-size:.9em"></div>' +
-        '<div class="rt-agent-pick" role="group" aria-label="Routine agent">' + roster.map(agentButton).join('') + '</div>' +
-        '<input id="rt-agent" type="hidden" value="' + esc(routineAgentId) + '">' +
-        '<details class="sn-menu-options"><summary>Advanced options</summary>' +
+        '<details class="sn-menu-options"><summary>Access &amp; other options</summary>' +
           '<div class="sn-menu-tabs" role="group" aria-label="Advanced schedule options">' +
-          ['Context', 'Execution', 'Delivery'].map((label, i) => '<button type="button" data-auto-tab="' + i + '" aria-pressed="' + (i === 0) + '">' + label + '</button>').join('') + '</div>' +
+          ['Context', 'Execution', 'Delivery', 'Access'].map((label, i) => '<button type="button" data-auto-tab="' + i + '" aria-pressed="' + (i === 0) + '">' + label + '</button>').join('') + '</div>' +
           '<div data-auto-panel="0"><p class="sn-menu-note">Give each run the files and background it needs.</p>' +
             '<label class="sn-menu-field">Project folder<input id="rt-workdir" class="key-input" placeholder="Approved absolute path (optional)"></label>' +
             '<label class="sn-menu-field">Saved skills<input id="rt-skills" class="key-input" placeholder="Skill names, separated by commas"></label>' +
@@ -108,7 +105,7 @@
           '<div data-auto-panel="2" hidden><p class="sn-menu-note">Choose where the result goes.</p>' +
             '<label class="sn-menu-field">Result destination<select id="rt-deliver" class="key-input"><option value="local">Keep in StarNet</option><option value="origin">Return to this conversation</option></select></label>' +
             '<label class="rt-term"><input type="checkbox" id="rt-continue"> Allow follow-up in that conversation</label></div>' +
-        '</details>' +
+        '<div data-auto-panel="3" hidden><p class="sn-menu-note">This routine inherits the agent’s existing access. These optional grants allow additional unattended actions.</p>' +
         // UNATTENDED TERMINAL GRANT — default OFF, and it must stay a deliberate tick: this is the one control
         // that lets a scheduled run execute commands with nobody watching. The label states the risk plainly
         // rather than selling the feature (truthful telemetry applies to consent copy too).
@@ -125,7 +122,9 @@
           '<span>Let this routine use your <b>connected tools</b> ' +
           '<span class="dim">— the MCP connectors you set up in ⇄ ABILITIES, called unattended on your behalf. Connectors you switched off stay off.</span></span>' +
         '</label>' +
-        '<button class="bb sm" id="rt-add">+ ADD ROUTINE</button>' +
+        '</div>' +
+        '</details>' +
+        '<div id="rt-create-state" class="set-about" role="status">Checking scheduling status…</div><button class="bb sm" id="rt-add">SAVE SCHEDULE</button>' +
       '</div>' +
       '<div id="rt-msg" class="msg"></div>';
     const frag = h => (el => { el.innerHTML = h; });
@@ -421,11 +420,13 @@
        as a function so the RESCHEDULE editor previews through the IDENTICAL path: two implementations of
        "when does this run" would eventually disagree, and this panel's entire job is to be right about it. */
     function wirePreview(inp, pvEl) {
-      let pvTimer = null;
+      let pvTimer = null, previewRevision = 0;
       inp.addEventListener('input', () => {
       clearTimeout(pvTimer);
+      const revision = ++previewRevision;
       const v = inp.value.trim();
       if (!v) { pvEl.textContent = ''; return; }
+      pvEl.textContent = 'Checking next run…';
       pvTimer = setTimeout(async () => {
         try {
           // tz honesty in the PREVIEW too: the create POST sends the device zone, so a preview computed
@@ -437,7 +438,7 @@
             // relative-only line when the server didn't supply a localNext (interval/once).
             const ln = Array.isArray(r.localNext) ? r.localNext : [];
             const tzNote = (r.kind === 'cron' && r.tz && r.tz !== 'UTC') ? ' <span class="dim">[' + esc(r.tz) + ']</span>' : '';
-            const nxt = r.next.slice(0, 3).map((t, i) => {
+            const nxt = r.next.slice(0, 1).map((t, i) => {
               // r.next carries the AUTHORITATIVE instants; r.localNext is the server rendering them in the
               // SCHEDULE's zone, which for an interval or a one-shot is UTC. Rendering the same instant in
               // the VIEWER's zone stops the panel printing "9:30 PM UTC" under a picker that says 5:30 PM —
@@ -446,7 +447,7 @@
               const local = esc(wallClock(t) || ln[i] || '');
               return local ? (local + ' <span class="dim">(' + esc(fmtRel(t)) + ')</span>') : esc(fmtRel(t));
             }).join(', ');
-            pvEl.innerHTML = '✓ ' + esc(human(r.display)) + tzNote + ' → next: ' + nxt;
+            pvEl.innerHTML = '<span class="rt-next-label">Next run</span> ' + nxt;
           }
           else pvEl.innerHTML = '<span style="color:var(--bad)">' + esc((r && r.error) || 'unrecognized schedule') + '</span>';
         } catch (_) {}
@@ -463,8 +464,12 @@
       ? SchedPicker.mount(body.querySelector('#rt-when'), { onChange: () => sfx('click') })
       : null;
 
+    body.querySelector('#rt-agent-select').addEventListener('change', e => {
+      const btn = Array.from(body.querySelectorAll('.rt-agent-btn')).find(b => b.dataset.agent === e.target.value); if (btn) btn.click();
+    });
     body.querySelectorAll('.rt-agent-btn').forEach(btn => btn.addEventListener('click', () => {
       routineAgentId = btn.dataset.agent || 'agent';
+      body.querySelector('#rt-agent-select').value = routineAgentId;
       const input = body.querySelector('#rt-agent');
       if (input) input.value = routineAgentId;
       body.querySelectorAll('.rt-agent-btn').forEach(b => {
