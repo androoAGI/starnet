@@ -59,3 +59,34 @@
 .sn-menu .rt-identity { display: grid; grid-template-columns: minmax(0,2fr) minmax(0,1fr); gap: 16px; }
 .sn-menu .rt-identity .sn-menu-field { margin: 0 0 6px; }
 .sn-menu .rt-simple-create > [hidden] { display: none; }
+
+/* Text entry: a quiet glass surface with one clear focus edge. */
+.term.sn-menu :is(input:not([type]), input[type="text"], input[type="search"], input[type="url"], input[type="password"], textarea) {
+  box-sizing: border-box;
+  border: 1px solid rgba(var(--ph-rgb), .2);
+  border-radius: 9px;
+  background: linear-gradient(145deg, rgba(var(--ph-bright-rgb), .045), rgba(var(--ph-rgb), .018)), rgba(0,0,0,.18);
+  box-shadow: inset 0 1px 0 rgba(var(--ph-bright-rgb), .055);
+  padding: 10px 13px;
+  color: var(--text);
+  font-family: inherit;
+  font-size: 15px;
+  line-height: 1.5;
+  letter-spacing: .15px;
+  text-shadow: none;
+  caret-color: var(--ph-bright);
+}
+.term.sn-menu :is(input:not([type]), input[type="text"], input[type="search"], input[type="url"], input[type="password"], textarea)::placeholder {
+  color: var(--ph-dim); opacity: .75; text-shadow: none; letter-spacing: 0;
+}
+.term.sn-menu :is(input:not([type]), input[type="text"], input[type="search"], input[type="url"], input[type="password"], textarea):hover:not(:disabled) {
+  border-color: rgba(var(--ph-rgb), .38);
+}
+.term.sn-menu :is(input:not([type]), input[type="text"], input[type="search"], input[type="url"], input[type="password"], textarea):is(:focus, :focus-visible) {
+  outline: none;
+  border-color: var(--ph);
+  background: linear-gradient(145deg, rgba(var(--ph-bright-rgb), .07), rgba(var(--ph-rgb), .025)), rgba(0,0,0,.18);
+  box-shadow: 0 0 0 2px rgba(var(--ph-rgb), .12), inset 0 1px 0 rgba(var(--ph-bright-rgb), .08);
+}
+.term.sn-menu :is(input, textarea):is([aria-invalid="true"], .mkt-bad) { border-color: var(--bad); }
+.term.sn-menu :is(input, textarea):disabled { opacity: .5; cursor: not-allowed; }
