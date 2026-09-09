@@ -93,6 +93,7 @@ const Build = (() => {
   let root, cv, ctx, tip, hintEl, undoBtn, redoBtn, propCard, dpr = 1, ro = null;
   let raf = 0, frameRetryTimer = 0, running = false, frameFailures = 0;
   let cache = null, cacheGeo = null, bakeDirty = true, bakeDirtyRects = null, bakeDirtyRectsGlobal = false, bakeVisibleOnly = false, valPlan = null, valLive = null;   // valPlan = live RoutingPlan (cost-safety ghosts); valLive = energized-belt tile set
+  const sceneRenderer = typeof WorldRenderer !== 'undefined' ? WorldRenderer.create() : null;
   let planDirty = true;   // routing-plan cache flag: set by EDITS (station.onChange / open), never by pure pans — see rebake()
   const flashes = [];   // {rects, t0, bad} place/delete confirmations
   // short human labels for the routing-validation overlay (cost-safety: surfaced before any paid run)
@@ -4626,6 +4627,9 @@ const Build = (() => {
     ctx.setTransform(zoom, 0, 0, zoom, panX, panY);
     ctx.imageSmoothingEnabled = false;
     const ox = cache.origin.tx * t, oy = cache.origin.ty * t;
+    if (sceneRenderer) sceneRenderer.begin({ geo: cacheGeo, cache, now, scale: zoom,
+      panX: panX + ox * zoom, panY: panY + oy * zoom, width: cv.width, height: cv.height,
+      reducedMotion: typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches });
     /* the ground, in world space under the bake — REFIT blits the station at (ox,oy), so the
        clearing must be placed there too, not at the origin like the live world.
 
@@ -4650,11 +4654,19 @@ const Build = (() => {
     drawLayer('conveyor', () => drawConveyor(now, t));   // belts (floor) → props → boxes ride on top
     drawLayer('props', () => drawProps(now));
     drawLayer('boxes', () => drawConveyorBoxes(now, t));
+    let nextLight = false;
     drawLayer('light', () => {
-      if (StationBake.drawLight) StationBake.drawLight(ctx, cache, ox, oy, drawVisibleRect);
-      else ctx.drawImage(cache.lightCv, ox, oy);
+      if (sceneRenderer) {
+        ctx.save(); ctx.translate(ox, oy);
+        try { nextLight = sceneRenderer.drawLight(ctx, framePropLights, { ambient: StationBake.LIGHT.ambient, emission: .9 }); }
+        finally { ctx.restore(); }
+      }
+      if (!nextLight) {
+        if (StationBake.drawLight) StationBake.drawLight(ctx, cache, ox, oy, drawVisibleRect);
+        else ctx.drawImage(cache.lightCv, ox, oy);
+      }
     });
-    drawLayer('glows', () => drawGlows(now));
+    if (!nextLight) drawLayer('glows', () => drawGlows(now));
     drawLayer('flashes', () => drawFlashes(now, t));
     drawLayer('validation', () => drawRoutingValidation(t, now));   // plain-words callouts on any broken piece, IN build mode (cost-safety + guidance)
     drawLayer('beltEndpoints', () => drawBeltEndpointGlow(t, now)); // BELT tool armed → INTAKE glows FROM, BAY/OUTBOX glow TO (what connects to what)
@@ -4679,6 +4691,7 @@ const Build = (() => {
     if (tool === 'prop' && propThumbs.length && now - lastThumbTs >= 40) { paintThumbs(now); lastThumbTs = now; }
 
     frameFailures = 0;
+    if (sceneRenderer) sceneRenderer.finish();
     if (root) {
       root.dataset.renderState = 'ready';
       root.dataset.renderFailures = '0';
@@ -4728,7 +4741,7 @@ const Build = (() => {
     const hasApron = mx1 > mx0 && my1 > my0;
     if (minorK > 0.02 && hasApron) {
       ctx.lineWidth = lw;
-      ctx.strokeStyle = 'rgba(120,200,255,' + (minorK * (armed ? 0.15 : 0.075)).toFixed(3) + ')';
+      ctx.strokeStyle = 'rgba(120,200,255,' + (minorK * (armed ? 0.15 : 0.04)).toFixed(3) + ')';
       ctx.beginPath();
       for (let gx = mx0; gx <= mx1; gx++) { ctx.moveTo(gx * t, my0 * t); ctx.lineTo(gx * t, my1 * t); }
       for (let gy = my0; gy <= my1; gy++) { ctx.moveTo(mx0 * t, gy * t); ctx.lineTo(mx1 * t, gy * t); }
@@ -4741,13 +4754,13 @@ const Build = (() => {
     for (let gx = Math.ceil(tx0 / GRID_MAJOR) * GRID_MAJOR; gx <= tx1; gx += GRID_MAJOR) majX.push(gx);
     for (let gy = Math.ceil(ty0 / GRID_MAJOR) * GRID_MAJOR; gy <= ty1; gy += GRID_MAJOR) majY.push(gy);
     ctx.lineWidth = lw;
-    ctx.strokeStyle = 'rgba(130,205,255,' + (armed ? 0.10 : 0.06) + ')';
+    ctx.strokeStyle = 'rgba(130,205,255,' + (armed ? 0.10 : 0.04) + ')';
     ctx.beginPath();
     for (const gx of majX) { ctx.moveTo(gx * t, y0); ctx.lineTo(gx * t, y1); }
     for (const gy of majY) { ctx.moveTo(x0, gy * t); ctx.lineTo(x1, gy * t); }
     ctx.stroke();
     if (hasApron) {
-      ctx.strokeStyle = 'rgba(160,220,255,' + (armed ? 0.17 : 0.10) + ')';
+      ctx.strokeStyle = 'rgba(160,220,255,' + (armed ? 0.17 : 0.065) + ')';
       ctx.beginPath();
       for (const gx of majX) { if (gx < mx0 || gx > mx1) continue; ctx.moveTo(gx * t, my0 * t); ctx.lineTo(gx * t, my1 * t); }
       for (const gy of majY) { if (gy < my0 || gy > my1) continue; ctx.moveTo(mx0 * t, gy * t); ctx.lineTo(mx1 * t, gy * t); }
@@ -4757,7 +4770,7 @@ const Build = (() => {
     // ---- DECK: per-tile cells over the real footprint — the brightest reading, floor that exists ----
     if (cacheGeo && (tx1 - tx0) * (ty1 - ty0) < 6000) {
       const ox = cacheGeo.origin.tx, oy = cacheGeo.origin.ty, zg = cacheGeo.zoneGrid, idx = cacheGeo.idx, C = cacheGeo.COLS, R = cacheGeo.ROWS;
-      ctx.strokeStyle = 'rgba(140,210,255,' + (minorK * (armed ? 0.20 : 0.13) + 0.03).toFixed(3) + ')';
+      ctx.strokeStyle = 'rgba(140,210,255,' + (minorK * (armed ? 0.20 : 0.055) + 0.03).toFixed(3) + ')';
       ctx.beginPath();
       for (let gy = ty0; gy <= ty1; gy++) for (let gx = tx0; gx <= tx1; gx++) {
         const lx = gx - ox, ly = gy - oy;
@@ -4889,9 +4902,10 @@ const Build = (() => {
 
   // placeable props — drawn in WORLD tile coords (camera maps world*t, the bake is origin-shifted
   // to match). Lit (work=true) so the editor previews screens alive; y-sorted for clean overlap.
-  let frameBayLabels = [];
+  let frameBayLabels = [], framePropLights = [];
   function drawProps(now) {
     frameBayLabels = [];
+    framePropLights = [];
     if (typeof PropSprites === 'undefined') return;
     const list = station.props();
     if (!list.length) return;
@@ -4919,9 +4933,15 @@ const Build = (() => {
     const vx1 = (cv.width - panX) / zt + PROP_CULL_PAD, vy1 = (cv.height - panY) / zt + PROP_CULL_PAD;
     let bayNames = null;   // aid -> name, resolved once per paint (the roster read is a callback into app.js)
     for (const p of order) {
-      if (p.x > vx1 || p.y > vy1 || p.x + (p.w || 1) - 1 < vx0 || p.y + (p.h || 1) - 1 < vy0) continue;
       const m = mountMap.get(p.id);
       let dp = m ? Object.assign({}, p, { mount: m }) : p;
+      if (PropSprites.lightOf && cacheGeo) {
+        // Light can reach into the viewport even when the emitting sprite is culled.
+        const l = PropSprites.lightOf(dp, true, true), o = cacheGeo.origin;
+        if (l) framePropLights.push(Object.assign({}, l, { x: l.x - o.tx * tp, y: l.y - o.ty * tp,
+          originX: (p.x + (p.w || 1) / 2 - o.tx) * tp, originY: (p.y + (p.h || 1) / 2 - o.ty) * tp }));
+      }
+      if (p.x > vx1 || p.y > vy1 || p.x + (p.w || 1) - 1 < vx0 || p.y + (p.h || 1) - 1 < vy0) continue;
       // the editor draws the same gantry plate the live world does: a bound bay wears its agent's NAME
       if (p.t === 'bay' && p.agentId) {
         if (!bayNames) { bayNames = new Map(); for (const a of ((opts && typeof opts.agents === 'function' && opts.agents()) || [])) bayNames.set(a.id, a.name); }
@@ -5406,6 +5426,96 @@ const Build = (() => {
     ctx.restore();
   }
 
+  // REFIT-FOOTPRINT-BEGIN
+  // Project the same edit the gesture will commit, on an isolated document. This
+  // keeps sealed rooms and moved airlocks honest without touching save/undo state.
+  function projectFootprint(model, doc, candidate) {
+    const preview = model.deserialize(doc);
+    const res = candidate.moveId
+      ? preview.moveRoom(candidate.moveId, candidate.dx, candidate.dy)
+      : preview.addRoom({ kind: candidate.kind, rects: candidate.rects });
+    if (!res.ok) return { ok: false, msg: res.msg, runs: [], openings: [] };
+    const id = candidate.moveId || res.id, room = preview.roomById(id), geo = preview.projectGeometry();
+    const origin = geo.origin || { tx: 0, ty: 0 }, cells = [], seen = new Set();
+    const at = (x, y) => {
+      const lx = x - origin.tx, ly = y - origin.ty;
+      return lx < 0 || ly < 0 || lx >= geo.COLS || ly >= geo.ROWS ? null : geo.zoneGrid[geo.idx(lx, ly)];
+    };
+    const edge = (x, y, side, dx, dy) => {
+      const neighbor = at(x + dx, y + dy);
+      if (neighbor === id) return; // adjacent rectangles form one footprint
+      const key = x + ',' + y + ',' + side;
+      if (seen.has(key)) return;
+      seen.add(key);
+      const lx = x - origin.tx, ly = y - origin.ty;
+      const open = neighbor != null && geo.canStep(lx, ly, lx + dx, ly + dy);
+      cells.push({ side, x: x + (side === 'e' ? 1 : 0), y: y + (side === 's' ? 1 : 0), length: 1, open, neighbor });
+    };
+    for (const r of room.rects) {
+      for (let x = r.x1; x <= r.x2; x++) { edge(x, r.y1, 'n', 0, -1); edge(x, r.y2, 's', 0, 1); }
+      for (let y = r.y1; y <= r.y2; y++) { edge(r.x1, y, 'w', -1, 0); edge(r.x2, y, 'e', 1, 0); }
+    }
+    const horizontal = e => e.side === 'n' || e.side === 's';
+    cells.sort((a, b) => a.side.localeCompare(b.side) || (horizontal(a) ? a.y - b.y || a.x - b.x : a.x - b.x || a.y - b.y));
+    const runs = [];
+    for (const e of cells) {
+      const p = runs[runs.length - 1], h = horizontal(e);
+      // One clear architectural opening may border several logical rooms.
+      if (p && p.side === e.side && p.open === e.open && (e.open || p.neighbor === e.neighbor) &&
+          (h ? p.y === e.y && p.x + p.length === e.x : p.x === e.x && p.y + p.length === e.y)) {
+        p.length++;
+        if (e.neighbor != null && !p.neighbors.includes(e.neighbor)) p.neighbors.push(e.neighbor);
+      } else runs.push({ ...e, neighbors: e.neighbor == null ? [] : [e.neighbor] });
+    }
+    return { ok: true, rects: room.rects, runs, openings: runs.filter(e => e.open), sealed: runs.some(e => e.neighbor != null && !e.open) };
+  }
+  // REFIT-FOOTPRINT-END
+
+  let footprintMemo = null;
+  function structureGhost(g) {
+    if (!g || !g.v || !g.v.ok || typeof WorldModel === 'undefined') return null;
+    const move = g.move && drag && drag.mode === 'move';
+    if (!move && g.kind !== 'room' && g.kind !== 'hall') return null;
+    const candidate = { rects: g.rects, kind: g.kind === 'hall' ? 'corridor' : kind,
+      moveId: move ? drag.roomId : null, dx: g.dx || 0, dy: g.dy || 0 };
+    const key = geoVer + '|' + JSON.stringify(candidate);
+    if (!footprintMemo || footprintMemo.key !== key) {
+      footprintMemo = { key, plan: projectFootprint(WorldModel, station.doc(), candidate) };
+    }
+    return footprintMemo.plan;
+  }
+
+  function drawFootprint(t, plan, fill, line) {
+    ctx.save();
+    ctx.fillStyle = fill;
+    for (const r of plan.rects) ctx.fillRect(r.x1 * t, r.y1 * t, (r.x2 - r.x1 + 1) * t, (r.y2 - r.y1 + 1) * t);
+    ctx.strokeStyle = line; ctx.lineWidth = 2 / zoom;
+    ctx.beginPath();
+    for (const e of plan.runs) {
+      if (e.open) continue;
+      const h = e.side === 'n' || e.side === 's', x = e.x * t, y = e.y * t;
+      ctx.moveTo(x, y); ctx.lineTo(x + (h ? e.length * t : 0), y + (h ? 0 : e.length * t));
+    }
+    ctx.stroke();
+    // A pair of small jamb marks shows where the wall will open. Keep the span
+    // clear: an unbroken rectangle border falsely reads as a wall across a join.
+    for (const e of plan.openings) {
+      const h = e.side === 'n' || e.side === 's', x = e.x * t, y = e.y * t, len = e.length * t;
+      const depth = Math.min(t * .42, 7 / zoom), arm = Math.min(len * .2, 7 / zoom);
+      ctx.fillStyle = 'rgba(120,255,190,.13)';
+      ctx.fillRect(x - (h ? 0 : depth), y - (h ? depth : 0), h ? len : depth * 2, h ? depth * 2 : len);
+      ctx.strokeStyle = 'rgba(180,255,215,.92)'; ctx.lineWidth = 2 / zoom;
+      ctx.beginPath();
+      if (h) {
+        for (const [a, sign] of [[x, 1], [x + len, -1]]) { ctx.moveTo(a + arm * sign, y - depth); ctx.lineTo(a, y - depth); ctx.lineTo(a, y + depth); ctx.lineTo(a + arm * sign, y + depth); }
+      } else {
+        for (const [a, sign] of [[y, 1], [y + len, -1]]) { ctx.moveTo(x - depth, a + arm * sign); ctx.lineTo(x - depth, a); ctx.lineTo(x + depth, a); ctx.lineTo(x + depth, a + arm * sign); }
+      }
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
   function drawGhost(t, now) {
     // paint brush: tint the crossed tiles with the chosen deck colour
     if (drag && drag.mode === 'paint' && drag.moved) {
@@ -5430,7 +5540,8 @@ const Build = (() => {
     }
     const g = ghostInfo();
     if (!g) return;
-    const ok = g.v && g.v.ok;
+    const footprint = structureGhost(g);
+    const ok = g.v && g.v.ok && (!footprint || footprint.ok);
     // a HOVER PREVIEW is quieter than a live gesture — it is showing you an option, not a commitment,
     // and at full strength it read as "you are already dragging" every time the pointer crossed the floor
     // ...and an INVALID preview is quieter still: with ROOM armed, every pass of the pointer over
@@ -5439,13 +5550,16 @@ const Build = (() => {
     const k = g.stamp ? (ok ? 0.6 : 0.3) : 1;
     const fill = ok ? 'rgba(80,255,140,' + (0.16 * k).toFixed(3) + ')' : 'rgba(255,90,80,' + (0.18 * k).toFixed(3) + ')';
     const line = ok ? 'rgba(120,255,170,' + (0.95 * k).toFixed(2) + ')' : 'rgba(255,120,110,' + (0.95 * k).toFixed(2) + ')';
-    ctx.lineWidth = 1.5 / zoom;
-    for (const r of g.rects) {
-      const X = r.x1 * t, Y = r.y1 * t, Wd = (r.x2 - r.x1 + 1) * t, Hd = (r.y2 - r.y1 + 1) * t;
-      ctx.fillStyle = fill; ctx.fillRect(X, Y, Wd, Hd);
-      ctx.strokeStyle = line; ctx.strokeRect(X + 0.5 / zoom, Y + 0.5 / zoom, Wd - 1 / zoom, Hd - 1 / zoom);
+    if (footprint && footprint.ok) drawFootprint(t, footprint, fill, line);
+    else {
+      ctx.lineWidth = 1.5 / zoom;
+      for (const r of g.rects) {
+        const X = r.x1 * t, Y = r.y1 * t, Wd = (r.x2 - r.x1 + 1) * t, Hd = (r.y2 - r.y1 + 1) * t;
+        ctx.fillStyle = fill; ctx.fillRect(X, Y, Wd, Hd);
+        ctx.strokeStyle = line; ctx.strokeRect(X + 0.5 / zoom, Y + 0.5 / zoom, Wd - 1 / zoom, Hd - 1 / zoom);
+      }
+      for (const r of g.rects) ghostReticle(t, r, line);
     }
-    for (const r of g.rects) ghostReticle(t, r, line);
     // belt: draw flow arrows along the run so the direction reads at a glance
     if (g.belt) {
       const V = { E: [1, 0], W: [-1, 0], S: [0, 1], N: [0, -1] }[g.dir];
@@ -5469,9 +5583,13 @@ const Build = (() => {
     const lines = [dims];
     // a sized footprint also gets its area — "how much floor is this?" is the other question a drag asks
     if (!g.belt && !g.move && g.kind !== 'line' && w * h > 1) lines[0] = dims + '   ' + (w * h) + ' TILES';
-    if (!ok) lines.push(((g.v && g.v.msg) || 'blocked').toUpperCase());
+    if (!ok) lines.push(((footprint && footprint.msg) || (g.v && g.v.msg) || 'blocked').toUpperCase());
     // the hover preview teaches BOTH gestures: this size on a click, any size on a drag
     else if (g.stamp) lines.push(g.kind === 'prop' ? 'CLICK TO PLACE' : 'CLICK TO PLACE · DRAG TO SIZE');
+    if (footprint && footprint.ok) {
+      const n = footprint.openings.length;
+      lines.push(n ? n + (n === 1 ? ' OPEN CONNECTION' : ' OPEN CONNECTIONS') : footprint.sealed ? 'SEALED EDGE' : 'SEPARATE SECTION');
+    }
     ghostBadge(t, lines, ok, r0);
     // NOTE: deliberately does NOT hideTip() — flashTip's transient confirmations ("room placed")
     // fire while a ghost is still on screen, and hiding here every frame would eat them instantly.
@@ -5638,6 +5756,7 @@ const Build = (() => {
     },
     // the ghost's CURRENT rect — so a proof can assert the ghost and the commit agree, not just one
     ghostRects: () => { const g = ghostInfo(); return g && g.rects ? g.rects.map(r => ({ ...r })) : null; },
+    footprint: () => structureGhost(ghostInfo()),
     // finish-the-line card readout for CDP proof scripts: the EXACT DOM state the card renders
     finCard: () => (finCardEl ? {
       key: finComp && finComp.key,

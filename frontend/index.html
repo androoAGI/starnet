@@ -541,9 +541,9 @@
     <div class="cam-hud">
       <span class="cam-c cam-tl">┌</span><span class="cam-c cam-tr">┐</span>
       <span class="cam-c cam-bl">└</span><span class="cam-c cam-br">┘</span>
-      <span class="cam-label">CAM-01 ▪ AGENT QUARTERS</span>
-      <span class="cam-rec">● REC</span>
-      <span class="cam-feed">FEED: LIVE</span>
+      <span class="cam-label">CAM · STATION VIEW</span>
+      <span class="cam-rec">● CONNECTING</span>
+      <span class="cam-feed">FEED: CONNECTING</span>
     </div>
     <!-- CREW rail restore handle (leftrail.js): a slim phosphor drawer tab on the stage's left edge,
          visible only while the rail is hidden -->
@@ -793,6 +793,9 @@
 <script src="app/mint.js"></script>
 <script src="app/zones.js"></script>
 <script src="app/toolprops.js"></script><!-- pure tool-name -> capability-prop mapper (world.js pulses props from agent.tool_call) -->
+<script src="app/worldsurface.js"></script>
+<script src="app/worldlight.js"></script>
+<script src="app/worldrenderer.js"></script>
 <script src="app/world.js"></script>
 <script src="app/testapi.js"></script><!-- DEV-only: window.__SKYNET_TEST__ (inert unless __STARNET_DEV__) -->
 <script src="app/classify.js"></script>
@@ -940,5 +943,6 @@ document.write('<script src="' + ((window.__STARNET_API__ || '') + '/shared/spec
 <script src="app/widgets.js"></script><!-- widget rails: pinnable read-only telemetry instruments (insights/cron polls + run.end/queue.status/cron.fire folds); own localStorage key, never emits -->
 <script src="app/autosessions.js"></script><!-- surface an unattended cron/routine run as a readable SESSION: cron.fire → adopt a 'cron-<runId>' workstream (busy, no focus-steal), cron.result → fold its durable transcript; boot backfill for runs finished while closed. Read-only on U.bus (after app.js so App/Workstreams/Channels/Chat/U exist) -->
 <script src="app/warroom.js"></script>
+<script src="app/worldlab.js"></script>
 </body>
 </html>

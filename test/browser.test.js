@@ -586,10 +586,18 @@ function fakeDriver() {
 
     // B. a static page settles on the FIRST quiet read — auto-wait is faster than the old 900ms sleep.
     {
-      const t0 = Date.now();
       const rig = settleRig(() => ({ ok: true, ready: 'complete', n: 7 }));
-      await rig.driver.navigate('http://127.0.0.1:5173/');
-      A.ok(Date.now() - t0 < 800, 'an already-quiet page returns well inside the old 900ms blind wait');
+      // Observe the requested delay, not OS scheduling latency on a busy test host.
+      // This still catches a regression to the old unconditional 900ms sleep.
+      const scheduled = [];
+      const originalSetTimeout = global.setTimeout;
+      global.setTimeout = (fn, ms, ...args) => {
+        scheduled.push(ms);
+        return originalSetTimeout(fn, ms, ...args);
+      };
+      try { await rig.driver.navigate('http://127.0.0.1:5173/'); }
+      finally { global.setTimeout = originalSetTimeout; }
+      A.ok(!scheduled.includes(900), 'an already-quiet page does not schedule the old 900ms blind wait');
       A.ok(rig.state.probes <= 4, 'a settled page costs only the quiet-confirmation polls (' + rig.state.probes + ')');
       await rig.driver.close();
     }

@@ -142,4 +142,15 @@ for (const mat of WALLS) {
   A.eq(bad, [], 'wall ' + mat + ' paints only within its own face');
 }
 
+// New selectable decks keep their authored recipe in the compatibility renderer.
+global.WorldSurface = require('../frontend/app/worldsurface.js');
+for (const mat of ['basalt', 'parquet', 'rubber', 'slotted', 'terrazzo', 'octile']) {
+  global.WorldRenderer = { enabled: () => true };
+  const authored = sample(mat, 6, 4);
+  global.WorldRenderer = { enabled: () => false };
+  A.eq(sample(mat, 6, 4), authored, mat + ' picker keeps the same texture in the compatibility renderer');
+  A.ok(authored.join('|') !== sample('plate', 6, 4).join('|'), mat + ' is not a generic plate fallback');
+}
+delete global.WorldRenderer;
+delete global.WorldSurface;
 A.report('stationbake.materials');

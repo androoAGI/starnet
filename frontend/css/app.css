@@ -490,11 +490,14 @@ input[type=file]::file-selector-button:hover { border-color: var(--ph); backgrou
   background: var(--bg);
   box-shadow: 0 0 0 calc(2px * var(--cz)) var(--ph), 0 0 0 calc(3.5px * var(--cz)) rgba(0,0,0,.9), inset 0 0 var(--tube-inset) rgba(0,0,0,.9);
 }
-/* Keep the approved room colour grade independent of the UI phosphor theme.
-   The custom theme's --cam-grade desaturates the entire feed (0.72 vs 1.06),
+/* Keep the live world and REFIT on the same approved room colour grade,
+   independent of the UI phosphor theme.
+   The custom theme's --cam-grade desaturates the entire feed,
    making identical room lighting look dull after opening a saved custom theme.
-   Brightness presets still control room exposure through StationBake.LIGHT. */
-#stage { display: block; width: 100%; height: 100%; image-rendering: pixelated; filter: saturate(1.06) contrast(1.1) brightness(0.94); }
+   A modest colour boost and gentler contrast keep the softer grain clear while
+   preserving dark exposure. Brightness presets still use StationBake.LIGHT. */
+.refit-canvas,
+#stage { display: block; width: 100%; height: 100%; image-rendering: pixelated; filter: saturate(1.14) contrast(1.08) brightness(0.94); }
 
 /* KEYLESS-BRAIN CTA — the honest standing banner shown after an awakening that finished with no key.
    Sits low-center over the feed, above the cam HUD (z3) so it reads clearly; the world stays visible behind
@@ -2918,9 +2921,8 @@ body:not(.no-flicker) #screen-game.active { animation: flick 7s infinite; }
    are ALWAYS in the DOM and simply display:none in COMPACT, so switching the setting is a repaint —
    renderRail is never re-run, and rail focus, scroll position and an in-place rename all survive it.
 
-   Three lines, not four: a preview of the last message is the line that clips to uselessness in a rail
-   that is 232px and does not widen (--crew-w), so what the row gains instead is provenance —
-   WHO ran it, WHAT it is, and WHICH model over HOW MANY messages. */
+   Agent above the wrapping session title, then a quiet latest-message excerpt.
+   Rows grow with the title; rail width and surrounding controls stay unchanged. */
 .ws-agent, .ws-receipt { display: none; }
 /* SCOPED TO #workstreams ON PURPOSE. The PROJECTS rail reuses this exact row vocabulary in its own
    <ul id="projects"> (see the .ws-row.proj-row block below), so an unscoped `body.rows-inbox .ws-row`
@@ -2935,7 +2937,7 @@ body.rows-inbox #workstreams .ws-row {
     "dot   agent pin   meta"
     "title title title title"
     "recpt recpt recpt recpt";
-  gap: 1px 8px; padding: 6px 8px 7px;
+  gap: 4px 8px; padding: 10px 10px 11px; min-height: 78px;
 }
 body.rows-inbox #workstreams .ws-row > .ws-dot { grid-area: dot; }
 body.rows-inbox #workstreams .ws-agent {
@@ -2947,7 +2949,11 @@ body.rows-inbox #workstreams .ws-row.sel .ws-agent,
 body.rows-inbox #workstreams .ws-row.busy .ws-agent { color: var(--ph); }
 body.rows-inbox #workstreams .ws-pin { grid-area: pin; }
 body.rows-inbox #workstreams .ws-row > .ws-meta { grid-area: meta; }
-body.rows-inbox #workstreams .ws-title { grid-area: title; font-size: 15px; line-height: 1.1; }
+body.rows-inbox #workstreams .ws-title {
+  grid-area: title; font-size: 16px; line-height: 1.2;
+  color: var(--ph-bright); white-space: normal; overflow-wrap: anywhere;
+  overflow: visible; text-overflow: clip; text-shadow: none;
+}
 /* RENAME-IN-PLACE swaps the title span for an input (app.js replaceWith), and an element with no
    grid-area gets AUTO-PLACED — in a 3-row template that lands it outside the title row entirely
    (measured: 112x48 in a 175px row, and the row grew 76->83px). It inherits the title's cell so
@@ -2955,8 +2961,8 @@ body.rows-inbox #workstreams .ws-title { grid-area: title; font-size: 15px; line
 body.rows-inbox #workstreams .ws-rename { grid-area: title; }
 body.rows-inbox #workstreams .ws-receipt {
   display: block; grid-area: recpt; min-width: 0;
-  font-size: 11px; line-height: 1.1; color: var(--ph-dim);
-  letter-spacing: .8px; font-variant-numeric: tabular-nums;
+  font-size: 15px; line-height: 1.25; color: var(--ph-dim);
+  letter-spacing: .1px; text-shadow: none;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 /* the kebab overlays the meta corner on hover exactly as it does in COMPACT (see the rule below that
@@ -5785,6 +5791,17 @@ button:disabled, select:disabled, input:disabled, textarea:disabled {
 .gx-quests .q-deferred { margin: 12px 0; }
 .gx-quests .q-life-quest .consent-btns { flex-wrap: wrap; }
 
+/* The station and its interface share one restrained glass treatment. Canvas
+   already draws its own fine scanlines; avoid a second dominant grille. */
+body:has(#screen-game.active)::after { opacity: .62; }
+body:has(#screen-game.active)::before {
+  background: radial-gradient(ellipse 120% 90% at 50% 38%, transparent 55%, rgba(0,0,0,var(--page-vignette, .42)) 100%);
+}
+.cam-hud .cam-label { max-width: calc(100% - 170px); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cam-hud .cam-rec { color: var(--ph-dim); animation: none; text-shadow: none; }
+.cam-hud[data-feed="live"] .cam-rec { color: var(--ok); }
+.cam-hud[data-feed="paused"] .cam-rec { color: var(--warn); }
+.cam-hud[data-feed="offline"] .cam-rec, .cam-hud[data-feed="offline"] .cam-feed { color: var(--link-down); }
 /* Exact mutation review stays scrollable without clipping the payload. */
 .consent-payload { margin: 8px 0; }
 .consent-payload summary { cursor: pointer; }

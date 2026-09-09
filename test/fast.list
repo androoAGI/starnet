@@ -445,6 +445,13 @@ test/room-lighting-settings.test.js
 test/window-minimize.test.js
 test/nightshift-steer-ui.test.js
 test/world-agent-click.test.js
+test/worldrenderer.test.js
+test/world-sharpen.test.mjs
+test/world-immersion-characters.test.js
+test/prop-light-response.test.js
+test/worldsurface.test.js
+test/worldlight.test.js
+test/worldlight-receiver.test.mjs
 test/state-truth-overlap.test.js
 test/world-setskin.test.js
 test/capprop-map.contract.test.js
@@ -562,6 +569,7 @@ test/g3btrophy.test.js
 test/stationbake.chunk.test.js
 test/stationbake.materials.test.js
 test/stationbake.seam.test.js
+test/stationbake.connections.test.mjs
 test/stationbake.hull.test.js
 test/canvas-loss-recovery.test.js
 test/stage-context-loss.test.js
@@ -580,6 +588,7 @@ test/chain.join-loop.test.js
 test/chain.limits.test.js
 test/refit-card-stack.test.js
 test/refit-junction-cards.test.js
+test/refit-footprint.test.js
 test/refit-run-gate.test.js
 test/step-brief.test.js
 test/propanchor.test.js
@@ -732,3 +741,7 @@ test/task-conversation.test.js
 test/task-conversation-ui.test.js
 test/emergency-control.test.js
 test/work-rating-control.test.js
+
+test/session-focus-safety.test.js
+
+test/harness-placement.test.js

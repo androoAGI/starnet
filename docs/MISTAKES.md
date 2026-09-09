@@ -187,3 +187,9 @@ debugging or claiming anything done. Companions: [BRAIN.md](BRAIN.md) · [DECISI
   worked until T) → probe OpenRouter directly with the key (+ GET /api/v1/credits) → only
   then read code. Any silent degrade that swaps a user-audible identity must surface its
   reason (voice.js noteFallback since 1d62aaad).
+
+## 2026-09-09 — rejected command-room art experiment
+
+Owner correction: furniture must use the existing StarNet prop-art workflow. PixelLab is for character sprites only, not generated furniture. New character sprites must fit the existing agents and props at actual gameplay scale; only a tiny size increase is acceptable. The command-room experiment used mismatched generated furniture and an oversized operator and was rejected in full. It has been reverted; do not reuse that pass as an approved direction.
+
+Owner follow-up: retain the v0.11.0 prop artwork and dimensions. The subsequent workstation/capability redesign studies were not approved for implementation. The applied prop-polish pass was reverted; keep the approved world lighting and walls, and direct further world work elsewhere unless the owner explicitly reopens prop design.
