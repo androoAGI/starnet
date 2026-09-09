@@ -2838,7 +2838,10 @@ const App = (() => {
   /* ---------- resume ---------- */
   function resumeInto(saved) {
     agent = saved.agent;
-    if (!(Number(agent.createdAt) > 0)) agent.createdAt = Math.max(1, Number(saved.updatedAt) || Date.now());
+    // A legacy hero without createdAt already belongs to growth epoch 1 on the sidecar.
+    // Resuming is not founding a new station: inventing a timestamp here rejects every crew rating
+    // until the debounced save lands, and can strand existing epoch-1 feedback on another generation.
+    // Keep the missing date unknown. Only onWake creates a new Commander identity.
     if (!agent.role) agent.role = 'orchestrator';  // older hero saves predate the role field — the first agent is the lead
     agentDocs(agent);                              // seed config docs for older saves that predate them
     stripLegacyVoiceBlock(agent);                  // one-time: drop the old awakening's inline VOICE & MANNER so it doesn't double up with the archetype layer
@@ -3571,16 +3574,21 @@ const App = (() => {
     const a = agents.get(w.agentId);                      // the live registry, same one the world reads
     return (a && a.name) ? a.name : (w.agentId || 'AGENT');
   }
-  // "<model> · <n> MSG". The model is the one the SIDECAR reported for this stream's last run
-  // (Workstreams.lastModel) — never the agent's current dropdown value, which would assert a model
-  // over a transcript other models may have written. Unmeasured reads '—', which is the honest answer.
+  // Compact excerpt of the latest visible turn; never an invented completion claim.
+  // Share search/export filtering so hidden tool/system chatter stays hidden.
   function railReceipt(w) {
-    const n = (Workstreams.visibleMessages ? Workstreams.visibleMessages(w) : []).length;
-    // the vendor prefix is dropped for the ROW only ('anthropic/claude-sonnet-4.5' → 'claude-sonnet-4.5'):
-    // a 232px rail cannot hold the full id, and a clipped id reads as a different model. The complete,
-    // unabbreviated id stays in the row's tooltip (railModelFull), so nothing is actually hidden.
-    const model = (w.lastModel || '').trim().split('/').pop();
-    return (model || '—') + ' · ' + n + ' MSG';
+    const messages = Workstreams.visibleMessages ? Workstreams.visibleMessages(w) : [];
+    const latest = messages.slice().reverse().find(m => m.content.trim());
+    if (!latest) return 'No messages yet';
+    const text = latest.content
+      .replace(/\[([^\]]+)\]\([^)]*\)/g, '$1')
+      .replace(/(^|\n)\s{0,3}(?:#{1,6}\s+|[-*+]\s+|>\s*)/g, ' ')
+      .replace(/[*_\x60]/g, '')
+      .replace(/\s+/g, ' ').trim();
+    const sentence = text.match(/^.*?[.!?](?:\s|$)/);
+    const excerpt = sentence ? sentence[0].trim() : text;
+    const short = excerpt.length > 160 ? excerpt.slice(0, 157).trimEnd() + '…' : excerpt;
+    return (latest.role === 'user' ? 'You: ' : '') + short;
   }
   function railModelFull(w) { return (w.lastModel || '').trim(); }
   function railRowLabel(w, st) {
@@ -3714,8 +3722,7 @@ const App = (() => {
       const st = railRowState(w);
       const dot = li.querySelector('.ws-dot'); if (dot && dot.className !== st.dot) dot.className = st.dot;
       const meta = li.querySelector('.ws-meta'); if (meta && meta.textContent !== st.meta) meta.textContent = st.meta;
-      // the INBOX receipt ages like the rest of the row: a reply landing mid-run moves the count, and a
-      // model measured for the first time replaces the '—'. Change-detected, so a quiet rail touches no DOM.
+      // Refresh the latest visible message without rebuilding the row or disturbing focus/scroll.
       const rec = li.querySelector('.ws-receipt');
       if (rec) { const next = railReceipt(w); if (rec.textContent !== next) rec.textContent = next; }
       const cls = rowClass(w, st, activeId); if (li.className !== cls) li.className = cls;

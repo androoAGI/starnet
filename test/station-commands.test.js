@@ -39,7 +39,7 @@ function boot(opts) {
       flush: async () => opts.saveFails ? false : true,
       pull: async () => opts.readBackFails ? null : page.save
     },
-    Chat: { load: ws => page.loaded.push(ws.id) },
+    Chat: { load: ws => page.loaded.push(ws.id), canFocusSession: opts.canFocusSession || (() => true) },
     U: { bus: { on: () => {} } },
     VoiceLive: opts.voiceLive,
     fetch: async (url, init) => {
@@ -379,14 +379,31 @@ async function call(env, verb, args) {
   env.W.create('research');
   const rebinds = [];
   // stationcommands probes the VoiceLive global by bare identifier — inject it into the vm context
-  env.setVoiceLive({ isActive: () => true, rebind: id => rebinds.push(id) });
-  const out = await call(env, 'station.switch_session', { session: 'research' });
+  env.setVoiceLive({ isActive: () => true, boundSessionId: () => 'call-origin', rebind: id => rebinds.push(id) });
+  const out = await call(env, 'station.switch_session', { session: 'research', origin: {streamId:'call-origin',runId:'run'} });
   A.eq(out.ok, true, 'the switch succeeded');
   A.eq(rebinds.length, 1, 'a live call is rebound by a voice-driven switch');
   A.eq(rebinds[0], out.result.id, 'to the session the switch landed on');
   env.setVoiceLive({ isActive: () => false, rebind: id => rebinds.push(id) });
   await call(env, 'station.switch_session', { session: 'General' });
   A.eq(rebinds.length, 1, 'no live call -> no rebind attempted');
+}
+
+// A stale/background request is refused before any selection or creation side effect.
+{
+  const env = boot({canFocusSession: () => false});
+  const target = env.W.create('target', {activate:false});
+  const original = env.W.activeId(), count = env.W.list().length;
+  const switched = await call(env, 'station.switch_session', {session:target.id});
+  A.eq(switched.ok, false, 'unattributed focus is refused');
+  A.eq(env.W.activeId(), original, 'the selected session stays put');
+  A.eq(env.page.loaded.length, 0, 'the visible composer is not rebound');
+  const made = await call(env, 'station.new_session', {title:'stale create', focus:true});
+  A.eq(made.ok, false, 'stale focused creation is refused');
+  A.eq(env.W.list().length, count, 'refusal leaves no partially-created session');
+  const background = await call(env, 'station.new_session', {title:'background', focus:false});
+  A.eq(background.ok, true, 'background creation remains available');
+  A.eq(env.W.activeId(), original, 'background creation does not navigate');
 }
 
 // every verb the sidecar can ask for is implemented here (a missing one would fail as "unknown verb" live)

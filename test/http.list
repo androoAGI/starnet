@@ -19,6 +19,7 @@ test/full-access.e2e.test.js
 test/output-recovery.e2e.test.js
 test/project-root.e2e.test.js
 test/live-doctor.e2e.test.js
+test/report-0110.e2e.test.js
 test/scout.http.test.js
 test/discovery.http.test.js
 test/outcomes.http.test.js
@@ -102,3 +103,9 @@ test/discovery-documents.http.test.js
 test/workflow-takeover.http.test.js
 test/task-conversation.http.test.js
 test/emergency-recovery.http.test.js
+
+test/growth-rating-upgrade.e2e.test.js
+test/managed-image.e2e.test.js
+test/managed-endpoint.e2e.test.js
+
+test/tool-projection.e2e.test.js

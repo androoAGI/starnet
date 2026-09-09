@@ -39,6 +39,7 @@ function startProvider() {
           return res.end(JSON.stringify({ choices: [{ message: { images: [{ image_url: { url: 'data:image/png;base64,' + PNG_B64 } }] } }] }));
         }
         const blob = JSON.stringify(body.messages || []);
+        if (blob.includes('ORDINARY_TEXT')) return sse(res, [{ content: 'The requested text or code explanation is complete.' }]);
         if (blob.includes('IMAGE_FALSE_DONE')) return sse(res, [{ content: 'Done - here is your image.' }]);
         const hasToolResult = (body.messages || []).some(m => m && m.role === 'tool');
         if (!hasToolResult) {
@@ -100,16 +101,39 @@ async function run(base, token, body) {
       messages: [{ role: 'user', content: 'Create an image of a red cube' }]
     });
     const blockedError = blocked.find(e => e.name === 'agent.run.error');
-    A.ok(blockedError && /configured for custom \/ test\/model/.test(blockedError.payload.message), 'configured model/key mismatch surfaces the exact STUDIO blocker');
-    A.ok(/SETTINGS > PROVIDERS/.test(blockedError.payload.message), 'the blocker tells the user exactly how to authorize generation');
+    A.ok(blockedError && /for custom \/ test\/model/.test(blockedError.payload.message), 'configured model/key mismatch surfaces the exact STUDIO blocker');
+    A.ok(/link this station/.test(blockedError.payload.message), 'the blocker tells the user exactly how to authorize generation');
     A.eq(provider.requests.length, beforeBlocked, 'an impossible route never calls the configured model or a fallback');
     A.eq(blocked.filter(e => e.name === 'agent.run.end').pop().payload.reason, 'error', 'the impossible route ends error, never OK');
+
+    // False image matches must reach the configured conversation model, without
+    // requiring either STUDIO gear or a media credential, and may finish as text.
+    for (const placed of [[], ['studio']]) {
+      for (const prompt of [
+        'Draw a distinction between TCP and UDP',
+        'Illustrate your reasoning with a text example',
+        'Create a Docker image for this Node app',
+        'Make the profile picture clickable',
+        'Explain how image generators create pictures'
+      ]) {
+        const before = provider.requests.length;
+        const events = await run(base, token, {
+          provider: 'custom', baseUrl: provider.baseUrl, key: 'custom-model-key', model: 'test/model',
+          agentId: 'ordinary-' + before, isTask: true, placed,
+          messages: [{ role: 'user', content: prompt + '. ORDINARY_TEXT' }]
+        });
+        A.ok(provider.requests.length > before, 'ordinary request reaches its model: ' + prompt);
+        A.ok(!events.some(e => e.name === 'agent.run.error'), 'ordinary request has no image blocker/completion error: ' + prompt);
+        A.eq(events.filter(e => e.name === 'agent.run.end').pop().payload.reason, 'done', 'text-only completion is accepted: ' + prompt);
+        A.ok(!provider.requests.slice(before).some(r => Array.isArray(r.body.modalities) && r.body.modalities.includes('image')), 'ordinary request does not invoke image generation');
+      }
+    }
 
     // A compatible route that returns success prose but never invokes STUDIO is also not completion.
     const falseDone = await run(base, token, {
       provider: 'openrouter', key: 'openrouter-run-key', model: 'test/model',
       agentId: 'image-false-done', isTask: true, placed: ['studio'],
-      messages: [{ role: 'user', content: 'IMAGE_FALSE_DONE Create an image of a green cube' }]
+      messages: [{ role: 'user', content: 'Create an image of a green cube. IMAGE_FALSE_DONE' }]
     });
     A.ok(falseDone.some(e => e.name === 'agent.run.error' && /without a produced image artifact/.test(e.payload.message)), 'prose-only success emits the missing-artifact error');
     A.eq(falseDone.filter(e => e.name === 'agent.run.end').pop().payload.reason, 'error', 'prose-only image completion is terminal error');
@@ -118,7 +142,7 @@ async function run(base, token, body) {
     const produced = await run(base, token, {
       provider: 'openrouter', key: 'openrouter-run-key', model: 'test/model',
       agentId: 'image-produced', isTask: true, placed: ['studio'],
-      messages: [{ role: 'user', content: 'IMAGE_PRODUCE Generate an image of a blue cube' }]
+      messages: [{ role: 'user', content: 'Generate an image of a blue cube. IMAGE_PRODUCE' }]
     });
     A.ok(produced.some(e => e.name === 'agent.tool_result' && e.payload.callId === 'make_image' && e.payload.ok), 'the compatible route executes image_generate successfully');
     A.eq(produced.filter(e => e.name === 'agent.run.end').pop().payload.reason, 'done', 'a produced image artifact earns done');

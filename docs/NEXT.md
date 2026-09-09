@@ -1,5 +1,24 @@
 # NEXT.md — current priorities & task queue
 
+## MERGED — 2026-09-09 tool projection integration (agent/tool-projection-0909)
+
+Owner authorized repair and merge. Source repair 3c95b184f preserves saved room equipment when
+an interactive client omits placement, preserves explicit empty placement, and corrects toolset
+agent/lead disclosure. Merged 793bf1c0f; fast 735/735 and HTTP 108/108 passed before and
+after merge; customer journeys 34/34 passed. Customer report 432df352 remains open for the uncorrelated Trusted Project
+symptom; installer and reporter recovery are unverified. Receipt: qa/digests/2026-09-09-tool-projection.md.
+
+## MERGED — 2026-09-09 voice continuity (`agent/voice-continuity-0909`)
+
+Owner authorized sentence buffering, ordered audio recovery, cutoff diagnostics, noise-onset investigation and merge. Plan: docs/VOICE_CONTINUITY_PLAN_2026-09-09.md. Customer record: e1051446. Merged ab1cd74be; fast 734/734 before and after merge; customer journeys 33/33. Real Kokoro synthesis and browser playback completed. Installer and acoustic recovery remain unverified.
+
+## DONE — 2026-09-08 legacy rating save repair (agent/rating-repair-0908)
+
+Own lane: preserve legacy station identity on resume and surface rating failure reasons.
+Before/after real UI and same-run HTTP proof recorded in bug 1fc69e6a; source fix a55a1ed07.
+Integrated candidate gates: fast 733/733 and HTTP 105/105 passed. Customer installer recovery remains unverified.
+
+
 
 ## MERGED — 2026-09-06 per-agent voices and Mac microphone (`agent/voice-agents-mac-0906`)
 

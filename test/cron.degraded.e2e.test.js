@@ -13,13 +13,24 @@ const { spawn } = require('child_process');
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
+const net = require('net');
 const { bootToken } = require('./_httpToken.js');
 
 const HOST = '127.0.0.1';
 const INDEX = path.resolve(__dirname, '..', 'sidecar', 'index.js');
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
-function boot(port, workspaces, attemptsLeft, extraEnv) {
+async function boot(workspaces, extraEnv) {
+  // A failed bind happens after store initialization: retrying the same corrupt fixture
+  // would test its already-quarantined state. Choose a free port, and fail any bind race.
+  const port = await new Promise((resolve, reject) => {
+    const reservation = net.createServer();
+    reservation.once('error', reject);
+    reservation.listen(0, HOST, () => {
+      const selected = reservation.address().port;
+      reservation.close(err => err ? reject(err) : resolve(selected));
+    });
+  });
   return new Promise((resolve, reject) => {
     const appSandbox = path.join(workspaces, '_appdata');
     const child = spawn(process.execPath, [INDEX], {
@@ -35,8 +46,7 @@ function boot(port, workspaces, attemptsLeft, extraEnv) {
       if (!settled && out.indexOf('http://' + HOST + ':' + port) >= 0) { settled = true; resolve({ child, port, log: () => out }); }
       if (!settled && /already in use/i.test(out)) {
         settled = true; try { child.kill(); } catch (_) {}
-        if (attemptsLeft > 0) resolve(boot(port + 1, workspaces, attemptsLeft - 1, extraEnv));
-        else reject(new Error('no free port'));
+        reject(new Error('test port became occupied; fixture was initialized and must not be reused'));
       }
     };
     child.stdout.on('data', onData); child.stderr.on('data', onData);
@@ -54,7 +64,7 @@ function boot(port, workspaces, attemptsLeft, extraEnv) {
   // arm the scheduler so the boot reconcile WOULD tick if the degraded gate were missing
   fs.writeFileSync(path.join(ws, 'cron.armed.json'), JSON.stringify({ version: 1, armed: true }), 'utf8');
 
-  let booted = await boot(8950 + (process.pid % 40), ws, 20, { SKYNET_CRON_TICK_MS: '1500' });
+  let booted = await boot(ws, { SKYNET_CRON_TICK_MS: '1500' });
   let child = booted.child, port = booted.port;
   const B = () => 'http://' + HOST + ':' + port;
   let apiToken = await bootToken(B(), B());
@@ -121,7 +131,7 @@ function boot(port, workspaces, attemptsLeft, extraEnv) {
   // ---- healthy workspace: degraded:null ----
   {
     const ws2 = fs.mkdtempSync(path.join(os.tmpdir(), 'sk-cron-healthy-'));
-    const b2 = await boot(8990 + (process.pid % 9), ws2, 20);
+    const b2 = await boot(ws2);
     try {
       const tok = await bootToken('http://' + HOST + ':' + b2.port, 'http://' + HOST + ':' + b2.port);
       const r = await fetch('http://' + HOST + ':' + b2.port + '/api/cron', { headers: { 'X-StarNet-Token': tok } });

@@ -1,0 +1,62 @@
+{
+  "sourceFix": "086a74ba5d499f74d1829978291eeadeb22848f5",
+  "environment": "isolated seeded app in Chrome; voice callback exposed unchanged; model transport and upload controlled",
+  "before": {
+    "delayedReply": {
+      "selectedBefore": "Reading and typing",
+      "draftBefore": "draft for reading session",
+      "selectedAfter": "Voice call",
+      "draftAfter": ""
+    },
+    "uploadRace": {
+      "sentSession": "other",
+      "sentText": "origin message",
+      "draftAfter": ""
+    }
+  },
+  "after": {
+    "delayedReply": {
+      "selected": true,
+      "draft": "Draft for the reading session",
+      "bindingPreserved": true
+    },
+    "replyFollowup": {
+      "selectedSessionReceived": true,
+      "callSessionReceived": false
+    },
+    "currentRequest": {
+      "accepted": true,
+      "selected": true
+    },
+    "backgroundRequest": {
+      "refused": true,
+      "createRefused": true,
+      "noPartialCreate": true,
+      "selected": true,
+      "draft": "Draft kept through background commands"
+    },
+    "returnToOldRun": {
+      "refused": true
+    },
+    "currentDraft": {
+      "refused": true,
+      "draft": "Unsent follow-up"
+    },
+    "uploadNavigation": {
+      "selected": true,
+      "draft": "Keep this separate draft",
+      "crossPosted": false,
+      "submitted": false
+    },
+    "errors": []
+  },
+  "mirrorFix": "697126681",
+  "validation": {
+    "fullGateCandidate": "0d99faf75",
+    "fast": "734/734, exit 0",
+    "http": "107/107, exit 0",
+    "customerJourneys": "33/33, exit 0 before trunk sync",
+    "live": "repeated after trunk sync, zero page errors",
+    "lateSync": "33f726cae: independent image-intent change; incremental checks recorded separately"
+  }
+}

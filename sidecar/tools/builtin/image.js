@@ -154,6 +154,7 @@
     deps = deps || {};
     const or = deps.openrouter || {};
     const apiKey = or.apiKey || deps.apiKey || '';
+    const providerLabel = or.provider === 'starnet' ? 'StarNet' : 'OpenRouter';
     const orBaseUrl = String(or.baseUrl || deps.baseUrl || '').trim().replace(/\/+$/, '');
     const orUrl = orBaseUrl ? orBaseUrl + '/chat/completions' : DEFAULT_OR_URL;
     const fsp = deps.fsp, P = deps.pathMod, ROOT = deps.root;
@@ -177,7 +178,7 @@
     }
 
     async function orPost(body, timeoutMs) {
-      if (!apiKey) throw new Error('STUDIO image generation is unavailable: no OpenRouter API key is connected. Open SETTINGS > PROVIDERS and connect OpenRouter, then retry; no image was produced.');
+      if (!apiKey) throw new Error('STUDIO image generation is unavailable: no media connection is configured. Open SETTINGS and link this station to your StarNet account, then retry; no image was produced.');
       const res = await withTimeout(signal => doFetch(orUrl, {
         method: 'POST',
         headers: { 'Authorization': 'Bearer ' + apiKey, 'Content-Type': 'application/json', 'HTTP-Referer': 'https://starnet.local', 'X-Title': 'STARNET' },
@@ -186,7 +187,7 @@
       }).then(async r => ({ status: r.status, json: await r.json().catch(() => null), text: null })), timeoutMs);
       if (res.status < 200 || res.status >= 300) {
         const errMsg = res.json && res.json.error && (res.json.error.message || res.json.error) || ('http ' + res.status);
-        throw new Error('OpenRouter ' + res.status + ': ' + (typeof errMsg === 'string' ? errMsg : JSON.stringify(errMsg)));
+        throw new Error(providerLabel + ' ' + res.status + ': ' + (typeof errMsg === 'string' ? errMsg : JSON.stringify(errMsg)));
       }
       return res.json || {};
     }

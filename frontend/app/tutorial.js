@@ -1126,7 +1126,7 @@ const Tutorial = (() => {
       + fmEntry('MISSING TOOL', 'Check ability &amp; reach', 'Inspect the agent in <b>CREW › AGENTS</b>. In <b>BUILD › ABILITIES</b>, check toolsets and connector status. Equipment, permissions, service sign-in, and operating-system access each affect what can run.')
       + fmEntry('COLD LINE', 'Inspect feed, bay, and route', 'In REFIT, check the inbox feed, bay assignment, room computer, and belt connections. A sample crate moving does not establish that a real job ran.')
       + fmEntry('WHERE IS IT?', 'Find the session or output', 'Return to <b>COMMS › Sessions</b> for the conversation. Open <b>WORK › DELIVERABLES</b> for generated files and apps. Check <b>TASKS</b> if it was planned board work.')
-      + fmEntry('STOP', 'Interrupt work', 'Use the stop control in COMMS for the current run. Use the station’s <b>E-STOP</b> for an emergency halt. Stopping a run does not undo actions it already completed; inspect the result before starting again.')
+      + fmEntry('STOP', 'Interrupt work', 'Use the stop control in COMMS for the current run. Stopping a run does not undo actions it already completed; inspect the result before starting again.')
       + '<div class="fm-actions">' + fmAction('settings', 'OPEN SETTINGS') + fmAction('comms', 'RETURN TO COMMS') + '</div>';
   }
   function fillFieldManual(body) {

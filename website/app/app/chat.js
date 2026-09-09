@@ -31,6 +31,7 @@ const Chat = (() => {
   let attachInput = null, attachStrip = null;   // ATTACHMENTS: the hidden <input type=file> + the composer preview strip
   let pendingAtts = [];   // ATTACHMENTS: files staged in the composer for the NEXT send — { name, kind, localUrl, status, ref }
   let system = '', name = 'AGENT', activeWs = null;
+  let focusVersion = 0;   // invalidates run-owned navigation after the Commander leaves a session
   // TIER D · D1 WARMTH (2026-07-02): COMMS is a persistent panel, so setChatFocus never clears — the focused
   // body would otherwise chat-stare (track your cursor) forever. world.js decays the stare after a random
   // 30-90s warmth window (drawn fresh per engagement — unpredictable by design); this re-warms it on the genuine
@@ -619,6 +620,7 @@ const Chat = (() => {
   function recallInto(v) { input.value = v; autoGrowInput(); try { input.setSelectionRange(v.length, v.length); } catch (_) {} }
 
   function init(opts) {
+    focusVersion++;   // reinitialization cannot revive a focus request from the previous UI lifetime
     system = opts.system || ''; name = opts.name || 'AGENT';
     sentHistory.length = 0; histIdx = -1; histDraft = '';   // recall never crosses a session/agent switch
     onTurn = opts.onTurn || null; interview = null;
@@ -775,6 +777,7 @@ const Chat = (() => {
   // typo'd/unknown slash commands (a LOCAL system line, never a paid model turn), type-ahead queueing while busy,
   // and settling in-flight uploads so a staged file is never silently dropped.
   async function submitComposer() {
+    const submissionWs = activeWs, submissionFocusVersion = focusVersion;
     const t = input.value.trim();
     const hasStaged = pendingAtts.length > 0;   // ANY staged file (uploading or ready) makes this a valid send
     if (!t && !hasStaged) return;
@@ -809,7 +812,7 @@ const Chat = (() => {
     if (activeWs?.conversationMode === 'group' && typeof GroupChat !== 'undefined') {
       const ws = activeWs;
       if (hasStaged) await settleAttachments();
-      if (activeWs?.id !== ws.id) return;
+      if (activeWs?.id !== ws.id || focusVersion !== submissionFocusVersion) return;
       const atts = pendingAtts.filter(entry => entry.status === 'ready' && entry.ref).map(entry => entry.ref);
       const sent = await GroupChat.sendText(t, { attachments: atts, attachmentAgent: ws.agentId });
       if (sent && activeWs?.id === ws.id) { takeAttachments(); if (input.value.trim() === t) input.value = ''; closeSlash(); autoGrowInput(); }
@@ -820,6 +823,7 @@ const Chat = (() => {
     // SETTLE UPLOADS: a staged attachment still uploading must not be silently dropped — uploads to the local
     // sidecar are near-instant, so we AWAIT them before snapshotting. A failed one already notified per-file.
     if (hasStaged) await settleAttachments();
+    if (activeWs !== submissionWs || focusVersion !== submissionFocusVersion) return;
     const atts = takeAttachments();   // snapshot the READY refs + clear the composer strip
     if (!t && !atts.length) return;   // everything failed to upload and there's no text → nothing to send
     input.value = ''; closeSlash(); autoGrowInput();   // COMPOSER: collapse back to one line after a send
@@ -1226,7 +1230,9 @@ const Chat = (() => {
   function load(ws) {
     const historyPin = ++historyPinSeq;
     historyPinPending = historyPin;
-    activeWs = ws || (typeof Workstreams !== 'undefined' ? Workstreams.active() : null);
+    const nextWs = ws || (typeof Workstreams !== 'undefined' ? Workstreams.active() : null);
+    if (activeWs?.id !== nextWs?.id) focusVersion++;
+    activeWs = nextWs;
     if (activeWs && activeWs.conversationMode === 'group' && typeof GroupChat !== 'undefined') {
       loadGroupConversation(activeWs);
       return; // Group history/recovery is backend-owned; never auto-resume it through the direct-run path.
@@ -2536,6 +2542,11 @@ const Chat = (() => {
     // drives; phase 2 holds the run until they click Done. Password honesty is part of the card copy.
     if (t === 'browser.login') return 'open a browser window so YOU can log in to ' + (ev.argsSummary || 'a website') + ' (you type your password in that window — the agent never sees it)';
     if (t === 'browser.login.done') return 'wait while you log in to ' + (ev.argsSummary || 'the website') + ' in the browser window — click Done here when you\'ve finished';
+    if (/^fs[._](?:write|append|edit|patch)$/.test(t)) {
+      let target = ev.argsSummary || 'a file';
+      try { target = JSON.parse(target).path || 'a file'; } catch (_) {}
+      return 'change ' + target;
+    }
     if (/write|append|edit/.test(t)) return 'write ' + (ev.argsSummary || 'a file');
     if (t === 'brief.ask') return 'ask you a quick question about the task';   // clarify card renders its own body
     return t.replace(/_/g, '.') + (ev.argsSummary ? ' ' + ev.argsSummary : '');
@@ -2674,6 +2685,12 @@ const Chat = (() => {
     if (p && p.tool === 'brief.ask') return clarifyRow(p, ws);   // a question, not a grade — its own card
     const r = row('agent'); r.d.classList.add('tool'); r.d.classList.add('consent');
     r.body.appendChild(document.createTextNode('▣ ' + name + ' wants to ' + actionPhrase(p) + ' '));
+    if (/^fs[._](?:write|append|edit|patch)$/.test(String(p.tool || ''))) {
+      const detail = document.createElement('details'); detail.className = 'consent-payload';
+      const label = document.createElement('summary'); label.textContent = 'Inspect proposed change (secret patterns redacted)';
+      const payload = document.createElement('pre'); payload.textContent = p.argsSummary || '(payload unavailable)';
+      detail.appendChild(label); detail.appendChild(payload); r.body.appendChild(detail);
+    }
     const btns = document.createElement('span'); btns.className = 'consent-btns';
     let decided = false;
     async function decide(decision, doneLabel, isDeny) {
@@ -2880,6 +2897,7 @@ const Chat = (() => {
   // render the rate-the-work control into `host` (a span/div). onSettle fires after the verdict flashes.
   const WORKRATE_COACH_KEY = 'starnet.workrate.seen';
   function workRateControl(host, agentId, runId, onSettle) {
+    host.setAttribute('data-rate-run', runId);
     // one-time explainer: the FIRST rate surface a Commander ever sees gets one honest line about what a
     // verdict does (👍 mints size-weighted XP + raises satisfaction/trust; 👌/👎 only move the satisfaction
     // meter, never XP, never a penalty — see xp.js scoreEvent/verdictQuality). Retired permanently after one
@@ -2899,7 +2917,13 @@ const Chat = (() => {
     // already routes by the agentId param; the label must agree with it (truthful telemetry).
     let ratee = name;
     try { if (typeof App !== 'undefined' && App.agentName) ratee = App.agentName(agentId || 'agent') || name; } catch (_) {}
+    const ratedMeta = runMeta(runId);
+    const ratedWork = runWork.get(runId);
+    const ratedTask = String((ratedMeta && ratedMeta.directive) || (ratedWork && ratedWork.title) || '').replace(/\s+/g, ' ').trim();
     lbl.textContent = '◈ rate ' + ratee + '’s work — ';
+    const ref = document.createElement('div'); ref.className = 'work-rate-reference';
+    ref.textContent = (ratedTask ? ratedTask.slice(0, 240) + (ratedTask.length > 240 ? '…' : '') + ' · ' : '') + 'run ' + runId;
+    host.appendChild(ref);
     const btns = document.createElement('span'); btns.className = 'consent-btns';
     host.appendChild(lbl); host.appendChild(btns);
     let done = false;
@@ -2911,7 +2935,7 @@ const Chat = (() => {
       if (!accepted || !accepted.ok) {
         done = false;
         buttons.forEach(b => { b.disabled = false; });
-        try { if (typeof StationUI !== 'undefined' && StationUI.notify) StationUI.notify('Rating was not saved — try again.', 'bad'); } catch (_) {}
+        try { if (typeof StationUI !== 'undefined' && StationUI.notify) StationUI.notify((accepted && accepted.error) || 'Rating was not saved — try again.', 'bad'); } catch (_) {}
         return;
       }
       btns.remove();
@@ -2935,6 +2959,17 @@ const Chat = (() => {
   }
   // STANDALONE rate-the-work beat (when a run produced NO memory proposal) — its own gold-inset row in the ONE
   // post-run slot. Hero-only, mirroring the curiosity/suggestion beats.
+  function retirePriorRatings(streamId) {
+    if (!log) return;
+    for (const host of log.querySelectorAll('[data-rate-run]')) {
+      const meta = runMeta(host.getAttribute('data-rate-run'));
+      if (!meta || meta.streamId !== streamId) continue;
+      const standalone = host.closest('.work-rate');
+      if (standalone && beatCards) beatCards.expire('rate');
+      // Retire only the rating controls; a memory proposal keeps its own lifecycle.
+      host.remove();
+    }
+  }
   function workRateBeat(agentId, runId) {
     if (!log) return false;
     clearNudge();   // claim the one post-run beat slot, retiring any prior gentle nudge
@@ -2971,8 +3006,16 @@ const Chat = (() => {
      as a scored candidate instead of racing it in on an arm delay. Same three verdicts as
      maybeStandaloneRate, except the free moment answers 'ready' instead of rendering — every gate below is
      byte-identical to the pre-spine ladder. */
+  function ratingRunSuperseded(runId) {
+    const origin = runMeta(runId);
+    const stream = origin && origin.streamId && typeof Workstreams !== 'undefined' ? Workstreams.get(origin.streamId) : null;
+    return !!(stream && stream.runIds && stream.runIds.length && stream.runIds[stream.runIds.length - 1] !== runId);
+  }
   function rateStatus(agentId, runId) {
     if (!log || !runId || workRatedRuns.has(runId)) return 'never';
+    if (ratingRunSuperseded(runId)) return 'never';
+    const origin = runMeta(runId);
+    if (origin && origin.streamId && activeWs && activeWs.id !== origin.streamId) return 'blocked';
     // S1 SPECIALIST RATE-STARVE FIX. This was hero-only, which starved every summoned specialist of the PRIMARY
     // leveling beat: an interactive run in a specialist-bound workstream could only ever be rated if it happened
     // to also produce a memory turn-in card (the one other control that routes by the run's own agentId). So a
@@ -3830,7 +3873,7 @@ const Chat = (() => {
     head.body.appendChild(queueNote);
     head.body.appendChild(slot);
     // RATE THE WORK first (the primary leveling beat), THEN curate memories below — two honest judgments, one card.
-    if (batch.runId && !workRatedRuns.has(batch.runId)) {
+    if (batch.runId && !workRatedRuns.has(batch.runId) && !ratingRunSuperseded(batch.runId)) {
       const rate = document.createElement('div'); rate.className = 'turnin-rate';
       head.body.insertBefore(rate, slot);
       workRateControl(rate, batch.agentId || 'agent', batch.runId, () => vanish(rate));
@@ -4972,7 +5015,7 @@ const Chat = (() => {
       followedUp.add(runId);
       clearNudge();
       const r = row('agent'); r.d.classList.add('nudge');
-      r.body.textContent = (verdict === 'miss' ? '▼ what missed?' : '◆ what would have made it a hit?') + ' — one tap and every agent here works that way from now on.';
+      r.body.textContent = (verdict === 'miss' ? '▼ what missed?' : '◆ what would have made it a hit?') + ' — feedback for run ' + runId + '. One tap updates the briefing for future runs.';
       autoscroll();
       const meta = runMeta(runId);
       const choiceRow = choices(VerdictFollowup.chips(verdict), item => {
@@ -8038,6 +8081,7 @@ const Chat = (() => {
     // own triggering turn — that loop simply wasn't running yet when the turn started.
     const goalActiveAtStart = !goalContinuation && typeof GoalLoop !== 'undefined' && (() => { const g = goalOf(activeWs); return !!(g && GoalLoop.isActive(g)); })();
     if (interview) { clearChoices(); interview(text); return; }   // THE AWAKENING owns the input: typed answers retire any stale chip row
+    const runFocusVersion = focusVersion;
     const ws = activeWs;   // CAPTURE the origin stream now — a mid-run switch must not cross-post its cost/files
     if (!ws) return;
     // CONCURRENT SESSIONS: no agent-global preflight refusal — a peer run on this agent is allowed to coexist
@@ -8189,7 +8233,9 @@ const Chat = (() => {
     };
     const speechToken = typeof Voice !== 'undefined' && Voice.replyToken ? Voice.replyToken() : undefined;
     const speechOpts = { replyToken: speechToken, agentId: ws.agentId };
+    let speechTimer = null, speechPendingSince = 0;
     const pushSpeech = (finalize, finalText) => {
+      clearTimeout(speechTimer); speechTimer = null;
       // Ownership is checked again for every chunk. A voice-commanded rebind can happen while an
       // older run is still streaming; none of its late words may leak into the new call owner.
       if (typeof Voice === 'undefined' || !willSpeak || !speechOwner() || !Voice.speakChunk) return;
@@ -8197,26 +8243,29 @@ const Chat = (() => {
       const pending = src.slice(spokenIdx);
       if (!pending) return;
       if (finalize) { if (pending.trim()) { Voice.speakChunk(pending, name, speechOpts); spokenIdx = src.length; } return; }
+      if (!speechPendingSince) speechPendingSince = Date.now();
       let cut = -1;
-      if (spokenIdx === 0) {
-        // FIRST chunk: get him talking ASAP — flush on the earliest clause boundary (comma/dash/colon/
-        // sentence end), or after just a few words if none has appeared, so the voice starts almost as soon
-        // as he begins typing instead of waiting for a whole sentence + its synth round-trip.
-        const clause = /[,;:—–-]\s|[.!?…]+["')\]]?\s/.exec(pending);
-        if (clause) cut = clause.index + clause[0].length;
-        else if (pending.length >= 18) { const ls = pending.lastIndexOf(' '); if (ls > 0) cut = ls + 1; }   // ~3-4 words → flush at a word boundary
-        if (cut < 0) { if (pending.length < 48) return; cut = pending.length; }
-      } else {
-        // later chunks: complete sentence(s) for natural prosody. Require trailing whitespace after the
-        // terminator so a decimal/abbreviation at the buffer edge ("3." / "e.g.") isn't spoken early.
-        const re = /[.!?…]+["')\]]?\s/g; let m;
-        while ((m = re.exec(pending)) !== null) cut = re.lastIndex;
-        if (cut < 0) { const clause = /[,;:—–]\s/.exec(pending);
-          if (clause && clause.index >= 24) cut = clause.index + clause[0].length;
-          else { if (pending.length < 100) return; cut = pending.lastIndexOf(' '); if (cut < 1) return; } }   // runaway guard
+      // Prefer complete sentences. A timer also flushes a substantial clause when token delivery stalls.
+      const sentence = /[.!?…]+["')\]]?\s/g; let match;
+      while ((match = sentence.exec(pending)) !== null) {
+        const prefix = pending.slice(0, match.index + 1);
+        if (/\b(?:Mr|Mrs|Ms|Dr|Prof|Sr|Jr|vs|etc|e\.g|i\.e)\.$/i.test(prefix) || /\b[A-Z]\.$/.test(prefix)) continue;
+        cut = sentence.lastIndex;
+      }
+      const remainingWait = 1200 - (Date.now() - speechPendingSince);
+      if (cut < 0 && (remainingWait <= 0 || pending.length >= 700)) {
+        const clause = /[,;:—–]\s/g;
+        while ((match = clause.exec(pending)) !== null) { if (match.index >= 60) cut = clause.lastIndex; }
+        if (cut < 0 && pending.length >= 100) cut = pending.lastIndexOf(' ');
+      }
+      if (cut < 1) {
+        if (remainingWait > 0) speechTimer = setTimeout(() => pushSpeech(false), remainingWait);
+        return;
       }
       const chunk = pending.slice(0, cut);
       if (chunk.trim()) { Voice.speakChunk(chunk, name, speechOpts); spokenIdx += cut; }
+      speechPendingSince = 0;
+      if (src.slice(spokenIdx).trim()) speechTimer = setTimeout(() => pushSpeech(false), 0);
     };
     try {
       const { text: reply, error, endReason, finishReason, completionVerdict, effectVerdict, budgetScope, budgetCapUsd } = await Harness.chat({
@@ -8230,9 +8279,9 @@ const Chat = (() => {
         projectRoot: ws.projectRoot || undefined,   // project-anchored session: the sidecar injects the folder context ONLY if the root is still a standing blessed grant (truthful)
         placed: (typeof World !== 'undefined' && World.heroCaps) ? World.heroCaps(ws.agentId || 'agent') : [],   // THE MOAT: this run's TOOL reach = the agent's REAL placed props (dish→web · cabinet→files · workbench→terminal · …); compute is the freebie
         stationPlaced: (typeof World !== 'undefined' && World.stationCaps) ? World.stationCaps() : [],   // Class Loadouts (shared-gear): station-wide gear for SKILL availability — a desk-only specialist still gets its class skills when the STATION has the gear (tools stay room-scoped via `placed`)
-        onRunId: id => { thisRunId = id; if (retryDirectiveTurn && !retryDirectiveTurn.sourceRunId) retryDirectiveTurn.sourceRunId = id; if (starterId) StarterStore.started(starterId, id); runStartedAt = Date.now(); try { RUN_META.set(id, { isTask: !!isTask, title: (ws && ws.title) || '', directive: String(text || ''), correctionOf: correctionOf, intentOfferText: intentOfferText, fromRecipe: fromRecipe, recipeId: recipeId, agentId: ws.agentId || 'agent', rec: recClaimRun(id, ws.agentId || 'agent') }); if (RUN_META.size > 60) RUN_META.delete(RUN_META.keys().next().value); } catch (_) {} Channels.setRunId(ws.id, id, Date.now()); if (walkedToDesk && Channels.setStatus) Channels.setStatus(ws.id, 'working…'); if (isActiveWs(ws)) { syncStatus(); renderPresence(); } if (typeof Workstreams !== 'undefined') { Workstreams.appendRun(ws.id, id); if (typeof App !== 'undefined' && App.refreshRail) App.refreshRail(); } },
+        onRunId: id => { retirePriorRatings(ws.id); thisRunId = id; if (retryDirectiveTurn && !retryDirectiveTurn.sourceRunId) retryDirectiveTurn.sourceRunId = id; if (starterId) StarterStore.started(starterId, id); runStartedAt = Date.now(); try { RUN_META.set(id, { streamId: ws.id, focusVersion: runFocusVersion, isTask: !!isTask, title: (ws && ws.title) || '', directive: String(text || ''), correctionOf: correctionOf, intentOfferText: intentOfferText, fromRecipe: fromRecipe, recipeId: recipeId, agentId: ws.agentId || 'agent', rec: recClaimRun(id, ws.agentId || 'agent') }); if (RUN_META.size > 60) RUN_META.delete(RUN_META.keys().next().value); } catch (_) {} Channels.setRunId(ws.id, id, Date.now()); if (walkedToDesk && Channels.setStatus) Channels.setStatus(ws.id, 'working…'); if (isActiveWs(ws)) { syncStatus(); renderPresence(); } if (typeof Workstreams !== 'undefined') { Workstreams.appendRun(ws.id, id); if (typeof App !== 'undefined' && App.refreshRail) App.refreshRail(); } },
         onToken: d => { acc += d; Channels.appendToken(ws.id, d); if (isActiveWs(ws)) { if (activeLiveRow) activeLiveRow.append(d); if (!isTask) World.say(acc); } if (willSpeak) pushSpeech(false); App.refreshUsage(); },
-        onTerminalReset: () => { acc = ''; spokenIdx = 0; Channels.setAcc(ws.id, ''); },
+        onTerminalReset: () => { clearTimeout(speechTimer); speechTimer = null; speechPendingSince = 0; acc = ''; spokenIdx = 0; Channels.setAcc(ws.id, ''); },
         onUsage: (u) => { if (u && u.model) ranModel = u.model; App.refreshUsage(); },
         // COMMS-PREMIUM: the Channels store still records the pre-formatted STRING (replay/switch-survival is
         // unchanged — replayChannel renders those via toolLine), but the LIVE surface renders a structured CHIP.
@@ -8563,6 +8612,7 @@ const Chat = (() => {
       if (titleOk && (firstTurn || (typeof Workstreams !== 'undefined' && Workstreams.needsModelTitle && Workstreams.needsModelTitle(ws.id)))) maybeRetitle(ws, text, finalReply);
       // flush any trailing spoken text and CLOSE the speech stream — the last chunk's end re-arms the
       // hands-free mic (this is the heartbeat for spoken turns; onTurnEnd covers silent/no-speech turns).
+      clearTimeout(speechTimer); speechTimer = null;
       if (willSpeak && speechOwner() && typeof Voice !== 'undefined' && Voice.endReply) {
         pushSpeech(true, finalReply);
         // VOICE-AWARE CHOICES: the choice itself is spoken as a natural question — question text only;
@@ -8793,12 +8843,20 @@ const Chat = (() => {
     return () => { killed = true; };
   }
 
-  // read-only lookup of a run's start-time metadata ({ isTask, title }) by runId, or null. Used by the proactive
-  // advice stores (pitchstore) to gate on a real task and to name the run that just finished. Never mutated outside.
+  // Only a still-current foreground run may honor model-driven navigation. Tool arguments alone
+  // cannot establish that the Commander is still looking at the conversation that asked for it.
+  function canFocusSession(origin) {
+    if (!origin || !activeWs || origin.streamId !== activeWs.id || !origin.runId) return false;
+    const meta = RUN_META.get(origin.runId);
+    return !!meta && meta.streamId === activeWs.id && meta.focusVersion === focusVersion
+      && Channels.isBusy(activeWs.id) && Channels.runIdOf(activeWs.id) === origin.runId
+      && !(input && input.value.trim()) && !pendingAtts.length;
+  }
+  // Read-only run metadata for advice stores and task attribution.
   function runMeta(id) { return (id && RUN_META.has(id)) ? RUN_META.get(id) : null; }
   // read-only: did this run do REAL work (>=1 successful tool call OR >=1 delivered product)? The same "real work
   // only" gate maybeStandaloneRate uses — so a pure-chat run is never bottle-offered. Used by App.runBottleInfo (R5).
   function runDidWork(id) { const w = id ? runWork.get(id) : null; return !!(w && ((w.toolsOk || 0) >= 1 || (w.delivered || 0) >= 1)); }
 
-  return { init, load, send, refreshStarters, sendOrQueue, continueConnectorTask, stopActive, status, localLine, broadcast, renderProse, setSystem, getHistory, contextRef, abort, isBusy, beatBusy: skillBeatBusy, beginInterview, endInterview, echoUser, prefill, autoGrowInput, choices, clearChoices, retireDeskPrompt, typeLine, nudge, clearNudge, offerCuriosity, offerFork, planGoalPath, briefingReceipt, runMeta, runDidWork, awayDigest, awayReview, awayRate, sampleCard, workshopReturn, refreshIdBar: renderIdBar, refreshGroupControls: updateControls, refreshAgentIdentity, setRosterStatus, askBudgetSpent, spendAsk };
+  return { init, load, send, refreshStarters, sendOrQueue, continueConnectorTask, stopActive, status, localLine, broadcast, renderProse, setSystem, getHistory, contextRef, abort, isBusy, beatBusy: skillBeatBusy, beginInterview, endInterview, echoUser, prefill, autoGrowInput, choices, clearChoices, retireDeskPrompt, typeLine, nudge, clearNudge, offerCuriosity, offerFork, planGoalPath, briefingReceipt, canFocusSession, runMeta, runDidWork, awayDigest, awayReview, awayRate, sampleCard, workshopReturn, refreshIdBar: renderIdBar, refreshGroupControls: updateControls, refreshAgentIdentity, setRosterStatus, askBudgetSpent, spendAsk };
 })();

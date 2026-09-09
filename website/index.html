@@ -130,7 +130,7 @@
       <li class="feat"><span class="f-glyph">&#8635;</span><h3>WORK SHARPENS ITSELF</h3><p>Rate a delivery and the next pass is built from what you valued. Routines compound instead of decaying.</p></li>
       <li class="feat"><span class="f-glyph">&#9790;</span><h3>NIGHT SHIFT</h3><p>The station keeps working while you're away &mdash; inside a leash you set (jobs per day, how far an action may reach), sandboxed by default, with an honest morning report and a decision ledger that records every overnight action <i>and the reason it fired</i>.</p></li>
       <li class="feat"><span class="f-glyph">&#9635;</span><h3>IT DRIVES A REAL BROWSER</h3><p>Agents don't guess from a search snippet &mdash; they navigate, read, click, and type on the live page, and report what the page actually said.</p></li>
-      <li class="feat"><span class="f-glyph">&#9993;</span><h3>REACH IT FROM ANYWHERE</h3><p>Pair Telegram, Discord, Slack, Matrix, or Signal and your station reports in and takes orders while you're out. One E-STOP &mdash; on screen or <kbd>Alt</kbd>+<kbd>H</kbd> &mdash; halts every live run everywhere, and every waiting chat is told so.</p></li>
+      <li class="feat"><span class="f-glyph">&#9993;</span><h3>REACH IT FROM ANYWHERE</h3><p>Pair Telegram, Discord, Slack, Matrix, or Signal and your station reports in and takes orders while you're out. Use the stop command in a connected chat to interrupt its current task.</p></li>
       <li class="feat"><span class="f-glyph">&#9835;</span><h3>TALK TO IT</h3><p>Hands-free Live Voice runs on a speech engine built into the app &mdash; no key, no account, and your voice never leaves the machine. Identical on every provider, because it doesn't use one.</p></li>
       <li class="feat"><span class="f-glyph">&#10070;</span><h3>AGENTS SUMMON AGENTS</h3><p>Give one agent a big job and it can dispatch subtasks to crew it summons, then fold the results back &mdash; you watch the whole tree run on the floor.</p></li>
       <li class="feat"><span class="f-glyph">&#9632;</span><h3>NOTHING FAKE, EVER</h3><p>The app never shows state the harness can't prove. No fake progress, no invented counters, real costs &mdash; an append-only ledger records every run's true spend.</p></li>
@@ -242,7 +242,7 @@ cd starnet &amp;&amp; npm install &amp;&amp; npm start</code></pre>
       </details>
       <details>
         <summary>Can it spend money without me noticing?</summary>
-        <p>No. Every conveyor line has a per-job budget ($2.00 unless you raise it, $50 ceiling) and an optional per-day cap; the BUDGET panel adds hard per-run, per-agent, per-day, and global caps the sidecar enforces against the real ledger. Night Shift is limited to a number of unattended jobs per day you choose, and the E-STOP halts everything at once.</p>
+        <p>No. Every conveyor line has a per-job budget ($2.00 unless you raise it, $50 ceiling) and an optional per-day cap; the BUDGET panel adds hard per-run, per-agent, per-day, and global caps the sidecar enforces against the real ledger. Night Shift is limited to a number of unattended jobs per day you choose. Use Stop in COMMS to interrupt the current task.</p>
       </details>
       <details>
         <summary>Why does my OS warn me during install?</summary>

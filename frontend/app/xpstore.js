@@ -293,9 +293,22 @@ const XpStore = (() => {
       res = await post('/api/growth/ratings', {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(Object.assign({}, rating || {}, { epoch: growthEpoch() }))
       });
-      body = res && res.ok ? await res.json() : null;
+      body = res ? await res.json() : null;
     } catch (_) { body = null; }
-    if (!body || !body.ok || !body.rating || !Array.isArray(body.rating.entries)) return { ok: false, error: (body && body.error) || 'rating was not saved' };
+    if (!res || !res.ok || !body || !body.ok || !body.rating || !Array.isArray(body.rating.entries)) {
+      const status = Number(res && res.status) || 0;
+      const reason = String(body && body.error || '');
+      // Read rejected responses too. Keep UI copy actionable without exposing arbitrary storage paths.
+      let error = 'Rating was not saved — try again.';
+      if (!res) error = 'Cannot reach the rating service — try again.';
+      else if (reason === 'station generation changed; reload before rating') error = 'Station changed — reload the app before rating this work.';
+      else if (reason === 'rateable run not found') error = 'This task is not in the saved run history, so it cannot be rated.';
+      else if (reason === 'run did not produce rateable agent work') error = 'This task did not finish with rateable work.';
+      else if (status === 401 || status === 403) error = 'Rating connection was rejected — reload the app and try again.';
+      else if (status === 503 || (body && body.growthUnavailable)) error = 'Rating history is unavailable — try again after restarting the app.';
+      else if (status >= 500) error = 'The rating service could not save this rating — try again.';
+      return { ok: false, error, status };
+    }
     let applied = false;
     for (const entry of body.rating.entries) {
       const result = onEvent('memory.feedback', entry, { noPersist: true });
