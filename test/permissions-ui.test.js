@@ -41,7 +41,7 @@ ok(/STATION_POSTURES[\s\S]{0,900}profile: 'station-gear'[\s\S]{0,900}profile: 't
 ok(/btn\.querySelector\('\.pp-name'\)\.textContent = 'SURE\? WHOLE COMPUTER'/.test(src),
   'FULL POWER keeps a two-press confirm, arming the NAME span so the card is not flattened');
 // everything that is not needed for a working, safe station is closed by default
-ok(/<details class="perm-fold" id="perm-advanced">/.test(src) && /<summary>Advanced — idle Safe Cell cleanup<\/summary>/.test(src),
+ok(/<details class="perm-fold" id="perm-advanced">/.test(src) && /<summary>Safe Cell maintenance<\/summary>/.test(src),
   'ADVANCED holds the idle-cell maintenance knob');
 // ONLY maintenance is folded. Every actual PERMISSION stays on screen: the master override outranks
 // every crew row (so it is the last thing that may hide), and a standing grant you cannot find is not

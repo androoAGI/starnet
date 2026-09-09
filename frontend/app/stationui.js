@@ -5665,6 +5665,8 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
   }
 
   function buildSettings(body) {
+    const settingsWindow = body.closest('.term');
+    if (settingsWindow) settingsWindow.classList.add('settings-console');
     refreshCodexConnectionStatus();
     refreshExtraOAuthStatus();   // the same live-status probe for the other keyless sign-ins (grok/kimi)
     refreshKeychainMode();   // learn keychain-vs-browser once, so the key-save confirmation can name the real store
@@ -5685,7 +5687,7 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
       '<div class="prov-list">' + providersHtml() + '</div>' +
       '<h4 class="ms-h">API KEYS</h4>' +
       '<div class="key-list">' + keysHtml() + '</div>' +
-      '<p class="set-about">Keys live locally on this machine and are sent only to the STARNET sidecar (127.0.0.1) per request — never anywhere else. They are shown masked; the full secret is never displayed. (The shipped desktop build moves keys behind the OS keychain.)</p>' +
+      '<p class="set-about">Credentials are saved locally and used to authenticate with the selected service. Saved keys stay masked. Desktop storage uses the OS keychain when available.</p>' +
       // STORE / MANAGED CREDITS — rendered ONLY when the sidecar reports a configured credits backend (/api/credits).
       // When credits aren't wired this stays an empty node (no dead card, no fake balance — the honesty law). wireCredits
       // fetches the real balance + history and the external purchase link; buying opens a browser tab, never an in-app form.
@@ -5729,11 +5731,11 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
       // honest, never an invented priority or a fake learned profile.
       '<h4 class="ms-h">DIRECTION <span class="dim">— where its unattended work should go</span></h4>' +
       '<div class="set-sub"><span class="set-sub-k">FOCUS</span><span class="set-sub-d" id="auto-focus">…</span></div>' +
-      '<div class="set-row ns-steer"><input id="auto-steer" class="key-input" type="text" autocomplete="off" placeholder="point it at a project folder, thread:&lt;id&gt;, or goal"><button class="bb xs" id="auto-steer-set">STEER</button><button class="bb xs" id="auto-steer-clear" style="display:none">CLEAR</button></div>' +
+      '<div class="set-row ns-steer"><input id="auto-steer" class="key-input" type="text" autocomplete="off" placeholder="Project folder, thread:&lt;id&gt;, or goal"><button class="bb xs" id="auto-steer-set">SET FOCUS</button><button class="bb xs" id="auto-steer-clear" style="display:none">CLEAR</button></div>' +
       '<div class="mc-hint">a steer outranks learned evidence (~7 days, or until cleared). It only redirects the unattended priority — no new access.</div>' +
       '<div class="set-sub"><span class="set-sub-k">OFF-LIMITS</span><span class="set-sub-d">it will never pick these on its own</span></div>' +
       '<div class="key-list" id="auto-avoid"><p class="set-about">reading directives…</p></div>' +
-      '<div class="set-row ns-steer"><input id="auto-avoid-ref" class="key-input" type="text" autocomplete="off" placeholder="a project folder, thread:&lt;id&gt;, or goal to rule out"><button class="bb xs" id="auto-avoid-add">RULE OUT</button></div>' +
+      '<div class="set-row ns-steer"><input id="auto-avoid-ref" class="key-input" type="text" autocomplete="off" placeholder="a project folder, thread:&lt;id&gt;, or goal to rule out"><button class="bb xs" id="auto-avoid-add">ADD EXCLUSION</button></div>' +
       '<div class="mc-hint">off-limits holds until you remove it. You can still work there yourself — it only stops the station choosing it unattended.</div>' +
       '<div class="set-sub"><span class="set-sub-k">LEARNED INTERESTS</span><span class="set-sub-d">what it thinks you keep coming back to</span></div>' +
       '<div class="key-list" id="auto-interests"><p class="set-about">reading interests…</p></div>' +
@@ -5776,7 +5778,7 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
       // re-ranks the night's ONE priority — it grants nothing and reaches nothing new (route-enforced).
       '<h4 class="ms-h">FOCUS</h4>' +
       '<div class="set-row ns-focus-row"><span id="ns-focus" class="dim">…</span></div>' +
-      '<div class="set-row ns-steer"><input id="ns-steer" class="key-input" type="text" autocomplete="off" placeholder="point it at a project folder, or type what to focus on"><button class="bb xs" id="ns-steer-set">STEER</button><button class="bb xs" id="ns-steer-clear" style="display:none">CLEAR</button></div>' +
+      '<div class="set-row ns-steer"><input id="ns-steer" class="key-input" type="text" autocomplete="off" placeholder="point it at a project folder, or type what to focus on"><button class="bb xs" id="ns-steer-set">SET FOCUS</button><button class="bb xs" id="ns-steer-clear" style="display:none">CLEAR</button></div>' +
       '<div class="mc-hint">a steer outranks learned evidence (~7 days, or until cleared). It only redirects the night’s one priority — no new access.</div>' +
       '<h4 class="ms-h">RECENT DECISIONS</h4>' +
       '<div class="key-list" id="ns-trail"><p class="set-about">reading the decision trail…</p></div>' +
@@ -5853,14 +5855,14 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
       // permission somebody might genuinely need to find; this is maintenance, so it is the one thing
       // that earns a fold. ONE fold, never a fold inside a fold.
       '<details class="perm-fold" id="perm-advanced">' +
-        '<summary>Advanced — idle Safe Cell cleanup</summary>' +
+        '<summary>Safe Cell maintenance</summary>' +
         '<div id="perm-exec-policy"></div>' +
       '</details>';
     const secBudget =
       // BUDGET — the four real USD spend caps the sidecar enforces over the ledger (perRun hard stop + soft
       // per-agent / per-day / global pools). Persisted server-side + applied live; a live spend readout below.
-      '<h4 class="ms-h">BUDGET <span class="dim">— real USD spend limits</span></h4>' +
-      '<p class="set-about">Hard money limits your agents cannot exceed. Enforced by the sidecar against the real spend ledger. <b>Leave blank or 0 for no cap.</b> Saved here on this machine; until you save, each limit follows its environment default.</p>' +
+      '<h4 class="ms-h">Spending limits <span class="dim">— in USD</span></h4>' +
+      '<p class="set-about">Limits apply to recorded agent spending. <b>Blank or 0 means no cap.</b> Changes take effect when you save; unsaved limits follow their environment defaults.</p>' +
       '<div id="budget-spend" class="set-row dim">reading spend…</div>' +
       '<div id="budget-pools"></div>' +   // soft-pool cap state + the one-click RESUME (only rendered when a pool is actually hit)
       '<div class="mc-form" id="budget-form">' +
@@ -5882,8 +5884,8 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
       // MODELS — the ordered FALLBACK CHAIN (P0-3). The primary model is chosen live in the COMMS model dock; this
       // sets what the loop tries NEXT if that model fails mid-run. Persisted server-side + applied live to every run
       // path (browser, cron, channels); env SKYNET_FALLBACK_MODELS is the default until you save one here.
-      '<h4 class="ms-h">MODELS <span class="dim">— fallback chain</span></h4>' +
-      '<p class="set-about">Your primary model is set in the COMMS model dock. If it <b>fails mid-run</b> — the provider is overloaded (502/503), errors (500), the model is unknown (404), or your key hits a rate-limit / billing / auth wall — the loop retries the same turn on the <b>next model in this list</b>, in order, instead of dying. A failover shows a <b>⤳ failover</b> notice + a LOGBOOK line so you can see it happen. Empty = no fallback. Saved here on this machine; the default comes from the environment.</p>' +
+      '<h4 class="ms-h">Backup models <span class="dim">— tried in order if your primary model fails</span></h4>' +
+      '<p class="set-about">Choose your primary model in COMMS. If it fails mid-run because of availability, authentication, billing, or rate limits, StarNet tries this list from top to bottom. <b>An empty list disables fallback.</b> Model changes appear in COMMS and the logbook.</p>' +
       '<div class="mc-form" id="fbc-form">' +
         '<div id="fbc-list" class="mc-list-fb"><div class="dim">reading chain…</div></div>' +
         '<div class="set-row"><select id="fbc-add" class="fbc-sel"><option value="">＋ add a model from the catalog…</option></select></div>' +
@@ -5898,8 +5900,8 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
       // model is a TIER indirection (DEEP / BALANCED / FAST); when summoned it resolves through this map. Left
       // at "(station default)" a tier inherits the model dock's primary, so this is purely opt-in. Saved per-machine
       // (localStorage) and read live by the summon path (app.resolveTierModel) — no rerun/rebuild needed.
-      '<h4 class="ms-h">CLASS TIER MODELS <span class="dim">— which model each class clearance summons on</span></h4>' +
-      '<p class="set-about">Every class carries a clearance <b>tier</b> — ◆◆◆ DEEP, ◆◆ BALANCED, or ◆ FAST. When you summon one, the tier resolves to a real model here. Leave a tier on <b>(station default)</b> and it inherits your primary model from the COMMS model dock. Pin a tier to give every DEEP-class agent a stronger model and every FAST-class agent a cheaper one, automatically. Saved on this machine; you can still re-pin any single agent afterward in its dossier.</p>' +
+      '<h4 class="ms-h">New agent defaults <span class="dim">— model choice by class tier</span></h4>' +
+      '<p class="set-about">Choose the model used when recruiting each class tier. <b>Station default</b> follows your primary model in COMMS. Existing agents keep their model; you can change an individual agent in its dossier.</p>' +
       '<div class="mc-form" id="tm-form">' +
         '<div class="set-row"><label for="tm-reasoning">◆◆◆ DEEP</label><select id="tm-reasoning" class="fbc-sel" data-tier="reasoning"><option value="">(station default)</option></select></div>' +
         '<div class="set-row"><label for="tm-balanced">◆◆ BALANCED</label><select id="tm-balanced" class="fbc-sel" data-tier="balanced"><option value="">(station default)</option></select></div>' +
@@ -5928,7 +5930,7 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
       // CUSTOM PHOSPHOR — hue + saturation derive a full palette live (moving either switches to CUSTOM);
       // GLOW is independent and scales the bloom on EVERY theme, presets included. All instant-save.
       '<h4 class="ms-h">CUSTOM PHOSPHOR <span class="dim">— dial in any colour</span></h4>' +
-      '<p class="set-about">Drag <b>HUE</b> or <b>SATURATION</b> to derive your own phosphor — the whole station recolours live. <b>GLOW</b> tames or boosts the CRT bloom on any theme, including the presets. <b>BRIGHTNESS</b> is the knob on the tube: it lifts the black level of the panel glass, so the panels brighten in your phosphor&rsquo;s own light — never toward white. 100% GLOW / 0% BRIGHTNESS is the shipped look.</p>' +
+      '<p class="set-about">Hue and saturation create a custom color. Glow controls the light around text; brightness lightens the panel glass. Changes preview and save immediately.</p>' +
       '<label class="set-slider"><span class="set-slider-name">HUE</span><input type="range" id="set-hue" class="set-hue-track" min="0" max="359" step="1" value="' + clampN(s.themeHue, 0, 359, 35) + '"><span class="set-slider-val" id="set-hue-val">' + clampN(s.themeHue, 0, 359, 35) + '°</span></label>' +
       '<label class="set-slider"><span class="set-slider-name">SATURATION</span><input type="range" id="set-sat" min="0" max="100" step="1" value="' + clampN(s.themeSat, 0, 100, 100) + '"><span class="set-slider-val" id="set-sat-val">' + clampN(s.themeSat, 0, 100, 100) + '%</span></label>' +
       '<label class="set-slider"><span class="set-slider-name">GLOW</span><input type="range" id="set-glow" min="0" max="150" step="5" value="' + clampN(s.themeGlow, 0, 150, 100) + '"><span class="set-slider-val" id="set-glow-val">' + clampN(s.themeGlow, 0, 150, 100) + '%</span></label>' +
@@ -5944,7 +5946,7 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
       // renderer below (SpaceBG.paintSample), never by a stand-in gradient, so a preview can
       // not promise a sky the station won't deliver — the same law the deck/wall swatches follow.
       '<h4 class="ms-h">BACKDROP <span class="dim">— where the station is</span></h4>' +
-      '<p class="set-about">The station is somewhere. Change where — in orbit, over open country, or landed on it. Each one is drawn live, not a picture, so the swatch is exactly what you get.</p>' +
+      '<p class="set-about">Choose the scene around your station. Each tile previews the actual backdrop.</p>' +
       '<div class="set-backdrops" id="set-backdrop">' +
       (typeof SpaceBG === 'undefined' ? '' : []
         .concat(SpaceBG.list())
@@ -5997,7 +5999,7 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
       // NOTIFICATIONS — per-category on/off + a notification sound toggle (P1-8). Each is HONORED at emit time in
       // notify(): a muted category is dropped before it ever reaches the panel/toast (not decorative).
       '<h4 class="ms-h">NOTIFICATIONS <span class="dim">— what pings you, and whether it chimes</span></h4>' +
-      '<p class="set-about">Turn off a category to stop those pings (panel + toast). Everything defaults on. A muted category is dropped at the source — nothing important is silently swallowed.</p>' +
+      '<p class="set-about">Choose which events appear in the notification panel and as pop-up alerts. Changes save immediately.</p>' +
       '<label class="set-row"><input type="checkbox" id="ntp-runComplete"' + (npf('runComplete') ? ' checked' : '') + '> RUN COMPLETE <span class="dim">— a run saved or made something</span></label>' +
       '<label class="set-row"><input type="checkbox" id="ntp-needsApproval"' + (npf('needsApproval') ? ' checked' : '') + '> NEEDS APPROVAL <span class="dim">— an agent is waiting on your yes/no</span></label>' +
       '<label class="set-row"><input type="checkbox" id="ntp-cronDigest"' + (npf('cronDigest') ? ' checked' : '') + '> AUTONOMOUS DIGEST <span class="dim">— what it did while you were away</span></label>' +
@@ -6020,14 +6022,14 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
       '<p class="set-about" id="lifecycle-desc">' + (lifecycleDesktop ? 'Checking what runs in the background…' : 'The desktop app can stay supervised in the system tray. This browser tab has no background process.') + '</p>' +
       // ADVANCED — env-only runtime knobs, now editable + persisted server-side (P1-9). PRECEDENCE is spelled out
       // in the card: an explicit environment variable ALWAYS wins over a value saved here (a deploy stays in control).
-      '<h4 class="ms-h">ADVANCED <span class="dim">— optional runtime limits (off by default)</span></h4>' +
+      '<h4 class="ms-h">Runtime limits <span class="dim">— optional ceilings and timeouts</span></h4>' +
       '<p class="set-about">StarNet does not limit agent concurrency or run iterations by default. Set a positive value only when you want a ceiling. Saved here on this machine and read by the sidecar at boot. <b>An environment variable always overrides a value saved here</b>. Blank a field to clear the override.</p>' +
       '<div class="mc-form" id="adv-form"><div class="dim" id="adv-loading">reading runtime settings…</div></div>' +
       '<div id="adv-msg" class="msg"></div>' +
       // DATA / STATION BACKUP — export the whole station config to one JSON file, import it back, reset a section.
       // Secrets NEVER leave the machine (configexport.js redacts to a configured-marker); import surfaces re-enter states.
       '<h4 class="ms-h">STATION BACKUP <span class="dim">— export / import your setup</span></h4>' +
-      '<p class="set-about">Save your whole station configuration — settings, budgets, model chains, connectors (without secrets), autonomy, placed-agent metadata — to one JSON file, and load it back on another machine. <b>Your keys and tokens are never included</b>; after importing you re-enter them once. A shareable station recipe.</p>' +
+      '<p class="set-about">Export your station configuration to a JSON file, or restore a saved configuration. <b>Keys and tokens are excluded</b> and must be entered again after importing.</p>' +
       '<div class="set-save">' +
         '<button class="bb sm" id="bk-export">EXPORT STATION</button>' +
         '<button class="bb sm" id="bk-import">IMPORT STATION…</button>' +
@@ -6067,7 +6069,58 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
       '<h4 class="ms-h">ABOUT</h4>' +
       '<p class="set-about">STARNET — gamified AI-agent harness.<br>Theme, display & audio preferences are saved locally on this machine. Manage planned tasks on the TASK BOARD and saved conversations under SESSIONS in COMMS.</p>';
 
-    const frag = html => (el => { el.innerHTML = html; });  // curried: fill a pane element with a fragment
+    // Keep every control mounted and reachable; group existing nodes without replacing their IDs.
+    function arrangeSettingsPane(el) {
+      el.classList.add('settings-pane');
+      const nodes = Array.from(el.children);
+      let group = null;
+      const groups = [];
+      nodes.forEach(node => {
+        if (!group || node.matches('h4.ms-h')) {
+          group = document.createElement('section');
+          group.className = 'settings-group';
+          el.appendChild(group);
+          groups.push(group);
+        }
+        group.appendChild(node);
+      });
+      // A short, visible table of contents jumps to real sections instead of hiding advanced options.
+      const named = groups.filter(g => g.querySelector('h4.ms-h'));
+      if (named.length > 2) {
+        const nav = document.createElement('nav');
+        nav.className = 'settings-jumps';
+        nav.setAttribute('aria-label', 'Jump to settings subsection');
+        named.forEach(g => {
+          const heading = g.querySelector('h4.ms-h');
+          const btn = document.createElement('button');
+          btn.type = 'button';
+          btn.textContent = (heading.firstChild.textContent || heading.textContent).replace(/—.*$/, '').trim();
+          btn.addEventListener('click', () => { heading.tabIndex = -1; heading.focus({ preventScroll: true }); g.scrollIntoView({ block: 'start', behavior: 'smooth' }); });
+          nav.appendChild(btn);
+        });
+        el.prepend(nav);
+      }
+      el.querySelectorAll('label.set-row, label.set-check').forEach(label => {
+        const input = label.querySelector('input[type="checkbox"]');
+        if (!input) return;
+        const copy = document.createElement('span');
+        copy.className = 'settings-toggle-copy';
+        Array.from(label.childNodes).forEach(node => { if (node !== input) copy.appendChild(node); });
+        label.appendChild(copy);
+        label.classList.add('settings-toggle-row');
+        input.setAttribute('role', 'switch');
+      });
+      // Show what each autonomy choice means without requiring hover or memorized terminology.
+      el.querySelectorAll('#auto-init button, #auto-reach button, #auto-pace button').forEach(btn => {
+        const help = btn.getAttribute('title');
+        if (!help) return;
+        const hint = document.createElement('span');
+        hint.className = 'settings-choice-help';
+        hint.textContent = help;
+        btn.appendChild(hint);
+      });
+    }
+    const frag = html => (el => { el.innerHTML = html; arrangeSettingsPane(el); });  // curried: fill a pane element with a fragment
     function wireLiveVoice(host) {
       const wrap = host && host.querySelector ? host.querySelector('#set-lv-voices') : null;
       if (!wrap) return;
@@ -6116,22 +6169,22 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
     let paintBackdropSwatches = () => {};
 
     const sections = [
-      { id: 'providers', label: 'PROVIDERS', glyph: '⌁', desc: 'Which AI services can run, and the API keys they use — stored on this machine only.', build: frag(secProviders) },
-      { id: 'autonomy', label: 'AUTONOMY', glyph: '◈', desc: 'How far your agents may act on their own between your messages — the initiative, reach, and pace dials.', build: frag(secAutonomy) },
-      { id: 'nightshift', label: 'NIGHT SHIFT', glyph: '☾', desc: 'What the station is doing unattended right now, and its recent decision trail.', build: frag(secNightShift) },
-      { id: 'permissions', label: 'PERMISSIONS', glyph: '⊘', desc: 'What each crew member can reach, whether it asks you first, how far it goes while you’re away, and everything you’ve already approved.', build: frag(secPermissions) },
-      { id: 'budget', label: 'BUDGET', glyph: '$', desc: 'Hard USD spend caps the sidecar enforces against the real ledger.', build: frag(secBudget) },
-      { id: 'models', label: 'MODELS', glyph: '⇄', desc: 'The fallback chain — what the loop retries on if your primary model fails mid-run.', build: frag(secModels) },
+      { id: 'providers', label: 'PROVIDERS', glyph: '⌁', desc: 'Connect an AI service and manage its saved credentials.', build: frag(secProviders) },
+      { id: 'autonomy', label: 'AUTONOMY', glyph: '◈', desc: 'Choose when agents start work, what they can do, and how often.', build: frag(secAutonomy) },
+      { id: 'nightshift', label: 'NIGHT SHIFT', glyph: '☾', desc: 'See unattended activity, its current focus, and recent decisions.', build: frag(secNightShift) },
+      { id: 'permissions', label: 'PERMISSIONS', glyph: '⊘', desc: 'Set access and approval rules for the station or individual agents.', build: frag(secPermissions) },
+      { id: 'budget', label: 'SPENDING LIMITS', glyph: '$', desc: 'Set spending limits and review recorded usage.', build: frag(secBudget) },
+      { id: 'models', label: 'MODEL DEFAULTS', glyph: '⇄', desc: 'Choose backup models and defaults for new agents.', build: frag(secModels) },
       // build, not frag: the pane is created lazily when the section is opened, so wiring at MOUNT time
       // ran before this element existed and left the list stuck on its placeholder. Paint it when it is born.
-      { id: 'livevoice', label: 'LIVE VOICE', glyph: '◍', desc: 'Built-in voices for your agents and hands-free conversations.', build: el => { el.innerHTML = secLiveVoice; wireLiveVoice(el); } },
+      { id: 'livevoice', label: 'LIVE VOICE', glyph: '◍', desc: 'Built-in voices for your agents and hands-free conversations.', build: el => { el.innerHTML = secLiveVoice; arrangeSettingsPane(el); wireLiveVoice(el); } },
       { id: 'appearance', label: 'APPEARANCE', glyph: '☀', desc: 'Room lighting, phosphor colour, CRT effects, and terminal sound.', build: frag(secAppearance), onShow: () => paintBackdropSwatches() },
       // NAV CONDENSE (2026-08-04) — two label renames, ids untouched (remembered-section keys + wiring
       // bind to the id): 'NOTIFICATIONS' collided with the SYSTEM-dock NOTIFICATIONS panel (inbox vs
       // preferences — same word, two doors), and a 'SYSTEM' section inside SETTINGS inside the SYSTEM
       // dock read as a loop.
       { id: 'notifs', label: 'ALERTS', glyph: '◔', desc: 'What pings you while you work, and whether it chimes.', build: frag(secNotifs) },
-      { id: 'system', label: 'RUNTIME', glyph: '⚙', desc: 'Keep-awake, advanced runtime limits, and station backup.', build: frag(secSystem) }
+      { id: 'system', label: 'APP & BACKUP', glyph: '⚙', desc: 'Startup, runtime limits, backups, updates, and troubleshooting.', build: frag(secSystem) }
     ];
     const host = mountConsole(body, 'settings', sections, { search: true, searchPlaceholder: 'search settings…' });
 
