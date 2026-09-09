@@ -53,6 +53,41 @@
   });
 
   const states = new Map();
+  const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)');
+  // Exactly one compositor animation owns a sheet. Superseded exits must never hide a restored window.
+  function cancelMotion(w, s) {
+    if (s.motion) { s.motion.onfinish = null; s.motion.cancel(); s.motion = null; }
+    w.style.willChange = '';
+  }
+  function moveSheet(w, s, showing, done = () => {}) {
+    const current = s.motion ? getComputedStyle(w) : null;
+    const from = current
+      ? {translate:current.translate, opacity:current.opacity}
+      : {translate:showing ? '0 64px' : '0 0', opacity:showing ? 0 : 1};
+    cancelMotion(w,s);
+    s.exiting = !showing;
+    w.inert = !showing;
+    if (showing) seat(w,s);
+    if (reducedMotion.matches) { done(); return; }
+    const style = getComputedStyle(w);
+    const duration = parseFloat(style.getPropertyValue('--t-med')) || 220;
+    w.style.willChange = 'translate, opacity';
+    const animation = w.animate([from, {translate:showing ? '0 0' : '0 64px', opacity:showing ? 1 : 0}], {
+      duration, easing:style.getPropertyValue(showing ? '--ease-out' : '--ease-soft').trim() || 'ease-out', fill:'both'
+    });
+    s.motion = animation;
+    animation.onfinish = () => {
+      if (s.motion !== animation) return;
+      s.motion = null;
+      w.style.willChange = '';
+      // Hide/remove before releasing the transparent frame, so there is no one-frame flash.
+      done();
+      animation.cancel();
+    };
+  }
+  reducedMotion.addEventListener('change', () => {
+    if (reducedMotion.matches) states.forEach(s => { if (s.motion) s.motion.finish(); });
+  });
   const zoom = () => Number.parseFloat(getComputedStyle(document.body).zoom) || 1;
   const rect = el => el && el.getBoundingClientRect();
   function band() {
@@ -63,18 +98,18 @@
     if (end - x < 520) { x = 12; end = innerWidth - 12; }
     return { x:x/z, width:(end-x)/z, top:((top ? top.bottom : 0)+10)/z, bottom:((bottom ? bottom.top : innerHeight)-10)/z };
   }
-  function seat(w, s, animate = false) {
-    if (!w.isConnected || w.classList.contains('term-min-hidden') || !s.docked) return;
-    const b = band(), available = Math.max(160,b.bottom-b.top);
+  function seat(w, s, animate = false, measuredBand) {
+    if (!w.isConnected || w._closing || s.exiting || w.classList.contains('term-min-hidden') || !s.docked) return;
+    const b = measuredBand || band(), available = Math.max(160,b.bottom-b.top);
     const h = s.expanded ? available : Math.min(available, Math.max(220, s.height || available * .56));
     w.style.animation = 'none'; w.style.transform = 'none';
-    Object.assign(w.style, {left:b.x+'px',top:(b.bottom-h)+'px',width:b.width+'px',height:h+'px',maxWidth:b.width+'px',maxHeight:available+'px'});
+    const geometry = {left:b.x+'px',top:(b.bottom-h)+'px',width:b.width+'px',height:h+'px',maxWidth:b.width+'px',maxHeight:available+'px'};
+    Object.entries(geometry).forEach(([key,value]) => { if(w.style[key] !== value) w.style[key] = value; });
     w.classList.add('term-moved','gd-docked');
     paintWindowButton(s.expand, s.expanded ? 'restore' : 'maximize', s.expanded ? 'Restore window size' : 'Maximize window');
     s.expand.setAttribute('aria-expanded',String(s.expanded));
     s.dock.hidden = true;
-    if (animate && !matchMedia('(prefers-reduced-motion: reduce)').matches)
-      w.animate([{translate:'0 65px',opacity:.25},{translate:'0 0',opacity:1}],{duration:260,easing:'ease-out'});
+    if (animate) moveSheet(w,s,true);
   }
   function attach(w) {
     if (states.has(w) || w.classList.contains('pw')) return;
@@ -82,6 +117,7 @@
     const s = {docked:true,expanded:false,height:null}; states.set(w,s);
     w.classList.add('gd-sheet');
     w._fitDockedSheet = () => { if (!s.docked) return false; seat(w,s); return true; };
+    w._animateSheet = (phase, done) => moveSheet(w,s,phase === 'restore',done);
     const controls = document.createElement('span'); controls.className = 'gd-controls';
     const button = (label, action) => {
       const b = document.createElement('button'); b.type='button'; b.textContent=label;
@@ -114,7 +150,7 @@
     pull.addEventListener('dblclick',e=>e.stopPropagation());
     pull.addEventListener('pointerdown',e=>{
       if(e.button!==0)return;
-      e.preventDefault();e.stopPropagation();s.docked=true;s.expanded=false;
+      e.preventDefault();e.stopPropagation();cancelMotion(w,s);s.docked=true;s.expanded=false;
       drag={y:e.clientY,h:w.getBoundingClientRect().height/zoom()};pull.setPointerCapture(e.pointerId);
     });
     pull.addEventListener('pointermove',e=>{
@@ -131,6 +167,11 @@
     });
     head.addEventListener('mousedown',e=>{
       if(e.target.closest('button'))return;
+      // Bake a partially entered sheet's visual position before the shared drag handler reads it.
+      if(s.motion) {
+        const r = w.getBoundingClientRect(), z = zoom();
+        cancelMotion(w,s);w.style.left=r.left/z+'px';w.style.top=r.top/z+'px';
+      }
       const startX=e.clientX, startY=e.clientY;
       let moved=false;
       const move=ev=>{
@@ -145,23 +186,26 @@
         if(!moved){w._lastDragMoved=false;seat(w,s);}
       },{once:true});
     },true);
-    s.visibility = new MutationObserver(records => {
-      if (records.some(r => (r.oldValue || '').split(' ').includes('term-min-hidden')) && !w.classList.contains('term-min-hidden'))
-        requestAnimationFrame(()=>seat(w,s));
-    });
-    s.visibility.observe(w,{attributes:true,attributeFilter:['class'],attributeOldValue:true});
-    requestAnimationFrame(()=>seat(w,s,true));
+    // Mutation delivery happens before paint: no centered CRT frame before docking.
+    seat(w,s,true);
   }
   const host=document.querySelector('#terms'); if(!host)return;
-  let queued=false;
   const update=()=>{
-    queued=false;
-    states.forEach((s,w)=>{if(!w.isConnected){s.visibility.disconnect();states.delete(w);}});
-    host.querySelectorAll('.term').forEach(w=>{if(!states.has(w))attach(w);else seat(w,states.get(w));});
+    states.forEach((s,w)=>{if(!w.isConnected){cancelMotion(w,s);states.delete(w);}});
+    host.querySelectorAll('.term').forEach(w=>{if(!states.has(w))attach(w);});
   };
-  new MutationObserver(()=>{if(!queued){queued=true;requestAnimationFrame(update);}}).observe(host,{childList:true});
-  const layout=new ResizeObserver(()=>states.forEach((s,w)=>seat(w,s)));
+  new MutationObserver(update).observe(host,{childList:true});
+  let layoutFrame = 0;
+  const queueLayout = () => {
+    if(layoutFrame) return;
+    layoutFrame = requestAnimationFrame(() => {
+      layoutFrame = 0;
+      const b = band();
+      states.forEach((s,w)=>seat(w,s,false,b));
+    });
+  };
+  const layout=new ResizeObserver(queueLayout);
   ['#topbar','#bottombar','#left','#chat-panel'].forEach(sel=>{const el=document.querySelector(sel);if(el)layout.observe(el);});
-  window.addEventListener('resize',()=>requestAnimationFrame(()=>states.forEach((s,w)=>seat(w,s))));
+  window.addEventListener('resize',queueLayout);
   update();
 })();

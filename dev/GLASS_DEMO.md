@@ -32,7 +32,7 @@ The current demo is keyless: browsing and UI controls work; real model runs need
 
 ## Implementation
 
-`frontend/app/glass-demo.js` is opt-in, with `frontend/css/glass-demo.css` loaded only for the demo URL. Two small window-manager hooks reuse minimize and allow a docked sheet to own its geometry without saved floating-window dimensions fighting it. The generated website mirror is synchronized.
+`frontend/app/glass-demo.js` is opt-in, with `frontend/css/glass-demo.css` loaded only for the demo URL. Window-manager hooks reuse minimize, let the docked sheet own its geometry, and route close/minimize/restore through its interruptible motion controller. The generated website mirror is synchronized.
 
 ## Live verification
 
@@ -50,3 +50,26 @@ The current demo is keyless: browsing and UI controls work; real model runs need
 ## Test receipt
 
 Both touched JavaScript files pass node --check. Window-minimize passed 20 assertions; control-floor theming passed 117. The canonical npm run test:fast exceeded its 900000 ms wrapper limit after test/g3btrophy.test.js (manifest line 561), with no assertion failure reported before termination. The full gate is INCOMPLETE; no merge or release was performed.
+
+
+## Motion refinement — 2026-09-09
+
+Close, minimize, and restore now share one interruptible glass-sheet animation. The old CRT squash/brightness animation is disabled for this opt-in shell. Completion removes/hides the window before releasing its final transparent frame; replacing an animation cancels its stale completion. Closing/minimizing windows are inert, and exiting sheets ignore layout observers. New sheets dock before the first paint. Rail resize events are batched once per frame and share one band measurement.
+
+Dock menus fade and move 8px in both directions. Closing menus become inert immediately; keyboard navigation reenables the destination before focusing it. Window buttons and section controls share the existing short motion tokens. Rapid restore/minimize replaces a departing disabled dock chip, so its old removal callback cannot strand the window without a restore button.
+
+Live checks on the final local demo:
+- Settings close sampled from opacity 1 / translate 0 to opacity 0.000115 / translate 63.993px, then removed. Transform and filter stayed none throughout: no vertical squash or brightness flash.
+- Settings minimize/restore returned a visible, non-inert sheet, with no legacy restore animation.
+- Maximize/restore controls remained reachable; close returned focus to SYSTEM.
+- Agent dossier opened with the same shell; Escape removed it. Switching to Settings left one correct window and an active scrim.
+- Keyboard SYSTEM → BUILD menu navigation focused the correct first destination; menus settled closed with display:none and inert.
+- Settings and dossier controls had zero matches for the native white/grey paint signatures.
+
+Checks:
+- Syntax checks passed for glass-demo.js, stationui.js, and navdock.js.
+- dev/glass-motion.test.cjs passed interrupted entrance/exit, stale callback suppression, completion ordering, reduced-motion, exit-layout, and rapid dock-chip replacement cases.
+- window-minimize 20, terminal-resize 16, terminal-position 43, control-floor 117, and website-app-sync 8 assertions passed; approval indicator regression also passed.
+- The resize source guard now checks operation order rather than a 500-character limit that the earlier docking hook exceeded.
+- Full npm run test:fast stopped at step 286/733: qa-product-perfect-claims.test.js (10 failures). A read against the pre-change committed baseline 2036bce8dfb64b8de03622a167d31dff9f22c198 confirmed its release manifest already rejects the demo's app.js, stationui.js, index.html and added paths. That release audit was not rewritten for a local design prototype. The full suite is not green.
+- Reduced-motion behavior was exercised in the deterministic controller test; the OS preference was not changed. No installed-app or release verification/merge.

@@ -696,6 +696,7 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
     let s = document.getElementById('term-scrim');
     const any = visibleCount() > 0;
     if (any && !s) { s = mkEl('div', 'term-scrim'); s.id = 'term-scrim'; host.insertBefore(s, host.firstChild); }
+    else if (any && s) { s.classList.remove('term-closing'); }
     else if (!any && s) { s.remove(); }
   }
 
@@ -728,7 +729,10 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
   }
   function addChip(key) {
     const strip = ensureStrip(); if (!strip) return;
-    if (strip.querySelector('.term-chip[data-key="' + CSS.escape(key) + '"]')) return;   // no dup
+    const previous = strip.querySelector('.term-chip[data-key="' + CSS.escape(key) + '"]');
+    if (previous && !previous.classList.contains('out')) return;   // no duplicate live chip
+    // A rapid restore → minimize must replace the departing, disabled chip. Its old callback owns only that node.
+    if (previous) previous.remove();
     const title = chipTitle(key);
     const chip = mkEl('button', 'term-chip');
     chip.dataset.key = key;
@@ -782,8 +786,11 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
     };
     let hidden = false;
     const onEnd = () => { if (hidden) return; hidden = true; hide(); };
-    w.addEventListener('animationend', onEnd, { once: true });
-    setTimeout(onEnd, 240);   // fallback
+    if (w._animateSheet) w._animateSheet('minimize', onEnd);
+    else {
+      w.addEventListener('animationend', onEnd, { once: true });
+      setTimeout(onEnd, 240);   // fallback
+    }
     if (w.contains(active)) {
       // hand focus to the dock GROUP trigger (always visible), NOT the in-menu item (it lives in a
       // display:none popover when the dock is closed — focusing a hidden node silently drops to <body>).
@@ -812,15 +819,16 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
     // land it back at the remembered spot (or CSS-centre if never moved), lift to top, replay power-on.
     placeTerm(w, key);
     w.style.zIndex = U.zTop();
-    // replay the CRT power-on: clear the inline animation override, restart the base .term-power.
-    w.style.animation = '';
-    void w.offsetWidth;
-    w.classList.add('term-restoring');
-    // Do not expose the base .term power-on animation again when this one-shot class is removed.
-    // A resized/moved window would otherwise replay the centered keyframes and jump off-screen.
-    const clearRestore = () => { w.classList.remove('term-restoring'); w.style.animation = 'none'; fitTermInViewport(w, key, true); };
-    w.addEventListener('animationend', clearRestore, { once: true });
-    setTimeout(clearRestore, 460);
+    if (w._animateSheet) w._animateSheet('restore', () => fitTermInViewport(w, key, true));
+    else {
+      // The ordinary window shell retains its CRT power-on.
+      w.style.animation = '';
+      void w.offsetWidth;
+      w.classList.add('term-restoring');
+      const clearRestore = () => { w.classList.remove('term-restoring'); w.style.animation = 'none'; fitTermInViewport(w, key, true); };
+      w.addEventListener('animationend', clearRestore, { once: true });
+      setTimeout(clearRestore, 460);
+    }
     // focus back onto the restored dialog itself (not its first control)
     try { w.focus(); } catch (_) {}
     syncScrim();
@@ -854,8 +862,11 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
       const done = () => { if (w.isConnected) w.remove(); };
       let removed = false;
       const onEnd = () => { if (removed) return; removed = true; done(); };
-      w.addEventListener('animationend', onEnd, { once: true });
-      setTimeout(onEnd, 320);   // fallback if animationend never fires (reduced-motion / detached)
+      if (w._animateSheet) w._animateSheet('close', onEnd);
+      else {
+        w.addEventListener('animationend', onEnd, { once: true });
+        setTimeout(onEnd, 320);   // fallback if animationend never fires (reduced-motion / detached)
+      }
       // fade the scrim out in step when this was the last VISIBLE window (any still-minimized don't count)
       const s = document.getElementById('term-scrim');
       if (s && visibleCount() === 0) {

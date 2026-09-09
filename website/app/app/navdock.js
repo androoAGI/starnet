@@ -52,6 +52,7 @@
       if (g === except) return;
       const wasOpen = g.classList.contains('open');
       g.classList.remove('open');
+      const menu = g.querySelector('.bb-menu'); if (menu) menu.inert = true;
       const t = g.querySelector('.bb-grp');
       if (t) t.setAttribute('aria-expanded', 'false');
       // a11y: if focus was inside the popover we just closed, hand it back to the trigger
@@ -66,6 +67,7 @@
     const willOpen = !g.classList.contains('open');
     closeAll(g);
     g.classList.toggle('open', willOpen);
+    const menu = g.querySelector('.bb-menu'); if (menu) menu.inert = !willOpen;
     const t = g.querySelector('.bb-grp');
     if (t) t.setAttribute('aria-expanded', String(willOpen));
     if (willOpen) {

@@ -320,3 +320,31 @@ body.glass-demo #left .ws-dot.approval {
 @media (prefers-reduced-motion: reduce) {
   body.glass-demo #left .ws-dot.approval { animation: none; opacity: 1; box-shadow: 0 0 3px var(--bad); }
 }
+
+/* One sheet motion owner. Never mix the legacy CRT squash/brightness with sliding glass. */
+body.glass-demo .term:not(.pw) { animation: none !important; }
+body.glass-demo .gd-sheet { transition: none; }
+body.glass-demo .gd-sheet[inert] { pointer-events: none; }
+body.glass-demo .gd-sheet :is(.gd-window-button,.term-x,.con-item),
+body.glass-demo #screen-game #bottombar .bb-menu .bb {
+  transition: color var(--t-fast) var(--ease-soft), background-color var(--t-fast) var(--ease-soft),
+    border-color var(--t-fast) var(--ease-soft), box-shadow var(--t-fast) var(--ease-soft);
+}
+/* Display keeps closed menus out of layout; transform/opacity carry both directions.
+   Without discrete-transition support, dismissal still works immediately. */
+body.glass-demo #screen-game #bottombar .bb-menu {
+  display: none; opacity: 0; transform: translateY(8px); animation: none;
+  transition: opacity var(--t-fast) var(--ease-soft), transform var(--t-fast) var(--ease-out),
+    display var(--t-fast) allow-discrete;
+}
+body.glass-demo #screen-game #bottombar .bb-group.open .bb-menu {
+  display: flex; opacity: 1; transform: translateY(0);
+}
+@starting-style {
+  body.glass-demo #screen-game #bottombar .bb-group.open .bb-menu { opacity: 0; transform: translateY(8px); }
+}
+@media (prefers-reduced-motion: reduce) {
+  body.glass-demo #screen-game #bottombar .bb-menu,
+  body.glass-demo .gd-sheet :is(.gd-window-button,.term-x,.con-item),
+  body.glass-demo #screen-game #bottombar .bb-menu .bb { transition: none; }
+}
