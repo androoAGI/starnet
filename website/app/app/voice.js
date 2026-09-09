@@ -534,18 +534,20 @@ const Voice = (() => {
   function playBlob(blob, onEnd, volume, onFail, rate, deep, shell, onStarted) {
     let url = null, a = null, done = false;
     const cleanup = () => {
+      done = true; // cancellation also fences a late rejected play() promise
+      if (a) { a.onplay = null; a.onended = null; a.onerror = null; }
       if (url) { try { URL.revokeObjectURL(url); } catch (_) {} url = null; }
       if (currentAudio === a) currentAudio = null;
       if (currentAudioCleanup === cleanup) currentAudioCleanup = null;
     };
     const endOk = () => { if (done) return; done = true; cleanup(); onSpeakEnd(); onEnd && onEnd(); };
-    const endFailed = () => {
+    const endFailed = error => {
       if (done) return;
       done = true;
       cleanup();
       // A decode error may arrive after `onplay`; always leave speaking + metering before advancing.
       onSpeakEnd();
-      if (onFail) onFail();
+      if (onFail) onFail(error || (a && a.error) || new Error('media playback failed'));
       else if (onEnd) onEnd();
     };
     try {
@@ -568,17 +570,16 @@ const Voice = (() => {
       else outAnalyser = null;              // dry playback: no tap, so the meter reports nothing rather than lying
       a.onplay = () => { onSpeakStart(); if (onStarted) onStarted(); };
       a.onended = endOk;
-      // a decode/format error on the neural blob is exactly the "try the browser voice" case — route
-      // it to onFail (fallback) rather than treating it as a clean finish (which would go SILENT).
-      a.onerror = endFailed;
+      // Preserve the media error for bounded playback recovery and an attributed interruption.
+      a.onerror = () => endFailed(a.error);
       const p = a.play();
       if (p && p.catch) p.catch(err => {
         if (done) return;
         // browser still blocking audio (no gesture yet) → tell the user instead of going silently quiet
         if (err && err.name === 'NotAllowedError') setStatus('🔇 tap anywhere to turn on the agent\'s voice');
-        endFailed();
+        endFailed(err);
       });
-    } catch (_) { endFailed(); }
+    } catch (error) { endFailed(error); }
   }
 
   /* Browsers block programmatic <audio> playback until the page has had a user gesture — so right after a
@@ -682,14 +683,12 @@ const Voice = (() => {
 
   function resetQueue() { jobs = []; replyVoice = null; playIdx = 0; synthIdx = 0; draining = false; playing = false; replyClosed = true; replyFails = 0; replyTried = false; }
 
-  // begin synthesizing one job → resolves to {kind:'neural',blob} | {kind:'silent'} | {kind:'skip'}.
-  // 'neural' plays; 'silent' means "no neural audio for this chunk — advance the queue, stay quiet" (there
-  // is NO robotic fallback); 'skip' is an intentional barge-in/teardown cancel. The page holds no key on
-  // desktop — the sidecar /api/tts resolves its own credential (keychain/env) or the free keyless floor.
-  // ONE round-trip for one chunk → {kind:'neural',blob} | {kind:'fail',reason} | {kind:'skip'}. Deliberately
-  // records NO failure state: startSynth owns the retry/cold-off policy so a retried blip isn't counted twice.
+  // One attempt returns audio, a recoverable/terminal failure, or an intentional cancellation.
+  // The sidecar owns credentials and the engine ladder. startSynth owns bounded retries/cold-off;
+  // pumpPlay owns the ordered outcome. Diagnostics contain operational metadata, never spoken text.
   function synthOnce(job) {
     const cred = ttsCred(), cfg = ttsConfig();
+    job.attempt = (job.attempt || 0) + 1;
     const ac = new AbortController(); job.ac = ac; ttsAbort = ac;
     return fetch('/api/tts', {
       method: 'POST', headers: { 'Content-Type': 'application/json' }, signal: ac.signal,
@@ -715,9 +714,11 @@ const Voice = (() => {
       if (r.ok && ct.indexOf('audio') === 0) { const blob = await r.blob(); if (blob && blob.size) return { kind: 'neural', blob }; }
       let reason = 'http ' + r.status;
       try { const j = await r.json(); if (j && j.reason) reason = j.reason; } catch (_) {}
+      if (job.seq === speakSeq) recordSpeechEvent('synthesis_failure', { chunk: jobs.indexOf(job), attempt: job.attempt, httpStatus: r.status, category: classifyFallback(reason), retryable: retryableFallback(reason) });
       return { kind: 'fail', reason };
     }).catch(e => {
-      if (e && e.name === 'AbortError') return { kind: 'skip' };   // intentionally cancelled — stay silent
+      if (e && e.name === 'AbortError' && job.seq !== speakSeq) return { kind: 'skip' };   // intentionally cancelled — stay silent
+      if (job.seq === speakSeq) recordSpeechEvent('synthesis_failure', { chunk: jobs.indexOf(job), attempt: job.attempt, code: String(e && e.name || 'network') });
       return { kind: 'fail', reason: 'network: ' + ((e && e.message) || e) };
     });
   }
@@ -730,25 +731,28 @@ const Voice = (() => {
     // reply is mid-flight we keep asking until THIS reply has failed MID_REPLY_GIVEUP times in a row; only then
     // does the cold-off apply to it. A reply that has not yet attempted anything (replyTried false — i.e. its
     // OPENING chunk) still honors the cold-off in full, so a dead provider is not hammered once per sentence.
-    if (Date.now() < neuralColdUntil && (!replyTried || replyFails >= MID_REPLY_GIVEUP)) { job.result = Promise.resolve({ kind: 'silent' }); return; }
+    if (Date.now() < neuralColdUntil && (!replyTried || replyFails >= MID_REPLY_GIVEUP)) { job.result = Promise.resolve({ kind: 'fail', reason: 'cooldown' }); return; }
     replyTried = true;
     const seq = job.seq;
     job.result = synthOnce(job)
-      // ONE immediate retry for a TRANSIENT failure (429 / network / 5xx) — a single provider blip must cost a
+      // Two retries for a TRANSIENT failure (429 / network / 5xx) — a single provider blip must cost a
       // beat of latency, not a whole sentence of the reply. A missing credential and an empty wallet are NOT
       // transient: don't burn a second call on them. Ask retryableFallback, not the message class: a keyless
       // station's reason ALWAYS carried the structural 'no key', which made this branch dead code there.
+      // Two bounded retries retain this exact chunk; later audio stays ordered.
       // A torn-down job (barge-in bumped speakSeq) is never retried.
       .then(res => (res.kind === 'fail' && retryableFallback(res.reason) && seq === speakSeq) ? synthOnce(job) : res)
+      .then(res => (res.kind === 'fail' && retryableFallback(res.reason) && seq === speakSeq) ? synthOnce(job) : res)
       .then(res => {
+        if (seq !== speakSeq) return { kind: 'skip' };
         if (res.kind === 'neural') { noteNeuralOk(); return res; }
         if (res.kind === 'skip') return res;   // intentional barge-in/teardown cancel — not a failure
         replyFails++;
         // cool the neural path off briefly (noteFallback lengthens this for 'no key'/'credits'); never latch.
         neuralColdUntil = Date.now() + NEURAL_COLD_MS;
-        console.warn('[voice] neural TTS unavailable → chunk silent:', res.reason);
+        console.warn('[voice] neural TTS recovery exhausted:', res.reason);
         noteFallback(res.reason);
-        return { kind: 'silent' };
+        return { kind: 'fail', reason: res.reason };
       });
   }
   function pumpSynth() {
@@ -757,6 +761,37 @@ const Voice = (() => {
     while (synthIdx < jobs.length && (synthIdx - playIdx) < limit) startSynth(jobs[synthIdx++]);
   }
 
+  const speechDiagnostics = [];
+  let replyNumber = 0;
+  let interruptionMessage = '';
+  function recordSpeechEvent(reason, details) {
+    const event = Object.assign({ at: Date.now(), reason, reply: replyNumber, generation: speakSeq }, details || {});
+    speechDiagnostics.push(event); if (speechDiagnostics.length > 100) speechDiagnostics.shift();
+    console.warn('[voice] speech event', event);
+    coordinatorEvent('onSpeechEvent', event);
+    return event;
+  }
+  function showInterruption(message) {
+    interruptionMessage = message;
+    let el = document.getElementById('voice-interruption');
+    if (!el && toggleBtn && toggleBtn.parentNode && document.createElement) {
+      el = document.createElement('span'); el.id = 'voice-interruption';
+      el.setAttribute('role', 'status'); el.setAttribute('aria-live', 'polite');
+      toggleBtn.parentNode.appendChild(el);
+    }
+    if (el) { el.textContent = message; el.hidden = !message; }
+    reflectToggle();
+    if (message) coordinatorEvent('onSpeechInterrupted', { message });
+  }
+  function failReply(stage, job, error) {
+    if (job.seq !== speakSeq) return;
+    recordSpeechEvent(stage, { chunk: playIdx, characters: job.text.length,
+      code: String(error && (error.name || error.code) || 'unavailable') });
+    const cb = onReplyDone;
+    stopSpeaking(stage);
+    showInterruption('Speech interrupted — ' + (stage === 'playback_error' ? 'audio playback failed' : 'voice synthesis failed') + '. Full reply remains in chat.');
+    if (cb) cb();
+  }
   function pumpPlay() {
     if (playing) return;
     if (playIdx >= jobs.length) { if (replyClosed && synthIdx >= jobs.length) finishReply(); return; }
@@ -770,11 +805,27 @@ const Voice = (() => {
       if (res.kind === 'neural') {
         const cfg = ttsConfig();
         const rate = cfg.speed * (job.opts.speedMul || 1);
-        // a decode/playback failure on the neural blob → advance (skip this chunk silently). No robotic fallback.
-        playBlob(res.blob, advance, job.opts.volume, advance, rate, cfg.deep, cfg.shell, () => {
-          if (job.seq === speakSeq && !job.opts.mutter) coordinatorEvent('onTiming', { audioStartMs: Math.max(0, Date.now() - job.queuedAt) });
-        });
-      } else { advance(); }   // 'silent' (no neural audio) or 'skip' (aborted) → play nothing, keep the queue moving
+        let attempts = 0;
+        const play = () => {
+          if (job.seq !== speakSeq) return;
+          attempts++;
+          playBlob(res.blob, () => { if (job.seq === speakSeq) advance(); }, job.opts.volume, error => {
+            if (job.seq !== speakSeq) return;
+            recordSpeechEvent('playback_error', { chunk: playIdx, attempt: attempts,
+              code: String(error && (error.name || error.code) || 'media_error') });
+            if (attempts < 2 && (!error || error.name !== 'NotAllowedError')) play();
+            else if (job.opts.mutter) advance();
+            else failReply('playback_error', job, error);
+          }, rate, cfg.deep, cfg.shell, () => {
+            if (job.seq === speakSeq && !job.opts.mutter) coordinatorEvent('onTiming', { audioStartMs: Math.max(0, Date.now() - job.queuedAt) });
+          });
+        };
+        play();
+      } else if (res.kind === 'fail') {
+        if (job.opts.mutter) advance(); // optional aside must not cancel the requested reply
+        else failReply('synthesis_failure', job);
+      }
+      else { advance(); }
     });
   }
   function finishReply() {
@@ -782,29 +833,6 @@ const Voice = (() => {
     resetQueue();
     duckSfx(false);
     if (wasDraining) { const cb = onReplyDone; onReplyDone = null; if (cb) cb(); }
-  }
-
-  // FIRST-WORD fast path: the time-to-first-audio is dominated by how long the FIRST TTS call takes, which
-  // scales with the chunk's length. When a reply opens with one long chunk, peel a SHORT lead off the front
-  // (first clause: comma/semicolon/dash, else a word break near ~120 chars) so the first synth call is tiny
-  // and audio starts almost immediately; the remainder rides the normal queue behind it. Only splits a big
-  // first chunk — short chunks are already fast, and later chunks already overlap playback. Returns [lead, rest]
-  // or [whole] if no worthwhile split exists.
-  const FASTPATH_MIN = 140;   // only bother splitting a first chunk longer than this
-  function firstClauseSplit(s) {
-    if (s.length <= FASTPATH_MIN) return [s];
-    // prefer a natural clause boundary in the first ~130 chars. A SHORT lead is the whole point (fast first
-    // audio), so take the earliest usable clause break; only fall back to a word split if there's none.
-    const head = s.slice(0, 130);
-    let cut = -1;
-    const m = head.match(/^[\s\S]*?[,;:—–-](?=\s)/);    // up to & incl. the first clause punctuation followed by space
-    if (m && m[0].length >= 10) cut = m[0].length;      // ≥10 so we don't split on a 2-3 char stub ("Oh, ")
-    if (cut < 0) {                                        // no clause break → last word boundary before ~120
-      const back = s.slice(0, 120).lastIndexOf(' ');
-      if (back >= 40) cut = back;
-    }
-    if (cut < 0 || cut >= s.length - 10) return [s];      // nothing useful (or the split leaves a tiny tail)
-    return [s.slice(0, cut).trim(), s.slice(cut).trim()];
   }
 
   /* ---- PRODUCER API ---- */
@@ -818,19 +846,14 @@ const Voice = (() => {
     const clean = speakable(text);
     let body = opts.mutter ? clean.slice(0, 80) : clean;
     if (!body.trim()) return;
-    const opening = (jobs.length === 0);   // FIRST chunk of this reply → eligible for the fast-path lead split
+    const opening = (jobs.length === 0);
+    if (opening) replyNumber++;
+    if (opening && interruptionMessage) showInterruption(''); // a new reply gets a fresh outcome
     const agentId = String(opts.agentId || currentAgentId());
     if (!replyVoice || replyVoice.agentId !== agentId) replyVoice = speechVoice(agentId);
     if (!opts.mutter) coordinatorEvent('onAssistant', { text: body, opening });
     replyClosed = false; draining = true;
-    // on the opening chunk, peel a short lead so the first synth call (and thus first audio) is fast.
-    let pieces;
-    if (opening && !opts.mutter) {
-      const [lead, rest] = firstClauseSplit(body);
-      pieces = rest ? [lead].concat(splitForTts(rest, TTS_CHUNK_MAX)) : splitForTts(lead, TTS_CHUNK_MAX);
-    } else {
-      pieces = splitForTts(body, TTS_CHUNK_MAX);
-    }
+    const pieces = splitForTts(body, TTS_CHUNK_MAX);
     for (const seg of pieces) { if (seg && seg.trim()) jobs.push({ text: seg, opts, voice: replyVoice, seq: speakSeq, queuedAt: Date.now(), result: null, ac: null }); }
     pumpSynth(); pumpPlay();
   }
@@ -846,7 +869,8 @@ const Voice = (() => {
 
   // tear everything down NOW: invalidate in-flight work, abort fetches, cut audio.
   // Used by barge-in, mute, voice-mode-off, and DISCONNECT — the agent must go silent immediately.
-  function stopSpeaking() {
+  function stopSpeaking(reason, details) {
+    if (draining || speaking || reason === 'microphone_activity') recordSpeechEvent(reason || 'explicit_stop', details);
     speakSeq++;
     for (const j of jobs) { if (j.ac) { try { j.ac.abort(); } catch (_) {} } }
     if (ttsAbort) { try { ttsAbort.abort(); } catch (_) {} ttsAbort = null; }
@@ -1526,7 +1550,7 @@ const Voice = (() => {
     if (!coordinator && startAfterProbe && !listening) { startAfterProbe = false; setStatus('online'); return; }
     // barge-in: interrupt whenever the agent is making OR about to make sound (talking() also covers the
     // neural-fetch gap, where `speaking` is still false but a reply is imminent) — stopSpeaking aborts it.
-    if (talking()) { stopSpeaking(); setTimeout(() => { if (!busyNow() && !listening) startListening(); }, 150); return; }
+    if (talking()) { stopSpeaking('microphone_button'); setTimeout(() => { if (!busyNow() && !listening) startListening(); }, 150); return; }
     if (convoMode) { if (!listening && !busyNow()) startListening(); return; }
     if (listening) stopListening(); else startListening();
   }
@@ -1598,8 +1622,8 @@ const Voice = (() => {
        escape the fbMsg machinery exists to prevent. Every path that legitimately clears the reason calls
        clearNeuralCold()/noteNeuralOk() first, which empty fbMsg; init() did not, and it runs on agent focus,
        persona change and dossier apply. Guarding here covers every caller instead of one. */
-    toggleBtn.title = (speakReplies && fbMsg) ? fbMsg
-      : (speakReplies ? 'agent voice: ON — click to mute' : 'agent voice: OFF — click to unmute');
+    toggleBtn.title = (interruptionMessage ? interruptionMessage + ' ' : '') + ((speakReplies && fbMsg) ? fbMsg
+      : (speakReplies ? 'agent voice: ON — click to mute' : 'agent voice: OFF — click to unmute'));
     toggleBtn.setAttribute('aria-pressed', speakReplies ? 'true' : 'false');
     toggleBtn.setAttribute('aria-label', speakReplies ? 'Agent voice: on, click to mute' : 'Agent voice: off, click to unmute');
   }
@@ -1704,6 +1728,7 @@ const Voice = (() => {
   function isOn() { return !!(speakReplies && canSpeak()); }
 
   return {
+    recordSpeechEvent, speechDiagnostics: () => speechDiagnostics.map(event => Object.assign({}, event)),
     replyToken: () => speakSeq, isReplyPending: () => draining,
     init, speak, speakChunk, endReply, mutter, ambientLine, setAgent, isOn, setSpeakReplies,
     startListening, stopListening, toggleListen, stopSpeaking,

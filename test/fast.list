@@ -735,3 +735,7 @@ test/task-conversation.test.js
 test/task-conversation-ui.test.js
 test/emergency-control.test.js
 test/work-rating-control.test.js
+
+test/session-focus-safety.test.js
+
+test/harness-placement.test.js

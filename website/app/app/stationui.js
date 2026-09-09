@@ -153,7 +153,7 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
   // app.css's own note records that a fourth control there wrapped "+ NEW" out of the molded head.
   const ROW_STEPS = [
     ['compact', 'COMPACT', 'one line per session — the most sessions in view'],
-    ['inbox', 'INBOX', 'three lines per session — agent, title, and the model + message count'],
+    ['inbox', 'INBOX', 'agent name, wrapping title, and the latest message'],
   ];
   function resolveSessionRow(v) { return ROW_STEPS.some(([id]) => id === v) ? v : 'compact'; }
   // P1-8 notification preferences: per-category on/off + a notification sound toggle. Every category defaults ON
@@ -5984,7 +5984,7 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
       '</div>' +
       // SESSION ROWS — what one row of the SESSIONS rail is allowed to say. Sits with TEXT SIZE
       // because it is the same kind of dial: how much of a fixed-width rail one entry may spend.
-      '<div class="set-row"><span class="dim">SESSION ROWS — COMPACT is one line each; INBOX adds the agent and the model + message count so you can tell sessions apart without opening them</span></div>' +
+      '<div class="set-row"><span class="dim">SESSION ROWS — COMPACT is one line each; INBOX shows the agent, a wrapping title, and the latest message so you can tell sessions apart without opening them</span></div>' +
       '<div class="set-themes" id="set-sessionrow">' +
       ROW_STEPS.map(([v, name, why]) => {
         const cur = resolveSessionRow(s.sessionRow);

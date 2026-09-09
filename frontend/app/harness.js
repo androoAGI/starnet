@@ -716,7 +716,8 @@ const Harness = (() => {
       // THE MOAT (FLOOR-REAL): send the agent's REAL placed capability objects so the sidecar grants exactly what's
       // on the floor (dish→web · cabinet→files · workbench→terminal · …). `placed` supersedes the legacy `workbench`
       // boolean; an old caller passing only `workbench` still grants the terminal.
-      if (Array.isArray(placed) && placed.length) reqBody.placed = placed;
+      // Empty is an authoritative live floor snapshot, distinct from an older client omitting it.
+      if (Array.isArray(placed)) reqBody.placed = placed;
       else if (workbench) reqBody.workbench = true;
       // Class Loadouts (shared-gear model): the STATION-WIDE gear the agent draws on under the overseer. Tools stay
       // gated by `placed` (the agent's own desk-room), but a class's SKILL PACKAGE — recipes, not tools — becomes

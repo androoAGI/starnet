@@ -8,10 +8,33 @@ const ImageTask = require('../sidecar/image-task.js');
 // Explicit creation requests are guarded; analysis/discussion/negation stays on the ordinary path.
 A.eq(ImageTask.classify('Create an image of a red cube'), { kind: 'image-generation' }, 'classifies an explicit image-generation request');
 A.eq(ImageTask.classify('Please make me a picture of Northstar'), { kind: 'image-generation' }, 'classifies a named visual artifact request');
-A.eq(ImageTask.classify('Draw me a capybara in a spacesuit'), { kind: 'image-generation' }, 'classifies an inherently visual draw request');
+A.eq(ImageTask.classify('Draw me a capybara in a spacesuit'), null, 'an unspecified drawing medium retains the ordinary tool path');
 A.eq(ImageTask.classify('Analyze this image and describe it'), null, 'image analysis is not mistaken for generation');
 A.eq(ImageTask.classify('Design a logo system and usage guide'), null, 'an ambiguous design deliverable is not forced onto the raster STUDIO path');
 A.eq(ImageTask.classify('Do not generate an image; write the prompt only'), null, 'a negated generation request is not artifact-gated');
+
+for (const prompt of [
+  'Draw a distinction between TCP and UDP',
+  'Illustrate your reasoning with a text example',
+  'Create a Docker image for this Node app',
+  'Make the profile picture clickable',
+  'Explain how image generators create pictures',
+  'The image is broken. Create a fix for the upload handler',
+  'Write a prompt that says: create an image of a red cube',
+  'Can you explain how to generate an image of a red cube?',
+  'Do not draw an image of a red cube',
+  'Create an SVG image of a red cube',
+  'Create an image of a red cube using CSS',
+  'Generate an image of a diagram in Mermaid',
+  'Draw an image of the architecture using ASCII',
+  'Create an image processing script'
+]) A.eq(ImageTask.classify(prompt), null, 'ordinary request is not STUDIO-gated: ' + prompt);
+for (const prompt of [
+  'Please create an image of a red cube',
+  'Could you please generate a picture showing a moonlit forest?',
+  'Draw an illustration depicting a capybara in a spacesuit',
+  'Make me a photorealistic image of a mountain'
+]) A.eq(ImageTask.classify(prompt), { kind: 'image-generation' }, 'explicit visual request retains artifact enforcement: ' + prompt);
 
 // The configured provider/model remains the agent route. Only credentials proven compatible with
 // STUDIO's OpenRouter transport may be selected for the separate generation call.
