@@ -90,3 +90,27 @@
 }
 .term.sn-menu :is(input, textarea):is([aria-invalid="true"], .mkt-bad) { border-color: var(--bad); }
 .term.sn-menu :is(input, textarea):disabled { opacity: .5; cursor: not-allowed; }
+
+/* Discover: quiet glass cards with one readable connection action. */
+.sn-menu .cc-grid { grid-template-columns: repeat(auto-fill, minmax(min(100%, 270px), 1fr)); gap: 14px; align-items: start; }
+.sn-menu .cc-card { padding: 18px; gap: 13px; border: 1px solid rgba(var(--ph-rgb), .22); border-radius: 12px; background: var(--menu-glass); box-shadow: inset 0 1px 0 rgba(var(--ph-bright-rgb), .1); animation: none; }
+.sn-menu .cc-card:hover { transform: none; border-color: rgba(var(--ph-rgb), .55); box-shadow: inset 0 1px 0 rgba(var(--ph-bright-rgb), .16); }
+.sn-menu .cc-head { flex-wrap: nowrap; align-items: center; gap: 13px; }
+.sn-menu .cc-seal { --coin: 42px; flex-shrink: 0; border-radius: 10px; background: rgba(var(--ph-rgb), .07); padding: 6px; }
+.sn-menu .cc-identity { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.sn-menu .cc-head b { font-size: 21px; line-height: 1.1; letter-spacing: .2px; overflow-wrap: anywhere; }
+.sn-menu .cc-chip { align-self: flex-start; border: 0; background: none; padding: 0; font-size: 13px; }
+.sn-menu .cc-blurb { font-size: 16px; line-height: 1.45; color: var(--text); }
+.sn-menu .cc-details { border-top: 1px solid rgba(var(--ph-rgb), .13); padding-top: 10px; font-size: 14px; }
+.sn-menu .cc-details summary { cursor: pointer; color: var(--ph-dim); padding: 3px 0; }
+.sn-menu .cc-details-body { display: grid; gap: 12px; margin-top: 12px; padding: 12px; border-radius: 7px; background: rgba(0,0,0,.15); overflow-wrap: anywhere; }
+.sn-menu .cc-details-body .cc-badge { justify-self: start; }
+.sn-menu .cc-details-body .mc-hint { margin: 0; font-size: 14px; line-height: 1.45; }
+.sn-menu .cc-acts { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-top: 2px; }
+.sn-menu .cc-acts .bb { border-radius: 6px; padding: 7px 12px; white-space: normal; }
+.sn-menu .cc-filters { gap: 7px; margin-bottom: 14px; }
+.sn-menu .cc-filter { border-radius: 7px; padding: 6px 10px; }
+.sn-menu .cc-alternatives { margin: 6px 5px 0; font-size: 13px; }
+.sn-menu .cc-alternatives > summary { padding: 7px; cursor: pointer; }
+.sn-menu .cc-alternatives .cc-card { margin-top: 8px; }
+.sn-menu .cc-on { border-color: rgba(var(--ph-rgb), .55); }
