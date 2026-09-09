@@ -8468,7 +8468,7 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
     const j = JS && JS.status ? JS.status() : null;
     const journeyState = JS && JS.state ? JS.state() : null;
     if (!j) return '<div class="gx-sec"><span class="gx-title">COMMANDER JOURNEY</span></div>'
-      + '<div class="q-journey-card"><div class="sub dim">journey proof is not available yet. No progress is being inferred.</div></div>';
+      + '<div class="q-journey-card"><div class="sub dim">Progress is not available yet. It will appear when the station can load your records.</div></div>';
 
     const evo = j.evolution || { stage: 0, name: 'DRIFT', goalsReached: 0 };
     const goal = j.activeGoal || null;
@@ -8479,7 +8479,7 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
       ? '<div class="q-journey-goal"><span class="q-ns-eyebrow">ACTIVE LIFE GOAL</span><div class="q-journey-title">' + esc(goal.text) + '</div>'
         + '<div class="arc-bar q-bar"><div class="q-bar-fill" style="width:' + goalPct + '%"></div></div>'
         + '<div class="sub">' + done + ' of ' + total + ' planned steps completed' + (goal.next ? ' &middot; next: ' + esc(goal.next) : ' &middot; outcome still requires confirmation') + '</div></div>'
-      : '<div class="sub dim">set a goal arc to connect quests and evidence to your longer journey.</div>';
+      : '<div class="sub dim">Add a goal in Goals to connect these records to what you want to achieve.</div>';
 
     const metricRows = (Array.isArray(j.metrics) ? j.metrics : []).map(m => {
       const p = (typeof Journey !== 'undefined' && Journey.metricProgress) ? Journey.metricProgress(m) : null;
@@ -8493,7 +8493,7 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
         + '<button class="consent-btn deny q-metric-retire" data-mid="' + esc(m.id) + '">RETIRE</button></div></div>';
     }).join('');
     const metricsHtml = '<details class="q-progress-section"><summary><span>Outcome metrics</span><span class="q-section-note">Numbers you track</span></summary><div class="q-section-body">'
-      + (metricRows || '<div class="sub dim">no durable metric yet. Add one when the goal has a number you can verify over time.</div>')
+      + (metricRows || '<div class="sub dim">Track something measurable, like hours practiced or applications sent. Record your starting point and the result you want.</div>')
       + '<details class="q-metric-editor"><summary>Add a metric</summary><div class="q-metric-create">'
       + '<label class="q-metric-name-field">Metric name<input class="q-metric-label" maxlength="100" placeholder="For example: monthly revenue"></label>'
       + '<label>Starting value<input class="q-metric-baseline" type="number" step="any" placeholder="0"></label><label>Target value<input class="q-metric-target" type="number" step="any" placeholder="100"></label>'
@@ -8541,12 +8541,12 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
   function lifeGoalsHtml() {
     const goals = typeof GoalStore !== 'undefined' && GoalStore.listGoals ? GoalStore.listGoals().filter(g => g.status === 'active') : [];
     const active = typeof GoalStore !== 'undefined' && GoalStore.activeGoal ? GoalStore.activeGoal() : null;
-    return '<details class="q-life-goal q-life-manage"><summary>' + (goals.length ? 'YOUR GOALS · CHOOSE A FOCUS / ADD A GOAL' : 'ADD YOUR LIFE GOAL') + '</summary>'
+    return '<details class="q-life-goal q-life-manage"' + (goals.length ? '' : ' open') + '><summary>' + (goals.length ? 'Your goals · choose a focus or add one' : 'Add a goal') + '</summary>'
       + goals.map(g => '<div class="q-hd"><span class="nm">' + esc(g.text) + '</span>' + (active && active.id === g.id ? '<span class="gx-tag">FOCUS</span>' : '<button class="consent-btn q-goal-focus" data-gid="' + esc(g.id) + '">FOCUS</button>') + '</div>').join('')
       + '<label>Goal<input class="q-new-goal" maxlength="280" placeholder="Learn to play a song, change careers, build a business…"></label>'
-      + '<label>Success means<textarea class="q-new-success" maxlength="500" placeholder="The observable result you want to reach"></textarea></label>'
+      + '<label>What does success look like?<textarea class="q-new-success" maxlength="500" placeholder="The observable result you want to reach"></textarea></label>'
       + '<label>First steps (one per line, up to five)<textarea class="q-new-steps" placeholder="Start with one concrete action. You can extend the plan later."></textarea></label>'
-      + '<button class="consent-btn q-goal-create">SAVE GOAL AND FOCUS</button></details>';
+      + '<button class="consent-btn q-goal-create">SAVE &amp; FOCUS ON THIS GOAL</button></details>';
   }
 
   function buildQuests(body) {
@@ -8741,20 +8741,50 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
         + (open.length ? 'No quests in this category' : 'All caught up') + '</h3><p>'
         + (open.length ? 'Choose another category to find your next action.' : 'Set a direction or refresh your quests when you are ready for what comes next.') + '</p></div>')
       + '</section></div>';
+    const questViews = [
+      ['available', 'Quests', 'Choose a quest to see what to do and how it is completed.'],
+      ['goals', 'Goals', 'Set your direction, plan the next steps, and manage your focus.'],
+      ['progress', 'Progress', 'Follow your recorded achievements and the numbers that matter to you.'],
+      ['completed', 'Completed', 'Look back at finished quests and their results.']
+    ];
+    body.classList.add('quests-content');
     body.innerHTML = '<div class="gx gx-quests">'
-      + '<header class="q-journal-header"><div><span class="q-journal-eyebrow">COMMANDER’S JOURNAL</span><h2>Your next chapter</h2></div>'
+      + '<header class="q-journal-header"><div><span class="q-journal-eyebrow">YOUR QUESTS</span><h2>Make progress that matters</h2></div>'
       + journalCount + '</header>'
-      + proposalsHtml
-      + filtersHtml + journalHtml
-      + '<div class="q-journal-records"><details class="q-journal-planning"><summary><span>YOUR GOAL &amp; QUEST SETTINGS</span></summary><div class="q-section-body">'
-      + questTrackHtml(arcs) + lifeGoalsHtml() + questRefreshHtml() + '</div></details>'
-      + (deferred.length ? '<details class="q-deferred"><summary>SAVED FOR LATER / BLOCKED (' + deferred.length + ')</summary><div class="gx-tros q-grid">' + deferred.map(tro).join('') + '</div></details>' : '')
-      + (otherGoals.length ? '<details class="q-other-goals"><summary>OTHER GOALS (' + otherGoals.length + ')</summary><div class="gx-tros q-grid">' + otherGoals.map(tro).join('') + '</div></details>' : '')
-      + '<details class="q-journal-history"><summary><span>COMPLETED QUESTS</span><span class="q-section-count">' + done.length + '</span></summary>'
-      + '<div class="q-section-body"><div class="gx-tros q-grid q-done">' + (done.map(tro).join('') || '<p class="dim">Completed quests will be recorded here.</p>') + '</div></div></details>'
-      + '<details class="q-journal-progress"><summary><span>COMMANDER JOURNEY</span><span class="q-section-note">Progress &amp; records</span></summary><div class="q-section-body">'
+      + '<div class="q-view-tabs" role="tablist" aria-label="Quest sections">' + questViews.map(v =>
+        '<button type="button" role="tab" id="q-tab-' + v[0] + '" data-quest-view="' + v[0] + '" aria-controls="q-view-' + v[0] + '">' + v[1]
+        + (v[0] === 'completed' ? ' <span>' + done.length + '</span>' : '') + '</button>').join('') + '</div>'
+      + '<p class="q-view-description"></p>'
+      + '<section id="q-view-available" class="q-view-panel" role="tabpanel" aria-labelledby="q-tab-available">'
+      + proposalsHtml + filtersHtml + journalHtml
+      + (deferred.length ? '<details class="q-deferred"><summary>Saved for later / blocked (' + deferred.length + ')</summary><div class="gx-tros q-grid">' + deferred.map(tro).join('') + '</div></details>' : '')
+      + (otherGoals.length ? '<details class="q-other-goals"><summary>Other goals (' + otherGoals.length + ')</summary><div class="gx-tros q-grid">' + otherGoals.map(tro).join('') + '</div></details>' : '')
+      + '</section><section id="q-view-goals" class="q-view-panel q-journal-planning" role="tabpanel" aria-labelledby="q-tab-goals">'
+      + questTrackHtml(arcs) + lifeGoalsHtml() + '<details class="q-refresh-options"><summary>Quest suggestions <span class="q-section-note">Direction &amp; refresh</span></summary>' + questRefreshHtml() + '</details>'
+      + '</section><section id="q-view-progress" class="q-view-panel q-journal-progress" role="tabpanel" aria-labelledby="q-tab-progress">'
       + journeyHtml() + milestonesHtml + meterHtml
-      + '</div></details></div></div>';
+      + '</section><section id="q-view-completed" class="q-view-panel q-journal-history" role="tabpanel" aria-labelledby="q-tab-completed">'
+      + '<div class="gx-tros q-grid q-done">' + (done.map(tro).join('') || '<div class="q-journal-empty"><h3>No completed quests yet</h3><p>Finished quests and their results will appear here.</p></div>') + '</div></section></div>';
+    const selectQuestView = id => {
+      const selectedView = questViews.find(v => v[0] === id) || questViews[0];
+      body.dataset.questView = selectedView[0];
+      body.querySelector('.q-view-description').textContent = selectedView[2];
+      body.querySelectorAll('[data-quest-view]').forEach(b => {
+        const active = b.dataset.questView === selectedView[0];
+        b.setAttribute('aria-selected', String(active)); b.tabIndex = active ? 0 : -1;
+      });
+      body.querySelectorAll('.q-view-panel').forEach(p => { p.hidden = p.id !== 'q-view-' + selectedView[0]; });
+    };
+    const viewButtons = Array.from(body.querySelectorAll('[data-quest-view]'));
+    viewButtons.forEach((b, i) => {
+      b.addEventListener('click', () => { selectQuestView(b.dataset.questView); body.scrollTop = 0; });
+      b.addEventListener('keydown', ev => {
+        const next = ev.key === 'ArrowRight' ? (i + 1) % viewButtons.length : ev.key === 'ArrowLeft' ? (i + viewButtons.length - 1) % viewButtons.length : ev.key === 'Home' ? 0 : ev.key === 'End' ? viewButtons.length - 1 : -1;
+        if (next < 0) return;
+        ev.preventDefault(); viewButtons[next].click(); viewButtons[next].focus();
+      });
+    });
+    selectQuestView(body.dataset.questView);
     body.querySelectorAll('details').forEach(el => { if (expanded.has(detailKey(el))) el.open = true; });
     if (body.querySelector('.q-mission-list')) body.querySelector('.q-mission-list').scrollTop = listScroll;
     body.querySelectorAll('.q-filter').forEach(b => b.addEventListener('click', () => {
@@ -9025,7 +9055,7 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
     notifs:   ['NOTIFICATIONS',          buildNotifs,    {}],
     // the FIELD MANUAL codex is owned by tutorial.js (P3); this term just hosts its builder
     manual:   ['FIELD MANUAL',           body => { if (typeof Tutorial !== 'undefined' && Tutorial.fillFieldManual) Tutorial.fillFieldManual(body); }, {}],
-    quests:   ['QUEST LOG',              buildQuests,    { wide: true, className: 'quests-win' }],   // a card grid, not a column; quests-win = STEADY height so a data poke can never re-centre the window mid-read
+    quests:   ['QUEST LOG',              buildQuests,    { console: true, className: 'quests-win' }],   // a card grid, not a column; quests-win = STEADY height so a data poke can never re-centre the window mid-read
   };
 
   /* ============== EXTRACTED-WINDOW SEAM (frontend/app/windows/*.js) ==============
