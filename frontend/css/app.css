@@ -491,10 +491,11 @@ input[type=file]::file-selector-button:hover { border-color: var(--ph); backgrou
   box-shadow: 0 0 0 calc(2px * var(--cz)) var(--ph), 0 0 0 calc(3.5px * var(--cz)) rgba(0,0,0,.9), inset 0 0 var(--tube-inset) rgba(0,0,0,.9);
 }
 /* Keep the approved room colour grade independent of the UI phosphor theme.
-   The custom theme's --cam-grade desaturates the entire feed (0.72 vs 1.06),
+   The custom theme's --cam-grade desaturates the entire feed,
    making identical room lighting look dull after opening a saved custom theme.
-   Brightness presets still control room exposure through StationBake.LIGHT. */
-#stage { display: block; width: 100%; height: 100%; image-rendering: pixelated; filter: saturate(1.06) contrast(1.1) brightness(0.94); }
+   A modest colour boost and gentler contrast keep the softer grain clear while
+   preserving dark exposure. Brightness presets still use StationBake.LIGHT. */
+#stage { display: block; width: 100%; height: 100%; image-rendering: pixelated; filter: saturate(1.14) contrast(1.08) brightness(0.94); }
 
 /* KEYLESS-BRAIN CTA — the honest standing banner shown after an awakening that finished with no key.
    Sits low-center over the feed, above the cam HUD (z3) so it reads clearly; the world stays visible behind
