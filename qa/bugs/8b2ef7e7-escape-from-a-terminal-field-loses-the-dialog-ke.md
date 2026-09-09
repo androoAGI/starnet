@@ -4,10 +4,10 @@ slug: escape-from-a-terminal-field-loses-the-dialog-ke
 title: Escape from a terminal field loses the dialog keyboard boundary
 surface: sessions
 severity: P2
-status: open
+status: fixed
 found: 2026-09-09
 lane: agent/glass-demo-0909
-fix:
+fix: e6ecdd986
 origin: audit
 ---
 

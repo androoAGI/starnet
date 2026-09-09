@@ -18,8 +18,8 @@
   "expectedClaimCount": 37,
   "releaseSurface": {
     "algorithm": "sha256",
-    "sourceCommit": "c6cd5e79e07b33aff88611c5ebd5cdc87f3bd24a",
-    "pathSetSha256": "4283566a35504333c2be893e2fba1667db676f962a57c4225e0e3fb1915c9305",
+    "sourceCommit": "db3ae6bb4a5c450886e5f8a5a0ff0575e96e4117",
+    "pathSetSha256": "ae142b37f53dc0bab96940b87b487c7b091982641d74bfeb020db8aa5e7f1bf5",
     "files": [
       {
         "path": "INSTALL.md",
@@ -68,8 +68,8 @@
       },
       {
         "path": "frontend/app/app.js",
-        "bytes": 379549,
-        "sha256": "4b4d7ff7ab2cd6fc31b777679537eb1e1b8bdb2bf673b08ec545d7a7cdf775bf"
+        "bytes": 379320,
+        "sha256": "cb68c3c18b4784ee21f8b3ec241c0efd48634e1bd5c758a1be6d7510339fbf21"
       },
       {
         "path": "frontend/app/armconfirm.js",
@@ -115,6 +115,16 @@
         "path": "frontend/app/autosessions.js",
         "bytes": 22228,
         "sha256": "051a0d6ae19ae474a9fec390e59739bd7dd5c773cb5cd8aad1490911091b5bbb"
+      },
+      {
+        "path": "frontend/app/backdrop-preview-worker.js",
+        "bytes": 1342,
+        "sha256": "9fcf044ae02613dae032d2c4381a436d2ebd81a7299ad68fdccf43e113cac46e"
+      },
+      {
+        "path": "frontend/app/backdrop-preview.js",
+        "bytes": 2311,
+        "sha256": "3e590ac808fa2e29912fb3689a89daeba74421b8f3e7d8095d203b895e231148"
       },
       {
         "path": "frontend/app/backup.js",
@@ -302,6 +312,21 @@
         "sha256": "dca5e4acc8daa3cef0bde2dff7a0cfb43b72bf0d17e4db76a3ff96aef0315d64"
       },
       {
+        "path": "frontend/app/glass-boot.js",
+        "bytes": 326,
+        "sha256": "fb658a811b13b14ababc8538bd9af006b8528fa89be9b06cc638cdaf5d8ca673"
+      },
+      {
+        "path": "frontend/app/glass-comms.js",
+        "bytes": 6944,
+        "sha256": "af78d780805f46356e7428cf0b219d50703f7298fe1704f07baa0153c566325a"
+      },
+      {
+        "path": "frontend/app/glass-demo.js",
+        "bytes": 10822,
+        "sha256": "9307b0404cf088901dbb1931a4773cad1a05ea4fa9b8764ff3a0fb66295a903a"
+      },
+      {
         "path": "frontend/app/glossary.js",
         "bytes": 9182,
         "sha256": "00c686a3530f754e03b43ffefbe5466b8f1842e55dfe7a437e57fc8addce4bb4"
@@ -428,8 +453,8 @@
       },
       {
         "path": "frontend/app/modeldock.js",
-        "bytes": 42297,
-        "sha256": "e077bfce967ea9180f82ed699804d205513163decae1cbab5cb3947a7d407d1c"
+        "bytes": 44430,
+        "sha256": "1f6e5e9744552104c011e4009074241de3e0cef646543a1d42b61f5ae5baac7a"
       },
       {
         "path": "frontend/app/modelpicker.js",
@@ -438,8 +463,8 @@
       },
       {
         "path": "frontend/app/navdock.js",
-        "bytes": 11719,
-        "sha256": "6aad5700f5ec37bb5014b5b99dbcb4787e2eee99ad71e758261396b5f0790324"
+        "bytes": 11876,
+        "sha256": "414cc433546e256c28eb4cb7ceab2fe4c976bbdca8fbe5efe0cf4a2258bc63fb"
       },
       {
         "path": "frontend/app/nightnudge.js",
@@ -778,8 +803,8 @@
       },
       {
         "path": "frontend/app/stationui.js",
-        "bytes": 677497,
-        "sha256": "c4c560fa90a62eaa70db4e02de4975e61f6407a7c3d36862bb6393c7caa04e60"
+        "bytes": 677764,
+        "sha256": "fe67b654e94392884cc123e21785cd2fbc676b8f0125ce7bf2b05e6fec18d683"
       },
       {
         "path": "frontend/app/study.js",
@@ -803,8 +828,8 @@
       },
       {
         "path": "frontend/app/terrain.js",
-        "bytes": 115304,
-        "sha256": "b041df0ee5cfed5d6e9d39b0cdffb9f2d901f8ce8443d4da436bd5fbe34ebc8e"
+        "bytes": 115634,
+        "sha256": "de875c19dcc9816ba44d9aef3d1b28b01feae7412b8fa98231728b5d5e75fe7f"
       },
       {
         "path": "frontend/app/testapi.js",
@@ -1038,8 +1063,8 @@
       },
       {
         "path": "frontend/css/app.css",
-        "bytes": 398273,
-        "sha256": "307f13337ab9925a87ed1d6001601ebbbee9218b2b95b0a71323054372c2e341"
+        "bytes": 398786,
+        "sha256": "bf57c2132dd96f3a5dd80f2f3f79e8e52d4cb800a6d144f16785fab2d1741e01"
       },
       {
         "path": "frontend/css/asciifx.css",
@@ -1050,6 +1075,16 @@
         "path": "frontend/css/comms.css",
         "bytes": 50927,
         "sha256": "77f18e2ed574788873b5296c0d6da7a341aaa2292b78d2e5f8d4836cffca2908"
+      },
+      {
+        "path": "frontend/css/glass-comms.css",
+        "bytes": 24916,
+        "sha256": "b7cec05b4d62e5b985b4d086217ffa2a3b33d5c76510abb92b3c2666bdb53650"
+      },
+      {
+        "path": "frontend/css/glass-demo.css",
+        "bytes": 32957,
+        "sha256": "24471fe8e017ecd93111c5f327ac76245c40edb87b0ffd56554749dc9d36b6d1"
       },
       {
         "path": "frontend/css/interface.css",
@@ -1070,6 +1105,11 @@
         "path": "frontend/css/panelchrome.css",
         "bytes": 11545,
         "sha256": "eaf34a05e7c47a6a9e82beccf771db6f43f69794091e81edf93408c70f6de7ce"
+      },
+      {
+        "path": "frontend/css/readability.css",
+        "bytes": 9962,
+        "sha256": "8e610710d95b9bd37258ddcfcef3e78ba586fd0f08ad7586341ccc38be912f05"
       },
       {
         "path": "frontend/css/refit-kit.css",
@@ -1122,9 +1162,14 @@
         "sha256": "ac1e58355cebace3168f21b4e9dabdcc5a2d3f5cc9b3d0a33874259c7b3e2446"
       },
       {
+        "path": "frontend/dev/session-indicators.html",
+        "bytes": 4099,
+        "sha256": "5848ee6029be8d16ff70fee94322ef9493f0cfea67c384dc828ba0f0c7681283"
+      },
+      {
         "path": "frontend/index.html",
-        "bytes": 81408,
-        "sha256": "819baadfd40e18bd73e78890632b95be09d1a0fcaa3511d6831ebbf7489773cf"
+        "bytes": 82007,
+        "sha256": "17428770bd9d00ad584735fbf9d7bd7058e06227176de1a349d012baabb35ba1"
       },
       {
         "path": "frontend/js/arcade.js",
@@ -2982,13 +3027,14 @@
         {
           "kind": "contains",
           "path": "frontend/app/app.js",
-          "needle": "pending consent gets an EXPLICIT marker"
+          "needle": "ws-dot needsyou approval"
         }
       ],
       "refsChecked": [
         "trunk@ef16fa087ad872f9d266ecde8b72ef813cb9ca82",
         "branches@refs/heads/* audited 2026-07-12",
-        "worktrees@git-worktree-list audited 2026-07-12"
+        "worktrees@git-worktree-list audited 2026-07-12",
+        "glass@db3ae6bb4a5c450886e5f8a5a0ff0575e96e4117; test/session-indicators.test.js"
       ]
     },
     {

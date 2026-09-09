@@ -4,10 +4,10 @@ slug: backdrop-preview-baking-stalls-settings-interact
 title: Backdrop preview baking stalls settings interaction
 surface: world
 severity: P2
-status: open
+status: fixed
 found: 2026-09-09
 lane: agent/glass-demo-0909
-fix:
+fix: db3ae6bb4
 origin: audit
 ---
 
