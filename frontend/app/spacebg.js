@@ -507,262 +507,280 @@ const SpaceBG = (() => {
   };
 
   /* --------------------------------------------------------- BACKDROP: THE NURSERY ---- */
-  /* A structured emission nebula in a deep, dense starfield.
+  /* A star factory. REBUILT 2026-09-09 (Andrew: "the nursery ... need significantly way better
+     looking"). The version this replaces obeyed every rule below and was still nearly invisible
+     on a live station: the gas topped out at [125,38,69] behind a CRT pass that halves contrast,
+     the cloud's centroid was pinned to the frame centre — i.e. BEHIND THE STATION — and nothing
+     in the field ever twinkled.
 
-     THIS IS THE THIRD ATTEMPT AT A SECOND SPACE BACKDROP AND THE FIRST TWO FAILED DIFFERENTLY.
-     v1 (DEEP FIELD) reused THE VOID's recipe and bolted on a galaxy and planets — "just the void
-     with planets", because that is what it was. v2 over-corrected into a rule: INVERT the void's
-     signature. THE VOID is sparse points on black, so v2 filled the frame with gas and cut the
-     stars to nine. Andrew, correctly: "it just looks so smudgy... its like purple camo if
-     anything. it doesnt look like space."
+     The lessons that still bind (every one learned the hard way on this backdrop):
+       - CAMO is quantized organic noise at one mid-tone (v2: "purple camo if anything"). The
+         frame needs real black around the cloud and real structure inside it.
+       - SMUDGY is a per-pixel gradient. Dither between hard ramp steps; never blend.
+       - A BAYER MATRIX IS A WINDOW SCREEN over soft gas (2026-07-25): the dither is a hash.
+       - GAS IS ALLOWED TO BE BRIGHT, NEVER TO CLIP. The ramp tops at pale peach; white belongs
+         only to points of light (stars, knots). A wide bright patch striped by scanlines is the
+         failure this rule exists for.
+       - NO ALPHA FLOOR: thin gas is nothing, not a veil. The starfield gets its black back.
+       - STARS FIRST, full resolution, and the gas composites OVER them with per-pixel alpha, so
+         thin gas lets them through and dense gas and dust occlude them. That is the depth cue.
+       - The station stays the brightest thing on screen (post-CRT backdrop/station luma ~0.5-0.7).
 
-     He was right on all three counts, and the third is the important one:
-       - CAMO is literally what quantized organic noise at a uniform mid-tone looks like. Flat
-         bands over a narrow violet palette do not read as gas, they read as fatigues.
-       - SMUDGY was the banding. Pixel art renders gradients with DITHER, not flat steps; an
-         ordered Bayer threshold gives fine pixel-scale texture where bands give mush.
-       - DOES NOT LOOK LIKE SPACE was self-inflicted. Stars are what make space read as space,
-         and v2 deleted them to satisfy an abstract rule about being different from the void.
+     What is NEW, in order of how much it buys:
+       1. THE COMPLEX IS A BAND. The cloud runs as a wrapped diagonal across a 2:1 fixed tile
+          (it descends exactly one tile-height per tile-width, so it is continuous on the torus),
+          lumped and gapped by noise so it is a chain of clouds rather than a stripe. Any window
+          onto the tile is crossed by it, and draw() pins its centreline through the upper third
+          of the frame — beside the station, never under it. There is nothing left to lose off
+          screen; the sway only keeps it breathing.
+       2. TWO GAS SPECIES. H-alpha (violet -> magenta -> pink -> peach) carries the mass; O-III
+          (deep teal -> cyan) has its OWN density field and shows where the hydrogen is thin, so
+          the colour contrast is a second cloud, not a tint on the first.
+       3. FILAMENTS. A ridged octave (1 - |2n - 1|) folded into the density draws thin bright
+          threads through the mass — what makes emission nebulae look combed instead of blobbed.
+       4. IONIZATION FRONTS. Gas near a young cluster is pushed toward gold, and every dust lane
+          carries a warm reflected brim instead of a black edge. Colour now says where the heat is.
+       5. YOUNG CLUSTERS. Where the gas is densest: tight knots of white/blue points inside a
+          local glow, plus amber protostars buried in the dust. The top of the value range, and a
+          place for the eye to land.
+       6. A LIVE FIELD. Near stars step between three brightness levels and a few big round ones
+          pulse — the pixel-honest twinkle ANDROMEDA got and Andrew liked. Foreground motes drift.
+     Nothing is smooth-shaded: gas is quantized to LEVELS bands under a hash dither, stars are
+     hard pixels, and the only radial gradients are glows sitting under hard points. */
 
-     So the differentiator is NOT the absence of stars or the presence of wall-to-wall gas. It is
-     that the nebula is a dramatic, structured SUBJECT with real internal contrast — bright cores,
-     hard dark lanes, wispy falloff to black — sitting in a deep starfield, where THE VOID's
-     nebulas are faint distant wisps. Black space and stars are part of the look, not the enemy.
-
-     Quality rules this is built on:
-       1. STARS FIRST, dense, and gas composites OVER them with per-pixel alpha, so stars shine
-          through thin gas and are occluded by dense lanes. That occlusion is a real depth cue.
-       2. DITHER, never flat bands (Bayer 4x4 against the quantization step).
-       3. WIDE value range — the frame must contain near-black AND near-white, or it is camo.
-       4. The gas must NOT cover everything. Falloff to nothing is what gives it a shape. */
+  /* value noise on an NX x NY lattice, wrapping — the nursery tile is 2:1, and an N x N lattice
+     on it would stretch every cloud sideways; this keeps the cells square. */
+  function wrapNoiseXY(NX, NY, rnd) {
+    const g = new Float32Array(NX * NY);
+    for (let i = 0; i < g.length; i++) g[i] = rnd();
+    return (u, v) => {
+      const fx = u * NX, fy = v * NY;
+      const ix = Math.floor(fx), iy = Math.floor(fy);
+      const x0 = ((ix % NX) + NX) % NX, y0 = ((iy % NY) + NY) % NY;
+      const x1 = (x0 + 1) % NX, y1 = (y0 + 1) % NY;
+      const tx = fx - ix, ty = fy - iy;
+      const sx = tx * tx * (3 - 2 * tx), sy = ty * ty * (3 - 2 * ty);
+      const a = g[y0 * NX + x0], b = g[y0 * NX + x1], c = g[y1 * NX + x0], d = g[y1 * NX + x1];
+      const top = a + (b - a) * sx, bot = c + (d - c) * sx;
+      return top + (bot - top) * sy;
+    };
+  }
+  /* deterministic per-pixel dither offset in [-0.5,0.5) — same pixel, same grain, every build.
+     A hash, not an ordered matrix: a matrix is periodic and leaves a lattice over soft gas. */
+  function hashDither(x, y) {
+    let k = Math.imul(x + 0x1F123BB5, 0x27D4EB2D) ^ Math.imul(y + 0x68E31DA4, 0x165667B1);
+    k = Math.imul(k ^ (k >>> 15), 0x2C1B3C6D);
+    return (((k ^ (k >>> 12)) >>> 0) / 4294967296) - 0.5;
+  }
+  /* bilinear sample of a half-res field on a torus of SW x SH */
+  function sampField(F, SW, SH, fx, fy) {
+    const x0 = Math.floor(fx), y0 = Math.floor(fy), tx = fx - x0, ty = fy - y0;
+    const xa = ((x0 % SW) + SW) % SW, ya = ((y0 % SH) + SH) % SH;
+    const xb = (xa + 1) % SW, yb = (ya + 1) % SH;
+    const top = F[ya * SW + xa] + (F[ya * SW + xb] - F[ya * SW + xa]) * tx;
+    const bot = F[yb * SW + xa] + (F[yb * SW + xb] - F[yb * SW + xa]) * tx;
+    return top + (bot - top) * ty;
+  }
 
   const NURSERY_BG = {
     label: 'THE NURSERY',
     blurb: 'A star factory. Hot cores, cold lanes, and a deep field behind it.',
-    base: '#030308',                       // empty space must read BLACK, not faintly violet
-    D: { star: 0.012, gas: 0.03, mote: 0.075 },
-    // the deep field SWAYS about the framed cloud instead of drifting off it — see draw().
-    // x/y are amplitudes in px; sx/sy the periods in seconds (deliberately not a simple ratio).
+    base: '#020207',                       // empty space must read BLACK, not faintly violet
+    D: { gas: 0.03, near: 0.05, mote: 0.075 },
+    // the plates SWAY about the anchor instead of drifting off it — see draw().
     SWAY: { x: 46, y: 13, sx: 240, sy: 290 },
+    LEVELS: 14,
+    /* where the band's centreline crosses the frame's centre column. High, because at play zoom
+       the station covers the middle 55% of the stage: the cloud has to live in the top strip and
+       run down one side, or it is behind the floor plan. */
+    ANCHOR: { x: 0.5, y: 0.24 },
 
-    LEVELS: 12,
-
-    /* FIXED TILE — built once, never rebuilt on a resize. The cloud is a legible subject laid out
-       in tile-normalised coordinates, so a canvas-sized tile made every resize re-lay it: expanding
-       COMMS produced a completely different nebula, and at the new aspect the density peaked over a
-       wide area and blew out to white. Square, so aspect never enters into it. Sized to cover the
-       display's long edge where it can, which keeps the repeat off-screen at ordinary window sizes;
-       the envelope leaves a lot of dark space, so a repeat at the extremes is quiet. */
+    /* FIXED 2:1 TILE, built once, never rebuilt on a resize. Twice as wide as tall so the band's
+       diagonal is gentle (~27 deg) and still exact on the torus. Sized to the display's long edge
+       so the repeat stays off-screen at ordinary window sizes. */
     fixedTile: () => {
       const scr = (typeof window !== 'undefined' && window.screen) || {};
       const dpr = (typeof window !== 'undefined' && window.devicePixelRatio) || 1;
       const long = Math.max(Number(scr.width) || 0, Number(scr.height) || 0) || 1600;
-      return Math.max(1200, Math.min(2048, Math.round(long * Math.min(dpr, 2))));
+      const tw = Math.max(1400, Math.min(2048, Math.round(long * Math.min(dpr, 2))));
+      return [tw, tw >> 1];
     },
 
-    LIGHT: {
-      // an emission palette with real COLOUR contrast, not one hue at nine brightnesses
-      OUT: [13, 9, 27],                   // outermost haze, barely there
-      MID: [60, 17, 62],                   // magenta body
-      HOT: [125, 38, 69],                  // H-alpha, dense
-      /* The top of the GAS ramp is deliberately NOT white. It was [242,214,226] over a band
-         starting at t>0.78, and when a density peak covered a wide area the result was a large
-         blown-out white patch with the CRT scanlines striping through it. True white belongs only
-         to the hot knots and the stars — small, local things. Gas is allowed to be bright; it is
-         not allowed to clip. */
-      CORE: [164, 123, 139],               // dense ionized core: bright, and still short of white
-      TEAL: [23, 80, 97],                 // O-III, a genuinely different hue for contrast
+    PAL: {
+      /* H-alpha: nine hard steps, violet to peach. Tops short of white on purpose. */
+      HA: [[20, 9, 40], [44, 16, 74], [80, 24, 102], [122, 34, 118], [166, 50, 122], [204, 80, 128], [230, 122, 140], [244, 166, 160], [250, 204, 186]],
+      /* O-III: a genuinely different hue, deep teal to cyan, for the thin regions. */
+      O3: [[8, 26, 46], [14, 52, 78], [22, 84, 106], [38, 122, 134], [70, 164, 158], [118, 202, 182]],
+      GOLD: [255, 214, 150],               // gas lit by a young cluster
+      EDGE: [58, 24, 30],                  // the brim of a dust lane: brown-red, lit from the side
       LANE: [3, 2, 7],                     // cold dust, effectively black
+      WHITE: [255, 250, 246], BLUE: [186, 212, 255], PINK: [255, 198, 214], AMBER: [255, 224, 168],
     },
 
     build(w, h, rnd) {
+      const P = NURSERY_BG.PAL, LV = NURSERY_BG.LEVELS, u1 = px1();
       const SW = Math.max(1, Math.ceil(w / 2)), SH = Math.max(1, Math.ceil(h / 2));
-      const LT = NURSERY_BG.LIGHT, LV = NURSERY_BG.LEVELS;
-      const gasCv = mkCv(w, h), gc = gasCv.getContext('2d');
+      const asp = Math.max(1, w / h);
+      const wn = N => wrapNoiseXY(Math.max(2, Math.round(N * asp)), N, rnd);   // square cells on any aspect
 
-      /* ---- 1. THE DEEP FIELD, on its own FULL-RESOLUTION plate ----
-         The gas is built at half res because it is soft and the per-pixel pass is expensive, but
-         STARS MUST BE FULL RES. Built at half and upscaled, every star becomes a 2x2 blob instead
-         of a crisp point — measurably so: the star detector found ZERO isolated points in a field
-         of 5200 stars, because each one had a neighbour of identical value. Soft things can be
-         cheap; points of light cannot. */
+      /* ---- 1. THE DEEP FIELD, full resolution (a half-res star is a 2x2 blob, never a point) ---- */
       const starCv = mkCv(w, h), stc = starCv.getContext('2d');
-      stc.fillStyle = '#030308'; stc.fillRect(0, 0, w, h);
-      const starN = Math.min(9000, Math.round((w * h) / 165));
+      stc.fillStyle = NURSERY_BG.base; stc.fillRect(0, 0, w, h);
+      const starN = Math.min(14000, Math.round((w * h) / 150));
       for (let i = 0; i < starN; i++) {
-        const x = (rnd() * w) | 0, y = (rnd() * h) | 0;
-        const b = rnd();
-        if (b < 0.72) {                                   // the faint many
-          stc.fillStyle = pickTint(rnd()) + (0.18 + 0.30 * rnd()).toFixed(3) + ')';
-          stc.fillRect(x, y, 1, 1);
-        } else if (b < 0.965) {                           // the visible few
-          stc.fillStyle = pickTint(rnd()) + (0.55 + 0.40 * rnd()).toFixed(3) + ')';
-          stc.fillRect(x, y, 1, 1);
+        const x = (rnd() * w) | 0, y = (rnd() * h) | 0, b = rnd();
+        if (b < 0.70) {                                   // the faint many
+          stc.fillStyle = pickTint(rnd()) + (0.16 + 0.30 * rnd()).toFixed(3) + ')';
+          stc.fillRect(x, y, u1, u1);
+        } else if (b < 0.96) {                            // the visible few
+          stc.fillStyle = pickTint(rnd()) + (0.50 + 0.45 * rnd()).toFixed(3) + ')';
+          stc.fillRect(x, y, u1, u1);
         } else {                                          // the bright handful, with spikes
-          const a = 0.88 + 0.12 * rnd();
-          stc.fillStyle = 'rgba(238,242,255,' + a.toFixed(3) + ')';
-          stc.fillRect(x, y, 1, 1);
-          stc.fillStyle = 'rgba(238,242,255,' + (a * 0.34).toFixed(3) + ')';
-          stc.fillRect(x - 3, y, 7, 1); stc.fillRect(x, y - 3, 1, 7);
+          const a = 0.85 + 0.15 * rnd();
+          const c = rnd() < 0.6 ? P.WHITE : rnd() < 0.5 ? P.BLUE : P.AMBER;
+          stc.fillStyle = rgba(c, a); stc.fillRect(x, y, u1, u1);
+          stc.fillStyle = rgba(c, a * 0.32);
+          stc.fillRect(x - 3 * u1, y, 7 * u1, u1); stc.fillRect(x, y - 3 * u1, u1, 7 * u1);
         }
       }
-      gc.clearRect(0, 0, w, h);                         // the gas plate carries alpha, not a fill
 
-      /* ---- 2. THE NEBULA, composited OVER the stars with per-pixel alpha ----
-         Built into its own buffer so it can blend: putImageData replaces pixels and would
-         erase the field, so the gas goes onto a scratch canvas and is drawn over. Thin gas
-         is translucent (stars shine through), dense gas and lanes are opaque (stars occluded). */
-      const d1 = wrapNoise(3, rnd), d2 = wrapNoise(6, rnd), d3 = wrapNoise(13, rnd), d4 = wrapNoise(26, rnd);
-      const wxF = wrapNoise(4, rnd), wyF = wrapNoise(4, rnd);
-      const shape = wrapNoise(2, rnd);                    // the big envelope: where the cloud IS
-      const lane1 = wrapNoise(5, rnd), lane2 = wrapNoise(12, rnd);
-      const tealF = wrapNoise(3, rnd);
-
-      /* TWO PASSES, AND THE SECOND ONE IS THE WHOLE FIX (2026-07-25, Andrew: "lets just fix this
-         pink nebula" — the screenshot showed a regular cross-hatch mesh over the gas).
-
-         The gas used to be computed AND coloured at half resolution and then blitted up 2x, which
-         turned every dither cell into FOUR screen pixels across. At that size an ordered dither
-         stops being texture and becomes a window screen. The field itself is smooth and loses
-         nothing at half res, so only the quantize/dither/colour step has to be per-screen-pixel:
-         one cheap half-res pass does all the noise, one full-res pass does the dither.
-
-         The dither is also now a per-pixel HASH rather than a Bayer matrix. An ordered matrix is
-         periodic by construction, so it leaves a visible lattice however small the cell; a hash
-         has no repeating structure at any scale and reads as grain, which is what soft gas wants.
-         (Ordered dither is still right for hard-edged shading — it is wrong for a smooth volume.)
-
-         Every colour and alpha number below is UNCHANGED from the version in that screenshot.
-         Andrew liked everything except the mesh, so the ramp thresholds, the palette and the
-         alpha curve are deliberately left alone — this commit must not move the brightness. */
-      const fT = new Float32Array(SW * SH), fL = new Float32Array(SW * SH), fC = new Float32Array(SW * SH);
+      /* ---- 2. THE FIELDS, half res — the gas is soft; only the dither has to be per pixel ---- */
+      const d1 = wn(3), d2 = wn(6), d3 = wn(12), d4 = wn(24), d5 = wn(48);
+      const wxF = wn(4), wyF = wn(4);                     // domain warp -> filaments, not blobs
+      const lump = wn(2), wob = wn(2);                    // clumps along the band, and its wander
+      const rg1 = wn(9), rg2 = wn(19);                    // ridged octaves: the threads
+      const o1 = wn(4), o2 = wn(9), o3 = wn(18);          // O-III has its own cloud
+      const l1 = wn(6), l2 = wn(14), l3 = wn(30);         // dust lanes
+      const bandPh = rnd() * Math.PI * 2, bandAmp = 0.05 + 0.04 * rnd(), bandW = 0.20 + 0.04 * rnd(), bandY0 = rnd();
+      /* THE BAND. Its centreline descends one tile-height per tile-width (continuous on the
+         torus), waves once across the tile, and wanders with a coarse noise. Distance to it is
+         measured WRAPPED in v, so the band never has a top or bottom edge at the tile seam. */
+      const centreY = u => bandY0 + u + bandAmp * Math.sin(u * Math.PI * 2 + bandPh);
+      const env = (u, v) => {
+        const cy = centreY(u) + (wob(u, v) - 0.5) * 0.24;
+        let dy = v - cy; dy -= Math.round(dy);
+        const core = 1 - Math.min(1, Math.abs(dy) / bandW);
+        return Math.max(0, Math.min(1, core * 1.5 - 0.2 + (lump(u, v) - 0.5) * 0.9));
+      };
+      const fT = new Float32Array(SW * SH), fO = new Float32Array(SW * SH), fL = new Float32Array(SW * SH);
       for (let y = 0, i = 0; y < SH; y++) {
         const v0 = y / SH;
         for (let x = 0; x < SW; x++, i++) {
           const u0 = x / SW;
-          const u = u0 + (wxF(u0, v0) - 0.5) * 0.26;      // domain warp -> filaments, not blobs
-          const v = v0 + (wyF(u0, v0) - 0.5) * 0.26;
-          // ENVELOPE: the cloud has a shape and falls off to nothing. Gas that covers everything
-          // is camo; gas with an edge is a subject.
-          const env = Math.max(0, Math.min(1, (shape(u0, v0) - 0.54) * 2.4));
-          if (env <= 0.001) continue;                     // fT/fL/fC stay 0 here
-          const dens = d1(u, v) * 0.46 + d2(u, v) * 0.28 + d3(u, v) * 0.17 + d4(u, v) * 0.09;
-          fT[i] = Math.max(0, Math.min(1, (dens - 0.44) * 2.6)) * env;
-          fC[i] = Math.max(0, tealF(u * 1.2, v * 1.2) - 0.54) * 2.0;
-          fL[i] = Math.max(0, Math.min(1, (lane1(u0 * 1.15, v0 * 1.15) * 0.62 + lane2(u0, v0) * 0.38 - 0.54) * 3.0));
+          const e = env(u0, v0);
+          if (e <= 0.002) continue;                       // fields stay 0 outside the complex
+          const u = u0 + (wxF(u0, v0) - 0.5) * 0.20, v = v0 + (wyF(u0, v0) - 0.5) * 0.20;
+          const fbm = d1(u, v) * 0.38 + d2(u, v) * 0.26 + d3(u, v) * 0.18 + d4(u, v) * 0.11 + d5(u, v) * 0.07;
+          const ridge = 1 - Math.abs(2 * rg1(u, v) - 1) * 0.72 - Math.abs(2 * rg2(u, v) - 1) * 0.28;
+          fT[i] = Math.max(0, Math.min(1, (fbm * 0.70 + ridge * 0.36 - 0.44) * 2.4)) * e;
+          const o = o1(u, v) * 0.5 + o2(u, v) * 0.3 + o3(u, v) * 0.2;
+          fO[i] = Math.max(0, Math.min(1, (o - 0.50) * 2.8)) * e;
+          /* LANES ARE THREADS, NOT BLOBS. A plain threshold on smooth noise made one lane a
+             smooth-edged black continent beside the station — a hole in the picture. Ridged
+             octaves give long thin dust filaments, and only where there is gas to cut. */
+          const L = (1 - Math.abs(2 * l1(u0, v0) - 1)) * 0.55 + (1 - Math.abs(2 * l2(u0, v0) - 1)) * 0.30 + l3(u0, v0) * 0.15;
+          fL[i] = Math.max(0, Math.min(1, (L - 0.66) * 3.2)) * Math.min(1, e * 2.5);
         }
       }
-      /* WHERE THE CLOUD IS — so draw() can keep it framed (2026-08-15, Andrew: "the purple nebula
-         disappears regularly, can we keep that specifically in frame").
-         This tile is deliberately BIGGER than any viewport, so the screen is only ever a window
-         onto part of it, and the envelope above leaves a lot of empty tile. Drifting that window
-         at 1.1 px/s in x and 0.3 in y meant the subject spent most of a ~107-minute cycle
-         completely off-screen: measured over one full cycle at 1440x900, gas coverage of the frame
-         ran 0.04 -> 0.35, i.e. stretches of many minutes with nothing but stars.
-         The tile is a TORUS, so a plain centroid of the density is meaningless — a cloud straddling
-         the seam averages out to the empty middle. Take the CIRCULAR mean instead: read each axis
-         as an angle, sum the density as unit vectors, convert the resultant angle back to a
-         coordinate. `r` is the resultant LENGTH, i.e. how concentrated the gas is; if a future tune
-         ever spreads the gas evenly over the tile there is no subject to frame and draw() falls
-         back to the plain offset rather than pinning to a meaningless point. */
-      let cxs = 0, sxs = 0, cys = 0, sys = 0, mass = 0;
-      for (let y = 0, i = 0; y < SH; y++) {
-        const ay = (y / SH) * Math.PI * 2, cay = Math.cos(ay), say = Math.sin(ay);
-        for (let x = 0; x < SW; x++, i++) {
-          const d = fT[i];
-          if (d <= 0) continue;
-          const ax = (x / SW) * Math.PI * 2;
-          cxs += d * Math.cos(ax); sxs += d * Math.sin(ax);
-          cys += d * cay; sys += d * say;
-          mass += d;
-        }
+
+      /* ---- 3. WHERE THE YOUNG STARS ARE: up to six knots in the densest, cleanest gas, kept
+              apart, measured on the torus. They light the gas around them (gold) and carry the
+              clusters drawn in step 5. ---- */
+      const knots = [], kR = h * 0.10;
+      const tdist = (ax, ay, bx, by) => { const dx = Math.abs(ax - bx), dy = Math.abs(ay - by); return Math.hypot(Math.min(dx, w - dx), Math.min(dy, h - dy)); };
+      for (let tries = 0; tries < 700 && knots.length < 6; tries++) {
+        const x = rnd() * SW, y = rnd() * SH, i = (y | 0) * SW + (x | 0);
+        if (fT[i] < 0.60 || fL[i] > 0.15) continue;
+        if (knots.some(k => tdist(k.x, k.y, x * 2, y * 2) < kR * 2.2)) continue;
+        knots.push({ x: x * 2, y: y * 2, big: rnd() < 0.5 });
       }
-      const turn = (c, s) => { const a = Math.atan2(s, c); return (a < 0 ? a + Math.PI * 2 : a) / (Math.PI * 2); };
-      const focus = mass > 0
-        ? { x: turn(cxs, sxs) * w, y: turn(cys, sys) * h,
-            r: Math.min(Math.hypot(cxs, sxs), Math.hypot(cys, sys)) / mass }
-        : { x: 0, y: 0, r: 0 };
+      const fG = new Float32Array(SW * SH);               // ionization warmth, half res
+      for (let y = 0, i = 0; y < SH; y++) for (let x = 0; x < SW; x++, i++) {
+        let g = 0;
+        for (const k of knots) { const R = kR * (k.big ? 1.6 : 1.1), d = tdist(x * 2, y * 2, k.x, k.y); if (d < R) g += 1 - d / R; }
+        fG[i] = g;
+      }
 
-      // deterministic per-pixel dither offset in [-0.5,0.5) — same pixel, same grain, every build
-      const dith = (x, y) => {
-        let k = Math.imul(x + 0x1F123BB5, 0x27D4EB2D) ^ Math.imul(y + 0x68E31DA4, 0x165667B1);
-        k = Math.imul(k ^ (k >>> 15), 0x2C1B3C6D);
-        return (((k ^ (k >>> 12)) >>> 0) / 4294967296) - 0.5;
-      };
-      // bilinear sample of a half-res field, wrapping — the tile is a torus
-      const samp = (F, fx, fy) => {
-        const x0 = Math.floor(fx), y0 = Math.floor(fy), tx = fx - x0, ty = fy - y0;
-        const xa = ((x0 % SW) + SW) % SW, ya = ((y0 % SH) + SH) % SH;
-        const xb = (xa + 1) % SW, yb = (ya + 1) % SH;
-        const top = F[ya * SW + xa] + (F[ya * SW + xb] - F[ya * SW + xa]) * tx;
-        const bot = F[yb * SW + xa] + (F[yb * SW + xb] - F[yb * SW + xa]) * tx;
-        return top + (bot - top) * ty;
-      };
-
+      /* ---- 4. THE GAS PLATE: per-pixel dither + hard ramps, composited over the field ---- */
+      const gasCv = mkCv(w, h), gc = gasCv.getContext('2d');
       const scratch = mkCv(w, h), sc2 = scratch.getContext('2d');
       const img = sc2.createImageData(w, h), D = img.data;
+      const HA = P.HA, O3 = P.O3, hn = HA.length - 1, on = O3.length - 1;
       let p = 0;
       for (let y = 0; y < h; y++) {
         const fy = y * 0.5;
-        for (let x = 0; x < w; x++) {
+        for (let x = 0; x < w; x++, p += 4) {
           const fx = x * 0.5;
-          let t = samp(fT, fx, fy);
-          if (t <= 0.035) { D[p + 3] = 0; p += 4; continue; }   // thin gas is NOTHING, not a veil
-          t = Math.max(0, Math.min(1, Math.round((t + dith(x, y) / LV) * LV) / LV));
-          if (t <= 0) { D[p + 3] = 0; p += 4; continue; }
-
-          // COLOUR: a wide ramp ending near white, plus a teal region for hue contrast
-          let col;
-          // the core band now opens at 0.88, not 0.78 — the brightest gas is the top TWELVE
-          // per cent of the range instead of the top fifth, so it cannot cover a wide area
-          if (t < 0.40) col = mix3(LT.OUT, LT.MID, t / 0.40);
-          else if (t < 0.88) col = mix3(LT.MID, LT.HOT, (t - 0.40) / 0.48);
-          else col = mix3(LT.HOT, LT.CORE, (t - 0.88) / 0.12);
-          const teal = samp(fC, fx, fy);
-          if (teal > 0) col = mix3(col, LT.TEAL, Math.min(0.7, teal) * (1 - t * 0.5));
-
-          // DUST LANES: hard, near-black, and they bite INTO the cloud. This is the structure.
-          const dark = samp(fL, fx, fy);
-          /* NO ALPHA FLOOR. It used to be 0.10 + 0.90*t, so every pixel inside the envelope got
-             a 10% violet wash whatever its density — 62% of the frame was faint tinted haze and
-             the starfield never got any clean black back. Gas now fades to actual nothing. */
-          let alpha = t < 0.85 ? t * 1.05 : 0.89 + (t - 0.85) * 0.73;
-          if (dark > 0) { col = mix3(col, LT.LANE, dark); alpha = Math.min(1, alpha + dark * 0.55); }
-
-          D[p] = col[0]; D[p + 1] = col[1]; D[p + 2] = col[2];
-          D[p + 3] = Math.round(255 * Math.min(1, alpha));
-          p += 4;
+          const t = sampField(fT, SW, SH, fx, fy), o = sampField(fO, SW, SH, fx, fy);
+          if (t <= 0.03 && o <= 0.04) continue;           // thin gas is NOTHING, not a veil
+          const dz = hashDither(x, y) / LV;
+          const tq = Math.max(0, Math.min(1, Math.round((t + dz) * LV) / LV));
+          const oq = Math.max(0, Math.min(1, Math.round((o + dz) * LV) / LV));
+          let col = null, alpha = 0;
+          if (tq > 0) { col = HA[Math.round(tq * hn)]; alpha = Math.min(1, 0.10 + tq * 1.3); }
+          if (oq > 0) {
+            const oc = O3[Math.round(oq * on)];
+            col = col ? mix3(col, oc, Math.min(1, oq * 1.5) * (1 - tq * 0.8)) : oc;
+            alpha = Math.max(alpha, Math.min(1, 0.08 + oq * 1.1));
+          }
+          if (!col) continue;
+          const g = sampField(fG, SW, SH, fx, fy);
+          if (g > 0) col = mix3(col, P.GOLD, Math.min(0.62, g * 0.8) * Math.min(1, tq * 1.8));
+          const dark = Math.max(0, Math.min(1, Math.round((sampField(fL, SW, SH, fx, fy) + dz * 2) * 6) / 6));
+          if (dark > 0) {
+            // DUST LANES bite into the cloud. The brim is lit brown-red; the core is near-black,
+            // and even the core keeps a few stars: a lane is dust, not a cutout.
+            const brim = Math.min(1, dark * 2.2) * (1 - Math.min(1, dark * 1.4));
+            col = mix3(col, P.EDGE, brim * 0.7);
+            col = mix3(col, P.LANE, Math.min(1, Math.max(0, (dark - 0.2) * 1.4)));
+            alpha = Math.min(0.94, alpha + dark * 0.6);
+          }
+          D[p] = col[0]; D[p + 1] = col[1]; D[p + 2] = col[2]; D[p + 3] = Math.round(255 * Math.min(1, alpha));
         }
       }
       sc2.putImageData(img, 0, 0);
       gc.drawImage(scratch, 0, 0);
 
-      /* ---- 3. HOT KNOTS — small, very bright, additive. Young stars still inside their gas.
-              These carry the top of the value range and give the eye somewhere to land.
-
-              DIMMED 2026-08-16 (Andrew, pointing at two of them: "i dont like how bright these
-              stars are can we dim them a bit"). They read as STARS rather than as ionized cores
-              because the placement gate below (shape >= 0.46) is looser than the gas envelope
-              (shape >= 0.54 in the density pass), so a knot can land on bare black with no cloud
-              around it — and a big additive halo on black is a star, whatever it was meant to be.
-              The halo and its white centre are scaled to ~0.6x together, AS A SET: dimming the
-              wide halo while leaving the white centre hot would keep the pop-out and just shrink
-              the glow, which is the same read at a smaller size. The 1px core stays near-full —
-              it is a point of light, and points of light are allowed to be bright (law 3 of this
-              backdrop still wants near-white somewhere in the frame). */
+      /* ---- 5. YOUNG CLUSTERS + PROTOSTARS, additive, over the gas: they are in FRONT of it ---- */
       gc.globalCompositeOperation = 'lighter';
-      for (let i = 0, n = 5 + Math.floor(rnd() * 5); i < n; i++) {
-        const sx = rnd() * w, sy = rnd() * h;
-        if (shape(sx / w, sy / h) < 0.46) continue;        // only where the cloud actually is
-        const R = Math.min(w, h) * (0.03 + 0.055 * rnd());
-        puff9(gc, w, h, sx, sy, R, rnd() < 0.5 ? [190, 110, 130] : [120, 150, 220], 0.10 + 0.06 * rnd());
-        puff9(gc, w, h, sx, sy, R * 0.28, [255, 246, 250], 0.13);
-        gc.fillStyle = 'rgba(255,250,255,0.88)';
-        gc.fillRect(sx | 0, sy | 0, 1, 1);
+      const wx = x => ((Math.round(x) % w) + w) % w, wy = y => ((Math.round(y) % h) + h) % h;
+      for (const k of knots) {
+        const R = kR * (k.big ? 0.9 : 0.6);
+        puff9(gc, w, h, k.x, k.y, R, k.big ? [255, 170, 190] : [160, 190, 255], 0.13);
+        puff9(gc, w, h, k.x, k.y, R * 0.36, [255, 236, 240], 0.15);
+        const n = 8 + Math.floor(rnd() * 9);
+        for (let i = 0; i < n; i++) {
+          const a = rnd() * Math.PI * 2, d = Math.pow(rnd(), 1.6) * R * 0.55;
+          const c = rnd() < 0.55 ? P.WHITE : rnd() < 0.7 ? P.BLUE : P.PINK;
+          const s = rnd() < 0.3 ? 2 * u1 : u1;
+          gc.fillStyle = rgba(c, 0.95);
+          gc.fillRect(wx(k.x + Math.cos(a) * d), wy(k.y + Math.sin(a) * d), s, s);
+        }
+        for (let i = 0; i < 2; i++) {                     // the two brightest: spikes and a halo
+          const a = rnd() * Math.PI * 2, d = rnd() * R * 0.3;
+          const sx = wx(k.x + Math.cos(a) * d), sy = wy(k.y + Math.sin(a) * d);
+          gc.fillStyle = rgba(P.WHITE, 0.45); gc.fillRect(sx - 4 * u1, sy, 9 * u1, u1); gc.fillRect(sx, sy - 4 * u1, u1, 9 * u1);
+          gc.fillStyle = rgba(P.BLUE, 0.35); gc.fillRect(sx - u1, sy - u1, 3 * u1, 3 * u1);
+          gc.fillStyle = rgba(P.WHITE, 1); gc.fillRect(sx, sy, u1, u1);
+        }
+      }
+      for (let tries = 0, n = 0; tries < 300 && n < 14; tries++) {   // protostars, buried in the dust
+        const x = rnd() * SW, y = rnd() * SH, i = (y | 0) * SW + (x | 0);
+        if (fT[i] < 0.42 || fL[i] < 0.28) continue;
+        n++;
+        puff9(gc, w, h, x * 2, y * 2, 4 + rnd() * 5, [255, 150, 70], 0.40);
+        gc.fillStyle = rgba(P.AMBER, 1); gc.fillRect(wx(x * 2), wy(y * 2), u1, u1);
       }
       gc.globalCompositeOperation = 'source-over';
 
-      /* ---- 4. foreground motes: cold, near, and dark — depth without more bright points ---- */
+      /* ---- 6. the live field and the foreground motes ---- */
+      const near = [];
+      for (let i = 0, n = Math.min(260, Math.round((w * h) / 8000)); i < n; i++) {
+        near.push({ x: rnd(), y: rnd(), r: rnd() < 0.72 ? u1 : 2 * u1, ph: rnd() * 10, rate: 700 + rnd() * 1100,
+          c: rnd() < 0.5 ? P.WHITE : rnd() < 0.6 ? P.BLUE : rnd() < 0.5 ? P.PINK : P.AMBER });
+      }
+      const big = [];
+      for (let i = 0, n = 4 + Math.floor(rnd() * 3); i < n; i++) big.push({ x: rnd(), y: rnd(), ph: rnd() * 10, rate: 1500 + rnd() * 1500, huge: rnd() < 0.25, c: rnd() < 0.7 ? P.WHITE : P.PINK });
       const moteCv = mkCv(w, h), mc = moteCv.getContext('2d');
       const moteN = Math.min(1800, Math.round((w * h) / 4200));
       for (let i = 0; i < moteN; i++) {
@@ -770,33 +788,47 @@ const SpaceBG = (() => {
         mc.fillRect((rnd() * w) | 0, (rnd() * h) | 0, rnd() < 0.8 ? 1 : 2, 1);
       }
 
-      return { starCv, gasCv, moteCv, focus };
+      // where the band's centreline crosses the tile's centre column — what draw() pins
+      const focusY = ((centreY(0.5) % 1) + 1) % 1;
+      return { starCv, gasCv, moteCv, near, big, focusY };
     },
 
     draw(ctx, w, h, now, cam, st) {
-      const D = NURSERY_BG.D, t = now / 1000;
-      /* tileN, not tile2 — the plates are a FIXED square, independent of this canvas, so they have
-         to be repeated across whatever viewport they are handed. Field first, cloud over it at the
-         SAME offset: they are at one distance and must not slide apart. The gas plate carries
-         alpha, so thin gas lets the field through and dense gas and dust lanes occlude it. */
+      const D = NURSERY_BG.D, S = NURSERY_BG.SWAY, A = NURSERY_BG.ANCHOR, P = NURSERY_BG.PAL, t = now / 1000;
       const TW = st.starCv.width, TH = st.starCv.height;
-      /* THE SUBJECT STAYS FRAMED. These plates used to drift (`+ t * 1.1`, `+ t * 0.3`), which on a
-         tile larger than the viewport is not "the sky moves" but "the window walks off the cloud" —
-         and it took ~107 minutes to walk back. The nebula is the whole point of this backdrop, so
-         the offset now PINS its centre (see build()'s focus) to the centre of the frame and only
-         SWAYS about it: two slow, out-of-phase waves so the drift never repeats on an obvious beat,
-         with peak speeds ~1.2 and ~0.3 px/s — the same rates the old drift ran at, so the motion
-         reads exactly as before. It simply stops accumulating.
-         Camera parallax is unchanged and still added on top: the field is at a finite distance, so
-         panning the station must still slide it (law 2). The motes below keep their own drift —
-         they are foreground grain with no subject to lose. */
-      const F = st.focus || { x: 0, y: 0, r: 0 };
-      const S = NURSERY_BG.SWAY;
-      const pinX = F.r > 0.08 ? w / 2 - F.x : 0, pinY = F.r > 0.08 ? h / 2 - F.y : 0;
+      /* THE SUBJECT STAYS FRAMED (2026-08-15, Andrew: "the purple nebula disappears regularly, can
+         we keep that specifically in frame"): the band's centreline is pinned through ANCHOR — the
+         upper third of the frame, so the station sits beside the cloud instead of on it — and the
+         plates only SWAY about that point on two slow out-of-phase waves. Camera parallax rides on
+         top: the field is at a finite distance, so panning the station still slides it (law 2). */
+      const pinX = w * A.x - 0.5 * TW, pinY = h * A.y - st.focusY * TH;
       const ox = parX(cam, D.gas) + pinX + S.x * Math.sin(t / S.sx * Math.PI * 2);
       const oy = parY(cam, D.gas) + pinY + S.y * Math.sin(t / S.sy * Math.PI * 2);
       tileN(ctx, st.starCv, TW, TH, w, h, ox, oy);
       tileN(ctx, st.gasCv, TW, TH, w, h, ox, oy);
+
+      // the live field, a hair nearer than the gas: big round pulsing stars and three-step twinklers
+      const fl = Math.floor;
+      const nx0 = parX(cam, D.near) + t * 1.6, ny0 = parY(cam, D.near) + t * 0.5;
+      for (const b of st.big) {
+        const x = fl(((b.x * w + nx0) % w + w) % w), y = fl(((b.y * h + ny0) % h + h) % h);
+        const R = b.huge ? 3 : 2, on = Math.sin(now / b.rate + b.ph) > 0.15;
+        for (let yy = -R - 1; yy <= R + 1; yy++) {
+          const half = fl(Math.sqrt(Math.max(0, (R + 1) * (R + 1) - yy * yy)));
+          const inner = fl(Math.sqrt(Math.max(0, R * R - yy * yy)));
+          const core = fl(Math.sqrt(Math.max(0, (R - 1) * (R - 1) - yy * yy)));
+          if (on) { ctx.fillStyle = rgba(P.BLUE, 0.5); ctx.fillRect(x - half, y + yy, 2 * half + 1, 1); }
+          if (Math.abs(yy) <= R) { ctx.fillStyle = rgba(b.c, 0.95); ctx.fillRect(x - inner, y + yy, 2 * inner + 1, 1); }
+          if (Math.abs(yy) <= R - 1) { ctx.fillStyle = rgba(P.WHITE, 1); ctx.fillRect(x - core, y + yy, 2 * core + 1, 1); }
+        }
+      }
+      for (const s of st.near) {
+        const ph = Math.sin(now / s.rate + s.ph);
+        const lv = ph > 0.45 ? 0.9 : ph > -0.4 ? 0.52 : 0.22;
+        ctx.fillStyle = rgba(s.c, lv);
+        ctx.fillRect(fl(((s.x * w + nx0) % w + w) % w), fl(((s.y * h + ny0) % h + h) % h), s.r, s.r);
+      }
+
       ctx.globalAlpha = 0.8;
       tileN(ctx, st.moteCv, TW, TH, w, h, parX(cam, D.mote) + t * 5, parY(cam, D.mote) + t * 1.5);
       ctx.globalAlpha = 1;
@@ -804,8 +836,6 @@ const SpaceBG = (() => {
       drawBolide(ctx, w, h, now);
     },
   };
-
-
 
   /* ------------------------------------------------------------ BACKDROP: ANDROMEDA ---- */
   /* Built to a REFERENCE Andrew supplied on 2026-09-04 after rejecting two guesses (a face-on
@@ -1642,6 +1672,8 @@ const SpaceBG = (() => {
     const f = BACKDROPS[id].fixedTile;
     if (!f) return [w, h];
     const s = f();
+    // a number is a square tile; a [tw, th] pair is a rectangular one (THE NURSERY's 2:1 band)
+    if (Array.isArray(s)) return [Math.max(64, s[0] | 0), Math.max(64, s[1] | 0)];
     return [Math.max(64, s | 0), Math.max(64, s | 0)];
   }
 
