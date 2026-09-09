@@ -249,3 +249,19 @@ body.glass-demo #screen-game #bottombar .bb-gi svg {
   display: block; width: 16px; height: 16px; fill: none; stroke: currentColor;
   stroke-width: 1.5; stroke-linecap: square; stroke-linejoin: miter;
 }
+
+/* Compact session rows: readable titles and quiet rectangular status lamps. */
+body.glass-demo #left #workstreams .ws-row {
+  min-height: 34px; padding: 6px 8px; margin-block: 2px; gap: 8px;
+}
+body.glass-demo #left #workstreams .ws-title { font: 16px/1.2 'VT323',monospace; letter-spacing: .3px; }
+body.glass-demo #left #workstreams .ws-meta { font-size: 11px; }
+body.glass-demo #left .ws-dot {
+  width: 4px; height: 12px; border-radius: 0; box-shadow: none;
+}
+body.glass-demo #left .ws-dot.seen { background: transparent; border: 1px solid var(--ph-dim); }
+body.glass-demo #left .ws-dot.unseen { background: var(--gold); border: 0; box-shadow: 0 0 4px rgba(var(--gold-rgb),.2); }
+body.glass-demo #left .ws-dot.working {
+  border: 0; background: repeating-linear-gradient(to top,var(--ph-bright) 0 3px,transparent 3px 4px);
+}
+body.glass-demo #left .ws-dot.needsyou { border: 0; background: var(--gold); }
