@@ -30,14 +30,14 @@ assert.match(source, /partialText\s*=\s*text/, 'semantic pause handling is groun
 assert.match(source, /PRE_ROLL_MS\s*=\s*900/, 'the utterance keeps enough pre-roll to preserve words spoken during calibration');
 assert.match(source, /MAX_UTTERANCE_MS\s*=\s*60000/, 'a normal long sentence is not chopped at the former 20-second ceiling');
 assert.match(source, /CALIBRATION_FLOOR_CEILING\s*=\s*0\.016/, 'speaking during startup cannot become an unreachably high noise floor');
-assert.match(source, /noiseFloor\s*\+\s*\(agentTalking\s*\?\s*0\.025\s*:\s*0\.006\)/, 'distant speech uses an additive sensitivity margin instead of multiplying room noise');
+assert.match(source, /noiseFloor\s*\+\s*\(outputActive\s*\?\s*0\.025\s*:\s*0\.006\)/, 'distant speech uses an additive sensitivity margin instead of multiplying room noise');
 assert.doesNotMatch(source, /durationMs\s*>=\s*20000/, 'the former 20-second hard cutoff is removed');
 assert.match(source, /scheduleReconnect\(/, 'lost microphones enter the reconnect state machine');
 assert.match(source, /approvalCommand\(lower\)/, 'run-scoped approvals can be answered by an explicit voice command');
 assert.match(source, /agentCommand\(value,\s*lower\)/, 'voice can select the active Starnet agent without provider coupling');
 assert.match(source, /Harness\.getProv/, 'the controller reports the active Starnet provider');
 assert.doesNotMatch(source, /CODEX OAUTH/, 'provider-agnostic voice UI does not claim Codex is required');
-assert.match(source, /attachCoordinator\(\{\s*onState,\s*onAssistant,\s*onOutputLevel,\s*onTiming\s*\}\)/, 'live controller subscribes to real agent output levels');
+assert.match(source, /attachCoordinator\(\{\s*onState,\s*onAssistant,\s*onOutputLevel,\s*onTiming[\s\S]*?onSpeechInterrupted[\s\S]*?\}\)/, 'live controller subscribes to real agent output levels');
 assert.match(source, /bar\.dataset\.src\s*=\s*cell\.src/, 'wave history preserves which side of the conversation produced each sample');
 assert.match(source, /setAttribute\('aria-busy'/, 'working voice states are exposed to assistive technology');
 assert.match(source, /Agent speaking — press to interrupt and speak/, 'barge-in control names the active agent-speaking state');
@@ -46,7 +46,7 @@ assert.match(source, /Voice\.inVoiceMode\(\)[\s\S]*?Voice\.stopConvo\(\)/, 'Loca
 assert.match(chatSource, /VoiceLive\.start\(false\)/, '/voice live opens the canonical Local Live system');
 assert.match(chatSource, /Local Live voice stopped\./, '/voice live toggles the canonical system off');
 assert.doesNotMatch(chatSource, /Hands-free voice mode toggled\./, 'slash command no longer activates the legacy hands-free loop');
-assert.match(voiceSource, /const endFailed\s*=\s*\(\)\s*=>[\s\S]*?onSpeakEnd\(\)[\s\S]*?onFail/, 'media failures clear speaking and meter state before the queue advances');
+assert.match(voiceSource, /const endFailed\s*=\s*error\s*=>[\s\S]*?onSpeakEnd\(\)[\s\S]*?onFail/, 'media failures clear speaking and meter state before the queue advances');
 assert.match(voiceSource, /currentAudioCleanup/, 'interrupted blob playback has an explicit URL cleanup path');
 assert.match(css, /\.live-voice-panel\s*\{[^}]*position:\s*fixed/s, 'controller follows the user across StarNet views');
 assert.match(css, /\.lv-head\s*\{[^}]*cursor:\s*grab/s, 'header advertises the drag affordance');

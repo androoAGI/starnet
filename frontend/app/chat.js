@@ -8233,7 +8233,9 @@ const Chat = (() => {
     };
     const speechToken = typeof Voice !== 'undefined' && Voice.replyToken ? Voice.replyToken() : undefined;
     const speechOpts = { replyToken: speechToken, agentId: ws.agentId };
+    let speechTimer = null, speechPendingSince = 0;
     const pushSpeech = (finalize, finalText) => {
+      clearTimeout(speechTimer); speechTimer = null;
       // Ownership is checked again for every chunk. A voice-commanded rebind can happen while an
       // older run is still streaming; none of its late words may leak into the new call owner.
       if (typeof Voice === 'undefined' || !willSpeak || !speechOwner() || !Voice.speakChunk) return;
@@ -8241,26 +8243,29 @@ const Chat = (() => {
       const pending = src.slice(spokenIdx);
       if (!pending) return;
       if (finalize) { if (pending.trim()) { Voice.speakChunk(pending, name, speechOpts); spokenIdx = src.length; } return; }
+      if (!speechPendingSince) speechPendingSince = Date.now();
       let cut = -1;
-      if (spokenIdx === 0) {
-        // FIRST chunk: get him talking ASAP — flush on the earliest clause boundary (comma/dash/colon/
-        // sentence end), or after just a few words if none has appeared, so the voice starts almost as soon
-        // as he begins typing instead of waiting for a whole sentence + its synth round-trip.
-        const clause = /[,;:—–-]\s|[.!?…]+["')\]]?\s/.exec(pending);
-        if (clause) cut = clause.index + clause[0].length;
-        else if (pending.length >= 18) { const ls = pending.lastIndexOf(' '); if (ls > 0) cut = ls + 1; }   // ~3-4 words → flush at a word boundary
-        if (cut < 0) { if (pending.length < 48) return; cut = pending.length; }
-      } else {
-        // later chunks: complete sentence(s) for natural prosody. Require trailing whitespace after the
-        // terminator so a decimal/abbreviation at the buffer edge ("3." / "e.g.") isn't spoken early.
-        const re = /[.!?…]+["')\]]?\s/g; let m;
-        while ((m = re.exec(pending)) !== null) cut = re.lastIndex;
-        if (cut < 0) { const clause = /[,;:—–]\s/.exec(pending);
-          if (clause && clause.index >= 24) cut = clause.index + clause[0].length;
-          else { if (pending.length < 100) return; cut = pending.lastIndexOf(' '); if (cut < 1) return; } }   // runaway guard
+      // Prefer complete sentences. A timer also flushes a substantial clause when token delivery stalls.
+      const sentence = /[.!?…]+["')\]]?\s/g; let match;
+      while ((match = sentence.exec(pending)) !== null) {
+        const prefix = pending.slice(0, match.index + 1);
+        if (/\b(?:Mr|Mrs|Ms|Dr|Prof|Sr|Jr|vs|etc|e\.g|i\.e)\.$/i.test(prefix) || /\b[A-Z]\.$/.test(prefix)) continue;
+        cut = sentence.lastIndex;
+      }
+      const remainingWait = 1200 - (Date.now() - speechPendingSince);
+      if (cut < 0 && (remainingWait <= 0 || pending.length >= 700)) {
+        const clause = /[,;:—–]\s/g;
+        while ((match = clause.exec(pending)) !== null) { if (match.index >= 60) cut = clause.lastIndex; }
+        if (cut < 0 && pending.length >= 100) cut = pending.lastIndexOf(' ');
+      }
+      if (cut < 1) {
+        if (remainingWait > 0) speechTimer = setTimeout(() => pushSpeech(false), remainingWait);
+        return;
       }
       const chunk = pending.slice(0, cut);
       if (chunk.trim()) { Voice.speakChunk(chunk, name, speechOpts); spokenIdx += cut; }
+      speechPendingSince = 0;
+      if (src.slice(spokenIdx).trim()) speechTimer = setTimeout(() => pushSpeech(false), 0);
     };
     try {
       const { text: reply, error, endReason, finishReason, completionVerdict, effectVerdict, budgetScope, budgetCapUsd } = await Harness.chat({
@@ -8276,7 +8281,7 @@ const Chat = (() => {
         stationPlaced: (typeof World !== 'undefined' && World.stationCaps) ? World.stationCaps() : [],   // Class Loadouts (shared-gear): station-wide gear for SKILL availability — a desk-only specialist still gets its class skills when the STATION has the gear (tools stay room-scoped via `placed`)
         onRunId: id => { retirePriorRatings(ws.id); thisRunId = id; if (retryDirectiveTurn && !retryDirectiveTurn.sourceRunId) retryDirectiveTurn.sourceRunId = id; if (starterId) StarterStore.started(starterId, id); runStartedAt = Date.now(); try { RUN_META.set(id, { streamId: ws.id, focusVersion: runFocusVersion, isTask: !!isTask, title: (ws && ws.title) || '', directive: String(text || ''), correctionOf: correctionOf, intentOfferText: intentOfferText, fromRecipe: fromRecipe, recipeId: recipeId, agentId: ws.agentId || 'agent', rec: recClaimRun(id, ws.agentId || 'agent') }); if (RUN_META.size > 60) RUN_META.delete(RUN_META.keys().next().value); } catch (_) {} Channels.setRunId(ws.id, id, Date.now()); if (walkedToDesk && Channels.setStatus) Channels.setStatus(ws.id, 'working…'); if (isActiveWs(ws)) { syncStatus(); renderPresence(); } if (typeof Workstreams !== 'undefined') { Workstreams.appendRun(ws.id, id); if (typeof App !== 'undefined' && App.refreshRail) App.refreshRail(); } },
         onToken: d => { acc += d; Channels.appendToken(ws.id, d); if (isActiveWs(ws)) { if (activeLiveRow) activeLiveRow.append(d); if (!isTask) World.say(acc); } if (willSpeak) pushSpeech(false); App.refreshUsage(); },
-        onTerminalReset: () => { acc = ''; spokenIdx = 0; Channels.setAcc(ws.id, ''); },
+        onTerminalReset: () => { clearTimeout(speechTimer); speechTimer = null; speechPendingSince = 0; acc = ''; spokenIdx = 0; Channels.setAcc(ws.id, ''); },
         onUsage: (u) => { if (u && u.model) ranModel = u.model; App.refreshUsage(); },
         // COMMS-PREMIUM: the Channels store still records the pre-formatted STRING (replay/switch-survival is
         // unchanged — replayChannel renders those via toolLine), but the LIVE surface renders a structured CHIP.
@@ -8607,6 +8612,7 @@ const Chat = (() => {
       if (titleOk && (firstTurn || (typeof Workstreams !== 'undefined' && Workstreams.needsModelTitle && Workstreams.needsModelTitle(ws.id)))) maybeRetitle(ws, text, finalReply);
       // flush any trailing spoken text and CLOSE the speech stream — the last chunk's end re-arms the
       // hands-free mic (this is the heartbeat for spoken turns; onTurnEnd covers silent/no-speech turns).
+      clearTimeout(speechTimer); speechTimer = null;
       if (willSpeak && speechOwner() && typeof Voice !== 'undefined' && Voice.endReply) {
         pushSpeech(true, finalReply);
         // VOICE-AWARE CHOICES: the choice itself is spoken as a natural question — question text only;

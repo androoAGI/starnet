@@ -1,5 +1,9 @@
 # NEXT.md — current priorities & task queue
 
+## IN PROGRESS — 2026-09-09 voice continuity (`agent/voice-continuity-0909`)
+
+Owner authorized sentence buffering, ordered audio recovery, cutoff diagnostics, noise-onset investigation and merge. Plan: docs/VOICE_CONTINUITY_PLAN_2026-09-09.md. Customer record: e1051446. Installer and acoustic recovery remain unverified.
+
 ## DONE — 2026-09-08 legacy rating save repair (agent/rating-repair-0908)
 
 Own lane: preserve legacy station identity on resume and surface rating failure reasons.
