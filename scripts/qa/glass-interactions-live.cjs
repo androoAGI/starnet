@@ -17,12 +17,13 @@ const {chromium}=require(process.env.STARNET_PLAYWRIGHT_MODULE || 'playwright');
    let last;
    const sample=now=>{if(last && window.__glassFrames.length<12000)window.__glassFrames.push(now-last);last=now;requestAnimationFrame(sample);};
    requestAnimationFrame(sample);
-   new PerformanceObserver(list=>{for(const entry of list.getEntries())window.__glassLongTasks.push(entry.duration);}).observe({type:'longtask',buffered:true});
+   new PerformanceObserver(list=>{for(const entry of list.getEntries())window.__glassLongTasks.push({start:entry.startTime,duration:entry.duration});}).observe({type:'longtask',buffered:true});
   });
   const ready=async()=>{await page.waitForSelector('#screen-game.active');await page.waitForSelector('#bottombar [data-group="system"]');};
+  const phase=async name=>page.evaluate(name=>performance.mark('glass:'+name),name);
   const dialog=()=>page.locator('.term:not(.term-closing):not(.term-min-hidden)');
-  const open=async(group,key)=>{await page.locator('#bottombar [data-group="'+group+'"] > .bb-grp').click({force:true});await page.locator('#bottombar [data-term="'+key+'"]').click({force:true});await dialog().waitFor();};
-  const close=async()=>{await dialog().locator('.term-x').click({force:true});await page.waitForFunction(()=>!document.querySelector('.term'));};
+  const open=async(group,key)=>{await phase('open '+key);await page.locator('#bottombar [data-group="'+group+'"] > .bb-grp').click({force:true});await page.locator('#bottombar [data-term="'+key+'"]').click({force:true});await dialog().waitFor();};
+  const close=async()=>{await phase('close window');await dialog().locator('.term-x').click({force:true});await page.waitForFunction(()=>!document.querySelector('.term'));};
   const settle=async()=>page.waitForFunction(()=>[...document.querySelectorAll('.term')].every(w=>w.style.willChange==='' && !w.classList.contains('term-closing') && !w.classList.contains('term-minimizing')));
   const geometry=async(label)=>{
    await settle();
@@ -37,9 +38,9 @@ const {chromium}=require(process.env.STARNET_PLAYWRIGHT_MODULE || 'playwright');
   for(let i=0;i<5;i++){
    await open('system','settings');await settle();
    const before=await geometry('panel '+i);
-   await dialog().getByRole('button',{name:'Maximize window',exact:true}).click();
+   await phase('maximize');await dialog().getByRole('button',{name:'Maximize window',exact:true}).click();
    const expanded=await geometry('maximized '+i);assert(expanded.height>=before.height);
-   await dialog().getByRole('button',{name:'Restore window size',exact:true}).click();
+   await phase('restore size');await dialog().getByRole('button',{name:'Restore window size',exact:true}).click();
    await geometry('restored '+i);
    await dialog().getByRole('button',{name:'Minimize window',exact:true}).click({force:true});
    await page.locator('.term-chip[data-key="settings"]').click({force:true});
@@ -64,6 +65,7 @@ const {chromium}=require(process.env.STARNET_PLAYWRIGHT_MODULE || 'playwright');
    assert.equal(bare,0,key+' has no browser-default control paint');await close();
   }
   for(const rail of ['wr-top','wr-bot']){
+   await phase('widget '+rail);
    await page.locator('#'+rail+' .wg-add').click();
    await page.locator('.wg-library-search').fill('no matching widget');
    assert.equal(await page.locator('.wg-library-list').innerText(),'No matching widgets.');
@@ -72,29 +74,38 @@ const {chromium}=require(process.env.STARNET_PLAYWRIGHT_MODULE || 'playwright');
    assert.equal(await page.locator('.wg-library').count(),0);
    assert(await page.locator('#'+rail+' .wg-add').evaluate(e=>document.activeElement===e));
   }
-  await page.locator('#model-dock-toggle').click();
+  await phase('model picker');await page.locator('#model-dock-toggle').click();
   await page.locator('#model-dock-search').fill('no matching model for glass check');
   await page.waitForFunction(()=>document.querySelector('#model-dock-list').textContent.includes('NO MATCHES'));
   await page.locator('#model-dock-search').fill('');
   await page.locator('#model-dock-search').press('Escape');
   assert(await page.locator('#model-dock-toggle').evaluate(e=>document.activeElement===e));
-  await page.locator('#chat-input').fill('/model');await page.locator('#chat-input').press('Escape');await page.locator('#chat-input').fill('');
+  await phase('slash menu');await page.locator('#chat-input').fill('/model');await page.locator('#chat-input').press('Escape');await page.locator('#chat-input').fill('');
   // A resize or text-scale change must keep the close/maximize controls reachable.
   for(const width of [899,640,390]){
-   await page.setViewportSize({width,height:900});await open('system','settings');await geometry('viewport '+width);
+   await phase('viewport '+width);await page.setViewportSize({width,height:900});await open('system','settings');await geometry('viewport '+width);
    await dialog().locator('.gd-pull').press('End');await geometry('viewport '+width+' expanded');
    await dialog().locator('.gd-pull').press('Home');await geometry('viewport '+width+' compact');await close();
   }
   await page.setViewportSize({width:1280,height:900});
   await open('system','settings');
-  await dialog().getByText('APPEARANCE',{exact:true}).first().click();
+  await phase('appearance settings');await dialog().getByText('APPEARANCE',{exact:true}).first().click();
+  await page.waitForFunction(()=>[...document.querySelectorAll('#set-backdrop canvas')].every(c=>c.dataset.previewSource==='worker'));
+  proof.backdropWorkerCanvases=await page.locator('#set-backdrop canvas[data-preview-source="worker"]').count();
   const savedScale=await dialog().locator('#set-textsize .sel').getAttribute('data-ts');
-  await dialog().locator('#set-textsize [data-ts="145"]').click();
+  const profiler=await page.context().newCDPSession(page);
+  await profiler.send('Profiler.enable');await profiler.send('Profiler.start');
+  await phase('text size 145');await dialog().locator('#set-textsize [data-ts="145"]').click();
   await geometry('145 percent text');
   await dialog().getByRole('button',{name:'Maximize window',exact:true}).click();
   await geometry('145 percent text expanded');
+  await phase('restore text size');
   await dialog().locator('#set-textsize [data-ts="'+savedScale+'"]').click();await close();
-  proof.performance=await page.evaluate(()=>{const f=window.__glassFrames.filter(n=>n>0).sort((a,b)=>a-b);return {frames:f.length,p95FrameMs:f[Math.floor(f.length*.95)]||null,longTasks:window.__glassLongTasks.length,maxLongTaskMs:Math.max(0,...window.__glassLongTasks)};});
+  const {profile}=await profiler.send('Profiler.stop');await profiler.detach();
+  const self=new Map();(profile.samples||[]).forEach((id,i)=>self.set(id,(self.get(id)||0)+(profile.timeDeltas?.[i]||0)));
+  proof.textResizeCpu=profile.nodes.map(n=>({function:n.callFrame.functionName,url:n.callFrame.url.split('/').slice(-2).join('/'),line:n.callFrame.lineNumber+1,selfMs:(self.get(n.id)||0)/1000})).sort((a,b)=>b.selfMs-a.selfMs).slice(0,12);
+
+  proof.performance=await page.evaluate(()=>{const f=window.__glassFrames.filter(n=>n>0).sort((a,b)=>a-b);const marks=performance.getEntriesByType('mark').filter(m=>m.name.startsWith('glass:'));const tasks=window.__glassLongTasks.map(t=>({...t,phase:marks.findLast(m=>m.startTime<=t.start)?.name||'unmarked'}));return {frames:f.length,p95FrameMs:f[Math.floor(f.length*.95)]||null,longTasks:tasks.length,slowest:tasks.sort((a,b)=>b.duration-a.duration).slice(0,10)};});
   await page.emulateMedia({reducedMotion:'reduce'});await open('system','settings');await geometry('reduced motion');
   assert.equal(await dialog().evaluate(e=>e.getAnimations().length),0);
   await close();

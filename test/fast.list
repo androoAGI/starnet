@@ -673,6 +673,7 @@ test/widgets.test.js
 test/widgetfeed.test.js
 test/terminal-resize.test.js
 test/glass-interactions.test.js
+test/backdrop-preview.test.js
 test/glass-comms.test.cjs
 test/glass-approval.test.cjs
 test/model-subscription.test.cjs

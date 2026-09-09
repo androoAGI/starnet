@@ -6266,26 +6266,25 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
        renderer's own pixels is the part that must never change. */
     const bdChips = host.querySelectorAll('#set-backdrop [data-bd]');
     if (bdChips.length && typeof SpaceBG !== 'undefined' && SpaceBG.paintSample) {
-      /* ONE CHIP PER FRAME, and only once the pane is on screen (mountConsole's onShow). Painting all
-         six inline is what made SETTINGS feel laggy: it is the real renderer, so a cold cache costs a
-         whole sky or ground build per swatch — measured live at 112x63, moon 400ms + forest 150ms +
-         the four skies ≈ 600ms of blocked main thread, on EVERY build of the panel including tab
-         swaps and background repaints. The layers memoise their samples now, so this is paid once per
-         session; yielding between chips keeps even that first pass from freezing the window. */
+      // One real sample at a time in a worker. A closed/rebuilt panel cancels the remaining
+      // queue; unsupported worker contexts keep the original one-sample-per-frame fallback.
       paintBackdropSwatches = () => {
         const queue = [...bdChips];
-        const step = () => {
+        const step = async () => {
           const b = queue.shift();
-          if (!b) return;
+          if (!b || !b.isConnected) return;
           const cv = b.querySelector('canvas');
           if (cv) {
-            // route each swatch to the layer that actually owns that id — a ground painted by the
-            // sky renderer would just be a black chip, and vice versa.
-            const isGround = typeof Terrain !== 'undefined' && Terrain.GROUNDS && Terrain.GROUNDS[b.dataset.bd];
-            try {
-              if (isGround) Terrain.paintSample(cv.getContext('2d'), cv.width, cv.height, b.dataset.bd);
-              else SpaceBG.paintSample(cv.getContext('2d'), cv.width, cv.height, b.dataset.bd, 8000);
-            } catch (_) { /* a swatch that cannot paint stays blank rather than taking the panel down */ }
+            const painted = typeof BackdropPreview !== 'undefined' && await BackdropPreview.paint(cv, b.dataset.bd);
+            if (!b.isConnected) return;
+            if (!painted) {
+              const isGround = typeof Terrain !== 'undefined' && Terrain.GROUNDS && Terrain.GROUNDS[b.dataset.bd];
+              try {
+                if (isGround) Terrain.paintSample(cv.getContext('2d'), cv.width, cv.height, b.dataset.bd);
+                else SpaceBG.paintSample(cv.getContext('2d'), cv.width, cv.height, b.dataset.bd, 8000);
+              } catch (_) { /* A failed sample never takes the settings pane down. */ }
+            }
+            cv.dataset.previewSource = painted ? 'worker' : 'main';
           }
           if (queue.length) requestAnimationFrame(step);
         };

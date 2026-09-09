@@ -45,7 +45,14 @@ const Terrain = (typeof document === 'undefined') ? { active: () => false } : ((
   /* ---------------------------------------------------------------- shared helpers ---- */
 
   const TAU = Math.PI * 2;
-  const mkCv = (w, h) => { const c = document.createElement('canvas'); c.width = w; c.height = h; return c; };
+  // Terrain sprites are baked once, then trim() reads their pixels. Choose CPU-backed scratch
+  // canvases at context creation so each trim does not synchronously read back a GPU surface.
+  // The live station canvas and the cached sprites' artwork are unchanged.
+  const mkCv = (w, h) => {
+    const c = document.createElement('canvas'); c.width = w; c.height = h;
+    c.getContext('2d', { willReadFrequently: true });
+    return c;
+  };
   const rgba = (c, a) => 'rgba(' + (c[0] | 0) + ',' + (c[1] | 0) + ',' + (c[2] | 0) + ',' + (+a).toFixed(3) + ')';
   const rgb = c => 'rgb(' + (c[0] | 0) + ',' + (c[1] | 0) + ',' + (c[2] | 0) + ')';
   const mix = (a, b, t) => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
