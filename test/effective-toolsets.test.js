@@ -64,4 +64,18 @@ A.eq(Equipment.access('connector',asView(leadFiles)).state,'service','connection
 const leadWeb = Equipment.inspect(station,'lead','comms_dish');
 A.eq(Equipment.access('dish',asView(leadWeb,{disabled:{comms:false}})).state,'available','optional outbound messaging does not mislabel core browser access');
 A.eq(JSON.stringify(WM.deserialize(station.serialize()).doc()),JSON.stringify(station.doc()),'reading explanations leaves saved station unchanged');
+const { savedPlacement } = require('../sidecar/capability/saved-placement.js');
+A.eq(savedPlacement({station:station.serialize()}, 'worker').map(o => o.objectType).sort(), workerFiles.placed.filter(t => t !== 'computer' && t !== 'connector').sort(), 'saved floor uses the same desk scope as equipment help');
+A.ok(savedPlacement({station:station.serialize()}, 'lead').some(o => o.objectType === 'cabinet'), 'unassigned primary uses saved station gear');
+const beforeSavedRead = JSON.stringify(station.serialize());
+savedPlacement({station:station.serialize()}, 'worker');
+A.eq(JSON.stringify(station.serialize()), beforeSavedRead, 'saved placement read is non-mutating');
+A.eq(savedPlacement(null, 'worker'), [], 'no save grants nothing');
+A.eq(savedPlacement({station:{props:[]}}, 'worker'), [], 'invalid save grants nothing');
+const leadView = effectiveToolsets({...base, lead:true});
+A.eq(row(leadView, 'orchestrator').available, true, 'interactive lead receives orchestration');
+A.eq(row(leadView, 'orchestrator').placed, false, 'runtime grant does not fabricate a floor prop');
+A.eq(row(leadView, 'orchestrator').grantSource, 'lead run', 'runtime grant source is explicit');
+A.eq(row(effectiveToolsets({...base, lead:true, disabled:{orchestrator:false}}), 'orchestrator').available, false, 'lead grant respects family kill switch');
+A.eq(row(ask, 'orchestrator').available, false, 'worker view never invents lead authority');
 A.report('effective-toolsets');

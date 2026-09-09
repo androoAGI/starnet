@@ -10767,14 +10767,23 @@ async function handleSetChannelToken(req, res) {
    persisted kill-switch and applies LIVE (the next resolveTools call reflects it). `compute` is refused. ---- */
 function handleToolsetsList(req, res) {
   const u = new URL(req.url, 'http://127.0.0.1');
-  const agentId = u.searchParams.get('agent') || '';
-  if (agentId && !agentRoster.has(agentId)) {
+  const selected = u.searchParams.get('agent') || '';
+  const alias = u.searchParams.get('agentId') || '';
+  if (selected && alias && selected !== alias) {
+    res.writeHead(400, { 'Content-Type': 'application/json' });
+    return res.end(JSON.stringify({ error: 'agent and agentId must select the same agent' }));
+  }
+  // Match /api/run's primary identity; never silently discard an explicit agentId.
+  const agentId = selected || alias || 'agent';
+  if ((selected || alias) && !agentRoster.has(agentId)) {
     res.writeHead(404, { 'Content-Type': 'application/json' });
     return res.end(JSON.stringify({ error: 'unknown agent' }));
   }
   const view = require('./capability/effective-toolsets.js').effectiveToolsets({
     registry: CAP_REGISTRY, agentId, agent: agentRoster.get(agentId),
-    placed: placedTypesFrom(u.searchParams.get('placed') || ''), disabled: toolsetDisabled,
+    placed: u.searchParams.has('placed') ? placedTypesFrom(u.searchParams.get('placed'))
+      : placedTypesFrom(require('./capability/saved-placement.js').savedPlacement(saveStore.load('agent'), agentId)),
+    lead: true, disabled: toolsetDisabled,
     fullAccess: FULL_ACCESS, masterBypass: masterBypassOn(),
     backendId: executionEnvironment.backendIdFor(agentId)
   });
@@ -14646,8 +14655,12 @@ async function handleRun(req, res) {
         if (e && typeof e === 'object' && e.connectorId) ob.connectorId = e.connectorId;
         return ob;
       });
-  } else if (body && body.workbench) {
-    extraObjects = [{ instanceId: 'wb_placed', objectType: 'workbench' }];
+  } else {
+    extraObjects = require('./capability/saved-placement.js').savedPlacement(saveStore.load('agent'), agentId);
+    // Preserve the old workbench flag without throwing away other saved room grants.
+    if (body && body.workbench && !extraObjects.some(o => o.objectType === 'workbench')) {
+      extraObjects.push({ instanceId: 'wb_placed', objectType: 'workbench' });
+    }
   }
   // Class Loadouts (shared-gear model): the STATION-WIDE gear the agent draws on under the overseer. Used ONLY for
   // SKILL availability (a class's recipes need the station to have the gear, not the agent's desk-room) — the TOOL
