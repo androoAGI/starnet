@@ -25,9 +25,9 @@
         tagline: 'DM your agent from Telegram.',
         verb: 'polling',
         steps: [
-          'In Telegram open <b>@BotFather</b> → send <code>/newbot</code> → copy the token it gives you.',
-          'Paste it below and connect. StarNet will show a one-time owner pairing <code>/pair</code> command.',
-          'Send that owner pairing command to your bot in Telegram. Only then can the bot accept your DMs.'
+          '<b>Create your bot in Telegram.</b><br>Search for <a href="https://t.me/BotFather" target="_blank" rel="noopener noreferrer">@BotFather</a>, open the chat, and send <code>/newbot</code>. Follow its replies to choose a name and an available username ending in <code>bot</code>.',
+          '<b>Connect it to StarNet.</b><br>BotFather sends you a bot token (a long code). Copy it into <b>Bot token</b> below, then click <b>CONNECT</b>.',
+          '<b>Pair and start chatting.</b><br>StarNet shows a <code>/pair</code> message with a code. Copy the whole message and send it to <b>your new bot</b> in Telegram. Once pairing is confirmed, you can chat with your agent.'
         ],
         note: 'Your token is saved on this machine and never displayed.',
         fieldsHtml: '<label class="ch-lbl" for="tg-token">BOT TOKEN <span class="dim">— from @BotFather</span></label>' +
@@ -42,7 +42,7 @@
         extraHtml:
           '<div class="ch-bots" id="tg-owner">' +
             '<div class="ch-bots-head">Pair your Telegram account <span class="dim" id="tg-owner-state">not paired</span></div>' +
-            '<p class="ch-note">Pair this local app with your Telegram account before a new bot accepts DMs. The code is shown here once and expires in 10 minutes.</p>' +
+            '<p class="ch-note">Pairing tells your bot which Telegram account is yours. Send the /pair message to your new bot, not to BotFather. The pairing code expires after 10 minutes.</p>' +
             '<div class="set-save"><button class="bb xs" id="tg-owner-pair">PAIR OWNER</button> <button class="bb xs danger" id="tg-owner-revoke" style="display:none">REVOKE OWNER</button></div>' +
           '</div>' +
           '<div class="ch-bots" id="tg-bots">' +
@@ -50,12 +50,13 @@
             '<div id="tg-bots-list"></div>' +
             '<details class="ch-setup" id="tg-bot-addbox"><summary>ADD A BOT</summary>' +
               '<ol class="ch-steps">' +
-                '<li>In Telegram open <b>@BotFather</b> → <code>/newbot</code> → name it after your agent → copy the token.</li>' +
-                '<li>Paste it below and pick which agent answers it. That bot <b>is</b> that agent — DM it directly, no /talk needed.</li>' +
+                '<li><b>Create another bot.</b><br>In Telegram, message <a href="https://t.me/BotFather" target="_blank" rel="noopener noreferrer">@BotFather</a> with <code>/newbot</code>. Choose a name and an available username ending in <code>bot</code>, then copy the token it sends back.</li>' +
+                '<li><b>Choose its agent.</b><br>Paste the token below, choose which agent should reply, and click <b>ADD AGENT BOT</b>.</li>' +
+                '<li><b>Pair and chat.</b><br>Send the full <code>/pair</code> message StarNet shows you to that new bot in Telegram. Once pairing is confirmed, message it whenever you want to talk to that agent.</li>' +
               '</ol>' +
               '<label class="ch-lbl" for="tg-bot-token">BOT TOKEN <span class="dim">— from @BotFather</span></label>' +
               '<input id="tg-bot-token" type="password" class="key-input" placeholder="123456789:ABCdef..." autocomplete="off" spellcheck="false">' +
-              '<label class="ch-lbl" for="tg-bot-agent">RUNS AS</label>' +
+              '<label class="ch-lbl" for="tg-bot-agent">Agent that replies</label>' +
               '<select id="tg-bot-agent" class="key-input"></select>' +
               '<div class="set-save"><button class="bb sm" id="tg-bot-add">+ ADD AGENT BOT</button></div>' +
               '<div id="tg-bots-msg" class="msg"></div>' +

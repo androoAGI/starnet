@@ -83,3 +83,7 @@
 .channels-console .con-sec-head .ch-logo svg { width: 22px; height: 22px; }
 .channels-console .ch-sum-row:hover .ch-logo { color: var(--ph-bright); border-color: rgba(var(--ph-rgb),.4); }
 @media (max-width: 680px) { .channels-console .ch-sum-row .ch-sum-copy { flex-basis: calc(100% - 52px); } }
+
+.channels-console .ch-steps a { color: var(--ph-bright); text-decoration: underline; text-decoration-color: rgba(var(--ph-rgb),.5); text-underline-offset: 3px; }
+.channels-console .ch-steps a:hover { text-decoration-color: var(--ph-bright); }
+.channels-console .ch-steps a:focus-visible { outline: 2px solid var(--ph); outline-offset: 3px; }
