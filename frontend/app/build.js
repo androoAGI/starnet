@@ -5459,9 +5459,12 @@ const Build = (() => {
     const runs = [];
     for (const e of cells) {
       const p = runs[runs.length - 1], h = horizontal(e);
-      if (p && p.side === e.side && p.open === e.open && p.neighbor === e.neighbor &&
-          (h ? p.y === e.y && p.x + p.length === e.x : p.x === e.x && p.y + p.length === e.y)) p.length++;
-      else runs.push({ ...e });
+      // One clear architectural opening may border several logical rooms.
+      if (p && p.side === e.side && p.open === e.open && (e.open || p.neighbor === e.neighbor) &&
+          (h ? p.y === e.y && p.x + p.length === e.x : p.x === e.x && p.y + p.length === e.y)) {
+        p.length++;
+        if (e.neighbor != null && !p.neighbors.includes(e.neighbor)) p.neighbors.push(e.neighbor);
+      } else runs.push({ ...e, neighbors: e.neighbor == null ? [] : [e.neighbor] });
     }
     return { ok: true, rects: room.rects, runs, openings: runs.filter(e => e.open), sealed: runs.some(e => e.neighbor != null && !e.open) };
   }

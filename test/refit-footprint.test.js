@@ -51,4 +51,13 @@ const plan = (st,rects,kind='hab') => project(W,st.doc(),{rects,kind});
   assert.equal(plan(st,[rect(16,0,18,3)]).openings.length,0,'adjacent sealed neighbor never promises an opening');
   st.setDoorState(airlock.id,'open');assert.equal(plan(st,[rect(16,0,18,3)]).openings.length,1,'opening the real airlock restores the projected connection');
 }
+{
+  const st=fixture(), next=st.addRoom({kind:'hab',rect:rect(8,0,15,7)});assert.ok(next.ok);
+  const p=plan(st,[rect(0,8,15,11)]);
+  assert.ok(p.ok);assert.deepEqual(p.openings.map(e=>[e.side,e.x,e.y,e.length]),[['n',0,8,16]],'one clear opening spans neighboring room IDs without a false middle jamb');
+  assert.deepEqual(p.openings[0].neighbors,[st.rooms()[0].id,next.id]);
+  const airlock=st.addProp({t:'airlock',x:9,y:1,w:1,h:1,block:false});assert.ok(airlock.ok);st.setDoorState(airlock.id,'closed');
+  const sealed=plan(st,[rect(0,8,15,11)]);
+  assert.deepEqual(sealed.openings.map(e=>[e.side,e.length]),[['n',8]],'a sealed neighbor still interrupts the open span');assert.equal(sealed.sealed,true);
+}
 console.log('refit-footprint: real edit parity, four directions, void/diagonal rejection, union outlines, sealed and moved-room truth passed');
