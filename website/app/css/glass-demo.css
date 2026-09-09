@@ -348,3 +348,20 @@ body.glass-demo #screen-game #bottombar .bb-group.open .bb-menu {
   body.glass-demo .gd-sheet :is(.gd-window-button,.term-x,.con-item),
   body.glass-demo #screen-game #bottombar .bb-menu .bb { transition: none; }
 }
+
+
+/* A continuous smoked-glass bed joins the cabinet panels instead of exposing near-black page gaps. */
+body.glass-demo {
+  --gd-bed: color-mix(in srgb, var(--panel2) 88%, var(--ink));
+  --gd-shadow: inset 0 1px 0 var(--gd-light), 0 2px 8px rgba(0,0,0,.12);
+}
+body.glass-demo #screen-game {
+  background: linear-gradient(160deg, rgba(var(--ph-rgb),.055), transparent 60%), var(--gd-bed);
+}
+body.glass-demo #stage-wrap {
+  background: var(--gd-bed); border-radius: 5px;
+  box-shadow: 0 0 0 1px var(--gd-edge), inset 0 1px 0 var(--gd-light);
+}
+/* The sheet's top pull handle and maximize control own sizing, including after undocking. */
+body.glass-demo .term:not(.pw) > .term-resize,
+body.glass-demo .term:not(.pw) .term-foot-grip { display: none; }

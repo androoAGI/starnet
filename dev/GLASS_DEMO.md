@@ -73,3 +73,12 @@ Checks:
 - The resize source guard now checks operation order rather than a 500-character limit that the earlier docking hook exceeded.
 - Full npm run test:fast stopped at step 286/733: qa-product-perfect-claims.test.js (10 failures). A read against the pre-change committed baseline 2036bce8dfb64b8de03622a167d31dff9f22c198 confirmed its release manifest already rejects the demo's app.js, stationui.js, index.html and added paths. That release audit was not rewritten for a local design prototype. The full suite is not green.
 - Reduced-motion behavior was exercised in the deterministic controller test; the OS preference was not changed. No installed-app or release verification/merge.
+
+
+## Panel joins and resize cleanup — 2026-09-09
+
+Removed both the lower-right resize control and decorative footer grip from glass windows. The top height handle and maximize/restore remain the sizing controls.
+
+The cabinet gaps now expose an opaque, theme-derived glass bed instead of the near-black body background. Rail shadows are shallower, and the camera casing uses the same fine glass edge instead of the previous black outer ring. Grid spacing and panel dimensions are preserved.
+
+Live on the current custom blue theme: the shared bed resolved to srgb(0.04235, 0.08957, 0.22526); the camera edge had no black outer shadow. Both corner grip elements computed display:none. Maximize/restore and top-handle ArrowUp/ArrowDown worked. Window-minimize (20), control-floor (117), terminal-resize (16), and website-app-sync (8) assertions passed; diff whitespace check passed. This CSS-only pass did not rerun the full suite; its existing release-manifest failure is documented above.
