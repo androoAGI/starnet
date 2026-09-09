@@ -460,6 +460,7 @@ test/personality-no-sample.test.js
 test/modelpicker.test.js
 test/model-provider-reconcile.test.js
 test/agent-model-select.test.js
+test/model-reasoning-presets.test.js
 test/provider-connections-ui.test.js
 test/newhero-reset.test.js
 test/harness-internal.test.js

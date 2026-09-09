@@ -39,8 +39,7 @@ const ModelDock = (() => {
     { id: 'xhigh', label: 'XHIGH', title: 'Extra-high reasoning' },
     { id: 'max', label: 'MAX', title: 'Maximum reasoning' }
   ];
-  // The ChatGPT-account Codex backend exposes EXACTLY these four levels (verified live) — no 'none', no
-  // 'minimal'. The CLI's "Fast mode" is just 'low' surfaced as a variant, so the low chip reads FAST here.
+  // Codex fallback when a catalog omits per-model levels. Declared metadata takes precedence below.
   const CODEX_EFFORTS = ['low', 'medium', 'high', 'xhigh'];
   const OPENROUTER_REASONING_EFFORTS = ['none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'];
   const REASONING_EFFORT_ORDER = OPENROUTER_REASONING_EFFORTS;
@@ -69,6 +68,7 @@ const ModelDock = (() => {
   // may reconcile (or invalidate) the current provider/model pair.
   let catalogState = {};
   let models = [];
+  let advancedEffortsOpen = false;
 
   function provider() {
     const p = (typeof Harness !== 'undefined' && Harness.getProv) ? Harness.getProv() : 'openrouter';
@@ -334,6 +334,42 @@ const ModelDock = (() => {
     return OPENROUTER_REASONING_EFFORTS.slice();
   }
 
+  // Presentation only: transport and per-agent pickers keep their exact effort values.
+  function reasoningPresetsFor(item) {
+    const supported = effortOptionsFor(item);
+    const levels = REASONING_EFFORT_ORDER.filter(e => e !== 'none' && supported.includes(e));
+    if (!levels.length) return [];
+    const last = levels.length - 1;
+    let indices, names;
+    if (levels.length < 4) {
+      indices = levels.map((_, i) => i);
+      names = levels.length === 1 ? ['max'] : levels.length === 2 ? ['quick', 'max'] : ['quick', 'balanced', 'max'];
+    } else {
+      const preferred = ['low', 'medium', 'high'].map(e => levels.indexOf(e)).concat(last);
+      indices = preferred.every((v, i) => v >= 0 && (!i || v > preferred[i - 1]))
+        ? preferred : [0, Math.floor(last / 3), Math.floor(2 * last / 3), last];
+      names = ['quick', 'balanced', 'deep', 'max'];
+    }
+    return indices.map((index, i) => ({ id: names[i], label: names[i].toUpperCase(), effort: levels[index] }));
+  }
+
+  function reasoningPresetFor(value, item) {
+    const effort = normalizeEffort(value);
+    const presets = reasoningPresetsFor(item);
+    if (effort === 'none' || !effortOptionsFor(item).includes(effort) || !presets.length) return null;
+    // A saved finer level remains in its lower preset's range; it is never rounded down in storage.
+    const index = REASONING_EFFORT_ORDER.indexOf(effort);
+    return presets.filter(p => REASONING_EFFORT_ORDER.indexOf(p.effort) <= index).pop() || presets[0];
+  }
+
+  function effortForPreset(id, value, item) {
+    const preset = reasoningPresetsFor(item).find(p => p.id === id);
+    const current = reasoningPresetFor(value, item);
+    // Re-selecting a highlighted range must not overwrite a saved MIN or XHIGH setting.
+    if (!preset || (current && current.id === id)) return clampEffortForModel(value, item);
+    return preset.effort;
+  }
+
   function currentModelItem() {
     const id = getModel();
     const p = provider();
@@ -459,23 +495,82 @@ const ModelDock = (() => {
   function renderEfforts() {
     const wrap = el('model-dock-efforts');
     if (!wrap) return;
+    const focused = wrap.contains(document.activeElement) ? document.activeElement : null;
+    const focusKey = focused && focused.dataset.reasoningFocus;
+    const oldDetails = wrap.querySelector('.model-dock-advanced');
+    if (oldDetails) advancedEffortsOpen = oldDetails.open;
     wrap.innerHTML = '';
     const item = currentModelItem();
-    const isCodex = normalizeProvider((item && item.provider) || provider()) === 'codex';
-    const levelDescs = (item && item.reasoningLevelDescriptions) || null;
     const selected = ensureCurrentEffort();
+    const presets = reasoningPresetsFor(item);
+    const selectedPreset = reasoningPresetFor(selected, item);
     const available = effortOptionsFor(item).map(effortDef);
-    for (const e of available) {
+    const description = id => (item.reasoningLevelDescriptions || {})[id] || effortDef(id).title;
+    function button(label, effort, active, focus, click) {
       const b = document.createElement('button');
       b.type = 'button';
-      b.className = 'model-dock-effort' + (e.id === selected ? ' sel' : '');
-      // Codex has no 'off' tier — its 'low' level is the CLI's "Fast mode", so surface it as FAST.
-      b.textContent = (isCodex && e.id === 'low') ? 'FAST' : e.label;
-      b.title = (levelDescs && levelDescs[e.id]) || ((isCodex && e.id === 'low') ? 'Fast responses with lighter reasoning' : e.title);
-      b.setAttribute('role', 'option');
-      b.setAttribute('aria-selected', String(e.id === selected));
-      b.addEventListener('click', () => applyEffort(e.id));
-      wrap.appendChild(b);
+      b.className = 'model-dock-effort' + (active ? ' sel' : '');
+      b.textContent = label;
+      b.title = description(effort);
+      b.setAttribute('aria-pressed', String(active));
+      b.dataset.reasoningFocus = focus;
+      b.addEventListener('click', click);
+      return b;
+    }
+    if (presets.length) {
+      const track = document.createElement('div');
+      track.className = 'model-dock-presets';
+      track.setAttribute('role', 'group');
+      track.setAttribute('aria-label', 'Reasoning presets');
+      for (const p of presets) {
+        const active = !!selectedPreset && selectedPreset.id === p.id;
+        const b = button(p.label, active ? selected : p.effort, active, 'preset-' + p.id, () => {
+          const effort = effortForPreset(p.id, currentEffort(), currentModelItem());
+          if (effort !== currentEffort()) applyEffort(effort);
+        });
+        b.dataset.preset = p.id;
+        track.appendChild(b);
+      }
+      wrap.appendChild(track);
+    } else {
+      const note = document.createElement('div');
+      note.className = 'model-dock-reasoning-note';
+      note.textContent = 'This model has no adjustable reasoning.';
+      wrap.appendChild(note);
+    }
+    // Off and provider-specific fine control stay available without crowding the main row.
+    if (available.length > 1) {
+      const details = document.createElement('details');
+      details.className = 'model-dock-advanced';
+      details.open = advancedEffortsOpen;
+      const summary = document.createElement('summary');
+      summary.dataset.reasoningFocus = 'advanced';
+      summary.appendChild(document.createTextNode('ADVANCED'));
+      const exact = document.createElement('span');
+      exact.className = 'model-dock-exact-value';
+      exact.textContent = effortDef(selected).label;
+      summary.appendChild(exact);
+      summary.setAttribute('aria-label', 'Advanced reasoning, ' + description(selected));
+      details.appendChild(summary);
+      const track = document.createElement('div');
+      track.className = 'model-dock-exact';
+      track.setAttribute('role', 'group');
+      track.setAttribute('aria-label', 'Exact reasoning levels');
+      for (const e of available) {
+        const b = button(e.label, e.id, e.id === selected, 'exact-' + e.id, () => {
+          if (e.id !== currentEffort()) applyEffort(e.id);
+        });
+        b.dataset.effort = e.id;
+        track.appendChild(b);
+      }
+      details.appendChild(track);
+      details.addEventListener('toggle', () => { if (details.isConnected) advancedEffortsOpen = details.open; });
+      wrap.appendChild(details);
+    }
+    if (focusKey) {
+      const next = Array.from(wrap.querySelectorAll('[data-reasoning-focus]')).find(b => b.dataset.reasoningFocus === focusKey);
+      // A model/catalog update may remove a focused option; return to the stable search field.
+      (next || el('model-dock-search')).focus({ preventScroll: true });
     }
   }
 
@@ -742,7 +837,10 @@ const ModelDock = (() => {
     document.addEventListener('click', ev => {
       const dock = el('model-dock'), button = el('model-dock-toggle');
       if (!open || !dock || !button) return;
-      if (dock.contains(ev.target) || button.contains(ev.target)) return;
+      // A reasoning change can replace its clicked button before this event bubbles here.
+      // The original path still identifies the click as inside the menu.
+      const path = ev.composedPath ? ev.composedPath() : [];
+      if (path.includes(dock) || path.includes(button) || dock.contains(ev.target) || button.contains(ev.target)) return;
       closeDock();
     });
     document.addEventListener('keydown', ev => { if (open && ev.key === 'Escape') closeDock(); });
@@ -796,7 +894,7 @@ const ModelDock = (() => {
     catalog: (o) => computeCatalog(!!(o && o.force), o && o.ensure),
     labels: { model: modelLabel, provider: providerLabel, group: groupOf, short: shortModelName, normProvider: normalizeProvider, orGroup: openRouterGroupName },
     efforts: { optionsFor: effortOptionsFor, label: effortLabel, clamp: clampEffortForModel, list: () => EFFORTS.slice() },
-    _internals: { effortOptionsFor, clampEffortForModel, modelFamily, supportsReasoning, selectorLabel, catalogEquivalent }
+    _internals: { reasoningPresetsFor, reasoningPresetFor, effortForPreset, effortOptionsFor, clampEffortForModel, modelFamily, supportsReasoning, selectorLabel, catalogEquivalent }
   };
 })();
 
