@@ -18,7 +18,7 @@
   "expectedClaimCount": 37,
   "releaseSurface": {
     "algorithm": "sha256",
-    "sourceCommit": "8fc04e0a9bca994bd5f0608a7275e1f9589a592a",
+    "sourceCommit": "f419d16d47b0ebd1cd5420c3ff356bd3cf1a0b9c",
     "pathSetSha256": "893f2c9ca526a94879691b5c9b01adbcd4d30b3619c1a50fbbfbd64f7e227bb9",
     "files": [
       {
@@ -1038,8 +1038,8 @@
       },
       {
         "path": "frontend/app/worldsurface.js",
-        "bytes": 26498,
-        "sha256": "63ac3322080c0536d204b020b08418186d10ff7f565f37e14e058b522d12c76f"
+        "bytes": 27040,
+        "sha256": "e4a2e4c1b1b45be692a3215e467b31ef78899b817938dd2134b3438352a0af44"
       },
       {
         "path": "frontend/app/xp.js",
