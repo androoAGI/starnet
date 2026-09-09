@@ -137,3 +137,76 @@ body.glass-demo #screen-game #bottombar .bb-gi { width: 16px; opacity: .8; font-
   body.glass-demo #left #ws-search,
   body.glass-demo #screen-game #bottombar .bb-group > .bb-grp { transition: none; }
 }
+
+/* Stronger terminal lettering and flatter instrument keys. */
+body.glass-demo #left #ws-new {
+  font: 18px/1 'VT323', monospace; height: 30px; letter-spacing: 1px;
+  color: var(--ph-bright); border-radius: 3px;
+  text-shadow: .35px 0 currentColor, 0 0 6px var(--ph-glow2);
+}
+body.glass-demo #left .ws-tab {
+  font: 16px/1 'VT323', monospace; letter-spacing: .7px; padding: 7px 3px;
+  color: var(--ph); background: none; border-radius: 0; box-shadow: none;
+}
+body.glass-demo #left .ws-tab.on {
+  color: var(--ph-bright); text-shadow: .25px 0 currentColor;
+  box-shadow: inset 0 -1px 0 var(--ph); background: linear-gradient(0deg, rgba(var(--ph-rgb),.08), transparent);
+}
+body.glass-demo #screen-game #bottombar .bb-group > .bb-grp {
+  min-width: 100px; height: 32px; padding: 0 12px; border-radius: 2px;
+  font: 18px/1 'VT323', monospace; letter-spacing: 1.2px;
+  border-color: rgba(var(--ph-rgb),.2);
+  background: linear-gradient(180deg,rgba(var(--ph-rgb),.06),transparent);
+  box-shadow: inset 0 1px 0 rgba(var(--ph-bright-rgb),.07);
+  text-shadow: .25px 0 currentColor, 0 0 5px var(--ph-glow2);
+}
+body.glass-demo #screen-game #bottombar .bb-gi {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 20px; height: 20px; font-size: 15px; opacity: .9;
+  border-right: 1px solid var(--gd-edge); padding-right: 6px; margin-right: 1px;
+}
+body.glass-demo #screen-game #bottombar .bb-group.open > .bb-grp {
+  border-color: var(--ph-dim); box-shadow: inset 0 -1px 0 var(--ph), inset 0 1px 0 var(--gd-light);
+}
+body.glass-demo #screen-game #bottombar .bb-group.has-active > .bb-grp {
+  box-shadow: inset 0 -1px 0 var(--gold), inset 0 1px 0 var(--gd-light);
+}
+/* Surveillance glass: identity strip, fine frame marks, and a separate camera-mode readout.
+   These decorate existing readouts; camera state still comes from the existing controller. */
+body.glass-demo #stage-wrap .cam-hud::before {
+  content: ''; position: absolute; top: 12px; left: 16px; right: 16px; height: 38px;
+  border-top: 1px solid rgba(var(--ph-rgb),.35); border-bottom: 1px solid var(--gd-edge);
+  background: linear-gradient(110deg,rgba(var(--ph-rgb),.12),rgba(0,0,0,.32) 75%);
+  box-shadow: inset 0 1px 0 rgba(var(--ph-bright-rgb),.07);
+}
+body.glass-demo #stage-wrap .cam-label {
+  top: 25px; left: 27px; max-width: calc(100% - 116px);
+  font: 14px/1 'VT323',monospace; letter-spacing: 1.2px; opacity: 1;
+  color: var(--ph-bright); text-shadow: 0 0 6px var(--ph-glow2);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+body.glass-demo #stage-wrap .cam-rec {
+  top: 24px; right: 27px; font: 13px/1 'VT323',monospace;
+  letter-spacing: 1.4px; color: var(--ph); opacity: .85; animation: none;
+  text-shadow: 0 0 5px var(--ph-glow2);
+}
+body.glass-demo #stage-wrap .cam-c { font-size: 23px; opacity: .8; color: var(--ph-dim); text-shadow: none; }
+body.glass-demo #stage-wrap .cam-tl { top: 9px; left: 10px; }
+body.glass-demo #stage-wrap .cam-tr { top: 9px; right: 10px; }
+body.glass-demo #stage-wrap .cam-bl { bottom: 9px; left: 10px; }
+body.glass-demo #stage-wrap .cam-br { bottom: 9px; right: 10px; }
+body.glass-demo #stage-wrap .cam-feed {
+  bottom: 15px; left: 26px; font: 12px/1 'VT323',monospace; letter-spacing: 1.5px;
+  opacity: .8; padding: 6px 9px; border-left: 2px solid var(--ph-dim);
+  background: linear-gradient(90deg,rgba(var(--ph-rgb),.08),transparent);
+}
+body.glass-demo #stage-wrap .cam-mode {
+  top: 60px; left: 26px; right: auto; bottom: auto;
+  padding: 5px 8px; border: 1px solid var(--gd-edge); border-radius: 2px;
+  background: rgba(0,0,0,.42); color: var(--ph-bright);
+  font: 12px/1 'VT323',monospace; letter-spacing: 1.4px; text-shadow: 0 0 5px var(--ph-glow2);
+}
+@media (max-width:720px) {
+  body.glass-demo #screen-game #bottombar .bb-group > .bb-grp { min-width: 0; padding-inline: 8px; font-size: 16px; gap: 4px; }
+  body.glass-demo #screen-game #bottombar .bb-gi { width: 16px; padding-right: 3px; font-size: 13px; }
+}
