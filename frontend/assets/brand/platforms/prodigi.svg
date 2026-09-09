@@ -1,0 +1,15 @@
+<svg viewBox="0 0 1000 1415" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" role="img">
+  <style>
+  .favicon {
+    fill: #000;
+  }
+  @media (prefers-color-scheme: dark) {
+    .favicon {
+      fill: #FFF;
+    }
+  }
+  </style>
+  <path stroke="none" class="favicon"
+    d="M0 0 H1000 V915 H500 V1415 H0 V0 V1415 H0 Z
+       M1000 915 V1414 H500 L 1000 915" />
+</svg>
