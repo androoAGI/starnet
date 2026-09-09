@@ -206,7 +206,7 @@
     sliders.push(buildSlider(body, crt, 'over', 1, 1.4, 0.01));    // output overscan — ≥1.11 pulls the corners back inside the warp's domain so they stop filling black
     sliders.push(buildSlider(body, crt, 'dust', 0, 1, 0.05));      // dust motes drifting in the light pools
     sliders.push(buildSlider(body, crt, 'aberr', 0, 1, 0.05));     // chromatic aberration at the bowed edges (GPU path)
-    sliders.push(buildSlider(body, crt, 'grain', 0, 0.25, 0.01));  // film grain over the warped feed
+    sliders.push(buildSlider(body, crt, 'grain', 0, 0.65, 0.01));  // film grain over the warped feed
     sliders.push(buildSlider(body, crt, 'bloom', 0, 1, 0.05));     // phosphor bloom — the bright things haze outward (world.js drawBloom)
     sliders.push(buildSlider(body, crt, 'sharpen', 0, .6, .02)); // bounded edge detail before the CRT grain
     sliders.push(buildSlider(body, crt, 'film', 0, .5, .01)); // density curve; no lifted blacks or blur

@@ -6143,30 +6143,27 @@ const World = (() => {
       ctx.fillStyle = 'rgba(' + Math.round(11 * CRT.fade) + ',' + Math.round(12 * CRT.fade) + ',' + Math.round(15 * CRT.fade) + ',1)';
       ctx.fillRect(0, 0, W, H);
     }
-    if (CRT.grain > 0.001) {                          // FILM GRAIN — one cached noise tile, jittered per frame (CRT.grain)
-      // 'overlay' around mid-gray so grain modulates without lifting black levels; the tile is built
-      // ONCE and only its pattern offset changes each frame (a whole-number jitter derived from `now`,
-      // quantized to ~15fps so it reads as phosphor noise, not smooth scrolling texture).
+    if (CRT.grain > 0.001) {
+      // Visible tube static: full-range, zero-centred noise. Overlay preserves
+      // black and mean scene density; its old narrow tile/low alpha rounded to
+      // almost nothing on this dark feed. Keep speckles at one CSS pixel so a
+      // high-DPI display does not average them away into an invisible finish.
       const fi = reduceMotion() ? 0 : Math.floor(now / 66);
       const jx = (fi * 53) % GRAIN_S, jy = (fi * 97) % GRAIN_S;
       ctx.globalCompositeOperation = 'overlay';
-      ctx.globalAlpha = Math.min(0.25, CRT.grain);
-      ctx.translate(jx, jy);
+      ctx.globalAlpha = Math.min(.65, CRT.grain);
+      ctx.setTransform(dpr, 0, 0, dpr, jx * dpr, jy * dpr);
       ctx.fillStyle = grainPattern();
-      ctx.fillRect(-jx, -jy, W, H);
+      ctx.fillRect(-jx, -jy, Math.ceil(W / dpr), Math.ceil(H / dpr));
       ctx.setTransform(1, 0, 0, 1, 0, 0);
       ctx.globalAlpha = 1;
     }
     ctx.globalCompositeOperation = 'source-over';
   }
-  /* Cached mid-gray noise tile for the film grain — built once, reused forever (only the draw
-     offset animates). Mid-gray (128) is the 'overlay' neutral, so ±spread is pure texture.
-     2026-09-02: 128 -> 256px tile (the 128 repeat was readable as a tartan on a still frame at
-     zoom 2), and the noise went from UNIFORM ±55 to a TRIANGULAR ±64 (sum of two rands). Film
-     grain clusters around zero with rare strong specks; a flat uniform distribution puts the
-     same energy in every pixel, which on a dark deck reads as sand, not grain — the "digital
-     dirt" in every pre-09-02 crop. Same mean, lower variance per pixel, longer tail. */
-  const GRAIN_S = 256;
+  // A larger tile avoids a visible repeat across the station. A triangular
+  // distribution keeps most speckles fine, with occasional stronger static.
+  // Its mean is the exact overlay neutral (127.5), so no fog layer is added.
+  const GRAIN_S = 512;
   // the aperture-grille tile: R, G, B columns, each one device px wide, at mid-grey so 'multiply' only tints
   let _maskCv = null, _maskKey = '';
   function maskCanvas(dpr) {
@@ -6185,7 +6182,7 @@ const World = (() => {
     _grainCv = document.createElement('canvas'); _grainCv.width = S; _grainCv.height = S;
     const gctx = _grainCv.getContext('2d'), id = gctx.createImageData(S, S);
     for (let i = 0; i < S * S; i++) {
-      const v = 128 + Math.round((Math.random() + Math.random() - 1) * 64);
+      const v = Math.round((Math.random() + Math.random()) * 127.5);
       id.data[i * 4] = v; id.data[i * 4 + 1] = v; id.data[i * 4 + 2] = v; id.data[i * 4 + 3] = 255;
     }
     gctx.putImageData(id, 0, 0);
