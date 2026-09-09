@@ -18,11 +18,11 @@
 'use strict';
 
 const WorldSurface = (() => {
-  const VERSION = 3;
+  const VERSION = 4;
   const CELL = 12;
   const MATERIALS = Object.freeze([
     'spine', 'alloy', 'plate', 'panel', 'tile', 'tread', 'soft', 'grate', 'hex',
-    'plank', 'turf', 'diamond', 'resin', 'ceramic', 'cargo', 'runner', 'treadway', 'meshway'
+    'plank', 'turf', 'diamond', 'resin', 'ceramic', 'cargo', 'runner', 'treadway', 'meshway', 'basalt', 'parquet', 'rubber'
   ]);
   const WALLS = Object.freeze(['bulkhead', 'courses', 'service', 'plating', 'ribbed', 'panelled', 'pipework']);
   const materialSet = new Set(MATERIALS), wallSet = new Set(WALLS);
@@ -100,6 +100,23 @@ const WorldSurface = (() => {
     return { lx, ly, seed, panelX, row };
   }
 
+  // Marks follow physical boards/slabs rather than repeating once per game tile.
+  function woodBoard(p, pal, x, y, w, h, seed, vertical = false) {
+    p(x, y, w, h, seed % 4 === 0 ? pal.raised : seed % 4 === 1 ? pal.base : pal.field);
+    p(x, y, w, 1, pal.shade); p(x, y, 1, h, pal.recess);
+    p(x + 1, y + 1, w - 2, 1, pal.fine);
+    const long = vertical ? h : w, short = vertical ? w : h;
+    const mark = (a, b, len, color) => vertical ? p(x + b, y + a, 1, len, color) : p(x + a, y + b, len, 1, color);
+    for (let i = 0; i < 3; i++) {
+      const n = hash(seed, i, 76), a = 3 + n % Math.max(1, long - 10), b = 2 + (n >>> 9) % Math.max(1, short - 3);
+      mark(a, b, Math.min(5 + (n >>> 16) % 9, long - a - 2), i === 1 ? pal.fine : pal.soft);
+    }
+    if (!vertical && w >= 36 && seed % 7 === 2) {
+      const k = 10 + (seed >>> 12) % (w - 22);
+      p(x + k, y + 3, 5, 1, pal.shade); p(x + k + 1, y + 4, 3, 1, pal.soft);
+    }
+  }
+
   function paintFloorTile(ctx, material, base, X, Y, tile, worldTx, worldTy, opts) {
     const mat = materialSet.has(material) ? material : 'plate';
     const size = Math.max(1, Math.round(tile || CELL)), d = detailOf(opts);
@@ -110,58 +127,96 @@ const WorldSurface = (() => {
 
     if (mat === 'plank') {
       for (let row = 0; row < 2; row++) {
-        const gy = ty * 2 + row, shift = mod(gy, 3) * 17, lx = mod(wx + shift, 48);
-        const seed = hash(Math.floor((wx + shift) / 48), gy, 71), y = row * 6;
-        p(0, y, CELL, 6, seed % 3 === 0 ? pal.raised : pal.field);
-        p(0, y, CELL, 1, pal.recess); p(0, y + 1, CELL, 1, pal.fine);
-        p(-lx, y, 1, 6, pal.recess); p(1 - lx, y + 1, 1, 4, pal.fine);
-        p((seed >>> 8) % 5 - 2, y + 3, 7, 1, pal.soft);
-        if (seed % 5 === 0) p(7, y + 4, 4, 1, pal.fine);
-        if (lx > 16 && lx < 28 && seed % 7 === 2) {
-          p(5, y + 3, 3, 1, pal.recess); p(4, y + 4, 5, 1, pal.shade);
-        }
+        const gy = ty * 2 + row, shift = mod(gy, 3) * 16;
+        const start = Math.floor((wx + shift) / 48);
+        for (let board = start; board <= Math.floor((wx + CELL - 1 + shift) / 48); board++)
+          woodBoard(p, pal, board * 48 - shift - wx, row * 6, 48, 6, hash(board, gy, 71));
       }
+      return true;
+    }
+    if (mat === 'parquet') {
+      // 3:1 boards interlock at right angles. The diagonal band selects an entire
+      // board, so clipping the 18x6 parquet never creates per-tile stitch marks.
+      const painted = new Set();
+      for (let cy = Math.floor(wy / 6); cy < (wy + CELL) / 6; cy++) for (let cx = Math.floor(wx / 6); cx < (wx + CELL) / 6; cx++) {
+        const band = mod(cx - cy, 6), vertical = band >= 3;
+        const bx = vertical ? cx : cx - band, by = vertical ? cy - (5 - band) : cy;
+        const key = bx + ',' + by + ',' + vertical;
+        if (painted.has(key)) continue; painted.add(key);
+        woodBoard(p, pal, bx * 6 - wx, by * 6 - wy, vertical ? 6 : 18, vertical ? 18 : 6, hash(bx, by, 77), vertical);
+      }
+      return true;
+    }
+    if (mat === 'basalt') {
+      const row = Math.floor(wy / 24), shift = mod(row, 2) * 12, start = Math.floor((wx + shift) / 36);
+      for (let slab = start; slab <= Math.floor((wx + CELL - 1 + shift) / 36); slab++) {
+        const x = slab * 36 - shift - wx, y = row * 24 - wy, n = hash(slab, row, 120);
+        p(x, y, 36, 24, pal.recess); p(x + 1, y + 1, 35, 23, n % 3 ? pal.base : pal.field);
+        p(x + 2, y + 1, 32, 1, pal.fine); p(x + 1, y + 2, 1, 20, pal.soft);
+        p(x + 2, y + 22, 32, 1, pal.shade); p(x + 34, y + 3, 1, 18, pal.shade);
+        for (let i = 0; i < 14; i++) {
+          const s = hash(n, i, 121), a = x + 3 + s % 29, b = y + 3 + (s >>> 10) % 17;
+          p(a, b, i % 4 === 0 ? 2 : 1, 1, i % 3 ? pal.soft : pal.fine);
+        }
+        if (n % 4 === 0) { p(x + 7, y + 12, 8, 1, pal.soft); p(x + 15, y + 11, 5, 1, pal.soft); }
+      }
+      return true;
+    }
+    if (mat === 'rubber') {
+      const lx = mod(wx, 24), ly = mod(wy, 24), n = hash(Math.floor(wx / 24), Math.floor(wy / 24), 140);
+      p(0, 0, CELL, CELL, n % 3 ? pal.base : pal.soft);
+      p(-lx, 0, 1, CELL, pal.recess); p(0, -ly, CELL, 1, pal.recess);
+      const vertical = mod(Math.floor(wx / 24) + Math.floor(wy / 24), 2) === 0;
+      for (let i = 3; i < 22; i += 3) {
+        if (vertical) { p(i - lx, 2 - ly, 1, 20, pal.shade); p(i + 1 - lx, 2 - ly, 1, 20, pal.field); }
+        else { p(2 - lx, i - ly, 20, 1, pal.shade); p(2 - lx, i + 1 - ly, 20, 1, pal.field); }
+      }
+      p(2 - lx, 22 - ly, 20, 1, pal.soft); p(22 - lx, 2 - ly, 1, 20, pal.soft);
       return true;
     }
     if (mat === 'turf') {
       p(0, 0, CELL, CELL, pal.shade);
-      // Cluster silhouettes, rather than uniformly scattered bright pixels.
-      for (let i = 0; i < 5; i++) {
+      for (let i = 0; i < 6; i++) {
         const n = hash(tx, ty, 180 + i), x = n % 12, y = (n >>> 9) % 12;
         p(x - 2, y, 5, 2, pal.base); p(x, y - 2, 2, 4, pal.field);
-        p(x + 1, y - 1, 3, 1, pal.raised); p(x - 1, y + 2, 3, 1, pal.recess);
+        p(x + 1, y - 1, 2, 1, pal.raised); p(x - 1, y + 2, 3, 1, pal.recess);
+        if (i % 2 === 0) p(x + 1, y - 2, 1, 2, pal.fine);
       }
       return true;
     }
     if (mat === 'grate' || mat === 'meshway') {
       p(0, 0, CELL, CELL, pal.deep);
       for (let i = 0; i < CELL; i += 4) {
-        p(i, 0, 2, CELL, pal.shade); p(i, 0, 1, CELL, pal.edge);
-        p(0, i, CELL, 1, pal.recess); p(0, i + 1, CELL, 1, pal.fine);
+        p(i, 0, 2, CELL, pal.shade); p(i, 0, 1, CELL, pal.fine);
+        p(0, i, CELL, 1, pal.recess); p(0, i + 1, CELL, 1, pal.field);
       }
+      const lx = mod(wx, 24), ly = mod(wy, 24);
       if (mat === 'meshway') {
-        const lx = mod(wx, 24), ly = mod(wy, 24);
         p(-lx, 0, 3, CELL, pal.base); p(-lx, 0, 1, CELL, pal.edge);
         p(0, -ly, CELL, 3, pal.base); p(0, 2 - ly, CELL, 1, pal.recess);
-      }
+        bolt(p, 1 - lx, 1 - ly, pal);
+      } else { p(0, -ly, CELL, 2, pal.base); p(0, -ly, CELL, 1, pal.fine); }
       return true;
     }
     if (mat === 'hex') {
       p(0, 0, CELL, CELL, pal.field);
-      // Integer, staggered hexagons. Every segment is clipped locally, so the
-      // lattice crosses chunk and zone boundaries without an edge artifact.
       for (let rx = Math.floor(wx / 9) - 1; rx <= Math.floor((wx + 12) / 9); rx++) {
         const ox = rx * 9 - wx, shift = mod(rx, 2) * 4;
         for (let ry = Math.floor((wy - shift) / 8) - 1; ry <= Math.floor((wy + 12 - shift) / 8); ry++) {
-          const oy = ry * 8 + shift - wy;
-          p(ox + 3, oy, 6, 1, pal.recess); p(ox + 4, oy + 1, 4, 1, pal.fine);
+          const oy = ry * 8 + shift - wy, seed = hash(rx, ry, 82);
+          for (let row = 1; row < 7; row++) {
+            const inset = row < 4 ? 3 - row : row - 4;
+            p(ox + inset + 1, oy + row, 10 - inset * 2, 1, seed % 4 === 0 ? pal.raised : pal.field);
+          }
+          p(ox + 3, oy, 6, 1, pal.shade); p(ox + 4, oy + 1, 4, 1, pal.fine);
           for (let k = 0; k < 3; k++) {
             p(ox + 2 - k, oy + k + 1, 1, 1, pal.recess);
-            p(ox + 9 + k, oy + k + 1, 1, 1, pal.recess);
-            p(ox + k, oy + 4 + k, 1, 1, pal.recess);
+            p(ox + 9 + k, oy + k + 1, 1, 1, pal.shade);
+            p(ox + k, oy + 4 + k, 1, 1, pal.shade);
             p(ox + 11 - k, oy + 4 + k, 1, 1, pal.recess);
           }
-          p(ox + 3, oy + 7, 6, 1, pal.shade);
+          p(ox + 3, oy + 7, 6, 1, pal.recess);
+          if (seed % 9 === 0) p(ox + 4, oy + 4, 3, 1, pal.soft);
         }
       }
       return true;
@@ -169,23 +224,22 @@ const WorldSurface = (() => {
     if (mat === 'diamond') {
       p(0, 0, CELL, CELL, pal.field);
       for (let iy = 0; iy < 2; iy++) for (let ix = 0; ix < 2; ix++) {
-        const x = ix * 6 + mod(iy, 2) * 2, y = iy * 6 + 1;
-        p(x, y + 2, 2, 1, pal.shade); p(x + 1, y + 1, 2, 1, pal.edge);
-        p(x + 2, y, 2, 1, pal.fine); p(x + 3, y + 1, 1, 1, pal.recess);
+        const x = ix * 6, y = iy * 6, flip = mod(tx * 2 + ix + ty * 2 + iy, 2);
+        for (let k = 0; k < 3; k++) {
+          const a = x + 1 + k, b = y + (flip ? 1 + k : 3 - k);
+          p(a, b + 1, 2, 1, pal.shade); p(a, b, 2, 1, k === 1 ? pal.edge : pal.fine);
+        }
       }
+      if (hash(tx, ty, 92) % 7 === 0) p(1, 5, 3, 1, pal.soft);
       return true;
     }
     if (mat === 'resin') {
-      const block = hash(Math.floor(tx / 3), Math.floor(ty / 3), 101);
-      p(0, 0, CELL, CELL, block % 3 ? pal.field : pal.raised);
-      if (mod(ty, 3) === 0) p(0, 0, CELL, 1, pal.soft);
-      if (mod(tx, 3) === 0) p(0, 0, 1, CELL, pal.soft);
-      // A shallow clearcoat roll-off spans a whole poured slab. It is a
-      // material finish, never a reflected object or an invented light source.
-      const lx = mod(wx, 36), ly = mod(wy, 36);
-      p(3 - lx, 3 - ly, 29, 2, pal.raised);
-      p(5 - lx, 5 - ly, 24, 1, pal.fine);
-      if (hash(tx, ty, 102) % 13 === 2) p(2, 8, 6, 1, pal.fine);
+      const block = hash(Math.floor(tx / 3), Math.floor(ty / 3), 101), lx = mod(wx, 36), ly = mod(wy, 36);
+      p(0, 0, CELL, CELL, block % 3 ? pal.field : pal.base);
+      p(-lx, 0, 1, CELL, pal.soft); p(0, -ly, CELL, 1, pal.soft);
+      p(3 - lx, 3 - ly, 29, 1, pal.raised); p(5 - lx, 4 - ly, 24, 1, pal.fine);
+      const n = hash(tx, ty, 102);
+      if (n % 5 === 0) p(2, 8, 4, 1, pal.raised);
       return true;
     }
 
@@ -193,55 +247,55 @@ const WorldSurface = (() => {
     const h = mat === 'panel' ? 12 : mat === 'tile' ? 12 : 24;
     const q = floorPanel(p, pal, wx, wy, w, h, { stagger: mat === 'panel', bolts: mat === 'alloy' || mat === 'cargo' });
     const lx = q.lx, ly = q.ly;
+    // A few quiet machining strokes stay attached to a whole plate's field.
+    if (['spine', 'alloy', 'plate', 'panel', 'cargo'].includes(mat)) {
+      for (let i = 0; i < 3; i++) {
+        const n = hash(q.seed, i, 97);
+        p(3 + n % (w - 10) - lx, 3 + (n >>> 8) % (h - 6) - ly, 3 + (n >>> 16) % 4, 1, i === 1 ? pal.fine : pal.soft);
+      }
+    }
     if (mat === 'spine') {
-      // Main deck: a narrow recessed service channel every three tiles, with
-      // a quiet 32px walking plate. No inspection-hatch confetti in the field.
       p(32 - lx, 0, 4, CELL, pal.recess); p(32 - lx, 0, 1, CELL, pal.fine);
       for (let y = -ly + 4; y < CELL; y += 6) p(34 - lx, y, 2, 1, pal.shade);
+      p(4 - lx, 3 - ly, 24, 1, pal.raised); p(28 - lx, 4 - ly, 1, 14, pal.shade);
       if (q.row % 3 === 0) p(4 - lx, 4 - ly, 6, 1, pal.warm);
     } else if (mat === 'alloy') {
-      p(4 - lx, 3 - ly, 14, 2, pal.raised);
-      p(5 - lx, 5 - ly, 11, 1, pal.fine);
-      p(3 - lx, 20 - ly, 8, 1, pal.soft);
-      p(21 - lx, 4 - ly, 1, 13, pal.shade);
+      p(4 - lx, 3 - ly, 14, 2, pal.raised); p(5 - lx, 5 - ly, 11, 1, pal.fine);
+      p(3 - lx, 20 - ly, 8, 1, pal.soft); p(21 - lx, 4 - ly, 1, 13, pal.shade);
+      p(17 - lx, 18 - ly, 3, 2, pal.recess); p(17 - lx, 18 - ly, 2, 1, pal.fine);
     } else if (mat === 'plate') {
-      // Wear stays at a panel's service edge instead of becoming floor noise.
-      if (q.seed % 5 === 1) {
-        p(4 - lx, h - 5 - ly, 7, 1, pal.soft);
-        p(6 - lx, h - 4 - ly, 4, 1, pal.fine);
-      }
+      if (q.seed % 3 === 1) { p(4 - lx, h - 5 - ly, 7, 1, pal.soft); p(6 - lx, h - 4 - ly, 4, 1, pal.fine); }
+      p(w - 5 - lx, 3 - ly, 2, 2, pal.shade); p(w - 5 - lx, 3 - ly, 1, 1, pal.fine);
     } else if (mat === 'panel') {
-      p(3 - lx, 8 - ly, 14, 1, pal.soft); p(20 - lx, 4 - ly, 2, 1, pal.recess);
+      p(3 - lx, 8 - ly, 14, 1, pal.soft); p(20 - lx, 4 -ly, 2, 1, pal.recess); p(20 - lx, 3 - ly, 2, 1, pal.fine);
     } else if (mat === 'tile' || mat === 'ceramic') {
       p(2 - lx, 2 - ly, w - 3, h - 3, mod(q.panelX + q.row, 2) ? pal.raised : pal.field);
-      p(2 - lx, 2 - ly, w - 4, 1, pal.edge);
-      p(w - 2 - lx, 3 - ly, 1, h - 4, pal.shade);
-      p(3 - lx, h - 2 - ly, w - 5, 1, pal.shade);
-      if (mat === 'ceramic') {
-        p(4 - lx, 4 - ly, 12, 2, pal.raised);
-        p(5 - lx, 6 - ly, 9, 1, pal.fine);
-      }
+      p(2 - lx, 2 - ly, w - 4, 1, pal.fine);
+      p(w - 2 - lx, 3 - ly, 1, h - 4, pal.shade); p(3 - lx, h - 2 - ly, w - 5, 1, pal.shade);
+      if (mat === 'ceramic') { p(4 - lx, 4 - ly, 12, 1, pal.raised); p(5 - lx, 5 - ly, 9, 1, pal.fine); }
+      else if (q.seed % 5 === 0) p(3 - lx, 4 - ly, 4, 1, pal.raised);
     } else if (mat === 'tread' || mat === 'treadway') {
       for (let i = 0; i < 2; i++) {
         const y = 3 + i * 6;
-        p(3, y, 3, 1, pal.edge); p(6, y + 1, 3, 1, pal.edge);
+        p(3, y, 3, 1, pal.fine); p(6, y + 1, 3, 1, pal.fine);
         p(3, y + 1, 3, 1, pal.recess); p(6, y + 2, 3, 1, pal.recess);
+        p(4, y - 1, 2, 1, pal.raised);
       }
-      if (mat === 'treadway') {
-        p(2 - lx, 0, 2, CELL, pal.shade); p(20 - lx, 0, 2, CELL, pal.shade);
-      }
+      if (mat === 'treadway') { p(2 - lx, 0, 2, CELL, pal.shade); p(20 - lx, 0, 2, CELL, pal.shade); p(2 - lx, 0, 1, CELL, pal.fine); }
     } else if (mat === 'cargo') {
       p(3 - lx, 3 - ly, 5, 2, pal.shade); p(3 - lx, 3 - ly, 5, 1, pal.warm);
       p(16 - lx, 20 - ly, 5, 2, pal.shade); p(17 - lx, 20 - ly, 4, 1, pal.fine);
+      p(4 - lx, 18 - ly, 3, 2, pal.recess); p(4 - lx, 18 - ly, 2, 1, pal.fine);
+      p(16 - lx, 4 - ly, 4, 1, pal.shade);
     } else if (mat === 'soft') {
       p(0, 0, CELL, CELL, pal.base);
+      for (let y = 2; y < CELL; y += 4) for (let x = mod(y, 8) ? 1 : 3; x < CELL; x += 4) p(x, y, 2, 1, pal.soft);
       if (ly === 0) for (let x = 1; x < CELL; x += 4) p(x, 0, 2, 1, pal.shade);
       if (lx === 0) for (let y = 2; y < CELL; y += 4) p(0, y, 1, 2, pal.shade);
-      if (hash(tx, ty, 901) % 3 === 1) p(3, 5, 5, 1, pal.soft);
     } else if (mat === 'runner') {
-      p(2 - lx, 0, 20, CELL, pal.shade);
-      p(3 - lx, 0, 1, CELL, pal.warm); p(20 - lx, 0, 1, CELL, pal.warm);
-      for (let y = 3; y < CELL; y += 4) p(6 - lx, y, 12, 1, pal.soft);
+      p(2 - lx, 0, 20, CELL, pal.shade); p(3 - lx, 0, 1, CELL, pal.warm); p(20 - lx, 0, 1, CELL, pal.warm);
+      for (let y = 2; y < CELL; y += 3) { p(6 - lx, y, 12, 1, pal.soft); p(4 - lx, y, 1, 1, pal.fine); p(19 - lx, y, 1, 1, pal.fine); }
+      p(7 - lx, 0, 1, CELL, pal.base); p(16 - lx, 0, 1, CELL, pal.base);
     }
     return true;
   }

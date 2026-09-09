@@ -214,8 +214,12 @@ const WorldModel = (() => {
     runner:   { label: 'RUNNER',   pitch: [2, 2], suggest: null },
     treadway: { label: 'TREADWAY', pitch: [3, 2], suggest: null },
     meshway:  { label: 'MESHWAY',  pitch: [3, 3], suggest: null },
+    // Cut-stone slabs, herringbone wood and ribbed industrial mat.
+    basalt:   { label: 'BASALT',   pitch: [3, 2], suggest: 'hull' },
+    parquet:  { label: 'PARQUET',  pitch: [3, 3], suggest: 'walnut' },
+    rubber:   { label: 'RUBBER',   pitch: [2, 2], suggest: 'corridor' },
   };
-  const MAT_ORDER = ['spine', 'alloy', 'runner', 'treadway', 'meshway', 'plate', 'diamond', 'cargo', 'panel', 'tile', 'ceramic', 'resin', 'tread', 'soft', 'grate', 'hex', 'plank', 'turf'];
+  const MAT_ORDER = ['spine', 'alloy', 'runner', 'treadway', 'meshway', 'plate', 'diamond', 'cargo', 'panel', 'tile', 'ceramic', 'resin', 'tread', 'soft', 'grate', 'hex', 'plank', 'turf', 'basalt', 'parquet', 'rubber'];
 
   /* the WALL material catalog — the deck's opposite number. Walls carry the same two axes as the
      floor (hue × recipe) and read from the same FLOOR_STYLES hue catalog, because a room should be

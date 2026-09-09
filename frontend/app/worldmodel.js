@@ -217,7 +217,7 @@ const WorldModel = (() => {
     // Cut-stone slabs, herringbone wood and ribbed industrial mat.
     basalt:   { label: 'BASALT',   pitch: [3, 2], suggest: 'hull' },
     parquet:  { label: 'PARQUET',  pitch: [3, 3], suggest: 'walnut' },
-    rubber:   { label: 'RUBBER',   pitch: [2, 2], suggest: 'onyx' },
+    rubber:   { label: 'RUBBER',   pitch: [2, 2], suggest: 'corridor' },
   };
   const MAT_ORDER = ['spine', 'alloy', 'runner', 'treadway', 'meshway', 'plate', 'diamond', 'cargo', 'panel', 'tile', 'ceramic', 'resin', 'tread', 'soft', 'grate', 'hex', 'plank', 'turf', 'basalt', 'parquet', 'rubber'];
 

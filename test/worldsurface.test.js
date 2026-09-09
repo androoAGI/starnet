@@ -215,7 +215,7 @@ A.ok(pixelLuma(atPlate(23, 12)) < pixelLuma(atPlate(12, 12)), 'east plate edge h
 
 // Broad finish ribbons must crop just like their surrounding floor. This catches
 // slab-sized detail accidentally anchored to each chunk or to the camera frame.
-for (const material of ['resin', 'ceramic', 'alloy', 'plate']) {
+for (const material of Surface.MATERIALS) {
   const mg = geometry(); mg.matOf = () => material; mg.baseColorOf = () => '#3a3b41';
   const all = Surface.bake(mg, { canvasFactory: canvas }).baseCv;
   const v = { x: 29, y: 25, w: 71, h: 49 };
