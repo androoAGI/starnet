@@ -308,3 +308,15 @@ body.glass-demo #screen-game #bottombar .bb-menu .bb-i svg { width: 18px; height
 body.glass-demo #screen-game #bottombar .bb-menu .bb-tx { gap: 4px; }
 body.glass-demo #screen-game #bottombar .bb-menu .bb-tx b { font: 17px/1 'VT323',monospace; letter-spacing: 1px; }
 body.glass-demo #screen-game #bottombar .bb-menu .bb-tx small { font: 13px/1.25 'VT323',monospace; letter-spacing: .15px; white-space: normal; overflow: visible; color: var(--ph-dim); }
+
+/* Pending approval is distinct from a question or a failed run. */
+body.glass-demo #left .ws-dot.approval {
+  background: var(--bad); border: 0; animation: gd-approval-pulse 1.2s ease-in-out infinite;
+}
+@keyframes gd-approval-pulse {
+  0%,100% { opacity: 1; box-shadow: 0 0 7px var(--bad), inset 0 1px 0 rgba(255,255,255,.3); }
+  50% { opacity: .3; box-shadow: 0 0 1px var(--bad); }
+}
+@media (prefers-reduced-motion: reduce) {
+  body.glass-demo #left .ws-dot.approval { animation: none; opacity: 1; box-shadow: 0 0 3px var(--bad); }
+}

@@ -3542,7 +3542,7 @@ const App = (() => {
     const pending = typeof Channels !== 'undefined' && Channels.pendingOf(w.id);
     if (pending) {
       const question = pending.tool === 'brief.ask';
-      return { dot: 'ws-dot needsyou', meta: question ? 'Reply needed' : 'Approval needed', busy: Channels.isBusy(w.id), attn: true, status: question ? 'waiting for your answer' : 'awaiting your approval' };
+      return { dot: question ? 'ws-dot needsyou' : 'ws-dot needsyou approval', meta: question ? 'Reply needed' : 'Approval needed', busy: Channels.isBusy(w.id), attn: true, status: question ? 'waiting for your answer' : 'awaiting your approval' };
     }
     if (typeof Channels !== 'undefined' && Channels.isBusy(w.id)) {
       const status = Channels.statusOf(w.id);
