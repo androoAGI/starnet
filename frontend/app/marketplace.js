@@ -86,8 +86,8 @@ const Marketplace = (() => {
   const RECIPE_GEAR_PICK = ['dish', 'cabinet', 'notebook', 'workbench', 'studio'];
   // the category buckets the EDITOR offers as authorable browse buckets (the discovery-rail personas).
   const RECIPE_CATEGORIES = ['developer', 'research', 'creator', 'ops', 'business', 'money', 'data', 'general'];
-  const CAT_LABEL = { developer: 'DEVELOPER', research: 'RESEARCH', writing: 'CREATOR', creator: 'CREATOR',
-    ops: 'WORK', business: 'BUSINESS', money: 'MONEY', data: 'DATA', general: 'GENERAL',
+  const CAT_LABEL = { developer: 'CODING', research: 'LEARNING & RESEARCH', writing: 'WRITING & CONTENT', creator: 'WRITING & CONTENT',
+    ops: 'WORK & PLANNING', business: 'BUSINESS', money: 'MONEY', data: 'DATA', general: 'EVERYDAY LIFE',
     // legacy aliases older customs may still carry — labeled so a dossier chip never shows a raw slug.
     code: 'DEVELOPER', planning: 'WORK' };
   /* Discovery-rail buckets (in rail order) + the fold from a raw category onto one — BOTH owned by recipes.js
@@ -441,7 +441,7 @@ const Marketplace = (() => {
       const counts = { all: all.length, mine: customs.length };
       railBuckets().forEach(b => counts[b] = 0);
       all.forEach(r => { const rb = railBucket(r); counts[rb] = (counts[rb] || 0) + 1; });
-      const cat = (id, label) => '<button class="mkt-lane' + (catFilter === id ? ' on' : '') + '" data-cat="' + id + '">' +
+      const cat = (id, label) => '<button class="mkt-lane' + (catFilter === id ? ' on' : '') + '" aria-pressed="' + (catFilter === id) + '" data-cat="' + id + '">' +
         label + '<span class="ct">' + (counts[id] || 0) + '</span></button>';
       let rail = cat('all', 'ALL');
       railBuckets().forEach(b => { if (counts[b] > 0 || b === 'general') rail += cat(b, CAT_LABEL[b] || b); });
@@ -557,6 +557,7 @@ const Marketplace = (() => {
       else wireLaunchForm(stage);
       return;
     }
+    if (tab === 'recipes' && hasRecipes()) syncRecipeFocus();
     stage.className = 'mkt-stage mkt-recruit' + (tab === 'recipes' ? ' mkt-recipes' : '');
     // a fresh grid render (open / tab / filter / search) always returns to the ROSTER view on a narrow bay — the
     // dossier SHEET is only entered by an explicit card click, never left stuck over a rebuilt roster.
@@ -611,6 +612,13 @@ const Marketplace = (() => {
     return railBucket(r) === catFilter;
   }
   function filtRecipes(list) { return list.filter(r => passCat(r) && matchq(r)); }
+  function syncRecipeFocus() {
+    const visible = filtRecipes(Recipes.list());
+    const current = focusRecipe && Recipes.get(focusRecipe);
+    // Explicit legacy deep links remain usable in the unfiltered library.
+    if (current && ((!query && catFilter === 'all') || visible.some(r => r.id === current.id))) return;
+    focusRecipe = visible.length ? visible[0].id : null;
+  }
 
   /* ---------- roster (left pane) ---------- */
   function rosterHTML() {
@@ -763,7 +771,7 @@ const Marketplace = (() => {
     const consentFirst = !acked();
     const suggestedHasCards = !filtering && (suggestedMissions().length > 0 || scoutRecipeDrafts().length > 0);
     let html = '<div class="mkt-toolbar"><button class="bb sm mkt-recipe-saveas">＋ SAVE A RECIPE</button>' +
-      '<span class="mkt-hint">pick a recipe, fill in the blanks, and ' + esc((ctx && ctx.agentName) || 'your agent') + ' runs it in a new task conversation</span></div>';
+      '<span class="mkt-hint">choose a workflow and start a session with ' + esc((ctx && ctx.agentName) || 'your agent') + '. Add details only when needed.</span></div>';
     if (!filtering && consentFirst) html += consentStripHTML();
     if (suggestedHasCards) html += suggestedShelfHTML();
     // READY ON THIS STATION sits ABOVE the generic row on purpose: a card bound to a real project root the
@@ -925,7 +933,8 @@ const Marketplace = (() => {
     // [seal socket] [name + tagline] ……… [lane · setup / code stamp]
     const sel = (focusRecipe === r.id);
     const n = (r.params || []).length;
-    const setup = n ? ('▤ ' + n + ' input' + (n === 1 ? '' : 's')) : '◷ no setup';
+    const missing = Recipes.requiredMissing(r, recipeDefaults(r)).length;
+    const setup = missing ? ('▤ ' + missing + ' detail' + (missing === 1 ? '' : 's') + ' needed') : (r.intake || []).length ? '▤ choose options' : '▸ ready to start';
     // SOP: a recipe with host-checked acceptance says so on the card — the one glance that separates "a prompt"
     // from "a procedure the station holds itself to".
     const na = (r.acceptance || []).length;
@@ -1225,8 +1234,8 @@ const Marketplace = (() => {
     return '<div class="mkt-r-live"><span class="mkt-r-live-dot" aria-hidden="true">●</span> live as a routine — ' + sched + extra + '</div>';
   }
   function recipeDossierHTML() {
-    const r = (focusRecipe && Recipes.get(focusRecipe)) || Recipes.builtins()[0];
-    if (!r) return '<div class="mkt-dos-empty">no recipe selected.</div>';
+    const r = focusRecipe && Recipes.get(focusRecipe);
+    if (!r) return '<div class="mkt-dos-empty">No matching recipe. Try another category or search.</div>';
     const who = (ctx && ctx.agentName) || 'your agent';
     const n = (r.params || []).length;
     // INPUTS names the KIND of each fill-in too, so the dossier tells you what the launch form will ask for
@@ -1234,7 +1243,7 @@ const Marketplace = (() => {
     const inputs = n ? '<div class="mkt-block"><div class="bh">WHAT YOU’LL PROVIDE</div><ul class="mkt-starters">' +
       r.params.map(p => '<li>' + esc(p.label) + paramKindHTML(p) + (p.required ? '' : ' <i>(optional)</i>') + '</li>').join('') + '</ul></div>' : '';
     // SOP: the procedure the agent is told to follow, and the acceptance checks the HOST evaluates at run end.
-    const steps = (r.steps && r.steps.length) ? '<div class="mkt-block"><div class="bh">PROCEDURE — in this order</div><ol class="mkt-starters mkt-sop-steps">' +
+    const steps = (r.steps && r.steps.length) ? '<div class="mkt-block"><div class="bh">HOW IT WORKS</div><ol class="mkt-starters mkt-sop-steps">' +
       r.steps.map(x => '<li>' + esc(x) + '</li>').join('') + '</ol></div>' : '';
     const accept = (r.acceptance && r.acceptance.length) ? '<div class="mkt-block"><div class="bh">ACCEPTANCE — host-checked when the run ends</div><ul class="mkt-starters mkt-sop-accept">' +
       r.acceptance.map(a => '<li>◇ ' + esc(Recipes.acceptanceLabel(a)) + '</li>').join('') + '</ul></div>' : '';
@@ -1258,15 +1267,16 @@ const Marketplace = (() => {
           '<div class="mkt-dos-tag">' + esc(r.tagline) + '</div>' +
           '<div class="mkt-meta"><span class="mkt-chip lane">' + esc(CAT_LABEL[railBucket(r)] || 'GENERAL') + '</span>' + recipeLifeChip(r) + '</div></div></div>' +
       lastRunHTML(r) + driftHTML(r) + liveRoutineBadgeHTML(r) + forkLine + cadHint +
-      '<div class="mkt-about"><div class="bp lead">' + esc(r.blurb || r.tagline) + '</div></div>' +
-      inputs +
+      (r.blurb && r.blurb !== r.tagline ? '<div class="mkt-about"><div class="bp lead">' + esc(r.blurb) + '</div></div>' : '') +
+      steps + inputs +
       '<details class="mkt-brief"><summary>INSTRUCTIONS &amp; CHECKS</summary>' +
-        '<div class="mkt-block"><div class="bh">WHAT IT SENDS</div><pre>' + esc(r.task) + '</pre></div>' + steps + accept + '</details>' +
+        '<div class="mkt-block"><div class="bh">WHAT IT SENDS</div><pre>' + esc(r.task) + '</pre></div>' + accept + '</details>' +
       '<details class="mkt-brief"><summary>TOOLS &amp; SKILLS</summary>' + recipeGearHTML(r) + recipeSkillsHTML(r) + '</details>' +
       '<details class="mkt-brief"><summary>CUSTOMIZE &amp; SHARE</summary>' + custActs + '</details></div>' +
       '<div class="mkt-dos-cta">' +
-        '<button class="mkt-cta-main mkt-launch" data-id="' + esc(r.id) + '">' + (n ? '▸ SET UP &amp; LAUNCH' : '▸ LAUNCH RECIPE') + '</button>' +
-        '<div class="mkt-cta-sub">run it now · or put it on a schedule</div>' +
+        '<button class="mkt-cta-main mkt-launch" data-id="' + esc(r.id) + '">' + (Recipes.requiredMissing(r, recipeDefaults(r)).length || (r.intake || []).length ? '▸ ADD DETAILS &amp; START' : '▸ START SESSION') + '</button>' +
+        '<div class="mkt-cta-sub">opens a new session and starts this workflow</div>' +
+        '<button class="bb sm mkt-launch-options" data-id="' + esc(r.id) + '">EDIT INPUTS / SCHEDULE</button>' +
       '</div>';
   }
 
@@ -2286,11 +2296,18 @@ const Marketplace = (() => {
       if (!hasRecipes()) return;
       const r = Recipes.get(launchBtn.dataset.id); if (!r) return;
       sfx('click');
-      // always open the launch pane (even for a no-setup recipe) so BOTH verbs are offered — RUN NOW and MAKE
-      // ROUTINE (R3). A param-less recipe simply shows no fill-in fields; the two action buttons still appear.
+      const defaults = recipeDefaults(r);
+      if (!Recipes.requiredMissing(r, defaults).length && !(r.intake || []).length) {
+        launchRecipeNow(r, defaults); return;
+      }
       launchId = r.id; launchMode = 'run'; launchCadence = null; view = 'launch';
       loadCronJobs();   // warm the armed-state note for the MAKE ROUTINE panel
       renderStage();
+    });
+    const optionsBtn = sc.querySelector('.mkt-launch-options');
+    if (optionsBtn) optionsBtn.addEventListener('click', () => {
+      launchId = optionsBtn.dataset.id; launchMode = 'run'; launchCadence = null; view = 'launch';
+      loadCronJobs(); renderStage();
     });
     const edit = sc.querySelector('.mkt-edit');
     if (edit) edit.addEventListener('click', () => {
@@ -2780,9 +2797,14 @@ const Marketplace = (() => {
   }
 
   /* ---------- launch a recipe ---------- */
+  function recipeDefaults(r) {
+    const values = {};
+    (r.params || []).forEach(p => { values[p.key] = p.default || ''; });
+    return values;
+  }
   function launchRecipeNow(r, values) {
-    const ok = !ctx || !ctx.onLaunch || ctx.onLaunch(r, values) !== false;
-    if (ok) { note('recipe launched: ' + r.name + ' — ' + ((ctx && ctx.agentName) || 'your agent') + ' is on it', 'good'); close(); }
+    const ok = !!(ctx && typeof ctx.onLaunch === 'function' && ctx.onLaunch(r, values) !== false);
+    if (ok) { note('session opened: ' + r.name, 'good'); close(); }
     else { sfx('bad'); note('could not launch ' + r.name + ' — the agent is mid-run (or there was nothing to send). try again when it settles.', 'bad'); }
   }
   // the schedule string a launchCadence id maps to, plus a 'custom' free-text entry the user types (every Nh or
@@ -2925,11 +2947,11 @@ const Marketplace = (() => {
           '<button class="bb sm mkt-launch-run-alt">▸ RUN NOW INSTEAD</button>' +
           '<button class="bb sm mkt-do-routine">◷ SCHEDULE IT</button></div>'
       : '<div class="mkt-save-acts"><button class="bb sm mkt-cancel">‹ BACK</button>' +
-          '<button class="bb sm mkt-do-launch">▸ RUN NOW</button>' +
+          '<button class="bb sm mkt-do-launch">▸ START SESSION</button>' +
           '<button class="bb sm mkt-do-makeroutine" title="puts this recipe on a schedule — it becomes a ROUTINE you can manage in ⏱ ROUTINES">◷ MAKE ROUTINE</button></div>';
     const modeNote = (launchMode === 'routine')
       ? '◷ fills the blanks ONCE, then runs the same directive on your chosen cadence as <b>' + esc(who) + '</b> — it becomes a ROUTINE (manage or stop it any time in ⏱ ROUTINES).'
-      : '▸ opens a new task conversation and sets <b>' + esc(who) + '</b> to work on it — or put it on a schedule.';
+      : '▸ opens a new session and starts this workflow with <b>' + esc(who) + '</b>.';
     /* WHAT GETS SENT — the filled directive, live. The dossier shows the raw template with its {tokens}; the last
        thing the Commander saw before committing used to be a form full of blanks, so the actual instruction the
        agent receives was never visible anywhere. This renders the REAL output of Recipes.fillTask against the

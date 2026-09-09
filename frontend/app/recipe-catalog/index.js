@@ -54,5 +54,15 @@
       out.push(r);
     }
   }
-  return out;
+  const curated = mod('./curated.js', 'RecipeCatalogCurated');
+  if (!curated.length) return out;
+  const byId = new Map(out.map(r => [r.id, r]));
+  const selected = new Set(curated.map(r => r.id));
+  // Preserve retired ids for saved routines, old links, and forks. Only the
+  // browsable/recommended library is trimmed; an old job keeps its directive.
+  return curated.map(copy => {
+    const original = byId.get(copy.id);
+    if (!original) throw new Error('Unknown curated recipe: ' + copy.id);
+    return Object.assign({}, original, copy);
+  }).concat(out.filter(r => !selected.has(r.id)).map(r => Object.assign({}, r, { archived: true })));
 });

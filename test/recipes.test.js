@@ -10,9 +10,31 @@
 const A = require('./_assert.js');
 const R = require('../frontend/app/recipes.js');
 const C = require('../frontend/app/classify.js');   // the same task/tag classifier the live app uses
+// Exercise the production selection reconciler: filters must not leave a launch
+// button attached to an unrelated, hidden recipe.
+const marketSource = require('node:fs').readFileSync(require('node:path').join(__dirname, '../frontend/app/marketplace.js'), 'utf8');
+const selectionSource = marketSource.match(/function syncRecipeFocus\(\) \{[\s\S]*?\n  \}/)[0];
+const selectRecipe = new Function('Recipes', 'filtRecipes', 'focusRecipe', 'query', 'catFilter', selectionSource + '; syncRecipeFocus(); return focusRecipe;');
+A.eq(selectRecipe(R, rows => rows.filter(r => r.category === 'money'), 'travel-plan', '', 'money'), 'budget-build', 'category switch selects a visible recipe');
+A.eq(selectRecipe(R, () => [], 'travel-plan', 'no-match', 'all'), null, 'empty search clears the launch target');
+A.eq(selectRecipe(R, rows => rows.filter(r => r.category === 'money'), 'receipt-ledger', '', 'money'), 'receipt-ledger', 'a matching selection stays selected');
+A.eq(selectRecipe(R, rows => rows, 'claim-fact-check', '', 'all'), 'claim-fact-check', 'explicit legacy deep links remain launchable');
 
 /* ---------- catalog integrity ---------- */
 const builtins = R.builtins();
+// The public selection stays small and diverse; saved legacy ids remain usable.
+A.eq(builtins.length, 45, 'public recipe library contains 45 starting points');
+A.eq(builtins.filter(r => R.railBucket(r) === 'developer').length, 5, 'coding is five of the 45 workflows');
+A.ok(R.RAIL_BUCKETS.every(bucket => builtins.filter(r => R.railBucket(r) === bucket).length >= 5), 'every category has at least five workflows');
+A.ok(builtins.every(r => r.steps.length === 3 && r.name.length <= 28 && r.blurb.length <= 160), 'each public workflow has a short name, description, and three steps');
+const archivedRecipe = R.get('claim-fact-check');
+A.ok(archivedRecipe && archivedRecipe.archived && R.fillTask(archivedRecipe, { claim: 'sample claim' }).includes('sample claim'), 'retired recipe ids still fill and launch');
+A.ok(!R.list().some(r => r.id === 'claim-fact-check'), 'retired recipes stay out of the public library and recommendation pool');
+for (const recipe of builtins) {
+  const supplied = Object.fromEntries(recipe.params.map(p => [p.key, p.default || ('sample ' + p.key)]));
+  A.eq(R.requiredMissing(recipe, supplied), [], recipe.id + ' accepts its declared inputs');
+  A.ok(!/\{\w+\}/.test(R.fillTask(recipe, supplied)), recipe.id + ' sends a complete workflow without unfilled tokens');
+}
 A.ok(builtins.length >= 8, 'catalog ships a real library (>= 8 recipes), got ' + builtins.length);
 
 const seen = {};
@@ -75,7 +97,7 @@ A.ok(mb.indexOf('the last 24 hours') >= 0, 'a blank optional param uses its defa
 A.ok(mb.indexOf('{window}') < 0 && mb.indexOf('{topic}') < 0, 'no tokens survive when defaults cover the blanks');
 
 // a clean single-line prose recipe stays clean (no stray double spaces / space-before-punctuation)
-A.ok(!/\s{2,}/.test(mb) && !/\s[.,;:!?]/.test(mb), 'a filled single-line prose recipe reads clean');
+A.ok(mb.split('\n\nProcedure')[0].split('\n\nDecisions')[0].split('\n').every(line => !/\s{2,}/.test(line) && !/\s[.,;:!?]/.test(line)), 'filled prose reads clean before the structured workflow');
 
 // CRITICAL: a filled value is inserted VERBATIM — pasted code / logs / indentation / aligned text must survive
 // untouched, because the agent has to run exactly what the Commander supplied (not a whitespace-flattened version).
@@ -417,7 +439,7 @@ A.eq(lRank[0].id, 'summarize', 'a heavily-launched recipe ranks first on launche
 // the nudge is CAPPED at 5: two heavy hitters tie and fall back to catalog order (fix-bug precedes summarize),
 // and the bare-number launches shape ({id: n}) is accepted alongside {id: {n}}.
 const lCap = R.rankRecipes(items, { launches: { 'summarize': { n: 500 }, 'fix-bug': 400 }, goalText: '', limit: 3 });
-A.eq(lCap.map(r => r.id).slice(0, 2).join(','), 'fix-bug,summarize', 'capped launch counts tie-break by catalog order; both launch shapes accepted');
+A.eq(lCap.map(r => r.id).slice(0, 2).join(','), items.filter(r => ['fix-bug', 'summarize'].includes(r.id)).map(r => r.id).join(','), 'capped launch counts tie-break by catalog order; both launch shapes accepted');
 
 /* OUTCOME term (lane B): the Commander's own rate-the-work verdicts rank what actually HELPED. */
 // a great-rated recipe outranks an equally-launched unrated one
@@ -425,7 +447,7 @@ const oUp = R.rankRecipes(items, { launches: { 'summarize': { n: 2, rated: { gre
 A.eq(oUp[0].id, 'summarize', 'great verdicts lift a recipe over an equally-launched unrated one');
 // the great lift is capped at 3 — beyond that, catalog order decides again
 const oCapA = R.rankRecipes(items, { launches: { 'summarize': { n: 2, rated: { great: 300 } }, 'fix-bug': { n: 2, rated: { great: 3 } } }, limit: 2 });
-A.eq(oCapA[0].id, 'fix-bug', 'the great lift caps at 3 (300 greats tie with 3, catalog order breaks it)');
+A.eq(oCapA[0].id, items.find(r => ['fix-bug', 'summarize'].includes(r.id)).id, 'the great lift caps at 3 (300 greats tie with 3, catalog order breaks it)');
 // miss verdicts sink a recipe below its launch score — and can drop it out of the row entirely (the HONEST sink)
 const oSink = R.rankRecipes(items, { launches: { 'summarize': { n: 2, rated: { miss: 3 } }, 'fix-bug': { n: 2 } }, limit: 4 });
 A.ok(!oSink.some(r => r.id === 'summarize'), 'a miss-heavy recipe (score <= 0) drops OUT of the FOR-YOU row — the honest sink');

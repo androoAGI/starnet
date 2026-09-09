@@ -1047,7 +1047,7 @@ button.mkt-archive-head:focus-visible { outline: 2px solid var(--gold); outline-
 .mkt-recipes .mkt-foryou .mkt-coin { --coin: 28px; }
 .mkt-bar:has(.mkt-tabs) { display: grid; grid-template-columns: minmax(0,1fr) auto auto; }
 .mkt-bar .mkt-tabs { grid-column: 1; grid-row: 1; }
-.mkt-bar:has(.mkt-tabs) .mkt-lanes { grid-column: 1 / -1; grid-row: 2; flex-wrap: nowrap; overflow-x: auto; min-width: 0; padding-bottom: 3px; scrollbar-width: thin; }
+.mkt-bar:has(.mkt-tabs) .mkt-lanes { grid-column: 1 / -1; grid-row: 2; flex-wrap: wrap; min-width: 0; padding-bottom: 3px; }
 .mkt-bar:has(.mkt-tabs) .mkt-lane { flex: 0 0 auto; }
 .mkt-bar .mkt-from-notes { grid-column: 2; grid-row: 1; }
 .mkt-bar:has(.mkt-tabs) .mkt-import { grid-column: 3; grid-row: 1; }
