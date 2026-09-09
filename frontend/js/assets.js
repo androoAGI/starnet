@@ -187,6 +187,89 @@ const SPRITES = (() => {
     return tinted[ck];
   }
 
+  /* Local light is optional presentation data; it never selects a pose or changes game state.
+     drawBody's fourth argument is { reducedMotion, skipGroundShadow,
+       light: { color: [r,g,b], strength, dx, dy } }.
+     skipGroundShadow lets the scene own its wall-clipped cast/contact pass without doubling it;
+     authored emissive spill, such as ULTRON's red pool, stays part of the skin's presentation.
+     Direction points FROM the body TOWARD the source in world axes. Quantize small changes before
+     caching at native sprite resolution, shared across agents. No scene readback or canvas filter.
+     The 128-frame LRU bounds GPU/bitmap storage even when the whole skin catalog is in view. */
+  const BODY_LIGHT_LIMIT = 128;
+  const bodyLights = new Map(), frameIds = new WeakMap();
+  let nextFrameId = 1, bodyLightScratch = null, bodyLightBuilds = 0;
+  const clamp01 = n => Math.max(0, Math.min(1, Number(n) || 0));
+  function bodyLight(raw) {
+    if (!raw || !Array.isArray(raw.color) || raw.color.length < 3) return null;
+    const strength = Math.round(clamp01(raw.strength) * 6) / 6;
+    if (!strength) return null;
+    const color = raw.color.slice(0, 3).map(n =>
+      Math.min(255, Math.round(Math.max(0, Math.min(255, Number(n) || 0)) / 24) * 24));
+    const dx = Number(raw.dx), dy = Number(raw.dy);
+    const angle = Number.isFinite(dx) && Number.isFinite(dy) && Math.hypot(dx, dy) > 0.001
+      ? Math.atan2(dy, dx) : -2.2;
+    const sector = ((Math.round(angle / (Math.PI / 4)) % 8) + 8) % 8;
+    return { color, strength, dx: Math.cos(sector * Math.PI / 4), dy: Math.sin(sector * Math.PI / 4),
+      key: color.join(',') + '|' + strength + '|' + sector };
+  }
+  function releaseBodyLight(canvas) { canvas.width = canvas.height = 1; }
+  function lightFrame(frame, light) {
+    if (!light) return frame;
+    let id = frameIds.get(frame);
+    if (!id) { id = nextFrameId++; frameIds.set(frame, id); }
+    const key = id + '|' + light.key;
+    const hit = bodyLights.get(key);
+    if (hit) {
+      const context = hit.getContext('2d');
+      if (context && !(context.isContextLost && context.isContextLost())) {
+        bodyLights.delete(key); bodyLights.set(key, hit);
+        return hit;
+      }
+      bodyLights.delete(key); releaseBodyLight(hit);
+    }
+    let canvas;
+    try {
+      const w = frame.width | 0, h = frame.height | 0;
+      if (!w || !h || w * h > 262144) return frame;
+      canvas = document.createElement('canvas'); canvas.width = w; canvas.height = h;
+      const g = canvas.getContext('2d');
+      if (!g || (g.isContextLost && g.isContextLost())) { releaseBodyLight(canvas); return frame; }
+      g.drawImage(frame, 0, 0);
+      const cx = w / 2, cy = h * 0.43, reach = Math.max(w, h) * 0.43;
+      const ramp = g.createLinearGradient(cx - light.dx * reach, cy - light.dy * reach,
+        cx + light.dx * reach, cy + light.dy * reach);
+      ramp.addColorStop(0, 'rgba(12,20,34,' + (0.17 * light.strength) + ')');
+      ramp.addColorStop(0.48, 'rgba(12,20,34,0)');
+      ramp.addColorStop(1, 'rgba(' + light.color.join(',') + ',' + (0.24 * light.strength) + ')');
+      // source-atop retains the master's alpha exactly, including its antialiased silhouette.
+      g.globalCompositeOperation = 'source-atop'; g.fillStyle = ramp; g.fillRect(0, 0, w, h);
+      if (!bodyLightScratch) bodyLightScratch = document.createElement('canvas');
+      bodyLightScratch.width = w; bodyLightScratch.height = h;
+      const edge = bodyLightScratch.getContext('2d');
+      if (edge && !(edge.isContextLost && edge.isContextLost())) {
+        edge.drawImage(frame, 0, 0);
+        edge.globalCompositeOperation = 'destination-out';
+        edge.drawImage(frame, -light.dx * 1.6, -light.dy * 1.6);
+        edge.globalCompositeOperation = 'source-in';
+        edge.fillStyle = 'rgb(' + light.color.join(',') + ')'; edge.fillRect(0, 0, w, h);
+        g.globalAlpha = 0.42 * light.strength; g.drawImage(bodyLightScratch, 0, 0);
+      }
+      g.globalAlpha = 1; g.globalCompositeOperation = 'source-over';
+      bodyLights.set(key, canvas); bodyLightBuilds++;
+      while (bodyLights.size > BODY_LIGHT_LIMIT) {
+        const oldest = bodyLights.keys().next().value;
+        releaseBodyLight(bodyLights.get(oldest)); bodyLights.delete(oldest);
+      }
+      return canvas;
+    } catch (e) {
+      if (canvas) releaseBodyLight(canvas);
+      return frame;  // unsupported/lost offscreen context must never hide a real crew body
+    }
+  }
+  function bodyAppearanceStats() {
+    return { cachedFrames: bodyLights.size, limit: BODY_LIGHT_LIMIT, builds: bodyLightBuilds };
+  }
+
   /* ---------- deck contact and directional body shadow ----------
      A broad, faint penumbra reaches south-east under the north-west key. Its
      centre converges on the feet as it darkens, rather than drawing concentric
@@ -214,7 +297,8 @@ const SPRITES = (() => {
         const reach = o.color ? 0.08 : 0.48 * radius * radius;
         ctx.globalAlpha = a0 * alpha * fade * (o.color ? 1.2 : 1);
         ctx.beginPath();
-        ctx.ellipse(cx + spread * reach, cy + spread * reach * 0.62,
+        ctx.ellipse(cx + spread * reach * (o.direction ? o.direction.x : 1),
+          cy + spread * reach * (o.direction ? o.direction.y : 0.62),
           spread * radius * (o.color ? 1 : 1.14), spread * radius * SHADOW_SQUASH,
           o.color ? 0 : 0.18, 0, Math.PI * 2);
         ctx.fill();
@@ -315,7 +399,9 @@ const SPRITES = (() => {
   }
 
   /* main draw: foot-anchored at (x, y) */
-  function drawBody(ctx, b, nowMs) {
+  function drawBody(ctx, b, nowMs, appearance) {
+    const reduced = !!(appearance && appearance.reducedMotion);
+    const light = bodyLight(appearance && appearance.light);
     const set = b.id === 'ULTRON' ? 'ultron'
       : ((DATA.SKINS[b.skin] && DATA.SKINS[b.skin].set) || DATA.SKINS[DATA.DEFAULT_SKIN].set);
     if (!loadedSets.has(set)) { loadSet(set); return null; }
@@ -377,7 +463,7 @@ const SPRITES = (() => {
        was removed 2026-08-08 because a stretch played at those moments reads as a glitch. New
        meanings need new frames, not this one re-labelled. */
     let fixedIdx = null;
-    if (key && key.indexOf('.rot.') !== -1 && b.state !== 'walk'
+    if (!reduced && key && key.indexOf('.rot.') !== -1 && b.state !== 'walk'
         && !b.working && !b.sitting && !b.speaking && !meeting && !glancing) {
       // EXACT direction only — never fall back to another facing. Most sets ship the stretch
       // on the 4 cardinals alone (the diagonals would cost 4 more generations each and are
@@ -407,7 +493,7 @@ const SPRITES = (() => {
     // staggered per-agent via b.phase so the crew doesn't blink in unison.
     // keyed off the RESOLVED key's own direction (may be a diagonal): swapping to a cardinal
     // blink frame under a diagonal pose would snap the head 45° for the blink's 130ms.
-    if (key && key.indexOf('.rot.') !== -1 && b.state !== 'walk') {
+    if (!reduced && key && key.indexOf('.rot.') !== -1 && b.state !== 'walk') {
       const bk = set + '.blink.' + key.slice(key.lastIndexOf('.') + 1);
       if (frames[bk]) {
         const bt = (nowMs + aph * 900) % 3300;
@@ -472,7 +558,19 @@ const SPRITES = (() => {
     // perched: anchor by THIS sit frame's own bottom padding (getTrackPad), not the standing footPad —
     // sets whose sit master carries extra empty rows below the tucked legs (skeleton) otherwise float.
     const pad = (seatLift ? getTrackPad(key) : getFootPad(set)) * sc;
-    const y = snap(b.py - dh + GROUND_BITE + bob + pad - seatLift);
+    // Quiet standing breath changes the torso's height by less than a quarter world unit while
+    // its measured foot line stays fixed. Existing walk/pivot, furniture, sleep, talk and gesture
+    // tracks own their motion. Portraits keep their established framing. Omitting appearance
+    // preserves the original three-argument renderer until the caller opts into local lighting.
+    const planted = !!appearance && !b.noShadow && !b.seated && !b.sitting && !b.sleeping
+      && b.state !== 'sleep' && b.state !== 'walk' && !b.working && !b.speaking
+      && !meeting && !glancing && !turnStep && (key.indexOf('.rot.') !== -1 || key.indexOf('.blink.') !== -1);
+    if (reduced || planted) bob = 0;
+    const breath = planted && !reduced ? Math.sin(nowMs / 1050 + aph) * 0.24 : 0;
+    const breathScale = 1 + breath / Math.max(12, dh - pad);
+    const drawHeight = dh * breathScale;
+    const y = planted ? snap(b.py + GROUND_BITE - seatLift) - (dh - pad) * breathScale
+      : snap(b.py - dh + GROUND_BITE + bob + pad - seatLift);
     // the pool's outer half-width, taken from the body's DRAWN footprint. Masters carry side
     // padding, so this lands well under dw/2 — a pool wider than the boots reads as a puddle.
     const shR = Math.max(4.5, dw * 0.21);
@@ -484,19 +582,27 @@ const SPRITES = (() => {
       const lift = Math.max(0, -bob);           // bob is +down; a negative bob has raised the body
       if (set === 'ultron') {
         // the station leader's menacing red spill — a wider, slower pulse beneath his own pool
-        groundShadow(ctx, b.px, b.py, shR * 1.55, { lift, color: '#ff4a3d', alpha: 0.55 + 0.25 * Math.sin(nowMs / 400) });
+        groundShadow(ctx, b.px, b.py, shR * 1.55, { lift, color: '#ff4a3d', alpha: reduced ? 0.55 : 0.55 + 0.25 * Math.sin(nowMs / 400) });
       }
       // a perched body adds its seatLift to the shadow's lift: the pool tightens + fades the higher the
       // seat, instead of claiming full floor contact the raised feet don't have
-      groundShadow(ctx, b.px, b.py, shR, b.sitting ? { lift: lift + seatLift, alpha: 0.6, spread: 0.8 } : { lift });
+      if (!(appearance && appearance.skipGroundShadow)) {
+        const shadow = b.sitting ? { lift: lift + seatLift, alpha: 0.6, spread: 0.8 } : { lift };
+        if (light) shadow.direction = { x: -light.dx, y: -light.dy * 0.62 };
+        groundShadow(ctx, b.px, b.py, shR, shadow);
+      }
     }
     const prevSmooth = ctx.imageSmoothingEnabled;
+    const prevQuality = ctx.imageSmoothingQuality;
     ctx.imageSmoothingEnabled = true;
     if ('imageSmoothingQuality' in ctx) ctx.imageSmoothingQuality = 'high';
-    ctx.drawImage(f, x, y, dw, dh);
-    ctx.imageSmoothingEnabled = prevSmooth;
+    try { ctx.drawImage(lightFrame(f, light), x, y, dw, drawHeight); }
+    finally {
+      ctx.imageSmoothingEnabled = prevSmooth;
+      if ('imageSmoothingQuality' in ctx) ctx.imageSmoothingQuality = prevQuality;
+    }
     // geometry for overlays (alert icon, bubble, selection box) — top of the visible body
-    return { top: y + Math.round(dh * 0.22), w: Math.round(dw * 0.6), h: dh };
+    return { top: y + Math.round(drawHeight * 0.22), w: Math.round(dw * 0.6), h: drawHeight };
   }
 
   /* loading */
@@ -575,6 +681,6 @@ const SPRITES = (() => {
     finally { loading = false; }
   }
 
-  return { init, drawBody, groundShadow, ensureSkin, isSkinReady, bodyScale,
+  return { init, drawBody, groundShadow, ensureSkin, isSkinReady, bodyScale, bodyAppearanceStats,
     get ready() { return ready; }, get loading() { return loading; } };
 })();

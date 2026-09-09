@@ -11,6 +11,9 @@
   if (!/[?&]crtlab\b/.test(location.search)) return;
 
   const CRT_DEFAULTS = { scan: 0.38, pitch: 1, fade: 0.25, glow: 0.13, curve: 0.09, vig: 0.30, over: 1.20, dust: 0.5, aberr: 0.2, grain: 0.16, bloom: 0.25, emit: 0.9, mask: 0, bleed: 0, roll: 0 };
+  if (typeof WorldRenderer !== 'undefined' && WorldRenderer.enabled()) Object.assign(CRT_DEFAULTS, WorldRenderer.PHOSPHOR);
+  if (CRT_DEFAULTS.sharpen == null) CRT_DEFAULTS.sharpen = 0;
+  if (CRT_DEFAULTS.film == null) CRT_DEFAULTS.film = 0;
   // MUST MIRROR StationBake.LIGHT — RESET writes these back over the live object (same contract as
   // WALL_DEFAULTS below). Dulled 2026-08-15 alongside the bake; a stale mirror here would make RESET
   // restore the brighter station that no longer ships.
@@ -30,7 +33,8 @@
   const TUBE_CSSVAR = { clear: ['--tube-clear', '%'], mid: ['--tube-mid', '%'], midA: ['--tube-mid-a', ''], edgeA: ['--tube-edge-a', ''], inset: ['--tube-inset', 'px'] };
 
   const PRESETS = {
-    'Clean (off)':     { crt: { scan: 0, fade: 0, dust: 0, aberr: 0, grain: 0 } },
+    'World II: phosphor': { crt: typeof WorldRenderer !== 'undefined' ? WorldRenderer.PHOSPHOR : { scan: 0.26, pitch: 1, fade: 0.18, curve: 0.06, vig: 0.20, over: 1.13, dust: 0.35, aberr: 0.08, grain: 0.06, bloom: 0.14 } },
+    'Clean (off)':     { crt: { scan: 0, fade: 0, dust: 0, aberr: 0, grain: 0, film: 0 } },
     'Soft fade':       { crt: { scan: 0.06, pitch: 2, fade: 1.0 } },
     'Faded film':      { crt: { scan: 0.05, pitch: 2, fade: 2.0 } },
     'Subtle lines':    { crt: { scan: 0.16, pitch: 2.5, fade: 0.6 } },
@@ -202,8 +206,10 @@
     sliders.push(buildSlider(body, crt, 'over', 1, 1.4, 0.01));    // output overscan — ≥1.11 pulls the corners back inside the warp's domain so they stop filling black
     sliders.push(buildSlider(body, crt, 'dust', 0, 1, 0.05));      // dust motes drifting in the light pools
     sliders.push(buildSlider(body, crt, 'aberr', 0, 1, 0.05));     // chromatic aberration at the bowed edges (GPU path)
-    sliders.push(buildSlider(body, crt, 'grain', 0, 0.25, 0.01));  // film grain over the warped feed
+    sliders.push(buildSlider(body, crt, 'grain', 0, 0.65, 0.01));  // film grain over the warped feed
     sliders.push(buildSlider(body, crt, 'bloom', 0, 1, 0.05));     // phosphor bloom — the bright things haze outward (world.js drawBloom)
+    sliders.push(buildSlider(body, crt, 'sharpen', 0, .6, .02)); // bounded edge detail before the CRT grain
+    sliders.push(buildSlider(body, crt, 'film', 0, .5, .01)); // density curve; no lifted blacks or blur
     sliders.push(buildSlider(body, crt, 'mask', 0, 0.6, 0.02));    // RGB aperture-grille mask over the feed
     sliders.push(buildSlider(body, crt, 'bleed', 0, 0.6, 0.02));   // horizontal colour bleed (beam spread)
     sliders.push(buildSlider(body, crt, 'roll', 0, 0.5, 0.02));    // the faint rolling sync bar

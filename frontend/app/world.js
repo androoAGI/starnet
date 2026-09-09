@@ -14,6 +14,7 @@
 'use strict';
 
 const World = (() => {
+  const sceneRenderer = typeof WorldRenderer !== 'undefined' ? WorldRenderer.create() : null;
   let shadowReceiverGeo = null, shadowReceiverPath = null;
   let propShadowLayer = null;
   let T = 12;
@@ -54,10 +55,13 @@ const World = (() => {
      Both feed the GL path and the CPU LUT path IDENTICALLY — drawCurveGL's probe compares the two and defects
      to CPU on divergence, so they must never drift apart. */
   const CRT = { scan: 0.38, pitch: 1, fade: 0.25, glow: 0.13, curve: 0.09, vig: 0.30, over: 1.20, dust: 0.5, aberr: 0.2, grain: 0.16, bloom: 0.25, emit: 0.9, mask: 0, bleed: 0, roll: 0 };   // 2026-09-03 'old TV' pass (Andrew: "90s Bandersnatch vibes"): pitch-2 lines, an RGB phosphor mask, colour bleed, more bow + vignette, a faint rolling sync bar. mask/bleed/roll = drawCRT   // bloom = phosphor bloom strength (drawBloom) · emit = prop light-source strength (drawPropLights)
+  CRT.film = 0;
+  if (typeof WorldRenderer !== 'undefined' && WorldRenderer.enabled()) Object.assign(CRT, WorldRenderer.PHOSPHOR);
   let _warpCv = null, _warpCtx = null;   // the barrel-warp snapshot buffer — see drawCurve()
   let _lut = null, _lutKey = '', _outImg = null;   // CPU per-pixel barrel-warp inverse-map LUT + output buffer — see buildLUT()/drawCurveCPU()
   let _gl = null, _glc = null, _glProg = null, _glTex = null, _glKLoc = null, _glAberrLoc = null, _glVigLoc = null, _glOverLoc = null, _glReady = false, _glFailed = false;   // GPU barrel-warp (WebGL) — see initGL()/drawCurveGL()
   let _glProbeOk = false, _glProbeTries = 0, _glProbeSkip = 0, _glProbeClean = 0, _glProbeCv = null;   // one-time GL output sanity probe — see drawCurveGL()
+  let _glSharpLoc = null, _glInvWLoc = null, _glInvHLoc = null;
   function glContextLost(gl) {
     try { return !!(gl && typeof gl.isContextLost === 'function' && gl.isContextLost()); }
     catch (_) { return true; }   // an unreadable context is no safer to blit than a proven-lost one
@@ -5670,6 +5674,16 @@ const World = (() => {
       (y+h+pad)*scale+panY>=0 && (y-pad)*scale+panY<=cv.height;
   }
 
+  function drawLitProp(p, work, live) {
+    PropSprites.draw(p, work, live);
+    if (!sceneRenderer || !PropSprites.canLightResponse || !PropSprites.canLightResponse(p)) return;
+    // Sample the physical footprint, not elevated sprite pixels inside the
+    // projected wall. The response stays in this item's existing depth slot.
+    const light = sceneRenderer.sampleLight((p.x + (p.w || 1) / 2) * T,
+      (p.y + (p.h || 1) * .65) * T);
+    PropSprites.drawLightResponse(p, light);
+  }
+
   function paintPropShadows(g) {
     g.save();
     try {
@@ -5712,6 +5726,24 @@ const World = (() => {
     try{ctx.setTransform(1,0,0,1,0,0);ctx.drawImage(layer.image,0,0);}finally{ctx.restore();}
   }
 
+  let cameraHudNodes = null, cameraHudAt = -Infinity;
+  function updateCameraHud(now) {
+    if (now - cameraHudAt < 250 || typeof WorldRenderer === 'undefined') return;
+    cameraHudAt = now;
+    if (!cameraHudNodes) {
+      const root = document.querySelector('.cam-hud'); if (!root) return;
+      cameraHudNodes = { root, label: root.querySelector('.cam-label'), rec: root.querySelector('.cam-rec'), feed: root.querySelector('.cam-feed') };
+    }
+    const subject = camLock ? bodyForAgent(camLock.id) : null;
+    const readout = WorldRenderer.cameraReadout({geo,
+      viewport: WorldRenderer.visibleRect({scale,panX,panY,width:cv.width,height:cv.height}),
+      subject: subject && !subject.unplaced ? {name:subject.name,px:bodyPosX(subject),py:bodyPosY(subject)} : null,
+      linked: !!chanES && chanES.readyState === 1 && !linkDown(now), paused: bridgePaused});
+    const n=cameraHudNodes;
+    for (const [node,text] of [[n.label,readout.label],[n.rec,readout.indicator],[n.feed,readout.feed]])
+      if(node && node.textContent!==text)node.textContent=text;
+    if(n.root.getAttribute('data-feed')!==readout.state)n.root.setAttribute('data-feed',readout.state);
+  }
   function frameBody(now) {
     const dt = Math.min(64, now - last); last = now; fnow = now;
     linkStaleDim = linkDown(now);   // recompute the honest link state before any telemetry is drawn this frame
@@ -5781,7 +5813,10 @@ const World = (() => {
         { x: 0, y: 0, w: cache.baseCv.width, h: cache.baseCv.height });
     }
 
-    ctx.drawImage(cache.baseCv, 0, 0);
+    if (sceneRenderer) {
+      sceneRenderer.begin({ geo, cache, now, scale, panX, panY, width: cv.width, height: cv.height, reducedMotion: reduceMotion() });
+      sceneRenderer.drawBase(ctx);
+    } else ctx.drawImage(cache.baseCv, 0, 0);
 
     // conveyor belts (floor machinery) + the live transport sim — local frame, under entities
     if (geo && geo.belts && typeof Conveyor !== 'undefined') {
@@ -5860,8 +5895,11 @@ const World = (() => {
         // OCCUPIED BED: the base pass holds the quilt back so the sleeper can be drawn between the
         // frame and the covers (drawOver, below). Same copy-on-write idiom as the nameplate above.
         if (sleeper) dp = Object.assign(dp === p ? Object.assign({}, p) : dp, { sleeper: true });
-        items.push({ y: sy, draw: () => { if (propOnScreen(dp)) PropSprites.draw(dp, work, live); } });
-        if (PropSprites.lightOf) { const lt = PropSprites.lightOf(dp, work, reduceMotion()); if (lt) propLights.push(lt); }   // this prop is a light SOURCE this frame — painted over the lightmap (drawPropLights)
+        items.push({ y: sy, draw: () => { if (propOnScreen(dp)) drawLitProp(dp, work, live); } });
+        if (PropSprites.lightOf) {
+          const lt = PropSprites.lightOf(dp, work, reduceMotion());
+          if (lt) propLights.push(Object.assign({}, lt, { originX: (p.x + (p.w || 1) / 2) * T, originY: (p.y + (p.h || 1) / 2) * T }));
+        }
         // SEAT-FRONT SLIVER: a stool/chair's pad front rim redraws just IN FRONT of its (lifted) sitter,
         // so the body's lap tucks INTO the pad — the couch trick, at single-seat scale. Sorted a hair
         // past the body's own key (sitter.seatPy) and well short of the next tile row.
@@ -5891,7 +5929,7 @@ const World = (() => {
                   : (typeof PropSprites !== 'undefined' && PropSprites.has('chair')) ? 'chair' : null;
       if (seatT) {
         PropSprites.setCtx(ctx); PropSprites.setNow(now);
-        PropSprites.draw({ t: seatT, x: sx, y: ty, w: 1, h: 1 }, false);
+        drawLitProp({ t: seatT, x: sx, y: ty, w: 1, h: 1 }, false);
       } else F_chair(sx * T, ty * T);
     }
     if (desk && !deskPropId) items.push({ y: (desk.ty + desk.h) * T, draw: () => {   // skip the synthetic desk when a PLACED workstation prop is the hero's desk (the prop draws itself)
@@ -5901,12 +5939,12 @@ const World = (() => {
       const live = work ? { heat: heatFor(agent.id), prog: deskProgFor(agent.id) } : null;
       if (typeof PropSprites !== 'undefined' && PropSprites.has('desk')) {
         PropSprites.setCtx(ctx); PropSprites.setNow(now);
-        PropSprites.draw({ t: 'desk', x: desk.tx, y: desk.ty, w: desk.w, h: desk.h }, work, live);
+        drawLitProp({ t: 'desk', x: desk.tx, y: desk.ty, w: desk.w, h: desk.h }, work, live);
       } else F_desk(desk.tx * T, desk.ty * T, desk.w * T, desk.h * T, { x: desk.tx, work, heat: live ? live.heat : 0, prog: live ? live.prog : null });
     } });
     if (desk && !deskPropId && typeof PropSprites !== 'undefined' && PropSprites.lightOf) {   // the auto-desk's CRT lights the deck while the hero works, like any placed workstation
       const lt = PropSprites.lightOf({ t: 'desk', x: desk.tx, y: desk.ty, w: desk.w, h: desk.h }, !!(agent && agent.working), reduceMotion());
-      if (lt) propLights.push(lt);
+      if (lt) propLights.push(Object.assign({}, lt, { originX: (desk.tx + desk.w / 2) * T, originY: (desk.ty + desk.h / 2) * T }));
     }
     if (seat && !deskPropId) items.push({ y: (seat.ty + 1) * T, draw: () => drawSeatChair(seat.tx, seat.ty, seat.cx) });
   // a PLACED hero desk's chair is drawn by the workstation loop above; draw here only for the synthetic auto-desk
@@ -5937,24 +5975,34 @@ const World = (() => {
     /* THE SHADOW PASS — every standing prop's cast shadow, on the deck (over the rugs), before any item
        paints. One pass rather than per-item so a shadow can never land on a neighbour's body: the props
        and bodies are y-sorted and paint OVER this. The synthetic auto-desk casts one too. */
+    if (sceneRenderer) sceneRenderer.prepareLight(propLights, { ambient: StationBake.LIGHT.ambient, emission: CRT.emit });
     drawPropShadows();
-    items.sort((a, b) => a.y - b.y);
-    for (const it of items) it.draw();
+    if (sceneRenderer) sceneRenderer.drawGrounding(ctx, [agent, ...crew].filter(b => b && !b.unplaced && !b.seated && !b.lying)
+      .map(b => ({ x: bodyPosX(b), y: bodyPosY(b), width: 7, height: 20, opacity: .16 })));
+    if (sceneRenderer) {
+      sceneRenderer.drawEntities(ctx, items);
+    } else {
+      items.sort((a, b) => a.y - b.y);
+      for (const it of items) it.draw();
+    }
     if (convey) convey.drawBoxes(ctx, now, T);   // boxes ride on top of the belts
     if (ghost) ghost.draw(ctx, now, T, 8);       // the projection + its WOULD-captions (NAG_FONT size)
     drawHandoffBoxes(now);   // Stage 2: lead→worker delegation boxes fly over the entities
     drawQueueJam(now);   // the live backlog as a physical jam of waiting crates at the INTAKE (world-space, under the lightmap)
     drawShippedPallet(now);   // SHIPPED TODAY: completed jobs stack as product crates at the OUTBOX (server-truth count)
 
-    ctx.drawImage(cache.lightCv, 0, 0);
-    ctx.save();
-    try {
-      clipInteriorLight();
-      drawGlows(now);
-      drawPropLights(now, propLights);   // the props that are light SOURCES put their colour on the deck and on whoever stands near (world-space, additive)
-    } finally { ctx.restore(); }
+    const nextLight = sceneRenderer && sceneRenderer.drawLight(ctx, propLights, { ambient: StationBake.LIGHT.ambient, emission: CRT.emit });
+    if (!nextLight) {
+      ctx.drawImage(cache.lightCv, 0, 0);
+      ctx.save();
+      try {
+        clipInteriorLight();
+        drawGlows(now);
+        drawPropLights(now, propLights);
+      } finally { ctx.restore(); }
+    }
     drawNavLights(now);   // small running lights on validated exterior armour mounts
-    drawDust(now);   // Slice 3: tiny motes drifting through the light pools (world-space, additive, over the glows)
+    if (!(sceneRenderer && sceneRenderer.drawAtmosphere(ctx, { dust: CRT.dust }))) drawDust(now);
     drawDeskFlashes(now);   // G0.4/G0.8: red distress strobe over a desk whose run just died (additive, with the glows)
     drawAwakenLight(now);   // the soul kindling: ignition spark + a growing halo + motes (world-space additive, awakening only)
     // the AWAKENING veil — now a SPOTLIGHT on the newborn (center light, corners dark) that warms cold->dawn,
@@ -6004,6 +6052,8 @@ const World = (() => {
     drawCurve(now); // barrel-warp the whole feed IN-CANVAS — the original (dot-matrix-era) curve, no dots
     drawCRT(now);   // scanlines + fade, painted in-canvas at device-px OVER the warped feed (no moiré)
     paintStageHeartbeat();   // the frame's last act: the one opaque pixel a dead stage context cannot fake (see watchStageLoss)
+    updateCameraHud(now);
+    if (sceneRenderer) sceneRenderer.finish();
     // NOTE: the next rAF is scheduled by the frame() crash-guard wrapper, BEFORE this body runs — never here.
   }
 
@@ -6079,35 +6129,41 @@ const World = (() => {
         ctx.fillStyle = g; ctx.fillRect(0, y - hh, W, hh * 2);
       }
     }
+    if (CRT.film > 0) {
+      // A restrained density curve: mix C with C*C, so mids deepen while true
+      // black and emissive highlights stay intact. No gray lift or blurred copy.
+      // Shared after both warp paths, before grain; same-size self-blit is sharp.
+      ctx.globalCompositeOperation = 'multiply';
+      ctx.globalAlpha = Math.min(.5, CRT.film);
+      ctx.drawImage(cv, 0, 0);
+      ctx.globalAlpha = 1;
+    }
     if (CRT.fade > 0) {                               // soft faded matte (cool-neutral, no yellow) — CRT.fade
       ctx.globalCompositeOperation = 'lighter';
       ctx.fillStyle = 'rgba(' + Math.round(11 * CRT.fade) + ',' + Math.round(12 * CRT.fade) + ',' + Math.round(15 * CRT.fade) + ',1)';
       ctx.fillRect(0, 0, W, H);
     }
-    if (CRT.grain > 0.001) {                          // FILM GRAIN — one cached noise tile, jittered per frame (CRT.grain)
-      // 'overlay' around mid-gray so grain modulates without lifting black levels; the tile is built
-      // ONCE and only its pattern offset changes each frame (a whole-number jitter derived from `now`,
-      // quantized to ~15fps so it reads as phosphor noise, not smooth scrolling texture).
-      const fi = Math.floor(now / 66);
+    if (CRT.grain > 0.001) {
+      // Visible tube static: full-range, zero-centred noise. Overlay preserves
+      // black and mean scene density; its old narrow tile/low alpha rounded to
+      // almost nothing on this dark feed. Keep speckles at one CSS pixel so a
+      // high-DPI display does not average them away into an invisible finish.
+      const fi = reduceMotion() ? 0 : Math.floor(now / 66);
       const jx = (fi * 53) % GRAIN_S, jy = (fi * 97) % GRAIN_S;
       ctx.globalCompositeOperation = 'overlay';
-      ctx.globalAlpha = Math.min(0.25, CRT.grain);
-      ctx.translate(jx, jy);
+      ctx.globalAlpha = Math.min(.65, CRT.grain);
+      ctx.setTransform(dpr, 0, 0, dpr, jx * dpr, jy * dpr);
       ctx.fillStyle = grainPattern();
-      ctx.fillRect(-jx, -jy, W, H);
+      ctx.fillRect(-jx, -jy, Math.ceil(W / dpr), Math.ceil(H / dpr));
       ctx.setTransform(1, 0, 0, 1, 0, 0);
       ctx.globalAlpha = 1;
     }
     ctx.globalCompositeOperation = 'source-over';
   }
-  /* Cached mid-gray noise tile for the film grain — built once, reused forever (only the draw
-     offset animates). Mid-gray (128) is the 'overlay' neutral, so ±spread is pure texture.
-     2026-09-02: 128 -> 256px tile (the 128 repeat was readable as a tartan on a still frame at
-     zoom 2), and the noise went from UNIFORM ±55 to a TRIANGULAR ±64 (sum of two rands). Film
-     grain clusters around zero with rare strong specks; a flat uniform distribution puts the
-     same energy in every pixel, which on a dark deck reads as sand, not grain — the "digital
-     dirt" in every pre-09-02 crop. Same mean, lower variance per pixel, longer tail. */
-  const GRAIN_S = 256;
+  // A larger tile avoids a visible repeat across the station. A triangular
+  // distribution keeps most speckles fine, with occasional stronger static.
+  // Its mean is the exact overlay neutral (127.5), so no fog layer is added.
+  const GRAIN_S = 512;
   // the aperture-grille tile: R, G, B columns, each one device px wide, at mid-grey so 'multiply' only tints
   let _maskCv = null, _maskKey = '';
   function maskCanvas(dpr) {
@@ -6126,7 +6182,7 @@ const World = (() => {
     _grainCv = document.createElement('canvas'); _grainCv.width = S; _grainCv.height = S;
     const gctx = _grainCv.getContext('2d'), id = gctx.createImageData(S, S);
     for (let i = 0; i < S * S; i++) {
-      const v = 128 + Math.round((Math.random() + Math.random() - 1) * 64);
+      const v = Math.round((Math.random() + Math.random()) * 127.5);
       id.data[i * 4] = v; id.data[i * 4 + 1] = v; id.data[i * 4 + 2] = v; id.data[i * 4 + 3] = 255;
     }
     gctx.putImageData(id, 0, 0);
@@ -6141,8 +6197,9 @@ const World = (() => {
   // triangle mesh: a mesh draws the picture as thousands of triangles whose seams line up into the diagonal
   // stripes; a per-pixel remap has no triangles, so there are no seams and no diagonal lines. Curve is identical.
   // the two aperture knobs, clamped to sane ranges — read by BOTH warp paths so they can never disagree
-  function vigAmt() { const v = +CRT.vig; return Number.isFinite(v) ? (v < 0 ? 0 : v > 1 ? 1 : v) : 0.30; }
-  function overAmt() { const o = +CRT.over; return Number.isFinite(o) && o >= 1 ? (o > 1.6 ? 1.6 : o) : 1; }
+  function vigAmt() { if (CRT.curve <= 0) return 0; const v = +CRT.vig; return Number.isFinite(v) ? (v < 0 ? 0 : v > 1 ? 1 : v) : 0.30; }
+  function overAmt() { if (CRT.curve <= 0) return 1; const o = +CRT.over; return Number.isFinite(o) && o >= 1 ? (o > 1.6 ? 1.6 : o) : 1; }
+  function sharpAmt() { return typeof WorldRenderer !== 'undefined' ? Math.max(0, Math.min(.6, +CRT.sharpen || 0)) : 0; }
 
   function buildLUT(k, W, H) {
     const over = overAmt();
@@ -6172,8 +6229,8 @@ const World = (() => {
     _lut = lut; _lutKey = key;
   }
   function drawCurve(now) {
-    if (!cv || CRT.curve <= 0 || document.body.classList.contains('no-scan')) return;
-    const k = CRT.curve, W = cv.width, H = cv.height;
+    if (!cv || (CRT.curve <= 0 && !sharpAmt()) || document.body.classList.contains('no-scan')) return;
+    const k = Math.max(0, +CRT.curve || 0), W = cv.width, H = cv.height;
     if (!_glFailed && drawCurveGL(k, W, H)) return;   // GPU path (near-free); on any failure it flips _glFailed
     drawCurveCPU(k, W, H);                             // CPU fallback (per-pixel LUT) — identical look, heavier
   }
@@ -6195,7 +6252,8 @@ const World = (() => {
       if (!_gl) throw new Error('no webgl');
       const gl = _gl;
       const vs = 'attribute vec2 aPos; varying vec2 vUv; void main(){ vUv = aPos*0.5+0.5; gl_Position = vec4(aPos,0.0,1.0); }';
-      const fs = 'precision highp float; varying vec2 vUv; uniform sampler2D uTex; uniform float uK; uniform float uAberr; uniform float uVig; uniform float uOver;\n' +
+      const fs = 'precision highp float; varying vec2 vUv; uniform sampler2D uTex; uniform float uK; uniform float uAberr; uniform float uVig; uniform float uOver; uniform float uSharp; uniform float uInvW; uniform float uInvH;\n' +
+        (typeof WorldRenderer !== 'undefined' ? WorldRenderer.DETAIL_GLSL : 'vec3 detailAt(vec2 uv,vec3 col){return col;}\n') +
         'void main(){\n' +
         // uOver shrinks the output radius BEFORE the inverse, so the corner lands inside the warp's reach
         // instead of falling out of domain and being filled black. uOver = 1.0 is the old behaviour exactly.
@@ -6215,6 +6273,7 @@ const World = (() => {
         '    float b = texture2D(uTex, sUv - offs).b;\n' +
         '    col = vec3(r, gg, b);\n' +
         '  } else { col = texture2D(uTex, sUv).rgb; }\n' +
+        '  col = detailAt(sUv,col);\n' +
         '  float vig = clamp(1.0-uVig*ro*ro, 0.0, 1.0);\n' +
         '  gl_FragColor = vec4(col*vig, 1.0);\n' +
         '}';
@@ -6237,6 +6296,8 @@ const World = (() => {
       gl.uniform1i(gl.getUniformLocation(prog, 'uTex'), 0);
       _glKLoc = gl.getUniformLocation(prog, 'uK'); _glAberrLoc = gl.getUniformLocation(prog, 'uAberr');
       _glVigLoc = gl.getUniformLocation(prog, 'uVig'); _glOverLoc = gl.getUniformLocation(prog, 'uOver');
+      _glSharpLoc = gl.getUniformLocation(prog, 'uSharp');
+      _glInvWLoc = gl.getUniformLocation(prog, 'uInvW'); _glInvHLoc = gl.getUniformLocation(prog, 'uInvH');
       _glProg = prog; _glReady = true;
       return true;
     } catch (e) { _gl = null; return abandonCurveGL('WebGL curve unavailable: ' + ((e && e.message) || String(e))); }
@@ -6265,6 +6326,9 @@ const World = (() => {
       if (_glAberrLoc) gl.uniform1f(_glAberrLoc, Math.max(0, CRT.aberr || 0));
       if (_glVigLoc) gl.uniform1f(_glVigLoc, vigAmt());
       if (_glOverLoc) gl.uniform1f(_glOverLoc, overAmt());
+      if (_glSharpLoc) gl.uniform1f(_glSharpLoc, sharpAmt());
+      if (_glInvWLoc) gl.uniform1f(_glInvWLoc, 1 / W);
+      if (_glInvHLoc) gl.uniform1f(_glInvHLoc, 1 / H);
       gl.drawArrays(gl.TRIANGLES, 0, 3);
       // Context loss is deliberately checked AGAIN after GPU work and BEFORE the destructive clear below.
       // WebGL commands on a lost context are specified to no-op instead of throwing; without this guard the
@@ -6316,7 +6380,12 @@ const World = (() => {
     const src = _warpCtx.getImageData(0, 0, W, H), s32 = new Uint32Array(src.data.buffer);
     if (!_outImg || _outImg.width !== W || _outImg.height !== H) _outImg = ctx.createImageData(W, H);
     const d32 = new Uint32Array(_outImg.data.buffer), lut = _lut, BLACK = 0xFF000000;
-    for (let i = 0; i < d32.length; i++) { const s = lut[i]; d32[i] = s < 0 ? BLACK : s32[s]; }
+    const sharp = sharpAmt();
+    if (sharp) {
+      for (let i = 0; i < d32.length; i++) { const s = lut[i]; d32[i] = s < 0 ? BLACK : WorldRenderer.sharpenSample(s32, s, W, H, sharp); }
+    } else {
+      for (let i = 0; i < d32.length; i++) { const s = lut[i]; d32[i] = s < 0 ? BLACK : s32[s]; }
+    }
     ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.putImageData(_outImg, 0, 0);
     // Edge vignette — the exact darkening complement of the shader's `1 - uVig·ro²`, so the CPU fallback
     // stays pixel-equivalent to the GPU path (drawCurveGL's probe compares them). A stop at gradient
@@ -6665,7 +6734,10 @@ const World = (() => {
       const prevA = ctx.globalAlpha;
       if (bornA < 1) ctx.globalAlpha = prevA * bornA;
       let geom = null;
-      if (typeof SPRITES !== 'undefined' && SPRITES.ready) geom = SPRITES.drawBody(ctx, who, now);
+      const bodyLight = sceneRenderer && sceneRenderer.sampleLight(who.px, who.py);
+      if (typeof SPRITES !== 'undefined' && SPRITES.ready) geom = SPRITES.drawBody(ctx, who, now,
+        bodyLight ? { reducedMotion: reduceMotion(), light: bodyLight,
+          skipGroundShadow: !who.seated && !who.lying } : undefined);
       // Do not flash the cyan procedural body while the real default skin is actively loading.
       // A genuine load failure still clears `loading` and gets the honest fallback on the next frame.
       if (!geom && !(typeof SPRITES !== 'undefined' && SPRITES.loading)) drawFallback(now, who);
@@ -9606,6 +9678,7 @@ const World = (() => {
     // the live station document (read-only) — the station-quest generator reads props[] to detect the
     // OUTBOX / MISSION-BOARD standing gaps and to resolve a placement. Null when no station is loaded (headless).
     stationDoc: () => (station && station.doc ? station.doc() : null),
+    renderStats: () => sceneRenderer ? sceneRenderer.stats() : { generation: 'classic' },
     // G1c — the live SlagLog ring (read-only): the most-recent wasted-spend post-mortems the floor has diagnosed.
     // The maintenance-quest generator (maintqueststore.js) tallies these by cause; a recurring cause mints a
     // fix-it quest. Returns a fresh copy (slaglog owns the ring); [] when the log isn't loaded (headless/title).

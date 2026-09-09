@@ -11076,7 +11076,11 @@ const PropSprites = (() => {
   function shadowMask(f) {
     if (typeof document === 'undefined') return null;
     const key=[f.t,f.w||1,f.h||1,f.r||0,f.m||0].join('|');
-    if(shadowMasks.has(key))return shadowMasks.get(key);
+    if(shadowMasks.has(key)) {
+      const cached=shadowMasks.get(key),g=cached.getContext('2d');
+      if(g && !(g.isContextLost && g.isContextLost()))return cached;
+      shadowMasks.delete(key);
+    }
     const cv=document.createElement('canvas'), W=(f.w||1)*TILE,H=(f.h||1)*TILE;
     cv.width=W+32;cv.height=H+56;
     const g=cv.getContext('2d');if(!g)return null;
@@ -11089,7 +11093,111 @@ const PropSprites = (() => {
       g.globalCompositeOperation='source-in';g.fillStyle='rgb('+SHADOW_RGB+')';g.fillRect(0,0,cv.width,cv.height);
     } finally {ctx=previous;now=time;buildingShadowSilhouette=previousSilhouette;}
     if(shadowMasks.size>=256)shadowMasks.clear();
+    if(cv.addEventListener)cv.addEventListener('contextlost',()=>{if(shadowMasks.get(key)===cv)shadowMasks.delete(key);},{once:true});
     shadowMasks.set(key,cv);return cv;
+  }
+
+  /* Optional local-light response, painted immediately after the authoritative prop.
+     A frozen shadow silhouette is safe only for rigid art. Live piles, quilts and
+     moving effects are deliberately absent: they may remove opaque pixels at runtime.
+     Screens/lamps inside these rigid casings retain their real per-frame content. */
+  const LIGHT_RESPONSE_TYPES = new Set(('desk desk2 console consoleL pixelrig bench crate boxes goldcrate safe vault rack rackV shelf ' +
+    'war_intelcab quarters_lockerbank quarters_minifridge bookshelf stool chair couch booth recliner recliner_r ' +
+    'sidetable lowtable glasstable dinertable loungetable longtable dinerchair podchair plant bookstack toolbox').split(' '));
+  const RESPONSE_LIMIT = 96, RESPONSE_PIXELS = 262144, RESPONSE_SINGLE = 65536;
+  const RESPONSE_SHADE = [8,10,18];
+  const lightResponses = new Map();
+  let responsePixels = 0;
+  const responseMetrics = { builds: 0, hits: 0, evictions: 0, failures: 0, draws: 0 };
+  const responseClamp = (v,a,b) => Math.max(a,Math.min(b,v));
+  function dropResponse(key) {
+    const old=lightResponses.get(key);if(!old)return;
+    responsePixels-=old.pixels;lightResponses.delete(key);
+  }
+  function invalidateLightResponse() { lightResponses.clear();responsePixels=0; }
+  function lightResponseStats() {
+    return Object.assign({},responseMetrics,{entries:lightResponses.size,pixels:responsePixels,bytes:responsePixels*4,maxEntries:RESPONSE_LIMIT,
+      maxPixels:RESPONSE_PIXELS,maxBytes:RESPONSE_PIXELS*4,maxSinglePixels:RESPONSE_SINGLE,supportedTypes:LIGHT_RESPONSE_TYPES.size});
+  }
+  function responseSample(light) {
+    if(!light||!Array.isArray(light.color)||light.color.length!==3||!light.color.every(Number.isFinite)||
+      !Number.isFinite(light.strength)||light.strength<=0)return null;
+    const strength=Math.round(responseClamp(light.strength,0,1)*8)/8;if(!strength)return null;
+    const color=light.color.map(v=>Math.min(255,Math.round(responseClamp(v,0,255)/16)*16));
+    const dx=Number.isFinite(light.dx)?light.dx:0,dy=Number.isFinite(light.dy)?light.dy:0;
+    const direction=Math.hypot(dx,dy)>.001?((Math.round(Math.atan2(dy,dx)/(Math.PI/4))%8)+8)%8:-1;
+    const angle=direction*Math.PI/4;
+    return{color,strength,direction,dx:direction<0?0:Math.cos(angle),dy:direction<0?0:Math.sin(angle)};
+  }
+  function responseOverlay(f,light) {
+    const mask=shadowMask(f);if(!mask)return null;
+    const key=[f.t,f.w||1,f.h||1,f.r||0,f.m||0,light.direction,light.strength,...light.color].join('|');
+    let hit=lightResponses.get(key);
+    if(hit) {
+      const g=hit.cv.getContext('2d');
+      if(hit.mask===mask&&g&&!(g.isContextLost&&g.isContextLost())) {
+        lightResponses.delete(key);lightResponses.set(key,hit);responseMetrics.hits++;return hit.cv;
+      }
+      dropResponse(key);
+    }
+    const w=mask.width,h=mask.height,pixels=w*h;
+    if(pixels>RESPONSE_SINGLE)return null;
+    const alpha=mask.getContext('2d').getImageData(0,0,w,h).data;
+    if(alpha.length!==pixels*4)return null;
+    let minX=w,minY=h,maxX=-1,maxY=-1;
+    // Ignore the translucent spill already carried by old art. A physical rim
+    // belongs to its opaque casing, not to a halo or a contact shadow on the deck.
+    const solid=(x,y)=>x>=0&&y>=0&&x<w&&y<h&&alpha[(y*w+x)*4+3]>=250;
+    for(let y=0;y<h;y++)for(let x=0;x<w;x++)if(solid(x,y)) {
+      minX=Math.min(minX,x);maxX=Math.max(maxX,x);minY=Math.min(minY,y);maxY=Math.max(maxY,y);
+    }
+    if(maxX<0)return null;
+    const cv=document.createElement('canvas');cv.width=w;cv.height=h;
+    const g=cv.getContext('2d');if(!g||!g.createImageData||!g.putImageData)return null;
+    const image=g.createImageData(w,h),out=image.data;
+    const cx=(minX+maxX)/2,cy=(minY+maxY)/2,rx=Math.max(1,(maxX-minX)/2),ry=Math.max(1,(maxY-minY)/2);
+    const span=Math.abs(light.dx)+Math.abs(light.dy)||1,sx=Math.round(light.dx),sy=Math.round(light.dy);
+    const grey=light.color.reduce((sum,v)=>sum+v,0)/3;
+    const tint=light.color.map(v=>Math.round(v*.45+grey*.55));
+    for(let y=minY;y<=maxY;y++)for(let x=minX;x<=maxX;x++) {
+      if(!solid(x,y))continue;
+      const facing=responseClamp(.5+(((x-cx)/rx)*light.dx+((y-cy)/ry)*light.dy)/(2*span),0,1);
+      const rim=light.direction>=0&&!solid(x+sx,y+sy);
+      const shadeA=light.strength*.12*Math.pow(1-facing,1.4);
+      const tintA=light.strength*(.055*facing+(rim?.105:0));
+      const a=tintA+shadeA*(1-tintA),i=(y*w+x)*4;
+      if(!a)continue;
+      for(let c=0;c<3;c++)out[i+c]=Math.round((tint[c]*tintA+RESPONSE_SHADE[c]*shadeA*(1-tintA))/a);
+      out[i+3]=Math.round(a*255);
+    }
+    g.putImageData(image,0,0);
+    while(lightResponses.size>=RESPONSE_LIMIT||responsePixels+pixels>RESPONSE_PIXELS) {
+      dropResponse(lightResponses.keys().next().value);responseMetrics.evictions++;
+    }
+    hit={cv,mask,pixels};lightResponses.set(key,hit);responsePixels+=pixels;responseMetrics.builds++;
+    if(cv.addEventListener)cv.addEventListener('contextlost',()=>{if(lightResponses.get(key)===hit)dropResponse(key);},{once:true});
+    return cv;
+  }
+  function canLightResponse(f) {
+    if(!f||!LIGHT_RESPONSE_TYPES.has(f.t)||!has(f.t)||(spec(f.t)||{}).flat||
+      !Number.isFinite(f.x)||!Number.isFinite(f.y))return false;
+    const w=f.w==null?1:f.w,h=f.h==null?1:f.h;
+    return Number.isInteger(w)&&Number.isInteger(h)&&w>=1&&h>=1&&(w*TILE+32)*(h*TILE+56)<=RESPONSE_SINGLE;
+  }
+  function drawLightResponse(f,light) {
+    if(!ctx||!canLightResponse(f)||(ctx.isContextLost&&ctx.isContextLost()))return false;
+    const sample=responseSample(light);if(!sample)return false;
+    let image;
+    try {image=responseOverlay(f,sample);} catch(_) {responseMetrics.failures++;return false;}
+    if(!image)return false;
+    const lift=f.mount==='surface'?SURFACE_RISE:0;
+    ctx.save();
+    try {
+      ctx.globalCompositeOperation='source-over';ctx.imageSmoothingEnabled=false;
+      ctx.drawImage(image,f.x*TILE-16,f.y*TILE-48-lift);responseMetrics.draws++;
+    } catch(_) {responseMetrics.failures++;return false;
+    } finally {ctx.restore();}
+    return true;
   }
   // Project each silhouette once. Repeating skewed translucent canvas blits for
   // the whole station stalls the GPU; a straight blit of this 4x raster retains
@@ -11267,7 +11375,7 @@ const PropSprites = (() => {
     setChroma(k) { CHROMA = (k == null ? 1 : +k) || 1; _cboost.clear(); },
     getChroma: () => CHROMA,
     draw, drawBayNames, drawOver, hasOver, drawSeatFront, CATALOG, CATS, spec, has, TILE,
-    drawShadow, lightOf, EMIT,
+    drawShadow, lightOf, EMIT, canLightResponse, drawLightResponse, lightResponseStats, invalidateLightResponse,
     // ORIENTATION: what each prop's art can honestly do, and the box it covers once turned. The
     // builder asks BEFORE offering an R/M affordance — never an input that produces broken art.
     facings, canRotate, canMirror, nextFacing, footprintAt, viewAt, hasView, NO_MIRROR, PLAN_FOOTPRINT,
