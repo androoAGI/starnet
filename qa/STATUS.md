@@ -2805,3 +2805,6 @@ Every first-time StarNet-subscription desktop user: link → shell adopts the to
 
 
 2026-09-09 — agent/voice-continuity-0909 → ab1cd74be: complete-sentence buffering, ordered audio recovery and cutoff diagnostics. Candidate 671d9471f and post-merge trunk fast gates 734/734; customer journeys 33/33; real local-kokoro WAV and browser playback completed. Installer, physical echo and customer recovery unverified. Receipt: qa/digests/2026-09-09-voice-continuity.md.
+
+
+**2026-09-09 tool projection merge:** `agent/tool-projection-0909` -> `793bf1c0f`; saved room equipment survives omitted client placement, explicit empty placement stays authoritative, and toolsets discloses selected-agent and lead-run grants. Fast **735/735 GREEN** and HTTP **108/108 GREEN** before/after merge; customer journeys **34/34 GREEN**. Ten real file/projection runs and live Abilities disclosure verified. Customer report `432df352` remains open for the uncorrelated Trusted Project symptom; installer/reporter recovery unverified. Receipt: `qa/digests/2026-09-09-tool-projection.md`. Existing QA/Rooms edits preserved.
