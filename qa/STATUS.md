@@ -1,3 +1,5 @@
+**2026-09-09 starter shell:** `agent/world-next-0907` -> `f68403588`; new starter HAB uses the owner-selected white shell (`bone`, #e7e3d9). Existing saves and all other rendering settings retained. Pre/post fast **744/744 GREEN**; live fresh-save composition and persisted shell verified. See `qa/digests/2026-09-09-starter-white-shell.md`.
+
 **2026-09-09 approved world merge:** `agent/world-next-0907` -> `0656a655e`; exact approved rendering and dark palette retained, 24 floor materials, physical lighting, softened CRT grain and joined wall crowns. Pre/post fast **744/744 GREEN**; HTTP **108/108 GREEN** on identical source. Live grade/settings/save parity, Build, reload and canvas recovery passed; preview remains :9207. See `qa/digests/2026-09-09-approved-world.md`. Existing QA/Rooms edits preserved.
 
 **2026-09-09 merge digest (INBOX ROWS):** `agent/inbox-row-preview-0909` → `32a1e304e`; agent-first rows, wrapping titles and 15px latest-message previews; live demo :9234 verified; pre-merge and post-merge `test:fast` 733/733 GREEN. Repeated Windows Chromium-profile cleanup failure repaired and verified. Existing QA/handoff edits preserved.
