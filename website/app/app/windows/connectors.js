@@ -1051,16 +1051,9 @@
     // colour-coded text chips (gold / dim) — VT323 has no key/lock glyph that renders (⚿ came out as tofu), and the
     // task says plain text chips are fine. The render below omits the leading glyph when it's empty.
     const CC_CHIP = { none: ['▸', 'no setup', 'var(--ok)'], apikey: ['', 'API key', 'var(--gold)'], oauth: ['', 'sign in', 'var(--ph-dim)'] };
-    /* The catalog seal (2026-08-14). ClassIcons.platformIcon resolves an entry's BESPOKE mark, else the
-       seal for its CATEGORY, else null — and null renders NOTHING rather than a placeholder, so a catalog
-       entry added tomorrow in a group with no art degrades to today's text-only card instead of wearing a
-       mark that misdescribes it. Reuses the bay's .mkt-coin/.mkt-coin-ico pair so these ride the same
-       frameless, one-phosphor treatment; a second socket idiom here would be a second thing to keep in
-       sync. Guarded on ClassIcons being loaded, exactly like the marketplace's own coinInner. */
-    // Simple Icons 16.12.0 (CC0); Printify: printify.com/pfh/assets/logo-small.svg. Local assets; no third-party requests at runtime.
-
+    // Shared local brand marks. SPOD's wordmark needs a wider frame than square symbols.
     function ccSeal(e) {
-      return '<span class="cc-brand" aria-hidden="true">' + (ClassIcons.brandIcon(e) || esc(e.name.slice(0, 2).toUpperCase())) + '</span>';
+      return '<span class="cc-brand' + (e.id === 'spod' ? ' cc-brand-wide' : '') + '" aria-hidden="true">' + (ClassIcons.brandIcon(e) || esc(e.name.slice(0, 2).toUpperCase())) + '</span>';
     }
     function ccCard(e, ci) {
       const cardId = e.catalogId || e.id;
