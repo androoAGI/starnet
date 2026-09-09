@@ -18,7 +18,7 @@
   "expectedClaimCount": 37,
   "releaseSurface": {
     "algorithm": "sha256",
-    "sourceCommit": "559a26f35dc30f7b00dde4ca4ab31b72dabf8d9a",
+    "sourceCommit": "84be660a0cbf84108ca8f9453ea045f8d398a53c",
     "pathSetSha256": "893f2c9ca526a94879691b5c9b01adbcd4d30b3619c1a50fbbfbd64f7e227bb9",
     "files": [
       {
@@ -528,8 +528,8 @@
       },
       {
         "path": "frontend/app/propsprites.js",
-        "bytes": 767248,
-        "sha256": "1b6211d36fec99d46edb44c2f31df4cbe658b15c5ae75ae37b7f515ccd107757"
+        "bytes": 769416,
+        "sha256": "6fc99269e7a657312e8dcd1b69027221c0c97f373b1a377c186fd4c65e62680e"
       },
       {
         "path": "frontend/app/prospect.js",
