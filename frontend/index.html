@@ -39,8 +39,7 @@
 <link rel="stylesheet" href="css/titlebar.css"><!-- custom window chrome (Windows desktop shell): themed titlebar + MIN/MAX/CLOSE; inert unless body.sn-chrome (titlebar.js) -->
 
 </head>
-<body class="theme-amber">
-<script src="app/glass-boot.js"></script>
+<body class="theme-amber glass-demo">
 
 <!-- ============ BOOT VEIL ============ -->
 <!-- The ONLY screen that ships class="active": a neutral phosphor holding-card shown during init()'s async
@@ -718,7 +717,8 @@
 </section>
 
 <script src="app/bootguard.js"></script><!-- BOOT GUARD: installs the window error/unhandledrejection listeners before anything else can fail silently, then verifies the critical module globals after DOMContentLoaded (fatal banner names the file). Reads no state — the ONE script allowed ahead of legacymigrate -->
-<script src="app/legacymigrate.js"></script><!-- FIRST store-touching script: migrate starnet.* localStorage keys -> starnet.* before any store reads -->
+<script src="app/legacymigrate.js"></script>
+<script src="app/glass-boot.js"></script><!-- FIRST store-touching script: migrate starnet.* localStorage keys -> starnet.* before any store reads -->
 <script src="js/util.js"></script>
 <script src="app/asciifx.js"></script><!-- ASCII-motion kit (AsciiFX): decode/dissolve/typewriter primitives; must load before its consumers (chat.js, stationui.js) -->
 <script src="js/audio.js"></script>

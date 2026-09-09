@@ -139,7 +139,9 @@ for(const [search,expected] of [['',true],['?glass=1',true],['?glass=0',false],[
 const html=fs.readFileSync('frontend/index.html','utf8');
 assert(html.indexOf('css/glass-demo.css') < html.indexOf('</head>'));
 assert(html.indexOf('css/glass-comms.css') < html.indexOf('</head>'));
-assert(html.indexOf('app/glass-boot.js') < html.indexOf('id="screen-boot"'));
+assert(html.includes('<body class="theme-amber glass-demo">'),'default glass precedes first paint');
+assert(html.indexOf('app/glass-boot.js') > html.indexOf('app/bootguard.js'),'boot diagnostics are installed before any other script');
+assert(html.indexOf('app/glass-boot.js') < html.indexOf('app/app.js'),'fallback resolves before the station initializes');
 assert(!src.includes('document.head.append(css)'),'material sheets cannot arrive after interface initialization');
 assert(!src.includes("badge.textContent = 'GLASS DEMO'"),'default UI does not claim to be a preview');
 console.log('glass-interactions: guarded Escape, default activation, fallback, and initial material load passed');

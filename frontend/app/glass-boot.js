@@ -1,4 +1,4 @@
-/* Set the station material before any interface content is parsed. Glass is the default;
+/* The body ships with glass before first paint. Honor the fallback before app initialization;
    ?glass=0 remains an explicit diagnostic fallback without rewriting saved preferences. */
 (() => {
   'use strict';
