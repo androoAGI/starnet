@@ -7849,27 +7849,17 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
     const obsLine = (obs && obs.dominant && !obs.calibrating)
       ? 'Observed: you work mostly on <b>' + esc(obs.dominant) + '</b> tasks.'
       : 'Observed work-mix: <span class="dim">calibrating…</span>';
-    const head = mkEl('div', 'gx',
-      '<div class="gx-head"><div><div class="gx-kicker">STATION // COMMANDER DOSSIER</div>' +
-      '<div class="gx-name">What the station knows about you</div></div>' +
-      '<div style="text-align:right;"><div class="gx-kicker" style="margin-bottom:6px;">FAMILIARITY</div>' +
-      '<span class="cd-fam"><span class="cd-fk"><span class="cd-ff" style="width:' + pct + '%;"></span></span>' +
-      '<span class="cd-fpct">' + (sum.known.length ? pct + '%' : 'calibrating') + '</span></span></div></div>' +
-      '<div class="cd-sub">' + sum.known.length + ' of ' + dims.length + ' dimensions known &middot; ' + obsLine + '</div>' +
-      '<div class="mc-note">This dossier is <b>shared by every agent on your station</b> and folds into each one\'s briefing, so a freshly-deployed agent already knows you. It is <b>stored locally</b>. The briefing is sent to each agent’s configured model when it works; relevant summaries may also be used for suggestions. Add, edit, pin, or forget anything below; you own it.</div>');
-    body.appendChild(head);
-
-    // AGENT BRIEFING — the practical payoff surface: the VERBATIM Commander block every agent receives.
-    const briefingDetails = mkEl('details', 'cd-brief-details');
-    briefingDetails.appendChild(mkEl('summary', '', 'Inspect the exact briefing your agents receive'));
-    briefingDetails.appendChild(cdBriefing(ds));
-    body.appendChild(briefingDetails);
+    const head = mkEl('div', 'cd-overview',
+      '<div class="cd-overview-copy"><b>A shared profile for your crew</b><p>Add what matters, correct anything wrong, and remove what you no longer want remembered.</p></div>' +
+      '<div class="cd-familiarity"><span>Understanding</span><span class="cd-fam"><span class="cd-fk"><span class="cd-ff" style="width:' + pct + '%;"></span></span><span class="cd-fpct">' + (sum.known.length ? pct + '%' : 'Learning') + '</span></span>' +
+      '<small>' + sum.known.length + ' of ' + dims.length + ' topics have details</small></div>');
+    head.querySelector('.cd-familiarity').title = 'Based on the source and recency of saved details, not just the number of topics filled in.';
 
     // the active "get to know you" trigger — runs the intake interview in COMMS, folding answers into the
     // dossier through the same upsert path the cards use. Gated on a free agent + not-already-running.
     const actRow = mkEl('div', 'cd-actions-row');
     const goBtn = mkEl('button', 'cd-interview');
-    goBtn.textContent = sum.blank.length ? '▸ LET THE STATION GET TO KNOW YOU' : '▸ REFINE WHAT THE STATION KNOWS';
+    goBtn.textContent = sum.blank.length ? 'Start a guided interview' : 'Update through an interview';
     goBtn.onclick = () => {
       if (typeof Intake === 'undefined') return;
       if (typeof Onboarding !== 'undefined' && Onboarding.isRunning && Onboarding.isRunning()) { notify('let your agent finish waking up first', ''); return; }
@@ -7887,20 +7877,20 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
       if (began) { sfx('click'); notify('the station is interviewing you — answer in COMMS →', 'good'); }
     };
     actRow.appendChild(goBtn);
-    body.appendChild(actRow);
+    actRow.appendChild(mkEl('p', 'cd-interview-help', 'Answer a few questions in COMMS. Your answers build this profile.'));
 
     // one section per dimension, laid out as a two-column grid (the window is 760px wide — a single
     // column of short cards wasted half of it). The composed block is passed down so each card can
     // honestly flag "trimmed from briefing" when the char cap cut it out of the prompt.
     const block = ds.composeBlock();
-    const grid = mkEl('div', 'cd-dims');
+    const cards = {};
     for (const d of dims) {
       const bs = ds.beliefs(d.key);
       const sec = mkEl('div', 'cd-sec' + (bs.length ? ' known' : ''));
-      sec.appendChild(mkEl('div', 'cd-sech', '<span class="cd-dim">' + esc(d.label) + '</span><span class="cd-dn">' + (bs.length || '—') + '</span>'));
+      sec.appendChild(mkEl('div', 'cd-sech', '<span class="cd-dim">' + esc(d.label) + '</span><span class="cd-dn">' + (bs.length ? bs.length + (bs.length === 1 ? ' detail' : ' details') : '') + '</span>'));
       const addRow = cdAddRow(d.key);
       if (!bs.length) {
-        const e = mkEl('div', 'cd-empty'); e.textContent = 'unknown — the station hasn’t learned this yet.'; sec.appendChild(e);
+        const e = mkEl('div', 'cd-empty'); e.textContent = 'Nothing saved yet. Add a detail or choose a starting point.'; sec.appendChild(e);
         // an empty dimension shows its starter chips INLINE (tap → the editor opens prefilled) so filling
         // the dossier in is one tap + a finished sentence, not a blank textarea behind a "+ add".
         // (_open hides this row on hand-off — the editor renders its own chips.)
@@ -7910,16 +7900,36 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
       }
       else for (const b of bs) sec.appendChild(cdCard(d.key, b, block));
       sec.appendChild(addRow);
-      grid.appendChild(sec);
+      cards[d.key] = sec;
     }
-    body.appendChild(grid);
-
-    // STATION RECORD (G3a pride layer): the durable lifetime counters, honest by construction — a counter
-    // with no real sample yet renders "—" (never a fabricated 0). Rendered here, on the station-wide dossier,
-    // because it IS the colony's whole-lifetime track record. Absent store → silently omit (nothing to show).
-    const rec = cdStationRecord();
-    if (rec) body.appendChild(rec);
-    if (typeof WorkHub !== 'undefined') WorkHub.mountSources(body);
+    const addCards = keys => el => {
+      const grid = mkEl('div', 'cd-dims');
+      keys.forEach(key => grid.appendChild(cards[key]));
+      el.appendChild(grid);
+    };
+    mountConsole(body, 'commander', [
+      { id: 'profile', label: 'ABOUT YOU', glyph: '◎', desc: 'Your background, tools, and the people you work with.', build: el => {
+        el.appendChild(head); el.appendChild(actRow);
+        el.appendChild(mkEl('p', 'cd-privacy', 'Saved locally. Your profile briefing is shared with your agents’ configured models when they work.'));
+        addCards(['identity', 'stack', 'people'])(el);
+      } },
+      { id: 'goals', label: 'GOALS', glyph: '↗', desc: 'What you want to achieve and where you need help.', build: addCards(['goals', 'pain', 'ambition']) },
+      { id: 'preferences', label: 'PREFERENCES', glyph: '≡', desc: 'How you like to work, your standing instructions, and your schedule.', build: addCards(['style', 'standing_orders', 'schedule']) },
+      { id: 'briefing', label: 'AGENT BRIEFING', glyph: '▤', desc: 'See the exact profile text included in your agents’ briefing.', build: el => {
+        el.appendChild(mkEl('p', 'cd-privacy', 'Your profile is stored locally. Its briefing is sent to each agent’s configured model when it works; relevant summaries may also be used for suggestions.'));
+        el.appendChild(cdBriefing(ds));
+      } },
+      { id: 'sources', label: 'SOURCES', glyph: '⌁', desc: 'Manage the notes StarNet can study for useful work.', build: el => {
+        if (typeof WorkHub !== 'undefined') WorkHub.mountSources(el);
+        else el.appendChild(mkEl('p', 'cd-empty', 'Source settings are unavailable. Reopen the dossier to try again.'));
+      }, onShow: el => { const detail = el.querySelector('.wh-source-settings'); if (detail) detail.open = true; } },
+      { id: 'record', label: 'STATION RECORD', glyph: '▥', desc: 'Recorded activity across the lifetime of your station.', build: el => {
+        const rec = cdStationRecord();
+        if (rec) el.appendChild(rec);
+        else el.appendChild(mkEl('p', 'cd-empty', 'No station record is available yet.'));
+        el.appendChild(mkEl('p', 'cd-sub', obsLine));
+      } }
+    ]);
   }
 
   // AGENT BRIEFING — the panel's practical payoff: renders the VERBATIM Commander block that
@@ -7931,7 +7941,7 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
     const block = ds.composeBlock();
     const cap = (typeof Dossier !== 'undefined' && Dossier.BLOCK_CHARS) ? Dossier.BLOCK_CHARS : 1200;
     const wrap = mkEl('div', 'cd-brief');
-    const head = mkEl('div', 'cd-brief-head', '<span class="cd-brief-h">AGENT BRIEFING // WHAT EVERY AGENT IS TOLD ABOUT YOU</span>');
+    const head = mkEl('div', 'cd-brief-head', '<span class="cd-brief-h">What agents receive</span>');
     if (block) {
       const meter = mkEl('span', 'cd-brief-meter');
       meter.textContent = block.length + ' / ' + cap + ' chars';
@@ -7941,7 +7951,7 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
     wrap.appendChild(head);
     if (!block) {
       const e = mkEl('div', 'cd-brief-empty');
-      e.textContent = 'cold — the station knows nothing yet, so agents receive no Commander block. Run the interview or add a belief below and this briefing writes itself.';
+      e.textContent = 'No profile details yet. Start the interview or add a detail in About you, Goals, or Preferences to build this briefing.';
       wrap.appendChild(e);
     } else {
       const pre = mkEl('pre', 'cd-brief-text'); pre.textContent = block;   // textContent — belief text is never interpreted
@@ -8027,7 +8037,7 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
 
   // inline edit (mirrors the Memory Core editor): swap the body for a textarea + Save/Cancel.
   function cdEdit(card, txt, btns, dim, b) {
-    const ta = mkEl('textarea', 'cd-edit'); ta.value = b.text; ta.spellcheck = false;
+    const ta = mkEl('textarea', 'cd-edit'); ta.value = b.text; ta.spellcheck = false; ta.maxLength = 280; ta.setAttribute('aria-label', 'Edit ' + dim.replace(/_/g, ' ') + ' detail');
     card.replaceChild(ta, txt); ta.focus(); try { ta.setSelectionRange(ta.value.length, ta.value.length); } catch (_) {}
     btns.innerHTML = '';
     const save = mkEl('button', 'consent-btn'); save.textContent = 'Save'; btns.appendChild(save);
@@ -8069,13 +8079,13 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
   // station directly. row._open(starter) lets an empty dimension's inline chips jump straight into the editor.
   function cdAddRow(dim) {
     const row = mkEl('div', 'cd-add');
-    const btn = mkEl('button', 'cd-addbtn'); btn.textContent = '+ add'; row.appendChild(btn);
+    const btn = mkEl('button', 'cd-addbtn'); btn.textContent = '+ Add detail'; btn.setAttribute('aria-label', 'Add detail: ' + dim.replace(/_/g, ' ')); row.appendChild(btn);
     const open = starter => {
       // hide a sibling inline starter row (empty-dim state) — the editor renders its own chips, and two
       // identical rows read as a bug. Covers BOTH entries: an inline chip tap and the plain "+ add".
       try { const sib = row.parentElement && row.parentElement.querySelector(':scope > .cd-starters'); if (sib) sib.style.display = 'none'; } catch (_) {}
       row.innerHTML = '';
-      const ta = mkEl('textarea', 'cd-edit'); ta.placeholder = 'Tell the station something about yourself…'; ta.spellcheck = false;
+      const ta = mkEl('textarea', 'cd-edit'); ta.placeholder = 'What should your agents know?'; ta.spellcheck = false; ta.maxLength = 280; ta.setAttribute('aria-label', 'New ' + dim.replace(/_/g, ' ') + ' detail');
       const chips = cdStarterChips(dim, s => { ta.value = s; ta.focus(); try { ta.setSelectionRange(ta.value.length, ta.value.length); } catch (_) {} });
       if (chips) row.appendChild(chips);
       row.appendChild(ta);
@@ -8994,7 +9004,7 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
     // `wide` = wide width only). The old per-window pixel widths (460/540/560/620/640/760/1000) are
     // gone — they made eight windows read as eight unrelated apps. A window earns WIDE only by having
     // a rail, a card grid, or side-by-side columns; everything single-column is a PANEL.
-    commander:['COMMANDER DOSSIER',      buildCommander, { wide: true }],   // two-column IDENTITY / STACK & TOOLS
+    commander:['COMMANDER DOSSIER',      buildCommander, { console: true, className: 'commander-console' }],   // focused profile, preferences, briefing, and record sections
     // NAV CONDENSE 2 (2026-08-04): 'skills' is no longer a window key — the skill library/agent-
     // skills sections live in the ABILITIES (connectors) console via AbilityLanes, and per-agent
     // capabilities live in the dossier's SKILLS tab. openTerm keeps the old keys alive as aliases
