@@ -15252,8 +15252,13 @@ async function runOnce(o) {
   const managedSkills = [];
   const seenLoadedSkills = new Set();
   const openrouterToolKey = providerId === 'openrouter' ? runKey : runtimeKey;
-  const studioRoute = ImageTask.resolveRoute({ providerId, runKey, stationOpenRouterKey: runtimeKey });
-  const studioOpenRouterBase = providerId === 'openrouter' ? baseUrl : providerRuntimeBaseUrl('openrouter', '');
+  const studioRoute = ImageTask.resolveRoute({
+    providerId, runKey, providerBaseUrl: baseUrl,
+    managedKey: providerRuntimeKey('starnet', ''),
+    managedBaseUrl: providerRuntimeBaseUrl('starnet', ''),
+    stationOpenRouterKey: runtimeKey,
+    stationOpenRouterBaseUrl: providerRuntimeBaseUrl('openrouter', '')
+  });
   // web_search/web_fetch (DDG/Jina, OR fallback) + web_request. `accessSurface` is host authority: it comes
   // from the run host, never from tool args. An authenticated owner DM has the same stored-key reach as the
   // desktop; an ordinary autonomous caller remains restricted to explicitly unattended-approved keys.
@@ -15319,7 +15324,7 @@ async function runOnce(o) {
       return out;
     } finally { clearTimeout(t); }
   };
-  const imageTools = makeImageTools({ openrouter: studioRoute.ok ? { apiKey: studioRoute.key, model, baseUrl: studioOpenRouterBase } : null, fsp, pathMod: path, root: WORKSPACES, imageModel: String(ENV('IMAGE_MODEL') || '').trim() || undefined, auxVision: auxVisionCall });
+  const imageTools = makeImageTools({ openrouter: studioRoute.ok ? { apiKey: studioRoute.key, model, baseUrl: studioRoute.baseUrl, provider: studioRoute.provider } : null, fsp, pathMod: path, root: WORKSPACES, imageModel: String(ENV('IMAGE_MODEL') || '').trim() || undefined, auxVision: auxVisionCall });
   // browser.vision uses the SAME vision model as image_analyze when a key exists; with no key it
   // reports "unavailable" honestly (never a success-shaped stub). Pass the dep only when usable.
   runBrowser = makeBrowserTools({

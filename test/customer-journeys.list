@@ -36,3 +36,4 @@ test/qa-bug-lifecycle.test.js
 test/emergency-recovery.http.test.js
 
 test/growth-rating-upgrade.e2e.test.js
+test/managed-image.e2e.test.js
