@@ -210,3 +210,42 @@ body.glass-demo #stage-wrap .cam-mode {
   body.glass-demo #screen-game #bottombar .bb-group > .bb-grp { min-width: 0; padding-inline: 8px; font-size: 16px; gap: 4px; }
   body.glass-demo #screen-game #bottombar .bb-gi { width: 16px; padding-right: 3px; font-size: 13px; }
 }
+
+/* Fine viewfinder marks over the picture, with no header plate. */
+body.glass-demo #left .ws-tab { font-size: 14px; letter-spacing: .5px; padding: 6px 3px; }
+body.glass-demo #left .ws-tab.on { text-shadow: none; }
+body.glass-demo #stage-wrap .cam-hud::before {
+  inset: 12px; height: auto; border: 0; box-shadow: none;
+  background:
+    linear-gradient(var(--ph-dim),var(--ph-dim)) left center / 8px 1px no-repeat,
+    linear-gradient(var(--ph-dim),var(--ph-dim)) right center / 8px 1px no-repeat,
+    linear-gradient(var(--ph-dim),var(--ph-dim)) center top / 1px 6px no-repeat,
+    linear-gradient(var(--ph-dim),var(--ph-dim)) center bottom / 1px 6px no-repeat;
+  opacity: .5;
+}
+body.glass-demo #stage-wrap .cam-hud::after {
+  content: ''; position: absolute; left: calc(50% - 6px); top: calc(50% - 6px);
+  width: 13px; height: 13px; opacity: .3;
+  background: linear-gradient(var(--ph),var(--ph)) center / 1px 13px no-repeat,
+    linear-gradient(var(--ph),var(--ph)) center / 13px 1px no-repeat;
+}
+body.glass-demo #stage-wrap .cam-label {
+  top: 16px; left: 27px; font-size: 12px; letter-spacing: 1px;
+  opacity: .75; color: var(--ph); text-shadow: 0 1px 2px #000;
+}
+body.glass-demo #stage-wrap .cam-rec { top: 16px; font-size: 11px; opacity: .7; text-shadow: 0 1px 2px #000; }
+body.glass-demo #stage-wrap .cam-feed {
+  bottom: 16px; left: 27px; padding: 0; border: 0; background: none;
+  font-size: 11px; opacity: .65; text-shadow: 0 1px 2px #000;
+}
+body.glass-demo #stage-wrap .cam-mode {
+  top: 36px; left: 27px; padding: 0; border: 0; background: none;
+  font-size: 11px; opacity: .75; color: var(--ph); text-shadow: 0 1px 2px #000;
+}
+body.glass-demo #screen-game #bottombar .bb-gi {
+  width: 18px; height: 18px; padding: 0; margin: 0; border: 0; opacity: .9;
+}
+body.glass-demo #screen-game #bottombar .bb-gi svg {
+  display: block; width: 16px; height: 16px; fill: none; stroke: currentColor;
+  stroke-width: 1.5; stroke-linecap: square; stroke-linejoin: miter;
+}

@@ -5,6 +5,18 @@
   document.body.classList.add('glass-demo');
   const css = document.createElement('link'); css.rel = 'stylesheet'; css.href = 'css/glass-demo.css'; document.head.append(css);
   const badge = document.createElement('span'); badge.className = 'gd-badge'; badge.textContent = 'GLASS DEMO'; document.body.append(badge);
+  // One small, square-stroke instrument icon set; decorative, so labels remain plain text.
+  const dockIcons = {
+    crew: '<path d="M5 2h5v5H5zM3 14v-4h9v4M12 3h2v4M14 10h1v4"/>',
+    work: '<path d="M3 2h10v12H3zM6 5h4M6 8h4M6 11h2"/>',
+    build: '<path d="M2 4V2h5v3H5v2H2zM6 6l7 7-2 2-7-7M9 3h5v5M11 3v2h3"/>',
+    system: '<path d="M4 4h8v8H4zM6 6h4v4H6zM6 1v3M10 1v3M6 12v3M10 12v3M1 6h3M1 10h3M12 6h3M12 10h3"/>'
+  };
+  Object.entries(dockIcons).forEach(([group, paths]) => {
+    const icon = document.querySelector('#bottombar [data-group="'+group+'"] > .bb-grp .bb-gi');
+    if (icon) { icon.setAttribute('aria-hidden','true'); icon.innerHTML = '<svg viewBox="0 0 16 16" focusable="false" aria-hidden="true">'+paths+'</svg>'; }
+  });
+
   const states = new Map();
   const zoom = () => Number.parseFloat(getComputedStyle(document.body).zoom) || 1;
   const rect = el => el && el.getBoundingClientRect();
