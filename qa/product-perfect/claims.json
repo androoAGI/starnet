@@ -18,7 +18,7 @@
   "expectedClaimCount": 37,
   "releaseSurface": {
     "algorithm": "sha256",
-    "sourceCommit": "dc1377749190c1562ef0a98aba538f35fc2d0364",
+    "sourceCommit": "b0c57d5dc3799e6dc3ab4920aa790c078a9e6586",
     "pathSetSha256": "4283566a35504333c2be893e2fba1667db676f962a57c4225e0e3fb1915c9305",
     "files": [
       {
@@ -258,8 +258,8 @@
       },
       {
         "path": "frontend/app/emergency-control.js",
-        "bytes": 5120,
-        "sha256": "90e15e8c83771b455ccf4fdfcfdfa2b7d52bdb7b41c5c739f1b0d892ce2df39c"
+        "bytes": 3356,
+        "sha256": "f6a3bac18253a732a3788f50dd2428cf3b98ffd87b2c21f2017221352b678902"
       },
       {
         "path": "frontend/app/equipmenthelp.js",
@@ -303,8 +303,8 @@
       },
       {
         "path": "frontend/app/glossary.js",
-        "bytes": 9291,
-        "sha256": "172dbbe5bd78a41aafd8f6fd0b4f40842b9f4c2d6dc9698b280f4660828e17d8"
+        "bytes": 9182,
+        "sha256": "00c686a3530f754e03b43ffefbe5466b8f1842e55dfe7a437e57fc8addce4bb4"
       },
       {
         "path": "frontend/app/goalloop.js",
@@ -858,8 +858,8 @@
       },
       {
         "path": "frontend/app/tutorial.js",
-        "bytes": 92087,
-        "sha256": "e071c6ad3e5898dfd8f3eac9871ea06f2258139f98c781c6c9ba8f3fcf31f9d3"
+        "bytes": 92030,
+        "sha256": "b0da1cd245235e01058987df69eb57562dbcd29651cecaf9319f0ac57bd295ea"
       },
       {
         "path": "frontend/app/understanding.js",
@@ -1123,8 +1123,8 @@
       },
       {
         "path": "frontend/index.html",
-        "bytes": 81744,
-        "sha256": "d6dccd4b55f2351bbbaafaccf5aeaef4fc43ec3f17c6bb1a2056f6ad524849bc"
+        "bytes": 81408,
+        "sha256": "819baadfd40e18bd73e78890632b95be09d1a0fcaa3511d6831ebbf7489773cf"
       },
       {
         "path": "frontend/js/arcade.js",
@@ -2462,7 +2462,9 @@
           "path": "frontend/index.html",
           "needles": [
             "id=\"estop-btn\"",
-            "app/safety.js"
+            "app/safety.js",
+            "id=\"automation-stop-toggle\"",
+            "id=\"automation-stop-retry\""
           ]
         },
         {
@@ -2474,7 +2476,7 @@
       "verdict": "REFUTED",
       "disposition": "NARROW",
       "ownerWave": "W0",
-      "qualification": "Retired at the owner's request on 2026-09-06: the global E-STOP button and Alt+H shortcut are removed. The former advertised promise is no longer offered; the download description now promises only per-conversation Stop. Backend durable halt receipts remain implemented. This historical claim is not certified as shipped.",
+      "qualification": "Retired at the owner's request: the global E-STOP button and Alt+H shortcut are removed, including the replacement System stop/retry controls on 2026-09-09. Existing saved halts have a recovery-only Resume action that cannot stop automation. Public help points to per-conversation Stop and subsystem pause controls. Backend durable halt receipts remain implemented for compatibility. This historical claim is not certified as shipped.",
       "liveProofRequired": false,
       "liveProof": "NOT_REQUIRED",
       "refsChecked": [
