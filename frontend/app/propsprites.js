@@ -450,7 +450,7 @@ const PropSprites = (() => {
 
   // Equipment finish: cold rolled steel with a satin face and a bright machined edge.
   // Scoped to workstation/capability bodies; upholstery and decorative furniture keep their ramps.
-  const EQUIPMENT = { ink:'#26313b', ao:'#111922', dk:'#29343e', face:'#475560', top:'#647580', mid:'#7b8c95', lit:'#a6b5bc', hi:'#c9d4d7', sheen:'#dde5e5', spec:'#dde5e5' };
+  const EQUIPMENT = { ink:'#26313b', ao:'#111922', dk:'#29343e', face:'#404d55', top:'#586971', mid:'#7b8c95', lit:'#a6b5bc', hi:'#c9d4d7', sheen:'#dde5e5', spec:'#dde5e5' };
   const INSTRUMENT = { ink:'#1b242e', ao:'#0e141c', dk:'#222f3b', face:'#33434e', top:'#4b5d69', mid:'#697f8b', lit:'#8fa4af', hi:'#b5c6cd', sheen:'#d2dfe3', spec:'#d2dfe3' };
   const panelFinish = (x,y,w,h,r) => {
     if(w<5||h<3)return;
@@ -479,6 +479,31 @@ const PropSprites = (() => {
     px(latch,y+1,4,1,r.ao);
     px(latch+1,y+1,2,1,r.dk); // recessed pull, flanked by the existing fasteners
     if(w>18){px(x+5,y+1,3,1,r.top);px(x+w-8,y+1,2,1,r.dk);}
+  };
+
+  // Shared workstation construction: satin work surface in a folded steel frame.
+  // All kit is drawn afterward; this never covers screens, controls or seat anchors.
+  const workstationSurface = (x, y, w) => {
+    const r = EQUIPMENT, b = INSTRUMENT;
+    chamf(x - 1, y - 3, w + 2, 9, r.ink, 2);
+    px(x + 1, y - 2, w - 2, 1, r.mid);
+    px(x + 2, y - 2, 5, 1, r.lit);
+    px(x, y - 1, w, 4, r.top);
+    // Replace the pale slab with a dark, inset work mat and a narrow metal rim.
+    px(x + 2, y - 1, w - 4, 3, b.face);
+    px(x + 3, y, w - 6, 2, b.dk);
+    px(x, y, 1, 3, r.mid); px(x + w - 1, y, 1, 3, r.dk);
+    px(x + 1, y + 3, w - 2, 1, r.mid);
+    px(x + 2, y + 3, 4, 1, r.lit);
+    px(x + 1, y + 4, w - 2, 2, r.face);
+    px(x + 2, y + 5, w - 4, 1, r.dk);
+    // Independent equipment pods leave a clear knee recess between supports.
+    for (const dx of [2, w - 7]) {
+      px(x + dx, y + 6, 5, 2, r.ink);
+      px(x + dx, y + 6, 5, 1, r.face);
+      px(x + dx + 1, y + 6, 2, 1, r.mid);
+    }
+    px(x + w - 4, y + 4, 1, 1, '#9b8766'); // captive brass fastening, never an LED
   };
 
   /* ============ ORIENTATION ============
@@ -686,23 +711,15 @@ const PropSprites = (() => {
     }
     underAO(x + 6, y + 8, w - 12, 2);
 
-    chamf(x - 1, y - 3, w + 2, 10, r.ink, 2);
-    px(x, y - 2, w, 1, r.lit); px(x, y - 1, w, 3, r.top); machined(x + 2, y - 1, w - 4, 3, r.top);
-    px(x, y + 2, w, 2, r.face); px(x, y + 4, w, 1, r.dk);
-    px(x, y - 1, 1, 5, r.mid); px(x + w - 1, y - 1, 1, 5, r.dk);
-    px(x, y + 5, w, 2, r.face); px(x, y + 6, w, 1, r.dk);
-    chamf(x, y + 6, w, 3, r.ink, 1);
-    px(x + 1, y + 7, w - 2, 1, r.dk);
-    for (let i = 0; i < 8; i++) { px(x + 3 + i * 4, y + 7, 2, 1, r.ao); px(x + 3 + i * 4, y + 6, 2, 1, r.mid); }
+    workstationSurface(x, y, w);
 
     /* ---- THE BANK: one casting, three bays split by full-height dividers ---- */
-    equipmentApron(x, y + 5, w, r);
     const bX = x + 1, bW = w - 2, bT = y - 11;
     px(bX + 1, bT, bW - 2, 1, b.ink);
     px(bX, bT + 1, bW, 8, b.ink);
-    px(bX + 1, bT + 1, bW - 2, 2, b.lit);
+    px(bX + 1, bT + 1, bW - 2, 2, b.top);
     px(bX + 2, bT + 1, 6, 1, b.hi);
-    px(bX + 1, bT + 3, bW - 2, 1, b.mid);
+    px(bX + 1, bT + 3, bW - 2, 1, b.face);
     px(bX + 1, bT + 4, bW - 2, 4, b.face);
     px(bX + 1, bT + 8, bW - 2, 1, r.ao);
     const bayW = Math.floor((bW - 2) / 3);
@@ -1082,14 +1099,14 @@ const PropSprites = (() => {
     // language (chamfered cap, warm crown key, cool east rim, hazard-ticked base) but its "contents" are
     // blades instead of cargo. Every LED row / link light / PSU blink is kept, now with real falloff so
     // the lights sit IN the chassis instead of on top of it.
-    const r = RAMP.steel, cw = w, rise = 7, topY = y - rise, botY = y + h - 1, ph = (f && f.x) || 0;
+    const r = INSTRUMENT, cw = w, rise = 7, topY = y - rise, botY = y + h - 1, ph = (f && f.x) || 0;
     shadow2(x + 1, botY, cw - 2);
     // silhouette + slim east flank that gives the tower its depth
     chamf(x - 1, topY - 5, cw + 2, botY - topY + 6, LINE, 2);
     px(x + cw - 3, topY - 1, 2, botY - topY, r.dk);
-    rimEdge(x + cw - 2, topY + 1, 1, botY - topY - 3, 0.22);          // cool sky bounce down the shade flank
+    rimEdge(x + cw - 2, topY + 1, 1, botY - topY - 3, 0.12);          // cool sky bounce down the shade flank
     px(x + 1, topY, cw - 4, (botY - 1) - topY, r.face);               // front chassis
-    px(x + 1, topY, 1, (botY - 1) - topY, r.lit);                     // west sheen column
+    px(x + 1, topY, 1, (botY - 1) - topY, r.mid);                     // west sheen column
     px(x + 2, topY, cw - 5, 1, shade(r.face, 0.14));
     // chamfered cap we look down onto
     chamf(x, topY - 4, cw - 2, 4, LINE, 1);
@@ -1103,9 +1120,10 @@ const PropSprites = (() => {
     // 5 rack units: blade body, status LED, label, link light, vent slot
     for (let u = 0; u < 5; u++) {
       const uy = topY + 1 + u * 5;
-      px(x + 3, uy, cw - 7, 4, u % 2 ? '#1c242c' : '#212a34');        // blade body
-      px(x + 3, uy, cw - 7, 1, u % 2 ? '#2a3540' : '#2e3a46');        // unit top catch
-      keyEdge(x + 3, uy, 3, 1, 0.10);
+      px(x + 3, uy, cw - 7, 4, u % 2 ? r.face : r.dk);        // blade body
+      px(x + 3, uy, cw - 7, 1, r.top);        // unit top catch
+      px(x + 3, uy, 1, 1, r.lit); // latch end catches light, blade face stays matte
+      px(x + 6, uy + 2, 2, 1, r.mid); // separate removable blade handle
       px(x + 3, uy + 4, cw - 7, 1, '#0f151b');                        // seam shadow between units
       const st = blink(420 + u * 110, ph + u);
       px(x + 4, uy + 1, 1, 1, st ? '#7fd0ff' : '#16242e');            // status LED
@@ -1157,26 +1175,17 @@ const PropSprites = (() => {
     underAO(x + 6, y + 8, w - 12, 2);
 
     /* ---- one continuous top ---- */
-    chamf(x - 1, y - 3, w + 2, 10, r.ink, 2);
-    px(x, y - 2, w, 1, r.lit); px(x, y - 1, w, 3, r.top); machined(x + 2, y - 1, w - 4, 3, r.top);
-    px(x, y + 2, w, 2, r.face); px(x, y + 4, w, 1, r.dk);
-    px(x + 2, y - 2, 10, 1, r.hi);
-    px(x, y - 1, 1, 5, r.mid); px(x + w - 1, y - 1, 1, 5, r.dk);
-    px(x, y + 5, w, 2, r.face); px(x, y + 6, w, 1, r.dk);
-    chamf(x, y + 6, w, 3, r.ink, 1);
-    px(x + 1, y + 7, w - 2, 1, r.dk);
-    for (const dx of [x + 4, x + 20, x + 36]) px(dx, y + 7, 6, 1, r.face);
-    px(x + 16, y - 2, 1, 7, r.ink); px(x + 17, y - 2, 1, 7, r.mid);      // the top's own seam
-    px(x + 31, y - 2, 1, 7, r.ink); px(x + 32, y - 2, 1, 7, r.mid);
+    workstationSurface(x, y, w);
+    // Three service panels share a worktop without adding tall separators.
+    for (const dx of [16, 32]) { px(x + dx, y - 1, 1, 3, r.dk); px(x + dx, y + 4, 1, 1, r.dk); }
 
     /* ---- STATION A (west): screen on a stand + keyboard ---- */
-    equipmentApron(x, y + 5, w, r);
     const mX = x + 2, mW = 12, mT = y - 13;
     px(mX + 5, y - 4, 2, 3, b.face); px(mX + 5, y - 4, 1, 3, b.top);
     chamf(mX + 2, y - 2, 8, 2, b.ink, 1); px(mX + 3, y - 1, 6, 1, b.top);
     chamf(mX - 1, mT - 1, mW + 2, 11, b.ink, 2);
     panelFinish(mX, mT, mW, 9, b);
-    px(mX, mT, mW, 1, b.lit); px(mX + 1, mT, 4, 1, b.hi);
+    px(mX, mT, mW, 1, b.mid); px(mX + 1, mT, 2, 1, b.lit);
     px(mX, mT + 1, 1, 7, b.top); px(mX + mW - 1, mT + 1, 1, 7, b.dk);
     inset(mX + 1, mT + 1, mW - 2, 7, '#070f0b');
     const sx = mX + 2, sy = mT + 2, sw = mW - 4;
@@ -1212,11 +1221,8 @@ const PropSprites = (() => {
   };
 
   F.desk = (x, y, w, h, f) => {
-    /* v43 WORKSTATION — the desk is EXACTLY as it was (v19 body: slab, apron, legs, PC tower,
-       monitor, keyboard). The ONLY change is the chair.
-       ⛔ CHAIR CHANGES ONLY. The v42 pass rebuilt the whole workstation off the reference and Andrew
-          pulled it back: the desk was already right, and reworking things that are already approved
-          is how a session burns an hour for nothing. */
+    /* Workstation refinement: existing footprint, screen and seat registration.
+       The top, computer and monitor remain separate assembled pieces. */
     const r = EQUIPMENT, b = INSTRUMENT, s = MAT.seat, on = !!f.work, ph = f.x || 0;
 
     shadow2(x + 1, y + h - 1, w - 2);
@@ -1233,23 +1239,7 @@ const PropSprites = (() => {
     underAO(x + 6, y + 8, w - 12, 2);
 
     /* ---- the slab ---- */
-    chamf(x - 1, y - 3, w + 2, 10, r.ink, 2);
-    px(x, y - 2, w, 1, r.lit);                                    // the row the ceiling strip reaches
-    px(x, y - 1, w, 3, r.top); machined(x + 2, y - 1, w - 4, 3, r.top);                                    // working surface
-    px(x, y + 2, w, 2, r.face);                                   // falling away toward the user
-    px(x, y + 4, w, 1, r.dk);                                     // front lip
-    px(x + 2, y - 2, 8, 1, r.hi);                                 // west-biased key catch
-    px(x, y - 1, 1, 5, r.mid); px(x + w - 1, y - 1, 1, 5, r.dk);
-    rimEdge(x + w - 1, y - 1, 1, 5, 0.16);
-    px(x, y + 5, w, 2, r.face);                                   // the top's own thickness
-    px(x, y + 6, w, 1, r.dk);
-
-    /* ---- apron ---- */
-    chamf(x, y + 6, w, 3, r.ink, 1);
-    px(x + 1, y + 7, w - 2, 1, r.dk);
-    for (const dx of [x + 3, x + 16]) px(dx, y + 7, 5, 1, r.face);
-
-    equipmentApron(x, y + 5, w, r);
+    workstationSurface(x, y, w);
 
     /* ---- SMALL PC: closed tower at the west end ---- */
     const pX = x + 1, pY = y - 9;
@@ -1268,13 +1258,12 @@ const PropSprites = (() => {
     /* ---- PC SCREEN on a stand ---- */
     const mX = x + 10, mW = 12, mT = y - 13, sx = mX + 2, sy = mT + 2, sw = mW - 4;
     px(mX + 5, y - 4, 2, 3, b.face); px(mX + 5, y - 4, 1, 3, b.top);   // neck
-    // Forked monitor mount: two visible supports and a small hinge under the bezel.
-    px(mX + 3, y - 4, 1, 3, b.mid); px(mX + 8, y - 4, 1, 3, b.dk);
-    px(mX + 3, y - 4, 6, 1, b.top);
+    // A single swivel post and a recessed pivot leave daylight below the monitor.
+    px(mX + 4, y - 4, 4, 1, b.dk); px(mX + 5, y - 4, 2, 1, b.mid);
     chamf(mX + 2, y - 2, 8, 2, b.ink, 1); px(mX + 3, y - 1, 6, 1, b.top);
     chamf(mX - 1, mT - 1, mW + 2, 12, b.ink, 2);
     panelFinish(mX, mT, mW, 10, b);
-    px(mX, mT, mW, 1, b.lit); px(mX + 1, mT, 5, 1, b.hi);
+    px(mX, mT, mW, 1, b.mid); px(mX + 1, mT, 3, 1, b.lit);
     px(mX, mT + 1, 1, 8, b.top); px(mX + mW - 1, mT + 1, 1, 8, b.dk);
     rimEdge(mX + mW - 1, mT + 2, 1, 6, 0.18);
     px(mX + 4, mT + 9, 4, 1, b.top);                              // brand strip on the chin
@@ -1293,19 +1282,16 @@ const PropSprites = (() => {
       px(sx + sw - 1, sy + 5, 1, 1, blink(1600, ph) ? '#ff9d2e' : '#33241a');
     }
 
+    // Cable channel belongs to the surface, not the floor around the operator.
+    px(x + 7, y - 1, 2, 1, b.ao);
     /* ---- KEYBOARD ---- */
     const kX = x + 10;
     chamf(kX - 1, y + 1, 10, 4, b.ink, 1);
     px(kX, y + 2, 8, 2, b.ao);
+    px(x + 20, y + 1, 2, 3, b.ink); px(x + 20, y + 1, 1, 2, b.mid);
     for (let i = 0; i < 8; i += 2) { px(kX + i, y + 2, 1, 1, b.lit); px(kX + i + 1, y + 3, 1, 1, b.top); }
 
-    /* ---- THE CHAIR — the only thing that changed. Built to the reference: a cut-top headrest, a
-       teal back, armrests carrying PALE STEEL CAPS over the upholstery, and an OCTAGONAL PEDESTAL
-       instead of a star base.
-       ⛔ THE STEEL-OVER-TEAL CONTRAST IS WHAT MAKES IT READ AS UPHOLSTERY ON A FRAME. All-teal arms
-          read as one moulded lump; a pale cap on each says "padding sitting in a metal cradle".
-       ⛔ AN OCTAGONAL FOOT BEATS A STAR BASE AT THIS SIZE — a splayed star is three thin legs that
-          dissolve, a stepped octagon is a solid shape the eye can hold. ---- */
+    // The world renderer owns the unchanged workstation seat.
   };
 
   F.desk2 = (x, y, w, h, f) => {
@@ -1328,15 +1314,7 @@ const PropSprites = (() => {
     }
     underAO(x + 6, y + 8, w - 12, 2);
 
-    chamf(x - 1, y - 3, w + 2, 10, r.ink, 2);
-    px(x, y - 2, w, 1, r.lit); px(x, y - 1, w, 3, r.top); machined(x + 2, y - 1, w - 4, 3, r.top);
-    px(x, y + 2, w, 2, r.face); px(x, y + 4, w, 1, r.dk);
-    px(x + 2, y - 2, 8, 1, r.hi);
-    px(x, y - 1, 1, 5, r.mid); px(x + w - 1, y - 1, 1, 5, r.dk);
-    px(x, y + 5, w, 2, r.face); px(x, y + 6, w, 1, r.dk);
-    chamf(x, y + 6, w, 3, r.ink, 1);
-    px(x + 1, y + 7, w - 2, 1, r.dk);
-    for (const dx of [x + 3, x + 16]) px(dx, y + 7, 5, 1, r.face);
+    workstationSurface(x, y, w);
 
     /* ---- CROSSBAR + TWO SCREENS, with real deck between them ---- */
     px(x + 4, y - 4, w - 8, 2, b.ink);                              // the bar they hang from
@@ -1347,7 +1325,7 @@ const PropSprites = (() => {
       px(mX + 4, y - 6, 2, 2, b.face);                              // each screen's own neck
       chamf(mX - 1, mT - 1, mW + 2, 11, b.ink, 2);
       panelFinish(mX, mT, mW, 9, b);
-      px(mX, mT, mW, 1, b.lit); px(mX + 1, mT, 3, 1, b.hi);
+      px(mX, mT, mW, 1, b.mid); px(mX + 1, mT, 2, 1, b.lit);
       px(mX, mT + 1, 1, 7, b.top); px(mX + mW - 1, mT + 1, 1, 7, b.dk);
       inset(mX + 1, mT + 1, mW - 2, 7, '#070f0b');
       const sx = mX + 2, sy = mT + 2, sw = mW - 4;
@@ -1395,24 +1373,15 @@ const PropSprites = (() => {
     }
     underAO(x + 6, y + 8, w - 12, 2);
 
-    chamf(x - 1, y - 3, w + 2, 10, r.ink, 2);
-    px(x, y - 2, w, 1, r.lit); px(x, y - 1, w, 3, r.top); machined(x + 2, y - 1, w - 4, 3, r.top);
-    px(x, y + 2, w, 2, r.face); px(x, y + 4, w, 1, r.dk);
-    px(x + 2, y - 2, 8, 1, r.hi);
-    px(x, y - 1, 1, 5, r.mid); px(x + w - 1, y - 1, 1, 5, r.dk);
-    px(x, y + 5, w, 2, r.face); px(x, y + 6, w, 1, r.dk);
-    chamf(x, y + 6, w, 3, r.ink, 1);
-    px(x + 1, y + 7, w - 2, 1, r.dk);
-    for (const dx of [x + 3, x + 16]) px(dx, y + 7, 5, 1, r.face);
+    workstationSurface(x, y, w);
 
     /* ---- WIDE SCREEN pushed to the back of the desk ---- */
-    equipmentApron(x, y + 5, w, r);
     const mX = x + 5, mW = 15, mT = y - 13;
     px(mX + 6, y - 4, 3, 3, b.face); px(mX + 6, y - 4, 1, 3, b.top);
     chamf(mX + 3, y - 2, 9, 2, b.ink, 1); px(mX + 4, y - 1, 7, 1, b.top);
     chamf(mX - 1, mT - 1, mW + 2, 11, b.ink, 2);
     panelFinish(mX, mT, mW, 9, b);
-    px(mX, mT, mW, 1, b.lit); px(mX + 1, mT, 5, 1, b.hi);
+    px(mX, mT, mW, 1, b.mid); px(mX + 1, mT, 3, 1, b.lit);
     px(mX, mT + 1, 1, 7, b.top); px(mX + mW - 1, mT + 1, 1, 7, b.dk);
     inset(mX + 1, mT + 1, mW - 2, 7, '#0d0710');
     const sx = mX + 2, sy = mT + 2, sw = mW - 4;
@@ -2303,26 +2272,18 @@ const PropSprites = (() => {
     underAO(x + 6, y + 8, w - 12, 2);
 
     /* ---- SLAB ---- */
-    chamf(x - 1, y - 3, w + 2, 10, r.ink, 2);
-    px(x, y - 2, w, 1, r.lit); px(x, y - 1, w, 3, r.top); machined(x + 2, y - 1, w - 4, 3, r.top);
-    px(x, y + 2, w, 2, r.face); px(x, y + 4, w, 1, r.dk);
-    px(x, y - 1, 1, 5, r.mid); px(x + w - 1, y - 1, 1, 5, r.dk);
-    px(x, y + 5, w, 2, r.face); px(x, y + 6, w, 1, r.dk);
-    chamf(x, y + 6, w, 3, r.ink, 1);
-    px(x + 1, y + 7, w - 2, 1, r.dk);
-    for (let i = 0; i < 5; i++) { px(x + 3 + i * 4, y + 7, 2, 1, r.ao); px(x + 3 + i * 4, y + 6, 2, 1, r.mid); }
+    workstationSurface(x, y, w);
 
     /* ---- THE INSTRUMENT BANK: its own casting, raised across the back ---- */
-    equipmentApron(x, y + 5, w, r);
     // Raised end housings protect the inset controls and break up the flat desk profile.
     chamf(x, y - 1, 3, 6, r.ink, 1); px(x + 1, y, 1, 3, r.lit);
     chamf(x + w - 3, y - 1, 3, 6, r.ink, 1); px(x + w - 2, y, 1, 3, r.mid);
     const bX = x + 1, bW = w - 2, bT = y - 11;
     px(bX + 1, bT, bW - 2, 1, b.ink);
     px(bX, bT + 1, bW, 8, b.ink);
-    px(bX + 1, bT + 1, bW - 2, 2, b.lit);                          // the bank's lit crown
+    px(bX + 1, bT + 1, bW - 2, 2, b.top);                          // the bank's lit crown
     px(bX + 2, bT + 1, 5, 1, b.hi);
-    px(bX + 1, bT + 3, bW - 2, 1, b.mid);
+    px(bX + 1, bT + 3, bW - 2, 1, b.face);
     px(bX + 1, bT + 4, bW - 2, 4, b.face);
     px(bX + 1, bT + 4, 1, 4, b.top); px(bX + bW - 2, bT + 4, 1, 4, b.dk);
     px(bX + 1, bT + 8, bW - 2, 1, r.ao);                           // the bank's shadow on the slab
@@ -4535,7 +4496,7 @@ const PropSprites = (() => {
     px(x + 2, CAP + 1, 2, 4, r.mid);                                 // WEST RAIL, end to end
     px(x + w - 3, CAP + 1, 1, 4, r.dk); rimEdge(x + w - 3, CAP + 1, 1, 4, 0.16);
     px(x + 5, CAP + 2, w - 22, 1, shade(r.face, 0.16));            // ONE seam across the plane, not grain
-    px(x + 2, CAP + 4, w - 4, 1, r.lit);                             // the front nosing takes the strip
+    px(x + 2, CAP + 4, w - 4, 1, r.mid);                             // the front nosing takes the strip
     px(x + 1, CAP + 5, w - 2, 1, r.mid);                             // and the cap's own short FACE
     px(x + 6, CAP + 5, w - 18, 1, on ? G : shade(G, -0.62));       // indicator strip, on the face
     if (on) bloom(x + 6, CAP + 5, w - 18, 1, G, 0.20);
@@ -7558,9 +7519,16 @@ const PropSprites = (() => {
       const sy=y+k*6;
       // Raised rectangular bezel surrounds a black socket, with a protruding plug body.
       px(x+1,sy,7,5,r.ink);px(x+1,sy,7,1,r.mid);px(x+2,sy+1,5,3,b.ao);
-      px(x+3,sy+2,3,2,r.face);px(x+3,sy+2,3,1,r.lit);px(x+5,sy+3,2,1,r.dk);
-      px(x+7,sy+3,3,1,b.ink);px(x+9,sy+3,1,3,r.dk);
-      px(x+10,sy+4,1,2,r.mid); // strain-relief collar on the cable spine
+      if(bound){
+        // Plug projects beyond its recessed socket and returns into the cable duct.
+        px(x+3,sy+2,3,2,r.face);px(x+3,sy+2,2,1,r.mid);
+        px(x+5,sy+3,2,1,r.dk);px(x+7,sy+3,3,1,b.ink);
+        px(x+9,sy+3,1,3,r.dk);px(x+10,sy+4,1,2,r.mid);
+      }else{
+        // Empty sockets stay visibly empty until this prop is bound to a connector.
+        px(x+3,sy+2,3,2,b.ao);px(x+3,sy+2,2,1,b.dk);
+        px(x+4,sy+3,1,1,r.face);
+      }
       px(x+2,sy+3,1,1,online?shade(ACC.data,-0.2):b.dk);
     }
     px(x+2,y+18,5,2,r.ao);px(x+2,y+18,5,1,r.face);
@@ -7594,8 +7562,9 @@ const PropSprites = (() => {
 
     /* ---- the top: a thick worktop, scarred and lit ---- */
     chamf(x - 1, y - 3, w + 2, 9, r.ink, 2);
-    px(x, y - 2, w, 2, r.lit); px(x + 2, y - 2, 8, 1, r.hi);
+    px(x, y - 2, w, 2, r.top); px(x + 2, y - 2, 5, 1, r.lit);
     px(x, y, w, 2, r.top);
+    px(x + 7, y, 10, 2, b.dk); // insulating service mat below the hand tools
     px(x, y + 2, w, 2, r.face);
     px(x, y + 4, w, 1, r.dk);
     px(x, y - 1, 1, 5, r.mid); px(x + w - 1, y - 1, 1, 5, r.dk);
@@ -7608,9 +7577,11 @@ const PropSprites = (() => {
     px(x + 1, pT, w - 2, pH, r.ink);
     px(x + 2, pT + 1, w - 4, pH - 2, b.ao);
     px(x + 2, pT + 1, w - 4, 1, b.mid);                            // its lit top rail
-    for (let ry = 0; ry < 4; ry++) for (let rx = 0; rx < 9; rx++)
-      px(x + 3 + rx * 2, pT + 3 + ry * 2, 1, 1, '#05070a');        // the perforations
-    // tools, read by outline only
+    for (let ry = 0; ry < 2; ry++) for (let rx = 0; rx < 6; rx++)
+      px(x + 3 + rx * 3, pT + 4 + ry * 3, 1, 1, b.dk);        // the perforations
+    // Uprights carry the board down to the bench rather than leaving it floating.
+    for (const dx of [1, w - 3]) { px(x + dx, pT + pH, 2, 3, r.ink); px(x + dx, pT + pH, 1, 3, r.face); }
+    // Tools, read by silhouette with matte ochre grips.
     px(x + 3, pT + 2, 1, 5, r.mid); px(x + 2, pT + 2, 3, 1, r.lit);        // driver
     px(x + 6, pT + 2, 1, 6, r.mid); px(x + 5, pT + 2, 3, 2, r.face);       // hammer
     px(x + 10, pT + 2, 1, 5, r.mid); px(x + 9, pT + 2, 1, 2, r.lit); px(x + 11, pT + 2, 1, 2, r.lit);   // wrench fork
@@ -7618,6 +7589,10 @@ const PropSprites = (() => {
     px(x + 18, pT + 2, 3, 4, r.ink); px(x + 19, pT + 3, 1, 2, br.mid);     // a clamp
     px(x + 3, pT + 8, 8, 2, r.ink); px(x + 4, pT + 8, 6, 1, r.face);       // a parts tray on the rail
     px(x + 13, pT + 8, 8, 2, r.ink); px(x + 14, pT + 8, 6, 1, r.top);
+
+    px(x + 3, pT + 5, 1, 2, '#93774d');
+    px(x + 6, pT + 5, 1, 3, '#786347');
+    px(x + 10, pT + 5, 1, 2, r.top);
 
     /* ---- ON THE TOP: a vice, a soldering iron in its stand, a test lamp ---- */
     px(x + 2, y - 4, 5, 4, r.ink);                                  // vice body
@@ -7999,7 +7974,7 @@ const PropSprites = (() => {
 
     /* ---- CHASSIS ---- */
     px(x + 1, y - 1, w - 2, 10, r.ink);
-    px(x + 2, y, w - 4, 2, r.lit);                                 // lit top plane
+    px(x + 2, y, w - 4, 2, r.top);                                 // lit top plane
     px(x + 3, y, 3, 1, r.hi);
     panelFinish(x + 2, y + 2, w - 4, 6, r);
     px(x + 2, y + 2, 1, 6, r.mid); px(x + w - 3, y + 2, 1, 6, r.dk);
@@ -8008,7 +7983,8 @@ const PropSprites = (() => {
     for (let k = 0; k < 3; k++) {
       const by = y + 3 + k * 2;
       px(x + 3, by, w - 6, 1, r.ao);                               // the reveal
-      px(x + 3, by - 1, w - 6, 1, r.top);                          // the blade face above it
+      px(x + 3, by - 1, w - 6, 1, r.face);
+      px(x + 3, by - 1, 2, 1, r.mid);                          // the blade face above it
       px(x + w - 5, by, 1, 1, blink(400 + k * 150, k) ? M : shade(M, -0.70));
     }
     if (on) bloom(x + w - 5, y + 3, 1, 5, M, 0.20);
@@ -8419,7 +8395,7 @@ const PropSprites = (() => {
     /* ---- CAP: proud of the body, chamfered, its own lit top plane ---- */
     px(x, top + 1, w, 5, r.ink);
     px(x + 1, top, w - 2, 1, r.ink);                                // chamfer
-    px(x + 1, top + 1, w - 2, 2, r.lit);                            // the plane we look down on
+    px(x + 1, top + 1, w - 2, 2, r.top);                            // the plane we look down on
     px(x + 2, top + 1, 4, 1, r.hi); captiveBolt(x + w - 4, top + 1, r);                                 // specular chip, west
     px(x + 1, top + 3, w - 2, 1, r.top);
     px(x + 1, top + 4, w - 2, 1, r.dk);
@@ -8440,8 +8416,9 @@ const PropSprites = (() => {
       const uy = bTop + 3 + k * 5;
       px(wellX + 1, uy, wellW - 1, 4, r.ink);                       // unit body
       px(wellX + 1, uy + 1, wellW - 2, 2, r.top);
-      px(wellX + 1, uy + 1, wellW - 2, 1, r.lit);                   // its lit top plate
-      px(wellX + 2, uy + 2, 2, 1, r.dk);                            // a slot on the face
+      px(wellX + 1, uy + 1, wellW - 2, 1, r.mid);                   // its lit top plate
+      px(wellX + 2, uy + 2, 2, 1, r.ao);                            // a slot on the face
+      px(wellX + 2, uy + 3, 3, 1, r.face); // recessed cartridge pull
       px(wellX + wellW - 2, uy + 2, 1, 1, blink(420 + k * 160, k) ? G : shade(G, -0.66));
       if (on) bloom(wellX + wellW - 2, uy + 2, 1, 1, G, 0.20);
     }
