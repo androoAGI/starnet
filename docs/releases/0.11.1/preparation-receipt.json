@@ -1,0 +1,25 @@
+{
+  "schema": "starnet.release-preparation.v1",
+  "targetVersion": "0.11.1",
+  "observedPublicVersion": "0.11.0",
+  "initialSource": "209ce13579ba919329d96886ed1c0b2e9997ecfe",
+  "currentPreparationSource": "c275727ea2344bd208d16313f3280edce68da0a7",
+  "requiredFix": "177a9384e6d7e62b5b93482c0d2dfbcde885b49f",
+  "createdAt": "2026-09-09T23:53:11.4174061Z",
+  "readiness": "NOT READY",
+  "upgradeTestEntries": 7,
+  "upgradeTestPassed": 7,
+  "upgradeTestFailed": 0,
+  "upgradeLogSha256": "a5c5c4854857d0d153a278f47662df1e244845f99491eee35bb5c2f3c9c981a4",
+  "preflightLogSha256": "74af9379b1adfd3fd7012df5c53a3ab65d8b227265ffbbe8ba78a4ced8e164e6",
+  "finalCandidate": null,
+  "installedUpgrade": "not tested",
+  "publishedByThisLane": false,
+  "customerCampaign": {
+    "source": "c275727ea2344bd208d16313f3280edce68da0a7",
+    "suitesPassed": 34,
+    "exitCode": 0,
+    "finalLine": "run-test-list: OK — 34 step(s) green",
+    "logSha256": "ad7acf08eb2abd22cc2280fb3f90ca88f859394efeb9045a4f061f96a93d315c"
+  }
+}
