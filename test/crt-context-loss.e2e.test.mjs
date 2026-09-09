@@ -99,11 +99,9 @@ try {
   await Promise.all([stopChild(chrome, true), stopChild(sidecar)]);
   const resolvedRoot = root.replace(/\\/g, '/');
   if (resolvedRoot.startsWith(tmpdir().replace(/\\/g, '/') + '/') && /starnet-crt-loss-/.test(resolvedRoot)) {
-    // Windows can retain cache handles briefly after Chromium exits. Keep cleanup
-    // bounded, but allow that release to finish on a loaded host.
-    for (let attempt = 0; attempt < 50; attempt++) {
+    for (let attempt = 0; attempt < 10; attempt++) {
       try { rmSync(root, { recursive: true, force: true }); break; }
-      catch (error) { if (attempt === 49) throw error; await sleep(200); }
+      catch (error) { if (attempt === 9) throw error; await sleep(200); }
     }
   }
 }
