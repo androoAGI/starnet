@@ -132,3 +132,24 @@ Message and fenced-code copy controls use a theme-coloured vector mask instead o
 Live proof: hovering Add Agents now reports before:none and after:none; its label and plus icon render without horizontal overflow. The button opened the real ADD AGENTS sheet, then Cancel closed it without membership changes. Copying the existing Commander message placed exactly that message on the clipboard, produced the Copied label and check icon, and reset to Copy message with the copy icon. Restored the prior empty clipboard afterward. Both existing message copy controls had zero intersection with their speaker names and timestamps. Copy focus was visible with opacity 1 and the themed vector mask. Failure feedback styling and fenced-code appearance were not live-exercised in this keyless conversation.
 
 Syntax and whitespace checks passed. group-chat-picker, chat-code-copy (20), comms-responsive-text (5), control-floor (121), website-app-sync (8), and the existing glass-comms behavior regression passed. Website mirror synchronized. Full suite was not rerun for these local control refinements; its existing release-manifest failure remains documented above.
+
+## Shared STANDARD readability - 2026-09-09
+
+Owner report 96921b22: ordinary text at STANDARD is too small, but magnifying everything overshoots. Added frontend/css/readability.css to the normal frontend entry point, including the generated website mirror. It runs both with and without the glass demo.
+
+The scale uses 14px metadata, 15px compact Build controls, 16px controls/help, 18px conversation prose and 20px COMMS agent identity. Sessions are 17px; their tabs and filters are 16px. Scoped legacy inline captions below 14px receive a reading floor. Ordinary inactive navigation, dossier summaries and search placeholders use lighter theme-derived text. Semantic state colors are retained. STANDARD still means 100%; AUTO, saved enlargement preferences, CRT effects and frame sizing code are unchanged. New text surfaces should use the shared role tokens instead of adding 8-12px captions. Icon-only controls retain their own dimensions and font suppression.
+
+Live proof on the seeded local app:
+- At STANDARD, crew state/levels and model metadata computed 14px, session tabs/filters 16px, session titles 17px, message text/input 18px and the COMMS agent name 20px.
+- Original viewport 1049 x 912 retained the 270px crew rail, 426px COMMS rail and 44px bottom bar. Main rails, COMMS identity/composer and bottom navigation had no horizontal overflow.
+- At 900 x 700 STANDARD, the session toolbar wrapped NEW onto its second row, preserving the readable tabs; search, filters, COMMS composer, Add Agents and bottom navigation fit. Settings sheet and its body had no horizontal overflow.
+- At 900 x 700 HUGE (145%), inspected main panel containers, composer and Settings body/size controls had no internal horizontal overflow. Restored STANDARD. This is not a claim that all installed OS/DPI combinations were exercised.
+- At 1440 x 900 STANDARD, the Build inventory, tool buttons and purpose tabs had no horizontal overflow; labels were readable and purpose names wrapped. Browsed props without placing or removing anything. Restored the actual browser viewport afterward.
+- Opened Settings, Dossier CONFIG and Task Board. Settings navigation/backdrop captions computed 16px; dossier state 14px, headings 18px and prompt/help text 16px; Task Board buttons and explanatory note 16px. Window containers fit without horizontal scrolling.
+- ADD AGENTS opened and Cancel closed without changes. Model picker labels/search computed 16px and fit their popup; Escape closed it. Final browser warning/error log was empty.
+- Loaded the normal app without ?glass=1: shared stylesheet present, body zoom 1, crew metadata 14px, session tabs/filters 16px, messages/input 18px, main rails had no horizontal overflow. Returned to the glass demo with Glass UI exploration, empty draft, original rail widths, red theme and STANDARD.
+
+Verification:
+- readability (21), comms-responsive-text (5), control-floor-theming (125), textsize-screen-space (95), website-app-sync (8) passed on the final stylesheet. Customer journeys passed all 32 suites.
+- Full fast gate stopped at step 286/734 with the existing 10 qa-product-perfect-claims release-manifest failures, also present before this pass. The complete fast gate is not green; no integration merge or release was performed.
+- Installed desktop artifacts, customer DPI/hardware and owner acceptance remain unverified. Populated multi-agent, active voice and real provider execution were not live-tested in this typography pass. Source guards are registered; manual browser geometry is documented here rather than represented as an automated gate.

@@ -1,0 +1,144 @@
+/* Shared reading scale. STANDARD stays 100%; only text roles change, not the cabinet or CRT.
+   This layer owns typography across historical skins (including inline small print).
+   Important declarations are limited to named text roles; icon controls keep their own sizing. */
+body {
+  --sn-type-meta: 14px;
+  --sn-type-compact: 15px;
+  --sn-type-control: 16px;
+  --sn-type-prose: 18px;
+  --sn-type-section: 18px;
+  --sn-type-title: 20px;
+}
+/* Legacy inline captions are an explicit migration floor, not a live DOM-resizing pass. */
+body :is(.term,.refit-dock,#screen-connect) [style*="font-size:8px"]:not([aria-hidden="true"]),
+body :is(.term,.refit-dock,#screen-connect) [style*="font-size: 8px"]:not([aria-hidden="true"]),
+body :is(.term,.refit-dock,#screen-connect) [style*="font-size:9px"]:not([aria-hidden="true"]),
+body :is(.term,.refit-dock,#screen-connect) [style*="font-size: 9px"]:not([aria-hidden="true"]),
+body :is(.term,.refit-dock,#screen-connect) [style*="font-size:10px"]:not([aria-hidden="true"]),
+body :is(.term,.refit-dock,#screen-connect) [style*="font-size: 10px"]:not([aria-hidden="true"]),
+body :is(.term,.refit-dock,#screen-connect) [style*="font-size:10.5px"]:not([aria-hidden="true"]),
+body :is(.term,.refit-dock,#screen-connect) [style*="font-size: 10.5px"]:not([aria-hidden="true"]),
+body :is(.term,.refit-dock,#screen-connect) [style*="font-size:11px"]:not([aria-hidden="true"]),
+body :is(.term,.refit-dock,#screen-connect) [style*="font-size: 11px"]:not([aria-hidden="true"]),
+body :is(.term,.refit-dock,#screen-connect) [style*="font-size:11.5px"]:not([aria-hidden="true"]),
+body :is(.term,.refit-dock,#screen-connect) [style*="font-size: 11.5px"]:not([aria-hidden="true"]),
+body :is(.term,.refit-dock,#screen-connect) [style*="font-size:12px"]:not([aria-hidden="true"]),
+body :is(.term,.refit-dock,#screen-connect) [style*="font-size: 12px"]:not([aria-hidden="true"]),
+body :is(.term,.refit-dock,#screen-connect) [style*="font-size:12.5px"]:not([aria-hidden="true"]),
+body :is(.term,.refit-dock,#screen-connect) [style*="font-size: 12.5px"]:not([aria-hidden="true"]),
+body :is(.term,.refit-dock,#screen-connect) [style*="font-size:13px"]:not([aria-hidden="true"]),
+body :is(.term,.refit-dock,#screen-connect) [style*="font-size: 13px"]:not([aria-hidden="true"]),
+body :is(.term,.refit-dock,#screen-connect) [style*="font-size:13.5px"]:not([aria-hidden="true"]),
+body :is(.term,.refit-dock,#screen-connect) [style*="font-size: 13.5px"]:not([aria-hidden="true"]) {
+  font-size: var(--sn-type-meta) !important;
+  line-height: 1.35;
+}
+/* Main rails: labels remain readable without making portraits, lamps or rows oversized. */
+body #left :is(.crew-room,.crew-status,.ws-meta),
+body #crew-sum, body #crew-sum :is(.pos,.dim),
+body #topbar :is(.tb-lbl,#sig),
+body #chat-panel :is(.comms-agent-model,.model-dock-effort-chip,.cmsg-ts),
+body :is(.ui-overline,.comms-overline,.term-foot-k,.gd-badge) {
+  font-size: var(--sn-type-meta) !important; letter-spacing: .45px;
+}
+body #left :is(.crew-room,.ws-meta), body #topbar #sig,
+body #chat-panel .comms-agent-model:not(.comms-agent-warn) {
+  color: var(--text); opacity: .85;
+}
+body #left .crew-status { opacity: 1; line-height: 1.3; }
+body #crew-sum { line-height: 1.3; }
+body #left :is(.ws-tab,#ws-new,#ws-search,#crew-search),
+body #ws-kind-filter button, body #chat-panel :is(#gc-add-agents,.choice),
+body #chat-panel .model-dock-model-name {
+  font-size: var(--sn-type-control) !important;
+}
+body #left .ws-tab:not(.on), body #ws-kind-filter button:not([aria-pressed="true"]) { color: var(--text) !important; opacity: .85; }
+body #left .ws-title { font-size: 17px !important; }
+body #left .crew-name { font-size: var(--sn-type-section) !important; }
+body #chat-panel :is(.gd-agent-toggle,.comms-agent-select) { font-size: var(--sn-type-title) !important; }
+body #chat-panel :is(#chat-input,.cmsg .body,#gc-log .body) {
+  font-size: var(--sn-type-prose) !important; line-height: 1.45;
+}
+body #chat-panel #chat-input::placeholder { font-size: var(--sn-type-control) !important; opacity: .75; }
+body :is(#ws-search,#crew-search)::placeholder { color: var(--text) !important; opacity: .8; }
+body #chat-panel .cmsg .who { font-size: var(--sn-type-control) !important; }
+body #chat-panel .choice.quiet { font-size: var(--sn-type-meta) !important; opacity: .85; }
+body #chat-panel :is(.cmsg-empty-hint,.cmsg-starter-detail) { font-size: var(--sn-type-control) !important; opacity: .85; }
+body #chat-panel :is(.cmsg-starter-title,.cmsg-empty-line) { font-size: var(--sn-type-section) !important; }
+body #chat-panel :is(.md-code,.md-pre) { font-size: var(--sn-type-control) !important; line-height: 1.5; }
+/* Popup choices and navigation use one consistent label/detail rhythm. */
+body :is(.bb-menu .bb-name,.bb-menu .bb-tx,.gd-menu-label,.con-rail-label,.con-tab,.ag-item-nm),
+body #model-dock :is(.model-dock-row-name,.model-dock-current-model,#model-dock-search),
+body :is(.gd-agent-option,.slash-item .slash-name) {
+  font-size: var(--sn-type-control) !important;
+}
+body :is(.bb-menu small,.gd-menu-detail,.ag-item-st),
+body #model-dock :is(.model-dock-provider,.model-dock-group,.model-dock-keywarn,.model-dock-effort),
+body :is(.slash-desc,.slash-cat,.slash-head) {
+  font-size: var(--sn-type-meta) !important; line-height: 1.35; letter-spacing: .4px;
+}
+body #model-dock .model-dock-foot button { font-size: var(--sn-type-control) !important; }
+body #model-dock .model-dock-effort { min-width: 32px; }
+body :is(.bb-menu small,.gd-menu-detail) { opacity: .85; color: var(--text); }
+/* Shared windows, forms, records and agent configuration. */
+body #terms :is(.term-title,.sec-l,.cf-group-title,.ag-section-title) { font-size: var(--sn-type-section) !important; }
+body #terms :is(.bb,.btn,.set-theme,.es-cta,.lb-tx-btn,.ov-vchip,.cf-name,.cf-file,.perk-name,.con-rail-label),
+body #terms :is(input:not([type=range]):not([type=checkbox]):not([type=radio]),textarea,select),
+body #terms :is(.set-slider-name,.set-slider-val,.set-bd-name,.cf-body,.cf-editarea) {
+  font-size: var(--sn-type-control) !important;
+}
+body #terms :is(.bb.sm,.bb.xs,.set-theme,.es-cta) { min-height: 28px; line-height: 1.2; }
+body #terms :is(.win-note,.sec-note,.set-desc,.cf-desc,.cf-group-detail,.ob-topnote,.es-note,.es-copy,.hint),
+body #terms :is(.cf-body,.cf-editarea) { font-size: var(--sn-type-control) !important; line-height: 1.5; }
+body #terms :is(.cf-badge,.cf-bytes,.perk-stat,.perk-desc,.set-help,.gx-lbl,.gx-dim,.ag-item-st,.tiny),
+body #terms :is(small,label) { font-size: var(--sn-type-meta) !important; line-height: 1.35; }
+body #terms :is(.cf-desc,.cf-grp-note,.cf-group-summary,.cf-bytes,.win-note,.sec-note,.set-desc) { color: var(--text); opacity: .9; }
+body #terms .con-rail-label { line-height: 1.2; color: var(--text); opacity: .85; }
+body #terms .con-rail-item[aria-selected="true"] .con-rail-label { color: var(--ph-bright); opacity: 1; }
+body #terms .set-theme { padding-block: 5px; }
+body #terms .set-bd-name { line-height: 1.2; white-space: normal; }
+body #terms .set-bd { min-height: 65px; }
+body #terms :is(.cf-body,.cf-editarea) { overflow-wrap: anywhere; }
+/* Build tools: keep compact dimensions, but give their captions real text sizes. */
+body .refit-dock :is(.refit-toolset-label,.refit-section-label,.refit-category-label,.refit-hint-keys,
+ .refit-searchnote,.refit-propcat small,.refit-placement-note,.refit-core-status,.refit-access-chip span,
+ .refit-preview-grant,.refit-equipment-scope,.refit-proptile-grant,.refit-proptile-size,.refit-key) {
+  font-size: var(--sn-type-meta) !important; letter-spacing: .3px; line-height: 1.3;
+}
+body .refit-dock :is(.refit-tool,.refit-propcat,.refit-input,.bb,.refit-ability-intro,.refit-preview-info,.refit-proptile-lbl,
+ .refit-equipment-info,.refit-details-toggle,.refit-access-chip b), body #refit-kit-toggle {
+  font-size: var(--sn-type-compact) !important;
+}
+body .refit-dock :is(.refit-access-head label,.refit-searchnote,.refit-ability-intro,.refit-placement-note) {
+  font-size: var(--sn-type-meta) !important; color: var(--text); opacity: .9;
+}
+body .refit-dock :is(.refit-dock-head-t,.refit-hint-verb,.refit-start em,.refit-start-key,.refit-ability-intro b) {
+  font-size: var(--sn-type-meta) !important;
+}
+body .refit-dock :is(.refit-selectnote,.refit-start) {
+  font-size: var(--sn-type-control) !important; line-height: 1.4; color: var(--text);
+}
+body .refit-dock :is(.refit-toolset-label,.refit-section-label,.refit-hint-keys) {
+  color: var(--text); opacity: .85;
+}
+body .refit-top .bb { font-size: var(--sn-type-compact) !important; }
+body .refit-sub { font-size: var(--sn-type-meta) !important; color: var(--text); }
+body .refit-dock .refit-propcat { white-space: normal; min-height: 30px; }
+body .refit-dock .refit-proptile-grant { max-width: calc(100% - 18px); }
+/* Work hub, group controls, first-run forms and help surfaces. */
+body :is(.wh-destination small,.wh-beacon small,.wh-status,.wh-eyebrow,.wh-beacon span,
+ .gc-tag,.gc-count,.gc-state,.gc-help,.ov-sub,.ov-np-role,.ov-step,.ov-leadtag,.cc-sub,.cc-note,
+ .ov-hint,.ov-field-label,.cc-label,.help-key,.help-note) { font-size: var(--sn-type-meta) !important; line-height: 1.4; }
+body :is(.gc-nm,.gc-person,.wh-destination,.ov-vchip,.ov-field input,.cc-field input) {
+  font-size: var(--sn-type-control) !important;
+}
+body .gc-picker :is(.gc-help,.gc-empty,.gc-error) { font-size: var(--sn-type-control) !important; line-height: 1.45; }
+body :is(#station-tip,.hint-card,.wr-add-label) { font-size: var(--sn-type-meta) !important; line-height: 1.35; }
+/* Camera text stays a restrained overlay, without adding a bar over the picture. */
+body #stage-wrap :is(.cam-label,.cam-rec,.cam-feed,.cam-mode,.cam-cine) {
+  font-size: var(--sn-type-meta) !important; letter-spacing: .5px; opacity: .9;
+}
+@media (max-width: 720px) {
+  body #left .ws-tab { padding-inline: 3px; letter-spacing: .3px; }
+  body #model-dock .model-dock-efforts { flex-wrap: wrap; }
+}
