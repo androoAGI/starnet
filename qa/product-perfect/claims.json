@@ -18,7 +18,7 @@
   "expectedClaimCount": 37,
   "releaseSurface": {
     "algorithm": "sha256",
-    "sourceCommit": "fe21c12e1ad6dabaabdf275cd944755ba766e92f",
+    "sourceCommit": "84d6e66ca5f380a1a52a08e32927fe1e82268e9c",
     "pathSetSha256": "893f2c9ca526a94879691b5c9b01adbcd4d30b3619c1a50fbbfbd64f7e227bb9",
     "files": [
       {
@@ -1034,7 +1034,7 @@
       {
         "path": "frontend/app/worldrenderer.js",
         "bytes": 10122,
-        "sha256": "c868597047e11899b2c1a7e7f8cb55b4408e3eb97c40237cd09e37c28d0fe823"
+        "sha256": "7a56f7cdefcbf22d607736cb7c895882ca6d85544e6fa6a2565d3daf26356344"
       },
       {
         "path": "frontend/app/worldsurface.js",
@@ -1058,8 +1058,8 @@
       },
       {
         "path": "frontend/css/app.css",
-        "bytes": 398670,
-        "sha256": "327878378d2aed7d019a86fcb1639352e1497d3f67e0666888c822bf747202af"
+        "bytes": 398736,
+        "sha256": "dce3fc7f1c7f68287ad955817aa40d54fae9c7e808f7f7ef78b63a931317cd5e"
       },
       {
         "path": "frontend/css/asciifx.css",
