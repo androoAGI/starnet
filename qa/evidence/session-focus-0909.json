@@ -50,5 +50,13 @@
     },
     "errors": []
   },
-  "mirrorFix": "697126681"
+  "mirrorFix": "697126681",
+  "validation": {
+    "fullGateCandidate": "0d99faf75",
+    "fast": "734/734, exit 0",
+    "http": "107/107, exit 0",
+    "customerJourneys": "33/33, exit 0 before trunk sync",
+    "live": "repeated after trunk sync, zero page errors",
+    "lateSync": "33f726cae: independent image-intent change; incremental checks recorded separately"
+  }
 }
