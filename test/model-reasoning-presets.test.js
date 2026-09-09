@@ -6,25 +6,25 @@ const { reasoningPresetsFor: presets, reasoningPresetFor: selected, effortForPre
 const levels = ['minimal', 'low', 'medium', 'high', 'xhigh', 'max'];
 const full = { provider: 'openrouter', reasoningEfforts: ['none', ...levels] };
 A.eq(presets(full).map(p => [p.id, p.effort]),
-  [['quick', 'low'], ['balanced', 'medium'], ['deep', 'high'], ['max', 'max']],
+  [['low', 'low'], ['medium', 'medium'], ['high', 'high'], ['max', 'max']],
   'four main presets keep the maximum effort reachable');
 A.eq(presets({ provider: 'codex' }).map(p => p.effort), ['low', 'medium', 'high', 'xhigh'],
   'Codex fallback exposes four distinct levels and Max reaches xhigh');
 A.eq(presets({ provider: 'custom', supportsReasoning: false }), [],
   'a model without adjustable reasoning does not acquire fake choices');
-A.eq(selected('none', full), null, 'saved Off is not misrepresented as Quick');
+A.eq(selected('none', full), null, 'saved Off is not misrepresented as LOW');
 A.eq(choose('unknown', 'xhigh', full), 'xhigh', 'unknown preset cannot mutate a supported saved effort');
-A.eq(selected('minimal', full).id, 'quick', 'minimal is displayed in the Quick range');
-A.eq(selected('xhigh', full).id, 'deep', 'xhigh stays below the true Max range');
-A.eq(choose('quick', 'minimal', full), 'minimal', 'reselecting Quick preserves saved minimal');
-A.eq(choose('deep', 'xhigh', full), 'xhigh', 'reselecting Deep preserves saved xhigh');
+A.eq(selected('minimal', full).id, 'low', 'minimal is displayed in the LOW range');
+A.eq(selected('xhigh', full).id, 'high', 'xhigh stays below the true Max range');
+A.eq(choose('low', 'minimal', full), 'minimal', 'reselecting LOW preserves saved minimal');
+A.eq(choose('high', 'xhigh', full), 'xhigh', 'reselecting HIGH preserves saved xhigh');
 A.eq(choose('max', 'xhigh', full), 'max', 'Max from xhigh still increases effort');
-A.eq(choose('balanced', 'xhigh', full), 'medium', 'explicitly choosing another preset applies its target');
-A.eq(choose('quick', 'none', full), 'low', 'Quick explicitly enables reasoning from Off');
+A.eq(choose('medium', 'xhigh', full), 'medium', 'explicitly choosing another preset applies its target');
+A.eq(choose('low', 'none', full), 'low', 'LOW explicitly enables reasoning from Off');
 A.eq(Dock.efforts.optionsFor(full), ['none', ...levels], 'Advanced and other pickers retain all exact levels');
 A.eq(Dock.efforts.clamp('xhigh', full), 'xhigh', 'existing exact transport remains unchanged');
 A.eq(presets({ provider: 'codex', reasoningEfforts: ['high', 'low', 'medium'] }).map(p => [p.id, p.effort]),
-  [['quick', 'low'], ['balanced', 'medium'], ['max', 'high']], 'limited model never gets a duplicate fourth option');
+  [['low', 'low'], ['medium', 'medium'], ['max', 'high']], 'limited model never gets a duplicate fourth option');
 
 // Exercise every sparse capability set, including unordered metadata and optional Off.
 for (let mask = 0; mask < (1 << levels.length); mask++) {

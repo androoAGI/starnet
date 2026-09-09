@@ -218,3 +218,8 @@ Live proof on the real seeded server at :9199:
 - Final glass popup open with Advanced collapsed, claude haiku latest / MIN, 484px COMMS rail, empty draft and original red theme. Browser warning/error log empty.
 
 Verification: new registered model-reasoning-presets regression passed 3245 assertions, covering all 127 nonempty capability combinations, highest-level reachability, saved exact-value preservation and real outside-click wiring with detached targets. JS syntax, agent-model-select (65), model-provider-reconcile (9), readability (21), comms-responsive-text (5), control-floor-theming (125), website-app-sync (8), and subscription navigation tests passed. Website mirror synchronized; diff whitespace clean. Full fast stopped at step 286/735 in qa-product-perfect-claims with the same 10 existing release-manifest failures. The gate is not green. No real provider inference or installed-desktop execution was tested; no merge or release.
+
+
+## Plain reasoning labels - 2026-09-09
+
+Owner refinement: renamed the primary presets to LOW, MEDIUM, HIGH and MAX. Available-level mapping, exact saved values, Advanced and highest-level reachability are unchanged. Live glass menu confirmed all four labels fit at 79px client/scroll widths, with claude haiku latest / MIN preserved, Advanced collapsed and COMMS at 484px. Registered reasoning regression (3245) and website mirror (8) checks passed; JS syntax and diff whitespace passed. Full fast was not repeated for this label change; its existing 10 release-manifest failures above remain unresolved.

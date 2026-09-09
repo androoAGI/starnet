@@ -343,12 +343,12 @@ const ModelDock = (() => {
     let indices, names;
     if (levels.length < 4) {
       indices = levels.map((_, i) => i);
-      names = levels.length === 1 ? ['max'] : levels.length === 2 ? ['quick', 'max'] : ['quick', 'balanced', 'max'];
+      names = levels.length === 1 ? ['max'] : levels.length === 2 ? ['low', 'max'] : ['low', 'medium', 'max'];
     } else {
       const preferred = ['low', 'medium', 'high'].map(e => levels.indexOf(e)).concat(last);
       indices = preferred.every((v, i) => v >= 0 && (!i || v > preferred[i - 1]))
         ? preferred : [0, Math.floor(last / 3), Math.floor(2 * last / 3), last];
-      names = ['quick', 'balanced', 'deep', 'max'];
+      names = ['low', 'medium', 'high', 'max'];
     }
     return indices.map((index, i) => ({ id: names[i], label: names[i].toUpperCase(), effort: levels[index] }));
   }
