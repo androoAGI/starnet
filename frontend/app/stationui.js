@@ -3140,8 +3140,7 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
     const secLibrary =
       // "recipes" here collided with the ❒ RECIPES dock feature (audit finding 2) — these are PROCEDURES: how-to
       // guides an agent follows mid-task, not launchable jobs.
-      '<p class="sk-note sk-lib-intro">Pre-installed <b>procedures</b> your agents follow when a task matches ' +
-      '(❒ RECIPES starts jobs; skills describe how to do them). Enabling is station-wide. Required abilities can come from equipment or access settings. Instructions being available does not connect an outside service or authorize every action.</p>' +
+      '<p class="sk-note sk-lib-intro">Enable skills for the whole station. Agents use them when relevant, with the tools and service access they already have.</p>' +
       '<div id="sk-lib" class="sk-lib"><div class="sk-loading"><span class="loading pulse">loading the skill library…</span></div></div>';
     const secAgent =
       '<p class="sk-note sk-lib-intro">Reusable procedures this agent created or learned. These appear as a compact index in future runs; the agent loads the full body only when a task matches.</p>' +
@@ -3301,7 +3300,7 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
         'aria-label="Turn ' + (s.enabled ? 'off' : 'on') + ' ' + esc(s.name) + '" ' +
         'data-toggle="' + esc(s.slug) + '" data-enabled="' + (s.enabled ? 'true' : 'false') + '" title="' + (s.enabled ? 'Turn OFF' : 'Turn ON') + ' this skill station-wide">' +
         '<span class="sk-sw-track"><span class="sk-sw-knob"></span></span>' +
-        '<span class="sk-sw-label">' + (s.enabled ? 'ON' : 'OFF') + '</span>' +
+        '<span class="sk-sw-label">' + (s.enabled ? 'Enabled' : 'Disabled') + '</span>' +
       '</button>';
     // A SEPARATE readiness chip — the floor's grant, never merged with the switch. READY (green) or NEEDS GEAR (amber).
     const readyChip = (s, missing) => s.available
@@ -3319,18 +3318,17 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
       const state = s.enabled ? (s.available ? 'on' : 'want') : 'off';
       return '<div class="sk-card ' + state + '" style="--ci:' + (ci++) + '">' +
           '<div class="sk-card-head">' +
-            switchHTML(s) +
             '<div class="sk-card-main">' +
               '<div class="sk-name-row"><span class="sk-name">' + esc(s.name) + '</span>' +
                 (s.category ? '<span class="sk-badge cat">' + esc(String(s.category).toUpperCase()) + '</span>' : '') +
-                readyChip(s, missing) + '</div>' +
+                (s.enabled ? readyChip(s, missing) : '<span class="sk-ready">TURNED OFF</span>') + '</div>' +
               '<div class="sk-desc">' + esc(s.description) + '</div>' +
-              '<div class="sk-reqs">' + reqBadges(s) + '</div>' +
+
               (missing.length ? '<div class="sk-place-row">' + placeBtns(missing) + '</div>' : '') +
             '</div>' +
-            '<button class="sk-expand" data-expand="' + esc(s.slug) + '" title="Read the recipe" aria-label="Read the ' + esc(s.name) + ' recipe">▸</button>' +
           '</div>' +
-          '<div class="sk-body"><pre>' + esc(s.body || '') + '</pre>' +
+          '<div class="sk-card-actions"><button class="sk-expand" data-expand="' + esc(s.slug) + '" aria-expanded="false" aria-label="Read instructions for ' + esc(s.name) + '">Read instructions</button>' + switchHTML(s) + '</div>' +
+          '<div class="sk-body"><div class="sk-detail-label">Required gear</div><div class="sk-reqs">' + reqBadges(s) + '</div><div class="sk-detail-label">Instructions</div><div class="sk-instructions">' + (typeof Deliverables !== 'undefined' && Deliverables.safeMarkdown ? Deliverables.safeMarkdown(s.body || '') : '<pre>' + esc(s.body || '') + '</pre>') + '</div>' +
             (s.author ? '<div class="sk-attr">Ported from ' + esc(s.author) + (s.license ? ' · ' + esc(s.license) : '') + '</div>' : '') +
           '</div>' +
         '</div>';
@@ -3354,7 +3352,7 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
     }));
     host.querySelectorAll('[data-expand]').forEach(btn => btn.addEventListener('click', () => {
       const card = btn.closest('.sk-card'); if (!card) return;
-      const opened = card.classList.toggle('open'); btn.textContent = opened ? '▾' : '▸'; sfx('click');
+      const opened = card.classList.toggle('open'); btn.textContent = opened ? 'Hide instructions' : 'Read instructions'; btn.setAttribute('aria-expanded', String(opened)); sfx('click');
     }));
   }
 

@@ -139,3 +139,37 @@
 .sn-menu .cc-card:has(> .cc-key:not([style*="none"])) { height: auto; min-height: 320px; }
 .sn-menu .cc-card:has(> .cc-details[open]) > .cc-blurb,
 .sn-menu .cc-card:has(> .cc-key:not([style*="none"])) > .cc-blurb { display: block; overflow: visible; flex: 1 0 auto; }
+
+/* Skill library: matching glass surfaces with readable controls and instructions. */
+.sn-menu #sk-lib .sk-card { margin-bottom: 14px; border: 1px solid rgba(var(--ph-rgb), .22); border-radius: 12px; background: var(--menu-glass); box-shadow: inset 0 1px 0 rgba(var(--ph-bright-rgb), .1); }
+.sn-menu #sk-lib .sk-card-head { padding: 18px 18px 14px; }
+.sn-menu #sk-lib .sk-name-row { gap: 8px 12px; }
+.sn-menu #sk-lib .sk-name { font-size: 21px; line-height: 1.2; flex-basis: 100%; }
+.sn-menu #sk-lib .sk-desc { font-size: 16px; line-height: 1.5; margin-top: 12px; color: var(--text); opacity: 1; }
+.sn-menu #sk-lib .sk-badge, .sn-menu #sk-lib .sk-ready { border: 0; padding: 0; font-size: 12px; background: none; box-shadow: none; }
+.sn-menu #sk-lib .sk-ready { margin: 0; letter-spacing: .4px; }
+.sn-menu #sk-lib .sk-place-row { margin-top: 12px; display: flex; flex-wrap: wrap; gap: 8px; }
+.sn-menu #sk-lib .sk-place { border-radius: 7px; padding: 8px 12px; border: 1px solid rgba(var(--ph-rgb), .25); background: rgba(var(--ph-rgb), .05); color: var(--ph-bright); font-size: 13px; box-shadow: none; }
+.sn-menu #sk-lib .sk-card-actions { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 12px 18px; border-top: 1px solid rgba(var(--ph-rgb), .12); }
+.sn-menu #sk-lib .sk-expand { font: inherit; font-size: 14px; line-height: 1.3; color: var(--ph-bright); border: 0; padding: 8px 0; background: none; }
+.sn-menu #sk-lib .sk-switch { display: inline-flex; align-items: center; gap: 9px; border: 0; border-radius: 7px; padding: 8px; background: none; color: var(--ph-dim); box-shadow: none; min-width: 112px; }
+.sn-menu #sk-lib .sk-switch.on { color: var(--ph-bright); }
+.sn-menu #sk-lib .sk-sw-track { width: 32px; height: 18px; border: 1px solid rgba(var(--ph-rgb), .35); border-radius: 20px; background: rgba(var(--ph-rgb), .07); box-shadow: none; position: relative; }
+.sn-menu #sk-lib .sk-sw-knob { position: absolute; width: 10px; height: 10px; top: 3px; left: 3px; border-radius: 50%; background: var(--ph-dim); box-shadow: none; transform: none; }
+.sn-menu #sk-lib .sk-switch.on .sk-sw-knob { left: 17px; background: var(--ph-bright); transform: none; }
+.sn-menu #sk-lib .sk-switch.on .sk-sw-track { background: rgba(var(--ph-rgb), .2); border-color: var(--ph); }
+.sn-menu #sk-lib .sk-sw-label { font-size: 13px; letter-spacing: .2px; }
+.sn-menu #sk-lib :is(.sk-switch,.sk-expand,.sk-place):focus-visible { outline: 2px solid var(--ph); outline-offset: 3px; }
+.sn-menu #sk-lib .sk-body { padding: 18px; border-color: rgba(var(--ph-rgb), .14); background: rgba(0,0,0,.12); }
+.sn-menu #sk-lib .sk-detail-label { font-size: 12px; color: var(--ph-dim); margin: 0 0 10px; text-transform: uppercase; letter-spacing: .6px; }
+.sn-menu #sk-lib .sk-reqs { gap: 10px; margin-bottom: 20px; }
+.sn-menu #sk-lib .sk-body pre { font-size: 15px; line-height: 1.65; padding: 14px; border-radius: 8px; background: rgba(0,0,0,.18); max-height: 420px; }
+.sn-menu #sk-lib .sk-attr { font-size: 13px; line-height: 1.4; opacity: .8; margin-top: 14px; }
+.sn-menu #sk-lib .sk-lib-sum { font-size: 14px; margin-bottom: 18px; }
+
+.sn-menu #sk-lib .sk-instructions { font-size: 15px; line-height: 1.65; color: var(--text); padding: 16px; border-radius: 8px; background: rgba(0,0,0,.18); max-height: 420px; overflow: auto; overflow-wrap: anywhere; }
+.sn-menu #sk-lib .sk-instructions p { margin: 0 0 12px; }
+.sn-menu #sk-lib .sk-instructions :is(h1,h2,h3) { font-size: 18px; line-height: 1.3; font-weight: normal; color: var(--ph-bright); margin: 22px 0 10px; }
+.sn-menu #sk-lib .sk-instructions > :first-child { margin-top: 0; }
+.sn-menu #sk-lib .sk-instructions code { font-size: .95em; color: var(--ph-bright); }
+.sn-menu #sk-lib .sk-sw-label { color: inherit; }
