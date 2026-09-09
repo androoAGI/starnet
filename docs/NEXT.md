@@ -1,5 +1,13 @@
 # NEXT.md — current priorities & task queue
 
+## IN PROGRESS — 2026-09-09 tool projection integration (agent/tool-projection-0909)
+
+Owner authorized repair and merge. Source repair 3c95b184f preserves saved room equipment when
+an interactive client omits placement, preserves explicit empty placement, and corrects toolset
+agent/lead disclosure. Fast 735/735 and HTTP 108/108 passed; customer journeys and integration
+checks are in progress. Customer report 432df352 remains open for the uncorrelated Trusted Project
+symptom; installer and reporter recovery are unverified. Receipt: qa/digests/2026-09-09-tool-projection.md.
+
 ## DONE — 2026-09-08 legacy rating save repair (agent/rating-repair-0908)
 
 Own lane: preserve legacy station identity on resume and surface rating failure reasons.

@@ -39,7 +39,7 @@ Anchor: sidecar/capability/saved-placement.js; test/tool-projection.e2e.test.js.
 
 ## Verdict
 
-Confirmed grant-loss and misleading disclosure paths repaired. Keep this customer report open pending confirmation of the original Trusted Project/Last run symptoms. No installer or customer recovery claim.
+Confirmed grant-loss and misleading disclosure paths repaired in 3c95b184fd28c5eacac8821ca2231d85da5b3395. Keep this customer report open pending confirmation of the original Trusted Project/Last run symptoms. No installer or customer recovery claim.
 
 ## Regression
 
