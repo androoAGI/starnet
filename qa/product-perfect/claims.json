@@ -18,7 +18,7 @@
   "expectedClaimCount": 37,
   "releaseSurface": {
     "algorithm": "sha256",
-    "sourceCommit": "ad9af40b59dbe70a95d1ab9c117168c729496f91",
+    "sourceCommit": "fe21c12e1ad6dabaabdf275cd944755ba766e92f",
     "pathSetSha256": "893f2c9ca526a94879691b5c9b01adbcd4d30b3619c1a50fbbfbd64f7e227bb9",
     "files": [
       {
@@ -1034,7 +1034,7 @@
       {
         "path": "frontend/app/worldrenderer.js",
         "bytes": 10122,
-        "sha256": "71f267819931fc1a5a0985a10e021255c9d9c0d470d4fa1e605b8991b6baa6d4"
+        "sha256": "c868597047e11899b2c1a7e7f8cb55b4408e3eb97c40237cd09e37c28d0fe823"
       },
       {
         "path": "frontend/app/worldsurface.js",
