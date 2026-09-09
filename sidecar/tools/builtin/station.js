@@ -26,6 +26,11 @@
     deps = deps || {};
     const station = (deps.station && typeof deps.station.request === 'function') ? deps.station : null;
 
+    // Mint provenance from the execution context, never from model-supplied arguments.
+    function focusOrigin(ctx) {
+      return ctx && ctx.streamId && ctx.runId ? { streamId: String(ctx.streamId), runId: String(ctx.runId) } : null;
+    }
+
     // one shape for every verb: bridge absent / page silent / page refused / page answered.
     async function ask(verb, args) {
       if (!station) return { ok: false, error: 'this run has no station bridge — session actions need the live StarNet page' };
@@ -58,10 +63,10 @@
           focus: { type: 'boolean' }      // true = also make it the Commander's active session
         }
       },
-      run: async (args) => {
+      run: async (args, ctx) => {
         const title = String((args && args.title) || '').trim().slice(0, 80);
         if (!title) return refuse('a session needs a title');
-        const out = await ask('station.new_session', { title, agentId: String((args && args.agentId) || '').trim() || undefined, focus: !!(args && args.focus) });
+        const out = await ask('station.new_session', { title, agentId: String((args && args.agentId) || '').trim() || undefined, focus: !!(args && args.focus), origin: focusOrigin(ctx) });
         if (!out.ok) return refuse(out.error);
         return { content: JSON.stringify(out.result), summary: 'created "' + title + '"' + (args && args.focus ? ' (focused)' : '') };
       }
@@ -91,10 +96,10 @@
       name: 'session.focus', capability: 'orchestrator', scope: 'write', requiresConsent: false,
       description: 'Switch the Commander\'s focused session to an existing one, by the title they say (or an exact id) — e.g. "open the research session". The name must match exactly one session; an unknown or ambiguous name is refused with the list of real ones, so never guess — use session.list. This changes what the Commander is LOOKING at; use it only when they asked to switch.',
       schema: { type: 'object', required: ['session'], properties: { session: { type: 'string' } } },
-      run: async (args) => {
+      run: async (args, ctx) => {
         const ref = String((args && args.session) || '').trim().slice(0, 80);
         if (!ref) return refuse('name which session to focus');
-        const out = await ask('station.switch_session', { session: ref });
+        const out = await ask('station.switch_session', { session: ref, origin: focusOrigin(ctx) });
         if (!out.ok) return refuse(out.error);
         const r = out.result || {};
         return { content: JSON.stringify(r), summary: 'focused "' + (r.title || ref) + '"' };

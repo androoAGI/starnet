@@ -82,6 +82,20 @@ function stubBridge(impl) {
   A.eq(bridge.seen[0].args.title.length, 80, 'a runaway title is clamped to the session-title cap');
 }
 
+// Focus provenance must be minted from execution context, never copied from tool arguments.
+{
+  const bridge = stubBridge(() => ({ok:true,result:{id:'target'}}));
+  const t = makeStationTools({station:bridge});
+  const ctx = {streamId:'real-session',runId:'real-run'};
+  await t.focusTool.run({session:'target',origin:{streamId:'forged',runId:'forged'}},ctx);
+  A.eq(bridge.seen[0].args.origin.streamId,'real-session','focus origin comes from the run');
+  A.eq(bridge.seen[0].args.origin.runId,'real-run','focus carries the real run identity');
+  await t.createTool.run({title:'new',focus:true,origin:{streamId:'forged'}},ctx);
+  A.eq(bridge.seen[1].args.origin.runId,'real-run','focused create carries identical provenance');
+  await t.focusTool.run({session:'target',origin:ctx});
+  A.eq(bridge.seen[2].args.origin,null,'tool arguments cannot mint origin without a run context');
+}
+
 // ---- capability surface: lead-only, and consent-free (a session costs nothing and is reversible) ----
 {
   const t = makeStationTools({});
