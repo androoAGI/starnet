@@ -24,11 +24,22 @@ const freePort = () => new Promise((resolve, reject) => {
     server.close(error => error ? reject(error) : resolve(address.port));
   });
 });
-const stopChild = child => new Promise(resolve => {
+// Let Chromium close its workers before removing their profile. Killing only the
+// browser PID on Windows can leave child processes holding cache/log files open.
+const stopChild = (child, graceful = false) => new Promise(resolve => {
   if (!child || child.exitCode != null) { resolve(); return; }
-  const timer = setTimeout(resolve, 3000);
-  child.once('exit', () => { clearTimeout(timer); resolve(); });
-  try { child.kill('SIGKILL'); } catch (_) { clearTimeout(timer); resolve(); }
+  let killTimer;
+  const timer = setTimeout(resolve, 6000);
+  child.once('exit', () => { clearTimeout(timer); clearTimeout(killTimer); resolve(); });
+  const kill = () => {
+    try {
+      if (process.platform === 'win32') {
+        const killer = spawn('taskkill', ['/PID', String(child.pid), '/T', '/F'], { windowsHide: true, stdio: 'ignore' });
+        killer.on('error', () => { try { child.kill('SIGKILL'); } catch {} });
+      } else child.kill('SIGKILL');
+    } catch (_) { clearTimeout(timer); resolve(); }
+  };
+  if (graceful) killTimer = setTimeout(kill, 3000); else kill();
 });
 
 const root = mkdtempSync(join(tmpdir(), 'starnet-crt-loss-'));
@@ -83,8 +94,9 @@ try {
   console.log('FAIL harness :: ' + (error && error.stack || error));
   failures.push('harness');
 } finally {
+  try { if (cdp) await Promise.race([cdp.send('Browser.close'), sleep(2000)]); } catch {}
   try { cdp?.ws.close(); } catch {}
-  await Promise.all([stopChild(chrome), stopChild(sidecar)]);
+  await Promise.all([stopChild(chrome, true), stopChild(sidecar)]);
   const resolvedRoot = root.replace(/\\/g, '/');
   if (resolvedRoot.startsWith(tmpdir().replace(/\\/g, '/') + '/') && /starnet-crt-loss-/.test(resolvedRoot)) {
     // Windows can retain cache handles briefly after Chromium exits. Keep cleanup
