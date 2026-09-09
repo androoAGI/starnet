@@ -68,8 +68,8 @@
     // with the routines lane. wire() runs after mountConsole has appended every pane to `body`, so all
     // the querySelector wiring below resolves exactly as it always did.
     const sections = [
-      { id: 'loops', label: 'ACTIVE LOOPS', glyph: '∞', desc: 'Standing objectives, what each is waiting on, and the work queued for your verdict.', build: frag(secActive) },
-      { id: 'loops-start', label: 'START A LOOP', glyph: '✦', desc: 'Pick a shape — build/test/verify, sweep & fix, or research — fill two blanks, and it goes.', build: frag(secStart) }
+      { id: 'loops', label: 'ACTIVE LOOPS', glyph: '∞', desc: 'Work that repeats toward a goal. Check its progress, review each result, or pause it here.', build: frag(secActive) },
+      { id: 'loops-start', label: 'START A LOOP', glyph: '✦', desc: 'Choose a workflow and describe your goal. Review the stopping condition and daily budget before starting.', build: frag(secStart) }
     ];
     function wire() {
     const listEl = body.querySelector('#lp-list'), gateEl = body.querySelector('#lp-gate');
@@ -302,7 +302,7 @@
         if (loops.length) listEl.innerHTML = loops.map((l, i) => row(l).replace('<div class="mc-row"', '<div class="mc-row" style="--ci:' + i + '"')).join('');
         else {
           listEl.innerHTML = '<div class="empty-state"><span class="es-glyph">∞</span>' +
-            '<b>NO LOOPS YET</b><span>A loop keeps working at one objective and stops for your verdict. Pick a shape and it sets itself up.</span>' +
+            '<b>NO LOOPS YET</b><span>A loop keeps working at one objective and stops for your verdict. Choose a workflow to define its goal and stopping condition.</span>' +
             '<button class="es-cta" id="lp-empty-cta" type="button">✦ START A LOOP</button></div>';
           const cta = listEl.querySelector('#lp-empty-cta');
           if (cta) cta.addEventListener('click', () => {
@@ -388,7 +388,7 @@
     function shapeCards() {
       const tpl = T(); if (!tpl) { shapesEl.innerHTML = '<div class="mc-detail">loop shapes unavailable</div>'; return; }
       shapesEl.innerHTML = tpl.list().map(t =>
-        '<button type="button" class="lp-shape' + (t.id === pickedId ? ' on' : '') + '" data-tpl="' + esc(t.id) + '">' +
+        '<button type="button" class="lp-shape' + (t.id === pickedId ? ' on' : '') + '" aria-pressed="' + (t.id === pickedId) + '" data-tpl="' + esc(t.id) + '">' +
           '<span class="lp-shape-e">' + esc(t.emoji) + '</span>' +
           '<span class="lp-shape-n">' + esc(t.name) + '</span>' +
           '<span class="lp-shape-t">' + esc(t.tagline) + '</span>' +
@@ -432,25 +432,27 @@
         : '';
 
       formEl.innerHTML =
-        '<div class="lp-cycle"><span class="dim">each pass:</span> ' +
-          t.shape.map(s => '<span class="lp-step-i">' + esc(s) + '</span>').join('<span class="lp-step-sep">›</span>') + '</div>' +
-        '<div class="mc-detail ' + (t.rigor === 'hard' ? '' : 'dim') + '" style="margin-bottom:8px">' + esc(tpl.rigorNote(t)) + '</div>' +
         projectRow +
         t.params.filter(pm => pm.key !== 'check').map(fieldRow).join('') +
         checkRow +
         // WHO RUNS IT is a real choice, not an advanced setting — it belongs in the open.
-        '<label class="mc-lbl">Which agent runs it' +
+        '<div class="mc-lbl"><span>Which agent runs it</span>'+
           '<div class="lp-agent-pick" role="group" aria-label="Loop agent">' +
-            roster.map(a => '<button type="button" class="rt-agent-btn' + (a.id === loopAgentId ? ' active' : '') + '" data-agent="' + esc(a.id) + '" style="--rt-agent-color:' + esc(a.color || 'var(--ph)') + '">' +
+            roster.map(a => '<button type="button" class="rt-agent-btn' + (a.id === loopAgentId ? ' active' : '') + '" aria-pressed="' + (a.id === loopAgentId) + '" data-agent="' + esc(a.id) + '" style="--rt-agent-color:' + esc(a.color || 'var(--ph)') + '">' +
               '<span class="rt-agent-dot"></span><span class="rt-agent-name">' + esc(a.name || a.id) + '</span></button>').join('') +
-          '</div></label>' +
-        '<details class="lp-adv"><summary>Budget &amp; instructions</summary>' +
+          '</div></div>' +
+        '<details class="lp-adv"><summary>Daily budget &amp; full instructions</summary>' +
+        '<div class="lp-cycle"><span class="dim">each pass:</span> ' +
+          t.shape.map(s => '<span class="lp-step-i">' + esc(s) + '</span>').join('<span class="lp-step-sep">›</span>') + '</div>' +
+        '<div class="mc-detail ' + (t.rigor === 'hard' ? '' : 'dim') + '" style="margin-bottom:8px">' + esc(tpl.rigorNote(t)) + '</div>' +
           '<label class="mc-lbl">Stop for the day after <span class="dim">(0 = no limit)</span>' +
             '<div class="lp-dir"><span class="dim">$</span><input id="lp-cap" class="key-input" type="number" min="0" step="0.5" value="' + esc(String(dailyCap)) + '"></div></label>' +
-          '<details class="lp-preview"><summary>what the agent will be told</summary><pre id="lp-prev"></pre></details>' +
+          '<details class="lp-preview"><summary>Preview the full instructions</summary><pre id="lp-prev"></pre></details>' +
         '</details>';
       formEl.querySelectorAll('.rt-agent-btn').forEach(b => b.addEventListener('click', () => {
-        loopAgentId = b.dataset.agent || 'agent'; sfx('click'); renderForm();
+        loopAgentId = b.dataset.agent || 'agent'; sfx('click');
+        formEl.querySelectorAll('.rt-agent-btn').forEach(btn => { const selected = btn === b; btn.classList.toggle('active', selected); btn.setAttribute('aria-pressed', String(selected)); });
+        gate();
       }));
 
       const dirEl = formEl.querySelector('#lp-dir');

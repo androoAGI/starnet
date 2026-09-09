@@ -1136,8 +1136,8 @@ const Tutorial = (() => {
     const render = () => {
       const page = FM_TABS.indexOf(curTab);
       body.innerHTML =
-        '<header class="fm-cover"><span class="fm-eyebrow">STARNET / COMMANDER HANDBOOK</span><h2>WELCOME ABOARD.</h2><p>A field guide to getting things done.</p></header>'
-        + '<nav class="fm-tabs" aria-label="Manual chapters">' + FM_TABS.map((t, i) => '<button type="button" class="fm-tab' + (t === curTab ? ' on' : '') + '" aria-pressed="' + (t === curTab ? 'true' : 'false') + '" data-t="' + t + '">' + String(i + 1).padStart(2, '0') + ' · ' + t + '</button>').join('') +
+        '<header class="fm-cover"><h2>Your station guide</h2><p>Pick a topic. Find the next step and open the menu you need.</p></header>'
+        + '<nav class="fm-tabs" aria-label="Manual chapters">' + FM_TABS.map((t, i) => '<button type="button" class="fm-tab' + (t === curTab ? ' on' : '') + '" aria-pressed="' + (t === curTab ? 'true' : 'false') + '" data-t="' + t + '">' + t + '</button>').join('') +
         '</nav><article class="fm-content" aria-label="' + curTab + '"><div class="fm-chapter"><span class="fm-eyebrow">CHAPTER ' + (page + 1) + ' / ' + FM_TABS.length + '</span><h2>' + curTab + '</h2></div>' + fmContent(curTab)
         + (curTab === 'FIRST MISSION' ? '<button class="fm-action fm-replay" type="button">REPLAY QUICK TOUR</button>' : '')
         + '</article><nav class="fm-pager" aria-label="Chapter navigation">'

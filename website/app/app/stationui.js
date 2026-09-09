@@ -2287,15 +2287,15 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
   function workshopCard(a) {
     const on = !!(a && a.workshop);
     return '<div class="cf-card" id="ag-workshop-card">' +
-      '<div class="cf-head"><span class="cf-file">◈ while you’re away</span></div>' +
+      '<div class="cf-head"><span class="cf-file">Queued builds</span></div>' +
       '<label class="set-row" style="align-items:flex-start;gap:8px;">' +
         '<input type="checkbox" id="ag-workshop-on"' + (on ? ' checked' : '') + ' aria-label="Build things while I am away">' +
-        '<span><b>Build things while I’m away</b>' +
-        '<span class="dim" style="display:block;margin-top:2px;line-height:1.35;">A recurring shift (while the station is running) works through the build list below in this agent’s own sandbox. Each finished build arrives as a <b>new session in your rail</b> — nothing touches your files until you review it there.</span></span>' +
+        '<span><b>Work through this agent’s queue</b>' +
+        '<span class="dim" style="display:block;margin-top:2px;line-height:1.35;">Let this agent work through the list below in its own sandbox. Keep the station running. Finished builds arrive as <b>sessions to review</b>.</span></span>' +
       '</label>' +
       '<div id="ag-workshop-msg" class="msg"></div>' +
       '<div id="ag-ws-live"><div class="dim" style="font-size:11px;">reading the build list…</div></div>' +
-      '<div class="dim" style="font-size:11px;margin-top:6px;line-height:1.35;">Separate from this: the AUTONOMY dial’s night-shift beats let the agent pick its <i>own</i> small jobs while you’re away — those deliver to your rail the same way. This card is the list <b>you</b> queue (the ◈ on a quest, or /build-away in COMMS).</div>' +
+      '<p class="ws-queue-help">Add work from a quest’s <b>Build while away</b> action, or type <code>/build-away</code> in COMMS.</p>' +
     '</div>';
   }
 
@@ -2681,7 +2681,7 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
       const items = Array.isArray(j.items) ? j.items : [];
       const STATE = { queued: 'queued', building: 'building…', built: 'built — review it', parked: 'parked (failed twice)' };
       let h = '<div class="ws-bl-head">build list' + (items.length ? ' · ' + items.length : '') + '</div>';
-      if (!items.length) h += '<div class="dim" style="font-size:12px;">nothing queued — use ◈ on a quest, or type /build-away in COMMS.</div>';
+      if (!items.length) h += '<div class="dim" style="font-size:12px;">No builds queued yet.</div>';
       h += items.map(it =>
         '<div class="ws-bl-row" data-blid="' + esc(it.id) + '">' +
           '<span class="ws-bl-title">' + esc(it.title || '(untitled)') + '</span>' +
@@ -7575,33 +7575,37 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
     if (typeof Updates !== 'undefined' && Updates.render) Updates.render(body);
     else body.innerHTML = '<div class="fb-empty">UPDATE CENTER UNAVAILABLE.<br><span>Restart the desktop app and try again.</span></div>';
   }
+  let notifView = 'all';
   function buildNotifs(body) {
-    if (!store.notifs.length) {
-      body.innerHTML = '<div class="empty-state"><span class="es-glyph">▮</span><b>NO NOTIFICATIONS YET</b><span>Run results, saved deliverables and assigned tasks show up here.</span></div>';
-      return;
-    }
-    // backfill ids on any legacy row so per-row dismiss can target it (new rows always carry one via notify()).
     let backfilled = false;
     store.notifs.forEach(n => { if (!n.id) { n.id = uid('n'); backfilled = true; } });
     if (backfilled) save();
-    body.innerHTML =
-      '<button class="bb sm" id="nf-clear">MARK ALL READ</button>' +
-      '<div class="nf-list">' + store.notifs.slice().reverse().map((n, i) => {
+    const unread = store.notifs.filter(n => !n.read).length;
+    const rows = store.notifs.slice().reverse().filter(n => notifView !== 'unread' || !n.read);
+    body.innerHTML = '<header class="utility-head"><h2>Station updates</h2><p>Run results, saved outputs, and updates from your crew.</p></header>' +
+      '<div class="nf-toolbar"><div class="utility-tabs" role="group" aria-label="Show notifications">' +
+      '<button type="button" data-nf-view="all" aria-pressed="' + (notifView === 'all') + '">All · ' + store.notifs.length + '</button>' +
+      '<button type="button" data-nf-view="unread" aria-pressed="' + (notifView === 'unread') + '">Unread · ' + unread + '</button></div>' +
+      '<button class="bb sm" id="nf-clear"' + (!unread ? ' disabled' : '') + '>MARK ALL READ</button></div>' +
+      '<div class="nf-list">' + (rows.length ? rows.map((n, i) => {
         const sev = severityOf(n.cls);
-        return '<div class="nf ' + (n.cls || '') + ' sev-' + sev + (n.read ? ' read' : '') + '" style="--ci:' + i + '">' +
+        return '<div class="nf ' + esc(n.cls || '') + ' sev-' + sev + (n.read ? ' read' : '') + '" style="--ci:' + i + '">' +
           '<span class="nf-sev" aria-hidden="true">' + esc(SEV_GLYPH[sev]) + '</span>' +
-          '<span class="nf-ts">' + notifStamp(n.t) + '</span> <span class="nf-txt">' + esc(n.txt) + '</span>' +
-          '<button class="nf-x" data-nid="' + esc(n.id) + '" title="dismiss this notification" aria-label="Dismiss ' + esc(n.txt) + '">✕</button>' +
-          '</div>';
-      }).join('') + '</div>';
+          '<div class="nf-copy"><div class="nf-meta"><span class="nf-ts">' + notifStamp(n.t) + '</span>' +
+          (!n.read ? '<span class="nf-unread">Unread</span>' : '') + '</div><span class="nf-txt">' + esc(n.txt) + '</span></div>' +
+          '<button class="nf-x" data-nid="' + esc(n.id) + '" title="Dismiss notification" aria-label="Dismiss ' + esc(n.txt) + '">✕</button></div>';
+      }).join('') : '<div class="empty-state"><span class="es-glyph">▮</span><b>' + (notifView === 'unread' ? 'You’re all caught up' : 'No notifications yet') + '</b><span>' + (notifView === 'unread' ? 'Switch to All to see earlier updates.' : 'Updates appear here as you use the station.') + '</span></div>') + '</div>';
+    body.querySelectorAll('[data-nf-view]').forEach(b => b.addEventListener('click', () => {
+      notifView = b.dataset.nfView; buildNotifs(body);
+      const selected = body.querySelector('[data-nf-view="' + notifView + '"]'); if (selected) selected.focus();
+    }));
     body.querySelector('#nf-clear').addEventListener('click', () => {
       store.notifs.forEach(n => n.read = true); save(); rerender('notifs'); badges(); sfx('click');
     });
-    // per-row dismiss ✕ — drop just that notification (the record carries no target surface, so no click-through).
+    // Records carry no destination; do not imply an unsupported click-through.
     body.querySelectorAll('.nf-x').forEach(b => b.addEventListener('click', ev => {
       ev.stopPropagation();
-      const id = b.dataset.nid;
-      store.notifs = store.notifs.filter(x => x.id !== id);
+      store.notifs = store.notifs.filter(x => x.id !== b.dataset.nid);
       save(); badges(); rerender('notifs'); sfx('click');
     }));
   }
@@ -9074,9 +9078,9 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
     // The `dlv` class owns that height; the card list scrolls inside it.
     deliverables:['DELIVERABLES',         body => { if (typeof Deliverables !== 'undefined') Deliverables.mount(body); }, { console: true, className: 'dlv-win' }],
     settings: ['SETTINGS',               buildSettings,  { console: true }],
-    notifs:   ['NOTIFICATIONS',          buildNotifs,    {}],
+    notifs:   ['NOTIFICATIONS',          buildNotifs,    { console: true, className: 'notifs-win' }],
     // the FIELD MANUAL codex is owned by tutorial.js (P3); this term just hosts its builder
-    manual:   ['FIELD MANUAL',           body => { if (typeof Tutorial !== 'undefined' && Tutorial.fillFieldManual) Tutorial.fillFieldManual(body); }, {}],
+    manual:   ['FIELD MANUAL',           body => { if (typeof Tutorial !== 'undefined' && Tutorial.fillFieldManual) Tutorial.fillFieldManual(body); }, { console: true, className: 'manual-win' }],
     quests:   ['QUEST LOG',              buildQuests,    { console: true, className: 'quests-win' }],   // a card grid, not a column; quests-win = STEADY height so a data poke can never re-centre the window mid-read
   };
 
