@@ -5675,6 +5675,8 @@ const World = (() => {
   }
 
   function drawLitProp(p, work, live) {
+    if (typeof CommandRoom !== 'undefined' && CommandRoom.drawProp(ctx, p, work, live,
+      sceneRenderer && sceneRenderer.sampleLight((p.x + (p.w || 1) / 2) * T, (p.y + (p.h || 1)) * T))) return;
     PropSprites.draw(p, work, live);
     if (!sceneRenderer || !PropSprites.canLightResponse || !PropSprites.canLightResponse(p)) return;
     // Sample the physical footprint, not elevated sprite pixels inside the
@@ -5700,7 +5702,10 @@ const World = (() => {
         g.clip(shadowReceiverPath);
       }
       PropSprites.setCtx(g);
-      if(geo&&geo.props)for(const p of geo.props)if(propOnScreen(p))PropSprites.drawShadow(p,station&&station.mountOf?station.mountOf(p):null);
+      if(geo&&geo.props)for(const p of geo.props)if(propOnScreen(p)) {
+        if (typeof CommandRoom !== 'undefined' && CommandRoom.drawShadow(g,p)) continue;
+        PropSprites.drawShadow(p,station&&station.mountOf?station.mountOf(p):null);
+      }
       if(desk&&!deskPropId)PropSprites.drawShadow({t:'desk',x:desk.tx,y:desk.ty,w:desk.w,h:desk.h},null);
     } finally {g.restore();PropSprites.setCtx(ctx);}
   }
@@ -5800,6 +5805,10 @@ const World = (() => {
       sceneRenderer.drawBase(ctx);
     } else ctx.drawImage(cache.baseCv, 0, 0);
 
+    if (typeof CommandRoom !== 'undefined') {
+      CommandRoom.begin({ geo, ctx, now, reducedMotion: reduceMotion(), spawnRoomId: station.spawnRoomId(), bodies: [agent, ...crew] });
+      CommandRoom.drawBase(ctx);
+    }
     // conveyor belts (floor machinery) + the live transport sim — local frame, under entities
     if (geo && geo.belts && typeof Conveyor !== 'undefined') {
       if (!convey) convey = Conveyor.create({ onDeliver: onWorkitemDeliver });
@@ -5879,7 +5888,7 @@ const World = (() => {
         if (sleeper) dp = Object.assign(dp === p ? Object.assign({}, p) : dp, { sleeper: true });
         items.push({ y: sy, draw: () => { if (propOnScreen(dp)) drawLitProp(dp, work, live); } });
         if (PropSprites.lightOf) {
-          const lt = PropSprites.lightOf(dp, work, reduceMotion());
+          const lt = (typeof CommandRoom !== 'undefined' && CommandRoom.lightOf(dp, work, live)) || PropSprites.lightOf(dp, work, reduceMotion());
           if (lt) propLights.push(Object.assign({}, lt, { originX: (p.x + (p.w || 1) / 2) * T, originY: (p.y + (p.h || 1) / 2) * T }));
         }
         // SEAT-FRONT SLIVER: a stool/chair's pad front rim redraws just IN FRONT of its (lifted) sitter,
@@ -5948,6 +5957,7 @@ const World = (() => {
           (d.y + d.h) * scale + panY < 0 || d.y * scale + panY > cv.height) continue;
       items.push({ y: d.sortY, draw: () => ctx.drawImage(d.image, d.x, d.y) });
     }
+    if (typeof CommandRoom !== 'undefined') CommandRoom.addItems(items, propLights);
     // THE FLOOR PASS — every decal, in doc order, before anything that stands on the deck. This is what
     // lets a body walk across a rug: the rug is already down when the sorted items paint over it.
     if (decals.length && typeof PropSprites !== 'undefined') {
@@ -6719,7 +6729,8 @@ const World = (() => {
       if (bornA < 1) ctx.globalAlpha = prevA * bornA;
       let geom = null;
       const bodyLight = sceneRenderer && sceneRenderer.sampleLight(who.px, who.py);
-      if (typeof SPRITES !== 'undefined' && SPRITES.ready) geom = SPRITES.drawBody(ctx, who, now,
+      if (typeof CommandRoom !== 'undefined') geom = CommandRoom.drawBody(ctx, who, now, bodyLight);
+      if (!geom && typeof SPRITES !== 'undefined' && SPRITES.ready) geom = SPRITES.drawBody(ctx, who, now,
         bodyLight ? { reducedMotion: reduceMotion(), light: bodyLight,
           skipGroundShadow: !who.seated && !who.lying } : undefined);
       // Do not flash the cyan procedural body while the real default skin is actively loading.
