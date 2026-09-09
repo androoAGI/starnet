@@ -1117,3 +1117,35 @@ button.mkt-archive-head:focus-visible { outline: 2px solid var(--gold); outline-
 
 .mkt-recipe-detail-panel .mkt-sop-steps li { background: none; border: 0; box-shadow: none; }
 .mkt-recipe-detail-panel .mkt-sop-steps li::before { content: none; }
+
+/* Recruitment uses the same glass selection language as Recipes. */
+.mkt-agents .mkt-rows .mkt-card {
+  grid-template-columns: 42px minmax(0, 1fr); gap: 12px; padding: 14px 12px;
+  border: 1px solid transparent; border-radius: 8px;
+  background: linear-gradient(135deg, rgba(var(--ph-rgb), .06), rgba(var(--ph-rgb), .015));
+  box-shadow: inset 0 1px 0 rgba(var(--ph-bright-rgb), .04);
+}
+.mkt-agents .mkt-rows .mkt-card:hover,
+.mkt-agents .mkt-rows .mkt-card.sel {
+  border-color: rgba(var(--ph-rgb), .3);
+  background: linear-gradient(125deg, rgba(var(--ph-bright-rgb), .14), rgba(var(--ph-rgb), .07) 48%, rgba(var(--ph-rgb), .025));
+  box-shadow: inset 0 1px 0 rgba(var(--ph-bright-rgb), .2), inset 0 -1px 0 rgba(var(--ph-rgb), .08), 0 5px 18px rgba(0,0,0,.12);
+  backdrop-filter: blur(12px);
+}
+.mkt-agents .mkt-rows .mkt-card .mkt-coin { --coin: 42px; }
+.mkt-agents .mkt-card-side { display: none; }
+.mkt-agents .mkt-rows .mkt-card .mkt-tag { line-height: 1.4; }
+
+.mkt-agents .mkt-agent-simple { padding-top: 24px; }
+.mkt-agents .mkt-dos-hero { border: 0; margin: 0; padding: 0; }
+.mkt-agents .mkt-about { margin: 12px 0 20px; }
+.mkt-agents .mkt-config { border: 0; background: none; box-shadow: none; margin: 0; overflow: visible; }
+.mkt-agents .mkt-recruit-identity { padding: 0 0 16px; align-items: center; }
+.mkt-agents .mkt-config .mkt-modelbar { border: 0; padding: 0; }
+.mkt-agents .mkt-config .mkt-skinbar { padding: 0; }
+.mkt-agent-reference { font-size: 14px; line-height: 1.6; color: var(--text); }
+.mkt-agent-purpose { margin: 0 0 18px; }
+.mkt-agent-reference .bh { color: var(--ph-dim); font-size: 11px; letter-spacing: 1px; }
+.mkt-agent-examples { list-style: none; margin: 8px 0 20px; padding: 0; }
+.mkt-agent-examples li { padding: 10px 0; border-bottom: 1px solid var(--ph-faint); }
+.mkt-agents .mkt-cta-second { margin-top: 20px; border-top: 1px solid var(--ph-faint); padding-top: 14px; }

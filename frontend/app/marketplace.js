@@ -267,7 +267,7 @@ const Marketplace = (() => {
     StationUI.toggleTerm('marketplace', plainTitle(), body => {
       body.classList.add('mkt-window-body');
       if (!body.contains(mounted)) body.appendChild(mounted);
-    }, { wide: true, console: tab === 'recipes', className: 'mkt-window', onClose: () => release(mounted) });
+    }, { wide: true, console: true, className: 'mkt-window', onClose: () => release(mounted) });
     const q = root.querySelector('#mkt-q');
     if (q) q.addEventListener('input', () => { query = (q.value || '').toLowerCase().trim(); renderStage(); restoreSearchFocus(); });
     root.addEventListener('keydown', onKey);
@@ -558,7 +558,7 @@ const Marketplace = (() => {
       return;
     }
     if (tab === 'recipes' && hasRecipes()) syncRecipeFocus();
-    stage.className = 'mkt-stage mkt-recruit' + (tab === 'recipes' ? ' mkt-recipes' : '');
+    stage.className = 'mkt-stage mkt-recruit' + (tab === 'recipes' ? ' mkt-recipes' : ' mkt-agents');
     // a fresh grid render (open / tab / filter / search) always returns to the ROSTER view on a narrow bay — the
     // dossier SHEET is only entered by an explicit card click, never left stuck over a rebuilt roster.
     const mkt0 = root.querySelector('.mkt'); if (mkt0) mkt0.classList.remove('show-dossier');
@@ -640,14 +640,6 @@ const Marketplace = (() => {
     // NAME / APPEARANCE / MODEL used to live here as a collapsible SUMMON CONFIG strip, which split the summon
     // decision across both panes (2026-08-15): pick on the left, read on the right, then scroll BACK left to
     // configure. They now live in the dossier's CONFIGURE panel, directly above the button they feed.
-    if (!filtering) {
-      html += glassHTML();          // '' in pick mode; STATION FAMILIARITY glass box in deploy mode
-      html += recShelfHTML();
-      html += interestGapShelfHTML();   // a warm topic nobody covers — renders only when both counters say so
-      html += prospectShelfHTML();
-      html += scoutLogHTML();   // the attempt ledger (both kinds) — clean top-level view only (filtering is false here)
-    }
-
     const buildTile = '<button class="mkt-build" type="button" aria-label="build a custom class">' +
       '<span class="mkt-build-plus" aria-hidden="true">＋</span><span class="mkt-build-lbl">BUILD A CUSTOM CLASS</span></button>';
     const allBuiltins = Specialties.builtins();
@@ -690,6 +682,8 @@ const Marketplace = (() => {
         'build one from scratch below' + (deploy && !query ? ', or save the live agent as a specialty above' : '') + '.</p>';
       html += '<div class="mkt-grid mkt-rows">' + customs.map(cardHTML).join('') + buildTile + '</div>';
     }
+    if (!filtering) html += '<details class="mkt-library-more"><summary>Suggestions for your station</summary>' +
+      glassHTML() + recShelfHTML() + interestGapShelfHTML() + prospectShelfHTML() + scoutLogHTML() + '</details>';
     return html;
   }
   /* ---------- SPECIALIST ARCHIVE: the deep-cut archetype pool (never gated, never in the way) ----------
@@ -716,19 +710,30 @@ const Marketplace = (() => {
   }
   /* Name and the live character preview lead. Skin choices stay visible; model controls expand
      in place. Choices and model drawer state survive class changes within this session. */
+  function agentReferenceHTML(s) {
+    return '<div class="mkt-agent-reference">' +
+      (s.purpose ? '<p class="mkt-agent-purpose">' + esc(s.purpose) + '</p>' : '') +
+      (s.starters && s.starters.length ? '<div class="bh">EXAMPLE REQUESTS</div><ul class="mkt-agent-examples">' +
+        s.starters.map(x => '<li>' + esc(x) + '</li>').join('') + '</ul>' : '') +
+      (s.manual ? '<details class="mkt-recipe-instructions"><summary>Standing instructions</summary><pre>' + esc(s.manual) + '</pre></details>' : '') + '</div>';
+  }
   function summonConfigPanelHTML(s) {
     if (!(ctx && ctx.mode === 'pick' && ctx.summon)) return '';
-    return '<section class="mkt-config" aria-label="configure this agent">' +
-      '<div class="mkt-config-h"><span class="mkt-config-ttl">▮ YOUR RECRUIT</span>' +
-        '<span class="mkt-config-note">Make it yours</span></div>' +
-      '<div class="mkt-recruit-identity">' + summonSkinStageHTML() + '<div class="mkt-recruit-fields">' + summonNameBarHTML() +
-      '<section class="mkt-appearance" aria-label="Choose a skin"><div class="mkt-appearance-heading">CHOOSE A SKIN <span class="mkt-appearance-choice">' +
+    const panels = [
+      '<section class="mkt-appearance" aria-label="Choose a skin"><div class="mkt-appearance-heading">APPEARANCE <span class="mkt-appearance-choice">' +
         esc((typeof DATA !== 'undefined' && DATA.SKINS && DATA.SKINS[pickedSummonSkin || DATA.DEFAULT_SKIN] || {}).name || 'Choose a character') +
-      '</span></div>' + summonSkinBarHTML() + '</section>' +
-      '</div></div><details class="mkt-model-settings"' + (modelSettingsOpen ? ' open' : '') + '>' +
-        '<summary>MODEL &amp; EFFORT <span class="mkt-model-choice">' + esc(summonModelSummary()) + '</span></summary>' +
-        summonModelBarHTML(s) + '</details>' +
-    '</section>';
+        '</span></div>' + summonSkinBarHTML() + '</section>',
+      '<p class="mkt-detail-note">Use the station default, or choose a model for this agent.</p>' + summonModelBarHTML(s),
+      agentReferenceHTML(s)
+    ];
+    return '<section class="mkt-config" aria-label="configure this agent">' +
+      '<div class="mkt-recruit-identity">' + summonSkinStageHTML() + '<div class="mkt-recruit-fields">' + summonNameBarHTML() + '</div></div>' +
+      '<div class="mkt-recipe-detail-tabs" role="tablist" aria-label="Recruit settings">' +
+      ['Appearance', 'Model', 'Role'].map((label, i) => '<button type="button" role="tab" id="recruit-tab-' + i +
+        '" aria-controls="recruit-panel-' + i + '" aria-selected="' + (i === 0) + '" tabindex="' + (i ? '-1' : '0') +
+        '" data-recipe-panel="' + i + '">' + label + '</button>').join('') + '</div>' +
+      panels.map((html, i) => '<div class="mkt-recipe-detail-panel" role="tabpanel" id="recruit-panel-' + i +
+        '" aria-labelledby="recruit-tab-' + i + '"' + (i ? ' hidden' : '') + '>' + html + '</div>').join('') + '</section>';
   }
   /* The MODEL field's helper line is where CLEARANCE and EFFORT became honest. They used to be two rows of a spec
      grid at the top of the dossier that read "model: station default / class default — applied at summon" — true,
@@ -1118,26 +1123,10 @@ const Marketplace = (() => {
           (!lead && brief ? '<p class="bp lead">' + esc(brief) + '</p>' : '') +
         '</div>'
       : '';
-    return '<div class="mkt-dos-scroll"><div class="mkt-dos-label">▮ CLASS DOSSIER</div>' +
-      '<div class="mkt-dos-hero">' + sealHTML(s, true) +
-        '<div class="mkt-dos-hi"><div class="mkt-dos-name">' + esc(s.name) + badges + '</div>' +
-          '<div class="mkt-dos-tag">' + esc(s.tagline) + '</div>' +
-          '<div class="mkt-dos-class">CLASS · ' + esc(codeOf(s)) + '</div></div></div>' +
-      // Keep character choices near the top; class reference material follows recruitment controls.
-      summonConfigPanelHTML(s) +
-      '<div class="mkt-dos-meta">' +
-        '<span class="mkt-chip lane" data-hint="focus">' + esc(laneLabelOf(s)) + '</span>' +
-        '<span class="mkt-chip" data-hint="clearance">' + pipsOf(s.model) + ' ' + esc(clearanceLabel(s.model)) + '</span>' +
-        '<span class="mkt-chip" data-hint="voice">◈ ' + esc(voiceName(s.persona)) + ' VOICE</span>' +
-      '</div>' +
-      aboutBlock +
-      (lead && brief ? '<details class="mkt-brief mkt-block"><summary class="bh">ROLE BRIEF</summary><p class="bp">' + esc(brief) + '</p></details>' : '') +
-      (s.starters && s.starters.length ? '<details class="mkt-brief mkt-block"><summary class="bh">TRY ASKING</summary><ul class="mkt-starters">' + s.starters.map(x => '<li>' + esc(x) + '</li>').join('') + '</ul></details>' : '') +
-      // NO gear / skill-package inventories (2026-08-15, Andrew). They listed what the class draws on under the
-      // overseer and which bundled skills it gets — true, but it is a manifest, not a reason to recruit, and it
-      // ran longer than the description above it. The loadout still applies at summon exactly as before; the
-      // station's own gear lives in REFIT and the skills in the SKILLS window, which are the surfaces that own it.
-      (s.manual ? '<div class="mkt-block"><details class="mkt-orders"><summary class="bh">STANDING ORDERS</summary><pre>' + esc(s.manual) + '</pre></details></div>' : '') +
+    return '<div class="mkt-dos-scroll mkt-agent-simple">' +
+      '<div class="mkt-dos-hero"><div class="mkt-dos-hi"><div class="mkt-dos-name">' + esc(s.name) + badges + '</div></div></div>' +
+      aboutBlock + summonConfigPanelHTML(s) +
+      (!(ctx && ctx.mode === 'pick' && ctx.summon) ? agentReferenceHTML(s) : '') +
       // the merged recruit door's SECOND verb: in summon mode, a deploy context (onDeploy + agentName) also offers
       // re-speccing the CURRENT agent as this class — the old ROSTER door's action, now living on the card instead
       // of a separate dock button. It rides in NORMAL FLOW, outside the sticky block: pinning it too made the
