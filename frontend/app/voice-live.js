@@ -13,7 +13,6 @@ const VoiceLive = (() => {
   let sessionSeq = 0;
   let stream = null, context = null, source = null, processor = null, sink = null;
   let calibratedUntil = 0, noiseFloor = 0.006, speechFrames = 0, silenceMs = 0;
-  let speechOnsetMs = 0;
   let recording = false, utterance = [], utteranceSamples = 0, preRoll = [], transcriptionPending = false, queuedAudio = [];
   let finalTurn = null, paused = false;
   let lastVoicedSamples = 0, partialSnapshot = null;
@@ -827,7 +826,7 @@ const VoiceLive = (() => {
     const ready = !recognizer && !transcriptionPending && !queuedAudio.length && partialSnapshot &&
       partialSnapshot.id === utteranceSeq && partialSnapshot.samples === snapshot.samples ? partialSnapshot.text : '';
     recording = false;
-    utterance = []; utteranceSamples = 0; preRoll = []; speechFrames = 0; speechOnsetMs = 0; silenceMs = 0;
+    utterance = []; utteranceSamples = 0; preRoll = []; speechFrames = 0; silenceMs = 0;
     if (ready) {
       if (partialAbort) partialAbort.abort();
       partialAbort = null; partialPending = false;
@@ -898,7 +897,7 @@ const VoiceLive = (() => {
       if (!voiced) noiseFloor = noiseFloor * 0.995 + rms * 0.005;
       keepPreRoll(frame, frameMs);
       speechFrames = voiced ? speechFrames + 1 : 0;
-      speechOnsetMs = voiced ? speechOnsetMs + frameMs : 0;
+      const speechOnsetMs = speechFrames * frameMs;
       // A short speaker/noise burst is not enough evidence to cut off a playing sentence.
       // Sustained energy still cannot prove human speech; retain measurements for acoustic diagnosis.
       if (speechFrames >= 3 && (!outputActive || speechOnsetMs >= 300)) {
