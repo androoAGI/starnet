@@ -260,5 +260,5 @@ const CommandRoom = (() => {
     return {top:y+(metrics[geometryKey]?.top||0)*sc,left:x,right:x+w,bottom:b.py-2-lift};
   }
   function stats() {return {enabled,roomId,loaded,manifestReady,lightResponses:responses.size,failed:failed.slice(),tracks:Object.keys(tracks),draws:{...totals},doors:[...doors].map(([key,v])=>({key,...v}))};}
-  return {enabled,begin,drawBase,drawProp,lightOf,drawShadow,addItems,drawBody,stats};
+  return {enabled,begin,drawBase,accepts: p => !!footprint(p),drawProp,lightOf,drawShadow,addItems,drawBody,stats};
 })();

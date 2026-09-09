@@ -5675,7 +5675,7 @@ const World = (() => {
   }
 
   function drawLitProp(p, work, live) {
-    if (typeof CommandRoom !== 'undefined' && CommandRoom.drawProp(ctx, p, work, live,
+    if (typeof CommandRoom !== 'undefined' && CommandRoom.accepts(p) && CommandRoom.drawProp(ctx, p, work, live,
       sceneRenderer && sceneRenderer.sampleLight((p.x + (p.w || 1) / 2) * T, (p.y + (p.h || 1)) * T))) return;
     PropSprites.draw(p, work, live);
     if (!sceneRenderer || !PropSprites.canLightResponse || !PropSprites.canLightResponse(p)) return;
