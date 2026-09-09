@@ -84,11 +84,12 @@ body.glass-demo #chat-panel :is(.chat-attach-btn,.voice-toggle,.mic-btn,.chat-st
   color: var(--ph); box-shadow: none; text-shadow: none;
 }
 body.glass-demo #chat-panel .chat-stop[hidden] { display: none; }
+body.glass-demo #chat-panel .chat-tools #voice-toggle { margin-left: auto; }
 body.glass-demo #chat-panel :is(.chat-attach-btn,.voice-toggle,.mic-btn,.chat-stop) svg {
   width: 16px; height: 16px; filter: none; stroke-linecap: square; stroke-linejoin: miter;
 }
 body.glass-demo #chat-panel .model-dock-toggle {
-  flex: 1 1 80px; min-width: 62px; max-width: none; width: auto; height: 28px; padding: 0 6px; gap: 5px;
+  flex: 0 1 auto; min-width: 62px; max-width: 220px; width: auto; height: 28px; padding: 0 6px; gap: 5px;
   border: 1px solid transparent; border-radius: 3px; background: transparent;
   color: var(--ph); box-shadow: none; text-shadow: none;
 }

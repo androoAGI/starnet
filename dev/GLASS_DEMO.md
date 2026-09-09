@@ -153,3 +153,11 @@ Verification:
 - readability (21), comms-responsive-text (5), control-floor-theming (125), textsize-screen-space (95), website-app-sync (8) passed on the final stylesheet. Customer journeys passed all 32 suites.
 - Full fast gate stopped at step 286/734 with the existing 10 qa-product-perfect-claims release-manifest failures, also present before this pass. The complete fast gate is not green; no integration merge or release was performed.
 - Installed desktop artifacts, customer DPI/hardware and owner acceptance remain unverified. Populated multi-agent, active voice and real provider execution were not live-tested in this typography pass. Source guards are registered; manual browser geometry is documented here rather than represented as an automated gate.
+
+## Compact model selector - 2026-09-09
+
+Owner feedback: the model selector stretches too wide along the composer footer. The glass selector now uses its content width with a 220px maximum instead of growing into all available space. The audio controls remain aligned to the right. The readable 16px model name, real model/effort state and existing narrow-container behavior are preserved.
+
+Live proof at the owner's current 484px COMMS rail: selector width fell from 330px to 152px, while the model name remained 16px. Composer toolbar client/scroll width both 464px; selector client/scroll width both 150px. The model menu opened normally (348px client/scroll width), and Escape closed it. Empty draft, active model and rail width were preserved.
+
+readability (21), comms-responsive-text (5), control-floor-theming (125) and website-app-sync (8) passed. Website mirror synchronized. Full fast was not repeated for this CSS adjustment; its previously recorded release-manifest failure remains unresolved. No merge or release.
