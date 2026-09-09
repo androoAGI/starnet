@@ -1,11 +1,11 @@
 # NEXT.md — current priorities & task queue
 
-## IN PROGRESS — 2026-09-09 tool projection integration (agent/tool-projection-0909)
+## MERGED — 2026-09-09 tool projection integration (agent/tool-projection-0909)
 
 Owner authorized repair and merge. Source repair 3c95b184f preserves saved room equipment when
 an interactive client omits placement, preserves explicit empty placement, and corrects toolset
-agent/lead disclosure. Fast 735/735 and HTTP 108/108 passed; customer journeys and integration
-checks are in progress. Customer report 432df352 remains open for the uncorrelated Trusted Project
+agent/lead disclosure. Merged 793bf1c0f; fast 735/735 and HTTP 108/108 passed before and
+after merge; customer journeys 34/34 passed. Customer report 432df352 remains open for the uncorrelated Trusted Project
 symptom; installer and reporter recovery are unverified. Receipt: qa/digests/2026-09-09-tool-projection.md.
 
 ## MERGED — 2026-09-09 voice continuity (`agent/voice-continuity-0909`)
