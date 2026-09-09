@@ -1845,7 +1845,7 @@
       "surfaceLocators": [
         {
           "path": "frontend/app/windows/messaging.js",
-          "needle": "even with this window closed, as long as the station app is running"
+          "needle": "Keep StarNet running."
         }
       ],
       "authorityChecks": [
@@ -2055,7 +2055,7 @@
         {
           "kind": "contains",
           "path": "frontend/app/windows/messaging.js",
-          "needle": "Both tokens are stored locally by the sidecar and never displayed"
+          "needle": "Both tokens are saved on this machine and never displayed."
         }
       ],
       "verdict": "PARTIAL",
@@ -2451,7 +2451,7 @@
         {
           "kind": "contains",
           "path": "frontend/app/stationui.js",
-          "needle": "Hard money limits your agents cannot exceed"
+          "needle": "Limits apply to recorded agent spending."
         }
       ],
       "verdict": "SHIPPED",
@@ -2874,7 +2874,7 @@
         {
           "kind": "contains",
           "path": "frontend/app/windows/messaging.js",
-          "needle": "even with this window closed, as long as the station app is running"
+          "needle": "Keep StarNet running."
         },
         {
           "kind": "contains",
