@@ -2195,9 +2195,7 @@ const Marketplace = (() => {
     }
   }
 
-  function wireDossier(scope) {
-    const sc = scope || root; if (!sc) return;
-    wireSummonConfig(sc);
+  function wireDetailTabs(sc) {
     const detailTabs = Array.from(sc.querySelectorAll('[data-recipe-panel]'));
     const selectDetailTab = btn => {
       detailTabs.forEach(t => { const active = t === btn; t.setAttribute('aria-selected', String(active)); t.tabIndex = active ? 0 : -1; });
@@ -2212,6 +2210,11 @@ const Marketplace = (() => {
         selectDetailTab(detailTabs[next]); detailTabs[next].focus();
       });
     });
+  }
+  function wireDossier(scope) {
+    const sc = scope || root; if (!sc) return;
+    wireSummonConfig(sc);
+    wireDetailTabs(sc);
     const inlineLaunch = sc.querySelector('.mkt-inline-launch');
     if (inlineLaunch && focusRecipe) wireLaunchForm(inlineLaunch, Recipes.get(focusRecipe));
     const dosBack = sc.querySelector('.mkt-dos-back');
@@ -3572,49 +3575,35 @@ const Marketplace = (() => {
      standing orders — saved straight to YOUR SPECIALISTS via Specialties.saveCustom (tags auto-derive
      from the text, so the new class ranks in the feed and deploys/recruits like any built-in). */
   const BUILD_ACCENTS = ['#ffaa33', '#7bc88a', '#6fa8bf', '#b790c0', '#cf8a7d', '#88b6c4', '#ffd34a', '#6fbcc0', '#9fc0c4'];
+  const CLASS_ICONS = [['✦', 'Star'], ['◆', 'Diamond'], ['◉', 'Focus'], ['⌕', 'Research'], ['✎', 'Writing'], ['☑', 'Planning'], ['⚙', 'Engineering'], ['⚒', 'Building'], ['⚑', 'Strategy'], ['♟', 'Advisor'], ['♜', 'Security'], ['♬', 'Music'], ['✉', 'Messages'], ['⌂', 'Home'], ['☼', 'Ideas'], ['♥', 'Care']];
   function buildFormHTML() {
-    // Custom classes are edited in THIS builder (via editingId) so their loadout pickers are reachable; a fresh
-    // ＋ build has no editingId. Every field prefills from the spec being edited. (Built-ins are frozen — no edit.)
     const editing = editingId ? Specialties.get(editingId) : null;
-    // a station-drafted prospect (buildDraft) pre-fills the NEW-class form when not editing an existing custom.
     const d = editing || buildDraft || { emoji: '✦', name: '', tagline: '', purpose: '', manual: '' };
-    const sw = BUILD_ACCENTS.map(c => '<button type="button" class="mkt-sw' + (c === buildAccent ? ' sel' : '') +
-      '" data-acc="' + c + '" style="background:' + c + '" aria-label="accent ' + c + '"></button>').join('');
-    const seg = (m, l) => '<button type="button" class="mkt-seg' + (buildModel === m ? ' sel' : '') + '" data-model="' + m + '">' + l + '</button>';
     const previewEmoji = (d.emoji || '✦').trim() || '✦';
-    return '<div class="mkt-save mkt-build-form">' +
-      '<div class="mkt-save-h">' + (editing ? 'EDIT CUSTOM CLASS' : 'BUILD A CUSTOM CLASS') + '</div>' +
-      '<p class="mkt-hint">' + (editing
-        ? 'retune this class — its job, standing orders, look, and loadout. changes apply to agents <b>summoned from here on</b>; already-summoned agents keep the loadout they were given.'
-        : 'define your own class — its job, its standing orders, its look. it joins <b>YOUR SPECIALISTS</b>, ready to deploy or summon.') + '</p>' +
-      /* The preview coin no longer takes the picked accent. It is a PREVIEW, so it must show what the
-         roster will actually show — and every seal in the bay is engraved in the station's one phosphor
-         (see the note on mkt-card). Painting this one coin blue while its row renders amber is the
-         precise kind of claim the app is not allowed to make. The accent is still picked and still
-         saved: it is the SUIT the agent wears on the floor, which the swatches themselves preview. */
-      '<div class="mkt-build-preview"><div class="mkt-coin" id="mkt-build-coin">' +
-        '<span class="mkt-coin-emoji" id="mkt-build-emoji">' + esc(previewEmoji) + '</span></div><span class="mkt-hint">live preview — your class seal</span></div>' +
-      '<div class="mkt-save-row"><label class="mkt-lbl">ICON<input class="mkt-in mkt-emoji-in" id="mkt-b-emoji" maxlength="2" value="' + esc(previewEmoji) + '"></label>' +
-        '<label class="mkt-lbl mkt-grow">NAME<input class="mkt-in" id="mkt-b-name" maxlength="28" value="' + esc(d.name || '') + '" placeholder="e.g. Growth Hacker"></label></div>' +
-      // relabelled from the bare "ACCENT": now that the seal is always station phosphor, this swatch's
-      // one real job is the agent's SUIT on the floor — say so rather than leave it pointing at nothing.
-      '<label class="mkt-lbl">SUIT COLOUR <span class="mkt-lbl-hint">— what your agent wears on the floor</span></label><div class="mkt-swatches" id="mkt-b-acc">' + sw + '</div>' +
-      '<label class="mkt-lbl">TAGLINE<input class="mkt-in" id="mkt-b-tag" maxlength="48" value="' + esc(d.tagline || '') + '" placeholder="one line — what it’s for"></label>' +
-      '<label class="mkt-lbl">CLEARANCE</label><div class="mkt-segs" id="mkt-b-model">' +
-        seg('reasoning', '◆◆◆ DEEP') + seg('balanced', '◆◆ BALANCED') + seg('fast', '◆ FAST') + '</div>' +
-      // EFFORT — the reasoning effort applied at summon (independent of the clearance tier/model).
-      '<label class="mkt-lbl">REASONING EFFORT <span class="mkt-lbl-hint">— applied at summon</span></label><div class="mkt-segs" id="mkt-b-effort">' +
-        effSeg(null, 'DEFAULT') + effSeg('high', 'HIGH') + effSeg('medium', 'MEDIUM') + effSeg('low', 'LOW') + '</div>' +
-      // STATION GEAR — capability objectTypes this class draws on under the overseer (informational; labels from
-      // the LIVE catalog). Not per-agent props — shared station gear; the picks round-trip into the saved spec.
-      '<label class="mkt-lbl">STATION GEAR IT DRAWS ON <span class="mkt-lbl-hint">— shared gear it uses under the overseer</span></label>' +
+    const sw = BUILD_ACCENTS.map((c, i) => '<button type="button" class="mkt-sw' + (c === buildAccent ? ' sel' : '') +
+      '" data-acc="' + c + '" style="background:' + c + '" aria-label="' + ['Amber', 'Green', 'Blue', 'Purple', 'Coral', 'Ice', 'Gold', 'Teal', 'Silver'][i] + '"></button>').join('');
+    const seg = (m, l) => '<button type="button" class="mkt-seg' + (buildModel === m ? ' sel' : '') + '" data-model="' + m + '">' + l + '</button>';
+    const basics = '<label class="mkt-lbl">Name<input class="mkt-in" id="mkt-b-name" maxlength="28" value="' + esc(d.name || '') + '" placeholder="e.g. Travel Planner"></label>' +
+      '<label class="mkt-lbl">Short description <span class="mkt-opt">optional</span><input class="mkt-in" id="mkt-b-tag" maxlength="48" value="' + esc(d.tagline || '') + '" placeholder="Plans practical trips around your budget"></label>' +
+      '<label class="mkt-lbl">What should this class do?<textarea class="mkt-in" id="mkt-b-purpose" rows="3" placeholder="Describe its job and what a useful result looks like.">' + esc(d.purpose || '') + '</textarea></label>' +
+      '<label class="mkt-lbl">Always follow these instructions <span class="mkt-opt">optional</span><textarea class="mkt-in" id="mkt-b-manual" rows="3" placeholder="e.g. Compare costs, cite sources, and ask before booking.">' + esc(d.manual || '') + '</textarea></label>';
+    const tools = '<p class="mkt-detail-note">Choose at least one tool this class will use. Skills are optional.</p>' +
       '<div class="mkt-kitpicks" id="mkt-b-kit">' + buildKitChipsHTML() + '</div>' +
-      // SKILL PACKAGE — bundled recipes enabled for this class (from the live /api/skills catalog, filled async).
-      '<label class="mkt-lbl">SKILL PACKAGE <span class="mkt-lbl-hint">— recipes it follows when a task matches</span></label>' +
-      '<div class="mkt-chips" id="mkt-b-skills"><span class="mkt-hint mkt-chips-loading">loading the skill library…</span></div>' +
-      '<label class="mkt-lbl">PURPOSE<textarea class="mkt-in mkt-b-area" id="mkt-b-purpose" rows="3" placeholder="what this class is FOR — its job, in its own words.">' + esc(d.purpose || '') + '</textarea></label>' +
-      '<label class="mkt-lbl">STANDING ORDERS<textarea class="mkt-in mkt-b-area" id="mkt-b-manual" rows="4" placeholder="- the rules it always follows\n- one per line">' + esc(d.manual || '') + '</textarea></label>' +
-      '<div class="mkt-save-acts"><button class="bb sm mkt-cancel">‹ BACK</button><button class="bb sm mkt-do-build">' + (editing ? '✓ SAVE CHANGES' : '✓ CREATE CLASS') + '</button></div></div>';
+      '<label class="mkt-lbl">Find a skill<input class="mkt-in" id="mkt-b-skill-search" placeholder="Search skills"></label>' +
+      '<div class="mkt-chips" id="mkt-b-skills"><span class="mkt-hint">Loading skills…</span></div>';
+    const settings = '<p class="mkt-detail-note">These defaults apply when you recruit from this class.</p>' +
+      '<div class="mkt-lbl">Model preference</div><div class="mkt-segs" id="mkt-b-model">' + seg('reasoning', 'Deep reasoning') + seg('balanced', 'Balanced') + seg('fast', 'Fast') + '</div>' +
+      '<div class="mkt-lbl">Reasoning effort</div><div class="mkt-segs" id="mkt-b-effort">' + effSeg(null, 'Default') + effSeg('high', 'High') + effSeg('medium', 'Medium') + effSeg('low', 'Low') + '</div>' +
+      '<div class="mkt-lbl">Suit color</div><p class="mkt-detail-note">The agent’s floor accent. Its class icon follows your station theme.</p><div class="mkt-swatches" id="mkt-b-acc">' + sw + '</div>';
+    return '<div class="mkt-save mkt-build-form mkt-class-editor"><div class="mkt-save-h">' + (editing ? 'Edit custom class' : 'Build a custom class') + '</div>' +
+      '<p class="mkt-detail-note">' + (editing ? 'Update this template for future recruits. Existing crew members keep their settings.' : 'Give it a job and choose its tools. Save it to your specialists, then recruit when ready.') + '</p>' +
+      '<div class="mkt-class-columns"><aside class="mkt-class-icon-panel"><div class="mkt-build-preview"><div class="mkt-coin" id="mkt-build-coin"><span class="mkt-coin-emoji" id="mkt-build-emoji">' + esc(previewEmoji) + '</span></div><span>Class icon</span></div>' +
+      '<div class="mkt-class-icons" role="group" aria-label="Class icon">' + CLASS_ICONS.map(([glyph, label]) => '<button type="button" data-class-icon="' + esc(glyph) + '" aria-pressed="' + (glyph === previewEmoji) + '"><span aria-hidden="true">' + glyph + '</span><span>' + label + '</span></button>').join('') + '</div>' +
+      '<label class="mkt-lbl">Or use your own symbol<input class="mkt-in" id="mkt-b-emoji" maxlength="16" value="' + esc(previewEmoji) + '"></label></aside>' +
+      '<div class="mkt-class-fields"><div class="mkt-recipe-detail-tabs" role="tablist" aria-label="Class settings">' +
+      ['Basics', 'Tools & skills', 'Defaults'].map((label, i) => '<button type="button" role="tab" id="class-tab-' + i + '" aria-controls="class-panel-' + i + '" aria-selected="' + (i === 0) + '" tabindex="' + (i ? '-1' : '0') + '" data-recipe-panel="' + i + '">' + label + '</button>').join('') + '</div>' +
+      [basics, tools, settings].map((html, i) => '<div class="mkt-recipe-detail-panel" role="tabpanel" id="class-panel-' + i + '" aria-labelledby="class-tab-' + i + '"' + (i ? ' hidden' : '') + '>' + html + '</div>').join('') + '</div></div>' +
+      '<div class="mkt-save-acts"><button class="bb sm mkt-cancel">‹ BACK</button><button class="bb sm mkt-do-build">' + (editing ? 'SAVE CHANGES' : 'CREATE CLASS') + '</button></div></div>';
   }
   // the pickable kit objectTypes — the auto-requisitionable capabilities (computer/connector are per-agent
   // manual-bind, per-agent bound props, never shared station gear a class draws on). Labels from the live source.
@@ -3632,6 +3621,21 @@ const Marketplace = (() => {
   }
   const effSeg = (e, l) => '<button type="button" class="mkt-seg' + ((buildEffort === e || (e === null && !buildEffort)) ? ' sel' : '') + '" data-effort="' + (e == null ? '' : e) + '">' + l + '</button>';
   function wireBuildForm(stage) {
+    wireDetailTabs(stage);
+    const iconChoices = stage.querySelectorAll('[data-class-icon]');
+    const paintIcon = value => {
+      stage.querySelector('#mkt-build-emoji').textContent = value || '✦';
+      iconChoices.forEach(b => b.setAttribute('aria-pressed', String(b.dataset.classIcon === value)));
+    };
+    iconChoices.forEach(b => b.addEventListener('click', () => {
+      stage.querySelector('#mkt-b-emoji').value = b.dataset.classIcon; paintIcon(b.dataset.classIcon);
+    }));
+    stage.querySelector('#mkt-b-emoji').addEventListener('input', e => paintIcon(e.target.value.trim()));
+    const skillSearch = stage.querySelector('#mkt-b-skill-search');
+    skillSearch.addEventListener('input', () => {
+      const q = skillSearch.value.trim().toLowerCase();
+      stage.querySelectorAll('#mkt-b-skills [data-skill]').forEach(b => { b.hidden = !b.textContent.toLowerCase().includes(q); });
+    });
     const back = stage.querySelector('.mkt-cancel');
     if (back) back.addEventListener('click', () => { sfx('click'); editingId = null; buildDraft = null; acceptingProspectId = null; view = 'grid'; renderStage(); });
     // live seal preview: the ICON only. The suit swatch no longer repaints the coin — the seal is
@@ -3687,7 +3691,8 @@ const Marketplace = (() => {
       // mirror the prospect drafter's constraint (prospect.js:112): a specialist with no gear is not a real role.
       // an empty kit used to save silently; make it explain itself and point back at the gear picker.
       if (!buildKit.length) {
-        sfx('bad'); note('a specialist with no gear is not a real role — pick at least one kit item', 'bad');
+        sfx('bad'); note('Choose at least one tool for this class.', 'bad');
+        stage.querySelector('#class-tab-1').click();
         const kitHost = stage.querySelector('#mkt-b-kit'); if (kitHost && kitHost.scrollIntoView) kitHost.scrollIntoView({ block: 'center' });
         return;
       }

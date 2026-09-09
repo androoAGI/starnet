@@ -1149,3 +1149,21 @@ button.mkt-archive-head:focus-visible { outline: 2px solid var(--gold); outline-
 .mkt-agent-examples { list-style: none; margin: 8px 0 20px; padding: 0; }
 .mkt-agent-examples li { padding: 10px 0; border-bottom: 1px solid var(--ph-faint); }
 .mkt-agents .mkt-cta-second { margin-top: 20px; border-top: 1px solid var(--ph-faint); padding-top: 14px; }
+.mkt-stage.form .mkt-class-editor { max-width: 980px; }
+.mkt-class-columns { display: grid; grid-template-columns: 250px minmax(0,1fr); gap: 28px; }
+.mkt-class-icon-panel { min-width: 0; padding: 16px; border: 1px solid var(--ph-faint); border-radius: 8px; background: rgba(var(--ph-rgb),.035); }
+.mkt-class-editor .mkt-build-preview { display: flex; align-items: center; gap: 14px; margin: 0 0 18px; color: var(--ph-dim); }
+.mkt-class-icons { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 6px; margin-bottom: 20px; }
+.mkt-class-icons button { font: inherit; color: var(--ph-dim); background: transparent; border: 1px solid var(--ph-faint); border-radius: 6px; padding: 8px 2px; cursor: pointer; }
+.mkt-class-icons button span { display: block; font-size: 10px; }
+.mkt-class-icons button span:first-child { font-size: 25px; margin-bottom: 5px; color: var(--ph); }
+.mkt-class-icons button:hover, .mkt-class-icons button[aria-pressed="true"] { background: var(--ui-face); border-color: var(--ph); box-shadow: inset 0 1px 0 var(--ui-highlight); }
+.mkt-class-icons button:focus-visible { outline: 2px solid var(--ph); outline-offset: 2px; }
+.mkt-class-editor .mkt-lbl { margin: 16px 0 8px; gap: 7px; font-size: 14px; letter-spacing: .3px; }
+.mkt-class-editor .mkt-recipe-detail-tabs { margin-top: 0; }
+.mkt-class-editor .mkt-in { width: 100%; box-sizing: border-box; }
+.mkt-class-editor .mkt-kitpick { padding: 10px 0; border-bottom: 1px solid var(--ph-faint); }
+.mkt-class-editor #mkt-b-skills { max-height: 220px; overflow-y: auto; padding: 4px; }
+.mkt-class-editor #mkt-b-skills [hidden] { display: none; }
+.mkt-class-editor .mkt-save-acts { position: sticky; bottom: 0; padding: 16px 0; background: var(--panel); border-top: 1px solid var(--ph-faint); }
+@container (max-width: 680px) { .mkt-class-columns { grid-template-columns: minmax(0,1fr); gap: 18px; } .mkt-class-icons { grid-template-columns: repeat(8,minmax(0,1fr)); } }
