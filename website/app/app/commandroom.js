@@ -235,7 +235,9 @@ const CommandRoom = (() => {
     }else if(b.working){action='type';dir='north';}
     else if(b.sitting||b.seated)action='sit';
     if(b.lying) { action='sit';dir=b.dir||'north'; }
-    const interaction=b.usingProp||b.watchProp;
+    // Board surveys have their own goal and deliberately do not claim usingProp.
+    const board=b.goal==='post'?frame.geo.props.find(p=>p.t==='missionboard'):null;
+    const interaction=b.usingProp||b.watchProp||board?.id;
     const prop=frame.geo.props.find(p=>p.id===interaction);
     const engaged=prop&&b.state!=='walk'&&Math.hypot(b.px-(prop.x+(prop.w||1)/2)*12,b.py-(prop.y+(prop.h||1)/2)*12)<28?interaction:null;
     if(st.use!==engaged){st.use=engaged;st.since=now;}
