@@ -41,3 +41,7 @@ With Python and Pillow installed:
 
 Only walking frames and their playback cadence change. This receipt covers the
 skin animation lane, not overall product release readiness or a published build.
+
+## Follow-up frame sweep
+
+The full 4,195-frame audit found two visual defects that size checks cannot detect: Turtle north-facing orientation and Wizard northwest staff continuity. These two cycles now use reviewed built-in imagegen sheets. After bulk regeneration, run `python dev/import_frame_sweep.py --install` to retain them. Source art and prompt specifications: dev/frame-sweep-sources/README.md.
