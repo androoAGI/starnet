@@ -140,71 +140,64 @@ const Terrain = (typeof document === 'undefined') ? { active: () => false } : ((
   const SUN = { x: -0.7071, y: -0.7071 };
 
   /* ------------------------------------------------------------------ GROUND: FOREST ---- */
-  /* FOREST v3 — a FULL REDESIGN (Andrew, 2026-09-09: "i want a full new redesign of the forest").
+  /* FOREST v4 — dark, realistic, an AERIAL MAP of old forest (Andrew, 2026-09-10, on v3: "i hate
+     the new forest, it literally looks like a cartoon world. I want it nothing like this we want a
+     dark, mysterious gorgeous forest vibe, like ur looking down from a map of a forest. Realistic").
 
-     THE TWO FORESTS BEFORE IT, and why neither is the model:
-       v1 (07-24) was "too blurry... just looks like an outline of a forest": anti-aliased arcs.
-       v2 (07-24 → 09-09) fixed that with hundreds of hard 1-3px LEAF STAMPS per crown over a dark
-       duff floor. Correct about every rule, and on a live station it still read as one dark green-
-       brown mass: at play zoom every stamp is a 2x2 block of confetti, the crowns had no clean
-       silhouette to separate them, and the floor was shade on shade. Lifting the ramps (the first
-       pass of this day) made it a brighter mush.
+     THE THREE FORESTS BEFORE IT, and what each taught:
+       v1 (07-24): anti-aliased arcs — "too blurry... an outline of a forest". Edges must be hard.
+       v2 (07-24 → 09-09): hundreds of hard leaf stamps per crown over dark duff. Right KEY (dark,
+           shaded, real), but at play zoom the stamps were 2x2 confetti and crowns had no form.
+       v3 (09-09): flat four-tone lobed crowns on lit grass with flowers — legible, and a CARTOON.
+           Flat bands, hue accents and a bright floor are exactly what a satellite frame never has.
 
-     WHAT THIS IS INSTEAD: an open daylight woodland drawn the way top-down pixel art draws woods.
-       1. A CROWN IS A SHAPE, NOT A CLOUD OF LEAVES. Each tree is a lobed silhouette filled with
-          FOUR FLAT TONES — deep shade, mid, light, highlight — banded by a dome term (the middle
-          of the crown is nearer the sun than its edge) plus the SUN term (top-left), plus a
-          cauliflower of sub-lobes so the bands break into leaf clusters. Every band edge is a
-          hard pixel step; there is no per-leaf noise for the zoom to smear. A dark contact
-          shadow, offset down-sun and dithered at its edge, lifts every crown off the floor and
-          off its neighbours.
-       2. THE FLOOR IS LIT GRASS. Sunlit woodland floor is grass and bare earth, not duff: a
-          five-step green ramp dithered by two octaves, short grass STROKES (the classic pixel
-          grass tooth), bare-earth patches with dithered edges, pebbles with their shadow, and a
-          few flowers in the open — the only pure hue accents on the ground.
-       3. A STREAM. Chained bank-to-bank segments (the moon's wrinkle-ridge Wang-tile trick, one
-          dimension): dark wet banks, a two-tone channel, light ripple lines along the flow and a
-          few glints. It wanders, it never crosses the station's clearing, and it is the one long
-          feature that makes the wood a PLACE rather than a texture.
-       4. FIVE SPECIES BY SILHOUETTE AND HUE: broadleaf (green), conifer (blue-green, spiked),
-          autumn (rust-gold), birch (pale yellow-green, trunk showing), and dead snags. Bushes,
-          ferns, logs, stumps and boulders fill the undergrowth in the same flat-tone language.
-     Scale reference (measured, unchanged): an agent body is ~35 world px, ONE WORLD PIXEL ≈ 5cm.
-     The station must remain the brightest thing on screen: the floor's mean sits near 45% of the
-     station's floor, the highlight tone is the only thing that goes above 60% and it is small. */
+     WHAT A FOREST LOOKS LIKE FROM ABOVE, and what this draws:
+       1. A CANOPY IS A CARPET OF DOMES. Crowns are dense — most of the ground never shows — and
+          each is a small dome lit from one side: a smooth fall-off from a lit top to a dark rim,
+          rendered through an EIGHT-step ramp under a hash dither so it reads as tone, not bands,
+          and roughened by a fine leaf-clump noise so it reads as foliage, not a ball. The gaps
+          between crowns are the darkest thing in the frame: every crown drops shadow on its
+          down-sun neighbours. No outlines, no flat fills, no per-leaf confetti.
+       2. THE PALETTE IS SATELLITE GREEN. Dark, desaturated, cool in the shade and only faintly
+          warm on the lit tops; conifers a near-black blue-green; a few paler ash-grey crowns for
+          variety. Nothing saturated, nothing orange. The whole frame sits low and the station
+          stays the brightest thing on screen by a mile.
+       3. GLADES ARE DARK. Where the canopy opens, the floor is shaded duff and moss with deadfall
+          and stone in it — never lawn. The station's clearing is the same dark floor.
+       4. THE RIVER IS BLACK WATER. Chained Wang segments (the moon's ridge trick): a near-black
+          channel with the faintest blue-grey sheen and dark wet banks, hugging the clearing.
+     Scale reference (measured, unchanged): an agent body is ~35 world px, ONE WORLD PIXEL ≈ 5cm,
+     so a mature crown is 16-30 px across and an emergent 40-50. */
 
   const FOREST = {
     label: 'FOREST',
-    blurb: 'Landed in open woodland. Grass, a stream, and the trees closing in.',
-    base: '#2c4a26',
+    blurb: 'Landed in old growth. Dark canopy, black water, no one around.',
+    base: '#0c130e',
     PATCH: 512,                       // world px of the tiling floor texture
-    CELL: 64,                         // world px per scatter cell (~5 station tiles)
+    CELL: 48,                         // world px per scatter cell — dense canopy needs a fine grid
     BODY_PX: 35.42,                   // an agent body, world px — the yardstick for everything here
-    STREAM: { W: 320, H: 320, LANE: 1100, P: 0.4 },   // lane 0 always runs; the rest are rare, so one stream, not a moat
+    STREAM: { W: 320, H: 320, LANE: 1100, P: 0.4 },   // lane 0 always runs; the rest are rare
 
     LIGHT: {
-      GRASS: [[34, 62, 30], [44, 78, 36], [56, 96, 42], [70, 114, 50], [88, 132, 58]],
-      GRASS_HI: [108, 152, 66], GRASS_LO: [28, 52, 26],
-      EARTH: [[64, 48, 30], [86, 64, 40], [108, 82, 50], [132, 104, 64]],
-      SHADOW: [24, 46, 28],                                       // cast + contact shade, opaque
-      CROWN: [[22, 52, 30], [40, 92, 44], [72, 132, 58], [120, 176, 80]],
-      CONIFER: [[14, 40, 34], [24, 66, 50], [42, 96, 68], [76, 128, 92]],
-      AUTUMN: [[86, 40, 18], [150, 72, 26], [204, 120, 40], [236, 178, 74]],
-      BIRCH: [[60, 96, 40], [104, 146, 62], [150, 186, 86], [198, 216, 122]],
-      BUSH: [[26, 60, 32], [46, 100, 48], [80, 138, 62], [124, 178, 84]],
-      DEAD: [[46, 38, 28], [78, 66, 48], [116, 100, 74], [150, 134, 104]],
-      TRUNK: [78, 56, 36], TRUNK_HI: [124, 96, 64], PALE: [176, 168, 148],
-      ROCK: [[58, 62, 58], [92, 96, 90], [126, 130, 122], [164, 168, 156]],
-      /* ⛔ WATER MUST BE BRIGHT. The first cut ran [26,70,104]→[72,146,176] and the CRT pass
-         crushed it to a brown band nobody could tell from bare earth — 800 blue pixels in a frame
-         where the stream crossed it. A stream in the open reflects the SKY: it is the brightest,
-         bluest thing on the floor. */
-      WATER: [[44, 104, 150], [66, 142, 186], [110, 190, 218]], GLINT: [228, 244, 250],
-      BANK: [40, 70, 40], BANK_WET: [104, 88, 58],
-      FLOWERS: [[232, 84, 104], [242, 222, 96], [226, 228, 242], [164, 122, 224]],
+      /* eight-step ramps, dark end to lit top. Shade is cool, the lit top faintly warm. */
+      /* the RANGE is the read: the dark end stays near black, the lit tops climb, and the mean of the
+         frame still sits low. A canopy with no bright crown tops is mud; one with no black gaps is felt. */
+      LEAF: [[8, 14, 10], [13, 22, 15], [19, 32, 21], [27, 45, 28], [37, 60, 35], [50, 78, 43], [66, 98, 52], [86, 122, 62]],
+      CONIFER: [[4, 10, 10], [8, 17, 16], [13, 26, 23], [18, 36, 30], [25, 47, 39], [34, 60, 48], [46, 76, 58], [62, 96, 70]],
+      ASH: [[11, 18, 12], [18, 28, 18], [26, 41, 25], [37, 56, 34], [50, 74, 43], [64, 94, 52], [82, 116, 62], [104, 140, 74]],
+      DEAD: [[18, 16, 13], [30, 26, 20], [44, 39, 30], [60, 53, 41]],
+      SHADOW: [5, 9, 7],                                           // cast shade: near-black, green-cold
+      DUFF: [[8, 10, 7], [12, 14, 10], [16, 20, 13], [21, 26, 16], [27, 33, 20], [34, 42, 25]],
+      MOSS: [[14, 24, 14], [19, 32, 18], [25, 42, 23], [32, 52, 28]],
+      LITTER: [[30, 24, 16], [44, 35, 22], [60, 48, 30]],           // the odd dry leaf, and never bright
+      ROOT: [[22, 18, 13], [34, 28, 20], [48, 40, 28]],
+      STONE: [[26, 28, 26], [40, 42, 40], [56, 58, 54], [74, 76, 70]],
+      TRUNK: [40, 30, 20], TRUNK_HI: [64, 50, 34], PALE: [88, 84, 74],
+      WATER: [[8, 14, 20], [14, 24, 32], [22, 38, 50]], SHEEN: [44, 68, 84],
+      BANK: [12, 16, 11], BANK_WET: [26, 22, 15],
     },
 
-    /* ---- the tiling floor: lit grass, earth, strokes, pebbles, flowers ---- */
+    /* ---- the tiling floor: shaded duff and moss, deadfall, stone. It shows only in gaps. ---- */
     buildPatch(rnd) {
       const P = FOREST.PATCH, LT = FOREST.LIGHT;
       const cv = mkCv(P, P), c = cv.getContext('2d');
@@ -212,109 +205,126 @@ const Terrain = (typeof document === 'undefined') ? { active: () => false } : ((
       const idx = (x, y) => (((((y | 0) % P) + P) % P) * P + ((((x | 0) % P) + P) % P)) * 4;
       const put = (x, y, col) => { const i = idx(x, y); D[i] = col[0]; D[i + 1] = col[1]; D[i + 2] = col[2]; };
       const shade = (x, y, f) => { const i = idx(x, y); D[i] *= f; D[i + 1] *= f + (1 - f) * 0.25; D[i + 2] *= f; };
-
-      // 1. grass: two octaves + a per-pixel hash, dithered onto the five-step ramp
-      const g1 = noiseField(6, rnd), g2 = noiseField(19, rnd), earthF = noiseField(4, rnd), tuftF = noiseField(9, rnd);
+      // 1. duff: three octaves and a hash, dithered onto the ramp — tooth, no banding
+      const g1 = noiseField(5, rnd), g2 = noiseField(17, rnd), g3 = noiseField(53, rnd);
+      const wet = noiseField(7, rnd), mclump = noiseField(41, rnd);
       let p = 0;
       for (let y = 0; y < P; y++) {
         for (let x = 0; x < P; x++, p += 4) {
           const u = x / P, v = y / P;
-          const t = g1(u, v) * 0.55 + g2(u, v) * 0.30 + h01(x, y, 5) * 0.15;
-          const col = dither(LT.GRASS, t * 1.1 - 0.05, x, y, 13);
+          const t = g1(u, v) * 0.40 + g2(u, v) * 0.30 + g3(u, v) * 0.18 + h01(x, y, 5) * 0.12;
+          const col = dither(LT.DUFF, t * 1.15 - 0.08, x, y, 13);
           D[p] = col[0]; D[p + 1] = col[1]; D[p + 2] = col[2]; D[p + 3] = 255;
         }
       }
-      // 2. bare earth where the grass gives out — a hard threshold with a DITHERED boundary
+      // 2. moss, stippled where it is damp — density fades to nothing, so it has no outline
       for (let y = 0; y < P; y++) {
         for (let x = 0; x < P; x++) {
-          const e = earthF(x / P, y / P) + (h01(x, y, 21) - 0.5) * 0.10;
-          if (e < 0.62) continue;
-          put(x, y, dither(LT.EARTH, 0.25 + (e - 0.62) * 2.2 + (h01(x, y, 23) - 0.5) * 0.4, x, y, 27));
+          const u = x / P, v = y / P, dens = clamp01((wet(u, v) - 0.50) * 3.0);
+          if (dens <= 0) continue;
+          const cl = mclump(u, v);
+          if (h01(x, y, 29) > dens * (0.3 + 0.9 * cl)) continue;
+          put(x, y, dither(LT.MOSS, 0.2 + cl * 0.6 + (h01(x, y, 31) - 0.5) * 0.5, x, y, 33));
         }
       }
-      // 3. grass STROKES — short 2-3px vertical marks, lighter tip, darker root: the pixel-grass tooth
-      for (let i = 0; i < 9000; i++) {
+      // 3. surface roots: few, broad, low-contrast relief
+      for (let i = 0; i < 7; i++) {
+        let x = rnd() * P, y = rnd() * P, a = rnd() * TAU;
+        const steps = 120 + ((rnd() * 220) | 0), w0 = 1.8 + rnd() * 2.4;
+        for (let s = 0; s < steps; s++) {
+          a += (rnd() - 0.5) * 0.12; x += Math.cos(a); y += Math.sin(a);
+          const w = Math.max(1, w0 * (1 - (s / steps) * 0.6)), nx = -Math.sin(a), ny = Math.cos(a), lim = Math.ceil(w) + 1;
+          for (let k = -lim; k <= lim; k++) {
+            const e = k / (w + 0.001), px = Math.round(x + nx * k), py = Math.round(y + ny * k);
+            const face = (k < 0 ? -1 : 1) * (nx * SUN.x + ny * SUN.y);
+            if (Math.abs(e) > 1) { if (face < -0.1 && Math.abs(e) < 2) shade(px, py, 0.7); continue; }
+            put(px, py, dither(LT.ROOT, 0.2 + 0.2 * (1 - e * e) + 0.25 * face, px, py, 37));
+          }
+        }
+      }
+      // 4. twigs and the odd dry leaf: dark objects with a contact shadow, few
+      for (let i = 0; i < 380; i++) {
+        const x = rnd() * P, y = rnd() * P, a = rnd() * TAU, len = 3 + ((rnd() * 9) | 0);
+        const col = ramp(LT.ROOT, 0.3 + rnd() * 0.5);
+        for (let s = 0; s <= len; s++) {
+          const px = x + Math.cos(a) * s, py = y + Math.sin(a) * s;
+          shade(Math.round(px - SUN.x * 1.5), Math.round(py - SUN.y * 1.5), 0.6);
+          put(Math.round(px), Math.round(py), col);
+        }
+      }
+      for (let i = 0; i < 900; i++) {
         const x = (rnd() * P) | 0, y = (rnd() * P) | 0;
-        if (earthF(x / P, y / P) > 0.60) continue;                  // not on bare earth
-        if (rnd() > 0.35 + tuftF(x / P, y / P) * 0.65) continue;   // gathered, not even
-        const len = 2 + ((rnd() * 2) | 0);
-        for (let k = 0; k < len; k++) put(x, y - k, k === len - 1 ? LT.GRASS_HI : k === 0 ? LT.GRASS_LO : ramp(LT.GRASS, 0.75));
+        if (rnd() > Math.pow(clamp01((g1(x / P, y / P) - 0.3) * 1.6), 2)) continue;
+        const col = ramp(LT.LITTER, rnd() < 0.15 ? 0.7 + rnd() * 0.3 : rnd() * 0.5);
+        shade(x + 1, y + 1, 0.7); put(x, y, col); if (rnd() < 0.5) put(x + 1, y, col);
       }
-      // 4. pebbles — lit top, shadow below; rare
-      for (let i = 0; i < 140; i++) {
-        const x = (rnd() * P) | 0, y = (rnd() * P) | 0, s = 1 + ((rnd() * 2) | 0);
-        for (let k = 0; k <= s; k++) shade(x + k, y + s, 0.62);
-        for (let yy = 0; yy < s; yy++) for (let xx = 0; xx <= s; xx++) put(x + xx, y + yy, ramp(LT.ROCK, yy === 0 ? 0.8 : 0.4));
-      }
-      // 5. flowers — in the open grass only, a 2px head with a lighter centre; the floor's hue accents
-      // ⛔ in CLUMPS of one colour, never single scattered heads — one 2px head per colour at play
-      // zoom is a coloured speck the CRT turns into static; three heads together are a plant.
+      // 5. stones: lobed, a lit top and a shadow, rare
       for (let i = 0; i < 70; i++) {
-        const x = (rnd() * P) | 0, y = (rnd() * P) | 0;
-        if (earthF(x / P, y / P) > 0.58 || tuftF(x / P, y / P) < 0.45) continue;
-        const col = LT.FLOWERS[(rnd() * LT.FLOWERS.length) | 0];
-        for (let k = 0, n = 2 + ((rnd() * 3) | 0); k < n; k++) {
-          const fx = (x + (rnd() - 0.5) * 9) | 0, fy = (y + (rnd() - 0.5) * 7) | 0;
-          put(fx, fy, col); put(fx + 1, fy, col); put(fx, fy + 1, col); put(fx + 1, fy + 1, col);
-          put(fx, fy, mix(col, [255, 255, 255], 0.4));
-          put(fx, fy + 2, LT.GRASS_LO);
+        const x = rnd() * P, y = rnd() * P, Rr = 0.9 + Math.pow(rnd(), 2) * 2.4, lim = Math.ceil(Rr) + 2;
+        const m = 3 + ((rnd() * 3) | 0), ph = rnd() * TAU, amp = 0.15 + rnd() * 0.15;
+        for (let pass = 0; pass < 2; pass++) {
+          for (let dy = -lim; dy <= lim; dy++) {
+            for (let dx = -lim; dx <= lim; dx++) {
+              const d = Math.sqrt(dx * dx + dy * dy);
+              if (d > Rr * (1 + amp * Math.sin(Math.atan2(dy, dx) * m + ph))) continue;
+              if (pass) put(Math.round(x + dx), Math.round(y + dy), ramp(LT.STONE, 0.25 + 0.5 * ((dx * SUN.x + dy * SUN.y) / Rr) + (rnd() - 0.5) * 0.25));
+              else shade(Math.round(x + dx - SUN.x * 1.6), Math.round(y + dy - SUN.y * 1.6), 0.6);
+            }
+          }
         }
       }
       c.putImageData(img, 0, 0);
       return cv;
     },
 
-    /* ---- THE CROWN: a lobed silhouette in four flat tones ----
-       `pal` is [shade, mid, light, hi]; `o.teeth` gives a conifer's spiked outline; `o.lobes` the
-       number of sub-domes; `o.shadow` false skips the cast shadow (bushes on the floor). */
+    /* ---- THE CROWN: a lit dome, dithered through an eight-step ramp, roughened by leaf clumps.
+            `o.teeth` = conifer outline; `o.lobes` = sub-domes; `o.boost` shifts the whole ramp. ---- */
     crown(c, cx, cy, R, pal, rnd, opt) {
       const o = opt || {}, LT = FOREST.LIGHT;
       const K = 96, rad = new Float32Array(K);
       if (o.teeth) {
-        const jag = 0.28 + rnd() * 0.12, ph = rnd() * TAU;
+        const jag = 0.26 + rnd() * 0.12, ph = rnd() * TAU;
         for (let i = 0; i < K; i++) {
-          const th = (i / K) * TAU;
-          const saw = Math.abs(((th * o.teeth + ph) / Math.PI) % 2 - 1);
-          rad[i] = R * (1 - jag * saw) * (0.94 + 0.12 * h01(i, o.teeth, 3));
+          const th = (i / K) * TAU, saw = Math.abs(((th * o.teeth + ph) / Math.PI) % 2 - 1);
+          rad[i] = R * (1 - jag * saw) * (0.92 + 0.14 * h01(i, o.teeth, 3));
         }
       } else {
-        const a1 = 0.10 + rnd() * 0.10, a2 = 0.06 + rnd() * 0.08, a3 = 0.03 + rnd() * 0.05;
+        const a1 = 0.08 + rnd() * 0.10, a2 = 0.05 + rnd() * 0.07, a3 = 0.03 + rnd() * 0.05;
         const p1 = rnd() * TAU, p2 = rnd() * TAU, p3 = rnd() * TAU;
-        const m1 = 3 + ((rnd() * 2) | 0), m2 = 5 + ((rnd() * 3) | 0), m3 = 9 + ((rnd() * 5) | 0);
+        const m1 = 3 + ((rnd() * 2) | 0), m2 = 5 + ((rnd() * 3) | 0), m3 = 9 + ((rnd() * 6) | 0);
         for (let i = 0; i < K; i++) {
           const th = (i / K) * TAU;
           rad[i] = R * (1 - a1 - a2 - a3 + a1 * (1 + Math.sin(th * m1 + p1)) + a2 * (1 + Math.sin(th * m2 + p2)) + a3 * (1 + Math.sin(th * m3 + p3)));
         }
       }
       const radAt = th => {
-        const f = ((th % TAU) + TAU) % TAU / TAU * K;
-        const i0 = Math.floor(f) % K, i1 = (i0 + 1) % K, t = f - Math.floor(f);
+        const f = ((th % TAU) + TAU) % TAU / TAU * K, i0 = Math.floor(f) % K, i1 = (i0 + 1) % K, t = f - Math.floor(f);
         return rad[i0] + (rad[i1] - rad[i0]) * t;
       };
-      // sub-lobes: the cauliflower. Each is a small dome; a pixel takes the nearest lobe's height.
       const lobes = [];
-      for (let i = 0, n = o.lobes == null ? 6 + ((rnd() * 5) | 0) : o.lobes; i < n; i++) {
-        const a = rnd() * TAU, d = Math.pow(rnd(), 0.6) * R * 0.72;
-        lobes.push([cx + Math.cos(a) * d, cy + Math.sin(a) * d, R * (0.28 + rnd() * 0.30)]);
+      for (let i = 0, n = o.lobes == null ? 5 + ((rnd() * 5) | 0) : o.lobes; i < n; i++) {
+        const a = rnd() * TAU, d = Math.pow(rnd(), 0.6) * R * 0.7;
+        lobes.push([cx + Math.cos(a) * d, cy + Math.sin(a) * d, R * (0.3 + rnd() * 0.32)]);
       }
-      const B = Math.ceil(R * 1.35) + 3;
-      // 1. the cast shadow: the silhouette dragged down-sun, opaque, edge dithered away
+      const leaf = noiseField(7, rnd);                       // per-crown clump texture
+      const B = Math.ceil(R * 1.4) + 3, S = R * 2.2;
+      // 1. cast shadow, opaque, down-sun, ragged edge — this is the dark gap between crowns
       if (o.shadow !== false) {
-        const ox = -SUN.x * R * 0.36, oy = -SUN.y * R * 0.42;
+        const ox = -SUN.x * R * 0.34, oy = -SUN.y * R * 0.40;
         c.fillStyle = rgb(LT.SHADOW);
         for (let y = -B; y <= B; y++) {
           for (let x = -B; x <= B; x++) {
-            const d = Math.hypot(x - ox, y - oy), e = radAt(Math.atan2(y - oy, x - ox)) * 0.98;
+            const d = Math.hypot(x - ox, y - oy), e = radAt(Math.atan2(y - oy, x - ox)) * 1.02;
             if (d > e) continue;
-            if (d > e - 2.5 && h01(x, y, 41) > 0.45) continue;   // ragged edge, never a hard disc
+            if (d > e - 3 && h01(x, y, 41) > 0.4) continue;
             c.fillRect(Math.round(cx + x), Math.round(cy + y), 1, 1);
           }
         }
       }
-      // 2. the crown: four flat tones from dome + sun + the nearest sub-lobe
+      // 2. the dome, dithered through the ramp
       for (let y = -B; y <= B; y++) {
         for (let x = -B; x <= B; x++) {
-          const d = Math.hypot(x, y), e = radAt(Math.atan2(y, x));
+          const d = Math.hypot(x, y), e = radAt(Math.atan2(y, x)) * (1 + (h01(x, y, 43) - 0.5) * 0.12);   // rough outline
           if (d > e) continue;
           const k = d / e, dome = Math.sqrt(Math.max(0, 1 - k * k));
           const side = (x * SUN.x + y * SUN.y) / R;                 // +1 toward the sun (up-left)
@@ -323,21 +333,12 @@ const Terrain = (typeof document === 'undefined') ? { active: () => false } : ((
             const dd = Math.hypot(cx + x - lx, cy + y - ly) / lr;
             if (dd < 1) { const hgt = Math.sqrt(1 - dd * dd); if (hgt > lobe) { lobe = hgt; lobeSide = ((cx + x - lx) * SUN.x + (cy + y - ly) * SUN.y) / lr; } }
           }
-          let lit = 0.30 + 0.30 * dome + 0.42 * side + 0.22 * lobe + 0.26 * lobeSide + (o.boost || 0);
-          lit += (h01(x, y, 47) - 0.5) * 0.10;                      // a whisper of tooth in the bands
-          const step = lit < 0.30 ? 0 : lit < 0.55 ? 1 : lit < 0.80 ? 2 : 3;
-          c.fillStyle = rgb(pal[step]);
+          const clump = leaf((x + R) / S, (y + R) / S);
+          let lit = 0.08 + 0.42 * dome + 0.40 * side + 0.16 * lobe + 0.20 * lobeSide + (clump - 0.5) * 0.30 + (o.boost || 0);
+          if (side < -0.35) lit -= 0.14;                             // the crown's own shade on its far side
+          c.fillStyle = rgb(dither(pal, lit, Math.round(cx + x), Math.round(cy + y), 47));
           c.fillRect(Math.round(cx + x), Math.round(cy + y), 1, 1);
         }
-      }
-      // 3. the down-sun rim: one pixel of the deepest tone just inside the outline, so the crown
-      //    separates from whatever its shadow does not cover
-      c.fillStyle = rgb(pal[0]);
-      for (let i = 0; i < K; i++) {
-        const th = (i / K) * TAU, facing = Math.cos(th) * SUN.x + Math.sin(th) * SUN.y;
-        if (facing > -0.15) continue;
-        const r = rad[i] - 0.8;
-        c.fillRect(Math.round(cx + Math.cos(th) * r), Math.round(cy + Math.sin(th) * r), 1, 1);
       }
     },
 
@@ -348,134 +349,118 @@ const Terrain = (typeof document === 'undefined') ? { active: () => false } : ((
       const add = (kind, cv, ox, oy, R) => out.push({ kind, cv: hardEdge(cv), ox, oy, R });
       const sprite = (R, mult) => { const S = Math.ceil(R * (mult || 3.2)), cv = mkCv(S, S); return [cv, cv.getContext('2d'), S / 2]; };
 
-      // BROADLEAF — the money silhouette. Seven variants across a third of the ramp.
-      for (let v = 0; v < 7; v++) {
-        const R = 16 + Math.round(rnd() * 22), [cv, c, m] = sprite(R);
-        FOREST.crown(c, m, m, R, LT.CROWN, rnd, { boost: -0.10 + v * 0.03 });
+      // BROADLEAF — nine variants across a third of the ramp, the bulk of the canopy
+      for (let v = 0; v < 9; v++) {
+        const R = 9 + Math.round(rnd() * 15), [cv, c, m] = sprite(R);
+        FOREST.crown(c, m, m, R, LT.LEAF, rnd, { boost: -0.10 + v * 0.02 });          // ordered dark -> lit
         add('tree', cv, m, m, R);
       }
-      // EMERGENTS — a few giants, so the canopy has a size hierarchy
+      // EMERGENTS — the giants that stand above the canopy and catch the most light
       for (let v = 0; v < 3; v++) {
-        const R = 42 + Math.round(rnd() * 14), [cv, c, m] = sprite(R, 3.0);
-        FOREST.crown(c, m, m, R, LT.CROWN, rnd, { boost: 0.06, lobes: 11 });
+        const R = 26 + Math.round(rnd() * 10), [cv, c, m] = sprite(R, 3.0);
+        FOREST.crown(c, m, m, R, LT.LEAF, rnd, { boost: 0.02 + v * 0.03, lobes: 10 });
         add('emergent', cv, m, m, R);
       }
-      // CONIFER — spiked outline, cool ramp, lit apex
-      for (let v = 0; v < 5; v++) {
-        const R = 14 + Math.round(rnd() * 18), [cv, c, m] = sprite(R, 3.0);
-        FOREST.crown(c, m, m, R, LT.CONIFER, rnd, { teeth: 11 + ((rnd() * 6) | 0), lobes: 4, boost: -0.04 + v * 0.02 });
-        c.fillStyle = rgb(LT.CONIFER[3]); c.fillRect(Math.round(m - R * 0.06) - 1, Math.round(m - R * 0.06) - 1, 2, 2);
+      // CONIFER — spiked, near-black blue-green; they gather in stands
+      for (let v = 0; v < 6; v++) {
+        const R = 7 + Math.round(rnd() * 10), [cv, c, m] = sprite(R, 3.0);
+        FOREST.crown(c, m, m, R, LT.CONIFER, rnd, { teeth: 9 + ((rnd() * 6) | 0), lobes: 3, boost: -0.06 + v * 0.025 });
         add('conifer', cv, m, m, R);
       }
-      // AUTUMN — the warm crown, one in eight trees
+      // ASH — the paler crown, one in ten, the only lift in the canopy
       for (let v = 0; v < 4; v++) {
-        const R = 16 + Math.round(rnd() * 16), [cv, c, m] = sprite(R);
-        FOREST.crown(c, m, m, R, LT.AUTUMN, rnd, { boost: v * 0.03 });
-        add('autumn', cv, m, m, R);
+        const R = 8 + Math.round(rnd() * 10), [cv, c, m] = sprite(R);
+        FOREST.crown(c, m, m, R, LT.ASH, rnd, { boost: -0.04 + v * 0.03 });
+        add('ash', cv, m, m, R);
       }
-      // BIRCH — pale, open, the trunk showing straight down the middle
-      for (let v = 0; v < 4; v++) {
-        const R = 14 + Math.round(rnd() * 10), [cv, c, m] = sprite(R);
-        FOREST.crown(c, m, m, R, LT.BIRCH, rnd, { lobes: 5, boost: 0.04 });
-        c.fillStyle = rgb(LT.PALE); c.fillRect(Math.round(m) - 1, Math.round(m) - 1, 3, 3);
-        c.fillStyle = rgb(LT.TRUNK); c.fillRect(Math.round(m) + 1, Math.round(m) + 1, 1, 1);
-        add('birch', cv, m, m, R);
-      }
-      // SNAG — a dead tree: bare forking limbs and a long shadow, bone-pale against the green
+      // SNAG — bare forking limbs, long shadow, the pale dead wood
       for (let v = 0; v < 3; v++) {
-        const R = 12 + Math.round(rnd() * 9), [cv, c, m] = sprite(R, 3.0);
+        const R = 9 + Math.round(rnd() * 7), [cv, c, m] = sprite(R, 3.0);
         const limbs = [];
         for (let i = 0, n = 5 + ((rnd() * 4) | 0); i < n; i++) limbs.push({ a: (i / n) * TAU + rnd() * 0.6, len: R * (0.55 + 0.45 * rnd()), fork: rnd() < 0.6 });
-        const drawLimbs = (ox, oy, style, wmul) => {
+        const drawLimbs = (ox, oy, style) => {
           c.strokeStyle = style; c.lineCap = 'butt';
           for (const L of limbs) {
-            c.lineWidth = Math.max(1.5, R * 0.11 * wmul);
+            c.lineWidth = Math.max(1.4, R * 0.11);
             c.beginPath(); c.moveTo(ox, oy); c.lineTo(ox + Math.cos(L.a) * L.len, oy + Math.sin(L.a) * L.len); c.stroke();
             if (!L.fork) continue;
-            c.lineWidth = Math.max(1, R * 0.06 * wmul);
+            c.lineWidth = Math.max(1, R * 0.06);
             for (const s of [-1, 1]) {
               const bx = ox + Math.cos(L.a) * L.len * 0.62, by = oy + Math.sin(L.a) * L.len * 0.62;
               c.beginPath(); c.moveTo(bx, by); c.lineTo(bx + Math.cos(L.a + s * 0.7) * L.len * 0.38, by + Math.sin(L.a + s * 0.7) * L.len * 0.38); c.stroke();
             }
           }
         };
-        drawLimbs(m - SUN.x * R * 0.5, m - SUN.y * R * 0.55, rgb(LT.SHADOW), 1);
-        drawLimbs(m, m, rgb(LT.DEAD[2]), 1);
-        c.fillStyle = rgb(LT.DEAD[3]); c.fillRect(Math.round(m) - 1, Math.round(m) - 1, 3, 3);
+        drawLimbs(m - SUN.x * R * 0.5, m - SUN.y * R * 0.55, rgb(LT.SHADOW));
+        drawLimbs(m, m, rgb(LT.DEAD[2]));
+        c.fillStyle = rgb(LT.DEAD[3]); c.fillRect(Math.round(m) - 1, Math.round(m) - 1, 2, 2);
         add('snag', cv, m, m, R);
       }
-      // BUSHES — small crowns on the floor, no cast shadow of their own worth drawing
+      // UNDERSTORY — small dark crowns in the gaps (saplings, hazel, holly)
       for (let v = 0; v < 5; v++) {
-        const R = 5 + Math.round(rnd() * 5), [cv, c, m] = sprite(R, 3.4);
-        FOREST.crown(c, m, m, R, LT.BUSH, rnd, { lobes: 4, shadow: v > 1 });
+        const R = 4 + Math.round(rnd() * 4), [cv, c, m] = sprite(R, 3.4);
+        FOREST.crown(c, m, m, R, LT.CONIFER, rnd, { lobes: 3, boost: -0.06, shadow: v > 2 });
         add('bush', cv, m, m, R);
       }
-      // FERNS — a rosette of arcing fronds in two tones, tapered
+      // FERNS — dark rosettes of arcing fronds
       for (let v = 0; v < 4; v++) {
-        const R = 6 + Math.round(rnd() * 5), [cv, c, m] = sprite(R, 3.2);
+        const R = 5 + Math.round(rnd() * 4), [cv, c, m] = sprite(R, 3.2);
         for (let i = 0, n = 6 + ((rnd() * 4) | 0); i < n; i++) {
           const a0 = rnd() * TAU, len = R * (0.65 + 0.35 * rnd()), bow = (rnd() < 0.5 ? -1 : 1) * (0.3 + rnd() * 0.4);
-          const lit = (Math.cos(a0) * SUN.x + Math.sin(a0) * SUN.y) > 0 ? 2 : 1;
+          const lit = 0.25 + 0.35 * clamp01(0.5 + (Math.cos(a0) * SUN.x + Math.sin(a0) * SUN.y) * 0.5);
           for (let s = 0; s <= len; s += 0.6) {
-            const t = s / len, a = a0 + bow * t * t, wid = t < 0.7 ? 1 : 0;
-            c.fillStyle = rgb(LT.BUSH[lit]);
-            c.fillRect(Math.round(m + Math.cos(a) * s), Math.round(m + Math.sin(a) * s), 1 + wid, 1);
+            const t = s / len, a = a0 + bow * t * t;
+            c.fillStyle = rgb(ramp(LT.LEAF, lit + 0.15 * t));
+            c.fillRect(Math.round(m + Math.cos(a) * s), Math.round(m + Math.sin(a) * s), 1 + (t < 0.7 ? 1 : 0), 1);
           }
         }
         add('fern', cv, m, m, R);
       }
-      // LOGS — a lit top flank, a shaded side, the pale end grain, a hard shadow
+      // LOGS — dark bark, a lit flank, moss, the pale end grain
       for (let v = 0; v < 4; v++) {
-        const len = 26 + Math.round(rnd() * 30), rad = 3 + Math.round(rnd() * 2), ang = rnd() * Math.PI;
+        const len = 24 + Math.round(rnd() * 28), rad = 2 + Math.round(rnd() * 2), ang = rnd() * Math.PI;
         const S = Math.ceil(len * 1.5), cv = mkCv(S, S), c = cv.getContext('2d'), m = S / 2;
         c.save(); c.translate(m, m); c.rotate(ang);
-        c.fillStyle = rgb(LT.SHADOW); c.fillRect(-len / 2 + 3, -rad + 3, len, rad * 2);
+        c.fillStyle = rgb(LT.SHADOW); c.fillRect(-len / 2 + 2, -rad + 2, len, rad * 2);
         c.fillStyle = rgb(LT.TRUNK); c.fillRect(-len / 2, -rad, len, rad * 2);
-        c.fillStyle = rgb(LT.TRUNK_HI); c.fillRect(-len / 2, -rad, len, Math.max(1, rad));
+        c.fillStyle = rgb(LT.TRUNK_HI); c.fillRect(-len / 2, -rad, len, Math.max(1, rad - 1));
         c.fillStyle = rgb(LT.PALE); c.fillRect(-len / 2 - 1, -rad, 2, rad * 2);
-        for (let i = 0; i < len * 0.4; i++) { c.fillStyle = rgb(LT.BUSH[1]); c.fillRect(Math.round(-len / 2 + rnd() * len), Math.round(-rad + rnd() * rad * 0.9), 1 + ((rnd() * 2) | 0), 1); }
+        for (let i = 0; i < len * 0.5; i++) { c.fillStyle = rgb(LT.MOSS[1 + ((rnd() * 3) | 0)]); c.fillRect(Math.round(-len / 2 + rnd() * len), Math.round(-rad + rnd() * rad), 1 + ((rnd() * 2) | 0), 1); }
         c.restore();
         add('log', cv, m, m, len / 2);
       }
-      // STUMPS — the one man-made mark: a pale disc with rings
+      // STUMPS — the one man-made mark
       for (let v = 0; v < 2; v++) {
-        const R = 5 + Math.round(rnd() * 3), [cv, c, m] = sprite(R, 4);
+        const R = 4 + Math.round(rnd() * 3), [cv, c, m] = sprite(R, 4);
         c.fillStyle = rgb(LT.SHADOW); c.beginPath(); c.ellipse(m - SUN.x * R * 0.4, m - SUN.y * R * 0.4, R * 1.05, R * 0.9, 0, 0, TAU); c.fill();
         c.fillStyle = rgb(LT.TRUNK); c.beginPath(); c.arc(m, m, R, 0, TAU); c.fill();
-        c.fillStyle = rgb(LT.PALE); c.beginPath(); c.arc(m, m, R * 0.8, 0, TAU); c.fill();
-        c.strokeStyle = rgb(LT.TRUNK_HI); c.lineWidth = 1;
-        for (let k = 1; k <= 2; k++) { c.beginPath(); c.arc(m, m, R * 0.8 * (k / 3), 0, TAU); c.stroke(); }
+        c.fillStyle = rgb(LT.PALE); c.beginPath(); c.arc(m, m, R * 0.75, 0, TAU); c.fill();
+        c.strokeStyle = rgb(LT.TRUNK_HI); c.lineWidth = 1; c.beginPath(); c.arc(m, m, R * 0.4, 0, TAU); c.stroke();
         add('stump', cv, m, m, R);
       }
-      // BOULDERS — faceted, cool grey, with a moss cap and a hard shadow
+      // BOULDERS — faceted, cool grey, mossed, hard shadow
       for (let v = 0; v < 4; v++) {
-        const R = 7 + Math.round(rnd() * 8), [cv, c, m] = sprite(R, 3.2);
+        const R = 6 + Math.round(rnd() * 7), [cv, c, m] = sprite(R, 3.2);
         c.fillStyle = rgb(LT.SHADOW); c.beginPath(); c.ellipse(m - SUN.x * R * 0.45, m - SUN.y * R * 0.5, R * 0.95, R * 0.66, 0, 0, TAU); c.fill();
         const NF = 7, vr = [];
         for (let i = 0; i < NF; i++) vr.push(R * (0.78 + 0.30 * h01(i, v, 17)));
         for (let i = 0; i < NF; i++) {
           const a0 = (i / NF) * TAU, a1 = ((i + 1) / NF) * TAU, am = (a0 + a1) / 2;
-          const face = Math.cos(am) * SUN.x + Math.sin(am) * SUN.y;
-          c.fillStyle = rgb(ramp(LT.ROCK, 0.35 + 0.5 * face));
+          c.fillStyle = rgb(ramp(LT.STONE, 0.3 + 0.5 * (Math.cos(am) * SUN.x + Math.sin(am) * SUN.y)));
           c.beginPath();
           c.moveTo(m + Math.cos(am) * R * 0.12, m + Math.sin(am) * R * 0.12);
           c.lineTo(m + Math.cos(a0) * vr[i], m + Math.sin(a0) * vr[i]);
           c.lineTo(m + Math.cos(a1) * vr[(i + 1) % NF], m + Math.sin(a1) * vr[(i + 1) % NF]);
           c.closePath(); c.fill();
         }
-        c.fillStyle = rgb(LT.ROCK[3]);
-        c.beginPath();
-        for (let i = 0; i < NF; i++) { const a = (i / NF) * TAU, r = vr[i] * 0.34; const x = m + SUN.x * R * 0.16 + Math.cos(a) * r, y = m + SUN.y * R * 0.16 + Math.sin(a) * r; i ? c.lineTo(x, y) : c.moveTo(x, y); }
-        c.closePath(); c.fill();
-        for (let i = 0, n = Math.round(R * R * 0.25); i < n; i++) { const a = rnd() * TAU, d = R * Math.pow(rnd(), 0.7) * 0.7; c.fillStyle = rgb(LT.BUSH[1 + ((rnd() * 2) | 0)]); c.fillRect(Math.round(m + Math.cos(a) * d + SUN.x * R * 0.2), Math.round(m + Math.sin(a) * d + SUN.y * R * 0.2), 1, 1); }
+        for (let i = 0, n = Math.round(R * R * 0.3); i < n; i++) { const a = rnd() * TAU, d = R * Math.pow(rnd(), 0.7) * 0.7; c.fillStyle = rgb(LT.MOSS[1 + ((rnd() * 3) | 0)]); c.fillRect(Math.round(m + Math.cos(a) * d + SUN.x * R * 0.2), Math.round(m + Math.sin(a) * d + SUN.y * R * 0.2), 1, 1); }
         add('rock', cv, m, m, R);
       }
       return out;
     },
 
-    /* ---- THE STREAM: chained segments (the moon's ridge trick) — each carries its channel through
-            the vertical centre at both edges, at a START level and an END level from {-1,0,+1}, so
-            the placer's per-column hash makes the lane wander with no discontinuity anywhere. ---- */
+    /* ---- THE RIVER: chained segments carrying a near-black channel through their centre at
+            START/END levels from {-1,0,+1}, so the placer's per-column hash makes it wander. ---- */
     buildRidges(rnd) {
       const LT = FOREST.LIGHT, ST = FOREST.STREAM, W = ST.W, H = ST.H, STEP = H * 0.16, out = [];
       for (let a = -1; a <= 1; a++) {
@@ -484,23 +469,23 @@ const Terrain = (typeof document === 'undefined') ? { active: () => false } : ((
           const img = c.createImageData(W, H), D = img.data;
           const put = (x, y, col) => { if (x < 0 || x >= W || y < 0 || y >= H) return; const i = (y * W + x) * 4; D[i] = col[0]; D[i + 1] = col[1]; D[i + 2] = col[2]; D[i + 3] = 255; };
           const bulge = (H * 0.08) * (rnd() - 0.5) * 2, wob = rnd() * TAU;
-          const halfW = 13;                                  // SHARED: width must match at the joins
+          const halfW = 14;                                  // SHARED: width must match at the joins
           for (let x = 0; x < W; x++) {
             const u = x / W, s = u * u * (3 - 2 * u);
             const centre = H / 2 + (a * STEP) + (b - a) * STEP * s + bulge * Math.sin(u * Math.PI) * (0.7 + 0.3 * Math.sin(u * Math.PI * 3 + wob));
             const wdt = halfW * (0.72 + 0.28 * Math.sin(u * Math.PI * 2 + 1.3)) + (h01(x >> 2, a * 3 + b, 61) - 0.5) * 3;
             const cy = Math.round(centre);
-            for (let k = -Math.ceil(wdt) - 3; k <= Math.ceil(wdt) + 3; k++) {
+            for (let k = -Math.ceil(wdt) - 4; k <= Math.ceil(wdt) + 4; k++) {
               const y = cy + k, t = Math.abs(k) / wdt;
-              if (t > 1) {                                       // the banks: wet earth, then a dark grass lip
-                if (t < 1 + 1.6 / wdt) put(x, y, LT.BANK_WET);
-                else if (t < 1 + 3.2 / wdt && h01(x, y, 63) > 0.35) put(x, y, LT.BANK);
+              if (t > 1) {                                       // banks: wet earth, then a dark lip
+                if (t < 1 + 2 / wdt) put(x, y, LT.BANK_WET);
+                else if (t < 1 + 4 / wdt && h01(x, y, 63) > 0.3) put(x, y, LT.BANK);
                 continue;
               }
-              let col = t < 0.45 ? LT.WATER[0] : t < 0.8 ? LT.WATER[1] : LT.WATER[2];
-              // ripple lines along the flow: light dashes on a few rows, glints on the near bank
-              if (t > 0.15 && t < 0.8 && ((k + 100) % 3 === 0) && ((x + k * 7) % 10) < 6) col = LT.WATER[2];
-              if (t < 0.85 && h01(x, y, 67) > 0.955) col = LT.GLINT;
+              let col = t < 0.5 ? LT.WATER[0] : t < 0.85 ? LT.WATER[1] : LT.WATER[2];
+              // the faintest sheen along the flow, and almost no glints — black water
+              if (t > 0.15 && t < 0.75 && ((k + 100) % 3 === 0) && ((x + k * 7) % 12) < 7) col = LT.WATER[2];
+              if (t < 0.7 && h01(x, y, 67) > 0.975) col = LT.SHEEN;
               put(x, y, col);
             }
           }
@@ -511,27 +496,17 @@ const Terrain = (typeof document === 'undefined') ? { active: () => false } : ((
       return out;
     },
 
-    /* ---- WHERE THINGS GROW ----
-       Pure function of the cell coordinate: the wood is infinite, identical on every visit, and
-       stored nowhere. The station stands in a CLEARING with a thickened rim. */
+    /* ---- WHERE THINGS GROW — a pure function of the cell, infinite and stored nowhere ---- */
     place(push, x0, y0, x1, y1, clr, scale, pools) {
       const C = FOREST.CELL, ST = FOREST.STREAM;
-      // the stream first (z = -1 paints under everything). A lane is skipped where it would run
-      // through the clearing — water under the floor plan is a drawing laid over a picture.
       const ridges = pools.ridge;
       if (ridges && ridges.length) {
-        const W = ridges[0].W || ST.W, H = ridges[0].H || ST.H, LANE = ST.LANE;
+        const W = ridges[0].W || ST.W, LANE = ST.LANE, HALF = 100;
         const level = (lane, sx) => ((h01(sx, lane, 94) * 3) | 0) - 1;
-        /* ⛔ THE FIRST CUT DROPPED ANY LANE NEAR THE PAD, using the sprite's full half-height (160)
-           as the test — so with the station's seed no stream ever fell in view at any zoom. The
-           channel really reaches ~100px from its lane line; lane 0 (the station's own) always
-           runs; and a lane that would cross the pad is SHOVED just clear of it instead of dropped,
-           so the stream hugs the clearing — right where the eye is. */
-        const HALF = 100;
         for (let lane = Math.floor(y0 / LANE) - 1; lane <= Math.ceil(y1 / LANE); lane++) {
-          if (lane !== 0 && h01(lane, 0, 91) > ST.P) continue;
+          if (lane !== 0 && h01(lane, 0, 91) > ST.P) continue;   // lane 0 always runs: the station's own river
           let laneY = lane * LANE + h01(lane, 1, 92) * LANE * 0.8;
-          if (clr) {
+          if (clr) {   // never through the pad — shove the lane just clear of it, so it hugs the clearing
             const top = clr.y - C * 0.5 - HALF, bot = clr.y + clr.h + C * 0.5 + HALF;
             if (laneY > top && laneY < bot) laneY = (laneY - top < bot - laneY) ? top : bot;
           }
@@ -546,31 +521,38 @@ const Terrain = (typeof document === 'undefined') ? { active: () => false } : ((
       for (let cy = cy0; cy <= cy1; cy++) {
         for (let cx = cx0; cx <= cx1; cx++) {
           const wx0 = cx * C, wy0 = cy * C;
-          // THE FIELD: two octaves decide groves, glades and edges — wavelengths well under a screen
-          const dens = vnoise(wx0 / 380, wy0 / 380, 3) * 0.60 + vnoise(wx0 / 150, wy0 / 150, 11) * 0.40;
+          /* THE FIELD: where the canopy is closed and where it opens. Old growth from above is
+             MOSTLY CROWN — most cells carry two or three — with real glades cut by the low octave
+             and conifer STANDS where the second field runs cold. */
+          const dens = vnoise(wx0 / 420, wy0 / 420, 3) * 0.55 + vnoise(wx0 / 160, wy0 / 160, 11) * 0.45;
+          const cold = vnoise(wx0 / 300, wy0 / 300, 7);
           const edgeBoost = clr ? nearClearing(clr, wx0, wy0, C) : 0;
           const inClearing = clr && wx0 + C > clr.x && wx0 < clr.x + clr.w && wy0 + C > clr.y && wy0 < clr.y + clr.h;
-          // canopy coverage: open woodland — groves are dense, glades are real, the rim is thick
-          const want = dens * 0.95 + edgeBoost * 0.5;
-          const nTree = want > 0.30 ? (h01(cx, cy, 1) < 0.25 + want * 0.7 ? (h01(cx, cy, 2) < want * 0.45 ? 2 : 1) : 0) : 0;
+          const want = dens * 1.1 + edgeBoost * 0.4;
+          const nTree = want > 0.42 ? (h01(cx, cy, 1) < 0.55 + want * 0.5 ? (h01(cx, cy, 2) < want * 0.7 ? 3 : 2) : 1) : (want > 0.30 && h01(cx, cy, 1) < 0.35 ? 1 : 0);
           for (let k = 0; k < nTree; k++) {
             const wx = wx0 + h01(cx, cy, 20 + k) * C, wy = wy0 + h01(cx, cy, 30 + k) * C;
             if (clr && wx > clr.x && wx < clr.x + clr.w && wy > clr.y && wy < clr.y + clr.h) continue;
             const pick = h01(cx, cy, 40 + k);
-            const pool = pick < 0.06 ? 'emergent' : pick < 0.50 ? 'tree' : pick < 0.74 ? 'conifer' : pick < 0.86 ? 'autumn' : pick < 0.95 ? 'birch' : 'snag';
+            const conif = cold > 0.58 ? 0.75 : 0.18;                 // stands, not a sprinkle
+            const pool = pick < 0.03 ? 'emergent' : pick < 0.03 + conif ? 'conifer' : pick < 0.13 + conif ? 'ash' : pick < 0.142 + conif ? 'snag' : 'tree';
             const arr = pools[pool] || pools.tree;
             if (!arr || !arr.length) continue;
-            push(arr[(h01(cx, cy, 50 + k) * arr.length) | 0], wx, wy);
+            /* THE LIGHT FIELD: a slow noise decides which variant a cell gets — every pool's variants
+               run dark -> lit, so whole hillsides of canopy read brighter or deeper. That large-scale
+               light and shade is what a map of a forest actually shows; even brightness is felt. */
+            const light = clamp01(vnoise(wx / 700, wy / 700, 17) * 0.7 + vnoise(wx / 240, wy / 240, 19) * 0.3 + (h01(cx, cy, 50 + k) - 0.5) * 0.35);
+            push(arr[Math.min(arr.length - 1, (light * arr.length) | 0)], wx, wy);
           }
           if (!clutter) continue;
-          // undergrowth lives in the light: bushes and ferns where the canopy opens, logs and rocks rare
-          const open = clamp01(1 - dens * 1.3) + edgeBoost * 0.9;
-          const nSmall = inClearing ? 0 : Math.round(open * 2.6 * (0.35 + h01(cx, cy, 5)));
+          // undergrowth in the gaps: dark understory, ferns, deadfall, stone — nothing bright
+          const open = clamp01(1 - dens * 1.4) + edgeBoost * 0.8;
+          const nSmall = inClearing ? 0 : Math.round(open * 2.4 * (0.3 + h01(cx, cy, 5)));
           for (let k = 0; k < nSmall; k++) {
             const wx = wx0 + h01(cx, cy, 60 + k) * C, wy = wy0 + h01(cx, cy, 70 + k) * C;
             if (clr && wx > clr.x && wx < clr.x + clr.w && wy > clr.y && wy < clr.y + clr.h) continue;
             const pick = h01(cx, cy, 80 + k);
-            const pool = pick < 0.34 ? 'bush' : pick < 0.58 ? 'fern' : pick < 0.74 ? 'log' : pick < 0.88 ? 'rock' : 'stump';
+            const pool = pick < 0.36 ? 'bush' : pick < 0.60 ? 'fern' : pick < 0.76 ? 'log' : pick < 0.92 ? 'rock' : 'stump';
             const arr = pools[pool];
             if (!arr || !arr.length) continue;
             push(arr[(h01(cx, cy, 90 + k) * arr.length) | 0], wx, wy);
