@@ -1,6 +1,6 @@
 {
   "schema": "starnet.release-closeout-evidence.v1",
-  "generatedAt": "2026-09-10T22:40:09.505Z",
+  "generatedAt": "2026-09-10T22:44:24.543Z",
   "runtimeCandidate": "afd1da77fb4a489151b45b5a6c53e60ada4ca1f4",
   "officialVersion": "0.11.1",
   "canaryOverlayVersion": "0.11.2",
@@ -179,6 +179,28 @@
       "source": "qa/installed/smoke-2026-09-10T22-28-23-705Z/probe.json",
       "bytes": 2225,
       "sha256": "ec9188d09b172374865ebd3b15d6177dcedc650e5c2a0376af03507d56a88d24"
+    },
+    {
+      "path": "postmerge-fast.log",
+      "source": ".dogfood/release-0112-closeout/postmerge-fast.log",
+      "bytes": 52733,
+      "sha256": "6b9c9bd28a9512ea84827ceeb6e2ea190191c613a7e29d86ac55f5fc8a25b475",
+      "sourceSha256": "74589ce8836b333eda18a8c600d70744c610f1cdae3ab6196384c546595c8f8f",
+      "normalization": "CRLF to LF"
+    },
+    {
+      "path": "postmerge-http.log",
+      "source": ".dogfood/release-0112-closeout/postmerge-http.log",
+      "bytes": 11326,
+      "sha256": "1617696d003e96b83a0ab7e68802ad5069bf7058c164f39260f2edcbce48557e",
+      "sourceSha256": "4e5b5fa0c6479388d24d4e0894727c05068cac4e06bbb8bd303c41f8dfdaa0c5",
+      "normalization": "CRLF to LF"
+    },
+    {
+      "path": "postmerge.json",
+      "source": ".dogfood/release-0112-closeout/postmerge.json",
+      "bytes": 1271,
+      "sha256": "9190ccf3d6bddb82a110119797b3469405538d43e5dc0dfa0b42cbc753a5ea03"
     }
   ],
   "notes": "Portable retired-soak JSON uses LF line endings; installed-smoke evidence path is relocated to this tracked pack. Source receipts remain unchanged in the raw evidence directory."

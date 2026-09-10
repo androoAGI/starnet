@@ -1,0 +1,35 @@
+{
+  "at": "2026-09-10T22:44:24.515Z",
+  "previousTrunk": "b90d9e45dea7d9c6ecdde0b960da5b3d559b3122",
+  "testedTrunk": "afd1da77fb4a489151b45b5a6c53e60ada4ca1f4",
+  "fast": {
+    "exitCode": 0,
+    "passed": 770,
+    "total": 770,
+    "log": "postmerge-fast.log"
+  },
+  "http": {
+    "exitCode": 0,
+    "passed": 111,
+    "total": 111,
+    "log": "postmerge-http.log"
+  },
+  "preexistingIntegrationFiles": [
+    {
+      "path": "docs/NEXT.md",
+      "sha256": "79444b60ea39ebb2857c3f48d2a938597d021fe00d08853500beccedb090a042",
+      "currentSha256": "79444b60ea39ebb2857c3f48d2a938597d021fe00d08853500beccedb090a042"
+    },
+    {
+      "path": "qa/STATUS.md",
+      "sha256": "09512ffc56adbd565341a24600bb031190d73d0224d53c4550beeae564af453d",
+      "currentSha256": "09512ffc56adbd565341a24600bb031190d73d0224d53c4550beeae564af453d"
+    },
+    {
+      "path": "docs/HANDOFF_ROOMS_2026-09-04.md",
+      "sha256": "b4c7d97fa5ffa294aadf42b3d16c0c1d370522b2e057fe577d8df1b090baf853",
+      "currentSha256": "b4c7d97fa5ffa294aadf42b3d16c0c1d370522b2e057fe577d8df1b090baf853"
+    }
+  ],
+  "scope": "Commands ran in the integration tree after runtime fast-forward. Later commits only record docs, bug verdicts and evidence; these are not relabeled installer build receipts."
+}

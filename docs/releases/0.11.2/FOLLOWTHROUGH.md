@@ -40,6 +40,8 @@ Portable receipts and their hashes are collected in [closeout evidence](../../..
 
 The four historical integration detector observations were reconciled individually after the same scenarios passed on the integrated candidate: the full fast detector completed without timeout, `build-connectors` opened, and both panel-close backend-idle/provider-stream-closed assertions passed. Their original JSON records and failure paths remain in [the reconciliation receipt](../../../qa/evidence/0.11.2-merge-audit/closeout/detector-reconciliation.json). This records current recovery, not an invented diagnosis of the original transient failures. The seven customer P1s remain open.
 
+After the runtime merge, the commands ran again in the integration tree and passed **770/770 fast steps** and **111/111 HTTP steps**, both exit 0. [Post-merge receipt](../../../qa/evidence/0.11.2-merge-audit/closeout/postmerge.json) records the exact tested source. Subsequent commits contain only documentation, bug verdicts and evidence. Other agents' pre-existing `docs/NEXT.md`, `qa/STATUS.md` and handoff edits were preserved; they were not staged with this lane.
+
 ## Still required before cutting
 
 1. Complete and inspect the **720-minute source soak**. Its expected finish is September 11 around 10:15 UTC (06:15 EDT), assuming uninterrupted execution. The full gate and short/scale checks above are complete. Complete the separate installed/attended acceptance required by the release runbook; elapsed source soak time cannot substitute for it.
