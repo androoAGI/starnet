@@ -98,7 +98,11 @@
   function seat(w, s, animate = false, measuredBand) {
     if (!w.isConnected || w._closing || s.exiting || w.classList.contains('term-min-hidden') || !s.docked) return;
     const b = measuredBand || band(), available = Math.max(160,b.bottom-b.top);
-    const h = s.expanded ? available : Math.min(available, Math.max(220, s.height || available * .56));
+    // Catalogs need room below their search/category controls on first open.
+    // An explicit drag/keyboard height still wins, exactly as for every other sheet.
+    const catalog = w.classList.contains('mkt-window') && w.querySelector('.mkt-stage');
+    const preferred = catalog ? Math.max(available * .75, w.offsetHeight - catalog.offsetHeight + 260) : available * .56;
+    const h = s.expanded ? available : Math.min(available, Math.max(220, s.height || preferred));
     w.style.animation = 'none'; w.style.transform = 'none';
     const geometry = {left:b.x+'px',top:(b.bottom-h)+'px',width:b.width+'px',height:h+'px',maxWidth:b.width+'px',maxHeight:available+'px'};
     Object.entries(geometry).forEach(([key,value]) => { if(w.style[key] !== value) w.style[key] = value; });

@@ -105,7 +105,7 @@
           '<div data-auto-panel="2" hidden><p class="sn-menu-note">Choose where the result goes.</p>' +
             '<label class="sn-menu-field">Result destination<select id="rt-deliver" class="key-input"><option value="local">Keep in StarNet</option><option value="origin">Return to this conversation</option></select></label>' +
             '<label class="rt-term"><input type="checkbox" id="rt-continue"> Allow follow-up in that conversation</label></div>' +
-        '<div data-auto-panel="3" hidden><p class="sn-menu-note">This routine inherits the agent’s existing access. These optional grants allow additional unattended actions.</p>' +
+        '<div data-auto-panel="3" hidden><p class="sn-menu-note">This routine inherits the agent’s existing access. Extra unattended permissions are off unless you grant them below. Placing a WORKBENCH on the floor does not grant them.</p>' +
         // UNATTENDED TERMINAL GRANT — default OFF, and it must stay a deliberate tick: this is the one control
         // that lets a scheduled run execute commands with nobody watching. The label states the risk plainly
         // rather than selling the feature (truthful telemetry applies to consent copy too).
