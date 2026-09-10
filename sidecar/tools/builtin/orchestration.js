@@ -78,10 +78,12 @@
   }
 
   function resultSchemaOf(raw) {
+    if (raw == null) return {ok:true,schema:null};
     if (!schemaLib) return {ok:false,error:'Result contract validator is unavailable'};
     return schemaLib.prepare(raw);
   }
   function inspectStructured(schema,text) {
+    if (!schema) return {ok:true,value:null,errors:[]};
     if (!schemaLib) return {ok:false,value:null,errors:['Result contract validator is unavailable']};
     return schemaLib.inspect(schema,text);
   }

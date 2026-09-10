@@ -428,8 +428,10 @@ function makeOpenAiCompat(deps) {
     if (contract.schema && acc.reason === 'done') {
       const checked = resultContract.inspect(contract.schema,acc.buf);
       if (!checked.ok) {
-        const repair = await startRun({runId:id+'-repair',agentId,model:runModel,provider,system,
-          messages:[{role:'user',content:'Repair only the following result; do not repeat the original task. Return strict JSON. Errors: '+checked.errors.join('; ')}, {role:'assistant',content:acc.buf}],signal:ac.signal,outputOnly:true});
+        inFlight++;
+        let repair;
+        try { repair = await startRun({runId:id+'-repair',agentId,model:runModel,provider,system,
+          messages:[{role:'user',content:'Repair only the following result; do not repeat the original task. Return strict JSON. Errors: '+checked.errors.join('; ')}, {role:'assistant',content:acc.buf}],signal:ac.signal,outputOnly:true}); } finally { inFlight--; }
         acc.tokensIn += repair.tokensIn; acc.tokensOut += repair.tokensOut;
         const repaired = resultContract.inspect(contract.schema,repair.buf);
         if (repair.reason === 'done' && repaired.ok) { acc.buf=repair.buf; acc.reason='done'; acc.errMsg=null; }
@@ -449,8 +451,8 @@ function makeOpenAiCompat(deps) {
     return json(res, 200, response, { 'X-StarNet-Session-Id': sessionId });
   }
 
-  // Keyed callers receive a durable terminal response. Streaming is buffered on this
-  // path so disconnecting one waiter cannot abort shared work or leak an uncommitted result.
+  // Keyed streams share progress; their terminal frame waits for durable persistence.
+  // Disconnecting one waiter cannot abort the shared run.
   async function handleReservedChat(req, res) {
     const key = req.headers['idempotency-key'];
     if (key == null) return handleChatCompletions(req, res);
@@ -463,20 +465,36 @@ function makeOpenAiCompat(deps) {
     if (!body || typeof body !== 'object' || !splitMessages(body.messages).ok)
       return json(res, 400, openAiError('Missing or invalid messages'));
     const scope = nodeCrypto.createHash('sha256').update(bearerToken(req)).digest('hex') + ':' + sessionIdOf(req) + ':/v1/chat/completions';
+    let sent=0;
+    const onProgress=item=>{
+      if(!eq(bearerToken(req),String(apiKeyFn()).trim())) {res.destroy();return;}
+      if(!res.headersSent)res.writeHead(200,item.headers);
+      res.write(item.chunk); sent+=item.chunk.length;
+    };
     try {
-      const result = await d.requestReservations.run({scope, key, body:{request:body,target:resolveTarget(body.model),defaultModel:defaultModel()}, runId:'chatcmpl-' + String(newId()).replace(/-/g, '').slice(0,24)}, async runId => {
+      const result = await d.requestReservations.run({scope, key, onProgress, body:{request:body,target:resolveTarget(body.model),defaultModel:defaultModel()}, runId:'chatcmpl-' + String(newId()).replace(/-/g, '').slice(0,24)}, async (runId,emitProgress) => {
         const chunks=[];
         const capture={status:200, headers:{}, on(){}, writeHead(status,headers){this.status=status;this.headers=headers;},
-          write(value){chunks.push(String(value));return true;}, end(value){if(value)chunks.push(String(value));}};
+          write(value){
+            const chunk=String(value); chunks.push(chunk);
+            // Only nonterminal chat deltas are provisional. Commit final usage/status
+            // and DONE together after saving the exact complete response.
+            if(chunk.startsWith('data: {')) {const frame=JSON.parse(chunk.slice(6));if(frame.choices && frame.choices[0].finish_reason==null)emitProgress({headers:this.headers,chunk});}
+            return true;
+          }, end(value){if(value)chunks.push(String(value));}};
         await handleChatCompletions(req,capture,body,runId);
         return {status:capture.status,headers:capture.headers,body:chunks.join('')};
       });
       // Credentials can rotate while the shared run is executing.
-      if (gate(req,res)) return;
-      res.writeHead(result.status,result.headers); res.end(result.body);
+      if(res.headersSent) {
+        if(!eq(bearerToken(req),String(apiKeyFn()).trim())) {res.destroy();return;}
+        res.end(result.body.slice(sent));
+      } else {if(gate(req,res))return;res.writeHead(result.status,result.headers);res.end(result.body);}
     } catch(e) {
       const conflict=['idempotency_conflict','request_interrupted'].includes(e.code);
-      return json(res,conflict?409:503,openAiError(redact(e.message),{code:e.code || 'reservation_failed'}));
+      const failure=openAiError(redact(e.message),{code:e.code || 'reservation_failed'});
+      if(res.headersSent) {sseData(res,failure);res.end('data: [DONE]\n\n');return;}
+      return json(res,conflict?409:503,failure);
     }
   }
 
