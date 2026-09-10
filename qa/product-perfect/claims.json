@@ -18,7 +18,7 @@
   "expectedClaimCount": 37,
   "releaseSurface": {
     "algorithm": "sha256",
-    "sourceCommit": "f49a20d6635367d6d1b457df9e7df41e63632b83",
+    "sourceCommit": "7837c2dcffcb225ada3e7b6102c35ab68655b4e8",
     "pathSetSha256": "b0479380ff858bd18673d3e0c7191897e66f62b44b4fc14a50eade63aab5c027",
     "files": [
       {
@@ -323,8 +323,8 @@
       },
       {
         "path": "frontend/app/glass-demo.js",
-        "bytes": 10822,
-        "sha256": "9307b0404cf088901dbb1931a4773cad1a05ea4fa9b8764ff3a0fb66295a903a"
+        "bytes": 11191,
+        "sha256": "70078f673799d97694af8c44bca5529753508177ec71e8b78c7861e8b98bf961"
       },
       {
         "path": "frontend/app/glossary.js",
@@ -988,8 +988,8 @@
       },
       {
         "path": "frontend/app/windows/routines.js",
-        "bytes": 54897,
-        "sha256": "5155935ddc844f968921536e33974f83fdcb8637832d3f13c55a48fe64fcb8e3"
+        "bytes": 54958,
+        "sha256": "a6ac940ec327d55ccd232d285daebe608bedd71c8b746c8d7c1358640c4463ef"
       },
       {
         "path": "frontend/app/windows/trophies.js",
@@ -1123,8 +1123,8 @@
       },
       {
         "path": "frontend/css/glass-demo.css",
-        "bytes": 32957,
-        "sha256": "24471fe8e017ecd93111c5f327ac76245c40edb87b0ffd56554749dc9d36b6d1"
+        "bytes": 32359,
+        "sha256": "d09f4a1b2243c2c02d36d11042fef16ff9dbff931740509731bf53002912eaef"
       },
       {
         "path": "frontend/css/interface.css",
