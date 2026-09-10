@@ -102,5 +102,11 @@
       "previousDiff": 9.478125,
       "review": "Visually inspected: intended station/panel layout; no visible layout regression in captured state."
     }
-  ]
+  ],
+  "repeatCheck": {
+    "exitCode": 0,
+    "frames": 16,
+    "maximumDiff": 0.21,
+    "threshold": 1.5
+  }
 }
