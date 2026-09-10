@@ -128,21 +128,26 @@ function coerceBool(v, def) {
   return !!def;
 }
 
-// map a runOnce end `reason` to an OpenAI finish_reason.
-function finishReasonFor(reason, hadText) {
-  if (reason === 'done') return 'stop';
-  if (reason === 'max_iters' || reason === 'budget') return 'length';
-  if (reason === 'error') return hadText ? 'stop' : 'error';
-  if (reason === 'cancelled') return 'stop';
-  return 'stop';
+// Only a proven terminal event may assert completion. Earlier recoverable errors do not
+// override a later successful end; a missing end is interrupted, never implicit success.
+function runOutcome(reason, hadText, error) {
+  const status = reason === 'done' ? 'completed'
+    : reason === 'error' ? 'failed'
+    : reason === 'cancelled' ? 'cancelled'
+    : reason === 'max_iters' || reason === 'budget' ? 'limited'
+    : reason === 'clarifying' ? 'awaiting_input'
+    : reason === 'refusal' ? 'refused' : 'interrupted';
+  return { status, reason: reason || 'missing_terminal', completed: status === 'completed',
+    partial: !!hadText && status !== 'completed', failed: status === 'failed',
+    error: ['failed', 'interrupted'].includes(status) ? (error || 'Agent run ended without a successful terminal event') : null };
 }
-
-// map a runOnce end `reason` to a /v1/runs terminal lifecycle event name.
-function runTerminalEvent(reason) {
-  if (reason === 'cancelled') return 'run.cancelled';
-  if (reason === 'error') return 'run.failed';
-  return 'run.completed';   // done / max_iters / budget / clarifying / refusal all land as completed (with the reason recorded)
+function finishReasonFor(reason) {
+  const status = runOutcome(reason, false).status;
+  if (status === 'limited') return 'length';
+  if (['completed', 'awaiting_input', 'refused'].includes(status)) return 'stop';
+  return 'error';
 }
+function runTerminalEvent(reason) { return 'run.' + runOutcome(reason, false).status; }
 
 // build the sync chat.completion object (real usage numbers from the summed counters).
 function chatCompletionObject(o) {
@@ -272,7 +277,7 @@ function makeOpenAiCompat(deps) {
     let key = ''; let baseUrl = '';
     try { key = resolveProviderKey(provider) || ''; } catch (_) { key = ''; }
     try { baseUrl = resolveBaseUrl(provider) || ''; } catch (_) { baseUrl = ''; }
-    const p = runOnce({
+    const p = Promise.resolve().then(() => runOnce({
       key, model: o.model || '', provider, baseUrl,
       system: o.system || '', messages: o.messages || [], agentId: o.agentId,
       emit: sink, signal: o.signal, runId: o.runId,
@@ -282,8 +287,8 @@ function makeOpenAiCompat(deps) {
       // an externally-driven run is still this agent doing real work — it learns from it like any other, with each
       // record stamped origin:'api' so the Commander can tell it apart from their own conversation.
       reflect: true
-    });
-    return Promise.resolve(p).then(() => acc, (e) => { acc.errMsg = acc.errMsg || ('run failed: ' + ((e && e.message) || e)); return acc; });
+    }));
+    return Promise.resolve(p).then(() => acc, (e) => { acc.reason = 'error'; acc.errMsg = acc.errMsg || ('run failed: ' + ((e && e.message) || e)); return acc; });
   }
 
   // persist the user + assistant turns to the channel transcript store, so an externally-driven run is visible in
@@ -398,9 +403,10 @@ function makeOpenAiCompat(deps) {
         acc = await startRun({ runId: id, agentId, model: runModel, provider, system, messages, signal: ac.signal, onDelta: (dlt) => sseData(res, chatChunk({ id, model: modelField, created, delta: { content: dlt } })) });
       } finally { inFlight--; }
       finished = true;
-      const finishReason = acc.errMsg && !acc.buf ? 'error' : finishReasonFor(acc.reason, !!acc.buf);
+      const finishReason = finishReasonFor(acc.reason);
       const usage = { prompt_tokens: acc.tokensIn, completion_tokens: acc.tokensOut, total_tokens: acc.tokensIn + acc.tokensOut };
       const finishChunk = chatChunk({ id, model: modelField, created, delta: {}, finishReason, usage });
+      finishChunk.starnet = runOutcome(acc.reason, !!acc.buf, acc.errMsg && redact(acc.errMsg));
       if (finishReason === 'error') finishChunk.error = { message: redact(acc.errMsg || 'agent run did not produce a response'), type: 'agent_error' };
       sseData(res, finishChunk);
       try { res.write('data: [DONE]\n\n'); } catch (_) {}
@@ -415,13 +421,16 @@ function makeOpenAiCompat(deps) {
     try { acc = await startRun({ runId: id, agentId, model: runModel, provider, system, messages, signal: ac.signal }); }
     finally { inFlight--; }
     persistTurns(agentId, parsed.lastUser, acc.buf);
-    if (!acc.buf && acc.errMsg) {
+    if (!acc.buf && ['failed', 'interrupted'].includes(runOutcome(acc.reason, false).status)) {
       // no text produced AND an error — hard fail with an OpenAI-style server_error (like the reference harness agent_incomplete).
-      return json(res, 502, openAiError(redact(acc.errMsg), { type: 'server_error', code: 'agent_incomplete' }));
+      return json(res, 502, openAiError(redact(acc.errMsg || 'Agent run ended without a successful terminal event'), { type: 'server_error', code: 'agent_incomplete' }));
     }
     const finishReason = finishReasonFor(acc.reason, !!acc.buf);
     const usage = { prompt_tokens: acc.tokensIn, completion_tokens: acc.tokensOut, total_tokens: acc.tokensIn + acc.tokensOut };
-    return json(res, 200, chatCompletionObject({ id, model: modelField, created, content: acc.buf, finishReason, usage }), { 'X-StarNet-Session-Id': sessionId });
+    const response = chatCompletionObject({ id, model: modelField, created, content: acc.buf, finishReason, usage });
+    response.starnet = runOutcome(acc.reason, !!acc.buf, acc.errMsg && redact(acc.errMsg));
+    if (finishReason === 'error') response.error = { message: response.starnet.error || response.starnet.status, type: 'agent_error' };
+    return json(res, 200, response, { 'X-StarNet-Session-Id': sessionId });
   }
 
   // ---- /v1/runs lifecycle store helpers ---------------------------------------------------------------------
@@ -439,6 +448,7 @@ function makeOpenAiCompat(deps) {
     if (event === 'run.completed') return 'completed';
     if (event === 'run.failed') return 'failed';
     if (event === 'run.cancelled') return 'cancelled';
+    if (['run.interrupted', 'run.limited', 'run.awaiting_input', 'run.refused'].includes(event)) return event.slice(4);
     if (event === 'run.started') return 'running';
     return cur;
   }
@@ -497,9 +507,10 @@ function makeOpenAiCompat(deps) {
     }).then((acc) => {
       const usage = { prompt_tokens: acc.tokensIn, completion_tokens: acc.tokensOut, total_tokens: acc.tokensIn + acc.tokensOut };
       const evName = runTerminalEvent(acc.reason);
-      const term = { event: evName, run_id: runId, timestamp: now() };
-      if (evName === 'run.completed') { term.output = acc.buf; term.usage = usage; rec.output = acc.buf; rec.usage = usage; }
-      else if (evName === 'run.failed') { term.error = redact(acc.errMsg || 'run failed'); rec.error = term.error; }
+      const outcome = runOutcome(acc.reason, !!acc.buf, acc.errMsg && redact(acc.errMsg));
+      const term = { event: evName, run_id: runId, timestamp: now(), output: acc.buf, usage, starnet: outcome };
+      rec.output = acc.buf; rec.usage = usage; rec.outcome = outcome;
+      if (outcome.error) { term.error = outcome.error; rec.error = outcome.error; }
       pushRunEvent(runId, term);
       persistTurns(agentId, lastUser, acc.buf);
     }).catch((e) => {
@@ -519,7 +530,7 @@ function makeOpenAiCompat(deps) {
   function handleRunStatus(req, res, runId) {
     const r = runs.get(runId);
     if (!r) return json(res, 404, openAiError('Run not found: ' + runId, { code: 'run_not_found' }));
-    json(res, 200, { object: 'starnet.run', run_id: runId, status: r.status, created_at: r.created, updated_at: r.updated, session_id: r.sessionId, model: r.model, output: r.output, usage: r.usage, error: r.error });
+    json(res, 200, { object: 'starnet.run', run_id: runId, status: r.status, created_at: r.created, updated_at: r.updated, session_id: r.sessionId, model: r.model, output: r.output, usage: r.usage, error: r.error, starnet: r.outcome || null });
   }
 
   // ---- GET /v1/runs/{id}/events (SSE) -----------------------------------------------------------------------
@@ -598,7 +609,7 @@ function makeOpenAiCompat(deps) {
     Promise.resolve(maybePromise).catch((e) => {
       try {
         if (!res.headersSent) json(res, 500, openAiError(redact('sidecar failure: ' + ((e && e.message) || e)), { type: 'server_error' }));
-        else { try { res.end('data: [DONE]\n\n'); } catch (_) { try { res.destroy(); } catch (__) {} } }
+        else { try { sseData(res, openAiError(redact('sidecar failure: ' + ((e && e.message) || e)), { type: 'server_error' })); res.end('data: [DONE]\n\n'); } catch (_) { try { res.destroy(); } catch (__) {} } }
       } catch (_) { try { res.destroy(); } catch (__) {} }
     });
   }
@@ -621,6 +632,6 @@ module.exports = {
   makeOpenAiCompat,
   // pure helpers exported for unit tests
   openAiError, keyUsable, bearerToken, constTimeEq, normalizeContent, splitMessages, coerceBool,
-  finishReasonFor, runTerminalEvent, chatCompletionObject, chatChunk, deriveSessionId, sanitizeAid, pathOf,
+  runOutcome, finishReasonFor, runTerminalEvent, chatCompletionObject, chatChunk, deriveSessionId, sanitizeAid, pathOf,
   DEFAULT_MODEL_ID, MIN_KEY_LEN, DEFAULT_MAX_CONCURRENT
 };
