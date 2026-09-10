@@ -1318,6 +1318,12 @@ const VoiceLive = (() => {
     return { agent, crew, streams, activeWs };
   }
 
+  function voiceContextFingerprint(ctx) {
+    const a = ctx.agent || {};
+    return JSON.stringify([a.id || '', a.systemPrompt || '', a.personaId || '', a.voiceTraits || null,
+      a.customVoice || '', (ctx.activeWs || {}).id || '', (ctx.streams || []).length]);
+  }
+
   function voiceInstructions() {
     const ctx = stationContext();
     const agent = ctx.agent;
@@ -1335,9 +1341,9 @@ const VoiceLive = (() => {
        explicitly, because a realtime model defaults to a polite house style unless told otherwise. */
     const persona = (typeof Personas !== 'undefined' && Personas.get && agent && agent.personaId) ? Personas.get(agent.personaId) : null;
     if (persona) {
-      if (persona.promptInjection) lines.push(String(persona.promptInjection));
+      if (!agent.systemPrompt && Personas.compose) lines.push(Personas.compose(agent.personaId, agent.voiceTraits, agent.customVoice));
       lines.push('That personality — ' + (persona.name || agent.personaId) + ' — is your ACTUAL speaking voice here, not a description of one. Deliver it out loud with the same register, vocabulary and attitude you would use in writing. Do not soften it, sanitise it, or default to a neutral assistant tone because this is speech.');
-      lines.push('Swearing: if your personality swears, swear — naturally and uncensored, never bleeped, never spelled around, never replaced with a milder word. If it does not, do not.');
+      lines.push('Honor the effective style, language preference and custom instructions in your composed personality; speaking aloud does not reset those settings.');
     }
     lines.push('Speak in a natural spoken rhythm — the length a person would actually say out loud rather than a written paragraph. Let the Commander interrupt you at any moment and stop immediately when they do.');
     // 3) THE STATION, as it is right now.
@@ -1518,11 +1524,7 @@ const VoiceLive = (() => {
         clearInterval(contextTimer);
         contextTimer = setInterval(() => {
           if (!active || !realtime) return;
-          const fingerprint = JSON.stringify([
-            (stationContext().agent || {}).id || '',
-            ((stationContext().activeWs || {}).id) || '',
-            (stationContext().streams || []).length
-          ]);
+          const fingerprint = voiceContextFingerprint(stationContext());
           if (fingerprint === lastContextFingerprint) return;
           lastContextFingerprint = fingerprint;
           pushSessionContext();
