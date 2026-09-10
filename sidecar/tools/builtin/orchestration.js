@@ -22,7 +22,7 @@
 (function (root, factory) {
   const api = factory(
     typeof require === 'function' ? require('../../domain-task.js') : (root.SK && root.SK.domainTask),
-    typeof require === 'function' ? require('../../../shared/schema.js') : (root.SK && root.SK.schema)
+    typeof require === 'function' ? require('../../result-contract.js') : (root.SK && root.SK.resultContract)
   );
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else { root.SK = root.SK || {}; root.SK.tools = root.SK.tools || {}; (root.SK.tools.builtin = root.SK.tools.builtin || {}).orchestration = api; }
@@ -77,41 +77,13 @@
     return '';
   }
 
-  const RESULT_SCHEMA_KEYS = new Set(['type', 'enum', 'properties', 'required', 'items', 'additionalProperties']);
-  const RESULT_TYPES = new Set(['string', 'number', 'integer', 'boolean', 'object', 'array', 'null']);
   function resultSchemaOf(raw) {
-    if (raw == null) return { ok: true, schema: null };
-    let chars = 0; try { chars = JSON.stringify(raw).length; } catch (_) { return { ok: false, error: 'resultSchema must be JSON' }; }
-    if (!raw || typeof raw !== 'object' || Array.isArray(raw) || chars > 12000) return { ok: false, error: 'resultSchema must be a bounded JSON object' };
-    let nodes = 0;
-    function walk(s, depth, at) {
-      if (!s || typeof s !== 'object' || Array.isArray(s)) return at + ' must be an object';
-      if (++nodes > 120 || depth > 8) return 'resultSchema is too complex';
-      for (const k of Object.keys(s)) if (!RESULT_SCHEMA_KEYS.has(k)) return at + '.' + k + ' is not a supported schema keyword';
-      if (s.type !== undefined) {
-        const types = Array.isArray(s.type) ? s.type : [s.type];
-        if (!types.length || types.some(t => !RESULT_TYPES.has(t))) return at + '.type contains an unsupported type';
-      }
-      if (s.enum !== undefined && !Array.isArray(s.enum)) return at + '.enum must be an array';
-      if (s.required !== undefined && (!Array.isArray(s.required) || s.required.some(k => typeof k !== 'string'))) return at + '.required must be an array of strings';
-      if (s.properties !== undefined) {
-        if (!s.properties || typeof s.properties !== 'object' || Array.isArray(s.properties)) return at + '.properties must be an object';
-        for (const k of Object.keys(s.properties)) { const e = walk(s.properties[k], depth + 1, at + '.properties.' + k); if (e) return e; }
-      }
-      if (s.items !== undefined) { const e = walk(s.items, depth + 1, at + '.items'); if (e) return e; }
-      if (s.additionalProperties !== undefined && s.additionalProperties !== false) return at + '.additionalProperties may only be false';
-      return '';
-    }
-    const error = walk(raw, 0, '$');
-    return error ? { ok: false, error } : { ok: true, schema: JSON.parse(JSON.stringify(raw)) };
+    if (!schemaLib) return {ok:false,error:'Result contract validator is unavailable'};
+    return schemaLib.prepare(raw);
   }
-  function inspectStructured(schema, text) {
-    if (!schema) return { ok: true, value: null, errors: [] };
-    let value;
-    try { value = JSON.parse(String(text == null ? '' : text).trim()); }
-    catch (e) { return { ok: false, value: null, errors: ['result is not strict JSON: ' + ((e && e.message) || e)] }; }
-    const checked = schemaLib && typeof schemaLib.validate === 'function' ? schemaLib.validate(schema, value) : { ok: true, errors: [] };
-    return { ok: checked.ok, value: checked.ok ? value : null, errors: checked.errors || [] };
+  function inspectStructured(schema,text) {
+    if (!schemaLib) return {ok:false,value:null,errors:['Result contract validator is unavailable']};
+    return schemaLib.inspect(schema,text);
   }
   async function enforceStructured(schema, text, repair) {
     const first = inspectStructured(schema, text);
@@ -521,6 +493,7 @@
             if (perWorker > 0 && remaining <= 0) return null;
             const repairRunId = newId();
             const repair = await runOnce({
+              outputOnly: true,
               ...projectOptions(ctx),
               key: wire.key, provider: wire.provider, baseUrl: wire.baseUrl,
               reasoningEffort: (job.ident && job.ident.reasoningEffort) || reasoningEffort,
@@ -760,6 +733,7 @@
               if (perWorker > 0 && remaining <= 0) return null;
               const repairRunId = newId();
               const repair = await runOnce({
+              outputOnly: true,
               ...projectOptions(ctx),
                 key, provider, baseUrl, reasoningEffort, model, system: workerSystem(selfSystem),
                 messages: [{ role: 'user', content: contractedPrompt }, { role: 'assistant', content: firstText },
@@ -936,6 +910,7 @@
           if (perWorker > 0 && remaining <= 0) return null;
           const repairRunId = newId();
           const repair = await runOnce({
+              outputOnly: true,
             ...projectOptions(ctx, rec),
             key: wire.key, provider: wire.provider, baseUrl: wire.baseUrl,
             reasoningEffort: (ident && ident.reasoningEffort) || reasoningEffort,

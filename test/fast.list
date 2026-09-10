@@ -754,3 +754,6 @@ test/session-focus-safety.test.js
 
 test/harness-placement.test.js
 test/openai-outcomes.test.js
+test/request-reservations.test.js
+test/result-contract.test.js
+test/openai-formats.test.js

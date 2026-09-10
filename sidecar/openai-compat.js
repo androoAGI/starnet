@@ -33,6 +33,7 @@
    and index.js keeps only a thin route-dispatch line. */
 'use strict';
 const nodeCrypto = require('node:crypto');
+const resultContract = require('./result-contract');
 
 const DEFAULT_MAX_CONCURRENT = 0;   // unlimited by default; env STARNET_V1_MAX_CONCURRENT opts into a ceiling
 const MIN_KEY_LEN = 16;              // below this, refuse to enable (guessable key on a terminal-capable surface = RCE)
@@ -286,7 +287,7 @@ function makeOpenAiCompat(deps) {
       taskKey: 'v1:' + o.agentId, taskSource: 'api',
       // an externally-driven run is still this agent doing real work — it learns from it like any other, with each
       // record stamped origin:'api' so the Commander can tell it apart from their own conversation.
-      reflect: true
+      reflect: !o.outputOnly, outputOnly: !!o.outputOnly
     }));
     return Promise.resolve(p).then(() => acc, (e) => { acc.reason = 'error'; acc.errMsg = acc.errMsg || ('run failed: ' + ((e && e.message) || e)); return acc; });
   }
@@ -365,17 +366,20 @@ function makeOpenAiCompat(deps) {
   }
 
   // ---- POST /v1/chat/completions ----------------------------------------------------------------------------
-  async function handleChatCompletions(req, res) {
+  async function handleChatCompletions(req, res, suppliedBody, reservedId) {
     if (maxConcurrent() > 0 && inFlight >= maxConcurrent()) {
       return json(res, 429, openAiError('Too many concurrent runs (max ' + maxConcurrent() + ')', { type: 'rate_limit_error', code: 'rate_limit_exceeded' }), { 'Retry-After': '1' });
     }
     let body;
-    try { body = JSON.parse(await readBody(req, MAX_BODY) || '{}'); } catch (_) { return json(res, 400, openAiError('Invalid JSON in request body')); }
+    try { body = suppliedBody || JSON.parse(await readBody(req, MAX_BODY) || '{}'); } catch (_) { return json(res, 400, openAiError('Invalid JSON in request body')); }
     if (!body || typeof body !== 'object') return json(res, 400, openAiError('Invalid JSON in request body'));
     const parsed = splitMessages(body.messages);
     if (!parsed.ok) return json(res, 400, openAiError(parsed.reason === 'messages' ? "Missing or invalid 'messages' field" : 'No user message found in messages'));
 
+    const contract = resultContract.responseContract(body.response_format);
+    if (!contract.ok) return json(res,400,openAiError(contract.error,{param:'response_format'}));
     const stream = coerceBool(body.stream, false);
+    if (stream && contract.schema) return json(res,400,openAiError('Structured streaming is not supported; use stream:false for host-validated JSON',{param:'stream'}));
     const modelField = String(body.model || DEFAULT_MODEL_ID);
     const target = resolveTarget(modelField);
     const sessionId = sessionIdOf(req) || deriveSessionId(parsed.system, parsed.history.length ? (parsed.history[0].content) : parsed.lastUser);
@@ -384,9 +388,10 @@ function makeOpenAiCompat(deps) {
     const provider = target.provider || 'openrouter';
     // conversation for runOnce = prior turns (history) + the new user directive last (system passed separately).
     const messages = parsed.history.map(m => ({ role: m.role, content: m.content })).concat([{ role: 'user', content: parsed.lastUser }]);
-    const system = parsed.system || 'You are the Commander\'s StarNet agent, reached over an OpenAI-compatible API. Use your REAL tools when given a task and report what you actually did.';
+    let system = parsed.system || 'You are the Commander\'s StarNet agent, reached over an OpenAI-compatible API. Use your REAL tools when given a task and report what you actually did.';
 
-    const id = 'chatcmpl-' + String(newId()).replace(/-/g, '').slice(0, 24);
+    if (contract.schema) system += '\nReturn ONLY strict JSON matching this schema: ' + JSON.stringify(contract.schema);
+    const id = reservedId || 'chatcmpl-' + String(newId()).replace(/-/g, '').slice(0, 24);
     const created = Math.floor(now() / 1000);
     const ac = new AbortController();
 
@@ -420,6 +425,17 @@ function makeOpenAiCompat(deps) {
     let acc;
     try { acc = await startRun({ runId: id, agentId, model: runModel, provider, system, messages, signal: ac.signal }); }
     finally { inFlight--; }
+    if (contract.schema && acc.reason === 'done') {
+      const checked = resultContract.inspect(contract.schema,acc.buf);
+      if (!checked.ok) {
+        const repair = await startRun({runId:id+'-repair',agentId,model:runModel,provider,system,
+          messages:[{role:'user',content:'Repair only the following result; do not repeat the original task. Return strict JSON. Errors: '+checked.errors.join('; ')}, {role:'assistant',content:acc.buf}],signal:ac.signal,outputOnly:true});
+        acc.tokensIn += repair.tokensIn; acc.tokensOut += repair.tokensOut;
+        const repaired = resultContract.inspect(contract.schema,repair.buf);
+        if (repair.reason === 'done' && repaired.ok) { acc.buf=repair.buf; acc.reason='done'; acc.errMsg=null; }
+        else { acc.reason='error'; acc.errMsg='Structured output validation failed after one output-only repair: '+(repaired.errors.join('; ') || repair.errMsg || repair.reason); }
+      }
+    }
     persistTurns(agentId, parsed.lastUser, acc.buf);
     if (!acc.buf && ['failed', 'interrupted'].includes(runOutcome(acc.reason, false).status)) {
       // no text produced AND an error — hard fail with an OpenAI-style server_error (like the reference harness agent_incomplete).
@@ -431,6 +447,37 @@ function makeOpenAiCompat(deps) {
     response.starnet = runOutcome(acc.reason, !!acc.buf, acc.errMsg && redact(acc.errMsg));
     if (finishReason === 'error') response.error = { message: response.starnet.error || response.starnet.status, type: 'agent_error' };
     return json(res, 200, response, { 'X-StarNet-Session-Id': sessionId });
+  }
+
+  // Keyed callers receive a durable terminal response. Streaming is buffered on this
+  // path so disconnecting one waiter cannot abort shared work or leak an uncommitted result.
+  async function handleReservedChat(req, res) {
+    const key = req.headers['idempotency-key'];
+    if (key == null) return handleChatCompletions(req, res);
+    if (typeof key !== 'string' || !key.trim() || key.length > 256 || /[\x00-\x1f\x7f]/.test(key))
+      return json(res, 400, openAiError('Idempotency-Key must contain 1–256 printable characters'));
+    if (!d.requestReservations) return json(res, 503, openAiError('Durable request reservations are unavailable'));
+    let body;
+    try { body = JSON.parse(await readBody(req, MAX_BODY) || '{}'); }
+    catch (_) { return json(res, 400, openAiError('Invalid JSON in request body')); }
+    if (!body || typeof body !== 'object' || !splitMessages(body.messages).ok)
+      return json(res, 400, openAiError('Missing or invalid messages'));
+    const scope = nodeCrypto.createHash('sha256').update(bearerToken(req)).digest('hex') + ':' + sessionIdOf(req) + ':/v1/chat/completions';
+    try {
+      const result = await d.requestReservations.run({scope, key, body:{request:body,target:resolveTarget(body.model),defaultModel:defaultModel()}, runId:'chatcmpl-' + String(newId()).replace(/-/g, '').slice(0,24)}, async runId => {
+        const chunks=[];
+        const capture={status:200, headers:{}, on(){}, writeHead(status,headers){this.status=status;this.headers=headers;},
+          write(value){chunks.push(String(value));return true;}, end(value){if(value)chunks.push(String(value));}};
+        await handleChatCompletions(req,capture,body,runId);
+        return {status:capture.status,headers:capture.headers,body:chunks.join('')};
+      });
+      // Credentials can rotate while the shared run is executing.
+      if (gate(req,res)) return;
+      res.writeHead(result.status,result.headers); res.end(result.body);
+    } catch(e) {
+      const conflict=['idempotency_conflict','request_interrupted'].includes(e.code);
+      return json(res,conflict?409:503,openAiError(redact(e.message),{code:e.code || 'reservation_failed'}));
+    }
   }
 
   // ---- /v1/runs lifecycle store helpers ---------------------------------------------------------------------
@@ -586,7 +633,7 @@ function makeOpenAiCompat(deps) {
 
     if (p === '/v1/models' && method === 'GET') { handleModels(req, res); return true; }
     if (p === '/v1/capabilities' && method === 'GET') { handleCapabilities(req, res); return true; }
-    if (p === '/v1/chat/completions' && method === 'POST') { return runGuard(handleChatCompletions(req, res), res), true; }
+    if (p === '/v1/chat/completions' && method === 'POST') { return runGuard(handleReservedChat(req, res), res), true; }
     if (p === '/v1/runs' && method === 'POST') { return runGuard(handleRunsCreate(req, res), res), true; }
     let m;
     /* decodeURIComponent THROWS on a malformed escape ("%ZZ"), and handle() is called SYNCHRONOUSLY as the

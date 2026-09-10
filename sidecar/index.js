@@ -8740,6 +8740,7 @@ function stopGenericChannel(id) {
    so an external harness's run is visible on the station floor and its transcript lands in the channel store. */
 let updatePreparation = null;
 const openaiCompat = makeOpenAiCompat({
+  requestReservations: require('./request-reservations').makeRequestReservations({ fs, path, workspaces: WORKSPACES, now: () => Date.now(), writeDurable: writeFileDurable }),
   // External /v1 runs do not use the browser route's run registry, so explicitly count their whole async
   // lifetime as a mutation. This closes the last in-flight path the pre-update quiescence receipt must cover.
   runOnce: async (opts) => {
@@ -14951,7 +14952,7 @@ async function runOnce(o) {
     try { rules = (await projectInstructions.load(cronRoot, true)).text || ''; } catch (_) {}
     system = String(system || '') + '\n' + projectScopeLine(cronRoot, true) + rules;
   }
-  const internal = !!o.internal;   // reason-only self-talk: system prompt stays VERBATIM, no memory/transcript injection
+  const internal = !!o.internal || !!o.outputOnly;   // reason-only self-talk: system prompt stays VERBATIM, no memory/transcript injection
   let isTask = !!o.isTask;
   // A short channel reply such as "operators" is not independently task-shaped. Durable brief continuity is
   // stronger evidence than the generic classifier, so resume it as task work without asking the user to restate it.
@@ -16237,6 +16238,7 @@ async function runOnce(o) {
 
   // Per-run latches/counters/artifacts live in `execution`; policy and side effects remain in this host.
   const dispatch = async (c, ctx) => {
+    if (o.outputOnly) return {ok:false,isError:true,summary:'output-only',content:'Result repair cannot execute tools. Return only the corrected output.'};
     const realName = fromWire.get(c.name) || allWire.get(c.name) || c.name;
     const liveTool = registry.get(realName);
     // Recovery authority is independent of the station layout that happens to exist after restart. Evaluate it
@@ -17079,11 +17081,11 @@ async function runOnce(o) {
       loopEmit('agent.run.end', {agentId, runId, reason:'done', turns:0, usd:0});
       result = {reason:'done', turns:0, usd:0, messages:msgs.concat([{role:'assistant', content:text}])};
     } else result = await runAgentLoop({
-      messages: msgs, provider, emit: loopEmit, cost, tools: toolDefs, dispatch, capCtx,
+      messages: msgs, provider, emit: loopEmit, cost, tools: o.outputOnly ? [] : toolDefs, dispatch, capCtx,
       acceptanceProbe,
       // Granted but unadvertised: held out of the request until tool.search reveals one (see loop.js).
-      deferredTools: deferredToolDefs,
-      hiddenTools: ['brief_ask', 'brief_proceed', 'brief_update'],
+      deferredTools: o.outputOnly ? [] : deferredToolDefs,
+      hiddenTools: o.outputOnly ? [] : ['brief_ask', 'brief_proceed', 'brief_update'],
       // A turn that asks for four file reads waited four round trips for them; an all-read-only batch now
       // overlaps. The predicate is above — the loop cannot judge tool scope on its own.
       parallelSafe,
