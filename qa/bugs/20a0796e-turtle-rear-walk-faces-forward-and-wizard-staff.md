@@ -4,11 +4,11 @@ slug: turtle-rear-walk-faces-forward-and-wizard-staff
 title: Turtle rear walk faces forward and wizard staff flickers
 surface: world
 severity: P2
-status: open
+status: fixed
 found: 2026-09-10
 lane: skin-motion-0910
-fix:
-origin: unknown
+fix: 734063b21
+origin: audit
 ---
 
 # Turtle rear walk faces forward and wizard staff flickers
