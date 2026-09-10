@@ -55,7 +55,7 @@ import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import { spawnSync } from 'node:child_process';
-import { runBoundedCommand, npmGateTimeoutMs } from '../lib/run-command.mjs';
+import { runBoundedCommand, coerceTimeoutMs, npmGateTimeoutMs } from '../lib/run-command.mjs';
 import { fingerprintOf, makeLedger } from './ledger.mjs';
 import { runSweep as runEvidenceSweep } from './evidence-sweep.mjs';
 
