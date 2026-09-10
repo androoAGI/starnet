@@ -132,7 +132,7 @@ The extended release soak is 720 minutes in the current script, plus the separat
 required installed/hardware acceptance. A shorter cleanup smoke cannot replace it, and
 0.11.1's exception does not authorize another release or another skipped soak.
 
-Full candidate gate and cleanup smoke results: pending.
+Final source verification is complete; exact sources, results and remaining release acceptance are recorded below.
 
 
 Additional cleanup findings: `a03ea726` exposed unsanitized swallowed-error console output
@@ -162,3 +162,56 @@ The cleanup branch was synchronized with trunk `2aa8305c0`, including the doorwa
 
 
 The outer-deadline audit also found Closer and Phase 2 callers. They now share the same HTTP-specific policy with Guardian via `npmGateTimeoutMs` in `scripts/lib/run-command.mjs`. Existing lock-heartbeat coercion and explicit operator overrides are retained. A verification attempt was intentionally interrupted to complete this caller alignment; it is not a passing gate.
+
+
+## Final cleanup verification — 2026-09-10
+
+**Source cleanup verified on `c2193f1fbc07f827db07814487769adaeb6467b3`.** The branch is
+`agent/cleanup-0112-0910`, synchronized with trunk `2aa8305c0`. No merge to trunk,
+version bump, publication, customer message, credential change or refund was performed.
+The integration checkout's existing QA/Rooms edits remain untouched.
+
+Nine source findings are repaired: the five original audit defects, secret-bearing
+failure logs, unsafe visual-dismissal reuse, host-sensitive hydration regression timing,
+and the undersized aggregate HTTP watchdog. Unexpected image staging cleanup errors
+found by the fast ratchet are also observable now. The HTTP child budget is 20 minutes;
+Guardian, Closer and Phase 2 give it 21 minutes through one shared policy. Explicit
+operator overrides, individual test/product timeouts and the full test lists remain intact.
+
+| Verification | Result and exact scope |
+| --- | --- |
+| Normal fast gate | **753/753 PASS** on `c2193f1fb`; no excluded steps |
+| Normal HTTP gate | **108/108 PASS** on `c2193f1fb`, using the corrected aggregate budget |
+| Live panel/catalog probe | PASS, zero page errors on frontend `ed0788584`; panel height 420 → 512 → 512 after reopen and reload, maximize/restore and small viewport, selected provider/model preserved |
+| Managed image/cloud integration | PASS on `ed0788584` through actual local cloud gateway code with synthetic upstream/credentials; billing, persistence, cancellation and honest failures checked; no paid customer request |
+| Browser journeys | **139/139 PASS** on `e8541fcbd`; Stop/reload and truthful backend idle/stream settlement covered |
+| Beginner onboarding | Six UI-only steps PASS on `e8541fcbd`, ending at the real-model boundary; not paid-account first-value proof |
+| Source soak | **20.01 minutes PASS** on `e8541fcbd`: 54 successful runs, zero failures, 19 routine fires, four restarts and a 90-second outage |
+| Visual capture/review | All 16 expected states opened and all screenshots inspected on `e8541fcbd`; detector remains CHANGED, zero automatic excuses, baseline untouched |
+
+The application runtime is unchanged between `ed0788584` and the final tested candidate;
+subsequent changes repair QA timing and record evidence. The soak and visual captures
+predate the final staging diagnostic/doorway synchronization and remain labeled with their
+actual sources. They are not claimed as exact-final-installer acceptance.
+
+Earlier failed attempts remain retained: the secret scanner caught the warning leak;
+the fast gate caught the hydration timer and silent staging cleanup; two 15-minute HTTP
+attempts timed out. A longer diagnostic run passed all 108 unchanged tests in just over
+15 minutes, motivating the bounded timeout repair. A later verification was deliberately
+interrupted to finish all outer callers. None of those attempts is relabeled green.
+
+[Hashed verification receipts](../qa/evidence/0.11.2-cleanup/verification-receipts.json),
+[live probe](../qa/evidence/0.11.2-cleanup/live-probe.json),
+[soak receipt](../qa/evidence/0.11.2-cleanup/soak-receipt.json),
+[visual review scope](../qa/evidence/0.11.2-cleanup/visual-review.json), and
+[integration readiness snapshot](../qa/evidence/0.11.2-cleanup/integration-readiness.json)
+are retained. Full logs remain under this worktree's `.dogfood` directory.
+
+**Release acceptance remains open.** The latest integration snapshot (`2aa8305c0`) has
+four blocking detector findings (one P0, three P1), seven historical customer P1 bugs,
+RED Guardian, stale Beginner evidence and an installed-source mismatch. This lane's
+empty local detector directory never supersedes those records. Required follow-through:
+reconcile current Guardian/visual evidence, test the exact installer and automatic update
+from an older client, complete the required 720-minute release/installed soak, and obtain
+real affected-account and Mac/microphone acceptance. Brewtal's routing fix `177a9384e`
+is still included; the separate affected-account Sonnet recovery is not confirmed.

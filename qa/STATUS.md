@@ -2822,3 +2822,6 @@ Every first-time StarNet-subscription desktop user: link → shell adopts the to
 
 
 **2026-09-10 merge digest (DOORWAY MOVEMENT):** `agent/doorway-occlusion-0910` → trunk `9e5b6d88e` from `83c896e7d`. Candidate fast gate and exact merged-commit gate in the isolated checkout: **752/752 GREEN** each; customer journeys **34/34 GREEN**. Twelve live hero/crew/workstation doorway routes completed with zero wall crossings. Receipt: `qa/digests/2026-09-10-doorway-movement.md`. Installed desktop and reporter recovery remain unverified.
+
+
+**2026-09-10 cleanup lane:** `agent/cleanup-0112-0910` verified at `c2193f1fb`; normal fast **753/753 GREEN**, normal HTTP **108/108 GREEN**. Nine source/QA findings repaired; runtime and live proof sources are explicit in `docs/AUDIT_0.11.1_FOR_0.11.2.md`. HTTP aggregate watchdog is 20 minutes, shared outer runners 21 minutes; no test steps removed. No merge/publication. Historical customer/detector findings and installed/account/hardware/long-soak acceptance remain open.
