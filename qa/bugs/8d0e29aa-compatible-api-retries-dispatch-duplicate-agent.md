@@ -24,7 +24,7 @@ Run test/request-idempotency.e2e.test.js. Original reproducer and input are in d
 
 ## Evidence
 
-The live sidecar now coalesces three concurrent requests, rejects changed-body conflicts and replays the identical response after a process restart. Keyed streams are buffered.
+The live sidecar now coalesces three concurrent requests, rejects changed-body conflicts and replays the identical response after a process restart. Keyed streams share incremental progress; terminal frames wait for durable persistence. Disconnect and auth-rotation siblings also pass.
 
 ## Verdict
 

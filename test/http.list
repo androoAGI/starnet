@@ -110,3 +110,4 @@ test/managed-endpoint.e2e.test.js
 
 test/tool-projection.e2e.test.js
 test/request-idempotency.e2e.test.js
+test/output-only-repair.e2e.test.js

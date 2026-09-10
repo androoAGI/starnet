@@ -17107,7 +17107,8 @@ async function runOnce(o) {
       // to synthesize that checkpoint and settle once; starting fresh alternate-path attempts would exceed the
       // operator's narrowly authorized continuation and make the recovery non-idempotent.
       limits: {
-        maxIters: runMaxIters, maxCostUsd: runCapUsd, failureRecovery: o.recovery ? false : undefined,
+        maxIters: o.outputOnly ? 1 : runMaxIters, maxCostUsd: runCapUsd, failureRecovery: (o.recovery || o.outputOnly) ? false : undefined,
+        grace: o.outputOnly ? false : undefined, refundMax: o.outputOnly ? 0 : undefined,
         // unpriced-token seatbelt: metered API-key providers only — a subscription/OAuth/unmetered run bills nothing
         maxUnpricedTokens: (providerUnmetered || usingCodex || usingDeviceOAuth) ? Infinity : CAPS.maxUnpricedTokens
       },
