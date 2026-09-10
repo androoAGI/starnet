@@ -8,6 +8,9 @@ approve/deny both verified, related world/crew/sprite gate 22/22. Full gates pen
 This lane owns integration. Bugs: f2bd926a, 72da34d7, 3c77e050.
 Installed desktop and user-layout recovery remain unverified.
 
+## IMPLEMENTED — skin-motion-0910: movement stutter
+
+Source repair 75a814c18 holds look-back facing and removes empty waypoint frames for hero, idle crew and workstation crew. Live hero/crew checks passed; behavior regression 15/15 and customer journeys 34/34 passed. Receipt: qa/movement-continuity-0910.md. Full integration gate is recorded in qa/STATUS.md.
 
 ## MERGED — 2026-09-10 world seating integration (agent/doorway-occlusion-0910)
 

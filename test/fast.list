@@ -761,3 +761,4 @@ test/request-auth-rotation.test.js
 test/world-seat-recovery.test.js
 test/world-lifecycle.test.js
 test/world-crew-approval.test.js
+test/world-movement-continuity.test.js
