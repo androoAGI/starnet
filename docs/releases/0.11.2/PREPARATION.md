@@ -6,7 +6,7 @@
 
 Released baseline: `v0.11.1`, `b3760c46ff3fe02790e6c3b0c50a23c30b5837a8`.
 Audited integration snapshot: `00de68e0f6da9c00b778eea1deefbaa84b82baa8`.
-Audit worktree: `agent/release-0112-audit-0910`. Repair: `cb6c30b4d`.
+Audit worktree: `agent/release-0112-audit-0910`. Repair: `cb6c30b4d`. Frozen verified candidate: `1826b558aff85fd7c7d9e4b985f1527013728f57`. Subsequent commits record evidence only. This lane has not merged into integration.
 
 All **54 reachable merge commits** and **4,917 changed paths** are inventoried in
 [inventory.json](../../../qa/evidence/0.11.2-merge-audit/inventory.json). Many merges synchronize overlapping lanes; counting them as 54 independent features would be misleading. The inventory also includes changes that arrived through fast-forward integration.
@@ -40,7 +40,12 @@ The generated website mirror and advertised source lock were refreshed for the r
 - Fresh Beginner on `00de68e0f`: **6/6 UI steps passed**, 93.021 seconds. It used a disposable fresh station and stopped at the real-model boundary.
 - Cleanup live check on `00de68e0f`: height **420 → 512 → 512 after reopen/reload**, maximize/restore and smaller viewport checked; delayed catalog retained `starnet / anthropic/test-model`; zero page exceptions.
 - Formatting live check: **0/0/0/2 list items before → 2/2/2/2 after**. [DOM evidence](../../../qa/evidence/0.11.2-merge-audit/report-lists.json).
-- Final fast/HTTP/customer checks and candidate identities are recorded in the accompanying verification receipt after completion. Raw gate logs remain in this worktree's `.dogfood/release-0112/` directory.
+- Final fast on `1826b558a`: **769/769 passed**, exit 0; customer journeys on that candidate: **34/34 passed**, exit 0.
+- Full normal HTTP command: **111/111 passed**, exit 0. It started on `00de68e0f` and overlapped the report/QA edits; all backend bytes are unchanged between its starting source and the final candidate. This is not labeled a post-bump release gate.
+- Work-app and messaging guide navigation passed at **1440×900, 1000×700 and 800×600**, with zero page exceptions or detected native control paint. The first probe had an ambiguous selector during closing-window animation; the scoped rerun passed, and the original failure log remains retained.
+- Full UI capture: **16/16 surfaces opened**. Abilities, Recruitment, Settings, Field Manual and Channels images were inspected. This is bounded visual inspection, not approval of every golden difference. No baseline changed.
+- All **50 changed JavaScript files** passed syntax and BOM/NUL checks.
+- [Hashed verification receipt](../../../qa/evidence/0.11.2-merge-audit/verification.json) preserves exact sources and limitations. Raw logs and screenshots remain in this worktree's `.dogfood/release-0112/` directory.
 
 ## Release blockers and next actions
 
@@ -54,6 +59,8 @@ The read-only **integration** readiness snapshot at `00de68e0f` returned six rea
 6. Installed smoke still identified an older source/build.
 
 A new lane's empty ignored detector directory does not clear integration's findings. Passing local journeys/Beginner here does not overwrite the integration authority. Preserve historical failure receipts and reconcile each finding against its own current scenario.
+
+During this pass, integration's Guardian refreshed at **20:17:38 UTC** on `00de68e0f`: fast, HTTP, saboteur, shoot, audit and journeys all exited 0; golden alone exited 3. The journey source mismatch therefore cleared, leaving **five** reasons in the [later readiness snapshot](../../../qa/evidence/0.11.2-merge-audit/integration-readiness.json). The four historical detector scenarios also passed their corresponding candidate rechecks (full fast, Abilities opening, panel-close backend idle, panel-close provider stream closure); their fingerprints and evidence are mapped in the verification receipt. Their integration ledger records were not silently closed.
 
 Before cutting 0.11.2:
 

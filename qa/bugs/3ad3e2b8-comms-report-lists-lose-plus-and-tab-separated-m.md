@@ -32,7 +32,7 @@ On integration source `00de68e0f`, the real seeded browser returned list-item co
 
 ## Verdict
 
-Source and seeded-browser repair verified; final gate and fix commit are recorded during audit finalization. No installed/customer recovery claim.
+Fixed by `cb6c30b4d`; source and seeded-browser repair verified. Final candidate `1826b558a` passed the complete 769-step fast gate. No installed/customer recovery claim.
 
 ## Regression
 

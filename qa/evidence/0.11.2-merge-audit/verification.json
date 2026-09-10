@@ -1,0 +1,375 @@
+{
+  "generatedAt": "2026-09-10T20:22:42.776Z",
+  "candidate": "1826b558aff85fd7c7d9e4b985f1527013728f57",
+  "fix": "cb6c30b4def0c7c05ca3a3bce6f1328ec5d56bf1",
+  "base": "b3760c46ff3fe02790e6c3b0c50a23c30b5837a8",
+  "auditedIntegration": "00de68e0f6da9c00b778eea1deefbaa84b82baa8",
+  "finalFast": {
+    "steps": 769,
+    "exitCode": 0,
+    "candidate": "1826b558aff85fd7c7d9e4b985f1527013728f57",
+    "scope": "Complete normal fast command on committed candidate; only runner-owned qa/STATUS.md row was uncommitted"
+  },
+  "http": {
+    "steps": 111,
+    "exitCode": 0,
+    "startedOn": "00de68e0f6da9c00b778eea1deefbaa84b82baa8",
+    "scope": "Uninterrupted normal HTTP command; frontend/report and QA edits overlapped. Backend bytes are identical to final candidate.",
+    "backendUnchanged": true
+  },
+  "customer": {
+    "steps": 34,
+    "exitCode": 0,
+    "candidate": "1826b558aff85fd7c7d9e4b985f1527013728f57"
+  },
+  "journeys": {
+    "stampIso": "2026-09-10T20:09:56.235Z",
+    "trunkHead": "00de68e0f6da9c00b778eea1deefbaa84b82baa8",
+    "fullSuite": true,
+    "result": "pass",
+    "exitCode": 0,
+    "passed": 139,
+    "total": 139,
+    "softFails": 0
+  },
+  "beginner": {
+    "stampIso": "2026-09-10T20:12:36.682Z",
+    "trunkHead": "00de68e0f6da9c00b778eea1deefbaa84b82baa8",
+    "result": "PASS",
+    "mode": "ui-only",
+    "totalMs": 93021,
+    "stalledStep": null
+  },
+  "navigation": {
+    "errors": [],
+    "viewports": [
+      {
+        "width": 1440,
+        "height": 900,
+        "appsGuide": true,
+        "messagingGuide": true,
+        "nativeControlPaint": []
+      },
+      {
+        "width": 1000,
+        "height": 700,
+        "appsGuide": true,
+        "messagingGuide": true,
+        "nativeControlPaint": []
+      },
+      {
+        "width": 800,
+        "height": 600,
+        "appsGuide": true,
+        "messagingGuide": true,
+        "nativeControlPaint": []
+      }
+    ]
+  },
+  "surfaces": {
+    "port": "19432",
+    "url": "http://127.0.0.1:19432/",
+    "capturedAt": "2026-09-10T20:20:25.884Z",
+    "states": [
+      {
+        "name": "ingame",
+        "kb": 1306,
+        "driveResult": "reset",
+        "ok": true
+      },
+      {
+        "name": "crew-agents",
+        "kb": 1070,
+        "driveResult": "opened:AGENTS:portrait-ready",
+        "ok": true
+      },
+      {
+        "name": "crew-recruit",
+        "kb": 941,
+        "driveResult": "opened:RECRUIT",
+        "ok": true
+      },
+      {
+        "name": "crew-commander",
+        "kb": 1082,
+        "driveResult": "opened:COMMANDER",
+        "ok": true
+      },
+      {
+        "name": "work-tasks",
+        "kb": 1004,
+        "driveResult": "opened:TASKS",
+        "ok": true
+      },
+      {
+        "name": "work-deliverables",
+        "kb": 1036,
+        "driveResult": "opened:DELIVERABLES",
+        "ok": true
+      },
+      {
+        "name": "work-recipes",
+        "kb": 934,
+        "driveResult": "opened:RECIPES",
+        "ok": true
+      },
+      {
+        "name": "work-automation",
+        "kb": 1038,
+        "driveResult": "opened:AUTOMATION",
+        "ok": true
+      },
+      {
+        "name": "work-quests",
+        "kb": 1007,
+        "driveResult": "opened:QUESTS:refresh-fixture-settled",
+        "ok": true
+      },
+      {
+        "name": "build-station",
+        "kb": 794,
+        "driveResult": "opened:REFIT STATION",
+        "ok": true
+      },
+      {
+        "name": "build-connectors",
+        "kb": 1066,
+        "driveResult": "opened:ABILITIES",
+        "ok": true
+      },
+      {
+        "name": "sys-messaging",
+        "kb": 1033,
+        "driveResult": "opened:CHANNELS",
+        "ok": true
+      },
+      {
+        "name": "build-manual",
+        "kb": 1028,
+        "driveResult": "opened:FIELD MANUAL",
+        "ok": true
+      },
+      {
+        "name": "sys-settings",
+        "kb": 1125,
+        "driveResult": "opened:SETTINGS:provider-health-settled",
+        "ok": true
+      },
+      {
+        "name": "sys-updates",
+        "kb": 992,
+        "driveResult": "opened:UPDATES",
+        "ok": true
+      },
+      {
+        "name": "sys-notifs",
+        "kb": 1066,
+        "driveResult": "opened:NOTIFS",
+        "ok": true
+      }
+    ],
+    "ready": true,
+    "dev": true,
+    "activeScreen": "screen-game",
+    "console": [],
+    "exceptions": []
+  },
+  "visuallyInspected": [
+    "build-connectors",
+    "crew-recruit",
+    "sys-settings",
+    "build-manual",
+    "sys-messaging"
+  ],
+  "visualLimit": "Inspection confirms these captured states, not all scrolling content or comparison approval. No baseline changed.",
+  "syntax": {
+    "changedJavaScriptFiles": 50,
+    "result": "PASS syntax and BOM/NUL scan"
+  },
+  "detectorRechecks": [
+    {
+      "fingerprint": "9c208e00",
+      "scenario": "Full fast command",
+      "result": "PASS 769/769; current integration Guardian also reports exit 0"
+    },
+    {
+      "fingerprint": "f373c745",
+      "scenario": "build-connectors opening",
+      "result": "PASS in focused and full 16-state capture"
+    },
+    {
+      "fingerprint": "5c2a7626",
+      "scenario": "J2/panel-close/backend-idle",
+      "result": "PASS in complete 139-assertion journey run"
+    },
+    {
+      "fingerprint": "b30906c8",
+      "scenario": "J2/panel-close/provider-stream-closed",
+      "result": "PASS in complete 139-assertion journey run"
+    }
+  ],
+  "detectorDisposition": "Rechecks attached; integration ledger was not mutated or findings dismissed.",
+  "retainedFailure": "First navigation probe had an ambiguous locator during window close animation; selector scoped to non-closing windows and rerun passed. Not a product failure.",
+  "limitations": [
+    "No exact installer acceptance",
+    "No real paid/provider/GitHub account mutation",
+    "No physical audio or Mac verification",
+    "No fresh soak run",
+    "No automatic update canary",
+    "No station-wide READY claim"
+  ],
+  "logs": [
+    {
+      "path": ".dogfood/release-0112/fast.log",
+      "size": 53750,
+      "sha256": "967945b9f507f0e2211fa88e31a3b9f0e62fbb6d088a8d00f66a7007af7bf18b"
+    },
+    {
+      "path": ".dogfood/release-0112/final-fast.log",
+      "size": 53745,
+      "sha256": "0bcae861bd57c2d9a90d9585b50c720b7d3a2e9a96917101ac0033565375e7b0"
+    },
+    {
+      "path": ".dogfood/release-0112/http.log",
+      "size": 11608,
+      "sha256": "d3881c2a0d17c5108c4c505a9fc9a52d0aa7a95bac3946e1671fa91d36b3aabe"
+    },
+    {
+      "path": ".dogfood/release-0112/customer.log",
+      "size": 7106,
+      "sha256": "9b53d0a322f5446a356845b6d0842cd3be267190169c2864504a7091caa78531"
+    },
+    {
+      "path": ".dogfood/release-0112/journeys.log",
+      "size": 13736,
+      "sha256": "271a37616ca183cc32ce8540c53db1b101c3b1bad23f2495af3208372c56637a"
+    },
+    {
+      "path": ".dogfood/release-0112/beginner.log",
+      "size": 1153,
+      "sha256": "a1f75c7d3a99a095116ff3472568514a682c77c05d20d3c676510ffae90fa5cd"
+    },
+    {
+      "path": ".dogfood/release-0112/live-cleanup.log",
+      "size": 389,
+      "sha256": "81623045eae67d6f3d4db8f8f888edf2ebb24763a83a55d3a76270fc2ba19594"
+    },
+    {
+      "path": ".dogfood/release-0112/report-before.log",
+      "size": 432,
+      "sha256": "f21d7242570bb99df7629d02c648dcc1929f7c5b69f6149d627ae43ed06172bd"
+    },
+    {
+      "path": ".dogfood/release-0112/report-after.log",
+      "size": 555,
+      "sha256": "7e77fee9f82dfc4f5d6a365a0c55b0f5f4b23d4ac2a857faeef64b2cf533f8a4"
+    },
+    {
+      "path": ".dogfood/release-0112/preflight.log",
+      "size": 4173,
+      "sha256": "4c9e57991503c43a6e9bdf2953defc37373b36e8b2f30f2a38321fd1a52d3588"
+    },
+    {
+      "path": ".dogfood/release-0112/navigation.log",
+      "size": 748,
+      "sha256": "afdcf2c22fe32a8df9acc45b4df6aeb5584a480a883af58e12ffa44b752bbe1e"
+    },
+    {
+      "path": ".dogfood/release-0112/navigation-final.log",
+      "size": 488,
+      "sha256": "25f5aaecd17cf34cebc8c7dc3c7da608a58d52f3082ab7194cbeca483b70d634"
+    },
+    {
+      "path": ".dogfood/release-0112/abilities.log",
+      "size": 515,
+      "sha256": "82e8946170f8eaffd7ebf2bc8e09f7daa5b47cc61cff0138f5d79534734df7c9"
+    },
+    {
+      "path": ".dogfood/release-0112/surfaces.log",
+      "size": 1307,
+      "sha256": "997fe335be6b6d68470b6ea703c5d6a4c41041b817a9d852d9b8c50a7401c841"
+    }
+  ],
+  "images": [
+    {
+      "path": ".dogfood/release-0112/surfaces/build-connectors.png",
+      "size": 1091456,
+      "sha256": "8c13b2ad8452a9ae058ddf8f347cc522306444c188853cbf59dc674e10cbcb2f"
+    },
+    {
+      "path": ".dogfood/release-0112/surfaces/build-manual.png",
+      "size": 1052382,
+      "sha256": "db7bc1a600ead0152d6a52b4b22187773c7d412f703e70506a50ef8b1920ba0e"
+    },
+    {
+      "path": ".dogfood/release-0112/surfaces/build-station.png",
+      "size": 812845,
+      "sha256": "ce3ff14575fd3a5dd4631257c67953f8851309652ce56dc2b3ae1e74918f427f"
+    },
+    {
+      "path": ".dogfood/release-0112/surfaces/crew-agents.png",
+      "size": 1095289,
+      "sha256": "02ac4262f3ca553b1382fbfe4d1a37faf059cb53a6de775da343a415e546f339"
+    },
+    {
+      "path": ".dogfood/release-0112/surfaces/crew-commander.png",
+      "size": 1107878,
+      "sha256": "612f1c7b0b3ede273d0bca811951012730dd733c1b758c60c403e29ec1627bb8"
+    },
+    {
+      "path": ".dogfood/release-0112/surfaces/crew-recruit.png",
+      "size": 963179,
+      "sha256": "296d9e594630be8b80a3091a2216d8dceb4b3d2f131b84f45ee912e67e588732"
+    },
+    {
+      "path": ".dogfood/release-0112/surfaces/ingame.png",
+      "size": 1337271,
+      "sha256": "2b949c9052aa28c7abee2ed2e9747f8209df1ad2eb1248b920251b9a76ad2e51"
+    },
+    {
+      "path": ".dogfood/release-0112/surfaces/sys-messaging.png",
+      "size": 1057336,
+      "sha256": "33cb28e25aff11449a2fd06660cbd148cc4c3ad2c51c352192f5a1b6f82e2444"
+    },
+    {
+      "path": ".dogfood/release-0112/surfaces/sys-notifs.png",
+      "size": 1091915,
+      "sha256": "b2781d439f8970d9774a22b5de46705c505259599979bc8c7d471a4faa3d0f87"
+    },
+    {
+      "path": ".dogfood/release-0112/surfaces/sys-settings.png",
+      "size": 1151555,
+      "sha256": "3f6767e3fe157cf32be746ffb58d8427980dc26d2a886dfd82f6cae35ff055e1"
+    },
+    {
+      "path": ".dogfood/release-0112/surfaces/sys-updates.png",
+      "size": 1015806,
+      "sha256": "ab1553c3dba3f31446808dc45af4a33500ec51a0d1298a02a1afb2eeca1720e8"
+    },
+    {
+      "path": ".dogfood/release-0112/surfaces/work-automation.png",
+      "size": 1063115,
+      "sha256": "ecb8d1bf015e71e5b57a6e2d516824c2a6c566b5087b105d03af2b705b7cf65a"
+    },
+    {
+      "path": ".dogfood/release-0112/surfaces/work-deliverables.png",
+      "size": 1060610,
+      "sha256": "e81f18ba2d46d1589f9fd4367c8d81d9ee344fc3f2146df8d9dc8f1a54d0af15"
+    },
+    {
+      "path": ".dogfood/release-0112/surfaces/work-quests.png",
+      "size": 1031611,
+      "sha256": "52308af65895d0b79e83e1d09b5e8b7d610875e4b13e327860d6d4611b03ebef"
+    },
+    {
+      "path": ".dogfood/release-0112/surfaces/work-recipes.png",
+      "size": 956385,
+      "sha256": "bc3649ecf63b096f0507b5341ff83d4d7c6c2f3725fdb6f32fe61f9cb1c51ad4"
+    },
+    {
+      "path": ".dogfood/release-0112/surfaces/work-tasks.png",
+      "size": 1027793,
+      "sha256": "0c9dd401a04c77478bf04da5ca01f69e85be7dc63876e5ef2e57b287dcb9a679"
+    }
+  ]
+}
