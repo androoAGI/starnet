@@ -1,0 +1,27 @@
+{
+  "source": "e8541fcbd724cdff80c1a1f156840487c042f56e",
+  "capture": ".uigolden",
+  "reviewedFrames": [
+    "ingame",
+    "crew-agents",
+    "crew-recruit",
+    "crew-commander",
+    "work-tasks",
+    "work-deliverables",
+    "work-recipes",
+    "work-automation",
+    "work-quests",
+    "build-station",
+    "build-connectors",
+    "sys-messaging",
+    "build-manual",
+    "sys-settings",
+    "sys-updates",
+    "sys-notifs"
+  ],
+  "captureResult": "all states opened",
+  "detectorResult": "CHANGED: 16; excused: 0; exit 3",
+  "review": "All 16 current screenshots inspected directly. Expected panels and controls are present, with the docked-panel geometry seen in the preceding integration capture. No blank station or wrong-panel capture observed. Commander overview text received an additional live DOM check: copy and familiarity columns occupy disjoint horizontal bounds. This does not certify scrolling, all control interactions, every viewport, installed desktop, or customer hardware.",
+  "baselineChanged": false,
+  "releaseApproval": false
+}

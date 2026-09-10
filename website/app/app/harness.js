@@ -278,6 +278,7 @@ const Harness = (() => {
   //
   // Called again after a link/unlink so selecting STARNET does not wait for a page reload.
   async function refreshCreditsConfigured() {
+    selectionRevision++;
     try {
       const r = await fetch('/api/credits?history=0', { cache: 'no-store' });
       const j = (r && r.ok) ? await r.json() : null;
@@ -380,6 +381,7 @@ const Harness = (() => {
   // getKey() returns the real key in the browser; in desktop it returns '' (the key isn't here).
   const getKey = provider => DESKTOP ? '' : readScoped(LS.key, provider);
   const setKey = (k, provider) => {
+    selectionRevision++;
     const p = normalizeProviderId(provider || getProv());
     if (DESKTOP) {
       const on = !!(k && String(k).trim());
@@ -437,8 +439,12 @@ const Harness = (() => {
       .then(() => true)
       .catch(e => { console.warn('[harness] channel-token store failed:', (e && e.message) || e); return false; });
   }
+  // Explicit writes invalidate pending catalog reconciliation, including A -> B -> A.
+  let selectionRevision = 0;
+  const getSelectionRevision = () => selectionRevision;
   const getModel = () => localStorage.getItem(LS.model) || '';
   const setModel = m => {
+    selectionRevision++;
     const prev = localStorage.getItem(LS.model) || '';
     localStorage.setItem(LS.model, m || '');
     // A deliberate model switch invalidates every context-occupancy reading (a different window,
@@ -448,9 +454,10 @@ const Harness = (() => {
     if ((m || '') !== prev) { contextByKey = {}; runConv = {}; }
   };
   const getProv = () => normalizeProviderId(localStorage.getItem(LS.prov) || 'openrouter');
-  const setProv = p => localStorage.setItem(LS.prov, normalizeProviderId(p || 'openrouter'));
+  const setProv = p => { selectionRevision++; localStorage.setItem(LS.prov, normalizeProviderId(p || 'openrouter')); };
   const getBaseUrl = provider => readScoped(LS.baseUrl, provider);
   const setBaseUrl = (u, provider) => {
+    selectionRevision++;
     const p = normalizeProviderId(provider || getProv());
     writeScoped(LS.baseUrl, p, u || '');
     if (DESKTOP) {
@@ -1231,7 +1238,7 @@ const Harness = (() => {
   return {
     pingEngine,
     isDesktop: () => DESKTOP,   // lets the UI tell a desktop keychain-store failure (token saved locally) from a browser no-op
-    getKey, setKey, setKeyPool, validateAndSetKeyPool, keyPoolSize, storeChannelToken, getModel, setModel, getProv, setProv, getBaseUrl, setBaseUrl, getReasoningEffort, setReasoningEffort, normalizeReasoningEffort, init, configured, refreshCreditsConfigured, hasStoredCredential, setDesktopConfigured,
+    getSelectionRevision, getKey, setKey, setKeyPool, validateAndSetKeyPool, keyPoolSize, storeChannelToken, getModel, setModel, getProv, setProv, getBaseUrl, setBaseUrl, getReasoningEffort, setReasoningEffort, normalizeReasoningEffort, init, configured, refreshCreditsConfigured, hasStoredCredential, setDesktopConfigured,
     listModels, probeProvider, validateAndSetKey, priceOf, contextLimitOf, contextState, chat, cancel, haltAll, consent, consentAck, consentAnswer, summonAck, notebook,
     runRecoveries, prepareAutomaticRecovery, resolveRunRecovery, prepareReviewedRecovery,
     memoryProposals, memoryTurnin, memoryVeto, memoryReset, memoryRecords, memoryDeclined, memoryRestore, memoryPending, memoryPin, memoryEdit, memoryForget,

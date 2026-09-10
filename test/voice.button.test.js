@@ -443,7 +443,7 @@ async function opensWithin(t, ms) {
     t.Voice.attachCoordinator({ onState: state => states.push(state), onOutputLevel: level => levels.push(level) });
     t.Voice.setSpeakReplies(true);
     t.Voice.speak('this chunk begins and then fails to decode', 'agent');
-    await tick(70);
+    await until(() => revoked === 2 && !t.Voice.isSpeaking(), 1000);
     A.ok(states.includes('speaking'), 'post-play failure: speaking state was genuinely entered');
     A.ok(t.Voice.isSpeaking() === false, 'post-play failure: speaking state is cleared (no stuck agent turn)');
     A.ok(states.includes('ready'), 'post-play failure: coordinator returns to ready');
@@ -512,9 +512,10 @@ async function opensWithin(t, ms) {
     const pending = [], played = []; let failFirst = true;
     class OrderedAudio extends MockAudio {
       play() { const text = this.src; played.push(text);
-        setTimeout(() => { if (this.onplay) this.onplay();
+        // Model asynchronous media events without racing three host timers against a 40ms wait.
+        queueMicrotask(() => { if (this.onplay) this.onplay();
           if (failFirst) { failFirst = false; this.error = {code: 3}; if (this.onerror) this.onerror(); }
-          else if (this.onended) this.onended(); }, 0);
+          else if (this.onended) this.onended(); });
         return Promise.resolve();
       }
     }
@@ -530,7 +531,9 @@ async function opensWithin(t, ms) {
     pending[1].resolve({ok:true,headers:{get:()=> 'audio/wav'},blob:async()=>({size:128,text:pending[1].text})});
     await tick(10); A.eq(played.length,0,'continuity: ready second sentence cannot overtake first');
     pending[0].resolve({ok:true,headers:{get:()=> 'audio/wav'},blob:async()=>({size:128,text:pending[0].text})});
-    await tick(40);
+    // Three asynchronous playback events (including retry) must finish. A 40ms sample can observe
+    // the last play() before its onended callback on a busy host; wait for the bounded outcome.
+    await until(() => !t.Voice.isReplyPending(), 1000);
     A.eq(played.join('|'),'First complete sentence.|First complete sentence.|Second complete sentence.', 'continuity: failed playback retries same audio before later sentence');
     A.eq(t.Voice.isReplyPending(),false,'continuity: successful retry drains final tail');
   }

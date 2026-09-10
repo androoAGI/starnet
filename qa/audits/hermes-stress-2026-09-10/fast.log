@@ -1,0 +1,1188 @@
+
+> starnet-harness@0.11.1 test:fast
+> node scripts/timeout.mjs --label test:fast --timeout=900000 -- npm run test:fast:raw
+
+
+> starnet-harness@0.11.1 test:fast:raw
+> node scripts/run-fast-tests.mjs
+
+schema.test: OK (42 assertions)
+group session id533: injected scheduler interruption
+group-sessions: routing, idempotency, context, revision cycles, cap, artifacts, independent opinions, interruption, approvals, restart and branches PASS
+group-message-attachments: association, file bytes, isolation, validation, upload/send retries and restart PASS
+bay-name-legibility: compact tags, proportional zoom/DPI, rename, binding, fixed anchors and bounded long names PASS
+group edges: restart retry, membership cancellation, question/file isolation, ambiguous names and all recipients PASS
+group-chat-picker: loading, duplicate clicks, 404, auth, malformed response, roster failure, retry, selection and cancellation PASS
+contract.test: OK (95 assertions)
+events-contract.test: OK (9 assertions)
+clock-rng.test: OK (14 assertions)
+context.test: OK (180 assertions)
+runtimeinfo: OK (15 assertions)
+harness-snapshot: OK (23 assertions)
+station-inspect: OK (12 assertions)
+[failopen] aux.test.envelope (x1): aux pass died sk-or-v1-abcdef0123456789abcdef0123456789
+[failopen] aux.test.envelope (x2): again
+[failopen] maint.test.loop (x1): once
+[failopen] flood.0 (x1): x
+[failopen] flood.1 (x1): x
+[failopen] flood.2 (x1): x
+[failopen] flood.3 (x1): x
+[failopen] flood.4 (x1): x
+[failopen] flood.5 (x1): x
+[failopen] flood.6 (x1): x
+[failopen] flood.7 (x1): x
+[failopen] flood.8 (x1): x
+[failopen] flood.9 (x1): x
+[failopen] flood.10 (x1): x
+[failopen] flood.11 (x1): x
+[failopen] flood.12 (x1): x
+[failopen] flood.13 (x1): x
+[failopen] flood.14 (x1): x
+[failopen] flood.15 (x1): x
+[failopen] flood.16 (x1): x
+[failopen] flood.17 (x1): x
+[failopen] flood.18 (x1): x
+[failopen] flood.19 (x1): x
+[failopen] flood.20 (x1): x
+[failopen] flood.21 (x1): x
+[failopen] flood.22 (x1): x
+[failopen] flood.23 (x1): x
+[failopen] flood.24 (x1): x
+[failopen] flood.25 (x1): x
+[failopen] flood.26 (x1): x
+[failopen] flood.27 (x1): x
+[failopen] flood.28 (x1): x
+[failopen] flood.29 (x1): x
+[failopen] flood.30 (x1): x
+[failopen] flood.31 (x1): x
+[failopen] flood.32 (x1): x
+[failopen] flood.33 (x1): x
+[failopen] flood.34 (x1): x
+[failopen] flood.35 (x1): x
+[failopen] flood.36 (x1): x
+[failopen] flood.37 (x1): x
+[failopen] flood.38 (x1): x
+[failopen] flood.39 (x1): x
+diagnostics: OK (47 assertions)
+diagnostics-support-email.test: OK (16 assertions)
+diagnostics-build.test: OK (17 assertions)
+diagnostics-dead-engine.test: OK (25 assertions)
+bootguard: OK (56 assertions)
+TAP version 13
+# Subtest: live doctor refuses to probe without explicit consent
+ok 1 - live doctor refuses to probe without explicit consent
+  ---
+  duration_ms: 1.4978
+  type: 'test'
+  ...
+# Subtest: live doctor preserves truthful states, latency, ordering, and a paste-ready receipt
+ok 2 - live doctor preserves truthful states, latency, ordering, and a paste-ready receipt
+  ---
+  duration_ms: 4.9497
+  type: 'test'
+  ...
+# Subtest: receipt redacts credential-shaped detail and never promotes an unknown state
+ok 3 - receipt redacts credential-shaped detail and never promotes an unknown state
+  ---
+  duration_ms: 1.4652
+  type: 'test'
+  ...
+# Subtest: failure classifier distinguishes configuration, refusal, and reachability
+ok 4 - failure classifier distinguishes configuration, refusal, and reachability
+  ---
+  duration_ms: 2.5712
+  type: 'test'
+  ...
+# Subtest: independent probes run concurrently and keep receipt order
+ok 5 - independent probes run concurrently and keep receipt order
+  ---
+  duration_ms: 6.678
+  type: 'test'
+  ...
+1..5
+# tests 5
+# suites 0
+# pass 5
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 24.4146
+TAP version 13
+# Subtest: browser live doctor sends the explicit consent bit and returns the receipt
+ok 1 - browser live doctor sends the explicit consent bit and returns the receipt
+  ---
+  duration_ms: 4.1042
+  type: 'test'
+  ...
+# Subtest: settings keeps live probes behind a checkbox and renders the receipt as text
+ok 2 - settings keeps live probes behind a checkbox and renders the receipt as text
+  ---
+  duration_ms: 74.1787
+  type: 'test'
+  ...
+1..2
+# tests 2
+# suites 0
+# pass 2
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 88.7824
+TAP version 13
+# Subtest: file approval preserves every mutation argument beyond the run summary cap
+ok 1 - file approval preserves every mutation argument beyond the run summary cap
+  ---
+  duration_ms: 7.8354
+  type: 'test'
+  ...
+# Subtest: rating controls name the originating task and run, even when an older card is shown
+ok 2 - rating controls name the originating task and run, even when an older card is shown
+  ---
+  duration_ms: 1.6006
+  type: 'test'
+  ...
+# Subtest: deliverable naming instruction yields to explicit task limits
+ok 3 - deliverable naming instruction yields to explicit task limits
+  ---
+  duration_ms: 1.8621
+  type: 'test'
+  ...
+# Subtest: Codex probe sends Medium to Astra and completes instead of the unsupported-none 400
+ok 4 - Codex probe sends Medium to Astra and completes instead of the unsupported-none 400
+  ---
+  duration_ms: 43.916
+  type: 'test'
+  ...
+# Subtest: follow-up keeps the selected run through another run and save hydration
+ok 5 - follow-up keeps the selected run through another run and save hydration
+  ---
+  duration_ms: 29.9106
+  type: 'test'
+  ...
+# Subtest: a delayed rating for the preceding run cannot appear below newer work in the same session
+ok 6 - a delayed rating for the preceding run cannot appear below newer work in the same session
+  ---
+  duration_ms: 1.2708
+  type: 'test'
+  ...
+# Subtest: delayed memory decks do not reintroduce a superseded rating
+ok 7 - delayed memory decks do not reintroduce a superseded rating
+  ---
+  duration_ms: 0.6028
+  type: 'test'
+  ...
+1..7
+# tests 7
+# suites 0
+# pass 7
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 103.3271
+outbound-failure-diagnosability.test: OK (26 assertions)
+reflect.test: OK (114 assertions)
+memcore.test: OK (93 assertions)
+cost.test: OK (38 assertions)
+spend.test: OK (7 assertions)
+ledger.test: OK (48 assertions)
+logbound.test: OK (23 assertions)
+budget.test: OK (49 assertions)
+budget-caps: OK (46 assertions)
+fallback-chain: OK (56 assertions)
+configexport.test.js OK — 76 assertions
+harness-import.test.js OK — 61 assertions
+settings-p1-backend.test.js OK — 36 assertions
+concurrency.test: OK (65 assertions)
+workspace-lease.test: OK (27 assertions)
+workspace-owner.test: OK (34 assertions)
+workspace-safety.test: OK (12 assertions)
+[recovery] auto station recovery SKIPPED: target workspace is a scratch root (C:\Users\andro\AppData\Local\Temp\starnet-fake-real-home-sKQP0W\ci-scratch-23jwhP\ws is under C:\Users\andro\AppData\Local\Temp\starnet-fake-real-home-sKQP0W\ci-scratch-23jwhP); a real station is never ingested into a temp workspace. Explicit recovery (request file / CLI restore) is unaffected.
+workspace-recovery.test: OK (66 assertions)
+workspace-lineage.test: OK (86 assertions)
+agent-lifecycle: OK (45 assertions)
+[failopen] durable-store.onCorrupt (x1): handler bug
+durable-store.test: OK (55 assertions)
+domain-store.test: OK (10 assertions)
+provider-runtime.test: OK (8 assertions)
+run-execution-state.test: OK (59 assertions)
+tool-progress-guard.test: OK (37 assertions)
+tool-dispatch-boundary.test: OK (10 assertions)
+completion-evidence.test: OK (16 assertions)
+task-postconditions.test: OK (21 assertions)
+connector-readback: OK (28 assertions)
+recipe-drift: OK (26 assertions)
+task-postconditions-ui.test: OK (10 assertions)
+recovery-policy.test: OK (12 assertions)
+tool-recovery.test: OK (6 assertions)
+run-journal-disk-boundary.test: OK (8 assertions)
+todo.durability.test: OK (54 assertions)
+halt: OK (15 assertions)
+readbody: OK (11 assertions)
+file-response.test: OK (14 assertions)
+test-list-runner.test: OK (8 assertions)
+runroute.test: OK (13 assertions)
+checkpoint: OK (34 assertions)
+checkpoint-default-on.test: OK (14 assertions)
+module-scope-shadowing.test: OK (7 assertions)
+source-text-integrity.test: OK (1894 tracked JS/MJS files)
+verify.test: OK (17 assertions)
+lsp-edit-feedback.test: OK (31 assertions)
+provider.replay.test: OK (13 assertions)
+agent-eval.test: OK (43 assertions)
+eval-campaign-preflight.test: OK (10 assertions)
+eval-soak-receipt.test: OK (12 assertions)
+eval-same-model-receipt.test: OK (10 assertions)
+eval-acp-client.test: OK (7 assertions)
+eval-fixture-host.test: OK (33 assertions)
+eval-installed-performance.test: OK (5 assertions)
+eval-installed-provider-soak.test: OK (20 assertions)
+eval-parity-offline.test: OK (27 assertions)
+overnight-reliability-runner.test: OK (28 assertions)
+provider.openrouter.test: OK (64 assertions)
+provider.openai-compatible.test: OK (83 assertions)
+realtime-voice.test.js: ok
+native-stt.test.js: ok
+local-voice.test.js: ok (models installed)
+media-service: OK (36 assertions)
+desktop voice bundle tests passed
+transcript.compaction.e2e.test: OK (19 assertions)
+provider.anthropic.test: OK (67 assertions)
+prices.live.test: OK (30 assertions)
+provider.gemini.test: OK (47 assertions)
+provider.toolschema.test: OK (28 assertions)
+provider.prices.test: OK (27 assertions)
+prices.all-providers.test: OK (119 assertions)
+provider.timeouts.test: OK (53 assertions)
+provider.registry.test: OK (105 assertions)
+ratelimits: OK (30 assertions)
+provider.codex-auth.test: OK (72 assertions)
+purge-leaked-codex-tokens: OK (14 assertions)
+provider.oauth-device.test: OK (72 assertions)
+codex-auth-state: OK (29 assertions)
+provider.codex.test: OK (66 assertions)
+provider.codex.pairing.test: OK (18 assertions)
+credpool.test: OK (15 assertions)
+credrotate.test: OK (29 assertions)
+sanitize.test: OK (42 assertions)
+errorclass.test: OK (215 assertions)
+[billing] managed run r5b over cap: reported $2.0100 vs reserved $2.0000 — charging the reservation; $0.0100 overage absorbed
+billing.test: OK (86 assertions)
+[credits] debit POST failed (status 500); invalidating cached balance -> next managed run fail-closes until refresh reconciles
+[credits] debit POST failed (status ?); invalidating cached balance -> next managed run fail-closes until refresh reconciles
+[credits] debit POST failed (status 500); invalidating cached balance -> next managed run fail-closes until refresh reconciles
+credits.test: OK (113 assertions)
+credits-link.test: OK (95 assertions)
+friendlyerror.test: OK (229 assertions)
+codexsignin.test: OK (17 assertions)
+oauthsignin.test: OK (30 assertions)
+hooks.test: OK (49 assertions)
+shellhooks.test: OK (50 assertions)
+hooks.wiring.test: OK (31 assertions)
+plugins.test: OK (51 assertions)
+loop.replay.test: OK (121 assertions)
+loop.steer.test: OK (13 assertions)
+loop.verify-on-stop.test: OK (55 assertions)
+tests: OK (20 assertions)
+loop.parallel-tools.test: OK (15 assertions)
+loop.tool-images.test: OK (17 assertions)
+loop.turn-budget: OK (24 assertions)
+loop.provider-recovery.test: OK (60 assertions)
+loop.failure-recovery.test: OK (12 assertions)
+loop.stop-means-stop: OK (28 assertions)
+output-continuation.test: OK (43 assertions)
+compaction.test: OK (40 assertions)
+compaction-summarizer.test: OK (341 assertions)
+loopguard.test: OK (15 assertions)
+loopguard.dispatch: OK (10 assertions)
+continuation-guard.test: OK
+continuation-guard.test: OK (28 assertions)
+text-toolcall-markup.test: OK
+text-toolcall-markup.test: OK (18 assertions)
+model-conformance.test: OK
+model-conformance.test: OK (22 assertions)
+iteration-budget.test: OK (24 assertions)
+updatecore: OK (72 assertions)
+quitguard: OK (28 assertions)
+desktop-lifecycle-preferences: OK (17 assertions)
+desktop-installed-cdp-forwarding.test: OK (5 assertions)
+cloudsavecore: OK (45 assertions)
+[cloudsave] durable mirror has not synced; retrying with backoff. Local cache is intact.
+[cloudsave] durable mirror sync recovered.
+cloudsave-refusal: OK (18 assertions)
+cloudsave-unknown: OK (12 assertions)
+freshstart.test: OK (15 assertions)
+unreachable-browser-mode: OK (18 assertions)
+harness.cancel-truth: OK (32 assertions)
+desktop-fresh-start-contract.test: OK (18 assertions)
+cloudsave-unload: OK (16 assertions)
+fullscreen.test: OK (40 assertions)
+titlebar.test.js OK
+titlebar.test: OK (21 assertions)
+logo-occlusion.test.js OK
+logo-occlusion: OK (14 assertions)
+keepawake.test: OK (18 assertions)
+grace.test: OK (7 assertions)
+shell-session.test: OK (28 assertions)
+shell-bg.test: OK (50 assertions)
+shell-bg-io: OK (29 assertions)
+shell-visible-window.test: OK (45 assertions)
+shell-input-isolation.test: OK (34 assertions)
+shell-machine-state.test: OK (266 assertions)
+procledger.test: OK (54 assertions)
+inputguard.test: OK (12 assertions)
+timeout.test: OK (6 assertions)
+phase4.evidence.test: OK (12 assertions)
+phase5.evidence.test: OK (15 assertions)
+phase5.runner.test: OK (10 assertions)
+t0-clean-install.test: OK (18 assertions)
+tests: OK (70 assertions)
+soak.test: OK (269 assertions)
+desktop-workspace-migration.test: OK (31 assertions)
+t1-signing.test: OK (20 assertions)
+t2-state-safety.test: OK (10 assertions)
+upgrade-085-090: OK (40 assertions)
+t3-release-smoke.test: OK (17 assertions)
+t4-update-delivery.test: OK (22 assertions)
+installer-upgrade-resilience.test: OK (30 assertions)
+t5-public-distribution.test: OK (35 assertions)
+minisign-verify.test: OK (21 assertions)
+release-assemble-manifest.test: OK (45 assertions)
+verify-update-host.test: OK (15 assertions)
+replacement-sweep.test: OK (19 assertions)
+lint-evidence-secrets.test: OK (8 assertions)
+lint-evidence-secrets: OK
+environment.test: OK (123 assertions)
+servicekeys.test: OK (63 assertions)
+servicekeys.env.test.js: OK (41 assertions)
+web-request.test.js: OK (84 assertions)
+servicekeys-catalog.test.js: OK (489 assertions)
+[failopen] tools.registry.parkOutput (x1): disk full
+tools.test: OK (100 assertions)
+capgate.test: OK (54 assertions)
+capdrift: OK (71 assertions)
+capsummary.test: OK (38 assertions)
+boot-security.test: OK (16 assertions)
+sidecar-fixture.test: OK (10 assertions)
+sidecar.security.test: OK (20 assertions)
+tauri.hardening.test: OK (31 assertions)
+finish-line-doctrine.test: OK (12 assertions)
+manual.test: OK (38 assertions)
+permissions.test: OK (76 assertions)
+workshop-permissions.test: OK (18 assertions)
+master-bypass.test: OK (24 assertions)
+workshop-store.test: OK (85 assertions)
+workshop-undo.e2e.test: OK (28 assertions)
+tests: OK (67 assertions)
+tests: OK (45 assertions)
+workshop-visibility.test: OK (53 assertions)
+workshop-resolution: OK (17 assertions)
+workshop-toggle-ui: OK (16 assertions)
+quest-store.test: OK (114 assertions)
+journey-store.test: OK (75 assertions)
+journey.test: OK (8 assertions)
+journeystore.test: OK (13 assertions)
+journey-wiring.test: OK (13 assertions)
+commander-progression-ui: OK (headline, offline report, chaining, goal confirmation, reload)
+testapi-commander-hud: OK (13 delayed, exact, stale, reset and missing-display assertions)
+questinject.test: OK (47 assertions)
+quests-tool.test: OK (58 assertions)
+questsweeps.test: OK (23 assertions)
+tests: OK (102 assertions)
+threads-store: OK (19 assertions)
+threadmine: OK (31 assertions)
+tests: OK (19 assertions)
+recommendation-ledger.test: OK (26 assertions)
+recommendation-eval.test: OK (12 assertions)
+personalization-store.test: OK (5 assertions)
+recruiterstore-readiness.test: OK (7 assertions)
+auxgovernor.test: OK (2086 assertions)
+failreview.test: OK (75 assertions)
+threadstore.test: OK (40 assertions)
+autopilot-threads: OK (13 assertions)
+tests: OK (11 assertions)
+apiauth.test: OK (51 assertions)
+notebook.test: OK (117 assertions)
+skills.test: OK (135 assertions)
+[failopen] skillstore.append (x1): injected skills disk full
+skill-exchange.test.js: OK (48 assertions)
+abilities.skills-lane.test: OK (19 assertions)
+skills.library.test: OK (330 assertions)
+skills.gate.test: OK (96 assertions)
+skills.review-approval: OK (18 assertions)
+slash.test: OK (75 assertions)
+slash-actions.test: OK (101 assertions)
+slash.parity.test: OK (180 assertions)
+usercommands.test: OK (33 assertions)
+slash.palette.test: OK (66 assertions)
+slash.config.test: OK (21 assertions)
+voice.button.test: OK (128 assertions)
+voice-live-ui.test.js: ok
+voice-flow: sentence buffering and deadline regressions passed
+voice-flow.test.js: adaptive timing and 6 voice flow scenarios passed
+voice-stream.test: streaming correction, final reuse, cancellation, bounds, expiry, and browser transport passed
+voice.draftguard.test: OK (21 assertions)
+[savestore] quarantined corrupt save \ws\agent.save.json -> \ws\agent.save.json.corrupt-1 (main unparseable and no usable .bak)
+[savestore] refusing save for agent — existing record is unreadable (EBUSY); not clobbering a possibly-newer save
+[savestore] quarantined corrupt save \ws\agent.save.json -> \ws\agent.save.json.corrupt-2 (main unparseable and no usable .bak)
+[savestore] quarantined corrupt save \ws\agent.save.json -> \ws\agent.save.json.corrupt-4 (main unparseable; recovered from .bak)
+[savestore] quarantined corrupt save \ws\agent.save.json -> \ws\agent.save.json.corrupt-1 (main unparseable and no usable .bak)
+[savestore] quarantined corrupt save \ws\agent.save.json -> \ws\agent.save.json.corrupt-1 (main unparseable; recovered from .bak)
+[savestore] quarantined corrupt save \ws\agent.save.json -> \ws\agent.save.json.corrupt-1 (main unparseable and no usable .bak)
+[savestore] quarantined corrupt save \ws\agent.save.json -> \ws\agent.save.json.corrupt-1 (main unparseable; recovered from .bak)
+[savestore] quarantined corrupt save \ws\agent.save.json -> \ws\agent.save.json.corrupt-1 (main unparseable and no usable .bak)
+[savestore] quarantined corrupt save \ws\agent.save.json -> \ws\agent.save.json.corrupt-6 (main unparseable; recovered from .bak)
+save.test: OK (70 assertions)
+saveversion: OK (23 assertions)
+backup-secrets.test.js OK — 44 assertions
+schema-stamp.test: OK (15 assertions)
+rename-migrate.test: OK (14 assertions)
+update-state-parity: OK (42 assertions)
+update-continuity.test: OK (7 assertions)
+update-preparation.test: OK (20 assertions)
+updates-install.test: OK (16 assertions)
+roster-clause.test: OK (24 assertions)
+agent-config-target.test: OK (36 assertions)
+notebookrestore.test: OK (20 assertions)
+runstore.test: OK (90 assertions)
+run-journal.test: OK (44 assertions)
+run-recovery-continuation.test: OK (24 assertions)
+run-recovery-ui.test: OK (10 assertions)
+run-journal.loop.test: OK (14 assertions)
+longhaul-retention.test: OK (15 assertions)
+autonomy-ledger: OK (30 assertions)
+artifacts.test: OK (25 assertions)
+deliverable-store.test: OK (11 assertions)
+tests: OK (33 assertions)
+deliverable-provenance.test: OK (18 assertions)
+deliverable-note.test: OK (24 assertions)
+deliverables-ui.test: OK (17 assertions)
+deliverables-open.test: OK (11 assertions)
+work-recap.test: OK (27 assertions)
+qa-ledger.test: OK (73 assertions)
+qa-saboteur: OK (10 assertions)
+qa-bugs.test: OK (97 assertions)
+TAP version 13
+# Subtest: source fix cannot be closed without the four sibling dimensions and regression evidence
+ok 1 - source fix cannot be closed without the four sibling dimensions and regression evidence
+  ---
+  duration_ms: 5.9374
+  type: 'test'
+  ...
+# Subtest: installer and customer claims require independent evidence and survive later updates
+ok 2 - installer and customer claims require independent evidence and survive later updates
+  ---
+  duration_ms: 1.1107
+  type: 'test'
+  ...
+# Subtest: missing axis, fabricated coverage, and empty exemptions fail closed
+ok 3 - missing axis, fabricated coverage, and empty exemptions fail closed
+  ---
+  duration_ms: 0.764
+  type: 'test'
+  ...
+# Subtest: legacy records remain valid without inventing historical recovery
+ok 4 - legacy records remain valid without inventing historical recovery
+  ---
+  duration_ms: 0.1935
+  type: 'test'
+  ...
+# Subtest: covered regression must exist in its declared exercised gate
+ok 5 - covered regression must exist in its declared exercised gate
+  ---
+  duration_ms: 10.299
+  type: 'test'
+  ...
+# Subtest: customer journey campaign cannot drift outside mandatory fast/http gates
+ok 6 - customer journey campaign cannot drift outside mandatory fast/http gates
+  ---
+  duration_ms: 31.1017
+  type: 'test'
+  ...
+# Subtest: related fix prose cannot promote an unresolved customer report in reconciliation
+ok 7 - related fix prose cannot promote an unresolved customer report in reconciliation
+  ---
+  duration_ms: 1.0796
+  type: 'test'
+  ...
+1..7
+# tests 7
+# suites 0
+# pass 7
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 58.8209
+  register: 7 open of 92 total — 0 P0 · 7 P1 · 0 P2
+    P1 autonomy    Customer cannot explain idle behavior and unexpectedly high usage
+    P1 autonomy    Customer reports an ONCE routine absent from Active Routines
+    P1 onboarding  Mac paid onboarding becomes unreachable after reload and relink
+    P1 providers   Funded working station still displays a zero-credit warning
+    P1 providers   Managed Sonnet request still returns an uncorrelated HTTP 400
+    P1 providers   Saved equipment omitted from interactive tool projection and toolset diagnostics
+    P1 world       Customer viewport becomes blank after ten to twenty minutes
+qa-bugs-register.test: OK (8 assertions)
+ledger-reconcile.test: OK (82 assertions)
+qa-guardian.test: OK (99 assertions)
+qa-message-content.test: OK (6 assertions)
+qa-closer.test: OK (166 assertions)
+qa-ready.test: OK (118 assertions)
+qa-product-perfect.test: OK (50 assertions)
+qa-product-perfect-claims.test: OK (64 assertions)
+website-pricing-hold.test: OK (14 assertions)
+genesis-starnet-link.test.js OK - 47 assertions
+qa-product-perfect-provenance.test: OK (13 assertions)
+qa-cartographer.test: OK (139 assertions)
+golden.test: OK (38 assertions)
+qa-beginner.test: OK (87 assertions)
+qa installed first run: OK (70 assertions)
+qa installed link transport: OK (78 assertions)
+qa-janitor.test: OK (69 assertions)
+qa-evidence-sweep.test: OK (44 assertions)
+qa-installed-smoke.test: OK (97 assertions)
+transcript.test: OK (65 assertions)
+transcript-history-v2.test: OK (35 assertions)
+recall.test: OK (36 assertions)
+fs.jail.test: OK (96 assertions)
+fs-mutation-receipts.test: OK (27 assertions)
+fs.patch.test: OK (34 assertions)
+fs.stale-write.test: OK (15 assertions)
+docextract.test: OK (28 assertions)
+imagewire: OK (26 assertions)
+web.ssrf.test: OK (43 assertions)
+web.search.test: OK (18 assertions)
+web.politeness.test: OK (13 assertions)
+web.fence.test: OK (11 assertions)
+web.fetch-jina.test: OK (23 assertions)
+web.calm.test: OK (25 assertions)
+web.reach.test: OK (29 assertions)
+browser.test: OK (304 assertions)
+browser.desktop-login-journey.test: OK (21 assertions)
+browser.login-seed.test: OK (7 assertions)
+browser.reach-measure: OK (18 assertions)
+browser.tool-parity.test: OK (111 assertions)
+browser.wait-recovery.test: OK (39 assertions)
+browser.download-receipt: OK (7 assertions)
+browser.attach.test: OK (36 assertions)
+browser.pie.test: OK (53 assertions)
+desktop.test: OK (38 assertions)
+computer.test: OK (46 assertions)
+win32desktop.test: OK (8 assertions)
+inputpolicy.test: OK (108 assertions)
+image.test: OK (76 assertions)
+image-task.test: OK (55 assertions)
+voice-tool: OK (32 assertions)
+connectors-tool: OK (41 assertions)
+attachments.test: OK (25 assertions)
+spotify.pkce.test: OK (25 assertions)
+spotify.store.test: OK (35 assertions)
+spotify.tools.test: OK (22 assertions)
+classify.test: OK (154 assertions)
+specialties: OK (588 assertions)
+profile: OK (61 assertions)
+worksignal: OK (44 assertions)
+worksignalstore.test: OK (10 assertions)
+recruiter: OK (24 assertions)
+topicmatch: OK (70 assertions)
+prospect: OK (47 assertions)
+interests.test: OK (40 assertions)
+scout.test: OK (139 assertions)
+dossier.test: OK (65 assertions)
+understanding.test: OK (47 assertions)
+fork.test: OK (24 assertions)
+[taskbrief] brief_ask suppressed: scope habitually deferred
+taskintent.test: OK (265 assertions)
+taskbrief.clarify.test: OK (60 assertions)
+understandingstore.test: OK (35 assertions)
+study.test: OK (153 assertions)
+goals.test: OK (81 assertions)
+goalstore.test: OK (116 assertions)
+trust.test: OK (72 assertions)
+truststore.test: OK (92 assertions)
+goalloop: OK (67 assertions)
+interview.test: OK (117 assertions)
+onboarding.test: OK (100 assertions)
+onboard-fresh-launcher.test: OK (4 assertions)
+codex-configured.test: OK (12 assertions)
+tests: OK (28 assertions)
+PASS isolated seeded sidecar starts
+PASS seeded station reaches the live floor
+PASS camera begins on a lit WebGL frame :: {"path":"webgl","ready":true,"failed":false,"lost":false,"frameSum":94}
+PASS WEBGL_lose_context is available and invoked :: {"ok":true}
+PASS same page abandons WebGL for the CPU warp :: {"path":"cpu","ready":false,"failed":true,"lost":true,"frameSum":93}
+PASS camera feed stays lit after context loss :: {"path":"cpu","ready":false,"failed":true,"lost":true,"frameSum":93}
+PASS recovery does not reload the page
+PASS one truthful context-loss fallback warning is logged :: [{"type":"warning","text":"[crt] WebGL context lost before draw — switching to CPU fallback"}]
+PASS context loss raises no uncaught exception :: []
+
+=== ALL CHECKS PASSED ===
+dialogue.test: OK (35 assertions)
+wakemind.test: OK (125 assertions)
+curiosity.test: OK (62 assertions)
+tests: OK (54 assertions)
+verdictreview: OK (56 assertions)
+skill-goldens: OK (19 assertions)
+eval-skills-runner: OK (15 assertions)
+dossierinject.test: OK (10 assertions)
+recipes: OK (2005 assertions)
+recipes.sop: OK (47 assertions)
+recipefit: OK (125 assertions)
+loop-templates (the shapes a beginner picks): OK (82 assertions)
+launchmemory: OK (27 assertions)
+starters: OK (37 assertions)
+starterstore: OK (28 assertions)
+routinenudgestore: OK (41 assertions)
+bottlestore.test: OK (37 assertions)
+bottle-wiring.test: OK (22 assertions)
+resummonstore.test: OK (37 assertions)
+pitch.test: OK (84 assertions)
+pitchstore.test: OK (79 assertions)
+suggeststore.test: OK (57 assertions)
+beat-coordination.test: OK (124 assertions)
+beatcard.test: OK (49 assertions)
+recommend.test: OK (143 assertions)
+rec truth & consistency (W3): OK (135 assertions)
+rec one memory (W1): OK (167 assertions)
+rec evidence (W2): OK (65 assertions)
+recquality.test: OK (112 assertions)
+recqualitystore.test: OK (135 assertions)
+quests.test: OK (45 assertions)
+queststore.test: OK (21 assertions)
+queststate.test: OK (63 assertions)
+queststatestore.test: OK (43 assertions)
+stationquests.test: OK (42 assertions)
+stationqueststore.test: OK (41 assertions)
+workquests.test: OK (34 assertions)
+workqueststore.test: OK (42 assertions)
+maintquests.test: OK (40 assertions)
+maintqueststore.test: OK (33 assertions)
+questledgerstore.test: OK (28 assertions)
+kitout.test: OK (33 assertions)
+coach-dodge.test: OK (5642 assertions)
+tutorial-connect-beat.test: OK (20 assertions)
+field-manual-accessibility.test: OK (3 assertions)
+class-loadouts: OK (2651 assertions)
+intent-offer: OK (232 assertions)
+seeds.test: OK (19 assertions)
+seedstore.test: OK (24 assertions)
+autonomy.test: OK (53 assertions)
+autonomystore.test: OK (23 assertions)
+autonomy-ui.test: OK (17 assertions)
+autojobs.test: OK (75 assertions)
+autojobstore.test: OK (83 assertions)
+autojobs-ui.test: OK (14 assertions)
+autopilot.test: OK (99 assertions)
+autopilotstore.test: OK (66 assertions)
+nightshift.test: OK (44 assertions)
+nightshift-driver.test: OK (58 assertions)
+contextpack.test: OK (35 assertions)
+nightreport.test: OK (107 assertions)
+autonomy-write.test.js OK — 9 assertions
+autonotify.test.js OK — 33 assertions
+permgrants.test.js OK — 41 assertions
+[failopen] projects.persist (x1): disk full
+projects-store.test.js OK — 22 assertions
+projectbless.test: 42 assertions passed
+folderpick.test: OK (39 assertions)
+pathtrust.test: OK (58 assertions)
+tests: OK (59 assertions)
+tests: OK (18 assertions)
+tests: OK (10 assertions)
+discovery engine: OK (49 assertions)
+outcomes track record: OK (39 assertions)
+project-discovery.test: OK (10 assertions)
+permpanel.test.js OK — 63 assertions
+permissionsstore.test.js OK — 40 assertions
+permissions-ui.test.js OK — 94 assertions
+theme-custom-phosphor: OK (36 assertions)
+panel-brightness: OK (12 assertions)
+simulation-lighting: OK (84 assertions)
+room-lighting-settings: three levels, renderer updates, default/fallback and mirror passed
+window-minimize: OK (20 assertions)
+nightshift-steer-ui: OK (17 assertions)
+world-agent-click.test: OK (16 assertions)
+worldrenderer: depth order, camera geometry, lifecycle and measured-only statistics passed
+worldrenderer: camera room, subject and connection readouts passed
+world-sharpen: 33 real WebGL cases, 13635 RGB samples, max CPU/GPU error 1/255; no neighborhood overshoot. ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)
+TAP version 13
+# Subtest: standing breath fixes the real measured foot line, keeps native masters and restores sampling state
+ok 1 - standing breath fixes the real measured foot line, keeps native masters and restores sampling state
+  ---
+  duration_ms: 160.0784
+  type: 'test'
+  ...
+# Subtest: legacy calls and existing state tracks keep their motion, seat padding and distance phase
+ok 2 - legacy calls and existing state tracks keep their motion, seat padding and distance phase
+  ---
+  duration_ms: 11.5581
+  type: 'test'
+  ...
+# Subtest: reduced motion freezes decorative breath/gesture/spill without inventing or freezing real work
+ok 3 - reduced motion freezes decorative breath/gesture/spill without inventing or freezing real work
+  ---
+  duration_ms: 9.1015
+  type: 'test'
+  ...
+# Subtest: local lighting reuses native-size frames across agents and leaves the drawing context intact
+ok 4 - local lighting reuses native-size frames across agents and leaves the drawing context intact
+  ---
+  duration_ms: 8.718
+  type: 'test'
+  ...
+# Subtest: appearance LRU bounds live bitmaps and rebuilds a lost context instead of keeping a blank body
+ok 5 - appearance LRU bounds live bitmaps and rebuilds a lost context instead of keeping a blank body
+  ---
+  duration_ms: 21.576
+  type: 'test'
+  ...
+# Subtest: missing/zero light and offscreen failures keep the original master visible
+ok 6 - missing/zero light and offscreen failures keep the original master visible
+  ---
+  duration_ms: 6.7492
+  type: 'test'
+  ...
+1..6
+# tests 6
+# suites 0
+# pass 6
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 231.1333
+TAP version 13
+# Subtest: optional response paints inside the actual rigid prop without altering its draw or own hues
+ok 1 - optional response paints inside the actual rigid prop without altering its draw or own hues
+  ---
+  duration_ms: 46.3492
+  type: 'test'
+  ...
+# Subtest: direction changes the lit side and every bright edge stays one native pixel inside opaque casing
+ok 2 - direction changes the lit side and every bright edge stays one native pixel inside opaque casing
+  ---
+  duration_ms: 23.1671
+  type: 'test'
+  ...
+# Subtest: quantized static responses reuse native overlays across instances, mount height and minor sample jitter
+ok 3 - quantized static responses reuse native overlays across instances, mount height and minor sample jitter
+  ---
+  duration_ms: 9.7597
+  type: 'test'
+  ...
+# Subtest: decals, dynamic silhouettes, missing samples and oversized footprints have zero response cost
+ok 4 - decals, dynamic silhouettes, missing samples and oversized footprints have zero response cost
+  ---
+  duration_ms: 3.0146
+  type: 'test'
+  ...
+# Subtest: entry and pixel budgets evict old responses while steady repeats remain cached
+ok 5 - entry and pixel budgets evict old responses while steady repeats remain cached
+  ---
+  duration_ms: 586.126
+  type: 'test'
+  ...
+# Subtest: lost overlay and native mask contexts are rebuilt, and lost main context skips safely
+ok 6 - lost overlay and native mask contexts are rebuilt, and lost main context skips safely
+  ---
+  duration_ms: 22.4948
+  type: 'test'
+  ...
+# Subtest: optional readback/blit failure never poisons the authoritative prop context or later draws
+ok 7 - optional readback/blit failure never poisons the authoritative prop context or later draws
+  ---
+  duration_ms: 9.7458
+  type: 'test'
+  ...
+# Subtest: cached silhouette lighting leaves real workstation heat and progress content live on every draw
+ok 8 - cached silhouette lighting leaves real workstation heat and progress content live on every draw
+  ---
+  duration_ms: 13.3617
+  type: 'test'
+  ...
+1..8
+# tests 8
+# suites 0
+# pass 8
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 728.4576
+worldsurface: OK (444 assertions)
+WorldLight spatial illumination: OK (127 assertions)
+path: wall alpha=41, deck alpha=179, lit deck alpha=89
+mask: wall alpha=41, deck alpha=179, lit deck alpha=89
+chunks: wall alpha=41, deck alpha=179, lit deck alpha=89
+worldlight-receiver: actual Canvas wall/deck separation, crossing prop, void and corners passed for path/mask/chunks
+state-truth-overlap: OK (15 assertions)
+world-setskin: OK (138 assertions)
+capprop-map.contract: OK (101 assertions)
+dock-terms-open.test: OK (9 assertions)
+settings-p1-ui.test.js OK — 70 assertions
+dossier-persona-ui.test.js OK — 13 assertions
+settings-codex-row.test: OK (26 assertions)
+settings-oauth-rows.test: OK (52 assertions)
+genesis-oauth-providers.test: OK (20 assertions)
+genesis-phosphor-accessibility.test: OK (16 assertions)
+provider-oauth-parity.test: OK (91 assertions)
+personality-no-sample.test: OK (373 assertions)
+modelpicker.test: OK (18 assertions)
+model-provider-reconcile.test: OK (9 assertions)
+agent-model-select.test: OK (65 assertions)
+model-reasoning-presets.test: OK (3245 assertions)
+provider-connections-ui.test.js OK - 54 assertions
+newhero-reset.test: OK (22 assertions)
+harness-internal.test: OK (80 assertions)
+chat-runmeta.test: OK (14 assertions)
+chat-stopped-retry.test: OK (16 assertions)
+retry-user-transcript: failure, retry, seed, repeated retry, restart, identical new messages and invalid references PASS
+comms-history-pin.test: OK (6 assertions)
+composer-paste-limit.test: OK (25 assertions)
+chat-linkify.test: OK (9 assertions)
+chat-code-copy.test: OK (20 assertions)
+mint: OK (66 assertions)
+ctxgauge.test: OK (65 assertions)
+ctx-model-catalog: OK (24 assertions)
+ctx-conversation-scope: OK (39 assertions)
+floorstats.test: OK (66 assertions)
+insights.test: OK (36 assertions)
+slaglog.test: OK (30 assertions)
+xp.test: OK (282 assertions)
+xp-crewsplit.test: OK (19 assertions)
+xpstore.test: OK (89 assertions)
+growthratings.test: OK (28 assertions)
+xp-upgrade.test: OK (174 assertions)
+dossier-reliability.test: OK (23 assertions)
+roster-track.test: OK (24 assertions)
+returns.test: OK (29 assertions)
+outbox-window.test: OK (43 assertions)
+quest-log-window.test: OK (87 assertions)
+personas-fun-five.test: OK (27 assertions)
+pride.test: OK (26 assertions)
+seedcredit.test: OK (19 assertions)
+seedreuse.test: OK (26 assertions)
+seedreusestore.test: OK (16 assertions)
+trophies.test: OK (27 assertions)
+confbeats.test: OK (27 assertions)
+cron: OK (136 assertions)
+cron-human.test: OK (63 assertions)
+cron-store: OK (150 assertions)
+mint-ledger: OK (37 assertions)
+cron.dispatch: OK (38 assertions)
+[cron] work line failed after researcher: downstream exploded
+cron.chain: OK (66 assertions)
+[cron] settlement persist failed for persist-settle (run-1); retaining lease and retrying
+[failopen] cron.fireJob (x1): corrupt roster record
+cron.tick: OK (208 assertions)
+cron.hardening: OK (46 assertions)
+cron.dst: OK (35 assertions)
+cron.durability: OK (40 assertions)
+cron.lock: OK (47 assertions)
+cron-session-hydration.test: OK (21 assertions)
+loopjob (pure LOOP core): OK (193 assertions)
+loopcheck (host-run check verdict + tamper guard): OK (126 assertions)
+loopjob-driver (LOOP tick driver): OK (175 assertions)
+loop-tools.test: OK (26 assertions)
+loopgit (the LOOP git harvest decision): OK (71 assertions)
+cron.oneshot: OK (58 assertions)
+cron.run-now.test: OK (22 assertions)
+tool-withheld-message.test: OK (55 assertions)
+cron-guard.test: OK (96 assertions)
+untrusted-taint.test: OK (63 assertions)
+routine-tools: OK (90 assertions)
+comms-tools: OK (56 assertions)
+acp-core: OK (128 assertions)
+workstreams.test: OK (193 assertions)
+workstreams.search-perf.test: OK (3 assertions)
+session-power-tools.test: OK (130 assertions)
+session-creation.test: OK (19 assertions)
+projects-view.test: OK (69 assertions)
+prepare-node.test: OK (33 assertions)
+summon.id.test: OK (196 assertions)
+summon-desk-prompt.test: OK (26 assertions)
+recruit-identity-ui.test: OK (13 assertions)
+subagents.test: OK (45 assertions)
+orchestration.test: OK (262 assertions)
+domain-terminal.test: OK (27 assertions)
+worker-iteration-cap.test: OK (11 assertions)
+channels: OK (53 assertions)
+comms-presence.test: OK (35 assertions)
+comms-busy-age.test: OK (6 assertions)
+comms-link-honesty.test: OK (10 assertions)
+app-boot-provider-truth.test: OK (10 assertions)
+steer-idle-honesty.test: OK (6 assertions)
+model-ack-honesty.test: OK (15 assertions)
+toolprops: OK (145 assertions)
+worldmodel: OK (514 assertions)
+  1196 paths, 1712 diagonal segments, 8.1x waypoint compression, 0 wall violations
+path-smoothing: OK (6 assertions)
+run-truth.test: OK (18 assertions)
+station-authority: OK (9 assertions)
+zones.test: OK (119 assertions)
+idle-life-regressions.test: OK (56 assertions)
+social-border.test: OK (25 assertions)
+social-trio.test: OK (2779 assertions)
+sightline.test: OK (52 assertions)
+agent-affinity.test: OK (28 assertions)
+agent-affinity-weight.test: OK (21 assertions)
+station-gathering.test: OK (73 assertions)
+crew-containment.test: OK (23 assertions)
+prop-awareness.test: OK (9 assertions)
+chat-stare-throttle.test: OK (24 assertions)
+talk-turn.test: OK (23 assertions)
+glyph-speech.test: OK (26604 assertions)
+g1bprops.test: OK (43 assertions)
+g3btrophy.test: OK (24 assertions)
+stationbake.chunk: OK (108 assertions)
+stationbake.materials: OK (155 assertions)
+stationbake.seam: OK (52 assertions)
+stationbake.connections: 408 real Canvas assertions passed; {"TRANSFER":20,"mirrored-palettes":20,"same-zone-right-L":10,"same-zone-left-L":10,"same-zone-T":20,"closed-left":10,"jammed-right":10,"disconnected":0,"no-side-crown-above":0,"chamfer-is-not-a-side-crown":0,"chunk-boundary":20,"chunk-boundary incremental":20}
+stationbake.hull: OK (187 assertions)
+canvas-loss-recovery: OK (44 assertions)
+stage-context-loss: OK (35 assertions)
+conveyor: OK (100 assertions)
+pipeline: OK (178 assertions)
+pipeline.join-loop: OK (89 assertions)
+blueprints: OK (2180 assertions)
+guidedline: OK (267 assertions)
+ghostline: OK (53 assertions)
+routing.b5: OK (52 assertions)
+routing-nag-parity: OK (12 assertions)
+crate-honesty: OK (24 assertions)
+plan-poster: OK (39 assertions)
+chain: OK (92 assertions)
+chain.join-loop: OK (76 assertions)
+chain.limits: OK (45 assertions)
+refit-card-stack: OK (68 assertions)
+refit-junction-cards: OK (117 assertions)
+refit-footprint: real edit parity, four directions, void/diagonal rejection, union outlines, sealed and moved-room truth passed
+refit-run-gate: OK (23 assertions)
+step-brief: OK (49 assertions)
+propanchor.test: OK (92 assertions)
+prop-mount: OK (91 assertions)
+prop-flat-decal: OK (45 assertions)
+bed-sleep: OK (70 assertions)
+prop-render-smoke: OK (13 assertions)
+proprotate: OK (484 assertions)
+recliner-side-seat: OK (33 assertions)
+sprite-sit-facing: OK (143 assertions)
+prop-search: OK (239 assertions)
+prop-starter-shelf: OK (35 assertions)
+waitanchor: OK (14 assertions)
+harness.integration.test: OK (182 assertions)
+toolsearch.test: OK (29 assertions)
+consent.interactive.test: OK (27 assertions)
+consentwait: OK (18 assertions)
+consent-visibility: OK (24 assertions)
+session-indicators.test: OK (32 assertions)
+estop-persistence-ui.test: OK (9 assertions)
+[telegram] offline-notice send failed for chat c: boom
+[telegram] update was NOT acknowledged because durable intake failed: disk unavailable
+[telegram] unparseable update 7 skipped: unparseable
+channels.adapter.test: OK (80 assertions)
+channels.proxy-fetch.test: OK (17 assertions)
+channels.owner-pairing.test: OK (7 assertions)
+channels.telegram.pairing-ux.test: OK (18 assertions)
+channels.telegram.test: OK (81 assertions)
+channels.telegram.format.test: OK (37 assertions)
+channels.telegram.context: OK (57 assertions)
+channels.telegram.media: OK (68 assertions)
+channels.telegram.groups: OK (98 assertions)
+channels.telegram.threads: OK (49 assertions)
+[telegram] ignoring an edit of an older message in chat 901
+[telegram] ignoring an edit of an older message in chat 900
+[telegram] chat 900 has blocked or banned this bot — queued replies for it are being dropped
+[telegram] reply for chat 900 NOT queued — this chat has blocked or removed the bot
+channels.telegram.updates: OK (65 assertions)
+channels.telegram.stream: OK (34 assertions)
+channels.discord.test: OK (23 assertions)
+channels.discord-gateway: OK (42 assertions)
+channels.slack.test: OK (39 assertions)
+channels.matrix.test: OK (29 assertions)
+channels.signal.test: OK (26 assertions)
+channels.generic-wire: OK (46 assertions)
+channels.registry.test: OK (27 assertions)
+channels.store.test: OK (30 assertions)
+channels.durability.test: OK (10 assertions)
+channels.webhook-durability.test: OK (124 assertions)
+channels.secrets.test: OK (144 assertions)
+tests: OK (11 assertions)
+[telegram] secrets() threw in onInbound: secrets store hiccup
+[telegram] roster lookup threw in /agents: roster read failed
+channels.hub.test: OK (134 assertions)
+channels.workline-transcript: OK (14 assertions)
+cross-surface-continuity.test: OK (18 assertions)
+[telegram] outbox item for chat 13 still delayed after 5 attempts; retained for retry
+[failopen] channels.hub.textBatch.done (x1): failed reply could not be persisted: channel outbox is full; refusing to discard an undelivered reply
+channels.outbox.test: OK (59 assertions)
+channels.commands.test: OK (36 assertions)
+[telegram] /tools threw: boom
+channels.parity.test: OK (76 assertions)
+channels.buttons.test: OK (141 assertions)
+channels.sse: OK (80 assertions)
+channels.replay: offline replay, expiry, restart, duplicate cursor, byte bounds, command exclusion, dead socket passed
+browser-workflow: observed GET derivation and real HTTP execution/error checks passed
+mcp.client.test: OK (78 assertions)
+mcp.resources-prompts.test: OK (44 assertions)
+mcp.transport.test: OK (100 assertions)
+mcp.stdio.test: OK (39 assertions)
+mcp.schema-lifecycle: OK (22 assertions)
+mcp.manager-race: OK (14 assertions)
+mcp.manager-auth-race: OK (32 assertions)
+mcp.orphan-recovery: OK (6 assertions)
+google-connector: PASS (native registration, legacy routing, 23 real MCP tool paths, validation, API errors, timeout, bounds, customer UI, release gate)
+mcp.catalog.test: OK (1062 assertions)
+ok - mcp.oauth
+mcp.oauth.test: OK (69 assertions)
+connectorstate.test: OK (11 assertions)
+connector-reliability-wiring.test: OK (14 assertions)
+mcp-serve.test: OK (44 assertions)
+connectors-ui: OK (143 assertions)
+connector-required.test: OK (58 assertions)
+toolsets: OK (43 assertions)
+commander-dossier-css.test: OK (38 assertions)
+comms-responsive-text.test: OK (5 assertions)
+readability.test: OK (21 assertions)
+dossier-skin-accessibility.test: OK (11 assertions)
+control-floor-theming.test: OK (161 assertions)
+crew-rail-fit: OK (85 assertions)
+brand-wordmark-mask.test: OK (22 assertions)
+personalization-authority-wiring.test: OK (6 assertions)
+sprite-loading.test: OK (14 assertions)
+textsize-screen-space.test: OK (95 assertions)
+mobile-control-reachability.test: OK (26 assertions)
+station-tooltip.test: OK (443 assertions)
+toast-live-region.test.js OK — 7 assertions
+toast-seat.test: OK (25 assertions)
+channels.discord-wire: OK (40 assertions)
+queryspine.test: OK (28 assertions)
+queryspine-wiring.test: OK (16 assertions)
+widgets.test: OK (78 assertions)
+widgetfeed.test.js OK
+widgetfeed.test: OK (70 assertions)
+terminal-resize.test: OK (16 assertions)
+glass-motion: interrupted close, rapid restore/minimize, completion order, reduced motion, and exit layout guards passed
+glass-motion: rapid dock-chip replacement passed
+glass-interactions: guarded Escape, default activation, fallback, and initial material load passed
+backdrop-preview: worker rendering, disposal, closed dialogs, timeout, unsupported/error fallback and bounded allocation passed
+glass-comms: same-agent no-op, canonical change event and focus return passed
+approval indicator: 8 assertions passed (approval, question, resolution, failure, idle)
+model-subscription: browser navigation, desktop bridge and failure feedback passed
+terminal-position.test: OK (43 assertions)
+poweruser-shell-repairs.test: OK (14 assertions)
+terminal-sessions: OK (46 assertions)
+terminal-tools: OK (16 assertions)
+terminal-output-boundary.test: OK (4 assertions)
+release-bump.test: OK (46 assertions)
+release-cut.test: OK (non-interactive explicit signing path)
+tests: OK (96 assertions)
+tests: OK (64 assertions)
+release-installer-selection.test: OK (5 assertions)
+opensource-readiness.test: OK
+{"tag":"v1.2.3","action":"noop","assets":["StarNet_1.2.3_x64-setup.exe","StarNet_1.2.3_aarch64.dmg","StarNet_1.2.3_x64.dmg"]}
+source-release-mirror.test: OK (35 assertions)
+release-train-chrome-warmup.test: OK (10 assertions)
+release-train-provenance.test: OK (51 assertions)
+desktop-build-macos-notarization.test: OK (26 assertions)
+desktop-artifact-open.test: OK (18 assertions)
+release-train-macos-trust.test: OK (56 assertions)
+release-train-windows-trust.test: OK (24 assertions)
+release contract docs tests passed
+website-deploy-staging.test: OK (24 assertions)
+website-app-sync.test: OK (8 assertions)
+website-live-preview.test: OK (15 assertions)
+font.law.test: OK (216 assertions)
+sprite-assets.test: OK (15324 assertions)
+sprite-walk-motion.test: OK (4674 assertions)
+sprite-detached-prop.test: OK (3 assertions)
+lint-gate-can-fail: 747 asserting gate step(s) can all turn the gate red; OK
+lint-emits: scanned 500 file(s), 192 literal emit(s); OK
+lint-determinism: scanned 297 file(s); OK
+station-bridge.test.js: ok
+station-commands.test: OK (135 assertions)
+station-tools.test: OK (67 assertions)
+code-mode.test: OK (27 assertions)
+output-artifacts.test: OK (16 assertions)
+station-recovery.test: OK (72 assertions)
+station-recovery-cli.test: OK (20 assertions)
+execution-profiles.test: OK (34 assertions)
+execution-settings.test: OK (14 assertions)
+execution-router.test: OK (56 assertions)
+sandbox-no-silent-fallback.test: OK (20 assertions)
+execution-profiles-ui.test: OK (32 assertions)
+[failopen] t.envelope (x1): boom
+[failopen] t.envelope (x2): boom2
+[failopen] t.default (x1): x
+[failopen] t.plain (x1): x
+[failopen] t.weird (x1): null
+[failopen] t.weird (x2): { toString: null }
+[failopen] untagged (x1): untagged
+[failopen] t.stuck-loop (x1): every 60s forever
+[failopen] t.stuck-loop (x2): every 60s forever
+[failopen] t.stuck-loop (x3): every 60s forever
+[failopen] t.stuck-loop (x4): every 60s forever
+[failopen] t.stuck-loop (x5): every 60s forever
+[failopen] t.stuck-loop (x50): every 60s forever
+[failopen] t.stuck-loop (x100): every 60s forever
+[failopen] t.sync (x1): sync boom
+[failopen] t.sync (x2): sync boom
+[failopen] t.sync (x3): sync boom
+[failopen] t.sync (x4): sync boom
+[failopen] t.sync (x5): sync boom
+[failopen] t.sync (x50): sync boom
+[failopen] t.sync (x100): sync boom
+[failopen] t.sync.weird (x1): null
+[failopen] untagged (x1): x
+failopen helper: OK (18 assertions)
+[failopen] ratchet.selftest.sync (x1): x
+fail-open ratchet: OK (156 assertions)
+frontend fetch-truth ratchet: OK (12 assertions)
+loop-verdict: OK (37 assertions)
+free-path-ollama: 49 assertions ok
+process-fault: OK (71 assertions)
+TAP version 13
+# Subtest: saved tier rows reconcile once with the active provider and survive reopening
+ok 1 - saved tier rows reconcile once with the active provider and survive reopening
+  ---
+  duration_ms: 13.3927
+  type: 'test'
+  ...
+# Subtest: catalog failure preserves saved pins without claiming absence; successful absence is labeled
+ok 2 - catalog failure preserves saved pins without claiming absence; successful absence is labeled
+  ---
+  duration_ms: 3.5553
+  type: 'test'
+  ...
+1..2
+# tests 2
+# suites 0
+# pass 2
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 23.5215
+crash-ledger: OK (66 assertions)
+workview.test: OK (19 assertions)
+direct-work-launch: direct requests preserve text and avoid template attribution; busy launch creates no work
+first-value: assertions passed
+first-value: setup return, isolation, failed launch, successful launch cleanup passed
+effective-toolsets: OK (335 assertions)
+discovery-documents: extraction, freshness, durable shape, decline, bounds and junction checks passed
+value-loop-replay: assertions passed
+platform-handoff.test: passed (restart, task/agent binding, write scope, contention, cancellation, timeout)
+ease-of-use: grouping, persistence, search and effective access passed
+workflow-takeover: evidence, repetition, scope, outcomes, privacy, defer and duplicate scenarios passed
+workflow-takeover-ui: one beat, review, defer, double-click, pause, stale refusal and reset passed
+[taskbrief] brief_ask rejected: Call brief.update to incorporate the entire latest answer before choosing a follow-up.
+[taskbrief] brief_ask rejected: The Commander delegated the remaining choices. Update your understanding and proceed with reversible assumptions.
+task-conversation: whole-answer extraction, grounded updates, adaptive sample, delegation, stale state and restart passed
+task-conversation-ui: optional shortcuts, full text, failed-send retry, delegation and folded receipt passed
+PASS emergency control: hydrated recovery, explicit action, read-back, partial failure and offline truth
+work-rating-control.test: OK (5 assertions)
+session-focus-safety.test: OK
+harness-placement: OK (explicit empty, populated, omitted and legacy workbench requests)
+run-fast-tests: OK — 752 step(s) green

@@ -1,0 +1,42 @@
+[
+  {
+    "id": "1600dcf0",
+    "path": "qa/bugs/1600dcf0-late-model-catalog-reverts-new-provider-choice.md",
+    "slug": "late-model-catalog-reverts-new-provider-choice",
+    "title": "Late model catalog response overwrites a newer provider selection",
+    "surface": "providers",
+    "severity": "P1"
+  },
+  {
+    "id": "79867817",
+    "path": "qa/bugs/79867817-managed-image-charge-missing-from-run-cost.md",
+    "slug": "managed-image-charge-missing-from-run-cost",
+    "title": "Managed image charge is omitted from run cost receipts",
+    "surface": "providers",
+    "severity": "P1"
+  },
+  {
+    "id": "a0dffdd7",
+    "path": "qa/bugs/a0dffdd7-image-generation-writes-after-run-cancellation.md",
+    "slug": "image-generation-writes-after-run-cancellation",
+    "title": "Image generation can write an output after run cancellation",
+    "surface": "providers",
+    "severity": "P1"
+  },
+  {
+    "id": "12203375",
+    "path": "qa/bugs/12203375-glass-panel-height-resets-on-reopen.md",
+    "slug": "glass-panel-height-resets-on-reopen",
+    "title": "Glass panel height resets after closing and reopening",
+    "surface": "world",
+    "severity": "P2"
+  },
+  {
+    "id": "3a2837bd",
+    "path": "qa/bugs/3a2837bd-byok-image-recovery-only-offers-paid-link.md",
+    "slug": "byok-image-recovery-only-offers-paid-link",
+    "title": "BYOK image recovery omits the supported OpenRouter key option",
+    "surface": "providers",
+    "severity": "P2"
+  }
+]
