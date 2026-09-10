@@ -1,0 +1,63 @@
+{
+  "walletDebit": 0.025000000000005684,
+  "costEvents": [
+    {
+      "name": "cost.estimate",
+      "payload": {
+        "agentId": "managed-image-1",
+        "runId": "0a9df739-f8ac-4c5d-8345-538d698ca824",
+        "usd": 0,
+        "tokens": 6
+      }
+    },
+    {
+      "name": "agent.cost",
+      "payload": {
+        "agentId": "managed-image-1",
+        "runId": "0a9df739-f8ac-4c5d-8345-538d698ca824",
+        "usd": 0,
+        "tokensIn": 4,
+        "tokensOut": 2,
+        "reasoningTokens": 0,
+        "cachedTokens": 0,
+        "model": "test/model",
+        "reconciled": true
+      }
+    },
+    {
+      "name": "cost.estimate",
+      "payload": {
+        "agentId": "managed-image-1",
+        "runId": "0a9df739-f8ac-4c5d-8345-538d698ca824",
+        "usd": 0,
+        "tokens": 6
+      }
+    },
+    {
+      "name": "agent.cost",
+      "payload": {
+        "agentId": "managed-image-1",
+        "runId": "0a9df739-f8ac-4c5d-8345-538d698ca824",
+        "usd": 0,
+        "tokensIn": 4,
+        "tokensOut": 2,
+        "reasoningTokens": 0,
+        "cachedTokens": 0,
+        "model": "test/model",
+        "reconciled": true
+      }
+    },
+    {
+      "name": "agent.run.end",
+      "payload": {
+        "agentId": "managed-image-1",
+        "runId": "0a9df739-f8ac-4c5d-8345-538d698ca824",
+        "reason": "done",
+        "turns": 2,
+        "usd": 0,
+        "completionVerdict": "not_assessed",
+        "effectVerdict": "unverified_effects"
+      }
+    }
+  ]
+}
