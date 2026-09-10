@@ -4,10 +4,10 @@ slug: image-generation-writes-after-run-cancellation
 title: Image generation can write an output after run cancellation
 surface: providers
 severity: P1
-status: open
+status: fixed
 found: 2026-09-10
 lane: audit-0112-0910
-fix:
+fix: d503f00c5
 origin: audit
 ---
 
@@ -27,4 +27,10 @@ qa/evidence/0.11.2-audit/audit-image-cancel.json records cancelStatus=200, reaso
 
 ## Verdict
 
-Open. Propagate the run/tool cancellation signal through inference, download and resize; check before publishing files or deliverables and fence stale results. A provider may already have incurred a charge: retain truthful usage rather than promise refunds or zero cost. Cover abort before call, during synthesis/download, just before publication, timeout and restart. The probe shows a write after acknowledged cancellation, not necessarily after the terminal event.
+Original audit recommendation: Propagate the run/tool cancellation signal through inference, download and resize; check before publishing files or deliverables and fence stale results. A provider may already have incurred a charge: retain truthful usage rather than promise refunds or zero cost. Cover abort before call, during synthesis/download, just before publication, timeout and restart. The probe shows a write after acknowledged cancellation, not necessarily after the terminal event.
+
+## Cleanup verification — 2026-09-10
+
+test/managed-image.e2e.test.js releases a held provider response only after cancellation acknowledgement and asserts no output or deliverable. test/image.test.js covers pre-cancel, ignored upstream abort, download cancellation and abort during staged write; old output stays intact and staging is removed. Received billed usage remains recorded even when publication is cancelled.
+
+Source repair verified in the isolated cleanup lane. Full candidate gates are recorded in the cleanup follow-up to docs/AUDIT_0.11.1_FOR_0.11.2.md. Installer verification and customer recovery are not claimed. Historical audit evidence above remains the before-fix record.

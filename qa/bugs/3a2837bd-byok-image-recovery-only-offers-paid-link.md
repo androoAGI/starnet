@@ -4,10 +4,10 @@ slug: byok-image-recovery-only-offers-paid-link
 title: BYOK image recovery omits the supported OpenRouter key option
 surface: providers
 severity: P2
-status: open
+status: fixed
 found: 2026-09-10
 lane: audit-0112-0910
-fix:
+fix: d503f00c5
 origin: audit
 ---
 
@@ -27,4 +27,10 @@ qa/evidence/0.11.2-audit/audit-byok-recovery.json captures the actual sidecar ad
 
 ## Verdict
 
-Open. Distinguish managed-link failures from BYOK missing-media-credential failures. Offer both supported setup paths to BYOK users, with specific reconnect guidance for a managed selection. Keep provider credentials scoped and do not silently change billing routes.
+Original audit recommendation: Distinguish managed-link failures from BYOK missing-media-credential failures. Offer both supported setup paths to BYOK users, with specific reconnect guidance for a managed selection. Keep provider credentials scoped and do not silently change billing routes.
+
+## Cleanup verification — 2026-09-10
+
+test/image-task.test.js distinguishes BYOK missing media configuration (OpenRouter key or StarNet link) from broken managed configuration (relink). test/image.test.js checks the direct tool missing-route failure. Routing authority is unchanged.
+
+Source repair verified in the isolated cleanup lane. Full candidate gates are recorded in the cleanup follow-up to docs/AUDIT_0.11.1_FOR_0.11.2.md. Installer verification and customer recovery are not claimed. Historical audit evidence above remains the before-fix record.

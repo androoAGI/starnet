@@ -4,10 +4,10 @@ slug: glass-panel-height-resets-on-reopen
 title: Glass panel height resets after closing and reopening
 surface: world
 severity: P2
-status: open
+status: fixed
 found: 2026-09-10
 lane: audit-0112-0910
-fix:
+fix: 871561348
 origin: audit
 ---
 
@@ -27,4 +27,10 @@ qa/evidence/0.11.2-audit/audit-live-probes.json records the real DOM-control rou
 
 ## Verdict
 
-Open. Persist docked height per window key through the established window preferences; restore with viewport clamping. Keep maximize distinct from the remembered normal height. Verify close/reopen, minimize/restore, page reload and changed DPI. No layout redesign is needed.
+Original audit recommendation: Persist docked height per window key through the established window preferences; restore with viewport clamping. Keep maximize distinct from the remembered normal height. Verify close/reopen, minimize/restore, page reload and changed DPI. No layout redesign is needed.
+
+## Cleanup verification — 2026-09-10
+
+Actual Settings height is 420 -> 512 -> 512 after reopen and reload. Maximize/reopen/reload/restore retains normal height, and a smaller viewport clamps safely. test/glass-interactions.test.js covers persisted normal/maximized state, panel isolation and invalid values.
+
+Source repair verified in the isolated cleanup lane. Full candidate gates are recorded in the cleanup follow-up to docs/AUDIT_0.11.1_FOR_0.11.2.md. Installer verification and customer recovery are not claimed. Historical audit evidence above remains the before-fix record.

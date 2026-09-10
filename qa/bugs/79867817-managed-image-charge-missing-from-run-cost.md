@@ -4,10 +4,10 @@ slug: managed-image-charge-missing-from-run-cost
 title: Managed image charge is omitted from run cost receipts
 surface: providers
 severity: P1
-status: open
+status: fixed
 found: 2026-09-10
 lane: audit-0112-0910
-fix:
+fix: d503f00c5
 origin: audit
 ---
 
@@ -27,4 +27,10 @@ qa/evidence/0.11.2-audit/audit-image-ledger-0.json and audit-image-ledger-1.json
 
 ## Verdict
 
-Open. Carry provider-reported media usage and its actual managed charge into attributed local run-cost receipts without issuing a second gateway debit. Include mixed-provider media, failures after billable upstream work, cancellation, retries and restart. Audit budget enforcement as a related unverified gap; this probe did not prove that a particular customer exceeded a configured cap.
+Original audit recommendation: Carry provider-reported media usage and its actual managed charge into attributed local run-cost receipts without issuing a second gateway debit. Include mixed-provider media, failures after billable upstream work, cancellation, retries and restart. Audit budget enforcement as a related unverified gap; this probe did not prove that a particular customer exceeded a configured cap.
+
+## Cleanup verification — 2026-09-10
+
+test/managed-image.e2e.test.js compares the $0.025 post-margin debit with cost events, terminal total, durable run history and ledger; repeats after restart. Actual local cloud gateway code with synthetic upstream also passes. test/loop.media-cost.test.js checks budget, cancellation and fatal-boundary settlement without double counting; test/spend.test.js separates subscription estimates from paid media.
+
+Source repair verified in the isolated cleanup lane. Full candidate gates are recorded in the cleanup follow-up to docs/AUDIT_0.11.1_FOR_0.11.2.md. Installer verification and customer recovery are not claimed. Historical audit evidence above remains the before-fix record.

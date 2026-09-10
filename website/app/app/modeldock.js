@@ -63,11 +63,15 @@ const ModelDock = (() => {
   let open = false;
   let loading = false;
   let cache = {};
+  const catalogRequests = {}, cacheRevisions = {};
   // Per-provider truth about the catalog fetch. A populated fallback list is useful for recovery, but it is
   // not proof that a saved model still belongs to the active provider. Only a successful provider response
   // may reconcile (or invalidate) the current provider/model pair.
   let catalogState = {};
   let models = [];
+  let fetchGeneration = 0;
+  const selectionRevision = () => typeof Harness !== 'undefined' && Harness.getSelectionRevision ? Harness.getSelectionRevision() : 0;
+  const selectionIdentity = () => opts.identity ? opts.identity() : '';
   let advancedEffortsOpen = false;
 
   function provider() {
@@ -406,14 +410,21 @@ const ModelDock = (() => {
 
   async function fetchProviderModels(p, force) {
     p = normalizeProvider(p);
-    if (!force && cache[p] && cache[p].length) {
+    const revision = selectionRevision();
+    if (!force && cacheRevisions[p] === revision && cache[p] && cache[p].length) {
       return cache[p].slice();
     }
+    const request = catalogRequests[p] = (catalogRequests[p] || 0) + 1;
+    const isCurrent = () => catalogRequests[p] === request && selectionRevision() === revision;
+    const disconnected = () => {
+      if (isCurrent()) { catalogState[p] = { confirmed: false, reason: 'not connected' }; cache[p] = []; cacheRevisions[p] = revision; }
+      return [];
+    };
     let list = [];
     let confirmed = false;
     try {
       if (p === 'codex') {
-        if (!(await codexEnabled())) { catalogState[p] = { confirmed: false, reason: 'not connected' }; cache[p] = []; return []; }
+        if (!(await codexEnabled())) return disconnected();
         const r = await apiFetch('/api/auth/codex/models', { cache: 'no-store' });
         if (!r.ok) throw new Error('HTTP ' + r.status);
         const j = await r.json();
@@ -421,14 +432,14 @@ const ModelDock = (() => {
         list = j.models.map(m => asModel(m, p)); confirmed = true;
       } else if (p === 'grok' || p === 'kimi') {
         // the other keyless device-code providers: gate on the OAuth status, discover models via /api/auth/<pid>/models.
-        if (!(await oauthProviderEnabled(p))) { catalogState[p] = { confirmed: false, reason: 'not connected' }; cache[p] = []; return []; }
+        if (!(await oauthProviderEnabled(p))) return disconnected();
         const r = await apiFetch('/api/auth/' + p + '/models', { cache: 'no-store' });
         if (!r.ok) throw new Error('HTTP ' + r.status);
         const j = await r.json();
         if (!Array.isArray(j.models)) throw new Error((j && j.error) || 'invalid catalog response');
         list = j.models.map(m => asModel(m, p)); confirmed = true;
       } else if (typeof Harness !== 'undefined' && Harness.listModels) {
-        if (!providerEnabled(p)) { catalogState[p] = { confirmed: false, reason: 'not connected' }; cache[p] = []; return []; }
+        if (!providerEnabled(p)) return disconnected();
         try {
           const q = (p === 'custom' && typeof Harness !== 'undefined' && Harness.getBaseUrl && Harness.getBaseUrl(p))
             ? ('?baseUrl=' + encodeURIComponent(Harness.getBaseUrl(p))) : '';
@@ -446,6 +457,8 @@ const ModelDock = (() => {
         }
       }
     } catch (_) {}
+    if (!isCurrent()) return (cache[p] || []).slice();
+    cacheRevisions[p] = revision;
     catalogState[p] = { confirmed: confirmed, reason: confirmed ? '' : 'catalog unavailable' };
     if (!list.length && !confirmed && (p === 'codex' || p === 'openrouter' || p === 'anthropic' || p === 'gemini' || HOSTED_FALLBACKS[p])) {
       // E4: the live catalog fetch found nothing (sidecar/provider unreachable) — fall back to the
@@ -466,6 +479,9 @@ const ModelDock = (() => {
   }
 
   async function fetchModels(force) {
+    const generation = ++fetchGeneration;
+    const revision = selectionRevision(), identity = selectionIdentity();
+    const selectedModel = getModel();
     loading = true;
     renderList();
     // 'starnet' first: a linked station's own credits are the most direct way to run, and its catalog is
@@ -475,7 +491,11 @@ const ModelDock = (() => {
     if (ids.indexOf(active) < 0) ids.unshift(active);
     const parts = await Promise.all(ids.map(p => fetchProviderModels(p, force)));
     const activeList = parts[ids.indexOf(active)] || [];
-    reconcileCurrentModel(active, activeList);
+    // Cache completion must not apply to a later selection or focused agent.
+    if (generation !== fetchGeneration) return models;
+    if (revision === selectionRevision() && identity === selectionIdentity() && active === provider() && selectedModel === getModel()) {
+      reconcileCurrentModel(active, activeList);
+    }
     models = mergeCurrent(parts.reduce((a, b) => a.concat(b), []));
     models.sort((a, b) => {
       const pa = normalizeProvider(a.provider), pb = normalizeProvider(b.provider);
@@ -847,6 +867,7 @@ const ModelDock = (() => {
   }
 
   function init(o) {
+    fetchGeneration++;
     opts = Object.assign({}, opts, o || {});
     wire();
     reflect();

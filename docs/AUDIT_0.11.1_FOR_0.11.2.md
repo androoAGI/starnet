@@ -98,3 +98,38 @@ Fresh audit results on unchanged released runtime: **fast 752/752**, **customer 
 The full HTTP suite was not redundantly rerun here: the independent fresh Guardian on the same immutable release SHA and the final release receipt both record 108/108 passing; this audit reran the focused campaign and additional endpoint/media scenarios. The full fast pass predates audit-only documentation/record additions. Those additions receive syntax/register/index validation separately.
 
 See [reproduction instructions](../scripts/qa/audit-0112/README.md). No production fixes, merge, push, version bump, customer communication, refund, credential change or deployment was performed. No open report was marked recovered. This plan does not claim 0.11.2 is ready to release.
+
+
+## Cleanup follow-through — 2026-09-10
+
+The owner subsequently authorized reliability cleanup in `agent/cleanup-0112-0910`.
+Source commits: provider selection `59b5f2462`, panel persistence `871561348`, media
+accounting/cancellation/recovery `d503f00c5`. The five audit records now distinguish
+verified source repairs from installer/account recovery. The original audit above is
+retained as historical before-fix evidence.
+
+Maintained regressions extend the existing fast/HTTP gates; `test/loop.media-cost.test.js`
+is newly registered. `scripts/qa/cleanup-0112-live.cjs` asserts the actual browser resize,
+reopen, reload, maximize/restore, smaller-viewport and delayed-catalog behavior. Image
+verification uses the actual sidecar, real temporary files and the actual local cloud
+gateway implementation with synthetic upstream responses and credentials. No paid
+customer request was made. The simulated gateway now faithfully returns post-margin
+usage.cost, matching its actual $0.025 debit; the original audit simulator returned an
+upstream $0.02 response while debiting $0.025. Both proved missing local attribution,
+but only the corrected fixture can prove exact equality with the managed receipt.
+
+Remaining release acceptance is explicit: seven historical customer P1 reports,
+affected-account Sonnet correlation, real Mac relink/onboarding and microphone behavior,
+long installed renderer soak, and actual older-client automatic download/install/relaunch.
+A fresh worktree has no detector history; its empty local finding directory does not
+supersede integration's four blocking detector records. Integration's read-only readiness
+check still reports NOT READY: four detector findings, seven customer P1 records, RED
+Guardian, stale Beginner source and installed-smoke source mismatch. Journey evidence
+has since refreshed on integration, so the original audit's journey mismatch is no longer
+a current integration failure. No finding or visual baseline was dismissed to clear gates.
+
+The extended release soak is 720 minutes in the current script, plus the separately
+required installed/hardware acceptance. A shorter cleanup smoke cannot replace it, and
+0.11.1's exception does not authorize another release or another skipped soak.
+
+Full candidate gate and cleanup smoke results: pending.

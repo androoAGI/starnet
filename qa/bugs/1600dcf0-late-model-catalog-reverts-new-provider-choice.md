@@ -4,10 +4,10 @@ slug: late-model-catalog-reverts-new-provider-choice
 title: Late model catalog response overwrites a newer provider selection
 surface: providers
 severity: P1
-status: open
+status: fixed
 found: 2026-09-10
 lane: audit-0112-0910
-fix:
+fix: 59b5f2462
 origin: audit
 ---
 
@@ -27,4 +27,10 @@ qa/evidence/0.11.2-audit/audit-live-probes.json records chosen starnet / anthrop
 
 ## Verdict
 
-Open. Fence catalog application by selection generation, agent/session identity and current provider/model. Delayed requests may update their own cache but must not mutate a newer selection. Add browser and deterministic regressions for A-to-B, A-to-B-to-A, same-provider model change, relink, and failure; verify saved selection after restart. Do not infer affected-customer recovery from this synthetic catalog reproduction.
+Original audit recommendation: Fence catalog application by selection generation, agent/session identity and current provider/model. Delayed requests may update their own cache but must not mutate a newer selection. Add browser and deterministic regressions for A-to-B, A-to-B-to-A, same-provider model change, relink, and failure; verify saved selection after restart. Do not infer affected-customer recovery from this synthetic catalog reproduction.
+
+## Cleanup verification — 2026-09-10
+
+Late catalogs preserve the explicit provider/model choice and focused agent. The real browser delayed-Ollama probe retains StarNet / anthropic/test-model. test/model-provider-reconcile.test.js covers provider and same-provider switches, A-to-B-to-A, explicit same-pair writes, agent identity and confirmed empty catalogs.
+
+Source repair verified in the isolated cleanup lane. Full candidate gates are recorded in the cleanup follow-up to docs/AUDIT_0.11.1_FOR_0.11.2.md. Installer verification and customer recovery are not claimed. Historical audit evidence above remains the before-fix record.
