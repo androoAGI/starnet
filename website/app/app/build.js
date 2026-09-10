@@ -324,7 +324,7 @@ const Build = (() => {
         <button class="bb sm" id="refit-fit" title="frame the station">⊹ FIT</button>
         <button class="bb sm" id="refit-test" title="Preview routing with an animated example. This does not run an AI task; use Run a sample job on a configured line for real work.">▸ PREVIEW</button>
         <button class="bb sm" id="refit-help" title="how to build">? HELP</button>
-        <button class="bb sm refit-primary" id="refit-done" title="finish + save (Esc)">✓ DONE</button>
+        <button class="bb sm refit-primary" id="refit-done" title="finish + save (Esc)">DONE</button>
       </div>
       <div class="refit-dock" role="region" aria-label="Construction kit">
         <div class="refit-dock-head"><span class="refit-dock-head-t">BUILD KIT</span><span class="refit-dock-caption">SHAPE YOUR STATION</span><button class="bb sm" type="button" id="refit-kit-toggle" aria-expanded="true" aria-controls="refit-option-section">MINIMIZE ▴</button></div>
@@ -545,6 +545,8 @@ const Build = (() => {
     const on = isSearching();
     const workspace = root.querySelector('.refit-propworkspace');
     workspace.dataset.section = propSection; workspace.classList.toggle('is-searching', on);
+    const overview = workspace.querySelector('.refit-ability-overview');
+    if (overview) overview.hidden = propSection !== 'abilities' || on;
     workspace.classList.toggle('is-core-view', !on && propSection === 'abilities' && !propAbility);
     root.querySelectorAll('[data-prop-section]').forEach(b => {
       const active = !on && b.dataset.propSection === propSection;
@@ -735,13 +737,12 @@ const Build = (() => {
       paletteLabel = 'INSPECT';
       const note = document.createElement('div');
       note.className = 'refit-selectnote';
-      note.innerHTML = '<span class="ui-overline">SELECT MODE · NO PLACEMENT ARMED</span><b>Build your station</b><span>Click a room or prop to inspect it, or choose a tool above.</span>' +
-        '<ol class="refit-quicksteps"><li><b>Choose</b> a room, prop or finish.</li><li><b>Place</b> on the station. Drag to size rooms.</li><li><b>Adjust</b> with Move, Copy or Undo.</li></ol>';
+      note.innerHTML = '<span class="ui-overline">SELECT</span><b>Make it your space</b><span>Click a room or object to edit it. To add something, choose a tool above or start here.</span>';
       pal.appendChild(note);
       const starts = document.createElement('div'); starts.className = 'refit-starts';
       for (const [id,name,why] of [['prop','Browse props','Equipment, furniture and decoration'],['room','Add a room','Choose a room type, then click or drag']]) {
         const b = document.createElement('button'); b.type = 'button'; b.className = 'refit-start'; b.dataset.startTool = id;
-        b.innerHTML = '<span class="refit-start-key">' + esc(TOOLS.find(t => t.id === id).key) + '</span><b>' + esc(name) + '</b><span>' + esc(why) + '</span><em>OPEN KIT →</em>';
+        b.innerHTML = '<span class="refit-start-key">' + esc(TOOLS.find(t => t.id === id).key) + '</span><b>' + esc(name) + '</b><span>' + esc(why) + '</span><em>CHOOSE →</em>';
         b.onclick = () => selectTool(id); starts.appendChild(b);
       }
       pal.appendChild(starts);
@@ -784,7 +785,7 @@ const Build = (() => {
         b.type = 'button';
         b.className = 'bb sm refit-kind' + (w === hallWidth ? ' active' : '');
         b.setAttribute('aria-pressed', w === hallWidth ? 'true' : 'false');
-        b.textContent = 'W' + w;
+        b.textContent = w + (w === 1 ? ' tile' : ' tiles');
         b.onclick = () => { hallWidth = w; renderPalette(); sfx('click'); };
         pal.appendChild(b);
       });
@@ -1791,28 +1792,28 @@ const Build = (() => {
        beats; each now leads with a PICTURE of the gesture (drawn in the station's own pixel language
        by guideStepArt) and carries one line of words under it. */
     g.innerHTML = `
-      <div class="refit-guide-card refit-guide-wide">
-        <h3>▮ BUILD YOUR STATION</h3>
-        <p class="refit-guide-lead">Your floor is a flowchart — work arrives at the <b>INBOX</b>, every <b>BAY</b> is an agent doing one step, and the belts you draw are the order the work flows.</p>
+      <div class="refit-guide-card refit-guide-wide" role="dialog" aria-modal="true" aria-labelledby="refit-guide-title">
+        <span class="refit-guide-kicker">REFIT · QUICK GUIDE</span><h3 id="refit-guide-title">Shape your station</h3>
+        <p class="refit-guide-lead">Add rooms, choose equipment, and make the space your own. When you want a repeatable workflow, connect an inbox, an agent’s bay, and an outbox.</p>
         <div class="refit-steps">
           <div class="refit-step" data-art="room">
             <span class="refit-step-n">1</span>
-            <b>MAKE SPACE IF NEEDED</b>
-            <span>Pick <b>ROOM</b>, drag on the grid. Your agent walks what you build.</span>
+            <b>MAKE SPACE</b>
+            <span>Choose <b>ROOM</b> and click or drag on the grid. Use <b>SURFACE</b> to change its floor.</span>
           </div>
           <div class="refit-step" data-art="bay">
             <span class="refit-step-n">2</span>
             <b>ASSIGN AN AGENT</b>
-            <span>Drop a <b>BAY</b> (PROP ▸ WORKFLOW), click it, assign an agent.</span>
+            <span>Choose <b>PROPS → WORKSTATIONS &amp; WORKFLOWS</b> and place a <b>BAY</b>. Click it to choose an agent and describe their step.</span>
           </div>
           <div class="refit-step" data-art="belt">
             <span class="refit-step-n">3</span>
             <b>CONNECT THE STEPS</b>
-            <span>Pick <b>BELT</b>, click one machine then the next. The belt lays itself — but it only carries work through a crewed <b>BAY</b> (INBOX ▸ BAY ▸ OUTBOX).</span>
+            <span>Choose <b>BELT</b>, then click the start and end objects. Connect <b>INBOX → BAY → OUTBOX</b>; the bay needs an assigned agent to do the work.</span>
           </div>
         </div>
-        <p class="refit-guide-foot">In a hurry? <b>LINES (9)</b> stamps a whole working layout you can edit. Every prop &amp; mechanic is in the <b>FIELD MANUAL</b> — SYSTEM ▸ FIELD MANUAL.</p>
-        <button class="btn-sm refit-primary" id="refit-guide-go">▸ START BUILDING</button>
+        <p class="refit-guide-foot">For a head start, choose <b>LAYOUTS (9)</b>, place a starter workflow, then configure its steps. <b>PREVIEW</b> shows animated routing; it does not run an AI job.</p>
+        <div class="refit-guide-shortcuts"><span><b>Wheel</b> Zoom</span><span><b>Space + drag</b> Pan</span><span><b>Ctrl + Z</b> Undo</span><span><b>Done</b> Save &amp; exit</span></div><button class="btn-sm refit-primary" id="refit-guide-go">START BUILDING</button>
       </div>`;
     root.appendChild(g);
     g.querySelectorAll('.refit-step').forEach(s => {
@@ -3509,16 +3510,16 @@ const Build = (() => {
     g.innerHTML = `
       <div class="refit-guide-card">
         <h3>▮ ${esc((rm.name || roomId).toUpperCase())}</h3>
-        <p class="step-fact">Rooms organize your station. Agents assigned to workflow steps use equipment from their assigned desk’s room, or their step’s room if they have no assigned desk. Agents using the same room share its equipment; each needs its own desk.</p>
+        <p class="step-fact">Give this room a name, change its floor, or move it.</p><details class="refit-room-help"><summary>How room equipment works</summary><p class="step-fact">Workflow agents use equipment in their desk’s room, or their bay’s room if they have no desk. Agents sharing a room share its equipment; each needs its own desk.</p></details>
         <div class="refit-sec">THE ROOM</div>
         <div class="step-fact"><b>${esc(kd.label || rm.kind)}</b>${isSpawn ? ' · the spawn room' : ''}</div>
         <div class="step-fact">${esc(shape)} · <b>${tiles}</b> tiles of deck</div>
         <div class="step-fact">deck: <b>${esc(matDef.label || matId || '—')}</b> in <b>${esc(hueDef.label || rm.floorStyle || '—')}</b></div>
         <div class="refit-sec">NAME</div>
-        <input id="room-name" class="refit-input" type="text" maxlength="40" placeholder="name this room" value="${esc(rm.name || '')}" />
-        <div class="refit-note">saved on Enter — it labels the room on the floor</div>
+        <input id="room-name" class="refit-input" aria-label="Room name" type="text" maxlength="40" placeholder="name this room" value="${esc(rm.name || '')}" />
+        <div class="refit-note">Saved when you press Enter or close this card. The name appears on the floor.</div>
         <div class="refit-actions">
-          <button type="button" class="btn-sm" id="room-deck">▧ RE-DECK</button>
+          <button type="button" class="btn-sm" id="room-deck">▧ CHANGE FLOOR</button>
           <button type="button" class="btn-sm" id="room-move">✥ MOVE</button>
           <!-- NOT an emoji bin here: a colour-emoji glyph is a different font at a different weight
                beside VT323 (the symbol-glyph law). ⌫ is the same mark the armed state uses. -->

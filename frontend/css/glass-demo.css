@@ -214,21 +214,9 @@ body.glass-demo #stage-wrap .cam-mode {
 /* Fine viewfinder marks over the picture, with no header plate. */
 body.glass-demo #left .ws-tab { font-size: 14px; letter-spacing: .5px; padding: 6px 3px; }
 body.glass-demo #left .ws-tab.on { text-shadow: none; }
-body.glass-demo #stage-wrap .cam-hud::before {
-  inset: 12px; height: auto; border: 0; box-shadow: none;
-  background:
-    linear-gradient(var(--ph-dim),var(--ph-dim)) left center / 8px 1px no-repeat,
-    linear-gradient(var(--ph-dim),var(--ph-dim)) right center / 8px 1px no-repeat,
-    linear-gradient(var(--ph-dim),var(--ph-dim)) center top / 1px 6px no-repeat,
-    linear-gradient(var(--ph-dim),var(--ph-dim)) center bottom / 1px 6px no-repeat;
-  opacity: .5;
-}
-body.glass-demo #stage-wrap .cam-hud::after {
-  content: ''; position: absolute; left: calc(50% - 6px); top: calc(50% - 6px);
-  width: 13px; height: 13px; opacity: .3;
-  background: linear-gradient(var(--ph),var(--ph)) center / 1px 13px no-repeat,
-    linear-gradient(var(--ph),var(--ph)) center / 13px 1px no-repeat;
-}
+/* Keep the station view free of decorative targeting marks. */
+body.glass-demo #stage-wrap .cam-hud::before,
+body.glass-demo #stage-wrap .cam-hud::after { content: none; display: none; }
 body.glass-demo #stage-wrap .cam-label {
   top: 16px; left: 27px; font-size: 12px; letter-spacing: 1px;
   opacity: .75; color: var(--ph); text-shadow: 0 1px 2px #000;

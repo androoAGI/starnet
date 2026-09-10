@@ -532,7 +532,7 @@ A.ok(/let buildKit = \[\], buildSkills = \[\], buildEffort = null/.test(mkt), 't
 A.ok(/function buildKitChipsHTML\(\)/.test(mkt), 'the builder renders kit picker chips');
 A.ok(/KIT_PICKABLE = \['dish', 'cabinet', 'notebook', 'workbench', 'studio'\]/.test(mkt),
   'the gear picker offers the shareable station caps only (computer/connector are per-agent manual-bind, excluded)');
-A.ok(/STATION GEAR IT DRAWS ON/.test(mkt), 'the custom builder labels the gear picker "STATION GEAR IT DRAWS ON" (shared-gear, informational)');
+A.ok(/Choose at least one tool this class will use/.test(mkt), 'the custom builder explains the tool picker in plain language');
 A.ok(/data-skill=/.test(mkt) && /loadSkillCatalog\(\)\.then/.test(mkt.slice(mkt.indexOf('function wireBuildForm'))),
   'the skill picker is populated from the live skill catalog');
 A.ok(/data-effort=/.test(mkt), 'the builder has a reasoning-effort selector');
@@ -573,12 +573,12 @@ A.ok(/view = 'build'/.test(editWireSeg), 'EDIT opens the builder form (with the 
 // the builder form is edit-aware: it prefills name/emoji/tagline/purpose/manual from the spec and re-labels the CTA.
 const bfhSeg = mkt.slice(mkt.indexOf('function buildFormHTML('), mkt.indexOf('const KIT_PICKABLE'));
 A.ok(/const editing = editingId \? Specialties\.get\(editingId\) : null/.test(bfhSeg), 'buildFormHTML resolves the class being edited');
-A.ok(/EDIT CUSTOM CLASS/.test(bfhSeg), 'the builder titles itself EDIT CUSTOM CLASS when editing');
+A.ok(/Edit custom class/.test(bfhSeg), 'the builder titles itself EDIT CUSTOM CLASS when editing');
 A.ok(/SAVE CHANGES/.test(bfhSeg), 'the edit CTA reads SAVE CHANGES (not CREATE CLASS)');
 A.ok(/value="' \+ esc\(d\.name \|\| ''\)/.test(bfhSeg) && /value="' \+ esc\(d\.tagline \|\| ''\)/.test(bfhSeg), 'the builder prefills name + tagline from the spec');
 A.ok(/esc\(d\.purpose \|\| ''\)/.test(bfhSeg) && /esc\(d\.manual \|\| ''\)/.test(bfhSeg), 'the builder prefills purpose + standing orders from the spec');
 // HONESTY: the edit copy states editing does NOT retroactively mutate already-summoned agents (they own their loadout).
-A.ok(/already-summoned agents keep the loadout they were given/.test(bfhSeg), 'the edit copy is honest: editing a class does not mutate already-summoned agents');
+A.ok(/Existing crew members keep their settings/.test(bfhSeg), 'the edit copy is honest: editing a class does not mutate already-summoned agents');
 // the CREATE/SAVE handler upserts by id when editing (same record) and preserves non-authored carried fields.
 A.ok(/if \(editing\) spec\.id = editing\.id/.test(createSeg), 'SAVE CHANGES upserts the SAME record id when editing (not a new class)');
 A.ok(/Object\.assign\(\{\}, editing \|\| \{\}/.test(createSeg), 'editing starts from the saved record so carried fields (persona/tags/starters) survive');

@@ -132,13 +132,22 @@ let questRows = [
 ];
 let rendered = '', buttons = {}, focused = '';
 const list = { scrollTop: 0 };
+const viewDescription = { textContent: '' };
 const body = {
-  dataset: {},
-  querySelector: s => s === '.q-mission-list' ? list : null,
+  dataset: {}, classList: { add() {} },
+  querySelector: s => s === '.q-mission-list' ? list : s === '.q-view-description' ? viewDescription : null,
   querySelectorAll: s => buttons[s] || [],
   get innerHTML() { return rendered; },
   set innerHTML(html) {
-    rendered = html; buttons = { '.q-filter': [], '.q-mission': [] };
+    rendered = html; buttons = { '.q-filter': [], '.q-mission': [], '[data-quest-view]': [], '.q-view-panel': [] };
+    for (const id of ['available', 'goals', 'progress', 'completed']) {
+      buttons['.q-view-panel'].push({ id: 'q-view-' + id, hidden: false });
+      buttons['[data-quest-view]'].push({ dataset: { questView: id }, attributes: {},
+        setAttribute(k, v) { this.attributes[k] = v; },
+        addEventListener(event, fn) { this[event === 'click' ? 'click' : 'keydown'] = fn; },
+        focus() { focused = id; }
+      });
+    }
     for (const m of html.matchAll(/<button class="(q-filter|q-mission(?: selected)?)" ([^>]+)>/g)) {
       const data = /data-(category|quest-select)="([^"]*)"/.exec(m[2]);
       if (!data) continue;
@@ -161,6 +170,18 @@ const ctx = vm.createContext({ body, QuestStore: { view: () => ({ quests: questR
 const journalSource = station.slice(station.indexOf('  function buildQuests(body)'), station.indexOf('    // COMMANDER JOURNEY writes')) + '\n}';
 vm.runInContext(journalSource, ctx);
 ctx.buildQuests(body);
+A.eq(body.dataset.questView, 'available', 'available quests lead on first open');
+const beforeTab = rendered;
+buttons['[data-quest-view]'][1].click();
+A.eq(body.dataset.questView, 'goals', 'Goals tab selects its own view');
+A.eq(rendered, beforeTab, 'tab changes do not rebuild forms or discard entered values');
+A.eq(buttons['.q-view-panel'].filter(p => !p.hidden).map(p => p.id).join(','), 'q-view-goals', 'only the selected panel is exposed');
+ctx.buildQuests(body);
+A.eq(body.dataset.questView, 'goals', 'background refresh preserves the selected tab');
+buttons['[data-quest-view]'][1].keydown({ key: 'ArrowRight', preventDefault() {} });
+A.eq(body.dataset.questView, 'progress', 'arrow keys move to the next tab');
+A.eq(focused, 'progress', 'keyboard selection moves focus with the tab');
+buttons['[data-quest-view]'][0].click();
 A.eq(body.dataset.questSelected, 'st:crew', 'journal initially selects the first available quest');
 A.eq((rendered.match(/class="gx-tro q-card /g) || []).length, 1, 'journal renders exactly one open briefing, not nine competing cards');
 buttons['.q-mission'][1].click();
@@ -180,7 +201,7 @@ buttons['.q-filter'].find(b => b.dataset.category === 'all').click();
 questRows[0].status = 'done';
 ctx.buildQuests(body);
 A.eq(body.dataset.questSelected, 'ds:stack', 'completion advances selection to a remaining open quest');
-A.ok(rendered.includes('COMPLETED QUESTS'), 'completed quests remain accessible in history');
+A.ok(rendered.includes('id="q-view-completed"'), 'completed quests remain accessible in history');
 questRows = [];
 ctx.buildQuests(body);
 A.ok(rendered.includes('All caught up'), 'zero open quests has an honest empty state');
@@ -204,4 +225,25 @@ body._questDrafts.set('q:first', { evidence: 'Unsaved result', dirty: true });
 A.eq(ctx.windowDirty(draftWindow), true, 'a draft in another mission still triggers the existing unsaved-close guard');
 body._questDrafts.set('q:first', { evidence: '', dirty: false });
 A.eq(ctx.windowDirty(draftWindow), false, 'recorded or clean cached fields do not block closing');
+// Mixed-goal snapshots must not present every metric as belonging to the current focus.
+vm.runInContext(station.slice(station.indexOf('  function journeyHtml()'), station.indexOf('  function lifeGoalsHtml()')), ctx);
+let journeySnapshot = {
+  activeGoal: { id: 'g1', text: 'Learn <piano>', done: 1, total: 3, next: 'Practice' },
+  goals: [{ id: 'g2', text: 'Change careers' }],
+  metrics: [
+    { id: 'm1', label: 'Practice', goalId: 'g1', current: 1, target: 10 },
+    { id: 'm2', label: 'Applications', goalId: 'g2', current: 2, target: 20 },
+    { id: 'm3', label: 'Hours', current: 3, target: 30 },
+    { id: 'm4', label: 'Legacy', goalId: 'missing', current: 0, target: 1 }
+  ]
+};
+ctx.JourneyStore = { status: () => journeySnapshot };
+const progressMarkup = ctx.journeyHtml();
+A.ok(progressMarkup.includes('Goal: Learn &lt;piano&gt;'), 'focused metric uses the actual goal and escapes its title');
+A.ok(progressMarkup.includes('Goal: Change careers'), 'another goal metric keeps its own goal label');
+A.ok(progressMarkup.includes('General metric · no linked goal'), 'unlinked metrics never imply a focused goal association');
+A.ok(progressMarkup.includes('Linked to another goal'), 'missing goal records do not invent a goal title');
+A.ok(progressMarkup.includes('Linked to your current focus: Learn &lt;piano&gt;'), 'metric editor explains the same focus used by metric creation');
+journeySnapshot = { metrics: [] };
+A.ok(ctx.journeyHtml().includes('No focused goal. This metric will be tracked independently'), 'no-focus editor explains that the new metric will be independent');
 A.report('quest-log-window.test');

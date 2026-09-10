@@ -72,7 +72,7 @@ ok(/'runComplete'\)/.test(chat), 'P1-8: a run-produced-a-deliverable notify is t
 ok(/'cronDigest'\)/.test(appjs), 'P1-8: the while-you-were-away digest is tagged cronDigest');
 
 // ---- P1-9 advanced runtime knobs ----
-ok(/ADVANCED\s*<span class="dim">/.test(ui), 'P1-9: SETTINGS has an ADVANCED card');
+ok(/Runtime limits\s*<span class="dim">/.test(ui), 'P1-9: SETTINGS has an ADVANCED card');
 ok(/function wireAdvanced\(/.test(ui), 'P1-9: wireAdvanced is wired');
 ok(/\/api\/runtime\/knobs/.test(ui), 'P1-9: the card reads/writes /api/runtime/knobs');
 ok(/environment variable always overrides|env-locked|envLocked/i.test(ui), 'P1-9: precedence (env wins) is disclosed + env-locked fields are shown');

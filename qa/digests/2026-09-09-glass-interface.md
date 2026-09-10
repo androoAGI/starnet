@@ -1,10 +1,10 @@
 # Glass interface integration audit — 2026-09-09
 
-The complete glass interface is the default presentation, including COMMS, model/reasoning selection, session signals, dock menus, widget pickers and docked windows. The approved world upgrade is incorporated. This is a source-branch merge candidate; no trunk merge, push, installer, deployment or release was performed.
+The complete glass interface is the default presentation, including COMMS, model/reasoning selection, session signals, dock menus, widget pickers and docked windows. The approved world upgrade is incorporated. Merged into `feat/harness-backend` as `c275727ea2344bd208d16313f3280edce68da0a7`. No push, installer, deployment or release was performed.
 
 ## Candidate
 
-Branch `agent/glass-demo-0909`; runtime integration `bd390967817b0fbc98e3add6604351910912b172`; final regression candidate `26d483abc341d5ef2ee7db3dcee18e3c4102a77e`; current trunk `209ce13579ba919329d96886ed1c0b2e9997ecfe` is an ancestor. The merge rehearsal is clean. Backend, package manifest and shared contracts have no branch changes against that trunk.
+Branch `agent/glass-demo-0909`; runtime integration `bd390967817b0fbc98e3add6604351910912b172`; final regression candidate `26d483abc341d5ef2ee7db3dcee18e3c4102a77e`; pre-merge trunk snapshot `209ce13579ba919329d96886ed1c0b2e9997ecfe` is an ancestor. The merge rehearsal is clean. Backend, package manifest and shared contracts have no branch changes against that trunk.
 
 Glass styles load before first paint and the body starts with the glass material. BootGuard remains the first script, followed by legacy migration and glass selection. `?glass=0` is an explicit diagnostic fallback; `?glass=1` remains compatible. Internal demo filenames are retained, but the visible demo badge is gone. Frontend and website mirror are synchronized.
 
@@ -35,9 +35,17 @@ Glass styles load before first paint and the body starts with the glass material
 
 The final trunk follow-up changes only the default shell material for newly created starter rooms. Full fast (752/752) and fresh startup (6/6) were rerun afterward. HTTP and customer-journey receipts remain from `028b0d321`; their backend and corresponding UI flow code is unchanged. The earlier combined interaction/performance capture retains its original source SHA.
 
+## Post-merge verification
+
+The source merge tree `22ade9089bf1f45f9de306a8b517f28d505b7984` exactly matches integrated candidate `0e8c0ad8d`. The full post-merge fast gate passed 752/752 on trunk. The retained preview advanced to the merge SHA and its repeated interaction sweep passed with zero uncaught errors, eight worker previews, 16.6ms p95 frames and an 89ms maximum main-thread task. Proof: `qa/evidence/glass-postmerge-interactions-0909.json`.
+
+Integration had unrelated changes in QA STATUS and an untracked Rooms handoff. Git autostash preserved the QA edits; byte/hash checks confirmed the handoff was untouched and the final QA content was exactly our owned prefix plus the original working file. Foreign changes remain unstaged. The preview worktree is retained because its local server is in use.
+
 ## Release limits
 
 `qa:ready` remains NOT READY. There are seven existing open P1 customer reports, no Guardian cycle receipt in this worktree, and no installed-app smoke receipt. The passing branch journeys and Beginner Run cannot satisfy the tool's exact-trunk requirement before merging. The product-perfect terminal audit also retains its broader pending proof obligations. No existing customer bug or terminal claim was marked green from these UI tests.
+
+The post-merge check in the integration checkout remains NOT READY with six reasons: four existing Guardian findings (1 P0 detector timeout and 3 P1 findings), seven customer P1 reports, a prior RED Guardian cycle, older journey and Beginner Run source stamps, and an installed binary from an older revision. These existing records were not silently closed from adjacent source tests.
 
 The installed Windows/macOS builds, customer-specific GPU/DPI cases and authenticated provider flows remain outside this browser/source receipt. In particular, the prior customer report of a blank viewport after prolonged use stays open; a successful local spot check does not establish its cause or recovery.
 

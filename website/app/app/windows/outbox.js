@@ -28,16 +28,16 @@
     const RS = (typeof ReturnStore !== 'undefined') ? ReturnStore : null;
     const rows = (RS && RS.pendingRows) ? RS.pendingRows() : [];
     body.innerHTML =
-      '<div class="win-note ob-topnote" style="margin-bottom:8px">Work that finished while you were away. Click a task to see the full result.</div>' +
+      '<header class="utility-head"><h2>Ready to review</h2><p>Work that finished while you were away. Open a result, then decide what comes next.</p></header>' +
       '<div id="ob-list" class="ob-list"></div>' +
-      '<div class="row ob-doors" style="margin-top:10px;gap:8px"><button class="bb sm" id="ob-library">▸ LIBRARY — finished files</button><button class="bb sm" id="ob-logbook">▸ AGENT RECORD — run history</button></div>';
+      '<div class="row ob-doors" style="margin-top:10px;gap:8px"><button class="bb sm" id="ob-library">LIBRARY · all saved outputs</button><button class="bb sm" id="ob-logbook">AGENT RECORD · run history</button></div>';
     const list = body.querySelector('#ob-list');
     const lb = body.querySelector('#ob-logbook');
     if (lb) lb.addEventListener('click', () => H.navigateWork('outbox', 'logbook'));
     const lib = body.querySelector('#ob-library');
     if (lib) lib.addEventListener('click', () => H.navigateWork('outbox', 'deliverables'));
     function renderEmpty() {
-      list.innerHTML = '<div class="fb-empty">NO UNCOLLECTED WORK.<br><span>When a run finishes while you’re away, its crate stacks on the OUTBOX and the full result is readable here.</span></div>';
+      list.innerHTML = '<div class="empty-state"><span class="es-glyph">▤</span><b>You’re all caught up</b><span>New results from away work appear here. Your saved outputs are still in the Library.</span></div>';
     }
     if (!rows.length) { renderEmpty(); return; }
     // agent id → display name via the live roster (raw ids read as debug output)
@@ -85,7 +85,7 @@
     });
     let open = rows.length;
     const collected = (row) => { row.style.transition = 'opacity .25s ease'; row.style.opacity = '0'; setTimeout(() => { row.remove(); if (--open <= 0) renderEmpty(); }, 300); };
-    const closeOthers = (except) => { list.querySelectorAll('.ob-row.open').forEach(r => { if (r !== except) { r.classList.remove('open'); const b = r.querySelector('.ob-body'); if (b) b.hidden = true; } }); };
+    const closeOthers = (except) => { list.querySelectorAll('.ob-row.open').forEach(r => { if (r !== except) { r.classList.remove('open'); const b = r.querySelector('.ob-body'); if (b) b.hidden = true; r.querySelector('.ob-head').setAttribute('aria-expanded', 'false'); r.querySelector('.ob-caret').textContent = '▸'; } }); };
     for (const rw of rows) {
       const row = document.createElement('div'); row.className = 'ob-row';
       const when = rw.ts ? esc(fmtRel(new Date(rw.ts).toISOString())) : '';
@@ -100,14 +100,12 @@
           '<div class="ob-meta">' + esc(agentName(rw.agentId)) + ' · ' + when + usd + '</div>' +
         '</div>' +
         '<div class="ob-body" hidden>' +
-          '<div class="ob-sec">WHAT YOU ASKED FOR</div><div class="ob-ask"><span class="loading">loading…</span></div>' +
+          '<div class="ob-primary"><button type="button" class="consent-btn ob-open">↗ OPEN SESSION</button>' +
+            '<button type="button" class="consent-btn ob-fork">⊕ NEW SESSION</button></div>' +
+          '<details class="ob-request"><summary class="ob-sec">WHAT YOU ASKED FOR</summary><div class="ob-ask"><span class="loading">loading…</span></div></details>' +
           '<div class="ob-sec">WHAT CAME BACK</div><div class="ob-out"><span class="loading">loading…</span></div>' +
           '<div class="ob-files"></div>' +
-          '<div class="ob-acts">' +
-            '<button type="button" class="consent-btn ob-open">↗ OPEN — test it in the session</button>' +
-            '<button type="button" class="consent-btn ob-fork">⊕ NEW SESSION — expand on this</button>' +
-            '<span class="ob-rate"></span>' +
-          '</div>' +
+          '<div class="ob-acts"><span class="ob-rate"></span></div>' +
           '<div class="deliverable-preview" data-preview aria-live="polite"></div>' +
         '</div>';
       row.querySelector('.ob-title b').textContent = provisionalTitle;
@@ -197,5 +195,5 @@
     }
   }
 
-  StationUI.registerWindow('outbox', 'OUTBOX — FINISHED WORK', buildOutbox, {});   // the OUTBOX prop's click-through: all uncollected finished runs, readable + rateable in place. PANEL shell (one reading column) — see the two-sizes note in style.css
+  StationUI.registerWindow('outbox', 'OUTBOX — FINISHED WORK', buildOutbox, { console: true, className: 'outbox-win' });   // the OUTBOX prop's click-through: all uncollected finished runs, readable + rateable in place. PANEL shell (one reading column) — see the two-sizes note in style.css
 })();

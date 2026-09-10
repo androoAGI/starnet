@@ -1051,15 +1051,9 @@
     // colour-coded text chips (gold / dim) — VT323 has no key/lock glyph that renders (⚿ came out as tofu), and the
     // task says plain text chips are fine. The render below omits the leading glyph when it's empty.
     const CC_CHIP = { none: ['▸', 'no setup', 'var(--ok)'], apikey: ['', 'API key', 'var(--gold)'], oauth: ['', 'sign in', 'var(--ph-dim)'] };
-    /* The catalog seal (2026-08-14). ClassIcons.platformIcon resolves an entry's BESPOKE mark, else the
-       seal for its CATEGORY, else null — and null renders NOTHING rather than a placeholder, so a catalog
-       entry added tomorrow in a group with no art degrades to today's text-only card instead of wearing a
-       mark that misdescribes it. Reuses the bay's .mkt-coin/.mkt-coin-ico pair so these ride the same
-       frameless, one-phosphor treatment; a second socket idiom here would be a second thing to keep in
-       sync. Guarded on ClassIcons being loaded, exactly like the marketplace's own coinInner. */
+    // Shared local brand marks. SPOD's wordmark needs a wider frame than square symbols.
     function ccSeal(e) {
-      const svg = (typeof ClassIcons !== 'undefined' && ClassIcons.platformIcon) ? ClassIcons.platformIcon(e) : null;
-      return svg ? '<span class="mkt-coin cc-seal"><span class="mkt-coin-ico">' + svg + '</span></span>' : '';
+      return '<span class="cc-brand' + (e.id === 'spod' ? ' cc-brand-wide' : '') + '" aria-hidden="true">' + (ClassIcons.brandIcon(e) || esc(e.name.slice(0, 2).toUpperCase())) + '</span>';
     }
     function ccCard(e, ci) {
       const cardId = e.catalogId || e.id;
@@ -1110,10 +1104,9 @@
       return '<div class="cc-card' + (e.installed ? ' cc-on' : '') + '" data-id="' + esc(cardId) + '"' + alias +
           ' data-auth="' + esc(e.authType || 'none') + '" data-installed="' + (e.installed ? '1' : '0') + '"' +
           ' style="--ci:' + (ci || 0) + '">' +
-          '<div class="cc-head">' + ccSeal(e) + '<b>' + esc(e.name) + '</b> ' + origin +
-            '<span class="cc-chip" style="color:' + chip[2] + '" title="' + esc(chip[1]) + '">' + (chip[0] ? chip[0] + ' ' : '') + esc(chip[1]) + '</span></div>' +
-          '<div class="cc-blurb dim">' + esc(e.blurb) + '</div>' + presets + (platformMeta ? '<details><summary>Setup details</summary>' + platformMeta + '</details>' : '') + keyField + clientField +
-          (e.installed ? '<div class="mc-hint">' + (e.releaseDeferred ? 'Saved connection retained. Open Manage Service to view or remove it.' : 'Setup saved. Open Manage Service to check access or reconnect.') + '</div>' : '') +
+          '<div class="cc-head">' + ccSeal(e) + '<div class="cc-identity"><b>' + esc(e.name) + '</b>' +
+            '<span class="cc-chip" style="color:' + chip[2] + '" title="' + esc(chip[1]) + '">' + (chip[0] ? chip[0] + ' ' : '') + esc(chip[1]) + '</span></div></div>' +
+          '<div class="cc-blurb dim">' + esc(e.blurb) + '</div>' + '<details class="cc-details"><summary>Connection details</summary><div class="cc-details-body">' + clientField + origin + presets + platformMeta + (e.installed ? '<div class="mc-hint">' + (e.releaseDeferred ? 'Saved connection retained. Open Manage Service to view or remove it.' : 'Setup saved. Open Manage Service to check access or reconnect.') + '</div>' : '') + '</div></details>' + keyField +
           '<div class="cc-acts">' + action + home + '</div>' +
         '</div>';
     }

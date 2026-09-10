@@ -1047,7 +1047,7 @@ button.mkt-archive-head:focus-visible { outline: 2px solid var(--gold); outline-
 .mkt-recipes .mkt-foryou .mkt-coin { --coin: 28px; }
 .mkt-bar:has(.mkt-tabs) { display: grid; grid-template-columns: minmax(0,1fr) auto auto; }
 .mkt-bar .mkt-tabs { grid-column: 1; grid-row: 1; }
-.mkt-bar:has(.mkt-tabs) .mkt-lanes { grid-column: 1 / -1; grid-row: 2; flex-wrap: nowrap; overflow-x: auto; min-width: 0; padding-bottom: 3px; scrollbar-width: thin; }
+.mkt-bar:has(.mkt-tabs) .mkt-lanes { grid-column: 1 / -1; grid-row: 2; flex-wrap: wrap; min-width: 0; padding-bottom: 3px; }
 .mkt-bar:has(.mkt-tabs) .mkt-lane { flex: 0 0 auto; }
 .mkt-bar .mkt-from-notes { grid-column: 2; grid-row: 1; }
 .mkt-bar:has(.mkt-tabs) .mkt-import { grid-column: 3; grid-row: 1; }
@@ -1065,3 +1065,105 @@ button.mkt-archive-head:focus-visible { outline: 2px solid var(--gold); outline-
   padding: 0; font-size: 21px; letter-spacing: 1px; margin-bottom: 12px; }
 .mkt-stage.form .mkt-in { border-color: var(--ui-edge); box-shadow: var(--ui-well); }
 .mkt-stage.form .mkt-save-acts { border-color: var(--ui-edge); }
+
+/* Recipe library: crew-like glass selection and a single, inline launch. */
+.mkt-recipes .mkt-rows .mkt-card {
+  grid-template-columns: 42px minmax(0, 1fr); gap: 12px; padding: 14px 12px;
+  border: 1px solid transparent; border-radius: 8px;
+  background: linear-gradient(135deg, rgba(var(--ph-rgb), .06), rgba(var(--ph-rgb), .015));
+  box-shadow: inset 0 1px 0 rgba(var(--ph-bright-rgb), .04);
+}
+.mkt-recipes .mkt-rows .mkt-card:hover,
+.mkt-recipes .mkt-rows .mkt-card.sel {
+  border-color: rgba(var(--ph-rgb), .3);
+  background: linear-gradient(125deg, rgba(var(--ph-bright-rgb), .14), rgba(var(--ph-rgb), .07) 48%, rgba(var(--ph-rgb), .025));
+  box-shadow: inset 0 1px 0 rgba(var(--ph-bright-rgb), .2), inset 0 -1px 0 rgba(var(--ph-rgb), .08), 0 5px 18px rgba(0,0,0,.12);
+  backdrop-filter: blur(12px);
+}
+.mkt-recipes .mkt-rows .mkt-card .mkt-coin { --coin: 42px; }
+.mkt-recipes .mkt-card-side { display: none; }
+.mkt-recipes .mkt-rows .mkt-card .mkt-tag { line-height: 1.4; }
+.mkt-recipes .mkt-recipe-simple { padding-top: 24px; }
+.mkt-recipes .mkt-recipe-simple .mkt-dos-hero { border: 0; padding-bottom: 8px; }
+.mkt-recipes .mkt-recipe-simple .mkt-dos-tag { margin-top: 12px; font-size: 16px; line-height: 1.5; color: var(--text); }
+.mkt-inline-launch .mkt-p-lbl { margin: 16px 0; }
+.mkt-inline-launch .mkt-p-lbl-t { margin-bottom: 6px; }
+.mkt-inline-launch > .mkt-brief { margin: 20px 0; border: 0; background: none; }
+.mkt-inline-launch > .mkt-cta-main { width: 100%; margin-top: 8px; }
+.mkt-library-more { margin: 22px 6px 0; color: var(--ph-dim); }
+.mkt-library-more > summary { cursor: pointer; padding: 10px 0; }
+
+/* The expanded recipe area is a small editor, with one purpose visible at a time. */
+.mkt-recipe-detail-tabs { display: flex; gap: 4px; padding: 4px; margin-top: 14px;
+  border: 1px solid var(--ph-faint); border-radius: 7px; background: rgba(0,0,0,.16); }
+.mkt-recipe-detail-tabs button { flex: 1; font: inherit; font-size: 13px; padding: 9px 6px;
+  color: var(--ph-dim); background: transparent; border: 1px solid transparent; border-radius: 5px; cursor: pointer; }
+.mkt-recipe-detail-tabs button[aria-selected="true"] { color: var(--ph-bright); border-color: var(--ui-edge);
+  background: var(--ui-face); box-shadow: inset 0 1px 0 var(--ui-highlight); }
+.mkt-recipe-detail-tabs button:focus-visible { outline: 2px solid var(--ph); outline-offset: 2px; }
+.mkt-recipe-detail-panel { padding: 16px 2px 6px; }
+.mkt-recipe-detail-panel[hidden] { display: none; }
+.mkt-detail-note { margin: 0 0 16px; font-size: 14px; line-height: 1.5; color: var(--ph-dim); }
+.mkt-recipe-detail-panel .mkt-intake { margin: 18px 0; gap: 10px; }
+.mkt-recipe-detail-panel .mkt-lbl-hint { display: block; margin-top: 5px; font-size: 12px; }
+.mkt-recipe-detail-panel .mkt-sop-steps { padding-left: 22px; margin: 8px 0; }
+.mkt-recipe-detail-panel .mkt-sop-steps li { padding: 7px 0 7px 5px; font-size: 14px; line-height: 1.5; }
+.mkt-recipe-detail-panel .mkt-sop-steps li::marker { color: var(--ph-dim); }
+.mkt-recipe-instructions { border-top: 1px solid var(--ph-faint); padding-top: 12px; }
+.mkt-recipe-instructions pre { white-space: pre-wrap; overflow-wrap: anywhere; font: inherit; font-size: 13px;
+  line-height: 1.65; color: var(--text); padding: 12px; background: rgba(0,0,0,.15); border-radius: 6px; }
+.mkt-reuse-actions, .mkt-reuse-actions .mkt-cta-row { display: flex; flex-wrap: wrap; gap: 8px; }
+.mkt-reuse-actions { flex-direction: column; align-items: flex-start; }
+
+.mkt-recipe-detail-panel .mkt-sop-steps li { background: none; border: 0; box-shadow: none; }
+.mkt-recipe-detail-panel .mkt-sop-steps li::before { content: none; }
+
+/* Recruitment uses the same glass selection language as Recipes. */
+.mkt-agents .mkt-rows .mkt-card {
+  grid-template-columns: 42px minmax(0, 1fr); gap: 12px; padding: 14px 12px;
+  border: 1px solid transparent; border-radius: 8px;
+  background: linear-gradient(135deg, rgba(var(--ph-rgb), .06), rgba(var(--ph-rgb), .015));
+  box-shadow: inset 0 1px 0 rgba(var(--ph-bright-rgb), .04);
+}
+.mkt-agents .mkt-rows .mkt-card:hover,
+.mkt-agents .mkt-rows .mkt-card.sel {
+  border-color: rgba(var(--ph-rgb), .3);
+  background: linear-gradient(125deg, rgba(var(--ph-bright-rgb), .14), rgba(var(--ph-rgb), .07) 48%, rgba(var(--ph-rgb), .025));
+  box-shadow: inset 0 1px 0 rgba(var(--ph-bright-rgb), .2), inset 0 -1px 0 rgba(var(--ph-rgb), .08), 0 5px 18px rgba(0,0,0,.12);
+  backdrop-filter: blur(12px);
+}
+.mkt-agents .mkt-rows .mkt-card .mkt-coin { --coin: 42px; }
+.mkt-agents .mkt-card-side { display: none; }
+.mkt-agents .mkt-rows .mkt-card .mkt-tag { line-height: 1.4; }
+
+.mkt-agents .mkt-agent-simple { padding-top: 24px; }
+.mkt-agents .mkt-dos-hero { border: 0; margin: 0; padding: 0; }
+.mkt-agents .mkt-about { margin: 12px 0 20px; }
+.mkt-agents .mkt-config { border: 0; background: none; box-shadow: none; margin: 0; overflow: visible; }
+.mkt-agents .mkt-recruit-identity { padding: 0 0 16px; align-items: center; }
+.mkt-agents .mkt-config .mkt-modelbar { border: 0; padding: 0; }
+.mkt-agents .mkt-config .mkt-skinbar { padding: 0; }
+.mkt-agent-reference { font-size: 14px; line-height: 1.6; color: var(--text); }
+.mkt-agent-purpose { margin: 0 0 18px; }
+.mkt-agent-reference .bh { color: var(--ph-dim); font-size: 11px; letter-spacing: 1px; }
+.mkt-agent-examples { list-style: none; margin: 8px 0 20px; padding: 0; }
+.mkt-agent-examples li { padding: 10px 0; border-bottom: 1px solid var(--ph-faint); }
+.mkt-agents .mkt-cta-second { margin-top: 20px; border-top: 1px solid var(--ph-faint); padding-top: 14px; }
+.mkt-stage.form .mkt-class-editor { max-width: 980px; }
+.mkt-class-columns { display: grid; grid-template-columns: 250px minmax(0,1fr); gap: 28px; }
+.mkt-class-icon-panel { min-width: 0; padding: 16px; border: 1px solid var(--ph-faint); border-radius: 8px; background: rgba(var(--ph-rgb),.035); }
+.mkt-class-editor .mkt-build-preview { display: flex; align-items: center; gap: 14px; margin: 0 0 18px; color: var(--ph-dim); }
+.mkt-class-icons { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 6px; margin-bottom: 20px; }
+.mkt-class-icons button { font: inherit; color: var(--ph-dim); background: transparent; border: 1px solid var(--ph-faint); border-radius: 6px; padding: 8px 2px; cursor: pointer; }
+.mkt-class-icons button span { display: block; font-size: 10px; }
+.mkt-class-icons button span:first-child { font-size: 25px; margin-bottom: 5px; color: var(--ph); }
+.mkt-class-icons button:hover, .mkt-class-icons button[aria-pressed="true"] { background: var(--ui-face); border-color: var(--ph); box-shadow: inset 0 1px 0 var(--ui-highlight); }
+.mkt-class-icons button:focus-visible { outline: 2px solid var(--ph); outline-offset: 2px; }
+.mkt-class-editor .mkt-lbl { margin: 16px 0 8px; gap: 7px; font-size: 14px; letter-spacing: .3px; }
+.mkt-class-editor .mkt-recipe-detail-tabs { margin-top: 0; }
+.mkt-class-editor .mkt-in { width: 100%; box-sizing: border-box; }
+.mkt-class-editor .mkt-kitpick { padding: 10px 0; border-bottom: 1px solid var(--ph-faint); }
+.mkt-class-editor #mkt-b-skills { max-height: 220px; overflow-y: auto; padding: 4px; }
+.mkt-class-editor #mkt-b-skills [hidden] { display: none; }
+.mkt-class-editor .mkt-save-acts { position: sticky; bottom: 0; padding: 16px 0; background: var(--panel); border-top: 1px solid var(--ph-faint); }
+@container (max-width: 680px) { .mkt-class-columns { grid-template-columns: minmax(0,1fr); gap: 18px; } .mkt-class-icons { grid-template-columns: repeat(8,minmax(0,1fr)); } }

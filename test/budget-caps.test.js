@@ -114,7 +114,7 @@ const ENV = { perRun: 3, perAgent: 5, perDay: 40, global: 100 };   // a fully-go
 {
   const station = fs.readFileSync(path.join(__dirname, '..', 'frontend', 'app', 'stationui.js'), 'utf8');
   const css = fs.readFileSync(path.join(__dirname, '..', 'frontend', 'css', 'app.css'), 'utf8');
-  A.ok(/>BUDGET </.test(station), 'BUDGET section header present in SETTINGS');
+  A.ok(/>Spending limits </.test(station), 'BUDGET section header present in SETTINGS');
   A.ok(/function wireBudget/.test(station) && /wireBudget\(body\)/.test(station), 'wireBudget builder present and called');
   A.ok(/id="bg-perRun"/.test(station) && /id="bg-perAgent"/.test(station) && /id="bg-perDay"/.test(station) && /id="bg-global"/.test(station), 'all four cap inputs present');
   A.ok(/id="bg-save"/.test(station) && /id="bg-reset"/.test(station), 'SAVE + RESET controls present');

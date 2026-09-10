@@ -93,7 +93,7 @@ function fakeFetch() { return async () => ({ ok: true, status: 200, async json()
   // P2-E: the "send-only" disclosure is GONE — Discord is now full-duplex, and the card must claim two-way honestly.
   A.ok(!/Send-only for now/.test(station), 'the "Send-only for now" disclaimer was removed (Discord now receives)');
   A.ok(!/don\\?'t reach the agent yet/.test(station), 'the "replies don\'t reach the agent yet" line was removed');
-  A.ok(/Two-way chat on Discord/.test(station), 'the Discord card now advertises two-way chat (truthful full-duplex)');
+  A.ok(/DM your Discord bot to talk to your agent/.test(station), 'the Discord card now advertises two-way chat (truthful full-duplex)');
   // the status line reflects that receive works when connected (generic '● CONNECTED — <verb>' + discord's verb).
   A.ok(/CONNECTED — ' \+ c\.verb/.test(station) && /verb: 'receiving'/.test(station), 'the connected status says it is receiving (not just sending)');
 
