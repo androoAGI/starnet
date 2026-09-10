@@ -1,0 +1,68 @@
+[
+  {
+    "type": "json_object",
+    "status": 200,
+    "body": {
+      "id": "chatcmpl-05bcf2c0b0214cdb96fd210a31017",
+      "object": "chat.completion",
+      "created": 1789011724,
+      "model": "hermes-agent",
+      "choices": [
+        {
+          "index": 0,
+          "message": {
+            "role": "assistant",
+            "content": "Markdown prose, not JSON"
+          },
+          "finish_reason": "stop"
+        }
+      ],
+      "usage": {
+        "prompt_tokens": 1,
+        "completion_tokens": 1,
+        "total_tokens": 2
+      }
+    },
+    "agentKwargNames": [
+      "user_message",
+      "conversation_history",
+      "ephemeral_system_prompt",
+      "session_id",
+      "gateway_session_key",
+      "route"
+    ]
+  },
+  {
+    "type": "json_schema",
+    "status": 200,
+    "body": {
+      "id": "chatcmpl-7d9b9fdf3da545da90141d7dbff4b",
+      "object": "chat.completion",
+      "created": 1789011724,
+      "model": "hermes-agent",
+      "choices": [
+        {
+          "index": 0,
+          "message": {
+            "role": "assistant",
+            "content": "Markdown prose, not JSON"
+          },
+          "finish_reason": "stop"
+        }
+      ],
+      "usage": {
+        "prompt_tokens": 1,
+        "completion_tokens": 1,
+        "total_tokens": 2
+      }
+    },
+    "agentKwargNames": [
+      "user_message",
+      "conversation_history",
+      "ephemeral_system_prompt",
+      "session_id",
+      "gateway_session_key",
+      "route"
+    ]
+  }
+]
