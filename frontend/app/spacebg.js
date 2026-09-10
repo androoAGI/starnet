@@ -1092,11 +1092,22 @@ const SpaceBG = (() => {
 
   /* -------------------------------------------------------------- BACKDROP: THE BELT ---- */
   /* A meteor shower, flown through. Andrew, 2026-09-05: "make the belts asteroids a bit smaller,
-     make it more like a meteor shower vibe and give it the orange red hue." So: the red family
-     (the palette of the Interstellar reference he liked — deep red, red, orange, yellow, with
-     purple in the dust and four-point cross stars), SMALL pixel rocks in three parallax layers,
-     and the shower itself: a live swarm of fast streaks with fading ember tails crossing the frame
-     along the travel direction, plus a fireball — a rock with a burning tail — every so often.
+     make it more like a meteor shower vibe and give it the orange red hue" — and "i love it" on
+     the result. SHARPENED 2026-09-09 ("need significantly way better looking") without changing
+     what it is: the same red family, the same small rocks in parallax layers, the same ember
+     swarm and fireball. What changed is the RENDERING of every layer:
+       - ROCKS have real form: a five-tone terminator (shadow side, body, half-light, lit rim, hot
+         rim) from a spherical normal instead of one flat body with a rim, craters with a LIT FAR
+         WALL and a dark bowl, and two materials (maroon and a greyer basalt) instead of one. A
+         fourth NEAR layer carries three big rocks so the size ladder reaches the foreground.
+       - A DUST NEBULA at the very back: dim red and purple wisps, hash-dithered, so the black has
+         depth and the shower has an atmosphere to fly through. Faint by design — the rocks are
+         the subject, and this is not a new one.
+       - EMBERS carry a hot head halo; the FIREBALL wears a glowing head and sheds live sparks.
+       - THE TUMBLER: every 40-90 s one big asteroid crosses the frame slowly, TUMBLING through
+         eight pre-rendered frames — the silhouette and its craters rotate while the LIGHT stays
+         put, which is what a real tumbling rock does. The one event this backdrop was missing.
+     Reduced motion still empties the swarm and skips the fireball, and now the tumbler too.
      Rocks occlude the stars; that occlusion is what makes them solid. */
 
   const BELT_BG = {
@@ -1106,22 +1117,60 @@ const SpaceBG = (() => {
     PAL: {
       DEEP: [72, 8, 16], RED: [196, 26, 22], ORANGE: [255, 108, 24], YELLOW: [255, 208, 96], HOT: [255, 244, 200],
       DUSTR: [140, 20, 30], DUSTP: [120, 30, 170], DUSTO: [200, 80, 30], STARP: [190, 70, 255], STARR: [255, 80, 60],
-      BODY: [58, 16, 14], DARK: [26, 6, 8], BODY2: [92, 30, 18],
+      MAROON: [[26, 6, 8], [58, 16, 14], [98, 34, 22]],       // rock material: shadow, body, half-light
+      BASALT: [[16, 9, 12], [50, 38, 36], [88, 68, 58]],
+      NEB: [[14, 3, 10], [34, 6, 22], [60, 12, 34], [88, 22, 40], [112, 36, 44]],   // the dust nebula, red
+      NEBP: [[10, 4, 22], [28, 10, 50], [52, 20, 80], [76, 34, 108]],               // and purple
     },
     DIR: [-0.94, 0.34],
-    SPD: { far: 5, mid: 12, near: 24, rockFar: 16, rockMid: 36, rockNear: 75 },
-    D: { far: 0.010, mid: 0.030, near: 0.055, rockFar: 0.06, rockMid: 0.14, rockNear: 0.30 },
+    SPD: { neb: 2, far: 5, mid: 12, near: 24, rockFar: 16, rockMid: 36, rockNear: 75, rockHero: 118 },
+    D: { neb: 0.004, far: 0.010, mid: 0.030, near: 0.055, rockFar: 0.06, rockMid: 0.14, rockNear: 0.30, rockHero: 0.45 },
     ROCKS: [
       { n: 60, min: 2.5, max: 6 },            // far — grains
       { n: 26, min: 5, max: 11 },             // mid
       { n: 9, min: 10, max: 22 },             // near
+      { n: 3, min: 24, max: 34 },             // hero — the foreground of the ladder
     ],
     LIGHT: [-0.55, -0.83],                   // sunward (up-left): where the rims are lit
     STREAKS: 56,                             // live embers in flight at once
+    TUMBLE: { frames: 8, R: 30, every: [40000, 90000], speed: 42, frameMs: 170 },
 
     build(w, h, rnd) {
       const P = BELT_BG.PAL, u = px1(), col = (c, a) => rgba(c, a == null ? 1 : a);
-      /* ---- the field: red/purple dust, cross stars, near twinklers ---- */
+
+      /* ---- 0. THE DUST NEBULA — two dim wisps, half-res field, hash-dithered hard ramp ---- */
+      const nebCv = mkCv(w, h), nc = nebCv.getContext('2d');
+      {
+        const SW = Math.max(1, Math.ceil(w / 2)), SH = Math.max(1, Math.ceil(h / 2));
+        const asp = Math.max(1, w / h);
+        const wn = N => wrapNoiseXY(Math.max(2, Math.round(N * asp)), N, rnd);
+        const s1 = wn(2), s2 = wn(5), s3 = wn(11), wx = wn(3), wy = wn(3), pf = wn(3);
+        const F = new Float32Array(SW * SH), G = new Float32Array(SW * SH);
+        for (let y = 0, i = 0; y < SH; y++) {
+          for (let x = 0; x < SW; x++, i++) {
+            const u0 = x / SW, v0 = y / SH;
+            const uu = u0 + (wx(u0, v0) - 0.5) * 0.3, vv = v0 + (wy(u0, v0) - 0.5) * 0.3;
+            const d = s1(uu, vv) * 0.5 + s2(uu, vv) * 0.32 + s3(uu, vv) * 0.18;
+            F[i] = Math.max(0, Math.min(1, (d - 0.52) * 2.6));
+            G[i] = pf(u0, v0);
+          }
+        }
+        const img = nc.createImageData(w, h), D = img.data;
+        for (let y = 0, p = 0; y < h; y++) {
+          for (let x = 0; x < w; x++, p += 4) {
+            const t = sampField(F, SW, SH, x * 0.5, y * 0.5);
+            if (t <= 0.02) continue;
+            const tq = Math.max(0, Math.min(1, Math.round((t + hashDither(x, y) / 8) * 8) / 8));
+            if (tq <= 0) continue;
+            const R = sampField(G, SW, SH, x * 0.5, y * 0.5) > 0.6 ? P.NEBP : P.NEB;
+            const c = R[Math.round(tq * (R.length - 1))];
+            D[p] = c[0]; D[p + 1] = c[1]; D[p + 2] = c[2]; D[p + 3] = Math.round(255 * Math.min(0.85, 0.2 + tq * 0.9));
+          }
+        }
+        nc.putImageData(img, 0, 0);
+      }
+
+      /* ---- 1. the field: red/purple dust, cross stars, near twinklers ---- */
       const farCv = mkCv(w, h), fc = farCv.getContext('2d');
       const farN = Math.min(24000, Math.round((w * h) / 115));
       for (let i = 0; i < farN; i++) {
@@ -1142,54 +1191,79 @@ const SpaceBG = (() => {
       const cross = [];
       for (let i = 0, n = 16 + Math.floor(rnd() * 6); i < n; i++) cross.push({ x: rnd(), y: rnd(), ph: rnd() * 10, rate: 1400 + rnd() * 1600, c: rnd() < 0.5 ? P.STARP : rnd() < 0.7 ? P.STARR : P.YELLOW, big: rnd() < 0.3 });
 
-      /* ---- the rocks: noise-deformed pixel discs, two-tone body, lit rim toward LIGHT ---- */
+      /* ---- 2. THE ROCKS. A shape is a lumpy radial profile plus craters, RELATIVE to its centre,
+              so the tumbler can draw the same shape at eight rotations under one fixed light. ---- */
       const [lx, ly] = BELT_BG.LIGHT;
-      const rock = (c, cx, cy, R) => {
-        const prof = new Float32Array(32);
-        const base = rnd() * 0.3;
+      const mkShape = (R, mat) => {
+        const M = mat || (rnd() < 0.35 ? P.BASALT : P.MAROON);
+        const prof = new Float32Array(32), base = rnd() * 0.3;
         for (let i = 0; i < 32; i++) prof[i] = R * (0.68 + base + 0.32 * rnd());
         for (let i = 1; i < 32; i++) prof[i] = prof[i] * 0.5 + prof[i - 1] * 0.5;
         prof[0] = (prof[0] + prof[31]) * 0.5;
-        const at = th => { const f = ((th / (Math.PI * 2)) + 1) % 1 * 32, i = Math.floor(f), t = f - i; return prof[i % 32] * (1 - t) + prof[(i + 1) % 32] * t; };
         const craters = [];
-        for (let k = 0, n = R > 12 ? 1 + Math.floor(rnd() * 2) : 0; k < n; k++) {
-          const a = rnd() * Math.PI * 2, d = rnd() * R * 0.5;
-          craters.push([cx + Math.cos(a) * d, cy + Math.sin(a) * d, R * (0.14 + 0.16 * rnd())]);
+        for (let k = 0, n = R > 8 ? 1 + Math.floor(rnd() * (R > 20 ? 3 : 2)) : 0; k < n; k++) {
+          const a = rnd() * Math.PI * 2, d = rnd() * R * 0.55;
+          craters.push([Math.cos(a) * d, Math.sin(a) * d, R * (0.12 + 0.16 * rnd())]);
         }
-        const warm = rnd() < 0.35 ? P.BODY2 : P.BODY;
-        const B = Math.ceil(R * 1.05) + 2;
-        for (let y = -B; y <= B; y++) for (let x = -B; x <= B; x++) {
-          const d = Math.hypot(x, y); if (d < 0.001) { c.fillStyle = col(warm); c.fillRect(cx, cy, 1, 1); continue; }
-          const th = Math.atan2(y, x), edge = at(th);
-          if (d > edge) continue;
-          const facing = (x * lx + y * ly) / d;
-          let cc = (facing * (d / edge) < -0.15) ? P.DARK : warm;
-          const rimW = Math.max(1.5, R * 0.18);
-          if (d > edge - rimW && facing > 0.05) cc = facing > 0.55 && d > edge - rimW * 0.6 ? P.YELLOW : P.ORANGE;
-          else if (facing > 0.3 && d > edge * 0.35 && ((x * 7 + y * 13) & 3) === 0) cc = P.RED;
-          for (const [kx, ky, kr] of craters) {
-            if (Math.hypot(cx + x - kx, cy + y - ky) < kr) cc = P.DARK;
+        return { R, M, prof, craters };
+      };
+      const rock = (c, cx, cy, S, rot) => {
+        const { R, M, prof, craters } = S, ro = rot || 0;
+        const at = th => { const f = ((((th + ro) / (Math.PI * 2)) % 1) + 1) % 1 * 32, i = Math.floor(f), t = f - i; return prof[i % 32] * (1 - t) + prof[(i + 1) % 32] * t; };
+        const cr = craters.map(([kx, ky, kr]) => [kx * Math.cos(-ro) - ky * Math.sin(-ro), kx * Math.sin(-ro) + ky * Math.cos(-ro), kr]);
+        const rimW = Math.max(1.5, R * 0.18), B = Math.ceil(R * 1.05) + 2;
+        for (let y = -B; y <= B; y++) {
+          for (let x = -B; x <= B; x++) {
+            const d = Math.hypot(x, y);
+            if (d < 0.001) { c.fillStyle = col(M[1]); c.fillRect(cx, cy, 1, 1); continue; }
+            const th = Math.atan2(y, x), edge = at(th);
+            if (d > edge) continue;
+            /* THE TERMINATOR. A sphere-ish normal (x, y, z = sqrt(1 - r^2)) against a light that
+               sits up-left and a little above the picture plane: the far side falls into shadow
+               through a body tone and a half-light — four flat steps, never a gradient. */
+            const r = d / edge, nz = Math.sqrt(Math.max(0, 1 - r * r));
+            const shade = (x / edge) * lx + (y / edge) * ly + nz * 0.55;
+            let cc = shade < -0.05 ? M[0] : shade < 0.32 ? M[1] : shade < 0.62 ? M[2] : P.RED;
+            const facing = (x * lx + y * ly) / d;
+            if (d > edge - rimW && facing > 0.05) cc = facing > 0.55 && d > edge - rimW * 0.6 ? P.YELLOW : P.ORANGE;
+            else if (shade > 0.5 && ((x * 7 + y * 13) & 3) === 0) cc = P.ORANGE;   // hot specks on the lit side
+            for (const [kx, ky, kr] of cr) {
+              const ox = x - kx, oy = y - ky, dd = Math.hypot(ox, oy);
+              if (dd >= kr) continue;
+              // a crater is a HOLE: the wall away from the light is the one that catches it
+              cc = (ox * lx + oy * ly) / (dd || 1) < -0.3 && dd > kr * 0.5 ? P.ORANGE : M[0];
+            }
+            c.fillStyle = col(cc); c.fillRect(cx + x, cy + y, 1, 1);
           }
-          c.fillStyle = col(cc); c.fillRect(cx + x, cy + y, 1, 1);
         }
       };
       const layers = BELT_BG.ROCKS.map(L => {
         const cv = mkCv(w, h), c = cv.getContext('2d');
         for (let i = 0; i < L.n; i++) {
           const R = L.min + rnd() * (L.max - L.min);
-          rock(c, Math.round(R + 2 + rnd() * (w - 2 * R - 4)), Math.round(R + 2 + rnd() * (h - 2 * R - 4)), R);
+          rock(c, Math.round(R + 2 + rnd() * (w - 2 * R - 4)), Math.round(R + 2 + rnd() * (h - 2 * R - 4)), mkShape(R));
         }
         return cv;
       });
       // the fireball: one mid-size rock with a burning tail, pre-rendered head only (tail is live)
       const FR = 9 + rnd() * 9, fireCv = mkCv(Math.ceil(FR * 2.2) + 4, Math.ceil(FR * 2.2) + 4);
-      rock(fireCv.getContext('2d'), Math.round(FR * 1.1 + 2), Math.round(FR * 1.1 + 2), FR);
+      rock(fireCv.getContext('2d'), Math.round(FR * 1.1 + 2), Math.round(FR * 1.1 + 2), mkShape(FR, P.MAROON));
+      // the tumbler: one big shape, eight rotations, one light
+      const TB = BELT_BG.TUMBLE, TS = Math.ceil(TB.R * 2.3) + 6, tumbleShape = mkShape(TB.R);
+      const tumble = [];
+      for (let f = 0; f < TB.frames; f++) {
+        const cv = mkCv(TS, TS);
+        rock(cv.getContext('2d'), TS >> 1, TS >> 1, tumbleShape, (f / TB.frames) * Math.PI * 2);
+        tumble.push(cv);
+      }
 
-      return { farCv, midCv, near, cross, layers, fireCv, fire: null, nextFire: 0, streaks: [], lastT: null };
+      return { nebCv, farCv, midCv, near, cross, layers, fireCv, tumble, fire: null, nextFire: 0, tumbler: null, nextTumble: 0, streaks: [], lastT: null };
     },
 
     draw(ctx, w, h, now, cam, st) {
       const S = BELT_BG.SPD, D = BELT_BG.D, [dx, dy] = BELT_BG.DIR, t = now / 1000, P = BELT_BG.PAL;
+      const still = reduceMotion();
+      tile2(ctx, st.nebCv, w, h, parX(cam, D.neb) + t * S.neb * dx, parY(cam, D.neb) + t * S.neb * dy);
       tile2(ctx, st.farCv, w, h, parX(cam, D.far) + t * S.far * dx, parY(cam, D.far) + t * S.far * dy);
       tile2(ctx, st.midCv, w, h, parX(cam, D.mid) + t * S.mid * dx, parY(cam, D.mid) + t * S.mid * dy);
       tile2(ctx, st.layers[0], w, h, parX(cam, D.rockFar) + t * S.rockFar * dx, parY(cam, D.rockFar) + t * S.rockFar * dy);
@@ -1215,9 +1289,9 @@ const SpaceBG = (() => {
 
       tile2(ctx, st.layers[1], w, h, parX(cam, D.rockMid) + t * S.rockMid * dx, parY(cam, D.rockMid) + t * S.rockMid * dy);
 
-      /* THE SHOWER: fast embers with fading tails. dt-driven; each respawns off the entering edge
-         (DIR points down-left, so they enter from the top and right). Under reduced-motion the
-         swarm is empty — this is exactly the dramatic motion that setting asks us not to add. */
+      /* THE SHOWER: fast embers with fading tails and a hot head. dt-driven; each respawns off the
+         entering edge (DIR points down-left, so they enter from the top and right). Under
+         reduced-motion the swarm is empty — exactly the dramatic motion that setting refuses. */
       const dt = st.lastT == null ? 0 : Math.min(0.1, t - st.lastT); st.lastT = t;
       const spawn = () => {
         const fromTop = Math.random() < 0.55;
@@ -1227,41 +1301,70 @@ const SpaceBG = (() => {
           big: Math.random() < 0.28,
         };
       };
-      if (!reduceMotion()) while (st.streaks.length < BELT_BG.STREAKS) st.streaks.push(spawn());
+      if (!still) while (st.streaks.length < BELT_BG.STREAKS) st.streaks.push(spawn());
       for (let i = st.streaks.length - 1; i >= 0; i--) {
         const s = st.streaks[i];
         s.x += dx * s.spd * dt; s.y += dy * s.spd * dt;
         if (s.x < -s.len * 2 - 30 || s.y > h + 30) { st.streaks[i] = spawn(); continue; }
         const px = Math.round(s.x), py = Math.round(s.y), k = s.big ? 2 : 1;
-        // tail: dimming embers back along the direction of travel
-        for (let j = 1; j <= s.len; j++) {
+        for (let j = 1; j <= s.len; j++) {                  // tail: one pixel per step — solid, never dotted
           const f = 1 - j / s.len;
           ctx.fillStyle = rgba(j < s.len * 0.3 ? P.YELLOW : j < s.len * 0.6 ? s.c : P.RED, 0.35 + 0.65 * f);
-          ctx.fillRect(Math.round(px - dx * j * k), Math.round(py - dy * j * k), k, k);   // one pixel per step: a solid tail, not dots
+          ctx.fillRect(Math.round(px - dx * j * k), Math.round(py - dy * j * k), k, k);
         }
+        ctx.fillStyle = rgba(P.ORANGE, 0.35); ctx.fillRect(px - 1, py - 1, k + 2, k + 2);   // the head's halo
         ctx.fillStyle = rgba(P.HOT, 1); ctx.fillRect(px, py, k, k);
       }
 
       tile2(ctx, st.layers[2], w, h, parX(cam, D.rockNear) + t * S.rockNear * dx, parY(cam, D.rockNear) + t * S.rockNear * dy);
 
-      // THE FIREBALL: every 9-25s a rock with a burning tail tears across in ~2s
+      // THE FIREBALL: every 9-25s a rock with a burning tail and a glowing head tears across in ~2s
       if (!st.nextFire) st.nextFire = now + 4000 + Math.random() * 8000;
-      if (!st.fire && now > st.nextFire && !reduceMotion()) {
+      if (!st.fire && now > st.nextFire && !still) {
         const spd = Math.max(w, h) * (0.5 + Math.random() * 0.3);
         st.fire = { x: w + 40 + Math.random() * w * 0.3, y: -40 + Math.random() * h * 0.5, vx: dx * spd, vy: dy * spd, born: now };
       }
       if (st.fire) {
         const el = (now - st.fire.born) / 1000;
         const x = st.fire.x + st.fire.vx * el, y = st.fire.y + st.fire.vy * el;
-        const cw = st.fireCv.width;
+        const cw = st.fireCv.width, hx = x + cw / 2, hy = y + cw / 2;
         if (x < -cw - 200 || y > h + cw + 100) { st.fire = null; st.nextFire = now + 9000 + Math.random() * 16000; }
         else {
-          for (let j = 1; j <= 26; j++) {                        // the burning tail, widening as it fades
+          for (let j = 1; j <= 26; j++) {                     // the burning tail, widening as it fades
             const f = 1 - j / 26, wdt = 1 + Math.floor(j / 7);
             ctx.fillStyle = rgba(j < 6 ? P.YELLOW : j < 14 ? P.ORANGE : j < 20 ? P.RED : P.DEEP, 0.2 + 0.75 * f);
-            ctx.fillRect(Math.round(x + cw / 2 - dx * j * 3.2) - (wdt >> 1), Math.round(y + cw / 2 - dy * j * 3.2) - (wdt >> 1), wdt, wdt);
+            ctx.fillRect(Math.round(hx - dx * j * 3.2) - (wdt >> 1), Math.round(hy - dy * j * 3.2) - (wdt >> 1), wdt, wdt);
           }
+          for (let j = 0; j < 9; j++) {                       // sparks shed off the tail, live
+            const back = 2 + Math.random() * 22, side = (Math.random() - 0.5) * 9;
+            ctx.fillStyle = rgba(Math.random() < 0.5 ? P.YELLOW : P.ORANGE, 0.5 + Math.random() * 0.5);
+            ctx.fillRect(Math.round(hx - dx * back * 3 - dy * side), Math.round(hy - dy * back * 3 + dx * side), 1, 1);
+          }
+          ctx.globalCompositeOperation = 'lighter';           // the glowing head
+          const g = ctx.createRadialGradient(hx, hy, 0, hx, hy, cw * 0.95);
+          g.addColorStop(0, rgba(P.YELLOW, 0.55)); g.addColorStop(0.45, rgba(P.ORANGE, 0.22)); g.addColorStop(1, rgba(P.RED, 0));
+          ctx.fillStyle = g; ctx.fillRect(hx - cw, hy - cw, cw * 2, cw * 2);
+          ctx.globalCompositeOperation = 'source-over';
           ctx.drawImage(st.fireCv, Math.round(x), Math.round(y));
+        }
+      }
+
+      tile2(ctx, st.layers[3], w, h, parX(cam, D.rockHero) + t * S.rockHero * dx, parY(cam, D.rockHero) + t * S.rockHero * dy);
+
+      // THE TUMBLER: a big rock, slow, turning over as it crosses — the nearest thing in the frame
+      const TB = BELT_BG.TUMBLE, TS = st.tumble[0].width;
+      if (!st.nextTumble) st.nextTumble = now + TB.every[0] * 0.4 + Math.random() * TB.every[0] * 0.6;
+      if (!st.tumbler && now > st.nextTumble && !still) {
+        const fromTop = Math.random() < 0.5;
+        st.tumbler = { x: fromTop ? w * (0.2 + Math.random() * 0.8) : w + TS, y: fromTop ? -TS : Math.random() * h * 0.5, born: now, spd: TB.speed * (0.8 + Math.random() * 0.5), dir: Math.random() < 0.5 ? 1 : -1 };
+      }
+      if (st.tumbler) {
+        const el = (now - st.tumbler.born) / 1000;
+        const x = st.tumbler.x + dx * st.tumbler.spd * el, y = st.tumbler.y + dy * st.tumbler.spd * el;
+        if (x < -TS - 10 || y > h + TS + 10) { st.tumbler = null; st.nextTumble = now + TB.every[0] + Math.random() * (TB.every[1] - TB.every[0]); }
+        else {
+          const f = (((Math.floor(now / TB.frameMs) * st.tumbler.dir) % TB.frames) + TB.frames) % TB.frames;
+          ctx.drawImage(st.tumble[f], Math.round(x), Math.round(y));
         }
       }
 
