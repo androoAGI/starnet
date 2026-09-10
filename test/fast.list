@@ -767,3 +767,5 @@ test/save-concurrency.test.js
 
 test/cloudsave-concurrency.test.js
 test/world-movement-continuity.test.js
+
+test/sprite-direction-details.test.js
