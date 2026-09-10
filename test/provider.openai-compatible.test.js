@@ -7,6 +7,24 @@ const line = obj => 'data: ' + JSON.stringify(obj);
 async function collect(provider, req) { const out = []; for await (const e of provider.stream(req)) out.push(e); return out; }
 
 module.exports = (async () => {
+  // Managed Claude must preserve the same continuation ordering as direct OpenRouter.
+  {
+    for (const model of ['anthropic/claude-sonnet-4.6', 'gpt-4o']) {
+      const messages = [{ role: 'system', content: 'Policy' }, { role: 'user', content: 'Write' }, { role: 'assistant', content: 'Written' }, { role: 'system', content: '<verify_before_done>Check the file.</verify_before_done>' }];
+      const original = JSON.stringify(messages);
+      let wire;
+      const fetch = async (url, init) => {
+        if (!url.endsWith('/chat/completions')) return new Response('{"data":[]}');
+        wire = JSON.parse(init.body);
+        return new Response('data: [DONE]\n\n');
+      };
+      await collect(makeOpenAICompatibleProvider({ fetch, key: 'fixture-only', baseUrl: 'https://managed.example.test/v1' }), { model, messages });
+      A.eq(wire.messages.at(-1).role, model.startsWith('anthropic/') ? 'user' : 'system', model + ': managed continuation is not hoisted into forbidden prefill');
+      A.eq(wire.messages[0], messages[0], model + ': leading policy unchanged');
+      A.eq(wire.messages.at(-1).content, messages.at(-1).content, model + ': reminder bytes unchanged');
+      A.eq(JSON.stringify(messages), original, model + ': durable history unchanged');
+    }
+  }
   // Managed StarNet uses this adapter too. An interrupted history must get the same repair as
   // direct OpenRouter, before it reaches a strict Chat Completions upstream.
   {

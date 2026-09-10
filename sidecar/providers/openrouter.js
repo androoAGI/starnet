@@ -107,19 +107,7 @@
 
   const repairToolPairs = provider.repairToolPairs;
 
-  // Match the native Anthropic adapter: only the leading system block is
-  // top-level policy. Host notes during a run belong at their original position.
-  // OpenRouter otherwise hoists them, leaving an assistant answer last; Sonnet
-  // 4.6 rejects that as prefill with HTTP 400 instead of processing the reminder.
-  function preserveClaudeContinuations(messages, model) {
-    if (!Array.isArray(messages) || !supportsExplicitCache(model)) return messages;
-    let leading = true;
-    return messages.map(message => {
-      if (!message || message.role !== 'system') leading = false;
-      return !leading && message && message.role === 'system'
-        ? Object.assign({}, message, { role: 'user' }) : message;
-    });
-  }
+  const preserveClaudeContinuations = provider.preserveClaudeContinuations;
 
   function normalizeReasoningEffort(value) {
     const key = String(value || 'medium').trim().toLowerCase().replace(/[\s_-]+/g, '');

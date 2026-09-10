@@ -331,5 +331,18 @@
     return changed ? out : messages;
   }
 
-  return { EVENT_TYPES, FINISH, normalizeFinish, timeouts, runtime, repairToolPairs };
+  // Claude has one leading system block. Keep later host reminders in the
+  // conversation, as the native Anthropic adapter does, so gateways cannot hoist
+  // them and turn the preceding assistant answer into unsupported prefill.
+  function preserveClaudeContinuations(messages, model) {
+    if (!Array.isArray(messages) || !/anthropic\/|claude/i.test(String(model || ''))) return messages;
+    let leading = true;
+    return messages.map(message => {
+      if (!message || message.role !== 'system') leading = false;
+      return !leading && message && message.role === 'system'
+        ? Object.assign({}, message, { role: 'user' }) : message;
+    });
+  }
+
+  return { EVENT_TYPES, FINISH, normalizeFinish, timeouts, runtime, repairToolPairs, preserveClaudeContinuations };
 });
