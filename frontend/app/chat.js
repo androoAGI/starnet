@@ -1830,7 +1830,7 @@ const Chat = (() => {
   }
   // command / client-side output (/help, /whoami, version, unknown-command, …). A SYSTEM register — dim, no
   // speaker chip, never copyable — so the station's own words are never mistaken for the agent's speech.
-  function localLine(t) { row('system').body.textContent = t; autoscroll(); }
+  function localLine(t) { const r = row('system'); r.body.textContent = t; autoscroll(); return r.d; }
   // the history-cap marker ("…N earlier turns trimmed …") as a dim, centered, hairline-flanked system line —
   // a scrollback boundary, not a dropped record. Reuses the broadcast register's chrome (theme tokens only).
   function trimMarkerLine(t) {
@@ -8799,6 +8799,8 @@ const Chat = (() => {
     const rowEl = document.createElement('div'); rowEl.className = 'choice-row';
     activeChoiceRows.add(rowEl);
     let done = false;
+    // A producer may retire its own obsolete setup prompt without clearing another prompt's choices.
+    rowEl.dismiss = () => { done = true; activeChoiceRows.delete(rowEl); rowEl.remove(); };
     // MULTI-SELECT (2026-08-14): opts.multi turns the plain option chips into toggles; only a chip marked
     // it.confirm (or it.skip) fires onPick — the confirm chip carries the picked values. Single-select
     // callers pass nothing and get byte-identical behavior.
