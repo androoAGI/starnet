@@ -7032,6 +7032,13 @@ async function loopUndoWork(loop, n) {
   };
 }
 
+// The review guard covers the whole stack, including asynchronous Git undo.
+const loopReviews = new Set();
+function loopReviewBusy(id) { return loopReviews.has(id); }
+function beginLoopReview(id) {
+  if (loopReviewBusy(id) || loopDriver.leases.has(id)) throw Object.assign(new Error('This loop is busy; wait for the current run or review to finish'), { status: 409 });
+  loopReviews.add(id);
+}
 const loopDriver = makeLoopDriver({
   getLoops: () => loopJobs,
   // TRANSACTIONAL DISPATCH: an honest false receipt means the durable write did NOT land, and the driver then
@@ -7056,7 +7063,7 @@ const loopDriver = makeLoopDriver({
   agentExists: (agentId) => { const id = String(agentId || ''); return !id || id === 'agent' || agentRoster.size === 0 || agentRoster.has(id); },
   // PURELY-LOCAL readiness, evaluated BEFORE any spend (the night shift's NS-2 cold-leash fix): a stand-down
   // that no model call could have avoided must not cost money or an iteration slot.
-  precheck: ({ loop }) => loopPrecheck(loop),
+  precheck: ({ loop }) => loopReviewBusy(loop.id) ? { ok: false, reason: 'review in progress' } : loopPrecheck(loop),
   getKey: (provider) => cronKeyFor(provider),
   providerForLoop: (loop) => cronProviderFor(loop),
   hasCredential: (provider, key) => cronHasCredential(provider, key),
@@ -7256,6 +7263,7 @@ async function modelCreateLoop(spec) {
 }
 
 async function modelUpdateLoop(id, rawPatch) {
+  if (loopReviewBusy(id)) throw new Error('Review in progress; retry when it finishes');
   const loop = loopjobStore.getLoop(loopJobs, id);
   if (!loop) throw new Error('no such loop');
   rawPatch = rawPatch || {};
@@ -7283,6 +7291,7 @@ async function modelUpdateLoop(id, rawPatch) {
 }
 
 async function modelControlLoop(id, action, reason) {
+  if (loopReviewBusy(id)) throw new Error('Review in progress; retry when it finishes');
   if (!loopjobStore.getLoop(loopJobs, id)) throw new Error('no such loop');
   const now = Date.now();
   let candidate;
@@ -7300,6 +7309,7 @@ async function modelControlLoop(id, action, reason) {
 }
 
 async function modelRemoveLoop(id) {
+  if (loopReviewBusy(id)) throw new Error('Review in progress; retry when it finishes');
   if (!loopjobStore.getLoop(loopJobs, id)) throw new Error('no such loop');
   const lease = loopDriver.leases.get(id);
   try { if (lease && lease.abort && typeof lease.abort.abort === 'function') lease.abort.abort(); } catch (_) {}
@@ -7310,6 +7320,8 @@ async function modelRemoveLoop(id) {
 }
 
 async function modelVerdictLoop(id, n, verdict, note) {
+  beginLoopReview(id);
+  try {
   const loop = loopjobStore.getLoop(loopJobs, id);
   if (!loop) throw new Error('no such loop');
   const target = (loop.iterations || []).find(it => it && it.n === n);
@@ -7322,6 +7334,7 @@ async function modelVerdictLoop(id, n, verdict, note) {
   try { autonomyLedger.record({ source: 'loop', kind: verdict === 'approved' ? 'earn' : 'decline', jobId: id, agentId: loop.agentId, reason: 'verdict-' + verdict, binding: 'commander', detail: { iteration: n, noted: !!note } }); } catch (_) {}
   armLoops(true);
   return modelLoopRow(id);
+  } finally { loopReviews.delete(id); }
 }
 
 // GET /api/loops — the LOOPS window's poll. Every field is a durable record value or a pure derivation of
@@ -7380,6 +7393,7 @@ function handleLoopsUpdate(req, res) {
   readBody(req, 1 << 16).then(raw => {
     let body; try { body = JSON.parse(raw) || {}; } catch (e) { return json(400, { error: 'bad json' }); }
     const id = String(body.id || '');
+    if (loopReviewBusy(id)) return json(409, { error: 'Review in progress; retry when it finishes' });
     if (!loopjobStore.getLoop(loopJobs, id)) return json(404, { error: 'no such loop' });
     const patch = Object.assign({}, body.patch || {});
     if (Object.prototype.hasOwnProperty.call(patch, 'agentId')) {
@@ -7404,6 +7418,8 @@ function handleLoopsVerdict(req, res) {
   readBody(req, 1 << 16).then(async raw => {
     let body; try { body = JSON.parse(raw) || {}; } catch (e) { return json(400, { error: 'bad json' }); }
     const id = String(body.id || '');
+    try { beginLoopReview(id); } catch (e) { return json(e.status || 409, { error: e.message }); }
+    try {
     const loop = loopjobStore.getLoop(loopJobs, id);
     if (!loop) return json(404, { error: 'no such loop' });
     const n = parseInt(body.n, 10);
@@ -7461,6 +7477,7 @@ function handleLoopsVerdict(req, res) {
       branch: loop.branch || null,
       loop: loopjob.summarize(loopjobStore.getLoop(loopJobs, id), { now: Date.now() })
     });
+    } finally { loopReviews.delete(id); }
   }).catch(() => { try { json(400, { error: 'bad request' }); } catch (_) {} });
 }
 
@@ -7483,6 +7500,7 @@ function handleLoopsControl(req, res) {
       return json(200, { ok: true, halted: loopsHalted, armed: !!loopTimer });
     }
     const id = String(body.id || '');
+    if (loopReviewBusy(id)) return json(409, { error: 'Review in progress; retry when it finishes' });
     if (!loopjobStore.getLoop(loopJobs, id)) return json(404, { error: 'no such loop' });
     if (['pause', 'resume', 'stop'].indexOf(action) < 0) return json(400, { error: 'action must be pause, resume, stop or unhalt' });
     const now = Date.now();
@@ -7578,6 +7596,7 @@ function handleLoopsRemove(req, res) {
   readBody(req, 4096).then(raw => {
     let body; try { body = JSON.parse(raw) || {}; } catch (e) { return json(400, { error: 'bad json' }); }
     const id = String(body.id || '');
+    if (loopReviewBusy(id)) return json(409, { error: 'Review in progress; retry when it finishes' });
     if (!loopjobStore.getLoop(loopJobs, id)) return json(404, { error: 'no such loop' });
     try { loopDriver.abortLease(id, 'removed by the Commander'); } catch (_) {}
     try { commitLoops(loopjobStore.removeLoop(loopJobs, id)); }
@@ -19721,7 +19740,7 @@ async function handleSaveWrite(req, res) {
   catch (_) { return json(503, { ok: false, error: 'rating history unavailable', growthUnavailable: true }); }
   if (latestRatingAt > ratingSyncAt) return json(200, { ok: false, stale: true, growthStale: true, latestRatingAt });
   try {
-    const result = saveStore.save(agentId, body);
+    const result = saveStore.save(agentId, body, { compareRevision: true });
     json(200, result);
   } catch (e) { json(400, { error: (e && e.message) || 'save failed' }); }
 }

@@ -489,10 +489,14 @@ const App = (() => {
   // recompose THAT agent's live prompt (personality is prompt text — Personas.compose folds it in), and if the
   // agent is the focused one, hand the new prompt to the running chat and re-key Voice so the text voice changes
   // immediately. pushRoster ships the recomposed prompt to the sidecar (delegation + cron runs speak it too).
-  function setAgentPersona(agentId, personaId) {
+  function setAgentPersona(agentId, personaId, tuning) {
     const a = agents.get(String(agentId || '')) || (agent && agent.id === agentId ? agent : null);
     if (!a || typeof Personas === 'undefined' || !Personas.exists(personaId)) return false;
     a.personaId = Personas.resolve ? Personas.resolve(personaId) : personaId;
+    if (tuning && typeof tuning === 'object') {
+      a.voiceTraits = Object.assign({}, tuning.traits || {});
+      a.customVoice = typeof tuning.custom === 'string' ? tuning.custom.trim() : '';
+    }
     a.systemPrompt = composeSystemPrompt(a);
     if (agent && a.id === agent.id) {   // focused agent — the live COMMS session adopts the voice at once
       if (typeof Chat !== 'undefined' && Chat.setSystem) Chat.setSystem(a.systemPrompt);
@@ -871,7 +875,7 @@ const App = (() => {
       if (!s || !s.id || s.id === 'agent' || agents.has(s.id)) continue;   // hero already registered; skip dups (so the 'specialist' default below is always correct here — the orchestrator never routes through this path)
       const a = { id: s.id, name: s.name, color: s.color, skin: s.skin || DATA.DEFAULT_SKIN, model: s.model || (agent && agent.model),
                   provider: s.provider || (agent && agent.provider) || null, reasoningEffort: s.reasoningEffort || (agent && agent.reasoningEffort) || null,   // #4: per-agent provider+effort (fall back to the hero's)
-                  personaId: s.personaId, role: s.role || 'specialist', voiceTraits: s.voiceTraits || null, customVoice: s.customVoice || '',
+                  personaId: (typeof Personas !== 'undefined' ? Personas.resolve(s.personaId) : s.personaId), role: s.role || 'specialist', voiceTraits: s.voiceTraits || null, customVoice: s.customVoice || '',
                   approvalMode: s.approvalMode || 'ask', executionProfile: executionProfileOf(s), workshop: !!s.workshop, purpose: s.purpose || null, specialtyId: s.specialtyId || null,
                   skills: Array.isArray(s.skills) ? s.skills.slice() : [],   // Class Loadouts S1: restore the per-agent skill package
                   docs: s.docs, stats: (s.stats && typeof s.stats === 'object') ? s.stats : null, createdAt: s.createdAt || Date.now() };
@@ -1453,7 +1457,7 @@ const App = (() => {
     const worksignal = (typeof WorkSignalStore !== 'undefined') ? WorkSignalStore.serialize() : undefined;   // the capability-usage histogram (adaptive recruitment)
     const roster = liveAgents();
     const dossier = (typeof DossierStore !== 'undefined') ? DossierStore.serialize() : undefined;   // the station-wide Commander model
-    const doc = Save.write(Object.assign({ agent: hero, agents: roster.length > 1 ? roster.map(serializeAgentLite) : undefined, usage: Harness.totals(), prov, reasoningEffort, station: station ? station.serialize() : undefined, stationStats, profile, worksignal, dossier }, Workstreams.serialize()));
+    const doc = Save.write(Object.assign({ _saveDirty: true, _saveRevision: typeof CloudSave !== 'undefined' && CloudSave.revision ? CloudSave.revision() : 0, agent: hero, agents: roster.length > 1 ? roster.map(serializeAgentLite) : undefined, usage: Harness.totals(), prov, reasoningEffort, station: station ? station.serialize() : undefined, stationStats, profile, worksignal, dossier }, Workstreams.serialize()));
     if (doc && typeof CloudSave !== 'undefined') CloudSave.push(doc);   // durable write-through to the sidecar (debounced, best-effort)
     if (rosterPushFailed) pushRoster();   // a prior roster POST failed — retry it opportunistically on this persist
     if (typeof StationUI !== 'undefined') StationUI.flashSave();
@@ -1490,6 +1494,7 @@ const App = (() => {
     const countEl = el('model-count'), inp = el('in-model');
     el('model-hint').textContent = 'loading model catalog…';
     const list = await Harness.listModels(p);
+    if (p !== normalizeProviderId(pickedProvider)) return;
     // DEFAULT = the curated MODEL_PICKS[provider][0] — NOT the alphabetical regex hit the old code used (which
     // drifted onto stale slugs while the right answer sat one inch below in the picks). defaultModelFor() covers
     // providers without a curated pick (custom / ollama).
@@ -1665,7 +1670,7 @@ const App = (() => {
       b.className = 'mp-chip'; b.dataset.id = m.id; b.title = m.id;
       b.appendChild(document.createTextNode(m.label));
       if (m.tag) { const t = document.createElement('b'); t.textContent = ' · ' + m.tag; b.appendChild(t); }
-      b.onclick = () => { el('in-model').value = m.id; SFX.click(); updateHint(); };
+      b.onclick = () => { el('in-model').value = m.id; SFX.click(); updateHint(); window.OverseerSetup?.modelPicked(); };
       wrap.appendChild(b);
     });
     syncModelPicks();
@@ -1705,6 +1710,7 @@ const App = (() => {
   // opening downward, or flipping above when the field sits low in the console.
   function positionModelPop() {
     const pop = el('model-pop'), inp = el('in-model'); if (!pop || pop.hidden || !inp) return;
+    if (el('ov-model-dialog')?.open) return;
     // rect/innerHeight are visual px, style px on the fixed pop are body-zoomed (TEXT SIZE) — divide once.
     const z = U.uiZoom(), r0 = inp.getBoundingClientRect(), gap = 4, vh = window.innerHeight / z;
     const r = { left: r0.left / z, top: r0.top / z, bottom: r0.bottom / z, width: r0.width / z };
@@ -1734,7 +1740,7 @@ const App = (() => {
     if (modelPopReposition) { window.removeEventListener('scroll', modelPopReposition, true); window.removeEventListener('resize', modelPopReposition); modelPopReposition = null; }
   }
   function setModelPopIdx(i) { modelPopIdx = i; modelPopRows.forEach((r, k) => r.el.classList.toggle('hi', k === i)); const cur = modelPopRows[i]; if (cur) cur.el.scrollIntoView({ block: 'nearest' }); }
-  function pickModelFromPop(id) { const inp = el('in-model'); inp.value = id; closeModelPop(); SFX.click(); updateHint(); inp.focus(); }
+  function pickModelFromPop(id) { const inp = el('in-model'); inp.value = id; closeModelPop(); SFX.click(); updateHint(); if (window.OverseerSetup?.modelPicked()) return; inp.focus(); }
   function renderModelPop() {
     const pop = el('model-pop'); if (!pop) return;
     const cur = el('in-model').value.trim();   // the committed selection (drives the highlighted ✓ row)
@@ -1764,7 +1770,8 @@ const App = (() => {
       const meta = document.createElement('span'); meta.className = 'ov-mdl-meta'; meta.textContent = modelMetaStr(m.id);
       row.appendChild(name); row.appendChild(meta);
       const idx = modelPopRows.length;
-      row.addEventListener('mousedown', e => { e.preventDefault(); pickModelFromPop(m.id); });   // mousedown+preventDefault: the pick lands before the input blurs
+      row.addEventListener('mousedown', e => e.preventDefault());
+      row.addEventListener('click', () => pickModelFromPop(m.id));   // mousedown+preventDefault: the pick lands before the input blurs
       row.addEventListener('mousemove', () => setModelPopIdx(idx));
       frag.appendChild(row); modelPopRows.push({ id: m.id, el: row });
     }
@@ -1778,21 +1785,22 @@ const App = (() => {
     const inp = el('in-model'); if (!inp) return;
     inp.oninput = () => { modelPopQ = inp.value.trim(); openModelPop(); updateHint(); };
     inp.onfocus = () => { if (!inp.readOnly) { modelPopQ = ''; openModelPop(); } };   // fresh focus browses the whole catalog
-    inp.onblur = () => setTimeout(() => { if (document.activeElement !== inp) closeModelPop(); }, 130);
+    inp.onblur = () => setTimeout(() => { if (document.activeElement !== inp && !el('ov-model-dialog')?.open) closeModelPop(); }, 130);
     inp.onkeydown = e => {
       const open = !el('model-pop').hidden;
       if (e.key === 'ArrowDown') { if (!open) { modelPopQ = ''; openModelPop(); } else setModelPopIdx(Math.min(modelPopIdx + 1, modelPopRows.length - 1)); e.preventDefault(); return; }
       if (e.key === 'ArrowUp') { if (open) { setModelPopIdx(Math.max(modelPopIdx - 1, 0)); e.preventDefault(); } return; }
-      if (e.key === 'Escape') { if (open) { closeModelPop(); e.preventDefault(); e.stopPropagation(); } return; }   // Esc closes the popover ONLY (never the screen)
+      if (e.key === 'Escape') { if (el('ov-model-dialog')?.open) { window.OverseerSetup.cancelModel(); e.preventDefault(); e.stopPropagation(); return; } if (open) { closeModelPop(); e.preventDefault(); e.stopPropagation(); } return; }
       if (e.key === 'Enter' && !e.isComposing) {
         if (open && modelPopRows.length) { const pick = modelPopRows[modelPopIdx >= 0 ? modelPopIdx : 0]; if (pick) { pickModelFromPop(pick.id); e.preventDefault(); return; } }
-        e.preventDefault(); onWake();
+        e.preventDefault(); if (el('ov-model-dialog')?.open) { window.OverseerSetup.modelPicked(); return; } onWake();
       }
     };
   }
 
   function updateHint() {
     const id = el('in-model').value.trim(), hint = el('model-hint');
+    window.OverseerSetup?.reflectModel(genesisModels.find(m => m.id === id) || { id, name: id }, pickedProvider === 'openai' && codexConnected && !el('in-key').value.trim() ? 'codex' : pickedProvider);
     syncModelPicks();   // keep the recommended-chip highlight in lockstep with whatever's in the field
     if (isOAuthProviderId(pickedProvider)) { hint.textContent = 'included in your ' + OAUTH_GENESIS[pickedProvider].sub.replace(/ subscription$/, '') + ' subscription'; return; }
     if (!id) { hint.textContent = 'pick or type a model slug'; return; }
@@ -1906,6 +1914,7 @@ const App = (() => {
       loadModels(pickedProvider);
     }
     buildModelPicks();        // recommended chips (OpenRouter only; clears itself on the codex path)
+    if (typeof OverseerSetup !== 'undefined') OverseerSetup.reflectProvider(pickedProvider);
   }
 
   // Populate the model datalist with EXACTLY the slugs the connected account's Codex backend accepts, so the
@@ -2148,10 +2157,11 @@ const App = (() => {
   function stopStarnetBalancePoll() { if (_starnetBalancePoll) { clearInterval(_starnetBalancePoll); _starnetBalancePoll = null; } }
   function starnetOutOfCredit() { return starnetLinked && typeof starnetBalanceUsd === 'number' && !(starnetBalanceUsd > 0); }
   let userPickedProvider = false;     // a real chip click — the auto-promote below must never override it
-  let _starnetLinkPoll = null, _starnetLinkPollBusy = false, _starnetLinkGeneration = 0, _starnetStatusSeq = 0;
+  let _starnetLinkPoll = null, _starnetLinkPollBusy = false, _starnetLinkStarting = false, _starnetLinkGeneration = 0, _starnetStatusSeq = 0;
   function stopStarnetLinkPoll() {
     _starnetLinkGeneration++;
     _starnetLinkPollBusy = false;
+    _starnetLinkStarting = false;
     if (_starnetLinkPoll) { clearInterval(_starnetLinkPoll); _starnetLinkPoll = null; }
   }
   async function revealStarnetGenesis(autoPick) {
@@ -2262,11 +2272,16 @@ const App = (() => {
   // Mint a pairing code, open the browser to confirm it, poll until linked. The device token never enters
   // this WebView: the sidecar holds it, and on desktop Rust immediately moves it into the OS keychain.
   function startStarnetLink() {
+    if (_starnetLinkStarting) return;
     SFX.click();
     stopStarnetLinkPoll();
+    _starnetLinkStarting = true;
+    _starnetStatusSeq++; // an older status read cannot replace the active connection message
     const generation = _starnetLinkGeneration;
     const statusEl = el('starnet-status'), codeEl = el('starnet-code'), openBtn = el('btn-starnet-open');
-    const fail = t => { statusEl.textContent = t; statusEl.className = 'codex-status bad'; codeEl.classList.add('hidden'); openBtn.classList.add('hidden'); };
+    const progress = el('connect-msg');
+    if (progress) { progress.className = 'msg'; progress.textContent = 'Opening your StarNet account…'; }
+    const fail = t => { statusEl.textContent = t; statusEl.className = 'codex-status bad'; codeEl.classList.add('hidden'); openBtn.classList.add('hidden'); if (progress) { progress.className = 'msg bad'; progress.textContent = t; } };
     statusEl.textContent = 'requesting a link code…'; statusEl.className = 'codex-status';
     Harness.api.post('/api/credits/link/start', { deviceName: 'StarNet Station' })
       .then(r => { if (generation !== _starnetLinkGeneration) return null; if (!r || !r.ok) throw new Error('start failed'); return r.j; })
@@ -2274,6 +2289,7 @@ const App = (() => {
         if (generation !== _starnetLinkGeneration) return;
         if (!j || !j.code) throw new Error('no code');
         codeEl.textContent = j.code; codeEl.classList.remove('hidden');
+        if (progress) progress.textContent = 'Confirm the code in your browser to connect.';
         openBtn.classList.remove('hidden');
         openBtn.onclick = () => openExternalUrl(j.verifyUrl);
         statusEl.textContent = 'confirm this code in your browser (opening the link page now)…';
@@ -2289,6 +2305,7 @@ const App = (() => {
               if (generation !== _starnetLinkGeneration) return;
               if (p && p.linked) {
                 stopStarnetLinkPoll(); SFX.open();
+                if (progress) progress.textContent = 'StarNet connected.';
                 codeEl.classList.add('hidden'); openBtn.classList.add('hidden');
                 // desktop: move the fresh token file → OS keychain NOW (Rust reads + moves; the token
                 // never passes through here), then teach Harness the credential exists so
@@ -2315,7 +2332,8 @@ const App = (() => {
         };
         _starnetLinkPoll = setInterval(tick, 2000);
       })
-      .catch(() => { if (generation === _starnetLinkGeneration) fail('could not reach the link service — try again'); });
+      .catch(() => { if (generation === _starnetLinkGeneration) fail('could not reach the link service — try again'); })
+      .finally(() => { if (generation === _starnetLinkGeneration) _starnetLinkStarting = false; });
   }
 
   // the SKIN picker: choose which sprite set (teddy bear, pepe, …) the new agent wears. The chosen
@@ -2370,8 +2388,11 @@ const App = (() => {
     if (!Personas.exists(pickedPersona)) pickedPersona = Personas.DEFAULT_ID;
     pickedPersona = Personas.resolve(pickedPersona);   // collapse any legacy id to its grounded archetype
     wrap.innerHTML = '';
+    const personalityHelp = el('ov-personality-help');
+    const helpText = 'Fine-tune later in your Overseer’s settings.';
+    if (personalityHelp) personalityHelp.textContent = helpText;
     let armedChip = null;   // the UNHINGED chip while it awaits its second press (house two-press confirm)
-    const disarm = () => { if (armedChip) { armedChip.textContent = armedChip.dataset.name; armedChip.classList.remove('arm'); armedChip = null; } };
+    const disarm = () => { if (personalityHelp) personalityHelp.textContent = helpText; if (armedChip) { armedChip.textContent = armedChip.dataset.name; armedChip.classList.remove('arm'); armedChip = null; } };
     Personas.list().forEach(p => {
       const chip = document.createElement('button');
       chip.type = 'button';
@@ -2380,14 +2401,16 @@ const App = (() => {
       chip.textContent = p.name;
       chip.dataset.name = p.name;
       chip.setAttribute('aria-pressed', String(p.id === pickedPersona));
+      if (personalityHelp) chip.setAttribute('aria-describedby', 'ov-personality-help');
       chip.onclick = () => {
         // UNHINGED curses for real, so its chip arms first (same two-press pattern as the delete buttons):
         // press one names what it means, press two selects. Once confirmed, it's a normal chip this screen.
-        if (p.id === 'unhinged' && pickedPersona !== 'unhinged' && !unhingedConfirmed && armedChip !== chip) {
+        if (p.id === 'unhinged' && Personas.effective(p.id, pickedTraits).profanity > 0 && pickedPersona !== 'unhinged' && !unhingedConfirmed && armedChip !== chip) {
           disarm();
           armedChip = chip;
           chip.classList.add('arm');
-          chip.textContent = 'UNHINGED — SURE? it swears, for real';
+          if (personalityHelp) personalityHelp.textContent = 'Uses profanity. Select Unhinged again to confirm.';
+          else chip.textContent = 'UNHINGED — SURE? it swears, for real';
           SFX.click();
           return;
         }
@@ -2486,7 +2509,16 @@ const App = (() => {
     // Clear the model on a real USER switch so the new provider's curated default (MODEL_PICKS[p][0]) fills
     // instead of carrying a cross-provider slug (e.g. codex 'gpt-5.5' bleeding onto OpenRouter, which needs
     // 'openai/gpt-5.5'). The programmatic call below (resume) keeps the saved model — it never routes here.
-    document.querySelectorAll('.provider-row .prov').forEach(b => { b.onclick = () => { SFX.click(); userPickedProvider = true; if (b.dataset.prov !== pickedProvider) el('in-model').value = ''; selectProviderUI(b.dataset.prov); }; });
+    document.querySelectorAll('.provider-row .prov').forEach(b => { b.onclick = () => {
+      if (b.dataset.prov === 'starnet' && _starnetLinkStarting) return;
+      SFX.click(); userPickedProvider = true;
+      if (b.dataset.prov !== pickedProvider) el('in-model').value = '';
+      selectProviderUI(b.dataset.prov);
+      window.OverseerSetup?.beginConnection();
+      // The explicit StarNet card click starts account connection; automatic selection never opens a window.
+      if (b.dataset.prov === 'starnet' && !starnetLinked) startStarnetLink();
+
+    }; });
     // the long-tail providers start folded behind ＋ MORE so a first-run user faces 6 chips, not 15.
     // selectProviderUI() unfolds the row itself whenever the active provider lives in the tail.
     const provRow = document.querySelector('.provider-row'), provMore = el('prov-more');
@@ -2515,6 +2547,7 @@ const App = (() => {
     // RESUME/recovery honours the agent's saved provider; a FRESH create screen leads with the beginner-first
     // default (pickedProvider = 'codex' — sign in with ChatGPT, no API key), the top of the zero-to-value funnel.
     selectProviderUI(recovery ? Harness.getProv() : pickedProvider);
+    if (typeof OverseerSetup !== 'undefined') OverseerSetup.init(recovery, { refreshModel: updateHint, closeModel: closeModelPop });
     // INITIAL FOCUS: fresh create → the name field (the natural first action); RESUME → the credential control the
     // Commander must act on (the ChatGPT sign-in button on the keyless Codex path, else the key box). NEVER the
     // model field (focusing it springs the popover open) and never the phosphor swatches (the old Tab-start bug).
@@ -2565,8 +2598,8 @@ const App = (() => {
       const nameIn = el('in-name'); if (nameIn) { nameIn.readOnly = true; nameIn.tabIndex = -1; }
     } else {
       if (banner) { banner.classList.add('hidden'); banner.innerHTML = ''; }
-      if (title) title.textContent = '▮ CREATE YOUR OVERSEER';
-      if (sub) sub.innerHTML = 'the first mind you wake is your <b>OVERSEER</b> — it runs the station and recruits every agent after it.';
+      if (title) title.textContent = 'Create your Overseer';
+      if (sub) sub.textContent = 'One mind to run your station. Build your crew from here.';
       if (mode) mode.textContent = 'GENESIS';
       if (wake) wake.textContent = '⏼ WAKE OVERSEER ▸';
       locked.forEach(id => { const n = el(id); if (n) { n.classList.remove('field-locked'); n.removeAttribute('aria-disabled'); } });

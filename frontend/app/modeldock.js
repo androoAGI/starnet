@@ -748,7 +748,7 @@ const ModelDock = (() => {
     if (toggle) toggle.setAttribute('aria-label', selectorLabel(current, effort));
     if (chrome && chrome.nameEl) {
       const short = shortModelName(current);
-      chrome.nameEl.textContent = short || '—';
+      chrome.nameEl.textContent = short || 'CHOOSE MODEL';
       chrome.nameEl.classList.toggle('empty', !short);
     }
     if (chrome) updateTip(chrome.tip);
@@ -916,7 +916,7 @@ const ModelDock = (() => {
     // reuse surface for per-target pickers (bay / dossier) — pure data + label/effort helpers, no side effects
     catalog: (o) => computeCatalog(!!(o && o.force), o && o.ensure),
     labels: { model: modelLabel, provider: providerLabel, group: groupOf, short: shortModelName, normProvider: normalizeProvider, orGroup: openRouterGroupName },
-    efforts: { optionsFor: effortOptionsFor, label: effortLabel, clamp: clampEffortForModel, list: () => EFFORTS.slice() },
+    efforts: { optionsFor: effortOptionsFor, label: effortLabel, clamp: clampEffortForModel, list: () => EFFORTS.slice(), presetsFor: reasoningPresetsFor, presetFor: reasoningPresetFor, forPreset: effortForPreset },
     _internals: { reasoningPresetsFor, reasoningPresetFor, effortForPreset, effortOptionsFor, clampEffortForModel, modelFamily, supportsReasoning, selectorLabel, catalogEquivalent }
   };
 })();
