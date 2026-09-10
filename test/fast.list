@@ -754,3 +754,4 @@ test/work-rating-control.test.js
 test/session-focus-safety.test.js
 
 test/harness-placement.test.js
+test/world-seat-recovery.test.js

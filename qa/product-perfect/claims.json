@@ -1043,8 +1043,8 @@
       },
       {
         "path": "frontend/app/world.js",
-        "bytes": 725070,
-        "sha256": "d7e809a0b9e977ed1de9c84e92b4e52df66aeecf66115787e5f171374a11e7c5"
+        "bytes": 726356,
+        "sha256": "90dea695304465dc6d0e5bceb9b39a9b039c1655200acb953d3e30c45ea7bbe7"
       },
       {
         "path": "frontend/app/worldlab.js",
@@ -1248,8 +1248,8 @@
       },
       {
         "path": "frontend/js/assets.js",
-        "bytes": 39941,
-        "sha256": "1a055aadcf4abc5661267df140f03f59ea7208af4a1f9e30baa1716275438bd7"
+        "bytes": 40299,
+        "sha256": "92b29c3102e7713de06e9fbe93ae06ed832922d93469eb2c2da08dbcc7c71512"
       },
       {
         "path": "frontend/js/audio.js",

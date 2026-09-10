@@ -170,12 +170,12 @@ test('reduced motion freezes decorative breath/gesture/spill without inventing o
   const second = draw(sprites, b, 600, { reducedMotion: true });
   assert.equal(b._pose, 'blank.rot.south');
   assert.deepEqual(first.frame.args, second.frame.args, 'idle has no bob or breath under reduced motion');
-  const worker = body({ working: true });
+  const worker = body({ working: true, sitting: true, dir: 'north' });
   const work1 = draw(sprites, worker, 1000, { reducedMotion: true });
   const work2 = draw(sprites, worker, 1250, { reducedMotion: true });
   assert.equal(worker._pose, 'blank.type.north');
   assert.notEqual(work1.frame.image, work2.frame.image, 'working still follows its real typing track');
-  assert.deepEqual(Object.keys(worker).filter(k => !Object.hasOwn(body({ working: true }), k)).sort(),
+  assert.deepEqual(Object.keys(worker).filter(k => !Object.hasOwn(body({ working: true, sitting: true, dir: 'north' }), k)).sort(),
     ['_pose', '_rA', '_rAt', '_rD8', '_rW', '_turnAng'], 'only established render telemetry is added');
   const spill1 = draw(sprites, body({ id: 'ULTRON' }), 1000, { reducedMotion: true }).ctx.ellipses;
   const spill2 = draw(sprites, body({ id: 'ULTRON' }), 2200, { reducedMotion: true }).ctx.ellipses;
@@ -250,4 +250,17 @@ test('missing/zero light and offscreen failures keep the original master visible
   assert.equal(sprites.bodyAppearanceStats().cachedFrames, 0, 'failed frames are never memoized as successful');
   document.failGradient = false;
   assert.notEqual(draw(sprites, body(), 1000, appearance).frame.image, master, 'a later healthy context recovers');
+});
+
+
+test('working bodies face their desk and unreachable workers stand on the floor', async () => {
+  const { sprites } = await harness();
+  for (const dir of ['north', 'south', 'east', 'west']) {
+    const seated = body({ working: true, sitting: true, dir });
+    draw(sprites, seated, 1000, {});
+    assert.equal(seated._pose.split('.').at(-1), dir, 'seated work faces ' + dir);
+    const standing = body({ working: true, sitting: false, dir });
+    draw(sprites, standing, 1000, {});
+    assert.equal(standing._pose, 'blank.rot.' + dir, 'unreachable worker stands facing ' + dir);
+  }
 });

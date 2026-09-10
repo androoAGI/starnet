@@ -15,6 +15,15 @@ scopes and remaining installed/account/soak acceptance in `docs/AUDIT_0.11.1_FOR
 
 # NEXT.md — current priorities & task queue
 
+## MERGED — 2026-09-10 world seating integration (agent/doorway-occlusion-0910)
+
+Owner requested repair of the three live-proven world seating defects. Source 774a5eeed plus
+33cdb8137 prevents unreachable desk teleporting, honors desk-facing sprites and releases stale
+furniture seating. Candidate 707d28291 passed fast 753/753; customer journeys 34/34; all 12
+hallway routes, seven recovery/refit checks and 288 skin/facing poses passed live. Integration
+completed at f3e57f58e; post-merge fast gate also passed 753/753. Installed desktop remains unverified. Receipt: docs/WORLD_SEATING_REPAIR_2026-09-10.md.
+
+
 ## MERGED — 2026-09-10 doorway movement (agent/doorway-occlusion-0910)
 
 Owner reported agents walking behind walls near openings. Source repair a22f780e3 validates

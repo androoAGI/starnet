@@ -588,6 +588,7 @@ const World = (() => {
   function rederive() {
     if (!station) return;
     const next = station.projectGeometry();
+    const previousGeo = geo;
     const oldOrigin = geo ? geo.origin : null;
     geo = next; T = geo.TILE;
     computeOkCache.clear();        // G0.7: placements changed — re-answer "can this agent's room actually run?"
@@ -607,6 +608,8 @@ const World = (() => {
       // reads "belt pulled out" next tick and sinks paid work mid-ride (audit #4, 2026-08-11)
       if (convey && convey.shiftFrame) convey.shiftFrame(oldOrigin.tx - geo.origin.tx, oldOrigin.ty - geo.origin.ty);
       for (const b of crew) {
+        invalidateRefitLeisure(b, previousGeo, geo);
+        b.workRetryAt = 0;
         if (cdx || cdy) {
           b.px += cdx; b.py += cdy;
           b.seatPx += cdx; b.seatPy += cdy;
@@ -628,7 +631,7 @@ const World = (() => {
         if (agent.state === 'walk') { agent.state = 'idle'; agent.idleUntil = 0; }  // target's gone — never leave the agent stuck in the walk pose, or it moonwalks in place forever (tick's idle re-decision is gated on state!=='walk')
         if (agent.goal === 'use' || agent.goal === 'lounge' || agent.goal === 'inspect' || agent.goal === 'watch' || agent.goal === 'tend' || agent.goal === 'gaze' || agent.goal === 'quirk' || agent.goal === 'stare' || agent.goal === 'place' || agent.goal === 'rounds' || agent.goal === 'post' || agent.goal === 'sleep' || agent.goal === 'mourn' || agent.goal === 'revisit' || agent.goal === 'firstwake') { releaseSeat(); agent.goal = null; agent.usingProp = null; agent.watchProp = null; agent.studyKey = null; agent.quirkKind = null; agent.placeTarget = null; agent.removeId = null; agent.roundsQueue = null; agent.wakePhase = 0; agent.glanceCd = 0; agent.sitting = false; }  // the prop/belt list may have changed — drop leisure/observation/quirk/placement/rounds/board-survey/sleep/grief/wake-ritual, re-decide next idle tick (firstWakeDone stays latched, so the ritual never re-arms)
         if (agent.goal === 'work' && !agent.working) agent.goal = null;  // was mid-walk to the desk — drop it so tick's summon logic re-paths in the new frame
-        if (agent.working && seat) { const f = seatFoot(seat); agent.px = f.x; agent.py = f.y; agent.dir = deskFace || 'north'; }  // follow the desk (work only — a lounging agent must NOT teleport to the desk)
+        if (agent.working) { agent.sitting = false; agent.workRetryAt = 0; }  // re-path to a moved desk on the next tick; never jump across a sealed boundary
         ensureAgentValid();
       }
     }
@@ -903,12 +906,14 @@ const World = (() => {
     seat = { tx: dtx, ty: Math.min(dty + 1, z.y2), cx: dtx + 0.5 };   // 2-wide desk -> centre sits on the tile seam
     blocked.add(dtx + ',' + dty); blocked.add((dtx + 1) + ',' + dty);
   }
-  // walk the hero to its work seat (or snap onto it if unreachable) + enter the 'work' goal — the shared "now sit
+  // walk the hero to its work seat (wait in place if unreachable) + enter the 'work' goal — the shared "now sit
   // and work" step, reached EITHER straight from on-duty OR after the conveyor-fetch leg below.
   function goToSeat(now) {
     agent.goal = 'work';
     if (!seat || !setPathTo({ x: seat.tx, y: seat.ty })) {
-      if (seat) { const f = seatFoot(seat); agent.px = f.x; agent.py = f.y; agent.sitting = true; agent.working = true; agent.dir = deskFace || 'north'; }   // face the assigned desk (deskFace) when teleport-fallback seating
+      agent.pathPts = null; agent.target = null; agent.state = 'idle'; agent.sitting = false;
+      agent.working = true; agent.settleUntil = 0; agent.workRetryAt = now + 750;
+      // Keep real work visible while the floor is unreachable; retry without fabricating travel.
       return;
     }
     /* ALREADY STANDING ON THE SEAT TILE — sit down NOW instead of waiting for a walk that will never
@@ -924,6 +929,7 @@ const World = (() => {
        overseer then stood at its desk NOT working for the rest of a provably live run while COMMS and
        the crew panel both said WORKING (2026-07-27). Truthful telemetry cuts both ways: the world may
        no more assert idle over a live run than a panel may assert work over a dead one. */
+    agent.workRetryAt = 0;
     if (!agent.target) arrive(now);
   }
   // G4 feature 1: resolve WHERE the permission-blocked hero waits, honestly from the live floor. Reuses the
@@ -2140,10 +2146,11 @@ const World = (() => {
   function stepCrewToSeat(b, s, dt, now) {
     const foot = seatFoot(s);
     if (Math.hypot(foot.x - b.px, foot.y - b.py) < 1.1) {   // arrived → sit at the desk
-      b.px = foot.x; b.py = foot.y; b.pathPts = null; b.target = null; b.state = 'idle'; b.sitting = true; b.dir = 'north';
+      b.px = foot.x; b.py = foot.y; b.pathPts = null; b.target = null; b.state = 'idle'; b.sitting = true; b.dir = s.face || 'north'; b.workRetryAt = 0;
       return;
     }
     if (!b.target) {   // plot a fresh path to the chair tile
+      if (now < (b.workRetryAt || 0)) return;
       const cur = tileOf(b.px, b.py);
       const blockers = movementBlockers(b, blocked);
       if (tileBlockedFor(blockers, s.tx, s.ty)) { b.state = 'idle'; b.sitting = false; return; }
@@ -2151,7 +2158,8 @@ const World = (() => {
       const p = geo.path(cur.x, cur.y, s.tx, s.ty, movementBlockers(b, beltUnion()))
         || geo.path(cur.x, cur.y, s.tx, s.ty, blockers);
       if (p && p.length) { startBodyPath(b, p); crewNextWaypoint(b); }
-      else { b.px = foot.x; b.py = foot.y; b.sitting = true; b.dir = 'north'; b.state = 'idle'; return; }   // unreachable → snap into the seat
+      else if (!p) { b.pathPts = null; b.target = null; b.sitting = false; b.state = 'idle'; b.workRetryAt = now + 750; return; }
+      else { b.target = foot; }   // same tile: walk the remaining fraction to the centred seat
     }
     if (b.target) {
       const dx = b.target.x - b.px, dy = b.target.y - b.py, d = Math.hypot(dx, dy);
@@ -2408,6 +2416,19 @@ const World = (() => {
     // resolved at all (a roomless single-agent floor, where the sole floor prop unambiguously granted the tool).
     if (room) { return cands.find(p => roomOfLocalTile(p.x, p.y) === room) || null; }
     return cands[0];
+  }
+
+  // A refit invalidates a furniture trip, or a perch whose prop moved/disappeared.
+  // Compare WORLD coordinates so growing the station does not evict an unchanged sitter.
+  function invalidateRefitLeisure(b, before, after) {
+    const ids = [b.usingProp, b.watchProp, b.seatKey && b.seatKey.split(':')[0]].filter(Boolean);
+    if (!ids.length) return;
+    const changed = ids.some(id => {
+      const p = before && before.props.find(p => p.id === id), q = after.props.find(p => p.id === id);
+      return !p || !q || p.t !== q.t || p.w !== q.w || p.h !== q.h || (p.r || 0) !== (q.r || 0) || !!p.m !== !!q.m
+        || p.x + before.origin.tx !== q.x + after.origin.tx || p.y + before.origin.ty !== q.y + after.origin.ty;
+    });
+    if (b.target || changed) { seizeFromIdle(b); b.sitting = false; b.state = 'idle'; }
   }
 
   /* free this agent's claimed seat (idempotent) and drop the on-couch render offset */
@@ -5542,6 +5563,7 @@ const World = (() => {
       // reached the conveyor → now head to the workstation and work
       else if (agent.goal === 'fetch' && agent.state !== 'walk' && (!agent.pathPts || agent.pathIdx >= agent.pathPts.length)) goToSeat(now);
     }
+    if (!awaitPrompt && activity === 'task' && agent.goal === 'work' && !agent.sitting && !agent.target && now >= (agent.workRetryAt || 0)) goToSeat(now);
     if (activity !== 'task' && (agent.goal === 'work' || agent.goal === 'summon' || agent.goal === 'fetch')) {
       agent.goal = null; agent.sitting = false; agent.working = false; agent.thinkUntil = 0; agent.settleUntil = 0; agent.pathPts = null; agent.target = null; agent.state = 'idle'; agent.idleUntil = now + 200; agent.lastTaskAt = now; agent.taskViaConveyor = false;   // just finished real work → relaxed, downtime clock resets
     }
@@ -8480,6 +8502,7 @@ const World = (() => {
     if (!b) return;                                                       // not yet spawned (e.g. summon mid-flight) — nothing to animate
     const working = (kind === 'task' || kind === 'thinking');
     b.working = working; b.sitting = false; b.dir = working ? 'north' : 'south';   // face away = "at work"; stepCrew seats it at its desk if it has one, else it stands here
+    b.workRetryAt = 0;
     if (working) { b.target = null; b.pathPts = null; seizeFromIdle(b); }   // drop any in-flight stroll AND any couch/leisure latch so stepCrew re-paths straight to the chair (J4)
     const now = now0;
     if (working) { b.workUntil = now + 3600000; if (!b.wakeAt || now - b.wakeAt > 1500) b.wakeAt = now; sayAt(b, 'working…'); }
