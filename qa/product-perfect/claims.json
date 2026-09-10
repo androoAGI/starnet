@@ -1043,8 +1043,8 @@
       },
       {
         "path": "frontend/app/world.js",
-        "bytes": 723867,
-        "sha256": "ae48c46ccba12b0b51afd4c1523fb021285b0c3efa0a04843808dae88ca64404"
+        "bytes": 725070,
+        "sha256": "d7e809a0b9e977ed1de9c84e92b4e52df66aeecf66115787e5f171374a11e7c5"
       },
       {
         "path": "frontend/app/worldlab.js",
@@ -1058,8 +1058,8 @@
       },
       {
         "path": "frontend/app/worldmodel.js",
-        "bytes": 157627,
-        "sha256": "9bc19afa6bb08ec5da0d5750de47ad2285890a9cf77e62174e8774d6049fa910"
+        "bytes": 158660,
+        "sha256": "416dca28cc3f0ee7c41b64b98ccb3a969028db811f82a7c58adb060e487f0776"
       },
       {
         "path": "frontend/app/worldrenderer.js",

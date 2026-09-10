@@ -4,11 +4,11 @@
 One tracked file per bug under `qa/bugs/`; this is only the index. File a new bug with
 `node scripts/qa/bugs.mjs --new --title "..." --surface <surface>`.
 
-**7** open (open+claimed) of 99 total — 0 P0 · 7 P1 · 0 P2
+**7** open (open+claimed) of 100 total — 0 P0 · 7 P1 · 0 P2
 
 Engineering status is separate from delivery and customer recovery. Legacy rows without origin are not a customer census.
 
-User/owner reports: **47** · source fixed: **40** · installer verified: **1** · customer confirmed: **1** · still reported failing: **1** · recovery unconfirmed: **45**.
+User/owner reports: **48** · source fixed: **41** · installer verified: **1** · customer confirmed: **1** · still reported failing: **1** · recovery unconfirmed: **46**.
 
 | Report | Family | Source | Installer | Customer |
 | --- | --- | --- | --- | --- |
@@ -41,6 +41,7 @@ User/owner reports: **47** · source fixed: **40** · installer verified: **1** 
 | [Sent group attachments appear only in the shared shelf](bugs/de0bb232-sent-group-attachments-appear-only-in-the-shared.md) | message-attachments | fixed | unverified | unconfirmed |
 | [Mac desktop microphone blocked while browser mirror works](bugs/8a553481-mac-desktop-microphone-blocked-while-browser-mir.md) | desktop-microphone | fixed | unverified | unconfirmed |
 | [Spoken replies fragment at punctuation and omit failed audio chunks](bugs/e1051446-spoken-replies-fragment-at-punctuation-and-omit.md) | voice-continuity | fixed | unverified | unconfirmed |
+| [Agents cross walls beside hallway openings](bugs/49192a68-agents-cross-walls-beside-hallway-openings.md) | doorway-movement | fixed | unverified | unconfirmed |
 | [Bay names are unreadable at normal station zoom](bugs/0ff9dfc6-bay-names-are-unreadable-at-normal-station-zoom.md) | bay-labels | fixed | verified | confirmed |
 | [Website station preview fails when hosting beacon is blocked](bugs/b3b8d28f-website-station-preview-fails-when-hosting-beaco.md) | deployment-integrity | fixed | not-applicable | unconfirmed |
 | [Deliverable naming instruction conflicts with explicit stop limits](bugs/5a35bcfe-deliverable-note-overrides-stop.md) | task-scope | fixed | unverified | unconfirmed |
@@ -123,6 +124,7 @@ User/owner reports: **47** · source fixed: **40** · installer verified: **1** 
 | P1 | fixed | voice | [transcribe() never checks r.ok, so any non-JSON /api/stt error (stale-token 403, 5xx, HTML) is laundered into a confirmed-empty transcript and the spoken senten](bugs/1aa7faf6-transcribe.md) | sweep/voice | 50a8b07b |
 | P1 | fixed | voice | [Voice.init (agent focus / persona change / dossier apply) calls reflectToggle without clearing fbNotified, permanently wiping the pinned degrade tooltip while t](bugs/562c293e-voice-init.md) | sweep/voice | 50a8b07b |
 | P1 | fixed | world | [A Meeseeks helper sprite whose terminal `task` event is lost stays asserted LIVE forever — the ledger has no TTL, no snapshot reconcile, and no reset on NEW AGE](bugs/c96c4d41-a-meeseeks-helper-sprite-whose-terminal-task-eve.md) | sweep/world | meeseeks layer removed 2026-07-30 (agent/meeseeks-visual) |
+| P1 | fixed | world | [Agents cross walls beside hallway openings](bugs/49192a68-agents-cross-walls-beside-hallway-openings.md) | doorway-occlusion-0910 | a22f780e3 |
 | P1 | fixed | world | [Bay names are unreadable at normal station zoom](bugs/0ff9dfc6-bay-names-are-unreadable-at-normal-station-zoom.md) | release-0110 | 86560bea9 |
 | P1 | fixed | world | [ROUTINES › REVOKE ACCESS toasts "access revoked" (green) on a 4xx/5xx — bare `fetch` resolves, so the unattended grant survives its own success message](bugs/fd0f7223-routines-revoke-access-toasts-access-revoked.md) | sweep/world | 3f0d1205 |
 | P1 | fixed | world | [Website station preview fails when hosting beacon is blocked](bugs/b3b8d28f-website-station-preview-fails-when-hosting-beaco.md) | website-station-boot-0905 | 27560918e |
