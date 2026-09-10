@@ -312,3 +312,19 @@ append-only run journal, isolated `code.run`, stdio LSP edit deltas, and segment
 after restart. `fixtures/candidate.jsonl` is the reviewed deterministic receipt; the test requires
 the live adapters to reproduce it byte-for-byte. New scenarios follow the same pattern: add an
 adapter, baseline/candidate evidence, concrete graders, and fail-closed thresholds.
+
+## Personality response evaluation
+
+`node scripts/personality-eval.mjs --out .tmp/personality-trials` prepares a credential-free
+trial plan from the actual shipped personality composer. It produces no model responses or
+quality verdict. Each of the six presets, plus Dry with humor disabled, receives the same ten
+turns covering disagreement, uncertainty, failure, correction, frustration, formal artifacts
+and conversational drift.
+
+For real responses, supply an isolated `STARNET_PERSONALITY_EVAL_KEY` and run the script with
+`--live --model <OpenRouter model id> --out <new directory>`. Repeat for each model being
+certified. It executes no tools and reads no installed credentials. Review the randomly named
+response files before consulting `plan.json`, which contains the personality answer key.
+Score factual fidelity, uncertainty, usefulness, respectful disagreement and artifact style
+separately from whether the reviewer can identify the intended personality. Do not count
+successful capture or the fast wiring tests as proof of model personality quality.
