@@ -18,7 +18,7 @@
   "expectedClaimCount": 37,
   "releaseSurface": {
     "algorithm": "sha256",
-    "sourceCommit": "8bfcd9ae599abae8f4338eb7065ea744327fc2a8",
+    "sourceCommit": "ca55157ee787f465dc9028ee1096868f5864ea4a",
     "pathSetSha256": "b0479380ff858bd18673d3e0c7191897e66f62b44b4fc14a50eade63aab5c027",
     "files": [
       {
@@ -158,8 +158,8 @@
       },
       {
         "path": "frontend/app/chat.js",
-        "bytes": 643574,
-        "sha256": "513d72c432336acfaf919d0427ae17faccf45f1db73b1031bd48fde398e5d904"
+        "bytes": 646101,
+        "sha256": "f147cbd605d8135fef0724defbb8af3950ea246be8b00911e115faf358d1bf68"
       },
       {
         "path": "frontend/app/chatresize.js",
@@ -1113,8 +1113,8 @@
       },
       {
         "path": "frontend/css/comms.css",
-        "bytes": 50927,
-        "sha256": "77f18e2ed574788873b5296c0d6da7a341aaa2292b78d2e5f8d4836cffca2908"
+        "bytes": 51731,
+        "sha256": "907b36e6470ce5e17fcbd9e0d9cecdeb0b5408d3176a1645be25485bf5894d87"
       },
       {
         "path": "frontend/css/glass-comms.css",
