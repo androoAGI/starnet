@@ -36,23 +36,9 @@ const CDP_PORT = Number(process.env.SKYNET_GOLDEN_CDP || 9335);
 const OUT = process.env.SKYNET_GOLDEN_DIR || join(process.cwd(), '.uigolden');
 const BLESS = process.argv.includes('--bless');
 
-// ── Dismissed/known-frame gate ──────────────────────────────────────────────
-// A frame can legitimately diff forever without being a regression: `sys-rewind` is the one
-// modal that doesn't full-bleed over the always-animating CRT floor, so its signature wanders
-// with the animation. That noise was already TRIAGED and DISMISSED in the QA ledger (finding
-// 01c40465, status "dismissed"). Re-flagging it pins the Green Guardian dashboard row RED with
-// 0 open findings — the dashboard would LIE, violating the project's truthful-telemetry law.
-//
-// So we ask the ONE dedup/known authority (scripts/qa/ledger.mjs) which fingerprints are
-// suppressed (dismissed or known), and treat a frame whose Guardian fingerprint is on that
-// baseline as REVIEW-CLEAN. The fingerprint we compute here is IDENTICAL to the one the Green
-// Guardian derives for a golden frame (guardianFingerprint → fingerprintOf with the Green
-// Guardian crew + checkId 'golden' + subject 'frame/<name>'), so a frame the Guardian already
-// filed-and-dismissed matches exactly. We DO NOT re-implement fingerprint matching — we reuse
-// the ledger's suppressedFingerprints() over its real on-disk findings + KNOWN_ISSUES.md.
-//
-// Historical fingerprints identify panel names only. They remain useful diagnostic context,
-// but cannot approve current pixels; classifyFrames always flags changes beyond tolerance.
+// Historical dismissal context uses the Guardian's own panel fingerprint. Those
+// fingerprints identify names, not pixels. They help explain past triage but never
+// approve a current image change; classifyFrames uses the reviewed visual baseline.
 const GUARDIAN_CREW = 'Green Guardian';       // must match scripts/qa/guardian.mjs CREW
 const GOLDEN_CHECK_ID = 'golden';             // must match GUARDIAN_STEPS[golden].id
 export function goldenFrameFingerprint(name) {

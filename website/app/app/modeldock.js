@@ -489,11 +489,13 @@ const ModelDock = (() => {
     const ids = ['starnet', 'codex', 'grok', 'kimi', 'openrouter', 'openai', 'anthropic', 'gemini', 'xai', 'groq', 'mistral', 'deepseek', 'together', 'fireworks', 'perplexity', 'cerebras', 'ollama', 'custom'];
     const active = provider();
     if (ids.indexOf(active) < 0) ids.unshift(active);
-    const parts = await Promise.all(ids.map(p => fetchProviderModels(p, force)));
+    const pending = ids.map(p => fetchProviderModels(p, force));
+    const activeRequest = catalogRequests[active];
+    const parts = await Promise.all(pending);
     const activeList = parts[ids.indexOf(active)] || [];
     // Cache completion must not apply to a later selection or focused agent.
     if (generation !== fetchGeneration) return models;
-    if (revision === selectionRevision() && identity === selectionIdentity() && active === provider() && selectedModel === getModel()) {
+    if (catalogRequests[active] === activeRequest && revision === selectionRevision() && identity === selectionIdentity() && active === provider() && selectedModel === getModel()) {
       reconcileCurrentModel(active, activeList);
     }
     models = mergeCurrent(parts.reduce((a, b) => a.concat(b), []));

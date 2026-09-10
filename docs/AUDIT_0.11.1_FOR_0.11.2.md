@@ -133,3 +133,24 @@ required installed/hardware acceptance. A shorter cleanup smoke cannot replace i
 0.11.1's exception does not authorize another release or another skipped soak.
 
 Full candidate gate and cleanup smoke results: pending.
+
+
+Additional cleanup findings: `a03ea726` exposed unsanitized swallowed-error console output
+using an intentionally synthetic test key; the unchanged secret scanner caught it at fast
+step 181/753. The warning path now uses the existing scrubber, and the captured before-fix
+log was sanitized without removing its failed-gate result. `8993bb79` reproduced a complete
+black-to-white image replacement being excused solely by a panel-name dismissal. Historical
+name dismissals now remain review context, not pixel approval; no baseline was blessed.
+The four formerly excused glass frames therefore require current review alongside the other
+12. Settings, Abilities and Recruitment screenshots were inspected: they visibly use the
+new docked glass geometry, supporting structural change rather than a claim of noise.
+This does not certify all 16 frames or the affected customer hardware.
+
+The model repair also fences overlap with a secondary per-agent picker: a superseded dock
+request cannot reconcile from an older cached catalog. The regression explicitly overlaps
+both pending requests after a new model choice.
+
+
+The exploratory 20-minute soak overlapped the later logging/catalog/QA edits. Its result
+is retained as exploratory evidence only; it cannot certify one immutable cleanup
+candidate. Final verification restarts from the frozen candidate after those repairs.
