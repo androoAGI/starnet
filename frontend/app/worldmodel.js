@@ -1055,6 +1055,17 @@ const WorldModel = (() => {
       const dirty = rm.rects.slice();
       delete doc.rooms[id];
       doc.order = doc.order.filter(x => x !== id);
+      // Remove the deck and its supported contents in one undo snapshot.
+      // A straddling prop loses support too; neighboring-room contents stay intact.
+      doc.props = doc.props.filter(p => {
+        const f = propFootprint(p);
+        if (!rm.rects.some(r => rectsHit(f, r))) return true;
+        dirty.push(f); return false;
+      });
+      for (const key of Object.keys(doc.belts)) {
+        const [x, y] = key.split(',').map(Number);
+        if (rm.rects.some(r => x >= r.x1 && x <= r.x2 && y >= r.y1 && y <= r.y2)) delete doc.belts[key];
+      }
       emit(dirty);
       return { ok: true };
     }

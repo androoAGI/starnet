@@ -754,3 +754,5 @@ test/session-focus-safety.test.js
 
 test/harness-placement.test.js
 test/world-seat-recovery.test.js
+test/world-lifecycle.test.js
+test/world-crew-approval.test.js
