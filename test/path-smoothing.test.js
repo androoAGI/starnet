@@ -167,5 +167,7 @@ if(reanchor){
   A.eq(b.pathPts[0].y,a.y,'unsafe initial shortcut first aligns in its own tile (y)');
   A.ok(geo.clearFootSegment(b.px,b.py,a.x*12+6,a.y*12+11),'alignment leg itself stays inside the current tile');
   A.eq(footViolations(geo,a,pts),0,'the subsequent anchored route remains clear');
+  const walker={px:a.x*12+6,py:a.y*12+11,target:{x:pts[0].x*12+6,y:pts[0].y*12+11}};
+  A.eq(runtime.nudgeBody(walker,b.px-walker.px,b.py-walker.py),false,'a legal-floor nudge cannot invalidate the remaining doorway leg');
 }
 A.report('path-smoothing');
