@@ -85,3 +85,9 @@ See `qa/digests/2026-09-05-release-blockers.md`; production cause/recovery remai
     {"target":"recovery and restart","state":"blocked","reason":"Requires a before/after receipt for this symptom on the affected artifact, followed by restart and the same operation."}
   ]
 }
+
+## September 10 release follow-through
+
+A separate real Sonnet 4.6 verify-on-stop continuation reproduced HTTP 400 because a host system note followed an assistant response. Bug d81c4e15 repairs that request shape in both OpenRouter and managed-compatible adapters; installed file tasks and a real managed gateway probe passed afterward. The reported customer Sonnet 5 failure has no supplied failing request/run trace; Sonnet 5 did not reproduce the same prefill rejection in the minimal probe. Do not equate these symptoms or claim this customer recovered.
+
+Current receipts and remaining acceptance: [0.11.2 follow-through](../../docs/releases/0.11.2/FOLLOWTHROUGH.md). Status remains open pending the affected configuration.

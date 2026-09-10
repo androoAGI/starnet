@@ -1,0 +1,40 @@
+{
+  "processes": [
+    {
+      "ProcessId": 35236,
+      "ParentProcessId": 40800,
+      "Name": "node.exe",
+      "CreationDate": "2026-09-10T16:47:59.198738-04:00"
+    },
+    {
+      "ProcessId": 31172,
+      "ParentProcessId": 43408,
+      "Name": "node.exe",
+      "CreationDate": "2026-09-10T17:48:11.565139-04:00"
+    },
+    {
+      "ProcessId": 33412,
+      "ParentProcessId": 31172,
+      "Name": "node.exe",
+      "CreationDate": "2026-09-10T18:08:39.277923-04:00"
+    },
+    {
+      "ProcessId": 41188,
+      "ParentProcessId": 35236,
+      "Name": "node.exe",
+      "CreationDate": "2026-09-10T18:09:15.783834-04:00"
+    }
+  ],
+  "reason": "Deliberately retired mutable-checkout soaks after further candidate edits; partial runs do not certify the final candidate.",
+  "at": "2026-09-10T22:13:58.8418257Z",
+  "roots": [
+    {
+      "ProcessId": 35236,
+      "CommandLine": "\"C:\\Users\\andro\\AppData\\Local\\hermes\\node\\node.exe\" scripts/qa/soak.mjs --minutes=720 --out=.dogfood/release-0112-closeout/release-soak"
+    },
+    {
+      "ProcessId": 31172,
+      "CommandLine": "\"C:\\Users\\andro\\AppData\\Local\\hermes\\node\\node.exe\" scripts/qa/soak.mjs --minutes=720 --out=.dogfood/release-0112-closeout/final-release-soak"
+    }
+  ]
+}

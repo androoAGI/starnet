@@ -4,10 +4,10 @@ slug: linux-appimage-staging-includes-incompatible-mus
 title: Linux AppImage staging includes incompatible musl Sharp binaries
 surface: release
 severity: P2
-status: open
+status: fixed
 found: 2026-09-10
 lane: agent/release-0112-audit-0910
-fix:
+fix: bbbd7c13a
 origin: audit
 ---
 
@@ -29,6 +29,6 @@ Dispatch `.github/workflows/desktop-build.yml` on `f111be488` with publishing di
 
 ## Verdict
 
-Source repair and local packaging tests pass. A fresh Linux CI AppImage build remains required. Linux is outside the current supported public release platform set; this is still a real build failure and is not hidden with continue-on-error.
+Source repair and local packaging tests pass. Fresh Linux CI AppImage builds passed on [34534976781](https://github.com/androoAGI/starnet/actions/runs/34534976781) and the final candidate [34535931055](https://github.com/androoAGI/starnet/actions/runs/34535931055). Linux is outside the current supported public release platform set; this real build failure was repaired without continue-on-error.
 
-The repeat build [34533970724](https://github.com/androoAGI/starnet/actions/runs/34533970724) advances past Sharp and exposes the next unused native backend: `kokoro-js/node_modules/onnxruntime-node/bin/napi-v3/linux/x64/libonnxruntime_providers_tensorrt.so` requires `libcublas.so.12`. Both ASR and TTS explicitly request `device: 'cpu'` in `sidecar/local-voice.js`. The staged closure now excludes only ONNX's optional Linux CUDA/TensorRT plugins, preserving the CPU runtime, shared provider library, and binding. Fresh and warm staging share this filter. Original failure and repeat logs remain retained; the next CI result is still required before closing this record.
+The intermediate build [34533970724](https://github.com/androoAGI/starnet/actions/runs/34533970724) advanced past Sharp and exposed the next unused native backend: `kokoro-js/node_modules/onnxruntime-node/bin/napi-v3/linux/x64/libonnxruntime_providers_tensorrt.so` requires `libcublas.so.12`. Both ASR and TTS explicitly request `device: 'cpu'` in `sidecar/local-voice.js`. The staged closure now excludes only ONNX's optional Linux CUDA/TensorRT plugins, preserving the CPU runtime, shared provider library, and binding. Fresh and warm staging share this filter. Original failure and repeat logs remain retained; the subsequent two successful Linux builds close this packaging failure. The final workflow's initial Intel acceptance artifact-download DNS error is a separate infrastructure event.

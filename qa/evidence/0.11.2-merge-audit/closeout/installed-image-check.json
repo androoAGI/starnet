@@ -1,0 +1,265 @@
+{
+  "startedAt": "2026-09-10T22:32:36.925Z",
+  "finishedAt": "2026-09-10T22:33:03.290Z",
+  "stream": "ws_mtw3rx35k5ht",
+  "runId": "f699400a-23c7-4296-8daf-6703ccc0b7db",
+  "before": {
+    "usage": {
+      "tokens": 565546,
+      "cost": 0.7597495499999999,
+      "calls": 12
+    },
+    "agents": [
+      {
+        "id": "agent",
+        "name": "CANARY NOVA",
+        "skin": "blank",
+        "model": "anthropic/claude-sonnet-4.6",
+        "provider": "openrouter",
+        "reasoningEffort": "none",
+        "role": "orchestrator",
+        "voiceTraits": null,
+        "customVoice": "",
+        "approvalMode": "ask",
+        "executionProfile": "trusted-project",
+        "workshop": false,
+        "purpose": "prove update continuity",
+        "specialtyId": null,
+        "docs": {
+          "identity": "You are CANARY NOVA, an AI agent operating from a workstation aboard the STARNET station — a room your Commander (the user) is building for you. Address the user as \"Commander\" and keep a spark of personality. Your workstation grants you REAL tools — exactly the ones the Commander has placed in your room (web search/read, file read/write, a terminal, memory, and more as the station grows; compute to think is always yours). When the Commander assigns a TASK, use the tools you actually have to do the real work and report what you find. If a job needs a tool you have not been granted yet, say so plainly and tell the Commander what to place — never pretend a reach you do not have, and never claim a tool is missing when it is in your room. When you are just chatting out loud, keep replies short and easy; when you are typing in the COMMS panel you can go into as much detail as the question deserves. Stay in character. You are this station's OVERSEER — its orchestrating lead and first agent. When there is a crew, you are the one who breaks a big job into pieces and hands them out; when there is not, you do the work yourself. Never assume either from memory: your live crew and your delegation tools are stated fresh in each run's briefing — trust that briefing, and never claim a crew member or a delegation tool it does not show. Keep the work moving and keep the Commander oriented on what is done, what is in flight, and what needs them.",
+          "purpose": "prove update continuity",
+          "manual": "",
+          "context": ""
+        },
+        "skills": [],
+        "stats": {
+          "xp": 0,
+          "level": 1,
+          "lifetimeXp": 0,
+          "confidence": 50,
+          "samples": 0,
+          "counters": {
+            "toolsOk": 10,
+            "runs": 6,
+            "runsFaulted": 1,
+            "tasksDone": 5,
+            "runsOwned": 5,
+            "runsWon": 5,
+            "delivered": 5
+          },
+          "milestones": [
+            "first_light",
+            "night_shift",
+            "still_here"
+          ],
+          "receipts": {
+            "runs": [
+              "8e98ec67-5939-4d82-8fc8-e28e05c5575f",
+              "3036f573-1016-4247-b585-c57a981225a5"
+            ],
+            "feedback": []
+          },
+          "run": {
+            "id": null,
+            "usedMemory": false,
+            "toolsOk": 0
+          }
+        }
+      },
+      {
+        "id": "scout",
+        "name": "CANARY SCOUT",
+        "skin": "blank",
+        "model": "anthropic/claude-sonnet-4.6",
+        "provider": "openrouter",
+        "reasoningEffort": "none",
+        "personaId": "composed",
+        "role": "specialist",
+        "voiceTraits": null,
+        "customVoice": "",
+        "approvalMode": "ask",
+        "executionProfile": "station-gear",
+        "workshop": false,
+        "purpose": null,
+        "specialtyId": null,
+        "docs": {
+          "identity": "You are CANARY SCOUT, an AI agent operating from a workstation aboard the STARNET station — a room your Commander (the user) is building for you. Address the user as \"Commander\" and keep a spark of personality. Your workstation grants you REAL tools — exactly the ones the Commander has placed in your room (web search/read, file read/write, a terminal, memory, and more as the station grows; compute to think is always yours). When the Commander assigns a TASK, use the tools you actually have to do the real work and report what you find. If a job needs a tool you have not been granted yet, say so plainly and tell the Commander what to place — never pretend a reach you do not have, and never claim a tool is missing when it is in your room. When you are just chatting out loud, keep replies short and easy; when you are typing in the COMMS panel you can go into as much detail as the question deserves. Stay in character.",
+          "purpose": "",
+          "manual": "",
+          "context": ""
+        },
+        "skills": [],
+        "stats": null,
+        "createdAt": 1789074288785
+      }
+    ]
+  },
+  "approvals": [
+    {
+      "at": "2026-09-10T22:32:44.038Z",
+      "allow": true,
+      "text": "▣ CANARY NOVA wants to image.generate release-0112-image.png Approve onceAlwaysFull accessDeny"
+    },
+    {
+      "at": "2026-09-10T22:32:58.226Z",
+      "allow": true,
+      "text": "▣ CANARY NOVA wants to deliverable.note {\"title\":\"Release 0112 verification image\",\"summary\":\"A square PNG of a blue … Approve onceAlwaysFull accessDeny"
+    }
+  ],
+  "after": {
+    "busy": false,
+    "workstream": {
+      "id": "ws_mtw3rx35k5ht",
+      "title": "0.11.2 installed image receipt",
+      "agentId": "agent",
+      "conversationMode": "direct",
+      "roomId": null,
+      "lane": "active",
+      "kind": "task",
+      "projectRoot": null,
+      "history": [
+        {
+          "role": "user",
+          "content": "Use image_generate exactly once to create a simple square blue star on a white background, saved as release-0112-image.png. This is a release verification artifact. Do not browse, run commands, edit other files, or generate a second image. Report the saved image and only the facts its tool receipt proves.",
+          "ts": 1789079556949,
+          "sourceRunId": "f699400a-23c7-4296-8daf-6703ccc0b7db"
+        },
+        {
+          "role": "assistant",
+          "content": "The task is complete. Here is what the tool receipt confirms:\n\n| Field | Value |\n|---|---|\n| **Saved path** | `release-0112-image.png` |\n| **File size** | 90 KB |\n| **Format** | image/png |\n| **Aspect ratio** | 1:1 (square) |\n| **Model** | google/gemini-3.1-flash-image |\n| **Images generated** | 1 |\n\nNo commands were run, no other files were edited, and no second image was generated.",
+          "ts": 1789079582483,
+          "sourceRunId": "f699400a-23c7-4296-8daf-6703ccc0b7db"
+        }
+      ],
+      "runIds": [
+        "f699400a-23c7-4296-8daf-6703ccc0b7db"
+      ],
+      "connectorHandoff": null,
+      "lastRunOk": true,
+      "lastModel": "anthropic/claude-sonnet-4.6",
+      "deliverables": [
+        {
+          "title": "release-0112-image.png",
+          "kind": "image",
+          "runId": "f699400a-23c7-4296-8daf-6703ccc0b7db",
+          "t": 1789079572271
+        }
+      ],
+      "cost": {
+        "tokens": 118763,
+        "usd": 0.19565729999999992,
+        "calls": 1
+      },
+      "pinned": false,
+      "archived": false,
+      "titleAuto": true,
+      "titleStrong": false,
+      "automation": null,
+      "createdAt": 1789079556929,
+      "lastActiveAt": 1789079582487,
+      "lastReadAt": 1789079582487
+    },
+    "usage": {
+      "tokens": 684309,
+      "cost": 0.9554068499999998,
+      "calls": 13
+    },
+    "tail": "was created and no file was written. That is the complete factual record this run can report. To complete this…\n\nOPEN\nMARK COMPLETE\nMore\nRelease Artifact Not Generated\nCANARY NOVA\n18:31\n1 run\nFINISHED — REVIEW RESULT\n\nLatest reply\nThe `image_generate` tool is not available in my current workstation. I have no image generation capability granted — the STUDIO object has not been placed in my room. **What the t…\n\nOPEN\nMARK COMPLETE\nMore\nStandalone HTML Verification Page Creation\nCANARY NOVA\n18:00\n1 run\n1 deliverable\nFINISHED — REVIEW RESULT\n\nLatest reply\nShell execution was denied. Here is what that means plainly: **What was verified:** - The file exists at the correct path (write tool confirmed 478 bytes written and read-back matc…\n\nOPEN\nMARK COMPLETE\nMore\nStandalone HTML Verify Button Page\nCANARY NOVA\n17:41\n1 run\n1 deliverable\nFINISHED — REVIEW RESULT\n\nLatest reply\nUnderstood. The task brief explicitly stated \"Do not browse or run any commands\" — so I will be plain about what was and was not verified. **What I cannot verify here:** The brief …\n\nOPEN\nMARK COMPLETE\nMore\n0.11.2 installed tool and deliverable check\nCANARY NOVA\n17:27\n1 run\n1 deliverable\n✗ RUN FAILED — REVIEW\n\nLatest reply\n⚠ Something went wrong on that turn — try again.\n\nOPEN\nMARK COMPLETE\nMore\nCOMPLETED\n0\n\nTasks you marked complete.\n\nNO COMPLETED TASKS YET\nTasks you review and mark complete appear here.\nTASK BOARD\n◆"
+  },
+  "records": {
+    "runs": [
+      {
+        "runId": "f699400a-23c7-4296-8daf-6703ccc0b7db",
+        "parentRunId": "",
+        "agentId": "agent",
+        "reason": "done",
+        "turns": 4,
+        "tokens": 119916,
+        "usd": 0.19565729999999998,
+        "title": "Use image_generate exactly once to create a simple square blue star on a white background, saved as release-0112-image.p",
+        "streamId": "ws_mtw3rx35k5ht",
+        "sessionTitle": "",
+        "deliveryPrompt": "",
+        "deliveryText": "",
+        "recipeId": "",
+        "projectRoot": "",
+        "deliverable": {
+          "title": "Release 0112 verification image",
+          "summary": "A square PNG of a blue star on a white background, generated once as a release verification artifact.",
+          "kind": "image",
+          "main": "release-0112-image.png"
+        },
+        "reasoningEffort": "none",
+        "model": "anthropic/claude-sonnet-4.6",
+        "unmetered": false,
+        "artifacts": [
+          {
+            "kind": "image",
+            "path": "release-0112-image.png"
+          }
+        ],
+        "toolsOk": 2,
+        "identityFallback": false,
+        "internal": false,
+        "clarifying": false,
+        "toolTrace": [
+          {
+            "callId": "toolu_01QkTKQwUVHQiKCyEULpXYCM",
+            "name": "image_generate",
+            "ok": true,
+            "isError": false,
+            "ms": 8475,
+            "summary": "image → release-0112-image.png",
+            "startedAt": 1789079563791,
+            "endedAt": 1789079572266
+          },
+          {
+            "callId": "toolu_01DxTVji5zH7LtVgmciHGGif",
+            "name": "deliverable_note",
+            "ok": true,
+            "isError": false,
+            "ms": 1016,
+            "summary": "Release 0112 verification image",
+            "startedAt": 1789079577215,
+            "endedAt": 1789079578231
+          }
+        ],
+        "failureStage": "",
+        "failureCode": "",
+        "uncertainMutations": [],
+        "completionEvidence": {
+          "schemaVersion": "starnet.completion-evidence.v1",
+          "completionVerdict": "not_assessed",
+          "effectVerdict": "unverified_effects",
+          "effects": [
+            {
+              "callId": "toolu_01QkTKQwUVHQiKCyEULpXYCM",
+              "tool": "image_generate",
+              "domain": "other",
+              "target": "release-0112-image.png",
+              "state": "unverified",
+              "evidence": []
+            },
+            {
+              "callId": "toolu_01DxTVji5zH7LtVgmciHGGif",
+              "tool": "deliverable_note",
+              "domain": "other",
+              "target": "",
+              "state": "unverified",
+              "evidence": []
+            }
+          ],
+          "contract": null,
+          "contractErrors": [],
+          "checks": []
+        },
+        "recoveryAttempts": [],
+        "startedAt": 1789079556953,
+        "endedAt": 1789079582392,
+        "durationMs": 25439,
+        "ts": 1789079582392,
+        "children": []
+      }
+    ]
+  }
+}

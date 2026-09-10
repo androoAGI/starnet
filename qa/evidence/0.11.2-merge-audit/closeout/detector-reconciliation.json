@@ -1,0 +1,184 @@
+{
+  "at": "2026-09-10T22:38:19.334Z",
+  "candidate": "afd1da77fb4a489151b45b5a6c53e60ada4ca1f4",
+  "records": [
+    {
+      "id": "9c208e00-1788815717421",
+      "beforeSha256": "01115cbe44f2e78395f107e1237dc88e92292ccb4721840c9b992ca5aad600e6",
+      "before": {
+        "id": "9c208e00-1788815717421",
+        "fingerprint": "9c208e00",
+        "ts": 1788815717421,
+        "crew": "Green Guardian",
+        "severity": "P0",
+        "title": "Guardian BLOCKED: Full fast unit/contract gate could not run",
+        "detail": "trunk 58dc520d — timed out after 908817ms. A detector that cannot run is a P0 (no-fake-green law): treat as red until it runs clean.",
+        "evidence": [
+          "C:\\Users\\andro\\Desktop\\gen\\.bugloops\\guardian-20260907-210002\\test-fast.log"
+        ],
+        "status": "open",
+        "routedTo": ""
+      },
+      "after": {
+        "id": "9c208e00-1788815717421",
+        "fingerprint": "9c208e00",
+        "ts": 1788815717421,
+        "crew": "Green Guardian",
+        "severity": "P0",
+        "title": "Guardian BLOCKED: Full fast unit/contract gate could not run",
+        "detail": "trunk 58dc520d — timed out after 908817ms. A detector that cannot run is a P0 (no-fake-green law): treat as red until it runs clean.",
+        "evidence": [
+          "C:\\Users\\andro\\Desktop\\gen\\.bugloops\\guardian-20260907-210002\\test-fast.log"
+        ],
+        "status": "fixed",
+        "routedTo": "",
+        "releaseResolution": {
+          "at": "2026-09-10T22:38:19.330Z",
+          "candidate": "afd1da77fb4a489151b45b5a6c53e60ada4ca1f4",
+          "kind": "current-scenario-recovered",
+          "result": "Full fast detector completed: 770/770 steps, no timeout.",
+          "evidence": "qa/evidence/0.11.2-merge-audit/closeout/fast-afd.log",
+          "scope": "Administrative reconciliation of a historical detector observation after repeated current scenario passes. No assertion of the original root cause or customer recovery; original failure evidence retained."
+        }
+      }
+    },
+    {
+      "id": "f373c745-1788599638493",
+      "beforeSha256": "f0cc29ead78c8bd0c511e92d50284496a336e3378ed59215dcebae7ae1341db3",
+      "before": {
+        "id": "f373c745-1788599638493",
+        "fingerprint": "f373c745",
+        "ts": 1788599638493,
+        "crew": "Green Guardian",
+        "severity": "P1",
+        "title": "UI state `build-connectors` failed to open",
+        "detail": "trunk ff9e147c — screenshot sweep could not reach state `build-connectors` (opened:ABILITIES:layout-timeout:211.80,84.19,1219.00,751.59).",
+        "evidence": [
+          "C:\\Users\\andro\\Desktop\\gen\\.bugloops\\guardian-20260905-090002\\shoot.log"
+        ],
+        "status": "open",
+        "routedTo": "",
+        "releaseRecheck": {
+          "at": "2026-09-07T01:30:42.877Z",
+          "candidate": "bd65c7737f116c6d55f334473534a49efa568ecb",
+          "result": "Full exact-candidate shoot and native installed ABILITIES open pass. Original four-second layout-settle timeout remains uncorrelated; status stays open.",
+          "evidence": [
+            "C:/Users/andro/Desktop/gen/.bugloops/guardian-20260907-010003/shoot.log",
+            "C:/Users/andro/gen-trees/release-0110/release/FINAL-VERIFICATION.md"
+          ]
+        }
+      },
+      "after": {
+        "id": "f373c745-1788599638493",
+        "fingerprint": "f373c745",
+        "ts": 1788599638493,
+        "crew": "Green Guardian",
+        "severity": "P1",
+        "title": "UI state `build-connectors` failed to open",
+        "detail": "trunk ff9e147c — screenshot sweep could not reach state `build-connectors` (opened:ABILITIES:layout-timeout:211.80,84.19,1219.00,751.59).",
+        "evidence": [
+          "C:\\Users\\andro\\Desktop\\gen\\.bugloops\\guardian-20260905-090002\\shoot.log"
+        ],
+        "status": "fixed",
+        "routedTo": "",
+        "releaseRecheck": {
+          "at": "2026-09-07T01:30:42.877Z",
+          "candidate": "bd65c7737f116c6d55f334473534a49efa568ecb",
+          "result": "Full exact-candidate shoot and native installed ABILITIES open pass. Original four-second layout-settle timeout remains uncorrelated; status stays open.",
+          "evidence": [
+            "C:/Users/andro/Desktop/gen/.bugloops/guardian-20260907-010003/shoot.log",
+            "C:/Users/andro/gen-trees/release-0110/release/FINAL-VERIFICATION.md"
+          ]
+        },
+        "releaseResolution": {
+          "at": "2026-09-10T22:38:19.332Z",
+          "candidate": "afd1da77fb4a489151b45b5a6c53e60ada4ca1f4",
+          "kind": "current-scenario-recovered",
+          "result": "The exact build-connectors screenshot state opened successfully in the final 16-state sweep.",
+          "evidence": "qa/evidence/0.11.2-merge-audit/closeout/shoot-afd.json",
+          "scope": "Administrative reconciliation of a historical detector observation after repeated current scenario passes. No assertion of the original root cause or customer recovery; original failure evidence retained."
+        }
+      }
+    },
+    {
+      "id": "5c2a7626-1788942178639",
+      "beforeSha256": "9451faa7b8885f97e138a85adbb2d5f278bb07b74bd82764d2b7a7aa620932e2",
+      "before": {
+        "id": "5c2a7626-1788942178639",
+        "fingerprint": "5c2a7626",
+        "ts": 1788942178639,
+        "crew": "Green Guardian",
+        "severity": "P1",
+        "title": "Journey parity regression: `J2/panel-close/backend-idle` failed (J2b interrupt: panel-close mid-run)",
+        "detail": "trunk 41253b0b — live backend runs=[{\"runId\":\"2ff4b6cd-3827-4f74-8ba9-809f3180158a\",\"agentId\":\"agent\",\"startedAt\":1788942009233,\"source\":\"interactive\"}]. A multi-step user journey diverged (sim↔UI↔task-truth) — the dynamic-seam bug class.",
+        "evidence": [
+          "C:\\Users\\andro\\Desktop\\gen\\.bugloops\\guardian-20260909-080005\\journeys.log"
+        ],
+        "status": "open",
+        "routedTo": ""
+      },
+      "after": {
+        "id": "5c2a7626-1788942178639",
+        "fingerprint": "5c2a7626",
+        "ts": 1788942178639,
+        "crew": "Green Guardian",
+        "severity": "P1",
+        "title": "Journey parity regression: `J2/panel-close/backend-idle` failed (J2b interrupt: panel-close mid-run)",
+        "detail": "trunk 41253b0b — live backend runs=[{\"runId\":\"2ff4b6cd-3827-4f74-8ba9-809f3180158a\",\"agentId\":\"agent\",\"startedAt\":1788942009233,\"source\":\"interactive\"}]. A multi-step user journey diverged (sim↔UI↔task-truth) — the dynamic-seam bug class.",
+        "evidence": [
+          "C:\\Users\\andro\\Desktop\\gen\\.bugloops\\guardian-20260909-080005\\journeys.log"
+        ],
+        "status": "fixed",
+        "routedTo": "",
+        "releaseResolution": {
+          "at": "2026-09-10T22:38:19.333Z",
+          "candidate": "afd1da77fb4a489151b45b5a6c53e60ada4ca1f4",
+          "kind": "current-scenario-recovered",
+          "result": "J2/panel-close/backend-idle passed with no backend run left active.",
+          "evidence": "qa/evidence/0.11.2-merge-audit/closeout/journeys-afd.json",
+          "scope": "Administrative reconciliation of a historical detector observation after repeated current scenario passes. No assertion of the original root cause or customer recovery; original failure evidence retained."
+        }
+      }
+    },
+    {
+      "id": "b30906c8-1788942178639",
+      "beforeSha256": "d73b6d1fb6d99f629fb64cdbcf08ce859d53c4f38d8bdc3d0ea88ec59fab1520",
+      "before": {
+        "id": "b30906c8-1788942178639",
+        "fingerprint": "b30906c8",
+        "ts": 1788942178639,
+        "crew": "Green Guardian",
+        "severity": "P1",
+        "title": "Journey parity regression: `J2/panel-close/provider-stream-closed` failed (J2b interrupt: panel-close mid-run)",
+        "detail": "trunk 41253b0b — parked provider streams=1. A multi-step user journey diverged (sim↔UI↔task-truth) — the dynamic-seam bug class.",
+        "evidence": [
+          "C:\\Users\\andro\\Desktop\\gen\\.bugloops\\guardian-20260909-080005\\journeys.log"
+        ],
+        "status": "open",
+        "routedTo": ""
+      },
+      "after": {
+        "id": "b30906c8-1788942178639",
+        "fingerprint": "b30906c8",
+        "ts": 1788942178639,
+        "crew": "Green Guardian",
+        "severity": "P1",
+        "title": "Journey parity regression: `J2/panel-close/provider-stream-closed` failed (J2b interrupt: panel-close mid-run)",
+        "detail": "trunk 41253b0b — parked provider streams=1. A multi-step user journey diverged (sim↔UI↔task-truth) — the dynamic-seam bug class.",
+        "evidence": [
+          "C:\\Users\\andro\\Desktop\\gen\\.bugloops\\guardian-20260909-080005\\journeys.log"
+        ],
+        "status": "fixed",
+        "routedTo": "",
+        "releaseResolution": {
+          "at": "2026-09-10T22:38:19.334Z",
+          "candidate": "afd1da77fb4a489151b45b5a6c53e60ada4ca1f4",
+          "kind": "current-scenario-recovered",
+          "result": "J2/panel-close/provider-stream-closed passed with no provider stream left open.",
+          "evidence": "qa/evidence/0.11.2-merge-audit/closeout/journeys-afd.json",
+          "scope": "Administrative reconciliation of a historical detector observation after repeated current scenario passes. No assertion of the original root cause or customer recovery; original failure evidence retained."
+        }
+      }
+    }
+  ]
+}

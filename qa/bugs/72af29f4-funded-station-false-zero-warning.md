@@ -64,3 +64,9 @@ receipt is still required to correlate the original customer report.
     {"target":"recovery and restart","state":"blocked","reason":"Requires a before/after receipt for this symptom on the affected artifact, followed by restart and the same operation."}
   ]
 }
+
+## September 10 release follow-through
+
+An isolated in-memory account exercised the real managed gateway and upstream, returning 200 and a 0.000683 debit equal to the run receipt. The affected funded account and its rendered balance/warning were not available. No customer ledger was edited and this neighboring gateway proof does not close the false-zero UI report.
+
+Current receipts and remaining acceptance: [0.11.2 follow-through](../../docs/releases/0.11.2/FOLLOWTHROUGH.md). Status remains open pending the affected configuration.

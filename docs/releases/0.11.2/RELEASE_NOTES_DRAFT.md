@@ -8,6 +8,8 @@ This update brings more reliable saves and task results, clearer setup, and smoo
 - Compatible API clients can use durable request keys to avoid repeating work after connection loss. Partial, failed and interrupted runs retain their real status and evidence.
 - Structured JSON results are validated, with at most one repair that cannot execute tools.
 - COMMS preserves report tables, lists, quotations and named links. Copy keeps the original report text. Plus bullets and tab-separated list markers render consistently.
+- Claude tasks can continue through host verification notes on OpenRouter and compatible managed connections without an unsupported assistant-prefill request.
+- Reopening a completed conversation reconciles a combined local reply with its durable turns, avoiding duplicate replies while retaining uncommitted text and attachments.
 - Overseer creation has a two-step identity and connection flow, clearer model selection, and expanded personality controls. Outdated setup warnings retire when the selected connection changes.
 - The Field Manual guides work-app and messaging setup. GitHub supports device sign-in, with visible errors and protection for an existing connection if saving fails.
 - Speech playback recovers after an output-device interruption.
@@ -16,4 +18,4 @@ This update brings more reliable saves and task results, clearer setup, and smoo
 
 Google Workspace connections remain deferred while verification is completed. Google login for StarNet billing is separate.
 
-Editorial draft only. These notes describe included source changes; the release remains subject to the acceptance work in [PREPARATION.md](PREPARATION.md). No installer, tag or publication is implied.
+Editorial draft only. These notes describe included source changes; the release remains subject to the acceptance work in [FOLLOWTHROUGH.md](FOLLOWTHROUGH.md). Canary installers are test artifacts; no public release or tag is implied.

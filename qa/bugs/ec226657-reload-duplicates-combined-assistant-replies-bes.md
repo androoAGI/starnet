@@ -4,10 +4,10 @@ slug: reload-duplicates-combined-assistant-replies-bes
 title: Reload duplicates combined assistant replies beside durable turns
 surface: sessions
 severity: P1
-status: open
+status: fixed
 found: 2026-09-10
 lane: agent/release-0112-audit-0910
-fix:
+fix: a66fc5638
 origin: audit
 ---
 
@@ -29,4 +29,6 @@ Complete a real task that triggers verify-on-stop and emits more than one final 
 
 ## Verdict
 
-Source repair verified in focused tests. The original installed legacy conversation must be reopened on a rebuilt candidate before this record can close. No data deletion or transcript rewrite is performed; canonical storage remains untouched.
+Fixed and verified in the rebuilt Windows canary `afd1da77fb4a489151b45b5a6c53e60ada4ca1f4` on September 10 at 22:28 UTC. The original five-row duplicated history reconciled to the four canonical rows on boot/open; reopening, persisting, reloading and reopening again retained four rows with exact canonical role/content bytes. The installed build was clean and its smoke passed 9/9 checks. No injected candidate function was used for this final proof. No data deletion or transcript rewrite is performed; canonical storage remains untouched.
+
+Receipt: `qa/evidence/0.11.2-merge-audit/closeout/installed-history-verified.json`. A prior same-version `/S` maintenance attempt left the older build installed and failed the identity assertion; that attempt is retained separately, not counted as a pass. Explicit `/S /UPDATE` installed the verified candidate.

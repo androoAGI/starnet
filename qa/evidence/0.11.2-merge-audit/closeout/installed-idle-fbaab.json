@@ -1,0 +1,2997 @@
+{
+  "status": "complete",
+  "startedAt": "2026-09-10T22:01:59.891Z",
+  "finishedAt": "2026-09-10T22:23:31.357Z",
+  "build": {
+    "version": "0.11.2",
+    "commit": "fbaab109f",
+    "sha": "fbaab109f7be56821eb2aa47f751a1f5a1073a8e",
+    "sourceTree": "6713597aa9c76014e0d287fe696ec83cad440b5e",
+    "provenanceKind": "reproducible-source",
+    "describe": "v0.11.1-281-gfbaab109f",
+    "dirty": false,
+    "executableSha256": "f48a7bb2c69a61cd9bbc6a8b94aa7a2b1a1e4d2de991c41acbff1f76a3765fb5",
+    "executableSize": 17864192
+  },
+  "idleMinutes": 20.024433333333334,
+  "samples": [
+    {
+      "at": "2026-09-10T22:01:59.893Z",
+      "visible": "visible",
+      "busy": false,
+      "curve": {
+        "path": "webgl",
+        "ready": true,
+        "failed": false,
+        "lost": false,
+        "frameSum": 111
+      },
+      "cache": {
+        "probe": {
+          "x": 120,
+          "y": 97
+        },
+        "probeOff": false,
+        "recoveries": 0,
+        "blank": false
+      },
+      "stage": {
+        "armed": true,
+        "probeOff": false,
+        "deadSince": 0,
+        "rebuilds": 0,
+        "futile": 0,
+        "lost": false
+      },
+      "usage": {
+        "tokens": 444495,
+        "cost": 0.5335308,
+        "calls": 7
+      }
+    },
+    {
+      "at": "2026-09-10T22:02:14.908Z",
+      "visible": "visible",
+      "busy": false,
+      "curve": {
+        "path": "webgl",
+        "ready": true,
+        "failed": false,
+        "lost": false,
+        "frameSum": 113
+      },
+      "cache": {
+        "probe": {
+          "x": 120,
+          "y": 97
+        },
+        "probeOff": false,
+        "recoveries": 0,
+        "blank": false
+      },
+      "stage": {
+        "armed": true,
+        "probeOff": false,
+        "deadSince": 0,
+        "rebuilds": 0,
+        "futile": 0,
+        "lost": false
+      },
+      "usage": {
+        "tokens": 444495,
+        "cost": 0.5335308,
+        "calls": 7
+      }
+    },
+    {
+      "at": "2026-09-10T22:02:29.917Z",
+      "visible": "visible",
+      "busy": false,
+      "curve": {
+        "path": "webgl",
+        "ready": true,
+        "failed": false,
+        "lost": false,
+        "frameSum": 104
+      },
+      "cache": {
+        "probe": {
+          "x": 120,
+          "y": 97
+        },
+        "probeOff": false,
+        "recoveries": 0,
+        "blank": false
+      },
+      "stage": {
+        "armed": true,
+        "probeOff": false,
+        "deadSince": 0,
+        "rebuilds": 0,
+        "futile": 0,
+        "lost": false
+      },
+      "usage": {
+        "tokens": 444495,
+        "cost": 0.5335308,
+        "calls": 7
+      }
+    },
+    {
+      "at": "2026-09-10T22:02:44.929Z",
+      "visible": "visible",
+      "busy": false,
+      "curve": {
+        "path": "webgl",
+        "ready": true,
+        "failed": false,
+        "lost": false,
+        "frameSum": 110
+      },
+      "cache": {
+        "probe": {
+          "x": 120,
+          "y": 97
+        },
+        "probeOff": false,
+        "recoveries": 0,
+        "blank": false
+      },
+      "stage": {
+        "armed": true,
+        "probeOff": false,
+        "deadSince": 0,
+        "rebuilds": 0,
+        "futile": 0,
+        "lost": false
+      },
+      "usage": {
+        "tokens": 444495,
+        "cost": 0.5335308,
+        "calls": 7
+      }
+    },
+    {
+      "at": "2026-09-10T22:02:59.944Z",
+      "visible": "visible",
+      "busy": false,
+      "curve": {
+        "path": "webgl",
+        "ready": true,
+        "failed": false,
+        "lost": false,
+        "frameSum": 112
+      },
+      "cache": {
+        "probe": {
+          "x": 120,
+          "y": 97
+        },
+        "probeOff": false,
+        "recoveries": 0,
+        "blank": false
+      },
+      "stage": {
+        "armed": true,
+        "probeOff": false,
+        "deadSince": 0,
+        "rebuilds": 0,
+        "futile": 0,
+        "lost": false
+      },
+      "usage": {
+        "tokens": 444495,
+        "cost": 0.5335308,
+        "calls": 7
+      }
+    },
+    {
+      "at": "2026-09-10T22:03:14.958Z",
+      "visible": "visible",
+      "busy": false,
+      "curve": {
+        "path": "webgl",
+        "ready": true,
+        "failed": false,
+        "lost": false,
+        "frameSum": 112
+      },
+      "cache": {
+        "probe": {
+          "x": 120,
+          "y": 97
+        },
+        "probeOff": false,
+        "recoveries": 0,
+        "blank": false
+      },
+      "stage": {
+        "armed": true,
+        "probeOff": false,
+        "deadSince": 0,
+        "rebuilds": 0,
+        "futile": 0,
+        "lost": false
+      },
+      "usage": {
+        "tokens": 444495,
+        "cost": 0.5335308,
+        "calls": 7
+      }
+    },
+    {
+      "at": "2026-09-10T22:03:29.977Z",
+      "visible": "visible",
+      "busy": false,
+      "curve": {
+        "path": "webgl",
+        "ready": true,
+        "failed": false,
+        "lost": false,
+        "frameSum": 118
+      },
+      "cache": {
+        "probe": {
+          "x": 120,
+          "y": 97
+        },
+        "probeOff": false,
+        "recoveries": 0,
+        "blank": false
+      },
+      "stage": {
+        "armed": true,
+        "probeOff": false,
+        "deadSince": 0,
+        "rebuilds": 0,
+        "futile": 0,
+        "lost": false
+      },
+      "usage": {
+        "tokens": 444495,
+        "cost": 0.5335308,
+        "calls": 7
+      }
+    },
+    {
+      "at": "2026-09-10T22:03:44.999Z",
+      "visible": "visible",
+      "busy": false,
+      "curve": {
+        "path": "webgl",
+        "ready": true,
+        "failed": false,
+        "lost": false,
+        "frameSum": 112
+      },
+      "cache": {
+        "probe": {
+          "x": 120,
+          "y": 97
+        },
+        "probeOff": false,
+        "recoveries": 0,
+        "blank": false
+      },
+      "stage": {
+        "armed": true,
+        "probeOff": false,
+        "deadSince": 0,
+        "rebuilds": 0,
+        "futile": 0,
+        "lost": false
+      },
+      "usage": {
+        "tokens": 444495,
+        "cost": 0.5335308,
+        "calls": 7
+      }
+    },
+    {
+      "at": "2026-09-10T22:04:00.010Z",
+      "visible": "visible",
+      "busy": false,
+      "curve": {
+        "path": "webgl",
+        "ready": true,
+        "failed": false,
+        "lost": false,
+        "frameSum": 115
+      },
+      "cache": {
+        "probe": {
+          "x": 120,
+          "y": 97
+        },
+        "probeOff": false,
+        "recoveries": 0,
+        "blank": false
+      },
+      "stage": {
+        "armed": true,
+        "probeOff": false,
+        "deadSince": 0,
+        "rebuilds": 0,
+        "futile": 0,
+        "lost": false
+      },
+      "usage": {
+        "tokens": 444495,
+        "cost": 0.5335308,
+        "calls": 7
+      }
+    },
+    {
+      "at": "2026-09-10T22:04:15.025Z",
+      "visible": "visible",
+      "busy": false,
+      "curve": {
+        "path": "webgl",
+        "ready": true,
+        "failed": false,
+        "lost": false,
+        "frameSum": 114
+      },
+      "cache": {
+        "probe": {
+          "x": 120,
+          "y": 97
+        },
+        "probeOff": false,
+        "recoveries": 0,
+        "blank": false
+      },
+      "stage": {
+        "armed": true,
+        "probeOff": false,
+        "deadSince": 0,
+        "rebuilds": 0,
+        "futile": 0,
+        "lost": false
+      },
+      "usage": {
+        "tokens": 444495,
+        "cost": 0.5335308,
+        "calls": 7
+      }
+    },
+    {
+      "at": "2026-09-10T22:04:30.052Z",
+      "visible": "visible",
+      "busy": false,
+      "curve": {
+        "path": "webgl",
+        "ready": true,
+        "failed": false,
+        "lost": false,
+        "frameSum": 115
+      },
+      "cache": {
+        "probe": {
+          "x": 120,
+          "y": 97
+        },
+        "probeOff": false,
+        "recoveries": 0,
+        "blank": false
+      },
+      "stage": {
+        "armed": true,
+        "probeOff": false,
+        "deadSince": 0,
+        "rebuilds": 0,
+        "futile": 0,
+        "lost": false
+      },
+      "usage": {
+        "tokens": 444495,
+        "cost": 0.5335308,
+        "calls": 7
+      }
+    },
+    {
+      "at": "2026-09-10T22:04:45.071Z",
+      "visible": "visible",
+      "busy": false,
+      "curve": {
+        "path": "webgl",
+        "ready": true,
+        "failed": false,
+        "lost": false,
+        "frameSum": 111
+      },
+      "cache": {
+        "probe": {
+          "x": 120,
+          "y": 97
+        },
+        "probeOff": false,
+        "recoveries": 0,
+        "blank": false
+      },
+      "stage": {
+        "armed": true,
+        "probeOff": false,
+        "deadSince": 0,
+        "rebuilds": 0,
+        "futile": 0,
+        "lost": false
+      },
+      "usage": {
+        "tokens": 444495,
+        "cost": 0.5335308,
+        "calls": 7
+      }
+    },
+    {
+      "at": "2026-09-10T22:05:00.096Z",
+      "visible": "visible",
+      "busy": false,
+      "curve": {
+        "path": "webgl",
+        "ready": true,
+        "failed": false,
+        "lost": false,
+        "frameSum": 91
+      },
+      "cache": {
+        "probe": {
+          "x": 120,
+          "y": 97
+        },
+        "probeOff": false,
+        "recoveries": 0,
+        "blank": false
+      },
+      "stage": {
+        "armed": true,
+        "probeOff": false,
+        "deadSince": 0,
+        "rebuilds": 0,
+        "futile": 0,
+        "lost": false
+      },
+      "usage": {
+        "tokens": 444495,
+        "cost": 0.5335308,
+        "calls": 7
+      }
+    },
+    {
+      "at": "2026-09-10T22:05:15.122Z",
+      "visible": "visible",
+      "busy": false,
+      "curve": {
+        "path": "webgl",
+        "ready": true,
+        "failed": false,
+        "lost": false,
+        "frameSum": 107
+      },
+      "cache": {
+        "probe": {
+          "x": 120,
+          "y": 97
+        },
+        "probeOff": false,
+        "recoveries": 0,
+        "blank": false
+      },
+      "stage": {
+        "armed": true,
+        "probeOff": false,
+        "deadSince": 0,
+        "rebuilds": 0,
+        "futile": 0,
+        "lost": false
+      },
+      "usage": {
+        "tokens": 444495,
+        "cost": 0.5335308,
+        "calls": 7
+      }
+    },
+    {
+      "at": "2026-09-10T22:05:30.146Z",
+      "visible": "visible",
+      "busy": false,
+      "curve": {
+        "path": "webgl",
+        "ready": true,
+        "failed": false,
+        "lost": false,
+        "frameSum": 110
+      },
+      "cache": {
+        "probe": {
+          "x": 120,
+          "y": 97
+        },
+        "probeOff": false,
+        "recoveries": 0,
+        "blank": false
+      },
+      "stage": {
+        "armed": true,
+        "probeOff": false,
+        "deadSince": 0,
+        "rebuilds": 0,
+        "futile": 0,
+        "lost": false
+      },
+      "usage": {
+        "tokens": 444495,
+        "cost": 0.5335308,
+        "calls": 7
+      }
+    },
+    {
+      "at": "2026-09-10T22:05:45.173Z",
+      "visible": "visible",
+      "busy": false,
+      "curve": {
+        "path": "webgl",
+        "ready": true,
+        "failed": false,
+        "lost": false,
+        "frameSum": 101
+      },
+      "cache": {
+        "probe": {
+          "x": 120,
+          "y": 97
+        },
+        "probeOff": false,
+        "recoveries": 0,
+        "blank": false
+      },
+      "stage": {
+        "armed": true,
+        "probeOff": false,
+        "deadSince": 0,
+        "rebuilds": 0,
+        "futile": 0,
+        "lost": false
+      },
+      "usage": {
+        "tokens": 444495,
+        "cost": 0.5335308,
+        "calls": 7
+      }
+    },
+    {
+      "at": "2026-09-10T22:06:00.186Z",
+      "visible": "visible",
+      "busy": false,
+      "curve": {
+        "path": "webgl",
+        "ready": true,
+        "failed": false,
+        "lost": false,
+        "frameSum": 115
+      },
+      "cache": {
+        "probe": {
+          "x": 120,
+          "y": 97
+        },
+        "probeOff": false,
+        "recoveries": 0,
+        "blank": false
+      },
+      "stage": {
+        "armed": true,
+        "probeOff": false,
+        "deadSince": 0,
+        "rebuilds": 0,
+        "futile": 0,
+        "lost": false
+      },
+      "usage": {
+        "tokens": 444495,
+        "cost": 0.5335308,
+        "calls": 7
+      }
+    },
+    {
+      "at": "2026-09-10T22:06:15.209Z",
+      "visible": "visible",
+      "busy": false,
+      "curve": {
+        "path": "webgl",
+        "ready": true,
+        "failed": false,
+        "lost": false,
+        "frameSum": 112
+      },
+      "cache": {
+        "probe": {
+          "x": 120,
+          "y": 97
+        },
+        "probeOff": false,
+        "recoveries": 0,
+        "blank": false
+      },
+      "stage": {
+        "armed": true,
+        "probeOff": false,
+        "deadSince": 0,
+        "rebuilds": 0,
+        "futile": 0,
+        "lost": false
+      },
+      "usage": {
+        "tokens": 444495,
+        "cost": 0.5335308,
+        "calls": 7
+      }
+    },
+    {
+      "at": "2026-09-10T22:06:30.220Z",
+      "visible": "visible",
+      "busy": false,
+      "curve": {
+        "path": "webgl",
+        "ready": true,
+        "failed": false,
+        "lost": false,
+        "frameSum": 106
+      },
+      "cache": {
+        "probe": {
+          "x": 120,
+          "y": 97
+        },
+        "probeOff": false,
+        "recoveries": 0,
+        "blank": false
+      },
+      "stage": {
+        "armed": true,
+        "probeOff": false,
+        "deadSince": 0,
+        "rebuilds": 0,
+        "futile": 0,
+        "lost": false
+      },
+      "usage": {
+        "tokens": 444495,
+        "cost": 0.5335308,
+        "calls": 7
+      }
+    },
+    {
+      "at": "2026-09-10T22:06:45.243Z",
+      "visible": "visible",
+      "busy": false,
+      "curve": {
+        "path": "webgl",
+        "ready": true,
+        "failed": false,
+        "lost": false,
+        "frameSum": 104
+      },
+      "cache": {
+        "probe": {
+          "x": 120,
+          "y": 97
+        },
+        "probeOff": false,
+        "recoveries": 0,
+        "blank": false
+      },
+      "stage": {
+        "armed": true,
+        "probeOff": false,
+        "deadSince": 0,
+        "rebuilds": 0,
+        "futile": 0,
+        "lost": false
+      },
+      "usage": {
+        "tokens": 444495,
+        "cost": 0.5335308,
+        "calls": 7
+      }
+    },
+    {
+      "at": "2026-09-10T22:07:00.259Z",
+      "visible": "visible",
+      "busy": false,
+      "curve": {
+        "path": "webgl",
+        "ready": true,
+        "failed": false,
+        "lost": false,
+        "frameSum": 79
+      },
+      "cache": {
+        "probe": {
+          "x": 120,
+          "y": 97
+        },
+        "probeOff": false,
+        "recoveries": 0,
+        "blank": false
+      },
+      "stage": {
+        "armed": true,
+        "probeOff": false,
+        "deadSince": 0,
+        "rebuilds": 0,
+        "futile": 0,
+        "lost": false
+      },
+      "usage": {
+        "tokens": 444495,
+        "cost": 0.5335308,
+        "calls": 7
+      }
+    },
+    {
+      "at": "2026-09-10T22:07:15.276Z",
+      "visible": "visible",
+      "busy": false,
+      "curve": {
+        "path": "webgl",
+        "ready": true,
+        "failed": false,
+        "lost": false,
+        "frameSum": 117
+      },
+      "cache": {
+        "probe": {
+          "x": 120,
+          "y": 97
+        },
+        "probeOff": false,
+        "recoveries": 0,
+        "blank": false
+      },
+      "stage": {
+        "armed": true,
+        "probeOff": false,
+        "deadSince": 0,
+        "rebuilds": 0,
+        "futile": 0,
+        "lost": false
+      },
+      "usage": {
+        "tokens": 444495,
+        "cost": 0.5335308,
+        "calls": 7
+      }
+    },
+    {
+      "at": "2026-09-10T22:07:30.286Z",
+      "visible": "visible",
+      "busy": false,
+      "curve": {
+        "path": "webgl",
+        "ready": true,
+        "failed": false,
+        "lost": false,
+        "frameSum": 122
+      },
+      "cache": {
+        "probe": {
+          "x": 120,
+          "y": 97
+        },
+        "probeOff": false,
+        "recoveries": 0,
+        "blank": false
+      },
+      "stage": {
+        "armed": true,
+        "probeOff": false,
+        "deadSince": 0,
+        "rebuilds": 0,
+        "futile": 0,
+        "lost": false
+      },
+      "usage": {
+        "tokens": 444495,
+        "cost": 0.5335308,
+        "calls": 7
+      }
+    },
+    {
+      "at": "2026-09-10T22:07:45.302Z",
+      "visible": "visible",
+      "busy": false,
+      "curve": {
+        "path": "webgl",
+        "ready": true,
+        "failed": false,
+        "lost": false,
+        "frameSum": 104
+      },
+      "cache": {
+        "probe": {
+          "x": 120,
+          "y": 97
+        },
+        "probeOff": false,
+        "recoveries": 0,
+        "blank": false
+      },
+      "stage": {
+        "armed": true,
+        "probeOff": false,
+        "deadSince": 0,
+        "rebuilds": 0,
+        "futile": 0,
+        "lost": false
+      },
+      "usage": {
+        "tokens": 444495,
+        "cost": 0.5335308,
+        "calls": 7
+      }
+    },
+    {
+      "at": "2026-09-10T22:08:00.319Z",
+      "visible": "visible",
+      "busy": false,
+      "curve": {
+        "path": "webgl",
+        "ready": true,
+        "failed": false,
+        "lost": false,
+        "frameSum": 106
+      },
+      "cache": {
+        "probe": {
+          "x": 120,
+          "y": 97
+        },
+        "probeOff": false,
+        "recoveries": 0,
+        "blank": false
+      },
+      "stage": {
+        "armed": true,
+        "probeOff": false,
+        "deadSince": 0,
+        "rebuilds": 0,
+        "futile": 0,
+        "lost": false
+      },
+      "usage": {
+        "tokens": 444495,
+        "cost": 0.5335308,
+        "calls": 7
+      }
+    },
+    {
+      "at": "2026-09-10T22:08:15.326Z",
+      "visible": "visible",
+      "busy": false,
+      "curve": {
+        "path": "webgl",
+        "ready": true,
+        "failed": false,
+        "lost": false,
+        "frameSum": 108
+      },
+      "cache": {
+        "probe": {
+          "x": 120,
+          "y": 97
+        },
+        "probeOff": false,
+        "recoveries": 0,
+        "blank": false
+      },
+      "stage": {
+        "armed": true,
+        "probeOff": false,
+        "deadSince": 0,
+        "rebuilds": 0,
+        "futile": 0,
+        "lost": false
+      },
+      "usage": {
+        "tokens": 444495,
+        "cost": 0.5335308,
+        "calls": 7
+      }
+    },
+    {
+      "at": "2026-09-10T22:08:30.352Z",
+      "visible": "visible",
+      "busy": false,
+      "curve": {
+        "path": "webgl",
+        "ready": true,
+        "failed": false,
+        "lost": false,
+        "frameSum": 105
+      },
+      "cache": {
+        "probe": {
+          "x": 120,
+          "y": 97
+        },
+        "probeOff": false,
+        "recoveries": 0,
+        "blank": false
+      },
+      "stage": {
+        "armed": true,
+        "probeOff": false,
+        "deadSince": 0,
+        "rebuilds": 0,
+        "futile": 0,
+        "lost": false
+      },
+      "usage": {
+        "tokens": 444495,
+        "cost": 0.5335308,
+        "calls": 7
+      }
+    },
+    {
+      "at": "2026-09-10T22:08:45.371Z",
+      "visible": "visible",
+      "busy": false,
+      "curve": {
+        "path": "webgl",
+        "ready": true,
+        "failed": false,
+        "lost": false,
+        "frameSum": 107
+      },
+      "cache": {
+        "probe": {
+          "x": 120,
+          "y": 97
+        },
+        "probeOff": false,
+        "recoveries": 0,
+        "blank": false
+      },
+      "stage": {
+        "armed": true,
+        "probeOff": false,
+        "deadSince": 0,
+        "rebuilds": 0,
+        "futile": 0,
+        "lost": false
+      },
+      "usage": {
+        "tokens": 444495,
+        "cost": 0.5335308,
+        "calls": 7
+      }
+    },
+    {
+      "at": "2026-09-10T22:09:00.382Z",
+      "visible": "visible",
+      "busy": false,
+      "curve": {
+        "path": "webgl",
+        "ready": true,
+        "failed": false,
+        "lost": false,
+        "frameSum": 113
+      },
+      "cache": {
+        "probe": {
+          "x": 120,
+          "y": 97
+        },
+        "probeOff": false,
+        "recoveries": 0,
+        "blank": false
+      },
+      "stage": {
+        "armed": true,
+        "probeOff": false,
+        "deadSince": 0,
+        "rebuilds": 0,
+        "futile": 0,
+        "lost": false
+      },
+      "usage": {
+        "tokens": 444495,
+        "cost": 0.5335308,
+        "calls": 7
+      }
+    },
+    {
+      "at": "2026-09-10T22:09:15.404Z",
+      "visible": "visible",
+      "busy": false,
+      "curve": {
+        "path": "webgl",
+        "ready": true,
+        "failed": false,
+        "lost": false,
+        "frameSum": 114
+      },
+      "cache": {
+        "probe": {
+          "x": 120,
+          "y": 97
+        },
+        "probeOff": false,
+        "recoveries": 0,
+        "blank": false
+      },
+      "stage": {
+        "armed": true,
+        "probeOff": false,
+        "deadSince": 0,
+        "rebuilds": 0,
+        "futile": 0,
+        "lost": false
+      },
+      "usage": {
+        "tokens": 444495,
+        "cost": 0.5335308,
+        "calls": 7
+      }
+    },
+    {
+      "at": "2026-09-10T22:09:30.413Z",
+      "visible": "visible",
+      "busy": false,
+      "curve": {
+        "path": "webgl",
+        "ready": true,
+        "failed": false,
+        "lost": false,
+        "frameSum": 114
+      },
+      "cache": {
+        "probe": {
+          "x": 120,
+          "y": 97
+        },
+        "probeOff": false,
+        "recoveries": 0,
+        "blank": false
+      },
+      "stage": {
+        "armed": true,
+        "probeOff": false,
+        "deadSince": 0,
+        "rebuilds": 0,
+        "futile": 0,
+        "lost": false
+      },
+      "usage": {
+        "tokens": 444495,
+        "cost": 0.5335308,
+        "calls": 7
+      }
+    },
+    {
+      "at": "2026-09-10T22:09:45.433Z",
+      "visible": "visible",
+      "busy": false,
+      "curve": {
+        "path": "webgl",
+        "ready": true,
+        "failed": false,
+        "lost": false,
+        "frameSum": 112
+      },
+      "cache": {
+        "probe": {
+          "x": 120,
+          "y": 97
+        },
+        "probeOff": false,
+        "recoveries": 0,
+        "blank": false
+      },
+      "stage": {
+        "armed": true,
+        "probeOff": false,
+        "deadSince": 0,
+        "rebuilds": 0,
+        "futile": 0,
+        "lost": false
+      },
+      "usage": {
+        "tokens": 444495,
+        "cost": 0.5335308,
+        "calls": 7
+      }
+    },
+    {
+      "at": "2026-09-10T22:10:00.448Z",
+      "visible": "visible",
+      "busy": false,
+      "curve": {
+        "path": "webgl",
+        "ready": true,
+        "failed": false,
+        "lost": false,
+        "frameSum": 113
+      },
+      "cache": {
+        "probe": {
+          "x": 120,
+          "y": 97
+        },
+        "probeOff": false,
+        "recoveries": 0,
+        "blank": false
+      },
+      "stage": {
+        "armed": true,
+        "probeOff": false,
+        "deadSince": 0,
+        "rebuilds": 0,
+        "futile": 0,
+        "lost": false
+      },
+      "usage": {
+        "tokens": 444495,
+        "cost": 0.5335308,
+        "calls": 7
+      }
+    },
+    {
+      "at": "2026-09-10T22:10:15.475Z",
+      "visible": "visible",
+      "busy": false,
+      "curve": {
+        "path": "webgl",
+        "ready": true,
+        "failed": false,
+        "lost": false,
+        "frameSum": 112
+      },
+      "cache": {
+        "probe": {
+          "x": 120,
+          "y": 97
+        },
+        "probeOff": false,
+        "recoveries": 0,
+        "blank": false
+      },
+      "stage": {
+        "armed": true,
+        "probeOff": false,
+        "deadSince": 0,
+        "rebuilds": 0,
+        "futile": 0,
+        "lost": false
+      },
+      "usage": {
+        "tokens": 444495,
+        "cost": 0.5335308,
+        "calls": 7
+      }
+    },
+    {
+      "at": "2026-09-10T22:10:30.497Z",
+      "visible": "visible",
+      "busy": false,
+      "curve": {
+        "path": "webgl",
+        "ready": true,
+        "failed": false,
+        "lost": false,
+        "frameSum": 110
+      },
+      "cache": {
+        "probe": {
+          "x": 120,
+          "y": 97
+        },
+        "probeOff": false,
+        "recoveries": 0,
+        "blank": false
+      },
+      "stage": {
+        "armed": true,
+        "probeOff": false,
+        "deadSince": 0,
+        "rebuilds": 0,
+        "futile": 0,
+        "lost": false
+      },
+      "usage": {
+        "tokens": 444495,
+        "cost": 0.5335308,
+        "calls": 7
+      }
+    },
+    {
+      "at": "2026-09-10T22:10:45.528Z",
+      "visible": "visible",
+      "busy": false,
+      "curve": {
+        "path": "webgl",
+        "ready": true,
+        "failed": false,
+        "lost": false,
+        "frameSum": 110
+      },
+      "cache": {
+        "probe": {
+          "x": 120,
+          "y": 97
+        },
+        "probeOff": false,
+        "recoveries": 0,
+        "blank": false
+      },
+      "stage": {
+        "armed": true,
+        "probeOff": false,
+        "deadSince": 0,
+        "rebuilds": 0,
+        "futile": 0,
+        "lost": false
+      },
+      "usage": {
+        "tokens": 444495,
+        "cost": 0.5335308,
+        "calls": 7
+      }
+    },
+    {
+      "at": "2026-09-10T22:11:00.546Z",
+      "visible": "visible",
+      "busy": false,
+      "curve": {
+        "path": "webgl",
+        "ready": true,
+        "failed": false,
+        "lost": false,
+        "frameSum": 110
+      },
+      "cache": {
+        "probe": {
+          "x": 120,
+          "y": 97
+        },
+        "probeOff": false,
+        "recoveries": 0,
+        "blank": false
+      },
+      "stage": {
+        "armed": true,
+        "probeOff": false,
+        "deadSince": 0,
+        "rebuilds": 0,
+        "futile": 0,
+        "lost": false
+      },
+      "usage": {
+        "tokens": 444495,
+        "cost": 0.5335308,
+        "calls": 7
+      }
+    },
+    {
+      "at": "2026-09-10T22:11:15.574Z",
+      "visible": "visible",
+      "busy": false,
+      "curve": {
+        "path": "webgl",
+        "ready": true,
+        "failed": false,
+        "lost": false,
+        "frameSum": 113
+      },
+      "cache": {
+        "probe": {
+          "x": 120,
+          "y": 97
+        },
+        "probeOff": false,
+        "recoveries": 0,
+        "blank": false
+      },
+      "stage": {
+        "armed": true,
+        "probeOff": false,
+        "deadSince": 0,
+        "rebuilds": 0,
+        "futile": 0,
+        "lost": false
+      },
+      "usage": {
+        "tokens": 444495,
+        "cost": 0.5335308,
+        "calls": 7
+      }
+    },
+    {
+      "at": "2026-09-10T22:11:30.595Z",
+      "visible": "visible",
+      "busy": false,
+      "curve": {
+        "path": "webgl",
+        "ready": true,
+        "failed": false,
+        "lost": false,
+        "frameSum": 112
+      },
+      "cache": {
+        "probe": {
+          "x": 120,
+          "y": 97
+        },
+        "probeOff": false,
+        "recoveries": 0,
+        "blank": false
+      },
+      "stage": {
+        "armed": true,
+        "probeOff": false,
+        "deadSince": 0,
+        "rebuilds": 0,
+        "futile": 0,
+        "lost": false
+      },
+      "usage": {
+        "tokens": 444495,
+        "cost": 0.5335308,
+        "calls": 7
+      }
+    },
+    {
+      "at": "2026-09-10T22:11:45.618Z",
+      "visible": "visible",
+      "busy": false,
+      "curve": {
+        "path": "webgl",
+        "ready": true,
+        "failed": false,
+        "lost": false,
+        "frameSum": 112
+      },
+      "cache": {
+        "probe": {
+          "x": 120,
+          "y": 97
+        },
+        "probeOff": false,
+        "recoveries": 0,
+        "blank": false
+      },
+      "stage": {
+        "armed": true,
+        "probeOff": false,
+        "deadSince": 0,
+        "rebuilds": 0,
+        "futile": 0,
+        "lost": false
+      },
+      "usage": {
+        "tokens": 444495,
+        "cost": 0.5335308,
+        "calls": 7
+      }
+    },
+    {
+      "at": "2026-09-10T22:12:00.654Z",
+      "visible": "visible",
+      "busy": false,
+      "curve": {
+        "path": "webgl",
+        "ready": true,
+        "failed": false,
+        "lost": false,
+        "frameSum": 114
+      },
+      "cache": {
+        "probe": {
+          "x": 120,
+          "y": 97
+        },
+        "probeOff": false,
+        "recoveries": 0,
+        "blank": false
+      },
+      "stage": {
+        "armed": true,
+        "probeOff": false,
+        "deadSince": 0,
+        "rebuilds": 0,
+        "futile": 0,
+        "lost": false
+      },
+      "usage": {
+        "tokens": 444495,
+        "cost": 0.5335308,
+        "calls": 7
+      }
+    },
+    {
+      "at": "2026-09-10T22:12:15.672Z",
+      "visible": "visible",
+      "busy": false,
+      "curve": {
+        "path": "webgl",
+        "ready": true,
+        "failed": false,
+        "lost": false,
+        "frameSum": 119
+      },
+      "cache": {
+        "probe": {
+          "x": 120,
+          "y": 97
+        },
+        "probeOff": false,
+        "recoveries": 0,
+        "blank": false
+      },
+      "stage": {
+        "armed": true,
+        "probeOff": false,
+        "deadSince": 0,
+        "rebuilds": 0,
+        "futile": 0,
+        "lost": false
+      },
+      "usage": {
+        "tokens": 444495,
+        "cost": 0.5335308,
+        "calls": 7
+      }
+    },
+    {
+      "at": "2026-09-10T22:12:30.692Z",
+      "visible": "visible",
+      "busy": false,
+      "curve": {
+        "path": "webgl",
+        "ready": true,
+        "failed": false,
+        "lost": false,
+        "frameSum": 109
+      },
+      "cache": {
+        "probe": {
+          "x": 120,
+          "y": 97
+        },
+        "probeOff": false,
+        "recoveries": 0,
+        "blank": false
+      },
+      "stage": {
+        "armed": true,
+        "probeOff": false,
+        "deadSince": 0,
+        "rebuilds": 0,
+        "futile": 0,
+        "lost": false
+      },
+      "usage": {
+        "tokens": 444495,
+        "cost": 0.5335308,
+        "calls": 7
+      }
+    },
+    {
+      "at": "2026-09-10T22:12:45.710Z",
+      "visible": "visible",
+      "busy": false,
+      "curve": {
+        "path": "webgl",
+        "ready": true,
+        "failed": false,
+        "lost": false,
+        "frameSum": 118
+      },
+      "cache": {
+        "probe": {
+          "x": 120,
+          "y": 97
+        },
+        "probeOff": false,
+        "recoveries": 0,
+        "blank": false
+      },
+      "stage": {
+        "armed": true,
+        "probeOff": false,
+        "deadSince": 0,
+        "rebuilds": 0,
+        "futile": 0,
+        "lost": false
+      },
+      "usage": {
+        "tokens": 444495,
+        "cost": 0.5335308,
+        "calls": 7
+      }
+    },
+    {
+      "at": "2026-09-10T22:13:00.722Z",
+      "visible": "visible",
+      "busy": false,
+      "curve": {
+        "path": "webgl",
+        "ready": true,
+        "failed": false,
+        "lost": false,
+        "frameSum": 110
+      },
+      "cache": {
+        "probe": {
+          "x": 120,
+          "y": 97
+        },
+        "probeOff": false,
+        "recoveries": 0,
+        "blank": false
+      },
+      "stage": {
+        "armed": true,
+        "probeOff": false,
+        "deadSince": 0,
+        "rebuilds": 0,
+        "futile": 0,
+        "lost": false
+      },
+      "usage": {
+        "tokens": 444495,
+        "cost": 0.5335308,
+        "calls": 7
+      }
+    },
+    {
+      "at": "2026-09-10T22:13:15.740Z",
+      "visible": "visible",
+      "busy": false,
+      "curve": {
+        "path": "webgl",
+        "ready": true,
+        "failed": false,
+        "lost": false,
+        "frameSum": 109
+      },
+      "cache": {
+        "probe": {
+          "x": 120,
+          "y": 97
+        },
+        "probeOff": false,
+        "recoveries": 0,
+        "blank": false
+      },
+      "stage": {
+        "armed": true,
+        "probeOff": false,
+        "deadSince": 0,
+        "rebuilds": 0,
+        "futile": 0,
+        "lost": false
+      },
+      "usage": {
+        "tokens": 444495,
+        "cost": 0.5335308,
+        "calls": 7
+      }
+    },
+    {
+      "at": "2026-09-10T22:13:30.759Z",
+      "visible": "visible",
+      "busy": false,
+      "curve": {
+        "path": "webgl",
+        "ready": true,
+        "failed": false,
+        "lost": false,
+        "frameSum": 102
+      },
+      "cache": {
+        "probe": {
+          "x": 120,
+          "y": 97
+        },
+        "probeOff": false,
+        "recoveries": 0,
+        "blank": false
+      },
+      "stage": {
+        "armed": true,
+        "probeOff": false,
+        "deadSince": 0,
+        "rebuilds": 0,
+        "futile": 0,
+        "lost": false
+      },
+      "usage": {
+        "tokens": 444495,
+        "cost": 0.5335308,
+        "calls": 7
+      }
+    },
+    {
+      "at": "2026-09-10T22:13:45.771Z",
+      "visible": "visible",
+      "busy": false,
+      "curve": {
+        "path": "webgl",
+        "ready": true,
+        "failed": false,
+        "lost": false,
+        "frameSum": 109
+      },
+      "cache": {
+        "probe": {
+          "x": 120,
+          "y": 97
+        },
+        "probeOff": false,
+        "recoveries": 0,
+        "blank": false
+      },
+      "stage": {
+        "armed": true,
+        "probeOff": false,
+        "deadSince": 0,
+        "rebuilds": 0,
+        "futile": 0,
+        "lost": false
+      },
+      "usage": {
+        "tokens": 444495,
+        "cost": 0.5335308,
+        "calls": 7
+      }
+    },
+    {
+      "at": "2026-09-10T22:14:00.794Z",
+      "visible": "visible",
+      "busy": false,
+      "curve": {
+        "path": "webgl",
+        "ready": true,
+        "failed": false,
+        "lost": false,
+        "frameSum": 104
+      },
+      "cache": {
+        "probe": {
+          "x": 120,
+          "y": 97
+        },
+        "probeOff": false,
+        "recoveries": 0,
+        "blank": false
+      },
+      "stage": {
+        "armed": true,
+        "probeOff": false,
+        "deadSince": 0,
+        "rebuilds": 0,
+        "futile": 0,
+        "lost": false
+      },
+      "usage": {
+        "tokens": 444495,
+        "cost": 0.5335308,
+        "calls": 7
+      }
+    },
+    {
+      "at": "2026-09-10T22:14:15.807Z",
+      "visible": "visible",
+      "busy": false,
+      "curve": {
+        "path": "webgl",
+        "ready": true,
+        "failed": false,
+        "lost": false,
+        "frameSum": 110
+      },
+      "cache": {
+        "probe": {
+          "x": 120,
+          "y": 97
+        },
+        "probeOff": false,
+        "recoveries": 0,
+        "blank": false
+      },
+      "stage": {
+        "armed": true,
+        "probeOff": false,
+        "deadSince": 0,
+        "rebuilds": 0,
+        "futile": 0,
+        "lost": false
+      },
+      "usage": {
+        "tokens": 444495,
+        "cost": 0.5335308,
+        "calls": 7
+      }
+    },
+    {
+      "at": "2026-09-10T22:14:30.832Z",
+      "visible": "visible",
+      "busy": false,
+      "curve": {
+        "path": "webgl",
+        "ready": true,
+        "failed": false,
+        "lost": false,
+        "frameSum": 107
+      },
+      "cache": {
+        "probe": {
+          "x": 120,
+          "y": 97
+        },
+        "probeOff": false,
+        "recoveries": 0,
+        "blank": false
+      },
+      "stage": {
+        "armed": true,
+        "probeOff": false,
+        "deadSince": 0,
+        "rebuilds": 0,
+        "futile": 0,
+        "lost": false
+      },
+      "usage": {
+        "tokens": 444495,
+        "cost": 0.5335308,
+        "calls": 7
+      }
+    },
+    {
+      "at": "2026-09-10T22:14:45.846Z",
+      "visible": "visible",
+      "busy": false,
+      "curve": {
+        "path": "webgl",
+        "ready": true,
+        "failed": false,
+        "lost": false,
+        "frameSum": 112
+      },
+      "cache": {
+        "probe": {
+          "x": 120,
+          "y": 97
+        },
+        "probeOff": false,
+        "recoveries": 0,
+        "blank": false
+      },
+      "stage": {
+        "armed": true,
+        "probeOff": false,
+        "deadSince": 0,
+        "rebuilds": 0,
+        "futile": 0,
+        "lost": false
+      },
+      "usage": {
+        "tokens": 444495,
+        "cost": 0.5335308,
+        "calls": 7
+      }
+    },
+    {
+      "at": "2026-09-10T22:15:00.872Z",
+      "visible": "visible",
+      "busy": false,
+      "curve": {
+        "path": "webgl",
+        "ready": true,
+        "failed": false,
+        "lost": false,
+        "frameSum": 95
+      },
+      "cache": {
+        "probe": {
+          "x": 120,
+          "y": 97
+        },
+        "probeOff": false,
+        "recoveries": 0,
+        "blank": false
+      },
+      "stage": {
+        "armed": true,
+        "probeOff": false,
+        "deadSince": 0,
+        "rebuilds": 0,
+        "futile": 0,
+        "lost": false
+      },
+      "usage": {
+        "tokens": 444495,
+        "cost": 0.5335308,
+        "calls": 7
+      }
+    },
+    {
+      "at": "2026-09-10T22:15:15.885Z",
+      "visible": "visible",
+      "busy": false,
+      "curve": {
+        "path": "webgl",
+        "ready": true,
+        "failed": false,
+        "lost": false,
+        "frameSum": 112
+      },
+      "cache": {
+        "probe": {
+          "x": 120,
+          "y": 97
+        },
+        "probeOff": false,
+        "recoveries": 0,
+        "blank": false
+      },
+      "stage": {
+        "armed": true,
+        "probeOff": false,
+        "deadSince": 0,
+        "rebuilds": 0,
+        "futile": 0,
+        "lost": false
+      },
+      "usage": {
+        "tokens": 444495,
+        "cost": 0.5335308,
+        "calls": 7
+      }
+    },
+    {
+      "at": "2026-09-10T22:15:30.903Z",
+      "visible": "visible",
+      "busy": false,
+      "curve": {
+        "path": "webgl",
+        "ready": true,
+        "failed": false,
+        "lost": false,
+        "frameSum": 101
+      },
+      "cache": {
+        "probe": {
+          "x": 120,
+          "y": 97
+        },
+        "probeOff": false,
+        "recoveries": 0,
+        "blank": false
+      },
+      "stage": {
+        "armed": true,
+        "probeOff": false,
+        "deadSince": 0,
+        "rebuilds": 0,
+        "futile": 0,
+        "lost": false
+      },
+      "usage": {
+        "tokens": 444495,
+        "cost": 0.5335308,
+        "calls": 7
+      }
+    },
+    {
+      "at": "2026-09-10T22:15:45.918Z",
+      "visible": "visible",
+      "busy": false,
+      "curve": {
+        "path": "webgl",
+        "ready": true,
+        "failed": false,
+        "lost": false,
+        "frameSum": 112
+      },
+      "cache": {
+        "probe": {
+          "x": 120,
+          "y": 97
+        },
+        "probeOff": false,
+        "recoveries": 0,
+        "blank": false
+      },
+      "stage": {
+        "armed": true,
+        "probeOff": false,
+        "deadSince": 0,
+        "rebuilds": 0,
+        "futile": 0,
+        "lost": false
+      },
+      "usage": {
+        "tokens": 444495,
+        "cost": 0.5335308,
+        "calls": 7
+      }
+    },
+    {
+      "at": "2026-09-10T22:16:00.933Z",
+      "visible": "visible",
+      "busy": false,
+      "curve": {
+        "path": "webgl",
+        "ready": true,
+        "failed": false,
+        "lost": false,
+        "frameSum": 113
+      },
+      "cache": {
+        "probe": {
+          "x": 120,
+          "y": 97
+        },
+        "probeOff": false,
+        "recoveries": 0,
+        "blank": false
+      },
+      "stage": {
+        "armed": true,
+        "probeOff": false,
+        "deadSince": 0,
+        "rebuilds": 0,
+        "futile": 0,
+        "lost": false
+      },
+      "usage": {
+        "tokens": 444495,
+        "cost": 0.5335308,
+        "calls": 7
+      }
+    },
+    {
+      "at": "2026-09-10T22:16:15.952Z",
+      "visible": "visible",
+      "busy": false,
+      "curve": {
+        "path": "webgl",
+        "ready": true,
+        "failed": false,
+        "lost": false,
+        "frameSum": 100
+      },
+      "cache": {
+        "probe": {
+          "x": 120,
+          "y": 97
+        },
+        "probeOff": false,
+        "recoveries": 0,
+        "blank": false
+      },
+      "stage": {
+        "armed": true,
+        "probeOff": false,
+        "deadSince": 0,
+        "rebuilds": 0,
+        "futile": 0,
+        "lost": false
+      },
+      "usage": {
+        "tokens": 444495,
+        "cost": 0.5335308,
+        "calls": 7
+      }
+    },
+    {
+      "at": "2026-09-10T22:16:30.975Z",
+      "visible": "visible",
+      "busy": false,
+      "curve": {
+        "path": "webgl",
+        "ready": true,
+        "failed": false,
+        "lost": false,
+        "frameSum": 115
+      },
+      "cache": {
+        "probe": {
+          "x": 120,
+          "y": 97
+        },
+        "probeOff": false,
+        "recoveries": 0,
+        "blank": false
+      },
+      "stage": {
+        "armed": true,
+        "probeOff": false,
+        "deadSince": 0,
+        "rebuilds": 0,
+        "futile": 0,
+        "lost": false
+      },
+      "usage": {
+        "tokens": 444495,
+        "cost": 0.5335308,
+        "calls": 7
+      }
+    },
+    {
+      "at": "2026-09-10T22:16:45.990Z",
+      "visible": "visible",
+      "busy": false,
+      "curve": {
+        "path": "webgl",
+        "ready": true,
+        "failed": false,
+        "lost": false,
+        "frameSum": 105
+      },
+      "cache": {
+        "probe": {
+          "x": 120,
+          "y": 97
+        },
+        "probeOff": false,
+        "recoveries": 0,
+        "blank": false
+      },
+      "stage": {
+        "armed": true,
+        "probeOff": false,
+        "deadSince": 0,
+        "rebuilds": 0,
+        "futile": 0,
+        "lost": false
+      },
+      "usage": {
+        "tokens": 444495,
+        "cost": 0.5335308,
+        "calls": 7
+      }
+    },
+    {
+      "at": "2026-09-10T22:17:01.009Z",
+      "visible": "visible",
+      "busy": false,
+      "curve": {
+        "path": "webgl",
+        "ready": true,
+        "failed": false,
+        "lost": false,
+        "frameSum": 116
+      },
+      "cache": {
+        "probe": {
+          "x": 120,
+          "y": 97
+        },
+        "probeOff": false,
+        "recoveries": 0,
+        "blank": false
+      },
+      "stage": {
+        "armed": true,
+        "probeOff": false,
+        "deadSince": 0,
+        "rebuilds": 0,
+        "futile": 0,
+        "lost": false
+      },
+      "usage": {
+        "tokens": 444495,
+        "cost": 0.5335308,
+        "calls": 7
+      }
+    },
+    {
+      "at": "2026-09-10T22:17:16.028Z",
+      "visible": "visible",
+      "busy": false,
+      "curve": {
+        "path": "webgl",
+        "ready": true,
+        "failed": false,
+        "lost": false,
+        "frameSum": 113
+      },
+      "cache": {
+        "probe": {
+          "x": 120,
+          "y": 97
+        },
+        "probeOff": false,
+        "recoveries": 0,
+        "blank": false
+      },
+      "stage": {
+        "armed": true,
+        "probeOff": false,
+        "deadSince": 0,
+        "rebuilds": 0,
+        "futile": 0,
+        "lost": false
+      },
+      "usage": {
+        "tokens": 444495,
+        "cost": 0.5335308,
+        "calls": 7
+      }
+    },
+    {
+      "at": "2026-09-10T22:17:31.032Z",
+      "visible": "visible",
+      "busy": false,
+      "curve": {
+        "path": "webgl",
+        "ready": true,
+        "failed": false,
+        "lost": false,
+        "frameSum": 123
+      },
+      "cache": {
+        "probe": {
+          "x": 120,
+          "y": 97
+        },
+        "probeOff": false,
+        "recoveries": 0,
+        "blank": false
+      },
+      "stage": {
+        "armed": true,
+        "probeOff": false,
+        "deadSince": 0,
+        "rebuilds": 0,
+        "futile": 0,
+        "lost": false
+      },
+      "usage": {
+        "tokens": 444495,
+        "cost": 0.5335308,
+        "calls": 7
+      }
+    },
+    {
+      "at": "2026-09-10T22:17:46.047Z",
+      "visible": "visible",
+      "busy": false,
+      "curve": {
+        "path": "webgl",
+        "ready": true,
+        "failed": false,
+        "lost": false,
+        "frameSum": 117
+      },
+      "cache": {
+        "probe": {
+          "x": 120,
+          "y": 97
+        },
+        "probeOff": false,
+        "recoveries": 0,
+        "blank": false
+      },
+      "stage": {
+        "armed": true,
+        "probeOff": false,
+        "deadSince": 0,
+        "rebuilds": 0,
+        "futile": 0,
+        "lost": false
+      },
+      "usage": {
+        "tokens": 444495,
+        "cost": 0.5335308,
+        "calls": 7
+      }
+    },
+    {
+      "at": "2026-09-10T22:18:01.054Z",
+      "visible": "visible",
+      "busy": false,
+      "curve": {
+        "path": "webgl",
+        "ready": true,
+        "failed": false,
+        "lost": false,
+        "frameSum": 112
+      },
+      "cache": {
+        "probe": {
+          "x": 120,
+          "y": 97
+        },
+        "probeOff": false,
+        "recoveries": 0,
+        "blank": false
+      },
+      "stage": {
+        "armed": true,
+        "probeOff": false,
+        "deadSince": 0,
+        "rebuilds": 0,
+        "futile": 0,
+        "lost": false
+      },
+      "usage": {
+        "tokens": 444495,
+        "cost": 0.5335308,
+        "calls": 7
+      }
+    },
+    {
+      "at": "2026-09-10T22:18:16.070Z",
+      "visible": "visible",
+      "busy": false,
+      "curve": {
+        "path": "webgl",
+        "ready": true,
+        "failed": false,
+        "lost": false,
+        "frameSum": 118
+      },
+      "cache": {
+        "probe": {
+          "x": 120,
+          "y": 97
+        },
+        "probeOff": false,
+        "recoveries": 0,
+        "blank": false
+      },
+      "stage": {
+        "armed": true,
+        "probeOff": false,
+        "deadSince": 0,
+        "rebuilds": 0,
+        "futile": 0,
+        "lost": false
+      },
+      "usage": {
+        "tokens": 444495,
+        "cost": 0.5335308,
+        "calls": 7
+      }
+    },
+    {
+      "at": "2026-09-10T22:18:31.086Z",
+      "visible": "visible",
+      "busy": false,
+      "curve": {
+        "path": "webgl",
+        "ready": true,
+        "failed": false,
+        "lost": false,
+        "frameSum": 116
+      },
+      "cache": {
+        "probe": {
+          "x": 120,
+          "y": 97
+        },
+        "probeOff": false,
+        "recoveries": 0,
+        "blank": false
+      },
+      "stage": {
+        "armed": true,
+        "probeOff": false,
+        "deadSince": 0,
+        "rebuilds": 0,
+        "futile": 0,
+        "lost": false
+      },
+      "usage": {
+        "tokens": 444495,
+        "cost": 0.5335308,
+        "calls": 7
+      }
+    },
+    {
+      "at": "2026-09-10T22:18:46.099Z",
+      "visible": "visible",
+      "busy": false,
+      "curve": {
+        "path": "webgl",
+        "ready": true,
+        "failed": false,
+        "lost": false,
+        "frameSum": 115
+      },
+      "cache": {
+        "probe": {
+          "x": 120,
+          "y": 97
+        },
+        "probeOff": false,
+        "recoveries": 0,
+        "blank": false
+      },
+      "stage": {
+        "armed": true,
+        "probeOff": false,
+        "deadSince": 0,
+        "rebuilds": 0,
+        "futile": 0,
+        "lost": false
+      },
+      "usage": {
+        "tokens": 444495,
+        "cost": 0.5335308,
+        "calls": 7
+      }
+    },
+    {
+      "at": "2026-09-10T22:19:01.110Z",
+      "visible": "visible",
+      "busy": false,
+      "curve": {
+        "path": "webgl",
+        "ready": true,
+        "failed": false,
+        "lost": false,
+        "frameSum": 115
+      },
+      "cache": {
+        "probe": {
+          "x": 120,
+          "y": 97
+        },
+        "probeOff": false,
+        "recoveries": 0,
+        "blank": false
+      },
+      "stage": {
+        "armed": true,
+        "probeOff": false,
+        "deadSince": 0,
+        "rebuilds": 0,
+        "futile": 0,
+        "lost": false
+      },
+      "usage": {
+        "tokens": 444495,
+        "cost": 0.5335308,
+        "calls": 7
+      }
+    },
+    {
+      "at": "2026-09-10T22:19:16.125Z",
+      "visible": "visible",
+      "busy": false,
+      "curve": {
+        "path": "webgl",
+        "ready": true,
+        "failed": false,
+        "lost": false,
+        "frameSum": 104
+      },
+      "cache": {
+        "probe": {
+          "x": 120,
+          "y": 97
+        },
+        "probeOff": false,
+        "recoveries": 0,
+        "blank": false
+      },
+      "stage": {
+        "armed": true,
+        "probeOff": false,
+        "deadSince": 0,
+        "rebuilds": 0,
+        "futile": 0,
+        "lost": false
+      },
+      "usage": {
+        "tokens": 444495,
+        "cost": 0.5335308,
+        "calls": 7
+      }
+    },
+    {
+      "at": "2026-09-10T22:19:31.141Z",
+      "visible": "visible",
+      "busy": false,
+      "curve": {
+        "path": "webgl",
+        "ready": true,
+        "failed": false,
+        "lost": false,
+        "frameSum": 112
+      },
+      "cache": {
+        "probe": {
+          "x": 120,
+          "y": 97
+        },
+        "probeOff": false,
+        "recoveries": 0,
+        "blank": false
+      },
+      "stage": {
+        "armed": true,
+        "probeOff": false,
+        "deadSince": 0,
+        "rebuilds": 0,
+        "futile": 0,
+        "lost": false
+      },
+      "usage": {
+        "tokens": 444495,
+        "cost": 0.5335308,
+        "calls": 7
+      }
+    },
+    {
+      "at": "2026-09-10T22:19:46.155Z",
+      "visible": "visible",
+      "busy": false,
+      "curve": {
+        "path": "webgl",
+        "ready": true,
+        "failed": false,
+        "lost": false,
+        "frameSum": 115
+      },
+      "cache": {
+        "probe": {
+          "x": 120,
+          "y": 97
+        },
+        "probeOff": false,
+        "recoveries": 0,
+        "blank": false
+      },
+      "stage": {
+        "armed": true,
+        "probeOff": false,
+        "deadSince": 0,
+        "rebuilds": 0,
+        "futile": 0,
+        "lost": false
+      },
+      "usage": {
+        "tokens": 444495,
+        "cost": 0.5335308,
+        "calls": 7
+      }
+    },
+    {
+      "at": "2026-09-10T22:20:01.158Z",
+      "visible": "visible",
+      "busy": false,
+      "curve": {
+        "path": "webgl",
+        "ready": true,
+        "failed": false,
+        "lost": false,
+        "frameSum": 113
+      },
+      "cache": {
+        "probe": {
+          "x": 120,
+          "y": 97
+        },
+        "probeOff": false,
+        "recoveries": 0,
+        "blank": false
+      },
+      "stage": {
+        "armed": true,
+        "probeOff": false,
+        "deadSince": 0,
+        "rebuilds": 0,
+        "futile": 0,
+        "lost": false
+      },
+      "usage": {
+        "tokens": 444495,
+        "cost": 0.5335308,
+        "calls": 7
+      }
+    },
+    {
+      "at": "2026-09-10T22:20:16.172Z",
+      "visible": "visible",
+      "busy": false,
+      "curve": {
+        "path": "webgl",
+        "ready": true,
+        "failed": false,
+        "lost": false,
+        "frameSum": 116
+      },
+      "cache": {
+        "probe": {
+          "x": 120,
+          "y": 97
+        },
+        "probeOff": false,
+        "recoveries": 0,
+        "blank": false
+      },
+      "stage": {
+        "armed": true,
+        "probeOff": false,
+        "deadSince": 0,
+        "rebuilds": 0,
+        "futile": 0,
+        "lost": false
+      },
+      "usage": {
+        "tokens": 444495,
+        "cost": 0.5335308,
+        "calls": 7
+      }
+    },
+    {
+      "at": "2026-09-10T22:20:31.179Z",
+      "visible": "visible",
+      "busy": false,
+      "curve": {
+        "path": "webgl",
+        "ready": true,
+        "failed": false,
+        "lost": false,
+        "frameSum": 112
+      },
+      "cache": {
+        "probe": {
+          "x": 120,
+          "y": 97
+        },
+        "probeOff": false,
+        "recoveries": 0,
+        "blank": false
+      },
+      "stage": {
+        "armed": true,
+        "probeOff": false,
+        "deadSince": 0,
+        "rebuilds": 0,
+        "futile": 0,
+        "lost": false
+      },
+      "usage": {
+        "tokens": 444495,
+        "cost": 0.5335308,
+        "calls": 7
+      }
+    },
+    {
+      "at": "2026-09-10T22:20:46.193Z",
+      "visible": "visible",
+      "busy": false,
+      "curve": {
+        "path": "webgl",
+        "ready": true,
+        "failed": false,
+        "lost": false,
+        "frameSum": 108
+      },
+      "cache": {
+        "probe": {
+          "x": 120,
+          "y": 97
+        },
+        "probeOff": false,
+        "recoveries": 0,
+        "blank": false
+      },
+      "stage": {
+        "armed": true,
+        "probeOff": false,
+        "deadSince": 0,
+        "rebuilds": 0,
+        "futile": 0,
+        "lost": false
+      },
+      "usage": {
+        "tokens": 444495,
+        "cost": 0.5335308,
+        "calls": 7
+      }
+    },
+    {
+      "at": "2026-09-10T22:21:01.206Z",
+      "visible": "visible",
+      "busy": false,
+      "curve": {
+        "path": "webgl",
+        "ready": true,
+        "failed": false,
+        "lost": false,
+        "frameSum": 116
+      },
+      "cache": {
+        "probe": {
+          "x": 120,
+          "y": 97
+        },
+        "probeOff": false,
+        "recoveries": 0,
+        "blank": false
+      },
+      "stage": {
+        "armed": true,
+        "probeOff": false,
+        "deadSince": 0,
+        "rebuilds": 0,
+        "futile": 0,
+        "lost": false
+      },
+      "usage": {
+        "tokens": 444495,
+        "cost": 0.5335308,
+        "calls": 7
+      }
+    },
+    {
+      "at": "2026-09-10T22:21:16.225Z",
+      "visible": "visible",
+      "busy": false,
+      "curve": {
+        "path": "webgl",
+        "ready": true,
+        "failed": false,
+        "lost": false,
+        "frameSum": 99
+      },
+      "cache": {
+        "probe": {
+          "x": 120,
+          "y": 97
+        },
+        "probeOff": false,
+        "recoveries": 0,
+        "blank": false
+      },
+      "stage": {
+        "armed": true,
+        "probeOff": false,
+        "deadSince": 0,
+        "rebuilds": 0,
+        "futile": 0,
+        "lost": false
+      },
+      "usage": {
+        "tokens": 444495,
+        "cost": 0.5335308,
+        "calls": 7
+      }
+    },
+    {
+      "at": "2026-09-10T22:21:31.240Z",
+      "visible": "visible",
+      "busy": false,
+      "curve": {
+        "path": "webgl",
+        "ready": true,
+        "failed": false,
+        "lost": false,
+        "frameSum": 119
+      },
+      "cache": {
+        "probe": {
+          "x": 120,
+          "y": 97
+        },
+        "probeOff": false,
+        "recoveries": 0,
+        "blank": false
+      },
+      "stage": {
+        "armed": true,
+        "probeOff": false,
+        "deadSince": 0,
+        "rebuilds": 0,
+        "futile": 0,
+        "lost": false
+      },
+      "usage": {
+        "tokens": 444495,
+        "cost": 0.5335308,
+        "calls": 7
+      }
+    },
+    {
+      "at": "2026-09-10T22:21:46.253Z",
+      "visible": "visible",
+      "busy": false,
+      "curve": {
+        "path": "webgl",
+        "ready": true,
+        "failed": false,
+        "lost": false,
+        "frameSum": 94
+      },
+      "cache": {
+        "probe": {
+          "x": 120,
+          "y": 97
+        },
+        "probeOff": false,
+        "recoveries": 0,
+        "blank": false
+      },
+      "stage": {
+        "armed": true,
+        "probeOff": false,
+        "deadSince": 0,
+        "rebuilds": 0,
+        "futile": 0,
+        "lost": false
+      },
+      "usage": {
+        "tokens": 444495,
+        "cost": 0.5335308,
+        "calls": 7
+      }
+    }
+  ],
+  "idleEnd": {
+    "visible": "visible",
+    "busy": false,
+    "curve": {
+      "path": "webgl",
+      "ready": true,
+      "failed": false,
+      "lost": false,
+      "frameSum": 94
+    },
+    "cache": {
+      "probe": {
+        "x": 120,
+        "y": 97
+      },
+      "probeOff": false,
+      "recoveries": 0,
+      "blank": false
+    },
+    "stage": {
+      "armed": true,
+      "probeOff": false,
+      "deadSince": 0,
+      "rebuilds": 0,
+      "futile": 0,
+      "lost": false
+    },
+    "usage": {
+      "tokens": 444495,
+      "cost": 0.5335308,
+      "calls": 7
+    }
+  },
+  "recovery": [
+    {
+      "hook": "_dbgLoseCanvases",
+      "before": {
+        "visible": "visible",
+        "busy": false,
+        "curve": {
+          "path": "webgl",
+          "ready": true,
+          "failed": false,
+          "lost": false,
+          "frameSum": 94
+        },
+        "cache": {
+          "probe": {
+            "x": 120,
+            "y": 97
+          },
+          "probeOff": false,
+          "recoveries": 0,
+          "blank": false
+        },
+        "stage": {
+          "armed": true,
+          "probeOff": false,
+          "deadSince": 0,
+          "rebuilds": 0,
+          "futile": 0,
+          "lost": false
+        },
+        "usage": {
+          "tokens": 444495,
+          "cost": 0.5335308,
+          "calls": 7
+        }
+      },
+      "injected": {
+        "bake": 2,
+        "sky": 5,
+        "ground": 0,
+        "probe": {
+          "x": 120,
+          "y": 97
+        }
+      },
+      "after": {
+        "visible": "visible",
+        "busy": false,
+        "curve": {
+          "path": "webgl",
+          "ready": true,
+          "failed": false,
+          "lost": false,
+          "frameSum": 95
+        },
+        "cache": {
+          "probe": {
+            "x": 120,
+            "y": 97
+          },
+          "probeOff": false,
+          "recoveries": 1,
+          "blank": false
+        },
+        "stage": {
+          "armed": true,
+          "probeOff": false,
+          "deadSince": 0,
+          "rebuilds": 0,
+          "futile": 0,
+          "lost": false
+        },
+        "usage": {
+          "tokens": 444495,
+          "cost": 0.5335308,
+          "calls": 7
+        }
+      }
+    },
+    {
+      "hook": "_dbgLoseCurveContext",
+      "before": {
+        "visible": "visible",
+        "busy": false,
+        "curve": {
+          "path": "webgl",
+          "ready": true,
+          "failed": false,
+          "lost": false,
+          "frameSum": 95
+        },
+        "cache": {
+          "probe": {
+            "x": 120,
+            "y": 97
+          },
+          "probeOff": false,
+          "recoveries": 1,
+          "blank": false
+        },
+        "stage": {
+          "armed": true,
+          "probeOff": false,
+          "deadSince": 0,
+          "rebuilds": 0,
+          "futile": 0,
+          "lost": false
+        },
+        "usage": {
+          "tokens": 444495,
+          "cost": 0.5335308,
+          "calls": 7
+        }
+      },
+      "injected": {
+        "ok": true
+      },
+      "after": {
+        "visible": "visible",
+        "busy": false,
+        "curve": {
+          "path": "cpu",
+          "ready": false,
+          "failed": true,
+          "lost": true,
+          "frameSum": 108
+        },
+        "cache": {
+          "probe": {
+            "x": 120,
+            "y": 97
+          },
+          "probeOff": false,
+          "recoveries": 1,
+          "blank": false
+        },
+        "stage": {
+          "armed": true,
+          "probeOff": false,
+          "deadSince": 0,
+          "rebuilds": 0,
+          "futile": 0,
+          "lost": false
+        },
+        "usage": {
+          "tokens": 444495,
+          "cost": 0.5335308,
+          "calls": 7
+        }
+      }
+    },
+    {
+      "hook": "_dbgKillStageContext",
+      "before": {
+        "visible": "visible",
+        "busy": false,
+        "curve": {
+          "path": "cpu",
+          "ready": false,
+          "failed": true,
+          "lost": true,
+          "frameSum": 108
+        },
+        "cache": {
+          "probe": {
+            "x": 120,
+            "y": 97
+          },
+          "probeOff": false,
+          "recoveries": 1,
+          "blank": false
+        },
+        "stage": {
+          "armed": true,
+          "probeOff": false,
+          "deadSince": 0,
+          "rebuilds": 0,
+          "futile": 0,
+          "lost": false
+        },
+        "usage": {
+          "tokens": 444495,
+          "cost": 0.5335308,
+          "calls": 7
+        }
+      },
+      "injected": true,
+      "after": {
+        "visible": "visible",
+        "busy": false,
+        "curve": {
+          "path": "cpu",
+          "ready": false,
+          "failed": true,
+          "lost": true,
+          "frameSum": 114
+        },
+        "cache": {
+          "probe": {
+            "x": 120,
+            "y": 97
+          },
+          "probeOff": false,
+          "recoveries": 1,
+          "blank": false
+        },
+        "stage": {
+          "armed": true,
+          "probeOff": false,
+          "deadSince": 0,
+          "rebuilds": 1,
+          "futile": 0,
+          "lost": false
+        },
+        "usage": {
+          "tokens": 444495,
+          "cost": 0.5335308,
+          "calls": 7
+        }
+      }
+    }
+  ],
+  "idlePass": true,
+  "recoveryPass": true,
+  "scope": "Installed Windows canary; twenty-minute idle sample followed by deliberate cache, WebGL and stage faults. Not a reproduction of the affected customer GPU or a 48-hour soak."
+}

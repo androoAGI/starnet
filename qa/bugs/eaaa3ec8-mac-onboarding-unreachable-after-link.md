@@ -73,3 +73,9 @@ the exact Mac customer's cause; installed Apple Silicon/keychain verification re
     {"target":"recovery and restart","state":"blocked","reason":"Requires a before/after receipt for this symptom on the affected artifact, followed by restart and the same operation."}
   ]
 }
+
+## September 10 release follow-through
+
+Both Apple Silicon and Intel artifacts built and notarized on candidate afd1da77f (workflow 34535931055). Earlier Intel installed acceptance passed; exact-candidate acceptance is tracked in the release follow-through. No physical Apple Silicon paid-account onboarding/relink or microphone proof was available. Build/notarization cannot close this customer report.
+
+Current receipts and remaining acceptance: [0.11.2 follow-through](../../docs/releases/0.11.2/FOLLOWTHROUGH.md). Status remains open pending the affected configuration.

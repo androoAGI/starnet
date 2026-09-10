@@ -1,6 +1,6 @@
 # 0.11.2 preparation — September 10, 2026
 
-**Not ready to cut.** This pass reviews the merged update, repairs a reproduced formatting regression, and prepares the release scope. Version pins remain at 0.11.1. No version bump, tag, push, installer replacement or publication was performed.
+**Not ready to cut.** Version pins remain at 0.11.1. The follow-through has repaired additional installed-app and packaging failures, built a separate signed 0.11.2 canary, exercised its automatic updater, and pushed the review branch. No public tag or release was published. See [FOLLOWTHROUGH.md](FOLLOWTHROUGH.md) for the current candidate, evidence and remaining acceptance work. The sections below preserve the initial audit's exact scope and historical receipts; their "this pass" statements refer to that first pass.
 
 ## Candidate and coverage
 
@@ -71,4 +71,4 @@ Before cutting 0.11.2:
 - Complete the scripted 20-minute and scale checks, the **720-minute release soak**, and the separate installed/attended acceptance required by the runbook. This pass does not inherit 0.11.1's soak/readiness exception.
 - Earn the canonical `qa:ready` receipt, then follow `release:ritual` for the five-pin bump, final notes, source lock, post-bump gates and tagging. [Draft notes](RELEASE_NOTES_DRAFT.md) are ready for review; the existing public release notes remain 0.11.1 until a cut is permitted.
 
-Preflight explicitly says **do not bump or tag while NOT READY**. This is why preparation stops short of creating a release number or installer, rather than treating source-test success as release acceptance.
+Preflight explicitly says **do not bump or tag while NOT READY**. The follow-through uses a separate canary identity and local version overlay to test installers without changing official version pins or publishing a release. Source-test success alone is not release acceptance.
