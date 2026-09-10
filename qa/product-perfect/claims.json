@@ -18,7 +18,7 @@
   "expectedClaimCount": 37,
   "releaseSurface": {
     "algorithm": "sha256",
-    "sourceCommit": "a66fc5638c3e946d4d34ff4bc6824b54fd7a4571",
+    "sourceCommit": "a3b68860565ec86b4fb454ae839afd9b5cd25738",
     "pathSetSha256": "5d6878c3a6e9075d81937c32cb2afb24efd64d41cabbaba7a0e260caaa93cb57",
     "files": [
       {
@@ -773,8 +773,8 @@
       },
       {
         "path": "frontend/app/spacebg.js",
-        "bytes": 107429,
-        "sha256": "7f474433042aacf0b9d5c0edd5fbe9cc94257fcd832ce1f477172c8643a024d7"
+        "bytes": 127842,
+        "sha256": "b23cfe363e4d9345fb14d4f6341f97c2333ac85018d1d42a1d84c25ccab6827c"
       },
       {
         "path": "frontend/app/specialties.js",
@@ -838,8 +838,8 @@
       },
       {
         "path": "frontend/app/terrain.js",
-        "bytes": 115634,
-        "sha256": "de875c19dcc9816ba44d9aef3d1b28b01feae7412b8fa98231728b5d5e75fe7f"
+        "bytes": 90862,
+        "sha256": "f5aa76396c2b2d538cb8ab2d460557ffb5ceefe3c0da498aa7bbf24ae2096f99"
       },
       {
         "path": "frontend/app/testapi.js",
