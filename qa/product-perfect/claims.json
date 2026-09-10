@@ -18,8 +18,8 @@
   "expectedClaimCount": 37,
   "releaseSurface": {
     "algorithm": "sha256",
-    "sourceCommit": "a29342efc634d0ab65302e185a1e5036394fb27c",
-    "pathSetSha256": "b0479380ff858bd18673d3e0c7191897e66f62b44b4fc14a50eade63aab5c027",
+    "sourceCommit": "9407562065fdc86b2824ea5d410c940b920cae13",
+    "pathSetSha256": "907c7f2af955f4b59b473534a161e7bb87523688a17112661054ccaf14190c77",
     "files": [
       {
         "path": "INSTALL.md",
@@ -68,8 +68,8 @@
       },
       {
         "path": "frontend/app/app.js",
-        "bytes": 379653,
-        "sha256": "e9512ca2be1b0a0cc1ff8ddbf7ba5475b15d28bab6f7b5c6fdb7e9cc64fb9cd6"
+        "bytes": 381950,
+        "sha256": "a368e79dc49809f0c3e09f82a645bddaecb4925de9ed3d08e730434f3d58a6ed"
       },
       {
         "path": "frontend/app/armconfirm.js",
@@ -453,8 +453,8 @@
       },
       {
         "path": "frontend/app/modeldock.js",
-        "bytes": 44430,
-        "sha256": "1f6e5e9744552104c011e4009074241de3e0cef646543a1d42b61f5ae5baac7a"
+        "bytes": 44522,
+        "sha256": "a3956a1e4b9bdc8887bfb164697b80a66243e5eba97ccb8b41117d8101a32a72"
       },
       {
         "path": "frontend/app/modelpicker.js",
@@ -485,6 +485,11 @@
         "path": "frontend/app/onboarding.js",
         "bytes": 76494,
         "sha256": "fe9d894c2e3b3ac044ba8e5baa717798839d385ec1daaae78021a6c8745cae68"
+      },
+      {
+        "path": "frontend/app/overseer-setup.js",
+        "bytes": 7736,
+        "sha256": "f5737708bd2f63921c890a3191f136a0d72a4144631d849ca00ea79150b533bc"
       },
       {
         "path": "frontend/app/permissions.js",
@@ -1147,6 +1152,11 @@
         "sha256": "e47ee0ee9094d7de7f74947acdba4aeb326ab4dba8b67e6a9b44ba39e447c8b8"
       },
       {
+        "path": "frontend/css/overseer-setup.css",
+        "bytes": 23649,
+        "sha256": "88397de1b5b52b74aed122d8a0a04c402be8be9d3af39a023165b835fef8b837"
+      },
+      {
         "path": "frontend/css/panelchrome.css",
         "bytes": 11545,
         "sha256": "eaf34a05e7c47a6a9e82beccf771db6f43f69794091e81edf93408c70f6de7ce"
@@ -1238,8 +1248,8 @@
       },
       {
         "path": "frontend/index.html",
-        "bytes": 82789,
-        "sha256": "5944059b6908787d844c6e5b077752fe4d0350a3aed16f632883ca0892ab60d8"
+        "bytes": 85308,
+        "sha256": "c97bce305ce86107e9c397bd60b9bf949080d05da087885ef584d7009e59cddf"
       },
       {
         "path": "frontend/js/arcade.js",
