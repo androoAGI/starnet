@@ -139,9 +139,9 @@ export function checkBugRegister(input) {
   const c = input.counts || {};
   const p0 = num(c.P0), p1 = num(c.P1), p2 = num(c.P2);
   const blocking = p0 + p1;
-  const value = p0 + ' P0 Â· ' + p1 + ' P1 Â· ' + p2 + ' P2';
+  const value = p0 + ' P0 · ' + p1 + ' P1 · ' + p2 + ' P2';
   if (blocking > 0) {
-    return mk(false, blocking + ' open blocking bug' + (blocking === 1 ? '' : 's') + ' (' + p0 + ' P0 Â· ' + p1 + ' P1) â€” qa/bugs must be clear of P0/P1', value);
+    return mk(false, blocking + ' open blocking bug' + (blocking === 1 ? '' : 's') + ' (' + p0 + ' P0 · ' + p1 + ' P1) — qa/bugs must be clear of P0/P1', value);
   }
   return mk(true, 'no open/claimed P0/P1 bugs', value);
 }

@@ -60,4 +60,17 @@ A.eq(copySource({__proseSource:'',textContent:'✓'}),'','empty prose does not c
 A.eq(copySource({textContent:'Commander plain text'}),'Commander plain text','ordinary messages retain text fallback');
 A.ok(/bodyEl\.__proseSource = raw/.test(extract('renderProse')),'streamed and restored rendering retain source');
 A.ok(/messageCopyText\(bodyEl\)/.test(clickBody),'message button uses the source-preserving copy path');
+// Exercise the public renderer too: its fast-path marker gate must agree with the
+// block parser, for both streamed prose and restored history.
+const markerSource = /const MD_MARKERS = [^;]+;/.exec(src)[0];
+const renderProse = new Function('renderMarkdown', markerSource + '\n' + extract('renderProse') + '\nreturn renderProse;')(renderMarkdown);
+for (const marker of ['+', '-', '*', '1.', '1)']) {
+  for (const gap of [' ', '\t']) {
+    const raw = marker + gap + 'First\n' + marker + gap + 'Second';
+    const body = { textContent: '', innerHTML: '' };
+    renderProse(body, raw);
+    A.eq((body.innerHTML.match(/<li>/g) || []).length, 2, 'public prose renderer recognizes ' + JSON.stringify(marker + gap));
+    A.eq(copySource(body), raw, 'list copy preserves the original marker and spacing');
+  }
+}
 A.report('chat-report-structure');
