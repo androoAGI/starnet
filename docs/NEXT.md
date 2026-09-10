@@ -1,12 +1,12 @@
 # NEXT.md — current priorities & task queue
 
-## IN PROGRESS — 2026-09-10 world seating integration (agent/doorway-occlusion-0910)
+## MERGED — 2026-09-10 world seating integration (agent/doorway-occlusion-0910)
 
 Owner requested repair of the three live-proven world seating defects. Source 774a5eeed plus
 33cdb8137 prevents unreachable desk teleporting, honors desk-facing sprites and releases stale
 furniture seating. Candidate 707d28291 passed fast 753/753; customer journeys 34/34; all 12
 hallway routes, seven recovery/refit checks and 288 skin/facing poses passed live. Integration
-owned by this lane. Installed desktop remains unverified. Receipt: docs/WORLD_SEATING_REPAIR_2026-09-10.md.
+completed at f3e57f58e; post-merge fast gate also passed 753/753. Installed desktop remains unverified. Receipt: docs/WORLD_SEATING_REPAIR_2026-09-10.md.
 
 
 ## MERGED — 2026-09-10 doorway movement (agent/doorway-occlusion-0910)
