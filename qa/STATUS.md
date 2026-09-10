@@ -2826,3 +2826,5 @@ Every first-time StarNet-subscription desktop user: link → shell adopts the to
 
 **2026-09-10 cleanup lane:** `agent/cleanup-0112-0910` verified at `c2193f1fb`; normal fast **753/753 GREEN**, normal HTTP **108/108 GREEN**. Nine source/QA findings repaired; runtime and live proof sources are explicit in `docs/AUDIT_0.11.1_FOR_0.11.2.md`. HTTP aggregate watchdog is 20 minutes, shared outer runners 21 minutes; no test steps removed. No merge/publication. Historical customer/detector findings and installed/account/hardware/long-soak acceptance remain open.
 - 2026-09-10 world seating: agent/doorway-occlusion-0910 -> f3e57f58e; fast 753/753 before and after integration, customer journeys 34/34, live 12 hallway routes with zero crossings, seven recovery/refit checks and 288 skin/facing poses passed. Source repaired; installed rebuild/recovery unverified. Receipt: docs/WORLD_SEATING_REPAIR_2026-09-10.md.
+
+- 2026-09-10: agent/live-speech-0910 -> trunk 7ccb4ebd9; live speech output-context recovery merged. Pre-merge and post-merge test:fast 766/766 GREEN; customer journeys 34/34 and real seeded speech playback passed. Installer/customer recovery unverified.

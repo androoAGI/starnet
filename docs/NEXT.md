@@ -1,3 +1,9 @@
+## MERGED — speech recovery (7ccb4ebd9, 2026-09-10)
+
+Owner-requested integration of agent/live-speech-0910 is complete. Pre-merge and
+post-merge fast gates passed 766/766; live speech recovered after context closure.
+Installer and customer recovery remain unverified. Receipt: qa/live-speech-device-0910.md.
+
 ## VERIFIED IN BRANCH — 2026-09-10 post-release reliability cleanup (`agent/cleanup-0112-0910`)
 
 Owner requested cleanup using `docs/AUDIT_0.11.1_FOR_0.11.2.md`. This lane owns the five
