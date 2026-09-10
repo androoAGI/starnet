@@ -385,6 +385,16 @@ function healthyInput(samples, extra) {
       A.eq([rs.totals.caughtUp, rs.totals.collapsed], [1, 2], 'caught-up + collapsed');
       const rb = account([routine('a', 'fireable')], [fire('a', T0 + MIN), fire('a', T0 + 2 * MIN)], trailJump);
       A.eq(rb.pass, false, 'a burst (firing a collapsed occurrence) is UNEXPECTED — the policy promises ONE catch-up');
+      // Two scheduler ticks can fall between 15s store polls after an outage.
+      // Durable fire times prove the old catch-up ran BEFORE the next due instant.
+      const catchup = Object.assign(fire('a', T0 + MIN), { at: T0 + 230_000 });
+      const normal = Object.assign(fire('a', T0 + 4 * MIN), { at: T0 + 245_000 });
+      const sparse = [snap(T0 + 220_000, { a: job(T0 + MIN) }), snap(T0 + 250_000, { a: job(T0 + 5 * MIN) })];
+      const observed = account([routine('a', 'fireable')], [catchup, normal], sparse);
+      A.eq(observed.pass, true, 'separate evidenced ticks between polls are not a catch-up burst');
+      A.eq([observed.totals.owed, observed.totals.fired, observed.totals.collapsed], [4, 2, 2], 'sparse polling preserves actual fires and collapsed occurrences');
+      const burst = account([routine('a', 'fireable')], [catchup, Object.assign(fire('a', T0 + 2 * MIN), { at: T0 + 231_000 })], sparse);
+      A.eq(burst.pass, false, 'timestamps cannot excuse a fire for an occurrence already collapsed');
       const rn = account([routine('a', 'fireable')], [], trailJump);
       A.eq(rn.pass, false, 'a jump with no terminal at all is LOST');
     }
