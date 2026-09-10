@@ -1,13 +1,13 @@
 # NEXT.md — current priorities & task queue
 
-## IN PROGRESS — 2026-09-10 doorway movement (agent/doorway-occlusion-0910)
+## MERGED — 2026-09-10 doorway movement (agent/doorway-occlusion-0910)
 
 Owner reported agents walking behind walls near openings. Source repair a22f780e3 validates
 actual foot paths, guards early turns and re-anchors off-grid starts; 140b3e7b2 adds the
 remaining-leg separation regression. Live seeded proof: all 12 hero/crew/workstation routes
 passed both hallway orientations and directions with zero wall crossings. Customer journeys
-34/34 green; full fast gate 752/752 green. Bug: 49192a68. This lane claims its integration; existing
-unrelated qa/STATUS.md work on trunk must be preserved. Installed recovery remains unverified.
+34/34 green; full fast gate 752/752 green. Bug: 49192a68. Merged 9e5b6d88e; exact merged-commit fast gate in the isolated checkout also passed 752/752.
+Unrelated qa/STATUS.md work was preserved. Installed recovery remains unverified.
 
 
 ## MERGED — 2026-09-09 tool projection integration (agent/tool-projection-0909)
