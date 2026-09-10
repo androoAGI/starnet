@@ -55,7 +55,7 @@ import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import { spawnSync } from 'node:child_process';
-import { runBoundedCommand, coerceTimeoutMs } from '../lib/run-command.mjs';
+import { runBoundedCommand, npmGateTimeoutMs } from '../lib/run-command.mjs';
 import { fingerprintOf, makeLedger } from './ledger.mjs';
 import { runSweep as runEvidenceSweep } from './evidence-sweep.mjs';
 
@@ -70,7 +70,7 @@ const CREW = 'Green Guardian';
 // The HTTP child has a 20-minute aggregate watchdog; the outer runner needs
 // launch/teardown headroom. An explicit operator override still wins for every step.
 export function guardianStepTimeoutMs(step, override) {
-  return coerceTimeoutMs(override || (step && step.id === 'http-e2e' ? 1260000 : 900000));
+  return npmGateTimeoutMs(step && step.npm, override);
 }
 
 export const GUARDIAN_STEPS = [

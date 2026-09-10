@@ -75,7 +75,7 @@ import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import { spawnSync } from 'node:child_process';
-import { runBoundedCommand, coerceTimeoutMs } from '../lib/run-command.mjs';
+import { runBoundedCommand, npmGateTimeoutMs } from '../lib/run-command.mjs';
 import { fingerprintOf } from './ledger.mjs';
 import { isLockStale } from './guardian.mjs';
 
@@ -512,7 +512,6 @@ if (INVOKED_DIRECTLY) {
     journeys: { SKYNET_JOURNEY_PORT: '8973', SKYNET_JOURNEY_CDP: '9373' },
   };
 
-  const STEP_TIMEOUT_MS = coerceTimeoutMs(process.env.SKYNET_CLOSER_STEP_TIMEOUT_MS || 900000);
   const npmCmd = process.platform === 'win32' ? 'npm.cmd' : 'npm';
   const MAX_CANDIDATES = 6;
 
@@ -657,7 +656,7 @@ if (INVOKED_DIRECTLY) {
   async function runGate(gateId, cwd, logFile) {
     const gate = CLOSER_GATES[gateId];
     const env = Object.assign({}, process.env, PORTS[gateId] || {});
-    const res = await runBoundedCommand({ cmd: npmCmd, args: ['run', gate.npm], cwd, env, timeoutMs: STEP_TIMEOUT_MS, label: 'closer/' + gateId });
+    const res = await runBoundedCommand({ cmd: npmCmd, args: ['run', gate.npm], cwd, env, timeoutMs: npmGateTimeoutMs(gate.npm, process.env.SKYNET_CLOSER_STEP_TIMEOUT_MS), label: 'closer/' + gateId });
     try { fs.writeFileSync(logFile, res.output, 'utf8'); } catch (_) {}
     const spawnError = /\[spawn error\]/.test(res.output);
     return {
