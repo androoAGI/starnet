@@ -1582,6 +1582,23 @@ const World = (() => {
   }
 
   /* ---------- pathing + behaviour ---------- */
+  // A body may start between tile anchors after a pause or separation nudge.
+  // Reach its own foot anchor first if the first smoothed leg is unsafe from there.
+  function startBodyPath(b, pts) {
+    b.pathPts = pts; b.pathIdx = 0; b.state = 'walk';
+    if (pts && pts.length && geo && geo.clearFootSegment) {
+      const first = footOf(pts[0].x, pts[0].y);
+      if (!geo.clearFootSegment(b.px, b.py, first.x, first.y, blocked)) {
+        b.pathPts = [tileOf(b.px, b.py), ...pts];
+      }
+    }
+  }
+  function canRoundCorner(b) {
+    const next = b.pathPts && b.pathPts[b.pathIdx];
+    if (!next || !geo || !geo.clearFootSegment) return false;
+    const foot = footOf(next.x, next.y);
+    return geo.clearFootSegment(b.px, b.py, foot.x, foot.y, blocked);
+  }
   function setPathTo(dest) {
     self.pathPts = null; self.target = null; self.glance = null;
     if (!dest || !geo) return false;
@@ -1593,7 +1610,7 @@ const World = (() => {
     const p = geo.path(cur.x, cur.y, dest.x, dest.y, movementBlockers(self, beltUnion()))
       || geo.path(cur.x, cur.y, dest.x, dest.y, blockers);
     if (!p) return false;
-    self.pathPts = p; self.pathIdx = 0; self.state = 'walk';
+    startBodyPath(self, p);
     nextWaypoint();
     intentTell(dest);   // LEGIBILITY: an idle-life walk turns to face where it is going before the first step
     return true;
@@ -1827,7 +1844,7 @@ const World = (() => {
       if (tileBlockedFor(blockedLive, x, y)) continue;
       let p = geo.path(cur.x, cur.y, x, y, avoidLive);       // prefer a belt/body-free route
       if (!p) p = geo.path(cur.x, cur.y, x, y, blockedLive); // fall back: a belt bridges the only way across
-      if (p && p.length) { self.goal = null; self.pathPts = p; self.pathIdx = 0; self.state = 'walk'; nextWaypoint(); return; }
+      if (p && p.length) { self.goal = null; startBodyPath(self, p); nextWaypoint(); return; }
     }
     self.idleUntil = now + 800;
   }
@@ -2026,6 +2043,10 @@ const World = (() => {
     const nx = b.px + dx, ny = b.py + dy;
     const t = tileOf(nx, ny);
     if (!geo.walkable(t.x, t.y, blocked)) return false;   // would leave the floor / enter a blocking prop — drop the push
+    if (geo.clearFootSegment && !geo.clearFootSegment(b.px, b.py, nx, ny, blocked)) return false;
+    // A sideways shove must not turn the rest of an already-planned leg into
+    // a shortcut through the jamb on the following frame.
+    if (b.target && geo.clearFootSegment && !geo.clearFootSegment(nx, ny, b.target.x, b.target.y, blocked)) return false;
     b.px = nx; b.py = ny;
     return true;
   }
@@ -2129,7 +2150,7 @@ const World = (() => {
       // prop awareness: prefer the machinery-avoiding route to the chair; fall back when it's the only way
       const p = geo.path(cur.x, cur.y, s.tx, s.ty, movementBlockers(b, beltUnion()))
         || geo.path(cur.x, cur.y, s.tx, s.ty, blockers);
-      if (p && p.length) { b.pathPts = p; b.pathIdx = 0; crewNextWaypoint(b); }
+      if (p && p.length) { startBodyPath(b, p); crewNextWaypoint(b); }
       else { b.px = foot.x; b.py = foot.y; b.sitting = true; b.dir = 'north'; b.state = 'idle'; return; }   // unreachable → snap into the seat
     }
     if (b.target) {
@@ -2137,8 +2158,9 @@ const World = (() => {
       const more = !!(b.pathPts && b.pathIdx < b.pathPts.length);
       // CORNER LOOKAHEAD: hand over to the next waypoint EARLY, and — critically — do NOT snap onto it.
       // The old code teleported px/py exactly onto every waypoint, which is what made the body pivot on the
-      // spot at each tile. Only the FINAL waypoint still snaps, so an arrival settles on an exact position.
-      if (d < (more ? CORNER_LOOK : 1.1)) {
+      // spot at each tile. Keep that lookahead only when the new leg is clear;
+      // tight doorways must reach the waypoint before turning.
+      if (more ? (d < 1e-6 || (d < CORNER_LOOK && canRoundCorner(b))) : d < 1.1) {
         if (more) crewNextWaypoint(b);
         else { b.px = b.target.x; b.py = b.target.y; b.target = null; }
       } else {
@@ -2194,7 +2216,7 @@ const World = (() => {
       } else {
         const dx = self.target.x - self.px, dy = self.target.y - self.py, d = Math.hypot(dx, dy);
         const more = !!(self.pathPts && self.pathIdx < self.pathPts.length);
-        if (d < (more ? CORNER_LOOK : 1.1)) {   // early hand-over, no snap — see stepCrewToSeat's note
+        if (more ? (d < 1e-6 || (d < CORNER_LOOK && canRoundCorner(self))) : d < 1.1) {   // early hand-over, no snap — see stepCrewToSeat's note
           if (more) nextWaypoint();
           else { self.px = self.target.x; self.py = self.target.y; arrive(now); }
         } else {
@@ -5557,7 +5579,7 @@ const World = (() => {
       } else {
         const dx = agent.target.x - agent.px, dy = agent.target.y - agent.py, d = Math.hypot(dx, dy);
         const more = !!(agent.pathPts && agent.pathIdx < agent.pathPts.length);
-        if (d < (more ? CORNER_LOOK : 1.1)) {   // early hand-over, no snap — see stepCrewToSeat's note
+        if (more ? (d < 1e-6 || (d < CORNER_LOOK && canRoundCorner(agent))) : d < 1.1) {   // early hand-over, no snap — see stepCrewToSeat's note
           if (more) nextWaypoint();
           else { agent.px = agent.target.x; agent.py = agent.target.y; arrive(now); }
         } else {

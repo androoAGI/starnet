@@ -1914,30 +1914,44 @@ const WorldModel = (() => {
          seam that a door is meant to gate); and an exact diagonal step demands BOTH corner tiles plus the
          canStep legality of both ways around — so a shortcut can't squeeze a body through the diagonal gap
          between two blockers. canStep is orthogonal-only, so it is never called on a diagonal pair. */
-      function losClear(x0, y0, x1, y1, extra) {
+      // Validate both the logical tile-centre route and the rendered foot route.
+      // world.js footOf uses (x + .5, y + 1 - 1/TILE), so a centre-only
+      // shortcut can cross a wall beside a doorway even when its BFS is legal.
+      function segmentClear(ax, ay, bx, by, extra) {
+        if (![ax, ay, bx, by].every(Number.isFinite)) return false;
+        const x0 = Math.floor(ax), y0 = Math.floor(ay), x1 = Math.floor(bx), y1 = Math.floor(by);
         let x = x0, y = y0;
-        let dx = Math.abs(x1 - x0), dy = Math.abs(y1 - y0);
-        const xi = x1 > x0 ? 1 : -1, yi = y1 > y0 ? 1 : -1;
-        let err = dx - dy;
-        dx *= 2; dy *= 2;
-        let guard = dx + dy + 4;   // the walk is bounded; never trust the loop to terminate on its own
+        const dx = Math.abs(bx - ax), dy = Math.abs(by - ay);
+        const xi = bx > ax ? 1 : -1, yi = by > ay ? 1 : -1;
+        const stepX = dx ? 1 / dx : Infinity, stepY = dy ? 1 / dy : Infinity;
+        let nextX = dx ? (xi > 0 ? x + 1 - ax : ax - x) / dx : Infinity;
+        let nextY = dy ? (yi > 0 ? y + 1 - ay : ay - y) / dy : Infinity;
+        let guard = Math.abs(x1 - x0) + Math.abs(y1 - y0) + 1;
         while ((x !== x1 || y !== y1) && guard-- > 0) {
           if (!walkable(x, y, extra)) return false;
-          if (err > 0) {
+          if (nextX < nextY - 1e-10) {
             if (!walkable(x + xi, y, extra) || !canStep(x, y, x + xi, y)) return false;
-            x += xi; err -= dy;
-          } else if (err < 0) {
+            x += xi; nextX += stepX;
+          } else if (nextY < nextX - 1e-10) {
             if (!walkable(x, y + yi, extra) || !canStep(x, y, x, y + yi)) return false;
-            y += yi; err += dx;
-          } else {   // exact diagonal — both corners open, and legal whichever way round we go
+            y += yi; nextY += stepY;
+          } else {
+            // At a grid corner both orthogonal passages must be open.
             if (!walkable(x + xi, y, extra) || !walkable(x, y + yi, extra)) return false;
             if (!canStep(x, y, x + xi, y) || !canStep(x, y, x, y + yi)) return false;
             if (!canStep(x + xi, y, x + xi, y + yi) || !canStep(x, y + yi, x + xi, y + yi)) return false;
-            x += xi; y += yi; err -= dy; err += dx;
+            x += xi; y += yi; nextX += stepX; nextY += stepY;
           }
         }
         return guard > 0 && walkable(x1, y1, extra);
       }
+      function losClear(x0, y0, x1, y1, extra) {
+        const fy = 1 - 1 / TILE;
+        return segmentClear(x0 + .5, y0 + .5, x1 + .5, y1 + .5, extra)
+          && segmentClear(x0 + .5, y0 + fy, x1 + .5, y1 + fy, extra);
+      }
+      // Pixel-space companion for actual starts, corner lookahead and body nudges.
+      const clearFootSegment = (ax, ay, bx, by, extra) => segmentClear(ax / TILE, ay / TILE, bx / TILE, by / TILE, extra);
       function smoothPath(pts, sx, sy, extra) {
         if (!pts || pts.length < 3) return pts;
         const out = [];
@@ -1983,7 +1997,7 @@ const WorldModel = (() => {
         TILE, COLS, ROWS, W: COLS * TILE, H: ROWS * TILE + HULL_PAD,
         origin: { tx: ox, ty: oy },
         allRects, zones, ROOM_IDS, isCorridor, chamfers, windows: [], props: propsLocal, belts: beltsLocal,
-        doorDefs, zoneGrid, idx, canStep, baseColorOf, walkable, path, blockedTiles,
+        doorDefs, zoneGrid, idx, canStep, baseColorOf, walkable, path, clearFootSegment, blockedTiles,
         nameOf: id => (doc.rooms[id] ? doc.rooms[id].name : ''),
         kindOf: id => (doc.rooms[id] ? doc.rooms[id].kind : null),
         matOf: id => matOfRoom(doc.rooms[id]),   // effective deck material (override, else kind default)
