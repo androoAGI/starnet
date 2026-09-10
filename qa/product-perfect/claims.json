@@ -18,7 +18,7 @@
   "expectedClaimCount": 37,
   "releaseSurface": {
     "algorithm": "sha256",
-    "sourceCommit": "d262f37cf9d7314123591657d2efec814a1ea0e4",
+    "sourceCommit": "dfab52ca9c65b8732efea29d0278e1f13fbf3fdb",
     "pathSetSha256": "907c7f2af955f4b59b473534a161e7bb87523688a17112661054ccaf14190c77",
     "files": [
       {
@@ -1153,8 +1153,8 @@
       },
       {
         "path": "frontend/css/overseer-setup.css",
-        "bytes": 23902,
-        "sha256": "d7c0ae595ade0a0b750df4f5f61defba7062366093933204fcd62d21574b83c5"
+        "bytes": 23542,
+        "sha256": "bf6715ea075c3d0865c592541b915e2e1162b1749a408afced429b95d2cd2755"
       },
       {
         "path": "frontend/css/panelchrome.css",
@@ -1248,8 +1248,8 @@
       },
       {
         "path": "frontend/index.html",
-        "bytes": 85258,
-        "sha256": "d85fee77efb8a3f20462bf4309b4a1e810278d5cec966dd4809d1e276a27d39c"
+        "bytes": 85189,
+        "sha256": "4b8f98c5ec50996ee8c12079f6c4298a65a31db416b42f05b6e65b32bc8e22d5"
       },
       {
         "path": "frontend/js/arcade.js",
