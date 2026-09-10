@@ -1,9 +1,9 @@
 {
-  "candidate": "9cb548870953d793c769711f0d0c5eeea09e7ae7",
-  "at": "2026-09-10T07:04:51.058Z",
+  "candidate": "4dfbaee6f27de083a99e138779f8985ba7d3f18a",
+  "at": "2026-09-10T08:27:56.425Z",
   "afterSidecarRestart": true,
   "save": {
-    "revision": 13,
+    "revision": 15,
     "clientAMessagePresent": true,
     "clientBConflictDurablyPreserved": true
   },

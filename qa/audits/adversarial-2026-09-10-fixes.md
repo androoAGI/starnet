@@ -1,6 +1,6 @@
 # Adversarial audit fixes — 2026-09-10
 
-Source repair: `64ed8711b`, synchronized with movement trunk `e80acf63d` in `a5cc394ef`. Recovery follow-ups: `bb1aa021e` (edits during reload), `de01a1343` (conversion retry payload), `eab106abd` (nonblocking dirty-cache startup). Generated mirror synchronized; source lock `6d2111c27`.
+Source repair: `64ed8711b`, synchronized with movement trunk `e80acf63d` in `a5cc394ef`. Recovery follow-ups: `bb1aa021e` (edits during reload), `de01a1343` (conversion retry payload), `eab106abd` (nonblocking dirty-cache startup). Generated mirror synchronized. Final combined candidate `4dfbaee6f27de083a99e138779f8985ba7d3f18a` includes the completed cleanup, personality and OVERSEER creation integrations.
 
 All three audited P1 failures have source repairs and focused live proof:
 
@@ -12,12 +12,18 @@ Live seeded app proof used a local deterministic provider and disposable workspa
 
 Additional regression coverage includes offline dirty restart, queued saves, unload/refusal/unknown-save paths, backward clock movement, idempotent replay, full history conversion, missing-file rollback and conversion retry after restart.
 
-Verification so far:
+Final combined-candidate verification (all exit 0):
 
-- Full fast gate: 761/761 steps passed (`dev/audit-0910/complete-fast.log`).
-- Browser journeys: 139/139 assertions passed (`dev/audit-0910/journeys-fix.log`).
-- Real Git review regression: 56 assertions passed. Growth upgrade: 24 assertions passed. Equipment projection: 10 real runs, writes, revocation and restart passed.
-- Full HTTP run: incomplete; the existing 900000 ms watchdog terminated it. No pass is claimed. The preceding integration lane contains the watchdog correction; the combined candidate still needs a complete HTTP run.
-- Customer journeys: first run reached the final equipment fixture and failed because it intentionally replaced the station without reading the new revision. That fixture now reads the revision and its standalone test passes; full customer-journey rerun is pending.
+- Full fast gate: **762/762 steps**.
+- Full HTTP gate: **110/110 steps**.
+- Customer journeys: **34/34 steps**.
+- Browser journeys: **139/139 assertions** on the repair source; final combined browser smoke reopened the converted attachment with exact original bytes after restart.
+- Real Git review regression: **56 assertions**. Equipment projection: **10 real runs**, file writes, model selection, revocation and restart.
+- Live final-candidate stale-save rejection passed. Exact group-conversion retry returned 200; changed payload returned 409, retaining one artifact and one historical message.
+- Final restarted-sidecar receipt proves the original current message, conflicting window's recovery copy, converted file bytes and truthful rejected verdict remain durable.
 
-Integration is serialized behind the preceding authorized lanes. Remaining: synchronize the resulting trunk, complete the full combined gates and post-merge verification. This is not a claim that the installed desktop build or every unrelated feature is defect-free.
+Candidate gate receipts (including source SHA, exit codes and log hashes): `qa/evidence/adversarial-0910/combined-gates.json`. Restart receipt: `qa/evidence/adversarial-0910/fixed-restart-receipt.json`. Conversion retry receipt: `qa/evidence/adversarial-0910/final-conversion-retry.json`.
+
+Earlier development attempts exposed the pre-existing HTTP watchdog limit and two fixtures that intentionally wrote a full save without reading its revision. The watchdog correction is included from cleanup; the fixtures now use current revisions. All three full combined suites subsequently completed successfully.
+
+Integration status: candidate verified; merge and mandatory postmerge checks are next. This is not a claim that the installed desktop build or every unrelated feature is defect-free.
