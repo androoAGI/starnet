@@ -14,3 +14,7 @@ The six canonical personalities from the personality upgrade are integrated: Com
 - Model catalogs and account-link responses use isolated browser fixtures; a real paid subscription and external OAuth completion were not exercised. The underlying seeded sidecar and saved-station recovery are real. No installer or public deployment was performed by this UI task.
 
 The source was informed by the accepted controls and flow in “Optimize deliverable purpose” and “Expand glass UI identity.” Final integration evidence is recorded separately after the dependency merges land.
+
+## Combined integration candidate
+
+After synchronizing the completed cleanup and personality updates, candidate ba56c01cb passed `npm run test:fast`: 760/760 steps, exit 0 (`dev/overseer-combined-final-fast.log`). The seeded server was restarted on this source and the full live creation check passed again with zero page errors. Every personality label also fits at 145% UI scale. Synchronizing personality trunk c605d98ab changed only its two verification documents; feature source remained identical to the tested candidate.
