@@ -1169,7 +1169,8 @@ const Tutorial = (() => {
     hideBrief(); clearCoach(); clearSpot();
     // The manual is a real floating window; close it before opening the Dialogue tour so it cannot cover the lesson.
     try { if (typeof StationUI !== 'undefined' && StationUI.closeTerm) StationUI.closeTerm('manual'); } catch (_) {}
-    firstCommand({ name: agentName, replay: true });
+    // Returning users have no in-memory onboarding name; resolve the current station identity.
+    firstCommand({ name: agentLabel(), replay: true });
     return active;
   }
 
