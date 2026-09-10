@@ -1,20 +1,19 @@
-# StarNet v0.11.0
+# StarNet v0.11.1
 
-This is an unpublished 0.11.0 candidate. Public release acceptance is still in progress.
+This update improves linked-account reliability, voice playback, and everyday station controls.
 
-- Goals now track planned work separately from confirmed outcomes, with a refreshed quest journal and Commander progression.
-- Session suggestions draw on your work, goals, and feedback, with clearer starters and agent selection.
-- Agents can use individual built-in voices. The Mac microphone entitlement is included; signed Mac acceptance remains pending.
-- Connected-app widgets, the abilities library, room lighting, and dock menus receive updates.
-- Appearance backups preserve the complete appearance state. Workshop builds reject missing deliverable files instead of reporting success.
-- Persisted E-STOP recovery now has an explicit Resume Automation control. It clears routine, Night Shift, and loop halts without changing permissions or job settings, and names partial failures. Windows installer acceptance remains pending.
-- Paused loops now keep late check and harvest results from interfering with a resumed iteration.
-- Sent group images and files now appear on their own message, with image previews and reliable retry/restart handling.
-- Recipe Bay recommendation shelves keep readable card widths, and context extraction uses the current panel theme.
-- Bay names use compact top-mounted tags in the station and REFIT, scaling with their bays as you zoom. Custom UI colours preserve the approved station colour grade.
+- Fixed managed chat using stale per-request server settings or credentials instead of the linked StarNet account. Custom providers keep their own connection settings.
+- Fixed image generation rejecting a linked StarNet credits account. Ordinary wording is less likely to trigger an unnecessary image-generation requirement.
+- Saved room equipment now remains available when a chat request omits placement data, and tool availability descriptions better match the actual grants.
+- Spoken replies buffer complete sentences and recover audio in order, with clearer interruption diagnostics.
+- Background replies preserve the conversation you are currently viewing. Inbox rows have more readable message previews.
+- Fixed work ratings on resumed legacy stations, retaining the station identity through restart.
+- The glass interface is now standard across COMMS, model selection and station windows. Window interactions, text readability and Appearance previews have been improved.
+- Recipe Bay now offers 45 curated workflows with a simpler launch flow. Recruitment, abilities, settings, profiles, quests, channels, automation and task outputs have clearer menus and controls.
+- File-change approvals and work feedback provide clearer action and run references.
+- Station lighting, wall finishes and floor materials have been refreshed. New starter stations use a white shell, and prop details leave more room for browsing the build catalog.
+- Global stop controls have been removed, with recovery for their legacy pause state. Individual work controls remain available.
 
-Google Workspace connections (Gmail, Drive, Calendar, Docs, and Sheets) are deferred from 0.11.0 while Google verification is completed. Existing saved connections are retained but cannot run in this update. Google account login for StarNet billing is separate from these integrations.
+Update through Settings > Updates > Update Center. After restarting, confirm that the installed version is 0.11.1.
 
-Before public release: complete acceptance of the rebuilt candidate and resolve the remaining QA finding and customer P1 records.
-
-The owner waived the 48-hour soak duration for this update. No public release-readiness claim follows from this test package.
+Google Workspace connections remain deferred while Google verification is completed. Saved connections are retained. Google login for StarNet billing is separate.
