@@ -1325,6 +1325,7 @@
         if (controller.signal.aborted) { out.textContent = 'sign-in for ' + label + ' cancelled — press SIGN IN to try again.'; return; }
         out.textContent = '✕ ' + ((err && err.message) || 'request failed'); sfx('bad'); return;
       }
+      if (controller.signal.aborted) return;
       if (device) { await ccDeviceSignIn(id, out, device, controller); return; }
       const opened = await openSignIn(url);
       if (!opened.opened) {
@@ -1357,14 +1358,17 @@
       ccTimers.set(id, timer);
     }
     async function ccDeviceSignIn(id, out, device, controller) {
-      const notice = document.createElement('section');
+      const notice = document.createElement('dialog');
       notice.className = 'ext-editor mc-form github-device-code';
       notice.setAttribute('aria-label', 'Sign in with GitHub');
+      notice.style.cssText = 'position:fixed;inset:0;margin:auto;width:min(520px,calc(100vw - 32px));max-height:calc(100vh - 32px);overflow:auto;padding:24px;background:#17140e;color:var(--ph,#ddbd83);border:1px solid var(--gold,#ac853e);z-index:10000;box-shadow:0 0 0 100vmax #0009';
       notice.innerHTML = '<strong>CONNECT GITHUB</strong><p>1. Copy this code: <code style="font-size:20px;user-select:all">' + esc(device.userCode) + '</code> <button class="bb sm" data-device-copy>COPY CODE</button></p>' +
         '<p>2. Open GitHub, enter the code, and approve StarNet’s repository and organization access.</p>' +
         '<p>3. Return here. StarNet will check and save your connection on this device.</p>' +
-        '<div class="mc-acts"><button class="bb sm" data-device-open>OPEN GITHUB</button><button class="bb sm" data-device-cancel>CANCEL</button></div>';
-      out.before(notice); notice.scrollIntoView({ block: 'center' });
+        '<div class="mc-acts"><button class="bb sm" data-device-open>OPEN GITHUB</button><button class="bb sm" data-device-cancel>CANCEL</button></div><p data-device-status role="status"></p>';
+      document.body.appendChild(notice); notice.showModal();
+      notice.addEventListener('cancel', ev => { ev.preventDefault(); ccCancelSignIn(id); });
+      const progress = message => { out.textContent = message; notice.querySelector('[data-device-status]').textContent = message; };
       const copy = notice.querySelector('[data-device-copy]');
       copy.addEventListener('click', async () => {
         try { await navigator.clipboard.writeText(device.userCode); copy.textContent = 'COPIED'; }
@@ -1372,8 +1376,8 @@
       });
       const open = async () => {
         const result = await openSignIn(device.url);
-        if (!result.opened) out.textContent = 'Could not open GitHub. Allow pop-ups and choose OPEN GITHUB.';
-        else { ccPendingWin.set(id, result.win || null); out.textContent = 'Waiting for you to enter the code and approve StarNet in GitHub…'; }
+        if (!result.opened) progress('Could not open GitHub. Allow pop-ups and choose OPEN GITHUB.');
+        else { ccPendingWin.set(id, result.win || null); progress('Waiting for you to enter the code and approve StarNet in GitHub…'); }
       };
       notice.querySelector('[data-device-open]').addEventListener('click', open);
       notice.querySelector('[data-device-cancel]').addEventListener('click', () => ccCancelSignIn(id));
@@ -1392,7 +1396,7 @@
           if (controller.signal.aborted) break;
           if (j.state === 'connected') {
             out.classList.add('ok'); out.textContent = '✓ GitHub connected as ' + j.login + ' — ' + j.toolCount + ' tool(s)';
-            sfx('click');
+            sfx('click'); notify(out.textContent, 'good');
           } else { out.classList.remove('ok'); out.textContent = j.error || 'GitHub sign-in failed. Try again.'; }
           ccRefresh(); refresh(); return;
         }
