@@ -169,6 +169,7 @@
       signal: 'Private messages · self-hosted bridge'
     };
     const overviewHtml =
+      (typeof Tutorial !== 'undefined' && Tutorial.platformGuideHTML ? Tutorial.platformGuideHTML('messaging') : '') +
       '<div class="ch-intro"><h3>Chat with your agents anywhere</h3>' +
         '<p>Connect a messaging app to the same agents, memory, tools, and workspace you use here.</p></div>' +
       '<div class="ch-sum"><div class="ch-bots-head">Choose an app <span class="dim">Setup instructions included</span></div>' +
@@ -218,6 +219,7 @@
       id: c.id, label: c.title, glyph: channelLogo(c.id),
       build: (pane) => { pane.innerHTML = cardHtml(c); }
     }))));
+    if (typeof Tutorial !== 'undefined' && Tutorial.wirePlatformGuide) Tutorial.wirePlatformGuide(body);
     // rail truth dots: one per platform tab, painted from the same proven status as its card (paintCard).
     for (const c of CHANNEL_CATALOG) {
       const heading = body.querySelector('.con-sec[data-section="' + c.id + '"] .sec-l');

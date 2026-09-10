@@ -577,7 +577,7 @@ async function opensWithin(t, ms) {
     pending[0].resolve({ok:true,headers:{get:()=> 'audio/wav'},blob:async()=>({size:128,text:pending[0].text})});
     // Three asynchronous playback events (including retry) must finish. A 40ms sample can observe
     // the last play() before its onended callback on a busy host; wait for the bounded outcome.
-    await until(() => !t.Voice.isReplyPending(), 1000);
+    await until(() => played.length === 3 && !t.Voice.isReplyPending(), 1000);
     A.eq(played.join('|'),'First complete sentence.|First complete sentence.|Second complete sentence.', 'continuity: failed playback retries same audio before later sentence');
     A.eq(t.Voice.isReplyPending(),false,'continuity: successful retry drains final tail');
   }

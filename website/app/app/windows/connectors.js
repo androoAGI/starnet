@@ -145,6 +145,7 @@
     // I already on?" was equally unanswerable without reading every card.
     const secCatalog =
       '<p class="set-about"><b>Connect an app you already use.</b> Choose a platform below. SIGN IN opens your browser; API key setup walks you through adding a key from your account.</p>' +
+      (typeof Tutorial !== 'undefined' && Tutorial.platformGuideHTML ? Tutorial.platformGuideHTML('apps') : '') +
       '<div class="cc-filters" id="cc-filters" role="group" aria-label="Filter connectors by setup type">' +
         '<button type="button" class="cc-filter active" data-cc-filter="all" aria-pressed="true">ALL</button>' +
         '<button type="button" class="cc-filter cc-lg-none" data-cc-filter="none" aria-pressed="false">▸ no setup</button>' +
@@ -325,6 +326,7 @@
       searchEmptyText: 'No abilities match that search. Try another platform, tool, or skill.'
     });
     lanes.forEach(l => { try { if (typeof l.wire === 'function') l.wire(); } catch (_) {} });
+    if (typeof Tutorial !== 'undefined' && Tutorial.wirePlatformGuide) Tutorial.wirePlatformGuide(body);
 
     /* Mount the front door ABOVE the panes, inside the scrolling content column: it is the first thing
        read on every tab, and it scrolls away once you are working — permanent chrome for a question you

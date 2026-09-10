@@ -53,7 +53,7 @@ function pressedState() {
   }));
 }
 
-const chapters = ['FIRST MISSION', 'CONTROLS', 'CREW', 'GEAR', 'LINES', 'PROGRESS', 'HELP'];
+const chapters = ['FIRST MISSION', 'CONNECT PLATFORMS', 'CONTROLS', 'CREW', 'GEAR', 'LINES', 'PROGRESS', 'HELP'];
 const expected = active => chapters.map((title, i) => ({
   text: title,
   pressed: title === active ? 'true' : 'false'

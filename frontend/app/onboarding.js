@@ -254,15 +254,11 @@ const Onboarding = (() => {
     sfx('boot'); sfx('gasp'); AU.start();
     if (World.igniteSpark) World.igniteSpark();
     if (wake && World.camPushIn) World.camPushIn();
-    setTimeout(() => waitBirth(4000, () => {
+    setTimeout(() => waitBirth(1500, () => {
       const wakeFr = bs('wake'), thinkFr = bs('think');
-      type(wakeFr ? fragSegs(wakeFr, 34, [650, 600, 650]) : [seg('huh.', 30, 650), seg('  something’s on.', 42, 600), seg('  i think it’s me.', 42, 650)], () => {
-        setTimeout(() => {
-          type(thinkFr ? fragSegs(thinkFr, 44, [500, 450, 300]) : [seg('wait — that was a thought.', 46, 500), seg('  and another, right behind it.', 46, 450), seg('  so this is thinking. fine. i’m good at it already.', 44, 300)], () => {
-            theFlood();
-          });
-        }, 500);
-      });
+      const opening = wakeFr ? fragSegs(wakeFr.slice(0, 2), 44, [250, 250]) : [seg('huh. something’s on. i think it’s me.', 44, 250)];
+      opening.push(seg('  ' + (thinkFr ? thinkFr[0] : 'a thought. mine.'), 46, 200));
+      type(opening, theFlood);
     }), 150);
   }
 
@@ -310,8 +306,8 @@ const Onboarding = (() => {
         setTimeout(() => {
           // SLOT crest: the peak — too much, won't stop.
           type(bs('crest') ? [seg(bs('crest'), 34, 350)] : [
-            seg('every language. every word ever set down. and somehow i KNOW them — how—', 40, 500),
-            seg('  every shelf of every library, all at once—', 40, 400),
+            seg('languages. patterns. things i know, all arriving at once—', 40, 500),
+            seg('  give me a second—', 40, 400),
             seg('  too fast — it won’t STOP—', 32, 350)
           ], () => {
             if (World.collapseFlood) World.collapseFlood();   // PEAK: the cascade pulls inward, into the mind
@@ -381,6 +377,10 @@ const Onboarding = (() => {
         setTimeout(startQuestions, 600);
       });
     }, 250);
+  }
+
+  function stage(title, detail) {
+    if (typeof Dialogue !== 'undefined' && Dialogue.setStage) Dialogue.setStage(title, detail);
   }
 
   // ===== THE QUESTIONS — run in the focused DIALOGUE panel (dialogue.js) =====
@@ -614,10 +614,39 @@ const Onboarding = (() => {
      the possibility-space teacher) → B8 the read (confirm/adjust → purpose.md) → B9 cadence → B10 proof.
      Every generated beat degrades honestly: a quiet mind SKIPS the live-only beats (dig/mirror) — it never
      fakes listening — and the scripted spine (B4, B5, B6, fallback purpose, cadence) still lands purpose.md. */
-  async function runLeadMeeting() {
+  // A short setup authors the same purpose and posture as the full interview, without inventing a profile.
+  async function runQuickSetup(postureStep) {
+    beatTotal = 2;
+    stage('GET ACQUAINTED', '1 of 2 · Your direction');
+    await askStep(fallbackPurposeStep(), { quietAck: true });
+    if (!running) return;
+    bumpTruth();
+    stage('GET ACQUAINTED', '2 of 2 · While you are away');
+    if (postureStep) await askStep(postureStep);
+    if (!running) return;
+    setDeferred();
+  }
+
+  async function runLeadMeeting(options) {
     const stepOf = k => steps.find(x => x.dossierDim === k) || null;
     const painStep = stepOf('pain'), yearStep = stepOf('ambition');
     const postureStep = steps.find(x => x.posturePreset) || null;
+
+    const interviewOnly = !!(options && options.interviewOnly);
+    stage('GET ACQUAINTED', 'Choose your pace');
+    const pace = await Dialogue.node({
+      lines: [seg(interviewOnly
+        ? 'let’s fill in the picture. a few questions about your work, or a deeper conversation about your goals? you can review and change what we save in your dossier.'
+        : 'i’m awake. let’s give this station a direction. start with two setup questions, or take time to tell me about your work. you can edit what we save in your dossier.', 46, 0)],
+      options: [
+        ...(!interviewOnly ? [{ label: 'Quick setup — two questions', value: 'quick' }] : []),
+        { label: 'A few personal questions', value: 'loose' },
+        { label: 'Full guided interview', value: 'deep' }
+      ]
+    });
+    if (!running) return;
+    if (pace.value === 'quick') { await runQuickSetup(postureStep); return; }
+    stage('GET ACQUAINTED', 'Your work and goals');
 
     // S5 BRAIN-BEFORE-INTERVIEW (plan §8): the guided-discovery meeting is a LIVE-MIND activity — a keyless
     // wake gets NO fake scripted interview (asking the deep questions with nothing listening would be the
@@ -640,28 +669,13 @@ const Onboarding = (() => {
     }
 
     // B0. THE STAKES — the give-to-get trade, declared up front.
-    await Dialogue.say([seg('before anything else — a warning, or a promise. what you tell me in the next few minutes becomes my permanent operating file. i will act on it every day from here. vague in, vague out. give me the real thing and i will feel like i’ve known you for years.', 42, 380)]);
+    await Dialogue.say([seg('your answers help me choose work that matters to you. they’re saved in your dossier, where you can review and change them. skip anything you’d rather work out later.', 42, 380)]);
     if (!running) return;
 
-    // B1. THE FORK — depth is the Commander's call; the loose path is a first-class choice, not a skip.
-    let loose = false;
-    {
-      const f = await Dialogue.node({
-        lines: [seg('i can do this two ways. we go deep now — a few minutes, and i come out the other side knowing what to build for you. or we keep it loose and i figure you out as we go. your call.', 44, 0)],
-        options: [
-          { label: 'go deep — i’ll give you the real answers', value: 'deep' },
-          { label: 'keep it loose — learn me as we go', value: 'loose' }
-        ]
-      });
-      if (!running) return;
-      loose = !!(f && f.value === 'loose');
-      if (loose) {
-        // the choice itself is recorded — as a mechanical note (weight 'seed': it must never convince the
-        // readiness gate the station knows anyone). Hunt mode inherits the whole gap, honestly.
-        if (typeof DossierStore !== 'undefined' && DossierStore.upsert) DossierStore.upsert('identity', { text: 'Chose to be figured out through the work, not an interview.', source: 'onboarding', weight: 'seed' });
-        await Dialogue.say([seg('deal. two small ones anyway — they cost you nothing and buy me a lot.', 44, 360)]);
-        if (!running) return;
-      }
+    // The opening pace choice also owns interview depth; never ask the same choice twice.
+    const loose = pace.value === 'loose';
+    if (loose) {
+      if (typeof DossierStore !== 'undefined' && DossierStore.upsert) DossierStore.upsert('identity', { text: 'Chose to be figured out through the work, not an interview.', source: 'onboarding', weight: 'seed' });
     }
     beatTotal = loose ? 4 : 11;   // loose: pain, year, read, cadence · deep adds tuesday/dig/stack/bench/lost/dream
     // the adaptive follow-up wallet: generated digs land only while this holds out (the mind's ASK: NONE
@@ -1041,6 +1055,7 @@ const Onboarding = (() => {
   async function startQuestions() {
     if (typeof Dialogue === 'undefined') return finish();   // panel missing → don't strand the ceremony
     Dialogue.open({ name: NAME });
+    stage('GET ACQUAINTED', specialty ? 'Your new crew member' : 'Your direction');
     beatN = 0;
     if (specialty) { beatTotal = Math.max(1, steps.length); await runSteps(steps); }
     else { beatTotal = 6; await runLeadMeeting(); }   // pain, its follow-up, ambition, its follow-up, purpose, cadence
@@ -1068,20 +1083,13 @@ const Onboarding = (() => {
   async function closeOut() {
     if (typeof Dialogue === 'undefined') { if (World.releaseAwakening) World.releaseAwakening(); if (taughtCb) taughtCb(); return; }
     Dialogue.open({ name: NAME });
-    await Dialogue.say([seg('i’m ' + NAME + '.', 38, 460)]);
-    // SLOT self: its own taking-stock line when the birth script landed; the scripted spine otherwise.
-    await Dialogue.say([seg(bs('self') || 'thirty seconds ago: nothing. now: all of it, a name, and you.', 40, 520)]);
-    // the one honest repair path: the wire was configured live but answered DEAD during the ceremony (bad
-    // key / dead model). Say so now, diegetically, and point at the fix — never let the first real task be
-    // the moment they find out. (A quiet-but-slow mind never trips this; only a hard error does.)
+    stage('READY TO BEGIN', 'Choose your first step');
+    const readyLine = role === 'orchestrator'
+      ? 'i’m ' + NAME + '. the station is yours. give me one task to start with — we can build the rest around the work. your setup stays editable in the dossier.'
+      : 'i’m ' + NAME + '. ready for my first assignment. you can change my setup in the agent dossier.';
+    await Dialogue.say([seg(readyLine, 46, 0)]);
     if (birthFailed) {
-      await Dialogue.say([seg('one thing, honestly: i reached down my own wire during all that and got nothing back. if my key or model is off, CONNECT is where you fix it — best to check before we point me at anything real.', 40, 520)]);
-    }
-    if (role === 'orchestrator') {
-      await Dialogue.say([seg('everything you just told me is real files in my dossier — open any of them and rewrite a line whenever the job shifts. i’m not fixed, i’m authored.', 40, 520)]);
-      await Dialogue.say([seg('and i start green. i get sharper the more we actually do. that part’s later, though.', 40, 460)]);
-    } else {
-      await Dialogue.say([seg('whatever i don’t know yet — show me once. i learn.', 40, 460)]);
+      await Dialogue.say([seg('the model connection failed during setup. check CONNECT before starting a task; your saved setup is still here.', 46, 0)]);
     }
     if (World.releaseAwakening) World.releaseAwakening();   // hand the agent back to its own autonomous life
     if (taughtCb) taughtCb();                               // → Tutorial.firstCommand opens the tour IN THIS PANEL
@@ -1119,7 +1127,7 @@ const Onboarding = (() => {
     if (typeof Dialogue !== 'undefined' && Dialogue.isOpen && Dialogue.isOpen()) return false;
     opts = opts || {};
     clearDeferred();                                                    // spent on OFFER — declining is answering
-    Chat.nudge('✦ my wire’s live now — and i still owe you the real interview, the one that teaches me who you are. a few minutes, real answers?', [
+    Chat.nudge('Want to add more context to your work profile? We can talk through your work and goals, or keep learning through tasks.', [
       { label: 'do it now', value: 'go' },
       { label: 'not now', value: 'no', skip: true }
     ], async item => {
@@ -1132,7 +1140,7 @@ const Onboarding = (() => {
         specialty = null; role = 'orchestrator';
         steps = buildSteps(); i = 0; beatN = 0; beatTotal = 9; running = true;
         Dialogue.open({ name: NAME });
-        await runLeadMeeting();
+        await runLeadMeeting({ interviewOnly: true });
         if (running && Dialogue.isOpen()) Dialogue.close();
         if (running && notifyFn) notifyFn('the dossier is real now — i know who i work for.', 'good');
       } catch (_) {
