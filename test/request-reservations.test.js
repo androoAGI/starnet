@@ -34,6 +34,9 @@ const {makeRequestReservations}=require('../sidecar/request-reservations');
   await assert.rejects(late.run(args,execute),/result disk full/);
   await assert.rejects(makeRequestReservations(lateDeps).run(args,execute),{code:'request_interrupted'});
   assert.equal(calls,3,'failed terminal persistence cannot dispatch again after restart');
+  const observed=makeRequestReservations({...deps,workspaces:path.join(root,'listener-failure')});
+  const completed=await observed.run({...args,onProgress:()=>{throw Error('closed listener');}},async (runId,emit)=>{emit({chunk:'progress'});return {status:200,body:'saved despite listener'};});
+  assert.equal(completed.body,'saved despite listener','listener failure is diagnosed without aborting shared work');
   console.log('request-reservations: concurrent replay, canonical order, conflict, principal isolation, restart, orphan and corrupt-store checks passed');
  }finally{fs.rmSync(root,{recursive:true,force:true});}
 })().catch(e=>{console.error(e);process.exitCode=1;});

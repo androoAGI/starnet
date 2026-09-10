@@ -2,6 +2,7 @@
 // One sidecar owns the workspace. Reserve durably BEFORE dispatch; an orphaned
 // reservation is uncertain work, never permission to repeat its side effects.
 const crypto = require('node:crypto');
+const { note: failNote } = require('./failopen');
 const { makeDurableJsonStore, makeKeyedMutex } = require('./durable-store');
 function canonical(value) {
   if (Array.isArray(value)) return '[' + value.map(canonical).join(',') + ']';
@@ -29,7 +30,7 @@ function makeRequestReservations(d) {
         if(row.fingerprint!==fingerprint) throw failure('idempotency_conflict','Idempotency-Key already belongs to a different request');
         if(active.has(id)) {
           const live=active.get(id);
-          if(onProgress) { for(const item of live.progress) {try {onProgress(item);} catch (_) {}} live.listeners.add(onProgress); }
+          if(onProgress) { for(const item of live.progress) {try {onProgress(item);} catch (error) { failNote('api.request.progress', error); }} live.listeners.add(onProgress); }
           return {promise:live.promise};
         }
         if(row.response) return {promise:Promise.resolve(row.response)};
@@ -39,7 +40,7 @@ function makeRequestReservations(d) {
       next.push({id,fingerprint,runId,createdAt:d.now()});
       store.set('requests',next);
       const live={progress:[],listeners:new Set(onProgress?[onProgress]:[]),promise:null};
-      const emit=item=>{ live.progress.push(item); for(const listener of live.listeners) { try { listener(item); } catch (_) {} } };
+      const emit=item=>{ live.progress.push(item); for(const listener of live.listeners) { try { listener(item); } catch (error) { failNote('api.request.progress', error); } } };
       const promise=Promise.resolve().then(()=>execute(runId,emit)).then(async response=>{
         await lock.run('requests',()=>{
           const saved=read(); const current=saved.find(r=>r.id===id);
