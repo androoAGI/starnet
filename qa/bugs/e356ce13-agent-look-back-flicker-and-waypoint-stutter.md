@@ -4,10 +4,10 @@ slug: agent-look-back-flicker-and-waypoint-stutter
 title: Agent look-back flicker and waypoint stutter
 surface: world
 severity: P2
-status: open
+status: fixed
 found: 2026-09-10
 lane: skin-motion-0910
-fix:
+fix: 75a814c18
 origin: owner
 report: Codex owner report 2026-09-10: agents jitter, stutter and seem indecisive while walking
 affected: Windows local seeded preview at ae3029b51; reproduced after sync to 343238e68
@@ -32,7 +32,7 @@ Before: live browser trace alternated west/east on all 25 sampled frames during 
 
 ## Verdict
 
-The look-back direction is latched when the pause starts; waypoint transitions consume no empty frame. Intentional pauses, final arrival braking and doorway collision guards remain active. Source validation in progress.
+The look-back direction is latched when the pause starts; waypoint transitions consume no empty frame. Intentional pauses, final arrival braking and doorway collision guards remain active. Source-fixed in 75a814c18. Before/after regression: the baseline fails seven assertions; the repaired source passes all 15. Installed build and owner recovery remain unverified.
 
 ## Regression
 
