@@ -18,8 +18,8 @@
   "expectedClaimCount": 37,
   "releaseSurface": {
     "algorithm": "sha256",
-    "sourceCommit": "53d9c079eaf0d63085e55bbb7f19b0404c0c087f",
-    "pathSetSha256": "907c7f2af955f4b59b473534a161e7bb87523688a17112661054ccaf14190c77",
+    "sourceCommit": "71831e6bd32f469d829c2828b49a2e3f02c55cdd",
+    "pathSetSha256": "a8c357ebaa04bec23362cc47b3224a0ea45dd48750237b4465cbe830383e0ec7",
     "files": [
       {
         "path": "INSTALL.md",
@@ -243,8 +243,8 @@
       },
       {
         "path": "frontend/app/dialogue.js",
-        "bytes": 21337,
-        "sha256": "0481646acd843976e8a831ba3c68db097a62a300c488bf98012be1cf947e9d42"
+        "bytes": 22078,
+        "sha256": "a07ba70de49aedd83a30b0102d59da8765dea13492daea82d7abb2277dcfc915"
       },
       {
         "path": "frontend/app/discoverystore.js",
@@ -278,8 +278,8 @@
       },
       {
         "path": "frontend/app/firstvalue.js",
-        "bytes": 14697,
-        "sha256": "3df75f9e3f2abd462fc67a93de2334c3d2ece607ab6e30e03cf61c48d0d4a2a1"
+        "bytes": 15159,
+        "sha256": "cb8480c6b46ead74ea22d0e3b167d129b51adb310a0f11499b7f7f20308edee0"
       },
       {
         "path": "frontend/app/floorstats.js",
@@ -483,8 +483,8 @@
       },
       {
         "path": "frontend/app/onboarding.js",
-        "bytes": 76494,
-        "sha256": "fe9d894c2e3b3ac044ba8e5baa717798839d385ec1daaae78021a6c8745cae68"
+        "bytes": 76163,
+        "sha256": "c25eef76eec065ec875446f65f9ebcf9b3d6b1ebce8db51fa96ffeea00fcd2be"
       },
       {
         "path": "frontend/app/overseer-setup.js",
@@ -893,8 +893,8 @@
       },
       {
         "path": "frontend/app/tutorial.js",
-        "bytes": 91954,
-        "sha256": "1e3f25ef44622f9a092a7a384aed17b45271c03d53b6fe260d9fdad7f3321383"
+        "bytes": 97302,
+        "sha256": "44f43822ceb30837f793565389d52d0be3cf39f8883768d9b332abcbc2dfcea3"
       },
       {
         "path": "frontend/app/understanding.js",
@@ -963,8 +963,8 @@
       },
       {
         "path": "frontend/app/windows/connectors.js",
-        "bytes": 124107,
-        "sha256": "4f86d79a2962357d0dccaea2ea7066679727f59936fc3708ad137d599a9b68f8"
+        "bytes": 124326,
+        "sha256": "b10c63f5067f2273273a99d0f661eabe31c5de6d8815d5e0391b30171175733e"
       },
       {
         "path": "frontend/app/windows/logbook.js",
@@ -978,8 +978,8 @@
       },
       {
         "path": "frontend/app/windows/messaging.js",
-        "bytes": 57097,
-        "sha256": "c42b0421e5cffcf022c5c7f606988aff18917f7f2690005b5cba833b8e0c2c3b"
+        "bytes": 57321,
+        "sha256": "17f7c3fb77ee6de78ee9ca936bc7b9f15599bf125b839c6b161b7dfe37f2c0f5"
       },
       {
         "path": "frontend/app/windows/outbox.js",
@@ -1152,6 +1152,11 @@
         "sha256": "e47ee0ee9094d7de7f74947acdba4aeb326ab4dba8b67e6a9b44ba39e447c8b8"
       },
       {
+        "path": "frontend/css/onboarding.css",
+        "bytes": 2388,
+        "sha256": "298bfcbd14cafed90e223016256592806f0de12c1637293468bcf5e851e77a08"
+      },
+      {
         "path": "frontend/css/overseer-setup.css",
         "bytes": 23698,
         "sha256": "64d5a0bc6e68ae02520aede250450cc92d38d6b430fd13834ec883bdef5f86f1"
@@ -1218,8 +1223,8 @@
       },
       {
         "path": "frontend/css/tutorial.css",
-        "bytes": 11603,
-        "sha256": "75e6106cd784ebf29ceace85d7509bcc36067ae570821a303b95069103dd105f"
+        "bytes": 12328,
+        "sha256": "8df6c9938dfc4091fbbdcccc3b0c2ad01bff1eeea294274087de3240bebc2a31"
       },
       {
         "path": "frontend/css/utility-menus.css",
@@ -1248,8 +1253,8 @@
       },
       {
         "path": "frontend/index.html",
-        "bytes": 85262,
-        "sha256": "b84595c5e8be3aaaf84f7fd896504fd54ae6c3f316aa2c56fb42ad32900e5bfd"
+        "bytes": 85496,
+        "sha256": "02d6d29362a56422ff5af028b3e736b5796dc36029e972f8148a88cae01d4396"
       },
       {
         "path": "frontend/js/arcade.js",
