@@ -1,0 +1,36 @@
+{
+  "candidate": "4dfbaee6f27de083a99e138779f8985ba7d3f18a",
+  "postMerge": false,
+  "results": [
+    {
+      "suite": "test:fast",
+      "candidate": "4dfbaee6f27de083a99e138779f8985ba7d3f18a",
+      "startedAt": "2026-09-10T08:05:25.6068641Z",
+      "finishedAt": "2026-09-10T08:12:36.3977489Z",
+      "exitCode": 0,
+      "log": "dev/audit-0910/combined-test-fast.log",
+      "logSha256": "b0a84684fa948869fe39144702e6496f19e465d01a9f33abdb9bbb0d0a52d47b",
+      "stepsPassed": 762
+    },
+    {
+      "suite": "test:http",
+      "candidate": "4dfbaee6f27de083a99e138779f8985ba7d3f18a",
+      "startedAt": "2026-09-10T08:12:36.5377877Z",
+      "finishedAt": "2026-09-10T08:24:22.6366111Z",
+      "exitCode": 0,
+      "log": "dev/audit-0910/combined-test-http.log",
+      "logSha256": "bbb297dd4eb01cb22c70abdb38f9b4a133337390dd812ff01bb7dab5ac31b82d",
+      "stepsPassed": 110
+    },
+    {
+      "suite": "qa:customer-journeys",
+      "candidate": "4dfbaee6f27de083a99e138779f8985ba7d3f18a",
+      "startedAt": "2026-09-10T08:24:22.7097570Z",
+      "finishedAt": "2026-09-10T08:26:23.6931999Z",
+      "exitCode": 0,
+      "log": "dev/audit-0910/combined-qa-customer-journeys.log",
+      "logSha256": "72e565594397be89398e6f9ed2d890bd71380872304c037f208d0e37bfc589fa",
+      "stepsPassed": 34
+    }
+  ]
+}

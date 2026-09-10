@@ -760,4 +760,8 @@ test/result-contract.test.js
 test/openai-formats.test.js
 test/request-auth-rotation.test.js
 test/world-seat-recovery.test.js
+
+test/save-concurrency.test.js
+
+test/cloudsave-concurrency.test.js
 test/world-movement-continuity.test.js

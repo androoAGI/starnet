@@ -7814,6 +7814,20 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
     let h = null;
     try { h = (typeof CloudSave !== 'undefined' && CloudSave.health) ? CloudSave.health() : null; } catch (_) { h = null; }
     d.classList.remove('stale', 'degraded');
+    if (h && h.conflict) {
+      d.classList.add('degraded');
+      d.title = 'Another window saved newer station changes. Your work from this window was preserved separately on the station. Download a copy or reload the current station.';
+      if (!document.getElementById('save-conflict-notice')) {
+        const banner = document.createElement('div'); banner.id = 'save-conflict-notice'; banner.setAttribute('role', 'alert');
+        banner.style.cssText = 'position:fixed;top:8px;left:10%;right:10%;z-index:100000;padding:16px;background:#281e12;color:#fff;border:2px solid #e8b35c';
+        const label = document.createElement('p'); label.textContent = d.title;
+        const exportButton = document.createElement('button'); exportButton.className = 'bb'; exportButton.textContent = 'Download this window’s save';
+        exportButton.onclick = () => { const blob = new Blob([JSON.stringify(CloudSave.localSnapshot() || {})], { type: 'application/json' }); const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = 'starnet-conflicting-save.json'; a.click(); setTimeout(() => URL.revokeObjectURL(url), 1000); };
+        const reload = document.createElement('button'); reload.className = 'bb'; reload.textContent = 'Reload current station'; reload.onclick = async () => { try { await CloudSave.reloadCurrent(); } catch (e) { label.textContent = e.message; } };
+        banner.append(label, exportButton, reload); document.body.append(banner);
+      }
+      return;
+    }
     if (h && h.degraded) {
       // EL-11 FIX 1: the sidecar is REFUSING writes — this workspace was written by a NEWER StarNet. Persistent
       // red dot + a one-time visible line; never lets a refused write read as a healthy backup.

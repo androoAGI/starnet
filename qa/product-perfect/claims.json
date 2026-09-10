@@ -18,7 +18,7 @@
   "expectedClaimCount": 37,
   "releaseSurface": {
     "algorithm": "sha256",
-    "sourceCommit": "fe89783c789b30aa30011ce12d3842b84be44fc0",
+    "sourceCommit": "118b19af2149b2e054d3102f3dab4fce15a8fbc4",
     "pathSetSha256": "907c7f2af955f4b59b473534a161e7bb87523688a17112661054ccaf14190c77",
     "files": [
       {
@@ -68,8 +68,8 @@
       },
       {
         "path": "frontend/app/app.js",
-        "bytes": 381993,
-        "sha256": "86c58f3ba736ba75fbd0d03512ec43c1be5b559fc3454a338525727c311a2cb5"
+        "bytes": 382109,
+        "sha256": "76bf8d1b3e17e81f63be6dc546baf89097d930061996f417f18c5d21aa093e64"
       },
       {
         "path": "frontend/app/armconfirm.js",
@@ -178,8 +178,8 @@
       },
       {
         "path": "frontend/app/cloudsave.js",
-        "bytes": 23827,
-        "sha256": "3a913c651bacfaf94068b3ed4e232a5eca1f752316feee048babb96d30de73f0"
+        "bytes": 25652,
+        "sha256": "9ceca786556fb5b49f4598ac63a422c9d1edc25f38b842cc6d9257956a9d7b41"
       },
       {
         "path": "frontend/app/cloudsavecore.js",
@@ -348,8 +348,8 @@
       },
       {
         "path": "frontend/app/group-chat.js",
-        "bytes": 39289,
-        "sha256": "986851cab6759095d9835377757ac4069cfed28a2237c5b69bbd2310efb5f72c"
+        "bytes": 39389,
+        "sha256": "cd74112e833398cd964ec24209aa46a4188ef52ce3a329d9d27e82e745bed0d5"
       },
       {
         "path": "frontend/app/harness.js",
@@ -813,8 +813,8 @@
       },
       {
         "path": "frontend/app/stationui.js",
-        "bytes": 690715,
-        "sha256": "6a9b0354010a1e7083366ee2301d0a2054e185f1a096398c6578bb83c8c03eaf"
+        "bytes": 692242,
+        "sha256": "efc9e24ef08dacbefecac91aa6f1eaeaa555a3fbd5def2c1e06511c8494d0148"
       },
       {
         "path": "frontend/app/study.js",
