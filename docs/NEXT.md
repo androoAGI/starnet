@@ -3381,3 +3381,13 @@ ceiling; and installed-exe smoke is truthfully BLOCKED because no exact candidat
 and no installed candidate was listening on CDP. `qa:ready` must remain NOT READY until those receipts are
 green. No production account, valid third-party credential, merge to trunk, push, PR, deployment, or
 publication was performed.
+
+### 2026-09-10 — GitHub device sign-in (discover-connect-0910)
+
+Registered StarNet OAuth App under androoAGI: https://github.com/settings/applications/3848711.
+Device flow is enabled; the public client ID is bundled in sidecar/mcp/github-device.js. No client secret was generated.
+GitHub now offers Sign in with GitHub in Popular, a visible code dialog, cancel, and a token fallback.
+Polling enforces provider intervals and expiry, protects changed connections, verifies account identity, and persists before activation.
+Validation on d61779647: test:fast 753/753; test:http 109/109. The injected-provider HTTP test proves cancellation, protected token storage, live MCP handshake, and reconnection after restart.
+Live preview on :9238: real GitHub code issuance and the StarNet consent screen verified; centered dialog and cancellation verified. Real repository authorization was not approved and a real GitHub tool call remains unverified.
+Isolated branch only: no integration merge, push, or release. Existing Discover work remains in the same branch.
