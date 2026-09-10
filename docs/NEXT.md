@@ -15,19 +15,6 @@ scopes and remaining installed/account/soak acceptance in `docs/AUDIT_0.11.1_FOR
 
 # NEXT.md — current priorities & task queue
 
-## IN PROGRESS — 2026-09-10 world lifecycle integration (agent/doorway-occlusion-0910)
-
-Owner requested repair of retired crew seat claims, orphan furniture after room deletion,
-and crew approval display. Source 35d255dbd; live room/seat checks 9/9, real sidecar
-approve/deny both verified, full fast gate 761/761 and customer journeys 34/34 green.
-Combined movement/lifecycle candidate 9c76cba14 repeated live 9/9 plus 12 safe routes.
-Cleanup-combined d4edc30af passed fast 762/762 and repeated real approve/deny.
-Integration queued behind the designated lanes; optional earlier full HTTP failed at
-unchanged loops-git, isolated retry 55/55 and remaining HTTP segment 53/53. Receipt:
-docs/WORLD_LIFECYCLE_REPAIR_2026-09-10.md.
-This lane owns integration. Bugs: f2bd926a, 72da34d7, 3c77e050.
-Installed desktop and user-layout recovery remain unverified.
-
 ## IMPLEMENTED — skin-motion-0910: movement stutter
 
 Source repair 75a814c18 holds look-back facing and removes empty waypoint frames for hero, idle crew and workstation crew. Live hero/crew checks passed; behavior regression 15/15 and customer journeys 34/34 passed. Receipt: qa/movement-continuity-0910.md. Full integration gate is recorded in qa/STATUS.md.
