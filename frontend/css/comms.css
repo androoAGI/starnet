@@ -833,3 +833,13 @@
 .gc-attachment-image span { display: block; max-width: 100%; overflow-wrap: anywhere; font-size: 12px; line-height: 1.35; }
 .gc-attachment-image:hover, .gc-attachment-image:focus-visible { border-color: var(--ph); outline-color: var(--ph); }
 .gc-file-image { display: block; max-width: 100%; max-height: 50vh; object-fit: contain; margin: 10px auto; }
+
+/* Semantic report structure stays inside the station's phosphor theme. */
+.cmsg .body .md-list { white-space: normal; margin: .4em 0; padding-left: 1.8em; }
+.cmsg .body .md-list li { margin: .2em 0; }
+.cmsg .body .md-list .md-list { margin: .15em 0; }
+.cmsg .body .md-quote { white-space: normal; margin: .5em 0; padding: .3em .7em; border-left: 2px solid var(--ph-faint); color: var(--ph); }
+.cmsg .body .md-table-scroll { display: block; max-width: 100%; overflow-x: auto; margin: .6em 0; white-space: normal; }
+.cmsg .body .md-table { border-collapse: collapse; font: inherit; min-width: 100%; }
+.cmsg .body .md-table th, .cmsg .body .md-table td { border: 1px solid var(--ph-faint); padding: .3em .6em; text-align: left; vertical-align: top; overflow-wrap: normal; word-break: normal; }
+.cmsg .body .md-table th { color: var(--ph-bright); }

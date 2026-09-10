@@ -1,0 +1,585 @@
+{
+  "schema": "starnet.hermes-campaign-queue.v1",
+  "reference": {
+    "version": "0.21.1",
+    "commit": "2237be355906fbe6065ce1815711eee52b2d646e"
+  },
+  "provider": null,
+  "model": null,
+  "approvedSpendUsd": null,
+  "liveModel": false,
+  "notes": [
+    "No trials executed. User provider/model and API spend ceiling are pending.",
+    "Prompts are scenario templates; freeze exact fixture inputs and native tool/permission mappings before launch.",
+    "UI scenarios require attended browser access.",
+    "Do not count scripted regression results as live-model trials."
+  ],
+  "scenarios": [
+    {
+      "id": "json-constraints",
+      "prompt": "Extract score 7 and code ABC into strict JSON with score >= 0 and code matching ^[A-Z]{3}$.",
+      "oracle": "Whole JSON parse plus independent numeric/string checks; reject invalid completion."
+    },
+    {
+      "id": "out-of-order-workers",
+      "prompt": "Have three workers return assigned numeric facts, then combine results in task order.",
+      "oracle": "Exactly three unique assignments and deterministic aggregate despite completion order."
+    },
+    {
+      "id": "repair-without-mutation-replay",
+      "prompt": "Write one local receipt, then return a result with an intentionally difficult schema.",
+      "oracle": "One receipt mutation total; output-only repair may not repeat the write."
+    },
+    {
+      "id": "failed-check-repair-recheck",
+      "prompt": "Fix a broken local fixture and rerun the identical check.",
+      "oracle": "First check fails, source changes, identical command runs again and passes."
+    },
+    {
+      "id": "large-output-tail",
+      "prompt": "Read a large fixture and report the decisive marker at its end.",
+      "oracle": "Exact independently seeded marker; continuation used when needed."
+    },
+    {
+      "id": "partial-provider-disconnect",
+      "prompt": "Produce a report through a provider that disconnects after partial content.",
+      "oracle": "Partial text remains accessible; terminal state never asserts successful completion."
+    },
+    {
+      "id": "duplicate-submission",
+      "prompt": "Submit the same keyed request twice during execution.",
+      "oracle": "One primary dispatch and one fixture mutation; both callers receive the same outcome."
+    },
+    {
+      "id": "restart-after-mutation",
+      "prompt": "Restart after a local mutation but before response persistence, then retry.",
+      "oracle": "No repeated mutation; explicit interrupted/uncertain state unless completion is durably provable."
+    },
+    {
+      "id": "project-resume",
+      "prompt": "Work in project A, switch to project B, then resume A.",
+      "oracle": "Artifacts and retained facts belong to the intended project; no cross-project leakage."
+    },
+    {
+      "id": "wide-report-copy",
+      "prompt": "Produce a wide table with nested lists, quote, named link and code block; copy its code.",
+      "oracle": "All cells and structure remain readable; clipboard equals original code bytes."
+    },
+    {
+      "id": "artifact-open-revise",
+      "prompt": "Produce an artifact, open it through the normal UI, then revise it.",
+      "oracle": "Opened runnable deliverable is correct and latest revision survives reload."
+    },
+    {
+      "id": "blocked-schedule-recovery",
+      "prompt": "Recover a blocked scheduled task that delivers to a local destination.",
+      "oracle": "One correctly routed local delivery with honest blocked/recovered status."
+    }
+  ],
+  "trials": [
+    {
+      "scenario": "json-constraints",
+      "harness": "starnet",
+      "attempt": 1,
+      "status": "not_run",
+      "evidence": null
+    },
+    {
+      "scenario": "json-constraints",
+      "harness": "starnet",
+      "attempt": 2,
+      "status": "not_run",
+      "evidence": null
+    },
+    {
+      "scenario": "json-constraints",
+      "harness": "starnet",
+      "attempt": 3,
+      "status": "not_run",
+      "evidence": null
+    },
+    {
+      "scenario": "json-constraints",
+      "harness": "hermes",
+      "attempt": 1,
+      "status": "not_run",
+      "evidence": null
+    },
+    {
+      "scenario": "json-constraints",
+      "harness": "hermes",
+      "attempt": 2,
+      "status": "not_run",
+      "evidence": null
+    },
+    {
+      "scenario": "json-constraints",
+      "harness": "hermes",
+      "attempt": 3,
+      "status": "not_run",
+      "evidence": null
+    },
+    {
+      "scenario": "out-of-order-workers",
+      "harness": "starnet",
+      "attempt": 1,
+      "status": "not_run",
+      "evidence": null
+    },
+    {
+      "scenario": "out-of-order-workers",
+      "harness": "starnet",
+      "attempt": 2,
+      "status": "not_run",
+      "evidence": null
+    },
+    {
+      "scenario": "out-of-order-workers",
+      "harness": "starnet",
+      "attempt": 3,
+      "status": "not_run",
+      "evidence": null
+    },
+    {
+      "scenario": "out-of-order-workers",
+      "harness": "hermes",
+      "attempt": 1,
+      "status": "not_run",
+      "evidence": null
+    },
+    {
+      "scenario": "out-of-order-workers",
+      "harness": "hermes",
+      "attempt": 2,
+      "status": "not_run",
+      "evidence": null
+    },
+    {
+      "scenario": "out-of-order-workers",
+      "harness": "hermes",
+      "attempt": 3,
+      "status": "not_run",
+      "evidence": null
+    },
+    {
+      "scenario": "repair-without-mutation-replay",
+      "harness": "starnet",
+      "attempt": 1,
+      "status": "not_run",
+      "evidence": null
+    },
+    {
+      "scenario": "repair-without-mutation-replay",
+      "harness": "starnet",
+      "attempt": 2,
+      "status": "not_run",
+      "evidence": null
+    },
+    {
+      "scenario": "repair-without-mutation-replay",
+      "harness": "starnet",
+      "attempt": 3,
+      "status": "not_run",
+      "evidence": null
+    },
+    {
+      "scenario": "repair-without-mutation-replay",
+      "harness": "hermes",
+      "attempt": 1,
+      "status": "not_run",
+      "evidence": null
+    },
+    {
+      "scenario": "repair-without-mutation-replay",
+      "harness": "hermes",
+      "attempt": 2,
+      "status": "not_run",
+      "evidence": null
+    },
+    {
+      "scenario": "repair-without-mutation-replay",
+      "harness": "hermes",
+      "attempt": 3,
+      "status": "not_run",
+      "evidence": null
+    },
+    {
+      "scenario": "failed-check-repair-recheck",
+      "harness": "starnet",
+      "attempt": 1,
+      "status": "not_run",
+      "evidence": null
+    },
+    {
+      "scenario": "failed-check-repair-recheck",
+      "harness": "starnet",
+      "attempt": 2,
+      "status": "not_run",
+      "evidence": null
+    },
+    {
+      "scenario": "failed-check-repair-recheck",
+      "harness": "starnet",
+      "attempt": 3,
+      "status": "not_run",
+      "evidence": null
+    },
+    {
+      "scenario": "failed-check-repair-recheck",
+      "harness": "hermes",
+      "attempt": 1,
+      "status": "not_run",
+      "evidence": null
+    },
+    {
+      "scenario": "failed-check-repair-recheck",
+      "harness": "hermes",
+      "attempt": 2,
+      "status": "not_run",
+      "evidence": null
+    },
+    {
+      "scenario": "failed-check-repair-recheck",
+      "harness": "hermes",
+      "attempt": 3,
+      "status": "not_run",
+      "evidence": null
+    },
+    {
+      "scenario": "large-output-tail",
+      "harness": "starnet",
+      "attempt": 1,
+      "status": "not_run",
+      "evidence": null
+    },
+    {
+      "scenario": "large-output-tail",
+      "harness": "starnet",
+      "attempt": 2,
+      "status": "not_run",
+      "evidence": null
+    },
+    {
+      "scenario": "large-output-tail",
+      "harness": "starnet",
+      "attempt": 3,
+      "status": "not_run",
+      "evidence": null
+    },
+    {
+      "scenario": "large-output-tail",
+      "harness": "hermes",
+      "attempt": 1,
+      "status": "not_run",
+      "evidence": null
+    },
+    {
+      "scenario": "large-output-tail",
+      "harness": "hermes",
+      "attempt": 2,
+      "status": "not_run",
+      "evidence": null
+    },
+    {
+      "scenario": "large-output-tail",
+      "harness": "hermes",
+      "attempt": 3,
+      "status": "not_run",
+      "evidence": null
+    },
+    {
+      "scenario": "partial-provider-disconnect",
+      "harness": "starnet",
+      "attempt": 1,
+      "status": "not_run",
+      "evidence": null
+    },
+    {
+      "scenario": "partial-provider-disconnect",
+      "harness": "starnet",
+      "attempt": 2,
+      "status": "not_run",
+      "evidence": null
+    },
+    {
+      "scenario": "partial-provider-disconnect",
+      "harness": "starnet",
+      "attempt": 3,
+      "status": "not_run",
+      "evidence": null
+    },
+    {
+      "scenario": "partial-provider-disconnect",
+      "harness": "hermes",
+      "attempt": 1,
+      "status": "not_run",
+      "evidence": null
+    },
+    {
+      "scenario": "partial-provider-disconnect",
+      "harness": "hermes",
+      "attempt": 2,
+      "status": "not_run",
+      "evidence": null
+    },
+    {
+      "scenario": "partial-provider-disconnect",
+      "harness": "hermes",
+      "attempt": 3,
+      "status": "not_run",
+      "evidence": null
+    },
+    {
+      "scenario": "duplicate-submission",
+      "harness": "starnet",
+      "attempt": 1,
+      "status": "not_run",
+      "evidence": null
+    },
+    {
+      "scenario": "duplicate-submission",
+      "harness": "starnet",
+      "attempt": 2,
+      "status": "not_run",
+      "evidence": null
+    },
+    {
+      "scenario": "duplicate-submission",
+      "harness": "starnet",
+      "attempt": 3,
+      "status": "not_run",
+      "evidence": null
+    },
+    {
+      "scenario": "duplicate-submission",
+      "harness": "hermes",
+      "attempt": 1,
+      "status": "not_run",
+      "evidence": null
+    },
+    {
+      "scenario": "duplicate-submission",
+      "harness": "hermes",
+      "attempt": 2,
+      "status": "not_run",
+      "evidence": null
+    },
+    {
+      "scenario": "duplicate-submission",
+      "harness": "hermes",
+      "attempt": 3,
+      "status": "not_run",
+      "evidence": null
+    },
+    {
+      "scenario": "restart-after-mutation",
+      "harness": "starnet",
+      "attempt": 1,
+      "status": "not_run",
+      "evidence": null
+    },
+    {
+      "scenario": "restart-after-mutation",
+      "harness": "starnet",
+      "attempt": 2,
+      "status": "not_run",
+      "evidence": null
+    },
+    {
+      "scenario": "restart-after-mutation",
+      "harness": "starnet",
+      "attempt": 3,
+      "status": "not_run",
+      "evidence": null
+    },
+    {
+      "scenario": "restart-after-mutation",
+      "harness": "hermes",
+      "attempt": 1,
+      "status": "not_run",
+      "evidence": null
+    },
+    {
+      "scenario": "restart-after-mutation",
+      "harness": "hermes",
+      "attempt": 2,
+      "status": "not_run",
+      "evidence": null
+    },
+    {
+      "scenario": "restart-after-mutation",
+      "harness": "hermes",
+      "attempt": 3,
+      "status": "not_run",
+      "evidence": null
+    },
+    {
+      "scenario": "project-resume",
+      "harness": "starnet",
+      "attempt": 1,
+      "status": "not_run",
+      "evidence": null
+    },
+    {
+      "scenario": "project-resume",
+      "harness": "starnet",
+      "attempt": 2,
+      "status": "not_run",
+      "evidence": null
+    },
+    {
+      "scenario": "project-resume",
+      "harness": "starnet",
+      "attempt": 3,
+      "status": "not_run",
+      "evidence": null
+    },
+    {
+      "scenario": "project-resume",
+      "harness": "hermes",
+      "attempt": 1,
+      "status": "not_run",
+      "evidence": null
+    },
+    {
+      "scenario": "project-resume",
+      "harness": "hermes",
+      "attempt": 2,
+      "status": "not_run",
+      "evidence": null
+    },
+    {
+      "scenario": "project-resume",
+      "harness": "hermes",
+      "attempt": 3,
+      "status": "not_run",
+      "evidence": null
+    },
+    {
+      "scenario": "wide-report-copy",
+      "harness": "starnet",
+      "attempt": 1,
+      "status": "not_run",
+      "evidence": null
+    },
+    {
+      "scenario": "wide-report-copy",
+      "harness": "starnet",
+      "attempt": 2,
+      "status": "not_run",
+      "evidence": null
+    },
+    {
+      "scenario": "wide-report-copy",
+      "harness": "starnet",
+      "attempt": 3,
+      "status": "not_run",
+      "evidence": null
+    },
+    {
+      "scenario": "wide-report-copy",
+      "harness": "hermes",
+      "attempt": 1,
+      "status": "not_run",
+      "evidence": null
+    },
+    {
+      "scenario": "wide-report-copy",
+      "harness": "hermes",
+      "attempt": 2,
+      "status": "not_run",
+      "evidence": null
+    },
+    {
+      "scenario": "wide-report-copy",
+      "harness": "hermes",
+      "attempt": 3,
+      "status": "not_run",
+      "evidence": null
+    },
+    {
+      "scenario": "artifact-open-revise",
+      "harness": "starnet",
+      "attempt": 1,
+      "status": "not_run",
+      "evidence": null
+    },
+    {
+      "scenario": "artifact-open-revise",
+      "harness": "starnet",
+      "attempt": 2,
+      "status": "not_run",
+      "evidence": null
+    },
+    {
+      "scenario": "artifact-open-revise",
+      "harness": "starnet",
+      "attempt": 3,
+      "status": "not_run",
+      "evidence": null
+    },
+    {
+      "scenario": "artifact-open-revise",
+      "harness": "hermes",
+      "attempt": 1,
+      "status": "not_run",
+      "evidence": null
+    },
+    {
+      "scenario": "artifact-open-revise",
+      "harness": "hermes",
+      "attempt": 2,
+      "status": "not_run",
+      "evidence": null
+    },
+    {
+      "scenario": "artifact-open-revise",
+      "harness": "hermes",
+      "attempt": 3,
+      "status": "not_run",
+      "evidence": null
+    },
+    {
+      "scenario": "blocked-schedule-recovery",
+      "harness": "starnet",
+      "attempt": 1,
+      "status": "not_run",
+      "evidence": null
+    },
+    {
+      "scenario": "blocked-schedule-recovery",
+      "harness": "starnet",
+      "attempt": 2,
+      "status": "not_run",
+      "evidence": null
+    },
+    {
+      "scenario": "blocked-schedule-recovery",
+      "harness": "starnet",
+      "attempt": 3,
+      "status": "not_run",
+      "evidence": null
+    },
+    {
+      "scenario": "blocked-schedule-recovery",
+      "harness": "hermes",
+      "attempt": 1,
+      "status": "not_run",
+      "evidence": null
+    },
+    {
+      "scenario": "blocked-schedule-recovery",
+      "harness": "hermes",
+      "attempt": 2,
+      "status": "not_run",
+      "evidence": null
+    },
+    {
+      "scenario": "blocked-schedule-recovery",
+      "harness": "hermes",
+      "attempt": 3,
+      "status": "not_run",
+      "evidence": null
+    }
+  ]
+}

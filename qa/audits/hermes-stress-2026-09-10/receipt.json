@@ -1,0 +1,496 @@
+{
+  "generatedAt": "2026-09-10T03:44:20.139Z",
+  "starnet": {
+    "version": "0.11.1",
+    "commit": "83c896e7d2c5b88d99147e75fbeedde6fb93c27b"
+  },
+  "hermes": {
+    "version": "0.21.1",
+    "tag": "v2026.9.7",
+    "commit": "2237be355906fbe6065ce1815711eee52b2d646e"
+  },
+  "liveModel": false,
+  "installedCandidateBound": false,
+  "methods": {
+    "starnet": "Production sidecar + loopback scripted provider; live browser COMMS. Delegation schema probe injects child run result.",
+    "hermes": "Production HTTP adapter on loopback aiohttp TestServer with injected agent results; production CLI renderer and schema validator. Targeted repository tests. Existing Python dependency path plus isolated pytest environment."
+  },
+  "partialFailure": {
+    "starnet": [
+      {
+        "repeat": 1,
+        "stream": false,
+        "status": 200,
+        "finish": "stop"
+      },
+      {
+        "repeat": 1,
+        "stream": true,
+        "status": 200,
+        "finish": [
+          "stop"
+        ]
+      },
+      {
+        "repeat": 1,
+        "native": true,
+        "status": 200,
+        "finish": [
+          "error"
+        ]
+      },
+      {
+        "repeat": 2,
+        "stream": false,
+        "status": 200,
+        "finish": "stop"
+      },
+      {
+        "repeat": 2,
+        "stream": true,
+        "status": 200,
+        "finish": [
+          "stop"
+        ]
+      },
+      {
+        "repeat": 2,
+        "native": true,
+        "status": 200,
+        "finish": [
+          "error"
+        ]
+      },
+      {
+        "repeat": 3,
+        "stream": false,
+        "status": 200,
+        "finish": "stop"
+      },
+      {
+        "repeat": 3,
+        "stream": true,
+        "status": 200,
+        "finish": [
+          "stop"
+        ]
+      },
+      {
+        "repeat": 3,
+        "native": true,
+        "status": 200,
+        "finish": [
+          "error"
+        ]
+      }
+    ],
+    "hermes": [
+      {
+        "repeat": 1,
+        "status": 200,
+        "finish": "error",
+        "flags": {
+          "completed": false,
+          "partial": true,
+          "failed": true,
+          "error": "401 Unauthorized: AUDIT_FATAL_PROVIDER",
+          "error_code": "agent_error"
+        }
+      },
+      {
+        "repeat": 2,
+        "status": 200,
+        "finish": "error",
+        "flags": {
+          "completed": false,
+          "partial": true,
+          "failed": true,
+          "error": "401 Unauthorized: AUDIT_FATAL_PROVIDER",
+          "error_code": "agent_error"
+        }
+      },
+      {
+        "repeat": 3,
+        "status": 200,
+        "finish": "error",
+        "flags": {
+          "completed": false,
+          "partial": true,
+          "failed": true,
+          "error": "401 Unauthorized: AUDIT_FATAL_PROVIDER",
+          "error_code": "agent_error"
+        }
+      }
+    ]
+  },
+  "idempotency": {
+    "starnet": [
+      {
+        "repeat": 1,
+        "primaryProviderCalls": 2
+      },
+      {
+        "repeat": 2,
+        "primaryProviderCalls": 2
+      },
+      {
+        "repeat": 3,
+        "primaryProviderCalls": 2
+      }
+    ],
+    "hermes": [
+      {
+        "repeat": 1,
+        "agentCalls": 1
+      },
+      {
+        "repeat": 2,
+        "agentCalls": 1
+      },
+      {
+        "repeat": 3,
+        "agentCalls": 1
+      }
+    ],
+    "limits": "HTTP chat completions only; no external mutation, crash durability, or cross-process retry guarantee tested."
+  },
+  "schema": {
+    "starnet": [
+      {
+        "name": "basic",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "score": {
+              "type": "integer"
+            }
+          },
+          "required": [
+            "score"
+          ]
+        },
+        "calls": 1,
+        "result": {
+          "content": "[{\"agentId\":\"worker\",\"reason\":\"done\",\"result\":\"{\\\"score\\\":4}\",\"structuredResult\":{\"score\":4},\"validation\":{\"state\":\"valid\",\"attempts\":[{\"ok\":true,\"errors\":[]}]},\"repairRunId\":\"\",\"usd\":0,\"runId\":\"basic-child\",\"model\":\"test\",\"reasoningEffort\":\"medium\",\"toolsOk\":0,\"durationMs\":0,\"tokens\":0}]",
+          "summary": "dispatched 1 worker(s), 1 done"
+        }
+      },
+      {
+        "name": "minimum",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "score": {
+              "type": "integer",
+              "minimum": 0
+            }
+          },
+          "required": [
+            "score"
+          ]
+        },
+        "calls": 0,
+        "result": {
+          "content": "[{\"agentId\":\"worker\",\"reason\":\"error\",\"result\":\"invalid result contract: $.properties.score.minimum is not a supported schema keyword\",\"usd\":0}]",
+          "summary": "dispatched 1 worker(s), 0 done"
+        }
+      },
+      {
+        "name": "pattern",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "code": {
+              "type": "string",
+              "pattern": "^[A-Z]{3}$"
+            }
+          },
+          "required": [
+            "code"
+          ]
+        },
+        "calls": 0,
+        "result": {
+          "content": "[{\"agentId\":\"worker\",\"reason\":\"error\",\"result\":\"invalid result contract: $.properties.code.pattern is not a supported schema keyword\",\"usd\":0}]",
+          "summary": "dispatched 1 worker(s), 0 done"
+        }
+      },
+      {
+        "name": "minItems",
+        "schema": {
+          "type": "array",
+          "minItems": 2,
+          "items": {
+            "type": "string"
+          }
+        },
+        "calls": 0,
+        "result": {
+          "content": "[{\"agentId\":\"worker\",\"reason\":\"error\",\"result\":\"invalid result contract: $.minItems is not a supported schema keyword\",\"usd\":0}]",
+          "summary": "dispatched 1 worker(s), 0 done"
+        }
+      },
+      {
+        "name": "oneOf",
+        "schema": {
+          "oneOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "integer"
+            }
+          ]
+        },
+        "calls": 0,
+        "result": {
+          "content": "[{\"agentId\":\"worker\",\"reason\":\"error\",\"result\":\"invalid result contract: $.oneOf is not a supported schema keyword\",\"usd\":0}]",
+          "summary": "dispatched 1 worker(s), 0 done"
+        }
+      },
+      {
+        "name": "ref",
+        "schema": {
+          "$defs": {
+            "score": {
+              "type": "integer"
+            }
+          },
+          "$ref": "#/$defs/score"
+        },
+        "calls": 0,
+        "result": {
+          "content": "[{\"agentId\":\"worker\",\"reason\":\"error\",\"result\":\"invalid result contract: $.$defs is not a supported schema keyword\",\"usd\":0}]",
+          "summary": "dispatched 1 worker(s), 0 done"
+        }
+      }
+    ],
+    "hermes": [
+      {
+        "name": "basic",
+        "schemaError": null,
+        "valid": [
+          true,
+          []
+        ],
+        "invalid": [
+          false,
+          [
+            "$: 'score' is a required property"
+          ]
+        ]
+      },
+      {
+        "name": "minimum",
+        "schemaError": null,
+        "valid": [
+          true,
+          []
+        ],
+        "invalid": [
+          false,
+          [
+            "$.score: -1 is less than the minimum of 0"
+          ]
+        ]
+      },
+      {
+        "name": "pattern",
+        "schemaError": null,
+        "valid": [
+          true,
+          []
+        ],
+        "invalid": [
+          false,
+          [
+            "$.code: 'a1' does not match '^[A-Z]{3}$'"
+          ]
+        ]
+      },
+      {
+        "name": "minItems",
+        "schemaError": null,
+        "valid": [
+          true,
+          []
+        ],
+        "invalid": [
+          false,
+          [
+            "$: ['a'] is too short"
+          ]
+        ]
+      },
+      {
+        "name": "oneOf",
+        "schemaError": null,
+        "valid": [
+          true,
+          []
+        ],
+        "invalid": [
+          false,
+          [
+            "$: True is not valid under any of the given schemas"
+          ]
+        ]
+      },
+      {
+        "name": "ref",
+        "schemaError": null,
+        "valid": [
+          true,
+          []
+        ],
+        "invalid": [
+          false,
+          [
+            "$: 'no' is not of type 'integer'"
+          ]
+        ]
+      }
+    ],
+    "limits": "Hermes jsonschema installed; richer contract validation, not general model-quality superiority."
+  },
+  "browser": {
+    "url": "http://127.0.0.1:53411",
+    "observedVia": "CUA accessibility and read-only DOM",
+    "tableElements": 0,
+    "orderedLists": 0,
+    "blockquotes": 0,
+    "namedLinkRenderedAs": "[Open evidence](https://example.com/evidence)",
+    "anchorText": "https://example.com/evidence",
+    "codeCopyButtons": 1,
+    "reportRetainedAfterReload": true,
+    "copyButtonFeedback": "Copied"
+  },
+  "sharedJsonFormatGap": {
+    "starnet": [
+      {
+        "type": "json_object",
+        "status": 200,
+        "contentIsJson": false
+      },
+      {
+        "type": "json_schema",
+        "status": 200,
+        "contentIsJson": false
+      }
+    ],
+    "hermes": [
+      {
+        "type": "json_object",
+        "status": 200,
+        "contentIsJson": false
+      },
+      {
+        "type": "json_schema",
+        "status": 200,
+        "contentIsJson": false
+      }
+    ]
+  },
+  "tests": {
+    "offlineFaultAttempts": 1000,
+    "offlineParityScenarios": 32,
+    "graderViolationProbes": 4,
+    "hermesTargeted": 48,
+    "hermesExpanded": 142,
+    "starnetFocusedAssertions": 150,
+    "starnetFast": {
+      "passed": 752,
+      "total": 752,
+      "exitCode": 0
+    },
+    "starnetHttp": {
+      "standardCommandExitCode": 124,
+      "timeoutMs": 900000,
+      "completedPrefix": 101,
+      "tailSuites": 7,
+      "tailExitCode": 0,
+      "coveredSuites": 108,
+      "declaredSuites": 108,
+      "standardFullGatePassed": false
+    }
+  },
+  "artifacts": [
+    {
+      "path": ".audit/starnet-partial.json",
+      "sha256": "15bdc462411857865eb5530cc7813b2970d48b711d8d75bc6c6cf7751264fdc7"
+    },
+    {
+      "path": ".audit/starnet-idempotency.json",
+      "sha256": "1a6bd11008b7495ab502f4aaca8301a513732773af96959fa616b843c26cda13"
+    },
+    {
+      "path": ".audit/hermes-http-probe.json",
+      "sha256": "02fdf9b6e5349a17bb322938e70d7cd6def675cb642c625578660c8e10d05acc"
+    },
+    {
+      "path": ".audit/starnet-schema.json",
+      "sha256": "7b538bdc30f73909faf465aa2ddc5cecaedfec970e5682e0a667c4e1eb996a68"
+    },
+    {
+      "path": ".audit/hermes-schema.json",
+      "sha256": "abc56ace0c850b861799f3b0d2752ef0d810d79822af2afab358311de4b8b08e"
+    },
+    {
+      "path": ".audit/hermes-json-format.json",
+      "sha256": "d618b4faca00be371c2169deae9b03fb3ef09bb9dd3aab3497d33a0fc6f9778c"
+    },
+    {
+      "path": ".audit/v1-json_object.json",
+      "sha256": "cb751e5ef73e6f18c965c3ab4e5931f34c24110a4c3ac4b55309222d707957b8"
+    },
+    {
+      "path": ".audit/v1-json_schema.json",
+      "sha256": "b4a85767fa46ceba8fb3f4428b9ba7ef458437361131ac621b5e0fa666525627"
+    },
+    {
+      "path": ".audit/hermes-render-40.txt",
+      "sha256": "f5adfac946197a4ade00ca9c674cd8ce6ace434e11572e79372fdabe5e84d778"
+    },
+    {
+      "path": ".audit/hermes-render-80.txt",
+      "sha256": "1e9a0e54402480e91961a6b6ddb515119db7169460ede320baf8a9eb7c1590ac"
+    },
+    {
+      "path": ".audit/hermes-render-120.txt",
+      "sha256": "b97713ede75f068066a554ab2beb0c452b9c3efa22ac71a44e07e42ceb6ca723"
+    },
+    {
+      "path": ".audit/hermes-targeted-2.log",
+      "sha256": "126a8b6f473cb7b11baccfbfcd06c234b361f11e9529efb7fbc9c256adba4807"
+    },
+    {
+      "path": ".audit/hermes-expanded.log",
+      "sha256": "62ae63e15a58a3b4128aabca2f1b7b1100877cbb92ed7e208224f0358a622b2b"
+    },
+    {
+      "path": ".audit/eval-gate.log",
+      "sha256": "8c2953c5d92a8363c5feeae82a99cd3bf6191ee8e5cc6e1958eaf0324ede1588"
+    },
+    {
+      "path": ".audit/fast-with-deps.log",
+      "sha256": "ff60dca98f277fde4c1458b2efef9c7609e33d13dbd61bc9766038799b036183"
+    },
+    {
+      "path": ".audit/http.log",
+      "sha256": "7c6421ecbae989cde5181c9d344512d79e15cc0cbf6b4fc1765970dbf096fc58"
+    },
+    {
+      "path": ".audit/http-tail.log",
+      "sha256": "7898c4650c5d46ce0e30a7ad83afd31ca4cdeb7138908611ebe1b9dd5305a6bf"
+    }
+  ],
+  "cleanup": {
+    "temporaryBrowserClosed": true,
+    "temporaryUiServersStopped": [
+      51100,
+      20472
+    ],
+    "processIdentityChecked": true
+  },
+  "finalizedAt": "2026-09-10T03:53:30.402Z"
+}

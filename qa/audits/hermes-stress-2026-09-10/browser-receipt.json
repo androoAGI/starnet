@@ -1,0 +1,78 @@
+{
+  "schema": "starnet.hermes-browser-verification.v1",
+  "testedCommit": "c9997b6b9ca35a99d01fa3802cf35ee42112b62e",
+  "liveModel": false,
+  "installedBuild": false,
+  "integrated": false,
+  "fast": {
+    "steps": 757,
+    "exitCode": 0,
+    "file": "browser-fast.log",
+    "sha256": "1b7bd82861aec296eaafc9c7a33d1f920aad900f02fe347e8ea07aaf134b6a3e"
+  },
+  "backendGate": {
+    "receipt": "implementation-receipt.json",
+    "steps": 110,
+    "note": "Previously passed on 61eeac2b40c9fd0e2e0a5d2b342f44de74119078; this follow-up changes only frontend, mirror, tests and source lock."
+  },
+  "checks": {
+    "viewports": [
+      {
+        "width": 1280,
+        "height": 720,
+        "panelWidth": 360
+      },
+      {
+        "width": 1000,
+        "height": 800,
+        "tableContainerWidth": 216
+      },
+      {
+        "width": 1600,
+        "height": 1000,
+        "panelWidth": 639
+      }
+    ],
+    "table": {
+      "columns": 6,
+      "scrollWidth": 791,
+      "narrowClientWidth": 216,
+      "mouseScrollLeft": 576,
+      "keyboardScrollBefore": 201,
+      "keyboardScrollAfter": 161,
+      "pageOverflow": false
+    },
+    "clipboard": {
+      "code": "{\"ok\":false,\"receipt\":\"731\"}",
+      "restoredReport": "exact Markdown including table, list hierarchy, quote, named URL and fence",
+      "streamedReport": "exact Markdown including six-column wide table"
+    },
+    "history": {
+      "pageReload": true,
+      "actualSidecarRestart": true
+    },
+    "streaming": {
+      "chunkChars": 60,
+      "chunkIntervalMs": 1000,
+      "historyScrollTopBefore": 0,
+      "historyScrollTopAfter": 0,
+      "selectedTextBefore": "Audit result",
+      "selectedTextAfter": "Audit result",
+      "observedWorkingToOnline": true
+    },
+    "consoleErrors": []
+  },
+  "fixes": [
+    "19e6aebde: preserve report source for message copying and keep narrow table words intact"
+  ],
+  "limits": [
+    "Default app UI zoom only; not every supported zoom or window was swept",
+    "Not a signed or installed desktop test",
+    "Same-model campaign and 48-hour soak not run"
+  ],
+  "cleanup": {
+    "temporaryTabClosed": true,
+    "viewportOverrideReset": true,
+    "ownedFixtureProcessesStopped": true
+  }
+}
