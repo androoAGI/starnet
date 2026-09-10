@@ -4,10 +4,10 @@ slug: claude-continuation-reminders-can-become-rejecte
 title: Claude continuation reminders can become rejected assistant prefill
 surface: providers
 severity: P1
-status: open
+status: fixed
 found: 2026-09-10
 lane: agent/release-0112-audit-0910
-fix:
+fix: 9441660d0
 origin: audit
 ---
 
@@ -31,4 +31,6 @@ Installed run `7b92366d-05cb-4128-a203-9383699b8b88` has three successful tools,
 
 ## Verdict
 
-Source repair is covered; rebuilt installed reproduction remains pending. This independently reproduced defect does not close the historical managed-Sonnet customer report without its affected-run evidence.
+Installed source `f111be488` completes the original write/read/verification-continuation path: run `159301af-e754-4df9-89f7-11781f77ad43`, reason `done`, real spend $0.15533445, and the expected file exists in its explicitly granted temporary project. The exact generated page was opened separately in Chrome and its Verify button produced `RELEASE_0112_TOOL_OK` with no page errors. Raw receipts: `.dogfood/release-0112-closeout/installed-final-task.json` and `deliverable-verified.json`.
+
+Sibling review found managed connections use the compatible adapter. Commit `9441660d0` shares the same translation through `sidecar/providers/provider.js`; the managed adapter's new request-seam regression fails before that wiring and all 91 compatible-adapter assertions pass afterward. Native Anthropic already preserves these notes as user turns. This independently reproduced defect does not close the historical managed-Sonnet customer report without its affected-run evidence.

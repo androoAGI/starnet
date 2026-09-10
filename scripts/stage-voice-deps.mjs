@@ -17,6 +17,7 @@
 import { cpSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync } from 'node:fs';
 import { join, dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { isUnusedMuslSharp } from './lib/staged-native-packages.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const args = process.argv.slice(2);
@@ -124,7 +125,7 @@ function purgeStaleReleasePackages() {
     for (const child of children) {
       if (!child.isDirectory()) continue;
       const childPath = join(dir, child.name);
-      if (DROP_ANYWHERE.has(child.name)) {
+      if (DROP_ANYWHERE.has(child.name) || isUnusedMuslSharp(dir.split(/[\\/]/).pop(), child.name, PLATFORM)) {
         rmSync(childPath, { recursive: true, force: true });
       } else {
         removeNamed(childPath);
@@ -174,7 +175,7 @@ let extraFreed = 0;
   for (const e of entries) {
     const p = join(dir, e.name);
     if (e.isDirectory()) {
-      if (DROP_ANYWHERE.has(e.name)) { extraFreed += dirSize(p); rmSync(p, { recursive: true, force: true }); continue; }
+      if (DROP_ANYWHERE.has(e.name) || isUnusedMuslSharp(dir.split(/[\\/]/).pop(), e.name, PLATFORM)) { extraFreed += dirSize(p); rmSync(p, { recursive: true, force: true }); continue; }
       sweep(p);
     } else if (DROP_SUFFIX.some(s => e.name.endsWith(s))) {
       try { extraFreed += statSync(p).size; rmSync(p, { force: true }); } catch (_) {}
