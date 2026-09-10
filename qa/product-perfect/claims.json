@@ -18,7 +18,7 @@
   "expectedClaimCount": 37,
   "releaseSurface": {
     "algorithm": "sha256",
-    "sourceCommit": "19e6aebded46145b75525616bdc384c976b6fe56",
+    "sourceCommit": "79fea7e8d19aefd91421452066750c114649433e",
     "pathSetSha256": "b0479380ff858bd18673d3e0c7191897e66f62b44b4fc14a50eade63aab5c027",
     "files": [
       {
