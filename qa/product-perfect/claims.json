@@ -18,8 +18,8 @@
   "expectedClaimCount": 37,
   "releaseSurface": {
     "algorithm": "sha256",
-    "sourceCommit": "79fea7e8d19aefd91421452066750c114649433e",
-    "pathSetSha256": "b0479380ff858bd18673d3e0c7191897e66f62b44b4fc14a50eade63aab5c027",
+    "sourceCommit": "e41f42d2cb9521d3aef6707fd58304b4b6881742",
+    "pathSetSha256": "4cc845293b6fb30447d2960a9d6230d0949b03d49326d55fea60600a8e20725f",
     "files": [
       {
         "path": "INSTALL.md",
@@ -1102,6 +1102,11 @@
         "sha256": "c18bd06da8487b4eec8ea3ff049b9012b1338322e6451b1c655ce79cc8b87ea4"
       },
       {
+        "path": "frontend/css/beat-cards.css",
+        "bytes": 9469,
+        "sha256": "93fc8784beec1a44a578138e6795e018b330a1c9cb13d2397f027417defa988f"
+      },
+      {
         "path": "frontend/css/channels.css",
         "bytes": 10301,
         "sha256": "6a85c9e3d07325f5b0c159af3f52d19cca2ba9a1fa73acb0d964c2c5a850e86e"
@@ -1238,8 +1243,8 @@
       },
       {
         "path": "frontend/index.html",
-        "bytes": 82789,
-        "sha256": "5944059b6908787d844c6e5b077752fe4d0350a3aed16f632883ca0892ab60d8"
+        "bytes": 82915,
+        "sha256": "005e385885f21ca7027dc6dea87e2baf8774b9bf8892e65ca90aaf29e3bd3460"
       },
       {
         "path": "frontend/js/arcade.js",
