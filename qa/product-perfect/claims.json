@@ -18,7 +18,7 @@
   "expectedClaimCount": 37,
   "releaseSurface": {
     "algorithm": "sha256",
-    "sourceCommit": "4e1d06c00c6437fab835ebcb906146e9fd2c195f",
+    "sourceCommit": "16cf2b926a2b790bfa338adf6bf6f3a59bfe625e",
     "pathSetSha256": "b0479380ff858bd18673d3e0c7191897e66f62b44b4fc14a50eade63aab5c027",
     "files": [
       {
@@ -958,8 +958,8 @@
       },
       {
         "path": "frontend/app/windows/connectors.js",
-        "bytes": 127300,
-        "sha256": "9be91f81a1724a9e8b3a3d5ef9af7df02f9a40c5bca78b67acc4aeac2bb11d5e"
+        "bytes": 131302,
+        "sha256": "12c5cb1a7d0976707823898476525e94bcf71b3fac698c9963dff16597084c15"
       },
       {
         "path": "frontend/app/windows/logbook.js",
