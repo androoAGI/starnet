@@ -615,8 +615,14 @@ const Chat = (() => {
   function renderProse(bodyEl, raw) {
     if (!bodyEl) return;
     raw = String(raw == null ? '' : raw);
+    bodyEl.__proseSource = raw;
     if (raw.indexOf('http') === -1 && !MD_MARKERS.test(raw)) { bodyEl.textContent = raw; return; }
     bodyEl.innerHTML = renderMarkdown(raw);
+  }
+
+  function messageCopyText(bodyEl) {
+    if (!bodyEl) return '';
+    return typeof bodyEl.__proseSource === 'string' ? bodyEl.__proseSource : bodyEl.textContent;
   }
 
   // COPY-TO-CLIPBOARD: the async Clipboard API (works on localhost, a secure context), with a hidden-textarea
@@ -734,7 +740,7 @@ const Chat = (() => {
         }
         const btn = e.target.closest('.cmsg-copy'); if (!btn) return;
         const bodyEl = btn.closest('.cmsg') && btn.closest('.cmsg').querySelector('.body');
-        const txt = bodyEl ? bodyEl.textContent : '';
+        const txt = messageCopyText(bodyEl);
         if (!txt) return;
         copyText(txt).then(ok => {
           showCopyResult(btn, ok);

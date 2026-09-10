@@ -841,5 +841,5 @@
 .cmsg .body .md-quote { white-space: normal; margin: .5em 0; padding: .3em .7em; border-left: 2px solid var(--ph-faint); color: var(--ph); }
 .cmsg .body .md-table-scroll { display: block; max-width: 100%; overflow-x: auto; margin: .6em 0; white-space: normal; }
 .cmsg .body .md-table { border-collapse: collapse; font: inherit; min-width: 100%; }
-.cmsg .body .md-table th, .cmsg .body .md-table td { border: 1px solid var(--ph-faint); padding: .3em .6em; text-align: left; vertical-align: top; }
+.cmsg .body .md-table th, .cmsg .body .md-table td { border: 1px solid var(--ph-faint); padding: .3em .6em; text-align: left; vertical-align: top; overflow-wrap: normal; word-break: normal; }
 .cmsg .body .md-table th { color: var(--ph-bright); }
