@@ -214,6 +214,25 @@ body #chat-panel .tb-read-spent.folded .tb-read-head { font-size: var(--sn-type-
 body #chat-panel .tb-read .tb-read-chev { font-size: var(--sn-type-meta); }
 @media (max-width: 520px) { body #chat-panel .cmsg.tb-read { padding: 12px; } }
 /* Saved receipts are passive transcript, with an accessible undo target. */
+/* Station broadcasts remain one grouped status announcement, readable at COMMS width. */
+body #chat-panel .cmsg.broadcast {
+  display: block; margin: 12px 0; padding: 12px 16px; min-width: 0;
+  border: 1px solid var(--beat-edge) !important; border-radius: 8px; background: var(--beat-face) !important;
+  box-shadow: inset 0 1px 0 var(--beat-light) !important; text-align: left;
+}
+body #chat-panel .cmsg.broadcast::before,
+body #chat-panel .cmsg.broadcast::after { display: none; }
+body #chat-panel .cmsg.broadcast .bc-stack { display: flex; flex-direction: column; align-items: stretch; gap: 8px; min-width: 0; }
+body #chat-panel .cmsg.broadcast .bc-line {
+  display: block; min-width: 0; font-size: var(--sn-type-control) !important; line-height: 1.5;
+  letter-spacing: .45px; text-align: left; white-space: normal; overflow-wrap: anywhere;
+  color: var(--text); text-shadow: none; animation: none;
+}
+body #chat-panel .cmsg.broadcast .bc-line.bc-gold { color: var(--gold); }
+body #chat-panel .cmsg.broadcast.broadcast-warn .bc-line { color: var(--warn); }
+body #chat-panel .cmsg.broadcast .bc-glyph { display: inline-block; width: 18px; font-size: var(--sn-type-meta); opacity: 1; }
+body #chat-panel .cmsg.broadcast .bc-name { font-size: inherit; letter-spacing: inherit; text-shadow: none; }
+@media (max-width: 520px) { body #chat-panel .cmsg.broadcast { padding: 12px; } }
 body #chat-panel .cmsg.turnin.receipts { background: rgba(var(--ph-rgb),.035); box-shadow: inset 0 1px 0 var(--beat-light); }
 body #chat-panel .receipts .body { gap: 10px; }
 body #chat-panel .receipts .receipt-head { font-size: var(--sn-type-meta); line-height: 1.4; letter-spacing: .65px; opacity: 1; }
