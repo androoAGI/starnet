@@ -1,3 +1,13 @@
+## IN PROGRESS — 2026-09-10 post-release reliability cleanup (`agent/cleanup-0112-0910`)
+
+Owner requested cleanup using `docs/AUDIT_0.11.1_FOR_0.11.2.md`. This lane owns the five
+reproduced audit repairs and review of outstanding release evidence. Done means late catalogs
+preserve the chosen provider/model, image costs reconcile without a second debit, cancellation
+prevents image publication, panel height survives reopen/reload, and BYOK media recovery names
+the supported credential route. Registered regressions, live disposable-station checks and
+fast/HTTP gates must pass. Installed/account/hardware proof remains separately tracked.
+The previous release's exceptions do not carry forward.
+
 # NEXT.md — current priorities & task queue
 
 ## MERGED — 2026-09-09 tool projection integration (agent/tool-projection-0909)
