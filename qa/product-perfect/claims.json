@@ -18,7 +18,7 @@
   "expectedClaimCount": 37,
   "releaseSurface": {
     "algorithm": "sha256",
-    "sourceCommit": "2c5325e6b8d4ba39c23985ddbe93d40260b4a6c5",
+    "sourceCommit": "54f735b9a08c7c47b8d045287f585415409f5850",
     "pathSetSha256": "b0479380ff858bd18673d3e0c7191897e66f62b44b4fc14a50eade63aab5c027",
     "files": [
       {
@@ -453,8 +453,8 @@
       },
       {
         "path": "frontend/app/modeldock.js",
-        "bytes": 45481,
-        "sha256": "d6b7f05cea32a631e8d0397dfb1125e8324907ea276cdfb89b8b730aa83e745b"
+        "bytes": 45606,
+        "sha256": "fd09e8042aa3c519f72cfbc7d263eda1cd64994b9f2207d29d25f342f449aed6"
       },
       {
         "path": "frontend/app/modelpicker.js",
