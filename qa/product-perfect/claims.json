@@ -18,7 +18,7 @@
   "expectedClaimCount": 37,
   "releaseSurface": {
     "algorithm": "sha256",
-    "sourceCommit": "19fc72df4ba189049fd26b597154d448801b2407",
+    "sourceCommit": "5917269d3affc8340f5aaf0df8be36503836d94c",
     "pathSetSha256": "4cc845293b6fb30447d2960a9d6230d0949b03d49326d55fea60600a8e20725f",
     "files": [
       {
@@ -1103,8 +1103,8 @@
       },
       {
         "path": "frontend/css/beat-cards.css",
-        "bytes": 12788,
-        "sha256": "2c1a71de2471aee11bf954baac2623f3d8c8571def592faf748beaf47d027345"
+        "bytes": 12800,
+        "sha256": "14ea017a6b04892796c208001e12463a80e39d3baa332cdb559ccb896763b1a0"
       },
       {
         "path": "frontend/css/channels.css",
