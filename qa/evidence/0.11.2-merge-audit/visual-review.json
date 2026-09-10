@@ -1,0 +1,106 @@
+{
+  "reviewedAt": "2026-09-10T20:32:57.892Z",
+  "capturedAt": "2026-09-10T20:20:25.884Z",
+  "captureSource": "00de68e0f6da9c00b778eea1deefbaa84b82baa8",
+  "threshold": 1.5,
+  "baselineMethod": "Signatures from the exact 16 inspected PNGs; no recapture during approval; threshold unchanged.",
+  "limitation": "Default seeded browser states at 1440x900; not installed, physical audio, or long-running GPU acceptance.",
+  "reviewed": [
+    {
+      "name": "ingame",
+      "sha256": "2b949c9052aa28c7abee2ed2e9747f8209df1ad2eb1248b920251b9a76ad2e51",
+      "previousDiff": 7.87109375,
+      "review": "Visually inspected: intended station/panel layout; no visible layout regression in captured state."
+    },
+    {
+      "name": "crew-agents",
+      "sha256": "02ac4262f3ca553b1382fbfe4d1a37faf059cb53a6de775da343a415e546f339",
+      "previousDiff": 13.20390625,
+      "review": "Visually inspected: intended station/panel layout; no visible layout regression in captured state."
+    },
+    {
+      "name": "crew-recruit",
+      "sha256": "296d9e594630be8b80a3091a2216d8dceb4b3d2f131b84f45ee912e67e588732",
+      "previousDiff": 12.060546875,
+      "review": "Visually inspected: intended station/panel layout; no visible layout regression in captured state."
+    },
+    {
+      "name": "crew-commander",
+      "sha256": "612f1c7b0b3ede273d0bca811951012730dd733c1b758c60c403e29ec1627bb8",
+      "previousDiff": 16.4453125,
+      "review": "Visually inspected: intended station/panel layout; no visible layout regression in captured state."
+    },
+    {
+      "name": "work-tasks",
+      "sha256": "0c9dd401a04c77478bf04da5ca01f69e85be7dc63876e5ef2e57b287dcb9a679",
+      "previousDiff": 10.18671875,
+      "review": "Visually inspected: intended station/panel layout; no visible layout regression in captured state."
+    },
+    {
+      "name": "work-deliverables",
+      "sha256": "e81f18ba2d46d1589f9fd4367c8d81d9ee344fc3f2146df8d9dc8f1a54d0af15",
+      "previousDiff": 13.458203125,
+      "review": "Visually inspected: intended station/panel layout; no visible layout regression in captured state."
+    },
+    {
+      "name": "work-recipes",
+      "sha256": "bc3649ecf63b096f0507b5341ff83d4d7c6c2f3725fdb6f32fe61f9cb1c51ad4",
+      "previousDiff": 11.152734375,
+      "review": "Visually inspected: intended station/panel layout; no visible layout regression in captured state."
+    },
+    {
+      "name": "work-automation",
+      "sha256": "ecb8d1bf015e71e5b57a6e2d516824c2a6c566b5087b105d03af2b705b7cf65a",
+      "previousDiff": 12.12578125,
+      "review": "Visually inspected: intended station/panel layout; no visible layout regression in captured state."
+    },
+    {
+      "name": "work-quests",
+      "sha256": "52308af65895d0b79e83e1d09b5e8b7d610875e4b13e327860d6d4611b03ebef",
+      "previousDiff": 11.826953125,
+      "review": "Visually inspected: intended station/panel layout; no visible layout regression in captured state."
+    },
+    {
+      "name": "build-station",
+      "sha256": "ce3ff14575fd3a5dd4631257c67953f8851309652ce56dc2b3ae1e74918f427f",
+      "previousDiff": 14.802734375,
+      "review": "Visually inspected: intended station/panel layout; no visible layout regression in captured state."
+    },
+    {
+      "name": "build-connectors",
+      "sha256": "8c13b2ad8452a9ae058ddf8f347cc522306444c188853cbf59dc674e10cbcb2f",
+      "previousDiff": 12.251953125,
+      "review": "Visually inspected: intended station/panel layout; no visible layout regression in captured state."
+    },
+    {
+      "name": "sys-messaging",
+      "sha256": "33cb28e25aff11449a2fd06660cbd148cc4c3ad2c51c352192f5a1b6f82e2444",
+      "previousDiff": 10.986328125,
+      "review": "Visually inspected: intended station/panel layout; no visible layout regression in captured state."
+    },
+    {
+      "name": "build-manual",
+      "sha256": "db7bc1a600ead0152d6a52b4b22187773c7d412f703e70506a50ef8b1920ba0e",
+      "previousDiff": 11.990625,
+      "review": "Visually inspected: intended station/panel layout; no visible layout regression in captured state."
+    },
+    {
+      "name": "sys-settings",
+      "sha256": "3f6767e3fe157cf32be746ffb58d8427980dc26d2a886dfd82f6cae35ff055e1",
+      "previousDiff": 13.2859375,
+      "review": "Visually inspected: intended station/panel layout; no visible layout regression in captured state."
+    },
+    {
+      "name": "sys-updates",
+      "sha256": "ab1553c3dba3f31446808dc45af4a33500ec51a0d1298a02a1afb2eeca1720e8",
+      "previousDiff": 8.490625,
+      "review": "Visually inspected: intended station/panel layout; no visible layout regression in captured state."
+    },
+    {
+      "name": "sys-notifs",
+      "sha256": "b2781d439f8970d9774a22b5de46705c505259599979bc8c7d471a4faa3d0f87",
+      "previousDiff": 9.478125,
+      "review": "Visually inspected: intended station/panel layout; no visible layout regression in captured state."
+    }
+  ]
+}
