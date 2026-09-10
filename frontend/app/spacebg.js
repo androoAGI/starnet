@@ -1418,6 +1418,9 @@ const SpaceBG = (() => {
         else if (o.edge) { if (out(x + rim, y) || out(x - rim, y) || out(x, y + rim) || out(x, y - rim)) col = lit; }
         else if (out(x + lx * rim, y + ly * rim)) col = lit;
         else if (out(x - lx * rim, y - ly * rim)) col = shade;
+        // a DARK CORE where the cloud is thick (underlit clouds: thin edges transmit the light from
+        // below and glow, the dense middle blocks it) — `core` colour above coverage `coreT`
+        else if (o.core && f > (o.coreT == null ? 0.5 : o.coreT) + hashDither(x, y) * 0.12) col = o.core;
         // CREASES: the seams between lobes sit low in the coverage field — shade them (dithered), so
         // a cloud is a cauliflower of domes rather than one flat cutout
         else if (f + hashDither(x, y) * 0.10 < (o.crease == null ? 0.26 : o.crease)) col = shade;
@@ -1650,7 +1653,11 @@ const SpaceBG = (() => {
       WIN_W: [255, 220, 156], WIN_C: [170, 218, 255], WIN_HI: [255, 250, 236],
       BEACON: [255, 56, 48], HEAD: [255, 246, 214], TAIL: [255, 80, 60],
       DOME: [255, 148, 58], DOME_HI: [255, 190, 100],
-      CLOUD: [66, 46, 46], CLOUD_LIT: [150, 96, 66],
+      /* CLOUDS READ NOW (Andrew, 2026-09-10: "make sure there are clouds"): the first cut's
+         [66,46,46] body vanished into the dark city. An underlit cloud is bright where it is
+         THIN (the city's light comes through the edges) and dark where it is THICK — so the
+         body is a warm mid-tone, the rims glow, and the dense core goes dark. */
+      CLOUD: [130, 88, 66], CLOUD_LIT: [236, 168, 104], CLOUD_CORE: [58, 40, 42], WISP: [160, 106, 72], WISP_LIT: [214, 146, 92],
       HAZE: [58, 34, 28], HAZE_A: 0.03,
     },
 
@@ -1771,8 +1778,8 @@ const SpaceBG = (() => {
               brighter 2px lamps along it; arterials are two pixels wide, hotter, and bridge the
               river. Side streets stop at the water. Everything dims across parks. ---- */
       const lampStep = 6;
-      const lineA = (d, big, park) => Math.min(0.85, (big ? 0.55 : 0.32) * Math.min(1.2, d) + (big ? 0.26 : 0.14)) * (park ? 0.5 : 1);
-      const lampA = (d, big, park) => Math.min(1, (big ? 0.80 : 0.65) * Math.min(1.2, d) + (big ? 0.35 : 0.25)) * (park ? 0.5 : 1);
+      const lineA = (d, big, park) => Math.min(0.9, (big ? 0.62 : 0.36) * Math.min(1.2, d) + (big ? 0.30 : 0.16)) * (park ? 0.5 : 1);
+      const lampA = (d, big, park) => Math.min(1, (big ? 0.90 : 0.75) * Math.min(1.2, d) + (big ? 0.40 : 0.30)) * (park ? 0.5 : 1);
       for (const r of roadsV) {
         const ph = (rnd() * lampStep) | 0;
         for (let y = 0; y < h; y++) {
@@ -1821,6 +1828,52 @@ const SpaceBG = (() => {
         const len = 2 + ((rnd() * 4) | 0), s = rnd() < 0.5 ? -1 : 1, col = rnd() < 0.7 ? P.LAMP : P.WIN_C;
         for (let k = 1; k <= len; k++) put(x, y + s * (rivHalf - k), col, (0.10 + 0.14 * d) * (1 - k / (len + 1)));
       }
+      /* ---- THE HIGHWAY: one or two lit diagonals cutting the grid. A line from (x0,y0) to
+              (x0+w, y0±h) wraps EXACTLY on the torus, so it is the one diagonal a tiled city can
+              afford — and the thing that stops the lattice reading as graph paper. It clears a
+              margin through the blocks, carries its own hot lamps, and bridges the river. ---- */
+      const L = Math.hypot(w, h), ex = w / L, ey = h / L;
+      const highways = [];
+      for (let k = 0, n = 1 + (rnd() < 0.5 ? 1 : 0); k < n; k++) {
+        const hw = { x0: rnd() * w, y0: rnd() * h, dir: rnd() < 0.5 ? 1 : -1 };
+        highways.push(hw);
+        const nx = -hw.dir * ey, ny = ex;                                   // unit normal
+        for (let s = 0; s < L; s++) {
+          const x = hw.x0 + s * ex, y = hw.y0 + hw.dir * s * ey;
+          for (let q = -3; q <= 3; q++) put(x + nx * q, y + ny * q, P.GROUND, 0.9);
+          const d = density(x, y);
+          put(x, y, P.LAMP_HI, 0.45 + 0.2 * Math.min(1, d)); put(x + nx, y + ny, P.LAMP_HI, 0.45 + 0.2 * Math.min(1, d));
+          if (s % 5 === 0) for (const [ox, oy] of [[0, 0], [nx, ny], [ex, ey], [nx + ex, ny + ey]]) put(x + ox, y + oy, P.LAMP_HI, 1);
+        }
+      }
+
+      /* ---- THE STADIUM: one floodlit oval, the city's landmark — a dark pitch inside a ring of
+              white lamps, four floodlight masts at the corners (their glow goes on the dome). ---- */
+      let stadium = null;
+      for (let tries = 0; tries < 40 && !stadium; tries++) {
+        const sx = rnd() * w, sy = rnd() * h;
+        if (inRiver(sx, sy) || inPark(sx, sy) || density(sx, sy) < 0.5) continue;
+        stadium = { x: sx, y: sy, rx: 24 + rnd() * 6, ry: 16 + rnd() * 4 };
+      }
+      if (stadium) {
+        const { x: sx, y: sy, rx, ry } = stadium;
+        for (let y = -ry - 5; y <= ry + 5; y++) for (let x = -rx - 5; x <= rx + 5; x++) {
+          const d = Math.hypot(x / (rx + 4), y / (ry + 4));
+          if (d > 1) continue;
+          put(sx + x, sy + y, Math.hypot(x / rx, y / ry) < 0.92 ? P.PARK : P.GROUND, 1);
+        }
+        for (let a = 0; a < Math.PI * 2; a += 0.05) {
+          const x = sx + Math.cos(a) * rx, y = sy + Math.sin(a) * ry;
+          put(x, y, P.WIN_HI, 0.85); put(x + 1, y, P.WIN_HI, 0.85);
+        }
+        for (const [cx, cy] of [[-0.8, -0.8], [0.8, -0.8], [-0.8, 0.8], [0.8, 0.8]]) {
+          for (const [ox, oy] of [[0, 0], [1, 0], [0, 1], [1, 1]]) put(sx + cx * rx + ox, sy + cy * ry + oy, P.WIN_HI, 1);
+        }
+      }
+      // park paths: a loop of dim lamps inside each park — a park at night is its lit path
+      for (const k of parks) {
+        for (let a = 0; a < Math.PI * 2; a += 0.18) put(k.x + Math.cos(a) * k.r * 0.55, k.y + Math.sin(a) * k.r * 0.5, P.LAMP, 0.5);
+      }
       c.putImageData(img, 0, 0);
 
       /* Distance wash. Deliberately WARM, not the blue-grey a daylight haze would be: the only
@@ -1836,9 +1889,12 @@ const SpaceBG = (() => {
         puff9(gc, w, h, k.x, k.y, k.r * 1.3, P.DOME, 0.17 * k.s);
         puff9(gc, w, h, k.x, k.y, k.r * 0.55, P.DOME_HI, 0.13 * k.s);
       }
+      if (stadium) puff9(gc, w, h, stadium.x, stadium.y, stadium.rx * 2.2, [255, 240, 210], 0.22);   // the floodlights' glow
 
       /* ---- the cloud deck, underlit by the city (this is the tell that the light is BELOW) ---- */
-      const cloudCv = buildPixelClouds(w, h, mulberry32(0xC17914), { spread: 150000, min: 0.035, vary: 1.0, body: P.CLOUD, lit: P.CLOUD_LIT, shade: P.CLOUD, alpha: 0.82, edge: true, rim: 3 });
+      const cloudCv = buildPixelClouds(w, h, mulberry32(0xC17914), { spread: 120000, min: 0.04, vary: 1.2, body: P.CLOUD, lit: P.CLOUD_LIT, shade: P.CLOUD_CORE, core: P.CLOUD_CORE, coreT: 0.5, crease: 0.22, alpha: 0.94, edge: true, rim: 3 });
+      // a thinner, nearer wisp layer — thin cloud is all edge, so it is all glow
+      const wispCv = buildPixelClouds(w, h, mulberry32(0xC17925), { spread: 240000, min: 0.02, vary: 0.9, body: P.WISP, lit: P.WISP_LIT, shade: P.WISP, alpha: 0.6, edge: true, rim: 2 });
 
       /* ---- TRAFFIC on the arterials, and the BEACONS on the tallest towers ---- */
       const traffic = [];
@@ -1850,13 +1906,16 @@ const SpaceBG = (() => {
         if (!lane) continue;
         traffic.push({ vert, p: lane.p, u: rnd(), spd: (0.010 + 0.022 * rnd()) * (rnd() < 0.5 ? -1 : 1), warm: rnd() < 0.5 });
       }
+      for (const hw of highways) {                     // the highway is the busy road
+        for (let i = 0, n = 26; i < n; i++) traffic.push({ hw, u: rnd(), spd: (0.016 + 0.024 * rnd()) * (rnd() < 0.5 ? -1 : 1), warm: rnd() < 0.5 });
+      }
       const beacons = [];
       for (let i = 0; i < towers.length && beacons.length < 12; i++) {
         const t = towers[Math.floor(rnd() * towers.length)];
         beacons.push({ x: t.x, y: t.y, ph: rnd() * 10, rate: 900 + rnd() * 1800 });
       }
 
-      return { cityCv, glowCv, cloudCv, traffic, beacons };
+      return { cityCv, glowCv, cloudCv, wispCv, traffic, beacons };
     },
 
     draw(ctx, w, h, now, cam, st) {
@@ -1874,10 +1933,11 @@ const SpaceBG = (() => {
       // traffic — slow, and only on the arterials. Headlights warm one way, tail-lights red the other.
       for (const car of st.traffic) {
         if (!still) { car.u += car.spd / 1000 * 16; if (car.u > 1) car.u -= 1; else if (car.u < 0) car.u += 1; }
-        const x = car.vert ? car.p : car.u * w, y = car.vert ? car.u * h : car.p;
+        const x = car.hw ? car.hw.x0 + car.u * w : car.vert ? car.p : car.u * w;
+        const y = car.hw ? car.hw.y0 + car.hw.dir * car.u * h : car.vert ? car.u * h : car.p;
         const sx = ((x + gx) % w + w) % w, sy = ((y + gy) % h + h) % h;
         ctx.fillStyle = rgba(car.warm ? P.HEAD : P.TAIL, 0.9);
-        ctx.fillRect(sx, sy, car.vert ? 1 : 2, car.vert ? 2 : 1);
+        ctx.fillRect(sx, sy, car.vert ? 1 : 2, car.vert || car.hw ? 2 : 1);
       }
       // beacons — out of phase, a red point in a dim halo; steady under reduced motion
       for (const b of st.beacons) {
@@ -1888,8 +1948,10 @@ const SpaceBG = (() => {
       }
 
       // the underlit cloud deck, close to the station — again, the parallax gap is the altitude
-      ctx.globalAlpha = 0.9;
+      ctx.globalAlpha = 0.95;
       tile2(ctx, st.cloudCv, w, h, parX(cam, SURF.cloud) + t * 4.5, parY(cam, SURF.cloud) + t * 1.3);
+      ctx.globalAlpha = 0.8;
+      tile2(ctx, st.wispCv, w, h, parX(cam, SURF.cloud * 1.5) + t * 9, parY(cam, SURF.cloud * 1.5) + t * 2.6);
       ctx.globalAlpha = 1;
     },
   };
