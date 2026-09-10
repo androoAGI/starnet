@@ -16,4 +16,9 @@ A.ok(Math.abs(usd - 0.002) < 1e-12, 'cold-catalog usage backfills from a now-war
 A.eq(S.effectiveUsd({ usd: 0.042, unpricedUsage: [{ model: 'cold/model', tokensIn: 1000, tokensOut: 500 }], priceOf }), 0.042, 'existing provider cost is never double-added');
 A.eq(S.effectiveUsd({ usd: 0, unmetered: true, unpricedUsage: [{ model: 'cold/model', tokensIn: 1000, tokensOut: 500 }], priceOf }), 0, 'unmetered subscription usage stays out of metered USD');
 
+
+
+A.eq(S.effectiveRunUsd({ usd: 1.025, mediaUsd: .025, unmetered: true }), .025, 'paid media does not turn subscription estimates into charged dollars');
+A.eq(S.effectiveRunUsd({ usd: 1.025, mediaUsd: .025, unmetered: false }), 1.025, 'metered conversation and media sum once');
+A.eq(S.effectiveRunUsd({ usd: 1, mediaUsd: 0, unmetered: true }), 1, 'subscription-only legacy estimate semantics unchanged');
 A.report('spend.test');

@@ -64,8 +64,12 @@
       return 'Image task blocked: a STUDIO is present, but MEDIA STUDIO is disabled for this run. Enable MEDIA STUDIO in ABILITIES > TOOLSETS (and include studio in the routine toolsets if this run is restricted), then retry. No image artifact was produced.';
     }
     if (!(input.route && input.route.ok)) {
-      return 'Image task blocked: the StarNet credits connection is unavailable for '
-        + label(input.providerId, input.model) + '. Open SETTINGS and link this station to your StarNet account, then retry. No image artifact was produced.';
+      const managed = ['starnet', 'starnet-cloud', 'managed'].includes(String(input.providerId || '').toLowerCase());
+      return 'Image task blocked: ' + (managed ? 'the StarNet credits connection is unavailable for ' : 'no media connection is configured for ')
+        + label(input.providerId, input.model) + '. Open SETTINGS and ' + (managed
+          ? 'relink this station to your StarNet account'
+          : 'connect an OpenRouter API key for image generation, or link this station to your StarNet account')
+        + ', then retry. No image artifact was produced.';
     }
     return null;
   }

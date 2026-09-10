@@ -766,7 +766,19 @@
       });
       return c;
     }
+    function bookToolCosts() {
+      if (typeof o.drainToolCosts !== 'function') return;
+      for (const c of o.drainToolCosts()) {
+        spentUsd += c.usd || 0;
+        spentTokens += (c.tokensIn || 0) + (c.tokensOut || 0);
+        // Auxiliary tokens are not the conversation's context occupancy.
+        const payload = { agentId, runId, usd: c.usd || 0, model: c.model, reconciled: true };
+        if (c.unpriced) payload.unpriced = true;
+        emit('agent.cost', payload);
+      }
+    }
     function end(reason, extra) {
+      bookToolCosts();
       // A3/Lane5: surface WHY the model stopped when it's a truncation/policy stop, ADDITIVELY — on BOTH the return
       // value (index.js gates reflection/study/skills on it) AND the agent.run.end event (the frontend renders a
       // "cut short" recap instead of a delivered crate). The event field is now schema-declared (optional) so old
@@ -1450,7 +1462,7 @@
       } catch (e) {
         emit('agent.run.error', { agentId, runId, message: String((e && e.message) || e), transient: false });
         return end('error', { failureStage: 'tool_boundary', failureCode: (e && e.fatalToRun) ? 'durability_boundary' : 'tool_dispatch_failure' });
-      }
+      } finally { bookToolCosts(); }
       for (const r of results) messages.push(toolResultMsg(r.callId, r.isError, r.content));
       const repairNote = failedCheckRepairNote(calls, results);
       if (repairNote) messages.push({ role: 'system', content: repairNote });

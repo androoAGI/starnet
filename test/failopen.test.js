@@ -56,5 +56,13 @@ const { swallow, note, counts, resetForTests } = require('../sidecar/failopen.js
   try { note('t.sync.visible', new Error('shown')); } finally { console.warn = ow; }
   A.ok(seen.some(l => /\[failopen\] t\.sync\.visible \(x1\): shown/.test(l)), 'first sync note warns with tag, count and message');
 
+  const secret = 'sk-or-v1-' + 'fixture'.repeat(5);
+  const privateWarnings = []; const oldWarn = console.warn;
+  console.warn = (...args) => privateWarnings.push(args.join(' '));
+  try { note('safe.' + secret, new Error('provider failed ' + secret)); }
+  finally { console.warn = oldWarn; }
+  A.eq(privateWarnings.length, 1, 'redacted errors remain visible');
+  A.ok(!privateWarnings.join('').includes(secret), 'console warning redacts credentials in tag and message');
+  A.ok(!JSON.stringify(counts()).includes(secret), 'diagnostic counter tags cannot retain credentials');
   A.report('failopen helper');
 })();

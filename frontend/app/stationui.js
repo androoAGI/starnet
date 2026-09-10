@@ -941,6 +941,17 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
     w._sizeLimits = terminalLimits(opts);
     const savedSize = termSize[key];
     if (savedSize) resizeTermTo(w, key, savedSize.width, savedSize.height, false);
+    // Docked sheet preferences share the existing persisted station window store.
+    // Floating geometry remains separate so maximizing never destroys the normal height.
+    w._readDockState = () => {
+      const saved = store.termDock && store.termDock[key];
+      return saved && typeof saved === 'object' ? { height: saved.height, expanded: saved.expanded === true } : {};
+    };
+    w._saveDockState = state => {
+      if (!store.termDock || typeof store.termDock !== 'object') store.termDock = {};
+      store.termDock[key] = { height: Number.isFinite(state.height) && state.height > 0 ? state.height : null, expanded: state.expanded === true };
+      save();
+    };
     w._minimize = () => minimizeTerm(key); // Shared window action used by the glass controller.
     w._onClose = opts && opts.onClose;
     w._opener = opener;
@@ -2285,7 +2296,7 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
       a.model || 'Follow station default', (typeof Personas !== 'undefined' && Personas.get(a.personaId)?.name) || 'Station personality',
       'Effective reach, execution and approval settings',
       ((typeof DATA !== 'undefined' && DATA.SKINS && DATA.SKINS[a.skin]) || {}).name || 'Choose a skin'];
-    return '<p class="cf-grp-note">Choose what to change. Instructions and model changes use SAVE; personality, appearance and access controls apply when selected.</p>' +
+    return '<p class="cf-grp-note">Choose what to change. Instructions, model and personality tuning use SAVE; personality presets, appearance and access controls apply when selected.</p>' +
       CF_GROUPS.map((g, i) => {
         const key = a.id + ':' + g.id;
         return '<details class="cf-group" id="' + g.id + '" data-cf-group="' + esc(key) + '"' + (cfOpen.get(key) ? ' open' : '') + '><summary><span class="cf-group-title">' + g.label + '</span><span class="cf-group-summary">' + esc(summaries[i]) + '</span></summary><div class="cf-group-body">' + content[i] + '</div></details>';
@@ -2425,12 +2436,21 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
     const p = Personas.get ? Personas.get(cur) : null;
     const chips = Personas.list().map(x =>
       '<button type="button" class="ov-vchip' + (x.id === cur ? ' sel' : '') + '" data-persona="' + esc(x.id) + '" data-name="' + esc(x.name) + '" title="' + esc(x.vibe || '') + '" aria-pressed="' + (x.id === cur ? 'true' : 'false') + '">' + esc(x.name) + '</button>').join('');
+    const traits = (a && a.voiceTraits) || {};
+    const select = (key, label, options, selected) => '<div class="set-row"><label for="ag-persona-' + key + '">' + esc(label) + '</label><select class="fbc-sel" id="ag-persona-' + key + '" data-persona-trait="' + key + '">' + options.map((text, i) => '<option value="' + i + '"' + (i === selected ? ' selected' : '') + '>' + esc(text) + '</option>').join('') + '</select></div>';
+    const tuning = Personas.TRAITS.map(t => select(t.key, t.label, t.options, Number.isInteger(traits[t.key]) ? traits[t.key] : t.neutral)).join('') +
+      select('profanity', 'LANGUAGE', ['Use preset', ...Personas.PROFANITY.options], Number.isInteger(traits.profanity) ? traits.profanity + 1 : 0) +
+      Personas.TOGGLES.map(t => '<label class="cf-desc"><input type="checkbox" data-persona-toggle="' + t.key + '"' + (traits[t.key] === true ? ' checked' : '') + '> ' + esc(t.label) + '</label>').join('') +
+      '<div class="set-row"><label for="ag-persona-custom">CUSTOM STYLE</label><textarea class="key-input" id="ag-persona-custom" rows="3" placeholder="How you want this agent to communicate">' + esc((a && a.customVoice) || '') + '</textarea></div>' +
+      '<button type="button" class="bb" id="ag-persona-save">SAVE TUNING</button> <button type="button" class="bb" id="ag-persona-reset">RESET TO PRESET</button>';
     return '<div class="cf-card" id="ag-persona-card">' +
       '<div class="cf-head"><span class="cf-file">◉ personality</span></div>' +
-      '<div class="cf-desc">How this agent talks — in chat, delivered work, and its ambient lines on the floor. Changes the delivery only, never the work (or the station voice). Pick one to apply it immediately.</div>' +
+      '<div class="cf-desc">How this agent communicates in conversation and real work. Every personality keeps the same rigor and honesty. Pick one to apply it immediately. Tune energy and language below; audible voice is configured separately.</div>' +
       '<div class="ov-vchips" id="ag-persona-chips">' + chips + '</div>' +
       // sample-reply preview REMOVED (Andrew, 2026-07-20) — the sel chip + vibe tooltip carry the choice.
-      '<div id="ag-persona-msg" class="msg"></div>' +
+      '<details><summary>FINE-TUNE PERSONALITY' + (Personas.hasTuning(traits, a && a.customVoice) ? ' · CUSTOMIZED' : '') + '</summary>' +
+      '<p class="cf-desc">Saved tuning stays when you switch presets. RESET TO PRESET clears tuning and custom style.</p>' + tuning + '</details>' +
+      '<div id="ag-persona-msg" class="msg" role="status" aria-live="polite"></div>' +
     '</div>';
   }
 
@@ -2542,13 +2562,32 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
     if (pWrap) {
       const pMsg = body.querySelector('#ag-persona-msg');
       const setPMsg = (t, ok) => { if (pMsg) { pMsg.textContent = t || ''; pMsg.className = 'msg' + (ok ? ' ok' : ''); } };
+      const saveTuning = reset => {
+        const traits = {};
+        if (!reset) {
+          body.querySelectorAll('[data-persona-trait]').forEach(input => {
+            const key = input.dataset.personaTrait, value = Number(input.value);
+            if (key === 'profanity') { if (value > 0) traits.profanity = value - 1; }
+            else traits[key] = value;
+          });
+          body.querySelectorAll('[data-persona-toggle]').forEach(input => { traits[input.dataset.personaToggle] = input.checked; });
+        }
+        const custom = reset ? '' : (body.querySelector('#ag-persona-custom').value || '');
+        const id = Personas.resolve(a && a.personaId);
+        const ok = access.config && access.config.setPersona && access.config.setPersona(a && a.id, id, { traits, custom });
+        if (!ok) { setPMsg('could not save personality tuning', false); sfx('bad'); return; }
+        notify(reset ? 'personality tuning reset' : 'personality tuning saved', 'good');
+        rerender('agents');
+      };
+      body.querySelector('#ag-persona-save')?.addEventListener('click', () => saveTuning(false));
+      body.querySelector('#ag-persona-reset')?.addEventListener('click', () => saveTuning(true));
       let armed = null;
       const disarm = () => { if (armed) { armed.textContent = armed.dataset.name; armed.classList.remove('arm'); armed = null; } };
       const curId = (typeof Personas !== 'undefined' && Personas.resolve) ? Personas.resolve((a && a.personaId) || Personas.DEFAULT_ID) : '';
       pWrap.querySelectorAll('.ov-vchip').forEach(chip => chip.addEventListener('click', () => {
         const id = chip.dataset.persona;
         if (!id || id === curId) { disarm(); return; }
-        if (id === 'unhinged' && armed !== chip) {
+        if (id === 'unhinged' && Personas.effective(id, a && a.voiceTraits).profanity > 0 && armed !== chip) {
           disarm(); armed = chip;
           chip.classList.add('arm');
           chip.textContent = 'UNHINGED — SURE? it swears, for real';
@@ -2559,7 +2598,7 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
         if (!(access.config && access.config.setPersona)) { setPMsg('personality change unavailable', false); sfx('bad'); return; }
         const ok = access.config.setPersona(a && a.id, id);
         if (ok === false) { setPMsg('could not change personality', false); sfx('bad'); return; }
-        notify('personality → ' + (chip.dataset.name || id).toUpperCase() + (id === 'unhinged' ? ' — it swears, for real' : ''), 'good');
+        notify('personality → ' + (chip.dataset.name || id).toUpperCase() + (id === 'unhinged' && Personas.effective(id, a && a.voiceTraits).profanity > 0 ? ' — it swears, for real' : ''), 'good');
         sfx('click'); rerender('agents');
       }));
     }

@@ -1,0 +1,19 @@
+{
+  "source": "b3760c46ff3fe02790e6c3b0c50a23c30b5837a8",
+  "errors": [],
+  "resize": {
+    "before": 420,
+    "resized": 512,
+    "reopened": 420
+  },
+  "race": {
+    "chosen": {
+      "provider": "starnet",
+      "model": "anthropic/test-model"
+    },
+    "after": {
+      "provider": "ollama",
+      "model": ""
+    }
+  }
+}
