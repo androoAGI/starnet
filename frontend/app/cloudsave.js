@@ -359,7 +359,8 @@ const CloudSave = (() => {
   async function reloadCurrent() {
     if (typeof App !== 'undefined' && App.persist) App.persist();
     const confirmed = await flush({ force: true });
-    if (!confirmed && (!conflict || pending)) throw new Error('Could not preserve this window. Download its save before reloading.');
+    if (pending || activeFlushes.size) throw new Error('This window changed while saving. Try reloading again after your work finishes.');
+    if (!confirmed && !conflict) throw new Error('Could not preserve this window. Download its save before reloading.');
     localStorage.removeItem('starnet.save');
     location.reload();
   }
