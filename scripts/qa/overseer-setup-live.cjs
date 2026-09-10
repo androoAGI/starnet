@@ -23,11 +23,8 @@ const { chromium } = require(process.env.STARNET_PLAYWRIGHT_MODULE || 'playwrigh
     await page.locator('#in-name').fill('ORION');
     assert.equal(await page.locator('#np-name').textContent(), 'ORION');
     assert(await page.locator('#ov-brain').isHidden());
-    await page.locator('#ov-skin-search').fill('robot');
-    assert.equal(await page.locator('#skin-picker button:visible').count(),1);
-    await page.locator('#ov-skin-search').fill('no-matching-character');
-    assert(await page.locator('#ov-skin-empty').isVisible());
-    await page.locator('#ov-skin-search').fill('');
+    assert.equal(await page.locator('#ov-skin-search').count(), 0);
+    assert.equal(await page.locator('#skin-picker button:visible').count(), await page.locator('#skin-picker button').count());
     await page.locator('#skin-picker .skin-thumb').nth(1).click();
     const skin = await page.locator('#skin-stage-name').textContent();
     await page.locator('#approval-picker button').nth(1).click();
@@ -60,7 +57,7 @@ const { chromium } = require(process.env.STARNET_PLAYWRIGHT_MODULE || 'playwrigh
     await page.emulateMedia({reducedMotion:'reduce'});
     assert.equal(await hero.evaluate(el=>getComputedStyle(el,'::before').animationName),'none');
     await page.emulateMedia({reducedMotion:'no-preference'});
-    receipt.checks.push('Skin search, all 16 bundled provider logos, single-click account window, duplicate-click guard, failure feedback, reduced motion');
+    receipt.checks.push('Unfiltered character gallery, all 16 bundled provider logos, single-click account window, duplicate-click guard, failure feedback, reduced motion');
     await page.locator('.prov[data-prov="custom"]').click();
     await page.locator('#in-base-url').fill('http://127.0.0.1:11434/v1');
     await page.locator('#btn-back').click();

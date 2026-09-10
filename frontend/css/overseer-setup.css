@@ -36,12 +36,10 @@
 #screen-connect .ov-np-role { font-size: 14px; letter-spacing: .4px; }
 #screen-connect .ov-pickrow { min-height: 0; flex: 0 0 auto; display: flex; flex-direction: column; align-items: stretch; gap: 8px; margin: 0; }
 #screen-connect .ov-gallery-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
-#screen-connect .ov-gallery-head label { margin: 0; font-size: 14px; letter-spacing: 1px; }
+#screen-connect .ov-gallery-head > span:first-child { margin: 0; font-size: 14px; letter-spacing: 1px; }
 #screen-connect #ov-skin-count { color: var(--ph-dim); font-size: 14px; }
-#screen-connect #ov-skin-search { margin: 0; padding: 9px 12px; font-size: 16px; min-width: 0; width: 100%; }
 #screen-connect .skin-picker { flex: 1; min-height: 50px; max-height: 162px; overflow-y: auto; justify-content: flex-start; gap: 6px; padding: 4px; scrollbar-gutter: stable; }
 #screen-connect .skin-thumb { flex: 0 0 48px; width: 48px; height: 48px; background: rgba(var(--ph-rgb),.035); border-radius: 5px; }
-#screen-connect #ov-skin-empty { font-size: 15px; color: var(--ph-dim); margin: 6px 0; }
 #screen-connect .ov-cfg { padding: 32px clamp(24px,4vw,72px); border: 0; min-height: 0; overflow-y: auto; scrollbar-gutter: stable; }
 #screen-connect .ov-step { font-size: 23px !important; letter-spacing: .6px; margin-bottom: 24px; text-shadow: none; }
 #screen-connect .ov-step b, #screen-connect .ov-step .dim { display: none; }
@@ -79,8 +77,8 @@
 #screen-connect .prov-hero:hover { border-color: var(--ph-bright); box-shadow: 0 0 26px rgba(var(--ph-rgb),.12); }
 #screen-connect .prov-hero-badge { font-size: 12px; letter-spacing: 1.8px; margin-bottom: 14px; color: var(--ph-dim); }
 #screen-connect .prov-hero-row { gap: 20px; justify-content: space-between; }
-#screen-connect .prov-hero-title { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; font-size: 28px; letter-spacing: .2px; text-transform: none; }
-#screen-connect .prov-hero-title .ov-wordmark { width: 146px; height: 26px; }
+#screen-connect .prov-hero-title { display: block; line-height: 1.2; font-size: 28px; letter-spacing: .2px; text-transform: none; }
+#screen-connect .prov-hero-title .ov-wordmark { width: 4.7em; height: .8em; margin-left: .2em; vertical-align: -.08em; }
 #screen-connect .prov-hero-sub { font-size: 16px; line-height: 1.4; margin-top: 12px; }
 #screen-connect .prov-hero-arrow { font-size: 32px; color: var(--ph-bright); }
 #screen-connect .ov-connection { margin-top: 24px; padding: 22px; border: 1px solid var(--gd-edge); border-radius: 8px; background: rgba(0,0,0,.15); }
@@ -95,7 +93,7 @@
 #screen-connect .ov-actions .msg:not(:empty) { flex-basis: 100%; font-size: 16px; line-height: 1.4; }
 #screen-connect .btn-xl { min-height: 48px; padding: 12px 24px; border-radius: 6px; font-size: 18px; letter-spacing: .6px; }
 #screen-connect :is(button,input):focus-visible { outline: 2px solid var(--ph); outline-offset: 3px; }
-#screen-connect :is(.ov-setup-nav,.ov-col-id,.ov-col-brain,.skin-thumb,#ov-skin-empty,#btn-setup-next,#btn-wake,#btn-back)[hidden] { display: none; }
+#screen-connect :is(.ov-setup-nav,.ov-col-id,.ov-col-brain,.skin-thumb,#btn-setup-next,#btn-wake,#btn-back)[hidden] { display: none; }
 #screen-connect.recovery .ov-recovery { grid-column: 1/-1; margin: 0; }
 #screen-connect.recovery .ov-pickrow { display: none; }
 @keyframes ov-orbit { to { transform: rotate(360deg); } }
