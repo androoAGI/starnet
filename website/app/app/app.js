@@ -2508,11 +2508,7 @@ const App = (() => {
       window.OverseerSetup?.beginConnection();
       // The explicit StarNet card click starts account connection; automatic selection never opens a window.
       if (b.dataset.prov === 'starnet' && !starnetLinked) startStarnetLink();
-      else {
-        // Bring the selected provider's actual connection controls into view, below the full catalog.
-        const details = el('ov-connection-title');
-        if (details) details.scrollIntoView({ block: 'start' });
-      }
+
     }; });
     // the long-tail providers start folded behind ＋ MORE so a first-run user faces 6 chips, not 15.
     // selectProviderUI() unfolds the row itself whenever the active provider lives in the tail.
