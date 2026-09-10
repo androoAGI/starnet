@@ -159,7 +159,7 @@ const Terrain = (typeof document === 'undefined') ? { active: () => false } : ((
        only 64, so the combined pattern does not come back for 5632px and never lines up on
        screen at any zoom the camera reaches. */
     DAPPLE: 704,                      // world px of the sunlight-through-canopy pass
-    OVERLAY_ALPHA: 0.62,              // how hard that pass lands on the floor
+    OVERLAY_ALPHA: 0.80,              // how hard that pass lands on the floor
     CELL: 64,                         // world px per scatter cell (~5 station tiles)
     LEVELS: 6,                        // flat bands in the floor — pixel art, not a photograph
 
@@ -197,8 +197,13 @@ const Terrain = (typeof document === 'undefined') ? { active: () => false } : ((
          boundary — never a smooth blend between them. Blending soil into moss across a hundred
          pixels is precisely how the first pass turned into mud: every pixel differed from its
          neighbour by one unit, so the surface had no shapes in it at all. */
-      SOIL: [[10, 9, 7], [15, 13, 10], [21, 18, 13], [28, 24, 16], [36, 30, 20], [46, 38, 25]],
-      MOSS: [[13, 19, 11], [18, 27, 14], [24, 35, 17], [31, 44, 21], [39, 55, 26]],
+      /* LIFTED 2026-09-09 (Andrew: "the forest ... need significantly way better looking"): the
+         floor and the crowns each sat in a narrow dark band and the frame read as one green-brown
+         mud. Every ramp here gains a brighter top step; the darks stay where they were, so the
+         RANGE grows — contrast within a dark key is what reads as detail, and the station is
+         still the brightest thing on screen by a wide margin. */
+      SOIL: [[12, 10, 8], [18, 15, 11], [25, 21, 15], [33, 28, 19], [43, 36, 24], [55, 46, 30]],
+      MOSS: [[15, 22, 12], [21, 31, 16], [28, 41, 20], [36, 52, 25], [46, 66, 31]],
       SOIL_D: [17, 14, 11], SOIL_L: [56, 44, 29],
       MOSS_D: [19, 30, 18], MOSS_L: [58, 82, 41],
       LITTER: [92, 64, 33], TWIG: [46, 34, 22], STONE: [44, 45, 42],
@@ -210,10 +215,10 @@ const Terrain = (typeof document === 'undefined') ? { active: () => false } : ((
       LEAF_DRY: [[54, 38, 22], [78, 55, 30], [104, 75, 39], [134, 100, 51], [166, 128, 66]],
       LEAF_WET: [[24, 20, 14], [35, 29, 19], [48, 40, 25], [63, 52, 32], [80, 66, 40]],
       NEEDLES: [[25, 27, 18], [35, 38, 24], [47, 50, 31], [60, 63, 39]],   // conifer drift: cool, aligned
-      GRASS: [[20, 29, 16], [29, 42, 21], [40, 57, 27], [54, 75, 35], [72, 96, 45]],   // shade sedge, not lawn
+      GRASS: [[20, 29, 16], [29, 42, 21], [40, 57, 27], [56, 78, 36], [84, 112, 52]],   // shade sedge, not lawn
       ROOT: [[30, 24, 17], [45, 36, 25], [63, 51, 36], [84, 69, 49]],      // surface roots and twigs
       GRIT: [[52, 50, 45], [72, 70, 63], [96, 93, 84]],                    // the only cool grey down there
-      DAPPLE: [176, 152, 84],                          // warm sun on the floor, used additively
+      DAPPLE: [204, 174, 96],                          // warm sun on the floor, used additively
       /* THE SAME LESSON THE MOON TAUGHT, and this ground had it wrong first. At [10,14,10] the
          canopy gaps were holes: not "floor you cannot see well", but nothing at all, and a frame
          with a dozen of them reads as a torn photograph. Shade under a canopy is the one place in
@@ -224,9 +229,12 @@ const Terrain = (typeof document === 'undefined') ? { active: () => false } : ((
       CAST: [19, 26, 19],                              // opaque, so hard-edging cannot erase it
       /* five ramps, five silhouettes. A conifer is COOLER and DARKER than a maple; a birch is
          warmer and brighter than either. Hue separation is species identification at 40px. */
-      LEAF: [[19, 31, 19], [30, 48, 26], [44, 68, 33], [62, 92, 41], [86, 118, 51], [116, 148, 63]],
-      NEEDLE: [[14, 26, 17], [20, 37, 23], [28, 50, 30], [39, 66, 39], [56, 88, 50]],
-      BIRCH: [[26, 40, 20], [48, 70, 30], [78, 104, 42], [112, 138, 55], [150, 168, 74]],
+      LEAF: [[16, 28, 18], [26, 44, 25], [40, 64, 32], [58, 88, 40], [82, 116, 50], [112, 150, 62], [150, 184, 80]],
+      NEEDLE: [[12, 24, 17], [18, 36, 23], [26, 50, 30], [38, 68, 40], [56, 92, 52], [80, 118, 66]],
+      BIRCH: [[28, 42, 20], [52, 74, 30], [84, 110, 42], [120, 146, 56], [160, 180, 76], [196, 206, 98]],
+      /* one broadleaf in seven is TURNING — a rust crown among the green. Old growth is never one
+         colour, and a single warm crown per screen is what stops the canopy reading as a mat. */
+      RUST: [[40, 24, 14], [68, 38, 18], [102, 56, 22], [142, 82, 30], [184, 118, 44], [220, 158, 70]],
       DEAD: [[30, 26, 20], [46, 40, 31], [64, 56, 43], [84, 74, 57]],
       BARK: [[30, 24, 18], [52, 42, 30], [78, 64, 46]],
       PALE: [[64, 62, 56], [92, 90, 81], [124, 120, 107]],     // birch bark, bone, bare wood
@@ -544,7 +552,7 @@ const Terrain = (typeof document === 'undefined') ? { active: () => false } : ((
          legible is a SPRAY OF SEPARATE BRIGHT MARKS with dark floor between them — that gap
          between the marks is the entire read. */
       const gap = noiseField(11, rnd);
-      for (let i = 0; i < 1500; i++) {
+      for (let i = 0; i < 2200; i++) {
         const x = rnd() * P, y = rnd() * P;
         const open = clamp01((gap(x / P, y / P) - 0.56) * 3.4);
         if (rnd() > open * open * open) continue;
@@ -690,7 +698,7 @@ const Terrain = (typeof document === 'undefined') ? { active: () => false } : ((
            which is what stops a crown reading as one smooth ball of confetti. */
         const branch = clump(u * 2.3, v * 2.3);
         const sunSide = side > 0 ? Math.pow(side, 0.72) : side * 0.85;
-        let lit = 0.24 + (o.boost || 0) + 0.20 * dome + 0.62 * sunSide - 0.28 * (1 - branch);
+        let lit = 0.28 + (o.boost || 0) + 0.20 * dome + 0.66 * sunSide - 0.28 * (1 - branch);
         lit += (rnd() - 0.5) * 0.18;                                          // per-leaf jitter
         c.fillStyle = rgb(ramp(pal, lit));
         const sz = 1 + ((rnd() * (R > 34 ? 4 : R > 18 ? 3 : 2)) | 0);
@@ -747,8 +755,8 @@ const Terrain = (typeof document === 'undefined') ? { active: () => false } : ((
            boundaries were the black gaps. Real crowns differ by a lot more than shape: age, species,
            how much sun they win, whether they are under an emergent. Spreading the pool across a
            third of the ramp costs nothing and is what turns a mat back into individual trees. */
-        FOREST.crown(c, cx, cy, R, LT.LEAF, rnd, {
-          density: 0.66, hole: 0.80, boost: -0.17 + v * 0.055,
+        FOREST.crown(c, cx, cy, R, v === 6 ? LT.RUST : LT.LEAF, rnd, {
+          density: 0.66, hole: 0.80, boost: v === 6 ? 0 : -0.17 + v * 0.055,
         });
         add('tree', cv, cx, cy, R);
       }
@@ -761,7 +769,7 @@ const Terrain = (typeof document === 'undefined') ? { active: () => false } : ((
         const R = 58 + Math.round(rnd() * 20);
         const S = Math.ceil(R * 3.0), cx = S / 2, cy = S / 2;
         const cv = mkCv(S, S), c = cv.getContext('2d');
-        FOREST.crown(c, cx, cy, R, LT.LEAF, rnd, { density: 0.60, hole: 0.82, boost: 0.10 });
+        FOREST.crown(c, cx, cy, R, LT.LEAF, rnd, { density: 0.60, hole: 0.82, boost: 0.16 });
         add('emergent', cv, cx, cy, R);
       }
 
@@ -1131,7 +1139,7 @@ const Terrain = (typeof document === 'undefined') ? { active: () => false } : ((
     /* The ray pass reads as CAMOUFLAGE if you can see its blobs. It is meant to be the faintest
        possible hint that some of this dust came from somewhere else — felt, not seen. At 0.06 its
        lumps were legible as lumps and the plain looked stained. */
-    OVERLAY_ALPHA: 0.038,
+    OVERLAY_ALPHA: 0.05,
     CELL: 96,
 
     LIGHT: {
@@ -1139,8 +1147,15 @@ const Terrain = (typeof document === 'undefined') ? { active: () => false } : ((
          solar system. The moon looks bright to us only because it sits against black sky. Ramping
          it up to "moon white" would both be wrong and break the law that the station is the
          brightest thing on screen. */
-      REG: [[19, 18, 19], [28, 27, 28], [38, 37, 37], [50, 48, 47], [63, 60, 58], [79, 76, 72]],
-      RIM: [[96, 92, 87], [122, 117, 110], [152, 146, 137]],       // sun-struck crater rims, brightest thing out here
+      /* TEN STEPS, NOT SIX, AND A DUOTONE (2026-09-09). At six steps of ~12 units the hash dither
+         between adjacent steps was a ±12 salt-and-pepper over the whole plain, and at play zoom
+         (every pixel a 2x2 block) that read as TV STATIC — Andrew's "need significantly way
+         better". Finer steps halve the dither amplitude for the same tonal range. The ramp also
+         runs cool in the dark end and warm in the light end: shade on the moon is lit by nothing,
+         sunlit dust is lit by a yellow star, and that one hue shift is what stops a monochrome
+         plain from reading as a grey texture swatch. Still one material. */
+      REG: [[18, 17, 22], [25, 24, 28], [32, 31, 34], [40, 39, 41], [48, 47, 48], [57, 55, 55], [66, 63, 62], [76, 72, 69], [86, 81, 76], [97, 91, 84], [108, 101, 91], [118, 110, 98]],
+      RIM: [[132, 124, 112], [164, 154, 140], [200, 190, 172]],     // sun-struck crater rims, brightest thing out here
       DARK: [[16, 16, 17], [22, 22, 23]],                          // shaded regolith
       /* SHADOW IS NOT BLACK, and this is the single biggest correction in this pass. "Airless, so
          the shadows are black" is true of the PHOTOGRAPH and false of the picture: an Apollo frame
@@ -1148,16 +1163,20 @@ const Terrain = (typeof document === 'undefined') ? { active: () => false } : ((
          The eye standing there sees into the shade fine, because the sunlit far wall of the bowl is
          a huge grey reflector aimed straight into it. Filling shade with near-zero turned every
          crater into a punched hole and every bowl into a silhouette — the plain read as pegboard. */
-      SHADOW: [17, 16, 18],
-      BOUNCE: [34, 32, 34],                                        // shade lit by the far wall, not by the sun
-      DUST: [96, 93, 88],                                          // ray ejecta, used additively
+      SHADOW: [12, 11, 16],
+      BOUNCE: [38, 36, 42],                                        // shade lit by the far wall, not by the sun
+      DUST: [104, 100, 92],                                        // ray ejecta, used additively
     },
 
     /* ---- the tiling regolith: grain, micro-pits, and the odd bright chip ---- */
     buildPatch(rnd) {
       const P = MOON.PATCH, LT = MOON.LIGHT;
       const cv = mkCv(P, P), c = cv.getContext('2d');
-      const n1 = noiseField(3, rnd), n2 = noiseField(8, rnd), n3 = noiseField(21, rnd);
+      /* n0 is NEW: broad albedo swathes at the screen scale — a mare is not one value, it is
+         darker basalt flows and paler ejecta blankets hundreds of px across, and that low octave
+         is the only composition the plain has at zoom-out. The high octave is cut back: at play
+         zoom it was doing nothing but feeding the static. */
+      const n0 = noiseField(2, rnd), n1 = noiseField(3, rnd), n2 = noiseField(8, rnd), n3 = noiseField(21, rnd);
       const img = c.createImageData(P, P), D = img.data;
       let p = 0;
       for (let y = 0; y < P; y++) {
@@ -1166,8 +1185,8 @@ const Terrain = (typeof document === 'undefined') ? { active: () => false } : ((
           /* regolith is churned powder: broad tonal drift, then a hard 1px hash on top. The hash
              is doing most of the work — dust has no structure at any scale you can see from here,
              only tooth. */
-          const soft = n1(u, v) * 0.16 + n2(u, v) * 0.28 + n3(u, v) * 0.56;
-          const col = dither(LT.REG, soft * 0.74 + 0.14, x, y, 17);
+          const soft = n0(u, v) * 0.30 + n1(u, v) * 0.18 + n2(u, v) * 0.26 + n3(u, v) * 0.26;
+          const col = dither(LT.REG, soft * 0.70 + 0.30, x, y, 17);
           D[p] = col[0]; D[p + 1] = col[1]; D[p + 2] = col[2]; D[p + 3] = 255;
           p += 4;
         }
@@ -1181,12 +1200,14 @@ const Terrain = (typeof document === 'undefined') ? { active: () => false } : ((
       /* MICRO-PITS: the smallest craters, too small to be sprites, baked straight into the tile.
          Each is two pixels — a lit crumb up-sun and a black crumb down-sun. That two-pixel pair is
          the entire language of this ground, repeated at every scale above it. */
-      for (let i = 0; i < 1500; i++) {
+      /* FEWER, and read against the plain rather than shouting over it: at 1500 pairs plus 260
+         chips the tile was a field of speckle, and at play zoom speckle IS static. */
+      for (let i = 0; i < 520; i++) {
         const x = (rnd() * P) | 0, y = (rnd() * P) | 0, s = 1 + ((rnd() * 2) | 0);
-        stamp(x, y, s, s, rgba(LT.SHADOW, 0.55 + 0.4 * rnd()));
-        stamp(x + Math.round(SUN.x * (s + 1)), y + Math.round(SUN.y * (s + 1)), s, 1, rgba(LT.RIM[0], 0.30 + 0.35 * rnd()));
+        stamp(x, y, s, s, rgba(LT.SHADOW, 0.45 + 0.35 * rnd()));
+        stamp(x + Math.round(SUN.x * (s + 1)), y + Math.round(SUN.y * (s + 1)), s, 1, rgba(LT.RIM[0], 0.25 + 0.30 * rnd()));
       }
-      for (let i = 0; i < 260; i++) {                     // fresh chips of unweathered rock
+      for (let i = 0; i < 140; i++) {                     // fresh chips of unweathered rock
         const x = (rnd() * P) | 0, y = (rnd() * P) | 0;
         stamp(x, y, 1, 1, rgba(LT.RIM[1], 0.30 + 0.40 * rnd()));
       }
@@ -1259,6 +1280,18 @@ const Terrain = (typeof document === 'undefined') ? { active: () => false } : ((
           c.fillStyle = rgb(ramp(LT.REG, 0.42 + rnd() * 0.30));
           c.fillRect(Math.round(x), Math.round(y), Math.abs(Math.cos(th)) > 0.5 ? len : 1,
             Math.abs(Math.cos(th)) > 0.5 ? 1 : len);
+        }
+      }
+
+      /* 1b. EJECTA BOULDERS — the blocks a young impact throws just past its rim. Each is a lit chip
+         with a hard shadow down-sun; without them a fresh crater reads as a stamp on the plain. */
+      if (fresh && R >= 26) {
+        for (let i = 0, n = 5 + ((rnd() * 8) | 0); i < n; i++) {
+          const th = rnd() * TAU, d = R * (1.06 + rnd() * 0.5);
+          const x = Math.round(cx + Math.cos(th) * d), y = Math.round(cy + Math.sin(th) * d), s = 1 + ((rnd() * 2) | 0);
+          c.fillStyle = rgb(LT.SHADOW); c.fillRect(x - Math.round(SUN.x * (s + 1)), y - Math.round(SUN.y * (s + 1)), s + 1, s);
+          c.fillStyle = rgb(ramp(LT.REG, 0.62 + rnd() * 0.3)); c.fillRect(x, y, s, s);
+          c.fillStyle = rgb(LT.RIM[0]); c.fillRect(x, y, 1, 1);
         }
       }
 
@@ -1465,7 +1498,7 @@ const Terrain = (typeof document === 'undefined') ? { active: () => false } : ((
             const a = a0 + (rnd() - 0.5) * spread * (0.4 + t);    // the wedge widens with distance
             if (rnd() > 1 - t * 0.86) continue;                   // thins out rather than stopping
             const x = cx + Math.cos(a) * d, y = cy + Math.sin(a) * d;
-            c.fillStyle = rgb(ramp(LT.REG, 0.70 + rnd() * 0.30));
+            c.fillStyle = rnd() < 0.3 ? rgb(LT.RIM[0]) : rgb(ramp(LT.REG, 0.72 + rnd() * 0.28));
             c.fillRect(Math.round(x), Math.round(y), 1 + ((rnd() * 2) | 0), 1);
           }
         }
@@ -1516,7 +1549,10 @@ const Terrain = (typeof document === 'undefined') ? { active: () => false } : ((
               const yy = Math.round(crest + k);
               if (yy < 0 || yy >= H) continue;
               if (h01(x, yy, 98 + a * 3 + b) > edge * 0.92) continue;
-              const lit = 0.5 - t * 0.62 + (h01(x, yy, 55) - 0.5) * 0.20;
+              /* the tone runs to the PLAIN'S OWN VALUE at the band's edge, so the thinning stipple
+                 there is invisible instead of a scatter of dark specks (which at play zoom read as
+                 dirt thrown across the ground, not relief) */
+              const lit = 0.65 + (0.12 - t * 0.42) * edge + (h01(x, yy, 55) - 0.5) * 0.12;
               c.fillStyle = rgb(ramp(LT.REG, lit));
               c.fillRect(x, yy, 1, 1);
             }
@@ -1669,7 +1705,7 @@ const Terrain = (typeof document === 'undefined') ? { active: () => false } : ((
         { C: 300, key: 'ghost', p: 0.34, salt: 5, lod: 0 },
         { C: 190, key: 'crater', p: 0.36, salt: 2, lod: 0 },
         { C: 74, key: 'pit', p: 0.50, salt: 3, lod: 0.4 },
-        { C: 92, key: 'rock', p: 0.22, salt: 4, lod: 1.1 },
+        { C: 92, key: 'rock', p: 0.30, salt: 4, lod: 0.7 },
       ];
       for (const g of grids) {
         if (scale < g.lod) continue;
