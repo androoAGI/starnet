@@ -4,11 +4,11 @@
 One tracked file per bug under `qa/bugs/`; this is only the index. File a new bug with
 `node scripts/qa/bugs.mjs --new --title "..." --surface <surface>`.
 
-**7** open (open+claimed) of 114 total — 0 P0 · 7 P1 · 0 P2
+**7** open (open+claimed) of 115 total — 0 P0 · 7 P1 · 0 P2
 
 Engineering status is separate from delivery and customer recovery. Legacy rows without origin are not a customer census.
 
-User/owner reports: **49** · source fixed: **42** · installer verified: **1** · customer confirmed: **1** · still reported failing: **1** · recovery unconfirmed: **47**.
+User/owner reports: **50** · source fixed: **43** · installer verified: **1** · customer confirmed: **1** · still reported failing: **1** · recovery unconfirmed: **48**.
 
 | Report | Family | Source | Installer | Customer |
 | --- | --- | --- | --- | --- |
@@ -39,6 +39,7 @@ User/owner reports: **49** · source fixed: **42** · installer verified: **1** 
 | [Agent session focus commands can unexpectedly retarget the composer](bugs/774641dc-agent-session-focus-commands-can-unexpectedly-re.md) | session-focus | fixed | unverified | unconfirmed |
 | [Feedback cards do not identify the run being rated](bugs/c7fa86fc-feedback-run-reference-ambiguous.md) | feedback-attribution | fixed | unverified | unconfirmed |
 | [Sent group attachments appear only in the shared shelf](bugs/de0bb232-sent-group-attachments-appear-only-in-the-shared.md) | message-attachments | fixed | unverified | unconfirmed |
+| [Live spoken replies stall after the output audio context closes](bugs/3364dfb0-live-spoken-replies-stall-after-the-output-audio.md) | speech-device-recovery | fixed | unverified | unconfirmed |
 | [Mac desktop microphone blocked while browser mirror works](bugs/8a553481-mac-desktop-microphone-blocked-while-browser-mir.md) | desktop-microphone | fixed | unverified | unconfirmed |
 | [Spoken replies fragment at punctuation and omit failed audio chunks](bugs/e1051446-spoken-replies-fragment-at-punctuation-and-omit.md) | voice-continuity | fixed | unverified | unconfirmed |
 | [Agents cross walls beside hallway openings](bugs/49192a68-agents-cross-walls-beside-hallway-openings.md) | doorway-movement | fixed | unverified | unconfirmed |
@@ -126,6 +127,7 @@ User/owner reports: **49** · source fixed: **42** · installer verified: **1** 
 | P1 | fixed | sessions | [Workshop reports a completed web tool when its entry file is missing](bugs/097269b5-workshop-reports-a-completed-web-tool-when-its-e.md) | agent/release-ui-audit-0906 | 44a8c3006 |
 | P1 | fixed | skills | [gate.verify()'s tamper branch re-enters decide(), which clears the tamper against the STALE stored contentDigest — one approval permanently blesses whatever is](bugs/76d5dc8a-gate-verify.md) | sweep/skills | 598ab4a4 |
 | P1 | fixed | voice | [A stale sidecar token lets Local Live open a silent microphone session after restart](bugs/ff73b79a-a-stale-sidecar-token-lets-local-live-open-a-sil.md) | agent/voice-release-sweep | 8bc9ff9a |
+| P1 | fixed | voice | [Live spoken replies stall after the output audio context closes](bugs/3364dfb0-live-spoken-replies-stall-after-the-output-audio.md) | agent/live-speech-0910 | f129e19e3 |
 | P1 | fixed | voice | [Mac desktop microphone blocked while browser mirror works](bugs/8a553481-mac-desktop-microphone-blocked-while-browser-mir.md) | agent/voice-agents-mac-0906 | d65f8f538 |
 | P1 | fixed | voice | [On a zero-key station every Edge blip is misclassified as 'no key': no retry, a 60s dead-voice cold-off, and a tooltip demanding a credential the station never](bugs/151c8d9a-on-a-zero-key-station-every-edge-blip-is-misclas.md) | sweep/voice | 50a8b07b |
 | P1 | fixed | voice | [Spoken replies fragment at punctuation and omit failed audio chunks](bugs/e1051446-spoken-replies-fragment-at-punctuation-and-omit.md) | agent/voice-continuity-0909 | 7e83246fa |
