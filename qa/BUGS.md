@@ -4,7 +4,7 @@
 One tracked file per bug under `qa/bugs/`; this is only the index. File a new bug with
 `node scripts/qa/bugs.mjs --new --title "..." --surface <surface>`.
 
-**7** open (open+claimed) of 92 total — 0 P0 · 7 P1 · 0 P2
+**12** open (open+claimed) of 97 total — 0 P0 · 10 P1 · 2 P2
 
 Engineering status is separate from delivery and customer recovery. Legacy rows without origin are not a customer census.
 
@@ -73,6 +73,9 @@ User/owner reports: **47** · source fixed: **40** · installer verified: **1** 
 | P1 | open | autonomy | [Customer reports an ONCE routine absent from Active Routines](bugs/c2a6c3c8-once-routine-reported-missing.md) | reliability-followup | — |
 | P1 | open | onboarding | [Mac paid onboarding becomes unreachable after reload and relink](bugs/eaaa3ec8-mac-onboarding-unreachable-after-link.md) | reliability-followup | — |
 | P1 | open | providers | [Funded working station still displays a zero-credit warning](bugs/72af29f4-funded-station-false-zero-warning.md) | reliability-followup | — |
+| P1 | open | providers | [Image generation can write an output after run cancellation](bugs/a0dffdd7-image-generation-writes-after-run-cancellation.md) | audit-0112-0910 | — |
+| P1 | open | providers | [Late model catalog response overwrites a newer provider selection](bugs/1600dcf0-late-model-catalog-reverts-new-provider-choice.md) | audit-0112-0910 | — |
+| P1 | open | providers | [Managed image charge is omitted from run cost receipts](bugs/79867817-managed-image-charge-missing-from-run-cost.md) | audit-0112-0910 | — |
 | P1 | open | providers | [Managed Sonnet request still returns an uncorrelated HTTP 400](bugs/fd9c4b4d-managed-sonnet-400-unresolved.md) | reliability-followup | — |
 | P1 | open | providers | [Saved equipment omitted from interactive tool projection and toolset diagnostics](bugs/432df352-saved-equipment-omitted-from-interactive-tool-pr.md) | agent/tool-projection-0909 | — |
 | P1 | open | world | [Customer viewport becomes blank after ten to twenty minutes](bugs/9256a771-viewport-black-after-idle.md) | reliability-followup | — |
@@ -121,6 +124,8 @@ User/owner reports: **47** · source fixed: **40** · installer verified: **1** 
 | P1 | fixed | world | [Bay names are unreadable at normal station zoom](bugs/0ff9dfc6-bay-names-are-unreadable-at-normal-station-zoom.md) | release-0110 | 86560bea9 |
 | P1 | fixed | world | [ROUTINES › REVOKE ACCESS toasts "access revoked" (green) on a 4xx/5xx — bare `fetch` resolves, so the unattended grant survives its own success message](bugs/fd0f7223-routines-revoke-access-toasts-access-revoked.md) | sweep/world | 3f0d1205 |
 | P1 | fixed | world | [Website station preview fails when hosting beacon is blocked](bugs/b3b8d28f-website-station-preview-fails-when-hosting-beaco.md) | website-station-boot-0905 | 27560918e |
+| P2 | open | providers | [BYOK image recovery omits the supported OpenRouter key option](bugs/3a2837bd-byok-image-recovery-only-offers-paid-link.md) | audit-0112-0910 | — |
+| P2 | open | world | [Glass panel height resets after closing and reopening](bugs/12203375-glass-panel-height-resets-on-reopen.md) | audit-0112-0910 | — |
 | P2 | fixed | autonomy | [Cancelled edit starts a replacement language server](bugs/37059128-cancelled-edit-starts-a-replacement-language-ser.md) | reliability-audit | 547dd03d7 |
 | P2 | fixed | autonomy | [Deliverable naming instruction conflicts with explicit stop limits](bugs/5a35bcfe-deliverable-note-overrides-stop.md) | report-0110-0908 | 72a8a3043c263cd53ed353daed2042e256c8e236 |
 | P2 | fixed | autonomy | [routine.create's default `arm:true` bypasses the documented single resume seam and clears the durable cron E-STOP — the workshop auto-arm path at index.js:8214](bugs/300b34ab-routine-create-s-default-arm.md) | sweep/autonomy | 6afeb9ee |
@@ -161,12 +166,12 @@ User/owner reports: **47** · source fixed: **40** · installer verified: **1** 
 | --- | --- |
 | channels | 0 |
 | autonomy | 2 |
-| providers | 3 |
+| providers | 7 |
 | safecell | 0 |
 | sessions | 0 |
 | skills | 0 |
 | onboarding | 1 |
-| world | 1 |
+| world | 2 |
 | voice | 0 |
 | release | 0 |
 
