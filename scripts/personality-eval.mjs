@@ -33,6 +33,7 @@ const scenarios = [
 ].map(([id, prompt]) => ({ id, prompt }));
 const trials = P.list().map(p => ({ id: randomUUID(), persona: p.id, system: P.compose(p.id), scenarios }));
 trials.push({ id: randomUUID(), persona: 'dry-tuned', system: P.compose('dry', { humor: 0, profanity: 0, energy: 0 }, 'Use formal language.'), scenarios });
+fs.mkdirSync(path.dirname(path.resolve(out)), { recursive: true });
 fs.mkdirSync(out, { recursive: false });
 const write = (name, value) => fs.writeFileSync(path.join(out, name), JSON.stringify(value, null, 2) + '\n', { flag: 'wx' });
 write('plan.json', { liveModel: live, model: model || null, turnsPerTrial: scenarios.length, trials: trials.map(t => ({ ...t, promptHash: createHash('sha256').update(t.system).digest('hex') })) });

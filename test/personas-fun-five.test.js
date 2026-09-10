@@ -71,7 +71,6 @@ const chat = read('frontend/app/chat.js');
 const rules = chat.match(/function voiceModeRules\(\) \{[\s\S]*?\n\}/)[0];
 assert.ok(!rules.includes('Personas.get'), 'spoken chat cannot reapply raw preset');
 assert.ok(!rules.includes('gonna'), 'spoken chat cannot force casual diction');
-console.log('personas-fun-five.test: six profiles, legacy migrations, tuning, target isolation and voice parity PASS');
 
 const fingerprint = voice.match(/function voiceContextFingerprint\(ctx\) \{[\s\S]*?\n  \}/)[0];
 const fingerprintOf = new Function(fingerprint + '; return voiceContextFingerprint;')();
@@ -82,3 +81,5 @@ assert.notEqual(fingerprintOf(ctx), before, 'same-agent tuning must refresh acti
 assert.equal(fingerprintOf(ctx), fingerprintOf(ctx), 'unchanged voice context stays stable');
 assert.equal(P.ambient('dry', { humor: 0 }).includes('standing by. a classic.'), false);
 assert.equal(P.ambient('unhinged', {}, 'No banter.').length, 0, 'fixed ambient quips cannot override custom voice instructions');
+
+console.log('personas-fun-five.test: six profiles, legacy migrations, tuning, target isolation and voice parity PASS');
