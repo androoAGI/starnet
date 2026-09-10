@@ -4,10 +4,10 @@ slug: stale-client-save-overwrite
 title: An older client can erase newer conversations by saving its stale snapshot with a fresh timestamp
 surface: sessions
 severity: P1
-status: open
+status: fixed
 found: 2026-09-10
 lane: agent/adversarial-audit-0910
-fix:
+fix: 64ed8711b
 origin: audit
 ---
 # An older client can erase newer conversations by saving its stale snapshot with a fresh timestamp
@@ -41,3 +41,9 @@ Existing test/save.test.js passes all 70 assertions, including rejection of an o
 ## Fix direction
 
 Use a server-issued revision and compare-and-swap against the revision the client loaded. On conflict, preserve the pending local changes and reconcile or request a reload without overwriting newer server state. Test desktop plus browser, same-origin tabs, reconnect/outbox writes, unload beacons and roster/layout siblings.
+
+## Repair verification — 2026-09-10
+
+Source fix: 64ed8711b. HTTP saves compare a server-issued revision. Stale snapshots cannot replace the current station and are durably preserved separately; the UI exposes a conflict notice, window-specific download and safe reload. Per-window recovery files are bounded to current/previous snapshots. Own writes serialize, beacons replay idempotently, offline dirty state retains its read revision, and update installation refuses unresolved conflicts. test/save-concurrency.test.js and test/cloudsave-concurrency.test.js cover newer-timestamp stale writes, recovery bytes, old clients, clocks moving backward, replay, queued writes, offline restart and update refusal. Existing cloudsave refusal, unload and unknown-save suites pass. Two live browser windows proved the notice and reload flow; both current and conflicting work survived restart. Conflicts are surfaced for user recovery; whole station snapshots are not automatically merged.
+
+Sanitized post-restart receipt: qa/evidence/adversarial-0910/fixed-restart-receipt.json. Full integration gates are recorded in the follow-up report; installed desktop execution is not verified by this seeded-browser proof.

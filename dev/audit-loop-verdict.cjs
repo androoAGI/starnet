@@ -14,5 +14,6 @@ async function main(){await auth();const root=path.resolve('dev/audit-0910/verdi
  const rejection=api('/api/loops/verdict',{id,n:iter.n,verdict:'rejected'});await sleep(25);
  report.approval=await api('/api/loops/verdict',{id,n:iter.n,verdict:'approved'});report.rejection=await rejection;
  report.after=(await api('/api/loops')).loops.find(l=>l.id===id);report.fileAfter=fs.existsSync(path.join(root,'candidate.txt'));report.gitLog=git('log','-3','--oneline');
+ const assert=require('node:assert/strict');assert.equal(report.approval.status,409);assert.equal(report.rejection.ok,true);assert.equal(report.after.approvedCount,0);assert.equal(report.after.rejectedCount,1);assert.equal(report.fileAfter,false);
  fs.writeFileSync('dev/audit-0910/loop-verdict-race.json',JSON.stringify(report,null,2));console.log(JSON.stringify({approval:report.approval,rejection:report.rejection,fileBefore:report.fileBefore,fileAfter:report.fileAfter,recent:report.after.recent,gitLog:report.gitLog}));
 }main().catch(e=>{console.error(e);process.exitCode=1});

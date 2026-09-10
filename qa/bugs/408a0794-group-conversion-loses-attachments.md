@@ -4,10 +4,10 @@ slug: group-conversion-loses-attachments
 title: Adding a participant to a direct conversation discards its existing attachments
 surface: sessions
 severity: P1
-status: open
+status: fixed
 found: 2026-09-10
 lane: agent/adversarial-audit-0910
-fix:
+fix: 64ed8711b
 origin: audit
 ---
 # Adding a participant to a direct conversation discards its existing attachments
@@ -40,3 +40,9 @@ Existing test/group-sessions.test.js and test/group-sessions.edge.test.js both p
 ## Fix direction
 
 Migrate attachment bytes and message associations transactionally before committing conversion, preserving author, timestamp and original history until read-back succeeds. Refuse with a recoverable explanation if any source file is unavailable. Cover images, documents, mixed authors, large histories, interrupted conversion and repeated conversion requests.
+
+## Repair verification — 2026-09-10
+
+Source fix: 64ed8711b. Conversion reads and snapshots every referenced file before atomically creating the group, preserving message-file associations, timestamps and the entire historical transcript. Missing/unreadable files refuse conversion without creating a partial group. The UI passes a conversion retry key and preserves artifact associations in its saved projection. test/group-message-attachments.test.js covers 125-message conversion, repeated references, exact bytes, missing-file rollback, idempotent retry and restart alongside existing upload/send/fork isolation cases. Live Add agents > QA TESTER > START GROUP CHAT retained the original attachment button; opening it displayed LIVE_CONVERSION_FILE_BYTES, also served unchanged after a sidecar restart.
+
+Sanitized post-restart receipt: qa/evidence/adversarial-0910/fixed-restart-receipt.json. Full integration gates are recorded in the follow-up report; installed desktop execution is not verified by this seeded-browser proof.

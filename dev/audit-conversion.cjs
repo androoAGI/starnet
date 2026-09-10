@@ -1,5 +1,5 @@
 'use strict';
-// Live negative regression: the direct-to-group conversion drops attachment references.
+// Live regression: direct-to-group conversion must retain attachment references.
 const assert=require('node:assert/strict');const {auth,api}=require('./audit-api.cjs');
 (async()=>{
  await auth();

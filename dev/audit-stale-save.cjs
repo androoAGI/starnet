@@ -1,5 +1,5 @@
 'use strict';
-// Live negative regression: the currently broken save path accepts a stale snapshot.
+// Live regression: the save path must reject a stale snapshot.
 const assert=require('node:assert/strict');
 const {auth,api,sleep}=require('./audit-api.cjs');
 (async()=>{

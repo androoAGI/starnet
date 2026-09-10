@@ -4,10 +4,10 @@ slug: loop-approve-reject-race
 title: Concurrent loop approval can retain an approved verdict after rejection reverts the files
 surface: autonomy
 severity: P1
-status: open
+status: fixed
 found: 2026-09-10
 lane: agent/adversarial-audit-0910
-fix:
+fix: 64ed8711b
 origin: audit
 ---
 # Concurrent loop approval can retain an approved verdict after rejection reverts the files
@@ -38,3 +38,9 @@ Existing test/loopjob.test.js (193 assertions) and test/loopjob-driver.test.js (
 ## Fix direction
 
 Serialize verdicts and their Git effects per loop; revalidate the current pending iteration inside the lock. Coordinate review with active harvest/control operations. A losing request must return a conflict before changing files. Also cover overlapping rejections and ancestor/descendant reviews.
+
+## Repair verification — 2026-09-10
+
+Source fix: 64ed8711b. The shared per-loop guard covers HTTP and model verdicts, scheduler admission, and conflicting update/control/removal actions. A running pass or another review returns a conflict before Git effects. test/loops-git.e2e.test.js passed 56 assertions, including ancestor rejection versus descendant approval, cascading undo, dirty-file refusal and keeping approved files. The live original race now returns approval 409 / rejection 200, with 0 approved / 1 rejected and the file absent, including after restart.
+
+Sanitized post-restart receipt: qa/evidence/adversarial-0910/fixed-restart-receipt.json. Full integration gates are recorded in the follow-up report; installed desktop execution is not verified by this seeded-browser proof.
