@@ -18,7 +18,7 @@
   "expectedClaimCount": 37,
   "releaseSurface": {
     "algorithm": "sha256",
-    "sourceCommit": "8fbbebdbb4112aa34aa86bfe3b5febf428bc6761",
+    "sourceCommit": "bb1aa021e0333b6218d7766a321cf0984e310252",
     "pathSetSha256": "b0479380ff858bd18673d3e0c7191897e66f62b44b4fc14a50eade63aab5c027",
     "files": [
       {
@@ -178,8 +178,8 @@
       },
       {
         "path": "frontend/app/cloudsave.js",
-        "bytes": 25483,
-        "sha256": "72eba65f0f0d3cdfecdc0db57bc55d59cb6ca87706a7b931d02930355a93fd59"
+        "bytes": 25609,
+        "sha256": "c19da238f814724201645791a15cb20a7fa888c3a92d52f55b1cf14d4f88373a"
       },
       {
         "path": "frontend/app/cloudsavecore.js",
