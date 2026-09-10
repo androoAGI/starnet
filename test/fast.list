@@ -753,6 +753,11 @@ test/work-rating-control.test.js
 test/session-focus-safety.test.js
 
 test/harness-placement.test.js
+test/openai-outcomes.test.js
+test/request-reservations.test.js
+test/result-contract.test.js
+test/openai-formats.test.js
+test/request-auth-rotation.test.js
 test/world-seat-recovery.test.js
 test/world-lifecycle.test.js
 test/world-crew-approval.test.js

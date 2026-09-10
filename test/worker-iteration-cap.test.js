@@ -44,9 +44,10 @@ A.ok(/o\.maxIters/.test(sidecar), 'runOnce reads the caller-supplied o.maxIters 
 A.ok(/Math\.min\(Math\.floor\(o\.maxIters\),\s*stationMaxIters\)/.test(sidecar),
   'the caller cap is clamped against the station policy — a caller may LOWER but never RAISE an explicit ceiling');
 
-// --- HOST half 3: the limits object uses the computed value, not the raw station cap ---
-A.ok(/limits:\s*\{\s*maxIters:\s*runMaxIters/.test(sidecar),
-  'the loop limits use runMaxIters');
+// --- HOST half 3: ordinary runs use the computed cap; repair may only lower it to one.
+// Actual one-generation/no-mutation behavior is covered by output-only-repair.e2e.test.js. ---
+A.ok(/limits:\s*\{\s*maxIters:\s*(?:o\.outputOnly\s*\?\s*1\s*:\s*)?runMaxIters/.test(sidecar),
+  'ordinary runs use runMaxIters; only output-only repair may lower it to one');
 A.ok(!/limits:\s*\{\s*maxIters:\s*CAPS\.maxIters\s*,/.test(sidecar),
   'the old hardcoded limits.maxIters = CAPS.maxIters assignment is gone (that line WAS the bug)');
 

@@ -1,0 +1,170 @@
+{
+  "calls": 9,
+  "rows": [
+    {
+      "repeat": 1,
+      "stream": false,
+      "status": 200,
+      "body": "{\"id\":\"chatcmpl-a122aa6c257247a7b87d2bf2\",\"object\":\"chat.completion\",\"created\":1789014158,\"model\":\"starnet-agent\",\"choices\":[{\"index\":0,\"message\":{\"role\":\"assistant\",\"content\":\"PARTIAL: started checking the report.\"},\"finish_reason\":\"error\"}],\"usage\":{\"prompt_tokens\":0,\"completion_tokens\":0,\"total_tokens\":0},\"starnet\":{\"status\":\"failed\",\"reason\":\"error\",\"completed\":false,\"partial\":true,\"failed\":true,\"error\":\"401 Unauthorized: AUDIT_FATAL_PROVIDER\"},\"error\":{\"message\":\"401 Unauthorized: AUDIT_FATAL_PROVIDER\",\"type\":\"agent_error\"}}"
+    },
+    {
+      "repeat": 1,
+      "stream": true,
+      "status": 200,
+      "body": "data: {\"id\":\"chatcmpl-f4e52e26a0444dfb9ef3c768\",\"object\":\"chat.completion.chunk\",\"created\":1789014158,\"model\":\"starnet-agent\",\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\"},\"finish_reason\":null}]}\n\ndata: {\"id\":\"chatcmpl-f4e52e26a0444dfb9ef3c768\",\"object\":\"chat.completion.chunk\",\"created\":1789014158,\"model\":\"starnet-agent\",\"choices\":[{\"index\":0,\"delta\":{\"content\":\"PARTIAL: started checking the report.\"},\"finish_reason\":null}]}\n\ndata: {\"id\":\"chatcmpl-f4e52e26a0444dfb9ef3c768\",\"object\":\"chat.completion.chunk\",\"created\":1789014158,\"model\":\"starnet-agent\",\"choices\":[{\"index\":0,\"delta\":{},\"finish_reason\":\"error\"}],\"usage\":{\"prompt_tokens\":0,\"completion_tokens\":0,\"total_tokens\":0},\"starnet\":{\"status\":\"failed\",\"reason\":\"error\",\"completed\":false,\"partial\":true,\"failed\":true,\"error\":\"401 Unauthorized: AUDIT_FATAL_PROVIDER\"},\"error\":{\"message\":\"401 Unauthorized: AUDIT_FATAL_PROVIDER\",\"type\":\"agent_error\"}}\n\ndata: [DONE]\n\n"
+    },
+    {
+      "repeat": 1,
+      "native": true,
+      "status": 200,
+      "events": [
+        {
+          "name": "agent.run.start",
+          "payload": {
+            "agentId": "agent",
+            "runId": "ab94958f-b78f-4ca6-b725-f303a4028863",
+            "trigger": "directive",
+            "model": "test/partial"
+          }
+        },
+        {
+          "name": "agent.token",
+          "payload": {
+            "agentId": "agent",
+            "runId": "ab94958f-b78f-4ca6-b725-f303a4028863",
+            "delta": "PARTIAL: started checking the report."
+          }
+        },
+        {
+          "name": "agent.run.error",
+          "payload": {
+            "agentId": "agent",
+            "runId": "ab94958f-b78f-4ca6-b725-f303a4028863",
+            "message": "401 Unauthorized: AUDIT_FATAL_PROVIDER",
+            "transient": false
+          }
+        },
+        {
+          "name": "agent.run.end",
+          "payload": {
+            "agentId": "agent",
+            "runId": "ab94958f-b78f-4ca6-b725-f303a4028863",
+            "reason": "error",
+            "turns": 1,
+            "usd": 0
+          }
+        }
+      ]
+    },
+    {
+      "repeat": 2,
+      "stream": false,
+      "status": 200,
+      "body": "{\"id\":\"chatcmpl-4c056e7f60a648ee8a2e96e8\",\"object\":\"chat.completion\",\"created\":1789014158,\"model\":\"starnet-agent\",\"choices\":[{\"index\":0,\"message\":{\"role\":\"assistant\",\"content\":\"PARTIAL: started checking the report.\"},\"finish_reason\":\"error\"}],\"usage\":{\"prompt_tokens\":0,\"completion_tokens\":0,\"total_tokens\":0},\"starnet\":{\"status\":\"failed\",\"reason\":\"error\",\"completed\":false,\"partial\":true,\"failed\":true,\"error\":\"401 Unauthorized: AUDIT_FATAL_PROVIDER\"},\"error\":{\"message\":\"401 Unauthorized: AUDIT_FATAL_PROVIDER\",\"type\":\"agent_error\"}}"
+    },
+    {
+      "repeat": 2,
+      "stream": true,
+      "status": 200,
+      "body": "data: {\"id\":\"chatcmpl-9575b44ebc374f7d8a19849b\",\"object\":\"chat.completion.chunk\",\"created\":1789014159,\"model\":\"starnet-agent\",\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\"},\"finish_reason\":null}]}\n\ndata: {\"id\":\"chatcmpl-9575b44ebc374f7d8a19849b\",\"object\":\"chat.completion.chunk\",\"created\":1789014159,\"model\":\"starnet-agent\",\"choices\":[{\"index\":0,\"delta\":{\"content\":\"PARTIAL: started checking the report.\"},\"finish_reason\":null}]}\n\ndata: {\"id\":\"chatcmpl-9575b44ebc374f7d8a19849b\",\"object\":\"chat.completion.chunk\",\"created\":1789014159,\"model\":\"starnet-agent\",\"choices\":[{\"index\":0,\"delta\":{},\"finish_reason\":\"error\"}],\"usage\":{\"prompt_tokens\":0,\"completion_tokens\":0,\"total_tokens\":0},\"starnet\":{\"status\":\"failed\",\"reason\":\"error\",\"completed\":false,\"partial\":true,\"failed\":true,\"error\":\"401 Unauthorized: AUDIT_FATAL_PROVIDER\"},\"error\":{\"message\":\"401 Unauthorized: AUDIT_FATAL_PROVIDER\",\"type\":\"agent_error\"}}\n\ndata: [DONE]\n\n"
+    },
+    {
+      "repeat": 2,
+      "native": true,
+      "status": 200,
+      "events": [
+        {
+          "name": "agent.run.start",
+          "payload": {
+            "agentId": "agent",
+            "runId": "10e9a42f-c282-4ba6-82b5-679334f4c1a0",
+            "trigger": "directive",
+            "model": "test/partial"
+          }
+        },
+        {
+          "name": "agent.token",
+          "payload": {
+            "agentId": "agent",
+            "runId": "10e9a42f-c282-4ba6-82b5-679334f4c1a0",
+            "delta": "PARTIAL: started checking the report."
+          }
+        },
+        {
+          "name": "agent.run.error",
+          "payload": {
+            "agentId": "agent",
+            "runId": "10e9a42f-c282-4ba6-82b5-679334f4c1a0",
+            "message": "401 Unauthorized: AUDIT_FATAL_PROVIDER",
+            "transient": false
+          }
+        },
+        {
+          "name": "agent.run.end",
+          "payload": {
+            "agentId": "agent",
+            "runId": "10e9a42f-c282-4ba6-82b5-679334f4c1a0",
+            "reason": "error",
+            "turns": 1,
+            "usd": 0
+          }
+        }
+      ]
+    },
+    {
+      "repeat": 3,
+      "stream": false,
+      "status": 200,
+      "body": "{\"id\":\"chatcmpl-d5d3a79d67e44299ad56eebf\",\"object\":\"chat.completion\",\"created\":1789014159,\"model\":\"starnet-agent\",\"choices\":[{\"index\":0,\"message\":{\"role\":\"assistant\",\"content\":\"PARTIAL: started checking the report.\"},\"finish_reason\":\"error\"}],\"usage\":{\"prompt_tokens\":0,\"completion_tokens\":0,\"total_tokens\":0},\"starnet\":{\"status\":\"failed\",\"reason\":\"error\",\"completed\":false,\"partial\":true,\"failed\":true,\"error\":\"401 Unauthorized: AUDIT_FATAL_PROVIDER\"},\"error\":{\"message\":\"401 Unauthorized: AUDIT_FATAL_PROVIDER\",\"type\":\"agent_error\"}}"
+    },
+    {
+      "repeat": 3,
+      "stream": true,
+      "status": 200,
+      "body": "data: {\"id\":\"chatcmpl-023a6970a58241889d05ca1d\",\"object\":\"chat.completion.chunk\",\"created\":1789014159,\"model\":\"starnet-agent\",\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\"},\"finish_reason\":null}]}\n\ndata: {\"id\":\"chatcmpl-023a6970a58241889d05ca1d\",\"object\":\"chat.completion.chunk\",\"created\":1789014159,\"model\":\"starnet-agent\",\"choices\":[{\"index\":0,\"delta\":{\"content\":\"PARTIAL: started checking the report.\"},\"finish_reason\":null}]}\n\ndata: {\"id\":\"chatcmpl-023a6970a58241889d05ca1d\",\"object\":\"chat.completion.chunk\",\"created\":1789014159,\"model\":\"starnet-agent\",\"choices\":[{\"index\":0,\"delta\":{},\"finish_reason\":\"error\"}],\"usage\":{\"prompt_tokens\":0,\"completion_tokens\":0,\"total_tokens\":0},\"starnet\":{\"status\":\"failed\",\"reason\":\"error\",\"completed\":false,\"partial\":true,\"failed\":true,\"error\":\"401 Unauthorized: AUDIT_FATAL_PROVIDER\"},\"error\":{\"message\":\"401 Unauthorized: AUDIT_FATAL_PROVIDER\",\"type\":\"agent_error\"}}\n\ndata: [DONE]\n\n"
+    },
+    {
+      "repeat": 3,
+      "native": true,
+      "status": 200,
+      "events": [
+        {
+          "name": "agent.run.start",
+          "payload": {
+            "agentId": "agent",
+            "runId": "e120d162-8dbc-47e2-bfa9-e374b703e4ab",
+            "trigger": "directive",
+            "model": "test/partial"
+          }
+        },
+        {
+          "name": "agent.token",
+          "payload": {
+            "agentId": "agent",
+            "runId": "e120d162-8dbc-47e2-bfa9-e374b703e4ab",
+            "delta": "PARTIAL: started checking the report."
+          }
+        },
+        {
+          "name": "agent.run.error",
+          "payload": {
+            "agentId": "agent",
+            "runId": "e120d162-8dbc-47e2-bfa9-e374b703e4ab",
+            "message": "401 Unauthorized: AUDIT_FATAL_PROVIDER",
+            "transient": false
+          }
+        },
+        {
+          "name": "agent.run.end",
+          "payload": {
+            "agentId": "agent",
+            "runId": "e120d162-8dbc-47e2-bfa9-e374b703e4ab",
+            "reason": "error",
+            "turns": 1,
+            "usd": 0
+          }
+        }
+      ]
+    }
+  ]
+}

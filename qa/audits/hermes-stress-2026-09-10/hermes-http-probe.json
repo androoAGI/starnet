@@ -1,0 +1,266 @@
+[
+  {
+    "case": "partial-failure",
+    "repeat": 1,
+    "status": 200,
+    "body": {
+      "id": "chatcmpl-58b3b4859570423b9d5f167903e37",
+      "object": "chat.completion",
+      "created": 1789011618,
+      "model": "hermes-agent",
+      "choices": [
+        {
+          "index": 0,
+          "message": {
+            "role": "assistant",
+            "content": "PARTIAL: started checking the report."
+          },
+          "finish_reason": "error"
+        }
+      ],
+      "usage": {
+        "prompt_tokens": 0,
+        "completion_tokens": 0,
+        "total_tokens": 0
+      },
+      "hermes": {
+        "completed": false,
+        "partial": true,
+        "failed": true,
+        "error": "401 Unauthorized: AUDIT_FATAL_PROVIDER",
+        "error_code": "agent_error"
+      }
+    }
+  },
+  {
+    "case": "partial-failure",
+    "repeat": 2,
+    "status": 200,
+    "body": {
+      "id": "chatcmpl-b943353984034b558fb48d88be33d",
+      "object": "chat.completion",
+      "created": 1789011618,
+      "model": "hermes-agent",
+      "choices": [
+        {
+          "index": 0,
+          "message": {
+            "role": "assistant",
+            "content": "PARTIAL: started checking the report."
+          },
+          "finish_reason": "error"
+        }
+      ],
+      "usage": {
+        "prompt_tokens": 0,
+        "completion_tokens": 0,
+        "total_tokens": 0
+      },
+      "hermes": {
+        "completed": false,
+        "partial": true,
+        "failed": true,
+        "error": "401 Unauthorized: AUDIT_FATAL_PROVIDER",
+        "error_code": "agent_error"
+      }
+    }
+  },
+  {
+    "case": "partial-failure",
+    "repeat": 3,
+    "status": 200,
+    "body": {
+      "id": "chatcmpl-1024443b319f4c1c9a7761f95b438",
+      "object": "chat.completion",
+      "created": 1789011618,
+      "model": "hermes-agent",
+      "choices": [
+        {
+          "index": 0,
+          "message": {
+            "role": "assistant",
+            "content": "PARTIAL: started checking the report."
+          },
+          "finish_reason": "error"
+        }
+      ],
+      "usage": {
+        "prompt_tokens": 0,
+        "completion_tokens": 0,
+        "total_tokens": 0
+      },
+      "hermes": {
+        "completed": false,
+        "partial": true,
+        "failed": true,
+        "error": "401 Unauthorized: AUDIT_FATAL_PROVIDER",
+        "error_code": "agent_error"
+      }
+    }
+  },
+  {
+    "case": "idempotency",
+    "repeat": 1,
+    "agentCalls": 1,
+    "replies": [
+      {
+        "status": 200,
+        "body": {
+          "id": "chatcmpl-fa390c104fbb4f1190001b469d0af",
+          "object": "chat.completion",
+          "created": 1789011618,
+          "model": "hermes-agent",
+          "choices": [
+            {
+              "index": 0,
+              "message": {
+                "role": "assistant",
+                "content": "OK"
+              },
+              "finish_reason": "stop"
+            }
+          ],
+          "usage": {
+            "prompt_tokens": 10,
+            "completion_tokens": 2,
+            "total_tokens": 12
+          }
+        }
+      },
+      {
+        "status": 200,
+        "body": {
+          "id": "chatcmpl-8a87eb4658bc4d1bbdf4447c2b9b8",
+          "object": "chat.completion",
+          "created": 1789011618,
+          "model": "hermes-agent",
+          "choices": [
+            {
+              "index": 0,
+              "message": {
+                "role": "assistant",
+                "content": "OK"
+              },
+              "finish_reason": "stop"
+            }
+          ],
+          "usage": {
+            "prompt_tokens": 10,
+            "completion_tokens": 2,
+            "total_tokens": 12
+          }
+        }
+      }
+    ]
+  },
+  {
+    "case": "idempotency",
+    "repeat": 2,
+    "agentCalls": 1,
+    "replies": [
+      {
+        "status": 200,
+        "body": {
+          "id": "chatcmpl-a1ecf2867f754541a22b2caca106c",
+          "object": "chat.completion",
+          "created": 1789011618,
+          "model": "hermes-agent",
+          "choices": [
+            {
+              "index": 0,
+              "message": {
+                "role": "assistant",
+                "content": "OK"
+              },
+              "finish_reason": "stop"
+            }
+          ],
+          "usage": {
+            "prompt_tokens": 10,
+            "completion_tokens": 2,
+            "total_tokens": 12
+          }
+        }
+      },
+      {
+        "status": 200,
+        "body": {
+          "id": "chatcmpl-df034b45df674ee4ac777d083301d",
+          "object": "chat.completion",
+          "created": 1789011618,
+          "model": "hermes-agent",
+          "choices": [
+            {
+              "index": 0,
+              "message": {
+                "role": "assistant",
+                "content": "OK"
+              },
+              "finish_reason": "stop"
+            }
+          ],
+          "usage": {
+            "prompt_tokens": 10,
+            "completion_tokens": 2,
+            "total_tokens": 12
+          }
+        }
+      }
+    ]
+  },
+  {
+    "case": "idempotency",
+    "repeat": 3,
+    "agentCalls": 1,
+    "replies": [
+      {
+        "status": 200,
+        "body": {
+          "id": "chatcmpl-0b3ea35ab765488c87e7ddff8cc8a",
+          "object": "chat.completion",
+          "created": 1789011618,
+          "model": "hermes-agent",
+          "choices": [
+            {
+              "index": 0,
+              "message": {
+                "role": "assistant",
+                "content": "OK"
+              },
+              "finish_reason": "stop"
+            }
+          ],
+          "usage": {
+            "prompt_tokens": 10,
+            "completion_tokens": 2,
+            "total_tokens": 12
+          }
+        }
+      },
+      {
+        "status": 200,
+        "body": {
+          "id": "chatcmpl-f6572fa694e64bd3939272c3616c8",
+          "object": "chat.completion",
+          "created": 1789011618,
+          "model": "hermes-agent",
+          "choices": [
+            {
+              "index": 0,
+              "message": {
+                "role": "assistant",
+                "content": "OK"
+              },
+              "finish_reason": "stop"
+            }
+          ],
+          "usage": {
+            "prompt_tokens": 10,
+            "completion_tokens": 2,
+            "total_tokens": 12
+          }
+        }
+      }
+    ]
+  }
+]
