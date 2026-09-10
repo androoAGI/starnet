@@ -1,5 +1,9 @@
 # NEXT.md — current priorities & task queue
 
+## IN PROGRESS — skin-motion-0910: movement stutter
+
+Owner-reported jitter: repair repeated look-back reversals and empty waypoint frames, with live movement proof and collision regressions.
+
 ## MERGED — 2026-09-10 world seating integration (agent/doorway-occlusion-0910)
 
 Owner requested repair of the three live-proven world seating defects. Source 774a5eeed plus
