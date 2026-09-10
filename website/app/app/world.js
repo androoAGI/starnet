@@ -8502,7 +8502,8 @@ const World = (() => {
     if (!b) return;                                                       // not yet spawned (e.g. summon mid-flight) — nothing to animate
     const working = (kind === 'task' || kind === 'thinking');
     b.working = working; b.sitting = false; b.dir = working ? 'north' : 'south';   // face away = "at work"; stepCrew seats it at its desk if it has one, else it stands here
-    if (working) { b.target = null; b.pathPts = null; b.workRetryAt = 0; seizeFromIdle(b); }   // drop any in-flight stroll AND any couch/leisure latch so stepCrew re-paths straight to the chair (J4)
+    b.workRetryAt = 0;
+    if (working) { b.target = null; b.pathPts = null; seizeFromIdle(b); }   // drop any in-flight stroll AND any couch/leisure latch so stepCrew re-paths straight to the chair (J4)
     const now = now0;
     if (working) { b.workUntil = now + 3600000; if (!b.wakeAt || now - b.wakeAt > 1500) b.wakeAt = now; sayAt(b, 'working…'); }
     else { b.workUntil = 0; if (b.say && /working/.test(b.say.text || '')) b.say = { text: '', until: 0 }; }
