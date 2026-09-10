@@ -2822,3 +2822,5 @@ Every first-time StarNet-subscription desktop user: link → shell adopts the to
 
 
 **2026-09-10 merge digest (DOORWAY MOVEMENT):** `agent/doorway-occlusion-0910` → trunk `9e5b6d88e` from `83c896e7d`. Candidate fast gate and exact merged-commit gate in the isolated checkout: **752/752 GREEN** each; customer journeys **34/34 GREEN**. Twelve live hero/crew/workstation doorway routes completed with zero wall crossings. Receipt: `qa/digests/2026-09-10-doorway-movement.md`. Installed desktop and reporter recovery remain unverified.
+
+- 2026-09-10 world seating: agent/doorway-occlusion-0910 -> f3e57f58e; fast 753/753 before and after integration, customer journeys 34/34, live 12 hallway routes with zero crossings, seven recovery/refit checks and 288 skin/facing poses passed. Source repaired; installed rebuild/recovery unverified. Receipt: docs/WORLD_SEATING_REPAIR_2026-09-10.md.
