@@ -70,4 +70,104 @@ A.ok(waypoints < manhattan, 'smoothing strictly reduces waypoint count vs the or
 console.log('  ' + tested + ' paths, ' + diagonal + ' diagonal segments, '
   + (manhattan / Math.max(1, waypoints)).toFixed(1) + 'x waypoint compression, 0 wall violations');
 
+
+// Sample the actual bottom-of-tile foot anchor, independently of the route's
+// grid traversal. Check room seams as well as missing floor and solid props.
+function footViolations(g, start, pts) {
+  let from = start, bad = 0;
+  for (const to of pts || []) {
+    let prev = from;
+    const samples = Math.max(240, (Math.abs(to.x-from.x)+Math.abs(to.y-from.y))*24);
+    for (let i=1; i<=samples; i++) {
+      const t=i/samples, x=Math.floor(from.x+.5+(to.x-from.x)*t), y=Math.floor(from.y+11/12+(to.y-from.y)*t);
+      if (!g.walkable(x,y,null)) bad++;
+      if (x!==prev.x && !g.canStep(prev.x,prev.y,x,prev.y)) bad++;
+      if (y!==prev.y && !g.canStep(x,prev.y,x,y)) bad++;
+      prev={x,y};
+    }
+    from=to;
+  }
+  return bad;
+}
+let feetBad=0;
+seed=45;
+for(let n=0;n<1600;n++) {
+  const a=cells[Math.floor(rnd()*cells.length)], b=cells[Math.floor(rnd()*cells.length)];
+  feetBad+=footViolations(geo,a,path(a.x,a.y,b.x,b.y,null));
+}
+A.eq(feetBad,0,'rendered feet never cross solid doorway seams, void or furniture');
+
+// Execute the world's corner/start/nudge helpers against the real geometry.
+const worldSource=require('fs').readFileSync(require('path').join(__dirname,'../frontend/app/world.js'),'utf8');
+const helpers=worldSource.slice(worldSource.indexOf('  function startBodyPath('),worldSource.indexOf('  function setPathTo('));
+const nudge=worldSource.slice(worldSource.indexOf('  function nudgeBody('),worldSource.indexOf('  /* SLIDE,'));
+const runtime=Function('geo','blocked','footOf','tileOf',helpers+nudge+'; return { startBodyPath, canRoundCorner, nudgeBody };')(
+  geo,null,(x,y)=>({x:x*12+6,y:y*12+11}),(x,y)=>({x:Math.floor(x/12),y:Math.floor(y/12)}));
+let rounded=0,held=0,walkBad=0,arrivals=0;
+seed=83;
+for(let n=0;n<250;n++) {
+  const a=cells[Math.floor(rnd()*cells.length)], dest=cells[Math.floor(rnd()*cells.length)];
+  const pts=path(a.x,a.y,dest.x,dest.y,null); if(!pts || !pts.length)continue;
+  const b={px:a.x*12+6,py:a.y*12+11}; runtime.startBodyPath(b,pts);
+  let prev=a,guard=12000;
+  while(b.pathIdx<b.pathPts.length && guard-->0) {
+    const wp=b.pathPts[b.pathIdx],tx=wp.x*12+6,ty=wp.y*12+11;
+    const d=Math.hypot(tx-b.px,ty-b.py),more=b.pathIdx+1<b.pathPts.length;
+    // The engine increments pathIdx when it selects the current waypoint.
+    b.pathIdx++; const clear=more && runtime.canRoundCorner(b); b.pathIdx--;
+    if(d<1e-6 || (more && d<2.5 && clear)) { if(d>1e-6)rounded++; b.pathIdx++; continue; }
+    if(more && d<2.5 && !clear) held++;
+    const step=Math.min(.4,d);b.px+=(tx-b.px)/d*step;b.py+=(ty-b.py)/d*step;
+    const cur={x:Math.floor(b.px/12),y:Math.floor(b.py/12)};
+    if(!geo.walkable(cur.x,cur.y,null))walkBad++;
+    if(cur.x!==prev.x || cur.y!==prev.y) {
+      const viaX=(cur.x===prev.x || geo.canStep(prev.x,prev.y,cur.x,prev.y)) && (cur.y===prev.y || geo.canStep(cur.x,prev.y,cur.x,cur.y));
+      const viaY=(cur.y===prev.y || geo.canStep(prev.x,prev.y,prev.x,cur.y)) && (cur.x===prev.x || geo.canStep(prev.x,cur.y,cur.x,cur.y));
+      if(!viaX&&!viaY)walkBad++;
+    }
+    prev=cur;
+  }
+  if(guard>0)arrivals++;
+}
+A.eq(walkBad,0,'early waypoint handoffs stay on floor and cross only real openings');
+A.ok(arrivals>200,'corner guards let walkers complete their routes');
+A.ok(held>0 && rounded>0,'tight doorway corners wait while open-floor corners stay smooth');
+for(const body of ['b','self','agent']) A.ok(worldSource.includes('d < CORNER_LOOK && canRoundCorner('+body+')'),'corner guard is wired for '+body);
+const sealed=WM.create();
+sealed.addRoom({kind:'lab',rect:{x1:18,y1:0,x2:27,y2:10}});
+sealed.addProp({t:'airlock',x:20,y:4,w:1,h:1,block:false,door:'closed'});
+const sealedGeo=sealed.projectGeometry();
+const sealedRuntime=Function('geo','blocked','footOf','tileOf',helpers+nudge+'; return {startBodyPath,nudgeBody};')(
+  sealedGeo,null,(x,y)=>({x:x*12+6,y:y*12+11}),(x,y)=>({x:Math.floor(x/12),y:Math.floor(y/12)}));
+let wallPair;
+for(const a of cells) {
+  const b={x:a.x+1,y:a.y};
+  if(sealedGeo.walkable(a.x,a.y,null)&&sealedGeo.walkable(b.x,b.y,null)&&!sealedGeo.canStep(a.x,a.y,b.x,b.y)){wallPair={a,b};break;}
+}
+A.ok(!!wallPair,'fixture has adjacent walkable tiles separated by a wall');
+if(wallPair){
+  const {a,b}=wallPair,body={px:(a.x+1)*12-.2,py:a.y*12+11};
+  A.eq(sealedRuntime.nudgeBody(body,.4,0),false,'separation cannot shove a body through a solid seam');
+  A.eq(sealedGeo.clearFootSegment(body.px,body.py,(b.x+.5)*12,b.y*12+11),false,'pixel segment rejects a wall even though both endpoints are walkable');
+}
+
+let reanchor=null;
+for(const a of cells) {
+  for(const dest of cells.slice(0,100)) {
+    const pts=path(a.x,a.y,dest.x,dest.y,null);if(!pts||!pts.length)continue;
+    const b={px:a.x*12+.3,py:a.y*12+.3};runtime.startBodyPath(b,pts);
+    if(b.pathPts.length>pts.length) {reanchor={a,b,pts};break;}
+  }
+  if(reanchor)break;
+}
+A.ok(!!reanchor,'off-anchor initial position exercises the first-leg guard');
+if(reanchor){
+  const {a,b,pts}=reanchor;
+  A.eq(b.pathPts[0].x,a.x,'unsafe initial shortcut first aligns in its own tile (x)');
+  A.eq(b.pathPts[0].y,a.y,'unsafe initial shortcut first aligns in its own tile (y)');
+  A.ok(geo.clearFootSegment(b.px,b.py,a.x*12+6,a.y*12+11),'alignment leg itself stays inside the current tile');
+  A.eq(footViolations(geo,a,pts),0,'the subsequent anchored route remains clear');
+  const walker={px:a.x*12+6,py:a.y*12+11,target:{x:pts[0].x*12+6,y:pts[0].y*12+11}};
+  A.eq(runtime.nudgeBody(walker,b.px-walker.px,b.py-walker.py),false,'a legal-floor nudge cannot invalidate the remaining doorway leg');
+}
 A.report('path-smoothing');
