@@ -4275,6 +4275,27 @@ const connectorOauthPending = new Map();   // csrf state -> { id, attemptId, lab
 const connectorOauthAttempts = new Map();  // attemptId -> { id, controller }; cancellable discovery/registration work
 const CONNECTOR_OAUTH_LEG_MS = 15000;
 const CONNECTOR_OAUTH_FLOW_MS = 60000;
+const githubDeviceFlow = require('./mcp/github-device.js').createDeviceFlow({
+  fetchImpl: connectorOauthFetch,
+  snapshot: id => JSON.stringify([connectorConfigs.find(c => c && c.id === id) || null, connectorOauth.byId[id] || null]),
+  complete: async (id, grant, active) => {
+    if (!active()) throw new Error('This connection changed while sign-in was open.');
+    const current = connectorConfigs.find(c => c && c.id === id);
+    const entry = connectorCatalog.get(id);
+    const missingFields = ((current && current.missingFields) || []).filter(f => f !== 'oauth' && f !== 'token');
+    const cfg = Object.assign({}, current || {}, { id, transport: 'http', url: entry.url,
+      label: (current && current.label) || entry.name, token: '', oauth: true, enabled: !missingFields.length, missingFields });
+    let next = connectorStateMod.withOauthEntry(connectorStateMod.envelope(connectorConfigs, connectorOauth), id, grant);
+    next = connectorStateMod.upsertConfig(next, cfg);
+    if (!persistConnectorState(next.configs, next.oauth)) throw new Error('GitHub authorized, but sign-in could not be saved. Your existing connection was kept.');
+    adoptConnectorState(next);
+    const result = await configureConnectorCfg(cfg);
+    const status = connectors.status(id);
+    return { state: result && result.ok && status.state === 'up' ? 'connected' : 'error', saved: true,
+      login: grant.account.login, toolCount: status.toolCount || 0,
+      error: result && result.ok && status.state === 'up' ? undefined : 'GitHub sign-in saved, but the connection did not come up. Use Reload in Manage Service.' };
+  }
+});
 // refresh an oauth connector's access token when it's near expiry; returns the freshest access token ('' if not authed).
 // `force` (the manager's 401 path) refreshes on the SERVER'S word regardless of the local expiry clock — a live 401
 // outranks needsRefresh, which only guesses from expires_in.
@@ -9187,6 +9208,7 @@ const ROUTES = [
   { m: 'POST', exact: '/api/auth/codex/logout', h: handleCodexLogout },
   { m: 'GET', exact: '/api/connectors/catalog', h: handleConnectorCatalog },
   { m: 'POST', exact: '/api/connectors/oauth/start', h: handleConnectorOauthStart },
+  { m: 'POST', exact: '/api/connectors/oauth/device/poll', h: handleConnectorDevicePoll },
   { m: 'POST', exact: '/api/connectors/oauth/client', h: handleConnectorOauthClient },
   { m: 'POST', exact: '/api/connectors/oauth/cancel', h: handleConnectorOauthCancel },
   { m: 'GET', prefix: '/api/connectors/oauth/callback', h: handleConnectorOauthCallback },
@@ -11095,6 +11117,7 @@ async function handleConnectorRemove(req, res) {
     if (a && a.id === id) { try { a.controller.abort(); } catch (_) {} connectorOauthAttempts.delete(attemptId); }
   }
   for (const [state, p] of connectorOauthPending) if (p && p.id === id) connectorOauthPending.delete(state);
+  githubDeviceFlow.cancel('', id);
   let runtimeRemoved = true, detail = '';
   try { await connectors.remove(id); }
   catch (e) { runtimeRemoved = false; detail = (e && e.message) || 'runtime cleanup failed'; }
@@ -11133,6 +11156,11 @@ async function handleConnectorOauthStart(req, res) {
   res.once('close', abortOnClose);
   const net = { signal: controller.signal, timeoutMs: CONNECTOR_OAUTH_LEG_MS, deadlineAt, now: () => Date.now() };
   try {
+    if (entry.deviceFlow) {
+      const result = await githubDeviceFlow.start(attemptId, entry.id, controller.signal);
+      completed = true;
+      return json(200, result);
+    }
     /* STATIC-CLIENT path (Google Workspace rows): the AS has NO dynamic registration, so the entry carries its
        endpoints + scopes in `staticOauth` and the sign-in uses a PRE-REGISTERED client stored per authorization
        server (pasted once via /api/connectors/oauth/client, or seeded from env at boot). No probe, no discover,
@@ -11227,7 +11255,7 @@ async function handleConnectorOauthCancel(req, res) {
   let body; try { body = JSON.parse(await readBody(req, 4096)) || {}; } catch (_) { return json(400, { error: 'bad json' }); }
   const attemptId = String(body.attemptId || '').trim();
   const id = String(body.id || '').trim();
-  let cancelled = false;
+  let cancelled = githubDeviceFlow.cancel(attemptId, id);
   const active = connectorOauthAttempts.get(attemptId);
   if (active && (!id || active.id === id)) {
     try { active.controller.abort(); } catch (_) {}
@@ -11241,6 +11269,14 @@ async function handleConnectorOauthCancel(req, res) {
     }
   }
   return json(200, { ok: true, cancelled, attemptId: attemptId || undefined, id: id || undefined });
+}
+
+async function handleConnectorDevicePoll(req, res) {
+  const json = (code, obj) => { res.writeHead(code, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }); res.end(JSON.stringify(obj)); };
+  let body; try { body = JSON.parse(await readBody(req, 4096)) || {}; } catch (_) { return json(400, { error: 'bad json' }); }
+  const attemptId = String(body.attemptId || '');
+  if (!/^[A-Za-z0-9_-]{8,80}$/.test(attemptId)) return json(400, { error: 'invalid sign-in attempt' });
+  return json(200, await githubDeviceFlow.poll(attemptId));
 }
 
 /* GET /api/connectors/oauth/callback?code&state — the redirect target (a top-level browser navigation, so it is

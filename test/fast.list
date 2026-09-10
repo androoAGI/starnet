@@ -753,3 +753,4 @@ test/work-rating-control.test.js
 test/session-focus-safety.test.js
 
 test/harness-placement.test.js
+test/github-device.test.js

@@ -1044,7 +1044,7 @@
     function ccResetSignBtn(id) {
       const btn = ccListEl && ccListEl.querySelector('.cc-card[data-id="' + (window.CSS && CSS.escape ? CSS.escape(id) : id) + '"] button[data-cc-act]');
       if (btn && (btn.dataset.ccAct === 'signin' || btn.dataset.ccAct === 'signin-cancel')) {
-        btn.dataset.ccAct = 'signin'; btn.textContent = '▸ SIGN IN'; btn.disabled = false;
+        btn.dataset.ccAct = 'signin'; btn.textContent = id === 'github' ? 'SIGN IN WITH GITHUB' : '▸ SIGN IN'; btn.disabled = false;
         btn.title = 'opens a secure browser sign-in (OAuth)';
       }
     }
@@ -1072,7 +1072,7 @@
       else if (e.googleApi && e.signInAvailable === false) action =
         '<button class="bb xs" disabled>' + (e.releaseDeferred ? 'DEFERRED' : 'GOOGLE SIGN-IN UNAVAILABLE') + '</button>';
       else if (e.authType === 'oauth') action = e.url
-        ? '<button class="bb xs" data-cc-act="signin" data-id="' + esc(cardId) + '" title="opens a secure browser sign-in (OAuth)">' + (e.googleApi ? 'SIGN IN WITH GOOGLE' : '▸ SIGN IN') + '</button>'
+        ? '<button class="bb xs" data-cc-act="signin" data-id="' + esc(cardId) + '" title="opens a secure browser sign-in (OAuth)">' + (e.deviceFlow ? 'SIGN IN WITH GITHUB' : e.googleApi ? 'SIGN IN WITH GOOGLE' : '▸ SIGN IN') + '</button>'
         : (e.via
           // url-less oauth entry reachable through an aggregator: a LIVE jump to that card, never a mute dead button.
           ? '<button class="bb xs" data-cc-act="via" data-id="' + esc(cardId) + '" data-via="' + esc(e.via) + '" title="no direct endpoint — jump to the connector that reaches it">▸ VIA ' + esc(e.via.toUpperCase()) + '</button>'
@@ -1082,7 +1082,7 @@
       const keyDelivery = e.keyHeader
         ? '<code>' + esc(e.keyHeader) + ': &hellip;</code>'
         : '<code>Authorization: Bearer &hellip;</code>';
-      const keyField = e.authType === 'apikey' && !e.platformApi
+      const keyField = (e.authType === 'apikey' || e.deviceFlow) && !e.platformApi
         ? '<div class="cc-key" style="display:none"><div class="mc-hint">1. Open your ' + esc(e.name) + ' account and create an API key or token. ' + (e.homepage ? '<a href="' + esc(e.homepage) + '" target="_blank" rel="noopener">Open ' + esc(e.name) + ' ↗</a>' : '') + '<br>2. Paste it below, then choose CONNECT.</div><input type="password" class="key-input" data-cc-key="' + esc(cardId) + '" aria-label="' + esc(e.name) + ' API key or token" placeholder="' + esc(e.name) + ' API key / token" autocomplete="off" spellcheck="false">' +
             '<div class="mc-hint">Stored locally by the sidecar, sent as ' + keyDelivery + ', never displayed again.</div></div>'
         : '';
@@ -1116,7 +1116,7 @@
             '<span class="cc-chip" style="color:' + chip[2] + '" title="' + esc(chip[1]) + '">' + (chip[0] ? chip[0] + ' ' : '') + esc(chip[1]) + '</span></div></div>' +
           '<div class="cc-blurb dim">' + esc(e.blurb) + '</div>' + '<details class="cc-details"><summary>Connection details</summary><div class="cc-details-body">' + clientField + origin + presets + platformMeta + (e.installed ? '<div class="mc-hint">' + (e.releaseDeferred ? 'Saved connection retained. Open Manage Service to view or remove it.' : 'Setup saved. Open Manage Service to check access or reconnect.') + '</div>' : '') + '</div></details>' + keyField +
           '<div class="mc-hint cc-setup-hint">' + esc(setupHint) + '</div>' +
-          '<div class="cc-acts">' + action + home + '</div>' +
+          '<div class="cc-acts">' + action + home + '</div>' + (e.deviceFlow && !e.installed ? '<details><summary>Use a personal access token instead</summary><button class="bb xs" data-cc-act="key" data-id="' + esc(cardId) + '">SET UP TOKEN</button></details>' : '') +
         '</div>';
     }
     function ccGroupHTML(g) {
@@ -1312,18 +1312,20 @@
       ccAttempts.set(id, { attemptId, controller });
       const earlyCancel = ccListEl.querySelector('.cc-card[data-id="' + (window.CSS && CSS.escape ? CSS.escape(id) : id) + '"] button[data-cc-act]');
       if (earlyCancel) { earlyCancel.dataset.ccAct = 'signin-cancel'; earlyCancel.textContent = 'CANCEL'; earlyCancel.disabled = false; }
-      let url;
+      let url, device;
       try {
         const startRes = await fetch('/api/connectors/oauth/start', { method: 'POST', signal: controller.signal,
           headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: id, attemptId: attemptId }) });
         const j = await startRes.json().catch(() => ({}));
         if (j.error || !j.url) { out.textContent = '✕ ' + (j.error || 'could not start sign-in'); sfx('bad'); ccPending.delete(id); ccAttempts.delete(id); ccResetSignBtn(id); return; }
         url = j.url;
+        if (j.deviceFlow) device = j;
       } catch (err) {
         ccPending.delete(id); ccAttempts.delete(id); ccResetSignBtn(id);
         if (controller.signal.aborted) { out.textContent = 'sign-in for ' + label + ' cancelled — press SIGN IN to try again.'; return; }
         out.textContent = '✕ ' + ((err && err.message) || 'request failed'); sfx('bad'); return;
       }
+      if (device) { await ccDeviceSignIn(id, out, device, controller); return; }
       const opened = await openSignIn(url);
       if (!opened.opened) {
         // The consent window never opened (popup-blocked in a browser, or the OS-browser hand-off failed on
@@ -1353,6 +1355,56 @@
         if (tries > 150) { stopCcPoll(id); ccPending.delete(id); ccPendingWin.delete(id); ccAttempts.delete(id); ccResetSignBtn(id); out.classList.remove('ok'); out.textContent = 'Sign-in timed out. Sign in again, then return to your task.'; }   // ~5-minute cap
       }, 2000);
       ccTimers.set(id, timer);
+    }
+    async function ccDeviceSignIn(id, out, device, controller) {
+      const notice = document.createElement('section');
+      notice.className = 'ext-editor mc-form github-device-code';
+      notice.setAttribute('aria-label', 'Sign in with GitHub');
+      notice.innerHTML = '<strong>CONNECT GITHUB</strong><p>1. Copy this code: <code style="font-size:20px;user-select:all">' + esc(device.userCode) + '</code> <button class="bb sm" data-device-copy>COPY CODE</button></p>' +
+        '<p>2. Open GitHub, enter the code, and approve StarNet’s repository and organization access.</p>' +
+        '<p>3. Return here. StarNet will check and save your connection on this device.</p>' +
+        '<div class="mc-acts"><button class="bb sm" data-device-open>OPEN GITHUB</button><button class="bb sm" data-device-cancel>CANCEL</button></div>';
+      out.before(notice); notice.scrollIntoView({ block: 'center' });
+      const copy = notice.querySelector('[data-device-copy]');
+      copy.addEventListener('click', async () => {
+        try { await navigator.clipboard.writeText(device.userCode); copy.textContent = 'COPIED'; }
+        catch (_) { copy.textContent = 'SELECT CODE ABOVE'; }
+      });
+      const open = async () => {
+        const result = await openSignIn(device.url);
+        if (!result.opened) out.textContent = 'Could not open GitHub. Allow pop-ups and choose OPEN GITHUB.';
+        else { ccPendingWin.set(id, result.win || null); out.textContent = 'Waiting for you to enter the code and approve StarNet in GitHub…'; }
+      };
+      notice.querySelector('[data-device-open]').addEventListener('click', open);
+      notice.querySelector('[data-device-cancel]').addEventListener('click', () => ccCancelSignIn(id));
+      const remove = () => notice.remove();
+      controller.signal.addEventListener('abort', remove, { once: true });
+      try {
+        await open();
+        const until = Date.now() + device.expiresIn * 1000;
+        while (!controller.signal.aborted && body.isConnected && Date.now() < until) {
+          await new Promise(resolve => setTimeout(resolve, 2000));
+          if (controller.signal.aborted || !body.isConnected) break;
+          const res = await fetch('/api/connectors/oauth/device/poll', { method: 'POST', signal: controller.signal,
+            headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ attemptId: device.attemptId }) });
+          const j = await res.json();
+          if (j.state === 'pending') continue;
+          if (controller.signal.aborted) break;
+          if (j.state === 'connected') {
+            out.classList.add('ok'); out.textContent = '✓ GitHub connected as ' + j.login + ' — ' + j.toolCount + ' tool(s)';
+            sfx('click');
+          } else { out.classList.remove('ok'); out.textContent = j.error || 'GitHub sign-in failed. Try again.'; }
+          ccRefresh(); refresh(); return;
+        }
+        if (!controller.signal.aborted && body.isConnected) out.textContent = 'GitHub code expired. Sign in again to get a new code.';
+      } catch (_) { if (!controller.signal.aborted) out.textContent = 'Could not finish GitHub sign-in. Please try again.'; }
+      finally {
+        controller.signal.removeEventListener('abort', remove); notice.remove();
+        postJSON('/api/connectors/oauth/cancel', { id, attemptId: device.attemptId }).catch(() => {});
+        if (ccAttempts.get(id) && ccAttempts.get(id).attemptId === device.attemptId) {
+          ccPending.delete(id); ccAttempts.delete(id); ccPendingWin.delete(id); ccResetSignBtn(id);
+        }
+      }
     }
     // CANCEL a still-polling sign-in: clear the timer, drop the in-flight guard, close any popup we opened, and reset
     // the card so a re-click can start over. Honest neutral message — we are NOT claiming a failure, the user opted out.
