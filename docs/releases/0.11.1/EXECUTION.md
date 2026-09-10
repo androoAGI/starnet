@@ -9,3 +9,7 @@ Frozen feature integration: f26fb059e82b9858cdf9dcb25601e4b69da12872. Both glass
 The preparation document and its receipt are historical observations, not final release acceptance. The final-merge pre-bump fast run was deliberately stopped after authorization so the binding run can occur after the version bump and notes/claims commits. It is not a passing receipt.
 
 Use the runbook's manual ordered operations for this one authorized exception; do not modify the release gate to pretend it passed. Keep preflight output showing the real NOT READY result. Require every other post-bump hard preflight row to pass. Record final release SHA, test logs, train run, staged asset hashes, packaged acceptance and public-feed result before closing this release task.
+
+## Published result
+
+0.11.1 was published stable/latest at 2026-09-10T01:08:47Z from b3760c46ff3fe02790e6c3b0c50a23c30b5837a8. All retained gates passed: fast 752/752, HTTP 108/108, signed train, Windows upgrade proof, T0, G1, Mac notarization/Intel installed acceptance, all updater signatures and hashes, live feed, and source mirror. The full receipt and limits are in qa/digests/2026-09-10-release-0111.md. No unresolved customer record was closed.
