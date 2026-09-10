@@ -18,7 +18,7 @@
   "expectedClaimCount": 37,
   "releaseSurface": {
     "algorithm": "sha256",
-    "sourceCommit": "490b488facb43247dfcf8850a22e94cd6ffdd435",
+    "sourceCommit": "f7be913a624e970f273f820a56096f5edc3915c4",
     "pathSetSha256": "b0479380ff858bd18673d3e0c7191897e66f62b44b4fc14a50eade63aab5c027",
     "files": [
       {
@@ -498,8 +498,8 @@
       },
       {
         "path": "frontend/app/personas.js",
-        "bytes": 16370,
-        "sha256": "dd0aab7fc03cac264e545684480b3da882e86b1f5a1b30415b0aaab9afc89bbe"
+        "bytes": 16382,
+        "sha256": "4ff515510a835ef87b3d66f253382191e02519d2f725475c097e801da49a5439"
       },
       {
         "path": "frontend/app/pipeline.js",
