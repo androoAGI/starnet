@@ -1,5 +1,21 @@
 # NEXT.md — current priorities & task queue
 
+## IN PROGRESS — 2026-09-10 Discover organization (agent/discover-connect-0910)
+
+Owner requested popular platforms first and clearer connection setup. Discover now moves
+curated, actionable services into Popular without duplicating cards; deferred Google entries
+remain in their category. Cards disclose setup requirements, key connectors show inline
+instructions, and platform API setup opens a prefilled form with vendor instructions and
+three steps. Changing the platform name clears the contextual guide.
+
+Live seeded UI on :9238: Popular showed Notion, GitHub, Canva, Linear, Stripe, Asana and
+ClickUp; SIGN IN reduced its count to five. Search for Printify reset the filter and opened
+the visible guided form with https://developers.printify.com/ and the correct platform name.
+GitHub revealed inline key instructions; renaming the platform hid stale guidance. No browser
+errors or white control backgrounds were observed. Connector UI regression: 149 assertions.
+Full fast gate pending. Real provider authorization and installed-app behavior are unverified.
+
+
 ## MERGED — 2026-09-10 doorway movement (agent/doorway-occlusion-0910)
 
 Owner reported agents walking behind walls near openings. Source repair a22f780e3 validates
