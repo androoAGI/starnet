@@ -763,3 +763,4 @@ test/world-seat-recovery.test.js
 test/save-concurrency.test.js
 
 test/cloudsave-concurrency.test.js
+test/world-movement-continuity.test.js
