@@ -30,8 +30,10 @@ for (const required of [
 
 const ignore = read('.gitleaksignore').split(/\r?\n/).filter(line => /^[0-9a-f]{40}:/.test(line));
 // 25 pre-publication fingerprints + the 2026-09-03 reviewed mock-provider fake key
-// (dev/seed-mock-reliability.js). Bump ONLY with a reviewed .gitleaksignore entry.
-assert.equal(ignore.length, 26, 'the reviewed pre-publication baseline is finite and exact');
+// (dev/seed-mock-reliability.js) + the 2026-09-10 reviewed dummy provider key in the
+// rating-upgrade e2e test (test/growth-rating-upgrade.e2e.test.js, trunk c3b681f09).
+// Bump ONLY with a reviewed .gitleaksignore entry.
+assert.equal(ignore.length, 27, 'the reviewed pre-publication baseline is finite and exact');
 assert.equal(new Set(ignore).size, ignore.length, 'baseline fingerprints must be unique');
 
 const workflow = read('.github/workflows/secret-history.yml');
