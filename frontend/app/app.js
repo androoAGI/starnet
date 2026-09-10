@@ -2515,6 +2515,7 @@ const App = (() => {
     // RESUME/recovery honours the agent's saved provider; a FRESH create screen leads with the beginner-first
     // default (pickedProvider = 'codex' — sign in with ChatGPT, no API key), the top of the zero-to-value funnel.
     selectProviderUI(recovery ? Harness.getProv() : pickedProvider);
+    if (typeof OverseerSetup !== 'undefined') OverseerSetup.init(recovery);
     // INITIAL FOCUS: fresh create → the name field (the natural first action); RESUME → the credential control the
     // Commander must act on (the ChatGPT sign-in button on the keyless Codex path, else the key box). NEVER the
     // model field (focusing it springs the popover open) and never the phosphor swatches (the old Tab-start bug).

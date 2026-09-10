@@ -1,0 +1,80 @@
+/* Genesis shares the station's glass material, with two reversible setup steps. */
+#screen-connect .ov-panel {
+  max-width: 1240px; border: 1px solid var(--gd-edge); border-radius: 14px;
+  background: var(--gd-face); box-shadow: var(--gd-shadow); overflow: hidden;
+}
+#screen-connect .ov-panel > .cc-bracket,
+#screen-connect .cc-tb-rec,
+#screen-connect .ov-step::after { display: none; }
+#screen-connect .ov-head { padding: 20px 28px 0; background: none; }
+#screen-connect .ov-title-row { display: block; margin: 16px 0; }
+#screen-connect .ov-title-row h2 { font-size: 30px; letter-spacing: 1px; text-shadow: none; margin-bottom: 8px; }
+#screen-connect .ov-sub { display: block; max-width: 760px; font-size: 17px; line-height: 1.5; letter-spacing: 0; }
+#screen-connect .ov-setup-nav { display: flex; gap: 8px; padding: 6px; margin: 18px 0; border: 1px solid var(--gd-edge); border-radius: 12px; background: rgba(0,0,0,.13); }
+#screen-connect .ov-setup-nav button {
+  flex: 1; min-height: 46px; padding: 10px 14px; border: 1px solid transparent; border-radius: 8px;
+  background: transparent; color: var(--ph-dim); font: inherit; font-size: 18px; text-align: left; cursor: pointer; box-shadow: none;
+}
+#screen-connect .ov-setup-nav button span { margin-right: 10px; opacity: .65; }
+#screen-connect .ov-setup-nav button[aria-current] { color: var(--ph-bright); background: var(--gd-hover); border-color: var(--gd-edge); box-shadow: inset 0 1px 0 var(--gd-light); }
+#screen-connect .ov-grid { grid-template-columns: minmax(240px, .85fr) minmax(0, 1.4fr); grid-template-areas: 'hero id'; gap: 24px; padding: 4px 28px 24px; align-items: start; }
+#screen-connect[data-setup-step="brain"] .ov-grid { grid-template-areas: 'hero brain'; }
+#screen-connect .ov-hero { padding: 18px; border: 1px solid var(--gd-edge); border-radius: 12px; background: var(--gd-face); min-width: 0; }
+#screen-connect .ov-hero > .ov-step { display: none; }
+#screen-connect .ov-leadtag { border: 0; padding: 0; background: none; font-size: 13px; letter-spacing: .6px; justify-content: center; }
+#screen-connect .ov-pod { flex: none; min-height: 210px; border-color: var(--gd-edge); background: radial-gradient(ellipse at 50% 70%,rgba(var(--ph-rgb),.12),transparent 70%),rgba(0,0,0,.15); box-shadow: inset 0 1px 0 var(--gd-light); }
+#screen-connect .ov-stage-frame img { height: 170px; }
+#screen-connect .ov-np-name { font-size: 28px; letter-spacing: 2px; }
+#screen-connect .ov-np-role { font-size: 14px; letter-spacing: .4px; }
+#screen-connect .ov-pickrow { flex-direction: column; align-items: stretch; gap: 8px; }
+#screen-connect .skin-picker { max-height: none; overflow: visible; justify-content: center; }
+#screen-connect .skin-thumb { width: 48px; height: 48px; }
+#screen-connect .ov-cfg { padding: 0; border: 0; }
+#screen-connect .ov-step { font-size: 21px; letter-spacing: .4px; margin-bottom: 20px; text-shadow: none; }
+#screen-connect .ov-step b { display: none; }
+#screen-connect .ov-step .dim { display: none; }
+#screen-connect .ov-field { margin-bottom: 24px; }
+#screen-connect .ov-cfg label { font-size: 16px; letter-spacing: .5px; margin-bottom: 10px; }
+#screen-connect .ov-cfg label .dim { display: block; font-size: 15px; line-height: 1.4; letter-spacing: 0; margin-top: 5px; }
+#screen-connect :is(input:not([type]),input[type="text"],input[type="password"]) { border: 1px solid var(--gd-edge); border-radius: 8px; background: rgba(0,0,0,.18); box-shadow: inset 0 1px 0 var(--gd-light); padding: 12px 14px; font-size: 18px; letter-spacing: .2px; }
+#screen-connect :is(.ov-vchip,.prov,.prov-more,.ov-card,.btn,.btn-sm,.model-pick) { border-radius: 8px; text-shadow: none; box-shadow: inset 0 1px 0 var(--gd-light); }
+#screen-connect :is(.ov-vchip,.prov,.prov-more) { min-height: 40px; padding: 8px 12px; font-size: 15px; }
+#screen-connect :is(.ov-vchip,.prov,.ov-card) { background: rgba(var(--ph-rgb),.035); border: 1px solid var(--gd-edge); }
+#screen-connect :is(.ov-vchip,.prov,.ov-card).sel { background: var(--gd-hover); color: var(--ph-bright); border-color: var(--ph); box-shadow: inset 0 1px 0 var(--gd-light); }
+#screen-connect .ov-vchip:is(.arm,.armed) { color: var(--warn); border-color: var(--warn); }
+#screen-connect .ov-vpreview { padding: 14px 16px; border-radius: 8px; background: rgba(0,0,0,.14); border: 1px solid var(--gd-edge); font-size: 17px; line-height: 1.5; }
+#screen-connect .ov-card { padding: 16px; }
+#screen-connect .ov-card-ds { font-size: 15px; line-height: 1.4; }
+#screen-connect .ov-crewnote { font-size: 14px; line-height: 1.5; }
+#screen-connect .ov-brain { padding: 0; border: 0; background: none; box-shadow: none; }
+#screen-connect .prov-grid { gap: 8px; }
+#screen-connect .prov-hero { padding: 16px; }
+#screen-connect .prov-hero-sub { font-size: 15px; line-height: 1.4; }
+#screen-connect .ov-foot { padding: 16px 28px; gap: 12px 24px; background: rgba(0,0,0,.12); border-color: var(--gd-edge); flex-wrap: nowrap; align-items: flex-end; }
+#screen-connect .ov-foot-data { flex: 1; font-size: 13px; gap: 6px 12px; }
+#screen-connect .ov-foot-cap { flex-basis: 100%; line-height: 1.4; }
+#screen-connect .ov-foot-data > .dim { display: none; }
+#screen-connect .ov-actions { flex-wrap: wrap; justify-content: flex-end; flex: 1; }
+#screen-connect .ov-actions .msg:not(:empty) { flex-basis: 100%; font-size: 16px; line-height: 1.4; }
+#screen-connect .btn-xl { min-height: 46px; padding: 12px 20px; border-radius: 8px; font-size: 18px; letter-spacing: .5px; }
+#screen-connect :is(button,input):focus-visible { outline: 2px solid var(--ph); outline-offset: 3px; }
+/* Override the older global metadata roles for the setup's primary reading hierarchy. */
+#screen-connect .ov-sub { font-size: 17px !important; line-height: 1.5; }
+#screen-connect .ov-step { font-size: 21px !important; }
+#screen-connect :is(.ov-setup-nav,.ov-col-id,.ov-col-brain,#btn-setup-next,#btn-wake,#btn-back)[hidden] { display: none; }
+#screen-connect.recovery .ov-grid { padding-top: 20px; }
+@media (max-width: 720px) {
+  #screen-connect.active { padding: 6px; }
+  #screen-connect .ov-head { padding: 14px 16px 0; }
+  #screen-connect .ov-title-row h2 { font-size: 24px; }
+  #screen-connect .ov-grid, #screen-connect[data-setup-step="brain"] .ov-grid { grid-template-columns: minmax(0,1fr); grid-template-areas: 'hero' 'id'; padding: 0 16px 20px; gap: 20px; }
+  #screen-connect[data-setup-step="brain"] .ov-grid { grid-template-areas: 'hero' 'brain'; }
+  #screen-connect .ov-pod { min-height: 150px; }
+  #screen-connect .ov-stage-frame img { height: 115px; }
+  #screen-connect[data-setup-step="brain"] .ov-hero { display: none; }
+  #screen-connect .ov-foot { padding: 12px 16px; flex-wrap: wrap; }
+  #screen-connect .ov-foot-data { flex-basis: 100%; }
+  #screen-connect .ov-foot-cap { display: none; }
+  #screen-connect .ov-actions { flex-basis: 100%; }
+  #screen-connect .ov-setup-nav button { font-size: 16px; padding: 8px; }
+}

@@ -44,6 +44,7 @@
 <link rel="stylesheet" href="css/glass-demo.css">
 <link rel="stylesheet" href="css/glass-comms.css">
 <link rel="stylesheet" href="css/readability.css"><!-- Shared readable text roles at STANDARD; cabinet and CRT geometry are unchanged. -->
+<link rel="stylesheet" href="css/overseer-setup.css">
 
 <link rel="stylesheet" href="css/titlebar.css"><!-- custom window chrome (Windows desktop shell): themed titlebar + MIN/MAX/CLOSE; inert unless body.sn-chrome (titlebar.js) -->
 
@@ -105,6 +106,10 @@
       <!-- RESUME banner — shown only when re-entering an existing station (recovery / disconnect re-entry).
            initConnect(name, true, agent) unhides this and disables the identity fields; a fresh create hides it. -->
       <div id="cc-recovery" class="ov-recovery hidden" role="status"></div>
+      <nav class="ov-setup-nav" aria-label="Overseer setup">
+        <button type="button" data-setup-step="identity" aria-controls="ov-identity"><span>01</span> Your Overseer</button>
+        <button type="button" data-setup-step="brain" aria-controls="ov-brain"><span>02</span> Connect a brain</button>
+      </nav>
     </header>
 
     <div class="ov-grid">
@@ -132,15 +137,15 @@
       <!-- COLUMN 2 — IDENTITY & CONDUCT: name · personality · approval — HOOK-FIRST order: the fun,
            zero-friction identity choices come first so the user invests before they hit the key/model
            column (the highest-friction step), which sits LAST, next to the WAKE button it feeds. -->
-      <div class="ov-cfg ov-col-id">
+      <div class="ov-cfg ov-col-id" id="ov-identity">
         <div class="ov-step"><b>02</b> IDENTITY <span class="dim">— name it, give it a manner</span></div>
         <div class="ov-field">
-          <label for="in-name">OVERSEER NAME <span class="dim">— optional; leave blank and it mints its own codename</span></label>
+          <label for="in-name">OVERSEER NAME <span class="dim">Optional. Leave blank for a generated codename.</span></label>
           <input id="in-name" class="ov-nm-in" maxlength="18" placeholder="name your overseer" autocomplete="off" spellcheck="false">
         </div>
 
         <div class="ov-field">
-          <label>PERSONALITY <span class="dim">— how it talks to you (change it any time later)</span></label>
+          <label>PERSONALITY <span class="dim">Choose how it talks to you. Try a style below.</span></label>
           <div id="voice-archetypes" class="ov-vchips" role="group" aria-label="Personality"></div>
           <div id="voice-preview" class="voice-preview ov-vpreview"></div>
           <!-- Voice customization (fine-tune dials + free-text note) REMOVED from genesis (2026-07-09
@@ -149,17 +154,17 @@
         </div>
 
         <div class="ov-field">
-          <label>APPROVAL <span class="dim">— how much it can do on its own; change it any time later</span></label>
+          <label>APPROVAL <span class="dim">Choose how much it can do on its own.</span></label>
           <div id="approval-picker" class="ov-cards ov-approve" role="group" aria-label="Approval mode"></div>
           <div class="ov-crewnote"><b>FULL POWER</b> authorizes the whole local computer without consent cards. ASK mode keeps the chosen profile, project, and protected-action boundaries.</div>
         </div>
       </div>
 
       <!-- COLUMN 3 — THE BRAIN: the only REQUIRED step; sits last, beside the WAKE it feeds. -->
-      <div class="ov-cfg ov-col-brain">
+      <div class="ov-cfg ov-col-brain" id="ov-brain">
         <div class="ov-step"><b>03</b> THE BRAIN <span class="ov-req">REQUIRED</span></div>
         <div class="ov-field ov-field-brain">
-          <label>CONNECT A MIND <span class="dim">— the model that powers it; everything above is re-editable, this one it needs to wake</span></label>
+          <label>CONNECT A MIND <span class="dim">Choose a provider, connect your account, then pick a model.</span></label>
           <!-- BEGINNER FUNNEL: lead with the no-API-key path. A ChatGPT Plus/Pro login (Codex OAuth) needs
                no key at all, so it's the recommended default and sits first; BYOK (OpenRouter etc.) stays a
                fully visible one-click alternative for anyone who already has a key. -->
@@ -308,8 +313,9 @@
       <div class="connect-actions ov-actions">
         <!-- validation/status lives BESIDE the button that raises it, so "sign in first" never
              renders half a screen away from WAKE on the full-screen layout -->
-        <div id="connect-msg" class="msg"></div>
+        <div id="connect-msg" class="msg" role="status" aria-live="polite"></div>
         <button id="btn-back" class="btn">‹ BACK</button>
+        <button id="btn-setup-next" class="btn-xl" type="button">CONNECT A BRAIN →</button>
         <button id="btn-wake" class="btn-xl">⏼ WAKE OVERSEER ▸</button>
       </div>
     </div>
@@ -941,6 +947,7 @@ document.write('<script src="' + ((window.__STARNET_API__ || '') + '/shared/spec
 <!-- Present before the first notification: assistive technology only observes changes to an
      already-registered live region, so stationui.js appends transient cards here. -->
 <div id="toast-stack" role="status" aria-live="polite" aria-atomic="false" aria-relevant="additions text"></div>
+<script src="app/overseer-setup.js"></script>
 <script src="app/app.js"></script>
 <script src="app/workhub.js"></script>
 <script src="app/keycta.js"></script><!-- cold-start honesty: after a KEYLESS awakening, one standing world banner "agent is awake but has no key" → SETTINGS; pure projection of Harness.hasStoredCredential, vanishes the instant a key lands (after app.js so App/Harness/StationUI exist) -->
