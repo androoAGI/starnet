@@ -27,7 +27,7 @@ function client({ beforePost = async () => {}, onReload = () => {} } = {}) {
     assert.equal(store.load('agent').workstreams[0].id, 'A');
     assert.equal(b.localSnapshot().workstreams[0].id, 'B', 'export belongs to this window, not shared localStorage');
     assert.equal((await b.flushForUpdate()).ok, false, 'update cannot hide an unresolved conflict');
-    const restarted = client(); await restarted.reconcile(db);
+    const restarted = client(); await restarted.reconcile(db); await restarted.flush({ force: true });
     assert.equal(restarted.health().conflict.conflict, true, 'offline restart preserves stale edits instead of relabeling them');
     assert.equal(store.load('agent').workstreams[0].id, 'A');
     da.updatedAt = 3; da.workstreams.push({ id: 'A2' }); a.push(da);
@@ -46,6 +46,12 @@ function client({ beforePost = async () => {}, onReload = () => {} } = {}) {
     assert.equal(reloads, 0);
     assert.equal(await c.flush({ force: true }), true);
     assert.equal(store.load('agent').workstreams.at(-1).id, 'arrived-during-reload');
+    let releaseBoot;
+    const bootClient = client({ beforePost: () => new Promise(resolve => { releaseBoot = resolve; }) });
+    let deadline;
+    const resumed = await Promise.race([bootClient.reconcile(db), new Promise((_, reject) => { deadline = setTimeout(() => reject(Error('dirty cache boot waited for POST')), 200); })]);
+    clearTimeout(deadline); assert.equal(resumed, db, 'dirty local boot does not await the network save');
+    const bootFlush = bootClient.flush({ force: true }); releaseBoot(); await bootFlush;
     console.log('cloudsave-concurrency: two clients, conflict export, update refusal, offline restart and queued writes PASS');
   } finally { fs.rmSync(root, { recursive: true, force: true }); }
 })().catch(e => { console.error(e); process.exitCode = 1; });

@@ -260,7 +260,7 @@ const CloudSave = (() => {
       // Offline edits are still based on their original revision. Preserve them through the
       // same conflict receipt; never relabel a stale local snapshot with the remote revision.
       revision = num(local._saveRevision);
-      push(local); await flush({ force: true });
+      push(local);   // preserve asynchronously; a stalled POST must never block local boot
       return local;
     }
     if (!isSave(local) || num(local._saveRevision) !== revision || num(remote.updatedAt) > num(local.updatedAt)) {
