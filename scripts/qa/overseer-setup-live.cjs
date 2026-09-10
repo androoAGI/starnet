@@ -29,6 +29,18 @@ const { chromium } = require(process.env.STARNET_PLAYWRIGHT_MODULE || 'playwrigh
     const skin = await page.locator('#skin-stage-name').textContent();
     await page.locator('#approval-picker button').nth(1).click();
     const approval = await page.locator('#np-mode').textContent();
+    const personalityButtons = page.locator('#voice-archetypes button');
+    assert.deepEqual(await personalityButtons.allTextContents(), ['Composed','Warm','Blunt','Dry','Unhinged','Upbeat']);
+    const personalityBounds = await page.locator('#voice-archetypes').boundingBox();
+    const unhinged = page.locator('#voice-archetypes button').filter({hasText:/^Unhinged$/});
+    await unhinged.click();
+    assert.equal(await unhinged.getAttribute('aria-pressed'),'false');
+    assert.match(await page.locator('#ov-personality-help').textContent(), /Select Unhinged again/);
+    assert.deepEqual(await page.locator('#voice-archetypes').boundingBox(), personalityBounds, 'confirmation must not shift the selector');
+    await unhinged.click();
+    assert.equal(await unhinged.getAttribute('aria-pressed'),'true');
+    assert.match(await page.locator('#ov-personality-help').textContent(), /Fine-tune later/);
+    receipt.checks.push('Six canonical personalities; accessible two-press confirmation without layout shift');
     await page.locator('#voice-archetypes button').nth(1).click();
     const persona = await page.locator('#voice-archetypes .sel').textContent();
     await page.locator('#in-name').press('Enter');

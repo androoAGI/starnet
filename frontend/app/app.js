@@ -2388,8 +2388,11 @@ const App = (() => {
     if (!Personas.exists(pickedPersona)) pickedPersona = Personas.DEFAULT_ID;
     pickedPersona = Personas.resolve(pickedPersona);   // collapse any legacy id to its grounded archetype
     wrap.innerHTML = '';
+    const personalityHelp = el('ov-personality-help');
+    const helpText = 'Fine-tune later in your Overseer’s settings.';
+    if (personalityHelp) personalityHelp.textContent = helpText;
     let armedChip = null;   // the UNHINGED chip while it awaits its second press (house two-press confirm)
-    const disarm = () => { if (armedChip) { armedChip.textContent = armedChip.dataset.name; armedChip.classList.remove('arm'); armedChip = null; } };
+    const disarm = () => { if (personalityHelp) personalityHelp.textContent = helpText; if (armedChip) { armedChip.textContent = armedChip.dataset.name; armedChip.classList.remove('arm'); armedChip = null; } };
     Personas.list().forEach(p => {
       const chip = document.createElement('button');
       chip.type = 'button';
@@ -2398,6 +2401,7 @@ const App = (() => {
       chip.textContent = p.name;
       chip.dataset.name = p.name;
       chip.setAttribute('aria-pressed', String(p.id === pickedPersona));
+      if (personalityHelp) chip.setAttribute('aria-describedby', 'ov-personality-help');
       chip.onclick = () => {
         // UNHINGED curses for real, so its chip arms first (same two-press pattern as the delete buttons):
         // press one names what it means, press two selects. Once confirmed, it's a normal chip this screen.
@@ -2405,7 +2409,8 @@ const App = (() => {
           disarm();
           armedChip = chip;
           chip.classList.add('arm');
-          chip.textContent = 'UNHINGED — SURE? it swears, for real';
+          if (personalityHelp) personalityHelp.textContent = 'Uses profanity. Select Unhinged again to confirm.';
+          else chip.textContent = 'UNHINGED — SURE? it swears, for real';
           SFX.click();
           return;
         }
