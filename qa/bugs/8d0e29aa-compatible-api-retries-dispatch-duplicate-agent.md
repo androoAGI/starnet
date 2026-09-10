@@ -4,10 +4,10 @@ slug: compatible-api-retries-dispatch-duplicate-agent
 title: Compatible API retries dispatch duplicate agent runs
 surface: providers
 severity: P1
-status: open
+status: fixed
 found: 2026-09-10
 lane: hermes-stress-0910
-fix:
+fix: 4d5ee74c170330c977c766f6be200ffb4313f95c
 origin: audit
 report: docs/HERMES_STRESS_AUDIT_2026-09-10.md
 ---
@@ -28,4 +28,4 @@ The live sidecar now coalesces three concurrent requests, rejects changed-body c
 
 ## Verdict
 
-Implementation in the isolated branch; full gates and remaining live evidence pending.
+Source-fixed in isolated agent/hermes-stress-0910; full fast 757/757 and HTTP 110/110 passed. See qa/audits/hermes-stress-2026-09-10/EXECUTION.md. Not merged or installed-verified; no live-model parity claim. Actual sidecar coalesces callers, rejects changed payloads, replays after restart, preserves incremental streams and survives caller disconnect. Rotation, orphan, corrupt-store and write-failure regressions pass. Full-file ledger load/soak remains unmeasured.

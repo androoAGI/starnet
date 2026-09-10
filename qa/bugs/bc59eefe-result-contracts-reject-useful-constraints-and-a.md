@@ -4,10 +4,10 @@ slug: result-contracts-reject-useful-constraints-and-a
 title: Result contracts reject useful constraints and API JSON formats are ignored
 surface: autonomy
 severity: P1
-status: open
+status: fixed
 found: 2026-09-10
 lane: hermes-stress-0910
-fix:
+fix: 61eeac2b40c9fd0e2e0a5d2b342f44de74119078
 origin: audit
 report: docs/HERMES_STRESS_AUDIT_2026-09-10.md
 ---
@@ -28,4 +28,4 @@ Six positive/negative contract pairs pass. Live JSON-format probes now report fa
 
 ## Verdict
 
-Implementation in the isolated branch; full gates and remaining live evidence pending.
+Source-fixed in isolated agent/hermes-stress-0910; full fast 757/757 and HTTP 110/110 passed. See qa/audits/hermes-stress-2026-09-10/EXECUTION.md. Not merged or installed-verified; no live-model parity claim. Twelve actual-sidecar schema cases pass with exact usage. Hostile output-only repair makes one generation, advertises no tools and writes no file. Nested-schema safety regressions pass. Additional live worker spawn/resume campaign coverage remains pending.

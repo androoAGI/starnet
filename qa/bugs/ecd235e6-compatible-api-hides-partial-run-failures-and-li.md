@@ -4,10 +4,10 @@ slug: compatible-api-hides-partial-run-failures-and-li
 title: Compatible API hides partial run failures and limits
 surface: providers
 severity: P1
-status: open
+status: fixed
 found: 2026-09-10
 lane: hermes-stress-0910
-fix:
+fix: f952835ab7e078d0f9dae490cbb52e7b9c8cc29f
 origin: audit
 report: docs/HERMES_STRESS_AUDIT_2026-09-10.md
 ---
@@ -28,4 +28,4 @@ qa/audits/hermes-stress-2026-09-10/starnet-partial.json records three repetition
 
 ## Verdict
 
-Repair in progress; focused regression and live provider probe required before closure.
+Source-fixed in isolated agent/hermes-stress-0910; full fast 757/757 and HTTP 110/110 passed. See qa/audits/hermes-stress-2026-09-10/EXECUTION.md. Not merged or installed-verified; no live-model parity claim. Actual sidecar partial-failure probe passes three repetitions per native/sync/stream surface; adapter regressions cover eight terminal outcomes and synchronous throw.

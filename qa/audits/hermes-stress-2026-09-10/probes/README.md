@@ -14,3 +14,5 @@ They use synthetic inputs and local services. Preserve the directory layout when
 9. Inspect the UI normally, then stop only the fixture processes you launched. Run `node .audit/receipt.cjs` after the named evidence logs exist.
 
 The receipt's aggregate test counts describe the original recorded run, not a new run. Update them when changing the selected tests.
+
+Post-implementation schema receipt: after copying the archived probes to the root .audit directory, run node .audit/schema-live.cjs from the worktree root. It starts a controlled local provider and source sidecar, checks all twelve positive/negative constraint cases with exact usage, writes .audit/schema-live.json, and cleans up its fixture. It does not call a paid model.

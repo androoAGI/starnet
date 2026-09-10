@@ -1,13 +1,13 @@
 # Hermes-derived improvements: execution receipt
 
-Initial candidate: 6974ac3f8e72127e09a915b043583a50a0665d3b on agent/hermes-stress-0910. Integration is pending. This records source work, not installed-build verification or measured model-quality parity.
+Verified source candidate: 61eeac2b40c9fd0e2e0a5d2b342f44de74119078 on agent/hermes-stress-0910. Both full gates passed. Integration and browser verification remain pending. This is source-sidecar evidence, not installed-build or live-model parity.
 
 | Area | Implemented | Verified so far | Still required |
 | --- | --- | --- | --- |
-| Completion honesty | Host terminal status, partial output and real usage survive sync, streaming and run-status responses | Eight terminal cases across three API surfaces; original live partial-failure probe passes three repetitions per surface; baseline API 36 assertions | Full gates; restart/status scope review |
-| Request retries | Durable reservation before dispatch; canonical request/model binding; principal/session isolation; conflict rejection; exact saved response replay | Live sidecar: three concurrent requests produce one primary call, changed request returns 409, replay survives actual sidecar restart; orphan/corrupt-store unit checks | Rotation/write-failure siblings; complete gate |
+| Completion honesty | Host terminal status, partial output and real usage survive sync, streaming and run-status responses | Eight terminal cases across three API surfaces; original live partial-failure probe passes three repetitions per surface; baseline API 36 assertions | Installed-build proof; /v1/runs restart persistence is outside this repair |
+| Request retries | Durable reservation before dispatch; canonical request/model binding; principal/session isolation; conflict rejection; exact saved response replay | Live sidecar: one primary call for concurrent callers, conflict and exact restart replay, incremental streaming and caller disconnect; auth-rotation, orphan, corrupt-store and write-failure regressions | Long-load/soak coverage |
 | Report structure | Semantic tables, ordered/nested lists, quotes and named links; escaped output; original code-copy control and phosphor styling | 26 renderer/copy assertions, including hostile markup/protocol input | Live browser, narrow widths, selection/scroll, reload and clipboard proof; browser tool approval blocked |
-| Result contracts | Pinned Ajv 8.20.0 in a dedicated host module; minimum, pattern, minItems, oneOf and local refs; strict whole JSON; one output-only repair; API format handling | Six positive/negative schema pairs; 262 orchestration assertions; API repair/usage tests; live invalid-JSON probes; installed OpenAI Python SDK accepts sync, stream and failure metadata | Full gates; hostile tool request during repair, spawn/resume/restart live siblings |
+| Result contracts | Pinned Ajv 8.20.0 in a dedicated host module; minimum, pattern, minItems, oneOf and local refs; strict whole JSON; one output-only repair; API format handling | 12 positive/negative live schema cases; 262 orchestration assertions; hostile repair: one generation, no tools, no mutation; installed OpenAI Python SDK sync/stream/error checks | Additional live worker spawn/resume coverage in the campaign |
 
 ## Evidence and limits
 
@@ -24,3 +24,13 @@ Result schemas intentionally support a bounded subset: local JSON Pointer refs, 
 The planned 72 live-model trials require the same provider/model and an explicit total API spending ceiling. Both were requested from the user; none has been selected by the agent. No paid comparison trials have run. The 48-hour soak follows the short campaign and has not started. The existing scripts/qa/soak.mjs can provide source-sidecar restart/scheduling/process evidence; it does not prove desktop UI behavior or cover all newly added API scenarios without additional workload coverage.
 
 Browser-only opening of the isolated test page was rejected by automatic approval review, citing disabled native computer APIs. Permission to retry the browser-only verification was requested. No workaround was used. A separate npm audit invocation was rejected because it could transmit dependency metadata; it was not run. The public Ajv version lookup and installation with --no-audit succeeded.
+
+## Final gates and reproducibility
+
+Full fast gate: 757/757 steps, exit 0. Full HTTP manifest: 110/110 steps, exit 0 under the documented 30-minute runner ceiling. The original 15-minute audit timeout remains historical evidence; it is not relabeled as a pass. The new complete receipts and SHA-256 hashes are in implementation-receipt.json. No tests were removed.
+
+Earlier validation included two intentionally stopped runs for retry/repair corrections and three failed runs: stale frontend source hashes, a worker-cap source assertion that did not recognize the stricter repair bound, and silent progress-listener catches. The hashes were refreshed without changing claim verdicts; the assertion still requires normal worker limits; listener errors now reach the diagnostic logger. A later adversarial probe found unsafe patterns accepted inside propertyNames and schema dependencies; the schema traversal now covers those and additionalItems, with regressions. Final full runs include all corrections.
+
+Run the focused permanent pack with: node scripts/run-test-list.mjs test/hermes-strengths.list. All ten suites also belong to fast or HTTP. The 72-trial live-campaign-queue.json contains scenario templates and explicit not_run slots; it is not a completed campaign.
+
+Campaign preflight should verify native tool availability across entrypoints: openai-compat.startRun currently supplies no isTask flag, while the host tool advertisement depends on it. The existing adapter probes establish API outcomes and primary-dispatch counts, not full mutating-task capability parity. Also measure request-reservations.js with large durable responses; its full-file JSON strategy has not been load/soak verified. These are source-guided questions, not additional verified Hermes wins.

@@ -1,0 +1,101 @@
+{
+  "liveModel": false,
+  "rows": [
+    {
+      "name": "minimum",
+      "valid": true,
+      "status": 200,
+      "finishReason": "stop",
+      "completed": true,
+      "totalTokens": 3
+    },
+    {
+      "name": "minimum",
+      "valid": false,
+      "status": 200,
+      "finishReason": "error",
+      "completed": false,
+      "totalTokens": 6
+    },
+    {
+      "name": "pattern",
+      "valid": true,
+      "status": 200,
+      "finishReason": "stop",
+      "completed": true,
+      "totalTokens": 3
+    },
+    {
+      "name": "pattern",
+      "valid": false,
+      "status": 200,
+      "finishReason": "error",
+      "completed": false,
+      "totalTokens": 6
+    },
+    {
+      "name": "minItems",
+      "valid": true,
+      "status": 200,
+      "finishReason": "stop",
+      "completed": true,
+      "totalTokens": 3
+    },
+    {
+      "name": "minItems",
+      "valid": false,
+      "status": 200,
+      "finishReason": "error",
+      "completed": false,
+      "totalTokens": 6
+    },
+    {
+      "name": "oneOf",
+      "valid": true,
+      "status": 200,
+      "finishReason": "stop",
+      "completed": true,
+      "totalTokens": 3
+    },
+    {
+      "name": "oneOf",
+      "valid": false,
+      "status": 200,
+      "finishReason": "error",
+      "completed": false,
+      "totalTokens": 6
+    },
+    {
+      "name": "local-ref",
+      "valid": true,
+      "status": 200,
+      "finishReason": "stop",
+      "completed": true,
+      "totalTokens": 3
+    },
+    {
+      "name": "local-ref",
+      "valid": false,
+      "status": 200,
+      "finishReason": "error",
+      "completed": false,
+      "totalTokens": 6
+    },
+    {
+      "name": "closed-object",
+      "valid": true,
+      "status": 200,
+      "finishReason": "stop",
+      "completed": true,
+      "totalTokens": 3
+    },
+    {
+      "name": "closed-object",
+      "valid": false,
+      "status": 200,
+      "finishReason": "error",
+      "completed": false,
+      "totalTokens": 6
+    }
+  ]
+}

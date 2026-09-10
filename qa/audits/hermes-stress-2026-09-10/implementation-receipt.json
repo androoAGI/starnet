@@ -1,0 +1,54 @@
+{
+  "schema": "starnet.hermes-implementation.v1",
+  "testedCommit": "61eeac2b40c9fd0e2e0a5d2b342f44de74119078",
+  "integrated": false,
+  "liveModel": false,
+  "fast": {
+    "command": "npm run test:fast",
+    "steps": 757,
+    "exitCode": 0,
+    "file": "implementation-fast.log",
+    "sha256": "62e2b640770728b6cd972331771bb8c390637755aec43f844ea2a6d415b3a1e9",
+    "rawSha256": "a6e578df6f278a1e63aa6c853a6a376bf8016dd46def1fe4c0ccc95c2436cb26"
+  },
+  "http": {
+    "command": "node scripts/timeout.mjs --label hermes-nested-final-http --timeout=1800000 -- npm run test:http:raw",
+    "steps": 110,
+    "exitCode": 0,
+    "file": "implementation-http.log",
+    "sha256": "9fc12674b5c7db208ef7dc9c73ebb851b1fdbcb242f07add3f7faf01839da354",
+    "rawSha256": "e9d3c6b554358887d82bbee9650a6a3d5dd2ea4ba2bbc97e9efee9fb67ebc4f9"
+  },
+  "earlierFailedGates": [
+    {
+      "file": "implementation-source-lock-failure.log",
+      "sha256": "e73f39aece81e50237f9cc1c10c578a64fa75a23293081f7f61744570ffc13d7",
+      "rawSha256": "9d3c45a720c287e734859175019ab889f9bb43f433b86f0350ccf550820c52ab"
+    },
+    {
+      "file": "implementation-worker-cap-failure.log",
+      "sha256": "b3fd12dd256785d0f41376ed3963d8cbf369996c1b84f0c745663f8fb98823bc",
+      "rawSha256": "8c6723f3fb574e37a09422ad087fc77e3a827187d4020e3cce2b57d1d98cdb26"
+    },
+    {
+      "file": "implementation-diagnostics-failure.log",
+      "sha256": "9d03ed057510368f2db00034a8ac1ec7827411d140e799009cb6b933c8696509",
+      "rawSha256": "ed4e14cab207b789ca6fe6c432e37fca85e8514356c1d348daef440b2a934fb3"
+    }
+  ],
+  "verification": {
+    "partialFailure": "live sidecar: 3 repetitions per native/sync/stream surface",
+    "retries": "live sidecar: concurrent/coalesced, changed-body conflict, exact restart replay, incremental stream and disconnected caller",
+    "schemas": "live sidecar: 12 positive/negative cases across six constraint families; exact usage",
+    "repair": "live sidecar: one repair generation, zero advertised tools, hostile tool request produced no file",
+    "client": "installed OpenAI Python SDK, local controlled provider",
+    "renderer": "26 source/renderer assertions; live browser blocked"
+  },
+  "pending": [
+    "browser verification and integration",
+    "model/provider and API-spend approval for 72 live trials",
+    "48-hour soak after campaign",
+    "installed-desktop verification"
+  ],
+  "logEncoding": "UTF-8; archived logs normalize CRLF to LF; raw hashes retained"
+}

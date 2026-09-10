@@ -28,4 +28,4 @@ Semantic report rendering and injection checks are added. Browser live verificat
 
 ## Verdict
 
-Implementation in the isolated branch; full gates and remaining live evidence pending.
+Renderer source implementation and 26 structural/copy assertions pass; final full fast and HTTP gates are green. Remains open pending real browser checks at narrow/normal widths, streaming/reload, selection/scroll and clipboard. Automatic tool review rejected the browser-only opening, citing disabled native computer APIs. Not merged or installed-verified.
