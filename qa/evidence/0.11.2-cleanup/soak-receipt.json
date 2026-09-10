@@ -1,0 +1,2010 @@
+{
+  "schema": "starnet.soak-receipt.v1",
+  "verdict": "PASS",
+  "failedRules": [],
+  "sidecarHead": "e8541fcbd724cdff80c1a1f156840487c042f56e",
+  "startedAt": "2026-09-10T03:28:51.435Z",
+  "endedAt": "2026-09-10T03:48:52.060Z",
+  "plannedMinutes": 20,
+  "actualMinutes": 20.01,
+  "options": {
+    "minutes": 20,
+    "tickSeconds": 15,
+    "runEvery": 2,
+    "toolEvery": 4,
+    "restartEvery": 4,
+    "maxSamples": 600,
+    "routines": 1,
+    "maxParallel": 0,
+    "outageSeconds": 90,
+    "slowRunMs": 75000,
+    "out": ".dogfood/cleanup-final-soak",
+    "aux": false,
+    "help": false
+  },
+  "meta": {
+    "sidecarHead": "e8541fcbd724cdff80c1a1f156840487c042f56e",
+    "platform": "win32 10.0.26200 x64",
+    "node": "v22.23.0",
+    "host": "skynet",
+    "stopMode": "terminate (TerminateProcess, as the desktop shell stops it)",
+    "provider": "mock (in-process OpenRouter double)",
+    "mockCalls": 236,
+    "mockSlowCalls": 0,
+    "cronEvents": 57,
+    "workspace": "C:\\Users\\andro\\AppData\\Local\\Temp\\starnet-soak-yR00Xh",
+    "auxPasses": "disabled (SKYNET_AUX_BUDGET=0)",
+    "forensics": {
+      "workspace": "C:\\Users\\andro\\gen-trees\\cleanup-0112-0910\\.dogfood\\cleanup-final-soak\\forensics\\workspace",
+      "profile": "C:\\Users\\andro\\gen-trees\\cleanup-0112-0910\\.dogfood\\cleanup-final-soak\\forensics\\profile"
+    }
+  },
+  "rules": {
+    "completed": {
+      "pass": true,
+      "actual": {
+        "completed": true,
+        "reason": null
+      },
+      "expected": {
+        "completed": true
+      },
+      "why": "an interrupted soak has measured nothing about the tail, which is where leaks and stalls show; INCOMPLETE is a FAIL, never a PASS by absence of evidence"
+    },
+    "runs": {
+      "pass": true,
+      "actual": {
+        "ok": 54,
+        "failed": 0,
+        "errors": []
+      },
+      "expected": {
+        "failed": "<= 0",
+        "ok": ">= 1"
+      },
+      "why": "the provider is a deterministic local mock that never errors, so every run error is a harness defect; a soak with zero completed runs measured no workload and fails too"
+    },
+    "routine": {
+      "pass": true,
+      "actual": {
+        "fires": 19
+      },
+      "expected": {
+        "fires": ">= 1"
+      },
+      "why": "the cron driver is the seam a long-running station depends on most; zero fires across the whole soak means the scheduler never ran"
+    },
+    "swallowed": {
+      "pass": true,
+      "actual": {
+        "ratePerMin": 0,
+        "count": 0,
+        "windowMinutes": 6.11,
+        "lastTags": {},
+        "totalAtEnd": 0
+      },
+      "expected": {
+        "ratePerMin": "<= 0.2",
+        "orCount": "< 3"
+      },
+      "why": "with a mock provider the steady-state fail-open count should be ~0; a permanently broken 60s maintenance loop shows as ≥1/min, so a sustained ≥0.2/min over the LAST THIRD (and at least 3 events, so a single blip cannot fail a short soak) is unbounded growth. Tallies reset on restart, so deltas are summed within a boot epoch only"
+    },
+    "rss": {
+      "pass": true,
+      "actual": {
+        "slopeMBPerMin": 1.348,
+        "growthPct": 6,
+        "epoch": 3,
+        "points": 17,
+        "firstMB": 103.5,
+        "lastMB": 91,
+        "peakMB": 120.7
+      },
+      "expected": {
+        "slopeMBPerMin": "<= 2",
+        "orGrowthPct": "< 20"
+      },
+      "why": "least-squares slope of RSS over the LAST HALF of the longest boot epoch in that half. 2 MB/min compounds to ~1.4 GB over a 12h soak — a leak by any definition; GC noise on a ~100 MB heap swings tens of MB but not monotonically, so BOTH the slope and ≥20% growth (mean of the last quarter of the window vs the first quarter) are required. Epochs under 5 points are not judged (null, with reason)"
+    },
+    "latency": {
+      "pass": true,
+      "actual": {
+        "p95Ms": 19,
+        "points": 37,
+        "medianOfMediansMs": 4,
+        "maxMs": 19
+      },
+      "expected": {
+        "p95Ms": "<= 500"
+      },
+      "why": "loopback health on a healthy loop answers in single-digit ms; a p95 over 500 ms across the LAST HALF means the event loop is stalling (blocked timers, sync I/O, GC thrash) — the class of degradation a human soak catches only as \"it feels sluggish\""
+    },
+    "restart": {
+      "pass": true,
+      "actual": {
+        "cycles": 4,
+        "failed": 0,
+        "detail": [
+          {
+            "at": 1789011178970,
+            "epoch": 0,
+            "bootMs": 3071,
+            "stopMode": "terminate (TerminateProcess, as the desktop shell stops it)",
+            "runHistoryThrough": 1789011179014,
+            "counts": {
+              "agents": {
+                "before": 1,
+                "after": 1
+              },
+              "routines": {
+                "before": 1,
+                "after": 1
+              },
+              "runs": {
+                "before": 16,
+                "after": 16
+              },
+              "turns": {
+                "before": 40,
+                "after": 40
+              }
+            },
+            "lost": {},
+            "ok": true,
+            "error": null
+          },
+          {
+            "at": 1789011527766,
+            "epoch": 1,
+            "bootMs": 3746,
+            "stopMode": "terminate (TerminateProcess, as the desktop shell stops it)",
+            "runHistoryThrough": 1789011527801,
+            "counts": {
+              "agents": {
+                "before": 1,
+                "after": 1
+              },
+              "routines": {
+                "before": 1,
+                "after": 1
+              },
+              "runs": {
+                "before": 34,
+                "after": 34
+              },
+              "turns": {
+                "before": 82,
+                "after": 82
+              }
+            },
+            "lost": {},
+            "ok": true,
+            "error": null
+          },
+          {
+            "at": 1789011789129,
+            "epoch": 2,
+            "bootMs": 3459,
+            "stopMode": "terminate (TerminateProcess, as the desktop shell stops it)",
+            "runHistoryThrough": 1789011789164,
+            "counts": {
+              "agents": {
+                "before": 1,
+                "after": 1
+              },
+              "routines": {
+                "before": 1,
+                "after": 1
+              },
+              "runs": {
+                "before": 51,
+                "after": 51
+              },
+              "turns": {
+                "before": 122,
+                "after": 122
+              }
+            },
+            "lost": {},
+            "ok": true,
+            "error": null
+          },
+          {
+            "at": 1789012049290,
+            "epoch": 3,
+            "bootMs": 1604,
+            "stopMode": "terminate (TerminateProcess, as the desktop shell stops it)",
+            "runHistoryThrough": 1789012049335,
+            "counts": {
+              "agents": {
+                "before": 1,
+                "after": 1
+              },
+              "routines": {
+                "before": 1,
+                "after": 1
+              },
+              "runs": {
+                "before": 69,
+                "after": 69
+              },
+              "turns": {
+                "before": 170,
+                "after": 170
+              }
+            },
+            "lost": {},
+            "ok": true,
+            "error": null
+          }
+        ]
+      },
+      "expected": {
+        "cycles": ">= 1",
+        "lost": "none"
+      },
+      "why": "agents, routines, run history, and conversation turns a user expects to survive must round-trip a stop/boot on the same workspace; any id present before and missing after is data loss (the top recurring bug class)"
+    },
+    "process": {
+      "pass": true,
+      "actual": {
+        "unexpectedExits": 0,
+        "orphans": [],
+        "transientChildren": [],
+        "orphanCheck": "enumerated after stop, re-checked after 3000ms grace"
+      },
+      "expected": {
+        "unexpectedExits": 0,
+        "orphans": 0
+      },
+      "why": "an unplanned exit is a crash; a child process STILL alive 3s after the sidecar stopped is the close-zombie class (0.10.5/0.10.6). A child seen at the instant of the stop but gone within the grace is recorded as transient (a measurement, not a failure)"
+    },
+    "accounting": {
+      "pass": true,
+      "actual": {
+        "routines": 1,
+        "owed": 19,
+        "fired": 19,
+        "alreadyRunning": 0,
+        "caughtUp": 0,
+        "collapsed": 0,
+        "deferred": 0,
+        "disabled": 0,
+        "unfireable": 0,
+        "tail": 0,
+        "lost": 0,
+        "doubled": 0,
+        "unexpected": 0,
+        "offSchedule": 0,
+        "problems": [],
+        "detail": [
+          {
+            "id": "dbdbf677-dd8e-4ae5-a00b-480b56808e89",
+            "label": "r00-heartbeat",
+            "role": "fireable",
+            "schedule": "every 1m",
+            "owed": 19,
+            "fired": 19,
+            "alreadyRunning": 0,
+            "caughtUp": 0,
+            "collapsed": 0,
+            "deferred": 0,
+            "disabled": 0,
+            "unfireable": 0,
+            "tail": 0,
+            "lost": [],
+            "doubled": [],
+            "unexpected": [],
+            "offSchedule": [],
+            "otherSkips": [],
+            "ok": true,
+            "note": null
+          }
+        ]
+      },
+      "expected": {
+        "lost": 0,
+        "doubled": 0,
+        "unexpected": 0,
+        "offSchedule": 0,
+        "every fireable routine": "owed >= 1"
+      },
+      "why": "the power-user claim is \"30–50 routines a day fire each one\". For EVERY seeded routine, every occurrence its schedule owes inside the soak window (enumerated with sidecar/cron.js nextFireAt from the armed nextRunAt — the scheduler's own math, never a re-implementation) must end as exactly ONE of: fired (cron.fire with that scheduledFor), skipped already-running (the previous run still held the lease), caught-up (misfire=skip past the grace), collapsed (a missed occurrence folded into the ONE catch-up by the misfire policy — visible only as the store's nextRunAt jumping more than one period), disabled (paused routine reported once per due window), or unfireable (a corrupt schedule marked once). At-capacity deferrals are transient (the occurrence stays due and must still reach a terminal). A fire whose scheduledFor is not an owed occurrence, two fires for one occurrence (a double-fire, the restart class), an owed occurrence with no terminal (lost), or a nextRunAt advance the schedule math does not predict is a FAIL. Judged only when the cron event log is readable; a soak in which a fireable routine is owed nothing is inconclusive and FAILS (the window measured no scheduling)"
+    },
+    "tick": {
+      "pass": true,
+      "actual": {
+        "p95Ms": 69,
+        "maxMs": 111,
+        "medianMs": 10,
+        "points": 35,
+        "catchUpMs": 948,
+        "routines": 1
+      },
+      "expected": {
+        "p95Ms": "<= 300"
+      },
+      "why": "the cron tick runs SYNCHRONOUSLY under the process lock: planTick over every job, then saveCronJobs — a full-envelope fsync write + read-back verification of ALL routines — for each advance, and again in markRun for each result. That cost is O(routines) per tick and blocks the event loop while it runs. p95 of (lastSuccessAt − lastTickAt) sampled from GET /api/cron over the LAST HALF must stay under 300 ms at the scale the product claims (50 routines); above that the tick is visibly stalling every run and chat in the station. The first tick after a boot (the post-outage catch-up burst: every missed routine fires at once) is reported as catchUpMs and excluded from p95 — it is a one-time cost, not the steady one. A breach here is a finding against the store write model (index.js saveCronJobs), not a tuning knob"
+    }
+  },
+  "measurements": {
+    "workspaceBytes": {
+      "first": 18242,
+      "last": 211271,
+      "growth": 193029
+    },
+    "errorRingSeen": 0,
+    "heapBytes": null,
+    "heapReason": "the sidecar exposes no process.memoryUsage endpoint; RSS is sampled at the OS level instead",
+    "openHandles": null,
+    "openHandlesReason": "open-handle counts need an in-process hook or a native tool; not obtainable from outside the sidecar with built-ins",
+    "restarts": 4,
+    "ticks": 73
+  },
+  "processSnapshots": [
+    {
+      "at": 1789010932922,
+      "event": "boot",
+      "epoch": 0,
+      "pid": 31208
+    },
+    {
+      "at": 1789011273384,
+      "event": "restart",
+      "epoch": 1,
+      "pid": 48636,
+      "bootMs": 3071
+    },
+    {
+      "at": 1789011534405,
+      "event": "restart",
+      "epoch": 2,
+      "pid": 41564,
+      "bootMs": 3746
+    },
+    {
+      "at": 1789011794125,
+      "event": "restart",
+      "epoch": 3,
+      "pid": 34172,
+      "bootMs": 3459
+    },
+    {
+      "at": 1789012051856,
+      "event": "restart",
+      "epoch": 4,
+      "pid": 45604,
+      "bootMs": 1604
+    }
+  ],
+  "samples": [
+    {
+      "at": 1789010932992,
+      "tick": 1,
+      "epoch": 0,
+      "rssBytes": 126590976,
+      "healthMs": {
+        "median": 16,
+        "max": 17,
+        "failed": 0
+      },
+      "swallowedTotal": 0,
+      "swallowedTags": {},
+      "errorRingSeen": 0,
+      "workspaceBytes": 18242,
+      "runs": {
+        "ok": 0,
+        "failed": 0
+      },
+      "routineFires": 0,
+      "tickMs": 9
+    },
+    {
+      "at": 1789010948157,
+      "tick": 2,
+      "epoch": 0,
+      "rssBytes": 109744128,
+      "healthMs": {
+        "median": 4,
+        "max": 10,
+        "failed": 0
+      },
+      "swallowedTotal": 0,
+      "swallowedTags": {},
+      "errorRingSeen": 0,
+      "workspaceBytes": 19739,
+      "runs": {
+        "ok": 1,
+        "failed": 0
+      },
+      "routineFires": 0,
+      "tickMs": 5
+    },
+    {
+      "at": 1789010963167,
+      "tick": 3,
+      "epoch": 0,
+      "rssBytes": 81543168,
+      "healthMs": {
+        "median": 3,
+        "max": 11,
+        "failed": 0
+      },
+      "swallowedTotal": 0,
+      "swallowedTags": {},
+      "errorRingSeen": 0,
+      "workspaceBytes": 19739,
+      "runs": {
+        "ok": 1,
+        "failed": 0
+      },
+      "routineFires": 0,
+      "tickMs": 14
+    },
+    {
+      "at": 1789010979598,
+      "tick": 4,
+      "epoch": 0,
+      "rssBytes": 89849856,
+      "healthMs": {
+        "median": 8,
+        "max": 24,
+        "failed": 0
+      },
+      "swallowedTotal": 0,
+      "swallowedTags": {},
+      "errorRingSeen": 0,
+      "workspaceBytes": 54618,
+      "runs": {
+        "ok": 3,
+        "failed": 0
+      },
+      "routineFires": 0,
+      "tickMs": 10
+    },
+    {
+      "at": 1789010994608,
+      "tick": 5,
+      "epoch": 0,
+      "rssBytes": 89829376,
+      "healthMs": {
+        "median": 2,
+        "max": 13,
+        "failed": 0
+      },
+      "swallowedTotal": 0,
+      "swallowedTags": {},
+      "errorRingSeen": 0,
+      "workspaceBytes": 54618,
+      "runs": {
+        "ok": 3,
+        "failed": 0
+      },
+      "routineFires": 0,
+      "tickMs": 9
+    },
+    {
+      "at": 1789011009668,
+      "tick": 6,
+      "epoch": 0,
+      "rssBytes": 90177536,
+      "healthMs": {
+        "median": 16,
+        "max": 17,
+        "failed": 0
+      },
+      "swallowedTotal": 0,
+      "swallowedTags": {},
+      "errorRingSeen": 0,
+      "workspaceBytes": 59872,
+      "runs": {
+        "ok": 4,
+        "failed": 0
+      },
+      "routineFires": 1,
+      "tickMs": 44,
+      "routineLast": {
+        "id": "dbdbf677-dd8e-4ae5-a00b-480b56808e89",
+        "status": "ok",
+        "reason": "done"
+      }
+    },
+    {
+      "at": 1789011024670,
+      "tick": 7,
+      "epoch": 0,
+      "rssBytes": 90312704,
+      "healthMs": {
+        "median": 2,
+        "max": 4,
+        "failed": 0
+      },
+      "swallowedTotal": 0,
+      "swallowedTags": {},
+      "errorRingSeen": 0,
+      "workspaceBytes": 59872,
+      "runs": {
+        "ok": 4,
+        "failed": 0
+      },
+      "routineFires": 1,
+      "tickMs": 12
+    },
+    {
+      "at": 1789011040697,
+      "tick": 8,
+      "epoch": 0,
+      "rssBytes": 89919488,
+      "healthMs": {
+        "median": 7,
+        "max": 11,
+        "failed": 0
+      },
+      "swallowedTotal": 0,
+      "swallowedTags": {},
+      "errorRingSeen": 0,
+      "workspaceBytes": 65476,
+      "runs": {
+        "ok": 6,
+        "failed": 0
+      },
+      "routineFires": 1,
+      "tickMs": 10
+    },
+    {
+      "at": 1789011055712,
+      "tick": 9,
+      "epoch": 0,
+      "rssBytes": 74776576,
+      "healthMs": {
+        "median": 3,
+        "max": 11,
+        "failed": 0
+      },
+      "swallowedTotal": 0,
+      "swallowedTags": {},
+      "errorRingSeen": 0,
+      "workspaceBytes": 67212,
+      "runs": {
+        "ok": 6,
+        "failed": 0
+      },
+      "routineFires": 2,
+      "tickMs": 61,
+      "routineLast": {
+        "id": "dbdbf677-dd8e-4ae5-a00b-480b56808e89",
+        "status": "ok",
+        "reason": "done"
+      }
+    },
+    {
+      "at": 1789011070797,
+      "tick": 10,
+      "epoch": 0,
+      "rssBytes": 74924032,
+      "healthMs": {
+        "median": 14,
+        "max": 15,
+        "failed": 0
+      },
+      "swallowedTotal": 0,
+      "swallowedTags": {},
+      "errorRingSeen": 0,
+      "workspaceBytes": 68594,
+      "runs": {
+        "ok": 7,
+        "failed": 0
+      },
+      "routineFires": 2,
+      "tickMs": 11
+    },
+    {
+      "at": 1789011085805,
+      "tick": 11,
+      "epoch": 0,
+      "rssBytes": 75059200,
+      "healthMs": {
+        "median": 4,
+        "max": 10,
+        "failed": 0
+      },
+      "swallowedTotal": 0,
+      "swallowedTags": {},
+      "errorRingSeen": 0,
+      "workspaceBytes": 68594,
+      "runs": {
+        "ok": 7,
+        "failed": 0
+      },
+      "routineFires": 2,
+      "tickMs": 9
+    },
+    {
+      "at": 1789011101854,
+      "tick": 12,
+      "epoch": 0,
+      "rssBytes": 66322432,
+      "healthMs": {
+        "median": 5,
+        "max": 12,
+        "failed": 0
+      },
+      "swallowedTotal": 0,
+      "swallowedTags": {},
+      "errorRingSeen": 0,
+      "workspaceBytes": 74198,
+      "runs": {
+        "ok": 9,
+        "failed": 0
+      },
+      "routineFires": 2,
+      "tickMs": 11
+    },
+    {
+      "at": 1789011116858,
+      "tick": 13,
+      "epoch": 0,
+      "rssBytes": 67784704,
+      "healthMs": {
+        "median": 3,
+        "max": 11,
+        "failed": 0
+      },
+      "swallowedTotal": 0,
+      "swallowedTags": {},
+      "errorRingSeen": 0,
+      "workspaceBytes": 75912,
+      "runs": {
+        "ok": 9,
+        "failed": 0
+      },
+      "routineFires": 3,
+      "tickMs": 144,
+      "routineLast": {
+        "id": "dbdbf677-dd8e-4ae5-a00b-480b56808e89",
+        "status": "ok",
+        "reason": "done"
+      }
+    },
+    {
+      "at": 1789011132000,
+      "tick": 14,
+      "epoch": 0,
+      "rssBytes": 67866624,
+      "healthMs": {
+        "median": 10,
+        "max": 14,
+        "failed": 0
+      },
+      "swallowedTotal": 0,
+      "swallowedTags": {},
+      "errorRingSeen": 0,
+      "workspaceBytes": 77294,
+      "runs": {
+        "ok": 10,
+        "failed": 0
+      },
+      "routineFires": 3,
+      "tickMs": 105
+    },
+    {
+      "at": 1789011147013,
+      "tick": 15,
+      "epoch": 0,
+      "rssBytes": 67866624,
+      "healthMs": {
+        "median": 2,
+        "max": 12,
+        "failed": 0
+      },
+      "swallowedTotal": 0,
+      "swallowedTags": {},
+      "errorRingSeen": 0,
+      "workspaceBytes": 77294,
+      "runs": {
+        "ok": 10,
+        "failed": 0
+      },
+      "routineFires": 3,
+      "tickMs": 36
+    },
+    {
+      "at": 1789011163394,
+      "tick": 16,
+      "epoch": 0,
+      "rssBytes": 63946752,
+      "healthMs": {
+        "median": 4,
+        "max": 13,
+        "failed": 0
+      },
+      "swallowedTotal": 0,
+      "swallowedTags": {},
+      "errorRingSeen": 0,
+      "workspaceBytes": 82900,
+      "runs": {
+        "ok": 12,
+        "failed": 0
+      },
+      "routineFires": 3,
+      "tickMs": 9
+    },
+    {
+      "at": 1789011178407,
+      "tick": 17,
+      "epoch": 0,
+      "rssBytes": 64229376,
+      "healthMs": {
+        "median": 2,
+        "max": 3,
+        "failed": 0
+      },
+      "swallowedTotal": 0,
+      "swallowedTags": {},
+      "errorRingSeen": 0,
+      "workspaceBytes": 84614,
+      "runs": {
+        "ok": 12,
+        "failed": 0
+      },
+      "routineFires": 4,
+      "tickMs": 62,
+      "routineLast": {
+        "id": "dbdbf677-dd8e-4ae5-a00b-480b56808e89",
+        "status": "ok",
+        "reason": "done"
+      }
+    },
+    {
+      "at": 1789011273512,
+      "tick": 18,
+      "epoch": 1,
+      "rssBytes": 100982784,
+      "healthMs": {
+        "median": 3,
+        "max": 6,
+        "failed": 0
+      },
+      "swallowedTotal": 0,
+      "swallowedTags": {},
+      "errorRingSeen": 0,
+      "workspaceBytes": 88638,
+      "runs": {
+        "ok": 13,
+        "failed": 0
+      },
+      "routineFires": 5,
+      "tickMs": 861,
+      "routineLast": {
+        "id": "dbdbf677-dd8e-4ae5-a00b-480b56808e89",
+        "status": "ok",
+        "reason": "done"
+      }
+    },
+    {
+      "at": 1789011288525,
+      "tick": 19,
+      "epoch": 1,
+      "rssBytes": 101449728,
+      "healthMs": {
+        "median": 3,
+        "max": 12,
+        "failed": 0
+      },
+      "swallowedTotal": 0,
+      "swallowedTags": {},
+      "errorRingSeen": 0,
+      "workspaceBytes": 88755,
+      "runs": {
+        "ok": 13,
+        "failed": 0
+      },
+      "routineFires": 5,
+      "tickMs": 11
+    },
+    {
+      "at": 1789011305150,
+      "tick": 20,
+      "epoch": 1,
+      "rssBytes": 89853952,
+      "healthMs": {
+        "median": 9,
+        "max": 16,
+        "failed": 0
+      },
+      "swallowedTotal": 0,
+      "swallowedTags": {},
+      "errorRingSeen": 0,
+      "workspaceBytes": 96078,
+      "runs": {
+        "ok": 15,
+        "failed": 0
+      },
+      "routineFires": 6,
+      "tickMs": 33,
+      "routineLast": {
+        "id": "dbdbf677-dd8e-4ae5-a00b-480b56808e89",
+        "status": "ok",
+        "reason": "done"
+      }
+    },
+    {
+      "at": 1789011320167,
+      "tick": 21,
+      "epoch": 1,
+      "rssBytes": 90038272,
+      "healthMs": {
+        "median": 4,
+        "max": 6,
+        "failed": 0
+      },
+      "swallowedTotal": 0,
+      "swallowedTags": {},
+      "errorRingSeen": 0,
+      "workspaceBytes": 96078,
+      "runs": {
+        "ok": 15,
+        "failed": 0
+      },
+      "routineFires": 6,
+      "tickMs": 33
+    },
+    {
+      "at": 1789011335302,
+      "tick": 22,
+      "epoch": 1,
+      "rssBytes": 89780224,
+      "healthMs": {
+        "median": 19,
+        "max": 19,
+        "failed": 0
+      },
+      "swallowedTotal": 0,
+      "swallowedTags": {},
+      "errorRingSeen": 0,
+      "workspaceBytes": 97460,
+      "runs": {
+        "ok": 16,
+        "failed": 0
+      },
+      "routineFires": 6,
+      "tickMs": 12
+    },
+    {
+      "at": 1789011350369,
+      "tick": 23,
+      "epoch": 1,
+      "rssBytes": 86519808,
+      "healthMs": {
+        "median": 12,
+        "max": 29,
+        "failed": 0
+      },
+      "swallowedTotal": 0,
+      "swallowedTags": {},
+      "errorRingSeen": 0,
+      "workspaceBytes": 97460,
+      "runs": {
+        "ok": 16,
+        "failed": 0
+      },
+      "routineFires": 6,
+      "tickMs": 32
+    },
+    {
+      "at": 1789011373374,
+      "tick": 24,
+      "epoch": 1,
+      "rssBytes": 86577152,
+      "healthMs": {
+        "median": 17,
+        "max": 115,
+        "failed": 0
+      },
+      "swallowedTotal": 0,
+      "swallowedTags": {},
+      "errorRingSeen": 0,
+      "workspaceBytes": 104781,
+      "runs": {
+        "ok": 18,
+        "failed": 0
+      },
+      "routineFires": 7,
+      "tickMs": 51,
+      "routineLast": {
+        "id": "dbdbf677-dd8e-4ae5-a00b-480b56808e89",
+        "status": "ok",
+        "reason": "done"
+      }
+    },
+    {
+      "at": 1789011388387,
+      "tick": 25,
+      "epoch": 1,
+      "rssBytes": 86704128,
+      "healthMs": {
+        "median": 5,
+        "max": 9,
+        "failed": 0
+      },
+      "swallowedTotal": 0,
+      "swallowedTags": {},
+      "errorRingSeen": 0,
+      "workspaceBytes": 104781,
+      "runs": {
+        "ok": 18,
+        "failed": 0
+      },
+      "routineFires": 7,
+      "tickMs": 27
+    },
+    {
+      "at": 1789011403497,
+      "tick": 26,
+      "epoch": 1,
+      "rssBytes": 87896064,
+      "healthMs": {
+        "median": 4,
+        "max": 17,
+        "failed": 0
+      },
+      "swallowedTotal": 0,
+      "swallowedTags": {},
+      "errorRingSeen": 0,
+      "workspaceBytes": 106163,
+      "runs": {
+        "ok": 19,
+        "failed": 0
+      },
+      "routineFires": 7,
+      "tickMs": 10
+    },
+    {
+      "at": 1789011418507,
+      "tick": 27,
+      "epoch": 1,
+      "rssBytes": 88018944,
+      "healthMs": {
+        "median": 3,
+        "max": 14,
+        "failed": 0
+      },
+      "swallowedTotal": 0,
+      "swallowedTags": {},
+      "errorRingSeen": 0,
+      "workspaceBytes": 107877,
+      "runs": {
+        "ok": 19,
+        "failed": 0
+      },
+      "routineFires": 8,
+      "tickMs": 73,
+      "routineLast": {
+        "id": "dbdbf677-dd8e-4ae5-a00b-480b56808e89",
+        "status": "ok",
+        "reason": "done"
+      }
+    },
+    {
+      "at": 1789011434627,
+      "tick": 28,
+      "epoch": 1,
+      "rssBytes": 90767360,
+      "healthMs": {
+        "median": 15,
+        "max": 17,
+        "failed": 0
+      },
+      "swallowedTotal": 0,
+      "swallowedTags": {},
+      "errorRingSeen": 0,
+      "workspaceBytes": 113481,
+      "runs": {
+        "ok": 21,
+        "failed": 0
+      },
+      "routineFires": 8,
+      "tickMs": 9
+    },
+    {
+      "at": 1789011449636,
+      "tick": 29,
+      "epoch": 1,
+      "rssBytes": 90767360,
+      "healthMs": {
+        "median": 2,
+        "max": 14,
+        "failed": 0
+      },
+      "swallowedTotal": 0,
+      "swallowedTags": {},
+      "errorRingSeen": 0,
+      "workspaceBytes": 113481,
+      "runs": {
+        "ok": 21,
+        "failed": 0
+      },
+      "routineFires": 8,
+      "tickMs": 18
+    },
+    {
+      "at": 1789011464701,
+      "tick": 30,
+      "epoch": 1,
+      "rssBytes": 76570624,
+      "healthMs": {
+        "median": 3,
+        "max": 13,
+        "failed": 0
+      },
+      "swallowedTotal": 0,
+      "swallowedTags": {},
+      "errorRingSeen": 0,
+      "workspaceBytes": 114863,
+      "runs": {
+        "ok": 22,
+        "failed": 0
+      },
+      "routineFires": 8,
+      "tickMs": 9
+    },
+    {
+      "at": 1789011479711,
+      "tick": 31,
+      "epoch": 1,
+      "rssBytes": 77008896,
+      "healthMs": {
+        "median": 4,
+        "max": 11,
+        "failed": 0
+      },
+      "swallowedTotal": 0,
+      "swallowedTags": {},
+      "errorRingSeen": 0,
+      "workspaceBytes": 116577,
+      "runs": {
+        "ok": 22,
+        "failed": 0
+      },
+      "routineFires": 9,
+      "tickMs": 31,
+      "routineLast": {
+        "id": "dbdbf677-dd8e-4ae5-a00b-480b56808e89",
+        "status": "ok",
+        "reason": "done"
+      }
+    },
+    {
+      "at": 1789011495559,
+      "tick": 32,
+      "epoch": 1,
+      "rssBytes": 77017088,
+      "healthMs": {
+        "median": 7,
+        "max": 14,
+        "failed": 0
+      },
+      "swallowedTotal": 0,
+      "swallowedTags": {},
+      "errorRingSeen": 0,
+      "workspaceBytes": 122181,
+      "runs": {
+        "ok": 24,
+        "failed": 0
+      },
+      "routineFires": 9,
+      "tickMs": 8
+    },
+    {
+      "at": 1789011510563,
+      "tick": 33,
+      "epoch": 1,
+      "rssBytes": 76632064,
+      "healthMs": {
+        "median": 3,
+        "max": 14,
+        "failed": 0
+      },
+      "swallowedTotal": 0,
+      "swallowedTags": {},
+      "errorRingSeen": 0,
+      "workspaceBytes": 122181,
+      "runs": {
+        "ok": 24,
+        "failed": 0
+      },
+      "routineFires": 9,
+      "tickMs": 7
+    },
+    {
+      "at": 1789011525686,
+      "tick": 34,
+      "epoch": 1,
+      "rssBytes": 77090816,
+      "healthMs": {
+        "median": 5,
+        "max": 18,
+        "failed": 0
+      },
+      "swallowedTotal": 0,
+      "swallowedTags": {},
+      "errorRingSeen": 0,
+      "workspaceBytes": 123564,
+      "runs": {
+        "ok": 25,
+        "failed": 0
+      },
+      "routineFires": 9,
+      "tickMs": 6
+    },
+    {
+      "at": 1789011540695,
+      "tick": 35,
+      "epoch": 2,
+      "rssBytes": 98754560,
+      "healthMs": {
+        "median": 2,
+        "max": 2,
+        "failed": 0
+      },
+      "swallowedTotal": 0,
+      "swallowedTags": {},
+      "errorRingSeen": 0,
+      "workspaceBytes": 125985,
+      "runs": {
+        "ok": 25,
+        "failed": 0
+      },
+      "routineFires": 10,
+      "tickMs": 948,
+      "routineLast": {
+        "id": "dbdbf677-dd8e-4ae5-a00b-480b56808e89",
+        "status": "ok",
+        "reason": "done"
+      }
+    },
+    {
+      "at": 1789011556658,
+      "tick": 36,
+      "epoch": 2,
+      "rssBytes": 109965312,
+      "healthMs": {
+        "median": 8,
+        "max": 15,
+        "failed": 0
+      },
+      "swallowedTotal": 0,
+      "swallowedTags": {},
+      "errorRingSeen": 0,
+      "workspaceBytes": 131597,
+      "runs": {
+        "ok": 27,
+        "failed": 0
+      },
+      "routineFires": 10,
+      "tickMs": 9
+    },
+    {
+      "at": 1789011571663,
+      "tick": 37,
+      "epoch": 2,
+      "rssBytes": 83861504,
+      "healthMs": {
+        "median": 3,
+        "max": 13,
+        "failed": 0
+      },
+      "swallowedTotal": 0,
+      "swallowedTags": {},
+      "errorRingSeen": 0,
+      "workspaceBytes": 131597,
+      "runs": {
+        "ok": 27,
+        "failed": 0
+      },
+      "routineFires": 10,
+      "tickMs": 11
+    },
+    {
+      "at": 1789011586870,
+      "tick": 38,
+      "epoch": 2,
+      "rssBytes": 86175744,
+      "healthMs": {
+        "median": 6,
+        "max": 16,
+        "failed": 0
+      },
+      "swallowedTotal": 0,
+      "swallowedTags": {},
+      "errorRingSeen": 0,
+      "workspaceBytes": 132981,
+      "runs": {
+        "ok": 28,
+        "failed": 0
+      },
+      "routineFires": 10,
+      "tickMs": 58
+    },
+    {
+      "at": 1789011601883,
+      "tick": 39,
+      "epoch": 2,
+      "rssBytes": 87109632,
+      "healthMs": {
+        "median": 11,
+        "max": 17,
+        "failed": 0
+      },
+      "swallowedTotal": 0,
+      "swallowedTags": {},
+      "errorRingSeen": 0,
+      "workspaceBytes": 134697,
+      "runs": {
+        "ok": 28,
+        "failed": 0
+      },
+      "routineFires": 11,
+      "tickMs": 111,
+      "routineLast": {
+        "id": "dbdbf677-dd8e-4ae5-a00b-480b56808e89",
+        "status": "ok",
+        "reason": "done"
+      }
+    },
+    {
+      "at": 1789011620395,
+      "tick": 40,
+      "epoch": 2,
+      "rssBytes": 92090368,
+      "healthMs": {
+        "median": 8,
+        "max": 9,
+        "failed": 0
+      },
+      "swallowedTotal": 0,
+      "swallowedTags": {},
+      "errorRingSeen": 0,
+      "workspaceBytes": 140311,
+      "runs": {
+        "ok": 30,
+        "failed": 0
+      },
+      "routineFires": 11,
+      "tickMs": 29
+    },
+    {
+      "at": 1789011635406,
+      "tick": 41,
+      "epoch": 2,
+      "rssBytes": 92164096,
+      "healthMs": {
+        "median": 6,
+        "max": 8,
+        "failed": 0
+      },
+      "swallowedTotal": 0,
+      "swallowedTags": {},
+      "errorRingSeen": 0,
+      "workspaceBytes": 140311,
+      "runs": {
+        "ok": 30,
+        "failed": 0
+      },
+      "routineFires": 11,
+      "tickMs": 9
+    },
+    {
+      "at": 1789011650491,
+      "tick": 42,
+      "epoch": 2,
+      "rssBytes": 92487680,
+      "healthMs": {
+        "median": 3,
+        "max": 12,
+        "failed": 0
+      },
+      "swallowedTotal": 0,
+      "swallowedTags": {},
+      "errorRingSeen": 0,
+      "workspaceBytes": 141695,
+      "runs": {
+        "ok": 31,
+        "failed": 0
+      },
+      "routineFires": 11,
+      "tickMs": 10
+    },
+    {
+      "at": 1789011665494,
+      "tick": 43,
+      "epoch": 2,
+      "rssBytes": 93036544,
+      "healthMs": {
+        "median": 3,
+        "max": 12,
+        "failed": 0
+      },
+      "swallowedTotal": 0,
+      "swallowedTags": {},
+      "errorRingSeen": 0,
+      "workspaceBytes": 143411,
+      "runs": {
+        "ok": 31,
+        "failed": 0
+      },
+      "routineFires": 12,
+      "tickMs": 8,
+      "routineLast": {
+        "id": "dbdbf677-dd8e-4ae5-a00b-480b56808e89",
+        "status": "ok",
+        "reason": "done"
+      }
+    },
+    {
+      "at": 1789011682239,
+      "tick": 44,
+      "epoch": 2,
+      "rssBytes": 95092736,
+      "healthMs": {
+        "median": 3,
+        "max": 16,
+        "failed": 0
+      },
+      "swallowedTotal": 0,
+      "swallowedTags": {},
+      "errorRingSeen": 0,
+      "workspaceBytes": 149024,
+      "runs": {
+        "ok": 33,
+        "failed": 0
+      },
+      "routineFires": 12,
+      "tickMs": 10
+    },
+    {
+      "at": 1789011697241,
+      "tick": 45,
+      "epoch": 2,
+      "rssBytes": 95096832,
+      "healthMs": {
+        "median": 2,
+        "max": 5,
+        "failed": 0
+      },
+      "swallowedTotal": 0,
+      "swallowedTags": {},
+      "errorRingSeen": 0,
+      "workspaceBytes": 149024,
+      "runs": {
+        "ok": 33,
+        "failed": 0
+      },
+      "routineFires": 12,
+      "tickMs": 12
+    },
+    {
+      "at": 1789011712313,
+      "tick": 46,
+      "epoch": 2,
+      "rssBytes": 94265344,
+      "healthMs": {
+        "median": 4,
+        "max": 16,
+        "failed": 0
+      },
+      "swallowedTotal": 0,
+      "swallowedTags": {},
+      "errorRingSeen": 0,
+      "workspaceBytes": 150408,
+      "runs": {
+        "ok": 34,
+        "failed": 0
+      },
+      "routineFires": 12,
+      "tickMs": 10
+    },
+    {
+      "at": 1789011727317,
+      "tick": 47,
+      "epoch": 2,
+      "rssBytes": 95096832,
+      "healthMs": {
+        "median": 7,
+        "max": 9,
+        "failed": 0
+      },
+      "swallowedTotal": 0,
+      "swallowedTags": {},
+      "errorRingSeen": 0,
+      "workspaceBytes": 152124,
+      "runs": {
+        "ok": 34,
+        "failed": 0
+      },
+      "routineFires": 13,
+      "tickMs": 9,
+      "routineLast": {
+        "id": "dbdbf677-dd8e-4ae5-a00b-480b56808e89",
+        "status": "ok",
+        "reason": "done"
+      }
+    },
+    {
+      "at": 1789011743439,
+      "tick": 48,
+      "epoch": 2,
+      "rssBytes": 96055296,
+      "healthMs": {
+        "median": 15,
+        "max": 16,
+        "failed": 0
+      },
+      "swallowedTotal": 0,
+      "swallowedTags": {},
+      "errorRingSeen": 0,
+      "workspaceBytes": 157736,
+      "runs": {
+        "ok": 36,
+        "failed": 0
+      },
+      "routineFires": 13,
+      "tickMs": 21
+    },
+    {
+      "at": 1789011758455,
+      "tick": 49,
+      "epoch": 2,
+      "rssBytes": 83046400,
+      "healthMs": {
+        "median": 3,
+        "max": 9,
+        "failed": 0
+      },
+      "swallowedTotal": 0,
+      "swallowedTags": {},
+      "errorRingSeen": 0,
+      "workspaceBytes": 157736,
+      "runs": {
+        "ok": 36,
+        "failed": 0
+      },
+      "routineFires": 13,
+      "tickMs": 9
+    },
+    {
+      "at": 1789011773539,
+      "tick": 50,
+      "epoch": 2,
+      "rssBytes": 83525632,
+      "healthMs": {
+        "median": 15,
+        "max": 19,
+        "failed": 0
+      },
+      "swallowedTotal": 0,
+      "swallowedTags": {},
+      "errorRingSeen": 0,
+      "workspaceBytes": 159120,
+      "runs": {
+        "ok": 37,
+        "failed": 0
+      },
+      "routineFires": 13,
+      "tickMs": 69
+    },
+    {
+      "at": 1789011788541,
+      "tick": 51,
+      "epoch": 2,
+      "rssBytes": 83959808,
+      "healthMs": {
+        "median": 4,
+        "max": 10,
+        "failed": 0
+      },
+      "swallowedTotal": 0,
+      "swallowedTags": {},
+      "errorRingSeen": 0,
+      "workspaceBytes": 160836,
+      "runs": {
+        "ok": 37,
+        "failed": 0
+      },
+      "routineFires": 14,
+      "tickMs": 8,
+      "routineLast": {
+        "id": "dbdbf677-dd8e-4ae5-a00b-480b56808e89",
+        "status": "ok",
+        "reason": "done"
+      }
+    },
+    {
+      "at": 1789011804915,
+      "tick": 52,
+      "epoch": 3,
+      "rssBytes": 108523520,
+      "healthMs": {
+        "median": 4,
+        "max": 5,
+        "failed": 0
+      },
+      "swallowedTotal": 0,
+      "swallowedTags": {},
+      "errorRingSeen": 0,
+      "workspaceBytes": 167150,
+      "runs": {
+        "ok": 39,
+        "failed": 0
+      },
+      "routineFires": 14,
+      "tickMs": 12
+    },
+    {
+      "at": 1789011819930,
+      "tick": 53,
+      "epoch": 3,
+      "rssBytes": 82255872,
+      "healthMs": {
+        "median": 5,
+        "max": 19,
+        "failed": 0
+      },
+      "swallowedTotal": 0,
+      "swallowedTags": {},
+      "errorRingSeen": 0,
+      "workspaceBytes": 167150,
+      "runs": {
+        "ok": 39,
+        "failed": 0
+      },
+      "routineFires": 14,
+      "tickMs": 9
+    },
+    {
+      "at": 1789011835020,
+      "tick": 54,
+      "epoch": 3,
+      "rssBytes": 86220800,
+      "healthMs": {
+        "median": 3,
+        "max": 4,
+        "failed": 0
+      },
+      "swallowedTotal": 0,
+      "swallowedTags": {},
+      "errorRingSeen": 0,
+      "workspaceBytes": 170250,
+      "runs": {
+        "ok": 40,
+        "failed": 0
+      },
+      "routineFires": 15,
+      "tickMs": 59,
+      "routineLast": {
+        "id": "dbdbf677-dd8e-4ae5-a00b-480b56808e89",
+        "status": "ok",
+        "reason": "done"
+      }
+    },
+    {
+      "at": 1789011850024,
+      "tick": 55,
+      "epoch": 3,
+      "rssBytes": 86253568,
+      "healthMs": {
+        "median": 3,
+        "max": 4,
+        "failed": 0
+      },
+      "swallowedTotal": 0,
+      "swallowedTags": {},
+      "errorRingSeen": 0,
+      "workspaceBytes": 170250,
+      "runs": {
+        "ok": 40,
+        "failed": 0
+      },
+      "routineFires": 15,
+      "tickMs": 10
+    },
+    {
+      "at": 1789011865985,
+      "tick": 56,
+      "epoch": 3,
+      "rssBytes": 91365376,
+      "healthMs": {
+        "median": 15,
+        "max": 16,
+        "failed": 0
+      },
+      "swallowedTotal": 0,
+      "swallowedTags": {},
+      "errorRingSeen": 0,
+      "workspaceBytes": 175862,
+      "runs": {
+        "ok": 42,
+        "failed": 0
+      },
+      "routineFires": 15,
+      "tickMs": 8
+    },
+    {
+      "at": 1789011880995,
+      "tick": 57,
+      "epoch": 3,
+      "rssBytes": 91377664,
+      "healthMs": {
+        "median": 3,
+        "max": 12,
+        "failed": 0
+      },
+      "swallowedTotal": 0,
+      "swallowedTags": {},
+      "errorRingSeen": 0,
+      "workspaceBytes": 175862,
+      "runs": {
+        "ok": 42,
+        "failed": 0
+      },
+      "routineFires": 15,
+      "tickMs": 7
+    },
+    {
+      "at": 1789011896068,
+      "tick": 58,
+      "epoch": 3,
+      "rssBytes": 92389376,
+      "healthMs": {
+        "median": 4,
+        "max": 15,
+        "failed": 0
+      },
+      "swallowedTotal": 0,
+      "swallowedTags": {},
+      "errorRingSeen": 0,
+      "workspaceBytes": 178962,
+      "runs": {
+        "ok": 43,
+        "failed": 0
+      },
+      "routineFires": 16,
+      "tickMs": 52,
+      "routineLast": {
+        "id": "dbdbf677-dd8e-4ae5-a00b-480b56808e89",
+        "status": "ok",
+        "reason": "done"
+      }
+    },
+    {
+      "at": 1789011911076,
+      "tick": 59,
+      "epoch": 3,
+      "rssBytes": 92450816,
+      "healthMs": {
+        "median": 1,
+        "max": 2,
+        "failed": 0
+      },
+      "swallowedTotal": 0,
+      "swallowedTags": {},
+      "errorRingSeen": 0,
+      "workspaceBytes": 178962,
+      "runs": {
+        "ok": 43,
+        "failed": 0
+      },
+      "routineFires": 16,
+      "tickMs": 9
+    },
+    {
+      "at": 1789011926892,
+      "tick": 60,
+      "epoch": 3,
+      "rssBytes": 94830592,
+      "healthMs": {
+        "median": 8,
+        "max": 17,
+        "failed": 0
+      },
+      "swallowedTotal": 0,
+      "swallowedTags": {},
+      "errorRingSeen": 0,
+      "workspaceBytes": 184574,
+      "runs": {
+        "ok": 45,
+        "failed": 0
+      },
+      "routineFires": 16,
+      "tickMs": 6
+    },
+    {
+      "at": 1789011941907,
+      "tick": 61,
+      "epoch": 3,
+      "rssBytes": 94834688,
+      "healthMs": {
+        "median": 3,
+        "max": 12,
+        "failed": 0
+      },
+      "swallowedTotal": 0,
+      "swallowedTags": {},
+      "errorRingSeen": 0,
+      "workspaceBytes": 184574,
+      "runs": {
+        "ok": 45,
+        "failed": 0
+      },
+      "routineFires": 16,
+      "tickMs": 7
+    },
+    {
+      "at": 1789011956986,
+      "tick": 62,
+      "epoch": 3,
+      "rssBytes": 94593024,
+      "healthMs": {
+        "median": 13,
+        "max": 15,
+        "failed": 0
+      },
+      "swallowedTotal": 0,
+      "swallowedTags": {},
+      "errorRingSeen": 0,
+      "workspaceBytes": 187674,
+      "runs": {
+        "ok": 46,
+        "failed": 0
+      },
+      "routineFires": 17,
+      "tickMs": 53,
+      "routineLast": {
+        "id": "dbdbf677-dd8e-4ae5-a00b-480b56808e89",
+        "status": "ok",
+        "reason": "done"
+      }
+    },
+    {
+      "at": 1789011972003,
+      "tick": 63,
+      "epoch": 3,
+      "rssBytes": 94593024,
+      "healthMs": {
+        "median": 7,
+        "max": 19,
+        "failed": 0
+      },
+      "swallowedTotal": 0,
+      "swallowedTags": {},
+      "errorRingSeen": 0,
+      "workspaceBytes": 187674,
+      "runs": {
+        "ok": 46,
+        "failed": 0
+      },
+      "routineFires": 17,
+      "tickMs": 6
+    },
+    {
+      "at": 1789011987773,
+      "tick": 64,
+      "epoch": 3,
+      "rssBytes": 96526336,
+      "healthMs": {
+        "median": 12,
+        "max": 17,
+        "failed": 0
+      },
+      "swallowedTotal": 0,
+      "swallowedTags": {},
+      "errorRingSeen": 0,
+      "workspaceBytes": 193286,
+      "runs": {
+        "ok": 48,
+        "failed": 0
+      },
+      "routineFires": 17,
+      "tickMs": 13
+    },
+    {
+      "at": 1789012002779,
+      "tick": 65,
+      "epoch": 3,
+      "rssBytes": 96526336,
+      "healthMs": {
+        "median": 3,
+        "max": 12,
+        "failed": 0
+      },
+      "swallowedTotal": 0,
+      "swallowedTags": {},
+      "errorRingSeen": 0,
+      "workspaceBytes": 193286,
+      "runs": {
+        "ok": 48,
+        "failed": 0
+      },
+      "routineFires": 17,
+      "tickMs": 8
+    },
+    {
+      "at": 1789012017857,
+      "tick": 66,
+      "epoch": 3,
+      "rssBytes": 96550912,
+      "healthMs": {
+        "median": 16,
+        "max": 18,
+        "failed": 0
+      },
+      "swallowedTotal": 0,
+      "swallowedTags": {},
+      "errorRingSeen": 0,
+      "workspaceBytes": 196386,
+      "runs": {
+        "ok": 49,
+        "failed": 0
+      },
+      "routineFires": 18,
+      "tickMs": 50,
+      "routineLast": {
+        "id": "dbdbf677-dd8e-4ae5-a00b-480b56808e89",
+        "status": "ok",
+        "reason": "done"
+      }
+    },
+    {
+      "at": 1789012032859,
+      "tick": 67,
+      "epoch": 3,
+      "rssBytes": 96550912,
+      "healthMs": {
+        "median": 1,
+        "max": 3,
+        "failed": 0
+      },
+      "swallowedTotal": 0,
+      "swallowedTags": {},
+      "errorRingSeen": 0,
+      "workspaceBytes": 196386,
+      "runs": {
+        "ok": 49,
+        "failed": 0
+      },
+      "routineFires": 18,
+      "tickMs": 22
+    },
+    {
+      "at": 1789012048864,
+      "tick": 68,
+      "epoch": 3,
+      "rssBytes": 95461376,
+      "healthMs": {
+        "median": 3,
+        "max": 4,
+        "failed": 0
+      },
+      "swallowedTotal": 0,
+      "swallowedTags": {},
+      "errorRingSeen": 0,
+      "workspaceBytes": 201998,
+      "runs": {
+        "ok": 51,
+        "failed": 0
+      },
+      "routineFires": 18,
+      "tickMs": 8
+    },
+    {
+      "at": 1789012063875,
+      "tick": 69,
+      "epoch": 4,
+      "rssBytes": 95854592,
+      "healthMs": {
+        "median": 3,
+        "max": 11,
+        "failed": 0
+      },
+      "swallowedTotal": 0,
+      "swallowedTags": {},
+      "errorRingSeen": 0,
+      "workspaceBytes": 202559,
+      "runs": {
+        "ok": 51,
+        "failed": 0
+      },
+      "routineFires": 18,
+      "tickMs": 16
+    },
+    {
+      "at": 1789012079025,
+      "tick": 70,
+      "epoch": 4,
+      "rssBytes": 83234816,
+      "healthMs": {
+        "median": 15,
+        "max": 17,
+        "failed": 0
+      },
+      "swallowedTotal": 0,
+      "swallowedTags": {},
+      "errorRingSeen": 0,
+      "workspaceBytes": 203943,
+      "runs": {
+        "ok": 52,
+        "failed": 0
+      },
+      "routineFires": 18,
+      "tickMs": 7
+    },
+    {
+      "at": 1789012094036,
+      "tick": 71,
+      "epoch": 4,
+      "rssBytes": 85741568,
+      "healthMs": {
+        "median": 2,
+        "max": 4,
+        "failed": 0
+      },
+      "swallowedTotal": 0,
+      "swallowedTags": {},
+      "errorRingSeen": 0,
+      "workspaceBytes": 205659,
+      "runs": {
+        "ok": 52,
+        "failed": 0
+      },
+      "routineFires": 19,
+      "tickMs": 40,
+      "routineLast": {
+        "id": "dbdbf677-dd8e-4ae5-a00b-480b56808e89",
+        "status": "ok",
+        "reason": "done"
+      }
+    },
+    {
+      "at": 1789012109937,
+      "tick": 72,
+      "epoch": 4,
+      "rssBytes": 90382336,
+      "healthMs": {
+        "median": 14,
+        "max": 18,
+        "failed": 0
+      },
+      "swallowedTotal": 0,
+      "swallowedTags": {},
+      "errorRingSeen": 0,
+      "workspaceBytes": 211271,
+      "runs": {
+        "ok": 54,
+        "failed": 0
+      },
+      "routineFires": 19,
+      "tickMs": 12
+    },
+    {
+      "at": 1789012124938,
+      "tick": 73,
+      "epoch": 4,
+      "rssBytes": 90509312,
+      "healthMs": {
+        "median": 2,
+        "max": 12,
+        "failed": 0
+      },
+      "swallowedTotal": 0,
+      "swallowedTags": {},
+      "errorRingSeen": 0,
+      "workspaceBytes": 211271,
+      "runs": {
+        "ok": 54,
+        "failed": 0
+      },
+      "routineFires": 19,
+      "tickMs": 8
+    }
+  ]
+}

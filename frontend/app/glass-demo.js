@@ -115,7 +115,9 @@
   function attach(w) {
     if (states.has(w) || w.classList.contains('pw')) return;
     const head = w.querySelector('.term-head'); if (!head) return;
-    const s = {docked:true,expanded:false,height:null}; states.set(w,s);
+    const saved = w._readDockState ? w._readDockState() : {};
+    const s = {docked:true,expanded:saved.expanded === true,height:Number.isFinite(saved.height) && saved.height > 0 ? saved.height : null}; states.set(w,s);
+    const remember = () => { if (w._saveDockState) w._saveDockState(s); };
     w.classList.add('gd-sheet');
     w._fitDockedSheet = () => { if (!s.docked) return false; seat(w,s); return true; };
     w._animateSheet = (phase, done) => moveSheet(w,s,phase === 'restore',done);
@@ -126,11 +128,11 @@
       b.addEventListener('dblclick', e=>e.stopPropagation());
       b.addEventListener('click',e=>{e.stopPropagation();action();}); controls.append(b); return b;
     };
-    s.dock = button('DOCK',()=>{s.docked=true;s.expanded=false;seat(w,s,true);});
+    s.dock = button('DOCK',()=>{s.docked=true;s.expanded=false;seat(w,s,true);remember();});
     paintWindowButton(button('MINIMIZE',()=>w._minimize()),'minimize','Minimize window');
     s.expand = button('EXPAND',()=>{
       if (!s.docked) s.docked=true;
-      s.expanded=!s.expanded;seat(w,s);
+      s.expanded=!s.expanded;seat(w,s);remember();
     });
     const close=head.querySelector('.term-x');
     if(close){
@@ -157,14 +159,14 @@
     pull.addEventListener('pointermove',e=>{
       if(!drag)return;s.height=drag.h+(drag.y-e.clientY)/zoom();seat(w,s);
     });
-    const finish=()=>{drag=null;};pull.addEventListener('pointerup',finish);pull.addEventListener('pointercancel',finish);
+    const finish=()=>{if(drag)remember();drag=null;};pull.addEventListener('pointerup',finish);pull.addEventListener('pointercancel',finish);
     pull.addEventListener('keydown',e=>{
       if(!['ArrowUp','ArrowDown','Home','End'].includes(e.key))return;
       e.preventDefault();e.stopPropagation();s.docked=true;
       if(e.key==='Home'){s.expanded=false;s.height=220;}
       else if(e.key==='End'){s.expanded=true;}
       else {s.expanded=false;s.height=w.getBoundingClientRect().height/zoom()+(e.key==='ArrowUp'?40:-40);}
-      seat(w,s);
+      seat(w,s);remember();
     });
     head.addEventListener('mousedown',e=>{
       if(e.target.closest('button'))return;

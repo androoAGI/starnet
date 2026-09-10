@@ -941,6 +941,17 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
     w._sizeLimits = terminalLimits(opts);
     const savedSize = termSize[key];
     if (savedSize) resizeTermTo(w, key, savedSize.width, savedSize.height, false);
+    // Docked sheet preferences share the existing persisted station window store.
+    // Floating geometry remains separate so maximizing never destroys the normal height.
+    w._readDockState = () => {
+      const saved = store.termDock && store.termDock[key];
+      return saved && typeof saved === 'object' ? { height: saved.height, expanded: saved.expanded === true } : {};
+    };
+    w._saveDockState = state => {
+      if (!store.termDock || typeof store.termDock !== 'object') store.termDock = {};
+      store.termDock[key] = { height: Number.isFinite(state.height) && state.height > 0 ? state.height : null, expanded: state.expanded === true };
+      save();
+    };
     w._minimize = () => minimizeTerm(key); // Shared window action used by the glass controller.
     w._onClose = opts && opts.onClose;
     w._opener = opener;
