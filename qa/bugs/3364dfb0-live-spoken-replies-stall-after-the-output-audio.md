@@ -39,7 +39,7 @@ Source repair replaces closed transmission/shell graphs and leaves audio on nati
 
 ## Regression
 
-Before: the real browser stalled at time 0 after closing the speech graph. After: the same reproduction completed the second reply. test/voice.button.test.js exercises both shell and transmission replacement and rejected resume for suspended/interrupted devices without capturing native output. Full gate receipt pending.
+Before: the real browser stalled at time 0 after closing the speech graph. After: the same reproduction completed the second reply. test/voice.button.test.js exercises both shell and transmission replacement and rejected resume for suspended/interrupted devices without capturing native output. Focused suite 140 assertions, customer journeys 34/34, and full fast gate 762/762 passed on 0a250ae40. Receipt: qa/live-speech-device-0910.md.
 
 ## Sibling coverage
 

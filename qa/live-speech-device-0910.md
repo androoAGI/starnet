@@ -41,7 +41,9 @@ headless Chromium, not an acoustic or installed-WebView claim.
 - JavaScript syntax and `git diff --check`: passed.
 - Customer journeys: 34/34 passed.
 - Bug register validation: passed.
-- Full fast gate: pending.
+- Full fast gate: 762/762 passed on `0a250ae40`. The first run correctly rejected
+  the changed frontend's stale release-surface lock; the mechanical lock was refreshed
+  without changing any claim verdict, and the complete rerun passed.
 
 No installer was built or published. Customer recovery and hardware acceptance remain
 unverified. Already-playing audio interrupted mid-sentence and provider-native realtime
