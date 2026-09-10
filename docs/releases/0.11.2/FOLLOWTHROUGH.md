@@ -42,6 +42,8 @@ The four historical integration detector observations were reconciled individual
 
 After the runtime merge, the commands ran again in the integration tree and passed **770/770 fast steps** and **111/111 HTTP steps**, both exit 0. [Post-merge receipt](../../../qa/evidence/0.11.2-merge-audit/closeout/postmerge.json) records the exact tested source. Subsequent commits contain only documentation, bug verdicts and evidence. Other agents' pre-existing `docs/NEXT.md`, `qa/STATUS.md` and handoff edits were preserved; they were not staged with this lane.
 
+The trunk full-history secret scan subsequently identified one pre-existing dummy provider key in `test/growth-rating-upgrade.e2e.test.js`, commit `a55a1ed0705fa53763ee03600322ddb3afd35ce0`, line 36. The test creates a local mock server and directs its sidecar provider base exclusively to that loopback endpoint. Its exact historical fingerprint was added to `.gitleaksignore`; no path-wide or rule-wide exclusion was added. This QA configuration change does not alter shipped runtime bytes. Final integration-bound operational receipts are refreshed separately without relabeling the earlier installer receipts in this pack.
+
 ## Still required before cutting
 
 1. Complete and inspect the **720-minute source soak**. Its expected finish is September 11 around 10:15 UTC (06:15 EDT), assuming uninterrupted execution. The full gate and short/scale checks above are complete. Complete the separate installed/attended acceptance required by the release runbook; elapsed source soak time cannot substitute for it.
