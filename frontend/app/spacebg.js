@@ -1098,16 +1098,16 @@ const SpaceBG = (() => {
      swarm and fireball. What changed is the RENDERING of every layer:
        - ROCKS have real form: a five-tone terminator (shadow side, body, half-light, lit rim, hot
          rim) from a spherical normal instead of one flat body with a rim, craters with a LIT FAR
-         WALL and a dark bowl, and two materials (maroon and a greyer basalt) instead of one. A
-         fourth NEAR layer carries three big rocks so the size ladder reaches the foreground.
+         WALL and a dark bowl, and two materials (maroon and a greyer basalt) instead of one.
+         ⛔ SMALL ROCKS ONLY (Andrew, 2026-09-09: "without the thick rocks, should just be the
+         smaller asteroids"). A first sharpening added a 24-34px hero layer and a tumbling 30px
+         asteroid event; both were cut the same day. Nothing here is wider than ~11px now, and the
+         size ladder is grains -> pebbles -> stones, never boulders. More of them, not bigger.
        - A DUST NEBULA at the very back: dim red and purple wisps, hash-dithered, so the black has
          depth and the shower has an atmosphere to fly through. Faint by design — the rocks are
          the subject, and this is not a new one.
        - EMBERS carry a hot head halo; the FIREBALL wears a glowing head and sheds live sparks.
-       - THE TUMBLER: every 40-90 s one big asteroid crosses the frame slowly, TUMBLING through
-         eight pre-rendered frames — the silhouette and its craters rotate while the LIGHT stays
-         put, which is what a real tumbling rock does. The one event this backdrop was missing.
-     Reduced motion still empties the swarm and skips the fireball, and now the tumbler too.
+     Reduced motion still empties the swarm and skips the fireball.
      Rocks occlude the stars; that occlusion is what makes them solid. */
 
   const BELT_BG = {
@@ -1123,17 +1123,15 @@ const SpaceBG = (() => {
       NEBP: [[10, 4, 22], [28, 10, 50], [52, 20, 80], [76, 34, 108]],               // and purple
     },
     DIR: [-0.94, 0.34],
-    SPD: { neb: 2, far: 5, mid: 12, near: 24, rockFar: 16, rockMid: 36, rockNear: 75, rockHero: 118 },
-    D: { neb: 0.004, far: 0.010, mid: 0.030, near: 0.055, rockFar: 0.06, rockMid: 0.14, rockNear: 0.30, rockHero: 0.45 },
+    SPD: { neb: 2, far: 5, mid: 12, near: 24, rockFar: 16, rockMid: 36, rockNear: 75 },
+    D: { neb: 0.004, far: 0.010, mid: 0.030, near: 0.055, rockFar: 0.06, rockMid: 0.14, rockNear: 0.30 },
     ROCKS: [
-      { n: 60, min: 2.5, max: 6 },            // far — grains
-      { n: 26, min: 5, max: 11 },             // mid
-      { n: 9, min: 10, max: 22 },             // near
-      { n: 3, min: 24, max: 34 },             // hero — the foreground of the ladder
+      { n: 90, min: 2, max: 4.5 },            // far — grains
+      { n: 44, min: 3.5, max: 7 },            // mid — pebbles
+      { n: 18, min: 5, max: 11 },             // near — stones, and nothing bigger
     ],
     LIGHT: [-0.55, -0.83],                   // sunward (up-left): where the rims are lit
     STREAKS: 56,                             // live embers in flight at once
-    TUMBLE: { frames: 8, R: 30, every: [40000, 90000], speed: 42, frameMs: 170 },
 
     build(w, h, rnd) {
       const P = BELT_BG.PAL, u = px1(), col = (c, a) => rgba(c, a == null ? 1 : a);
@@ -1207,7 +1205,7 @@ const SpaceBG = (() => {
         }
         return { R, M, prof, craters };
       };
-      const rock = (c, cx, cy, S, rot) => {
+      const rock = (c, cx, cy, S, rot) => {   // `rot` rotates the shape under the fixed light (unused now; kept for the fireball head)
         const { R, M, prof, craters } = S, ro = rot || 0;
         const at = th => { const f = ((((th + ro) / (Math.PI * 2)) % 1) + 1) % 1 * 32, i = Math.floor(f), t = f - i; return prof[i % 32] * (1 - t) + prof[(i + 1) % 32] * t; };
         const cr = craters.map(([kx, ky, kr]) => [kx * Math.cos(-ro) - ky * Math.sin(-ro), kx * Math.sin(-ro) + ky * Math.cos(-ro), kr]);
@@ -1246,18 +1244,10 @@ const SpaceBG = (() => {
         return cv;
       });
       // the fireball: one mid-size rock with a burning tail, pre-rendered head only (tail is live)
-      const FR = 9 + rnd() * 9, fireCv = mkCv(Math.ceil(FR * 2.2) + 4, Math.ceil(FR * 2.2) + 4);
+      const FR = 6 + rnd() * 5, fireCv = mkCv(Math.ceil(FR * 2.2) + 4, Math.ceil(FR * 2.2) + 4);
       rock(fireCv.getContext('2d'), Math.round(FR * 1.1 + 2), Math.round(FR * 1.1 + 2), mkShape(FR, P.MAROON));
-      // the tumbler: one big shape, eight rotations, one light
-      const TB = BELT_BG.TUMBLE, TS = Math.ceil(TB.R * 2.3) + 6, tumbleShape = mkShape(TB.R);
-      const tumble = [];
-      for (let f = 0; f < TB.frames; f++) {
-        const cv = mkCv(TS, TS);
-        rock(cv.getContext('2d'), TS >> 1, TS >> 1, tumbleShape, (f / TB.frames) * Math.PI * 2);
-        tumble.push(cv);
-      }
 
-      return { nebCv, farCv, midCv, near, cross, layers, fireCv, tumble, fire: null, nextFire: 0, tumbler: null, nextTumble: 0, streaks: [], lastT: null };
+      return { nebCv, farCv, midCv, near, cross, layers, fireCv, fire: null, nextFire: 0, streaks: [], lastT: null };
     },
 
     draw(ctx, w, h, now, cam, st) {
@@ -1346,25 +1336,6 @@ const SpaceBG = (() => {
           ctx.fillStyle = g; ctx.fillRect(hx - cw, hy - cw, cw * 2, cw * 2);
           ctx.globalCompositeOperation = 'source-over';
           ctx.drawImage(st.fireCv, Math.round(x), Math.round(y));
-        }
-      }
-
-      tile2(ctx, st.layers[3], w, h, parX(cam, D.rockHero) + t * S.rockHero * dx, parY(cam, D.rockHero) + t * S.rockHero * dy);
-
-      // THE TUMBLER: a big rock, slow, turning over as it crosses — the nearest thing in the frame
-      const TB = BELT_BG.TUMBLE, TS = st.tumble[0].width;
-      if (!st.nextTumble) st.nextTumble = now + TB.every[0] * 0.4 + Math.random() * TB.every[0] * 0.6;
-      if (!st.tumbler && now > st.nextTumble && !still) {
-        const fromTop = Math.random() < 0.5;
-        st.tumbler = { x: fromTop ? w * (0.2 + Math.random() * 0.8) : w + TS, y: fromTop ? -TS : Math.random() * h * 0.5, born: now, spd: TB.speed * (0.8 + Math.random() * 0.5), dir: Math.random() < 0.5 ? 1 : -1 };
-      }
-      if (st.tumbler) {
-        const el = (now - st.tumbler.born) / 1000;
-        const x = st.tumbler.x + dx * st.tumbler.spd * el, y = st.tumbler.y + dy * st.tumbler.spd * el;
-        if (x < -TS - 10 || y > h + TS + 10) { st.tumbler = null; st.nextTumble = now + TB.every[0] + Math.random() * (TB.every[1] - TB.every[0]); }
-        else {
-          const f = (((Math.floor(now / TB.frameMs) * st.tumbler.dir) % TB.frames) + TB.frames) % TB.frames;
-          ctx.drawImage(st.tumble[f], Math.round(x), Math.round(y));
         }
       }
 
