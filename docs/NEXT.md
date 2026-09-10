@@ -21,28 +21,6 @@ scopes and remaining installed/account/soak acceptance in `docs/AUDIT_0.11.1_FOR
 
 # NEXT.md — current priorities & task queue
 
-## VERIFIED LANE — 2026-09-10 platform connection tutorial (agent/onboarding-refresh-0910)
-
-Source 59a5b1e22, source lock 529fdb1ef; test stability follow-up 35f12cc35.
-Visible connection choice, first-task shortcut, replayable Field Manual chapter, inline setup
-instructions for work apps and messaging, and actionable connection checklist entries.
-Old portal placement cannot complete the new host-verified account-connection milestone.
-Live UI checks covered both routes, Notion sign-in discovery, Telegram pairing instructions,
-replay/reload, preserved unsent first-task material, compact layout and clean browser logs.
-Fast 754/754 and customer journeys 34/34 green. Interview questions unchanged.
-Evidence: qa/digests/2026-09-10-platform-tutorial.md. Not merged/released; real account
-authorization and installed-desktop proof remain unverified.
-
-## VERIFIED LANE — 2026-09-10 onboarding refresh (agent/onboarding-refresh-0910)
-
-Source `70a698ad2`, mechanical source lock `5e0ecc0f8`; carries tutorial name fix `d89e1d6e1`.
-Shorter wake opening, two-question quick setup, optional deeper interview, clear phase labels,
-readable conversation controls, multiline answers, and purpose-based first-task suggestions.
-Live real-sidecar/mock-provider checks covered fresh setup, saved purpose/autonomy, restart,
-full-interview entry/custom follow-up and first-task handoff. Fast 753/753 and customer journeys
-34/34 passed. Evidence: `qa/digests/2026-09-10-onboarding-refresh.md`.
-Not merged or released; installed behavior and paid-provider quality remain unverified.
-
 ## IMPLEMENTED — skin-motion-0910: movement stutter
 
 Source repair 75a814c18 holds look-back facing and removes empty waypoint frames for hero, idle crew and workstation crew. Live hero/crew checks passed; behavior regression 15/15 and customer journeys 34/34 passed. Receipt: qa/movement-continuity-0910.md. Full integration gate is recorded in qa/STATUS.md.

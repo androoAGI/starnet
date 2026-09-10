@@ -28,3 +28,14 @@ trunk, not yet merged. New commits from the active lane must be inspected before
 Installed desktop, external account authorization and release readiness are not claimed.
 Logs: tutorial-merge-final-fast.log, tutorial-integration-http.log.
 Live artifact: .worldshots/tutorial-integration-proof.json.
+
+## Final combined candidate
+
+Source 81c5a9d82 incorporates trunk 2a6c60fcb and the other lane's verified speech repair.
+Full fast gate passed 768/768, exit 0 (tutorial-speech-final-fast.log).
+Backend/shared/package/http-list diff against the HTTP-tested a790d4c66 remains empty.
+The live-proved tutorial, onboarding, first-task and connection modules remain byte-identical.
+Only the release-surface manifest conflicted; trunk claims were preserved and its source lock regenerated.
+Our stale NEXT queue entries were removed from this candidate so the unrelated uncommitted
+logo integration entry on trunk is preserved; the two earlier lane receipts retain their full details.
+The earlier staged-voice blocker is resolved; this candidate is ready for the authorized merge.
