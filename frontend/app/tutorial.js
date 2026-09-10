@@ -205,6 +205,7 @@ const Tutorial = (() => {
     // kills the old rhetorical "where do we begin?" self-answer the Commander found confusing.
     if (!hasDialogue()) { finishUp(true); return; }   // no panel → don't trap the Commander in a half-built tour
     Dialogue.open({ name: agentName });
+    if (Dialogue.setStage) Dialogue.setStage('FIRST TASK', 'Your station is ready');
     Dialogue.node({
       lines: [seg('let’s take one real burden off your list. give me notes, messages, or an approved folder and i’ll make a useful draft you can review. you can also take the optional station tour.', 44, 0)],
       options: [

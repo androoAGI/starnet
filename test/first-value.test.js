@@ -46,6 +46,7 @@ console.log('first-value: assertions passed');
 // Exercise the real form lifecycle at the DOM seam: setup closes/remounts the window.
 (async () => {
   const priorFetch = global.fetch;
+  const priorDossier = global.DossierStore;
   global.fetch = async path => ({ ok: true, json: async () => path === '/api/projects'
     ? { projects: [{ root: '/notes', blessed: true }] } : { sources: [] } });
   function form() {
@@ -59,6 +60,12 @@ console.log('first-value: assertions passed');
   }
   const tick = () => new Promise(resolve => setImmediate(resolve));
   try {
+    global.DossierStore = { beliefs: key => key === 'goals' ? [{ text: 'Turn meeting notes into actions' }] : [] };
+    const onboardingForm = form();
+    const onboardingMount = F.mount(onboardingForm, {});
+    assert.match(onboardingForm.node('.fv-outcome').textContent, /recap and action list/, 'first result follows the purpose saved during quick setup');
+    onboardingMount.destroy();
+    global.DossierStore = priorDossier;
     F.clearDraft();
     let root = form(), mounted = F.mount(root, { onProjects: () => mounted.destroy() });
     await tick();
@@ -99,5 +106,5 @@ console.log('first-value: assertions passed');
     root.node('.fv-clear').onclick(); mounted.destroy();
     assert.equal(F.draftOptions(), null, 'closing a cleared form cannot resurrect it');
     console.log('first-value: setup return, isolation, failed launch, successful launch cleanup passed');
-  } finally { global.fetch = priorFetch; }
+  } finally { global.fetch = priorFetch; global.DossierStore = priorDossier; }
 })().catch(error => { console.error(error); process.exitCode = 1; });

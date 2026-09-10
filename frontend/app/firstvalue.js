@@ -66,7 +66,11 @@
     if (canResume) Object.assign(ctx, savedDraft); // form edits win over its original launch context
     let retain = true;
     let pain = ctx.pain;
-    if (!pain && typeof DossierStore !== 'undefined' && DossierStore.beliefs) pain = DossierStore.beliefs('pain').map(b => b.text);
+    if (!pain && typeof DossierStore !== 'undefined' && DossierStore.beliefs) {
+      pain = DossierStore.beliefs('pain').map(b => b.text).filter(clean);
+      // Quick setup records a purpose before any work-profile interview exists. Use that direction.
+      if (!pain.length) pain = DossierStore.beliefs('goals').map(b => b.text).filter(clean);
+    }
     const proposed = suggest(pain || []);
     let intent = TASKS.some(t => t.id === ctx.intent) ? ctx.intent : proposed.task.id;
     let roots = [], alive = true, loading = false;
