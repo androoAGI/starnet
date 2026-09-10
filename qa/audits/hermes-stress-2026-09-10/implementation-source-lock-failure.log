@@ -1,0 +1,548 @@
+
+> starnet-harness@0.11.1 test:fast
+> node scripts/timeout.mjs --label test:fast --timeout=900000 -- npm run test:fast:raw
+
+
+> starnet-harness@0.11.1 test:fast:raw
+> node scripts/run-fast-tests.mjs
+
+schema.test: OK (42 assertions)
+group session id533: injected scheduler interruption
+group-sessions: routing, idempotency, context, revision cycles, cap, artifacts, independent opinions, interruption, approvals, restart and branches PASS
+group-message-attachments: association, file bytes, isolation, validation, upload/send retries and restart PASS
+bay-name-legibility: compact tags, proportional zoom/DPI, rename, binding, fixed anchors and bounded long names PASS
+group edges: restart retry, membership cancellation, question/file isolation, ambiguous names and all recipients PASS
+group-chat-picker: loading, duplicate clicks, 404, auth, malformed response, roster failure, retry, selection and cancellation PASS
+contract.test: OK (95 assertions)
+events-contract.test: OK (9 assertions)
+clock-rng.test: OK (14 assertions)
+context.test: OK (180 assertions)
+runtimeinfo: OK (15 assertions)
+harness-snapshot: OK (23 assertions)
+station-inspect: OK (12 assertions)
+[failopen] aux.test.envelope (x1): aux pass died sk-or-v1-abcdef0123456789abcdef0123456789
+[failopen] aux.test.envelope (x2): again
+[failopen] maint.test.loop (x1): once
+[failopen] flood.0 (x1): x
+[failopen] flood.1 (x1): x
+[failopen] flood.2 (x1): x
+[failopen] flood.3 (x1): x
+[failopen] flood.4 (x1): x
+[failopen] flood.5 (x1): x
+[failopen] flood.6 (x1): x
+[failopen] flood.7 (x1): x
+[failopen] flood.8 (x1): x
+[failopen] flood.9 (x1): x
+[failopen] flood.10 (x1): x
+[failopen] flood.11 (x1): x
+[failopen] flood.12 (x1): x
+[failopen] flood.13 (x1): x
+[failopen] flood.14 (x1): x
+[failopen] flood.15 (x1): x
+[failopen] flood.16 (x1): x
+[failopen] flood.17 (x1): x
+[failopen] flood.18 (x1): x
+[failopen] flood.19 (x1): x
+[failopen] flood.20 (x1): x
+[failopen] flood.21 (x1): x
+[failopen] flood.22 (x1): x
+[failopen] flood.23 (x1): x
+[failopen] flood.24 (x1): x
+[failopen] flood.25 (x1): x
+[failopen] flood.26 (x1): x
+[failopen] flood.27 (x1): x
+[failopen] flood.28 (x1): x
+[failopen] flood.29 (x1): x
+[failopen] flood.30 (x1): x
+[failopen] flood.31 (x1): x
+[failopen] flood.32 (x1): x
+[failopen] flood.33 (x1): x
+[failopen] flood.34 (x1): x
+[failopen] flood.35 (x1): x
+[failopen] flood.36 (x1): x
+[failopen] flood.37 (x1): x
+[failopen] flood.38 (x1): x
+[failopen] flood.39 (x1): x
+diagnostics: OK (47 assertions)
+diagnostics-support-email.test: OK (16 assertions)
+diagnostics-build.test: OK (17 assertions)
+diagnostics-dead-engine.test: OK (25 assertions)
+bootguard: OK (56 assertions)
+TAP version 13
+# Subtest: live doctor refuses to probe without explicit consent
+ok 1 - live doctor refuses to probe without explicit consent
+  ---
+  duration_ms: 1.3134
+  type: 'test'
+  ...
+# Subtest: live doctor preserves truthful states, latency, ordering, and a paste-ready receipt
+ok 2 - live doctor preserves truthful states, latency, ordering, and a paste-ready receipt
+  ---
+  duration_ms: 3.3334
+  type: 'test'
+  ...
+# Subtest: receipt redacts credential-shaped detail and never promotes an unknown state
+ok 3 - receipt redacts credential-shaped detail and never promotes an unknown state
+  ---
+  duration_ms: 0.5163
+  type: 'test'
+  ...
+# Subtest: failure classifier distinguishes configuration, refusal, and reachability
+ok 4 - failure classifier distinguishes configuration, refusal, and reachability
+  ---
+  duration_ms: 1.1127
+  type: 'test'
+  ...
+# Subtest: independent probes run concurrently and keep receipt order
+ok 5 - independent probes run concurrently and keep receipt order
+  ---
+  duration_ms: 5.6966
+  type: 'test'
+  ...
+1..5
+# tests 5
+# suites 0
+# pass 5
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 16.024
+TAP version 13
+# Subtest: browser live doctor sends the explicit consent bit and returns the receipt
+ok 1 - browser live doctor sends the explicit consent bit and returns the receipt
+  ---
+  duration_ms: 3.5144
+  type: 'test'
+  ...
+# Subtest: settings keeps live probes behind a checkbox and renders the receipt as text
+ok 2 - settings keeps live probes behind a checkbox and renders the receipt as text
+  ---
+  duration_ms: 3.415
+  type: 'test'
+  ...
+1..2
+# tests 2
+# suites 0
+# pass 2
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 15.5146
+TAP version 13
+# Subtest: file approval preserves every mutation argument beyond the run summary cap
+ok 1 - file approval preserves every mutation argument beyond the run summary cap
+  ---
+  duration_ms: 6.5511
+  type: 'test'
+  ...
+# Subtest: rating controls name the originating task and run, even when an older card is shown
+ok 2 - rating controls name the originating task and run, even when an older card is shown
+  ---
+  duration_ms: 1.0965
+  type: 'test'
+  ...
+# Subtest: deliverable naming instruction yields to explicit task limits
+ok 3 - deliverable naming instruction yields to explicit task limits
+  ---
+  duration_ms: 0.8899
+  type: 'test'
+  ...
+# Subtest: Codex probe sends Medium to Astra and completes instead of the unsupported-none 400
+ok 4 - Codex probe sends Medium to Astra and completes instead of the unsupported-none 400
+  ---
+  duration_ms: 29.0461
+  type: 'test'
+  ...
+# Subtest: follow-up keeps the selected run through another run and save hydration
+ok 5 - follow-up keeps the selected run through another run and save hydration
+  ---
+  duration_ms: 5.2298
+  type: 'test'
+  ...
+# Subtest: a delayed rating for the preceding run cannot appear below newer work in the same session
+ok 6 - a delayed rating for the preceding run cannot appear below newer work in the same session
+  ---
+  duration_ms: 1.7379
+  type: 'test'
+  ...
+# Subtest: delayed memory decks do not reintroduce a superseded rating
+ok 7 - delayed memory decks do not reintroduce a superseded rating
+  ---
+  duration_ms: 0.3348
+  type: 'test'
+  ...
+1..7
+# tests 7
+# suites 0
+# pass 7
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 54.494
+outbound-failure-diagnosability.test: OK (26 assertions)
+reflect.test: OK (114 assertions)
+memcore.test: OK (93 assertions)
+cost.test: OK (38 assertions)
+spend.test: OK (7 assertions)
+ledger.test: OK (48 assertions)
+logbound.test: OK (23 assertions)
+budget.test: OK (49 assertions)
+budget-caps: OK (46 assertions)
+fallback-chain: OK (56 assertions)
+configexport.test.js OK — 76 assertions
+harness-import.test.js OK — 61 assertions
+settings-p1-backend.test.js OK — 36 assertions
+concurrency.test: OK (65 assertions)
+workspace-lease.test: OK (27 assertions)
+workspace-owner.test: OK (34 assertions)
+workspace-safety.test: OK (12 assertions)
+[recovery] auto station recovery SKIPPED: target workspace is a scratch root (C:\Users\andro\AppData\Local\Temp\starnet-fake-real-home-ErXcSH\ci-scratch-pubp8M\ws is under C:\Users\andro\AppData\Local\Temp\starnet-fake-real-home-ErXcSH\ci-scratch-pubp8M); a real station is never ingested into a temp workspace. Explicit recovery (request file / CLI restore) is unaffected.
+workspace-recovery.test: OK (66 assertions)
+workspace-lineage.test: OK (86 assertions)
+agent-lifecycle: OK (45 assertions)
+[failopen] durable-store.onCorrupt (x1): handler bug
+durable-store.test: OK (55 assertions)
+domain-store.test: OK (10 assertions)
+provider-runtime.test: OK (8 assertions)
+run-execution-state.test: OK (59 assertions)
+tool-progress-guard.test: OK (37 assertions)
+tool-dispatch-boundary.test: OK (10 assertions)
+completion-evidence.test: OK (16 assertions)
+task-postconditions.test: OK (21 assertions)
+connector-readback: OK (28 assertions)
+recipe-drift: OK (26 assertions)
+task-postconditions-ui.test: OK (10 assertions)
+recovery-policy.test: OK (12 assertions)
+tool-recovery.test: OK (6 assertions)
+run-journal-disk-boundary.test: OK (8 assertions)
+todo.durability.test: OK (54 assertions)
+halt: OK (15 assertions)
+readbody: OK (11 assertions)
+file-response.test: OK (14 assertions)
+test-list-runner.test: OK (8 assertions)
+runroute.test: OK (13 assertions)
+checkpoint: OK (34 assertions)
+checkpoint-default-on.test: OK (14 assertions)
+module-scope-shadowing.test: OK (7 assertions)
+source-text-integrity.test: OK (1903 tracked JS/MJS files)
+verify.test: OK (17 assertions)
+lsp-edit-feedback.test: OK (31 assertions)
+provider.replay.test: OK (13 assertions)
+agent-eval.test: OK (43 assertions)
+eval-campaign-preflight.test: OK (10 assertions)
+eval-soak-receipt.test: OK (12 assertions)
+eval-same-model-receipt.test: OK (10 assertions)
+eval-acp-client.test: OK (7 assertions)
+eval-fixture-host.test: OK (33 assertions)
+eval-installed-performance.test: OK (5 assertions)
+eval-installed-provider-soak.test: OK (20 assertions)
+eval-parity-offline.test: OK (27 assertions)
+overnight-reliability-runner.test: OK (28 assertions)
+provider.openrouter.test: OK (64 assertions)
+provider.openai-compatible.test: OK (83 assertions)
+realtime-voice.test.js: ok
+native-stt.test.js: ok
+local-voice.test.js: ok (models installed)
+media-service: OK (36 assertions)
+desktop voice bundle tests passed
+transcript.compaction.e2e.test: OK (19 assertions)
+provider.anthropic.test: OK (67 assertions)
+prices.live.test: OK (30 assertions)
+provider.gemini.test: OK (47 assertions)
+provider.toolschema.test: OK (28 assertions)
+provider.prices.test: OK (27 assertions)
+prices.all-providers.test: OK (119 assertions)
+provider.timeouts.test: OK (53 assertions)
+provider.registry.test: OK (105 assertions)
+ratelimits: OK (30 assertions)
+provider.codex-auth.test: OK (72 assertions)
+purge-leaked-codex-tokens: OK (14 assertions)
+provider.oauth-device.test: OK (72 assertions)
+codex-auth-state: OK (29 assertions)
+provider.codex.test: OK (66 assertions)
+provider.codex.pairing.test: OK (18 assertions)
+credpool.test: OK (15 assertions)
+credrotate.test: OK (29 assertions)
+sanitize.test: OK (42 assertions)
+errorclass.test: OK (215 assertions)
+[billing] managed run r5b over cap: reported $2.0100 vs reserved $2.0000 — charging the reservation; $0.0100 overage absorbed
+billing.test: OK (86 assertions)
+[credits] debit POST failed (status 500); invalidating cached balance -> next managed run fail-closes until refresh reconciles
+[credits] debit POST failed (status ?); invalidating cached balance -> next managed run fail-closes until refresh reconciles
+[credits] debit POST failed (status 500); invalidating cached balance -> next managed run fail-closes until refresh reconciles
+credits.test: OK (113 assertions)
+credits-link.test: OK (95 assertions)
+friendlyerror.test: OK (229 assertions)
+codexsignin.test: OK (17 assertions)
+oauthsignin.test: OK (30 assertions)
+hooks.test: OK (49 assertions)
+shellhooks.test: OK (50 assertions)
+hooks.wiring.test: OK (31 assertions)
+plugins.test: OK (51 assertions)
+loop.replay.test: OK (121 assertions)
+loop.steer.test: OK (13 assertions)
+loop.verify-on-stop.test: OK (55 assertions)
+tests: OK (20 assertions)
+loop.parallel-tools.test: OK (15 assertions)
+loop.tool-images.test: OK (17 assertions)
+loop.turn-budget: OK (24 assertions)
+loop.provider-recovery.test: OK (60 assertions)
+loop.failure-recovery.test: OK (12 assertions)
+loop.stop-means-stop: OK (28 assertions)
+output-continuation.test: OK (43 assertions)
+compaction.test: OK (40 assertions)
+compaction-summarizer.test: OK (341 assertions)
+loopguard.test: OK (15 assertions)
+loopguard.dispatch: OK (10 assertions)
+continuation-guard.test: OK
+continuation-guard.test: OK (28 assertions)
+text-toolcall-markup.test: OK
+text-toolcall-markup.test: OK (18 assertions)
+model-conformance.test: OK
+model-conformance.test: OK (22 assertions)
+iteration-budget.test: OK (24 assertions)
+updatecore: OK (72 assertions)
+quitguard: OK (28 assertions)
+desktop-lifecycle-preferences: OK (17 assertions)
+desktop-installed-cdp-forwarding.test: OK (5 assertions)
+cloudsavecore: OK (45 assertions)
+[cloudsave] durable mirror has not synced; retrying with backoff. Local cache is intact.
+[cloudsave] durable mirror sync recovered.
+cloudsave-refusal: OK (18 assertions)
+cloudsave-unknown: OK (12 assertions)
+freshstart.test: OK (15 assertions)
+unreachable-browser-mode: OK (18 assertions)
+harness.cancel-truth: OK (32 assertions)
+desktop-fresh-start-contract.test: OK (18 assertions)
+cloudsave-unload: OK (16 assertions)
+fullscreen.test: OK (40 assertions)
+titlebar.test.js OK
+titlebar.test: OK (21 assertions)
+logo-occlusion.test.js OK
+logo-occlusion: OK (14 assertions)
+keepawake.test: OK (18 assertions)
+grace.test: OK (7 assertions)
+shell-session.test: OK (28 assertions)
+shell-bg.test: OK (50 assertions)
+shell-bg-io: OK (29 assertions)
+shell-visible-window.test: OK (45 assertions)
+shell-input-isolation.test: OK (34 assertions)
+shell-machine-state.test: OK (266 assertions)
+procledger.test: OK (54 assertions)
+inputguard.test: OK (12 assertions)
+timeout.test: OK (6 assertions)
+phase4.evidence.test: OK (12 assertions)
+phase5.evidence.test: OK (15 assertions)
+phase5.runner.test: OK (10 assertions)
+t0-clean-install.test: OK (18 assertions)
+tests: OK (70 assertions)
+soak.test: OK (269 assertions)
+desktop-workspace-migration.test: OK (31 assertions)
+t1-signing.test: OK (20 assertions)
+t2-state-safety.test: OK (10 assertions)
+upgrade-085-090: OK (40 assertions)
+t3-release-smoke.test: OK (17 assertions)
+t4-update-delivery.test: OK (22 assertions)
+installer-upgrade-resilience.test: OK (30 assertions)
+t5-public-distribution.test: OK (35 assertions)
+minisign-verify.test: OK (21 assertions)
+release-assemble-manifest.test: OK (45 assertions)
+verify-update-host.test: OK (15 assertions)
+replacement-sweep.test: OK (19 assertions)
+lint-evidence-secrets.test: OK (8 assertions)
+lint-evidence-secrets: OK
+environment.test: OK (123 assertions)
+servicekeys.test: OK (63 assertions)
+servicekeys.env.test.js: OK (41 assertions)
+web-request.test.js: OK (84 assertions)
+servicekeys-catalog.test.js: OK (489 assertions)
+[failopen] tools.registry.parkOutput (x1): disk full
+tools.test: OK (100 assertions)
+capgate.test: OK (54 assertions)
+capdrift: OK (71 assertions)
+capsummary.test: OK (38 assertions)
+boot-security.test: OK (16 assertions)
+sidecar-fixture.test: OK (10 assertions)
+sidecar.security.test: OK (20 assertions)
+tauri.hardening.test: OK (31 assertions)
+finish-line-doctrine.test: OK (12 assertions)
+manual.test: OK (38 assertions)
+permissions.test: OK (76 assertions)
+workshop-permissions.test: OK (18 assertions)
+master-bypass.test: OK (24 assertions)
+workshop-store.test: OK (85 assertions)
+workshop-undo.e2e.test: OK (28 assertions)
+tests: OK (67 assertions)
+tests: OK (45 assertions)
+workshop-visibility.test: OK (53 assertions)
+workshop-resolution: OK (17 assertions)
+workshop-toggle-ui: OK (16 assertions)
+quest-store.test: OK (114 assertions)
+journey-store.test: OK (75 assertions)
+journey.test: OK (8 assertions)
+journeystore.test: OK (13 assertions)
+journey-wiring.test: OK (13 assertions)
+commander-progression-ui: OK (headline, offline report, chaining, goal confirmation, reload)
+testapi-commander-hud: OK (13 delayed, exact, stale, reset and missing-display assertions)
+questinject.test: OK (47 assertions)
+quests-tool.test: OK (58 assertions)
+questsweeps.test: OK (23 assertions)
+tests: OK (102 assertions)
+threads-store: OK (19 assertions)
+threadmine: OK (31 assertions)
+tests: OK (19 assertions)
+recommendation-ledger.test: OK (26 assertions)
+recommendation-eval.test: OK (12 assertions)
+personalization-store.test: OK (5 assertions)
+recruiterstore-readiness.test: OK (7 assertions)
+auxgovernor.test: OK (2086 assertions)
+failreview.test: OK (75 assertions)
+threadstore.test: OK (40 assertions)
+autopilot-threads: OK (13 assertions)
+tests: OK (11 assertions)
+apiauth.test: OK (51 assertions)
+notebook.test: OK (117 assertions)
+skills.test: OK (135 assertions)
+[failopen] skillstore.append (x1): injected skills disk full
+skill-exchange.test.js: OK (48 assertions)
+abilities.skills-lane.test: OK (19 assertions)
+skills.library.test: OK (330 assertions)
+skills.gate.test: OK (96 assertions)
+skills.review-approval: OK (18 assertions)
+slash.test: OK (75 assertions)
+slash-actions.test: OK (101 assertions)
+slash.parity.test: OK (180 assertions)
+usercommands.test: OK (33 assertions)
+slash.palette.test: OK (66 assertions)
+slash.config.test: OK (21 assertions)
+voice.button.test: OK (128 assertions)
+voice-live-ui.test.js: ok
+voice-flow: sentence buffering and deadline regressions passed
+voice-flow.test.js: adaptive timing and 6 voice flow scenarios passed
+voice-stream.test: streaming correction, final reuse, cancellation, bounds, expiry, and browser transport passed
+voice.draftguard.test: OK (21 assertions)
+[savestore] quarantined corrupt save \ws\agent.save.json -> \ws\agent.save.json.corrupt-1 (main unparseable and no usable .bak)
+[savestore] refusing save for agent — existing record is unreadable (EBUSY); not clobbering a possibly-newer save
+[savestore] quarantined corrupt save \ws\agent.save.json -> \ws\agent.save.json.corrupt-2 (main unparseable and no usable .bak)
+[savestore] quarantined corrupt save \ws\agent.save.json -> \ws\agent.save.json.corrupt-4 (main unparseable; recovered from .bak)
+[savestore] quarantined corrupt save \ws\agent.save.json -> \ws\agent.save.json.corrupt-1 (main unparseable and no usable .bak)
+[savestore] quarantined corrupt save \ws\agent.save.json -> \ws\agent.save.json.corrupt-1 (main unparseable; recovered from .bak)
+[savestore] quarantined corrupt save \ws\agent.save.json -> \ws\agent.save.json.corrupt-1 (main unparseable and no usable .bak)
+[savestore] quarantined corrupt save \ws\agent.save.json -> \ws\agent.save.json.corrupt-1 (main unparseable; recovered from .bak)
+[savestore] quarantined corrupt save \ws\agent.save.json -> \ws\agent.save.json.corrupt-1 (main unparseable and no usable .bak)
+[savestore] quarantined corrupt save \ws\agent.save.json -> \ws\agent.save.json.corrupt-6 (main unparseable; recovered from .bak)
+save.test: OK (70 assertions)
+saveversion: OK (23 assertions)
+backup-secrets.test.js OK — 44 assertions
+schema-stamp.test: OK (15 assertions)
+rename-migrate.test: OK (14 assertions)
+update-state-parity: OK (42 assertions)
+update-continuity.test: OK (7 assertions)
+update-preparation.test: OK (20 assertions)
+updates-install.test: OK (16 assertions)
+roster-clause.test: OK (24 assertions)
+agent-config-target.test: OK (36 assertions)
+notebookrestore.test: OK (20 assertions)
+runstore.test: OK (90 assertions)
+run-journal.test: OK (44 assertions)
+run-recovery-continuation.test: OK (24 assertions)
+run-recovery-ui.test: OK (10 assertions)
+run-journal.loop.test: OK (14 assertions)
+longhaul-retention.test: OK (15 assertions)
+autonomy-ledger: OK (30 assertions)
+artifacts.test: OK (25 assertions)
+deliverable-store.test: OK (11 assertions)
+tests: OK (33 assertions)
+deliverable-provenance.test: OK (18 assertions)
+deliverable-note.test: OK (24 assertions)
+deliverables-ui.test: OK (17 assertions)
+deliverables-open.test: OK (11 assertions)
+work-recap.test: OK (27 assertions)
+qa-ledger.test: OK (73 assertions)
+qa-saboteur: OK (10 assertions)
+qa-bugs.test: OK (97 assertions)
+TAP version 13
+# Subtest: source fix cannot be closed without the four sibling dimensions and regression evidence
+ok 1 - source fix cannot be closed without the four sibling dimensions and regression evidence
+  ---
+  duration_ms: 6.3989
+  type: 'test'
+  ...
+# Subtest: installer and customer claims require independent evidence and survive later updates
+ok 2 - installer and customer claims require independent evidence and survive later updates
+  ---
+  duration_ms: 1.3816
+  type: 'test'
+  ...
+# Subtest: missing axis, fabricated coverage, and empty exemptions fail closed
+ok 3 - missing axis, fabricated coverage, and empty exemptions fail closed
+  ---
+  duration_ms: 0.588
+  type: 'test'
+  ...
+# Subtest: legacy records remain valid without inventing historical recovery
+ok 4 - legacy records remain valid without inventing historical recovery
+  ---
+  duration_ms: 0.2361
+  type: 'test'
+  ...
+# Subtest: covered regression must exist in its declared exercised gate
+ok 5 - covered regression must exist in its declared exercised gate
+  ---
+  duration_ms: 20.4042
+  type: 'test'
+  ...
+# Subtest: customer journey campaign cannot drift outside mandatory fast/http gates
+ok 6 - customer journey campaign cannot drift outside mandatory fast/http gates
+  ---
+  duration_ms: 26.8757
+  type: 'test'
+  ...
+# Subtest: related fix prose cannot promote an unresolved customer report in reconciliation
+ok 7 - related fix prose cannot promote an unresolved customer report in reconciliation
+  ---
+  duration_ms: 0.8512
+  type: 'test'
+  ...
+1..7
+# tests 7
+# suites 0
+# pass 7
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 64.0019
+  register: 11 open of 97 total — 0 P0 · 11 P1 · 0 P2
+    P1 autonomy    Customer cannot explain idle behavior and unexpectedly high usage
+    P1 autonomy    Customer reports an ONCE routine absent from Active Routines
+    P1 autonomy    Result contracts reject useful constraints and API JSON formats are ignored
+    P1 onboarding  Mac paid onboarding becomes unreachable after reload and relink
+    P1 providers   Compatible API hides partial run failures and limits
+    P1 providers   Compatible API retries dispatch duplicate agent runs
+    P1 providers   Funded working station still displays a zero-credit warning
+    P1 providers   Managed Sonnet request still returns an uncorrelated HTTP 400
+    P1 providers   Saved equipment omitted from interactive tool projection and toolset diagnostics
+    P1 sessions    COMMS loses report tables list hierarchy quotes and named links
+    P1 world       Customer viewport becomes blank after ten to twenty minutes
+qa-bugs-register.test: OK (8 assertions)
+ledger-reconcile.test: OK (82 assertions)
+qa-guardian.test: OK (99 assertions)
+qa-message-content.test: OK (6 assertions)
+qa-closer.test: OK (166 assertions)
+qa-ready.test: OK (118 assertions)
+qa-product-perfect.test: OK (50 assertions)
+FAIL: tracked finite claims audit passes planning authority — expected true, got false
+FAIL: planning status is explicitly PASS — expected "PASS", got "BLOCKED"
+FAIL: terminal explains open grep-verdict work
+FAIL: a canonical-equal injected object cannot change candidate authority — expected true, got false
+FAIL: raw candidate ledger bytes are accepted as an equality assertion — expected true, got false
+FAIL: test-only seam reproduces the formerly accepted forged manifest — expected true, got false
+FAIL: test-only seam proves the forged statuses would otherwise turn terminal green — expected true, got false
+FAIL: ambient working-tree ledger drift cannot replace the candidate blob — expected true, got false
+FAIL: a truthful refuted verdict can remain planning-valid — expected true, got false
+qa-product-perfect-claims.test: 9 problem(s), 55 ok
+run-fast-tests: FAILED at step 286/757: node test/qa-product-perfect-claims.test.js (exit 1)

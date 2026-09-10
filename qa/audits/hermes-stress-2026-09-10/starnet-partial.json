@@ -1,0 +1,170 @@
+{
+  "calls": 9,
+  "rows": [
+    {
+      "repeat": 1,
+      "stream": false,
+      "status": 200,
+      "body": "{\"id\":\"chatcmpl-a5ef6939bcc64f548b1e2b87\",\"object\":\"chat.completion\",\"created\":1789011515,\"model\":\"starnet-agent\",\"choices\":[{\"index\":0,\"message\":{\"role\":\"assistant\",\"content\":\"PARTIAL: started checking the report.\"},\"finish_reason\":\"stop\"}],\"usage\":{\"prompt_tokens\":0,\"completion_tokens\":0,\"total_tokens\":0}}"
+    },
+    {
+      "repeat": 1,
+      "stream": true,
+      "status": 200,
+      "body": "data: {\"id\":\"chatcmpl-6ffb5eb0b2f04d48ba3d5553\",\"object\":\"chat.completion.chunk\",\"created\":1789011516,\"model\":\"starnet-agent\",\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\"},\"finish_reason\":null}]}\n\ndata: {\"id\":\"chatcmpl-6ffb5eb0b2f04d48ba3d5553\",\"object\":\"chat.completion.chunk\",\"created\":1789011516,\"model\":\"starnet-agent\",\"choices\":[{\"index\":0,\"delta\":{\"content\":\"PARTIAL: started checking the report.\"},\"finish_reason\":null}]}\n\ndata: {\"id\":\"chatcmpl-6ffb5eb0b2f04d48ba3d5553\",\"object\":\"chat.completion.chunk\",\"created\":1789011516,\"model\":\"starnet-agent\",\"choices\":[{\"index\":0,\"delta\":{},\"finish_reason\":\"stop\"}],\"usage\":{\"prompt_tokens\":0,\"completion_tokens\":0,\"total_tokens\":0}}\n\ndata: [DONE]\n\n"
+    },
+    {
+      "repeat": 1,
+      "native": true,
+      "status": 200,
+      "events": [
+        {
+          "name": "agent.run.start",
+          "payload": {
+            "agentId": "agent",
+            "runId": "3fa481fc-4cb2-40c2-ab07-61a866cb4942",
+            "trigger": "directive",
+            "model": "test/partial"
+          }
+        },
+        {
+          "name": "agent.token",
+          "payload": {
+            "agentId": "agent",
+            "runId": "3fa481fc-4cb2-40c2-ab07-61a866cb4942",
+            "delta": "PARTIAL: started checking the report."
+          }
+        },
+        {
+          "name": "agent.run.error",
+          "payload": {
+            "agentId": "agent",
+            "runId": "3fa481fc-4cb2-40c2-ab07-61a866cb4942",
+            "message": "401 Unauthorized: AUDIT_FATAL_PROVIDER",
+            "transient": false
+          }
+        },
+        {
+          "name": "agent.run.end",
+          "payload": {
+            "agentId": "agent",
+            "runId": "3fa481fc-4cb2-40c2-ab07-61a866cb4942",
+            "reason": "error",
+            "turns": 1,
+            "usd": 0
+          }
+        }
+      ]
+    },
+    {
+      "repeat": 2,
+      "stream": false,
+      "status": 200,
+      "body": "{\"id\":\"chatcmpl-6dcf58c127994e1da1e959f9\",\"object\":\"chat.completion\",\"created\":1789011516,\"model\":\"starnet-agent\",\"choices\":[{\"index\":0,\"message\":{\"role\":\"assistant\",\"content\":\"PARTIAL: started checking the report.\"},\"finish_reason\":\"stop\"}],\"usage\":{\"prompt_tokens\":0,\"completion_tokens\":0,\"total_tokens\":0}}"
+    },
+    {
+      "repeat": 2,
+      "stream": true,
+      "status": 200,
+      "body": "data: {\"id\":\"chatcmpl-9b7dd45422f344bd8e498d61\",\"object\":\"chat.completion.chunk\",\"created\":1789011516,\"model\":\"starnet-agent\",\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\"},\"finish_reason\":null}]}\n\ndata: {\"id\":\"chatcmpl-9b7dd45422f344bd8e498d61\",\"object\":\"chat.completion.chunk\",\"created\":1789011516,\"model\":\"starnet-agent\",\"choices\":[{\"index\":0,\"delta\":{\"content\":\"PARTIAL: started checking the report.\"},\"finish_reason\":null}]}\n\ndata: {\"id\":\"chatcmpl-9b7dd45422f344bd8e498d61\",\"object\":\"chat.completion.chunk\",\"created\":1789011516,\"model\":\"starnet-agent\",\"choices\":[{\"index\":0,\"delta\":{},\"finish_reason\":\"stop\"}],\"usage\":{\"prompt_tokens\":0,\"completion_tokens\":0,\"total_tokens\":0}}\n\ndata: [DONE]\n\n"
+    },
+    {
+      "repeat": 2,
+      "native": true,
+      "status": 200,
+      "events": [
+        {
+          "name": "agent.run.start",
+          "payload": {
+            "agentId": "agent",
+            "runId": "12bd0d0c-1609-48f4-bc39-b58bcc6b9ecb",
+            "trigger": "directive",
+            "model": "test/partial"
+          }
+        },
+        {
+          "name": "agent.token",
+          "payload": {
+            "agentId": "agent",
+            "runId": "12bd0d0c-1609-48f4-bc39-b58bcc6b9ecb",
+            "delta": "PARTIAL: started checking the report."
+          }
+        },
+        {
+          "name": "agent.run.error",
+          "payload": {
+            "agentId": "agent",
+            "runId": "12bd0d0c-1609-48f4-bc39-b58bcc6b9ecb",
+            "message": "401 Unauthorized: AUDIT_FATAL_PROVIDER",
+            "transient": false
+          }
+        },
+        {
+          "name": "agent.run.end",
+          "payload": {
+            "agentId": "agent",
+            "runId": "12bd0d0c-1609-48f4-bc39-b58bcc6b9ecb",
+            "reason": "error",
+            "turns": 1,
+            "usd": 0
+          }
+        }
+      ]
+    },
+    {
+      "repeat": 3,
+      "stream": false,
+      "status": 200,
+      "body": "{\"id\":\"chatcmpl-7a60bd43a2114e53899f76d4\",\"object\":\"chat.completion\",\"created\":1789011517,\"model\":\"starnet-agent\",\"choices\":[{\"index\":0,\"message\":{\"role\":\"assistant\",\"content\":\"PARTIAL: started checking the report.\"},\"finish_reason\":\"stop\"}],\"usage\":{\"prompt_tokens\":0,\"completion_tokens\":0,\"total_tokens\":0}}"
+    },
+    {
+      "repeat": 3,
+      "stream": true,
+      "status": 200,
+      "body": "data: {\"id\":\"chatcmpl-a3f7b5378dcf4ee3b59f62c8\",\"object\":\"chat.completion.chunk\",\"created\":1789011517,\"model\":\"starnet-agent\",\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\"},\"finish_reason\":null}]}\n\ndata: {\"id\":\"chatcmpl-a3f7b5378dcf4ee3b59f62c8\",\"object\":\"chat.completion.chunk\",\"created\":1789011517,\"model\":\"starnet-agent\",\"choices\":[{\"index\":0,\"delta\":{\"content\":\"PARTIAL: started checking the report.\"},\"finish_reason\":null}]}\n\ndata: {\"id\":\"chatcmpl-a3f7b5378dcf4ee3b59f62c8\",\"object\":\"chat.completion.chunk\",\"created\":1789011517,\"model\":\"starnet-agent\",\"choices\":[{\"index\":0,\"delta\":{},\"finish_reason\":\"stop\"}],\"usage\":{\"prompt_tokens\":0,\"completion_tokens\":0,\"total_tokens\":0}}\n\ndata: [DONE]\n\n"
+    },
+    {
+      "repeat": 3,
+      "native": true,
+      "status": 200,
+      "events": [
+        {
+          "name": "agent.run.start",
+          "payload": {
+            "agentId": "agent",
+            "runId": "79b620ae-a749-426b-a9b0-31f00045ceb9",
+            "trigger": "directive",
+            "model": "test/partial"
+          }
+        },
+        {
+          "name": "agent.token",
+          "payload": {
+            "agentId": "agent",
+            "runId": "79b620ae-a749-426b-a9b0-31f00045ceb9",
+            "delta": "PARTIAL: started checking the report."
+          }
+        },
+        {
+          "name": "agent.run.error",
+          "payload": {
+            "agentId": "agent",
+            "runId": "79b620ae-a749-426b-a9b0-31f00045ceb9",
+            "message": "401 Unauthorized: AUDIT_FATAL_PROVIDER",
+            "transient": false
+          }
+        },
+        {
+          "name": "agent.run.end",
+          "payload": {
+            "agentId": "agent",
+            "runId": "79b620ae-a749-426b-a9b0-31f00045ceb9",
+            "reason": "error",
+            "turns": 1,
+            "usd": 0
+          }
+        }
+      ]
+    }
+  ]
+}

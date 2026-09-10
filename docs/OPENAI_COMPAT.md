@@ -71,3 +71,31 @@ These are intentional follow-ups, not oversights:
 5. **At-rest key persistence** — the bearer key is read from env (`STARNET_API_KEY`),
    matching how provider keys are injected at spawn. A persisted server-config setting
    (following `sidecar/channels/secrets.js`) is a possible future addition.
+
+## Result truth, JSON contracts and safe retries (2026-09-10)
+
+A terminal response includes a `starnet` object with `status`, the native `reason`, and
+`completed`, `partial`, `failed`, and `error`. Only a confirmed done event sets completed
+true. Partial provider failures retain their text and usage with finish_reason error.
+Limits use length; cancellation and missing terminal events never report successful
+completion. Run-status responses also retain partial output and usage. Clients should
+consume the status extension when distinguishing awaiting_input, refused or limited.
+
+For chat completions, send `Idempotency-Key` (1–256 printable characters) to reserve work
+before dispatch. Matching requests under the same bearer principal and explicit session
+share progress and replay the exact saved response, including after sidecar restart.
+Request content and resolved model configuration are bound to the key; conflicts return
+409. A reservation interrupted before its durable result also returns 409 instead of
+silently repeating side effects. A disconnected waiter does not abort shared keyed work.
+Pre-dispatch concurrency rejection stays retryable. Terminal records are eligible for
+cleanup after 24 hours on subsequent admissions; active/orphan records are not evicted.
+This protection currently applies to `/v1/chat/completions`, not `/v1/runs` creation.
+
+`response_format` supports text, json_object, and json_schema with a schema. Structured
+responses are host-validated as whole JSON and get at most one output-only repair with
+no tool execution. Usage includes both calls. Failed validation remains an explicit failed
+completion. Structured streaming currently returns 400 before dispatch; use stream:false.
+Result contracts support bounded draft-07-style constraints including minimum, minItems,
+oneOf, and local JSON Pointer references. Recursive/remote references and complex regex
+patterns are rejected explicitly. Schemas are bounded to 12,000 characters and structured
+results to 1 MiB for validation. No validator-unavailable fallback accepts unvalidated JSON.

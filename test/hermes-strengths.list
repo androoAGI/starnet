@@ -1,0 +1,11 @@
+# Hermes-derived reliability regressions. Each suite also belongs to fast or HTTP.
+test/openai-outcomes.test.js
+test/openai-compat.e2e.test.js
+test/request-reservations.test.js
+test/request-auth-rotation.test.js
+test/request-idempotency.e2e.test.js
+test/result-contract.test.js
+test/openai-formats.test.js
+test/output-only-repair.e2e.test.js
+test/orchestration.test.js
+test/chat-code-copy.test.js
