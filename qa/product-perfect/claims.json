@@ -1043,8 +1043,8 @@
       },
       {
         "path": "frontend/app/world.js",
-        "bytes": 726356,
-        "sha256": "90dea695304465dc6d0e5bceb9b39a9b039c1655200acb953d3e30c45ea7bbe7"
+        "bytes": 727793,
+        "sha256": "7435ab1daa6469eaca0780de40f6318d7ac1822b805fca1585762375ce3bc32c"
       },
       {
         "path": "frontend/app/worldlab.js",
