@@ -145,3 +145,27 @@ assert(html.indexOf('app/glass-boot.js') < html.indexOf('app/app.js'),'fallback 
 assert(!src.includes('document.head.append(css)'),'material sheets cannot arrive after interface initialization');
 assert(!src.includes("badge.textContent = 'GLASS DEMO'"),'default UI does not claim to be a preview');
 console.log('glass-interactions: guarded Escape, default activation, fallback, and initial material load passed');
+
+// Recreate a window and the settings store to exercise persisted normal/maximized state.
+const preferenceStart = stationSrc.indexOf('    w._readDockState =');
+const preferenceEnd = stationSrc.indexOf('    w._minimize =', preferenceStart);
+assert(preferenceStart >= 0 && preferenceEnd > preferenceStart);
+let savedPreferences = {};
+function reopenDock(key) {
+  const context = { w: {}, key, store: JSON.parse(JSON.stringify(savedPreferences)),
+    save() { savedPreferences = JSON.parse(JSON.stringify(context.store)); } };
+  vm.createContext(context); vm.runInContext(stationSrc.slice(preferenceStart, preferenceEnd), context);
+  return context.w;
+}
+let settingsWindow = reopenDock('settings');
+settingsWindow._saveDockState({ height: 512, expanded: false });
+settingsWindow = reopenDock('settings');
+assert.equal(settingsWindow._readDockState().height, 512);
+settingsWindow._saveDockState({ height: 512, expanded: true });
+settingsWindow = reopenDock('settings');
+assert.equal(settingsWindow._readDockState().height, 512);
+assert.equal(settingsWindow._readDockState().expanded, true);
+assert.equal(reopenDock('tasks')._readDockState().height, undefined);
+settingsWindow._saveDockState({ height: Infinity, expanded: false });
+assert.equal(reopenDock('settings')._readDockState().height, null);
+console.log('glass preferences: normal height, maximized state, panel isolation and invalid-size recovery passed');
