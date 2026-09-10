@@ -4,10 +4,10 @@ slug: scale-soak-misclassifies-separate-scheduler-tick
 title: Scale soak misclassifies separate scheduler ticks between store polls
 surface: release
 severity: P2
-status: open
+status: fixed
 found: 2026-09-10
 lane: agent/release-0112-audit-0910
-fix:
+fix: 7efce3552
 origin: audit
 ---
 
@@ -29,4 +29,4 @@ The repair joins console fire IDs to durable autonomy decision timestamps, then 
 
 ## Verdict
 
-Source checker repaired; fresh live scale-soak verification pending. This is a QA accounting defect, not evidence that the station duplicated work. The original failed receipt remains retained.
+Fresh ten-minute live 50-routine scale soak passed all rules after the checker repair; original failed receipt retained.

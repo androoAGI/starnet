@@ -16,11 +16,11 @@ export function fingerprint(value) {
 
 export function populatedFixture(nonce, updatedAt = Date.now()) {
   return {
-    schema: 'starnet.save', version: 5, updatedAt,
-    agent: { id: 'agent', name: 'CANARY NOVA', purpose: 'prove update continuity', canaryNonce: nonce },
+    schema: 'starnet.save', version: 6, updatedAt, prov: 'openrouter', reasoningEffort: 'none',
+    agent: { id: 'agent', name: 'CANARY NOVA', purpose: 'prove update continuity', canaryNonce: nonce, provider: 'openrouter', model: 'anthropic/claude-sonnet-4.6', reasoningEffort: 'none' },
     agents: [
-      { id: 'agent', name: 'CANARY NOVA', provider: 'replay', model: 'test/canary' },
-      { id: 'scout', name: 'CANARY SCOUT', provider: 'replay', model: 'test/canary-scout' }
+      { id: 'agent', name: 'CANARY NOVA', provider: 'openrouter', model: 'anthropic/claude-sonnet-4.6', reasoningEffort: 'none' },
+      { id: 'scout', name: 'CANARY SCOUT', provider: 'openrouter', model: 'anthropic/claude-sonnet-4.6', reasoningEffort: 'none' }
     ],
     station: { floor: 'grid', props: [{ id: 'canary-desk', kind: 'desk', x: 3, y: 4, agentId: 'scout' }] },
     workstreams: [{ id: 'canary-work', title: 'Update continuity', lane: 'active', history: [{ role: 'user', content: 'preserve-' + nonce }] }],

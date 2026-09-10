@@ -227,7 +227,13 @@ function installOld() {
 
 async function attachCanary() {
   for (let i = 0; i < 60; i++) {
-    try { return await connectCDP(CDP_PORT); } catch (_) { await sleep(500); }
+    let candidate;
+    try {
+      candidate = await connectCDP(CDP_PORT);
+      if (await evalJS(candidate, "location.origin==='http://tauri.localhost'&&typeof Updates!=='undefined'&&!!Updates.snapshot().currentVersion&&typeof App!=='undefined'")) return candidate;
+    } catch (_) { /* the new WebView may still be at about:blank */ }
+    try { candidate.ws.close(); } catch (_) {}
+    await sleep(500);
   }
   return null;
 }
@@ -235,9 +241,43 @@ async function attachCanary() {
 async function seedPopulatedState(cdp) {
   const nonce = randomUUID();
   const fixture = populatedFixture(nonce);
-  const source = `(async()=>{const save=${JSON.stringify(fixture)};const sentinel={nonce:${JSON.stringify(nonce)},purpose:'update-continuity'};localStorage.setItem('starnet.save',JSON.stringify(save));localStorage.setItem('starnet.canary.continuity',JSON.stringify(sentinel));const response=await fetch('/api/save',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(save)});const body=await response.json();if(!response.ok||!body||body.ok!==true)throw new Error('durable canary seed refused: '+JSON.stringify(body));return JSON.stringify({nonce});})()`;
+  const source = `(async()=>{
+    if(typeof CloudSave!=='undefined')await CloudSave.flush({force:true});
+    const priorResponse=await fetch('/api/save?agent=agent',{cache:'no-store'});
+    if(!priorResponse.ok)throw new Error('cannot read current canary revision');
+    const prior=await priorResponse.json();
+    const save=${JSON.stringify(fixture)};
+    save.version=Save.CURRENT;
+    const station=WorldModel.create(WorldModel.starterDoc());
+    station.ensureWorkstation('agent');station.ensureWorkstation('scout');
+    save.station=station.serialize();
+    save._saveRevision=Number(prior.save&&prior.save._saveRevision)||0;
+    const response=await fetch('/api/save',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(save)});
+    const body=await response.json();
+    if(!response.ok||!body||body.ok!==true)throw new Error('durable canary seed refused: '+JSON.stringify(body));
+    save._saveRevision=body.revision;save._saveDirty=false;save.updatedAt=body.updatedAt;
+    localStorage.setItem('starnet.save',JSON.stringify(save));
+    localStorage.setItem('starnet.canary.continuity',JSON.stringify({nonce:${JSON.stringify(nonce)},purpose:'update-continuity'}));
+    return true;
+  })()`;
   await evalJS(cdp, source);
-  return snapshotPopulatedState(cdp);
+  // Establish the before-state through a real boot of the old client. This lets
+  // normal save migration/normalization finish before measuring update continuity.
+  await cdp.send('Page.reload');
+  for (let i = 0; i < 60; i++) {
+    await sleep(500);
+    try {
+      if (await evalJS(cdp, "typeof App!=='undefined'&&App.crewCount()>=2&&typeof CloudSave!=='undefined'")) {
+        await evalJS(cdp, '(async()=>{App.persist();if(!await CloudSave.flush({force:true}))throw new Error("canary baseline save unconfirmed");return true})()');
+        const snapshot = await snapshotPopulatedState(cdp);
+        for (const save of [snapshot.local, snapshot.durable]) {
+          if (!save || save.agents?.length < 2 || !save.station?.props?.some(p => p.agentId === 'scout') || !save.workstreams?.some(w => w.history?.some(m => m.content === 'preserve-' + nonce)) || save.usage?.calls !== 2) throw new Error('canary population was not retained by the old client');
+        }
+        return snapshot;
+      }
+    } catch (_) { /* boot may still be replacing the execution context */ }
+  }
+  throw new Error('populated canary baseline did not boot and durably save');
 }
 
 async function snapshotPopulatedState(cdp) {
@@ -289,6 +329,7 @@ async function drive() {
   if (INJECT) fail('unknown failure injection "' + INJECT + '" (supported: prepare-failure)');
 
   log('driving Updates.install() — the app will exit, NSIS installs passively, then it relaunches …');
+  writeFileSync(join(DIR, 'before-update.json'), JSON.stringify({ startVersion, targetVersion: seen.update.version, beforeState }, null, 2) + '\n');
   // Fire-and-forget: the webview dies mid-install, so the eval may never return.
   evalJS(cdp, 'Updates.install()').catch(() => {});
 
@@ -330,6 +371,7 @@ async function drive() {
     relaunched, installedExeSha256: sha256File(INSTALLED_EXE)
   });
   const verdict = validateReceipt(receipt);
+  writeFileSync(join(DIR, 'update-attempt.json'), JSON.stringify({ receipt, validation: verdict }, null, 2) + '\n');
   if (!verdict.ok) fail('update receipt failed closed: ' + verdict.errors.join(', '));
   writeFileSync(RECEIPT_FILE, JSON.stringify(receipt, null, 2) + '\n');
   log('');

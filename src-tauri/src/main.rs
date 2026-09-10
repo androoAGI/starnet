@@ -52,6 +52,7 @@ use lifecycle_preferences::{
 /// only with the sidecar), the project root, and the live child.
 struct AppState {
     port: u16,
+    app_version: String,
     ipc_token: String,
     api_token: String,
     root: PathBuf,
@@ -1825,9 +1826,9 @@ fn sidecar_command(state: &AppState, entry: &Path, node: &Path) -> Command {
         .env("STARNET_MCP_STDIO", "0")
         // The packaged build's true version — computeVersionSurface() reads this first, so
         // /api/diagnostics reports the real build instead of "unknown" (the bundled sidecar
-        // has no src-tauri/tauri.conf.json to fall back to). CARGO_PKG_VERSION is the
-        // compile-time Cargo.toml version, kept in lockstep with tauri.conf.json by release-bump.
-        .env("STARNET_APP_VERSION", env!("CARGO_PKG_VERSION"))
+        // has no src-tauri/tauri.conf.json to fall back to). Use the same resolved
+        // package version as BuildInfo and the updater, including canary overlays.
+        .env("STARNET_APP_VERSION", &state.app_version)
         // The exact source this desktop was compiled from (build.rs → `git describe --always --dirty --tags`,
         // e.g. "v0.4.1" clean or "v0.4.1-32-g8b5aae04-dirty"). Exported so the bundled sidecar can surface the
         // real build provenance at /api/version — a packaged app has no .git to derive it from at runtime.
@@ -3945,6 +3946,7 @@ fn main() {
             migrate_credits_token_from_plaintext(&workspaces);
             let state = AppState {
                 port,
+                app_version: app.package_info().version.to_string(),
                 ipc_token,
                 api_token: api_token.clone(),
                 root,
