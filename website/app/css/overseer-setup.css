@@ -80,19 +80,19 @@
 #screen-connect .prov-grid .prov { display:flex; min-width:0; align-items:center; gap:11px; padding:12px; min-height:60px; text-align:left; text-transform:none; letter-spacing:0; background:var(--ov-well); border:1px solid var(--gd-edge); border-radius:8px; box-shadow:inset 0 1px 0 var(--gd-light); }
 #screen-connect .ov-provider-logo { flex:0 0 26px; width:26px; height:26px; background:currentColor; mask:var(--provider-icon) center/contain no-repeat; }
 #screen-connect .ov-provider-label { display:flex; flex-direction:column; gap:5px; min-width:0; font-size:17px; line-height:1.1; overflow-wrap:anywhere; }
-#screen-connect .ov-provider-label small { font-size:12px; line-height:1.25; color:var(--text); opacity:.65; }
+#screen-connect .ov-provider-label small { font-size:13px; line-height:1.25; color:var(--text); opacity:.78; }
 #screen-connect #prov-more { display:none; }
 #screen-connect .prov-byok-lab { padding:0; margin:20px 0 12px; font-size:14px; letter-spacing:0; text-transform:none; text-align:left; color:var(--text); opacity:.75; }
 @property --ov-border-angle { syntax:'<angle>'; initial-value:0deg; inherits:false; }
 #screen-connect .prov-hero { position:relative; isolation:isolate; display:block; width:100%; overflow:hidden; padding:22px; border:1px solid var(--gd-edge); border-radius:12px; background:var(--gd-face); text-align:left; box-shadow:var(--gd-shadow); }
 #screen-connect .prov-hero::before { content:''; position:absolute; inset:0; padding:2px; border-radius:inherit; pointer-events:none; background:conic-gradient(from var(--ov-border-angle),transparent 0deg 265deg,rgba(var(--ph-rgb),.25) 300deg,var(--ph-bright) 340deg,transparent 360deg); mask:linear-gradient(#fff 0 0) content-box,linear-gradient(#fff 0 0); mask-composite:exclude; animation:ov-orbit calc(var(--t-slow)*18) linear infinite; }
 #screen-connect .prov-hero::after { display:none; }
-#screen-connect .prov-hero-brand { display:flex; align-items:center; justify-content:space-between; gap:16px; margin-bottom:18px; }
-#screen-connect .prov-hero-brand .ov-wordmark { width:110px; height:19px; flex-shrink:0; }
-#screen-connect .prov-hero-badge { font-size:11px; letter-spacing:.6px; margin:0; color:var(--ph-dim); text-align:right; }
-#screen-connect .prov-hero-row { gap:20px; justify-content:space-between; align-items:center; }
-#screen-connect .prov-hero-title { display:block; line-height:1.2; font-size:26px; letter-spacing:0; text-transform:none; }
-#screen-connect .prov-hero-sub { display:block; font-size:15px; line-height:1.4; margin-top:7px; color:var(--text); opacity:.75; }
+#screen-connect .prov-hero-badge { position:absolute; top:24px; right:24px; font-size:11px; letter-spacing:.7px; margin:0; color:var(--ph-dim); text-align:right; }
+#screen-connect .prov-hero-row { padding-top:1px; gap:20px; justify-content:space-between; align-items:center; }
+#screen-connect .prov-hero-title { display:flex; flex-direction:column; align-items:flex-start; gap:12px; line-height:1; }
+#screen-connect .prov-hero-prefix { font-size:13px; letter-spacing:1.8px; color:var(--text); opacity:.8; }
+#screen-connect .prov-hero-title .ov-wordmark { width:210px; height:36px; max-width:100%; }
+#screen-connect .prov-hero-sub { display:block; font-size:15px; line-height:1.4; margin-top:14px; color:var(--text); opacity:.8; }
 #screen-connect .prov-hero-arrow { display:grid; place-items:center; flex:0 0 36px; width:36px; height:36px; border:1px solid var(--gd-edge); border-radius:7px; font-size:22px; color:var(--ph-bright); background:var(--ov-well); }
 #screen-connect[data-connection='open'] :is(.provider-row,#ov-provider-intro) { display:none; }
 #screen-connect .ov-connection { margin:0; padding:0; border:0; background:none; }
@@ -163,3 +163,5 @@
 #screen-connect .ov-field > label { line-height:1.2; }
 #screen-connect .ov-field > label .dim { line-height:1.3; }
 #screen-connect #ov-identity .ov-help { font-size:13px; }
+
+@media(max-width:720px) { #screen-connect .prov-hero-badge { display:none; } #screen-connect .prov-hero-title .ov-wordmark { width:180px; height:31px; } }

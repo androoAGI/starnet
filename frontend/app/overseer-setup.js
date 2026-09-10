@@ -15,6 +15,13 @@ window.OverseerSetup = (() => {
   function reflectProvider(provider) {
     const title = el('ov-connection-title');
     if (title) title.textContent = provider === 'starnet' ? 'Your StarNet account' : (providers[provider]?.[0] || 'Provider');
+    const help = el('ov-connection-help');
+    if (help) help.textContent = provider === 'starnet' ? 'Confirm your account in the browser, then choose a model.'
+      : provider === 'ollama' ? 'Choose a model installed on this computer.'
+      : provider === 'custom' ? 'Enter your endpoint, then choose or enter a model ID.'
+      : provider === 'openai' ? 'Sign in with ChatGPT or add an OpenAI API key.'
+      : ['grok','kimi','codex'].includes(provider) ? 'Sign in, then choose a model from your account.'
+      : 'Add your provider’s API key, then choose a model.';
     const logo = el('ov-connection-logo');
     if (logo) {
       logo.classList.toggle('ov-starnet-logo', provider === 'starnet');
