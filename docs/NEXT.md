@@ -15,23 +15,6 @@ scopes and remaining installed/account/soak acceptance in `docs/AUDIT_0.11.1_FOR
 
 # NEXT.md — current priorities & task queue
 
-## VERIFIED BRANCH — 2026-09-10 Discover organization (agent/discover-connect-0910)
-
-Owner requested popular platforms first and clearer connection setup. Discover now moves
-curated, actionable services into Popular without duplicating cards; deferred Google entries
-remain in their category. Cards disclose setup requirements, key connectors show inline
-instructions, and platform API setup opens a prefilled form with vendor instructions and
-three steps. Changing the platform name clears the contextual guide.
-
-Live seeded UI on :9238: Popular showed Notion, GitHub, Canva, Linear, Stripe, Asana and
-ClickUp; SIGN IN reduced its count to five. Search for Printify reset the filter and opened
-the visible guided form with https://developers.printify.com/ and the correct platform name.
-GitHub revealed inline key instructions; renaming the platform hid stale guidance. No browser
-errors or white control backgrounds were observed. Connector UI regression: 149 assertions.
-Full fast gate: 752/752 green on c1207bdda; generated website demo matches the frontend.
-Live catalog also contained 102 distinct card IDs and zero disabled Popular actions.
-Source changes: 4e1d06c00; mechanical source lock: 147a9e67b; demo sync: c1207bdda.
-Branch is not merged. Real provider authorization and installed-app behavior are unverified.
 ## IMPLEMENTED — skin-motion-0910: movement stutter
 
 Source repair 75a814c18 holds look-back facing and removes empty waypoint frames for hero, idle crew and workstation crew. Live hero/crew checks passed; behavior regression 15/15 and customer journeys 34/34 passed. Receipt: qa/movement-continuity-0910.md. Full integration gate is recorded in qa/STATUS.md.
@@ -3407,13 +3390,3 @@ ceiling; and installed-exe smoke is truthfully BLOCKED because no exact candidat
 and no installed candidate was listening on CDP. `qa:ready` must remain NOT READY until those receipts are
 green. No production account, valid third-party credential, merge to trunk, push, PR, deployment, or
 publication was performed.
-
-### 2026-09-10 — GitHub device sign-in (discover-connect-0910)
-
-Registered StarNet OAuth App under androoAGI: https://github.com/settings/applications/3848711.
-Device flow is enabled; the public client ID is bundled in sidecar/mcp/github-device.js. No client secret was generated.
-GitHub now offers Sign in with GitHub in Popular, a visible code dialog, cancel, and a token fallback.
-Polling enforces provider intervals and expiry, protects changed connections, verifies account identity, and persists before activation.
-Validation on d61779647: test:fast 753/753; test:http 109/109. The injected-provider HTTP test proves cancellation, protected token storage, live MCP handshake, and reconnection after restart.
-Live preview on :9238: real GitHub code issuance and the StarNet consent screen verified; centered dialog and cancellation verified. Real repository authorization was not approved and a real GitHub tool call remains unverified.
-Isolated branch only: no integration merge, push, or release. Existing Discover work remains in the same branch.
