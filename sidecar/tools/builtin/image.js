@@ -314,7 +314,11 @@
           // An acknowledged cancel cannot interleave between this fence and the rename/event.
           require('node:fs').renameSync(staging, abs);
           emitDeliverable(ctx, aid, rel);
-        } finally { await fsp.unlink(staging).catch(() => {}); }
+        } finally {
+          await fsp.unlink(staging).catch(e => {
+            if (!e || e.code !== 'ENOENT') require('../../failopen.js').note('image.staging-cleanup', e);
+          });
+        }
         const viewer = '/api/file?agent=' + encodeURIComponent(aid) + '&path=' + encodeURIComponent(rel);
         const caption = textFromResponse(data);
         const kb = (buffer.length / 1024).toFixed(0) + ' KB';

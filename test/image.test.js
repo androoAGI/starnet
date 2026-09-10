@@ -278,6 +278,19 @@ function jsonResp(obj, status) { return { status: status || 200, json: async () 
     A.eq(bills.length, phase === 'before' ? 0 : 1, phase + ': received charge retained once despite cancellation');
     if (phase === 'before') A.eq(fetched, 0, 'already cancelled dispatch makes no paid request');
   }
+  // Unexpected cleanup failures stay observable without turning a published image into a failed run.
+  {
+    const failopen = require('../sidecar/failopen.js');
+    const before = failopen.counts()['image.staging-cleanup'] || 0;
+    const injectedFs = Object.assign({}, fsp, { unlink: async () => { throw Object.assign(new Error('fixture cleanup denied'), { code: 'EACCES' }); } });
+    const tools = makeImageTools({ openrouter: { apiKey: 'fixture' }, fsp: injectedFs, pathMod: path, root: ROOT,
+      fetchImpl: async () => jsonResp({ choices: [{ message: { images: [{ image_url: { url: DATA_URL } }] } }] }) });
+    const delivered = [];
+    const result = await tools.generateTool.run({ prompt: 'cube', path: 'cleanup-proof.png' }, { agentId: 'cleanup', emit: (...args) => delivered.push(args) });
+    A.ok(/cleanup-proof.png/.test(result.content), 'cleanup diagnostic preserves a successfully published result');
+    A.eq(delivered.length, 1, 'cleanup diagnostic does not duplicate the deliverable');
+    A.eq(failopen.counts()['image.staging-cleanup'], before + 1, 'unexpected staging cleanup error is counted');
+  }
   try { await fsp.rm(ROOT, { recursive: true, force: true }); } catch (_) {}
   A.report('image.test');
 })().catch(e => { console.log('FATAL', e && e.stack || e); process.exit(1); });
