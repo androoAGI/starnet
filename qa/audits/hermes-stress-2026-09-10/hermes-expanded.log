@@ -1,0 +1,15 @@
+........................................................................ [ 50%]
+......................................................................   [100%]
+============================== warnings summary ===============================
+tests/gateway/test_api_server.py: 53 warnings
+  C:\Users\andro\gen-trees\hermes-stress-0910\.audit\hermes\tests\gateway\test_api_server.py:306: NotAppKeyWarning: It is recommended to use web.AppKey instances for keys.
+  https://docs.aiohttp.org/en/stable/web_advanced.html#application-s-config
+    app["api_server_adapter"] = adapter
+
+tests/gateway/test_api_server.py::TestPlatformEventCallbackEndpoint::test_rejects_invalid_google_chat_auth
+  C:\Users\andro\gen-trees\hermes-stress-0910\.audit\hermes\tests\gateway\test_api_server.py:1909: NotAppKeyWarning: It is recommended to use web.AppKey instances for keys.
+  https://docs.aiohttp.org/en/stable/web_advanced.html#application-s-config
+    app["platform_event_adapters"] = {
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+142 passed, 54 warnings in 124.93s (0:02:04)

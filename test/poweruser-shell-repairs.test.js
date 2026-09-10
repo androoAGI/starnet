@@ -18,7 +18,7 @@ A.ok(!/StationUI\.notify\(agent\.name \+ ' is online/.test(app),
   'PL-02: resume/reload does not mint another persistent online notification');
 A.ok(/aria-label="Turn ' \+ \(s\.enabled \? 'off' : 'on'\) \+ ' ' \+ esc\(s\.name\)/.test(ui),
   'PL-04: each skill switch names its skill');
-A.ok(/aria-label="Read the ' \+ esc\(s\.name\) \+ ' recipe"/.test(ui),
+A.ok(/aria-label="Read instructions for ' \+ esc\(s\.name\)/.test(ui),
   'PL-04: each skill disclosure names its skill');
 A.ok(/function setSearchContext\(/.test(ui) && /con-sec-nomatch\s*\{\s*display:\s*none/.test(appCss),
   'PL-07: settings search highlights a matching section and hides irrelevant headings');

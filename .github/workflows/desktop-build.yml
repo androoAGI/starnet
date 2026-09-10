@@ -187,9 +187,9 @@ jobs:
           fi
           if [ -z "$TAURI_SIGNING_PRIVATE_KEY" ]; then
             echo "::notice::no updater signing key in secrets — building installers without updater artifacts"
-            npm run tauri -- build --bundles ${{ matrix.bundles }} ${RUST_TARGET:+--target $RUST_TARGET} --config '{"bundle":{"createUpdaterArtifacts":false}}' ${SIGN_CFG:+--config "$SIGN_CFG"}
+            npm run tauri -- build --verbose --bundles ${{ matrix.bundles }} ${RUST_TARGET:+--target $RUST_TARGET} --config '{"bundle":{"createUpdaterArtifacts":false}}' ${SIGN_CFG:+--config "$SIGN_CFG"}
           else
-            npm run tauri -- build --bundles ${{ matrix.bundles }} ${RUST_TARGET:+--target $RUST_TARGET} ${SIGN_CFG:+--config "$SIGN_CFG"}
+            npm run tauri -- build --verbose --bundles ${{ matrix.bundles }} ${RUST_TARGET:+--target $RUST_TARGET} ${SIGN_CFG:+--config "$SIGN_CFG"}
           fi
 
       - name: Submit macOS DMG for asynchronous notarization

@@ -53,9 +53,9 @@ function pressedState() {
   }));
 }
 
-const chapters = ['FIRST MISSION', 'CONTROLS', 'CREW', 'GEAR', 'LINES', 'PROGRESS', 'HELP'];
+const chapters = ['FIRST MISSION', 'CONNECT PLATFORMS', 'CONTROLS', 'CREW', 'GEAR', 'LINES', 'PROGRESS', 'HELP'];
 const expected = active => chapters.map((title, i) => ({
-  text: String(i + 1).padStart(2, '0') + ' · ' + title,
+  text: title,
   pressed: title === active ? 'true' : 'false'
 }));
 A.eq(pressedState(), expected('FIRST MISSION'), 'the initial visual section is the sole pressed button');

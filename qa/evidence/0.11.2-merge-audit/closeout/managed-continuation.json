@@ -1,0 +1,28 @@
+{
+  "at": "2026-09-10T21:47:45.995Z",
+  "scope": "Actual deployed gateway and real provider with isolated in-memory account; no customer ledger mutation.",
+  "results": [
+    {
+      "tailRole": "system",
+      "status": 400,
+      "requestId": "b2eaf975-7342-4d82-bb7a-6881a055ddd8",
+      "error": "Provider returned error",
+      "errorRequestMatched": true,
+      "text": null,
+      "cost": null,
+      "balanceDelta": 0,
+      "runLinked": false
+    },
+    {
+      "tailRole": "user",
+      "status": 200,
+      "requestId": "ee918d43-58f7-4f86-b02d-22fd63a5e072",
+      "error": null,
+      "errorRequestMatched": null,
+      "text": "The source code was read back but not executed — I can only analyze it statically, not run it.",
+      "cost": 0.000683,
+      "balanceDelta": 0.000683,
+      "runLinked": true
+    }
+  ]
+}

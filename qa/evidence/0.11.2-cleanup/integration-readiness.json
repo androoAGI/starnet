@@ -1,0 +1,92 @@
+{
+  "ready": false,
+  "reasons": [
+    "1. Ledger open P0/P1: 4 open blocking findings (1 P0 · 3 P1) — the ledger must be clear of P0/P1",
+    "2. Bug register open P0/P1: 7 open blocking bugs (0 P0 Â· 7 P1) â€” qa/bugs must be clear of P0/P1",
+    "3. Green Guardian last cycle: last guardian cycle was RED",
+    "4. Beginner Run last result: Beginner Run did not run on the exact current trunk (ed768880 vs 2aa8305c)",
+    "5. Installed-exe smoke: installed app unverified — tested binary source does not equal current trunk"
+  ],
+  "failing": [
+    "ledger",
+    "bugs",
+    "guardian",
+    "beginner",
+    "installed"
+  ],
+  "checks": [
+    {
+      "id": "ledger",
+      "label": "Ledger open P0/P1",
+      "ok": false,
+      "reason": "4 open blocking findings (1 P0 · 3 P1) — the ledger must be clear of P0/P1",
+      "receipt": {
+        "artifact": "qa/findings/ (via ledger.mjs)",
+        "stamp": "",
+        "value": "1 P0 · 3 P1 · 607 P2"
+      }
+    },
+    {
+      "id": "bugs",
+      "label": "Bug register open P0/P1",
+      "ok": false,
+      "reason": "7 open blocking bugs (0 P0 Â· 7 P1) â€” qa/bugs must be clear of P0/P1",
+      "receipt": {
+        "artifact": "qa/bugs/ (via bugs.mjs)",
+        "stamp": "",
+        "value": "0 P0 Â· 7 P1 Â· 0 P2"
+      }
+    },
+    {
+      "id": "guardian",
+      "label": "Green Guardian last cycle",
+      "ok": false,
+      "reason": "last guardian cycle was RED",
+      "receipt": {
+        "artifact": "qa/guardian-last-cycle.json",
+        "stamp": "2026-09-10T04:13:25.871Z",
+        "value": "RED · ran[test-fast,http-e2e,saboteur,shoot,golden,audit,journeys] · @2aa8305c"
+      }
+    },
+    {
+      "id": "journeys",
+      "label": "Journey corps last run",
+      "ok": true,
+      "reason": "PASS, 14m old",
+      "receipt": {
+        "artifact": "qa/journeys-last-run.json",
+        "stamp": "2026-09-10T04:13:25.452Z",
+        "value": "PASS · 139/139 assertions"
+      }
+    },
+    {
+      "id": "beginner",
+      "label": "Beginner Run last result",
+      "ok": false,
+      "reason": "Beginner Run did not run on the exact current trunk (ed768880 vs 2aa8305c)",
+      "receipt": {
+        "artifact": "qa/beginner-last-run.json",
+        "stamp": "2026-09-09T13:02:19.453Z",
+        "value": "PASS · ui-only · 136261ms"
+      }
+    },
+    {
+      "id": "installed",
+      "label": "Installed-exe smoke",
+      "ok": false,
+      "reason": "installed app unverified — tested binary source does not equal current trunk",
+      "receipt": {
+        "artifact": "[object Object]",
+        "stamp": "2026-09-07T19:04:35.579Z",
+        "value": "GREEN · v0.11.0 · @58dc520d · reproducible-source · desktop"
+      }
+    }
+  ],
+  "generatedAt": "2026-09-10T04:27:20.523Z",
+  "trunk": {
+    "branch": "feat/harness-backend",
+    "head": "2aa8305c090912257e6c22d41d554f7a787d781f",
+    "guardianDrift": 0,
+    "driftError": null
+  }
+}

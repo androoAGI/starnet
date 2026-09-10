@@ -1,0 +1,86 @@
+{
+  "recordedAt": "2026-09-10T07:42:17.525014+00:00",
+  "testedSource": "695f19232b8d3ab5f36554ca737ff378eb220b27",
+  "integratedSource": "695f19232b8d3ab5f36554ca737ff378eb220b27",
+  "previousTrunk": "e80acf63d222412d50ad2a1c91a187a17265d3e0",
+  "integration": "fast-forward to exact fully tested commit",
+  "fast": {
+    "command": "npm run test:fast",
+    "exitCode": 0,
+    "stepsPassed": 760
+  },
+  "http": {
+    "command": "npm run test:http",
+    "exitCode": 0,
+    "stepsPassed": 110
+  },
+  "includedTrunkMerges": [
+    "3bd3001cab4d940cb0bc225b364e313c0eda8930",
+    "e80acf63d222412d50ad2a1c91a187a17265d3e0"
+  ],
+  "dependencyVersionMismatches": 0,
+  "logs": [
+    {
+      "path": "C:\\Users\\andro\\gen-trees\\cleanup-0112-0910\\.dogfood\\merge-candidate-fast.log",
+      "sha256": "3b79006c684c0e33bcf6e901f5ccdb09d174c707d0793b70c2c62c8bf382e25b",
+      "bytes": 51872,
+      "status": "PASS",
+      "note": "754 steps; earlier candidate cde38c943"
+    },
+    {
+      "path": "C:\\Users\\andro\\gen-trees\\cleanup-0112-0910\\.dogfood\\merge-candidate-http.log",
+      "sha256": "be105c15cced31704c6c82810d3c7e0d6472b83b521164d623549ebe8f63d222",
+      "bytes": 6648,
+      "status": "INTERRUPTED",
+      "note": "Superseded by new backend trunk merge"
+    },
+    {
+      "path": "C:\\Users\\andro\\gen-trees\\cleanup-0112-0910\\.dogfood\\merge-combined-fast.log",
+      "sha256": "741a0c44abc70b822021e79ae078d44932639363fcc8c40d4b3bc4d682ae3418",
+      "bytes": 17118,
+      "status": "FAIL",
+      "note": "Voice fixture host-timer race; subsequently repaired in 26c3ff97c"
+    },
+    {
+      "path": "C:\\Users\\andro\\gen-trees\\cleanup-0112-0910\\.dogfood\\merge-combined-final-fast.log",
+      "sha256": "5c0f36605f6fdd82609b077278644ae9ae1afc661492b4a858c85a389521a533",
+      "bytes": 10785,
+      "status": "INTERRUPTED",
+      "note": "Superseded by movement continuity trunk merge"
+    },
+    {
+      "path": "C:\\Users\\andro\\gen-trees\\cleanup-0112-0910\\.dogfood\\merge-current-fast.log",
+      "sha256": "374b0f90ee92d81b67cdbd615c989c2588a8aa29e7846f3603ffcc0307aca746",
+      "bytes": 52709,
+      "status": "PASS",
+      "note": "760 steps on exact final source"
+    },
+    {
+      "path": "C:\\Users\\andro\\gen-trees\\cleanup-0112-0910\\.dogfood\\merge-current-http.log",
+      "sha256": "a964d47ddcf98b182073f026eacb7f885dbf7f3ed928d742e0fde7732869d61c",
+      "bytes": 8980,
+      "status": "FAIL",
+      "note": "Servicekeys fixture readiness deadline at step84/110; no service-key assertions ran"
+    },
+    {
+      "path": "C:\\Users\\andro\\gen-trees\\cleanup-0112-0910\\.dogfood\\merge-servicekeys-isolated.log",
+      "sha256": "d3a8f705ffb6140b80ba286a1fd4907a7ff1f0fd02f036d9878d270229f6ecab",
+      "bytes": 43,
+      "status": "PASS",
+      "note": "38 assertions; unchanged fixture"
+    },
+    {
+      "path": "C:\\Users\\andro\\gen-trees\\cleanup-0112-0910\\.dogfood\\merge-current-http-retry.log",
+      "sha256": "e01b1f874ab797f9598f2f794ca4822863a154a69e07dde5825f5b2a5bcc0c16",
+      "bytes": 11502,
+      "status": "PASS",
+      "note": "Complete normal HTTP gate; 110 steps on exact final source"
+    }
+  ],
+  "limitations": [
+    "No installed-update or affected-account recovery claim",
+    "No new publication",
+    "Existing customer, hardware and release-soak acceptance remains open"
+  ],
+  "preservation": "Original integration QA bytes retained as prefix plus cleanup digest; Rooms handoff hash unchanged; backup stash retained until reconciliation verified"
+}

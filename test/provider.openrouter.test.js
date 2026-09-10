@@ -354,5 +354,32 @@ async function collect(provider, req) { const out = []; for await (const e of pr
     A.eq(gpt.messages[0].content, 'S', 'stream() leaves the system content a plain string for non-anthropic');
   }
 
+  // A host continuation must stay after the assistant answer. OpenRouter hoists
+  // system messages for Claude; a trailing assistant then becomes forbidden prefill.
+  {
+    const messages = [
+      { role: 'system', content: 'Primary policy' },
+      { role: 'system', content: 'Tool policy' },
+      { role: 'user', content: 'Write a file' },
+      { role: 'assistant', content: 'Written and read back.' },
+      { role: 'system', content: '<verify_before_done>Run the authorized check.</verify_before_done>' }
+    ];
+    const original = JSON.stringify(messages);
+    for (const model of ['anthropic/claude-sonnet-4.6', 'anthropic/claude-sonnet-5', 'openai/gpt-4o']) {
+      let body;
+      const fetch = async (url, opts) => {
+        if (!url.endsWith('/chat/completions')) return new Response('{"data":[]}');
+        body = JSON.parse(opts.body);
+        return new Response('data: [DONE]\n\n');
+      };
+      await collect(makeOpenRouterProvider({ fetch, key: 'k' }), { model, messages });
+      const claude = model.startsWith('anthropic/');
+      A.eq(body.messages.map(m => m.role), ['system', 'system', 'user', 'assistant', claude ? 'user' : 'system'], model + ': leading policy preserved and continuation remains a conversation turn');
+      const tail = body.messages.at(-1).content;
+      A.eq(typeof tail === 'string' ? tail : tail[0].text, messages.at(-1).content, model + ': continuation bytes preserved');
+    }
+    A.eq(JSON.stringify(messages), original, 'provider translation never rewrites durable loop history');
+  }
+
   A.report('provider.openrouter.test');
 })();

@@ -1,0 +1,108 @@
+{
+  "port": "8940",
+  "url": "http://127.0.0.1:8940/",
+  "capturedAt": "2026-09-10T22:29:13.843Z",
+  "states": [
+    {
+      "name": "ingame",
+      "kb": 1309,
+      "driveResult": "reset",
+      "ok": true
+    },
+    {
+      "name": "crew-agents",
+      "kb": 1070,
+      "driveResult": "opened:AGENTS:portrait-ready",
+      "ok": true
+    },
+    {
+      "name": "crew-recruit",
+      "kb": 941,
+      "driveResult": "opened:RECRUIT",
+      "ok": true
+    },
+    {
+      "name": "crew-commander",
+      "kb": 1083,
+      "driveResult": "opened:COMMANDER",
+      "ok": true
+    },
+    {
+      "name": "work-tasks",
+      "kb": 1004,
+      "driveResult": "opened:TASKS",
+      "ok": true
+    },
+    {
+      "name": "work-deliverables",
+      "kb": 1037,
+      "driveResult": "opened:DELIVERABLES",
+      "ok": true
+    },
+    {
+      "name": "work-recipes",
+      "kb": 935,
+      "driveResult": "opened:RECIPES",
+      "ok": true
+    },
+    {
+      "name": "work-automation",
+      "kb": 1039,
+      "driveResult": "opened:AUTOMATION",
+      "ok": true
+    },
+    {
+      "name": "work-quests",
+      "kb": 1008,
+      "driveResult": "opened:QUESTS:refresh-fixture-settled",
+      "ok": true
+    },
+    {
+      "name": "build-station",
+      "kb": 795,
+      "driveResult": "opened:REFIT STATION",
+      "ok": true
+    },
+    {
+      "name": "build-connectors",
+      "kb": 1067,
+      "driveResult": "opened:ABILITIES",
+      "ok": true
+    },
+    {
+      "name": "sys-messaging",
+      "kb": 1033,
+      "driveResult": "opened:CHANNELS",
+      "ok": true
+    },
+    {
+      "name": "build-manual",
+      "kb": 1028,
+      "driveResult": "opened:FIELD MANUAL",
+      "ok": true
+    },
+    {
+      "name": "sys-settings",
+      "kb": 1125,
+      "driveResult": "opened:SETTINGS:provider-health-settled",
+      "ok": true
+    },
+    {
+      "name": "sys-updates",
+      "kb": 993,
+      "driveResult": "opened:UPDATES",
+      "ok": true
+    },
+    {
+      "name": "sys-notifs",
+      "kb": 1067,
+      "driveResult": "opened:NOTIFS",
+      "ok": true
+    }
+  ],
+  "ready": true,
+  "dev": true,
+  "activeScreen": "screen-game",
+  "console": [],
+  "exceptions": []
+}

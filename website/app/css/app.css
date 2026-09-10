@@ -490,11 +490,14 @@ input[type=file]::file-selector-button:hover { border-color: var(--ph); backgrou
   background: var(--bg);
   box-shadow: 0 0 0 calc(2px * var(--cz)) var(--ph), 0 0 0 calc(3.5px * var(--cz)) rgba(0,0,0,.9), inset 0 0 var(--tube-inset) rgba(0,0,0,.9);
 }
-/* Keep the approved room colour grade independent of the UI phosphor theme.
-   The custom theme's --cam-grade desaturates the entire feed (0.72 vs 1.06),
+/* Keep the live world and REFIT on the same approved room colour grade,
+   independent of the UI phosphor theme.
+   The custom theme's --cam-grade desaturates the entire feed,
    making identical room lighting look dull after opening a saved custom theme.
-   Brightness presets still control room exposure through StationBake.LIGHT. */
-#stage { display: block; width: 100%; height: 100%; image-rendering: pixelated; filter: saturate(1.06) contrast(1.1) brightness(0.94); }
+   A modest colour boost and gentler contrast keep the softer grain clear while
+   preserving dark exposure. Brightness presets still use StationBake.LIGHT. */
+.refit-canvas,
+#stage { display: block; width: 100%; height: 100%; image-rendering: pixelated; filter: saturate(1.14) contrast(1.08) brightness(0.94); }
 
 /* KEYLESS-BRAIN CTA — the honest standing banner shown after an awakening that finished with no key.
    Sits low-center over the feed, above the cam HUD (z3) so it reads clearly; the world stays visible behind
@@ -1553,9 +1556,26 @@ body.no-curve #stage-wrap::before { background: none; box-shadow: none; }
 }
 .model-dock-search:focus { border-color: var(--ph); box-shadow: inset 0 2px 5px rgba(0,0,0,.5), 0 0 9px var(--ph-glow2); }
 .model-dock-search::placeholder { color: var(--ph-dim); opacity: 1; }
-.model-dock-efforts {
-  display: grid; grid-template-columns: repeat(auto-fit, minmax(42px, 1fr)); gap: 4px;
+.model-dock-efforts { display: flex; flex-direction: column; gap: 4px; flex-shrink: 0; min-width: 0; }
+.model-dock-presets,.model-dock-exact { display: flex; flex-wrap: wrap; gap: 3px; }
+.model-dock-presets .model-dock-effort { flex: 1 1 56px; }
+.model-dock-exact .model-dock-effort { flex: 1 1 32px; }
+.model-dock-advanced { min-width: 0; }
+.model-dock-advanced summary {
+  display: flex; align-items: center; gap: 7px; list-style: none; cursor: pointer; padding: 4px 3px;
+  font: inherit; font-size: 14px; line-height: 1.2; letter-spacing: .3px; color: var(--ph-dim); border-radius: 2px;
 }
+.model-dock-advanced summary::-webkit-details-marker { display: none; }
+.model-dock-advanced summary::before {
+  content: ''; width: 4px; height: 4px; border-right: 1px solid currentColor; border-bottom: 1px solid currentColor;
+  transform: rotate(-45deg); margin: 0 3px 0 1px;
+}
+.model-dock-advanced[open] summary::before { transform: rotate(45deg); margin-top: -3px; }
+.model-dock-advanced summary:hover { color: var(--ph-bright); background: var(--ph-faint); }
+.model-dock-advanced summary:focus-visible { outline: 1px solid var(--ph-bright); outline-offset: -1px; }
+.model-dock-exact-value { margin-left: auto; color: var(--ph); }
+.model-dock-exact { margin-top: 3px; }
+.model-dock-reasoning-note { padding: 4px 2px; font-size: 16px; line-height: 1.25; color: var(--ph-dim); }
 .model-dock-effort {
   min-width: 0; height: 28px; padding: 0 3px; cursor: pointer;
   color: var(--ph); background: transparent; border: 1px solid var(--ph-dim);
@@ -1592,30 +1612,17 @@ body.no-curve #stage-wrap::before { background: none; box-shadow: none; }
 .model-dock-empty {   /* dim grade + size via the grouped empty rule (motion.css) */
   padding: 18px 6px; text-align: center;
 }
-/* inline no-key warning inside the dock — one tap opens SETTINGS. Only rendered when the active provider
-   truly has no stored credential (truthful telemetry), so it can't lie about a connection that exists. */
-.model-dock-keywarn {
-  width: 100%; display: flex; gap: 7px; align-items: flex-start; text-align: left; cursor: pointer;
-  margin: 2px 0 6px; padding: 7px 8px; font: inherit; font-size: 12px; line-height: 1.35;
-  color: var(--warn); background: color-mix(in srgb, var(--warn) 12%, transparent);
-  border: 1px solid var(--warn); border-radius: 3px;
-}
-.model-dock-keywarn:hover { background: color-mix(in srgb, var(--warn) 22%, transparent); }
-.model-dock-keywarn .mdw-glyph { flex: 0 0 auto; }
-.model-dock-keywarn .mdw-txt { min-width: 0; }
-/* resting chip flags a missing key by burning warn-amber so it's noticeable before the dock is even opened */
-.model-dock-toggle.needs-key { color: var(--warn); text-shadow: 0 0 6px color-mix(in srgb, var(--warn) 50%, transparent); }
-.model-dock-toggle.needs-key .model-dock-model-name { color: var(--warn); }
 .model-dock-foot {
-  display: grid; grid-template-columns: 1fr 1fr; gap: 6px;
+  display: grid; grid-template-columns: auto minmax(0,1fr); gap: 6px;
 }
-.model-dock-foot button {
+.model-dock-foot :is(button,a) {
+  display: flex; align-items: center; justify-content: center; gap: 6px; text-decoration: none; text-align: center;
   min-width: 0; padding: 7px 5px; cursor: pointer;
   color: var(--ph); background: linear-gradient(180deg, color-mix(in srgb, var(--ph) 7%, var(--panel2)), var(--panel2));
   border: 1px solid var(--ph-dim);
   box-shadow: inset 0 1px 0 rgba(var(--ph-rgb),.1), 0 1px 0 rgba(0,0,0,.35);
   border-radius: 4px; font: inherit; font-size: 11px;}
-.model-dock-foot button:hover { color: var(--ph-bright); border-color: var(--ph); background: var(--ph-faint); }
+.model-dock-foot :is(button,a):hover { color: var(--ph-bright); border-color: var(--ph); background: var(--ph-faint); }
 
 @media (max-width: 780px) {
   .model-dock-toggle { width: auto; min-width: 44px; max-width: 118px; padding: 0 5px; gap: 3px; }
@@ -2887,6 +2894,8 @@ body:not(.no-flicker) #screen-game.active { animation: flick 7s infinite; }
    Rhythm survives every palette, and this is the one state on a fail-closed deny timer — so the
    more urgent beat is honest rather than decorative. */
 .ws-dot.needsyou { background: var(--gold); animation: wsPulseUrgent .72s ease-in-out infinite; }
+.ws-dot.connecting { background: transparent; border: 1px dashed var(--ph-dim); animation: none; }
+.ws-dot.failed { background: var(--bad); animation: none; box-shadow: none; }
 @keyframes wsPulseUrgent {
   0%, 100% { opacity: 1; box-shadow: 0 0 8px rgba(var(--gold-rgb), .7); }
   50% { opacity: .18; box-shadow: 0 0 2px rgba(var(--gold-rgb), .3); }
@@ -5788,6 +5797,17 @@ button:disabled, select:disabled, input:disabled, textarea:disabled {
 .gx-quests .q-deferred { margin: 12px 0; }
 .gx-quests .q-life-quest .consent-btns { flex-wrap: wrap; }
 
+/* The station and its interface share one restrained glass treatment. Canvas
+   already draws its own fine scanlines; avoid a second dominant grille. */
+body:has(#screen-game.active)::after { opacity: .62; }
+body:has(#screen-game.active)::before {
+  background: radial-gradient(ellipse 120% 90% at 50% 38%, transparent 55%, rgba(0,0,0,var(--page-vignette, .42)) 100%);
+}
+.cam-hud .cam-label { max-width: calc(100% - 170px); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cam-hud .cam-rec { color: var(--ph-dim); animation: none; text-shadow: none; }
+.cam-hud[data-feed="live"] .cam-rec { color: var(--ok); }
+.cam-hud[data-feed="paused"] .cam-rec { color: var(--warn); }
+.cam-hud[data-feed="offline"] .cam-rec, .cam-hud[data-feed="offline"] .cam-feed { color: var(--link-down); }
 /* Exact mutation review stays scrollable without clipping the payload. */
 .consent-payload { margin: 8px 0; }
 .consent-payload summary { cursor: pointer; }

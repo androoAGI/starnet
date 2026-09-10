@@ -18,6 +18,7 @@
 
 const Dialogue = (() => {
   let host = null, panel = null, speakerEl = null, lineEl = null, optsEl = null, moreEl = null;
+  let stageEl = null, stageTitle = '', stageDetail = '';
   let inkEl = null, inkTimer = null;   // the operating-file ink stamp — shows a dossier write LANDING
   let open = false, name = 'AGENT';
   let typer = null;            // active typewriter cancel handle
@@ -72,21 +73,34 @@ const Dialogue = (() => {
     host = document.getElementById('chat-panel');
     panel = document.createElement('div');
     panel.className = 'fnv-dialogue' + (reduceMotion() ? ' no-anim' : '');
-    panel.setAttribute('role', 'dialog'); panel.setAttribute('aria-live', 'polite');
+    panel.setAttribute('role', 'dialog'); panel.setAttribute('aria-label', 'Agent conversation');
+    panel.setAttribute('aria-live', 'polite');
+    stageEl = document.createElement('div'); stageEl.className = 'fnv-stage';
+    renderStage();
     speakerEl = document.createElement('div'); speakerEl.className = 'fnv-speaker'; speakerEl.textContent = name;
     lineEl = document.createElement('div'); lineEl.className = 'fnv-line';
     // the read-gate cue: a quiet blinking prompt under the line. Hidden until a narration beat finishes typing;
     // the beat then WAITS for the Commander (space / enter / click) instead of rolling on at machine speed.
-    moreEl = document.createElement('div'); moreEl.className = 'fnv-more';
-    moreEl.textContent = '▸ space / click to continue';
+    moreEl = document.createElement('button'); moreEl.className = 'fnv-more'; moreEl.type = 'button';
+    moreEl.textContent = 'Continue →';
+    moreEl.setAttribute('aria-label', 'Continue conversation');
     // the ink stamp: a quiet one-line receipt under the beat showing an answer landing in the operating
     // file. Callers (onboarding) fire it ONLY beside a real DossierStore write — truthful telemetry: the
     // stamp is a receipt for a write that happened, never theater.
     inkEl = document.createElement('div'); inkEl.className = 'fnv-ink';
     optsEl = document.createElement('div'); optsEl.className = 'fnv-opts';
-    panel.appendChild(speakerEl); panel.appendChild(lineEl); panel.appendChild(moreEl); panel.appendChild(inkEl); panel.appendChild(optsEl);
+    panel.appendChild(stageEl); panel.appendChild(speakerEl); panel.appendChild(lineEl); panel.appendChild(moreEl); panel.appendChild(inkEl); panel.appendChild(optsEl);
     if (host) { host.classList.add('fnv-host'); host.appendChild(panel); }
     else { panel.classList.add('fnv-floating'); document.body.appendChild(panel); }   // COMMS missing → free-floating fallback
+  }
+
+  function renderStage() {
+    if (!stageEl) return;
+    stageEl.textContent = stageTitle + (stageDetail ? ' · ' + stageDetail : '');
+    stageEl.hidden = !stageTitle;
+  }
+  function setStage(title, detail) {
+    stageTitle = String(title || ''); stageDetail = String(detail || ''); renderStage();
   }
 
   function openPanel(opts) {
@@ -111,7 +125,8 @@ const Dialogue = (() => {
     document.body.classList.remove('fnv-mode');
     if (host) host.classList.remove('fnv-host');
     if (panel) panel.remove();
-    panel = speakerEl = lineEl = optsEl = moreEl = inkEl = host = null;
+    panel = speakerEl = lineEl = optsEl = moreEl = inkEl = stageEl = host = null;
+    stageTitle = stageDetail = '';
   }
 
   /* THE INK STAMP — show one line landing in the operating file ("» filed · pain: …"). Non-blocking:
@@ -313,10 +328,10 @@ const Dialogue = (() => {
     if (!optsEl) return;
     optsEl.innerHTML = '';
     const wrap = document.createElement('div'); wrap.className = 'fnv-custom';
-    const inp = document.createElement('input'); inp.type = 'text'; inp.className = 'fnv-custom-in';
+    const inp = document.createElement('textarea'); inp.rows = 3; inp.className = 'fnv-custom-in';
     inp.placeholder = cfg.customPlaceholder || 'type your answer…';
     inp.setAttribute('aria-label', cfg.customPlaceholder || 'your answer');
-    const send = document.createElement('button'); send.className = 'fnv-custom-send'; send.type = 'button'; send.textContent = '▸';
+    const send = document.createElement('button'); send.className = 'fnv-custom-send'; send.type = 'button'; send.textContent = 'Send →'; send.setAttribute('aria-label', 'Send answer');
     const back = document.createElement('button'); back.className = 'fnv-custom-back'; back.type = 'button'; back.textContent = '‹ back';
     wrap.appendChild(back); wrap.appendChild(inp); wrap.appendChild(send);
     optsEl.appendChild(wrap);
@@ -328,7 +343,7 @@ const Dialogue = (() => {
     send.onclick = submit;
     back.onclick = () => { clearKeys(); renderOptions(cfg, finishPick); };
     inp.addEventListener('keydown', e => {
-      if (e.key === 'Enter') { e.preventDefault(); submit(); }
+      if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); submit(); }
       else if (e.key === 'Escape') { e.preventDefault(); back.onclick(); }
     });
     setTimeout(() => inp.focus(), 30);
@@ -337,7 +352,7 @@ const Dialogue = (() => {
   // codename() is also exported so the WAKE funnel (app.js) can persist a real minted name instead of the bland
   // 'AGENT' when the Commander leaves the name blank — keeping the world nameplate / dossier consistent with the
   // speaker label. isUnnamed() lets a caller cheaply detect the blank/placeholder case.
-  return { open: openPanel, close: closePanel, say, node, answer, setName, ink, isOpen: () => open, codename, isUnnamed };
+  return { open: openPanel, close: closePanel, say, node, answer, setName, setStage, ink, isOpen: () => open, codename, isUnnamed };
 })();
 
 if (typeof module !== 'undefined' && module.exports) module.exports = { Dialogue };

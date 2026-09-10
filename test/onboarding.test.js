@@ -108,8 +108,8 @@ A.ok(/bs\('aimless'\)\s*\|\|\s*'incredible\. genuinely\. and pointed at nothing\
   'the aimless slot falls back to the scripted spine');
 A.ok(/seg\('  so you’re the one who knows where this points\. aim me\.'/.test(src),
   'the contact beat keeps its scripted fallback triplet');
-A.ok(/bs\('self'\)\s*\|\|\s*'thirty seconds ago: nothing/.test(src),
-  'the closing slot falls back to the scripted spine');
+A.ok(/stage\('READY TO BEGIN'/.test(src) && /const readyLine = role/.test(src),
+  'the closing handoff uses a concise role-aware message');
 A.ok(/bs\('mandate'\)\s*\|\|\s*'and i’m built to run a floor/.test(src),
   'the mandate slot falls back to the scripted promise');
 // a live-configured wire that answers DEAD is owned diegetically at the close, pointing at CONNECT.
@@ -117,10 +117,10 @@ A.ok(/birthFailed[\s\S]{0,700}CONNECT/.test(src),
   'a dead wire during the ceremony is owned honestly at the close (the CONNECT repair line)');
 // the stakes beat: extraction earns attention by declaring what the answers become, before asking —
 // and earns GENEROSITY by declaring the trade (sharper picture in → sharper first move out).
-A.ok(/permanent operating file/.test(src),
-  'the meeting opens by staking why the questions matter (permanent operating file)');
-A.ok(/vague in, vague out/.test(src),
-  'the stakes beat states the give-to-get trade plainly (vague in, vague out)');
+A.ok(/saved in your dossier, where you can review and change them/.test(src),
+  'the meeting explains storage and how to revise the saved answers');
+A.ok(/your answers help me choose work that matters to you/.test(src),
+  'the interview explains how sharing context helps without pressuring the user');
 
 /* ---------- V3: the YEAR dig (B6) — the live mind reacts + asks once, and the answer is KEPT ---------- */
 // the year beat gets the listened-to treatment: a generated ack + ONE follow-up that makes it concrete.
@@ -139,7 +139,7 @@ A.ok(/buildSynthesis\(\{[^}]*dream:\s*dreamT/.test(src),
 /* ---------- V3 arc locks (docs/ONBOARDING_V3_PLAN.md §3) ---------- */
 // B1 the fork: depth is the Commander's call — the loose path is a first-class chip, recorded as a SEED
 // note (it must never convince the readiness gate the station knows anyone).
-A.ok(/keep it loose — learn me as we go/.test(src), 'the fork offers the loose path as a first-class choice');
+A.ok(/label: 'A few personal questions', value: 'loose'/.test(src), 'the fork offers the loose path as a first-class choice');
 A.ok(/Chose to be figured out through the work[\s\S]{0,120}weight:\s*'seed'/.test(src),
   'the loose choice is recorded as a seed note, never grounded evidence');
 // B2 the day question: PLAIN-QUESTION LAW (2026-07-20) — literal, single-reading, extraction-first.

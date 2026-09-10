@@ -62,3 +62,9 @@ GPU/display configuration, or a reproduction of its 10–20-minute failure; stat
     {"target":"recovery and restart","state":"blocked","reason":"Requires a before/after receipt for this symptom on the affected artifact, followed by restart and the same operation."}
   ]
 }
+
+## September 10 release follow-through
+
+The installed Windows canary fbaab109f passed twenty minutes idle with no blank frames, then recovered from deliberate canvas-cache loss, WebGL context loss and stage failure. The receipt records recovery counters and frame samples. This bounded check does not reproduce the customer GPU/driver configuration or satisfy the separate 48-hour installed soak.
+
+Current receipts and remaining acceptance: [0.11.2 follow-through](../../docs/releases/0.11.2/FOLLOWTHROUGH.md). Status remains open pending the affected configuration.

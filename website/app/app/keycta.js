@@ -17,6 +17,7 @@ const KeyCTA = (() => {
   let armed = false;      // only after an awakening lands (arm()) — never on the connect screen / mid-ceremony
   let timer = null;
   let spoke = false;      // the diegetic "i'm awake but no brain is wired" COMMS line fires at most ONCE per arm cycle
+  let spokenState = '', spokenLine = null, spokenChoices = null;
 
   function normProv(p) {
     p = String(p || 'openrouter').trim().toLowerCase();
@@ -35,28 +36,31 @@ const KeyCTA = (() => {
   function activeProvider() {
     return normProv((typeof Harness !== 'undefined' && Harness.getProv) ? Harness.getProv() : 'openrouter');
   }
-  // The one truth question: does the FOCUSED agent lack a run-able brain purely for want of a credential?
+  // Setup gaps only: a missing credential/link or an empty model selection. A null result does not prove
+  // endpoint reachability, catalog availability, account balance or a successful inference call.
   // Answers WHAT is missing, not just whether: { kind: 'unlinked' } for the STARNET managed provider on a
   // station with no linked account (its bearer is the device token, never a key the user can paste — issue #6:
   // an unlinked station kept asking for a "STARNET key" that does not exist), or { kind: 'nokey', provider }
-  // for a keyed provider with nothing stored. null = a run-able brain (or the awakening hasn't landed yet).
+  // for a keyed provider with nothing stored; 'nomodel' means the selection is empty.
   function gapOf() {
     // only once the awakening has actually landed (a fully onboarded hero on the floor)
     if (typeof App === 'undefined' || !App.currentAgent) return null;
     const a = App.currentAgent();
     if (!a || !a.onboarded) return null;
     const p = activeProvider();
+    const modelGap = () => (typeof Harness !== 'undefined' && Harness.getModel && !String(Harness.getModel() || '').trim())
+      ? { kind: 'nomodel', provider: p } : null;
     if (p === 'starnet') {
       // managed credits are configured IFF the sidecar reports a linked account (Harness.configured mirrors
       // /api/credits) — no localStorage key can ever stand in for that.
       try {
-        if (typeof Harness !== 'undefined' && Harness.configured) return Harness.configured('starnet') ? null : { kind: 'unlinked', provider: p };
+        if (typeof Harness !== 'undefined' && Harness.configured) return Harness.configured('starnet') ? modelGap() : { kind: 'unlinked', provider: p };
       } catch (_) {}
       return null;
     }
-    if (!providerNeedsKey(p)) return null;
+    if (!providerNeedsKey(p)) return modelGap();
     try {
-      if (typeof Harness !== 'undefined' && Harness.hasStoredCredential) return Harness.hasStoredCredential(p) ? null : { kind: 'nokey', provider: p };
+      if (typeof Harness !== 'undefined' && Harness.hasStoredCredential) return Harness.hasStoredCredential(p) ? modelGap() : { kind: 'nokey', provider: p };
     } catch (_) {}
     return null;
   }
@@ -67,6 +71,24 @@ const KeyCTA = (() => {
   function openSettings() {
     if (typeof StationUI !== 'undefined' && StationUI.openTerm) { StationUI.openTerm('settings', 'providers'); return; }
     const b = document.querySelector('.bb[data-term="settings"]'); if (b) b.click();
+  }
+
+  function fixGap() {
+    const gap = gapOf();
+    if (gap && gap.kind === 'nomodel' && typeof ModelDock !== 'undefined' && ModelDock.open) { ModelDock.open(); return; }
+    openSettings();
+  }
+
+  function retireObsoletePrompt(gap) {
+    const a = typeof App !== 'undefined' && App.currentAgent ? App.currentAgent() : null;
+    const state = gap ? [a && a.id, gap.provider, gap.kind].join(':') : '';
+    if (state === spokenState) return;
+    if (spokenLine && spokenLine.remove) spokenLine.remove();
+    if (spokenChoices && spokenChoices.dismiss) spokenChoices.dismiss();
+    else if (spokenChoices && spokenChoices.remove) spokenChoices.remove();
+    spokenLine = spokenChoices = null;
+    spoke = false;
+    spokenState = state;
   }
 
   /* THE FREE LOCAL DOOR — Ollama. TRUTHFUL TELEMETRY: the station may only say "run free locally" once the
@@ -132,24 +154,30 @@ const KeyCTA = (() => {
     let nm = ''; try { if (typeof App !== 'undefined' && App.currentAgent) { const a = App.currentAgent(); nm = (a && a.name) || ''; } } catch (_) {}
     const label = gap.provider.toUpperCase();
     const who = nm ? nm.toLowerCase() + ' — ' : '';
-    if (gap.kind === 'unlinked') {
-      Chat.localLine(who + 'i’m awake, but no brain is wired: this station isn’t linked to a STARNET account, so i can’t actually run anything yet. link one, wire a different provider, or run me free on a local model.');
+    if (gap.kind === 'nomodel') {
+      spokenLine = Chat.localLine(who + 'no model is selected for ' + label + '. choose a model to send a message.');
+    } else if (gap.kind === 'unlinked') {
+      spokenLine = Chat.localLine(who + 'i’m awake, but no brain is wired: this station isn’t linked to a STARNET account, so i can’t actually run anything yet. link one, wire a different provider, or run me free on a local model.');
     } else {
-      Chat.localLine(who + 'i’m awake, but no brain is wired: there’s no ' + label + ' key on the station, so i can’t actually run anything yet. add one, wire a different provider, or run me free on a local model.');
+      spokenLine = Chat.localLine(who + 'i’m awake, but no brain is wired: there’s no ' + label + ' key on the station, so i can’t actually run anything yet. add one, wire a different provider, or run me free on a local model.');
     }
-    Chat.choices([
+    spokenChoices = Chat.choices([
       { label: primaryLabel(gap), value: 'primary' },
       { label: '⇄ USE A DIFFERENT PROVIDER', value: 'switch', quiet: true },
       { label: freeLabel(), value: 'free', quiet: true }
-    ], it => { if (it && it.value === 'free') useOllama(); else openSettings(); });   // onPick hands back the chip item
+    ], it => { if (it && it.value === 'free') useOllama(); else if (it && it.value === 'primary') fixGap(); else openSettings(); });   // onPick hands back the chip item
+    // Opening the model picker from this external prompt must not also count as its outside click.
+    if (spokenChoices && spokenChoices.addEventListener) spokenChoices.addEventListener('click', ev => ev.stopPropagation());
   }
 
   // ONE label per anchor: the primary door names exactly the thing that is missing.
   function primaryLabel(gap) {
+    if (gap && gap.kind === 'nomodel') return '◇ CHOOSE MODEL';
     if (gap && gap.kind === 'unlinked') return '🔗 LINK STARNET';
     return '⚙ ADD ' + ((gap && gap.provider) || activeProvider()).toUpperCase() + ' KEY';
   }
   function bannerText(gap) {
+    if (gap.kind === 'nomodel') return 'no model selected for ' + gap.provider.toUpperCase() + ' — choose a model to send a message.';
     if (gap.kind === 'unlinked') return 'your agent is awake — but this station isn’t linked to a STARNET account, so it can’t run a task yet.';
     return 'your agent is awake — but it has no ' + gap.provider.toUpperCase() + ' key, so it can’t run a task yet.';
   }
@@ -174,7 +202,7 @@ const KeyCTA = (() => {
         '<button type="button" class="key-cta-alt">⇄ USE A DIFFERENT PROVIDER</button>' +
         '<button type="button" class="key-cta-free">◇ SET UP OLLAMA (FREE · LOCAL)</button>' +
       '</span>';
-    b.querySelector('.key-cta-act').addEventListener('click', openSettings);
+    b.querySelector('.key-cta-act').addEventListener('click', ev => { ev.stopPropagation(); fixGap(); });
     b.querySelector('.key-cta-alt').addEventListener('click', openSettings);
     b.querySelector('.key-cta-free').addEventListener('click', () => { useOllama(); });
     wrap.appendChild(b);
@@ -184,6 +212,7 @@ const KeyCTA = (() => {
   // pure render off live state — safe to call from a tick, from settings key edits, or from arm()
   function render() {
     const gap = armed ? gapOf() : null;
+    retireObsoletePrompt(gap);
     const b = ensureBanner();
     if (!b) return;
     if (!gap) { b.hidden = true; return; }

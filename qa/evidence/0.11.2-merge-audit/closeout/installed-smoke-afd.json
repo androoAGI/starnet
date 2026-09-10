@@ -1,0 +1,35 @@
+{
+  "schemaVersion": 3,
+  "stampIso": "2026-09-10T22:28:23.705Z",
+  "expectedHead": "afd1da77fb4a489151b45b5a6c53e60ada4ca1f4",
+  "expectedTree": "67e74723594dbbf8cfb4c1f1b8bec88b92003c2e",
+  "buildCommit": "afd1da77fb4a489151b45b5a6c53e60ada4ca1f4",
+  "sourceTree": "67e74723594dbbf8cfb4c1f1b8bec88b92003c2e",
+  "buildDescribe": "v0.11.1-284-gafd1da77f",
+  "buildDirty": false,
+  "buildKind": "reproducible-source",
+  "provenanceKind": "reproducible-source",
+  "officialEvidence": null,
+  "appVersion": "0.11.2",
+  "sidecarHarness": "v0.11.1-284-gafd1da77f",
+  "mode": "desktop",
+  "origin": "http://tauri.localhost",
+  "artifact": {
+    "path": "C:\\Users\\andro\\AppData\\Local\\StarNet Canary\\skynet-desktop.exe",
+    "sha256": "e95cee9e45b0e5e474c505ac9d74dcdd85c1b864a39244956c5fdbe87163ffcc",
+    "size": 17864192
+  },
+  "runtimeExecutable": {
+    "sha256": "e95cee9e45b0e5e474c505ac9d74dcdd85c1b864a39244956c5fdbe87163ffcc",
+    "size": 17864192
+  },
+  "result": "GREEN",
+  "evidence": [
+    {
+      "path": "qa/evidence/0.11.2-merge-audit/closeout/installed-smoke-probe.json",
+      "sha256": "ec9188d09b172374865ebd3b15d6177dcedc650e5c2a0376af03507d56a88d24",
+      "size": 2225
+    }
+  ],
+  "notes": "appVersion=0.11.2 mode=desktop build=afd1da77fb4a tree=67e74723594d kind=reproducible-source checks 9/9 pass"
+}

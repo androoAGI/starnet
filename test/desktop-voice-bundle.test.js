@@ -80,4 +80,18 @@ assert.match(stage, /build-only adm-zip leaked into the shipped runtime closure/
 assert.match(stage, /function purgeStaleReleasePackages\(\)/, 'warm Tauri outputs are purged so removed packages cannot survive in a later installer');
 assert.match(stage, /OUT === resolve\(join\(ROOT, 'src-tauri', 'voice-deps'\)\)/, 'stale-output purging is limited to the real desktop staging path');
 
+const { isUnusedMuslSharp, isUnusedDesktopAccelerator } = require('../scripts/lib/staged-native-packages.mjs');
+assert.equal(isUnusedMuslSharp('@img', 'sharp-linuxmusl-x64', 'linux'), true, 'glibc AppImage excludes the musl addon that linuxdeploy cannot load');
+assert.equal(isUnusedMuslSharp('@img', 'sharp-libvips-linuxmusl-x64', 'linux'), true, 'the unused musl libvips companion is removed too');
+assert.equal(isUnusedMuslSharp('@img', 'sharp-linuxmusl-arm64', 'linux'), true, 'glibc ARM has the same libc boundary');
+for (const name of ['sharp-linux-x64', 'sharp-libvips-linux-x64', 'sharp-linux-arm64', 'sharp-libvips-linux-arm64', 'sharp-libvips-dev']) {
+  assert.equal(isUnusedMuslSharp('@img', name, 'linux'), false, 'required glibc and non-platform Sharp packages survive: ' + name);
+}
+assert.equal(isUnusedMuslSharp('unrelated', 'sharp-linuxmusl-x64', 'linux'), false, 'only the native @img scope is pruned');
+for (const platform of ['darwin', 'win32']) assert.equal(isUnusedMuslSharp('@img', 'sharp-linuxmusl-x64', platform), false, 'other desktop targets retain their existing staging behavior');
+const ort = '/bundle/node_modules/kokoro-js/node_modules/onnxruntime-node/bin/napi-v3/linux/x64/';
+for (const backend of ['cuda', 'tensorrt']) assert.equal(isUnusedDesktopAccelerator(ort + 'libonnxruntime_providers_' + backend + '.so', 'linux'), true, 'CPU-only voice does not ship optional ' + backend + ' dependencies');
+for (const name of ['libonnxruntime.so.1', 'libonnxruntime_providers_shared.so', 'onnxruntime_binding.node']) assert.equal(isUnusedDesktopAccelerator(ort + name, 'linux'), false, 'CPU runtime remains intact: ' + name);
+assert.equal(isUnusedDesktopAccelerator('/other/libonnxruntime_providers_cuda.so', 'linux'), false, 'an unrelated project file is not a pruning target');
+assert.equal(isUnusedDesktopAccelerator(ort + 'libonnxruntime_providers_cuda.so', 'win32'), false, 'Windows staging is unchanged');
 console.log('desktop voice bundle tests passed');

@@ -64,7 +64,7 @@
      reasoning about what the Commander actually SEES must fold first — the marketplace rail delegates here
      rather than keeping its own copy, so the rail and the recommender can never disagree about what "one
      per category" means. Legacy aliases fold; an unknown value falls back to 'general'. */
-  const RAIL_BUCKETS = ['developer', 'research', 'creator', 'ops', 'business', 'money', 'data', 'general'];
+  const RAIL_BUCKETS = ['general', 'research', 'creator', 'ops', 'business', 'money', 'data', 'developer'];
   // 'writing' stays a valid stored category (core's draft-reply / tighten-writing carry it) but folds into
   // CREATOR on the rail: a two-item chip beside a thirteen-item one reads as broken, and both recipes are
   // squarely content work. Same treatment as 'code' -> developer and 'planning' -> ops.
@@ -334,6 +334,7 @@
   function freezeRecipe(r) {
     return Object.freeze({
       id: r.id,
+      archived: r.archived === true,
       name: r.name,
       emoji: r.emoji || '▸',
       tagline: r.tagline || '',
@@ -461,9 +462,9 @@
   }
 
   /* ---------- public API ---------- */
-  function builtins() { return BUILTINS.slice(); }
+  function builtins() { return BUILTINS.filter(r => !r.archived); }
   function customList() { return customs.map(c => Object.assign({}, c)); }   // copies — callers never hold a live ref
-  function list() { return BUILTINS.concat(customList()); }
+  function list() { return builtins().concat(customList()); }
   function get(id) { return BUILTINS.find(b => b.id === id) || customs.find(c => c.id === id) || null; }
   function exists(id) { return !!get(id); }
 

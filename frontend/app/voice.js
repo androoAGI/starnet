@@ -404,6 +404,9 @@ const Voice = (() => {
     return curve;
   }
   function ensureFxGraph() {
+    if (fxCtx && fxCtx.state === 'closed') {
+      fxCtx = null; fxIn = null; fxAnalyser = null; fxReady = false; fxBroken = false;
+    }
     if (fxReady || fxBroken) return fxReady;
     try {
       const AC = window.AudioContext || window.webkitAudioContext;
@@ -435,7 +438,7 @@ const Voice = (() => {
     if (!TRANSMISSION_FX) return false;
     if (!ensureFxGraph()) return false;
     try {
-      if (fxCtx.state === 'suspended') { try { fxCtx.resume(); } catch (_) {} }
+      if (!resumeSpeechContext(fxCtx)) return false;
       if (!a._fxSrc) a._fxSrc = fxCtx.createMediaElementSource(a);
       a._fxSrc.connect(fxIn);
       return true;
@@ -465,6 +468,9 @@ const Voice = (() => {
     return buf;
   }
   function ensureShellGraph() {
+    if (shCtx && shCtx.state === 'closed') {
+      shCtx = null; shIn = null; shAnalyser = null; shN = null; shBroken = false;
+    }
     if (shN || shBroken) return !!shN;
     try {
       const AC = window.AudioContext || window.webkitAudioContext; if (!AC) { shBroken = true; return false; }
@@ -519,7 +525,7 @@ const Voice = (() => {
   function routeThroughShell(a, cfg) {
     if (!ensureShellGraph()) return false;
     try {
-      if (shCtx.state === 'suspended') { try { shCtx.resume(); } catch (_) {} }
+      if (!resumeSpeechContext(shCtx)) return false;
       applyShellAmounts(cfg);
       if (!a._shSrc) a._shSrc = shCtx.createMediaElementSource(a);
       a._shSrc.connect(shIn);
@@ -587,6 +593,16 @@ const Voice = (() => {
      typed, not tied to that gesture). Unlock the audio path on the first gesture with a muted, valid silent
      WAV play, so the neural voice always plays. Idempotent; runs exactly once. */
   let audioArmed = false;
+  // Capturing an element into a stopped graph silences its native output and may prevent
+  // ended/error forever. Recover best-effort, but leave this element dry until it is running.
+  function resumeSpeechContext(ctx) {
+    if (!ctx) return false;
+    if (ctx.state === 'running') return true;
+    if (ctx.state === 'suspended' || ctx.state === 'interrupted') {
+      try { const p = ctx.resume(); if (p && p.catch) p.catch(() => {}); } catch (_) {}
+    }
+    return ctx.state === 'running';
+  }
   function silentWav() {
     const n = 8, b = new ArrayBuffer(44 + n), v = new DataView(b);
     const w = (o, s) => { for (let i = 0; i < s.length; i++) v.setUint8(o + i, s.charCodeAt(i)); };
@@ -597,6 +613,7 @@ const Voice = (() => {
     return URL.createObjectURL(new Blob([b], { type: 'audio/wav' }));
   }
   function armAudio() {
+    resumeSpeechContext(fxCtx); resumeSpeechContext(shCtx);
     if (audioArmed) return; audioArmed = true;
     try { const u = silentWav(); const a = new Audio(u); a.volume = 0; const p = a.play(); if (p && p.catch) p.catch(() => {}); setTimeout(() => { try { URL.revokeObjectURL(u); } catch (_) {} }, 1000); } catch (_) {}
     try { if (typeof SFX !== 'undefined' && SFX.boot) SFX.boot(); } catch (_) {}   // also resume the SFX audio context
@@ -900,6 +917,12 @@ const Voice = (() => {
   function ambientLine(fallback) {
     try {
       const p = (typeof Personas !== 'undefined' && Personas.get) ? Personas.get(activePersonaId) : null;
+      if (p && Personas.ambient) {
+        const a = typeof App !== 'undefined' && App.currentAgent ? App.currentAgent() : null;
+        const matches = a && Personas.resolve(a.personaId) === Personas.resolve(activePersonaId);
+        const lines = Personas.ambient(activePersonaId, matches ? a.voiceTraits : null, matches ? a.customVoice : '');
+        return lines.length ? lines[(Math.random() * lines.length) | 0] : '';
+      }
       if (p && p.ambientLines && p.ambientLines.length && Math.random() < 0.65) return p.ambientLines[(Math.random() * p.ambientLines.length) | 0];
     } catch (_) {}
     return (fallback && fallback.length) ? fallback[(Math.random() * fallback.length) | 0] : '';
@@ -1705,7 +1728,7 @@ const Voice = (() => {
     // which also satisfies the browser mic-permission gesture).
     if (!init._esc) { init._esc = true; document.addEventListener('keydown', e => { if (e.key === 'Escape' && convoMode) { savePref(LS_CONVO, false); stopConvo(); } }); }
     // unlock browser audio on the first user gesture so the agent's voice is never silently swallowed after a reload
-    if (!init._audio) { init._audio = true; ['pointerdown', 'keydown', 'touchstart'].forEach(ev => document.addEventListener(ev, armAudio, { once: true, capture: true })); }
+    if (!init._audio) { init._audio = true; ['pointerdown', 'keydown', 'touchstart'].forEach(ev => document.addEventListener(ev, armAudio, { capture: true })); }
     // were they hands-free last session? the refresh reset it — invite a one-tap resume (skipped during the
     // awakening, which owns the COMMS input). Never auto-starts; the click is the required mic-permission gesture.
     if (opts.resumeCue !== false && canListen() && loadPref(LS_CONVO, false)) showResumeCue();

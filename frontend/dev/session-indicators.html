@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>StarNet · Session indicator preview</title>
+<link rel="stylesheet" href="../css/style.css"><link rel="stylesheet" href="../css/app.css">
+<link rel="stylesheet" href="../css/motion.css"><link rel="stylesheet" href="../css/glass-demo.css"><link rel="stylesheet" href="../css/readability.css">
+<style>
+body.indicator-preview { display:block; height:auto; min-height:100vh; overflow:auto; margin:0; padding:48px 24px; user-select:text; background:radial-gradient(ellipse at 30% 0%,rgba(var(--ph-rgb),.09),transparent 65%),var(--bg); }
+main { max-width:760px; margin:auto; } .eyebrow { font-size:14px; letter-spacing:1.5px; color:var(--ph-dim); }
+h1 { font:32px/1.2 'VT323',monospace; letter-spacing:1px; color:var(--ph-bright); margin:12px 0; }
+p { font-size:18px; line-height:1.45; color:var(--text); } .study { display:grid; grid-template-columns:300px 1fr; gap:36px; align-items:start; margin-top:28px; }
+body.indicator-preview #left { position:static; grid-area:auto; inset:auto; width:300px; height:auto; min-height:0; padding:8px; display:block; overflow:visible; }
+#left h3 { margin:-8px -8px 8px; padding:12px; font:16px/1 'VT323',monospace; }
+body.indicator-preview #left #workstreams { margin:0; padding:0; overflow:visible; gap:5px; }
+body.indicator-preview #left #workstreams .ws-row { cursor:default; min-height:40px; margin:0; }
+dl { margin:0; } dt { font-size:17px; color:var(--ph-bright); margin-top:17px; } dt:first-child { margin-top:0; }
+dd { font-size:16px; line-height:1.3; color:var(--text); margin:4px 0 0; opacity:.85; }
+.foot { font-size:15px; margin-top:28px; color:var(--ph-dim); } a { color:var(--ph-bright); }
+@media(max-width:650px) { .study { grid-template-columns:1fr; gap:24px; } body.indicator-preview { padding:24px 16px; } }
+</style></head><body class="glass-demo theme-red indicator-preview"><main>
+<div class="eyebrow">STARNET / VISUAL PREVIEW</div><h1>SESSION INDICATORS</h1>
+<p>Sample states using the app’s session indicators. No live runs or approval requests are shown here.</p>
+<div class="study"><section id="left" aria-label="Sample session states"><h3>SESSIONS</h3><ul id="workstreams">
+<li class="ws-row"><span class="ws-dot working" aria-hidden="true"></span><span class="ws-title">Working</span><span class="ws-meta">ACTIVE</span></li>
+<li class="ws-row unread"><span class="ws-dot unseen" aria-hidden="true"></span><span class="ws-title">Unread</span><span class="ws-meta">NEW</span></li>
+<li class="ws-row"><span class="ws-dot seen" aria-hidden="true"></span><span class="ws-title">Read</span><span class="ws-meta">SEEN</span></li>
+<li class="ws-row"><span class="ws-dot needsyou approval" aria-hidden="true"></span><span class="ws-title">Approval needed</span><span class="ws-meta">PAUSED</span></li>
+<li class="ws-row"><span class="ws-dot needsyou reply" aria-hidden="true"></span><span class="ws-title">Reply needed</span><span class="ws-meta">WAITING</span></li>
+<li class="ws-row"><span class="ws-dot needsyou failed" aria-hidden="true"></span><span class="ws-title">Failed</span><span class="ws-meta">ERROR</span></li>
+<li class="ws-row"><span class="ws-dot connecting" aria-hidden="true"></span><span class="ws-title">Connecting</span><span class="ws-meta">STARTING</span></li>
+</ul></section><dl>
+<dt>WORKING</dt><dd>A scan moves inside the glass frame once the run is confirmed.</dd>
+<dt>UNREAD / READ</dt><dd>A steady filled core for new activity. A quiet empty glass square after the session is opened.</dd>
+<dt>APPROVAL NEEDED</dt><dd>A red exclamation and a slow pulse while a real approval is pending.</dd>
+<dt>REPLY NEEDED</dt><dd>Two message strokes for an agent’s question.</dd>
+<dt>FAILED</dt><dd>A steady cross, distinct from work that is waiting for approval.</dd>
+<dt>CONNECTING</dt><dd>A dotted frame before the server confirms the run.</dd>
+</dl></div><p class="foot">Motion respects your reduced-motion preference. <a href="/?glass=1">Return to StarNet ↗</a></p>
+</main></body></html>

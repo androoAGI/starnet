@@ -1,0 +1,54 @@
+# 0.11.2 follow-through — September 10, 2026
+
+**Release acceptance remains incomplete.** Official version pins stay at 0.11.1; no public release or tag was created. The Windows canary has its own application identity and a local 0.11.2 overlay. The existing production station was not replaced.
+
+## Candidate
+
+Runtime candidate: `afd1da77fb4a489151b45b5a6c53e60ada4ca1f4`, on `agent/release-0112-audit-0910`, pushed and fast-forward merged into integration after its full Guardian passed. It includes integration `b90d9e45dea7d9c6ecdde0b960da5b3d559b3122` and its glass task-card styling. The original inventory covers all 54 reachable merges and 4,917 changed paths through `00de68e0f`; the later integration delta is explicitly additional coverage, not part of that historical count. Follow-up documentation/evidence commits do not alter the frozen runtime.
+
+The 720-minute source soak runs from a separate, frozen worktree at this exact candidate: `C:\Users\andro\gen-trees\release-0112-soak-0910`. Do not remove or update that worktree, its dependency junction, or the owning audit worktree while the soak runs. Two earlier long runs were retired when their editing checkout changed; their partial logs are retained and do not count as completed acceptance.
+
+## Repairs and evidence
+
+| Repair | Verification |
+| --- | --- |
+| COMMS plus/tab list rendering and readiness text encoding (`cb6c30b4d`) | Original live failure reproduced; four examples changed from 0/0/0/2 items to 2/2/2/2. Exact copy bytes retained; 54 formatting assertions passed. |
+| Current visual baselines (`bb45ece81`) | All 16 captured surfaces reviewed against the integrated design. Repeated golden run passed 16/16, maximum difference 0.21%; the 1.5% threshold was unchanged. |
+| Soak accounting (`7efce3552`, bug 59040543) | A valid catch-up fire followed by the next normal fire between polls was falsely counted as unexpected. Durable start times and the actual schedule now prove that sequence. Two failures before repair; 272 assertions pass. Fresh 50-routine scale run passed with zero lost, duplicate, unexpected or off-schedule fires. |
+| Native version identity and updater canary (`bed625bdd`, bugs 65587128 / 050da842) | Native package version now reaches sidecar startup/recovery. Signed localhost automatic download/install/relaunch from a 0.11.1 overlay to 0.11.2 passed, preserving the seeded station and configured-key status. This is mechanism proof, not an update from the historical public 0.11.1 installer or a published feed. |
+| Claude continuation (`f111be488`, `9441660d0`, bug d81c4e15) | Real Sonnet 4.6 task reproduced HTTP 400 after host verification. Preserving the leading system block and sending subsequent host notes as user turns repaired OpenRouter and managed-compatible paths. Focused suites passed 71 and 91 assertions. Rebuilt installed tasks wrote/read their files and completed; the managed gateway probe changed 400 to 200 with cost 0.000683 exactly matching the isolated balance debit. |
+| Linux native dependency staging (`fbaab109f`, `bbbd7c13a`, bug 694472bf) | Verbose CI exposed unused musl Sharp binaries, then unused CUDA/TensorRT plugins in the CPU-only voice bundle. Fresh and warm staging now exclude only those incompatible optional binaries. CPU bindings/libraries and Windows/Mac selection remain covered. Linux AppImage build passed on runs 34534976781 and 34535931055. |
+| Conversation hydration (`a66fc5638`, bug ec226657) | The installed restart reproduced a local combined reply beside its durable turns. Three regression failures became 13/13 passing assertions; stopped/retry and scroll suites also pass. Deduplication requires matching run identity and exact contiguous canonical bytes; partial text, attachments, uncertain identity and error/stopped markers remain. Canonical transcript storage is untouched. Final rebuilt-app receipt is recorded below. |
+
+## Installed Windows proof
+
+- Protected provider credentials remained configured across canary installs, verified through status-only APIs. No credential was exported. The prior canary profile is retained in the local evidence directory.
+- A real text task returned the expected result with local cost 0.069399 matching its run receipt. Repaired real file tasks completed with costs 0.15533445 and 0.1584465. Their actual HTML deliverables opened and the Verify buttons produced the expected output. One proposed shell command was denied; no shell execution is claimed.
+- Crew, station props, project root, last successful run and project file survived restart/update. That same exercise exposed and drove the conversation repair instead of being reported as an unconditional persistence pass.
+- A routine created through the normal installed UI as “Just once” survived an update and completed exactly once. Job `1037758e-f7f3-4a77-9287-2add0002b2fb`, run `9a03ff10-6d92-4cb9-be86-ca44b58d6e5f`, returned `ONCE_0112_OK`; repeat count 1, completed state, disabled, no next run, delivered locally.
+- Twenty minutes of installed Windows idle on `fbaab109f` showed no blank viewport or added usage. Deliberate canvas-cache loss, WebGL context loss and stage failure all recovered. This is bounded Windows recovery proof, not the affected customer's GPU reproduction or a 48-hour installed soak.
+- The original duplicated conversation reopened on installed `afd1da77f` as four canonical rows, with exact text preserved through another persist/reload/reopen. The first same-version maintenance install left the older build in place and failed the identity check; its receipt is retained. Explicit `/S /UPDATE` installed the correct candidate. Final installed smoke passed **9/9** checks against the exact clean build and executable hash.
+- An installed, approved image task on `afd1da77f` generated one real 1024×1024 PNG (92,578 bytes), exposed its artifact link and decoded successfully in the WebView. Run `f699400a-23c7-4296-8daf-6703ccc0b7db` completed; the usage increase **0.1956573** matched the run cost within floating-point precision. A missing-Studio attempt and a conservative probe approval-label mismatch were retained as non-generation attempts; the Studio was then placed through the normal validated placement path and one image approval granted. This uses protected OpenRouter BYOK credentials, not a managed customer balance; paid cancellation is still a separate acceptance item.
+
+## Gates and artifacts
+
+Full seven-step Guardian cycles passed on `bed625bdd`, `f111be488`, `fbaab109f` and final **`afd1da77f`**, with no skipped steps. The final cycle finished at **22:31:05 UTC**, including **770/770 fast steps** and **111/111 HTTP steps**. Fresh Beginner on `afd1da77f` passed all six UI steps in 99.490 seconds; this explicitly stops at the real-model boundary. Real-model installed checks are the separate receipts above. The exact frozen candidate's twenty-minute source smoke and ten-minute fifty-routine scale check both passed; these use a controlled provider and do not replace installed paid-provider proof.
+
+The exact candidate's non-publishing desktop workflow [34535931055](https://github.com/androoAGI/starnet/actions/runs/34535931055) passed all four platform builds, both Mac notarizations and Intel installed acceptance. Intel acceptance initially failed at GitHub artifact download with DNS `ENOTFOUND`, before the app ran; the failed-job rerun passed. Both attempts are retained. The fixture checks Finder launch, sidecar startup and an older synthetic migration fixture; it does not prove a physical Apple Silicon onboarding flow, microphone permissions or a historical public 0.11.1 automatic update. CI artifacts retain official version 0.11.1 because the release pins were not bumped.
+
+Portable receipts and their hashes are collected in [closeout evidence](../../../qa/evidence/0.11.2-merge-audit/closeout/). Raw logs, screenshots, installers and retained failed attempts stay under `.dogfood/release-0112-closeout/` in the audit worktree.
+
+The four historical integration detector observations were reconciled individually after the same scenarios passed on the integrated candidate: the full fast detector completed without timeout, `build-connectors` opened, and both panel-close backend-idle/provider-stream-closed assertions passed. Their original JSON records and failure paths remain in [the reconciliation receipt](../../../qa/evidence/0.11.2-merge-audit/closeout/detector-reconciliation.json). This records current recovery, not an invented diagnosis of the original transient failures. The seven customer P1s remain open.
+
+After the runtime merge, the commands ran again in the integration tree and passed **770/770 fast steps** and **111/111 HTTP steps**, both exit 0. [Post-merge receipt](../../../qa/evidence/0.11.2-merge-audit/closeout/postmerge.json) records the exact tested source. Subsequent commits contain only documentation, bug verdicts and evidence. Other agents' pre-existing `docs/NEXT.md`, `qa/STATUS.md` and handoff edits were preserved; they were not staged with this lane.
+
+## Still required before cutting
+
+1. Complete and inspect the **720-minute source soak**. Its expected finish is September 11 around 10:15 UTC (06:15 EDT), assuming uninterrupted execution. The full gate and short/scale checks above are complete. Complete the separate installed/attended acceptance required by the release runbook; elapsed source soak time cannot substitute for it.
+2. Retest the seven open customer P1s on the affected station/account. Current evidence narrows these investigations but does not establish those customers' recovery. Needed identifiers are the account/station and relevant recent run/job ID or timestamp, never a key or token.
+3. Obtain Apple Silicon hardware proof for onboarding/relink, funded account state and microphone/audio interruption/noise paths. CI build/notarization and Intel synthetic acceptance cannot establish those outcomes.
+4. Complete the managed-account image charge/cancellation proof, actual historical public-client update continuity and installed multi-window recovery where required. The completed BYOK image task and signed local canary update are bounded evidence, not substitutes for those remaining cases.
+5. Refresh the canonical readiness authority on the eventual release freeze. The runtime is integrated and the four historical detector records are reconciled with preserved evidence; later documentation commits still change Git identity and must not be relabeled as an installer build. Do not inherit the 0.11.1 readiness/soak exception.
+6. Only after readiness is earned, follow the release ritual for the five official version pins, final notes/source lock, post-bump gates and release reservation/tag checks.
+
+The missing account and hardware details were requested during this follow-through and have not yet been supplied. No customer was contacted and no account state was altered to manufacture a pass.

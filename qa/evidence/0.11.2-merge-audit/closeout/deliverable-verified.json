@@ -1,0 +1,8 @@
+{
+  "at": "2026-09-10T22:06:47.987Z",
+  "file": "C:\\Users\\andro\\AppData\\Local\\Temp\\starnet-release-0112-project-CBEzlC\\index.html",
+  "scope": "Opened the exact installed-run artifact directly in an isolated Chrome browser, then clicked Verify. Does not claim native Open-button acceptance.",
+  "result": "RELEASE_0112_TOOL_OK",
+  "errors": [],
+  "pass": true
+}

@@ -1,0 +1,20 @@
+{
+  "source": "00de68e0f6da9c00b778eea1deefbaa84b82baa8",
+  "errors": [],
+  "resize": {
+    "before": 420,
+    "resized": 512,
+    "reopened": 512,
+    "reloaded": 512
+  },
+  "race": {
+    "chosen": {
+      "provider": "starnet",
+      "model": "anthropic/test-model"
+    },
+    "after": {
+      "provider": "starnet",
+      "model": "anthropic/test-model"
+    }
+  }
+}

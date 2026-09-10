@@ -39,8 +39,7 @@ const ModelDock = (() => {
     { id: 'xhigh', label: 'XHIGH', title: 'Extra-high reasoning' },
     { id: 'max', label: 'MAX', title: 'Maximum reasoning' }
   ];
-  // The ChatGPT-account Codex backend exposes EXACTLY these four levels (verified live) — no 'none', no
-  // 'minimal'. The CLI's "Fast mode" is just 'low' surfaced as a variant, so the low chip reads FAST here.
+  // Codex fallback when a catalog omits per-model levels. Declared metadata takes precedence below.
   const CODEX_EFFORTS = ['low', 'medium', 'high', 'xhigh'];
   const OPENROUTER_REASONING_EFFORTS = ['none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'];
   const REASONING_EFFORT_ORDER = OPENROUTER_REASONING_EFFORTS;
@@ -64,11 +63,16 @@ const ModelDock = (() => {
   let open = false;
   let loading = false;
   let cache = {};
+  const catalogRequests = {}, cacheRevisions = {};
   // Per-provider truth about the catalog fetch. A populated fallback list is useful for recovery, but it is
   // not proof that a saved model still belongs to the active provider. Only a successful provider response
   // may reconcile (or invalidate) the current provider/model pair.
   let catalogState = {};
   let models = [];
+  let fetchGeneration = 0;
+  const selectionRevision = () => typeof Harness !== 'undefined' && Harness.getSelectionRevision ? Harness.getSelectionRevision() : 0;
+  const selectionIdentity = () => opts.identity ? opts.identity() : '';
+  let advancedEffortsOpen = false;
 
   function provider() {
     const p = (typeof Harness !== 'undefined' && Harness.getProv) ? Harness.getProv() : 'openrouter';
@@ -243,31 +247,6 @@ const ModelDock = (() => {
     });
   }
 
-  // Does this provider require an API key to run at all? (Codex uses OAuth; ollama/custom are keyless
-  // local/self-hosted endpoints.) Mirrors Harness.providerNeedsKey, kept local so the dock has no new dep.
-  function providerNeedsKey(p) {
-    p = normalizeProvider(p);
-    // starnet joins the keyless set: its bearer is the linked device token, never a pasted key.
-    return p !== 'codex' && p !== 'grok' && p !== 'kimi' && p !== 'ollama' && p !== 'custom' && p !== 'starnet';
-  }
-  // TRUTHFUL: is the ACTIVE provider missing a real, run-able credential? Uses Harness.hasStoredCredential
-  // (never fabricated by DEVMODE) so the warning only shows when a run would genuinely fail for lack of a key —
-  // and disappears the instant a key is stored. This is the pre-RUN surfacing of harness.js's 'no API key set'.
-  function activeNeedsKey() {
-    const p = provider();
-    // STARNET has no key to miss, but it CAN be selected on a station that is not linked (a save can
-    // carry the provider across an unlink). That still cannot run, so it still warns — just truthfully.
-    if (p === 'starnet') {
-      try { return !(typeof Harness !== 'undefined' && Harness.configured && Harness.configured('starnet')); }
-      catch (_) { return false; }
-    }
-    if (!providerNeedsKey(p)) return false;
-    try {
-      if (typeof Harness !== 'undefined' && Harness.hasStoredCredential) return !Harness.hasStoredCredential(p);
-    } catch (_) {}
-    return false;
-  }
-
   function providerEnabled(p) {
     p = normalizeProvider(p || provider());
     if (p === provider()) return true;
@@ -359,6 +338,42 @@ const ModelDock = (() => {
     return OPENROUTER_REASONING_EFFORTS.slice();
   }
 
+  // Presentation only: transport and per-agent pickers keep their exact effort values.
+  function reasoningPresetsFor(item) {
+    const supported = effortOptionsFor(item);
+    const levels = REASONING_EFFORT_ORDER.filter(e => e !== 'none' && supported.includes(e));
+    if (!levels.length) return [];
+    const last = levels.length - 1;
+    let indices, names;
+    if (levels.length < 4) {
+      indices = levels.map((_, i) => i);
+      names = levels.length === 1 ? ['max'] : levels.length === 2 ? ['low', 'max'] : ['low', 'medium', 'max'];
+    } else {
+      const preferred = ['low', 'medium', 'high'].map(e => levels.indexOf(e)).concat(last);
+      indices = preferred.every((v, i) => v >= 0 && (!i || v > preferred[i - 1]))
+        ? preferred : [0, Math.floor(last / 3), Math.floor(2 * last / 3), last];
+      names = ['low', 'medium', 'high', 'max'];
+    }
+    return indices.map((index, i) => ({ id: names[i], label: names[i].toUpperCase(), effort: levels[index] }));
+  }
+
+  function reasoningPresetFor(value, item) {
+    const effort = normalizeEffort(value);
+    const presets = reasoningPresetsFor(item);
+    if (effort === 'none' || !effortOptionsFor(item).includes(effort) || !presets.length) return null;
+    // A saved finer level remains in its lower preset's range; it is never rounded down in storage.
+    const index = REASONING_EFFORT_ORDER.indexOf(effort);
+    return presets.filter(p => REASONING_EFFORT_ORDER.indexOf(p.effort) <= index).pop() || presets[0];
+  }
+
+  function effortForPreset(id, value, item) {
+    const preset = reasoningPresetsFor(item).find(p => p.id === id);
+    const current = reasoningPresetFor(value, item);
+    // Re-selecting a highlighted range must not overwrite a saved MIN or XHIGH setting.
+    if (!preset || (current && current.id === id)) return clampEffortForModel(value, item);
+    return preset.effort;
+  }
+
   function currentModelItem() {
     const id = getModel();
     const p = provider();
@@ -395,14 +410,21 @@ const ModelDock = (() => {
 
   async function fetchProviderModels(p, force) {
     p = normalizeProvider(p);
-    if (!force && cache[p] && cache[p].length) {
+    const revision = selectionRevision();
+    if (!force && cacheRevisions[p] === revision && cache[p] && cache[p].length) {
       return cache[p].slice();
     }
+    const request = catalogRequests[p] = (catalogRequests[p] || 0) + 1;
+    const isCurrent = () => catalogRequests[p] === request && selectionRevision() === revision;
+    const disconnected = () => {
+      if (isCurrent()) { catalogState[p] = { confirmed: false, reason: 'not connected' }; cache[p] = []; cacheRevisions[p] = revision; }
+      return [];
+    };
     let list = [];
     let confirmed = false;
     try {
       if (p === 'codex') {
-        if (!(await codexEnabled())) { catalogState[p] = { confirmed: false, reason: 'not connected' }; cache[p] = []; return []; }
+        if (!(await codexEnabled())) return disconnected();
         const r = await apiFetch('/api/auth/codex/models', { cache: 'no-store' });
         if (!r.ok) throw new Error('HTTP ' + r.status);
         const j = await r.json();
@@ -410,14 +432,14 @@ const ModelDock = (() => {
         list = j.models.map(m => asModel(m, p)); confirmed = true;
       } else if (p === 'grok' || p === 'kimi') {
         // the other keyless device-code providers: gate on the OAuth status, discover models via /api/auth/<pid>/models.
-        if (!(await oauthProviderEnabled(p))) { catalogState[p] = { confirmed: false, reason: 'not connected' }; cache[p] = []; return []; }
+        if (!(await oauthProviderEnabled(p))) return disconnected();
         const r = await apiFetch('/api/auth/' + p + '/models', { cache: 'no-store' });
         if (!r.ok) throw new Error('HTTP ' + r.status);
         const j = await r.json();
         if (!Array.isArray(j.models)) throw new Error((j && j.error) || 'invalid catalog response');
         list = j.models.map(m => asModel(m, p)); confirmed = true;
       } else if (typeof Harness !== 'undefined' && Harness.listModels) {
-        if (!providerEnabled(p)) { catalogState[p] = { confirmed: false, reason: 'not connected' }; cache[p] = []; return []; }
+        if (!providerEnabled(p)) return disconnected();
         try {
           const q = (p === 'custom' && typeof Harness !== 'undefined' && Harness.getBaseUrl && Harness.getBaseUrl(p))
             ? ('?baseUrl=' + encodeURIComponent(Harness.getBaseUrl(p))) : '';
@@ -435,6 +457,8 @@ const ModelDock = (() => {
         }
       }
     } catch (_) {}
+    if (!isCurrent()) return (cache[p] || []).slice();
+    cacheRevisions[p] = revision;
     catalogState[p] = { confirmed: confirmed, reason: confirmed ? '' : 'catalog unavailable' };
     if (!list.length && !confirmed && (p === 'codex' || p === 'openrouter' || p === 'anthropic' || p === 'gemini' || HOSTED_FALLBACKS[p])) {
       // E4: the live catalog fetch found nothing (sidecar/provider unreachable) — fall back to the
@@ -455,6 +479,9 @@ const ModelDock = (() => {
   }
 
   async function fetchModels(force) {
+    const generation = ++fetchGeneration;
+    const revision = selectionRevision(), identity = selectionIdentity();
+    const selectedModel = getModel();
     loading = true;
     renderList();
     // 'starnet' first: a linked station's own credits are the most direct way to run, and its catalog is
@@ -462,9 +489,15 @@ const ModelDock = (() => {
     const ids = ['starnet', 'codex', 'grok', 'kimi', 'openrouter', 'openai', 'anthropic', 'gemini', 'xai', 'groq', 'mistral', 'deepseek', 'together', 'fireworks', 'perplexity', 'cerebras', 'ollama', 'custom'];
     const active = provider();
     if (ids.indexOf(active) < 0) ids.unshift(active);
-    const parts = await Promise.all(ids.map(p => fetchProviderModels(p, force)));
+    const pending = ids.map(p => fetchProviderModels(p, force));
+    const activeRequest = catalogRequests[active];
+    const parts = await Promise.all(pending);
     const activeList = parts[ids.indexOf(active)] || [];
-    reconcileCurrentModel(active, activeList);
+    // Cache completion must not apply to a later selection or focused agent.
+    if (generation !== fetchGeneration) return models;
+    if (catalogRequests[active] === activeRequest && revision === selectionRevision() && identity === selectionIdentity() && active === provider() && selectedModel === getModel()) {
+      reconcileCurrentModel(active, activeList);
+    }
     models = mergeCurrent(parts.reduce((a, b) => a.concat(b), []));
     models.sort((a, b) => {
       const pa = normalizeProvider(a.provider), pb = normalizeProvider(b.provider);
@@ -484,23 +517,82 @@ const ModelDock = (() => {
   function renderEfforts() {
     const wrap = el('model-dock-efforts');
     if (!wrap) return;
+    const focused = wrap.contains(document.activeElement) ? document.activeElement : null;
+    const focusKey = focused && focused.dataset.reasoningFocus;
+    const oldDetails = wrap.querySelector('.model-dock-advanced');
+    if (oldDetails) advancedEffortsOpen = oldDetails.open;
     wrap.innerHTML = '';
     const item = currentModelItem();
-    const isCodex = normalizeProvider((item && item.provider) || provider()) === 'codex';
-    const levelDescs = (item && item.reasoningLevelDescriptions) || null;
     const selected = ensureCurrentEffort();
+    const presets = reasoningPresetsFor(item);
+    const selectedPreset = reasoningPresetFor(selected, item);
     const available = effortOptionsFor(item).map(effortDef);
-    for (const e of available) {
+    const description = id => (item.reasoningLevelDescriptions || {})[id] || effortDef(id).title;
+    function button(label, effort, active, focus, click) {
       const b = document.createElement('button');
       b.type = 'button';
-      b.className = 'model-dock-effort' + (e.id === selected ? ' sel' : '');
-      // Codex has no 'off' tier — its 'low' level is the CLI's "Fast mode", so surface it as FAST.
-      b.textContent = (isCodex && e.id === 'low') ? 'FAST' : e.label;
-      b.title = (levelDescs && levelDescs[e.id]) || ((isCodex && e.id === 'low') ? 'Fast responses with lighter reasoning' : e.title);
-      b.setAttribute('role', 'option');
-      b.setAttribute('aria-selected', String(e.id === selected));
-      b.addEventListener('click', () => applyEffort(e.id));
-      wrap.appendChild(b);
+      b.className = 'model-dock-effort' + (active ? ' sel' : '');
+      b.textContent = label;
+      b.title = description(effort);
+      b.setAttribute('aria-pressed', String(active));
+      b.dataset.reasoningFocus = focus;
+      b.addEventListener('click', click);
+      return b;
+    }
+    if (presets.length) {
+      const track = document.createElement('div');
+      track.className = 'model-dock-presets';
+      track.setAttribute('role', 'group');
+      track.setAttribute('aria-label', 'Reasoning presets');
+      for (const p of presets) {
+        const active = !!selectedPreset && selectedPreset.id === p.id;
+        const b = button(p.label, active ? selected : p.effort, active, 'preset-' + p.id, () => {
+          const effort = effortForPreset(p.id, currentEffort(), currentModelItem());
+          if (effort !== currentEffort()) applyEffort(effort);
+        });
+        b.dataset.preset = p.id;
+        track.appendChild(b);
+      }
+      wrap.appendChild(track);
+    } else {
+      const note = document.createElement('div');
+      note.className = 'model-dock-reasoning-note';
+      note.textContent = 'This model has no adjustable reasoning.';
+      wrap.appendChild(note);
+    }
+    // Off and provider-specific fine control stay available without crowding the main row.
+    if (available.length > 1) {
+      const details = document.createElement('details');
+      details.className = 'model-dock-advanced';
+      details.open = advancedEffortsOpen;
+      const summary = document.createElement('summary');
+      summary.dataset.reasoningFocus = 'advanced';
+      summary.appendChild(document.createTextNode('ADVANCED'));
+      const exact = document.createElement('span');
+      exact.className = 'model-dock-exact-value';
+      exact.textContent = effortDef(selected).label;
+      summary.appendChild(exact);
+      summary.setAttribute('aria-label', 'Advanced reasoning, ' + description(selected));
+      details.appendChild(summary);
+      const track = document.createElement('div');
+      track.className = 'model-dock-exact';
+      track.setAttribute('role', 'group');
+      track.setAttribute('aria-label', 'Exact reasoning levels');
+      for (const e of available) {
+        const b = button(e.label, e.id, e.id === selected, 'exact-' + e.id, () => {
+          if (e.id !== currentEffort()) applyEffort(e.id);
+        });
+        b.dataset.effort = e.id;
+        track.appendChild(b);
+      }
+      details.appendChild(track);
+      details.addEventListener('toggle', () => { if (details.isConnected) advancedEffortsOpen = details.open; });
+      wrap.appendChild(details);
+    }
+    if (focusKey) {
+      const next = Array.from(wrap.querySelectorAll('[data-reasoning-focus]')).find(b => b.dataset.reasoningFocus === focusKey);
+      // A model/catalog update may remove a focused option; return to the stable search field.
+      (next || el('model-dock-search')).focus({ preventScroll: true });
     }
   }
 
@@ -641,37 +733,6 @@ const ModelDock = (() => {
       '<div class="mdt-hint">click to change model &amp; effort</div>';
   }
 
-  // Inline no-key warning: if the ACTIVE provider needs a key and none is stored, flag the resting chip and
-  // drop a one-tap "add a key in Settings" row inside the dock — surfaced BEFORE the user hits RUN (which would
-  // otherwise be the first time they learn, via harness.js's honest 'no API key set' backstop). Provable from
-  // backend state (hasStoredCredential); vanishes the instant a key lands, so it never lies.
-  function renderKeyWarning() {
-    const needs = activeNeedsKey();
-    const toggle = el('model-dock-toggle');
-    if (toggle) toggle.classList.toggle('needs-key', needs);
-    const head = el('model-dock-head') || (el('model-dock') && el('model-dock').querySelector('.model-dock-head'));
-    let warn = el('model-dock-keywarn');
-    if (!needs) { if (warn) warn.remove(); return; }
-    if (!warn) {
-      warn = document.createElement('button');
-      warn.id = 'model-dock-keywarn';
-      warn.type = 'button';
-      warn.className = 'model-dock-keywarn';
-      warn.addEventListener('click', openSettings);
-      // sits directly under the head, above the search box, so it reads as the first thing when the dock opens
-      const dock = el('model-dock');
-      if (head && head.parentNode) head.parentNode.insertBefore(warn, head.nextSibling);
-      else if (dock) dock.insertBefore(warn, dock.firstChild);
-    }
-    // The remedy has to match the credential. Telling a credits user to "add a key" sends them looking
-    // for a field that does not exist for this provider.
-    const msg = provider() === 'starnet'
-      ? 'this station isn’t linked to a StarNet account — link it in SETTINGS to run on credits'
-      : 'no ' + esc(providerLabel(provider())) + ' key — this model can’t run yet. add one in SETTINGS';
-    warn.innerHTML = '<span class="mdw-glyph" aria-hidden="true">⚠</span>' +
-      '<span class="mdw-txt">' + msg + '</span>';
-  }
-
   function reflect() {
     const current = getModel();
     const p = provider();
@@ -687,11 +748,10 @@ const ModelDock = (() => {
     if (toggle) toggle.setAttribute('aria-label', selectorLabel(current, effort));
     if (chrome && chrome.nameEl) {
       const short = shortModelName(current);
-      chrome.nameEl.textContent = short || '—';
+      chrome.nameEl.textContent = short || 'CHOOSE MODEL';
       chrome.nameEl.classList.toggle('empty', !short);
     }
     if (chrome) updateTip(chrome.tip);
-    renderKeyWarning();
     renderEfforts();
   }
 
@@ -755,10 +815,20 @@ const ModelDock = (() => {
     if (open) closeDock(); else openDock();
   }
 
-  function openSettings() {
+  // The model picker's account door always leads to StarNet. It does not change the
+  // active provider, promise a working model, or start a subscription transaction.
+  function openSubscription(event) {
+    const invoke = (typeof window !== 'undefined' && window.__TAURI__ && window.__TAURI__.core)
+      ? window.__TAURI__.core.invoke : null;
+    if (!invoke) return; // Browser: the anchor's normal target=_blank navigation owns this.
+    event.preventDefault();
     closeDock();
-    const button = document.querySelector('.bb[data-term="settings"]');
-    if (button) button.click();
+    Promise.resolve().then(() => invoke('open_external_url', { url: 'https://www.starnetos.com/pricing' }))
+      .catch(() => {
+        if (typeof StationUI !== 'undefined' && StationUI.notify) {
+          StationUI.notify('Could not open your browser. Visit www.starnetos.com/pricing for your StarNet subscription.', 'warn');
+        }
+      });
   }
 
   function wire() {
@@ -767,7 +837,7 @@ const ModelDock = (() => {
     const toggle = el('model-dock-toggle');
     const search = el('model-dock-search');
     const refresh = el('model-dock-refresh');
-    const settings = el('model-dock-settings');
+    const subscription = el('model-dock-subscription');
     if (toggle) {
       // this handler stops propagation (the outside-click closer below must not see its own opening
       // press), which also means audio.js's delegated click cue never reaches the document — so the
@@ -785,17 +855,21 @@ const ModelDock = (() => {
     }
     if (search) search.addEventListener('input', renderList);
     if (refresh) refresh.addEventListener('click', () => fetchModels(true));
-    if (settings) settings.addEventListener('click', openSettings);
+    if (subscription) subscription.addEventListener('click', openSubscription);
     document.addEventListener('click', ev => {
       const dock = el('model-dock'), button = el('model-dock-toggle');
       if (!open || !dock || !button) return;
-      if (dock.contains(ev.target) || button.contains(ev.target)) return;
+      // A reasoning change can replace its clicked button before this event bubbles here.
+      // The original path still identifies the click as inside the menu.
+      const path = ev.composedPath ? ev.composedPath() : [];
+      if (path.includes(dock) || path.includes(button) || dock.contains(ev.target) || button.contains(ev.target)) return;
       closeDock();
     });
     document.addEventListener('keydown', ev => { if (open && ev.key === 'Escape') closeDock(); });
   }
 
   function init(o) {
+    fetchGeneration++;
     opts = Object.assign({}, opts, o || {});
     wire();
     reflect();
@@ -842,8 +916,8 @@ const ModelDock = (() => {
     // reuse surface for per-target pickers (bay / dossier) — pure data + label/effort helpers, no side effects
     catalog: (o) => computeCatalog(!!(o && o.force), o && o.ensure),
     labels: { model: modelLabel, provider: providerLabel, group: groupOf, short: shortModelName, normProvider: normalizeProvider, orGroup: openRouterGroupName },
-    efforts: { optionsFor: effortOptionsFor, label: effortLabel, clamp: clampEffortForModel, list: () => EFFORTS.slice() },
-    _internals: { effortOptionsFor, clampEffortForModel, modelFamily, supportsReasoning, selectorLabel, catalogEquivalent }
+    efforts: { optionsFor: effortOptionsFor, label: effortLabel, clamp: clampEffortForModel, list: () => EFFORTS.slice(), presetsFor: reasoningPresetsFor, presetFor: reasoningPresetFor, forPreset: effortForPreset },
+    _internals: { reasoningPresetsFor, reasoningPresetFor, effortForPreset, effortOptionsFor, clampEffortForModel, modelFamily, supportsReasoning, selectorLabel, catalogEquivalent }
   };
 })();
 

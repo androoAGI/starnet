@@ -129,32 +129,57 @@ const WorldModel = (() => {
   };
   function grantLabelForProp(propType) { const c = CAP_PROP_MAP[propType]; return c ? (CAP_LABEL[c] || c) : null; }   // prop -> plain power word (or null = inert decor)
 
-  /* Shared paint hues. Default HULL/DECKING aliases are white so saved default worlds
-     inherit the new finish without rewriting room data. Other hues retain their character
-     at a lighter exposure, including the deliberately darkest option, ONYX. */
+  /* the paint palette — each is a floor BASE colour; every other floor detail
+     (seams / rivets / vents / hatches) is derived from it via U.shade in the bake.
+     The COLOURED bases stay in a dark low-value SUBSTRATE band (floor, not accent light) so the
+     CRT phosphor + warm room-light pools read on top — their variety comes from spreading the HUE
+     across the wheel, not from brightness. bone + onyx are the deliberate exceptions: the bright
+     and near-black ends of the value range, for decks that want stark contrast. This catalog is the
+     sole source: add a colour here and it appears in the SURFACE palette's COLOUR row AND as a room floor
+     style automatically. */
   const FLOOR_STYLES = {
-    hull:     { base: '#f2f0ea', label: 'HULL' },
-    corridor: { base: '#f2f0ea', label: 'DECKING' },
-    cobalt:   { base: '#414d60', label: 'COBALT' },
-    rust:     { base: '#57483f', label: 'RUST' },
-    sterile:  { base: '#4e5457', label: 'STERILE' },
-    crimson:  { base: '#574141', label: 'CRIMSON' },
-    verdant:  { base: '#425745', label: 'VERDANT' },
-    ember:    { base: '#603f2a', label: 'EMBER' },
-    amber:    { base: '#5a4e30', label: 'AMBER' },
-    moss:     { base: '#4e562f', label: 'MOSS' },
-    teal:     { base: '#32575a', label: 'TEAL' },
-    indigo:   { base: '#3c3f6c', label: 'INDIGO' },
-    violet:   { base: '#4d3e62', label: 'VIOLET' },
-    orchid:   { base: '#5d3f57', label: 'ORCHID' },
-    walnut:   { base: '#594130', label: 'WALNUT' },
-    oak:      { base: '#69533f', label: 'OAK' },
-    ash:      { base: '#575148', label: 'ASH' },
-    fern:     { base: '#3f5f36', label: 'FERN' },
-    meadow:   { base: '#536036', label: 'MEADOW' },
+    // 2026-09-02: hull #33302a -> #3c3429, decking #2c2924 -> #342d25. The stock hab is what every
+    // new station boots on and it measured the greyest room in the building (mean chroma 11 on a
+    // furnished floor vs 22 on oak). Same value band, a notch of warmth — the lamp pools finally
+    // have a colour to land on. Every other swatch is untouched.
+    hull:     { base: '#3a3b41', label: 'HULL' },
+    corridor: { base: '#31333a', label: 'DECKING' },
+    cobalt:   { base: '#2b3340', label: 'COBALT' },
+    rust:     { base: '#3a302a', label: 'RUST' },
+    sterile:  { base: '#34383a', label: 'STERILE' },
+    crimson:  { base: '#3a2b2b', label: 'CRIMSON' },
+    verdant:  { base: '#2c3a2e', label: 'VERDANT' },
+    // extended spectrum — warm → cool, same dark substrate band, each a distinct hue
+    ember:    { base: '#402a1c', label: 'EMBER' },
+    amber:    { base: '#3c3420', label: 'AMBER' },
+    moss:     { base: '#34391f', label: 'MOSS' },
+    teal:     { base: '#213a3c', label: 'TEAL' },
+    indigo:   { base: '#282a48', label: 'INDIGO' },
+    violet:   { base: '#332941', label: 'VIOLET' },
+    orchid:   { base: '#3e2a3a', label: 'ORCHID' },
+    // natural tones — the hues the PLANK / TURF materials were drawn for. Same dark substrate
+    // band as everything above: a wood deck is a DARK wood deck, so the room-light pools still
+    // read on top of it. (Any material still renders in any hue — these are just the fitting ones.)
+    walnut:   { base: '#3b2b20', label: 'WALNUT' },
+    oak:      { base: '#46372a', label: 'OAK' },
+    ash:      { base: '#3a3630', label: 'ASH' },
+    fern:     { base: '#2a3f24', label: 'FERN' },
+    // MEADOW — fern's warm twin, added for TURF (2026-07-25). Real grass is olive: red and green
+    // close together with blue well under both. FERN is a blue-leaning green, and because vivid()
+    // drives the DOMINANT channel hardest, its lifts run toward pure green rather than the
+    // yellow-green of a lawn. Raising red and dropping blue is what buys the olive.
+    meadow:   { base: '#374024', label: 'MEADOW' },
+    // value poles — the bright + near-black ends of the range (stark, deliberate)
     bone:     { base: '#e7e3d9', label: 'BONE' },
+    /* WHITE — bone's neutral twin, added 2026-08-05 for the SHELL axis (Andrew: "lets add white as a
+       colour for the shell"). BONE is a warm cream; this is the achromatic pole, which is what reads
+       as PAINT rather than as stone. It matters most on a hull: the exterior is the one surface with
+       no ambient over it, so it is the only place a white actually stays white — and a whitewashed
+       STUCCO or CLAPBOARD building is the point of having it. See the bright-pole band in
+       stationbake's vacuum(), which is what keeps it from being clamped into the dark shell band
+       along with every ordinary hue. */
     white:    { base: '#f2f0ea', label: 'WHITE' },
-    onyx:     { base: '#15151b', label: 'ONYX' },
+    onyx:     { base: '#0e0e12', label: 'ONYX' },
   };
 
   /* the deck MATERIAL catalog — the second floor axis, orthogonal to colour.
@@ -189,8 +214,15 @@ const WorldModel = (() => {
     runner:   { label: 'RUNNER',   pitch: [2, 2], suggest: null },
     treadway: { label: 'TREADWAY', pitch: [3, 2], suggest: null },
     meshway:  { label: 'MESHWAY',  pitch: [3, 3], suggest: null },
+    // Cut-stone slabs, herringbone wood and ribbed industrial mat.
+    basalt:   { label: 'BASALT',   pitch: [3, 2], suggest: 'hull' },
+    parquet:  { label: 'PARQUET',  pitch: [3, 3], suggest: 'walnut' },
+    rubber:   { label: 'RUBBER',   pitch: [2, 2], suggest: 'corridor' },
+    slotted:  { label: 'SLOTTED',  pitch: [3, 2], suggest: 'corridor' },
+    terrazzo: { label: 'TERRAZZO', pitch: [4, 4], suggest: 'hull' },
+    octile:   { label: 'OCTILE',   pitch: [2, 2], suggest: 'sterile' },
   };
-  const MAT_ORDER = ['spine', 'alloy', 'runner', 'treadway', 'meshway', 'plate', 'diamond', 'cargo', 'panel', 'tile', 'ceramic', 'resin', 'tread', 'soft', 'grate', 'hex', 'plank', 'turf'];
+  const MAT_ORDER = ['spine', 'alloy', 'runner', 'treadway', 'meshway', 'plate', 'diamond', 'cargo', 'panel', 'tile', 'ceramic', 'resin', 'tread', 'soft', 'grate', 'hex', 'plank', 'turf', 'basalt', 'parquet', 'rubber', 'slotted', 'terrazzo', 'octile'];
 
   /* the WALL material catalog — the deck's opposite number. Walls carry the same two axes as the
      floor (hue × recipe) and read from the same FLOOR_STYLES hue catalog, because a room should be
@@ -230,13 +262,14 @@ const WorldModel = (() => {
      `suggest` is the hue a material defaults to when the room carries no explicit hullStyle. Unlike
      the wall axis — where `suggest` is only a UI convenience — this one binds in the MODEL, because
      a hull's default has to be a tone the material was drawn for: TIMBER at the station's own
-     #191712 is black wood, which is nobody's cabin. `station` suggests white, so new and existing
-     unpainted shells share the default finish.
+     #191712 is black wood, which is nobody's cabin. `station` alone suggests null, meaning "keep
+     the shell's own tone" — the literal legacy constants, so every station already built renders
+     pixel-identical until someone paints it.
 
      Adding one here is the whole job: give it a recipe in stationbake's HULL_RECIPES and it appears
      in the REFIT SURFACE palette's HULL target automatically. */
   const HULL_MATERIALS = {
-    station:   { label: 'STATION',   suggest: 'white',     blurb: 'riveted hull plate — the shell you launched with' },
+    station:   { label: 'STATION',   suggest: null,     blurb: 'riveted hull plate — the shell you launched with' },
     monocoque: { label: 'MONOCOQUE', suggest: 'bone', blurb: 'large inset alloy panels with recessed joints and protected edge rails' },
     timber:    { label: 'TIMBER',    suggest: 'walnut', blurb: 'stacked log courses — the cabin' },
     clapboard: { label: 'CLAPBOARD', suggest: 'ash',    blurb: 'lapped siding boards — the farmhouse' },
@@ -302,7 +335,7 @@ const WorldModel = (() => {
     return 'hull';
   };
   /* THE AUTHORITY on a room's exterior shell (stationbake's HULL_RECIPES fallback is only for
-     geometry arriving without one). Defaults to `station`; unpainted shells inherit its white finish. */
+     geometry arriving without one). Defaults to `station` so nothing already built moves. */
   const hullMatOfRoom = rm => (rm && HULL_MATERIALS[rm.hullMat]) ? rm.hullMat : 'station';
   /* A HULL'S HUE, or null for "the shell's own tone". Explicit paint wins; otherwise the material's
      own suggested hue (see the HULL_MATERIALS note on why this binds in the model and the wall
@@ -1022,6 +1055,17 @@ const WorldModel = (() => {
       const dirty = rm.rects.slice();
       delete doc.rooms[id];
       doc.order = doc.order.filter(x => x !== id);
+      // Remove the deck and its supported contents in one undo snapshot.
+      // A straddling prop loses support too; neighboring-room contents stay intact.
+      doc.props = doc.props.filter(p => {
+        const f = propFootprint(p);
+        if (!rm.rects.some(r => rectsHit(f, r))) return true;
+        dirty.push(f); return false;
+      });
+      for (const key of Object.keys(doc.belts)) {
+        const [x, y] = key.split(',').map(Number);
+        if (rm.rects.some(r => x >= r.x1 && x <= r.x2 && y >= r.y1 && y <= r.y2)) delete doc.belts[key];
+      }
       emit(dirty);
       return { ok: true };
     }
@@ -1881,30 +1925,44 @@ const WorldModel = (() => {
          seam that a door is meant to gate); and an exact diagonal step demands BOTH corner tiles plus the
          canStep legality of both ways around — so a shortcut can't squeeze a body through the diagonal gap
          between two blockers. canStep is orthogonal-only, so it is never called on a diagonal pair. */
-      function losClear(x0, y0, x1, y1, extra) {
+      // Validate both the logical tile-centre route and the rendered foot route.
+      // world.js footOf uses (x + .5, y + 1 - 1/TILE), so a centre-only
+      // shortcut can cross a wall beside a doorway even when its BFS is legal.
+      function segmentClear(ax, ay, bx, by, extra) {
+        if (![ax, ay, bx, by].every(Number.isFinite)) return false;
+        const x0 = Math.floor(ax), y0 = Math.floor(ay), x1 = Math.floor(bx), y1 = Math.floor(by);
         let x = x0, y = y0;
-        let dx = Math.abs(x1 - x0), dy = Math.abs(y1 - y0);
-        const xi = x1 > x0 ? 1 : -1, yi = y1 > y0 ? 1 : -1;
-        let err = dx - dy;
-        dx *= 2; dy *= 2;
-        let guard = dx + dy + 4;   // the walk is bounded; never trust the loop to terminate on its own
+        const dx = Math.abs(bx - ax), dy = Math.abs(by - ay);
+        const xi = bx > ax ? 1 : -1, yi = by > ay ? 1 : -1;
+        const stepX = dx ? 1 / dx : Infinity, stepY = dy ? 1 / dy : Infinity;
+        let nextX = dx ? (xi > 0 ? x + 1 - ax : ax - x) / dx : Infinity;
+        let nextY = dy ? (yi > 0 ? y + 1 - ay : ay - y) / dy : Infinity;
+        let guard = Math.abs(x1 - x0) + Math.abs(y1 - y0) + 1;
         while ((x !== x1 || y !== y1) && guard-- > 0) {
           if (!walkable(x, y, extra)) return false;
-          if (err > 0) {
+          if (nextX < nextY - 1e-10) {
             if (!walkable(x + xi, y, extra) || !canStep(x, y, x + xi, y)) return false;
-            x += xi; err -= dy;
-          } else if (err < 0) {
+            x += xi; nextX += stepX;
+          } else if (nextY < nextX - 1e-10) {
             if (!walkable(x, y + yi, extra) || !canStep(x, y, x, y + yi)) return false;
-            y += yi; err += dx;
-          } else {   // exact diagonal — both corners open, and legal whichever way round we go
+            y += yi; nextY += stepY;
+          } else {
+            // At a grid corner both orthogonal passages must be open.
             if (!walkable(x + xi, y, extra) || !walkable(x, y + yi, extra)) return false;
             if (!canStep(x, y, x + xi, y) || !canStep(x, y, x, y + yi)) return false;
             if (!canStep(x + xi, y, x + xi, y + yi) || !canStep(x, y + yi, x + xi, y + yi)) return false;
-            x += xi; y += yi; err -= dy; err += dx;
+            x += xi; y += yi; nextX += stepX; nextY += stepY;
           }
         }
         return guard > 0 && walkable(x1, y1, extra);
       }
+      function losClear(x0, y0, x1, y1, extra) {
+        const fy = 1 - 1 / TILE;
+        return segmentClear(x0 + .5, y0 + .5, x1 + .5, y1 + .5, extra)
+          && segmentClear(x0 + .5, y0 + fy, x1 + .5, y1 + fy, extra);
+      }
+      // Pixel-space companion for actual starts, corner lookahead and body nudges.
+      const clearFootSegment = (ax, ay, bx, by, extra) => segmentClear(ax / TILE, ay / TILE, bx / TILE, by / TILE, extra);
       function smoothPath(pts, sx, sy, extra) {
         if (!pts || pts.length < 3) return pts;
         const out = [];
@@ -1950,7 +2008,7 @@ const WorldModel = (() => {
         TILE, COLS, ROWS, W: COLS * TILE, H: ROWS * TILE + HULL_PAD,
         origin: { tx: ox, ty: oy },
         allRects, zones, ROOM_IDS, isCorridor, chamfers, windows: [], props: propsLocal, belts: beltsLocal,
-        doorDefs, zoneGrid, idx, canStep, baseColorOf, walkable, path, blockedTiles,
+        doorDefs, zoneGrid, idx, canStep, baseColorOf, walkable, path, clearFootSegment, blockedTiles,
         nameOf: id => (doc.rooms[id] ? doc.rooms[id].name : ''),
         kindOf: id => (doc.rooms[id] ? doc.rooms[id].kind : null),
         matOf: id => matOfRoom(doc.rooms[id]),   // effective deck material (override, else kind default)
@@ -2364,6 +2422,7 @@ const WorldModel = (() => {
       const room = doc.rooms[doc.meta.spawnRoomId];
       room.rects = [{ x1: 0, y1: 0, x2: 13, y2: 8 }];
       room.name = 'HAB-01';
+      room.hullStyle = 'bone';
       doc.props = [
         { id: 'p' + doc._nid++, t: 'crate', x: 1, y: 1, w: 2, h: 1, block: true },
         { id: 'p' + doc._nid++, t: 'rackV', x: 11, y: 1, w: 1, h: 2, block: true },

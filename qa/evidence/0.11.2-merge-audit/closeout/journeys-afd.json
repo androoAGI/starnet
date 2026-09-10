@@ -1,0 +1,895 @@
+{
+  "url": "http://127.0.0.1:8943/",
+  "ranAt": "2026-09-10T22:30:40.627Z",
+  "journeys": [
+    {
+      "name": "J1 task-lifecycle + taskboard truth",
+      "passed": true,
+      "assertions": [
+        {
+          "name": "J1.0-board-open::board/rows-match-task-store",
+          "pass": true,
+          "detail": "board=[] taskStore=[]",
+          "soft": false
+        },
+        {
+          "name": "J1.0-board-open::board/no-chat-sessions",
+          "pass": true,
+          "detail": "no chat/summon session rendered as a card",
+          "soft": false
+        },
+        {
+          "name": "J1.0-board-open::chip/running-implies-busy",
+          "pass": true,
+          "detail": "0 RUNNING card(s), all Channels.isBusy",
+          "soft": false
+        },
+        {
+          "name": "J1.0-board-open::chip/done-implies-idle",
+          "pass": true,
+          "detail": "0 DONE card(s), none busy",
+          "soft": false
+        },
+        {
+          "name": "J1.0-board-open::crew/working-not-exceeds-present",
+          "pass": true,
+          "detail": "shown=0 present=1",
+          "soft": false
+        },
+        {
+          "name": "J1.0-board-open::crew/working-covers-busy",
+          "pass": true,
+          "detail": "shownWorking=0 >= busy-on-roster=0",
+          "soft": false
+        },
+        {
+          "name": "J1.0-board-open::topbar/stationLevel",
+          "pass": true,
+          "detail": "displayed=1 eq expected=1",
+          "soft": false
+        },
+        {
+          "name": "J1.0-board-open::board/no-forever-running",
+          "pass": true,
+          "detail": "no stuck RUNNING chip while idle",
+          "soft": false
+        },
+        {
+          "name": "J1/plain-chat-sent",
+          "pass": true,
+          "detail": "sent",
+          "soft": false
+        },
+        {
+          "name": "J1.1-after-plain-chat::board/rows-match-task-store",
+          "pass": true,
+          "detail": "board=[] taskStore=[]",
+          "soft": false
+        },
+        {
+          "name": "J1.1-after-plain-chat::board/no-chat-sessions",
+          "pass": true,
+          "detail": "no chat/summon session rendered as a card",
+          "soft": false
+        },
+        {
+          "name": "J1.1-after-plain-chat::chip/running-implies-busy",
+          "pass": true,
+          "detail": "0 RUNNING card(s), all Channels.isBusy",
+          "soft": false
+        },
+        {
+          "name": "J1.1-after-plain-chat::chip/done-implies-idle",
+          "pass": true,
+          "detail": "0 DONE card(s), none busy",
+          "soft": false
+        },
+        {
+          "name": "J1.1-after-plain-chat::crew/working-not-exceeds-present",
+          "pass": true,
+          "detail": "shown=0 present=1",
+          "soft": false
+        },
+        {
+          "name": "J1.1-after-plain-chat::crew/working-covers-busy",
+          "pass": true,
+          "detail": "shownWorking=0 >= busy-on-roster=0",
+          "soft": false
+        },
+        {
+          "name": "J1.1-after-plain-chat::topbar/stationLevel",
+          "pass": true,
+          "detail": "displayed=1 eq expected=1",
+          "soft": false
+        },
+        {
+          "name": "J1.1-after-plain-chat::board/no-forever-running",
+          "pass": true,
+          "detail": "no stuck RUNNING chip while idle",
+          "soft": false
+        },
+        {
+          "name": "J1/task-created",
+          "pass": true,
+          "detail": "workstream id=ws_mtw3pipt8yht",
+          "soft": false
+        },
+        {
+          "name": "J1/run-in-flight",
+          "pass": true,
+          "detail": "busy on ws_mtw3pipt8yht",
+          "soft": false
+        },
+        {
+          "name": "J1.2-run-live::board/rows-match-task-store",
+          "pass": true,
+          "detail": "board=[ws_mtw3pipt8yht] taskStore=[ws_mtw3pipt8yht]",
+          "soft": false
+        },
+        {
+          "name": "J1.2-run-live::board/no-chat-sessions",
+          "pass": true,
+          "detail": "no chat/summon session rendered as a card",
+          "soft": false
+        },
+        {
+          "name": "J1.2-run-live::chip/running-implies-busy",
+          "pass": true,
+          "detail": "1 RUNNING card(s), all Channels.isBusy",
+          "soft": false
+        },
+        {
+          "name": "J1.2-run-live::chip/done-implies-idle",
+          "pass": true,
+          "detail": "0 DONE card(s), none busy",
+          "soft": false
+        },
+        {
+          "name": "J1.2-run-live::crew/working-not-exceeds-present",
+          "pass": true,
+          "detail": "shown=1 present=1",
+          "soft": false
+        },
+        {
+          "name": "J1.2-run-live::crew/working-covers-busy",
+          "pass": true,
+          "detail": "shownWorking=1 >= busy-on-roster=1",
+          "soft": false
+        },
+        {
+          "name": "J1.2-run-live::topbar/stationLevel",
+          "pass": true,
+          "detail": "displayed=1 eq expected=1",
+          "soft": false
+        },
+        {
+          "name": "J1.2-run-live::board/no-forever-running",
+          "pass": true,
+          "detail": "1 run(s) legitimately in flight",
+          "soft": false
+        },
+        {
+          "name": "J1/assigned-card-active",
+          "pass": true,
+          "detail": "assigned card state = {\"lane\":\"active\",\"heading\":\"IN PROGRESS / REVIEW 11 RUNNING\",\"running\":true,\"busy\":true}",
+          "soft": false
+        },
+        {
+          "name": "J1/queue-midrun-keeps-running-chip",
+          "pass": true,
+          "detail": "re-queued mid-run → lane=TO busy=true RUNNING chip=true",
+          "soft": false
+        },
+        {
+          "name": "J1/run-completed",
+          "pass": true,
+          "detail": "all channels idle after the quick run",
+          "soft": false
+        },
+        {
+          "name": "J1.3-run-done::board/rows-match-task-store",
+          "pass": true,
+          "detail": "board=[ws_mtw3pipt8yht] taskStore=[ws_mtw3pipt8yht]",
+          "soft": false
+        },
+        {
+          "name": "J1.3-run-done::board/no-chat-sessions",
+          "pass": true,
+          "detail": "no chat/summon session rendered as a card",
+          "soft": false
+        },
+        {
+          "name": "J1.3-run-done::chip/running-implies-busy",
+          "pass": true,
+          "detail": "0 RUNNING card(s), all Channels.isBusy",
+          "soft": false
+        },
+        {
+          "name": "J1.3-run-done::chip/done-implies-idle",
+          "pass": true,
+          "detail": "1 DONE card(s), none busy",
+          "soft": false
+        },
+        {
+          "name": "J1.3-run-done::crew/working-not-exceeds-present",
+          "pass": true,
+          "detail": "shown=0 present=1",
+          "soft": false
+        },
+        {
+          "name": "J1.3-run-done::crew/working-covers-busy",
+          "pass": true,
+          "detail": "shownWorking=0 >= busy-on-roster=0",
+          "soft": false
+        },
+        {
+          "name": "J1.3-run-done::topbar/stationLevel",
+          "pass": true,
+          "detail": "displayed=1 eq expected=1",
+          "soft": false
+        },
+        {
+          "name": "J1.3-run-done::board/no-forever-running",
+          "pass": true,
+          "detail": "no stuck RUNNING chip while idle",
+          "soft": false
+        },
+        {
+          "name": "J1/chip-done-after-complete",
+          "pass": true,
+          "detail": "chip=kb-state done:FINISHED — REVIEW RESULT",
+          "soft": false
+        },
+        {
+          "name": "J1/exactly-one-new-task",
+          "pass": true,
+          "detail": "taskStore 0 → 1 (plain chat must NOT add a card)",
+          "soft": false
+        }
+      ]
+    },
+    {
+      "name": "J2a interrupt: conversation Stop mid-run",
+      "passed": true,
+      "assertions": [
+        {
+          "name": "J2/teardown/backend-prior-runs-drained",
+          "pass": true,
+          "detail": "prior=[] livePrior=[]",
+          "soft": false
+        },
+        {
+          "name": "J2/provider-stream-held",
+          "pass": true,
+          "detail": "parked provider streams=1",
+          "soft": false
+        },
+        {
+          "name": "J2/stop/run-held-live",
+          "pass": true,
+          "detail": "run held in-flight on ws_mtw3pkrriaqa",
+          "soft": false
+        },
+        {
+          "name": "J2/stop/current-stop-clicked",
+          "pass": true,
+          "detail": "clicked",
+          "soft": false
+        },
+        {
+          "name": "J2/stop/settles-idle",
+          "pass": true,
+          "detail": "no channel busy after interrupt",
+          "soft": false
+        },
+        {
+          "name": "J2/stop/backend-idle",
+          "pass": true,
+          "detail": "live backend runs=[]",
+          "soft": false
+        },
+        {
+          "name": "J2/stop/provider-stream-closed",
+          "pass": true,
+          "detail": "parked provider streams=0",
+          "soft": false
+        },
+        {
+          "name": "J2.stop::board/rows-match-task-store",
+          "pass": true,
+          "detail": "board=[ws_mtw3pipt8yht,ws_mtw3pkrriaqa] taskStore=[ws_mtw3pipt8yht,ws_mtw3pkrriaqa]",
+          "soft": false
+        },
+        {
+          "name": "J2.stop::board/no-chat-sessions",
+          "pass": true,
+          "detail": "no chat/summon session rendered as a card",
+          "soft": false
+        },
+        {
+          "name": "J2.stop::chip/running-implies-busy",
+          "pass": true,
+          "detail": "0 RUNNING card(s), all Channels.isBusy",
+          "soft": false
+        },
+        {
+          "name": "J2.stop::chip/done-implies-idle",
+          "pass": true,
+          "detail": "2 DONE card(s), none busy",
+          "soft": false
+        },
+        {
+          "name": "J2.stop::crew/working-not-exceeds-present",
+          "pass": true,
+          "detail": "shown=1 present=1",
+          "soft": false
+        },
+        {
+          "name": "J2.stop::crew/working-covers-busy",
+          "pass": true,
+          "detail": "shownWorking=1 >= busy-on-roster=0",
+          "soft": false
+        },
+        {
+          "name": "J2.stop::topbar/stationLevel",
+          "pass": true,
+          "detail": "displayed=1 eq expected=1",
+          "soft": false
+        },
+        {
+          "name": "J2.stop::board/no-forever-running",
+          "pass": true,
+          "detail": "no stuck RUNNING chip while idle",
+          "soft": false
+        },
+        {
+          "name": "J2/stop/no-forever-running-chip",
+          "pass": true,
+          "detail": "interrupted card chip = not-running",
+          "soft": false
+        }
+      ]
+    },
+    {
+      "name": "J2b interrupt: panel-close mid-run",
+      "passed": true,
+      "assertions": [
+        {
+          "name": "J2/teardown/backend-prior-runs-drained",
+          "pass": true,
+          "detail": "prior=[] livePrior=[]",
+          "soft": false
+        },
+        {
+          "name": "J2/provider-stream-held",
+          "pass": true,
+          "detail": "parked provider streams=1",
+          "soft": false
+        },
+        {
+          "name": "J2/panel-close/run-held-live",
+          "pass": true,
+          "detail": "run held on ws_mtw3pmeka450",
+          "soft": false
+        },
+        {
+          "name": "J2/panel-close/run-survives-close",
+          "pass": true,
+          "detail": "run still in-flight after panel close (channel survived)",
+          "soft": false
+        },
+        {
+          "name": "J2/panel-close/current-stop-clicked",
+          "pass": true,
+          "detail": "clicked",
+          "soft": false
+        },
+        {
+          "name": "J2/panel-close/settles-idle",
+          "pass": true,
+          "detail": "no channel busy after interrupt",
+          "soft": false
+        },
+        {
+          "name": "J2/panel-close/backend-idle",
+          "pass": true,
+          "detail": "live backend runs=[]",
+          "soft": false
+        },
+        {
+          "name": "J2/panel-close/provider-stream-closed",
+          "pass": true,
+          "detail": "parked provider streams=0",
+          "soft": false
+        },
+        {
+          "name": "J2.panel-close::board/rows-match-task-store",
+          "pass": true,
+          "detail": "board=[ws_mtw3pipt8yht,ws_mtw3pkrriaqa,ws_mtw3pmeka450] taskStore=[ws_mtw3pipt8yht,ws_mtw3pkrriaqa,ws_mtw3pmeka450]",
+          "soft": false
+        },
+        {
+          "name": "J2.panel-close::board/no-chat-sessions",
+          "pass": true,
+          "detail": "no chat/summon session rendered as a card",
+          "soft": false
+        },
+        {
+          "name": "J2.panel-close::chip/running-implies-busy",
+          "pass": true,
+          "detail": "0 RUNNING card(s), all Channels.isBusy",
+          "soft": false
+        },
+        {
+          "name": "J2.panel-close::chip/done-implies-idle",
+          "pass": true,
+          "detail": "3 DONE card(s), none busy",
+          "soft": false
+        },
+        {
+          "name": "J2.panel-close::crew/working-not-exceeds-present",
+          "pass": true,
+          "detail": "shown=0 present=1",
+          "soft": false
+        },
+        {
+          "name": "J2.panel-close::crew/working-covers-busy",
+          "pass": true,
+          "detail": "shownWorking=0 >= busy-on-roster=0",
+          "soft": false
+        },
+        {
+          "name": "J2.panel-close::topbar/stationLevel",
+          "pass": true,
+          "detail": "displayed=1 eq expected=1",
+          "soft": false
+        },
+        {
+          "name": "J2.panel-close::board/no-forever-running",
+          "pass": true,
+          "detail": "no stuck RUNNING chip while idle",
+          "soft": false
+        },
+        {
+          "name": "J2/panel-close/no-forever-running-chip",
+          "pass": true,
+          "detail": "interrupted card chip = not-running",
+          "soft": false
+        }
+      ]
+    },
+    {
+      "name": "J2c interrupt: reload mid-run",
+      "passed": true,
+      "assertions": [
+        {
+          "name": "J2/teardown/backend-prior-runs-drained",
+          "pass": true,
+          "detail": "prior=[] livePrior=[]",
+          "soft": false
+        },
+        {
+          "name": "J2/provider-stream-held",
+          "pass": true,
+          "detail": "parked provider streams=1",
+          "soft": false
+        },
+        {
+          "name": "J2/reload/run-held-live",
+          "pass": true,
+          "detail": "run held on ws_mtw3po1efemc",
+          "soft": false
+        },
+        {
+          "name": "J2/reload/floor-back",
+          "pass": true,
+          "detail": "floor + testapi ready after reload",
+          "soft": false
+        },
+        {
+          "name": "J2/reload/nothing-busy-after-reload",
+          "pass": true,
+          "detail": "no transient run survived the reload",
+          "soft": false
+        },
+        {
+          "name": "J2.reload-after::board/rows-match-task-store",
+          "pass": true,
+          "detail": "board=[ws_mtw3pipt8yht,ws_mtw3pkrriaqa,ws_mtw3pmeka450,ws_mtw3po1efemc] taskStore=[ws_mtw3pipt8yht,ws_mtw3pkrriaqa,ws_mtw3pmeka450,ws_mtw3po1efemc]",
+          "soft": false
+        },
+        {
+          "name": "J2.reload-after::board/no-chat-sessions",
+          "pass": true,
+          "detail": "no chat/summon session rendered as a card",
+          "soft": false
+        },
+        {
+          "name": "J2.reload-after::chip/running-implies-busy",
+          "pass": true,
+          "detail": "0 RUNNING card(s), all Channels.isBusy",
+          "soft": false
+        },
+        {
+          "name": "J2.reload-after::chip/done-implies-idle",
+          "pass": true,
+          "detail": "4 DONE card(s), none busy",
+          "soft": false
+        },
+        {
+          "name": "J2.reload-after::crew/working-not-exceeds-present",
+          "pass": true,
+          "detail": "shown=0 present=1",
+          "soft": false
+        },
+        {
+          "name": "J2.reload-after::crew/working-covers-busy",
+          "pass": true,
+          "detail": "shownWorking=0 >= busy-on-roster=0",
+          "soft": false
+        },
+        {
+          "name": "J2.reload-after::topbar/stationLevel",
+          "pass": true,
+          "detail": "displayed=1 eq expected=1",
+          "soft": false
+        },
+        {
+          "name": "J2.reload-after::board/no-forever-running",
+          "pass": true,
+          "detail": "no stuck RUNNING chip while idle",
+          "soft": false
+        },
+        {
+          "name": "J2/reload/no-running-chip-after-reload",
+          "pass": true,
+          "detail": "reloaded card shows an honest (non-running) state",
+          "soft": false
+        }
+      ]
+    },
+    {
+      "name": "J3 double-send / rapid-toggle",
+      "passed": true,
+      "assertions": [
+        {
+          "name": "J3/two-distinct-ids",
+          "pass": true,
+          "detail": "t1=ws_mtw3ppvpbbda t2=ws_mtw3ppwi2rpf",
+          "soft": false
+        },
+        {
+          "name": "J3.mid-toggle::board/rows-match-task-store",
+          "pass": true,
+          "detail": "board=[ws_mtw3pipt8yht,ws_mtw3pkrriaqa,ws_mtw3pmeka450,ws_mtw3po1efemc,ws_mtw3ppvpbbda,ws_mtw3ppwi2rpf] taskStore=[ws_mtw3pipt8yht,ws_mtw3pkrriaqa,ws_mtw3pmeka450,ws_mtw3po1efemc,ws_mtw3ppvpbbda,ws_mtw3ppwi2rpf]",
+          "soft": false
+        },
+        {
+          "name": "J3.mid-toggle::board/no-chat-sessions",
+          "pass": true,
+          "detail": "no chat/summon session rendered as a card",
+          "soft": false
+        },
+        {
+          "name": "J3.mid-toggle::chip/running-implies-busy",
+          "pass": true,
+          "detail": "0 RUNNING card(s), all Channels.isBusy",
+          "soft": false
+        },
+        {
+          "name": "J3.mid-toggle::chip/done-implies-idle",
+          "pass": true,
+          "detail": "6 DONE card(s), none busy",
+          "soft": false
+        },
+        {
+          "name": "J3.mid-toggle::crew/working-not-exceeds-present",
+          "pass": true,
+          "detail": "shown=0 present=1",
+          "soft": false
+        },
+        {
+          "name": "J3.mid-toggle::crew/working-covers-busy",
+          "pass": true,
+          "detail": "shownWorking=0 >= busy-on-roster=0",
+          "soft": false
+        },
+        {
+          "name": "J3.mid-toggle::topbar/stationLevel",
+          "pass": true,
+          "detail": "displayed=1 eq expected=1",
+          "soft": false
+        },
+        {
+          "name": "J3.mid-toggle::board/no-forever-running",
+          "pass": true,
+          "detail": "no stuck RUNNING chip while idle",
+          "soft": false
+        },
+        {
+          "name": "J3/no-duplicate-board-rows",
+          "pass": true,
+          "detail": "6 unique card(s)",
+          "soft": false
+        },
+        {
+          "name": "J3.settled::board/rows-match-task-store",
+          "pass": true,
+          "detail": "board=[ws_mtw3pipt8yht,ws_mtw3pkrriaqa,ws_mtw3pmeka450,ws_mtw3po1efemc,ws_mtw3ppvpbbda,ws_mtw3ppwi2rpf] taskStore=[ws_mtw3pipt8yht,ws_mtw3pkrriaqa,ws_mtw3pmeka450,ws_mtw3po1efemc,ws_mtw3ppvpbbda,ws_mtw3ppwi2rpf]",
+          "soft": false
+        },
+        {
+          "name": "J3.settled::board/no-chat-sessions",
+          "pass": true,
+          "detail": "no chat/summon session rendered as a card",
+          "soft": false
+        },
+        {
+          "name": "J3.settled::chip/running-implies-busy",
+          "pass": true,
+          "detail": "0 RUNNING card(s), all Channels.isBusy",
+          "soft": false
+        },
+        {
+          "name": "J3.settled::chip/done-implies-idle",
+          "pass": true,
+          "detail": "6 DONE card(s), none busy",
+          "soft": false
+        },
+        {
+          "name": "J3.settled::crew/working-not-exceeds-present",
+          "pass": true,
+          "detail": "shown=0 present=1",
+          "soft": false
+        },
+        {
+          "name": "J3.settled::crew/working-covers-busy",
+          "pass": true,
+          "detail": "shownWorking=0 >= busy-on-roster=0",
+          "soft": false
+        },
+        {
+          "name": "J3.settled::topbar/stationLevel",
+          "pass": true,
+          "detail": "displayed=1 eq expected=1",
+          "soft": false
+        },
+        {
+          "name": "J3.settled::board/no-forever-running",
+          "pass": true,
+          "detail": "no stuck RUNNING chip while idle",
+          "soft": false
+        },
+        {
+          "name": "J3/no-stuck-running",
+          "pass": true,
+          "detail": "0 card(s) still RUNNING after both runs settled",
+          "soft": false
+        },
+        {
+          "name": "J3/exactly-two-new-streams",
+          "pass": true,
+          "detail": "2 new stream(s) (expected 2): ws_mtw3ppvpbbda,ws_mtw3ppwi2rpf",
+          "soft": false
+        },
+        {
+          "name": "J3/zero-new-exceptions",
+          "pass": true,
+          "detail": "no new uncaught exceptions during rapid send/toggle",
+          "soft": false
+        }
+      ]
+    },
+    {
+      "name": "J4 summon→assign→deliverable→OPEN",
+      "passed": true,
+      "assertions": [
+        {
+          "name": "J4/workshop-granted",
+          "pass": true,
+          "detail": "grant → {\"ok\":true,\"agentId\":\"agent\",\"on\":true}",
+          "soft": false
+        },
+        {
+          "name": "J4/build-queued",
+          "pass": true,
+          "detail": "queue → {\"ok\":true,\"item\":{\"id\":\"journey-web\",\"title\":\"a web tool: journey demo\",\"detail\":\"\",\"source\":\"queued\",\"ts\":178907945777",
+          "soft": false
+        },
+        {
+          "name": "J4/shift-streams",
+          "pass": true,
+          "detail": "shift status=200",
+          "soft": false
+        },
+        {
+          "name": "J4/deliverable-built",
+          "pass": true,
+          "detail": "fired=true reason=built runId=77f6a1c0-e2a0-4f12-b8ca-f5eb20cbdbc5",
+          "soft": false
+        },
+        {
+          "name": "J4/manifest-lists-index-html",
+          "pass": true,
+          "detail": "manifest files: [{\"path\":\"index.html\",\"bytes\":161},{\"path\":\"README.md\",\"bytes\":33}]",
+          "soft": false
+        },
+        {
+          "name": "J4/workshop-run-200",
+          "pass": true,
+          "detail": "GET /workshop-run/.../index.html → 200",
+          "soft": false
+        },
+        {
+          "name": "J4/served-as-runnable-html",
+          "pass": true,
+          "detail": "content-type=text/html; charset=utf-8 (RUNNABLE, not octet-stream)",
+          "soft": false
+        },
+        {
+          "name": "J4/inline-script-intact",
+          "pass": true,
+          "detail": "served html still carries its inline <script> (it runs in a tab)",
+          "soft": false
+        },
+        {
+          "name": "J4/opaque-origin-sandbox",
+          "pass": true,
+          "detail": "CSP=sandbox allow-scripts",
+          "soft": false
+        },
+        {
+          "name": "J4/token-required",
+          "pass": true,
+          "detail": "no-token GET → 403 (must be 403)",
+          "soft": false
+        },
+        {
+          "name": "J4/library-controls-visible",
+          "pass": true,
+          "detail": "search/filter/refresh/cleanup controls={\"q\":true,\"status\":true,\"refresh\":true,\"clean\":true,\"title\":\"Journey Demo Tool\",\"open\":true,\"keep\":true,\"discard\":true}",
+          "soft": false
+        },
+        {
+          "name": "J4/library-real-pending-row",
+          "pass": true,
+          "detail": "pending card/actions={\"q\":true,\"status\":true,\"refresh\":true,\"clean\":true,\"title\":\"Journey Demo Tool\",\"open\":true,\"keep\":true,\"discard\":true}",
+          "soft": false
+        },
+        {
+          "name": "J4/library-search-filters",
+          "pass": true,
+          "detail": "search result=NO MATCHES.Nothing in the library fits this view. Clear the filters to see everything.",
+          "soft": false
+        }
+      ]
+    },
+    {
+      "name": "J6 bay-bound crew idle life (desk-stuck)",
+      "passed": true,
+      "assertions": [
+        {
+          "name": "J6/bay-injected",
+          "pass": true,
+          "detail": "inject → {\"belt\":true,\"bay\":true}",
+          "soft": false
+        },
+        {
+          "name": "J6/bay-body-born",
+          "pass": true,
+          "detail": "plan-derived crew body present",
+          "soft": false
+        },
+        {
+          "name": "J6/idle-bay-body-has-life",
+          "pass": true,
+          "detail": "idle bay body came alive (goal=null tile=11,9 — not frozen at its bay)",
+          "soft": false
+        },
+        {
+          "name": "J6/task-seizes-body",
+          "pass": true,
+          "detail": "body went to work on the task",
+          "soft": false
+        },
+        {
+          "name": "J6/returns-to-idle-after-task",
+          "pass": true,
+          "detail": "body resumed idle life after run end (goal=null tile=11,8)",
+          "soft": false
+        },
+        {
+          "name": "J6/stays-in-own-zone",
+          "pass": true,
+          "detail": "inOwnZone=true tile=11,8",
+          "soft": false
+        }
+      ]
+    },
+    {
+      "name": "J7 slash INPUT-path truth (2026-07-05 ARGS-bug seam)",
+      "passed": true,
+      "assertions": [
+        {
+          "name": "J7/composer-present",
+          "pass": true,
+          "detail": "#chat-input mounted",
+          "soft": false
+        },
+        {
+          "name": "J7/model-line-typed",
+          "pass": true,
+          "detail": "drove \"/model journey/slash-truth-1789079463545\" through #chat-input: typed",
+          "soft": false
+        },
+        {
+          "name": "J7/arg-command-dispatched",
+          "pass": true,
+          "detail": "local line: \"Model set to journey/slash-truth-1789079463545\"",
+          "soft": false
+        },
+        {
+          "name": "J7/arg-reached-config",
+          "pass": true,
+          "detail": "App.currentAgent().model=\"journey/slash-truth-1789079463545\" (expected the typed arg)",
+          "soft": false
+        },
+        {
+          "name": "J7/arg-line-not-chat",
+          "pass": true,
+          "detail": "no \"/model …\" user chat row (dispatched, not sent)",
+          "soft": false
+        },
+        {
+          "name": "J7/composer-cleared",
+          "pass": true,
+          "detail": "input.value after dispatch = \"\"",
+          "soft": false
+        },
+        {
+          "name": "J7/whoami-line-typed",
+          "pass": true,
+          "detail": "drove \"/whoami\": typed",
+          "soft": false
+        },
+        {
+          "name": "J7/bare-command-dispatched",
+          "pass": true,
+          "detail": "new local line from /whoami (\"You are …\")",
+          "soft": false
+        },
+        {
+          "name": "J7/no-slash-user-rows",
+          "pass": true,
+          "detail": "no user chat row starts with \"/\" — every slash line dispatched",
+          "soft": false
+        },
+        {
+          "name": "J7/plain-line-typed",
+          "pass": true,
+          "detail": "drove plain prose: typed",
+          "soft": false
+        },
+        {
+          "name": "J7/plain-text-goes-to-chat",
+          "pass": true,
+          "detail": "plain prose became a .cmsg.user chat row (send path, not command)",
+          "soft": false
+        },
+        {
+          "name": "J7/plain-not-a-command",
+          "pass": true,
+          "detail": "slashUserRows=[]",
+          "soft": false
+        }
+      ]
+    }
+  ],
+  "console": [
+    {
+      "type": "warning",
+      "text": "[cloudsave] durable mirror has not synced; retrying with backoff. Local cache is intact."
+    }
+  ],
+  "exceptions": []
+}

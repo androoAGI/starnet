@@ -1,0 +1,136 @@
+/* Agent dossier: one glass vocabulary across the landing page and expanded controls. */
+.agent-dossier.sn-menu .con-toptabs { padding: 10px 14px; gap: 6px; background: rgba(0,0,0,.12); border-color: rgba(var(--ph-rgb),.16); }
+.agent-dossier.sn-menu .con-toptab { display: flex; justify-content: center; gap: 7px; padding: 9px 12px; margin: 0; min-height: 36px; border-radius: 7px; background: transparent; }
+.agent-dossier.sn-menu .con-toptab .con-rail-label { font-size: 14px; letter-spacing: .2px; }
+.agent-dossier.sn-menu .con-toptab[aria-selected="true"] { background: var(--menu-glass); color: var(--ph-bright); border-color: rgba(var(--ph-rgb),.3); box-shadow: inset 0 1px 0 rgba(var(--ph-bright-rgb),.1); }
+.agent-dossier .con-pane { padding: 22px; }
+.agent-dossier .con-sec-desc { font-size: 15px; line-height: 1.5; margin-bottom: 20px; }
+.agent-dossier .ag-item { border-radius: 8px; padding: 12px 10px; margin: 0 0 5px; border: 1px solid transparent; box-shadow: none; background: transparent; }
+.agent-dossier .ag-item.sel { background: var(--menu-glass); color: var(--ph-bright); border-color: rgba(var(--ph-rgb),.35); box-shadow: inset 0 1px 0 rgba(var(--ph-bright-rgb),.1); }
+.agent-dossier .ag-item.sel .ag-item-st { color: var(--ph-dim); }
+.agent-dossier .ag-item-nm { font-size: 15px; }
+.agent-dossier :is(.ag-hero,.ag-mission,.cf-group,.ag-reflection-panel,.gx-2 > div,.ag-xp-panel,.ag-achievements,.gx-station) { border: 1px solid rgba(var(--ph-rgb),.2); border-radius: 12px; background: var(--menu-glass); box-shadow: inset 0 1px 0 rgba(var(--ph-bright-rgb),.08); padding: 18px; margin: 0 0 18px; }
+.agent-dossier .ag-hero { gap: 20px; align-items: center; }
+.agent-dossier .ag-info { min-width: 0; }
+.agent-dossier .ag-name { font-size: 28px; line-height: 1.3; flex-wrap: wrap; }
+.agent-dossier .ag-tags { margin: 10px 0; gap: 7px; }
+.agent-dossier .tag { padding: 5px 8px; border-radius: 6px; font-size: 12px; overflow-wrap: anywhere; white-space: normal; }
+.agent-dossier .stat-grid { gap: 8px; margin-top: 14px; }
+.agent-dossier .stat-cell { padding: 10px; border-radius: 8px; border: 1px solid rgba(var(--ph-rgb),.15); background: rgba(0,0,0,.1); box-shadow: none; }
+.agent-dossier .stat-val { font-size: 23px; line-height: 1.2; }
+.agent-dossier .stat-lbl { font-size: 11px; }
+.agent-dossier .ag-mission-lbl { font-size: 13px; margin-bottom: 10px; }
+.agent-dossier .ag-mission-text { font-size: 16px; line-height: 1.55; }
+.agent-dossier .ag-setup { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 9px; }
+.agent-dossier .ag-setup-row { display: grid; grid-template-columns: 1fr auto; gap: 7px; padding: 14px; border: 1px solid rgba(var(--ph-rgb),.2); border-radius: 9px; background: rgba(var(--ph-rgb),.035); text-align: left; }
+.agent-dossier .ag-setup-lbl { font-size: 12px; }
+.agent-dossier .ag-setup-val { grid-column: 1; font-size: 15px; line-height: 1.4; overflow-wrap: anywhere; }
+.agent-dossier .ag-setup-go { grid-column: 2; grid-row: 1 / 3; align-self: center; }
+.agent-dossier :is(.sec,.gx-sec) { height: auto; flex-wrap: wrap; gap: 8px; margin: 20px 0 12px; border: 0; padding: 0; }
+.agent-dossier .sec-l,.agent-dossier .gx-title { font-size: 18px; letter-spacing: .3px; line-height: 1.35; }
+.agent-dossier .gx-ref { display: none; }
+.agent-dossier .gx-tag { white-space: normal; font-size: 12px; line-height: 1.5; letter-spacing: .1px; }
+.agent-dossier :is(.cf-grp-note,.cf-desc,.mc-note,.mc-hint,.sk-note,.ag-foot-row,.ag-del-why) { font-size: 14px; line-height: 1.55; letter-spacing: 0; }
+.agent-dossier :is(.bb,.consent-btn,.cf-nav-b,.ov-vchip,.lb-tx-btn) { font: inherit; font-size: 13px; line-height: 1.4; padding: 9px 12px; border: 1px solid rgba(var(--ph-rgb),.24); border-radius: 7px; background: rgba(var(--ph-rgb),.035); color: var(--ph); box-shadow: none; text-shadow: none; cursor: pointer; }
+.agent-dossier :is(.bb,.consent-btn,.cf-nav-b,.ov-vchip):hover { background: var(--menu-glass); border-color: var(--ph); color: var(--ph-bright); }
+.agent-dossier .ov-vchip.sel { color: var(--ph-bright); background: var(--menu-glass); border-color: var(--ph); }
+.agent-dossier :is(.cf-acts,.mc-acts,.consent-btns) { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
+.agent-dossier :is(.key-input,.cf-ta,.mc-edit,.ag-name-input) { box-sizing: border-box; max-width: 100%; min-width: 0; padding: 12px; border: 1px solid rgba(var(--ph-rgb),.3); border-radius: 8px; background-color: rgba(0,0,0,.2); color: var(--ph-bright); font: inherit; font-size: 15px; line-height: 1.5; box-shadow: inset 0 1px 0 rgba(var(--ph-rgb),.05); }
+.agent-dossier :is(.cf-ta,.mc-edit) { min-height: 140px; }
+.agent-dossier select { appearance: none; padding-right: 32px; background-image: linear-gradient(45deg,transparent 50%,var(--ph) 50%),linear-gradient(135deg,var(--ph) 50%,transparent 50%); background-position: calc(100% - 17px) 50%,calc(100% - 12px) 50%; background-size: 5px 5px; background-repeat: no-repeat; }
+.agent-dossier :is(button,input,select,textarea,summary):focus-visible { outline: 2px solid var(--ph); outline-offset: 3px; }
+.agent-dossier .cf-group { padding: 0; overflow: hidden; }
+.agent-dossier .cf-group > summary { padding: 16px 18px; cursor: pointer; }
+.agent-dossier .cf-group-title { font-size: 17px; letter-spacing: .3px; }
+.agent-dossier .cf-group-summary { font-size: 14px; line-height: 1.5; margin-top: 6px; color: var(--ph-dim); }
+.agent-dossier .cf-group[open] > summary { border-bottom: 1px solid rgba(var(--ph-rgb),.12); }
+.agent-dossier .cf-group-body { padding: 18px; }
+.agent-dossier :is(.cf,.cf-card) { border: 1px solid rgba(var(--ph-rgb),.16); border-radius: 9px; background: rgba(0,0,0,.12); box-shadow: none; padding: 16px; margin: 0 0 14px; }
+.agent-dossier .cf-head { gap: 8px; margin-bottom: 12px; }
+.agent-dossier .cf-name,.agent-dossier .cf-file { font-size: 16px; }
+.agent-dossier .cf-badge,.agent-dossier .cf-bytes { font-size: 11px; letter-spacing: .1px; }
+.agent-dossier .cf-body { font-size: 15px; line-height: 1.6; padding: 14px; border-radius: 7px; background: rgba(0,0,0,.12); max-height: 260px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.agent-dossier .ov-vchips { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 8px; margin: 14px 0; }
+.agent-dossier .ov-vchip { white-space: normal; text-align: left; }
+.agent-dossier .ag-command { border: 0; padding: 0; }
+.agent-dossier .ag-cmd-sec { margin: 0 0 16px; padding: 0; }
+.agent-dossier .ag-cmd-lbl { font-size: 14px; margin-bottom: 12px; }
+.agent-dossier .ag-cmd-danger { padding: 16px; border: 1px solid rgba(255,100,90,.22); border-radius: 9px; margin-top: 20px; }
+.agent-dossier .ag-skin-thumb { border-radius: 8px; background: rgba(var(--ph-rgb),.035); box-shadow: none; }
+.agent-dossier .ag-skin-thumb.sel { background: var(--menu-glass); border-color: var(--ph); }
+.agent-dossier :is(.mc-rec,.mc-row) { padding: 16px; border: 1px solid rgba(var(--ph-rgb),.19); border-radius: 10px; background: rgba(0,0,0,.12); box-shadow: none; margin-bottom: 12px; }
+.agent-dossier .mc-body { font-size: 16px; line-height: 1.6; }
+.agent-dossier :is(.mc-meta,.mc-url,.mc-prov) { font-size: 12px; line-height: 1.5; overflow-wrap: anywhere; }
+.agent-dossier .mc-top { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; font-size: 15px; line-height: 1.5; }
+.agent-dossier .lb-tx { margin-top: 14px; padding: 14px; border-radius: 8px; background: rgba(0,0,0,.15); font-size: 14px; line-height: 1.55; }
+.agent-dossier .fb-empty { padding: 18px; border: 1px solid rgba(var(--ph-rgb),.14); border-radius: 9px; background: rgba(var(--ph-rgb),.025); font-size: 14px; line-height: 1.6; text-align: left; }
+.agent-dossier .ag-reflection-panel .gx-sec { margin-top: 0; }
+.agent-dossier .set-row { gap: 12px; flex-wrap: wrap; margin: 14px 0; font-size: 14px; line-height: 1.5; }
+.agent-dossier .set-row input[type="checkbox"] { appearance: none; position: relative; width: 34px; height: 20px; flex: 0 0 34px; border-radius: 20px; border: 1px solid rgba(var(--ph-rgb),.4); background: rgba(var(--ph-rgb),.07); margin: 0; }
+.agent-dossier .set-row input[type="checkbox"]::after { content: ''; position: absolute; top: 3px; left: 3px; width: 12px; height: 12px; border-radius: 50%; background: var(--ph-dim); transform: none; }
+.agent-dossier .set-row input[type="checkbox"]:checked::after { left: 17px; transform: none; background: var(--ph-bright); }
+/* Progression and achievement shelf: earned state comes entirely from Xp. */
+.agent-dossier .ag-growth-hero { display: flex; align-items: center; gap: 24px; padding: 24px; margin-bottom: 18px; border: 1px solid rgba(var(--ph-rgb),.35); border-radius: 14px; background: radial-gradient(ellipse at 0% 50%,rgba(var(--ph-rgb),.19),transparent 65%),var(--menu-glass); }
+.agent-dossier .ag-level-badge { flex: 0 0 94px; height: 94px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 7px; border: 2px solid var(--ph); outline: 1px solid rgba(var(--ph-rgb),.2); outline-offset: 5px; border-radius: 22px; background: rgba(0,0,0,.2); box-shadow: inset 0 0 22px rgba(var(--ph-rgb),.16),0 0 20px rgba(var(--ph-rgb),.08); }
+.agent-dossier .ag-level-badge span { font-size: 11px; letter-spacing: 2px; }
+.agent-dossier .ag-level-badge strong { font-size: 44px; line-height: 1; font-weight: normal; color: var(--ph-bright); }
+.agent-dossier .ag-growth-heading { min-width: 0; }
+.agent-dossier .ag-growth-eyebrow { font-size: 12px; letter-spacing: 1px; color: var(--ph-dim); }
+.agent-dossier .ag-growth-heading h3 { font-size: 30px; font-weight: normal; margin: 8px 0; color: var(--ph-bright); overflow-wrap: anywhere; }
+.agent-dossier .ag-growth-heading p { font-size: 14px; line-height: 1.5; margin: 0; }
+.agent-dossier .ag-xp-panel .gx-sec { margin-top: 0; }
+.agent-dossier .gx-trk { height: 12px; border-radius: 6px; overflow: hidden; border-color: rgba(var(--ph-rgb),.2); background: rgba(0,0,0,.24); }
+.agent-dossier .gx-fill { background: linear-gradient(90deg,var(--ph-dim),var(--ph-bright)); border-radius: inherit; }
+.agent-dossier .ag-xp-panel .gx-mark { display: none; }
+.agent-dossier .ag-next-challenge { display: flex; flex-wrap: wrap; align-items: center; gap: 7px 14px; padding: 14px 16px; margin: 0 0 18px; border: 1px solid rgba(var(--ph-rgb),.25); border-radius: 9px; background: rgba(var(--ph-rgb),.045); font-size: 14px; }
+.agent-dossier .ag-next-challenge > span:first-child { font-size: 11px; letter-spacing: .6px; color: var(--ph-dim); }
+.agent-dossier .ag-achievements .gx-trohead { margin: 0 0 16px; gap: 12px; flex-wrap: wrap; }
+.agent-dossier .gx-tros { grid-template-columns: repeat(3,minmax(0,1fr)); gap: 10px; }
+.agent-dossier .gx-tro { padding: 16px 12px; border: 1px solid rgba(var(--ph-rgb),.16); border-radius: 9px; box-shadow: none; background: rgba(0,0,0,.1); }
+.agent-dossier .gx-tro.on { border-color: var(--ph); background: var(--menu-glass); box-shadow: inset 0 1px 0 rgba(var(--ph-bright-rgb),.15); }
+.agent-dossier .gx-tro .gl { flex: 0 0 26px; width: 26px; height: 26px; display: grid; place-items: center; font-size: 20px; border: 1px solid rgba(var(--ph-rgb),.2); border-radius: 7px; }
+.agent-dossier .gx-tro .nm { font-size: 13px; line-height: 1.3; margin: 0; opacity: 1; }
+.agent-dossier .gx-tro .sub { font-size: 12px; line-height: 1.5; opacity: 1; margin-top: 10px; }
+.agent-dossier .gx-tro.off .gl { opacity: .7; }
+.agent-dossier .gx-tro.ag-next-trophy { border-style: dashed; border-color: rgba(var(--ph-rgb),.45); }
+.agent-dossier .ag-growth-section-title { font-size: 20px; color: var(--ph-bright); margin: 24px 0 14px; }
+.agent-dossier .gx-2 { grid-template-columns: repeat(2,minmax(0,1fr)); gap: 14px; }
+.agent-dossier .gx-2 > div { margin: 0; min-width: 0; }
+.agent-dossier .gx-2 > div:nth-child(2) { grid-column: auto !important; }
+.agent-dossier .gx-2 .gx-sec { margin-top: 0; }
+.agent-dossier .gx-confnum { font-size: 38px; }
+.agent-dossier .gx-band { font-size: 13px; letter-spacing: .3px; }
+.agent-dossier .gx-well { border-radius: 8px; padding: 12px; margin-top: 14px; background: rgba(0,0,0,.12); }
+.agent-dossier .gx-row { line-height: 1.5; gap: 8px; flex-wrap: wrap; }
+.agent-dossier .gx-station .body { gap: 20px; }
+@media (max-width: 800px) { .agent-dossier .gx-tros { grid-template-columns: repeat(2,minmax(0,1fr)); } .agent-dossier .gx-2 { grid-template-columns: 1fr; } }
+@media (max-width: 680px) { .agent-dossier .con-pane { padding: 14px; } .agent-dossier .ag-setup { grid-template-columns: 1fr; } .agent-dossier .ag-growth-hero { padding: 18px; gap: 18px; } .agent-dossier .ag-level-badge { flex-basis: 70px; height: 80px; } }
+
+.agent-dossier.sn-menu .cf-group { padding: 0; }
+.agent-dossier .cf-group > summary { background: transparent; box-shadow: none; padding-right: 36px; }
+.agent-dossier .ag-growth-hero { align-items: flex-start; }
+.agent-dossier .ag-growth-heading { flex: 1; }
+.agent-dossier .ag-growth-hero .ag-xp-panel { border: 0; border-radius: 0; padding: 0; background: none; box-shadow: none; margin: 16px 0 0; }
+.agent-dossier .ag-growth-hero .ag-xp-panel .gx-sec { display: none; }
+.agent-dossier .ag-growth-hero .gx-well { padding: 8px 10px; margin-top: 12px; }
+.agent-dossier .ag-xp-panel .gx-row { font-size: 13px !important; }
+.agent-dossier .ag-xp-panel .gx-lbl { font-size: 12px; }
+.agent-dossier .ag-reflection-panel #mc-cooldown { border-radius: 8px; }
+
+.agent-dossier .cf-group[open] > summary .cf-group-summary { display: none; }
+
+.agent-dossier .mp-wrap { gap: 8px; }
+.agent-dossier .mp-wrap select { min-height: 40px; padding: 10px 30px 10px 12px; border: 1px solid rgba(var(--ph-rgb),.3); border-radius: 8px; background-color: rgba(0,0,0,.18); font: inherit; font-size: 14px; box-shadow: none; }
+.agent-dossier .ag-effective { font-size: 14px; line-height: 1.55; margin-bottom: 18px; }
+.agent-dossier .ag-effective .perk-grid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 9px; margin: 14px 0; }
+.agent-dossier .ag-effective .perk { padding: 13px; border: 1px solid rgba(var(--ph-rgb),.2); border-radius: 9px; background: rgba(var(--ph-rgb),.035); box-shadow: none; text-align: left; }
+.agent-dossier .perk-name { font-size: 13px; line-height: 1.4; margin-bottom: 7px; }
+.agent-dossier .perk-stat { font-size: 12px; line-height: 1.5; }
+
+.agent-dossier .ag-growth-empty { padding: 24px; border: 1px solid rgba(var(--ph-rgb),.2); border-radius: 12px; background: var(--menu-glass); }
+.agent-dossier .ag-growth-empty h3 { font-size: 22px; font-weight: normal; margin: 0 0 12px; }
+.agent-dossier .ag-growth-empty p { font-size: 15px; line-height: 1.6; margin: 0; color: var(--ph-dim); }
+
+.agent-dossier .ag-portrait-well { box-sizing: content-box; border: 1px solid rgba(var(--ph-rgb),.24); border-radius: 14px; background: radial-gradient(ellipse at 50% 90%,rgba(var(--ph-rgb),.16),transparent 70%),rgba(0,0,0,.14); box-shadow: inset 0 1px 0 rgba(var(--ph-bright-rgb),.12); }
+.agent-dossier #ag-portrait { border: 0; background: transparent; box-shadow: none; }
+.agent-dossier :is(.ag-ptick,.ag-psweep) { display: none; }

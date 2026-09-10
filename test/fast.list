@@ -120,6 +120,7 @@ test/loop.verify-on-stop.test.js
 test/loop.acceptance-on-stop.test.js
 test/loop.parallel-tools.test.js
 test/loop.tool-images.test.js
+test/loop.media-cost.test.js
 test/loop.turn-budget.test.js
 test/loop.provider-recovery.test.js
 test/loop.failure-recovery.test.js
@@ -445,6 +446,13 @@ test/room-lighting-settings.test.js
 test/window-minimize.test.js
 test/nightshift-steer-ui.test.js
 test/world-agent-click.test.js
+test/worldrenderer.test.js
+test/world-sharpen.test.mjs
+test/world-immersion-characters.test.js
+test/prop-light-response.test.js
+test/worldsurface.test.js
+test/worldlight.test.js
+test/worldlight-receiver.test.mjs
 test/state-truth-overlap.test.js
 test/world-setskin.test.js
 test/capprop-map.contract.test.js
@@ -460,6 +468,7 @@ test/personality-no-sample.test.js
 test/modelpicker.test.js
 test/model-provider-reconcile.test.js
 test/agent-model-select.test.js
+test/model-reasoning-presets.test.js
 test/provider-connections-ui.test.js
 test/newhero-reset.test.js
 test/harness-internal.test.js
@@ -562,6 +571,7 @@ test/g3btrophy.test.js
 test/stationbake.chunk.test.js
 test/stationbake.materials.test.js
 test/stationbake.seam.test.js
+test/stationbake.connections.test.mjs
 test/stationbake.hull.test.js
 test/canvas-loss-recovery.test.js
 test/stage-context-loss.test.js
@@ -580,6 +590,7 @@ test/chain.join-loop.test.js
 test/chain.limits.test.js
 test/refit-card-stack.test.js
 test/refit-junction-cards.test.js
+test/refit-footprint.test.js
 test/refit-run-gate.test.js
 test/step-brief.test.js
 test/propanchor.test.js
@@ -598,6 +609,7 @@ test/toolsearch.test.js
 test/consent.interactive.test.js
 test/consentwait.test.js
 test/consent-visibility.test.js
+test/session-indicators.test.js
 test/estop-persistence-ui.test.js
 test/channels.adapter.test.js
 test/channels.proxy-fetch.test.js
@@ -652,6 +664,7 @@ test/connector-required.test.js
 test/toolsets.test.js
 test/commander-dossier-css.test.js
 test/comms-responsive-text.test.js
+test/readability.test.js
 test/dossier-skin-accessibility.test.js
 test/control-floor-theming.test.js
 test/crew-rail-fit.test.js
@@ -669,6 +682,11 @@ test/queryspine-wiring.test.js
 test/widgets.test.js
 test/widgetfeed.test.js
 test/terminal-resize.test.js
+test/glass-interactions.test.js
+test/backdrop-preview.test.js
+test/glass-comms.test.cjs
+test/glass-approval.test.cjs
+test/model-subscription.test.cjs
 test/terminal-position.test.js
 test/poweruser-shell-repairs.test.js
 test/terminal-sessions.test.js
@@ -715,6 +733,7 @@ test/failopen-ratchet.test.js
 test/frontend-fetch-truth-ratchet.test.js
 test/loop-verdict.test.js
 test/free-path-ollama.test.js
+test/keycta-recovery.test.js
 test/process-fault.test.js
 test/tier-model-catalog.test.js
 test/crash-ledger.test.js
@@ -736,3 +755,24 @@ test/work-rating-control.test.js
 test/session-focus-safety.test.js
 
 test/harness-placement.test.js
+test/github-device.test.js
+
+test/onboarding-refresh.test.js
+test/tutorial-platform-guide.test.js
+
+test/openai-outcomes.test.js
+test/request-reservations.test.js
+test/result-contract.test.js
+test/openai-formats.test.js
+test/request-auth-rotation.test.js
+test/world-seat-recovery.test.js
+test/world-lifecycle.test.js
+test/world-crew-approval.test.js
+test/world-movement-continuity.test.js
+
+test/save-concurrency.test.js
+
+test/cloudsave-concurrency.test.js
+
+test/sprite-direction-details.test.js
+test/chat-history-reconcile.test.js

@@ -1,0 +1,75 @@
+{
+  "probe": {
+    "appVersion": "0.11.2",
+    "appSource": "env",
+    "harness": "v0.11.1-284-gafd1da77f",
+    "sidecarBuildSha": "afd1da77fb4a489151b45b5a6c53e60ada4ca1f4",
+    "sidecarBuildDirty": false,
+    "mode": "desktop",
+    "origin": "http://tauri.localhost",
+    "shell": {
+      "version": "0.11.2",
+      "commit": "afd1da77f",
+      "sha": "afd1da77fb4a489151b45b5a6c53e60ada4ca1f4",
+      "sourceTree": "67e74723594dbbf8cfb4c1f1b8bec88b92003c2e",
+      "provenanceKind": "reproducible-source",
+      "describe": "v0.11.1-284-gafd1da77f",
+      "dirty": false,
+      "executableSha256": "e95cee9e45b0e5e474c505ac9d74dcdd85c1b864a39244956c5fdbe87163ffcc",
+      "executableSize": 17864192
+    },
+    "bootSane": true,
+    "checks": [
+      {
+        "name": "desktop/tauri-origin",
+        "ok": true,
+        "detail": "origin=http://tauri.localhost"
+      },
+      {
+        "name": "desktop/build-info",
+        "ok": true,
+        "detail": "commit=afd1da77fb4a489151b45b5a6c53e60ada4ca1f4 tree=67e74723594dbbf8cfb4c1f1b8bec88b92003c2e kind=reproducible-source describe=v0.11.1-284-gafd1da77f dirty=false"
+      },
+      {
+        "name": "desktop/executable-identity",
+        "ok": true,
+        "detail": "sha256=e95cee9e45b0… size=17864192"
+      },
+      {
+        "name": "boot/api-token-present",
+        "ok": true,
+        "detail": "per-launch token injected into the page"
+      },
+      {
+        "name": "version/app-nonblank",
+        "ok": true,
+        "detail": "app=0.11.2 source=env harness=v0.11.1-284-gafd1da77f"
+      },
+      {
+        "name": "boot/world-present",
+        "ok": true,
+        "detail": "world model / canvas present"
+      },
+      {
+        "name": "boot/stage-rendered",
+        "ok": true,
+        "detail": "stage/app root present in DOM"
+      },
+      {
+        "name": "store/workstreams-wellformed",
+        "ok": true,
+        "detail": "5 workstream(s) in the store"
+      },
+      {
+        "name": "board/no-forever-running",
+        "ok": true,
+        "detail": "TASKS board open; 3 card(s); no stuck RUNNING chip while idle"
+      }
+    ],
+    "notes": "checks=9 mode=desktop"
+  },
+  "diagnostics": {
+    "consoleMsgs": [],
+    "exceptions": []
+  }
+}

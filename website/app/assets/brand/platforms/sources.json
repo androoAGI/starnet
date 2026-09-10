@@ -1,0 +1,146 @@
+{
+  "apify": {
+    "file": "apify.svg",
+    "source": "https://apify.com/icon0.svg?icon0.0z-sy_vfu_0k9.svg?dpl=4195883cfe"
+  },
+  "bannerbear": {
+    "file": "bannerbear.png",
+    "source": "https://www.bannerbear.com/images/favicon-32x32.png"
+  },
+  "bland": {
+    "file": "bland.png",
+    "source": "https://www.bland.ai/images/favicon.png"
+  },
+  "cj-dropshipping": {
+    "file": "cj-dropshipping.ico",
+    "source": "https://frontend.cjdropshipping.com/config-resource/cj/favicon.ico"
+  },
+  "close-crm": {
+    "file": "close-crm.png",
+    "source": "https://cdn.prod.website-files.com/61717799a852418a278cfa9b/69e787e66659174d6c555923_favicon.png"
+  },
+  "composio": {
+    "file": "composio.svg",
+    "source": "https://composio.dev/logos/composio-full-black.svg",
+    "presentation": "Original symbol paths separated from wordmark."
+  },
+  "context7": {
+    "file": "context7.png",
+    "source": "https://context7.com/favicon.ico"
+  },
+  "deepwiki": {
+    "file": "deepwiki.png",
+    "source": "https://deepwiki.com/icon.png?d5f24a100c40bf32"
+  },
+  "duffel": {
+    "file": "duffel.png",
+    "source": "https://duffel.com/images/favicon/favicon-96x96.png"
+  },
+  "fireflies": {
+    "file": "fireflies.png",
+    "source": "https://fireflies.ai/icon.png?8ca41d3ade63e552"
+  },
+  "fourthwall": {
+    "file": "fourthwall.png",
+    "source": "https://fourthwall.com/webflow-cdn/63ff7c6ecc83f97ec5fe9155/684ffbd67a926ae6ff2451ce_Favicon.png"
+  },
+  "gelato": {
+    "file": "gelato.png",
+    "source": "https://downloads.intercomcdn.com/i/o/503790/6cbd0753b5abdbf4651b46cd/a473dbfe5997c3702e6104633476a820.png",
+    "presentation": "Square brand symbol at left of original lockup, viewBox 0 0 164 162."
+  },
+  "gitmcp": {
+    "file": "gitmcp.png",
+    "source": "https://gitmcp.io/img/icon_black_cropped.png"
+  },
+  "globalping": {
+    "file": "globalping.svg",
+    "source": "https://globalping.io/icons/favicon.svg"
+  },
+  "heygen": {
+    "file": "heygen.ico",
+    "source": "https://www.heygen.com/favicon.ico?favicon.2m321y0geyyfh.ico"
+  },
+  "higgsfield": {
+    "file": "higgsfield.png",
+    "source": "https://higgsfield.ai/icon.png"
+  },
+  "jam": {
+    "file": "jam.svg",
+    "source": "https://framerusercontent.com/images/3zAY5a6TukbdTWkNAkTDO1Yqpc.svg"
+  },
+  "keepa": {
+    "file": "keepa.svg",
+    "source": "https://keepa.com/cdn/safari-pinned-tab.svg"
+  },
+  "lob": {
+    "file": "lob.png",
+    "source": "https://cdn.prod.website-files.com/5e1e5c62fa3d4447af417098/66a17762da0e3f3f9c264f99_lob-favicon.png"
+  },
+  "lulu": {
+    "file": "lulu.png",
+    "source": "https://s3.amazonaws.com/cdn.freshdesk.com/data/helpdesk/attachments/production/64047520245/fav_icon/2fqP6pik6kUBUxFuWsX7tWR2NP5qL2ADyw.png"
+  },
+  "monday": {
+    "file": "monday.png",
+    "source": "https://cdn.prod.website-files.com/656da6fea306219773d04208/65af6bd29fc8bb3d3d4ea39a_6464d702c3ac5c56000c2438_favicon-monday5-32.png"
+  },
+  "parallel-search": {
+    "file": "parallel-search.svg",
+    "source": "https://parallel.ai/icon.svg?icon.1d0de8d5.svg"
+  },
+  "printful": {
+    "file": "printful.png",
+    "source": "https://www.printful.com/favicon.png"
+  },
+  "prodigi": {
+    "file": "prodigi.svg",
+    "source": "https://www.prodigi.com/favicon.svg"
+  },
+  "semgrep": {
+    "file": "semgrep.svg",
+    "source": "https://semgrep.dev/build/assets/favicon-CIx-xpG_.svg"
+  },
+  "shineon": {
+    "file": "shineon.svg",
+    "source": "https://shineon.com/images/favicon.png"
+  },
+  "shotstack": {
+    "file": "shotstack.svg",
+    "source": "https://shotstack.io/favicon.svg"
+  },
+  "supliful": {
+    "file": "supliful.png",
+    "source": "https://cdn.prod.website-files.com/66bde4cf35ac2431b184c70a/685e8708111d4c9505919e88_66f2a7c464079e7aa70971d1_supliful-favicon.png"
+  },
+  "teemill": {
+    "file": "teemill.ico",
+    "source": "https://teemill.com/favicon.ico"
+  },
+  "transistor": {
+    "file": "transistor.ico",
+    "source": "https://transistor.fm/favicon.ico"
+  },
+  "vapi": {
+    "file": "vapi.svg",
+    "source": "https://vapi.ai/icon.svg?icon.05txosa6z_gu8.svg"
+  },
+  "zernio": {
+    "file": "zernio.svg",
+    "source": "https://zernio.com/icon.svg?v=4"
+  },
+  "spod": {
+    "file": "spod.png",
+    "source": "https://spreadshirt-res.cloudinary.com/image/upload/v1619771149/spread_group/spod-logo_CMYK_PRINT-890x320-6.png"
+  },
+  "sendgrid": {
+    "file": "sendgrid.png",
+    "source": "https://app.sendgrid.com/assets/favicon-192x192.png"
+  },
+  "ramp": {
+    "file": "ramp.svg",
+    "source": "https://upload.wikimedia.org/wikipedia/commons/4/4e/Ramp_Business_Corporation_Logo.svg",
+    "original": "https://ramp.com",
+    "presentation": "Original symbol path separated from wordmark."
+  }
+}

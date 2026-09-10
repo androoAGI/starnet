@@ -37,15 +37,22 @@
     const built = lanes.map(fn => fn(body)).filter(b => b && Array.isArray(b.sections));
     const sections = built.reduce((acc, b) => acc.concat(b.sections), []);
     const H = StationUI.h;
-    sections.push({ id: 'away', label: 'WHILE I’M AWAY', glyph: '◈', desc: 'Review queued builds and control which agent works between your messages. The station must remain running.', build: pane => {
-      pane.innerHTML = '<label for="auto-away-agent">AGENT</label><select id="auto-away-agent" class="key-input">' + H.present.map(a => '<option value="' + H.esc(a.id) + '">' + H.esc(a.name || a.id) + '</option>').join('') + '</select><div id="auto-away-body"></div>' +
-        '<details class="cf-group"><summary>Self-directed work and initiative</summary><p>Queued builds are jobs you chose. The station’s autonomy settings also control whether agents propose or choose their own jobs.</p><button class="bb sm" id="auto-initiative">CONFIGURE INITIATIVE</button></details>';
+    sections.push({ id: 'away', label: 'WHILE I’M AWAY', glyph: '◈', desc: 'Choose an agent, review its queue, and decide whether it can build while you’re away.', build: pane => {
+      pane.innerHTML = '<div class="away-picker"><label for="auto-away-agent">Agent</label><select id="auto-away-agent" class="key-input">' + H.present.map(a => '<option value="' + H.esc(a.id) + '">' + H.esc(a.name || a.id) + '</option>').join('') + '</select></div><div id="auto-away-body"></div>' +
+        '<details class="cf-group"><summary>Let agents choose their own work</summary><p>Want agents to suggest or pick jobs themselves? Choose their level of initiative in Settings. The queue above holds work you chose.</p><button class="bb sm" id="auto-initiative">OPEN INITIATIVE SETTINGS</button></details>';
     }});
-    StationUI.h.mountConsole(body, 'automation', sections, { search: false, groups: [
-      { id: 'schedule', label: 'ON A SCHEDULE', sections: ['routines', 'routines-create'] },
-      { id: 'goal', label: 'UNTIL A GOAL IS COMPLETE', sections: ['loops', 'loops-start'] },
-      { id: 'away', label: 'WHILE I’M AWAY', sections: ['away'] }
-    ] });
+    const labels = { routines: 'Scheduled jobs', 'routines-create': 'New schedule', loops: 'Goal loops', 'loops-start': 'New goal loop', away: 'Away work' };
+    const hints = { routines: 'Next runs and recent results', 'routines-create': 'Repeat a task at a chosen time', loops: 'Progress and work to review', 'loops-start': 'Work toward a defined stopping point', away: 'Queued work between messages' };
+    sections.forEach(sec => { sec.label = labels[sec.id] || sec.label; });
+    StationUI.h.mountConsole(body, 'automation', sections, { search: false });
+    body.querySelectorAll('.con-rail-item').forEach(item => {
+      const hint = document.createElement('span'); hint.className = 'sn-menu-nav-note';
+      hint.textContent = hints[item.dataset.section] || ''; item.appendChild(hint);
+    });
+    body.querySelectorAll('[data-auto-tab]').forEach(button => button.addEventListener('click', () => {
+      body.querySelectorAll('[data-auto-tab]').forEach(b => b.setAttribute('aria-pressed', String(b === button)));
+      body.querySelectorAll('[data-auto-panel]').forEach(p => { p.hidden = p.dataset.autoPanel !== button.dataset.autoTab; });
+    }));
     built.forEach(b => { if (typeof b.wire === 'function') b.wire(); });
     const picker = body.querySelector('#auto-away-agent');
     const awayBody = body.querySelector('#auto-away-body');
@@ -92,5 +99,5 @@
     }
   }
 
-  StationUI.registerWindow('automation', 'AUTOMATION', buildAutomation, { console: true });
+  StationUI.registerWindow('automation', 'AUTOMATION', buildAutomation, { console: true, className: 'automation-win' });
 })();

@@ -107,6 +107,8 @@
 
   const repairToolPairs = provider.repairToolPairs;
 
+  const preserveClaudeContinuations = provider.preserveClaudeContinuations;
+
   function normalizeReasoningEffort(value) {
     const key = String(value || 'medium').trim().toLowerCase().replace(/[\s_-]+/g, '');
     const map = {
@@ -201,7 +203,7 @@
       const meta = findModel(req.model);
       const allowed = reasoningEffortsForModel(req.model, meta);
       const effort = clampReasoningEffortForModel(req.model, req.reasoningEffort || reasoningEffort, meta);
-      const body = { model: req.model, messages: applyCacheControl(repairToolPairs(req.messages), req.model), stream: true, usage: { include: true } };
+      const body = { model: req.model, messages: applyCacheControl(preserveClaudeContinuations(repairToolPairs(req.messages), req.model), req.model), stream: true, usage: { include: true } };
       if (effort !== 'none' || allowed.length > 1) body.reasoning = { effort };
       if (req.tools && req.tools.length) {
         body.tools = req.tools;

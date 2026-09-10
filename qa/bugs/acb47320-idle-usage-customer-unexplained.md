@@ -56,3 +56,9 @@ Exact before/after customer reproduction is pending; see Repro and Verdict.
     {"target":"recovery and restart","state":"blocked","reason":"Requires a before/after receipt for this symptom on the affected artifact, followed by restart and the same operation."}
   ]
 }
+
+## September 10 release follow-through
+
+The installed Windows canary on fbaab109f completed twenty minutes idle with no usage increase, followed by three renderer recovery faults. Real task costs matched their run receipts; an isolated managed gateway probe debited exactly its recorded 0.000683 cost. This does not identify the affected account's unexplained usage. Its run ledger, armed background work and provider receipts remain required.
+
+Current receipts and remaining acceptance: [0.11.2 follow-through](../../docs/releases/0.11.2/FOLLOWTHROUGH.md). Status remains open pending the affected configuration.

@@ -8,6 +8,7 @@ test/channels.replay.e2e.test.js
 test/config-permissions-import.e2e.test.js
 test/connector-security.e2e.test.js
 test/connector-oauth-refresh-race.e2e.test.js
+test/github-device.http.test.js
 test/workspace-owner.e2e.test.js
 test/workspace-lineage.http.test.js
 test/lineage-stationless-halt.http.test.js
@@ -109,3 +110,5 @@ test/managed-image.e2e.test.js
 test/managed-endpoint.e2e.test.js
 
 test/tool-projection.e2e.test.js
+test/request-idempotency.e2e.test.js
+test/output-only-repair.e2e.test.js

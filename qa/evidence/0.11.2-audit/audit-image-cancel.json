@@ -1,0 +1,17 @@
+{
+  "cancelStatus": 200,
+  "beforeRelease": [],
+  "end": [
+    {
+      "name": "agent.run.end",
+      "payload": {
+        "agentId": "cancel-image",
+        "runId": "59109244-31ee-4142-9ad5-920b575016fd",
+        "reason": "cancelled",
+        "turns": 1,
+        "usd": 0
+      }
+    }
+  ],
+  "fileAfterCancel": true
+}

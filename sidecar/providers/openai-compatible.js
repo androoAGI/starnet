@@ -200,7 +200,7 @@
       maybeRewarmCatalog();
       const dropped = droppedParams.get(String(req.model || ''));
       const skip = p => !!(dropped && dropped.has(p));
-      const body = { model: req.model, messages: provider.repairToolPairs(req.messages || []), stream: true };
+      const body = { model: req.model, messages: provider.preserveClaudeContinuations(provider.repairToolPairs(req.messages || []), req.model), stream: true };
       if (includeUsage && !skip('stream_options')) body.stream_options = { include_usage: true };
       if (req.tools && req.tools.length) {
         body.tools = req.tools;

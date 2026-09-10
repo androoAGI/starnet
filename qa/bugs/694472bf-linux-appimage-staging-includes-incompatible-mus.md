@@ -1,0 +1,34 @@
+---
+fingerprint: 694472bf
+slug: linux-appimage-staging-includes-incompatible-mus
+title: Linux AppImage staging includes incompatible musl Sharp binaries
+surface: release
+severity: P2
+status: fixed
+found: 2026-09-10
+lane: agent/release-0112-audit-0910
+fix: bbbd7c13a
+origin: audit
+---
+
+# Linux AppImage staging includes incompatible musl Sharp binaries
+
+## Symptom
+
+The manual desktop-build workflow builds the Linux executable and Debian package, then fails while bundling the AppImage. Windows and both Mac builds pass independently.
+
+## Repro
+
+Dispatch `.github/workflows/desktop-build.yml` on `f111be488` with publishing disabled. The Ubuntu 22.04 leg fails in linuxdeploy while resolving `@img/sharp-linuxmusl-x64/lib/sharp-linuxmusl-x64-0.35.3.node`.
+
+## Evidence
+
+[Run 34532835410](https://github.com/androoAGI/starnet/actions/runs/34532835410), Linux verbose build log at 2026-09-10T21:40:03Z: `Could not find dependency: libc.musl-x86_64.so.1`. Raw log: `.dogfood/release-0112-closeout/linux-verbose.log`. The earlier non-verbose failure in run 34530138928 is retained too.
+
+`scripts/stage-voice-deps.mjs` previously pruned foreign ONNX binaries but copied both glibc and musl Sharp optional packages. The desktop's bundled Linux Node is glibc. `scripts/lib/staged-native-packages.mjs` now identifies only the unused musl Sharp addon and companion within the @img scope; fresh staging and stale release-output cleanup both use it. `test/desktop-voice-bundle.test.js` covers glibc preservation, the companion package, nested scope boundaries and unchanged Windows/Mac selection. [Sharp documents separate glibc/musl binaries](https://sharp.pixelplumbing.com/install/).
+
+## Verdict
+
+Source repair and local packaging tests pass. Fresh Linux CI AppImage builds passed on [34534976781](https://github.com/androoAGI/starnet/actions/runs/34534976781) and the final candidate [34535931055](https://github.com/androoAGI/starnet/actions/runs/34535931055). Linux is outside the current supported public release platform set; this real build failure was repaired without continue-on-error.
+
+The intermediate build [34533970724](https://github.com/androoAGI/starnet/actions/runs/34533970724) advanced past Sharp and exposed the next unused native backend: `kokoro-js/node_modules/onnxruntime-node/bin/napi-v3/linux/x64/libonnxruntime_providers_tensorrt.so` requires `libcublas.so.12`. Both ASR and TTS explicitly request `device: 'cpu'` in `sidecar/local-voice.js`. The staged closure now excludes only ONNX's optional Linux CUDA/TensorRT plugins, preserving the CPU runtime, shared provider library, and binding. Fresh and warm staging share this filter. Original failure and repeat logs remain retained; the subsequent two successful Linux builds close this packaging failure. The final workflow's initial Intel acceptance artifact-download DNS error is a separate infrastructure event.

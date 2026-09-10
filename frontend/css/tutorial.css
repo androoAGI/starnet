@@ -187,6 +187,14 @@
 .fm-route small { display: block; font-size: 14px; color: var(--text); margin-top: 4px; }
 .fm-route i { font-style: normal; }
 .fm-actions { display: flex; flex-wrap: wrap; gap: 8px; margin: 14px 0; }
+.platform-guide { border:1px solid var(--ph-dim); background:var(--panel); color:var(--text); padding:12px 16px; margin:0 0 16px; font-size:16px; line-height:1.45; }
+.platform-guide summary { color:var(--ph); cursor:pointer; font-size:18px; }
+.platform-guide summary:focus-visible { outline:2px solid var(--ph); outline-offset:4px; }
+.platform-guide ol { padding-left:22px; margin:12px 0; }
+.platform-guide li { margin:8px 0; }
+.platform-guide .fm-note { margin:10px 0; font-size:15px; }
+.tut-brief-link { padding:0; border:0; background:transparent; color:inherit; font:inherit; text-align:left; text-decoration:underline; cursor:pointer; }
+.tut-brief-link:focus-visible { outline:2px solid var(--ph); outline-offset:3px; }
 .fm-pager { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 8px; border-top: 1px solid var(--ph-dim); padding-top: 14px; margin-top: 22px; }
 .fm-pager > span { align-self: center; font-size: 12px; letter-spacing: .07em; color: var(--ph); }
 .fm-map, .fm-gear-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }

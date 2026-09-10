@@ -1,0 +1,207 @@
+{
+  "schema": "starnet.release-closeout-evidence.v1",
+  "generatedAt": "2026-09-10T22:44:24.543Z",
+  "runtimeCandidate": "afd1da77fb4a489151b45b5a6c53e60ada4ca1f4",
+  "officialVersion": "0.11.1",
+  "canaryOverlayVersion": "0.11.2",
+  "releaseReady": false,
+  "entries": [
+    {
+      "path": "guardian-afd.json",
+      "source": ".bugloops/guardian-20260910-221239/cycle-summary.json",
+      "bytes": 1438,
+      "sha256": "f7ebe526f96fb413595c34d910fcf9e35d50e7c90221f7f109e21dd9c60c202e"
+    },
+    {
+      "path": "journeys-afd.json",
+      "source": ".bugloops/guardian-20260910-221239/journeys-report.json",
+      "bytes": 27619,
+      "sha256": "f2e37cdd4db3639e170aa24ed685246a902066cf0f129ddfa5558311f11f496a"
+    },
+    {
+      "path": "shoot-afd.json",
+      "source": ".bugloops/guardian-20260910-221239/shoot-manifest.json",
+      "bytes": 2164,
+      "sha256": "dbf28474f3e985fcdc4364dc6d9b914d429687e86578b4616010d7295289ce8b"
+    },
+    {
+      "path": "golden-afd.json",
+      "source": ".bugloops/guardian-20260910-221239/golden-report.json",
+      "bytes": 98,
+      "sha256": "19b71b12e21410c962a7d839aec4a31ca5950cd2a8f4ad5dbd22fa257d8ae933"
+    },
+    {
+      "path": "fast-afd.log",
+      "source": ".bugloops/guardian-20260910-221239/test-fast.log",
+      "bytes": 52727,
+      "sha256": "b4bcffda48d4b811ab01bd6bd000f7548da4d9f96a153ee59bbd066c704c68bc"
+    },
+    {
+      "path": "http-afd.log",
+      "source": ".bugloops/guardian-20260910-221239/http-e2e.log",
+      "bytes": 11322,
+      "sha256": "d8c72cc6ccdc4716e621a2a4f5bd712c4e957f3a5901496fb42840ea3eedebc6"
+    },
+    {
+      "path": "installed-smoke-afd.json",
+      "source": "qa/installed/last-smoke.json",
+      "bytes": 1325,
+      "sha256": "16d35bad555031d019edc89462c724e63237e8a42d0f5009a61b25ca969fb4f0"
+    },
+    {
+      "path": "beginner-afd.json",
+      "source": ".dogfood/release-0112-closeout/beginner-history.json",
+      "bytes": 188,
+      "sha256": "b5a621ae7850fe066061988fc1af22847399186b6fee41a95771c0d5d9bc217f"
+    },
+    {
+      "path": "desktop-ci-afd.json",
+      "source": ".dogfood/release-0112-closeout/desktop-ci-afd.json",
+      "bytes": 19729,
+      "sha256": "2fe5a5334ed923c702f09c90451b308f0559cd1d1e87de774856fa48326c9984"
+    },
+    {
+      "path": "intel-macos-installed-acceptance.json",
+      "source": ".dogfood/release-0112-closeout/mac-intel-afd/intel-macos-installed-acceptance.json",
+      "bytes": 695,
+      "sha256": "97e15cdd03d8b6d24d4af53c8ffb6acf0bd1d68e2102ebb7a46042f2b2afc020"
+    },
+    {
+      "path": "desktop-ci-first-attempt-dns.log",
+      "source": ".dogfood/release-0112-closeout/ci-afd-failed.log",
+      "bytes": 2442,
+      "sha256": "2cc9de225e3ed92f9c6f0dc9d615c706c3f3664a07aa2bc854d8421a5f08e58c"
+    },
+    {
+      "path": "update-canary-bed625.json",
+      "source": ".dogfood/release-0112-closeout/canary-fixed/update-receipt.json",
+      "bytes": 34939,
+      "sha256": "7f8082be1c119487be2f514511596d042f7dba81cd0b31541039ee6e7794d6de"
+    },
+    {
+      "path": "installed-history-verified.json",
+      "source": ".dogfood/release-0112-closeout/installed-history-verified.json",
+      "bytes": 29884,
+      "sha256": "92e978b789975f6bc16866f674a719add81c59da3689950f38c1076e65ca6940"
+    },
+    {
+      "path": "installed-history-wrong-build-attempt.json",
+      "source": ".dogfood/release-0112-closeout/installed-history-wrong-build-attempt.json",
+      "bytes": 35978,
+      "sha256": "06cf3fa02986f3e13a01fcd018008c0552f2320c7c58edfa775afc01a61bd04b"
+    },
+    {
+      "path": "installed-idle-fbaab.json",
+      "source": ".dogfood/release-0112-closeout/installed-idle.json",
+      "bytes": 60469,
+      "sha256": "e26ad5f8d7855076fec425b78410f3a7886a9ef5d4746397ee87dc4dcc146d60"
+    },
+    {
+      "path": "once-completed-ui.json",
+      "source": ".dogfood/release-0112-closeout/once-completed-ui.json",
+      "bytes": 2586,
+      "sha256": "6dd3c9897154c1816eb9413f24dbf20cdb6e704598e53de5506fbc10245c8733"
+    },
+    {
+      "path": "installed-before-history.json",
+      "source": ".dogfood/release-0112-closeout/installed-before-history.json",
+      "bytes": 7214,
+      "sha256": "294b01df7db8390dbb8a4137b99c110d65781f024e88cdb11ec8b0bebdabcaec"
+    },
+    {
+      "path": "installed-after-history.json",
+      "source": ".dogfood/release-0112-closeout/installed-after-history.json",
+      "bytes": 11364,
+      "sha256": "303982fce587549d6dde8e701e8696aec70b8fb81648ce4aeb3863c11f696ad5"
+    },
+    {
+      "path": "installed-image-check.json",
+      "source": ".dogfood/release-0112-closeout/installed-image-check.json",
+      "bytes": 12099,
+      "sha256": "bd9073950ce62a4dc0895c2cbbd0d4b94a536caca1912dae7a3447a4cc8cc37f"
+    },
+    {
+      "path": "installed-image-file.json",
+      "source": ".dogfood/release-0112-closeout/installed-image-file.json",
+      "bytes": 241,
+      "sha256": "61f0506f6b7f5dfa1f037c62fa6d93b01c97b6219fac01e83cb491a79281267e"
+    },
+    {
+      "path": "installed-tool-repair-f111.json",
+      "source": ".dogfood/release-0112-closeout/installed-tool-repair-f111.json",
+      "bytes": 11349,
+      "sha256": "14e71f0b23f1c90d93b285d6a1516c69d08ac6144ca85788ebf9d401d05fd3db"
+    },
+    {
+      "path": "installed-task-fbaab.json",
+      "source": ".dogfood/release-0112-closeout/installed-task-fbaab.json",
+      "bytes": 7492,
+      "sha256": "d91e205432881a3091f461c6175e3c364d5e957d3ca5f24e0b620da74c0ce205"
+    },
+    {
+      "path": "deliverable-verified.json",
+      "source": ".dogfood/release-0112-closeout/deliverable-verified.json",
+      "bytes": 368,
+      "sha256": "a84bc2a04833d4adab307cef11e6d7b9c5ba048a6341e3ae6ca9629866c9a1ea"
+    },
+    {
+      "path": "scale-afd.json",
+      "source": ".dogfood/release-0112-closeout/frozen-scale/soak-receipt.json",
+      "bytes": 57450,
+      "sha256": "4e6b7d3d21c608f93d0d420c452f82d9faf3ceb8b00dece6e74e82578d3a7cb6"
+    },
+    {
+      "path": "smoke-afd.json",
+      "source": ".dogfood/release-0112-closeout/frozen-smoke/soak-receipt.json",
+      "bytes": 46089,
+      "sha256": "3d8951850e061f72a840bda3523f1d2d7d9c78c3521e73331f9bbb8419e078cc"
+    },
+    {
+      "path": "retired-soaks.json",
+      "source": ".dogfood/release-0112-closeout/retired-soaks.json",
+      "bytes": 1256,
+      "sha256": "886789d419903a0eb0d0a4af26fb04ef0640bd7d4963baa3305cb1b2d67b2701"
+    },
+    {
+      "path": "managed-continuation.json",
+      "source": ".dogfood/release-0112-closeout/managed-continuation-probe.log",
+      "bytes": 833,
+      "sha256": "d2dfeab9ec6ff892f0a313c51f3dd79d71379a23e777011e62b1af589acee95f"
+    },
+    {
+      "path": "detector-reconciliation.json",
+      "source": "integration qa/findings exact before/after records",
+      "bytes": 9399,
+      "sha256": "ad7be7d79a9cf7889d993cc43b394a56d039796ea116ef7011c0d01ddb688eb6"
+    },
+    {
+      "path": "installed-smoke-probe.json",
+      "source": "qa/installed/smoke-2026-09-10T22-28-23-705Z/probe.json",
+      "bytes": 2225,
+      "sha256": "ec9188d09b172374865ebd3b15d6177dcedc650e5c2a0376af03507d56a88d24"
+    },
+    {
+      "path": "postmerge-fast.log",
+      "source": ".dogfood/release-0112-closeout/postmerge-fast.log",
+      "bytes": 52733,
+      "sha256": "6b9c9bd28a9512ea84827ceeb6e2ea190191c613a7e29d86ac55f5fc8a25b475",
+      "sourceSha256": "74589ce8836b333eda18a8c600d70744c610f1cdae3ab6196384c546595c8f8f",
+      "normalization": "CRLF to LF"
+    },
+    {
+      "path": "postmerge-http.log",
+      "source": ".dogfood/release-0112-closeout/postmerge-http.log",
+      "bytes": 11326,
+      "sha256": "1617696d003e96b83a0ab7e68802ad5069bf7058c164f39260f2edcbce48557e",
+      "sourceSha256": "4e5b5fa0c6479388d24d4e0894727c05068cac4e06bbb8bd303c41f8dfdaa0c5",
+      "normalization": "CRLF to LF"
+    },
+    {
+      "path": "postmerge.json",
+      "source": ".dogfood/release-0112-closeout/postmerge.json",
+      "bytes": 1271,
+      "sha256": "9190ccf3d6bddb82a110119797b3469405538d43e5dc0dfa0b42cbc753a5ea03"
+    }
+  ],
+  "notes": "Portable retired-soak JSON uses LF line endings; installed-smoke evidence path is relocated to this tracked pack. Source receipts remain unchanged in the raw evidence directory."
+}

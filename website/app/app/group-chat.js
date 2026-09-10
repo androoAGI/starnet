@@ -30,7 +30,7 @@ const GroupChat = (() => {
     if (ws) {
       ws.conversationMode = 'group'; ws.agentId = g.leadId; ws.title = g.title;
       if (g.messages) {
-        ws.history = g.messages.map(m => ({ role: m.author === 'user' ? 'user' : 'assistant', agentId: m.author === 'user' ? undefined : m.author, content: m.content, ts: m.at }));
+        ws.history = g.messages.map(m => ({ role: m.author === 'user' ? 'user' : 'assistant', agentId: m.author === 'user' ? undefined : m.author, content: m.content, ts: m.at, ...(m.artifactIds?.length ? { artifactIds: m.artifactIds.slice() } : {}) }));
         ws.runIds = g.turns.filter(t => t.runId).map(t => t.runId);
         ws.lastActiveAt = g.updatedAt;
       }
@@ -402,7 +402,7 @@ const GroupChat = (() => {
         try {
           const members = roster.filter(a => chosen.has(a.id)).map(a => a.id);
           const data = { members, leadId: members.includes(leadId) ? leadId : members[0], title: existing?.title || origin?.title || 'Group chat' };
-          const g = await api(existing ? { op: 'configure', id: existing.id, revision: existing.revision, ...data } : { op: 'create', ...(origin ? { id: origin.id, history: origin.history, originalAgentId: origin.agentId } : {}), ...data });
+          const g = await api(existing ? { op: 'configure', id: existing.id, revision: existing.revision, ...data } : { op: 'create', ...(origin ? { id: origin.id, conversionKey: origin.id, history: origin.history, originalAgentId: origin.agentId } : {}), ...data });
           adopt(g); save(); close(); active = null; App.openWorkstream(g.id); if (typeof Chat !== 'undefined') Chat.load(Workstreams.get(g.id));
         } catch (e) { errors.textContent = e.message; }
       }); saveBtn.classList.add('primary');

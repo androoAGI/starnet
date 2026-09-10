@@ -179,12 +179,10 @@
       url: '', official: true, homepage: 'https://atlassian.com', via: 'zapier',
       aliases: ['atlassian', 'jira', 'confluence'],
       blurb: 'Atlassian Jira issues and Confluence pages. A newer direct OAuth endpoint is under verification; use the proven Zapier route until StarNet completes an authenticated tool call.' },
-    /* apikey, NOT oauth: github.com/login/oauth exposes no RFC 7591 dynamic registration (live-probed
-       2026-07-18 — discovery succeeds but registration_endpoint is absent), so our DCR sign-in flow can
-       never complete against it. A PAT as `Authorization: Bearer` is the documented remote-server path. */
-    { id: 'github', name: 'GitHub', category: 'Developer Tools', authType: 'apikey', transport: 'http',
+    // Registered public device client: GitHub has no dynamic client registration.
+    { id: 'github', name: 'GitHub', category: 'Developer Tools', authType: 'oauth', deviceFlow: true, transport: 'http',
       url: 'https://api.githubcopilot.com/mcp', official: true, homepage: 'https://github.com',
-      blurb: 'Issues, pull requests, code search, and Actions across your repos. Paste a GitHub personal access token (github.com → Settings → Developer settings).' },
+      blurb: 'Connect repositories, issues, pull requests, and Actions. Sign in with GitHub using a short code — no API key needed.' },
     { id: 'sentry', name: 'Sentry', category: 'Developer Tools', authType: 'oauth', transport: 'http',
       url: 'https://mcp.sentry.dev/mcp', official: true, homepage: 'https://sentry.io',
       blurb: 'Inspect errors, issues, and releases from your Sentry projects. Needs Sentry sign-in (OAuth).' },
@@ -372,7 +370,7 @@
   function cloneEntry(e) {
     return {
       id: e.id, name: e.name, category: e.category, authType: e.authType, transport: e.transport,
-      url: e.url || '', googleApi: !!e.googleApi, official: !!e.official, homepage: e.homepage || '', blurb: e.blurb || '',
+      url: e.url || '', googleApi: !!e.googleApi, deviceFlow: !!e.deviceFlow, official: !!e.official, homepage: e.homepage || '', blurb: e.blurb || '',
       via: e.via || '', keyHeader: e.keyHeader || '', local: !!e.local, installable: isInstallable(e),
       // staticOauth: fixed OAuth endpoints for an AS with no dynamic registration (Google). Deep-cloned.
       staticOauth: e.staticOauth ? {

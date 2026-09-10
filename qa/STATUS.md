@@ -1,3 +1,14 @@
+**2026-09-09 starter shell:** `agent/world-next-0907` -> `f68403588`; new starter HAB uses the owner-selected white shell (`bone`, #e7e3d9). Existing saves and all other rendering settings retained. Pre/post fast **744/744 GREEN**; live fresh-save composition and persisted shell verified. See `qa/digests/2026-09-09-starter-white-shell.md`.
+
+**2026-09-09 glass interface candidate verification (not merged):** `agent/glass-demo-0909` at regression candidate `028b0d321`, synchronized with trunk `f672e33e`. Default glass boot, Escape dialog-focus repair and worker-rendered Appearance previews verified. Fast **752/752**, HTTP **108/108**, customer journeys **34/34**, live journeys **139/139**, behavioral audit **47/47**, fresh-user UI **6/6** PASS. Merge rehearsal clean; source claims current. Product-wide release remains NOT READY with seven existing P1 reports and outstanding trunk/installed proof. See `qa/digests/2026-09-09-glass-interface.md`. No merge, push, installer or release.
+**2026-09-09 glass UI merged:** `agent/glass-demo-0909` -> `c275727ea`; exact candidate and merge tree match. Pre/post-merge fast **752/752 GREEN**; HTTP **108/108**, customer journeys **34/34**, live journeys **139/139**, behavioral audit **47/47**, fresh UI **6/6** PASS. Post-merge interaction sweep: zero uncaught errors, p95 frame 16.6ms. Foreign QA/Rooms content preserved and unstaged. Preview remains :9199; no push, installer or release. Broader release audit remains NOT READY. Receipt: `qa/digests/2026-09-09-glass-interface.md`.
+
+**2026-09-09 glass interface candidate verification (not merged):** `agent/glass-demo-0909` at regression candidate `26d483abc`, synchronized with trunk `209ce1357`. Default glass boot, Escape dialog-focus repair and worker-rendered Appearance previews verified. Fast **752/752**, HTTP **108/108**, customer journeys **34/34**, live journeys **139/139**, behavioral audit **47/47**, fresh-user UI **6/6** PASS. Merge rehearsal clean; source claims current. Product-wide release remains NOT READY with seven existing P1 reports and outstanding trunk/installed proof. See `qa/digests/2026-09-09-glass-interface.md`. No merge, push, installer or release.
+
+**2026-09-09 starter shell:** `agent/world-next-0907` -> `f68403588`; new starter HAB uses the owner-selected white shell (`bone`, #e7e3d9). Existing saves and all other rendering settings retained. Pre/post fast **744/744 GREEN**; live fresh-save composition and persisted shell verified. See `qa/digests/2026-09-09-starter-white-shell.md`.
+
+**2026-09-09 approved world merge:** `agent/world-next-0907` -> `0656a655e`; exact approved rendering and dark palette retained, 24 floor materials, physical lighting, softened CRT grain and joined wall crowns. Pre/post fast **744/744 GREEN**; HTTP **108/108 GREEN** on identical source. Live grade/settings/save parity, Build, reload and canvas recovery passed; preview remains :9207. See `qa/digests/2026-09-09-approved-world.md`. Existing QA/Rooms edits preserved.
+
 **2026-09-09 merge digest (INBOX ROWS):** `agent/inbox-row-preview-0909` → `32a1e304e`; agent-first rows, wrapping titles and 15px latest-message previews; live demo :9234 verified; pre-merge and post-merge `test:fast` 733/733 GREEN. Repeated Windows Chromium-profile cleanup failure repaired and verified. Existing QA/handoff edits preserved.
 
 **2026-09-06 lighting merge:** `agent/room-lighting-strip` -> `772ac7e`; synchronized branch fast **725/725 GREEN**, final merged-tree fast **725/725 GREEN**. Rich steady warm glow, broad room coverage, three brightness levels, ceiling fixture removal, and continuous corner illumination integrated with current interface/dock work. Live station/Build/preset checks and 24 native corner cases passed. Evidence: retained lighting worktree `.worldshots/merge-lighting/`. Unrelated QA/Rooms edits preserved; preview retained at :9197. No installer/release readiness claim.
@@ -1570,7 +1581,7 @@ own runner (Q1 Guardian, Q2 Beginner Run, Q4 Janitor) or the Overseer digest; th
 | Crew member | Question it answers | Last run | Result | Open findings |
 | --- | --- | --- | --- | --- |
 | Green Guardian | Is trunk green and does the app still boot + look right? | 2026-09-04 03:17Z @ adc35964 | GREEN | 0 |
-| Beginner Run | Can a brand-new user reach first value, unassisted? | 2026-09-03T17:30:38.463Z · ui-only · 140120ms | PASS | 0 |
+| Beginner Run | Can a brand-new user reach first value, unassisted? | 2026-09-10T03:37:06.028Z · ui-only · 136890ms | PASS | 0 |
 | Truth Auditor | Does the UI show what actually happened? | 2026-07-01 23:28Z (in Guardian cycle) | GREEN | 0 |
 | Visual Auditor | Is the rendered game coherent? (needs eyes) | — (local /loop; not headless) | — | 0 |
 | Overseer | What broke today, what needs Andrew? | 2026-07-01 (digest rendered) | 0 P0 · 106 P2 | — |
@@ -2808,3 +2819,12 @@ Every first-time StarNet-subscription desktop user: link → shell adopts the to
 
 
 **2026-09-09 tool projection merge:** `agent/tool-projection-0909` -> `793bf1c0f`; saved room equipment survives omitted client placement, explicit empty placement stays authoritative, and toolsets discloses selected-agent and lead-run grants. Fast **735/735 GREEN** and HTTP **108/108 GREEN** before/after merge; customer journeys **34/34 GREEN**. Ten real file/projection runs and live Abilities disclosure verified. Customer report `432df352` remains open for the uncorrelated Trusted Project symptom; installer/reporter recovery unverified. Receipt: `qa/digests/2026-09-09-tool-projection.md`. Existing QA/Rooms edits preserved.
+
+
+**2026-09-10 merge digest (DOORWAY MOVEMENT):** `agent/doorway-occlusion-0910` → trunk `9e5b6d88e` from `83c896e7d`. Candidate fast gate and exact merged-commit gate in the isolated checkout: **752/752 GREEN** each; customer journeys **34/34 GREEN**. Twelve live hero/crew/workstation doorway routes completed with zero wall crossings. Receipt: `qa/digests/2026-09-10-doorway-movement.md`. Installed desktop and reporter recovery remain unverified.
+
+
+**2026-09-10 cleanup lane:** `agent/cleanup-0112-0910` verified at `c2193f1fb`; normal fast **753/753 GREEN**, normal HTTP **108/108 GREEN**. Nine source/QA findings repaired; runtime and live proof sources are explicit in `docs/AUDIT_0.11.1_FOR_0.11.2.md`. HTTP aggregate watchdog is 20 minutes, shared outer runners 21 minutes; no test steps removed. No merge/publication. Historical customer/detector findings and installed/account/hardware/long-soak acceptance remain open.
+- 2026-09-10 world seating: agent/doorway-occlusion-0910 -> f3e57f58e; fast 753/753 before and after integration, customer journeys 34/34, live 12 hallway routes with zero crossings, seven recovery/refit checks and 288 skin/facing poses passed. Source repaired; installed rebuild/recovery unverified. Receipt: docs/WORLD_SEATING_REPAIR_2026-09-10.md.
+
+- 2026-09-10: agent/live-speech-0910 -> trunk 7ccb4ebd9; live speech output-context recovery merged. Pre-merge and post-merge test:fast 766/766 GREEN; customer journeys 34/34 and real seeded speech playback passed. Installer/customer recovery unverified.

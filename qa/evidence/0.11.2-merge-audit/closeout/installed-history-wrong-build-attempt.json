@@ -1,0 +1,302 @@
+{
+  "at": "2026-09-10T22:26:29.679Z",
+  "pass": false,
+  "scope": "Original reproduced legacy conversation reopened through the rebuilt installed UI, persisted, reloaded and reopened; no injected merge function.",
+  "before": {
+    "build": {
+      "version": "0.11.2",
+      "commit": "fbaab109f",
+      "sha": "fbaab109f7be56821eb2aa47f751a1f5a1073a8e",
+      "sourceTree": "6713597aa9c76014e0d287fe696ec83cad440b5e",
+      "provenanceKind": "reproducible-source",
+      "describe": "v0.11.1-281-gfbaab109f",
+      "dirty": false,
+      "executableSha256": "f48a7bb2c69a61cd9bbc6a8b94aa7a2b1a1e4d2de991c41acbff1f76a3765fb5",
+      "executableSize": 17864192
+    },
+    "localCount": 5,
+    "canonicalCount": 4,
+    "exact": false,
+    "local": [
+      {
+        "streamId": "ws_mtw1x111kmaw",
+        "agentId": "agent",
+        "role": "user",
+        "content": "Create C:\\Users\\andro\\AppData\\Local\\Temp\\starnet-release-0112-project-MNhDn4\\index.html in this trusted project. It must be a complete standalone HTML page with a button labeled Verify and a visible result element with id result. Clicking Verify must set result text to RELEASE_0112_TOOL_OK. Use real file tools to write the file and read it back. Keep the page under 50 lines. Do not browse or run any commands. Report only what the read-back proves; clearly say you did not execute the page.",
+        "ts": 1789076470986,
+        "sourceRunId": "159301af-e754-4df9-89f7-11781f77ad43",
+        "rowId": 15
+      },
+      {
+        "streamId": "ws_mtw1x111kmaw",
+        "agentId": "agent",
+        "role": "assistant",
+        "content": "Read-back confirms the following — I did not execute the page:\n\n**File:** `C:\\Users\\andro\\AppData\\Local\\Temp\\starnet-release-0112-project-MNhDn4\\index.html`\n**Size:** 682 bytes — **19 lines** (well under 50)\n\nWhat the read-back proves:\n\n| Requirement | Status |\n|---|---|\n| Complete standalone HTML page | Present — valid `<!DOCTYPE html>` structure, no external dependencies |\n| Button labeled **Verify** | Present — `<button>Verify</button>` |\n| Visible element with `id=\"result\"` | Present — `<div id=\"result\"></div>` |\n| Click sets result text to `RELEASE_0112_TOOL_OK` | Present — `onclick` sets `.textContent = 'RELEASE_0112_TOOL_OK'` |\n| Under 50 lines | 19 lines |\n\nThe page was written and read back using file tools only. No commands were run and the page was not opened or executed.",
+        "ts": 1789076471033,
+        "toolCalls": "[{\"id\":\"toolu_014FwU8Z226oeC7BsVnsU4Gj\",\"type\":\"function\",\"function\":{\"name\":\"deliverable_note\",\"arguments\":\"{\\\"title\\\": \\\"Release 0112 verification page\\\", \\\"summary\\\": \\\"Standalone HTML page with a Verify button that sets the #result element text to RELEASE_0112_TOOL_OK on click.\\\", \\\"kind\\\": \\\"page\\\", \\\"main\\\": \\\"index.html\\\"}\"}}]",
+        "sourceRunId": "159301af-e754-4df9-89f7-11781f77ad43",
+        "rowId": 22
+      },
+      {
+        "streamId": "ws_mtw1x111kmaw",
+        "agentId": "agent",
+        "role": "assistant",
+        "content": "The task is complete. Here is the final report based solely on what the read-back proved:\n\n**File written:** `index.html` (19 lines, 682 bytes)\n**Location:** `C:\\Users\\andro\\AppData\\Local\\Temp\\starnet-release-0112-project-MNhDn4\\index.html`\n\nEvery requirement confirmed by read-back:\n\n- Valid standalone HTML page with no external dependencies\n- Button present with label **Verify**\n- Element present with `id=\"result\"` — visible `<div>` in the body\n- Click handler sets `result.textContent` to exactly `RELEASE_0112_TOOL_OK`\n- 19 lines — under the 50-line limit\n\nThe page was not executed. No browser was opened, no commands were run. The confirmation above is drawn entirely from the file content the read tool returned.",
+        "ts": 1789076471052,
+        "sourceRunId": "159301af-e754-4df9-89f7-11781f77ad43",
+        "rowId": 25
+      },
+      {
+        "streamId": "ws_mtw1x111kmaw",
+        "agentId": "agent",
+        "role": "assistant",
+        "content": "Understood. The task brief explicitly stated \"Do not browse or run any commands\" — so I will be plain about what was and was not verified.\n\n**What I cannot verify here:**\n\nThe brief prohibited running any commands (`Do not browse or run any commands`). I cannot run `verify_run` or `shell_exec` against this file without violating that constraint. There is also no build system or test suite in this project — it is a single static HTML file, not a compiled artifact.\n\n**What was verified by file tools:**\n\n- The file was written and read back verbatim — sha256 `b6fc1e8d89caf301c5d2c34d08ec61ca68798d9694fb44f6fb2173750934ce45`, 682 bytes written and confirmed\n- The read-back text contains every structural requirement: `<!DOCTYPE html>`, the `<button>` with text `Verify`, the `<div id=\"result\">`, and the exact `onclick` handler setting `.textContent = 'RELEASE_0112_TOOL_OK'`\n\n**What was NOT verified:**\n\n- That the page actually renders and the button click fires correctly in a browser — that requires execution I was instructed not to perform\n\nThe file is structurally correct as proven by read-back. Browser execution was not run and is not claimed.",
+        "ts": 1789076471058,
+        "sourceRunId": "159301af-e754-4df9-89f7-11781f77ad43",
+        "rowId": 26
+      },
+      {
+        "role": "assistant",
+        "content": "The task is complete. Here is the final report based solely on what the read-back proved:\n\n**File written:** `index.html` (19 lines, 682 bytes)\n**Location:** `C:\\Users\\andro\\AppData\\Local\\Temp\\starnet-release-0112-project-MNhDn4\\index.html`\n\nEvery requirement confirmed by read-back:\n\n- Valid standalone HTML page with no external dependencies\n- Button present with label **Verify**\n- Element present with `id=\"result\"` — visible `<div>` in the body\n- Click handler sets `result.textContent` to exactly `RELEASE_0112_TOOL_OK`\n- 19 lines — under the 50-line limit\n\nThe page was not executed. No browser was opened, no commands were run. The confirmation above is drawn entirely from the file content the read tool returned.Understood. The task brief explicitly stated \"Do not browse or run any commands\" — so I will be plain about what was and was not verified.\n\n**What I cannot verify here:**\n\nThe brief prohibited running any commands (`Do not browse or run any commands`). I cannot run `verify_run` or `shell_exec` against this file without violating that constraint. There is also no build system or test suite in this project — it is a single static HTML file, not a compiled artifact.\n\n**What was verified by file tools:**\n\n- The file was written and read back verbatim — sha256 `b6fc1e8d89caf301c5d2c34d08ec61ca68798d9694fb44f6fb2173750934ce45`, 682 bytes written and confirmed\n- The read-back text contains every structural requirement: `<!DOCTYPE html>`, the `<button>` with text `Verify`, the `<div id=\"result\">`, and the exact `onclick` handler setting `.textContent = 'RELEASE_0112_TOOL_OK'`\n\n**What was NOT verified:**\n\n- That the page actually renders and the button click fires correctly in a browser — that requires execution I was instructed not to perform\n\nThe file is structurally correct as proven by read-back. Browser execution was not run and is not claimed.",
+        "ts": 1789076471122
+      }
+    ],
+    "canonical": [
+      {
+        "streamId": "ws_mtw1x111kmaw",
+        "agentId": "agent",
+        "role": "user",
+        "content": "Create C:\\Users\\andro\\AppData\\Local\\Temp\\starnet-release-0112-project-MNhDn4\\index.html in this trusted project. It must be a complete standalone HTML page with a button labeled Verify and a visible result element with id result. Clicking Verify must set result text to RELEASE_0112_TOOL_OK. Use real file tools to write the file and read it back. Keep the page under 50 lines. Do not browse or run any commands. Report only what the read-back proves; clearly say you did not execute the page.",
+        "ts": 1789076470986,
+        "sourceRunId": "159301af-e754-4df9-89f7-11781f77ad43",
+        "rowId": 15
+      },
+      {
+        "streamId": "ws_mtw1x111kmaw",
+        "agentId": "agent",
+        "role": "assistant",
+        "content": "Read-back confirms the following — I did not execute the page:\n\n**File:** `C:\\Users\\andro\\AppData\\Local\\Temp\\starnet-release-0112-project-MNhDn4\\index.html`\n**Size:** 682 bytes — **19 lines** (well under 50)\n\nWhat the read-back proves:\n\n| Requirement | Status |\n|---|---|\n| Complete standalone HTML page | Present — valid `<!DOCTYPE html>` structure, no external dependencies |\n| Button labeled **Verify** | Present — `<button>Verify</button>` |\n| Visible element with `id=\"result\"` | Present — `<div id=\"result\"></div>` |\n| Click sets result text to `RELEASE_0112_TOOL_OK` | Present — `onclick` sets `.textContent = 'RELEASE_0112_TOOL_OK'` |\n| Under 50 lines | 19 lines |\n\nThe page was written and read back using file tools only. No commands were run and the page was not opened or executed.",
+        "ts": 1789076471033,
+        "toolCalls": "[{\"id\":\"toolu_014FwU8Z226oeC7BsVnsU4Gj\",\"type\":\"function\",\"function\":{\"name\":\"deliverable_note\",\"arguments\":\"{\\\"title\\\": \\\"Release 0112 verification page\\\", \\\"summary\\\": \\\"Standalone HTML page with a Verify button that sets the #result element text to RELEASE_0112_TOOL_OK on click.\\\", \\\"kind\\\": \\\"page\\\", \\\"main\\\": \\\"index.html\\\"}\"}}]",
+        "sourceRunId": "159301af-e754-4df9-89f7-11781f77ad43",
+        "rowId": 22
+      },
+      {
+        "streamId": "ws_mtw1x111kmaw",
+        "agentId": "agent",
+        "role": "assistant",
+        "content": "The task is complete. Here is the final report based solely on what the read-back proved:\n\n**File written:** `index.html` (19 lines, 682 bytes)\n**Location:** `C:\\Users\\andro\\AppData\\Local\\Temp\\starnet-release-0112-project-MNhDn4\\index.html`\n\nEvery requirement confirmed by read-back:\n\n- Valid standalone HTML page with no external dependencies\n- Button present with label **Verify**\n- Element present with `id=\"result\"` — visible `<div>` in the body\n- Click handler sets `result.textContent` to exactly `RELEASE_0112_TOOL_OK`\n- 19 lines — under the 50-line limit\n\nThe page was not executed. No browser was opened, no commands were run. The confirmation above is drawn entirely from the file content the read tool returned.",
+        "ts": 1789076471052,
+        "sourceRunId": "159301af-e754-4df9-89f7-11781f77ad43",
+        "rowId": 25
+      },
+      {
+        "streamId": "ws_mtw1x111kmaw",
+        "agentId": "agent",
+        "role": "assistant",
+        "content": "Understood. The task brief explicitly stated \"Do not browse or run any commands\" — so I will be plain about what was and was not verified.\n\n**What I cannot verify here:**\n\nThe brief prohibited running any commands (`Do not browse or run any commands`). I cannot run `verify_run` or `shell_exec` against this file without violating that constraint. There is also no build system or test suite in this project — it is a single static HTML file, not a compiled artifact.\n\n**What was verified by file tools:**\n\n- The file was written and read back verbatim — sha256 `b6fc1e8d89caf301c5d2c34d08ec61ca68798d9694fb44f6fb2173750934ce45`, 682 bytes written and confirmed\n- The read-back text contains every structural requirement: `<!DOCTYPE html>`, the `<button>` with text `Verify`, the `<div id=\"result\">`, and the exact `onclick` handler setting `.textContent = 'RELEASE_0112_TOOL_OK'`\n\n**What was NOT verified:**\n\n- That the page actually renders and the button click fires correctly in a browser — that requires execution I was instructed not to perform\n\nThe file is structurally correct as proven by read-back. Browser execution was not run and is not claimed.",
+        "ts": 1789076471058,
+        "sourceRunId": "159301af-e754-4df9-89f7-11781f77ad43",
+        "rowId": 26
+      }
+    ]
+  },
+  "after": {
+    "build": {
+      "version": "0.11.2",
+      "commit": "fbaab109f",
+      "sha": "fbaab109f7be56821eb2aa47f751a1f5a1073a8e",
+      "sourceTree": "6713597aa9c76014e0d287fe696ec83cad440b5e",
+      "provenanceKind": "reproducible-source",
+      "describe": "v0.11.1-281-gfbaab109f",
+      "dirty": false,
+      "executableSha256": "f48a7bb2c69a61cd9bbc6a8b94aa7a2b1a1e4d2de991c41acbff1f76a3765fb5",
+      "executableSize": 17864192
+    },
+    "localCount": 5,
+    "canonicalCount": 4,
+    "exact": false,
+    "local": [
+      {
+        "streamId": "ws_mtw1x111kmaw",
+        "agentId": "agent",
+        "role": "user",
+        "content": "Create C:\\Users\\andro\\AppData\\Local\\Temp\\starnet-release-0112-project-MNhDn4\\index.html in this trusted project. It must be a complete standalone HTML page with a button labeled Verify and a visible result element with id result. Clicking Verify must set result text to RELEASE_0112_TOOL_OK. Use real file tools to write the file and read it back. Keep the page under 50 lines. Do not browse or run any commands. Report only what the read-back proves; clearly say you did not execute the page.",
+        "ts": 1789076470986,
+        "sourceRunId": "159301af-e754-4df9-89f7-11781f77ad43",
+        "rowId": 15
+      },
+      {
+        "streamId": "ws_mtw1x111kmaw",
+        "agentId": "agent",
+        "role": "assistant",
+        "content": "Read-back confirms the following — I did not execute the page:\n\n**File:** `C:\\Users\\andro\\AppData\\Local\\Temp\\starnet-release-0112-project-MNhDn4\\index.html`\n**Size:** 682 bytes — **19 lines** (well under 50)\n\nWhat the read-back proves:\n\n| Requirement | Status |\n|---|---|\n| Complete standalone HTML page | Present — valid `<!DOCTYPE html>` structure, no external dependencies |\n| Button labeled **Verify** | Present — `<button>Verify</button>` |\n| Visible element with `id=\"result\"` | Present — `<div id=\"result\"></div>` |\n| Click sets result text to `RELEASE_0112_TOOL_OK` | Present — `onclick` sets `.textContent = 'RELEASE_0112_TOOL_OK'` |\n| Under 50 lines | 19 lines |\n\nThe page was written and read back using file tools only. No commands were run and the page was not opened or executed.",
+        "ts": 1789076471033,
+        "toolCalls": "[{\"id\":\"toolu_014FwU8Z226oeC7BsVnsU4Gj\",\"type\":\"function\",\"function\":{\"name\":\"deliverable_note\",\"arguments\":\"{\\\"title\\\": \\\"Release 0112 verification page\\\", \\\"summary\\\": \\\"Standalone HTML page with a Verify button that sets the #result element text to RELEASE_0112_TOOL_OK on click.\\\", \\\"kind\\\": \\\"page\\\", \\\"main\\\": \\\"index.html\\\"}\"}}]",
+        "sourceRunId": "159301af-e754-4df9-89f7-11781f77ad43",
+        "rowId": 22
+      },
+      {
+        "streamId": "ws_mtw1x111kmaw",
+        "agentId": "agent",
+        "role": "assistant",
+        "content": "The task is complete. Here is the final report based solely on what the read-back proved:\n\n**File written:** `index.html` (19 lines, 682 bytes)\n**Location:** `C:\\Users\\andro\\AppData\\Local\\Temp\\starnet-release-0112-project-MNhDn4\\index.html`\n\nEvery requirement confirmed by read-back:\n\n- Valid standalone HTML page with no external dependencies\n- Button present with label **Verify**\n- Element present with `id=\"result\"` — visible `<div>` in the body\n- Click handler sets `result.textContent` to exactly `RELEASE_0112_TOOL_OK`\n- 19 lines — under the 50-line limit\n\nThe page was not executed. No browser was opened, no commands were run. The confirmation above is drawn entirely from the file content the read tool returned.",
+        "ts": 1789076471052,
+        "sourceRunId": "159301af-e754-4df9-89f7-11781f77ad43",
+        "rowId": 25
+      },
+      {
+        "streamId": "ws_mtw1x111kmaw",
+        "agentId": "agent",
+        "role": "assistant",
+        "content": "Understood. The task brief explicitly stated \"Do not browse or run any commands\" — so I will be plain about what was and was not verified.\n\n**What I cannot verify here:**\n\nThe brief prohibited running any commands (`Do not browse or run any commands`). I cannot run `verify_run` or `shell_exec` against this file without violating that constraint. There is also no build system or test suite in this project — it is a single static HTML file, not a compiled artifact.\n\n**What was verified by file tools:**\n\n- The file was written and read back verbatim — sha256 `b6fc1e8d89caf301c5d2c34d08ec61ca68798d9694fb44f6fb2173750934ce45`, 682 bytes written and confirmed\n- The read-back text contains every structural requirement: `<!DOCTYPE html>`, the `<button>` with text `Verify`, the `<div id=\"result\">`, and the exact `onclick` handler setting `.textContent = 'RELEASE_0112_TOOL_OK'`\n\n**What was NOT verified:**\n\n- That the page actually renders and the button click fires correctly in a browser — that requires execution I was instructed not to perform\n\nThe file is structurally correct as proven by read-back. Browser execution was not run and is not claimed.",
+        "ts": 1789076471058,
+        "sourceRunId": "159301af-e754-4df9-89f7-11781f77ad43",
+        "rowId": 26
+      },
+      {
+        "role": "assistant",
+        "content": "The task is complete. Here is the final report based solely on what the read-back proved:\n\n**File written:** `index.html` (19 lines, 682 bytes)\n**Location:** `C:\\Users\\andro\\AppData\\Local\\Temp\\starnet-release-0112-project-MNhDn4\\index.html`\n\nEvery requirement confirmed by read-back:\n\n- Valid standalone HTML page with no external dependencies\n- Button present with label **Verify**\n- Element present with `id=\"result\"` — visible `<div>` in the body\n- Click handler sets `result.textContent` to exactly `RELEASE_0112_TOOL_OK`\n- 19 lines — under the 50-line limit\n\nThe page was not executed. No browser was opened, no commands were run. The confirmation above is drawn entirely from the file content the read tool returned.Understood. The task brief explicitly stated \"Do not browse or run any commands\" — so I will be plain about what was and was not verified.\n\n**What I cannot verify here:**\n\nThe brief prohibited running any commands (`Do not browse or run any commands`). I cannot run `verify_run` or `shell_exec` against this file without violating that constraint. There is also no build system or test suite in this project — it is a single static HTML file, not a compiled artifact.\n\n**What was verified by file tools:**\n\n- The file was written and read back verbatim — sha256 `b6fc1e8d89caf301c5d2c34d08ec61ca68798d9694fb44f6fb2173750934ce45`, 682 bytes written and confirmed\n- The read-back text contains every structural requirement: `<!DOCTYPE html>`, the `<button>` with text `Verify`, the `<div id=\"result\">`, and the exact `onclick` handler setting `.textContent = 'RELEASE_0112_TOOL_OK'`\n\n**What was NOT verified:**\n\n- That the page actually renders and the button click fires correctly in a browser — that requires execution I was instructed not to perform\n\nThe file is structurally correct as proven by read-back. Browser execution was not run and is not claimed.",
+        "ts": 1789076471122
+      }
+    ],
+    "canonical": [
+      {
+        "streamId": "ws_mtw1x111kmaw",
+        "agentId": "agent",
+        "role": "user",
+        "content": "Create C:\\Users\\andro\\AppData\\Local\\Temp\\starnet-release-0112-project-MNhDn4\\index.html in this trusted project. It must be a complete standalone HTML page with a button labeled Verify and a visible result element with id result. Clicking Verify must set result text to RELEASE_0112_TOOL_OK. Use real file tools to write the file and read it back. Keep the page under 50 lines. Do not browse or run any commands. Report only what the read-back proves; clearly say you did not execute the page.",
+        "ts": 1789076470986,
+        "sourceRunId": "159301af-e754-4df9-89f7-11781f77ad43",
+        "rowId": 15
+      },
+      {
+        "streamId": "ws_mtw1x111kmaw",
+        "agentId": "agent",
+        "role": "assistant",
+        "content": "Read-back confirms the following — I did not execute the page:\n\n**File:** `C:\\Users\\andro\\AppData\\Local\\Temp\\starnet-release-0112-project-MNhDn4\\index.html`\n**Size:** 682 bytes — **19 lines** (well under 50)\n\nWhat the read-back proves:\n\n| Requirement | Status |\n|---|---|\n| Complete standalone HTML page | Present — valid `<!DOCTYPE html>` structure, no external dependencies |\n| Button labeled **Verify** | Present — `<button>Verify</button>` |\n| Visible element with `id=\"result\"` | Present — `<div id=\"result\"></div>` |\n| Click sets result text to `RELEASE_0112_TOOL_OK` | Present — `onclick` sets `.textContent = 'RELEASE_0112_TOOL_OK'` |\n| Under 50 lines | 19 lines |\n\nThe page was written and read back using file tools only. No commands were run and the page was not opened or executed.",
+        "ts": 1789076471033,
+        "toolCalls": "[{\"id\":\"toolu_014FwU8Z226oeC7BsVnsU4Gj\",\"type\":\"function\",\"function\":{\"name\":\"deliverable_note\",\"arguments\":\"{\\\"title\\\": \\\"Release 0112 verification page\\\", \\\"summary\\\": \\\"Standalone HTML page with a Verify button that sets the #result element text to RELEASE_0112_TOOL_OK on click.\\\", \\\"kind\\\": \\\"page\\\", \\\"main\\\": \\\"index.html\\\"}\"}}]",
+        "sourceRunId": "159301af-e754-4df9-89f7-11781f77ad43",
+        "rowId": 22
+      },
+      {
+        "streamId": "ws_mtw1x111kmaw",
+        "agentId": "agent",
+        "role": "assistant",
+        "content": "The task is complete. Here is the final report based solely on what the read-back proved:\n\n**File written:** `index.html` (19 lines, 682 bytes)\n**Location:** `C:\\Users\\andro\\AppData\\Local\\Temp\\starnet-release-0112-project-MNhDn4\\index.html`\n\nEvery requirement confirmed by read-back:\n\n- Valid standalone HTML page with no external dependencies\n- Button present with label **Verify**\n- Element present with `id=\"result\"` — visible `<div>` in the body\n- Click handler sets `result.textContent` to exactly `RELEASE_0112_TOOL_OK`\n- 19 lines — under the 50-line limit\n\nThe page was not executed. No browser was opened, no commands were run. The confirmation above is drawn entirely from the file content the read tool returned.",
+        "ts": 1789076471052,
+        "sourceRunId": "159301af-e754-4df9-89f7-11781f77ad43",
+        "rowId": 25
+      },
+      {
+        "streamId": "ws_mtw1x111kmaw",
+        "agentId": "agent",
+        "role": "assistant",
+        "content": "Understood. The task brief explicitly stated \"Do not browse or run any commands\" — so I will be plain about what was and was not verified.\n\n**What I cannot verify here:**\n\nThe brief prohibited running any commands (`Do not browse or run any commands`). I cannot run `verify_run` or `shell_exec` against this file without violating that constraint. There is also no build system or test suite in this project — it is a single static HTML file, not a compiled artifact.\n\n**What was verified by file tools:**\n\n- The file was written and read back verbatim — sha256 `b6fc1e8d89caf301c5d2c34d08ec61ca68798d9694fb44f6fb2173750934ce45`, 682 bytes written and confirmed\n- The read-back text contains every structural requirement: `<!DOCTYPE html>`, the `<button>` with text `Verify`, the `<div id=\"result\">`, and the exact `onclick` handler setting `.textContent = 'RELEASE_0112_TOOL_OK'`\n\n**What was NOT verified:**\n\n- That the page actually renders and the button click fires correctly in a browser — that requires execution I was instructed not to perform\n\nThe file is structurally correct as proven by read-back. Browser execution was not run and is not claimed.",
+        "ts": 1789076471058,
+        "sourceRunId": "159301af-e754-4df9-89f7-11781f77ad43",
+        "rowId": 26
+      }
+    ]
+  },
+  "reloaded": {
+    "build": {
+      "version": "0.11.2",
+      "commit": "fbaab109f",
+      "sha": "fbaab109f7be56821eb2aa47f751a1f5a1073a8e",
+      "sourceTree": "6713597aa9c76014e0d287fe696ec83cad440b5e",
+      "provenanceKind": "reproducible-source",
+      "describe": "v0.11.1-281-gfbaab109f",
+      "dirty": false,
+      "executableSha256": "f48a7bb2c69a61cd9bbc6a8b94aa7a2b1a1e4d2de991c41acbff1f76a3765fb5",
+      "executableSize": 17864192
+    },
+    "localCount": 5,
+    "canonicalCount": 4,
+    "exact": false,
+    "local": [
+      {
+        "streamId": "ws_mtw1x111kmaw",
+        "agentId": "agent",
+        "role": "user",
+        "content": "Create C:\\Users\\andro\\AppData\\Local\\Temp\\starnet-release-0112-project-MNhDn4\\index.html in this trusted project. It must be a complete standalone HTML page with a button labeled Verify and a visible result element with id result. Clicking Verify must set result text to RELEASE_0112_TOOL_OK. Use real file tools to write the file and read it back. Keep the page under 50 lines. Do not browse or run any commands. Report only what the read-back proves; clearly say you did not execute the page.",
+        "ts": 1789076470986,
+        "sourceRunId": "159301af-e754-4df9-89f7-11781f77ad43",
+        "rowId": 15
+      },
+      {
+        "streamId": "ws_mtw1x111kmaw",
+        "agentId": "agent",
+        "role": "assistant",
+        "content": "Read-back confirms the following — I did not execute the page:\n\n**File:** `C:\\Users\\andro\\AppData\\Local\\Temp\\starnet-release-0112-project-MNhDn4\\index.html`\n**Size:** 682 bytes — **19 lines** (well under 50)\n\nWhat the read-back proves:\n\n| Requirement | Status |\n|---|---|\n| Complete standalone HTML page | Present — valid `<!DOCTYPE html>` structure, no external dependencies |\n| Button labeled **Verify** | Present — `<button>Verify</button>` |\n| Visible element with `id=\"result\"` | Present — `<div id=\"result\"></div>` |\n| Click sets result text to `RELEASE_0112_TOOL_OK` | Present — `onclick` sets `.textContent = 'RELEASE_0112_TOOL_OK'` |\n| Under 50 lines | 19 lines |\n\nThe page was written and read back using file tools only. No commands were run and the page was not opened or executed.",
+        "ts": 1789076471033,
+        "toolCalls": "[{\"id\":\"toolu_014FwU8Z226oeC7BsVnsU4Gj\",\"type\":\"function\",\"function\":{\"name\":\"deliverable_note\",\"arguments\":\"{\\\"title\\\": \\\"Release 0112 verification page\\\", \\\"summary\\\": \\\"Standalone HTML page with a Verify button that sets the #result element text to RELEASE_0112_TOOL_OK on click.\\\", \\\"kind\\\": \\\"page\\\", \\\"main\\\": \\\"index.html\\\"}\"}}]",
+        "sourceRunId": "159301af-e754-4df9-89f7-11781f77ad43",
+        "rowId": 22
+      },
+      {
+        "streamId": "ws_mtw1x111kmaw",
+        "agentId": "agent",
+        "role": "assistant",
+        "content": "The task is complete. Here is the final report based solely on what the read-back proved:\n\n**File written:** `index.html` (19 lines, 682 bytes)\n**Location:** `C:\\Users\\andro\\AppData\\Local\\Temp\\starnet-release-0112-project-MNhDn4\\index.html`\n\nEvery requirement confirmed by read-back:\n\n- Valid standalone HTML page with no external dependencies\n- Button present with label **Verify**\n- Element present with `id=\"result\"` — visible `<div>` in the body\n- Click handler sets `result.textContent` to exactly `RELEASE_0112_TOOL_OK`\n- 19 lines — under the 50-line limit\n\nThe page was not executed. No browser was opened, no commands were run. The confirmation above is drawn entirely from the file content the read tool returned.",
+        "ts": 1789076471052,
+        "sourceRunId": "159301af-e754-4df9-89f7-11781f77ad43",
+        "rowId": 25
+      },
+      {
+        "streamId": "ws_mtw1x111kmaw",
+        "agentId": "agent",
+        "role": "assistant",
+        "content": "Understood. The task brief explicitly stated \"Do not browse or run any commands\" — so I will be plain about what was and was not verified.\n\n**What I cannot verify here:**\n\nThe brief prohibited running any commands (`Do not browse or run any commands`). I cannot run `verify_run` or `shell_exec` against this file without violating that constraint. There is also no build system or test suite in this project — it is a single static HTML file, not a compiled artifact.\n\n**What was verified by file tools:**\n\n- The file was written and read back verbatim — sha256 `b6fc1e8d89caf301c5d2c34d08ec61ca68798d9694fb44f6fb2173750934ce45`, 682 bytes written and confirmed\n- The read-back text contains every structural requirement: `<!DOCTYPE html>`, the `<button>` with text `Verify`, the `<div id=\"result\">`, and the exact `onclick` handler setting `.textContent = 'RELEASE_0112_TOOL_OK'`\n\n**What was NOT verified:**\n\n- That the page actually renders and the button click fires correctly in a browser — that requires execution I was instructed not to perform\n\nThe file is structurally correct as proven by read-back. Browser execution was not run and is not claimed.",
+        "ts": 1789076471058,
+        "sourceRunId": "159301af-e754-4df9-89f7-11781f77ad43",
+        "rowId": 26
+      },
+      {
+        "role": "assistant",
+        "content": "The task is complete. Here is the final report based solely on what the read-back proved:\n\n**File written:** `index.html` (19 lines, 682 bytes)\n**Location:** `C:\\Users\\andro\\AppData\\Local\\Temp\\starnet-release-0112-project-MNhDn4\\index.html`\n\nEvery requirement confirmed by read-back:\n\n- Valid standalone HTML page with no external dependencies\n- Button present with label **Verify**\n- Element present with `id=\"result\"` — visible `<div>` in the body\n- Click handler sets `result.textContent` to exactly `RELEASE_0112_TOOL_OK`\n- 19 lines — under the 50-line limit\n\nThe page was not executed. No browser was opened, no commands were run. The confirmation above is drawn entirely from the file content the read tool returned.Understood. The task brief explicitly stated \"Do not browse or run any commands\" — so I will be plain about what was and was not verified.\n\n**What I cannot verify here:**\n\nThe brief prohibited running any commands (`Do not browse or run any commands`). I cannot run `verify_run` or `shell_exec` against this file without violating that constraint. There is also no build system or test suite in this project — it is a single static HTML file, not a compiled artifact.\n\n**What was verified by file tools:**\n\n- The file was written and read back verbatim — sha256 `b6fc1e8d89caf301c5d2c34d08ec61ca68798d9694fb44f6fb2173750934ce45`, 682 bytes written and confirmed\n- The read-back text contains every structural requirement: `<!DOCTYPE html>`, the `<button>` with text `Verify`, the `<div id=\"result\">`, and the exact `onclick` handler setting `.textContent = 'RELEASE_0112_TOOL_OK'`\n\n**What was NOT verified:**\n\n- That the page actually renders and the button click fires correctly in a browser — that requires execution I was instructed not to perform\n\nThe file is structurally correct as proven by read-back. Browser execution was not run and is not claimed.",
+        "ts": 1789076471122
+      }
+    ],
+    "canonical": [
+      {
+        "streamId": "ws_mtw1x111kmaw",
+        "agentId": "agent",
+        "role": "user",
+        "content": "Create C:\\Users\\andro\\AppData\\Local\\Temp\\starnet-release-0112-project-MNhDn4\\index.html in this trusted project. It must be a complete standalone HTML page with a button labeled Verify and a visible result element with id result. Clicking Verify must set result text to RELEASE_0112_TOOL_OK. Use real file tools to write the file and read it back. Keep the page under 50 lines. Do not browse or run any commands. Report only what the read-back proves; clearly say you did not execute the page.",
+        "ts": 1789076470986,
+        "sourceRunId": "159301af-e754-4df9-89f7-11781f77ad43",
+        "rowId": 15
+      },
+      {
+        "streamId": "ws_mtw1x111kmaw",
+        "agentId": "agent",
+        "role": "assistant",
+        "content": "Read-back confirms the following — I did not execute the page:\n\n**File:** `C:\\Users\\andro\\AppData\\Local\\Temp\\starnet-release-0112-project-MNhDn4\\index.html`\n**Size:** 682 bytes — **19 lines** (well under 50)\n\nWhat the read-back proves:\n\n| Requirement | Status |\n|---|---|\n| Complete standalone HTML page | Present — valid `<!DOCTYPE html>` structure, no external dependencies |\n| Button labeled **Verify** | Present — `<button>Verify</button>` |\n| Visible element with `id=\"result\"` | Present — `<div id=\"result\"></div>` |\n| Click sets result text to `RELEASE_0112_TOOL_OK` | Present — `onclick` sets `.textContent = 'RELEASE_0112_TOOL_OK'` |\n| Under 50 lines | 19 lines |\n\nThe page was written and read back using file tools only. No commands were run and the page was not opened or executed.",
+        "ts": 1789076471033,
+        "toolCalls": "[{\"id\":\"toolu_014FwU8Z226oeC7BsVnsU4Gj\",\"type\":\"function\",\"function\":{\"name\":\"deliverable_note\",\"arguments\":\"{\\\"title\\\": \\\"Release 0112 verification page\\\", \\\"summary\\\": \\\"Standalone HTML page with a Verify button that sets the #result element text to RELEASE_0112_TOOL_OK on click.\\\", \\\"kind\\\": \\\"page\\\", \\\"main\\\": \\\"index.html\\\"}\"}}]",
+        "sourceRunId": "159301af-e754-4df9-89f7-11781f77ad43",
+        "rowId": 22
+      },
+      {
+        "streamId": "ws_mtw1x111kmaw",
+        "agentId": "agent",
+        "role": "assistant",
+        "content": "The task is complete. Here is the final report based solely on what the read-back proved:\n\n**File written:** `index.html` (19 lines, 682 bytes)\n**Location:** `C:\\Users\\andro\\AppData\\Local\\Temp\\starnet-release-0112-project-MNhDn4\\index.html`\n\nEvery requirement confirmed by read-back:\n\n- Valid standalone HTML page with no external dependencies\n- Button present with label **Verify**\n- Element present with `id=\"result\"` — visible `<div>` in the body\n- Click handler sets `result.textContent` to exactly `RELEASE_0112_TOOL_OK`\n- 19 lines — under the 50-line limit\n\nThe page was not executed. No browser was opened, no commands were run. The confirmation above is drawn entirely from the file content the read tool returned.",
+        "ts": 1789076471052,
+        "sourceRunId": "159301af-e754-4df9-89f7-11781f77ad43",
+        "rowId": 25
+      },
+      {
+        "streamId": "ws_mtw1x111kmaw",
+        "agentId": "agent",
+        "role": "assistant",
+        "content": "Understood. The task brief explicitly stated \"Do not browse or run any commands\" — so I will be plain about what was and was not verified.\n\n**What I cannot verify here:**\n\nThe brief prohibited running any commands (`Do not browse or run any commands`). I cannot run `verify_run` or `shell_exec` against this file without violating that constraint. There is also no build system or test suite in this project — it is a single static HTML file, not a compiled artifact.\n\n**What was verified by file tools:**\n\n- The file was written and read back verbatim — sha256 `b6fc1e8d89caf301c5d2c34d08ec61ca68798d9694fb44f6fb2173750934ce45`, 682 bytes written and confirmed\n- The read-back text contains every structural requirement: `<!DOCTYPE html>`, the `<button>` with text `Verify`, the `<div id=\"result\">`, and the exact `onclick` handler setting `.textContent = 'RELEASE_0112_TOOL_OK'`\n\n**What was NOT verified:**\n\n- That the page actually renders and the button click fires correctly in a browser — that requires execution I was instructed not to perform\n\nThe file is structurally correct as proven by read-back. Browser execution was not run and is not claimed.",
+        "ts": 1789076471058,
+        "sourceRunId": "159301af-e754-4df9-89f7-11781f77ad43",
+        "rowId": 26
+      }
+    ]
+  }
+}

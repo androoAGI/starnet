@@ -1,0 +1,2126 @@
+{
+  "schema": "starnet.soak-receipt.v1",
+  "verdict": "PASS",
+  "failedRules": [],
+  "sidecarHead": "afd1da77fb4a489151b45b5a6c53e60ada4ca1f4",
+  "startedAt": "2026-09-10T22:14:33.695Z",
+  "endedAt": "2026-09-10T22:24:34.070Z",
+  "plannedMinutes": 10,
+  "actualMinutes": 10.01,
+  "options": {
+    "minutes": 10,
+    "tickSeconds": 15,
+    "runEvery": 2,
+    "toolEvery": 4,
+    "restartEvery": 5,
+    "maxSamples": 600,
+    "routines": 50,
+    "maxParallel": 8,
+    "outageSeconds": 150,
+    "slowRunMs": 75000,
+    "out": "C:/Users/andro/gen-trees/release-0112-audit-0910/.dogfood/release-0112-closeout/frozen-scale",
+    "aux": false,
+    "help": false
+  },
+  "meta": {
+    "sidecarHead": "afd1da77fb4a489151b45b5a6c53e60ada4ca1f4",
+    "platform": "win32 10.0.26200 x64",
+    "node": "v22.23.0",
+    "host": "skynet",
+    "stopMode": "terminate (TerminateProcess, as the desktop shell stops it)",
+    "provider": "mock (in-process OpenRouter double)",
+    "mockCalls": 511,
+    "mockSlowCalls": 24,
+    "cronEvents": 807,
+    "workspace": "C:\\Users\\andro\\AppData\\Local\\Temp\\starnet-soak-9QlyjN",
+    "auxPasses": "disabled (SKYNET_AUX_BUDGET=0)",
+    "accountingInput": "C:\\Users\\andro\\gen-trees\\release-0112-audit-0910\\.dogfood\\release-0112-closeout\\frozen-scale\\accounting-input.json",
+    "forensics": {
+      "workspace": "C:\\Users\\andro\\gen-trees\\release-0112-audit-0910\\.dogfood\\release-0112-closeout\\frozen-scale\\forensics\\workspace",
+      "profile": "C:\\Users\\andro\\gen-trees\\release-0112-audit-0910\\.dogfood\\release-0112-closeout\\frozen-scale\\forensics\\profile"
+    }
+  },
+  "rules": {
+    "completed": {
+      "pass": true,
+      "actual": {
+        "completed": true,
+        "reason": null
+      },
+      "expected": {
+        "completed": true
+      },
+      "why": "an interrupted soak has measured nothing about the tail, which is where leaks and stalls show; INCOMPLETE is a FAIL, never a PASS by absence of evidence"
+    },
+    "runs": {
+      "pass": true,
+      "actual": {
+        "ok": 22,
+        "failed": 0,
+        "errors": []
+      },
+      "expected": {
+        "failed": "<= 0",
+        "ok": ">= 1"
+      },
+      "why": "the provider is a deterministic local mock that never errors, so every run error is a harness defect; a soak with zero completed runs measured no workload and fails too"
+    },
+    "routine": {
+      "pass": true,
+      "actual": {
+        "fires": 213
+      },
+      "expected": {
+        "fires": ">= 1"
+      },
+      "why": "the cron driver is the seam a long-running station depends on most; zero fires across the whole soak means the scheduler never ran"
+    },
+    "swallowed": {
+      "pass": true,
+      "actual": {
+        "ratePerMin": 0,
+        "count": 0,
+        "windowMinutes": 4.66,
+        "lastTags": {},
+        "totalAtEnd": 0
+      },
+      "expected": {
+        "ratePerMin": "<= 0.2",
+        "orCount": "< 3"
+      },
+      "why": "with a mock provider the steady-state fail-open count should be ~0; a permanently broken 60s maintenance loop shows as ≥1/min, so a sustained ≥0.2/min over the LAST THIRD (and at least 3 events, so a single blip cannot fail a short soak) is unbounded growth. Tallies reset on restart, so deltas are summed within a boot epoch only"
+    },
+    "rss": {
+      "pass": true,
+      "actual": {
+        "slopeMBPerMin": 0.765,
+        "growthPct": 0.4,
+        "epoch": 1,
+        "points": 9,
+        "firstMB": 115.4,
+        "lastMB": 106,
+        "peakMB": 125
+      },
+      "expected": {
+        "slopeMBPerMin": "<= 2",
+        "orGrowthPct": "< 20"
+      },
+      "why": "least-squares slope of RSS over the LAST HALF of the longest boot epoch in that half. 2 MB/min compounds to ~1.4 GB over a 12h soak — a leak by any definition; GC noise on a ~100 MB heap swings tens of MB but not monotonically, so BOTH the slope and ≥20% growth (mean of the last quarter of the window vs the first quarter) are required. Epochs under 5 points are not judged (null, with reason)"
+    },
+    "latency": {
+      "pass": true,
+      "actual": {
+        "p95Ms": 34,
+        "points": 15,
+        "medianOfMediansMs": 3,
+        "maxMs": 34
+      },
+      "expected": {
+        "p95Ms": "<= 500"
+      },
+      "why": "loopback health on a healthy loop answers in single-digit ms; a p95 over 500 ms across the LAST HALF means the event loop is stalling (blocked timers, sync I/O, GC thrash) — the class of degradation a human soak catches only as \"it feels sluggish\""
+    },
+    "restart": {
+      "pass": true,
+      "actual": {
+        "cycles": 1,
+        "failed": 0,
+        "detail": [
+          {
+            "at": 1789078779287,
+            "epoch": 0,
+            "bootMs": 6963,
+            "stopMode": "terminate (TerminateProcess, as the desktop shell stops it)",
+            "runHistoryThrough": 1789078779332,
+            "counts": {
+              "agents": {
+                "before": 1,
+                "after": 1
+              },
+              "routines": {
+                "before": 50,
+                "after": 50
+              },
+              "runs": {
+                "before": 156,
+                "after": 156
+              },
+              "turns": {
+                "before": 50,
+                "after": 50
+              }
+            },
+            "lost": {},
+            "ok": true,
+            "error": null
+          }
+        ]
+      },
+      "expected": {
+        "cycles": ">= 1",
+        "lost": "none"
+      },
+      "why": "agents, routines, run history, and conversation turns a user expects to survive must round-trip a stop/boot on the same workspace; any id present before and missing after is data loss (the top recurring bug class)"
+    },
+    "process": {
+      "pass": true,
+      "actual": {
+        "unexpectedExits": 0,
+        "orphans": [],
+        "transientChildren": [],
+        "orphanCheck": "enumerated after stop, re-checked after 3000ms grace"
+      },
+      "expected": {
+        "unexpectedExits": 0,
+        "orphans": 0
+      },
+      "why": "an unplanned exit is a crash; a child process STILL alive 3s after the sidecar stopped is the close-zombie class (0.10.5/0.10.6). A child seen at the instant of the stop but gone within the grace is recorded as transient (a measurement, not a failure)"
+    },
+    "accounting": {
+      "pass": true,
+      "actual": {
+        "routines": 50,
+        "owed": 304,
+        "fired": 219,
+        "alreadyRunning": 9,
+        "caughtUp": 18,
+        "collapsed": 58,
+        "deferred": 304,
+        "disabled": 2,
+        "unfireable": 2,
+        "tail": 0,
+        "lost": 0,
+        "doubled": 0,
+        "unexpected": 0,
+        "offSchedule": 0,
+        "problems": [],
+        "detail": [
+          {
+            "id": "fe20b49d-36ea-4a63-ba01-513e0b75ba5d",
+            "label": "r00-disabled",
+            "role": "disabled",
+            "schedule": "every 1m",
+            "owed": 0,
+            "fired": 0,
+            "alreadyRunning": 0,
+            "caughtUp": 0,
+            "collapsed": 0,
+            "deferred": 0,
+            "disabled": 2,
+            "unfireable": 0,
+            "tail": 0,
+            "lost": [],
+            "doubled": [],
+            "unexpected": [],
+            "offSchedule": [],
+            "otherSkips": [],
+            "ok": true,
+            "note": null
+          },
+          {
+            "id": "60e66cb3-18f8-459e-bf2f-e75539364b59",
+            "label": "r01-unfireable",
+            "role": "unfireable",
+            "schedule": "every 1m",
+            "owed": 5,
+            "fired": 5,
+            "alreadyRunning": 0,
+            "caughtUp": 0,
+            "collapsed": 0,
+            "deferred": 0,
+            "disabled": 0,
+            "unfireable": 1,
+            "tail": 0,
+            "lost": [],
+            "doubled": [],
+            "unexpected": [],
+            "offSchedule": [],
+            "otherSkips": [],
+            "ok": true,
+            "note": null
+          },
+          {
+            "id": "ac9bb25a-15d3-4bc2-a561-8986ac8f64c5",
+            "label": "r02-unfireable",
+            "role": "unfireable",
+            "schedule": "every 1m",
+            "owed": 5,
+            "fired": 5,
+            "alreadyRunning": 0,
+            "caughtUp": 0,
+            "collapsed": 0,
+            "deferred": 0,
+            "disabled": 0,
+            "unfireable": 1,
+            "tail": 0,
+            "lost": [],
+            "doubled": [],
+            "unexpected": [],
+            "offSchedule": [],
+            "otherSkips": [],
+            "ok": true,
+            "note": null
+          },
+          {
+            "id": "cfa4f9c9-2ec6-4c7f-a529-64cbdead8650",
+            "label": "r03-slow",
+            "role": "slow",
+            "schedule": "every 1m",
+            "owed": 9,
+            "fired": 5,
+            "alreadyRunning": 3,
+            "caughtUp": 0,
+            "collapsed": 1,
+            "deferred": 0,
+            "disabled": 0,
+            "unfireable": 0,
+            "tail": 0,
+            "lost": [],
+            "doubled": [],
+            "unexpected": [],
+            "offSchedule": [],
+            "otherSkips": [],
+            "ok": true,
+            "note": null
+          },
+          {
+            "id": "c3192a92-4135-4b94-a8fc-37aa82a8e11b",
+            "label": "r04-slow",
+            "role": "slow",
+            "schedule": "every 1m",
+            "owed": 9,
+            "fired": 5,
+            "alreadyRunning": 3,
+            "caughtUp": 0,
+            "collapsed": 1,
+            "deferred": 0,
+            "disabled": 0,
+            "unfireable": 0,
+            "tail": 0,
+            "lost": [],
+            "doubled": [],
+            "unexpected": [],
+            "offSchedule": [],
+            "otherSkips": [],
+            "ok": true,
+            "note": null
+          },
+          {
+            "id": "8d6fd8e6-5a6c-4638-8e59-643e7ed9bcdf",
+            "label": "r05-slow",
+            "role": "slow",
+            "schedule": "every 1m",
+            "owed": 9,
+            "fired": 5,
+            "alreadyRunning": 3,
+            "caughtUp": 0,
+            "collapsed": 1,
+            "deferred": 0,
+            "disabled": 0,
+            "unfireable": 0,
+            "tail": 0,
+            "lost": [],
+            "doubled": [],
+            "unexpected": [],
+            "offSchedule": [],
+            "otherSkips": [],
+            "ok": true,
+            "note": null
+          },
+          {
+            "id": "ccfc215a-6b71-4daf-a015-1ac5ebcb564c",
+            "label": "r06-fireable",
+            "role": "fireable",
+            "schedule": "cron 1-59/2 * * * *",
+            "owed": 5,
+            "fired": 5,
+            "alreadyRunning": 0,
+            "caughtUp": 0,
+            "collapsed": 0,
+            "deferred": 0,
+            "disabled": 0,
+            "unfireable": 0,
+            "tail": 0,
+            "lost": [],
+            "doubled": [],
+            "unexpected": [],
+            "offSchedule": [],
+            "otherSkips": [],
+            "ok": true,
+            "note": null
+          },
+          {
+            "id": "cd38bae9-9977-4daa-9d13-4f0eb2a4472e",
+            "label": "r07-fireable",
+            "role": "fireable",
+            "schedule": "every 1m",
+            "owed": 9,
+            "fired": 6,
+            "alreadyRunning": 0,
+            "caughtUp": 1,
+            "collapsed": 2,
+            "deferred": 0,
+            "disabled": 0,
+            "unfireable": 0,
+            "tail": 0,
+            "lost": [],
+            "doubled": [],
+            "unexpected": [],
+            "offSchedule": [],
+            "otherSkips": [],
+            "ok": true,
+            "note": null
+          },
+          {
+            "id": "de475aa8-1e6c-4ebd-a4a2-a47e2ca50e12",
+            "label": "r08-fireable",
+            "role": "fireable",
+            "schedule": "cron */2 * * * *",
+            "owed": 5,
+            "fired": 4,
+            "alreadyRunning": 0,
+            "caughtUp": 0,
+            "collapsed": 1,
+            "deferred": 0,
+            "disabled": 0,
+            "unfireable": 0,
+            "tail": 0,
+            "lost": [],
+            "doubled": [],
+            "unexpected": [],
+            "offSchedule": [],
+            "otherSkips": [],
+            "ok": true,
+            "note": null
+          },
+          {
+            "id": "8d4244af-dc80-4fc0-9d53-0be73096f96f",
+            "label": "r09-fireable",
+            "role": "fireable",
+            "schedule": "cron */5 * * * *",
+            "owed": 2,
+            "fired": 2,
+            "alreadyRunning": 0,
+            "caughtUp": 0,
+            "collapsed": 0,
+            "deferred": 0,
+            "disabled": 0,
+            "unfireable": 0,
+            "tail": 0,
+            "lost": [],
+            "doubled": [],
+            "unexpected": [],
+            "offSchedule": [],
+            "otherSkips": [],
+            "ok": true,
+            "note": null
+          },
+          {
+            "id": "97bf3f4d-2c9b-49fa-aa78-d9e44e4cc2b1",
+            "label": "r10-fireable",
+            "role": "fireable",
+            "schedule": "every 1m",
+            "owed": 9,
+            "fired": 7,
+            "alreadyRunning": 0,
+            "caughtUp": 0,
+            "collapsed": 2,
+            "deferred": 0,
+            "disabled": 0,
+            "unfireable": 0,
+            "tail": 0,
+            "lost": [],
+            "doubled": [],
+            "unexpected": [],
+            "offSchedule": [],
+            "otherSkips": [],
+            "ok": true,
+            "note": null
+          },
+          {
+            "id": "6c70fddd-df8e-4c5d-849d-9a595426b89b",
+            "label": "r11-fireable",
+            "role": "fireable",
+            "schedule": "cron * * * * *",
+            "owed": 10,
+            "fired": 7,
+            "alreadyRunning": 0,
+            "caughtUp": 1,
+            "collapsed": 2,
+            "deferred": 0,
+            "disabled": 0,
+            "unfireable": 0,
+            "tail": 0,
+            "lost": [],
+            "doubled": [],
+            "unexpected": [],
+            "offSchedule": [],
+            "otherSkips": [],
+            "ok": true,
+            "note": null
+          },
+          {
+            "id": "65537120-6c5b-452c-95fc-e6569d3ce74f",
+            "label": "r12-fireable",
+            "role": "fireable",
+            "schedule": "every 2m",
+            "owed": 4,
+            "fired": 4,
+            "alreadyRunning": 0,
+            "caughtUp": 0,
+            "collapsed": 0,
+            "deferred": 0,
+            "disabled": 0,
+            "unfireable": 0,
+            "tail": 0,
+            "lost": [],
+            "doubled": [],
+            "unexpected": [],
+            "offSchedule": [],
+            "otherSkips": [],
+            "ok": true,
+            "note": null
+          },
+          {
+            "id": "d155b837-eb6f-4490-8d74-ae47151caff9",
+            "label": "r13-fireable",
+            "role": "fireable",
+            "schedule": "cron */2 * * * *",
+            "owed": 5,
+            "fired": 3,
+            "alreadyRunning": 0,
+            "caughtUp": 1,
+            "collapsed": 1,
+            "deferred": 0,
+            "disabled": 0,
+            "unfireable": 0,
+            "tail": 0,
+            "lost": [],
+            "doubled": [],
+            "unexpected": [],
+            "offSchedule": [],
+            "otherSkips": [],
+            "ok": true,
+            "note": null
+          },
+          {
+            "id": "e48e7399-c791-46b4-bda7-500750732df1",
+            "label": "r14-fireable",
+            "role": "fireable",
+            "schedule": "every 1m",
+            "owed": 9,
+            "fired": 7,
+            "alreadyRunning": 0,
+            "caughtUp": 0,
+            "collapsed": 2,
+            "deferred": 2,
+            "disabled": 0,
+            "unfireable": 0,
+            "tail": 0,
+            "lost": [],
+            "doubled": [],
+            "unexpected": [],
+            "offSchedule": [],
+            "otherSkips": [],
+            "ok": true,
+            "note": null
+          },
+          {
+            "id": "2a493c4b-7e78-4c49-9fe1-a2f20a15b681",
+            "label": "r15-fireable",
+            "role": "fireable",
+            "schedule": "cron */3 * * * *",
+            "owed": 4,
+            "fired": 4,
+            "alreadyRunning": 0,
+            "caughtUp": 0,
+            "collapsed": 0,
+            "deferred": 1,
+            "disabled": 0,
+            "unfireable": 0,
+            "tail": 0,
+            "lost": [],
+            "doubled": [],
+            "unexpected": [],
+            "offSchedule": [],
+            "otherSkips": [],
+            "ok": true,
+            "note": null
+          },
+          {
+            "id": "7a1b95ae-71f7-4682-b6aa-d6139aa6942a",
+            "label": "r16-fireable",
+            "role": "fireable",
+            "schedule": "cron 1-59/2 * * * *",
+            "owed": 5,
+            "fired": 5,
+            "alreadyRunning": 0,
+            "caughtUp": 0,
+            "collapsed": 0,
+            "deferred": 1,
+            "disabled": 0,
+            "unfireable": 0,
+            "tail": 0,
+            "lost": [],
+            "doubled": [],
+            "unexpected": [],
+            "offSchedule": [],
+            "otherSkips": [],
+            "ok": true,
+            "note": null
+          },
+          {
+            "id": "c5147a09-86fb-4646-98b5-27f521a6dabb",
+            "label": "r17-fireable",
+            "role": "fireable",
+            "schedule": "every 1m",
+            "owed": 9,
+            "fired": 6,
+            "alreadyRunning": 0,
+            "caughtUp": 1,
+            "collapsed": 2,
+            "deferred": 2,
+            "disabled": 0,
+            "unfireable": 0,
+            "tail": 0,
+            "lost": [],
+            "doubled": [],
+            "unexpected": [],
+            "offSchedule": [],
+            "otherSkips": [],
+            "ok": true,
+            "note": null
+          },
+          {
+            "id": "971e8548-84e2-4a3c-abe3-ee67c1853490",
+            "label": "r18-fireable",
+            "role": "fireable",
+            "schedule": "cron */2 * * * *",
+            "owed": 5,
+            "fired": 4,
+            "alreadyRunning": 0,
+            "caughtUp": 0,
+            "collapsed": 1,
+            "deferred": 1,
+            "disabled": 0,
+            "unfireable": 0,
+            "tail": 0,
+            "lost": [],
+            "doubled": [],
+            "unexpected": [],
+            "offSchedule": [],
+            "otherSkips": [],
+            "ok": true,
+            "note": null
+          },
+          {
+            "id": "8249bed1-05b6-4d93-9373-2b986562f333",
+            "label": "r19-fireable",
+            "role": "fireable",
+            "schedule": "cron */5 * * * *",
+            "owed": 2,
+            "fired": 2,
+            "alreadyRunning": 0,
+            "caughtUp": 0,
+            "collapsed": 0,
+            "deferred": 1,
+            "disabled": 0,
+            "unfireable": 0,
+            "tail": 0,
+            "lost": [],
+            "doubled": [],
+            "unexpected": [],
+            "offSchedule": [],
+            "otherSkips": [],
+            "ok": true,
+            "note": null
+          },
+          {
+            "id": "d881882a-a0df-471b-a4a7-42e8ee0565c6",
+            "label": "r20-fireable",
+            "role": "fireable",
+            "schedule": "every 1m",
+            "owed": 9,
+            "fired": 6,
+            "alreadyRunning": 0,
+            "caughtUp": 0,
+            "collapsed": 3,
+            "deferred": 6,
+            "disabled": 0,
+            "unfireable": 0,
+            "tail": 0,
+            "lost": [],
+            "doubled": [],
+            "unexpected": [],
+            "offSchedule": [],
+            "otherSkips": [],
+            "ok": true,
+            "note": null
+          },
+          {
+            "id": "56912251-2e69-4a57-939d-6abe81ef16b2",
+            "label": "r21-fireable",
+            "role": "fireable",
+            "schedule": "cron * * * * *",
+            "owed": 10,
+            "fired": 7,
+            "alreadyRunning": 0,
+            "caughtUp": 1,
+            "collapsed": 2,
+            "deferred": 2,
+            "disabled": 0,
+            "unfireable": 0,
+            "tail": 0,
+            "lost": [],
+            "doubled": [],
+            "unexpected": [],
+            "offSchedule": [],
+            "otherSkips": [],
+            "ok": true,
+            "note": null
+          },
+          {
+            "id": "448a0f9d-e91e-4dc7-9860-eb79cc2cfb98",
+            "label": "r22-fireable",
+            "role": "fireable",
+            "schedule": "every 2m",
+            "owed": 4,
+            "fired": 3,
+            "alreadyRunning": 0,
+            "caughtUp": 0,
+            "collapsed": 1,
+            "deferred": 5,
+            "disabled": 0,
+            "unfireable": 0,
+            "tail": 0,
+            "lost": [],
+            "doubled": [],
+            "unexpected": [],
+            "offSchedule": [],
+            "otherSkips": [],
+            "ok": true,
+            "note": null
+          },
+          {
+            "id": "3585dcbc-0594-4073-9c60-095d6cdcf6db",
+            "label": "r23-fireable",
+            "role": "fireable",
+            "schedule": "cron */2 * * * *",
+            "owed": 5,
+            "fired": 3,
+            "alreadyRunning": 0,
+            "caughtUp": 1,
+            "collapsed": 1,
+            "deferred": 3,
+            "disabled": 0,
+            "unfireable": 0,
+            "tail": 0,
+            "lost": [],
+            "doubled": [],
+            "unexpected": [],
+            "offSchedule": [],
+            "otherSkips": [],
+            "ok": true,
+            "note": null
+          },
+          {
+            "id": "221f44e2-a522-4aab-811a-bf1dcb358d33",
+            "label": "r24-fireable",
+            "role": "fireable",
+            "schedule": "every 1m",
+            "owed": 9,
+            "fired": 6,
+            "alreadyRunning": 0,
+            "caughtUp": 0,
+            "collapsed": 3,
+            "deferred": 8,
+            "disabled": 0,
+            "unfireable": 0,
+            "tail": 0,
+            "lost": [],
+            "doubled": [],
+            "unexpected": [],
+            "offSchedule": [],
+            "otherSkips": [],
+            "ok": true,
+            "note": null
+          },
+          {
+            "id": "869280c1-9cfe-434d-ae56-fc7c90f648e7",
+            "label": "r25-fireable",
+            "role": "fireable",
+            "schedule": "cron */3 * * * *",
+            "owed": 4,
+            "fired": 4,
+            "alreadyRunning": 0,
+            "caughtUp": 0,
+            "collapsed": 0,
+            "deferred": 5,
+            "disabled": 0,
+            "unfireable": 0,
+            "tail": 0,
+            "lost": [],
+            "doubled": [],
+            "unexpected": [],
+            "offSchedule": [],
+            "otherSkips": [],
+            "ok": true,
+            "note": null
+          },
+          {
+            "id": "f5630af4-d6bc-47c1-9580-39362716fdd6",
+            "label": "r26-fireable",
+            "role": "fireable",
+            "schedule": "cron 1-59/2 * * * *",
+            "owed": 5,
+            "fired": 5,
+            "alreadyRunning": 0,
+            "caughtUp": 0,
+            "collapsed": 0,
+            "deferred": 4,
+            "disabled": 0,
+            "unfireable": 0,
+            "tail": 0,
+            "lost": [],
+            "doubled": [],
+            "unexpected": [],
+            "offSchedule": [],
+            "otherSkips": [],
+            "ok": true,
+            "note": null
+          },
+          {
+            "id": "f9a0c646-9dd7-4421-be60-3e8a30778588",
+            "label": "r27-fireable",
+            "role": "fireable",
+            "schedule": "every 1m",
+            "owed": 9,
+            "fired": 6,
+            "alreadyRunning": 0,
+            "caughtUp": 1,
+            "collapsed": 2,
+            "deferred": 8,
+            "disabled": 0,
+            "unfireable": 0,
+            "tail": 0,
+            "lost": [],
+            "doubled": [],
+            "unexpected": [],
+            "offSchedule": [],
+            "otherSkips": [],
+            "ok": true,
+            "note": null
+          },
+          {
+            "id": "ab8492b9-e378-447b-8653-57dc71da1fee",
+            "label": "r28-fireable",
+            "role": "fireable",
+            "schedule": "cron */2 * * * *",
+            "owed": 5,
+            "fired": 4,
+            "alreadyRunning": 0,
+            "caughtUp": 0,
+            "collapsed": 1,
+            "deferred": 7,
+            "disabled": 0,
+            "unfireable": 0,
+            "tail": 0,
+            "lost": [],
+            "doubled": [],
+            "unexpected": [],
+            "offSchedule": [],
+            "otherSkips": [],
+            "ok": true,
+            "note": null
+          },
+          {
+            "id": "f118d372-b1fd-4aa1-90c3-d2e7cb962e38",
+            "label": "r29-fireable",
+            "role": "fireable",
+            "schedule": "cron */5 * * * *",
+            "owed": 2,
+            "fired": 1,
+            "alreadyRunning": 0,
+            "caughtUp": 1,
+            "collapsed": 0,
+            "deferred": 3,
+            "disabled": 0,
+            "unfireable": 0,
+            "tail": 0,
+            "lost": [],
+            "doubled": [],
+            "unexpected": [],
+            "offSchedule": [],
+            "otherSkips": [],
+            "ok": true,
+            "note": null
+          },
+          {
+            "id": "4d1874d0-5490-459d-a79e-84945ae4cc5c",
+            "label": "r30-fireable",
+            "role": "fireable",
+            "schedule": "every 1m",
+            "owed": 9,
+            "fired": 6,
+            "alreadyRunning": 0,
+            "caughtUp": 0,
+            "collapsed": 3,
+            "deferred": 10,
+            "disabled": 0,
+            "unfireable": 0,
+            "tail": 0,
+            "lost": [],
+            "doubled": [],
+            "unexpected": [],
+            "offSchedule": [],
+            "otherSkips": [],
+            "ok": true,
+            "note": null
+          },
+          {
+            "id": "3b0019ff-3a68-4887-8cd9-12b16dc91351",
+            "label": "r31-fireable",
+            "role": "fireable",
+            "schedule": "cron * * * * *",
+            "owed": 10,
+            "fired": 7,
+            "alreadyRunning": 0,
+            "caughtUp": 1,
+            "collapsed": 2,
+            "deferred": 5,
+            "disabled": 0,
+            "unfireable": 0,
+            "tail": 0,
+            "lost": [],
+            "doubled": [],
+            "unexpected": [],
+            "offSchedule": [],
+            "otherSkips": [],
+            "ok": true,
+            "note": null
+          },
+          {
+            "id": "ade47aef-9c83-477a-a3f3-d651040ddbd1",
+            "label": "r32-fireable",
+            "role": "fireable",
+            "schedule": "every 2m",
+            "owed": 4,
+            "fired": 3,
+            "alreadyRunning": 0,
+            "caughtUp": 0,
+            "collapsed": 1,
+            "deferred": 8,
+            "disabled": 0,
+            "unfireable": 0,
+            "tail": 0,
+            "lost": [],
+            "doubled": [],
+            "unexpected": [],
+            "offSchedule": [],
+            "otherSkips": [],
+            "ok": true,
+            "note": null
+          },
+          {
+            "id": "993666e9-d25e-40f9-ab7c-bd4176c7e357",
+            "label": "r33-fireable",
+            "role": "fireable",
+            "schedule": "cron */2 * * * *",
+            "owed": 5,
+            "fired": 3,
+            "alreadyRunning": 0,
+            "caughtUp": 1,
+            "collapsed": 1,
+            "deferred": 5,
+            "disabled": 0,
+            "unfireable": 0,
+            "tail": 0,
+            "lost": [],
+            "doubled": [],
+            "unexpected": [],
+            "offSchedule": [],
+            "otherSkips": [],
+            "ok": true,
+            "note": null
+          },
+          {
+            "id": "0dd88106-c7c5-4c4a-ac88-b12a8ee85d06",
+            "label": "r34-fireable",
+            "role": "fireable",
+            "schedule": "every 1m",
+            "owed": 9,
+            "fired": 6,
+            "alreadyRunning": 0,
+            "caughtUp": 0,
+            "collapsed": 3,
+            "deferred": 14,
+            "disabled": 0,
+            "unfireable": 0,
+            "tail": 0,
+            "lost": [],
+            "doubled": [],
+            "unexpected": [],
+            "offSchedule": [],
+            "otherSkips": [],
+            "ok": true,
+            "note": null
+          },
+          {
+            "id": "b9933295-683f-4ad2-b953-644cff7eba3b",
+            "label": "r35-fireable",
+            "role": "fireable",
+            "schedule": "cron */3 * * * *",
+            "owed": 4,
+            "fired": 3,
+            "alreadyRunning": 0,
+            "caughtUp": 1,
+            "collapsed": 0,
+            "deferred": 10,
+            "disabled": 0,
+            "unfireable": 0,
+            "tail": 0,
+            "lost": [],
+            "doubled": [],
+            "unexpected": [],
+            "offSchedule": [],
+            "otherSkips": [],
+            "ok": true,
+            "note": null
+          },
+          {
+            "id": "0187e2c4-de68-4a2b-9a22-2cb032c8d781",
+            "label": "r36-fireable",
+            "role": "fireable",
+            "schedule": "cron 1-59/2 * * * *",
+            "owed": 5,
+            "fired": 4,
+            "alreadyRunning": 0,
+            "caughtUp": 0,
+            "collapsed": 1,
+            "deferred": 8,
+            "disabled": 0,
+            "unfireable": 0,
+            "tail": 0,
+            "lost": [],
+            "doubled": [],
+            "unexpected": [],
+            "offSchedule": [],
+            "otherSkips": [],
+            "ok": true,
+            "note": null
+          },
+          {
+            "id": "948e7317-def0-4a77-8174-9d24f103acc0",
+            "label": "r37-fireable",
+            "role": "fireable",
+            "schedule": "every 1m",
+            "owed": 9,
+            "fired": 6,
+            "alreadyRunning": 0,
+            "caughtUp": 1,
+            "collapsed": 2,
+            "deferred": 16,
+            "disabled": 0,
+            "unfireable": 0,
+            "tail": 0,
+            "lost": [],
+            "doubled": [],
+            "unexpected": [],
+            "offSchedule": [],
+            "otherSkips": [],
+            "ok": true,
+            "note": null
+          },
+          {
+            "id": "eb3d6bda-c87a-43e4-acaa-6bf2047218dc",
+            "label": "r38-fireable",
+            "role": "fireable",
+            "schedule": "cron */2 * * * *",
+            "owed": 5,
+            "fired": 4,
+            "alreadyRunning": 0,
+            "caughtUp": 0,
+            "collapsed": 1,
+            "deferred": 12,
+            "disabled": 0,
+            "unfireable": 0,
+            "tail": 0,
+            "lost": [],
+            "doubled": [],
+            "unexpected": [],
+            "offSchedule": [],
+            "otherSkips": [],
+            "ok": true,
+            "note": null
+          },
+          {
+            "id": "2ae30695-4b79-47d8-9c2f-2064c7ce491d",
+            "label": "r39-fireable",
+            "role": "fireable",
+            "schedule": "cron */5 * * * *",
+            "owed": 2,
+            "fired": 1,
+            "alreadyRunning": 0,
+            "caughtUp": 1,
+            "collapsed": 0,
+            "deferred": 3,
+            "disabled": 0,
+            "unfireable": 0,
+            "tail": 0,
+            "lost": [],
+            "doubled": [],
+            "unexpected": [],
+            "offSchedule": [],
+            "otherSkips": [],
+            "ok": true,
+            "note": null
+          },
+          {
+            "id": "dbbbd401-76a1-4a69-936b-226325415212",
+            "label": "r40-fireable",
+            "role": "fireable",
+            "schedule": "every 1m",
+            "owed": 9,
+            "fired": 6,
+            "alreadyRunning": 0,
+            "caughtUp": 0,
+            "collapsed": 3,
+            "deferred": 22,
+            "disabled": 0,
+            "unfireable": 0,
+            "tail": 0,
+            "lost": [],
+            "doubled": [],
+            "unexpected": [],
+            "offSchedule": [],
+            "otherSkips": [],
+            "ok": true,
+            "note": null
+          },
+          {
+            "id": "aa6a8ea7-030e-4ddf-8acb-006fc37abe59",
+            "label": "r41-fireable",
+            "role": "fireable",
+            "schedule": "cron * * * * *",
+            "owed": 10,
+            "fired": 7,
+            "alreadyRunning": 0,
+            "caughtUp": 1,
+            "collapsed": 2,
+            "deferred": 11,
+            "disabled": 0,
+            "unfireable": 0,
+            "tail": 0,
+            "lost": [],
+            "doubled": [],
+            "unexpected": [],
+            "offSchedule": [],
+            "otherSkips": [],
+            "ok": true,
+            "note": null
+          },
+          {
+            "id": "16b90206-f417-4cf5-b172-4ad20c16f0fc",
+            "label": "r42-fireable",
+            "role": "fireable",
+            "schedule": "every 2m",
+            "owed": 4,
+            "fired": 3,
+            "alreadyRunning": 0,
+            "caughtUp": 0,
+            "collapsed": 1,
+            "deferred": 13,
+            "disabled": 0,
+            "unfireable": 0,
+            "tail": 0,
+            "lost": [],
+            "doubled": [],
+            "unexpected": [],
+            "offSchedule": [],
+            "otherSkips": [],
+            "ok": true,
+            "note": null
+          },
+          {
+            "id": "b05bfe8c-b608-4a2b-a0cc-ae16eaf41b82",
+            "label": "r43-fireable",
+            "role": "fireable",
+            "schedule": "cron */2 * * * *",
+            "owed": 5,
+            "fired": 3,
+            "alreadyRunning": 0,
+            "caughtUp": 1,
+            "collapsed": 1,
+            "deferred": 7,
+            "disabled": 0,
+            "unfireable": 0,
+            "tail": 0,
+            "lost": [],
+            "doubled": [],
+            "unexpected": [],
+            "offSchedule": [],
+            "otherSkips": [],
+            "ok": true,
+            "note": null
+          },
+          {
+            "id": "e1ce0e07-26dd-4f3e-baeb-412ed2d15738",
+            "label": "r44-fireable",
+            "role": "fireable",
+            "schedule": "every 1m",
+            "owed": 9,
+            "fired": 6,
+            "alreadyRunning": 0,
+            "caughtUp": 0,
+            "collapsed": 3,
+            "deferred": 25,
+            "disabled": 0,
+            "unfireable": 0,
+            "tail": 0,
+            "lost": [],
+            "doubled": [],
+            "unexpected": [],
+            "offSchedule": [],
+            "otherSkips": [],
+            "ok": true,
+            "note": null
+          },
+          {
+            "id": "c3f624f9-79a8-47c3-8a63-588bb22cc278",
+            "label": "r45-fireable",
+            "role": "fireable",
+            "schedule": "cron */3 * * * *",
+            "owed": 3,
+            "fired": 2,
+            "alreadyRunning": 0,
+            "caughtUp": 1,
+            "collapsed": 0,
+            "deferred": 12,
+            "disabled": 0,
+            "unfireable": 0,
+            "tail": 0,
+            "lost": [],
+            "doubled": [],
+            "unexpected": [],
+            "offSchedule": [],
+            "otherSkips": [],
+            "ok": true,
+            "note": null
+          },
+          {
+            "id": "fa46ab37-02fe-4c4c-8a7f-7e7e2f2e6234",
+            "label": "r46-fireable",
+            "role": "fireable",
+            "schedule": "cron 1-59/2 * * * *",
+            "owed": 5,
+            "fired": 4,
+            "alreadyRunning": 0,
+            "caughtUp": 0,
+            "collapsed": 1,
+            "deferred": 12,
+            "disabled": 0,
+            "unfireable": 0,
+            "tail": 0,
+            "lost": [],
+            "doubled": [],
+            "unexpected": [],
+            "offSchedule": [],
+            "otherSkips": [],
+            "ok": true,
+            "note": null
+          },
+          {
+            "id": "dcc06b77-be24-437a-a493-5561898178fa",
+            "label": "r47-fireable",
+            "role": "fireable",
+            "schedule": "every 1m",
+            "owed": 9,
+            "fired": 5,
+            "alreadyRunning": 0,
+            "caughtUp": 1,
+            "collapsed": 3,
+            "deferred": 25,
+            "disabled": 0,
+            "unfireable": 0,
+            "tail": 0,
+            "lost": [],
+            "doubled": [],
+            "unexpected": [],
+            "offSchedule": [],
+            "otherSkips": [],
+            "ok": true,
+            "note": null
+          },
+          {
+            "id": "44413394-13e4-4068-b2b9-501eb5339aba",
+            "label": "r48-fireable",
+            "role": "fireable",
+            "schedule": "cron */2 * * * *",
+            "owed": 4,
+            "fired": 3,
+            "alreadyRunning": 0,
+            "caughtUp": 0,
+            "collapsed": 1,
+            "deferred": 23,
+            "disabled": 0,
+            "unfireable": 0,
+            "tail": 0,
+            "lost": [],
+            "doubled": [],
+            "unexpected": [],
+            "offSchedule": [],
+            "otherSkips": [],
+            "ok": true,
+            "note": null
+          },
+          {
+            "id": "92acd0a2-ba74-4b12-929c-7de403a0f7ca",
+            "label": "r49-fireable",
+            "role": "fireable",
+            "schedule": "cron */5 * * * *",
+            "owed": 2,
+            "fired": 1,
+            "alreadyRunning": 0,
+            "caughtUp": 1,
+            "collapsed": 0,
+            "deferred": 4,
+            "disabled": 0,
+            "unfireable": 0,
+            "tail": 0,
+            "lost": [],
+            "doubled": [],
+            "unexpected": [],
+            "offSchedule": [],
+            "otherSkips": [],
+            "ok": true,
+            "note": null
+          }
+        ]
+      },
+      "expected": {
+        "lost": 0,
+        "doubled": 0,
+        "unexpected": 0,
+        "offSchedule": 0,
+        "every fireable routine": "owed >= 1"
+      },
+      "why": "the power-user claim is \"30–50 routines a day fire each one\". For EVERY seeded routine, every occurrence its schedule owes inside the soak window (enumerated with sidecar/cron.js nextFireAt from the armed nextRunAt — the scheduler's own math, never a re-implementation) must end as exactly ONE of: fired (cron.fire with that scheduledFor), skipped already-running (the previous run still held the lease), caught-up (misfire=skip past the grace), collapsed (a missed occurrence folded into the ONE catch-up by the misfire policy — visible only as the store's nextRunAt jumping more than one period), disabled (paused routine reported once per due window), or unfireable (a corrupt schedule marked once). At-capacity deferrals are transient (the occurrence stays due and must still reach a terminal). A fire whose scheduledFor is not an owed occurrence, two fires for one occurrence (a double-fire, the restart class), an owed occurrence with no terminal (lost), or a nextRunAt advance the schedule math does not predict is a FAIL. Judged only when the cron event log is readable; a soak in which a fireable routine is owed nothing is inconclusive and FAILS (the window measured no scheduling)"
+    },
+    "tick": {
+      "pass": true,
+      "actual": {
+        "p95Ms": 296,
+        "maxMs": 296,
+        "medianMs": 181,
+        "points": 15,
+        "catchUpMs": 817,
+        "routines": 50
+      },
+      "expected": {
+        "p95Ms": "<= 300"
+      },
+      "why": "the cron tick runs SYNCHRONOUSLY under the process lock: planTick over every job, then saveCronJobs — a full-envelope fsync write + read-back verification of ALL routines — for each advance, and again in markRun for each result. That cost is O(routines) per tick and blocks the event loop while it runs. p95 of (lastSuccessAt − lastTickAt) sampled from GET /api/cron over the LAST HALF must stay under 300 ms at the scale the product claims (50 routines); above that the tick is visibly stalling every run and chat in the station. The first tick after a boot (the post-outage catch-up burst: every missed routine fires at once) is reported as catchUpMs and excluded from p95 — it is a one-time cost, not the steady one. A breach here is a finding against the store write model (index.js saveCronJobs), not a tuning knob"
+    }
+  },
+  "measurements": {
+    "workspaceBytes": {
+      "first": 157356,
+      "last": 875021,
+      "growth": 717665
+    },
+    "errorRingSeen": 0,
+    "heapBytes": null,
+    "heapReason": "the sidecar exposes no process.memoryUsage endpoint; RSS is sampled at the OS level instead",
+    "openHandles": null,
+    "openHandlesReason": "open-handle counts need an in-process hook or a native tool; not obtainable from outside the sidecar with built-ins",
+    "restarts": 1,
+    "ticks": 30
+  },
+  "processSnapshots": [
+    {
+      "at": 1789078474661,
+      "event": "boot",
+      "epoch": 0,
+      "pid": 9152
+    },
+    {
+      "at": 1789078936715,
+      "event": "restart",
+      "epoch": 1,
+      "pid": 37248,
+      "bootMs": 6963
+    }
+  ],
+  "samples": [
+    {
+      "at": 1789078475957,
+      "tick": 1,
+      "epoch": 0,
+      "rssBytes": 131043328,
+      "healthMs": {
+        "median": 16,
+        "max": 16,
+        "failed": 0
+      },
+      "swallowedTotal": 0,
+      "swallowedTags": {},
+      "errorRingSeen": 0,
+      "workspaceBytes": 157356,
+      "runs": {
+        "ok": 0,
+        "failed": 0
+      },
+      "routineFires": 0,
+      "tickMs": 6
+    },
+    {
+      "at": 1789078491026,
+      "tick": 2,
+      "epoch": 0,
+      "rssBytes": 86855680,
+      "healthMs": {
+        "median": 14,
+        "max": 15,
+        "failed": 0
+      },
+      "swallowedTotal": 0,
+      "swallowedTags": {},
+      "errorRingSeen": 0,
+      "workspaceBytes": 158853,
+      "runs": {
+        "ok": 1,
+        "failed": 0
+      },
+      "routineFires": 0,
+      "tickMs": 6
+    },
+    {
+      "at": 1789078506029,
+      "tick": 3,
+      "epoch": 0,
+      "rssBytes": 100237312,
+      "healthMs": {
+        "median": 2,
+        "max": 14,
+        "failed": 0
+      },
+      "swallowedTotal": 0,
+      "swallowedTags": {},
+      "errorRingSeen": 0,
+      "workspaceBytes": 184259,
+      "runs": {
+        "ok": 1,
+        "failed": 0
+      },
+      "routineFires": 8,
+      "tickMs": 130,
+      "routineLast": {
+        "id": "869280c1-9cfe-434d-ae56-fc7c90f648e7",
+        "status": "ok",
+        "reason": "done"
+      }
+    },
+    {
+      "at": 1789078521587,
+      "tick": 4,
+      "epoch": 0,
+      "rssBytes": 104337408,
+      "healthMs": {
+        "median": 16,
+        "max": 17,
+        "failed": 0
+      },
+      "swallowedTotal": 0,
+      "swallowedTags": {},
+      "errorRingSeen": 0,
+      "workspaceBytes": 240735,
+      "runs": {
+        "ok": 3,
+        "failed": 0
+      },
+      "routineFires": 16,
+      "tickMs": 109,
+      "routineLast": {
+        "id": "c3f624f9-79a8-47c3-8a63-588bb22cc278",
+        "status": "ok",
+        "reason": "done"
+      }
+    },
+    {
+      "at": 1789078536593,
+      "tick": 5,
+      "epoch": 0,
+      "rssBytes": 91508736,
+      "healthMs": {
+        "median": 2,
+        "max": 13,
+        "failed": 0
+      },
+      "swallowedTotal": 0,
+      "swallowedTags": {},
+      "errorRingSeen": 0,
+      "workspaceBytes": 246165,
+      "runs": {
+        "ok": 3,
+        "failed": 0
+      },
+      "routineFires": 18,
+      "tickMs": 5,
+      "routineLast": {
+        "id": "92acd0a2-ba74-4b12-929c-7de403a0f7ca",
+        "status": "ok",
+        "reason": "done"
+      }
+    },
+    {
+      "at": 1789078551627,
+      "tick": 6,
+      "epoch": 0,
+      "rssBytes": 99872768,
+      "healthMs": {
+        "median": 14,
+        "max": 15,
+        "failed": 0
+      },
+      "swallowedTotal": 0,
+      "swallowedTags": {},
+      "errorRingSeen": 0,
+      "workspaceBytes": 339477,
+      "runs": {
+        "ok": 4,
+        "failed": 0
+      },
+      "routineFires": 23,
+      "tickMs": 133,
+      "routineLast": {
+        "id": "e48e7399-c791-46b4-bda7-500750732df1",
+        "status": "ok",
+        "reason": "done"
+      }
+    },
+    {
+      "at": 1789078566629,
+      "tick": 7,
+      "epoch": 0,
+      "rssBytes": 101867520,
+      "healthMs": {
+        "median": 1,
+        "max": 15,
+        "failed": 0
+      },
+      "swallowedTotal": 0,
+      "swallowedTags": {},
+      "errorRingSeen": 0,
+      "workspaceBytes": 367756,
+      "runs": {
+        "ok": 4,
+        "failed": 0
+      },
+      "routineFires": 33,
+      "tickMs": 108,
+      "routineLast": {
+        "id": "4d1874d0-5490-459d-a79e-84945ae4cc5c",
+        "status": "ok",
+        "reason": "done"
+      }
+    },
+    {
+      "at": 1789078582052,
+      "tick": 8,
+      "epoch": 0,
+      "rssBytes": 104873984,
+      "healthMs": {
+        "median": 6,
+        "max": 16,
+        "failed": 0
+      },
+      "swallowedTotal": 0,
+      "swallowedTags": {},
+      "errorRingSeen": 0,
+      "workspaceBytes": 387293,
+      "runs": {
+        "ok": 6,
+        "failed": 0
+      },
+      "routineFires": 38,
+      "tickMs": 108,
+      "routineLast": {
+        "id": "0dd88106-c7c5-4c4a-ac88-b12a8ee85d06",
+        "status": "ok",
+        "reason": "done"
+      }
+    },
+    {
+      "at": 1789078597055,
+      "tick": 9,
+      "epoch": 0,
+      "rssBytes": 96002048,
+      "healthMs": {
+        "median": 1,
+        "max": 14,
+        "failed": 0
+      },
+      "swallowedTotal": 0,
+      "swallowedTags": {},
+      "errorRingSeen": 0,
+      "workspaceBytes": 408541,
+      "runs": {
+        "ok": 6,
+        "failed": 0
+      },
+      "routineFires": 46,
+      "tickMs": 118,
+      "routineLast": {
+        "id": "44413394-13e4-4068-b2b9-501eb5339aba",
+        "status": "ok",
+        "reason": "done"
+      }
+    },
+    {
+      "at": 1789078612100,
+      "tick": 10,
+      "epoch": 0,
+      "rssBytes": 102289408,
+      "healthMs": {
+        "median": 9,
+        "max": 15,
+        "failed": 0
+      },
+      "swallowedTotal": 0,
+      "swallowedTags": {},
+      "errorRingSeen": 0,
+      "workspaceBytes": 422442,
+      "runs": {
+        "ok": 7,
+        "failed": 0
+      },
+      "routineFires": 51,
+      "tickMs": 252,
+      "routineLast": {
+        "id": "65537120-6c5b-452c-95fc-e6569d3ce74f",
+        "status": "ok",
+        "reason": "done"
+      }
+    },
+    {
+      "at": 1789078627101,
+      "tick": 11,
+      "epoch": 0,
+      "rssBytes": 115339264,
+      "healthMs": {
+        "median": 3,
+        "max": 13,
+        "failed": 0
+      },
+      "swallowedTotal": 0,
+      "swallowedTags": {},
+      "errorRingSeen": 0,
+      "workspaceBytes": 380781,
+      "runs": {
+        "ok": 7,
+        "failed": 0
+      },
+      "routineFires": 67,
+      "tickMs": 178,
+      "routineLast": {
+        "id": "3b0019ff-3a68-4887-8cd9-12b16dc91351",
+        "status": "ok",
+        "reason": "done"
+      }
+    },
+    {
+      "at": 1789078642551,
+      "tick": 12,
+      "epoch": 0,
+      "rssBytes": 120516608,
+      "healthMs": {
+        "median": 1,
+        "max": 13,
+        "failed": 0
+      },
+      "swallowedTotal": 0,
+      "swallowedTags": {},
+      "errorRingSeen": 0,
+      "workspaceBytes": 402462,
+      "runs": {
+        "ok": 9,
+        "failed": 0
+      },
+      "routineFires": 75,
+      "tickMs": 186,
+      "routineLast": {
+        "id": "e1ce0e07-26dd-4f3e-baeb-412ed2d15738",
+        "status": "ok",
+        "reason": "done"
+      }
+    },
+    {
+      "at": 1789078657563,
+      "tick": 13,
+      "epoch": 0,
+      "rssBytes": 116023296,
+      "healthMs": {
+        "median": 2,
+        "max": 13,
+        "failed": 0
+      },
+      "swallowedTotal": 0,
+      "swallowedTags": {},
+      "errorRingSeen": 0,
+      "workspaceBytes": 434813,
+      "runs": {
+        "ok": 9,
+        "failed": 0
+      },
+      "routineFires": 79,
+      "tickMs": 55,
+      "routineLast": {
+        "id": "dcc06b77-be24-437a-a493-5561898178fa",
+        "status": "ok",
+        "reason": "done"
+      }
+    },
+    {
+      "at": 1789078672633,
+      "tick": 14,
+      "epoch": 0,
+      "rssBytes": 114143232,
+      "healthMs": {
+        "median": 2,
+        "max": 6,
+        "failed": 0
+      },
+      "swallowedTotal": 0,
+      "swallowedTags": {},
+      "errorRingSeen": 0,
+      "workspaceBytes": 497128,
+      "runs": {
+        "ok": 10,
+        "failed": 0
+      },
+      "routineFires": 84,
+      "tickMs": 219,
+      "routineLast": {
+        "id": "d881882a-a0df-471b-a4a7-42e8ee0565c6",
+        "status": "ok",
+        "reason": "done"
+      }
+    },
+    {
+      "at": 1789078687642,
+      "tick": 15,
+      "epoch": 0,
+      "rssBytes": 113635328,
+      "healthMs": {
+        "median": 3,
+        "max": 17,
+        "failed": 0
+      },
+      "swallowedTotal": 0,
+      "swallowedTags": {},
+      "errorRingSeen": 0,
+      "workspaceBytes": 517390,
+      "runs": {
+        "ok": 10,
+        "failed": 0
+      },
+      "routineFires": 94,
+      "tickMs": 228,
+      "routineLast": {
+        "id": "948e7317-def0-4a77-8174-9d24f103acc0",
+        "status": "ok",
+        "reason": "done"
+      }
+    },
+    {
+      "at": 1789078703605,
+      "tick": 16,
+      "epoch": 0,
+      "rssBytes": 116854784,
+      "healthMs": {
+        "median": 9,
+        "max": 19,
+        "failed": 0
+      },
+      "swallowedTotal": 0,
+      "swallowedTags": {},
+      "errorRingSeen": 0,
+      "workspaceBytes": 533308,
+      "runs": {
+        "ok": 12,
+        "failed": 0
+      },
+      "routineFires": 99,
+      "tickMs": 210,
+      "routineLast": {
+        "id": "3b0019ff-3a68-4887-8cd9-12b16dc91351",
+        "status": "ok",
+        "reason": "done"
+      }
+    },
+    {
+      "at": 1789078718613,
+      "tick": 17,
+      "epoch": 0,
+      "rssBytes": 116817920,
+      "healthMs": {
+        "median": 6,
+        "max": 9,
+        "failed": 0
+      },
+      "swallowedTotal": 0,
+      "swallowedTags": {},
+      "errorRingSeen": 0,
+      "workspaceBytes": 552189,
+      "runs": {
+        "ok": 12,
+        "failed": 0
+      },
+      "routineFires": 109,
+      "tickMs": 197,
+      "routineLast": {
+        "id": "c3f624f9-79a8-47c3-8a63-588bb22cc278",
+        "status": "ok",
+        "reason": "done"
+      }
+    },
+    {
+      "at": 1789078733668,
+      "tick": 18,
+      "epoch": 0,
+      "rssBytes": 114548736,
+      "healthMs": {
+        "median": 6,
+        "max": 15,
+        "failed": 0
+      },
+      "swallowedTotal": 0,
+      "swallowedTags": {},
+      "errorRingSeen": 0,
+      "workspaceBytes": 540640,
+      "runs": {
+        "ok": 13,
+        "failed": 0
+      },
+      "routineFires": 115,
+      "tickMs": 221,
+      "routineLast": {
+        "id": "c5147a09-86fb-4646-98b5-27f521a6dabb",
+        "status": "ok",
+        "reason": "done"
+      }
+    },
+    {
+      "at": 1789078748678,
+      "tick": 19,
+      "epoch": 0,
+      "rssBytes": 120639488,
+      "healthMs": {
+        "median": 2,
+        "max": 12,
+        "failed": 0
+      },
+      "swallowedTotal": 0,
+      "swallowedTags": {},
+      "errorRingSeen": 0,
+      "workspaceBytes": 519729,
+      "runs": {
+        "ok": 13,
+        "failed": 0
+      },
+      "routineFires": 131,
+      "tickMs": 128,
+      "routineLast": {
+        "id": "0187e2c4-de68-4a2b-9a22-2cb032c8d781",
+        "status": "ok",
+        "reason": "done"
+      }
+    },
+    {
+      "at": 1789078764064,
+      "tick": 20,
+      "epoch": 0,
+      "rssBytes": 106274816,
+      "healthMs": {
+        "median": 3,
+        "max": 12,
+        "failed": 0
+      },
+      "swallowedTotal": 0,
+      "swallowedTags": {},
+      "errorRingSeen": 0,
+      "workspaceBytes": 539060,
+      "runs": {
+        "ok": 15,
+        "failed": 0
+      },
+      "routineFires": 139,
+      "tickMs": 120,
+      "routineLast": {
+        "id": "44413394-13e4-4068-b2b9-501eb5339aba",
+        "status": "ok",
+        "reason": "done"
+      }
+    },
+    {
+      "at": 1789078779068,
+      "tick": 21,
+      "epoch": 0,
+      "rssBytes": 108204032,
+      "healthMs": {
+        "median": 2,
+        "max": 14,
+        "failed": 0
+      },
+      "swallowedTotal": 0,
+      "swallowedTags": {},
+      "errorRingSeen": 0,
+      "workspaceBytes": 618973,
+      "runs": {
+        "ok": 15,
+        "failed": 0
+      },
+      "routineFires": 141,
+      "tickMs": 66,
+      "routineLast": {
+        "id": "ac9bb25a-15d3-4bc2-a561-8986ac8f64c5",
+        "status": "ok",
+        "reason": "done"
+      }
+    },
+    {
+      "at": 1789078936855,
+      "tick": 22,
+      "epoch": 1,
+      "rssBytes": 120999936,
+      "healthMs": {
+        "median": 6,
+        "max": 34,
+        "failed": 0
+      },
+      "swallowedTotal": 0,
+      "swallowedTags": {},
+      "errorRingSeen": 0,
+      "workspaceBytes": 732585,
+      "runs": {
+        "ok": 16,
+        "failed": 0
+      },
+      "routineFires": 146,
+      "tickMs": 817,
+      "routineLast": {
+        "id": "65537120-6c5b-452c-95fc-e6569d3ce74f",
+        "status": "ok",
+        "reason": "done"
+      }
+    },
+    {
+      "at": 1789078951866,
+      "tick": 23,
+      "epoch": 1,
+      "rssBytes": 100679680,
+      "healthMs": {
+        "median": 3,
+        "max": 12,
+        "failed": 0
+      },
+      "swallowedTotal": 0,
+      "swallowedTags": {},
+      "errorRingSeen": 0,
+      "workspaceBytes": 744909,
+      "runs": {
+        "ok": 16,
+        "failed": 0
+      },
+      "routineFires": 151,
+      "tickMs": 282,
+      "routineLast": {
+        "id": "8249bed1-05b6-4d93-9373-2b986562f333",
+        "status": "ok",
+        "reason": "done"
+      }
+    },
+    {
+      "at": 1789078967823,
+      "tick": 24,
+      "epoch": 1,
+      "rssBytes": 103436288,
+      "healthMs": {
+        "median": 14,
+        "max": 14,
+        "failed": 0
+      },
+      "swallowedTotal": 0,
+      "swallowedTags": {},
+      "errorRingSeen": 0,
+      "workspaceBytes": 775101,
+      "runs": {
+        "ok": 18,
+        "failed": 0
+      },
+      "routineFires": 161,
+      "tickMs": 296,
+      "routineLast": {
+        "id": "f5630af4-d6bc-47c1-9580-39362716fdd6",
+        "status": "ok",
+        "reason": "done"
+      }
+    },
+    {
+      "at": 1789078982832,
+      "tick": 25,
+      "epoch": 1,
+      "rssBytes": 105234432,
+      "healthMs": {
+        "median": 2,
+        "max": 13,
+        "failed": 0
+      },
+      "swallowedTotal": 0,
+      "swallowedTags": {},
+      "errorRingSeen": 0,
+      "workspaceBytes": 785579,
+      "runs": {
+        "ok": 18,
+        "failed": 0
+      },
+      "routineFires": 166,
+      "tickMs": 233,
+      "routineLast": {
+        "id": "0dd88106-c7c5-4c4a-ac88-b12a8ee85d06",
+        "status": "ok",
+        "reason": "done"
+      }
+    },
+    {
+      "at": 1789078997933,
+      "tick": 26,
+      "epoch": 1,
+      "rssBytes": 106385408,
+      "healthMs": {
+        "median": 4,
+        "max": 17,
+        "failed": 0
+      },
+      "swallowedTotal": 0,
+      "swallowedTags": {},
+      "errorRingSeen": 0,
+      "workspaceBytes": 807400,
+      "runs": {
+        "ok": 19,
+        "failed": 0
+      },
+      "routineFires": 176,
+      "tickMs": 181,
+      "routineLast": {
+        "id": "dbbbd401-76a1-4a69-936b-226325415212",
+        "status": "ok",
+        "reason": "done"
+      }
+    },
+    {
+      "at": 1789079012939,
+      "tick": 27,
+      "epoch": 1,
+      "rssBytes": 105422848,
+      "healthMs": {
+        "median": 2,
+        "max": 13,
+        "failed": 0
+      },
+      "swallowedTotal": 0,
+      "swallowedTags": {},
+      "errorRingSeen": 0,
+      "workspaceBytes": 744858,
+      "runs": {
+        "ok": 19,
+        "failed": 0
+      },
+      "routineFires": 184,
+      "tickMs": 115,
+      "routineLast": {
+        "id": "dcc06b77-be24-437a-a493-5561898178fa",
+        "status": "ok",
+        "reason": "done"
+      }
+    },
+    {
+      "at": 1789079028857,
+      "tick": 28,
+      "epoch": 1,
+      "rssBytes": 112955392,
+      "healthMs": {
+        "median": 3,
+        "max": 13,
+        "failed": 0
+      },
+      "swallowedTotal": 0,
+      "swallowedTags": {},
+      "errorRingSeen": 0,
+      "workspaceBytes": 846344,
+      "runs": {
+        "ok": 21,
+        "failed": 0
+      },
+      "routineFires": 194,
+      "tickMs": 121,
+      "routineLast": {
+        "id": "948e7317-def0-4a77-8174-9d24f103acc0",
+        "status": "ok",
+        "reason": "done"
+      }
+    },
+    {
+      "at": 1789079043872,
+      "tick": 29,
+      "epoch": 1,
+      "rssBytes": 111505408,
+      "healthMs": {
+        "median": 2,
+        "max": 14,
+        "failed": 0
+      },
+      "swallowedTotal": 0,
+      "swallowedTags": {},
+      "errorRingSeen": 0,
+      "workspaceBytes": 853202,
+      "runs": {
+        "ok": 21,
+        "failed": 0
+      },
+      "routineFires": 198,
+      "tickMs": 57,
+      "routineLast": {
+        "id": "44413394-13e4-4068-b2b9-501eb5339aba",
+        "status": "ok",
+        "reason": "done"
+      }
+    },
+    {
+      "at": 1789079058923,
+      "tick": 30,
+      "epoch": 1,
+      "rssBytes": 111108096,
+      "healthMs": {
+        "median": 2,
+        "max": 15,
+        "failed": 0
+      },
+      "swallowedTotal": 0,
+      "swallowedTags": {},
+      "errorRingSeen": 0,
+      "workspaceBytes": 875021,
+      "runs": {
+        "ok": 22,
+        "failed": 0
+      },
+      "routineFires": 208,
+      "tickMs": 94,
+      "routineLast": {
+        "id": "3b0019ff-3a68-4887-8cd9-12b16dc91351",
+        "status": "ok",
+        "reason": "done"
+      }
+    }
+  ]
+}

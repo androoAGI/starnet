@@ -33,6 +33,7 @@
    and index.js keeps only a thin route-dispatch line. */
 'use strict';
 const nodeCrypto = require('node:crypto');
+const resultContract = require('./result-contract');
 
 const DEFAULT_MAX_CONCURRENT = 0;   // unlimited by default; env STARNET_V1_MAX_CONCURRENT opts into a ceiling
 const MIN_KEY_LEN = 16;              // below this, refuse to enable (guessable key on a terminal-capable surface = RCE)
@@ -128,21 +129,26 @@ function coerceBool(v, def) {
   return !!def;
 }
 
-// map a runOnce end `reason` to an OpenAI finish_reason.
-function finishReasonFor(reason, hadText) {
-  if (reason === 'done') return 'stop';
-  if (reason === 'max_iters' || reason === 'budget') return 'length';
-  if (reason === 'error') return hadText ? 'stop' : 'error';
-  if (reason === 'cancelled') return 'stop';
-  return 'stop';
+// Only a proven terminal event may assert completion. Earlier recoverable errors do not
+// override a later successful end; a missing end is interrupted, never implicit success.
+function runOutcome(reason, hadText, error) {
+  const status = reason === 'done' ? 'completed'
+    : reason === 'error' ? 'failed'
+    : reason === 'cancelled' ? 'cancelled'
+    : reason === 'max_iters' || reason === 'budget' ? 'limited'
+    : reason === 'clarifying' ? 'awaiting_input'
+    : reason === 'refusal' ? 'refused' : 'interrupted';
+  return { status, reason: reason || 'missing_terminal', completed: status === 'completed',
+    partial: !!hadText && status !== 'completed', failed: status === 'failed',
+    error: ['failed', 'interrupted'].includes(status) ? (error || 'Agent run ended without a successful terminal event') : null };
 }
-
-// map a runOnce end `reason` to a /v1/runs terminal lifecycle event name.
-function runTerminalEvent(reason) {
-  if (reason === 'cancelled') return 'run.cancelled';
-  if (reason === 'error') return 'run.failed';
-  return 'run.completed';   // done / max_iters / budget / clarifying / refusal all land as completed (with the reason recorded)
+function finishReasonFor(reason) {
+  const status = runOutcome(reason, false).status;
+  if (status === 'limited') return 'length';
+  if (['completed', 'awaiting_input', 'refused'].includes(status)) return 'stop';
+  return 'error';
 }
+function runTerminalEvent(reason) { return 'run.' + runOutcome(reason, false).status; }
 
 // build the sync chat.completion object (real usage numbers from the summed counters).
 function chatCompletionObject(o) {
@@ -272,7 +278,7 @@ function makeOpenAiCompat(deps) {
     let key = ''; let baseUrl = '';
     try { key = resolveProviderKey(provider) || ''; } catch (_) { key = ''; }
     try { baseUrl = resolveBaseUrl(provider) || ''; } catch (_) { baseUrl = ''; }
-    const p = runOnce({
+    const p = Promise.resolve().then(() => runOnce({
       key, model: o.model || '', provider, baseUrl,
       system: o.system || '', messages: o.messages || [], agentId: o.agentId,
       emit: sink, signal: o.signal, runId: o.runId,
@@ -281,9 +287,9 @@ function makeOpenAiCompat(deps) {
       taskKey: 'v1:' + o.agentId, taskSource: 'api',
       // an externally-driven run is still this agent doing real work — it learns from it like any other, with each
       // record stamped origin:'api' so the Commander can tell it apart from their own conversation.
-      reflect: true
-    });
-    return Promise.resolve(p).then(() => acc, (e) => { acc.errMsg = acc.errMsg || ('run failed: ' + ((e && e.message) || e)); return acc; });
+      reflect: !o.outputOnly, outputOnly: !!o.outputOnly, maxIters: o.outputOnly ? 1 : undefined
+    }));
+    return Promise.resolve(p).then(() => acc, (e) => { acc.reason = 'error'; acc.errMsg = acc.errMsg || ('run failed: ' + ((e && e.message) || e)); return acc; });
   }
 
   // persist the user + assistant turns to the channel transcript store, so an externally-driven run is visible in
@@ -360,17 +366,20 @@ function makeOpenAiCompat(deps) {
   }
 
   // ---- POST /v1/chat/completions ----------------------------------------------------------------------------
-  async function handleChatCompletions(req, res) {
+  async function handleChatCompletions(req, res, suppliedBody, reservedId) {
     if (maxConcurrent() > 0 && inFlight >= maxConcurrent()) {
       return json(res, 429, openAiError('Too many concurrent runs (max ' + maxConcurrent() + ')', { type: 'rate_limit_error', code: 'rate_limit_exceeded' }), { 'Retry-After': '1' });
     }
     let body;
-    try { body = JSON.parse(await readBody(req, MAX_BODY) || '{}'); } catch (_) { return json(res, 400, openAiError('Invalid JSON in request body')); }
+    try { body = suppliedBody || JSON.parse(await readBody(req, MAX_BODY) || '{}'); } catch (_) { return json(res, 400, openAiError('Invalid JSON in request body')); }
     if (!body || typeof body !== 'object') return json(res, 400, openAiError('Invalid JSON in request body'));
     const parsed = splitMessages(body.messages);
     if (!parsed.ok) return json(res, 400, openAiError(parsed.reason === 'messages' ? "Missing or invalid 'messages' field" : 'No user message found in messages'));
 
+    const contract = resultContract.responseContract(body.response_format);
+    if (!contract.ok) return json(res,400,openAiError(contract.error,{param:'response_format'}));
     const stream = coerceBool(body.stream, false);
+    if (stream && contract.schema) return json(res,400,openAiError('Structured streaming is not supported; use stream:false for host-validated JSON',{param:'stream'}));
     const modelField = String(body.model || DEFAULT_MODEL_ID);
     const target = resolveTarget(modelField);
     const sessionId = sessionIdOf(req) || deriveSessionId(parsed.system, parsed.history.length ? (parsed.history[0].content) : parsed.lastUser);
@@ -379,9 +388,10 @@ function makeOpenAiCompat(deps) {
     const provider = target.provider || 'openrouter';
     // conversation for runOnce = prior turns (history) + the new user directive last (system passed separately).
     const messages = parsed.history.map(m => ({ role: m.role, content: m.content })).concat([{ role: 'user', content: parsed.lastUser }]);
-    const system = parsed.system || 'You are the Commander\'s StarNet agent, reached over an OpenAI-compatible API. Use your REAL tools when given a task and report what you actually did.';
+    let system = parsed.system || 'You are the Commander\'s StarNet agent, reached over an OpenAI-compatible API. Use your REAL tools when given a task and report what you actually did.';
 
-    const id = 'chatcmpl-' + String(newId()).replace(/-/g, '').slice(0, 24);
+    if (contract.schema) system += '\nReturn ONLY strict JSON matching this schema: ' + JSON.stringify(contract.schema);
+    const id = reservedId || 'chatcmpl-' + String(newId()).replace(/-/g, '').slice(0, 24);
     const created = Math.floor(now() / 1000);
     const ac = new AbortController();
 
@@ -398,9 +408,10 @@ function makeOpenAiCompat(deps) {
         acc = await startRun({ runId: id, agentId, model: runModel, provider, system, messages, signal: ac.signal, onDelta: (dlt) => sseData(res, chatChunk({ id, model: modelField, created, delta: { content: dlt } })) });
       } finally { inFlight--; }
       finished = true;
-      const finishReason = acc.errMsg && !acc.buf ? 'error' : finishReasonFor(acc.reason, !!acc.buf);
+      const finishReason = finishReasonFor(acc.reason);
       const usage = { prompt_tokens: acc.tokensIn, completion_tokens: acc.tokensOut, total_tokens: acc.tokensIn + acc.tokensOut };
       const finishChunk = chatChunk({ id, model: modelField, created, delta: {}, finishReason, usage });
+      finishChunk.starnet = runOutcome(acc.reason, !!acc.buf, acc.errMsg && redact(acc.errMsg));
       if (finishReason === 'error') finishChunk.error = { message: redact(acc.errMsg || 'agent run did not produce a response'), type: 'agent_error' };
       sseData(res, finishChunk);
       try { res.write('data: [DONE]\n\n'); } catch (_) {}
@@ -414,14 +425,77 @@ function makeOpenAiCompat(deps) {
     let acc;
     try { acc = await startRun({ runId: id, agentId, model: runModel, provider, system, messages, signal: ac.signal }); }
     finally { inFlight--; }
+    if (contract.schema && acc.reason === 'done') {
+      const checked = resultContract.inspect(contract.schema,acc.buf);
+      if (!checked.ok) {
+        inFlight++;
+        let repair;
+        try { repair = await startRun({runId:id+'-repair',agentId,model:runModel,provider,system,
+          messages:[{role:'assistant',content:acc.buf}, {role:'user',content:'Repair only the preceding result; do not repeat the original task. Return strict JSON. Errors: '+checked.errors.join('; ')}],signal:ac.signal,outputOnly:true}); } finally { inFlight--; }
+        acc.tokensIn += repair.tokensIn; acc.tokensOut += repair.tokensOut;
+        const repaired = resultContract.inspect(contract.schema,repair.buf);
+        if (repair.reason === 'done' && repaired.ok) { acc.buf=repair.buf; acc.reason='done'; acc.errMsg=null; }
+        else { acc.reason='error'; acc.errMsg='Structured output validation failed after one output-only repair: '+(repaired.errors.join('; ') || repair.errMsg || repair.reason); }
+      }
+    }
     persistTurns(agentId, parsed.lastUser, acc.buf);
-    if (!acc.buf && acc.errMsg) {
+    if (!acc.buf && ['failed', 'interrupted'].includes(runOutcome(acc.reason, false).status)) {
       // no text produced AND an error — hard fail with an OpenAI-style server_error (like the reference harness agent_incomplete).
-      return json(res, 502, openAiError(redact(acc.errMsg), { type: 'server_error', code: 'agent_incomplete' }));
+      return json(res, 502, openAiError(redact(acc.errMsg || 'Agent run ended without a successful terminal event'), { type: 'server_error', code: 'agent_incomplete' }));
     }
     const finishReason = finishReasonFor(acc.reason, !!acc.buf);
     const usage = { prompt_tokens: acc.tokensIn, completion_tokens: acc.tokensOut, total_tokens: acc.tokensIn + acc.tokensOut };
-    return json(res, 200, chatCompletionObject({ id, model: modelField, created, content: acc.buf, finishReason, usage }), { 'X-StarNet-Session-Id': sessionId });
+    const response = chatCompletionObject({ id, model: modelField, created, content: acc.buf, finishReason, usage });
+    response.starnet = runOutcome(acc.reason, !!acc.buf, acc.errMsg && redact(acc.errMsg));
+    if (finishReason === 'error') response.error = { message: response.starnet.error || response.starnet.status, type: 'agent_error' };
+    return json(res, 200, response, { 'X-StarNet-Session-Id': sessionId });
+  }
+
+  // Keyed streams share progress; their terminal frame waits for durable persistence.
+  // Disconnecting one waiter cannot abort the shared run.
+  async function handleReservedChat(req, res) {
+    const key = req.headers['idempotency-key'];
+    if (key == null) return handleChatCompletions(req, res);
+    if (typeof key !== 'string' || !key.trim() || key.length > 256 || /[\x00-\x1f\x7f]/.test(key))
+      return json(res, 400, openAiError('Idempotency-Key must contain 1–256 printable characters'));
+    if (!d.requestReservations) return json(res, 503, openAiError('Durable request reservations are unavailable'));
+    let body;
+    try { body = JSON.parse(await readBody(req, MAX_BODY) || '{}'); }
+    catch (_) { return json(res, 400, openAiError('Invalid JSON in request body')); }
+    if (!body || typeof body !== 'object' || !splitMessages(body.messages).ok)
+      return json(res, 400, openAiError('Missing or invalid messages'));
+    const scope = nodeCrypto.createHash('sha256').update(bearerToken(req)).digest('hex') + ':' + sessionIdOf(req) + ':/v1/chat/completions';
+    let sent=0;
+    const onProgress=item=>{
+      if(!eq(bearerToken(req),String(apiKeyFn()).trim())) {res.destroy();return;}
+      if(!res.headersSent)res.writeHead(200,item.headers);
+      res.write(item.chunk); sent+=item.chunk.length;
+    };
+    try {
+      const result = await d.requestReservations.run({scope, key, onProgress, body:{request:body,target:resolveTarget(body.model),defaultModel:defaultModel()}, runId:'chatcmpl-' + String(newId()).replace(/-/g, '').slice(0,24)}, async (runId,emitProgress) => {
+        const chunks=[];
+        const capture={status:200, headers:{}, on(){}, writeHead(status,headers){this.status=status;this.headers=headers;},
+          write(value){
+            const chunk=String(value); chunks.push(chunk);
+            // Only nonterminal chat deltas are provisional. Commit final usage/status
+            // and DONE together after saving the exact complete response.
+            if(chunk.startsWith('data: {')) {const frame=JSON.parse(chunk.slice(6));if(frame.choices && frame.choices[0].finish_reason==null)emitProgress({headers:this.headers,chunk});}
+            return true;
+          }, end(value){if(value)chunks.push(String(value));}};
+        await handleChatCompletions(req,capture,body,runId);
+        return {status:capture.status,headers:capture.headers,body:chunks.join('')};
+      });
+      // Credentials can rotate while the shared run is executing.
+      if(res.headersSent) {
+        if(!eq(bearerToken(req),String(apiKeyFn()).trim())) {res.destroy();return;}
+        res.end(result.body.slice(sent));
+      } else {if(gate(req,res))return;res.writeHead(result.status,result.headers);res.end(result.body);}
+    } catch(e) {
+      const conflict=['idempotency_conflict','request_interrupted'].includes(e.code);
+      const failure=openAiError(redact(e.message),{code:e.code || 'reservation_failed'});
+      if(res.headersSent) {sseData(res,failure);res.end('data: [DONE]\n\n');return;}
+      return json(res,conflict?409:503,failure);
+    }
   }
 
   // ---- /v1/runs lifecycle store helpers ---------------------------------------------------------------------
@@ -439,6 +513,7 @@ function makeOpenAiCompat(deps) {
     if (event === 'run.completed') return 'completed';
     if (event === 'run.failed') return 'failed';
     if (event === 'run.cancelled') return 'cancelled';
+    if (['run.interrupted', 'run.limited', 'run.awaiting_input', 'run.refused'].includes(event)) return event.slice(4);
     if (event === 'run.started') return 'running';
     return cur;
   }
@@ -497,9 +572,10 @@ function makeOpenAiCompat(deps) {
     }).then((acc) => {
       const usage = { prompt_tokens: acc.tokensIn, completion_tokens: acc.tokensOut, total_tokens: acc.tokensIn + acc.tokensOut };
       const evName = runTerminalEvent(acc.reason);
-      const term = { event: evName, run_id: runId, timestamp: now() };
-      if (evName === 'run.completed') { term.output = acc.buf; term.usage = usage; rec.output = acc.buf; rec.usage = usage; }
-      else if (evName === 'run.failed') { term.error = redact(acc.errMsg || 'run failed'); rec.error = term.error; }
+      const outcome = runOutcome(acc.reason, !!acc.buf, acc.errMsg && redact(acc.errMsg));
+      const term = { event: evName, run_id: runId, timestamp: now(), output: acc.buf, usage, starnet: outcome };
+      rec.output = acc.buf; rec.usage = usage; rec.outcome = outcome;
+      if (outcome.error) { term.error = outcome.error; rec.error = outcome.error; }
       pushRunEvent(runId, term);
       persistTurns(agentId, lastUser, acc.buf);
     }).catch((e) => {
@@ -519,7 +595,7 @@ function makeOpenAiCompat(deps) {
   function handleRunStatus(req, res, runId) {
     const r = runs.get(runId);
     if (!r) return json(res, 404, openAiError('Run not found: ' + runId, { code: 'run_not_found' }));
-    json(res, 200, { object: 'starnet.run', run_id: runId, status: r.status, created_at: r.created, updated_at: r.updated, session_id: r.sessionId, model: r.model, output: r.output, usage: r.usage, error: r.error });
+    json(res, 200, { object: 'starnet.run', run_id: runId, status: r.status, created_at: r.created, updated_at: r.updated, session_id: r.sessionId, model: r.model, output: r.output, usage: r.usage, error: r.error, starnet: r.outcome || null });
   }
 
   // ---- GET /v1/runs/{id}/events (SSE) -----------------------------------------------------------------------
@@ -575,7 +651,7 @@ function makeOpenAiCompat(deps) {
 
     if (p === '/v1/models' && method === 'GET') { handleModels(req, res); return true; }
     if (p === '/v1/capabilities' && method === 'GET') { handleCapabilities(req, res); return true; }
-    if (p === '/v1/chat/completions' && method === 'POST') { return runGuard(handleChatCompletions(req, res), res), true; }
+    if (p === '/v1/chat/completions' && method === 'POST') { return runGuard(handleReservedChat(req, res), res), true; }
     if (p === '/v1/runs' && method === 'POST') { return runGuard(handleRunsCreate(req, res), res), true; }
     let m;
     /* decodeURIComponent THROWS on a malformed escape ("%ZZ"), and handle() is called SYNCHRONOUSLY as the
@@ -598,7 +674,7 @@ function makeOpenAiCompat(deps) {
     Promise.resolve(maybePromise).catch((e) => {
       try {
         if (!res.headersSent) json(res, 500, openAiError(redact('sidecar failure: ' + ((e && e.message) || e)), { type: 'server_error' }));
-        else { try { res.end('data: [DONE]\n\n'); } catch (_) { try { res.destroy(); } catch (__) {} } }
+        else { try { sseData(res, openAiError(redact('sidecar failure: ' + ((e && e.message) || e)), { type: 'server_error' })); res.end('data: [DONE]\n\n'); } catch (_) { try { res.destroy(); } catch (__) {} } }
       } catch (_) { try { res.destroy(); } catch (__) {} }
     });
   }
@@ -621,6 +697,6 @@ module.exports = {
   makeOpenAiCompat,
   // pure helpers exported for unit tests
   openAiError, keyUsable, bearerToken, constTimeEq, normalizeContent, splitMessages, coerceBool,
-  finishReasonFor, runTerminalEvent, chatCompletionObject, chatChunk, deriveSessionId, sanitizeAid, pathOf,
+  runOutcome, finishReasonFor, runTerminalEvent, chatCompletionObject, chatChunk, deriveSessionId, sanitizeAid, pathOf,
   DEFAULT_MODEL_ID, MIN_KEY_LEN, DEFAULT_MAX_CONCURRENT
 };

@@ -32,6 +32,8 @@ const Glossary = require('../frontend/app/glossary.js');
   // while replayFirstCommand deliberately re-enters the same real tour without clearing saved progress.
   const tutorialSrc = fs.readFileSync(path.join(root, 'frontend', 'app', 'tutorial.js'), 'utf8');
   let opens = 0;
+  let liveName = 'NOVA';
+  const speakerNames = [];
   let closedManual = 0;
   let tutorialRaw = JSON.stringify({ v: 1, firstCommandDone: true, seen: {}, brief: { command: true }, briefDismissed: true, briefComplete: false });
   let tutorialRemovals = 0;
@@ -43,10 +45,10 @@ const Glossary = require('../frontend/app/glossary.js');
       removeItem() { tutorialRaw = null; tutorialRemovals++; }
     },
     Chat: { typeLine() {}, localLine() {}, choices() {} },
-    Dialogue: { open() { opens++; }, node() { return new Promise(() => {}); }, isOpen() { return false; }, close() {} },
+    Dialogue: { open(opts) { opens++; speakerNames.push(opts.name); }, node() { return new Promise(() => {}); }, isOpen() { return false; }, close() {} },
     StationUI: { closeTerm(key) { if (key === 'manual') closedManual++; } },
     U: { bus: { on() {} } },
-    document: { querySelector() { return null; }, getElementById() { return null; }, body: { contains() { return false; }, appendChild() {}, style: {} } },
+    document: { querySelector() { return null; }, getElementById(id) { return id === 'gt-agent' ? { textContent: liveName } : null; }, body: { contains() { return false; }, appendChild() {}, style: {} } },
     window: { addEventListener() {}, removeEventListener() {} },
     matchMedia: () => ({ matches: true })
   });
@@ -55,7 +57,13 @@ const Glossary = require('../frontend/app/glossary.js');
   A.eq(opens, 0, 'returning users are not forced through the automatic tour again');
   const replayed = vm.runInContext('Tutorial.replayFirstCommand()', context);
   A.ok(replayed && opens === 1, 'Field Manual replay enters the real quick-tour flow for a returning user');
-  A.eq(closedManual, 1, 'replay closes the Field Manual before the Dialogue lesson can be covered');
+  A.eq(speakerNames[0], 'NOVA', 'replay after reload uses the existing agent identity instead of minting a name');
+  vm.runInContext('Tutorial.teardown()', context);
+  liveName = 'ORION';
+  vm.runInContext('Tutorial.replayFirstCommand()', context);
+  A.eq(speakerNames[1], 'ORION', 'a later replay reads the renamed live agent instead of the previous tutorial name');
+  A.eq(JSON.parse(tutorialRaw).brief.command, true, 'replay preserves earned first-command progress');
+  A.eq(closedManual, 2, 'replay closes the Field Manual before the Dialogue lesson can be covered');
   A.ok(/fm-replay/.test(tutorialSrc) && /replay\.onclick = \(\) =>/.test(tutorialSrc), 'Field Manual renders and wires REPLAY QUICK TOUR');
   const resetState = vm.runInContext('Tutorial.reset()', context);
   A.eq(resetState.firstCommandDone, false, 'new-Commander reset re-arms the one-shot tour');
@@ -75,9 +83,9 @@ const Glossary = require('../frontend/app/glossary.js');
     'Genesis routes editable setup to the real agent, model, and settings surfaces');
   A.eq(indexSrc.includes('everything here is re-editable later in the Commander Dossier'), false,
     'Genesis no longer sends agent configuration to the Commander Dossier');
-  A.ok(indexSrc.includes('planned work — queued, active &amp; shipped'),
+  A.ok(/data-term="tasks"[^>]*>[\s\S]*?<small>[^<]*planned work[^<]*<\/small>/.test(indexSrc),
     'WORK describes TASKS as planned board work instead of claiming every run lives there');
-  A.ok(stationUiSrc.includes('<b>NO TASKS</b>') && stationUiSrc.includes('placeholder="add a planned task…"'),
+  A.ok(stationUiSrc.includes('<b>NO TASKS</b>') && /id="kb-in"[^>]*aria-label="New task"/.test(stationUiSrc),
     'TASK BOARD uses task language instead of exposing the internal workstream record name');
   A.ok(stationUiSrc.includes('Chats, routines, and while-away runs live as Sessions in COMMS'),
     'TASK BOARD explains which real work belongs only in COMMS Sessions');
