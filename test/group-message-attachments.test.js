@@ -59,6 +59,7 @@ const deps = { fs, path, root, now: () => ++sequence, id: () => 'id' + (++sequen
     assert.deepEqual(converted.messages[124].artifactIds, [aid]);
     assert.equal((await api.file(converted.id, aid)).content, 'cHJvb2Y=');
     assert.deepEqual(await api.create(request), converted, 'lost conversion response is safe to retry');
+    await assert.rejects(api.create({ ...request, history: [...history, { role: 'user', content: 'new work after the first conversion' }] }), /already exists/, 'changed retry history cannot be silently ignored');
     await assert.rejects(api.create({ ...request, id: 'bad-conversion', history: [{ role: 'user', content: 'keep me', attachments: [{ path: '.attachments/proof' }, { path: '.attachments/missing' }] }] }), /unavailable/);
     await assert.rejects(api.get('bad-conversion'), /not found/, 'failed file import creates no partial group');
     api.close(); api = makeGroupSessions(deps); await api.ready;

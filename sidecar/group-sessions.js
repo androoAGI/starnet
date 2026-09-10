@@ -3,6 +3,7 @@
 // Durable conversation coordinator. A turn always delegates to the existing runOnce host.
 // Clock, IDs, filesystem and execution are injected to make crash/race behavior testable.
 const { makeDurableJsonStore } = require('./durable-store.js');
+const { createHash } = require('node:crypto');
 const { swallow, note: failNote } = require('./failopen.js');
 const ACTIVE = new Set(['connecting', 'running', 'waiting for approval', 'waiting for answer', 'stopping']);
 const clone = x => JSON.parse(JSON.stringify(x));
@@ -69,8 +70,10 @@ function makeGroupSessions(d) {
     const leadId = b.leadId || (ids.includes('agent') ? 'agent' : ids[0]);
     if (!ids.includes(leadId)) fail('Lead must be a participant');
     const conversionKey = b.conversionKey ? identifier(b.conversionKey) : null;
+    const conversionFingerprint = conversionKey ? createHash('sha256').update(JSON.stringify({ history: b.history || [], originalAgentId: b.originalAgentId || leadId, members: ids, leadId, title: b.title || 'Group chat', instructions: b.instructions || '' })).digest('hex') : null;
+    const sameConversion = g => conversionKey && g.conversionKey === conversionKey && g.conversionFingerprint === conversionFingerprint && !g.deleted;
     const existing = read().groups[id];
-    if (existing && conversionKey && existing.conversionKey === conversionKey && !existing.deleted) return publicGroup(existing);
+    if (existing && sameConversion(existing)) return publicGroup(existing);
     if (existing) fail('Session already exists', 409);
     // Snapshot every referenced file before committing the conversion. If any read fails,
     // no group is created and the caller retains the original direct session unchanged.
@@ -95,12 +98,12 @@ function makeGroupSessions(d) {
     await store.update('all', s => {
       s = s || { groups: {}, templates: [] };
       if (s.groups[id]) {
-        if (conversionKey && s.groups[id].conversionKey === conversionKey && !s.groups[id].deleted) return s;
+        if (sameConversion(s.groups[id])) return s;
         fail('Session already exists', 409);
       }
       const g = { id, title: text(b.title || 'Group chat', 80), members: ids, leadId,
         questions: [], instructions: text(b.instructions, 8000), maxTurns: 6, revision: 1, paused: false,
-        messages: [], turns: [], artifacts, ...(conversionKey ? { conversionKey } : {}), createdAt: d.now(), updatedAt: d.now() };
+        messages: [], turns: [], artifacts, ...(conversionKey ? { conversionKey, conversionFingerprint } : {}), createdAt: d.now(), updatedAt: d.now() };
       // Explicit direct-session conversion: preserve historical author labels as context only.
       for (const { source: m, artifactIds } of imported) {
         message(g, m.role === 'user' ? 'user' : String(m.agentId || b.originalAgentId || leadId),
