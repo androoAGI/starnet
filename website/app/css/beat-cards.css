@@ -1,0 +1,160 @@
+/* Transient work surfaces share the station's reading scale and glass material.
+   Keep this after readability.css: small legacy captions must not win the cascade.
+   Scope to decision cards, not ordinary replies, streaming logs or world chrome. */
+body {
+  --beat-edge: var(--gd-edge, rgba(var(--ph-rgb), .24));
+  --beat-light: var(--gd-light, rgba(var(--ph-bright-rgb), .13));
+  --beat-face: var(--gd-face, linear-gradient(165deg, rgba(var(--ph-rgb), .075), transparent 46%), var(--panel));
+  --beat-hover: var(--gd-hover, linear-gradient(120deg, rgba(var(--ph-rgb), .14), rgba(var(--ph-rgb), .035) 70%));
+}
+body #chat-panel .cmsg:is(.turnin,.nudge,.consent) {
+  min-width: 0; margin: 12px 0; padding: 16px;
+  border: 1px solid var(--beat-edge); border-left-color: rgba(var(--gold-rgb), .55);
+  border-radius: 10px; background: var(--beat-face);
+  box-shadow: inset 0 1px 0 var(--beat-light), 0 4px 16px rgba(0,0,0,.18);
+  color: var(--text); text-shadow: none; letter-spacing: .15px;
+}
+body #chat-panel .cmsg:is(.turnin,.nudge,.consent) .body {
+  min-width: 0; font-size: var(--sn-type-prose) !important;
+  line-height: 1.5; color: var(--text); text-shadow: none;
+  overflow-wrap: anywhere;
+}
+body #chat-panel .cmsg.turnin .body { gap: 12px; }
+body #chat-panel .cmsg:is(.turnin,.nudge,.consent) :is(.turnin-title,.consent-title) {
+  font-size: var(--sn-type-title) !important; font-weight: normal;
+  line-height: 1.35; letter-spacing: .2px; color: var(--ph-bright);
+}
+body #chat-panel .cmsg:is(.turnin,.nudge,.consent) :is(.turnin-text,.ws-line,.ws-v,.ws-how .ws-v,.ws-notver .ws-v,.ws-because .ws-v) {
+  font-size: var(--sn-type-prose) !important; line-height: 1.5;
+  color: var(--text); opacity: 1; letter-spacing: .1px;
+}
+body #chat-panel .cmsg:is(.turnin,.nudge,.consent) :is(.ws-k,.ws-fhead,.turnin-kind,.ws-kindchip,.turnin-queue) {
+  font-size: var(--sn-type-meta) !important; line-height: 1.35; letter-spacing: .65px;
+}
+body #chat-panel .cmsg:is(.turnin,.nudge,.consent) :is(.turnin-evidence,.work-rate-hint,.work-rate-reference,.consent-result,.ws-verline,.ws-vcmd,.ws-vexit,.tq-reason,.tq-hint) {
+  font-size: var(--sn-type-control) !important; line-height: 1.45;
+  color: var(--text); opacity: 1; letter-spacing: .15px;
+}
+body #chat-panel .cmsg :is(.work-rate-label,.turnin-edit) {
+  font-size: var(--sn-type-control) !important; line-height: 1.4;
+}
+body #chat-panel .cmsg :is(.ws-verline.ok,.ws-vcmd.ok) { color: var(--ok); }
+body #chat-panel .cmsg :is(.consent-result.err,.ws-vcmd.bad) { color: var(--bad); }
+body #chat-panel .turnin-item { gap: 8px; padding: 12px 0; }
+body #chat-panel .turnin-item + .turnin-item { border-top: 1px solid var(--beat-edge); }
+body #chat-panel .away-digest .turnin-item,
+body #chat-panel .work-rate .turnin-item { grid-template-columns: minmax(0,1fr); }
+body #chat-panel .cmsg :is(.turnin-kind,.ws-kindchip,.turnin-queue) {
+  border: 1px solid var(--beat-edge); border-radius: 4px;
+  background: rgba(var(--ph-rgb),.04); color: var(--ph);
+  padding: 3px 7px; vertical-align: middle;
+}
+body #chat-panel .cmsg .turnin-queue { max-width: 100%; white-space: normal; overflow-wrap: anywhere; }
+/* Actions wrap as units. Narrow COMMS must grow vertically, never shrink its text. */
+body #chat-panel :is(.cmsg.turnin,.cmsg.nudge,.cmsg.consent) .consent-btns,
+body #chat-panel .turnin-rate { display: flex; flex-wrap: wrap; gap: 8px; }
+body #chat-panel :is(.cmsg.turnin,.cmsg.nudge,.cmsg.consent) .consent-btn,
+body #chat-panel .choice-row .choice {
+  min-width: 0; min-height: 34px; max-width: 100%; padding: 7px 11px;
+  font-family: inherit; font-size: var(--sn-type-control) !important; line-height: 1.3;
+  letter-spacing: .15px; white-space: normal; overflow-wrap: anywhere;
+  border: 1px solid var(--beat-edge); border-radius: 6px;
+  background: rgba(var(--ph-rgb),.04); color: var(--ph-bright);
+  box-shadow: inset 0 1px 0 var(--beat-light); text-shadow: none;
+  transition: background-color var(--t-fast) var(--ease-soft), border-color var(--t-fast) var(--ease-soft);
+}
+body #chat-panel :is(.cmsg.turnin,.cmsg.nudge,.cmsg.consent) .consent-btn:hover,
+body #chat-panel .choice-row .choice:hover {
+  background: var(--beat-hover); border-color: var(--ph-dim); text-shadow: none;
+}
+body #chat-panel :is(.cmsg.turnin,.cmsg.nudge,.cmsg.consent) .consent-btn:is(.primary,.ws-openit,.ws-primary,.consent-confirm),
+body #chat-panel .choice-row .choice:is(.suggested,.confirm) {
+  border-color: rgba(var(--gold-rgb),.5); color: var(--ph-bright);
+  background: linear-gradient(140deg,rgba(var(--gold-rgb),.15),rgba(var(--ph-rgb),.04));
+}
+body #chat-panel :is(.cmsg.turnin,.cmsg.nudge,.cmsg.consent) .consent-btn.deny {
+  color: var(--bad); border-color: color-mix(in srgb,var(--bad) 35%,transparent);
+  background: color-mix(in srgb,var(--bad) 4%,transparent);
+}
+body #chat-panel :is(.cmsg.turnin,.cmsg.nudge,.cmsg.consent) .consent-btn.quiet,
+body #chat-panel .choice-row .choice.quiet { color: var(--text); opacity: 1; }
+body #chat-panel :is(.cmsg.turnin,.cmsg.nudge,.cmsg.consent) .consent-btn:disabled {
+  color: var(--text); opacity: .55; cursor: default; background: transparent; box-shadow: none;
+}
+body #chat-panel :is(.cmsg.turnin,.cmsg.nudge,.cmsg.consent,.choice-row) :is(button,input,textarea):focus-visible {
+  outline: 2px solid var(--ph); outline-offset: 3px;
+}
+/* A nudge's choices are a sibling by design: preserve its shared beat lifecycle. */
+body #chat-panel .cmsg.nudge + .choice-row { margin: -4px 0 14px; padding: 0 2px; gap: 8px; }
+body #chat-panel .workshop-return .ws-line { margin: 0; }
+body #chat-panel .workshop-return .ws-k { margin-bottom: 4px; color: var(--ph); }
+body #chat-panel .workshop-return .ws-because .ws-v { font-style: normal; }
+body #chat-panel .workshop-return .ws-kindchip { display: inline-block; margin-block: 3px; }
+body #chat-panel .workshop-return .ws-try { margin: 0 0 2px; }
+body #chat-panel .workshop-return .ws-pane {
+  padding: 12px; margin: 2px 0; border: 1px solid var(--beat-edge); border-radius: 7px;
+  background: rgba(0,0,0,.13); box-shadow: inset 0 1px 4px rgba(0,0,0,.15);
+}
+body #chat-panel .workshop-return .ws-fhead { color: var(--ph); margin-bottom: 8px; }
+body #chat-panel .workshop-return .ws-flist { gap: 6px; margin: 0; }
+body #chat-panel .workshop-return .ws-filerow { flex-wrap: wrap; gap: 4px 10px; min-width: 0; }
+body #chat-panel .workshop-return :is(.ws-file,.ws-viewsrc,.ws-more) {
+  min-width: 0; max-width: 100%; min-height: 32px; padding: 5px 7px;
+  font-size: var(--sn-type-control) !important; line-height: 1.4;
+  color: var(--text); opacity: 1; letter-spacing: .1px; overflow-wrap: anywhere;
+  text-shadow: none; border-radius: 4px;
+}
+body #chat-panel .workshop-return .ws-file { flex: 1 1 180px; color: var(--ph-bright); }
+body #chat-panel .workshop-return :is(.ws-file,.ws-viewsrc,.ws-more):hover { background: var(--beat-hover); text-shadow: none; }
+body #chat-panel .workshop-return .ws-fview {
+  max-width: 100%; font-size: var(--sn-type-control); line-height: 1.5; color: var(--text);
+}
+body #chat-panel .workshop-return .ws-acts {
+  margin: 4px 0 0; padding-top: 14px; border-top: 1px solid var(--beat-edge); gap: 8px;
+}
+body #chat-panel .workshop-return .ws-msg {
+  flex: 1 0 100%; width: 100%; min-width: 0; min-height: 40px; box-sizing: border-box;
+  margin: 0 0 4px; padding: 10px 12px; border: 1px solid var(--beat-edge); border-radius: 6px;
+  background: rgba(0,0,0,.16); box-shadow: inset 0 1px 4px rgba(0,0,0,.2);
+  color: var(--ph-bright); font-size: var(--sn-type-control) !important; line-height: 1.4;
+}
+body #chat-panel .workshop-return .ws-msg::placeholder { color: var(--text); opacity: .8; font-size: inherit; }
+body #chat-panel .workshop-return .ws-capture-warn {
+  color: var(--warn); padding: 10px 12px; border-radius: 6px;
+  border-color: rgba(var(--gold-rgb),.3); background: rgba(var(--gold-rgb),.05);
+}
+body #chat-panel .workshop-return .ws-plan {
+  padding: 10px 12px; border-left: 2px solid rgba(var(--gold-rgb),.5);
+  background: rgba(var(--ph-rgb),.04); border-radius: 0 5px 5px 0;
+}
+@media (max-width: 520px) {
+  body #chat-panel .cmsg:is(.turnin,.nudge,.consent) { padding: 12px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  body #chat-panel :is(.cmsg.turnin,.cmsg.nudge,.cmsg.consent) .consent-btn,
+  body #chat-panel .choice-row .choice { transition: none; }
+}
+/* Preserve the meaning of host-owned approval and multi-select states. */
+body #chat-panel :is(.cmsg.turnin,.cmsg.nudge,.cmsg.consent) .consent-btn.danger {
+  color: var(--warn); border-color: rgba(var(--gold-rgb),.5);
+}
+body #chat-panel :is(.cmsg.turnin,.cmsg.nudge,.cmsg.consent) .consent-btn.sel,
+body #chat-panel .choice-row .choice.sel {
+  color: var(--ph-bright); border-color: var(--ph);
+  background: rgba(var(--ph-rgb),.2); box-shadow: inset 0 0 0 1px var(--beat-light);
+}
+body #chat-panel .choice-row .choice:disabled {
+  opacity: .55; cursor: default; background: transparent; box-shadow: none;
+}
+body #chat-panel .cmsg.nudge .nudge-lines { gap: 8px; }
+body #chat-panel .cmsg.nudge .nl-first .nl-t {
+  font-size: var(--sn-type-title); line-height: 1.35;
+}
+body #chat-panel .cmsg.nudge .nudge-line .nl-m {
+  font-size: var(--sn-type-meta); height: 1.9em;
+}
+body #chat-panel .cmsg.nudge .nudge-line.nl-sub .nl-t { color: var(--text); }
+body #chat-panel .cmsg.consent .tq-reason.grounded { color: var(--gold); }
+body #chat-panel .cmsg.consent .consent-payload :is(summary,pre) {
+  font-size: var(--sn-type-control); line-height: 1.5;
+}
