@@ -63,7 +63,11 @@ retry, state-clearance and URL-release assertions remain intact. An independent
 creation task also reported intermittent failures in unchanged voice-button code.
 The voice suite passed three consecutive 128-assertion runs after those wait changes.
 Pre-cleanup full gate: **759 steps green**. Focused final customization regressions
-also passed. Final synchronization and integration gate: pending cleanup merge.
+also passed. Combined frozen cleanup `695f19232` + final personality source
+`fe95dc0036596d9897dac95c4d71f9d5c531c029`: **760 steps green**, exit 0
+(`personality-fast-combined.log`). The combined seeded app retained Dry and its
+humor override after restart; served profile bytes matched the hash above.
+Final integration gate: pending cleanup merge and slot handoff.
 
 ## Limits
 
