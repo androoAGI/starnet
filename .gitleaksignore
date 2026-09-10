@@ -45,3 +45,8 @@ a5d72b7232f29e7c2d3ccf81a91d27217bc69559:test/openai-compat.e2e.test.js:generic-
 # reliability seed (points at a local mock server; never a real credential). This single finding kept
 # secret-history red on every trunk push from v0.10.11 to v0.10.13. Exact fingerprint only.
 453be7fa0025c955c0efbd0c608a298ed4fd404a:dev/seed-mock-reliability.js:generic-api-key:91
+
+# Reviewed 2026-09-10: deterministic dummy provider key in the rating-upgrade test.
+# Its sidecar points exclusively at the test's 127.0.0.1 mock HTTP server. Exact
+# historical fingerprint only; future findings in this test still fail the scan.
+a55a1ed0705fa53763ee03600322ddb3afd35ce0:test/growth-rating-upgrade.e2e.test.js:generic-api-key:36
