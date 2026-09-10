@@ -1,0 +1,20 @@
+                                                      Audit result                                                      
+
+                               
+ Task     Status  Evidence     
+ ───────────────────────────── 
+ Backup   PASS    receipt-731  
+ Restart  FAIL    missing file 
+                               
+
+ 1 Inspect the evidence.                                                                                                
+    • Preserve the original.                                                                                            
+ 2 Retry the failed step.                                                                                               
+
+▌ Recovery is incomplete.                                                                                             
+
+Open evidence                                                                                                           
+
+                                                                                                                        
+ {"ok":false,"receipt":"731"}                                                                                           
+                                                                                                                        

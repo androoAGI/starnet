@@ -525,7 +525,7 @@ const Chat = (() => {
      invariant is inviolate: every model substring is HTML-ESCAPED first (escapeHtml / linkify both escape), and
      we only ever wrap ALREADY-ESCAPED text in our OWN tags — model output never reaches innerHTML raw. `code`
      spans are pulled to placeholders before the bold pass so a ** inside code stays literal. */
-  const MD_MARKERS = /\*\*|`|^#{1,6}\s|^[ \t]*[-*]\s/m;   // cheap gate: does this text carry any markdown we render?
+  const MD_MARKERS = /\||^\s*>|^\s*\d+[.)]\s|\*\*|`|^#{1,6}\s|^[ \t]*[-*]\s/m;   // cheap gate: does this text carry any markdown we render?
   function mdInline(safe) {
     // `safe` is escaped-and-linkified HTML. Pull `inline code` to placeholders, bold the rest, restore code.
     const codes = [];
@@ -540,33 +540,81 @@ const Chat = (() => {
       '<span class="md-pre">' + escapeHtml(lines.join('\n')) + '</span>' +
       '</span>';
   }
-  function renderMarkdown(raw) {
-    const lines = String(raw).split('\n');
-    const parts = [];
-    let fence = null;   // collecting a ``` fenced block
-    for (const ln of lines) {
-      if (/^[ \t]*```/.test(ln)) {
-        if (fence) { parts.push(renderFence(fence)); fence = null; }
-        else fence = [];
-        continue;
-      }
-      if (fence) { fence.push(ln); continue; }
-      const h = /^(#{1,6})\s+(.*)$/.exec(ln);
-      if (h) { parts.push('<span class="md-h">' + mdInline(linkify(h[2])) + '</span>'); continue; }
-      const li = /^([ \t]*)[-*]\s+(.*)$/.exec(ln);
-      if (li) { parts.push('<span class="md-li"><span class="md-bul">▪ </span>' + mdInline(linkify(li[2])) + '</span>'); continue; }
-      parts.push(mdInline(linkify(ln)));
+  function reportInline(raw) {
+    // Tokenize raw text before escaping; generated markup never enters another pass.
+    const re = /`([^`\n]+)`|\[([^\]\n]+)\]\((https?:\/\/[^\s<>"']+)\)|\*\*([^*\n]+)\*\*|https?:\/\/[^\s<>"']+/g;
+    let out='',last=0,m;
+    while((m=re.exec(raw))) {
+      out+=escapeHtml(raw.slice(last,m.index));
+      if(m[1]!==undefined)out+='<code class="md-code">'+escapeHtml(m[1])+'</code>';
+      else if(m[2]!==undefined)out+='<a href="'+escapeHtml(m[3])+'" target="_blank" rel="noopener noreferrer">'+escapeHtml(m[2])+'</a>';
+      else if(m[4]!==undefined)out+='<span class="md-b">'+escapeHtml(m[4])+'</span>';
+      else out+=linkify(m[0]);
+      last=re.lastIndex;
     }
-    if (fence) parts.push(renderFence(fence));   // unterminated (mid-stream) — render what we have
-    return parts.join('\n');
+    return out+escapeHtml(raw.slice(last));
+  }
+  function renderMarkdown(raw) {
+    const lines=String(raw).split('\n');
+    const cells=line=>line.trim().replace(/^\|/,'').replace(/\|$/,'').split(/(?<!\\)\|/).map(s=>s.trim().replace(/\\\|/g,'|'));
+    const listMatch=line=>/^([ \t]*)([-*+] |\d+[.)] )(.*)$/.exec(line);
+    function blocks(from,to,depth) {
+      const parts=[];let i=from;
+      while(i<to) {
+        const ln=lines[i];
+        if(/^[ \t]*```/.test(ln)) {
+          const code=[];i++;
+          while(i<to && !/^[ \t]*```/.test(lines[i]))code.push(lines[i++]);
+          if(i<to)i++;parts.push(renderFence(code));continue;
+        }
+        const h=/^(#{1,6})\s+(.*)$/.exec(ln);
+        if(h){parts.push('<span class="md-h" role="heading" aria-level="'+h[1].length+'">'+reportInline(h[2])+'</span>');i++;continue;}
+        if(/^\s*>/.test(ln)) {
+          const quote=[];
+          while(i<to && /^\s*>/.test(lines[i]))quote.push(reportInline(lines[i++].replace(/^\s*> ?/,'')));
+          parts.push('<blockquote class="md-quote">'+quote.join('<br>')+'</blockquote>');continue;
+        }
+        if(i+1<to && ln.includes('|') && cells(lines[i+1]).length>1 && cells(lines[i+1]).every(c=>/^:?-{3,}:?$/.test(c))) {
+          const headers=cells(ln);i+=2;
+          let table='<div class="md-table-scroll" tabindex="0" role="region" aria-label="Report table"><table class="md-table"><thead><tr>'+headers.map(c=>'<th scope="col">'+reportInline(c)+'</th>').join('')+'</tr></thead><tbody>';
+          while(i<to && lines[i].includes('|') && lines[i].trim())table+='<tr>'+cells(lines[i++]).map(c=>'<td>'+reportInline(c)+'</td>').join('')+'</tr>';
+          parts.push(table+'</tbody></table></div>');continue;
+        }
+        const first=listMatch(ln);
+        if(first && depth<16) {
+          const indent=first[1].replace(/\t/g,'    ').length;
+          const ordered=/\d/.test(first[2]),tag=ordered?'ol':'ul';
+          let list='<'+tag+' class="md-list"'+(ordered?' start="'+parseInt(first[2],10)+'"':'')+'>';
+          while(i<to) {
+            const item=listMatch(lines[i]);
+            if(!item || item[1].replace(/\t/g,'    ').length!==indent || /\d/.test(item[2])!==ordered)break;
+            list+='<li>'+reportInline(item[3]);i++;
+            const begin=i;
+            while(i<to && lines[i].trim() && /^\s/.test(lines[i]) && (lines[i].match(/^\s*/)[0].replace(/\t/g,'    ').length>indent))i++;
+            if(i>begin)list+=blocks(begin,i,depth+1);
+            list+='</li>';
+          }
+          parts.push(list+'</'+tag+'>');continue;
+        }
+        parts.push(reportInline(ln));i++;
+      }
+      return parts.join('\n');
+    }
+    return blocks(0,lines.length,0);
   }
   // render agent prose into a body span. Fast textContent path when there's no URL AND no markdown marker (the
   // common streamed token) — no per-token HTML reparse; otherwise the escaped+linkified+markdown pipeline.
   function renderProse(bodyEl, raw) {
     if (!bodyEl) return;
     raw = String(raw == null ? '' : raw);
+    bodyEl.__proseSource = raw;
     if (raw.indexOf('http') === -1 && !MD_MARKERS.test(raw)) { bodyEl.textContent = raw; return; }
     bodyEl.innerHTML = renderMarkdown(raw);
+  }
+
+  function messageCopyText(bodyEl) {
+    if (!bodyEl) return '';
+    return typeof bodyEl.__proseSource === 'string' ? bodyEl.__proseSource : bodyEl.textContent;
   }
 
   // COPY-TO-CLIPBOARD: the async Clipboard API (works on localhost, a secure context), with a hidden-textarea
@@ -684,7 +732,7 @@ const Chat = (() => {
         }
         const btn = e.target.closest('.cmsg-copy'); if (!btn) return;
         const bodyEl = btn.closest('.cmsg') && btn.closest('.cmsg').querySelector('.body');
-        const txt = bodyEl ? bodyEl.textContent : '';
+        const txt = messageCopyText(bodyEl);
         if (!txt) return;
         copyText(txt).then(ok => {
           showCopyResult(btn, ok);
