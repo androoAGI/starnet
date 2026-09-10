@@ -19,11 +19,11 @@ The complete HTTP gate is terminated at its aggregate 15-minute watchdog despite
 
 ## Repro
 
-Run npm run test:http on this Windows host. .dogfood/cleanup-final-http.log and .dogfood/cleanup-synced-http.log both exit 124 at 900000ms, at different late-suite points. package.json and scripts/qa/guardian.mjs own the two deadlines.
+Run npm run test:http on this Windows host. .dogfood/cleanup-final-http.log and .dogfood/cleanup-synced-http.log both exit 124 at 900000ms, at different late-suite points. package.json owns the child deadline; scripts/qa/guardian.mjs, scripts/qa/closer.mjs and scripts/phase2.mjs own outer runners.
 
 ## Evidence
 
-The entire unchanged test/http.list completed 108/108 in .dogfood/cleanup-http-diagnostic.log in just over 15 minutes. The HTTP child now gets 20 minutes and Guardian gets 21 minutes for that step, preserving explicit operator overrides. Individual test timeouts, assertions, fast-gate timeout, and test lists are unchanged. test/qa-guardian.test.js verifies outer/child budget ordering and override behavior (102 assertions); test/timeout.test.js passes six assertions.
+The entire unchanged test/http.list completed 108/108 in .dogfood/cleanup-http-diagnostic.log in just over 15 minutes. The HTTP child now gets 20 minutes and Guardian, Closer and Phase 2 get 21 minutes for that step through scripts/lib/run-command.mjs, preserving explicit operator overrides. Individual test timeouts, assertions, fast-gate timeout, and test lists are unchanged. test/qa-guardian.test.js verifies outer/child budget ordering and override behavior (102 assertions); test/timeout.test.js passes six assertions.
 
 ## Verdict
 
