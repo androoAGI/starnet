@@ -1,5 +1,15 @@
 # NEXT.md — current priorities & task queue
 
+## VERIFIED LANE — 2026-09-10 onboarding refresh (agent/onboarding-refresh-0910)
+
+Source `70a698ad2`, mechanical source lock `5e0ecc0f8`; carries tutorial name fix `d89e1d6e1`.
+Shorter wake opening, two-question quick setup, optional deeper interview, clear phase labels,
+readable conversation controls, multiline answers, and purpose-based first-task suggestions.
+Live real-sidecar/mock-provider checks covered fresh setup, saved purpose/autonomy, restart,
+full-interview entry/custom follow-up and first-task handoff. Fast 753/753 and customer journeys
+34/34 passed. Evidence: `qa/digests/2026-09-10-onboarding-refresh.md`.
+Not merged or released; installed behavior and paid-provider quality remain unverified.
+
 ## MERGED — 2026-09-10 doorway movement (agent/doorway-occlusion-0910)
 
 Owner reported agents walking behind walls near openings. Source repair a22f780e3 validates
