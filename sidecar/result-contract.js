@@ -30,7 +30,8 @@ function prepare(schema) {
     walk(target,depth+1);
    }
    for(const k of ['properties','$defs','definitions'])if(s[k])for(const child of Object.values(s[k]))walk(child,depth+1);
-   for(const k of ['items','additionalProperties','not','if','then','else','contains'])if(s[k]!==undefined)walk(s[k],depth+1);
+   for(const k of ['items','additionalItems','additionalProperties','propertyNames','not','if','then','else','contains'])if(s[k]!==undefined)walk(s[k],depth+1);
+   if(s.dependencies)for(const child of Object.values(s.dependencies))if(!Array.isArray(child))walk(child,depth+1);
    for(const k of ['oneOf','anyOf','allOf'])if(s[k])for(const child of s[k])walk(child,depth+1);
    active.delete(s);
   }
