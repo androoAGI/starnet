@@ -1,0 +1,17 @@
+'use strict';
+const fs=require('fs'),path=require('path'),A=require('./_assert'),WM=require('../frontend/app/worldmodel');
+const s=WM.create();const room=s.addRoom({kind:'lab',rect:{x1:18,y1:0,x2:29,y2:10}});
+const own=s.addProp({t:'desk',x:21,y:3,w:2,h:1,agentId:'worker'}),other=s.addProp({t:'desk',x:5,y:3,w:2,h:1,agentId:'other'}),straddle=s.addProp({t:'desk',x:17,y:6,w:2,h:1});
+A.ok(own.ok&&other.ok&&straddle.ok,'inside, neighbor and straddling fixtures accepted');s.setBelt(23,7,'E');s.setBelt(8,7,'W');s.setPipelineEdges([{from:'worker',to:'other'}]);
+const saved=JSON.stringify(s.doc());A.ok(s.removeRoom(room.id).ok,'room deletion accepted');
+A.eq(s.doc().props.map(p=>p.id),[other.id],'only unsupported props are removed');A.eq(s.belts(),[{x:8,y:7,dir:'W'}],'only belts on deleted floor are removed');A.eq(s.pipelineEdges().length,1,'agent-level links are independent of room furniture');
+A.ok(!s.projectGeometry().props.some(p=>p.id===own.id),'deleted desk cannot render over void');
+s.undo();A.eq(JSON.stringify(s.doc()),saved,'one undo restores room, furniture, assignments, belts and ids exactly');s.redo();A.eq(s.doc().props.map(p=>p.id),[other.id],'redo removes the same contents');
+const restored=WM.create(JSON.parse(JSON.stringify(s.doc())));A.eq(restored.props().map(p=>p.id),[other.id],'deleted contents do not return after reload');
+s.addRoom({kind:'lab',rect:{x1:18,y1:0,x2:29,y2:10}});A.eq(s.doc().props.map(p=>p.id),[other.id],'rebuilding a room does not resurrect furniture');
+const prior=JSON.stringify(s.doc());A.eq(s.removeRoom(s.spawnRoomId()).ok,false,'spawn deletion still refused');A.eq(JSON.stringify(s.doc()),prior,'refused deletion changes nothing');
+const src=fs.readFileSync(path.join(__dirname,'../frontend/app/world.js'),'utf8'),fn=n=>A.fnBody(src,'function '+n+'(');
+const run=Function(`${fn('seizeFromIdle')}\n${fn('despawnAgent')}\n${fn('syncCrewFromPlan')}\nlet chaseId=null;const occupiedSeats=new Set(['seat:0']),setTalking=()=>{},agent={id:'agent'},routingPlan=null,geo=null,sweepAgentMaps=()=>{};let crew=[{agentId:'gone',seatKey:'seat:0',seated:true,lying:true}];return {remove:()=>despawnAgent('gone'),keepHero:()=>despawnAgent('agent'),sync:()=>syncCrewFromPlan(),state:()=>({count:crew.length,seats:[...occupiedSeats]})};`);
+let r=run();A.eq(r.keepHero(),false,'lead cannot be removed');A.eq(r.remove(),true,'crew removal succeeds');A.eq(r.state(),{count:0,seats:[]},'retiring crew releases its shared seat claim');A.eq(r.remove(),false,'repeat removal harmless');
+r=run();r.sync();A.eq(r.state(),{count:0,seats:[]},'removing a plan-derived crew body also releases its seat');
+A.report('world-lifecycle');
