@@ -145,6 +145,14 @@ const { chromium } = require(process.env.STARNET_PLAYWRIGHT_MODULE || 'playwrigh
         assert(shape.visible && shape.bottom <= height+1 && shape.right <= width+1, JSON.stringify({width,height,step,...shape}));
         assert.equal(shape.badPaint,0);
         assert(shape.fullWidth,'creation fills its screen');
+        if (step === 'identity') {
+          const geometry = await page.locator('#screen-connect').evaluate(screen => {
+            const hero=screen.querySelector('.ov-hero').getBoundingClientRect(), identity=screen.querySelector('#ov-identity').getBoundingClientRect();
+            return {overlap:hero.bottom-identity.top, chipOverflow:Math.max(...[...screen.querySelectorAll('#voice-archetypes button')].map(n=>n.scrollWidth-n.clientWidth))};
+          });
+          if (width<=720) assert(geometry.overlap<=1,'mobile character and identity sections must not overlap');
+          assert(geometry.chipOverflow<=1,'every personality label fits');
+        }
         receipt.checks.push({width,height,step,...shape});
       }
     }
