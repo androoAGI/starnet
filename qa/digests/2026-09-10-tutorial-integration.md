@@ -39,3 +39,10 @@ Only the release-surface manifest conflicted; trunk claims were preserved and it
 Our stale NEXT queue entries were removed from this candidate so the unrelated uncommitted
 logo integration entry on trunk is preserved; the two earlier lane receipts retain their full details.
 The earlier staged-voice blocker is resolved; this candidate is ready for the authorized merge.
+
+## Merge completed
+
+Authorized integration completed by fast-forward from 2a6c60fcb to f2efab7b8.
+The merged source matches the 768/768-tested candidate; only documentation differs.
+Pre-existing docs/NEXT.md, qa/STATUS.md and Rooms handoff bytes were hash-verified unchanged.
+No foreign staged changes were committed. A merge digest was appended to qa/STATUS.md.
