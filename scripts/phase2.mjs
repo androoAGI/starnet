@@ -13,7 +13,7 @@
 import { existsSync, mkdirSync, rmSync, writeFileSync, copyFileSync, readdirSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { coerceTimeoutMs, runBoundedCommand } from './lib/run-command.mjs';
+import { coerceTimeoutMs, runBoundedCommand, npmGateTimeoutMs } from './lib/run-command.mjs';
 import { hasLiveProviderKey, liveProviderEnv, withoutLiveProviderEnv } from './lib/provider-env.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -143,7 +143,7 @@ async function main() {
   const liveSkippedReason = 'Run `npm run phase2:live` to execute paid provider proof.';
   const steps = [
     { id: 'test-fast', title: 'Core harness unit/integration gate', cmd: npmCmd, args: ['run', 'test:fast'], env: nonLiveEnv, required: true },
-    { id: 'test-http', title: 'Sidecar HTTP/e2e gate', cmd: npmCmd, args: ['run', 'test:http'], env: nonLiveEnv, required: true },
+    { id: 'test-http', title: 'Sidecar HTTP/e2e gate', cmd: npmCmd, args: ['run', 'test:http'], env: nonLiveEnv, required: true, timeoutMs: npmGateTimeoutMs('test:http', process.env.STARNET_PHASE2_STEP_TIMEOUT_MS) },
     { id: 'audit-mock', title: 'Deterministic UI audit gate', cmd: npmCmd, args: ['run', 'audit'], env: nonLiveEnv, required: true },
     { id: 'golden', title: 'Reviewed UI golden gate', cmd: npmCmd, args: ['run', 'golden'], env: nonLiveEnv, required: true },
     // The 'validate-map' + 'test-world' steps were removed 2026-07-24 with the scripts they invoked:

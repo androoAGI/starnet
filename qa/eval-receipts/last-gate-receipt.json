@@ -1,11 +1,11 @@
 {
   "schemaVersion": "starnet.eval.gate-receipt.v1",
   "kind": "credential-free-eval-gate",
-  "generatedAt": "2026-08-17T21:26:54.851Z",
+  "generatedAt": "2026-09-10T03:28:22.882Z",
   "git": {
-    "commit": "740d772b6b3a003bcc3f3ee5c377ac0a161e48a2",
-    "branch": "agent/eval-gates",
-    "dirty": false,
+    "commit": "83c896e7d2c5b88d99147e75fbeedde6fb93c27b",
+    "branch": "agent/hermes-stress-0910",
+    "dirty": true,
     "dirtyExcludes": [
       "qa/eval-receipts/"
     ]
@@ -22,7 +22,7 @@
     },
     "claimsLedger": {
       "path": "qa/product-perfect/claims.json",
-      "sha256": "9d8e06032e17d9d8039adebdcd8e1716f889d390311a4c63f9db1dbde2718017"
+      "sha256": "b711a39ed92e82d53d65ee4b00ad1ab49de15df9426798250eceef1a0e1644ee"
     },
     "qualityTasks": {
       "path": "scripts/eval/fixtures/tasks.jsonl",
@@ -69,7 +69,7 @@
       "command": "node scripts/eval/runner.mjs contract",
       "exitCode": 0,
       "pass": true,
-      "durationMs": 117,
+      "durationMs": 215,
       "parsed": {
         "claims": 37
       },
@@ -83,7 +83,7 @@
       "command": "node scripts/eval/runner.mjs run",
       "exitCode": 0,
       "pass": true,
-      "durationMs": 8010,
+      "durationMs": 7377,
       "parsed": {
         "activeRows": 13,
         "quality": 100
@@ -99,7 +99,7 @@
       "command": "node scripts/eval/runner.mjs capture-fault --out .dogfood/eval/gate/fault-trajectories.jsonl",
       "exitCode": 0,
       "pass": true,
-      "durationMs": 13533,
+      "durationMs": 17579,
       "parsed": {
         "rows": 1000,
         "passedRows": 1000
@@ -115,7 +115,7 @@
       "command": "node scripts/eval/runner.mjs fault --candidate .dogfood/eval/gate/fault-trajectories.jsonl --receipt .dogfood/eval/gate/fault-receipt.json",
       "exitCode": 0,
       "pass": true,
-      "durationMs": 308,
+      "durationMs": 662,
       "parsed": {
         "passedRows": 1000
       },
@@ -130,7 +130,7 @@
       "command": "node scripts/eval/adapters/parity-offline.mjs",
       "exitCode": 0,
       "pass": true,
-      "durationMs": 1553,
+      "durationMs": 1781,
       "parsed": {
         "scenarios": 32,
         "probes": 4

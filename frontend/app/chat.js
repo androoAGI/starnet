@@ -9,17 +9,9 @@
 // text/task turns get NO augmentation, so written replies keep full structure (the whole "voice =
 // laid-back back-and-forth, type = detailed" split is produced by the presence/absence of this block).
 function voiceModeRules() {
-  // the format rules are fixed; the closing line is the ACTIVE PERSONA's spoken-delivery hint, so the 5
-  // personalities sound distinct out loud (the voice channel was flattening them into one generic-casual tone).
-  let hint = 'sound like a relaxed buddy giving a quick answer across the room';
-  try {
-    if (typeof Voice !== 'undefined' && Voice.personaId && typeof Personas !== 'undefined') {
-      const p = Personas.get(Voice.personaId());
-      if (p && p.voiceModeHint) hint = p.voiceModeHint;
-    }
-  } catch (_) {}
+  const hint = 'Keep the same effective personality, language preference and custom style as the system prompt';
   return "\n\n[VOICE MODE — you're talking out loud, not typing.] Reply the way you'd actually SAY it:"
-    + " 1-3 short sentences, max. Use contractions (you're, gonna, it's, lemme). Plain spoken words only —"
+    + " 1-3 short sentences, max. Use natural spoken phrasing consistent with your formality setting. Plain spoken words only —"
     + " absolutely NO markdown, asterisks, bullet points, numbered lists, headers, code blocks, emoji, or links;"
     + " those can't be heard. Don't read out URLs or file paths character-by-character — just say what you did."
     + " No throat-clearing, no 'As an AI', no 'I'd be happy to', no recapping the question. " + hint + "."
@@ -533,7 +525,7 @@ const Chat = (() => {
      invariant is inviolate: every model substring is HTML-ESCAPED first (escapeHtml / linkify both escape), and
      we only ever wrap ALREADY-ESCAPED text in our OWN tags — model output never reaches innerHTML raw. `code`
      spans are pulled to placeholders before the bold pass so a ** inside code stays literal. */
-  const MD_MARKERS = /\*\*|`|^#{1,6}\s|^[ \t]*[-*]\s/m;   // cheap gate: does this text carry any markdown we render?
+  const MD_MARKERS = /\||^\s*>|^\s*\d+[.)]\s|\*\*|`|^#{1,6}\s|^[ \t]*[-*]\s/m;   // cheap gate: does this text carry any markdown we render?
   function mdInline(safe) {
     // `safe` is escaped-and-linkified HTML. Pull `inline code` to placeholders, bold the rest, restore code.
     const codes = [];
@@ -548,33 +540,81 @@ const Chat = (() => {
       '<span class="md-pre">' + escapeHtml(lines.join('\n')) + '</span>' +
       '</span>';
   }
-  function renderMarkdown(raw) {
-    const lines = String(raw).split('\n');
-    const parts = [];
-    let fence = null;   // collecting a ``` fenced block
-    for (const ln of lines) {
-      if (/^[ \t]*```/.test(ln)) {
-        if (fence) { parts.push(renderFence(fence)); fence = null; }
-        else fence = [];
-        continue;
-      }
-      if (fence) { fence.push(ln); continue; }
-      const h = /^(#{1,6})\s+(.*)$/.exec(ln);
-      if (h) { parts.push('<span class="md-h">' + mdInline(linkify(h[2])) + '</span>'); continue; }
-      const li = /^([ \t]*)[-*]\s+(.*)$/.exec(ln);
-      if (li) { parts.push('<span class="md-li"><span class="md-bul">▪ </span>' + mdInline(linkify(li[2])) + '</span>'); continue; }
-      parts.push(mdInline(linkify(ln)));
+  function reportInline(raw) {
+    // Tokenize raw text before escaping; generated markup never enters another pass.
+    const re = /`([^`\n]+)`|\[([^\]\n]+)\]\((https?:\/\/[^\s<>"']+)\)|\*\*([^*\n]+)\*\*|https?:\/\/[^\s<>"']+/g;
+    let out='',last=0,m;
+    while((m=re.exec(raw))) {
+      out+=escapeHtml(raw.slice(last,m.index));
+      if(m[1]!==undefined)out+='<code class="md-code">'+escapeHtml(m[1])+'</code>';
+      else if(m[2]!==undefined)out+='<a href="'+escapeHtml(m[3])+'" target="_blank" rel="noopener noreferrer">'+escapeHtml(m[2])+'</a>';
+      else if(m[4]!==undefined)out+='<span class="md-b">'+escapeHtml(m[4])+'</span>';
+      else out+=linkify(m[0]);
+      last=re.lastIndex;
     }
-    if (fence) parts.push(renderFence(fence));   // unterminated (mid-stream) — render what we have
-    return parts.join('\n');
+    return out+escapeHtml(raw.slice(last));
+  }
+  function renderMarkdown(raw) {
+    const lines=String(raw).split('\n');
+    const cells=line=>line.trim().replace(/^\|/,'').replace(/\|$/,'').split(/(?<!\\)\|/).map(s=>s.trim().replace(/\\\|/g,'|'));
+    const listMatch=line=>/^([ \t]*)([-*+] |\d+[.)] )(.*)$/.exec(line);
+    function blocks(from,to,depth) {
+      const parts=[];let i=from;
+      while(i<to) {
+        const ln=lines[i];
+        if(/^[ \t]*```/.test(ln)) {
+          const code=[];i++;
+          while(i<to && !/^[ \t]*```/.test(lines[i]))code.push(lines[i++]);
+          if(i<to)i++;parts.push(renderFence(code));continue;
+        }
+        const h=/^(#{1,6})\s+(.*)$/.exec(ln);
+        if(h){parts.push('<span class="md-h" role="heading" aria-level="'+h[1].length+'">'+reportInline(h[2])+'</span>');i++;continue;}
+        if(/^\s*>/.test(ln)) {
+          const quote=[];
+          while(i<to && /^\s*>/.test(lines[i]))quote.push(reportInline(lines[i++].replace(/^\s*> ?/,'')));
+          parts.push('<blockquote class="md-quote">'+quote.join('<br>')+'</blockquote>');continue;
+        }
+        if(i+1<to && ln.includes('|') && cells(lines[i+1]).length>1 && cells(lines[i+1]).every(c=>/^:?-{3,}:?$/.test(c))) {
+          const headers=cells(ln);i+=2;
+          let table='<div class="md-table-scroll" tabindex="0" role="region" aria-label="Report table"><table class="md-table"><thead><tr>'+headers.map(c=>'<th scope="col">'+reportInline(c)+'</th>').join('')+'</tr></thead><tbody>';
+          while(i<to && lines[i].includes('|') && lines[i].trim())table+='<tr>'+cells(lines[i++]).map(c=>'<td>'+reportInline(c)+'</td>').join('')+'</tr>';
+          parts.push(table+'</tbody></table></div>');continue;
+        }
+        const first=listMatch(ln);
+        if(first && depth<16) {
+          const indent=first[1].replace(/\t/g,'    ').length;
+          const ordered=/\d/.test(first[2]),tag=ordered?'ol':'ul';
+          let list='<'+tag+' class="md-list"'+(ordered?' start="'+parseInt(first[2],10)+'"':'')+'>';
+          while(i<to) {
+            const item=listMatch(lines[i]);
+            if(!item || item[1].replace(/\t/g,'    ').length!==indent || /\d/.test(item[2])!==ordered)break;
+            list+='<li>'+reportInline(item[3]);i++;
+            const begin=i;
+            while(i<to && lines[i].trim() && /^\s/.test(lines[i]) && (lines[i].match(/^\s*/)[0].replace(/\t/g,'    ').length>indent))i++;
+            if(i>begin)list+=blocks(begin,i,depth+1);
+            list+='</li>';
+          }
+          parts.push(list+'</'+tag+'>');continue;
+        }
+        parts.push(reportInline(ln));i++;
+      }
+      return parts.join('\n');
+    }
+    return blocks(0,lines.length,0);
   }
   // render agent prose into a body span. Fast textContent path when there's no URL AND no markdown marker (the
   // common streamed token) — no per-token HTML reparse; otherwise the escaped+linkified+markdown pipeline.
   function renderProse(bodyEl, raw) {
     if (!bodyEl) return;
     raw = String(raw == null ? '' : raw);
+    bodyEl.__proseSource = raw;
     if (raw.indexOf('http') === -1 && !MD_MARKERS.test(raw)) { bodyEl.textContent = raw; return; }
     bodyEl.innerHTML = renderMarkdown(raw);
+  }
+
+  function messageCopyText(bodyEl) {
+    if (!bodyEl) return '';
+    return typeof bodyEl.__proseSource === 'string' ? bodyEl.__proseSource : bodyEl.textContent;
   }
 
   // COPY-TO-CLIPBOARD: the async Clipboard API (works on localhost, a secure context), with a hidden-textarea
@@ -692,7 +732,7 @@ const Chat = (() => {
         }
         const btn = e.target.closest('.cmsg-copy'); if (!btn) return;
         const bodyEl = btn.closest('.cmsg') && btn.closest('.cmsg').querySelector('.body');
-        const txt = bodyEl ? bodyEl.textContent : '';
+        const txt = messageCopyText(bodyEl);
         if (!txt) return;
         copyText(txt).then(ok => {
           showCopyResult(btn, ok);
@@ -1790,7 +1830,7 @@ const Chat = (() => {
   }
   // command / client-side output (/help, /whoami, version, unknown-command, …). A SYSTEM register — dim, no
   // speaker chip, never copyable — so the station's own words are never mistaken for the agent's speech.
-  function localLine(t) { row('system').body.textContent = t; autoscroll(); }
+  function localLine(t) { const r = row('system'); r.body.textContent = t; autoscroll(); return r.d; }
   // the history-cap marker ("…N earlier turns trimmed …") as a dim, centered, hairline-flanked system line —
   // a scrollback boundary, not a dropped record. Reuses the broadcast register's chrome (theme tokens only).
   function trimMarkerLine(t) {
@@ -7274,7 +7314,7 @@ const Chat = (() => {
       const id = Personas.resolve ? Personas.resolve(key) : key;
       if (applyAgentPatch({ personaId: id })) {
         // slash-set skips the create screen's two-press confirm, so the honesty note rides the confirmation line
-        localLine('Personality set to ' + Personas.get(id).name + '.' + (id === 'unhinged' ? ' Heads up: this one swears — for real.' : ''));
+        localLine('Personality set to ' + Personas.get(id).name + '.' + (id === 'unhinged' && Personas.effective(id, (activeAgent() || {}).voiceTraits).profanity > 0 ? ' Heads up: this one swears — for real.' : ''));
       }
       else localLine('Personality setting is not available yet.');
       return;
@@ -8759,6 +8799,8 @@ const Chat = (() => {
     const rowEl = document.createElement('div'); rowEl.className = 'choice-row';
     activeChoiceRows.add(rowEl);
     let done = false;
+    // A producer may retire its own obsolete setup prompt without clearing another prompt's choices.
+    rowEl.dismiss = () => { done = true; activeChoiceRows.delete(rowEl); rowEl.remove(); };
     // MULTI-SELECT (2026-08-14): opts.multi turns the plain option chips into toggles; only a chip marked
     // it.confirm (or it.skip) fires onPick — the confirm chip carries the picked values. Single-select
     // callers pass nothing and get byte-identical behavior.

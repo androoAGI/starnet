@@ -1,0 +1,28 @@
+{
+  "candidate": "4dfbaee6f27de083a99e138779f8985ba7d3f18a",
+  "at": "2026-09-10T08:27:56.425Z",
+  "afterSidecarRestart": true,
+  "save": {
+    "revision": 15,
+    "clientAMessagePresent": true,
+    "clientBConflictDurablyPreserved": true
+  },
+  "conversion": {
+    "id": "conversion_live_1789023633428",
+    "participants": 2,
+    "artifacts": 1,
+    "messageArtifactIds": [
+      "8ff4322b-7de1-4aca-9cb6-84b4a7ca8432"
+    ],
+    "fileStatus": 200,
+    "exactBytes": true
+  },
+  "review": {
+    "id": "21115dc4-ef92-4ad5-af37-aab2814e7447",
+    "competingApprovalStatus": 409,
+    "rejectionStatus": 200,
+    "approvedCount": 0,
+    "rejectedCount": 1,
+    "candidateFileExists": false
+  }
+}
