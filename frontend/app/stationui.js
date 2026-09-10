@@ -4826,6 +4826,7 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
         const p = card.dataset.provider;
         if (!h || !p || !h.setProv) return;
         h.setProv(p);
+        if (typeof KeyCTA !== 'undefined' && KeyCTA.refresh) KeyCTA.refresh();
         // MODEL RECONCILE (subscription providers): the model slug is GLOBAL, so switching to codex/grok/kimi
         // with the previous provider's model (e.g. anthropic/claude-…) streams a foreign id to the new endpoint
         // and bounces the first run while the card reads SIGNED IN. Genesis default-fills from the provider's
