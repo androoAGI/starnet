@@ -30,3 +30,5 @@ Dispatch `.github/workflows/desktop-build.yml` on `f111be488` with publishing di
 ## Verdict
 
 Source repair and local packaging tests pass. A fresh Linux CI AppImage build remains required. Linux is outside the current supported public release platform set; this is still a real build failure and is not hidden with continue-on-error.
+
+The repeat build [34533970724](https://github.com/androoAGI/starnet/actions/runs/34533970724) advances past Sharp and exposes the next unused native backend: `kokoro-js/node_modules/onnxruntime-node/bin/napi-v3/linux/x64/libonnxruntime_providers_tensorrt.so` requires `libcublas.so.12`. Both ASR and TTS explicitly request `device: 'cpu'` in `sidecar/local-voice.js`. The staged closure now excludes only ONNX's optional Linux CUDA/TensorRT plugins, preserving the CPU runtime, shared provider library, and binding. Fresh and warm staging share this filter. Original failure and repeat logs remain retained; the next CI result is still required before closing this record.
