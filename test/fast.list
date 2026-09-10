@@ -760,3 +760,4 @@ test/openai-formats.test.js
 test/request-auth-rotation.test.js
 test/world-seat-recovery.test.js
 test/world-movement-continuity.test.js
+test/sprite-direction-details.test.js
