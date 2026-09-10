@@ -489,10 +489,14 @@ const App = (() => {
   // recompose THAT agent's live prompt (personality is prompt text — Personas.compose folds it in), and if the
   // agent is the focused one, hand the new prompt to the running chat and re-key Voice so the text voice changes
   // immediately. pushRoster ships the recomposed prompt to the sidecar (delegation + cron runs speak it too).
-  function setAgentPersona(agentId, personaId) {
+  function setAgentPersona(agentId, personaId, tuning) {
     const a = agents.get(String(agentId || '')) || (agent && agent.id === agentId ? agent : null);
     if (!a || typeof Personas === 'undefined' || !Personas.exists(personaId)) return false;
     a.personaId = Personas.resolve ? Personas.resolve(personaId) : personaId;
+    if (tuning && typeof tuning === 'object') {
+      a.voiceTraits = Object.assign({}, tuning.traits || {});
+      a.customVoice = typeof tuning.custom === 'string' ? tuning.custom.trim() : '';
+    }
     a.systemPrompt = composeSystemPrompt(a);
     if (agent && a.id === agent.id) {   // focused agent — the live COMMS session adopts the voice at once
       if (typeof Chat !== 'undefined' && Chat.setSystem) Chat.setSystem(a.systemPrompt);
@@ -871,7 +875,7 @@ const App = (() => {
       if (!s || !s.id || s.id === 'agent' || agents.has(s.id)) continue;   // hero already registered; skip dups (so the 'specialist' default below is always correct here — the orchestrator never routes through this path)
       const a = { id: s.id, name: s.name, color: s.color, skin: s.skin || DATA.DEFAULT_SKIN, model: s.model || (agent && agent.model),
                   provider: s.provider || (agent && agent.provider) || null, reasoningEffort: s.reasoningEffort || (agent && agent.reasoningEffort) || null,   // #4: per-agent provider+effort (fall back to the hero's)
-                  personaId: s.personaId, role: s.role || 'specialist', voiceTraits: s.voiceTraits || null, customVoice: s.customVoice || '',
+                  personaId: (typeof Personas !== 'undefined' ? Personas.resolve(s.personaId) : s.personaId), role: s.role || 'specialist', voiceTraits: s.voiceTraits || null, customVoice: s.customVoice || '',
                   approvalMode: s.approvalMode || 'ask', executionProfile: executionProfileOf(s), workshop: !!s.workshop, purpose: s.purpose || null, specialtyId: s.specialtyId || null,
                   skills: Array.isArray(s.skills) ? s.skills.slice() : [],   // Class Loadouts S1: restore the per-agent skill package
                   docs: s.docs, stats: (s.stats && typeof s.stats === 'object') ? s.stats : null, createdAt: s.createdAt || Date.now() };
@@ -2383,7 +2387,7 @@ const App = (() => {
       chip.onclick = () => {
         // UNHINGED curses for real, so its chip arms first (same two-press pattern as the delete buttons):
         // press one names what it means, press two selects. Once confirmed, it's a normal chip this screen.
-        if (p.id === 'unhinged' && pickedPersona !== 'unhinged' && !unhingedConfirmed && armedChip !== chip) {
+        if (p.id === 'unhinged' && Personas.effective(p.id, pickedTraits).profanity > 0 && pickedPersona !== 'unhinged' && !unhingedConfirmed && armedChip !== chip) {
           disarm();
           armedChip = chip;
           chip.classList.add('arm');
