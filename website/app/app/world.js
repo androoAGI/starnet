@@ -1661,6 +1661,7 @@ const World = (() => {
     // THE DOUBLE-TAKE (rare): stop and turn to look back the way it came, as if something caught its attention
     if (now >= (self.lookBackCd || 0) && U.chance(0.045 * (self.pers ? self.pers.curious : 1) * damp)) {
       self.pauseUntil = now + U.irnd(900, 1700); self.pauseLook = 'back';
+      self.pauseDir = OPP[self.dir] || self.dir;   // latch once; never reverse again on each held frame
       self.pauseCd = now + U.irnd(9000, 16000); self.lookBackCd = now + U.irnd(50000, 95000);
       armBeat(now);   // the double-take is a noticeable beat — count it against the station budget
       curiositySay(['hm?', '...', 'did something move', 'thought i saw something'], 0.22, now);
@@ -2162,8 +2163,14 @@ const World = (() => {
       else { b.target = foot; }   // same tile: walk the remaining fraction to the centred seat
     }
     if (b.target) {
-      const dx = b.target.x - b.px, dy = b.target.y - b.py, d = Math.hypot(dx, dy);
-      const more = !!(b.pathPts && b.pathIdx < b.pathPts.length);
+      let dx = b.target.x - b.px, dy = b.target.y - b.py, d = Math.hypot(dx, dy);
+      let more = !!(b.pathPts && b.pathIdx < b.pathPts.length);
+      // Consume reached corners in this frame, then spend its movement step on the next leg.
+      while (more && (d < 1e-6 || (d < CORNER_LOOK && canRoundCorner(b)))) {
+        crewNextWaypoint(b);
+        dx = b.target.x - b.px; dy = b.target.y - b.py; d = Math.hypot(dx, dy);
+        more = !!(b.pathPts && b.pathIdx < b.pathPts.length);
+      }
       // CORNER LOOKAHEAD: hand over to the next waypoint EARLY, and — critically — do NOT snap onto it.
       // The old code teleported px/py exactly onto every waypoint, which is what made the body pivot on the
       // spot at each tile. Keep that lookahead only when the new leg is clear;
@@ -2220,11 +2227,19 @@ const World = (() => {
     if (self.target) {
       if (now < (self.pauseUntil || 0)) {
         self.state = 'idle';                                // a deliberate hold mid-walk (maybeStrollBeat's considered pause / double-take)
-        if (self.pauseLook === 'back') self.dir = OPP[self.dir] || self.dir;
+        if (self.pauseLook === 'back') self.dir = self.pauseDir;
       } else {
-        const dx = self.target.x - self.px, dy = self.target.y - self.py, d = Math.hypot(dx, dy);
-        const more = !!(self.pathPts && self.pathIdx < self.pathPts.length);
-        if (more ? (d < 1e-6 || (d < CORNER_LOOK && canRoundCorner(self))) : d < 1.1) {   // early hand-over, no snap — see stepCrewToSeat's note
+        let dx = self.target.x - self.px, dy = self.target.y - self.py, d = Math.hypot(dx, dy);
+        let more = !!(self.pathPts && self.pathIdx < self.pathPts.length);
+        // Consume reached corners in this frame, then spend its movement step on the next leg.
+        while (more && (d < 1e-6 || (d < CORNER_LOOK && canRoundCorner(self)))) {
+          nextWaypoint();
+          dx = self.target.x - self.px; dy = self.target.y - self.py; d = Math.hypot(dx, dy);
+          more = !!(self.pathPts && self.pathIdx < self.pathPts.length);
+          if (now < (self.pauseUntil || 0)) break;
+        }
+        if (now < (self.pauseUntil || 0)) { self.state = 'idle'; }
+        else if (more ? (d < 1e-6 || (d < CORNER_LOOK && canRoundCorner(self))) : d < 1.1) {   // early hand-over, no snap — see stepCrewToSeat's note
           if (more) nextWaypoint();
           else { self.px = self.target.x; self.py = self.target.y; arrive(now); }
         } else {
@@ -5596,12 +5611,20 @@ const World = (() => {
       if (now < (agent.pauseUntil || 0)) {
         // a deliberate hold mid-walk: stand, and (for a look-back / yield) turn toward what stopped it
         agent.state = 'idle';
-        if (agent.pauseLook === 'back') agent.dir = OPP[agent.dir] || agent.dir;
+        if (agent.pauseLook === 'back') agent.dir = agent.pauseDir;
         else if (agent.pauseLook === 'cargo') { const b = nearestBox(); if (b) agent.dir = dirToward(agent.px, agent.py, b.x, b.y); }
       } else {
-        const dx = agent.target.x - agent.px, dy = agent.target.y - agent.py, d = Math.hypot(dx, dy);
-        const more = !!(agent.pathPts && agent.pathIdx < agent.pathPts.length);
-        if (more ? (d < 1e-6 || (d < CORNER_LOOK && canRoundCorner(agent))) : d < 1.1) {   // early hand-over, no snap — see stepCrewToSeat's note
+        let dx = agent.target.x - agent.px, dy = agent.target.y - agent.py, d = Math.hypot(dx, dy);
+        let more = !!(agent.pathPts && agent.pathIdx < agent.pathPts.length);
+        // Consume reached corners in this frame, then spend its movement step on the next leg.
+        while (more && (d < 1e-6 || (d < CORNER_LOOK && canRoundCorner(agent)))) {
+          nextWaypoint();
+          dx = agent.target.x - agent.px; dy = agent.target.y - agent.py; d = Math.hypot(dx, dy);
+          more = !!(agent.pathPts && agent.pathIdx < agent.pathPts.length);
+          if (now < (agent.pauseUntil || 0)) break;
+        }
+        if (now < (agent.pauseUntil || 0)) { agent.state = 'idle'; }
+        else if (more ? (d < 1e-6 || (d < CORNER_LOOK && canRoundCorner(agent))) : d < 1.1) {   // early hand-over, no snap — see stepCrewToSeat's note
           if (more) nextWaypoint();
           else { agent.px = agent.target.x; agent.py = agent.target.y; arrive(now); }
         } else {
