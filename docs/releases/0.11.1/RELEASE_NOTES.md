@@ -9,6 +9,8 @@ This update improves linked-account reliability, voice playback, and everyday st
 - Background replies preserve the conversation you are currently viewing. Inbox rows have more readable message previews.
 - Fixed work ratings on resumed legacy stations, retaining the station identity through restart.
 - The glass interface is now standard across COMMS, model selection and station windows. Window interactions, text readability and Appearance previews have been improved.
+- Recipe Bay now offers 45 curated workflows with a simpler launch flow. Recruitment, abilities, settings, profiles, quests, channels, automation and task outputs have clearer menus and controls.
+- File-change approvals and work feedback provide clearer action and run references.
 - Station lighting, wall finishes and floor materials have been refreshed. New starter stations use a white shell, and prop details leave more room for browsing the build catalog.
 - Global stop controls have been removed, with recovery for their legacy pause state. Individual work controls remain available.
 
