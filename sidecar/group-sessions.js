@@ -68,16 +68,43 @@ function makeGroupSessions(d) {
     const ids = members(b.members), id = identifier(b.id || d.id());
     const leadId = b.leadId || (ids.includes('agent') ? 'agent' : ids[0]);
     if (!ids.includes(leadId)) fail('Lead must be a participant');
+    const conversionKey = b.conversionKey ? identifier(b.conversionKey) : null;
+    const existing = read().groups[id];
+    if (existing && conversionKey && existing.conversionKey === conversionKey && !existing.deleted) return publicGroup(existing);
+    if (existing) fail('Session already exists', 409);
+    // Snapshot every referenced file before committing the conversion. If any read fails,
+    // no group is created and the caller retains the original direct session unchanged.
+    const imported = [], artifacts = [], files = new Map();
+    for (const m of (Array.isArray(b.history) ? b.history : [])) {
+      const artifactIds = [];
+      if (m.attachments != null && !Array.isArray(m.attachments)) fail('Invalid historical attachments');
+      for (const a of m.attachments || []) {
+        if (!a || typeof a.path !== 'string') fail('Historical attachment has no readable path');
+        const owner = identifier(b.originalAgentId || leadId);
+        const key = owner + ':' + a.path;
+        let artifact = files.get(key);
+        if (!artifact) {
+          const file = await d.readFile(owner, a.path);
+          artifact = { ...file, id: d.id(), name: text(a.name || file.name, 160), agentId: 'user', messageSeq: imported.length + 1, createdAt: d.now() };
+          files.set(key, artifact); artifacts.push(artifact);
+        }
+        if (!artifactIds.includes(artifact.id)) artifactIds.push(artifact.id);
+      }
+      imported.push({ source: m, artifactIds });
+    }
     await store.update('all', s => {
       s = s || { groups: {}, templates: [] };
-      if (s.groups[id]) fail('Session already exists', 409);
+      if (s.groups[id]) {
+        if (conversionKey && s.groups[id].conversionKey === conversionKey && !s.groups[id].deleted) return s;
+        fail('Session already exists', 409);
+      }
       const g = { id, title: text(b.title || 'Group chat', 80), members: ids, leadId,
         questions: [], instructions: text(b.instructions, 8000), maxTurns: 6, revision: 1, paused: false,
-        messages: [], turns: [], artifacts: [], createdAt: d.now(), updatedAt: d.now() };
+        messages: [], turns: [], artifacts, ...(conversionKey ? { conversionKey } : {}), createdAt: d.now(), updatedAt: d.now() };
       // Explicit direct-session conversion: preserve historical author labels as context only.
-      for (const m of (Array.isArray(b.history) ? b.history : []).slice(-120)) {
+      for (const { source: m, artifactIds } of imported) {
         message(g, m.role === 'user' ? 'user' : String(m.agentId || b.originalAgentId || leadId),
-          text(m.content, 100000), { imported: true });
+          text(m.content, 100000), { imported: true, ...(Number.isFinite(m.ts) ? { at: m.ts } : {}), ...(artifactIds.length ? { artifactIds } : {}) });
       }
       s.groups[id] = g; return s;
     });
