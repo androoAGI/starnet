@@ -1,6 +1,6 @@
 # World lifecycle repair — 2026-09-10
 
-Source repair: 35d255dbd. Verified combined candidate: 9c76cba14 (includes shared movement and reliability changes). Integration is queued behind the cleanup lane.
+Source repair: 35d255dbd. Verified combined candidate: 9c76cba14 (includes shared movement and reliability changes). Cleanup bd48654c4 was subsequently merged into this lane as candidate d4edc30af. It passed the full fast gate 762/762 and repeated real approval/denial browser checks with empty diagnostics (approval-cleanup.json, approval-deny-cleanup.json). The browser preview was restarted after an initial probe found it stopped; that setup failure is retained in command history. Cleanup did not alter the world files. Integration remains queued behind personality, OVERSEER creation and adversarial audit lanes; this repair is not merged or installed.
 
 - Retiring or removing plan-derived crew releases its furniture reservation before removing the body. A replacement can use the empty couch.
 - Removing a room removes intersecting furniture and its belt tiles in the same undo snapshot. Neighbor furniture and logical agent links remain. Undo restores the exact document; redo and reload retain the deletion.
