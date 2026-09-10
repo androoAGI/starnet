@@ -150,6 +150,12 @@ const Personas = (() => {
     values.edge = !!(traits && traits.edge === true);
     return Object.freeze(values);
   }
+  function hasTuning(traits, customText) {
+    return !!((typeof customText === 'string' && customText.trim()) ||
+      TRAITS.some(t => traits && Number.isInteger(traits[t.key]) && traits[t.key] >= 0 && traits[t.key] <= 3 && traits[t.key] !== t.neutral) ||
+      (traits && Number.isInteger(traits.profanity) && traits.profanity >= 0 && traits.profanity <= 2) ||
+      TOGGLES.some(t => traits && traits[t.key] === true));
+  }
   function ambient(id, traits, customText) {
     // A fixed quip cannot honor arbitrary custom prose. Stay silent in that case rather than contradict it.
     if (typeof customText === 'string' && customText.trim()) return [];
@@ -168,5 +174,5 @@ const Personas = (() => {
     if (custom) lines.push('CUSTOM STYLE (overrides preset style and tuning where they conflict):\n' + custom);
     return lines.join('\n');
   }
-  return { get, list, exists, resolve, compose, effective, ambient, DEFAULT_ID, TRAITS, TOGGLES, PROFANITY, STATION_VOICE };
+  return { get, list, exists, resolve, compose, effective, ambient, hasTuning, DEFAULT_ID, TRAITS, TOGGLES, PROFANITY, STATION_VOICE };
 })();

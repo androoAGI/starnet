@@ -95,4 +95,10 @@ ctx.agent.systemPrompt = P.compose('upbeat');
 timer.tick(); assert.equal(timer.updates(), 2, 'changed personality reaches the active live call');
 timer.tick(); assert.equal(timer.updates(), 2);
 
+assert.equal(P.hasTuning({ humor: 1, emoji: false }, '  '), false, 'inherited defaults are not labeled customized');
+assert.equal(P.hasTuning({ humor: 0 }, ''), true, 'explicit style override is visible');
+assert.equal(P.hasTuning({ profanity: 0 }, ''), true, 'saved language preference is visible even on a non-profane preset');
+assert.equal(P.hasTuning({ humor: 999 }, ''), false, 'ignored invalid tuning is not labeled customized');
+assert.equal(P.hasTuning(null, 'No banter.'), true);
+
 console.log('personas-fun-five.test: six profiles, legacy migrations, tuning, target isolation and voice parity PASS');

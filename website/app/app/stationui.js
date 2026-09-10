@@ -2285,7 +2285,7 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
       a.model || 'Follow station default', (typeof Personas !== 'undefined' && Personas.get(a.personaId)?.name) || 'Station personality',
       'Effective reach, execution and approval settings',
       ((typeof DATA !== 'undefined' && DATA.SKINS && DATA.SKINS[a.skin]) || {}).name || 'Choose a skin'];
-    return '<p class="cf-grp-note">Choose what to change. Instructions and model changes use SAVE; personality, appearance and access controls apply when selected.</p>' +
+    return '<p class="cf-grp-note">Choose what to change. Instructions, model and personality tuning use SAVE; personality presets, appearance and access controls apply when selected.</p>' +
       CF_GROUPS.map((g, i) => {
         const key = a.id + ':' + g.id;
         return '<details class="cf-group" id="' + g.id + '" data-cf-group="' + esc(key) + '"' + (cfOpen.get(key) ? ' open' : '') + '><summary><span class="cf-group-title">' + g.label + '</span><span class="cf-group-summary">' + esc(summaries[i]) + '</span></summary><div class="cf-group-body">' + content[i] + '</div></details>';
@@ -2437,7 +2437,8 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
       '<div class="cf-desc">How this agent communicates in conversation and real work. Every personality keeps the same rigor and honesty. Pick one to apply it immediately. Tune energy and language below; audible voice is configured separately.</div>' +
       '<div class="ov-vchips" id="ag-persona-chips">' + chips + '</div>' +
       // sample-reply preview REMOVED (Andrew, 2026-07-20) — the sel chip + vibe tooltip carry the choice.
-      '<details><summary>FINE-TUNE PERSONALITY</summary>' + tuning + '</details>' +
+      '<details><summary>FINE-TUNE PERSONALITY' + (Personas.hasTuning(traits, a && a.customVoice) ? ' · CUSTOMIZED' : '') + '</summary>' +
+      '<p class="cf-desc">Saved tuning stays when you switch presets. RESET TO PRESET clears tuning and custom style.</p>' + tuning + '</details>' +
       '<div id="ag-persona-msg" class="msg" role="status" aria-live="polite"></div>' +
     '</div>';
   }
