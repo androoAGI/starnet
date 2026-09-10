@@ -1,0 +1,46 @@
+workflow-takeover.http: authenticated evidence, review, concurrent create, pause, forget and restart passed
+task-conversation.http: full answer, context, open question, sample, restart and stale receipts passed
+PASS emergency recovery: stop/restart/resume, three partial failures, permission preservation, real cron tick
+growth-rating-upgrade.e2e: OK (24 assertions)
+TAP version 13
+Managed image proof: credits-only PNG saved and served; restart passed; exact image debit $0.025; 402/503/no-image never done. Cloud=false
+# Subtest: managed images: saved credits route generates, bills, survives restart and fails honestly
+ok 1 - managed images: saved credits route generates, bills, survives restart and fails honestly
+  ---
+  duration_ms: 4627.8557
+  type: 'test'
+  ...
+1..1
+# tests 1
+# suites 0
+# pass 1
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 6110.5534
+TAP version 13
+AFTER: stale endpoint repaired; custom routing preserved; switching back uses linked endpoint/token; desktop-token restart passed.
+# Subtest: managed chat ignores stale request endpoints and credentials across provider switch and restart
+ok 1 - managed chat ignores stale request endpoints and credentials across provider switch and restart
+  ---
+  duration_ms: 3580.8116
+  type: 'test'
+  ...
+# Subtest: persisted frontend endpoints stay provider scoped across switching and reload
+ok 2 - persisted frontend endpoints stay provider scoped across switching and reload
+  ---
+  duration_ms: 24.4608
+  type: 'test'
+  ...
+1..2
+# tests 2
+# suites 0
+# pass 2
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 5079.6052
+tool-projection.e2e: OK (10 real runs, file writes, both model IDs, revocation and restart)
+run-test-list: OK — 7 step(s) green

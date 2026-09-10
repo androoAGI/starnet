@@ -1,6 +1,6 @@
 # Probe archive
 
-These are exact copies of the audit probes, not product code or registered tests.
+These are copies of the audit probes with normalized LF line endings, not product code or registered tests.
 They use synthetic inputs and local services. Preserve the directory layout when rerunning:
 
 1. Use an isolated StarNet worktree at the recorded commit and install its dependencies.
