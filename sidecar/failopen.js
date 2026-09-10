@@ -15,6 +15,8 @@
    visible), then every WARN_EVERY_TAILth — so a 60s maintenance loop that breaks permanently keeps
    saying so without drowning the log. The counter always increments. */
 
+const { redact } = require('./context.js');
+
 const WARN_EVERY_HEAD = 5;
 const WARN_EVERY_TAIL = 50;
 
@@ -28,7 +30,7 @@ function setClock(fn) { clock = typeof fn === 'function' ? fn : null; }
 function stamp() { try { const t = clock ? Number(clock()) : NaN; return Number.isFinite(t) ? t : null; } catch (_) { return null; } }
 
 function swallow(tag, rv) {
-  const t = String(tag || 'untagged').slice(0, 80);
+  const t = redact(String(tag || 'untagged')).slice(0, 80);
   return (e) => {
     const now = stamp();
     let row = tally.get(t);
@@ -36,7 +38,7 @@ function swallow(tag, rv) {
     row.n += 1; if (now !== null) { row.lastAt = now; if (row.firstAt === null) row.firstAt = now; }
     const n = row.n;
     if (n <= WARN_EVERY_HEAD || n % WARN_EVERY_TAIL === 0) {
-      try { console.warn('[failopen] ' + t + ' (x' + n + '):', (e && e.message) || e); } catch (_) {}
+      try { console.warn('[failopen] ' + t + ' (x' + n + '):', redact(String((e && e.message) || e))); } catch (_) {}
     }
     return rv;
   };

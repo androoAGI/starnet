@@ -512,9 +512,10 @@ async function opensWithin(t, ms) {
     const pending = [], played = []; let failFirst = true;
     class OrderedAudio extends MockAudio {
       play() { const text = this.src; played.push(text);
-        setTimeout(() => { if (this.onplay) this.onplay();
+        // Model asynchronous media events without racing three host timers against a 40ms wait.
+        queueMicrotask(() => { if (this.onplay) this.onplay();
           if (failFirst) { failFirst = false; this.error = {code: 3}; if (this.onerror) this.onerror(); }
-          else if (this.onended) this.onended(); }, 0);
+          else if (this.onended) this.onended(); });
         return Promise.resolve();
       }
     }
