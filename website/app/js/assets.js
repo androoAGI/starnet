@@ -520,10 +520,13 @@ const SPRITES = (() => {
     // Every other state keeps the clock; those aren't locomotion.
     const sc = drawScaleFor(set);
     const stride = cycleUnitsFor(set, sc, fr[0].height) / fr.length;
+    // Keep the angular cycle consistent as six-pose skins gain in-between frames.
+    // Retired four/eight-frame sets retain their original cadence.
+    const turnFrameScale = (set === 'ultron' || set === 'minion') ? 1 : fr.length / 6;
     const idx = fixedIdx != null ? fixedIdx
       // a pivoting body spends SWEPT ANGLE on the walk cycle, the same way a travelling one spends
       // distance — the feet are driven by what the body actually did, never by the clock
-      : turnStep ? Math.floor((b._turnAng || 0) * TURN_STEP_FRAMES + aph)
+      : turnStep ? Math.floor((b._turnAng || 0) * TURN_STEP_FRAMES * turnFrameScale + aph)
       : (key.indexOf('.walk.') !== -1 && b.odo != null && stride > 0)
         ? Math.floor(b.odo / stride + aph)
         : Math.floor(nowMs / (1000 / fps) + aph);
