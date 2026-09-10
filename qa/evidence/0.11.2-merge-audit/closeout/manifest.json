@@ -45,8 +45,8 @@
     {
       "path": "installed-smoke-afd.json",
       "source": "qa/installed/last-smoke.json",
-      "bytes": 1313,
-      "sha256": "76f3a896c05e4792e4edda1757665091b7fec6e98e9a19c4871e828e0945a87a"
+      "bytes": 1325,
+      "sha256": "16d35bad555031d019edc89462c724e63237e8a42d0f5009a61b25ca969fb4f0"
     },
     {
       "path": "beginner-afd.json",
@@ -159,8 +159,8 @@
     {
       "path": "retired-soaks.json",
       "source": ".dogfood/release-0112-closeout/retired-soaks.json",
-      "bytes": 1296,
-      "sha256": "5aadf3c14d324fc3dcaa6115cd1bf253e39f63ad05746fb89f786cfe69fe21ef"
+      "bytes": 1256,
+      "sha256": "886789d419903a0eb0d0a4af26fb04ef0640bd7d4963baa3305cb1b2d67b2701"
     },
     {
       "path": "managed-continuation.json",
@@ -173,6 +173,13 @@
       "source": "integration qa/findings exact before/after records",
       "bytes": 9399,
       "sha256": "ad7be7d79a9cf7889d993cc43b394a56d039796ea116ef7011c0d01ddb688eb6"
+    },
+    {
+      "path": "installed-smoke-probe.json",
+      "source": "qa/installed/smoke-2026-09-10T22-28-23-705Z/probe.json",
+      "bytes": 2225,
+      "sha256": "ec9188d09b172374865ebd3b15d6177dcedc650e5c2a0376af03507d56a88d24"
     }
-  ]
+  ],
+  "notes": "Portable retired-soak JSON uses LF line endings; installed-smoke evidence path is relocated to this tracked pack. Source receipts remain unchanged in the raw evidence directory."
 }

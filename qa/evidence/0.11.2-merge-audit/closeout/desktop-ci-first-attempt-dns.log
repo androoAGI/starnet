@@ -1,0 +1,14 @@
+intel-macos-installed-acceptance	Download Intel macOS distributable	﻿2026-09-10T22:24:28.5299610Z Node 20 is being deprecated. This workflow is running with Node 24 by default. If you need to temporarily use Node 20, you can set the ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION=true environment variable. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+intel-macos-installed-acceptance	Download Intel macOS distributable	2026-09-10T22:24:28.5303710Z ##[group]Run actions/download-artifact@v4
+intel-macos-installed-acceptance	Download Intel macOS distributable	2026-09-10T22:24:28.5304560Z with:
+intel-macos-installed-acceptance	Download Intel macOS distributable	2026-09-10T22:24:28.5305140Z   name: starnet-darwin-x64
+intel-macos-installed-acceptance	Download Intel macOS distributable	2026-09-10T22:24:28.5305850Z   path: intel-distributable
+intel-macos-installed-acceptance	Download Intel macOS distributable	2026-09-10T22:24:28.5306390Z   merge-multiple: false
+intel-macos-installed-acceptance	Download Intel macOS distributable	2026-09-10T22:24:28.5306910Z   repository: androoAGI/starnet
+intel-macos-installed-acceptance	Download Intel macOS distributable	2026-09-10T22:24:28.5307430Z   run-id: 34535931055
+intel-macos-installed-acceptance	Download Intel macOS distributable	2026-09-10T22:24:28.5307870Z ##[endgroup]
+intel-macos-installed-acceptance	Download Intel macOS distributable	2026-09-10T22:24:29.0196410Z Downloading single artifact
+intel-macos-installed-acceptance	Download Intel macOS distributable	2026-09-10T22:24:29.1597260Z (node:67282) [DEP0040] DeprecationWarning: The `punycode` module is deprecated. Please use a userland alternative instead.
+intel-macos-installed-acceptance	Download Intel macOS distributable	2026-09-10T22:24:29.1633540Z ##[error]Unable to download artifact(s): Failed to ListArtifacts: Unable to make request: ENOTFOUND
+intel-macos-installed-acceptance	Download Intel macOS distributable	If you are using self-hosted runners, please make sure your runner has access to all GitHub endpoints: https://docs.github.com/en/actions/hosting-your-own-runners/managing-self-hosted-runners/about-self-hosted-runners#communication-between-self-hosted-runners-and-github
+intel-macos-installed-acceptance	Download Intel macOS distributable	2026-09-10T22:24:29.1707090Z (Use `node --trace-deprecation ...` to show where the warning was created)
