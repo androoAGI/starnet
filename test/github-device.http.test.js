@@ -35,6 +35,22 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
     assert.equal(restored.oauth.byId.github.refreshToken, 'FIXTURE_REFRESH');
     const live = await fixture.json('GET', '/api/connectors');
     assert.equal(live.body.connectors.find(c => c.id === 'github').state, 'up');
+    // Replacing a working PAT must never destroy the last credential when the OAuth save fails.
+    await fixture.json('POST', '/api/connectors', { id: 'github', label: 'GitHub', transport: 'http',
+      url: 'https://api.githubcopilot.com/mcp', token: 'FIXTURE_OLD_PAT', oauth: false, enabled: true });
+    const beforeFailure = fs.readFileSync(stateFile, 'utf8');
+    assert.equal(JSON.parse(beforeFailure).configs.find(c => c.id === 'github').token, 'FIXTURE_OLD_PAT');
+    const failPreload = path.join(__dirname, 'fixtures/connector-state-write-fail-preload.cjs').replace(/\\/g, '/');
+    await fixture.restart({ NODE_OPTIONS: '--require=' + preload + ' --require=' + failPreload, STARNET_TEST_FAIL_CONNECTOR_STATE: '1' });
+    await fixture.json('POST', '/api/connectors/oauth/start', { id: 'github', attemptId: 'github_test_failure' });
+    await sleep(5100);
+    const failed = await fixture.json('POST', '/api/connectors/oauth/device/poll', { attemptId: 'github_test_failure' });
+    assert.equal(failed.body.state, 'error');
+    assert.match(failed.body.error, /could not be saved/);
+    assert.equal(fs.readFileSync(stateFile, 'utf8'), beforeFailure);
+    assert.equal((await fixture.json('GET', '/api/connectors')).body.connectors.find(c => c.id === 'github').state, 'up');
+    await fixture.restart({ NODE_OPTIONS: '--require=' + preload, STARNET_TEST_FAIL_CONNECTOR_STATE: '0' });
+    assert.equal(fs.readFileSync(stateFile, 'utf8'), beforeFailure);
     console.log('github-device.http: real routes, cancellation, durable tokens, restart and public secret redaction passed');
   } finally { await fixture.dispose(); }
 })().catch(e => { console.error(e); process.exitCode = 1; });
