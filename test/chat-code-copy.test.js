@@ -23,7 +23,7 @@ A.ok(escSrc, 'chat.js still defines HTML_ESC');
 // eslint-disable-next-line no-new-func
 const renderMarkdown = new Function(
   escSrc[0] + '\n' + extract('escapeHtml') + '\n' + extract('linkify') + '\n' +
-  extract('mdInline') + '\n' + extract('renderFence') + '\n' + extract('renderMarkdown') +
+  extract('mdInline') + '\n' + extract('reportInline') + '\n' + extract('renderFence') + '\n' + extract('renderMarkdown') +
   '\nreturn renderMarkdown;'
 )();
 
@@ -45,4 +45,19 @@ A.ok(/\.md-pre-wrap\s*\{[^}]*position:\s*relative/.test(css), 'the code wrapper 
 A.ok(/\.md-copy\s*\{[^}]*position:\s*absolute[^}]*top:\s*4px[^}]*right:\s*5px/.test(css), 'the copy button sits at the block top-right');
 A.ok(/\.md-copy\.copy-failed/.test(css), 'clipboard failure has a visible state');
 
-A.report('chat-code-copy.test');
+
+const report=renderMarkdown('# Result\n\n| Task | Status |\n|---|---|\n| Save | PASS |\n\n1. Inspect\n   - Keep receipt\n2. Retry\n\n> Incomplete\n\n[Evidence](https://example.com/evidence)');
+A.ok(report.includes('<table'), 'report table is semantic');
+A.ok(report.includes('<ol') && /<li>Inspect[\s\S]*<ul/.test(report), 'ordered list preserves nested bullet hierarchy');
+A.ok(report.includes('<blockquote'), 'quote is semantic');
+A.ok(report.includes('>Evidence</a>'), 'named link label is rendered');
+const hostile=renderMarkdown('<img src=x onerror=alert(1)>\n[attack](javascript:alert(1))\n`<script>`');
+A.ok(!/<img|<script|href="javascript:/.test(hostile), 'untrusted HTML and dangerous protocols stay inert');
+const copySource = new Function(extract('messageCopyText') + '\nreturn messageCopyText;')();
+const rawReport = '| Task | Status |\n|---|---|\n| Save | PASS |\n\n1. Inspect\n   - Keep\n\n[Evidence](https://example.com)';
+A.eq(copySource({__proseSource:rawReport,textContent:'TaskStatusSavePASS✓'}),rawReport,'message copy retains report delimiters and excludes UI controls');
+A.eq(copySource({__proseSource:'',textContent:'✓'}),'','empty prose does not copy controls');
+A.eq(copySource({textContent:'Commander plain text'}),'Commander plain text','ordinary messages retain text fallback');
+A.ok(/bodyEl\.__proseSource = raw/.test(extract('renderProse')),'streamed and restored rendering retain source');
+A.ok(/messageCopyText\(bodyEl\)/.test(clickBody),'message button uses the source-preserving copy path');
+A.report('chat-report-structure');

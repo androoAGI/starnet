@@ -1,0 +1,13 @@
+'use strict';
+const assert=require('node:assert/strict'),http=require('node:http'),fs=require('node:fs');
+const {SidecarFixture}=require('../test/helpers/sidecar-fixture');
+(async()=>{
+ let value=null;
+ const provider=http.createServer((req,res)=>{if(req.url.includes('/models'))return res.end(JSON.stringify({data:[{id:'test/schema-live',context_length:32000,pricing:{prompt:'0',completion:'0'}}]}));req.resume();req.on('end',()=>{res.writeHead(200,{'Content-Type':'text/event-stream'});res.write('data: '+JSON.stringify({choices:[{delta:{content:JSON.stringify(value)}}]})+'\n\n');res.end('data: '+JSON.stringify({choices:[{delta:{},finish_reason:'stop'}],usage:{prompt_tokens:2,completion_tokens:1,total_tokens:3}})+'\n\ndata: [DONE]\n\n');});});
+ await new Promise(r=>provider.listen(0,'127.0.0.1',r));const base='http://127.0.0.1:'+provider.address().port+'/api/v1';
+ const fx=SidecarFixture.create({timeoutMs:20000,env:{STARNET_OPENROUTER_BASE:base,SKYNET_OPENROUTER_BASE:base,STARNET_OPENROUTER_KEY:'fake-schema',SKYNET_OPENROUTER_KEY:'fake-schema',STARNET_DEFAULT_MODEL:'test/schema-live',STARNET_API_KEY:'schema-live-local-test-key'}});
+ const cases=[['minimum',{type:'integer',minimum:2},3,1],['pattern',{type:'string',pattern:'^[A-Z]{3}$'},'ABC','abc'],['minItems',{type:'array',minItems:2,items:{type:'string'}},['a','b'],['a']],['oneOf',{oneOf:[{type:'string'},{type:'integer'}]},3,false],['local-ref',{$defs:{score:{type:'integer',minimum:2}},$ref:'#/$defs/score'},3,1],['closed-object',{type:'object',properties:{x:{type:'integer'}},required:['x'],additionalProperties:false},{x:1},{x:1,extra:2}]];
+ const rows=[];
+ try{await fx.start();for(const [name,schema,good,bad] of cases)for(const valid of [true,false]){value=valid?good:bad;const r=await fetch(fx.baseUrl+'/v1/chat/completions',{method:'POST',headers:{Authorization:'Bearer schema-live-local-test-key','Content-Type':'application/json'},body:JSON.stringify({response_format:{type:'json_schema',json_schema:{name:'probe',schema}},messages:[{role:'user',content:'Return the '+name+' schema fixture '+valid}]})});const b=await r.json();assert.equal(b.starnet.completed,valid,name);assert.equal(b.usage.total_tokens,valid?3:6,name+' usage');rows.push({name,valid,status:r.status,finishReason:b.choices[0].finish_reason,completed:b.starnet.completed,totalTokens:b.usage.total_tokens});}fs.writeFileSync('.audit/schema-live.json',JSON.stringify({liveModel:false,rows},null,2));console.log('Live source sidecar: all 12 positive/negative schema cases passed, with exact one-call/two-call usage.');}
+ finally{await fx.dispose();provider.closeAllConnections();await new Promise(r=>provider.close(r));}
+})().catch(e=>{console.error(e);process.exitCode=1;});
