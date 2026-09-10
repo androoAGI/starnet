@@ -1,3 +1,18 @@
+## VERIFIED IN BRANCH — 2026-09-10 post-release reliability cleanup (`agent/cleanup-0112-0910`)
+
+Owner requested cleanup using `docs/AUDIT_0.11.1_FOR_0.11.2.md`. This lane owns the five
+reproduced audit repairs and review of outstanding release evidence. Done means late catalogs
+preserve the chosen provider/model, image costs reconcile without a second debit, cancellation
+prevents image publication, panel height survives reopen/reload, and BYOK media recovery names
+the supported credential route. Registered regressions, live disposable-station checks and
+fast/HTTP gates must pass. Installed/account/hardware proof remains separately tracked.
+The previous release's exceptions do not carry forward.
+
+Source repairs and maintained regressions are verified on `c2193f1fb`: fast 753/753 and
+HTTP 108/108 green. The branch is synchronized with `2aa8305c0` and ready for integration
+review; no merge or release was performed. Nine findings repaired, with exact live/test
+scopes and remaining installed/account/soak acceptance in `docs/AUDIT_0.11.1_FOR_0.11.2.md`.
+
 # NEXT.md — current priorities & task queue
 
 ## VERIFIED LANE — 2026-09-10 platform connection tutorial (agent/onboarding-refresh-0910)
@@ -21,6 +36,19 @@ Live real-sidecar/mock-provider checks covered fresh setup, saved purpose/autono
 full-interview entry/custom follow-up and first-task handoff. Fast 753/753 and customer journeys
 34/34 passed. Evidence: `qa/digests/2026-09-10-onboarding-refresh.md`.
 Not merged or released; installed behavior and paid-provider quality remain unverified.
+
+## IMPLEMENTED — skin-motion-0910: movement stutter
+
+Source repair 75a814c18 holds look-back facing and removes empty waypoint frames for hero, idle crew and workstation crew. Live hero/crew checks passed; behavior regression 15/15 and customer journeys 34/34 passed. Receipt: qa/movement-continuity-0910.md. Full integration gate is recorded in qa/STATUS.md.
+
+## MERGED — 2026-09-10 world seating integration (agent/doorway-occlusion-0910)
+
+Owner requested repair of the three live-proven world seating defects. Source 774a5eeed plus
+33cdb8137 prevents unreachable desk teleporting, honors desk-facing sprites and releases stale
+furniture seating. Candidate 707d28291 passed fast 753/753; customer journeys 34/34; all 12
+hallway routes, seven recovery/refit checks and 288 skin/facing poses passed live. Integration
+completed at f3e57f58e; post-merge fast gate also passed 753/753. Installed desktop remains unverified. Receipt: docs/WORLD_SEATING_REPAIR_2026-09-10.md.
+
 
 ## MERGED — 2026-09-10 doorway movement (agent/doorway-occlusion-0910)
 

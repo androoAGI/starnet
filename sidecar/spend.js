@@ -59,5 +59,13 @@
     return extra > 0 ? extra : base;
   }
 
-  return { UNKNOWN_MODEL, cleanModel, effectiveModel, effectiveUsd, priceDollars };
+  // Auxiliary media is real metered spend even when the conversation uses a subscription.
+  // Keep legacy subscription-only estimates unchanged; mixed runs show only actual dollars.
+  function effectiveRunUsd(o) {
+    const media = Math.max(0, num(o && o.mediaUsd));
+    if (!media) return effectiveUsd(o);
+    if (o.unmetered) return media;
+    return effectiveUsd(Object.assign({}, o, { usd: Math.max(0, num(o.usd) - media) })) + media;
+  }
+  return { UNKNOWN_MODEL, cleanModel, effectiveModel, effectiveUsd, effectiveRunUsd, priceDollars };
 });

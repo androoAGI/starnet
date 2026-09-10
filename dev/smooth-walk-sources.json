@@ -1,0 +1,591 @@
+{
+  "baselineCommit": "83c896e7d",
+  "provider": "PixelLab",
+  "notes": [
+    "Template: walking-8-frames. Robot uses a reviewed custom twelve-frame loop.",
+    "Custom repaired directions use the shipped rotation as both first and last keyframe; the reference frame is not playback.",
+    "Align feet to shipped idle, preserve reference scale and horizontal anchor.",
+    "Cadet head remains faceless; remove known Void Wizard northwest pole artifact.",
+    "Cadet color variants derive from verified baseline palette mappings."
+  ],
+  "skins": {
+    "secretagent": {
+      "characterId": "691099a1-9f2e-4dc4-b9c5-7026a91c6785",
+      "animationName": "smooth_walk_8_0910",
+      "frameStart": 0,
+      "frameCount": 8,
+      "directions": [
+        "south",
+        "south-east",
+        "east",
+        "north-east",
+        "north",
+        "north-west",
+        "west",
+        "south-west"
+      ],
+      "groupId": "28d71d15-9798-428c-9f23-aa26f483c838"
+    },
+    "blank": {
+      "characterId": "f2899e58-abe8-4945-b91a-2dde7c03c527",
+      "animationName": "smooth_walk_8_0910",
+      "frameStart": 0,
+      "frameCount": 8,
+      "directions": [
+        "south",
+        "south-east",
+        "east",
+        "north-east",
+        "north",
+        "north-west",
+        "west",
+        "south-west"
+      ],
+      "groupId": "054c9e00-74ba-41e8-803a-eaa0f28f8913"
+    },
+    "robot": {
+      "characterId": "717ccfdd-1116-4ff4-aa0a-73bc8e770e99",
+      "animationName": "smooth_walk_12_0910",
+      "frameStart": 1,
+      "frameCount": 12,
+      "directions": [
+        "south",
+        "south-east",
+        "east",
+        "north-east",
+        "north",
+        "north-west",
+        "west",
+        "south-west"
+      ],
+      "groupId": "ac487ec8-3162-4de7-b64a-5fcd71713392"
+    },
+    "alien": {
+      "characterId": "aa21782c-c080-40d3-8faa-63a7661c931c",
+      "animationName": "smooth_walk_8_0910",
+      "frameStart": 0,
+      "frameCount": 8,
+      "directions": [
+        "south",
+        "south-east",
+        "east",
+        "north-east",
+        "north",
+        "north-west",
+        "west",
+        "south-west"
+      ],
+      "groupId": "2ad9d8b5-26db-4770-8bd1-0c1738140e2a"
+    },
+    "bear": {
+      "characterId": "213ceb3f-d13f-40d1-8516-879bd2b945d2",
+      "animationName": "smooth_walk_8_0910",
+      "frameStart": 0,
+      "frameCount": 8,
+      "directions": [
+        "south",
+        "south-east",
+        "east",
+        "north-east",
+        "north",
+        "north-west",
+        "west",
+        "south-west"
+      ],
+      "groupId": "89e7116e-37f0-4170-83c8-09b54c408b9f"
+    },
+    "capybara": {
+      "characterId": "0baf9282-d876-423c-8141-56b3de4e31ab",
+      "animationName": "smooth_walk_8_0910",
+      "frameStart": 0,
+      "frameCount": 8,
+      "directions": [
+        "south",
+        "south-east",
+        "east",
+        "north-east",
+        "north",
+        "north-west",
+        "west",
+        "south-west"
+      ],
+      "groupId": "3a0f8b8c-deec-48f2-9759-918d259b4add"
+    },
+    "skeleton": {
+      "characterId": "c55bb8c1-7af4-440b-ba3b-accb8abe7dec",
+      "animationName": "smooth_walk_8_0910",
+      "frameStart": 0,
+      "frameCount": 8,
+      "directions": [
+        "south",
+        "south-east",
+        "east",
+        "north-east",
+        "north",
+        "north-west",
+        "west",
+        "south-west"
+      ],
+      "groupId": "98fafead-d4df-412a-8024-f76b22954583"
+    },
+    "voidwizard": {
+      "characterId": "ff11508b-9db6-4d8f-a2a9-e50aa4ad5397",
+      "animationName": "smooth_walk_8_0910",
+      "frameStart": 0,
+      "frameCount": 8,
+      "directions": [
+        "south",
+        "south-east",
+        "east",
+        "north-east",
+        "north",
+        "north-west",
+        "west",
+        "south-west"
+      ],
+      "groupId": "ddf3a05c-3700-412b-ac76-8f2fb08b73be"
+    },
+    "finn": {
+      "characterId": "b01aff05-c1bd-40f4-90b3-5a924a3d5565",
+      "animationName": "smooth_walk_8_0910",
+      "frameStart": 0,
+      "frameCount": 8,
+      "directions": [
+        "south",
+        "south-east",
+        "east",
+        "north-east",
+        "north",
+        "north-west",
+        "west",
+        "south-west"
+      ],
+      "groupId": "8c5f66b9-6d0d-4035-937c-a7f451004ec0"
+    },
+    "caseyjones": {
+      "characterId": "d557d744-eea1-49c6-9c20-e8d8a034954b",
+      "animationName": "smooth_walk_8_0910",
+      "frameStart": 0,
+      "frameCount": 8,
+      "directions": [
+        "south",
+        "south-east",
+        "east",
+        "north-east",
+        "north",
+        "north-west",
+        "west",
+        "south-west"
+      ],
+      "groupId": "3b635f41-dd2c-45b0-a39a-85a801a1986c"
+    },
+    "pikachu": {
+      "characterId": "25e1df2c-620f-441a-9c2b-00ba1dc0d2dc",
+      "animationName": "smooth_walk_8_0910",
+      "frameStart": 0,
+      "frameCount": 8,
+      "directions": [
+        "south",
+        "east",
+        "north",
+        "west"
+      ],
+      "groupId": "f7b360c0-100f-4e21-a2c3-3b49cb9e11de",
+      "overrides": {
+        "north": {
+          "animationName": "smooth_walk_repair_0910",
+          "groupId": "fb54631d-cc93-41ff-9e00-ea30ac78d066",
+          "frameStart": 1,
+          "referenceFrame": true
+        }
+      }
+    },
+    "masterchief": {
+      "characterId": "477c9705-210c-46cc-a4d8-5232c7a9a17e",
+      "animationName": "smooth_walk_8_0910",
+      "frameStart": 0,
+      "frameCount": 8,
+      "directions": [
+        "south",
+        "south-east",
+        "east",
+        "north-east",
+        "north",
+        "north-west",
+        "west",
+        "south-west"
+      ],
+      "groupId": "ba19bff6-b9c9-4272-b24d-0c458f94ec05"
+    },
+    "minionchar": {
+      "characterId": "41a0c6a6-f6cc-4d95-875a-77fe314617bc",
+      "animationName": "smooth_walk_8_0910",
+      "frameStart": 0,
+      "frameCount": 8,
+      "directions": [
+        "south",
+        "south-east",
+        "east",
+        "north-east",
+        "north",
+        "north-west",
+        "west",
+        "south-west"
+      ],
+      "groupId": "d59770c8-fc96-45a3-a0ad-41dce2bf1481"
+    },
+    "robocop": {
+      "characterId": "0be3e171-89a7-4ed6-bc30-a2f205f8881c",
+      "animationName": "smooth_walk_8_0910",
+      "frameStart": 0,
+      "frameCount": 8,
+      "directions": [
+        "south",
+        "south-east",
+        "east",
+        "north-east",
+        "north",
+        "north-west",
+        "west",
+        "south-west"
+      ],
+      "groupId": "d9c0398c-3043-4e7e-9fe2-61298fad5ef0"
+    },
+    "ninjaturtle": {
+      "characterId": "b739d8af-8a9e-419c-ab18-fc902a92b1b6",
+      "animationName": "smooth_walk_8_0910",
+      "frameStart": 0,
+      "frameCount": 8,
+      "directions": [
+        "south",
+        "south-east",
+        "east",
+        "north-east",
+        "north",
+        "north-west",
+        "west",
+        "south-west"
+      ],
+      "groupId": "ab99a1a9-0771-47fb-8fb5-5abecc083186"
+    },
+    "ricksanchez": {
+      "characterId": "33a8189d-0579-4cdd-883f-27509d7eaa81",
+      "animationName": "smooth_walk_8_0910",
+      "frameStart": 0,
+      "frameCount": 8,
+      "directions": [
+        "south",
+        "south-east",
+        "east",
+        "north-east",
+        "north",
+        "north-west",
+        "west",
+        "south-west"
+      ],
+      "groupId": "68323c2e-e05b-46ee-9d38-f4c76d4c69d3"
+    },
+    "freddyfazbear": {
+      "characterId": "ab5722fc-7338-4d8b-820c-df9869d8f6b1",
+      "animationName": "smooth_walk_8_0910",
+      "frameStart": 0,
+      "frameCount": 8,
+      "directions": [
+        "south",
+        "south-east",
+        "east",
+        "north-east",
+        "north",
+        "north-west",
+        "west",
+        "south-west"
+      ],
+      "groupId": "8b603e42-6033-407c-8ed3-d9136f2e6668"
+    },
+    "plaguedoctor": {
+      "characterId": "1e12c401-718f-4017-b7b1-f0345a5f1e79",
+      "animationName": "smooth_walk_8_0910",
+      "frameStart": 0,
+      "frameCount": 8,
+      "directions": [
+        "south",
+        "south-east",
+        "east",
+        "north-east",
+        "north",
+        "north-west",
+        "west",
+        "south-west"
+      ],
+      "groupId": "886be3c6-ba7b-45b0-8c53-0fc9fe535be3",
+      "overrides": {
+        "north": {
+          "animationName": "smooth_walk_repair_0910",
+          "groupId": "1232745a-8d08-4014-9a98-c9c6bfd31dfe",
+          "frameStart": 1,
+          "referenceFrame": true
+        }
+      }
+    },
+    "grimreaper": {
+      "characterId": "9fd1c18b-0ea4-4b44-9f13-63692740e8e8",
+      "animationName": "smooth_walk_8_0910",
+      "frameStart": 0,
+      "frameCount": 8,
+      "directions": [
+        "south",
+        "south-east",
+        "east",
+        "north-east",
+        "north",
+        "north-west",
+        "west",
+        "south-west"
+      ],
+      "groupId": "e66faab1-e50d-42e1-af74-70aea1aecad0",
+      "overrides": {
+        "north-west": {
+          "animationName": "smooth_walk_repair_0910",
+          "groupId": "5870e8dd-f2fb-4db1-9a17-f4f6e6bb929f",
+          "frameStart": 1,
+          "referenceFrame": true
+        }
+      }
+    },
+    "dario": {
+      "characterId": "1d8e6499-9e09-4713-beab-d50597794067",
+      "animationName": "smooth_walk_8_0910",
+      "frameStart": 0,
+      "frameCount": 8,
+      "directions": [
+        "south",
+        "south-east",
+        "east",
+        "north-east",
+        "north",
+        "north-west",
+        "west",
+        "south-west"
+      ],
+      "groupId": "0380c27f-3009-4c6b-a120-503dd930aa57"
+    },
+    "samaltman": {
+      "characterId": "6e9faaa5-9f1e-420d-9ae2-5da3e0b5053d",
+      "animationName": "smooth_walk_8_0910",
+      "frameStart": 0,
+      "frameCount": 8,
+      "directions": [
+        "south",
+        "south-east",
+        "east",
+        "north-east",
+        "north",
+        "north-west",
+        "west",
+        "south-west"
+      ],
+      "groupId": "35c988ae-abb0-433e-b4a8-047e709cf1ef"
+    },
+    "ultrondroid": {
+      "characterId": "09bb7ec3-8b54-4402-9567-b5b77bc01221",
+      "animationName": "smooth_walk_8_0910",
+      "frameStart": 0,
+      "frameCount": 8,
+      "directions": [
+        "south",
+        "south-east",
+        "east",
+        "north-east",
+        "north",
+        "north-west",
+        "west",
+        "south-west"
+      ],
+      "groupId": "72ac5b98-fce8-4e67-8a38-1693c239c583"
+    },
+    "endoskeleton": {
+      "characterId": "7e1b0e73-4f74-41af-91f1-409f5d498f44",
+      "animationName": "smooth_walk_8_0910",
+      "frameStart": 0,
+      "frameCount": 8,
+      "directions": [
+        "south",
+        "south-east",
+        "east",
+        "north-east",
+        "north",
+        "north-west",
+        "west",
+        "south-west"
+      ],
+      "groupId": "bd5cbff3-4129-489a-b576-6ec7b021fef3"
+    },
+    "astronaut": {
+      "characterId": "3e274c75-917e-425c-a9c4-89665d896532",
+      "animationName": "smooth_walk_8_0910",
+      "frameStart": 0,
+      "frameCount": 8,
+      "directions": [
+        "south",
+        "south-east",
+        "east",
+        "north-east",
+        "north",
+        "north-west",
+        "west",
+        "south-west"
+      ],
+      "groupId": "fa8f9cd1-5bf7-450f-8506-71fee1ac25e8",
+      "overrides": {
+        "north": {
+          "animationName": "smooth_walk_repair_0910",
+          "groupId": "814959ec-871f-426c-8236-15d98be42167",
+          "frameStart": 1,
+          "referenceFrame": true
+        }
+      }
+    },
+    "heisenberg": {
+      "characterId": "5de11c9c-4eb6-419b-959a-5c497f4cb9fd",
+      "animationName": "smooth_walk_8_0910",
+      "frameStart": 0,
+      "frameCount": 8,
+      "directions": [
+        "south",
+        "south-east",
+        "east",
+        "north-east",
+        "north",
+        "north-west",
+        "west",
+        "south-west"
+      ],
+      "groupId": "30971021-1f4a-413e-a94b-c0be6b60c48b"
+    },
+    "ghostface": {
+      "characterId": "6d082287-30f6-483c-89bc-5713488aeb8d",
+      "animationName": "smooth_walk_8_0910",
+      "frameStart": 0,
+      "frameCount": 8,
+      "directions": [
+        "south",
+        "south-east",
+        "east",
+        "north-east",
+        "north",
+        "north-west",
+        "west",
+        "south-west"
+      ],
+      "groupId": "9031edc7-a363-42f3-84f4-b9658b9cb319"
+    },
+    "xenomorph": {
+      "characterId": "98f28c41-deba-4065-bbbe-7323f0848a48",
+      "animationName": "smooth_walk_8_0910",
+      "frameStart": 0,
+      "frameCount": 8,
+      "directions": [
+        "south",
+        "south-east",
+        "east",
+        "north-east",
+        "north",
+        "north-west",
+        "west",
+        "south-west"
+      ],
+      "groupId": "8d5f6843-7bc3-485d-a628-5e3f51d46025"
+    },
+    "morpheus": {
+      "characterId": "04a69026-ff58-4434-94ce-e5dda3f101e1",
+      "animationName": "smooth_walk_8_0910",
+      "frameStart": 0,
+      "frameCount": 8,
+      "directions": [
+        "south",
+        "south-east",
+        "east",
+        "north-east",
+        "north",
+        "north-west",
+        "west",
+        "south-west"
+      ],
+      "groupId": "ddb959de-6dcc-43f5-84f1-e56222b8b211"
+    },
+    "crthead": {
+      "characterId": "61311f8f-1866-406b-984b-1ac6dd800991",
+      "animationName": "smooth_walk_8_0910",
+      "frameStart": 0,
+      "frameCount": 8,
+      "directions": [
+        "south",
+        "south-east",
+        "east",
+        "north-east",
+        "north",
+        "north-west",
+        "west",
+        "south-west"
+      ],
+      "groupId": "3e94fa7e-59dd-42aa-bd1c-5b281ceb2b72"
+    },
+    "vaultboy": {
+      "characterId": "feb236da-57fa-414e-9773-66a2367857ae",
+      "animationName": "smooth_walk_8_0910",
+      "frameStart": 0,
+      "frameCount": 8,
+      "directions": [
+        "south",
+        "south-east",
+        "east",
+        "north-east",
+        "north",
+        "north-west",
+        "west",
+        "south-west"
+      ],
+      "groupId": "dbf693cc-463b-4699-b81d-4c555bda9cf8"
+    },
+    "crewmate": {
+      "characterId": "0f2b8aa8-655b-4bac-9166-fa60d49feee9",
+      "animationName": "smooth_walk_8_0910",
+      "frameStart": 0,
+      "frameCount": 8,
+      "directions": [
+        "south",
+        "south-east",
+        "east",
+        "north-east",
+        "north",
+        "north-west",
+        "west",
+        "south-west"
+      ],
+      "groupId": "7104e1bf-9d98-40a6-8d71-721486645204"
+    },
+    "pepe": {
+      "characterId": "c7b02092-11f4-4999-96a2-a6bdb9eaa6b8",
+      "animationName": "smooth_walk_8_0910",
+      "frameStart": 0,
+      "frameCount": 8,
+      "directions": [
+        "south",
+        "south-east",
+        "east",
+        "north-east",
+        "north",
+        "north-west",
+        "west",
+        "south-west"
+      ],
+      "groupId": "efcb3fce-f5f2-463b-a5c8-adcc0d5b2e27"
+    }
+  },
+  "paletteVariants": {
+    "blank_blue": "blank",
+    "blank_green": "blank",
+    "blank_red": "blank",
+    "blank_amber": "blank"
+  }
+}

@@ -1,0 +1,161 @@
+{
+  "concurrentRoutineCreates": {
+    "requests": 8,
+    "uniqueJobIds": 1,
+    "duplicateResponses": 7
+  },
+  "inputs": [
+    {
+      "name": "invalid routine timezone",
+      "status": 400,
+      "ok": false,
+      "error": "unknown timezone \"Invalid/Zone\" — use an IANA zone like America/New_York",
+      "resultKeys": [
+        "status",
+        "ok",
+        "error"
+      ]
+    },
+    {
+      "name": "invalid routine expression",
+      "status": 400,
+      "ok": false,
+      "error": "couldn't read that schedule — try \"every 30m\", \"in 2h\", \"0 9 * * *\", or an ISO timestamp like 2026-07-01T09:00",
+      "resultKeys": [
+        "status",
+        "ok",
+        "error"
+      ]
+    },
+    {
+      "name": "routine with empty prompt",
+      "status": 400,
+      "error": "a routine needs a prompt (or a script)",
+      "resultKeys": [
+        "status",
+        "error"
+      ]
+    },
+    {
+      "name": "routine invalid participant",
+      "status": 200,
+      "ok": true,
+      "resultKeys": [
+        "status",
+        "ok",
+        "job"
+      ]
+    },
+    {
+      "name": "loop missing project",
+      "status": 400,
+      "error": "that folder does not exist: C:\\not-a-real-starnet-audit-project",
+      "resultKeys": [
+        "status",
+        "error"
+      ]
+    },
+    {
+      "name": "loop check missing project",
+      "status": 400,
+      "error": "a check command needs a project folder — set workdir",
+      "resultKeys": [
+        "status",
+        "error"
+      ]
+    },
+    {
+      "name": "invalid widget source",
+      "status": 400,
+      "error": "This app is unavailable. Connect it before creating a widget.",
+      "resultKeys": [
+        "status",
+        "error"
+      ]
+    },
+    {
+      "name": "group unknown participant",
+      "status": 400,
+      "ok": false,
+      "error": "A selected participant is no longer in the roster",
+      "resultKeys": [
+        "status",
+        "ok",
+        "error"
+      ]
+    },
+    {
+      "name": "group stale configuration",
+      "status": 409,
+      "ok": false,
+      "error": "Session changed; refresh and try again",
+      "resultKeys": [
+        "status",
+        "ok",
+        "error"
+      ]
+    },
+    {
+      "name": "group empty send",
+      "status": 400,
+      "ok": false,
+      "error": "Write a message",
+      "resultKeys": [
+        "status",
+        "ok",
+        "error"
+      ]
+    },
+    {
+      "name": "group missing attachment",
+      "status": 400,
+      "ok": false,
+      "error": "Attachment is not in this conversation",
+      "resultKeys": [
+        "status",
+        "ok",
+        "error"
+      ]
+    },
+    {
+      "name": "journey stale generation",
+      "status": 409,
+      "ok": false,
+      "error": "station generation changed; reload before updating journey",
+      "resultKeys": [
+        "status",
+        "ok",
+        "error"
+      ]
+    },
+    {
+      "name": "future configuration import",
+      "status": 400,
+      "error": "missing or invalid \"starnetExport\" version marker",
+      "resultKeys": [
+        "status",
+        "error"
+      ]
+    },
+    {
+      "name": "invalid runtime limits",
+      "status": 400,
+      "error": "maxConcurrentAgents must be 0–32",
+      "resultKeys": [
+        "status",
+        "error"
+      ]
+    },
+    {
+      "name": "missing project forget",
+      "status": 400,
+      "ok": false,
+      "error": "missing project root",
+      "resultKeys": [
+        "status",
+        "ok",
+        "reason"
+      ]
+    }
+  ]
+}

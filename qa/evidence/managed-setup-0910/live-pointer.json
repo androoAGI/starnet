@@ -1,0 +1,23 @@
+{
+  "scope": "Live seeded app, simulated credits/catalog responses; no paid inference.",
+  "pageErrors": [],
+  "activation": "pointer",
+  "initialWarning": 1,
+  "emptyModel": {
+    "gap": {
+      "kind": "nomodel",
+      "provider": "starnet"
+    },
+    "label": "\n        \n        CHOOSE MODELOFF\n      no model selectedSTARNETOFF · reasoning effortno extra reasoning — fastest, cheapestclick to change model & effort"
+  },
+  "selected": {
+    "provider": "starnet",
+    "model": "anthropic/test-model",
+    "bannerHidden": true
+  },
+  "unrelatedChoicesSurvive": true,
+  "lateCatalog": {
+    "provider": "starnet",
+    "model": "anthropic/test-model"
+  }
+}

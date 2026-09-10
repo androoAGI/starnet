@@ -1,0 +1,51 @@
+{
+  "sourceSha": "2aa8305c0",
+  "verifiedAt": "2026-09-10T05:15:34.703Z",
+  "afterRealSidecarRestart": true,
+  "staleSave": {
+    "clientAMessagePresent": false,
+    "clientBMessagePresent": true
+  },
+  "conversion": {
+    "streamId": "ws_mtv22k3beqwy",
+    "beforeAttachments": [
+      {
+        "id": "3a959b6e-fae6-4fdc-8033-2bafedf1fc16",
+        "name": "conversion-proof.txt",
+        "path": ".attachments/3a959b6e-fae6-4fdc-8033-2bafedf1fc16.txt",
+        "mediaType": "text/plain",
+        "kind": "file"
+      }
+    ],
+    "afterHistoryAttachmentCount": 0,
+    "afterGroupArtifactCount": 0,
+    "afterGroupMessageCount": 2,
+    "originalFileStillOnDisk": true
+  },
+  "loopRace": {
+    "id": "5833e9e2-9838-46a5-92e3-587a9c70797e",
+    "approvalHttp": 200,
+    "rejectionHttp": 200,
+    "rejectionUndone": [
+      1
+    ],
+    "approvedCount": 1,
+    "rejectedCount": 0,
+    "recent": [
+      {
+        "n": 1,
+        "outcome": "candidate",
+        "title": "Audit reply 21. Completed the audit reply.",
+        "error": null,
+        "verdict": "approved",
+        "verdictNote": null,
+        "commit": "01135d4",
+        "endedAt": "2026-09-10T05:11:22.130Z",
+        "usd": 0,
+        "check": null
+      }
+    ],
+    "candidateFileExists": false,
+    "gitLog": "0c652cd loop: undo rejected #1\n01135d4 loop(audit-conflicting-verdicts) #1: Audit reply 21. Completed the audit\n397d5c9 test: audit verdict baseline"
+  }
+}

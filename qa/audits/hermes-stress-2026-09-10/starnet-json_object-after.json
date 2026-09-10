@@ -1,0 +1,36 @@
+{
+  "status": 200,
+  "body": {
+    "id": "chatcmpl-adc6dcdc470c444c9df853b0",
+    "object": "chat.completion",
+    "created": 1789014608,
+    "model": "starnet-agent",
+    "choices": [
+      {
+        "index": 0,
+        "message": {
+          "role": "assistant",
+          "content": "# Audit result\n\n| Task | Status | Evidence |\n|---|---|---|\n| Backup | PASS | receipt-731 |\n| Restart | FAIL | missing file |\n\n1. **Inspect** the evidence.\n   - Preserve the original.\n2. Retry the failed step.\n\n> Recovery is incomplete.\n\n[Open evidence](https://example.com/evidence)\n\n```json\n{\"ok\":false,\"receipt\":\"731\"}\n```"
+        },
+        "finish_reason": "error"
+      }
+    ],
+    "usage": {
+      "prompt_tokens": 20,
+      "completion_tokens": 20,
+      "total_tokens": 40
+    },
+    "starnet": {
+      "status": "failed",
+      "reason": "error",
+      "completed": false,
+      "partial": true,
+      "failed": true,
+      "error": "Structured output validation failed after one output-only repair: result is not strict JSON: Unexpected token '#', \"# Audit re\"... is not valid JSON"
+    },
+    "error": {
+      "message": "Structured output validation failed after one output-only repair: result is not strict JSON: Unexpected token '#', \"# Audit re\"... is not valid JSON",
+      "type": "agent_error"
+    }
+  }
+}

@@ -41,6 +41,30 @@ const deps = { fs, path, root, now: () => ++sequence, id: () => 'id' + (++sequen
     assert.equal((await api.get(group.id)).messages.at(-1).artifactIds, undefined, 'plain messages do not inherit shared files');
     state = await api.attach(group.id, { name: 'legacy.txt', content: 'bGVnYWN5' });
     assert.equal(state.artifacts.at(-1).attachmentKey, undefined, 'legacy clients can still share files without inventing a message link');
+    deps.readFile = async (owner, rel) => {
+      assert.equal(owner, 'agent');
+      if (rel === '.attachments/missing') throw Error('File unavailable');
+      return { name: 'original.txt', content: 'cHJvb2Y=', encoding: 'base64', hash: 'proof-hash', bytes: 5 };
+    };
+    const history = Array.from({ length: 125 }, (_, n) => ({ role: 'user', content: 'message ' + n, ts: 1000 + n }));
+    history[0].attachments = [{ path: '.attachments/proof', name: 'proof.txt' }];
+    history[124].attachments = [{ path: '.attachments/proof', name: 'proof.txt' }];
+    const request = { id: 'converted', conversionKey: 'converted', originalAgentId: 'agent', members: ['agent'], history };
+    const converted = await api.create(request);
+    assert.equal(converted.messages.length, 125, 'conversion preserves the full stored transcript');
+    assert.equal(converted.messages[0].at, 1000, 'historical timestamps survive');
+    assert.equal(converted.artifacts.length, 1, 'repeated references share one immutable file');
+    const aid = converted.artifacts[0].id;
+    assert.deepEqual(converted.messages[0].artifactIds, [aid]);
+    assert.deepEqual(converted.messages[124].artifactIds, [aid]);
+    assert.equal((await api.file(converted.id, aid)).content, 'cHJvb2Y=');
+    assert.deepEqual(await api.create(request), converted, 'lost conversion response is safe to retry');
+    await assert.rejects(api.create({ ...request, history: [...history, { role: 'user', content: 'new work after the first conversion' }] }), /already exists/, 'changed retry history cannot be silently ignored');
+    await assert.rejects(api.create({ ...request, id: 'bad-conversion', history: [{ role: 'user', content: 'keep me', attachments: [{ path: '.attachments/proof' }, { path: '.attachments/missing' }] }] }), /unavailable/);
+    await assert.rejects(api.get('bad-conversion'), /not found/, 'failed file import creates no partial group');
+    api.close(); api = makeGroupSessions(deps); await api.ready;
+    assert.equal((await api.file(converted.id, aid)).content, 'cHJvb2Y=', 'imported file bytes survive restart');
+    assert.deepEqual((await api.create(request)).messages[0].artifactIds, [aid], 'conversion retry survives restart');
     console.log('group-message-attachments: association, file bytes, isolation, validation, upload/send retries and restart PASS');
   } finally { api?.close(); fs.rmSync(root, { recursive: true, force: true }); }
 })().catch(e => { console.error(e); process.exitCode = 1; });

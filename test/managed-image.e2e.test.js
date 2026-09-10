@@ -12,6 +12,7 @@ const PNG = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYPhfDwA
 
 test('managed images: saved credits route generates, bills, survives restart and fails honestly', { timeout: 120000 }, async () => {
   const calls = [];
+  let imageHold = null, imageStarted = null;
   let failure = 0, noImage = false, balance = 100, deviceToken = 'fixture-device-token', account = 'fixture-account';
   let cloudApp, store, fixture;
   const json = (body, status = 200) => new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
@@ -21,6 +22,8 @@ test('managed images: saved credits route generates, bills, survives restart and
     const image = body.modalities?.includes('image');
     calls.push({ url: String(url), body, image, authorization: opts.headers.authorization || opts.headers.Authorization });
     if (image) {
+      if (imageStarted) imageStarted();
+      if (imageHold) await imageHold;
       if (failure) return json({ error: { message: failure === 402 ? 'insufficient StarNet credits' : 'image provider unavailable' } }, failure);
       return json({ id: 'fixture-image-' + calls.length, choices: [{ message: noImage ? { content: 'No image was produced' } : { images: [{ image_url: { url: 'data:image/png;base64,' + PNG } }] } }], usage: { prompt_tokens: 4, completion_tokens: 2, cost: 0.02 } });
     }
@@ -39,7 +42,11 @@ test('managed images: saved credits route generates, bills, survives restart and
       else if (req.url.includes('/history')) response = json({ entries: [] });
       else {
         response = await upstream(req.url, { headers: req.headers, body: raw });
-        if (raw && JSON.parse(raw).modalities?.includes('image') && response.ok) balance -= 0.025;
+        if (raw && JSON.parse(raw).modalities?.includes('image') && response.ok) {
+          balance -= 0.025;
+          const payload = await response.json(); payload.usage.cost = 0.025;
+          response = json(payload); // Same post-margin usage contract as the real managed gateway.
+        }
       }
       res.writeHead(response.status, Object.fromEntries(response.headers)); res.end(Buffer.from(await response.arrayBuffer()));
     } catch (e) { res.writeHead(500); res.end(JSON.stringify({ error: { message: e.message } })); }
@@ -88,6 +95,14 @@ test('managed images: saved credits route generates, bills, survives restart and
       const events = await run('managed-image-' + round);
       assert.equal(events.filter(e => e.name === 'agent.run.end').at(-1)?.payload.reason, 'done', JSON.stringify(events.filter(e => /error/.test(e.name))));
       assert.ok(events.some(e => e.name === 'agent.tool_result' && e.payload.ok));
+      const receiptCost = events.filter(e => e.name === 'agent.cost').reduce((total, e) => total + e.payload.usd, 0);
+      assert.ok(Math.abs(receiptCost - 0.025) < 1e-9, 'cost events include the actual post-margin image charge');
+      assert.ok(Math.abs(events.filter(e => e.name === 'agent.run.end').at(-1).payload.usd - 0.025) < 1e-9, 'terminal total includes image cost exactly once');
+      const ended = events.filter(e => e.name === 'agent.run.end').at(-1).payload;
+      const history = await (await fixture.request('/api/runs?agent=*&runId=' + encodeURIComponent(ended.runId))).json();
+      assert.ok(Math.abs(history.runs[0].usd - .025) < 1e-9, 'durable run history includes image cost');
+      const ledgerRows = fs.readFileSync(path.join(fixture.workspace, 'ledger.jsonl'), 'utf8').trim().split('\n').map(JSON.parse);
+      assert.ok(Math.abs(ledgerRows.filter(row => row.runId === ended.runId).reduce((n, row) => n + row.usd, 0) - .025) < 1e-9, 'durable spend ledger records exactly one image charge');
       const bytes = fs.readFileSync(path.join(fixture.workspace, 'managed-image-' + round, 'images/credits-proof.png'));
       assert.equal(bytes.toString('base64'), PNG);
       assert.ok(Math.abs(before - (store ? store.balance(account) : balance) - 0.025) < 1e-6, 'exactly one image cost including cloud margin, no duplicate debit');
@@ -102,6 +117,18 @@ test('managed images: saved credits route generates, bills, survives restart and
       assert.equal(mixed.filter(e => e.name === 'agent.run.end').at(-1)?.payload.reason, 'done');
       assert.equal(calls.filter(c => c.image).at(-1).authorization, 'Bearer ' + deviceToken, 'provider switch still uses linked credits for media');
     }
+    {
+      let release, began;const started=new Promise(r=>began=r);imageHold=new Promise(r=>release=r);imageStarted=began;
+      const response=await fixture.request('/api/run',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({provider:'starnet',model:'test/model',agentId:'cancel-image',isTask:true,placed:['studio'],messages:[{role:'user',content:'Generate an image of a blue cube'}]})});
+      const rows=[];let buf='';const reader=response.body.getReader();const collect=(async()=>{while(true){const {done,value}=await reader.read();if(done)break;buf+=Buffer.from(value).toString();let n;while((n=buf.indexOf('\n'))>=0){const line=buf.slice(0,n);buf=buf.slice(n+1);if(line.trim())rows.push(JSON.parse(line));}}})();
+      await started;const runId=rows.find(e=>e.name==='agent.run.start')?.payload.runId;
+      assert.ok(runId);const cancelled=await fixture.request('/api/cancel',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({runId})});await cancelled.text();
+      const beforeRelease=rows.filter(e=>e.name==='agent.run.end');release();imageHold=null;imageStarted=null;await collect;await new Promise(r=>setTimeout(r,500));
+      assert.equal(cancelled.status, 200);
+      assert.equal(rows.filter(e => e.name === 'agent.run.end').at(-1)?.payload.reason, 'cancelled');
+      assert.equal(fs.existsSync(path.join(fixture.workspace, 'cancel-image/images/credits-proof.png')), false, 'acknowledged cancellation never publishes the image');
+      assert.equal(rows.some(e => e.name === 'deliverable'), false, 'cancelled generation never announces a deliverable');
+    }
     for (const status of [402, 503]) {
       failure = status;
       const before = store ? store.balance(account) : balance;
@@ -115,6 +142,7 @@ test('managed images: saved credits route generates, bills, survives restart and
     const empty = await run('empty-image');
     assert.notEqual(empty.filter(e => e.name === 'agent.run.end').at(-1)?.payload.reason, 'done');
     assert.ok(!fs.existsSync(path.join(fixture.workspace, 'empty-image', 'images/credits-proof.png')));
+    assert.ok(Math.abs(empty.filter(e => e.name === 'agent.cost').reduce((n, e) => n + e.payload.usd, 0) - 0.025) < 1e-9, 'a charged response without an image is still recorded');
     console.log('Managed image proof: credits-only PNG saved and served; restart passed; exact image debit $0.025; 402/503/no-image never done. Cloud=' + !!cloudApp);
   } finally {
     await fixture.stop();
