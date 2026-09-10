@@ -15,7 +15,8 @@ This update brings more reliable saves and task results, clearer setup, and smoo
 - Speech playback recovers after an output-device interruption.
 - Agent movement, doorway paths, desk seating and furniture cleanup behave more consistently. Crew waiting for approval display the waiting state.
 - Docked panel height survives reopen and reload. Image setup guidance includes the supported OpenRouter credential route.
+- Six station environments have refreshed procedural scenery: THE NURSERY, NIGHT CITY, OCEAN, THE BELT, THE MOON and FOREST.
 
 Google Workspace connections remain deferred while verification is completed. Google login for StarNet billing is separate.
 
-Editorial draft only. These notes describe included source changes; the release remains subject to the acceptance work in [FOLLOWTHROUGH.md](FOLLOWTHROUGH.md). Canary installers are test artifacts; no public release or tag is implied.
+Editorial draft only. These notes describe included source changes through candidate `a625182bd`; the release remains subject to the acceptance work in [CANDIDATE_A625.md](CANDIDATE_A625.md) and [FOLLOWTHROUGH.md](FOLLOWTHROUGH.md). Canary installers are test artifacts; no public release or tag is implied.

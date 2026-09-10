@@ -1,0 +1,24 @@
+{
+  "candidate": "a625182bde05e041c4f4d1fd43112b51770044af",
+  "originalInventoryEnd": "00de68e0f",
+  "originalMergeCount": 54,
+  "laterMerges": [
+    "c772f4f84ec130634c9a14ed16ea9f31ad941501 merge: backdrop glow-up — THE NURSERY, NIGHT CITY, OCEAN, THE BELT, THE MOON and FOREST rebuilt",
+    "7c3fc5893f57f150581abc48a8e36df2b82b67c0 merge: trunk into backdrop glow-up (third sync before landing)",
+    "f8e270d9892aa5285c13582e038285932ffe7029 merge: trunk into backdrop glow-up (second sync before landing)",
+    "a3b68860565ec86b4fb454ae839afd9b5cd25738 merge: trunk into backdrop glow-up before landing",
+    "e9051515a4b87c326b9d048f726cd0db49df05c5 merge: include integrated station card polish in release audit",
+    "166d44ac1cab65dd50c29abbb1e8d4b143086c90 merge: sync latest integration for glass card polish"
+  ],
+  "totalReachableMergesSince0111": 60,
+  "backdropDeltaBase": "32e1831d91e3f20a272048cd6c2a517bfd8a06a0",
+  "backdropPaths": [
+    "frontend/app/spacebg.js",
+    "frontend/app/terrain.js",
+    "qa/STATUS.md",
+    "qa/product-perfect/claims.json",
+    "website/app/app/spacebg.js",
+    "website/app/app/terrain.js"
+  ],
+  "note": "Reachable merge graph, including sync merges; not a count of independent user features."
+}

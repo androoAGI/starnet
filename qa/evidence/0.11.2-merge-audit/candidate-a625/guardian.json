@@ -1,0 +1,59 @@
+{
+  "stampIso": "2026-09-10T23:43:05.468Z",
+  "trunkHead": "a625182bde05e041c4f4d1fd43112b51770044af",
+  "result": "green",
+  "gatesRan": [
+    "test-fast",
+    "http-e2e",
+    "saboteur",
+    "shoot",
+    "golden",
+    "audit",
+    "journeys"
+  ],
+  "gatesSkipped": [],
+  "gates": [
+    {
+      "id": "test-fast",
+      "exitCode": 0,
+      "blocked": false,
+      "timedOut": false
+    },
+    {
+      "id": "http-e2e",
+      "exitCode": 0,
+      "blocked": false,
+      "timedOut": false
+    },
+    {
+      "id": "saboteur",
+      "exitCode": 0,
+      "blocked": false,
+      "timedOut": false
+    },
+    {
+      "id": "shoot",
+      "exitCode": 0,
+      "blocked": false,
+      "timedOut": false
+    },
+    {
+      "id": "golden",
+      "exitCode": 0,
+      "blocked": false,
+      "timedOut": false
+    },
+    {
+      "id": "audit",
+      "exitCode": 0,
+      "blocked": false,
+      "timedOut": false
+    },
+    {
+      "id": "journeys",
+      "exitCode": 0,
+      "blocked": false,
+      "timedOut": false
+    }
+  ]
+}

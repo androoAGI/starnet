@@ -1,0 +1,20 @@
+{
+  "candidate": "a625182bde05e041c4f4d1fd43112b51770044af",
+  "startedAt": "2026-09-10T23:32:53.515Z",
+  "finishedAt": "2026-09-10T23:54:26.607Z",
+  "samples": 80,
+  "idleMinutes": 20.05153333333333,
+  "first": {
+    "tokens": 778485,
+    "cost": 1.15303725,
+    "calls": 16
+  },
+  "idleEnd": {
+    "tokens": 778485,
+    "cost": 1.15303725,
+    "calls": 16
+  },
+  "costDelta": 0,
+  "idlePass": true,
+  "recoveryPass": true
+}

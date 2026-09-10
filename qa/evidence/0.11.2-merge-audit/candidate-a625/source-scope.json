@@ -1,0 +1,56 @@
+{
+  "at": "2026-09-10T23:57:15.356Z",
+  "baseline": "afd1da77fb4a489151b45b5a6c53e60ada4ca1f4",
+  "candidate": "a625182bde05e041c4f4d1fd43112b51770044af",
+  "rows": [
+    {
+      "path": "sidecar",
+      "baselineObject": "dd855978755ee9ed5a3729f9619a6573206dfc01",
+      "candidateObject": "dd855978755ee9ed5a3729f9619a6573206dfc01",
+      "equal": true
+    },
+    {
+      "path": "frontend",
+      "baselineObject": "81b1b1798f1eec1d2cf6368abfe4d1a88c24fc1a",
+      "candidateObject": "34e84aab7d0cb11e416784128187e75672332c87",
+      "equal": false
+    },
+    {
+      "path": "shared",
+      "baselineObject": "eea3e1a4b65c9af7a2ec87b0eed4492c64e31b67",
+      "candidateObject": "eea3e1a4b65c9af7a2ec87b0eed4492c64e31b67",
+      "equal": true
+    },
+    {
+      "path": "src-tauri",
+      "baselineObject": "ed47b443063eb3b9cb06206cf22196c9e0eff9b6",
+      "candidateObject": "ed47b443063eb3b9cb06206cf22196c9e0eff9b6",
+      "equal": true
+    },
+    {
+      "path": "scripts",
+      "baselineObject": "500f4bf18491f1a5f71c92a8f9b03c94192f0172",
+      "candidateObject": "500f4bf18491f1a5f71c92a8f9b03c94192f0172",
+      "equal": true
+    },
+    {
+      "path": "website/app",
+      "baselineObject": "49a57856b9669b668ae8b822a862f3d09d37c9b2",
+      "candidateObject": "b2bc613f3282d584f166504e63cb3f865ac1d537",
+      "equal": false
+    },
+    {
+      "path": "package.json",
+      "baselineObject": "b217a437eefbe2218be5af989e640fabe8ead91c",
+      "candidateObject": "b217a437eefbe2218be5af989e640fabe8ead91c",
+      "equal": true
+    },
+    {
+      "path": "package-lock.json",
+      "baselineObject": "ed5885f9f8ea0ee3b72d202a7faf965646169a59",
+      "candidateObject": "ed5885f9f8ea0ee3b72d202a7faf965646169a59",
+      "equal": true
+    }
+  ],
+  "note": "The running source soak retains its original baseline SHA. Renderer changes require separate installed proof."
+}

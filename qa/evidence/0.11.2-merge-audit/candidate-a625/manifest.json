@@ -1,0 +1,151 @@
+{
+  "at": "2026-09-10T23:57:16.039Z",
+  "candidate": "a625182bde05e041c4f4d1fd43112b51770044af",
+  "scope": "Exact candidate source and installed checks. Earlier real provider/update/ONCE receipts retain their original identities in the adjacent closeout pack. No public release acceptance is claimed.",
+  "files": [
+    {
+      "path": "source-soak-progress.json",
+      "sha256": "3e0c8ee0314337ce71aff83937cc42890058edc1c05bcac8e31ecd3973f41cc5",
+      "bytes": 570,
+      "source": ".dogfood/release-0112-closeout/frozen-release-soak.log"
+    },
+    {
+      "path": "source-scope.json",
+      "sha256": "ac0715bdfa5f6cb7394a8a1ac661f0717525991bedf7189abf341567f2807c2e",
+      "bytes": 1878,
+      "source": "Git tree objects"
+    },
+    {
+      "path": "supplemental-inventory.json",
+      "sha256": "be45abbebba35a3ba83ebdab50818911d0e3972c2ba80c9f36422e97d7572dd5",
+      "bytes": 1251,
+      "source": "Git history"
+    },
+    {
+      "path": "backdrop-tour.json",
+      "sha256": "88f51753051bbb268fb7e999f7279d00b423215a33f2cca1b58b97a5cf975882",
+      "bytes": 10818,
+      "source": ".dogfood/release-0112-closeout/installed-backdrops/tour.json"
+    },
+    {
+      "path": "screenshots/nursery.png",
+      "sha256": "b464a965c134704140a2ba22235c49f316f9aa7f3cc6e8e7f1df2aafbdd8cba6",
+      "bytes": 735951,
+      "source": ".dogfood/release-0112-closeout/installed-backdrops/nursery.png"
+    },
+    {
+      "path": "screenshots/city.png",
+      "sha256": "63fe0afdcb4f4ba1a6c177d28711da03cd051f93c2aefb1309e7bee642b9b8a6",
+      "bytes": 730961,
+      "source": ".dogfood/release-0112-closeout/installed-backdrops/city.png"
+    },
+    {
+      "path": "screenshots/ocean.png",
+      "sha256": "61250cc1096081f951f58a57bc033f7ff5d7c4f54887f345465227c1f13bec34",
+      "bytes": 840136,
+      "source": ".dogfood/release-0112-closeout/installed-backdrops/ocean.png"
+    },
+    {
+      "path": "screenshots/belt.png",
+      "sha256": "b74eb2541bb1b9fc7637937466ebaa99b85a8f532092eb62a5b119de1612b2f8",
+      "bytes": 677213,
+      "source": ".dogfood/release-0112-closeout/installed-backdrops/belt.png"
+    },
+    {
+      "path": "screenshots/moon.png",
+      "sha256": "3a46a5214b2d5280309d0d29679caefafbed1c2a8109fc49f56fed6881243259",
+      "bytes": 849252,
+      "source": ".dogfood/release-0112-closeout/installed-backdrops/moon.png"
+    },
+    {
+      "path": "screenshots/forest.png",
+      "sha256": "0cf7e151e390f8ef1218ebc157bad2f2e5a67e8a4e8b7a81670fedfd229d13f0",
+      "bytes": 801431,
+      "source": ".dogfood/release-0112-closeout/installed-backdrops/forest.png"
+    },
+    {
+      "path": "beginner.json",
+      "sha256": "9fffb95faaeeaf0ef0e609863bedd81639956aa4ffc081f8564ac48a913dcf99",
+      "bytes": 188,
+      "source": "qa/beginner-last-run.json"
+    },
+    {
+      "path": "guardian.json",
+      "sha256": "3c55b601822ad4f11eaae5aee81263679911f2ecfd49c676a5d23b1a0e2062e2",
+      "bytes": 1024,
+      "source": "qa/guardian-last-cycle.json"
+    },
+    {
+      "path": "journeys.json",
+      "sha256": "7c56cffd2a48035f09aedf9c1668b85818d8f61bd3623a0b06e93b95ec0d5b44",
+      "bytes": 213,
+      "source": "qa/journeys-last-run.json"
+    },
+    {
+      "path": "installed-probe-0.json",
+      "sha256": "e90e8a723497e86d283252cf4fccd3f84d5ca59683c1aeec157aa76633e3ceeb",
+      "bytes": 2330,
+      "source": "qa/installed/smoke-2026-09-10T23-31-46-825Z/probe.json"
+    },
+    {
+      "path": "installed-smoke.json",
+      "sha256": "43f3c7d43924c8ef027704403ff9c537b58a87ac5f1c5f9ced3131050b920905",
+      "bytes": 1379,
+      "source": "qa/installed/last-smoke.json (probe paths relocated, probe bytes unchanged)"
+    },
+    {
+      "path": "installed-idle.json",
+      "sha256": "530ffdbf7659f98472d761e5832363b6cd48ce43de65f749f9c12c778677d20d",
+      "bytes": 60594,
+      "source": ".dogfood/release-0112-closeout/installed-idle-backdrops.json"
+    },
+    {
+      "path": "idle-usage-summary.json",
+      "sha256": "56a6fc8e3a161dd5a2473101c141d97d184f50d5e6145ea1c749a5dc6802c219",
+      "bytes": 426,
+      "source": "installed-idle.json"
+    },
+    {
+      "path": "desktop-ci.json",
+      "sha256": "78995fbc201b84b9268853814beac5c9253747d1de2615b1e4300b1ca8e616d9",
+      "bytes": 19694,
+      "source": ".dogfood/release-0112-closeout/desktop-ci-a625.json"
+    },
+    {
+      "path": "postmerge.json",
+      "sha256": "fadf32d532a97f9ab78948d6d29ab69438b78495a2e0ececd0bf453e93e4662a",
+      "bytes": 574,
+      "source": ".dogfood/release-0112-closeout/postmerge-a625.json"
+    },
+    {
+      "path": "readiness.json",
+      "sha256": "dc1a07afc075eae0d57968f121fb9a10c8425231d6c793fd670af73246cb95dc",
+      "bytes": 2295,
+      "source": ".dogfood/release-0112-closeout/candidate-a625-readiness.json"
+    },
+    {
+      "path": "history.json",
+      "sha256": "c362c46d482931157b881f63f04fcc1f69eec344e5d14d999035f2d4e9c42a0d",
+      "bytes": 29962,
+      "source": ".dogfood/release-0112-closeout/installed-history-a625.json"
+    },
+    {
+      "path": "frame-timing.json",
+      "sha256": "caf29169f1b298847bf17f2533ebf84a38983bb80e659e9e79bbaa15a1141435",
+      "bytes": 2408,
+      "source": ".dogfood/release-0112-closeout/installed-frame-timing-a625.json"
+    },
+    {
+      "path": "frame-timing-cpu-recovery.json",
+      "sha256": "a0a2f7610d4da71e2ec00046e2d6e67ebd946028a5b98b4b69037ec2c64989d8",
+      "bytes": 2376,
+      "source": ".dogfood/release-0112-closeout/installed-frame-timing-cpu-recovery-a625.json"
+    },
+    {
+      "path": "persistence.json",
+      "sha256": "82fb2042a59e89bb42c8e32a9787c99a34a95e64b5d20b93f530614d3de1c971",
+      "bytes": 359,
+      "source": ".dogfood/release-0112-closeout/persistence-a625.json"
+    }
+  ]
+}

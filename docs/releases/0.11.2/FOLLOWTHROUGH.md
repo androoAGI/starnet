@@ -1,5 +1,7 @@
 # 0.11.2 follow-through — September 10, 2026
 
+The later approved backdrop merge and final audit scope are recorded in [CANDIDATE_A625.md](CANDIDATE_A625.md). The receipts below retain their original tested source identities.
+
 **Release acceptance remains incomplete.** Official version pins stay at 0.11.1; no public release or tag was created. The Windows canary has its own application identity and a local 0.11.2 overlay. The existing production station was not replaced.
 
 ## Candidate

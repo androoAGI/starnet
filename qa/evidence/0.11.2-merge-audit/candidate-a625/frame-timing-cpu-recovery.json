@@ -1,0 +1,95 @@
+{
+  "at": "2026-09-10T23:55:13.764Z",
+  "build": {
+    "version": "0.11.2",
+    "commit": "a625182bd",
+    "sha": "a625182bde05e041c4f4d1fd43112b51770044af",
+    "sourceTree": "29677f765ea58bf9b59883044248c0e235d10c97",
+    "provenanceKind": "reproducible-source",
+    "describe": "archive/backdrops-glowup-2026-09-10-1-ga625182bd",
+    "dirty": false,
+    "executableSha256": "5297767f4ce12ae7fe1de77614d1b0990d90a733a6a3d9fc6ae31ad8b5804c22",
+    "executableSize": 17860096
+  },
+  "rows": [
+    {
+      "id": "forest",
+      "visible": "visible",
+      "focused": true,
+      "sky": "void",
+      "ground": "forest",
+      "frames": {
+        "count": 250,
+        "p50": 41.5,
+        "p95": 45.89999999990687,
+        "max": 50.10000000009313
+      },
+      "terrainDrawMs": {
+        "count": 250,
+        "p50": 0.6000000014901161,
+        "p95": 1,
+        "max": 1.6000000014901161
+      },
+      "curve": {
+        "path": "cpu",
+        "ready": false,
+        "failed": true,
+        "lost": true,
+        "frameSum": 69
+      }
+    },
+    {
+      "id": "void",
+      "visible": "visible",
+      "focused": true,
+      "sky": "void",
+      "ground": null,
+      "frames": {
+        "count": 279,
+        "p50": 37.39999999990687,
+        "p95": 41.699999999953434,
+        "max": 45.89999999990687
+      },
+      "terrainDrawMs": {
+        "count": 0,
+        "p50": 0,
+        "p95": 0,
+        "max": 0
+      },
+      "curve": {
+        "path": "cpu",
+        "ready": false,
+        "failed": true,
+        "lost": true,
+        "frameSum": 67
+      }
+    },
+    {
+      "id": "forest",
+      "visible": "visible",
+      "focused": true,
+      "sky": "void",
+      "ground": "forest",
+      "frames": {
+        "count": 254,
+        "p50": 37.5999999998603,
+        "p95": 45.89999999990687,
+        "max": 54.299999999813735
+      },
+      "terrainDrawMs": {
+        "count": 254,
+        "p50": 0.6000000014901161,
+        "p95": 0.9000000059604645,
+        "max": 1.2999999970197678
+      },
+      "curve": {
+        "path": "cpu",
+        "ready": false,
+        "failed": true,
+        "lost": true,
+        "frameSum": 77
+      }
+    }
+  ],
+  "scope": "Ten-second repeated installed timing samples after the idle test. rAF gaps include browser scheduling and are not direct renderer CPU cost; Terrain.draw timing is separately instrumented and restored."
+}

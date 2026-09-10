@@ -1,0 +1,75 @@
+{
+  "probe": {
+    "appVersion": "0.11.2",
+    "appSource": "env",
+    "harness": "archive/backdrops-glowup-2026-09-10-1-ga625182bd",
+    "sidecarBuildSha": "a625182bde05e041c4f4d1fd43112b51770044af",
+    "sidecarBuildDirty": false,
+    "mode": "desktop",
+    "origin": "http://tauri.localhost",
+    "shell": {
+      "version": "0.11.2",
+      "commit": "a625182bd",
+      "sha": "a625182bde05e041c4f4d1fd43112b51770044af",
+      "sourceTree": "29677f765ea58bf9b59883044248c0e235d10c97",
+      "provenanceKind": "reproducible-source",
+      "describe": "archive/backdrops-glowup-2026-09-10-1-ga625182bd",
+      "dirty": false,
+      "executableSha256": "5297767f4ce12ae7fe1de77614d1b0990d90a733a6a3d9fc6ae31ad8b5804c22",
+      "executableSize": 17860096
+    },
+    "bootSane": true,
+    "checks": [
+      {
+        "name": "desktop/tauri-origin",
+        "ok": true,
+        "detail": "origin=http://tauri.localhost"
+      },
+      {
+        "name": "desktop/build-info",
+        "ok": true,
+        "detail": "commit=a625182bde05e041c4f4d1fd43112b51770044af tree=29677f765ea58bf9b59883044248c0e235d10c97 kind=reproducible-source describe=archive/backdrops-glowup-2026-09-10-1-ga625182bd dirty=false"
+      },
+      {
+        "name": "desktop/executable-identity",
+        "ok": true,
+        "detail": "sha256=5297767f4ce1… size=17860096"
+      },
+      {
+        "name": "boot/api-token-present",
+        "ok": true,
+        "detail": "per-launch token injected into the page"
+      },
+      {
+        "name": "version/app-nonblank",
+        "ok": true,
+        "detail": "app=0.11.2 source=env harness=archive/backdrops-glowup-2026-09-10-1-ga625182bd"
+      },
+      {
+        "name": "boot/world-present",
+        "ok": true,
+        "detail": "world model / canvas present"
+      },
+      {
+        "name": "boot/stage-rendered",
+        "ok": true,
+        "detail": "stage/app root present in DOM"
+      },
+      {
+        "name": "store/workstreams-wellformed",
+        "ok": true,
+        "detail": "10 workstream(s) in the store"
+      },
+      {
+        "name": "board/no-forever-running",
+        "ok": true,
+        "detail": "TASKS board open; 8 card(s); no stuck RUNNING chip while idle"
+      }
+    ],
+    "notes": "checks=9 mode=desktop"
+  },
+  "diagnostics": {
+    "consoleMsgs": [],
+    "exceptions": []
+  }
+}

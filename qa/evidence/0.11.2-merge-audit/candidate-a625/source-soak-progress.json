@@ -1,0 +1,12 @@
+{
+  "observedAt": "2026-09-10T23:57:15.346Z",
+  "source": "afd1da77fb4a489151b45b5a6c53e60ada4ca1f4",
+  "status": "in-progress",
+  "log": ".dogfood/release-0112-closeout/frozen-release-soak.log",
+  "latestLines": [
+    "[soak] restart #10: boot 869ms ",
+    "[soak] t+102.8m tick 408 epoch 10 rss=100MB health=15/16ms swallowed=0 runs=306/0 fires=102",
+    "[soak] t+103.0m tick 409 epoch 10 rss=76MB health=2/14ms swallowed=0 runs=306/0 fires=102"
+  ],
+  "scope": "Progress observation only. The 720-minute run is not complete and this is not an acceptance receipt."
+}

@@ -1,0 +1,8 @@
+{
+  "stampIso": "2026-09-10T23:32:32.489Z",
+  "trunkHead": "a625182bde05e041c4f4d1fd43112b51770044af",
+  "result": "PASS",
+  "mode": "ui-only",
+  "totalMs": 95011,
+  "stalledStep": null
+}

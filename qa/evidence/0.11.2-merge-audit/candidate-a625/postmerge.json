@@ -1,0 +1,17 @@
+{
+  "at": "2026-09-10T23:44:38.403Z",
+  "candidate": "a625182bde05e041c4f4d1fd43112b51770044af",
+  "worktree": "C:/Users/andro/Desktop/gen",
+  "fast": {
+    "result": "pass",
+    "steps": 770,
+    "exitCode": 0,
+    "log": ".dogfood/release-0112-closeout/postmerge-a625-fast.log",
+    "sha256": "fbc682ed37c96b87c45c86662f32a48f63806d0f581071990f8e87fda246ed0d"
+  },
+  "http": {
+    "result": "pass",
+    "steps": 111,
+    "source": "Exact-candidate Guardian cycle 20260910-232423; backend/native/package tree objects unchanged from the earlier integration HTTP pass."
+  }
+}
