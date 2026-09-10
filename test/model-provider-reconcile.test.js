@@ -69,6 +69,43 @@ async function scenario(savedModel, catalog, switchFrom, duringFetch) {
   }
 }
 
+async function overlappingCatalogs() {
+  let model = 'old', revision = 0, held = false, count = 0;
+  const releases = [], starts = [];
+  const started = [new Promise(r => starts.push(r)), new Promise(r => starts.push(r))];
+  const old = { document: global.document, localStorage: global.localStorage, Harness: global.Harness, U: global.U };
+  global.document = { getElementById: () => null, querySelector: () => null, addEventListener() {}, createDocumentFragment: () => ({ appendChild() {} }) };
+  global.localStorage = { getItem: () => '1', setItem() {} }; global.U = { esc: String };
+  global.Harness = {
+    getProv: () => 'starnet', setProv() { revision++; }, getModel: () => model, setModel: value => { model = value; revision++; },
+    getSelectionRevision: () => revision, getReasoningEffort: () => 'medium', setReasoningEffort() {},
+    configured: p => p === 'starnet', getKey: () => '', getBaseUrl: () => '', listModels: async () => [],
+    apiFetch: async url => {
+      if (url === '/api/models/starnet') {
+        if (held) { const n = count++; const wait = new Promise(r => releases[n] = r); starts[n](); await wait; }
+        return new Response(JSON.stringify({ models: [{ id: held ? 'chosen' : 'old' }] }));
+      }
+      return new Response(JSON.stringify({ models: [], error: 'not configured', connected: false }));
+    }
+  };
+  delete require.cache[require.resolve(dockPath)];
+  const dock = require(dockPath);
+  let first, second;
+  try {
+    await dock.refresh(); // Cache the earlier confirmed catalog.
+    global.Harness.setModel('chosen'); held = true;
+    first = dock.refresh(); await started[0];
+    second = dock.catalog({ force: true }); await started[1];
+    releases[0](); await first;
+    A.eq(model, 'chosen', 'a secondary picker superseding the request cannot make the dock apply older cached rows');
+    releases[1](); await second;
+    A.eq(model, 'chosen', 'secondary catalog completion never changes transport selection');
+  } finally {
+    releases.forEach(r => r()); await Promise.allSettled([first, second]);
+    Object.assign(global, old); delete require.cache[require.resolve(dockPath)];
+  }
+}
+
 module.exports = (async () => {
   const live = [{ id: 'anthropic/claude-sonnet-5', name: 'Claude Sonnet 5', supported_parameters: ['reasoning_effort', 'tools'] }];
   const mapped = await scenario('claude-sonnet-5', live, 'anthropic');
@@ -98,5 +135,6 @@ module.exports = (async () => {
   }
   const empty = await scenario('obsolete', []);
   A.eq(empty.model, '', 'unchanged selection is cleared by a confirmed empty catalog');
+  await overlappingCatalogs();
   A.report('model-provider-reconcile.test');
 })().catch(e => { console.error(e); process.exitCode = 1; });
