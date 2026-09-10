@@ -120,6 +120,7 @@ test/loop.verify-on-stop.test.js
 test/loop.acceptance-on-stop.test.js
 test/loop.parallel-tools.test.js
 test/loop.tool-images.test.js
+test/loop.media-cost.test.js
 test/loop.turn-budget.test.js
 test/loop.provider-recovery.test.js
 test/loop.failure-recovery.test.js

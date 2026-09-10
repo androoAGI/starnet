@@ -245,6 +245,39 @@ function jsonResp(obj, status) { return { status: status || 200, json: async () 
     A.ok(genKey, 'image_generate requires a media route; a vision callback alone cannot generate images');
   }
 
+  // Cancellation fences: providers may ignore abort and a staged write may complete late.
+  for (const phase of ['before', 'response', 'download', 'write']) {
+    const ac = new AbortController(), bills = [], delivered = [];
+    const aid = 'cancel-' + phase, rel = 'existing.png';
+    const abs = path.join(ROOT, aid, rel);
+    await fsp.mkdir(path.dirname(abs), { recursive: true });
+    await fsp.writeFile(abs, 'original-image');
+    let fetched = 0;
+    const injectedFs = Object.assign({}, fsp, { writeFile: async (...args) => {
+      await fsp.writeFile(...args);
+      if (phase === 'write' && String(args[0]).includes('.pending-')) ac.abort();
+    } });
+    const tools = makeImageTools({ openrouter: { apiKey: 'fixture' }, fsp: injectedFs, pathMod: path, root: ROOT,
+      onUsage: usage => bills.push(usage), fetchImpl: async url => {
+        fetched++;
+        if (phase === 'response') ac.abort();
+        if (String(url).endsWith('/output.png')) {
+          ac.abort();
+          return { status: 200, headers: { get: () => 'image/png' }, arrayBuffer: async () => Buffer.from(PNG_B64, 'base64') };
+        }
+        return jsonResp({ usage: { cost: .025 }, choices: [{ message: { images: [{ image_url: { url: phase === 'download' ? 'https://fixture.invalid/output.png' : DATA_URL } }] } }] });
+      } });
+    if (phase === 'before') ac.abort();
+    let cancelled = false;
+    try { await tools.generateTool.run({ prompt: 'cube', path: rel }, { agentId: aid, signal: ac.signal, emit: (...args) => delivered.push(args) }); }
+    catch (e) { cancelled = e.name === 'AbortError'; }
+    A.ok(cancelled, phase + ': cancellation propagates');
+    A.eq(await fsp.readFile(abs, 'utf8'), 'original-image', phase + ': existing output remains intact');
+    A.eq(delivered.length, 0, phase + ': no deliverable emitted');
+    A.eq((await fsp.readdir(path.dirname(abs))).length, 1, phase + ': staged bytes cleaned up');
+    A.eq(bills.length, phase === 'before' ? 0 : 1, phase + ': received charge retained once despite cancellation');
+    if (phase === 'before') A.eq(fetched, 0, 'already cancelled dispatch makes no paid request');
+  }
   try { await fsp.rm(ROOT, { recursive: true, force: true }); } catch (_) {}
   A.report('image.test');
 })().catch(e => { console.log('FATAL', e && e.stack || e); process.exit(1); });

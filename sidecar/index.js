@@ -126,7 +126,7 @@ const codexAuthState = require('./providers/codex-auth-state.js');
 // pure dead-token machinery. Codex keeps its own proprietary wire above — these are additive, never a reroute.
 const oauthDevice = require('./providers/oauth-device.js');
 const oauthTokenStore = require('./providers/oauth-token-store.js');
-const { effectiveModel: resolveEffectiveModel, effectiveUsd } = require('./spend.js');
+const { effectiveModel: resolveEffectiveModel, effectiveUsd, effectiveRunUsd } = require('./spend.js');
 const { makeEmitter } = require('../shared/emitter.js');
 const { redact, renderRecall, injectRecall, rank, makeContext, compactionMemoryBlock, compactionSummaryPrompt } = require('./context.js');
 const { makeSummarizer } = require('./compaction-summarizer.js');   // chunked context-compaction fold (Lane A)
@@ -15327,6 +15327,16 @@ async function runOnce(o) {
   // zero extra keys. The provider object is constructed further down (codex/oauth token dance); this slot is
   // filled there, and every tool dispatch happens after the run starts, so the late bind is always resolved by
   // first use. One-shot text collect over the SAME provider.stream interface the loop drives.
+  const pendingMediaCosts = [];
+  const mediaCostEngine = makeCostEngine(); // Only the media provider can price image output.
+  let mediaUsd = 0;
+  const recordMediaUsage = (usage, mediaModel) => {
+    const cost = mediaCostEngine.reconcile(usage, mediaModel);
+    cost.usd = Number.isFinite(cost.usd) && cost.usd >= 0 ? cost.usd : 0;
+    cost.unpriced = !cost.providerCost;
+    mediaUsd += cost.usd;
+    pendingMediaCosts.push(Object.assign({ model: mediaModel }, cost));
+  };
   let auxVisionProvider = null;
   const auxVisionCall = async (req) => {
     if (!auxVisionProvider) throw new Error('session provider not ready');
@@ -15341,7 +15351,7 @@ async function runOnce(o) {
       return out;
     } finally { clearTimeout(t); }
   };
-  const imageTools = makeImageTools({ openrouter: studioRoute.ok ? { apiKey: studioRoute.key, model, baseUrl: studioRoute.baseUrl, provider: studioRoute.provider } : null, fsp, pathMod: path, root: WORKSPACES, imageModel: String(ENV('IMAGE_MODEL') || '').trim() || undefined, auxVision: auxVisionCall });
+  const imageTools = makeImageTools({ openrouter: studioRoute.ok ? { apiKey: studioRoute.key, model, baseUrl: studioRoute.baseUrl, provider: studioRoute.provider } : null, fsp, pathMod: path, root: WORKSPACES, imageModel: String(ENV('IMAGE_MODEL') || '').trim() || undefined, auxVision: auxVisionCall, signal, onUsage: recordMediaUsage });
   // browser.vision uses the SAME vision model as image_analyze when a key exists; with no key it
   // reports "unavailable" honestly (never a success-shaped stub). Pass the dep only when usable.
   runBrowser = makeBrowserTools({
@@ -17080,6 +17090,7 @@ async function runOnce(o) {
       result = {reason:'done', turns:0, usd:0, messages:msgs.concat([{role:'assistant', content:text}])};
     } else result = await runAgentLoop({
       messages: msgs, provider, emit: loopEmit, cost, tools: toolDefs, dispatch, capCtx,
+      drainToolCosts: () => pendingMediaCosts.splice(0),
       acceptanceProbe,
       // Granted but unadvertised: held out of the request until tool.search reveals one (see loop.js).
       deferredTools: deferredToolDefs,
@@ -17232,10 +17243,10 @@ async function runOnce(o) {
     // in-flight tally — record-before-clear so the spend is always counted by at least one source, never neither.
     // result.usd/tokens already INCLUDE the summarizer's spend (the loop folds it into spentUsd as it accrues).
     const finalModel = resolveEffectiveModel({ result, requestedModel: o.model, usingCodex, codexDefaultModel: CODEX_DEFAULT_MODEL, defaultModel: CRON_DEFAULT_MODEL });
-    const finalUsd = effectiveUsd({ usd: (result && result.usd) || 0, unmetered: providerUnmetered, unpricedUsage: result && result.unpricedUsage, priceOf: provider && provider.priceOf });
+    const finalUsd = effectiveRunUsd({ usd: (result && result.usd) || 0, mediaUsd, unmetered: providerUnmetered, unpricedUsage: result && result.unpricedUsage, priceOf: provider && provider.priceOf });
     const finalTurns = (result && result.turns) || 0;
     const finalTokens = (result && result.tokens) || 0;
-    try { ledger.record({ runId, agentId, turns: finalTurns, usd: finalUsd, tokens: finalTokens, model: finalModel, unmetered: providerUnmetered }); } catch (_) {}
+    try { ledger.record({ runId, agentId, turns: finalTurns, usd: finalUsd, tokens: finalTokens, model: finalModel, unmetered: providerUnmetered && mediaUsd === 0 }); } catch (_) {}
     // managed-credit SETTLE: reconcile the reservation to the real spend — refund the unused headroom to the
     // account (billing.js caps finalUsd at the reservation). Inert/no-op unless this run actually reserved credit.
     if (billed) { try { credits.finishRun({ runId, agentId, usd: finalUsd, tokens: finalTokens, turns: finalTurns, reason: (result && result.reason) || 'done' }); } catch (_) {} }
@@ -17253,7 +17264,7 @@ async function runOnce(o) {
         }
       }
       const runEndedAt = Date.now();
-      runStore.record({ runId, parentRunId: o.parentRunId || '', agentId, reason: ((result && result.reason) || 'done'), clarifying: taskQuestionAsked, turns: finalTurns, tokens: finalTokens, usd: finalUsd, title: title, streamId: o.streamId || '', sessionTitle: o.sessionTitle || '', deliveryPrompt: o.sessionPrompt || '', deliveryText, recipeId: o.recipeId || '', projectRoot: o.projectRoot || '', deliverable: deliverableNotes.take(runId), model: finalModel, reasoningEffort, unmetered: providerUnmetered, artifacts: execution.artifactList(), toolsOk: execution.toolsOk(), toolTrace: execution.toolTraceList(), failureStage: execution.failureStage(), failureCode: execution.failureCode(), uncertainMutations: execution.uncertainMutations(), completionEvidence: finalCompletionEvidence, recoveryAttempts: execution.recoveryAttempts(), startedAt: runStartedAt, endedAt: runEndedAt, durationMs: runEndedAt - runStartedAt, identityFallback, internal });   // execution terminal stays separate from the neutral Task Brief outcome used by progression
+      runStore.record({ runId, parentRunId: o.parentRunId || '', agentId, reason: ((result && result.reason) || 'done'), clarifying: taskQuestionAsked, turns: finalTurns, tokens: finalTokens, usd: finalUsd, title: title, streamId: o.streamId || '', sessionTitle: o.sessionTitle || '', deliveryPrompt: o.sessionPrompt || '', deliveryText, recipeId: o.recipeId || '', projectRoot: o.projectRoot || '', deliverable: deliverableNotes.take(runId), model: finalModel, reasoningEffort, unmetered: providerUnmetered && mediaUsd === 0, artifacts: execution.artifactList(), toolsOk: execution.toolsOk(), toolTrace: execution.toolTraceList(), failureStage: execution.failureStage(), failureCode: execution.failureCode(), uncertainMutations: execution.uncertainMutations(), completionEvidence: finalCompletionEvidence, recoveryAttempts: execution.recoveryAttempts(), startedAt: runStartedAt, endedAt: runEndedAt, durationMs: runEndedAt - runStartedAt, identityFallback, internal });   // execution terminal stays separate from the neutral Task Brief outcome used by progression
 
       // P0.1/H1.1: persist the full DIALOGUE (not just the outcome) — a durable server-side transcript for EVERY
       // run, incl. headless ones (cron/Telegram/delegated). Append the triggering user directive, then EVERY new

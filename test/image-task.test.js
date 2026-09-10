@@ -93,4 +93,11 @@ A.ok(/\(taskBrief \|\| imageTask\).*agent\.run\.end/.test(runHost), 'a provision
 A.ok(/ImageTask\.enforceCompletion\(result, execution\.artifactList\(\)/.test(runHost), 'the real artifact ledger settles image completion');
 A.ok(/reason: taskQuestionAsked \? 'clarifying' : \(\(result && result\.reason\)/.test(runHost), 'the emitted terminal uses the artifact-corrected result reason');
 
+
+
+const byokRecovery = ImageTask.admissionBlocker({ hasStudio: true, studioEnabled: true, providerId: 'custom', model: 'local-model', route: { ok: false } });
+A.ok(/OpenRouter API key/.test(byokRecovery) && /StarNet account/.test(byokRecovery), 'BYOK media recovery exposes both supported routes');
+const managedRecovery = ImageTask.admissionBlocker({ hasStudio: true, studioEnabled: true, providerId: 'starnet', route: { ok: false } });
+A.ok(/relink/.test(managedRecovery) && !/OpenRouter/.test(managedRecovery), 'managed failure stays on the linked-account route');
+
 A.report('image-task.test');

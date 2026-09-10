@@ -104,11 +104,22 @@
   const EXT_BY_MIME = { 'image/png': '.png', 'image/jpeg': '.jpg', 'image/jpg': '.jpg', 'image/webp': '.webp', 'image/gif': '.gif' };
   const MIME_BY_EXT = { '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.webp': 'image/webp', '.gif': 'image/gif' };
 
-  function withTimeout(promiseFactory, ms) {
-    const ctrl = new AbortController();
-    const t = setTimeout(() => ctrl.abort(), ms);
-    return Promise.resolve(promiseFactory(ctrl.signal)).finally(() => clearTimeout(t));
+  function checkCancelled(signal) {
+    if (signal && signal.aborted) {
+      const error = new Error('Image operation cancelled; no image was published. Upstream work may already have been billed.');
+      error.name = 'AbortError'; throw error;
+    }
   }
+  async function withTimeout(promiseFactory, ms, parentSignal) {
+    checkCancelled(parentSignal);
+    const ctrl = new AbortController();
+    const abort = () => ctrl.abort();
+    if (parentSignal) parentSignal.addEventListener('abort', abort, { once: true });
+    const t = setTimeout(abort, ms);
+    try { return await promiseFactory(ctrl.signal); }
+    finally { clearTimeout(t); if (parentSignal) parentSignal.removeEventListener('abort', abort); }
+  }
+  let publicationSequence = 0;
 
   // Pull the first image (data-URL or http URL) out of an OpenRouter chat-completions response. Providers vary:
   // most return choices[0].message.images[] = [{type:'image_url', image_url:{url}}], but some nest the image in
@@ -177,14 +188,23 @@
       ctx.emit('deliverable', d);
     }
 
-    async function orPost(body, timeoutMs) {
-      if (!apiKey) throw new Error('STUDIO image generation is unavailable: no media connection is configured. Open SETTINGS and link this station to your StarNet account, then retry; no image was produced.');
+    async function orPost(body, timeoutMs, parentSignal) {
+      checkCancelled(parentSignal);
+      if (!apiKey) throw new Error('STUDIO image generation is unavailable: no media connection is configured. Open SETTINGS and connect an OpenRouter API key for image generation, or link this station to your StarNet account, then retry; no image was produced.');
       const res = await withTimeout(signal => doFetch(orUrl, {
         method: 'POST',
         headers: { 'Authorization': 'Bearer ' + apiKey, 'Content-Type': 'application/json', 'HTTP-Referer': 'https://starnet.local', 'X-Title': 'STARNET' },
         body: JSON.stringify(body),
         signal
-      }).then(async r => ({ status: r.status, json: await r.json().catch(() => null), text: null })), timeoutMs);
+      }).then(async r => {
+        const json = await r.json().catch(() => null);
+        // Book the provider's response before checking cancellation or decoding the artifact.
+        // A billed refusal, failed download, or cancelled publication still incurred this cost.
+        if (typeof deps.onUsage === 'function' && (r.status >= 200 && r.status < 300 || json && json.usage)) {
+          deps.onUsage(json && json.usage, body.model);
+        }
+        return { status: r.status, json, text: null };
+      }), timeoutMs, parentSignal || deps.signal);
       if (res.status < 200 || res.status >= 300) {
         const errMsg = res.json && res.json.error && (res.json.error.message || res.json.error) || ('http ' + res.status);
         throw new Error(providerLabel + ' ' + res.status + ': ' + (typeof errMsg === 'string' ? errMsg : JSON.stringify(errMsg)));
@@ -214,6 +234,8 @@
         height: { type: 'integer', minimum: 16, maximum: MAX_OUTPUT_PX }
       } },
       run: async (args, ctx) => {
+        const signal = ctx && ctx.signal;
+        checkCancelled(signal);
         const aid = (ctx && ctx.agentId) || 'agent';
         const prompt = String(args.prompt || '').trim();
         if (!prompt) throw new Error('prompt is required');
@@ -234,17 +256,19 @@
         if (aspect) baseBody.image_config = { aspect_ratio: aspect };
         let data;
         try {
-          data = await orPost(Object.assign({ model }, baseBody), GEN_TIMEOUT_MS);
+          data = await orPost(Object.assign({ model }, baseBody), GEN_TIMEOUT_MS, signal);
         } catch (e) {
           // slug-drift safety net: if the CHOSEN model is rejected as unknown/unavailable (400/404 "not a valid
           // model" / "no endpoints"), retry ONCE on the known-good legacy slug instead of failing the whole task.
           // Only for model-shaped rejections — a rate-limit/timeout/content error propagates untouched.
+          checkCancelled(signal);
           const msg = String((e && e.message) || e);
           const modelish = /\b(400|404)\b/.test(msg) && /model|endpoint/i.test(msg);
           if (!modelish || model === LEGACY_IMAGE_MODEL) throw e;
           model = LEGACY_IMAGE_MODEL;
-          data = await orPost(Object.assign({ model }, baseBody), GEN_TIMEOUT_MS);
+          data = await orPost(Object.assign({ model }, baseBody), GEN_TIMEOUT_MS, signal);
         }
+        checkCancelled(signal);
         const url = parseImageFromResponse(data);
         if (!url) {
           const txt = textFromResponse(data);
@@ -254,10 +278,11 @@
         let mime, buffer;
         if (/^data:/i.test(url)) { ({ mime, buffer } = dataUrlToBuffer(url)); }
         else if (/^https?:\/\//i.test(url)) {
-          const r = await withTimeout(signal => doFetch(url, { signal }).then(async rr => ({ status: rr.status, ab: await rr.arrayBuffer(), ct: rr.headers.get('content-type') || 'image/png' })), 30000);
+          const r = await withTimeout(signal => doFetch(url, { signal }).then(async rr => ({ status: rr.status, ab: await rr.arrayBuffer(), ct: rr.headers.get('content-type') || 'image/png' })), 30000, signal);
           if (r.status < 200 || r.status >= 300) throw new Error('could not download generated image (http ' + r.status + ')');
           mime = String(r.ct).split(';')[0].toLowerCase(); buffer = Buffer.from(r.ab);
         } else throw new Error('unrecognized image reference from model');
+        checkCancelled(signal);
         if (buffer.length > MAX_IMAGE_BYTES) throw new Error('generated image too large (' + buffer.length + ' bytes)');
         // exact pixel request: fit the nearest-ratio render to the asked-for size (cover-crop, centred)
         let sizeNote = '';
@@ -277,9 +302,19 @@
           rel = 'images/gen-' + h + ext;
         }
         const { abs } = await jail.resolveInside(aid, rel);   // throws on jail escape / abs / '..'
+        checkCancelled(signal);
         await fsp.mkdir(P.dirname(abs), { recursive: true });
-        await fsp.writeFile(abs, buffer);
-        emitDeliverable(ctx, aid, rel);
+        checkCancelled(signal);
+        // Stage bytes separately: abort during a write must not truncate an existing output.
+        const staging = abs + '.pending-' + process.pid + '-' + (++publicationSequence);
+        try {
+          await fsp.writeFile(staging, buffer, { flag: 'wx' });
+          checkCancelled(signal);
+          // A bounded atomic publication in the same event-loop turn as the cancellation check.
+          // An acknowledged cancel cannot interleave between this fence and the rename/event.
+          require('node:fs').renameSync(staging, abs);
+          emitDeliverable(ctx, aid, rel);
+        } finally { await fsp.unlink(staging).catch(() => {}); }
         const viewer = '/api/file?agent=' + encodeURIComponent(aid) + '&path=' + encodeURIComponent(rel);
         const caption = textFromResponse(data);
         const kb = (buffer.length / 1024).toFixed(0) + ' KB';
