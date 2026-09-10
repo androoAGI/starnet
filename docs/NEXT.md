@@ -1,8 +1,8 @@
 # NEXT.md — current priorities & task queue
 
-## IN PROGRESS — skin-motion-0910: complete frame sweep
+## IMPLEMENTED — skin-motion-0910: complete frame sweep
 
-Correct Turtle north-facing walk and Wizard northwest staff inconsistencies found in the visual audit.
+Corrected Turtle north-facing walk and Wizard northwest staff inconsistencies found in the 4,195-frame audit. Live rendering and design regressions passed; merge gate is recorded in qa/STATUS.md. Receipt: qa/frame-sweep-0910.md.
 
 ## IMPLEMENTED — skin-motion-0910: movement stutter
 

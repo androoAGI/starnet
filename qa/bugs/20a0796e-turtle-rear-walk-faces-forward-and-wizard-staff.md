@@ -27,7 +27,7 @@ The 4,195-frame disk audit and 13 contact sheets exposed both mismatches despite
 
 ## Verdict
 
-Two generated eight-frame replacements match the intended rear view and staff placement. Only 16 frame assets and their website mirrors changed; source validation in progress.
+Two generated eight-frame replacements match the intended rear view and staff placement. Only 16 frame assets and their website mirrors changed; source-fixed in 734063b21, with live rendering and 56 regression assertions passing.
 
 ## Regression
 
