@@ -18,7 +18,7 @@
   "expectedClaimCount": 37,
   "releaseSurface": {
     "algorithm": "sha256",
-    "sourceCommit": "f7be913a624e970f273f820a56096f5edc3915c4",
+    "sourceCommit": "a29342efc634d0ab65302e185a1e5036394fb27c",
     "pathSetSha256": "b0479380ff858bd18673d3e0c7191897e66f62b44b4fc14a50eade63aab5c027",
     "files": [
       {
@@ -498,8 +498,8 @@
       },
       {
         "path": "frontend/app/personas.js",
-        "bytes": 16382,
-        "sha256": "4ff515510a835ef87b3d66f253382191e02519d2f725475c097e801da49a5439"
+        "bytes": 16821,
+        "sha256": "9b8fd447596e95ee0d9b1e4370dad7d46e46a778e5db473efc4665e3450a5c17"
       },
       {
         "path": "frontend/app/pipeline.js",
@@ -808,8 +808,8 @@
       },
       {
         "path": "frontend/app/stationui.js",
-        "bytes": 689815,
-        "sha256": "fb8f73cdeaa07a0c970f6dd3db8c0ed4f478736487f6e9f93d92f7c7592ab8ad"
+        "bytes": 690040,
+        "sha256": "e58b8638b799e4ee2d7a7021f25eabb4e06a6d6e94fd383d26e2622b0e49c967"
       },
       {
         "path": "frontend/app/study.js",
