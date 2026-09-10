@@ -26,4 +26,4 @@ Candidate gate receipts (including source SHA, exit codes and log hashes): `qa/e
 
 Earlier development attempts exposed the pre-existing HTTP watchdog limit and two fixtures that intentionally wrote a full save without reading its revision. The watchdog correction is included from cleanup; the fixtures now use current revisions. All three full combined suites subsequently completed successfully.
 
-Integration status: candidate verified; merge and mandatory postmerge checks are next. This is not a claim that the installed desktop build or every unrelated feature is defect-free.
+Merged to `feat/harness-backend` as **`18817ae0fa3819e536ba1bd19fcaab0ce902cffd`**. Mandatory postmerge fast **762/762** and HTTP **110/110** both completed with exit 0 on that exact merge. No runtime changes were required after the passing candidate. Postmerge receipts: `qa/evidence/adversarial-0910/postmerge-gates.json`. Existing unrelated QA notes and Rooms handoff were preserved byte-for-byte at merge; the required digest is appended without staging foreign notes. This is not a claim that the installed desktop build or every unrelated feature is defect-free.
