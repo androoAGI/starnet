@@ -1,0 +1,49 @@
+{
+  "beforeSource": "00de68e0f6da9c00b778eea1deefbaa84b82baa8",
+  "fix": "cb6c30b4def0c7c05ca3a3bce6f1328ec5d56bf1",
+  "method": "Real seeded browser, Chat.renderProse on visible COMMS message bodies; controlled report text",
+  "before": [
+    {
+      "raw": "+ First\n+ Second",
+      "items": 0,
+      "html": "+ First\n+ Second"
+    },
+    {
+      "raw": "-\tFirst\n-\tSecond",
+      "items": 0,
+      "html": "-\tFirst\n-\tSecond"
+    },
+    {
+      "raw": "1.\tFirst\n2.\tSecond",
+      "items": 0,
+      "html": "1.\tFirst\n2.\tSecond"
+    },
+    {
+      "raw": "- First\n- Second",
+      "items": 2,
+      "html": "<ul class=\"md-list\"><li>First</li><li>Second</li></ul>"
+    }
+  ],
+  "after": [
+    {
+      "raw": "+ First\n+ Second",
+      "items": 2,
+      "html": "<ul class=\"md-list\"><li>First</li><li>Second</li></ul>"
+    },
+    {
+      "raw": "-\tFirst\n-\tSecond",
+      "items": 2,
+      "html": "<ul class=\"md-list\"><li>First</li><li>Second</li></ul>"
+    },
+    {
+      "raw": "1.\tFirst\n2.\tSecond",
+      "items": 2,
+      "html": "<ol class=\"md-list\" start=\"1\"><li>First</li><li>Second</li></ol>"
+    },
+    {
+      "raw": "- First\n- Second",
+      "items": 2,
+      "html": "<ul class=\"md-list\"><li>First</li><li>Second</li></ul>"
+    }
+  ]
+}
