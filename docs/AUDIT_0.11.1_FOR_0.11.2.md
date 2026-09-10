@@ -154,3 +154,8 @@ both pending requests after a new model choice.
 The exploratory 20-minute soak overlapped the later logging/catalog/QA edits. Its result
 is retained as exploratory evidence only; it cannot certify one immutable cleanup
 candidate. Final verification restarts from the frozen candidate after those repairs.
+
+
+Final verification also exposed two QA defects, now source-fixed in `5262e4a29`: a host-timed hydration fixture (`4bc5d562`) and an aggregate HTTP deadline shorter than the observed complete run (`0c148510`). All 108 unchanged HTTP tests passed in the longer diagnostic run, just over 15 minutes. The HTTP watchdog is now 20 minutes; Guardian gives that child 21 minutes while honoring an explicit operator override. No tests, assertions, individual product timeouts, or release acceptance requirements were removed. The image staging cleanup ratchet failure was repaired in `f9750306d`; unexpected cleanup errors are now observable, and image tests pass 100 assertions.
+
+The cleanup branch was synchronized with trunk `2aa8305c0`, including the doorway movement repair. The product candidate `ed0788584` passed all 753 fast steps and the refreshed live frontend check. Its default 15-minute HTTP attempt timed out; that result remains a failure, separate from diagnostic 108/108 coverage. Final normal gates are restarted after the QA deadline/clock repairs.
