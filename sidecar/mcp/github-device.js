@@ -4,7 +4,8 @@ const CLIENT_ID = 'Ov23livVcHfqh3CtI3wo';
 const TOKEN_ENDPOINT = 'https://github.com/login/oauth/access_token';
 const oauth = require('./oauth.js');
 
-function createDeviceFlow({ fetchImpl, complete, snapshot, now = Date.now, clientId = CLIENT_ID }) {
+function createDeviceFlow({ fetchImpl, complete, snapshot, now, clientId = CLIENT_ID }) {
+  if (typeof now !== 'function') throw new Error('GitHub device flow requires an injected clock');
   const attempts = new Map();
   function cancel(attemptId, id) {
     let cancelled = false;

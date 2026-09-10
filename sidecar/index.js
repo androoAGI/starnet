@@ -4277,6 +4277,7 @@ const CONNECTOR_OAUTH_LEG_MS = 15000;
 const CONNECTOR_OAUTH_FLOW_MS = 60000;
 const githubDeviceFlow = require('./mcp/github-device.js').createDeviceFlow({
   fetchImpl: connectorOauthFetch,
+  now: () => Date.now(),
   snapshot: id => JSON.stringify([connectorConfigs.find(c => c && c.id === id) || null, connectorOauth.byId[id] || null]),
   complete: async (id, grant, active) => {
     if (!active()) throw new Error('This connection changed while sign-in was open.');
