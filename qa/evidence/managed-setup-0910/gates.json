@@ -1,0 +1,12 @@
+[
+  {
+    "file": "managed-setup-fast.log",
+    "sha256": "2b382cbf1918a8f8fe187d76f95ccd72791877a46cb82949fd24ff73c816cfa9",
+    "tail": "redential denied; new principal executes independently\r\nworld-seat-recovery: OK (23 assertions)\r\nsave-concurrency: stale edits, durable recovery, replay, old clients and restart PASS\r\n[cloudsave] durable mirror has not synced; retrying with backoff. Local cache is intact.\r\n[cloudsave] durable mirror has not synced; retrying with backoff. Local cache is intact.\r\n[cloudsave] durable mirror has not synced; retrying with backoff. Local cache is intact.\r\ncloudsave-concurrency: two clients, conflict export, update refusal, offline restart and queued writes PASS\r\nworld-movement-continuity: OK (15 assertions)\r\nrun-fast-tests: OK — 763 step(s) green\r\n"
+  },
+  {
+    "file": "managed-setup-endpoint.log",
+    "sha256": "706abb3062594bbe87ca4e4680420507257f60e8c87fec5673b4c2b7cfdfaf4e",
+    "tail": "nt/token; desktop-token restart passed.\r\n# Subtest: managed chat ignores stale request endpoints and credentials across provider switch and restart\r\nok 1 - managed chat ignores stale request endpoints and credentials across provider switch and restart\r\n  ---\r\n  duration_ms: 4964.1537\r\n  type: 'test'\r\n  ...\r\n# Subtest: persisted frontend endpoints stay provider scoped across switching and reload\r\nok 2 - persisted frontend endpoints stay provider scoped across switching and reload\r\n  ---\r\n  duration_ms: 2.6786\r\n  type: 'test'\r\n  ...\r\n1..2\r\n# tests 2\r\n# suites 0\r\n# pass 2\r\n# fail 0\r\n# cancelled 0\r\n# skipped 0\r\n# todo 0\r\n# duration_ms 6524.6478\r\n"
+  }
+]
