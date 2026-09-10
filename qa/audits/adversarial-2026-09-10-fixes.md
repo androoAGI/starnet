@@ -1,6 +1,6 @@
 # Adversarial audit fixes — 2026-09-10
 
-Source repair: `64ed8711b`, synchronized with movement trunk `e80acf63d` in `a5cc394ef`; source lock `9cb548870`.
+Source repair: `64ed8711b`, synchronized with movement trunk `e80acf63d` in `a5cc394ef`. Recovery follow-ups: `bb1aa021e` (edits during reload), `de01a1343` (conversion retry payload), `eab106abd` (nonblocking dirty-cache startup). Generated mirror synchronized; source lock `6d2111c27`.
 
 All three audited P1 failures have source repairs and focused live proof:
 
@@ -12,4 +12,12 @@ Live seeded app proof used a local deterministic provider and disposable workspa
 
 Additional regression coverage includes offline dirty restart, queued saves, unload/refusal/unknown-save paths, backward clock movement, idempotent replay, full history conversion, missing-file rollback and conversion retry after restart.
 
-Verification is still in progress: full fast and HTTP gates, customer journeys, synchronization after the preceding merge lane, and post-merge checks. This is not a claim that the installed desktop build or every unrelated feature is defect-free.
+Verification so far:
+
+- Full fast gate: 761/761 steps passed (`dev/audit-0910/complete-fast.log`).
+- Browser journeys: 139/139 assertions passed (`dev/audit-0910/journeys-fix.log`).
+- Real Git review regression: 56 assertions passed. Growth upgrade: 24 assertions passed. Equipment projection: 10 real runs, writes, revocation and restart passed.
+- Full HTTP run: incomplete; the existing 900000 ms watchdog terminated it. No pass is claimed. The preceding integration lane contains the watchdog correction; the combined candidate still needs a complete HTTP run.
+- Customer journeys: first run reached the final equipment fixture and failed because it intentionally replaced the station without reading the new revision. That fixture now reads the revision and its standalone test passes; full customer-journey rerun is pending.
+
+Integration is serialized behind the preceding authorized lanes. Remaining: synchronize the resulting trunk, complete the full combined gates and post-merge verification. This is not a claim that the installed desktop build or every unrelated feature is defect-free.
