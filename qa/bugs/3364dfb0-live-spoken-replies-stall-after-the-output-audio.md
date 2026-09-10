@@ -4,10 +4,10 @@ slug: live-spoken-replies-stall-after-the-output-audio
 title: Live spoken replies stall after the output audio context closes
 surface: voice
 severity: P1
-status: open
+status: fixed
 found: 2026-09-10
 lane: agent/live-speech-0910
-fix:
+fix: f129e19e3
 origin: customer
 report: Customer report relayed by owner on 2026-09-10: chimes restored but agent live speech keeps failing
 affected: New update; exact customer build and platform unknown
@@ -40,7 +40,6 @@ Source repair replaces closed transmission/shell graphs and leaves audio on nati
 ## Regression
 
 Before: the real browser stalled at time 0 after closing the speech graph. After: the same reproduction completed the second reply. test/voice.button.test.js exercises both shell and transmission replacement and rejected resume for suspended/interrupted devices without capturing native output. Full gate receipt pending.
-
 
 ## Sibling coverage
 
