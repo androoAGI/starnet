@@ -1397,11 +1397,11 @@
           if (j.state === 'connected') {
             out.classList.add('ok'); out.textContent = '✓ GitHub connected as ' + j.login + ' — ' + j.toolCount + ' tool(s)';
             sfx('click'); notify(out.textContent, 'good');
-          } else { out.classList.remove('ok'); out.textContent = j.error || 'GitHub sign-in failed. Try again.'; }
+          } else { out.classList.remove('ok'); out.textContent = j.error || 'GitHub sign-in failed. Try again.'; notify(out.textContent, 'bad'); }
           ccRefresh(); refresh(); return;
         }
-        if (!controller.signal.aborted && body.isConnected) out.textContent = 'GitHub code expired. Sign in again to get a new code.';
-      } catch (_) { if (!controller.signal.aborted) out.textContent = 'Could not finish GitHub sign-in. Please try again.'; }
+        if (!controller.signal.aborted && body.isConnected) { out.textContent = 'GitHub code expired. Sign in again to get a new code.'; notify(out.textContent, 'bad'); }
+      } catch (_) { if (!controller.signal.aborted) { out.textContent = 'Could not finish GitHub sign-in. Please try again.'; notify(out.textContent, 'bad'); } }
       finally {
         controller.signal.removeEventListener('abort', remove); notice.remove();
         postJSON('/api/connectors/oauth/cancel', { id, attemptId: device.attemptId }).catch(() => {});
