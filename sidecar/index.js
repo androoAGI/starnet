@@ -126,7 +126,7 @@ const codexAuthState = require('./providers/codex-auth-state.js');
 // pure dead-token machinery. Codex keeps its own proprietary wire above — these are additive, never a reroute.
 const oauthDevice = require('./providers/oauth-device.js');
 const oauthTokenStore = require('./providers/oauth-token-store.js');
-const { effectiveModel: resolveEffectiveModel, effectiveUsd } = require('./spend.js');
+const { effectiveModel: resolveEffectiveModel, effectiveUsd, effectiveRunUsd } = require('./spend.js');
 const { makeEmitter } = require('../shared/emitter.js');
 const { redact, renderRecall, injectRecall, rank, makeContext, compactionMemoryBlock, compactionSummaryPrompt } = require('./context.js');
 const { makeSummarizer } = require('./compaction-summarizer.js');   // chunked context-compaction fold (Lane A)
@@ -7032,6 +7032,13 @@ async function loopUndoWork(loop, n) {
   };
 }
 
+// The review guard covers the whole stack, including asynchronous Git undo.
+const loopReviews = new Set();
+function loopReviewBusy(id) { return loopReviews.has(id); }
+function beginLoopReview(id) {
+  if (loopReviewBusy(id) || loopDriver.leases.has(id)) throw Object.assign(new Error('This loop is busy; wait for the current run or review to finish'), { status: 409 });
+  loopReviews.add(id);
+}
 const loopDriver = makeLoopDriver({
   getLoops: () => loopJobs,
   // TRANSACTIONAL DISPATCH: an honest false receipt means the durable write did NOT land, and the driver then
@@ -7056,7 +7063,7 @@ const loopDriver = makeLoopDriver({
   agentExists: (agentId) => { const id = String(agentId || ''); return !id || id === 'agent' || agentRoster.size === 0 || agentRoster.has(id); },
   // PURELY-LOCAL readiness, evaluated BEFORE any spend (the night shift's NS-2 cold-leash fix): a stand-down
   // that no model call could have avoided must not cost money or an iteration slot.
-  precheck: ({ loop }) => loopPrecheck(loop),
+  precheck: ({ loop }) => loopReviewBusy(loop.id) ? { ok: false, reason: 'review in progress' } : loopPrecheck(loop),
   getKey: (provider) => cronKeyFor(provider),
   providerForLoop: (loop) => cronProviderFor(loop),
   hasCredential: (provider, key) => cronHasCredential(provider, key),
@@ -7256,6 +7263,7 @@ async function modelCreateLoop(spec) {
 }
 
 async function modelUpdateLoop(id, rawPatch) {
+  if (loopReviewBusy(id)) throw new Error('Review in progress; retry when it finishes');
   const loop = loopjobStore.getLoop(loopJobs, id);
   if (!loop) throw new Error('no such loop');
   rawPatch = rawPatch || {};
@@ -7283,6 +7291,7 @@ async function modelUpdateLoop(id, rawPatch) {
 }
 
 async function modelControlLoop(id, action, reason) {
+  if (loopReviewBusy(id)) throw new Error('Review in progress; retry when it finishes');
   if (!loopjobStore.getLoop(loopJobs, id)) throw new Error('no such loop');
   const now = Date.now();
   let candidate;
@@ -7300,6 +7309,7 @@ async function modelControlLoop(id, action, reason) {
 }
 
 async function modelRemoveLoop(id) {
+  if (loopReviewBusy(id)) throw new Error('Review in progress; retry when it finishes');
   if (!loopjobStore.getLoop(loopJobs, id)) throw new Error('no such loop');
   const lease = loopDriver.leases.get(id);
   try { if (lease && lease.abort && typeof lease.abort.abort === 'function') lease.abort.abort(); } catch (_) {}
@@ -7310,6 +7320,8 @@ async function modelRemoveLoop(id) {
 }
 
 async function modelVerdictLoop(id, n, verdict, note) {
+  beginLoopReview(id);
+  try {
   const loop = loopjobStore.getLoop(loopJobs, id);
   if (!loop) throw new Error('no such loop');
   const target = (loop.iterations || []).find(it => it && it.n === n);
@@ -7322,6 +7334,7 @@ async function modelVerdictLoop(id, n, verdict, note) {
   try { autonomyLedger.record({ source: 'loop', kind: verdict === 'approved' ? 'earn' : 'decline', jobId: id, agentId: loop.agentId, reason: 'verdict-' + verdict, binding: 'commander', detail: { iteration: n, noted: !!note } }); } catch (_) {}
   armLoops(true);
   return modelLoopRow(id);
+  } finally { loopReviews.delete(id); }
 }
 
 // GET /api/loops — the LOOPS window's poll. Every field is a durable record value or a pure derivation of
@@ -7380,6 +7393,7 @@ function handleLoopsUpdate(req, res) {
   readBody(req, 1 << 16).then(raw => {
     let body; try { body = JSON.parse(raw) || {}; } catch (e) { return json(400, { error: 'bad json' }); }
     const id = String(body.id || '');
+    if (loopReviewBusy(id)) return json(409, { error: 'Review in progress; retry when it finishes' });
     if (!loopjobStore.getLoop(loopJobs, id)) return json(404, { error: 'no such loop' });
     const patch = Object.assign({}, body.patch || {});
     if (Object.prototype.hasOwnProperty.call(patch, 'agentId')) {
@@ -7404,6 +7418,8 @@ function handleLoopsVerdict(req, res) {
   readBody(req, 1 << 16).then(async raw => {
     let body; try { body = JSON.parse(raw) || {}; } catch (e) { return json(400, { error: 'bad json' }); }
     const id = String(body.id || '');
+    try { beginLoopReview(id); } catch (e) { return json(e.status || 409, { error: e.message }); }
+    try {
     const loop = loopjobStore.getLoop(loopJobs, id);
     if (!loop) return json(404, { error: 'no such loop' });
     const n = parseInt(body.n, 10);
@@ -7461,6 +7477,7 @@ function handleLoopsVerdict(req, res) {
       branch: loop.branch || null,
       loop: loopjob.summarize(loopjobStore.getLoop(loopJobs, id), { now: Date.now() })
     });
+    } finally { loopReviews.delete(id); }
   }).catch(() => { try { json(400, { error: 'bad request' }); } catch (_) {} });
 }
 
@@ -7483,6 +7500,7 @@ function handleLoopsControl(req, res) {
       return json(200, { ok: true, halted: loopsHalted, armed: !!loopTimer });
     }
     const id = String(body.id || '');
+    if (loopReviewBusy(id)) return json(409, { error: 'Review in progress; retry when it finishes' });
     if (!loopjobStore.getLoop(loopJobs, id)) return json(404, { error: 'no such loop' });
     if (['pause', 'resume', 'stop'].indexOf(action) < 0) return json(400, { error: 'action must be pause, resume, stop or unhalt' });
     const now = Date.now();
@@ -7578,6 +7596,7 @@ function handleLoopsRemove(req, res) {
   readBody(req, 4096).then(raw => {
     let body; try { body = JSON.parse(raw) || {}; } catch (e) { return json(400, { error: 'bad json' }); }
     const id = String(body.id || '');
+    if (loopReviewBusy(id)) return json(409, { error: 'Review in progress; retry when it finishes' });
     if (!loopjobStore.getLoop(loopJobs, id)) return json(404, { error: 'no such loop' });
     try { loopDriver.abortLease(id, 'removed by the Commander'); } catch (_) {}
     try { commitLoops(loopjobStore.removeLoop(loopJobs, id)); }
@@ -15328,6 +15347,16 @@ async function runOnce(o) {
   // zero extra keys. The provider object is constructed further down (codex/oauth token dance); this slot is
   // filled there, and every tool dispatch happens after the run starts, so the late bind is always resolved by
   // first use. One-shot text collect over the SAME provider.stream interface the loop drives.
+  const pendingMediaCosts = [];
+  const mediaCostEngine = makeCostEngine(); // Only the media provider can price image output.
+  let mediaUsd = 0;
+  const recordMediaUsage = (usage, mediaModel) => {
+    const cost = mediaCostEngine.reconcile(usage, mediaModel);
+    cost.usd = Number.isFinite(cost.usd) && cost.usd >= 0 ? cost.usd : 0;
+    cost.unpriced = !cost.providerCost;
+    mediaUsd += cost.usd;
+    pendingMediaCosts.push(Object.assign({ model: mediaModel }, cost));
+  };
   let auxVisionProvider = null;
   const auxVisionCall = async (req) => {
     if (!auxVisionProvider) throw new Error('session provider not ready');
@@ -15342,7 +15371,7 @@ async function runOnce(o) {
       return out;
     } finally { clearTimeout(t); }
   };
-  const imageTools = makeImageTools({ openrouter: studioRoute.ok ? { apiKey: studioRoute.key, model, baseUrl: studioRoute.baseUrl, provider: studioRoute.provider } : null, fsp, pathMod: path, root: WORKSPACES, imageModel: String(ENV('IMAGE_MODEL') || '').trim() || undefined, auxVision: auxVisionCall });
+  const imageTools = makeImageTools({ openrouter: studioRoute.ok ? { apiKey: studioRoute.key, model, baseUrl: studioRoute.baseUrl, provider: studioRoute.provider } : null, fsp, pathMod: path, root: WORKSPACES, imageModel: String(ENV('IMAGE_MODEL') || '').trim() || undefined, auxVision: auxVisionCall, signal, onUsage: recordMediaUsage });
   // browser.vision uses the SAME vision model as image_analyze when a key exists; with no key it
   // reports "unavailable" honestly (never a success-shaped stub). Pass the dep only when usable.
   runBrowser = makeBrowserTools({
@@ -17082,6 +17111,7 @@ async function runOnce(o) {
       result = {reason:'done', turns:0, usd:0, messages:msgs.concat([{role:'assistant', content:text}])};
     } else result = await runAgentLoop({
       messages: msgs, provider, emit: loopEmit, cost, tools: o.outputOnly ? [] : toolDefs, dispatch, capCtx,
+      drainToolCosts: () => pendingMediaCosts.splice(0),
       acceptanceProbe,
       // Granted but unadvertised: held out of the request until tool.search reveals one (see loop.js).
       deferredTools: o.outputOnly ? [] : deferredToolDefs,
@@ -17235,10 +17265,10 @@ async function runOnce(o) {
     // in-flight tally — record-before-clear so the spend is always counted by at least one source, never neither.
     // result.usd/tokens already INCLUDE the summarizer's spend (the loop folds it into spentUsd as it accrues).
     const finalModel = resolveEffectiveModel({ result, requestedModel: o.model, usingCodex, codexDefaultModel: CODEX_DEFAULT_MODEL, defaultModel: CRON_DEFAULT_MODEL });
-    const finalUsd = effectiveUsd({ usd: (result && result.usd) || 0, unmetered: providerUnmetered, unpricedUsage: result && result.unpricedUsage, priceOf: provider && provider.priceOf });
+    const finalUsd = effectiveRunUsd({ usd: (result && result.usd) || 0, mediaUsd, unmetered: providerUnmetered, unpricedUsage: result && result.unpricedUsage, priceOf: provider && provider.priceOf });
     const finalTurns = (result && result.turns) || 0;
     const finalTokens = (result && result.tokens) || 0;
-    try { ledger.record({ runId, agentId, turns: finalTurns, usd: finalUsd, tokens: finalTokens, model: finalModel, unmetered: providerUnmetered }); } catch (_) {}
+    try { ledger.record({ runId, agentId, turns: finalTurns, usd: finalUsd, tokens: finalTokens, model: finalModel, unmetered: providerUnmetered && mediaUsd === 0 }); } catch (_) {}
     // managed-credit SETTLE: reconcile the reservation to the real spend — refund the unused headroom to the
     // account (billing.js caps finalUsd at the reservation). Inert/no-op unless this run actually reserved credit.
     if (billed) { try { credits.finishRun({ runId, agentId, usd: finalUsd, tokens: finalTokens, turns: finalTurns, reason: (result && result.reason) || 'done' }); } catch (_) {} }
@@ -17256,7 +17286,7 @@ async function runOnce(o) {
         }
       }
       const runEndedAt = Date.now();
-      runStore.record({ runId, parentRunId: o.parentRunId || '', agentId, reason: ((result && result.reason) || 'done'), clarifying: taskQuestionAsked, turns: finalTurns, tokens: finalTokens, usd: finalUsd, title: title, streamId: o.streamId || '', sessionTitle: o.sessionTitle || '', deliveryPrompt: o.sessionPrompt || '', deliveryText, recipeId: o.recipeId || '', projectRoot: o.projectRoot || '', deliverable: deliverableNotes.take(runId), model: finalModel, reasoningEffort, unmetered: providerUnmetered, artifacts: execution.artifactList(), toolsOk: execution.toolsOk(), toolTrace: execution.toolTraceList(), failureStage: execution.failureStage(), failureCode: execution.failureCode(), uncertainMutations: execution.uncertainMutations(), completionEvidence: finalCompletionEvidence, recoveryAttempts: execution.recoveryAttempts(), startedAt: runStartedAt, endedAt: runEndedAt, durationMs: runEndedAt - runStartedAt, identityFallback, internal });   // execution terminal stays separate from the neutral Task Brief outcome used by progression
+      runStore.record({ runId, parentRunId: o.parentRunId || '', agentId, reason: ((result && result.reason) || 'done'), clarifying: taskQuestionAsked, turns: finalTurns, tokens: finalTokens, usd: finalUsd, title: title, streamId: o.streamId || '', sessionTitle: o.sessionTitle || '', deliveryPrompt: o.sessionPrompt || '', deliveryText, recipeId: o.recipeId || '', projectRoot: o.projectRoot || '', deliverable: deliverableNotes.take(runId), model: finalModel, reasoningEffort, unmetered: providerUnmetered && mediaUsd === 0, artifacts: execution.artifactList(), toolsOk: execution.toolsOk(), toolTrace: execution.toolTraceList(), failureStage: execution.failureStage(), failureCode: execution.failureCode(), uncertainMutations: execution.uncertainMutations(), completionEvidence: finalCompletionEvidence, recoveryAttempts: execution.recoveryAttempts(), startedAt: runStartedAt, endedAt: runEndedAt, durationMs: runEndedAt - runStartedAt, identityFallback, internal });   // execution terminal stays separate from the neutral Task Brief outcome used by progression
 
       // P0.1/H1.1: persist the full DIALOGUE (not just the outcome) — a durable server-side transcript for EVERY
       // run, incl. headless ones (cron/Telegram/delegated). Append the triggering user directive, then EVERY new
@@ -19710,7 +19740,7 @@ async function handleSaveWrite(req, res) {
   catch (_) { return json(503, { ok: false, error: 'rating history unavailable', growthUnavailable: true }); }
   if (latestRatingAt > ratingSyncAt) return json(200, { ok: false, stale: true, growthStale: true, latestRatingAt });
   try {
-    const result = saveStore.save(agentId, body);
+    const result = saveStore.save(agentId, body, { compareRevision: true });
     json(200, result);
   } catch (e) { json(400, { error: (e && e.message) || 'save failed' }); }
 }

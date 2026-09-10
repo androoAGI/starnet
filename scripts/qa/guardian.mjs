@@ -55,7 +55,7 @@ import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import { spawnSync } from 'node:child_process';
-import { runBoundedCommand, coerceTimeoutMs } from '../lib/run-command.mjs';
+import { runBoundedCommand, coerceTimeoutMs, npmGateTimeoutMs } from '../lib/run-command.mjs';
 import { fingerprintOf, makeLedger } from './ledger.mjs';
 import { runSweep as runEvidenceSweep } from './evidence-sweep.mjs';
 
@@ -67,6 +67,12 @@ const CREW = 'Green Guardian';
 // gates last — they boot a sidecar). `visual: true` steps need Chrome + a sidecar and are
 // skipped under --skip-visual. `severity` is the DEFAULT for a whole-step failure; a
 // finding derived from a parsed sub-result may override it (visual/audit sub-fails are P1).
+// The HTTP child has a 20-minute aggregate watchdog; the outer runner needs
+// launch/teardown headroom. An explicit operator override still wins for every step.
+export function guardianStepTimeoutMs(step, override) {
+  return npmGateTimeoutMs(step && step.npm, override);
+}
+
 export const GUARDIAN_STEPS = [
   { id: 'test-fast', title: 'Full fast unit/contract gate', npm: 'test:fast', visual: false, severity: 'P0' },
   // HTTP/E2E INTEGRATION gate (gap-audit 2026-07-08): every new subsystem's wired-behavior proof lives in
@@ -425,7 +431,6 @@ if (INVOKED_DIRECTLY) {
     journeys: { SKYNET_JOURNEY_PORT: '8943', SKYNET_JOURNEY_CDP:  '9343' },   // stays in the Guardian range (Part 3/5)
   };
 
-  const STEP_TIMEOUT_MS = coerceTimeoutMs(process.env.SKYNET_GUARDIAN_STEP_TIMEOUT_MS || 900000);
   const npmCmd = process.platform === 'win32' ? 'npm.cmd' : 'npm';
 
   const log = (...a) => console.log('[guardian]', ...a);
@@ -443,7 +448,7 @@ if (INVOKED_DIRECTLY) {
   const LOCK_FILE = process.env.SKYNET_GUARDIAN_LOCK || path.join(os.tmpdir(), 'starnet-qa-guardian.lock');
   const LOCK_HEARTBEAT_MS = coerceTimeoutMs(process.env.SKYNET_GUARDIAN_LOCK_HEARTBEAT_MS || 30000, 30000);
   // Stale window: comfortably larger than the heartbeat cadence so a live-but-busy holder (a gate
-  // can run up to STEP_TIMEOUT_MS) is never mistaken for dead — its heartbeat timer keeps firing.
+  // can run up to its step deadline) is never mistaken for dead — its heartbeat timer keeps firing.
   const LOCK_STALE_MS = coerceTimeoutMs(process.env.SKYNET_GUARDIAN_LOCK_STALE_MS || 120000, 120000);
 
   let __lockRec = null;          // the record THIS process wrote (null until acquired)
@@ -617,7 +622,7 @@ if (INVOKED_DIRECTLY) {
     log(step.id + ' — ' + step.title);
     const res = await runBoundedCommand({
       cmd: npmCmd, args: ['run', step.npm],
-      cwd: PIN_DIR, env, timeoutMs: STEP_TIMEOUT_MS, label: 'guardian/' + step.id
+      cwd: PIN_DIR, env, timeoutMs: guardianStepTimeoutMs(step, process.env.SKYNET_GUARDIAN_STEP_TIMEOUT_MS), label: 'guardian/' + step.id
     });
     fs.writeFileSync(logFile, res.output, 'utf8');
 

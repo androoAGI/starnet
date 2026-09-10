@@ -579,9 +579,35 @@ function fakeDriver() {
     // A. a page that hydrates late: navigate must NOT return on the first look.
     {
       const rig = settleRig(i => i < 3 ? { ok: true, ready: 'loading', n: i } : { ok: true, ready: 'complete', n: 99 });
-      await rig.driver.navigate('http://127.0.0.1:5173/');
-      A.ok(rig.state.probes >= 4, 'navigate keeps polling a hydrating page instead of a blind fixed sleep (probes=' + rig.state.probes + ')');
-      await rig.driver.close();
+      // Exercise the real 400ms settle budget on a controlled clock: host scheduling
+      // must not decide whether this scripted page gets its fourth hydration probe.
+      const nativeTimeout = global.setTimeout, nativeClear = global.clearTimeout;
+      const timers = new Map(); let now = 0, nextId = 0;
+      global.setTimeout = (fn, ms, ...args) => {
+        const id = ++nextId; timers.set(id, { at: now + Number(ms || 0), run: () => fn(...args) }); return id;
+      };
+      global.clearTimeout = id => timers.delete(id);
+      try {
+        let finished = false, navigationError;
+        const navigation = rig.driver.navigate('http://127.0.0.1:5173/').then(
+          () => { finished = true; }, e => { finished = true; navigationError = e; });
+        for (let tick = 0; tick < 200 && !finished; tick++) {
+          now += 10;
+          for (let callbacks = 0; callbacks < 1000; callbacks++) {
+            const due = [...timers].filter(([, t]) => t.at <= now).sort((a, b) => a[1].at - b[1].at)[0];
+            if (!due) break;
+            timers.delete(due[0]); due[1].run();
+          }
+          await new Promise(resolve => setImmediate(resolve));
+        }
+        if (!finished) throw new Error('navigation did not finish within the controlled timer budget');
+        await navigation;
+        if (navigationError) throw navigationError;
+        A.ok(rig.state.probes >= 4, 'navigate keeps polling a hydrating page instead of a blind fixed sleep (probes=' + rig.state.probes + ')');
+      } finally {
+        global.setTimeout = nativeTimeout; global.clearTimeout = nativeClear;
+        await rig.driver.close();
+      }
     }
 
     // B. a static page settles on the FIRST quiet read — auto-wait is faster than the old 900ms sleep.

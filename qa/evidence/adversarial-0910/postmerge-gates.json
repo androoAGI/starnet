@@ -1,0 +1,39 @@
+{
+  "candidate": "18817ae0fa3819e536ba1bd19fcaab0ce902cffd",
+  "postMerge": true,
+  "results": [
+    {
+      "suite": "test:fast",
+      "candidate": "18817ae0fa3819e536ba1bd19fcaab0ce902cffd",
+      "startedAt": "2026-09-10T08:30:00.7927086Z",
+      "finishedAt": "2026-09-10T08:37:04.7008734Z",
+      "exitCode": 0,
+      "log": "C:\\Users\\andro\\gen-trees\\adversarial-audit-0910\\dev\\audit-0910\\postmerge-test-fast.log",
+      "logSha256": "c9748a8df6b2bbaf9f1a9c3dfac728b5ace40a401b1c5e3365d191ad82733c4f",
+      "stepsPassed": 762
+    },
+    {
+      "suite": "test:http",
+      "candidate": "18817ae0fa3819e536ba1bd19fcaab0ce902cffd",
+      "startedAt": "2026-09-10T08:37:04.7973727Z",
+      "finishedAt": "2026-09-10T08:48:38.7115683Z",
+      "exitCode": 0,
+      "log": "C:\\Users\\andro\\gen-trees\\adversarial-audit-0910\\dev\\audit-0910\\postmerge-test-http.log",
+      "logSha256": "0501fa495d571b6447b4fa73867881d34cbd805ff616255137c8356a464a23b6",
+      "stepsPassed": 110
+    }
+  ],
+  "previousTrunk": "c17a38d8f1003959e2764d4e9c37f180c11a1d0d",
+  "premergeTestedSource": "4dfbaee6f27de083a99e138779f8985ba7d3f18a",
+  "foreignFilesPreservedAtMerge": {
+    "qa/STATUS.md": {
+      "bytes": 1476123,
+      "sha256": "e715c046506f06a619a073b2b3272fedb0cd99f84c4ea3f5d2e68c0d421903fb"
+    },
+    "docs/HANDOFF_ROOMS_2026-09-04.md": {
+      "bytes": 9931,
+      "sha256": "b4c7d97fa5ffa294aadf42b3d16c0c1d370522b2e057fe577d8df1b090baf853"
+    }
+  },
+  "runtimeMatchesPremergeTestedSource": true
+}

@@ -28,7 +28,8 @@ const { SidecarFixture } = require('./helpers/sidecar-fixture.js');
     const station = WM.create();
     assert.ok(station.addProp({ t: 'war_intelcab', x: 2, y: 2, w: 1, h: 2 }).ok);
     const save = async () => {
-      const r = await fixture.json('POST', '/api/save', { schema: 'starnet.save', version: 5, updatedAt: Date.now(), agent: { id: 'agent' }, station: station.serialize() });
+      const revision = (await fixture.json('GET', '/api/save?agent=agent')).body.save?._saveRevision || 0;
+      const r = await fixture.json('POST', '/api/save', { schema: 'starnet.save', version: 5, _saveRevision: revision, updatedAt: Date.now(), agent: { id: 'agent' }, station: station.serialize() });
       assert.equal(r.body.ok, true, r.text);
     };
     const roster = async (profile = 'station-gear', approvalMode = 'ask') => {

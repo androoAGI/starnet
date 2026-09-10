@@ -1,0 +1,163 @@
+{
+  "schema": "starnet.cleanup-verification.v1",
+  "source": "c2193f1fbc07f827db07814487769adaeb6467b3",
+  "runtimeEdits": true,
+  "mergedToTrunk": false,
+  "published": false,
+  "normalHttpGate": "PASS: 108/108 with corrected 20-minute aggregate watchdog",
+  "diagnosticHttp": "PASS: 108/108, longer observation window on pre-QA-repair source",
+  "checks": [
+    {
+      "file": ".dogfood/cleanup-synced-fast.log",
+      "command": "npm run test:fast",
+      "source": "ed0788584289fa0884f2632036f8ba1d57c46108",
+      "result": "PASS: 753/753",
+      "sha256": "17d3a32ff2b076ece179ab2e1c5b333a8467d897b36abb7bece17a4cd1a9c71f",
+      "bytes": 51599,
+      "tail": "effective-toolsets: OK (335 assertions)\ndiscovery-documents: extraction, freshness, durable shape, decline, bounds and junction checks passed\nvalue-loop-replay: assertions passed\nplatform-handoff.test: passed (restart, task/agent binding, write scope, contention, cancellation, timeout)\nease-of-use: grouping, persistence, search and effective access passed\nworkflow-takeover: evidence, repetition, scope, outcomes, privacy, defer and duplicate scenarios passed\nworkflow-takeover-ui: one beat, review, defer, double-click, pause, stale refusal and reset passed\n[taskbrief] brief_ask rejected: Call brief.update to incorporate the entire latest answer before choosing a follow-up.\n[taskbrief] brief_ask rejected: The Commander delegated the remaining choices. Update your understanding and proceed with reversible assumptions.\ntask-conversation: whole-answer extraction, grounded updates, adaptive sample, delegation, stale state and restart passed\ntask-conversation-ui: optional shortcuts, full text, failed-send retry, delegation and folded receipt passed\nPASS emergency control: hydrated recovery, explicit action, read-back, partial failure and offline truth\nwork-rating-control.test: OK (5 assertions)\nsession-focus-safety.test: OK\nharness-placement: OK (explicit empty, populated, omitted and legacy workbench requests)\nrun-fast-tests: OK — 753 step(s) green"
+    },
+    {
+      "file": ".dogfood/cleanup-synced-http.log",
+      "command": "npm run test:http",
+      "source": "ed0788584289fa0884f2632036f8ba1d57c46108",
+      "result": "TIMEOUT: normal 900000 ms deadline; not green",
+      "sha256": "b9aad71f4745a9f0de50e56bd04470d543e511210a25b632e3e7da352d98daf4",
+      "bytes": 9588,
+      "tail": "1..1\n# tests 1\n# suites 0\n# pass 1\n# fail 0\n# cancelled 0\n# skipped 0\n# todo 0\n# duration_ms 9604.7978\nroute-honesty.e2e: OK (72 assertions)\neffective-toolsets.e2e: OK (11 assertions)\ndiscovery-documents.http: auth, explicit consent, evidence, restart, decline, stale acceptance, pause and revoke passed\nworkflow-takeover.http: authenticated evidence, review, concurrent create, pause, forget and restart passed\ntask-conversation.http: full answer, context, open question, sample, restart and stale receipts passed\n\n[timeout] test:http exceeded 900000ms; terminating process tree."
+    },
+    {
+      "file": ".dogfood/cleanup-synced-cloud-image.log",
+      "command": "STARNET_TEST_CLOUD_ROOT=<local-cloud> node test/managed-image.e2e.test.js",
+      "source": "ed0788584289fa0884f2632036f8ba1d57c46108",
+      "result": "PASS: actual local cloud code, synthetic upstream and credentials",
+      "sha256": "d0dbc3a126cfc52583aa1bbe096d29b8e81a725507695e2b544293fb0915e949",
+      "bytes": 939,
+      "tail": "Managed image proof: credits-only PNG saved and served; restart passed; exact image debit $0.025; 402/503/no-image never done. Cloud=true\n# Subtest: managed images: saved credits route generates, bills, survives restart and fails honestly\nok 1 - managed images: saved credits route generates, bills, survives restart and fails honestly\n  ---\n  duration_ms: 8337.6047\n  type: 'test'\n  ...\n1..1\n# tests 1\n# suites 0\n# pass 1\n# fail 0\n# cancelled 0\n# skipped 0\n# todo 0\n# duration_ms 9822.1708"
+    },
+    {
+      "file": ".dogfood/cleanup-synced-live.log",
+      "command": "node scripts/qa/cleanup-0112-live.cjs <seeded-ui>",
+      "source": "ed0788584289fa0884f2632036f8ba1d57c46108",
+      "result": "PASS: current frontend; seeded backend predates cleanup and is not backend proof",
+      "sha256": "ed7c9aa2d02187b51658d278acf9fce550d02527d87807a70e280d8187b0e15b",
+      "bytes": 389,
+      "tail": "    \"before\": 420,\n    \"resized\": 512,\n    \"reopened\": 512,\n    \"reloaded\": 512\n  },\n  \"race\": {\n    \"chosen\": {\n      \"provider\": \"starnet\",\n      \"model\": \"anthropic/test-model\"\n    },\n    \"after\": {\n      \"provider\": \"starnet\",\n      \"model\": \"anthropic/test-model\"\n    }\n  }\n}"
+    },
+    {
+      "file": ".dogfood/cleanup-final-journeys.log",
+      "command": "npm run qa:journeys",
+      "source": "e8541fcbd724cdff80c1a1f156840487c042f56e",
+      "result": "PASS: 139/139",
+      "sha256": "862d189c7c1f3f6f4e47e68d02adc7c953f2ebb09353a5ab3f0a9aca9e6f4405",
+      "bytes": 13748,
+      "tail": "journey J7: slash INPUT-path truth (2026-07-05 ARGS-bug seam)\n    PASS  J7/composer-present  — #chat-input mounted\n    PASS  J7/model-line-typed  — drove \"/model journey/slash-truth-1789011617235\" through #chat-input: typed\n    PASS  J7/arg-command-dispatched  — local line: \"Model set to journey/slash-truth-1789011617235\"\n    PASS  J7/arg-reached-config  — App.currentAgent().model=\"journey/slash-truth-1789011617235\" (expected the typed arg)\n    PASS  J7/arg-line-not-chat  — no \"/model …\" user chat row (dispatched, not sent)\n    PASS  J7/composer-cleared  — input.value after dispatch = \"\"\n    PASS  J7/whoami-line-typed  — drove \"/whoami\": typed\n    PASS  J7/bare-command-dispatched  — new local line from /whoami (\"You are …\")\n    PASS  J7/no-slash-user-rows  — no user chat row starts with \"/\" — every slash line dispatched\n    PASS  J7/plain-line-typed  — drove plain prose: typed\n    PASS  J7/plain-text-goes-to-chat  — plain prose became a .cmsg.user chat row (send path, not command)\n    PASS  J7/plain-not-a-command  — slashUserRows=[]\n\n\nJOURNEYS PASS — 139/139 assertions passed → C:\\Users\\andro\\gen-trees\\cleanup-0112-0910\\.uijourneys"
+    },
+    {
+      "file": ".dogfood/cleanup-final-beginner.log",
+      "command": "npm run qa:beginner -- --port 8958 --cdp-port 9358",
+      "source": "e8541fcbd724cdff80c1a1f156840487c042f56e",
+      "result": "PASS: UI-only simulated-provider boundary, 6 steps",
+      "sha256": "a54ab0b8978553691d5e62aa66a387f9609a88dd5512e9ae1d60a8b6409773ff",
+      "bytes": 1153,
+      "tail": "> starnet-harness@0.11.1 qa:beginner\n> node scripts/qa/beginner-run.mjs --port 8958 --cdp-port 9358\n\n[qa:beginner] mode=ui-only port=8958 run=.bugloops\\beginner-2026-09-10T03-34-49\n[qa:beginner] temp workspace: C:\\Users\\andro\\AppData\\Local\\Temp\\starnet-beginner-ws-35yEMz (empty → fresh connect screen; cleaned up after run)\n[qa:beginner] booting a FRESH (no dev-seed) sidecar on :8958 …\n[qa:beginner] boot ok — page up\n[qa:beginner] first-boot splash advanced with a real Enter keypress\n[qa:beginner] title ok — CREATE YOUR OVERSEER reached\n[qa:beginner] connect ok — OpenRouter selected and name/key/model entered\n[qa:beginner] create-agent ok — WAKE accepted, left the connect screen\n[qa:beginner] awakening ok — on the floor, ceremony live\n[qa:beginner] advanced 1 explicit dialogue read gate(s)\n[qa:beginner] first-directive ok — REACHED THE UI-ONLY LLM BOUNDARY (the awakening is client-scripted; the first real /api/run is the tutorial first-command, which needs a live model). Treating boundary as PASS.\n[qa:beginner] RUN PASS — total 136890ms across 6 steps\n[qa:beginner] STATUS.md Beginner Run row → PASS"
+    },
+    {
+      "file": ".dogfood/cleanup-final-golden.log",
+      "command": "npm run golden",
+      "source": "e8541fcbd724cdff80c1a1f156840487c042f56e",
+      "result": "CHANGED: 16; zero excused; exit 3; screenshots reviewed, baseline unchanged",
+      "sha256": "b41f763e5d9883fa26ef937f3a2c90fbad4a562561c47fb21447f7dab8f9c3d3",
+      "bytes": 3577,
+      "tail": "  C:\\Users\\andro\\gen-trees\\cleanup-0112-0910\\.uigolden\\ingame.png  diff=7.86\n  C:\\Users\\andro\\gen-trees\\cleanup-0112-0910\\.uigolden\\crew-agents.png  diff=13.21\n  C:\\Users\\andro\\gen-trees\\cleanup-0112-0910\\.uigolden\\crew-recruit.png  diff=12.06\n  C:\\Users\\andro\\gen-trees\\cleanup-0112-0910\\.uigolden\\crew-commander.png  diff=16.45\n  C:\\Users\\andro\\gen-trees\\cleanup-0112-0910\\.uigolden\\work-tasks.png  diff=10.19\n  C:\\Users\\andro\\gen-trees\\cleanup-0112-0910\\.uigolden\\work-deliverables.png  diff=13.46\n  C:\\Users\\andro\\gen-trees\\cleanup-0112-0910\\.uigolden\\work-recipes.png  diff=11.15\n  C:\\Users\\andro\\gen-trees\\cleanup-0112-0910\\.uigolden\\work-automation.png  diff=12.13\n  C:\\Users\\andro\\gen-trees\\cleanup-0112-0910\\.uigolden\\work-quests.png  diff=11.83\n  C:\\Users\\andro\\gen-trees\\cleanup-0112-0910\\.uigolden\\build-station.png  diff=14.79\n  C:\\Users\\andro\\gen-trees\\cleanup-0112-0910\\.uigolden\\build-connectors.png  diff=12.24\n  C:\\Users\\andro\\gen-trees\\cleanup-0112-0910\\.uigolden\\sys-messaging.png  diff=11.34\n  C:\\Users\\andro\\gen-trees\\cleanup-0112-0910\\.uigolden\\build-manual.png  diff=11.96\n  C:\\Users\\andro\\gen-trees\\cleanup-0112-0910\\.uigolden\\sys-settings.png  diff=13.27\n  C:\\Users\\andro\\gen-trees\\cleanup-0112-0910\\.uigolden\\sys-updates.png  diff=8.48\n  C:\\Users\\andro\\gen-trees\\cleanup-0112-0910\\.uigolden\\sys-notifs.png  diff=9.46"
+    },
+    {
+      "file": ".dogfood/cleanup-final-fast.log",
+      "command": "npm run test:fast",
+      "source": "e8541fcbd724cdff80c1a1f156840487c042f56e",
+      "result": "FAIL: hydration poll assertion, step 315/753",
+      "sha256": "1eff4f137a897203334ccd2ce9a6e9a21803681e6d88ef81a5201eb4d531f2a1",
+      "bytes": 23722,
+      "tail": "fs.jail.test: OK (96 assertions)\nfs-mutation-receipts.test: OK (27 assertions)\nfs.patch.test: OK (34 assertions)\nfs.stale-write.test: OK (15 assertions)\ndocextract.test: OK (28 assertions)\nimagewire: OK (26 assertions)\nweb.ssrf.test: OK (43 assertions)\nweb.search.test: OK (18 assertions)\nweb.politeness.test: OK (13 assertions)\nweb.fence.test: OK (11 assertions)\nweb.fetch-jina.test: OK (23 assertions)\nweb.calm.test: OK (25 assertions)\nweb.reach.test: OK (29 assertions)\nFAIL: navigate keeps polling a hydrating page instead of a blind fixed sleep (probes=3)\nbrowser.test: 1 problem(s), 303 ok\nrun-fast-tests: FAILED at step 315/753: node test/browser.test.js (exit 1)"
+    },
+    {
+      "file": ".dogfood/cleanup-final-fast-recheck.log",
+      "command": "npm run test:fast",
+      "source": "e8541fcbd724cdff80c1a1f156840487c042f56e",
+      "result": "FAIL: image staging silent catch, step 731/753; fixed in f9750306d",
+      "sha256": "e0ffd3e3e1137e8d9461c85480d879908dbe2bcbbea0116b8bc9dd30190ff28e",
+      "bytes": 49429,
+      "tail": "[failopen] t.stuck-loop (x100): every 60s forever\n[failopen] t.sync (x1): sync boom\n[failopen] t.sync (x2): sync boom\n[failopen] t.sync (x3): sync boom\n[failopen] t.sync (x4): sync boom\n[failopen] t.sync (x5): sync boom\n[failopen] t.sync (x50): sync boom\n[failopen] t.sync (x100): sync boom\n[failopen] t.sync.weird (x1): null\n[failopen] untagged (x1): x\nfailopen helper: OK (21 assertions)\nFAIL: tools/builtin/image.js has 2 bare silent catch(es), baseline allows 1 — wrap the new one(s) in swallow(tag) from sidecar/failopen.js instead of a silent handler\nFAIL: no sidecar file exceeds its audited silent-catch baseline — expected 0, got 1\n[failopen] ratchet.selftest.sync (x1): x\nfail-open ratchet: 2 problem(s), 155 ok\nrun-fast-tests: FAILED at step 731/753: node test/failopen-ratchet.test.js (exit 1)"
+    },
+    {
+      "file": ".dogfood/cleanup-final-http.log",
+      "command": "npm run test:http",
+      "source": "e8541fcbd724cdff80c1a1f156840487c042f56e",
+      "result": "TIMEOUT: normal 900000 ms deadline",
+      "sha256": "9cb33c1b6c599e0dd7718b8c495f343fa70841089abd06edd65f55d718e5f6be",
+      "bytes": 6714,
+      "tail": "[checkpoint] rebuilt index for pr from 1 shadow-git commits (index.json was empty/corrupt)\n[checkpoint] rebuilt index for pr from 1 shadow-git commits (index.json was empty/corrupt)\n[checkpoint] rebuilt index for a1 from 5 shadow-git commits (index.json was empty/corrupt)\n[checkpoint] rebuilt index for a1 from 5 shadow-git commits (index.json was empty/corrupt)\n[checkpoint] rebuilt index for sz from 1 shadow-git commits (index.json was empty/corrupt)\n[checkpoint] shadow repo for sz over ceiling (28001B) -> re-init -> 28108B\n[checkpoint] shadow repo for sz over ceiling (28586B) -> re-init -> 28107B\n[checkpoint] shadow repo for sz over ceiling (28584B) -> re-init -> 28107B\n[checkpoint] shadow repo for sz over ceiling (28584B) -> re-init -> 28107B\n[checkpoint] shadow repo for sz over ceiling (28329B) -> re-init -> 28107B\ncheckpoint-store.test: OK (57 assertions)\nshell.test: OK (36 assertions)\nshell.process-tree.test: OK (5 assertions)\nverify.run.test: OK (24 assertions)\n\n[timeout] test:http exceeded 900000ms; terminating process tree."
+    },
+    {
+      "file": ".dogfood/cleanup-http-diagnostic.log",
+      "source": "ed0788584289fa0884f2632036f8ba1d57c46108",
+      "command": "node scripts/timeout.mjs --label cleanup-http-diagnostic --timeout=1800000 -- npm run test:http:raw",
+      "result": "PASS: 108/108; diagnostic result, not a default 15-minute gate pass",
+      "sha256": "172f0c2e8e5316092bdd166dadc525f30ddce943749536bd8435bfa47b7f2de5",
+      "bytes": 10969,
+      "tail": "ok 2 - persisted frontend endpoints stay provider scoped across switching and reload\n  ---\n  duration_ms: 28.6473\n  type: 'test'\n  ...\n1..2\n# tests 2\n# suites 0\n# pass 2\n# fail 0\n# cancelled 0\n# skipped 0\n# todo 0\n# duration_ms 10400.0791\ntool-projection.e2e: OK (10 real runs, file writes, both model IDs, revocation and restart)\nrun-test-list: OK — 108 step(s) green"
+    },
+    {
+      "file": ".dogfood/cleanup-complete-fast.log",
+      "command": "npm run test:fast",
+      "source": "c2193f1fbc07f827db07814487769adaeb6467b3",
+      "result": "PASS: 753/753",
+      "sha256": "4802aadb0b2e01a47a653500319486ffae339371749bb4a08bdc906d91426c1a",
+      "bytes": 51602,
+      "tail": "effective-toolsets: OK (335 assertions)\ndiscovery-documents: extraction, freshness, durable shape, decline, bounds and junction checks passed\nvalue-loop-replay: assertions passed\nplatform-handoff.test: passed (restart, task/agent binding, write scope, contention, cancellation, timeout)\nease-of-use: grouping, persistence, search and effective access passed\nworkflow-takeover: evidence, repetition, scope, outcomes, privacy, defer and duplicate scenarios passed\nworkflow-takeover-ui: one beat, review, defer, double-click, pause, stale refusal and reset passed\n[taskbrief] brief_ask rejected: Call brief.update to incorporate the entire latest answer before choosing a follow-up.\n[taskbrief] brief_ask rejected: The Commander delegated the remaining choices. Update your understanding and proceed with reversible assumptions.\ntask-conversation: whole-answer extraction, grounded updates, adaptive sample, delegation, stale state and restart passed\ntask-conversation-ui: optional shortcuts, full text, failed-send retry, delegation and folded receipt passed\nPASS emergency control: hydrated recovery, explicit action, read-back, partial failure and offline truth\nwork-rating-control.test: OK (5 assertions)\nsession-focus-safety.test: OK\nharness-placement: OK (explicit empty, populated, omitted and legacy workbench requests)\nrun-fast-tests: OK — 753 step(s) green"
+    },
+    {
+      "file": ".dogfood/cleanup-complete-http.log",
+      "command": "npm run test:http",
+      "source": "c2193f1fbc07f827db07814487769adaeb6467b3",
+      "result": "PASS: 108/108",
+      "sha256": "3e4d769a8f1d958245d8b40aa6587ec237ab1042b1307a8a732f5c2cdca9dc34",
+      "bytes": 11094,
+      "tail": "ok 2 - persisted frontend endpoints stay provider scoped across switching and reload\n  ---\n  duration_ms: 21.5952\n  type: 'test'\n  ...\n1..2\n# tests 2\n# suites 0\n# pass 2\n# fail 0\n# cancelled 0\n# skipped 0\n# todo 0\n# duration_ms 5604.6282\ntool-projection.e2e: OK (10 real runs, file writes, both model IDs, revocation and restart)\nrun-test-list: OK — 108 step(s) green"
+    },
+    {
+      "file": ".dogfood/cleanup-verified-fast.log",
+      "command": "npm run test:fast",
+      "source": "b4e4a2246bcecac219ed13c4965a79f28201191e",
+      "result": "INTERRUPTED to complete outer HTTP caller alignment; not a pass",
+      "sha256": "ed949931fc0add5e266624281d71dab0ac27fb10425694673aad76686bc1c9be",
+      "bytes": 47744,
+      "tail": "desktop-artifact-open.test: OK (18 assertions)\nrelease-train-macos-trust.test: OK (56 assertions)\nrelease-train-windows-trust.test: OK (24 assertions)\nrelease contract docs tests passed\nwebsite-deploy-staging.test: OK (24 assertions)\nwebsite-app-sync.test: OK (8 assertions)\nwebsite-live-preview.test: OK (15 assertions)\nfont.law.test: OK (216 assertions)\nsprite-assets.test: OK (15324 assertions)\nsprite-walk-motion.test: OK (4674 assertions)\nsprite-detached-prop.test: OK (3 assertions)\nlint-gate-can-fail: 747 asserting gate step(s) can all turn the gate red; OK\nlint-emits: scanned 500 file(s), 193 literal emit(s); OK\nlint-determinism: scanned 297 file(s); OK\nstation-bridge.test.js: ok\nstation-commands.test: OK (135 assertions)"
+    }
+  ],
+  "notes": [
+    "Earlier failed attempts retained; no baselines or detector findings dismissed.",
+    "Normal HTTP gate and longer diagnostic window are reported separately.",
+    "Customer, installed desktop, paid account and hardware recovery are not certified.",
+    "Guardian, Closer and Phase 2 share HTTP outer-budget policy. Product runtime is unchanged since ed0788584; later changes concern QA timing and documentation."
+  ],
+  "runtimeProofSource": "ed0788584289fa0884f2632036f8ba1d57c46108",
+  "gatePolicy": {
+    "httpChildMs": 1200000,
+    "httpOuterDefaultMs": 1260000,
+    "fastMs": 900000,
+    "operatorOverrides": "retained",
+    "individualTestLimits": "unchanged",
+    "testLists": "unchanged"
+  },
+  "normalFastGate": "PASS: 753/753",
+  "releaseReady": false,
+  "sourceCleanupVerified": true,
+  "remainingAcceptance": [
+    "Seven historical customer P1 records remain open.",
+    "Integration snapshot 2aa8305c0 has four blocking detector findings and RED Guardian.",
+    "Golden detection flags 16 structurally changed frames; all were inspected on e8541fcbd, but no baseline was blessed and no current installed visual acceptance is claimed.",
+    "Affected-account Sonnet recovery, real Mac onboarding/relink and microphone acceptance remain unverified.",
+    "Exact-candidate installer and older-client automatic update/relaunch canary remain unverified.",
+    "Required 720-minute release soak and installed/hardware acceptance remain outstanding."
+  ]
+}

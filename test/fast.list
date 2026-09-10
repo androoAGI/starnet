@@ -120,6 +120,7 @@ test/loop.verify-on-stop.test.js
 test/loop.acceptance-on-stop.test.js
 test/loop.parallel-tools.test.js
 test/loop.tool-images.test.js
+test/loop.media-cost.test.js
 test/loop.turn-budget.test.js
 test/loop.provider-recovery.test.js
 test/loop.failure-recovery.test.js
@@ -732,6 +733,7 @@ test/failopen-ratchet.test.js
 test/frontend-fetch-truth-ratchet.test.js
 test/loop-verdict.test.js
 test/free-path-ollama.test.js
+test/keycta-recovery.test.js
 test/process-fault.test.js
 test/tier-model-catalog.test.js
 test/crash-ledger.test.js
@@ -759,5 +761,10 @@ test/result-contract.test.js
 test/openai-formats.test.js
 test/request-auth-rotation.test.js
 test/world-seat-recovery.test.js
+
+test/save-concurrency.test.js
+
+test/cloudsave-concurrency.test.js
 test/world-movement-continuity.test.js
+
 test/sprite-direction-details.test.js

@@ -9,17 +9,9 @@
 // text/task turns get NO augmentation, so written replies keep full structure (the whole "voice =
 // laid-back back-and-forth, type = detailed" split is produced by the presence/absence of this block).
 function voiceModeRules() {
-  // the format rules are fixed; the closing line is the ACTIVE PERSONA's spoken-delivery hint, so the 5
-  // personalities sound distinct out loud (the voice channel was flattening them into one generic-casual tone).
-  let hint = 'sound like a relaxed buddy giving a quick answer across the room';
-  try {
-    if (typeof Voice !== 'undefined' && Voice.personaId && typeof Personas !== 'undefined') {
-      const p = Personas.get(Voice.personaId());
-      if (p && p.voiceModeHint) hint = p.voiceModeHint;
-    }
-  } catch (_) {}
+  const hint = 'Keep the same effective personality, language preference and custom style as the system prompt';
   return "\n\n[VOICE MODE — you're talking out loud, not typing.] Reply the way you'd actually SAY it:"
-    + " 1-3 short sentences, max. Use contractions (you're, gonna, it's, lemme). Plain spoken words only —"
+    + " 1-3 short sentences, max. Use natural spoken phrasing consistent with your formality setting. Plain spoken words only —"
     + " absolutely NO markdown, asterisks, bullet points, numbered lists, headers, code blocks, emoji, or links;"
     + " those can't be heard. Don't read out URLs or file paths character-by-character — just say what you did."
     + " No throat-clearing, no 'As an AI', no 'I'd be happy to', no recapping the question. " + hint + "."
@@ -1838,7 +1830,7 @@ const Chat = (() => {
   }
   // command / client-side output (/help, /whoami, version, unknown-command, …). A SYSTEM register — dim, no
   // speaker chip, never copyable — so the station's own words are never mistaken for the agent's speech.
-  function localLine(t) { row('system').body.textContent = t; autoscroll(); }
+  function localLine(t) { const r = row('system'); r.body.textContent = t; autoscroll(); return r.d; }
   // the history-cap marker ("…N earlier turns trimmed …") as a dim, centered, hairline-flanked system line —
   // a scrollback boundary, not a dropped record. Reuses the broadcast register's chrome (theme tokens only).
   function trimMarkerLine(t) {
@@ -7322,7 +7314,7 @@ const Chat = (() => {
       const id = Personas.resolve ? Personas.resolve(key) : key;
       if (applyAgentPatch({ personaId: id })) {
         // slash-set skips the create screen's two-press confirm, so the honesty note rides the confirmation line
-        localLine('Personality set to ' + Personas.get(id).name + '.' + (id === 'unhinged' ? ' Heads up: this one swears — for real.' : ''));
+        localLine('Personality set to ' + Personas.get(id).name + '.' + (id === 'unhinged' && Personas.effective(id, (activeAgent() || {}).voiceTraits).profanity > 0 ? ' Heads up: this one swears — for real.' : ''));
       }
       else localLine('Personality setting is not available yet.');
       return;
@@ -8807,6 +8799,8 @@ const Chat = (() => {
     const rowEl = document.createElement('div'); rowEl.className = 'choice-row';
     activeChoiceRows.add(rowEl);
     let done = false;
+    // A producer may retire its own obsolete setup prompt without clearing another prompt's choices.
+    rowEl.dismiss = () => { done = true; activeChoiceRows.delete(rowEl); rowEl.remove(); };
     // MULTI-SELECT (2026-08-14): opts.multi turns the plain option chips into toggles; only a chip marked
     // it.confirm (or it.skip) fires onPick — the confirm chip carries the picked values. Single-select
     // callers pass nothing and get byte-identical behavior.

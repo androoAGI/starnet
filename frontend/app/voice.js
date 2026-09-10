@@ -900,6 +900,12 @@ const Voice = (() => {
   function ambientLine(fallback) {
     try {
       const p = (typeof Personas !== 'undefined' && Personas.get) ? Personas.get(activePersonaId) : null;
+      if (p && Personas.ambient) {
+        const a = typeof App !== 'undefined' && App.currentAgent ? App.currentAgent() : null;
+        const matches = a && Personas.resolve(a.personaId) === Personas.resolve(activePersonaId);
+        const lines = Personas.ambient(activePersonaId, matches ? a.voiceTraits : null, matches ? a.customVoice : '');
+        return lines.length ? lines[(Math.random() * lines.length) | 0] : '';
+      }
       if (p && p.ambientLines && p.ambientLines.length && Math.random() < 0.65) return p.ambientLines[(Math.random() * p.ambientLines.length) | 0];
     } catch (_) {}
     return (fallback && fallback.length) ? fallback[(Math.random() * fallback.length) | 0] : '';

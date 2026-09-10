@@ -196,10 +196,15 @@ function makeRepo() {
     A.ok(fs.existsSync(path.join(repo, 'src', 'feature1.js')), 'feature1.js exists before the rejection');
     A.ok(fs.existsSync(path.join(repo, 'src', 'feature2.js')), 'feature2.js exists before the rejection');
 
-    const rej = await fetch(B + '/api/loops/verdict', {
+    const rejecting = fetch(B + '/api/loops/verdict', {
       method: 'POST', headers,
       body: JSON.stringify({ id, n: cands[0].n, verdict: 'rejected', note: 'wrong approach' })
     });
+    await sleep(25);
+    const competing = await fetch(B + '/api/loops/verdict', { method: 'POST', headers,
+      body: JSON.stringify({ id, n: cands[1].n, verdict: 'approved' }) });
+    A.eq(competing.status, 409, 'approval of a stacked candidate cannot race an in-flight rejection');
+    const rej = await rejecting;
     A.eq(rej.status, 200, 'the rejection is accepted');
     const rejBody = await rej.json();
     A.eq(rejBody.undone.sort((a, b) => a - b), [cands[0].n, cands[1].n], 'it reports undoing the rejected pass AND the one stacked on it');

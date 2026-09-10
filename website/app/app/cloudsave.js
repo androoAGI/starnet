@@ -25,6 +25,8 @@ const CloudSave = (() => {
   const Core = (typeof CloudSaveCore !== 'undefined') ? CloudSaveCore
     : (typeof require !== 'undefined' ? (() => { try { return require('./cloudsavecore.js'); } catch (_) { return null; } })() : null);
 
+  const clientId = typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + '-' + Math.random().toString(36).slice(2);
+  let revision = 0, conflict = null, latestLocal = null;
   let timer = null;                    // debounce timer for a fresh push
   let retryTimer = null;               // backoff timer scheduling the next attempt after a failure
   let pending = null;                  // newest doc awaiting a flush (older queued docs are superseded)
@@ -108,6 +110,8 @@ const CloudSave = (() => {
   //   fails soft (re-queues on failure like any flush), so if the install is somehow aborted the mirror keeps
   //   trying; the caller bounds the wait with its own timeout so a dead sidecar can never hang the update.
   function flush(opts) {
+    // Keep one confirmed write at a time so our own queued snapshots share a causal revision.
+    if (activeFlushes.size) return Promise.all(Array.from(activeFlushes)).then(() => flush(opts));
     const force = !!(opts && opts.force);
     if (timer) { clearTimeout(timer); timer = null; }
     if (retryTimer) { clearTimeout(retryTimer); retryTimer = null; }
@@ -129,6 +133,12 @@ const CloudSave = (() => {
         try { body = await r.json(); } catch (_) { body = null; }
         if (body && typeof body === 'object') {
           degraded = (body.ok === false && body.degraded === true);   // any parsed answer re-proves (or clears) the degraded verdict
+          if (body.conflict) { conflict = body; markFail(); return false; }
+          if (body.ok && Number.isInteger(body.revision)) {
+            revision = body.revision;
+            if (pending) pending._saveRevision = revision;
+            try { const cached = JSON.parse(localStorage.getItem('starnet.save')); if (!pending && cached && JSON.stringify({ ...cached, _saveClient: undefined }) === JSON.stringify({ ...doc, _saveClient: undefined })) { cached._saveRevision = revision; cached._saveDirty = false; if (Number.isFinite(body.updatedAt)) cached.updatedAt = body.updatedAt; localStorage.setItem('starnet.save', JSON.stringify(cached)); } } catch (_) {}
+          }
           if (body.ok === false) throw new Error('save refused: ' + (body.error || (body.unreadable ? 'existing record unreadable' : body.stale ? 'stale write' : 'unknown')));
         }
         markOk();
@@ -150,7 +160,7 @@ const CloudSave = (() => {
   // flush() returns false both when there was nothing pending (safe) and when a real pending write failed
   // (unsafe). Update installation needs that distinction so it can fail closed on an unproved newest save.
   async function flushForUpdate() {
-    const hadPending = isSave(pending) || activeFlushes.size > 0;
+    const hadPending = isSave(pending) || activeFlushes.size > 0 || !!conflict;
     let confirmed = true;
     // Drain dynamically, not from one snapshot: another debounced/explicit flush can start while an older
     // request is settling. Update preparation must not race any write that was already in flight.
@@ -167,18 +177,17 @@ const CloudSave = (() => {
       const outcomes = await Promise.all(Array.from(activeFlushes));
       confirmed = confirmed && outcomes.every(ok => ok === true);
     }
-    confirmed = confirmed && !isSave(pending);
+    confirmed = confirmed && !isSave(pending) && !conflict;
     return { ok: !hadPending || confirmed, hadPending, flushed: hadPending && confirmed };
   }
 
   // queue a write-through; coalesces a burst of persists into one POST after the debounce settles.
-  // SINGLE-WRITER assumption: the app is single-agent/single-session, so this mirrors whatever localStorage
-  // holds with last-write-wins (the sidecar rejects only a STALE-timestamp write). Two live tabs editing the
-  // SAME agent at once can still clobber each other envelope-for-envelope — the same limitation the localStorage
-  // layer it shadows already has. A cross-tab write-leader (storage-event/BroadcastChannel) is the fix if/when
-  // multi-tab editing becomes a real workflow; out of scope while one session is the design.
   function push(doc) {
     if (!isSave(doc)) return;
+    doc = JSON.parse(JSON.stringify(doc));
+    doc._saveRevision = revision;
+    doc._saveClient = clientId;
+    latestLocal = doc;
     pending = doc;                     // keep only the newest
     if (timer) return;
     timer = setTimeout(() => { timer = null; flush(); }, DEBOUNCE_MS);
@@ -238,6 +247,7 @@ const CloudSave = (() => {
       // either, hand boot the save-unknown sentinel so it gates instead of onboarding over a possibly-intact
       // durable save it simply couldn't read.
       if (lastPullOutcome !== 'empty' && !isSave(local)) return unknownSentinel(lastPullOutcome);
+      revision = num(local && local._saveRevision);
       if (isSave(local)) push(local);   // 'empty': seed the server; otherwise best-effort (fails soft, retries)
       return local;
     }
@@ -245,7 +255,15 @@ const CloudSave = (() => {
     // setItem-ing it and re-migrating would clobber the local doc with fields this build can't read (silent
     // contamination, brutal to debug). Leave localStorage byte-unchanged and raise the honest update gate.
     if (isFutureSave(remote)) return futureSentinel(num(remote.version));
-    if (!isSave(local) || num(remote.updatedAt) > num(local.updatedAt)) {
+    revision = num(remote._saveRevision);
+    if (isSave(local) && local._saveDirty) {
+      // Offline edits are still based on their original revision. Preserve them through the
+      // same conflict receipt; never relabel a stale local snapshot with the remote revision.
+      revision = num(local._saveRevision);
+      push(local);   // preserve asynchronously; a stalled POST must never block local boot
+      return local;
+    }
+    if (!isSave(local) || num(local._saveRevision) !== revision || num(remote.updatedAt) > num(local.updatedAt)) {
       // adopt remote into the cache, then re-read it through Save.load() so the MIGRATION LADDER runs on it.
       // The durable mirror is designed to outlive the cache and survive app updates, so it can legitimately be
       // an OLDER schema (v1/v2) than this build. resumeInto() assumes a current-schema doc (reads .workstreams,
@@ -318,6 +336,7 @@ const CloudSave = (() => {
   function healthNow() {
     const s = Core ? Core.snapshot(health, now())
       : { lastPushOkAt: health.lastPushOkAt, lastPushFailAt: health.lastPushFailAt, consecutiveFailures: health.consecutiveFailures, nextRetryAt: 0, warn: false, stale: false };
+    s.conflict = conflict;
     s.degraded = degraded;   // EL-11 FIX 1: refused-by-newer-StarNet is its own persistent, renderable state
     return s;
   }
@@ -337,6 +356,14 @@ const CloudSave = (() => {
       .then(r => !!(r && r.ok)).catch(() => false);
   }
 
-  return { push, pull, reconcile, flush, flushForUpdate, installUnloadFlush, health: healthNow, isFutureSentinel, isUnknownSentinel, markDegraded, recoveryNotice, lineage, ackRecovery, pullOutcome: () => lastPullOutcome, _isSave: isSave, _isFutureSave: isFutureSave };
+  async function reloadCurrent() {
+    if (typeof App !== 'undefined' && App.persist) App.persist();
+    const confirmed = await flush({ force: true });
+    if (pending || activeFlushes.size) throw new Error('This window changed while saving. Try reloading again after your work finishes.');
+    if (!confirmed && !conflict) throw new Error('Could not preserve this window. Download its save before reloading.');
+    localStorage.removeItem('starnet.save');
+    location.reload();
+  }
+  return { localSnapshot: () => latestLocal, reloadCurrent, revision: () => revision, push, pull, reconcile, flush, flushForUpdate, installUnloadFlush, health: healthNow, isFutureSentinel, isUnknownSentinel, markDegraded, recoveryNotice, lineage, ackRecovery, pullOutcome: () => lastPullOutcome, _isSave: isSave, _isFutureSave: isFutureSave };
 })();
 if (typeof module !== 'undefined' && module.exports) module.exports = CloudSave;

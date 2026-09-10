@@ -1,0 +1,46 @@
+{
+  "source": "b3760c46ff3fe02790e6c3b0c50a23c30b5837a8",
+  "runtimeEdits": false,
+  "receipts": [
+    {
+      "file": "audit-fast.log",
+      "sha256": "693dcb9a2128ca87d3e6982c593234285efff0c8bc7b2e3e3ef539dceb30bc83",
+      "tail": "platform-handoff.test: passed (restart, task/agent binding, write scope, contention, cancellation, timeout)\nease-of-use: grouping, persistence, search and effective access passed\nworkflow-takeover: evidence, repetition, scope, outcomes, privacy, defer and duplicate scenarios passed\nworkflow-takeover-ui: one beat, review, defer, double-click, pause, stale refusal and reset passed\n[taskbrief] brief_ask rejected: Call brief.update to incorporate the entire latest answer before choosing a follow-up.\n[taskbrief] brief_ask rejected: The Commander delegated the remaining choices. Update your understanding and proceed with reversible assumptions.\ntask-conversation: whole-answer extraction, grounded updates, adaptive sample, delegation, stale state and restart passed\ntask-conversation-ui: optional shortcuts, full text, failed-send retry, delegation and folded receipt passed\nPASS emergency control: hydrated recovery, explicit action, read-back, partial failure and offline truth\nwork-rating-control.test: OK (5 assertions)\nsession-focus-safety.test: OK\nharness-placement: OK (explicit empty, populated, omitted and legacy workbench requests)\nrun-fast-tests: OK — 752 step(s) green\n"
+    },
+    {
+      "file": "audit-customer-journeys.log",
+      "sha256": "8600e79dfa26e899f6c33288d43506e3f521d90174e6ce67e6e2b46a4b269a5d",
+      "tail": "  ...\n1..1\n# tests 1\n# suites 0\n# pass 1\n# fail 0\n# cancelled 0\n# skipped 0\n# todo 0\n# duration_ms 4624.2449\nsession-focus-safety.test: OK\ntool-projection.e2e: OK (10 real runs, file writes, both model IDs, revocation and restart)\nrun-test-list: OK — 34 step(s) green\n"
+    },
+    {
+      "file": "audit-glass-live.log",
+      "sha256": "03d024006637a47832870154c6e507d8e6411f6b4af0ddafad085facf51ab5a2",
+      "tail": "        \"start\": 4550.29999999702,\n        \"duration\": 58,\n        \"phase\": \"glass:open settings\"\n      },\n      {\n        \"start\": 16052.10000000149,\n        \"duration\": 55,\n        \"phase\": \"glass:open settings\"\n      }\n    ]\n  },\n  \"pass\": true\n}\n"
+    },
+    {
+      "file": "audit-menu-live.log",
+      "sha256": "a6780f0aa1332703f45dccf5a1bc4b19964fb3ab16c36cf3fead58e41c8f3968",
+      "tail": "      \"label\": \"Outbox to Library\",\n      \"width\": 1280,\n      \"height\": 800,\n      \"x\": 253,\n      \"y\": 371,\n      \"right\": 899,\n      \"bottom\": 735,\n      \"overflow\": 0\n    }\n  ],\n  \"errors\": [],\n  \"pass\": true\n}\n"
+    },
+    {
+      "file": "audit-endpoint.log",
+      "sha256": "93b6a0f75e7e29a66f751992e817efba41b052b473de0f38514f4d931fb7eca1",
+      "tail": "  ---\n  duration_ms: 4.3981\n  type: 'test'\n  ...\n1..2\n# tests 2\n# suites 0\n# pass 2\n# fail 0\n# cancelled 0\n# skipped 0\n# todo 0\n# duration_ms 5902.5146\n"
+    },
+    {
+      "file": "audit-website.log",
+      "sha256": "d3bdaf645145dc42ac876b074cbfaaa949246983f4031fd5317d993026a2f2e3",
+      "tail": "website-app-sync: OK — website/app matches frontend (3963 files + 2 embed-only)\n"
+    },
+    {
+      "file": "audit-image-ledger.log",
+      "sha256": "2eb43b2b4a8aa33a335e4f4b79326e57876d01c69d985fb1ae1f1065101e47f0",
+      "tail": "  ---\n  duration_ms: 3343.3459\n  type: 'test'\n  ...\n1..1\n# tests 1\n# suites 0\n# pass 1\n# fail 0\n# cancelled 0\n# skipped 0\n# todo 0\n# duration_ms 4829.2336\n"
+    },
+    {
+      "file": "audit-image-cancel.log",
+      "sha256": "17dd28071c267ca8aa1c2da47ff22cb1943691f4f80138ed89346560ba456fe0",
+      "tail": "  ---\n  duration_ms: 7340.012\n  type: 'test'\n  ...\n1..1\n# tests 1\n# suites 0\n# pass 1\n# fail 0\n# cancelled 0\n# skipped 0\n# todo 0\n# duration_ms 8828.3155\n"
+    }
+  ]
+}
