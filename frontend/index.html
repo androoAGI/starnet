@@ -117,7 +117,7 @@
       <!-- COLUMN 1 — THE HERO: the agent in its genesis pod (appearance) -->
       <div class="ov-hero">
         <div class="ov-step"><b>01</b> APPEARANCE <span class="dim">— pick a face</span></div>
-        <span class="ov-leadtag">◆ AGENT 01 · YOUR ORCHESTRATING LEAD</span>
+        <span class="ov-leadtag">YOUR FIRST AGENT</span>
         <div class="ov-pod">
           <figure class="ov-stage" aria-live="polite">
             <div class="ov-stage-frame"><img id="skin-stage-img" alt="" draggable="false"></div>
@@ -127,7 +127,7 @@
 
         <div class="ov-nameplate">
           <div class="ov-np-name" id="np-name">OVERSEER</div>
-          <div class="ov-np-role">◆ OVERSEER <span class="ov-dot">·</span> <span id="np-mode">asks for approval</span></div>
+          <div class="ov-np-role">Overseer <span class="ov-dot">·</span> <span id="np-mode">asks for approval</span></div>
           <figcaption id="skin-stage-name" class="skin-stage-name ov-skinname"></figcaption>
         </div>
 
@@ -141,14 +141,15 @@
            zero-friction identity choices come first so the user invests before they hit the key/model
            column (the highest-friction step), which sits LAST, next to the WAKE button it feeds. -->
       <div class="ov-cfg ov-col-id" id="ov-identity">
-        <div class="ov-step"><b>02</b> IDENTITY <span class="dim">— name it, give it a manner</span></div>
+        <div class="ov-section-heading"><h3>Make it yours</h3><p>Choose a name, a personality, and how you work together.</p></div>
         <div class="ov-field">
-          <label for="in-name">OVERSEER NAME <span class="dim">Optional. Leave blank for a generated codename.</span></label>
-          <input id="in-name" class="ov-nm-in" maxlength="18" placeholder="name your overseer" autocomplete="off" spellcheck="false">
+          <label for="in-name">Name <span class="ov-optional">Optional</span></label>
+          <div class="ov-name-field"><input id="in-name" class="ov-nm-in" maxlength="18" placeholder="e.g. Nova" autocomplete="off" spellcheck="false" aria-describedby="ov-name-help"><span id="ov-name-length" aria-hidden="true">0 / 18</span></div>
+          <p class="ov-help" id="ov-name-help">Leave blank and we’ll choose a codename.</p>
         </div>
 
         <div class="ov-field">
-          <label>PERSONALITY <span class="dim">Choose how it talks to you. Try a style below.</span></label>
+          <label>Personality <span class="dim">How your Overseer talks to you.</span></label>
           <div id="voice-archetypes" class="ov-vchips" role="group" aria-label="Personality"></div>
           <div id="voice-preview" class="voice-preview ov-vpreview"></div>
           <!-- Voice customization (fine-tune dials + free-text note) REMOVED from genesis (2026-07-09
@@ -157,9 +158,9 @@
         </div>
 
         <div class="ov-field">
-          <label>APPROVAL <span class="dim">Choose how much it can do on its own.</span></label>
+          <label>Working style <span class="dim">Choose when your Overseer should check with you.</span></label>
           <div id="approval-picker" class="ov-cards ov-approve" role="group" aria-label="Approval mode"></div>
-          <div class="ov-crewnote"><b>FULL POWER</b> authorizes the whole local computer without consent cards. ASK mode keeps the chosen profile, project, and protected-action boundaries.</div>
+          <div class="ov-crewnote">Full power allows actions across your computer without approval prompts. You can change this later.</div>
         </div>
       </div>
 
@@ -167,7 +168,7 @@
       <div class="ov-cfg ov-col-brain" id="ov-brain">
         <div class="ov-step"><b>03</b> THE BRAIN <span class="ov-req">REQUIRED</span></div>
         <div class="ov-field ov-field-brain">
-          <label>CONNECT A MIND <span class="dim">Choose a provider, connect your account, then pick a model.</span></label>
+          <div class="ov-section-heading" id="ov-provider-intro"><h3>Connect a brain</h3><p>Start with StarNet, or use a provider you already have.</p></div>
           <!-- BEGINNER FUNNEL: lead with the no-API-key path. A ChatGPT Plus/Pro login (Codex OAuth) needs
                no key at all, so it's the recommended default and sits first; BYOK (OpenRouter etc.) stays a
                fully visible one-click alternative for anyone who already has a key. -->
@@ -225,14 +226,16 @@
               </div>
             </div>
 
-            <div class="ov-connection">
-            <div class="ov-connection-head" id="ov-connection-title">Connect your provider</div>
+            <div class="ov-connection" hidden>
+            <button type="button" id="ov-change-provider" class="ov-text-button">← All providers</button>
+            <div class="ov-connection-heading"><span id="ov-connection-logo" class="ov-provider-logo" aria-hidden="true"></span><div><div class="ov-connection-head" id="ov-connection-title">Connect your provider</div><p class="ov-help">Connect your account, then choose a model.</p></div></div>
             <div id="key-block">
               <label for="in-key" class="ov-key-label">API KEY</label>
               <input id="in-key" type="password" placeholder="sk-or-…  —  openrouter.ai/keys" autocomplete="off" spellcheck="false">
             </div>
 
             <div id="base-url-block" class="hidden">
+              <label for="in-base-url">Endpoint URL</label>
               <input id="in-base-url" type="text" placeholder="https://your-host.example/v1" autocomplete="off" spellcheck="false">
             </div>
 
@@ -277,18 +280,25 @@
               </div>
             </div>
 
-            <div class="ov-model-lab"><label for="in-model">MODEL <span class="dim" id="model-count"></span></label></div>
+            <div class="ov-model-lab"><label>Model</label></div>
+            <button type="button" id="ov-model-open" class="ov-model-selection" aria-haspopup="dialog"><span><strong id="ov-model-name">Choose a model</strong><small id="ov-model-detail">Browse the model catalog</small></span><span aria-hidden="true">⌄</span></button>
             <!-- Themed grouped model picker (replaces the native <datalist>, which rendered ~370 raw slugs in an
                  unstyleable OS dropdown). #in-model stays the text input (search-as-you-type); #model-pop is a
                  phosphor listbox app.js fills GROUPED BY VENDOR with display names + context + $/M pricing. -->
+            <dialog id="ov-model-dialog" aria-labelledby="ov-model-dialog-title">
+              <div class="ov-model-dialog-head"><div><h3 id="ov-model-dialog-title">Choose a model</h3><span id="model-count" class="ov-help"></span></div><button type="button" id="ov-model-cancel" class="ov-icon-button" aria-label="Close model catalog">×</button></div>
             <div class="ov-mdl-wrap">
+              <label for="in-model">Search models</label>
               <input id="in-model" placeholder="loading models…" autocomplete="off" spellcheck="false"
                      role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="model-pop">
               <div id="model-pop" class="ov-mdl-pop" role="listbox" aria-label="Model catalog" hidden></div>
             </div>
             <!-- one-tap recommended slugs. Each chip just prefills #in-model; the live catalog hint then prices it. -->
             <div id="model-picks" class="model-picks" aria-label="Recommended models"></div>
+              <div class="ov-model-dialog-foot"><span class="ov-help">Choose a model above, or enter its exact ID.</span><button type="button" id="ov-model-custom" class="ov-text-button">Use this model ID →</button></div>
+            </dialog>
             <div id="model-hint" class="dim hint">—</div>
+            <div id="ov-reasoning" hidden><label>Reasoning <span class="dim">How much thought to give each task.</span></label><div id="ov-reasoning-presets" class="ov-segmented" role="group" aria-label="Reasoning level"></div><details class="ov-advanced"><summary>Advanced reasoning</summary><div id="ov-reasoning-exact" class="ov-segmented" role="group" aria-label="Exact reasoning level"></div></details></div>
             <!-- Progressive disclosure: the key-safety note is collapsed behind a one-line toggle so the required
                  step (provider · key · model) reads clean; expand it for the full "where does my key go?" answer.
                  #byok-note keeps its id (personas/wiring); #byok-disclose is what selectProviderUI hides on the

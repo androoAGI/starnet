@@ -1490,6 +1490,7 @@ const App = (() => {
     const countEl = el('model-count'), inp = el('in-model');
     el('model-hint').textContent = 'loading model catalog…';
     const list = await Harness.listModels(p);
+    if (p !== normalizeProviderId(pickedProvider)) return;
     // DEFAULT = the curated MODEL_PICKS[provider][0] — NOT the alphabetical regex hit the old code used (which
     // drifted onto stale slugs while the right answer sat one inch below in the picks). defaultModelFor() covers
     // providers without a curated pick (custom / ollama).
@@ -1665,7 +1666,7 @@ const App = (() => {
       b.className = 'mp-chip'; b.dataset.id = m.id; b.title = m.id;
       b.appendChild(document.createTextNode(m.label));
       if (m.tag) { const t = document.createElement('b'); t.textContent = ' · ' + m.tag; b.appendChild(t); }
-      b.onclick = () => { el('in-model').value = m.id; SFX.click(); updateHint(); };
+      b.onclick = () => { el('in-model').value = m.id; SFX.click(); updateHint(); window.OverseerSetup?.modelPicked(); };
       wrap.appendChild(b);
     });
     syncModelPicks();
@@ -1705,6 +1706,7 @@ const App = (() => {
   // opening downward, or flipping above when the field sits low in the console.
   function positionModelPop() {
     const pop = el('model-pop'), inp = el('in-model'); if (!pop || pop.hidden || !inp) return;
+    if (el('ov-model-dialog')?.open) return;
     // rect/innerHeight are visual px, style px on the fixed pop are body-zoomed (TEXT SIZE) — divide once.
     const z = U.uiZoom(), r0 = inp.getBoundingClientRect(), gap = 4, vh = window.innerHeight / z;
     const r = { left: r0.left / z, top: r0.top / z, bottom: r0.bottom / z, width: r0.width / z };
@@ -1734,7 +1736,7 @@ const App = (() => {
     if (modelPopReposition) { window.removeEventListener('scroll', modelPopReposition, true); window.removeEventListener('resize', modelPopReposition); modelPopReposition = null; }
   }
   function setModelPopIdx(i) { modelPopIdx = i; modelPopRows.forEach((r, k) => r.el.classList.toggle('hi', k === i)); const cur = modelPopRows[i]; if (cur) cur.el.scrollIntoView({ block: 'nearest' }); }
-  function pickModelFromPop(id) { const inp = el('in-model'); inp.value = id; closeModelPop(); SFX.click(); updateHint(); inp.focus(); }
+  function pickModelFromPop(id) { const inp = el('in-model'); inp.value = id; closeModelPop(); SFX.click(); updateHint(); if (window.OverseerSetup?.modelPicked()) return; inp.focus(); }
   function renderModelPop() {
     const pop = el('model-pop'); if (!pop) return;
     const cur = el('in-model').value.trim();   // the committed selection (drives the highlighted ✓ row)
@@ -1764,7 +1766,8 @@ const App = (() => {
       const meta = document.createElement('span'); meta.className = 'ov-mdl-meta'; meta.textContent = modelMetaStr(m.id);
       row.appendChild(name); row.appendChild(meta);
       const idx = modelPopRows.length;
-      row.addEventListener('mousedown', e => { e.preventDefault(); pickModelFromPop(m.id); });   // mousedown+preventDefault: the pick lands before the input blurs
+      row.addEventListener('mousedown', e => e.preventDefault());
+      row.addEventListener('click', () => pickModelFromPop(m.id));   // mousedown+preventDefault: the pick lands before the input blurs
       row.addEventListener('mousemove', () => setModelPopIdx(idx));
       frag.appendChild(row); modelPopRows.push({ id: m.id, el: row });
     }
@@ -1778,21 +1781,22 @@ const App = (() => {
     const inp = el('in-model'); if (!inp) return;
     inp.oninput = () => { modelPopQ = inp.value.trim(); openModelPop(); updateHint(); };
     inp.onfocus = () => { if (!inp.readOnly) { modelPopQ = ''; openModelPop(); } };   // fresh focus browses the whole catalog
-    inp.onblur = () => setTimeout(() => { if (document.activeElement !== inp) closeModelPop(); }, 130);
+    inp.onblur = () => setTimeout(() => { if (document.activeElement !== inp && !el('ov-model-dialog')?.open) closeModelPop(); }, 130);
     inp.onkeydown = e => {
       const open = !el('model-pop').hidden;
       if (e.key === 'ArrowDown') { if (!open) { modelPopQ = ''; openModelPop(); } else setModelPopIdx(Math.min(modelPopIdx + 1, modelPopRows.length - 1)); e.preventDefault(); return; }
       if (e.key === 'ArrowUp') { if (open) { setModelPopIdx(Math.max(modelPopIdx - 1, 0)); e.preventDefault(); } return; }
-      if (e.key === 'Escape') { if (open) { closeModelPop(); e.preventDefault(); e.stopPropagation(); } return; }   // Esc closes the popover ONLY (never the screen)
+      if (e.key === 'Escape') { if (el('ov-model-dialog')?.open) { window.OverseerSetup.cancelModel(); e.preventDefault(); e.stopPropagation(); return; } if (open) { closeModelPop(); e.preventDefault(); e.stopPropagation(); } return; }
       if (e.key === 'Enter' && !e.isComposing) {
         if (open && modelPopRows.length) { const pick = modelPopRows[modelPopIdx >= 0 ? modelPopIdx : 0]; if (pick) { pickModelFromPop(pick.id); e.preventDefault(); return; } }
-        e.preventDefault(); onWake();
+        e.preventDefault(); if (el('ov-model-dialog')?.open) { window.OverseerSetup.modelPicked(); return; } onWake();
       }
     };
   }
 
   function updateHint() {
     const id = el('in-model').value.trim(), hint = el('model-hint');
+    window.OverseerSetup?.reflectModel(genesisModels.find(m => m.id === id) || { id, name: id }, pickedProvider === 'openai' && codexConnected && !el('in-key').value.trim() ? 'codex' : pickedProvider);
     syncModelPicks();   // keep the recommended-chip highlight in lockstep with whatever's in the field
     if (isOAuthProviderId(pickedProvider)) { hint.textContent = 'included in your ' + OAUTH_GENESIS[pickedProvider].sub.replace(/ subscription$/, '') + ' subscription'; return; }
     if (!id) { hint.textContent = 'pick or type a model slug'; return; }
@@ -2501,6 +2505,7 @@ const App = (() => {
       SFX.click(); userPickedProvider = true;
       if (b.dataset.prov !== pickedProvider) el('in-model').value = '';
       selectProviderUI(b.dataset.prov);
+      window.OverseerSetup?.beginConnection();
       // The explicit StarNet card click starts account connection; automatic selection never opens a window.
       if (b.dataset.prov === 'starnet' && !starnetLinked) startStarnetLink();
       else {
@@ -2537,7 +2542,7 @@ const App = (() => {
     // RESUME/recovery honours the agent's saved provider; a FRESH create screen leads with the beginner-first
     // default (pickedProvider = 'codex' — sign in with ChatGPT, no API key), the top of the zero-to-value funnel.
     selectProviderUI(recovery ? Harness.getProv() : pickedProvider);
-    if (typeof OverseerSetup !== 'undefined') OverseerSetup.init(recovery);
+    if (typeof OverseerSetup !== 'undefined') OverseerSetup.init(recovery, { refreshModel: updateHint, closeModel: closeModelPop });
     // INITIAL FOCUS: fresh create → the name field (the natural first action); RESUME → the credential control the
     // Commander must act on (the ChatGPT sign-in button on the keyless Codex path, else the key box). NEVER the
     // model field (focusing it springs the popover open) and never the phosphor swatches (the old Tab-start bug).

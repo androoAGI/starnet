@@ -35,7 +35,7 @@ const { chromium } = require(process.env.STARNET_PLAYWRIGHT_MODULE || 'playwrigh
     assert(await page.locator('#ov-identity').isHidden());
     assert(await page.locator('#btn-wake').isVisible());
     assert.equal(await page.locator('.prov-grid .prov:visible').count(),16);
-    assert.equal(await page.locator('.ov-provider-logo').count(),16);
+    assert.equal(await page.locator('.prov-grid .ov-provider-logo').count(),16);
     for (const logo of await page.locator('.prov-grid .prov').evaluateAll(buttons => buttons.map(button=>button.dataset.prov))) {
       const response = await page.request.get('http://127.0.0.1:9217/assets/brand/providers/'+logo+'.svg');
       assert(response.ok() && (await response.text()).includes('<svg'),logo+' is bundled');
@@ -43,13 +43,15 @@ const { chromium } = require(process.env.STARNET_PLAYWRIGHT_MODULE || 'playwrigh
     const hero = page.locator('.prov[data-prov="starnet"]');
     await hero.waitFor({state:'visible'});
     assert.equal(connections,0,'automatic selection must never launch account connection');
-    const [popup] = await Promise.all([page.waitForEvent('popup'),hero.dblclick()]);
+    const [popup] = await Promise.all([page.waitForEvent('popup'),hero.evaluate(el => { el.click(); el.click(); })]);
     await popup.waitForLoadState();
     assert(popup.url().endsWith('/overseer-account-preview'));
     assert.equal(connections,1,'rapid repeat clicks create one connection request');
     await popup.close();
+    await page.locator('#ov-change-provider').click();
     await page.locator('.prov[data-prov="custom"]').click();
     rejectConnection = true;
+    await page.locator('#ov-change-provider').click();
     await hero.click();
     await page.waitForFunction(()=>document.querySelector('#connect-msg').textContent.includes('try again'));
     assert.equal(connections,2);
@@ -58,6 +60,7 @@ const { chromium } = require(process.env.STARNET_PLAYWRIGHT_MODULE || 'playwrigh
     assert.equal(await hero.evaluate(el=>getComputedStyle(el,'::before').animationName),'none');
     await page.emulateMedia({reducedMotion:'no-preference'});
     receipt.checks.push('Unfiltered character gallery, all 16 bundled provider logos, single-click account window, duplicate-click guard, failure feedback, reduced motion');
+    await page.locator('#ov-change-provider').click();
     await page.locator('.prov[data-prov="custom"]').click();
     await page.locator('#in-base-url').fill('http://127.0.0.1:11434/v1');
     await page.locator('#btn-back').click();
@@ -73,6 +76,48 @@ const { chromium } = require(process.env.STARNET_PLAYWRIGHT_MODULE || 'playwrigh
     await page.waitForFunction(() => document.querySelector('#connect-msg').textContent.includes('base URL'));
     assert(await page.locator('#btn-wake').isEnabled());
     receipt.checks.push('Missing endpoint gives an accessible validation message and allows retry');
+    // Exercise the actual catalog controller with a deterministic provider catalog.
+    await page.route('**/api/models/anthropic*', route => route.fulfill({json:{models:[
+      {id:'claude-sonnet-4-5',name:'Claude Sonnet 4.5',supportsReasoning:true,supported_parameters:['reasoning']},
+      {id:'claude-opus-4-1',name:'Claude Opus 4.1',supportsReasoning:true,supported_parameters:['reasoning']}
+    ]}}));
+    await page.locator('#ov-change-provider').click();
+    await page.locator('.prov[data-prov="anthropic"]').click();
+    await page.waitForFunction(()=>document.querySelector('#model-count').textContent.includes('2 in catalog'));
+    const beforeModel = await page.locator('#in-model').inputValue();
+    await page.locator('#ov-model-open').click();
+    assert(await page.locator('#ov-model-dialog').isVisible());
+    await page.locator('#in-model').fill('opus');
+    assert.equal(await page.locator('#model-pop .ov-mdl-row').count(),1);
+    await page.locator('#in-model').press('Escape');
+    assert(await page.locator('#ov-model-dialog').isHidden());
+    assert.equal(await page.locator('#in-model').inputValue(),beforeModel,'cancel restores prior model');
+    await page.locator('#ov-model-open').click();
+    await page.locator('#in-model').fill('opus');
+    await page.locator('#in-model').press('ArrowDown');
+    await page.locator('#in-model').press('Enter');
+    assert.equal(await page.locator('#in-model').inputValue(),'claude-opus-4-1');
+    assert(await page.locator('#ov-model-dialog').isHidden());
+    assert((await page.locator('#ov-model-name').textContent()).toLowerCase().includes('opus'));
+
+    const maxReasoning = page.locator('#ov-reasoning-presets button').filter({hasText:'MAX'});
+    await maxReasoning.click();
+    assert.equal(await maxReasoning.getAttribute('aria-pressed'),'true');
+    const chosenEffort = await page.evaluate(()=>Harness.getReasoningEffort('anthropic'));
+    await page.locator('.ov-advanced summary').click();
+    assert.equal(await page.locator('#ov-reasoning-exact button[aria-pressed="true"]').count(),1);
+    await page.locator('#byok-toggle').click();
+    assert(await page.locator('#byok-note').isVisible());
+    await page.locator('#byok-toggle').click();
+    await page.locator('#ov-model-open').click();
+    await page.locator('#in-model').fill('my-custom-model-id');
+    await page.locator('#ov-model-custom').click();
+    assert(await page.locator('#ov-model-dialog').isHidden());
+    assert.equal(await page.locator('#in-model').inputValue(),'my-custom-model-id');
+    await page.locator('#btn-back').click();
+    await page.locator('#btn-setup-next').click();
+    assert.equal(await page.evaluate(()=>Harness.getReasoningEffort('anthropic')),chosenEffort);
+    receipt.checks.push('Glass catalog: filtered results, keyboard selection, Escape restores prior model, explicit custom ID, advanced reasoning and key details, persisted reasoning');
     for (const [width, height] of [[1280,800],[1024,600],[700,650],[390,740]]) {
       await page.setViewportSize({ width, height });
       for (const step of ['identity','brain']) {
@@ -91,6 +136,14 @@ const { chromium } = require(process.env.STARNET_PLAYWRIGHT_MODULE || 'playwrigh
         receipt.checks.push({width,height,step,...shape});
       }
     }
+    for (const [width,height] of [[1280,800],[1024,600],[390,740]]) {
+      await page.setViewportSize({width,height});
+      await page.locator('#ov-model-open').click();
+      const box = await page.locator('#ov-model-dialog').boundingBox();
+      assert(box.x>=0 && box.y>=0 && box.x+box.width<=width+1 && box.y+box.height<=height+1,JSON.stringify({width,height,box}));
+      await page.locator('#ov-model-cancel').click();
+    }
+    receipt.checks.push('Model sheet fits desktop, short and mobile viewports with reachable close control');
     await page.setViewportSize({width:1280,height:800});
     await page.locator('button[data-setup-step="identity"]').click();
     const swatches = page.locator('#phosphor-swatches button');

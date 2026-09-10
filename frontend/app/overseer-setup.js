@@ -2,6 +2,8 @@
 window.OverseerSetup = (() => {
   const el = id => document.getElementById(id);
   let recovery = false;
+  let hooks = {}, modelBefore = '', currentModel = {}, nameWired = false;
+  const screen = () => el('screen-connect');
   const providers = {
     grok: ['Grok','Sign in'], kimi: ['Kimi','Sign in'], openrouter: ['OpenRouter','API key'],
     openai: ['OpenAI','ChatGPT or API key'], anthropic: ['Anthropic','API key'], gemini: ['Gemini','API key'],
@@ -12,8 +14,64 @@ window.OverseerSetup = (() => {
   };
   function reflectProvider(provider) {
     const title = el('ov-connection-title');
-    if (title) title.textContent = provider === 'starnet' ? 'Your StarNet account' : (providers[provider]?.[0] || 'Provider') + ' connection';
+    if (title) title.textContent = provider === 'starnet' ? 'Your StarNet account' : (providers[provider]?.[0] || 'Provider');
+    const logo = el('ov-connection-logo');
+    if (logo) {
+      logo.classList.toggle('ov-starnet-logo', provider === 'starnet');
+      logo.style.setProperty('--provider-icon', 'url("' + new URL('assets/brand/' + (provider === 'starnet' ? 'starnet-wordmark.svg' : 'providers/' + (provider === 'codex' ? 'openai' : provider) + '.svg'), document.baseURI).href + '")');
+    }
   }
+  function beginConnection() {
+    screen().dataset.connection = 'open';
+    screen().querySelector('.ov-connection').hidden = false;
+    el('ov-brain').scrollTop = 0;
+  }
+  function showProviders() {
+    screen().dataset.connection = 'choose';
+    screen().querySelector('.ov-connection').hidden = true;
+    el('ov-brain').scrollTop = 0;
+    screen().querySelector('.prov.sel:not(.hidden)')?.focus({preventScroll:true});
+  }
+  function reflectModel(item, provider) {
+    currentModel = { ...item, provider };
+    if (el('ov-model-dialog')?.open) return;
+    el('ov-model-name').textContent = item.id ? ModelDock.labels.model(item) : 'Choose a model';
+    el('ov-model-detail').textContent = item.id ? 'Change model or browse the catalog' : 'Browse the model catalog';
+    renderReasoning();
+  }
+  function renderReasoning() {
+    const api = ModelDock.efforts, item = currentModel;
+    const options = api.optionsFor(item), presets = api.presetsFor(item);
+    const selected = Harness.getReasoningEffort(item.provider);
+    el('ov-reasoning').hidden = !item.id || !presets.length;
+    const active = api.presetFor(selected, item);
+    const render = (id, choices) => {
+      const wrap = el(id); wrap.replaceChildren();
+      choices.forEach(choice => {
+        const button = document.createElement('button'); button.type = 'button';
+        button.textContent = choice.label; button.setAttribute('aria-pressed', String(choice.active));
+        button.onclick = () => { Harness.setReasoningEffort(choice.value,item.provider); renderReasoning(); };
+        wrap.appendChild(button);
+      });
+    };
+    render('ov-reasoning-presets', presets.map(p => ({label:p.label, value:api.forPreset(p.id,selected,item), active:active?.id === p.id})));
+    render('ov-reasoning-exact', options.map(value => ({label:api.label(value), value, active:selected === value})));
+  }
+  function openModel() {
+    modelBefore = el('in-model').value;
+    el('ov-model-dialog').showModal();
+    el('in-model').focus(); el('in-model').select();
+  }
+  function finishModel(cancel) {
+    const dialog = el('ov-model-dialog');
+    if (!dialog.open) return false;
+    if (cancel) el('in-model').value = modelBefore;
+    dialog.close(); hooks.closeModel?.(); hooks.refreshModel?.();
+    el('ov-model-open').focus();
+    return true;
+  }
+  const cancelModel = () => finishModel(true);
+  const modelPicked = () => finishModel(false);
   function select(step, focus = true) {
     if (recovery) step = 'brain';
     const screen = el('screen-connect');
@@ -30,12 +88,22 @@ window.OverseerSetup = (() => {
     });
     screen.querySelector('.ov-grid').scrollTop = 0;
     if (focus) {
-      const target = brain ? screen.querySelector('.prov.sel:not(.hidden)') || el('in-model') : el('in-name');
+      const target = brain ? (screen.dataset.connection === 'open' ? el('ov-change-provider') : screen.querySelector('.prov.sel:not(.hidden)')) || el('ov-model-open') : el('in-name');
       target.focus({ preventScroll: true });
     }
   }
-  function init(isRecovery) {
+  function init(isRecovery, callbacks) {
+    hooks = callbacks || {};
     recovery = !!isRecovery;
+    showProviders();
+    el('ov-change-provider').onclick = showProviders;
+    el('ov-model-open').onclick = openModel;
+    el('ov-model-cancel').onclick = cancelModel;
+    el('ov-model-custom').onclick = modelPicked;
+    el('ov-model-dialog').oncancel = event => { event.preventDefault(); cancelModel(); };
+    const reflectName = () => { el('ov-name-length').textContent = el('in-name').value.length + ' / 18'; };
+    if (!nameWired) { el('in-name').addEventListener('input',reflectName); nameWired = true; }
+    reflectName();
     el('ov-skin-count').textContent = el('skin-picker').querySelectorAll('button').length + ' characters';
     document.querySelectorAll('.prov-grid .prov').forEach(button => {
       const id = button.dataset.prov, info = providers[id];
@@ -63,6 +131,7 @@ window.OverseerSetup = (() => {
       };
     }
     select(recovery ? 'brain' : 'identity', false);
+    if (recovery) beginConnection();
   }
-  return { init, reflectProvider };
+  return { init, reflectProvider, reflectModel, beginConnection, modelPicked, cancelModel };
 })();
