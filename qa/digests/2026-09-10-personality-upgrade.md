@@ -67,7 +67,11 @@ also passed. Combined frozen cleanup `695f19232` + final personality source
 `fe95dc0036596d9897dac95c4d71f9d5c531c029`: **760 steps green**, exit 0
 (`personality-fast-combined.log`). The combined seeded app retained Dry and its
 humor override after restart; served profile bytes matched the hash above.
-Final integration gate: pending cleanup merge and slot handoff.
+Integrated to trunk at `5b7384c73da8b18acab67796721e0cc5039e3cd7`.
+Required post-merge full fast gate: **760 steps green**, exit 0
+(`personality-fast-postmerge.log`). The merge source matches the pre-merge
+`fe95dc003` candidate exactly; only verification documents differ.
+Existing foreign QA and Rooms content was preserved byte-for-byte during merge.
 
 ## Limits
 
