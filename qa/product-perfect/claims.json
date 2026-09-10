@@ -18,7 +18,7 @@
   "expectedClaimCount": 37,
   "releaseSurface": {
     "algorithm": "sha256",
-    "sourceCommit": "c3f6bf5b2f986866a5c567ea112f885b09cabc1d",
+    "sourceCommit": "9cacb078e385b5637a96171000cb8dd3c7deed4e",
     "pathSetSha256": "907c7f2af955f4b59b473534a161e7bb87523688a17112661054ccaf14190c77",
     "files": [
       {
@@ -963,8 +963,8 @@
       },
       {
         "path": "frontend/app/windows/connectors.js",
-        "bytes": 132010,
-        "sha256": "6f8f756b2e441a2d25f38fa7f7de79dec7becf184a80d11806e3c37aa2f79e12"
+        "bytes": 124107,
+        "sha256": "4f86d79a2962357d0dccaea2ea7066679727f59936fc3708ad137d599a9b68f8"
       },
       {
         "path": "frontend/app/windows/logbook.js",
@@ -1248,8 +1248,8 @@
       },
       {
         "path": "frontend/index.html",
-        "bytes": 85308,
-        "sha256": "c97bce305ce86107e9c397bd60b9bf949080d05da087885ef584d7009e59cddf"
+        "bytes": 85262,
+        "sha256": "b84595c5e8be3aaaf84f7fd896504fd54ae6c3f316aa2c56fb42ad32900e5bfd"
       },
       {
         "path": "frontend/js/arcade.js",
