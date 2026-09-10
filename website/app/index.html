@@ -98,9 +98,9 @@
     <span class="cc-bracket cc-bl">└</span><span class="cc-bracket cc-br">┘</span>
 
     <header class="cc-console-head ov-head">
-      <div class="cc-titlebar"><span class="cc-tb-tag">STARNET</span><span class="cc-tb-rule"></span><span id="cc-mode" class="cc-tb-mode">GENESIS</span><span class="cc-tb-phosphor"><span class="cc-tb-plabel">PHOSPHOR</span><span id="phosphor-swatches" class="phosphor-swatches" role="group" aria-label="Console phosphor tint"></span></span><span class="cc-tb-rec">● LIVE</span></div>
+      <div class="cc-titlebar"><span class="ov-wordmark" role="img" aria-label="StarNet"></span><span id="cc-mode" class="cc-tb-mode">GENESIS</span><span class="cc-tb-phosphor"><span class="cc-tb-plabel">COLOR</span><span id="phosphor-swatches" class="phosphor-swatches" role="group" aria-label="Console phosphor tint"></span></span></div>
       <div class="cc-title-row ov-title-row">
-        <h2 id="cc-title">▮ CREATE YOUR OVERSEER</h2>
+        <h2 id="cc-title">Create your Overseer</h2>
         <span id="cc-sub" class="ov-sub">the first mind you wake is your <b>OVERSEER</b> — it runs the station and recruits every agent after it.</span>
       </div>
       <!-- RESUME banner — shown only when re-entering an existing station (recovery / disconnect re-entry).
@@ -131,7 +131,12 @@
           <figcaption id="skin-stage-name" class="skin-stage-name ov-skinname"></figcaption>
         </div>
 
-        <div class="ov-pickrow"><span class="ov-pick-lab">SKIN</span><div id="skin-picker" class="skin-picker ov-skins"></div></div>
+        <div class="ov-pickrow">
+          <div class="ov-gallery-head"><label for="ov-skin-search">APPEARANCE</label><span id="ov-skin-count" role="status"></span></div>
+          <input id="ov-skin-search" type="search" placeholder="Find a character…" autocomplete="off" aria-controls="skin-picker">
+          <div id="skin-picker" class="skin-picker ov-skins"></div>
+          <p id="ov-skin-empty" hidden>No characters match. Try another name.</p>
+        </div>
       </div>
 
       <!-- COLUMN 2 — IDENTITY & CONDUCT: name · personality · approval — HOOK-FIRST order: the fun,
@@ -182,16 +187,16 @@
                    (app.js revealStarnetGenesis, which also makes it the default pick on a fresh create).
                    ChatGPT sign-in is no longer a hero — it lives inside the OPENAI chip below. -->
               <button class="prov prov-hero hidden" data-prov="starnet" aria-pressed="false">
-                <span class="prov-hero-badge">◆ EASIEST START · NO KEY</span>
+                <span class="prov-hero-badge">THE SIMPLEST WAY IN</span>
                 <span class="prov-hero-row">
-                  <span class="prov-hero-ic" aria-hidden="true">🔗</span>
                   <span class="prov-hero-body">
-                    <span class="prov-hero-title">START WITH STARNET</span>
-                    <span class="prov-hero-sub">your StarNet subscription powers every agent — link it in one click, no API key to find or paste</span>
+                    <span class="prov-hero-title">Start with <span class="ov-wordmark" role="img" aria-label="StarNet"></span></span>
+                    <span class="prov-hero-sub">One account for your whole crew. No API keys.</span>
                   </span>
+                  <span class="prov-hero-arrow" aria-hidden="true">↗</span>
                 </span>
               </button>
-              <div class="prov-byok-lab" aria-hidden="true">— or pick another provider —</div>
+              <div class="prov-byok-lab">Or bring your own provider</div>
               <div class="prov-grid">
                 <!-- ChatGPT/Codex has NO chip of its own anymore: picking OPENAI offers BOTH paths on one card —
                      sign in with ChatGPT (device-code, no key) or paste an OpenAI API key. WAKE takes whichever
@@ -222,7 +227,10 @@
               </div>
             </div>
 
+            <div class="ov-connection">
+            <div class="ov-connection-head" id="ov-connection-title">Connect your provider</div>
             <div id="key-block">
+              <label for="in-key" class="ov-key-label">API KEY</label>
               <input id="in-key" type="password" placeholder="sk-or-…  —  openrouter.ai/keys" autocomplete="off" spellcheck="false">
             </div>
 
@@ -252,7 +260,7 @@
                 <div id="starnet-status" class="codex-status">checking…</div>
                 <div id="starnet-code" class="codex-code hidden"></div>
                 <div class="codex-actions">
-                  <button type="button" id="btn-starnet-link" class="btn">🔗 LINK YOUR STARNET ACCOUNT ▸</button>
+                  <button type="button" id="btn-starnet-link" class="btn">CONNECT STARNET ACCOUNT ↗</button>
                   <button type="button" id="btn-starnet-open" class="btn hidden">↗ OPEN PAGE</button>
                   <button type="button" id="btn-starnet-credits" class="btn hidden">＄ ADD CREDITS ▸</button>
                   <button type="button" id="btn-starnet-switch" class="btn hidden">↻ USE A DIFFERENT ACCOUNT</button>
@@ -290,6 +298,7 @@
             <div id="byok-disclose" class="byok-disclose">
               <button type="button" id="byok-toggle" class="byok-toggle" aria-expanded="false" aria-controls="byok-note">▸ where does my key go?</button>
               <p id="byok-note" class="muted byok-note hidden">Bring your own key — stored locally, sent only to the STARNET sidecar on this machine (127.0.0.1), which calls your chosen model. On a <b>task</b> the agent can search the live web (DuckDuckGo · Jina Reader) and read/write files in its workspace. <span class="dim">(In the shipped desktop build the key moves behind the OS keychain.)</span></p>
+            </div>
             </div>
           </div>
         </div>

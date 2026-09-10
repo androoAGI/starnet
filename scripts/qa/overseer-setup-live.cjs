@@ -8,11 +8,26 @@ const { chromium } = require(process.env.STARNET_PLAYWRIGHT_MODULE || 'playwrigh
     page.on('pageerror', error => receipt.errors.push(error.message));
     // Exercise the first-run router against an explicitly empty save, without changing the seeded station.
     await page.route('**/api/save?*', route => route.fulfill({ json: { ok: true, save: null } }));
+    let connections = 0, rejectConnection = false;
+    await page.route('**/api/credits?*', route => route.fulfill({json:{configured:false}}));
+    await page.route('**/api/credits/linkable', route => route.fulfill({json:{available:true}}));
+    await page.route('**/api/credits/link/poll', route => route.fulfill({json:{pending:true}}));
+    await page.route('**/api/credits/link/start', async route => {
+      connections++;
+      await new Promise(resolve => setTimeout(resolve,250));
+      await route.fulfill(rejectConnection ? {status:503,json:{ok:false}} : {json:{code:'PREVIEW',verifyUrl:'http://127.0.0.1:9217/overseer-account-preview',expiresAt:Date.now()+60000}});
+    });
+    await page.context().route('**/overseer-account-preview', route => route.fulfill({contentType:'text/html',body:'<h1>Account connection test fixture</h1>'}));
     await page.goto(process.argv[2] || 'http://127.0.0.1:9217/');
     await page.locator('#sp-press').click();
     await page.locator('#in-name').fill('ORION');
     assert.equal(await page.locator('#np-name').textContent(), 'ORION');
     assert(await page.locator('#ov-brain').isHidden());
+    await page.locator('#ov-skin-search').fill('robot');
+    assert.equal(await page.locator('#skin-picker button:visible').count(),1);
+    await page.locator('#ov-skin-search').fill('no-matching-character');
+    assert(await page.locator('#ov-skin-empty').isVisible());
+    await page.locator('#ov-skin-search').fill('');
     await page.locator('#skin-picker .skin-thumb').nth(1).click();
     const skin = await page.locator('#skin-stage-name').textContent();
     await page.locator('#approval-picker button').nth(1).click();
@@ -22,7 +37,30 @@ const { chromium } = require(process.env.STARNET_PLAYWRIGHT_MODULE || 'playwrigh
     await page.locator('#in-name').press('Enter');
     assert(await page.locator('#ov-identity').isHidden());
     assert(await page.locator('#btn-wake').isVisible());
-    await page.locator('#prov-more').click();
+    assert.equal(await page.locator('.prov-grid .prov:visible').count(),16);
+    assert.equal(await page.locator('.ov-provider-logo').count(),16);
+    for (const logo of await page.locator('.prov-grid .prov').evaluateAll(buttons => buttons.map(button=>button.dataset.prov))) {
+      const response = await page.request.get('http://127.0.0.1:9217/assets/brand/providers/'+logo+'.svg');
+      assert(response.ok() && (await response.text()).includes('<svg'),logo+' is bundled');
+    }
+    const hero = page.locator('.prov[data-prov="starnet"]');
+    await hero.waitFor({state:'visible'});
+    assert.equal(connections,0,'automatic selection must never launch account connection');
+    const [popup] = await Promise.all([page.waitForEvent('popup'),hero.dblclick()]);
+    await popup.waitForLoadState();
+    assert(popup.url().endsWith('/overseer-account-preview'));
+    assert.equal(connections,1,'rapid repeat clicks create one connection request');
+    await popup.close();
+    await page.locator('.prov[data-prov="custom"]').click();
+    rejectConnection = true;
+    await hero.click();
+    await page.waitForFunction(()=>document.querySelector('#connect-msg').textContent.includes('try again'));
+    assert.equal(connections,2);
+    assert(await hero.isEnabled());
+    await page.emulateMedia({reducedMotion:'reduce'});
+    assert.equal(await hero.evaluate(el=>getComputedStyle(el,'::before').animationName),'none');
+    await page.emulateMedia({reducedMotion:'no-preference'});
+    receipt.checks.push('Skin search, all 16 bundled provider logos, single-click account window, duplicate-click guard, failure feedback, reduced motion');
     await page.locator('.prov[data-prov="custom"]').click();
     await page.locator('#in-base-url').fill('http://127.0.0.1:11434/v1');
     await page.locator('#btn-back').click();
@@ -46,11 +84,13 @@ const { chromium } = require(process.env.STARNET_PLAYWRIGHT_MODULE || 'playwrigh
           const grid = screen.querySelector('.ov-grid');
           const action = screen.querySelector('[data-setup-step]') && screen.querySelector(screen.dataset.setupStep === 'brain' ? '#btn-wake' : '#btn-setup-next');
           const box = action.getBoundingClientRect();
-          return { overflow: grid.scrollWidth-grid.clientWidth, bottom: box.bottom, right: box.right, visible: box.height > 0, badPaint: [...screen.querySelectorAll('button,input')].filter(el => el.getClientRects().length).filter(el => ['rgb(255, 255, 255)','rgb(239, 239, 239)'].includes(getComputedStyle(el).backgroundColor)).length };
+          const panel = screen.querySelector('.ov-panel').getBoundingClientRect();
+          return { fullWidth: Math.abs(panel.width-screen.getBoundingClientRect().width)<2, overflow: Math.max(grid.scrollWidth-grid.clientWidth,...[...screen.querySelectorAll('.ov-cfg')].filter(el=>el.getClientRects().length).map(el=>el.scrollWidth-el.clientWidth)), bottom: box.bottom, right: box.right, visible: box.height > 0, badPaint: [...screen.querySelectorAll('button,input')].filter(el => el.getClientRects().length).filter(el => ['rgb(255, 255, 255)','rgb(239, 239, 239)'].includes(getComputedStyle(el).backgroundColor)).length };
         });
         assert(shape.overflow <= 2, JSON.stringify({width,height,step,...shape}));
         assert(shape.visible && shape.bottom <= height+1 && shape.right <= width+1, JSON.stringify({width,height,step,...shape}));
         assert.equal(shape.badPaint,0);
+        assert(shape.fullWidth,'creation fills its screen');
         receipt.checks.push({width,height,step,...shape});
       }
     }

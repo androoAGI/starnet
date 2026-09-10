@@ -1906,6 +1906,7 @@ const App = (() => {
       loadModels(pickedProvider);
     }
     buildModelPicks();        // recommended chips (OpenRouter only; clears itself on the codex path)
+    if (typeof OverseerSetup !== 'undefined') OverseerSetup.reflectProvider(pickedProvider);
   }
 
   // Populate the model datalist with EXACTLY the slugs the connected account's Codex backend accepts, so the
@@ -2148,10 +2149,11 @@ const App = (() => {
   function stopStarnetBalancePoll() { if (_starnetBalancePoll) { clearInterval(_starnetBalancePoll); _starnetBalancePoll = null; } }
   function starnetOutOfCredit() { return starnetLinked && typeof starnetBalanceUsd === 'number' && !(starnetBalanceUsd > 0); }
   let userPickedProvider = false;     // a real chip click — the auto-promote below must never override it
-  let _starnetLinkPoll = null, _starnetLinkPollBusy = false, _starnetLinkGeneration = 0, _starnetStatusSeq = 0;
+  let _starnetLinkPoll = null, _starnetLinkPollBusy = false, _starnetLinkStarting = false, _starnetLinkGeneration = 0, _starnetStatusSeq = 0;
   function stopStarnetLinkPoll() {
     _starnetLinkGeneration++;
     _starnetLinkPollBusy = false;
+    _starnetLinkStarting = false;
     if (_starnetLinkPoll) { clearInterval(_starnetLinkPoll); _starnetLinkPoll = null; }
   }
   async function revealStarnetGenesis(autoPick) {
@@ -2262,11 +2264,16 @@ const App = (() => {
   // Mint a pairing code, open the browser to confirm it, poll until linked. The device token never enters
   // this WebView: the sidecar holds it, and on desktop Rust immediately moves it into the OS keychain.
   function startStarnetLink() {
+    if (_starnetLinkStarting) return;
     SFX.click();
     stopStarnetLinkPoll();
+    _starnetLinkStarting = true;
+    _starnetStatusSeq++; // an older status read cannot replace the active connection message
     const generation = _starnetLinkGeneration;
     const statusEl = el('starnet-status'), codeEl = el('starnet-code'), openBtn = el('btn-starnet-open');
-    const fail = t => { statusEl.textContent = t; statusEl.className = 'codex-status bad'; codeEl.classList.add('hidden'); openBtn.classList.add('hidden'); };
+    const progress = el('connect-msg');
+    if (progress) { progress.className = 'msg'; progress.textContent = 'Opening your StarNet account…'; }
+    const fail = t => { statusEl.textContent = t; statusEl.className = 'codex-status bad'; codeEl.classList.add('hidden'); openBtn.classList.add('hidden'); if (progress) { progress.className = 'msg bad'; progress.textContent = t; } };
     statusEl.textContent = 'requesting a link code…'; statusEl.className = 'codex-status';
     Harness.api.post('/api/credits/link/start', { deviceName: 'StarNet Station' })
       .then(r => { if (generation !== _starnetLinkGeneration) return null; if (!r || !r.ok) throw new Error('start failed'); return r.j; })
@@ -2274,6 +2281,7 @@ const App = (() => {
         if (generation !== _starnetLinkGeneration) return;
         if (!j || !j.code) throw new Error('no code');
         codeEl.textContent = j.code; codeEl.classList.remove('hidden');
+        if (progress) progress.textContent = 'Confirm the code in your browser to connect.';
         openBtn.classList.remove('hidden');
         openBtn.onclick = () => openExternalUrl(j.verifyUrl);
         statusEl.textContent = 'confirm this code in your browser (opening the link page now)…';
@@ -2289,6 +2297,7 @@ const App = (() => {
               if (generation !== _starnetLinkGeneration) return;
               if (p && p.linked) {
                 stopStarnetLinkPoll(); SFX.open();
+                if (progress) progress.textContent = 'StarNet connected.';
                 codeEl.classList.add('hidden'); openBtn.classList.add('hidden');
                 // desktop: move the fresh token file → OS keychain NOW (Rust reads + moves; the token
                 // never passes through here), then teach Harness the credential exists so
@@ -2315,7 +2324,8 @@ const App = (() => {
         };
         _starnetLinkPoll = setInterval(tick, 2000);
       })
-      .catch(() => { if (generation === _starnetLinkGeneration) fail('could not reach the link service — try again'); });
+      .catch(() => { if (generation === _starnetLinkGeneration) fail('could not reach the link service — try again'); })
+      .finally(() => { if (generation === _starnetLinkGeneration) _starnetLinkStarting = false; });
   }
 
   // the SKIN picker: choose which sprite set (teddy bear, pepe, …) the new agent wears. The chosen
@@ -2486,7 +2496,19 @@ const App = (() => {
     // Clear the model on a real USER switch so the new provider's curated default (MODEL_PICKS[p][0]) fills
     // instead of carrying a cross-provider slug (e.g. codex 'gpt-5.5' bleeding onto OpenRouter, which needs
     // 'openai/gpt-5.5'). The programmatic call below (resume) keeps the saved model — it never routes here.
-    document.querySelectorAll('.provider-row .prov').forEach(b => { b.onclick = () => { SFX.click(); userPickedProvider = true; if (b.dataset.prov !== pickedProvider) el('in-model').value = ''; selectProviderUI(b.dataset.prov); }; });
+    document.querySelectorAll('.provider-row .prov').forEach(b => { b.onclick = () => {
+      if (b.dataset.prov === 'starnet' && _starnetLinkStarting) return;
+      SFX.click(); userPickedProvider = true;
+      if (b.dataset.prov !== pickedProvider) el('in-model').value = '';
+      selectProviderUI(b.dataset.prov);
+      // The explicit StarNet card click starts account connection; automatic selection never opens a window.
+      if (b.dataset.prov === 'starnet' && !starnetLinked) startStarnetLink();
+      else {
+        // Bring the selected provider's actual connection controls into view, below the full catalog.
+        const details = el('ov-connection-title');
+        if (details) details.scrollIntoView({ block: 'start' });
+      }
+    }; });
     // the long-tail providers start folded behind ＋ MORE so a first-run user faces 6 chips, not 15.
     // selectProviderUI() unfolds the row itself whenever the active provider lives in the tail.
     const provRow = document.querySelector('.provider-row'), provMore = el('prov-more');
@@ -2566,8 +2588,8 @@ const App = (() => {
       const nameIn = el('in-name'); if (nameIn) { nameIn.readOnly = true; nameIn.tabIndex = -1; }
     } else {
       if (banner) { banner.classList.add('hidden'); banner.innerHTML = ''; }
-      if (title) title.textContent = '▮ CREATE YOUR OVERSEER';
-      if (sub) sub.innerHTML = 'the first mind you wake is your <b>OVERSEER</b> — it runs the station and recruits every agent after it.';
+      if (title) title.textContent = 'Create your Overseer';
+      if (sub) sub.textContent = 'One mind to run your station. Build your crew from here.';
       if (mode) mode.textContent = 'GENESIS';
       if (wake) wake.textContent = '⏼ WAKE OVERSEER ▸';
       locked.forEach(id => { const n = el(id); if (n) { n.classList.remove('field-locked'); n.removeAttribute('aria-disabled'); } });

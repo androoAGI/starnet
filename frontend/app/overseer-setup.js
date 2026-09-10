@@ -2,6 +2,30 @@
 window.OverseerSetup = (() => {
   const el = id => document.getElementById(id);
   let recovery = false;
+  const providers = {
+    grok: ['Grok','Sign in'], kimi: ['Kimi','Sign in'], openrouter: ['OpenRouter','API key'],
+    openai: ['OpenAI','ChatGPT or API key'], anthropic: ['Anthropic','API key'], gemini: ['Gemini','API key'],
+    ollama: ['Ollama','Free · local'], xai: ['xAI','API key'], groq: ['Groq','API key'],
+    mistral: ['Mistral','API key'], deepseek: ['DeepSeek','API key'], together: ['Together','API key'],
+    fireworks: ['Fireworks','API key'], perplexity: ['Perplexity','API key'], cerebras: ['Cerebras','API key'],
+    custom: ['Custom','Your endpoint']
+  };
+  function reflectProvider(provider) {
+    const title = el('ov-connection-title');
+    if (title) title.textContent = provider === 'starnet' ? 'Your StarNet account' : (providers[provider]?.[0] || 'Provider') + ' connection';
+  }
+  function filterSkins() {
+    const query = el('ov-skin-search').value.trim().toLowerCase();
+    const choices = [...el('skin-picker').querySelectorAll('button')];
+    let shown = 0;
+    choices.forEach(button => {
+      const name = button.getAttribute('aria-label') || button.querySelector('img')?.alt || button.textContent;
+      button.hidden = !name.toLowerCase().includes(query);
+      if (!button.hidden) shown++;
+    });
+    el('ov-skin-count').textContent = query ? shown + ' of ' + choices.length : choices.length + ' characters';
+    el('ov-skin-empty').hidden = shown !== 0;
+  }
   function select(step, focus = true) {
     if (recovery) step = 'brain';
     const screen = el('screen-connect');
@@ -24,6 +48,22 @@ window.OverseerSetup = (() => {
   }
   function init(isRecovery) {
     recovery = !!isRecovery;
+    el('ov-skin-search').value = '';
+    el('ov-skin-search').disabled = recovery;
+    el('ov-skin-search').oninput = filterSkins;
+    filterSkins();
+    document.querySelectorAll('.prov-grid .prov').forEach(button => {
+      const id = button.dataset.prov, info = providers[id];
+      if (!info) return;
+      const icon = document.createElement('span'); icon.className = 'ov-provider-logo';
+      icon.style.setProperty('--provider-icon', 'url("' + new URL('assets/brand/providers/' + id + '.svg', document.baseURI).href + '")');
+      icon.setAttribute('aria-hidden', 'true');
+      const label = document.createElement('span'); label.className = 'ov-provider-label';
+      const name = document.createElement('span'); name.textContent = info[0];
+      const hint = document.createElement('small'); hint.textContent = info[1];
+      label.append(name, hint); button.replaceChildren(icon, label);
+      button.setAttribute('aria-label', info[0] + ' — ' + info[1]);
+    });
     el('screen-connect').querySelector('.ov-setup-nav').hidden = recovery;
     el('screen-connect').querySelectorAll('[data-setup-step]').forEach(button => {
       button.onclick = () => select(button.dataset.setupStep);
@@ -39,5 +79,5 @@ window.OverseerSetup = (() => {
     }
     select(recovery ? 'brain' : 'identity', false);
   }
-  return { init };
+  return { init, reflectProvider };
 })();
