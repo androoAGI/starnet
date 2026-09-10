@@ -4,10 +4,10 @@ slug: deleted-rooms-leave-floating-furniture
 title: Deleted rooms leave floating furniture
 surface: world
 severity: P2
-status: open
+status: fixed
 found: 2026-09-10
 lane: doorway-occlusion-0910
-fix:
+fix: 35d255dbd
 origin: audit
 affected: Source 343238e68; isolated Windows browser
 installer: unverified

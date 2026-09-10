@@ -4,10 +4,10 @@ slug: crew-keeps-working-while-awaiting-approval
 title: Crew keeps working while awaiting approval
 surface: world
 severity: P2
-status: open
+status: fixed
 found: 2026-09-10
 lane: doorway-occlusion-0910
-fix:
+fix: 35d255dbd
 origin: audit
 affected: Source 343238e68; isolated Windows browser
 installer: unverified

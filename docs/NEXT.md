@@ -1,5 +1,14 @@
 # NEXT.md — current priorities & task queue
 
+## IN PROGRESS — 2026-09-10 world lifecycle integration (agent/doorway-occlusion-0910)
+
+Owner requested repair of retired crew seat claims, orphan furniture after room deletion,
+and crew approval display. Source 35d255dbd; live room/seat checks 9/9, real sidecar
+approve/deny both verified, related world/crew/sprite gate 22/22. Full gates pending.
+This lane owns integration. Bugs: f2bd926a, 72da34d7, 3c77e050.
+Installed desktop and user-layout recovery remain unverified.
+
+
 ## MERGED — 2026-09-10 world seating integration (agent/doorway-occlusion-0910)
 
 Owner requested repair of the three live-proven world seating defects. Source 774a5eeed plus
