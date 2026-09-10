@@ -1,5 +1,17 @@
 # NEXT.md — current priorities & task queue
 
+## VERIFIED LANE — 2026-09-10 platform connection tutorial (agent/onboarding-refresh-0910)
+
+Source 59a5b1e22, source lock 529fdb1ef; test stability follow-up 35f12cc35.
+Visible connection choice, first-task shortcut, replayable Field Manual chapter, inline setup
+instructions for work apps and messaging, and actionable connection checklist entries.
+Old portal placement cannot complete the new host-verified account-connection milestone.
+Live UI checks covered both routes, Notion sign-in discovery, Telegram pairing instructions,
+replay/reload, preserved unsent first-task material, compact layout and clean browser logs.
+Fast 754/754 and customer journeys 34/34 green. Interview questions unchanged.
+Evidence: qa/digests/2026-09-10-platform-tutorial.md. Not merged/released; real account
+authorization and installed-desktop proof remain unverified.
+
 ## VERIFIED LANE — 2026-09-10 onboarding refresh (agent/onboarding-refresh-0910)
 
 Source `70a698ad2`, mechanical source lock `5e0ecc0f8`; carries tutorial name fix `d89e1d6e1`.
