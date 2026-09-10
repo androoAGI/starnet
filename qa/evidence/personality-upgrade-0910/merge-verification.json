@@ -1,0 +1,17 @@
+{
+  "recordedAt": "2026-09-10T07:54:12.177372+00:00",
+  "mergeCommit": "5b7384c73da8b18acab67796721e0cc5039e3cd7",
+  "priorTrunk": "bd48654c4ead44eeed076cef3658266dd7939315",
+  "premergeCandidate": "fe95dc0036596d9897dac95c4d71f9d5c531c029",
+  "sourceDiffExcludingVerificationDocuments": "empty",
+  "postmergeFast": {
+    "steps": 760,
+    "exitCode": 0,
+    "logSha256": "17dd56010b906c8ae10f987f2e744304eb8ec5e7e7ccd9bb58b7e498ef9cc249"
+  },
+  "limits": [
+    "No real-model distinctness evaluation: isolated key unavailable",
+    "No live microphone/audio quality verification",
+    "No installed Tauri build verification"
+  ]
+}

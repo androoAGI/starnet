@@ -18,7 +18,7 @@ const ok = (cond, msg) => { assert.ok(cond, msg); n++; };
 
 // STARNET is THE HERO (the promoted easiest start) and ships HIDDEN — only the live probe reveals it.
 ok(/class="prov prov-hero hidden" data-prov="starnet"/.test(index), 'the STARNET hero ships hidden (honesty: no cloud, no offer)');
-ok(/data-prov="starnet"[\s\S]{0,200}EASIEST START/.test(index), 'the STARNET hero wears the promoted-start badge');
+ok(/data-prov="starnet"[\s\S]{0,600}Subscribe and start\. No API keys\./.test(index), 'the STARNET hero clearly explains the simple subscription path');
 // ChatGPT/Codex has no chip of its own anymore — its sign-in lives inside the OPENAI card.
 ok(!/data-prov="codex"/.test(index), 'no standalone codex chip — ChatGPT sign-in lives inside the OPENAI selection');
 ok(/pickedProvider === 'codex'\) pickedProvider = 'openai'/.test(app), 'a returning codex agent lands on the OPENAI card');
