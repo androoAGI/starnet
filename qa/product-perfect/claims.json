@@ -18,7 +18,7 @@
   "expectedClaimCount": 37,
   "releaseSurface": {
     "algorithm": "sha256",
-    "sourceCommit": "e752f555f05ce997efc30b3d4f7c0db179de56f8",
+    "sourceCommit": "2c5325e6b8d4ba39c23985ddbe93d40260b4a6c5",
     "pathSetSha256": "b0479380ff858bd18673d3e0c7191897e66f62b44b4fc14a50eade63aab5c027",
     "files": [
       {
@@ -68,8 +68,8 @@
       },
       {
         "path": "frontend/app/app.js",
-        "bytes": 379320,
-        "sha256": "cb68c3c18b4784ee21f8b3ec241c0efd48634e1bd5c758a1be6d7510339fbf21"
+        "bytes": 379363,
+        "sha256": "8c22944d2653f7987e560e5dcded709d93eb68d5a99aafa2835d65bcd32d680b"
       },
       {
         "path": "frontend/app/armconfirm.js",
@@ -323,8 +323,8 @@
       },
       {
         "path": "frontend/app/glass-demo.js",
-        "bytes": 11191,
-        "sha256": "70078f673799d97694af8c44bca5529753508177ec71e8b78c7861e8b98bf961"
+        "bytes": 11464,
+        "sha256": "99f4f32fb63028383ee76b6cc8cebab9c5565b37adf45d62d2c0597a6f0a8669"
       },
       {
         "path": "frontend/app/glossary.js",
@@ -353,8 +353,8 @@
       },
       {
         "path": "frontend/app/harness.js",
-        "bytes": 82082,
-        "sha256": "7a8d852a666efa41dd0a6fb7c5e6e8865ac19c35a1ff56f73bf246fe8872c426"
+        "bytes": 82402,
+        "sha256": "b9277d80daa4c7feec05954f76ae898dd0f7cbd1b4457beb07bbcfd091eb8bd2"
       },
       {
         "path": "frontend/app/hint.js",
@@ -453,8 +453,8 @@
       },
       {
         "path": "frontend/app/modeldock.js",
-        "bytes": 44430,
-        "sha256": "1f6e5e9744552104c011e4009074241de3e0cef646543a1d42b61f5ae5baac7a"
+        "bytes": 45481,
+        "sha256": "d6b7f05cea32a631e8d0397dfb1125e8324907ea276cdfb89b8b730aa83e745b"
       },
       {
         "path": "frontend/app/modelpicker.js",
@@ -808,8 +808,8 @@
       },
       {
         "path": "frontend/app/stationui.js",
-        "bytes": 686984,
-        "sha256": "7b7f7feab8dc0a24416a698feadc414694742bd287788ad5df2aecf4e9d2560f"
+        "bytes": 687659,
+        "sha256": "63de7b53be4c4d7e2ab33e85da44fff37dffc3f963b50c14f5bdec870c77494e"
       },
       {
         "path": "frontend/app/study.js",
