@@ -6,7 +6,7 @@ Owner requested repair of retired crew seat claims, orphan furniture after room 
 and crew approval display. Source 35d255dbd; live room/seat checks 9/9, real sidecar
 approve/deny both verified, full fast gate 761/761 and customer journeys 34/34 green.
 Combined movement/lifecycle candidate 9c76cba14 repeated live 9/9 plus 12 safe routes.
-Integration queued behind cleanup lane; optional HTTP retry pending. Receipt:
+Integration queued behind cleanup lane; optional full HTTP failed at unchanged loops-git; isolated retry 55/55. Receipt:
 docs/WORLD_LIFECYCLE_REPAIR_2026-09-10.md.
 This lane owns integration. Bugs: f2bd926a, 72da34d7, 3c77e050.
 Installed desktop and user-layout recovery remain unverified.
