@@ -28,6 +28,7 @@ for (const p of P.list()) {
 const tuned = P.compose('dry', { humor: 0, energy: 3, formality: 3, verbosity: 2 });
 assert.ok(tuned.includes('HUMOR: No jokes, sarcasm or comic asides.'));
 assert.ok(!tuned.includes('HUMOR: Occasional dry understatement'));
+assert.equal(P.effective('unhinged').profanity, 1, 'Unhinged defaults to occasional profanity; frequent is opt-in');
 assert.equal(P.effective('unhinged', { profanity: 0 }).profanity, 0);
 assert.ok(P.compose('unhinged', { profanity: 0 }).includes('LANGUAGE: Do not use profanity.'));
 assert.ok(!P.compose('unhinged', { profanity: 0 }).includes('LANGUAGE: Natural, uncensored profanity'));
