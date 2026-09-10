@@ -748,7 +748,7 @@ const ModelDock = (() => {
     if (toggle) toggle.setAttribute('aria-label', selectorLabel(current, effort));
     if (chrome && chrome.nameEl) {
       const short = shortModelName(current);
-      chrome.nameEl.textContent = short || '—';
+      chrome.nameEl.textContent = short || 'CHOOSE MODEL';
       chrome.nameEl.classList.toggle('empty', !short);
     }
     if (chrome) updateTip(chrome.tip);
