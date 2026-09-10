@@ -775,3 +775,4 @@ test/save-concurrency.test.js
 test/cloudsave-concurrency.test.js
 
 test/sprite-direction-details.test.js
+test/chat-history-reconcile.test.js

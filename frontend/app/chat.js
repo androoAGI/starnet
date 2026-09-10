@@ -1194,11 +1194,40 @@ const Chat = (() => {
   }
 
   function mergeCanonicalHistory(local, turns) {
+    const runParts = new Map();
+    for (const turn of Array.isArray(turns) ? turns : []) {
+      if (!turn || turn.role !== 'assistant' || !turn.sourceRunId) continue;
+      const text = String(turn.content || '');
+      if (!text.trim()) continue;
+      const parts = runParts.get(String(turn.sourceRunId)) || [];
+      parts.push(text); runParts.set(String(turn.sourceRunId), parts);
+    }
+    // Streaming can combine several provider turns into one local reply. Prefer
+    // their durable turns only when the run identity AND exact contiguous bytes
+    // prove that the entire aggregate is already committed. This also heals old
+    // saves, whose assistant row inherited identity only from its preceding user.
+    const committedAggregate = (row, runId) => {
+      if (row.role !== 'assistant' || row.rowId || row.stopped || row.error || (row.attachments && row.attachments.length)) return false;
+      const parts = runParts.get(runId) || [], text = String(row.content || '');
+      for (let start = 0; start < parts.length - 1; start++) {
+        if (!text.startsWith(parts[start])) continue;
+        let joined = parts[start];
+        for (let end = start + 1; end < parts.length; end++) {
+          joined += parts[end];
+          if (joined === text) return true;
+          if (joined.length >= text.length) break;
+        }
+      }
+      return false;
+    };
     const buckets = new Map();
     const status = [];
+    let userRunId = '';
     for (const row of Array.isArray(local) ? local : []) {
       if (row && row.sys) { if (!row.transcriptPending) status.push(row); continue; }
       if (!row || (row.role !== 'user' && row.role !== 'assistant')) continue;
+      if (row.role === 'user') userRunId = String(row.sourceRunId || '');
+      if (committedAggregate(row, String(row.sourceRunId || userRunId))) continue;
       if (row.role === 'assistant' && !String(row.content == null ? '' : row.content).trim()) continue;
       const key = row.role + '\u0000' + String(row.content || '');
       const q = buckets.get(key) || []; q.push(row); buckets.set(key, q);
@@ -8430,7 +8459,7 @@ const Chat = (() => {
         }
         finalReply = replyText;
         titleOk = !!replyText.trim();   // a real, non-empty reply landed → this stream is eligible for a summary title
-        if (replyText.trim()) ws.history.push({ role: 'assistant', content: replyText, ts: Date.now() });   // never persist an empty turn
+        if (replyText.trim()) ws.history.push({ role: 'assistant', content: replyText, ts: Date.now(), sourceRunId: thisRunId || undefined });   // never persist an empty turn
         // Lane 5 (truthful telemetry): a reply the PROVIDER cut off — finishReason 'length' (hit max_tokens
         // mid-thought) or 'content_filter' (output filtered) — is an AMPUTATED turn even though endReason==='done'.
         // It must NOT ship a "◈ delivered" crate / XP / workitem.delivered as if it were complete. Treat it like a

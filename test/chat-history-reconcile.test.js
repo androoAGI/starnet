@@ -1,0 +1,33 @@
+/* Multi-turn live replies are a local aggregate; the durable transcript stores
+   each provider turn separately. Reload must not replay both copies. */
+'use strict';
+const fs = require('node:fs');
+const path = require('node:path');
+const A = require('./_assert.js');
+const source = fs.readFileSync(path.join(__dirname, '../frontend/app/chat.js'), 'utf8');
+const start = source.indexOf('  function mergeCanonicalHistory(');
+const end = source.indexOf('\n  async function reconcileServerHistory(', start);
+const merge = new Function('return (' + source.slice(start, end).trim() + ')')();
+const user = { role: 'user', content: 'Write and verify', sourceRunId: 'run-1' };
+const first = { role: 'assistant', content: 'Written.', sourceRunId: 'run-1', rowId: 2 };
+const last = { role: 'assistant', content: 'Checked.', sourceRunId: 'run-1', rowId: 3 };
+const turns = [user, first, last];
+const aggregate = { role: 'assistant', content: 'Written.Checked.', ts: 4 };
+const contents = rows => rows.map(r => r.content);
+A.eq(contents(merge([user, aggregate], turns)), contents(turns), 'legacy local aggregate is represented once by its exact durable turns');
+A.eq(contents(merge([user, first, last, aggregate], turns)), contents(turns), 'a previously duplicated saved history heals on reload');
+A.eq(contents(merge([user, { ...aggregate, sourceRunId: 'run-1' }], turns)), contents(turns), 'explicit run identity deduplicates new completed replies');
+A.eq(merge([user, { ...aggregate, sourceRunId: 'run-2' }], turns).length, 4, 'identical prose from another run is not discarded');
+A.eq(merge([{ role: 'user', content: user.content }, aggregate], turns).length, 4, 'unattributed legacy prose is preserved when run identity is unknown');
+A.eq(merge([user, aggregate], [user, first]).length, 3, 'a partially committed transcript cannot erase the aggregate tail');
+A.eq(merge([user, { ...aggregate, stopped: true }], turns).length, 4, 'stopped output and its recovery marker survive');
+A.eq(merge([user, { ...aggregate, error: true }], turns).length, 4, 'local error evidence survives');
+A.eq(merge([user, { ...aggregate, attachments: [{ name: 'proof.png' }] }], turns).length, 4, 'local attachment metadata is not thrown away');
+A.eq(merge([user, { ...aggregate, content: 'Written.\nChecked.' }], turns).length, 4, 'similar prose with different bytes is not guessed equivalent');
+A.eq(contents(merge([user, aggregate], [])), [user.content, aggregate.content], 'unreachable canonical history retains all local prose');
+const repeated = [{ role: 'user', content: 'again' }, { role: 'user', content: 'again' }];
+A.eq(merge(repeated, repeated).length, 2, 'occurrence queues keep intentional repeated messages');
+const original = JSON.stringify([user, aggregate, turns]);
+merge([user, aggregate], turns);
+A.eq(JSON.stringify([user, aggregate, turns]), original, 'reconciliation never mutates either history input');
+A.report('chat-history-reconcile.test');
