@@ -144,6 +144,7 @@
     // first question a newcomer has and 39 cards in one scroll could not answer it; "which of these am
     // I already on?" was equally unanswerable without reading every card.
     const secCatalog =
+      '<p class="set-about"><b>Connect an app you already use.</b> Choose a platform below. SIGN IN opens your browser; API key setup walks you through adding a key from your account.</p>' +
       '<div class="cc-filters" id="cc-filters" role="group" aria-label="Filter connectors by setup type">' +
         '<button type="button" class="cc-filter active" data-cc-filter="all" aria-pressed="true">ALL</button>' +
         '<button type="button" class="cc-filter cc-lg-none" data-cc-filter="none" aria-pressed="false">▸ no setup</button>' +
@@ -183,6 +184,7 @@
       '<div id="ky-list" class="mc-list"></div>' +
       '<div class="sec"><span class="sec-l">ADD A KEY</span><span class="sec-r"></span><span class="sec-nd"></span></div>' +
       '<div class="mc-form">' +
+        '<div id="ky-guide" class="mc-hint" hidden></div>' +
         '<input id="ky-name" class="key-input" placeholder="platform name — e.g. Resend" autocomplete="off" spellcheck="false" maxlength="64">' +
         '<input id="ky-key" type="password" class="key-input" placeholder="API key" autocomplete="off" spellcheck="false">' +
         '<input id="ky-docs" class="key-input" placeholder="API docs URL (optional — helps agents use the service)" autocomplete="off" spellcheck="false">' +
@@ -1066,7 +1068,7 @@
                       : '<span class="cc-badge cc-community" title="community-run server">community</span>');
       let action;
       if (e.installed) action = '<button class="bb xs" data-cc-act="manage" data-id="' + esc(cardId) + '">MANAGE SERVICE</button>';
-      else if (e.platformApi) action = '<button class="bb xs" data-cc-act="platform" data-id="' + esc(cardId) + '">+ ADD KEY</button>';
+      else if (e.platformApi) action = '<button class="bb xs" data-cc-act="platform" data-id="' + esc(cardId) + '">SET UP API KEY</button>';
       else if (e.googleApi && e.signInAvailable === false) action =
         '<button class="bb xs" disabled>' + (e.releaseDeferred ? 'DEFERRED' : 'GOOGLE SIGN-IN UNAVAILABLE') + '</button>';
       else if (e.authType === 'oauth') action = e.url
@@ -1075,13 +1077,13 @@
           // url-less oauth entry reachable through an aggregator: a LIVE jump to that card, never a mute dead button.
           ? '<button class="bb xs" data-cc-act="via" data-id="' + esc(cardId) + '" data-via="' + esc(e.via) + '" title="no direct endpoint — jump to the connector that reaches it">▸ VIA ' + esc(e.via.toUpperCase()) + '</button>'
           : '<button class="bb xs" data-cc-act="soon" disabled title="not directly wired yet — see the note">SOON</button>');   // an oauth entry with no endpoint and no aggregator is honestly not sign-in-able
-      else if (e.authType === 'apikey') action = '<button class="bb xs" data-cc-act="key" data-id="' + esc(cardId) + '">+ ADD</button>';
+      else if (e.authType === 'apikey') action = '<button class="bb xs" data-cc-act="key" data-id="' + esc(cardId) + '">SET UP API KEY</button>';
       else action = '<button class="bb sm" data-cc-act="add" data-id="' + esc(cardId) + '">+ ADD</button>';
       const keyDelivery = e.keyHeader
         ? '<code>' + esc(e.keyHeader) + ': &hellip;</code>'
         : '<code>Authorization: Bearer &hellip;</code>';
       const keyField = e.authType === 'apikey' && !e.platformApi
-        ? '<div class="cc-key" style="display:none"><input type="password" class="key-input" data-cc-key="' + esc(cardId) + '" placeholder="' + esc(e.name) + ' API key / token" autocomplete="off" spellcheck="false">' +
+        ? '<div class="cc-key" style="display:none"><div class="mc-hint">1. Open your ' + esc(e.name) + ' account and create an API key or token. ' + (e.homepage ? '<a href="' + esc(e.homepage) + '" target="_blank" rel="noopener">Open ' + esc(e.name) + ' ↗</a>' : '') + '<br>2. Paste it below, then choose CONNECT.</div><input type="password" class="key-input" data-cc-key="' + esc(cardId) + '" aria-label="' + esc(e.name) + ' API key or token" placeholder="' + esc(e.name) + ' API key / token" autocomplete="off" spellcheck="false">' +
             '<div class="mc-hint">Stored locally by the sidecar, sent as ' + keyDelivery + ', never displayed again.</div></div>'
         : '';
       const clientField = e.googleApi && e.signInAvailable === false
@@ -1099,6 +1101,12 @@
           '<div class="mc-url dim"><code>' + esc(e.envVar) + '</code>' +
             (e.docsUrl ? ' · <a class="dim" href="' + esc(e.docsUrl) + '" target="_blank" rel="noopener">docs ↗</a>' : '') + '</div>'
         : '';
+      const setupHint = e.installed ? 'Setup saved — manage access or reconnect.'
+        : e.signInAvailable === false ? (e.signInMessage || 'Sign-in is unavailable in this build.')
+        : e.platformApi ? (e.unattendedSupported === false ? 'Manual setup required. See the service instructions before adding a key.' : 'Requires an API key from your account. Guided setup opens the key form.')
+        : e.authType === 'apikey' ? 'Requires an API key or token from your account.'
+        : e.authType === 'oauth' ? (e.url ? 'Sign in in your browser, then return here to check the connection.' : 'Connect through the service shown below.')
+        : e.local ? 'Start the local service first, then connect.' : 'No account credentials needed.';
       // data-auth / data-installed drive the tier filter above. They mirror the chip the card already
       // shows, so the filter can never disagree with what is printed on the card.
       return '<div class="cc-card' + (e.installed ? ' cc-on' : '') + '" data-id="' + esc(cardId) + '"' + alias +
@@ -1107,6 +1115,7 @@
           '<div class="cc-head">' + ccSeal(e) + '<div class="cc-identity"><b>' + esc(e.name) + '</b>' +
             '<span class="cc-chip" style="color:' + chip[2] + '" title="' + esc(chip[1]) + '">' + (chip[0] ? chip[0] + ' ' : '') + esc(chip[1]) + '</span></div></div>' +
           '<div class="cc-blurb dim">' + esc(e.blurb) + '</div>' + '<details class="cc-details"><summary>Connection details</summary><div class="cc-details-body">' + clientField + origin + presets + platformMeta + (e.installed ? '<div class="mc-hint">' + (e.releaseDeferred ? 'Saved connection retained. Open Manage Service to view or remove it.' : 'Setup saved. Open Manage Service to check access or reconnect.') + '</div>' : '') + '</div></details>' + keyField +
+          '<div class="mc-hint cc-setup-hint">' + esc(setupHint) + '</div>' +
           '<div class="cc-acts">' + action + home + '</div>' +
         '</div>';
     }
@@ -1114,10 +1123,21 @@
       if (!g.connectors || !g.connectors.length) return '';
       return '<div class="cc-group"><div class="sec"><span class="sec-l">' + esc(g.category) + '</span>' +
           '<span class="sec-tag">' + g.connectors.length + '</span><span class="sec-r"></span><span class="sec-nd"></span></div>' +
+        (g.category === 'Popular' ? '<p class="mc-hint">A curated starting point for everyday work.</p>' : '') +
         '<div class="cc-grid">' + g.connectors.map((e, i) => {
           const alternate = ccAlternatives.get(e.catalogId || e.id);
           return alternate ? '<div class="cc-service">' + ccCard(e, i) + '<details class="cc-alternatives"><summary>Advanced: ' + esc(e.name) + ' API connection</summary>' + ccCard(alternate, i) + '</details></div>' : ccCard(e, i);
         }).join('') + '</div></div>';
+    }
+    // Editorial picks, not a claim about measured customer usage. Move rather than duplicate
+    // cards so sign-in progress, search results and saved-service counts have one owner.
+    function ccPopularGroups(groups) {
+      const picks = ['gmail', 'google-drive', 'google-calendar', 'notion', 'github', 'canva', 'linear', 'stripe', 'asana', 'clickup'];
+      const entries = groups.flatMap(g => g.connectors);
+      const popular = picks.map(id => entries.find(e => e.id === id && !e.platformApi && e.signInAvailable !== false && !e.releaseDeferred && e.url)).filter(Boolean).slice(0, 8);
+      const selected = new Set(popular);
+      return (popular.length ? [{ category: 'Popular', connectors: popular }] : []).concat(
+        groups.map(g => ({ category: g.category, connectors: g.connectors.filter(e => !selected.has(e)) })).filter(g => g.connectors.length));
     }
     async function ccRefresh() {
       try {
@@ -1157,7 +1177,7 @@
           out.connectors.push.apply(out.connectors, g.connectors || []);
         }
         ccCache = groups.flatMap(g => g.connectors).concat([...ccAlternatives.values()]);
-        ccListEl.innerHTML = groups.map(ccGroupHTML).join('') || '<div class="mc-detail">catalog is empty.</div>';
+        ccListEl.innerHTML = ccPopularGroups(groups).map(ccGroupHTML).join('') || '<div class="mc-detail">catalog is empty.</div>';
         ccApplyFilter();   // a refresh re-renders every card, so re-assert the active tier filter
         const search = body.querySelector('.con-search-in');
         if (search && search.value.trim()) search.dispatchEvent(new Event('input', { bubbles: true }));
@@ -1414,13 +1434,20 @@
     const kyNameEl = body.querySelector('#ky-name');
     const kyKeyEl = body.querySelector('#ky-key');
     const kyDocsEl = body.querySelector('#ky-docs');
+    kyNameEl.addEventListener('input', () => { body.querySelector('#ky-guide').hidden = true; });
     // CATALOG owns discovery; KEYS owns the credential. A platform card lands on the real add form and
     // carries only public setup metadata from /api/servicekeys/catalog — never a secret or invented state.
     function ccPrefillPlatform(p) {
       const tab = body.querySelector('#con-tab-connectors-keys');
       if (tab) tab.click();
       kyNameEl.value = p.name;
+      kyKeyEl.value = '';
       kyDocsEl.value = p.docsUrl || '';
+      const guide = body.querySelector('#ky-guide');
+      guide.hidden = false;
+      guide.innerHTML = '<b>Connect ' + esc(p.name) + '</b><br>1. ' + (p.docsUrl ? '<a href="' + esc(p.docsUrl) + '" target="_blank" rel="noopener">Open ' + esc(p.name) + ' API instructions ↗</a>' : 'Open your ' + esc(p.name) + ' account settings.') +
+        '<br>2. Create a key or token using those instructions, then paste it below. Use an API key, not your account password.' +
+        '<br>3. Choose SAVE KEY, then ask your agent to try a task with ' + esc(p.name) + '. Saving a key does not verify access.';
       kyMsgEl.classList.remove('ok');
       kyMsgEl.textContent = p.unattendedSupported === false
         ? p.name + ' is watched/manual only — ' + (p.unattendedReason || 'unattended use is unsupported')
@@ -1516,6 +1543,7 @@
         sfx(j.saved === false ? 'bad' : 'click');
         if (j.saved !== false) notify('Key "' + name + '" saved', 'good');
         kyNameEl.value = ''; kyKeyEl.value = ''; kyDocsEl.value = '';
+        body.querySelector('#ky-guide').hidden = true;
       } catch (e) { kyMsgEl.textContent = '✕ ' + ((e && e.message) || 'failed to reach the sidecar'); sfx('bad'); }
       ccRefresh(); kyRefresh();
     });
