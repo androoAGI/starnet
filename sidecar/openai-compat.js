@@ -287,7 +287,7 @@ function makeOpenAiCompat(deps) {
       taskKey: 'v1:' + o.agentId, taskSource: 'api',
       // an externally-driven run is still this agent doing real work — it learns from it like any other, with each
       // record stamped origin:'api' so the Commander can tell it apart from their own conversation.
-      reflect: !o.outputOnly, outputOnly: !!o.outputOnly
+      reflect: !o.outputOnly, outputOnly: !!o.outputOnly, maxIters: o.outputOnly ? 1 : undefined
     }));
     return Promise.resolve(p).then(() => acc, (e) => { acc.reason = 'error'; acc.errMsg = acc.errMsg || ('run failed: ' + ((e && e.message) || e)); return acc; });
   }
@@ -431,7 +431,7 @@ function makeOpenAiCompat(deps) {
         inFlight++;
         let repair;
         try { repair = await startRun({runId:id+'-repair',agentId,model:runModel,provider,system,
-          messages:[{role:'user',content:'Repair only the following result; do not repeat the original task. Return strict JSON. Errors: '+checked.errors.join('; ')}, {role:'assistant',content:acc.buf}],signal:ac.signal,outputOnly:true}); } finally { inFlight--; }
+          messages:[{role:'assistant',content:acc.buf}, {role:'user',content:'Repair only the preceding result; do not repeat the original task. Return strict JSON. Errors: '+checked.errors.join('; ')}],signal:ac.signal,outputOnly:true}); } finally { inFlight--; }
         acc.tokensIn += repair.tokensIn; acc.tokensOut += repair.tokensOut;
         const repaired = resultContract.inspect(contract.schema,repair.buf);
         if (repair.reason === 'done' && repaired.ok) { acc.buf=repair.buf; acc.reason='done'; acc.errMsg=null; }
