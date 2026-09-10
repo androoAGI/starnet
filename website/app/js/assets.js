@@ -422,7 +422,8 @@ const SPRITES = (() => {
     } else if (b.state === 'walk') {
       key = pick8(set, ['walk'], dir8, dir); fps = 10;
     } else if (b.working && !glancing) {
-      key = pick(set, ['type', 'sit'], 'north') || pick(set, ['rot'], 'north'); fps = 6;
+      // Typing art is north-only on some skins: prefer a correctly facing sit/stand over a reversed worker.
+      key = pick(set, b.sitting ? ['type', 'sit', 'rot'] : ['rot'], dir); fps = 6;
     } else if (b.state === 'social' && b.sitting) {
       // can in hand reads best from the front; otherwise face what you came for
       key = b.hasCan ? (pick(set, ['drink', 'sit'], 'south')) : pick(set, ['sit'], dir); fps = 6;
