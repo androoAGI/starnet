@@ -135,7 +135,7 @@ function boot(opts) {
   // speechSynthesis is DELETED from the speak path; a test may inject a spy to prove it's never invoked.
   sandbox.globalThis = sandbox;
   win.SpeechRecognition = hasRecorder ? undefined : MockSR;
-  win.AudioContext = MockAC;
+  win.AudioContext = opts.AudioContext || MockAC;
   win.speechSynthesis = opts.speechSynthesis || undefined;
   vm.createContext(sandbox);
   vm.runInContext(SRC + '\nthis.__Voice = Voice;', sandbox, { filename: 'voice.js' });
@@ -188,6 +188,50 @@ async function opensWithin(t, ms) {
 }
 
 (async () => {
+  // Both production effects graphs must survive output-device closure. Never capture a
+  // fresh media element into a graph that cannot render (including rejected resume).
+  for (const shell of [true, false]) {
+    const contexts = [], captured = [], resumes = [];
+    let deviceState = 'running';
+    const node = () => new Proxy({ connect() {}, disconnect() {}, start() {} }, {
+      get(target, key) { return key in target ? target[key] : (target[key] = { value: 0 }); }
+    });
+    class DeviceAC extends MockAC {
+      constructor() { super(); this.state = deviceState; contexts.push(this); }
+      createGain() { return node(); }
+      createBiquadFilter() { return node(); }
+      createWaveShaper() { return node(); }
+      createDelay() { return node(); }
+      createDynamicsCompressor() { if (!shell) throw new Error('no shell'); return node(); }
+      createOscillator() { return node(); }
+      createConvolver() { return node(); }
+      createBuffer(_channels, length) { return { getChannelData: () => new Float32Array(length) }; }
+      createMediaElementSource() { captured.push(this); return node(); }
+      close() { this.state = 'closed'; return Promise.resolve(); }
+      resume() { resumes.push(this.state); return Promise.reject(new Error('device unavailable')); }
+    }
+    const t = boot({ Audio: AutoEndAudio, AudioContext: DeviceAC,
+      fetch: async () => ({ ok: true, headers: { get: () => 'audio/wav' }, blob: async () => ({ size: 1 }) }) });
+    t.Voice.setSpeakReplies(true);
+    t.Voice.speak('Before device change.', 'agent');
+    await until(() => captured.length === 1 && !t.Voice.isReplyPending(), 1000);
+    const first = captured[0];
+    A.ok(!!first, 'device recovery: initial graph captures audio');
+    await first.close();
+    t.Voice.speak('After device change.', 'agent');
+    await until(() => captured.length === 2 && !t.Voice.isReplyPending(), 1000);
+    A.ok(captured[1] !== first && captured[1].state === 'running', 'device recovery: closed graph replaced for ' + (shell ? 'shell' : 'transmission'));
+    for (const state of ['suspended', 'interrupted']) {
+      deviceState = state;
+      for (const ctx of contexts) if (ctx.state !== 'closed') ctx.state = state;
+      const count = captured.length;
+      t.Voice.speak('Use native playback while recovery is unavailable.', 'agent');
+      await until(() => !t.Voice.isReplyPending(), 1000);
+      A.eq(captured.length, count, 'device recovery: ' + state + ' graph cannot steal native output');
+      A.ok(resumes.includes(state), 'device recovery: ' + state + ' resume attempted without unhandled rejection');
+    }
+    t.Voice.stopSpeaking();
+  }
   // --- standard voice is one click to record, a second click to finish; Local Live stays automatic ----
   {
     const calls = [];
@@ -443,7 +487,7 @@ async function opensWithin(t, ms) {
     t.Voice.attachCoordinator({ onState: state => states.push(state), onOutputLevel: level => levels.push(level) });
     t.Voice.setSpeakReplies(true);
     t.Voice.speak('this chunk begins and then fails to decode', 'agent');
-    await tick(70);
+    await until(() => revoked === 2 && !t.Voice.isSpeaking(), 1000);
     A.ok(states.includes('speaking'), 'post-play failure: speaking state was genuinely entered');
     A.ok(t.Voice.isSpeaking() === false, 'post-play failure: speaking state is cleared (no stuck agent turn)');
     A.ok(states.includes('ready'), 'post-play failure: coordinator returns to ready');
@@ -512,9 +556,10 @@ async function opensWithin(t, ms) {
     const pending = [], played = []; let failFirst = true;
     class OrderedAudio extends MockAudio {
       play() { const text = this.src; played.push(text);
-        setTimeout(() => { if (this.onplay) this.onplay();
+        // Model asynchronous media events without racing three host timers against a 40ms wait.
+        queueMicrotask(() => { if (this.onplay) this.onplay();
           if (failFirst) { failFirst = false; this.error = {code: 3}; if (this.onerror) this.onerror(); }
-          else if (this.onended) this.onended(); }, 0);
+          else if (this.onended) this.onended(); });
         return Promise.resolve();
       }
     }
@@ -530,7 +575,9 @@ async function opensWithin(t, ms) {
     pending[1].resolve({ok:true,headers:{get:()=> 'audio/wav'},blob:async()=>({size:128,text:pending[1].text})});
     await tick(10); A.eq(played.length,0,'continuity: ready second sentence cannot overtake first');
     pending[0].resolve({ok:true,headers:{get:()=> 'audio/wav'},blob:async()=>({size:128,text:pending[0].text})});
-    await tick(40);
+    // Three asynchronous playback events (including retry) must finish. A 40ms sample can observe
+    // the last play() before its onended callback on a busy host; wait for the bounded outcome.
+    await until(() => played.length === 3 && !t.Voice.isReplyPending(), 1000);
     A.eq(played.join('|'),'First complete sentence.|First complete sentence.|Second complete sentence.', 'continuity: failed playback retries same audio before later sentence');
     A.eq(t.Voice.isReplyPending(),false,'continuity: successful retry drains final tail');
   }

@@ -1,0 +1,1352 @@
+{
+  "base": "v0.11.0",
+  "release": "v0.11.1",
+  "releaseSha": "b3760c46ff3fe02790e6c3b0c50a23c30b5837a8",
+  "total": 333,
+  "counts": {
+    "root/release metadata": 10,
+    "QA and documentation": 41,
+    "frontend runtime": 60,
+    "visual assets": 37,
+    "audit tooling": 4,
+    "backend runtime": 7,
+    "desktop version pins": 3,
+    "regression tests": 64,
+    "generated website mirror": 97,
+    "website documentation": 10
+  },
+  "files": [
+    {
+      "file": "RELEASE_NOTES.md",
+      "domain": "root/release metadata"
+    },
+    {
+      "file": "dev/GLASS_DEMO.md",
+      "domain": "root/release metadata"
+    },
+    {
+      "file": "dev/glass-approval.test.cjs",
+      "domain": "root/release metadata"
+    },
+    {
+      "file": "dev/glass-comms.test.cjs",
+      "domain": "root/release metadata"
+    },
+    {
+      "file": "dev/glass-motion.test.cjs",
+      "domain": "root/release metadata"
+    },
+    {
+      "file": "dev/model-subscription.test.cjs",
+      "domain": "root/release metadata"
+    },
+    {
+      "file": "dev/world-next-model.cjs",
+      "domain": "root/release metadata"
+    },
+    {
+      "file": "dev/world-next-seed.cjs",
+      "domain": "root/release metadata"
+    },
+    {
+      "file": "docs/MISTAKES.md",
+      "domain": "QA and documentation"
+    },
+    {
+      "file": "docs/NEXT.md",
+      "domain": "QA and documentation"
+    },
+    {
+      "file": "docs/VOICE_CONTINUITY_PLAN_2026-09-09.md",
+      "domain": "QA and documentation"
+    },
+    {
+      "file": "docs/WORLD_IMMERSION_2026-09-08.md",
+      "domain": "QA and documentation"
+    },
+    {
+      "file": "docs/WORLD_NEXT_2026-09-07.md",
+      "domain": "QA and documentation"
+    },
+    {
+      "file": "docs/releases/0.11.1/EXECUTION.md",
+      "domain": "QA and documentation"
+    },
+    {
+      "file": "docs/releases/0.11.1/PREPARATION.md",
+      "domain": "QA and documentation"
+    },
+    {
+      "file": "docs/releases/0.11.1/RELEASE_NOTES.md",
+      "domain": "QA and documentation"
+    },
+    {
+      "file": "docs/releases/0.11.1/preparation-receipt.json",
+      "domain": "QA and documentation"
+    },
+    {
+      "file": "frontend/app/app.js",
+      "domain": "frontend runtime"
+    },
+    {
+      "file": "frontend/app/backdrop-preview-worker.js",
+      "domain": "frontend runtime"
+    },
+    {
+      "file": "frontend/app/backdrop-preview.js",
+      "domain": "frontend runtime"
+    },
+    {
+      "file": "frontend/app/build.js",
+      "domain": "frontend runtime"
+    },
+    {
+      "file": "frontend/app/chat.js",
+      "domain": "frontend runtime"
+    },
+    {
+      "file": "frontend/app/classicons.js",
+      "domain": "frontend runtime"
+    },
+    {
+      "file": "frontend/app/crtlab.js",
+      "domain": "frontend runtime"
+    },
+    {
+      "file": "frontend/app/emergency-control.js",
+      "domain": "frontend runtime"
+    },
+    {
+      "file": "frontend/app/glass-boot.js",
+      "domain": "frontend runtime"
+    },
+    {
+      "file": "frontend/app/glass-comms.js",
+      "domain": "frontend runtime"
+    },
+    {
+      "file": "frontend/app/glass-demo.js",
+      "domain": "frontend runtime"
+    },
+    {
+      "file": "frontend/app/glossary.js",
+      "domain": "frontend runtime"
+    },
+    {
+      "file": "frontend/app/harness.js",
+      "domain": "frontend runtime"
+    },
+    {
+      "file": "frontend/app/marketplace.js",
+      "domain": "frontend runtime"
+    },
+    {
+      "file": "frontend/app/modeldock.js",
+      "domain": "frontend runtime"
+    },
+    {
+      "file": "frontend/app/navdock.js",
+      "domain": "frontend runtime"
+    },
+    {
+      "file": "frontend/app/propsprites.js",
+      "domain": "frontend runtime"
+    },
+    {
+      "file": "frontend/app/recipe-catalog/curated.js",
+      "domain": "frontend runtime"
+    },
+    {
+      "file": "frontend/app/recipe-catalog/index.js",
+      "domain": "frontend runtime"
+    },
+    {
+      "file": "frontend/app/recipes.js",
+      "domain": "frontend runtime"
+    },
+    {
+      "file": "frontend/app/schedpicker.js",
+      "domain": "frontend runtime"
+    },
+    {
+      "file": "frontend/app/stationbake.js",
+      "domain": "frontend runtime"
+    },
+    {
+      "file": "frontend/app/stationcommands.js",
+      "domain": "frontend runtime"
+    },
+    {
+      "file": "frontend/app/stationui.js",
+      "domain": "frontend runtime"
+    },
+    {
+      "file": "frontend/app/terrain.js",
+      "domain": "frontend runtime"
+    },
+    {
+      "file": "frontend/app/tutorial.js",
+      "domain": "frontend runtime"
+    },
+    {
+      "file": "frontend/app/voice-live.js",
+      "domain": "frontend runtime"
+    },
+    {
+      "file": "frontend/app/voice.js",
+      "domain": "frontend runtime"
+    },
+    {
+      "file": "frontend/app/windows/automation.js",
+      "domain": "frontend runtime"
+    },
+    {
+      "file": "frontend/app/windows/connectors.js",
+      "domain": "frontend runtime"
+    },
+    {
+      "file": "frontend/app/windows/logbook.js",
+      "domain": "frontend runtime"
+    },
+    {
+      "file": "frontend/app/windows/loops.js",
+      "domain": "frontend runtime"
+    },
+    {
+      "file": "frontend/app/windows/messaging.js",
+      "domain": "frontend runtime"
+    },
+    {
+      "file": "frontend/app/windows/outbox.js",
+      "domain": "frontend runtime"
+    },
+    {
+      "file": "frontend/app/windows/routines.js",
+      "domain": "frontend runtime"
+    },
+    {
+      "file": "frontend/app/world.js",
+      "domain": "frontend runtime"
+    },
+    {
+      "file": "frontend/app/worldlab.js",
+      "domain": "frontend runtime"
+    },
+    {
+      "file": "frontend/app/worldlight.js",
+      "domain": "frontend runtime"
+    },
+    {
+      "file": "frontend/app/worldmodel.js",
+      "domain": "frontend runtime"
+    },
+    {
+      "file": "frontend/app/worldrenderer.js",
+      "domain": "frontend runtime"
+    },
+    {
+      "file": "frontend/app/worldsurface.js",
+      "domain": "frontend runtime"
+    },
+    {
+      "file": "frontend/app/xpstore.js",
+      "domain": "frontend runtime"
+    },
+    {
+      "file": "frontend/assets/brand/platform-logos.txt",
+      "domain": "visual assets"
+    },
+    {
+      "file": "frontend/assets/brand/platforms/apify.svg",
+      "domain": "visual assets"
+    },
+    {
+      "file": "frontend/assets/brand/platforms/bannerbear.png",
+      "domain": "visual assets"
+    },
+    {
+      "file": "frontend/assets/brand/platforms/bland.png",
+      "domain": "visual assets"
+    },
+    {
+      "file": "frontend/assets/brand/platforms/cj-dropshipping.ico",
+      "domain": "visual assets"
+    },
+    {
+      "file": "frontend/assets/brand/platforms/close-crm.png",
+      "domain": "visual assets"
+    },
+    {
+      "file": "frontend/assets/brand/platforms/composio.svg",
+      "domain": "visual assets"
+    },
+    {
+      "file": "frontend/assets/brand/platforms/context7.png",
+      "domain": "visual assets"
+    },
+    {
+      "file": "frontend/assets/brand/platforms/deepwiki.png",
+      "domain": "visual assets"
+    },
+    {
+      "file": "frontend/assets/brand/platforms/duffel.png",
+      "domain": "visual assets"
+    },
+    {
+      "file": "frontend/assets/brand/platforms/fireflies.png",
+      "domain": "visual assets"
+    },
+    {
+      "file": "frontend/assets/brand/platforms/fourthwall.png",
+      "domain": "visual assets"
+    },
+    {
+      "file": "frontend/assets/brand/platforms/gelato.png",
+      "domain": "visual assets"
+    },
+    {
+      "file": "frontend/assets/brand/platforms/gitmcp.png",
+      "domain": "visual assets"
+    },
+    {
+      "file": "frontend/assets/brand/platforms/globalping.svg",
+      "domain": "visual assets"
+    },
+    {
+      "file": "frontend/assets/brand/platforms/heygen.ico",
+      "domain": "visual assets"
+    },
+    {
+      "file": "frontend/assets/brand/platforms/higgsfield.png",
+      "domain": "visual assets"
+    },
+    {
+      "file": "frontend/assets/brand/platforms/jam.svg",
+      "domain": "visual assets"
+    },
+    {
+      "file": "frontend/assets/brand/platforms/keepa.svg",
+      "domain": "visual assets"
+    },
+    {
+      "file": "frontend/assets/brand/platforms/lob.png",
+      "domain": "visual assets"
+    },
+    {
+      "file": "frontend/assets/brand/platforms/lulu.png",
+      "domain": "visual assets"
+    },
+    {
+      "file": "frontend/assets/brand/platforms/monday.png",
+      "domain": "visual assets"
+    },
+    {
+      "file": "frontend/assets/brand/platforms/parallel-search.svg",
+      "domain": "visual assets"
+    },
+    {
+      "file": "frontend/assets/brand/platforms/printful.png",
+      "domain": "visual assets"
+    },
+    {
+      "file": "frontend/assets/brand/platforms/prodigi.svg",
+      "domain": "visual assets"
+    },
+    {
+      "file": "frontend/assets/brand/platforms/ramp.svg",
+      "domain": "visual assets"
+    },
+    {
+      "file": "frontend/assets/brand/platforms/semgrep.svg",
+      "domain": "visual assets"
+    },
+    {
+      "file": "frontend/assets/brand/platforms/sendgrid.png",
+      "domain": "visual assets"
+    },
+    {
+      "file": "frontend/assets/brand/platforms/shineon.svg",
+      "domain": "visual assets"
+    },
+    {
+      "file": "frontend/assets/brand/platforms/shotstack.svg",
+      "domain": "visual assets"
+    },
+    {
+      "file": "frontend/assets/brand/platforms/sources.json",
+      "domain": "visual assets"
+    },
+    {
+      "file": "frontend/assets/brand/platforms/spod.png",
+      "domain": "visual assets"
+    },
+    {
+      "file": "frontend/assets/brand/platforms/supliful.png",
+      "domain": "visual assets"
+    },
+    {
+      "file": "frontend/assets/brand/platforms/teemill.ico",
+      "domain": "visual assets"
+    },
+    {
+      "file": "frontend/assets/brand/platforms/transistor.ico",
+      "domain": "visual assets"
+    },
+    {
+      "file": "frontend/assets/brand/platforms/vapi.svg",
+      "domain": "visual assets"
+    },
+    {
+      "file": "frontend/assets/brand/platforms/zernio.svg",
+      "domain": "visual assets"
+    },
+    {
+      "file": "frontend/css/agent-dossier.css",
+      "domain": "frontend runtime"
+    },
+    {
+      "file": "frontend/css/app.css",
+      "domain": "frontend runtime"
+    },
+    {
+      "file": "frontend/css/channels.css",
+      "domain": "frontend runtime"
+    },
+    {
+      "file": "frontend/css/commander.css",
+      "domain": "frontend runtime"
+    },
+    {
+      "file": "frontend/css/glass-comms.css",
+      "domain": "frontend runtime"
+    },
+    {
+      "file": "frontend/css/glass-demo.css",
+      "domain": "frontend runtime"
+    },
+    {
+      "file": "frontend/css/marketplace.css",
+      "domain": "frontend runtime"
+    },
+    {
+      "file": "frontend/css/menu-glass.css",
+      "domain": "frontend runtime"
+    },
+    {
+      "file": "frontend/css/quests.css",
+      "domain": "frontend runtime"
+    },
+    {
+      "file": "frontend/css/readability.css",
+      "domain": "frontend runtime"
+    },
+    {
+      "file": "frontend/css/refit-kit.css",
+      "domain": "frontend runtime"
+    },
+    {
+      "file": "frontend/css/refit-polish.css",
+      "domain": "frontend runtime"
+    },
+    {
+      "file": "frontend/css/settings.css",
+      "domain": "frontend runtime"
+    },
+    {
+      "file": "frontend/css/tasks.css",
+      "domain": "frontend runtime"
+    },
+    {
+      "file": "frontend/css/utility-menus.css",
+      "domain": "frontend runtime"
+    },
+    {
+      "file": "frontend/dev/session-indicators.html",
+      "domain": "frontend runtime"
+    },
+    {
+      "file": "frontend/index.html",
+      "domain": "frontend runtime"
+    },
+    {
+      "file": "frontend/js/assets.js",
+      "domain": "frontend runtime"
+    },
+    {
+      "file": "package-lock.json",
+      "domain": "root/release metadata"
+    },
+    {
+      "file": "package.json",
+      "domain": "root/release metadata"
+    },
+    {
+      "file": "qa/BUGS.md",
+      "domain": "QA and documentation"
+    },
+    {
+      "file": "qa/STATUS.md",
+      "domain": "QA and documentation"
+    },
+    {
+      "file": "qa/bugs/1fc69e6a-agent-work-rating-fails-with-a-generic-not-saved.md",
+      "domain": "QA and documentation"
+    },
+    {
+      "file": "qa/bugs/2a9cb952-doctor-forces-unsupported-reasoning.md",
+      "domain": "QA and documentation"
+    },
+    {
+      "file": "qa/bugs/3195ab5a-managed-chat-can-use-a-stale-request-endpoint.md",
+      "domain": "QA and documentation"
+    },
+    {
+      "file": "qa/bugs/432df352-saved-equipment-omitted-from-interactive-tool-pr.md",
+      "domain": "QA and documentation"
+    },
+    {
+      "file": "qa/bugs/48c51661-file-approval-omits-mutation.md",
+      "domain": "QA and documentation"
+    },
+    {
+      "file": "qa/bugs/5a35bcfe-deliverable-note-overrides-stop.md",
+      "domain": "QA and documentation"
+    },
+    {
+      "file": "qa/bugs/63f08158-backdrop-preview-baking-stalls-settings-interact.md",
+      "domain": "QA and documentation"
+    },
+    {
+      "file": "qa/bugs/774641dc-agent-session-focus-commands-can-unexpectedly-re.md",
+      "domain": "QA and documentation"
+    },
+    {
+      "file": "qa/bugs/8b2ef7e7-escape-from-a-terminal-field-loses-the-dialog-ke.md",
+      "domain": "QA and documentation"
+    },
+    {
+      "file": "qa/bugs/96921b22-standard-text-size-leaves-everyday-controls-and.md",
+      "domain": "QA and documentation"
+    },
+    {
+      "file": "qa/bugs/a9374d2c-linked-starnet-credits-cannot-authorize-image-ge.md",
+      "domain": "QA and documentation"
+    },
+    {
+      "file": "qa/bugs/b0431c24-ordinary-wording-incorrectly-requires-image-gene.md",
+      "domain": "QA and documentation"
+    },
+    {
+      "file": "qa/bugs/c7fa86fc-feedback-run-reference-ambiguous.md",
+      "domain": "QA and documentation"
+    },
+    {
+      "file": "qa/bugs/e1051446-spoken-replies-fragment-at-punctuation-and-omit.md",
+      "domain": "QA and documentation"
+    },
+    {
+      "file": "qa/bugs/e1d9f470-prop-details-crowd-out-the-build-catalog-at-larg.md",
+      "domain": "QA and documentation"
+    },
+    {
+      "file": "qa/digests/2026-09-09-approved-world.md",
+      "domain": "QA and documentation"
+    },
+    {
+      "file": "qa/digests/2026-09-09-glass-interface.md",
+      "domain": "QA and documentation"
+    },
+    {
+      "file": "qa/digests/2026-09-09-image-intent.md",
+      "domain": "QA and documentation"
+    },
+    {
+      "file": "qa/digests/2026-09-09-managed-endpoint.md",
+      "domain": "QA and documentation"
+    },
+    {
+      "file": "qa/digests/2026-09-09-managed-images.md",
+      "domain": "QA and documentation"
+    },
+    {
+      "file": "qa/digests/2026-09-09-menu-glass-integration.md",
+      "domain": "QA and documentation"
+    },
+    {
+      "file": "qa/digests/2026-09-09-session-focus.md",
+      "domain": "QA and documentation"
+    },
+    {
+      "file": "qa/digests/2026-09-09-starter-white-shell.md",
+      "domain": "QA and documentation"
+    },
+    {
+      "file": "qa/digests/2026-09-09-tool-projection.md",
+      "domain": "QA and documentation"
+    },
+    {
+      "file": "qa/digests/2026-09-09-voice-continuity.md",
+      "domain": "QA and documentation"
+    },
+    {
+      "file": "qa/evidence/glass-interactions-0909.json",
+      "domain": "QA and documentation"
+    },
+    {
+      "file": "qa/evidence/glass-merge-checks-0909.json",
+      "domain": "QA and documentation"
+    },
+    {
+      "file": "qa/evidence/glass-postmerge-interactions-0909.json",
+      "domain": "QA and documentation"
+    },
+    {
+      "file": "qa/evidence/session-focus-0909.json",
+      "domain": "QA and documentation"
+    },
+    {
+      "file": "qa/product-perfect/claims.json",
+      "domain": "QA and documentation"
+    },
+    {
+      "file": "scripts/audit.mjs",
+      "domain": "audit tooling"
+    },
+    {
+      "file": "scripts/qa/glass-interactions-live.cjs",
+      "domain": "audit tooling"
+    },
+    {
+      "file": "scripts/qa/menu-glass-integration-live.cjs",
+      "domain": "audit tooling"
+    },
+    {
+      "file": "scripts/qa/session-focus-live.cjs",
+      "domain": "audit tooling"
+    },
+    {
+      "file": "sidecar/capability/effective-toolsets.js",
+      "domain": "backend runtime"
+    },
+    {
+      "file": "sidecar/capability/saved-placement.js",
+      "domain": "backend runtime"
+    },
+    {
+      "file": "sidecar/image-task.js",
+      "domain": "backend runtime"
+    },
+    {
+      "file": "sidecar/index.js",
+      "domain": "backend runtime"
+    },
+    {
+      "file": "sidecar/tools/builtin/deliverable.js",
+      "domain": "backend runtime"
+    },
+    {
+      "file": "sidecar/tools/builtin/image.js",
+      "domain": "backend runtime"
+    },
+    {
+      "file": "sidecar/tools/builtin/station.js",
+      "domain": "backend runtime"
+    },
+    {
+      "file": "src-tauri/Cargo.lock",
+      "domain": "desktop version pins"
+    },
+    {
+      "file": "src-tauri/Cargo.toml",
+      "domain": "desktop version pins"
+    },
+    {
+      "file": "src-tauri/tauri.conf.json",
+      "domain": "desktop version pins"
+    },
+    {
+      "file": "test/_rating-resume.js",
+      "domain": "regression tests"
+    },
+    {
+      "file": "test/backdrop-preview.test.js",
+      "domain": "regression tests"
+    },
+    {
+      "file": "test/browser.test.js",
+      "domain": "regression tests"
+    },
+    {
+      "file": "test/budget-caps.test.js",
+      "domain": "regression tests"
+    },
+    {
+      "file": "test/channels.discord-wire.test.js",
+      "domain": "regression tests"
+    },
+    {
+      "file": "test/channels.telegram.pairing-ux.test.js",
+      "domain": "regression tests"
+    },
+    {
+      "file": "test/class-loadouts.test.js",
+      "domain": "regression tests"
+    },
+    {
+      "file": "test/commander-dossier-css.test.js",
+      "domain": "regression tests"
+    },
+    {
+      "file": "test/cron.degraded.e2e.test.js",
+      "domain": "regression tests"
+    },
+    {
+      "file": "test/crt-context-loss.e2e.test.mjs",
+      "domain": "regression tests"
+    },
+    {
+      "file": "test/customer-journeys.list",
+      "domain": "regression tests"
+    },
+    {
+      "file": "test/effective-toolsets.test.js",
+      "domain": "regression tests"
+    },
+    {
+      "file": "test/emergency-control.test.js",
+      "domain": "regression tests"
+    },
+    {
+      "file": "test/estop-persistence-ui.test.js",
+      "domain": "regression tests"
+    },
+    {
+      "file": "test/fallback-chain.test.js",
+      "domain": "regression tests"
+    },
+    {
+      "file": "test/fast.list",
+      "domain": "regression tests"
+    },
+    {
+      "file": "test/field-manual-accessibility.test.js",
+      "domain": "regression tests"
+    },
+    {
+      "file": "test/glass-approval.test.cjs",
+      "domain": "regression tests"
+    },
+    {
+      "file": "test/glass-comms.test.cjs",
+      "domain": "regression tests"
+    },
+    {
+      "file": "test/glass-interactions.test.js",
+      "domain": "regression tests"
+    },
+    {
+      "file": "test/growth-rating-upgrade.e2e.test.js",
+      "domain": "regression tests"
+    },
+    {
+      "file": "test/harness-placement.test.js",
+      "domain": "regression tests"
+    },
+    {
+      "file": "test/http.list",
+      "domain": "regression tests"
+    },
+    {
+      "file": "test/image-task.e2e.test.js",
+      "domain": "regression tests"
+    },
+    {
+      "file": "test/image-task.test.js",
+      "domain": "regression tests"
+    },
+    {
+      "file": "test/image.test.js",
+      "domain": "regression tests"
+    },
+    {
+      "file": "test/live-doctor.e2e.test.js",
+      "domain": "regression tests"
+    },
+    {
+      "file": "test/managed-endpoint.e2e.test.js",
+      "domain": "regression tests"
+    },
+    {
+      "file": "test/managed-image.e2e.test.js",
+      "domain": "regression tests"
+    },
+    {
+      "file": "test/model-reasoning-presets.test.js",
+      "domain": "regression tests"
+    },
+    {
+      "file": "test/model-subscription.test.cjs",
+      "domain": "regression tests"
+    },
+    {
+      "file": "test/permissions-ui.test.js",
+      "domain": "regression tests"
+    },
+    {
+      "file": "test/poweruser-shell-repairs.test.js",
+      "domain": "regression tests"
+    },
+    {
+      "file": "test/prop-light-response.test.js",
+      "domain": "regression tests"
+    },
+    {
+      "file": "test/provider-oauth-parity.test.js",
+      "domain": "regression tests"
+    },
+    {
+      "file": "test/quest-log-window.test.js",
+      "domain": "regression tests"
+    },
+    {
+      "file": "test/readability.test.js",
+      "domain": "regression tests"
+    },
+    {
+      "file": "test/recipes.test.js",
+      "domain": "regression tests"
+    },
+    {
+      "file": "test/refit-footprint.test.js",
+      "domain": "regression tests"
+    },
+    {
+      "file": "test/report-0110-regressions.test.js",
+      "domain": "regression tests"
+    },
+    {
+      "file": "test/report-0110.e2e.test.js",
+      "domain": "regression tests"
+    },
+    {
+      "file": "test/session-focus-safety.test.js",
+      "domain": "regression tests"
+    },
+    {
+      "file": "test/session-indicators.test.js",
+      "domain": "regression tests"
+    },
+    {
+      "file": "test/settings-p1-ui.test.js",
+      "domain": "regression tests"
+    },
+    {
+      "file": "test/simulation-lighting.test.js",
+      "domain": "regression tests"
+    },
+    {
+      "file": "test/station-commands.test.js",
+      "domain": "regression tests"
+    },
+    {
+      "file": "test/station-tools.test.js",
+      "domain": "regression tests"
+    },
+    {
+      "file": "test/stationbake.chunk.test.js",
+      "domain": "regression tests"
+    },
+    {
+      "file": "test/stationbake.connections.test.mjs",
+      "domain": "regression tests"
+    },
+    {
+      "file": "test/stationbake.materials.test.js",
+      "domain": "regression tests"
+    },
+    {
+      "file": "test/terminal-resize.test.js",
+      "domain": "regression tests"
+    },
+    {
+      "file": "test/tool-projection.e2e.test.js",
+      "domain": "regression tests"
+    },
+    {
+      "file": "test/voice-flow.test.js",
+      "domain": "regression tests"
+    },
+    {
+      "file": "test/voice-live-ui.test.js",
+      "domain": "regression tests"
+    },
+    {
+      "file": "test/voice.button.test.js",
+      "domain": "regression tests"
+    },
+    {
+      "file": "test/work-rating-control.test.js",
+      "domain": "regression tests"
+    },
+    {
+      "file": "test/world-immersion-characters.test.js",
+      "domain": "regression tests"
+    },
+    {
+      "file": "test/world-sharpen.test.mjs",
+      "domain": "regression tests"
+    },
+    {
+      "file": "test/worldlight-receiver.test.mjs",
+      "domain": "regression tests"
+    },
+    {
+      "file": "test/worldlight.test.js",
+      "domain": "regression tests"
+    },
+    {
+      "file": "test/worldmodel.test.js",
+      "domain": "regression tests"
+    },
+    {
+      "file": "test/worldrenderer.test.js",
+      "domain": "regression tests"
+    },
+    {
+      "file": "test/worldsurface.test.js",
+      "domain": "regression tests"
+    },
+    {
+      "file": "test/xpstore.test.js",
+      "domain": "regression tests"
+    },
+    {
+      "file": "website/app/app/app.js",
+      "domain": "generated website mirror"
+    },
+    {
+      "file": "website/app/app/backdrop-preview-worker.js",
+      "domain": "generated website mirror"
+    },
+    {
+      "file": "website/app/app/backdrop-preview.js",
+      "domain": "generated website mirror"
+    },
+    {
+      "file": "website/app/app/build.js",
+      "domain": "generated website mirror"
+    },
+    {
+      "file": "website/app/app/chat.js",
+      "domain": "generated website mirror"
+    },
+    {
+      "file": "website/app/app/classicons.js",
+      "domain": "generated website mirror"
+    },
+    {
+      "file": "website/app/app/crtlab.js",
+      "domain": "generated website mirror"
+    },
+    {
+      "file": "website/app/app/emergency-control.js",
+      "domain": "generated website mirror"
+    },
+    {
+      "file": "website/app/app/glass-boot.js",
+      "domain": "generated website mirror"
+    },
+    {
+      "file": "website/app/app/glass-comms.js",
+      "domain": "generated website mirror"
+    },
+    {
+      "file": "website/app/app/glass-demo.js",
+      "domain": "generated website mirror"
+    },
+    {
+      "file": "website/app/app/glossary.js",
+      "domain": "generated website mirror"
+    },
+    {
+      "file": "website/app/app/harness.js",
+      "domain": "generated website mirror"
+    },
+    {
+      "file": "website/app/app/marketplace.js",
+      "domain": "generated website mirror"
+    },
+    {
+      "file": "website/app/app/modeldock.js",
+      "domain": "generated website mirror"
+    },
+    {
+      "file": "website/app/app/navdock.js",
+      "domain": "generated website mirror"
+    },
+    {
+      "file": "website/app/app/propsprites.js",
+      "domain": "generated website mirror"
+    },
+    {
+      "file": "website/app/app/recipe-catalog/curated.js",
+      "domain": "generated website mirror"
+    },
+    {
+      "file": "website/app/app/recipe-catalog/index.js",
+      "domain": "generated website mirror"
+    },
+    {
+      "file": "website/app/app/recipes.js",
+      "domain": "generated website mirror"
+    },
+    {
+      "file": "website/app/app/schedpicker.js",
+      "domain": "generated website mirror"
+    },
+    {
+      "file": "website/app/app/stationbake.js",
+      "domain": "generated website mirror"
+    },
+    {
+      "file": "website/app/app/stationcommands.js",
+      "domain": "generated website mirror"
+    },
+    {
+      "file": "website/app/app/stationui.js",
+      "domain": "generated website mirror"
+    },
+    {
+      "file": "website/app/app/terrain.js",
+      "domain": "generated website mirror"
+    },
+    {
+      "file": "website/app/app/tutorial.js",
+      "domain": "generated website mirror"
+    },
+    {
+      "file": "website/app/app/voice-live.js",
+      "domain": "generated website mirror"
+    },
+    {
+      "file": "website/app/app/voice.js",
+      "domain": "generated website mirror"
+    },
+    {
+      "file": "website/app/app/windows/automation.js",
+      "domain": "generated website mirror"
+    },
+    {
+      "file": "website/app/app/windows/connectors.js",
+      "domain": "generated website mirror"
+    },
+    {
+      "file": "website/app/app/windows/logbook.js",
+      "domain": "generated website mirror"
+    },
+    {
+      "file": "website/app/app/windows/loops.js",
+      "domain": "generated website mirror"
+    },
+    {
+      "file": "website/app/app/windows/messaging.js",
+      "domain": "generated website mirror"
+    },
+    {
+      "file": "website/app/app/windows/outbox.js",
+      "domain": "generated website mirror"
+    },
+    {
+      "file": "website/app/app/windows/routines.js",
+      "domain": "generated website mirror"
+    },
+    {
+      "file": "website/app/app/world.js",
+      "domain": "generated website mirror"
+    },
+    {
+      "file": "website/app/app/worldlab.js",
+      "domain": "generated website mirror"
+    },
+    {
+      "file": "website/app/app/worldlight.js",
+      "domain": "generated website mirror"
+    },
+    {
+      "file": "website/app/app/worldmodel.js",
+      "domain": "generated website mirror"
+    },
+    {
+      "file": "website/app/app/worldrenderer.js",
+      "domain": "generated website mirror"
+    },
+    {
+      "file": "website/app/app/worldsurface.js",
+      "domain": "generated website mirror"
+    },
+    {
+      "file": "website/app/app/xpstore.js",
+      "domain": "generated website mirror"
+    },
+    {
+      "file": "website/app/assets/brand/platform-logos.txt",
+      "domain": "generated website mirror"
+    },
+    {
+      "file": "website/app/assets/brand/platforms/apify.svg",
+      "domain": "generated website mirror"
+    },
+    {
+      "file": "website/app/assets/brand/platforms/bannerbear.png",
+      "domain": "generated website mirror"
+    },
+    {
+      "file": "website/app/assets/brand/platforms/bland.png",
+      "domain": "generated website mirror"
+    },
+    {
+      "file": "website/app/assets/brand/platforms/cj-dropshipping.ico",
+      "domain": "generated website mirror"
+    },
+    {
+      "file": "website/app/assets/brand/platforms/close-crm.png",
+      "domain": "generated website mirror"
+    },
+    {
+      "file": "website/app/assets/brand/platforms/composio.svg",
+      "domain": "generated website mirror"
+    },
+    {
+      "file": "website/app/assets/brand/platforms/context7.png",
+      "domain": "generated website mirror"
+    },
+    {
+      "file": "website/app/assets/brand/platforms/deepwiki.png",
+      "domain": "generated website mirror"
+    },
+    {
+      "file": "website/app/assets/brand/platforms/duffel.png",
+      "domain": "generated website mirror"
+    },
+    {
+      "file": "website/app/assets/brand/platforms/fireflies.png",
+      "domain": "generated website mirror"
+    },
+    {
+      "file": "website/app/assets/brand/platforms/fourthwall.png",
+      "domain": "generated website mirror"
+    },
+    {
+      "file": "website/app/assets/brand/platforms/gelato.png",
+      "domain": "generated website mirror"
+    },
+    {
+      "file": "website/app/assets/brand/platforms/gitmcp.png",
+      "domain": "generated website mirror"
+    },
+    {
+      "file": "website/app/assets/brand/platforms/globalping.svg",
+      "domain": "generated website mirror"
+    },
+    {
+      "file": "website/app/assets/brand/platforms/heygen.ico",
+      "domain": "generated website mirror"
+    },
+    {
+      "file": "website/app/assets/brand/platforms/higgsfield.png",
+      "domain": "generated website mirror"
+    },
+    {
+      "file": "website/app/assets/brand/platforms/jam.svg",
+      "domain": "generated website mirror"
+    },
+    {
+      "file": "website/app/assets/brand/platforms/keepa.svg",
+      "domain": "generated website mirror"
+    },
+    {
+      "file": "website/app/assets/brand/platforms/lob.png",
+      "domain": "generated website mirror"
+    },
+    {
+      "file": "website/app/assets/brand/platforms/lulu.png",
+      "domain": "generated website mirror"
+    },
+    {
+      "file": "website/app/assets/brand/platforms/monday.png",
+      "domain": "generated website mirror"
+    },
+    {
+      "file": "website/app/assets/brand/platforms/parallel-search.svg",
+      "domain": "generated website mirror"
+    },
+    {
+      "file": "website/app/assets/brand/platforms/printful.png",
+      "domain": "generated website mirror"
+    },
+    {
+      "file": "website/app/assets/brand/platforms/prodigi.svg",
+      "domain": "generated website mirror"
+    },
+    {
+      "file": "website/app/assets/brand/platforms/ramp.svg",
+      "domain": "generated website mirror"
+    },
+    {
+      "file": "website/app/assets/brand/platforms/semgrep.svg",
+      "domain": "generated website mirror"
+    },
+    {
+      "file": "website/app/assets/brand/platforms/sendgrid.png",
+      "domain": "generated website mirror"
+    },
+    {
+      "file": "website/app/assets/brand/platforms/shineon.svg",
+      "domain": "generated website mirror"
+    },
+    {
+      "file": "website/app/assets/brand/platforms/shotstack.svg",
+      "domain": "generated website mirror"
+    },
+    {
+      "file": "website/app/assets/brand/platforms/sources.json",
+      "domain": "generated website mirror"
+    },
+    {
+      "file": "website/app/assets/brand/platforms/spod.png",
+      "domain": "generated website mirror"
+    },
+    {
+      "file": "website/app/assets/brand/platforms/supliful.png",
+      "domain": "generated website mirror"
+    },
+    {
+      "file": "website/app/assets/brand/platforms/teemill.ico",
+      "domain": "generated website mirror"
+    },
+    {
+      "file": "website/app/assets/brand/platforms/transistor.ico",
+      "domain": "generated website mirror"
+    },
+    {
+      "file": "website/app/assets/brand/platforms/vapi.svg",
+      "domain": "generated website mirror"
+    },
+    {
+      "file": "website/app/assets/brand/platforms/zernio.svg",
+      "domain": "generated website mirror"
+    },
+    {
+      "file": "website/app/css/agent-dossier.css",
+      "domain": "generated website mirror"
+    },
+    {
+      "file": "website/app/css/app.css",
+      "domain": "generated website mirror"
+    },
+    {
+      "file": "website/app/css/channels.css",
+      "domain": "generated website mirror"
+    },
+    {
+      "file": "website/app/css/commander.css",
+      "domain": "generated website mirror"
+    },
+    {
+      "file": "website/app/css/glass-comms.css",
+      "domain": "generated website mirror"
+    },
+    {
+      "file": "website/app/css/glass-demo.css",
+      "domain": "generated website mirror"
+    },
+    {
+      "file": "website/app/css/marketplace.css",
+      "domain": "generated website mirror"
+    },
+    {
+      "file": "website/app/css/menu-glass.css",
+      "domain": "generated website mirror"
+    },
+    {
+      "file": "website/app/css/quests.css",
+      "domain": "generated website mirror"
+    },
+    {
+      "file": "website/app/css/readability.css",
+      "domain": "generated website mirror"
+    },
+    {
+      "file": "website/app/css/refit-kit.css",
+      "domain": "generated website mirror"
+    },
+    {
+      "file": "website/app/css/refit-polish.css",
+      "domain": "generated website mirror"
+    },
+    {
+      "file": "website/app/css/settings.css",
+      "domain": "generated website mirror"
+    },
+    {
+      "file": "website/app/css/tasks.css",
+      "domain": "generated website mirror"
+    },
+    {
+      "file": "website/app/css/utility-menus.css",
+      "domain": "generated website mirror"
+    },
+    {
+      "file": "website/app/dev/session-indicators.html",
+      "domain": "generated website mirror"
+    },
+    {
+      "file": "website/app/index.html",
+      "domain": "generated website mirror"
+    },
+    {
+      "file": "website/app/js/assets.js",
+      "domain": "generated website mirror"
+    },
+    {
+      "file": "website/docs/autonomy.html",
+      "domain": "website documentation"
+    },
+    {
+      "file": "website/docs/glossary.html",
+      "domain": "website documentation"
+    },
+    {
+      "file": "website/docs/guides/channels.html",
+      "domain": "website documentation"
+    },
+    {
+      "file": "website/docs/guides/night-shift.html",
+      "domain": "website documentation"
+    },
+    {
+      "file": "website/docs/guides/routines.html",
+      "domain": "website documentation"
+    },
+    {
+      "file": "website/docs/help.html",
+      "domain": "website documentation"
+    },
+    {
+      "file": "website/docs/index.html",
+      "domain": "website documentation"
+    },
+    {
+      "file": "website/docs/search-index.js",
+      "domain": "website documentation"
+    },
+    {
+      "file": "website/docs/shortcuts.html",
+      "domain": "website documentation"
+    },
+    {
+      "file": "website/index.html",
+      "domain": "website documentation"
+    }
+  ]
+}

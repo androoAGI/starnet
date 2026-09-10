@@ -8,7 +8,7 @@
 
      makeSaveStore({ fs, pathMod, root, clock }) -> {
        load(agentId)        -> doc | undefined        // the stored save envelope; undefined if none/corrupt
-       save(agentId, doc)   -> { ok, stale?, updatedAt }  // atomic; refuses to REGRESS updatedAt (anti-clobber)
+       save(agentId, doc, {compareRevision?}) -> { ok, conflict?, revision?, updatedAt }
      }
 
    The file lives at <root>/<agentId>.save.json — a SIBLING of the notebook/channels stores, OUTSIDE the
@@ -186,8 +186,9 @@
       // persist the save envelope durably. Wrapped with the server receive time + the doc's own updatedAt so
       // a later read can compare freshness without parsing the frontend schema. ANTI-CLOBBER: if the incoming
       // doc is OLDER than what's on disk (updatedAt regressed), the write is refused — a stale background tab
-      // can never overwrite a newer save. Returns the authoritative on-disk updatedAt either way.
-      save(agentId, doc) {
+      // can never overwrite a newer save. HTTP clients additionally use compareRevision to reject stale
+      // snapshots even when they have a new timestamp; timestamp-only behavior remains for legacy internal callers.
+      save(agentId, doc, options = {}) {
         if (!doc || typeof doc !== 'object') throw new Error('save: a doc object is required');
         const file = saveFile(agentId);   // validates the id (throws on traversal)
         const prevRead = readTagged(file);
@@ -205,10 +206,29 @@
         // anti-clobber freshness gate — a torn main whose .bak we restored must still not be regressed.
         const prev = (prevRead.status === 'ok' || prevRead.status === 'recovered') ? prevRead.wrapper : undefined;
         const prevUpdated = prev && typeof prev === 'object' ? num(prev.updatedAt) : 0;
-        const incomingUpdated = num(doc.updatedAt);
-        if (prev && incomingUpdated < prevUpdated) return { ok: false, stale: true, updatedAt: prevUpdated };
-        writeAtomic(file, { version: 1, agentId: String(agentId), updatedAt: incomingUpdated, savedAt: clock.now(), doc: doc });
-        return { ok: true, updatedAt: incomingUpdated };
+        const requestUpdatedAt = num(doc.updatedAt);
+        let incomingUpdated = requestUpdatedAt;
+        if (options.compareRevision) {
+          const revision = num(prev && prev.doc && prev.doc._saveRevision);
+          const expected = num(doc._saveRevision);
+          // A replay of an acknowledged request (including a beacon racing fetch) is idempotent.
+          const same = prev && JSON.stringify(Object.assign({}, prev.doc, { updatedAt: prev.requestUpdatedAt == null ? prevUpdated : prev.requestUpdatedAt, _saveRevision: expected, _saveDirty: false })) === JSON.stringify(Object.assign({}, doc, { _saveDirty: false }));
+          if (same) return { ok: true, updatedAt: prevUpdated, revision };
+          if (expected !== revision) {
+            // Keep the rejected snapshot durably as well as the current station. Never silently
+            // merge whole envelopes: removals and roster/config edits have conflicting semantics.
+            const client = /^[A-Za-z0-9_-]{1,80}$/.test(String(doc._saveClient || '')) ? doc._saveClient : clock.now() + '-' + (++tmpSeq);
+            const recovery = String(agentId) + '.save-conflict-' + client + '.json';
+            writeAtomic(pathMod.join(rootDir, recovery), doc);
+            return { ok: false, stale: true, conflict: true, revision, recovery, updatedAt: prevUpdated };
+          }
+          incomingUpdated = Math.max(incomingUpdated, prevUpdated + 1);
+          doc = Object.assign({}, doc, { updatedAt: incomingUpdated, _saveRevision: revision + 1, _saveDirty: false });
+        }
+
+        if (!options.compareRevision && prev && incomingUpdated < prevUpdated) return { ok: false, stale: true, updatedAt: prevUpdated };
+        writeAtomic(file, { version: 1, agentId: String(agentId), updatedAt: incomingUpdated, savedAt: clock.now(), ...(options.compareRevision ? { requestUpdatedAt } : {}), doc: doc });
+        return { ok: true, updatedAt: incomingUpdated, ...(options.compareRevision ? { revision: doc._saveRevision } : {}) };
       },
 
       // the persisted quarantine/recovery marker for this agent's save (EL-11 FIX 2/3), or undefined when there

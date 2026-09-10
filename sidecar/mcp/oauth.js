@@ -341,6 +341,8 @@
     const params = { grant_type: 'refresh_token', refresh_token: o.refreshToken || '', client_id: o.clientId || '' };
     if (o.resource) params.resource = o.resource;
     const json = await postForm(o.fetchImpl, o.tokenEndpoint, params, 'token refresh', o);
+    if (json.error || !json.access_token) throw new Error('token refresh failed: ' +
+      (/^[a-z0-9_.-]{1,64}$/i.test(json.error || '') ? json.error : 'missing access_token'));
     return tokensFromResponse(json, o.now || 0, o.refreshToken || '');   // keep the old refresh_token if the AS omits a new one
   }
 

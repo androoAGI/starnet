@@ -36,26 +36,9 @@ const CDP_PORT = Number(process.env.SKYNET_GOLDEN_CDP || 9335);
 const OUT = process.env.SKYNET_GOLDEN_DIR || join(process.cwd(), '.uigolden');
 const BLESS = process.argv.includes('--bless');
 
-// ── Dismissed/known-frame gate ──────────────────────────────────────────────
-// A frame can legitimately diff forever without being a regression: `sys-rewind` is the one
-// modal that doesn't full-bleed over the always-animating CRT floor, so its signature wanders
-// with the animation. That noise was already TRIAGED and DISMISSED in the QA ledger (finding
-// 01c40465, status "dismissed"). Re-flagging it pins the Green Guardian dashboard row RED with
-// 0 open findings — the dashboard would LIE, violating the project's truthful-telemetry law.
-//
-// So we ask the ONE dedup/known authority (scripts/qa/ledger.mjs) which fingerprints are
-// suppressed (dismissed or known), and treat a frame whose Guardian fingerprint is on that
-// baseline as REVIEW-CLEAN. The fingerprint we compute here is IDENTICAL to the one the Green
-// Guardian derives for a golden frame (guardianFingerprint → fingerprintOf with the Green
-// Guardian crew + checkId 'golden' + subject 'frame/<name>'), so a frame the Guardian already
-// filed-and-dismissed matches exactly. We DO NOT re-implement fingerprint matching — we reuse
-// the ledger's suppressedFingerprints() over its real on-disk findings + KNOWN_ISSUES.md.
-//
-// Narrow by design: this ONLY excuses a frame whose CURRENT fingerprint is already dismissed.
-// A genuinely new regression — a new frame (different subject → different fingerprint), or any
-// frame that isn't on the dismissed baseline — is untouched: it still flags and still exits 3,
-// so the Guardian files it through the ledger exactly as today. Fail-open: if the ledger can't
-// be read, nothing is suppressed and behavior is identical to before this gate existed.
+// Historical dismissal context uses the Guardian's own panel fingerprint. Those
+// fingerprints identify names, not pixels. They help explain past triage but never
+// approve a current image change; classifyFrames uses the reviewed visual baseline.
 const GUARDIAN_CREW = 'Green Guardian';       // must match scripts/qa/guardian.mjs CREW
 const GOLDEN_CHECK_ID = 'golden';             // must match GUARDIAN_STEPS[golden].id
 export function goldenFrameFingerprint(name) {
@@ -114,13 +97,10 @@ async function captureSignatures() {
 }
 
 // ── Pure classifier (testable, no disk / no capture) ────────────────────────
-// Given this run's signatures, the blessed baseline, the threshold, and the suppressed-
-// fingerprint Set, decide which frames are FLAGGED (real regressions → exit 3) vs EXCUSED
-// (diffed but their fingerprint is on the dismissed/known baseline → review-clean, gate stays
-// green). A frame is excused ONLY when it changed AND its Guardian fingerprint is suppressed —
-// so a new frame / different frame / bigger diff on a NON-dismissed frame still flags. `frameOf`
-// maps a frame name to its evidence path (so the pure core stays disk-free). Deterministic:
-// iterates baseline+run keys in insertion order, no ambient state.
+// Compare current pixels with the reviewed baseline. Historical panel-name dismissals
+// are diagnostic context only: they cannot approve missing/new frames or arbitrary changes.
+// The measured animation threshold remains the automatic tolerance; intentional visual
+// changes require a reviewed baseline update. This function never blesses a new baseline.
 export function classifyFrames({ sigs, golden, thr, suppressed, frameOf, onLog } = {}) {
   sigs = sigs || {};
   const states = (golden && golden.states) || {};
@@ -133,17 +113,14 @@ export function classifyFrames({ sigs, golden, thr, suppressed, frameOf, onLog }
     const g = states[name];
     const fp = goldenFrameFingerprint(name);
     if (!g) {
-      if (supp.has(fp)) { log(`  review-clean ${name.padEnd(16)} NEW but fingerprint ${fp} matches a dismissed/known finding — accepted`); excused.push({ name, fingerprint: fp, reason: 'new state — dismissed/known' }); continue; }
       log(`  NEW      ${name.padEnd(16)} (no golden)`); flagged.push({ name, diff: null, reason: 'new state (no golden)', frame: path(name) }); continue;
     }
     const d = sigDiff(Uint8Array.from(sigs[name]), Uint8Array.from(g));
     const changed = d > thr;
     if (changed && supp.has(fp)) {
-      // Known-noisy frame: its current diff maps to a dismissed/known finding. Review-clean —
-      // loud about WHY (never a silent pass), kept OUT of `flagged` so the gate stays green.
-      log(`  review-clean ${name.padEnd(16)} diff=${d.toFixed(2)} (thr ${thr}) — matches dismissed finding ${fp}, known animation noise; accepted`);
-      excused.push({ name, diff: +d.toFixed(2), fingerprint: fp, reason: 'diff matches dismissed/known finding ' + fp });
-      continue;
+      // This fingerprint names the panel, not the pixels or the magnitude of the change.
+      // A historical noise dismissal cannot approve an unrelated current layout.
+      log(`  REVIEW   ${name.padEnd(16)} previously dismissed frame name ${fp}; current pixels still require review`);
     }
     log(`  ${changed ? 'CHANGED' : 'ok     '} ${name.padEnd(16)} diff=${d.toFixed(2)} (thr ${thr})`);
     if (changed) flagged.push({ name, diff: +d.toFixed(2), frame: path(name) });

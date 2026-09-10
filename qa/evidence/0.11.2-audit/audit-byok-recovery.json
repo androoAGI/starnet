@@ -1,0 +1,24 @@
+{
+  "status": 200,
+  "events": [
+    {
+      "name": "agent.run.error",
+      "payload": {
+        "agentId": "byok-audit",
+        "runId": "a2007698-4e5b-4978-ae17-baf152f3d6e5",
+        "transient": false,
+        "message": "Image task blocked: the StarNet credits connection is unavailable for custom / test/model. Open SETTINGS and link this station to your StarNet account, then retry. No image artifact was produced."
+      }
+    },
+    {
+      "name": "agent.run.end",
+      "payload": {
+        "agentId": "byok-audit",
+        "runId": "a2007698-4e5b-4978-ae17-baf152f3d6e5",
+        "reason": "error",
+        "turns": 0,
+        "usd": 0
+      }
+    }
+  ]
+}

@@ -1581,7 +1581,7 @@ own runner (Q1 Guardian, Q2 Beginner Run, Q4 Janitor) or the Overseer digest; th
 | Crew member | Question it answers | Last run | Result | Open findings |
 | --- | --- | --- | --- | --- |
 | Green Guardian | Is trunk green and does the app still boot + look right? | 2026-09-04 03:17Z @ adc35964 | GREEN | 0 |
-| Beginner Run | Can a brand-new user reach first value, unassisted? | 2026-09-03T17:30:38.463Z · ui-only · 140120ms | PASS | 0 |
+| Beginner Run | Can a brand-new user reach first value, unassisted? | 2026-09-10T03:37:06.028Z · ui-only · 136890ms | PASS | 0 |
 | Truth Auditor | Does the UI show what actually happened? | 2026-07-01 23:28Z (in Guardian cycle) | GREEN | 0 |
 | Visual Auditor | Is the rendered game coherent? (needs eyes) | — (local /loop; not headless) | — | 0 |
 | Overseer | What broke today, what needs Andrew? | 2026-07-01 (digest rendered) | 0 P0 · 106 P2 | — |
@@ -2823,4 +2823,8 @@ Every first-time StarNet-subscription desktop user: link → shell adopts the to
 
 **2026-09-10 merge digest (DOORWAY MOVEMENT):** `agent/doorway-occlusion-0910` → trunk `9e5b6d88e` from `83c896e7d`. Candidate fast gate and exact merged-commit gate in the isolated checkout: **752/752 GREEN** each; customer journeys **34/34 GREEN**. Twelve live hero/crew/workstation doorway routes completed with zero wall crossings. Receipt: `qa/digests/2026-09-10-doorway-movement.md`. Installed desktop and reporter recovery remain unverified.
 
+
+**2026-09-10 cleanup lane:** `agent/cleanup-0112-0910` verified at `c2193f1fb`; normal fast **753/753 GREEN**, normal HTTP **108/108 GREEN**. Nine source/QA findings repaired; runtime and live proof sources are explicit in `docs/AUDIT_0.11.1_FOR_0.11.2.md`. HTTP aggregate watchdog is 20 minutes, shared outer runners 21 minutes; no test steps removed. No merge/publication. Historical customer/detector findings and installed/account/hardware/long-soak acceptance remain open.
 - 2026-09-10 world seating: agent/doorway-occlusion-0910 -> f3e57f58e; fast 753/753 before and after integration, customer journeys 34/34, live 12 hallway routes with zero crossings, seven recovery/refit checks and 288 skin/facing poses passed. Source repaired; installed rebuild/recovery unverified. Receipt: docs/WORLD_SEATING_REPAIR_2026-09-10.md.
+
+- 2026-09-10: agent/live-speech-0910 -> trunk 7ccb4ebd9; live speech output-context recovery merged. Pre-merge and post-merge test:fast 766/766 GREEN; customer journeys 34/34 and real seeded speech playback passed. Installer/customer recovery unverified.

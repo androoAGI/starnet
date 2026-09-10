@@ -1,0 +1,14 @@
+{
+  "sourceSha": "2aa8305c0",
+  "loopId": "cd6b947e-b112-46cb-8ba5-1dd58f64bb47",
+  "approvalStatus": 200,
+  "rejectionStatus": 200,
+  "bothOk": true,
+  "undone": [
+    1
+  ],
+  "finalVerdict": "approved",
+  "fileBefore": true,
+  "fileAfter": false,
+  "gitLog": "f0873ab loop: undo rejected #1\ncea1993 loop(audit-conflicting-verdicts) #1: Audit reply 23. Completed the audit\n1d950c0 test: audit verdict baseline"
+}

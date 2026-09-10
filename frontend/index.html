@@ -43,8 +43,10 @@
 <link rel="stylesheet" href="css/utility-menus.css?v=1">
 <link rel="stylesheet" href="css/glass-demo.css">
 <link rel="stylesheet" href="css/glass-comms.css">
+<link rel="stylesheet" href="css/onboarding.css">
 <link rel="stylesheet" href="css/readability.css"><!-- Shared readable text roles at STANDARD; cabinet and CRT geometry are unchanged. -->
 <link rel="stylesheet" href="css/beat-cards.css"><!-- Transient work cards share glass materials and semantic text sizes. -->
+<link rel="stylesheet" href="css/overseer-setup.css">
 
 <link rel="stylesheet" href="css/titlebar.css"><!-- custom window chrome (Windows desktop shell): themed titlebar + MIN/MAX/CLOSE; inert unless body.sn-chrome (titlebar.js) -->
 
@@ -98,14 +100,19 @@
     <span class="cc-bracket cc-bl">└</span><span class="cc-bracket cc-br">┘</span>
 
     <header class="cc-console-head ov-head">
-      <div class="cc-titlebar"><span class="cc-tb-tag">STARNET</span><span class="cc-tb-rule"></span><span id="cc-mode" class="cc-tb-mode">GENESIS</span><span class="cc-tb-phosphor"><span class="cc-tb-plabel">PHOSPHOR</span><span id="phosphor-swatches" class="phosphor-swatches" role="group" aria-label="Console phosphor tint"></span></span><span class="cc-tb-rec">● LIVE</span></div>
+      <div class="cc-titlebar"><span class="ov-wordmark" role="img" aria-label="StarNet"></span><span id="cc-mode" class="cc-tb-mode">GENESIS</span><span class="cc-tb-phosphor"><span class="cc-tb-plabel">COLOR</span><span id="phosphor-swatches" class="phosphor-swatches" role="group" aria-label="Console phosphor tint"></span></span></div>
       <div class="cc-title-row ov-title-row">
-        <h2 id="cc-title">▮ CREATE YOUR OVERSEER</h2>
+        <h2 id="cc-title">Create your Overseer</h2>
         <span id="cc-sub" class="ov-sub">the first mind you wake is your <b>OVERSEER</b> — it runs the station and recruits every agent after it.</span>
       </div>
+      <ol class="ov-journey" aria-label="Getting started"><li><b>01</b> Create your agent</li><li><b>02</b> Wake &amp; get acquainted</li><li><b>03</b> Start your first task</li></ol>
       <!-- RESUME banner — shown only when re-entering an existing station (recovery / disconnect re-entry).
            initConnect(name, true, agent) unhides this and disables the identity fields; a fresh create hides it. -->
       <div id="cc-recovery" class="ov-recovery hidden" role="status"></div>
+      <nav class="ov-setup-nav" aria-label="Overseer setup">
+        <button type="button" data-setup-step="identity" aria-controls="ov-identity"><span>01</span> Your Overseer</button>
+        <button type="button" data-setup-step="brain" aria-controls="ov-brain"><span>02</span> Connect a brain</button>
+      </nav>
     </header>
 
     <div class="ov-grid">
@@ -113,7 +120,7 @@
       <!-- COLUMN 1 — THE HERO: the agent in its genesis pod (appearance) -->
       <div class="ov-hero">
         <div class="ov-step"><b>01</b> APPEARANCE <span class="dim">— pick a face</span></div>
-        <span class="ov-leadtag">◆ AGENT 01 · YOUR ORCHESTRATING LEAD</span>
+        <span class="ov-leadtag">YOUR FIRST AGENT</span>
         <div class="ov-pod">
           <figure class="ov-stage" aria-live="polite">
             <div class="ov-stage-frame"><img id="skin-stage-img" alt="" draggable="false"></div>
@@ -123,26 +130,30 @@
 
         <div class="ov-nameplate">
           <div class="ov-np-name" id="np-name">OVERSEER</div>
-          <div class="ov-np-role">◆ OVERSEER <span class="ov-dot">·</span> <span id="np-mode">asks for approval</span></div>
+          <div class="ov-np-role">Overseer <span class="ov-dot">·</span> <span id="np-mode">asks for approval</span></div>
           <figcaption id="skin-stage-name" class="skin-stage-name ov-skinname"></figcaption>
         </div>
 
-        <div class="ov-pickrow"><span class="ov-pick-lab">SKIN</span><div id="skin-picker" class="skin-picker ov-skins"></div></div>
+        <div class="ov-pickrow">
+          <div class="ov-gallery-head"><span>APPEARANCE</span><span id="ov-skin-count" role="status"></span></div>
+          <div id="skin-picker" class="skin-picker ov-skins"></div>
+        </div>
       </div>
 
       <!-- COLUMN 2 — IDENTITY & CONDUCT: name · personality · approval — HOOK-FIRST order: the fun,
            zero-friction identity choices come first so the user invests before they hit the key/model
            column (the highest-friction step), which sits LAST, next to the WAKE button it feeds. -->
-      <div class="ov-cfg ov-col-id">
-        <div class="ov-step"><b>02</b> IDENTITY <span class="dim">— name it, give it a manner</span></div>
+      <div class="ov-cfg ov-col-id" id="ov-identity">
         <div class="ov-field">
-          <label for="in-name">OVERSEER NAME <span class="dim">— optional; leave blank and it mints its own codename</span></label>
-          <input id="in-name" class="ov-nm-in" maxlength="18" placeholder="name your overseer" autocomplete="off" spellcheck="false">
+          <label for="in-name">Name <span class="ov-optional">Optional</span></label>
+          <div class="ov-name-field"><input id="in-name" class="ov-nm-in" maxlength="18" placeholder="e.g. Nova" autocomplete="off" spellcheck="false" aria-describedby="ov-name-help"><span id="ov-name-length" aria-hidden="true">0 / 18</span></div>
+          <p class="ov-help" id="ov-name-help">Leave blank and we’ll choose a codename.</p>
         </div>
 
         <div class="ov-field">
-          <label>PERSONALITY <span class="dim">— how it talks to you (change it any time later)</span></label>
+          <label>Personality <span class="dim">How your Overseer talks to you.</span></label>
           <div id="voice-archetypes" class="ov-vchips" role="group" aria-label="Personality"></div>
+          <p id="ov-personality-help" class="ov-help" role="status">Fine-tune later in your Overseer’s settings.</p>
           <div id="voice-preview" class="voice-preview ov-vpreview"></div>
           <!-- Voice customization (fine-tune dials + free-text note) REMOVED from genesis (2026-07-09
                decision) — the archetype chip is the whole voice choice here. Agents that already carry
@@ -150,17 +161,17 @@
         </div>
 
         <div class="ov-field">
-          <label>APPROVAL <span class="dim">— how much it can do on its own; change it any time later</span></label>
+          <label>Working style <span class="dim">Choose when your Overseer should check with you.</span></label>
           <div id="approval-picker" class="ov-cards ov-approve" role="group" aria-label="Approval mode"></div>
-          <div class="ov-crewnote"><b>FULL POWER</b> authorizes the whole local computer without consent cards. ASK mode keeps the chosen profile, project, and protected-action boundaries.</div>
+          <div class="ov-crewnote">Full power allows actions across your computer without approval prompts. You can change this later.</div>
         </div>
       </div>
 
       <!-- COLUMN 3 — THE BRAIN: the only REQUIRED step; sits last, beside the WAKE it feeds. -->
-      <div class="ov-cfg ov-col-brain">
+      <div class="ov-cfg ov-col-brain" id="ov-brain">
         <div class="ov-step"><b>03</b> THE BRAIN <span class="ov-req">REQUIRED</span></div>
         <div class="ov-field ov-field-brain">
-          <label>CONNECT A MIND <span class="dim">— the model that powers it; everything above is re-editable, this one it needs to wake</span></label>
+          <div class="ov-section-heading" id="ov-provider-intro"><h3>Connect a brain</h3><p>Start with StarNet, or use a provider you already have.</p></div>
           <!-- BEGINNER FUNNEL: lead with the no-API-key path. A ChatGPT Plus/Pro login (Codex OAuth) needs
                no key at all, so it's the recommended default and sits first; BYOK (OpenRouter etc.) stays a
                fully visible one-click alternative for anyone who already has a key. -->
@@ -178,16 +189,15 @@
                    (app.js revealStarnetGenesis, which also makes it the default pick on a fresh create).
                    ChatGPT sign-in is no longer a hero — it lives inside the OPENAI chip below. -->
               <button class="prov prov-hero hidden" data-prov="starnet" aria-pressed="false">
-                <span class="prov-hero-badge">◆ EASIEST START · NO KEY</span>
                 <span class="prov-hero-row">
-                  <span class="prov-hero-ic" aria-hidden="true">🔗</span>
                   <span class="prov-hero-body">
-                    <span class="prov-hero-title">START WITH STARNET</span>
-                    <span class="prov-hero-sub">your StarNet subscription powers every agent — link it in one click, no API key to find or paste</span>
+                    <span class="prov-hero-title"><span class="prov-hero-prefix">START WITH</span><span class="ov-wordmark" role="img" aria-label="StarNet"></span></span>
+                    <span class="prov-hero-sub">Subscribe and start. No API keys.</span>
                   </span>
+                  <span class="prov-hero-arrow" aria-hidden="true">→</span>
                 </span>
               </button>
-              <div class="prov-byok-lab" aria-hidden="true">— or pick another provider —</div>
+              <div class="prov-byok-lab">Or bring your own provider</div>
               <div class="prov-grid">
                 <!-- ChatGPT/Codex has NO chip of its own anymore: picking OPENAI offers BOTH paths on one card —
                      sign in with ChatGPT (device-code, no key) or paste an OpenAI API key. WAKE takes whichever
@@ -218,11 +228,16 @@
               </div>
             </div>
 
+            <div class="ov-connection" hidden>
+            <button type="button" id="ov-change-provider" class="ov-text-button">← All providers</button>
+            <div class="ov-connection-heading"><span id="ov-connection-logo" class="ov-provider-logo" aria-hidden="true"></span><div><div class="ov-connection-head" id="ov-connection-title">Connect your provider</div><p class="ov-help" id="ov-connection-help">Connect your account, then choose a model.</p></div></div>
             <div id="key-block">
+              <label for="in-key" class="ov-key-label">API KEY</label>
               <input id="in-key" type="password" placeholder="sk-or-…  —  openrouter.ai/keys" autocomplete="off" spellcheck="false">
             </div>
 
             <div id="base-url-block" class="hidden">
+              <label for="in-base-url">Endpoint URL</label>
               <input id="in-base-url" type="text" placeholder="https://your-host.example/v1" autocomplete="off" spellcheck="false">
             </div>
 
@@ -248,7 +263,7 @@
                 <div id="starnet-status" class="codex-status">checking…</div>
                 <div id="starnet-code" class="codex-code hidden"></div>
                 <div class="codex-actions">
-                  <button type="button" id="btn-starnet-link" class="btn">🔗 LINK YOUR STARNET ACCOUNT ▸</button>
+                  <button type="button" id="btn-starnet-link" class="btn">CONNECT STARNET ACCOUNT ↗</button>
                   <button type="button" id="btn-starnet-open" class="btn hidden">↗ OPEN PAGE</button>
                   <button type="button" id="btn-starnet-credits" class="btn hidden">＄ ADD CREDITS ▸</button>
                   <button type="button" id="btn-starnet-switch" class="btn hidden">↻ USE A DIFFERENT ACCOUNT</button>
@@ -267,18 +282,25 @@
               </div>
             </div>
 
-            <div class="ov-model-lab"><label for="in-model">MODEL <span class="dim" id="model-count"></span></label></div>
+            <div class="ov-model-lab"><label>Model</label></div>
+            <button type="button" id="ov-model-open" class="ov-model-selection" aria-haspopup="dialog"><span><strong id="ov-model-name">Choose a model</strong><small id="ov-model-detail">Browse the model catalog</small></span><span aria-hidden="true">⌄</span></button>
             <!-- Themed grouped model picker (replaces the native <datalist>, which rendered ~370 raw slugs in an
                  unstyleable OS dropdown). #in-model stays the text input (search-as-you-type); #model-pop is a
                  phosphor listbox app.js fills GROUPED BY VENDOR with display names + context + $/M pricing. -->
+            <dialog id="ov-model-dialog" aria-labelledby="ov-model-dialog-title">
+              <div class="ov-model-dialog-head"><div><h3 id="ov-model-dialog-title">Choose a model</h3><span id="model-count" class="ov-help"></span></div><button type="button" id="ov-model-cancel" class="ov-icon-button" aria-label="Close model catalog">×</button></div>
             <div class="ov-mdl-wrap">
+              <label for="in-model">Search models</label>
               <input id="in-model" placeholder="loading models…" autocomplete="off" spellcheck="false"
                      role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="model-pop">
               <div id="model-pop" class="ov-mdl-pop" role="listbox" aria-label="Model catalog" hidden></div>
             </div>
             <!-- one-tap recommended slugs. Each chip just prefills #in-model; the live catalog hint then prices it. -->
             <div id="model-picks" class="model-picks" aria-label="Recommended models"></div>
+              <div class="ov-model-dialog-foot"><span class="ov-help">Choose a model above, or enter its exact ID.</span><button type="button" id="ov-model-custom" class="ov-text-button">Use this model ID →</button></div>
+            </dialog>
             <div id="model-hint" class="dim hint">—</div>
+            <div id="ov-reasoning" hidden><label>Reasoning <span class="dim">How much thought to give each task.</span></label><div id="ov-reasoning-presets" class="ov-segmented" role="group" aria-label="Reasoning level"></div><details class="ov-advanced"><summary>Advanced reasoning</summary><div id="ov-reasoning-exact" class="ov-segmented" role="group" aria-label="Exact reasoning level"></div></details></div>
             <!-- Progressive disclosure: the key-safety note is collapsed behind a one-line toggle so the required
                  step (provider · key · model) reads clean; expand it for the full "where does my key go?" answer.
                  #byok-note keeps its id (personas/wiring); #byok-disclose is what selectProviderUI hides on the
@@ -286,6 +308,7 @@
             <div id="byok-disclose" class="byok-disclose">
               <button type="button" id="byok-toggle" class="byok-toggle" aria-expanded="false" aria-controls="byok-note">▸ where does my key go?</button>
               <p id="byok-note" class="muted byok-note hidden">Bring your own key — stored locally, sent only to the STARNET sidecar on this machine (127.0.0.1), which calls your chosen model. On a <b>task</b> the agent can search the live web (DuckDuckGo · Jina Reader) and read/write files in its workspace. <span class="dim">(In the shipped desktop build the key moves behind the OS keychain.)</span></p>
+            </div>
             </div>
           </div>
         </div>
@@ -309,8 +332,9 @@
       <div class="connect-actions ov-actions">
         <!-- validation/status lives BESIDE the button that raises it, so "sign in first" never
              renders half a screen away from WAKE on the full-screen layout -->
-        <div id="connect-msg" class="msg"></div>
+        <div id="connect-msg" class="msg" role="status" aria-live="polite"></div>
         <button id="btn-back" class="btn">‹ BACK</button>
+        <button id="btn-setup-next" class="btn-xl" type="button">CONNECT A BRAIN →</button>
         <button id="btn-wake" class="btn-xl">⏼ WAKE OVERSEER ▸</button>
       </div>
     </div>
@@ -473,7 +497,7 @@
      var(--ph) per theme and stay crisp at any DPR / TEXT SIZE. The SVG is the master art's OWN
      letterforms traced out of its perceived-density field (dev/trace-logo.mjs), NOT a redraw; the
      title screen keeps the full-size master PNG, where the ASCII-digit texture actually reads. -->
-<div id="logo"><span class="logo-img" role="img" aria-label="STARNET"></span><span class="logo-sub">AI-AGENT HARNESS</span></div>
+<div id="logo"><span class="logo-img" role="img" aria-label="STARNET"></span></div>
 
 <section id="screen-game" class="screen">
 
@@ -942,6 +966,7 @@ document.write('<script src="' + ((window.__STARNET_API__ || '') + '/shared/spec
 <!-- Present before the first notification: assistive technology only observes changes to an
      already-registered live region, so stationui.js appends transient cards here. -->
 <div id="toast-stack" role="status" aria-live="polite" aria-atomic="false" aria-relevant="additions text"></div>
+<script src="app/overseer-setup.js"></script>
 <script src="app/app.js"></script>
 <script src="app/workhub.js"></script>
 <script src="app/keycta.js"></script><!-- cold-start honesty: after a KEYLESS awakening, one standing world banner "agent is awake but has no key" → SETTINGS; pure projection of Harness.hasStoredCredential, vanishes the instant a key lands (after app.js so App/Harness/StationUI exist) -->

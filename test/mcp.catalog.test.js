@@ -163,13 +163,13 @@ const ID_RE = /^[A-Za-z0-9_-]{1,40}$/;
   A.ok(C.list().length >= 30, 'catalog now carries a substantial verified set (30+)');
 }
 
-// ---- J. OAuth-audit retiers (2026-07-18): GitHub is a PAT connector; url-less oauth entries carry `via` ----
+// ---- J. Registered GitHub device sign-in; url-less oauth entries carry `via` ----
 {
-  // github.com/login/oauth has NO dynamic client registration (live-probed), so an oauth tier could never
-  // complete a sign-in — the honest tier is apikey (PAT as bearer, GitHub's documented remote-server path).
+  // GitHub has no dynamic registration; StarNet now supplies its own public device client.
   const gh = C.get('github');
-  A.eq(gh.authType, 'apikey', 'github is a paste-a-key (PAT) connector — its AS has no dynamic registration');
-  A.eq(gh.installable, true, 'github is installable today');
+  A.eq(gh.authType, 'oauth', 'github uses registered device sign-in');
+  A.eq(gh.deviceFlow, true, 'github bypasses dynamic registration with its device client');
+  A.eq(gh.installable, false, 'github is installed by sign-in rather than unauthenticated direct install');
   A.ok(!('token' in (C.installConfig('github') || {})), 'github installConfig carries no token');
   // `via` honesty: only url-less oauth entries carry it, and it must point at a REAL installable catalog
   // entry — otherwise the "VIA <name>" jump would land nowhere (a dead click with extra steps).

@@ -1,0 +1,68 @@
+{
+  "package": "@lobehub/icons-static-svg",
+  "version": "1.95.0",
+  "license": "MIT",
+  "source": "https://github.com/lobehub/lobe-icons",
+  "icons": [
+    {
+      "name": "anthropic",
+      "url": "https://unpkg.com/@lobehub/icons-static-svg@1.95.0/icons/anthropic.svg"
+    },
+    {
+      "name": "cerebras",
+      "url": "https://unpkg.com/@lobehub/icons-static-svg@1.95.0/icons/cerebras.svg"
+    },
+    {
+      "name": "deepseek",
+      "url": "https://unpkg.com/@lobehub/icons-static-svg@1.95.0/icons/deepseek.svg"
+    },
+    {
+      "name": "fireworks",
+      "url": "https://unpkg.com/@lobehub/icons-static-svg@1.95.0/icons/fireworks.svg"
+    },
+    {
+      "name": "gemini",
+      "url": "https://unpkg.com/@lobehub/icons-static-svg@1.95.0/icons/gemini.svg"
+    },
+    {
+      "name": "grok",
+      "url": "https://unpkg.com/@lobehub/icons-static-svg@1.95.0/icons/grok.svg"
+    },
+    {
+      "name": "groq",
+      "url": "https://unpkg.com/@lobehub/icons-static-svg@1.95.0/icons/groq.svg"
+    },
+    {
+      "name": "kimi",
+      "url": "https://unpkg.com/@lobehub/icons-static-svg@1.95.0/icons/kimi.svg"
+    },
+    {
+      "name": "mistral",
+      "url": "https://unpkg.com/@lobehub/icons-static-svg@1.95.0/icons/mistral.svg"
+    },
+    {
+      "name": "ollama",
+      "url": "https://unpkg.com/@lobehub/icons-static-svg@1.95.0/icons/ollama.svg"
+    },
+    {
+      "name": "openai",
+      "url": "https://unpkg.com/@lobehub/icons-static-svg@1.95.0/icons/openai.svg"
+    },
+    {
+      "name": "openrouter",
+      "url": "https://unpkg.com/@lobehub/icons-static-svg@1.95.0/icons/openrouter.svg"
+    },
+    {
+      "name": "perplexity",
+      "url": "https://unpkg.com/@lobehub/icons-static-svg@1.95.0/icons/perplexity.svg"
+    },
+    {
+      "name": "together",
+      "url": "https://unpkg.com/@lobehub/icons-static-svg@1.95.0/icons/together.svg"
+    },
+    {
+      "name": "xai",
+      "url": "https://unpkg.com/@lobehub/icons-static-svg@1.95.0/icons/xai.svg"
+    }
+  ]
+}

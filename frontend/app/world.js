@@ -580,6 +580,7 @@ const World = (() => {
     propFoot = new Map(); pendingMourn = null;          // forget where things stood (no cross-station grief)
     agentDecor.length = 0; ownPlaced.clear(); placeCd = 0;   // forget which decor it placed (the new floor is a clean slate)
     if (agent && agent.fond) agent.fond.clear();        // forget the old floor's haunts — the new floor earns its own
+    for (const b of crew) if (!b.summoned) seizeFromIdle(b);
     crew = crew.filter(b => b.summoned);                // drop plan-derived crew (rebuilt from the new floor's bays); KEEP summoned crew (app-level, not floor-bound)
     if (station && station.onChange) unsub = station.onChange(() => { geoDirty = true; });
     rederive();
@@ -959,8 +960,38 @@ const World = (() => {
       nearestInZone
     });
   }
-  // ENTER the await state: the hero was just blocked on a permission.prompt. Stop working, stand, and (in tick)
-  // walk to the resolved wait anchor. Idempotent per prompt — a second prompt for the same promptId is a no-op.
+  // Crew approvals are tracked by prompt ID; a waiting body holds position until its last prompt clears.
+  function crewIsAwaiting(b) { return !!(b && b.pendingApprovals && b.pendingApprovals.size); }
+  function enterCrewAwait(p) {
+    const b = p && bodyForAgent(p.agentId);
+    if (!b || b === agent || !p.promptId) return;
+    if (!b.pendingApprovals) b.pendingApprovals = new Map();
+    const now = performance.now();
+    if (!crewIsAwaiting(b)) b.awaitResumeWork = !!b.working;
+    b.pendingApprovals.set(p.promptId, { at: now, runId: p.runId || null });
+    seizeFromIdle(b);
+    b.working = false; b.sitting = false; b.goal = 'awaiting'; b.state = 'idle';
+    b.target = null; b.pathPts = null;
+    if (b.say && /working|on it/.test(b.say.text || '')) b.say = { text: '', until: 0 };
+  }
+  function clearCrewAwait(b, promptId, resume) {
+    if (!crewIsAwaiting(b)) return;
+    if (promptId) b.pendingApprovals.delete(promptId); else b.pendingApprovals.clear();
+    if (crewIsAwaiting(b)) return;
+    b.working = resume !== false && !!b.awaitResumeWork && (b.workUntil > performance.now() || agentRunsLive(b.agentId) > 0);
+    b.awaitResumeWork = false;
+    if (b.goal === 'awaiting') { b.goal = null; b.state = 'idle'; b.idleUntil = 0; }
+    b.workRetryAt = 0;
+  }
+  function reconcileCrewAwaits(prompts) {
+    for (const p of prompts) if (p && p.agentId && p.promptId) enterCrewAwait(p);
+    for (const b of crew) if (crewIsAwaiting(b)) {
+      const live = new Set(prompts.filter(p => p && p.agentId === b.agentId).map(p => p.promptId));
+      for (const id of Array.from(b.pendingApprovals.keys())) if (!live.has(id)) clearCrewAwait(b, id, true);
+    }
+  }
+
+  // The lead keeps its established walk-to-wait-anchor behavior.
   function enterAwait(prompt) {
     if (!agent || agent.unplaced) return;
     if (awaitPrompt && prompt && awaitPrompt.promptId === prompt.promptId) return;
@@ -1661,6 +1692,7 @@ const World = (() => {
     // THE DOUBLE-TAKE (rare): stop and turn to look back the way it came, as if something caught its attention
     if (now >= (self.lookBackCd || 0) && U.chance(0.045 * (self.pers ? self.pers.curious : 1) * damp)) {
       self.pauseUntil = now + U.irnd(900, 1700); self.pauseLook = 'back';
+      self.pauseDir = OPP[self.dir] || self.dir;   // latch once; never reverse again on each held frame
       self.pauseCd = now + U.irnd(9000, 16000); self.lookBackCd = now + U.irnd(50000, 95000);
       armBeat(now);   // the double-take is a noticeable beat — count it against the station budget
       curiositySay(['hm?', '...', 'did something move', 'thought i saw something'], 0.22, now);
@@ -2162,8 +2194,14 @@ const World = (() => {
       else { b.target = foot; }   // same tile: walk the remaining fraction to the centred seat
     }
     if (b.target) {
-      const dx = b.target.x - b.px, dy = b.target.y - b.py, d = Math.hypot(dx, dy);
-      const more = !!(b.pathPts && b.pathIdx < b.pathPts.length);
+      let dx = b.target.x - b.px, dy = b.target.y - b.py, d = Math.hypot(dx, dy);
+      let more = !!(b.pathPts && b.pathIdx < b.pathPts.length);
+      // Consume reached corners in this frame, then spend its movement step on the next leg.
+      while (more && (d < 1e-6 || (d < CORNER_LOOK && canRoundCorner(b)))) {
+        crewNextWaypoint(b);
+        dx = b.target.x - b.px; dy = b.target.y - b.py; d = Math.hypot(dx, dy);
+        more = !!(b.pathPts && b.pathIdx < b.pathPts.length);
+      }
       // CORNER LOOKAHEAD: hand over to the next waypoint EARLY, and — critically — do NOT snap onto it.
       // The old code teleported px/py exactly onto every waypoint, which is what made the body pivot on the
       // spot at each tile. Keep that lookahead only when the new leg is clear;
@@ -2220,11 +2258,19 @@ const World = (() => {
     if (self.target) {
       if (now < (self.pauseUntil || 0)) {
         self.state = 'idle';                                // a deliberate hold mid-walk (maybeStrollBeat's considered pause / double-take)
-        if (self.pauseLook === 'back') self.dir = OPP[self.dir] || self.dir;
+        if (self.pauseLook === 'back') self.dir = self.pauseDir;
       } else {
-        const dx = self.target.x - self.px, dy = self.target.y - self.py, d = Math.hypot(dx, dy);
-        const more = !!(self.pathPts && self.pathIdx < self.pathPts.length);
-        if (more ? (d < 1e-6 || (d < CORNER_LOOK && canRoundCorner(self))) : d < 1.1) {   // early hand-over, no snap — see stepCrewToSeat's note
+        let dx = self.target.x - self.px, dy = self.target.y - self.py, d = Math.hypot(dx, dy);
+        let more = !!(self.pathPts && self.pathIdx < self.pathPts.length);
+        // Consume reached corners in this frame, then spend its movement step on the next leg.
+        while (more && (d < 1e-6 || (d < CORNER_LOOK && canRoundCorner(self)))) {
+          nextWaypoint();
+          dx = self.target.x - self.px; dy = self.target.y - self.py; d = Math.hypot(dx, dy);
+          more = !!(self.pathPts && self.pathIdx < self.pathPts.length);
+          if (now < (self.pauseUntil || 0)) break;
+        }
+        if (now < (self.pauseUntil || 0)) { self.state = 'idle'; }
+        else if (more ? (d < 1e-6 || (d < CORNER_LOOK && canRoundCorner(self))) : d < 1.1) {   // early hand-over, no snap — see stepCrewToSeat's note
           if (more) nextWaypoint();
           else { self.px = self.target.x; self.py = self.target.y; arrive(now); }
         } else {
@@ -2291,6 +2337,7 @@ const World = (() => {
     for (const b of crew) {
       if (b.unplaced) continue;
       containBody(b, now);   // never step (or render) a body that is off the floor
+      if (crewIsAwaiting(b)) { b.working = false; b.sitting = false; b.target = null; b.pathPts = null; b.goal = 'awaiting'; b.state = 'idle'; continue; }
       if (b.working) {                                 // running → sit at its desk if it has one, else stand where work is delivered
         const dp = deskPropFor(b.agentId), s = dp ? deskSeat(dp) : null;
         if (s) stepCrewToSeat(b, s, dt, now);
@@ -5596,12 +5643,20 @@ const World = (() => {
       if (now < (agent.pauseUntil || 0)) {
         // a deliberate hold mid-walk: stand, and (for a look-back / yield) turn toward what stopped it
         agent.state = 'idle';
-        if (agent.pauseLook === 'back') agent.dir = OPP[agent.dir] || agent.dir;
+        if (agent.pauseLook === 'back') agent.dir = agent.pauseDir;
         else if (agent.pauseLook === 'cargo') { const b = nearestBox(); if (b) agent.dir = dirToward(agent.px, agent.py, b.x, b.y); }
       } else {
-        const dx = agent.target.x - agent.px, dy = agent.target.y - agent.py, d = Math.hypot(dx, dy);
-        const more = !!(agent.pathPts && agent.pathIdx < agent.pathPts.length);
-        if (more ? (d < 1e-6 || (d < CORNER_LOOK && canRoundCorner(agent))) : d < 1.1) {   // early hand-over, no snap — see stepCrewToSeat's note
+        let dx = agent.target.x - agent.px, dy = agent.target.y - agent.py, d = Math.hypot(dx, dy);
+        let more = !!(agent.pathPts && agent.pathIdx < agent.pathPts.length);
+        // Consume reached corners in this frame, then spend its movement step on the next leg.
+        while (more && (d < 1e-6 || (d < CORNER_LOOK && canRoundCorner(agent)))) {
+          nextWaypoint();
+          dx = agent.target.x - agent.px; dy = agent.target.y - agent.py; d = Math.hypot(dx, dy);
+          more = !!(agent.pathPts && agent.pathIdx < agent.pathPts.length);
+          if (now < (agent.pauseUntil || 0)) break;
+        }
+        if (now < (agent.pauseUntil || 0)) { agent.state = 'idle'; }
+        else if (more ? (d < 1e-6 || (d < CORNER_LOOK && canRoundCorner(agent))) : d < 1.1) {   // early hand-over, no snap — see stepCrewToSeat's note
           if (more) nextWaypoint();
           else { agent.px = agent.target.x; agent.py = agent.target.y; arrive(now); }
         } else {
@@ -6074,7 +6129,8 @@ const World = (() => {
     // (the context-window gauge now lives engraved in the bottom bar — StationUI.ctxTick, not the desk)
     drawRunClocks(now);   // G0.2: the honest elapsed-time tag at every desk with a live run (world-space, over the lightmap)
     drawWorkGlyphs(now);  // stage-ticker STRETCH: the "▸ TOOL" tag at a desk with a real tool in flight (one line below the run clock)
-    drawAwaitTag(now);    // G4.1: the amber AWAITING APPROVAL tag over a permission-blocked hero
+    drawAwaitTag(now);    // the existing lead wait anchor
+    for (const b of crew) if (crewIsAwaiting(b)) drawAwaitTag(now, b);
     drawRoutingNags(now); // BELT LEGIBILITY: the compiled plan's errors as in-world callouts on the broken piece
     if (bayLabels.length && PropSprites.drawBayNames) {
       PropSprites.setCtx(ctx);
@@ -6806,7 +6862,7 @@ const World = (() => {
       // SUMMONED-WORKER "working" glow — a soft sustained pulse at the feet of a crew body while ITS real run
       // is in flight (workUntil set by setActivityFor). The honest "this agent is actually working" cue for a
       // deskless summoned worker; hero-exempt (the hero shows work at its desk).
-      if (who !== agent && who.workUntil && now < who.workUntil) {
+      if (who !== agent && !crewIsAwaiting(who) && who.workUntil && now < who.workUntil) {
         const wp = 0.35 + 0.25 * Math.sin(now / 360);
         ctx.save(); ctx.globalAlpha = wp * 0.7; ctx.strokeStyle = who.color; ctx.lineWidth = 1;
         ctx.beginPath(); ctx.ellipse(who.px, who.py, 7 + 1.5 * Math.sin(now / 360), 3, 0, 0, Math.PI * 2); ctx.stroke(); ctx.restore();
@@ -6954,7 +7010,7 @@ const World = (() => {
     if (linkStaleDim) ctx.globalAlpha = 0.3;   // E1: link down → these clocks are last-known, not live; dim them
     for (const [aid, t0] of runStartByAgent) {
       const b = bodyForAgent(aid);
-      if (!b || b.unplaced) continue;
+      if (!b || b.unplaced || crewIsAwaiting(b)) continue;
       // only at a desk that is honestly in the working pose — a talk-only run never grows a clock
       const working = (b === agent) ? !!agent.working : !!(b.working || (b.workUntil && now < b.workUntil));
       if (!working) continue;
@@ -6986,7 +7042,7 @@ const World = (() => {
     if (!glyphByAgent.size) return;
     for (const [aid, g] of glyphByAgent) {
       const b = bodyForAgent(aid);
-      if (!b || b.unplaced) continue;
+      if (!b || b.unplaced || crewIsAwaiting(b)) continue;
       const working = (b === agent) ? !!agent.working : !!(b.working || (b.workUntil && now < b.workUntil));
       if (!working) continue;
       const label = '▸ ' + tickerTool(g && g.name);
@@ -7009,9 +7065,9 @@ const World = (() => {
      World-space, VT323 with an amber phosphor bloom (the consent-warning colour), a slow blink so it reads as
      a live pending state — a glance, never a window. Only while the hero is genuinely blocked (awaitPrompt). */
   const AWAIT_FONT = "8px 'VT323','Courier New',monospace";
-  function drawAwaitTag(now) {
-    if (!awaitPrompt || !agent || agent.unplaced) return;
-    const x = rposX(), y = rposY();
+  function drawAwaitTag(now, body) {
+    if (body ? (!crewIsAwaiting(body) || body.unplaced) : (!awaitPrompt || !agent || agent.unplaced)) return;
+    const x = body ? bodyPosX(body) : rposX(), y = body ? bodyPosY(body) : rposY();
     const pulse = 0.55 + 0.45 * (0.5 + 0.5 * Math.sin(now / 380));   // slow breathing so it never looks frozen
     const label = 'AWAITING APPROVAL';
     ctx.save();
@@ -7672,6 +7728,7 @@ const World = (() => {
     // a serverLit entry whose agent has NO live run and NO run clock is a leftover from an overlap window
     // (the scheduled run ended while a chat run kept the pose; the chat teardown owned the extinguish) — drop it.
     for (const aid of Array.from(serverLit)) if (!agentRunsLive(aid) && !runStartByAgent.has(aid)) serverLit.delete(aid);
+    for (const b of crew) if (crewIsAwaiting(b)) for (const [id, p] of Array.from(b.pendingApprovals)) if (now - p.at > AWAIT_TTL_MS) clearCrewAwait(b, id, false);
     if (awaitPrompt && awaitStampAt && (now - awaitStampAt > AWAIT_TTL_MS)) clearAwait();   // a lost permission.response never strands the hero
   }
   /* Lane E2 — reconnect reconciliation (the PRIMARY correction). On every SSE (re)open, ask the sidecar for the
@@ -7748,6 +7805,7 @@ const World = (() => {
     // ---- pending permission prompt: enter it if the server still has one for the hero, else clear a stale await ----
     if ('pendingPrompts' in snap) {
       const prompts = Array.isArray(snap.pendingPrompts) ? snap.pendingPrompts : [];
+      reconcileCrewAwaits(prompts);
       const mine = prompts.find(p => p && (!p.agentId || (agent && p.agentId === agent.id)));
       if (mine) enterAwait({ promptId: mine.promptId || '', agentId: mine.agentId || (agent && agent.id) });
       else if (awaitPrompt) clearAwait();   // the prompt was answered during the outage
@@ -8303,6 +8361,7 @@ const World = (() => {
     // No bound bays (or no geo yet): drop the plan-derived crew, but KEEP summoned bodies — a summoned-but-unbound
     // agent has no bay, so an empty plan must NOT wipe it (else it vanishes on the next rederive, e.g. a build toggle).
     if (!routingPlan || !routingPlan.bays || !routingPlan.bays.length || !geo) {
+      for (const b of crew) if (!b.summoned) seizeFromIdle(b);
       crew = crew.filter(b => b.summoned);
       if (geo) refootStranded();   // the no-bays plan used to SKIP the stranded re-foot entirely — a summoned body off the floor (pre-geo {0,0} park, a refit) stayed in the void forever (2026-07-12)
       sweepAgentMaps(); return;
@@ -8324,6 +8383,7 @@ const World = (() => {
       }
       want.set(bay.agentId, f || { x: (p.x + (p.w > 1 ? 1 : 0)) * T + T / 2, y: (p.y + (p.h || 1) - 1) * T + T - 1 });
     }
+    for (const b of crew) if (!b.summoned && !want.has(b.agentId)) seizeFromIdle(b);
     crew = crew.filter(b => b.summoned || want.has(b.agentId));        // drop plan bodies whose bay is gone; KEEP summoned crew
     for (const [aid, pos] of want) {
       const b = crew.find(x => x.agentId === aid && !x.summoned);
@@ -8474,6 +8534,7 @@ const World = (() => {
     const i = crew.findIndex(b => b.agentId === agentId);
     if (i < 0) return false;
     if (chaseId === agentId) chaseId = null;   // drop any active chase lock addressed to the gone body (sweepChase would clear it next tick anyway)
+    seizeFromIdle(crew[i]);   // release its furniture reservation before the body becomes unreachable
     crew.splice(i, 1);
     return true;
   }
@@ -8506,7 +8567,8 @@ const World = (() => {
     if (working) { b.target = null; b.pathPts = null; seizeFromIdle(b); }   // drop any in-flight stroll AND any couch/leisure latch so stepCrew re-paths straight to the chair (J4)
     const now = now0;
     if (working) { b.workUntil = now + 3600000; if (!b.wakeAt || now - b.wakeAt > 1500) b.wakeAt = now; sayAt(b, 'working…'); }
-    else { b.workUntil = 0; if (b.say && /working/.test(b.say.text || '')) b.say = { text: '', until: 0 }; }
+    else { b.workUntil = 0; clearCrewAwait(b, null, false); if (b.say && /working/.test(b.say.text || '')) b.say = { text: '', until: 0 }; }
+    if (working && crewIsAwaiting(b)) { b.awaitResumeWork = true; b.working = false; b.say = { text: '', until: 0 }; }
     if (working) gripeNoCompute(b);      // G0.7: sat down to work in a computeless room — one honest complaint, then silence
     if (working) summonGlance(b, now);   // C-Beat1: AFTER the work-seize (K3 summon-wins) — OTHER idle in-sight bodies 50% glance at the newly-summoned `b`
   }
@@ -8565,7 +8627,7 @@ const World = (() => {
     if (!p.agentId) return false;
     if (agent && p.agentId === agent.id) return !!agent.working;
     const b = crew.find(x => x.agentId === p.agentId);
-    return !!(b && b.workUntil > now);
+    return !!(b && !crewIsAwaiting(b) && b.workUntil > now);
   }
   // a payload box reached an open end: route it to the bound agent's bay (the SAME bay the box rode to, per the
   // plan) and light THAT body. No bay / unrouted -> the hero receives it, exactly as before (never stalls).
@@ -8996,10 +9058,19 @@ const World = (() => {
     // G4 feature 1 — APPROVAL WALK-AND-WAIT. The run PAUSED on the sidecar awaiting a human yes/no (permission.prompt,
     // {promptId, agentId}). For the HERO, walk the body off its desk to the wait anchor and hold the waiting pose;
     // permission.response ({promptId, decision}) resumes (approve) or ends (deny) the run server-side, so we clear
-    // the await and let the ongoing/finished run drive the body back to work or idle. (A DELEGATED worker's block
-    // rides the lead's stream — hero-scoped here; crew await is future work.)
-    U.bus.on('permission.prompt', p => { if (p && (!p.agentId || (agent && p.agentId === agent.id))) enterAwait({ promptId: p.promptId || '', agentId: p.agentId || (agent && agent.id) }); });
-    U.bus.on('permission.response', p => { if (p && awaitPrompt && (!p.promptId || p.promptId === awaitPrompt.promptId)) clearAwait(); });
+    // the await and let the ongoing/finished run drive the body back to work or idle. Crew pauses hold position with the same amber tag; prompt IDs isolate overlapping approvals.
+    U.bus.on('permission.prompt', p => { if (p && (!p.agentId || (agent && p.agentId === agent.id))) enterAwait({ promptId: p.promptId || '', agentId: p.agentId || (agent && agent.id) }); else enterCrewAwait(p); });
+    U.bus.on('permission.response', p => {
+      if (p && awaitPrompt && (!p.promptId || p.promptId === awaitPrompt.promptId)) clearAwait();
+      if (p && p.promptId) for (const b of crew) clearCrewAwait(b, p.promptId, true);
+    });
+    U.bus.on('agent.run.end', p => {
+      if (!p || !p.agentId) return;
+      const b = bodyForAgent(p.agentId);
+      if (!b || b === agent) return;
+      if (!agentRunsLive(p.agentId)) clearCrewAwait(b, null, false);
+      else if (crewIsAwaiting(b)) for (const [id, prompt] of Array.from(b.pendingApprovals)) if (prompt.runId && prompt.runId === p.runId) clearCrewAwait(b, id, true);
+    });
     // CONNECTOR PORTALS — make the external on-ramp LIVE: poll each configured server's state so a placed
     // portal glows green/amber/red, and pulse it when ITS tools fire (an mcp__<connectorId>__* tool call).
     const connIds = [];
@@ -9668,6 +9739,7 @@ const World = (() => {
           id: b.id, name: b.name, hero: !!hero,
           tile: t, renderTile: rt, px: Math.round(b.px), py: Math.round(b.py), dir: b.dir, state: b.state,
           goal: b.goal || null, moving: !!b.target, working: !!b.working, sitting: !!b.sitting,
+          waitingApproval: b === agent ? !!awaitPrompt : crewIsAwaiting(b),
           seated: !!b.seated, unplaced: !!b.unplaced, summoned: !!b.summoned,   // summoned = carries the idle inner life (roster bodies must, post-relaunch too)
           visTopPy: (b.visTopPy != null) ? Math.round(b.visTopPy) : null,       // drawn head-top (world px) — the overlay anchor drawBubble/drawNameplate use
           say: (b.say && b.say.text && b.say.until > fnow) ? b.say.text : null,

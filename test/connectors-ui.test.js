@@ -245,6 +245,20 @@ function fakeStack(tools) {
   A.ok(savedCard.includes('Setup saved.') && !savedCard.includes('✓ connected'), 'saved configuration does not assert live connectivity');
   const newCard = renderCatalog({ id: 'fixture', name: 'Fixture', installed: false, blurb: 'test' }, 0);
   A.ok(newCard.includes('data-cc-act="add"') && !newCard.includes('MANAGE SERVICE'), 'new service still offers its actual setup action');
+  const popularGroups = vm.runInNewContext('(' + A.fnBody(station, 'function ccPopularGroups(') + ')');
+  const inputGroups = [{ category: 'Productivity', connectors: [
+    { id: 'gmail', url: 'google', releaseDeferred: true },
+    { id: 'notion', url: 'notion' }, { id: 'custom', url: 'custom' },
+    { id: 'asana', url: 'asana', signInAvailable: false }
+  ] }, { category: 'Developer Tools', connectors: [{ id: 'github', url: 'github' }] }];
+  const ordered = popularGroups(inputGroups);
+  A.eq(ordered[0].category, 'Popular', 'popular services precede categories');
+  A.eq(ordered[0].connectors.map(e => e.id).join(','), 'notion,github', 'popular picks exclude unavailable services');
+  A.eq(ordered.flatMap(g => g.connectors).length, 5, 'moving popular cards neither duplicates nor drops services');
+  A.eq(inputGroups[0].connectors.length, 4, 'popular grouping preserves source groups');
+  A.eq(popularGroups([{ category: 'Other', connectors: [{ id: 'custom' }] }])[0].category, 'Other', 'no empty popular heading');
+  const keyCard = renderCatalog({ id: 'key', name: 'Key service', authType: 'apikey', homepage: 'https://example.com', blurb: 'test' });
+  A.ok(keyCard.includes('SET UP API KEY') && keyCard.includes('Paste it below, then choose CONNECT'), 'key setup states the next action before submission');
   A.ok(/state === 'up'/.test(station), 'the connect result badge reflects the real manager state, not an assumption');
   // on-theme styling for the new cards
   A.ok(/\.cc-card/.test(css) && /\.cc-grid/.test(css) && /\.cc-chip/.test(css), 'catalog card styles present');
