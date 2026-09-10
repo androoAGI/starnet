@@ -50,5 +50,10 @@
     "48-hour soak after campaign",
     "installed-desktop verification"
   ],
-  "logEncoding": "UTF-8; archived logs normalize CRLF to LF; raw hashes retained"
+  "logEncoding": "UTF-8; archived logs normalize CRLF to LF; raw hashes retained",
+  "followUp": {
+    "receipt": "browser-receipt.json",
+    "report": "BROWSER_VERIFICATION.md",
+    "note": "Historical renderer/browser pending state above is resolved by this later source/browser evidence; integration and live-model/soak remain pending."
+  }
 }

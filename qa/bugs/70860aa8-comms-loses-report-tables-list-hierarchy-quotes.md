@@ -4,10 +4,10 @@ slug: comms-loses-report-tables-list-hierarchy-quotes
 title: COMMS loses report tables list hierarchy quotes and named links
 surface: sessions
 severity: P1
-status: open
+status: fixed
 found: 2026-09-10
 lane: hermes-stress-0910
-fix:
+fix: 19e6aebded46145b75525616bdc384c976b6fe56
 origin: audit
 report: docs/HERMES_STRESS_AUDIT_2026-09-10.md
 ---
@@ -28,4 +28,4 @@ Semantic report rendering and injection checks are added. Browser live verificat
 
 ## Verdict
 
-Renderer source implementation and 26 structural/copy assertions pass; final full fast and HTTP gates are green. Remains open pending real browser checks at narrow/normal widths, streaming/reload, selection/scroll and clipboard. Automatic tool review rejected the browser-only opening, citing disabled native computer APIs. Not merged or installed-verified.
+Source and browser verified in isolated agent/hermes-stress-0910. Three viewport sizes, wide-table mouse/keyboard scrolling, exact code/report clipboard contents, reload, actual sidecar restart, and selection/scroll during streaming passed. Browser checks found and fixed source-copy flattening and narrow-table word splitting. Focused 33 assertions and full fast 757/757 passed. See qa/audits/hermes-stress-2026-09-10/BROWSER_VERIFICATION.md. Not merged or installed-verified; no live-model parity claim.

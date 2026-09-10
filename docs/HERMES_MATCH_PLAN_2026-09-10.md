@@ -1,6 +1,6 @@
 # StarNet improvement plan informed by Hermes — 2026-09-10
 
-Status: implemented in an isolated branch with full source gates green. Browser verification, integration, live-model comparison and soak remain pending. See [execution receipt](../qa/audits/hermes-stress-2026-09-10/EXECUTION.md).
+Status: implemented in an isolated branch with full source gates green. Core browser verification passed; integration, live-model comparison and soak remain pending. See [execution receipt](../qa/audits/hermes-stress-2026-09-10/EXECUTION.md).
 
 ## Outcome
 
