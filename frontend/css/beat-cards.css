@@ -159,7 +159,7 @@ body #chat-panel .cmsg.consent .consent-payload :is(summary,pre) {
   font-size: var(--sn-type-control); line-height: 1.5;
 }
 /* Recommendations keep their evidence distinct from the proposed action. */
-body #chat-panel .rec .rec-eyebrow {
+body #chat-panel .cmsg.turnin.rec .rec-eyebrow {
   flex-wrap: wrap; gap: 6px 8px; line-height: 1.4;
   font-size: var(--sn-type-meta) !important; letter-spacing: .65px;
 }
