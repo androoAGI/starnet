@@ -86,7 +86,7 @@
       '<label class="fv-field fv-sample-field">Notes, messages, or a previous report<textarea class="key-input fv-sample" rows="7" maxlength="16000" placeholder="Paste the real material to work from. Nothing is sent until you click Create draft."></textarea></label>' +
       '<div class="fv-folder-field" hidden><label class="fv-field">Approved source folder<select class="key-input fv-root" aria-label="Approved source folder"><option value="">Choose a folder…</option></select></label><div class="fv-actions"><button type="button" class="bb fv-projects">Manage approved folders</button><button type="button" class="bb fv-refresh">Refresh folders</button></div><p>Selecting a folder here does not grant access. Manage approved folders to add or revoke access.</p></div>' +
       '<p class="fv-preview">The agent will use the selected source, create a draft, and identify missing facts. You review the result before deciding what happens next.</p>' +
-      '<p class="fv-status" role="status" aria-live="polite"></p><div class="fv-actions"><button type="submit" class="bb fv-run">Create draft</button><button type="button" class="bb fv-model">Model & connection</button><button type="button" class="bb fv-clear">Clear draft</button></div><p class="muted">Your draft stays here while you visit setup. Return through Recipes → Draft from your notes. Reloading the app clears unsent drafts.</p></form>';
+      '<p class="fv-status" role="status" aria-live="polite"></p><div class="fv-actions"><button type="submit" class="bb fv-run">Create draft</button><button type="button" class="bb fv-model">Model & connection</button><button type="button" class="bb fv-platforms">Connect my platforms</button><button type="button" class="bb fv-clear">Clear draft</button></div><p class="muted">Your draft stays here while you visit setup. Return through Recipes → Draft from your notes. Reloading the app clears unsent drafts.</p></form>';
     const q = s => el.querySelector(s), status = message => { if (alive) q('.fv-status').textContent = message; };
     q('.fv-request').value = ctx.request || (intent === 'custom' ? proposed.pain : '');
     q('.fv-sample').value = ctx.sample || '';
@@ -131,6 +131,7 @@
     }
     q('.fv-refresh').onclick = () => refreshRoots().then(() => status('Approved folders refreshed.')).catch(e => status(e.message));
     q('.fv-projects').onclick = () => { remember(); return ctx.onProjects ? ctx.onProjects() : status('Open Projects in the session rail to add or revoke an approved folder, then refresh here.'); };
+    q('.fv-platforms').onclick = () => { remember(); if (typeof Tutorial !== 'undefined' && Tutorial.showPlatformConnections) Tutorial.showPlatformConnections(); };
     q('.fv-model').onclick = () => { remember(); return ctx.onModelSetup ? ctx.onModelSetup() : status('Open CONNECT to configure your agent’s model, then return here.'); };
     q('.fv-clear').onclick = () => {
       q('.fv-request').value = ''; q('.fv-sample').value = ''; q('.fv-root').value = '';

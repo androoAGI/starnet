@@ -211,10 +211,16 @@ const Tutorial = (() => {
       options: [
         ...(typeof FirstValue !== 'undefined' ? [{ label: '▸ MAKE SOMETHING USEFUL (recommended)', value: 'value' }] : []),
         { label: 'SHOW ME AROUND', value: 'tour' },
+        { label: 'CONNECT MY PLATFORMS', value: 'platforms' },
         { label: 'I’ll dive in myself', value: 'skip', skip: true }
       ]
     }).then(res => {
       if (!active) return;
+      if (res.value === 'platforms') {
+        finishUp(true, true);
+        showPlatformConnections();
+        return;
+      }
       if (res.value === 'value') {
         // A concrete first task owns the handoff: do not overlay the connector pitch or a second coach.
         finishUp(true, true);
@@ -747,10 +753,11 @@ const Tutorial = (() => {
     state.connectOffered = true; save();                  // one-shot, like every other tour beat
     const ids = connectOffers(goalTexts());
     const items = ids.map(id => ({ label: '⧉ ' + (CONNECT_LABEL[id] || id), value: id }))
-      .concat([{ label: 'not now', value: 'skip', skip: true, quiet: true }]);
-    say([seg('one more thing. i can reach further than this room — wire a door and i work inside your real tools. the lamp only goes green when the host proves the link.', 44, 0)], () => {
+      .concat([{ label: 'Show me how to connect platforms', value: 'guide' }, { label: 'not now', value: 'skip', skip: true, quiet: true }]);
+    say([seg('want to connect an app you already use? choose one below, or open the connection guide. you can find apps in BUILD › ABILITIES › CATALOG, and messaging platforms in BUILD › CHANNELS.', 44, 0)], () => {
       const row = Chat.choices(items, item => {
         if (!item || item.skip) return done();
+        if (item.value === 'guide') { showPlatformConnections(); return; }
         // the CLICK proves nothing — the FIRST STEPS connector step ticks only from the read-back (watchConnectors).
         try { if (typeof StationUI !== 'undefined' && StationUI.connectorJump) StationUI.connectorJump(item.value); } catch (_) {}
         watchConnectors();
@@ -762,19 +769,19 @@ const Tutorial = (() => {
       }
     });
   }
-  // READ-BACK: the `connector` step is marked done only when /api/connectors lists a connector the host
+  // READ-BACK: the `platform` step is marked done only when /api/connectors lists a connector the host
   // proved `up` — never from a click or a sign-in popup opening. Bounded poll (a sign-in takes a minute, not
   // an hour), re-armed on every game entry so a connection made later still lands.
   let connPollTimer = null, connPollLeft = 0;
   function watchConnectors(polls) {
-    if (briefDone('connector') || typeof Harness === 'undefined' || !Harness.api || !Harness.api.get) return;
+    if (briefDone('platform') || typeof Harness === 'undefined' || !Harness.api || !Harness.api.get) return;
     connPollLeft = Number.isFinite(polls) ? polls : 60;   // ~5 min at 5s after a pick; ONE read on game entry
     if (connPollTimer) return;
     const tick = () => {
       connPollTimer = null;
-      if (briefDone('connector') || connPollLeft-- <= 0) return;
+      if (briefDone('platform') || connPollLeft-- <= 0) return;
       Promise.resolve(Harness.api.get('/api/connectors')).then(j => {
-        if (connectorUp(j && j.connectors)) { tickBrief('connector'); return; }
+        if (connectorUp(j && j.connectors)) { tickBrief('platform'); return; }
         connPollTimer = setTimeout(tick, 5000);
       }, () => { connPollTimer = setTimeout(tick, 5000); });
     };
@@ -925,9 +932,10 @@ const Tutorial = (() => {
       'belts show real work moving between us. want to see it without waiting for a message? hit ▸ PREVIEW — i’ll send dummy crates down the line so you can watch them sort.');
   }
   function onConnectorPlaced() {
-    tickBrief('build'); tickBrief('connector');
+    tickBrief('build');
+    watchConnectors(1);
     showCoach('connector', '#refit-palette',
-      'that’s a portal — it wires me to a live tool server. the panel here lists them; bind one and its powers show up in my hands. the lamp says it’s alive: green good, red broken.');
+      'that’s a connector portal. connect the service in BUILD › ABILITIES › CATALOG first; placing a portal does not sign you in. the connection guide is in SYSTEM › FIELD MANUAL › CONNECT PLATFORMS.');
   }
   function onLevelUp() {
     tickBrief('level');
@@ -945,7 +953,8 @@ const Tutorial = (() => {
     { k: 'approve',   label: 'Approve a tool request' },
     { k: 'build',     label: 'Place a piece of gear in REFIT' },
     { k: 'belt',      label: 'Lay a conveyor belt' },
-    { k: 'connector', label: 'Bind a connector portal' },
+    // Keep old portal-placement progress stored, but never reinterpret it as a verified account connection.
+    { k: 'platform',  label: 'Connect a work app (BUILD › ABILITIES)' },
     { k: 'channel',   label: 'Connect a messaging channel (✉ CHANNELS)' },
     { k: 'level',     label: 'Grow a crew member to Level 2' }
   ];
@@ -979,7 +988,9 @@ const Tutorial = (() => {
       const li = document.createElement('li');
       li.className = 'tut-brief-item' + (briefDone(s.k) ? ' done' : '');
       const box = document.createElement('span'); box.className = 'tut-brief-box'; box.textContent = briefDone(s.k) ? '✓' : '▫';
-      const lbl = document.createElement('span'); lbl.textContent = s.label;
+      const setup = s.k === 'platform' || s.k === 'channel';
+      const lbl = document.createElement(setup ? 'button' : 'span'); lbl.textContent = s.label;
+      if (setup) { lbl.type = 'button'; lbl.className = 'tut-brief-link'; lbl.onclick = () => openPlatformSetup(s.k === 'platform' ? 'apps' : 'messaging'); }
       li.appendChild(box); li.appendChild(lbl); list.appendChild(li);
     }
   }
@@ -1051,8 +1062,55 @@ const Tutorial = (() => {
   function fmMission(title, text) {
     return '<aside class="fm-mission"><span class="fm-eyebrow">TRY THIS</span><h3>' + title + '</h3><p>' + text + '</p></aside>';
   }
-  const FM_TABS = ['FIRST MISSION', 'CONTROLS', 'CREW', 'GEAR', 'LINES', 'PROGRESS', 'HELP'];
+  let manualStartChapter = 'FIRST MISSION';
+  let guidedPlatform = null;
+  function showPlatformConnections() {
+    if (typeof StationUI === 'undefined') return false;
+    hideBrief();
+    manualStartChapter = 'CONNECT PLATFORMS';
+    StationUI.openTerm('manual', 'platforms');
+    return true;
+  }
+  function openPlatformSetup(kind) {
+    if (typeof StationUI === 'undefined' || !['apps', 'messaging'].includes(kind)) return false;
+    hideBrief();
+    guidedPlatform = kind;
+    StationUI.closeTerm('manual');
+    StationUI.openTerm(kind === 'apps' ? 'connectors' : 'messaging', kind === 'apps' ? 'catalog' : 'overview');
+    if (kind === 'apps') watchConnectors();
+    return true;
+  }
+  // Inline help sits in the setup pane, so it never covers the controls or starts authorization itself.
+  function platformGuideHTML(kind) {
+    const apps = kind === 'apps';
+    return '<details class="platform-guide" data-platform-guide="' + kind + '"' + (guidedPlatform === kind ? ' open' : '') + '>'
+      + '<summary>' + (apps ? 'Connect a work app — step by step' : 'Chat from another platform — step by step') + '</summary>'
+      + '<p class="fm-note">Find this again: <b>BUILD › ' + (apps ? 'ABILITIES › CATALOG' : 'CHANNELS') + '</b>.</p>'
+      + '<ol><li>' + (apps ? 'Use Search abilities above to find your app. Its card shows the setup it needs.' : 'Choose your platform in the list. Its setup guide explains where to get the details it needs.') + '</li>'
+      + '<li>' + (apps ? 'Use the card’s action. SIGN IN opens account authorization; API key asks for a key from that service. Follow any setup instructions and review the access requested.' : 'Follow that platform’s setup instructions, then use its CONNECT action. Complete pairing if the platform asks for it.') + '</li>'
+      + '<li>' + (apps ? 'Check the status beside the service. A saved key is not a tested connection. If setup fails, read the message there before retrying.' : 'Check the platform’s status, then send your agent a message there. Seeing the reply is your end-to-end check.') + '</li></ol>'
+      + (apps ? '<p class="fm-note">Once connected, return to COMMS and ask for a small read, such as listing your next calendar events. Check the actual reply. You do not need to place a portal to sign in.</p>' : '')
+      + '<button class="bb xs" type="button" data-platform-back>BACK TO CONNECTION GUIDE</button></details>';
+  }
+  function wirePlatformGuide(body) {
+    body.querySelectorAll('[data-platform-guide]').forEach(el => {
+      el.ontoggle = () => { if (!el.open && guidedPlatform === el.dataset.platformGuide) guidedPlatform = null; };
+    });
+    body.querySelectorAll('[data-platform-back]').forEach(button => {
+      button.onclick = () => showPlatformConnections();
+    });
+  }
+  const FM_TABS = ['FIRST MISSION', 'CONNECT PLATFORMS', 'CONTROLS', 'CREW', 'GEAR', 'LINES', 'PROGRESS', 'HELP'];
   function fmContent(tab) {
+    if (tab === 'CONNECT PLATFORMS') {
+      return '<p class="fm-lead">Bring the apps you already use into your station. What would you like to connect?</p>'
+        + '<div class="fm-map">'
+        + fmEntry('WORK APPS', 'Let your agent work with your apps', 'Use your mail, calendar, documents and other services from COMMS. Browse the current catalog to see what is available.<br><b>BUILD › ABILITIES › CATALOG</b><div class="fm-actions"><button type="button" class="fm-action" data-platform-start="apps">SHOW ME WHERE TO CONNECT APPS ↗</button></div>')
+        + fmEntry('MESSAGING', 'Talk to your agent from another platform', 'Connect a messaging platform so you can chat with your agent there. Each platform has its own setup guide.<br><b>BUILD › CHANNELS</b><div class="fm-actions"><button type="button" class="fm-action" data-platform-start="messaging">SHOW ME WHERE TO CONNECT MESSAGING ↗</button></div>')
+        + '</div><p class="fm-note">For example, using Slack as a work tool and chatting with your agent from Slack are different connections. Choose the path for what you want to do.</p>'
+        + '<p class="fm-note">You can connect one now or return whenever you need it: <b>SYSTEM › FIELD MANUAL › CONNECT PLATFORMS</b>. Connecting accounts is optional.</p>'
+        + fmAction('comms', 'I’LL CONNECT LATER');
+    }
     if (tab === 'FIRST MISSION') {
       return '<p class="fm-lead">You command the station. Your crew does real work on your computer. Start with one useful result.</p>'
         + '<div class="fm-route" aria-label="The work cycle"><span>GIVE A JOB</span><i aria-hidden="true">→</i><span>FOLLOW THE RUN</span><i aria-hidden="true">→</i><span>CHECK THE RESULT</span></div>'
@@ -1132,7 +1190,8 @@ const Tutorial = (() => {
   }
   function fillFieldManual(body) {
     if (!body) return;
-    let curTab = 'FIRST MISSION';
+    let curTab = manualStartChapter;
+    manualStartChapter = 'FIRST MISSION';
     body.classList.add('fm-body');
     const render = () => {
       const page = FM_TABS.indexOf(curTab);
@@ -1151,6 +1210,7 @@ const Tutorial = (() => {
       };
       body.querySelectorAll('.fm-tab[data-t]').forEach(b => { b.onclick = () => turn(b.dataset.t); });
       body.querySelectorAll('[data-fm-page]').forEach(b => { b.onclick = () => turn(FM_TABS[Number(b.dataset.fmPage)]); });
+      body.querySelectorAll('[data-platform-start]').forEach(b => { b.onclick = () => openPlatformSetup(b.dataset.platformStart); });
       body.querySelectorAll('[data-fm-open]').forEach(b => { b.onclick = () => {
         if (typeof StationUI === 'undefined') return;
         const target = b.dataset.fmOpen;
@@ -1212,7 +1272,7 @@ const Tutorial = (() => {
   function isCoaching() { return !!(active || kitMode || coach); }
 
   return {
-    firstCommand, replayFirstCommand, spotlight, seen, markSeen, _state: () => state,
+    firstCommand, replayFirstCommand, showPlatformConnections, openPlatformSetup, platformGuideHTML, wirePlatformGuide, spotlight, seen, markSeen, _state: () => state,
     onBuildOpen, onEquipmentInspect, onPropPlaced, onBeltPlaced, onConnectorPlaced, onLevelUp, clearCoach,
     onEnterGame, fillFieldManual, showBrief, tickBrief, teardown, reset, isCoaching, watchConnectors
   };

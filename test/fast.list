@@ -755,3 +755,4 @@ test/session-focus-safety.test.js
 test/harness-placement.test.js
 
 test/onboarding-refresh.test.js
+test/tutorial-platform-guide.test.js

@@ -47,6 +47,7 @@ console.log('first-value: assertions passed');
 (async () => {
   const priorFetch = global.fetch;
   const priorDossier = global.DossierStore;
+  const priorTutorial = global.Tutorial;
   global.fetch = async path => ({ ok: true, json: async () => path === '/api/projects'
     ? { projects: [{ root: '/notes', blessed: true }] } : { sources: [] } });
   function form() {
@@ -71,6 +72,11 @@ console.log('first-value: assertions passed');
     await tick();
     root.node('.fv-request').value = 'Summarize my revised notes';
     root.node('.fv-sample').value = 'Private unsent source';
+    let guideOpened = false;
+    global.Tutorial = { showPlatformConnections: () => { guideOpened = true; } };
+    root.node('.fv-platforms').onclick();
+    assert.equal(guideOpened, true);
+    assert.equal(F.draftOptions().sample, 'Private unsent source', 'connection tutorial keeps unsent first-task material');
     root.node('.fv-projects').onclick();
     assert.equal(F.draftOptions().sample, 'Private unsent source');
     const snapshot = F.draftOptions(); snapshot.sample = 'external mutation';
@@ -106,5 +112,5 @@ console.log('first-value: assertions passed');
     root.node('.fv-clear').onclick(); mounted.destroy();
     assert.equal(F.draftOptions(), null, 'closing a cleared form cannot resurrect it');
     console.log('first-value: setup return, isolation, failed launch, successful launch cleanup passed');
-  } finally { global.fetch = priorFetch; global.DossierStore = priorDossier; }
+  } finally { global.fetch = priorFetch; global.DossierStore = priorDossier; global.Tutorial = priorTutorial; }
 })().catch(error => { console.error(error); process.exitCode = 1; });
