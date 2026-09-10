@@ -1,6 +1,6 @@
 # NEXT.md — current priorities & task queue
 
-## IN PROGRESS — 2026-09-10 Discover organization (agent/discover-connect-0910)
+## VERIFIED BRANCH — 2026-09-10 Discover organization (agent/discover-connect-0910)
 
 Owner requested popular platforms first and clearer connection setup. Discover now moves
 curated, actionable services into Popular without duplicating cards; deferred Google entries
@@ -13,7 +13,10 @@ ClickUp; SIGN IN reduced its count to five. Search for Printify reset the filter
 the visible guided form with https://developers.printify.com/ and the correct platform name.
 GitHub revealed inline key instructions; renaming the platform hid stale guidance. No browser
 errors or white control backgrounds were observed. Connector UI regression: 149 assertions.
-Full fast gate pending. Real provider authorization and installed-app behavior are unverified.
+Full fast gate: 752/752 green on c1207bdda; generated website demo matches the frontend.
+Live catalog also contained 102 distinct card IDs and zero disabled Popular actions.
+Source changes: 4e1d06c00; mechanical source lock: 147a9e67b; demo sync: c1207bdda.
+Branch is not merged. Real provider authorization and installed-app behavior are unverified.
 
 
 ## MERGED — 2026-09-10 doorway movement (agent/doorway-occlusion-0910)
