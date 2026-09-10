@@ -18,7 +18,7 @@
   "expectedClaimCount": 37,
   "releaseSurface": {
     "algorithm": "sha256",
-    "sourceCommit": "70a698ad250bf66573501c12b5e44789d1015615",
+    "sourceCommit": "59a5b1e22d7d75458a5c9847a9ec4788d5fa8c2c",
     "pathSetSha256": "62b7b18a5f965456b992f14212a0b58234b1f009301def6583f5d5edf0d0171a",
     "files": [
       {
@@ -278,8 +278,8 @@
       },
       {
         "path": "frontend/app/firstvalue.js",
-        "bytes": 14919,
-        "sha256": "4533d0fb7cf0daa043599b0a9d6c5511b79e4ba8b7a235db81dade57c47b001c"
+        "bytes": 15159,
+        "sha256": "cb8480c6b46ead74ea22d0e3b167d129b51adb310a0f11499b7f7f20308edee0"
       },
       {
         "path": "frontend/app/floorstats.js",
@@ -888,8 +888,8 @@
       },
       {
         "path": "frontend/app/tutorial.js",
-        "bytes": 92138,
-        "sha256": "186b7a8bf6175821e6c9d9f7a9d030ad50c472c4e1b577577460ede7b7fbfbbd"
+        "bytes": 97302,
+        "sha256": "44f43822ceb30837f793565389d52d0be3cf39f8883768d9b332abcbc2dfcea3"
       },
       {
         "path": "frontend/app/understanding.js",
@@ -958,8 +958,8 @@
       },
       {
         "path": "frontend/app/windows/connectors.js",
-        "bytes": 124107,
-        "sha256": "4f86d79a2962357d0dccaea2ea7066679727f59936fc3708ad137d599a9b68f8"
+        "bytes": 124326,
+        "sha256": "b10c63f5067f2273273a99d0f661eabe31c5de6d8815d5e0391b30171175733e"
       },
       {
         "path": "frontend/app/windows/logbook.js",
@@ -973,8 +973,8 @@
       },
       {
         "path": "frontend/app/windows/messaging.js",
-        "bytes": 57097,
-        "sha256": "c42b0421e5cffcf022c5c7f606988aff18917f7f2690005b5cba833b8e0c2c3b"
+        "bytes": 57321,
+        "sha256": "17f7c3fb77ee6de78ee9ca936bc7b9f15599bf125b839c6b161b7dfe37f2c0f5"
       },
       {
         "path": "frontend/app/windows/outbox.js",
@@ -1213,8 +1213,8 @@
       },
       {
         "path": "frontend/css/tutorial.css",
-        "bytes": 11603,
-        "sha256": "75e6106cd784ebf29ceace85d7509bcc36067ae570821a303b95069103dd105f"
+        "bytes": 12328,
+        "sha256": "8df6c9938dfc4091fbbdcccc3b0c2ad01bff1eeea294274087de3240bebc2a31"
       },
       {
         "path": "frontend/css/utility-menus.css",
