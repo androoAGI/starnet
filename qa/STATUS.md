@@ -2819,3 +2819,8 @@ Every first-time StarNet-subscription desktop user: link → shell adopts the to
 
 
 **2026-09-09 tool projection merge:** `agent/tool-projection-0909` -> `793bf1c0f`; saved room equipment survives omitted client placement, explicit empty placement stays authoritative, and toolsets discloses selected-agent and lead-run grants. Fast **735/735 GREEN** and HTTP **108/108 GREEN** before/after merge; customer journeys **34/34 GREEN**. Ten real file/projection runs and live Abilities disclosure verified. Customer report `432df352` remains open for the uncorrelated Trusted Project symptom; installer/reporter recovery unverified. Receipt: `qa/digests/2026-09-09-tool-projection.md`. Existing QA/Rooms edits preserved.
+
+
+**2026-09-10 merge digest (DOORWAY MOVEMENT):** `agent/doorway-occlusion-0910` → trunk `9e5b6d88e` from `83c896e7d`. Candidate fast gate and exact merged-commit gate in the isolated checkout: **752/752 GREEN** each; customer journeys **34/34 GREEN**. Twelve live hero/crew/workstation doorway routes completed with zero wall crossings. Receipt: `qa/digests/2026-09-10-doorway-movement.md`. Installed desktop and reporter recovery remain unverified.
+
+- 2026-09-10 world seating: agent/doorway-occlusion-0910 -> f3e57f58e; fast 753/753 before and after integration, customer journeys 34/34, live 12 hallway routes with zero crossings, seven recovery/refit checks and 288 skin/facing poses passed. Source repaired; installed rebuild/recovery unverified. Receipt: docs/WORLD_SEATING_REPAIR_2026-09-10.md.

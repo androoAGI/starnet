@@ -1,0 +1,276 @@
+
+> starnet-harness@0.11.1 test:http:raw
+> node scripts/run-test-list.mjs test/http.list
+
+provider-recovery.e2e: OK (15 assertions)
+TAP version 13
+# Subtest: customer journey: connect, select, tool, output, restart and repeat on all primary adapters
+ok 1 - customer journey: connect, select, tool, output, restart and repeat on all primary adapters
+  ---
+  duration_ms: 6167.6182
+  type: 'test'
+  ...
+1..1
+# tests 1
+# suites 0
+# pass 1
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 7649.4869
+group HTTP: brief.ask choice -> durable group card -> answer -> SAME run resumed PASS
+group HTTP: actual runOnce -> fs.write -> immutable publish -> peer handoff -> exact file review -> restart PASS
+tool-model-fallback.e2e.test: OK (10 assertions)
+sidecar.http.test: OK (504 assertions)
+channels.replay.e2e: real offline channel events, no duplicate replay, and restart reset passed
+config-permissions-import.e2e.test: OK (15 assertions)
+connector-security.e2e.test: OK (65 assertions)
+connector-oauth-refresh-race.e2e.test: OK (5 assertions)
+workspace-owner.e2e.test: OK (9 assertions)
+workspace-lineage.http.test: OK (29 assertions)
+lineage-stationless-halt.http.test: OK (10 assertions)
+update-preparation.http.test: OK (9 assertions)
+codex-status.e2e.test: OK (13 assertions)
+oauth-status.e2e.test: OK (26 assertions)
+roster-envelope.http.test: OK (46 assertions)
+full-access.e2e.test: OK (22 assertions)
+output-recovery.e2e.test: OK (15 assertions)
+project-root.e2e.test: OK (9 assertions)
+TAP version 13
+# Subtest: real host proves selected model and effective execution backend without leaking secrets
+ok 1 - real host proves selected model and effective execution backend without leaking secrets
+  ---
+  duration_ms: 1315.2562
+  type: 'test'
+  ...
+1..1
+# tests 1
+# suites 0
+# pass 1
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 2812.97
+TAP version 13
+# Subtest: real file approvals show entire edits and patches; deny leaves bytes unchanged; approve survives restart
+ok 1 - real file approvals show entire edits and patches; deny leaves bytes unchanged; approve survives restart
+  ---
+  duration_ms: 3697.7103
+  type: 'test'
+  ...
+1..1
+# tests 1
+# suites 0
+# pass 1
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 5177.6764
+scout.http.test: OK
+scout.http.test: OK (20 assertions)
+discovery.http.test: OK
+discovery.http.test: OK (22 assertions)
+outcomes.http.test: OK
+outcomes.http.test: OK (9 assertions)
+scout.e2e.test: OK (27 assertions)
+[auxbudget.e2e] aux-calls OFF=5 ON(budget2)=2 (main+aux total OFF=6 ON=3)
+auxbudget.e2e.test: OK (6 assertions)
+auxmodel.e2e.test: OK (26 assertions)
+failreview.e2e.test: OK (32 assertions)
+questrefresh.e2e.test: OK (89 assertions)
+e2e.run.test: OK (55 assertions)
+image-task.e2e.test: OK (63 assertions)
+e2e.workspace-lease.test: OK (13 assertions)
+e2e.attachments.test: OK (22 assertions)
+e2e.summon.test: OK (13 assertions)
+e2e.dispatch-session.test: OK (31 assertions)
+e2e.worker-access.test: OK (5 assertions)
+e2e.pathtrust.test: OK (52 assertions)
+e2e.subagent-background.test: OK (11 assertions)
+google-signin.e2e: PASS (five services, native PKCE callback, partial/denied refresh consent, replay, cancellation during exchange, write failure, restart, refresh, revocation, removal, redaction)
+google-release-deferred: PASS (five services, legacy/custom endpoints, no network, preserved grants, restart, removal)
+e2e.mcp-connector.test: OK (129 assertions)
+e2e.mcp-session-expiry: OK (17 assertions)
+e2e.idempotency.test: OK (24 assertions)
+e2e.acceptance-nudge: OK (8 assertions)
+e2e.connector-readback: OK (22 assertions)
+recipe-drift.http: OK (12 assertions)
+cron.api.test: OK (94 assertions)
+cron.run-now.e2e.test: OK (35 assertions)
+cron.degraded.e2e: OK (27 assertions)
+routing.chain-seam.e2e.test: OK (25 assertions)
+routine-manage.e2e.test: OK (22 assertions)
+comms-send.e2e.test: OK (35 assertions)
+acp.e2e.test: OK (48 assertions)
+autonomy-ledger.e2e.test: OK (15 assertions)
+loops e2e (LIVE standing objectives): OK (53 assertions)
+loops check e2e (LIVE host-run check + tamper guard): OK (33 assertions)
+loops-git e2e (approve and reject are real): OK (55 assertions)
+loops endurance e2e (restart/cancel/resume/idempotency): OK (27 assertions)
+workshop.e2e.test: OK (86 assertions)
+nightshift-act.e2e.test: OK (33 assertions)
+nightshift-grant.e2e.test: OK (19 assertions)
+nightshift-contextpack.e2e.test: OK (12 assertions)
+nightshift-focus.e2e.test: OK (62 assertions)
+nightshift-halt.e2e.test: OK (13 assertions)
+nightshift-beat-halt.e2e.test: OK (8 assertions)
+nightshift-budget.e2e.test: OK (11 assertions)
+nightshift-presence.e2e.test: OK (9 assertions)
+nightshift-floor-visibility.e2e.test: OK (10 assertions)
+threads.e2e.test: OK (21 assertions)
+cron.session-transcript.e2e.test: OK (10 assertions)
+  · supersede race did not fire this run; #2 still delivered its real answer (invariant holds)
+channels.telegram.e2e.test: OK (60 assertions)
+channels.telegram.connect-pairing.e2e.test: OK (12 assertions)
+channels.telegram.multibot.e2e.test: OK (49 assertions)
+channels.telegram.botchain.e2e.test: OK (14 assertions)
+channels.telegram.buttons.e2e.test: OK (59 assertions)
+webhook-replay.e2e.test: OK (10 assertions)
+cron.arm.test: OK (25 assertions)
+lifecycle-armed.http.test: OK (69 assertions)
+[checkpoint] rebuilt index for a1 from 1 shadow-git commits (index.json was empty/corrupt)
+[checkpoint] rebuilt index for pr from 1 shadow-git commits (index.json was empty/corrupt)
+[checkpoint] rebuilt index for pr from 1 shadow-git commits (index.json was empty/corrupt)
+[checkpoint] rebuilt index for a1 from 5 shadow-git commits (index.json was empty/corrupt)
+[checkpoint] rebuilt index for a1 from 5 shadow-git commits (index.json was empty/corrupt)
+[checkpoint] rebuilt index for sz from 1 shadow-git commits (index.json was empty/corrupt)
+[checkpoint] shadow repo for sz over ceiling (28001B) -> re-init -> 28108B
+[checkpoint] shadow repo for sz over ceiling (28586B) -> re-init -> 28107B
+[checkpoint] shadow repo for sz over ceiling (28584B) -> re-init -> 28107B
+[checkpoint] shadow repo for sz over ceiling (28583B) -> re-init -> 28108B
+[checkpoint] shadow repo for sz over ceiling (28330B) -> re-init -> 28107B
+checkpoint-store.test: OK (57 assertions)
+shell.test: OK (36 assertions)
+shell.process-tree.test: OK (5 assertions)
+verify.run.test: OK (24 assertions)
+browser.gauntlet.e2e: OK (92 assertions)
+servicekeys.http.test: OK (38 assertions)
+servicekeys.shell.e2e.test.js: OK (8 assertions)
+skills.gate.http.test: OK (37 assertions)
+skill-exchange.http.test: OK (40 assertions)
+skills.gate.prompt.e2e: OK (22 assertions)
+roster-track.e2e.test: OK (25 assertions)
+routes-coverage.http.test: OK (94 assertions)
+atlas-events.emit.e2e: OK (14 assertions)
+openai-compat.e2e: OK (36 assertions)
+station-recovery.e2e.test: OK (23 assertions)
+TAP version 13
+# Subtest: unlink wins over an unfinished pairing response and survives restart
+ok 1 - unlink wins over an unfinished pairing response and survives restart
+  ---
+  duration_ms: 1978.0418
+  type: 'test'
+  ...
+# Subtest: unlink wins over an unfinished keychain-recovery response and survives restart
+ok 2 - unlink wins over an unfinished keychain-recovery response and survives restart
+  ---
+  duration_ms: 1655.4322
+  type: 'test'
+  ...
+# Subtest: an old account response cannot return its zero balance after unlink
+ok 3 - an old account response cannot return its zero balance after unlink
+  ---
+  duration_ms: 806.37
+  type: 'test'
+  ...
+# Subtest: funded link diagnostics survive restart without exposing account or token
+ok 4 - funded link diagnostics survive restart without exposing account or token
+  ---
+  duration_ms: 2068.14
+  type: 'test'
+  ...
+# Subtest: a late first-link balance check cannot clear a newer funded link
+ok 5 - a late first-link balance check cannot clear a newer funded link
+  ---
+  duration_ms: 1828.4484
+  type: 'test'
+  ...
+# Subtest: managed HTTP 400 keeps local, relay and upstream correlation through restart
+ok 6 - managed HTTP 400 keeps local, relay and upstream correlation through restart
+  ---
+  duration_ms: 2206.8727
+  type: 'test'
+  ...
+1..6
+# tests 6
+# suites 0
+# pass 6
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 12032.652
+routing.persist.e2e: OK (44 assertions)
+run-recovery.api.test: OK (37 assertions)
+routing.sample.e2e.test: OK (99 assertions)
+TAP version 13
+# Subtest: sample uses each dock provider and saved model without environment defaults, including restart
+ok 1 - sample uses each dock provider and saved model without environment defaults, including restart
+  ---
+  duration_ms: 2521.98
+  type: 'test'
+  ...
+1..1
+# tests 1
+# suites 0
+# pass 1
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 4008.268
+route-honesty.e2e: OK (72 assertions)
+effective-toolsets.e2e: OK (11 assertions)
+discovery-documents.http: auth, explicit consent, evidence, restart, decline, stale acceptance, pause and revoke passed
+workflow-takeover.http: authenticated evidence, review, concurrent create, pause, forget and restart passed
+task-conversation.http: full answer, context, open question, sample, restart and stale receipts passed
+PASS emergency recovery: stop/restart/resume, three partial failures, permission preservation, real cron tick
+growth-rating-upgrade.e2e: OK (24 assertions)
+TAP version 13
+Managed image proof: credits-only PNG saved and served; restart passed; exact image debit $0.025; 402/503/no-image never done. Cloud=false
+# Subtest: managed images: saved credits route generates, bills, survives restart and fails honestly
+ok 1 - managed images: saved credits route generates, bills, survives restart and fails honestly
+  ---
+  duration_ms: 2907.5889
+  type: 'test'
+  ...
+1..1
+# tests 1
+# suites 0
+# pass 1
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 4390.1399
+TAP version 13
+AFTER: stale endpoint repaired; custom routing preserved; switching back uses linked endpoint/token; desktop-token restart passed.
+# Subtest: managed chat ignores stale request endpoints and credentials across provider switch and restart
+ok 1 - managed chat ignores stale request endpoints and credentials across provider switch and restart
+  ---
+  duration_ms: 3289.9094
+  type: 'test'
+  ...
+# Subtest: persisted frontend endpoints stay provider scoped across switching and reload
+ok 2 - persisted frontend endpoints stay provider scoped across switching and reload
+  ---
+  duration_ms: 3.2623
+  type: 'test'
+  ...
+1..2
+# tests 2
+# suites 0
+# pass 2
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 4786.4596
+tool-projection.e2e: OK (10 real runs, file writes, both model IDs, revocation and restart)
+disconnect sibling passed: aborted original caller, same-key retry completed, one primary call
+request-idempotency.e2e: 3 concurrent requests = 1 primary call; conflict rejected; exact replay after sidecar restart; 2 streaming retries = 1 primary call
+{"completed":false,"repairRequests":1,"advertisedTools":0,"mutationOccurred":false,"usage":{"prompt_tokens":4,"completion_tokens":2,"total_tokens":6}}
+run-test-list: OK — 110 step(s) green
