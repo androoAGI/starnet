@@ -18,7 +18,7 @@
   "expectedClaimCount": 37,
   "releaseSurface": {
     "algorithm": "sha256",
-    "sourceCommit": "ee14eaf477850c0f3274135b1fa44f5e24e09516",
+    "sourceCommit": "0dec053d1ffe2edf584f88014bb34ee1379b5dfd",
     "pathSetSha256": "907c7f2af955f4b59b473534a161e7bb87523688a17112661054ccaf14190c77",
     "files": [
       {
@@ -488,8 +488,8 @@
       },
       {
         "path": "frontend/app/overseer-setup.js",
-        "bytes": 4179,
-        "sha256": "3c13c99815817818c9020e831303afec8576c0b1952f67c68377d577ca3190f1"
+        "bytes": 3544,
+        "sha256": "40a989590d695052b72e3a001a3ec6d4a234249907ad50d9f7fc679001cc91e5"
       },
       {
         "path": "frontend/app/permissions.js",
@@ -1153,8 +1153,8 @@
       },
       {
         "path": "frontend/css/overseer-setup.css",
-        "bytes": 14135,
-        "sha256": "1cc5f8a0adc938202924d48f44a9d59667c4239d7681c84ffa41e6cece116191"
+        "bytes": 13947,
+        "sha256": "5c0a3d711f56a69ed965036e22cdd95bb0eac6ff0803aa06a1ad918f5e08c76e"
       },
       {
         "path": "frontend/css/panelchrome.css",
@@ -1248,8 +1248,8 @@
       },
       {
         "path": "frontend/index.html",
-        "bytes": 83781,
-        "sha256": "d9110f0fe10dd7da3246a5185feb457a2325e91413ea7e0a378875dda88dac71"
+        "bytes": 83543,
+        "sha256": "e52ce47b55fd892fe8e8ea33c869fa52ba64114fac86d6c2bca5745f08b8ff32"
       },
       {
         "path": "frontend/js/arcade.js",
