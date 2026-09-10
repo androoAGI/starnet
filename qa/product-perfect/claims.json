@@ -18,7 +18,7 @@
   "expectedClaimCount": 37,
   "releaseSurface": {
     "algorithm": "sha256",
-    "sourceCommit": "5d8ff8c2bacab3791c33eaa005eefd452ce8352a",
+    "sourceCommit": "0946764a577ff628c1e08551db97b2e129850cf2",
     "pathSetSha256": "907c7f2af955f4b59b473534a161e7bb87523688a17112661054ccaf14190c77",
     "files": [
       {
@@ -68,8 +68,8 @@
       },
       {
         "path": "frontend/app/app.js",
-        "bytes": 380679,
-        "sha256": "ba7fe7bdf9f1933f7815fb271d26c7877c3009725341476eeb2b3cf9450fa6f6"
+        "bytes": 381396,
+        "sha256": "9450ec81f1dd5e67541e56cc409aafbbe3fead74ae7d9cb535e169aa82271117"
       },
       {
         "path": "frontend/app/armconfirm.js",
@@ -453,8 +453,8 @@
       },
       {
         "path": "frontend/app/modeldock.js",
-        "bytes": 44430,
-        "sha256": "1f6e5e9744552104c011e4009074241de3e0cef646543a1d42b61f5ae5baac7a"
+        "bytes": 44522,
+        "sha256": "a3956a1e4b9bdc8887bfb164697b80a66243e5eba97ccb8b41117d8101a32a72"
       },
       {
         "path": "frontend/app/modelpicker.js",
@@ -488,8 +488,8 @@
       },
       {
         "path": "frontend/app/overseer-setup.js",
-        "bytes": 3544,
-        "sha256": "40a989590d695052b72e3a001a3ec6d4a234249907ad50d9f7fc679001cc91e5"
+        "bytes": 7163,
+        "sha256": "c7f0c3875298b5e1ac02bedc10d19591375c6dbde9b8dd29d37f2881390473ed"
       },
       {
         "path": "frontend/app/permissions.js",
@@ -1153,8 +1153,8 @@
       },
       {
         "path": "frontend/css/overseer-setup.css",
-        "bytes": 14513,
-        "sha256": "17e0216611c740819687003fb654c6ad7a159eedcdbae3a67964742c80a00afb"
+        "bytes": 23576,
+        "sha256": "415d2cf8954a06cb2b3c7ed386513bac467276a35970b23015bccf9bae6b2c5b"
       },
       {
         "path": "frontend/css/panelchrome.css",
@@ -1248,8 +1248,8 @@
       },
       {
         "path": "frontend/index.html",
-        "bytes": 83574,
-        "sha256": "af12320bdd6fdc871689debb934f14e5b5aff06f888157b64181cf17e3486bf4"
+        "bytes": 85376,
+        "sha256": "13a2c20cd01393a89cad0eed036cd8eb5d82025fdbafbf1daff8cb7931e67561"
       },
       {
         "path": "frontend/js/arcade.js",
