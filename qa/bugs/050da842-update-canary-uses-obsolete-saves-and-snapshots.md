@@ -4,10 +4,10 @@ slug: update-canary-uses-obsolete-saves-and-snapshots
 title: Update canary uses obsolete saves and snapshots the startup WebView
 surface: release
 severity: P2
-status: open
+status: fixed
 found: 2026-09-10
 lane: agent/release-0112-audit-0910
-fix:
+fix: bed625bdd
 origin: audit
 ---
 
@@ -28,3 +28,5 @@ Raw before/after logs are in `.dogfood/release-0112-closeout/canary-drive*.log`.
 ## Verdict
 
 Live repair verified with exact receipt `.dogfood/release-0112-closeout/canary/update-receipt.json`, semantic fingerprint `473e2f34872513cbe9ebbbcc5923659327b17cb503bfeb0c87a21f98eb04ea79`. This proves the local Windows update mechanism on same-source version overlays, not the public feed or a historical released-source installer.
+
+Repeated after rebuilding the native version repair: `.dogfood/release-0112-closeout/canary-fixed/update-receipt.json`, new source `bed625bdd`, fingerprint `fa71203774e268133c40dd877a4f687c545df5914cda6ef1d97fb7f4f6316656`. Populated crew, props, conversation history, usage and state survive the signed download/install/relaunch path.

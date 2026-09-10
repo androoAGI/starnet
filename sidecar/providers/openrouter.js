@@ -107,6 +107,20 @@
 
   const repairToolPairs = provider.repairToolPairs;
 
+  // Match the native Anthropic adapter: only the leading system block is
+  // top-level policy. Host notes during a run belong at their original position.
+  // OpenRouter otherwise hoists them, leaving an assistant answer last; Sonnet
+  // 4.6 rejects that as prefill with HTTP 400 instead of processing the reminder.
+  function preserveClaudeContinuations(messages, model) {
+    if (!Array.isArray(messages) || !supportsExplicitCache(model)) return messages;
+    let leading = true;
+    return messages.map(message => {
+      if (!message || message.role !== 'system') leading = false;
+      return !leading && message && message.role === 'system'
+        ? Object.assign({}, message, { role: 'user' }) : message;
+    });
+  }
+
   function normalizeReasoningEffort(value) {
     const key = String(value || 'medium').trim().toLowerCase().replace(/[\s_-]+/g, '');
     const map = {
@@ -201,7 +215,7 @@
       const meta = findModel(req.model);
       const allowed = reasoningEffortsForModel(req.model, meta);
       const effort = clampReasoningEffortForModel(req.model, req.reasoningEffort || reasoningEffort, meta);
-      const body = { model: req.model, messages: applyCacheControl(repairToolPairs(req.messages), req.model), stream: true, usage: { include: true } };
+      const body = { model: req.model, messages: applyCacheControl(preserveClaudeContinuations(repairToolPairs(req.messages), req.model), req.model), stream: true, usage: { include: true } };
       if (effort !== 'none' || allowed.length > 1) body.reasoning = { effort };
       if (req.tools && req.tools.length) {
         body.tools = req.tools;
