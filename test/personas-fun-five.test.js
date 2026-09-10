@@ -82,4 +82,16 @@ assert.equal(fingerprintOf(ctx), fingerprintOf(ctx), 'unchanged voice context st
 assert.equal(P.ambient('dry', { humor: 0 }).includes('standing by. a classic.'), false);
 assert.equal(P.ambient('unhinged', {}, 'No banter.').length, 0, 'fixed ambient quips cannot override custom voice instructions');
 
+// Execute the actual timer callback: a same-agent update must send once, then stay quiet.
+const tickSource = voice.match(/contextTimer = setInterval\(\(\) => \{([\s\S]*?)\n        \}, 2000\)/)[1];
+const timer = new Function('voiceContextFingerprint', 'stationContext', `
+  let active = true, realtime = true, lastContextFingerprint = '', updates = 0;
+  function pushSessionContext() { updates++; }
+  return { tick() { ${tickSource} }, updates: () => updates };
+`)(fingerprintOf, () => ctx);
+timer.tick(); timer.tick(); assert.equal(timer.updates(), 1, 'unchanged live call sends no redundant update');
+ctx.agent.systemPrompt = P.compose('upbeat');
+timer.tick(); assert.equal(timer.updates(), 2, 'changed personality reaches the active live call');
+timer.tick(); assert.equal(timer.updates(), 2);
+
 console.log('personas-fun-five.test: six profiles, legacy migrations, tuning, target isolation and voice parity PASS');
