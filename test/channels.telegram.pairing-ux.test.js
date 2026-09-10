@@ -20,8 +20,8 @@ A.ok(/j\.pairingCode/.test(ui) && /\/pair /.test(ui),
   'the connect response pairing code is turned into the exact Telegram command the Commander must send');
 A.ok(/pairingInstruction/.test(ui),
   'the one-time pairing command is retained across the asynchronous status repaint');
-A.ok(/owner pairing/i.test(ui.slice(ui.indexOf("id: 'telegram'"), ui.indexOf("id: 'discord'"))),
-  'the Telegram setup guide names owner pairing as part of setup');
+A.ok(/<code>\/pair<\/code> message with a code/.test(ui.slice(ui.indexOf("id: 'telegram'"), ui.indexOf("id: 'discord'"))),
+  'the Telegram setup guide explains the pairing message and code');
 
 A.ok(/out\.pairingCode = pairing\.code/.test(sidecar),
   'the authenticated connect route returns the freshly issued one-time pairing code');

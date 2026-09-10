@@ -26,8 +26,8 @@
       '<div class="sec"><span class="sec-l">RUNS</span><span class="sec-r"></span><span class="sec-nd"></span></div>' +
       '<p class="sk-note">Real work by <b>' + esc(nm) + '</b>, newest first — runs that used tools, produced files, or failed. Chat-only replies are folded at the bottom.</p>' +
       '<div id="lb-list" class="mc-list"><span class="loading pulse">loading…</span></div>' +
-      '<div class="sec"><span class="sec-l">SLAG — DEAD RUNS</span><span class="sec-r"></span><span class="sec-nd"></span></div>' +
-      '<p class="sk-note">Post-mortems for runs that ended without a deliverable, diagnosed into a real, fixable cause.</p>' +
+      '<div class="sec"><span class="sec-l">RUN ISSUES</span><span class="sec-r"></span><span class="sec-nd"></span></div>' +
+      '<p class="sk-note">Review why a run ended without a result and what to try next.</p>' +
       '<div id="lb-slag" class="mc-list"><span class="loading pulse">loading…</span></div>' +
       '<div class="sec"><span class="sec-l">INSIGHTS</span><span class="sec-r"></span><span class="sec-nd"></span></div>' +
       '<div id="lb-insights" class="mc-list"><span class="loading pulse">loading…</span></div>';
@@ -142,7 +142,7 @@
       const host = body.querySelector('#lb-slag'); if (!host) return;
       let slag = [];
       try { if (typeof World !== 'undefined' && World.slagLog) slag = World.slagLog().slice().reverse(); } catch (_) {}
-      host.innerHTML = slag.length ? slag.map(slagRow).join('') : '<div class="fb-empty">NO SLAG — clean line.<br><span>A post-mortem appears here when a run ends without producing a result.</span></div>';
+      host.innerHTML = slag.length ? slag.map(slagRow).join('') : '<div class="fb-empty">NO RUN ISSUES RECORDED.<br><span>A post-mortem appears here when a run ends without producing a result.</span></div>';
     }
     // INSIGHTS: aggregate outcomes folded from the run history (GET /api/insights). H3.3.
     async function loadInsights() {

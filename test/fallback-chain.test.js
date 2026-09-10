@@ -132,7 +132,7 @@ const fc = require('../sidecar/fallbackchain.js');
 {
   const station = fs.readFileSync(path.join(__dirname, '..', 'frontend', 'app', 'stationui.js'), 'utf8');
   const css = fs.readFileSync(path.join(__dirname, '..', 'frontend', 'css', 'app.css'), 'utf8');
-  A.ok(/>MODELS </.test(station), 'MODELS section header present in SETTINGS');
+  A.ok(/>Backup models </.test(station), 'MODELS section header present in SETTINGS');
   A.ok(/function wireFallbackChain/.test(station) && /wireFallbackChain\(body\)/.test(station), 'wireFallbackChain builder present and called');
   A.ok(/id="fbc-list"/.test(station) && /id="fbc-add"/.test(station), 'ordered list + add-from-catalog picker present');
   A.ok(/data-act="up"/.test(station) && /data-act="dn"/.test(station) && /data-act="rm"/.test(station), 'reorder up/down + remove controls present');
@@ -140,7 +140,7 @@ const fc = require('../sidecar/fallbackchain.js');
   A.ok(/\/api\/fallback\/chain/.test(station), 'the panel reads + posts the chain endpoint');
   A.ok(/\/api\/models\/openrouter/.test(station), 'the add-picker is fed from the real model catalog');
   // inline help must describe the REAL trigger behavior (errorClass shouldFallback/shouldRotateCredential classes)
-  A.ok(/fails mid-run/.test(station) && /overloaded \(502\/503\)/.test(station) && /rate-limit/.test(station), 'inline help names the real error classes that trigger fallback');
+  A.ok(/fails mid-run/.test(station) && /availability/.test(station) && /rate limits/.test(station), 'inline help names the real error classes that trigger fallback');
   A.ok(/environment default \(not yet saved here\)/.test(station), 'saved-vs-env source is annotated honestly');
   A.ok(/\.fbc-row/.test(css) && /select\.fbc-sel/.test(css), 'MODELS panel styles present (row + picker, phosphor vars)');
 }

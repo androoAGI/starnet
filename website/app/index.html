@@ -19,6 +19,13 @@
 <link rel="stylesheet" href="css/app.css">
 <link rel="stylesheet" href="css/comms.css">
 <link rel="stylesheet" href="css/marketplace.css">
+<link rel="stylesheet" href="css/menu-glass.css">
+<link rel="stylesheet" href="css/settings.css?v=5">
+<link rel="stylesheet" href="css/commander.css">
+<link rel="stylesheet" href="css/channels.css?v=4">
+<link rel="stylesheet" href="css/quests.css?v=3">
+<link rel="stylesheet" href="css/tasks.css?v=1">
+<link rel="stylesheet" href="css/agent-dossier.css?v=7">
 <link rel="stylesheet" href="css/warroom.css">
 <link rel="stylesheet" href="css/safety.css">
 <link rel="stylesheet" href="css/tutorial.css">
@@ -32,6 +39,8 @@
 <link rel="stylesheet" href="css/panelchrome.css"><!-- PANEL CHROME premium pass: molded header strips, recessed instrument housings, keycap dock triggers on the four game-screen panels -->
 <link rel="stylesheet" href="css/interface.css">
 <link rel="stylesheet" href="css/refit-kit.css">
+<link rel="stylesheet" href="css/refit-polish.css?v=3">
+<link rel="stylesheet" href="css/utility-menus.css?v=1">
 <link rel="stylesheet" href="css/glass-demo.css">
 <link rel="stylesheet" href="css/glass-comms.css">
 <link rel="stylesheet" href="css/readability.css"><!-- Shared readable text roles at STANDARD; cabinet and CRT geometry are unchanged. -->
@@ -661,7 +670,7 @@
         <button class="bb" data-term="deliverables" data-hint="deliverable"><span class="bb-i">▣</span><span class="bb-tx"><b>DELIVERABLES</b><small>outputs, Workshop builds &amp; cleanup</small></span></button>
         <button class="bb" id="bb-missions" data-hint="recipe"><span class="bb-i">❒</span><span class="bb-tx"><b>RECIPES</b><small>ready-made jobs to launch — they land on TASKS</small></span></button>
         <button class="bb" data-term="automation" data-hint="automation"><span class="bb-i">∞</span><span class="bb-tx"><b>AUTOMATION</b><small>routines &amp; loops — any job on a schedule, or repeated until it’s done</small></span></button>
-        <button class="bb" data-term="quests" data-hint="quest"><span class="bb-i">⚑</span><span class="bb-tx"><b>QUESTS</b><small>progress &amp; suggestions — not a second to-do list</small></span></button>
+        <button class="bb" data-term="quests" data-hint="quest"><span class="bb-i">⚑</span><span class="bb-tx"><b>QUESTS</b><small>small steps toward your goals &amp; recorded progress</small></span></button>
       </div>
     </div>
     <div class="bb-group" data-group="build">
@@ -826,6 +835,7 @@ document.write('<script src="' + ((window.__STARNET_API__ || '') + '/shared/spec
 <script src="app/recipe-catalog/money.js"></script>
 <script src="app/recipe-catalog/data.js"></script>
 <script src="app/recipe-catalog/general.js"></script>
+<script src="app/recipe-catalog/curated.js"></script><!-- plain-language public selection; legacy ids stay available -->
 <script src="app/recipe-catalog/index.js"></script><!-- aggregates every recipe-catalog module into one array — MUST load before recipes.js, which consumes it -->
 <script src="app/recipes.js"></script>
 <script src="app/recipefit.js"></script><!-- binds catalog recipes to the station's REAL context (projects/channels/topics/routines) -->
