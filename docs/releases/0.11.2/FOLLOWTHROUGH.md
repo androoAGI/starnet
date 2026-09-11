@@ -4,6 +4,8 @@
 
 **Release acceptance remains incomplete.** Official version pins stay at 0.11.1; no public release or tag was created. The Windows canary has its own application identity and a local 0.11.2 overlay. The existing production station was not replaced.
 
+Latest September 11 result: GitHub #12/#13 and the queued-save restart defect are integrated and verified in signed candidate `6e729e4cb`. Pre/post merge gates passed 771 fast and 113 HTTP steps; all four builds, both Mac notarizations, Intel installed acceptance and the actual public Windows 0.11.1 upgrade/restart passed. The reconciled customer register now has eight earlier P1 reports open. [Current closeout](ISSUES_12_13_CLOSEOUT.md) supersedes the older candidate identities and seven-report counts below; historical receipts retain their original scope.
+
 September 11 follow-up: the runtime including the backdrop repair is `61528ba95`. Its fresh Beginner and exact-source installed smoke passed, and workflow `34555729560` passed all four builds, both Mac notarizations and Intel installed acceptance. The seven customer reports remain open; [specific retest requirements](CUSTOMER_RETESTS.md) name the remaining evidence. The interrupted source soak and replacement run are recorded below. Earlier receipts retain their original build identities.
 
 ## Candidate

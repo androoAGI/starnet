@@ -1,0 +1,87 @@
+{
+  "recordedAt": "2026-09-11T06:31:26.242Z",
+  "integrationSource": "a6f05c505b4e1b75fafbb320f302ba9ebd21cd73",
+  "buildSource": "6e729e4cb2ca151f2ca7f280d500c86393bf0046",
+  "buildRun": 34568119605,
+  "buildUrl": "https://github.com/androoAGI/starnet/actions/runs/34568119605",
+  "buildJobs": [
+    {
+      "name": "build (ubuntu-22.04, linux-x64, deb,appimage)",
+      "conclusion": "success"
+    },
+    {
+      "name": "build (windows-latest, win-x64, nsis)",
+      "conclusion": "success"
+    },
+    {
+      "name": "build (macos-15-intel, darwin-x64, app,dmg, x86_64-apple-darwin)",
+      "conclusion": "success"
+    },
+    {
+      "name": "build (macos-latest, darwin-arm64, app,dmg, aarch64-apple-darwin)",
+      "conclusion": "success"
+    },
+    {
+      "name": "notarize-macos (darwin-x64)",
+      "conclusion": "success"
+    },
+    {
+      "name": "notarize-macos (darwin-arm64)",
+      "conclusion": "success"
+    },
+    {
+      "name": "intel-macos-installed-acceptance",
+      "conclusion": "success"
+    },
+    {
+      "name": "publish-test",
+      "conclusion": "skipped"
+    }
+  ],
+  "proofRun": 34569801784,
+  "proofUrl": "https://github.com/androoAGI/starnet/actions/runs/34569801784",
+  "proofController": "a6f05c505b4e1b75fafbb320f302ba9ebd21cd73",
+  "installerSha256": "5baadbf8483e601db257f2b1ce8855fbc494add5db64493f501a3d93e717efeb",
+  "executableSha256": "28bca2f1196426eec6f4afaefa5a2f5b67cbafd3b354078e889c9d262ee87366",
+  "sourceEquivalence": {
+    "runtimeDiff": [],
+    "nonRuntimeChanges": [
+      ".github/workflows/t0-clean-install-proof.yml",
+      "docs/releases/0.11.2/RELEASE_NOTES_DRAFT.md",
+      "qa/BUGS.md",
+      "qa/bugs/891e15e8-queued-save-acknowledgements-leave-browser-revis.md",
+      "qa/bugs/acd9ecb4-delegated-specialist-lacks-connected-mcp-tools.md",
+      "qa/evidence/0.11.2-issues-12-13/save-live.json",
+      "qa/evidence/0.11.2-issues-12-13/settings-live.json",
+      "qa/evidence/0.11.2-issues-12-13/verification.json",
+      "scripts/qa/installed-customer-regressions.cjs"
+    ]
+  },
+  "scope": "Private 0.11.1-version candidate; manual historical NSIS upgrade and normal restart; installed Node/sidecar customer scenarios use controlled upstreams and isolated stations. No public 0.11.2 feed or actual customer account recovery claimed.",
+  "priorAttempts": [
+    {
+      "run": 34563698033,
+      "result": "fixture drain/hydration failure"
+    },
+    {
+      "run": 34564031589,
+      "result": "fixture missing connection recovery"
+    },
+    {
+      "run": 34564387950,
+      "result": "fixture boot save drain not yet settled"
+    },
+    {
+      "run": 34566301708,
+      "result": "successful queued writes diagnosed; drain initially false"
+    },
+    {
+      "run": 34566595623,
+      "result": "expected derived prompt/persona migration required explicit comparison handling"
+    },
+    {
+      "run": 34567303092,
+      "result": "real queued-save revision restart conflict; repaired in 767a35925"
+    }
+  ]
+}

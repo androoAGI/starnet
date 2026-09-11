@@ -12,7 +12,10 @@ origin: customer
 report: https://github.com/androoAGI/starnet/issues/13
 affected: 0.11.1 on Windows
 family: delegated-capabilities
-installer: unverified
+installer: verified
+installerVersion: 0.11.1 private candidate 6e729e4cb
+installerSha256: 5baadbf8483e601db257f2b1ce8855fbc494add5db64493f501a3d93e717efeb
+installerEvidence: https://github.com/androoAGI/starnet/actions/runs/34569801784
 recovery: unconfirmed
 ---
 
@@ -34,7 +37,11 @@ Investigation anchors: `sidecar/index.js:15046` distinguishes interactive and au
 
 ## Verdict
 
-Source fixed in 44c6b4952. The worker inherited the lead's consent broker, but autonomous authority removed MCP tools before that broker could run. A host-only MCP bridge now reaches that broker while retaining worker capability/profile filtering, cancellation and live parent authority. Parent taint carries into worker execution; connector mutations after external content need fresh watched confirmation. Shell, physical input and unknown non-MCP effects receive no new authority. Installer verification and actual Close CRM recovery remain unconfirmed.
+Source fixed in 44c6b4952. The worker inherited the lead's consent broker, but autonomous authority removed MCP tools before that broker could run. A host-only MCP bridge now reaches that broker while retaining worker capability/profile filtering, cancellation and live parent authority. Parent taint carries into worker execution; connector mutations after external content need fresh watched confirmation. Shell, physical input and unknown non-MCP effects receive no new authority. Installed execution passed on the signed candidate; actual Close CRM recovery remains unconfirmed.
+
+## Installed verification
+
+Private signed build `6e729e4cb2ca151f2ca7f280d500c86393bf0046`, workflow 34569801784, passed this scenario using the installed Node runtime and source-matched installed sidecar. The executable SHA-256 is `28bca2f1196426eec6f4afaefa5a2f5b67cbafd3b354078e889c9d262ee87366`. Controlled provider/MCP endpoints and isolated stations were used; no customer account was contacted. Exact logs and receipts: `qa/evidence/0.11.2-issues-12-13/installer-verification.json`.
 
 ## Regression
 
@@ -44,4 +51,4 @@ Follow-up b4bcdac904f5574ee4541c0cfae5de400592ee69 preserves the lead's live Ful
 
 ## Sibling coverage
 
-{"adapters":[{"target":"connected MCP over HTTP","state":"covered","test":"test/delegated-connectors.e2e.test.js","scenario":"actual MCP read/write via direct and delegated runs with watched permission responses","gate":"http"},{"target":"Close CRM OAuth account","state":"blocked","reason":"The controlled MCP server proves delegation wiring; no reporter account or live Close recovery confirmation is available."}],"entrypoints":[{"target":"foreground team.dispatch","state":"covered","test":"test/delegated-connectors.e2e.test.js","scenario":"lead dispatch creates a real specialist run with MCP tools and forwards approval","gate":"http"},{"target":"background dispatch, spawn and resume","state":"blocked","reason":"The host connector options are wired to these siblings, but no dedicated end-to-end MCP scenario exercises each one yet."}],"displays":[{"target":"permission event stream","state":"covered","test":"test/delegated-connectors.e2e.test.js","scenario":"fresh confirmation after MCP read; denied write has no external effect","gate":"http"},{"target":"installed desktop","state":"blocked","reason":"The new signed installer build has not completed."}],"lifecycle":[{"target":"restart and connector removal","state":"covered","test":"test/delegated-connectors.e2e.test.js","scenario":"delegated read/write after restart and no effects after removal","gate":"http"},{"target":"authority revocation","state":"covered","test":"test/inputpolicy.test.js","scenario":"prior projection cannot bypass changed parent authority; non-MCP effects remain denied","gate":"fast"}]}
+{"adapters":[{"target":"connected MCP over HTTP","state":"covered","test":"test/delegated-connectors.e2e.test.js","scenario":"actual MCP read/write via direct and delegated runs with watched permission responses","gate":"http"},{"target":"Close CRM OAuth account","state":"blocked","reason":"The controlled MCP server proves delegation wiring; no reporter account or live Close recovery confirmation is available."}],"entrypoints":[{"target":"foreground team.dispatch","state":"covered","test":"test/delegated-connectors.e2e.test.js","scenario":"lead dispatch creates a real specialist run with MCP tools and forwards approval","gate":"http"},{"target":"background dispatch, spawn and resume","state":"blocked","reason":"The host connector options are wired to these siblings, but no dedicated end-to-end MCP scenario exercises each one yet."}],"displays":[{"target":"permission event stream","state":"covered","test":"test/delegated-connectors.e2e.test.js","scenario":"fresh confirmation after MCP read; denied write has no external effect","gate":"http"},{"target":"installed desktop","state":"blocked","reason":"Installed Node/sidecar execution passed; the desktop permission UI was not separately driven visually."}],"lifecycle":[{"target":"restart and connector removal","state":"covered","test":"test/delegated-connectors.e2e.test.js","scenario":"delegated read/write after restart and no effects after removal","gate":"http"},{"target":"authority revocation","state":"covered","test":"test/inputpolicy.test.js","scenario":"prior projection cannot bypass changed parent authority; non-MCP effects remain denied","gate":"fast"}]}

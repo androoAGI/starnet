@@ -1,0 +1,123 @@
+{
+  "schema": "starnet.public-upgrade-continuity.v1",
+  "at": "2026-09-11T06:27:24.415Z",
+  "mode": "manual-nsis-reinstall",
+  "candidateSource": "6e729e4cb2ca151f2ca7f280d500c86393bf0046",
+  "baselineVersion": "0.11.1",
+  "baselineInstallerSha256": "0045c6a539ad67b29b69139ec656907c31d0f6bef293eac1c3b3a1396802d656",
+  "candidateInstallerSha256": "5baadbf8483e601db257f2b1ce8855fbc494add5db64493f501a3d93e717efeb",
+  "checks": {
+    "historicalPublicBoot": true,
+    "populatedPublicRestart": true,
+    "exactCandidateInstalled": true,
+    "statePreservedAcrossInstall": true,
+    "statePreservedAcrossRestart": true
+  },
+  "outcome": "PASS",
+  "beforeBuild": {
+    "version": "0.11.1",
+    "commit": "b3760c46f",
+    "sha": "b3760c46ff3fe02790e6c3b0c50a23c30b5837a8",
+    "sourceTree": "0e7794d125cc729cf8310593f3b918ded5875992",
+    "provenanceKind": "reproducible-source",
+    "describe": "v0.11.1",
+    "dirty": false,
+    "executableSha256": "d6bc8af753f00f3ac0a0dda0b20cdc9182f6ce699ea77c9fadb8b642f0c0ee46",
+    "executableSize": 16966920
+  },
+  "afterBuild": {
+    "version": "0.11.1",
+    "commit": "6e729e4",
+    "sha": "6e729e4cb2ca151f2ca7f280d500c86393bf0046",
+    "sourceTree": "7c54aa6c8f61b36b9bd7e5c81466a255e1823b32",
+    "provenanceKind": "reproducible-source",
+    "describe": "6e729e4",
+    "dirty": false,
+    "executableSha256": "28bca2f1196426eec6f4afaefa5a2f5b67cbafd3b354078e889c9d262ee87366",
+    "executableSize": 17882376
+  },
+  "expectedMigrationFields": [
+    "local/durable.agent.systemPrompt (regenerated from preserved identity documents)",
+    "local/durable.agents[].personaId (missing/composed default for this fixture)"
+  ],
+  "syntheticKeyPresentAcrossInstallAndRestart": true,
+  "projectionSha256": "25e7ce24f7d5ac635c2a760f2993c1f88daaede56c7f947cf512a2f01d600fe3",
+  "installedExeSha256": "28bca2f1196426eec6f4afaefa5a2f5b67cbafd3b354078e889c9d262ee87366",
+  "rawReceipt": {
+    "artifact": "candidate-shell-lifecycle/public-upgrade-continuity.json",
+    "sha256": "a07be332ef11cabd12b7d5886bc51c43270eae4b28fdab41f28be9a65f281fcc"
+  },
+  "saveDrains": [
+    {
+      "drains": [
+        {
+          "ok": false,
+          "hadPending": true,
+          "flushed": false
+        },
+        {
+          "ok": true,
+          "hadPending": true,
+          "flushed": true
+        }
+      ],
+      "health": {
+        "lastPushOkAt": 1789108075927,
+        "lastPushFailAt": 0,
+        "consecutiveFailures": 0,
+        "nextRetryAt": 0,
+        "warn": false,
+        "stale": false,
+        "degraded": false
+      }
+    },
+    {
+      "drains": [
+        {
+          "ok": false,
+          "hadPending": true,
+          "flushed": false
+        },
+        {
+          "ok": true,
+          "hadPending": true,
+          "flushed": true
+        }
+      ],
+      "health": {
+        "lastPushOkAt": 1789108101771,
+        "lastPushFailAt": 0,
+        "consecutiveFailures": 0,
+        "nextRetryAt": 0,
+        "warn": false,
+        "stale": false,
+        "conflict": null,
+        "degraded": false
+      }
+    },
+    {
+      "drains": [
+        {
+          "ok": false,
+          "hadPending": true,
+          "flushed": false
+        },
+        {
+          "ok": true,
+          "hadPending": true,
+          "flushed": true
+        }
+      ],
+      "health": {
+        "lastPushOkAt": 1789108107803,
+        "lastPushFailAt": 0,
+        "consecutiveFailures": 0,
+        "nextRetryAt": 0,
+        "warn": false,
+        "stale": false,
+        "conflict": null,
+        "degraded": false
+      }
+    }
+  ]
+}
