@@ -1,0 +1,9 @@
+{
+  "sha256": "8b39dab2818acac23097056c8796d1f48668b9a711f09c134f7d56b51e58f416",
+  "authenticode": "Valid",
+  "head": "69baf91a5b2c22230f87e614da6a72882278bc6c",
+  "buildRun": "34629097326",
+  "signer": "CN=Andrew Sims, O=Andrew Sims, L=Boca Raton, S=fl, C=US",
+  "installer": "C:\\Users\\andro\\gen-trees\\release-0112-finalprep-0911\\.dogfood\\release-0112-pointer\\artifacts\\starnet-win-x64\\release\\bundle\\nsis\\StarNet_0.11.2_x64-setup.exe",
+  "bytes": 130093488
+}

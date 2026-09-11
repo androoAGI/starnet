@@ -1,0 +1,10 @@
+{
+  "stampIso": "2026-09-11T18:00:57.066Z",
+  "trunkHead": "69baf91a5b2c22230f87e614da6a72882278bc6c",
+  "fullSuite": true,
+  "result": "pass",
+  "exitCode": 0,
+  "passed": 139,
+  "total": 139,
+  "softFails": 0
+}

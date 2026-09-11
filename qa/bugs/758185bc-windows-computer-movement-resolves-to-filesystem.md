@@ -12,7 +12,10 @@ origin: customer
 report: Customer report relayed by owner on 2026-09-11; actual customer tool transcript unavailable
 affected: Customer build unknown; reproduced on Windows source bb9f0719d
 family: computer-movement
-installer: unverified
+installer: verified
+installerVersion: 0.11.2
+installerSha256: 8b39dab2818acac23097056c8796d1f48668b9a711f09c134f7d56b51e58f416
+installerEvidence: Signed candidate 69baf91a5 installed over the personal 0.11.2; exact bundled driver physically moved, clicked, double-clicked and dragged inside an owned Windows test window with 10 native checks passing. Installed WebView smoke 9/9 and 534 preservation checks after installation and restart pass. See docs/releases/0.11.2/POINTER_CUT.md.
 recovery: unconfirmed
 ---
 
@@ -32,7 +35,7 @@ Before the rename, the new regression exits 1 with `Cannot find path '...\\starn
 
 ## Verdict
 
-Source-fixed by dd85573b9. This is not evidence that the reporter had computer capabilities or actually invoked this driver. Image handling, keyboard syntax and focus policy are separate and unchanged. Installed artifact and customer recovery remain unverified.
+Source-fixed by dd85573b9 and installer-verified on signed 0.11.2 candidate 69baf91a5. This is not evidence that the reporter had computer capabilities or actually invoked this driver. Image handling, keyboard syntax and focus policy are separate and unchanged. Customer recovery remains unconfirmed.
 
 ## Regression
 
@@ -45,6 +48,6 @@ Live source proof on 2026-09-11: isolated `node dev/seed.js --keep` station, sep
 {
   "adapters": [{"target":"Windows native driver","state":"covered","test":"test/win32desktop.test.js","scenario":"real PowerShell routes move/click/double_click/drag to native coordinate stubs, with negative coordinate coverage","gate":"fast"},{"target":"non-Windows driver selection","state":"covered","test":"test/win32desktop.test.js","scenario":"Linux selection returns no Windows driver","gate":"fast"}],
   "entrypoints": [{"target":"computer.use permission and dispatch boundary","state":"covered","test":"test/computer.test.js","scenario":"authorized injected-driver calls dispatch; unauthorized physical input is refused","gate":"fast"},{"target":"customer installed call and capability configuration","state":"blocked","reason":"Customer tool transcript, build identity and actual grants were not supplied; no causal attribution to her session is claimed."}],
-  "displays": [{"target":"installed Windows desktop","state":"blocked","reason":"No rebuilt installer or customer retest is available; source proof cannot establish installer recovery."}],
+  "displays": [{"target":"customer Windows desktop configuration","state":"blocked","reason":"The exact installed driver passed native pointer/event checks on the owner's Windows desktop; the affected customer's build, grants and successful retest remain unavailable."}],
   "lifecycle": [{"target":"fresh PowerShell process per action","state":"covered","test":"test/win32desktop.test.js","scenario":"each movement action launches a fresh Windows PowerShell process retaining default aliases","gate":"fast"}]
 }

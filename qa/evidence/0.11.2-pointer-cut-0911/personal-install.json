@@ -1,0 +1,11 @@
+{
+  "executableSha256": "b34852944e6853b2439eca5bde47b90669a1b786c71e48e6d5dece4f69baf4fc",
+  "source": "69baf91a5b2c22230f87e614da6a72882278bc6c",
+  "preservationBaseline": "closed pre-upgrade backup",
+  "backup": "C:\\Users\\andro\\AppData\\Local\\StarNet-release-backups\\0.11.2-pointer-20260911-141109",
+  "at": "2026-09-11T18:13:25.4320304Z",
+  "installerExit": 0,
+  "version": "0.11.2",
+  "installerSha256": "8b39dab2818acac23097056c8796d1f48668b9a711f09c134f7d56b51e58f416",
+  "hostedRun": "34631356870"
+}

@@ -1,0 +1,86 @@
+{
+  "ready": false,
+  "reasons": [
+    "1. Ledger open P0/P1: 2 open blocking findings (0 P0 · 2 P1) — the ledger must be clear of P0/P1",
+    "2. Bug register open P0/P1: 8 open blocking bugs (0 P0 · 8 P1) — qa/bugs must be clear of P0/P1"
+  ],
+  "failing": [
+    "ledger",
+    "bugs"
+  ],
+  "checks": [
+    {
+      "id": "ledger",
+      "label": "Ledger open P0/P1",
+      "ok": false,
+      "reason": "2 open blocking findings (0 P0 · 2 P1) — the ledger must be clear of P0/P1",
+      "receipt": {
+        "artifact": "qa/findings/ (via ledger.mjs)",
+        "stamp": "",
+        "value": "0 P0 · 2 P1 · 607 P2"
+      }
+    },
+    {
+      "id": "bugs",
+      "label": "Bug register open P0/P1",
+      "ok": false,
+      "reason": "8 open blocking bugs (0 P0 · 8 P1) — qa/bugs must be clear of P0/P1",
+      "receipt": {
+        "artifact": "qa/bugs/ (via bugs.mjs)",
+        "stamp": "",
+        "value": "0 P0 · 8 P1 · 0 P2"
+      }
+    },
+    {
+      "id": "guardian",
+      "label": "Green Guardian last cycle",
+      "ok": true,
+      "reason": "GREEN, 17m old, on current trunk (69baf91a)",
+      "receipt": {
+        "artifact": "qa/guardian-last-cycle.json",
+        "stamp": "2026-09-11T18:00:57.180Z",
+        "value": "GREEN · ran[test-fast,http-e2e,saboteur,shoot,golden,audit,journeys] · @69baf91a"
+      }
+    },
+    {
+      "id": "journeys",
+      "label": "Journey corps last run",
+      "ok": true,
+      "reason": "PASS, 17m old",
+      "receipt": {
+        "artifact": "qa/journeys-last-run.json",
+        "stamp": "2026-09-11T18:00:57.066Z",
+        "value": "PASS · 139/139 assertions"
+      }
+    },
+    {
+      "id": "beginner",
+      "label": "Beginner Run last result",
+      "ok": true,
+      "reason": "PASS, 34m old",
+      "receipt": {
+        "artifact": "qa/beginner-last-run.json",
+        "stamp": "2026-09-11T17:43:56.466Z",
+        "value": "PASS · ui-only · 100252ms"
+      }
+    },
+    {
+      "id": "installed",
+      "label": "Installed-exe smoke",
+      "ok": true,
+      "reason": "GREEN, 75s old",
+      "receipt": {
+        "artifact": "[object Object]",
+        "stamp": "2026-09-11T18:16:29.945Z",
+        "value": "GREEN · v0.11.2 · @69baf91a · reproducible-source · desktop"
+      }
+    }
+  ],
+  "generatedAt": "2026-09-11T18:17:45.017Z",
+  "trunk": {
+    "branch": "feat/harness-backend",
+    "head": "69baf91a5b2c22230f87e614da6a72882278bc6c",
+    "guardianDrift": 0,
+    "driftError": null
+  }
+}

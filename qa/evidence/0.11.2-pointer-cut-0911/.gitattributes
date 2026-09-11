@@ -1,0 +1,2 @@
+# Preserve original receipt bytes and manifest hashes.
+*.json -text whitespace=cr-at-eol

@@ -1,0 +1,50 @@
+{
+  "at": "2026-09-11T18:16:17.740Z",
+  "candidate": "69baf91a5b2c22230f87e614da6a72882278bc6c",
+  "scope": "Installed native driver controls an owned physical WinForms test window; no model or customer account involved",
+  "driverSha256": "49ad8fbf992eec072dd3078c577ae1792cca8bf0783b1d542e0d4a8f3e5daea0",
+  "executableSha256": "b34852944e6853b2439eca5bde47b90669a1b786c71e48e6d5dece4f69baf4fc",
+  "checks": [
+    {
+      "name": "target belongs to the owned test process",
+      "ok": true
+    },
+    {
+      "name": "input point belongs to the test window",
+      "ok": true
+    },
+    {
+      "name": "native cursor reaches requested point",
+      "ok": true
+    },
+    {
+      "name": "input point belongs to the test window",
+      "ok": true
+    },
+    {
+      "name": "native click delivered down and up",
+      "ok": true
+    },
+    {
+      "name": "input point belongs to the test window",
+      "ok": true
+    },
+    {
+      "name": "native double-click delivered both clicks and double-click event",
+      "ok": true
+    },
+    {
+      "name": "input point belongs to the test window",
+      "ok": true
+    },
+    {
+      "name": "drag endpoint belongs to owned target",
+      "ok": true
+    },
+    {
+      "name": "drag delivered correct native down/up coordinates",
+      "ok": true
+    }
+  ],
+  "result": "PASS"
+}

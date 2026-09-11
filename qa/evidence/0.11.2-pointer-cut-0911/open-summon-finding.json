@@ -1,0 +1,14 @@
+{
+  "id": "4692c89f-1789136215296",
+  "fingerprint": "4692c89f",
+  "ts": 1789136215296,
+  "crew": "Green Guardian",
+  "severity": "P1",
+  "title": "Truth regression: audit assertion `summon/awareness-gaze-only` failed (summon)",
+  "detail": "trunk bb9f0719 — STRATEGIST 14 → 8,8. The UI showed something the harness did not do (app-lies pattern).",
+  "evidence": [
+    "C:\\Users\\andro\\Desktop\\gen\\.bugloops\\guardian-20260911-140002\\audit.log"
+  ],
+  "status": "open",
+  "routedTo": ""
+}

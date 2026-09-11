@@ -1,0 +1,156 @@
+{
+  "schema": "starnet.pointer-release-evidence.v1",
+  "at": "2026-09-11T18:22:00.349Z",
+  "candidate": "69baf91a5b2c22230f87e614da6a72882278bc6c",
+  "sourceTree": "930d6dc2c4f556f9f22ded59f0f9cbfcc72d3fe5",
+  "includedMerge": "33c925797e1a63e943272c05486902d366623aac",
+  "version": "0.11.2",
+  "publicRelease": false,
+  "personalInstalled": true,
+  "artifacts": [
+    {
+      "path": "guardian.json",
+      "originalPath": "qa/guardian-last-cycle.json",
+      "sha256": "15cef6b77391dcbb32c39c418a830a012ae521efa444adbe59c23975167666c8",
+      "bytes": 1024
+    },
+    {
+      "path": "journeys.json",
+      "originalPath": "qa/journeys-last-run.json",
+      "sha256": "2d94d7e96237a3a52c584230a382e6ef05501722efe3992216e9cabb239194ea",
+      "bytes": 213
+    },
+    {
+      "path": "beginner.json",
+      "originalPath": "qa/beginner-last-run.json",
+      "sha256": "4cf14d2b7c30c69812aad2872ba2353748e613ed55ae04ff919812323be2fd05",
+      "bytes": 189
+    },
+    {
+      "path": "personal-smoke.json",
+      "originalPath": "qa/installed/last-smoke.json",
+      "sha256": "b2de2522f132520523960ba33d045a37856f9dbce508c14fc993dffb58dfd8d0",
+      "bytes": 1276
+    },
+    {
+      "path": "ready-final.json",
+      "originalPath": ".dogfood/release-0112-pointer/ready-final.json",
+      "sha256": "5a6386dbfdc54db4099af7d72b7bd4b75671e031b43d8b5eccd1336581e0f77b",
+      "bytes": 2473
+    },
+    {
+      "path": "installer-identity.json",
+      "originalPath": ".dogfood/release-0112-pointer/installer-identity.json",
+      "sha256": "10412ec724cf40dfb132fa40755265d20619ab75907075ea216753ec03c56272",
+      "bytes": 483
+    },
+    {
+      "path": "build-run.json",
+      "originalPath": ".dogfood/release-0112-pointer/build-run.json",
+      "sha256": "5ace031bd5e67c7c66b7ced512792815d3f55ef1e643220d762ee1a36b638512",
+      "bytes": 148
+    },
+    {
+      "path": "hosted-run.json",
+      "originalPath": ".dogfood/release-0112-pointer/hosted-run.json",
+      "sha256": "ca506d807b5930d5179afa38f31c9aef938692814730e42c7f1bcfbeba193aea",
+      "bytes": 148
+    },
+    {
+      "path": "post-merge-fast.json",
+      "originalPath": ".dogfood/release-0112-pointer/post-merge-fast.json",
+      "sha256": "873ca41d9bf9f5d86e306663335c7d506ebc62d0d120198b99d73bc43eaa5bc5",
+      "bytes": 169
+    },
+    {
+      "path": "security.json",
+      "originalPath": ".dogfood/release-0112-pointer/security.json",
+      "sha256": "28c75dcdce53588a96039f0c6cdf76e064681dc267e9915ac33e28124454d773",
+      "bytes": 169
+    },
+    {
+      "path": "personal-install.json",
+      "originalPath": ".dogfood/release-0112-pointer/personal-install.json",
+      "sha256": "0e1de145eaeef58ce47692ee0e71d50a879e154f9323a53313bcc6923a474c95",
+      "bytes": 524
+    },
+    {
+      "path": "personal-backup.json",
+      "originalPath": ".dogfood/release-0112-pointer/personal-backup.json",
+      "sha256": "49cb497399e177f136742de505c1b187dc733277d38b930ae88e3d24ea119b56",
+      "bytes": 281
+    },
+    {
+      "path": "personal-ui-after-comparison.json",
+      "originalPath": ".dogfood/release-0112-pointer/personal-ui-after-comparison.json",
+      "sha256": "cf914493b923e6eb79b3eecdc6a735c98c4ab2bb0fdbee016e6e306b9c678dcd",
+      "bytes": 313
+    },
+    {
+      "path": "personal-ui-restarted-comparison.json",
+      "originalPath": ".dogfood/release-0112-pointer/personal-ui-restarted-comparison.json",
+      "sha256": "1713ce68f36f778988601742e86faccf71cbf63623e6763a009dfda0e3bc688a",
+      "bytes": 317
+    },
+    {
+      "path": "personal-final-api.json",
+      "originalPath": ".dogfood/release-0112-pointer/personal-final-api.json",
+      "sha256": "3336859e8e924557db593bf239ee0220460ffa4456846318c4495f819e5f57e3",
+      "bytes": 834
+    },
+    {
+      "path": "installed-pointer-proof.json",
+      "originalPath": ".dogfood/release-0112-pointer/installed-pointer-proof.json",
+      "sha256": "c9c2467c6a7757f099b303981066c7fb2b757975dbc480524dd73c29fa7b5bfa",
+      "bytes": 1329
+    },
+    {
+      "path": "latest.json",
+      "originalPath": ".dogfood/release-0112-pointer/latest.json",
+      "sha256": "949015741887d94ace5492459926d12ecc2b7c84a26d0dcef7f06bd178f74185",
+      "bytes": 5244
+    },
+    {
+      "path": "open-floor-finding.json",
+      "originalPath": "C:/Users/andro/Desktop/gen/qa/findings/0b802140-1789136215296.json",
+      "sha256": "3770ac9bd22297d8a0d313d688a40602de19d80b4ad60f02c2a74dab16d173f2",
+      "bytes": 499
+    },
+    {
+      "path": "open-summon-finding.json",
+      "originalPath": "C:/Users/andro/Desktop/gen/qa/findings/4692c89f-1789136215296.json",
+      "sha256": "06c2da81c196a5d6feb13ea7aec40be5b3b309c5f7efd0924aa62ec2b4ae121e",
+      "bytes": 498
+    },
+    {
+      "path": "hosted-clean-install.json",
+      "originalPath": ".dogfood/release-0112-pointer/hosted-proof/clean-install-proof-v0.11.2/clean-install-proof.json",
+      "sha256": "259a1487f7acc708b01aef524b7faeee742173ae633b50cece228c9292edaf92",
+      "bytes": 1509
+    },
+    {
+      "path": "hosted-public-upgrade.json",
+      "originalPath": ".dogfood/release-0112-pointer/hosted-proof/candidate-shell-lifecycle/public-upgrade-continuity.json",
+      "sha256": "e432a1b5ecd842bb17e3f487e0bd8329045ee26460bd1377656226d5cb168f85",
+      "bytes": 101325
+    },
+    {
+      "path": "hosted-lifecycle.json",
+      "originalPath": ".dogfood/release-0112-pointer/hosted-proof/candidate-shell-lifecycle/candidate-lifecycle.json",
+      "sha256": "bec142da07e635b9aa6052bf9f5577a37e0043cb26f49aedffc42f59a908dbcf",
+      "bytes": 4125
+    },
+    {
+      "path": "hosted-smoke.json",
+      "originalPath": ".dogfood/release-0112-pointer/hosted-proof/candidate-shell-lifecycle/installed-smoke/last-smoke.json",
+      "sha256": "fb5f62f03f30aa498ec141d9d4cb3250c1ce4245ea28d8cf086495f2b5bb1ba9",
+      "bytes": 1282
+    },
+    {
+      "path": "personal-smoke-probe.json",
+      "originalPath": "qa/installed/smoke-2026-09-11T18-16-29-945Z/probe.json",
+      "sha256": "dc1a56b1243047246aa9ee4f1b0a8456bb0f5cefc79badc12a48a1b6b6da10cc",
+      "bytes": 2164
+    }
+  ]
+}

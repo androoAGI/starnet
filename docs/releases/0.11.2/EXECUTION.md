@@ -1,5 +1,7 @@
 # 0.11.2 signed candidate and personal installation — September 11, 2026
 
+This receipt describes the earlier bb9 candidate. The subsequent inclusion of `33c925797`, signed replacement and refreshed readiness state are recorded in [POINTER_CUT.md](POINTER_CUT.md).
+
 The signed 0.11.2 candidate is installed and running in the owner's existing personal Windows StarNet. The final machine readiness receipt is **NOT READY solely for eight unresolved customer P1 reports**. All other readiness categories pass. No public tag, draft, release or updater-feed change has been made. The owner waived ordinary source/installed soak durations; that waiver does not resolve or waive the customer reports.
 
 ## Frozen identity
