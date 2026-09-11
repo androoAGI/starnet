@@ -82,7 +82,8 @@
 .settings-console .perm-fold[open] { padding-bottom: 14px; }
 .settings-console #perm-exec-policy { padding: 0 14px; }
 .settings-console .set-slider { display: grid; grid-template-columns: 100px minmax(0,1fr) 48px; align-items: center; gap: 12px; margin: 16px 0; }
-.settings-console .set-slider-name, .settings-console .set-slider-val { font-size: 13px; }
+.settings-console .set-slider-name, .settings-console .set-slider-val { width: auto; min-width: 0; font-size: 13px; }
+.settings-console .set-slider input[type="range"] { width: 100%; min-width: 0; }
 .settings-console .set-backdrops { display: grid; grid-template-columns: repeat(auto-fill,minmax(125px,1fr)); gap: 10px; }
 .settings-console .set-bd { width: auto; padding: 8px; border-radius: 9px; border-color: rgba(var(--ph-rgb), .2); background: rgba(0,0,0,.12); box-shadow: none; }
 .settings-console .set-bd-cv { width: 100%; height: auto; border-radius: 5px; }

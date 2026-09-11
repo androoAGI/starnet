@@ -95,7 +95,7 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
   // every save that predates this key merges to the exact look it already had.
   // panelBright (0–100, default 0) is the tube's BRIGHTNESS knob: it lifts the panel glass's black
   // level toward the phosphor colour (never toward white). 0 = the shipped look, untouched.
-  function defaults() { return { theme: 'amber', themeHue: 35, themeSat: 100, themeGlow: 100, panelBright: 0, roomLighting: 'low', textScale: 0, flicker: true, crtGlass: 'full', sound: true, backdrop: 'void', sessionRow: 'compact', keepComputerAwake: false, notifyPrefs: notifyDefaults() }; }
+  function defaults() { return { theme: 'amber', themeHue: 35, themeSat: 100, themeGlow: 100, panelBright: 0, roomLighting: 'low', textScale: 0, flicker: true, crtGlass: 'full', staticLevel: 100, sound: true, backdrop: 'void', sessionRow: 'compact', keepComputerAwake: false, notifyPrefs: notifyDefaults() }; }
   // Raise overall room exposure without changing the distribution of its lights.
   // Existing saves retain their chosen level; missing values start at LOW.
   const ROOM_LIGHTING_STEPS = [
@@ -296,6 +296,8 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
     // flatten the feed for star-pixel checks) and is never written from settings — a toggle() here
     // would remove it out from under a verification run.
     document.body.classList.toggle('crt-dull', resolveGlass(s.crtGlass) === 'dulled');
+    // Scale the active renderer's grain without replacing its tuned CRT preset.
+    if (typeof World !== 'undefined' && World.crt) World.crt.staticLevel = clampN(s.staticLevel, 0, 200, 100) / 100;
     // SESSION ROWS — one body class; app.css re-lays the SAME .ws-row markup as a three-line card.
     // The rail is not re-rendered here: the extra lines are always in the DOM, so flipping this is a
     // pure repaint and cannot disturb rail focus, scroll position, or an in-place rename.
@@ -5675,6 +5677,7 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
         backdrop: store.settings.backdrop, textScale: store.settings.textScale,
         sessionRow: store.settings.sessionRow,
         flicker: store.settings.flicker, crtGlass: store.settings.crtGlass,
+        staticLevel: store.settings.staticLevel,
         sound: store.settings.sound, keepComputerAwake: store.settings.keepComputerAwake
       }, notifyPrefs: Object.assign({}, store.settings.notifyPrefs || notifyDefaults()) };
       try { if (typeof AutonomyStore !== 'undefined' && AutonomyStore.exportState) out.autonomy = AutonomyStore.exportState(); } catch (_) {}
@@ -6065,6 +6068,8 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
         return '<button class="set-theme ' + (cur === v ? 'sel' : '') + '" aria-pressed="' + (cur === v ? 'true' : 'false') + '" data-glass="' + v + '" title="' + why + '">' + name + '</button>';
       }).join('') +
       '</div>' +
+      '<label class="set-slider"><span class="set-slider-name">STATIC LEVEL</span><input type="range" id="set-static" min="0" max="200" step="5" aria-describedby="set-static-help" value="' + clampN(s.staticLevel, 0, 200, 100) + '"><span class="set-slider-val" id="set-static-val">' + clampN(s.staticLevel, 0, 200, 100) + '%</span></label>' +
+      '<p class="mc-hint" id="set-static-help">Film grain over the station view. 0% removes static; 100% is the default. Changes preview and save immediately.</p>' +
       '<label class="set-row"><input type="checkbox" id="set-flicker" ' + (s.flicker ? 'checked' : '') + '> SCREEN FLICKER</label>' +
       // TERMINAL AUDIO is a sound control, not a display one — its own header (it also gates notification chimes).
       '<h4 class="ms-h">SOUND</h4>' +
@@ -6320,6 +6325,7 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
     wireSlider(satIn, v => { s.theme = 'custom'; s.themeSat = clampN(v, 0, 100, 100); sliderVal('#set-sat-val', s.themeSat + '%'); selCustom(); syncCustomChip(); });
     wireSlider(glowIn, v => { s.themeGlow = clampN(v, 0, 150, 100); sliderVal('#set-glow-val', s.themeGlow + '%'); });
     wireSlider(brightIn, v => { s.panelBright = clampN(v, 0, 100, 0); sliderVal('#set-bright-val', s.panelBright + '%'); });
+    wireSlider(host.querySelector('#set-static'), v => { s.staticLevel = clampN(v, 0, 200, 100); sliderVal('#set-static-val', s.staticLevel + '%'); });
     const bind = (id, key) => host.querySelector(id).addEventListener('change', ev => { s[key] = ev.target.checked; applySettings(); save(); flashSaved(appMsg()); });
     bind('#set-flicker', 'flicker'); bind('#set-sound', 'sound');
     const lightingChips = host.querySelectorAll('#set-lighting [data-lighting]');
