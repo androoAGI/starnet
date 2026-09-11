@@ -30,7 +30,8 @@ public static class StarNetNative {
 '@
 function Emit($value) { [Console]::Out.Write(($value | ConvertTo-Json -Compress -Depth 4)) }
 function Mouse($flag, $data) { [StarNetNative]::mouse_event([uint32]$flag, 0, 0, [uint32]$data, [UIntPtr]::Zero) }
-function Move($x, $y) { if (-not [StarNetNative]::SetCursorPos([int]$x, [int]$y)) { throw 'SetCursorPos failed' } }
+# Avoid Move: PowerShell resolves its built-in Move-Item alias before a same-named function.
+function Set-StarNetCursorPosition($x, $y) { if (-not [StarNetNative]::SetCursorPos([int]$x, [int]$y)) { throw 'SetCursorPos failed' } }
 function UnicodeText([string]$text) {
   foreach ($ch in $text.ToCharArray()) {
     $down = New-Object StarNetNative+INPUT; $down.type = 1; $down.U.ki.wScan = [uint16][char]$ch; $down.U.ki.dwFlags = 0x0004
@@ -71,9 +72,9 @@ try {
     Emit @{ width = $vs.Width; height = $vs.Height; data = [Convert]::ToBase64String($ms.ToArray()) }; $ms.Dispose()
   } elseif ($request.kind -eq 'perform') {
     $a = $request.action; $kind = [string]$a.action
-    if ($kind -eq 'move') { Move $a.x $a.y }
-    elseif ($kind -eq 'click' -or $kind -eq 'double_click') { Move $a.x $a.y; $count = if ($kind -eq 'double_click') { 2 } else { 1 }; for ($i = 0; $i -lt $count; $i++) { Mouse 0x0002 0; Mouse 0x0004 0 } }
-    elseif ($kind -eq 'drag') { Move $a.x $a.y; Mouse 0x0002 0; Start-Sleep -Milliseconds 30; Move ([int]$a.x + [int]$a.dx) ([int]$a.y + [int]$a.dy); Mouse 0x0004 0 }
+    if ($kind -eq 'move') { Set-StarNetCursorPosition $a.x $a.y }
+    elseif ($kind -eq 'click' -or $kind -eq 'double_click') { Set-StarNetCursorPosition $a.x $a.y; $count = if ($kind -eq 'double_click') { 2 } else { 1 }; for ($i = 0; $i -lt $count; $i++) { Mouse 0x0002 0; Mouse 0x0004 0 } }
+    elseif ($kind -eq 'drag') { Set-StarNetCursorPosition $a.x $a.y; Mouse 0x0002 0; Start-Sleep -Milliseconds 30; Set-StarNetCursorPosition ([int]$a.x + [int]$a.dx) ([int]$a.y + [int]$a.dy); Mouse 0x0004 0 }
     elseif ($kind -eq 'scroll') { if ($a.dy) { Mouse 0x0800 ([int]$a.dy) }; if ($a.dx) { Mouse 0x1000 ([int]$a.dx) } }
     elseif ($kind -eq 'type') { UnicodeText ([string]$a.text) }
     elseif ($kind -eq 'key') { SendKey ([string]$a.key) }
