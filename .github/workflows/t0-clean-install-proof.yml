@@ -242,6 +242,18 @@ jobs:
           node scripts/qa/public-upgrade-continuity.mjs
           if ($LASTEXITCODE -ne 0) { throw 'Historical public-to-candidate continuity failed' }
 
+      - name: Installed provider fallback and delegated connectors
+        if: inputs.build_run_id != '' && inputs.baseline_tag != ''
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $installedNode = Join-Path (Split-Path $env:EXE) 'node.exe'
+          New-Item -ItemType Directory -Force candidate-evidence | Out-Null
+          foreach ($suite in @('saved-provider-fallback.e2e.test.js', 'delegated-connectors.e2e.test.js')) {
+            & $installedNode scripts/qa/installed-customer-regressions.cjs $suite 2>&1 | Tee-Object -FilePath "candidate-evidence/$suite.log"
+            if ($LASTEXITCODE -ne 0) { throw "Installed scenario failed: $suite" }
+          }
+
       - name: Collect public upgrade evidence
         if: always() && inputs.build_run_id != '' && inputs.baseline_tag != ''
         shell: pwsh

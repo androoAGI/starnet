@@ -33,4 +33,4 @@ Compare the acknowledged document with the browser cache excluding only transpor
 
 ## Regression
 
-`node test/cloudsave-concurrency.test.js` covers two clients, conflict export, update refusal, offline restart, queued cache acknowledgements and protection of newer unsubmitted content. The website's bundled CloudSave copy matches the frontend. Fresh signed-installer restart verification is pending; the previous failed receipt is retained.
+`test/cloudsave-concurrency.test.js` covers two clients, conflict export, update refusal, offline restart, queued cache acknowledgements and protection of newer unsubmitted content. The website's bundled CloudSave copy matches the frontend. The dev-seeded browser check passed matching revisions 12/12 after queued writes and 14/14 after reload, with a successful update drain and no conflict or browser exception. Fresh signed-installer restart verification is pending; the previous failed receipt is retained.
