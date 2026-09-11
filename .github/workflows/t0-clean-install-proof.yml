@@ -26,6 +26,10 @@ on:
         description: "Optional prepared updater manifest for the private candidate; includes updater-smoke when supplied"
         required: false
         default: ""
+      baseline_tag:
+        description: "Optional historical public release to populate, then reinstall the private candidate over (e.g. v0.11.1)"
+        required: false
+        default: ""
 
 jobs:
   prove:
@@ -216,6 +220,34 @@ jobs:
           if (Test-Path candidate-latest.json) { Copy-Item -LiteralPath candidate-latest.json -Destination candidate-evidence/ }
           $log = Join-Path $env:APPDATA 'ai.skynet.harness/startup.log'
           if (Test-Path -LiteralPath $log) { Copy-Item -LiteralPath $log -Destination candidate-evidence/startup.log }
+
+      - name: Historical public installer to candidate continuity
+        if: inputs.build_run_id != '' && inputs.baseline_tag != ''
+        shell: pwsh
+        env:
+          BASELINE_TAG: ${{ inputs.baseline_tag }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          if ($env:BASELINE_TAG -notmatch '^v\d+\.\d+\.\d+$') { throw 'Invalid baseline tag' }
+          $release = gh release view $env:BASELINE_TAG --repo $env:REPO --json isDraft,isPrerelease | ConvertFrom-Json
+          if ($LASTEXITCODE -ne 0 -or $release.isDraft -or $release.isPrerelease) { throw 'Baseline must be a published stable release' }
+          $baselineDir = Join-Path $env:RUNNER_TEMP 'starnet-public-baseline'
+          gh release download $env:BASELINE_TAG --repo $env:REPO --pattern '*-setup.exe' --dir $baselineDir
+          if ($LASTEXITCODE -ne 0) { throw 'Public baseline download failed' }
+          $files = @(Get-ChildItem -LiteralPath $baselineDir -Filter '*-setup.exe')
+          if ($files.Count -ne 1) { throw 'Expected one historical installer' }
+          if ((Get-AuthenticodeSignature $files[0].FullName).Status -ne 'Valid') { throw 'Historical installer signature invalid' }
+          $env:BASELINE_INSTALLER = $files[0].FullName
+          $env:BASELINE_VERSION = $env:BASELINE_TAG.Substring(1)
+          node scripts/qa/public-upgrade-continuity.mjs
+          if ($LASTEXITCODE -ne 0) { throw 'Historical public-to-candidate continuity failed' }
+
+      - name: Collect public upgrade evidence
+        if: always() && inputs.build_run_id != '' && inputs.baseline_tag != ''
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force candidate-evidence | Out-Null
+          if (Test-Path public-upgrade-continuity.json) { Copy-Item -LiteralPath public-upgrade-continuity.json -Destination candidate-evidence/ }
 
       - uses: actions/upload-artifact@v4
         if: always() && inputs.build_run_id != ''
