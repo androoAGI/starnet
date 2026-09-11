@@ -1,0 +1,3 @@
+# Preserve original receipt bytes and their manifest hashes across platforms.
+*.json -text whitespace=cr-at-eol
+*.log -text whitespace=cr-at-eol

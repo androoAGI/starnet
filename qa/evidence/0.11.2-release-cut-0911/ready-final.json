@@ -1,0 +1,84 @@
+{
+  "ready": false,
+  "reasons": [
+    "1. Bug register open P0/P1: 8 open blocking bugs (0 P0 · 8 P1) — qa/bugs must be clear of P0/P1"
+  ],
+  "failing": [
+    "bugs"
+  ],
+  "checks": [
+    {
+      "id": "ledger",
+      "label": "Ledger open P0/P1",
+      "ok": true,
+      "reason": "no open P0/P1 findings",
+      "receipt": {
+        "artifact": "qa/findings/ (via ledger.mjs)",
+        "stamp": "",
+        "value": "0 P0 · 0 P1 · 607 P2"
+      }
+    },
+    {
+      "id": "bugs",
+      "label": "Bug register open P0/P1",
+      "ok": false,
+      "reason": "8 open blocking bugs (0 P0 · 8 P1) — qa/bugs must be clear of P0/P1",
+      "receipt": {
+        "artifact": "qa/bugs/ (via bugs.mjs)",
+        "stamp": "",
+        "value": "0 P0 · 8 P1 · 0 P2"
+      }
+    },
+    {
+      "id": "guardian",
+      "label": "Green Guardian last cycle",
+      "ok": true,
+      "reason": "GREEN, 13m old, on current trunk (bb9f0719)",
+      "receipt": {
+        "artifact": "qa/guardian-last-cycle.json",
+        "stamp": "2026-09-11T08:37:22.308Z",
+        "value": "GREEN · ran[test-fast,http-e2e,saboteur,shoot,golden,audit,journeys] · @bb9f0719"
+      }
+    },
+    {
+      "id": "journeys",
+      "label": "Journey corps last run",
+      "ok": true,
+      "reason": "PASS, 13m old",
+      "receipt": {
+        "artifact": "qa/journeys-last-run.json",
+        "stamp": "2026-09-11T08:37:22.180Z",
+        "value": "PASS · 139/139 assertions"
+      }
+    },
+    {
+      "id": "beginner",
+      "label": "Beginner Run last result",
+      "ok": true,
+      "reason": "PASS, 48m old",
+      "receipt": {
+        "artifact": "qa/beginner-last-run.json",
+        "stamp": "2026-09-11T08:02:50.568Z",
+        "value": "PASS · ui-only · 96615ms"
+      }
+    },
+    {
+      "id": "installed",
+      "label": "Installed-exe smoke",
+      "ok": true,
+      "reason": "GREEN, 8m old",
+      "receipt": {
+        "artifact": "[object Object]",
+        "stamp": "2026-09-11T08:42:25.246Z",
+        "value": "GREEN · v0.11.2 · @bb9f0719 · reproducible-source · desktop"
+      }
+    }
+  ],
+  "generatedAt": "2026-09-11T08:50:41.887Z",
+  "trunk": {
+    "branch": "feat/harness-backend",
+    "head": "bb9f0719d9d632575670bc94228cfd72bb06f0ce",
+    "guardianDrift": 0,
+    "driftError": null
+  }
+}

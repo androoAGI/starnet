@@ -1,0 +1,9 @@
+{
+  "signer": "CN=Andrew Sims, O=Andrew Sims, L=Boca Raton, S=fl, C=US",
+  "authenticode": "Valid",
+  "head": "bb9f0719d9d632575670bc94228cfd72bb06f0ce",
+  "installer": "C:\\Users\\andro\\gen-trees\\release-0112-finalprep-0911\\.dogfood\\release-0112-cut\\artifacts\\starnet-win-x64\\release\\bundle\\nsis\\StarNet_0.11.2_x64-setup.exe",
+  "buildRun": "34577084632",
+  "bytes": 129883888,
+  "sha256": "71864ab55548c712ebaa0dabedd01db3b9ae937abfb39043f44891f5ffa53f0d"
+}

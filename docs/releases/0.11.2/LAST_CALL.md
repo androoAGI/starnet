@@ -1,5 +1,7 @@
 # 0.11.2 last call — September 11, 2026
 
+Historical source-preparation receipt. The subsequent signed 0.11.2 cut, additional paused-routine repair, personal installation and final readiness verdict are recorded in [EXECUTION.md](EXECUTION.md).
+
 Merge `c9b6a67f84d6f3a37e83d6043189000c75271843` is included in the candidate and the release notes. It adds persistent CRT static strength without changing the existing 100% appearance. The candidate also contains the provider-fallback, delegated-MCP and queued-save restart repairs from the preceding closeout.
 
 No new application defect was reproduced in this pass. The release remains **NOT READY**; eight earlier customer P1 reports remain unresolved, and the final release freeze still needs its canonical installed-artifact acceptance. The ordinary soak-duration waiver remains in force.

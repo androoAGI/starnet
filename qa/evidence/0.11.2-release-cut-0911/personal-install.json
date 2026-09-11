@@ -1,0 +1,9 @@
+{
+  "pid": 9920,
+  "at": "2026-09-11T08:39:54.9059426Z",
+  "backup": "C:\\Users\\andro\\AppData\\Local\\StarNet-release-backups\\0.11.2-a1d334f97-20260911-075150",
+  "version": "0.11.2",
+  "executableSha256": "06f00664e32b65756c5d7223a99626c43a20879ab112a017ede2be8b55915cc9",
+  "installerSha256": "71864ab55548c712ebaa0dabedd01db3b9ae937abfb39043f44891f5ffa53f0d",
+  "source": "bb9f0719d9d632575670bc94228cfd72bb06f0ce"
+}

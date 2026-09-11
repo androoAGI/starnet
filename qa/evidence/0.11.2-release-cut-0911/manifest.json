@@ -1,0 +1,134 @@
+{
+  "schema": "starnet.release-cut-evidence.v1",
+  "at": "2026-09-11T08:53:02.911Z",
+  "candidate": "bb9f0719d9d632575670bc94228cfd72bb06f0ce",
+  "sourceTree": "736f8e9eed375a74a5c99422c4f2a6027973fbfd",
+  "version": "0.11.2",
+  "publicRelease": false,
+  "personalInstalled": true,
+  "readiness": "NOT READY",
+  "openCustomerP1": 8,
+  "soakDurations": "owner-waived",
+  "artifacts": [
+    {
+      "path": "guardian.json",
+      "originalPath": "qa/guardian-last-cycle.json",
+      "sha256": "bee93bb627a983098a25b9add9fb6683136cd6adbe3ee9c13637f6c38543b032",
+      "bytes": 1024
+    },
+    {
+      "path": "journeys.json",
+      "originalPath": "qa/journeys-last-run.json",
+      "sha256": "8f005d2758eca51cfae524777878ae1df00881714d6816298581b04c0ef40542",
+      "bytes": 213
+    },
+    {
+      "path": "beginner.json",
+      "originalPath": "qa/beginner-last-run.json",
+      "sha256": "6a335e71177380c53f10ef9e4bfbc1ed9b902db789d61f10e98782a610d6e60f",
+      "bytes": 188
+    },
+    {
+      "path": "personal-installed-smoke.json",
+      "originalPath": "qa/installed/last-smoke.json",
+      "sha256": "418c6f8cfe4d26b6a9505f360ecfeba341849678a4c2cf6836d06505711337e6",
+      "bytes": 1276
+    },
+    {
+      "path": "ready-final.json",
+      "originalPath": ".dogfood/release-0112-cut/ready-final.json",
+      "sha256": "14d86242d30cce8c94f2ed1926ba5e0ada4625a9fb20761f53a9d1ec732cf282",
+      "bytes": 2294
+    },
+    {
+      "path": "installer-identity.json",
+      "originalPath": ".dogfood/release-0112-cut/installer-identity.json",
+      "sha256": "4f765502794f3bb47f3d8cfee9d95a645f5a9d68d3e5a4f561811a141a55b1a5",
+      "bytes": 479
+    },
+    {
+      "path": "updater-compatibility.json",
+      "originalPath": ".dogfood/release-0112-cut/updater-compatibility.json",
+      "sha256": "33b3338eb316f82f31e6a27291445cbc7f98d2899d55d4189673e5eb70d27721",
+      "bytes": 222
+    },
+    {
+      "path": "build-run.json",
+      "originalPath": ".dogfood/release-0112-cut/build-run.json",
+      "sha256": "28e679474497b2cb2780fde0fa150cc7b4d10e91a4cb60bb35a15592d705398b",
+      "bytes": 148
+    },
+    {
+      "path": "hosted-run.json",
+      "originalPath": ".dogfood/release-0112-cut/hosted-run.json",
+      "sha256": "d91e45edf92cd5e8fd959abb6da845cf61827ec1d68779ee2fefd32afc3597c5",
+      "bytes": 148
+    },
+    {
+      "path": "personal-install.json",
+      "originalPath": ".dogfood/release-0112-cut/personal-install.json",
+      "sha256": "d672d0ead13a5712024d2b158e3aae72db8d52e79174362db726a4b788061244",
+      "bytes": 432
+    },
+    {
+      "path": "personal-ui-after-comparison.json",
+      "originalPath": ".dogfood/release-0112-cut/personal-ui-after-comparison.json",
+      "sha256": "bc871f8b452f539f84eeed5b28eea3c5a490c0772fdf0c753d5cd41e8c32e868",
+      "bytes": 314
+    },
+    {
+      "path": "personal-ui-restarted-comparison.json",
+      "originalPath": ".dogfood/release-0112-cut/personal-ui-restarted-comparison.json",
+      "sha256": "a20ee5fba9f2ef6d46d27817abbc19aae64892bdb12b9549e0a1acf999b6069e",
+      "bytes": 318
+    },
+    {
+      "path": "personal-final-api.json",
+      "originalPath": ".dogfood/release-0112-cut/personal-final-api.json",
+      "sha256": "05a52f41fe24d30f0ca38c528f059e7913d5609ab2446a5052af4b199c0c2fa0",
+      "bytes": 834
+    },
+    {
+      "path": "installed-lifecycle.log",
+      "originalPath": ".dogfood/release-0112-cut/installed-lifecycle.log",
+      "sha256": "92d12de78ae4f0997f4904e103d90be6d8c72e0135f7862417b277f62abdf414",
+      "bytes": 333
+    },
+    {
+      "path": "latest.json",
+      "originalPath": ".dogfood/release-0112-cut/latest.json",
+      "sha256": "bb42e19bd16e66504d68b8642a0b4acb7279faa55d394851186ecbb4299b4b73",
+      "bytes": 5102
+    },
+    {
+      "path": "hosted-clean-install.json",
+      "originalPath": ".dogfood/release-0112-cut/hosted-proof/clean-install-proof-v0.11.2/clean-install-proof.json",
+      "sha256": "dde193749a1bec64a7a0da7beae57cd335ca24fd25387065f51ed6045d5c59a5",
+      "bytes": 1509
+    },
+    {
+      "path": "hosted-public-upgrade.json",
+      "originalPath": ".dogfood/release-0112-cut/hosted-proof/candidate-shell-lifecycle/public-upgrade-continuity.json",
+      "sha256": "ee9ba14c02d8cef2611e8bb83bf6bce838da0cc762bf0f1086417e19d83b0b8a",
+      "bytes": 101325
+    },
+    {
+      "path": "hosted-lifecycle.json",
+      "originalPath": ".dogfood/release-0112-cut/hosted-proof/candidate-shell-lifecycle/candidate-lifecycle.json",
+      "sha256": "d8595261881c52ca7cb81c26cfc2e1d2491d85993ddb9f5ab261a3401296206b",
+      "bytes": 4126
+    },
+    {
+      "path": "hosted-installed-smoke.json",
+      "originalPath": ".dogfood/release-0112-cut/hosted-proof/candidate-shell-lifecycle/installed-smoke/last-smoke.json",
+      "sha256": "8cb4f331871bd7c177978a3397fee6ce9c43fecbd295fcba357bca77bebfe4e1",
+      "bytes": 1282
+    },
+    {
+      "path": "personal-smoke-probe.json",
+      "originalPath": "qa/installed/smoke-2026-09-11T08-42-25-246Z/probe.json",
+      "sha256": "dfe896b532d7f96e90119f850f2e90a4ff693449882e2d16ade79fe5c023018b",
+      "bytes": 2164
+    }
+  ]
+}

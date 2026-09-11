@@ -1,0 +1,158 @@
+{
+  "schema": "starnet.packaged-lifecycle-receipt.v1",
+  "generatedAt": "2026-09-11T08:33:15.196Z",
+  "verdict": "PASS",
+  "failedCases": [],
+  "durationMs": 34041,
+  "meta": {
+    "exe": "C:\\Users\\runneradmin\\AppData\\Local\\StarNet\\skynet-desktop.exe",
+    "installDir": "C:\\Users\\runneradmin\\AppData\\Local\\StarNet",
+    "appDataDir": "C:\\Users\\runneradmin\\AppData\\Roaming\\ai.skynet.harness",
+    "tag": "v0.11.2",
+    "runId": "34579476189",
+    "host": "runnervmvmocb",
+    "image": "win25-vs2026 20260907.229.1"
+  },
+  "cases": [
+    {
+      "name": "idle-close",
+      "result": "PASS",
+      "reasons": [],
+      "branch": "idle-quit",
+      "launchedPid": 8572,
+      "relaunchedPid": 4604,
+      "timings": {
+        "bootMs": 2577,
+        "healthMs": 1664,
+        "goneMs": 848,
+        "relaunchWindowMs": 2730,
+        "relaunchHealthMs": 3,
+        "totalMs": 10224
+      },
+      "snapshots": {
+        "afterClose": {
+          "shell": [],
+          "sidecar": [],
+          "windows": [],
+          "health": null,
+          "port": null
+        },
+        "afterRelaunch": {
+          "shell": [
+            {
+              "pid": 4604,
+              "path": "C:\\Users\\runneradmin\\AppData\\Local\\StarNet\\skynet-desktop.exe",
+              "ppid": 4804
+            }
+          ],
+          "sidecar": [
+            {
+              "pid": 6684,
+              "path": "C:\\Users\\runneradmin\\AppData\\Local\\StarNet\\node.exe",
+              "ppid": 4604
+            }
+          ],
+          "windows": [
+            {
+              "hwnd": 786610,
+              "pid": 4604,
+              "visible": true,
+              "title": "StarNet"
+            }
+          ],
+          "health": true,
+          "port": 58674
+        }
+      },
+      "closeLog": [
+        "close-request: close_to_tray=false"
+      ]
+    },
+    {
+      "name": "close-to-tray",
+      "result": "PASS",
+      "reasons": [],
+      "branch": "tray-preference",
+      "launchedPid": 7892,
+      "secondLaunchPid": 1640,
+      "timings": {
+        "bootMs": 2387,
+        "healthMs": 5,
+        "settleMs": 12000,
+        "revealMs": 706,
+        "totalMs": 18211
+      },
+      "snapshots": {
+        "resident": {
+          "shell": [
+            {
+              "pid": 7892,
+              "path": "C:\\Users\\runneradmin\\AppData\\Local\\StarNet\\skynet-desktop.exe",
+              "ppid": 4804
+            }
+          ],
+          "sidecar": [
+            {
+              "pid": 7964,
+              "path": "C:\\Users\\runneradmin\\AppData\\Local\\StarNet\\node.exe",
+              "ppid": 7892
+            }
+          ],
+          "windows": [],
+          "health": true,
+          "port": 58793
+        },
+        "revealed": {
+          "shell": [
+            {
+              "pid": 7892,
+              "path": "C:\\Users\\runneradmin\\AppData\\Local\\StarNet\\skynet-desktop.exe",
+              "ppid": 4804
+            }
+          ],
+          "sidecar": [
+            {
+              "pid": 7964,
+              "path": "C:\\Users\\runneradmin\\AppData\\Local\\StarNet\\node.exe",
+              "ppid": 7892
+            }
+          ],
+          "windows": [
+            {
+              "hwnd": 393572,
+              "pid": 7892,
+              "visible": true,
+              "title": "StarNet"
+            }
+          ],
+          "health": null,
+          "port": null
+        }
+      },
+      "closeLog": [
+        "close-request: close_to_tray=true",
+        "close-request: staying resident (close-to-tray preference)"
+      ]
+    },
+    {
+      "name": "updater-smoke",
+      "result": "PASS",
+      "reasons": [],
+      "observed": {
+        "exeVersion": "0.11.2",
+        "expectedVersion": "0.11.2",
+        "tagFeedVersion": "0.11.2",
+        "publicFeedVersion": "0.11.1",
+        "feedMustMatch": false
+      },
+      "timings": {
+        "totalMs": 1663
+      }
+    }
+  ],
+  "notCovered": [
+    "tray menu Quit (no scriptable tray-menu handle without UI automation)",
+    "armed-work residency branch (LifecycleProbe::Armed{armed:true}) — needs seeded scheduled work",
+    "macOS lifecycle"
+  ]
+}

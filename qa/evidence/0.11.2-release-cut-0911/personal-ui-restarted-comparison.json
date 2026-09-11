@@ -1,0 +1,13 @@
+{
+  "at": "2026-09-11T08:49:01.604Z",
+  "before": "personal-ui-preupgrade",
+  "after": "personal-ui-restarted",
+  "candidate": "bb9f0719d9d632575670bc94228cfd72bb06f0ce",
+  "crew": 26,
+  "props": 141,
+  "conversations": 71,
+  "documentedPersonaAliasesApplied": 25,
+  "checks": 519,
+  "failed": [],
+  "result": "PASS"
+}

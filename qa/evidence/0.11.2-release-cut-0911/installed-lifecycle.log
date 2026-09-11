@@ -1,0 +1,2 @@
+{"scope":"Installed Node and exact installed sidecar; isolated temporary workspaces, no personal station mutation","sidecarSha256":"2953bbc615298d39c52f4721e7a0ee01b18110db3c50e826aacf75659d1fabbc","executableSha256":"06f00664e32b65756c5d7223a99626c43a20879ab112a017ede2be8b55915cc9"}
+lifecycle-armed.http.test: OK (80 assertions)

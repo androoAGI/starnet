@@ -12,7 +12,10 @@ origin: owner
 report: local-personal-station-2026-09-11
 affected: Windows personal 0.11.1; candidate a1d334f97 also reproduces
 family: lifecycle-truth
-installer: unverified
+installer: verified
+installerVersion: 0.11.2
+installerSha256: 71864ab55548c712ebaa0dabedd01db3b9ae937abfb39043f44891f5ffa53f0d
+installerEvidence: Signed bb9f0719d installed over the personal Windows 0.11.1; installed Node and bundled sidecar pass all 80 lifecycle assertions in isolated workspaces. After normal personal-app restart, one paused routine reports armed false and the native tray reads idle (closing quits). See docs/releases/0.11.2/EXECUTION.md.
 recovery: unconfirmed
 ---
 
@@ -32,7 +35,7 @@ The running personal app reported zero active runs, one paused/disabled job, and
 
 ## Verdict
 
-Source fixed: lifecycleArmedSnapshot counted every persisted routine rather than the enabled jobs the scheduler can execute. The aggregate now excludes disabled jobs. Pausing already aborts the job's active lease after the durable write; this change does not alter pause, resume, scheduler intent, credentials or task execution. Exact installed-owner recovery remains to be verified after the final candidate is installed.
+Source fixed: lifecycleArmedSnapshot counted every persisted routine rather than the enabled jobs the scheduler can execute. The aggregate now excludes disabled jobs. Pausing already aborts the job's active lease after the durable write; this change does not alter pause, resume, scheduler intent, credentials or task execution. Exact installed verification passes, including pause while the scheduler remains armed, restart and mixed job counts. The personal station also reports idle after normal restart. Owner acknowledgement remains unconfirmed; the agent's installed verification is recorded separately.
 
 ## Regression
 
@@ -40,4 +43,4 @@ Source fixed: lifecycleArmedSnapshot counted every persisted routine rather than
 
 ## Sibling coverage
 
-{"adapters":[{"target":"desktop supervisor lifecycle endpoint","state":"covered","test":"test/lifecycle-armed.http.test.js","scenario":"raw-socket response and truthful enabled-job count","gate":"http"}],"entrypoints":[{"target":"pause/resume routine API","state":"covered","test":"test/lifecycle-armed.http.test.js","scenario":"pause only job and resume without changing scheduler intent","gate":"http"}],"displays":[{"target":"native tray","state":"blocked","reason":"Original tooltip reproduced; exact repaired installer verification follows the build."}],"lifecycle":[{"target":"restart and mixed saved routines","state":"covered","test":"test/lifecycle-armed.http.test.js","scenario":"paused-only station stays idle after restart; mixed count excludes paused jobs","gate":"http"}]}
+{"adapters":[{"target":"desktop supervisor lifecycle endpoint","state":"covered","test":"test/lifecycle-armed.http.test.js","scenario":"raw-socket response and truthful enabled-job count","gate":"http"}],"entrypoints":[{"target":"pause/resume routine API","state":"covered","test":"test/lifecycle-armed.http.test.js","scenario":"pause only job and resume without changing scheduler intent","gate":"http"}],"displays":[{"target":"native tray","state":"covered","test":"test/lifecycle-armed.http.test.js","scenario":"Backend reasons consumed by the native tray exclude paused jobs; installed native tooltip was separately observed as idle, recorded in EXECUTION.md","gate":"http"}],"lifecycle":[{"target":"restart and mixed saved routines","state":"covered","test":"test/lifecycle-armed.http.test.js","scenario":"paused-only station stays idle after restart; mixed count excludes paused jobs","gate":"http"}]}

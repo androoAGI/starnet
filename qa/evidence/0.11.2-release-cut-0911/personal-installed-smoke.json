@@ -1,0 +1,35 @@
+{
+  "schemaVersion": 3,
+  "stampIso": "2026-09-11T08:42:25.246Z",
+  "expectedHead": "bb9f0719d9d632575670bc94228cfd72bb06f0ce",
+  "expectedTree": "736f8e9eed375a74a5c99422c4f2a6027973fbfd",
+  "buildCommit": "bb9f0719d9d632575670bc94228cfd72bb06f0ce",
+  "sourceTree": "736f8e9eed375a74a5c99422c4f2a6027973fbfd",
+  "buildDescribe": "bb9f071",
+  "buildDirty": false,
+  "buildKind": "reproducible-source",
+  "provenanceKind": "reproducible-source",
+  "officialEvidence": null,
+  "appVersion": "0.11.2",
+  "sidecarHarness": "bb9f071",
+  "mode": "desktop",
+  "origin": "http://tauri.localhost",
+  "artifact": {
+    "path": "C:\\Users\\andro\\AppData\\Local\\StarNet\\skynet-desktop.exe",
+    "sha256": "06f00664e32b65756c5d7223a99626c43a20879ab112a017ede2be8b55915cc9",
+    "size": 17882376
+  },
+  "runtimeExecutable": {
+    "sha256": "06f00664e32b65756c5d7223a99626c43a20879ab112a017ede2be8b55915cc9",
+    "size": 17882376
+  },
+  "result": "GREEN",
+  "evidence": [
+    {
+      "path": "qa/installed/smoke-2026-09-11T08-42-25-246Z/probe.json",
+      "sha256": "dfe896b532d7f96e90119f850f2e90a4ff693449882e2d16ade79fe5c023018b",
+      "size": 2164
+    }
+  ],
+  "notes": "appVersion=0.11.2 mode=desktop build=bb9f0719d9d6 tree=736f8e9eed37 kind=reproducible-source checks 9/9 pass"
+}
