@@ -5,8 +5,10 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { createHash, randomUUID } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
+import { createRequire } from 'node:module';
 import { connectCDP, evalJS, sleep } from '../lib/cdp.mjs';
 import { populatedFixture, continuityProjection, stableJson } from '../lib/update-continuity.mjs';
+const { bootToken } = createRequire(import.meta.url)('../../test/_httpToken.js');
 
 if (process.platform !== 'win32' || process.env.GITHUB_ACTIONS !== 'true' || process.env.RUNNER_ENVIRONMENT !== 'github-hosted') {
   throw new Error('This destructive fixture is restricted to a disposable GitHub-hosted Windows VM.');
@@ -138,11 +140,35 @@ $setup=@(Get-Process -ErrorAction SilentlyContinue | Where-Object {$_.Name -matc
   if (String(observed?.version).split('.').slice(0,3).join('.') !== targetVersion || observed.appPids.length !== 1 || observed.appPids[0] === priorPid || observed.installerPids.length !== 0) throw new Error('Public update did not complete and automatically restart: ' + JSON.stringify(observed));
   receipt.automaticRestart = { oldPid: priorPid, ...observed };
   receipt.checks.installerExitedAndAppRestarted = true;
-  cdp?.ws.close(); cdp = await connectCDP(19373);
-  for (let n = 0; n < 120; n++) {
-    if (await evalJS(cdp, "typeof App!=='undefined'&&App.crewCount()===2&&typeof Updates!=='undefined'").catch(()=>false)) break;
-    await sleep(500);
+  // NSIS relaunch intentionally need not inherit a test-only WebView debugging flag.
+  // First prove the automatic process has a real window and its own healthy target
+  // sidecar. Only then perform a normal inspection restart with CDP enabled.
+  let automaticHealth;
+  for (let n = 0; n < 60; n++) {
+    const live = JSON.parse(ps(`$app=@(Get-CimInstance Win32_Process | Where-Object {$_.ExecutablePath -eq $env:PROOF_EXE})[0]
+$window=Get-Process -Id $app.ProcessId
+$node=@(Get-CimInstance Win32_Process | Where-Object {$_.ParentProcessId -eq $app.ProcessId -and $_.ExecutablePath -eq (Join-Path (Split-Path $env:PROOF_EXE) 'node.exe')})
+$ports=@($node | ForEach-Object {Get-NetTCPConnection -State Listen -OwningProcess $_.ProcessId -ErrorAction SilentlyContinue} | Where-Object {$_.LocalAddress -eq '127.0.0.1'})
+@{pid=$app.ProcessId;responding=$window.Responding;window=$window.MainWindowHandle.ToInt64();title=$window.MainWindowTitle;ports=@($ports | ForEach-Object {$_.LocalPort})}|ConvertTo-Json -Compress`));
+    if (live.pid === observed.appPids[0] && live.responding && live.window && live.title === 'StarNet' && live.ports.length === 1) {
+      const base = 'http://127.0.0.1:' + live.ports[0];
+      const token = await bootToken(base, base);
+      const response = await fetch(base + '/api/version', { headers: { Origin: base, 'X-StarNet-Token': token } });
+      const version = await response.json();
+      if (response.ok && version.app === targetVersion && version.buildSha === expected) { automaticHealth = { ...live, version: version.app, source: version.buildSha }; break; }
+    }
+    await sleep(1000);
   }
+  if (!automaticHealth) throw new Error('Automatically restarted target never exposed its window and healthy exact-source sidecar');
+  receipt.automaticHealth = automaticHealth;
+  receipt.checks.automaticRestartHealthy = true;
+  cdp?.ws.close(); cdp = null;
+  ps(`$p=Get-Process -Id ${automaticHealth.pid}
+if(-not $p.CloseMainWindow()){throw 'Could not request normal inspection close'}
+for($i=0;$i -lt 60;$i++){if(-not(Get-Process -Id $p.Id -ErrorAction SilentlyContinue)){break};Start-Sleep -Milliseconds 500}
+if(Get-Process -Id $p.Id -ErrorAction SilentlyContinue){throw 'Updated app did not close normally for inspection'}`);
+  await launch(true);
+  receipt.inspectionRestart = 'Normal close after automatic window/API proof; relaunched with temporary CDP for preservation inspection.';
   await evalJS(cdp, "Updates.check(true, 'public-canary-after')");
   const after = await evalJS(cdp, 'Updates.snapshot()');
   if (after.currentVersion !== targetVersion || after.update) throw new Error('Restarted app still offers an update or reports the wrong version');
