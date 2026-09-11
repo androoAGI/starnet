@@ -29,9 +29,10 @@ for (const required of [
 ]) assert.ok(fs.existsSync(path.join(ROOT, required)), required + ' must exist');
 
 const ignore = read('.gitleaksignore').split(/\r?\n/).filter(line => /^[0-9a-f]{40}:/.test(line));
-// 25 pre-publication fingerprints + the reviewed loopback mock-provider fixtures
-// from 2026-09-03 and 2026-09-10. Bump ONLY with a reviewed .gitleaksignore entry.
-assert.equal(ignore.length, 27, 'the reviewed pre-publication baseline is finite and exact');
+// 25 pre-publication fingerprints + two reviewed loopback mock-provider fixtures
+// + the 2026-09-11 Git commit hash in verification evidence (not a credential).
+// Bump ONLY with a reviewed .gitleaksignore entry.
+assert.equal(ignore.length, 28, 'the reviewed pre-publication baseline is finite and exact');
 assert.equal(new Set(ignore).size, ignore.length, 'baseline fingerprints must be unique');
 
 const workflow = read('.github/workflows/secret-history.yml');
