@@ -1,5 +1,7 @@
 # 0.11.2 focused closeout — September 11
 
+Subsequent owner clarification and release execution: [PUBLIC_RELEASE.md](PUBLIC_RELEASE.md). Customer confirmation is no longer a prerequisite for independently proven engineering closure. The state below records the earlier closeout boundary.
+
 Candidate `69baf91a5b2c22230f87e614da6a72882278bc6c` remains unchanged. The two crowded-floor awareness findings are dismissed with live evidence. Eight historical customer P1 reports remain open; the readiness controller still reports NOT READY for that category alone. Public distribution is still v0.11.1. No release tag or public updater feed was changed.
 
 ## Crowded-floor findings resolved

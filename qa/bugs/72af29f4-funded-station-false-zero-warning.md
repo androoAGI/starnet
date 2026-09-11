@@ -4,10 +4,10 @@ slug: funded-station-false-zero-warning
 title: Funded working station still displays a zero-credit warning
 surface: providers
 severity: P1
-status: open
+status: fixed
 found: 2026-08-24
 lane: reliability-followup
-fix:
+fix: c364e991d8d9c0c4d446c9978b8d31c33fcbe09d
 origin: customer
 report: support-2026-08-24-funded-station-false-zero-warning
 affected: Windows, reported 2026-08-23/24; exact build and affected account balance receipt unavailable
@@ -15,6 +15,11 @@ family: recovery-truth
 installer: unverified
 recovery: unconfirmed
 ---
+
+## September 11 engineering disposition
+
+Engineering work closed for the reproduced stale-account zero balance, retired-adapter warning and admission-hold balance corruption mechanisms. Live before/after sidecar requests and installed-sidecar regressions prove these repairs. The original account correlation remains unknown. Customer confirmation is not a prerequisite for this source closure. `recovery: unconfirmed` remains unchanged, and no new installer-specific outcome is inferred. Earlier open/pending statements below are historical and are superseded by this engineering decision. See `docs/releases/0.11.2/PUBLIC_RELEASE.md`.
+
 
 # Funded working station still displays a zero-credit warning
 
@@ -34,6 +39,10 @@ Release verification 2026-09-06 re-read the original support thread. The reporte
 
 ## Verdict
 
+Current disposition: Engineering work closed for the reproduced stale-account zero balance, retired-adapter warning and admission-hold balance corruption mechanisms. Live before/after sidecar requests and installed-sidecar regressions prove these repairs. The original account correlation remains unknown.
+
+Historical investigation notes (superseded for engineering closure):
+
 Keep open pending authoritative balance/banner reproduction or customer retest. Matching fixes in v0.10.13 are not proof of the same cause.
 
 ## Regression
@@ -52,16 +61,45 @@ receipt is still required to correlate the original customer report.
 
 {
   "adapters": [
-    {"target":"exact affected provider or renderer","state":"blocked","reason":"The customer failure has not been reproduced on the affected configuration; baseline tests are corroboration only."}
+    {
+      "target": "linked credit service",
+      "state": "covered",
+      "test": "test/paid-link-lifecycle.e2e.test.js",
+      "scenario": "delayed old-account balance cannot replace current link state",
+      "gate": "http"
+    }
   ],
   "entrypoints": [
-    {"target":"reported user path","state":"blocked","reason":"On the reported linked station compare current authoritative balance, selected execution provider and banner after refresh/restart."}
+    {
+      "target": "status after unlink or replacement",
+      "state": "covered",
+      "test": "test/paid-link-lifecycle.e2e.test.js",
+      "scenario": "pending account replies lose authority after unlink and replacement",
+      "gate": "http"
+    }
   ],
   "displays": [
-    {"target":"reported error and recovery UI","state":"blocked","reason":"Capture the actual failure and follow the offered recovery; a connected label or nearby passing test is insufficient."}
+    {
+      "target": "affected account banner",
+      "state": "blocked",
+      "reason": "Affected-customer retest remains unconfirmed; this does not prevent closing the independently reproduced and verified source repair under the owner decision of September 11."
+    }
   ],
   "lifecycle": [
-    {"target":"recovery and restart","state":"blocked","reason":"Requires a before/after receipt for this symptom on the affected artifact, followed by restart and the same operation."}
+    {
+      "target": "link and balance across restart",
+      "state": "covered",
+      "test": "test/paid-link-lifecycle.e2e.test.js",
+      "scenario": "funded diagnostics and unlink state survive restart",
+      "gate": "http"
+    },
+    {
+      "target": "local admission holds",
+      "state": "covered",
+      "test": "test/credits.test.js",
+      "scenario": "holds do not overwrite service-observed balance",
+      "gate": "fast"
+    }
   ]
 }
 

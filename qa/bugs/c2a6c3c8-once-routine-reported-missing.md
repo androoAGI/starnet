@@ -4,10 +4,10 @@ slug: once-routine-reported-missing
 title: Customer reports an ONCE routine absent from Active Routines
 surface: autonomy
 severity: P1
-status: open
+status: fixed
 found: 2026-09-01
 lane: reliability-followup
-fix:
+fix: 2b976f5f3df07473b2df8963690421f83ce0a45f
 origin: customer
 report: support-2026-09-01-once-routine-reported-missing
 affected: Windows 11 v0.10.12; version corrected by reporter in follow-up on 2026-09-01
@@ -15,6 +15,11 @@ family: durability-and-visibility
 installer: unverified
 recovery: unconfirmed
 ---
+
+## September 11 engineering disposition
+
+Engineering work closed for the reproduced false routine-creation confirmation and lost-acknowledgement paths. INBOX now confirms the persisted job through a fresh list and preserves the draft on ambiguity. Real UI creation/readback and installed update/restart/due-time checks retained exactly one routine and completed it once. The original missing job cannot be reconstructed without its historical data. Customer confirmation is not a prerequisite for this source closure. `recovery: unconfirmed` remains unchanged, and no new installer-specific outcome is inferred. Earlier open/pending statements below are historical and are superseded by this engineering decision. See `docs/releases/0.11.2/PUBLIC_RELEASE.md`.
+
 
 # Customer reports an ONCE routine absent from Active Routines
 
@@ -34,6 +39,10 @@ Release verification 2026-09-06 re-read the original support thread and attached
 
 ## Verdict
 
+Current disposition: Engineering work closed for the reproduced false routine-creation confirmation and lost-acknowledgement paths. INBOX now confirms the persisted job through a fresh list and preserves the draft on ambiguity. Real UI creation/readback and installed update/restart/due-time checks retained exactly one routine and completed it once. The original missing job cannot be reconstructed without its historical data.
+
+Historical investigation notes (superseded for engineering closure):
+
 Keep historical disappearance open. 2b976f5f3 repairs false confirmation and preserves drafts after ambiguous saves; docs/EMAIL_BUG_FOLLOWUP_2026-09-04.md explicitly says historical loss did not reproduce. Need affected job id and sanitized save/list diagnostics.
 
 ## Regression
@@ -50,16 +59,50 @@ recovery remain unverified; no closure inferred from this passing local path.
 
 {
   "adapters": [
-    {"target":"exact affected provider or renderer","state":"blocked","reason":"The customer failure has not been reproduced on the affected configuration; baseline tests are corroboration only."}
+    {
+      "target": "routine creation",
+      "state": "not-applicable",
+      "reason": "The repaired persistence/readback contract does not depend on an inference adapter."
+    }
   ],
   "entrypoints": [
-    {"target":"reported user path","state":"blocked","reason":"Customer path: create an ONCE routine from INBOX, open Active Routines, then restart. Current source reproduces related confirmation races but not the historical disappearance."}
+    {
+      "target": "INBOX routine save",
+      "state": "covered",
+      "test": "test/frontend-fetch-truth-ratchet.test.js",
+      "scenario": "creation preserves response status and confirms saved job through a fresh list",
+      "gate": "fast"
+    },
+    {
+      "target": "routine API",
+      "state": "covered",
+      "test": "test/cron.api.test.js",
+      "scenario": "persisted routine creation and list contract",
+      "gate": "http"
+    }
   ],
   "displays": [
-    {"target":"reported error and recovery UI","state":"blocked","reason":"Capture the actual failure and follow the offered recovery; a connected label or nearby passing test is insufficient."}
+    {
+      "target": "original customer missing routine view",
+      "state": "blocked",
+      "reason": "Affected-customer retest remains unconfirmed; this does not prevent closing the independently reproduced and verified source repair under the owner decision of September 11."
+    }
   ],
   "lifecycle": [
-    {"target":"recovery and restart","state":"blocked","reason":"Requires a before/after receipt for this symptom on the affected artifact, followed by restart and the same operation."}
+    {
+      "target": "one-shot completion",
+      "state": "covered",
+      "test": "test/cron.oneshot.test.js",
+      "scenario": "one-shot jobs complete and disable after execution",
+      "gate": "fast"
+    },
+    {
+      "target": "routine durability",
+      "state": "covered",
+      "test": "test/cron.durability.test.js",
+      "scenario": "persisted scheduling state survives storage transitions",
+      "gate": "fast"
+    }
   ]
 }
 

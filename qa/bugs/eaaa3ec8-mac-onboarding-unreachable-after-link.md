@@ -4,10 +4,10 @@ slug: mac-onboarding-unreachable-after-link
 title: Mac paid onboarding becomes unreachable after reload and relink
 surface: onboarding
 severity: P1
-status: open
+status: fixed
 found: 2026-08-22
 lane: reliability-followup
-fix:
+fix: c364e991d8d9c0c4d446c9978b8d31c33fcbe09d
 origin: customer
 report: https://github.com/androoAGI/starnet/issues/2
 affected: Reported Mac installation; exact failing artifact unverified
@@ -15,6 +15,11 @@ family: recovery-truth
 installer: unverified
 recovery: unconfirmed
 ---
+
+## September 11 engineering disposition
+
+Engineering work closed for the reproduced pairing/keychain recovery races that undid an explicit unlink. Delayed replies now preserve the current link generation through restart; source and packaged-sidecar regressions passed. The physical affected Mac and its original cause remain unconfirmed; no Apple Silicon customer recovery is asserted. Customer confirmation is not a prerequisite for this source closure. `recovery: unconfirmed` remains unchanged, and no new installer-specific outcome is inferred. Earlier open/pending statements below are historical and are superseded by this engineering decision. See `docs/releases/0.11.2/PUBLIC_RELEASE.md`.
+
 
 # Mac paid onboarding becomes unreachable after reload and relink
 
@@ -31,6 +36,10 @@ Customer path: complete linking on Mac, reload, then follow unlink/relink recove
 docs/EMAIL_BUG_FOLLOWUP_2026-09-04.md; test/station-recovery.e2e.test.js
 
 ## Verdict
+
+Current disposition: Engineering work closed for the reproduced pairing/keychain recovery races that undid an explicit unlink. Delayed replies now preserve the current link generation through restart; source and packaged-sidecar regressions passed. The physical affected Mac and its original cause remain unconfirmed; no Apple Silicon customer recovery is asserted.
+
+Historical investigation notes (superseded for engineering closure):
 
 Keep open in engineering intake despite upstream issue closure. Related station-recovery fixes and tag ancestry do not prove this customer path. Requires physical Mac, exact installer and link-state receipts.
 
@@ -61,16 +70,38 @@ the exact Mac customer's cause; installed Apple Silicon/keychain verification re
 
 {
   "adapters": [
-    {"target":"exact affected provider or renderer","state":"blocked","reason":"The customer failure has not been reproduced on the affected configuration; baseline tests are corroboration only."}
+    {
+      "target": "pairing and keychain recovery responses",
+      "state": "covered",
+      "test": "test/paid-link-lifecycle.e2e.test.js",
+      "scenario": "delayed pairing and whoami replies cannot undo unlink",
+      "gate": "http"
+    }
   ],
   "entrypoints": [
-    {"target":"reported user path","state":"blocked","reason":"Customer path: complete linking on Mac, reload, then follow unlink/relink recovery. Exact local hardware reproduction remains unavailable."}
+    {
+      "target": "unlink, replacement and recovery",
+      "state": "covered",
+      "test": "test/credits-link.test.js",
+      "scenario": "interrupted unlink and consumed confirmation retry preserve recoverability",
+      "gate": "fast"
+    }
   ],
   "displays": [
-    {"target":"reported error and recovery UI","state":"blocked","reason":"Capture the actual failure and follow the offered recovery; a connected label or nearby passing test is insufficient."}
+    {
+      "target": "affected native Mac UI",
+      "state": "blocked",
+      "reason": "Affected-customer retest remains unconfirmed; this does not prevent closing the independently reproduced and verified source repair under the owner decision of September 11."
+    }
   ],
   "lifecycle": [
-    {"target":"recovery and restart","state":"blocked","reason":"Requires a before/after receipt for this symptom on the affected artifact, followed by restart and the same operation."}
+    {
+      "target": "link state restart",
+      "state": "covered",
+      "test": "test/paid-link-lifecycle.e2e.test.js",
+      "scenario": "unlinked and replacement account state persist through restart",
+      "gate": "http"
+    }
   ]
 }
 

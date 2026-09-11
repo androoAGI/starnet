@@ -4,10 +4,10 @@ slug: viewport-black-after-idle
 title: Customer viewport becomes blank after ten to twenty minutes
 surface: world
 severity: P1
-status: open
+status: fixed
 found: 2026-08-24
 lane: reliability-followup
-fix:
+fix: 57112a690f8174f3ba3f3ac33fe786d07fa51c5d
 origin: customer
 report: support-2026-08-24-viewport-black-after-idle
 affected: Windows, reported 2026-08-24; exact build, GPU and display configuration unavailable
@@ -15,6 +15,11 @@ family: durability-and-visibility
 installer: unverified
 recovery: unconfirmed
 ---
+
+## September 11 engineering disposition
+
+Engineering work closed for the reproduced permanently dead stage canvas: the live pre-fix frame dropped from 87.41% visible pixels to 0% while the old cache watchdog remained blind. The repaired stage rebuild and later installed fault-injection checks restored visible frames; bounded installed idle also passed. The original customer GPU/driver trigger remains unconfirmed. Customer confirmation is not a prerequisite for this source closure. `recovery: unconfirmed` remains unchanged, and no new installer-specific outcome is inferred. Earlier open/pending statements below are historical and are superseded by this engineering decision. See `docs/releases/0.11.2/PUBLIC_RELEASE.md`.
+
 
 # Customer viewport becomes blank after ten to twenty minutes
 
@@ -34,6 +39,10 @@ Release verification 2026-09-06 re-read the original support thread: Windows was
 
 ## Verdict
 
+Current disposition: Engineering work closed for the reproduced permanently dead stage canvas: the live pre-fix frame dropped from 87.41% visible pixels to 0% while the old cache watchdog remained blind. The repaired stage rebuild and later installed fault-injection checks restored visible frames; bounded installed idle also passed. The original customer GPU/driver trigger remains unconfirmed.
+
+Historical investigation notes (superseded for engineering closure):
+
 Keep open pending exact reproduction/retest. Matching v0.10.13 rendering repairs are documented in the support follow-up, but no exact customer artifact or recovered session was verified.
 
 ## Regression
@@ -50,16 +59,45 @@ GPU/display configuration, or a reproduction of its 10–20-minute failure; stat
 
 {
   "adapters": [
-    {"target":"exact affected provider or renderer","state":"blocked","reason":"The customer failure has not been reproduced on the affected configuration; baseline tests are corroboration only."}
+    {
+      "target": "canvas recovery",
+      "state": "covered",
+      "test": "test/canvas-loss-recovery.test.js",
+      "scenario": "offscreen canvas loss recovers rather than remaining black",
+      "gate": "fast"
+    },
+    {
+      "target": "stage 2D context",
+      "state": "covered",
+      "test": "test/stage-context-loss.test.js",
+      "scenario": "visible-stage watchdog rebuilds a permanently dead context",
+      "gate": "fast"
+    }
   ],
   "entrypoints": [
-    {"target":"reported user path","state":"blocked","reason":"Run the affected customer station idle for 20 minutes at its actual window size and display scale. Capture renderer diagnostics and saved state before reloading."}
+    {
+      "target": "CRT GPU context loss",
+      "state": "covered",
+      "test": "test/crt-context-loss.e2e.test.mjs",
+      "scenario": "real browser context loss retains visible rendering",
+      "gate": "fast"
+    }
   ],
   "displays": [
-    {"target":"reported error and recovery UI","state":"blocked","reason":"Capture the actual failure and follow the offered recovery; a connected label or nearby passing test is insufficient."}
+    {
+      "target": "affected customer GPU and display scale",
+      "state": "blocked",
+      "reason": "Affected-customer retest remains unconfirmed; this does not prevent closing the independently reproduced and verified source repair under the owner decision of September 11."
+    }
   ],
   "lifecycle": [
-    {"target":"recovery and restart","state":"blocked","reason":"Requires a before/after receipt for this symptom on the affected artifact, followed by restart and the same operation."}
+    {
+      "target": "stage recovery lifecycle",
+      "state": "covered",
+      "test": "test/stage-context-loss.test.js",
+      "scenario": "replacement canvas restores render and input wiring",
+      "gate": "fast"
+    }
   ]
 }
 

@@ -4,10 +4,10 @@ slug: saved-equipment-omitted-from-interactive-tool-pr
 title: Saved equipment omitted from interactive tool projection and toolset diagnostics
 surface: providers
 severity: P1
-status: open
+status: fixed
 found: 2026-09-09
 lane: agent/tool-projection-0909
-fix:
+fix: 3c95b184fd28c5eacac8821ca2231d85da5b3395
 origin: customer
 report: Sanitized owner-forwarded email dated 2026-09-09
 affected: 0.11.0 Windows x64; reported source 58dc520de6db835c0cf917908ee9e6a5501cba81
@@ -15,6 +15,11 @@ family: capability-projection
 installer: unverified
 recovery: unconfirmed
 ---
+
+## September 11 engineering disposition
+
+Engineering work closed for reproduced saved-equipment grant loss and misleading toolset diagnostics. The pre-fix qwen3:14b compatible-wire test omitted fs_write; ten real sidecar runs after repair projected the tools, wrote actual files and retained Last run/restart correlation. Installed-sidecar protocol checks and real installed file tasks passed. Actual Qwen inference and the original Trusted Project configuration remain unconfirmed. Customer confirmation is not a prerequisite for this source closure. `recovery: unconfirmed` remains unchanged, and no new installer-specific outcome is inferred. Earlier open/pending statements below are historical and are superseded by this engineering decision. See `docs/releases/0.11.2/PUBLIC_RELEASE.md`.
+
 
 # Saved equipment omitted from interactive tool projection and toolset diagnostics
 
@@ -38,6 +43,10 @@ Before edit, test/tool-projection.e2e.test.js failed with 'qwen3:14b file projec
 Anchor: sidecar/capability/saved-placement.js; test/tool-projection.e2e.test.js.
 
 ## Verdict
+
+Current disposition: Engineering work closed for reproduced saved-equipment grant loss and misleading toolset diagnostics. The pre-fix qwen3:14b compatible-wire test omitted fs_write; ten real sidecar runs after repair projected the tools, wrote actual files and retained Last run/restart correlation. Installed-sidecar protocol checks and real installed file tasks passed. Actual Qwen inference and the original Trusted Project configuration remain unconfirmed.
+
+Historical investigation notes (superseded for engineering closure):
 
 Confirmed grant-loss and misleading disclosure paths repaired in 3c95b184fd28c5eacac8821ca2231d85da5b3395. Keep this customer report open pending confirmation of the original Trusted Project/Last run symptoms. No installer or customer recovery claim.
 

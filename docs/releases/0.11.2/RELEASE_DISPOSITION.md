@@ -1,5 +1,7 @@
 # 0.11.2 release disposition — September 11
 
+Superseded acceptance decision: [PUBLIC_RELEASE.md](PUBLIC_RELEASE.md) records the owner's clarification that our verified engineering repairs are sufficient without affected-customer retests. Five records close as source-fixed; three uncorrelated investigations remain tracked. The earlier assessment below is retained as history, not the current publication hold.
+
 The owner authorized the final focused release pass and installation of 0.11.2 over their personal StarNet. The ordinary source/installed soak durations remain waived. This does not supply missing customer evidence or waive unresolved P1 reports. The candidate contains all five 0.11.2 version pins, final notes, the release-surface lock, and merge `c9b6a67f8`. The execution receipt records its final immutable identity.
 
 ## Customer report decisions
