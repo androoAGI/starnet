@@ -19,6 +19,8 @@ Two successful queued station saves can leave the browser cache dirty with an ob
 
 ## Repro
 
+Reproducer: `test/cloudsave-concurrency.test.js`. Defective acknowledgement seam: `frontend/app/cloudsave.js:140`.
+
 Write the browser cache as App.persist does, send one save, and queue another before its acknowledgement. Wait for both writes, restart with that cache, and save again. The first acknowledgement updates the queued in-memory revision, so the final acknowledgement's comparison against localStorage incorrectly fails.
 
 ## Evidence
