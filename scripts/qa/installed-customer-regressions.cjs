@@ -16,7 +16,7 @@ if (!process.env.EXE || canonical(process.execPath) !== canonical(path.join(inst
 const hash = p => crypto.createHash('sha256').update(fs.readFileSync(p)).digest('hex');
 const suite = process.argv[2];
 if (!['saved-provider-fallback.e2e.test.js', 'delegated-connectors.e2e.test.js'].includes(suite)) throw Error('Unknown installed scenario');
-const files = ['sidecar/index.js', 'sidecar/loop.js', 'sidecar/orchestration.js', 'sidecar/inputpolicy.js'];
+const files = ['sidecar/index.js', 'sidecar/loop.js', 'sidecar/tools/builtin/orchestration.js', 'sidecar/inputpolicy.js'];
 const identities = {};
 for (const file of files) {
   const actual = hash(path.join(installed, file));

@@ -1,0 +1,69 @@
+{
+  "recordedAt": "2026-09-11T06:12:30.364Z",
+  "source": "629fc39476baab028e291e786d5c6a642e0680d8",
+  "runtimeBuildSource": "6e729e4cb",
+  "fixes": {
+    "providerFallback": "44c6b4952cd1e468f7caaf4d7ead804dc280cc40",
+    "delegation": "44c6b4952cd1e468f7caaf4d7ead804dc280cc40",
+    "delegatedFullAccess": "b4bcdac904f5574ee4541c0cfae5de400592ee69",
+    "queuedSaveRestart": "767a3592516edea1062d82855be2d21a8b4f7e16"
+  },
+  "gates": {
+    "fast": {
+      "steps": 771,
+      "outcome": "PASS",
+      "sha256": "47e47aad79fbb9714b35351150346c822d70bf2ac35c234e5825bd53eb5a6a15",
+      "bytes": 54015
+    },
+    "http": {
+      "steps": 113,
+      "outcome": "PASS",
+      "sha256": "eaffd7530ae03d58ad20c674b19f604235b65a416ca72f21ab6049876761ff49",
+      "bytes": 11824
+    }
+  },
+  "evidence": {
+    "fallback-before.log": {
+      "sha256": "4d2270f75a697015d33d908fe2f79fe57e1dbe1c4de944b84055095380ce48f4",
+      "bytes": 428
+    },
+    "delegated-before.log": {
+      "sha256": "9bc3bee12a8180a92e8f08b8aac80fd711de79affe946c99e88b5bb256dc7174",
+      "bytes": 484
+    },
+    "save-revision-before.log": {
+      "sha256": "3f4693a2259e7dcb660db4d917e35d51f6e050b00499a4c57437f7cd9ea785b7",
+      "bytes": 607
+    },
+    "fallback-budget.log": {
+      "sha256": "69077bc5e371b61b2aa5d3654e693814742062df6f09a4d25a58737070bd5715",
+      "bytes": 118
+    },
+    "save-revision-after.log": {
+      "sha256": "ffa29079c7a84a474282ad48d09bf56847e379ae422994946edf0dfe1de2069a",
+      "bytes": 395
+    },
+    "settings-live.json": {
+      "sha256": "bf32f824cfd26c3d1ccd5b9dc8c5e89ef3f18f63ea03adcf78e990f86ff36b21",
+      "bytes": 762
+    },
+    "save-live.json": {
+      "sha256": "6c2788312386fd3c02d2ce5a7a7b25edb461c102b9b7bbfc9502ec6119e6f582",
+      "bytes": 483
+    },
+    "release-final-fast.log": {
+      "sha256": "47e47aad79fbb9714b35351150346c822d70bf2ac35c234e5825bd53eb5a6a15",
+      "bytes": 54015
+    },
+    "release-final-http.log": {
+      "sha256": "eaffd7530ae03d58ad20c674b19f604235b65a416ca72f21ab6049876761ff49",
+      "bytes": 11824
+    }
+  },
+  "limits": [
+    "Controlled provider and HTTP MCP endpoints prove routing and authority; actual Close OAuth/customer recovery remains unconfirmed.",
+    "Eight earlier customer P1 records remain open.",
+    "Ordinary soak duration waived by owner; no completed soak claimed.",
+    "Official version pins remain 0.11.1; private candidate is not a published 0.11.2 update."
+  ]
+}

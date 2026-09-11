@@ -1,0 +1,27 @@
+{
+  "source": "61f1befd2407a9726d89179dd0afab44c0f43314",
+  "outcome": "PASS",
+  "scope": "dev-seeded source UI; no inference",
+  "before": {
+    "local": 10,
+    "remote": 10
+  },
+  "queued": {
+    "local": 12,
+    "remote": 12,
+    "dirty": false,
+    "conflict": null
+  },
+  "restarted": {
+    "drain": {
+      "ok": true,
+      "hadPending": true,
+      "flushed": true
+    },
+    "local": 14,
+    "remote": 14,
+    "dirty": false,
+    "conflict": null
+  },
+  "exceptions": []
+}
