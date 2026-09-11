@@ -4,10 +4,10 @@ slug: failed-session-repeats-failed-badge-and-leaves-x
 title: Failed session repeats FAILED badge and leaves X steady
 surface: sessions
 severity: P2
-status: open
+status: fixed
 found: 2026-09-11
 lane: agent/session-failed-marker-0910
-fix:
+fix: 407ac8433
 origin: owner
 report: Screenshot 2026-09-10 205602.png and owner request for flashing failure X without FAILED subtitle
 affected: Source 61528ba95 and reported 0.11.2 canary UI

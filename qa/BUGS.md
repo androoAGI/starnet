@@ -4,11 +4,11 @@
 One tracked file per bug under `qa/bugs/`; this is only the index. File a new bug with
 `node scripts/qa/bugs.mjs --new --title "..." --surface <surface>`.
 
-**8** open (open+claimed) of 124 total — 0 P0 · 7 P1 · 1 P2
+**7** open (open+claimed) of 124 total — 0 P0 · 7 P1 · 0 P2
 
 Engineering status is separate from delivery and customer recovery. Legacy rows without origin are not a customer census.
 
-User/owner reports: **52** · source fixed: **44** · installer verified: **2** · customer confirmed: **1** · still reported failing: **1** · recovery unconfirmed: **50**.
+User/owner reports: **52** · source fixed: **45** · installer verified: **2** · customer confirmed: **1** · still reported failing: **1** · recovery unconfirmed: **50**.
 
 | Report | Family | Source | Installer | Customer |
 | --- | --- | --- | --- | --- |
@@ -46,13 +46,13 @@ User/owner reports: **52** · source fixed: **44** · installer verified: **2** 
 | [Bay names are unreadable at normal station zoom](bugs/0ff9dfc6-bay-names-are-unreadable-at-normal-station-zoom.md) | bay-labels | fixed | verified | confirmed |
 | [New backdrops stall switching and zoomed-out terrain rendering](bugs/04ca4207-new-backdrops-stall-switching-and-zoomed-out-ter.md) | backdrop-performance | fixed | verified | unconfirmed |
 | [Website station preview fails when hosting beacon is blocked](bugs/b3b8d28f-website-station-preview-fails-when-hosting-beaco.md) | deployment-integrity | fixed | not-applicable | unconfirmed |
-| [Failed session repeats FAILED badge and leaves X steady](bugs/d07d3a35-failed-session-repeats-failed-badge-and-leaves-x.md) | session-status-presentation | open | unverified | unconfirmed |
 | [Deliverable naming instruction conflicts with explicit stop limits](bugs/5a35bcfe-deliverable-note-overrides-stop.md) | task-scope | fixed | unverified | unconfirmed |
 | [Dense service cards squeeze technical prose into tiny columns](bugs/734b469e-dense-service-cards-squeeze-technical-prose-into.md) | record-readability | fixed | unverified | unconfirmed |
 | [Station button redesign escaped the bottom navigation](bugs/d28ba8f4-station-button-redesign-escaped-the-bottom-navig.md) | dock-style-scope | fixed | unverified | unconfirmed |
 | [Agent work rating fails with a generic not saved message](bugs/1fc69e6a-agent-work-rating-fails-with-a-generic-not-saved.md) | work-rating | fixed | unverified | unconfirmed |
 | [COMMS starters suggest arbitrary tasks and lose session context](bugs/e84d1dfd-comms-starters-suggest-arbitrary-tasks-and-lose.md) | session-starters | fixed | unverified | unconfirmed |
 | [Context extraction card uses a flat surface outside the current theme](bugs/b87dbc17-context-extraction-card-uses-a-flat-surface-outs.md) | context-presentation | fixed | unverified | unconfirmed |
+| [Failed session repeats FAILED badge and leaves X steady](bugs/d07d3a35-failed-session-repeats-failed-badge-and-leaves-x.md) | session-status-presentation | fixed | unverified | unconfirmed |
 | [Session recommendations ignore user goals and actual work](bugs/a55c0020-session-recommendations-ignore-user-goals-and-ac.md) | session-starters | fixed | unverified | unconfirmed |
 | [Agent look-back flicker and waypoint stutter](bugs/e356ce13-agent-look-back-flicker-and-waypoint-stutter.md) | movement-continuity | fixed | unverified | unconfirmed |
 | [Centered room lighting leaves sides dark and creates hotspots](bugs/741832d8-centered-room-lighting-leaves-sides-dark-and-cre.md) | room-lighting | fixed | unverified | unconfirmed |
@@ -143,7 +143,6 @@ User/owner reports: **52** · source fixed: **44** · installer verified: **2** 
 | P1 | fixed | world | [New backdrops stall switching and zoomed-out terrain rendering](bugs/04ca4207-new-backdrops-stall-switching-and-zoomed-out-ter.md) | agent/backdrop-performance-0910 | 2c041bbe69124eda1f60a6eb5a11cc44676028cb |
 | P1 | fixed | world | [ROUTINES › REVOKE ACCESS toasts "access revoked" (green) on a 4xx/5xx — bare `fetch` resolves, so the unattended grant survives its own success message](bugs/fd0f7223-routines-revoke-access-toasts-access-revoked.md) | sweep/world | 3f0d1205 |
 | P1 | fixed | world | [Website station preview fails when hosting beacon is blocked](bugs/b3b8d28f-website-station-preview-fails-when-hosting-beaco.md) | website-station-boot-0905 | 27560918e |
-| P2 | open | sessions | [Failed session repeats FAILED badge and leaves X steady](bugs/d07d3a35-failed-session-repeats-failed-badge-and-leaves-x.md) | agent/session-failed-marker-0910 | — |
 | P2 | fixed | autonomy | [Cancelled edit starts a replacement language server](bugs/37059128-cancelled-edit-starts-a-replacement-language-ser.md) | reliability-audit | 547dd03d7 |
 | P2 | fixed | autonomy | [Deliverable naming instruction conflicts with explicit stop limits](bugs/5a35bcfe-deliverable-note-overrides-stop.md) | report-0110-0908 | 72a8a3043c263cd53ed353daed2042e256c8e236 |
 | P2 | fixed | autonomy | [routine.create's default `arm:true` bypasses the documented single resume seam and clears the durable cron E-STOP — the workshop auto-arm path at index.js:8214](bugs/300b34ab-routine-create-s-default-arm.md) | sweep/autonomy | 6afeb9ee |
@@ -167,6 +166,7 @@ User/owner reports: **52** · source fixed: **44** · installer verified: **2** 
 | P2 | fixed | sessions | [COMMS starters suggest arbitrary tasks and lose session context](bugs/e84d1dfd-comms-starters-suggest-arbitrary-tasks-and-lose.md) | agent/useful-starters-0906 | 33d995fed |
 | P2 | fixed | sessions | [Context extraction card uses a flat surface outside the current theme](bugs/b87dbc17-context-extraction-card-uses-a-flat-surface-outs.md) | release-0110 | fe5be77a9 |
 | P2 | fixed | sessions | [Escape from a terminal field loses the dialog keyboard boundary](bugs/8b2ef7e7-escape-from-a-terminal-field-loses-the-dialog-ke.md) | agent/glass-demo-0909 | e6ecdd986 |
+| P2 | fixed | sessions | [Failed session repeats FAILED badge and leaves X steady](bugs/d07d3a35-failed-session-repeats-failed-badge-and-leaves-x.md) | agent/session-failed-marker-0910 | 407ac8433 |
 | P2 | fixed | sessions | [Session recommendations ignore user goals and actual work](bugs/a55c0020-session-recommendations-ignore-user-goals-and-ac.md) | agent/useful-starters-0906 | 51768e661 |
 | P2 | fixed | voice | [Failed Live Voice startup leaves a user mute force-enabled](bugs/d02d029b-failed-live-voice-startup-leaves-a-user-mute-for.md) | agent/voice-release-sweep | 8bc9ff9a |
 | P2 | fixed | voice | [Muting the speaker mid-reply in hands-free nulls the only surviving rearm heartbeat — the mic never re-opens while the mode button still reads 'hands-free ON'](bugs/2f7b280c-muting-the-speaker-mid-reply-in-hands-free-nulls.md) | sweep/voice | 50a8b07b |
@@ -200,7 +200,7 @@ User/owner reports: **52** · source fixed: **44** · installer verified: **2** 
 | autonomy | 2 |
 | providers | 3 |
 | safecell | 0 |
-| sessions | 1 |
+| sessions | 0 |
 | skills | 0 |
 | onboarding | 1 |
 | world | 1 |
