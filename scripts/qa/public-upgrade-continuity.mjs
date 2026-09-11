@@ -47,9 +47,10 @@ async function launch(populated = false) {
 Start-Process -FilePath $env:PROOF_EXE -WindowStyle Hidden | Out-Null`);
   cdp = await connectCDP(19373);
   for (let n = 0; n < 120; n++) {
-    try { if (await evalJS(cdp, "typeof App!=='undefined'&&typeof Save!=='undefined'&&typeof CloudSave!=='undefined'&&typeof WorldModel!=='undefined'" + (populated ? '&&App.crewCount()===2' : ''))) return; } catch {}
+    try { if (await evalJS(cdp, "typeof App!=='undefined'&&typeof Save!=='undefined'&&typeof CloudSave!=='undefined'&&typeof WorldModel!=='undefined'&&typeof SharedSpecialties==='object'&&!document.getElementById('bootguard-fatal')" + (populated ? '&&App.crewCount()===2' : ''))) return; } catch {}
     await sleep(500);
   }
+  receipt.lastBoot = await evalJS(cdp, "({crew:typeof App==='undefined'?null:App.crewCount(),configured:typeof Harness==='undefined'?null:Harness.configured('openrouter'),pull:typeof CloudSave==='undefined'?null:CloudSave.pullOutcome(),bootFatal:!!document.getElementById('bootguard-fatal')})").catch(() => null);
   throw new Error('Installed application did not initialize');
 }
 async function snapshot() {
@@ -60,6 +61,10 @@ try {
   receipt.beforeBuild = await evalJS(cdp, "__TAURI__.core.invoke('starnet_build_info')");
   if (receipt.beforeBuild.version !== baselineVersion) throw new Error('Historical public version mismatch');
   receipt.checks.historicalPublicBoot = true;
+  // A fresh hosted profile has no credential, so a populated OpenRouter save correctly
+  // opens connection recovery rather than the station. Store a deliberately invalid,
+  // synthetic value through the real keychain path; no inference task is submitted.
+  await evalJS(cdp, "Harness.setKey('invalid-upgrade-fixture-' + crypto.randomUUID(),'openrouter')");
   const fixture = populatedFixture(randomUUID());
   await evalJS(cdp, `(async()=>{
     await CloudSave.flush({force:true});
@@ -73,6 +78,8 @@ try {
   })()`);
   stop(); await launch(true);
   const before = await snapshot();
+  receipt.beforeState = continuityProjection(before);
+  if (!await evalJS(cdp, "__TAURI__.core.invoke('harness_has_provider_key',{provider:'openrouter'})")) throw new Error('Synthetic key did not survive public restart');
   for (const s of [before.local, before.durable]) {
     if (s?.agents?.length !== 2 || !s.station?.props?.some(p => p.agentId === 'scout') || !s.workstreams?.some(w => w.history?.some(m => m.content === 'preserve-' + fixture.agent.canaryNonce)) || s.usage?.calls !== 2) throw new Error('Public baseline did not retain populated fixture');
   }
@@ -83,6 +90,8 @@ try {
   if (receipt.beforeBuild.sha === receipt.afterBuild.sha) throw new Error('Installer did not replace the public source build');
   receipt.checks.exactCandidateInstalled = true;
   const after = await snapshot();
+  receipt.afterState = continuityProjection(after);
+  if (!await evalJS(cdp, "__TAURI__.core.invoke('harness_has_provider_key',{provider:'openrouter'})")) throw new Error('Synthetic key did not survive candidate install');
   const projection = stableJson(continuityProjection(before));
   if (projection !== stableJson(continuityProjection(after))) throw new Error('State changed across public-to-candidate reinstall');
   receipt.checks.statePreservedAcrossInstall = true;
@@ -95,7 +104,10 @@ try {
     await sleep(500);
   }
   cdp?.ws.close(); cdp = null; await launch(true);
-  if (projection !== stableJson(continuityProjection(await snapshot()))) throw new Error('State changed across candidate restart');
+  receipt.restartedState = continuityProjection(await snapshot());
+  if (projection !== stableJson(receipt.restartedState)) throw new Error('State changed across candidate restart');
+  if (!await evalJS(cdp, "__TAURI__.core.invoke('harness_has_provider_key',{provider:'openrouter'})")) throw new Error('Synthetic key did not survive candidate restart');
+  receipt.syntheticKeyPresentAcrossInstallAndRestart = true;
   receipt.checks.statePreservedAcrossRestart = true;
   receipt.projectionSha256 = createHash('sha256').update(projection).digest('hex');
   receipt.installedExeSha256 = sha(exe);
