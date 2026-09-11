@@ -187,6 +187,10 @@ jobs:
       # Updater feed acceptance remains owed against the eventual staged draft.
       - uses: actions/checkout@v4
         if: inputs.build_run_id != ''
+        with:
+          # The verifier may be newer than the installer. Resolve the installer's
+          # exact source tree for the installed-smoke identity check.
+          fetch-depth: 0
 
       - uses: actions/setup-node@v4
         if: inputs.build_run_id != ''
