@@ -1,0 +1,10 @@
+{
+  "installerSha256": "d3ecca65a517d0270ee9e20bd085cee56b02e3f15fe6470cf98c221ae1684f16",
+  "installerExit": 0,
+  "at": "2026-09-11T20:18:41.6635065Z",
+  "version": "0.11.2",
+  "hostedRun": "34642893710",
+  "backup": "C:\\Users\\andro\\AppData\\Local\\StarNet-release-backups\\0.11.2-public-20260911-161747",
+  "source": "69baf91a5b2c22230f87e614da6a72882278bc6c",
+  "executableSha256": "d6d2152f35d19e4aa8f4ef0a63d78a7b9fbd8c5106b2402a500ed700dff4bd6c"
+}

@@ -1,0 +1,190 @@
+{
+  "schema": "starnet.public-release-evidence.v1",
+  "recordedAt": "2026-09-11T20:25:58.542Z",
+  "version": "0.11.2",
+  "source": "69baf91a5b2c22230f87e614da6a72882278bc6c",
+  "tag": "v0.11.2",
+  "publishedAt": "2026-09-11T20:16:08Z",
+  "release": "https://github.com/androoAGI/starnet-releases/releases/tag/v0.11.2",
+  "mirror": "https://github.com/androoAGI/starnet/releases/tag/v0.11.2",
+  "installerSha256": "d3ecca65a517d0270ee9e20bd085cee56b02e3f15fe6470cf98c221ae1684f16",
+  "installedExecutableSha256": "d6d2152f35d19e4aa8f4ef0a63d78a7b9fbd8c5106b2402a500ed700dff4bd6c",
+  "publicCanaryChecks": {
+    "historicalPublicBoot": true,
+    "populatedPublicRestart": true,
+    "publicUpdateAvailable": true,
+    "installerExitedAndAppRestarted": true,
+    "automaticRestartHealthy": true,
+    "currentVersionHasNoPendingUpdate": true,
+    "exactCandidateInstalled": true,
+    "statePreservedAcrossInstall": true,
+    "statePreservedAcrossRestart": true,
+    "installedSmoke": true
+  },
+  "mirrorInstallersIdentical": true,
+  "privacy": "Personal state and credential contents excluded; only personal comparison and identity summaries retained. Hosted canary state is synthetic.",
+  "receipts": [
+    {
+      "path": "installer-identity.json",
+      "bytes": 495,
+      "sha256": "46b9ad94724a314a7e0ae5363442dbd7a8c524cf3c68d8be77652df0c1bb124c",
+      "kind": "original receipt"
+    },
+    {
+      "path": "windows-upgrade-proof/windows-published-upgrade-proof.json",
+      "bytes": 1415,
+      "sha256": "fec1163701077402f9d867bf3c4e553003b37565a70dbfce4046002fd4dd1b41",
+      "kind": "original receipt"
+    },
+    {
+      "path": "intel-acceptance/intel-macos-installed-acceptance.json",
+      "bytes": 695,
+      "sha256": "fe3deae6a5039e46bd0486dfbcce15ab59e33ff310b629e79a609336a40c7e95",
+      "kind": "original receipt"
+    },
+    {
+      "path": "clean-install/clean-install-proof.json",
+      "bytes": 1466,
+      "sha256": "063a9da78a18fcf5a03208039f2f0c2aec0c5990a7001e67a1b80791249d8889",
+      "kind": "original receipt"
+    },
+    {
+      "path": "lifecycle/packaged-lifecycle-receipt.json",
+      "bytes": 4129,
+      "sha256": "6e2fbd927bb3aa201e160fa04aa8303d08176c584458f14c8fcf2b5228d15b70",
+      "kind": "original receipt"
+    },
+    {
+      "path": "release-train.json",
+      "bytes": 99,
+      "sha256": "9c4a5597134f73be16449f8e259ed05f58306aaeca781688e2a94564f46123c1",
+      "kind": "original receipt"
+    },
+    {
+      "path": "t0-run.json",
+      "bytes": 99,
+      "sha256": "9c4a5597134f73be16449f8e259ed05f58306aaeca781688e2a94564f46123c1",
+      "kind": "original receipt"
+    },
+    {
+      "path": "g1-run.json",
+      "bytes": 99,
+      "sha256": "9c4a5597134f73be16449f8e259ed05f58306aaeca781688e2a94564f46123c1",
+      "kind": "original receipt"
+    },
+    {
+      "path": "draft-assets-verified.json",
+      "bytes": 1662,
+      "sha256": "65b62ea407676e7721b503b95698bf8859874d30f4d80f5fd5260165b21f5d8d",
+      "kind": "original receipt"
+    },
+    {
+      "path": "manifest/latest.json",
+      "bytes": 5244,
+      "sha256": "416ada857284986b0d4e6d664a2785c2713099a0ea83279c05b7923815aeed21",
+      "kind": "original receipt"
+    },
+    {
+      "path": "published-release.json",
+      "bytes": 18814,
+      "sha256": "7ba3215e647ef45fa940f9fd9d0b586c18481d9f1985da1019fb2798aa6b1f06",
+      "kind": "original receipt"
+    },
+    {
+      "path": "source-release.json",
+      "bytes": 11038,
+      "sha256": "eac2bd4bcedfe29259bd49ed95d77e227394e873d54687405ef8c18e3e576906",
+      "kind": "original receipt"
+    },
+    {
+      "path": "live-feed-verification.log",
+      "bytes": 2479,
+      "sha256": "2c0d2c47372e0f9d4907f9e3a70fcfdca257523e20ec4b24132d59f08f65dfd8",
+      "kind": "original receipt"
+    },
+    {
+      "path": "public-canary-run.json",
+      "bytes": 4370,
+      "sha256": "48cca72199fd6ba0de1f41ea3b97ec2b50597fc699020facca05ce3326058f15",
+      "kind": "original receipt"
+    },
+    {
+      "path": "mirror-run.json",
+      "bytes": 2499,
+      "sha256": "adb3a84041d98bdd2fdcc953b5d6a1c667114dd99e8921a7fe604d8c3804cbfb",
+      "kind": "original receipt"
+    },
+    {
+      "path": "public-canary/public-upgrade-continuity.json",
+      "bytes": 101587,
+      "sha256": "5a257d77f61d4c36b03ebf45cac74af58de768e9336cfc117410828abd50daee",
+      "kind": "original receipt"
+    },
+    {
+      "path": "postpublish-lifecycle/packaged-lifecycle-receipt.json",
+      "bytes": 4124,
+      "sha256": "bd2d859696f614188073f66951a24b68a082208d4921a19ed80bf2485547fc3c",
+      "kind": "original receipt"
+    },
+    {
+      "path": "personal-backup.json",
+      "bytes": 280,
+      "sha256": "c5025c73f22fd76a2e0c56c3326163bb12767de9830ceff4640fe95d19d8cf4e",
+      "kind": "original receipt"
+    },
+    {
+      "path": "personal-install.json",
+      "bytes": 467,
+      "sha256": "909473ace855f1fd814bb3040dfcc162ca5a25f86d3ed2a96aa0d3ec027d7be0",
+      "kind": "original receipt"
+    },
+    {
+      "path": "personal-ui-after-comparison.json",
+      "bytes": 313,
+      "sha256": "0f0284931a9fd9b2a3b9efab887135a67afd0dceb8481994fd77f84536b97738",
+      "kind": "original receipt"
+    },
+    {
+      "path": "personal-ui-restarted-comparison.json",
+      "bytes": 317,
+      "sha256": "d887e9377062aa08ec25d15a6c16418a67b404797a62ab8bf7571054c4511a15",
+      "kind": "original receipt"
+    },
+    {
+      "path": "personal-public-updater.json",
+      "bytes": 539,
+      "sha256": "2093ce0704824b5a4835a53bc1bd3793645b17f249fac79e0b4d0de9ec8a50ff",
+      "kind": "original receipt"
+    },
+    {
+      "path": "personal-final-api.json",
+      "bytes": 834,
+      "sha256": "d80e7061bc5e28ffd77db06f6a4a25352b09706ef50ab5c6eea0cac58d1606c5",
+      "kind": "original receipt"
+    },
+    {
+      "path": "personal-installed/qa/installed/last-smoke.json",
+      "bytes": 1276,
+      "sha256": "1017e1aa3bf7a12904cb58a98277067915dd41c1ad60135201e6002daf054f09",
+      "kind": "original receipt"
+    },
+    {
+      "path": "personal-installed/qa/installed/smoke-2026-09-11T20-19-27-106Z/probe.json",
+      "bytes": 2166,
+      "sha256": "98c7178370a627a5715f351a641bd645e403ffacfa842e20e3663678e9733e74",
+      "kind": "original receipt"
+    },
+    {
+      "path": "canary-installed/qa/installed/last-smoke.json",
+      "bytes": 1282,
+      "sha256": "6f698d21ab23e1a3771b47839dc6a673e3e67b5306644b4378295aafaf5f57ea",
+      "kind": "original receipt"
+    },
+    {
+      "path": "canary-installed/qa/installed/smoke-2026-09-11T20-19-27-147Z/probe.json",
+      "bytes": 2165,
+      "sha256": "f27473bbc8be97d5ae9355c38006bac07b0fc44a9c1a6bd99bc24c09383ff0a5",
+      "kind": "original receipt"
+    }
+  ]
+}

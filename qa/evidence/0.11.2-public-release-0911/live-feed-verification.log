@@ -1,0 +1,32 @@
+== verify-update-host (live mode) ==
+  endpoint       : https://github.com/androoAGI/starnet-releases/releases/latest/download/latest.json
+  shipped version: 0.11.2
+  require        : windows-x86_64, darwin-aarch64, darwin-x86_64
+
+  PASS endpoint is https  — https://github.com/androoAGI/starnet-releases/releases/latest/download/latest.json
+  PASS endpoint is a GitHub Releases latest.json
+  PASS latest.json is reachable (HTTP 200)
+  PASS latest.json is valid JSON
+  PASS manifest.version present  — 0.11.2
+  PASS manifest.pub_date present  — 2026-09-11T20:09:47.214Z
+  PASS manifest.platforms is an object
+  PASS required platform present: windows-x86_64
+  PASS required platform present: darwin-aarch64
+  PASS required platform present: darwin-x86_64
+  PASS manifest lists at least one platform  — windows-x86_64, darwin-aarch64, darwin-x86_64
+  PASS manifest.version matches --expect-version  — got 0.11.2, expected 0.11.2
+  PASS manifest.version >= shipped tauri version  — manifest 0.11.2 vs shipped 0.11.2
+  PASS platform["windows-x86_64"].signature is a non-empty updater signature
+  PASS platform["windows-x86_64"].url is https  — https://github.com/androoAGI/starnet-releases/releases/download/v0.11.2/StarNet_0.11.2_x64-setup.exe
+  PASS platform["windows-x86_64"].url pinned to /download/v0.11.2/  — https://github.com/androoAGI/starnet-releases/releases/download/v0.11.2/StarNet_0.11.2_x64-setup.exe
+  PASS platform["windows-x86_64"] asset reachable (HTTP 200)
+  PASS platform["darwin-aarch64"].signature is a non-empty updater signature
+  PASS platform["darwin-aarch64"].url is https  — https://github.com/androoAGI/starnet-releases/releases/download/v0.11.2/StarNet_darwin-arm64.app.tar.gz
+  PASS platform["darwin-aarch64"].url pinned to /download/v0.11.2/  — https://github.com/androoAGI/starnet-releases/releases/download/v0.11.2/StarNet_darwin-arm64.app.tar.gz
+  PASS platform["darwin-aarch64"] asset reachable (HTTP 200)
+  PASS platform["darwin-x86_64"].signature is a non-empty updater signature
+  PASS platform["darwin-x86_64"].url is https  — https://github.com/androoAGI/starnet-releases/releases/download/v0.11.2/StarNet_darwin-x64.app.tar.gz
+  PASS platform["darwin-x86_64"].url pinned to /download/v0.11.2/  — https://github.com/androoAGI/starnet-releases/releases/download/v0.11.2/StarNet_darwin-x64.app.tar.gz
+  PASS platform["darwin-x86_64"] asset reachable (HTTP 200)
+
+== ALL CHECKS PASSED ==

@@ -1,0 +1,38 @@
+{
+  "schema": "starnet.windows-published-upgrade-proof.v1",
+  "generatedAt": "2026-09-11T19:53:39.4696154Z",
+  "candidate": {
+    "version": "0.11.2",
+    "installer": "StarNet_0.11.2_x64-setup.exe",
+    "sha256": "d3ecca65a517d0270ee9e20bd085cee56b02e3f15fe6470cf98c221ae1684f16"
+  },
+  "scenarios": [
+    {
+      "path": "latest-to-next",
+      "sourceVersion": "0.11.1",
+      "targetVersion": "0.11.2",
+      "oldUninstallerDeleted": true,
+      "activeShellAndSidecar": true,
+      "manualInstallerExited": 0,
+      "relaunched": true,
+      "stateSha256Before": "e3078bb6fbfcbe75b7691f2dc07bc7d894ae33992f97a3917ec08032a1bca58c",
+      "stateSha256After": "e3078bb6fbfcbe75b7691f2dc07bc7d894ae33992f97a3917ec08032a1bca58c",
+      "futureUninstallStoppedProcesses": true,
+      "futureUninstallPreservedState": true
+    },
+    {
+      "path": "n-minus-one-to-next",
+      "sourceVersion": "0.11.0",
+      "targetVersion": "0.11.2",
+      "oldUninstallerDeleted": true,
+      "activeShellAndSidecar": true,
+      "manualInstallerExited": 0,
+      "relaunched": true,
+      "stateSha256Before": "fb09e6cdfa8a3d7c9c7d8f5474fc8f4c8c2cddccf3fe4904f98578e044f9cf10",
+      "stateSha256After": "fb09e6cdfa8a3d7c9c7d8f5474fc8f4c8c2cddccf3fe4904f98578e044f9cf10",
+      "futureUninstallStoppedProcesses": true,
+      "futureUninstallPreservedState": true
+    }
+  ],
+  "ok": true
+}

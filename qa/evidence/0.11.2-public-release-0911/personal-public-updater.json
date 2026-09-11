@@ -1,0 +1,18 @@
+{
+  "at": "2026-09-11T20:20:07.612Z",
+  "result": "PASS",
+  "currentVersion": "0.11.2",
+  "phase": "current",
+  "pendingUpdate": false,
+  "native": {
+    "version": "0.11.2",
+    "commit": "69baf91a5",
+    "sha": "69baf91a5b2c22230f87e614da6a72882278bc6c",
+    "sourceTree": "930d6dc2c4f556f9f22ded59f0f9cbfcc72d3fe5",
+    "provenanceKind": "reproducible-source",
+    "describe": "v0.11.2",
+    "dirty": false,
+    "executableSha256": "d6d2152f35d19e4aa8f4ef0a63d78a7b9fbd8c5106b2402a500ed700dff4bd6c",
+    "executableSize": 17882376
+  }
+}

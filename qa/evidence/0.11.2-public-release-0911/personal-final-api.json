@@ -1,0 +1,42 @@
+{
+  "at": "2026-09-11T20:25:19.928Z",
+  "version": {
+    "harness": "v0.11.2",
+    "app": "0.11.2",
+    "node": "v22.23.2",
+    "appSource": "env",
+    "harnessSource": "env",
+    "buildSha": "69baf91a5b2c22230f87e614da6a72882278bc6c",
+    "buildDirty": false
+  },
+  "activeRuns": 0,
+  "savedRoutines": 1,
+  "pausedRoutines": 1,
+  "lifecycle": {
+    "armed": false,
+    "categories": {
+      "routines": {
+        "armed": false,
+        "count": 0,
+        "healthy": false,
+        "halted": true
+      },
+      "channels": {
+        "armed": false,
+        "connected": []
+      },
+      "nightshift": {
+        "armed": false,
+        "halted": true
+      },
+      "terminals": {
+        "armed": false,
+        "count": 0
+      }
+    },
+    "reasons": [],
+    "ts": 1789158319926
+  },
+  "normalLaunch": true,
+  "result": "PASS"
+}

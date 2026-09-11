@@ -1,0 +1,53 @@
+{
+  "draftId": 387307057,
+  "result": "PASS",
+  "assets": [
+    {
+      "sha256": "416ada857284986b0d4e6d664a2785c2713099a0ea83279c05b7923815aeed21",
+      "name": "latest.json",
+      "bytes": 5244
+    },
+    {
+      "sha256": "7212ef79973abdff6859186eafbb64f7d3a044aede26c6d90fa6bc53e944a1e4",
+      "name": "StarNet_0.11.2_aarch64.dmg",
+      "bytes": 159897408
+    },
+    {
+      "sha256": "d3ecca65a517d0270ee9e20bd085cee56b02e3f15fe6470cf98c221ae1684f16",
+      "name": "StarNet_0.11.2_x64-setup.exe",
+      "bytes": 129757152
+    },
+    {
+      "sha256": "146f842d0e11f78f1b85f010fc98387a811ac0375c58eec83fceb6c43c57b0e0",
+      "name": "StarNet_0.11.2_x64-setup.exe.sig",
+      "bytes": 420
+    },
+    {
+      "sha256": "7c1bc416f8ce14f518913383eabef5d7aed5db44f8034c729ceff4ebb6ee4671",
+      "name": "StarNet_0.11.2_x64.dmg",
+      "bytes": 155008988
+    },
+    {
+      "sha256": "0254e8dcf6330abcbff9c9ec32c77fead0cc175aca19188036014bdaee9e7c7f",
+      "name": "StarNet_darwin-arm64.app.tar.gz",
+      "bytes": 160656534
+    },
+    {
+      "sha256": "e420009bf947616796206603c97d3fa36c81518779f384b20a923b6e9e7699df",
+      "name": "StarNet_darwin-arm64.app.tar.gz.sig",
+      "bytes": 404
+    },
+    {
+      "sha256": "cdbcfe963baa9669573808b0d8f003e7be554dd17aa38a3c8055395fae4ffce9",
+      "name": "StarNet_darwin-x64.app.tar.gz",
+      "bytes": 155075154
+    },
+    {
+      "sha256": "b3bef6d04ad7876f7f7adf26a1c821f5c746fce667073d4af19c91eef501c5b5",
+      "name": "StarNet_darwin-x64.app.tar.gz.sig",
+      "bytes": 404
+    }
+  ],
+  "at": "2026-09-11T20:11:45.2693897Z",
+  "tag": "v0.11.2"
+}
