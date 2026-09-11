@@ -6,8 +6,7 @@ const store = makeSaveStore({ fs, pathMod: path, root, clock: { now: () => Date.
 const source = fs.readFileSync(path.join(__dirname, '../frontend/app/cloudsave.js'), 'utf8');
 const base = { schema: 'starnet.save', version: 6, updatedAt: 1, agent: { id: 'agent' }, workstreams: [] };
 store.save('agent', base, { compareRevision: true });
-function client({ beforePost = async () => {}, onReload = () => {} } = {}) {
-  const cache = new Map();
+function client({ beforePost = async () => {}, onReload = () => {}, cache = new Map() } = {}) {
   const context = { console, module: { exports: {} }, require: () => require('../frontend/app/cloudsavecore.js'), setTimeout, clearTimeout, AbortController,
     location: { reload: onReload },
     localStorage: { getItem: k => cache.get(k) || null, setItem: (k,v) => cache.set(k,v), removeItem: k => cache.delete(k) },
@@ -52,6 +51,36 @@ function client({ beforePost = async () => {}, onReload = () => {} } = {}) {
     const resumed = await Promise.race([bootClient.reconcile(db), new Promise((_, reject) => { deadline = setTimeout(() => reject(Error('dirty cache boot waited for POST')), 200); })]);
     clearTimeout(deadline); assert.equal(resumed, db, 'dirty local boot does not await the network save');
     const bootFlush = bootClient.flush({ force: true }); releaseBoot(); await bootFlush;
-    console.log('cloudsave-concurrency: two clients, conflict export, update refusal, offline restart and queued writes PASS');
+    // App.persist writes localStorage before CloudSave.push. A queued doc receives the prior ACK's
+    // revision in memory; the browser cache must receive its own final ACK too, or restart invents a conflict.
+    const cache = new Map(), own = client({ cache });
+    const initial = await own.reconcile(null);
+    function persistOwn(id, updatedAt) {
+      const doc = structuredClone(initial); doc.updatedAt = updatedAt; doc._saveDirty = true;
+      doc._saveRevision = own.revision(); doc.workstreams.push({ id });
+      cache.set('starnet.save', JSON.stringify(doc)); own.push(doc);
+    }
+    persistOwn('first-queued', 10001); const writing = own.flush({ force: true });
+    persistOwn('newest-queued', 10002); const queued = own.flush({ force: true });
+    await writing; assert.equal(await queued, true);
+    const landed = JSON.parse(cache.get('starnet.save'));
+    assert.equal(landed._saveRevision, store.load('agent')._saveRevision, 'browser cache records the final queued write revision');
+    assert.equal(landed._saveDirty, false, 'only the acknowledged newest document becomes clean');
+    const resumedOwn = client({ cache }); await resumedOwn.reconcile(landed);
+    landed.updatedAt = 10003; landed._saveDirty = true; landed._saveRevision = resumedOwn.revision();
+    cache.set('starnet.save', JSON.stringify(landed)); resumedOwn.push(landed);
+    assert.equal(await resumedOwn.flush({ force: true }), true, 'ordinary write after restart has no false conflict');
+    assert.equal(resumedOwn.health().conflict, null);
+    let releaseAck;
+    const changedCache = new Map(), changed = client({ cache: changedCache, beforePost: () => new Promise(resolve => { releaseAck = resolve; }) });
+    const sending = await changed.reconcile(null); sending.updatedAt = 10004; sending._saveDirty = true;
+    changedCache.set('starnet.save', JSON.stringify(sending)); changed.push(sending);
+    const saving = changed.flush({ force: true });
+    const unsent = structuredClone(sending); unsent.updatedAt = 10005; unsent.workstreams.push({ id: 'not-yet-queued' });
+    changedCache.set('starnet.save', JSON.stringify(unsent)); releaseAck(); await saving;
+    const untouched = JSON.parse(changedCache.get('starnet.save'));
+    assert.equal(untouched._saveDirty, true, 'ACK cannot mark a different newer browser document clean');
+    assert.equal(untouched._saveRevision, unsent._saveRevision, 'ACK cannot rebase an unsubmitted edit');
+    console.log('cloudsave-concurrency: two clients, conflict export, update refusal, offline restart and queued cache acknowledgements PASS');
   } finally { fs.rmSync(root, { recursive: true, force: true }); }
 })().catch(e => { console.error(e); process.exitCode = 1; });
