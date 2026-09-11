@@ -62,12 +62,22 @@ async function snapshot() {
       return r;
     };
     try {
-      App.persist();const drained=await CloudSave.flushForUpdate();
+      App.persist();let drained=await CloudSave.flushForUpdate();const drains=[drained];
+      // Public 0.11.1 can queue another boot-time save while its first successful write settles.
+      // A clean health receipt plus HTTP success is not enough: drain that newer document too.
+      // Never retry through a failed write, and never proceed without an affirmative final drain.
+      for(let n=0;!drained.ok&&n<10;n++){
+        const h=CloudSave.health();
+        if(h.degraded||h.consecutiveFailures||writes.some(w=>w.status!==200||JSON.parse(w.body).ok!==true))break;
+        await new Promise(r=>setTimeout(r,100));
+        drained=await CloudSave.flushForUpdate();drains.push(drained);
+      }
       const r=await fetch('/api/save?agent=agent');if(!r.ok)throw Error('Save read failed');
-      return {drained,writes,health:CloudSave.health(),local:JSON.parse(localStorage.getItem('starnet.save')||'null'),durable:(await r.json()).save,sentinel:JSON.parse(localStorage.getItem('starnet.canary.continuity')||'null')};
+      return {drained,drains,writes,health:CloudSave.health(),local:JSON.parse(localStorage.getItem('starnet.save')||'null'),durable:(await r.json()).save,sentinel:JSON.parse(localStorage.getItem('starnet.canary.continuity')||'null')};
     }finally{window.fetch=original;}
   })()`);
   if (!snap.drained.ok) { receipt.failedSnapshot = snap; throw new Error('Save drain not confirmed; see failedSnapshot responses'); }
+  (receipt.saveDrains ||= []).push({drains:snap.drains,writes:snap.writes,health:snap.health});
   return snap;
 }
 try {
