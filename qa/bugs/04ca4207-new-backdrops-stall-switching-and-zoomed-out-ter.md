@@ -1,0 +1,51 @@
+---
+fingerprint: 04ca4207
+slug: new-backdrops-stall-switching-and-zoomed-out-ter
+title: New backdrops stall switching and zoomed-out terrain rendering
+surface: world
+severity: P1
+status: open
+found: 2026-09-11
+lane: agent/backdrop-performance-0910
+fix:
+origin: owner
+report: Owner reports the new backdrops make StarNet laggy
+affected: a625182bd; exact owner artifact not supplied
+family: backdrop-performance
+installer: unverified
+recovery: unconfirmed
+---
+
+# New backdrops stall switching and zoomed-out terrain rendering
+
+## Symptom
+
+The owner reports lag after selecting the refreshed backdrops. Large scenes can freeze interaction while loading, and zoomed-out ground scenery can make camera movement sluggish.
+
+## Repro
+
+1. Launch an isolated seeded station with `node dev/seed.js --keep` and open Cinema at 1920×1080 or 3840×2160.
+2. Select Ocean, Night City, Moon and Forest through Appearance; drag and zoom the camera.
+3. Profile the shared `SpaceBG.draw` and `Terrain.draw` calls with the world's actual `imageSmoothingEnabled=false` setting. Separate cold build, warm submission, final GPU readback and whole-app frame intervals.
+4. Repeat with `scripts/qa/backdrop-performance-live.mjs` against its CDP port. This drives real Appearance, Cinema, drag and wheel controls and records pixels and runtime errors.
+
+## Evidence
+
+Before repair, the live seeded renderer's corrected nearest-neighbour benchmark measured 4K City cold build 3798 ms and Ocean 6364 ms. Forest at scale 0.3 took 56.2 ms median / 61.1 ms p95 per draw at 1080p and 236.5 / 257.8 ms at 4K. The earlier default-smoothing probe is retained separately and is not the world-mode baseline. Raw local evidence: `.dogfood/backdrop-performance/before-nearest.json`, `forest-before.cpuprofile`, and the live control sweep. In `frontend/app/spacebg.js`, `rebuild` synchronously called procedural builders; `frontend/app/terrain.js` regenerated placement and drew every overlapping tree on each frame.
+
+## Verdict
+
+Repair in progress: bounded worker lanes build sky artwork; static world-space terrain plates are rendered off-thread and reused for camera movement. New viewport/zoom/footprint requests replace queued work, and stale replies/bitmaps are disposed. Failed or unsupported workers retain a direct compatibility path; terrain still caches its plate there. Source-fixed, installer proof and the owner's retest remain separate outcomes.
+
+## Regression
+
+`test/backdrop-bake.test.js` exercises the real dispatcher: cold terrain enqueues without generating sprites on the UI thread, 100 small pans require one bake and one blit each, zoom and clearing changes request new artwork, 500 requests retain only the latest queued view, and cancellation/error/timeout paths dispose resources. `test/canvas-loss-recovery.test.js` retains the source recovery contract. After repair, the same corrected renderer benchmark measured Forest p95 0.2 ms at both 1080p and 4K, with real terrain pixels present. City/Ocean 4K first draw returned within 0.4 ms while worker completion remained asynchronous; the sampled timer gap stayed at or below 18.1 ms. These are renderer/interaction-thread measurements, not a claim that every device runs the whole app at a particular frame rate.
+
+## Sibling coverage
+
+{
+  "adapters": [{"target":"sky and ground worker lanes","state":"covered","test":"test/backdrop-bake.test.js","scenario":"bounded queues, cancellation, fallback and bitmap disposal","gate":"fast"}],
+  "entrypoints": [{"target":"shared world and refit terrain dispatcher","state":"covered","test":"test/backdrop-bake.test.js","scenario":"cached pans, zoom and clearing invalidation","gate":"fast"},{"target":"Appearance thumbnails","state":"covered","test":"test/backdrop-preview.test.js","scenario":"worker rendering, disposal, closed dialogs and unsupported fallback","gate":"fast"}],
+  "displays": [{"target":"affected owner system","state":"blocked","reason":"Exact owner backdrop/display combination and successful retest have not been supplied. Live Cinema and high-resolution renderer probes are recorded separately."},{"target":"physical Apple Silicon","state":"blocked","reason":"No physical Mac is available in this lane; compatible rendering is retained but hardware recovery is unconfirmed."}],
+  "lifecycle": [{"target":"GPU/cache loss","state":"covered","test":"test/canvas-loss-recovery.test.js","scenario":"sky and terrain invalidation plus world recovery wiring","gate":"fast"},{"target":"stale async reply after scene change or cancellation","state":"covered","test":"test/backdrop-bake.test.js","scenario":"cancelled epochs and late forest reply cannot replace the selected scene","gate":"fast"}]
+}

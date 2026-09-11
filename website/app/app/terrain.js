@@ -1312,6 +1312,51 @@ const Terrain = (typeof document === 'undefined') ? { active: () => false } : ((
 
   let curId = null;                          // null == no ground; the station is flying, spacebg owns the frame
   let st = null, builtId = '';
+  let plate = null;
+
+  // Terrain is static in world space. Rasterize an overscanned view off-thread and move
+  // that plate with the camera, rather than repainting thousands of overlapping crowns.
+  function drawPlate(ctx, cam, cw, ch, station, id) {
+    if (typeof BackdropBake === 'undefined') return false;
+    const s = (cam && cam.scale) || 1, px = (cam && cam.panX) || 0, py = (cam && cam.panY) || 0;
+    const left = -px / s, top = -py / s, right = (cw - px) / s, bottom = (ch - py) / s;
+    const footprint = station ? { x: station.x || 0, y: station.y || 0, w: station.w, h: station.h } : null;
+    const stationKey = JSON.stringify(footprint);
+    const same = plate && plate.id === id && plate.stationKey === stationKey;
+    const covers = same && Math.abs(plate.scale / s - 1) < 0.04 &&
+      left >= plate.left + 64 / s && top >= plate.top + 64 / s &&
+      right <= plate.left + (plate.canvas.width - 64) / plate.scale && bottom <= plate.top + (plate.canvas.height - 64) / plate.scale;
+    if (!covers) {
+      const margin = 256;
+      const params = { id, width: cw + margin * 2, height: ch + margin * 2, scale: s,
+        left: Math.floor(-px / 128) * 128 / s - margin / s,
+        top: Math.floor(-py / 128) * 128 / s - margin / s, station: footprint };
+      const key = JSON.stringify(params);
+      const queued = BackdropBake.request('ground', key, params, data => {
+        if (curId !== id) { BackdropBake.release(data); return; }
+        const canvas = document.createElement('canvas');
+        canvas.width = params.width; canvas.height = params.height;
+        canvas.getContext('2d').drawImage(data.bitmap, 0, 0);
+        BackdropBake.release(data);
+        if (plate) { plate.canvas.width = 0; plate.canvas.height = 0; }
+        plate = { id, stationKey, canvas, scale: params.scale, left: params.left, top: params.top };
+      });
+      if (!queued) {
+        // The compatibility path still caches static scenery instead of repainting every tree.
+        const canvas = document.createElement('canvas'); canvas.width = params.width; canvas.height = params.height;
+        const g = canvas.getContext('2d'), bakeCam = { scale: s, panX: -params.left * s, panY: -params.top * s };
+        g.imageSmoothingEnabled = false; g.setTransform(s, 0, 0, s, bakeCam.panX, bakeCam.panY);
+        drawDirect(g, bakeCam, params.width, params.height, station);
+        if (plate) { plate.canvas.width = 0; plate.canvas.height = 0; }
+        plate = { id, stationKey, canvas, scale: s, left: params.left, top: params.top };
+      }
+    }
+    ctx.fillStyle = GROUNDS[id].base;
+    ctx.fillRect(left, top, cw / s, ch / s);
+    if (plate && plate.id === id && plate.stationKey === stationKey) ctx.drawImage(plate.canvas, plate.left, plate.top,
+      plate.canvas.width / plate.scale, plate.canvas.height / plate.scale);
+    return true;
+  }
 
   function build(id) {
     const G = GROUNDS[id];
@@ -1333,19 +1378,21 @@ const Terrain = (typeof document === 'undefined') ? { active: () => false } : ((
      it, which is why this is a null and not a per-canvas repaint. */
   function invalidate() {
     st = null; builtId = '';
+    if (typeof BackdropBake !== 'undefined') BackdropBake.cancel('ground');
+    if (plate) { plate.canvas.width = 0; plate.canvas.height = 0; plate = null; }
   }
 
   // verify/test hook — the SpaceBG._dbgLosePixels story: zero every built plate in place
   // (objects and sizes intact, pixels gone) to reproduce a GPU reset without one.
   function _dbgLosePixels() {
     let n = 0;
-    if (!st) return n;
     const wipe = c => {
       if (!c || typeof HTMLCanvasElement === 'undefined' || !(c instanceof HTMLCanvasElement)) return;
       try { const g = c.getContext('2d'); g.setTransform(1, 0, 0, 1, 0, 0); g.clearRect(0, 0, c.width, c.height); n++; } catch (_) {}
     };
-    wipe(st.patchCv); wipe(st.dappleCv);
-    for (const s of (st.sprites || [])) wipe(s && s.cv);
+    if (plate) wipe(plate.canvas);
+    if (st) { wipe(st.patchCv); wipe(st.dappleCv); }
+    for (const s of (st?.sprites || [])) wipe(s && s.cv);
     return n;
   }
 
@@ -1363,6 +1410,13 @@ const Terrain = (typeof document === 'undefined') ? { active: () => false } : ((
      `station` is the bake's world rect and may be null before the first bake, in which case
      nothing is cleared and the ground simply closes over. */
   function draw(ctx, cam, cw, ch, station) {
+    const id = curId;
+    if (!id || !has(id)) return;
+    if (drawPlate(ctx, cam, cw, ch, station, id)) return;
+    drawDirect(ctx, cam, cw, ch, station);
+  }
+
+  function drawDirect(ctx, cam, cw, ch, station) {
     const id = curId;
     if (!id || !has(id)) return;
     if (builtId !== id || !st) build(id);
@@ -1471,7 +1525,7 @@ const Terrain = (typeof document === 'undefined') ? { active: () => false } : ((
       rc.fillStyle = GROUNDS[id].base; rc.fillRect(0, 0, RW, RH);
       rc.imageSmoothingEnabled = false;
       rc.setTransform(z, 0, 0, z, 0, 0);
-      draw(rc, { scale: z, panX: 0, panY: 0 }, RW, RH, null);
+      drawDirect(rc, { scale: z, panX: 0, panY: 0 }, RW, RH, null);
       rc.setTransform(1, 0, 0, 1, 0, 0);
       chip = mkCv(w, h);
       const cc = chip.getContext('2d');
@@ -1486,5 +1540,8 @@ const Terrain = (typeof document === 'undefined') ? { active: () => false } : ((
     ctx.restore();
   }
 
-  return { draw, setGround, getGround, active, baseColor, list, paintSample, invalidate, _dbgLosePixels, GROUNDS };
+  return { draw, setGround, getGround, active, baseColor, list, paintSample, invalidate, _dbgLosePixels,
+    _dbgBakeState: () => ({ ready: !!plate && plate.id === curId, id: plate?.id || builtId,
+      width: plate?.canvas.width || 0, height: plate?.canvas.height || 0, scale: plate?.scale || 0,
+      left: plate?.left, top: plate?.top, stationKey: plate?.stationKey }), GROUNDS };
 })();

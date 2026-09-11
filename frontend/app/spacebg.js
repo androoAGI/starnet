@@ -1925,10 +1925,27 @@ const SpaceBG = (() => {
     return [Math.max(64, s | 0), Math.max(64, s | 0)];
   }
 
+  function bake(id, w, h) {
+    id = resolve(id);
+    const [tw, th] = tileOf(id, w, h);
+    return { state: BACKDROPS[id].build(tw, th, mulberry32(SEED)), width: tw, height: th };
+  }
+
   function rebuild(id, w, h) {
     const [tw, th] = tileOf(id, w, h);
-    st = BACKDROPS[id].build(tw, th, mulberry32(SEED));
-    builtId = id; builtW = tw; builtH = th;
+    if (typeof BackdropBake !== 'undefined') {
+      const queued = BackdropBake.request('sky', id + '|' + tw + '|' + th,
+        { id, width: tw, height: th, dpr: window.devicePixelRatio || 1,
+          screen: { width: window.screen.width, height: window.screen.height }, reduced: reduceMotion() }, data => {
+          if (resolve(curId) !== id) { BackdropBake.release(data); return; }
+          BackdropBake.release(st);
+          st = data.state; builtId = id; builtW = data.width; builtH = data.height;
+        });
+      if (queued) return;
+      BackdropBake.release(st);
+    }
+    const result = bake(id, w, h);
+    st = result.state; builtId = id; builtW = result.width; builtH = result.height;
   }
 
   /* THROW THE BUILT SKY AWAY so the next draw() re-lays it from scratch.
@@ -1940,7 +1957,9 @@ const SpaceBG = (() => {
      that never recovers. World owns the detection (see its canvas-loss recovery); this is the
      hand-back. Cheap by design — dropping the key is all it takes, the next draw rebuilds. */
   function invalidate() {
+    const previous = st;
     st = null; builtId = ''; builtW = 0; builtH = 0; pendKey = '';
+    if (typeof BackdropBake !== 'undefined') { BackdropBake.cancel('sky'); BackdropBake.release(previous); }
   }
 
   /* verify/test hook — zero every built plate IN PLACE (objects and sizes intact, pixels gone),
@@ -1948,16 +1967,20 @@ const SpaceBG = (() => {
      the backdrop's build() returned, so a new backdrop needs no wiring here. */
   function _dbgLosePixels() {
     let n = 0;
-    const seen = new Set();
+    const seen = new Map();
     const wipe = v => {
-      if (!v || seen.has(v) || typeof v !== 'object') return;
-      seen.add(v);
+      if (!v || typeof v !== 'object') return v;
+      if (seen.has(v)) return seen.get(v);
+      if (typeof ImageBitmap !== 'undefined' && v instanceof ImageBitmap) {
+        const blank = mkCv(v.width, v.height); v.close(); seen.set(v, blank); n++; return blank;
+      }
+      seen.set(v, v);
       if (typeof HTMLCanvasElement !== 'undefined' && v instanceof HTMLCanvasElement) {
         try { const g = v.getContext('2d'); g.setTransform(1, 0, 0, 1, 0, 0); g.clearRect(0, 0, v.width, v.height); n++; } catch (_) {}
-        return;
+        return v;
       }
-      if (Array.isArray(v)) { for (const x of v) wipe(x); return; }
-      for (const k of Object.keys(v)) wipe(v[k]);
+      if (!ArrayBuffer.isView(v)) for (const k of Object.keys(v)) v[k] = wipe(v[k]);
+      return v;
     };
     wipe(st);
     return n;
@@ -1993,6 +2016,7 @@ const SpaceBG = (() => {
       else if (now - pendAt > 250) rebuild(id, w, h);
     } else pendKey = '';
 
+    if (builtId !== id || !st) return; // Keep the station responsive while the selected sky bakes.
     BACKDROPS[id].draw(ctx, w, h, now, cam, st);
     ctx.globalAlpha = 1;                             // never leak a layer alpha into the world pass
   }
@@ -2058,5 +2082,6 @@ const SpaceBG = (() => {
     ctx.globalAlpha = 1;
   }
 
-  return { draw, setBackdrop, getBackdrop, list, paintSample, invalidate, _dbgLosePixels, DEFAULT_ID };
+  return { draw, setBackdrop, getBackdrop, list, paintSample, invalidate, _dbgLosePixels, bake,
+    _dbgBakeState: () => ({ ready: !!st && builtId === resolve(curId), id: builtId, width: builtW, height: builtH }), DEFAULT_ID };
 })();
