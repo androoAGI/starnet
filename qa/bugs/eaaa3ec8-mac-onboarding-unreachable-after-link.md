@@ -79,3 +79,7 @@ the exact Mac customer's cause; installed Apple Silicon/keychain verification re
 Both Apple Silicon and Intel artifacts built and notarized on candidate afd1da77f (workflow 34535931055). Earlier Intel installed acceptance passed; exact-candidate acceptance is tracked in the release follow-through. No physical Apple Silicon paid-account onboarding/relink or microphone proof was available. Build/notarization cannot close this customer report.
 
 Current receipts and remaining acceptance: [0.11.2 follow-through](../../docs/releases/0.11.2/FOLLOWTHROUGH.md). Status remains open pending the affected configuration.
+
+## September 11 packaged-sidecar check
+
+The installed Windows canary executable was hash-verified as 7f6c7b005, then its bundled Node executable and installed sidecar ran the six paid-link lifecycle scenarios in isolated temporary profiles. Pairing/keychain-recovery races, stale account zero balances, replacement and diagnostics passed with simulated upstream services. This is stronger bundle coverage, not affected-account or Mac keychain recovery. Logs: release preparation worktree `.dogfood/customer-execution/bundled-paid-link.log`.

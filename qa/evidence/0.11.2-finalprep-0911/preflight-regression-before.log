@@ -1,0 +1,16 @@
+FAIL: fresh installed smoke cannot prove a 48-hour soak — expected "WARN", got "PASS"
+C:\Users\andro\gen-trees\release-0112-finalprep-0911\test\release-preflight.test.js:242
+  A.eq(byId(r, 'installed-smoke').status, 'PASS', 'fresh schema-3 GREEN proves only installed smoke');
+                                 ^
+
+TypeError: Cannot read properties of undefined (reading 'status')
+    at Object.<anonymous> (C:\Users\andro\gen-trees\release-0112-finalprep-0911\test\release-preflight.test.js:242:34)
+    at Module._compile (node:internal/modules/cjs/loader:1781:14)
+    at Object..js (node:internal/modules/cjs/loader:1913:10)
+    at Module.load (node:internal/modules/cjs/loader:1505:32)
+    at Function._load (node:internal/modules/cjs/loader:1309:12)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:254:19)
+    at Function.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:171:5)
+    at node:internal/main/run_main_module:36:49
+
+Node.js v22.23.0

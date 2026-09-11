@@ -513,13 +513,13 @@
     // limits.grace === false to test/force the raw hard cap. Bounded: exactly one grace turn per run.
     const graceEnabled = (limits.grace !== false);
     let graceUsed = false;
-    const maxCostUsd = (limits.maxCostUsd != null) ? limits.maxCostUsd : Infinity;
+    let maxCostUsd = (limits.maxCostUsd != null) ? limits.maxCostUsd : Infinity;
     // UNPRICED SEATBELT (2026-08-21). A metered provider whose model prices to nothing (no catalog pricing,
     // no prices.js row) reconciles every turn at $0, so maxCostUsd above can never fire — the run is
     // structurally uncapped. The host passes a TOKEN ceiling for exactly that case (index.js
     // CAPS.maxUnpricedTokens; Infinity for OAuth/unmetered providers where nothing is being billed).
     // Missing/0/non-finite = off (every existing caller byte-identical).
-    const maxUnpricedTokens = (typeof limits.maxUnpricedTokens === 'number' && isFinite(limits.maxUnpricedTokens) && limits.maxUnpricedTokens > 0)
+    let maxUnpricedTokens = (typeof limits.maxUnpricedTokens === 'number' && isFinite(limits.maxUnpricedTokens) && limits.maxUnpricedTokens > 0)
       ? Math.floor(limits.maxUnpricedTokens) : Infinity;
     const signal = o.signal || { aborted: false };
     const clock = o.clock;
@@ -1143,7 +1143,7 @@
           const fb = fallbacks[fbIndex++];
           if (fb && fb.provider) {
             // notify BEFORE switching: activeCredKey is still the OUTGOING key that just failed (cool it if rotate).
-            if (onFallback) { try { onFallback({ reason: cls.reason, rotate: !!cls.shouldRotateCredential, credKey: activeCredKey, retryAfterMs: cls.retryAfterMs, resetAtMs: cls.resetAtMs }); } catch (e) { failNote('loop.onFallback', e); } }   // H6.1: pass the server-stated wait so the cooldown honors it
+            if (onFallback) { try { onFallback({ reason: cls.reason, rotate: !!cls.shouldRotateCredential, credKey: activeCredKey, retryAfterMs: cls.retryAfterMs, resetAtMs: cls.resetAtMs, next: fb }); } catch (e) { failNote('loop.onFallback', e); } }   // H6.1: pass the server-stated wait so the cooldown honors it
             // observable failover telemetry (P3.1): which model we left, which we moved to, and why.
             /* FOREIGN THINKING BLOCKS DO NOT SURVIVE A MODEL SWAP (2026-08-21). anthropic.js replays
                msg.reasoning verbatim because Anthropic signs each thinking block against the MODEL that
@@ -1163,6 +1163,8 @@
             if (fb.credKey != null) activeCredKey = fb.credKey;   // the entry we switch TO becomes the live credential
             if (fb.cost) cost = fb.cost;                          // cross-provider: price subsequent turns by the new provider's catalog
             provider = fb.provider;
+            if (typeof fb.maxCostUsd === 'number' && fb.maxCostUsd > 0) maxCostUsd = fb.maxCostUsd;
+            if (typeof fb.maxUnpricedTokens === 'number' && fb.maxUnpricedTokens > 0) maxUnpricedTokens = fb.maxUnpricedTokens;
             if (fb.model) model = fb.model;   // the next agent.cost carries the switched model — the visible failover signal
             /* RE-RESOLVE THE CONTEXT WINDOW. Everything else about the failover swaps here (provider, model,
                cost, credential) but the compaction threshold was frozen at the PRIMARY model's window: after a

@@ -133,13 +133,13 @@ A.eq(taint.postTaintBoundary(FS_WRITE, { taintedBy: 'web_fetch', surface: 'auton
     'any untrusted-source result carrying real content taints — an isError flag is not an exemption');
   A.ok(!/!r\.isError && typeof r\.content === 'string' && r\.content\.length && revokedByTaint\.isSource/.test(src),
     'the isError exemption is gone (a hostile connector cannot opt out of taint by failing)');
-  A.ok(/taintedBy: execution\.taintedBy\(\), surface, hasPrompt:/.test(src),
+  A.ok(/taintedBy: taintSource, surface: effectSurface, hasPrompt:/.test(src),
     'the dispatch gate applies on every surface and does not exempt owner identity');
   A.ok(/postTaint = revokedByTaint\.boundary/.test(src), 'dispatch uses the pure temporal confirmation state machine');
-  A.ok(/decision = await prompt\(c, liveTool\)/.test(src), 'the recovery decision is obtained after taint at the exact call');
+  A.ok(/decision = await effectPrompt\(c, liveTool\)/.test(src), 'the recovery decision is obtained after taint at the exact call');
   A.ok(/fresh post-taint one-call confirmation/.test(src), 'the recovered permission is explicitly one-call');
   A.ok(/summary: 'untrusted-content-lockout'/.test(src), 'the refusal is telemetered distinctly');
-  A.ok(/outside content \(via ' \+ execution\.taintedBy\(\) \+ '\)/.test(src),
+  A.ok(/outside content \(via ' \+ taintSource \+ '\)/.test(src),
     'the refusal names the actual source so the agent can report it honestly');
   // consent must agree with the gate or a tool could be consented-then-refused
   A.ok(/terminalGrant: \(call, tool\) => !execution\.taintedBy\(\)/.test(src), 'the terminal standing grant never survives taint');

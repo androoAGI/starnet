@@ -1,5 +1,7 @@
 # 0.11.2 follow-through — September 10, 2026
 
+> **Superseding owner decision, September 11:** the typical 12-hour source and 48-hour installed soak durations are waived for 0.11.2. The source runner has been stopped; no soak completion is awaited. Historical run descriptions below remain evidence, not current requirements. See [SOAK_WAIVER.md](SOAK_WAIVER.md) for the decision and focused update verification.
+
 **Release acceptance remains incomplete.** Official version pins stay at 0.11.1; no public release or tag was created. The Windows canary has its own application identity and a local 0.11.2 overlay. The existing production station was not replaced.
 
 September 11 follow-up: the runtime including the backdrop repair is `61528ba95`. Its fresh Beginner and exact-source installed smoke passed, and workflow `34555729560` passed all four builds, both Mac notarizations and Intel installed acceptance. The seven customer reports remain open; [specific retest requirements](CUSTOMER_RETESTS.md) name the remaining evidence. The interrupted source soak and replacement run are recorded below. Earlier receipts retain their original build identities.
@@ -50,7 +52,7 @@ The trunk full-history secret scan subsequently identified one pre-existing dumm
 
 ## Still required before cutting
 
-1. Complete and inspect the replacement **720-minute source soak**. Its earliest expected finish is September 11 around **14:51 UTC (10:51 EDT)**, assuming uninterrupted execution. The earlier short/scale checks remain explicitly tied to their recorded source. Complete the separate installed/attended acceptance required by the release runbook; elapsed source soak time cannot substitute for it. The old 06:15 EDT estimate is superseded because that run did not finish.
+1. **Soak duration waived by the owner for 0.11.2.** See [SOAK_WAIVER.md](SOAK_WAIVER.md). Continue concrete installer, recovery and update checks; no long-running soak is awaited.
 2. Retest the seven open customer P1s on the affected station/account. Current evidence narrows these investigations but does not establish those customers' recovery. Needed identifiers are the account/station and relevant recent run/job ID or timestamp, never a key or token.
 3. Obtain Apple Silicon hardware proof for onboarding/relink, funded account state and microphone/audio interruption/noise paths. CI build/notarization and Intel synthetic acceptance cannot establish those outcomes.
 4. Complete the managed-account image charge/cancellation proof, actual historical public-client update continuity and installed multi-window recovery where required. The completed BYOK image task and signed local canary update are bounded evidence, not substitutes for those remaining cases.

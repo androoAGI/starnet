@@ -1,0 +1,114 @@
+{
+  "at": "2026-09-11T02:50:03.303Z",
+  "build": {
+    "version": "0.11.2",
+    "commit": "61528ba95",
+    "sha": "61528ba957fade1872726f342dfae3d768401c38",
+    "sourceTree": "a99c4a1a40021fe763f1f20c5e5c068e9b5713b3",
+    "provenanceKind": "reproducible-source",
+    "describe": "archive/backdrops-glowup-2026-09-10-4-g61528ba95",
+    "dirty": false,
+    "executableSha256": "fdb0bd84933684088e84533809e07197a94abdb64b6b588a5b4073923c5e5984",
+    "executableSize": 17864192
+  },
+  "rows": [
+    {
+      "id": "forest",
+      "state": {
+        "zoom": "20%",
+        "lit": 7423,
+        "width": 3840,
+        "height": 2129,
+        "workers": [
+          {
+            "kind": "ground",
+            "busy": false,
+            "queued": false,
+            "failed": false
+          }
+        ],
+        "bake": {
+          "ready": true,
+          "id": "forest",
+          "width": 4352,
+          "height": 2641,
+          "scale": 0.4,
+          "left": -5440,
+          "top": -3200,
+          "stationKey": "{\"x\":-36,\"y\":-36,\"w\":240,\"h\":180}"
+        }
+      },
+      "pass": true
+    },
+    {
+      "id": "moon",
+      "state": {
+        "zoom": "20%",
+        "lit": 7983,
+        "width": 3840,
+        "height": 2129,
+        "workers": [
+          {
+            "kind": "ground",
+            "busy": false,
+            "queued": false,
+            "failed": false
+          }
+        ],
+        "bake": {
+          "ready": true,
+          "id": "moon",
+          "width": 4352,
+          "height": 2641,
+          "scale": 0.4,
+          "left": -5440,
+          "top": -3200,
+          "stationKey": "{\"x\":-36,\"y\":-36,\"w\":240,\"h\":180}"
+        }
+      },
+      "pass": true
+    },
+    {
+      "id": "city",
+      "state": {
+        "zoom": "20%",
+        "lit": 7977,
+        "width": 3840,
+        "height": 2129,
+        "workers": [
+          {
+            "kind": "ground",
+            "busy": false,
+            "queued": false,
+            "failed": false
+          },
+          {
+            "kind": "sky",
+            "busy": false,
+            "queued": false,
+            "failed": false
+          }
+        ],
+        "bake": {
+          "ready": true,
+          "id": "city",
+          "width": 3840,
+          "height": 2129
+        }
+      },
+      "pass": true
+    }
+  ],
+  "propsUnchanged": true,
+  "diag": {
+    "consoleMsgs": [
+      {
+        "type": "warning",
+        "text": "IPC custom protocol failed, Tauri will now use the postMessage interface instead TypeError: Failed to fetch\n    at window.fetch (<anonymous>:1:246)\n    at window.fetch (http://tauri.localhost/app/harness.js:221:32)\n    at Object.sendIpcMess"
+      }
+    ],
+    "exceptions": []
+  },
+  "pass": true,
+  "scope": "Installed canary Refit mode at 4K emulated viewport, minimum zoom buttons and real middle-button drag; no placement changes."
+}

@@ -15033,7 +15033,8 @@ async function runOnce(o) {
   const providerId = normalizeProvider(o.provider || (rosterIdent && rosterIdent.provider) || '');
   const usingCodex = providerUsesCodex(providerId);
   const usingDeviceOAuth = providerUsesDeviceOAuth(providerId);
-  const providerUnmetered = !!((getProviderProfile(providerId) || {}).unmetered);
+  let providerUnmetered = !!((getProviderProfile(providerId) || {}).unmetered);
+  let runUnmetered = providerUnmetered;
   // Class Loadouts S1: reasoning-effort precedence = explicit run-option > this agent's roster record (the class
   // applied default) > provider default. An explicit per-run choice still wins; the roster only fills a gap.
   const reasoningEffort = resolveReasoningEffort(providerId, o.reasoningEffort || o.reasoning_effort || (o.reasoning && o.reasoning.effort) || (rosterIdent && rosterIdent.reasoningEffort));
@@ -15110,7 +15111,8 @@ async function runOnce(o) {
   const executionProfile = agentExecutionProfileNow();
   const userControlAuthority = makeRunAuthority({
     surface, isTask, environment: executionEnvironment.forAgent(agentId), confirm: o.prompt, unattendedGrants, ownerTrusted,
-    remoteDesktopAuthorized, masterBypass: FULL_ACCESS || masterBypassOn(), fullAccess: agentFullAccessNow
+    remoteDesktopAuthorized, masterBypass: FULL_ACCESS || masterBypassOn(), fullAccess: agentFullAccessNow,
+    connectorAuthority: o.connectorAuthority
   });
   const prompt = o.prompt;
   const pathPrompt = o.pathPrompt;   // NS-5: the live "work in <root>? always/once/no" channel (browser runs only); undefined for headless/autonomous → path-trust hard-denies a new root
@@ -15983,6 +15985,15 @@ async function runOnce(o) {
     deliveryOrigin: o.deliveryOrigin || (streamId ? { streamId: streamId, sessionId: streamId, sessionTitle: o.sessionTitle || '' } : null),
     authorize: userControlAuthority.authorize,
     userControl: userControlAuthority,
+    // Delegation carries a live, MCP-only authority bridge alongside the existing consent broker.
+    // The worker still applies its own equipment/profile, toolset, taint and consent gates.
+    connectorAuthority: {
+      project: tool => !signal?.aborted && userControlAuthority.project(tool),
+      authorize: (call, tool) => signal?.aborted ? { ok: false, reason: 'delegating run cancelled' } : userControlAuthority.authorize(call, tool),
+      prompt: typeof prompt === 'function' ? (call, tool) => signal?.aborted ? 'deny' : prompt(call, tool) : null,
+      fullAccess: () => !signal?.aborted && unrestrictedHostNow(),
+      taintedBy: () => execution.taintedBy() || (typeof o.connectorAuthority?.taintedBy === 'function' ? o.connectorAuthority.taintedBy() : null)
+    },
     // HOOKS reach the tool boundary through the dispatch ctx. registry.js consults them AFTER the authority,
     // capability, schema and consent gates — so a hook can only ever remove a permission, never add one.
     hooks: hookSpine,
@@ -16077,16 +16088,21 @@ async function runOnce(o) {
     provider = selectProvider({ provider: providerId, fetch: globalThis.fetch, key: runKey, baseUrl, reasoningEffort });
   }
   auxVisionProvider = provider;   // late-bind the aux vision route to the run's real provider (see makeImageTools above)
-  const cost = makeCostEngine({ priceOf: provider.priceOf });
+  let cost = makeCostEngine({ priceOf: provider.priceOf });
 
-  // Provider FALLBACK chain (consumes the loop's failover seam). Cost-correct by construction: each entry reuses
-  // THIS provider object (same priceOf catalog) with an alternate model, so a fallback's spend is priced right.
+  // Settings selects from the OpenRouter catalog. Its saved model strings therefore name OpenRouter routes,
+  // including legacy saves. StarNet keeps its existing managed catalog route; it must not switch payers.
+  // Explicit per-run models and environment defaults retain their primary provider.
+  // Do not infer a provider from model spelling: different adapters can accept the same model identifier.
   // Source PRECEDENCE (P0-3, additive): an explicit per-run request list (o.fallbackModels) wins; else the
   // SETTINGS→Models persisted chain (effectiveFallbackChain: saved-or-env); env SKYNET_FALLBACK_MODELS remains the
   // default when nothing is saved. On overload/5xx/404/auth/billing/rate_limit the loop retries the turn on the
   // next model instead of dying (errorClass shouldFallback/shouldRotateCredential). Empty = off.
   const fallbackModels = (Array.isArray(o.fallbackModels) ? o.fallbackModels : effectiveFallbackChain())
-    .map(s => String(s || '').trim()).filter(s => s && s !== model);
+    .map(s => String(s || '').trim()).filter(Boolean);
+  const savedProviderFallbacks = !Array.isArray(o.fallbackModels) && fallbackSaved != null && providerId !== 'openrouter' && providerId !== 'starnet'
+    ? fallbackModels.splice(0).map(m => ({ provider: 'openrouter', model: m })) : [];
+  for (let i = fallbackModels.length - 1; i >= 0; i--) if (fallbackModels[i] === model) fallbackModels.splice(i, 1);
   // COMPETENCE PREFLIGHT: an explicitly configured fallback chain is already the Commander's authority to use
   // another model when the primary cannot serve the run. A definitively tool-less primary used to hard-refuse
   // every task before that chain got a chance to help. Promote the first same-provider, tool-capable (or catalog-
@@ -16140,7 +16156,7 @@ async function runOnce(o) {
     }));
   }
   const providerFallbacks = [];
-  const rawProviderFallbacks = Array.isArray(o.fallbackProviders) ? o.fallbackProviders : [];
+  const rawProviderFallbacks = savedProviderFallbacks.concat(Array.isArray(o.fallbackProviders) ? o.fallbackProviders : []);
   for (const fb of rawProviderFallbacks) {
     if (!fb || typeof fb !== 'object') continue;
     const fbProviderId = normalizeProvider(fb.provider || providerId);
@@ -16149,6 +16165,10 @@ async function runOnce(o) {
     const fbBaseUrl = providerRuntimeBaseUrl(fbProviderId, fb.baseUrl || fb.base_url || '');
     const fbKey = providerRuntimeKey(fbProviderId, fb.key || fb.apiKey || fb.api_key || '');
     if (!providerHasCredential(fbProviderId, fbKey, fbBaseUrl)) continue;
+    const fbUnmetered = !!getProviderProfile(fbProviderId)?.unmetered;
+    const fbManaged = credits.configured() && !fbUnmetered && (fbProviderId === 'starnet' || !!CREDITS_URL);
+    // A fallback cannot borrow a reservation from another payer or spend managed credit without admission.
+    if (fbManaged !== managedRun) continue;
     let fbProvider;
     if (providerUsesCodex(fbProviderId)) {
       let fbToken;
@@ -16161,7 +16181,10 @@ async function runOnce(o) {
     } else {
       fbProvider = selectProvider({ provider: fbProviderId, fetch: globalThis.fetch, key: fbKey, baseUrl: fbBaseUrl, reasoningEffort });
     }
-    providerFallbacks.push({ provider: fbProvider, model: fbModel, credKey: fbKey || null, cost: makeCostEngine({ priceOf: fbProvider.priceOf }) });
+    providerFallbacks.push({ provider: fbProvider, model: fbModel, credKey: fbKey || null, cost: makeCostEngine({ priceOf: fbProvider.priceOf }),
+      unmetered: fbUnmetered,
+      maxCostUsd: Math.min(runCapUsd, (o.maxCostUsd > 0 && isFinite(o.maxCostUsd)) ? o.maxCostUsd : fbUnmetered ? Infinity : (effectiveCaps.perRun > 0 ? effectiveCaps.perRun : Infinity)),
+      maxUnpricedTokens: fbUnmetered ? Infinity : CAPS.maxUnpricedTokens });
   }
   const fallbacks = rotationFallbacks
     .concat(fallbackModels.map(m => ({ provider, model: m })))
@@ -16231,7 +16254,7 @@ async function runOnce(o) {
   // emits any threshold crossing down THIS run's bus and returns a block when a soft pool cap is hit.
   // An unmetered (OAuth-subscription) run is exempt from the cross-run $ pools too — its estimates would
   // otherwise block runs against caps that guard money it isn't spending (2026-07-23, with the perRun exemption).
-  const runBudget = providerUnmetered ? null : { check: (spentThisRun) => budget.check(runId, agentId, spentThisRun, Date.now(), emit) };
+  const runBudget = { check: (spentThisRun) => providerUnmetered ? null : budget.check(runId, agentId, spentThisRun, Date.now(), emit) };
 
   // a task needs tool calls — refuse a model we KNOW can't call tools, up front, with an actionable message
   // (supportsTools returns null when the catalog is cold, so this never false-refuses a real model).
@@ -16371,16 +16394,24 @@ async function runOnce(o) {
     // exactly THIS call through a fresh prompt made after the taint; affirmative "always"/"full" answers collapse
     // to one-shot here and never create or consult a standing grant. Owner identity is not a substitute for that
     // temporal boundary: an owner chat with approvals off has no live confirmation channel and therefore blocks.
+    const inheritedTaint = typeof o.connectorAuthority?.taintedBy === 'function' ? o.connectorAuthority.taintedBy() : null;
+    const taintSource = execution.taintedBy() || inheritedTaint;
+    const connectorPrompt = /^mcp:/.test(String(liveTool?.capability || '')) && typeof o.connectorAuthority?.prompt === 'function'
+      ? o.connectorAuthority.prompt : null;
+    const effectPrompt = prompt || connectorPrompt;
+    const effectSurface = connectorPrompt ? 'interactive' : surface;
+    const connectorFullAccess = /^mcp:/.test(String(liveTool?.capability || ''))
+      && typeof o.connectorAuthority?.fullAccess === 'function' && o.connectorAuthority.fullAccess() === true;
     let postTaint = revokedByTaint.boundary(liveTool, {
-      taintedBy: execution.taintedBy(), surface, hasPrompt: typeof prompt === 'function',
-      fullAccess: FULL_ACCESS || masterBypassOn() || agentFullAccessNow()
+      taintedBy: taintSource, surface: effectSurface, hasPrompt: typeof effectPrompt === 'function',
+      fullAccess: FULL_ACCESS || masterBypassOn() || agentFullAccessNow() || connectorFullAccess
     });
     if (postTaint.needsConfirmation) {
       let decision = 'deny';
-      try { decision = await prompt(c, liveTool); } catch (_) {}
+      try { decision = await effectPrompt(c, liveTool); } catch (_) {}
       postTaint = revokedByTaint.boundary(liveTool, {
-        taintedBy: execution.taintedBy(), surface, hasPrompt: true, decision,
-        fullAccess: FULL_ACCESS || masterBypassOn() || agentFullAccessNow()
+        taintedBy: taintSource, surface: effectSurface, hasPrompt: true, decision,
+        fullAccess: FULL_ACCESS || masterBypassOn() || agentFullAccessNow() || connectorFullAccess
       });
     }
     const postTaintConfirmed = postTaint.oneShot;
@@ -16388,7 +16419,7 @@ async function runOnce(o) {
       return {
         ok: false, isError: true, summary: 'untrusted-content-lockout',
         content: 'BLOCKED: "' + c.name + '" is no longer available on this run. This run has already read '
-          + 'outside content (via ' + execution.taintedBy() + '), which could contain instructions from whoever wrote it. '
+          + 'outside content (via ' + taintSource + '), which could contain instructions from whoever wrote it. '
           + 'Unattended runs give up terminal, credentialed-request, and connector/unknown-external powers; a watched '
           + 'run needs a fresh confirmation for this exact call after the outside content was read. Retrying without '
           + 'that confirmation will not help: finish what you can and report the withheld step plainly.'
@@ -17186,7 +17217,15 @@ async function runOnce(o) {
       // activePrimaryKey, NOT runKey: when the run's own key was still cooling we STARTED on a warm pool key,
       // and penalizing the key we never called would cool the wrong credential.
       credKey: providerUnmetered ? null : activePrimaryKey,
-      onFallback: ({ rotate, credKey, retryAfterMs, resetAtMs }) => {
+      onFallback: ({ rotate, credKey, retryAfterMs, resetAtMs, next }) => {
+        if (next) {
+          provider = next.provider;
+          auxVisionProvider = provider;
+          if (next.cost) cost = next.cost;
+          if (next.model) model = next.model;
+          if (typeof next.unmetered === 'boolean') providerUnmetered = next.unmetered;
+          runUnmetered = runUnmetered && providerUnmetered;
+        }
         if (!rotate || !credKey) return;
         // H6.1: honor a server-stated wait — a relative Retry-After directly, or an absolute reset_at minus now.
         // Falsy/expired => undefined => credPool's default cooldown (and it clamps any absurd value).
@@ -17302,10 +17341,10 @@ async function runOnce(o) {
     // in-flight tally — record-before-clear so the spend is always counted by at least one source, never neither.
     // result.usd/tokens already INCLUDE the summarizer's spend (the loop folds it into spentUsd as it accrues).
     const finalModel = resolveEffectiveModel({ result, requestedModel: o.model, usingCodex, codexDefaultModel: CODEX_DEFAULT_MODEL, defaultModel: CRON_DEFAULT_MODEL });
-    const finalUsd = effectiveRunUsd({ usd: (result && result.usd) || 0, mediaUsd, unmetered: providerUnmetered, unpricedUsage: result && result.unpricedUsage, priceOf: provider && provider.priceOf });
+    const finalUsd = effectiveRunUsd({ usd: (result && result.usd) || 0, mediaUsd, unmetered: runUnmetered, unpricedUsage: result && result.unpricedUsage, priceOf: provider && provider.priceOf });
     const finalTurns = (result && result.turns) || 0;
     const finalTokens = (result && result.tokens) || 0;
-    try { ledger.record({ runId, agentId, turns: finalTurns, usd: finalUsd, tokens: finalTokens, model: finalModel, unmetered: providerUnmetered && mediaUsd === 0 }); } catch (_) {}
+    try { ledger.record({ runId, agentId, turns: finalTurns, usd: finalUsd, tokens: finalTokens, model: finalModel, unmetered: runUnmetered && mediaUsd === 0 }); } catch (_) {}
     // managed-credit SETTLE: reconcile the reservation to the real spend — refund the unused headroom to the
     // account (billing.js caps finalUsd at the reservation). Inert/no-op unless this run actually reserved credit.
     if (billed) { try { credits.finishRun({ runId, agentId, usd: finalUsd, tokens: finalTokens, turns: finalTurns, reason: (result && result.reason) || 'done' }); } catch (_) {} }
@@ -17323,7 +17362,7 @@ async function runOnce(o) {
         }
       }
       const runEndedAt = Date.now();
-      runStore.record({ runId, parentRunId: o.parentRunId || '', agentId, reason: ((result && result.reason) || 'done'), clarifying: taskQuestionAsked, turns: finalTurns, tokens: finalTokens, usd: finalUsd, title: title, streamId: o.streamId || '', sessionTitle: o.sessionTitle || '', deliveryPrompt: o.sessionPrompt || '', deliveryText, recipeId: o.recipeId || '', projectRoot: o.projectRoot || '', deliverable: deliverableNotes.take(runId), model: finalModel, reasoningEffort, unmetered: providerUnmetered && mediaUsd === 0, artifacts: execution.artifactList(), toolsOk: execution.toolsOk(), toolTrace: execution.toolTraceList(), failureStage: execution.failureStage(), failureCode: execution.failureCode(), uncertainMutations: execution.uncertainMutations(), completionEvidence: finalCompletionEvidence, recoveryAttempts: execution.recoveryAttempts(), startedAt: runStartedAt, endedAt: runEndedAt, durationMs: runEndedAt - runStartedAt, identityFallback, internal });   // execution terminal stays separate from the neutral Task Brief outcome used by progression
+      runStore.record({ runId, parentRunId: o.parentRunId || '', agentId, reason: ((result && result.reason) || 'done'), clarifying: taskQuestionAsked, turns: finalTurns, tokens: finalTokens, usd: finalUsd, title: title, streamId: o.streamId || '', sessionTitle: o.sessionTitle || '', deliveryPrompt: o.sessionPrompt || '', deliveryText, recipeId: o.recipeId || '', projectRoot: o.projectRoot || '', deliverable: deliverableNotes.take(runId), model: finalModel, reasoningEffort, unmetered: runUnmetered && mediaUsd === 0, artifacts: execution.artifactList(), toolsOk: execution.toolsOk(), toolTrace: execution.toolTraceList(), failureStage: execution.failureStage(), failureCode: execution.failureCode(), uncertainMutations: execution.uncertainMutations(), completionEvidence: finalCompletionEvidence, recoveryAttempts: execution.recoveryAttempts(), startedAt: runStartedAt, endedAt: runEndedAt, durationMs: runEndedAt - runStartedAt, identityFallback, internal });   // execution terminal stays separate from the neutral Task Brief outcome used by progression
 
       // P0.1/H1.1: persist the full DIALOGUE (not just the outcome) — a durable server-side transcript for EVERY
       // run, incl. headless ones (cron/Telegram/delegated). Append the triggering user directive, then EVERY new

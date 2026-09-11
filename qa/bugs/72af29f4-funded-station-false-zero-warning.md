@@ -70,3 +70,7 @@ receipt is still required to correlate the original customer report.
 An isolated in-memory account exercised the real managed gateway and upstream, returning 200 and a 0.000683 debit equal to the run receipt. The affected funded account and its rendered balance/warning were not available. No customer ledger was edited and this neighboring gateway proof does not close the false-zero UI report.
 
 Current receipts and remaining acceptance: [0.11.2 follow-through](../../docs/releases/0.11.2/FOLLOWTHROUGH.md). Status remains open pending the affected configuration.
+
+## September 11 packaged-sidecar check
+
+The installed Windows canary executable was hash-verified as 7f6c7b005, then its bundled Node executable and installed sidecar ran the six paid-link lifecycle scenarios in isolated temporary profiles. Pairing/keychain-recovery races, stale account zero balances, replacement and diagnostics passed with simulated upstream services. This is stronger bundle coverage, not affected-account or Mac keychain recovery. Logs: release preparation worktree `.dogfood/customer-execution/bundled-paid-link.log`.

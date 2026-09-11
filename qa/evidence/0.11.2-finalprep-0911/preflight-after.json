@@ -1,0 +1,151 @@
+{
+  "ok": false,
+  "phase": "pre-bump",
+  "target": "0.11.2",
+  "current": "0.11.1",
+  "branch": "feat/harness-backend",
+  "head": "61528ba957fade1872726f342dfae3d768401c38",
+  "rows": [
+    {
+      "id": "branch",
+      "label": "on trunk feat/harness-backend",
+      "status": "PASS",
+      "detail": "HEAD 61528ba95",
+      "fix": ""
+    },
+    {
+      "id": "clean",
+      "label": "working tree clean",
+      "status": "FAIL",
+      "detail": "1 modified tracked file(s): docs/NEXT.md",
+      "fix": "commit (pathspecs only) or stash them — release-bump commits by pathspec but the tag must point at a tree you can rebuild"
+    },
+    {
+      "id": "guardian-row",
+      "label": "Guardian qa/STATUS.md row refresh",
+      "status": "WARN",
+      "detail": "qa/STATUS.md is modified — that is the Guardian's periodic status row, not lane work",
+      "fix": "commit it as its own `qa: record …` commit (git add qa/STATUS.md) or `git stash push qa/STATUS.md` before tagging; never fold it into the release commit"
+    },
+    {
+      "id": "pins",
+      "label": "five version pins agree",
+      "status": "PASS",
+      "detail": "all five = 0.11.1 → bump to 0.11.2 pending",
+      "fix": ""
+    },
+    {
+      "id": "tag-local",
+      "label": "tag v0.11.2 not yet local",
+      "status": "PASS",
+      "detail": "",
+      "fix": ""
+    },
+    {
+      "id": "tag-remote",
+      "label": "tag v0.11.2 not on origin",
+      "status": "PASS",
+      "detail": "",
+      "fix": ""
+    },
+    {
+      "id": "tag-release",
+      "label": "no release v0.11.2 on androoAGI/starnet-releases",
+      "status": "PASS",
+      "detail": "",
+      "fix": ""
+    },
+    {
+      "id": "claims",
+      "label": "claims lock current for HEAD",
+      "status": "PASS",
+      "detail": "PASS claims planning authority Â· 37 claims Â· 255 locked surface files",
+      "fix": ""
+    },
+    {
+      "id": "website",
+      "label": "website/app mirror in sync",
+      "status": "PASS",
+      "detail": "",
+      "fix": ""
+    },
+    {
+      "id": "gate-fast",
+      "label": "test:fast green at HEAD",
+      "status": "WARN",
+      "detail": "gate NOT proven at HEAD (no receipt at .dogfood/gate-receipts/61528ba95….{fast,http}.json)",
+      "fix": "informational pre-bump: the BINDING gate runs AFTER the bump, BEFORE the tag (MISTAKES.md \"Gate order\" — v0.2.0/v0.2.1 were burned by skipping it)"
+    },
+    {
+      "id": "gate-http",
+      "label": "test:http green at HEAD",
+      "status": "WARN",
+      "detail": "not proven at HEAD",
+      "fix": "required when sidecar/ship/route code changed since the last cut (starnet-backend-law): `npm run test:http 2>&1 | tee gate-http.log` → --gates-proven-by gate-http.log"
+    },
+    {
+      "id": "t0",
+      "label": "T0 clean-install proof for v0.11.2",
+      "status": "WARN",
+      "detail": "owed — runs on a fresh hosted Windows VM against the STAGED DRAFT (after the tag push)",
+      "fix": "Actions → t0-clean-install-proof → Run workflow → tag=v0.11.2 (runbook §1.7a). RELEASE BLOCKER: do not Publish without it"
+    },
+    {
+      "id": "g1",
+      "label": "G1 packaged-lifecycle proof for v0.11.2",
+      "status": "WARN",
+      "detail": "owed — idle-close / close-to-tray / updater-smoke on a fresh hosted Windows VM against the staged draft (this is the branch 0.10.5/0.10.6 escaped through)",
+      "fix": "Actions → g1-packaged-lifecycle → Run workflow → tag=v0.11.2 (runbook §1.7a). RELEASE BLOCKER: do not Publish without it"
+    },
+    {
+      "id": "installed-smoke",
+      "label": "installed-exe smoke stamp for v0.11.2",
+      "status": "PASS",
+      "detail": "GREEN · appVersion 0.11.2 · 0.1h old; smoke only",
+      "fix": ""
+    },
+    {
+      "id": "soak",
+      "label": "48-hour installed soak acceptance for v0.11.2",
+      "status": "WARN",
+      "detail": "manual acceptance review owed — installed smoke contains no elapsed duration or real-provider workload evidence",
+      "fix": "review the completed installed acceptance evidence against docs/RELEASE_READINESS.md §2; only an explicit owner waiver may replace it. This preflight does not infer completion or a waiver from a smoke stamp"
+    },
+    {
+      "id": "ready",
+      "label": "qa:ready verdict",
+      "status": "FAIL",
+      "detail": "NOT READY — 1. Bug register open P0/P1: 7 open blocking bugs (0 P0 · 7 P1) — qa/bugs must be clear of P0/P1",
+      "fix": "stop: do not bump, do not tag. `node scripts/qa/ledger.mjs --digest`, fix on trunk, re-run `npm run qa:ready` until READY (READY-GATE law, docs/RELEASE_READINESS.md)"
+    },
+    {
+      "id": "updater-key",
+      "label": "updater signing key present",
+      "status": "PASS",
+      "detail": "file exists (contents never read or printed)",
+      "fix": ""
+    },
+    {
+      "id": "updater-key-backup",
+      "label": "updater key backed up offline (≥2 copies)",
+      "status": "SKIP",
+      "detail": "unverifiable by machine — human attestation",
+      "fix": "runbook §4.1: confirm two offline copies exist before you push the tag"
+    },
+    {
+      "id": "notes",
+      "label": "RELEASE_NOTES.md for v0.11.2",
+      "status": "WARN",
+      "detail": "header is v0.11.1 — release-bump rewrites it to a TODO scaffold for the new version",
+      "fix": "after the bump: replace the TODO with real notes and amend them into the release commit (runbook §1.2)"
+    },
+    {
+      "id": "origin",
+      "label": "trunk vs origin/feat/harness-backend",
+      "status": "PASS",
+      "detail": "in sync",
+      "fix": "push the branch WITH the tag: `git push origin HEAD vX.Y.Z` (the tag alone drives the train; the branch push is what lets the mirror find the commit)"
+    }
+  ],
+  "fails": 2
+}

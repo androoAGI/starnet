@@ -1,0 +1,19 @@
+{
+  "candidate": "7f6c7b005120381539ad9c4b4601cb42b6b9b27d",
+  "premerge": {
+    "path": ".dogfood/finalprep/fast.log",
+    "sha256": "85852253ef5b3714136ca37274514698cf7736e441478b5cbb86b8a49960e9ca",
+    "summary": "771/771 PASS; release tooling and bug metadata tested; subsequent documentation only"
+  },
+  "postmerge": {
+    "path": ".dogfood/finalprep/guardian-final.log",
+    "sha256": "0420c28c6abad84aef71dde5c454fa22c5361d5cc1e95d99adee97940908fbb5",
+    "summary": "See exact-candidate Guardian receipt"
+  },
+  "retainedFailedAttempts": [
+    {
+      "path": ".dogfood/finalprep/installed-idle-startup-race.log",
+      "reason": "Probe started before the preceding Refit page reload completed; waited for initialized app and reran the full idle window."
+    }
+  ]
+}

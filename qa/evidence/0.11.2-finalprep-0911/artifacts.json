@@ -1,0 +1,22 @@
+{
+  "at": "2026-09-11T03:16:28.782Z",
+  "build": {
+    "version": "0.11.2",
+    "commit": "7f6c7b005",
+    "sha": "7f6c7b005120381539ad9c4b4601cb42b6b9b27d",
+    "sourceTree": "fb8c489f9d42bc967cd33cf4b76d2028ca069ee3",
+    "provenanceKind": "reproducible-source",
+    "describe": "archive/backdrops-glowup-2026-09-10-6-g7f6c7b005",
+    "dirty": false,
+    "executableSha256": "38169014434029a13182baffa5c4b585caab5e646cc97ee6c58b47ea2a88ab44",
+    "executableSize": 17864192
+  },
+  "installer": {
+    "path": ".dogfood/finalprep/canary-final/feed/StarNet Canary_0.11.2_x64-setup.exe",
+    "sha256": "e8348e57cc053a905756e2d7ae4f4f3c5e050ad4d9960d0e8a9550200306ccc2",
+    "bytes": 129819734
+  },
+  "versionOverlay": "0.11.2",
+  "officialPins": "0.11.1",
+  "scope": "Isolated local canary; no public release"
+}

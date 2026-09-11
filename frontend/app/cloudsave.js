@@ -137,7 +137,18 @@ const CloudSave = (() => {
           if (body.ok && Number.isInteger(body.revision)) {
             revision = body.revision;
             if (pending) pending._saveRevision = revision;
-            try { const cached = JSON.parse(localStorage.getItem('starnet.save')); if (!pending && cached && JSON.stringify({ ...cached, _saveClient: undefined }) === JSON.stringify({ ...doc, _saveClient: undefined })) { cached._saveRevision = revision; cached._saveDirty = false; if (Number.isFinite(body.updatedAt)) cached.updatedAt = body.updatedAt; localStorage.setItem('starnet.save', JSON.stringify(cached)); } } catch (_) {}
+            try {
+              const cached = JSON.parse(localStorage.getItem('starnet.save'));
+              // A preceding ACK advances the queued document's revision before it is sent. Its localStorage
+              // twin still has the older revision. Compare the actual document, not that transport metadata,
+              // or the final successful save stays dirty and creates a false conflict on the next restart.
+              const payload = d => JSON.stringify({ ...d, _saveClient: undefined, _saveRevision: undefined });
+              if (!pending && cached && payload(cached) === payload(doc)) {
+                cached._saveRevision = revision; cached._saveDirty = false;
+                if (Number.isFinite(body.updatedAt)) cached.updatedAt = body.updatedAt;
+                localStorage.setItem('starnet.save', JSON.stringify(cached));
+              }
+            } catch (_) {}
           }
           if (body.ok === false) throw new Error('save refused: ' + (body.error || (body.unreadable ? 'existing record unreadable' : body.stale ? 'stale write' : 'unknown')));
         }

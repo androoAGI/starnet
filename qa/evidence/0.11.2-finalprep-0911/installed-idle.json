@@ -1,0 +1,5223 @@
+{
+  "status": "complete",
+  "startedAt": "2026-09-11T02:50:52.492Z",
+  "build": {
+    "version": "0.11.2",
+    "commit": "61528ba95",
+    "sha": "61528ba957fade1872726f342dfae3d768401c38",
+    "sourceTree": "a99c4a1a40021fe763f1f20c5e5c068e9b5713b3",
+    "provenanceKind": "reproducible-source",
+    "describe": "archive/backdrops-glowup-2026-09-10-4-g61528ba95",
+    "dirty": false,
+    "executableSha256": "fdb0bd84933684088e84533809e07197a94abdb64b6b588a5b4073923c5e5984",
+    "executableSize": 17864192
+  },
+  "initial": {
+    "visible": "visible",
+    "busy": false,
+    "curve": {
+      "path": "webgl",
+      "ready": true,
+      "failed": false,
+      "lost": false,
+      "frameSum": 66
+    },
+    "cache": {
+      "probe": {
+        "x": 120,
+        "y": 97
+      },
+      "probeOff": false,
+      "recoveries": 0,
+      "blank": false
+    },
+    "stage": {
+      "armed": true,
+      "probeOff": false,
+      "deadSince": 0,
+      "rebuilds": 0,
+      "futile": 0,
+      "lost": false
+    },
+    "usage": {
+      "tokens": 778485,
+      "cost": 1.15303725,
+      "calls": 16
+    },
+    "ground": {
+      "ready": true,
+      "id": "forest",
+      "width": 3189,
+      "height": 2494,
+      "scale": 6,
+      "left": -149.33333333333334,
+      "top": -128,
+      "stationKey": "{\"x\":0,\"y\":0,\"w\":240,\"h\":194}"
+    },
+    "workers": [
+      {
+        "kind": "sky",
+        "busy": false,
+        "queued": false,
+        "failed": false
+      },
+      {
+        "kind": "ground",
+        "busy": false,
+        "queued": false,
+        "failed": false
+      }
+    ],
+    "heap": 36656844
+  },
+  "samples": [
+    {
+      "at": "2026-09-11T02:50:52.492Z",
+      "visible": "visible",
+      "busy": false,
+      "curve": {
+        "path": "webgl",
+        "ready": true,
+        "failed": false,
+        "lost": false,
+        "frameSum": 66
+      },
+      "cache": {
+        "probe": {
+          "x": 120,
+          "y": 97
+        },
+        "probeOff": false,
+        "recoveries": 0,
+        "blank": false
+      },
+      "stage": {
+        "armed": true,
+        "probeOff": false,
+        "deadSince": 0,
+        "rebuilds": 0,
+        "futile": 0,
+        "lost": false
+      },
+      "usage": {
+        "tokens": 778485,
+        "cost": 1.15303725,
+        "calls": 16
+      },
+      "ground": {
+        "ready": true,
+        "id": "forest",
+        "width": 3189,
+        "height": 2494,
+        "scale": 6,
+        "left": -149.33333333333334,
+        "top": -128,
+        "stationKey": "{\"x\":0,\"y\":0,\"w\":240,\"h\":194}"
+      },
+      "workers": [
+        {
+          "kind": "sky",
+          "busy": false,
+          "queued": false,
+          "failed": false
+        },
+        {
+          "kind": "ground",
+          "busy": false,
+          "queued": false,
+          "failed": false
+        }
+      ],
+      "heap": 36656844
+    },
+    {
+      "at": "2026-09-11T02:51:07.506Z",
+      "visible": "visible",
+      "busy": false,
+      "curve": {
+        "path": "webgl",
+        "ready": true,
+        "failed": false,
+        "lost": false,
+        "frameSum": 65
+      },
+      "cache": {
+        "probe": {
+          "x": 120,
+          "y": 97
+        },
+        "probeOff": false,
+        "recoveries": 0,
+        "blank": false
+      },
+      "stage": {
+        "armed": true,
+        "probeOff": false,
+        "deadSince": 0,
+        "rebuilds": 0,
+        "futile": 0,
+        "lost": false
+      },
+      "usage": {
+        "tokens": 778485,
+        "cost": 1.15303725,
+        "calls": 16
+      },
+      "ground": {
+        "ready": true,
+        "id": "forest",
+        "width": 3189,
+        "height": 2494,
+        "scale": 6,
+        "left": -149.33333333333334,
+        "top": -128,
+        "stationKey": "{\"x\":0,\"y\":0,\"w\":240,\"h\":194}"
+      },
+      "workers": [
+        {
+          "kind": "sky",
+          "busy": false,
+          "queued": false,
+          "failed": false
+        },
+        {
+          "kind": "ground",
+          "busy": false,
+          "queued": false,
+          "failed": false
+        }
+      ],
+      "heap": 44382040
+    },
+    {
+      "at": "2026-09-11T02:51:22.513Z",
+      "visible": "visible",
+      "busy": false,
+      "curve": {
+        "path": "webgl",
+        "ready": true,
+        "failed": false,
+        "lost": false,
+        "frameSum": 66
+      },
+      "cache": {
+        "probe": {
+          "x": 120,
+          "y": 97
+        },
+        "probeOff": false,
+        "recoveries": 0,
+        "blank": false
+      },
+      "stage": {
+        "armed": true,
+        "probeOff": false,
+        "deadSince": 0,
+        "rebuilds": 0,
+        "futile": 0,
+        "lost": false
+      },
+      "usage": {
+        "tokens": 778485,
+        "cost": 1.15303725,
+        "calls": 16
+      },
+      "ground": {
+        "ready": true,
+        "id": "forest",
+        "width": 3189,
+        "height": 2494,
+        "scale": 6,
+        "left": -149.33333333333334,
+        "top": -128,
+        "stationKey": "{\"x\":0,\"y\":0,\"w\":240,\"h\":194}"
+      },
+      "workers": [
+        {
+          "kind": "sky",
+          "busy": false,
+          "queued": false,
+          "failed": false
+        },
+        {
+          "kind": "ground",
+          "busy": false,
+          "queued": false,
+          "failed": false
+        }
+      ],
+      "heap": 24593531
+    },
+    {
+      "at": "2026-09-11T02:51:37.524Z",
+      "visible": "visible",
+      "busy": false,
+      "curve": {
+        "path": "webgl",
+        "ready": true,
+        "failed": false,
+        "lost": false,
+        "frameSum": 66
+      },
+      "cache": {
+        "probe": {
+          "x": 120,
+          "y": 97
+        },
+        "probeOff": false,
+        "recoveries": 0,
+        "blank": false
+      },
+      "stage": {
+        "armed": true,
+        "probeOff": false,
+        "deadSince": 0,
+        "rebuilds": 0,
+        "futile": 0,
+        "lost": false
+      },
+      "usage": {
+        "tokens": 778485,
+        "cost": 1.15303725,
+        "calls": 16
+      },
+      "ground": {
+        "ready": true,
+        "id": "forest",
+        "width": 3189,
+        "height": 2494,
+        "scale": 6,
+        "left": -149.33333333333334,
+        "top": -128,
+        "stationKey": "{\"x\":0,\"y\":0,\"w\":240,\"h\":194}"
+      },
+      "workers": [
+        {
+          "kind": "sky",
+          "busy": false,
+          "queued": false,
+          "failed": false
+        },
+        {
+          "kind": "ground",
+          "busy": false,
+          "queued": false,
+          "failed": false
+        }
+      ],
+      "heap": 31127842
+    },
+    {
+      "at": "2026-09-11T02:51:52.537Z",
+      "visible": "visible",
+      "busy": false,
+      "curve": {
+        "path": "webgl",
+        "ready": true,
+        "failed": false,
+        "lost": false,
+        "frameSum": 65
+      },
+      "cache": {
+        "probe": {
+          "x": 120,
+          "y": 97
+        },
+        "probeOff": false,
+        "recoveries": 0,
+        "blank": false
+      },
+      "stage": {
+        "armed": true,
+        "probeOff": false,
+        "deadSince": 0,
+        "rebuilds": 0,
+        "futile": 0,
+        "lost": false
+      },
+      "usage": {
+        "tokens": 778485,
+        "cost": 1.15303725,
+        "calls": 16
+      },
+      "ground": {
+        "ready": true,
+        "id": "forest",
+        "width": 3189,
+        "height": 2494,
+        "scale": 6,
+        "left": -149.33333333333334,
+        "top": -128,
+        "stationKey": "{\"x\":0,\"y\":0,\"w\":240,\"h\":194}"
+      },
+      "workers": [
+        {
+          "kind": "sky",
+          "busy": false,
+          "queued": false,
+          "failed": false
+        },
+        {
+          "kind": "ground",
+          "busy": false,
+          "queued": false,
+          "failed": false
+        }
+      ],
+      "heap": 33301226
+    },
+    {
+      "at": "2026-09-11T02:52:07.545Z",
+      "visible": "visible",
+      "busy": false,
+      "curve": {
+        "path": "webgl",
+        "ready": true,
+        "failed": false,
+        "lost": false,
+        "frameSum": 54
+      },
+      "cache": {
+        "probe": {
+          "x": 120,
+          "y": 97
+        },
+        "probeOff": false,
+        "recoveries": 0,
+        "blank": false
+      },
+      "stage": {
+        "armed": true,
+        "probeOff": false,
+        "deadSince": 0,
+        "rebuilds": 0,
+        "futile": 0,
+        "lost": false
+      },
+      "usage": {
+        "tokens": 778485,
+        "cost": 1.15303725,
+        "calls": 16
+      },
+      "ground": {
+        "ready": true,
+        "id": "forest",
+        "width": 3189,
+        "height": 2494,
+        "scale": 3.1068155174116185,
+        "left": -453.19716993464976,
+        "top": -370.79768449198616,
+        "stationKey": "{\"x\":0,\"y\":0,\"w\":240,\"h\":194}"
+      },
+      "workers": [
+        {
+          "kind": "sky",
+          "busy": false,
+          "queued": false,
+          "failed": false
+        },
+        {
+          "kind": "ground",
+          "busy": false,
+          "queued": false,
+          "failed": false
+        }
+      ],
+      "heap": 50846825
+    },
+    {
+      "at": "2026-09-11T02:52:22.555Z",
+      "visible": "visible",
+      "busy": false,
+      "curve": {
+        "path": "webgl",
+        "ready": true,
+        "failed": false,
+        "lost": false,
+        "frameSum": 49
+      },
+      "cache": {
+        "probe": {
+          "x": 120,
+          "y": 97
+        },
+        "probeOff": false,
+        "recoveries": 0,
+        "blank": false
+      },
+      "stage": {
+        "armed": true,
+        "probeOff": false,
+        "deadSince": 0,
+        "rebuilds": 0,
+        "futile": 0,
+        "lost": false
+      },
+      "usage": {
+        "tokens": 778485,
+        "cost": 1.15303725,
+        "calls": 16
+      },
+      "ground": {
+        "ready": true,
+        "id": "forest",
+        "width": 3189,
+        "height": 2494,
+        "scale": 2.6680869504343856,
+        "left": -527.7189335118057,
+        "top": -383.795588008586,
+        "stationKey": "{\"x\":0,\"y\":0,\"w\":240,\"h\":194}"
+      },
+      "workers": [
+        {
+          "kind": "sky",
+          "busy": false,
+          "queued": false,
+          "failed": false
+        },
+        {
+          "kind": "ground",
+          "busy": false,
+          "queued": false,
+          "failed": false
+        }
+      ],
+      "heap": 41541453
+    },
+    {
+      "at": "2026-09-11T02:52:37.566Z",
+      "visible": "visible",
+      "busy": false,
+      "curve": {
+        "path": "webgl",
+        "ready": true,
+        "failed": false,
+        "lost": false,
+        "frameSum": 47
+      },
+      "cache": {
+        "probe": {
+          "x": 120,
+          "y": 97
+        },
+        "probeOff": false,
+        "recoveries": 0,
+        "blank": false
+      },
+      "stage": {
+        "armed": true,
+        "probeOff": false,
+        "deadSince": 0,
+        "rebuilds": 0,
+        "futile": 0,
+        "lost": false
+      },
+      "usage": {
+        "tokens": 778485,
+        "cost": 1.15303725,
+        "calls": 16
+      },
+      "ground": {
+        "ready": true,
+        "id": "forest",
+        "width": 3189,
+        "height": 2494,
+        "scale": 2.976779235345301,
+        "left": -472.99443078676086,
+        "top": -386.99544337098615,
+        "stationKey": "{\"x\":0,\"y\":0,\"w\":240,\"h\":194}"
+      },
+      "workers": [
+        {
+          "kind": "sky",
+          "busy": false,
+          "queued": false,
+          "failed": false
+        },
+        {
+          "kind": "ground",
+          "busy": false,
+          "queued": false,
+          "failed": false
+        }
+      ],
+      "heap": 41088042
+    },
+    {
+      "at": "2026-09-11T02:52:52.573Z",
+      "visible": "visible",
+      "busy": false,
+      "curve": {
+        "path": "webgl",
+        "ready": true,
+        "failed": false,
+        "lost": false,
+        "frameSum": 47
+      },
+      "cache": {
+        "probe": {
+          "x": 120,
+          "y": 97
+        },
+        "probeOff": false,
+        "recoveries": 0,
+        "blank": false
+      },
+      "stage": {
+        "armed": true,
+        "probeOff": false,
+        "deadSince": 0,
+        "rebuilds": 0,
+        "futile": 0,
+        "lost": false
+      },
+      "usage": {
+        "tokens": 778485,
+        "cost": 1.15303725,
+        "calls": 16
+      },
+      "ground": {
+        "ready": true,
+        "id": "forest",
+        "width": 3189,
+        "height": 2494,
+        "scale": 2.115130248096369,
+        "left": -726.1964133804101,
+        "top": -605.1636778170084,
+        "stationKey": "{\"x\":0,\"y\":0,\"w\":240,\"h\":194}"
+      },
+      "workers": [
+        {
+          "kind": "sky",
+          "busy": false,
+          "queued": false,
+          "failed": false
+        },
+        {
+          "kind": "ground",
+          "busy": false,
+          "queued": false,
+          "failed": false
+        }
+      ],
+      "heap": 47624610
+    },
+    {
+      "at": "2026-09-11T02:53:07.583Z",
+      "visible": "visible",
+      "busy": false,
+      "curve": {
+        "path": "webgl",
+        "ready": true,
+        "failed": false,
+        "lost": false,
+        "frameSum": 51
+      },
+      "cache": {
+        "probe": {
+          "x": 120,
+          "y": 97
+        },
+        "probeOff": false,
+        "recoveries": 0,
+        "blank": false
+      },
+      "stage": {
+        "armed": true,
+        "probeOff": false,
+        "deadSince": 0,
+        "rebuilds": 0,
+        "futile": 0,
+        "lost": false
+      },
+      "usage": {
+        "tokens": 778485,
+        "cost": 1.15303725,
+        "calls": 16
+      },
+      "ground": {
+        "ready": true,
+        "id": "forest",
+        "width": 3189,
+        "height": 2494,
+        "scale": 2.8999999999999972,
+        "left": -529.6551724137936,
+        "top": -353.1034482758624,
+        "stationKey": "{\"x\":0,\"y\":0,\"w\":240,\"h\":194}"
+      },
+      "workers": [
+        {
+          "kind": "sky",
+          "busy": false,
+          "queued": false,
+          "failed": false
+        },
+        {
+          "kind": "ground",
+          "busy": false,
+          "queued": false,
+          "failed": false
+        }
+      ],
+      "heap": 34840326
+    },
+    {
+      "at": "2026-09-11T02:53:22.589Z",
+      "visible": "visible",
+      "busy": false,
+      "curve": {
+        "path": "webgl",
+        "ready": true,
+        "failed": false,
+        "lost": false,
+        "frameSum": 54
+      },
+      "cache": {
+        "probe": {
+          "x": 120,
+          "y": 97
+        },
+        "probeOff": false,
+        "recoveries": 0,
+        "blank": false
+      },
+      "stage": {
+        "armed": true,
+        "probeOff": false,
+        "deadSince": 0,
+        "rebuilds": 0,
+        "futile": 0,
+        "lost": false
+      },
+      "usage": {
+        "tokens": 778485,
+        "cost": 1.15303725,
+        "calls": 16
+      },
+      "ground": {
+        "ready": true,
+        "id": "forest",
+        "width": 3189,
+        "height": 2494,
+        "scale": 2.791586679472935,
+        "left": -550.2247203336005,
+        "top": -412.66854025020035,
+        "stationKey": "{\"x\":0,\"y\":0,\"w\":240,\"h\":194}"
+      },
+      "workers": [
+        {
+          "kind": "sky",
+          "busy": false,
+          "queued": false,
+          "failed": false
+        },
+        {
+          "kind": "ground",
+          "busy": false,
+          "queued": false,
+          "failed": false
+        }
+      ],
+      "heap": 29595409
+    },
+    {
+      "at": "2026-09-11T02:53:37.592Z",
+      "visible": "visible",
+      "busy": false,
+      "curve": {
+        "path": "webgl",
+        "ready": true,
+        "failed": false,
+        "lost": false,
+        "frameSum": 55
+      },
+      "cache": {
+        "probe": {
+          "x": 120,
+          "y": 97
+        },
+        "probeOff": false,
+        "recoveries": 0,
+        "blank": false
+      },
+      "stage": {
+        "armed": true,
+        "probeOff": false,
+        "deadSince": 0,
+        "rebuilds": 0,
+        "futile": 0,
+        "lost": false
+      },
+      "usage": {
+        "tokens": 778485,
+        "cost": 1.15303725,
+        "calls": 16
+      },
+      "ground": {
+        "ready": true,
+        "id": "forest",
+        "width": 3189,
+        "height": 2494,
+        "scale": 2.799999999999997,
+        "left": -411.42857142857184,
+        "top": -411.42857142857184,
+        "stationKey": "{\"x\":0,\"y\":0,\"w\":240,\"h\":194}"
+      },
+      "workers": [
+        {
+          "kind": "sky",
+          "busy": false,
+          "queued": false,
+          "failed": false
+        },
+        {
+          "kind": "ground",
+          "busy": false,
+          "queued": false,
+          "failed": false
+        }
+      ],
+      "heap": 24599114
+    },
+    {
+      "at": "2026-09-11T02:53:52.599Z",
+      "visible": "visible",
+      "busy": false,
+      "curve": {
+        "path": "webgl",
+        "ready": true,
+        "failed": false,
+        "lost": false,
+        "frameSum": 48
+      },
+      "cache": {
+        "probe": {
+          "x": 120,
+          "y": 97
+        },
+        "probeOff": false,
+        "recoveries": 0,
+        "blank": false
+      },
+      "stage": {
+        "armed": true,
+        "probeOff": false,
+        "deadSince": 0,
+        "rebuilds": 0,
+        "futile": 0,
+        "lost": false
+      },
+      "usage": {
+        "tokens": 778485,
+        "cost": 1.15303725,
+        "calls": 16
+      },
+      "ground": {
+        "ready": true,
+        "id": "forest",
+        "width": 3189,
+        "height": 2494,
+        "scale": 2.6000000000000028,
+        "left": -541.538461538461,
+        "top": -393.8461538461534,
+        "stationKey": "{\"x\":0,\"y\":0,\"w\":240,\"h\":194}"
+      },
+      "workers": [
+        {
+          "kind": "sky",
+          "busy": false,
+          "queued": false,
+          "failed": false
+        },
+        {
+          "kind": "ground",
+          "busy": false,
+          "queued": false,
+          "failed": false
+        }
+      ],
+      "heap": 53572656
+    },
+    {
+      "at": "2026-09-11T02:54:07.607Z",
+      "visible": "visible",
+      "busy": false,
+      "curve": {
+        "path": "webgl",
+        "ready": true,
+        "failed": false,
+        "lost": false,
+        "frameSum": 52
+      },
+      "cache": {
+        "probe": {
+          "x": 120,
+          "y": 97
+        },
+        "probeOff": false,
+        "recoveries": 0,
+        "blank": false
+      },
+      "stage": {
+        "armed": true,
+        "probeOff": false,
+        "deadSince": 0,
+        "rebuilds": 0,
+        "futile": 0,
+        "lost": false
+      },
+      "usage": {
+        "tokens": 778485,
+        "cost": 1.15303725,
+        "calls": 16
+      },
+      "ground": {
+        "ready": true,
+        "id": "forest",
+        "width": 3189,
+        "height": 2494,
+        "scale": 2.700000000000003,
+        "left": -521.481481481481,
+        "top": -379.2592592592589,
+        "stationKey": "{\"x\":0,\"y\":0,\"w\":240,\"h\":194}"
+      },
+      "workers": [
+        {
+          "kind": "sky",
+          "busy": false,
+          "queued": false,
+          "failed": false
+        },
+        {
+          "kind": "ground",
+          "busy": false,
+          "queued": false,
+          "failed": false
+        }
+      ],
+      "heap": 45989232
+    },
+    {
+      "at": "2026-09-11T02:54:22.612Z",
+      "visible": "visible",
+      "busy": false,
+      "curve": {
+        "path": "webgl",
+        "ready": true,
+        "failed": false,
+        "lost": false,
+        "frameSum": 48
+      },
+      "cache": {
+        "probe": {
+          "x": 120,
+          "y": 97
+        },
+        "probeOff": false,
+        "recoveries": 0,
+        "blank": false
+      },
+      "stage": {
+        "armed": true,
+        "probeOff": false,
+        "deadSince": 0,
+        "rebuilds": 0,
+        "futile": 0,
+        "lost": false
+      },
+      "usage": {
+        "tokens": 778485,
+        "cost": 1.15303725,
+        "calls": 16
+      },
+      "ground": {
+        "ready": true,
+        "id": "forest",
+        "width": 3189,
+        "height": 2494,
+        "scale": 2.799999999999997,
+        "left": -411.42857142857184,
+        "top": -411.42857142857184,
+        "stationKey": "{\"x\":0,\"y\":0,\"w\":240,\"h\":194}"
+      },
+      "workers": [
+        {
+          "kind": "sky",
+          "busy": false,
+          "queued": false,
+          "failed": false
+        },
+        {
+          "kind": "ground",
+          "busy": false,
+          "queued": false,
+          "failed": false
+        }
+      ],
+      "heap": 34718198
+    },
+    {
+      "at": "2026-09-11T02:54:37.627Z",
+      "visible": "visible",
+      "busy": false,
+      "curve": {
+        "path": "webgl",
+        "ready": true,
+        "failed": false,
+        "lost": false,
+        "frameSum": 47
+      },
+      "cache": {
+        "probe": {
+          "x": 120,
+          "y": 97
+        },
+        "probeOff": false,
+        "recoveries": 0,
+        "blank": false
+      },
+      "stage": {
+        "armed": true,
+        "probeOff": false,
+        "deadSince": 0,
+        "rebuilds": 0,
+        "futile": 0,
+        "lost": false
+      },
+      "usage": {
+        "tokens": 778485,
+        "cost": 1.15303725,
+        "calls": 16
+      },
+      "ground": {
+        "ready": true,
+        "id": "forest",
+        "width": 3189,
+        "height": 2494,
+        "scale": 2.9264667224690224,
+        "left": -481.12626369183124,
+        "top": -393.6487612024074,
+        "stationKey": "{\"x\":0,\"y\":0,\"w\":240,\"h\":194}"
+      },
+      "workers": [
+        {
+          "kind": "sky",
+          "busy": false,
+          "queued": false,
+          "failed": false
+        },
+        {
+          "kind": "ground",
+          "busy": false,
+          "queued": false,
+          "failed": false
+        }
+      ],
+      "heap": 42540487
+    },
+    {
+      "at": "2026-09-11T02:54:52.637Z",
+      "visible": "visible",
+      "busy": false,
+      "curve": {
+        "path": "webgl",
+        "ready": true,
+        "failed": false,
+        "lost": false,
+        "frameSum": 48
+      },
+      "cache": {
+        "probe": {
+          "x": 120,
+          "y": 97
+        },
+        "probeOff": false,
+        "recoveries": 0,
+        "blank": false
+      },
+      "stage": {
+        "armed": true,
+        "probeOff": false,
+        "deadSince": 0,
+        "rebuilds": 0,
+        "futile": 0,
+        "lost": false
+      },
+      "usage": {
+        "tokens": 778485,
+        "cost": 1.15303725,
+        "calls": 16
+      },
+      "ground": {
+        "ready": true,
+        "id": "forest",
+        "width": 3189,
+        "height": 2494,
+        "scale": 2.6684214202951613,
+        "left": -527.6527872588646,
+        "top": -431.7159168481619,
+        "stationKey": "{\"x\":0,\"y\":0,\"w\":240,\"h\":194}"
+      },
+      "workers": [
+        {
+          "kind": "sky",
+          "busy": false,
+          "queued": false,
+          "failed": false
+        },
+        {
+          "kind": "ground",
+          "busy": false,
+          "queued": false,
+          "failed": false
+        }
+      ],
+      "heap": 31139426
+    },
+    {
+      "at": "2026-09-11T02:55:07.646Z",
+      "visible": "visible",
+      "busy": false,
+      "curve": {
+        "path": "webgl",
+        "ready": true,
+        "failed": false,
+        "lost": false,
+        "frameSum": 47
+      },
+      "cache": {
+        "probe": {
+          "x": 120,
+          "y": 97
+        },
+        "probeOff": false,
+        "recoveries": 0,
+        "blank": false
+      },
+      "stage": {
+        "armed": true,
+        "probeOff": false,
+        "deadSince": 0,
+        "rebuilds": 0,
+        "futile": 0,
+        "lost": false
+      },
+      "usage": {
+        "tokens": 778485,
+        "cost": 1.15303725,
+        "calls": 16
+      },
+      "ground": {
+        "ready": true,
+        "id": "forest",
+        "width": 3189,
+        "height": 2494,
+        "scale": 2.200000000000003,
+        "left": -639.9999999999992,
+        "top": -581.8181818181811,
+        "stationKey": "{\"x\":0,\"y\":0,\"w\":240,\"h\":194}"
+      },
+      "workers": [
+        {
+          "kind": "sky",
+          "busy": false,
+          "queued": false,
+          "failed": false
+        },
+        {
+          "kind": "ground",
+          "busy": false,
+          "queued": false,
+          "failed": false
+        }
+      ],
+      "heap": 33045110
+    },
+    {
+      "at": "2026-09-11T02:55:22.662Z",
+      "visible": "visible",
+      "busy": false,
+      "curve": {
+        "path": "webgl",
+        "ready": true,
+        "failed": false,
+        "lost": false,
+        "frameSum": 46
+      },
+      "cache": {
+        "probe": {
+          "x": 120,
+          "y": 97
+        },
+        "probeOff": false,
+        "recoveries": 0,
+        "blank": false
+      },
+      "stage": {
+        "armed": true,
+        "probeOff": false,
+        "deadSince": 0,
+        "rebuilds": 0,
+        "futile": 0,
+        "lost": false
+      },
+      "usage": {
+        "tokens": 778485,
+        "cost": 1.15303725,
+        "calls": 16
+      },
+      "ground": {
+        "ready": true,
+        "id": "forest",
+        "width": 3189,
+        "height": 2494,
+        "scale": 2.786877690844726,
+        "left": -505.224899042205,
+        "top": -413.36582648907677,
+        "stationKey": "{\"x\":0,\"y\":0,\"w\":240,\"h\":194}"
+      },
+      "workers": [
+        {
+          "kind": "sky",
+          "busy": false,
+          "queued": false,
+          "failed": false
+        },
+        {
+          "kind": "ground",
+          "busy": false,
+          "queued": false,
+          "failed": false
+        }
+      ],
+      "heap": 32532358
+    },
+    {
+      "at": "2026-09-11T02:55:37.675Z",
+      "visible": "visible",
+      "busy": false,
+      "curve": {
+        "path": "webgl",
+        "ready": true,
+        "failed": false,
+        "lost": false,
+        "frameSum": 50
+      },
+      "cache": {
+        "probe": {
+          "x": 120,
+          "y": 97
+        },
+        "probeOff": false,
+        "recoveries": 0,
+        "blank": false
+      },
+      "stage": {
+        "armed": true,
+        "probeOff": false,
+        "deadSince": 0,
+        "rebuilds": 0,
+        "futile": 0,
+        "lost": false
+      },
+      "usage": {
+        "tokens": 778485,
+        "cost": 1.15303725,
+        "calls": 16
+      },
+      "ground": {
+        "ready": true,
+        "id": "forest",
+        "width": 3189,
+        "height": 2494,
+        "scale": 2.1382956594787386,
+        "left": -718.3291015866521,
+        "top": -538.7468261899891,
+        "stationKey": "{\"x\":0,\"y\":0,\"w\":240,\"h\":194}"
+      },
+      "workers": [
+        {
+          "kind": "sky",
+          "busy": false,
+          "queued": false,
+          "failed": false
+        },
+        {
+          "kind": "ground",
+          "busy": false,
+          "queued": false,
+          "failed": false
+        }
+      ],
+      "heap": 28737711
+    },
+    {
+      "at": "2026-09-11T02:55:52.680Z",
+      "visible": "visible",
+      "busy": false,
+      "curve": {
+        "path": "webgl",
+        "ready": true,
+        "failed": false,
+        "lost": false,
+        "frameSum": 52
+      },
+      "cache": {
+        "probe": {
+          "x": 120,
+          "y": 97
+        },
+        "probeOff": false,
+        "recoveries": 0,
+        "blank": false
+      },
+      "stage": {
+        "armed": true,
+        "probeOff": false,
+        "deadSince": 0,
+        "rebuilds": 0,
+        "futile": 0,
+        "lost": false
+      },
+      "usage": {
+        "tokens": 778485,
+        "cost": 1.15303725,
+        "calls": 16
+      },
+      "ground": {
+        "ready": true,
+        "id": "forest",
+        "width": 3189,
+        "height": 2494,
+        "scale": 2.5999999999999974,
+        "left": -492.3076923076928,
+        "top": -393.84615384615427,
+        "stationKey": "{\"x\":0,\"y\":0,\"w\":240,\"h\":194}"
+      },
+      "workers": [
+        {
+          "kind": "sky",
+          "busy": false,
+          "queued": false,
+          "failed": false
+        },
+        {
+          "kind": "ground",
+          "busy": false,
+          "queued": false,
+          "failed": false
+        }
+      ],
+      "heap": 50816235
+    },
+    {
+      "at": "2026-09-11T02:56:07.692Z",
+      "visible": "visible",
+      "busy": false,
+      "curve": {
+        "path": "webgl",
+        "ready": true,
+        "failed": false,
+        "lost": false,
+        "frameSum": 48
+      },
+      "cache": {
+        "probe": {
+          "x": 120,
+          "y": 97
+        },
+        "probeOff": false,
+        "recoveries": 0,
+        "blank": false
+      },
+      "stage": {
+        "armed": true,
+        "probeOff": false,
+        "deadSince": 0,
+        "rebuilds": 0,
+        "futile": 0,
+        "lost": false
+      },
+      "usage": {
+        "tokens": 778485,
+        "cost": 1.15303725,
+        "calls": 16
+      },
+      "ground": {
+        "ready": true,
+        "id": "forest",
+        "width": 3189,
+        "height": 2494,
+        "scale": 2.7803459447962626,
+        "left": -506.4118019684687,
+        "top": -414.3369288832926,
+        "stationKey": "{\"x\":0,\"y\":0,\"w\":240,\"h\":194}"
+      },
+      "workers": [
+        {
+          "kind": "sky",
+          "busy": false,
+          "queued": false,
+          "failed": false
+        },
+        {
+          "kind": "ground",
+          "busy": false,
+          "queued": false,
+          "failed": false
+        }
+      ],
+      "heap": 40217085
+    },
+    {
+      "at": "2026-09-11T02:56:22.699Z",
+      "visible": "visible",
+      "busy": false,
+      "curve": {
+        "path": "webgl",
+        "ready": true,
+        "failed": false,
+        "lost": false,
+        "frameSum": 44
+      },
+      "cache": {
+        "probe": {
+          "x": 120,
+          "y": 97
+        },
+        "probeOff": false,
+        "recoveries": 0,
+        "blank": false
+      },
+      "stage": {
+        "armed": true,
+        "probeOff": false,
+        "deadSince": 0,
+        "rebuilds": 0,
+        "futile": 0,
+        "lost": false
+      },
+      "usage": {
+        "tokens": 778485,
+        "cost": 1.15303725,
+        "calls": 16
+      },
+      "ground": {
+        "ready": true,
+        "id": "forest",
+        "width": 3189,
+        "height": 2494,
+        "scale": 2.3621821434011467,
+        "left": -541.8718465786953,
+        "top": -487.6846619208259,
+        "stationKey": "{\"x\":0,\"y\":0,\"w\":240,\"h\":194}"
+      },
+      "workers": [
+        {
+          "kind": "sky",
+          "busy": false,
+          "queued": false,
+          "failed": false
+        },
+        {
+          "kind": "ground",
+          "busy": false,
+          "queued": false,
+          "failed": false
+        }
+      ],
+      "heap": 30547680
+    },
+    {
+      "at": "2026-09-11T02:56:37.715Z",
+      "visible": "visible",
+      "busy": false,
+      "curve": {
+        "path": "webgl",
+        "ready": true,
+        "failed": false,
+        "lost": false,
+        "frameSum": 49
+      },
+      "cache": {
+        "probe": {
+          "x": 120,
+          "y": 97
+        },
+        "probeOff": false,
+        "recoveries": 0,
+        "blank": false
+      },
+      "stage": {
+        "armed": true,
+        "probeOff": false,
+        "deadSince": 0,
+        "rebuilds": 0,
+        "futile": 0,
+        "lost": false
+      },
+      "usage": {
+        "tokens": 778485,
+        "cost": 1.15303725,
+        "calls": 16
+      },
+      "ground": {
+        "ready": true,
+        "id": "forest",
+        "width": 3189,
+        "height": 2494,
+        "scale": 2.5974492776289155,
+        "left": -492.7911436131871,
+        "top": -443.5120292518684,
+        "stationKey": "{\"x\":0,\"y\":0,\"w\":240,\"h\":194}"
+      },
+      "workers": [
+        {
+          "kind": "sky",
+          "busy": false,
+          "queued": false,
+          "failed": false
+        },
+        {
+          "kind": "ground",
+          "busy": false,
+          "queued": false,
+          "failed": false
+        }
+      ],
+      "heap": 25172472
+    },
+    {
+      "at": "2026-09-11T02:56:52.733Z",
+      "visible": "visible",
+      "busy": false,
+      "curve": {
+        "path": "webgl",
+        "ready": true,
+        "failed": false,
+        "lost": false,
+        "frameSum": 49
+      },
+      "cache": {
+        "probe": {
+          "x": 120,
+          "y": 97
+        },
+        "probeOff": false,
+        "recoveries": 0,
+        "blank": false
+      },
+      "stage": {
+        "armed": true,
+        "probeOff": false,
+        "deadSince": 0,
+        "rebuilds": 0,
+        "futile": 0,
+        "lost": false
+      },
+      "usage": {
+        "tokens": 778485,
+        "cost": 1.15303725,
+        "calls": 16
+      },
+      "ground": {
+        "ready": true,
+        "id": "forest",
+        "width": 3189,
+        "height": 2494,
+        "scale": 2.6999999999974147,
+        "left": -474.074074074528,
+        "top": -426.6666666670752,
+        "stationKey": "{\"x\":0,\"y\":0,\"w\":240,\"h\":194}"
+      },
+      "workers": [
+        {
+          "kind": "sky",
+          "busy": false,
+          "queued": false,
+          "failed": false
+        },
+        {
+          "kind": "ground",
+          "busy": false,
+          "queued": false,
+          "failed": false
+        }
+      ],
+      "heap": 30558185
+    },
+    {
+      "at": "2026-09-11T02:57:07.740Z",
+      "visible": "visible",
+      "busy": false,
+      "curve": {
+        "path": "webgl",
+        "ready": true,
+        "failed": false,
+        "lost": false,
+        "frameSum": 53
+      },
+      "cache": {
+        "probe": {
+          "x": 120,
+          "y": 97
+        },
+        "probeOff": false,
+        "recoveries": 0,
+        "blank": false
+      },
+      "stage": {
+        "armed": true,
+        "probeOff": false,
+        "deadSince": 0,
+        "rebuilds": 0,
+        "futile": 0,
+        "lost": false
+      },
+      "usage": {
+        "tokens": 778485,
+        "cost": 1.15303725,
+        "calls": 16
+      },
+      "ground": {
+        "ready": true,
+        "id": "forest",
+        "width": 3189,
+        "height": 2494,
+        "scale": 2.6999999999974147,
+        "left": -474.074074074528,
+        "top": -426.6666666670752,
+        "stationKey": "{\"x\":0,\"y\":0,\"w\":240,\"h\":194}"
+      },
+      "workers": [
+        {
+          "kind": "sky",
+          "busy": false,
+          "queued": false,
+          "failed": false
+        },
+        {
+          "kind": "ground",
+          "busy": false,
+          "queued": false,
+          "failed": false
+        }
+      ],
+      "heap": 49504802
+    },
+    {
+      "at": "2026-09-11T02:57:22.752Z",
+      "visible": "visible",
+      "busy": false,
+      "curve": {
+        "path": "webgl",
+        "ready": true,
+        "failed": false,
+        "lost": false,
+        "frameSum": 47
+      },
+      "cache": {
+        "probe": {
+          "x": 120,
+          "y": 97
+        },
+        "probeOff": false,
+        "recoveries": 0,
+        "blank": false
+      },
+      "stage": {
+        "armed": true,
+        "probeOff": false,
+        "deadSince": 0,
+        "rebuilds": 0,
+        "futile": 0,
+        "lost": false
+      },
+      "usage": {
+        "tokens": 778485,
+        "cost": 1.15303725,
+        "calls": 16
+      },
+      "ground": {
+        "ready": true,
+        "id": "forest",
+        "width": 3189,
+        "height": 2494,
+        "scale": 2.7479130101410174,
+        "left": -512.3888546703828,
+        "top": -372.64643976027844,
+        "stationKey": "{\"x\":0,\"y\":0,\"w\":240,\"h\":194}"
+      },
+      "workers": [
+        {
+          "kind": "sky",
+          "busy": false,
+          "queued": false,
+          "failed": false
+        },
+        {
+          "kind": "ground",
+          "busy": false,
+          "queued": false,
+          "failed": false
+        }
+      ],
+      "heap": 36413176
+    },
+    {
+      "at": "2026-09-11T02:57:37.767Z",
+      "visible": "visible",
+      "busy": false,
+      "curve": {
+        "path": "webgl",
+        "ready": true,
+        "failed": false,
+        "lost": false,
+        "frameSum": 49
+      },
+      "cache": {
+        "probe": {
+          "x": 120,
+          "y": 97
+        },
+        "probeOff": false,
+        "recoveries": 0,
+        "blank": false
+      },
+      "stage": {
+        "armed": true,
+        "probeOff": false,
+        "deadSince": 0,
+        "rebuilds": 0,
+        "futile": 0,
+        "lost": false
+      },
+      "usage": {
+        "tokens": 778485,
+        "cost": 1.15303725,
+        "calls": 16
+      },
+      "ground": {
+        "ready": true,
+        "id": "forest",
+        "width": 3189,
+        "height": 2494,
+        "scale": 2.01082653308229,
+        "left": -700.209578914672,
+        "top": -636.5541626497018,
+        "stationKey": "{\"x\":0,\"y\":0,\"w\":240,\"h\":194}"
+      },
+      "workers": [
+        {
+          "kind": "sky",
+          "busy": false,
+          "queued": false,
+          "failed": false
+        },
+        {
+          "kind": "ground",
+          "busy": false,
+          "queued": false,
+          "failed": false
+        }
+      ],
+      "heap": 38596718
+    },
+    {
+      "at": "2026-09-11T02:57:52.787Z",
+      "visible": "visible",
+      "busy": false,
+      "curve": {
+        "path": "webgl",
+        "ready": true,
+        "failed": false,
+        "lost": false,
+        "frameSum": 47
+      },
+      "cache": {
+        "probe": {
+          "x": 120,
+          "y": 97
+        },
+        "probeOff": false,
+        "recoveries": 0,
+        "blank": false
+      },
+      "stage": {
+        "armed": true,
+        "probeOff": false,
+        "deadSince": 0,
+        "rebuilds": 0,
+        "futile": 0,
+        "lost": false
+      },
+      "usage": {
+        "tokens": 778485,
+        "cost": 1.15303725,
+        "calls": 16
+      },
+      "ground": {
+        "ready": true,
+        "id": "forest",
+        "width": 3189,
+        "height": 2494,
+        "scale": 2.4382956594787375,
+        "left": -524.9568464037869,
+        "top": -524.9568464037869,
+        "stationKey": "{\"x\":0,\"y\":0,\"w\":240,\"h\":194}"
+      },
+      "workers": [
+        {
+          "kind": "sky",
+          "busy": false,
+          "queued": false,
+          "failed": false
+        },
+        {
+          "kind": "ground",
+          "busy": false,
+          "queued": false,
+          "failed": false
+        }
+      ],
+      "heap": 36229159
+    },
+    {
+      "at": "2026-09-11T02:58:07.797Z",
+      "visible": "visible",
+      "busy": false,
+      "curve": {
+        "path": "webgl",
+        "ready": true,
+        "failed": false,
+        "lost": false,
+        "frameSum": 50
+      },
+      "cache": {
+        "probe": {
+          "x": 120,
+          "y": 97
+        },
+        "probeOff": false,
+        "recoveries": 0,
+        "blank": false
+      },
+      "stage": {
+        "armed": true,
+        "probeOff": false,
+        "deadSince": 0,
+        "rebuilds": 0,
+        "futile": 0,
+        "lost": false
+      },
+      "usage": {
+        "tokens": 778485,
+        "cost": 1.15303725,
+        "calls": 16
+      },
+      "ground": {
+        "ready": true,
+        "id": "forest",
+        "width": 3189,
+        "height": 2494,
+        "scale": 2.791803379642266,
+        "left": -458.48500984478915,
+        "top": -412.6365088603103,
+        "stationKey": "{\"x\":0,\"y\":0,\"w\":240,\"h\":194}"
+      },
+      "workers": [
+        {
+          "kind": "sky",
+          "busy": false,
+          "queued": false,
+          "failed": false
+        },
+        {
+          "kind": "ground",
+          "busy": false,
+          "queued": false,
+          "failed": false
+        }
+      ],
+      "heap": 31441716
+    },
+    {
+      "at": "2026-09-11T02:58:22.803Z",
+      "visible": "visible",
+      "busy": false,
+      "curve": {
+        "path": "webgl",
+        "ready": true,
+        "failed": false,
+        "lost": false,
+        "frameSum": 49
+      },
+      "cache": {
+        "probe": {
+          "x": 120,
+          "y": 97
+        },
+        "probeOff": false,
+        "recoveries": 0,
+        "blank": false
+      },
+      "stage": {
+        "armed": true,
+        "probeOff": false,
+        "deadSince": 0,
+        "rebuilds": 0,
+        "futile": 0,
+        "lost": false
+      },
+      "usage": {
+        "tokens": 778485,
+        "cost": 1.15303725,
+        "calls": 16
+      },
+      "ground": {
+        "ready": true,
+        "id": "forest",
+        "width": 3189,
+        "height": 2494,
+        "scale": 2.192459109270885,
+        "left": -642.2012588723894,
+        "top": -525.437393622864,
+        "stationKey": "{\"x\":0,\"y\":0,\"w\":240,\"h\":194}"
+      },
+      "workers": [
+        {
+          "kind": "sky",
+          "busy": false,
+          "queued": false,
+          "failed": false
+        },
+        {
+          "kind": "ground",
+          "busy": false,
+          "queued": false,
+          "failed": false
+        }
+      ],
+      "heap": 33294186
+    },
+    {
+      "at": "2026-09-11T02:58:37.813Z",
+      "visible": "visible",
+      "busy": false,
+      "curve": {
+        "path": "webgl",
+        "ready": true,
+        "failed": false,
+        "lost": false,
+        "frameSum": 48
+      },
+      "cache": {
+        "probe": {
+          "x": 120,
+          "y": 97
+        },
+        "probeOff": false,
+        "recoveries": 0,
+        "blank": false
+      },
+      "stage": {
+        "armed": true,
+        "probeOff": false,
+        "deadSince": 0,
+        "rebuilds": 0,
+        "futile": 0,
+        "lost": false
+      },
+      "usage": {
+        "tokens": 778485,
+        "cost": 1.15303725,
+        "calls": 16
+      },
+      "ground": {
+        "ready": true,
+        "id": "forest",
+        "width": 3189,
+        "height": 2494,
+        "scale": 2.1084304913927823,
+        "left": -607.0866482083838,
+        "top": -546.3779833875456,
+        "stationKey": "{\"x\":0,\"y\":0,\"w\":240,\"h\":194}"
+      },
+      "workers": [
+        {
+          "kind": "sky",
+          "busy": false,
+          "queued": false,
+          "failed": false
+        },
+        {
+          "kind": "ground",
+          "busy": false,
+          "queued": false,
+          "failed": false
+        }
+      ],
+      "heap": 45778717
+    },
+    {
+      "at": "2026-09-11T02:58:52.819Z",
+      "visible": "visible",
+      "busy": false,
+      "curve": {
+        "path": "webgl",
+        "ready": true,
+        "failed": false,
+        "lost": false,
+        "frameSum": 44
+      },
+      "cache": {
+        "probe": {
+          "x": 120,
+          "y": 97
+        },
+        "probeOff": false,
+        "recoveries": 0,
+        "blank": false
+      },
+      "stage": {
+        "armed": true,
+        "probeOff": false,
+        "deadSince": 0,
+        "rebuilds": 0,
+        "futile": 0,
+        "lost": false
+      },
+      "usage": {
+        "tokens": 778485,
+        "cost": 1.15303725,
+        "calls": 16
+      },
+      "ground": {
+        "ready": true,
+        "id": "forest",
+        "width": 3189,
+        "height": 2494,
+        "scale": 2.063157159409677,
+        "left": -620.4083843841743,
+        "top": -558.3675459457569,
+        "stationKey": "{\"x\":0,\"y\":0,\"w\":240,\"h\":194}"
+      },
+      "workers": [
+        {
+          "kind": "sky",
+          "busy": false,
+          "queued": false,
+          "failed": false
+        },
+        {
+          "kind": "ground",
+          "busy": false,
+          "queued": false,
+          "failed": false
+        }
+      ],
+      "heap": 24169012
+    },
+    {
+      "at": "2026-09-11T02:59:07.830Z",
+      "visible": "visible",
+      "busy": false,
+      "curve": {
+        "path": "webgl",
+        "ready": true,
+        "failed": false,
+        "lost": false,
+        "frameSum": 52
+      },
+      "cache": {
+        "probe": {
+          "x": 120,
+          "y": 97
+        },
+        "probeOff": false,
+        "recoveries": 0,
+        "blank": false
+      },
+      "stage": {
+        "armed": true,
+        "probeOff": false,
+        "deadSince": 0,
+        "rebuilds": 0,
+        "futile": 0,
+        "lost": false
+      },
+      "usage": {
+        "tokens": 778485,
+        "cost": 1.15303725,
+        "calls": 16
+      },
+      "ground": {
+        "ready": true,
+        "id": "forest",
+        "width": 3189,
+        "height": 2494,
+        "scale": 2.884869751903631,
+        "left": -399.32478727673333,
+        "top": -354.95536646820744,
+        "stationKey": "{\"x\":0,\"y\":0,\"w\":240,\"h\":194}"
+      },
+      "workers": [
+        {
+          "kind": "sky",
+          "busy": false,
+          "queued": false,
+          "failed": false
+        },
+        {
+          "kind": "ground",
+          "busy": false,
+          "queued": false,
+          "failed": false
+        }
+      ],
+      "heap": 34753018
+    },
+    {
+      "at": "2026-09-11T02:59:22.842Z",
+      "visible": "visible",
+      "busy": false,
+      "curve": {
+        "path": "webgl",
+        "ready": true,
+        "failed": false,
+        "lost": false,
+        "frameSum": 51
+      },
+      "cache": {
+        "probe": {
+          "x": 120,
+          "y": 97
+        },
+        "probeOff": false,
+        "recoveries": 0,
+        "blank": false
+      },
+      "stage": {
+        "armed": true,
+        "probeOff": false,
+        "deadSince": 0,
+        "rebuilds": 0,
+        "futile": 0,
+        "lost": false
+      },
+      "usage": {
+        "tokens": 778485,
+        "cost": 1.15303725,
+        "calls": 16
+      },
+      "ground": {
+        "ready": true,
+        "id": "forest",
+        "width": 3189,
+        "height": 2494,
+        "scale": 2.884869751903631,
+        "left": -399.32478727673333,
+        "top": -354.95536646820744,
+        "stationKey": "{\"x\":0,\"y\":0,\"w\":240,\"h\":194}"
+      },
+      "workers": [
+        {
+          "kind": "sky",
+          "busy": false,
+          "queued": false,
+          "failed": false
+        },
+        {
+          "kind": "ground",
+          "busy": false,
+          "queued": false,
+          "failed": false
+        }
+      ],
+      "heap": 37858490
+    },
+    {
+      "at": "2026-09-11T02:59:37.859Z",
+      "visible": "visible",
+      "busy": false,
+      "curve": {
+        "path": "webgl",
+        "ready": true,
+        "failed": false,
+        "lost": false,
+        "frameSum": 52
+      },
+      "cache": {
+        "probe": {
+          "x": 120,
+          "y": 97
+        },
+        "probeOff": false,
+        "recoveries": 0,
+        "blank": false
+      },
+      "stage": {
+        "armed": true,
+        "probeOff": false,
+        "deadSince": 0,
+        "rebuilds": 0,
+        "futile": 0,
+        "lost": false
+      },
+      "usage": {
+        "tokens": 778485,
+        "cost": 1.15303725,
+        "calls": 16
+      },
+      "ground": {
+        "ready": true,
+        "id": "forest",
+        "width": 3189,
+        "height": 2494,
+        "scale": 2.6513218873137574,
+        "left": -531.0558505691456,
+        "top": -434.50024137475555,
+        "stationKey": "{\"x\":0,\"y\":0,\"w\":240,\"h\":194}"
+      },
+      "workers": [
+        {
+          "kind": "sky",
+          "busy": false,
+          "queued": false,
+          "failed": false
+        },
+        {
+          "kind": "ground",
+          "busy": false,
+          "queued": false,
+          "failed": false
+        }
+      ],
+      "heap": 41586159
+    },
+    {
+      "at": "2026-09-11T02:59:52.873Z",
+      "visible": "visible",
+      "busy": false,
+      "curve": {
+        "path": "webgl",
+        "ready": true,
+        "failed": false,
+        "lost": false,
+        "frameSum": 49
+      },
+      "cache": {
+        "probe": {
+          "x": 120,
+          "y": 97
+        },
+        "probeOff": false,
+        "recoveries": 0,
+        "blank": false
+      },
+      "stage": {
+        "armed": true,
+        "probeOff": false,
+        "deadSince": 0,
+        "rebuilds": 0,
+        "futile": 0,
+        "lost": false
+      },
+      "usage": {
+        "tokens": 778485,
+        "cost": 1.15303725,
+        "calls": 16
+      },
+      "ground": {
+        "ready": true,
+        "id": "forest",
+        "width": 3189,
+        "height": 2494,
+        "scale": 2.6513218873137574,
+        "left": -531.0558505691456,
+        "top": -434.50024137475555,
+        "stationKey": "{\"x\":0,\"y\":0,\"w\":240,\"h\":194}"
+      },
+      "workers": [
+        {
+          "kind": "sky",
+          "busy": false,
+          "queued": false,
+          "failed": false
+        },
+        {
+          "kind": "ground",
+          "busy": false,
+          "queued": false,
+          "failed": false
+        }
+      ],
+      "heap": 40187794
+    },
+    {
+      "at": "2026-09-11T03:00:07.886Z",
+      "visible": "visible",
+      "busy": false,
+      "curve": {
+        "path": "webgl",
+        "ready": true,
+        "failed": false,
+        "lost": false,
+        "frameSum": 49
+      },
+      "cache": {
+        "probe": {
+          "x": 120,
+          "y": 97
+        },
+        "probeOff": false,
+        "recoveries": 0,
+        "blank": false
+      },
+      "stage": {
+        "armed": true,
+        "probeOff": false,
+        "deadSince": 0,
+        "rebuilds": 0,
+        "futile": 0,
+        "lost": false
+      },
+      "usage": {
+        "tokens": 778485,
+        "cost": 1.15303725,
+        "calls": 16
+      },
+      "ground": {
+        "ready": true,
+        "id": "forest",
+        "width": 3189,
+        "height": 2494,
+        "scale": 2.652079358848932,
+        "left": -530.9041734750754,
+        "top": -434.37614193415254,
+        "stationKey": "{\"x\":0,\"y\":0,\"w\":240,\"h\":194}"
+      },
+      "workers": [
+        {
+          "kind": "sky",
+          "busy": false,
+          "queued": false,
+          "failed": false
+        },
+        {
+          "kind": "ground",
+          "busy": false,
+          "queued": false,
+          "failed": false
+        }
+      ],
+      "heap": 36142639
+    },
+    {
+      "at": "2026-09-11T03:00:22.899Z",
+      "visible": "visible",
+      "busy": false,
+      "curve": {
+        "path": "webgl",
+        "ready": true,
+        "failed": false,
+        "lost": false,
+        "frameSum": 50
+      },
+      "cache": {
+        "probe": {
+          "x": 120,
+          "y": 97
+        },
+        "probeOff": false,
+        "recoveries": 0,
+        "blank": false
+      },
+      "stage": {
+        "armed": true,
+        "probeOff": false,
+        "deadSince": 0,
+        "rebuilds": 0,
+        "futile": 0,
+        "lost": false
+      },
+      "usage": {
+        "tokens": 778485,
+        "cost": 1.15303725,
+        "calls": 16
+      },
+      "ground": {
+        "ready": true,
+        "id": "forest",
+        "width": 3189,
+        "height": 2494,
+        "scale": 2.4799274755771497,
+        "left": -567.7585388549794,
+        "top": -516.1441262317994,
+        "stationKey": "{\"x\":0,\"y\":0,\"w\":240,\"h\":194}"
+      },
+      "workers": [
+        {
+          "kind": "sky",
+          "busy": false,
+          "queued": false,
+          "failed": false
+        },
+        {
+          "kind": "ground",
+          "busy": false,
+          "queued": false,
+          "failed": false
+        }
+      ],
+      "heap": 21350191
+    },
+    {
+      "at": "2026-09-11T03:00:37.907Z",
+      "visible": "visible",
+      "busy": false,
+      "curve": {
+        "path": "webgl",
+        "ready": true,
+        "failed": false,
+        "lost": false,
+        "frameSum": 49
+      },
+      "cache": {
+        "probe": {
+          "x": 120,
+          "y": 97
+        },
+        "probeOff": false,
+        "recoveries": 0,
+        "blank": false
+      },
+      "stage": {
+        "armed": true,
+        "probeOff": false,
+        "deadSince": 0,
+        "rebuilds": 0,
+        "futile": 0,
+        "lost": false
+      },
+      "usage": {
+        "tokens": 778485,
+        "cost": 1.15303725,
+        "calls": 16
+      },
+      "ground": {
+        "ready": true,
+        "id": "forest",
+        "width": 3189,
+        "height": 2494,
+        "scale": 2.3000000000000025,
+        "left": -667.8260869565211,
+        "top": -556.5217391304342,
+        "stationKey": "{\"x\":0,\"y\":0,\"w\":240,\"h\":194}"
+      },
+      "workers": [
+        {
+          "kind": "sky",
+          "busy": false,
+          "queued": false,
+          "failed": false
+        },
+        {
+          "kind": "ground",
+          "busy": false,
+          "queued": false,
+          "failed": false
+        }
+      ],
+      "heap": 25216007
+    },
+    {
+      "at": "2026-09-11T03:00:52.921Z",
+      "visible": "visible",
+      "busy": false,
+      "curve": {
+        "path": "webgl",
+        "ready": true,
+        "failed": false,
+        "lost": false,
+        "frameSum": 47
+      },
+      "cache": {
+        "probe": {
+          "x": 120,
+          "y": 97
+        },
+        "probeOff": false,
+        "recoveries": 0,
+        "blank": false
+      },
+      "stage": {
+        "armed": true,
+        "probeOff": false,
+        "deadSince": 0,
+        "rebuilds": 0,
+        "futile": 0,
+        "lost": false
+      },
+      "usage": {
+        "tokens": 778485,
+        "cost": 1.15303725,
+        "calls": 16
+      },
+      "ground": {
+        "ready": true,
+        "id": "forest",
+        "width": 3189,
+        "height": 2494,
+        "scale": 2.583364807675557,
+        "left": -594.5734011070824,
+        "top": -445.93005083031187,
+        "stationKey": "{\"x\":0,\"y\":0,\"w\":240,\"h\":194}"
+      },
+      "workers": [
+        {
+          "kind": "sky",
+          "busy": false,
+          "queued": false,
+          "failed": false
+        },
+        {
+          "kind": "ground",
+          "busy": false,
+          "queued": false,
+          "failed": false
+        }
+      ],
+      "heap": 26269010
+    },
+    {
+      "at": "2026-09-11T03:01:07.928Z",
+      "visible": "visible",
+      "busy": false,
+      "curve": {
+        "path": "webgl",
+        "ready": true,
+        "failed": false,
+        "lost": false,
+        "frameSum": 50
+      },
+      "cache": {
+        "probe": {
+          "x": 120,
+          "y": 97
+        },
+        "probeOff": false,
+        "recoveries": 0,
+        "blank": false
+      },
+      "stage": {
+        "armed": true,
+        "probeOff": false,
+        "deadSince": 0,
+        "rebuilds": 0,
+        "futile": 0,
+        "lost": false
+      },
+      "usage": {
+        "tokens": 778485,
+        "cost": 1.15303725,
+        "calls": 16
+      },
+      "ground": {
+        "ready": true,
+        "id": "forest",
+        "width": 3189,
+        "height": 2494,
+        "scale": 2.532349384671502,
+        "left": -556.0054266298039,
+        "top": -454.9135308789305,
+        "stationKey": "{\"x\":0,\"y\":0,\"w\":240,\"h\":194}"
+      },
+      "workers": [
+        {
+          "kind": "sky",
+          "busy": false,
+          "queued": false,
+          "failed": false
+        },
+        {
+          "kind": "ground",
+          "busy": false,
+          "queued": false,
+          "failed": false
+        }
+      ],
+      "heap": 32433989
+    },
+    {
+      "at": "2026-09-11T03:01:22.941Z",
+      "visible": "visible",
+      "busy": false,
+      "curve": {
+        "path": "webgl",
+        "ready": true,
+        "failed": false,
+        "lost": false,
+        "frameSum": 47
+      },
+      "cache": {
+        "probe": {
+          "x": 120,
+          "y": 97
+        },
+        "probeOff": false,
+        "recoveries": 0,
+        "blank": false
+      },
+      "stage": {
+        "armed": true,
+        "probeOff": false,
+        "deadSince": 0,
+        "rebuilds": 0,
+        "futile": 0,
+        "lost": false
+      },
+      "usage": {
+        "tokens": 778485,
+        "cost": 1.15303725,
+        "calls": 16
+      },
+      "ground": {
+        "ready": true,
+        "id": "forest",
+        "width": 3189,
+        "height": 2494,
+        "scale": 2.5118400613405294,
+        "left": -560.545243970897,
+        "top": -458.6279268852794,
+        "stationKey": "{\"x\":0,\"y\":0,\"w\":240,\"h\":194}"
+      },
+      "workers": [
+        {
+          "kind": "sky",
+          "busy": false,
+          "queued": false,
+          "failed": false
+        },
+        {
+          "kind": "ground",
+          "busy": false,
+          "queued": false,
+          "failed": false
+        }
+      ],
+      "heap": 30516550
+    },
+    {
+      "at": "2026-09-11T03:01:37.955Z",
+      "visible": "visible",
+      "busy": false,
+      "curve": {
+        "path": "webgl",
+        "ready": true,
+        "failed": false,
+        "lost": false,
+        "frameSum": 50
+      },
+      "cache": {
+        "probe": {
+          "x": 120,
+          "y": 97
+        },
+        "probeOff": false,
+        "recoveries": 0,
+        "blank": false
+      },
+      "stage": {
+        "armed": true,
+        "probeOff": false,
+        "deadSince": 0,
+        "rebuilds": 0,
+        "futile": 0,
+        "lost": false
+      },
+      "usage": {
+        "tokens": 778485,
+        "cost": 1.15303725,
+        "calls": 16
+      },
+      "ground": {
+        "ready": true,
+        "id": "forest",
+        "width": 3189,
+        "height": 2494,
+        "scale": 2.7758910256167484,
+        "left": -507.2245225070282,
+        "top": -415.00188205120486,
+        "stationKey": "{\"x\":0,\"y\":0,\"w\":240,\"h\":194}"
+      },
+      "workers": [
+        {
+          "kind": "sky",
+          "busy": false,
+          "queued": false,
+          "failed": false
+        },
+        {
+          "kind": "ground",
+          "busy": false,
+          "queued": false,
+          "failed": false
+        }
+      ],
+      "heap": 27258305
+    },
+    {
+      "at": "2026-09-11T03:01:52.968Z",
+      "visible": "visible",
+      "busy": false,
+      "curve": {
+        "path": "webgl",
+        "ready": true,
+        "failed": false,
+        "lost": false,
+        "frameSum": 50
+      },
+      "cache": {
+        "probe": {
+          "x": 120,
+          "y": 97
+        },
+        "probeOff": false,
+        "recoveries": 0,
+        "blank": false
+      },
+      "stage": {
+        "armed": true,
+        "probeOff": false,
+        "deadSince": 0,
+        "rebuilds": 0,
+        "futile": 0,
+        "lost": false
+      },
+      "usage": {
+        "tokens": 778485,
+        "cost": 1.15303725,
+        "calls": 16
+      },
+      "ground": {
+        "ready": true,
+        "id": "forest",
+        "width": 3189,
+        "height": 2494,
+        "scale": 2.6882029763376263,
+        "left": -523.7699728754268,
+        "top": -428.53906871625827,
+        "stationKey": "{\"x\":0,\"y\":0,\"w\":240,\"h\":194}"
+      },
+      "workers": [
+        {
+          "kind": "sky",
+          "busy": false,
+          "queued": false,
+          "failed": false
+        },
+        {
+          "kind": "ground",
+          "busy": false,
+          "queued": false,
+          "failed": false
+        }
+      ],
+      "heap": 46575391
+    },
+    {
+      "at": "2026-09-11T03:02:07.971Z",
+      "visible": "visible",
+      "busy": false,
+      "curve": {
+        "path": "webgl",
+        "ready": true,
+        "failed": false,
+        "lost": false,
+        "frameSum": 50
+      },
+      "cache": {
+        "probe": {
+          "x": 120,
+          "y": 97
+        },
+        "probeOff": false,
+        "recoveries": 0,
+        "blank": false
+      },
+      "stage": {
+        "armed": true,
+        "probeOff": false,
+        "deadSince": 0,
+        "rebuilds": 0,
+        "futile": 0,
+        "lost": false
+      },
+      "usage": {
+        "tokens": 778485,
+        "cost": 1.15303725,
+        "calls": 16
+      },
+      "ground": {
+        "ready": true,
+        "id": "forest",
+        "width": 3189,
+        "height": 2494,
+        "scale": 2.0088640595215534,
+        "left": -700.8936186231239,
+        "top": -637.1760169301125,
+        "stationKey": "{\"x\":0,\"y\":0,\"w\":240,\"h\":194}"
+      },
+      "workers": [
+        {
+          "kind": "sky",
+          "busy": false,
+          "queued": false,
+          "failed": false
+        },
+        {
+          "kind": "ground",
+          "busy": false,
+          "queued": false,
+          "failed": false
+        }
+      ],
+      "heap": 45887439
+    },
+    {
+      "at": "2026-09-11T03:02:22.978Z",
+      "visible": "visible",
+      "busy": false,
+      "curve": {
+        "path": "webgl",
+        "ready": true,
+        "failed": false,
+        "lost": false,
+        "frameSum": 47
+      },
+      "cache": {
+        "probe": {
+          "x": 120,
+          "y": 97
+        },
+        "probeOff": false,
+        "recoveries": 0,
+        "blank": false
+      },
+      "stage": {
+        "armed": true,
+        "probeOff": false,
+        "deadSince": 0,
+        "rebuilds": 0,
+        "futile": 0,
+        "lost": false
+      },
+      "usage": {
+        "tokens": 778485,
+        "cost": 1.15303725,
+        "calls": 16
+      },
+      "ground": {
+        "ready": true,
+        "id": "forest",
+        "width": 3189,
+        "height": 2494,
+        "scale": 2.6679928023426878,
+        "left": -479.7614142272306,
+        "top": -431.78527280450754,
+        "stationKey": "{\"x\":0,\"y\":0,\"w\":240,\"h\":194}"
+      },
+      "workers": [
+        {
+          "kind": "sky",
+          "busy": false,
+          "queued": false,
+          "failed": false
+        },
+        {
+          "kind": "ground",
+          "busy": false,
+          "queued": false,
+          "failed": false
+        }
+      ],
+      "heap": 45748439
+    },
+    {
+      "at": "2026-09-11T03:02:37.984Z",
+      "visible": "visible",
+      "busy": false,
+      "curve": {
+        "path": "webgl",
+        "ready": true,
+        "failed": false,
+        "lost": false,
+        "frameSum": 49
+      },
+      "cache": {
+        "probe": {
+          "x": 120,
+          "y": 97
+        },
+        "probeOff": false,
+        "recoveries": 0,
+        "blank": false
+      },
+      "stage": {
+        "armed": true,
+        "probeOff": false,
+        "deadSince": 0,
+        "rebuilds": 0,
+        "futile": 0,
+        "lost": false
+      },
+      "usage": {
+        "tokens": 778485,
+        "cost": 1.15303725,
+        "calls": 16
+      },
+      "ground": {
+        "ready": true,
+        "id": "forest",
+        "width": 3189,
+        "height": 2494,
+        "scale": 2.6893184482588377,
+        "left": -475.95702205840234,
+        "top": -428.36131985256213,
+        "stationKey": "{\"x\":0,\"y\":0,\"w\":240,\"h\":194}"
+      },
+      "workers": [
+        {
+          "kind": "sky",
+          "busy": false,
+          "queued": false,
+          "failed": false
+        },
+        {
+          "kind": "ground",
+          "busy": false,
+          "queued": false,
+          "failed": false
+        }
+      ],
+      "heap": 28042583
+    },
+    {
+      "at": "2026-09-11T03:02:52.990Z",
+      "visible": "visible",
+      "busy": false,
+      "curve": {
+        "path": "webgl",
+        "ready": true,
+        "failed": false,
+        "lost": false,
+        "frameSum": 48
+      },
+      "cache": {
+        "probe": {
+          "x": 120,
+          "y": 97
+        },
+        "probeOff": false,
+        "recoveries": 0,
+        "blank": false
+      },
+      "stage": {
+        "armed": true,
+        "probeOff": false,
+        "deadSince": 0,
+        "rebuilds": 0,
+        "futile": 0,
+        "lost": false
+      },
+      "usage": {
+        "tokens": 778485,
+        "cost": 1.15303725,
+        "calls": 16
+      },
+      "ground": {
+        "ready": true,
+        "id": "forest",
+        "width": 3189,
+        "height": 2494,
+        "scale": 2.06382609913123,
+        "left": -620.2072938891594,
+        "top": -620.2072938891594,
+        "stationKey": "{\"x\":0,\"y\":0,\"w\":240,\"h\":194}"
+      },
+      "workers": [
+        {
+          "kind": "sky",
+          "busy": false,
+          "queued": false,
+          "failed": false
+        },
+        {
+          "kind": "ground",
+          "busy": false,
+          "queued": false,
+          "failed": false
+        }
+      ],
+      "heap": 43194156
+    },
+    {
+      "at": "2026-09-11T03:03:08.008Z",
+      "visible": "visible",
+      "busy": false,
+      "curve": {
+        "path": "webgl",
+        "ready": true,
+        "failed": false,
+        "lost": false,
+        "frameSum": 47
+      },
+      "cache": {
+        "probe": {
+          "x": 120,
+          "y": 97
+        },
+        "probeOff": false,
+        "recoveries": 0,
+        "blank": false
+      },
+      "stage": {
+        "armed": true,
+        "probeOff": false,
+        "deadSince": 0,
+        "rebuilds": 0,
+        "futile": 0,
+        "lost": false
+      },
+      "usage": {
+        "tokens": 778485,
+        "cost": 1.15303725,
+        "calls": 16
+      },
+      "ground": {
+        "ready": true,
+        "id": "forest",
+        "width": 3189,
+        "height": 2494,
+        "scale": 2.3798550169016948,
+        "left": -591.6326793020604,
+        "top": -537.8478902746004,
+        "stationKey": "{\"x\":0,\"y\":0,\"w\":240,\"h\":194}"
+      },
+      "workers": [
+        {
+          "kind": "sky",
+          "busy": false,
+          "queued": false,
+          "failed": false
+        },
+        {
+          "kind": "ground",
+          "busy": false,
+          "queued": false,
+          "failed": false
+        }
+      ],
+      "heap": 42067822
+    },
+    {
+      "at": "2026-09-11T03:03:23.014Z",
+      "visible": "visible",
+      "busy": false,
+      "curve": {
+        "path": "webgl",
+        "ready": true,
+        "failed": false,
+        "lost": false,
+        "frameSum": 48
+      },
+      "cache": {
+        "probe": {
+          "x": 120,
+          "y": 97
+        },
+        "probeOff": false,
+        "recoveries": 0,
+        "blank": false
+      },
+      "stage": {
+        "armed": true,
+        "probeOff": false,
+        "deadSince": 0,
+        "rebuilds": 0,
+        "futile": 0,
+        "lost": false
+      },
+      "usage": {
+        "tokens": 778485,
+        "cost": 1.15303725,
+        "calls": 16
+      },
+      "ground": {
+        "ready": true,
+        "id": "forest",
+        "width": 3189,
+        "height": 2494,
+        "scale": 2.4638130008063985,
+        "left": -571.4719418799908,
+        "top": -519.5199471636281,
+        "stationKey": "{\"x\":0,\"y\":0,\"w\":240,\"h\":194}"
+      },
+      "workers": [
+        {
+          "kind": "sky",
+          "busy": false,
+          "queued": false,
+          "failed": false
+        },
+        {
+          "kind": "ground",
+          "busy": true,
+          "queued": true,
+          "failed": false
+        }
+      ],
+      "heap": 21026037
+    },
+    {
+      "at": "2026-09-11T03:03:38.033Z",
+      "visible": "visible",
+      "busy": false,
+      "curve": {
+        "path": "webgl",
+        "ready": true,
+        "failed": false,
+        "lost": false,
+        "frameSum": 49
+      },
+      "cache": {
+        "probe": {
+          "x": 120,
+          "y": 97
+        },
+        "probeOff": false,
+        "recoveries": 0,
+        "blank": false
+      },
+      "stage": {
+        "armed": true,
+        "probeOff": false,
+        "deadSince": 0,
+        "rebuilds": 0,
+        "futile": 0,
+        "lost": false
+      },
+      "usage": {
+        "tokens": 778485,
+        "cost": 1.15303725,
+        "calls": 16
+      },
+      "ground": {
+        "ready": true,
+        "id": "forest",
+        "width": 3189,
+        "height": 2494,
+        "scale": 2.65475465562531,
+        "left": -530.3691612392539,
+        "top": -433.93840465029865,
+        "stationKey": "{\"x\":0,\"y\":0,\"w\":240,\"h\":194}"
+      },
+      "workers": [
+        {
+          "kind": "sky",
+          "busy": false,
+          "queued": false,
+          "failed": false
+        },
+        {
+          "kind": "ground",
+          "busy": false,
+          "queued": false,
+          "failed": false
+        }
+      ],
+      "heap": 33538692
+    },
+    {
+      "at": "2026-09-11T03:03:53.047Z",
+      "visible": "visible",
+      "busy": false,
+      "curve": {
+        "path": "webgl",
+        "ready": true,
+        "failed": false,
+        "lost": false,
+        "frameSum": 49
+      },
+      "cache": {
+        "probe": {
+          "x": 120,
+          "y": 97
+        },
+        "probeOff": false,
+        "recoveries": 0,
+        "blank": false
+      },
+      "stage": {
+        "armed": true,
+        "probeOff": false,
+        "deadSince": 0,
+        "rebuilds": 0,
+        "futile": 0,
+        "lost": false
+      },
+      "usage": {
+        "tokens": 778485,
+        "cost": 1.15303725,
+        "calls": 16
+      },
+      "ground": {
+        "ready": true,
+        "id": "forest",
+        "width": 3189,
+        "height": 2494,
+        "scale": 2.503071150877992,
+        "left": -562.5089800208522,
+        "top": -460.23462001706093,
+        "stationKey": "{\"x\":0,\"y\":0,\"w\":240,\"h\":194}"
+      },
+      "workers": [
+        {
+          "kind": "sky",
+          "busy": false,
+          "queued": false,
+          "failed": false
+        },
+        {
+          "kind": "ground",
+          "busy": false,
+          "queued": false,
+          "failed": false
+        }
+      ],
+      "heap": 38350483
+    },
+    {
+      "at": "2026-09-11T03:04:08.065Z",
+      "visible": "visible",
+      "busy": false,
+      "curve": {
+        "path": "webgl",
+        "ready": true,
+        "failed": false,
+        "lost": false,
+        "frameSum": 49
+      },
+      "cache": {
+        "probe": {
+          "x": 120,
+          "y": 97
+        },
+        "probeOff": false,
+        "recoveries": 0,
+        "blank": false
+      },
+      "stage": {
+        "armed": true,
+        "probeOff": false,
+        "deadSince": 0,
+        "rebuilds": 0,
+        "futile": 0,
+        "lost": false
+      },
+      "usage": {
+        "tokens": 778485,
+        "cost": 1.15303725,
+        "calls": 16
+      },
+      "ground": {
+        "ready": true,
+        "id": "forest",
+        "width": 3189,
+        "height": 2494,
+        "scale": 2.441625716824715,
+        "left": -576.6649615040407,
+        "top": -471.8167866851242,
+        "stationKey": "{\"x\":0,\"y\":0,\"w\":240,\"h\":194}"
+      },
+      "workers": [
+        {
+          "kind": "sky",
+          "busy": false,
+          "queued": false,
+          "failed": false
+        },
+        {
+          "kind": "ground",
+          "busy": false,
+          "queued": false,
+          "failed": false
+        }
+      ],
+      "heap": 27233485
+    },
+    {
+      "at": "2026-09-11T03:04:23.069Z",
+      "visible": "visible",
+      "busy": false,
+      "curve": {
+        "path": "webgl",
+        "ready": true,
+        "failed": false,
+        "lost": false,
+        "frameSum": 49
+      },
+      "cache": {
+        "probe": {
+          "x": 120,
+          "y": 97
+        },
+        "probeOff": false,
+        "recoveries": 0,
+        "blank": false
+      },
+      "stage": {
+        "armed": true,
+        "probeOff": false,
+        "deadSince": 0,
+        "rebuilds": 0,
+        "futile": 0,
+        "lost": false
+      },
+      "usage": {
+        "tokens": 778485,
+        "cost": 1.15303725,
+        "calls": 16
+      },
+      "ground": {
+        "ready": true,
+        "id": "forest",
+        "width": 3189,
+        "height": 2494,
+        "scale": 2.0638840135213563,
+        "left": -620.1898903301695,
+        "top": -620.1898903301695,
+        "stationKey": "{\"x\":0,\"y\":0,\"w\":240,\"h\":194}"
+      },
+      "workers": [
+        {
+          "kind": "sky",
+          "busy": false,
+          "queued": false,
+          "failed": false
+        },
+        {
+          "kind": "ground",
+          "busy": false,
+          "queued": false,
+          "failed": false
+        }
+      ],
+      "heap": 30606153
+    },
+    {
+      "at": "2026-09-11T03:04:38.082Z",
+      "visible": "visible",
+      "busy": false,
+      "curve": {
+        "path": "webgl",
+        "ready": true,
+        "failed": false,
+        "lost": false,
+        "frameSum": 51
+      },
+      "cache": {
+        "probe": {
+          "x": 120,
+          "y": 97
+        },
+        "probeOff": false,
+        "recoveries": 0,
+        "blank": false
+      },
+      "stage": {
+        "armed": true,
+        "probeOff": false,
+        "deadSince": 0,
+        "rebuilds": 0,
+        "futile": 0,
+        "lost": false
+      },
+      "usage": {
+        "tokens": 778485,
+        "cost": 1.15303725,
+        "calls": 16
+      },
+      "ground": {
+        "ready": true,
+        "id": "forest",
+        "width": 3189,
+        "height": 2494,
+        "scale": 2.8999999999999972,
+        "left": -397.24137931034517,
+        "top": -353.1034482758624,
+        "stationKey": "{\"x\":0,\"y\":0,\"w\":240,\"h\":194}"
+      },
+      "workers": [
+        {
+          "kind": "sky",
+          "busy": false,
+          "queued": false,
+          "failed": false
+        },
+        {
+          "kind": "ground",
+          "busy": false,
+          "queued": false,
+          "failed": false
+        }
+      ],
+      "heap": 40014140
+    },
+    {
+      "at": "2026-09-11T03:04:53.093Z",
+      "visible": "visible",
+      "busy": false,
+      "curve": {
+        "path": "webgl",
+        "ready": true,
+        "failed": false,
+        "lost": false,
+        "frameSum": 49
+      },
+      "cache": {
+        "probe": {
+          "x": 120,
+          "y": 97
+        },
+        "probeOff": false,
+        "recoveries": 0,
+        "blank": false
+      },
+      "stage": {
+        "armed": true,
+        "probeOff": false,
+        "deadSince": 0,
+        "rebuilds": 0,
+        "futile": 0,
+        "lost": false
+      },
+      "usage": {
+        "tokens": 778485,
+        "cost": 1.15303725,
+        "calls": 16
+      },
+      "ground": {
+        "ready": true,
+        "id": "forest",
+        "width": 3189,
+        "height": 2494,
+        "scale": 2.9744927051025196,
+        "left": -387.2929316733002,
+        "top": -344.26038370960015,
+        "stationKey": "{\"x\":0,\"y\":0,\"w\":240,\"h\":194}"
+      },
+      "workers": [
+        {
+          "kind": "sky",
+          "busy": false,
+          "queued": false,
+          "failed": false
+        },
+        {
+          "kind": "ground",
+          "busy": false,
+          "queued": false,
+          "failed": false
+        }
+      ],
+      "heap": 31903247
+    },
+    {
+      "at": "2026-09-11T03:05:08.103Z",
+      "visible": "visible",
+      "busy": false,
+      "curve": {
+        "path": "webgl",
+        "ready": true,
+        "failed": false,
+        "lost": false,
+        "frameSum": 49
+      },
+      "cache": {
+        "probe": {
+          "x": 120,
+          "y": 97
+        },
+        "probeOff": false,
+        "recoveries": 0,
+        "blank": false
+      },
+      "stage": {
+        "armed": true,
+        "probeOff": false,
+        "deadSince": 0,
+        "rebuilds": 0,
+        "futile": 0,
+        "lost": false
+      },
+      "usage": {
+        "tokens": 778485,
+        "cost": 1.15303725,
+        "calls": 16
+      },
+      "ground": {
+        "ready": true,
+        "id": "forest",
+        "width": 3189,
+        "height": 2494,
+        "scale": 2.423220764654699,
+        "left": -528.2226112742954,
+        "top": -422.5780890194364,
+        "stationKey": "{\"x\":0,\"y\":0,\"w\":240,\"h\":194}"
+      },
+      "workers": [
+        {
+          "kind": "sky",
+          "busy": false,
+          "queued": false,
+          "failed": false
+        },
+        {
+          "kind": "ground",
+          "busy": false,
+          "queued": false,
+          "failed": false
+        }
+      ],
+      "heap": 36028909
+    },
+    {
+      "at": "2026-09-11T03:05:23.108Z",
+      "visible": "visible",
+      "busy": false,
+      "curve": {
+        "path": "webgl",
+        "ready": true,
+        "failed": false,
+        "lost": false,
+        "frameSum": 48
+      },
+      "cache": {
+        "probe": {
+          "x": 120,
+          "y": 97
+        },
+        "probeOff": false,
+        "recoveries": 0,
+        "blank": false
+      },
+      "stage": {
+        "armed": true,
+        "probeOff": false,
+        "deadSince": 0,
+        "rebuilds": 0,
+        "futile": 0,
+        "lost": false
+      },
+      "usage": {
+        "tokens": 778485,
+        "cost": 1.15303725,
+        "calls": 16
+      },
+      "ground": {
+        "ready": true,
+        "id": "forest",
+        "width": 3189,
+        "height": 2494,
+        "scale": 2.820144983098305,
+        "left": -499.26511170114543,
+        "top": -408.4896368463917,
+        "stationKey": "{\"x\":0,\"y\":0,\"w\":240,\"h\":194}"
+      },
+      "workers": [
+        {
+          "kind": "sky",
+          "busy": false,
+          "queued": false,
+          "failed": false
+        },
+        {
+          "kind": "ground",
+          "busy": false,
+          "queued": false,
+          "failed": false
+        }
+      ],
+      "heap": 44329377
+    },
+    {
+      "at": "2026-09-11T03:05:38.127Z",
+      "visible": "visible",
+      "busy": false,
+      "curve": {
+        "path": "webgl",
+        "ready": true,
+        "failed": false,
+        "lost": false,
+        "frameSum": 48
+      },
+      "cache": {
+        "probe": {
+          "x": 120,
+          "y": 97
+        },
+        "probeOff": false,
+        "recoveries": 0,
+        "blank": false
+      },
+      "stage": {
+        "armed": true,
+        "probeOff": false,
+        "deadSince": 0,
+        "rebuilds": 0,
+        "futile": 0,
+        "lost": false
+      },
+      "usage": {
+        "tokens": 778485,
+        "cost": 1.15303725,
+        "calls": 16
+      },
+      "ground": {
+        "ready": true,
+        "id": "forest",
+        "width": 3189,
+        "height": 2494,
+        "scale": 2.9473212776510826,
+        "left": -477.72192691599923,
+        "top": -434.2926608327266,
+        "stationKey": "{\"x\":0,\"y\":0,\"w\":240,\"h\":194}"
+      },
+      "workers": [
+        {
+          "kind": "sky",
+          "busy": false,
+          "queued": false,
+          "failed": false
+        },
+        {
+          "kind": "ground",
+          "busy": false,
+          "queued": false,
+          "failed": false
+        }
+      ],
+      "heap": 39113523
+    },
+    {
+      "at": "2026-09-11T03:05:53.133Z",
+      "visible": "visible",
+      "busy": false,
+      "curve": {
+        "path": "webgl",
+        "ready": true,
+        "failed": false,
+        "lost": false,
+        "frameSum": 51
+      },
+      "cache": {
+        "probe": {
+          "x": 120,
+          "y": 97
+        },
+        "probeOff": false,
+        "recoveries": 0,
+        "blank": false
+      },
+      "stage": {
+        "armed": true,
+        "probeOff": false,
+        "deadSince": 0,
+        "rebuilds": 0,
+        "futile": 0,
+        "lost": false
+      },
+      "usage": {
+        "tokens": 778485,
+        "cost": 1.15303725,
+        "calls": 16
+      },
+      "ground": {
+        "ready": true,
+        "id": "forest",
+        "width": 3189,
+        "height": 2494,
+        "scale": 2.9000000000000026,
+        "left": -441.3793103448272,
+        "top": -441.3793103448272,
+        "stationKey": "{\"x\":0,\"y\":0,\"w\":240,\"h\":194}"
+      },
+      "workers": [
+        {
+          "kind": "sky",
+          "busy": false,
+          "queued": false,
+          "failed": false
+        },
+        {
+          "kind": "ground",
+          "busy": false,
+          "queued": false,
+          "failed": false
+        }
+      ],
+      "heap": 45040405
+    },
+    {
+      "at": "2026-09-11T03:06:08.157Z",
+      "visible": "visible",
+      "busy": false,
+      "curve": {
+        "path": "webgl",
+        "ready": true,
+        "failed": false,
+        "lost": false,
+        "frameSum": 46
+      },
+      "cache": {
+        "probe": {
+          "x": 120,
+          "y": 97
+        },
+        "probeOff": false,
+        "recoveries": 0,
+        "blank": false
+      },
+      "stage": {
+        "armed": true,
+        "probeOff": false,
+        "deadSince": 0,
+        "rebuilds": 0,
+        "futile": 0,
+        "lost": false
+      },
+      "usage": {
+        "tokens": 778485,
+        "cost": 1.15303725,
+        "calls": 16
+      },
+      "ground": {
+        "ready": true,
+        "id": "forest",
+        "width": 3189,
+        "height": 2494,
+        "scale": 2.8008627920975906,
+        "left": -457.0020365193958,
+        "top": -411.3018328674562,
+        "stationKey": "{\"x\":0,\"y\":0,\"w\":240,\"h\":194}"
+      },
+      "workers": [
+        {
+          "kind": "sky",
+          "busy": false,
+          "queued": false,
+          "failed": false
+        },
+        {
+          "kind": "ground",
+          "busy": false,
+          "queued": false,
+          "failed": false
+        }
+      ],
+      "heap": 48369511
+    },
+    {
+      "at": "2026-09-11T03:06:23.167Z",
+      "visible": "visible",
+      "busy": false,
+      "curve": {
+        "path": "webgl",
+        "ready": true,
+        "failed": false,
+        "lost": false,
+        "frameSum": 47
+      },
+      "cache": {
+        "probe": {
+          "x": 120,
+          "y": 97
+        },
+        "probeOff": false,
+        "recoveries": 0,
+        "blank": false
+      },
+      "stage": {
+        "armed": true,
+        "probeOff": false,
+        "deadSince": 0,
+        "rebuilds": 0,
+        "futile": 0,
+        "lost": false
+      },
+      "usage": {
+        "tokens": 778485,
+        "cost": 1.15303725,
+        "calls": 16
+      },
+      "ground": {
+        "ready": true,
+        "id": "forest",
+        "width": 3189,
+        "height": 2494,
+        "scale": 2.7985240770072535,
+        "left": -503.12234637113346,
+        "top": -411.6455561218365,
+        "stationKey": "{\"x\":0,\"y\":0,\"w\":240,\"h\":194}"
+      },
+      "workers": [
+        {
+          "kind": "sky",
+          "busy": false,
+          "queued": false,
+          "failed": false
+        },
+        {
+          "kind": "ground",
+          "busy": false,
+          "queued": false,
+          "failed": false
+        }
+      ],
+      "heap": 42622955
+    },
+    {
+      "at": "2026-09-11T03:06:38.181Z",
+      "visible": "visible",
+      "busy": false,
+      "curve": {
+        "path": "webgl",
+        "ready": true,
+        "failed": false,
+        "lost": false,
+        "frameSum": 47
+      },
+      "cache": {
+        "probe": {
+          "x": 120,
+          "y": 97
+        },
+        "probeOff": false,
+        "recoveries": 0,
+        "blank": false
+      },
+      "stage": {
+        "armed": true,
+        "probeOff": false,
+        "deadSince": 0,
+        "rebuilds": 0,
+        "futile": 0,
+        "lost": false
+      },
+      "usage": {
+        "tokens": 778485,
+        "cost": 1.15303725,
+        "calls": 16
+      },
+      "ground": {
+        "ready": true,
+        "id": "forest",
+        "width": 3189,
+        "height": 2494,
+        "scale": 2.620812858412358,
+        "left": -488.3980921764103,
+        "top": -439.5582829587692,
+        "stationKey": "{\"x\":0,\"y\":0,\"w\":240,\"h\":194}"
+      },
+      "workers": [
+        {
+          "kind": "sky",
+          "busy": false,
+          "queued": false,
+          "failed": false
+        },
+        {
+          "kind": "ground",
+          "busy": false,
+          "queued": false,
+          "failed": false
+        }
+      ],
+      "heap": 62065720
+    },
+    {
+      "at": "2026-09-11T03:06:53.189Z",
+      "visible": "visible",
+      "busy": false,
+      "curve": {
+        "path": "webgl",
+        "ready": true,
+        "failed": false,
+        "lost": false,
+        "frameSum": 49
+      },
+      "cache": {
+        "probe": {
+          "x": 120,
+          "y": 97
+        },
+        "probeOff": false,
+        "recoveries": 0,
+        "blank": false
+      },
+      "stage": {
+        "armed": true,
+        "probeOff": false,
+        "deadSince": 0,
+        "rebuilds": 0,
+        "futile": 0,
+        "lost": false
+      },
+      "usage": {
+        "tokens": 778485,
+        "cost": 1.15303725,
+        "calls": 16
+      },
+      "ground": {
+        "ready": true,
+        "id": "forest",
+        "width": 3189,
+        "height": 2494,
+        "scale": 2.8656754568425664,
+        "left": -491.33267922507537,
+        "top": -401.9994648205162,
+        "stationKey": "{\"x\":0,\"y\":0,\"w\":240,\"h\":194}"
+      },
+      "workers": [
+        {
+          "kind": "sky",
+          "busy": false,
+          "queued": false,
+          "failed": false
+        },
+        {
+          "kind": "ground",
+          "busy": false,
+          "queued": false,
+          "failed": false
+        }
+      ],
+      "heap": 48956234
+    },
+    {
+      "at": "2026-09-11T03:07:08.197Z",
+      "visible": "visible",
+      "busy": false,
+      "curve": {
+        "path": "webgl",
+        "ready": true,
+        "failed": false,
+        "lost": false,
+        "frameSum": 47
+      },
+      "cache": {
+        "probe": {
+          "x": 120,
+          "y": 97
+        },
+        "probeOff": false,
+        "recoveries": 0,
+        "blank": false
+      },
+      "stage": {
+        "armed": true,
+        "probeOff": false,
+        "deadSince": 0,
+        "rebuilds": 0,
+        "futile": 0,
+        "lost": false
+      },
+      "usage": {
+        "tokens": 778485,
+        "cost": 1.15303725,
+        "calls": 16
+      },
+      "ground": {
+        "ready": true,
+        "id": "forest",
+        "width": 3189,
+        "height": 2494,
+        "scale": 2.1555009557662874,
+        "left": -712.5953694852095,
+        "top": -593.829474571008,
+        "stationKey": "{\"x\":0,\"y\":0,\"w\":240,\"h\":194}"
+      },
+      "workers": [
+        {
+          "kind": "sky",
+          "busy": false,
+          "queued": false,
+          "failed": false
+        },
+        {
+          "kind": "ground",
+          "busy": false,
+          "queued": false,
+          "failed": false
+        }
+      ],
+      "heap": 31027699
+    },
+    {
+      "at": "2026-09-11T03:07:23.218Z",
+      "visible": "visible",
+      "busy": false,
+      "curve": {
+        "path": "webgl",
+        "ready": true,
+        "failed": false,
+        "lost": false,
+        "frameSum": 49
+      },
+      "cache": {
+        "probe": {
+          "x": 120,
+          "y": 97
+        },
+        "probeOff": false,
+        "recoveries": 0,
+        "blank": false
+      },
+      "stage": {
+        "armed": true,
+        "probeOff": false,
+        "deadSince": 0,
+        "rebuilds": 0,
+        "futile": 0,
+        "lost": false
+      },
+      "usage": {
+        "tokens": 778485,
+        "cost": 1.15303725,
+        "calls": 16
+      },
+      "ground": {
+        "ready": true,
+        "id": "forest",
+        "width": 3189,
+        "height": 2494,
+        "scale": 2.8999999999999972,
+        "left": -485.5172413793108,
+        "top": -397.24137931034517,
+        "stationKey": "{\"x\":0,\"y\":0,\"w\":240,\"h\":194}"
+      },
+      "workers": [
+        {
+          "kind": "sky",
+          "busy": false,
+          "queued": false,
+          "failed": false
+        },
+        {
+          "kind": "ground",
+          "busy": false,
+          "queued": false,
+          "failed": false
+        }
+      ],
+      "heap": 41610702
+    },
+    {
+      "at": "2026-09-11T03:07:38.238Z",
+      "visible": "visible",
+      "busy": false,
+      "curve": {
+        "path": "webgl",
+        "ready": true,
+        "failed": false,
+        "lost": false,
+        "frameSum": 48
+      },
+      "cache": {
+        "probe": {
+          "x": 120,
+          "y": 97
+        },
+        "probeOff": false,
+        "recoveries": 0,
+        "blank": false
+      },
+      "stage": {
+        "armed": true,
+        "probeOff": false,
+        "deadSince": 0,
+        "rebuilds": 0,
+        "futile": 0,
+        "lost": false
+      },
+      "usage": {
+        "tokens": 778485,
+        "cost": 1.15303725,
+        "calls": 16
+      },
+      "ground": {
+        "ready": true,
+        "id": "forest",
+        "width": 3189,
+        "height": 2494,
+        "scale": 2.7163932407154676,
+        "left": -424.0917635682881,
+        "top": -424.0917635682881,
+        "stationKey": "{\"x\":0,\"y\":0,\"w\":240,\"h\":194}"
+      },
+      "workers": [
+        {
+          "kind": "sky",
+          "busy": false,
+          "queued": false,
+          "failed": false
+        },
+        {
+          "kind": "ground",
+          "busy": false,
+          "queued": false,
+          "failed": false
+        }
+      ],
+      "heap": 42536752
+    },
+    {
+      "at": "2026-09-11T03:07:53.249Z",
+      "visible": "visible",
+      "busy": false,
+      "curve": {
+        "path": "webgl",
+        "ready": true,
+        "failed": false,
+        "lost": false,
+        "frameSum": 51
+      },
+      "cache": {
+        "probe": {
+          "x": 120,
+          "y": 97
+        },
+        "probeOff": false,
+        "recoveries": 0,
+        "blank": false
+      },
+      "stage": {
+        "armed": true,
+        "probeOff": false,
+        "deadSince": 0,
+        "rebuilds": 0,
+        "futile": 0,
+        "lost": false
+      },
+      "usage": {
+        "tokens": 778485,
+        "cost": 1.15303725,
+        "calls": 16
+      },
+      "ground": {
+        "ready": true,
+        "id": "forest",
+        "width": 3189,
+        "height": 2494,
+        "scale": 2.8999999999999972,
+        "left": -485.5172413793108,
+        "top": -397.24137931034517,
+        "stationKey": "{\"x\":0,\"y\":0,\"w\":240,\"h\":194}"
+      },
+      "workers": [
+        {
+          "kind": "sky",
+          "busy": false,
+          "queued": false,
+          "failed": false
+        },
+        {
+          "kind": "ground",
+          "busy": false,
+          "queued": false,
+          "failed": false
+        }
+      ],
+      "heap": 30769833
+    },
+    {
+      "at": "2026-09-11T03:08:08.263Z",
+      "visible": "visible",
+      "busy": false,
+      "curve": {
+        "path": "webgl",
+        "ready": true,
+        "failed": false,
+        "lost": false,
+        "frameSum": 49
+      },
+      "cache": {
+        "probe": {
+          "x": 120,
+          "y": 97
+        },
+        "probeOff": false,
+        "recoveries": 0,
+        "blank": false
+      },
+      "stage": {
+        "armed": true,
+        "probeOff": false,
+        "deadSince": 0,
+        "rebuilds": 0,
+        "futile": 0,
+        "lost": false
+      },
+      "usage": {
+        "tokens": 778485,
+        "cost": 1.15303725,
+        "calls": 16
+      },
+      "ground": {
+        "ready": true,
+        "id": "forest",
+        "width": 3189,
+        "height": 2494,
+        "scale": 2.5725652591508754,
+        "left": -497.5578347126123,
+        "top": -447.8020512413511,
+        "stationKey": "{\"x\":0,\"y\":0,\"w\":240,\"h\":194}"
+      },
+      "workers": [
+        {
+          "kind": "sky",
+          "busy": false,
+          "queued": false,
+          "failed": false
+        },
+        {
+          "kind": "ground",
+          "busy": false,
+          "queued": false,
+          "failed": false
+        }
+      ],
+      "heap": 29959666
+    },
+    {
+      "at": "2026-09-11T03:08:23.268Z",
+      "visible": "visible",
+      "busy": false,
+      "curve": {
+        "path": "webgl",
+        "ready": true,
+        "failed": false,
+        "lost": false,
+        "frameSum": 47
+      },
+      "cache": {
+        "probe": {
+          "x": 120,
+          "y": 97
+        },
+        "probeOff": false,
+        "recoveries": 0,
+        "blank": false
+      },
+      "stage": {
+        "armed": true,
+        "probeOff": false,
+        "deadSince": 0,
+        "rebuilds": 0,
+        "futile": 0,
+        "lost": false
+      },
+      "usage": {
+        "tokens": 778485,
+        "cost": 1.15303725,
+        "calls": 16
+      },
+      "ground": {
+        "ready": true,
+        "id": "forest",
+        "width": 3189,
+        "height": 2494,
+        "scale": 2.985757931011784,
+        "left": -471.5720539082252,
+        "top": -428.7018671892957,
+        "stationKey": "{\"x\":0,\"y\":0,\"w\":240,\"h\":194}"
+      },
+      "workers": [
+        {
+          "kind": "sky",
+          "busy": false,
+          "queued": false,
+          "failed": false
+        },
+        {
+          "kind": "ground",
+          "busy": false,
+          "queued": false,
+          "failed": false
+        }
+      ],
+      "heap": 24741604
+    },
+    {
+      "at": "2026-09-11T03:08:38.278Z",
+      "visible": "visible",
+      "busy": false,
+      "curve": {
+        "path": "webgl",
+        "ready": true,
+        "failed": false,
+        "lost": false,
+        "frameSum": 52
+      },
+      "cache": {
+        "probe": {
+          "x": 120,
+          "y": 97
+        },
+        "probeOff": false,
+        "recoveries": 0,
+        "blank": false
+      },
+      "stage": {
+        "armed": true,
+        "probeOff": false,
+        "deadSince": 0,
+        "rebuilds": 0,
+        "futile": 0,
+        "lost": false
+      },
+      "usage": {
+        "tokens": 778485,
+        "cost": 1.15303725,
+        "calls": 16
+      },
+      "ground": {
+        "ready": true,
+        "id": "forest",
+        "width": 3189,
+        "height": 2494,
+        "scale": 2.700000000000003,
+        "left": -568.8888888888882,
+        "top": -474.07407407407356,
+        "stationKey": "{\"x\":0,\"y\":0,\"w\":240,\"h\":194}"
+      },
+      "workers": [
+        {
+          "kind": "sky",
+          "busy": false,
+          "queued": false,
+          "failed": false
+        },
+        {
+          "kind": "ground",
+          "busy": false,
+          "queued": false,
+          "failed": false
+        }
+      ],
+      "heap": 28916358
+    },
+    {
+      "at": "2026-09-11T03:08:53.284Z",
+      "visible": "visible",
+      "busy": false,
+      "curve": {
+        "path": "webgl",
+        "ready": true,
+        "failed": false,
+        "lost": false,
+        "frameSum": 51
+      },
+      "cache": {
+        "probe": {
+          "x": 120,
+          "y": 97
+        },
+        "probeOff": false,
+        "recoveries": 0,
+        "blank": false
+      },
+      "stage": {
+        "armed": true,
+        "probeOff": false,
+        "deadSince": 0,
+        "rebuilds": 0,
+        "futile": 0,
+        "lost": false
+      },
+      "usage": {
+        "tokens": 778485,
+        "cost": 1.15303725,
+        "calls": 16
+      },
+      "ground": {
+        "ready": true,
+        "id": "forest",
+        "width": 3189,
+        "height": 2494,
+        "scale": 2.888430679752702,
+        "left": -443.1472110348825,
+        "top": -398.8324899313943,
+        "stationKey": "{\"x\":0,\"y\":0,\"w\":240,\"h\":194}"
+      },
+      "workers": [
+        {
+          "kind": "sky",
+          "busy": false,
+          "queued": false,
+          "failed": false
+        },
+        {
+          "kind": "ground",
+          "busy": false,
+          "queued": false,
+          "failed": false
+        }
+      ],
+      "heap": 50148498
+    },
+    {
+      "at": "2026-09-11T03:09:08.296Z",
+      "visible": "visible",
+      "busy": false,
+      "curve": {
+        "path": "webgl",
+        "ready": true,
+        "failed": false,
+        "lost": false,
+        "frameSum": 47
+      },
+      "cache": {
+        "probe": {
+          "x": 120,
+          "y": 97
+        },
+        "probeOff": false,
+        "recoveries": 0,
+        "blank": false
+      },
+      "stage": {
+        "armed": true,
+        "probeOff": false,
+        "deadSince": 0,
+        "rebuilds": 0,
+        "futile": 0,
+        "lost": false
+      },
+      "usage": {
+        "tokens": 778485,
+        "cost": 1.15303725,
+        "calls": 16
+      },
+      "ground": {
+        "ready": true,
+        "id": "forest",
+        "width": 3189,
+        "height": 2494,
+        "scale": 2.912843120014645,
+        "left": -483.3765300731063,
+        "top": -395.48988824163246,
+        "stationKey": "{\"x\":0,\"y\":0,\"w\":240,\"h\":194}"
+      },
+      "workers": [
+        {
+          "kind": "sky",
+          "busy": false,
+          "queued": false,
+          "failed": false
+        },
+        {
+          "kind": "ground",
+          "busy": false,
+          "queued": false,
+          "failed": false
+        }
+      ],
+      "heap": 27798094
+    },
+    {
+      "at": "2026-09-11T03:09:23.309Z",
+      "visible": "visible",
+      "busy": false,
+      "curve": {
+        "path": "webgl",
+        "ready": true,
+        "failed": false,
+        "lost": false,
+        "frameSum": 47
+      },
+      "cache": {
+        "probe": {
+          "x": 120,
+          "y": 97
+        },
+        "probeOff": false,
+        "recoveries": 0,
+        "blank": false
+      },
+      "stage": {
+        "armed": true,
+        "probeOff": false,
+        "deadSince": 0,
+        "rebuilds": 0,
+        "futile": 0,
+        "lost": false
+      },
+      "usage": {
+        "tokens": 778485,
+        "cost": 1.15303725,
+        "calls": 16
+      },
+      "ground": {
+        "ready": true,
+        "id": "forest",
+        "width": 3189,
+        "height": 2494,
+        "scale": 2.785889221221061,
+        "left": -505.40415938824395,
+        "top": -413.5124940449269,
+        "stationKey": "{\"x\":0,\"y\":0,\"w\":240,\"h\":194}"
+      },
+      "workers": [
+        {
+          "kind": "sky",
+          "busy": false,
+          "queued": false,
+          "failed": false
+        },
+        {
+          "kind": "ground",
+          "busy": false,
+          "queued": false,
+          "failed": false
+        }
+      ],
+      "heap": 27875161
+    },
+    {
+      "at": "2026-09-11T03:09:38.317Z",
+      "visible": "visible",
+      "busy": false,
+      "curve": {
+        "path": "webgl",
+        "ready": true,
+        "failed": false,
+        "lost": false,
+        "frameSum": 46
+      },
+      "cache": {
+        "probe": {
+          "x": 120,
+          "y": 97
+        },
+        "probeOff": false,
+        "recoveries": 0,
+        "blank": false
+      },
+      "stage": {
+        "armed": true,
+        "probeOff": false,
+        "deadSince": 0,
+        "rebuilds": 0,
+        "futile": 0,
+        "lost": false
+      },
+      "usage": {
+        "tokens": 778485,
+        "cost": 1.15303725,
+        "calls": 16
+      },
+      "ground": {
+        "ready": true,
+        "id": "forest",
+        "width": 3189,
+        "height": 2494,
+        "scale": 2.22485030874015,
+        "left": -690.3835255639198,
+        "top": -575.3196046365998,
+        "stationKey": "{\"x\":0,\"y\":0,\"w\":240,\"h\":194}"
+      },
+      "workers": [
+        {
+          "kind": "sky",
+          "busy": false,
+          "queued": false,
+          "failed": false
+        },
+        {
+          "kind": "ground",
+          "busy": false,
+          "queued": false,
+          "failed": false
+        }
+      ],
+      "heap": 51117712
+    },
+    {
+      "at": "2026-09-11T03:09:53.620Z",
+      "visible": "visible",
+      "busy": false,
+      "curve": {
+        "path": "webgl",
+        "ready": true,
+        "failed": false,
+        "lost": false,
+        "frameSum": 53
+      },
+      "cache": {
+        "probe": {
+          "x": 120,
+          "y": 97
+        },
+        "probeOff": false,
+        "recoveries": 0,
+        "blank": false
+      },
+      "stage": {
+        "armed": true,
+        "probeOff": false,
+        "deadSince": 0,
+        "rebuilds": 0,
+        "futile": 0,
+        "lost": false
+      },
+      "usage": {
+        "tokens": 778485,
+        "cost": 1.15303725,
+        "calls": 16
+      },
+      "ground": {
+        "ready": true,
+        "id": "forest",
+        "width": 3189,
+        "height": 2494,
+        "scale": 2.8867840025023233,
+        "left": -399.0599916728868,
+        "top": -399.0599916728868,
+        "stationKey": "{\"x\":0,\"y\":0,\"w\":240,\"h\":194}"
+      },
+      "workers": [
+        {
+          "kind": "sky",
+          "busy": false,
+          "queued": false,
+          "failed": false
+        },
+        {
+          "kind": "ground",
+          "busy": false,
+          "queued": false,
+          "failed": false
+        }
+      ],
+      "heap": 40966906
+    },
+    {
+      "at": "2026-09-11T03:10:08.630Z",
+      "visible": "visible",
+      "busy": false,
+      "curve": {
+        "path": "webgl",
+        "ready": true,
+        "failed": false,
+        "lost": false,
+        "frameSum": 50
+      },
+      "cache": {
+        "probe": {
+          "x": 120,
+          "y": 97
+        },
+        "probeOff": false,
+        "recoveries": 0,
+        "blank": false
+      },
+      "stage": {
+        "armed": true,
+        "probeOff": false,
+        "deadSince": 0,
+        "rebuilds": 0,
+        "futile": 0,
+        "lost": false
+      },
+      "usage": {
+        "tokens": 778485,
+        "cost": 1.15303725,
+        "calls": 16
+      },
+      "ground": {
+        "ready": true,
+        "id": "forest",
+        "width": 3189,
+        "height": 2494,
+        "scale": 2.8867840025023233,
+        "left": -399.0599916728868,
+        "top": -399.0599916728868,
+        "stationKey": "{\"x\":0,\"y\":0,\"w\":240,\"h\":194}"
+      },
+      "workers": [
+        {
+          "kind": "sky",
+          "busy": false,
+          "queued": false,
+          "failed": false
+        },
+        {
+          "kind": "ground",
+          "busy": false,
+          "queued": false,
+          "failed": false
+        }
+      ],
+      "heap": 32403693
+    },
+    {
+      "at": "2026-09-11T03:10:23.728Z",
+      "visible": "visible",
+      "busy": false,
+      "curve": {
+        "path": "webgl",
+        "ready": true,
+        "failed": false,
+        "lost": false,
+        "frameSum": 50
+      },
+      "cache": {
+        "probe": {
+          "x": 120,
+          "y": 97
+        },
+        "probeOff": false,
+        "recoveries": 0,
+        "blank": false
+      },
+      "stage": {
+        "armed": true,
+        "probeOff": false,
+        "deadSince": 0,
+        "rebuilds": 0,
+        "futile": 0,
+        "lost": false
+      },
+      "usage": {
+        "tokens": 778485,
+        "cost": 1.15303725,
+        "calls": 16
+      },
+      "ground": {
+        "ready": true,
+        "id": "forest",
+        "width": 3189,
+        "height": 2494,
+        "scale": 2.899137207902409,
+        "left": -485.66173279488197,
+        "top": -353.20853294173236,
+        "stationKey": "{\"x\":0,\"y\":0,\"w\":240,\"h\":194}"
+      },
+      "workers": [
+        {
+          "kind": "sky",
+          "busy": false,
+          "queued": false,
+          "failed": false
+        },
+        {
+          "kind": "ground",
+          "busy": false,
+          "queued": false,
+          "failed": false
+        }
+      ],
+      "heap": 26640521
+    },
+    {
+      "at": "2026-09-11T03:10:38.748Z",
+      "visible": "visible",
+      "busy": false,
+      "curve": {
+        "path": "webgl",
+        "ready": true,
+        "failed": false,
+        "lost": false,
+        "frameSum": 52
+      },
+      "cache": {
+        "probe": {
+          "x": 120,
+          "y": 97
+        },
+        "probeOff": false,
+        "recoveries": 0,
+        "blank": false
+      },
+      "stage": {
+        "armed": true,
+        "probeOff": false,
+        "deadSince": 0,
+        "rebuilds": 0,
+        "futile": 0,
+        "lost": false
+      },
+      "usage": {
+        "tokens": 778485,
+        "cost": 1.15303725,
+        "calls": 16
+      },
+      "ground": {
+        "ready": true,
+        "id": "forest",
+        "width": 3189,
+        "height": 2494,
+        "scale": 2.8999999999999972,
+        "left": -441.37931034482796,
+        "top": -441.37931034482796,
+        "stationKey": "{\"x\":0,\"y\":0,\"w\":240,\"h\":194}"
+      },
+      "workers": [
+        {
+          "kind": "sky",
+          "busy": false,
+          "queued": false,
+          "failed": false
+        },
+        {
+          "kind": "ground",
+          "busy": false,
+          "queued": false,
+          "failed": false
+        }
+      ],
+      "heap": 39785517
+    }
+  ],
+  "recovery": [
+    {
+      "hook": "_dbgLoseCanvases",
+      "before": {
+        "visible": "visible",
+        "busy": false,
+        "curve": {
+          "path": "webgl",
+          "ready": true,
+          "failed": false,
+          "lost": false,
+          "frameSum": 50
+        },
+        "cache": {
+          "probe": {
+            "x": 120,
+            "y": 97
+          },
+          "probeOff": false,
+          "recoveries": 0,
+          "blank": false
+        },
+        "stage": {
+          "armed": true,
+          "probeOff": false,
+          "deadSince": 0,
+          "rebuilds": 0,
+          "futile": 0,
+          "lost": false
+        },
+        "usage": {
+          "tokens": 778485,
+          "cost": 1.15303725,
+          "calls": 16
+        },
+        "ground": {
+          "ready": true,
+          "id": "forest",
+          "width": 3189,
+          "height": 2494,
+          "scale": 2.9221311999999977,
+          "left": -438.0364577743809,
+          "top": -394.2328119969428,
+          "stationKey": "{\"x\":0,\"y\":0,\"w\":240,\"h\":194}"
+        },
+        "workers": [
+          {
+            "kind": "sky",
+            "busy": false,
+            "queued": false,
+            "failed": false
+          },
+          {
+            "kind": "ground",
+            "busy": false,
+            "queued": false,
+            "failed": false
+          }
+        ],
+        "heap": 47169202
+      },
+      "injected": {
+        "bake": 2,
+        "sky": 3,
+        "ground": 1,
+        "probe": {
+          "x": 120,
+          "y": 97
+        }
+      },
+      "after": {
+        "visible": "visible",
+        "busy": false,
+        "curve": {
+          "path": "webgl",
+          "ready": true,
+          "failed": false,
+          "lost": false,
+          "frameSum": 52
+        },
+        "cache": {
+          "probe": {
+            "x": 120,
+            "y": 97
+          },
+          "probeOff": false,
+          "recoveries": 1,
+          "blank": false
+        },
+        "stage": {
+          "armed": true,
+          "probeOff": false,
+          "deadSince": 0,
+          "rebuilds": 0,
+          "futile": 0,
+          "lost": false
+        },
+        "usage": {
+          "tokens": 778485,
+          "cost": 1.15303725,
+          "calls": 16
+        },
+        "ground": {
+          "ready": true,
+          "id": "forest",
+          "width": 3189,
+          "height": 2494,
+          "scale": 2.9999999999999973,
+          "left": -426.6666666666671,
+          "top": -384.00000000000034,
+          "stationKey": "{\"x\":0,\"y\":0,\"w\":240,\"h\":194}"
+        },
+        "workers": [
+          {
+            "kind": "ground",
+            "busy": false,
+            "queued": false,
+            "failed": false
+          }
+        ],
+        "heap": 34517449
+      }
+    },
+    {
+      "hook": "_dbgLoseCurveContext",
+      "before": {
+        "visible": "visible",
+        "busy": false,
+        "curve": {
+          "path": "webgl",
+          "ready": true,
+          "failed": false,
+          "lost": false,
+          "frameSum": 52
+        },
+        "cache": {
+          "probe": {
+            "x": 120,
+            "y": 97
+          },
+          "probeOff": false,
+          "recoveries": 1,
+          "blank": false
+        },
+        "stage": {
+          "armed": true,
+          "probeOff": false,
+          "deadSince": 0,
+          "rebuilds": 0,
+          "futile": 0,
+          "lost": false
+        },
+        "usage": {
+          "tokens": 778485,
+          "cost": 1.15303725,
+          "calls": 16
+        },
+        "ground": {
+          "ready": true,
+          "id": "forest",
+          "width": 3189,
+          "height": 2494,
+          "scale": 2.9999999999999973,
+          "left": -426.6666666666671,
+          "top": -384.00000000000034,
+          "stationKey": "{\"x\":0,\"y\":0,\"w\":240,\"h\":194}"
+        },
+        "workers": [
+          {
+            "kind": "ground",
+            "busy": false,
+            "queued": false,
+            "failed": false
+          }
+        ],
+        "heap": 34517449
+      },
+      "injected": {
+        "ok": true
+      },
+      "after": {
+        "visible": "visible",
+        "busy": false,
+        "curve": {
+          "path": "cpu",
+          "ready": false,
+          "failed": true,
+          "lost": true,
+          "frameSum": 48
+        },
+        "cache": {
+          "probe": {
+            "x": 120,
+            "y": 97
+          },
+          "probeOff": false,
+          "recoveries": 1,
+          "blank": false
+        },
+        "stage": {
+          "armed": true,
+          "probeOff": false,
+          "deadSince": 0,
+          "rebuilds": 0,
+          "futile": 0,
+          "lost": false
+        },
+        "usage": {
+          "tokens": 778485,
+          "cost": 1.15303725,
+          "calls": 16
+        },
+        "ground": {
+          "ready": true,
+          "id": "forest",
+          "width": 3189,
+          "height": 2494,
+          "scale": 2.893941549920877,
+          "left": -442.3033354059954,
+          "top": -398.0730018653959,
+          "stationKey": "{\"x\":0,\"y\":0,\"w\":240,\"h\":194}"
+        },
+        "workers": [
+          {
+            "kind": "ground",
+            "busy": false,
+            "queued": false,
+            "failed": false
+          }
+        ],
+        "heap": 167741607
+      }
+    },
+    {
+      "hook": "_dbgKillStageContext",
+      "before": {
+        "visible": "visible",
+        "busy": false,
+        "curve": {
+          "path": "cpu",
+          "ready": false,
+          "failed": true,
+          "lost": true,
+          "frameSum": 48
+        },
+        "cache": {
+          "probe": {
+            "x": 120,
+            "y": 97
+          },
+          "probeOff": false,
+          "recoveries": 1,
+          "blank": false
+        },
+        "stage": {
+          "armed": true,
+          "probeOff": false,
+          "deadSince": 0,
+          "rebuilds": 0,
+          "futile": 0,
+          "lost": false
+        },
+        "usage": {
+          "tokens": 778485,
+          "cost": 1.15303725,
+          "calls": 16
+        },
+        "ground": {
+          "ready": true,
+          "id": "forest",
+          "width": 3189,
+          "height": 2494,
+          "scale": 2.893941549920877,
+          "left": -442.3033354059954,
+          "top": -398.0730018653959,
+          "stationKey": "{\"x\":0,\"y\":0,\"w\":240,\"h\":194}"
+        },
+        "workers": [
+          {
+            "kind": "ground",
+            "busy": false,
+            "queued": false,
+            "failed": false
+          }
+        ],
+        "heap": 113496381
+      },
+      "injected": true,
+      "after": {
+        "visible": "visible",
+        "busy": false,
+        "curve": {
+          "path": "cpu",
+          "ready": false,
+          "failed": true,
+          "lost": true,
+          "frameSum": 50
+        },
+        "cache": {
+          "probe": {
+            "x": 120,
+            "y": 97
+          },
+          "probeOff": false,
+          "recoveries": 1,
+          "blank": false
+        },
+        "stage": {
+          "armed": true,
+          "probeOff": false,
+          "deadSince": 0,
+          "rebuilds": 1,
+          "futile": 0,
+          "lost": false
+        },
+        "usage": {
+          "tokens": 778485,
+          "cost": 1.15303725,
+          "calls": 16
+        },
+        "ground": {
+          "ready": true,
+          "id": "forest",
+          "width": 3189,
+          "height": 2494,
+          "scale": 2.4998378079764785,
+          "left": -563.2365409897218,
+          "top": -409.6265752652522,
+          "stationKey": "{\"x\":0,\"y\":0,\"w\":240,\"h\":194}"
+        },
+        "workers": [
+          {
+            "kind": "ground",
+            "busy": false,
+            "queued": false,
+            "failed": false
+          }
+        ],
+        "heap": 166899933
+      }
+    }
+  ],
+  "finishedAt": "2026-09-11T03:12:24.215Z",
+  "idleDurationMs": 1201275,
+  "idleEnd": {
+    "visible": "visible",
+    "busy": false,
+    "curve": {
+      "path": "webgl",
+      "ready": true,
+      "failed": false,
+      "lost": false,
+      "frameSum": 50
+    },
+    "cache": {
+      "probe": {
+        "x": 120,
+        "y": 97
+      },
+      "probeOff": false,
+      "recoveries": 0,
+      "blank": false
+    },
+    "stage": {
+      "armed": true,
+      "probeOff": false,
+      "deadSince": 0,
+      "rebuilds": 0,
+      "futile": 0,
+      "lost": false
+    },
+    "usage": {
+      "tokens": 778485,
+      "cost": 1.15303725,
+      "calls": 16
+    },
+    "ground": {
+      "ready": true,
+      "id": "forest",
+      "width": 3189,
+      "height": 2494,
+      "scale": 2.9221311999999977,
+      "left": -438.0364577743809,
+      "top": -394.2328119969428,
+      "stationKey": "{\"x\":0,\"y\":0,\"w\":240,\"h\":194}"
+    },
+    "workers": [
+      {
+        "kind": "sky",
+        "busy": false,
+        "queued": false,
+        "failed": false
+      },
+      {
+        "kind": "ground",
+        "busy": false,
+        "queued": false,
+        "failed": false
+      }
+    ],
+    "heap": 47169202
+  },
+  "idlePass": true,
+  "usageUnchanged": true,
+  "recoveryPass": true,
+  "diagnostics": {
+    "consoleMsgs": [
+      {
+        "type": "warning",
+        "text": "IPC custom protocol failed, Tauri will now use the postMessage interface instead TypeError: Failed to fetch\n    at window.fetch (<anonymous>:1:246)\n    at Object.sendIpcMessage (<anonymous>:83:7)\n    at Object.<anonymous> (<anonymous>:177:3"
+      },
+      {
+        "type": "warning",
+        "text": "[world] cached canvases lost (bake sentinel went transparent) — rebuilding station + sky + ground (recovery #1)"
+      },
+      {
+        "type": "warning",
+        "text": "[crt] WebGL context lost before draw — switching to CPU fallback"
+      },
+      {
+        "type": "warning",
+        "text": "[world] stage canvas rebuilt (context dead 3s with no restore) — rebuild #1"
+      }
+    ],
+    "exceptions": []
+  },
+  "pass": true,
+  "scope": "Exact-source installed Windows canary, Forest at 3840x2160 emulated viewport, 20 minutes sampled every 15 seconds followed by cache, WebGL and stage fault recovery. This is not physical customer GPU recovery or a 48-hour installed soak."
+}

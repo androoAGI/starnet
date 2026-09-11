@@ -1,0 +1,11 @@
+{
+  "at": "2026-09-11T03:15:19.281Z",
+  "pass": true,
+  "source": "7f6c7b005120381539ad9c4b4601cb42b6b9b27d",
+  "before": 4,
+  "after": 4,
+  "reloaded": 4,
+  "exactAfter": true,
+  "exactReloaded": true,
+  "scope": "Original reproduced legacy conversation reopened through the rebuilt installed UI, persisted, reloaded and reopened; no injected merge function."
+}
