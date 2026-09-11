@@ -3,6 +3,8 @@
 This update brings more reliable saves and task results, clearer setup, and smoother station movement and backdrops.
 
 - Provider and model choices stay selected when an older catalog request finishes late.
+- Saved OpenRouter fallbacks switch provider and credentials correctly after a Codex quota failure. Paid fallback usage retains its spending limits and cost record.
+- Delegated specialists retain connected MCP tools through the lead's approval flow. Denials, connector removal and fresh confirmation after external content still apply.
 - Image charges appear in local run receipts without a second debit. Cancelling image work prevents later file publication; upstream work may already have been billed.
 - Concurrent station saves preserve conflicting edits for recovery instead of overwriting newer work. Conversation conversion retains historical attachments and safely handles retries.
 - Compatible API clients can use durable request keys to avoid repeating work after connection loss. Partial, failed and interrupted runs retain their real status and evidence.

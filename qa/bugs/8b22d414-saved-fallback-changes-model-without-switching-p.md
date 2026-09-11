@@ -4,10 +4,10 @@ slug: saved-fallback-changes-model-without-switching-p
 title: Saved fallback changes model without switching provider
 surface: providers
 severity: P1
-status: open
+status: fixed
 found: 2026-09-11
 lane: release-0112-finalprep-0911
-fix:
+fix: 44c6b4952cd1e468f7caaf4d7ead804dc280cc40
 origin: customer
 report: https://github.com/androoAGI/starnet/issues/12
 affected: 0.11.0 source on Windows
@@ -34,10 +34,12 @@ Current-source anchors: `frontend/app/stationui.js:5411` populates the fallback 
 
 ## Verdict
 
-Open. The inspected source is consistent with the reported failure; no source fix, installer proof or customer recovery is established. This report was absent from the original seven-report release census.
+Source fixed in 44c6b4952. Saved catalog fallbacks now use OpenRouter's endpoint and credential when leaving Codex or another provider. StarNet keeps its existing managed route; explicit per-run models and environment chains keep their primary provider. Paid fallback limits, auxiliary routing and ledger classification follow the active provider. Fallbacks cannot cross managed-credit payer boundaries without admission. Installer and customer recovery remain unconfirmed.
 
 ## Regression
 
-Required: a controlled Codex quota failure followed by the saved OpenRouter route, asserting provider, model, credential/base URL and completed result. Cover saved-chain restart, missing fallback credentials, explicit per-run routes, and same-provider/environment defaults. Existing `test/fallback-chain.test.js` is not proof of this cross-provider execution.
+`test/saved-provider-fallback.e2e.test.js` boots the real sidecar and both adapters against loopback upstreams with synthetic credentials. Before the fix it failed because the OpenRouter request never reached its endpoint. Afterward it completes on the saved GLM model with the OpenRouter credential, persists across restart, records actual paid cost as metered, and enforces dollar and unpriced-token ceilings. It proves saved-empty, environment and explicit-model precedence, and refuses to borrow Codex authentication when OpenRouter is disconnected. No real account quota was consumed.
 
 ## Sibling coverage
+
+{"adapters":[{"target":"Codex to OpenRouter","state":"covered","test":"test/saved-provider-fallback.e2e.test.js","scenario":"real adapters, synthetic quota error, separate credentials, metered ledger and budget ceilings","gate":"http"},{"target":"other providers and managed accounts","state":"blocked","reason":"Exact cross-provider execution is proven for Codex/OpenRouter; no live managed-account transition was exercised."}],"entrypoints":[{"target":"Settings fallback API and interactive run","state":"covered","test":"test/saved-provider-fallback.e2e.test.js","scenario":"saved chain execution, explicit model override and empty/environment defaults","gate":"http"}],"displays":[{"target":"installed Settings and COMMS","state":"blocked","reason":"The new signed installer build is running; source HTTP and copy checks are not installed UI proof."}],"lifecycle":[{"target":"restart and disconnected fallback","state":"covered","test":"test/saved-provider-fallback.e2e.test.js","scenario":"repeat after restart and after removing the synthetic OpenRouter credential","gate":"http"}]}

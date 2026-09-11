@@ -80,6 +80,22 @@ async function snapshot() {
   (receipt.saveDrains ||= []).push({drains:snap.drains,writes:snap.writes,health:snap.health});
   return snap;
 }
+function fixtureState(state) {
+  const out = structuredClone(state);
+  for (const key of ['local', 'durable']) {
+    const save = out[key];
+    // This fixture supplies identity documents, not a hand-written systemPrompt. The app recomposes
+    // that derived prompt on boot using the new harness instructions; the underlying docs still compare.
+    if (typeof save?.agent?.docs?.identity !== 'string') throw new Error('Fixture identity documents missing');
+    delete save.agent.systemPrompt;
+    for (const agent of save.agents || []) {
+      // The public fixture omitted personaId. Current roster hydration explicitly records its existing
+      // default as "composed". Permit exactly this additive default, not an arbitrary persona change.
+      if (agent.personaId === 'composed') delete agent.personaId;
+    }
+  }
+  return out;
+}
 try {
   install(baseline); await launch();
   receipt.beforeBuild = await evalJS(cdp, "__TAURI__.core.invoke('starnet_build_info')");
@@ -116,8 +132,9 @@ try {
   const after = await snapshot();
   receipt.afterState = continuityProjection(after);
   if (!await evalJS(cdp, "__TAURI__.core.invoke('harness_has_provider_key',{provider:'openrouter'})")) throw new Error('Synthetic key did not survive candidate install');
-  const projection = stableJson(continuityProjection(before));
-  if (projection !== stableJson(continuityProjection(after))) throw new Error('State changed across public-to-candidate reinstall');
+  receipt.expectedMigrationFields = ['local/durable.agent.systemPrompt (regenerated from preserved identity documents)', 'local/durable.agents[].personaId (missing/composed default for this fixture)'];
+  const projection = stableJson(fixtureState(continuityProjection(before)));
+  if (projection !== stableJson(fixtureState(continuityProjection(after)))) throw new Error('State changed across public-to-candidate reinstall');
   receipt.checks.statePreservedAcrossInstall = true;
   // Normal quit and relaunch exercise the candidate's ordinary persisted state path too.
   await evalJS(cdp, '__TAURI__.window.getCurrentWindow().close()').catch(() => {});
@@ -129,7 +146,7 @@ try {
   }
   cdp?.ws.close(); cdp = null; await launch(true);
   receipt.restartedState = continuityProjection(await snapshot());
-  if (projection !== stableJson(receipt.restartedState)) throw new Error('State changed across candidate restart');
+  if (projection !== stableJson(fixtureState(receipt.restartedState))) throw new Error('State changed across candidate restart');
   if (!await evalJS(cdp, "__TAURI__.core.invoke('harness_has_provider_key',{provider:'openrouter'})")) throw new Error('Synthetic key did not survive candidate restart');
   receipt.syntheticKeyPresentAcrossInstallAndRestart = true;
   receipt.checks.statePreservedAcrossRestart = true;
