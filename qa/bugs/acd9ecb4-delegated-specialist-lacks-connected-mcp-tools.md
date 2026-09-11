@@ -38,6 +38,8 @@ Source fixed in 44c6b4952. The worker inherited the lead's consent broker, but a
 
 ## Regression
 
+Follow-up b4bcdac904f5574ee4541c0cfae5de400592ee69 preserves the lead's live Full Access posture for delegated MCP calls. The HTTP scenario verifies zero prompts with a Full Access lead and an Ask specialist, then returns the lead to Ask and proves denial prevents the write. This authority is host-only, cancellation-aware, and limited to connector tools.
+
 `test/delegated-connectors.e2e.test.js` boots the real sidecar, provider adapter and MCP transport. Before the fix the direct specialist read/wrote the fixture CRM while the real delegated worker lacked both tools. Afterward both paths read/write, fresh permission prompts reach the lead watcher, denied writes never reach MCP, and connector removal revokes access. Delegated execution also passes after restart. `test/inputpolicy.test.js` checks live parent revocation, ungranted unattended leads, and denial of shell/desktop/unknown tools through this bridge. `test/untrusted-taint.test.js` retains temporal-confirmation enforcement.
 
 ## Sibling coverage
