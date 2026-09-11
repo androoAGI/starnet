@@ -2,11 +2,15 @@
 
 **Release acceptance remains incomplete.** Official version pins stay at 0.11.1; no public release or tag was created. The Windows canary has its own application identity and a local 0.11.2 overlay. The existing production station was not replaced.
 
+September 11 follow-up: the runtime including the backdrop repair is `61528ba95`. Its fresh Beginner and exact-source installed smoke passed, and workflow `34555729560` passed all four builds, both Mac notarizations and Intel installed acceptance. The seven customer reports remain open; [specific retest requirements](CUSTOMER_RETESTS.md) name the remaining evidence. The interrupted source soak and replacement run are recorded below. Earlier receipts retain their original build identities.
+
 ## Candidate
 
 Runtime candidate: `afd1da77fb4a489151b45b5a6c53e60ada4ca1f4`, on `agent/release-0112-audit-0910`, pushed and fast-forward merged into integration after its full Guardian passed. It includes integration `b90d9e45dea7d9c6ecdde0b960da5b3d559b3122` and its glass task-card styling. The original inventory covers all 54 reachable merges and 4,917 changed paths through `00de68e0f`; the later integration delta is explicitly additional coverage, not part of that historical count. Follow-up documentation/evidence commits do not alter the frozen runtime.
 
-The 720-minute source soak runs from a separate, frozen worktree at this exact candidate: `C:\Users\andro\gen-trees\release-0112-soak-0910`. Do not remove or update that worktree, its dependency junction, or the owning audit worktree while the soak runs. Two earlier long runs were retired when their editing checkout changed; their partial logs are retained and do not count as completed acceptance.
+The original 720-minute source soak on this candidate stopped after its last sample at 260.8 minutes (September 11, 02:34:46 UTC), without a completion receipt. Its runner was absent when checked; the termination cause is unknown. That partial run is not completed acceptance. Its frozen worktree `C:\Users\andro\gen-trees\release-0112-soak-0910`, logs and dependencies are retained.
+
+A replacement 720-minute run started September 11 at 02:51 UTC on `61528ba95` in `C:\Users\andro\gen-trees\release-0112-soak-61528`. It is a separate hidden process with an ownership record and output under the final-preparation worktree `.dogfood/finalprep/soak-61528/`. Do not change or remove the frozen checkout, its dependency junction, or the owning worktree while it runs. Its first restart and resumed workload were observed. Two still-earlier long runs were retired when their editing checkout changed; none of these partial logs count as completed acceptance.
 
 ## Repairs and evidence
 
@@ -46,7 +50,7 @@ The trunk full-history secret scan subsequently identified one pre-existing dumm
 
 ## Still required before cutting
 
-1. Complete and inspect the **720-minute source soak**. Its expected finish is September 11 around 10:15 UTC (06:15 EDT), assuming uninterrupted execution. The full gate and short/scale checks above are complete. Complete the separate installed/attended acceptance required by the release runbook; elapsed source soak time cannot substitute for it.
+1. Complete and inspect the replacement **720-minute source soak**. Its earliest expected finish is September 11 around **14:51 UTC (10:51 EDT)**, assuming uninterrupted execution. The earlier short/scale checks remain explicitly tied to their recorded source. Complete the separate installed/attended acceptance required by the release runbook; elapsed source soak time cannot substitute for it. The old 06:15 EDT estimate is superseded because that run did not finish.
 2. Retest the seven open customer P1s on the affected station/account. Current evidence narrows these investigations but does not establish those customers' recovery. Needed identifiers are the account/station and relevant recent run/job ID or timestamp, never a key or token.
 3. Obtain Apple Silicon hardware proof for onboarding/relink, funded account state and microphone/audio interruption/noise paths. CI build/notarization and Intel synthetic acceptance cannot establish those outcomes.
 4. Complete the managed-account image charge/cancellation proof, actual historical public-client update continuity and installed multi-window recovery where required. The completed BYOK image task and signed local canary update are bounded evidence, not substitutes for those remaining cases.

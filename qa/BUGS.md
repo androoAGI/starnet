@@ -4,7 +4,7 @@
 One tracked file per bug under `qa/bugs/`; this is only the index. File a new bug with
 `node scripts/qa/bugs.mjs --new --title "..." --surface <surface>`.
 
-**7** open (open+claimed) of 123 total — 0 P0 · 7 P1 · 0 P2
+**7** open (open+claimed) of 124 total — 0 P0 · 7 P1 · 0 P2
 
 Engineering status is separate from delivery and customer recovery. Legacy rows without origin are not a customer census.
 
@@ -113,6 +113,7 @@ User/owner reports: **51** · source fixed: **44** · installer verified: **2** 
 | P1 | fixed | release | [migrate_workspace_data writes the .migrated marker unconditionally and drops copy_missing_dir's Err with no log — a partial legacy migration is permanent and lo](bugs/f42a5f46-migrate-workspace-data-writes-the-migrated-marke.md) | sweep/release | 5f8aa7ce |
 | P1 | fixed | release | [Reconciler mistakes related repairs for reported bug resolution](bugs/7528f593-related-fix-prose-promotes-customer-report.md) | reliability-audit | ef5585145 |
 | P1 | fixed | release | [release-cut.mjs stages latest.json with no cryptographic signature check, and no downstream gate does one either — t1 checks .sig mtime, t5 text-compares it, ve](bugs/26af4a9a-release-cut-mjs-stages-latest-json-with-no-crypt.md) | sweep/release | b315063b |
+| P1 | fixed | release | [Release preflight mistakes installed smoke for completed soak](bugs/0ea3abca-release-preflight-mistakes-installed-smoke-for-c.md) | agent/release-0112-finalprep-0911 | b9c5539556fc2d36e0992290c4dd8efb08720b82 |
 | P1 | fixed | release | [Swallowed errors can expose credentials in console warnings](bugs/a03ea726-swallowed-errors-can-expose-credentials-in-conso.md) | cleanup-0112-0910 | 0a3a605a9c41ecf944760782a4938ec442d02e6c |
 | P1 | fixed | safecell | [An errored /api/projects is rendered as a CONFIRMED EMPTY trust ledger ("NO TRUSTED PROJECTS") and silently wipes the persisted project scope](bugs/e05cdba8-an-errored-api-projects-is-rendered-as-a-confirm.md) | sweep/safecell | ed200caa |
 | P1 | fixed | safecell | [File approval hides the proposed edit and patch payload](bugs/48c51661-file-approval-omits-mutation.md) | report-0110-0908 | 72a8a3043c263cd53ed353daed2042e256c8e236 |
