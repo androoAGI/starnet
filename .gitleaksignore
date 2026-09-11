@@ -50,3 +50,8 @@ a5d72b7232f29e7c2d3ccf81a91d27217bc69559:test/openai-compat.e2e.test.js:generic-
 # Its sidecar points exclusively at the test's 127.0.0.1 mock HTTP server. Exact
 # historical fingerprint only; future findings in this test still fail the scan.
 a55a1ed0705fa53763ee03600322ddb3afd35ce0:test/growth-rating-upgrade.e2e.test.js:generic-api-key:36
+
+# Reviewed 2026-09-11: delegatedFullAccess contains the real Git commit ID
+# b4bcdac904f5574ee4541c0cfae5de400592ee69, not a credential. Verified the
+# historical JSON field and Git object. Ignore only this exact finding.
+a6f05c505b4e1b75fafbb320f302ba9ebd21cd73:qa/evidence/0.11.2-issues-12-13/verification.json:generic-api-key:8
