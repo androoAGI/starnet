@@ -19,6 +19,12 @@ recoveryEvidence: GitHub issue 6 comment 5548215321 on 2026-09-05 reports the er
 
 # Managed Sonnet request still returns an uncorrelated HTTP 400
 
+## September 11 support evidence refresh
+
+The private support thread contains newer evidence than the public issue: September 9 diagnostics correlate the earlier September 5 400 timestamp, but the current error is an Ollama localhost refusal on v0.11.0. September 10 v0.11.1 diagnostics still show an Ollama provider/model selection and the old run ID; the new complaint is a missing Anthropic credential before any new run. The owner supplied model-selection guidance. The reporter's September 10 22:32 UTC reply thanked the owner and said they would report further issues.
+
+That is a positive follow-up, not silence, and supersedes the assertion that no newer response exists. It does not explicitly identify a completed managed Sonnet run, selected model or recovered historical 400. Keep the exact failure open pending that narrower evidence; do not conflate localhost routing, empty selection and provider HTTP 400. No customer message or billing change was made during this verification.
+
 ## Symptom
 
 Latest follow-up still reports managed Sonnet HTTP 400 and a missing-key warning.

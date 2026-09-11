@@ -40,20 +40,20 @@ function install(file) {
   ps(`$p=Start-Process -FilePath $env:PROOF_INSTALLER -ArgumentList '/S','/UPDATE' -WindowStyle Hidden -Wait -PassThru
 if($p.ExitCode -ne 0){throw "Installer failed: $($p.ExitCode)"}`, { PROOF_INSTALLER: file });
 }
-async function launch() {
+async function launch(populated = false) {
   fs.mkdirSync(profile, { recursive: true });
   fs.writeFileSync(path.join(profile, 'lifecycle.json'), JSON.stringify({ version: 1, closeToTray: false }));
   ps(`$env:WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS='--remote-debugging-port=19373'
 Start-Process -FilePath $env:PROOF_EXE -WindowStyle Hidden | Out-Null`);
   cdp = await connectCDP(19373);
   for (let n = 0; n < 120; n++) {
-    try { if (await evalJS(cdp, "typeof App!=='undefined'&&typeof Save!=='undefined'&&typeof CloudSave!=='undefined'&&typeof WorldModel!=='undefined'")) return; } catch {}
+    try { if (await evalJS(cdp, "typeof App!=='undefined'&&typeof Save!=='undefined'&&typeof CloudSave!=='undefined'&&typeof WorldModel!=='undefined'" + (populated ? '&&App.crewCount()===2' : ''))) return; } catch {}
     await sleep(500);
   }
   throw new Error('Installed application did not initialize');
 }
 async function snapshot() {
-  return evalJS(cdp, `(async()=>{App.persist();if(!await CloudSave.flush({force:true}))throw Error('Save flush not confirmed');const r=await fetch('/api/save?agent=agent');if(!r.ok)throw Error('Save read failed');return {local:JSON.parse(localStorage.getItem('starnet.save')||'null'),durable:(await r.json()).save,sentinel:JSON.parse(localStorage.getItem('starnet.canary.continuity')||'null')}})()`);
+  return evalJS(cdp, `(async()=>{App.persist();const drained=await CloudSave.flushForUpdate();if(!drained.ok)throw Error('Save drain not confirmed');const r=await fetch('/api/save?agent=agent');if(!r.ok)throw Error('Save read failed');return {local:JSON.parse(localStorage.getItem('starnet.save')||'null'),durable:(await r.json()).save,sentinel:JSON.parse(localStorage.getItem('starnet.canary.continuity')||'null')}})()`);
 }
 try {
   install(baseline); await launch();
@@ -71,13 +71,13 @@ try {
     save._saveRevision=b.revision;save._saveDirty=false;save.updatedAt=b.updatedAt;
     localStorage.setItem('starnet.save',JSON.stringify(save));localStorage.setItem('starnet.canary.continuity',JSON.stringify({nonce:save.agent.canaryNonce}));
   })()`);
-  stop(); await launch();
+  stop(); await launch(true);
   const before = await snapshot();
   for (const s of [before.local, before.durable]) {
     if (s?.agents?.length !== 2 || !s.station?.props?.some(p => p.agentId === 'scout') || !s.workstreams?.some(w => w.history?.some(m => m.content === 'preserve-' + fixture.agent.canaryNonce)) || s.usage?.calls !== 2) throw new Error('Public baseline did not retain populated fixture');
   }
   receipt.checks.populatedPublicRestart = true;
-  install(candidate); await launch();
+  install(candidate); await launch(true);
   receipt.afterBuild = await evalJS(cdp, "__TAURI__.core.invoke('starnet_build_info')");
   if (receipt.afterBuild.sha !== expected || receipt.afterBuild.dirty) throw new Error('Candidate identity mismatch');
   if (receipt.beforeBuild.sha === receipt.afterBuild.sha) throw new Error('Installer did not replace the public source build');
@@ -94,13 +94,13 @@ try {
     if (n === 89) throw new Error('Normal candidate quit did not exit');
     await sleep(500);
   }
-  cdp?.ws.close(); cdp = null; await launch();
+  cdp?.ws.close(); cdp = null; await launch(true);
   if (projection !== stableJson(continuityProjection(await snapshot()))) throw new Error('State changed across candidate restart');
   receipt.checks.statePreservedAcrossRestart = true;
   receipt.projectionSha256 = createHash('sha256').update(projection).digest('hex');
   receipt.installedExeSha256 = sha(exe);
   receipt.outcome = 'PASS';
 } catch (error) { receipt.error = String(error.stack || error); }
-finally { stop(); fs.writeFileSync('public-upgrade-continuity.json', JSON.stringify(receipt, null, 2) + '\n'); }
+finally { try { stop(); } finally { fs.writeFileSync('public-upgrade-continuity.json', JSON.stringify(receipt, null, 2) + '\n'); } }
 console.log(JSON.stringify(receipt, null, 2));
 process.exitCode = receipt.outcome === 'PASS' ? 0 : 1;
