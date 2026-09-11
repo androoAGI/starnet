@@ -1,0 +1,75 @@
+{
+  "probe": {
+    "appVersion": "0.11.1",
+    "appSource": "env",
+    "harness": "c9b6a67",
+    "sidecarBuildSha": "c9b6a67f84d6f3a37e83d6043189000c75271843",
+    "sidecarBuildDirty": false,
+    "mode": "desktop",
+    "origin": "http://tauri.localhost",
+    "shell": {
+      "version": "0.11.1",
+      "commit": "c9b6a67",
+      "sha": "c9b6a67f84d6f3a37e83d6043189000c75271843",
+      "sourceTree": "6702a10573344de2beb7ac2e8cf143de48883fc7",
+      "provenanceKind": "reproducible-source",
+      "describe": "c9b6a67",
+      "dirty": false,
+      "executableSha256": "86e3d108ea95843bdcb72750dc24ab7b44228f3d18a9a06dad58db75dcfd5b94",
+      "executableSize": 17882376
+    },
+    "bootSane": true,
+    "checks": [
+      {
+        "name": "desktop/tauri-origin",
+        "ok": true,
+        "detail": "origin=http://tauri.localhost"
+      },
+      {
+        "name": "desktop/build-info",
+        "ok": true,
+        "detail": "commit=c9b6a67f84d6f3a37e83d6043189000c75271843 tree=6702a10573344de2beb7ac2e8cf143de48883fc7 kind=reproducible-source describe=c9b6a67 dirty=false"
+      },
+      {
+        "name": "desktop/executable-identity",
+        "ok": true,
+        "detail": "sha256=86e3d108ea95… size=17882376"
+      },
+      {
+        "name": "boot/api-token-present",
+        "ok": true,
+        "detail": "per-launch token injected into the page"
+      },
+      {
+        "name": "version/app-nonblank",
+        "ok": true,
+        "detail": "app=0.11.1 source=env harness=c9b6a67"
+      },
+      {
+        "name": "boot/world-present",
+        "ok": true,
+        "detail": "world model / canvas present"
+      },
+      {
+        "name": "boot/stage-rendered",
+        "ok": true,
+        "detail": "stage/app root present in DOM"
+      },
+      {
+        "name": "store/workstreams-wellformed",
+        "ok": true,
+        "detail": "1 workstream(s) in the store"
+      },
+      {
+        "name": "board/no-forever-running",
+        "ok": true,
+        "detail": "TASKS board open; 0 card(s); no stuck RUNNING chip while idle"
+      }
+    ],
+    "notes": "checks=9 mode=desktop"
+  },
+  "diagnostics": {
+    "consoleMsgs": [],
+    "exceptions": []
+  }
+}

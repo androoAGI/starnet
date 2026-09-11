@@ -1,0 +1,195 @@
+{
+  "recordedAt": "2026-09-11T07:19:47.070Z",
+  "source": "c9b6a67f84d6f3a37e83d6043189000c75271843",
+  "includedMerge": "c9b6a67f84d6f3a37e83d6043189000c75271843",
+  "runtimeFixesIncluded": [
+    "44c6b4952",
+    "b4bcdac90",
+    "767a35925"
+  ],
+  "guardian": {
+    "verdict": "GREEN",
+    "gates": 7,
+    "skipped": 0,
+    "fast": 771,
+    "http": 113,
+    "adversarialAttacks": 515,
+    "adversarialRoutes": 234,
+    "goldenFrames": 16,
+    "behaviorAssertions": 47,
+    "journeyAssertions": 139
+  },
+  "build": {
+    "id": 34571871677,
+    "url": "https://github.com/androoAGI/starnet/actions/runs/34571871677",
+    "jobs": [
+      {
+        "name": "build (windows-latest, win-x64, nsis)",
+        "conclusion": "success"
+      },
+      {
+        "name": "build (macos-15-intel, darwin-x64, app,dmg, x86_64-apple-darwin)",
+        "conclusion": "success"
+      },
+      {
+        "name": "build (macos-latest, darwin-arm64, app,dmg, aarch64-apple-darwin)",
+        "conclusion": "success"
+      },
+      {
+        "name": "build (ubuntu-22.04, linux-x64, deb,appimage)",
+        "conclusion": "success"
+      },
+      {
+        "name": "notarize-macos (darwin-x64)",
+        "conclusion": "success"
+      },
+      {
+        "name": "notarize-macos (darwin-arm64)",
+        "conclusion": "success"
+      },
+      {
+        "name": "intel-macos-installed-acceptance",
+        "conclusion": "success"
+      },
+      {
+        "name": "publish-test",
+        "conclusion": "skipped"
+      }
+    ]
+  },
+  "installerProof": {
+    "id": 34573167978,
+    "controller": "01200c9a1e6936daa286930ba1d861b407c60074",
+    "url": "https://github.com/androoAGI/starnet/actions/runs/34573167978",
+    "installer": {
+      "name": "StarNet_0.11.1_x64-setup.exe",
+      "bytes": 130070464,
+      "sha256": "78c0a42bc4f902fdd9a8ad79bedabc50b451016f76099d680479bc7742c55a2f",
+      "signature": "Valid",
+      "signer": "CN=Andrew Sims, O=Andrew Sims, L=Boca Raton, S=fl, C=US"
+    },
+    "executableSha256": "86e3d108ea95843bdcb72750dc24ab7b44228f3d18a9a06dad58db75dcfd5b94",
+    "checks": {
+      "historicalPublicBoot": true,
+      "populatedPublicRestart": true,
+      "exactCandidateInstalled": true,
+      "statePreservedAcrossInstall": true,
+      "staticLevelAppliesAndSaves": true,
+      "statePreservedAcrossRestart": true,
+      "staticLevelSurvivesRestart": true,
+      "installedSmoke": true
+    },
+    "installedRegressions": {
+      "saved-provider-fallback": {
+        "outcome": "PASS",
+        "sha256": "1a2a239e350fd6b27b65c6686be9410936d261ef1a919da8edcfda53489c31da",
+        "identity": {
+          "suite": "saved-provider-fallback.e2e.test.js",
+          "executableSha256": "86e3d108ea95843bdcb72750dc24ab7b44228f3d18a9a06dad58db75dcfd5b94",
+          "installedRuntimeSha256": "0d0f5e39f9f3d9587bc19f73eab3c2c9c4903fd02d6dbf9c853dd81b3d95fad4",
+          "identities": {
+            "sidecar/index.js": "2138e9deb035a6def14b4c4aa7d77610dcab44f9143de9b6d4a00243ef87c858",
+            "sidecar/loop.js": "f8100938403370c0c33710b9564c6c9e553d8b9402148f57ab0c4ab56f3eab9d",
+            "sidecar/tools/builtin/orchestration.js": "1ad21f4778c607a213af17014fce69ae577d510061d26266d7fc7065d51e2243",
+            "sidecar/inputpolicy.js": "77ea1085dd266d883321b350295159c0aa76c094b16cc2f56b2b6c922ba14c5e"
+          },
+          "scope": "Installed Node and sidecar; isolated stations; controlled upstream providers and MCP, no customer account"
+        }
+      },
+      "delegated-connectors": {
+        "outcome": "PASS",
+        "sha256": "183cf2787d5e2336d3a79511b8e04f19643bad582f7bdec637a3b6c9b65c15e1",
+        "identity": {
+          "suite": "delegated-connectors.e2e.test.js",
+          "executableSha256": "86e3d108ea95843bdcb72750dc24ab7b44228f3d18a9a06dad58db75dcfd5b94",
+          "installedRuntimeSha256": "0d0f5e39f9f3d9587bc19f73eab3c2c9c4903fd02d6dbf9c853dd81b3d95fad4",
+          "identities": {
+            "sidecar/index.js": "2138e9deb035a6def14b4c4aa7d77610dcab44f9143de9b6d4a00243ef87c858",
+            "sidecar/loop.js": "f8100938403370c0c33710b9564c6c9e553d8b9402148f57ab0c4ab56f3eab9d",
+            "sidecar/tools/builtin/orchestration.js": "1ad21f4778c607a213af17014fce69ae577d510061d26266d7fc7065d51e2243",
+            "sidecar/inputpolicy.js": "77ea1085dd266d883321b350295159c0aa76c094b16cc2f56b2b6c922ba14c5e"
+          },
+          "scope": "Installed Node and sidecar; isolated stations; controlled upstream providers and MCP, no customer account"
+        }
+      }
+    }
+  },
+  "limits": [
+    "Private official-version-0.11.1 candidate; actual manual public 0.11.1 upgrade, not published 0.11.2 automatic delivery.",
+    "Controlled provider and MCP services; actual reporter accounts and physical Apple Silicon recovery are not proved.",
+    "Brief source frame timing under concurrent QA load does not establish performance on every GPU.",
+    "Eight earlier customer P1s remain open. Ordinary soak duration was waived by the owner."
+  ],
+  "gateLogs": {
+    "test-fast": {
+      "sha256": "a0701f2962a96b4e2d222ffc41e48fffcd2a81aef8bdec8a4b363f9c4da48152",
+      "bytes": 52797
+    },
+    "http-e2e": {
+      "sha256": "4b3e5547acb66f915fc3e26b198b4858bcc2973ffb0fd610b3d64280860bb372",
+      "bytes": 11542
+    },
+    "saboteur": {
+      "sha256": "647373a9f5b565d5e490986d99b9f7b462aa042da0a8fc43b24772f3acf08426",
+      "bytes": 214
+    },
+    "shoot": {
+      "sha256": "0b410b0d07cd2bc39c049de4a42f137cfce8c770bd437b120f3838dda75c2dc8",
+      "bytes": 1319
+    },
+    "golden": {
+      "sha256": "4e1e793b9307b23dd651ad5396739efce46b4e3624072b739cbf3712c98763f2",
+      "bytes": 2166
+    },
+    "audit": {
+      "sha256": "9fbf66cc19156c01650a7ebe1cb7bf13460142b67f6f0a2c8273574828d47e02",
+      "bytes": 4106
+    },
+    "journeys": {
+      "sha256": "364d7fab61e8d406df7e2017a6a15220b63aff16efaddf9754c540c3abe523b2",
+      "bytes": 13582
+    }
+  },
+  "files": {
+    "beginner.json": {
+      "sha256": "079b4a3ebec94efb0f67acf26c7c4bd86975b8176bcca3ba9ff28c52b5780e6e",
+      "bytes": 189
+    },
+    "clean-install.json": {
+      "sha256": "6e5289b7af1c9125b5105a1fa7d91600a6df21ea7baa8d698d52e689c4d5f01b",
+      "bytes": 1509
+    },
+    "guardian.json": {
+      "sha256": "d7459790892ef46fee63d0c7384a8f05cc85ad792d06250eeeeeb7cfab6b8abf",
+      "bytes": 1438
+    },
+    "installed-probe.json": {
+      "sha256": "788dad3cb3c298769dd82e70870a32ec728da861978046e7e88fdb6cfb8a8a64",
+      "bytes": 2163
+    },
+    "installed-smoke.json": {
+      "sha256": "cb72e9c982bf76c01c9c0918d813373e33211400b27ec1d9d8cb4d46360d12a3",
+      "bytes": 1282
+    },
+    "journeys.json": {
+      "sha256": "175bc5ff25a3551662317bb7cd3373a4a105956ea641504951d3cb5bbd1513a8",
+      "bytes": 213
+    },
+    "lifecycle.json": {
+      "sha256": "39ee3dc57c6a3aeebb0b8556f2d21662151858e6cf19edcfebca9b8c616e0b18",
+      "bytes": 3774
+    },
+    "readiness.json": {
+      "sha256": "18cb55395e0c77e8a1b36ff6fb90767c59d4d9abfd0a23f332fa08d443bc3338",
+      "bytes": 2486
+    },
+    "static-live.json": {
+      "sha256": "9ec88526652f7d28b4daef66d1610f5b48bd07b2b2b51f475e737fa83d4434f2",
+      "bytes": 1261
+    },
+    "upgrade.json": {
+      "sha256": "fcf250ab18ddf237230f37078c445148ba045325b7cd15198712e70a9a9fb157",
+      "bytes": 2594
+    }
+  }
+}

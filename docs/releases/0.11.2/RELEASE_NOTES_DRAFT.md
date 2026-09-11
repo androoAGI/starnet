@@ -18,6 +18,7 @@ This update brings more reliable saves and task results, clearer setup, and smoo
 - Speech playback recovers after an output-device interruption.
 - Agent movement, doorway paths, desk seating and furniture cleanup behave more consistently. Crew waiting for approval display the waiting state.
 - Refreshed sky and ground backdrops retain their detail while heavy artwork generation runs in the background. Cached terrain reduces camera-movement work, especially in large, zoomed-out forest views.
+- CRT static strength can be adjusted and saved in Appearance settings. Existing stations keep their current look at the 100% default.
 - Docked panel height survives reopen and reload. Image setup guidance includes the supported OpenRouter credential route.
 
 Google Workspace connections remain deferred while verification is completed. Google login for StarNet billing is separate.

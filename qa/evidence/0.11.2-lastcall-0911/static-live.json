@@ -1,0 +1,71 @@
+{
+  "source": "c9b6a67f84d6f3a37e83d6043189000c75271843",
+  "outcome": "PASS",
+  "scope": "dev-seeded source UI; no inference",
+  "default": {
+    "slider": "100",
+    "multiplier": 1,
+    "grain": 0.26
+  },
+  "levels": [
+    {
+      "value": "0",
+      "label": "0%",
+      "multiplier": 0,
+      "grain": 0.26,
+      "saved": 0
+    },
+    {
+      "value": "45",
+      "label": "45%",
+      "multiplier": 0.45,
+      "grain": 0.26,
+      "saved": 45
+    },
+    {
+      "value": "100",
+      "label": "100%",
+      "multiplier": 1,
+      "grain": 0.26,
+      "saved": 100
+    },
+    {
+      "value": "200",
+      "label": "200%",
+      "multiplier": 2,
+      "grain": 0.26,
+      "saved": 200
+    }
+  ],
+  "reloaded": {
+    "slider": "45",
+    "multiplier": 0.45,
+    "saved": 45
+  },
+  "frameSamples": [
+    {
+      "level": 0,
+      "medianMs": 33.30000000000018,
+      "p95Ms": 50,
+      "frames": 120
+    },
+    {
+      "level": 1,
+      "medianMs": 33.30000000000018,
+      "p95Ms": 50,
+      "frames": 120
+    },
+    {
+      "level": 2,
+      "medianMs": 33.29999999999927,
+      "p95Ms": 33.400000000001455,
+      "frames": 120
+    }
+  ],
+  "geometry": {
+    "inputWidth": 289.125,
+    "rowWidth": 486.90625,
+    "inside": true
+  },
+  "exceptions": []
+}

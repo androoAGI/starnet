@@ -1,0 +1,79 @@
+{
+  "schema": "starnet.public-upgrade-continuity.v1",
+  "at": "2026-09-11T07:12:36.321Z",
+  "mode": "manual-nsis-reinstall",
+  "candidateSource": "c9b6a67f84d6f3a37e83d6043189000c75271843",
+  "baselineVersion": "0.11.1",
+  "baselineInstallerSha256": "0045c6a539ad67b29b69139ec656907c31d0f6bef293eac1c3b3a1396802d656",
+  "candidateInstallerSha256": "78c0a42bc4f902fdd9a8ad79bedabc50b451016f76099d680479bc7742c55a2f",
+  "checks": {
+    "historicalPublicBoot": true,
+    "populatedPublicRestart": true,
+    "exactCandidateInstalled": true,
+    "statePreservedAcrossInstall": true,
+    "staticLevelAppliesAndSaves": true,
+    "statePreservedAcrossRestart": true,
+    "staticLevelSurvivesRestart": true,
+    "installedSmoke": true
+  },
+  "outcome": "PASS",
+  "beforeBuild": {
+    "version": "0.11.1",
+    "commit": "b3760c46f",
+    "sha": "b3760c46ff3fe02790e6c3b0c50a23c30b5837a8",
+    "sourceTree": "0e7794d125cc729cf8310593f3b918ded5875992",
+    "provenanceKind": "reproducible-source",
+    "describe": "v0.11.1",
+    "dirty": false,
+    "executableSha256": "d6bc8af753f00f3ac0a0dda0b20cdc9182f6ce699ea77c9fadb8b642f0c0ee46",
+    "executableSize": 16966920
+  },
+  "afterBuild": {
+    "version": "0.11.1",
+    "commit": "c9b6a67",
+    "sha": "c9b6a67f84d6f3a37e83d6043189000c75271843",
+    "sourceTree": "6702a10573344de2beb7ac2e8cf143de48883fc7",
+    "provenanceKind": "reproducible-source",
+    "describe": "c9b6a67",
+    "dirty": false,
+    "executableSha256": "86e3d108ea95843bdcb72750dc24ab7b44228f3d18a9a06dad58db75dcfd5b94",
+    "executableSize": 17882376
+  },
+  "expectedMigrationFields": [
+    "local/durable.agent.systemPrompt (regenerated from preserved identity documents)",
+    "local/durable.agents[].personaId (missing/composed default for this fixture)"
+  ],
+  "syntheticKeyPresentAcrossInstallAndRestart": true,
+  "projectionSha256": "0248e9755345731e801ce330dc3f9413906a5012a2799ce1a1ad2438a2f22734",
+  "installedExeSha256": "86e3d108ea95843bdcb72750dc24ab7b44228f3d18a9a06dad58db75dcfd5b94",
+  "staticDefault": {
+    "value": "100",
+    "multiplier": 1
+  },
+  "staticLevels": [
+    {
+      "value": "0",
+      "multiplier": 0,
+      "saved": 0
+    },
+    {
+      "value": "200",
+      "multiplier": 2,
+      "saved": 200
+    },
+    {
+      "value": "45",
+      "multiplier": 0.45,
+      "saved": 45
+    }
+  ],
+  "staticRestarted": {
+    "value": "45",
+    "multiplier": 0.45,
+    "saved": 45
+  },
+  "rawReceipt": {
+    "artifact": "candidate-shell-lifecycle/public-upgrade-continuity.json",
+    "sha256": "4dc29c24049b3a1fbe20e0809941e9d73a7c6d17cf091e2d592526c5d541457d"
+  }
+}
