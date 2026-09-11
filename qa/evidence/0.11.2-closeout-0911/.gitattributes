@@ -1,0 +1,3 @@
+*.json -text whitespace=cr-at-eol
+*.gz binary
+*.png binary

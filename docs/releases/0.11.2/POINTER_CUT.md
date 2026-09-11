@@ -1,5 +1,7 @@
 # 0.11.2 pointer repair candidate — September 11, 2026
 
+Subsequent [focused closeout](CLOSEOUT.md) dismissed the two crowded-floor awareness findings with live causal evidence. The historical results below are retained; the current readiness blocker is the eight customer P1 reports alone.
+
 Requested merge `33c925797e1a63e943272c05486902d366623aac` is included in the signed 0.11.2 candidate and the owner's personal installation. Trunk is frozen at `69baf91a5b2c22230f87e614da6a72882278bc6c`, source tree `930d6dc2c4f556f9f22ded59f0f9cbfcc72d3fe5`. Release notes include the repair. No public release, tag or updater-feed change was made.
 
 ## Included repair and verification

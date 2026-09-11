@@ -27,7 +27,7 @@ That is a positive follow-up, not silence, and supersedes the assertion that no 
 
 ## Symptom
 
-Latest follow-up still reports managed Sonnet HTTP 400 and a missing-key warning.
+The September 5 report describes a managed Sonnet HTTP 400. The newer September 9–10 diagnostics describe localhost routing and model/credential selection instead; the positive September 10 reply does not identify a completed managed Sonnet run. The historical 400 remains uncorrelated, but it must not be presented as a freshly reproduced failure on 0.11.2.
 
 ## Repro
 

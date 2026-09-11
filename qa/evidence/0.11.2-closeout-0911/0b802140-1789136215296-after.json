@@ -1,0 +1,22 @@
+{
+  "id": "0b802140-1789136215296",
+  "fingerprint": "0b802140",
+  "ts": 1789136215296,
+  "crew": "Green Guardian",
+  "severity": "P1",
+  "title": "Truth regression: audit assertion `floor/awareness-gaze-only` failed (floor-rest)",
+  "detail": "trunk bb9f0719 — STRATEGIST → 11,8. The UI showed something the harness did not do (app-lies pattern).",
+  "evidence": [
+    "C:\\Users\\andro\\Desktop\\gen\\.bugloops\\guardian-20260911-140002\\audit.log",
+    "C:\\Users\\andro\\gen-trees\\release-0112-finalprep-0911\\qa\\evidence\\0.11.2-closeout-0911\\manifest.json"
+  ],
+  "status": "dismissed",
+  "routedTo": "agent/release-0112-finalprep-0911",
+  "triage": {
+    "at": "2026-09-11T19:09:07.156Z",
+    "verdict": "false-positive",
+    "reason": "The detector infers gaze-caused chasing from an occupied next waypoint. In an isolated 20-body live floor, the original predicate fired in 77 of 180 snapshots while all 26 natural plus 380 direct original glanceAt calls preserved all bodies movement state. All bodies stayed inside their zones. Deliberate movement mutation was detected and restored. world.js movementBlockers and soft separation explicitly permit transient occupied waypoints; a one-frame occupancy observation cannot establish gaze causality. This dismisses the two claimed awareness regressions, not every possible movement defect.",
+    "evidence": "qa/evidence/0.11.2-closeout-0911/manifest.json",
+    "candidate": "69baf91a5b2c22230f87e614da6a72882278bc6c"
+  }
+}

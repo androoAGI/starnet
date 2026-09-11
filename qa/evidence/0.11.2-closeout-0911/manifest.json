@@ -1,0 +1,73 @@
+{
+  "candidate": "69baf91a5b2c22230f87e614da6a72882278bc6c",
+  "sourceSha256": "fe01929950dffeb00451fb55a24579decdf416643e5825dc5f2738a09badc9c3",
+  "bodyCount": 20,
+  "samples": 180,
+  "occupiedWaypointSnapshots": 77,
+  "naturalGazes": {
+    "calls": 26,
+    "violations": [],
+    "forced": 0
+  },
+  "exercisedGazes": {
+    "calls": 406,
+    "violations": [],
+    "forced": 380
+  },
+  "negativeControl": {
+    "detected": true,
+    "movementRestored": true
+  },
+  "containmentViolations": 0,
+  "pass": true,
+  "artifacts": [
+    {
+      "path": "report-initial.json.gz",
+      "sha256": "361cc2a05c658b0f183fc5a31a5067e08d1577490143611529b8bfd5b4ad2452",
+      "bytes": 185337,
+      "uncompressedSha256": "32dd530052ad44edeca3ac976a12c60dfc3a0ee57569bd37054a2d940d2ae300",
+      "uncompressedBytes": 6216092
+    },
+    {
+      "path": "report.json.gz",
+      "sha256": "b2c3f9ea04f5e265caa6d17b46066dc2292106b265f96e906871c354be5c1a2d",
+      "bytes": 188899,
+      "uncompressedSha256": "85181461e410e2c7b0be5d81e62e3a9a6e52592fd5a6fac04edf4996e5dfb467",
+      "uncompressedBytes": 6241724
+    },
+    {
+      "path": "crowded-floor.png",
+      "sha256": "e1956626560469c23651bcb7159a3657e788657aae5be44f5c14469e57f8e48c",
+      "bytes": 1325620
+    },
+    {
+      "path": "0b802140-1789136215296-after.json",
+      "sha256": "d00b86ad1aeca037066461841cb9adc6ed476f634072791d7a300175f41fb7b9",
+      "bytes": 1487
+    },
+    {
+      "path": "0b802140-1789136215296-before.json",
+      "sha256": "3770ac9bd22297d8a0d313d688a40602de19d80b4ad60f02c2a74dab16d173f2",
+      "bytes": 499
+    },
+    {
+      "path": "4692c89f-1789136215296-after.json",
+      "sha256": "e9d424ac0e33362af95641df711399b7cb309f102b7eb632489d0c467b55edfb",
+      "bytes": 1486
+    },
+    {
+      "path": "4692c89f-1789136215296-before.json",
+      "sha256": "06c2da81c196a5d6feb13ea7aec40be5b3b309c5f7efd0924aa62ec2b4ae121e",
+      "bytes": 498
+    },
+    {
+      "path": "ready.json",
+      "sha256": "ed183ded149cdc2086af3b7d7cfbba54fa3ca49874a9c7c67cff53912456b358",
+      "bytes": 2296
+    }
+  ],
+  "diagnostic": {
+    "path": "scripts/verify/release-0112-crowded.mjs",
+    "sha256": "d0bf0bbcd5bd52992971fd2b1df69d3b3bdd755f10d60cfbe0188fd0752ebc6d"
+  }
+}
