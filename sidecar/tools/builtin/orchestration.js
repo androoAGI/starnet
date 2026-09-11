@@ -128,6 +128,12 @@
     return { projectRoot: source.projectRoot || undefined, workdir: source.workdir || source.projectCwd || undefined };
   }
 
+  function connectorOptions(ctx) {
+    // Functions are supplied by the host context, never by tool arguments or a persisted worker record.
+    const authority = ctx && ctx.connectorAuthority;
+    return authority ? { connectorAuthority: authority, initialTaint: typeof authority.taintedBy === 'function' ? authority.taintedBy() : null } : {};
+  }
+
   function makeOrchestrationTools(deps) {
     deps = deps || {};
     const runOnce = deps.runOnce;
@@ -444,7 +450,7 @@
           noteSessionActivity('station.dispatch_start', job, workerRunId);
           try {
             result = await runOnce({
-              ...projectOptions(ctx),
+              ...projectOptions(ctx), ...connectorOptions(ctx),
               key: wire.key, provider: wire.provider, baseUrl: wire.baseUrl,
               // Class Loadouts S1: the WORKER runs at its OWN class-applied reasoning effort (roster record), not the
               // lead's — a dispatched specialist honors its loadout. Falls back to the lead's effort when unset.
@@ -496,7 +502,7 @@
             const repairRunId = newId();
             const repair = await runOnce({
               outputOnly: true,
-              ...projectOptions(ctx),
+              ...projectOptions(ctx), ...connectorOptions(ctx),
               key: wire.key, provider: wire.provider, baseUrl: wire.baseUrl,
               reasoningEffort: (job.ident && job.ident.reasoningEffort) || reasoningEffort,
               model: wire.model, system: workerSystem((job.ident && job.ident.system) || ''),
@@ -702,7 +708,7 @@
             const contractedPrompt = openingMessage(prompt, task.context, task.resultSchema);
             try {
               result = await runOnce({
-              ...projectOptions(ctx),
+              ...projectOptions(ctx), ...connectorOptions(ctx),
                 key, provider, baseUrl, reasoningEffort, model,      // the lead's OWN model - a clone of self
                 system: workerSystem(selfSystem),           // the lead's OWN identity plus settled task context
                                                             // composes its own caps for its (narrowed) toolset
@@ -736,7 +742,7 @@
               const repairRunId = newId();
               const repair = await runOnce({
               outputOnly: true,
-              ...projectOptions(ctx),
+              ...projectOptions(ctx), ...connectorOptions(ctx),
                 key, provider, baseUrl, reasoningEffort, model, system: workerSystem(selfSystem),
                 messages: [{ role: 'user', content: contractedPrompt }, { role: 'assistant', content: firstText },
                   { role: 'user', content: '[STRUCTURED RESULT REPAIR] The prior result failed host validation:\n- ' + errors.slice(0, 20).join('\n- ') + '\nReturn ONLY strict JSON matching: ' + JSON.stringify(task.resultSchema) }],
@@ -884,7 +890,7 @@
         const contractedPrompt = openingMessage(rec.prompt || '', handoffContext(rec.context), rec.resultSchema);
         try {
           result = await runOnce({
-            ...projectOptions(ctx, rec),
+            ...projectOptions(ctx, rec), ...connectorOptions(ctx),
             key: wire.key, provider: wire.provider, baseUrl: wire.baseUrl,
             reasoningEffort: (ident && ident.reasoningEffort) || reasoningEffort,   // Class Loadouts S1: worker's own class effort (see runWorker)
             model: wire.model,
@@ -913,7 +919,7 @@
           const repairRunId = newId();
           const repair = await runOnce({
               outputOnly: true,
-            ...projectOptions(ctx, rec),
+            ...projectOptions(ctx, rec), ...connectorOptions(ctx),
             key: wire.key, provider: wire.provider, baseUrl: wire.baseUrl,
             reasoningEffort: (ident && ident.reasoningEffort) || reasoningEffort,
             model: wire.model, system: workerSystem((ident && ident.system) || ''),

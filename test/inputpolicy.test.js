@@ -304,5 +304,24 @@ A.eq(backgroundOwnsLoopbackUrl({ running: true, tail: 'Local: https://[::1]:4443
   A.ok(fullComputer.ok === true && fullDesktop.ok === true, 'Full Power reaches physical input and visible desktop through every dispatch gate');
   A.eq(driverCalls, 1, 'Full Power reaches the native input driver exactly once');
   A.eq(openerCalls, 1, 'Full Power reaches the visible desktop opener exactly once');
+  // Delegation only bridges MCP authority; cached consent cannot widen other unattended effects.
+  const mcp = { name: 'mcp__crm__read', capability: 'mcp:crm', scope: 'read' };
+  let parentAllows = true;
+  const parent = makeRunAuthority({ surface: 'interactive', confirm: async () => 'once' });
+  const delegated = makeRunAuthority({ surface: 'autonomous', connectorAuthority: {
+    project: tool => parentAllows && parent.project(tool), authorize: parent.authorize
+  } });
+  A.ok(delegated.project(mcp), 'watched lead can expose MCP to delegated worker');
+  A.ok((await delegated.authorize({}, mcp)).ok, 'delegated MCP reaches the separate consent broker');
+  for (const tool of [{ name: 'unknown', capability: 'unclassified' }, { name: 'shell.exec', capability: 'workbench' }, { name: 'computer.use', capability: 'physical-input' }]) {
+    A.eq(delegated.project(tool), false, 'MCP bridge cannot expose ' + tool.name);
+    A.eq((await delegated.authorize({}, tool)).ok, false, 'MCP bridge cannot authorize ' + tool.name);
+  }
+  parentAllows = false;
+  A.eq(delegated.project(mcp), false, 'live parent revocation removes delegated MCP authority');
+  A.eq((await delegated.authorize({}, mcp)).ok, false, 'previous projection cannot bypass parent revocation');
+  const unattended = makeRunAuthority({ surface: 'autonomous' });
+  const unattendedChild = makeRunAuthority({ connectorAuthority: unattended });
+  A.eq(unattendedChild.project(mcp), false, 'an ungranted unattended lead cannot mint a connector grant');
   A.report('inputpolicy.test');
 })().catch(e => { console.error(e); process.exit(1); });

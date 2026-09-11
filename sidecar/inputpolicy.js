@@ -129,6 +129,14 @@ function makeRunAuthority(opts) {
   const unattendedGrants = normalizeUnattendedGrants(opts.unattendedGrants);
   const workbenchGranted = unattendedGrants.has('workbench');
   const connectorsGranted = unattendedGrants.has('connectors');
+  // Host-only delegation bridge. A worker keeps its own capability projection and the lead's consent
+  // broker, but can reach that broker for MCP calls the lead's live authority permits. This is not a
+  // general interactive-surface upgrade and cannot grant shell, desktop or unknown non-MCP effects.
+  const connectorAuthority = opts.connectorAuthority;
+  function connectorDelegated(tool) {
+    if (!isConnectorTool(tool) || !connectorAuthority || typeof connectorAuthority.project !== 'function' || typeof connectorAuthority.authorize !== 'function') return false;
+    try { return connectorAuthority.project(tool) === true; } catch (_) { return false; }
+  }
   // An unattended run may call a CONNECTOR tool only when the Commander granted this routine 'connectors'
   // AND the tool really is one. A tool that merely fell through to external-unknown (the fail-closed default
   // for anything unclassifiable) is NOT a connector and stays denied — the grant must never become a
@@ -143,7 +151,7 @@ function makeRunAuthority(opts) {
     if (impact === IMPACTS.EXTERNAL_UNKNOWN) {
       if (trusted) return true;
       if (surface === 'interactive') return !!confirm;
-      return connectorAllowedUnattended(tool);
+      return connectorAllowedUnattended(tool) || connectorDelegated(tool);
     }
     if (!trusted && surface !== 'interactive' && impact === IMPACTS.MEDIA_CONTROL) return false;
     // In ASK mode a host-process capability unattended requires the explicit per-run grant above.
@@ -169,6 +177,7 @@ function makeRunAuthority(opts) {
       if (surface !== 'interactive' && connectorAllowedUnattended(tool)) {
         return { ok: true, impact, surface, isTask, isolated };
       }
+      if (surface !== 'interactive' && connectorDelegated(tool)) return connectorAuthority.authorize(call, tool);
       if (surface !== 'interactive' || !confirm) return { ok: false, impact, reason: 'unknown external effects require a watched, exact per-call confirmation' };
       /* A WATCHED call to one of the Commander's OWN connected MCP servers. Hand it to the consent broker —
          WITHOUT oneShot, so registry.dispatch runs the broker, which does the asking AND records the grade the
