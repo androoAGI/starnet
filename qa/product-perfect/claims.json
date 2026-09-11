@@ -18,7 +18,7 @@
   "expectedClaimCount": 37,
   "releaseSurface": {
     "algorithm": "sha256",
-    "sourceCommit": "2c041bbe69124eda1f60a6eb5a11cc44676028cb",
+    "sourceCommit": "62c08e3a6fab4a05f77cf3dbe160b113a4f06515",
     "pathSetSha256": "51677953e0b1823c314c0a8ad0a8ec8e032f5d458eb166518757c4e2b284ff90",
     "files": [
       {
@@ -68,8 +68,8 @@
       },
       {
         "path": "frontend/app/app.js",
-        "bytes": 382109,
-        "sha256": "76bf8d1b3e17e81f63be6dc546baf89097d930061996f417f18c5d21aa093e64"
+        "bytes": 382220,
+        "sha256": "06ce5ce45191bad5f6e97bdea4d286411428c3b35b4c8f30d8e044475c0785ae"
       },
       {
         "path": "frontend/app/armconfirm.js",
@@ -823,8 +823,8 @@
       },
       {
         "path": "frontend/app/stationui.js",
-        "bytes": 692321,
-        "sha256": "e898cf89f15917d33caf7f9d6e92dc29ec8f993acd8cb3170272e49d76c57026"
+        "bytes": 692688,
+        "sha256": "385e0d6ec2a3db3c7d3a2c34c0643f4b08788aa3f07e4aaa123231c6dfce40c4"
       },
       {
         "path": "frontend/app/study.js",
@@ -1143,8 +1143,8 @@
       },
       {
         "path": "frontend/css/glass-demo.css",
-        "bytes": 32359,
-        "sha256": "d09f4a1b2243c2c02d36d11042fef16ff9dbff931740509731bf53002912eaef"
+        "bytes": 32515,
+        "sha256": "5210396774641896b8ac20e3d0eb7c08d0bb0e2c40333ea49cb64584a5f72fd7"
       },
       {
         "path": "frontend/css/interface.css",
@@ -1213,8 +1213,8 @@
       },
       {
         "path": "frontend/css/settings.css",
-        "bytes": 12347,
-        "sha256": "2e61680bf74733c48bf92e6f727e761d087ef0145986059dade8958c5c2b98d3"
+        "bytes": 15286,
+        "sha256": "98304bdf51b7d6726d3f9899f8918c242ec95933d905966192b50673921699a6"
       },
       {
         "path": "frontend/css/style.css",
