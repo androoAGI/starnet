@@ -30,6 +30,10 @@ on:
         description: "Optional historical public release to populate, then reinstall the private candidate over (e.g. v0.11.1)"
         required: false
         default: ""
+      verify_static_level:
+        description: "Verify CRT static settings and persistence in the installed candidate"
+        required: false
+        default: "false"
 
 jobs:
   prove:
@@ -226,6 +230,7 @@ jobs:
         shell: pwsh
         env:
           BASELINE_TAG: ${{ inputs.baseline_tag }}
+          PROOF_STATIC_LEVEL: ${{ inputs.verify_static_level }}
         run: |
           $ErrorActionPreference = 'Stop'
           if ($env:BASELINE_TAG -notmatch '^v\d+\.\d+\.\d+$') { throw 'Invalid baseline tag' }
@@ -260,6 +265,7 @@ jobs:
         run: |
           New-Item -ItemType Directory -Force candidate-evidence | Out-Null
           if (Test-Path public-upgrade-continuity.json) { Copy-Item -LiteralPath public-upgrade-continuity.json -Destination candidate-evidence/ }
+          if (Test-Path qa/installed) { Copy-Item -LiteralPath qa/installed -Destination candidate-evidence/installed-smoke -Recurse }
 
       - uses: actions/upload-artifact@v4
         if: always() && inputs.build_run_id != ''

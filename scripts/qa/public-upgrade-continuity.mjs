@@ -136,6 +136,20 @@ try {
   const projection = stableJson(fixtureState(continuityProjection(before)));
   if (projection !== stableJson(fixtureState(continuityProjection(after)))) throw new Error('State changed across public-to-candidate reinstall');
   receipt.checks.statePreservedAcrossInstall = true;
+  if (process.env.PROOF_STATIC_LEVEL === 'true') {
+    await evalJS(cdp, "StationUI.openTerm('settings','appearance')");
+    await sleep(250);
+    receipt.staticDefault = await evalJS(cdp, "({value:document.querySelector('#set-static')?.value,multiplier:World.crt.staticLevel})");
+    if (receipt.staticDefault.value !== '100' || receipt.staticDefault.multiplier !== 1) throw new Error('Historical station did not retain the default CRT appearance');
+    receipt.staticLevels = [];
+    for (const value of [0, 200, 45]) {
+      const observed = await evalJS(cdp, `(()=>{const input=document.querySelector('#set-static');input.value=${value};input.dispatchEvent(new Event('input',{bubbles:true}));input.dispatchEvent(new Event('change',{bubbles:true}));return {value:input.value,multiplier:World.crt.staticLevel,saved:JSON.parse(localStorage.getItem('starnet.station.v1')).settings.staticLevel};})()`);
+      if (observed.saved !== value || observed.multiplier !== value / 100) throw new Error('Installed static setting did not apply and save');
+      receipt.staticLevels.push(observed);
+    }
+    await evalJS(cdp, "StationUI.closeTerm('settings')");
+    receipt.checks.staticLevelAppliesAndSaves = true;
+  }
   // Normal quit and relaunch exercise the candidate's ordinary persisted state path too.
   await evalJS(cdp, '__TAURI__.window.getCurrentWindow().close()').catch(() => {});
   for (let n = 0; n < 90; n++) {
@@ -150,6 +164,20 @@ try {
   if (!await evalJS(cdp, "__TAURI__.core.invoke('harness_has_provider_key',{provider:'openrouter'})")) throw new Error('Synthetic key did not survive candidate restart');
   receipt.syntheticKeyPresentAcrossInstallAndRestart = true;
   receipt.checks.statePreservedAcrossRestart = true;
+  if (process.env.PROOF_STATIC_LEVEL === 'true') {
+    await evalJS(cdp, "StationUI.openTerm('settings','appearance')");
+    await sleep(250);
+    receipt.staticRestarted = await evalJS(cdp, "({value:document.querySelector('#set-static')?.value,multiplier:World.crt.staticLevel,saved:JSON.parse(localStorage.getItem('starnet.station.v1')).settings.staticLevel})");
+    if (receipt.staticRestarted.value !== '45' || receipt.staticRestarted.multiplier !== .45 || receipt.staticRestarted.saved !== 45) throw new Error('Installed static setting did not survive normal restart');
+    await evalJS(cdp, "StationUI.closeTerm('settings')");
+    receipt.checks.staticLevelSurvivesRestart = true;
+  }
+  // Run the normal installed-WebView smoke against these exact signed executable bytes.
+  receipt.installedSmokeLog = execFileSync(process.execPath, ['scripts/qa/installed-smoke.mjs'], {
+    encoding: 'utf8', windowsHide: true, timeout: 120000,
+    env: { ...process.env, STARNET_SMOKE_CDP_PORT: '19373', STARNET_SMOKE_EXPECTED_HEAD: expected, STARNET_SMOKE_ARTIFACT: exe }
+  });
+  receipt.checks.installedSmoke = true;
   receipt.projectionSha256 = createHash('sha256').update(projection).digest('hex');
   receipt.installedExeSha256 = sha(exe);
   receipt.outcome = 'PASS';
