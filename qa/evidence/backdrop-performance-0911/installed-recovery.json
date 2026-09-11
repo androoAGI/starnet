@@ -1,0 +1,294 @@
+{
+  "at": "2026-09-11T00:42:46.745Z",
+  "port": 19443,
+  "rows": [
+    {
+      "id": "nursery",
+      "before": {
+        "probe": {
+          "x": 120,
+          "y": 97
+        },
+        "probeOff": false,
+        "recoveries": 0,
+        "blank": false
+      },
+      "loss": {
+        "bake": 2,
+        "sky": 3,
+        "ground": 1,
+        "probe": {
+          "x": 120,
+          "y": 97
+        }
+      },
+      "after": {
+        "cache": {
+          "probe": {
+            "x": 120,
+            "y": 97
+          },
+          "probeOff": false,
+          "recoveries": 1,
+          "blank": false
+        },
+        "curve": {
+          "path": "webgl",
+          "ready": true,
+          "failed": false,
+          "lost": false,
+          "frameSum": 62
+        },
+        "workers": [
+          {
+            "kind": "sky",
+            "busy": false,
+            "queued": false,
+            "failed": false
+          }
+        ]
+      },
+      "pass": true
+    },
+    {
+      "id": "city",
+      "before": {
+        "probe": {
+          "x": 120,
+          "y": 97
+        },
+        "probeOff": false,
+        "recoveries": 1,
+        "blank": false
+      },
+      "loss": {
+        "bake": 2,
+        "sky": 3,
+        "ground": 0,
+        "probe": {
+          "x": 120,
+          "y": 97
+        }
+      },
+      "after": {
+        "cache": {
+          "probe": {
+            "x": 120,
+            "y": 97
+          },
+          "probeOff": false,
+          "recoveries": 2,
+          "blank": false
+        },
+        "curve": {
+          "path": "webgl",
+          "ready": true,
+          "failed": false,
+          "lost": false,
+          "frameSum": 56
+        },
+        "workers": [
+          {
+            "kind": "sky",
+            "busy": false,
+            "queued": false,
+            "failed": false
+          }
+        ]
+      },
+      "pass": true
+    },
+    {
+      "id": "ocean",
+      "before": {
+        "probe": {
+          "x": 120,
+          "y": 97
+        },
+        "probeOff": false,
+        "recoveries": 2,
+        "blank": false
+      },
+      "loss": {
+        "bake": 2,
+        "sky": 7,
+        "ground": 0,
+        "probe": {
+          "x": 120,
+          "y": 97
+        }
+      },
+      "after": {
+        "cache": {
+          "probe": {
+            "x": 120,
+            "y": 97
+          },
+          "probeOff": false,
+          "recoveries": 3,
+          "blank": false
+        },
+        "curve": {
+          "path": "webgl",
+          "ready": true,
+          "failed": false,
+          "lost": false,
+          "frameSum": 110
+        },
+        "workers": [
+          {
+            "kind": "sky",
+            "busy": false,
+            "queued": false,
+            "failed": false
+          }
+        ]
+      },
+      "pass": true
+    },
+    {
+      "id": "belt",
+      "before": {
+        "probe": {
+          "x": 120,
+          "y": 97
+        },
+        "probeOff": false,
+        "recoveries": 3,
+        "blank": false
+      },
+      "loss": {
+        "bake": 2,
+        "sky": 7,
+        "ground": 0,
+        "probe": {
+          "x": 120,
+          "y": 97
+        }
+      },
+      "after": {
+        "cache": {
+          "probe": {
+            "x": 120,
+            "y": 97
+          },
+          "probeOff": false,
+          "recoveries": 4,
+          "blank": false
+        },
+        "curve": {
+          "path": "webgl",
+          "ready": true,
+          "failed": false,
+          "lost": false,
+          "frameSum": 40
+        },
+        "workers": [
+          {
+            "kind": "sky",
+            "busy": false,
+            "queued": false,
+            "failed": false
+          }
+        ]
+      },
+      "pass": true
+    },
+    {
+      "id": "moon",
+      "before": {
+        "probe": {
+          "x": 120,
+          "y": 97
+        },
+        "probeOff": false,
+        "recoveries": 4,
+        "blank": false
+      },
+      "loss": {
+        "bake": 2,
+        "sky": 7,
+        "ground": 1,
+        "probe": {
+          "x": 120,
+          "y": 97
+        }
+      },
+      "after": {
+        "cache": {
+          "probe": {
+            "x": 120,
+            "y": 97
+          },
+          "probeOff": false,
+          "recoveries": 5,
+          "blank": false
+        },
+        "curve": {
+          "path": "webgl",
+          "ready": true,
+          "failed": false,
+          "lost": false,
+          "frameSum": 132
+        },
+        "workers": [
+          {
+            "kind": "ground",
+            "busy": false,
+            "queued": false,
+            "failed": false
+          }
+        ]
+      },
+      "pass": true
+    },
+    {
+      "id": "forest",
+      "before": {
+        "probe": {
+          "x": 120,
+          "y": 97
+        },
+        "probeOff": false,
+        "recoveries": 5,
+        "blank": false
+      },
+      "loss": {
+        "bake": 2,
+        "sky": 0,
+        "ground": 1,
+        "probe": {
+          "x": 120,
+          "y": 97
+        }
+      },
+      "after": {
+        "cache": {
+          "probe": {
+            "x": 120,
+            "y": 97
+          },
+          "probeOff": false,
+          "recoveries": 6,
+          "blank": false
+        },
+        "curve": {
+          "path": "webgl",
+          "ready": true,
+          "failed": false,
+          "lost": false,
+          "frameSum": 58
+        },
+        "workers": [
+          {
+            "kind": "ground",
+            "busy": false,
+            "queued": false,
+            "failed": false
+          }
+        ]
+      },
+      "pass": true
+    }
+  ]
+}

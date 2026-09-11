@@ -1,0 +1,102 @@
+{
+  "at": "2026-09-11T00:50:58.639Z",
+  "code": "2c041bbe69124eda1f60a6eb5a11cc44676028cb",
+  "files": [
+    {
+      "path": "baseline-stress.json",
+      "sha256": "e6bcf42faa6add23548edca337e11e69937f504eb38d3f1c0d3cc5449b1e526a",
+      "bytes": 5707,
+      "source": ".dogfood/backdrop-performance/before-nearest.json"
+    },
+    {
+      "path": "baseline-minzoom.json",
+      "sha256": "8eca4102003ca34de2436314dbaf2cb5feb2fc85a2ae1c34a162b22ea8b95e8a",
+      "bytes": 789,
+      "source": ".dogfood/backdrop-performance/baseline-minzoom.json"
+    },
+    {
+      "path": "renderer-after.json",
+      "sha256": "7271ee3b2a78434cca7823b25502f7a1b36d775c4cd039c08c523dd9081dfb2e",
+      "bytes": 10441,
+      "source": ".dogfood/backdrop-performance/after.json"
+    },
+    {
+      "path": "source-live.json",
+      "sha256": "55a7a994f6dbb28706ee9cb729bd04184c55786ced36930241f686d732480099",
+      "bytes": 13891,
+      "source": ".dogfood/backdrop-performance/live-source/receipt.json"
+    },
+    {
+      "path": "installed-live.json",
+      "sha256": "363d082d34cf04a9353a4e4a8853700d520955fb0b021bec4ca03ef5a4507b30",
+      "bytes": 15039,
+      "source": ".dogfood/backdrop-performance/live-installed/receipt.json"
+    },
+    {
+      "path": "installed-4k.json",
+      "sha256": "b620c4c1cc355f737c8b3895807dee9e17e9a1287a54912c11170c47d76648a9",
+      "bytes": 14767,
+      "source": ".dogfood/backdrop-performance/live-installed-4k/receipt.json"
+    },
+    {
+      "path": "installed-minzoom.json",
+      "sha256": "02649cfb6a20644f70d1d1757000e02026c24ce67d7658dcc51022e0ed6dd736",
+      "bytes": 3645,
+      "source": ".dogfood/backdrop-performance/installed-lowzoom.json"
+    },
+    {
+      "path": "source-recovery.json",
+      "sha256": "c17d6fc7f11df576bf8f7c27daae94fdfa0a632ae5351bf509ea3169ba2a6d03",
+      "bytes": 5545,
+      "source": ".dogfood/backdrop-performance/recovery-source.json"
+    },
+    {
+      "path": "installed-recovery.json",
+      "sha256": "4fac5523e9f56907f1e5e88bbfe99ab668b2791701ada5bbe1147bafea054041",
+      "bytes": 5545,
+      "source": ".dogfood/backdrop-performance/recovery-installed.json"
+    },
+    {
+      "path": "persistence.json",
+      "sha256": "8df79dd20329cdb4f9273129c0e793172229de0a9fb3332728fc7cab7676ddfc",
+      "bytes": 1135,
+      "source": ".dogfood/backdrop-performance/persistence.json"
+    },
+    {
+      "path": "screenshots/forest.png",
+      "sha256": "ffbda3c4649648a45feb14811366c9d9dbf8ccf7898a1b3cddda68abf7d8c501",
+      "bytes": 1605601,
+      "source": ".dogfood/backdrop-performance/live-installed/forest.png"
+    },
+    {
+      "path": "screenshots/moon.png",
+      "sha256": "d040affe53562f0067c6b820e0fb50c550461732f42ff1836760fe7301374465",
+      "bytes": 1880327,
+      "source": ".dogfood/backdrop-performance/live-installed/moon.png"
+    },
+    {
+      "path": "screenshots/ocean.png",
+      "sha256": "9f58bdd08a47dba76a3ca1d9eeabc7e0adb4d2384aea5e0d0f83f8c676810a36",
+      "bytes": 1961180,
+      "source": ".dogfood/backdrop-performance/live-installed/ocean.png"
+    },
+    {
+      "path": "installed-probe-0.json",
+      "sha256": "adb3afb36d40748707673cb767c18d93689a0b0a0ef3c30c21171ea913c10c6e",
+      "bytes": 2330,
+      "source": "qa/installed/smoke-2026-09-11T00-41-48-560Z/probe.json"
+    },
+    {
+      "path": "installed-smoke.json",
+      "sha256": "b39665b13291bf04ff80ab6d295e488427cd088b23e431f29ed97b4462ce3a14",
+      "bytes": 1371,
+      "source": "qa/installed/last-smoke.json; probe paths relocated without changing probe bytes"
+    },
+    {
+      "path": "gates.json",
+      "sha256": "57fa429c4f0950c3eae478c5653cb525220fc22a617fef65fdf1260e8ca264dc",
+      "bytes": 1724,
+      "source": "validated local logs"
+    }
+  ]
+}

@@ -1,0 +1,40 @@
+{
+  "at": "2026-09-11T00:50:58.637Z",
+  "code": "2c041bbe69124eda1f60a6eb5a11cc44676028cb",
+  "candidate": "0152b2f1660197483114e628db0b7bd8da020f05",
+  "checks": [
+    {
+      "path": ".dogfood/backdrop-performance/fast-candidate.log",
+      "sha256": "e4075372e7e9fea599baf73980cb9402dc683c5cf87de5fee9a246d0bacba876",
+      "result": "pass",
+      "summary": "771 step(s) green"
+    },
+    {
+      "path": ".dogfood/backdrop-performance/customer-journeys.log",
+      "sha256": "53c7e80152648c0197085af4a430d9eb5e0fecdc34536a4ecc166d7ec58725d1",
+      "result": "pass",
+      "summary": "34 step(s) green"
+    },
+    {
+      "path": ".dogfood/backdrop-performance/golden.log",
+      "sha256": "ac1c76c4e1c807563d73783cd5dbaff7541df3ba99332a3aa44c43ef204f91a4",
+      "result": "pass",
+      "summary": "GOLDEN PASS"
+    }
+  ],
+  "retainedFailedAttempts": [
+    {
+      "path": ".dogfood/backdrop-performance/fast.log",
+      "reason": "Evidence scanner hit the live Chrome profile lock; the owned profile was moved out of evidence, no gate rule changed."
+    },
+    {
+      "path": ".dogfood/backdrop-performance/fast-final.log",
+      "reason": "Claims ledger still named the prior candidate; refreshed against the committed repaired source, then focused and full gates passed."
+    },
+    {
+      "path": ".dogfood/backdrop-performance/installed-smoke-expected-head-mismatch.json",
+      "reason": "Binary compiled the clean source repair commit before the QA-only ledger commit; verified against its actual code commit and kept the failed expected-head attempt."
+    }
+  ],
+  "scope": "Full fast and customer journeys, unchanged visual thresholds, and exact clean installed-source smoke. No release-readiness claim."
+}

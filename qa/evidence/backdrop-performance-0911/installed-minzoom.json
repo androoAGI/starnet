@@ -1,0 +1,170 @@
+{
+  "at": "2026-09-11T00:46:13.253Z",
+  "scope": "Actual installed canary at a 3840x2160 emulated viewport, minimum zoom reached by real wheel input, sustained camera drag, no renderer replacement.",
+  "rows": [
+    {
+      "id": "moon",
+      "viewport": {
+        "width": 3840,
+        "height": 2160
+      },
+      "camera": {
+        "mode": "manual",
+        "lockId": null,
+        "source": null,
+        "idleMs": 6397,
+        "thresholdMs": 120000,
+        "scale": 0.5,
+        "panX": 1705,
+        "panY": 927,
+        "gates": {
+          "anim": false,
+          "frozen": false,
+          "cache": true,
+          "reduceMotion": false
+        }
+      },
+      "frames": {
+        "count": 1532,
+        "p50": 4.199999999982538,
+        "p95": 4.2999999999883585,
+        "max": 16.70000000001164
+      },
+      "terrain": {
+        "count": 1532,
+        "p50": 0,
+        "p95": 0.10000000149011612,
+        "max": 0.20000000298023224
+      },
+      "longTasks": {
+        "count": 0,
+        "p50": 0,
+        "p95": 0,
+        "max": 0
+      },
+      "cache": {
+        "probe": {
+          "x": 120,
+          "y": 97
+        },
+        "probeOff": false,
+        "recoveries": 0,
+        "blank": false
+      },
+      "curve": {
+        "path": "webgl",
+        "ready": true,
+        "failed": false,
+        "lost": false,
+        "frameSum": 129
+      },
+      "bake": {
+        "ready": true,
+        "id": "moon",
+        "width": 4352,
+        "height": 2641,
+        "scale": 0.5,
+        "left": -4096,
+        "top": -2560,
+        "stationKey": "{\"x\":0,\"y\":0,\"w\":240,\"h\":194}"
+      },
+      "workers": [
+        {
+          "kind": "ground",
+          "busy": false,
+          "queued": false,
+          "failed": false
+        },
+        {
+          "kind": "sky",
+          "busy": false,
+          "queued": false,
+          "failed": false
+        }
+      ],
+      "errors": []
+    },
+    {
+      "id": "forest",
+      "viewport": {
+        "width": 3840,
+        "height": 2160
+      },
+      "camera": {
+        "mode": "manual",
+        "lockId": null,
+        "source": null,
+        "idleMs": 6535,
+        "thresholdMs": 120000,
+        "scale": 0.5,
+        "panX": 1526,
+        "panY": 805,
+        "gates": {
+          "anim": false,
+          "frozen": false,
+          "cache": true,
+          "reduceMotion": false
+        }
+      },
+      "frames": {
+        "count": 1406,
+        "p50": 4.199999999982538,
+        "p95": 8.299999999988358,
+        "max": 62.5
+      },
+      "terrain": {
+        "count": 1406,
+        "p50": 0,
+        "p95": 0.10000000149011612,
+        "max": 0.20000000298023224
+      },
+      "longTasks": {
+        "count": 0,
+        "p50": 0,
+        "p95": 0,
+        "max": 0
+      },
+      "cache": {
+        "probe": {
+          "x": 120,
+          "y": 97
+        },
+        "probeOff": false,
+        "recoveries": 0,
+        "blank": false
+      },
+      "curve": {
+        "path": "webgl",
+        "ready": true,
+        "failed": false,
+        "lost": false,
+        "frameSum": 46
+      },
+      "bake": {
+        "ready": true,
+        "id": "forest",
+        "width": 4352,
+        "height": 2641,
+        "scale": 0.5,
+        "left": -3840,
+        "top": -2304,
+        "stationKey": "{\"x\":0,\"y\":0,\"w\":240,\"h\":194}"
+      },
+      "workers": [
+        {
+          "kind": "ground",
+          "busy": false,
+          "queued": false,
+          "failed": false
+        },
+        {
+          "kind": "sky",
+          "busy": false,
+          "queued": false,
+          "failed": false
+        }
+      ],
+      "errors": []
+    }
+  ]
+}

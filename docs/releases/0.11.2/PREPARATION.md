@@ -1,5 +1,7 @@
 # 0.11.2 preparation — September 10, 2026
 
+The subsequent owner-reported backdrop lag is repaired and Windows-canary-verified; see [BACKDROP_PERFORMANCE.md](BACKDROP_PERFORMANCE.md). Earlier audit receipts below retain their original source identities.
+
 **Not ready to cut.** Version pins remain at 0.11.1. The follow-through has repaired additional installed-app and packaging failures, built a separate signed 0.11.2 canary, exercised its automatic updater, and pushed the review branch. No public tag or release was published. See [FOLLOWTHROUGH.md](FOLLOWTHROUGH.md) for the current candidate, evidence and remaining acceptance work. The sections below preserve the initial audit's exact scope and historical receipts; their "this pass" statements refer to that first pass.
 
 ## Candidate and coverage

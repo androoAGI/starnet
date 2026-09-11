@@ -1,0 +1,697 @@
+{
+  "at": "2026-09-11T00:42:36.504Z",
+  "port": 19443,
+  "scope": "Live full Cinema UI: six Appearance selections, real mouse pans and wheel zoom, renderer submission and whole-app timing reported separately. Hardware performance and initial artwork wait are not equated with UI-thread blocking.",
+  "rows": [
+    {
+      "id": "nursery",
+      "viewport": {
+        "width": 1280,
+        "height": 832,
+        "dpr": 1
+      },
+      "stage": {
+        "width": 1280,
+        "height": 801
+      },
+      "switchAndMove": {
+        "frames": {
+          "count": 1533,
+          "p50": 4.199999999999818,
+          "p95": 4.300000000000182,
+          "max": 58.399999999999636
+        },
+        "longTasks": {
+          "count": 1,
+          "p50": 60,
+          "p95": 60,
+          "max": 60
+        }
+      },
+      "moving": {
+        "frames": {
+          "count": 1359,
+          "p50": 4.199999999998909,
+          "p95": 4.299999999999272,
+          "max": 58.399999999999636
+        },
+        "sky": {
+          "count": 1359,
+          "p50": 0.20000000298023224,
+          "p95": 0.30000000447034836,
+          "max": 2.600000001490116
+        },
+        "ground": {
+          "count": 0,
+          "p50": 0,
+          "p95": 0,
+          "max": 0
+        },
+        "longTasks": {
+          "count": 1,
+          "p50": 60,
+          "p95": 60,
+          "max": 60
+        }
+      },
+      "camera": {
+        "mode": "manual",
+        "lockId": null,
+        "source": null,
+        "idleMs": 1542,
+        "thresholdMs": 120000,
+        "scale": 1.286,
+        "panX": 552,
+        "panY": 354,
+        "gates": {
+          "anim": false,
+          "frozen": false,
+          "cache": true,
+          "reduceMotion": false
+        }
+      },
+      "curve": {
+        "path": "webgl",
+        "ready": true,
+        "failed": false,
+        "lost": false,
+        "frameSum": 34
+      },
+      "cache": {
+        "probe": {
+          "x": 120,
+          "y": 97
+        },
+        "probeOff": false,
+        "recoveries": 0,
+        "blank": false
+      },
+      "workers": [
+        {
+          "kind": "ground",
+          "busy": false,
+          "queued": false,
+          "failed": false
+        },
+        {
+          "kind": "sky",
+          "busy": false,
+          "queued": false,
+          "failed": false
+        }
+      ],
+      "sky": {
+        "ready": true,
+        "id": "nursery",
+        "width": 1920,
+        "height": 960
+      },
+      "ground": {
+        "ready": false,
+        "id": "forest",
+        "width": 1792,
+        "height": 1313,
+        "scale": 0.9166666666666666,
+        "left": -977.4545454545455,
+        "top": -698.1818181818182,
+        "stationKey": "{\"x\":0,\"y\":0,\"w\":240,\"h\":194}"
+      },
+      "errors": []
+    },
+    {
+      "id": "city",
+      "viewport": {
+        "width": 1280,
+        "height": 832,
+        "dpr": 1
+      },
+      "stage": {
+        "width": 1280,
+        "height": 801
+      },
+      "switchAndMove": {
+        "frames": {
+          "count": 1556,
+          "p50": 4.199999999998909,
+          "p95": 4.299999999999272,
+          "max": 8.399999999999636
+        },
+        "longTasks": {
+          "count": 0,
+          "p50": 0,
+          "p95": 0,
+          "max": 0
+        }
+      },
+      "moving": {
+        "frames": {
+          "count": 1355,
+          "p50": 4.199999999998909,
+          "p95": 4.299999999999272,
+          "max": 8.399999999999636
+        },
+        "sky": {
+          "count": 1355,
+          "p50": 0.10000000149011612,
+          "p95": 0.20000000298023224,
+          "max": 0.3999999985098839
+        },
+        "ground": {
+          "count": 0,
+          "p50": 0,
+          "p95": 0,
+          "max": 0
+        },
+        "longTasks": {
+          "count": 0,
+          "p50": 0,
+          "p95": 0,
+          "max": 0
+        }
+      },
+      "camera": {
+        "mode": "manual",
+        "lockId": null,
+        "source": null,
+        "idleMs": 1551,
+        "thresholdMs": 120000,
+        "scale": 1.286,
+        "panX": 599,
+        "panY": 421,
+        "gates": {
+          "anim": false,
+          "frozen": false,
+          "cache": true,
+          "reduceMotion": false
+        }
+      },
+      "curve": {
+        "path": "webgl",
+        "ready": true,
+        "failed": false,
+        "lost": false,
+        "frameSum": 67
+      },
+      "cache": {
+        "probe": {
+          "x": 120,
+          "y": 97
+        },
+        "probeOff": false,
+        "recoveries": 0,
+        "blank": false
+      },
+      "workers": [
+        {
+          "kind": "ground",
+          "busy": false,
+          "queued": false,
+          "failed": false
+        },
+        {
+          "kind": "sky",
+          "busy": false,
+          "queued": false,
+          "failed": false
+        }
+      ],
+      "sky": {
+        "ready": true,
+        "id": "city",
+        "width": 1280,
+        "height": 801
+      },
+      "ground": {
+        "ready": false,
+        "id": "forest",
+        "width": 1792,
+        "height": 1313,
+        "scale": 0.9166666666666666,
+        "left": -977.4545454545455,
+        "top": -698.1818181818182,
+        "stationKey": "{\"x\":0,\"y\":0,\"w\":240,\"h\":194}"
+      },
+      "errors": []
+    },
+    {
+      "id": "ocean",
+      "viewport": {
+        "width": 1280,
+        "height": 832,
+        "dpr": 1
+      },
+      "stage": {
+        "width": 1280,
+        "height": 801
+      },
+      "switchAndMove": {
+        "frames": {
+          "count": 1580,
+          "p50": 4.200000000000728,
+          "p95": 4.299999999999272,
+          "max": 12.599999999998545
+        },
+        "longTasks": {
+          "count": 0,
+          "p50": 0,
+          "p95": 0,
+          "max": 0
+        }
+      },
+      "moving": {
+        "frames": {
+          "count": 1356,
+          "p50": 4.200000000000728,
+          "p95": 4.299999999999272,
+          "max": 12.599999999998545
+        },
+        "sky": {
+          "count": 1356,
+          "p50": 0.20000000298023224,
+          "p95": 0.3999999985098839,
+          "max": 0.5
+        },
+        "ground": {
+          "count": 0,
+          "p50": 0,
+          "p95": 0,
+          "max": 0
+        },
+        "longTasks": {
+          "count": 0,
+          "p50": 0,
+          "p95": 0,
+          "max": 0
+        }
+      },
+      "camera": {
+        "mode": "manual",
+        "lockId": null,
+        "source": null,
+        "idleMs": 1544,
+        "thresholdMs": 120000,
+        "scale": 1.286,
+        "panX": 646,
+        "panY": 488,
+        "gates": {
+          "anim": false,
+          "frozen": false,
+          "cache": true,
+          "reduceMotion": false
+        }
+      },
+      "curve": {
+        "path": "webgl",
+        "ready": true,
+        "failed": false,
+        "lost": false,
+        "frameSum": 113
+      },
+      "cache": {
+        "probe": {
+          "x": 120,
+          "y": 97
+        },
+        "probeOff": false,
+        "recoveries": 0,
+        "blank": false
+      },
+      "workers": [
+        {
+          "kind": "ground",
+          "busy": false,
+          "queued": false,
+          "failed": false
+        },
+        {
+          "kind": "sky",
+          "busy": false,
+          "queued": false,
+          "failed": false
+        }
+      ],
+      "sky": {
+        "ready": true,
+        "id": "ocean",
+        "width": 1280,
+        "height": 801
+      },
+      "ground": {
+        "ready": false,
+        "id": "forest",
+        "width": 1792,
+        "height": 1313,
+        "scale": 0.9166666666666666,
+        "left": -977.4545454545455,
+        "top": -698.1818181818182,
+        "stationKey": "{\"x\":0,\"y\":0,\"w\":240,\"h\":194}"
+      },
+      "errors": []
+    },
+    {
+      "id": "belt",
+      "viewport": {
+        "width": 1280,
+        "height": 832,
+        "dpr": 1
+      },
+      "stage": {
+        "width": 1280,
+        "height": 801
+      },
+      "switchAndMove": {
+        "frames": {
+          "count": 1521,
+          "p50": 4.200000000000728,
+          "p95": 4.299999999999272,
+          "max": 33.30000000000291
+        },
+        "longTasks": {
+          "count": 0,
+          "p50": 0,
+          "p95": 0,
+          "max": 0
+        }
+      },
+      "moving": {
+        "frames": {
+          "count": 1346,
+          "p50": 4.200000000000728,
+          "p95": 4.299999999999272,
+          "max": 33.30000000000291
+        },
+        "sky": {
+          "count": 1347,
+          "p50": 1.2000000029802322,
+          "p95": 1.6000000014901161,
+          "max": 2.7999999970197678
+        },
+        "ground": {
+          "count": 0,
+          "p50": 0,
+          "p95": 0,
+          "max": 0
+        },
+        "longTasks": {
+          "count": 0,
+          "p50": 0,
+          "p95": 0,
+          "max": 0
+        }
+      },
+      "camera": {
+        "mode": "manual",
+        "lockId": null,
+        "source": null,
+        "idleMs": 1546,
+        "thresholdMs": 120000,
+        "scale": 1.286,
+        "panX": 693,
+        "panY": 555,
+        "gates": {
+          "anim": false,
+          "frozen": false,
+          "cache": true,
+          "reduceMotion": false
+        }
+      },
+      "curve": {
+        "path": "webgl",
+        "ready": true,
+        "failed": false,
+        "lost": false,
+        "frameSum": 16
+      },
+      "cache": {
+        "probe": {
+          "x": 120,
+          "y": 97
+        },
+        "probeOff": false,
+        "recoveries": 0,
+        "blank": false
+      },
+      "workers": [
+        {
+          "kind": "ground",
+          "busy": false,
+          "queued": false,
+          "failed": false
+        },
+        {
+          "kind": "sky",
+          "busy": false,
+          "queued": false,
+          "failed": false
+        }
+      ],
+      "sky": {
+        "ready": true,
+        "id": "belt",
+        "width": 1280,
+        "height": 801
+      },
+      "ground": {
+        "ready": false,
+        "id": "forest",
+        "width": 1792,
+        "height": 1313,
+        "scale": 0.9166666666666666,
+        "left": -977.4545454545455,
+        "top": -698.1818181818182,
+        "stationKey": "{\"x\":0,\"y\":0,\"w\":240,\"h\":194}"
+      },
+      "errors": []
+    },
+    {
+      "id": "moon",
+      "viewport": {
+        "width": 1280,
+        "height": 832,
+        "dpr": 1
+      },
+      "stage": {
+        "width": 1280,
+        "height": 801
+      },
+      "switchAndMove": {
+        "frames": {
+          "count": 1612,
+          "p50": 4.19999999999709,
+          "p95": 4.299999999995634,
+          "max": 12.5
+        },
+        "longTasks": {
+          "count": 0,
+          "p50": 0,
+          "p95": 0,
+          "max": 0
+        }
+      },
+      "moving": {
+        "frames": {
+          "count": 1359,
+          "p50": 4.19999999999709,
+          "p95": 4.299999999995634,
+          "max": 12.5
+        },
+        "sky": {
+          "count": 0,
+          "p50": 0,
+          "p95": 0,
+          "max": 0
+        },
+        "ground": {
+          "count": 1359,
+          "p50": 0,
+          "p95": 0.10000000149011612,
+          "max": 0.20000000298023224
+        },
+        "longTasks": {
+          "count": 0,
+          "p50": 0,
+          "p95": 0,
+          "max": 0
+        }
+      },
+      "camera": {
+        "mode": "manual",
+        "lockId": null,
+        "source": null,
+        "idleMs": 1548,
+        "thresholdMs": 120000,
+        "scale": 1.286,
+        "panX": 740,
+        "panY": 622,
+        "gates": {
+          "anim": false,
+          "frozen": false,
+          "cache": true,
+          "reduceMotion": false
+        }
+      },
+      "curve": {
+        "path": "webgl",
+        "ready": true,
+        "failed": false,
+        "lost": false,
+        "frameSum": 133
+      },
+      "cache": {
+        "probe": {
+          "x": 120,
+          "y": 97
+        },
+        "probeOff": false,
+        "recoveries": 0,
+        "blank": false
+      },
+      "workers": [
+        {
+          "kind": "ground",
+          "busy": false,
+          "queued": false,
+          "failed": false
+        },
+        {
+          "kind": "sky",
+          "busy": false,
+          "queued": false,
+          "failed": false
+        }
+      ],
+      "sky": {
+        "ready": false,
+        "id": "belt",
+        "width": 1280,
+        "height": 801
+      },
+      "ground": {
+        "ready": true,
+        "id": "moon",
+        "width": 1792,
+        "height": 1313,
+        "scale": 1.2864066892941655,
+        "left": -796.0157612067887,
+        "top": -696.51379105594,
+        "stationKey": "{\"x\":0,\"y\":0,\"w\":240,\"h\":194}"
+      },
+      "errors": []
+    },
+    {
+      "id": "forest",
+      "viewport": {
+        "width": 1280,
+        "height": 832,
+        "dpr": 1
+      },
+      "stage": {
+        "width": 1280,
+        "height": 801
+      },
+      "switchAndMove": {
+        "frames": {
+          "count": 1533,
+          "p50": 4.19999999999709,
+          "p95": 4.30000000000291,
+          "max": 12.599999999998545
+        },
+        "longTasks": {
+          "count": 0,
+          "p50": 0,
+          "p95": 0,
+          "max": 0
+        }
+      },
+      "moving": {
+        "frames": {
+          "count": 1331,
+          "p50": 4.19999999999709,
+          "p95": 4.30000000000291,
+          "max": 12.599999999998545
+        },
+        "sky": {
+          "count": 0,
+          "p50": 0,
+          "p95": 0,
+          "max": 0
+        },
+        "ground": {
+          "count": 1331,
+          "p50": 0,
+          "p95": 0.10000000149011612,
+          "max": 0.20000000298023224
+        },
+        "longTasks": {
+          "count": 0,
+          "p50": 0,
+          "p95": 0,
+          "max": 0
+        }
+      },
+      "camera": {
+        "mode": "manual",
+        "lockId": null,
+        "source": null,
+        "idleMs": 1546,
+        "thresholdMs": 120000,
+        "scale": 1.286,
+        "panX": 787,
+        "panY": 689,
+        "gates": {
+          "anim": false,
+          "frozen": false,
+          "cache": true,
+          "reduceMotion": false
+        }
+      },
+      "curve": {
+        "path": "webgl",
+        "ready": true,
+        "failed": false,
+        "lost": false,
+        "frameSum": 48
+      },
+      "cache": {
+        "probe": {
+          "x": 120,
+          "y": 97
+        },
+        "probeOff": false,
+        "recoveries": 0,
+        "blank": false
+      },
+      "workers": [
+        {
+          "kind": "ground",
+          "busy": false,
+          "queued": false,
+          "failed": false
+        },
+        {
+          "kind": "sky",
+          "busy": false,
+          "queued": false,
+          "failed": false
+        }
+      ],
+      "sky": {
+        "ready": false,
+        "id": "belt",
+        "width": 1280,
+        "height": 801
+      },
+      "ground": {
+        "ready": true,
+        "id": "forest",
+        "width": 1792,
+        "height": 1313,
+        "scale": 1.2864066892941655,
+        "left": -895.5177313576372,
+        "top": -796.0157612067887,
+        "stationKey": "{\"x\":0,\"y\":0,\"w\":240,\"h\":194}"
+      },
+      "errors": []
+    }
+  ]
+}

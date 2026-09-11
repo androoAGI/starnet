@@ -1,0 +1,531 @@
+{
+  "at": "2026-09-11T00:20:08.008Z",
+  "scope": "Actual renderers in live seeded Chrome, nearest-neighbour world setting, warm camera pans at 0.3 ground scale; worker completion and event-loop responsiveness measured separately.",
+  "rows": [
+    {
+      "id": "void",
+      "w": 640,
+      "h": 900,
+      "cold": 0.20000000298023224,
+      "readyMs": 189.5,
+      "maxTimerGap": 19.200000002980232,
+      "p50": 0.19999999552965164,
+      "p95": 0.29999999701976776,
+      "flush": 0.8999999985098839,
+      "pixel": [
+        8,
+        3,
+        5,
+        255
+      ],
+      "workers": [
+        {
+          "kind": "sky",
+          "busy": false,
+          "queued": false,
+          "failed": false
+        }
+      ]
+    },
+    {
+      "id": "nursery",
+      "w": 640,
+      "h": 900,
+      "cold": 0.3999999985098839,
+      "readyMs": 188.10000000149012,
+      "maxTimerGap": 18.100000001490116,
+      "p50": 0.29999999701976776,
+      "p95": 1.2000000029802322,
+      "flush": 1.8999999985098839,
+      "pixel": [
+        2,
+        2,
+        7,
+        255
+      ],
+      "workers": [
+        {
+          "kind": "sky",
+          "busy": false,
+          "queued": false,
+          "failed": false
+        }
+      ]
+    },
+    {
+      "id": "city",
+      "w": 640,
+      "h": 900,
+      "cold": 0.30000000447034836,
+      "readyMs": 170,
+      "maxTimerGap": 19.30000000447035,
+      "p50": 0.09999999403953552,
+      "p95": 0.3999999985098839,
+      "flush": 1.5,
+      "pixel": [
+        57,
+        42,
+        39,
+        255
+      ],
+      "workers": [
+        {
+          "kind": "sky",
+          "busy": false,
+          "queued": false,
+          "failed": false
+        }
+      ]
+    },
+    {
+      "id": "ocean",
+      "w": 640,
+      "h": 900,
+      "cold": 0.6000000014901161,
+      "readyMs": 269,
+      "maxTimerGap": 18.5,
+      "p50": 0.29999999701976776,
+      "p95": 0.6000000014901161,
+      "flush": 0.9000000059604645,
+      "pixel": [
+        11,
+        34,
+        56,
+        255
+      ],
+      "workers": [
+        {
+          "kind": "sky",
+          "busy": false,
+          "queued": false,
+          "failed": false
+        }
+      ]
+    },
+    {
+      "id": "belt",
+      "w": 640,
+      "h": 900,
+      "cold": 0.3999999985098839,
+      "readyMs": 88.20000000298023,
+      "maxTimerGap": 17.700000002980232,
+      "p50": 2,
+      "p95": 2.7999999970197678,
+      "flush": 1.8999999985098839,
+      "pixel": [
+        0,
+        0,
+        0,
+        255
+      ],
+      "workers": [
+        {
+          "kind": "sky",
+          "busy": false,
+          "queued": false,
+          "failed": false
+        }
+      ]
+    },
+    {
+      "id": "moon",
+      "w": 640,
+      "h": 900,
+      "cold": 0.5,
+      "readyMs": 452.1000000014901,
+      "maxTimerGap": 21.200000002980232,
+      "p50": 0.10000000149011612,
+      "p95": 1.1000000014901161,
+      "flush": 1.1000000014901161,
+      "pixel": [
+        101,
+        95,
+        87,
+        255
+      ],
+      "workers": [
+        {
+          "kind": "ground",
+          "busy": false,
+          "queued": false,
+          "failed": false
+        }
+      ]
+    },
+    {
+      "id": "forest",
+      "w": 640,
+      "h": 900,
+      "cold": 0.4000000059604645,
+      "readyMs": 366.30000000447035,
+      "maxTimerGap": 22.299999997019768,
+      "p50": 0.10000000149011612,
+      "p95": 0.20000000298023224,
+      "flush": 1,
+      "pixel": [
+        8,
+        17,
+        16,
+        255
+      ],
+      "workers": [
+        {
+          "kind": "ground",
+          "busy": false,
+          "queued": false,
+          "failed": false
+        }
+      ]
+    },
+    {
+      "id": "void",
+      "w": 1920,
+      "h": 1080,
+      "cold": 0.3999999985098839,
+      "readyMs": 524.5,
+      "maxTimerGap": 18.600000001490116,
+      "p50": 0.3999999985098839,
+      "p95": 0.7000000029802322,
+      "flush": 2,
+      "pixel": [
+        6,
+        3,
+        3,
+        255
+      ],
+      "workers": [
+        {
+          "kind": "sky",
+          "busy": false,
+          "queued": false,
+          "failed": false
+        }
+      ]
+    },
+    {
+      "id": "nursery",
+      "w": 1920,
+      "h": 1080,
+      "cold": 0.5,
+      "readyMs": 201.10000000149012,
+      "maxTimerGap": 17,
+      "p50": 0.20000000298023224,
+      "p95": 0.30000000447034836,
+      "flush": 1.1999999955296516,
+      "pixel": [
+        2,
+        2,
+        7,
+        255
+      ],
+      "workers": [
+        {
+          "kind": "sky",
+          "busy": false,
+          "queued": false,
+          "failed": false
+        }
+      ]
+    },
+    {
+      "id": "city",
+      "w": 1920,
+      "h": 1080,
+      "cold": 0.3999999985098839,
+      "readyMs": 469.70000000298023,
+      "maxTimerGap": 17.5,
+      "p50": 0.19999999552965164,
+      "p95": 0.29999999701976776,
+      "flush": 0.9000000059604645,
+      "pixel": [
+        59,
+        39,
+        28,
+        255
+      ],
+      "workers": [
+        {
+          "kind": "sky",
+          "busy": false,
+          "queued": false,
+          "failed": false
+        }
+      ]
+    },
+    {
+      "id": "ocean",
+      "w": 1920,
+      "h": 1080,
+      "cold": 0.5,
+      "readyMs": 774.5,
+      "maxTimerGap": 18,
+      "p50": 0.3999999985098839,
+      "p95": 0.5999999940395355,
+      "flush": 1.6999999955296516,
+      "pixel": [
+        9,
+        41,
+        49,
+        255
+      ],
+      "workers": [
+        {
+          "kind": "sky",
+          "busy": false,
+          "queued": false,
+          "failed": false
+        }
+      ]
+    },
+    {
+      "id": "belt",
+      "w": 1920,
+      "h": 1080,
+      "cold": 0.3999999985098839,
+      "readyMs": 153.79999999701977,
+      "maxTimerGap": 18,
+      "p50": 1.6999999955296516,
+      "p95": 2.3000000044703484,
+      "flush": 2,
+      "pixel": [
+        0,
+        0,
+        0,
+        255
+      ],
+      "workers": [
+        {
+          "kind": "sky",
+          "busy": false,
+          "queued": false,
+          "failed": false
+        }
+      ]
+    },
+    {
+      "id": "moon",
+      "w": 1920,
+      "h": 1080,
+      "cold": 0.4000000059604645,
+      "readyMs": 400.80000000447035,
+      "maxTimerGap": 17.600000001490116,
+      "p50": 0.10000000149011612,
+      "p95": 0.19999999552965164,
+      "flush": 0.6000000014901161,
+      "pixel": [
+        86,
+        81,
+        76,
+        255
+      ],
+      "workers": [
+        {
+          "kind": "ground",
+          "busy": false,
+          "queued": false,
+          "failed": false
+        }
+      ]
+    },
+    {
+      "id": "forest",
+      "w": 1920,
+      "h": 1080,
+      "cold": 0.5,
+      "readyMs": 340.20000000298023,
+      "maxTimerGap": 17.899999998509884,
+      "p50": 0.10000000149011612,
+      "p95": 0.20000000298023224,
+      "flush": 1,
+      "pixel": [
+        16,
+        20,
+        13,
+        255
+      ],
+      "workers": [
+        {
+          "kind": "ground",
+          "busy": false,
+          "queued": false,
+          "failed": false
+        }
+      ]
+    },
+    {
+      "id": "void",
+      "w": 3840,
+      "h": 2160,
+      "cold": 0.29999999701976776,
+      "readyMs": 1511.7999999970198,
+      "maxTimerGap": 26.299999997019768,
+      "p50": 0.5,
+      "p95": 0.7000000029802322,
+      "flush": 1.3999999985098839,
+      "pixel": [
+        6,
+        3,
+        3,
+        255
+      ],
+      "workers": [
+        {
+          "kind": "sky",
+          "busy": false,
+          "queued": false,
+          "failed": false
+        }
+      ]
+    },
+    {
+      "id": "nursery",
+      "w": 3840,
+      "h": 2160,
+      "cold": 0.30000000447034836,
+      "readyMs": 182.70000000298023,
+      "maxTimerGap": 17.30000000447035,
+      "p50": 0.19999999552965164,
+      "p95": 0.29999999701976776,
+      "flush": 1.1000000014901161,
+      "pixel": [
+        2,
+        2,
+        7,
+        255
+      ],
+      "workers": [
+        {
+          "kind": "sky",
+          "busy": false,
+          "queued": false,
+          "failed": false
+        }
+      ]
+    },
+    {
+      "id": "city",
+      "w": 3840,
+      "h": 2160,
+      "cold": 0.10000000149011612,
+      "readyMs": 3669.2000000029802,
+      "maxTimerGap": 18.100000001490116,
+      "p50": 0.30000000447034836,
+      "p95": 0.5,
+      "flush": 1.8999999985098839,
+      "pixel": [
+        70,
+        50,
+        42,
+        255
+      ],
+      "workers": [
+        {
+          "kind": "sky",
+          "busy": false,
+          "queued": false,
+          "failed": false
+        }
+      ]
+    },
+    {
+      "id": "ocean",
+      "w": 3840,
+      "h": 2160,
+      "cold": 0.4000000059604645,
+      "readyMs": 6037.20000000298,
+      "maxTimerGap": 18,
+      "p50": 0.5,
+      "p95": 0.8000000044703484,
+      "flush": 1.6000000014901161,
+      "pixel": [
+        154,
+        167,
+        185,
+        255
+      ],
+      "workers": [
+        {
+          "kind": "sky",
+          "busy": false,
+          "queued": false,
+          "failed": false
+        }
+      ]
+    },
+    {
+      "id": "belt",
+      "w": 3840,
+      "h": 2160,
+      "cold": 0.3999999985098839,
+      "readyMs": 438.5,
+      "maxTimerGap": 18.100000001490116,
+      "p50": 1.7000000029802322,
+      "p95": 2.100000001490116,
+      "flush": 2.2999999970197678,
+      "pixel": [
+        0,
+        0,
+        0,
+        255
+      ],
+      "workers": [
+        {
+          "kind": "sky",
+          "busy": false,
+          "queued": false,
+          "failed": false
+        }
+      ]
+    },
+    {
+      "id": "moon",
+      "w": 3840,
+      "h": 2160,
+      "cold": 0.29999999701976776,
+      "readyMs": 352.09999999403954,
+      "maxTimerGap": 18,
+      "p50": 0.09999999403953552,
+      "p95": 0.19999999552965164,
+      "flush": 0.8999999985098839,
+      "pixel": [
+        48,
+        47,
+        48,
+        255
+      ],
+      "workers": [
+        {
+          "kind": "ground",
+          "busy": false,
+          "queued": false,
+          "failed": false
+        }
+      ]
+    },
+    {
+      "id": "forest",
+      "w": 3840,
+      "h": 2160,
+      "cold": 0.29999999701976776,
+      "readyMs": 522,
+      "maxTimerGap": 17.899999998509884,
+      "p50": 0.10000000149011612,
+      "p95": 0.20000000298023224,
+      "flush": 59.70000000298023,
+      "pixel": [
+        18,
+        36,
+        30,
+        255
+      ],
+      "workers": [
+        {
+          "kind": "ground",
+          "busy": false,
+          "queued": false,
+          "failed": false
+        }
+      ]
+    }
+  ]
+}

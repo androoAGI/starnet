@@ -4,15 +4,18 @@ slug: new-backdrops-stall-switching-and-zoomed-out-ter
 title: New backdrops stall switching and zoomed-out terrain rendering
 surface: world
 severity: P1
-status: open
+status: fixed
 found: 2026-09-11
 lane: agent/backdrop-performance-0910
-fix:
+fix: 2c041bbe69124eda1f60a6eb5a11cc44676028cb
 origin: owner
 report: Owner reports the new backdrops make StarNet laggy
 affected: a625182bd; exact owner artifact not supplied
 family: backdrop-performance
-installer: unverified
+installer: verified
+installerVersion: 0.11.2 canary
+installerSha256: 7c4170b3a4d95f51f0880083f697a356bf9b66677b8a962a1994084c765aa363
+installerEvidence: qa/evidence/backdrop-performance-0911/installed-smoke.json and installed-live.json plus installed-4k.json, installed-minzoom.json and installed-recovery.json; exact clean source 2c041bbe6, installed executable f533b788e08656fa694e053b6bbb4a352cf357b066344e6cd54b6f9cf2121ca7; isolated Windows canary, not a public release.
 recovery: unconfirmed
 ---
 
@@ -35,11 +38,13 @@ Before repair, the live seeded renderer's corrected nearest-neighbour benchmark 
 
 ## Verdict
 
-Repair in progress: bounded worker lanes build sky artwork; static world-space terrain plates are rendered off-thread and reused for camera movement. New viewport/zoom/footprint requests replace queued work, and stale replies/bitmaps are disposed. Failed or unsupported workers retain a direct compatibility path; terrain still caches its plate there. Source-fixed, installer proof and the owner's retest remain separate outcomes.
+Fixed and verified in the isolated Windows canary. Bounded worker lanes build sky artwork; static world-space terrain plates are rendered off-thread and reused for camera movement. New viewport/zoom/footprint requests replace queued work, and stale replies/bitmaps are disposed. Failed or unsupported workers retain a direct compatibility path; terrain still caches its plate there. Fast 771/771, customer journeys 34/34 and visual regression 16/16 passed. All six installed scenes passed real selection, drag, zoom and cache-loss recovery, including a 4K emulated viewport. At the actual minimum UI zoom 0.5, installed 4K Forest terrain submission p95 was 0.1 ms, whole-app frame p95 8.3 ms, maximum 62.5 ms, with zero observed long tasks or render errors during the sampled drag. The owner's successful retest remains unconfirmed.
 
 ## Regression
 
 `test/backdrop-bake.test.js` exercises the real dispatcher: cold terrain enqueues without generating sprites on the UI thread, 100 small pans require one bake and one blit each, zoom and clearing changes request new artwork, 500 requests retain only the latest queued view, and cancellation/error/timeout paths dispose resources. `test/canvas-loss-recovery.test.js` retains the source recovery contract. After repair, the same corrected renderer benchmark measured Forest p95 0.2 ms at both 1080p and 4K, with real terrain pixels present. City/Ocean 4K first draw returned within 0.4 ms while worker completion remained asynchronous; the sampled timer gap stayed at or below 18.1 ms. These are renderer/interaction-thread measurements, not a claim that every device runs the whole app at a particular frame rate.
+
+The scale-0.3 probe is explicitly a renderer stress case below the main UI's minimum. A separate original-module scratch-canvas measurement in the same Windows WebView at the real minimum 0.5 measured Forest p95 18.4 ms at 1080p and 97.9 ms at 4K. This original module was instantiated separately; the installed application's repaired renderer was not replaced. The actual installed minimum-zoom drag is recorded independently in installed-minzoom.json. All portable receipts and their content hashes are in qa/evidence/backdrop-performance-0911/manifest.json.
 
 ## Sibling coverage
 

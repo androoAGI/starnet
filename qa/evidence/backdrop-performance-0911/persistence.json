@@ -1,0 +1,36 @@
+{
+  "at": "2026-09-11T00:43:27.092Z",
+  "before": {
+    "version": "0.11.2",
+    "commit": "a625182bd",
+    "sha": "a625182bde05e041c4f4d1fd43112b51770044af",
+    "sourceTree": "29677f765ea58bf9b59883044248c0e235d10c97",
+    "provenanceKind": "reproducible-source",
+    "describe": "archive/backdrops-glowup-2026-09-10-1-ga625182bd",
+    "dirty": false,
+    "executableSha256": "5297767f4ce12ae7fe1de77614d1b0990d90a733a6a3d9fc6ae31ad8b5804c22",
+    "executableSize": 17860096
+  },
+  "after": {
+    "version": "0.11.2",
+    "commit": "2c041bbe6",
+    "sha": "2c041bbe69124eda1f60a6eb5a11cc44676028cb",
+    "sourceTree": "62c6bf711c16886de0ac2f0f33598acb3025574b",
+    "provenanceKind": "reproducible-source",
+    "describe": "archive/backdrops-glowup-2026-09-10-2-g2c041bbe6",
+    "dirty": false,
+    "executableSha256": "f533b788e08656fa694e053b6bbb4a352cf357b066344e6cd54b6f9cf2121ca7",
+    "executableSize": 17864192
+  },
+  "checks": {
+    "crew": true,
+    "props": true,
+    "keyStatus": true,
+    "projectRoot": true,
+    "history": true,
+    "lastRunOk": true,
+    "runIds": true,
+    "projectFile": true,
+    "once": true
+  }
+}
