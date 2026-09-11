@@ -4,10 +4,10 @@ slug: provider-card-status-alignment-and-dated-identit
 title: Provider card status alignment and dated identity artwork
 surface: providers
 severity: P2
-status: open
+status: fixed
 found: 2026-09-11
 lane: agent/providers-polish-0910
-fix:
+fix: 3f2cc70d4
 origin: owner
 report: Owner screenshot and provider polish request, 2026-09-10
 affected: Source 61528ba95; installed version unknown
@@ -36,7 +36,7 @@ Live seeded app on :18917, branch agent/providers-polish-0910: DOM receipt `{log
 
 ## Verdict
 
-Implemented on the isolated lane. Source gate pending; installed delivery and owner recovery remain unverified.
+Implemented on the isolated lane. Full fast gate passed: 771/771 steps. Website mirror check passed: 8 assertions. Installed delivery and owner recovery remain unverified.
 
 ## Sibling coverage
 
@@ -74,3 +74,9 @@ Implemented on the isolated lane. Source gate pending; installed delivery and ow
     }
   ]
 }
+
+## Regression
+
+Before: owner screenshot and baseline renderer place status inside the left selection button, beside a separate action; generic conn-dot replaces provider identity.
+
+After: seeded live DOM finds all 18 logo masks, right edges of action and status within one pixel, no card overflow at desktop or 650px viewport, and KEY SAVED in grid column 2. Reduced motion disables the border orbit. Existing provider contracts pass 80 assertions.
