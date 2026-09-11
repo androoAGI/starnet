@@ -11623,7 +11623,9 @@ function lifecycleArmedSnapshot(now) {
   // scheduler (or an armed one with zero jobs) is honestly not armed: nothing would tick after window close.
   let routines = { armed: false, count: 0, healthy: false, halted: false };
   try {
-    const jobs = Array.isArray(cronJobs) ? cronJobs : [];
+    // Paused/completed routines remain saved, but the driver cannot fire them.
+    // Count only enabled jobs so they do not falsely keep an idle desktop in the tray.
+    const jobs = Array.isArray(cronJobs) ? cronJobs.filter(job => job && job.enabled !== false) : [];
     // A durable E-STOP halt (cron.halt.json) freezes the timer — a halted scheduler is NOT doing background
     // work, so it must not hold the process alive after window close (same truthfulness rule as night shift).
     const armed = !!cronArmed && !cronHalted && jobs.length > 0;

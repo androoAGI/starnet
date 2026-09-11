@@ -124,6 +124,28 @@ function boot(port, workspaces, attemptsLeft, extraEnv) {
     A.ok(on.body.categories.routines.count >= 1, 'routines count reflects the real routine (>=1)');
     A.ok(on.body.reasons.some(r => /routine/.test(r)), 'a human "routine(s) armed" reason is surfaced for the tray');
 
+    // A saved paused routine has no unattended work. It must not keep an idle desktop
+    // resident or claim "1 routine armed", including after the process reloads its store.
+    const routineId = create.body.job.id;
+    const paused = await j('POST', '/api/cron/update', { id: routineId, patch: { enabled: false } });
+    A.eq(paused.status, 200, 'pause the only routine');
+    A.eq(paused.body.job.enabled, false, 'pause persisted the disabled state');
+    const pausedLife = await j('GET', '/api/lifecycle/armed');
+    A.eq(pausedLife.body.categories.routines.count, 0, 'paused routine is not counted as armed');
+    A.eq(pausedLife.body.armed, false, 'only a paused routine does not keep the desktop resident');
+    A.eq(pausedLife.body.reasons, [], 'paused routine leaves no misleading tray reason');
+    try { child.kill(); } catch (_) {} await sleep(250);
+    booted = await boot(port + 100, ws, 20, { SKYNET_CRON_TICK_MS: '300' });
+    child = booted.child; port = booted.port; getOut = booted.out;
+    apiToken = await bootToken(B(), B());
+    A.eq((await j('GET', '/api/lifecycle/armed')).body.armed, false, 'paused-only station stays idle after restart');
+    A.eq((await j('POST', '/api/cron/update', { id: routineId, patch: { enabled: true } })).status, 200, 'resume the routine');
+    A.eq((await j('GET', '/api/lifecycle/armed')).body.categories.routines.count, 1, 'resumed routine is counted again');
+    const otherRoutine = await j('POST', '/api/cron', { name: 'Paused digest', prompt: 'summarize', schedule: '0 10 * * *', agentId: 'lc_test' });
+    A.eq(otherRoutine.status, 200, 'create a second saved routine');
+    A.eq((await j('POST', '/api/cron/update', { id: otherRoutine.body.job.id, patch: { enabled: false } })).status, 200, 'pause only the second routine');
+    A.eq((await j('GET', '/api/lifecycle/armed')).body.categories.routines.count, 1, 'mixed saved routines count only the enabled job');
+
     // ---- NIGHT-SHIFT HALT TRUTHFULNESS: an armed-but-HALTED shift is not armed work ----
     // Arm the night shift by raising the dial (posture write arms the timer with no restart)…
     const posture = await j('POST', '/api/autonomy/posture', { posture: { initiative: 'leash', reach: 'sandbox', leashPerDay: 2 } });
