@@ -18,8 +18,8 @@
   "expectedClaimCount": 37,
   "releaseSurface": {
     "algorithm": "sha256",
-    "sourceCommit": "a625182bde05e041c4f4d1fd43112b51770044af",
-    "pathSetSha256": "5d6878c3a6e9075d81937c32cb2afb24efd64d41cabbaba7a0e260caaa93cb57",
+    "sourceCommit": "2c041bbe69124eda1f60a6eb5a11cc44676028cb",
+    "pathSetSha256": "51677953e0b1823c314c0a8ad0a8ec8e032f5d458eb166518757c4e2b284ff90",
     "files": [
       {
         "path": "INSTALL.md",
@@ -115,6 +115,16 @@
         "path": "frontend/app/autosessions.js",
         "bytes": 22228,
         "sha256": "051a0d6ae19ae474a9fec390e59739bd7dd5c773cb5cd8aad1490911091b5bbb"
+      },
+      {
+        "path": "frontend/app/backdrop-bake-worker.js",
+        "bytes": 2628,
+        "sha256": "bcb206760dde125bf7f9433fc9ed4ed6bfc6573e0d8478f015789b5dadcbd948"
+      },
+      {
+        "path": "frontend/app/backdrop-bake.js",
+        "bytes": 2898,
+        "sha256": "8600859825fb26c2a506f370fe46fd63501feb935274bfc5524985821e1f9e49"
       },
       {
         "path": "frontend/app/backdrop-preview-worker.js",
@@ -773,8 +783,8 @@
       },
       {
         "path": "frontend/app/spacebg.js",
-        "bytes": 127842,
-        "sha256": "b23cfe363e4d9345fb14d4f6341f97c2333ac85018d1d42a1d84c25ccab6827c"
+        "bytes": 129170,
+        "sha256": "728e74684342afe9be9bd43641f0ef431a5a98810df55fefa055748f62972e88"
       },
       {
         "path": "frontend/app/specialties.js",
@@ -838,8 +848,8 @@
       },
       {
         "path": "frontend/app/terrain.js",
-        "bytes": 90862,
-        "sha256": "f5aa76396c2b2d538cb8ab2d460557ffb5ceefe3c0da498aa7bbf24ae2096f99"
+        "bytes": 94385,
+        "sha256": "59cafddead1f96cb9d17c18792c039311c43a03b895da0d7758e090b36c47a15"
       },
       {
         "path": "frontend/app/testapi.js",
@@ -1258,8 +1268,8 @@
       },
       {
         "path": "frontend/index.html",
-        "bytes": 85622,
-        "sha256": "14ff83262114e88b66458a3b5b63fa20ae6b99a41fc2b466abf6314c58419e76"
+        "bytes": 85667,
+        "sha256": "f5a8a77e62529fcae91826d2b1bce45e66d625749fd96f3fa943d4eace3cc7a6"
       },
       {
         "path": "frontend/js/arcade.js",
