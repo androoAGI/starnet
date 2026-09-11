@@ -3575,7 +3575,8 @@ const App = (() => {
       const started = Channels.startedAtOf(w.id);
       return { dot: 'ws-dot working', meta: started ? railFmtElapsed(Channels.elapsedOf(w.id, Date.now())) : '…', busy: true, attn: false, status };
     }
-    if (w.lastRunOk === false) return { dot: 'ws-dot needsyou failed', meta: 'FAILED', busy: false, attn: true, status: 'last run failed — open to inspect' };
+    // A settled failure uses the crossed lamp; only a live approval/question earns the action row.
+    if (w.lastRunOk === false) return { dot: 'ws-dot failed', meta: railRelTime(w.lastActiveAt), busy: false, attn: false, status: 'last run failed — open to inspect' };
     // a DELIVERY session ('workshop-<runId>' — idle-built work) that hasn't been reviewed is a decision the
     // Commander owes, not just an unread chat: say REVIEW on the row itself (2026-07-15 UX audit — the ⚒ prefix
     // alone didn't distinguish "your agent made you something" from ordinary unread activity).
