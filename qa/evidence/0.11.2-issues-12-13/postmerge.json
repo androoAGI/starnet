@@ -1,0 +1,18 @@
+{
+  "source": "a6f05c505b4e1b75fafbb320f302ba9ebd21cd73",
+  "recordedAt": "2026-09-11T06:25:58.984Z",
+  "gates": {
+    "fast": {
+      "outcome": "PASS",
+      "steps": 771,
+      "sha256": "47f90653f231c0189086894388db8ac219e933533f29c3b81cc441fd51dec6fa",
+      "bytes": 54017
+    },
+    "http": {
+      "outcome": "PASS",
+      "steps": 113,
+      "sha256": "0886c94fdde3d339e58a4cf4541fecb5de9fb17c4dfa100c6dc6554ca8f78798",
+      "bytes": 11824
+    }
+  }
+}

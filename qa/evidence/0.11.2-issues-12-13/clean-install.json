@@ -1,0 +1,38 @@
+{
+  "schema": "starnet.clean-install-proof.v1",
+  "generatedAt": "2026-09-11T06:26:22.862Z",
+  "machineKind": "github-hosted-ephemeral-windows-vm",
+  "cleanMachine": true,
+  "sourceMachine": {
+    "hostname": "runnervmvmocb",
+    "image": "win25-vs2026 20260907.229.1",
+    "os": "Microsoft Windows Server 2025 Datacenter 10.0.26100",
+    "runId": "34569801784"
+  },
+  "installer": {
+    "name": "StarNet_0.11.1_x64-setup.exe",
+    "sha256": "5baadbf8483e601db257f2b1ce8855fbc494add5db64493f501a3d93e717efeb",
+    "bytes": 129764664,
+    "tag": "v0.11.1",
+    "buildRun": "34568119605",
+    "sourceCommit": "6e729e4cb2ca151f2ca7f280d500c86393bf0046"
+  },
+  "install": {
+    "succeeded": true,
+    "installLocation": "C:\\Users\\runneradmin\\AppData\\Local\\StarNet",
+    "silent": true
+  },
+  "launch": {
+    "succeeded": true,
+    "exePath": "C:\\Users\\runneradmin\\AppData\\Local\\StarNet\\skynet-desktop.exe",
+    "workspaceRoot": "C:\\Users\\runneradmin\\AppData\\Roaming\\ai.skynet.harness\\workspaces",
+    "pageUrl": "http://tauri.localhost/",
+    "pageTitle": "STARNET",
+    "cdpProven": true
+  },
+  "notes": [
+    "Fresh GitHub-hosted Windows runner: brand-new VM image, no prior StarNet state, no repo checkout, no dev toolchain used by the app.",
+    "First launch proven by attaching to the WebView2 CDP endpoint and observing a live tauri.localhost page.",
+    "Workspace observed under the roaming AppData identifier, outside the install directory."
+  ]
+}

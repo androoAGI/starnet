@@ -1,0 +1,143 @@
+{
+  "schema": "starnet.packaged-lifecycle-receipt.v1",
+  "generatedAt": "2026-09-11T06:27:20.670Z",
+  "verdict": "PASS",
+  "failedCases": [],
+  "durationMs": 31353,
+  "meta": {
+    "exe": "C:\\Users\\runneradmin\\AppData\\Local\\StarNet\\skynet-desktop.exe",
+    "installDir": "C:\\Users\\runneradmin\\AppData\\Local\\StarNet",
+    "appDataDir": "C:\\Users\\runneradmin\\AppData\\Roaming\\ai.skynet.harness",
+    "tag": "v0.11.1",
+    "runId": "34569801784",
+    "host": "runnervmvmocb",
+    "image": "win25-vs2026 20260907.229.1"
+  },
+  "cases": [
+    {
+      "name": "idle-close",
+      "result": "PASS",
+      "reasons": [],
+      "branch": "idle-quit",
+      "launchedPid": 6228,
+      "relaunchedPid": 7132,
+      "timings": {
+        "bootMs": 2196,
+        "healthMs": 2658,
+        "goneMs": 869,
+        "relaunchWindowMs": 2080,
+        "relaunchHealthMs": 4,
+        "totalMs": 9812
+      },
+      "snapshots": {
+        "afterClose": {
+          "shell": [],
+          "sidecar": [],
+          "windows": [],
+          "health": null,
+          "port": null
+        },
+        "afterRelaunch": {
+          "shell": [
+            {
+              "pid": 7132,
+              "path": "C:\\Users\\runneradmin\\AppData\\Local\\StarNet\\skynet-desktop.exe",
+              "ppid": 728
+            }
+          ],
+          "sidecar": [
+            {
+              "pid": 6804,
+              "path": "C:\\Users\\runneradmin\\AppData\\Local\\StarNet\\node.exe",
+              "ppid": 7132
+            }
+          ],
+          "windows": [
+            {
+              "hwnd": 197144,
+              "pid": 7132,
+              "visible": true,
+              "title": "StarNet"
+            }
+          ],
+          "health": true,
+          "port": 63286
+        }
+      },
+      "closeLog": [
+        "close-request: close_to_tray=false"
+      ]
+    },
+    {
+      "name": "close-to-tray",
+      "result": "PASS",
+      "reasons": [],
+      "branch": "tray-preference",
+      "launchedPid": 6192,
+      "secondLaunchPid": 3244,
+      "timings": {
+        "bootMs": 2188,
+        "healthMs": 4,
+        "settleMs": 12000,
+        "revealMs": 718,
+        "totalMs": 17920
+      },
+      "snapshots": {
+        "resident": {
+          "shell": [
+            {
+              "pid": 6192,
+              "path": "C:\\Users\\runneradmin\\AppData\\Local\\StarNet\\skynet-desktop.exe",
+              "ppid": 728
+            }
+          ],
+          "sidecar": [
+            {
+              "pid": 8968,
+              "path": "C:\\Users\\runneradmin\\AppData\\Local\\StarNet\\node.exe",
+              "ppid": 6192
+            }
+          ],
+          "windows": [],
+          "health": true,
+          "port": 52612
+        },
+        "revealed": {
+          "shell": [
+            {
+              "pid": 6192,
+              "path": "C:\\Users\\runneradmin\\AppData\\Local\\StarNet\\skynet-desktop.exe",
+              "ppid": 728
+            }
+          ],
+          "sidecar": [
+            {
+              "pid": 8968,
+              "path": "C:\\Users\\runneradmin\\AppData\\Local\\StarNet\\node.exe",
+              "ppid": 6192
+            }
+          ],
+          "windows": [
+            {
+              "hwnd": 524634,
+              "pid": 6192,
+              "visible": true,
+              "title": "StarNet"
+            }
+          ],
+          "health": null,
+          "port": null
+        }
+      },
+      "closeLog": [
+        "close-request: close_to_tray=true",
+        "close-request: staying resident (close-to-tray preference)"
+      ]
+    }
+  ],
+  "notCovered": [
+    "tray menu Quit (no scriptable tray-menu handle without UI automation)",
+    "armed-work residency branch (LifecycleProbe::Armed{armed:true}) — needs seeded scheduled work",
+    "macOS lifecycle"
+  ]
+}
