@@ -2830,3 +2830,6 @@ Every first-time StarNet-subscription desktop user: link → shell adopts the to
 - 2026-09-10: agent/live-speech-0910 -> trunk 7ccb4ebd9; live speech output-context recovery merged. Pre-merge and post-merge test:fast 766/766 GREEN; customer journeys 34/34 and real seeded speech playback passed. Installer/customer recovery unverified.
 
 - 2026-09-10: agent/backdrops-glowup -> trunk c772f4f84ec130634c9a14ed16ea9f31ad941501; six backdrops rebuilt (THE NURSERY, NIGHT CITY, OCEAN, THE BELT small-asteroids-only, THE MOON, FOREST v5 dark aerial). Pre-merge test:fast 770/770 GREEN on the synced branch 63258f25e (the final sync carried only trunk's own bug-index and readiness-baseline fixes, both re-run green); claims re-locked, website mirror synced. Not pushed. Andrew approved every backdrop live on :8790; the night-city cloud pass was reverted at his call.
+
+
+- 2026-09-11: agent/session-failed-marker-0910 (including agent/providers-polish-0910) merged as de06c1f22. Combined pre-merge and post-merge test:fast both 771/771 GREEN. Live combined UI: all 18 provider logos, aligned statuses, animated StarNet border, flashing failed X with no duplicate label. Existing documentation edits preserved. No installer rebuild or publication.
