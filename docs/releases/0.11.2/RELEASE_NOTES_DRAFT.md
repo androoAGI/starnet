@@ -9,6 +9,7 @@ This update brings more reliable saves and task results, clearer setup, and smoo
 - Concurrent station saves preserve conflicting edits for recovery instead of overwriting newer work. Conversation conversion retains historical attachments and safely handles retries.
 - Completed queued saves retain their acknowledged revision after restart, avoiding false save conflicts during updates.
 - Paused routines no longer appear as armed background work or keep an otherwise idle station running after you close its window.
+- Windows computer-control actions move, click, double-click and drag the pointer correctly instead of failing with a filesystem path error.
 - Compatible API clients can use durable request keys to avoid repeating work after connection loss. Partial, failed and interrupted runs retain their real status and evidence.
 - Structured JSON results are validated, with at most one repair that cannot execute tools.
 - COMMS preserves report tables, lists, quotations and named links. Copy keeps the original report text. Plus bullets and tab-separated list markers render consistently.
