@@ -20,3 +20,5 @@ This update brings more reliable saves and task results, clearer setup, and smoo
 Google Workspace connections remain deferred while verification is completed. Google login for StarNet billing is separate.
 
 Editorial draft only. These notes describe included source changes; the release remains subject to the acceptance work in [FOLLOWTHROUGH.md](FOLLOWTHROUGH.md). Canary installers are test artifacts; no public release or tag is implied.
+
+Release preparation decision (September 11): Andrew waived the typical source and installed soak durations for 0.11.2 in favor of focused update/regression checks. Partial soak runs are not PASS receipts. See [SOAK_WAIVER.md](SOAK_WAIVER.md); carry this exception into the final release notes.

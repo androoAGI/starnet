@@ -1,0 +1,26 @@
+{
+  "at": "2026-09-11T03:57:18.831Z",
+  "candidate": "7f6c7b005120381539ad9c4b4601cb42b6b9b27d",
+  "files": [
+    {
+      "path": "driver-render-failure.json",
+      "bytes": 455,
+      "sha256": "eb08a1c92b7fe1b696b0c38e4cba496c173f0381d1346a9de2e068182fb3275f"
+    },
+    {
+      "path": "live.json",
+      "bytes": 904,
+      "sha256": "d601dd05bd1c8ac3b75592125f886c18b1199ce727da9578eb32d674f9ebe09c"
+    },
+    {
+      "path": "owner-cancellation.json",
+      "bytes": 596,
+      "sha256": "ea5342ec8c8db3da7528f54036080efe9c58c758b59e237325d6e2f2d75971e9"
+    },
+    {
+      "path": "suites.json",
+      "bytes": 2187,
+      "sha256": "ec3b996dc23af0f02463e460f943b53e647ce73200b5086d959c9ed0b9236881"
+    }
+  ]
+}

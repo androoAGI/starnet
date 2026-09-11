@@ -1,0 +1,57 @@
+{
+  "source": "7f6c7b005120381539ad9c4b4601cb42b6b9b27d",
+  "runtimeChanges": false,
+  "assertions": 239,
+  "suites": [
+    {
+      "suite": "desktop-workspace-migration.test.js",
+      "sha256": "897fc8de8ef00c3bf73735edf6da61c49fb4e42ef0d1c6a72920dca8d0a1125a",
+      "summary": "desktop-workspace-migration.test: OK (31 assertions)"
+    },
+    {
+      "suite": "release-installer-selection.test.mjs",
+      "sha256": "8993fdceefb0b616459431bf51e3ed6025fbe5318e343a8fafed16dbe99e7bb8",
+      "summary": "release-installer-selection.test: OK (5 assertions)"
+    },
+    {
+      "suite": "t4-update-delivery.test.js",
+      "sha256": "ef98dc36770e9369878388124ccc1476ca23badcf65199b6f711d8df89762b4b",
+      "summary": "t4-update-delivery.test: OK (22 assertions)"
+    },
+    {
+      "suite": "update-continuity.test.js",
+      "sha256": "d2c17fecdf8ace5bedfc6a54039c5a5e909fb722e6f4f60bb3bd69ac3f4e78ab",
+      "summary": "update-continuity.test: OK (7 assertions)"
+    },
+    {
+      "suite": "update-preparation.http.test.js",
+      "sha256": "eba9b3935e4fb8a7b20d474240770eb4fc13f971db74425af63ef83d4934db82",
+      "summary": "update-preparation.http.test: OK (9 assertions)"
+    },
+    {
+      "suite": "update-preparation.test.js",
+      "sha256": "e9dc082339ed1d66172a8ca68aac37e759b3ce229bf088ba768d7eba6826f2d8",
+      "summary": "update-preparation.test: OK (20 assertions)"
+    },
+    {
+      "suite": "update-state-parity.test.js",
+      "sha256": "6cda4cedaa8ed2d8228a01cba8b3454b1b02c14da460316079ce4f7e7237fee1",
+      "summary": "update-state-parity: OK (42 assertions)"
+    },
+    {
+      "suite": "updatecore.test.js",
+      "sha256": "e0153f42af12c3c454a7e27f528d241790a8d1cfafac354d20ed299355ede68c",
+      "summary": "updatecore: OK (72 assertions)"
+    },
+    {
+      "suite": "updates-install.test.js",
+      "sha256": "fe97b0fbab4326a478470b42f9596ece27f7895af9789d71aa947f969188807f",
+      "summary": "updates-install.test: OK (16 assertions)"
+    },
+    {
+      "suite": "verify-update-host.test.js",
+      "sha256": "7f0857a6eaca76dda1fba83dbfb8e25201455f574672411e6f71112b02659c4b",
+      "summary": "verify-update-host.test: OK (15 assertions)"
+    }
+  ]
+}

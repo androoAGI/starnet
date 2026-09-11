@@ -1,0 +1,33 @@
+{
+  "at": "2026-09-11T03:56:15.673Z",
+  "source": "7f6c7b005120381539ad9c4b4601cb42b6b9b27d",
+  "checks": {
+    "identity": true,
+    "offlineFailureVisible": true,
+    "retryRecovers": true,
+    "saveDrain": true,
+    "verifiedRecoverySnapshot": true,
+    "mutationsBlocked": true,
+    "readableStatePreserved": true,
+    "cancelRestoresWrites": true
+  },
+  "scope": "Installed canary update failure/retry and prepare/cancel; no installation or public feed change",
+  "offline": {
+    "phase": "error",
+    "error": "error sending request for url (http://127.0.0.1:19483/latest.json)",
+    "visible": true
+  },
+  "retry": {
+    "phase": "current",
+    "error": "",
+    "update": false
+  },
+  "snapshot": {
+    "sha256": "d88a3bfefdad6254df610279b4195a6ab8878446e8146b8e5eb6c5c6eb760dbd",
+    "bytes": 658787,
+    "browserKeys": 31,
+    "liveRuns": 0,
+    "activeMutations": 0
+  },
+  "outcome": "PASS"
+}

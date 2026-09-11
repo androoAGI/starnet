@@ -1,5 +1,7 @@
 # 0.11.2 final preparation — September 11, 2026 UTC
 
+> **Superseding owner decision, September 11:** the typical 12-hour source and 48-hour installed soak durations are waived for 0.11.2. The source runner has been stopped; no soak completion is awaited. Historical run descriptions below remain evidence, not current requirements. See [SOAK_WAIVER.md](SOAK_WAIVER.md) for the decision and focused update verification.
+
 Integrated candidate: **`7f6c7b005120381539ad9c4b4601cb42b6b9b27d`**. The application code matches `61528ba95`; the additional change repairs release-preflight evidence reporting and updates the handoff. Official version pins remain **0.11.1**. The locally installed **0.11.2 canary** has a separate application identity and profile; no public release or tag was created.
 
 The inventory now covers **60 reachable merge commits and 5,023 changed paths since v0.11.1**, through application candidate `61528ba95`. Synchronization merges overlap; this is not a count of independent features. The subsequent preflight/documents change is listed separately in the source-equivalence receipt.

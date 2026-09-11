@@ -1,0 +1,10 @@
+{
+  "at": "2026-09-11T03:56:04.658Z",
+  "source": "7f6c7b005120381539ad9c4b4601cb42b6b9b27d",
+  "checks": {
+    "identity": true
+  },
+  "scope": "Installed canary update failure/retry and prepare/cancel; no installation or public feed change",
+  "outcome": "FAIL",
+  "error": "eval failed: TypeError: Cannot set properties of undefined (setting 'innerHTML')\n    at Object.render (http://tauri.localhost/app/updates.js:405:20)\n    at <anonymous>:1:72"
+}

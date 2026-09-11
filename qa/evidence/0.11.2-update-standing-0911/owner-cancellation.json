@@ -1,0 +1,13 @@
+{
+  "outcome": "cancelled-by-owner-waiver",
+  "pid": 43572,
+  "completed": false,
+  "source": "61528ba957fade1872726f342dfae3d768401c38",
+  "at": "2026-09-11T03:55:03.3879065Z",
+  "reason": "Owner explicitly waived typical soak routine for 0.11.2. Partial evidence is not PASS.",
+  "lastLog": [
+    "[soak] t+63.4m tick 252 epoch 6 rss=90MB health=10/15ms swallowed=0 runs=189/0 fires=63",
+    "[soak] t+63.7m tick 253 epoch 6 rss=90MB health=1/14ms swallowed=0 runs=189/0 fires=63",
+    "[soak] t+63.9m tick 254 epoch 6 rss=90MB health=9/16ms swallowed=0 runs=190/0 fires=63"
+  ]
+}
