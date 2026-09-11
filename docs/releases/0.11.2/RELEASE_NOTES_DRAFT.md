@@ -1,6 +1,6 @@
 # StarNet v0.11.2 — draft
 
-This update brings more reliable saves and task results, clearer setup, and smoother station movement.
+This update brings more reliable saves and task results, clearer setup, and smoother station movement and backdrops.
 
 - Provider and model choices stay selected when an older catalog request finishes late.
 - Image charges appear in local run receipts without a second debit. Cancelling image work prevents later file publication; upstream work may already have been billed.
@@ -14,6 +14,7 @@ This update brings more reliable saves and task results, clearer setup, and smoo
 - The Field Manual guides work-app and messaging setup. GitHub supports device sign-in, with visible errors and protection for an existing connection if saving fails.
 - Speech playback recovers after an output-device interruption.
 - Agent movement, doorway paths, desk seating and furniture cleanup behave more consistently. Crew waiting for approval display the waiting state.
+- Refreshed sky and ground backdrops retain their detail while heavy artwork generation runs in the background. Cached terrain reduces camera-movement work, especially in large, zoomed-out forest views.
 - Docked panel height survives reopen and reload. Image setup guidance includes the supported OpenRouter credential route.
 
 Google Workspace connections remain deferred while verification is completed. Google login for StarNet billing is separate.

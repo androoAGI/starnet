@@ -221,7 +221,7 @@ A.ok(!parseGateLog('').ok, 'empty log rejected');
   A.eq(byId(r5, 'pins').status, 'FAIL', 'post-bump with pins still on the old version FAILs');
 }
 
-// ── T0 / G1 / soak receipts recognised when present for the target ──
+// ── T0 / G1 / smoke receipts do not establish attended soak duration ──
 {
   const io = fakeRepo({ files: {
     '.dogfood/t0-clean-install-20260821/t0-clean-install-status.json': JSON.stringify({ version: '0.10.8', verdict: 'PASS' }),
@@ -238,11 +238,18 @@ A.ok(!parseGateLog('').ok, 'empty log rejected');
   A.eq(checkG1(buildReceipt({meta:{tag:'v0.10.8'},cases:full.cases.slice(0,2)})), 'WARN', 'passing subset cannot clear full G1');
   A.eq(checkG1({...full, meta:{tag:'v0.10.7'}}), 'WARN', 'different release cannot clear G1');
   A.eq(checkG1({...full, cases:full.cases.map(c=>c.name==='updater-smoke'?{...c,result:'FAIL'}:c)}), 'WARN', 'summary PASS cannot hide failing updater case');
-  A.eq(byId(r, 'soak').status, 'PASS', 'fresh schema-3 GREEN soak stamp for target → PASS');
+  A.eq(byId(r, 'soak').status, 'WARN', 'fresh installed smoke cannot prove a 48-hour soak');
+  A.eq(byId(r, 'installed-smoke').status, 'PASS', 'fresh schema-3 GREEN proves only installed smoke');
+  A.ok(/duration|workload/.test(byId(r, 'soak').detail), 'soak row identifies missing acceptance evidence');
   const r2 = runPreflight(CTX, fakeRepo({ files: { 'qa/installed/last-smoke.json': JSON.stringify({ appVersion: '0.10.7', verdict: 'GREEN', stampIso: '2026-08-20T12:00:00Z' }) } }));
-  A.eq(byId(r2, 'soak').status, 'WARN', 'a soak of the PREVIOUS version is not a soak of the target');
+  A.eq(byId(r2, 'installed-smoke').status, 'WARN', 'previous-version smoke does not verify the target');
   const r3 = runPreflight(CTX, fakeRepo({ files: { 'qa/installed/last-smoke.json': JSON.stringify({ appVersion: '0.10.8', verdict: 'GREEN', stampIso: '2026-08-01T12:00:00Z' }) } }));
-  A.eq(byId(r3, 'soak').status, 'WARN', 'a stale (>7d) soak stamp is owed again');
+  A.eq(byId(r3, 'installed-smoke').status, 'WARN', 'stale (>7d) smoke is owed again');
+  for (const stamp of [{result:'NOT_GREEN',stampIso:'2026-08-20T12:00:00Z'},{result:'GREEN',stampIso:'2026-08-22T12:00:00Z'},{result:'GREEN',stampIso:'invalid'}]) {
+    const result = runPreflight(CTX, fakeRepo({files:{'qa/installed/last-smoke.json':JSON.stringify({appVersion:'0.10.8',...stamp})}}));
+    A.eq(byId(result, 'installed-smoke').status, 'WARN', 'invalid status/time cannot verify installed smoke');
+    A.eq(byId(result, 'soak').status, 'WARN', 'invalid status/time never establishes duration');
+  }
 }
 
 // ── updater key ──

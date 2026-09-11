@@ -293,20 +293,22 @@ export function runPreflight(ctx, io) {
     rows.push(g1
       ? row('g1', 'G1 packaged-lifecycle proof for ' + tag, 'PASS', g1)
       : row('g1', 'G1 packaged-lifecycle proof for ' + (tag || 'target'), 'WARN', 'owed — idle-close / close-to-tray / updater-smoke on a fresh hosted Windows VM against the staged draft (this is the branch 0.10.5/0.10.6 escaped through)', 'Actions → g1-packaged-lifecycle → Run workflow → tag=' + (tag || 'vX.Y.Z') + ' (runbook §1.7a). RELEASE BLOCKER: do not Publish without it'));
-    // soak: qa/installed/last-smoke.json appVersion == target && GREEN
+    // The smoke writer records startup/interaction checks, not elapsed soak duration.
     const smoke = io.readText('qa/installed/last-smoke.json');
-    let smokeRow = row('soak', 'installed-exe soak stamp for ' + (tag || 'target'), 'WARN', 'owed — qa/installed/last-smoke.json absent', 'RC soak per docs/RELEASE_READINESS.md §2 (build the RC installer, `npm run qa:smoke:installed`, soak ≥48h). For a HOTFIX cut, state explicitly in RELEASE_NOTES/NEXT.md that the soak was waived and why');
+    const smokeLabel = 'installed-exe smoke stamp for ' + (tag || 'target');
+    let smokeRow = row('installed-smoke', smokeLabel, 'WARN', 'owed — qa/installed/last-smoke.json absent', 'run `npm run qa:smoke:installed` against the exact candidate installer');
     if (smoke != null) {
       try {
         const j = JSON.parse(stripBom(smoke));
         const stampResult = j.result || j.verdict || j.status || '';
-        const green = /green/i.test(String(stampResult));
+        const green = String(stampResult).trim().toUpperCase() === 'GREEN';
         const ageH = j.stampIso ? (io.now() - Date.parse(j.stampIso)) / 36e5 : NaN;
-        if (target && String(j.appVersion) === target && green && ageH <= 7 * 24) smokeRow = row('soak', 'installed-exe soak stamp for ' + tag, 'PASS', 'GREEN · appVersion ' + j.appVersion + ' · ' + ageH.toFixed(1) + 'h old');
-        else smokeRow = row('soak', 'installed-exe soak stamp for ' + (tag || 'target'), 'WARN', 'stamp is for appVersion ' + j.appVersion + ' (' + (green ? 'GREEN' : String(stampResult)) + ', ' + (isFinite(ageH) ? ageH.toFixed(1) + 'h old' : 'no stamp time') + ') — not a soak of ' + (target || 'the target'), 'soak the RC build of ' + (target || 'the target') + ' (docs/RELEASE_READINESS.md §2) or record the waiver');
-      } catch { smokeRow = row('soak', 'installed-exe soak stamp', 'WARN', 'qa/installed/last-smoke.json unparseable', 're-run `npm run qa:smoke:installed`'); }
+        if (target && String(j.appVersion) === target && green && Number.isFinite(ageH) && ageH >= 0 && ageH <= 7 * 24) smokeRow = row('installed-smoke', smokeLabel, 'PASS', 'GREEN · appVersion ' + j.appVersion + ' · ' + ageH.toFixed(1) + 'h old; smoke only');
+        else smokeRow = row('installed-smoke', smokeLabel, 'WARN', 'stamp is for appVersion ' + j.appVersion + ' (' + (green ? 'GREEN' : String(stampResult)) + ', ' + (isFinite(ageH) ? ageH.toFixed(1) + 'h old' : 'no stamp time') + ') — current target smoke remains unverified', 're-run `npm run qa:smoke:installed` against the exact candidate installer');
+      } catch { smokeRow = row('installed-smoke', smokeLabel, 'WARN', 'qa/installed/last-smoke.json unparseable', 're-run `npm run qa:smoke:installed`'); }
     }
     rows.push(smokeRow);
+    rows.push(row('soak', '48-hour installed soak acceptance for ' + (tag || 'target'), 'WARN', 'manual acceptance review owed — installed smoke contains no elapsed duration or real-provider workload evidence', 'review the completed installed acceptance evidence against docs/RELEASE_READINESS.md §2; only an explicit owner waiver may replace it. This preflight does not infer completion or a waiver from a smoke stamp'));
   }
 
   // ── qa:ready verdict (runbook §0 — READY-GATE law: NOT READY = do not bump, do not tag) ──
