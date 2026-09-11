@@ -6243,7 +6243,9 @@ const World = (() => {
       ctx.fillStyle = 'rgba(' + Math.round(11 * CRT.fade) + ',' + Math.round(12 * CRT.fade) + ',' + Math.round(15 * CRT.fade) + ',1)';
       ctx.fillRect(0, 0, W, H);
     }
-    if (CRT.grain > 0.001) {
+    const staticLevel = Number.isFinite(CRT.staticLevel) ? Math.max(0, Math.min(2, CRT.staticLevel)) : 1;
+    const grain = CRT.grain * staticLevel;
+    if (grain > 0.001) {
       // Visible tube static: full-range, zero-centred noise. Overlay preserves
       // black and mean scene density; its old narrow tile/low alpha rounded to
       // almost nothing on this dark feed. Keep speckles at one CSS pixel so a
@@ -6251,7 +6253,7 @@ const World = (() => {
       const fi = reduceMotion() ? 0 : Math.floor(now / 66);
       const jx = (fi * 53) % GRAIN_S, jy = (fi * 97) % GRAIN_S;
       ctx.globalCompositeOperation = 'overlay';
-      ctx.globalAlpha = Math.min(.65, CRT.grain);
+      ctx.globalAlpha = Math.min(.65, grain);
       ctx.setTransform(dpr, 0, 0, dpr, jx * dpr, jy * dpr);
       ctx.fillStyle = grainPattern();
       ctx.fillRect(-jx, -jy, Math.ceil(W / dpr), Math.ceil(H / dpr));
