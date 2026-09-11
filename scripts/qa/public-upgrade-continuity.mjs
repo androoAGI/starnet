@@ -16,10 +16,13 @@ const candidate = required('INSTALLER');
 const baseline = required('BASELINE_INSTALLER');
 const expected = required('CANDIDATE_SOURCE');
 const baselineVersion = required('BASELINE_VERSION');
+const automatic = process.env.PROOF_AUTOMATIC_UPDATE === 'true';
+const targetVersion = automatic ? required('TARGET_VERSION') : null;
 const exe = required('EXE');
 const profile = path.join(required('APPDATA'), 'ai.skynet.harness');
 const sha = file => createHash('sha256').update(fs.readFileSync(file)).digest('hex');
 const receipt = { schema: 'starnet.public-upgrade-continuity.v1', at: new Date().toISOString(), mode: 'manual-nsis-reinstall', candidateSource: expected, baselineVersion, baselineInstallerSha256: sha(baseline), candidateInstallerSha256: sha(candidate), checks: {}, outcome: 'FAIL' };
+if (automatic) receipt.mode = 'public-in-app-updater';
 let cdp;
 function ps(script, extra = {}) {
   return execFileSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', script], {
@@ -96,6 +99,56 @@ function fixtureState(state) {
   }
   return out;
 }
+async function installFromPublicUpdater() {
+  const priorPid = Number(ps("@(Get-CimInstance Win32_Process | Where-Object {$_.ExecutablePath -eq $env:PROOF_EXE})[0].ProcessId"));
+  if (!priorPid) throw new Error('Could not identify old installed process');
+  await evalJS(cdp, "StationUI.openTerm('updates')");
+  await sleep(500);
+  const checked = await evalJS(cdp, "(()=>{const b=document.getElementById('up-check');if(!b)return false;b.click();return true;})()");
+  if (!checked) throw new Error('Update Center CHECK NOW button missing');
+  let available;
+  for (let n = 0; n < 60; n++) {
+    available = await evalJS(cdp, 'Updates.snapshot()');
+    if (available.phase === 'error') throw new Error('Public update check failed: ' + available.error);
+    if (available.phase === 'available' && available.update?.version === targetVersion) break;
+    await sleep(1000);
+  }
+  if (available?.phase !== 'available' || available.update?.version !== targetVersion) throw new Error('Expected public update did not become available');
+  receipt.publicUpdate = { currentVersion: available.currentVersion, targetVersion: available.update.version };
+  receipt.checks.publicUpdateAvailable = true;
+  await sleep(250);
+  const clicked = await evalJS(cdp, "(()=>{const b=document.getElementById('up-install');if(!b||b.disabled)return false;b.click();return true;})()");
+  if (!clicked) throw new Error('Update Center INSTALL UPDATE button missing or disabled');
+  // Do not run the candidate installer or manually relaunch: this branch must prove
+  // the released app consumed the real public feed and restarted itself.
+  let observed;
+  for (let n = 0; n < 100; n++) {
+    await sleep(3000);
+    observed = JSON.parse(ps(`$apps=@(Get-CimInstance Win32_Process | Where-Object {$_.ExecutablePath -eq $env:PROOF_EXE})
+$setup=@(Get-Process -ErrorAction SilentlyContinue | Where-Object {$_.Name -match '(?i)starnet.*setup|^Au_$' -or $_.MainWindowTitle -like '*StarNet*Setup*'})
+@{version=(Get-Item $env:PROOF_EXE).VersionInfo.ProductVersion;appPids=@($apps | ForEach-Object {$_.ProcessId});installerPids=@($setup | ForEach-Object {$_.Id})}|ConvertTo-Json -Compress`));
+    if (String(observed.version).split('.').slice(0,3).join('.') === targetVersion && observed.appPids.length === 1 && observed.appPids[0] !== priorPid && observed.installerPids.length === 0) break;
+    try {
+      if (observed.appPids.includes(priorPid) && cdp.ws.readyState === 1) {
+        const state = await evalJS(cdp, 'Updates.snapshot()');
+        if (state.error || state.phase === 'error') throw new Error('In-app update failed: ' + state.error);
+      }
+    } catch (error) { if (String(error.message).startsWith('In-app update failed:')) throw error; }
+  }
+  if (String(observed?.version).split('.').slice(0,3).join('.') !== targetVersion || observed.appPids.length !== 1 || observed.appPids[0] === priorPid || observed.installerPids.length !== 0) throw new Error('Public update did not complete and automatically restart: ' + JSON.stringify(observed));
+  receipt.automaticRestart = { oldPid: priorPid, ...observed };
+  receipt.checks.installerExitedAndAppRestarted = true;
+  cdp?.ws.close(); cdp = await connectCDP(19373);
+  for (let n = 0; n < 120; n++) {
+    if (await evalJS(cdp, "typeof App!=='undefined'&&App.crewCount()===2&&typeof Updates!=='undefined'").catch(()=>false)) break;
+    await sleep(500);
+  }
+  await evalJS(cdp, "Updates.check(true, 'public-canary-after')");
+  const after = await evalJS(cdp, 'Updates.snapshot()');
+  if (after.currentVersion !== targetVersion || after.update) throw new Error('Restarted app still offers an update or reports the wrong version');
+  receipt.checks.currentVersionHasNoPendingUpdate = true;
+  await evalJS(cdp, "StationUI.closeTerm('updates')");
+}
 try {
   install(baseline); await launch();
   receipt.beforeBuild = await evalJS(cdp, "__TAURI__.core.invoke('starnet_build_info')");
@@ -124,7 +177,8 @@ try {
     if (s?.agents?.length !== 2 || !s.station?.props?.some(p => p.agentId === 'scout') || !s.workstreams?.some(w => w.history?.some(m => m.content === 'preserve-' + fixture.agent.canaryNonce)) || s.usage?.calls !== 2) throw new Error('Public baseline did not retain populated fixture');
   }
   receipt.checks.populatedPublicRestart = true;
-  install(candidate); await launch(true);
+  if (automatic) await installFromPublicUpdater();
+  else { install(candidate); await launch(true); }
   receipt.afterBuild = await evalJS(cdp, "__TAURI__.core.invoke('starnet_build_info')");
   if (receipt.afterBuild.sha !== expected || receipt.afterBuild.dirty) throw new Error('Candidate identity mismatch');
   if (receipt.beforeBuild.sha === receipt.afterBuild.sha) throw new Error('Installer did not replace the public source build');

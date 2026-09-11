@@ -27,8 +27,74 @@ on:
         description: "Comma list of cases to run (default all): idle-close,close-to-tray,updater-smoke"
         required: false
         default: "idle-close,close-to-tray,updater-smoke"
+      public_canary:
+        description: "After publication, also prove an older public client installs this release through UPDATE CENTER"
+        type: boolean
+        required: false
+        default: false
+      baseline_tag:
+        description: "Older published release for the optional public updater canary"
+        required: false
+        default: "v0.11.1"
 
 jobs:
+  public-updater-canary:
+    if: inputs.public_canary
+    runs-on: windows-latest
+    timeout-minutes: 25
+    permissions:
+      contents: read
+    env:
+      GH_TOKEN: ${{ secrets.RELEASES_TOKEN }}
+      RELEASE_REPO: androoAGI/starnet-releases
+      TARGET_TAG: ${{ inputs.tag }}
+      BASELINE_TAG: ${{ inputs.baseline_tag }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Acquire the exact public baseline and current installers
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          if ($env:TARGET_TAG -notmatch '^v\d+\.\d+\.\d+$' -or $env:BASELINE_TAG -notmatch '^v\d+\.\d+\.\d+$') { throw 'Explicit version tags are required' }
+          $latest = gh release view --repo $env:RELEASE_REPO --json tagName,isDraft,isPrerelease | ConvertFrom-Json
+          if ($LASTEXITCODE -ne 0 -or $latest.tagName -ne $env:TARGET_TAG -or $latest.isDraft -or $latest.isPrerelease) { throw 'Target must be the public latest stable release' }
+          $targetVersion = $env:TARGET_TAG.Substring(1)
+          $baselineVersion = $env:BASELINE_TAG.Substring(1)
+          if ([version]$baselineVersion -ge [version]$targetVersion) { throw 'Baseline must be older' }
+          foreach ($item in @(@{tag=$env:BASELINE_TAG;name='baseline';variable='BASELINE_INSTALLER'},@{tag=$env:TARGET_TAG;name='target';variable='INSTALLER'})) {
+            $release = gh release view $item.tag --repo $env:RELEASE_REPO --json isDraft,isPrerelease | ConvertFrom-Json
+            if ($LASTEXITCODE -ne 0 -or $release.isDraft -or $release.isPrerelease) { throw 'Both installers must be published stable releases' }
+            $dir = Join-Path $env:RUNNER_TEMP $item.name
+            gh release download $item.tag --repo $env:RELEASE_REPO --pattern '*-setup.exe' --dir $dir
+            if ($LASTEXITCODE -ne 0) { throw 'Installer download failed' }
+            $files = @(Get-ChildItem -LiteralPath $dir -Filter '*-setup.exe')
+            if ($files.Count -ne 1 -or (Get-AuthenticodeSignature -LiteralPath $files[0].FullName).Status -ne 'Valid') { throw 'Expected one valid signed installer' }
+            "$($item.variable)=$($files[0].FullName)" >> $env:GITHUB_ENV
+          }
+          $source = git rev-list -n 1 $env:TARGET_TAG
+          if ($LASTEXITCODE -ne 0 -or $source -notmatch '^[a-f0-9]{40}$') { throw 'Immutable target source tag is required' }
+          "CANDIDATE_SOURCE=$source" >> $env:GITHUB_ENV
+          "TARGET_VERSION=$targetVersion" >> $env:GITHUB_ENV
+          "BASELINE_VERSION=$baselineVersion" >> $env:GITHUB_ENV
+          "EXE=$env:LOCALAPPDATA\StarNet\skynet-desktop.exe" >> $env:GITHUB_ENV
+      - name: Prove public check, install, automatic restart and populated state continuity
+        shell: pwsh
+        env:
+          PROOF_AUTOMATIC_UPDATE: "true"
+        run: node scripts/qa/public-upgrade-continuity.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: public-updater-canary
+          if-no-files-found: error
+          path: |
+            public-upgrade-continuity.json
+            qa/installed/**
   lifecycle:
     runs-on: windows-latest
     timeout-minutes: 45
