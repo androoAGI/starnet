@@ -38,7 +38,7 @@ QA title provenance: qa/evidence/0.11.2-merge-audit/closeout/once-completed-ui.j
 
 ## Verdict
 
-Failure incorrectly reused the live attention-row flag and the glass failed X had no animation. The change returns normal relative-time metadata, leaves pending prompts distinct, and animates the crossed lamp with reduced-motion support. Focused tests: session indicators 38, approval 8, consent visibility 24 assertions green. Full gate pending. Installed delivery and owner recovery unverified.
+Failure incorrectly reused the live attention-row flag and the glass failed X had no animation. The change returns normal relative-time metadata, leaves pending prompts distinct, and animates the crossed lamp with reduced-motion support. Focused tests: session indicators 38, approval 8, consent visibility 24 assertions green. Full fast gate passed 771/771 on 611b99b3f after refreshing only the two changed release-surface hashes; the standalone ledger check passed 64 assertions. Installed delivery and owner recovery unverified.
 
 ## Regression
 
