@@ -1,0 +1,194 @@
+{
+  "at": "2026-09-11T03:13:56.863Z",
+  "head": "7f6c7b005120381539ad9c4b4601cb42b6b9b27d",
+  "rows": [
+    {
+      "path": "frontend/app/app.js",
+      "expected": "76bf8d1b3e17e81f63be6dc546baf89097d930061996f417f18c5d21aa093e64",
+      "actual": "76bf8d1b3e17e81f63be6dc546baf89097d930061996f417f18c5d21aa093e64",
+      "pass": true
+    },
+    {
+      "path": "frontend/app/backdrop-bake-worker.js",
+      "expected": "bcb206760dde125bf7f9433fc9ed4ed6bfc6573e0d8478f015789b5dadcbd948",
+      "actual": "bcb206760dde125bf7f9433fc9ed4ed6bfc6573e0d8478f015789b5dadcbd948",
+      "pass": true
+    },
+    {
+      "path": "frontend/app/backdrop-bake.js",
+      "expected": "8600859825fb26c2a506f370fe46fd63501feb935274bfc5524985821e1f9e49",
+      "actual": "8600859825fb26c2a506f370fe46fd63501feb935274bfc5524985821e1f9e49",
+      "pass": true
+    },
+    {
+      "path": "frontend/app/chat.js",
+      "expected": "54cbb5ba91e0bc2683098e2032b99cf72f88fbab5b9c938ccef893b5876ac1d4",
+      "actual": "54cbb5ba91e0bc2683098e2032b99cf72f88fbab5b9c938ccef893b5876ac1d4",
+      "pass": true
+    },
+    {
+      "path": "frontend/app/cloudsave.js",
+      "expected": "9ceca786556fb5b49f4598ac63a422c9d1edc25f38b842cc6d9257956a9d7b41",
+      "actual": "9ceca786556fb5b49f4598ac63a422c9d1edc25f38b842cc6d9257956a9d7b41",
+      "pass": true
+    },
+    {
+      "path": "frontend/app/dialogue.js",
+      "expected": "a07ba70de49aedd83a30b0102d59da8765dea13492daea82d7abb2277dcfc915",
+      "actual": "a07ba70de49aedd83a30b0102d59da8765dea13492daea82d7abb2277dcfc915",
+      "pass": true
+    },
+    {
+      "path": "frontend/app/firstvalue.js",
+      "expected": "cb8480c6b46ead74ea22d0e3b167d129b51adb310a0f11499b7f7f20308edee0",
+      "actual": "cb8480c6b46ead74ea22d0e3b167d129b51adb310a0f11499b7f7f20308edee0",
+      "pass": true
+    },
+    {
+      "path": "frontend/app/glass-demo.js",
+      "expected": "99f4f32fb63028383ee76b6cc8cebab9c5565b37adf45d62d2c0597a6f0a8669",
+      "actual": "99f4f32fb63028383ee76b6cc8cebab9c5565b37adf45d62d2c0597a6f0a8669",
+      "pass": true
+    },
+    {
+      "path": "frontend/app/group-chat.js",
+      "expected": "cd74112e833398cd964ec24209aa46a4188ef52ce3a329d9d27e82e745bed0d5",
+      "actual": "cd74112e833398cd964ec24209aa46a4188ef52ce3a329d9d27e82e745bed0d5",
+      "pass": true
+    },
+    {
+      "path": "frontend/app/harness.js",
+      "expected": "b9277d80daa4c7feec05954f76ae898dd0f7cbd1b4457beb07bbcfd091eb8bd2",
+      "actual": "b9277d80daa4c7feec05954f76ae898dd0f7cbd1b4457beb07bbcfd091eb8bd2",
+      "pass": true
+    },
+    {
+      "path": "frontend/app/keycta.js",
+      "expected": "f72ef8bf9540ee2317c75caefc385644645896d8778f48f158d7c2c97e2043a0",
+      "actual": "f72ef8bf9540ee2317c75caefc385644645896d8778f48f158d7c2c97e2043a0",
+      "pass": true
+    },
+    {
+      "path": "frontend/app/modeldock.js",
+      "expected": "5821ad0763d167eab4d8e8189337f4c0055b08522c156aa1f982ad170a6bb3e0",
+      "actual": "5821ad0763d167eab4d8e8189337f4c0055b08522c156aa1f982ad170a6bb3e0",
+      "pass": true
+    },
+    {
+      "path": "frontend/app/onboarding.js",
+      "expected": "c25eef76eec065ec875446f65f9ebcf9b3d6b1ebce8db51fa96ffeea00fcd2be",
+      "actual": "c25eef76eec065ec875446f65f9ebcf9b3d6b1ebce8db51fa96ffeea00fcd2be",
+      "pass": true
+    },
+    {
+      "path": "frontend/app/overseer-setup.js",
+      "expected": "f5737708bd2f63921c890a3191f136a0d72a4144631d849ca00ea79150b533bc",
+      "actual": "f5737708bd2f63921c890a3191f136a0d72a4144631d849ca00ea79150b533bc",
+      "pass": true
+    },
+    {
+      "path": "frontend/app/personas.js",
+      "expected": "9b8fd447596e95ee0d9b1e4370dad7d46e46a778e5db473efc4665e3450a5c17",
+      "actual": "9b8fd447596e95ee0d9b1e4370dad7d46e46a778e5db473efc4665e3450a5c17",
+      "pass": true
+    },
+    {
+      "path": "frontend/app/spacebg.js",
+      "expected": "728e74684342afe9be9bd43641f0ef431a5a98810df55fefa055748f62972e88",
+      "actual": "728e74684342afe9be9bd43641f0ef431a5a98810df55fefa055748f62972e88",
+      "pass": true
+    },
+    {
+      "path": "frontend/app/stationui.js",
+      "expected": "e898cf89f15917d33caf7f9d6e92dc29ec8f993acd8cb3170272e49d76c57026",
+      "actual": "e898cf89f15917d33caf7f9d6e92dc29ec8f993acd8cb3170272e49d76c57026",
+      "pass": true
+    },
+    {
+      "path": "frontend/app/terrain.js",
+      "expected": "59cafddead1f96cb9d17c18792c039311c43a03b895da0d7758e090b36c47a15",
+      "actual": "59cafddead1f96cb9d17c18792c039311c43a03b895da0d7758e090b36c47a15",
+      "pass": true
+    },
+    {
+      "path": "frontend/app/tutorial.js",
+      "expected": "44f43822ceb30837f793565389d52d0be3cf39f8883768d9b332abcbc2dfcea3",
+      "actual": "44f43822ceb30837f793565389d52d0be3cf39f8883768d9b332abcbc2dfcea3",
+      "pass": true
+    },
+    {
+      "path": "frontend/app/voice-live.js",
+      "expected": "ed2e482f7f2de57d4ce76340c401f6b8430de32a33addb9c00b4c11f33c5f273",
+      "actual": "ed2e482f7f2de57d4ce76340c401f6b8430de32a33addb9c00b4c11f33c5f273",
+      "pass": true
+    },
+    {
+      "path": "frontend/app/voice.js",
+      "expected": "250de9e26463b6933082e1d21215586cdbd71524a2f904767e37ffec8b17497f",
+      "actual": "250de9e26463b6933082e1d21215586cdbd71524a2f904767e37ffec8b17497f",
+      "pass": true
+    },
+    {
+      "path": "frontend/app/windows/connectors.js",
+      "expected": "10c24b617cb5e632b9b5d7acf8a0bb3da91339e99877cf7dcae0ae297dc2eabc",
+      "actual": "10c24b617cb5e632b9b5d7acf8a0bb3da91339e99877cf7dcae0ae297dc2eabc",
+      "pass": true
+    },
+    {
+      "path": "frontend/app/windows/messaging.js",
+      "expected": "17f7c3fb77ee6de78ee9ca936bc7b9f15599bf125b839c6b161b7dfe37f2c0f5",
+      "actual": "17f7c3fb77ee6de78ee9ca936bc7b9f15599bf125b839c6b161b7dfe37f2c0f5",
+      "pass": true
+    },
+    {
+      "path": "frontend/app/world.js",
+      "expected": "ea82ff8c5ffb96232fd8c4eb8e8ea23b6a98f95113a5bfba029a21d28e7b5a95",
+      "actual": "ea82ff8c5ffb96232fd8c4eb8e8ea23b6a98f95113a5bfba029a21d28e7b5a95",
+      "pass": true
+    },
+    {
+      "path": "frontend/app/worldmodel.js",
+      "expected": "777296fcbe609fae4acd3a0f5cefad3019706d8f7b14bf539c937b7877825d22",
+      "actual": "777296fcbe609fae4acd3a0f5cefad3019706d8f7b14bf539c937b7877825d22",
+      "pass": true
+    },
+    {
+      "path": "frontend/css/beat-cards.css",
+      "expected": "e46a5e58ceddcefb79e3efe7502679f34dbb384540a7eaa3f8691ee624cc9b4d",
+      "actual": "e46a5e58ceddcefb79e3efe7502679f34dbb384540a7eaa3f8691ee624cc9b4d",
+      "pass": true
+    },
+    {
+      "path": "frontend/css/comms.css",
+      "expected": "4b0ca424c9ced03570cb45f28997f59f2aa925c22d3ef51b33864df6b0d6f69c",
+      "actual": "4b0ca424c9ced03570cb45f28997f59f2aa925c22d3ef51b33864df6b0d6f69c",
+      "pass": true
+    },
+    {
+      "path": "frontend/css/onboarding.css",
+      "expected": "298bfcbd14cafed90e223016256592806f0de12c1637293468bcf5e851e77a08",
+      "actual": "298bfcbd14cafed90e223016256592806f0de12c1637293468bcf5e851e77a08",
+      "pass": true
+    },
+    {
+      "path": "frontend/css/overseer-setup.css",
+      "expected": "64d5a0bc6e68ae02520aede250450cc92d38d6b430fd13834ec883bdef5f86f1",
+      "actual": "64d5a0bc6e68ae02520aede250450cc92d38d6b430fd13834ec883bdef5f86f1",
+      "pass": true
+    },
+    {
+      "path": "frontend/css/tutorial.css",
+      "expected": "8df6c9938dfc4091fbbdcccc3b0c2ad01bff1eeea294274087de3240bebc2a31",
+      "actual": "8df6c9938dfc4091fbbdcccc3b0c2ad01bff1eeea294274087de3240bebc2a31",
+      "pass": true
+    },
+    {
+      "path": "frontend/js/assets.js",
+      "expected": "92b29c3102e7713de06e9fbe93ae06ed832922d93469eb2c2da08dbcc7c71512",
+      "actual": "92b29c3102e7713de06e9fbe93ae06ed832922d93469eb2c2da08dbcc7c71512",
+      "pass": true
+    }
+  ],
+  "pass": true,
+  "scope": "Changed JavaScript and CSS since v0.11.1 fetched from the installed WebView and compared byte-for-byte with current candidate source. HTML shell injection and binary assets are outside this comparison."
+}

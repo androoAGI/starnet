@@ -1,0 +1,30 @@
+{
+  "observedAt": "2026-09-11T03:34:28.459Z",
+  "interrupted": {
+    "source": "afd1da77fb4a489151b45b5a6c53e60ada4ca1f4",
+    "lastLogWrite": "2026-09-11T02:34:46.301Z",
+    "logSha256": "7ab79f5806233b957b7a622df5f1cd85405805788d75586046685172fc993095",
+    "latestLines": [
+      "[soak] t+260.3m tick 1032 epoch 25 rss=96MB health=12/16ms swallowed=0 runs=774/0 fires=260",
+      "[soak] t+260.5m tick 1033 epoch 25 rss=95MB health=1/13ms swallowed=0 runs=774/0 fires=260",
+      "[soak] t+260.8m tick 1034 epoch 25 rss=99MB health=16/17ms swallowed=0 runs=775/0 fires=260"
+    ],
+    "completionReceiptExists": false,
+    "terminationReason": "unknown; runner and source sidecar absent when checked"
+  },
+  "replacement": {
+    "pid": 43572,
+    "startedAt": "2026-09-11T02:51:01.8796730Z",
+    "executable": "C:\\Users\\andro\\AppData\\Local\\hermes\\node\\node.exe",
+    "source": "61528ba957fade1872726f342dfae3d768401c38",
+    "worktree": "C:\\Users\\andro\\gen-trees\\release-0112-soak-61528",
+    "out": "C:\\Users\\andro\\gen-trees\\release-0112-finalprep-0911\\.dogfood\\finalprep\\soak-61528",
+    "expectedMinutes": 720,
+    "latestLines": [
+      "[soak] t+42.8m tick 170 epoch 4 rss=88MB health=14/16ms swallowed=0 runs=127/0 fires=42",
+      "[soak] t+43.0m tick 171 epoch 4 rss=88MB health=2/14ms swallowed=0 runs=127/0 fires=42",
+      "[soak] t+43.3m tick 172 epoch 4 rss=92MB health=11/16ms swallowed=0 runs=129/0 fires=43"
+    ]
+  },
+  "scope": "Progress observations, not completed endurance acceptance. No prior partial run counts as a pass."
+}

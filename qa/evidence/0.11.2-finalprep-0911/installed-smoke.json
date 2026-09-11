@@ -1,0 +1,35 @@
+{
+  "schemaVersion": 3,
+  "stampIso": "2026-09-11T03:13:57.133Z",
+  "expectedHead": "7f6c7b005120381539ad9c4b4601cb42b6b9b27d",
+  "expectedTree": "fb8c489f9d42bc967cd33cf4b76d2028ca069ee3",
+  "buildCommit": "7f6c7b005120381539ad9c4b4601cb42b6b9b27d",
+  "sourceTree": "fb8c489f9d42bc967cd33cf4b76d2028ca069ee3",
+  "buildDescribe": "archive/backdrops-glowup-2026-09-10-6-g7f6c7b005",
+  "buildDirty": false,
+  "buildKind": "reproducible-source",
+  "provenanceKind": "reproducible-source",
+  "officialEvidence": null,
+  "appVersion": "0.11.2",
+  "sidecarHarness": "archive/backdrops-glowup-2026-09-10-6-g7f6c7b005",
+  "mode": "desktop",
+  "origin": "http://tauri.localhost",
+  "artifact": {
+    "path": "C:\\Users\\andro\\AppData\\Local\\StarNet Canary\\skynet-desktop.exe",
+    "sha256": "38169014434029a13182baffa5c4b585caab5e646cc97ee6c58b47ea2a88ab44",
+    "size": 17864192
+  },
+  "runtimeExecutable": {
+    "sha256": "38169014434029a13182baffa5c4b585caab5e646cc97ee6c58b47ea2a88ab44",
+    "size": 17864192
+  },
+  "result": "GREEN",
+  "evidence": [
+    {
+      "path": "qa/evidence/0.11.2-finalprep-0911/installed-probe-0.json",
+      "sha256": "dc06c3724e433e131b6db225326af5f97e776bd242bc07e74e32e4fe26bd8198",
+      "size": 2330
+    }
+  ],
+  "notes": "appVersion=0.11.2 mode=desktop build=7f6c7b005120 tree=fb8c489f9d42 kind=reproducible-source checks 9/9 pass"
+}

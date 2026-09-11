@@ -1,0 +1,163 @@
+{
+  "at": "2026-09-11T03:34:28.471Z",
+  "candidate": "7f6c7b005120381539ad9c4b4601cb42b6b9b27d",
+  "runtime": "61528ba957fade1872726f342dfae3d768401c38",
+  "files": [
+    {
+      "path": "inventory.json",
+      "sha256": "9747c38d1ed76d766a3c02bbc5fec5410b1eaee1256476364abe2dd00e633b59",
+      "bytes": 310460,
+      "source": ".dogfood/finalprep/inventory.json"
+    },
+    {
+      "path": "platform-builds.json",
+      "sha256": "475d1af5ab41579b0f34086e2c52d379a8edcae9f956fb8cbc99c79efc4b1da8",
+      "bytes": 19789,
+      "source": ".dogfood/finalprep/platform-builds.json"
+    },
+    {
+      "path": "platform-artifacts.json",
+      "sha256": "9ad40095e52a847fc17850ddb5beca5ba144703119191b2b0b98514fc714e4c8",
+      "bytes": 566,
+      "source": ".dogfood/finalprep/platform-artifacts.json"
+    },
+    {
+      "path": "installed-persistence.json",
+      "sha256": "dcdb020ed1f52ee33cbab88c0a8773f93314cedb27708a5269c03edbb22bd8a2",
+      "bytes": 369,
+      "source": ".dogfood/finalprep/persistence.json"
+    },
+    {
+      "path": "refit.json",
+      "sha256": "a83091fc6fba54bcfa365d367435f470555a5105f5fbff2f5b2a988540fc3d11",
+      "bytes": 2871,
+      "source": ".dogfood/finalprep/refit.json"
+    },
+    {
+      "path": "installed-idle.json",
+      "sha256": "cd3bffb1401e3128ab8206c6baa3542e33ad8c1d9c5dec340b3dc6b2337420bb",
+      "bytes": 113622,
+      "source": ".dogfood/finalprep/installed-idle.json"
+    },
+    {
+      "path": "preflight-before.json",
+      "sha256": "4d4f9224279cf39d7bc8a868e95764a795fb826acbc722c9493c8dba6edfd59a",
+      "bytes": 5385,
+      "source": ".dogfood/finalprep/integration-preflight.json"
+    },
+    {
+      "path": "preflight-after.json",
+      "sha256": "98aa7d28d02e26e1ebbb9eac17246a91e0ead7721938d40809fad6480f021490",
+      "bytes": 5893,
+      "source": ".dogfood/finalprep/preflight-after.json"
+    },
+    {
+      "path": "preflight-regression-before.log",
+      "sha256": "e7ed3e8ff7ca56d2f469cbf6a3bfd56c1cad0192a0b1ca3ced59bcd6c0a4aab0",
+      "bytes": 990,
+      "source": ".dogfood/finalprep/preflight-regression-before.log"
+    },
+    {
+      "path": "served-source.json",
+      "sha256": "bcea2011eba333e3a6393a80dbfa0f0c79dae48380bb59bd48c5e0e6873892e9",
+      "bytes": 7950,
+      "source": ".dogfood/finalprep/served-source.json"
+    },
+    {
+      "path": "final-persistence.json",
+      "sha256": "d8995edb53b938e2594a738b0d298f0bd0b606841e523721171c84c33a34696b",
+      "bytes": 534,
+      "source": ".dogfood/finalprep/final-persistence.json"
+    },
+    {
+      "path": "integration-ready.json",
+      "sha256": "ae21272ad0abcb9041a09b2875c46e25cb7415520f6f5afe80a6df042e9120e0",
+      "bytes": 2296,
+      "source": ".dogfood/finalprep/integration-ready-final.json"
+    },
+    {
+      "path": "artifacts.json",
+      "sha256": "f2f34afad4a1f92b698ebafaf39981fd0a0890e2d1931363ff0b732c82ad500e",
+      "bytes": 810,
+      "source": ".dogfood/finalprep/artifacts.json"
+    },
+    {
+      "path": "history-summary.json",
+      "sha256": "a42e0e99ab55c22296cc44f53af7cd422e436e158035fa4dcb58e1403f894b40",
+      "bytes": 363,
+      "source": ".dogfood/finalprep/history-summary.json"
+    },
+    {
+      "path": "preflight-final.json",
+      "sha256": "75d8a0872b272458a80ba1f0b1cc591e3dad7e2b0d8d5e202c4071fcca5d828b",
+      "bytes": 5766,
+      "source": ".dogfood/finalprep/integration-preflight-final.json"
+    },
+    {
+      "path": "installed-probe-0.json",
+      "sha256": "dc06c3724e433e131b6db225326af5f97e776bd242bc07e74e32e4fe26bd8198",
+      "bytes": 2330,
+      "source": "qa/installed/smoke-2026-09-11T03-13-57-133Z/probe.json"
+    },
+    {
+      "path": "installed-smoke.json",
+      "sha256": "6b81afdeaf74d7c2f47339ae911605d20120d4e9d6a2e058b6b86e881ab67a44",
+      "bytes": 1367,
+      "source": "qa/installed/last-smoke.json; only probe paths relocated"
+    },
+    {
+      "path": "beginner.json",
+      "sha256": "28a7da37ccfe6ee2c5e4f56173e49560bd19167331d97190de01d19111a6fb31",
+      "bytes": 189,
+      "source": "qa/beginner-last-run.json"
+    },
+    {
+      "path": "guardian.json",
+      "sha256": "47ce37b51e025ad82a7d1daf7ae81a2fad05d4f58d04b62412c0d8155861d128",
+      "bytes": 1024,
+      "source": "C:/Users/andro/Desktop/gen/qa/guardian-last-cycle.json"
+    },
+    {
+      "path": "journeys.json",
+      "sha256": "857a060a7ba4982d56aaeec3e324ceb8e6c63fe64fe786599133d4274749aded",
+      "bytes": 213,
+      "source": "C:/Users/andro/Desktop/gen/qa/journeys-last-run.json"
+    },
+    {
+      "path": "screenshots/refit-forest.png",
+      "sha256": "c88eafa15f335dd8ccc052c502f8df5876ed6622912f0829dc044dca81824691",
+      "bytes": 14276557,
+      "source": ".dogfood/finalprep/refit/forest.png"
+    },
+    {
+      "path": "screenshots/refit-moon.png",
+      "sha256": "649f2c2ed6dfca5c597ad6de628f57130b231adf198d6e0dfd62f6f835bf5712",
+      "bytes": 10710119,
+      "source": ".dogfood/finalprep/refit/moon.png"
+    },
+    {
+      "path": "screenshots/refit-city.png",
+      "sha256": "41c20348195ea679da479c21635d2417a853c207b77b5ac5a53cb9edcf55cafe",
+      "bytes": 7099923,
+      "source": ".dogfood/finalprep/refit/city.png"
+    },
+    {
+      "path": "source-equivalence.json",
+      "sha256": "f2e9d0488bd28d851f4869b4602fe6103aae4eb72c35603fee7a884a4ebcecbb",
+      "bytes": 895,
+      "source": "git diff between the two recorded commits"
+    },
+    {
+      "path": "source-soak-progress.json",
+      "sha256": "b50d09cafe71d8de4b178d16111fbc072d2053039f218b5e42f2f0e19be02a57",
+      "bytes": 1570,
+      "source": "Owned runner identity and retained logs"
+    },
+    {
+      "path": "gate-log-hashes.json",
+      "sha256": "06f5776bbcdb90deb7618e3265f57d5f93eabd1553db9342fefa636b25ef6d83",
+      "bytes": 777,
+      "source": "Local logs; final completion checked separately"
+    }
+  ]
+}

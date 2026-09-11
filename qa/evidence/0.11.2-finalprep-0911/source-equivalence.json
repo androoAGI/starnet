@@ -1,0 +1,26 @@
+{
+  "runtime": "61528ba957fade1872726f342dfae3d768401c38",
+  "candidate": "7f6c7b005120381539ad9c4b4601cb42b6b9b27d",
+  "changedPaths": [
+    "docs/RELEASE_RUNBOOK.md",
+    "docs/releases/0.11.2/CUSTOMER_RETESTS.md",
+    "docs/releases/0.11.2/FOLLOWTHROUGH.md",
+    "docs/releases/0.11.2/RELEASE_NOTES_DRAFT.md",
+    "qa/BUGS.md",
+    "qa/bugs/0ea3abca-release-preflight-mistakes-installed-smoke-for-c.md",
+    "scripts/release-preflight.mjs",
+    "test/release-preflight.test.js"
+  ],
+  "unchangedRoots": [
+    "frontend",
+    "sidecar",
+    "shared",
+    "src-tauri",
+    "package.json",
+    "package-lock.json",
+    "scripts/prepare-node.mjs",
+    "scripts/stage-voice-deps.mjs",
+    "scripts/qa/soak.mjs"
+  ],
+  "scope": "Committed application/runtime/build inputs unchanged; source metadata and local canary feed port differ. UI/idle/platform evidence retains its actual runtime commit."
+}
