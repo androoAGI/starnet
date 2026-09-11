@@ -54,7 +54,21 @@ Start-Process -FilePath $env:PROOF_EXE -WindowStyle Hidden | Out-Null`);
   throw new Error('Installed application did not initialize');
 }
 async function snapshot() {
-  return evalJS(cdp, `(async()=>{App.persist();const drained=await CloudSave.flushForUpdate();if(!drained.ok)throw Error('Save drain not confirmed');const r=await fetch('/api/save?agent=agent');if(!r.ok)throw Error('Save read failed');return {local:JSON.parse(localStorage.getItem('starnet.save')||'null'),durable:(await r.json()).save,sentinel:JSON.parse(localStorage.getItem('starnet.canary.continuity')||'null')}})()`);
+  const snap = await evalJS(cdp, `(async()=>{
+    const original=window.fetch, writes=[];
+    window.fetch=async function(input,options){
+      const r=await original.call(this,input,options);
+      if(String(input).includes('/api/save')&&options?.method==='POST')writes.push({status:r.status,body:await r.clone().text()});
+      return r;
+    };
+    try {
+      App.persist();const drained=await CloudSave.flushForUpdate();
+      const r=await fetch('/api/save?agent=agent');if(!r.ok)throw Error('Save read failed');
+      return {drained,writes,health:CloudSave.health(),local:JSON.parse(localStorage.getItem('starnet.save')||'null'),durable:(await r.json()).save,sentinel:JSON.parse(localStorage.getItem('starnet.canary.continuity')||'null')};
+    }finally{window.fetch=original;}
+  })()`);
+  if (!snap.drained.ok) { receipt.failedSnapshot = snap; throw new Error('Save drain not confirmed; see failedSnapshot responses'); }
+  return snap;
 }
 try {
   install(baseline); await launch();
