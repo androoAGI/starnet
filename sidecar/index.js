@@ -15991,6 +15991,7 @@ async function runOnce(o) {
       project: tool => !signal?.aborted && userControlAuthority.project(tool),
       authorize: (call, tool) => signal?.aborted ? { ok: false, reason: 'delegating run cancelled' } : userControlAuthority.authorize(call, tool),
       prompt: typeof prompt === 'function' ? (call, tool) => signal?.aborted ? 'deny' : prompt(call, tool) : null,
+      fullAccess: () => !signal?.aborted && unrestrictedHostNow(),
       taintedBy: () => execution.taintedBy() || (typeof o.connectorAuthority?.taintedBy === 'function' ? o.connectorAuthority.taintedBy() : null)
     },
     // HOOKS reach the tool boundary through the dispatch ctx. registry.js consults them AFTER the authority,
@@ -16399,16 +16400,18 @@ async function runOnce(o) {
       ? o.connectorAuthority.prompt : null;
     const effectPrompt = prompt || connectorPrompt;
     const effectSurface = connectorPrompt ? 'interactive' : surface;
+    const connectorFullAccess = /^mcp:/.test(String(liveTool?.capability || ''))
+      && typeof o.connectorAuthority?.fullAccess === 'function' && o.connectorAuthority.fullAccess() === true;
     let postTaint = revokedByTaint.boundary(liveTool, {
       taintedBy: taintSource, surface: effectSurface, hasPrompt: typeof effectPrompt === 'function',
-      fullAccess: FULL_ACCESS || masterBypassOn() || agentFullAccessNow()
+      fullAccess: FULL_ACCESS || masterBypassOn() || agentFullAccessNow() || connectorFullAccess
     });
     if (postTaint.needsConfirmation) {
       let decision = 'deny';
       try { decision = await effectPrompt(c, liveTool); } catch (_) {}
       postTaint = revokedByTaint.boundary(liveTool, {
         taintedBy: taintSource, surface: effectSurface, hasPrompt: true, decision,
-        fullAccess: FULL_ACCESS || masterBypassOn() || agentFullAccessNow()
+        fullAccess: FULL_ACCESS || masterBypassOn() || agentFullAccessNow() || connectorFullAccess
       });
     }
     const postTaintConfirmed = postTaint.oneShot;

@@ -60,10 +60,10 @@ const { SidecarFixture } = require('./helpers/sidecar-fixture.js');
   }
   try {
     await fixture.start();
-    const roster = await fixture.json('POST', '/api/roster', { agents: [
-      { agentId: 'agent', name: 'LEAD', model: 'test/model', provider: 'openrouter', approvalMode: 'ask', executionProfile: 'trusted-project' },
+    const setRoster = approvalMode => fixture.json('POST', '/api/roster', { agents: [
+      { agentId: 'agent', name: 'LEAD', model: 'test/model', provider: 'openrouter', approvalMode, executionProfile: 'trusted-project' },
       { agentId: 'worker', name: 'SPECIALIST', system: 'CRM_SPECIALIST', model: 'test/model', provider: 'openrouter', approvalMode: 'ask', executionProfile: 'trusted-project' }
-    ] }); assert.equal(roster.status, 200, roster.text);
+    ] }); const roster = await setRoster('ask'); assert.equal(roster.status, 200, roster.text);
     const conn = await fixture.json('POST', '/api/connectors', { id: 'crm', transport: 'http', url: base + '/mcp', enabled: true });
     assert.equal(conn.status, 200, conn.text);
     const direct = await drive('direct');
@@ -77,6 +77,11 @@ const { SidecarFixture } = require('./helpers/sidecar-fixture.js');
       assert.ok(delegated.prompts.length >= 2, 'delegated write approval reaches the lead watcher');
       assert.ok(wire.filter(w => w.specialist).every(w => !w.names.includes('team_dispatch')), 'worker cannot recursively delegate');
     }
+    await setRoster('full');
+    const full = await drive('delegated');
+    assert.deepEqual(effects, ['read', 'write'], 'lead Full Access permits both delegated connector calls');
+    assert.equal(full.prompts.length, 0, 'worker keeps the lead Full Access posture for MCP');
+    await setRoster('ask');
     await drive('delegated', 'deny');
     assert.ok(!effects.includes('write'), 'denied write never reaches MCP');
     await fixture.json('POST', '/api/connectors/remove', { id: 'crm' });
