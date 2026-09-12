@@ -1,3 +1,37 @@
+## JOURNEY POLISH — 2026-09-12 (`agent/journey-first-loop-0912`)
+
+Owner approved the expanded direction and requested polish. Source `c3e07f0b9`, with the
+reflection timing correction in `679a8467a`, improves the existing journey without adding
+another progression system:
+
+- Reproduced and fixed a live draft-loss bug: saving an idea erased an unfinished goal form.
+  Quest actions now use form-preserving repaints. Only submitted fields are cleared, by stable
+  identity and submitted value; newer writing during an asynchronous save remains intact.
+- Journey inputs now participate in the existing unsaved-close guard. Saved fields clear their
+  dirty marker; archive search is not treated as unsaved content.
+- Templates and idea promotion offer restore-previous-draft, including context and idea links.
+  New starting points do not inherit a different goal's success condition or motivation.
+- Goal creation displays a pending state and prevents repeat clicks/template replacement during
+  registration. Save, pause/resume, and review failures provide explicit feedback.
+- Focused directions sort first. Context, plan, and reflection editors are compact and retain
+  expansion across status changes. Archive search finds outcomes and reflections without
+  rebuilding the forms, and gives recovery guidance when nothing matches.
+- Unchanged context saves add no history; a five-second duplicate-click guard on reflections
+  preserves intentional repeated observations later. Live counts were 5 -> 5 -> 6.
+
+Live proof: the draft survives idea/reflection saves, pause/resume, template undo, and tab
+changes. A real intercepted/delayed goal registration displayed SAVING, minted one goal,
+retained text typed while pending, and restored controls after its response. A single-line
+draft triggered the real close warning. Metric saves retained values, cleared only submitted
+notes, and cleared saved dirty markers. Unique control ids and station paint were checked.
+
+Focused tests pass: GoalStore 160 assertions, quest-log window 104. Full `npm run test:fast`
+passed 771/771 against source receipt `b00834d92`; the full receipt is
+`.dogfood/journey-first-loop/polish-verified.log`. No backend/shared-contract edits. The
+generated website mirror is synchronized, and source-claims checks passed 64 assertions.
+Live receipts and the polished-controls screenshot are under `.dogfood/journey-first-loop/`.
+The source remains isolated; browser-local plan storage and the installed app are unchanged.
+
 ## EXPANDED JOURNEY IN BRANCH — 2026-09-12 (`agent/journey-first-loop-0912`)
 
 Owner explicitly requested a much fuller experience before judging it. This supersedes the
