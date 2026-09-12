@@ -8667,19 +8667,19 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
     const growthHtml = progression ? '<div class="q-commander-growth"><div class="q-journey-title">COMMANDER LEVEL ' + progression.level + '</div>'
       + '<div class="sub">' + progression.points + ' achievement points · ' + progression.pointsToNextLevel + ' to the next level</div>'
       + '<div class="sub dim">Confirmed goal activity and recorded metric checkpoints earn points across your goals. Confirming a completed goal earns 100 points. Setbacks never erase your history.</div>'
-      + achievements.map(a => '<details class="sub q-achievement"><summary>◆ ' + esc(a.title || a.kind || 'Goal progress') + ' <span class="gx-tag">+' + (Number(a.points) || 0) + '</span></summary>'
-        + '<div>' + esc(a.evidence || '') + '</div><div class="dim">' + proofLabel(a.kind, a.verifiedBy) + '</div></details>').join('') + '</div>' : '';
+      + '<details class="q-growth-history"><summary>Recent achievements</summary>' + achievements.map(a => '<details class="sub q-achievement"><summary>◆ ' + esc(a.title || a.kind || 'Goal progress') + ' <span class="gx-tag">+' + (Number(a.points) || 0) + '</span></summary>'
+        + '<div>' + esc(a.evidence || '') + '</div><div class="dim">' + proofLabel(a.kind, a.verifiedBy) + '</div></details>').join('') + '</details></div>' : '';
     const outcomeHtml = recent.length ? '<div class="q-proof-list">' + recent.map(o => '<div class="sub"><span class="q-outcome">' + esc(o.kind) + '</span> '
       + esc(o.title || o.sourceId) + ' <span class="dim">&middot; ' + proofLabel(o.kind, o.verifiedBy) + '</span></div>').join('') + '</div>' : '';
     const staleHtml = journeyState && journeyState.stale
       ? '<div class="sub warn q-journey-stale">Journey snapshot is unconfirmed — showing the last verified sidecar response while the live read recovers.</div>'
       : '';
 
-    return '<div class="q-journey-card">' + staleHtml + '<div class="q-progress-overview">' + growthHtml
+    return '<div class="q-journey-card">' + staleHtml + constellation + '<div class="q-progress-overview">' + growthHtml
       + '<div class="q-evolution"><div><span class="q-ns-eyebrow">STATION EVOLUTION</span><div class="q-evolution-name">' + esc(evo.name) + '</div></div>'
       + '<span class="gx-tag">' + (Number(evo.goalsReached) || 0) + ' distinct goals reached</span>'
       + (evo.next ? '<p class="sub">Next chapter: <b>' + esc(evo.next) + '</b><br>One more distinct goal outcome, confirmed by you.</p>' : '') + '</div>'
-      + '</div>' + constellation + '<div class="q-progress-goal">' + goalHtml + '</div>' + metricsHtml + masteryHtml + receiptHtml
+      + '</div><div class="q-progress-goal">' + goalHtml + '</div>' + metricsHtml + masteryHtml + receiptHtml
       + (outcomeHtml ? '<details class="q-progress-section"><summary><span>Recent progress</span><span class="q-section-note">Recorded evidence</span></summary><div class="q-section-body">' + outcomeHtml + '</div></details>' : '')
       + '</div>';
   }

@@ -108,7 +108,9 @@
 .quests-win .q-next-choice button { display: block; margin: 8px 0; white-space: normal; text-align: left; }
 
 /* A journey is a collection of real chapters, with room for unfinished possibilities. */
-.quests-win :is(.q-possibilities,.q-goal-collection,.q-chapters,.q-constellation) { margin: 18px 0; }
+.quests-win :is(.q-possibilities,.q-goal-collection,.q-chapters,.q-constellation) { margin: 18px 0; scroll-margin-top: 80px; }
+.quests-win :is(.q-chapter,.q-life-manage) { scroll-margin-top: 80px; }
+.quests-win .q-growth-history { margin-top: 12px; }
 .quests-win :is(.q-direction,.q-idea,.q-idea-new,.q-chapter) { padding: 14px; margin: 10px 0; border: 1px solid rgba(var(--ph-rgb),.2); border-radius: 10px; background: var(--quest-glass); }
 .quests-win :is(.q-direction,.q-idea,.q-chapter) > summary { display: flex; justify-content: space-between; gap: 12px; cursor: pointer; overflow-wrap: anywhere; }
 .quests-win :is(.q-direction,.q-idea,.q-chapter) > summary::before { content: '+'; color: var(--ph-dim); }
