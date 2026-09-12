@@ -1,3 +1,47 @@
+## EXPANDED JOURNEY IN BRANCH — 2026-09-12 (`agent/journey-first-loop-0912`)
+
+Owner explicitly requested a much fuller experience before judging it. This supersedes the
+earlier prototype's suggestion to stop for a playtest before expanding the journey.
+
+Implemented in `172acd77e`, with layout and review corrections through `e529f9dc4`:
+
+- A persisted possibility shelf: an experiment question, learning notes, shelving/restoring,
+  an editable crew exploration session, and promotion into a goal with the learning retained.
+- Editable starting points for app launch, time-saving automation, and creative work.
+- Multiple directions with focus, pause/resume, reversible archiving, motivation and
+  constraints, reflections, and revision of unaccepted steps. Accepted objectives and completed
+  work remain unchanged; the earlier wording and reasons for changing direction stay recorded.
+- Actual milestone launches carry the goal, success condition, constraints, motivation, and
+  latest reflection. Crew reviews also carry recorded steps and any reported final outcome.
+- A personal constellation derived from saved goals and acknowledged outcome records, linked
+  to crew review, with existing Commander progression and station evolution alongside it.
+- A chapter archive with step evidence, user outcome reports, revisions, and reflections;
+  JSON export through a real download. Adding goals no longer silently evicts old chapters.
+
+Live verified on the isolated seed: possibility -> goal -> revised step -> pause/resume ->
+real harness run through brief.proceed/fs.write -> recorded step -> metric update -> explicit
+outcome report -> illuminated star and ORBIT stage. Reaching the metric target alone did not
+finish the goal. Browser and sidecar restarts retained ideas, links, constraints, revisions,
+reflections, and exactly the same outcome receipts. Crew review opened as an editable prompt
+with the reported result explicitly distinguished from independent verification. Export
+download retained both test goals, both ideas, and revision history. New controls use station
+paint; the next action remains visible in the docked panel. All examples are labelled local
+fixtures, not actual audience or business achievements.
+
+Focused tests pass: GoalStore 154 assertions and quest-log window 93 assertions. Final full
+`npm run test:fast` passed 771/771 against source receipt `2f99f04cb`; the receipt is
+`.dogfood/journey-first-loop/full-form-verified.log`. Source-claims checks passed 64 assertions.
+An earlier gate attempt encountered a Windows lock on the active Chrome test profile inside
+the scanned evidence folder. The profile was moved outside that folder; the evidence scan
+then passed. No test threshold was weakened. Generated website sources are synchronized.
+
+Visual walkthrough: `.dogfood/journey-first-loop/REVIEW.md` in the owned worktree, with live
+screenshots and restart/export receipts. Full plan trees and reflections remain browser-local;
+the existing sidecar owns metrics and progression. No new scheduling engine, model-learning
+claims, tool unlocks, backend/schema edits, integration merge, or installed-app changes.
+Next product work should be driven by the owner's review of this expanded experience, with
+cross-device plan persistence and stronger artifact-specific milestone evidence still open.
+
 ## VERIFIED PROTOTYPE IN BRANCH — 2026-09-12 personal journey first loop (`agent/journey-first-loop-0912`)
 
 Owner direction: StarNet grows with the user's real ambitions. Explore, pursue and maintain
