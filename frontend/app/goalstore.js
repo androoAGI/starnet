@@ -409,12 +409,16 @@ const GoalStore = (() => {
   function saveContext(id, motivation, constraints) {
     const g = ready() && state.goals.find(g => g.id === id && ['active', 'paused'].includes(g.status));
     if (!g) return false;
-    g.motivation = cleanNote(motivation, 500); g.constraints = cleanNote(constraints, 500);
+    const why = cleanNote(motivation, 500), limits = cleanNote(constraints, 500);
+    if ((g.motivation || '') === why && (g.constraints || '') === limits) return true;
+    g.motivation = why; g.constraints = limits;
     record(g, 'context', 'Why it matters: ' + (g.motivation || 'not specified') + '\nConstraints: ' + (g.constraints || 'not specified')); return true;
   }
   function reflect(id, text) {
     const g = ready() && state.goals.find(g => g.id === id);
     if (!g || cleanNote(text).length < 4) return false;
+    const last = (g.journal || []).slice(-1)[0];
+    if (last && last.kind === 'reflection' && last.text === cleanNote(text)) return true;
     record(g, 'reflection', text); return true;
   }
   function reviseStep(id, milestoneId, text) {
@@ -643,7 +647,7 @@ const GoalStore = (() => {
     init, reset, sync, quests, activeGoal, unplannedGoal, pushToSidecar,
     willOfferDecomposition, pendingDecomposition, proposeDecomposition, confirm, declineDecomposition, markOffered,
     acceptMilestone, createGoal, focusGoal, chooseNext, briefing, listGoals: () => ready() ? state.goals.slice() : [],
-    setDisposition, saveContext, reflect, reviseStep, saveIdea, archiveIdea, reviewPrompt,
+    setDisposition, saveContext, reflect, reviseStep, saveIdea, archiveIdea, reviewPrompt, isCreatingGoal: () => creatingGoal,
     listIdeas: () => ready() ? state.ideas.slice() : [], exportJourney: () => JSON.stringify({ exportedAt: now(), goals: state && state.goals || [], ideas: state && state.ideas || [] }, null, 2),
     reportMilestone, setSuccessCondition, confirmOutcome, addStep, reconcile, syncDrift, setFiring, isFiring, beliefFingerprint, questLive,
     _state: () => state, _onRunEnd: onRunEnd, _syncJourneyMilestones: syncJourneyMilestones

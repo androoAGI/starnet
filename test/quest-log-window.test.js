@@ -26,6 +26,33 @@ const refresh = read('frontend/app/questrefreshstore.js');
 const css = read('frontend/css/app.css');
 const motion = read('frontend/css/motion.css');
 
+// A successful save clears only its submitted fields, including when the store has already
+// replaced the original DOM. Newer input during an async save must remain dirty and intact.
+const draftVm = require('vm');
+const draftRenders = [];
+const draftContext = draftVm.createContext({ rerender: (key, swap) => draftRenders.push({key,swap}), notify: () => {} });
+draftVm.runInContext(station.slice(station.indexOf('  function questJourneyFields('), station.indexOf('  function buildQuests(')), draftContext);
+const submittedField = { id: 'saved', value: 'My reflection', dataset: { dirty: '1' } };
+const savedSnapshot = draftContext.questJourneyFields([submittedField]);
+const freshField = { ...submittedField, dataset: { dirty: '1' } };
+const otherDraft = { id: 'other', value: 'Unfinished goal', dataset: { dirty: '1' } };
+draftContext.questJourneySaved({ querySelectorAll: () => [freshField, otherDraft] }, savedSnapshot, true);
+A.eq(freshField.value, '', 'save clears the replacement control by stable id');
+A.eq(freshField.dataset.dirty, '0', 'saved input no longer triggers the unsaved-close guard');
+A.eq(otherDraft.value, 'Unfinished goal', 'saving a reflection preserves another goal draft');
+A.eq(otherDraft.dataset.dirty, '1', 'the unrelated draft remains dirty');
+freshField.value = 'New writing while the request was pending'; freshField.dataset.dirty = '1';
+draftContext.questJourneySaved({ querySelectorAll: () => [freshField, otherDraft] }, savedSnapshot, true);
+A.eq(freshField.value, 'New writing while the request was pending', 'async completion does not erase newer writing in the same field');
+A.eq(freshField.dataset.dirty, '1', 'newer writing remains unsaved');
+A.ok(draftRenders.every(r => r.key === 'quests' && r.swap === false), 'successful journey saves use the form-preserving repaint');
+const metricValue = { id: 'metric', value: '3', dataset: { dirty: '1' } };
+const metricNote = { id: 'note', value: 'Three people replied', dataset: { dirty: '1' } };
+draftContext.questJourneySaved({ querySelectorAll: () => [metricValue, metricNote] }, draftContext.questJourneyFields([metricValue, metricNote]), new Set(['note']));
+A.eq(metricValue.value, '3', 'saving a metric retains its displayed value');
+A.eq(metricValue.dataset.dirty, '0', 'saved metric value is no longer dirty');
+A.eq(metricNote.value, '', 'saving a metric clears its submitted note');
+
 // Exercise the actual return-card renderer against empty, completed, and active records.
 const renderVm = require('vm');
 let returnBrief = { goal: null, completedGoal: null };
@@ -242,6 +269,7 @@ body._questDrafts.set('q:first', { evidence: 'Unsaved result', dirty: true });
 A.eq(ctx.windowDirty(draftWindow), true, 'a draft in another mission still triggers the existing unsaved-close guard');
 body._questDrafts.set('q:first', { evidence: '', dirty: false });
 A.eq(ctx.windowDirty(draftWindow), false, 'recorded or clean cached fields do not block closing');
+A.eq(ctx.windowDirty({ querySelector: s => s === '.quests-content input[data-dirty="1"]' ? {} : null }), true, 'an unfinished journey input also protects the window from closing');
 // Mixed-goal snapshots must not present every metric as belonging to the current focus.
 vm.runInContext(station.slice(station.indexOf('  function journeyHtml()'), station.indexOf('  function lifeGoalsHtml()')), ctx);
 let journeySnapshot = {
