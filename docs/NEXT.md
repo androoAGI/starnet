@@ -1,4 +1,4 @@
-## IN BRANCH — 2026-09-12 personal journey first loop (`agent/journey-first-loop-0912`)
+## VERIFIED PROTOTYPE IN BRANCH — 2026-09-12 personal journey first loop (`agent/journey-first-loop-0912`)
 
 Owner direction: StarNet grows with the user's real ambitions. Explore, pursue and maintain
 are connected experiences, not mandatory modes. Validate a useful, enjoyable loop before
@@ -23,10 +23,20 @@ restart. The output-library action showed the produced file; new controls had st
 and the return card had no horizontal overflow. These are labelled local fixture scenarios,
 not evidence of customer adoption or actual business outcomes.
 
-Validation status: focused goal/return-card tests pass (94 + 122 + 93 assertions). Full fast
-gate still being resolved: first attempt hit logbound's boot-time threshold (standalone retry
-passed); second hit a workshop-implement sidecar boot timeout (standalone retry passed all
-67 assertions). No backend/schema changes.
+Validation: full `npm run test:fast` passed 771/771 on committed candidate `8796a81f2`.
+Focused goal/return-card tests pass (94 + 122 + 93 assertions), source-claims checks pass
+64 assertions, and the generated website mirror matches all 4587 frontend files. Initial
+attempts exposed two transient timing failures (both passed individually and in the final
+gate), the required source-hash refresh and the required four-file demo regeneration.
+Only release-surface identity was refreshed; every claim verdict was preserved. No
+backend/schema changes. The compact return card's primary action is visible in the docked
+panel without scrolling; details expose its success condition and saved evidence. A restart
+retained exactly one journey outcome for the completed milestone.
+
+Implementation: `5855009f2`; mirror/source receipts through `8796a81f2`. Local raw receipts
+and the cropped visual preview live in `.dogfood/journey-first-loop/` in the owned worktree;
+`fast-complete.log` ends with `run-fast-tests: OK — 771 step(s) green`. Test processes were
+stopped. No integration merge, installer rebuild, deployment or publication was performed.
 Do not treat source proof as installer acceptance, usability validation, or release readiness.
 
 Next product checkpoint: have the owner and a small set of users try their own app-building,
