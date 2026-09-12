@@ -2,6 +2,8 @@
 
 **COMPLETE — published September 11, 2026 at 20:16:08 UTC.** [Download 0.11.2](https://github.com/androoAGI/starnet-releases/releases/tag/v0.11.2). The [source release mirror](https://github.com/androoAGI/starnet/releases/tag/v0.11.2) is also public. This is the final disposition; earlier pending/held notes below or in preceding handoffs are historical.
 
+Post-publication notes amendment: the owner requested comprehensive coverage of all shipped changes. See [NOTES_AUDIT.md](NOTES_AUDIT.md) for the expanded notes and publication-surface checks. Original release receipts below retain their original bodies and manifest digest; installers and the source tag are unchanged.
+
 ## Owner decision and engineering closure
 
 On September 11 the owner directed finishing and publishing the update, then clarified: "as long as we proved it and dealt with it were good to go" and that affected users are not available as a required test pool. Engineering reproduction, repair and verification are the acceptance standard. Customer recovery remains a separate, truthful field. This supersedes the earlier customer-confirmation hold in RELEASE_DISPOSITION and CLOSEOUT; the separate extended-soak waiver also remains in force.
