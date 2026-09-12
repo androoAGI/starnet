@@ -448,10 +448,11 @@ const GoalStore = (() => {
     const g = ready() && state.goals.find(g => g.id === id);
     if (!g) return '';
     return 'Help me review my goal: ' + g.text + '\nSuccess looks like: ' + g.successCondition
+      + '\nSaved chapter status: ' + g.status + (g.outcomeEvidence ? '\nMy reported outcome (not independent verification): ' + g.outcomeEvidence : '\nNo final outcome has been reported.')
       + '\nWhy it matters: ' + (g.motivation || 'not yet specified') + '\nConstraints: ' + (g.constraints || 'not yet specified')
       + '\nPlan:\n' + g.milestones.map(m => '[' + m.status + '] ' + m.text + (m.evidence ? ' — recorded: ' + m.evidence : '')).join('\n')
       + '\nRecent reflections:\n' + (g.journal || []).filter(e => e.kind === 'reflection').slice(-3).map(e => e.text).join('\n')
-      + '\nHelp me assess what worked, what is still unverified, and one useful adjustment. Propose changes for me to review. Do not claim the outcome is achieved or change my saved plan.';
+      + '\nHelp me assess what worked, what is still unverified, and one useful adjustment. Distinguish my reported results from independent verification. Propose changes for me to review; do not change my saved plan.';
   }
   function focusGoal(id) {
     const g = ready() && state.goals.find(g => g.id === id && g.status === 'active');

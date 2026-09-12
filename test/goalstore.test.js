@@ -419,6 +419,8 @@ const { GoalStore } = require('../frontend/app/goalstore.js');
   outcomeAvailable = true;
   A.ok((await GoalStore.confirmOutcome(film.id, 'Local test: shared the completed film with three friends.')).ok, 'only explicit outcome report finishes the goal');
   A.eq(GoalStore.setDisposition(film.id, 'active'), false, 'a completed chapter is not reopened as another earnable goal');
+  A.ok(GoalStore.reviewPrompt(film.id).includes('Saved chapter status: done'), 'a completed chapter review includes its actual status');
+  A.ok(GoalStore.reviewPrompt(film.id).includes('Local test: shared the completed film'), 'a completed chapter review includes the reported outcome, not only its older plan');
   const exported = JSON.parse(GoalStore.exportJourney());
   A.eq(exported.goals[0].outcomeEvidence, film.outcomeEvidence, 'export preserves the final outcome evidence');
   A.eq(exported.ideas[0].id, ideaId, 'export includes the original possibility');
