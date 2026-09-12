@@ -418,7 +418,7 @@ const GoalStore = (() => {
     const g = ready() && state.goals.find(g => g.id === id);
     if (!g || cleanNote(text).length < 4) return false;
     const last = (g.journal || []).slice(-1)[0];
-    if (last && last.kind === 'reflection' && last.text === cleanNote(text)) return true;
+    if (last && last.kind === 'reflection' && last.text === cleanNote(text) && now() >= last.at && now() - last.at < 5000) return true;
     record(g, 'reflection', text); return true;
   }
   function reviseStep(id, milestoneId, text) {
