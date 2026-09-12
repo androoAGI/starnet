@@ -181,7 +181,7 @@ const ctx = vm.createContext({ body, QuestStore: { view: () => ({ quests: questR
   esc: s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'),
   QUEST_KIND_TAG: { station: 'STATION', dossier: 'ABOUT YOU' }, GO_LABEL: {},
   questGoDest: () => null, questCompletesWhen: () => 'the recorded condition is met', workshopGrantOn: () => false,
-  questBriefingHtml: () => '', questTrackHtml: () => '', lifeGoalsHtml: () => '', questRefreshHtml: () => '', journeyHtml: () => '',
+  questBriefingHtml: () => '', questTrackHtml: () => '', lifeGoalsHtml: () => '', journeyChaptersHtml: () => '', questRefreshHtml: () => '', journeyHtml: () => '',
   rerender: () => ctx.buildQuests(body)
 });
 const journalSource = station.slice(station.indexOf('  function buildQuests(body)'), station.indexOf('    // COMMANDER JOURNEY writes')) + '\n}';

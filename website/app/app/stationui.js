@@ -8599,6 +8599,14 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
       + '<div class="q-journey-card"><div class="sub dim">Progress is not available yet. It will appear when the station can load your records.</div></div>';
 
     const evo = j.evolution || { stage: 0, name: 'DRIFT', goalsReached: 0 };
+    const chapters = typeof GoalStore !== 'undefined' && GoalStore.listGoals ? GoalStore.listGoals() : [];
+    const constellation = '<div class="q-constellation"><div class="gx-sec"><span class="gx-title">YOUR CONSTELLATION</span><span class="gx-tag">REAL DIRECTIONS · REAL HISTORY</span></div>'
+      + '<div class="q-star-map">' + (chapters.length ? chapters.map(g => {
+        const reached = (j.goals || []).some(x => x.id === g.id && x.status === 'achieved');
+        const p = (g.milestones || []).filter(m => m.status === 'done').length;
+        return '<button class="q-star ' + (reached ? 'q-star-reached' : '') + ' q-goal-review" data-gid="' + esc(g.id) + '"><span class="q-star-glyph" aria-hidden="true">' + (reached ? '✦' : '◇') + '</span><span>' + esc(g.text) + '</span><small>' + (reached ? 'OUTCOME CONFIRMED' : esc(g.status.toUpperCase()) + ' · ' + p + ' RECORDED STEPS') + '</small></button>';
+      }).join('') : '<div class="q-star-empty">◇<p>Your first direction starts a constellation.<br>It grows from the goals and results you record.</p></div>') + '</div>'
+      + '<p class="sub dim">Select a star to reflect with your crew. Confirmed outcomes light up; pausing preserves the chapter.</p></div>';
     const goal = j.activeGoal || null;
     const done = goal ? Math.max(0, Number(goal.done) | 0) : 0;
     const total = goal ? Math.max(0, Number(goal.total) | 0) : 0;
@@ -8669,25 +8677,81 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
 
     return '<div class="q-journey-card">' + staleHtml + '<div class="q-progress-overview">' + growthHtml
       + '<div class="q-evolution"><div><span class="q-ns-eyebrow">STATION EVOLUTION</span><div class="q-evolution-name">' + esc(evo.name) + '</div></div>'
-      + '<span class="gx-tag">' + (Number(evo.goalsReached) || 0) + ' distinct goals reached</span></div>'
-      + '</div><div class="q-progress-goal">' + goalHtml + '</div>' + metricsHtml + masteryHtml + receiptHtml
+      + '<span class="gx-tag">' + (Number(evo.goalsReached) || 0) + ' distinct goals reached</span>'
+      + (evo.next ? '<p class="sub">Next chapter: <b>' + esc(evo.next) + '</b><br>One more distinct goal outcome, confirmed by you.</p>' : '') + '</div>'
+      + '</div>' + constellation + '<div class="q-progress-goal">' + goalHtml + '</div>' + metricsHtml + masteryHtml + receiptHtml
       + (outcomeHtml ? '<details class="q-progress-section"><summary><span>Recent progress</span><span class="q-section-note">Recorded evidence</span></summary><div class="q-section-body">' + outcomeHtml + '</div></details>' : '')
       + '</div>';
   }
 
   function lifeGoalsHtml() {
-    const goals = typeof GoalStore !== 'undefined' && GoalStore.listGoals ? GoalStore.listGoals().filter(g => g.status === 'active') : [];
+    const all = typeof GoalStore !== 'undefined' && GoalStore.listGoals ? GoalStore.listGoals() : [];
+    const goals = all.filter(g => ['active', 'paused', 'archived'].includes(g.status));
+    const ideas = typeof GoalStore !== 'undefined' && GoalStore.listIdeas ? GoalStore.listIdeas() : [];
     const active = typeof GoalStore !== 'undefined' && GoalStore.activeGoal ? GoalStore.activeGoal() : null;
-    return '<details class="q-life-goal q-life-manage"' + (goals.length ? '' : ' open') + '><summary>' + (goals.length ? 'Your goals · choose a focus or add one' : 'Add a goal') + '</summary>'
-      + goals.map(g => '<div class="q-hd"><span class="nm">' + esc(g.text) + '</span>' + (active && active.id === g.id ? '<span class="gx-tag">FOCUS</span>' : '<button class="consent-btn q-goal-focus" data-gid="' + esc(g.id) + '">FOCUS</button>') + '</div>').join('')
+    const ideaRow = i => '<details class="q-idea q-life-goal" data-iid="' + esc(i.id) + '"><summary>◇ ' + esc(i.text) + '<span class="q-section-note">' + (i.goalId ? 'BECAME A GOAL' : i.archived ? 'SHELVED' : 'EXPLORING') + '</span></summary>'
+      + '<label>Possibility<input class="q-idea-title" maxlength="280" value="' + esc(i.text) + '"></label>'
+      + '<label>What would you like to find out?<textarea class="q-idea-question" maxlength="500">' + esc(i.question) + '</textarea></label>'
+      + '<label>What have you learned?<textarea class="q-idea-learning" maxlength="1000">' + esc(i.learning) + '</textarea></label>'
+      + '<div class="q-journey-actions"><button class="consent-btn q-idea-save">SAVE NOTES</button><button class="consent-btn q-idea-explore">EXPLORE WITH MY CREW</button>'
+      + (!i.goalId ? '<button class="consent-btn q-idea-promote">MAKE A GOAL</button>' : '')
+      + '<button class="consent-btn deny q-idea-archive">' + (i.archived ? 'RESTORE IDEA' : 'SHELVE IDEA') + '</button></div></details>';
+    const shelf = '<div class="q-possibilities"><div class="gx-sec"><span class="gx-title">POSSIBILITIES</span><span class="gx-tag">ROOM TO EXPLORE</span></div>'
+      + '<p class="sub">An app, a creative project, a quieter week. Keep something here before deciding what it should become.</p>'
+      + ideas.filter(i => !i.archived && !i.goalId).map(ideaRow).join('')
+      + '<details class="q-life-goal q-idea-new"' + (!ideas.length && !goals.length ? ' open' : '') + '><summary>Capture a possibility</summary>'
+      + '<label>I wonder if…<input class="q-idea-title" maxlength="280" placeholder="I could turn my sketches into a short film"></label>'
+      + '<label>A small experiment<textarea class="q-idea-question" maxlength="500" placeholder="What could I try or learn before committing?"></textarea></label>'
+      + '<button class="consent-btn q-idea-save">SAVE POSSIBILITY</button></details>'
+      + (ideas.some(i => i.archived || i.goalId) ? '<details class="q-shelf-history"><summary>Earlier possibilities</summary>' + ideas.filter(i => i.archived || i.goalId).map(ideaRow).join('') + '</details>' : '') + '</div>';
+    const collection = goals.length ? '<div class="q-goal-collection"><div class="gx-sec"><span class="gx-title">YOUR DIRECTIONS</span><span class="gx-tag">' + goals.filter(g => g.status === 'active').length + ' ACTIVE</span></div>'
+      + goals.map(g => {
+        const focus = active && active.id === g.id;
+        const ms = g.milestones || [], done = ms.filter(m => m.status === 'done').length;
+        return '<details class="q-direction q-life-goal" data-gid="' + esc(g.id) + '"><summary><span>' + (focus ? '◆ ' : '◇ ') + esc(g.text) + '</span><span class="q-section-note">' + (focus ? 'FOCUS' : esc(g.status.toUpperCase())) + ' · ' + done + '/' + ms.length + ' STEPS</span></summary>'
+          + '<p class="sub">Success: ' + esc(g.successCondition || 'Define the result you want') + '</p>'
+          + (g.status === 'active' && !focus ? '<button class="consent-btn q-goal-focus" data-gid="' + esc(g.id) + '">MAKE THIS MY FOCUS</button>' : '')
+          + '<div class="q-journey-actions"><button class="consent-btn q-goal-review" data-gid="' + esc(g.id) + '">REVIEW WITH MY CREW</button>'
+          + (g.status === 'active' ? '<button class="consent-btn q-goal-disposition" data-state="paused">PAUSE</button>' : '<button class="consent-btn q-goal-disposition" data-state="active">RESUME &amp; FOCUS</button>')
+          + (g.status !== 'archived' ? '<button class="consent-btn deny q-goal-disposition" data-state="archived">KEEP FOR LATER</button>' : '') + '</div>'
+          + '<label>Why this matters to me<textarea class="q-goal-motivation" maxlength="500"' + (g.status === 'archived' ? ' disabled' : '') + '>' + esc(g.motivation || '') + '</textarea></label>'
+          + '<label>Time, budget, or boundaries<textarea class="q-goal-constraints" maxlength="500"' + (g.status === 'archived' ? ' disabled' : '') + '>' + esc(g.constraints || '') + '</textarea></label>'
+          + (g.status !== 'archived' ? '<button class="consent-btn q-goal-context">SAVE CONTEXT</button>' : '')
+          + '<details class="q-plan-editor"><summary>Revise upcoming steps</summary><p class="sub">Completed and accepted work keeps its original objective. Add a new step when that objective changes.</p>'
+          + ms.map(m => '<div class="q-revise-row" data-mid="' + esc(m.id) + '"><span class="gx-tag">' + (m.status === 'done' ? 'DONE' : m.questRef ? 'ACCEPTED' : 'PLANNED') + '</span>'
+            + (m.status === 'open' && !m.questRef && g.status !== 'archived' ? '<input class="q-revise-text" maxlength="140" aria-label="Planned step" value="' + esc(m.text) + '"><button class="consent-btn q-step-revise">SAVE STEP</button>' : '<span class="sub">' + esc(m.text) + '</span>') + '</div>').join('') + '</details>'
+          + '<label>Reflection or reason for changing direction<textarea class="q-goal-reflection" maxlength="1000" placeholder="What worked? What surprised you? What should change?"></textarea></label>'
+          + '<button class="consent-btn q-goal-reflect">SAVE REFLECTION</button></details>';
+      }).join('') + '</div>' : '';
+    return shelf + collection + '<details class="q-life-goal q-life-manage"' + (goals.length ? '' : ' open') + '><summary>Start a goal</summary>'
+      + '<p class="sub">Start from your own idea, or adapt a starting point.</p><div class="q-journey-actions"><button class="consent-btn q-goal-template" data-template="app">BUILD &amp; LAUNCH</button><button class="consent-btn q-goal-template" data-template="automation">RECLAIM MY TIME</button><button class="consent-btn q-goal-template" data-template="creative">MAKE SOMETHING</button></div>'
       + '<label>Goal<input class="q-new-goal" maxlength="280" placeholder="Learn to play a song, change careers, build a business…"></label>'
       + '<label>What does success look like?<textarea class="q-new-success" maxlength="500" placeholder="The observable result you want to reach"></textarea></label>'
+      + '<label>Why does it matter? (optional)<textarea class="q-new-motivation" maxlength="500" placeholder="What would this change for you?"></textarea></label>'
+      + '<label>Constraints (optional)<input class="q-new-constraints" maxlength="500" placeholder="Two evenings a week; use tools I already have"></label>'
       + '<label>First steps (one per line, up to five)<textarea class="q-new-steps" placeholder="Start with one concrete action. You can extend the plan later."></textarea></label>'
       + '<button class="consent-btn q-goal-create">SAVE &amp; FOCUS ON THIS GOAL</button></details>';
   }
 
+  function journeyChaptersHtml() {
+    const goals = typeof GoalStore !== 'undefined' && GoalStore.listGoals ? GoalStore.listGoals().slice().reverse() : [];
+    return '<div class="q-chapters"><div class="gx-sec"><span class="gx-title">YOUR JOURNEY ARCHIVE</span><span class="gx-tag">' + goals.length + ' CHAPTERS</span></div>'
+      + '<p class="sub">Results, changes of direction, and things you learned. Your history belongs here even when a plan changes.</p>'
+      + goals.map(g => {
+        const events = (g.journal || []).map(e => ({ ...e, label: e.kind }));
+        (g.milestones || []).filter(m => m.status === 'done').forEach(m => events.push({ at: m.doneAt, label: m.source === 'commander' ? 'YOU REPORTED A STEP' : 'RECORDED WORK COMPLETION', text: m.text + '\n' + (m.evidence || '') }));
+        if (g.status === 'done') events.push({ at: g.updatedAt, label: 'YOU CONFIRMED THE OUTCOME', text: g.outcomeEvidence || '' });
+        events.sort((a, b) => (b.at || 0) - (a.at || 0));
+        return '<details class="q-chapter q-life-goal" data-gid="' + esc(g.id) + '"><summary><span>' + (g.status === 'done' ? '◆ ' : '◇ ') + esc(g.text) + '</span><span class="q-section-note">' + esc(g.status === 'done' ? 'ACHIEVED' : g.status.toUpperCase()) + '</span></summary>'
+          + '<p class="sub">' + esc(g.successCondition || '') + '</p>'
+          + '<ol class="q-history-line">' + (events.length ? events.map(e => '<li><span class="q-ns-eyebrow">' + esc(e.label.toUpperCase()) + '</span><time>' + esc(e.at ? new Date(e.at).toLocaleDateString() : '') + '</time><p>' + esc(e.text) + '</p></li>').join('') : '<li>The plan is saved. Results and reflections will appear as you work.</li>') + '</ol>'
+          + '<button class="consent-btn q-goal-review" data-gid="' + esc(g.id) + '">REFLECT WITH MY CREW</button></details>';
+      }).join('')
+      + '<div class="q-journey-actions"><button class="consent-btn q-journey-export">EXPORT JOURNEY NOTES</button><button class="consent-btn q-go" data-dest="deliverables">OPEN OUTPUT LIBRARY</button></div><p class="sub dim">Plans, possibilities, and reflections are saved on this device. Export includes those notes; output files remain in your library.</p></div>';
+  }
+
   function buildQuests(body) {
-    const detailKey = el => (el.closest('[data-qid]')?.dataset.qid || '') + ':' + el.className + ':' + (el.querySelector('summary')?.textContent || '');
+    const detailKey = el => (el.closest('[data-qid]')?.dataset.qid || el.closest('[data-gid]')?.dataset.gid || el.closest('[data-iid]')?.dataset.iid || '') + ':' + el.className + ':' + (el.querySelector('summary')?.textContent || '');
     const expanded = new Set(Array.from(body.querySelectorAll('details[open]')).map(detailKey));
     const listScroll = body.querySelector('.q-mission-list')?.scrollTop || 0;
     const questDrafts = body._questDrafts || (body._questDrafts = new Map());
@@ -8901,7 +8965,15 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
       + '</section><section id="q-view-progress" class="q-view-panel q-journal-progress" role="tabpanel" aria-labelledby="q-tab-progress">'
       + journeyHtml() + milestonesHtml + meterHtml
       + '</section><section id="q-view-completed" class="q-view-panel q-journal-history" role="tabpanel" aria-labelledby="q-tab-completed">'
-      + '<div class="gx-tros q-grid q-done">' + (done.map(tro).join('') || '<div class="q-journal-empty"><h3>No completed quests yet</h3><p>Finished quests and their results will appear here.</p></div>') + '</div></section></div>';
+      + journeyChaptersHtml() + '<div class="gx-tros q-grid q-done">' + (done.map(tro).join('') || '<div class="q-journal-empty"><h3>No completed quests yet</h3><p>Finished quests and their results will appear here.</p></div>') + '</div></section></div>';
+    // Stable field identities keep a background refresh from transplanting a draft into another chapter.
+    body.querySelectorAll('.q-life-goal input, .q-life-goal textarea').forEach(el => {
+      if (el.id) return;
+      const row = el.closest('.q-life-goal'), step = el.closest('.q-revise-row');
+      el.id = 'journey-' + (row.dataset.gid || row.dataset.iid || row.className.replace(/\s+/g, '-')) + '-' + (step?.dataset.mid || '') + '-' + el.className;
+    });
+    const goalForm = body.querySelector('.q-life-manage');
+    if (goalForm && body._journeyIdeaId) goalForm.dataset.iid = body._journeyIdeaId;
     const selectQuestView = id => {
       const selectedView = questViews.find(v => v[0] === id) || questViews[0];
       body.dataset.questView = selectedView[0];
@@ -8948,12 +9020,74 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
     // COMMANDER JOURNEY writes are explicit. Empty/invalid numeric fields are rejected in the panel before the
     // request, and every successful response re-renders from the backend's returned proof snapshot.
     const journeyFail = r => notify((r && r.error) || 'journey update was not recorded', 'bad');
+    body.querySelectorAll('.q-goal-template').forEach(b => b.addEventListener('click', () => {
+      const templates = {
+        app: ['Launch an app people find useful', 'Five people use the app and tell me which problem it solved', 'Talk to three potential users\nBuild one useful workflow\nTest with an early user\nShare a small launch\nReview feedback and decide what to improve'],
+        automation: ['Reclaim time from my weekly admin', 'My weekly report runs correctly for three weeks and saves me an hour each week', 'Map the repeated work\nBuild a draft report from sample data\nCheck the output against a manual report\nSet up the schedule and failure alerts\nReview three weeks of results'],
+        creative: ['Finish a short film from my sketches', 'Share a finished thirty-second film with three friends', 'Choose a tiny story\nStoryboard one scene\nCreate the images and sound\nAssemble a rough cut\nScreen it and finish the edit']
+      };
+      const t = templates[b.dataset.template], row = b.closest('.q-life-manage');
+      if (!t) return;
+      // These are editable suggestions, not saved goals or promised outcomes.
+      row.querySelector('.q-new-goal').value = t[0]; row.querySelector('.q-new-success').value = t[1]; row.querySelector('.q-new-steps').value = t[2];
+      body._journeyIdeaId = null; delete row.dataset.iid; row.querySelector('.q-new-goal').focus();
+    }));
+    body.querySelectorAll('.q-goal-review').forEach(b => b.addEventListener('click', () => {
+      const prompt = GoalStore.reviewPrompt(b.dataset.gid);
+      if (prompt) questOpenSession({ title: 'Review: ' + (GoalStore.listGoals().find(g => g.id === b.dataset.gid)?.text || 'my journey'), desc: prompt });
+    }));
+    body.querySelectorAll('.q-goal-disposition').forEach(b => b.addEventListener('click', () => {
+      const row = b.closest('[data-gid]');
+      if (!GoalStore.setDisposition(row.dataset.gid, b.dataset.state, row.querySelector('.q-goal-reflection').value)) notify('Let accepted work finish or stop before changing this goal. You can have up to 24 active goals.', 'warn');
+      else rerender('quests');
+    }));
+    body.querySelectorAll('.q-goal-context').forEach(b => b.addEventListener('click', () => {
+      const row = b.closest('[data-gid]');
+      if (GoalStore.saveContext(row.dataset.gid, row.querySelector('.q-goal-motivation').value, row.querySelector('.q-goal-constraints').value)) notify('Context saved for the next step and crew review.', 'good');
+    }));
+    body.querySelectorAll('.q-goal-reflect').forEach(b => b.addEventListener('click', () => {
+      const row = b.closest('[data-gid]');
+      if (GoalStore.reflect(row.dataset.gid, row.querySelector('.q-goal-reflection').value)) { row.querySelector('.q-goal-reflection').value = ''; rerender('quests'); }
+      else notify('Write a short reflection first.', 'warn');
+    }));
+    body.querySelectorAll('.q-step-revise').forEach(b => b.addEventListener('click', () => {
+      const row = b.closest('[data-mid]');
+      if (GoalStore.reviseStep(b.closest('[data-gid]').dataset.gid, row.dataset.mid, row.querySelector('.q-revise-text').value)) notify('Step revised. The earlier wording is in your journey archive.', 'good');
+      else notify('Enter a different concrete step. Accepted work keeps its original objective.', 'warn');
+    }));
+    body.querySelectorAll('.q-idea-save').forEach(b => b.addEventListener('click', () => {
+      const row = b.closest('.q-life-goal');
+      const id = GoalStore.saveIdea(row.dataset.iid, row.querySelector('.q-idea-title').value, row.querySelector('.q-idea-question').value, row.querySelector('.q-idea-learning')?.value || '');
+      if (id) { rerender('quests'); notify('Possibility saved.', 'good'); } else notify('Give this possibility a short name. Up to 100 ideas fit on this device.', 'warn');
+    }));
+    body.querySelectorAll('.q-idea-explore').forEach(b => b.addEventListener('click', () => {
+      const row = b.closest('[data-iid]');
+      questOpenSession({ title: 'Explore: ' + row.querySelector('.q-idea-title').value, desc: 'Help me explore this possibility without committing to a long-term plan.\nExperiment: ' + row.querySelector('.q-idea-question').value + '\nWhat I have learned: ' + row.querySelector('.q-idea-learning').value + '\nSuggest a small useful next experiment and what it could teach me.' });
+    }));
+    body.querySelectorAll('.q-idea-archive').forEach(b => b.addEventListener('click', () => { GoalStore.archiveIdea(b.closest('[data-iid]').dataset.iid); rerender('quests'); }));
+    body.querySelectorAll('.q-idea-promote').forEach(b => b.addEventListener('click', () => {
+      const row = b.closest('[data-iid]'), form = body.querySelector('.q-life-manage');
+      // Save the current experiment notes before linking them into a new chapter.
+      GoalStore.saveIdea(row.dataset.iid, row.querySelector('.q-idea-title').value, row.querySelector('.q-idea-question').value, row.querySelector('.q-idea-learning').value);
+      const current = body.querySelector('.q-life-manage') || form;
+      current.open = true; current.dataset.iid = row.dataset.iid; body._journeyIdeaId = row.dataset.iid;
+      current.querySelector('.q-new-goal').value = row.querySelector('.q-idea-title').value;
+      current.querySelector('.q-new-steps').value = row.querySelector('.q-idea-question').value;
+      current.querySelector('.q-new-success').focus(); current.scrollIntoView({ block: 'nearest' });
+    }));
+    body.querySelectorAll('.q-journey-export').forEach(b => b.addEventListener('click', () => {
+      const url = URL.createObjectURL(new Blob([GoalStore.exportJourney()], { type: 'application/json' }));
+      const a = document.createElement('a'); a.href = url; a.download = 'starnet-journey.json'; a.click();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    }));
     body.querySelectorAll('.q-goal-focus').forEach(b => b.addEventListener('click', () => { if (GoalStore.focusGoal(b.dataset.gid)) rerender('quests'); }));
     body.querySelectorAll('.q-goal-create').forEach(b => b.addEventListener('click', async () => {
       const row = b.closest('.q-life-manage'); b.disabled = true;
       const r = await GoalStore.createGoal(row.querySelector('.q-new-goal').value, row.querySelector('.q-new-success').value,
-        row.querySelector('.q-new-steps').value.split('\n').map(s => s.trim()).filter(Boolean));
-      if (r && r.ok) { sfx('click'); rerender('quests'); } else { b.disabled = false; journeyFail(r); }
+        row.querySelector('.q-new-steps').value.split('\n').map(s => s.trim()).filter(Boolean), {
+          motivation: row.querySelector('.q-new-motivation').value, constraints: row.querySelector('.q-new-constraints').value, ideaId: row.dataset.iid
+        });
+      if (r && (r.ok || r.saved)) { body._journeyIdeaId = null; sfx('click'); rerender('quests'); if (!r.ok) journeyFail(r); } else { b.disabled = false; journeyFail(r); }
     }));
     body.querySelectorAll('.q-quest-disposition').forEach(b => b.addEventListener('click', async () => {
       const row = b.closest('.q-life-quest'); b.disabled = true;

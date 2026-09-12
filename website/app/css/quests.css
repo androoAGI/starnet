@@ -106,3 +106,29 @@
 .quests-win .quests-content[data-quest-view="available"] .q-view-description { display: none; }
 .quests-win .q-next-choice { margin: 14px 0; }
 .quests-win .q-next-choice button { display: block; margin: 8px 0; white-space: normal; text-align: left; }
+
+/* A journey is a collection of real chapters, with room for unfinished possibilities. */
+.quests-win :is(.q-possibilities,.q-goal-collection,.q-chapters,.q-constellation) { margin: 18px 0; }
+.quests-win :is(.q-direction,.q-idea,.q-idea-new,.q-chapter) { padding: 14px; margin: 10px 0; border: 1px solid rgba(var(--ph-rgb),.2); border-radius: 10px; background: var(--quest-glass); }
+.quests-win :is(.q-direction,.q-idea,.q-chapter) > summary { display: flex; justify-content: space-between; gap: 12px; cursor: pointer; overflow-wrap: anywhere; }
+.quests-win :is(.q-direction,.q-idea,.q-chapter) > summary::before { content: '+'; color: var(--ph-dim); }
+.quests-win :is(.q-direction,.q-idea,.q-chapter)[open] > summary::before { content: '−'; }
+.quests-win :is(.q-direction,.q-idea,.q-chapter) > summary .q-section-note { flex: 0 0 auto; max-width: 35%; text-align: right; }
+.quests-win .q-journey-actions { display: flex; gap: 8px; flex-wrap: wrap; margin: 12px 0; }
+.quests-win .q-journey-actions button { white-space: normal; }
+.quests-win .q-revise-row { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; padding: 10px 0; border-bottom: 1px solid rgba(var(--ph-rgb),.12); }
+.quests-win .q-revise-row input { flex: 1 1 180px; min-width: 0; }
+.quests-win .q-plan-editor { margin: 18px 0; }
+.quests-win .q-history-line { list-style: none; padding: 0 0 0 18px; margin: 18px 0; border-left: 1px solid rgba(var(--ph-rgb),.3); }
+.quests-win .q-history-line li { position: relative; margin: 0 0 22px; }
+.quests-win .q-history-line li::before { content: '◆'; position: absolute; left: -24px; color: var(--ph); font-size: 11px; background: var(--panel); }
+.quests-win .q-history-line time { display: block; font-size: 12px; color: var(--ph-dim); }
+.quests-win .q-history-line p { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 15px; line-height: 1.5; margin: 6px 0; }
+.quests-win .q-star-map { display: grid; grid-template-columns: repeat(auto-fit,minmax(min(100%,180px),1fr)); gap: 16px; padding: 20px; border: 1px solid rgba(var(--ph-rgb),.2); border-radius: 12px; background: radial-gradient(ellipse at 50% 40%,rgba(var(--ph-rgb),.1),transparent 70%), var(--quest-glass); }
+.quests-win .q-star { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 16px 12px; color: var(--ph); background: rgba(0,0,0,.18); border: 1px solid rgba(var(--ph-rgb),.18); border-radius: 8px; font: inherit; cursor: pointer; overflow-wrap: anywhere; text-align: center; }
+.quests-win .q-star:hover { border-color: var(--ph); }
+.quests-win .q-star-glyph { font-size: 32px; line-height: 1; }
+.quests-win .q-star small { color: var(--ph-dim); font-size: 11px; letter-spacing: .5px; }
+.quests-win .q-star-reached { border-color: var(--gold); }
+.quests-win .q-star-reached .q-star-glyph { color: var(--gold); text-shadow: 0 0 16px var(--gold); }
+.quests-win .q-star-empty { grid-column: 1/-1; text-align: center; color: var(--ph-dim); padding: 15px; }
