@@ -369,5 +369,16 @@ const { GoalStore } = require('../frontend/app/goalstore.js');
   A.ok(/Goals\.resolveConfirmChoice/.test(arcBody), 'offerArc routes the choice through the PURE resolver (fix 3 lives in tested code)');
   A.ok(/q\.isNext && !q\.inFlight/.test(uiSrc), 'stationui renders Accept only for a NOT-in-flight front step (fix 2 render state)');
 
+  const flexible = await GoalStore.createGoal('Reclaim my evenings', 'My weekly report runs reliably', ['Map the repeated work', 'Draft a report template', 'Test the automation']);
+  A.ok(flexible.ok, 'create a user-authored goal');
+  const flexibleGoal = GoalStore.activeGoal();
+  const selectedId = flexibleGoal.milestones[1].id;
+  A.ok(GoalStore.chooseNext(flexibleGoal.id, selectedId), 'choose a useful alternative next step');
+  GoalStore.init({ now: () => clock, getSystem: () => '', launchDirective: t => launches.push(t) });
+  A.eq(GoalStore.briefing().next.id, selectedId, 'chosen next step survives hydration');
+  A.eq(GoalStore.briefing().goal.successCondition, 'My weekly report runs reliably', 'return keeps why the work matters');
+  GoalStore.acceptMilestone(flexibleGoal.id, selectedId);
+  A.ok(launches[launches.length - 1].includes('My weekly report runs reliably'), 'launched task carries the actual outcome context');
+  A.eq(GoalStore.chooseNext(flexibleGoal.id, flexibleGoal.milestones[0].id), false, 'cannot change away from accepted live work');
   A.report('goalstore.test');
 })();

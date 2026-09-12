@@ -87,6 +87,7 @@ const GoalStore = (() => {
             successCondition: String(g.successCondition || '').slice(0, 500),
             outcomeEvidence: String(g.outcomeEvidence || '').slice(0, 1000),
             focusedAt: Number(g.focusedAt) || 0,
+            nextMilestoneId: ms.some(m => m.id === g.nextMilestoneId) ? g.nextMilestoneId : null,
             pendingRegistration: !!g.pendingRegistration,
             sourceBeliefId: g.sourceBeliefId == null ? null : String(g.sourceBeliefId),
             status, milestones: ms, createdAt: created,
@@ -302,7 +303,10 @@ const GoalStore = (() => {
     if (wqId) Goals.bindMilestoneQuest(goal, m.id, wqId);   // no id (store absent/failed) → the milestone stays unbound and Accept re-offers (fail-open)
     save();
     // fire the real run for this milestone (the no-dead-gap promise) — the same launch path the pitch build uses.
-    try { if (deps.launchDirective) deps.launchDirective("Let's work toward: " + m.text); } catch (_) {}
+    try { if (deps.launchDirective) deps.launchDirective("Let's work toward: " + m.text
+      + '\n\nThis step supports my goal: ' + goal.text
+      + (goal.successCondition ? '\nThe overall goal is achieved when: ' + goal.successCondition : '')
+      + '\nWork on this step, and show the result and anything still unverified. Completing this task does not by itself prove the overall goal is achieved.'); } catch (_) {}
     return m;
   }
 
@@ -372,6 +376,14 @@ const GoalStore = (() => {
     g.focusedAt = Math.max(now(), ...state.goals.map(g => (g.focusedAt || g.createdAt || 0) + 1));
     save(); pushToSidecar(); poke(); return true;
   }
+
+  function chooseNext(goalId, milestoneId) {
+    const g = ready() && state.goals.find(g => g.id === goalId);
+    if (!Goals.chooseNext(g, milestoneId, now(), questLive)) return false;
+    save(); pushToSidecar(); poke(); return true;
+  }
+
+  function briefing() { return ready() ? Goals.briefing(state.goals, questLive) : { goal: null, completedGoal: null }; }
 
   async function confirmOutcome(goalId, evidence) {
     const g = ready() && state.goals.find(g => g.id === goalId && g.status === 'active');
@@ -546,7 +558,7 @@ const GoalStore = (() => {
   return {
     init, reset, sync, quests, activeGoal, unplannedGoal, pushToSidecar,
     willOfferDecomposition, pendingDecomposition, proposeDecomposition, confirm, declineDecomposition, markOffered,
-    acceptMilestone, createGoal, focusGoal, listGoals: () => ready() ? state.goals.slice() : [], reportMilestone, setSuccessCondition, confirmOutcome, addStep, reconcile, syncDrift, setFiring, isFiring, beliefFingerprint, questLive,
+    acceptMilestone, createGoal, focusGoal, chooseNext, briefing, listGoals: () => ready() ? state.goals.slice() : [], reportMilestone, setSuccessCondition, confirmOutcome, addStep, reconcile, syncDrift, setFiring, isFiring, beliefFingerprint, questLive,
     _state: () => state, _onRunEnd: onRunEnd, _syncJourneyMilestones: syncJourneyMilestones
   };
 })();

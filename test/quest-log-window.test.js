@@ -26,6 +26,23 @@ const refresh = read('frontend/app/questrefreshstore.js');
 const css = read('frontend/css/app.css');
 const motion = read('frontend/css/motion.css');
 
+// Exercise the actual return-card renderer against empty, completed, and active records.
+const renderVm = require('vm');
+let returnBrief = { goal: null, completedGoal: null };
+const returnCtx = renderVm.createContext({ GoalStore: { briefing: () => returnBrief },
+  esc: s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'), qrRel: () => 'recently' });
+renderVm.runInContext(station.slice(station.indexOf('  function questBriefingHtml()'), station.indexOf('  function questTrackHtml(')), returnCtx);
+A.ok(returnCtx.questBriefingHtml().includes('EXPLORE WITH MY CREW'), 'an undefined ambition has a usable exploration entry');
+returnBrief.completedGoal = { text: 'My finished project', outcomeEvidence: '<script>unsafe</script>' };
+const chapter = returnCtx.questBriefingHtml();
+A.ok(chapter.includes('My finished project') && chapter.includes('Revisit the result'), 'completed ambition retains a visible chapter');
+A.ok(!chapter.includes('<script>') && chapter.includes('&lt;script&gt;'), 'saved evidence renders as text, never executable markup');
+returnBrief = { goal: { id: 'g', text: 'My goal', successCondition: 'People use it' }, next: { id: 'm', text: 'Prepare feedback' }, progress: {done:0,total:2}, inFlight: true };
+A.ok(!returnCtx.questBriefingHtml().includes('q-arc-accept'), 'accepted work offers no duplicate launch');
+A.ok(returnCtx.questBriefingHtml().includes('WORK ACCEPTED'), 'accepted work does not pretend the backend is already running');
+returnBrief.next = null; returnBrief.progress.done = 2;
+A.ok(returnCtx.questBriefingHtml().includes('REVIEW MY OUTCOME'), 'finished plan leads to outcome review, never automatic success');
+
 /* ---- 1. the flashing stays dead: signature guard + data pokes ---- */
 A.ok(/function signatureOf/.test(journey) && /JSON\.stringify\(journey\)/.test(journey), 'journeystore compares a serialized signature (identity never holds for polled JSON — the 4s repaint bug)');
 A.ok(/sig === lastSig/.test(journey), 'an unchanged journey (same signature, new object) repaints NOTHING');
@@ -164,7 +181,7 @@ const ctx = vm.createContext({ body, QuestStore: { view: () => ({ quests: questR
   esc: s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'),
   QUEST_KIND_TAG: { station: 'STATION', dossier: 'ABOUT YOU' }, GO_LABEL: {},
   questGoDest: () => null, questCompletesWhen: () => 'the recorded condition is met', workshopGrantOn: () => false,
-  questTrackHtml: () => '', lifeGoalsHtml: () => '', questRefreshHtml: () => '', journeyHtml: () => '',
+  questBriefingHtml: () => '', questTrackHtml: () => '', lifeGoalsHtml: () => '', questRefreshHtml: () => '', journeyHtml: () => '',
   rerender: () => ctx.buildQuests(body)
 });
 const journalSource = station.slice(station.indexOf('  function buildQuests(body)'), station.indexOf('    // COMMANDER JOURNEY writes')) + '\n}';

@@ -8347,6 +8347,35 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
      Every value is engine truth: `pct`/`done`/`total` come from Goals.progress, `isNext` marks the one
      actionable front, and `inFlight` means a real bound build is running (so Accept is withheld rather
      than offered twice — a second accept would double-mint the build and double-spend a paid run). */
+  function questBriefingHtml() {
+    const brief = typeof GoalStore !== 'undefined' && GoalStore.briefing ? GoalStore.briefing() : null;
+    const goal = brief && brief.goal;
+    const jump = (view, label) => '<button class="consent-btn q-brief-view" data-view="' + view + '">' + label + '</button>';
+    if (!goal) {
+      const reached = brief && brief.completedGoal;
+      return '<section class="q-return-card" aria-label="Your next move"><span class="q-ns-eyebrow">' + (reached ? 'A CHAPTER TO KEEP' : 'YOUR NEXT MOVE') + '</span>'
+        + '<h3>' + (reached ? esc(reached.text) : 'Start with something that matters to you') + '</h3>'
+        + (reached ? '<p>You confirmed this outcome.</p><details class="q-return-proof"><summary>Revisit the result</summary><p>' + esc(reached.outcomeEvidence || '') + '</p></details>'
+          : '<p>Try an idea, make something, or take a recurring job off your plate. You can choose a longer-term goal when it helps.</p>')
+        + '<div class="q-return-actions"><button class="consent-btn q-brief-explore">EXPLORE WITH MY CREW</button>' + jump('goals', 'CHOOSE A GOAL') + '</div></section>';
+    }
+    const latest = brief.latest, next = brief.next;
+    const proof = '<details class="q-return-proof"><summary>' + (latest ? '◆ ' + esc(latest.text) : 'Why this step matters') + '</summary>'
+      + (goal.successCondition ? '<p>Working toward: ' + esc(goal.successCondition) + '</p>' : '')
+      + (latest ? '<p>' + esc(latest.evidence || 'No detail was saved with this step.') + '</p>'
+        + '<span class="sub dim">' + (latest.source === 'commander' ? 'You reported this action' : 'Recorded work completion') + ' · ' + esc(qrRel(latest.doneAt)) + '</span>' : '<p>This is a step you chose toward ' + esc(goal.text) + '.</p>')
+      + (latest ? '<div class="q-return-actions">' + jump('progress', 'VIEW PROGRESS')
+        + (latest.source !== 'commander' ? '<button class="consent-btn q-go" data-dest="deliverables">OPEN OUTPUT LIBRARY</button>' : '') + '</div>' : '') + '</details>';
+    const action = next && !brief.inFlight
+      ? '<button class="consent-btn q-arc-accept" data-gid="' + esc(goal.id) + '" data-mid="' + esc(next.id) + '">ASK STARNET TO HELP</button>' : '';
+    return '<section class="q-return-card" aria-label="Your next move"><span class="q-ns-eyebrow">YOUR NEXT MOVE · ' + brief.progress.done + ' / ' + brief.progress.total + ' PLANNED STEPS</span>'
+      + '<h3>' + esc(goal.text) + '</h3>'
+      + '<p class="q-return-next"><span class="q-ns-eyebrow">' + (next ? (brief.inFlight ? 'WORK ACCEPTED' : 'NEXT') : 'PLAN COMPLETE') + '</span> · '
+      + (next ? esc(next.text) : 'Review the actual outcome, or add a step if there is more to do.') + '</p>'
+      + '<div class="q-return-actions">' + action + jump('goals', next ? 'REVIEW PLAN' : 'REVIEW MY OUTCOME') + '</div>'
+      + proof + '</section>';
+  }
+
   function questTrackHtml(arcs) {
     const goal = arcs.find(q => q && q.kind === 'arc-goal') || null;
     /* ORDER IS THE WHOLE POINT OF A PATH — and the list handed to us is NOT in it. Quests.build() returns
@@ -8425,6 +8454,10 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
         + '<details class="q-life-report"><summary>I DID THIS STEP</summary><label>What did you do?<textarea class="q-step-evidence" maxlength="1000" placeholder="Describe the action you completed outside StarNet"></textarea></label>'
         + '<button class="consent-btn q-step-report" data-gid="' + esc(next.arcGoalId) + '" data-mid="' + esc(next.milestoneId) + '">RECORD MY ACTION</button></details>'
       : (next && next.inFlight ? '<span class="sub q-track-running">the build for this step is running — finishing it completes the step.</span>' : '');
+    const alternatives = steps.filter(s => s.status !== 'done' && !s.isNext);
+    const choose = alternatives.length && !(next && next.inFlight)
+      ? '<details class="q-next-choice"><summary>CHOOSE A DIFFERENT NEXT STEP</summary><p class="sub">Your plan can change. Consider what each step needs before choosing it. Completed work stays in your history.</p>'
+        + alternatives.map(s => '<button class="consent-btn q-choose-next" data-gid="' + esc(s.arcGoalId) + '" data-mid="' + esc(s.milestoneId) + '">' + esc(label(s.title)) + '</button>').join('') + '</details>' : '';
     const complete = total > 0 && doneN >= total;
     /* WHAT THE PATH CASHES OUT IN. The station's stage is the count of DISTINCT GOALS REACHED, and a goal
        is counted when its last milestone folds done (goalstore -> journey `goalDone` -> addGoalReached), so
@@ -8455,6 +8488,7 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
       + payoff
       + (complete ? '<div class="sub q-plan-complete">All planned steps are complete. Record the actual outcome below, or add a next step if the goal is still ahead.</div>' : '')
       + (accept ? '<div class="q-track-acts">' + accept + '</div>' : '')
+      + choose
       + goalOutcomeHtml(goal.arcGoalId)
       + '</div>';
   }
@@ -8845,7 +8879,7 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
         + (open.length ? 'Choose another category to find your next action.' : 'Set a direction or refresh your quests when you are ready for what comes next.') + '</p></div>')
       + '</section></div>';
     const questViews = [
-      ['available', 'Quests', 'Turn your long-term goals into small, actionable steps. Quests also include station setup and questions that help StarNet understand you.'],
+      ['available', 'Quests', 'Your next move, open work, and station quests.'],
       ['goals', 'Goals', 'Define what you want to achieve long term, then choose a goal to focus on. Its plan breaks the goal into smaller steps.'],
       ['progress', 'Progress', 'Your recorded progress across all goals: planned steps, tracked metrics, and earned achievements.'],
       ['completed', 'Completed', 'Look back at finished quests and their results.']
@@ -8859,7 +8893,7 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
         + (v[0] === 'completed' ? ' <span>' + done.length + '</span>' : '') + '</button>').join('') + '</div>'
       + '<p class="q-view-description"></p>'
       + '<section id="q-view-available" class="q-view-panel" role="tabpanel" aria-labelledby="q-tab-available">'
-      + proposalsHtml + filtersHtml + journalHtml
+      + questBriefingHtml() + proposalsHtml + filtersHtml + journalHtml
       + (deferred.length ? '<details class="q-deferred"><summary>Saved for later / blocked (' + deferred.length + ')</summary><div class="gx-tros q-grid">' + deferred.map(tro).join('') + '</div></details>' : '')
       + (otherGoals.length ? '<details class="q-other-goals"><summary>Other goals (' + otherGoals.length + ')</summary><div class="gx-tros q-grid">' + otherGoals.map(tro).join('') + '</div></details>' : '')
       + '</section><section id="q-view-goals" class="q-view-panel q-journal-planning" role="tabpanel" aria-labelledby="q-tab-goals">'
@@ -8888,6 +8922,17 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
       });
     });
     selectQuestView(body.dataset.questView);
+    body.querySelectorAll('.q-brief-view').forEach(b => b.addEventListener('click', () => {
+      selectQuestView(b.dataset.view); body.scrollTop = 0;
+      body.querySelector('#q-tab-' + b.dataset.view)?.focus();
+    }));
+    body.querySelectorAll('.q-brief-explore').forEach(b => b.addEventListener('click', () => {
+      if (!questOpenSession({ title: 'Explore my next possibility', desc: 'Help me find a small, useful experiment based on what I enjoy, want to make, or want to automate. I do not need a long-term plan yet.' })) notify('could not open an exploration session', 'bad');
+    }));
+    body.querySelectorAll('.q-choose-next').forEach(b => b.addEventListener('click', () => {
+      if (GoalStore.chooseNext(b.dataset.gid, b.dataset.mid)) { sfx('click'); rerender('quests'); }
+      else notify('This step could not be selected. Check whether work is already in progress.', 'warn');
+    }));
     body.querySelectorAll('details').forEach(el => { if (expanded.has(detailKey(el))) el.open = true; });
     if (body.querySelector('.q-mission-list')) body.querySelector('.q-mission-list').scrollTop = listScroll;
     body.querySelectorAll('.q-filter').forEach(b => b.addEventListener('click', () => {

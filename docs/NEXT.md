@@ -1,3 +1,41 @@
+## IN BRANCH — 2026-09-12 personal journey first loop (`agent/journey-first-loop-0912`)
+
+Owner direction: StarNet grows with the user's real ambitions. Explore, pursue and maintain
+are connected experiences, not mandatory modes. Validate a useful, enjoyable loop before
+adding a campaign entity, migrating all goal storage, or building a larger progression system.
+
+Live baseline on isolated seed: an explicitly saved app goal appeared under Goals, while the
+default Quests view still led with recruitment/setup. The first slice puts a return briefing
+on that view: the focused goal and success condition, latest completed step with its recorded
+evidence, chosen next step, plan review, and the existing output library. An empty local goal
+history offers exploration without requiring a long-term goal. Completed goals remain readable
+chapters. Selecting another open milestone persists its ID without rewriting plan order or
+completed history; accepted live work prevents switching or duplicate acceptance. Launched
+milestone work now carries the parent goal and its success condition.
+
+Live proof on the seeded app: real local provider transport -> brief.proceed -> fs.write ->
+run completion created `journey-feedback.html`; one of three steps completed while the overall
+goal stayed active. Deliberate provider failure awarded no progress. App, automation and
+creative goal examples rendered correctly. A reported final planned step still required explicit
+outcome confirmation; that confirmation advanced the existing station evolution to VECTOR.
+Selected next step, prior evidence and goal focus survived both browser reload and sidecar
+restart. The output-library action showed the produced file; new controls had station paint
+and the return card had no horizontal overflow. These are labelled local fixture scenarios,
+not evidence of customer adoption or actual business outcomes.
+
+Validation status: focused goal/return-card tests pass (94 + 122 + 93 assertions). Full fast
+gate still being resolved: first attempt hit logbound's boot-time threshold (standalone retry
+passed); second hit a workshop-implement sidecar boot timeout (standalone retry passed all
+67 assertions). No backend/schema changes.
+Do not treat source proof as installer acceptance, usability validation, or release readiness.
+
+Next product checkpoint: have the owner and a small set of users try their own app-building,
+automation and creative work across return visits. Check whether the next action is useful,
+changing direction is clear, evidence is trusted, and the world payoff feels personal. Then
+decide whether to expand experiments/dependencies, actual reusable crew learning and station
+artifacts. Backend ownership consolidation follows the validated persistence requirements;
+this slice intentionally preserves existing stores and IDs. No new XP currency or tool gating.
+
 ## MERGED — speech recovery (7ccb4ebd9, 2026-09-10)
 
 Owner-requested integration of agent/live-speech-0910 is complete. Pre-merge and
