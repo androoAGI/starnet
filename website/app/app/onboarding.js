@@ -159,7 +159,9 @@ const Onboarding = (() => {
     // synthesis). Between questions (monologue/patter, option-only picks) it returns false and the stray text
     // is swallowed exactly as before — nothing leaks to the model.
     Chat.beginInterview(text => { if (typeof Dialogue !== 'undefined' && Dialogue.answer) Dialogue.answer(text); });
-    if (opts.wake && World.armKindle) {
+    if (opts.wake && World.playArrival) {
+      setTimeout(() => { if (running) ignite(true); }, 700);
+    } else if (opts.wake && World.armKindle) {
       // THE KINDLING — the user HOLDS to bring the dormant mind to life; ignition fires when the spark catches.
       setTimeout(() => World.armKindle(() => ignite(true)), 700);   // a brief held dark, then the "hold to wake it" prompt
       kindleTimer = setTimeout(() => ignite(true), 30000);          // failsafe: never hard-stall if they never hold
@@ -202,6 +204,13 @@ const Onboarding = (() => {
   function ignite(wake) {
     if (ignited) return; ignited = true;                            // one ignition per run (kindle-complete OR failsafe)
     if (kindleTimer) { clearTimeout(kindleTimer); kindleTimer = null; }
+    if (wake && World.playArrival && World.playArrival(() => {
+      if (!running) return;
+      waitBirth(500, () => {
+        if (!running) return;
+        type([seg(bs('contact') || '…there you are. what should we begin with?', 40, 450)], startQuestions);
+      });
+    })) { sfx('boot'); AU.start(); return; }
     sfx('boot'); sfx('gasp'); AU.start();
     if (World.igniteSpark) World.igniteSpark();
     if (wake && World.camPushIn) World.camPushIn();

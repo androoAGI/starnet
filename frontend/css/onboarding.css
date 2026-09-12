@@ -34,3 +34,8 @@
 @media (max-width:700px) { .ov-journey { gap:8px 14px; font-size:13px; } .fnv-dialogue { padding:14px; } }
 
 .ov-panel:has(#cc-recovery:not(.hidden)) .ov-journey { display:none; }
+
+/* Ceremony controls stay outside the canvas for keyboard and reduced-motion access. */
+.arrival-controls{position:fixed;z-index:9999;bottom:26px;left:50%;transform:translateX(-50%);display:flex;align-items:center;gap:24px;padding:10px 16px;background:rgba(3,7,12,.88);border:1px solid currentColor;font:15px VT323,monospace;color:#efb476;letter-spacing:2px}
+.arrival-controls span{text-transform:uppercase;min-width:120px}.arrival-controls .bb{padding:8px 12px;letter-spacing:1px}
+@media(prefers-reduced-motion:reduce){.arrival-controls{transition:none}}
