@@ -246,6 +246,7 @@ const Dialogue = (() => {
     cfg = cfg || {};
     return new Promise(resolve => {
       ensure(); clearKeys(); clearOpts(); clearGate(true); flushSay();
+      panel.classList.toggle('fnv-text-first', !!(cfg.allowCustom && cfg.customFirst));
       let settled = false;
       const finishPick = res => { if (settled) return; settled = true; pendingPick = null; clearKeys(); sfx('click'); resolve(res); };
       typeInto(norm(cfg.lines), () => renderOptions(cfg, finishPick));
@@ -271,6 +272,10 @@ const Dialogue = (() => {
     if (!optsEl) { finishPick({ value: '', skip: true }); return; }
     pendingPick = { cfg, finishPick };   // arm the composer path (Dialogue.answer) for THIS question
     optsEl.innerHTML = '';
+    if (cfg.allowCustom && cfg.customFirst) {
+      renderConversation(cfg, finishPick);
+      return;
+    }
     const opts = (cfg.options || []).slice();
     const rows = [];
     opts.forEach((o, idx) => {
@@ -319,6 +324,48 @@ const Dialogue = (() => {
       if (!isNaN(n) && n >= 1 && n <= rows.length) { e.preventDefault(); rows[n - 1].click(); }
     };
     window.addEventListener('keydown', keyHandler);
+  }
+
+  // Interview answers start with the user's own words. Suggestions are optional prompts,
+  // never prefilled answers, and opening one preserves the draft and the original question.
+  function renderConversation(cfg, finishPick) {
+    const wrap = document.createElement('div'); wrap.className = 'fnv-custom fnv-conversation';
+    const inp = document.createElement('textarea'); inp.rows = 3; inp.className = 'fnv-custom-in';
+    inp.placeholder = cfg.customPlaceholder || 'type your answer…';
+    inp.setAttribute('aria-label', 'Your answer');
+    const send = document.createElement('button'); send.className = 'fnv-custom-send'; send.type = 'button';
+    send.textContent = 'Send →'; send.disabled = true;
+    const submit = () => {
+      const value = inp.value.trim();
+      if (value) finishPick({ value, label: value, custom: true });
+    };
+    inp.addEventListener('input', () => { send.disabled = !inp.value.trim(); });
+    inp.addEventListener('keydown', e => {
+      if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); submit(); }
+    });
+    send.onclick = submit;
+    wrap.appendChild(inp); wrap.appendChild(send); optsEl.appendChild(wrap);
+    const suggestions = (cfg.options || []).filter(o => !o.skip && !o.open && !o.help);
+    if (suggestions.length) {
+      const details = document.createElement('details'); details.className = 'fnv-suggestions';
+      const summary = document.createElement('summary'); summary.textContent = 'Need a starting point?';
+      details.appendChild(summary);
+      const hint = document.createElement('div'); hint.className = 'fnv-answer-hint'; hint.setAttribute('aria-live', 'polite');
+      suggestions.forEach(o => {
+        const b = document.createElement('button'); b.type = 'button'; b.className = 'fnv-opt'; b.textContent = o.label;
+        b.onclick = () => {
+          hint.textContent = o.steer || ('Tell me what “' + o.label + '” means for you.');
+          inp.focus();
+        };
+        details.appendChild(b);
+      });
+      details.appendChild(hint); optsEl.appendChild(details);
+    }
+    (cfg.options || []).filter(o => o.skip || o.open || o.help).forEach(o => {
+      const b = document.createElement('button'); b.type = 'button'; b.className = 'fnv-opt skip'; b.textContent = o.label;
+      b.onclick = () => finishPick({ value: o.value == null ? '' : o.value, label: o.label, skip: !!o.skip, help: !!o.help });
+      optsEl.appendChild(b);
+    });
   }
 
   /* the custom-speech path — swaps the option list for an input. Enter or ▸ submits; ‹ back restores

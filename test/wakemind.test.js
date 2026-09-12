@@ -19,7 +19,7 @@ A.ok(/Do not run any tools/.test(d1), 'the directive forbids tools (reason-only)
 A.ok(/^ACK:/m.test(d1) && /^ASK:/m.test(d1), 'the directive demands the exact ACK/ASK format');
 A.ok(/it depends/.test(d1), 'the ASK spec bans it-depends questions');
 A.ok(/answerable in one breath/.test(d1), 'the ASK spec encodes the awakening-question hard rule (concrete, one-breath answerable)');
-A.ok(/how often the chore hits/.test(d1) && /daily\? weekly\?/.test(d1), 'the ASK spec folds cadence in when unstated — the fact that turns a chore into a routine');
+A.ok(/do not assume it is a recurring chore/.test(d1) && /Ask about frequency only if/.test(d1), 'frequency is conditional on actual recurring work');
 
 /* ---------- parsePainReply: tolerant happy path, hard failure modes ---------- */
 const r1 = W.parsePainReply('some chatter first\nACK: shorts every night — no wonder you switched me on.\nASK: what are the shorts for — a channel you run, or client work?\ntrailing chatter');
@@ -142,7 +142,7 @@ A.ok(!/Date\.now|Math\.random|new Date\(/.test(src), 'wakemind.js is determinist
 {
   const d = W.buildDigReply({ tuesday: 'i edit sponsor videos all day', name: 'VERA' });
   A.ok(/i edit sponsor videos all day/.test(d), 'the dig directive quotes their actual tuesday');
-  A.ok(/PAIN1:/.test(d) && /YEAR1:/.test(d) && /CHIP1:/.test(d), 'the dig call pre-authors pain/year/answer chips');
+  A.ok(/Do not generate suggested answers/.test(d) && /Do not march through/.test(d), 'conversation does not invent canned answers or follow a fixed questionnaire');
   A.ok(/BELIEF <dim>:/.test(d), 'the dig call teaches the BELIEF line contract');
   const p = W.parseDigReply('ACK: sponsor videos. so the hours go to other people’s launches.\nASK: whose launches — clients, or your own channel?\nCHIP1: clients, mostly\nCHIP2: my own channel\nPAIN1: chasing sponsor briefs\nPAIN2: rendering + re-exports\nYEAR1: my own channel running itself\nBELIEF identity: Edits sponsor videos for a living.');
   A.ok(p && p.ack && p.ask, 'a good dig reply parses ack + ask');

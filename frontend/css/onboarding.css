@@ -21,6 +21,15 @@
 .fnv-custom-in { grid-column:1 / -1; grid-row:1; width:100%; box-sizing:border-box; resize:vertical; min-height:90px; line-height:1.45; padding:10px; }
 .fnv-custom-back { justify-self:start; }
 .fnv-custom-send { font-size:16px; }
+.fnv-text-first .fnv-line { flex:0 0 auto; min-height:0; }
+.fnv-conversation .fnv-custom-send { grid-column:2; }
+.fnv-conversation .fnv-custom-send:disabled { opacity:.4; cursor:default; }
+.fnv-suggestions { color:var(--ph-dim); font-size:16px; }
+.fnv-suggestions summary { padding:10px 0; cursor:pointer; }
+.fnv-suggestions .fnv-opt { display:block; width:100%; margin:6px 0; text-align:left; }
+.fnv-answer-hint { color:var(--ph); line-height:1.5; padding:8px 0; }
+.fnv-answer-hint:empty { display:none; }
+.fnv-text-first .fnv-opt.skip { padding:7px 0; border-color:transparent; background:transparent; font-size:15px; }
 @media (max-height:650px) { .fnv-dialogue { padding:14px; gap:9px; } .fnv-line { min-height:48px; font-size:18px; } .fnv-opt { padding:9px; } }
 @media (max-width:700px) { .ov-journey { gap:8px 14px; font-size:13px; } .fnv-dialogue { padding:14px; } }
 
