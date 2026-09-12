@@ -289,6 +289,57 @@ A.eq(PitchStore._decide({ reason: 'done', agentId: 'agent' }), { go: true, reaso
       delete global.Chat;
     }
 
+    // First-work handoff: proposals, edits and tour survive; only explicit Start dispatches.
+    {
+      PitchStore.reset();
+      let sent = [], allow = false, next;
+      const realNode = dlg.node;
+      global.Chat = { isBusy: () => false, prefill: text => { next = text; } };
+      const hd = { getPurpose: () => 'Learn to build my own game.', launchDirective: text => { sent.push(text); return allow; } };
+      PitchStore.init(hd);
+      PitchStore.armFirstMove('Build a game together');
+      dlg.node = async cfg => {
+        A.eq(cfg.customValue, 'Build a game together', 'selected interview proposal carries into first task');
+        cfg.onCustomInput('Teach me collision detection; let me write the code.');
+        return { value: 'tour' };
+      };
+      A.eq((await PitchStore.offerHandoff({ tour: true })).action, 'tour', 'tour can defer the first task');
+      A.eq(sent.length, 0, 'opening and touring cannot start work');
+      PitchStore.init(hd);
+      A.eq(PitchStore.handoffPending(), true, 'pending handoff survives reload');
+      dlg.node = async cfg => {
+        A.eq(cfg.customValue, 'Teach me collision detection; let me write the code.', 'correction survives reload and replaces initial proposal');
+        return { custom: true, value: cfg.customValue };
+      };
+      const pick = await PitchStore.offerHandoff();
+      A.eq(sent.length, 0, 'review returns task before closing tutorial, without dispatch');
+      A.eq(PitchStore.startHandoff(pick.task), false, 'failed dispatch does not finish handoff');
+      A.eq(PitchStore.handoffPending(), true, 'failed launch stays resumable');
+      A.eq(next, pick.task, 'failed launch restores exact task to composer');
+      allow = true;
+      A.eq(PitchStore.startHandoff(pick.task), true, 'explicit start routes into existing real task path');
+      A.eq(sent.at(-1), pick.task, 'latest correction, not old proposal, goes to agent');
+      A.eq(PitchStore.handoffPending(), false, 'dispatched task completes handoff');
+      A.eq(await PitchStore.offerHandoff(), null, 'completed handoff does not repeat');
+      PitchStore.reset(); PitchStore.init(hd);
+      dlg.node = async cfg => {
+        A.ok(cfg.lines[0].text.includes('Learn to build my own game.'), 'cold handoff references saved purpose');
+        return { skip: true, value: 'explore' };
+      };
+      await PitchStore.offerHandoff();
+      A.eq(PitchStore.handoffPending(), false, 'explore explicitly dismisses handoff');
+      PitchStore.reset(); PitchStore.init(hd);
+      let release;
+      dlg.node = cfg => new Promise(resolve => { release = resolve; });
+      const pending = PitchStore.offerHandoff();
+      A.eq(await PitchStore.offerHandoff(), null, 'concurrent handoffs cannot open twice');
+      PitchStore.reset(); PitchStore.init(hd);
+      release({ custom: true, value: 'old agent task' });
+      A.eq(await pending, null, 'reset cancels a stale handoff result');
+      A.eq(PitchStore._state().handoffDraft, undefined, 'stale result cannot overwrite a new agent');
+      dlg.node = realNode; delete global.Chat;
+    }
+
     /* ---------- source-locks: tutorial.js wires the handoff honestly (browser IIFE — lock the source) ---------- */
     const tutSrc = require('fs').readFileSync(require('path').join(__dirname, '../frontend/app/tutorial.js'), 'utf8');
     A.ok(/PitchStore\.offerAtHandoff\b/.test(tutSrc), 'the tutorial handoff offers the First Pitch');

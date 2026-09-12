@@ -26,8 +26,8 @@ A.eq(connectorUp(undefined), false, 'a failed read is not a connection');
 /* ---------- wiring, by source ---------- */
 const src = fs.readFileSync(path.join(__dirname, '../frontend/app/tutorial.js'), 'utf8');
 const fin = src.slice(src.indexOf('function finishUp('), src.indexOf('function beatConnect('));
-A.ok(/beatConnect\(afterConnect\)/.test(fin), 'finishUp hands the floor to the connect beat');
-A.ok(fin.indexOf('PitchStore.offerStarter()') > fin.indexOf('const afterConnect'), 'the starter pitch waits behind the connect beat (chips are ONE layer)');
+A.ok(/presentHandoff\(false\)/.test(fin), 'tour returns to the first-task review');
+A.ok(!/beatConnect\(|showCoach\(|setTimeout\(showBrief/.test(fin), 'the first-task review is not buried behind setup beats');
 const beat = src.slice(src.indexOf('function beatConnect('), src.indexOf('function watchConnectors('));
 A.ok(/Chat\.choices\(/.test(beat), 'the beat is COMMS chips — the tour’s existing vocabulary, no new window');
 A.ok(/skip: true/.test(beat), 'the beat is skippable');
@@ -42,4 +42,5 @@ A.ok(/k: 'platform'.*Connect a work app/.test(src), 'old portal progress is not 
 const cx = fs.readFileSync(path.join(__dirname, '../frontend/app/windows/connectors.js'), 'utf8');
 A.ok(/StationUI\.connectorJump = function/.test(cx) && /openTerm\('connectors', 'catalog'\)/.test(cx), 'connectorJump opens ABILITIES on the CATALOG rail');
 A.ok(!/connectorJump[\s\S]{0,600}oauth\/start/.test(cx.slice(0, cx.indexOf('function ccSignIn'))), 'the jump never starts OAuth itself — the card’s own SIGN IN stays the only door');
+A.ok(!/setActivity\('task'\)/.test(src.slice(src.indexOf('function beatShowAround('), src.indexOf('async function rpArrived('))), 'the tour cannot manufacture a working agent without a real run');
 A.report('tutorial-connect-beat.test');

@@ -796,28 +796,11 @@ const Onboarding = (() => {
       if (!running) return;
     }
 
-    // B10. THE PROOF — the interview ends by SHOWING it listened. A grabbed mirror offer becomes the
-    // agent's declared first move, armed for the moment the tour hands the stage back (PitchStore's floor
-    // then presents THIS — the one below-gate starter allowed, because the Commander picked it themselves).
-    // No grab / loose path → the honest close: the hunt is declared, never a fake promise.
-    if (grabbedMove) {
-      const p = await Dialogue.node({
-        lines: [seg('then here’s my first move — ' + grabbedMove, 42, 380), seg('  say the word and i start, the moment the tour’s out of the way.', 44, 0)],
-        options: [
-          { label: 'do it — that’s the one', value: 'run' },
-          { label: 'we’ll see', value: 'no', skip: true }
-        ]
-      });
-      if (!running) return;
-      if (p && p.value === 'run' && typeof PitchStore !== 'undefined' && PitchStore.armFirstMove) {
-        PitchStore.armFirstMove(grabbedMove);
-        await Dialogue.say([seg('deal. it’s loaded.', 44, 340)]);
-        if (!running) return;
-      }
-    } else if (loose || !gaveAnything) {
-      await Dialogue.say([seg('then i watch, i learn, i ask. give me a week of real work and i’ll know you better than a form ever could.', 42, 380)]);
-      if (!running) return;
+    // Carry the selected proposal into an editable handoff; starting happens there, once.
+    if (grabbedMove && typeof PitchStore !== 'undefined' && PitchStore.armFirstMove) {
+      PitchStore.armFirstMove(grabbedMove);
     }
+
   }
 
   async function startQuestions() {

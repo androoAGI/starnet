@@ -3160,6 +3160,7 @@ const App = (() => {
     // a "build it" into a real run. SuggestStore is the recurring counterpart that fires as the dossier grows.
     const adviceDeps = {
       getSystem: () => agent ? agent.systemPrompt : '',
+      getPurpose: () => agent ? ((agent.docs && agent.docs.purpose) || agent.purpose || '') : '',
       getName: () => agent ? agent.name : 'AGENT',
       getCaps: () => ((typeof World !== 'undefined' && World.heroCaps) ? World.heroCaps('agent') : []).map(c => (typeof c === 'string' ? { id: c, label: c } : c)),
       // was the run that just ended a REAL task (tools available), not casual chat? Chat's run-meta ledger records
@@ -3185,7 +3186,7 @@ const App = (() => {
       // UNION (see the goal-milestone twin above): derived title from the directive + returns TRUE only when a
       // run really kicked off — the suggestion's attribution stamp is armed off this answer, so a busy stream
       // must report the no-op honestly.
-      launchDirective: (text) => { const ws = (typeof Workstreams !== 'undefined') ? Workstreams.create((Workstreams.deriveTitle && Workstreams.deriveTitle(text)) || 'First build', { kind: 'task' }) : null; if (ws && typeof Chat !== 'undefined' && Chat.load) Chat.load(ws); let sent = false; if (typeof Chat !== 'undefined' && Chat.send && !Chat.isBusy()) { Chat.send(text); sent = true; } persist(); return sent; }
+      launchDirective: (text) => { if (typeof Chat === 'undefined' || !Chat.send || Chat.isBusy()) return false; const ws = (typeof Workstreams !== 'undefined') ? Workstreams.create((Workstreams.deriveTitle && Workstreams.deriveTitle(text)) || 'First build', { kind: 'task' }) : null; if (ws && typeof Chat !== 'undefined' && Chat.load) Chat.load(ws); let sent = false; if (typeof Chat !== 'undefined' && Chat.send && !Chat.isBusy()) { Chat.send(text); sent = true; } persist(); return sent; }
     };
     if (typeof PitchStore !== 'undefined') PitchStore.init(adviceDeps);
     if (typeof SuggestStore !== 'undefined') SuggestStore.init(adviceDeps);

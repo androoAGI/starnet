@@ -334,12 +334,13 @@ const Dialogue = (() => {
     inp.placeholder = cfg.customPlaceholder || 'type your answer…';
     inp.setAttribute('aria-label', 'Your answer');
     const send = document.createElement('button'); send.className = 'fnv-custom-send'; send.type = 'button';
-    send.textContent = 'Send →'; send.disabled = true;
+    inp.value = cfg.customValue || '';
+    send.textContent = cfg.submitLabel || 'Send →'; send.disabled = !inp.value.trim();
     const submit = () => {
       const value = inp.value.trim();
       if (value) finishPick({ value, label: value, custom: true });
     };
-    inp.addEventListener('input', () => { send.disabled = !inp.value.trim(); });
+    inp.addEventListener('input', () => { send.disabled = !inp.value.trim(); if (cfg.onCustomInput) cfg.onCustomInput(inp.value); });
     inp.addEventListener('keydown', e => {
       if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); submit(); }
     });
