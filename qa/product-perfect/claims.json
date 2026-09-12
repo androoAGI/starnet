@@ -18,7 +18,7 @@
   "expectedClaimCount": 37,
   "releaseSurface": {
     "algorithm": "sha256",
-    "sourceCommit": "8dcca60e3428a913bc7aaf0e6aeb68749115ed5b",
+    "sourceCommit": "53b62ff848223d1b524c2d5cc408e76edd4d7f56",
     "pathSetSha256": "51677953e0b1823c314c0a8ad0a8ec8e032f5d458eb166518757c4e2b284ff90",
     "files": [
       {
@@ -68,8 +68,8 @@
       },
       {
         "path": "frontend/app/app.js",
-        "bytes": 382220,
-        "sha256": "06ce5ce45191bad5f6e97bdea4d286411428c3b35b4c8f30d8e044475c0785ae"
+        "bytes": 382396,
+        "sha256": "010a74a1744f0eff65041d88db43a884ca78b6e6e17777fadb29a945f33f3a59"
       },
       {
         "path": "frontend/app/armconfirm.js",
@@ -253,8 +253,8 @@
       },
       {
         "path": "frontend/app/dialogue.js",
-        "bytes": 22078,
-        "sha256": "a07ba70de49aedd83a30b0102d59da8765dea13492daea82d7abb2277dcfc915"
+        "bytes": 24861,
+        "sha256": "64770b9bf2d6ad35528cc1d9a6d7dd46f4ca659b4dac2ed30f24f1269dac81a7"
       },
       {
         "path": "frontend/app/discoverystore.js",
@@ -493,8 +493,8 @@
       },
       {
         "path": "frontend/app/onboarding.js",
-        "bytes": 76163,
-        "sha256": "c25eef76eec065ec875446f65f9ebcf9b3d6b1ebce8db51fa96ffeea00fcd2be"
+        "bytes": 58668,
+        "sha256": "5df9fe82c5f27a1351c2e33018cab4fc185ccc5d8da5355ab2e65bb3ff8f605c"
       },
       {
         "path": "frontend/app/overseer-setup.js",
@@ -523,13 +523,13 @@
       },
       {
         "path": "frontend/app/pitch.js",
-        "bytes": 22782,
-        "sha256": "0259519df10750f36392da62734591f73a08871413dfd0886404a950b4c24012"
+        "bytes": 23297,
+        "sha256": "94944886ad1fcf5d95c4ab327cc59553ae7886dcca6eb770d81e8c533d6adfb7"
       },
       {
         "path": "frontend/app/pitchstore.js",
-        "bytes": 18695,
-        "sha256": "d84d1b78496cf15863eb1a187052e89f2c939eb76b975973fef174e934b9aae7"
+        "bytes": 23227,
+        "sha256": "22551dbd8b0afe5fff2c01f5912ecdf75322f883bebc16c1b24ca44dddefc075"
       },
       {
         "path": "frontend/app/pride.js",
@@ -903,8 +903,8 @@
       },
       {
         "path": "frontend/app/tutorial.js",
-        "bytes": 97302,
-        "sha256": "44f43822ceb30837f793565389d52d0be3cf39f8883768d9b332abcbc2dfcea3"
+        "bytes": 96015,
+        "sha256": "54802317c451b5d874034d51ce816025e3a226f11f0506f8b339377e1d25a472"
       },
       {
         "path": "frontend/app/understanding.js",
@@ -953,8 +953,8 @@
       },
       {
         "path": "frontend/app/wakemind.js",
-        "bytes": 33553,
-        "sha256": "a460989925dd0549881ac44c72035a753fc6d489412e8772905caa8754c102f4"
+        "bytes": 33346,
+        "sha256": "97681a1cd8870a778441a00844c43ce9f078d9926f73babff95a31870f269ebb"
       },
       {
         "path": "frontend/app/warroom.js",
@@ -1168,8 +1168,8 @@
       },
       {
         "path": "frontend/css/onboarding.css",
-        "bytes": 2388,
-        "sha256": "298bfcbd14cafed90e223016256592806f0de12c1637293468bcf5e851e77a08"
+        "bytes": 3010,
+        "sha256": "1854280648f2a6bf9eab965f2ffd4b0cf69b69a722088d9fed3fef5b6b4948c1"
       },
       {
         "path": "frontend/css/overseer-setup.css",
