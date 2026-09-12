@@ -4,7 +4,7 @@ let elapsed=0,playing=false,last=0,raf=0,sound=false,audio=null,voices=[];
 const images={};const stamp=document.createElement('canvas');stamp.width=128;stamp.height=128;
 for(const dir of ['north','east','south']){const im=new Image();im.onload=render;im.src='/assets/sprites/minion/walk_'+dir+'_0.png';images[dir]=im;}
 const phases=[['01 SIGNAL',0],['02 CONVERGENCE',3500],['03 EMBODIMENT',10500],['04 ARRIVAL',16000],['05 CONTACT',19000],['06 FIRST LIGHT',23000]];
-const nav=document.getElementById('chapters');for(const [name,at]of phases){const b=document.createElement('button');b.textContent=name;b.onclick=()=>{playing=false;play.textContent='Play arrival';elapsed=at;stopAudio();render();};nav.appendChild(b);}
+const nav=document.getElementById('chapters');for(const [name,at]of phases){const b=document.createElement('button');b.textContent=name;b.onclick=()=>{cancelAnimationFrame(raf);playing=false;play.textContent='Play arrival';elapsed=at;stopAudio();render();};nav.appendChild(b);}
 function stopAudio(){voices.forEach(n=>{try{n.stop()}catch{}});voices=[];}
 function beginAudio(){stopAudio();if(!sound)return;audio=audio||new AudioContext();audio.resume();for(let i=0;i<3;i++){const o=audio.createOscillator(),g=audio.createGain();o.type='sine';o.frequency.setValueAtTime([38,76,114][i],audio.currentTime);o.frequency.exponentialRampToValueAtTime([58,116,232][i],audio.currentTime+15);g.gain.setValueAtTime(0,audio.currentTime);g.gain.linearRampToValueAtTime(.028/(i+1),audio.currentTime+5);g.gain.linearRampToValueAtTime(.045/(i+1),audio.currentTime+15);g.gain.linearRampToValueAtTime(0,audio.currentTime+17.5);o.connect(g);g.connect(audio.destination);o.start();o.stop(audio.currentTime+24);voices.push(o);}}
 function resize(){cv.width=innerWidth;cv.height=innerHeight;render();}window.addEventListener('resize',resize);
@@ -27,6 +27,6 @@ function render(){if(!cv.width)return;const f=Arrival.frame(elapsed,false),loc=r
 }
 function tick(now){if(!playing)return;elapsed=Math.min(24000,elapsed+(now-last));last=now;render();if(elapsed>=24000){playing=false;play.textContent='Replay arrival';stopAudio();return;}raf=requestAnimationFrame(tick);}
 play.onclick=()=>{playing=!playing;if(playing){if(elapsed>=24000)elapsed=0;last=performance.now();play.textContent='Pause';beginAudio();raf=requestAnimationFrame(tick);}else{cancelAnimationFrame(raf);stopAudio();play.textContent='Play arrival';}};
-seek.oninput=()=>{playing=false;play.textContent='Play arrival';elapsed=Number(seek.value);stopAudio();render();};reduced.onchange=render;
+seek.oninput=()=>{cancelAnimationFrame(raf);playing=false;play.textContent='Play arrival';elapsed=Number(seek.value);stopAudio();render();};reduced.onchange=render;
 document.getElementById('sound').onclick=e=>{sound=!sound;e.currentTarget.textContent=sound?'Sound on':'Sound off';e.currentTarget.setAttribute('aria-pressed',String(sound));if(playing)beginAudio();else stopAudio();};
 resize();
