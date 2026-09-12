@@ -93,6 +93,7 @@ test/provider.prices.test.js
 test/prices.all-providers.test.js
 test/provider.timeouts.test.js
 test/provider.registry.test.js
+test/provider.qwencloud.test.js
 test/ratelimits.test.js
 test/provider.codex-auth.test.js
 test/purge-leaked-codex-tokens.test.js

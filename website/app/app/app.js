@@ -737,6 +737,7 @@ const App = (() => {
       fireworks: 'FIREWORKS',
       perplexity: 'PERPLEXITY',
       cerebras: 'CEREBRAS',
+      qwencloud: 'QWENCLOUD',
       starnet: 'STARNET MANAGED',
       ollama: 'OLLAMA',
       custom: 'CUSTOM'
@@ -761,6 +762,7 @@ const App = (() => {
     if (p === 'fireworks' || p === 'fireworks-ai') return 'fireworks';
     if (p === 'perplexity' || p === 'pplx' || p === 'sonar') return 'perplexity';
     if (p === 'cerebras') return 'cerebras';
+    if (p === 'qwencloud' || p === 'qwen' || p === 'dashscope' || p === 'qwen-cloud' || p === 'alibaba') return 'qwencloud';
     // managed credits — its bearer is the linked device token, never a key the user pastes
     if (p === 'starnet' || p === 'starnet-cloud' || p === 'managed') return 'starnet';
     if (p === 'ollama' || p === 'ollama-local') return 'ollama';
@@ -792,6 +794,7 @@ const App = (() => {
     if (p === 'fireworks') return 'Fireworks API key';
     if (p === 'perplexity') return 'pplx-...  -  perplexity.ai/settings/api';
     if (p === 'cerebras') return 'Cerebras API key';
+    if (p === 'qwencloud') return 'sk-...  -  modelstudio.console.alibabacloud.com (China: dashscope.console.aliyun.com)';
     if (p === 'custom') return 'optional API key for this endpoint';
     return 'sk-or-...  -  openrouter.ai/keys';
   }
@@ -811,6 +814,7 @@ const App = (() => {
       fireworks: 'https://fireworks.ai/account/api-keys',
       perplexity: 'https://www.perplexity.ai/settings/api',
       cerebras: 'https://cloud.cerebras.ai',
+      qwencloud: 'https://modelstudio.console.alibabacloud.com/?tab=playground#/api-key',
       // not a key page: managed credits are obtained by LINKING a station in the STORE
       starnet: 'https://account.starnetos.com',
       openrouter: 'https://openrouter.ai/keys'
@@ -821,8 +825,11 @@ const App = (() => {
   // stranding the user on an empty required field. Reuses the curated FALLBACK_MODELS lineup (first = best pick).
   function defaultModelFor(provider) {
     const p = normalizeProviderId(provider);
-    const list = FALLBACK_MODELS[p] || FALLBACK_MODELS.openrouter;
-    return (list && list[0]) || 'anthropic/claude-sonnet-4.6';
+    if (p === 'custom') return '';
+    const list = FALLBACK_MODELS[p];
+    if (list && list.length) return list[0];
+    if (p === 'openrouter') return (FALLBACK_MODELS.openrouter[0]) || 'anthropic/claude-sonnet-4.6';
+    return '';
   }
   function applyQuickModel(sel) {
     if (!agent || !sel) return;
@@ -1480,6 +1487,8 @@ const App = (() => {
     fireworks: ['accounts/fireworks/models/deepseek-v3p1', 'accounts/fireworks/models/kimi-k2p5', 'accounts/fireworks/models/llama-v3p3-70b-instruct'],
     perplexity: ['sonar-pro', 'sonar', 'sonar-reasoning-pro'],
     cerebras: ['llama-4-scout-17b-16e-instruct', 'llama3.1-8b', 'qwen-3-coder-480b'],
+    qwencloud: ['qwen-plus', 'qwen-max', 'qwen-turbo'],
+    custom: [],
     ollama: ['llama3.1', 'qwen2.5-coder', 'mistral'],
     openrouter: ['gpt-5.5', 'anthropic/claude-sonnet-4.6', 'anthropic/claude-opus-4.8', 'openai/gpt-5', 'google/gemini-2.5-pro']
   });
@@ -1511,12 +1520,14 @@ const App = (() => {
       // catalog unreachable (no network to openrouter.ai, or fetch blocked): seed the curated slugs MARKED
       // offline so the popover never reads as a verified live catalog. The screen stays usable — you can always
       // just type the slug you use.
-      const FALLBACK = FALLBACK_MODELS[p] || FALLBACK_MODELS.openrouter;
+      const FALLBACK = FALLBACK_MODELS[p] ?? (p === 'custom' ? [] : FALLBACK_MODELS.openrouter);
       genesisModels = FALLBACK.map(id => ({ id, name: id, fallback: true }));
       genesisOffline = true;
       countEl.textContent = '(catalog offline — type or pick a slug)';
-      if (!inp.value) inp.value = defId || FALLBACK[0];   // default-fill even offline so WAKE works; the Commander can overtype
-      inp.placeholder = 'type a model slug — e.g. ' + (defId || 'gpt-5.5');
+      if (!inp.value) inp.value = defId || FALLBACK[0] || '';
+      inp.placeholder = p === 'custom'
+        ? 'type a model slug for your endpoint'
+        : 'type a model slug — e.g. ' + (defId || FALLBACK[0] || 'gpt-5.5');
     }
     if (el('model-pop') && !el('model-pop').hidden) renderModelPop();   // live-refresh an open popover after a provider switch
     // OLLAMA status = the catalog truth for this machine: a non-empty live list IS "ollama detected"; an empty one
@@ -1588,6 +1599,10 @@ const App = (() => {
     cerebras: [
       { label: 'Llama 4 Scout', id: 'llama-4-scout-17b-16e-instruct', tag: 'fast' },
       { label: 'Llama 3.1 8B', id: 'llama3.1-8b', tag: '' }
+    ],
+    qwencloud: [
+      { label: 'Qwen Plus', id: 'qwen-plus', tag: 'balanced' },
+      { label: 'Qwen Max', id: 'qwen-max', tag: 'deepest' }
     ]
   });
   /* ---------- PHOSPHOR tint picker (the console-wide theme, surfaced at commission) ----------

@@ -308,6 +308,7 @@ const Harness = (() => {
     if (p === 'fireworks' || p === 'fireworks-ai') return 'fireworks';
     if (p === 'perplexity' || p === 'pplx' || p === 'sonar') return 'perplexity';
     if (p === 'cerebras') return 'cerebras';
+    if (p === 'qwencloud' || p === 'qwen' || p === 'dashscope' || p === 'qwen-cloud' || p === 'alibaba') return 'qwencloud';
     // managed credits — bearer is the linked device token (mirrors app.js + registry.js aliases)
     if (p === 'starnet' || p === 'starnet-cloud' || p === 'managed') return 'starnet';
     if (p === 'ollama' || p === 'ollama-local') return 'ollama';
@@ -568,7 +569,7 @@ const Harness = (() => {
       name: (m && (m.name || m.id)) || '',
       pricing: (m && m.pricing) || null,
       context_length: (m && +m.context_length) || 0,
-      supportsTools: (m && typeof m.supportsTools === 'boolean') ? m.supportsTools : (params.length ? params.indexOf('tools') >= 0 : true),
+      supportsTools: (m && typeof m.supportsTools === 'boolean') ? m.supportsTools : (params.indexOf('tools') >= 0 ? true : null),
       supportsReasoning: !!(m && m.supportsReasoning),
       supported_parameters: params,
       reasoningEfforts: Array.isArray(m && m.reasoningEfforts) ? m.reasoningEfforts.slice() : []

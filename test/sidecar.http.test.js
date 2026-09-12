@@ -86,6 +86,15 @@ function boot(port, workspaces, attemptsLeft, extraEnv) {
         CEREBRAS_API_KEY: '',
         STARNET_CEREBRAS_API_KEY: '',
         SKYNET_CEREBRAS_API_KEY: '',
+        DASHSCOPE_API_KEY: '',
+        STARNET_DASHSCOPE_API_KEY: '',
+        SKYNET_DASHSCOPE_API_KEY: '',
+        QWENCLOUD_API_KEY: '',
+        STARNET_QWENCLOUD_API_KEY: '',
+        SKYNET_QWENCLOUD_API_KEY: '',
+        QWEN_API_KEY: '',
+        STARNET_QWEN_API_KEY: '',
+        SKYNET_QWEN_API_KEY: '',
         CUSTOM_OPENAI_BASE_URL: '',
         STARNET_CUSTOM_OPENAI_BASE_URL: '',
         SKYNET_CUSTOM_OPENAI_BASE_URL: '',
@@ -519,7 +528,7 @@ function boot(port, workspaces, attemptsLeft, extraEnv) {
     A.ok(providers.body.providers.some(p => p.id === 'openrouter'), 'providers include openrouter');
     A.ok(providers.body.providers.some(p => p.id === 'anthropic'), 'providers include anthropic');
     A.ok(providers.body.providers.some(p => p.id === 'gemini'), 'providers include gemini');
-    for (const id of ['xai', 'groq', 'mistral', 'deepseek', 'together', 'fireworks', 'perplexity', 'cerebras']) {
+    for (const id of ['xai', 'groq', 'mistral', 'deepseek', 'together', 'fireworks', 'perplexity', 'cerebras', 'qwencloud']) {
       A.ok(providers.body.providers.some(p => p.id === id), 'providers include ' + id);
     }
     A.ok(providers.body.providers.some(p => p.id === 'custom'), 'providers include custom OpenAI-compatible');
@@ -555,6 +564,26 @@ function boot(port, workspaces, attemptsLeft, extraEnv) {
       const goodCandidate = await j('POST', '/api/providers/validate', { provider: 'custom', baseUrl: liveBase, key: 'probe-good-key', model: 'local/proven-model' });
       A.eq(goodCandidate.body.credentialVerified, true, 'candidate-key validation proves the exact key on the inference wire');
     } finally { await new Promise(resolve => probeServer.close(resolve)); }
+
+    // Custom catalog: arbitrary model ids without capability metadata stay honestly unknown (null), not false.
+    const capServer = http.createServer((rq, rs) => {
+      rs.writeHead(200, { 'Content-Type': 'application/json' });
+      rs.end(JSON.stringify({ data: [
+        { id: 'arbitrary/custom-model', context_length: 8192 },
+        { id: 'tooly/model', context_length: 8192, supported_parameters: ['tools'] }
+      ] }));
+    });
+    await new Promise(resolve => capServer.listen(0, HOST, resolve));
+    try {
+      const capBase = 'http://' + HOST + ':' + capServer.address().port + '/v1';
+      const catalog = await j('GET', '/api/models/custom?baseUrl=' + encodeURIComponent(capBase));
+      A.eq(catalog.status, 200, 'GET /api/models/custom proxies an arbitrary OpenAI-compatible catalog');
+      const bare = catalog.body.models.find(m => m.id === 'arbitrary/custom-model');
+      const tooly = catalog.body.models.find(m => m.id === 'tooly/model');
+      A.ok(bare, 'arbitrary custom model ids are listed');
+      A.eq(bare.supportsTools, null, 'models without capability metadata serialize as unknown, not false');
+      A.eq(tooly.supportsTools, true, 'supported_parameters tools is positive proof of tool support');
+    } finally { await new Promise(resolve => capServer.close(resolve)); }
 
     const pushOpenAi = await fetch(B + '/api/key', {
       method: 'POST',
