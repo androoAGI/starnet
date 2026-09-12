@@ -18,7 +18,7 @@
   "expectedClaimCount": 37,
   "releaseSurface": {
     "algorithm": "sha256",
-    "sourceCommit": "c3e07f0b9c37f6d1d7f7d9e4098fa5e60de44ed3",
+    "sourceCommit": "679a8467af305573986edbe4f70887f42ae322d4",
     "pathSetSha256": "51677953e0b1823c314c0a8ad0a8ec8e032f5d458eb166518757c4e2b284ff90",
     "files": [
       {
@@ -353,8 +353,8 @@
       },
       {
         "path": "frontend/app/goalstore.js",
-        "bytes": 42826,
-        "sha256": "7a92123c423fe62c0ffb9dd3f6248a1e2d260732e5b6720f944822aa1310b751"
+        "bytes": 42872,
+        "sha256": "11a93aa1e0beb0a717a328c56dc2e19c8a337b53ec0a1b9ec855933f4d3d01d5"
       },
       {
         "path": "frontend/app/group-chat.js",
