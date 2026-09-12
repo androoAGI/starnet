@@ -204,6 +204,7 @@ const Tutorial = (() => {
     // Offer the tour EXPLICITLY — a clear "SHOW ME AROUND" vs "dive in myself" choice, not a buried chip. This
     // kills the old rhetorical "where do we begin?" self-answer the Commander found confusing.
     if (!hasDialogue()) { finishUp(true); return; }   // no panel → don't trap the Commander in a half-built tour
+    if (replayMode) { beatShowAround(); return; }
     if (!replayMode && typeof PitchStore !== 'undefined' && PitchStore.offerHandoff) { presentHandoff(true); return; }
     Dialogue.open({ name: agentName });
     if (Dialogue.setStage) Dialogue.setStage('FIRST TASK', 'Your station is ready');

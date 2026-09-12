@@ -43,4 +43,5 @@ const cx = fs.readFileSync(path.join(__dirname, '../frontend/app/windows/connect
 A.ok(/StationUI\.connectorJump = function/.test(cx) && /openTerm\('connectors', 'catalog'\)/.test(cx), 'connectorJump opens ABILITIES on the CATALOG rail');
 A.ok(!/connectorJump[\s\S]{0,600}oauth\/start/.test(cx.slice(0, cx.indexOf('function ccSignIn'))), 'the jump never starts OAuth itself — the card’s own SIGN IN stays the only door');
 A.ok(!/setActivity\('task'\)/.test(src.slice(src.indexOf('function beatShowAround('), src.indexOf('async function rpArrived('))), 'the tour cannot manufacture a working agent without a real run');
+A.ok(/if \(replayMode\) \{ beatShowAround\(\); return; \}/.test(src), 'replay opens orientation directly, without repeating first-task setup');
 A.report('tutorial-connect-beat.test');
