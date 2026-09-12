@@ -17,3 +17,4 @@ let w=create(Arrival);assert.equal(w.start(),true);w.skip();w.fire(0);assert.equ
 w=create(Arrival);w.start();w.cancel();w.fire(0);assert.equal(w.state().callbacks,0);assert.equal(w.state().scene,false);
 w=create(Arrival);w.reduce();w.start();assert.equal(w.state().scale,3);assert.equal(w.state().camAnim,null);w.fire(0);assert.equal(w.state().callbacks,1);
 console.log('arrival: timeline, rendering, skip, cancellation, reduced motion, and interview lighting passed');
+A.report('arrival');
