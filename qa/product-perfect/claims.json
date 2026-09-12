@@ -18,7 +18,7 @@
   "expectedClaimCount": 37,
   "releaseSurface": {
     "algorithm": "sha256",
-    "sourceCommit": "18883f28bf3a67ffd7cd652d12edd10f93bc5fab",
+    "sourceCommit": "172acd77e47f9cfe30c1a4d5d2f5dd7b1432b421",
     "pathSetSha256": "51677953e0b1823c314c0a8ad0a8ec8e032f5d458eb166518757c4e2b284ff90",
     "files": [
       {
@@ -353,8 +353,8 @@
       },
       {
         "path": "frontend/app/goalstore.js",
-        "bytes": 35787,
-        "sha256": "ee6f757165b92b0659c895c396756b40c2edcccf3fa71a4ed432f27d7d2cd271"
+        "bytes": 42307,
+        "sha256": "c17c32c1d2d08dd0214fbedf180f034b9dc89c9235e929848bc9cf042af2f38f"
       },
       {
         "path": "frontend/app/group-chat.js",
@@ -823,8 +823,8 @@
       },
       {
         "path": "frontend/app/stationui.js",
-        "bytes": 698040,
-        "sha256": "ac2f36d06174123919d37261158a4188d8069217fc004dfa22bee1da5bf56257"
+        "bytes": 714213,
+        "sha256": "75bed3d5fd2f9c7195fadc467242cbbcf336342fa5cd4b5691b34266e69d7ad2"
       },
       {
         "path": "frontend/app/study.js",
@@ -1183,8 +1183,8 @@
       },
       {
         "path": "frontend/css/quests.css",
-        "bytes": 11457,
-        "sha256": "1e4af99c03bb02c35a6e91b5ae8c8c9ae18e6124023ad516d9d0235c63255dbe"
+        "bytes": 14433,
+        "sha256": "480f6907fda6487a0614db765eb232d5931c521fe3d42df4c9d8b53c3161f1aa"
       },
       {
         "path": "frontend/css/readability.css",
