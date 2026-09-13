@@ -1,3 +1,19 @@
+## JOURNEY SWEEP — 2026-09-12 (`agent/journey-first-loop-0912`)
+
+Owner requested a sweep and polish. Reproduced two issues in the live seeded preview:
+closed result disclosures reopened on refresh, and a suggestion could be applied after
+the user revised its constraints. Source `f49596784` now preserves both open and closed
+disclosure choices and checks the full planning draft before adopting a suggestion.
+Changed motivation, constraints, success criteria or steps require a fresh suggestion;
+valid adoption, explicit template opening, and undo still work. Step-launch labels match.
+
+Live before/after evidence: `.dogfood/journey-first-loop/sweep-before.json` and
+`sweep-live.json` (11 interaction checks plus all four journey tabs at an 800x700 viewport,
+without horizontal overflow). Quest-window regressions: 106 assertions PASS. Full
+`npm run test:fast`: **771/771 PASS** on receipt `f08140173`; log `sweep-verified.log`
+in the same directory. Website mirror synchronized; walkthrough `REVIEW.md` updated.
+No backend changes, integration merge, installer rebuild, or publication in this pass.
+
 ## JOURNEY UX HANDOFFS — 2026-09-12 (`agent/journey-first-loop-0912`)
 
 Owner requested execution of the strongest remaining UX improvements. Source `e1696ce99`,
