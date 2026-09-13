@@ -6,6 +6,7 @@
 .sn-menu .con-rail-label { white-space: normal; font-size: 15px; letter-spacing: .4px; }
 .sn-menu .con-sec-head { background: none; box-shadow: none; border: 0; padding: 0; margin-bottom: 12px; }
 .sn-menu .con-sec-head .sec-l { font-size: 24px; letter-spacing: .5px; }
+.sn-menu .sec .sec-l { flex: 0 1 auto; min-width: 0; overflow-wrap: anywhere; }
 .sn-menu .con-sec-desc { font-size: 15px; line-height: 1.5; margin-bottom: 24px; }
 .sn-menu .con-pane { padding: 24px; }
 .sn-menu .mc-row, .sn-menu .lp-shape { border-radius: 8px; border: 1px solid var(--ph-faint); background: rgba(var(--ph-rgb),.035); box-shadow: inset 0 1px 0 rgba(var(--ph-bright-rgb),.05); padding: 14px; }
@@ -35,9 +36,9 @@
 .sn-menu .rt-simple-create .rt-when { padding: 16px; margin: 0; border: 1px solid var(--ph-faint); border-radius: 8px; background: rgba(var(--ph-rgb),.025); }
 .sn-menu .rt-when-k { font-size: 14px; letter-spacing: .3px; margin-bottom: 10px; }
 .sn-menu .sp-frequency { display: flex; align-items: center; gap: 16px; color: var(--ph-dim); font-size: 14px; }
-.sn-menu .sp-frequency select { flex: 1; min-width: 0; padding: 10px; border: 1px solid var(--ph-dim); border-radius: 6px; background: var(--panel); color: var(--ph); font: inherit; }
+.sn-menu .sp-frequency select { flex: 1; min-width: 0; padding: 10px 28px 10px 10px; border: 1px solid var(--ph-dim); border-radius: 6px; background-color: var(--panel); color: var(--ph); font: inherit; }
 .sn-menu .sp-time { margin-top: 14px; gap: 8px; }
-.sn-menu .sp-time select { padding: 8px 10px; border-radius: 5px; }
+.sn-menu .sp-time select { padding: 8px 24px 8px 10px; border-radius: 5px; }
 .sn-menu .sp-tz { display: block; flex-basis: 100%; margin: 6px 0 0; font-size: 12px; }
 .sn-menu #rt-preview { padding: 4px 0 14px; line-height: 1.5; color: var(--ph-dim); }
 .sn-menu .rt-next-label { color: var(--ph); margin-right: 8px; }
@@ -129,12 +130,13 @@
 
 .sn-menu .cc-brand-wide { width: 80px; flex-basis: 80px; }
 
-/* Consistent browsing tiles; opening details restores the full text and natural height. */
-.sn-menu .cc-card { box-sizing: border-box; height: 320px; min-width: 0; }
-.sn-menu .cc-card > .cc-head { flex: 0 0 60px; }
-.sn-menu .cc-card > .cc-blurb { flex: 1 1 auto; min-height: 0; overflow: hidden; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 4; }
+/* A shared minimum keeps browsing tiles consistent; long labels and larger
+   text must be able to grow the card rather than push actions outside it. */
+.sn-menu .cc-card { box-sizing: border-box; height: auto; min-height: 320px; min-width: 0; }
+.sn-menu .cc-card > .cc-head { flex: 0 0 auto; min-height: 60px; }
+.sn-menu .cc-card > .cc-blurb { flex: 1 0 auto; min-height: 0; overflow: hidden; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 4; }
 .sn-menu .cc-card > .cc-details { flex: 0 0 auto; }
-.sn-menu .cc-card > .cc-acts { flex: 0 0 36px; margin-top: 0; }
+.sn-menu .cc-card > .cc-acts { flex: 0 0 auto; min-height: 36px; margin-top: 0; }
 .sn-menu .cc-card:has(> .cc-details[open]),
 .sn-menu .cc-card:has(> .cc-key:not([style*="none"])) { height: auto; min-height: 320px; }
 .sn-menu .cc-card:has(> .cc-details[open]) > .cc-blurb,
