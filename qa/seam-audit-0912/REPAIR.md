@@ -43,3 +43,5 @@ Final result: **779 fast steps and 114 HTTP steps passed**, with zero failing st
 Earlier full runs exposed a wording-lint match and a required silent-catch baseline reduction (373 → 371); both checks passed after correction, as did the remaining 39 fast steps. The combined-tree run subsequently stopped at step 252/775 when C: reached zero free bytes and sidecar startup reported ENOSPC. That failed gate is not a passing result. Only owned dependency files were compressed to reclaim space; no other workspace or user data was removed. The historical report was restored from git after its attempted write failed.
 
 Latest frontend integration: `93d432cba` includes trunk onboarding at `b1f78e09d`; `c0ffa6afc` binds the resulting 257-file release surface. No release claim verdicts were changed.
+
+Integrated to `feat/harness-backend` by fast-forward at `9bf6de820`. Product bytes match the passing gate candidates. The three pre-existing dirty/untracked trunk files were checked byte-for-byte and preserved; see `repair-integration.json`. The owned worktree is retained with the full local gate logs.
