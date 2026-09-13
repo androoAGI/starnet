@@ -160,8 +160,33 @@
   // complete / has none. Only ever returns an OPEN milestone of an ACTIVE goal (a retired/done goal surfaces none).
   function nextMilestone(goal) {
     if (!goal || goal.status !== 'active' || !Array.isArray(goal.milestones)) return null;
+    const chosen = goal.milestones.find(m => m && m.id === goal.nextMilestoneId && m.status === 'open');
+    if (chosen) return chosen;
     for (const m of goal.milestones) if (m && m.status === 'open') return m;
     return null;
+  }
+
+  // Change direction without rewriting the original plan or its completed history.
+  // An accepted build must finish or stall before changing the selected next step.
+  function chooseNext(goal, milestoneId, now, questLive) {
+    if (!goal || goal.status !== 'active' || !Array.isArray(goal.milestones)) return false;
+    const next = goal.milestones.find(m => m && m.id === milestoneId && m.status === 'open');
+    if (!next || goal.milestones.some(m => m && m.status === 'open' && m.questRef && typeof questLive === 'function' && questLive(m.questRef))) return false;
+    goal.nextMilestoneId = next.id;
+    goal.updatedAt = now;
+    return true;
+  }
+
+  // A return briefing is a read of existing records, never a new progress ledger.
+  function briefing(goals, questLive) {
+    const list = Array.isArray(goals) ? goals : [];
+    const goal = activeGoal(list);
+    const completedGoal = list.filter(g => g && g.status === 'done').slice().sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0))[0] || null;
+    if (!goal) return { goal: null, completedGoal };
+    const next = nextMilestone(goal);
+    const latest = goal.milestones.filter(m => m && m.status === 'done').slice().sort((a, b) => (b.doneAt || 0) - (a.doneAt || 0))[0] || null;
+    return { goal, next, latest, completedGoal, progress: progress(goal),
+      inFlight: !!(next && next.questRef && questLive && questLive(next.questRef)) };
   }
 
   // is every milestone done? (a goal completes when its whole path is done — foldGoalDone stamps status:'done').
@@ -291,14 +316,14 @@
       // an ACCEPTED front milestone whose bound work quest is still in flight is IN PROGRESS — visible, honest,
       // but NOT re-acceptable (a second Accept would double-mint the build and double-spend a paid run).
       const inFlight = !isDone && isNext && !!m.questRef && !!questLive(m.questRef);
-      // ONLY the next open milestone is an actionable open quest; later open milestones read as locked-order
-      // (visible but not the current front — honest chaining, never gating: they're not hidden, just not yet).
+      // One selected next step is offered for execution; the Commander can select a different
+      // open step without changing the original plan order or its completed history.
       const status = isDone ? 'done' : (isNext ? 'open' : 'open');
       out.push({
         id: 'arc:step:' + m.id, kind: 'arc-step', title: (isDone ? 'done — ' : (isNext ? '▸ ' : '· ')) + clip(m.text, 120),
         desc: isDone ? ('done.' + (m.evidence ? ' ' + m.evidence : ''))
           : inFlight ? 'in progress — the build is running; finishing it completes this step.'
-          : (isNext ? 'the next step — do it yourself or ask StarNet for help.' : 'coming up after the step above.'),
+          : (isNext ? 'the next step — do it yourself or ask StarNet for help.' : 'another planned step — you can choose it next in Goals.'),
         reward: 'progress on “' + clip(goal.text, 60) + '”', status,
         arcGoalId: goal.id, milestoneId: m.id, isNext: !!isNext, inFlight: inFlight
       });
@@ -307,7 +332,7 @@
   }
 
   return {
-    buildDirective, parseDecomposition, makeGoal, progress, nextMilestone, allDone,
+    buildDirective, parseDecomposition, makeGoal, progress, nextMilestone, chooseNext, briefing, allDone,
     bindMilestoneQuest, foldMilestoneDone, milestoneForQuest, retireBySource, activeGoal, project, lowValue, scrubSecrets, resolveConfirmChoice,
     MIN_MILESTONES, MAX_MILESTONES, TEXT_CHARS
   };

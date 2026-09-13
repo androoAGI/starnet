@@ -14,6 +14,7 @@ station.rooms.r1.rects = [{ x1: 0, y1: 0, x2: 21, y2: 17 }];
 station.props = require('./command-deck.cjs')();
 station._nid = 40;
 save.doc.station = station;
+save.doc.agent.skin = 'station_minion';
 save.updatedAt = save.savedAt = save.doc.updatedAt = Date.now();
 fs.writeFileSync(target, JSON.stringify(save, null, 2));
 console.log('Command deck prepared with five workstations, navigation table and equipment bays.');

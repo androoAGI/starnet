@@ -178,18 +178,33 @@
     return String(id || 'agent');
   }
 
+  function rowsForRun(items, runId, query) {
+    const needle = String(query || '').trim().toLowerCase();
+    return items.filter(r => r.runId === runId && (!needle || [r.title, r.summary, r.ask].join(' ').toLowerCase().includes(needle)));
+  }
   function mount(body) {
     let rows = [], projects = [], kinds = [], summary = null, loadSeq = 0, project = '', kind = '';
+    let runFilter = null;
     const openState = { blobUrl: '', previewHost: null };
     const revoke = () => revokePreview(openState);
     body.innerHTML = '<div class="cfg dlv"><h3>DELIVERABLES / WORKSHOP LIBRARY</h3><p class="muted">Everything your agents actually made, filed under the project it was made for. Open any one to see what you asked for, what came back, and every file it produced. Previews open safely inside StarNet in a browser; desktop OPEN uses your file app.</p>' +
-      '<div id="dl-head" class="dlv-head-strip"></div>' +
+      '<div id="dl-head" class="dlv-head-strip"></div><div id="dl-run-scope" class="cfg-block" hidden></div>' +
       '<div class="deliverables-toolbar"><input id="dl-query" aria-label="Search deliverables" placeholder="search title, agent, project"><select id="dl-status" aria-label="Filter deliverables"><option value="">ALL STATUS</option><option>pending</option><option>kept</option><option>implemented</option><option>discarded</option><option>produced</option><option>failed</option></select><button class="bb sm" id="dl-refresh">REFRESH</button><button class="bb sm" id="dl-clean">CLEAN OLD RECORDS</button></div>' +
       '<div id="dl-kinds" class="dlv-kinds"></div>' +
       '<div id="dl-msg" class="msg" aria-live="polite"></div><div id="dl-cleanup"></div>' +
       '<div class="dlv-split"><nav id="dl-rail" class="dlv-rail" aria-label="Projects"></nav><div id="dl-list" class="dlv-main"></div></div></div>';
     const q = body.querySelector('#dl-query'), status = body.querySelector('#dl-status'), list = body.querySelector('#dl-list'), rail = body.querySelector('#dl-rail'), msg = body.querySelector('#dl-msg'), cleanup = body.querySelector('#dl-cleanup'), head = body.querySelector('#dl-head'), kindbar = body.querySelector('#dl-kinds');
     const say = (s, bad) => { msg.textContent = s || ''; msg.className = 'msg ' + (bad ? 'bad' : 'ok'); };
+    const runScope = body.querySelector('#dl-run-scope');
+    const renderRunScope = () => {
+      runScope.hidden = !runFilter;
+      runScope.innerHTML = runFilter ? '<b>OUTPUTS FROM THIS STEP</b><p>' + esc(runFilter.label) + '</p><button class="bb sm" id="dl-all-runs">SHOW ALL WORK</button>' : '';
+      runScope.querySelector('button')?.addEventListener('click', () => { runFilter = null; q.value = ''; status.value = ''; project = ''; kind = ''; renderRunScope(); load(); });
+    };
+    body._deliverablesShowRun = (runId, label) => {
+      runFilter = { runId: String(runId), label: String(label || 'Selected step') };
+      q.value = ''; status.value = ''; project = ''; kind = ''; renderRunScope(); load();
+    };
 
     /* THE PROJECT RAIL. Counts come from the server's facet, which is computed BEFORE the project filter runs —
        so selecting one project can never hide the others. A root whose path grant was revoked still appears,
@@ -299,10 +314,10 @@
         // the window has to teach what it is for.
         // A filtered miss and an empty library are different facts and must not share a headline — "NOTHING HERE
         // YET" over a library that has 40 rows behind a filter is simply false.
-        const filtered = !!(project || kind || q.value || status.value);
+        const filtered = !!(runFilter || project || kind || q.value || status.value);
         list.innerHTML = '<div class="dlv-empty">' + (filtered ? 'NO MATCHES.' : 'NOTHING HERE YET.') + '<br><span>' +
-          (filtered ? 'Nothing in the library fits this view. Clear the filters to see everything.' : 'When a run creates or changes files, it lands here with the agent’s own name for it, the crew that worked on it, and the project it was for.') +
-          '</span>' + (filtered ? '<div><button class="bb sm" data-clear-filters>CLEAR FILTERS</button></div>' : '') + '</div>';
+          (runFilter ? 'No recorded outputs from this step match this view. A completed run may have no files; use SHOW ALL WORK to return to the library.' : filtered ? 'Nothing in the library fits this view. Clear the filters to see everything.' : 'When a run creates or changes files, it lands here with the agent’s own name for it, the crew that worked on it, and the project it was for.') +
+          '</span>' + (filtered && !runFilter ? '<div><button class="bb sm" data-clear-filters>CLEAR FILTERS</button></div>' : '') + '</div>';
         return;
       }
       const now = Date.now();
@@ -337,11 +352,13 @@
     }
     async function load() {
       const seq = ++loadSeq; say('Loading…');
-      const url = '/api/deliverables?query=' + encodeURIComponent(q.value) + '&status=' + encodeURIComponent(status.value) + '&project=' + encodeURIComponent(project) + '&kind=' + encodeURIComponent(kind);
+      const url = '/api/deliverables?query=' + encodeURIComponent(runFilter ? runFilter.runId : q.value) + '&status=' + encodeURIComponent(status.value) + '&project=' + encodeURIComponent(project) + '&kind=' + encodeURIComponent(kind);
       try {
         const j = await fetch(url, { cache: 'no-store' }).then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); });
         if (seq !== loadSeq) return;
         rows = j.items || [];
+        // The backend's text search narrows the request; equality supplies the actual provenance boundary.
+        if (runFilter) rows = rowsForRun(rows, runFilter.runId, q.value);
         projects = Array.isArray(j.projects) ? j.projects : [];   // an older sidecar simply sends none -> rail shows ALL WORK only
         kinds = Array.isArray(j.kinds) ? j.kinds : [];
         summary = j.summary || null;
@@ -434,5 +451,9 @@
     body._deliverablesCleanup = revoke;
     load();
   }
-  return { esc, safeMarkdown, safeCsv, openUrl, fileHref, artifactPath, handleOpenClick, bucketOf, pillOf, agentLabel, agoOf, fmtSize, mount, BUCKETS };
+  function showRun(body, runId, label) {
+    if (!runId || !body || typeof body._deliverablesShowRun !== 'function') return false;
+    body._deliverablesShowRun(runId, label); return true;
+  }
+  return { esc, safeMarkdown, safeCsv, openUrl, fileHref, artifactPath, handleOpenClick, bucketOf, pillOf, agentLabel, agoOf, fmtSize, mount, showRun, rowsForRun, BUCKETS };
 });

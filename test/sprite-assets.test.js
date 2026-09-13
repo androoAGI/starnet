@@ -35,4 +35,8 @@ for (const [key, frames] of Object.entries(sprites || {})) {
 const orphaned = Array.from(files).filter(file => file.endsWith('.png') && !referenced.has(file));
 A.eq(orphaned, [], 'every shipped sprite PNG is reachable from the canonical manifest');
 A.ok(referenced.size > 3000, 'the audit covered the complete generated sprite set');
+const palette = require('node:child_process').spawnSync(process.execPath, ['dev/check-bear-palette.mjs'], {
+  cwd: path.join(__dirname, '..'), encoding: 'utf8'
+});
+A.eq(palette.status, 0, 'sprite palette regression: ' + (palette.stderr || palette.stdout));
 A.report('sprite-assets.test');
