@@ -1,0 +1,22 @@
+{
+  "source": "091d6e7f312e08ca9e813e94f7b8863d1a5d9e5a",
+  "fast": {
+    "command": "npm run test:fast",
+    "exitCode": 0,
+    "steps": 772,
+    "logSha256": "6c0472ae5fa9797eee146fd352588d04613006b8ed55341f2a707a697122bbd5",
+    "logLocation": "fast-gate.log (local ignored log)"
+  },
+  "bugRegister": {
+    "records": 143,
+    "violations": 0
+  },
+  "evidenceSecretsLint": "OK",
+  "scriptSyntax": "OK",
+  "proxySelfCheck": {
+    "fixtureStatus": 200,
+    "offlineStatus": 502
+  },
+  "productFilesModified": false,
+  "installedDesktopTested": false
+}

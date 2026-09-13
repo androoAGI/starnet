@@ -139,7 +139,7 @@ Additional investigation candidates: `windows/messaging.js:429–438` parses HTT
 
 - [Executable source probes](probe.cjs) and [structured results](probe-results.json).
 - [UI observations](ui-observations.json), [controlled proxy](fault-proxy.cjs), and [recorded rejected request](proxy-results.json).
-- [Fast gate log](fast-gate.log). Gate result is recorded in the final validation note below.
+- [Validation receipt](validation.json), including the SHA-256 of the [local fast gate log](fast-gate.log). Raw `.log` files remain local under the repository's ignore policy; structured receipts are tracked.
 - Source areas examined: routine CRUD/manual fire/scheduled preflight, loop HTTP/tool controls and driver settlement, Outbox/Library/Agent Record, ReturnStore history recovery, QuerySpine, local appearance/notification persistence, COMMS session draft behavior, channel status rendering, and nearby backup/read paths.
 - Ordinary COMMS draft switching was tested and **did preserve the draft**. Existing guarded routine pause/delete, Library response-generation checks and durable routine-store error UI were identified; they are useful sibling implementations, not missing features.
 - `qa/BUGS.md` and the known-issue index were consulted. Nine open records were added to this isolated branch's durable bug register and its index regenerated. [Bug ID mapping](bug-map.json) links A1–A9 to those files. They are classified as audit findings, not customer reports. The integration tree and shared readiness ledger were not updated.
