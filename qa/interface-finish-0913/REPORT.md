@@ -37,6 +37,8 @@ P1 here is audit impact, while the combined engineering register entry retains P
 - **Feedback:** distinguish no data from no matches; provide an action that resolves the current condition. Use the existing inline validation, next-run preview, notification cards and save toast rather than adding a new alert style.
 - **Truth:** preserve “not linked,” “no key,” “offline,” scheduler-off explanations, and browser-unavailable messages. A saved setup must not imply a proven connection.
 
+The existing [missing-key COMMS error](comms-missing-key.png) is another useful standard: a real request in the disposable keyless station returned HTTP 400, displayed “No model is connected yet,” and provided an Add a key button. That action was verified to open Settings → Providers. No provider inference ran.
+
 ## Coverage and receipts
 
 “Inspected” means opened and read in the running app. Some tab coverage is DOM inspection plus captured screenshots, rather than every control receiving a separate visual review. Only the specific findings and repairs above are asserted as visually verified.
@@ -65,6 +67,6 @@ Window checks: 800×600, 1024×768, 1280×720, 1440×900, 1920×1080. Text prese
 - `git diff --check`: passed before the implementation commit.
 - `npm run sync:website`: synchronized the generated website assets.
 - Full `npm run test:fast`: final run pending at report creation; see the final gate receipt below when available.
-- Earlier gate attempts caught: worktree dependency detection when using only NODE_PATH (resolved with a local node_modules junction); stale generated website mirror (regenerated); stale QA index after filling the bug record (regenerated). These are recorded rather than represented as passing runs.
+- Earlier gate attempts caught: worktree dependency detection when using only NODE_PATH (resolved with a local node_modules junction); stale generated website mirror (regenerated); stale QA index after filling the bug record (regenerated); the release-surface byte lock identifying the six changed frontend files (mechanically re-locked after source commit, without changing claims or verdicts). These are recorded rather than represented as passing runs.
 
 No installed Windows/macOS executable, actual OS display scaling/mixed-DPI move, native select popup rendering, browser zoom, authenticated service flow, real provider run, or exhaustive forced network-error/loading matrix was verified. The browser-only desktop messages were observed, not treated as desktop defects. A slash-command menu probe was inconclusive while the model picker was active and is not claimed as covered. Code inspection identified the fixed layout constraints; the repair claims rely on the browser observations, not only on CSS inspection or tests.
