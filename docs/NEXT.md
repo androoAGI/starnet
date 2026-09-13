@@ -1,7 +1,9 @@
-## IN PROGRESS — arrival integration / onboarding-conversation-0912
+## LIVE ON 8992 — arrival / onboarding-conversation-0912
 
-Owner approved the cinematic arrival and requested integration into localhost:8992. This lane
-serializes the onboarding, first-task handoff, and arrival merge after live proof and the fast gate.
+Owner-approved onboarding and cinematic arrival run on localhost:8992 from the isolated lane.
+Candidate cfd8cb9a2 passed 772/772 fast checks; full-screen arrival and interview return were
+observed in the real app. Original station data is preserved. Shared-trunk merge remains deferred
+while the integration checkout carries other active changes. Receipt: qa/arrival-integration-0912.md.
 
 ## MERGED — speech recovery (7ccb4ebd9, 2026-09-10)
 
