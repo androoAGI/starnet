@@ -11908,7 +11908,7 @@ async function createCronJobFromSpec(body) {
     if (!String(body.prompt || '').trim() && !body.script) throw new Error('a routine needs a prompt (or a script)');
     if (body.script) cronScriptSpec({ id: 'validate', agentId, script: body.script, workdir: body.workdir, unattendedGrants: body.unattendedGrants });
     const mode = String(body.deliver || 'local');
-    if (body.attachToSession && !(body.origin && (body.origin.sessionId || body.origin.streamId))) throw new Error('follow-up needs a captured session origin');
+    if (String(body.deliver || 'local').trim() === 'local' && body.attachToSession && !(body.origin && (body.origin.sessionId || body.origin.streamId))) throw new Error('follow-up needs a captured session origin');
     if (mode === 'origin' && !(body.origin && (body.origin.target || (body.origin.channel && body.origin.chatId) || body.origin.sessionId || body.origin.streamId))) throw new Error('origin delivery needs a captured channel or session origin');
     if (mode.indexOf('targets:') === 0) for (const target of mode.slice(8).split(',').map(s => s.trim()).filter(Boolean)) if (!channelStore.getChatRecord(target)) throw new Error('unknown chat target ' + target);
     if (mode === 'all') { const map = channelStore.loadChatMap(); body.deliver = 'targets:' + Object.keys((map && map.chats) || {}).slice(0, 16).join(','); }
@@ -12004,7 +12004,7 @@ function handleCronUpdate(req, res) {
       }
       if (Object.prototype.hasOwnProperty.call(patch, 'workdir')) patch.workdir = cronCanonicalWorkdir(patch.workdir);
       const candidate = Object.assign({}, current, patch);
-      if (candidate.attachToSession && !(candidate.origin && (candidate.origin.sessionId || candidate.origin.streamId))) throw new Error('follow-up needs a captured session origin');
+      if (String(candidate.deliver || 'local').trim() === 'local' && candidate.attachToSession && !(candidate.origin && (candidate.origin.sessionId || candidate.origin.streamId))) throw new Error('follow-up needs a captured session origin');
       if (candidate.noAgent && !candidate.script) throw new Error('script-only routines require a script');
       if (candidate.script) cronScriptSpec(candidate);
     } catch (e) { return json(400, { error: (e && e.message) || String(e) }); }
@@ -12015,7 +12015,7 @@ function handleCronUpdate(req, res) {
       // so it cannot clobber a concurrent advance and the pause/resume sees the just-updated job.
       await withCronWrite(jobs => {
         const candidate = Object.assign({}, cronStore.getJob(jobs, id), patch);
-        if (candidate.attachToSession && !(candidate.origin && (candidate.origin.sessionId || candidate.origin.streamId))) throw new Error('follow-up needs a captured session origin');
+        if (String(candidate.deliver || 'local').trim() === 'local' && candidate.attachToSession && !(candidate.origin && (candidate.origin.sessionId || candidate.origin.streamId))) throw new Error('follow-up needs a captured session origin');
         let next = cronStore.updateJob(jobs, id, patch, { now: Date.now(), defaultTz: CRON_HOST_TZ });
         if (enabled === true) next = cronStore.resumeJob(next, id, { now: Date.now(), defaultTz: CRON_HOST_TZ });
         else if (enabled === false) next = cronStore.pauseJob(next, id);
@@ -15576,7 +15576,7 @@ async function runOnce(o) {
       if (gate.reason === 'declined') return { _declined: true, name: spec.name };
       const id = crypto.randomUUID();
       const schedule = parseCronScheduleOr400(spec.schedule, Date.now(), spec.timezone);
-      if (spec.attachToSession && !(spec.origin && (spec.origin.sessionId || spec.origin.streamId))) throw new Error('follow-up needs a captured session origin');
+      if (String(spec.deliver || 'local').trim() === 'local' && spec.attachToSession && !(spec.origin && (spec.origin.sessionId || spec.origin.streamId))) throw new Error('follow-up needs a captured session origin');
       const skillRefs = cronStringList(spec.skills, 8, /^[A-Za-z0-9_. -]{1,120}$/);
       for (const ref of skillRefs) if (!skillStore.view(spec.agentId, ref, { bump: false })) throw new Error('unknown runtime skill "' + ref + '" for ' + spec.agentId);
       const contextRefs = cronStringList(spec.contextFrom, 8, /^[A-Za-z0-9_-]{1,40}$/);
@@ -15632,7 +15632,7 @@ async function runOnce(o) {
       }
       await withCronWrite(jobs => {
         const candidate = Object.assign({}, cronStore.getJob(jobs, id), next);
-        if (candidate.attachToSession && !(candidate.origin && (candidate.origin.sessionId || candidate.origin.streamId))) throw new Error('follow-up needs a captured session origin');
+        if (String(candidate.deliver || 'local').trim() === 'local' && candidate.attachToSession && !(candidate.origin && (candidate.origin.sessionId || candidate.origin.streamId))) throw new Error('follow-up needs a captured session origin');
         return cronStore.updateJob(jobs, id, next, { now: Date.now(), defaultTz: CRON_HOST_TZ });
       });
       return cronStore.getJob(cronJobs, id);
