@@ -48,4 +48,36 @@ A.ok(!/World\.setOnClick\([^\n]*openAgent\(0\)/.test(appSrc), 'the hard-coded Ov
 A.eq(readApp('website/app'), appSrc, 'website app.js mirrors the production frontend exactly');
 A.eq(readWorld('website/app'), worldSrc, 'website world.js mirrors the production frontend exactly');
 
+
+/* Curve regression: execute the real input conversion against independently projected
+   visible points. CSS size/backing size, camera pan/zoom and both CRT presets vary. */
+const vm = require('node:vm');
+const mapping = ['toCanvas', 'uncurvePoint', 'curvePoint', 'toWorld', 'overAmt']
+  .map(name => A.fnBody(worldSrc, 'function ' + name + '(')).join('\n');
+const sandbox = {
+  CRT: { curve: .09, over: 1.2 },
+  document: { body: { classList: { contains: () => false } } },
+  cv: { width: 1600, height: 900, getBoundingClientRect: () => ({ left: 37, top: 83, width: 800, height: 450 }) },
+  panX: 125, panY: -63, scale: .8,
+};
+vm.createContext(sandbox); vm.runInContext(mapping, sandbox);
+for (const [curve, over] of [[.09,1.2],[.04,1.08],[0,1.2]]) {
+  sandbox.CRT.curve = curve; sandbox.CRT.over = over;
+  for (const [fx,fy] of [[.5,.5],[.15,.5],[.85,.5],[.2,.2],[.8,.8],[.8,.2],[.2,.8]]) {
+    const sx=fx*1600, sy=fy*900, nx=fx*2-1, ny=fy*2-1;
+    const f=curve>0 ? (1-curve*(nx*nx+ny*ny))*over : 1;
+    const x=800+nx*f*800,y=450+ny*f*450;
+    const actual=sandbox.toWorld({clientX:37+x/2,clientY:83+y/2});
+    A.ok(actual && Math.abs(actual.x-(sx-125)/.8)<.001 && Math.abs(actual.y-(sy+63)/.8)<.001,
+      `visible body maps to its world hitbox: curve=${curve}, position=${fx},${fy}`);
+  }
+}
+sandbox.CRT.curve=.09; sandbox.CRT.over=1.2;
+sandbox.document.body.classList.contains=()=>true;
+A.eq(JSON.stringify(sandbox.uncurvePoint({x:120,y:170})), JSON.stringify({x:120,y:170}), 'no-scan bypasses curve and overscan');
+sandbox.document.body.classList.contains=()=>false;
+sandbox.CRT.curve=.04; sandbox.CRT.over=1;
+A.eq(sandbox.uncurvePoint({x:0,y:0}),null,'black CRT corner cannot select an invisible body');
+A.ok(/uncurvePoint\(toCanvas\(ev\)\)/.test(worldSrc.slice(worldSrc.indexOf("cv.addEventListener('wheel'"),worldSrc.indexOf("cv.addEventListener('mousedown'"))), 'wheel anchors to the visible scene point');
+
 A.report('world-agent-click.test');

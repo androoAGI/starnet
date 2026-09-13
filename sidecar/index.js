@@ -15335,7 +15335,9 @@ async function runOnce(o) {
     managedKey: providerRuntimeKey('starnet', ''),
     managedBaseUrl: providerRuntimeBaseUrl('starnet', ''),
     stationOpenRouterKey: runtimeKey,
-    stationOpenRouterBaseUrl: providerRuntimeBaseUrl('openrouter', '')
+    stationOpenRouterBaseUrl: providerRuntimeBaseUrl('openrouter', ''),
+    stationOpenAIKey: providerRuntimeKey('openai', ''),
+    stationOpenAIBaseUrl: providerRuntimeBaseUrl('openai', '')
   });
   // web_search/web_fetch (DDG/Jina, OR fallback) + web_request. `accessSurface` is host authority: it comes
   // from the run host, never from tool args. An authenticated owner DM has the same stored-key reach as the
@@ -15412,7 +15414,7 @@ async function runOnce(o) {
       return out;
     } finally { clearTimeout(t); }
   };
-  const imageTools = makeImageTools({ openrouter: studioRoute.ok ? { apiKey: studioRoute.key, model, baseUrl: studioRoute.baseUrl, provider: studioRoute.provider } : null, fsp, pathMod: path, root: WORKSPACES, imageModel: String(ENV('IMAGE_MODEL') || '').trim() || undefined, auxVision: auxVisionCall, signal, onUsage: recordMediaUsage });
+  const imageTools = makeImageTools({ openrouter: studioRoute.ok ? { apiKey: studioRoute.key, model, baseUrl: studioRoute.baseUrl, provider: studioRoute.provider, protocol: studioRoute.protocol } : null, fsp, pathMod: path, root: WORKSPACES, imageModel: String(ENV('IMAGE_MODEL') || '').trim() || undefined, auxVision: auxVisionCall, signal, onUsage: recordMediaUsage });
   // browser.vision uses the SAME vision model as image_analyze when a key exists; with no key it
   // reports "unavailable" honestly (never a success-shaped stub). Pass the dep only when usable.
   runBrowser = makeBrowserTools({
@@ -15878,6 +15880,13 @@ async function runOnce(o) {
   resolved = enforceSyntheticOnly(resolved, realDesktopAuthority);
   resolved = enforceRunAuthority(resolved, registry, userControlAuthority);
   resolved = enforceEnabledToolsets(resolved, registry, unrestrictedHostNow() ? null : o.enabledToolsets);
+  const agentModelBlocker = ImageTask.agentModelBlocker(providerId, model);
+  if (agentModelBlocker) {
+    emit('agent.run.start', { agentId, runId, trigger, model });
+    emit('agent.run.error', { agentId, runId, transient: false, message: agentModelBlocker });
+    emit('agent.run.end', { agentId, runId, reason: 'error', turns: 0, usd: 0 });
+    return;
+  }
   if (imageTask) {
     const imageRoomId = station.agents && station.agents[agentId] && station.agents[agentId].room;
     const imageRoom = imageRoomId && station.rooms && station.rooms[imageRoomId];
@@ -16089,6 +16098,7 @@ async function runOnce(o) {
   } else {
     provider = selectProvider({ provider: providerId, fetch: globalThis.fetch, key: runKey, baseUrl, reasoningEffort });
   }
+  let activeProviderId = providerId;
   auxVisionProvider = provider;   // late-bind the aux vision route to the run's real provider (see makeImageTools above)
   let cost = makeCostEngine({ priceOf: provider.priceOf });
 
@@ -16154,7 +16164,7 @@ async function runOnce(o) {
     }
     rotationFallbacks = ordered.map(rk => ({
       provider: selectProvider({ provider: providerId, fetch: globalThis.fetch, key: rk, baseUrl, reasoningEffort }),
-      model, credKey: rk
+      providerId, model, credKey: rk
     }));
   }
   const providerFallbacks = [];
@@ -16183,13 +16193,13 @@ async function runOnce(o) {
     } else {
       fbProvider = selectProvider({ provider: fbProviderId, fetch: globalThis.fetch, key: fbKey, baseUrl: fbBaseUrl, reasoningEffort });
     }
-    providerFallbacks.push({ provider: fbProvider, model: fbModel, credKey: fbKey || null, cost: makeCostEngine({ priceOf: fbProvider.priceOf }),
+    providerFallbacks.push({ provider: fbProvider, providerId: fbProviderId, model: fbModel, credKey: fbKey || null, cost: makeCostEngine({ priceOf: fbProvider.priceOf }),
       unmetered: fbUnmetered,
       maxCostUsd: Math.min(runCapUsd, (o.maxCostUsd > 0 && isFinite(o.maxCostUsd)) ? o.maxCostUsd : fbUnmetered ? Infinity : (effectiveCaps.perRun > 0 ? effectiveCaps.perRun : Infinity)),
       maxUnpricedTokens: fbUnmetered ? Infinity : CAPS.maxUnpricedTokens });
   }
   const fallbacks = rotationFallbacks
-    .concat(fallbackModels.map(m => ({ provider, model: m })))
+    .concat(fallbackModels.map(m => ({ provider, providerId, model: m })))
     .concat(providerFallbacks);
 
   // ---- context auto-compaction: fold older turns into a summary once the live prompt passes 65% of the model's
@@ -17222,6 +17232,7 @@ async function runOnce(o) {
       onFallback: ({ rotate, credKey, retryAfterMs, resetAtMs, next }) => {
         if (next) {
           provider = next.provider;
+          activeProviderId = next.providerId || activeProviderId;
           auxVisionProvider = provider;
           if (next.cost) cost = next.cost;
           if (next.model) model = next.model;
@@ -17364,7 +17375,7 @@ async function runOnce(o) {
         }
       }
       const runEndedAt = Date.now();
-      runStore.record({ runId, parentRunId: o.parentRunId || '', agentId, reason: ((result && result.reason) || 'done'), clarifying: taskQuestionAsked, turns: finalTurns, tokens: finalTokens, usd: finalUsd, title: title, streamId: o.streamId || '', sessionTitle: o.sessionTitle || '', deliveryPrompt: o.sessionPrompt || '', deliveryText, recipeId: o.recipeId || '', projectRoot: o.projectRoot || '', deliverable: deliverableNotes.take(runId), model: finalModel, reasoningEffort, unmetered: runUnmetered && mediaUsd === 0, artifacts: execution.artifactList(), toolsOk: execution.toolsOk(), toolTrace: execution.toolTraceList(), failureStage: execution.failureStage(), failureCode: execution.failureCode(), uncertainMutations: execution.uncertainMutations(), completionEvidence: finalCompletionEvidence, recoveryAttempts: execution.recoveryAttempts(), startedAt: runStartedAt, endedAt: runEndedAt, durationMs: runEndedAt - runStartedAt, identityFallback, internal });   // execution terminal stays separate from the neutral Task Brief outcome used by progression
+      runStore.record({ runId, parentRunId: o.parentRunId || '', agentId, provider: activeProviderId, reason: ((result && result.reason) || 'done'), clarifying: taskQuestionAsked, turns: finalTurns, tokens: finalTokens, usd: finalUsd, title: title, streamId: o.streamId || '', sessionTitle: o.sessionTitle || '', deliveryPrompt: o.sessionPrompt || '', deliveryText, recipeId: o.recipeId || '', projectRoot: o.projectRoot || '', deliverable: deliverableNotes.take(runId), model: finalModel, reasoningEffort, unmetered: runUnmetered && mediaUsd === 0, artifacts: execution.artifactList(), toolsOk: execution.toolsOk(), toolTrace: execution.toolTraceList(), failureStage: execution.failureStage(), failureCode: execution.failureCode(), uncertainMutations: execution.uncertainMutations(), completionEvidence: finalCompletionEvidence, recoveryAttempts: execution.recoveryAttempts(), startedAt: runStartedAt, endedAt: runEndedAt, durationMs: runEndedAt - runStartedAt, identityFallback, internal });   // execution terminal stays separate from the neutral Task Brief outcome used by progression
 
       // P0.1/H1.1: persist the full DIALOGUE (not just the outcome) — a durable server-side transcript for EVERY
       // run, incl. headless ones (cron/Telegram/delegated). Append the triggering user directive, then EVERY new
@@ -18370,7 +18381,7 @@ function collectDiagnosticsInput(opts) {
     let provider = String(opts.provider || ''), model = String(opts.model || '');
     try {
       const first = agentRoster.size ? [...agentRoster.values()][0] : null;
-      provider = provider || (first && first.provider) || (runtimeKey ? 'openrouter' : (codexTokens && codexTokens.access_token ? 'codex' : ''));
+      provider = provider || (recent && recent.provider) || (first && first.provider) || (runtimeKey ? 'openrouter' : (codexTokens && codexTokens.access_token ? 'codex' : ''));
       model = model || (recent && recent.model) || (first && first.model) || '';
     } catch (_) {}
     // is ANY credential configured for that provider? bool ONLY — the key itself is never read into the snapshot.
@@ -19427,7 +19438,8 @@ async function listModelsForProvider(providerId, opts) {
   } else {
     provider = selectProvider({ provider: id, fetch: globalThis.fetch, key, baseUrl });
   }
-  return await provider.listModels();
+  const models = await provider.listModels();
+  return models.filter(item => ImageTask.isAgentModel(id, item && item.id));
 }
 
 async function handleProviderModels(req, res) {

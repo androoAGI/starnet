@@ -1275,7 +1275,9 @@ const World = (() => {
 
     cv.addEventListener('wheel', ev => {
       ev.preventDefault();
-      const c = toCanvas(ev), wx = (c.x - panX) / scale, wy = (c.y - panY) / scale;
+      const c = uncurvePoint(toCanvas(ev));
+      if (!c) return;
+      const wx = (c.x - panX) / scale, wy = (c.y - panY) / scale;
       scale = clampz(scale * Math.exp(-ev.deltaY * 0.0015), MINZ, MAXZ);
       panX = c.x - wx * scale; panY = c.y - wy * scale;
       camLerp = null; camLock = null; camUserAt = performance.now();   // the user is driving the camera — stop any focus ease, release any follow-lock, reset the cinecam idle clock
@@ -1297,6 +1299,7 @@ const World = (() => {
         cv.style.cursor = 'grabbing'; return;
       }
       const wp = toWorld(ev);
+      if (!wp) { hoverAgent = null; hoverBeltTile = null; hoverOutbox = null; cv.style.cursor = 'default'; return; }
       const nowMs = performance.now();
       // D4: stamp cursorMoveT only on a REAL displacement (> ~half a tile) — a parked-but-jittering cursor is
       // presence (feeds gaze), not "moving" (which lures THE CHASE). Compared against the PREVIOUS lastCursor.
@@ -1318,6 +1321,7 @@ const World = (() => {
       const wasDrag = drag && drag.moved; drag = null; cv.style.cursor = 'default';
       if (wasDrag) return;
       const wp = toWorld(ev);
+      if (!wp) return;
       // Every body that raises the agent hover nameplate is also a real dossier target. Pass its stable
       // roster id through the click seam so a specialist opens ITS dossier instead of falling through or
       // reusing the Overseer's index. The greeting remains hero-only: crew clicks open a panel, not a hero line.
@@ -1639,7 +1643,35 @@ const World = (() => {
     const r = cv.getBoundingClientRect();
     return { x: (ev.clientX - r.left) * (cv.width / r.width), y: (ev.clientY - r.top) * (cv.height / r.height) };
   }
-  function toWorld(ev) { const c = toCanvas(ev); return { x: (c.x - panX) / scale, y: (c.y - panY) / scale }; }
+  // Output pixel -> pre-CRT scene pixel. Match the renderer's six-step inverse,
+  // including overscan, BEFORE undoing the camera. Drag deltas remain screen-space.
+  function uncurvePoint(c) {
+    if (CRT.curve <= 0 || document.body.classList.contains('no-scan')) return c;
+    const hw = cv.width / 2, hh = cv.height / 2, over = overAmt(), k = Math.max(0, +CRT.curve || 0);
+    const nx = (c.x - hw) / hw / over, ny = (c.y - hh) / hh / over;
+    const ro = Math.hypot(nx, ny);
+    let rs = ro;
+    if (ro > 1e-6) for (let it = 0; it < 6; it++) {
+      const g = rs * (1 - k * rs * rs) - ro, dg = 1 - 3 * k * rs * rs;
+      if (Math.abs(dg) < 1e-9) break;
+      rs -= g / dg;
+    }
+    const s = ro > 1e-6 ? rs / ro : 1;
+    const x = hw + nx * s * hw, y = hh + ny * s * hh;
+    // The shader paints black outside the source image: that glass cannot hit a body.
+    return Number.isFinite(x) && Number.isFinite(y) && x >= 0 && x < cv.width && y >= 0 && y < cv.height ? { x, y } : null;
+  }
+  function curvePoint(c) {
+    if (CRT.curve <= 0 || document.body.classList.contains('no-scan')) return c;
+    const hw = cv.width / 2, hh = cv.height / 2;
+    const nx = (c.x - hw) / hw, ny = (c.y - hh) / hh;
+    const f = (1 - Math.max(0, +CRT.curve || 0) * (nx * nx + ny * ny)) * overAmt();
+    return { x: hw + nx * f * hw, y: hh + ny * f * hh };
+  }
+  function toWorld(ev) {
+    const c = uncurvePoint(toCanvas(ev));
+    return c ? { x: (c.x - panX) / scale, y: (c.y - panY) / scale } : null;
+  }
   // the nearest PLACED body under the cursor — the hero (Overseer) OR any crew/summoned body —
   // returned as the body itself (so the hover nameplate can tag whichever one), else null.
   function agentHit(wp) {
@@ -6179,7 +6211,7 @@ const World = (() => {
     drawDockFlashes(now); // LONE-BAY dock arrival: the bay visibly catches work when no belt line exists
     drawPinFlourish(now); // G4.2: the amber pin-burst at the board the instant a proposal is pinned
     if (agent && !agent.unplaced) drawBubble(now);
-    for (const b of crew) drawBubble(now, b);   // crew speech bubbles (e.g. "received: …" when work routes to them)
+    for (const b of crew) drawBubble(now, b);   // crew speech and useful status messages
     if (hoverAgent && !hoverAgent.unplaced) drawNameplate(now, hoverAgent);
     // FLOOR-STATS OVERLAY REMOVED (2026-07-09 decision): the YIELD/RUNS/CACHE/SLAG/THRU/DWELL box no
     // longer floats over the world sim. The FloorStats engine stays live (event-fed) so any panel or
@@ -7156,12 +7188,12 @@ const World = (() => {
     ctx.restore();
   }
 
-  /* ---------- the SPEECH BUBBLE: what a body is saying right now (a routed "received: …" beat, a muttered
-     aside, an error line, a LEVEL tick). Rendered in the SAME material as the nameplate — screen-space + no
-     smoothing so the VT323 stays crisp instead of being scaled-then-barrel-warped into mush, dark CRT glass
-     with scanlines, an amber structural frame with a suit accent, a warm phosphor bloom, and a small tail
+  /* ---------- the SPEECH BUBBLE: what a body is saying right now (a muttered
+     aside, an error line, a LEVEL tick). Rendered in screen-space with no
+     smoothing so VT323 stays crisp: quiet dark glass, a fine neutral frame,
+     a small suit-colour accent, restrained phosphor bloom, and a small tail
      pointing down at the head. A glance, never a window (hover law). */
-  const BUBBLE_MAXW = 152;   // CSS px — a spoken line wraps within this before ellipsizing
+  const BUBBLE_MAXW = 168;   // CSS px — compact remarks, not floating panels
   function drawBubble(now, who) {
     who = who || agent;
     if (!cache || !who) return;
@@ -7176,21 +7208,31 @@ const World = (() => {
 
     // draw in SCREEN space (mirrors drawNameplate): pixel-snapped, unsmoothed VT323 that reads cleanly at any
     // zoom, then it rides the same barrel-curve/scanline pass the rest of the feed does. All geometry is CSS px.
+    ctx.save();
     const dpr = window.devicePixelRatio || 1;
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.imageSmoothingEnabled = false;
     const Wc = cv.width / dpr, Hc = cv.height / dpr;
     const suit = who.color || '#ffaa33';
 
-    // wrap to <=3 lines within BUBBLE_MAXW; ellipsize a truncated tail so an overrun reads as "…", not a hard cut
-    const fontSz = 15, lh = 16, padX = 6, padY = 5, tailW = 5, tailH = 6;
+    // Wrap to <=3 lines; ellipsize overflow, including unbroken identifiers.
+    const fontSz = 16, lh = 17, padX = 6, padY = 5, tailW = 4, tailH = 5;
+    const raw = String(s.text);
+    const tag = raw.match(/^(working|error|blocked):\s*/i);
+    const label = tag ? tag[1].toUpperCase() : '';
+    const labelH = label ? 13 : 0;
     ctx.font = fontSz + 'px ' + PLATE_FONT; ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
-    const words = String(s.text).split(' '), lines = []; let line = '', truncated = false;
+    const words = (tag ? raw.slice(tag[0].length) : raw).split(/\s+/), lines = []; let line = '', truncated = false;
     for (const w of words) {
       const test = line ? line + ' ' + w : w;
       if (ctx.measureText(test).width > BUBBLE_MAXW && line) {
         lines.push(line); line = w;
         if (lines.length >= 3) { truncated = true; break; }
       } else line = test;
+      // An unbroken URL or identifier must stay inside the card too.
+      if (ctx.measureText(line).width > BUBBLE_MAXW) {
+        while (line && ctx.measureText(line + '…').width > BUBBLE_MAXW) line = line.slice(0, -1);
+        truncated = true; break;
+      }
     }
     if (line && lines.length < 3) lines.push(line);
     else if (line) truncated = true;
@@ -7200,8 +7242,8 @@ const World = (() => {
       lines[lines.length - 1] = last.replace(/\s+$/, '') + '…';
     }
     const textW = lines.length ? Math.max.apply(null, lines.map(l => ctx.measureText(l).width)) : 1;
-    const bw = Math.round(Math.max(26, Math.min(BUBBLE_MAXW, textW) + padX * 2));
-    const bh = lines.length * lh + padY * 2;
+    const bw = Math.round(Math.max(label ? 72 : 28, Math.min(BUBBLE_MAXW, textW) + padX * 2));
+    const bh = lines.length * lh + padY * 2 + labelH;
 
     // anchor centered above the head, crisp + clamped to the canvas (same body->screen math as the nameplate)
     const ax = (bodyPosX(who) * scale + panX) / dpr, ay = (bodyPosY(who) * scale + panY) / dpr;
@@ -7215,39 +7257,41 @@ const World = (() => {
 
     bubbleChrome(bx, by, bw, bh, tx, tailW, tailH, suit, 1);
 
-    // the line(s): VT323 in warm phosphor, with any leading "label:" (received:, working…) dimmed to a tag
+    // Separate provenance from message content; keep the message itself calm and readable.
     ctx.font = fontSz + 'px ' + PLATE_FONT; ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
-    ctx.shadowBlur = 4; ctx.shadowColor = suit;
-    ctx.fillStyle = '#ffe0b0';
-    lines.forEach((l, i) => ctx.fillText(l, bx + padX, by + padY + lh * (i + 1) - 4));
-    const label = lines.length ? (lines[0].match(/^\S+:/) || [])[0] : null;
-    if (label) { ctx.shadowBlur = 3; ctx.fillStyle = 'rgba(255,171,64,0.72)'; ctx.fillText(label, bx + padX, by + padY + lh - 4); }
-    ctx.shadowBlur = 0; ctx.shadowColor = 'transparent';
+    ctx.shadowBlur = 1; ctx.shadowColor = suit;
+    ctx.fillStyle = '#eee8db';
+    lines.forEach((l, i) => ctx.fillText(l, bx + padX, by + padY + labelH + lh * (i + 1) - 4));
+    if (label) {
+      ctx.shadowBlur = 0; ctx.font = '12px ' + PLATE_FONT;
+      ctx.fillStyle = suit; ctx.globalAlpha = 0.8;
+      ctx.fillText(label, bx + padX, by + padY + 9);
+    }
+    ctx.restore();
   }
 
-  /* The bubble's MATERIAL, content-free: dark CRT glass + scanlines, an amber structural frame, the
-     tail poured into the same surface, a suit accent along the crown. Extracted so the spoken-line
+  /* The bubble's MATERIAL, content-free: dark glass, a quiet frame, the
+     tail poured into the same surface, a small suit accent. Shared so the spoken-line
      bubble and the peer-chatter bubble are physically the SAME object and can never drift into two
-     looks. `a` scales every alpha in one place so a caller can fade the whole card; a === 1 is the
-     shipped spoken-line appearance, unchanged stroke for stroke. */
+     looks. `a` scales every alpha so a caller can fade the whole card. */
   function bubbleChrome(bx, by, bw, bh, tx, tailW, tailH, suit, a) {
     a = (a == null) ? 1 : a;
     ctx.globalAlpha = a;
-    ctx.fillStyle = 'rgba(6,5,4,0.94)'; ctx.fillRect(bx, by, bw, bh);
+    ctx.shadowColor = 'rgba(0,0,0,0.45)'; ctx.shadowBlur = 8; ctx.shadowOffsetY = 3;
+    ctx.fillStyle = 'rgba(13,17,19,0.97)'; ctx.fillRect(bx, by, bw, bh);
+    ctx.shadowBlur = 0; ctx.shadowOffsetY = 0;
     // the pointing tail (glass, so box + tail read as one poured surface)
     ctx.beginPath(); ctx.moveTo(tx - tailW, by + bh); ctx.lineTo(tx + tailW, by + bh); ctx.lineTo(tx, by + bh + tailH); ctx.closePath(); ctx.fill();
-    ctx.globalAlpha = 0.13 * a; ctx.fillStyle = '#000';
-    for (let sy = by + 2; sy < by + bh - 1; sy += 3) ctx.fillRect(bx + 1, sy, bw - 2, 1);
     ctx.globalAlpha = a;
 
-    // amber structural frame: the box outline + the two slanted tail edges, then re-glass the seam so the tail
+    // Fine structural frame and tail edges; re-glass the seam so the tail
     // opens into the box instead of being fenced off by the box's bottom stroke
-    ctx.strokeStyle = '#b9791c'; ctx.lineWidth = 1;
+    ctx.strokeStyle = 'rgba(173,190,187,0.3)'; ctx.lineWidth = 1;
     ctx.strokeRect(bx + 0.5, by + 0.5, bw - 1, bh - 1);
     ctx.beginPath(); ctx.moveTo(tx - tailW, by + bh - 0.5); ctx.lineTo(tx, by + bh + tailH); ctx.lineTo(tx + tailW, by + bh - 0.5); ctx.stroke();
-    ctx.fillStyle = 'rgba(6,5,4,0.94)'; ctx.fillRect(tx - tailW + 1, by + bh - 1, tailW * 2 - 1, 2);
-    // suit accent along the top edge (the body's own colour, like the nameplate's crown)
-    ctx.globalAlpha = 0.6 * a; ctx.fillStyle = suit; ctx.fillRect(bx + 1, by, bw - 2, 1); ctx.globalAlpha = a;
+    ctx.fillStyle = 'rgba(13,17,19,0.97)'; ctx.fillRect(tx - tailW + 1, by + bh - 1, tailW * 2 - 1, 2);
+    // Suit colour is a small identity accent, leaving the message as the brightest element.
+    ctx.globalAlpha = 0.8 * a; ctx.fillStyle = suit; ctx.fillRect(bx + 1, by + 6, 2, Math.min(16, bh - 12)); ctx.globalAlpha = a;
   }
 
   /* ---------- W6: THE PEER-CHATTER BUBBLE — the untranscribable line over whoever holds the floor.
@@ -8185,7 +8229,7 @@ const World = (() => {
     }
   }
   /* LONE-BAY DOCK ARRIVAL: with no intake/belt route, work addressed to an agent still lands VISIBLY at its
-     bay — a dock flash + the same "received:" beat the belt delivery rings. This is what makes a single
+     bay through a dock flash and wake reaction. This is what makes a single
      assigned BAY a complete, working build (belts become the upgrade for watching work travel, never a
      prerequisite). Purely visual: the sidecar already ran the work either way (belt-is-never-a-gate law). */
   const dockFlashes = new Map();   // bay propId -> flash t0 (drawn by drawDockFlashes, ~1.1s decay)
@@ -8198,8 +8242,8 @@ const World = (() => {
     if (!dock) return;                                             // no (matching) bay → nothing to show (today's behavior)
     dockFlashes.set(dock.propId, fnow);
     const body = bodyForAgent(aid);
-    if (body && body !== agent) { sayAt(body, 'received: ' + (p.preview || 'message')); body.wakeAt = fnow; if (!(body.workUntil > fnow + 5000)) body.workUntil = fnow + 4000; }
-    else if (agent && !agent.unplaced) { say('received: ' + (p.preview || 'message')); wakeIn(); }
+    if (body && body !== agent) { body.wakeAt = fnow; if (!(body.workUntil > fnow + 5000)) body.workUntil = fnow + 4000; }
+    else if (agent && !agent.unplaced) { wakeIn(); }
   }
   // the dock catching a delivery: a bright ring + rim flash over the bay, ~1.1s, additive (with the glows)
   function drawDockFlashes(now) {
@@ -8693,15 +8737,15 @@ const World = (() => {
       return;
     }
     // INBOUND: prefer the agentId the box CARRIES — cron/channel address it explicitly to the run's agent, so the
-    // "received" beat lands on exactly the body that runs (server-authoritative; no re-derivation drift). Fall
+    // wake reaction lands on exactly the body that runs (server-authoritative; no re-derivation drift). Fall
     // back to the landing tile, then resolveTarget(tag), for an unaddressed box. The work POSE itself is owned by
-    // the run-lifecycle binding above, so here we only ring the "received: <instruction>" beat and NEVER cut short
+    // the run-lifecycle binding above, so delivery only wakes the body and NEVER cuts short
     // an already-working body (an active run's glow must outlast this 4s pulse).
     const landed = (routingPlan && routingPlan.bayTileToAgent) ? routingPlan.bayTileToAgent[bx.x + ',' + bx.y] : null;
     const aid = p.agentId || landed || ((typeof Pipeline !== 'undefined' && routingPlan) ? Pipeline.resolveTarget(routingPlan, { tag: p.tag }) : null);
     const body = bodyForAgent(aid);
-    if (body && body !== agent) { sayAt(body, 'received: ' + (p.preview || 'message')); body.wakeAt = fnow; if (!(body.workUntil > fnow + 5000)) body.workUntil = fnow + 4000; }
-    else { say('received: ' + (p.preview || 'message')); wakeIn(); }   // the hero (or an unrouted box) — today's behaviour
+    if (body && body !== agent) { body.wakeAt = fnow; if (!(body.workUntil > fnow + 5000)) body.workUntil = fnow + 4000; }
+    else { wakeIn(); }   // the hero (or an unrouted box)
   }
   /* ---------- the CAM-HUD ACTIVITY TICKER (stage narration) ----------
      A single diegetic security-camera line at the bottom of the .cam-hud overlay that names WHAT the station
@@ -9460,10 +9504,11 @@ const World = (() => {
     if (!p || !cv) return null;
     const wx = (p.x + (p.w || 1) / 2) * T, wy = (p.y + (p.h || 1) / 2) * T;
     const r = cv.getBoundingClientRect();
+    const c = curvePoint({ x: wx * scale + panX, y: wy * scale + panY });
     return {
       id: p.id,
-      clientX: r.left + ((wx * scale + panX) * (r.width / cv.width)),
-      clientY: r.top + ((wy * scale + panY) * (r.height / cv.height))
+      clientX: r.left + c.x * (r.width / cv.width),
+      clientY: r.top + c.y * (r.height / cv.height)
     };
   };
   // E1 verification: report the live link predicate, and force the real chanES closed (a genuine dropped socket)
@@ -9851,9 +9896,10 @@ const World = (() => {
       if (!p) return null;
       const r = cv.getBoundingClientRect();
       const kx = r.width / cv.width, ky = r.height / cv.height;
-      const toScr = (wx, wy) => ({ x: r.left + (wx * scale + panX) * kx, y: r.top + (wy * scale + panY) * ky });
+      const toScr = (wx, wy) => { const c = curvePoint({ x: wx * scale + panX, y: wy * scale + panY }); return { x: r.left + c.x * kx, y: r.top + c.y * ky }; };
       const a = toScr(p.x * T, p.y * T), b = toScr((p.x + (p.w || 1)) * T, (p.y + (p.h || 1)) * T);
-      return { left: a.x, top: a.y, right: b.x, bottom: b.y, cx: (a.x + b.x) / 2, cy: (a.y + b.y) / 2 };
+      const c = toScr((p.x + (p.w || 1) / 2) * T, (p.y + (p.h || 1) / 2) * T);
+      return { left: a.x, top: a.y, right: b.x, bottom: b.y, cx: c.x, cy: c.y };
     },
     heroCaps: (agentId) => {
       if (!station) return [];

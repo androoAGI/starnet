@@ -103,10 +103,12 @@ const clock = { now: () => clk };
 // ---- H. model identity is durable; subscription runs are explicitly unmetered ----
 {
   const s = makeRunStore({ io: memIo(), clock });
-  const e = s.record({ runId: 'm1', agentId: 'a', model: '  gpt-5.5  ', unmetered: true, usd: 0, tokens: 900000 });
+  const e = s.record({ runId: 'm1', agentId: 'a', provider: '  openai  ', model: '  gpt-5.5  ', unmetered: true, usd: 0, tokens: 900000 });
+  A.eq(e.provider, 'openai', 'provider is trimmed and recorded beside the actual model');
   A.eq(e.model, 'gpt-5.5', 'model is trimmed and recorded');
   A.eq(e.unmetered, true, 'unmetered flag is recorded');
   A.eq(s.list('a')[0].model, 'gpt-5.5', 'list surfaces model identity');
+  A.eq(s.list('a')[0].provider, 'openai', 'list surfaces provider identity for diagnostics');
   A.eq(s.record({ runId: 'm2', agentId: 'a', model: '' }).model, '(unknown)', 'empty model becomes explicit unknown');
 }
 

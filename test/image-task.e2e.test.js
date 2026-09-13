@@ -26,14 +26,27 @@ function startProvider() {
     const server = http.createServer((req, res) => {
       if (req.url.includes('/models')) {
         res.writeHead(200, { 'Content-Type': 'application/json' });
-        return res.end(JSON.stringify({ data: [{ id: 'test/model', context_length: 8000, supported_parameters: ['tools'], pricing: { prompt: '0', completion: '0' } }] }));
+        return res.end(JSON.stringify({ data: [
+          { id: 'test/model', context_length: 8000, supported_parameters: ['tools'], pricing: { prompt: '0', completion: '0' } },
+          { id: 'gpt-image-2', context_length: 0, supported_parameters: [], pricing: { prompt: '0', completion: '0' } }
+        ] }));
+      }
+      if (req.url.includes('/images/generations')) {
+        let raw = '';
+        req.on('data', d => { raw += d; });
+        return req.on('end', () => {
+          let body = {}; try { body = JSON.parse(raw); } catch (_) {}
+          requests.push({ path: req.url, body, authorization: String(req.headers.authorization || '') });
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ data: [{ b64_json: PNG_B64 }], usage: { input_tokens: 4, output_tokens: 2, total_tokens: 6 } }));
+        });
       }
       if (!req.url.includes('/chat/completions')) { res.writeHead(404); return res.end(); }
       let raw = '';
       req.on('data', d => { raw += d; });
       req.on('end', () => {
         let body = {}; try { body = JSON.parse(raw); } catch (_) {}
-        requests.push({ body, authorization: String(req.headers.authorization || '') });
+        requests.push({ path: req.url, body, authorization: String(req.headers.authorization || '') });
         if (Array.isArray(body.modalities) && body.modalities.includes('image')) {
           res.writeHead(200, { 'Content-Type': 'application/json' });
           return res.end(JSON.stringify({ choices: [{ message: { images: [{ image_url: { url: 'data:image/png;base64,' + PNG_B64 } }] } }] }));
@@ -149,6 +162,19 @@ async function run(base, token, body) {
     const generationCall = provider.requests.find(r => Array.isArray(r.body.modalities) && r.body.modalities.includes('image'));
     A.eq(generationCall && generationCall.authorization, 'Bearer openrouter-run-key', 'STUDIO used the configured OpenRouter run key');
     A.ok(fs.readdirSync(path.join(workspace, 'image-produced', 'images')).some(name => /^gen-.*\.png$/.test(name)), 'the done run has a real saved PNG artifact');
+
+    // OpenAI remains the text agent provider while STUDIO sends the media call to the native Images API.
+    const openAIProduced = await run(base, token, {
+      provider: 'openai', baseUrl: provider.baseUrl, key: 'openai-run-key', model: 'test/model',
+      agentId: 'openai-image-produced', isTask: true, placed: ['studio'],
+      messages: [{ role: 'user', content: 'create any image' }]
+    });
+    A.ok(openAIProduced.some(e => e.name === 'agent.tool_result' && e.payload.callId === 'make_image' && e.payload.ok), 'an OpenAI text agent executes image_generate through STUDIO');
+    A.eq(openAIProduced.filter(e => e.name === 'agent.run.end').pop().payload.reason, 'done', 'OpenAI Images API output earns artifact-backed done');
+    const openAIGeneration = provider.requests.find(r => r.path && r.path.includes('/images/generations'));
+    A.eq(openAIGeneration && openAIGeneration.authorization, 'Bearer openai-run-key', 'native Images API uses the configured OpenAI run key');
+    A.eq(openAIGeneration && openAIGeneration.body, { model: 'gpt-image-2', prompt: 'a blue cube', size: '1024x1024' }, 'native Images API receives the non-streaming image request shape');
+    A.ok(fs.readdirSync(path.join(workspace, 'openai-image-produced', 'images')).some(name => /^gen-.*\.png$/.test(name)), 'the OpenAI run has a real saved PNG artifact');
   } finally {
     try { child.kill(); } catch (_) {}
     await new Promise(resolve => provider.server.close(resolve));

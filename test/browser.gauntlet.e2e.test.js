@@ -30,6 +30,18 @@ const Reach = require('../scripts/browser-reach-measure.js');
 const PAGE = (body, head) => '<!doctype html><meta charset=utf-8><title>fixture</title>' + (head || '') + '<body>' + body + '</body>';
 
 const ROUTES = {
+  '/campaign-cards': () => ({ status: 200, body: PAGE(
+    '<div id=property>Property campaign</div><div id=delegated style="cursor:pointer"><span>Delegated campaign</span></div>' +
+    '<div id=rolelink role=link tabindex=0>Role campaign</div><div id=shadow></div>' +
+    '<div id=hidden style="visibility:hidden" role=button>Hidden campaign</div><div id=result></div>',
+    '<style>#property,#delegated,#rolelink{width:240px;height:48px;margin:8px}</style>' +
+    '<script>addEventListener("DOMContentLoaded",()=>{' +
+    'const show=n=>document.getElementById("result").textContent="Campaign details: "+n;' +
+    'document.getElementById("property").onclick=()=>show("property");' +
+    'document.addEventListener("click",e=>{if(e.target.closest("#delegated"))show("delegated");if(e.target.closest("#rolelink"))show("rolelink");});' +
+    'const root=document.getElementById("shadow").attachShadow({mode:"open"});' +
+    'root.innerHTML="<button>Shadow campaign</button>";root.querySelector("button").onclick=()=>show("shadow");' +
+    '});</script>') }),
   '/hydrate': () => ({ status: 200, body: PAGE('<div id=app></div>',
     '<script>setTimeout(function(){document.getElementById("app").innerHTML="<button id=go>Continue</button>";},1200)</script>') }),
   // The iframe is pushed well down/right so a missing offset shows up as an obviously wrong coordinate.
@@ -111,6 +123,29 @@ const ROUTES = {
   });
 
   try {
+    // Modern cards can be clickable without an HTML onclick attribute or a native button.
+    {
+      await driver.navigate(base + '/campaign-cards');
+      const nodes = await driver.snapshot(80);
+      for (const [label, id] of [['Property campaign', 'property'], ['Delegated campaign', 'delegated'], ['Role campaign', 'rolelink'], ['Shadow campaign', 'shadow']]) {
+        const card = nodes.find(n => n.text === label);
+        A.ok(!!card, 'snapshot exposes ' + label);
+        if (card) {
+          await driver.click(card);
+          A.ok((await driver.getText()).includes('Campaign details: ' + id), 'click opens details for ' + label);
+        }
+      }
+      A.eq(nodes.filter(n => n.text === 'Delegated campaign').length, 1, 'inherited pointer cursor does not duplicate card children');
+      A.eq(nodes.some(n => n.text === 'Hidden campaign'), false, 'invisible cards are not offered as targets');
+      const session = T.makeBrowserSession({ driver });
+      const found = await session.find({ text: 'Delegated campaign' });
+      A.eq(found.hits.length, 1, 'browser.find exposes the delegated card through the real session');
+      if (found.hits.length) {
+        await session.click(found.hits[0].ref);
+        A.ok((await session.getText()).includes('Campaign details: delegated'), 'browser.click accepts the discovered card ref and opens details');
+      }
+      A.eq((await driver.snapshot(1)).length, 1, 'modern target discovery preserves the requested snapshot limit');
+    }
     // 1. LATE HYDRATION — the silent corrupter. Content lands at 1200ms; the old code waited 900ms.
     {
       await driver.navigate(base + '/hydrate');

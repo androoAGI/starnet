@@ -106,6 +106,10 @@ const ModelDock = (() => {
     if (p === 'custom' || p === 'openai-compatible' || p === 'local' || p === 'vllm' || p === 'lmstudio') return 'custom';
     return 'openrouter';
   }
+  function isAgentModel(item) {
+    return !(item && normalizeProvider(item.provider) === 'openai'
+      && /^(?:gpt-image-|chatgpt-image-|dall-e-)/i.test(String(item.id || '').trim()));
+  }
   function apiFetch(url, init) {
     return (typeof Harness !== 'undefined' && Harness.apiFetch) ? Harness.apiFetch(url, init) : fetch(url, init);
   }
@@ -206,10 +210,10 @@ const ModelDock = (() => {
     // Preserve a saved current model only while the active catalog is unavailable. Once a successful catalog
     // says it is absent, reconcileCurrentModel() has either mapped it to a proven provider-native id or cleared
     // it. Re-inserting it here was the stale-model bug: a bare Anthropic id appeared selectable under STARNET.
-    if (current && !list.some(m => m.id === current && normalizeProvider(m.provider) === p) && !(catalogState[p] && catalogState[p].confirmed)) {
+    if (current && isAgentModel({ id: current, provider: p }) && !list.some(m => m.id === current && normalizeProvider(m.provider) === p) && !(catalogState[p] && catalogState[p].confirmed)) {
       list.unshift({ id: current, name: current, provider: p, fallback: true, unverifiedCurrent: true });
     }
-    return list.filter(m => m && m.id);
+    return list.filter(m => m && m.id && isAgentModel(m));
   }
 
   // Return a catalog-confirmed equivalent for a model whose provider changed. Managed StarNet/OpenRouter ids
@@ -467,6 +471,7 @@ const ModelDock = (() => {
       // harness never confirmed exist.
       list = (p === 'codex' ? CODEX_MODELS : p === 'anthropic' ? ANTHROPIC_MODELS : p === 'gemini' ? GEMINI_MODELS : HOSTED_FALLBACKS[p] || OPENROUTER_FALLBACK).map(m => { const item = asModel(m, p); item.fallback = true; return item; });
     }
+    list = list.filter(isAgentModel);
     list.sort((a, b) => {
       if (p === 'openrouter') {
         const ga = openRouterGroupName(a), gb = openRouterGroupName(b);
@@ -498,7 +503,7 @@ const ModelDock = (() => {
     if (catalogRequests[active] === activeRequest && revision === selectionRevision() && identity === selectionIdentity() && active === provider() && selectedModel === getModel()) {
       reconcileCurrentModel(active, activeList);
     }
-    models = mergeCurrent(parts.reduce((a, b) => a.concat(b), []));
+    models = mergeCurrent(parts.reduce((a, b) => a.concat(b), []).filter(isAgentModel));
     models.sort((a, b) => {
       const pa = normalizeProvider(a.provider), pb = normalizeProvider(b.provider);
       if (pa !== pb) return ((PROVIDER_RANK[pa] == null ? 20 : PROVIDER_RANK[pa]) - (PROVIDER_RANK[pb] == null ? 20 : PROVIDER_RANK[pb]));
@@ -917,7 +922,7 @@ const ModelDock = (() => {
     catalog: (o) => computeCatalog(!!(o && o.force), o && o.ensure),
     labels: { model: modelLabel, provider: providerLabel, group: groupOf, short: shortModelName, normProvider: normalizeProvider, orGroup: openRouterGroupName },
     efforts: { optionsFor: effortOptionsFor, label: effortLabel, clamp: clampEffortForModel, list: () => EFFORTS.slice(), presetsFor: reasoningPresetsFor, presetFor: reasoningPresetFor, forPreset: effortForPreset },
-    _internals: { reasoningPresetsFor, reasoningPresetFor, effortForPreset, effortOptionsFor, clampEffortForModel, modelFamily, supportsReasoning, selectorLabel, catalogEquivalent }
+    _internals: { reasoningPresetsFor, reasoningPresetFor, effortForPreset, effortOptionsFor, clampEffortForModel, modelFamily, supportsReasoning, selectorLabel, catalogEquivalent, isAgentModel }
   };
 })();
 

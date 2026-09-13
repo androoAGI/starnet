@@ -1390,17 +1390,29 @@
        one was. Offsets accumulate down the tree so every coordinate is in TOP-page space. */
     function snapshotExpr(cap) {
       return `(() => {
-        const q = 'a,button,input,textarea,select,[role="button"],[onclick],summary,label';
+        const q = 'a,button,input,textarea,select,[role="button"],[role="link"],[role="tab"],[role="menuitem"],[role="option"],[role="checkbox"],[role="radio"],[role="switch"],[tabindex]:not([tabindex="-1"]),[onclick],summary,label';
         const out = [];
         const visit = (doc, dx, dy, frame, depth) => {
           if (!doc || depth > 4 || out.length >= ${cap}) return;
-          for (const el of doc.querySelectorAll(q)) {
+          // Framework handlers usually live on DOM properties or delegated listeners, not HTML
+          // onclick attributes. A pointer cursor is a candidate hint, not proof a click succeeded.
+          // Walk open shadow roots too; querySelectorAll never crosses that boundary by itself.
+          for (const el of doc.querySelectorAll('*')) {
+            if (out.length >= ${cap}) return;
+            if (el.shadowRoot) visit(el.shadowRoot, dx, dy, frame, depth + 1);
             if (out.length >= ${cap}) return;
             const r = el.getBoundingClientRect();
             const x = r.left + dx, y = r.top + dy;
             if (!(r.width > 1 && r.height > 1 && y + r.height >= 0 && x + r.width >= 0 && y <= innerHeight && x <= innerWidth)) continue;
+            const view = el.ownerDocument.defaultView;
+            const style = view.getComputedStyle(el);
+            if (style.visibility === 'hidden' || style.visibility === 'collapse' || style.display === 'none') continue;
+            const parent = el.parentElement || (el.getRootNode().host || null);
+            const pointer = style.cursor === 'pointer' && (!parent || view.getComputedStyle(parent).cursor !== 'pointer');
+            const semantic = el.matches(q);
+            if (!semantic && typeof el.onclick !== 'function' && !pointer) continue;
             const tag = el.tagName.toLowerCase();
-            const role = el.getAttribute('role') || (tag === 'a' ? 'link' : tag === 'input' || tag === 'textarea' ? 'textbox' : tag);
+            const role = el.getAttribute('role') || (tag === 'a' ? 'link' : tag === 'input' || tag === 'textarea' ? 'textbox' : semantic ? tag : 'clickable');
             const text = (el.innerText || el.value || el.getAttribute('aria-label') || el.getAttribute('title') || '').replace(/\\s+/g, ' ').trim().slice(0, 160);
             const node = { index: out.length, role, text, x: Math.round(x), y: Math.round(y), w: Math.round(r.width), h: Math.round(r.height) };
             if (frame) node.frame = frame;
@@ -2679,7 +2691,7 @@
             return {
               content: 'No visible element matches ' + what + ' in the current viewport. Scanned ' + r.scanned + ' visible interactive element(s)'
                 + (r.capped ? ' and reached the 200-element scan cap.' : '.')
-                + ' The target may be off-screen, inside a closed menu, or not loaded yet; scroll or open the menu and try again, or use browser.wait.',
+                + ' The target may be off-screen, inside a closed menu, not loaded yet, or rendered without discoverable interaction semantics. Use browser.get_text or browser.vision to distinguish these; scroll or open the menu and try again, or use browser.wait when content is loading. Do not repeat unchanged searches or screenshots. browser.click requires a discovered ref; browser.test_input is only for owned local test pages, not a coordinate-click fallback for this website. If a fresh read and targeted recovery still cannot expose the target, report the limitation and current page instead of looping.',
               summary: 'no match'
             };
           }
