@@ -3856,13 +3856,20 @@ const Build = (() => {
   const PS = () => (typeof PropSprites !== 'undefined' ? PropSprites : null);
   const canTurn = t => { const P = PS(); return !!(P && P.canRotate && P.canRotate(t)); };
   const canFlip = t => { const P = PS(); return !!(P && P.canMirror && P.canMirror(t)); };
-  // the tile box a prop TYPE covers at a facing — only a decal or a table re-tiles (PropSprites owns
-  // that rule). Ghost, placement validation and the stored record all size from this ONE helper, so
-  // they cannot disagree about how many tiles a turned prop eats.
-  function propBox(t, r) {
-    const P = PS();
-    if (P && P.footprintAt) { const b = P.footprintAt(t, r | 0); if (b) return b; }
-    const s = propSpec(t); return { w: s.w || 1, h: s.h || 1 };
+  // New placements use the catalog box. A placed prop keeps its saved size:
+  // the renderer's before/after boxes decide only whether that actual footprint
+  // turns. This prevents a compact saved desk growing to the current catalog size.
+  function propBox(t, r, placed) {
+    const P = PS(), s = propSpec(t);
+    const b = (P && P.footprintAt && P.footprintAt(t, r | 0)) || { w: s.w || 1, h: s.h || 1 };
+    if (!placed) return b;
+    const before = P && P.footprintAt && P.footprintAt(t, placed.r | 0);
+    // A square catalog decal hides its turn in equal dimensions, but a saved
+    // rectangular variant still needs to rotate its actual floor plan.
+    const plan = s.flat || s.surface || (P && P.PLAN_FOOTPRINT && P.PLAN_FOOTPRINT.includes(t));
+    const squarePlan = before && before.w === before.h && plan && (((placed.r | 0) ^ (r | 0)) & 1);
+    const swaps = squarePlan || (before && before.w !== before.h && b.w === before.h && b.h === before.w);
+    return swaps ? { w: placed.h, h: placed.w } : { w: placed.w, h: placed.h };
   }
   const nextFace = (t, r, dir) => { const P = PS(); return (P && P.nextFacing) ? P.nextFacing(t, r, dir) : ((r + dir) & 3); };
   const propFacing = t => (canTurn(t) ? (propRot & 3) : 0);   // pending rot, clamped to what the art can do
@@ -3880,7 +3887,7 @@ const Build = (() => {
     if (p) {
       if (!canTurn(p.t)) { sfx('bad'); flashTip(ev, propLabel(p.t) + ' only faces one way — its turned art is not drawn'); return; }
       const nr = nextFace(p.t, p.r | 0, dir);
-      const res = station.faceProp(p.id, nr, propBox(p.t, nr));
+      const res = station.faceProp(p.id, nr, propBox(p.t, nr, p));
       if (res && res.ok) pushFlash([{ x1: p.x, y1: p.y, x2: p.x + p.w - 1, y2: p.y + p.h - 1 }], false);   // p is mutated in place → the NEW box
       feedback(res, ev, 'turned · facing ' + FACE_WORD[(p.r | 0) & 3]);
       return;

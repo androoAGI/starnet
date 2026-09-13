@@ -194,4 +194,61 @@ A.eq([a3.tx, a3.ty, a3.face], [6, 5, 'west'], 'a prop turned east is walked up t
 const aPlain = PA.deriveAnchor({ x: 5, y: 5, w: 1, h: 1 }, openGeo, { approach: 'south' });
 A.eq([aPlain.tx, aPlain.ty], [5, 6], 'an absolute compass approach is unchanged by all of this');
 
+
+/* ---------- 4. the builder turns saved boxes, not today's catalog size ---------- */
+const buildSource = fs.readFileSync(path.join(__dirname, '..', 'frontend', 'app', 'build.js'), 'utf8');
+const boxSource = A.fnBody(buildSource, 'function propBox(');
+const turnSource = A.fnBody(buildSource, 'function turnUnderCursor(');
+A.ok(boxSource.length > 100 && boxSource.length < 1300, 'builder box test binds exactly the real sizing helper');
+A.ok(turnSource.length > 500 && turnSource.length < 2200, 'builder turn test binds exactly the real keyboard turn handler');
+// Model the remaster's authored four-facing upright desk and its new catalog
+// width. The saved document below intentionally retains the earlier compact size.
+const remasterPS = {
+  ...PS,
+  spec: id => id === 'desk' ? { ...PS.spec(id), w: 3, h: 1 } : PS.spec(id),
+  footprintAt: (id, r) => id === 'desk' ? { w: 3, h: 1 } : PS.footprintAt(id, r),
+  canRotate: id => id === 'desk' || PS.canRotate(id),
+  nextFacing: (id, r, dir) => id === 'desk' ? ((r + dir) & 3) : PS.nextFacing(id, r, dir)
+};
+const boxFor = new Function('PS', 'propSpec', boxSource + '; return propBox;')(() => remasterPS, id => remasterPS.spec(id));
+function builderTurn(station, id, dir = 1) {
+  let result;
+  const noop = () => {};
+  const turn = new Function('station', 'orientEv', 'orientTarget', 'canTurn', 'nextFace', 'propBox',
+    'pushFlash', 'feedback', 'sfx', 'flashTip', 'propLabel', 'FACE_WORD', turnSource + ';return turnUnderCursor;')(
+    station, () => ({ clientX: 0, clientY: 0 }), () => station.propById(id), remasterPS.canRotate,
+    remasterPS.nextFacing, boxFor, noop, res => { result = res; }, noop, noop, t => t, ['south', 'west', 'north', 'east']);
+  turn(dir); return result;
+}
+const savedStation = WM.create(WM.defaultDoc());
+savedStation.rooms()[0].rects = [{ x1: 0, y1: 0, x2: 12, y2: 10 }];
+const compact = savedStation.addProp({ t: 'desk', x: 1, y: 1, w: 2, h: 1, block: true });
+const neighbour = savedStation.addProp({ t: 'stool', x: 3, y: 1, w: 1, h: 1, block: true });
+A.ok(compact.ok && neighbour.ok, 'compact saved desk has a real blocking prop beside its exact footprint');
+for (const facing of [1, 2, 3, 0]) {
+  A.ok(builderTurn(savedStation, compact.id).ok, 'compact desk turns successfully beside its neighbour');
+  const p = savedStation.propById(compact.id);
+  A.eq([p.w, p.h, p.r | 0], [2, 1, facing], 'upright desk changes facing without adopting catalog 3x1 size');
+}
+savedStation.undo();
+A.eq([savedStation.propById(compact.id).w, savedStation.propById(compact.id).h, savedStation.propById(compact.id).r], [2, 1, 3], 'undo restores compact size and the previous facing');
+const restoredStation = WM.create(JSON.parse(JSON.stringify(savedStation.doc())));
+A.ok(builderTurn(restoredStation, compact.id, -1).ok, 'compact saved desk remains turnable after reload');
+A.eq([restoredStation.propById(compact.id).w, restoredStation.propById(compact.id).h], [2, 1], 'reloaded upright desk still preserves its original footprint');
+for (const [type, x, w, h] of [['rug', 1, 4, 3], ['longtable', 7, 2, 1], ['booth', 10, 2, 1]]) {
+  const made = savedStation.addProp({ t: type, x, y: 5, w, h, block: type !== 'rug' });
+  A.ok(made.ok, type + ' saved plan prop is placed');
+  A.ok(builderTurn(savedStation, made.id).ok, type + ' builder turn is accepted');
+  let p = savedStation.propById(made.id);
+  A.eq([p.w, p.h], [h, w], type + ' rotates its actual saved floor plan');
+  A.ok(builderTurn(savedStation, made.id, -1).ok, type + ' reverse turn is accepted');
+  p = savedStation.propById(made.id);
+  A.eq([p.w, p.h], [w, h], type + ' reverse turn restores its exact original size');
+}
+const customRug = savedStation.addProp({ t: 'rug_small', x: 7, y: 8, w: 3, h: 2, block: false });
+A.ok(customRug.ok && builderTurn(savedStation, customRug.id).ok, 'rectangular saved variant of a square catalog decal can turn');
+A.eq([savedStation.propById(customRug.id).w, savedStation.propById(customRug.id).h], [2, 3], 'square catalog dimensions do not hide a real floor-plan rotation');
+A.eq(boxFor('desk', 3), { w: 3, h: 1 }, 'new desk placement still uses the current catalog dimensions');
+A.eq(boxFor('longtable', 3), { w: 1, h: 3 }, 'new plan placement still uses the catalog turned box');
+
 A.report('proprotate');
