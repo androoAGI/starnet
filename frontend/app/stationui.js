@@ -8797,7 +8797,7 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
       const journeyId = el.closest('[data-gid]')?.dataset.gid || el.closest('[data-iid]')?.dataset.iid;
       return journeyId ? journeyId + ':' + el.className : (el.closest('[data-qid]')?.dataset.qid || '') + ':' + el.className + ':' + (el.querySelector('summary')?.textContent || '');
     };
-    const expanded = new Set(Array.from(body.querySelectorAll('details[open]')).map(detailKey));
+    const disclosures = new Map(Array.from(body.querySelectorAll('details')).map(el => [detailKey(el), el.open]));
     const listScroll = body.querySelector('.q-mission-list')?.scrollTop || 0;
     const questDrafts = body._questDrafts || (body._questDrafts = new Map());
     body.querySelectorAll('.q-life-quest').forEach(row => {
@@ -8872,7 +8872,7 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
       // (the recovery path). Done steps show their evidence; later open steps are shown but not actionable.
       if (q.kind === 'arc-step') {
         const accept = (q.status !== 'done' && q.isNext && !q.inFlight)
-          ? '<button class="consent-btn q-arc-accept q-mt" data-gid="' + esc(q.arcGoalId) + '" data-mid="' + esc(q.milestoneId) + '">Accept this step</button>'
+          ? '<button class="consent-btn q-arc-accept q-mt" data-gid="' + esc(q.arcGoalId) + '" data-mid="' + esc(q.milestoneId) + '">Start this step</button>'
           : '';
         return '<div class="gx-tro arc-step q-indent ' + (q.status === 'done' ? 'on' : 'off') + (glow ? ' q-celebrate' : '') + '" style="--ci:' + (i || 0) + '">'
           + '<div class="q-hd"><span class="gl">' + (q.status === 'done' ? '&#9733;' : '&#9675;') + '</span><span class="nm">' + esc(q.title) + '</span></div>'
@@ -9075,7 +9075,7 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
       if (GoalStore.chooseNext(b.dataset.gid, b.dataset.mid)) { sfx('click'); rerender('quests', false); }
       else notify('This step could not be selected. Check whether work is already in progress.', 'warn');
     }));
-    body.querySelectorAll('details').forEach(el => { if (expanded.has(detailKey(el))) el.open = true; });
+    body.querySelectorAll('details').forEach(el => { const key = detailKey(el); if (disclosures.has(key)) el.open = disclosures.get(key); });
     if (body.querySelector('.q-mission-list')) body.querySelector('.q-mission-list').scrollTop = listScroll;
     body.querySelectorAll('.q-filter').forEach(b => b.addEventListener('click', () => {
       body.dataset.questCategory = b.dataset.category;
@@ -9129,6 +9129,11 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
         if (form.querySelector('.q-new-goal').value.trim() !== proposal.title) {
           body._journeyPlanMessage = 'Your ambition changed. Ask for a new suggestion for this draft.'; rerender('quests', false); return;
         }
+        const current = { motivation: form.querySelector('.q-new-motivation').value, constraints: form.querySelector('.q-new-constraints').value,
+          successCondition: form.querySelector('.q-new-success').value, steps: form.querySelector('.q-new-steps').value };
+        if (!proposal.options || Object.keys(current).some(key => current[key] !== proposal.options[key])) {
+          body._journeyPlanMessage = 'Your plan or boundaries changed. Ask for a fresh suggestion so it reflects your latest draft.'; rerender('quests', false); return;
+        }
         rememberGoalDraft();
         form.querySelector('.q-new-success').value = proposal.successCondition;
         form.querySelector('.q-new-steps').value = proposal.steps.join('\n');
@@ -9149,7 +9154,7 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
       let result;
       try { result = await GoalStore.suggestPlan(title, options); } catch (_) { result = { error: 'Planning is unavailable. Your draft is safe.' }; }
       body._journeyPlanning = false;
-      if (result && result.ok) { body._journeyPlan = { ...result, title }; body._journeyPlanMessage = 'Suggestion ready. Review it before adding it to your draft.'; }
+      if (result && result.ok) { body._journeyPlan = { ...result, title, options }; body._journeyPlanMessage = 'Suggestion ready. Review it before adding it to your draft.'; }
       else body._journeyPlanMessage = result?.error || 'No plan was returned. Try again or write your own.';
       rerender('quests', false);
     });

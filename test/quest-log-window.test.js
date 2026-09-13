@@ -174,16 +174,19 @@ let questRows = [
   { id: 'st:crew', kind: 'station', title: 'Recruit a specialist', desc: 'Bring another mind aboard.', reward: 'A larger crew', status: 'open' },
   { id: 'ds:stack', kind: 'dossier', title: 'Your <tools>', desc: 'Share your tools.', reward: 'Better context', status: 'open' }
 ];
-let rendered = '', buttons = {}, focused = '';
+let rendered = '', buttons = {}, focused = '', detailNodes = [];
+const resultDisclosure = () => ({ className: 'q-return-proof', open: true, closest: () => null,
+  querySelector: () => ({ textContent: 'Last recorded result' }) });
 const list = { scrollTop: 0 };
 const viewDescription = { textContent: '' };
 const body = {
   dataset: {}, classList: { add() {} },
   querySelector: s => s === '.q-mission-list' ? list : s === '.q-view-description' ? viewDescription : null,
-  querySelectorAll: s => buttons[s] || [],
+  querySelectorAll: s => s === 'details' ? detailNodes : buttons[s] || [],
   get innerHTML() { return rendered; },
   set innerHTML(html) {
     rendered = html; buttons = { '.q-filter': [], '.q-mission': [], '[data-quest-view]': [], '.q-view-panel': [] };
+    detailNodes = [resultDisclosure()];
     for (const id of ['available', 'goals', 'progress', 'completed']) {
       buttons['.q-view-panel'].push({ id: 'q-view-' + id, hidden: false });
       buttons['[data-quest-view]'].push({ dataset: { questView: id }, attributes: {},
@@ -215,6 +218,12 @@ const journalSource = station.slice(station.indexOf('  function buildQuests(body
 vm.runInContext(journalSource, ctx);
 ctx.buildQuests(body);
 A.eq(body.dataset.questView, 'available', 'available quests lead on first open');
+detailNodes[0].open = false;
+ctx.buildQuests(body);
+A.eq(detailNodes[0].open, false, 'a result the user collapsed stays closed after a data repaint');
+detailNodes[0].open = true;
+ctx.buildQuests(body);
+A.eq(detailNodes[0].open, true, 'a result the user expanded stays open after a data repaint');
 const beforeTab = rendered;
 buttons['[data-quest-view]'][1].click();
 A.eq(body.dataset.questView, 'goals', 'Goals tab selects its own view');
