@@ -346,4 +346,60 @@ for (const n of [1, 2]) {
   }
 }
 StationBake.WALL.up=savedUp;StationBake.SHAPE.cornerN=savedN;
+
+// A complete bake must carry the same selected material and paint to the north
+// face, side strip and curved corners. Geometry remains owned by StationBake.
+global.WorldSurface = require('../frontend/app/worldsurface.js');
+function textureGeo(material, base) {
+  const TILE = 12, COLS = 27, ROWS = 27, zoneGrid = Array(COLS * ROWS).fill(null);
+  const idx = (x, y) => y * COLS + x, r = { z: 'r1', x1: 4, y1: 6, x2: 20, y2: 18 };
+  for (let y = r.y1; y <= r.y2; y++) for (let x = r.x1; x <= r.x2; x++) zoneGrid[idx(x, y)] = 'r1';
+  return { TILE, COLS, ROWS, W: COLS * TILE, H: ROWS * TILE, origin: { tx: -13, ty: -17 },
+    allRects: [r], zones: { r1: r }, ROOM_IDS: ['r1'], windows: [], doorDefs: [], zoneGrid, idx,
+    chamfers: [[r.x1, r.y1, 'tl'], [r.x2, r.y1, 'tr'], [r.x1, r.y2, 'bl'], [r.x2, r.y2, 'br']],
+    isCorridor: () => false, canStep: (x, y, nx, ny) => zoneGrid[idx(x, y)] === zoneGrid[idx(nx, ny)],
+    baseColorOf: () => '#30343a', wallBaseOf: () => base, wallMatOf: () => material,
+    nameOf: () => 'MATERIAL FIXTURE', kindOf: () => 'hab' };
+}
+const declinedGeo = textureGeo('panelled', '#476a91');
+const nativeTextureBase = StationBake.bake(declinedGeo).baseCv;
+const wallArtCalls = [], stripArtCalls = [];
+let acceptStrip = false;
+global.IndustrialTextures = {
+  enabled: () => true, detailContext: ctx => ctx, floor: () => false, shell: () => false,
+  shellPlate: () => false, drawBase: () => false,
+  wall(ctx, x, y, w, h, tx, material, base, opts) {
+    wallArtCalls.push({ material, base, opts, tx }); return false;
+  },
+  wallStrip(h, material, base, opts) {
+    stripArtCalls.push({ material, base, opts, h });
+    if (!acceptStrip) return null;
+    const d = new Uint8ClampedArray(48 * h * 4), n = parseInt(base.slice(1), 16);
+    for (let i = 0; i < d.length; i += 4) { d[i] = n >>> 16; d[i + 1] = (n >>> 8) & 255; d[i + 2] = n & 255; d[i + 3] = 255; }
+    return { d, w: 48, h, x0: 0 };
+  }
+};
+A.eq(pixelDiff(StationBake.bake(declinedGeo).baseCv, nativeTextureBase), 0,
+  'unavailable texture strip preserves the complete native bake and selected wall colour');
+acceptStrip = true;
+for (const mat of WorldSurface.WALLS) {
+  for (const color of ['#476a91', '#946747']) {
+    wallArtCalls.length = 0; stripArtCalls.length = 0;
+    const tg = textureGeo(mat, color), previousGrid = tg.zoneGrid.slice();
+    const result = StationBake.bake(tg);
+    A.ok(wallArtCalls.length > 0 && wallArtCalls.every(c => c.material === mat && c.base === color), mat + ' north face retains the selected paint');
+    A.ok(stripArtCalls.length > 4 && stripArtCalls.every(c => c.material === mat && c.base === color && c.opts.detail === StationBake.DEPTH.wallDetail), mat + ' side walls and all four corners request that same selected finish');
+    A.eq(tg.zoneGrid, previousGrid, mat + ' atlas selection never changes station geometry');
+    A.eq([result.W, result.H], [tg.W, tg.H], mat + ' atlas selection keeps station proportions');
+  }
+}
+for (const mat of ['viewport', 'wainscot', 'hedge']) {
+  stripArtCalls.length = 0; wallArtCalls.length = 0;
+  StationBake.bake(textureGeo(mat, '#476a91'));
+  A.eq(stripArtCalls.length, 0, mat + ' specialized corners are never replaced by the generic atlas');
+  A.eq(wallArtCalls.length, 0, mat + ' specialized straight faces keep their own native geometry');
+}
+delete global.IndustrialTextures;
+delete global.WorldSurface;
+
 A.report('stationbake.chunk');

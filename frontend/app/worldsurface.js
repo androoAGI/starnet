@@ -118,9 +118,12 @@ const WorldSurface = (() => {
   }
 
   function paintFloorTile(ctx, material, base, X, Y, tile, worldTx, worldTy, opts) {
-    if (typeof IndustrialTextures !== 'undefined' && IndustrialTextures.floor(ctx, X, Y, tile || CELL, worldTx, worldTy)) return true;
     const mat = materialSet.has(material) ? material : 'plate';
     const size = Math.max(1, Math.round(tile || CELL)), d = detailOf(opts);
+    // The optional art pack receives the same material, paint and physical tile
+    // address as the native recipe. Declined or pending art keeps that recipe.
+    if (typeof IndustrialTextures !== 'undefined' && IndustrialTextures && typeof IndustrialTextures.floor === 'function' &&
+        IndustrialTextures.floor(ctx, X, Y, size, worldTx, worldTy, mat, base, opts)) return true;
     const pal = palette(base, d), p = brush(ctx, X, Y, size);
     const tx = Math.floor(worldTx || 0), ty = Math.floor(worldTy || 0), wx = tx * CELL, wy = ty * CELL;
     p(0, 0, CELL, CELL, pal.base);
@@ -354,9 +357,11 @@ const WorldSurface = (() => {
   }
 
   function paintWallTile(ctx, material, base, X, Y, tile, height, tileX, opts) {
-    if (material !== 'viewport' && typeof IndustrialTextures !== 'undefined' && IndustrialTextures.wall(ctx, X, Y, tile || CELL, height || 30, tileX)) return true;
     if (!wallSet.has(material)) return false;
     const w = Math.max(1, Math.round(tile || CELL)), h = Math.max(1, Math.round(height || 30));
+    // Specialized window, timber and hedge geometry stays with its own painter.
+    if (typeof IndustrialTextures !== 'undefined' && IndustrialTextures && typeof IndustrialTextures.wall === 'function' &&
+        IndustrialTextures.wall(ctx, X, Y, w, h, tileX, material, base, opts)) return true;
     const d = detailOf(opts), pal = palette(base, d), scale = w / CELL;
     const wx = Math.floor(tileX || 0) * CELL;
     // The face's structural depth is measured in real pixels, while its along-

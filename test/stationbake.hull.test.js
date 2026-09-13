@@ -289,4 +289,27 @@ A.ok(/nearest footprint above/i.test(HULLSRC), 'the skirt ownership pass is pres
 A.ok(/destination-in/.test(HULLSRC.slice(HULLSRC.indexOf('function bakeHullExtrusion'))),
   'each hull group is cut back to the pixels it owns before compositing');
 
+
+// Both views of a station hull (top plate and hanging skirt) receive the same
+// resolved room palette, and unavailable art leaves the native shell complete.
+const beforeArt = sample('station', '#624a30');
+const hullArtCalls = [];
+global.IndustrialTextures = {
+  shellPlate(ctx, x, y, w, h, base) { hullArtCalls.push(['plate', base]); return false; },
+  shell(ctx, w, h, vx, vy, topOf, base) { hullArtCalls.push(['skirt', base]); return false; }
+};
+A.eq(sample('station', '#624a30'), beforeArt, 'declined shell art retains every native ring and skirt mark');
+A.eq(hullArtCalls.map(c => c[0]), ['plate', 'skirt'], 'station plate and skirt both request authored cladding');
+A.ok(/^#[0-9a-f]{6}$/i.test(hullArtCalls[0][1]), 'shell art receives a real resolved palette colour');
+A.eq(hullArtCalls[0][1], hullArtCalls[1][1], 'ring and skirt use the identical selected shell palette');
+const warmHullPaint = hullArtCalls[0][1];
+hullArtCalls.length = 0;
+sample('station', '#30628b');
+A.ok(hullArtCalls[0][1] !== warmHullPaint, 'recolouring the shell reaches the authored texture hooks');
+A.eq(hullArtCalls[0][1], hullArtCalls[1][1], 'recoloured ring and skirt still agree');
+hullArtCalls.length = 0;
+for (const mid of HULLS.filter(mid => mid !== 'station')) sample(mid, '#624a30');
+A.eq(hullArtCalls.length, 0, 'other shell materials retain their own recipes');
+delete global.IndustrialTextures;
+
 A.report('stationbake.hull');
