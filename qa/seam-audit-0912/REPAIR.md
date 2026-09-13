@@ -1,0 +1,33 @@
+# StarNet neglected-seam repairs
+
+September 13, 2026. Owned branch: `agent/seam-audit-0912-b`. Product fix: `b54b44574`; silent-catch baseline adjustment: `9049ad411`; synchronized with trunk `2d8154948` through merge `89c77215a`. No shared event/schema contracts changed. No installer or customer-station recovery is claimed.
+
+## Nine repaired findings
+
+| Finding | Resulting behavior | Evidence |
+| --- | --- | --- |
+| A1 — lost away interval | Keep unacknowledged closed intervals separately from attendance heartbeats. Failed/partial/timed-out reads and failed saves retry without losing those intervals. Reset fences old responses. | `test/returnstore-recovery.test.js`: outage, restart, intervening heartbeat, failed persistence/retry, dedupe, reset. Live: history outage, reload, restore history, then one recovered run appeared in the digest and Outbox. |
+| A2 — stranded loop | Model Pause/Stop/Remove use host-owned cancellation and settlement before changing the loop state. | `test/model-loop-control.test.js`: actual source controllers/store/driver with late provider resolution AND rejection for all three controls. Existing driver suite covers replacement generations and settlement retries. Specific model-tool wiring was source-harness verified, not exercised in a paid model conversation. |
+| A3 — unusable follow-up | Capture the current conversation for local delivery with follow-up as well as origin delivery. Create/update reject missing session origins. Script-only schedules no longer need an unused prompt. | Actual UI saved local+follow-up; real API origin survived sidecar restart. Invalid create/update returned 400 and preserved the valid record. Maintained HTTP regression covers these contracts. |
+| A4 — wrong provider | Routine and goal-loop forms inherit the selected agent's provider instead of implicitly overriding it with the station chat's provider. | UI-created routine read-back and HTTP regression retain `provider:null`; the original source audit proved the resolver's inheritance behavior. Multi-account paid dispatch remains unverified. |
+| A5 — erased review | Reconcile rows by identity, skip unchanged rows, retain surviving iteration editors with text/selection/focus, preserve disclosures, and coalesce slow polls. | Final-source live UI retained the typed rejection, visible editor and focus across polls, including a relative-timestamp change. |
+| A6 — silent refusals | Validate HTTP and JSON acknowledgements, show refusal details, prevent duplicate pending controls, fence obsolete reads, and bound acknowledgement waits. Failed reads label displayed state as possibly stale. | Actual UI with controlled 409 displayed `Review in progress; retry when it finishes`; Pause remained available and the review text survived. |
+| A7 — wrong run answer | Filter transcript attribution before the page limit in memory and segmented history. Outbox requests that run and loads only on expansion. The session door is labelled as a conversation. | Transcript tests cover old-run pagination and restart. New HTTP test completed two real runs against a local provider fixture and retrieved the earlier run after restart. Live drawer A showed request/answer A despite later B; transcript reads were 0 before expansion and 1 afterward. |
+| A8 — false Saved | Save returns success/failure; local preference feedback reports session-only changes on failure and gives a retry instruction. Independent OS preferences retain independent acknowledgements. | Actual app with a controlled Storage exception showed `Could not save`; restored storage showed `✓ saved`, and green theme survived reload. Maintained test covers failure, retry, warning dedupe and independent saves. |
+| A9 — wedged refresh | New query generations do not await old transports. JSON GETs have a 15-second deadline covering parsing; obsolete responses cannot overwrite recovered data. | `test/queryspine.test.js`: hung transport, invalidation, successful new read, obsolete timeout without stale overwrite. Model SSE streams keep their separate lifecycle. |
+
+## Receipts and scope
+
+- [repair-http-before-restart.json](repair-http-before-restart.json), [repair-http-after-restart.json](repair-http-after-restart.json): actual UI-created routine, captured origin, inherited provider, refused invalid updates.
+- [repair-proxy-results.json](repair-proxy-results.json): actual UI control requests refused with 409. The original fault-proxy source was run with its output filename redirected, preserving before-fix evidence.
+- [repair-fixture.cjs](repair-fixture.cjs), [repair-fixture-results.json](repair-fixture-results.json): unchanged product scripts with controlled storage/history IO; actual transcript store used for attribution. At the recorded checkpoint: 12 history reads and one transcript read scoped to `repair-outbox-A`.
+- [repair-ui-observations.json](repair-ui-observations.json): relevant observations transcribed from browser tool output, not a browser-driver assertion log.
+- [repair-validation.json](repair-validation.json): final gate status, source, log hashes and environment notes.
+
+The live UI used port 19427 and this worktree's disposable `dev/.scratch-workspace`. `replay` was only a boot placeholder, not proof of a completed model run. The maintained HTTP test separately proves real sidecar completion events through a local provider fixture. No customer credentials or paid provider requests were used.
+
+The original audit probes intentionally fail on repaired source. Maintained regressions now live in `test/` and the fast/HTTP manifests. Older untagged transcripts remain accessible as session history; they are not guessed into a run. Previously erased away boundaries cannot be reconstructed with certainty; the repair preserves future unacknowledged intervals. Installed Tauri behavior, paid provider accounts and affected-customer recovery remain unverified.
+
+## Validation status
+
+Final gates pending. Earlier full runs exposed a wording-lint match and a required silent-catch baseline reduction (373 → 371); both checks passed after correction, as did the remaining 39 fast steps. The combined-tree run subsequently stopped at step 252/775 when C: reached zero free bytes and sidecar startup reported ENOSPC. That failed gate is not a passing result. Only owned dependency files were compressed to reclaim space; no other workspace or user data was removed. The historical report was restored from git after its attempted write failed.

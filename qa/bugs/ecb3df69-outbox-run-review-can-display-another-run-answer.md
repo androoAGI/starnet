@@ -4,10 +4,10 @@ slug: outbox-run-review-can-display-another-run-answer
 title: Outbox run review can display another run answer
 surface: sessions
 severity: P2
-status: open
+status: fixed
 found: 2026-09-13
 lane: agent/seam-audit-0912-b
-fix:
+fix: b54b44574
 origin: audit
 affected: 091d6e7f3 source
 installer: unverified
@@ -32,4 +32,8 @@ Code anchor: frontend/app/windows/outbox.js:127. Receipt: `outbox-output-attribu
 
 ## Verdict
 
-Open audit finding. No product fix or customer recovery is claimed.
+Run attribution is filtered before limiting across memory, segmented history and HTTP restart. Live Outbox loaded one matching transcript only on expansion. Evidence: test/transcript.test.js, test/transcript-history-v2.test.js and test/seam-audit-recovery.http.test.js. See qa/seam-audit-0912/REPAIR.md for final gate receipts and exact scope. Source repaired; installer and affected-customer recovery remain unverified.
+
+## Regression
+
+test/transcript.test.js, test/transcript-history-v2.test.js and test/seam-audit-recovery.http.test.js

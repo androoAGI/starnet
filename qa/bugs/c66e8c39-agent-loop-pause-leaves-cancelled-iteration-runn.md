@@ -4,10 +4,10 @@ slug: agent-loop-pause-leaves-cancelled-iteration-runn
 title: Agent loop pause leaves cancelled iteration running and lease held
 surface: autonomy
 severity: P1
-status: open
+status: fixed
 found: 2026-09-13
 lane: agent/seam-audit-0912-b
-fix:
+fix: b54b44574
 origin: audit
 affected: 091d6e7f3 source
 installer: unverified
@@ -32,4 +32,8 @@ Code anchor: sidecar/index.js:7315. Receipt: `loop-agent-pause` in qa/seam-audit
 
 ## Verdict
 
-Open audit finding. No product fix or customer recovery is claimed.
+Pause, Stop and Remove settle through the host driver and survive late resolution/rejection. Replacement and durable retry behavior covered by driver tests. Evidence: test/model-loop-control.test.js and test/loopjob-driver.test.js. See qa/seam-audit-0912/REPAIR.md for final gate receipts and exact scope. Source repaired; installer and affected-customer recovery remain unverified.
+
+## Regression
+
+test/model-loop-control.test.js and test/loopjob-driver.test.js

@@ -4,10 +4,10 @@ slug: local-settings-save-failure-still-permits-saved
 title: Local settings save failure still permits saved confirmation
 surface: world
 severity: P2
-status: open
+status: fixed
 found: 2026-09-13
 lane: agent/seam-audit-0912-b
-fix:
+fix: b54b44574
 origin: audit
 affected: 091d6e7f3 source
 installer: unverified
@@ -32,4 +32,8 @@ Code anchor: frontend/app/stationui.js:180. Receipt: `settings-save-failure-swal
 
 ## Verdict
 
-Open audit finding. No product fix or customer recovery is claimed.
+Real UI storage exception produced an unsaved warning; restored storage showed saved and survived reload. Independent OS settings acknowledgements stay independent. Evidence: test/settings-save-failure.test.js. See qa/seam-audit-0912/REPAIR.md for final gate receipts and exact scope. Source repaired; installer and affected-customer recovery remain unverified.
+
+## Regression
+
+test/settings-save-failure.test.js

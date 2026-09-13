@@ -1,5 +1,7 @@
 # StarNet neglected seams audit
 
+**Historical before-fix evidence.** Repairs were subsequently authorized; see [REPAIR.md](REPAIR.md) for implementation and verification. The original `probe.cjs` intentionally asserts old defects and must be run against the audited revision, not the repaired tree.
+
 Audit date: September 12–13, 2026. Source: `091d6e7f312e08ca9e813e94f7b8863d1a5d9e5a` (0.11.2 repository). Isolated branch: `agent/seam-audit-0912-b`.
 
 The most urgent cleanup is consolidating lifecycle and state handling across entry points. Safer implementations already exist beside older copies. Nine actionable findings emerged: three reproduced through the running UI, and six reproduced using unchanged source functions with controlled dependencies. Those evidence classes are kept separate below. None is an installed-desktop reproduction or an affected-customer recovery claim.

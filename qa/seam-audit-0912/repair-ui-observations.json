@@ -1,0 +1,17 @@
+{
+  "date": "2026-09-13",
+  "kind": "manual transcription of actual browser tool results",
+  "source": "b54b44574; settings retry rechecked after merge 89c77215a",
+  "loopDraftAfterPolling": { "draft": "Final source: retain this review across refresh and refusal.", "hidden": false, "focused": "key-input lp-why-in" },
+  "loopPauseRefusal": { "notification": "Review in progress; retry when it finishes", "pauseButtonAvailable": true, "draftRetained": true },
+  "routineSave": { "name": "Repair follow-up persistence", "destination": "Keep in StarNet", "followUpChecked": true, "feedback": "saved, but the scheduler is off" },
+  "awayRecoveryAfterOutageAndReload": {
+    "digest": "while you were away — 1 run finished", "title": "Repair attribution A",
+    "outboxBeforeExpand": "Open to read this run’s result.", "transcriptRequestsBeforeExpand": 0, "transcriptRequestsAfterExpand": 1,
+    "request": "Request A: summarize the first result", "answer": "Answer A belongs only to the first run.",
+    "ratingRunId": "repair-outbox-A", "laterAnswerBShown": false
+  },
+  "settingsStorageFailure": { "changedTheme": "green", "feedback": "Could not save — changes apply for this session. Change a setting to retry." },
+  "settingsStorageRestored": { "feedback": "✓ saved", "afterReload": { "amber": "false", "green": "true" } },
+  "installedDesktopVerified": false
+}

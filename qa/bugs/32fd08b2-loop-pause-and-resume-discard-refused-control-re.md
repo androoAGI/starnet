@@ -4,10 +4,10 @@ slug: loop-pause-and-resume-discard-refused-control-re
 title: Loop pause and resume discard refused control responses
 surface: autonomy
 severity: P2
-status: open
+status: fixed
 found: 2026-09-13
 lane: agent/seam-audit-0912-b
-fix:
+fix: b54b44574
 origin: audit
 affected: 091d6e7f3 source
 installer: unverified
@@ -32,4 +32,8 @@ Code anchor: frontend/app/windows/loops.js:381. Receipt: `loop-pause-error-hidde
 
 ## Verdict
 
-Open audit finding. No product fix or customer recovery is claimed.
+Final-source live HTTP 409 showed the refusal, preserved the review draft and left Pause available. Controls check acknowledgements, fence stale reads and bound the pending wait. Evidence: qa/seam-audit-0912/repair-ui-observations.json. See qa/seam-audit-0912/REPAIR.md for final gate receipts and exact scope. Source repaired; installer and affected-customer recovery remain unverified.
+
+## Regression
+
+qa/seam-audit-0912/repair-ui-observations.json

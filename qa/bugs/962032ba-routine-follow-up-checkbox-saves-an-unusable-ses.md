@@ -4,10 +4,10 @@ slug: routine-follow-up-checkbox-saves-an-unusable-ses
 title: Routine follow-up checkbox saves an unusable session origin
 surface: autonomy
 severity: P1
-status: open
+status: fixed
 found: 2026-09-13
 lane: agent/seam-audit-0912-b
-fix:
+fix: b54b44574
 origin: audit
 affected: 091d6e7f3 source
 installer: unverified
@@ -32,4 +32,8 @@ Code anchor: frontend/app/windows/routines.js:653. Receipt: `routine-follow-up-w
 
 ## Verdict
 
-Open audit finding. No product fix or customer recovery is claimed.
+Local delivery with follow-up captures the session; create/update validation rejects a missing origin. Live UI save and sidecar restart read-back passed. Evidence: test/seam-audit-recovery.http.test.js. See qa/seam-audit-0912/REPAIR.md for final gate receipts and exact scope. Source repaired; installer and affected-customer recovery remain unverified.
+
+## Regression
+
+test/seam-audit-recovery.http.test.js

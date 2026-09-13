@@ -4,10 +4,10 @@ slug: startup-history-read-failure-skips-away-work-rev
 title: Startup history read failure skips away-work review recovery
 surface: sessions
 severity: P1
-status: open
+status: fixed
 found: 2026-09-13
 lane: agent/seam-audit-0912-b
-fix:
+fix: b54b44574
 origin: audit
 affected: 091d6e7f3 source
 installer: unverified
@@ -32,4 +32,8 @@ Code anchor: frontend/app/returnstore.js:78. Receipt: `away-read-failure-loses-r
 
 ## Verdict
 
-Open audit finding. No product fix or customer recovery is claimed.
+Closed intervals survive failed reads, restart and failed persistence; attended work is excluded. Live recovery fixture passed. Evidence: test/returnstore-recovery.test.js. See qa/seam-audit-0912/REPAIR.md for final gate receipts and exact scope. Source repaired; installer and affected-customer recovery remain unverified.
+
+## Regression
+
+test/returnstore-recovery.test.js

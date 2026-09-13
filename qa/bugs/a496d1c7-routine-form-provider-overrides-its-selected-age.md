@@ -4,10 +4,10 @@ slug: routine-form-provider-overrides-its-selected-age
 title: Routine form provider overrides its selected agent provider
 surface: providers
 severity: P1
-status: open
+status: fixed
 found: 2026-09-13
 lane: agent/seam-audit-0912-b
-fix:
+fix: b54b44574
 origin: audit
 affected: 091d6e7f3 source
 installer: unverified
@@ -32,4 +32,8 @@ Code anchor: frontend/app/windows/routines.js:622. Receipt: `routine-station-pro
 
 ## Verdict
 
-Open audit finding. No product fix or customer recovery is claimed.
+Routine and goal-loop forms omit the implicit station-provider override. UI and HTTP persistence retain null for agent-provider inheritance. Paid multi-provider dispatch was not tested. Evidence: test/seam-audit-recovery.http.test.js. See qa/seam-audit-0912/REPAIR.md for final gate receipts and exact scope. Source repaired; installer and affected-customer recovery remain unverified.
+
+## Regression
+
+test/seam-audit-recovery.http.test.js

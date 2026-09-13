@@ -4,10 +4,10 @@ slug: shared-query-refresh-cannot-retire-a-stalled-pre
 title: Shared query refresh cannot retire a stalled predecessor
 surface: sessions
 severity: P2
-status: open
+status: fixed
 found: 2026-09-13
 lane: agent/seam-audit-0912-b
-fix:
+fix: b54b44574
 origin: audit
 affected: 091d6e7f3 source
 installer: unverified
@@ -32,4 +32,8 @@ Code anchor: frontend/app/queryspine.js:91. Receipt: `query-refresh-waits-on-hun
 
 ## Verdict
 
-Open audit finding. No product fix or customer recovery is claimed.
+New generation recovers while an old JSON request is stalled; obsolete timeout cannot overwrite the recovered value. Ordinary JSON GET parsing is deadline-bounded. Evidence: test/queryspine.test.js. See qa/seam-audit-0912/REPAIR.md for final gate receipts and exact scope. Source repaired; installer and affected-customer recovery remain unverified.
+
+## Regression
+
+test/queryspine.test.js

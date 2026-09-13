@@ -4,10 +4,10 @@ slug: loop-polling-erases-the-rejection-explanation-be
 title: Loop polling erases the rejection explanation being typed
 surface: autonomy
 severity: P2
-status: open
+status: fixed
 found: 2026-09-13
 lane: agent/seam-audit-0912-b
-fix:
+fix: b54b44574
 origin: audit
 affected: 091d6e7f3 source
 installer: unverified
@@ -32,4 +32,8 @@ Code anchor: frontend/app/windows/loops.js:303. Receipt: `loop-review-draft-rese
 
 ## Verdict
 
-Open audit finding. No product fix or customer recovery is claimed.
+Final-source live UI retained the rejection editor, text and focus across polls and changed relative timestamps. Unchanged rows keep their DOM identity. Evidence: qa/seam-audit-0912/repair-ui-observations.json. See qa/seam-audit-0912/REPAIR.md for final gate receipts and exact scope. Source repaired; installer and affected-customer recovery remain unverified.
+
+## Regression
+
+qa/seam-audit-0912/repair-ui-observations.json
