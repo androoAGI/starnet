@@ -7,7 +7,7 @@ severity: P1
 status: fixed
 found: 2026-09-13
 lane: agent/seam-audit-0912-b
-fix: b54b44574
+fix: b5c5cba75
 origin: audit
 affected: 091d6e7f3 source
 installer: unverified

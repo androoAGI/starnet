@@ -7,7 +7,7 @@ severity: P1
 status: fixed
 found: 2026-09-13
 lane: agent/seam-audit-0912-b
-fix: b54b44574
+fix: b5c5cba75
 origin: audit
 affected: 091d6e7f3 source
 installer: unverified
@@ -32,8 +32,8 @@ Code anchor: frontend/app/windows/routines.js:653. Receipt: `routine-follow-up-w
 
 ## Verdict
 
-Local delivery with follow-up captures the session; create/update validation rejects a missing origin. Live UI save and sidecar restart read-back passed. Evidence: test/seam-audit-recovery.http.test.js. See qa/seam-audit-0912/REPAIR.md for final gate receipts and exact scope. Source repaired; installer and affected-customer recovery remain unverified.
+Local delivery with follow-up captures the session; create/update validation rejects a missing local-session origin inside the write lock while preserving channel-history follow-up. Live UI save and sidecar restart read-back passed. Evidence: test/seam-audit-recovery.http.test.js, test/cron.api.test.js and test/routine-origin-race.test.js. See qa/seam-audit-0912/REPAIR.md for final gate receipts and exact scope. Source repaired; installer and affected-customer recovery remain unverified.
 
 ## Regression
 
-test/seam-audit-recovery.http.test.js
+test/seam-audit-recovery.http.test.js, test/cron.api.test.js and test/routine-origin-race.test.js
