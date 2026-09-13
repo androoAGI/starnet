@@ -783,3 +783,4 @@ test/prop-industrial-remaster.test.js
 test/industrialtextures.test.js
 test/world-texture-ready.test.js
 test/qa-claims-blob-batch.test.js
+test/workstation-screen-state.test.js

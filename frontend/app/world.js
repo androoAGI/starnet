@@ -884,6 +884,21 @@ const World = (() => {
     return computeOkFor(p.agentId);
   }
 
+  // Physical presence powers the remastered glass independently of backend work.
+  // An assigned agent walking, waiting or seated elsewhere must not wake this CRT.
+  function bodyAtWorkstationSeat(body, at) {
+    if (!body || body.unplaced || !body.sitting || body.state === 'walk' || body.target || !at) return false;
+    const foot = seatFoot(at);
+    return Number.isFinite(body.px) && Number.isFinite(body.py) &&
+      Math.hypot(body.px-foot.x, body.py-foot.y) <= 1;
+  }
+  function workstationOccupied(p) {
+    if (!p.agentId || !isWorkstationProp(p.t)) return false;
+    const body = agent && p.agentId === agent.id ? agent : crew.find(b => b.agentId === p.agentId);
+    const home = deskPropFor(p.agentId);
+    return !!(home && home.id === p.id && bodyAtWorkstationSeat(body, deskSeat(p)));
+  }
+
   // the workstation: the hero's ASSIGNED desk if it placed one, else a 2-wide desk on the spawn room's north wall.
   function placeDesk() {
     blocked = new Set();
@@ -6030,7 +6045,10 @@ const World = (() => {
         // G0.2/G0.3 live desk truth: a LIT assigned workstation carries its agent's real activity heat
         // (token/tool-driven, heatFor) + a task-progress fraction ONLY when a real one was published
         // (deskProgFor — a live harness run has none and renders none).
-        const live = (p.agentId && workstationLit(p)) ? { heat: heatFor(p.agentId), prog: deskProgFor(p.agentId) } : null;
+        let live = (p.agentId && workstationLit(p)) ? { heat: heatFor(p.agentId), prog: deskProgFor(p.agentId) } : null;
+        if (isWorkstationProp(p.t)) live = Object.assign({ heat: 0, prog: null }, live, {
+          occupied: workstationOccupied(p), still: reduceMotion()
+        });
         // A stool/chair sorts just BEHIND its sitter; a couch sorts just IN FRONT so the tall sofa back
         // occludes the sitter's lower body. Beds/beanbags never set `seated` and never enter this branch.
         // A BODY IS IN THIS BED (lyingBed): the bed paints in TWO passes around it — frame + pillow under
@@ -6067,7 +6085,7 @@ const World = (() => {
         if (sleeper) dp = Object.assign(dp === p ? Object.assign({}, p) : dp, { sleeper: true });
         items.push({ y: sy, draw: () => { if (propOnScreen(dp)) drawLitProp(dp, work, live); } });
         if (PropSprites.lightOf) {
-          const lt = PropSprites.lightOf(dp, work, reduceMotion());
+          const lt = PropSprites.lightOf(dp, work, reduceMotion(), live);
           if (lt) propLights.push(Object.assign({}, lt, { originX: (p.x + (p.w || 1) / 2) * T, originY: (p.y + (p.h || 1) / 2) * T }));
         }
         // SEAT-FRONT SLIVER: a stool/chair's pad front rim redraws just IN FRONT of its (lifted) sitter,
@@ -6111,14 +6129,15 @@ const World = (() => {
       // one desk art everywhere: the synthetic auto-desk routes through the canonical prop renderer,
       // carrying the truthful G0.2/G0.3 live data (heat + published progress) into the prop desk
       const work = !!(agent && agent.working);
-      const live = work ? { heat: heatFor(agent.id), prog: deskProgFor(agent.id) } : null;
+      const live = { heat: work ? heatFor(agent.id) : 0, prog: work ? deskProgFor(agent.id) : null,
+        occupied: bodyAtWorkstationSeat(agent, seat), still: reduceMotion() };
       if (typeof PropSprites !== 'undefined' && PropSprites.has('desk')) {
         PropSprites.setCtx(ctx); PropSprites.setNow(now);
         drawLitProp({ t: 'desk', x: desk.tx, y: desk.ty, w: desk.w, h: desk.h }, work, live);
       } else F_desk(desk.tx * T, desk.ty * T, desk.w * T, desk.h * T, { x: desk.tx, work, heat: live ? live.heat : 0, prog: live ? live.prog : null });
     } });
     if (desk && !deskPropId && typeof PropSprites !== 'undefined' && PropSprites.lightOf) {   // the auto-desk's CRT lights the deck while the hero works, like any placed workstation
-      const lt = PropSprites.lightOf({ t: 'desk', x: desk.tx, y: desk.ty, w: desk.w, h: desk.h }, !!(agent && agent.working), reduceMotion());
+      const lt = PropSprites.lightOf({ t: 'desk', x: desk.tx, y: desk.ty, w: desk.w, h: desk.h }, !!(agent && agent.working), reduceMotion(), { occupied: bodyAtWorkstationSeat(agent, seat) });
       if (lt) propLights.push(Object.assign({}, lt, { originX: (desk.tx + desk.w / 2) * T, originY: (desk.ty + desk.h / 2) * T }));
     }
     if (seat && !deskPropId) items.push({ y: seatFoot(seat).y + 1, draw: () => drawSeatChair(seat.tx, seat.ty, seat.cx, seat.cy, deskFace) });
