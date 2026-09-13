@@ -1240,7 +1240,7 @@ const Chat = (() => {
       if (row.role === 'user') userRunId = String(row.sourceRunId || '');
       if (committedAggregate(row, String(row.sourceRunId || userRunId))) continue;
       if (row.role === 'assistant' && !String(row.content == null ? '' : row.content).trim()) continue;
-      const key = row.role + ' ' + String(row.content || '');
+      const key = row.role + '\u0000' + String(row.content || '');
       const q = buckets.get(key) || []; q.push(kept.length); buckets.set(key, q);
       kept.push({ row, key });
     }
@@ -1256,7 +1256,7 @@ const Chat = (() => {
       if (!turn || (turn.role !== 'user' && turn.role !== 'assistant')) continue;
       const content = String(turn.content == null ? '' : turn.content);
       if (turn.role === 'assistant' && !content.trim()) continue;
-      const key = turn.role + ' ' + content;
+      const key = turn.role + '\u0000' + content;
       const q = buckets.get(key), idx = (q && q.length) ? q.shift() : -1;
       if (idx >= 0) {
         const prior = kept[idx].row;
