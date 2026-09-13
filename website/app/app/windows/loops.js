@@ -275,6 +275,7 @@
     let refreshGeneration = 0;
     let refreshing = false, refreshAgain = false;
     const pendingControls = new Set();
+    const pendingVerdicts = new Set();
     async function refresh() {
       if (refreshing) { refreshAgain = true; return; }
       refreshing = true;
@@ -326,7 +327,11 @@
                 const previous = Array.from(old.querySelectorAll('.lp-pend')).find(el => el.dataset.n === card.dataset.n);
                 if (!previous) continue;
                 const why = previous.querySelector('.lp-why');
-                if (why) card.querySelector('.lp-why').replaceWith(why);
+                if (why) {
+                  const stacked = Number(card.querySelector('button[data-vact="reject"]').dataset.stacked) || 0;
+                  why.querySelector('.lp-why-cost').textContent = stacked > 0 ? 'also discards ' + stacked + ' built on top of this' : '';
+                  card.querySelector('.lp-why').replaceWith(why);
+                }
               }
               const folds = Array.from(old.querySelectorAll('details')).map(el => el.open);
               next.querySelectorAll('details').forEach((el, i) => { el.open = !!folds[i]; });
@@ -334,6 +339,9 @@
               if (focused && next.contains(focused)) { focused.focus({ preventScroll: true }); if (selection) focused.setSelectionRange(...selection); }
             } else listEl.appendChild(next);
             if (pendingControls.has(l.id)) next.querySelectorAll('button[data-act]').forEach(el => { el.disabled = true; });
+            next.querySelectorAll('.lp-pend').forEach(card => {
+              if (pendingVerdicts.has(l.id + ':' + card.dataset.n)) card.querySelectorAll('button[data-vact]').forEach(el => { el.disabled = true; });
+            });
           }
           for (const old of existing.values()) old.remove();
         }
@@ -383,12 +391,17 @@
         if (act === 'reject-cancel') { card.querySelector('.lp-why').hidden = true; sfx('click'); return; }
 
         const n = parseInt(vb.dataset.n, 10);
+        const verdictKey = id + ':' + n;
+        if (pendingVerdicts.has(verdictKey)) return;
+        pendingVerdicts.add(verdictKey);
         const verdict = act === 'approve' ? 'approved' : 'rejected';
         const note = verdict === 'rejected' ? ((card.querySelector('.lp-why-in') || {}).value || '') : undefined;
-        vb.disabled = true; sfx('click');
+        card.querySelectorAll('button[data-vact]').forEach(el => { el.disabled = true; }); sfx('click');
+        ++refreshGeneration;
         try {
-          const r = await (await post('/api/loops/verdict', { id, n, verdict, note })).json();
-          if (r && r.error) { notify(r.error, 'warn'); sfx('bad'); }
+          const response = await post('/api/loops/verdict', { id, n, verdict, note });
+          const r = await response.json();
+          if (!response.ok || !r || !r.ok) { notify((r && r.error) || 'could not record this review', 'warn'); sfx('bad'); }
           else {
             const cas = (r && r.cascaded && r.cascaded.length) || 0;
             /* SAY WHAT HAPPENED TO THE CODE, not just to the row. A rejection now really reverts the
@@ -405,6 +418,14 @@
             if (r && r.undoNote) notify(r.undoNote, 'warn');
           }
         } catch (_) { notify('could not reach the station', 'warn'); sfx('bad'); }
+        finally {
+          pendingVerdicts.delete(verdictKey); ++refreshGeneration;
+          listEl.querySelectorAll('.mc-row').forEach(el => {
+            if (el.dataset.id === id) el.querySelectorAll('.lp-pend').forEach(c => {
+              if (String(c.dataset.n) === String(n)) c.querySelectorAll('button[data-vact]').forEach(b => { b.disabled = false; });
+            });
+          });
+        }
         refresh(); return;
       }
 

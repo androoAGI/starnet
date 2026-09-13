@@ -87,10 +87,10 @@ const ReturnStore = (() => {
       recoveryTimer = setTimeout(maybeDigest, HEARTBEAT_MS);
       return;
     }
-    if (!rows.length || fired) return;
-    fired = true;
     // an already-open OUTBOX window re-renders with the fresh crates (no-op when closed)
     try { if (typeof StationUI !== 'undefined' && StationUI.rerender) StationUI.rerender('outbox'); } catch (_) {}
+    if (!rows.length || fired) return;
+    fired = true;
     if (typeof Chat !== 'undefined' && Chat.awayDigest) Chat.awayDigest(rows.slice(0, Returns.DIGEST_CAP), { onRated: resolve, openWork: openWork });
   }
 

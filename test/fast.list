@@ -520,6 +520,8 @@ test/loopjob.test.js
 test/loopjob-check.test.js
 test/loopjob-driver.test.js
 test/model-loop-control.test.js
+test/loop-review-controls.test.js
+test/routine-origin-race.test.js
 test/returnstore-recovery.test.js
 test/settings-save-failure.test.js
 test/loop-tools.test.js
