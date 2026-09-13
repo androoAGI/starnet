@@ -1220,32 +1220,59 @@ const Chat = (() => {
       }
       return false;
     };
-    const buckets = new Map();
-    const status = [];
+    // THE LOCAL THREAD OWNS ITS ORDER (2026-09-13). The durable transcript is NOT a byte-exact superset of what
+    // the Commander saw: a group/@mention run records its user turn as a "Shared conversation context…" packet,
+    // a screen capture is journaled as a synthetic user turn, and error / stopped / delegated / retried rows only
+    // ever exist locally. The old merge emitted the server's turns first and pushed every unmatched local row to
+    // the END — so a user's own questions slid to the bottom, internal prompts surfaced as their messages, and
+    // App.persist() made the scramble permanent on every open ("history disappears"). Now: walk the local rows in
+    // their own order and keep every one in place; a durable turn with an exact local twin ENRICHES that row
+    // (ts / rowId / sourceRunId); a durable turn the local thread never saw (headless cron / channel / page-closed
+    // completion) is INSERTED right after the last row a durable turn anchored to. Nothing is ever reordered.
+    const kept = [];   // { row, key } — the surviving local rows, original order
+    const buckets = new Map();   // role\0content -> queue of kept indices (occurrence-aware, like before)
     let userRunId = '';
     for (const row of Array.isArray(local) ? local : []) {
-      if (row && row.sys) { if (!row.transcriptPending) status.push(row); continue; }
+      // settled local status lines (failed / silent / nothing-to-report) stay exactly where they were. A pending
+      // transcript warning is rebuilt from the latest read below, so it vanishes as soon as canonical prose lands.
+      if (row && row.sys) { if (!row.transcriptPending) kept.push({ row, key: null }); continue; }
       if (!row || (row.role !== 'user' && row.role !== 'assistant')) continue;
       if (row.role === 'user') userRunId = String(row.sourceRunId || '');
       if (committedAggregate(row, String(row.sourceRunId || userRunId))) continue;
       if (row.role === 'assistant' && !String(row.content == null ? '' : row.content).trim()) continue;
-      const key = row.role + '\u0000' + String(row.content || '');
-      const q = buckets.get(key) || []; q.push(row); buckets.set(key, q);
+      const key = row.role + ' ' + String(row.content || '');
+      const q = buckets.get(key) || []; q.push(kept.length); buckets.set(key, q);
+      kept.push({ row, key });
     }
-    const merged = [];
+    // User-role rows the sidecar journals that were never typed by the Commander: the group-session context packet
+    // (sidecar/group-sessions.js) and the screen-capture injection (sidecar/loop.js). Prefix-matched on purpose —
+    // both are fixed harness strings, and a real message that merely mentions them does not START with them.
+    const internalTranscriptPrompt = text => /^Shared conversation context \(/.test(text) || /^\[BEGIN EXTERNAL SCREEN CAPTURE/.test(text);
+    // Durable-only turns, keyed by the kept index they follow (-1 = before the first local row). Occurrence queues,
+    // rather than a Set, keep two identical user turns distinct while still preventing a duplicate final answer.
+    const inserts = new Map();
+    let anchor = -1;
     for (const turn of Array.isArray(turns) ? turns : []) {
       if (!turn || (turn.role !== 'user' && turn.role !== 'assistant')) continue;
-      if (turn.role === 'assistant' && !String(turn.content == null ? '' : turn.content).trim()) continue;
-      const key = turn.role + '\u0000' + String(turn.content || '');
-      const q = buckets.get(key) || [], prior = q.shift();
-      merged.push(Object.assign({}, turn, prior || {}, { role: turn.role, content: String(turn.content || ''), ts: turn.ts != null ? turn.ts : (prior && prior.ts) }));
+      const content = String(turn.content == null ? '' : turn.content);
+      if (turn.role === 'assistant' && !content.trim()) continue;
+      const key = turn.role + ' ' + content;
+      const q = buckets.get(key), idx = (q && q.length) ? q.shift() : -1;
+      if (idx >= 0) {
+        const prior = kept[idx].row;
+        kept[idx].row = Object.assign({}, turn, prior, { role: turn.role, content, ts: turn.ts != null ? turn.ts : prior.ts });
+        anchor = idx;
+        continue;
+      }
+      if (turn.role === 'user' && internalTranscriptPrompt(content)) continue;   // harness packets are not Commander speech
+      const list = inserts.get(anchor) || []; list.push(Object.assign({}, turn, { role: turn.role, content })); inserts.set(anchor, list);
     }
-    // Preserve genuinely local/in-flight rows the sidecar has not committed yet. Occurrence queues, rather than
-    // a Set, keep two identical user turns distinct while still preventing a duplicate final answer.
-    for (const q of buckets.values()) for (const row of q) merged.push(row);
-    // Keep settled local status lines (failed / silent / nothing-to-report). A pending transcript warning is rebuilt
-    // from the latest read below, so it disappears automatically as soon as canonical prose becomes available.
-    for (const row of status) merged.push(row);
+    const merged = [];
+    for (const turn of inserts.get(-1) || []) merged.push(turn);
+    for (let i = 0; i < kept.length; i++) {
+      merged.push(kept[i].row);
+      for (const turn of inserts.get(i) || []) merged.push(turn);
+    }
     return merged;
   }
 
