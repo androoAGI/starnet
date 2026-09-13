@@ -19,6 +19,16 @@
 
 const PropSprites = (() => {
   const TILE = 12;
+  // The industrial remaster changes authored materials and construction, never world units.
+  const remasterStyle = () => typeof IndustrialTextures !== 'undefined' &&
+    typeof IndustrialTextures.isRemaster === 'function' && IndustrialTextures.isRemaster();
+  const ARMOR = { ink:'#171a1b', ao:'#111515', dk:'#262b2b', face:'#3d4240', top:'#565b54', mid:'#4a514a', lit:'#777a68', hi:'#a19d7d', sheen:'#8a8870', spec:'#aaa182' };
+  const CHASSIS = { ink:'#101616', ao:'#090f10', dk:'#1b2425', face:'#2c3838', top:'#45514e', mid:'#3c4844', lit:'#626d5e', hi:'#8b8f72', sheen:'#777e64', spec:'#999c7c' };
+  const UPHOLSTERY = { ink:'#171c1c', ao:'#111818', dk:'#222c2c', face:'#374343', top:'#4c5956', mid:'#434f4d', lit:'#606b62', hi:'#7a8272', sheen:'#707966', spec:'#838975' };
+  // Getters retain each classic ramp exactly and make asynchronous pack readiness safe.
+  const styledRamp = (classic, remaster) => new Proxy(classic, {
+    get(target, key) { return remasterStyle() && Object.prototype.hasOwnProperty.call(remaster, key) ? remaster[key] : target[key]; }
+  });
   /* MOUNT GEOMETRY — how far above the floor line every table's top plane sits. A prop whose catalog
      row says mount:'surface' is drawn shifted up by exactly this, which is why all tables MUST agree
      on it (see the TABLES section). One constant, no per-table lookup. */
@@ -47,7 +57,7 @@ const PropSprites = (() => {
   const CHROMA_SKIP = 0.45;                         // authored saturation at/above this is already local colour
   const _cboost = new Map();
   const chromaOf = (c) => {
-    if (CHROMA === 1 || typeof c !== 'string' || c.length !== 7 || c[0] !== '#') return c;
+    if (remasterStyle() || CHROMA === 1 || typeof c !== 'string' || c.length !== 7 || c[0] !== '#') return c;
     const hit = _cboost.get(c); if (hit !== undefined) return hit;
     const hsl = _toHsl(c), h = hsl[0], s = hsl[1], l = hsl[2];
     let out = c;
@@ -87,6 +97,7 @@ const PropSprites = (() => {
     return [Math.round(f(h + 1 / 3) * 255), Math.round(f(h) * 255), Math.round(f(h - 1 / 3) * 255)];
   };
   function shade(hex, f) {
+    if (remasterStyle()) return U.shade(hex, f * 0.88);
     if (!f || typeof hex !== 'string' || hex.length !== 7 || hex[0] !== '#') return U.shade(hex, f);
     const key = hex + '|' + Math.round(f * 1000);
     const hit = _shadeCache.get(key);
@@ -124,8 +135,9 @@ const PropSprites = (() => {
      a teal couch gets a teal-black edge. Cached per catalog id, so it costs one frame of counting. */
   const _ink = new Map();            // prop id -> ink hex
   let _inkTally = null;              // { id, h: Float64Array(12), s: number }
-  const inkFor = id => _ink.get(id) || LINE;
-  function inkBegin(id) { if (!_ink.has(id)) _inkTally = { id, bins: new Float64Array(12), n: 0 }; }
+  const inkFor = id => remasterStyle() ? ARMOR.ink : (_ink.get(id) || LINE);
+  const inkKey = id => (remasterStyle() ? 'remaster:' : '') + id;
+  function inkBegin(id) { const key=inkKey(id); if (!_ink.has(key)) _inkTally = { id:key, bins: new Float64Array(12), n: 0 }; }
   function inkNote(c) {
     if (!_inkTally || typeof c !== 'string' || c.length !== 7 || c === LINE) return;
     const nn = parseInt(c.slice(1), 16);
@@ -150,8 +162,27 @@ const PropSprites = (() => {
      (LSWAP, below the ramps). Nothing sets MIRROR except a deliberately mirrored draw.
      ORDER MATTERS: the mirror swap picks a DIFFERENT AUTHORED tone, then the chroma dial grades
      whatever tone was picked — grading first would hand LSWAP a colour that is not in its table. */
+  // Only decorative electronics adopt the bridge's cyan/amber vocabulary.
+  // Functional LEDs, status colors, natural pigments and upholstery are excluded.
+  const DECOR_ELECTRONICS = new Set(('bridge_tacscreen bridge_dispatch_pylon bridge_orderqueue war_pivotpanel war_threatcore wartable chartwall bigscreen screens ticker holotable treasury_pnl_holo research_corelens research_trendpillar arcade arcade2 pinball djbooth lavalamp plasmaglobe holopet crt_pile').split(' '));
+  const AGED_LIGHT_MATERIAL = new Set(['whiteboard','research_papers','bookstack','bunk','bookshelf']);
+  const remasterPaintCache = new Map();
+  function remasterPaint(id,c) {
+    if(!remasterStyle() || typeof c!=='string' || !/^#[0-9a-f]{6}$/i.test(c))return c;
+    const electronics=DECOR_ELECTRONICS.has(id), aged=AGED_LIGHT_MATERIAL.has(id);
+    if(!electronics&&!aged)return c;
+    const key=(electronics?'e':'p')+c, hit=remasterPaintCache.get(key);if(hit)return hit;
+    const [h,sat,l]=_toHsl(c),deg=h*360;
+    let out=c;
+    if(electronics&&sat>.18&&l>.075&&((deg>=260&&deg<=355)||deg<14))
+      out=_toHex(190/360,Math.min(.48,sat*.65),Math.min(.69,l*.83));
+    else if(electronics&&sat>.18&&deg>=20&&deg<=65&&l>.16)
+      out=_toHex(40/360,Math.min(.45,sat*.7),Math.min(.63,l*.87));
+    else if(aged&&sat<.3&&l>.62)out=_toHex(43/360,.13,Math.min(.78,l*.83));
+    remasterPaintCache.set(key,out);return out;
+  }
   let _curId = null;
-  const px = (x, y, w, h, c) => { if (_inkTally) inkNote(c); if (c === LINE && _curId) c = inkFor(_curId); ctx.fillStyle = chromaOf((MIRROR && LSWAP[c]) || c); ctx.fillRect(x, y, w, h); };
+  const px = (x, y, w, h, c) => { if (_inkTally) inkNote(c); if (c === LINE && _curId) c = inkFor(_curId); ctx.fillStyle = chromaOf(remasterPaint(_curId,(MIRROR && LSWAP[c]) || c)); ctx.fillRect(x, y, w, h); };
   const blink = (period, phase) => ((now / period + (phase || 0)) % 1) < 0.5;
   const flick = (period, phase) => Math.sin(now / period + (phase || 0) * 7);
   const scrCols = ['#62ff9e', '#3fd07c', '#7adfb0', '#2fa863'];
@@ -161,7 +192,8 @@ const PropSprites = (() => {
   // and the floor mysteriously returned. Normalize the index into [0,n) for every world coordinate and uptime.
   const scr = (ph) => {
     const i = Math.floor(now / 700 + (ph || 0)), n = scrCols.length;
-    return scrCols[((i % n) + n) % n];
+    const colors = remasterStyle() ? ['#4097a5', '#51acb8', '#68bac2', '#358795'] : scrCols;
+    return colors[((i % n) + n) % n];
   };
 
   /* ---- furniture micro-helpers (verbatim from v7 sprites.js FURNITURE block) ---- */
@@ -170,6 +202,32 @@ const PropSprites = (() => {
   // Surface marks are authored BEFORE controls and fittings, so screens stay clean.
   // Short directional strokes read as machining; broad untouched fields carry the form.
   const machined = (x, y, w, h, c) => {
+    if (remasterStyle()) {
+      if (w < 7 || h < 3) return;
+      // Authoritative gunmetal grain belongs on casing planes, before their
+      // hardware. This is the sole shared hook: box/bevel must not stamp it twice.
+      const metal=c===ARMOR.face||c===ARMOR.top||c===CHASSIS.face||c===CHASSIS.top;
+      if(metal&&typeof IndustrialTextures.propPanel==='function') {
+        ctx.save();
+        try { IndustrialTextures.propPanel(ctx,x,y,w,h,c); } catch (_) { /* optional material; keep native art */ }
+        finally { ctx.restore(); }
+      }
+      // Captive service panels, layered stringers and worn fasteners, all tied to
+      // the housing's geometry. Fine detail stays inside the broad casing planes.
+      px(x+1,y+1,w-2,.5,shade(c,.24));
+      px(x+1,y+h-1,w-2,.5,shade(c,-.38));
+      for(let xx=x+4;xx<x+w-2;xx+=7){
+        px(xx,y+1,.5,h-2,shade(c,-.38));px(xx+.5,y+1,.5,h-2,shade(c,.10));
+        px(xx-1,y+1,.5,.5,'#8b7950');px(xx-1,y+h-2,.5,.5,'#5d563a');
+      }
+      if(w>=14&&h>=8){
+        const bx=x+w-7,by=y+h-6;
+        px(bx,by,5,4,shade(c,-.50));
+        for(let yy=0;yy<3;yy++){px(bx+1,by+yy,3,.5,shade(c,.24));}
+        px(x+2,y+2,3,1,shade(c,-.3));px(x+2,y+2,2,.5,'#88724a');
+      }
+      return;
+    }
     if (w < 7 || h < 3) return;
     px(x + 1, y + 1, Math.max(2, Math.floor(w * 0.42)), 1, shade(c, 0.055));
     if (h >= 6) {
@@ -192,6 +250,20 @@ const PropSprites = (() => {
     }
   };
   const box = (x, y, w, h, c) => {              // outlined, shaded casing — 2026-09-03: own-hue outline (LINE resolves to the prop's ink), two-step bevels
+    if (remasterStyle()) {
+      // Armored casting: inset body, doubled structural lip, fastened corners.
+      chamf(x-1,y-1,w+2,h+2,LINE,1);
+      px(x,y,w,h,c);px(x,y,w,1,shade(c,.30));
+      px(x,y+1,1,h-2,shade(c,.15));px(x+w-1,y+1,1,h-1,shade(c,-.38));
+      px(x+1,y+h-2,w-2,1,shade(c,-.20));px(x,y+h-1,w,1,shade(c,-.50));
+      if(w>=7&&h>=5){
+        px(x+2,y+2,w-4,h-4,shade(c,-.12));
+        for(const xx of [x+1,x+w-2])for(const yy of [y+1,y+h-2]){
+          px(xx,yy,.5,.5,'#a08a5e');px(xx+.5,yy+.5,.5,.5,shade(c,-.50));
+        }
+      }
+      return;
+    }
     px(x - 1, y - 1, w + 2, h + 2, LINE);
     px(x, y, w, h, c);
     px(x, y, w, 1, shade(c, 0.36));                                  // lit top edge
@@ -206,7 +278,8 @@ const PropSprites = (() => {
     px(x + 1, y + 1, w - 2, h - 2, c);
     px(x + 1, y + 1, w - 2, 1, shade(c, -0.3));
   };
-  const bevel = (x, y, w, h, c) => {            // box + inner 3-tone face
+  const bevel = (x, y, w, h, c) => {
+    if (remasterStyle()) { box(x, y, w, h, c); machined(x+1,y+1,w-2,h-2,c); return; }            // box + inner 3-tone face
     box(x, y, w, h, c);
     px(x + 1, y + 1, w - 2, h - 2, shade(c, 0.10));
     px(x + 1, y + 1, w - 2, 1, shade(c, 0.30));
@@ -214,7 +287,8 @@ const PropSprites = (() => {
     px(x + w - 2, y + 2, 1, h - 4, shade(c, -0.18));
     px(x + 1, y + h - 2, w - 2, 1, shade(c, -0.32));
   };
-  const seamH = (x, y, w, c) => {               // recessed panel seam (shadow+catch)
+  const seamH = (x, y, w, c) => {
+    if (remasterStyle()) { px(x,y,w,1,shade(c,-.55));px(x,y+1,w,.5,'#726244'); return; }               // recessed panel seam (shadow+catch)
     px(x, y, w, 1, shade(c, -0.45));
     px(x, y + 1, w, 1, shade(c, 0.14));
   };
@@ -222,7 +296,8 @@ const PropSprites = (() => {
     px(x, y, 1, 1, lc); px(x + w - 1, y, 1, 1, lc);
     px(x, y + h - 1, 1, 1, dc); px(x + w - 1, y + h - 1, 1, 1, dc);
   };
-  const wear = (x, y, w, h, n, c) => {          // deterministic scuff/grime speckle
+  const wear = (x, y, w, h, n, c) => {
+    // Edge wear remains deterministic and subordinate to the panel structure.
     if (w < 4 || h < 4) return;
     for (let i = 0; i < n; i++) {
       const hx = U.hash('w' + x + ',' + y + ',' + i);
@@ -232,7 +307,8 @@ const PropSprites = (() => {
       px(x + 1 + (hx % (w - 2)), y + 1 + ((hx >>> 5) % (h - 2)), 1 + (hx % 2), 1, c);
     }
   };
-  const scanl = (x, y, w, h, a) => {            // CRT scanlines over a lit screen
+  const scanl = (x, y, w, h, a) => {
+    if (remasterStyle()) a *= .60;            // fine subdued CRT scanlines
     ctx.globalAlpha = a;
     for (let j = 1; j < h; j += 2) px(x, y + j, w, 1, '#000');
     ctx.globalAlpha = 1;
@@ -259,9 +335,9 @@ const PropSprites = (() => {
     return '#' + ((1 << 24) | (r << 16) | (g << 8) | b).toString(16).slice(1);
   };
   const RAMP = {
-    steel: { top: dim('#4a5862'), face: dim('#39454d'), lit: dim('#5f6f7a'), sheen: dim('#7a8b95', -0.2), dk: dim('#242e35'), ao: dim('#12181d') },
-    gun:   { top: dim('#3c4a44'), face: dim('#2e3a36'), lit: dim('#4e5e56'), sheen: dim('#68796f', -0.2), dk: dim('#1d2723'), ao: dim('#0f1512') },
-    fabric:{ top: dim('#46565f'), face: dim('#39464e'), lit: dim('#5a6b75'), sheen: dim('#70828c', -0.2), dk: dim('#28323a'), ao: dim('#141b20') },
+    steel: styledRamp({ top: dim('#4a5862'), face: dim('#39454d'), lit: dim('#5f6f7a'), sheen: dim('#7a8b95', -0.2), dk: dim('#242e35'), ao: dim('#12181d') }, ARMOR),
+    gun:   styledRamp({ top: dim('#3c4a44'), face: dim('#2e3a36'), lit: dim('#4e5e56'), sheen: dim('#68796f', -0.2), dk: dim('#1d2723'), ao: dim('#0f1512') }, CHASSIS),
+    fabric:styledRamp({ top: dim('#46565f'), face: dim('#39464e'), lit: dim('#5a6b75'), sheen: dim('#70828c', -0.2), dk: dim('#28323a'), ao: dim('#141b20') }, UPHOLSTERY),
   };
   /* ============ v12 MATERIAL — the same hue, the WHOLE value range ============
      Measured, not guessed. The crew sprites (assets.js, the art this station already ships and is
@@ -311,15 +387,15 @@ const PropSprites = (() => {
      STEEL is RAMP.steel's own #4a5862, GUN is RAMP.gun's #3c4a44. The accents are the saturated
      local colour the catalog never had — used as trim and panels, never as a whole body. */
   const MAT = {
-    steel: MX('#4a5862', 1.55),   // the catalog's blue-grey machine steel, full range
-    gun:   MX('#3c4a44', 1.55),   // the console family's green-grey
+    steel: styledRamp(MX('#4a5862', 1.55), ARMOR),   // the catalog's blue-grey machine steel, full range
+    gun:   styledRamp(MX('#3c4a44', 1.55), CHASSIS),   // the console family's green-grey
     brass: MX('#a8873f', 1.25),   // fittings, wheel spokes, bolt heads
     amber: MX('#c07a2a', 1.15),   // warm panel trim / hazard bands
-    slate: MX('#2b333a', 1.30),   // dark bezels, recessed wells
+    slate: styledRamp(MX('#2b333a', 1.30), CHASSIS),   // dark bezels, recessed wells
     /* the couch/soft-furnishing blue-grey, lifted straight from the shipped RAMP.fabric base so the
        lounge keeps the colour it already had. Chroma is left LOW on purpose — this material is meant
        to sit quietly in the room, and the couch is a five-tile mass. */
-    fabric: MX('#46565f', 1.00),  // upholstery — the catalog's own blue-grey
+    fabric: styledRamp(MX('#46565f', 1.00), UPHOLSTERY),  // upholstery — the catalog's own blue-grey
     /* ⛔ A WARM BROWN SEAT READS AS WOOD, AND A WOODEN CHAIR HAS NO PLACE ON THIS STATION.
        ⛔ LIGHT SILVER, AND NOT VIA MX (2026-08-16, Andrew's call — the teal is gone entirely).
        This is authored by hand rather than built from MX because MX anchors `face` at L 0.235, and
@@ -343,6 +419,14 @@ const PropSprites = (() => {
   const seamLitV = (sx, sy, sh2, r2) => { px(sx, sy, 1, sh2, r2.ao); px(sx - 1, sy, 1, sh2, r2.mid); };
   // brushed grain that RIDES the row it lands on instead of replacing it with a fixed tint
   const grain = (gx, gy, gw2, gh2, r2, seed) => {
+    if (remasterStyle()) {
+      for(let j=1;j<gh2;j+=3)for(let i=2;i<gw2;i+=6){
+        const n=U.hash('alloy'+(gx+i)+','+(gy+j)+','+(seed||0));
+        if(n%3===0)px(gx+i,gy+j,1,.5,r2.dk);
+        else if(n%5===0)px(gx+i,gy+j,.5,.5,r2.mid);
+      }
+      return;
+    }
     for (let j = 0; j < gh2; j++) for (let i = 0; i < gw2; i++) {
       const n = Math.sin((gx + i) * 12.9898 + (gy + j) * 78.233 + (seed || 0)) * 43758.5453;
       const t = n - Math.floor(n);
@@ -356,6 +440,12 @@ const PropSprites = (() => {
   };
   // worn edge: chip the top-lit lip so the object has been USED (kept sparse — noise is not wear)
   const chip = (cx2, cy2, cw2, r2, seed) => {
+    if (remasterStyle()) {
+      for(let i=2;i<cw2-1;i+=5)if(U.hash('edge'+cx2+','+i+','+(seed||0))%3!==0){
+        px(cx2+i,cy2,1,.5,r2.dk);px(cx2+i+.5,cy2+.5,.5,.5,'#8d774d');
+      }
+      return;
+    }
     for (let i = 0; i < cw2; i++) {
       const n = Math.sin((cx2 + i) * 45.164 + (seed || 0)) * 21631.7;
       if (n - Math.floor(n) > 0.82) px(cx2 + i, cy2, 1, 1, r2.dk);
@@ -407,7 +497,14 @@ const PropSprites = (() => {
   const rr = (x, y, w, h, c) => {                // rounded rect: 1px corner cuts kill the boxiness
     px(x + 1, y, w - 2, 1, c); px(x, y + 1, w, h - 2, c); px(x + 1, y + h - 1, w - 2, 1, c);
   };
-  const deckPlate = (x, y, w, h2) => {           // bolted-to-deck mounting plate under a SYSTEMS prop
+  const deckPlate = (x, y, w, h2) => {
+    if (remasterStyle()) {
+      if (w < 4 || h2 < 2) return;
+      rr(x,y,w,h2,CHASSIS.ink);px(x+1,y,w-2,1,CHASSIS.top);
+      px(x+1,y+1,w-2,Math.max(1,h2-2),CHASSIS.face);
+      for(let xx=x+2;xx<x+w-2;xx+=5){px(xx,y,.5,.5,'#9b8053');px(xx,y+h2-1,2,.5,'#6d5d3b');}
+      px(x+2,y+h2-1,w-4,.5,CHASSIS.dk);return;
+    }           // bolted-to-deck mounting plate under a SYSTEMS prop
     if (w < 4 || h2 < 2) return;
     rr(x, y, w, h2, '#10161a');
     px(x + 1, y, w - 2, 1, '#34434c');           // exposed chamfer
@@ -450,9 +547,17 @@ const PropSprites = (() => {
 
   // Equipment finish: cold rolled steel with a satin face and a bright machined edge.
   // Scoped to workstation/capability bodies; upholstery and decorative furniture keep their ramps.
-  const EQUIPMENT = { ink:'#26313b', ao:'#111922', dk:'#29343e', face:'#475560', top:'#647580', mid:'#7b8c95', lit:'#a6b5bc', hi:'#c9d4d7', sheen:'#dde5e5', spec:'#dde5e5' };
-  const INSTRUMENT = { ink:'#1b242e', ao:'#0e141c', dk:'#222f3b', face:'#33434e', top:'#4b5d69', mid:'#697f8b', lit:'#8fa4af', hi:'#b5c6cd', sheen:'#d2dfe3', spec:'#d2dfe3' };
+  const EQUIPMENT = styledRamp({ ink:'#26313b', ao:'#111922', dk:'#29343e', face:'#475560', top:'#647580', mid:'#7b8c95', lit:'#a6b5bc', hi:'#c9d4d7', sheen:'#dde5e5', spec:'#dde5e5' }, ARMOR);
+  const INSTRUMENT = styledRamp({ ink:'#1b242e', ao:'#0e141c', dk:'#222f3b', face:'#33434e', top:'#4b5d69', mid:'#697f8b', lit:'#8fa4af', hi:'#b5c6cd', sheen:'#d2dfe3', spec:'#d2dfe3' }, CHASSIS);
   const panelFinish = (x,y,w,h,r) => {
+    if (remasterStyle()) {
+      if(w<5||h<3)return;
+      px(x,y,w,h,r.ao);px(x+1,y+1,w-2,h-2,r.face);
+      px(x,y,w,.5,r.lit);px(x+w-1,y+1,1,h-1,r.dk);
+      px(x,y+h-1,w,1,r.ink);machined(x+1,y+1,w-2,h-2,r.face);
+      if(w>=9&&h>=5){for(const xx of [x+1,x+w-2]){px(xx,y+1,.5,.5,'#9b8559');px(xx,y+h-2,.5,.5,'#6f6247');}}
+      return;
+    }
     if(w<5||h<3)return;
     px(x,y,w,h,r.face);
     px(x,y,w,1,r.mid); px(x,y+1,Math.max(2,Math.floor(w*.6)),1,r.top);
@@ -468,8 +573,14 @@ const PropSprites = (() => {
       px(x+3,y+h-2,2,1,r.mid); // engraved service index, never a status light
     }
   };
-  const captiveBolt = (x,y,r) => {px(x,y,2,2,r.ao);px(x,y,2,1,r.lit);px(x+1,y+1,1,1,r.dk);};
+  const captiveBolt = (x,y,r) => {if(remasterStyle()){px(x,y,1,1,r.ao);px(x,y,.5,.5,'#a08757');px(x+.5,y+.5,.5,.5,r.dk);return;}px(x,y,2,2,r.ao);px(x,y,2,1,r.lit);px(x+1,y+1,1,1,r.dk);};
   const equipmentApron = (x,y,w,r) => {
+    if(remasterStyle()){
+      px(x,y,w,3,r.ink);px(x+1,y,w-2,2,r.face);
+      px(x+2,y,w-4,.5,r.lit);px(x+Math.floor(w/2)-2,y+1,4,1,r.ao);
+      for(let xx=x+2;xx<x+w-2;xx+=4){px(xx,y+2,2,.5,'#877143');px(xx,y+1,.5,.5,r.top);}
+      return;
+    }
     px(x,y,w,3,r.ink);px(x+1,y,w-2,1,r.mid);
     px(x+2,y+1,w-4,1,r.face);
     // Matte isolation gasket beneath the steel fascia; no specular highlight.
@@ -512,6 +623,7 @@ const PropSprites = (() => {
     for (const k in RAMP) pair(RAMP[k].lit, RAMP[k].dk);
     for (const k in MAT) pair(MAT[k].lit, MAT[k].dk);
     pair(EQUIPMENT.lit, EQUIPMENT.dk); pair(INSTRUMENT.lit, INSTRUMENT.dk);
+    pair(ARMOR.lit, ARMOR.dk); pair(CHASSIS.lit, CHASSIS.dk); pair(UPHOLSTERY.lit, UPHOLSTERY.dk);
     pair(KEY, SKY);
     return m;
   })();
@@ -544,7 +656,8 @@ const PropSprites = (() => {
       px(Math.round(x0 + (x1 - x0) * t), Math.round(y0 + (y1 - y0) * t + Math.sin(t * Math.PI) * (sag || 0)), 1, 1, c || '#0b1114');
     }
   };
-  const knurl = (x, y, w, h, c) => {             // machined grip texture on a dial / handle
+  const knurl = (x, y, w, h, c) => {
+    if (remasterStyle()) { px(x,y,w,h,shade(c,-.30));for(let i=0;i<w;i+=2)px(x+i,y,.5,h,shade(c,.17));return; }             // machined grip texture on a dial / handle
     for (let i = 0; i < w; i += 2) px(x + i, y, 1, h, shade(c, -0.32));
   };
   const dial = (x, y, c, ang) => {               // 3x3 control knob with a pointer mark
@@ -3598,10 +3711,10 @@ const PropSprites = (() => {
     const paint=F[id], frames=new Map();
     F[id]=(x,y,w,h,f)=>{
       if ((typeof IndustrialTextures !== 'undefined' && IndustrialTextures.enabled() && (id === 'desk' || id === 'desk2')) ||
-          (f && f.work) || buildingShadowSilhouette || !_ink.has(id) || typeof document === 'undefined' ||
+          (f && f.work) || buildingShadowSilhouette || !_ink.has(inkKey(id)) || typeof document === 'undefined' ||
           (document.fonts && document.fonts.status !== 'loaded')) return paint(x,y,w,h,f);
       const key=JSON.stringify([x,y,w,h,!!MIRROR,CHROMA,state(f||{}),
-        typeof IndustrialTextures !== 'undefined' && IndustrialTextures.enabled()]);
+        typeof IndustrialTextures !== 'undefined' && IndustrialTextures.enabled(), remasterStyle()]);
       let image=frames.get(key);
       if (!image) {
         image=document.createElement('canvas');image.width=w+24;image.height=h+32;
@@ -10416,6 +10529,137 @@ const PropSprites = (() => {
     }
   };
 
+  /* Industrial station furnishing expansion. Dimensions are WORLD pixels here, already
+     multiplied by TILE. Every solid shares its footprint contact line; only the
+     two floor inserts rotate as decals. Purpose stays decorative and explicit. */
+  F.industrial_locker = (x,y,w,h) => {
+    const r=EQUIPMENT, b=INSTRUMENT, floor=y+h, top=floor-24;
+    shadow2(x+1,floor-1,w-2);
+    chamf(x,top,w,24,r.ink,2);chamf(x+1,top+1,w-2,22,r.face,1);
+    topFace(x+1,top+1,w-2,4,r);px(x+1,floor-2,w-2,2,b.ao);
+    for(let i=0;i<2;i++){const xx=x+2+i*Math.floor((w-3)/2),ww=Math.floor((w-5)/2);
+      px(xx,top+6,ww,14,r.top);px(xx,top+6,ww,1,r.lit);
+      px(xx+ww-2,top+11,1,4,b.dk);px(xx+2,top+7,3,1,b.face);
+      px(xx+2,top+18,ww-4,1,r.dk);machined(xx,top+6,ww,14,r.top);captiveBolt(xx,top+6,r);captiveBolt(xx+ww-1,top+19,r);
+      if(remasterStyle()){
+        px(xx+1,top+9,ww-3,1,b.ao);px(xx+1,top+10,ww-3,.5,r.dk);
+        for(let j=0;j<3;j++)px(xx+1,top+14+j,Math.max(2,ww-5),.5,b.dk);
+        px(xx+ww-3,top+11,1,4,'#887348');
+      }
+    }
+  };
+  F.industrial_drawerbank = (x,y,w,h) => {
+    const r=EQUIPMENT,b=INSTRUMENT, floor=y+h, top=floor-15;
+    shadow2(x+1,floor-1,w-2);chamf(x,top,w,15,r.ink,2);
+    topFace(x+1,top+1,w-2,5,r);px(x+1,top+6,w-2,7,r.face);px(x+2,floor-2,w-4,2,b.ao);
+    for(let i=0;i<3;i++){const xx=x+2+i*Math.floor((w-3)/3), ww=Math.floor((w-6)/3);
+      for(let j=0;j<2;j++){px(xx,top+6+j*3,ww,2,r.top);px(xx+2,top+7+j*3,ww-4,1,b.dk);px(xx+2,top+7+j*3,2,.5,'#8e764b');captiveBolt(xx,top+6+j*3,r);}}
+  };
+  F.industrial_supplycart = (x,y,w,h) => {
+    const r=EQUIPMENT,b=INSTRUMENT,floor=y+h;
+    shadow2(x+2,floor-1,w-4);
+    for(const xx of [x+3,x+w-5]){px(xx,floor-3,3,3,b.ink);px(xx+1,floor-2,1,1,b.mid);px(xx,floor-16,1,14,r.dk);}
+    topFace(x+2,floor-9,w-4,5,b);frontFace(x+2,floor-4,w-4,1,b);
+    topFace(x+2,floor-17,w-4,6,r);frontFace(x+2,floor-11,w-4,2,r);
+    box(x+4,floor-21,6,5,r.face);px(x+5,floor-19,4,1,b.dk);
+    px(x+w-5,floor-23,1,7,b.lit);px(x+w-8,floor-23,4,1,b.lit);
+    px(x+w-10,floor-15,4,2,'#786845');
+  };
+  F.industrial_toolcaddy = (x,y,w,h) => {
+    const r=EQUIPMENT,b=INSTRUMENT,floor=y+h;
+    shadow2(x+1,floor-1,w-2);chamf(x+1,floor-7,w-2,7,r.ink,1);
+    px(x+2,floor-6,w-4,5,r.face);px(x+2,floor-6,w-4,2,r.top);px(x+3,floor-3,w-6,1,b.dk);
+    px(x+4,floor-10,1,4,b.ink);px(x+w-5,floor-10,1,4,b.ink);px(x+4,floor-10,w-8,1,b.mid);
+  };
+  F.industrial_planter = (x,y,w,h) => {
+    const r=EQUIPMENT,floor=y+h, rim=floor-8;
+    shadow2(x+1,floor-1,w-2);chamf(x,rim,w,8,r.ink,2);chamf(x+1,rim+1,w-2,6,r.face,1);
+    px(x+2,rim+1,w-4,3,'#46584d');px(x+2,floor-2,w-4,1,r.dk);
+    for(let i=0;i<3;i++){const xx=x+5+i*Math.floor((w-8)/2);
+      px(xx,rim-8,1,10,'#516f62');chamf(xx-4,rim-7,4,4,'#73998a',1);
+      chamf(xx+1,rim-10,4,5,'#95b4a1',1);chamf(xx-3,rim-12,3,4,'#aac6ac',1);}
+    px(x+2,rim,w-4,1,r.lit);
+  };
+  F.industrial_partition = (x,y,w,h) => {
+    const r=EQUIPMENT,b=INSTRUMENT,floor=y+h,top=floor-21;
+    shadow2(x+1,floor-1,w-2);
+    for(const xx of [x+2,x+w-5]){px(xx,floor-4,3,4,b.ao);px(xx-1,floor-1,5,1,b.mid);}
+    chamf(x,top,w,18,r.ink,2);chamf(x+1,top+1,w-2,16,r.face,1);
+    px(x+2,top+2,w-4,5,'#263f43');px(x+2,top+2,w-4,1,'#477178');
+    px(x+2,top+8,w-4,1,r.dk);px(x+2,top+10,w-4,5,r.top);machined(x+2,top+10,w-4,5,r.top);for(let xx=x+3;xx<x+w-2;xx+=6)captiveBolt(xx,top+1,r);
+    px(x+Math.floor(w/2),top+1,1,15,r.dk);
+    if(remasterStyle()){
+      for(const xx of [x+3,x+Math.floor(w/2)+2]){
+        const ww=Math.floor(w/2)-5;
+        px(xx,top+11,ww,3,b.ao);for(let i=0;i<ww;i+=3)px(xx+i,top+11,1,3,b.top);
+        px(xx,top+15,ww,.5,'#7d6840');captiveBolt(xx,top+9,r);captiveBolt(xx+ww-1,top+15,r);
+      }
+      px(x+2,top+7,w-4,1,b.ink);px(x+3,top+7,w-6,.5,'#81744f');
+    }
+  };
+  F['industrial_partition:e'] = (x,y,w,h) => {
+    const r=EQUIPMENT,b=INSTRUMENT,floor=y+h;
+    shadow2(x+2,floor-1,w-4);px(x+3,y-9,6,h+7,r.ink);
+    px(x+4,y-8,4,h+5,r.face);px(x+4,y-8,2,h+5,r.top);
+    px(x+4,y-8,4,3,'#41636b');px(x+4,y+Math.floor(h/2)-5,4,1,r.dk);
+    px(x+2,floor-3,8,2,b.dk);px(x+3,y-1,6,2,b.mid);
+    if(remasterStyle())for(let yy=y-4;yy<floor-4;yy+=7){px(x+5,yy,2,3,b.ao);px(x+5,yy,2,.5,'#827048');captiveBolt(x+4,yy-1,r);}
+  };
+  F.industrial_bench = (x,y,w,h) => {
+    const r=EQUIPMENT,s=MAT.fabric,b=INSTRUMENT,floor=y+h;
+    shadow2(x+1,floor-1,w-2);
+    for(const xx of [x+3,x+w-5]){px(xx,floor-6,2,6,b.dk);px(xx,floor-1,3,1,b.mid);}
+    topFace(x+1,floor-11,w-2,7,s);frontFace(x+1,floor-4,w-2,2,s);
+    // Seen from behind, matching the couch sitter sandwich already used by world.js.
+    chamf(x,floor-8,w,8,r.ink,2);chamf(x+1,floor-7,w-2,6,r.face,1);
+    px(x+2,floor-7,w-4,2,r.top);px(x+2,floor-2,w-4,1,r.dk);
+    for(let xx=x+12;xx<x+w-2;xx+=12)px(xx,floor-6,1,4,r.dk);
+    if(remasterStyle())for(let xx=x+3;xx<x+w-4;xx+=10){
+      px(xx,floor-5,6,2,b.ao);px(xx+1,floor-5,4,.5,b.top);
+      captiveBolt(xx,floor-7,r);captiveBolt(xx+6,floor-2,r);px(xx+1,floor-2,3,.5,'#786847');
+    }
+  };
+  F.industrial_roundtable = (x,y,w,h) => {
+    const r=EQUIPMENT,b=INSTRUMENT,floor=y+h,plane=floor-SURFACE_RISE;
+    shadow2(x+4,floor-1,w-8);px(x+w/2-2,plane,4,8,b.dk);px(x+w/2-1,plane,1,7,b.lit);
+    chamf(x+w/2-5,floor-2,10,2,b.ink,1);
+    chamf(x,plane-8,w,10,r.ink,4);chamf(x+1,plane-7,w-2,8,r.face,3);
+    chamf(x+2,plane-7,w-4,6,r.top,2);px(x+5,plane-7,w-10,1,r.lit);
+    px(x+5,plane,w-10,1,r.dk);
+    if(remasterStyle()){
+      chamf(x+4,plane-6,w-8,5,b.ink,1);chamf(x+5,plane-5,w-10,3,b.face,1);
+      px(x+6,plane-5,w-12,.5,b.top);px(x+w/2,plane-5,.5,3,b.ao);
+      for(const xx of [x+3,x+w-4])for(const yy of [plane-5,plane-1])captiveBolt(xx,yy,r);
+      px(x+7,plane-1,3,.5,'#887348');px(x+w-10,plane-1,3,.5,'#887348');
+      px(x+w/2-2,plane+3,4,.5,'#7d6c49');
+    }
+  };
+  F.industrial_servicecab = (x,y,w,h) => {
+    const r=EQUIPMENT,b=INSTRUMENT,floor=y+h,top=floor-29;
+    shadow2(x+1,floor-1,w-2);chamf(x,top,w,29,r.ink,2);chamf(x+1,top+1,w-2,27,r.face,1);
+    topFace(x+1,top+1,w-2,5,r);px(x+2,top+7,w-4,12,r.top);machined(x+1,top+6,w-2,15,r.top);captiveBolt(x+1,top+6,r);captiveBolt(x+w-2,top+20,r);
+    px(x+w-4,top+10,1,6,b.dk);px(x+2,top+20,w-4,1,b.dk);
+    for(let j=0;j<3;j++)px(x+3,top+22+j*2,w-6,1,b.dk);
+    px(x+2,floor-2,w-4,2,b.ao);
+  };
+  F.industrial_wallpanel = (x,y,w,h) => {
+    const r=EQUIPMENT,b=INSTRUMENT,top=y+h-25;
+    chamf(x,top,w,23,r.ink,2);chamf(x+1,top+1,w-2,21,r.face,1);
+    topFace(x+1,top+1,w-2,3,r);px(x+3,top+6,w-6,8,r.top);
+    px(x+3,top+6,w-6,1,b.dk);px(x+w-6,top+9,2,3,b.dk);
+    for(let i=0;i<4;i++){px(x+3+i*4,top+17,2,3,b.ao);px(x+3+i*4,top+17,2,1,b.mid);}
+  };
+  F.industrial_floorvent = (x,y,w,h) => {
+    const r=INSTRUMENT;px(x+1,y+1,w-2,h-2,r.ink);px(x+2,y+2,w-4,h-4,r.face);
+    for(let xx=x+3;xx<x+w-3;xx+=3){px(xx,y+3,1,h-6,r.ao);px(xx+1,y+3,1,h-6,r.top);}
+    for(const xx of [x+2,x+w-3]){px(xx,y+2,1,1,r.lit);px(xx,y+h-3,1,1,r.dk);}
+  };
+  F.industrial_cabletray = (x,y,w,h) => {
+    const r=INSTRUMENT;px(x,y+3,w,6,r.ink);px(x,y+4,w,4,r.face);
+    px(x,y+4,w,1,r.top);px(x,y+7,w,1,r.dk);
+    for(let xx=x+3;xx<x+w;xx+=6){px(xx,y+3,2,6,r.top);px(xx+1,y+4,1,4,r.lit);}
+  };
+
   /* ============ CATALOG — every placeable prop ============
      id        — F key (the draw fn) AND the model's prop.t
      label     — palette button text
@@ -10464,7 +10708,34 @@ const PropSprites = (() => {
      is floor furniture and does not (arc_microfiche is a reader DESK, comms_inbox is bolted down,
      tank/monstera are explicitly floor pieces). Every prop function anchors to its footprint bottom,
      so a stacked prop needs no art change — draw() lifts the whole origin by SURFACE_RISE. */
+  // These are authored projections, not rotations of a front sprite. Only a fully
+  // loaded remaster advertises them; a missing pack keeps the old facing contract.
+  for (const id of ['desk','desk2']) for (const facing of ['e','n']) {
+    F[id+':'+facing]=(x,y,w,h,f)=>{
+      if(remasterStyle() && IndustrialTextures.workstation(ctx,x,y,w,h,facing))return;
+      F[id](x,y,w,h,f);
+    };
+  }
+  for (const facing of ['e','n']) F['seatchair:'+facing]=(x,y,w,h,f)=>{
+    if(remasterStyle() && IndustrialTextures.chair(ctx,x,y,w,h,facing))return;
+    F.seatchair(x,y,w,h,f);
+  };
+
   const CATALOG = [
+    // Industrial construction kit: cosmetic furniture, never new capability grants.
+    { id: "industrial_locker", label: "MODULAR LOCKER", cat: "storage", tier: "cosmetic", w: 2, h: 1, animated: false, blocks: true },
+    { id: "industrial_drawerbank", label: "DRAWER BANK", cat: "storage", tier: "cosmetic", w: 3, h: 1, animated: false, blocks: true },
+    { id: "industrial_supplycart", label: "SUPPLY TROLLEY", cat: "decor", tier: "cosmetic", w: 2, h: 1, animated: false, blocks: true },
+    { id: "industrial_toolcaddy", label: "TOOL CADDY", cat: "decor", tier: "cosmetic", w: 1, h: 1, animated: false, blocks: false, stack: true },
+    { id: "industrial_planter", label: "PLANTER TROUGH", cat: "decor", tier: "cosmetic", w: 2, h: 1, animated: false, blocks: true },
+    { id: "industrial_partition", label: "MODULAR PARTITION", cat: "decor", tier: "cosmetic", w: 3, h: 1, animated: false, blocks: true },
+    { id: "industrial_bench", label: "CREW BENCH", cat: "lounge", tier: "cosmetic", w: 3, h: 1, animated: false, blocks: true, use: { kind: 'couch', sit: false, approach: 'south' } },
+    { id: "industrial_roundtable", label: "PEDESTAL TABLE", cat: "decor", tier: "cosmetic", w: 2, h: 1, animated: false, blocks: true, surface: true },
+    { id: "industrial_servicecab", label: "SERVICE CABINET", cat: "decor", tier: "cosmetic", w: 1, h: 2, animated: false, blocks: true },
+    { id: "industrial_wallpanel", label: "SERVICE PANEL", cat: "decor", tier: "cosmetic", w: 2, h: 1, animated: false, blocks: false, mount: 'wall' },
+    { id: "industrial_floorvent", label: "FLUSH GRILLE", cat: "decor", tier: "cosmetic", w: 2, h: 1, animated: false, blocks: false, flat: true },
+    { id: "industrial_cabletray", label: "CABLE CHANNEL", cat: "decor", tier: "cosmetic", w: 3, h: 1, animated: false, blocks: false, flat: true },
+
     /* ===================== FUNCTIONAL ===================== */
     // WORKSTATIONS — the agent's seat. Assign ONE agent; it walks here and sits to work when tasked.
     { id: "desk", label: "DESK", cat: "workstation", tier: "functional", seat: true, w: 2, h: 1, animated: true, blocks: true, desc: D_WS },
@@ -10764,13 +11035,18 @@ const PropSprites = (() => {
      the picture without turning the routes would make the sprite lie about where boxes go. */
   const isDecal = id => { const s = spec(id); return !!(s && s.flat); };
 
-  /* ROTATION IS FOR DECOR ONLY. A `tier:'functional'` prop is the projection of a REAL capability —
+  /* CLASSIC ROTATION IS FOR DECOR ONLY. The fully loaded industrial remaster adds
+     authored desk/desk2 projections with a matching operator approach in world.js. A `tier:'functional'` prop is the projection of a REAL capability —
      an agent walks to it, sits at it, and it grants tools — so its orientation is load-bearing
      rather than decorative, and the approach/seat/routing seams all key off its front.
      `tier:'cosmetic'` props are furnishing, so those are the ones people get to aim however they
      like. Stated here because this is the one place that decides what a facing may draw: a turned
      view added to a functional prop by a later edit is inert, not a silent behaviour change. */
-  const rotatable = id => { const s = spec(id); return !!s && s.tier !== 'functional'; };
+  const REMASTER_DIRECTIONAL = new Set(['desk','desk2','seatchair']);
+  const rotatable = id => {
+    const s=spec(id);
+    return (remasterStyle() && REMASTER_DIRECTIONAL.has(id)) || (!!s && s.tier !== 'functional');
+  };
 
   /* which fn draws prop `id` at facing `r`, whether it must be mirrored to get there, and whether it
      is the south art under a footprint TURN. Returns null when that facing has no honest picture —
@@ -10836,6 +11112,9 @@ const PropSprites = (() => {
        PLAN   — a table's footprint is its TOP SURFACE seen from above, so a 3x1 long table turned
                 really is a 1x3 one, and things stand on it accordingly (`surface: true` marks
                 exactly these, and the deep view is authored for the swapped box).
+     Remastered desks also reserve their actual table plan: the authored side view turns a 3x1
+     desktop into a 1x3 one while its standing rise remains separate. Classic desks retain their
+     original box and south-only eligibility.
      Everything else keeps its box. Getting that wrong shipped a visible defect in the earlier
      rotation lane: `arcade` is authored 1x2, that 2 was read as DEPTH, and a quarter turn made the
      cabinet twice as wide as itself — Andrew: "it literally changes the entire height and size of
@@ -10844,9 +11123,10 @@ const PropSprites = (() => {
      a 5x1 sofa turned is a 1x5 sofa running along a wall. Decals and tables qualify by their catalog
      flags (`flat` / `surface`); soft furniture has no such flag and is listed here. Everything else
      keeps its box — the arcade's second tile is HEIGHT, not depth. */
-  const PLAN_FOOTPRINT = ['dinertable', 'booth'];
+  const PLAN_FOOTPRINT = ['dinertable', 'booth', 'industrial_partition'];
   const PLAN_SET = PLAN_FOOTPRINT.reduce((o, id) => (o[id] = 1, o), {});
-  const reTiles = id => isDecal(id) || !!PLAN_SET[id] || !!(spec(id) || {}).surface;
+  const reTiles = id => isDecal(id) || !!PLAN_SET[id] || !!(spec(id) || {}).surface
+    || (remasterStyle() && (id === 'desk' || id === 'desk2'));
   function footprintAt(id, r) {
     const s = spec(id); if (!s) return null;
     // the swap is gated on an HONEST view at that facing: a prop that falls back to its south art
@@ -11120,7 +11400,7 @@ const PropSprites = (() => {
   function shadowMask(f) {
     if (typeof document === 'undefined') return null;
     const key=[f.t,f.w||1,f.h||1,f.r||0,f.m||0,
-      typeof IndustrialTextures !== 'undefined' && IndustrialTextures.enabled()].join('|');
+      typeof IndustrialTextures !== 'undefined' && IndustrialTextures.enabled(), remasterStyle()].join('|');
     if(shadowMasks.has(key)) {
       const cached=shadowMasks.get(key),g=cached.getContext('2d');
       if(g && !(g.isContextLost && g.isContextLost()))return cached;
@@ -11360,7 +11640,25 @@ const PropSprites = (() => {
     if (e.work && !work) return null;
     const lift = f.mount === 'surface' ? SURFACE_RISE : 0;
     const W = (f.w || 1) * TILE, H = (f.h || 1) * TILE;
-    const x = f.x * TILE + W / 2, y = f.y * TILE - lift + H * e.y;
+    const X=f.x*TILE,Y=f.y*TILE-lift;
+    let x=X+W/2,y=Y+H*e.y;
+    if(remasterStyle()&&(f.t==='desk'||f.t==='desk2')){
+      const facing=(f.r|0)&3,view=viewAt(f.t,facing),source=facing===2?'n':facing===0?'s':'e';
+      const mirror=((((canMirror(f.t)&&f.m)?1:0)^(view&&view.mirror?1:0))&1)!==0;
+      if(typeof IndustrialTextures.workstationEmitter==='function'){
+        // The atlas loader measures its own screen centroid and applies the same
+        // fit as workstation(). null means no visible screen; never invent one.
+        const point=IndustrialTextures.workstationEmitter(X,Y,W,H,source);
+        if(!point||!Number.isFinite(point.x)||!Number.isFinite(point.y))return null;
+        x=point.x;y=point.y;
+      }else{
+        if(source==='n')return null;
+        // Compatibility for a renderer loaded before the measured-atlas helper.
+        // Side screens sit toward the monitor end, while vertical rise stays up.
+        if(source==='e'){x=X+W/2-H*.25;y=Y+H*.5;}
+      }
+      if(mirror)x=2*X+W-x;
+    }
     let k = 1;
     if (!still) {
       const seed = (f.x * 7.31 + f.y * 3.17) % 6.28;
@@ -11370,7 +11668,8 @@ const PropSprites = (() => {
       else if (e.m === 'fire') k = 0.95 + 0.035 * Math.sin(now / 800 + seed) + 0.015 * Math.sin(now / 310 + seed * 2.3);
       else if (e.m === 'pulse') k = 0.98 + 0.02 * Math.sin(now / 2800 + seed);
     }
-    return { x, y, r: e.r, c: e.c, a: e.a * k };
+    const color=remasterStyle()&&DECOR_ELECTRONICS.has(f.t)?[70,155,165]:e.c;
+    return { x, y, r: e.r, c: color, a: e.a * k };
   }
 
   // Compact physical nameplates, painted after lighting for contrast. Geometry

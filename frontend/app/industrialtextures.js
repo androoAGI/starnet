@@ -12,10 +12,14 @@ const IndustrialTextures = (() => {
   // Exposed to the existing CRT lab for a live, reproducible material review.
   const lighting = { fixtureTint: .04 };
   const plates = new WeakMap();
-  const detailTargets = new WeakMap(), wallStrips = new Map();
+  const detailTargets = new WeakMap(), wallStrips = new Map(), materials = new Map(), emitters = new Map();
   let loaded = false;
+  const floorIds = 'spine alloy plate panel tile tread soft grate hex plank turf diamond resin ceramic cargo runner treadway meshway basalt parquet rubber slotted terrazzo octile'.split(' ');
+  const wallIds = 'bulkhead courses service plating ribbed panelled pipework'.split(' ');
   const names = ['floor', 'wall', 'shell', 'workstation', 'workstation-compact', 'chair-s', 'chair-e', 'chair-n',
-    'tactical-table', 'console-bank', 'equipment-bay', 'deck-perimeter'];
+    'tactical-table', 'console-bank', 'equipment-bay', 'deck-perimeter',
+    ...floorIds.map(id => 'remaster/floors/' + id), ...wallIds.map(id => 'remaster/walls/' + id),
+    'remaster/shell', 'remaster/workstation-e', 'remaster/workstation-n', 'remaster/workstation-compact-n'];
   // The references are already lit pictures. These measured albedo gains keep
   // the existing light simulation from applying a second exposure to the art.
   const gain = { floor: 1.25, wall: 1.65, shell: 2.05, workstation: 1.5, 'workstation-compact': 1.5,
@@ -27,7 +31,8 @@ const IndustrialTextures = (() => {
       try {
         const cv = document.createElement('canvas'); cv.width = img.width; cv.height = img.height;
         const ctx = cv.getContext('2d');
-        ctx.filter = 'brightness(' + gain[name] + ')'; ctx.drawImage(img, 0, 0);
+        const exposure = gain[name] || (name.includes('/floors/') ? 1.25 : name.includes('/walls/') ? 1.65 : name.endsWith('/shell') ? 2.05 : 1.5);
+        ctx.filter = 'brightness(' + exposure + ')'; ctx.drawImage(img, 0, 0);
         images[name] = cv;
       } catch (_) { failed.push(name); }
       resolve();
@@ -37,9 +42,32 @@ const IndustrialTextures = (() => {
   }))).then(() => {
     loaded = !failed.length;
     document.documentElement.dataset.texturePack = loaded ? 'industrial' : 'fallback';
+    document.documentElement.dataset.textureRevision = loaded ? 'bridge-remaster' : 'native';
   }) : Promise.resolve();
   const enabled = () => requested && loaded;
+  const isRemaster = enabled;
   const mod = (n, d) => ((n % d) + d) % d;
+
+  // Paint stays a real material choice. Tint is applied once to the authored
+  // albedo, before lighting; the dark engraved structure survives every hue.
+  function material(name, base) {
+    const im = images[name];
+    if (!base || !im) return im;
+    const key = name + ':' + base;
+    if (materials.has(key)) return materials.get(key);
+    const cv = document.createElement('canvas'); cv.width = im.width; cv.height = im.height;
+    const g = cv.getContext('2d');
+    if (/^#[0-9a-f]{6}$/i.test(base)) {
+      const rgb = parseInt(base.slice(1), 16), mean = ((rgb >> 16) + ((rgb >> 8) & 255) + (rgb & 255)) / 3;
+      g.filter = 'brightness(' + Math.max(.8, Math.min(1.25, .8 + mean / 300)) + ')';
+    }
+    g.drawImage(im, 0, 0); g.filter = 'none';
+    g.globalCompositeOperation = 'color'; g.globalAlpha = .42;
+    g.fillStyle = base; g.fillRect(0, 0, cv.width, cv.height);
+    g.globalAlpha = 1; g.globalCompositeOperation = 'source-over';
+    if (materials.size > 128) materials.clear();
+    materials.set(key, cv); return cv;
+  }
 
   // Tee the base painter into a denser art plate. The original canvas remains
   // the exact geometry/alpha/readback authority for lights, chunks and picking.
@@ -102,34 +130,40 @@ const IndustrialTextures = (() => {
     ctx.drawImage(hi, x, y, cv.width, cv.height); ctx.restore(); return true;
   }
 
-  function floor(ctx, X, Y, size, tx, ty) {
+  function floor(ctx, X, Y, size, tx, ty, id = 'plate', base, opts) {
     if (!enabled()) return false;
-    const im = images.floor, period = 8;
+    if (opts && opts.detail === 0) return false;
+    const im = material('remaster/floors/' + (floorIds.includes(id) ? id : 'plate'), base), period = 8;
     ctx.save(); ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high';
     ctx.drawImage(im, mod(tx, period) * im.width / period, mod(ty, period) * im.height / period,
       im.width / period, im.height / period, X, Y, size, size);
     ctx.restore(); return true;
   }
-  function wall(ctx, X, Y, width, height, tx) {
+  function wall(ctx, X, Y, width, height, tx, id = 'bulkhead', base, opts) {
     if (!enabled()) return false;
-    const im = images.wall;
+    if (opts && opts.detail === 0) return false;
+    const im = material('remaster/walls/' + (wallIds.includes(id) ? id : 'bulkhead'), base);
     // One structural bay spans four game tiles. This matches the side/corner
     // face-strip period, so the same material wraps without an extra seam.
     ctx.save(); ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high';
     ctx.drawImage(im, mod(tx, 4) * im.width / 4, 0, im.width / 4, im.height, X, Y, width, height);
     ctx.restore(); return true;
   }
-  function wallStrip(height) {
+  function wallStrip(height, id = 'bulkhead', base, opts) {
     if (!enabled()) return null;
-    if (wallStrips.has(height)) return wallStrips.get(height);
+    if (opts && opts.detail === 0) return null;
+    const key = [height, id, base || '', opts && opts.detail].join(':');
+    if (wallStrips.has(key)) return wallStrips.get(key);
+    const im = material('remaster/walls/' + (wallIds.includes(id) ? id : 'bulkhead'), base);
     const render = scale => {
       const cv = document.createElement('canvas'); cv.width = 48 * scale; cv.height = height * scale;
       const g = cv.getContext('2d'); g.imageSmoothingEnabled = true; g.imageSmoothingQuality = 'high';
-      g.drawImage(images.wall, 0, 0, cv.width, cv.height);
+      g.drawImage(im, 0, 0, cv.width, cv.height);
       return { d: g.getImageData(0, 0, cv.width, cv.height).data, w: cv.width, h: cv.height };
     };
     const strip = { ...render(1), x0: 0, hi: { ...render(6), scale: 6 } };
-    wallStrips.set(height, strip); return strip;
+    if (wallStrips.size > 128) wallStrips.clear();
+    wallStrips.set(key, strip); return strip;
   }
   function wallPatch(ctx, x, y, w, h, strip, map) {
     const target = enabled() && detailTargets.get(ctx);
@@ -146,9 +180,9 @@ const IndustrialTextures = (() => {
     }
     g.restore();
   }
-  function shell(ctx, width, height, vx, vy, topOf) {
+  function shell(ctx, width, height, vx, vy, topOf, base) {
     if (!enabled()) return false;
-    const im = images.shell, period = 96;
+    const im = material('remaster/shell', base), period = 96;
     ctx.save(); ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high';
     // Sample each column relative to its actual contour top. The geometry's
     // alpha mask and exposure pass still clip and shade the resulting cladding.
@@ -166,27 +200,59 @@ const IndustrialTextures = (() => {
     }
     ctx.restore(); return true;
   }
-  function shellPlate(ctx, x, y, width, height) {
+  function shellPlate(ctx, x, y, width, height, base) {
     if (!enabled()) return false;
     ctx.save(); ctx.imageSmoothingEnabled = true;
     for (let yy = y; yy < y + height; yy += 96) for (let xx = x; xx < x + width; xx += 96) {
-      const w = Math.min(96, x + width - xx), h = Math.min(96, y + height - yy), im = images.shell;
+      const w = Math.min(96, x + width - xx), h = Math.min(96, y + height - yy), im = material('remaster/shell', base);
       ctx.drawImage(im, 0, 0, im.width * w / 96, im.height * h / 96, xx, yy, w, h);
     }
     ctx.restore(); return true;
   }
-  function workstation(ctx, x, y, w, h) {
-    if (!enabled()) return false;
-    // Fit without stretching: footprint controls width, ground contact controls
-    // the bottom. The broad operator console has its own correctly sized art.
-    // Saved two-tile desks keep their layout and height using the matching
-    // compact body. Newly placed three-tile desks use the approved broad body.
-    const im = images[w < 30 ? 'workstation-compact' : 'workstation'];
-    const scale = Math.min((w + 2) / im.width, (h + 11.5) / im.height);
-    const dw = im.width * scale, dh = im.height * scale;
-    ctx.save(); ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high';
-    ctx.drawImage(im, x + (w - dw) / 2, y + h - dh, dw, dh);
+  // Fine authored grain sits inside native casing faces, beneath their hardware.
+  // It never paints lights, text, upholstery or the prop's external silhouette.
+  function propPanel(ctx, x, y, w, h, base) {
+    if (!enabled() || w < 4 || h < 2) return false;
+    const im = material('remaster/floors/plate', base);
+    ctx.save(); ctx.globalAlpha *= .34; ctx.imageSmoothingEnabled = true;
+    ctx.drawImage(im, im.width * .035, im.height * .035, im.width * .18, im.height * .18, x, y, w, h);
     ctx.restore(); return true;
+  }
+  function workstationFit(x, y, w, h, facing) {
+    const compact = Math.max(w, h) < 30, side = facing === 'e';
+    const name = side ? 'remaster/workstation-e' : facing === 'n'
+      ? 'remaster/workstation' + (compact ? '-compact' : '') + '-n'
+      : compact ? 'workstation-compact' : 'workstation';
+    const im = images[name];
+    // The side cabinet occupies 75% of the source silhouette width. Its monitor
+    // overhang is real height above the walkable footprint, not a wider base.
+    // The broad rear crown also overhangs its cabinet; keep the same standing height.
+    const cabinetFraction = side ? .75 : facing === 'n' && !compact ? .92 : 1;
+    const scale = Math.min((w + 2) / (im.width * cabinetFraction), (h + 11.5) / im.height);
+    const dw = im.width * scale, dh = im.height * scale;
+    return { name, im, x: x + (w - dw) / 2, y: y + h - dh, w: dw, h: dh };
+  }
+  function workstation(ctx, x, y, w, h, facing = 's') {
+    if (!enabled()) return false;
+    const fit = workstationFit(x, y, w, h, facing);
+    ctx.save(); ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high';
+    ctx.drawImage(fit.im, fit.x, fit.y, fit.w, fit.h); ctx.restore(); return true;
+  }
+  function workstationEmitter(x, y, w, h, facing = 's') {
+    if (!enabled() || facing === 'n') return null;
+    const fit = workstationFit(x, y, w, h, facing);
+    if (!emitters.has(fit.name)) {
+      const d = fit.im.getContext('2d').getImageData(0, 0, fit.im.width, fit.im.height).data;
+      let sx = 0, sy = 0, weight = 0;
+      for (let i = 0; i < d.length; i += 4) {
+        const r = d[i], g = d[i+1], b = d[i+2];
+        if (d[i+3] < 200 || g < 70 || b < 70 || r > Math.min(g, b) * .55) continue;
+        const wt = Math.min(g, b) - r, pixel = i / 4;
+        sx += (pixel % fit.im.width + .5) * wt; sy += (Math.floor(pixel / fit.im.width) + .5) * wt; weight += wt;
+      }
+      emitters.set(fit.name, weight ? { x: sx / weight / fit.im.width, y: sy / weight / fit.im.height } : null);
+    }
+    const p = emitters.get(fit.name); return p ? { x: fit.x + fit.w * p.x, y: fit.y + fit.h * p.y } : null;
   }
   function chair(ctx, x, y, w, h, facing = 's') {
     if (!enabled()) return false;
@@ -214,7 +280,7 @@ const IndustrialTextures = (() => {
     ctx.drawImage(im, x + (w - dw) / 2, y + h - dh, dw, dh);
     ctx.restore(); return true;
   }
-  return Object.freeze({ ready, enabled, lighting, detailContext, drawBase, floor, wall, wallStrip, wallPatch, shell, shellPlate, workstation, chair,
+  return Object.freeze({ ready, enabled, isRemaster, lighting, detailContext, drawBase, floor, wall, wallStrip, wallPatch, shell, shellPlate, propPanel, workstation, workstationEmitter, chair,
     furniture,
     status: () => ({ requested, loaded, failed: failed.slice(), assets: Object.keys(images) }) });
 })();
