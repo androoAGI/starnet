@@ -18,7 +18,7 @@
   "expectedClaimCount": 37,
   "releaseSurface": {
     "algorithm": "sha256",
-    "sourceCommit": "070d8bf40534eb3d8bb90b8c13317450773dcdc7",
+    "sourceCommit": "41debd271eb4dc55f4584832ac38495fe1a6685a",
     "pathSetSha256": "ade25d61e670306aad325d4f4d7314c2bbc6303368eef1fde595748446c94a21",
     "files": [
       {
@@ -373,8 +373,8 @@
       },
       {
         "path": "frontend/app/industrialtextures.js",
-        "bytes": 16499,
-        "sha256": "1e357f24bbf13a2e398b9581a80fd161981cb399560e686d6433eebf671deafe"
+        "bytes": 21331,
+        "sha256": "49795aeed8daa5915ee2bb0573fa812aedc49c3b54222bb5142588c526ae56b8"
       },
       {
         "path": "frontend/app/intake.js",
@@ -573,8 +573,8 @@
       },
       {
         "path": "frontend/app/propsprites.js",
-        "bytes": 791304,
-        "sha256": "8211505959dbe2ccbab22d8d36ad81bd00e9935f488adea1d3aeba78121732ff"
+        "bytes": 791909,
+        "sha256": "a3f627a0d3c17c271178267980708c2c71a3f7031c208be6c63ac3611be7afe1"
       },
       {
         "path": "frontend/app/prospect.js",
@@ -1063,8 +1063,8 @@
       },
       {
         "path": "frontend/app/world.js",
-        "bytes": 734451,
-        "sha256": "9adc7adb7b430d2a1dbf70284eb14b15a02b0d142ac46646e06b54fa0bbfba1d"
+        "bytes": 735567,
+        "sha256": "89915daf28292c5afeeec4c03933a35d3352e072db1c74884de864d7a231c1cb"
       },
       {
         "path": "frontend/app/worldlab.js",
