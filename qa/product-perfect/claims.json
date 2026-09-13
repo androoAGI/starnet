@@ -1844,7 +1844,7 @@
         {
           "kind": "contains",
           "path": "frontend/app/chat.js",
-          "needle": "openItBtn.textContent = '\u00e2\u2013\u00b6 Open it \u00e2\u20ac\u201d try it in a tab'"
+          "needle": "openItBtn.textContent = '▶ Open it — try it in a tab'"
         },
         {
           "kind": "contains",
@@ -1948,7 +1948,7 @@
         {
           "kind": "contains",
           "path": "frontend/app/autonomy.js",
-          "needle": "run free toward my goals while i\u00e2\u20ac\u2122m away"
+          "needle": "run free toward my goals while i’m away"
         },
         {
           "kind": "contains",
@@ -2317,7 +2317,7 @@
       "verdict": "SHIPPED",
       "disposition": "PROVEN",
       "ownerWave": "W2",
-      "qualification": "The app server and stores are local; third-party provider/channel/update traffic remains qualified. Managed credits (optional, not yet launched) add a billing account and relay model calls through StarNet's gateway \u00e2\u20ac\u201d PRIVACY.md states that carve-out explicitly.",
+      "qualification": "The app server and stores are local; third-party provider/channel/update traffic remains qualified. Managed credits (optional, not yet launched) add a billing account and relay model calls through StarNet's gateway — PRIVACY.md states that carve-out explicitly.",
       "liveProofRequired": true,
       "liveProof": "PENDING",
       "refsChecked": [
@@ -2592,7 +2592,7 @@
       "verdict": "SHIPPED",
       "disposition": "PROVEN",
       "ownerWave": "W6",
-      "qualification": "Budget enforcement exists; free/no-markup remains an owner business-policy claim, and is now scoped to the BYOK path \u00e2\u20ac\u201d TERMS.md \u00c2\u00a72 states plainly that StarNet does resell model access on the optional credits path.",
+      "qualification": "Budget enforcement exists; free/no-markup remains an owner business-policy claim, and is now scoped to the BYOK path — TERMS.md §2 states plainly that StarNet does resell model access on the optional credits path.",
       "liveProofRequired": true,
       "liveProof": "PENDING",
       "refsChecked": [
@@ -2828,7 +2828,7 @@
       "verdict": "MISSING",
       "disposition": "FIX",
       "ownerWave": "W2",
-      "qualification": "The sidecar warms OpenRouter models at server listen. The frontend no longer loads Google Fonts \u00e2\u20ac\u201d VT323 ships locally (the STARNET font law), so the remaining boot egress is the catalog warm alone.",
+      "qualification": "The sidecar warms OpenRouter models at server listen. The frontend no longer loads Google Fonts — VT323 ships locally (the STARNET font law), so the remaining boot egress is the catalog warm alone.",
       "authorityChecks": [
         {
           "kind": "contains",
