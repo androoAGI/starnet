@@ -1,3 +1,8 @@
+## IN PROGRESS — arrival integration / onboarding-conversation-0912
+
+Owner approved the cinematic arrival and requested integration into localhost:8992. This lane
+serializes the onboarding, first-task handoff, and arrival merge after live proof and the fast gate.
+
 ## MERGED — speech recovery (7ccb4ebd9, 2026-09-10)
 
 Owner-requested integration of agent/live-speech-0910 is complete. Pre-merge and

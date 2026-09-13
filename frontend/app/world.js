@@ -1425,6 +1425,8 @@ const World = (() => {
     const scene=arrivalScene;arrivalScene=null;
     if(scene.timer)clearTimeout(scene.timer);
     if(scene.controls)scene.controls.remove();
+    if(scene.title)scene.title.remove();
+    camAnim=null;resize();
   }
   function playArrival(onDone) {
     if(typeof Arrival==='undefined'||!agent||agent.unplaced||!cache||typeof SPRITES==='undefined'||!SPRITES.ready)return false;
@@ -1436,10 +1438,14 @@ const World = (() => {
     const caption=document.createElement('span');caption.setAttribute('aria-live','off');
     const skip=document.createElement('button');skip.className='bb';skip.textContent='Skip arrival →';
     controls.append(caption,skip);document.body.appendChild(controls);
-    const scene=arrivalScene={at:performance.now(),reduced,stamp,controls,caption,turned:false,phase:'',timer:null};
+    const title=document.createElement('div');title.className='arrival-identity';title.setAttribute('aria-hidden','true');
+    const name=document.createElement('strong');name.textContent=agent.name||'Your agent';
+    const greeting=document.createElement('span');greeting.textContent='FIRST CONTACT';title.append(greeting,name);title.style.opacity='0';document.body.appendChild(title);
+    const scene=arrivalScene={at:performance.now(),reduced,stamp,controls,caption,title,turned:false,phase:'',timer:null};
     const finish=()=>{if(arrivalScene!==scene)return;cancelArrival();wakeDarkTarget=.16;if(agent)agent.dir='south';if(onDone)onDone();};
     skip.onclick=finish;
     scene.timer=setTimeout(finish,reduced?6000:24000);
+    resize();
     const [sc,cx,cy]=camCenterOn(agent.px,agent.py-15,3.4);
     if(reduced){camAnim=null;scale=sc;panX=cx;panY=cy;}else camTweenTo(sc,cx,cy,8000);
     return true;
@@ -1448,6 +1454,7 @@ const World = (() => {
     if(!arrivalScene||typeof Arrival==='undefined'||!agent)return;
     const a=arrivalScene,f=Arrival.frame(now-a.at,a.reduced);
     wakeDarkTarget=f.darkness;
+    a.title.style.opacity=String(f.land*(1-f.settle));
     if(a.phase!==f.phase){a.phase=f.phase;a.caption.textContent=f.phase.toLowerCase().replaceAll('_',' ');
       const tone={CONVERGENCE:48,EMBODIMENT:72,ARRIVAL:38}[f.phase];
       if(tone&&typeof SFX!=='undefined'&&SFX.env)SFX.env(tone,{attack:.25,hold:.3,release:2,type:'sine',vol:.12});
