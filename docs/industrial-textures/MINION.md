@@ -1,6 +1,8 @@
-# Station Minion
+# First industrial minion pass (superseded)
 
-The industrial preview's NOVA wears `station_minion`: a compact worker android with weathered charcoal and warm-grey armor, muted brass hardware, black joint seals and a narrow cyan visor. The bridge and workshop images supplied by Andrew are the only style references. The existing Cadet supplies scale only.
+Andrew rejected this dark minion on 2026-09-13. The current `station_minion` skin is **Clean Cadet**, with a completely blank white face; see [the new style reference](../clean-style/README.md). The notes below record the earlier design and its verification only.
+
+The first industrial preview used a compact worker android with weathered charcoal and warm-grey armor, muted brass hardware, black joint seals and a narrow cyan visor. Its bridge and workshop references are historical context for this rejected character, not the style target for future character or station revisions.
 
 The skin is an additive catalog entry. Existing saved skins and the normal application's Cadet default remain available. New industrial preview saves select Station Minion; existing preview saves keep the user's selection.
 
