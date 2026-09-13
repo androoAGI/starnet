@@ -11244,6 +11244,12 @@ const PropSprites = (() => {
     const lift = f.mount === 'surface' ? SURFACE_RISE : 0;
     const x = f.x * TILE, y = f.y * TILE - lift;
     const r = RAMP.steel;
+    if (f.t === 'stool' && typeof PropRemaster !== 'undefined' && PropRemaster.enabled('stool')) {
+      // Redraw the same authored near rim around the sitter; the seat anchor is unchanged.
+      ctx.save(); ctx.beginPath(); ctx.rect(x+2,y+3,8,3); ctx.clip();
+      try { draw(f,false); } finally { ctx.restore(); }
+      return;
+    }
     if (f.t === 'stool') {
       px(x + 2, y + 3, 8, 1, '#2f6a62');                          // pad south face (lower body row)
       px(x + 2, y + 3, 1, 1, '#4a8a82'); px(x + 9, y + 3, 1, 1, '#26554e');
@@ -11716,6 +11722,45 @@ const PropSprites = (() => {
         ctx.fillText(layout.text, x, anchor);
       }
     } finally { ctx.restore(); }
+  }
+
+  // Authored skin ownership stops at this seam. The old functions still own every
+  // real screen/state/moving-part layer, and viewAt still owns direction/mirroring.
+  // These previously approved raster assets keep their existing renderer.
+  const APPROVED_RASTER = new Set(['crate','desk','desk2','chair','bridge_consolebank',
+    'bridge_tacticaltable','bridge_equipmentbay','bridge_deckperimeter']);
+  let nativeSkinDepth = 0;
+  if (typeof PropRemaster !== 'undefined') {
+    for (const c of CATALOG) {
+      if (APPROVED_RASTER.has(c.id)) continue;
+      for (const facing of ['s','n','e','w']) {
+        const key = facing === 's' ? c.id : viewKey(c.id,facing), native = F[key];
+        if (!native) continue; // never invent an unsupported upright facing
+        F[key] = (x,y,w,h,o={}) => {
+          if (nativeSkinDepth) return native(x,y,w,h,o);
+          const paintNative = target => {
+            const previous = ctx, previousNow = now;
+            ctx = target; nativeSkinDepth++;
+            try {
+              const still = o.still || (typeof window !== 'undefined' && window.matchMedia &&
+                window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+              if (still) now = 0; // freeze only decorative motion; o still carries real states
+              native(x,y,w,h,o);
+            } finally { ctx = previous; now = previousNow; nativeSkinDepth--; }
+          };
+          if (!PropRemaster.draw(ctx,c.id,facing,x,y,w,h,o,paintNative)) native(x,y,w,h,o);
+        };
+      }
+    }
+    PropRemaster.ready.then(() => {
+      if (!PropRemaster.revision()) return;
+      shadowMasks.clear(); invalidateLightResponse(); _ink.clear();
+      // The world caches the aggregate shadow pass against its current bake.
+      // rebake is the existing public render invalidation; it does not edit the save.
+      if (typeof World !== 'undefined' && typeof World.rebake === 'function') World.rebake();
+      if (typeof window !== 'undefined' && window.dispatchEvent && typeof CustomEvent !== 'undefined')
+        window.dispatchEvent(new CustomEvent('starnet:prop-art-ready',{detail:{revision:PropRemaster.revision()}}));
+    });
   }
 
   return {
