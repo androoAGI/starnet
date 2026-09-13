@@ -25,6 +25,8 @@ Live browser proof at http://127.0.0.1:18792/:
 - PIPEWORK applied to the actual room walls, then Undo restored them.
 - A new SERVICE CABINET placed on the deck; Undo restored the layout.
 - DESK rotated through south, west, north and east with the corresponding 3 × 1 / 1 × 3 readout. An east-facing desk was placed and visually inspected, then undone.
+- The final crown strips showed the new channels, plate joints and fixings in the live scene. The browser reported no errors.
+- A straight conveyor run and northbound corner were laid on the actual deck, visually inspected at 130% zoom, and undone. No synthetic cargo preview or provider task was started.
 - DONE saved the original station layout after these reversible checks.
 
 The seed server is a local development preview. No provider task execution is claimed.
