@@ -22,7 +22,7 @@ import { fileURLToPath } from 'node:url';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', 'website');
 const CHECK = process.argv.includes('--check');
-const V = '20260913-terminal-nav';
+const V = '20260913-brand-nav';
 const ORIGIN = 'https://starnetos.com';
 const GITHUB = 'https://github.com/androoAGI/starnet';
 const RELEASES = 'https://github.com/androoAGI/starnet-releases/releases/latest';
@@ -96,12 +96,12 @@ function topbar(page) {
   const dc = page.startsWith('docs/') ? ' class="on"' : '';
   const pr = page === 'pricing.html' ? ' class="on"' : '';
   return `<header class="topbar" id="topbar">
-  <a class="brand" href="${root || '#top'}" aria-label="StarNet home">STARNET<span class="brand-divider"> / </span><span class="brand-context">${dc ? 'Docs' : 'Agent station'}</span></a>
+  <a class="brand" href="${root || '#top'}" aria-label="StarNet home"><img src="${h('assets/starnet-logo-small.png')}" alt="StarNet" width="355" height="60"></a>
   <nav class="topnav" aria-label="Site">
     <a href="${root}#station">Product</a>
     <a href="${h('docs/index.html')}"${dc}>Docs</a>
     <a href="${h('pricing.html')}"${pr} data-pricing-link${LOADS_SITE_JS.includes(page) ? ' hidden' : ''}>Pricing</a>
-    <a href="${GITHUB}" target="_blank" rel="noopener">GitHub &nearr;</a>
+    <a href="${GITHUB}" target="_blank" rel="noopener">GitHub<svg class="nav-external" aria-hidden="true" focusable="false" viewBox="0 0 16 16" width="12" height="12"><path d="M3 13 13 3M4 3h9v9" fill="none" stroke="currentColor" stroke-width="1.5"/></svg></a>
   </nav>
   <span class="topbar-right">
     <a href="${h('docs/help.html')}">Help</a>
