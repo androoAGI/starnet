@@ -185,4 +185,16 @@ function ioAt(base, extra) {
   } finally { remove(dir); }
 }
 
+{
+  const dir = temp('history-run-attribution');
+  try {
+    let s = makeTranscriptStore({ io: ioAt(dir), clock: { now: () => 1 } });
+    s.appendStrict({ streamId: 'shared', role: 'user', content: 'request A', sourceRunId: 'A' });
+    s.appendStrict({ streamId: 'shared', role: 'assistant', content: 'answer A', sourceRunId: 'A' });
+    for (let n = 0; n < 100; n++) s.appendStrict({ streamId: 'shared', role: 'assistant', content: 'answer B ' + n, sourceRunId: 'B' });
+    s = makeTranscriptStore({ io: ioAt(dir), clock: { now: () => 2 } });
+    A.eq(s.history('shared', { limit: 2, sourceRunId: 'A' }).map(r => r.content), ['request A', 'answer A'], 'run attribution survives segmented restart beyond the recent page');
+    A.eq(s.history('shared', { limit: 2 }).map(r => r.sourceRunId), ['B', 'B'], 'session history keeps its default recent conversation behavior');
+  } finally { remove(dir); }
+}
 A.report('transcript-history-v2.test');

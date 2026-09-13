@@ -7315,6 +7315,9 @@ async function modelUpdateLoop(id, rawPatch) {
 async function modelControlLoop(id, action, reason) {
   if (loopReviewBusy(id)) throw new Error('Review in progress; retry when it finishes');
   if (!loopjobStore.getLoop(loopJobs, id)) throw new Error('no such loop');
+  if (!['pause', 'resume', 'stop'].includes(action)) throw new Error('unknown loop control');
+  // Settle the host-owned iteration before deriving the quiet state, exactly as the HTTP control does.
+  if (action !== 'resume') loopDriver.abortLease(id, reason || (action === 'stop' ? 'stopped by the Commander' : 'paused by the Commander'));
   const now = Date.now();
   let candidate;
   if (action === 'pause') candidate = loopjobStore.pauseLoop(loopJobs, id, reason || 'paused by the Commander', { now });
@@ -7322,10 +7325,6 @@ async function modelControlLoop(id, action, reason) {
   else if (action === 'stop') candidate = loopjobStore.stopLoop(loopJobs, id, reason, { now });
   else throw new Error('unknown loop control');
   commitLoops(candidate);
-  if (action !== 'resume') {
-    const lease = loopDriver.leases.get(id);
-    try { if (lease && lease.abort && typeof lease.abort.abort === 'function') lease.abort.abort(); } catch (_) {}
-  }
   armLoops(true);
   return modelLoopRow(id);
 }
@@ -7333,8 +7332,7 @@ async function modelControlLoop(id, action, reason) {
 async function modelRemoveLoop(id) {
   if (loopReviewBusy(id)) throw new Error('Review in progress; retry when it finishes');
   if (!loopjobStore.getLoop(loopJobs, id)) throw new Error('no such loop');
-  const lease = loopDriver.leases.get(id);
-  try { if (lease && lease.abort && typeof lease.abort.abort === 'function') lease.abort.abort(); } catch (_) {}
+  loopDriver.abortLease(id, 'removed by the Commander');
   commitLoops(loopjobStore.removeLoop(loopJobs, id));
   if (loopjobStore.getLoop(loopJobs, id)) throw new Error('loop durable read-back still contains the removed loop');
   if (!anyLiveLoop()) disarmLoops();
@@ -11910,6 +11908,7 @@ async function createCronJobFromSpec(body) {
     if (!String(body.prompt || '').trim() && !body.script) throw new Error('a routine needs a prompt (or a script)');
     if (body.script) cronScriptSpec({ id: 'validate', agentId, script: body.script, workdir: body.workdir, unattendedGrants: body.unattendedGrants });
     const mode = String(body.deliver || 'local');
+    if (body.attachToSession && !(body.origin && (body.origin.sessionId || body.origin.streamId))) throw new Error('follow-up needs a captured session origin');
     if (mode === 'origin' && !(body.origin && (body.origin.target || (body.origin.channel && body.origin.chatId) || body.origin.sessionId || body.origin.streamId))) throw new Error('origin delivery needs a captured channel or session origin');
     if (mode.indexOf('targets:') === 0) for (const target of mode.slice(8).split(',').map(s => s.trim()).filter(Boolean)) if (!channelStore.getChatRecord(target)) throw new Error('unknown chat target ' + target);
     if (mode === 'all') { const map = channelStore.loadChatMap(); body.deliver = 'targets:' + Object.keys((map && map.chats) || {}).slice(0, 16).join(','); }
@@ -12005,6 +12004,7 @@ function handleCronUpdate(req, res) {
       }
       if (Object.prototype.hasOwnProperty.call(patch, 'workdir')) patch.workdir = cronCanonicalWorkdir(patch.workdir);
       const candidate = Object.assign({}, current, patch);
+      if (candidate.attachToSession && !(candidate.origin && (candidate.origin.sessionId || candidate.origin.streamId))) throw new Error('follow-up needs a captured session origin');
       if (candidate.noAgent && !candidate.script) throw new Error('script-only routines require a script');
       if (candidate.script) cronScriptSpec(candidate);
     } catch (e) { return json(400, { error: (e && e.message) || String(e) }); }
@@ -15574,6 +15574,7 @@ async function runOnce(o) {
       if (gate.reason === 'declined') return { _declined: true, name: spec.name };
       const id = crypto.randomUUID();
       const schedule = parseCronScheduleOr400(spec.schedule, Date.now(), spec.timezone);
+      if (spec.attachToSession && !(spec.origin && (spec.origin.sessionId || spec.origin.streamId))) throw new Error('follow-up needs a captured session origin');
       const skillRefs = cronStringList(spec.skills, 8, /^[A-Za-z0-9_. -]{1,120}$/);
       for (const ref of skillRefs) if (!skillStore.view(spec.agentId, ref, { bump: false })) throw new Error('unknown runtime skill "' + ref + '" for ' + spec.agentId);
       const contextRefs = cronStringList(spec.contextFrom, 8, /^[A-Za-z0-9_-]{1,40}$/);
@@ -15627,7 +15628,11 @@ async function runOnce(o) {
       if (Object.prototype.hasOwnProperty.call(patch, 'schedule')) {
         next.schedule = parseCronScheduleOr400(patch.schedule, Date.now(), patch.timezone);
       }
-      await withCronWrite(jobs => cronStore.updateJob(jobs, id, next, { now: Date.now(), defaultTz: CRON_HOST_TZ }));
+      await withCronWrite(jobs => {
+        const candidate = Object.assign({}, cronStore.getJob(jobs, id), next);
+        if (candidate.attachToSession && !(candidate.origin && (candidate.origin.sessionId || candidate.origin.streamId))) throw new Error('follow-up needs a captured session origin');
+        return cronStore.updateJob(jobs, id, next, { now: Date.now(), defaultTz: CRON_HOST_TZ });
+      });
       return cronStore.getJob(cronJobs, id);
     },
     removeRoutine: async (id) => {
@@ -20324,7 +20329,8 @@ function serveTranscript(req, res) {
     if (!isAgentId(agent)) return json(403, { error: 'forbidden' });
     const stream = u.searchParams.get('stream') || 'global';
     const limit = Math.max(1, Math.min(500, Number(u.searchParams.get('limit')) || 200));
-    json(200, { stream, turns: transcriptStore.history(stream, { limit }) });
+    const sourceRunId = u.searchParams.get('runId') || '';
+    json(200, { stream, turns: transcriptStore.history(stream, { limit, sourceRunId }) });
   } catch (e) { json(500, readRouteFailure('transcript', e)); }   // broken ≠ empty: every reader gates on r.ok (autosessions/chat/returnstore)
 }
 

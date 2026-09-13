@@ -118,5 +118,15 @@ async function rejects(p, label) {
   A.eq(Q._debug('poll').listeners, 0, 'no subscriber ownership leaks after teardown');
   A.ok(seen.length >= 2, 'subscribers receive an immediate state snapshot');
 
+  Q.define('hung', { path: '/hung', timeoutMs: 25 });
+  calls = 0;
+  Q._setGetForTest(() => ++calls === 1 ? new Promise(() => {}) : Promise.resolve({ recovered: true }));
+  const hung = Q.refresh('hung');
+  const hungFailure = rejects(hung, 'a hung read reaches a bounded deadline');
+  await Promise.resolve();
+  Q.invalidate('hung');
+  A.ok((await Q.refresh('hung')).data.recovered, 'a new generation recovers without awaiting its hung predecessor');
+  await hungFailure;
+  A.ok(!Q.state('hung').pending && !Q.state('hung').error, 'obsolete timeout cannot poison recovered state');
   A.report('queryspine.test');
 })().catch(err => { console.error(err && err.stack ? err.stack : err); process.exit(1); });

@@ -39,6 +39,8 @@
     return {
       v: 1,
       lastSeenAt: Math.max(0, num(s.lastSeenAt)),
+      // Unacknowledged CLOSED intervals survive attendance heartbeats and interrupted catch-up reads.
+      awayRanges: Array.isArray(s.awayRanges) ? s.awayRanges.filter(r => r && num(r.since) > 0 && num(r.until) >= num(r.since)).map(r => ({ since: r.since, until: r.until })) : [],
       pending,
       // A pending row itself is the anti-relist proof; retaining its id here as well only doubles storage.
       digested: Array.isArray(s.digested) ? s.digested.filter(id => typeof id === 'string' && id && !pendingIds.has(id)).slice(-DIGESTED_CAP) : []

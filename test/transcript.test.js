@@ -262,4 +262,12 @@ const redact = (s) => String(s).replace(/sk-[A-Za-z0-9]{8,}/g, '[redacted]');
   A.eq(s.appendNewStrict('recovery', 'a', messages, { sourceRunId: 'run-123' }), 0, 'strict drain remains idempotent for marked messages');
 }
 
+{
+  const s = makeTranscriptStore({ io: memIo(), clock });
+  s.append({ streamId: 'shared', role: 'user', content: 'request A', sourceRunId: 'A' });
+  s.append({ streamId: 'shared', role: 'assistant', content: 'answer A', sourceRunId: 'A' });
+  for (let n = 0; n < 60; n++) s.append({ streamId: 'shared', role: 'assistant', content: 'answer B ' + n, sourceRunId: 'B' });
+  A.eq(s.history('shared', { limit: 2, sourceRunId: 'A' }).map(r => r.content), ['request A', 'answer A'], 'run filter precedes limit in RAM history');
+  A.eq(s.history('shared', { sourceRunId: 'missing' }).length, 0, 'unknown run never falls back to unrelated session turns');
+}
 A.report('transcript.test');

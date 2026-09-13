@@ -619,8 +619,8 @@
       const prompt = (body.querySelector('#rt-prompt').value || '').trim();
       const schedule = (body.querySelector('#rt-sched').value || '').trim();
       const agentId = (body.querySelector('#rt-agent').value || '').trim();
-      const provider = (typeof Harness !== 'undefined' && Harness.getProv) ? Harness.getProv() : undefined;
-      if (!prompt || !schedule) { sfx('bad'); msgEl.textContent = 'a prompt and a schedule are required'; return; }
+      // Inherit the selected agent's provider; the station's chat selection is not an override.
+      if ((!prompt && !(body.querySelector('#rt-script').value || '').trim()) || !schedule) { sfx('bad'); msgEl.textContent = 'a prompt or script and a schedule are required'; return; }
       addBtn.disabled = true;
       msgEl.textContent = 'saving…';
       try {
@@ -638,8 +638,10 @@
         const workdir = (body.querySelector('#rt-workdir').value || '').trim();
         const deliveryMode = body.querySelector('#rt-deliver').value;
         const activeSession = (typeof Workstreams !== 'undefined' && Workstreams.active) ? Workstreams.active() : null;
+        const attachToSession = !!body.querySelector('#rt-continue').checked;
+        if ((deliveryMode === 'origin' || attachToSession) && !activeSession) throw new Error('Open the conversation this routine should return to, then save again.');
         const r = await (await post('/api/cron', {
-          name, prompt, schedule, agentId: agentId || undefined, provider, tz,
+          name, prompt, schedule, agentId: agentId || undefined, tz,
           meta: body.querySelector('#rt-prompt').dataset.widgetId
             ? { widgetId: body.querySelector('#rt-prompt').dataset.widgetId }
             : body.querySelector('#rt-prompt').dataset.workflowTakeoverId
@@ -650,8 +652,8 @@
           noAgent: !!body.querySelector('#rt-no-agent').checked,
           enabledToolsets: toolsetText ? split('#rt-toolsets') : undefined,
           deliver: deliveryMode,
-          origin: deliveryMode === 'origin' && activeSession ? { sessionId: activeSession.id, streamId: activeSession.id, sessionTitle: activeSession.title || '' } : undefined,
-          attachToSession: !!body.querySelector('#rt-continue').checked
+          origin: (deliveryMode === 'origin' || attachToSession) && activeSession ? { sessionId: activeSession.id, streamId: activeSession.id, sessionTitle: activeSession.title || '' } : undefined,
+          attachToSession
         })).json();
         if (r && r.error) { msgEl.innerHTML = '<span style="color:var(--bad)">✕ ' + esc(r.error) + '</span>'; sfx('bad'); }
         // THE MINT GATE'S REFUSALS ARE 200s (declined / near-duplicate name): treating "no error key" as

@@ -96,7 +96,7 @@
       row.innerHTML =
         '<div class="ob-head" role="button" tabindex="0" aria-expanded="false">' +
           '<div class="ob-title">◷ <b></b><span class="ob-caret">▸</span></div>' +
-          '<div class="ob-desc"><span class="loading">reading the result…</span></div>' +
+          '<div class="ob-desc">Open to read this run’s result.</div>' +
           '<div class="ob-meta">' + esc(agentName(rw.agentId)) + ' · ' + when + usd + '</div>' +
         '</div>' +
         '<div class="ob-body" hidden>' +
@@ -110,15 +110,17 @@
         '</div>';
       row.querySelector('.ob-title b').textContent = provisionalTitle;
       list.appendChild(row);
-      // fill title/description/breakdown from the run's DURABLE transcript (the honest source of
-      // "what the agent actually did"). One fetch per row, at build — pending is capped at 24.
-      (async () => {
+      // Load expanded work only, scoped by durable run identity before the transcript page limit.
+      let reading = false, loaded = false;
+      const readResult = async () => {
+        if (reading || loaded) return;
+        reading = true;
         const desc = row.querySelector('.ob-desc'), ask = row.querySelector('.ob-ask'), out = row.querySelector('.ob-out');
         await fillStreams;
         let turns = null;
         if (rw.streamId) {
           try {
-            const t = await Harness.api.get('/api/transcript?stream=' + encodeURIComponent(rw.streamId) + '&agent=' + encodeURIComponent(rw.agentId || 'agent') + '&limit=50');
+            const t = await Harness.api.get('/api/transcript?stream=' + encodeURIComponent(rw.streamId) + '&agent=' + encodeURIComponent(rw.agentId || 'agent') + '&runId=' + encodeURIComponent(rw.runId) + '&limit=50');
             turns = (t && t.turns) || [];
           } catch (_) { turns = null; }   // null = fetch FAILED (say so); [] = genuinely empty
         }
@@ -128,10 +130,10 @@
         if (!rw.routine && users.length) row.querySelector('.ob-title b').textContent = firstLine(users[0].content, 64);
         desc.textContent = lastReply ? firstLine(plain(lastReply), 150)
           : (turns === null ? 'couldn’t read the result — is the station running?'
-            : (turns && turns.length ? 'the run finished with nothing to report.' : 'no transcript recorded for this run.'));
+            : (turns && turns.length ? 'the run finished with nothing to report.' : 'no transcript recorded for this run. Open the session for older work without run attribution.'));
         const askFull = users.length ? String(users[0].content) : '';
         ask.textContent = askFull ? (askFull.length > 1500 ? askFull.slice(0, 1500) + ' …' : askFull) : (rw.title || '—');
-        out.textContent = lastReply ? (lastReply.length > 4000 ? lastReply.slice(0, 4000) + '\n\n… output truncated — ↗ OPEN shows the full run.' : lastReply)
+        out.textContent = lastReply ? (lastReply.length > 4000 ? lastReply.slice(0, 4000) + '\n\n… output truncated — ↗ OPEN SESSION opens the conversation.' : lastReply)
           : (turns === null ? '⚠ couldn’t load the output — the run’s transcript wasn’t reachable.'
             : 'this run recorded no readable output.');
         // FILES — the library's rows for this run, in the library's own markup (dlv-files), sized off
@@ -148,12 +150,14 @@
                 : '<li><span class="dlv-fname off">' + esc(f.path) + '</span><span class="dlv-fsize">no longer available</span></li>').join('') + '</ul>';
           }
         } catch (_) {}
-      })();
+        loaded = turns !== null;
+        reading = false;
+      };
       // the row IS the toggle (accordion: one open at a time; collapsed rows stay clean)
       const head = row.querySelector('.ob-head'), bodyEl = row.querySelector('.ob-body'), caret = row.querySelector('.ob-caret');
       const toggle = () => {
         const opening = bodyEl.hidden;
-        if (opening) closeOthers(row);
+        if (opening) { closeOthers(row); readResult(); }
         bodyEl.hidden = !opening;
         row.classList.toggle('open', opening);
         head.setAttribute('aria-expanded', opening ? 'true' : 'false');

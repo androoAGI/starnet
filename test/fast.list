@@ -519,6 +519,9 @@ test/cron-session-hydration.test.js
 test/loopjob.test.js
 test/loopjob-check.test.js
 test/loopjob-driver.test.js
+test/model-loop-control.test.js
+test/returnstore-recovery.test.js
+test/settings-save-failure.test.js
 test/loop-tools.test.js
 test/loopgit.test.js
 test/cron.oneshot.test.js

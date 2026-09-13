@@ -177,15 +177,28 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
     return blank();
   }
   let store = load();
-  function save() { try { localStorage.setItem(KEY, JSON.stringify(store)); } catch (_) {} }
+  let lastSaveOk = true;
+  function save() {
+    try { localStorage.setItem(KEY, JSON.stringify(store)); lastSaveOk = true; return true; }
+    catch (_) {
+      const wasSaved = lastSaveOk; lastSaveOk = false;
+      if (wasSaved) try { notify('Could not save local settings. Changes may be lost when you restart.', 'warn'); } catch (_) {}
+      return false;
+    }
+  }
   const uid = p => p + Date.now().toString(36) + Math.floor(Math.random() * 1e4).toString(36);
 
   // brief "✓ saved" flash for an instant-save section (theme/appearance/notifications) so every section answers
   // "did that stick?" — the same .msg.ok idiom the SAVE-button sections use, auto-cleared after a moment.
-  function flashSaved(elm, text) {
+  function flashSaved(elm, text, independentSave) {
     if (!elm) return;
-    elm.textContent = text || '✓ saved'; elm.className = 'msg ok';
     clearTimeout(elm._flashTimer);
+    if (!independentSave && !lastSaveOk) {
+      elm.textContent = 'Could not save — changes apply for this session. Change a setting to retry.';
+      elm.className = 'msg bad';
+      return;
+    }
+    elm.textContent = text || '✓ saved'; elm.className = 'msg ok';
     elm._flashTimer = setTimeout(() => { if (elm.isConnected) { elm.textContent = ''; elm.className = 'msg'; } }, 1600);
   }
 
@@ -6479,7 +6492,7 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
           const real = !!(st && st.enabled);
           ev.target.checked = real;
           if (real !== desired) notify('Launch at login could not be ' + (desired ? 'enabled' : 'disabled') + ' on this system.', 'warn');
-          else flashSaved(appMsg());
+          else flashSaved(appMsg(), undefined, true);
         }).catch(err => {
           ev.target.checked = !desired;
           notify('Launch at login failed: ' + ((err && err.message) || err), 'warn');
@@ -6497,7 +6510,7 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
             ev.target.checked = real;
             ev.target.disabled = false;
             if (real !== desired) notify(label + ' could not be ' + (desired ? 'enabled' : 'disabled') + ' on this system.', 'warn');
-            else flashSaved(appMsg());
+            else flashSaved(appMsg(), undefined, true);
             paintLife();
           }).catch(err => {
             ev.target.checked = !desired;
@@ -7471,7 +7484,7 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
       onConfirm: () => {
         const n = store.notifs.length;
         store.notifs = []; save(); badges(); rerender('notifs'); sfx('bad');
-        flashSaved(host.querySelector('#notifs-msg'), '✓ cleared ' + n + ' notification' + (n === 1 ? '' : 's'));
+        flashSaved(host.querySelector('#notifs-msg'), '✓ cleared ' + n + ' notification' + (n === 1 ? '' : 's'), true);
       }
     });
   }
