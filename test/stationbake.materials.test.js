@@ -174,4 +174,31 @@ global.IndustrialTextures.isRemaster = () => false;
 for (const mat of specialized) A.eq(wallSample(mat, 4), originalSpecialized.get(mat), mat + ' classic artwork is byte-for-byte unchanged');
 delete global.IndustrialTextures;
 
+/* Crown machining is bounded to its cover strip; the silhouette and exposure
+   record remain identical. Splitting a run and moving its local origin cannot
+   move a physical seam or fastener. */
+{
+ const source=require('fs').readFileSync(require('path').join(__dirname,'../frontend/app/stationbake.js'),'utf8');
+ const helpers=['const crown = (','function crownMachining(','function crownPlate('].map(header=>{
+  const code=A.fnBody(source,header);A.ok(code.length>40&&code.length<1800,header+' has a bounded executable slice');return code;
+ }).join(';\n');
+ function plate(remaster,vertical=false,parts=[48],offset=0){
+  const pixels=new Map(),rects=[],ctx={fillStyle:'',fillRect(x,y,w,h){for(let yy=y;yy<y+h;yy++)for(let xx=x;xx<x+w;xx++)pixels.set(xx+','+yy,this.fillStyle);}};
+  const paint=Function('remastered','wallPhase','b','crownRects','shade', 'const T=12;'+helpers+';return crownPlate;')
+   (()=>remaster,()=>offset,ctx,rects,(c,d)=>c+':'+d);
+  let a=-24-offset;for(const n of parts){paint(ctx,vertical?0:a,vertical?a:0,vertical?5:n,vertical?n:5,'cap',vertical);a+=n;}
+  return {pixels:[...pixels].map(([key,color])=>{const [x,y]=key.split(',').map(Number);return [vertical?y+offset:x+offset,vertical?x:y,color];}).sort((a,b)=>a[0]-b[0]||a[1]-b[1]),rects};
+ }
+ const plain=plate(false),metal=plate(true);
+ A.eq(metal.rects,plain.rects,'machining preserves exact crown exposure rectangles');
+ A.eq(metal.pixels.map(p=>p.slice(0,2)),plain.pixels.map(p=>p.slice(0,2)),'machining paints no extra geometry');
+ A.ok(metal.pixels.some(p=>p[2]!=='cap'),'remaster has machined plate detail');
+ A.ok(metal.pixels.filter(p=>p[1]===0||p[1]===4).every(p=>p[2]==='cap'),'both outer crown edges keep their original full brightness');
+ A.ok(metal.pixels.filter(p=>p[2]==='cap').length>metal.pixels.length/2,'the broad cap keeps its original palette rather than becoming a dark band');
+ A.eq(plate(true,false,[12,12,12,12]).pixels,metal.pixels,'joints and fixings continue across tile subdivisions');
+ A.eq(plate(true,false,[48],36).pixels,metal.pixels,'negative world phase survives a local origin shift');
+ A.eq(plate(true,true).pixels,metal.pixels,'north and side crown strips use the same machined detail');
+ A.eq(plate(false,false,[12,12,12,12]).pixels,plain.pixels,'classic strip remains a plain continuous cap');
+}
+
 A.report('stationbake.materials');

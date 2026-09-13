@@ -187,6 +187,32 @@ const StationBake = (() => {
     if (w > 0 && h > 0) crownRects.push([x, y, w, h]);
   };
 
+  // Machined cover strips keep the existing cap palette, silhouette and bright
+  // outer edge. Only the inner channel, panel joints and captive fixings change.
+  function crownMachining(b, x, y, w, h, color, vertical = false) {
+    if (!remastered()) return;
+    const depth = vertical ? w : h, length = vertical ? h : w;
+    if (depth < 3 || length <= 0) return;
+    const mid = Math.floor(depth / 2), along = vertical ? y : x;
+    const put = (a, d, n, tone) => {
+      b.fillStyle = tone;
+      if (vertical) b.fillRect(x + d, y + a, n, 1);
+      else b.fillRect(x + a, y + d, 1, n);
+    };
+    const channel = shade(color, -0.18), joint = shade(color, -0.34), fixing = shade(color, 0.10);
+    const phase = wallPhase(vertical ? 'y' : 'x'), period = 2 * T;
+    for (let a = 0; a < length; a++) {
+      const p = ((Math.floor(along + a + phase) % period) + period) % period;
+      put(a, mid, 1, channel);
+      if (p === 0) put(a, 1, depth - 2, joint);
+      else if (p === 2 || p === period - 3) put(a, mid, 1, fixing);
+    }
+  }
+  function crownPlate(b, x, y, w, h, color, vertical = false) {
+    crown(b, x, y, w, h, color);
+    crownMachining(b, x, y, w, h, color, vertical);
+  }
+
   /* live-tunable lighting — the CRT LAB (crtlab.js, dev-gated) writes these and calls
      World.rebake() to re-run the bake. These ARE the shipped defaults.
        ambient  = how dark the unlit station is (0=fully lit · 1=black)
@@ -2009,7 +2035,7 @@ const StationBake = (() => {
     // NORTH-LIP-CROWN-END
     // lit crown — opaque cap band, 1px lighter top edge, 1px darker seam beneath. Kept BRIGHT:
     // after the ambient bake this continuous line defines the wall height at any zoom.
-    crown(b, X, topY - capH, T, capH, pal.cap);
+    crownPlate(b, X, topY - capH, T, capH, pal.cap);
     crown(b, X, topY - capH, T, 1, shade(pal.cap, 0.30));                          // 1px lighter top edge
     b.fillStyle = shade(pal.cap, -0.45); b.fillRect(X, topY - 1, T, 1);            // 1px darker seam beneath
     // THE FACE — per material
@@ -3341,6 +3367,7 @@ const StationBake = (() => {
         const yEnd = Math.min(y1, lim);
         if (yEnd > y0) {
           b.fillStyle = c; b.fillRect(cx0, y0, cx1 - cx0, yEnd - y0);
+          if (c === pal.cap) crownMachining(b, cx0, y0, cx1 - cx0, yEnd - y0, c, w > h);
           if (textureMap && strip && strip.hi)
             IndustrialTextures.wallPatch(b, cx0, y0, cx1 - cx0, yEnd - y0, strip, textureMap);
           // Record the face AFTER clipping to the silhouette and nearer walls.
@@ -3582,7 +3609,7 @@ const StationBake = (() => {
         }
         if (e.exterior) {
           b.fillStyle = shellEdge; b.fillRect(X, Y + T, T, Math.max(out, cw + 2));   // outer hull band
-          crown(b, X, Y + T + 1, T, cw, pal.cap);                                 // the wall's LIT TOP SURFACE
+          crownPlate(b, X, Y + T + 1, T, cw, pal.cap);                                 // the wall's LIT TOP SURFACE
           crown(b, X, Y + T + cw, T, 1, crownLit);                                // lit outer edge
           b.fillStyle = crownSeam; b.fillRect(X, Y + T, T, 1);                    // dark seam under the crown
         } else {
@@ -3595,7 +3622,7 @@ const StationBake = (() => {
           const side = Math.max(out, cw + 2, Math.round(WALL.side));   // the hull band under the crown — one width, corridors included (see sideCapW)
           b.fillStyle = shellEdge; b.fillRect(X - side, Y, side, T);       // outer hull band — the ROOM'S shell
           b.fillStyle = 'rgba(0,0,0,0.35)'; b.fillRect(X - side, Y, 1, T);
-          crown(b, X - 1 - cw, Y, cw, T, pal.cap);                         // the wall's LIT TOP SURFACE
+          crownPlate(b, X - 1 - cw, Y, cw, T, pal.cap, true);                         // the wall's LIT TOP SURFACE
           crown(b, X - 1 - cw, Y, 1, T, crownLit);                         // lit outer edge
           b.fillStyle = crownSeam; b.fillRect(X - 1, Y, 1, T);             // dark seam under the crown
         }
@@ -3606,7 +3633,7 @@ const StationBake = (() => {
           const side = Math.max(out, cw + 2, Math.round(WALL.side));   // the hull band under the crown — one width, corridors included (see sideCapW)
           b.fillStyle = shellEdge; b.fillRect(X + T, Y, side, T);
           b.fillStyle = 'rgba(0,0,0,0.35)'; b.fillRect(X + T + side - 1, Y, 1, T);
-          crown(b, X + T + 1, Y, cw, T, pal.cap);
+          crownPlate(b, X + T + 1, Y, cw, T, pal.cap, true);
           crown(b, X + T + cw, Y, 1, T, crownLit);
           b.fillStyle = crownSeam; b.fillRect(X + T, Y, 1, T);
         }
