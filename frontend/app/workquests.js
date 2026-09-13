@@ -193,6 +193,7 @@
       return {
         id: e.id,
         kind: 'work',
+        runId: e.runId || null,
         stalled: stalled,   // Tier 2 (additive): consumers tracking a bound build (goalstore.questLive) need stalled-vs-in-flight without parsing the title
         title: (done ? 'built — ' : (stalled ? '⚑ stalled: ' : '⚑ build: ')) + (e.title || 'a build'),
         desc: done

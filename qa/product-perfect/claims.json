@@ -18,7 +18,7 @@
   "expectedClaimCount": 37,
   "releaseSurface": {
     "algorithm": "sha256",
-    "sourceCommit": "ae32f360f818144a48e840e4a84a55297063df82",
+    "sourceCommit": "dbdd193bedd371abcdf522277b2f891559381c89",
     "pathSetSha256": "ade25d61e670306aad325d4f4d7314c2bbc6303368eef1fde595748446c94a21",
     "files": [
       {
@@ -238,13 +238,13 @@
       },
       {
         "path": "frontend/app/data-shim.js",
-        "bytes": 3958,
-        "sha256": "79af3bc312c523c3ee60eb163280827cbc56e16b8648282b55b8a646e1f7fbd7"
+        "bytes": 4041,
+        "sha256": "90db3a65d3585bb3093398ad038df5279341f790a4309709f48961455bb89ca7"
       },
       {
         "path": "frontend/app/deliverables.js",
-        "bytes": 30453,
-        "sha256": "babf82335c0e85ddd7cf3d7a806520214bd4c34be118db0016a7e819681959b1"
+        "bytes": 32086,
+        "sha256": "5700e5ceefefa3c7149990c212972240d6df9cd001de945810293baa2a8ffc2f"
       },
       {
         "path": "frontend/app/diagnostics.js",
@@ -348,13 +348,13 @@
       },
       {
         "path": "frontend/app/goals.js",
-        "bytes": 20531,
-        "sha256": "f3399d1e002b221d1a15aca5cff9d367ff32631525bc3cc44175cfdf7a4eaa02"
+        "bytes": 22081,
+        "sha256": "5868f3af54ca5d467e77e0664ccbf853298b8deecb283122244cf6f30510321a"
       },
       {
         "path": "frontend/app/goalstore.js",
-        "bytes": 34989,
-        "sha256": "211e807b0bbd7d3cea00fd33634be0cc54403a9796739d8bce43e0011faf9065"
+        "bytes": 45216,
+        "sha256": "ea18ed5be8b5dcc05eb37eb0b17f181ed688d287c9cc4d4b608a617d709c3c17"
       },
       {
         "path": "frontend/app/group-chat.js",
@@ -828,8 +828,8 @@
       },
       {
         "path": "frontend/app/stationui.js",
-        "bytes": 693723,
-        "sha256": "5986d0a7df52127a939cad69095d91944112783aeac5c4f0971b5871a390ec81"
+        "bytes": 730332,
+        "sha256": "272d07bed56f27512670efc5e2b44e7805551d0f9721680b15fb9816aafe42fe"
       },
       {
         "path": "frontend/app/study.js",
@@ -1028,8 +1028,8 @@
       },
       {
         "path": "frontend/app/workquests.js",
-        "bytes": 11613,
-        "sha256": "6425abec1ba5f6960ff36eb22913f860d3635a09fe60fce353627749272a7b98"
+        "bytes": 11645,
+        "sha256": "24d10cbfc832c1d6cca134f94d564bf7af83c5cf1c5b74de5cea6f2bacb3610a"
       },
       {
         "path": "frontend/app/workqueststore.js",
@@ -1188,8 +1188,8 @@
       },
       {
         "path": "frontend/css/quests.css",
-        "bytes": 10200,
-        "sha256": "43b5ed95518143a55e89ea61375c1b590f272eea9aedd369f582b2c0f94e2c11"
+        "bytes": 15580,
+        "sha256": "57ad71297a2547ac78a6bf191960dc044ed70c03cc37646eadc73f3d3071b10c"
       },
       {
         "path": "frontend/css/readability.css",

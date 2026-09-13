@@ -6076,6 +6076,150 @@
       "pikachu/walk_west_5.png",
       "pikachu/walk_west_6.png",
       "pikachu/walk_west_7.png"
+    ],
+    "station_minion.rot.south": [
+      "station_minion/rot_south.png"
+    ],
+    "station_minion.walk.south": [
+      "station_minion/walk_south_0.png",
+      "station_minion/walk_south_1.png",
+      "station_minion/walk_south_2.png",
+      "station_minion/walk_south_3.png",
+      "station_minion/walk_south_4.png",
+      "station_minion/walk_south_5.png",
+      "station_minion/walk_south_6.png",
+      "station_minion/walk_south_7.png"
+    ],
+    "station_minion.rot.south-east": [
+      "station_minion/rot_south-east.png"
+    ],
+    "station_minion.walk.south-east": [
+      "station_minion/walk_south-east_0.png",
+      "station_minion/walk_south-east_1.png",
+      "station_minion/walk_south-east_2.png",
+      "station_minion/walk_south-east_3.png",
+      "station_minion/walk_south-east_4.png",
+      "station_minion/walk_south-east_5.png",
+      "station_minion/walk_south-east_6.png",
+      "station_minion/walk_south-east_7.png"
+    ],
+    "station_minion.rot.east": [
+      "station_minion/rot_east.png"
+    ],
+    "station_minion.walk.east": [
+      "station_minion/walk_east_0.png",
+      "station_minion/walk_east_1.png",
+      "station_minion/walk_east_2.png",
+      "station_minion/walk_east_3.png",
+      "station_minion/walk_east_4.png",
+      "station_minion/walk_east_5.png",
+      "station_minion/walk_east_6.png",
+      "station_minion/walk_east_7.png"
+    ],
+    "station_minion.rot.north-east": [
+      "station_minion/rot_north-east.png"
+    ],
+    "station_minion.walk.north-east": [
+      "station_minion/walk_north-east_0.png",
+      "station_minion/walk_north-east_1.png",
+      "station_minion/walk_north-east_2.png",
+      "station_minion/walk_north-east_3.png",
+      "station_minion/walk_north-east_4.png",
+      "station_minion/walk_north-east_5.png",
+      "station_minion/walk_north-east_6.png",
+      "station_minion/walk_north-east_7.png"
+    ],
+    "station_minion.rot.north": [
+      "station_minion/rot_north.png"
+    ],
+    "station_minion.walk.north": [
+      "station_minion/walk_north_0.png",
+      "station_minion/walk_north_1.png",
+      "station_minion/walk_north_2.png",
+      "station_minion/walk_north_3.png",
+      "station_minion/walk_north_4.png",
+      "station_minion/walk_north_5.png",
+      "station_minion/walk_north_6.png",
+      "station_minion/walk_north_7.png"
+    ],
+    "station_minion.rot.north-west": [
+      "station_minion/rot_north-west.png"
+    ],
+    "station_minion.walk.north-west": [
+      "station_minion/walk_north-west_0.png",
+      "station_minion/walk_north-west_1.png",
+      "station_minion/walk_north-west_2.png",
+      "station_minion/walk_north-west_3.png",
+      "station_minion/walk_north-west_4.png",
+      "station_minion/walk_north-west_5.png",
+      "station_minion/walk_north-west_6.png",
+      "station_minion/walk_north-west_7.png"
+    ],
+    "station_minion.rot.west": [
+      "station_minion/rot_west.png"
+    ],
+    "station_minion.walk.west": [
+      "station_minion/walk_west_0.png",
+      "station_minion/walk_west_1.png",
+      "station_minion/walk_west_2.png",
+      "station_minion/walk_west_3.png",
+      "station_minion/walk_west_4.png",
+      "station_minion/walk_west_5.png",
+      "station_minion/walk_west_6.png",
+      "station_minion/walk_west_7.png"
+    ],
+    "station_minion.rot.south-west": [
+      "station_minion/rot_south-west.png"
+    ],
+    "station_minion.walk.south-west": [
+      "station_minion/walk_south-west_0.png",
+      "station_minion/walk_south-west_1.png",
+      "station_minion/walk_south-west_2.png",
+      "station_minion/walk_south-west_3.png",
+      "station_minion/walk_south-west_4.png",
+      "station_minion/walk_south-west_5.png",
+      "station_minion/walk_south-west_6.png",
+      "station_minion/walk_south-west_7.png"
+    ],
+    "station_minion.sit.south": [
+      "station_minion/sit_south.png"
+    ],
+    "station_minion.sit.east": [
+      "station_minion/sit_east.png"
+    ],
+    "station_minion.sit.north": [
+      "station_minion/sit_north.png"
+    ],
+    "station_minion.sit.west": [
+      "station_minion/sit_west.png"
+    ],
+    "station_minion.type.south": [
+      "station_minion/type_south_0.png",
+      "station_minion/type_south_1.png",
+      "station_minion/type_south_2.png",
+      "station_minion/type_south_3.png",
+      "station_minion/type_south_4.png"
+    ],
+    "station_minion.type.east": [
+      "station_minion/type_east_0.png",
+      "station_minion/type_east_1.png",
+      "station_minion/type_east_2.png",
+      "station_minion/type_east_3.png",
+      "station_minion/type_east_4.png"
+    ],
+    "station_minion.type.north": [
+      "station_minion/type_north_0.png",
+      "station_minion/type_north_1.png",
+      "station_minion/type_north_2.png",
+      "station_minion/type_north_3.png",
+      "station_minion/type_north_4.png"
+    ],
+    "station_minion.type.west": [
+      "station_minion/type_west_0.png",
+      "station_minion/type_west_1.png",
+      "station_minion/type_west_2.png",
+      "station_minion/type_west_3.png",
+      "station_minion/type_west_4.png"
     ]
   }
 }

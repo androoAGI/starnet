@@ -36,6 +36,7 @@ const GoalStore = (() => {
   let deps = {};                // { getSystem, getName, getCaps } injected by app.js (all optional; fail-open)
   let bound = false;
   let firing = false;           // re-entrancy guard while a decomposition confirm is mid-flight
+  let creatingGoal = false;
   /* THE STUBBORN-BELIEF SPEND LEAK (fixed 2026-08-04). A reply that parses to fewer than MIN_PATH milestones is
      unusable, and the old code marked NOTHING offered so a later, better reply could still land — which meant a
      belief the model simply cannot decompose re-paid the aux call at EVERY run end, forever. Two failed attempts
@@ -54,16 +55,12 @@ const GoalStore = (() => {
   function save() { try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (_) {} }
   function poke() { try { if (typeof StationUI !== 'undefined' && StationUI.rerender) StationUI.rerender('quests', false); } catch (_) {} }
   function capHistory(s) {
-    while (s.goals.length > GOAL_CAP) {
-      const at = s.goals.findIndex(g => g.status !== 'active');
-      if (at < 0) break;
-      s.goals.splice(at, 1);
-    }
+    // Completed chapters belong to the Commander. Never evict them to make room for a new goal.
   }
 
   // defensively rebuild the persisted slice — every goal + milestone re-validated, junk dropped (never a crash).
   function hydrate(raw) {
-    const s = { v: 1, goals: [], offered: {}, offeredOrder: [] };
+    const s = { v: 1, goals: [], ideas: [], offered: {}, offeredOrder: [] };
     if (raw && typeof raw === 'object') {
       if (Array.isArray(raw.goals)) {
         for (const g of raw.goals) {
@@ -81,12 +78,16 @@ const GoalStore = (() => {
             journeySyncedAt: (m && m.journeySyncedAt != null && Number.isFinite(Number(m.journeySyncedAt))) ? Number(m.journeySyncedAt) : null
           })).filter(m => m.id) : [];
           if (!ms.length) continue;
-          const status = (g.status === 'done' || g.status === 'retired') ? g.status : 'active';
+          const status = ['done', 'retired', 'paused', 'archived'].includes(g.status) ? g.status : 'active';
           s.goals.push({
             id: String(g.id), text: String(g.text || '').slice(0, 280),
             successCondition: String(g.successCondition || '').slice(0, 500),
             outcomeEvidence: String(g.outcomeEvidence || '').slice(0, 1000),
+            motivation: String(g.motivation || '').slice(0, 500),
+            constraints: String(g.constraints || '').slice(0, 500),
+            journal: (Array.isArray(g.journal) ? g.journal : []).filter(e => e && Number.isFinite(e.at) && e.text).map(e => ({ at: e.at, kind: String(e.kind || 'reflection').slice(0, 30), text: String(e.text).slice(0, 1000) })),
             focusedAt: Number(g.focusedAt) || 0,
+            nextMilestoneId: ms.some(m => m.id === g.nextMilestoneId) ? g.nextMilestoneId : null,
             pendingRegistration: !!g.pendingRegistration,
             sourceBeliefId: g.sourceBeliefId == null ? null : String(g.sourceBeliefId),
             status, milestones: ms, createdAt: created,
@@ -94,6 +95,11 @@ const GoalStore = (() => {
           });
         }
       }
+      s.ideas = (Array.isArray(raw.ideas) ? raw.ideas : []).filter(i => i && i.id && i.text).slice(0, 100).map(i => ({
+        id: String(i.id), text: String(i.text).slice(0, 280), question: String(i.question || '').slice(0, 500),
+        learning: String(i.learning || '').slice(0, 1000), createdAt: Number(i.createdAt) || 0,
+        goalId: i.goalId ? String(i.goalId) : null, archived: !!i.archived
+      }));
       // rebuild the offered set from its FIFO order (capped) — pre-order saves fall back to key iteration once.
       const order = Array.isArray(raw.offeredOrder) ? raw.offeredOrder
         : (raw.offered && typeof raw.offered === 'object') ? Object.keys(raw.offered) : [];
@@ -302,7 +308,13 @@ const GoalStore = (() => {
     if (wqId) Goals.bindMilestoneQuest(goal, m.id, wqId);   // no id (store absent/failed) → the milestone stays unbound and Accept re-offers (fail-open)
     save();
     // fire the real run for this milestone (the no-dead-gap promise) — the same launch path the pitch build uses.
-    try { if (deps.launchDirective) deps.launchDirective("Let's work toward: " + m.text); } catch (_) {}
+    try { if (deps.launchDirective) deps.launchDirective("Let's work toward: " + m.text
+      + '\n\nThis step supports my goal: ' + goal.text
+      + (goal.successCondition ? '\nThe overall goal is achieved when: ' + goal.successCondition : '')
+      + (goal.motivation ? '\nWhy this matters to me: ' + goal.motivation : '')
+      + (goal.constraints ? '\nMy constraints: ' + goal.constraints : '')
+      + (goal.journal && goal.journal.length ? '\nMy latest reflection: ' + goal.journal.filter(e => e.kind === 'reflection').slice(-1).map(e => e.text).join('') : '')
+      + '\nWork on this step, and show the result and anything still unverified. Completing this task does not by itself prove the overall goal is achieved.'); } catch (_) {}
     return m;
   }
 
@@ -347,24 +359,129 @@ const GoalStore = (() => {
     return r;
   }
 
-  async function createGoal(text, successCondition, steps) {
+  // An explicit, tool-free planning request. Nothing becomes a goal until the user saves it.
+  async function suggestPlan(text, options = {}) {
+    const title = cleanNote(text, 280);
+    if (title.length < 4) return { ok: false, error: 'Tell StarNet a little about what you want to do first.' };
+    if (typeof Harness === 'undefined' || !Harness.chat) return { ok: false, error: 'Planning is unavailable. You can still write your own plan below.' };
+    try {
+      const res = await Harness.chat({ system: deps.getSystem ? deps.getSystem() : '', agentId: 'agent',
+        isTask: false, placed: [], internal: true, evidence: true,
+        messages: [{ role: 'user', content: 'Help me shape this ambition into a small, editable starting plan: ' + title
+          + '\nWhy it matters: ' + cleanNote(options.motivation, 500) + '\nConstraints: ' + cleanNote(options.constraints, 500)
+          + '\nCurrent success idea: ' + cleanNote(options.successCondition, 500) + '\nCurrent steps: ' + cleanNote(options.steps, 1000)
+          + '\nReturn only JSON: {"successCondition":"an observable result, up to 500 characters","steps":["one concrete first action, up to 140 characters"]}.'
+          + '\nSuggest one to five achievable steps. If the ambition is uncertain, begin with a small experiment. Treat targets as proposals, never promises. Do not perform work or save a goal.' }] });
+      if (!res || res.error) return { ok: false, error: 'StarNet could not prepare a plan. Your draft is safe; try again or write your own.' };
+      const raw = String(res.text || '').trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '');
+      const plan = JSON.parse(raw);
+      if (!plan || typeof plan.successCondition !== 'string' || !Array.isArray(plan.steps)
+        || plan.steps.length < 1 || plan.steps.length > 5 || plan.steps.some(s => typeof s !== 'string')) throw new Error('invalid plan');
+      const successCondition = cleanNote(plan.successCondition, 500);
+      const steps = plan.steps.map(s => cleanNote(s, 140));
+      if (successCondition.length < 4 || steps.some(s => s.length < 4)) throw new Error('empty plan');
+      return { ok: true, successCondition, steps };
+    } catch (_) { return { ok: false, error: 'StarNet could not prepare a usable plan. Your draft is safe; try again or write your own.' }; }
+  }
+
+  async function createGoal(text, successCondition, steps, options) {
+    if (creatingGoal) return { ok: false, error: 'The goal is being saved.' };
     if (!ready() || typeof JourneyStore === 'undefined' || !JourneyStore.registerGoal) return { ok: false, error: 'journey service unavailable' };
     const title = Goals.scrubSecrets(String(text || '').trim());
     const condition = Goals.scrubSecrets(String(successCondition || '').trim());
     if (title.length < 4 || condition.length < 4) return { ok: false, error: 'enter your goal and an observable success condition' };
     if (state.goals.filter(g => g.status === 'active').length >= GOAL_CAP) return { ok: false, error: 'finish or retire an existing goal before adding another' };
+    if (state.goals.length >= 240) return { ok: false, error: 'This device has 240 saved goal chapters. Export your journey before starting a new collection.' };
     const stamp = Math.max(now(), ...state.goals.map(g => (g.createdAt || 0) + 1));
     const g = Goals.makeGoal(title, steps, null, stamp, { userAuthored: true });
     if (!g) return { ok: false, error: 'enter at least one concrete first step' };
+    creatingGoal = true;
     // Save the user-authored goal and stable id before the network boundary. A lost response cannot
     // strand the path; the success-condition action retries this id, and sync reconciles an accepted write.
     g.successCondition = condition.slice(0, 500); g.pendingRegistration = true;
+    g.focusedAt = Math.max(stamp, ...state.goals.map(g => (g.focusedAt || g.createdAt || 0) + 1));
+    g.motivation = cleanNote(options && options.motivation, 500);
+    g.constraints = cleanNote(options && options.constraints, 500);
+    g.journal = [{ at: stamp, kind: 'started', text: 'Started this goal: ' + title }];
+    const idea = options && state.ideas.find(i => i.id === options.ideaId && !i.goalId);
+    if (idea) { idea.goalId = g.id; if (idea.learning) g.journal.push({ at: stamp, kind: 'reflection', text: idea.learning }); }
     state.goals.push(g); capHistory(state); save(); pushToSidecar(); poke();
     let r;
     try { r = await JourneyStore.registerGoal({ id: g.id, text: g.text, successCondition: condition }); }
     catch (_) { r = { ok: false }; }
-    if (r && r.ok) { g.pendingRegistration = false; save(); poke(); return r; }
-    return { ok: false, error: 'goal saved on this device; save its success condition to retry Journey registration' };
+    creatingGoal = false;
+    if (r && r.ok) { g.pendingRegistration = false; save(); poke(); return { ...r, goalId: g.id }; }
+    return { ok: false, saved: true, goalId: g.id, error: 'goal saved on this device; save its success condition to retry Journey registration' };
+  }
+
+  const cleanNote = (text, limit = 1000) => Goals.scrubSecrets(String(text || '').trim()).slice(0, limit);
+  function record(g, kind, text) {
+    (g.journal || (g.journal = [])).push({ at: now(), kind, text: cleanNote(text) });
+    g.updatedAt = now(); save(); pushToSidecar(); poke();
+  }
+  function setDisposition(id, status, reason) {
+    const g = ready() && state.goals.find(g => g.id === id);
+    if (!g || !['active', 'paused', 'archived'].includes(g.status) || !['active', 'paused', 'archived'].includes(status) || g.status === status) return false;
+    reconcile('');
+    if (g.milestones.some(m => m.status === 'open' && questLive(m.questRef))) return false;
+    if (status === 'active' && state.goals.filter(g => g.status === 'active').length >= GOAL_CAP) return false;
+    g.status = status;
+    // Resuming is an explicit choice, independent of an old dossier belief's later retirement.
+    if (status === 'active') { g.sourceBeliefId = null; g.focusedAt = Math.max(now(), ...state.goals.map(g => (g.focusedAt || g.createdAt || 0) + 1)); }
+    record(g, status === 'active' ? 'resumed' : status, cleanNote(reason) || (status === 'active' ? 'Ready to continue.' : status === 'paused' ? 'Taking a pause.' : 'Keeping this chapter for later.'));
+    return true;
+  }
+  function saveContext(id, motivation, constraints) {
+    const g = ready() && state.goals.find(g => g.id === id && ['active', 'paused'].includes(g.status));
+    if (!g) return false;
+    const why = cleanNote(motivation, 500), limits = cleanNote(constraints, 500);
+    if ((g.motivation || '') === why && (g.constraints || '') === limits) return true;
+    g.motivation = why; g.constraints = limits;
+    record(g, 'context', 'Why it matters: ' + (g.motivation || 'not specified') + '\nConstraints: ' + (g.constraints || 'not specified')); return true;
+  }
+  function reflect(id, text) {
+    const g = ready() && state.goals.find(g => g.id === id);
+    if (!g || cleanNote(text).length < 4) return false;
+    const last = (g.journal || []).slice(-1)[0];
+    if (last && last.kind === 'reflection' && last.text === cleanNote(text) && now() >= last.at && now() - last.at < 5000) return true;
+    record(g, 'reflection', text); return true;
+  }
+  function reviseStep(id, milestoneId, text) {
+    const g = ready() && state.goals.find(g => g.id === id && ['active', 'paused'].includes(g.status));
+    const m = g && g.milestones.find(m => m.id === milestoneId && m.status === 'open');
+    const next = cleanNote(text, 140);
+    // Bound work has an immutable objective, even if stalled. Add another step to change that objective.
+    if (!m || m.questRef || Goals.lowValue(next) || next === m.text || g.milestones.some(s => s.id !== m.id && s.status === 'open' && s.text.toLowerCase() === next.toLowerCase())) return false;
+    const previous = m.text; m.text = next; record(g, 'revised', previous + ' → ' + next); return true;
+  }
+  function saveIdea(id, text, question, learning) {
+    if (!ready()) return false;
+    const title = cleanNote(text, 280);
+    if (title.length < 4) return false;
+    let idea = id && state.ideas.find(i => i.id === id);
+    if (id && !idea) return false;
+    if (!idea) {
+      if (state.ideas.length >= 100) return false;
+      const stamp = Math.max(now(), ...state.ideas.map(i => i.createdAt + 1));
+      idea = { id: 'idea_' + stamp, createdAt: stamp, goalId: null, archived: false }; state.ideas.push(idea);
+    }
+    Object.assign(idea, { text: title, question: cleanNote(question, 500), learning: cleanNote(learning) });
+    save(); poke(); return idea.id;
+  }
+  function archiveIdea(id) {
+    const idea = ready() && state.ideas.find(i => i.id === id);
+    if (!idea) return false;
+    idea.archived = !idea.archived; save(); poke(); return true;
+  }
+  function reviewPrompt(id) {
+    const g = ready() && state.goals.find(g => g.id === id);
+    if (!g) return '';
+    return 'Help me review my goal: ' + g.text + '\nSuccess looks like: ' + g.successCondition
+      + '\nSaved chapter status: ' + g.status + (g.outcomeEvidence ? '\nMy reported outcome (not independent verification): ' + g.outcomeEvidence : '\nNo final outcome has been reported.')
+      + '\nWhy it matters: ' + (g.motivation || 'not yet specified') + '\nConstraints: ' + (g.constraints || 'not yet specified')
+      + '\nPlan:\n' + g.milestones.map(m => '[' + m.status + '] ' + m.text + (m.evidence ? ' — recorded: ' + m.evidence : '')).join('\n')
+      + '\nRecent reflections:\n' + (g.journal || []).filter(e => e.kind === 'reflection').slice(-3).map(e => e.text).join('\n')
+      + '\nHelp me assess what worked, what is still unverified, and one useful adjustment. Distinguish my reported results from independent verification. Propose changes for me to review; do not change my saved plan.';
   }
   function focusGoal(id) {
     const g = ready() && state.goals.find(g => g.id === id && g.status === 'active');
@@ -372,6 +489,14 @@ const GoalStore = (() => {
     g.focusedAt = Math.max(now(), ...state.goals.map(g => (g.focusedAt || g.createdAt || 0) + 1));
     save(); pushToSidecar(); poke(); return true;
   }
+
+  function chooseNext(goalId, milestoneId) {
+    const g = ready() && state.goals.find(g => g.id === goalId);
+    if (!Goals.chooseNext(g, milestoneId, now(), questLive)) return false;
+    save(); pushToSidecar(); poke(); return true;
+  }
+
+  function briefing() { return ready() ? Goals.briefing(state.goals, questLive) : { goal: null, completedGoal: null }; }
 
   async function confirmOutcome(goalId, evidence) {
     const g = ready() && state.goals.find(g => g.id === goalId && g.status === 'active');
@@ -546,7 +671,10 @@ const GoalStore = (() => {
   return {
     init, reset, sync, quests, activeGoal, unplannedGoal, pushToSidecar,
     willOfferDecomposition, pendingDecomposition, proposeDecomposition, confirm, declineDecomposition, markOffered,
-    acceptMilestone, createGoal, focusGoal, listGoals: () => ready() ? state.goals.slice() : [], reportMilestone, setSuccessCondition, confirmOutcome, addStep, reconcile, syncDrift, setFiring, isFiring, beliefFingerprint, questLive,
+    acceptMilestone, createGoal, suggestPlan, focusGoal, chooseNext, briefing, listGoals: () => ready() ? state.goals.slice() : [],
+    setDisposition, saveContext, reflect, reviseStep, saveIdea, archiveIdea, reviewPrompt, isCreatingGoal: () => creatingGoal,
+    listIdeas: () => ready() ? state.ideas.slice() : [], exportJourney: () => JSON.stringify({ exportedAt: now(), goals: state && state.goals || [], ideas: state && state.ideas || [] }, null, 2),
+    reportMilestone, setSuccessCondition, confirmOutcome, addStep, reconcile, syncDrift, setFiring, isFiring, beliefFingerprint, questLive,
     _state: () => state, _onRunEnd: onRunEnd, _syncJourneyMilestones: syncJourneyMilestones
   };
 })();
