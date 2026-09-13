@@ -50,4 +50,3 @@ The earlier audit's retry/compaction progress-display gaps remain separate follo
 - The audit's earlier local-voice failure came from using NODE_PATH without a local dependency directory. The repair workspace now has a dependency junction; the local-voice test passes. No test was bypassed or loosened.
 
 Tracked bug: `qa/bugs/c9201c15-run-metadata-invalidates-reusable-prompt-cache-a.md`. Source-fixed, installer-unverified, customer-recovery-unconfirmed are distinct statuses.
-
