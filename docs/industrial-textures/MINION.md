@@ -35,4 +35,12 @@ The seated station-worker android quietly types on an invisible workstation keyb
 
 ## Verification
 
-Focused sprite asset, walking-build, seated-facing, direction-detail, loading, world skin-switch and dossier accessibility checks pass. Live UI selection reports Station Minion selected for NOVA, and the preview decodes the actual new walking PNGs at their native 92px size. Full gate and restart proof are recorded after completion in the lane verification log.
+Verified in the dev-seeded app at `http://127.0.0.1:18792/` on 2026-09-13:
+
+- Selected Station Minion through NOVA's dossier. After restarting the preview sidecar and reloading, the picker still reports `aria-pressed="true"`; the saved backend document reports `doc.agent.skin = "station_minion"`. All 19 station props remain present.
+- The actual served `rot_south.png` and animated `walk_south_2.png` / `walk_south_5.png` decode at 92px; the live station shows the new body standing and roaming. No browser errors were captured. [Live picker screenshot](minion-live-picker.jpg).
+- The real `SPRITES` renderer loads 24 tracks / 96 frames at scale 0.385. Native canvas checks exercise idle, walking, sitting and typing in all four cardinal directions; every walking and typing direction produces distinct rendered frames. Seated and typing art were verified through this renderer, not through a live provider work run. [Renderer receipt](minion-renderer-proof.json).
+- Focused asset, walking-build, seated-facing, direction-detail, loading, detached-prop, world skin-switch and dossier accessibility checks pass. The unchanged runtime retains its normal fallbacks for optional actions without bespoke frames.
+- Pre-integration `npm run test:fast` on `b1a66481f`: `run-fast-tests: OK — 772 step(s) green`. After syncing other agents' changes, the combined sprite audit and website mirror check also pass.
+- Post-integration `npm run test:fast` on trunk `0b35b46e91a80ecaa7c39a7fcec5fae512157a86`: `run-fast-tests: OK — 772 step(s) green`, exit 0. Raw logs are retained locally under `dev/industrial-textures/minion-source/test-fast.log` and `test-fast-trunk.log` in the retained preview worktree.
+- The reviewed frontend catalog hash was refreshed in the source audit ledger; all existing claim verdicts were preserved. This is a skin verification, not a station-wide readiness claim.
