@@ -1,0 +1,66 @@
+{
+  "recordedAt": "2026-09-13T06:46:34.011Z",
+  "branch": "agent/seam-audit-0912-b",
+  "fastCandidate": "c0ffa6afcabba7a4586a9eb3dd4af3c1d77ccf8d",
+  "httpCandidate": "2ee1368de4e4e33ed075414b215a1e9804ab8f01",
+  "httpBackendUnchangedAfterFrontendMerge": true,
+  "node": "v22.23.0",
+  "gates": [
+    {
+      "command": "npm run test:fast",
+      "exitCode": 0,
+      "steps": 779,
+      "log": "qa/seam-audit-0912/repair-final-integrated-fast.log",
+      "sha256": "ba7b2b984a2be0b4e330899e174819cfb1df277d61e41d74fb59375ecc19b25e"
+    },
+    {
+      "command": "npm run test:http",
+      "exitCode": 0,
+      "steps": 114,
+      "log": "qa/seam-audit-0912/repair-final-http.log",
+      "sha256": "c33b8866c54f0de455b0958936f4e08357c069576c56cc0447977b755d5a39c0"
+    }
+  ],
+  "liveEvidence": [
+    "repair-ui-observations.json",
+    "repair-http-before-restart.json",
+    "repair-http-after-restart.json",
+    "repair-proxy-results.json",
+    "repair-fixture-results.json"
+  ],
+  "earlierAttempts": [
+    {
+      "log": "repair-integrated-fast.log",
+      "result": "failed: ENOSPC at sidecar boot"
+    },
+    {
+      "log": "repair-final-fast.log",
+      "result": "failed: stale source receipt; regenerated"
+    },
+    {
+      "log": "repair-integrated-verified-fast.log",
+      "result": "777 steps passed before channel compatibility correction"
+    },
+    {
+      "log": "repair-integrated-verified-http.log",
+      "result": "failed: host memory exhaustion at auxiliary-budget boot"
+    },
+    {
+      "log": "repair-verified-http-retry.log",
+      "result": "failed: channel-target follow-up incorrectly required local origin; corrected in b5c5cba75"
+    },
+    {
+      "log": "repair-delivery-compatibility.log",
+      "result": "cron API and local-session recovery tests passed after correction"
+    }
+  ],
+  "scope": {
+    "sourceRepairs": 9,
+    "seededBrowserVerified": true,
+    "localProviderHttpVerified": true,
+    "installedDesktopVerified": false,
+    "paidProviderDispatchVerified": false,
+    "affectedCustomerRecoveryConfirmed": false
+  },
+  "integrationNote": "Final gates cover product source. Later trunk QA-only receipts may be merged without repeating unchanged product checks. Existing uncommitted docs/NEXT.md and qa/STATUS.md and untracked handoff document belong to other work and must be preserved."
+}
