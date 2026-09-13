@@ -38,4 +38,4 @@ The seed server is a local development preview. No provider task execution is cl
 - Run node dev/industrial-textures/render-remaster-review.cjs to refresh the floors, walls and workstation sheets under dev/.scratch-workspace/remaster-review.
 - Generation prompts and asset provenance are in PROMPTS.md and FLOOR-PROMPTS.md.
 - PNG encoding is normalized through Sharp for native decoder compatibility without repainting source pixels.
-- The full repository gate is npm run test:fast; its final result is recorded in the delivery report and local dev/industrial-textures/remaster-test-fast.log.
+- The final npm run test:fast completed with exit 0: all 776 steps green against source commit 884543d66. Output is in dev/industrial-textures/remaster-test-fast.log. The first two failure logs are retained beside it. The larger artwork exposed a 64 MiB aggregate buffer limit in the source audit; bounded blob batches fixed it without omitting any audited path. A 25-assertion regression covers a 65 MiB blob and exact bytes. The classic lighting fixture now supplies its extracted texture-mode dependency, with all 84 original lighting assertions passing.
