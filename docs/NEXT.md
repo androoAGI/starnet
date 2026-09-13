@@ -1,9 +1,3 @@
-## LIVE ON 8992 — arrival / onboarding-conversation-0912
-
-Owner-approved onboarding and cinematic arrival run on localhost:8992 from the isolated lane.
-Candidate cfd8cb9a2 passed 772/772 fast checks; full-screen arrival and interview return were
-observed in the real app. Original station data is preserved. Shared-trunk merge remains deferred
-while the integration checkout carries other active changes. Receipt: qa/arrival-integration-0912.md.
 ## JOURNEY SWEEP — 2026-09-12 (`agent/journey-first-loop-0912`)
 
 Owner requested a sweep and polish. Reproduced two issues in the live seeded preview:
