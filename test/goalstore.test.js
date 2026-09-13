@@ -437,5 +437,20 @@ const { GoalStore } = require('../frontend/app/goalstore.js');
   retained.goals = Array.from({ length: 26 }, (_, i) => ({ ...retained.goals[0], id: 'kept_' + i, createdAt: i }));
   mem['starnet.goals.v1'] = JSON.stringify(retained); GoalStore.init({ now: () => ++clock });
   A.eq(GoalStore.listGoals().length, 26, 'growing a journey never evicts earlier completed chapters');
+  const beforeSuggestion = GoalStore.exportJourney(), beforeLaunches = launches.length;
+  let planningRequest;
+  global.Harness.chat = async request => { planningRequest = request; return { text: '```json\n' + JSON.stringify({ successCondition: 'A friend can use the draft', steps: ['Build one small example'] }) + '\n```' }; };
+  const suggested = await GoalStore.suggestPlan('I want to try making an app', { constraints: 'One evening' });
+  A.ok(suggested.ok && suggested.steps.length === 1, 'uncertain ambition can produce a one-step editable plan');
+  A.ok(planningRequest.messages[0].content.includes('One evening'), 'suggestion incorporates the user boundaries');
+  A.eq(planningRequest.isTask, false, 'planning uses the existing tool-free model path');
+  A.eq(launches.length, beforeLaunches, 'suggesting a plan never launches a work step');
+  A.eq(JSON.parse(GoalStore.exportJourney()).goals.length, JSON.parse(beforeSuggestion).goals.length, 'a suggestion never creates a goal');
+  for (const invalid of ['not json', '{"successCondition":"fine","steps":[]}', '{"successCondition":"fine","steps":[{}]}', '{"successCondition":"","steps":["Make a draft"]}']) {
+    global.Harness.chat = async () => ({ text: invalid });
+    A.eq((await GoalStore.suggestPlan('Try a new idea')).ok, false, 'malformed planning output is recoverable without mutating a plan');
+  }
+  global.Harness.chat = async () => { throw new Error('offline'); };
+  A.eq((await GoalStore.suggestPlan('Try a new idea')).ok, false, 'offline planning returns an actionable failure');
   A.report('goalstore.test');
 })();

@@ -359,6 +359,31 @@ const GoalStore = (() => {
     return r;
   }
 
+  // An explicit, tool-free planning request. Nothing becomes a goal until the user saves it.
+  async function suggestPlan(text, options = {}) {
+    const title = cleanNote(text, 280);
+    if (title.length < 4) return { ok: false, error: 'Tell StarNet a little about what you want to do first.' };
+    if (typeof Harness === 'undefined' || !Harness.chat) return { ok: false, error: 'Planning is unavailable. You can still write your own plan below.' };
+    try {
+      const res = await Harness.chat({ system: deps.getSystem ? deps.getSystem() : '', agentId: 'agent',
+        isTask: false, placed: [], internal: true, evidence: true,
+        messages: [{ role: 'user', content: 'Help me shape this ambition into a small, editable starting plan: ' + title
+          + '\nWhy it matters: ' + cleanNote(options.motivation, 500) + '\nConstraints: ' + cleanNote(options.constraints, 500)
+          + '\nCurrent success idea: ' + cleanNote(options.successCondition, 500) + '\nCurrent steps: ' + cleanNote(options.steps, 1000)
+          + '\nReturn only JSON: {"successCondition":"an observable result, up to 500 characters","steps":["one concrete first action, up to 140 characters"]}.'
+          + '\nSuggest one to five achievable steps. If the ambition is uncertain, begin with a small experiment. Treat targets as proposals, never promises. Do not perform work or save a goal.' }] });
+      if (!res || res.error) return { ok: false, error: 'StarNet could not prepare a plan. Your draft is safe; try again or write your own.' };
+      const raw = String(res.text || '').trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '');
+      const plan = JSON.parse(raw);
+      if (!plan || typeof plan.successCondition !== 'string' || !Array.isArray(plan.steps)
+        || plan.steps.length < 1 || plan.steps.length > 5 || plan.steps.some(s => typeof s !== 'string')) throw new Error('invalid plan');
+      const successCondition = cleanNote(plan.successCondition, 500);
+      const steps = plan.steps.map(s => cleanNote(s, 140));
+      if (successCondition.length < 4 || steps.some(s => s.length < 4)) throw new Error('empty plan');
+      return { ok: true, successCondition, steps };
+    } catch (_) { return { ok: false, error: 'StarNet could not prepare a usable plan. Your draft is safe; try again or write your own.' }; }
+  }
+
   async function createGoal(text, successCondition, steps, options) {
     if (creatingGoal) return { ok: false, error: 'The goal is being saved.' };
     if (!ready() || typeof JourneyStore === 'undefined' || !JourneyStore.registerGoal) return { ok: false, error: 'journey service unavailable' };
@@ -646,7 +671,7 @@ const GoalStore = (() => {
   return {
     init, reset, sync, quests, activeGoal, unplannedGoal, pushToSidecar,
     willOfferDecomposition, pendingDecomposition, proposeDecomposition, confirm, declineDecomposition, markOffered,
-    acceptMilestone, createGoal, focusGoal, chooseNext, briefing, listGoals: () => ready() ? state.goals.slice() : [],
+    acceptMilestone, createGoal, suggestPlan, focusGoal, chooseNext, briefing, listGoals: () => ready() ? state.goals.slice() : [],
     setDisposition, saveContext, reflect, reviseStep, saveIdea, archiveIdea, reviewPrompt, isCreatingGoal: () => creatingGoal,
     listIdeas: () => ready() ? state.ideas.slice() : [], exportJourney: () => JSON.stringify({ exportedAt: now(), goals: state && state.goals || [], ideas: state && state.ideas || [] }, null, 2),
     reportMilestone, setSuccessCondition, confirmOutcome, addStep, reconcile, syncDrift, setFiring, isFiring, beliefFingerprint, questLive,

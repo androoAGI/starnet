@@ -8315,6 +8315,7 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
       Chat.prefill('Help me with this quest: ' + String(q.title || '').trim()
         + (q.desc ? ' — ' + String(q.desc).trim() : '')
         + (cw ? '\n\nIt counts as done when: ' + cw : '') + '\n\n');
+      notify('Conversation prepared. Edit and send it when you are ready.', 'good');
     }
     return true;
   }
@@ -8361,19 +8362,23 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
         + '<div class="q-return-actions"><button class="consent-btn q-brief-explore">EXPLORE WITH MY CREW</button>' + jump('goals', 'CHOOSE A GOAL') + '</div></section>';
     }
     const latest = brief.latest, next = brief.next;
-    const proof = '<details class="q-return-proof"><summary>' + (latest ? '◆ ' + esc(latest.text) : 'Why this step matters') + '</summary>'
+    const latestWork = latest && latest.questRef && typeof WorkQuestStore !== 'undefined' && WorkQuestStore.quests
+      ? WorkQuestStore.quests().find(q => q.id === latest.questRef) : null;
+    const proof = '<details class="q-return-proof"' + (latest ? ' open' : '') + '><summary>' + (latest ? 'LAST RESULT · ' + esc(latest.text) : 'Why this step matters') + '</summary>'
       + (goal.successCondition ? '<p>Working toward: ' + esc(goal.successCondition) + '</p>' : '')
       + (latest ? '<p>' + esc(latest.evidence || 'No detail was saved with this step.') + '</p>'
         + '<span class="sub dim">' + (latest.source === 'commander' ? 'You reported this action' : 'Recorded work completion') + ' · ' + esc(qrRel(latest.doneAt)) + '</span>' : '<p>This is a step you chose toward ' + esc(goal.text) + '.</p>')
       + (latest ? '<div class="q-return-actions">' + jump('progress', 'VIEW PROGRESS')
-        + (latest.source !== 'commander' ? '<button class="consent-btn q-go" data-dest="deliverables">OPEN OUTPUT LIBRARY</button>' : '') + '</div>' : '') + '</details>';
+        + (latestWork && latestWork.runId ? '<button class="consent-btn q-step-outputs" data-run="' + esc(latestWork.runId) + '" data-label="' + esc(latest.text) + '">OPEN THIS STEP’S OUTPUTS</button>'
+          : latest.source !== 'commander' ? '<button class="consent-btn q-go" data-dest="deliverables">OPEN OUTPUT LIBRARY</button>' : '') + '</div>' : '') + '</details>';
     const action = next && !brief.inFlight
-      ? '<button class="consent-btn q-arc-accept" data-gid="' + esc(goal.id) + '" data-mid="' + esc(next.id) + '">ASK STARNET TO HELP</button>' : '';
+      ? '<button class="consent-btn q-arc-accept" data-gid="' + esc(goal.id) + '" data-mid="' + esc(next.id) + '">START THIS STEP</button>' : '';
     return '<section class="q-return-card" aria-label="Your next move"><span class="q-ns-eyebrow">YOUR NEXT MOVE · ' + brief.progress.done + ' / ' + brief.progress.total + ' PLANNED STEPS</span>'
       + '<h3>' + esc(goal.text) + '</h3>'
       + '<p class="q-return-next"><span class="q-ns-eyebrow">' + (next ? (brief.inFlight ? 'WORK ACCEPTED' : 'NEXT') : 'PLAN COMPLETE') + '</span> · '
       + (next ? esc(next.text) : 'Review the actual outcome, or add a step if there is more to do.') + '</p>'
       + '<div class="q-return-actions">' + action + jump('goals', next ? 'REVIEW PLAN' : 'REVIEW MY OUTCOME') + '</div>'
+      + (action ? '<p class="sub dim">Starts work with your crew using your current model and permissions.</p>' : '')
       + proof + '</section>';
   }
 
@@ -8428,7 +8433,7 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
       return '<div class="gx-sec q-track-sec"><span class="gx-title">YOUR GOAL</span></div>'
         + '<div class="q-track q-track-empty' + (reached > 0 ? ' q-track-reached-band' : '') + '">'
         + lede
-        + '<button class="q-go q-track-setgoal" data-dest="commander" title="Open where you do this next">▶ ' + (reached > 0 ? 'SET THE NEXT GOAL' : 'SET A GOAL') + '</button>'
+        + '<button class="q-track-setgoal consent-btn q-goal-start">▶ ' + (reached > 0 ? 'SET THE NEXT GOAL' : 'SET A GOAL') + '</button>'
         + '</div>';
     }
     const total = Math.max(0, goal.total | 0), doneN = Math.max(0, goal.done | 0);
@@ -8451,7 +8456,7 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
     // the one actionable front, offered ONCE — withheld while its bound build is in flight.
     const next = steps.find(s => s.isNext && s.status !== 'done');
     const accept = (next && !next.inFlight)
-      ? '<button class="consent-btn q-arc-accept q-track-accept" data-gid="' + esc(next.arcGoalId) + '" data-mid="' + esc(next.milestoneId) + '">▶ ASK STARNET TO HELP</button>'
+      ? '<button class="consent-btn q-arc-accept q-track-accept" data-gid="' + esc(next.arcGoalId) + '" data-mid="' + esc(next.milestoneId) + '">▶ START THIS STEP</button><p class="sub dim">Starts work with your crew using your current model and permissions.</p>'
         + '<details class="q-life-report"><summary>I DID THIS STEP</summary><label>What did you do?<textarea class="q-step-evidence" maxlength="1000" placeholder="Describe the action you completed outside StarNet"></textarea></label>'
         + '<button class="consent-btn q-step-report" data-gid="' + esc(next.arcGoalId) + '" data-mid="' + esc(next.milestoneId) + '">RECORD MY ACTION</button></details>'
       : (next && next.inFlight ? '<span class="sub q-track-running">the build for this step is running — finishing it completes the step.</span>' : '');
@@ -8605,9 +8610,9 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
       + '<div class="q-star-map">' + (chapters.length ? chapters.map(g => {
         const reached = (j.goals || []).some(x => x.id === g.id && x.status === 'achieved');
         const p = (g.milestones || []).filter(m => m.status === 'done').length;
-        return '<button class="q-star ' + (reached ? 'q-star-reached' : '') + ' q-goal-review" data-gid="' + esc(g.id) + '"><span class="q-star-glyph" aria-hidden="true">' + (reached ? '✦' : '◇') + '</span><span>' + esc(g.text) + '</span><small>' + (reached ? 'OUTCOME CONFIRMED' : esc(g.status.toUpperCase()) + ' · ' + p + ' RECORDED STEPS') + '</small></button>';
+        return '<button class="q-star ' + (reached ? 'q-star-reached' : '') + ' q-goal-chapter" data-gid="' + esc(g.id) + '"><span class="q-star-glyph" aria-hidden="true">' + (reached ? '✦' : '◇') + '</span><span>' + esc(g.text) + '</span><small>' + (reached ? 'OUTCOME CONFIRMED' : esc(g.status.toUpperCase()) + ' · ' + p + ' RECORDED STEPS') + '</small></button>';
       }).join('') : '<div class="q-star-empty">◇<p>Your first direction starts a constellation.<br>It grows from the goals and results you record.</p></div>') + '</div>'
-      + '<p class="sub dim">Select a star to reflect with your crew. Confirmed outcomes light up; pausing preserves the chapter.</p></div>';
+      + '<p class="sub dim">Select a star to open its goal, results, and history. Confirmed outcomes light up; pausing preserves the chapter.</p></div>';
     const goal = j.activeGoal || null;
     const done = goal ? Math.max(0, Number(goal.done) | 0) : 0;
     const total = goal ? Math.max(0, Number(goal.total) | 0) : 0;
@@ -8727,14 +8732,20 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
           + '<details class="q-reflection-editor"><summary>Reflect or explain a change</summary><label>Reflection or reason for changing direction<textarea class="q-goal-reflection" maxlength="1000" placeholder="What worked? What surprised you? What should change?"></textarea></label>'
           + '<button class="consent-btn q-goal-reflect">SAVE REFLECTION</button></details></details>';
       }).join('') + '</div>' : '';
-    return shelf + collection + '<details class="q-life-goal q-life-manage"' + (goals.length ? '' : ' open') + '><summary>Start a goal</summary>'
-      + '<p class="sub">Start from your own idea, or adapt a starting point.</p><div class="q-journey-actions"><button class="consent-btn q-goal-template" data-template="app">BUILD &amp; LAUNCH</button><button class="consent-btn q-goal-template" data-template="automation">RECLAIM MY TIME</button><button class="consent-btn q-goal-template" data-template="creative">MAKE SOMETHING</button></div>'
-      + '<label>Goal<input class="q-new-goal" maxlength="280" placeholder="Learn to play a song, change careers, build a business…"></label>'
+    return '<details class="q-life-goal q-life-manage"' + (goals.length ? '' : ' open') + '><summary>Start a goal</summary>'
+      + '<p class="sub">A rough idea is enough. Shape it with StarNet or write your own plan.</p>'
+      + '<label>I want to…<input class="q-new-goal" maxlength="280" placeholder="Learn to play a song, change careers, build a business…"></label>'
+      + '<button class="consent-btn q-goal-suggest">HELP SHAPE MY PLAN</button><p class="sub dim">Uses your current AI model to suggest an editable plan. Saving and starting work are separate actions.</p>'
+      + '<div class="q-plan-feedback" role="status" aria-live="polite"></div><div class="q-plan-proposal"></div>'
+      + '<details class="q-goal-starters"><summary>Or adapt a starting point</summary><div class="q-journey-actions"><button class="consent-btn q-goal-template" data-template="app">BUILD &amp; LAUNCH</button><button class="consent-btn q-goal-template" data-template="automation">RECLAIM MY TIME</button><button class="consent-btn q-goal-template" data-template="creative">MAKE SOMETHING</button></div></details>'
+      + '<button class="consent-btn q-goal-draft-undo" hidden>RESTORE PREVIOUS DRAFT</button>'
+      + '<details class="q-goal-plan-editor"><summary>Your starting plan</summary>'
       + '<label>What does success look like?<textarea class="q-new-success" maxlength="500" placeholder="The observable result you want to reach"></textarea></label>'
-      + '<label>Why does it matter? (optional)<textarea class="q-new-motivation" maxlength="500" placeholder="What would this change for you?"></textarea></label>'
-      + '<label>Constraints (optional)<input class="q-new-constraints" maxlength="500" placeholder="Two evenings a week; use tools I already have"></label>'
       + '<label>First steps (one per line, up to five)<textarea class="q-new-steps" placeholder="Start with one concrete action. You can extend the plan later."></textarea></label>'
-      + '<div class="q-journey-actions"><button class="consent-btn q-goal-create"' + (saving ? ' disabled aria-busy="true"' : '') + '>' + (saving ? 'SAVING YOUR GOAL…' : 'SAVE &amp; FOCUS ON THIS GOAL') + '</button><button class="consent-btn q-goal-draft-undo" hidden>RESTORE PREVIOUS DRAFT</button></div></details>';
+      + '<details class="q-goal-optional"><summary>What matters to you (optional)</summary>'
+      + '<label>Why does it matter? (optional)<textarea class="q-new-motivation" maxlength="500" placeholder="What would this change for you?"></textarea></label>'
+      + '<label>Constraints (optional)<input class="q-new-constraints" maxlength="500" placeholder="Two evenings a week; use tools I already have"></label></details>'
+      + '<div class="q-journey-actions"><button class="consent-btn q-goal-create"' + (saving ? ' disabled aria-busy="true"' : '') + '>' + (saving ? 'SAVING YOUR GOAL…' : 'SAVE &amp; FOCUS ON THIS GOAL') + '</button></div></details></details>' + collection + shelf;
   }
 
   function journeyChaptersHtml() {
@@ -8749,6 +8760,9 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
         events.sort((a, b) => (b.at || 0) - (a.at || 0));
         return '<details class="q-chapter q-life-goal" data-gid="' + esc(g.id) + '"><summary><span>' + (g.status === 'done' ? '◆ ' : '◇ ') + esc(g.text) + '</span><span class="q-section-note">' + esc(g.status === 'done' ? 'ACHIEVED' : g.status.toUpperCase()) + '</span></summary>'
           + '<p class="sub">' + esc(g.successCondition || '') + '</p>'
+          + (g.motivation ? '<p class="sub">Why it matters: ' + esc(g.motivation) + '</p>' : '')
+          + '<ol class="q-chapter-plan">' + (g.milestones || []).map(m => '<li><span class="gx-tag">' + (m.status === 'done' ? 'RECORDED' : m.questRef ? 'ACCEPTED' : 'PLANNED') + '</span> ' + esc(m.text) + '</li>').join('') + '</ol>'
+          + (g.status === 'active' ? '<button class="consent-btn q-goal-open-plan" data-gid="' + esc(g.id) + '">OPEN THIS PLAN</button>' : '')
           + '<ol class="q-history-line">' + (events.length ? events.map(e => '<li><span class="q-ns-eyebrow">' + esc(e.label.toUpperCase()) + '</span><time>' + esc(e.at ? new Date(e.at).toLocaleDateString() : '') + '</time><p>' + esc(e.text) + '</p></li>').join('') : '<li>The plan is saved. Results and reflections will appear as you work.</li>') + '</ol>'
           + '<button class="consent-btn q-goal-review" data-gid="' + esc(g.id) + '">REFLECT WITH MY CREW</button></details>';
       }).join('')
@@ -8770,6 +8784,12 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
     });
     rerender('quests', false);
     if (message) notify(message, 'good');
+  }
+
+  function questOpenOutputs(runId, label) {
+    openTerm('deliverables');
+    const library = open.deliverables && open.deliverables.querySelector('.term-body');
+    if (!library || typeof Deliverables === 'undefined' || !Deliverables.showRun || !Deliverables.showRun(library, runId, label)) notify('Could not locate that run’s outputs. The library is available to search.', 'warn');
   }
 
   function buildQuests(body) {
@@ -8968,10 +8988,10 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
         + (open.length ? 'Choose another category to find your next action.' : 'Set a direction or refresh your quests when you are ready for what comes next.') + '</p></div>')
       + '</section></div>';
     const questViews = [
-      ['available', 'Quests', 'Your next move, open work, and station quests.'],
+      ['available', 'Now', 'Your next move, open work, and station quests.'],
       ['goals', 'Goals', 'Define what you want to achieve long term, then choose a goal to focus on. Its plan breaks the goal into smaller steps.'],
       ['progress', 'Progress', 'Your recorded progress across all goals: planned steps, tracked metrics, and earned achievements.'],
-      ['completed', 'Completed', 'Look back at finished quests and their results.']
+      ['completed', 'History', 'Your goals, results, reflections, and changes of direction.']
     ];
     body.classList.add('quests-content');
     body.innerHTML = '<div class="gx gx-quests">'
@@ -8979,7 +8999,7 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
       + journalCount + '</header>'
       + '<div class="q-view-tabs" role="tablist" aria-label="Quest sections">' + questViews.map(v =>
         '<button type="button" role="tab" id="q-tab-' + v[0] + '" data-quest-view="' + v[0] + '" aria-controls="q-view-' + v[0] + '">' + v[1]
-        + (v[0] === 'completed' ? ' <span>' + done.length + '</span>' : '') + '</button>').join('') + '</div>'
+        + '</button>').join('') + '</div>'
       + '<p class="q-view-description"></p>'
       + '<section id="q-view-available" class="q-view-panel" role="tabpanel" aria-labelledby="q-tab-available">'
       + questBriefingHtml() + proposalsHtml + filtersHtml + journalHtml
@@ -9003,7 +9023,7 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
     const draftUndo = body.querySelector('.q-goal-draft-undo');
     if (draftUndo) draftUndo.hidden = !body._journeyPreviousDraft;
     if (typeof GoalStore !== 'undefined' && GoalStore.isCreatingGoal && GoalStore.isCreatingGoal()) {
-      body.querySelectorAll('.q-goal-template,.q-idea-promote,.q-goal-draft-undo').forEach(b => { b.disabled = true; });
+      body.querySelectorAll('.q-goal-template,.q-idea-promote,.q-goal-draft-undo,.q-goal-suggest,.q-plan-use').forEach(b => { b.disabled = true; });
     }
     const selectQuestView = id => {
       const selectedView = questViews.find(v => v[0] === id) || questViews[0];
@@ -9025,6 +9045,25 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
       });
     });
     selectQuestView(body.dataset.questView);
+    body.querySelectorAll('.q-step-outputs').forEach(b => b.addEventListener('click', () => {
+      questOpenOutputs(b.dataset.run, b.dataset.label);
+    }));
+    body.querySelectorAll('.q-goal-start').forEach(b => b.addEventListener('click', () => {
+      selectQuestView('goals'); const form = body.querySelector('.q-life-manage');
+      form.open = true; form.scrollIntoView({ block: 'start' }); form.querySelector('.q-new-goal').focus();
+    }));
+    body.querySelectorAll('.q-goal-chapter').forEach(b => b.addEventListener('click', () => {
+      selectQuestView('completed');
+      const search = body.querySelector('.q-archive-search');
+      if (search) { search.value = ''; search.dispatchEvent(new Event('input', { bubbles: true })); }
+      const chapter = Array.from(body.querySelectorAll('.q-chapter')).find(el => el.dataset.gid === b.dataset.gid);
+      if (chapter) { chapter.open = true; chapter.scrollIntoView({ block: 'start' }); chapter.querySelector('summary').focus(); }
+    }));
+    body.querySelectorAll('.q-goal-open-plan').forEach(b => b.addEventListener('click', () => {
+      selectQuestView('goals');
+      const goal = Array.from(body.querySelectorAll('.q-direction')).find(el => el.dataset.gid === b.dataset.gid);
+      if (goal) { goal.open = true; goal.scrollIntoView({ block: 'start' }); goal.querySelector('summary').focus(); }
+    }));
     body.querySelectorAll('.q-brief-view').forEach(b => b.addEventListener('click', () => {
       selectQuestView(b.dataset.view); body.scrollTop = 0;
       body.querySelector('#q-tab-' + b.dataset.view)?.focus();
@@ -9075,6 +9114,45 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
         fields: Array.from(form.querySelectorAll('input,textarea')).map(el => ({ id: el.id, value: el.value, dirty: el.dataset.dirty || '0' })) };
       body.querySelector('.q-goal-draft-undo').hidden = false;
     };
+    const planFeedback = body.querySelector('.q-plan-feedback');
+    if (planFeedback) planFeedback.textContent = body._journeyPlanning ? 'Preparing a starting plan…' : body._journeyPlanMessage || '';
+    const suggest = body.querySelector('.q-goal-suggest');
+    if (suggest) { suggest.disabled = suggest.disabled || !!body._journeyPlanning; suggest.setAttribute('aria-busy', String(!!body._journeyPlanning)); }
+    const proposal = body._journeyPlan;
+    if (proposal) {
+      body.querySelector('.q-plan-proposal').innerHTML = '<div class="q-return-card"><span class="q-ns-eyebrow">SUGGESTED PLAN · NOT SAVED</span><h3>' + esc(proposal.title) + '</h3><p>' + esc(proposal.successCondition) + '</p><ol>'
+        + proposal.steps.map(s => '<li>' + esc(s) + '</li>').join('') + '</ol><div class="q-journey-actions"><button class="consent-btn q-plan-use">USE &amp; EDIT THIS PLAN</button><button class="consent-btn q-plan-dismiss">DISMISS SUGGESTION</button></div></div>';
+      const use = body.querySelector('.q-plan-use');
+      use.disabled = !!(typeof GoalStore !== 'undefined' && GoalStore.isCreatingGoal && GoalStore.isCreatingGoal()) || !!body._journeyPlanning;
+      use.addEventListener('click', () => {
+        const form = body.querySelector('.q-life-manage');
+        if (form.querySelector('.q-new-goal').value.trim() !== proposal.title) {
+          body._journeyPlanMessage = 'Your ambition changed. Ask for a new suggestion for this draft.'; rerender('quests', false); return;
+        }
+        rememberGoalDraft();
+        form.querySelector('.q-new-success').value = proposal.successCondition;
+        form.querySelector('.q-new-steps').value = proposal.steps.join('\n');
+        ['.q-new-success', '.q-new-steps'].forEach(s => { form.querySelector(s).dataset.dirty = '1'; });
+        form.querySelector('.q-goal-plan-editor').open = true;
+        body._journeyPlan = null; body._journeyPlanMessage = 'Plan added to your draft. Edit it, then save when it fits.';
+        rerender('quests', false); body.querySelector('.q-new-success')?.focus();
+      });
+      body.querySelector('.q-plan-dismiss').addEventListener('click', () => { body._journeyPlan = null; body._journeyPlanMessage = ''; rerender('quests', false); body.querySelector('.q-goal-suggest')?.focus(); });
+    }
+    if (suggest) suggest.addEventListener('click', async () => {
+      if (body._journeyPlanning) return;
+      const form = body.querySelector('.q-life-manage'), title = form.querySelector('.q-new-goal').value.trim();
+      if (title.length < 4) { body._journeyPlanMessage = 'Tell StarNet a little about what you want to do first.'; planFeedback.textContent = body._journeyPlanMessage; form.querySelector('.q-new-goal').focus(); return; }
+      const options = { motivation: form.querySelector('.q-new-motivation').value, constraints: form.querySelector('.q-new-constraints').value,
+        successCondition: form.querySelector('.q-new-success').value, steps: form.querySelector('.q-new-steps').value };
+      body._journeyPlanning = true; body._journeyPlan = null; rerender('quests', false);
+      let result;
+      try { result = await GoalStore.suggestPlan(title, options); } catch (_) { result = { error: 'Planning is unavailable. Your draft is safe.' }; }
+      body._journeyPlanning = false;
+      if (result && result.ok) { body._journeyPlan = { ...result, title }; body._journeyPlanMessage = 'Suggestion ready. Review it before adding it to your draft.'; }
+      else body._journeyPlanMessage = result?.error || 'No plan was returned. Try again or write your own.';
+      rerender('quests', false);
+    });
     body.querySelectorAll('.q-goal-draft-undo').forEach(b => b.addEventListener('click', () => {
       const draft = body._journeyPreviousDraft;
       if (!draft) return;
@@ -9086,6 +9164,7 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
       body._journeyIdeaId = draft.ideaId;
       if (draft.ideaId) form.dataset.iid = draft.ideaId; else delete form.dataset.iid;
       body._journeyPreviousDraft = null; b.hidden = true;
+      form.querySelector('.q-goal-plan-editor').open = true;
       form.querySelector('.q-new-goal').focus(); notify('Previous draft restored.', 'good');
     }));
     body.querySelectorAll('.q-goal-template').forEach(b => b.addEventListener('click', () => {
@@ -9097,6 +9176,7 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
       const t = templates[b.dataset.template], row = b.closest('.q-life-manage');
       if (!t) return;
       rememberGoalDraft();
+      row.querySelector('.q-goal-plan-editor').open = true;
       // These are editable suggestions, not saved goals or promised outcomes.
       row.querySelector('.q-new-goal').value = t[0]; row.querySelector('.q-new-success').value = t[1]; row.querySelector('.q-new-steps').value = t[2];
       row.querySelector('.q-new-motivation').value = ''; row.querySelector('.q-new-constraints').value = '';
@@ -9143,6 +9223,7 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
       rememberGoalDraft();
       const current = body.querySelector('.q-life-manage') || form;
       current.open = true; current.dataset.iid = row.dataset.iid; body._journeyIdeaId = row.dataset.iid;
+      current.querySelector('.q-goal-plan-editor').open = true;
       current.querySelector('.q-new-goal').value = row.querySelector('.q-idea-title').value;
       current.querySelector('.q-new-steps').value = row.querySelector('.q-idea-question').value;
       current.querySelector('.q-new-success').value = ''; current.querySelector('.q-new-motivation').value = ''; current.querySelector('.q-new-constraints').value = '';
@@ -9162,7 +9243,17 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
         row.querySelector('.q-new-steps').value.split('\n').map(s => s.trim()).filter(Boolean), {
           motivation: row.querySelector('.q-new-motivation').value, constraints: row.querySelector('.q-new-constraints').value, ideaId: row.dataset.iid
         });
-      if (r && (r.ok || r.saved)) { body._journeyIdeaId = null; body._journeyPreviousDraft = null; sfx('click'); questJourneySaved(body, submitted, true, r.ok ? 'Goal saved and focused. Your next move is ready in Quests.' : ''); if (!r.ok) journeyFail(r); } else { b.disabled = false; journeyFail(r); }
+      if (r && (r.ok || r.saved)) {
+        body._journeyIdeaId = null; body._journeyPreviousDraft = null; body._journeyPlan = null;
+        body._journeyPlanMessage = r.ok ? 'Goal saved. Your next step is ready in Now.' : 'Saved on this browser; the station has not confirmed it yet.';
+        sfx('click'); questJourneySaved(body, submitted, true, r.ok ? 'Goal saved. Your next step is ready.' : '');
+        // Stay with a newer draft or another tab if the user moved on while saving.
+        const newerDraft = Array.from(body.querySelectorAll('.q-life-manage input,.q-life-manage textarea')).some(el => el.dataset.dirty === '1');
+        if (r.ok && !newerDraft && body.dataset.questView === 'goals') {
+          selectQuestView('available'); body.scrollTop = 0; body.querySelector('#q-view-available .q-arc-accept')?.focus();
+        }
+        if (!r.ok) journeyFail(r);
+      } else { b.disabled = false; journeyFail(r); }
     }));
     body.querySelectorAll('.q-quest-disposition').forEach(b => b.addEventListener('click', async () => {
       const row = b.closest('.q-life-quest'); b.disabled = true;

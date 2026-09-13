@@ -141,3 +141,7 @@
 .quests-win button[aria-busy="true"] { opacity: .65; cursor: progress; }
 .quests-win .q-goal-draft-undo { color: var(--ph-dim); }
 .quests-win .q-goal-draft-undo[hidden],.quests-win .q-chapter[hidden] { display: none; }
+.quests-win :is(.q-goal-starters,.q-goal-plan-editor,.q-goal-optional) { margin: 16px 0; }
+.quests-win .q-plan-feedback { min-height: 1.4em; color: var(--ph-dim); line-height: 1.4; }
+.quests-win :is(.q-plan-proposal,.q-chapter-plan) li { margin: 8px 0; line-height: 1.4; overflow-wrap: anywhere; }
+.quests-win .q-plan-proposal .q-return-card { border-color: var(--gold); }
