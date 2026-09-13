@@ -1,3 +1,35 @@
+## JOURNEY UX HANDOFFS — 2026-09-12 (`agent/journey-first-loop-0912`)
+
+Owner requested execution of the strongest remaining UX improvements. Source `e1696ce99`,
+receipt `7d5ea4885`, implements an ambition-first entry with an explicit AI planning request,
+reviewable suggestions, editable adoption, contextual undo, and optional planning detail.
+Planning uses the existing internal model path and never creates a goal or launches its work.
+Malformed responses and connection failures preserve the draft and allow retry or manual entry.
+
+The tabs are Now, Goals, Progress, History. Saving a goal hands off to its next action unless
+the user wrote a newer draft or changed tabs while waiting. Start-step buttons identify actual
+execution. A finished step shows its recorded result alongside the next decision; its output
+link scopes the existing library to the exact bound run, with an explicit return to all work.
+Missing run outputs never substitute unrelated files. Constellation stars open their chapters,
+including the plan and history; crew review remains a separate editable conversation action.
+
+Verified live through the seeded app at :8916 and a deterministic local provider fixture:
+suggest/adopt/undo/save, delayed and failed planning requests, delayed save duplicate protection,
+new typing and navigation preservation, star-to-chapter navigation through a filtered archive,
+real harness step execution, next-step advancement without goal achievement, exact output
+retrieval, and the empty-output recovery path. New controls retain station paint. Screenshots
+were inspected. These are labelled fixture results, not real audience or business outcomes;
+the tests establish the interaction and transport, not suggestion quality across all models.
+
+Full `npm run test:fast`: **771/771 PASS** on `7d5ea4885`. Focused assertions: GoalStore 170,
+quest window 104, work quests 35, deliverables UI 20, deliverables open 11. Website mirror is
+synchronized. Evidence: `.dogfood/journey-first-loop/ux-verified.log`, `ux-live.json`,
+`ux-delayed.json`, `ux-save-delayed.json`, `ux-save-navigation.json`, `ux-run.json`,
+`ux-outputs.json`, `ux-output-empty.json`; walkthrough `REVIEW.md`, images `ux-start.png`
+and `ux-next.png` in the same directory. No backend/shared-contract changes, merge, installer
+rebuild or publication. The full plan graph remains browser-local; cross-device restoration
+has not been implemented in this pass.
+
 ## JOURNEY POLISH — 2026-09-12 (`agent/journey-first-loop-0912`)
 
 Owner approved the expanded direction and requested polish. Source `c3e07f0b9`, with the
