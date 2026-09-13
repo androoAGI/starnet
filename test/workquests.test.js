@@ -51,6 +51,7 @@ A.ok(/^built —/.test(proj.find(q => q.id === gapId).title), 'a completed build
 
 /* ---------- run binding + completion on run.end ---------- */
 A.eq(WQ.bindRun(s, runId, 'r-42'), true, 'the launched run binds to the build');
+A.eq(WQ.project(s).find(q => q.id === runId).runId, 'r-42', 'goal output links receive the actual bound run identity');
 A.eq(WQ.questForRun(s, 'r-42'), runId, 'the run resolves back to its build');
 A.eq(WQ.questForRun(s, 'nope'), null, 'an unrelated run resolves to nothing');
 WQ.tickStep(s, runId, 'run', 3000);   // the run finished

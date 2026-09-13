@@ -26,6 +26,50 @@ const refresh = read('frontend/app/questrefreshstore.js');
 const css = read('frontend/css/app.css');
 const motion = read('frontend/css/motion.css');
 
+// A successful save clears only its submitted fields, including when the store has already
+// replaced the original DOM. Newer input during an async save must remain dirty and intact.
+const draftVm = require('vm');
+const draftRenders = [];
+const draftContext = draftVm.createContext({ rerender: (key, swap) => draftRenders.push({key,swap}), notify: () => {} });
+draftVm.runInContext(station.slice(station.indexOf('  function questJourneyFields('), station.indexOf('  function buildQuests(')), draftContext);
+const submittedField = { id: 'saved', value: 'My reflection', dataset: { dirty: '1' } };
+const savedSnapshot = draftContext.questJourneyFields([submittedField]);
+const freshField = { ...submittedField, dataset: { dirty: '1' } };
+const otherDraft = { id: 'other', value: 'Unfinished goal', dataset: { dirty: '1' } };
+draftContext.questJourneySaved({ querySelectorAll: () => [freshField, otherDraft] }, savedSnapshot, true);
+A.eq(freshField.value, '', 'save clears the replacement control by stable id');
+A.eq(freshField.dataset.dirty, '0', 'saved input no longer triggers the unsaved-close guard');
+A.eq(otherDraft.value, 'Unfinished goal', 'saving a reflection preserves another goal draft');
+A.eq(otherDraft.dataset.dirty, '1', 'the unrelated draft remains dirty');
+freshField.value = 'New writing while the request was pending'; freshField.dataset.dirty = '1';
+draftContext.questJourneySaved({ querySelectorAll: () => [freshField, otherDraft] }, savedSnapshot, true);
+A.eq(freshField.value, 'New writing while the request was pending', 'async completion does not erase newer writing in the same field');
+A.eq(freshField.dataset.dirty, '1', 'newer writing remains unsaved');
+A.ok(draftRenders.every(r => r.key === 'quests' && r.swap === false), 'successful journey saves use the form-preserving repaint');
+const metricValue = { id: 'metric', value: '3', dataset: { dirty: '1' } };
+const metricNote = { id: 'note', value: 'Three people replied', dataset: { dirty: '1' } };
+draftContext.questJourneySaved({ querySelectorAll: () => [metricValue, metricNote] }, draftContext.questJourneyFields([metricValue, metricNote]), new Set(['note']));
+A.eq(metricValue.value, '3', 'saving a metric retains its displayed value');
+A.eq(metricValue.dataset.dirty, '0', 'saved metric value is no longer dirty');
+A.eq(metricNote.value, '', 'saving a metric clears its submitted note');
+
+// Exercise the actual return-card renderer against empty, completed, and active records.
+const renderVm = require('vm');
+let returnBrief = { goal: null, completedGoal: null };
+const returnCtx = renderVm.createContext({ GoalStore: { briefing: () => returnBrief },
+  esc: s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'), qrRel: () => 'recently' });
+renderVm.runInContext(station.slice(station.indexOf('  function questBriefingHtml()'), station.indexOf('  function questTrackHtml(')), returnCtx);
+A.ok(returnCtx.questBriefingHtml().includes('EXPLORE WITH MY CREW'), 'an undefined ambition has a usable exploration entry');
+returnBrief.completedGoal = { text: 'My finished project', outcomeEvidence: '<script>unsafe</script>' };
+const chapter = returnCtx.questBriefingHtml();
+A.ok(chapter.includes('My finished project') && chapter.includes('Revisit the result'), 'completed ambition retains a visible chapter');
+A.ok(!chapter.includes('<script>') && chapter.includes('&lt;script&gt;'), 'saved evidence renders as text, never executable markup');
+returnBrief = { goal: { id: 'g', text: 'My goal', successCondition: 'People use it' }, next: { id: 'm', text: 'Prepare feedback' }, progress: {done:0,total:2}, inFlight: true };
+A.ok(!returnCtx.questBriefingHtml().includes('q-arc-accept'), 'accepted work offers no duplicate launch');
+A.ok(returnCtx.questBriefingHtml().includes('WORK ACCEPTED'), 'accepted work does not pretend the backend is already running');
+returnBrief.next = null; returnBrief.progress.done = 2;
+A.ok(returnCtx.questBriefingHtml().includes('REVIEW MY OUTCOME'), 'finished plan leads to outcome review, never automatic success');
+
 /* ---- 1. the flashing stays dead: signature guard + data pokes ---- */
 A.ok(/function signatureOf/.test(journey) && /JSON\.stringify\(journey\)/.test(journey), 'journeystore compares a serialized signature (identity never holds for polled JSON — the 4s repaint bug)');
 A.ok(/sig === lastSig/.test(journey), 'an unchanged journey (same signature, new object) repaints NOTHING');
@@ -130,16 +174,19 @@ let questRows = [
   { id: 'st:crew', kind: 'station', title: 'Recruit a specialist', desc: 'Bring another mind aboard.', reward: 'A larger crew', status: 'open' },
   { id: 'ds:stack', kind: 'dossier', title: 'Your <tools>', desc: 'Share your tools.', reward: 'Better context', status: 'open' }
 ];
-let rendered = '', buttons = {}, focused = '';
+let rendered = '', buttons = {}, focused = '', detailNodes = [];
+const resultDisclosure = () => ({ className: 'q-return-proof', open: true, closest: () => null,
+  querySelector: () => ({ textContent: 'Last recorded result' }) });
 const list = { scrollTop: 0 };
 const viewDescription = { textContent: '' };
 const body = {
   dataset: {}, classList: { add() {} },
   querySelector: s => s === '.q-mission-list' ? list : s === '.q-view-description' ? viewDescription : null,
-  querySelectorAll: s => buttons[s] || [],
+  querySelectorAll: s => s === 'details' ? detailNodes : buttons[s] || [],
   get innerHTML() { return rendered; },
   set innerHTML(html) {
     rendered = html; buttons = { '.q-filter': [], '.q-mission': [], '[data-quest-view]': [], '.q-view-panel': [] };
+    detailNodes = [resultDisclosure()];
     for (const id of ['available', 'goals', 'progress', 'completed']) {
       buttons['.q-view-panel'].push({ id: 'q-view-' + id, hidden: false });
       buttons['[data-quest-view]'].push({ dataset: { questView: id }, attributes: {},
@@ -164,13 +211,19 @@ const ctx = vm.createContext({ body, QuestStore: { view: () => ({ quests: questR
   esc: s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'),
   QUEST_KIND_TAG: { station: 'STATION', dossier: 'ABOUT YOU' }, GO_LABEL: {},
   questGoDest: () => null, questCompletesWhen: () => 'the recorded condition is met', workshopGrantOn: () => false,
-  questTrackHtml: () => '', lifeGoalsHtml: () => '', questRefreshHtml: () => '', journeyHtml: () => '',
+  questBriefingHtml: () => '', questTrackHtml: () => '', lifeGoalsHtml: () => '', journeyChaptersHtml: () => '', questRefreshHtml: () => '', journeyHtml: () => '',
   rerender: () => ctx.buildQuests(body)
 });
 const journalSource = station.slice(station.indexOf('  function buildQuests(body)'), station.indexOf('    // COMMANDER JOURNEY writes')) + '\n}';
 vm.runInContext(journalSource, ctx);
 ctx.buildQuests(body);
 A.eq(body.dataset.questView, 'available', 'available quests lead on first open');
+detailNodes[0].open = false;
+ctx.buildQuests(body);
+A.eq(detailNodes[0].open, false, 'a result the user collapsed stays closed after a data repaint');
+detailNodes[0].open = true;
+ctx.buildQuests(body);
+A.eq(detailNodes[0].open, true, 'a result the user expanded stays open after a data repaint');
 const beforeTab = rendered;
 buttons['[data-quest-view]'][1].click();
 A.eq(body.dataset.questView, 'goals', 'Goals tab selects its own view');
@@ -225,6 +278,7 @@ body._questDrafts.set('q:first', { evidence: 'Unsaved result', dirty: true });
 A.eq(ctx.windowDirty(draftWindow), true, 'a draft in another mission still triggers the existing unsaved-close guard');
 body._questDrafts.set('q:first', { evidence: '', dirty: false });
 A.eq(ctx.windowDirty(draftWindow), false, 'recorded or clean cached fields do not block closing');
+A.eq(ctx.windowDirty({ querySelector: s => s === '.quests-content input[data-dirty="1"]' ? {} : null }), true, 'an unfinished journey input also protects the window from closing');
 // Mixed-goal snapshots must not present every metric as belonging to the current focus.
 vm.runInContext(station.slice(station.indexOf('  function journeyHtml()'), station.indexOf('  function lifeGoalsHtml()')), ctx);
 let journeySnapshot = {
