@@ -782,3 +782,4 @@ test/chat-history-reconcile.test.js
 test/prop-industrial-remaster.test.js
 test/industrialtextures.test.js
 test/world-texture-ready.test.js
+test/qa-claims-blob-batch.test.js
