@@ -30,4 +30,3 @@ Create the NORTH-FACING REAR VIEW of the attached industrial command workstation
 ## Compact north workstation
 
 Generate the NORTH-FACING REAR VIEW of this exact COMPACT two-tile workstation, preserve full width:height ratio approximately 1.1 as shown (not broad console proportions). Rotate physical desk 180degrees around vertical axis. Operator would sit behind it at top of image. Fixed high overhead oblique parallel camera. Same top monitor height, full width rear monitor armor panel with fine vents, bundled rear wiring and support cabinets with central open leg space. Dark near-black worn gunmetal, layered mechanicalconstruction, thin scuffed dullbrass edges, tiny warm service slot; no cyan frontscreen visible fromback. No diagonal perspective. Texture detail from reference1, aesthetic sole reference2 bridge. One standalone complete prop, transparent background, no ground, shadow, otherobjects or text.
-

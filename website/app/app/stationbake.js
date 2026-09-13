@@ -17,6 +17,11 @@
 const StationBake = (() => {
   const nextSurfaces = () => typeof WorldSurface !== 'undefined' &&
     (typeof WorldRenderer === 'undefined' || WorldRenderer.enabled());
+  const remastered = () => typeof IndustrialTextures !== 'undefined' && IndustrialTextures &&
+    typeof IndustrialTextures.isRemaster === 'function' && IndustrialTextures.isRemaster();
+  // Authored wall strips use the same signed physical frame as authored floors.
+  // A bounds expansion must not move a panel seam under an existing doorway.
+  const wallPhase = axis => remastered() ? ((G && G.origin && G.origin[axis === 'x' ? 'tx' : 'ty']) || 0) * T : 0;
   let wallFixtures = [];
   /* palette + geometry knobs — verbatim from v7 world.js/render.js */
   const pad = 7;
@@ -102,8 +107,6 @@ const StationBake = (() => {
   const WALL_TONE = { face: -0.32, top: -0.10, cap: 0.30 };   // cap back at the shipped +0.30 (2026-09-05, Andrew with a 0.10.13 frame: "there is no wall line") — the bright crown IS how a top-down view reads a wall; the exterior's darkness lives in HULL_EXPOSURE, never here
   let wallPalCache = null;
   function wallPal(z) {
-    if (typeof IndustrialTextures !== 'undefined' && IndustrialTextures.enabled())
-      return { base: '#393832', face: '#292821', top: '#424037', cap: '#575246' };
     let p = wallPalCache && wallPalCache.get(z);
     if (p) return p;
     const base = (G && G.wallBaseOf && G.wallBaseOf(z)) || '#3a3b41';
@@ -183,6 +186,32 @@ const StationBake = (() => {
     b.fillStyle = color; b.fillRect(x, y, w, h);
     if (w > 0 && h > 0) crownRects.push([x, y, w, h]);
   };
+
+  // Machined cover strips keep the existing cap palette, silhouette and bright
+  // outer edge. Only the inner channel, panel joints and captive fixings change.
+  function crownMachining(b, x, y, w, h, color, vertical = false) {
+    if (!remastered()) return;
+    const depth = vertical ? w : h, length = vertical ? h : w;
+    if (depth < 3 || length <= 0) return;
+    const mid = Math.floor(depth / 2), along = vertical ? y : x;
+    const put = (a, d, n, tone) => {
+      b.fillStyle = tone;
+      if (vertical) b.fillRect(x + d, y + a, n, 1);
+      else b.fillRect(x + a, y + d, 1, n);
+    };
+    const channel = shade(color, -0.18), joint = shade(color, -0.34), fixing = shade(color, 0.10);
+    const phase = wallPhase(vertical ? 'y' : 'x'), period = 2 * T;
+    for (let a = 0; a < length; a++) {
+      const p = ((Math.floor(along + a + phase) % period) + period) % period;
+      put(a, mid, 1, channel);
+      if (p === 0) put(a, 1, depth - 2, joint);
+      else if (p === 2 || p === period - 3) put(a, mid, 1, fixing);
+    }
+  }
+  function crownPlate(b, x, y, w, h, color, vertical = false) {
+    crown(b, x, y, w, h, color);
+    crownMachining(b, x, y, w, h, color, vertical);
+  }
 
   /* live-tunable lighting — the CRT LAB (crtlab.js, dev-gated) writes these and calls
      World.rebake() to re-run the bake. These ARE the shipped defaults.
@@ -1747,6 +1776,7 @@ const StationBake = (() => {
      decoration, and they vanish with the rest of the wear at 0. */
   function bakeCorridorFloor(b, r, tiles = r) {
     bakeDeck(b, r, tiles);
+    if (remastered()) return; // circulation wear already belongs to the authored deck
     const wear = Math.max(0, DEPTH.floorWear);
     if (wear <= 0.001) return;
     const vertical = (r.y2 - r.y1) > (r.x2 - r.x1);
@@ -2005,12 +2035,12 @@ const StationBake = (() => {
     // NORTH-LIP-CROWN-END
     // lit crown — opaque cap band, 1px lighter top edge, 1px darker seam beneath. Kept BRIGHT:
     // after the ambient bake this continuous line defines the wall height at any zoom.
-    crown(b, X, topY - capH, T, capH, pal.cap);
+    crownPlate(b, X, topY - capH, T, capH, pal.cap);
     crown(b, X, topY - capH, T, 1, shade(pal.cap, 0.30));                          // 1px lighter top edge
     b.fillStyle = shade(pal.cap, -0.45); b.fillRect(X, topY - 1, T, 1);            // 1px darker seam beneath
     // THE FACE — per material
     const nextWall = nextSurfaces() && WorldSurface.paintWallTile(b, wallMatOf(e.z), pal.base,
-      X, topY, T, h, e.x, { detail: DEPTH.wallDetail });
+      X, topY, T, h, e.x + wallPhase('x') / T, { detail: DEPTH.wallDetail });
     if (!nextWall) (WALL_RECIPES[wallMatOf(e.z)] || WALL_RECIPES.plating)(b, pal, X, topY, h, e, n, room, Y + inFace);
     /* THE SEGMENT FRAME (2026-09-03, from the reference): a wall is built of panels, and each panel has a
        thick bevelled edge — lit on top and the west, shaded on the east — that catches the ceiling light
@@ -2171,7 +2201,8 @@ const StationBake = (() => {
      Baked stars would be a lie — the real sky is already back there, and it moves. */
   function wallViewport(b, pal, X, topY, h, e, n, room, footY) {
     const wd = wallDet();
-    const body = shade(pal.face, ((n % 3) - 1) * 0.02 * wd);
+    const industrial = remastered();
+    const body = industrial ? U.shade(pal.base, -0.38) : shade(pal.face, ((n % 3) - 1) * 0.02 * wd);
     b.fillStyle = body; b.fillRect(X, topY, T, h);
     const gTop = topY + 3, gH = Math.max(3, h - 9);
     b.clearRect(X + 1, gTop, T - 1, gH);                     // THE HOLE — 1px left mullion kept per tile
@@ -2185,6 +2216,10 @@ const StationBake = (() => {
     b.fillStyle = shade(body, 0.26 * wd); b.fillRect(X, gTop + gH, T, 2);          // lit sill
     b.fillStyle = shade(body, 0.34 * wd); b.fillRect(X, gTop + gH, T, 1);
     b.fillStyle = shade(body, 0.10 * wd); b.fillRect(X, gTop, 1, gH);              // mullion
+    if (industrial && wd > 0) {
+      b.fillStyle = '#756246'; b.fillRect(X + 2, topY + 1, 2, 1); b.fillRect(X + T - 3, topY + 1, 1, 1);
+      b.fillStyle = U.shade(pal.base, -0.65); b.fillRect(X + 1, gTop + gH + 2, T - 2, 1);
+    }
     wallFoot(b, body, X, footY, wd);
   }
 
@@ -2226,19 +2261,20 @@ const StationBake = (() => {
      wainscot wall above a plank deck from looking like one continuous surface. */
   function wallWainscot(b, pal, X, topY, h, e, n, room, footY) {
     const wd = wallDet();
-    const upper = shade(pal.face, 0.10 * wd);
+    const industrial = remastered();
+    const upper = industrial ? U.shade(pal.base, -0.24 * wd) : shade(pal.face, 0.10 * wd);
     b.fillStyle = upper; b.fillRect(X, topY, T, h);                                  // plain plaster above
     faceGrade(b, upper, X, topY, h, wd * 0.7);                                       // plaster takes the light too
     b.fillStyle = shade(upper, -0.08 * wd); b.fillRect(X, topY, 1, h);
     const railY = topY + Math.round(h * 0.42);
     const boardTop = railY + 2;
     b.fillStyle = shade(pal.face, -0.10 * wd); b.fillRect(X, boardTop, T, footY - boardTop);
-    for (let i = 0; i < T; i += 3) {                                                 // vertical boards
+    for (let i = 0; i < T; i += (industrial ? 6 : 3)) {                             // laminated panels / classic boards
       const bn = h2(e.x * 4 + i, e.y, 'wsc');
-      b.fillStyle = shade(pal.face, (((bn % 5) - 2) * 0.020 - 0.10) * wd); b.fillRect(X + i, boardTop, 3, footY - boardTop);
+      b.fillStyle = shade(pal.face, (((bn % 5) - 2) * 0.020 - 0.10) * wd); b.fillRect(X + i, boardTop, Math.min(industrial ? 6 : 3, T - i), footY - boardTop);
       b.fillStyle = shade(pal.face, -0.36 * wd); b.fillRect(X + i, boardTop, 1, footY - boardTop);      // board seam
       b.fillStyle = shade(pal.face, 0.04 * wd); b.fillRect(X + i + 1, boardTop, 1, footY - boardTop);   // lit face
-      if (bn % 4 === 0) b.fillStyle = shade(pal.face, -0.18 * wd), b.fillRect(X + i + 1, boardTop + 2 + (bn % 4), 1, 2);  // grain fleck
+      if (!industrial && bn % 4 === 0) b.fillStyle = shade(pal.face, -0.18 * wd), b.fillRect(X + i + 1, boardTop + 2 + (bn % 4), 1, 2);  // grain fleck
     }
     // THE CHAIR RAIL IS MOULDING, not a line: a lit top edge, a body, and the shadow it throws on
     // the boards under it — three steps is what turns a stripe into a piece of trim.
@@ -2257,16 +2293,17 @@ const StationBake = (() => {
     const body = shade(pal.base, -0.34 * wd);
     b.fillStyle = body; b.fillRect(X, topY, T, h);
     const LEAF = [shade(pal.base, -0.20 * wd), vivid(pal.base, 0.10 * wd), vivid(pal.base, 0.30 * wd), vivid(pal.base, 0.50 * wd)];
-    const leaves = Math.max(8, Math.round(T * h / 6));
+    const industrial = remastered();
+    const leaves = Math.max(8, Math.round(T * h / (industrial ? 12 : 6)));
     for (let i = 0; i < leaves; i++) {
       const r = hp(X, topY, i);
       const ly = (r >>> 5) % h;
       // darker toward the base, where light doesn't reach into the foliage
       const k = 1 - 0.45 * (ly / Math.max(1, h));
       b.fillStyle = shade(LEAF[(r >>> 11) & 3], -(1 - k) * 0.5);
-      b.fillRect(X + (r % T), topY + ly, 1, Math.min(1 + ((r >>> 14) % 2), h - ly));
+      b.fillRect(X + (r % T), topY + ly, Math.min(industrial ? 2 : 1, T - (r % T)), Math.min(industrial ? 2 : 1 + ((r >>> 14) % 2), h - ly));
     }
-    b.fillStyle = vivid(pal.base, 0.62 * wd); b.fillRect(X + (hp(X, topY, 91) % T), topY, 1, 2);   // lit crown sprig
+    b.fillStyle = vivid(pal.base, (industrial ? 0.32 : 0.62) * wd); b.fillRect(X + (hp(X, topY, 91) % T), topY, 1, 2);   // lit crown sprig
     wallFoot(b, body, X, footY, wd);
   }
 
@@ -2484,8 +2521,13 @@ const StationBake = (() => {
   const STRIP_TILES = 4;
   let stripCache = null;
   function faceStrip(matId, pal, h) {
-    if (matId !== 'viewport' && typeof IndustrialTextures !== 'undefined' && IndustrialTextures.enabled())
-      return IndustrialTextures.wallStrip(h);
+    // The same selected face must wrap onto side walls and corners. A pending
+    // atlas (or a specialized native material) falls through to the real recipe.
+    if (nextSurfaces() && WorldSurface.WALLS.includes(matId) && typeof IndustrialTextures !== 'undefined' &&
+        IndustrialTextures && typeof IndustrialTextures.wallStrip === 'function') {
+      const authored = IndustrialTextures.wallStrip(h, matId, pal.base, { detail: DEPTH.wallDetail });
+      if (authored) return authored;
+    }
     const key = matId + '|' + pal.base + '|' + h;
     const tx0 = 0, ty = 0;
     if (stripCache && stripCache.has(key)) return stripCache.get(key);
@@ -2572,13 +2614,14 @@ const StationBake = (() => {
         const dd = dir > 0 ? d : depth - 1 - d;
         if (axis === 'x') b.fillRect(x + dd, y + a, 1, 1); else b.fillRect(x + a, y + dd, 1, 1);
       };
-      const o = axis === 'x' ? y : x;
+      const phase = wallPhase(axis === 'x' ? 'y' : 'x');
+      const o = (axis === 'x' ? y : x) + phase;
       for (let a = 0; a < len; a++) for (let d = 0; d < depth; d++) {
         const c = stripAt(strip, o + a, d);
         if (c !== null) put(d, a, c);
       }
       if (strip.hi) IndustrialTextures.wallPatch(b, x, y, w, h, strip, (px, py) => ({
-        a: axis === 'x' ? py : px,
+        a: (axis === 'x' ? py : px) + phase,
         d: dir > 0 ? (axis === 'x' ? px - x : py - y) + .5 : depth - .5 - (axis === 'x' ? px - x : py - y)
       }));
       return;
@@ -2664,7 +2707,7 @@ const StationBake = (() => {
     // the panel seam grid — the shipped shell, phase-locked to the same world grid it always used
     // (lines at x = 5 + 28k, y = 9 + 26k), so a re-clad station and an untouched one still align.
     dress(b, pal, x, y, w, h) {
-      if (typeof IndustrialTextures !== 'undefined' && IndustrialTextures.shellPlate(b, x, y, w, h)) return;
+      if (typeof IndustrialTextures !== 'undefined' && IndustrialTextures.shellPlate(b, x, y, w, h, pal.base)) return;
       b.strokeStyle = pal.seam; b.lineWidth = 1;
       for (let gx = 5 + Math.ceil((x - 5) / 28) * 28; gx < x + w; gx += 28) { b.beginPath(); b.moveTo(gx + .5, y); b.lineTo(gx + .5, y + h); b.stroke(); }
       for (let gy = 9 + Math.ceil((y - 9) / 26) * 26; gy < y + h; gy += 26) { b.beginPath(); b.moveTo(x, gy + .5); b.lineTo(x + w, gy + .5); b.stroke(); }
@@ -2698,7 +2741,7 @@ const StationBake = (() => {
        deliberate break of the axis's pixel-parity property, taken on Andrew's call; everything
        BELOW the veins pass still matches the pre-axis bake byte for byte. */
     veins(fg, pal, w, h, vx, vy, topOf) {
-      if (typeof IndustrialTextures !== 'undefined' && IndustrialTextures.shell(fg, w, h, vx, vy, topOf)) return;
+      if (typeof IndustrialTextures !== 'undefined' && IndustrialTextures.shell(fg, w, h, vx, vy, topOf, pal.base)) return;
       coursedVein(fg, w, h, vx, vy, {
         ch: STRAKE,
         crest: 'rgba(172,195,222,0.055)',      // the sky-catch along a plate's top edge
@@ -3294,7 +3337,7 @@ const StationBake = (() => {
   // `shellEdge` is the owning room's exterior tone — the single pixel of shell outside the ring,
   // the arc's counterpart of the straight walls' outer hull band (see the note in bakeWalls).
   function bakeCornerCrown(b, pal, ed, strip, kind, X, Y, ax, ay, Rc, HR, capW, capFar, cy, record, shellEdge) {
-    const A = CORNER[kind];
+    const A = CORNER[kind], phaseX = wallPhase('x'), phaseY = wallPhase('y');
     const outX = A.cx ? -1 : 1, outY = A.cy ? -1 : 1;      // which way is "away from the room"
     // the ring may hang past the tile into the VOID (that is where every wall's height lives) but
     // never into the tile behind it, which is this room's own walkable floor.
@@ -3324,6 +3367,7 @@ const StationBake = (() => {
         const yEnd = Math.min(y1, lim);
         if (yEnd > y0) {
           b.fillStyle = c; b.fillRect(cx0, y0, cx1 - cx0, yEnd - y0);
+          if (c === pal.cap) crownMachining(b, cx0, y0, cx1 - cx0, yEnd - y0, c, w > h);
           if (textureMap && strip && strip.hi)
             IndustrialTextures.wallPatch(b, cx0, y0, cx1 - cx0, yEnd - y0, strip, textureMap);
           // Record the face AFTER clipping to the silhouette and nearer walls.
@@ -3376,7 +3420,7 @@ const StationBake = (() => {
          deprioritised ("focus on blending with the back wall mainly").
          Depth stays radial: it is what carries the courses and rails round as concentric bands. */
       const depth = (HR - 2 - w) - r;
-      return { a: px, d: Math.max(0, strip && strip.hi ? depth : Math.floor(depth)) };
+      return { a: px + phaseX, d: Math.max(0, strip && strip.hi ? depth : Math.floor(depth)) };
     };
     /* the DECK's own curve is the inner limit for the face fill — everything from the ladder down
        to it is wall face. Same centre and rounding convention as the deck cut itself, so the face
@@ -3421,7 +3465,7 @@ const StationBake = (() => {
       const fs = outX < 0 ? ex + 2 + w : ex - 2 - w;                       // depth 0: the row just inside the crown
       const room = outX < 0 ? inner - fs : (ex - 1 - w) - inner;
       const len = Math.max(0, onArc ? room : Math.min(room, FACEW));
-      const map = onArc ? faceMap : ((px) => ({ a: py, d: Math.abs(px - fs) }));
+      const map = onArc ? faceMap : ((px) => ({ a: py + phaseY, d: Math.abs(px - fs) }));
       if (outX < 0) {
         put(ex, py, 1, 1, shellEdge);                                             // the shell's own edge
         put(ex + 1, py, w, 1, pal.cap); put(ex + 1, py, 1, 1, lit);            // the lit top surface
@@ -3457,7 +3501,7 @@ const StationBake = (() => {
          Bottom corners keep the polar measure: cy === ay there, the face is short, and the concentric
          bands are the whole point of the curve. */
       const fsY = outY < 0 ? ey + 2 + w : ey - 2 - w;
-      const cMap = cy === ay ? faceMap : ((px, py) => ({ a: px, d: Math.abs(py - fsY) }));
+      const cMap = cy === ay ? faceMap : ((px, py) => ({ a: px + phaseX, d: Math.abs(py - fsY) }));
       if (outY < 0) {
         put(ix, ey, 1, 1, shellEdge);
         put(ix, ey + 1, 1, w, pal.cap); put(ix, ey + 1, 1, 1, lit);
@@ -3565,7 +3609,7 @@ const StationBake = (() => {
         }
         if (e.exterior) {
           b.fillStyle = shellEdge; b.fillRect(X, Y + T, T, Math.max(out, cw + 2));   // outer hull band
-          crown(b, X, Y + T + 1, T, cw, pal.cap);                                 // the wall's LIT TOP SURFACE
+          crownPlate(b, X, Y + T + 1, T, cw, pal.cap);                                 // the wall's LIT TOP SURFACE
           crown(b, X, Y + T + cw, T, 1, crownLit);                                // lit outer edge
           b.fillStyle = crownSeam; b.fillRect(X, Y + T, T, 1);                    // dark seam under the crown
         } else {
@@ -3578,7 +3622,7 @@ const StationBake = (() => {
           const side = Math.max(out, cw + 2, Math.round(WALL.side));   // the hull band under the crown — one width, corridors included (see sideCapW)
           b.fillStyle = shellEdge; b.fillRect(X - side, Y, side, T);       // outer hull band — the ROOM'S shell
           b.fillStyle = 'rgba(0,0,0,0.35)'; b.fillRect(X - side, Y, 1, T);
-          crown(b, X - 1 - cw, Y, cw, T, pal.cap);                         // the wall's LIT TOP SURFACE
+          crownPlate(b, X - 1 - cw, Y, cw, T, pal.cap, true);                         // the wall's LIT TOP SURFACE
           crown(b, X - 1 - cw, Y, 1, T, crownLit);                         // lit outer edge
           b.fillStyle = crownSeam; b.fillRect(X - 1, Y, 1, T);             // dark seam under the crown
         }
@@ -3589,7 +3633,7 @@ const StationBake = (() => {
           const side = Math.max(out, cw + 2, Math.round(WALL.side));   // the hull band under the crown — one width, corridors included (see sideCapW)
           b.fillStyle = shellEdge; b.fillRect(X + T, Y, side, T);
           b.fillStyle = 'rgba(0,0,0,0.35)'; b.fillRect(X + T + side - 1, Y, 1, T);
-          crown(b, X + T + 1, Y, cw, T, pal.cap);
+          crownPlate(b, X + T + 1, Y, cw, T, pal.cap, true);
           crown(b, X + T + cw, Y, 1, T, crownLit);
           b.fillStyle = crownSeam; b.fillRect(X + T, Y, 1, T);
         }
@@ -3619,7 +3663,7 @@ const StationBake = (() => {
         const up = Math.max(0, Math.round(WALL.up)); if (up < 4) continue;
         const top = Y - up, foot = Y + NFACE, capH = Math.max(2, Math.round(WALL.capH));
         const reach = Math.min(6, Math.max(1, Math.floor((x1 - x0 - 8) / 2)));
-        const pal = wallPal(first.z);
+        const pal = wallPal(first.z), industrial = remastered();
         const occlusion = { x: x0 - T * 2, y: top - capH, w: x1 - x0 + T * 4, h: foot - top + capH + 1, sortY: foot + 0.5, rects: [] };
         // Include the solid wall shoulders too: hiding an arm behind the jamb
         // must not leave it visible again on the wall immediately beside it.
@@ -3659,10 +3703,10 @@ const StationBake = (() => {
             const t = (y - top) / (foot - top), w = 1 + Math.round(reach * (1 - t));
             const x = side ? edge - w : edge;
             occlusion.rects.push([x, y, w, 1]);
-            b.fillStyle = shade(pal.face, (side ? 0.08 : -0.18) - 0.16 * t); b.fillRect(x, y, w, 1);
+            b.fillStyle = industrial ? U.shade(pal.base, (side ? -0.22 : -0.34) - 0.10 * t) : shade(pal.face, (side ? 0.08 : -0.18) - 0.16 * t); b.fillRect(x, y, w, 1);
             const inner = side ? x : edge + w - 1;
-            b.fillStyle = shade(pal.base, -0.65); b.fillRect(inner, y, 1, 1);
-            if (w > 2) { b.fillStyle = shade(pal.face, side ? 0.22 : -0.03); b.fillRect(side ? inner + 1 : inner - 1, y, 1, 1); }
+            b.fillStyle = industrial ? U.shade(pal.base, -0.72) : shade(pal.base, -0.65); b.fillRect(inner, y, 1, 1);
+            if (w > 2) { b.fillStyle = industrial ? U.shade(pal.base, side ? 0.02 : -0.18) : shade(pal.face, side ? 0.22 : -0.03); b.fillRect(side ? inner + 1 : inner - 1, y, 1, 1); }
           }
           // The crown ends turn into the opening; never bridge over its centre.
           for (let k = 0; k < capH; k++) {
@@ -3680,9 +3724,11 @@ const StationBake = (() => {
 
   /* a doorway threshold: a recessed metal track + lit lip across the open seam */
   function bakeThreshold(b, e, X, Y) {
-    const track = '#3a352c', lip = 'rgba(255,236,196,0.18)';
+    const industrial = remastered();
+    const track = industrial ? '#1d2022' : '#3a352c';
+    const lip = industrial ? 'rgba(187,151,91,0.34)' : 'rgba(255,236,196,0.18)';
     // hazard chevrons on the sill (2026-09-03 depth pass) — 3px yellow / 3px black, low alpha so the deck shows through
-    const hz = (x, y, w, h, along) => { for (let i = 0; i < (along ? w : h); i += 3) { b.fillStyle = ((i / 3) & 1) ? 'rgba(20,18,12,0.55)' : 'rgba(214,178,52,0.45)'; if (along) b.fillRect(x + i, y, Math.min(3, w - i), h); else b.fillRect(x, y + i, w, Math.min(3, h - i)); } };
+    const hz = (x, y, w, h, along) => { for (let i = 0; i < (along ? w : h); i += 3) { b.fillStyle = ((i / 3) & 1) ? (industrial ? '#272a2a' : 'rgba(20,18,12,0.55)') : (industrial ? '#74613d' : 'rgba(214,178,52,0.45)'); if (along) b.fillRect(x + i, y, Math.min(3, w - i), h); else b.fillRect(x, y + i, w, Math.min(3, h - i)); } };
     if (e.side === 'n') hz(X, Y + 2, T, 2, true); else if (e.side === 's') hz(X, Y + T - 4, T, 2, true); else if (e.side === 'w') hz(X + 2, Y, 2, T, false); else hz(X + T - 4, Y, 2, T, false);
     if (e.side === 'n') { b.fillStyle = track; b.fillRect(X, Y - 1, T, 2); b.fillStyle = lip; b.fillRect(X, Y, T, 1); }
     else if (e.side === 's') { b.fillStyle = track; b.fillRect(X, Y + T - 1, T, 2); b.fillStyle = lip; b.fillRect(X, Y + T - 1, T, 1); }
@@ -3933,7 +3979,7 @@ const StationBake = (() => {
       const lo = vertical ? !openFlank(r.x1, r.y1, span, 0, 1, 'w') : !openFlank(r.x1, r.y1, span, 1, 0, 'n');
       const hi = vertical ? !openFlank(r.x2, r.y1, span, 0, 1, 'e') : !openFlank(r.x1, r.y2, span, 1, 0, 's');
       if (lo || hi) {
-        b.fillStyle = '#a3402e';
+        b.fillStyle = remastered() ? '#62533e' : '#a3402e';
         if (vertical) b.fillRect(lo ? r.x1 * T + 2 : (r.x2 + 1) * T - 3, r.y1 * T + 2, 1, (r.y2 - r.y1 + 1) * T - 4);
         else b.fillRect(r.x1 * T + 2, lo ? r.y1 * T + 2 : (r.y2 + 1) * T - 3, (r.x2 - r.x1 + 1) * T - 4, 1);
       }
@@ -4975,7 +5021,10 @@ const StationBake = (() => {
   // throat stay transparent; the renderer only depth-sorts these small sprites.
   function buildDoorOccluders(baseCv) {
     return doorOcclusion.filter(d => d.x < VX + CW && d.x + d.w > VX && d.y < VY + CH && d.y + d.h > VY).map(d => {
-      const image = canvas(d.w, d.h), b = image.getContext('2d');
+      const image = canvas(d.w, d.h), raw = image.getContext('2d');
+      // Capture the same dense art plate as the surrounding wall. The original
+      // canvas and clip remain the exact geometry/depth authority.
+      const b = remastered() ? IndustrialTextures.detailContext(raw) : raw;
       b.beginPath();
       for (const [x, y, w, h] of d.rects) b.rect(x - d.x, y - d.y, w, h);
       b.clip(); b.drawImage(baseCv, VX - d.x, VY - d.y);
