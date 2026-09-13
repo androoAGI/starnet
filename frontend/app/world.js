@@ -892,7 +892,7 @@ const World = (() => {
     //    Uses the SAME desk+seat resolver as crew (deskPropFor/deskSeat) so the hero & crew seat identically.
     const home = agent && deskPropFor(agent.id), hs = home && deskSeat(home);
     if (home && hs) {
-      desk = { tx: home.x, ty: home.y, w: home.w || 1, h: home.h || 1 }; seat = { tx: hs.tx, ty: hs.ty, cx: hs.cx };
+      desk = { tx: home.x, ty: home.y, w: home.w || 1, h: home.h || 1 }; seat = { tx: hs.tx, ty: hs.ty, cx: hs.cx, cy: hs.cy, face: hs.face };
       deskPropId = home.id; deskFace = hs.face;
       for (let dx = 0; dx < (desk.w || 1); dx++) for (let dy = 0; dy < (desk.h || 1); dy++) blocked.add((desk.tx + dx) + ',' + (desk.ty + dy));
       return;   // the placed prop + its chair are drawn by the render loop (skip the synthetic desk/chair)
@@ -2451,26 +2451,38 @@ const World = (() => {
     for (const p of geo.props) if (p.agentId === aid && isWorkstationProp(p.t)) return p;
     return null;
   }
-  // the chair tile in front of a workstation: the south-front approach tile (PropAnchor falls back to other
-  // sides if the front is walled), facing INTO the desk — mirrors the hero's seat one row below its desk.
+  // Remastered desk views carry a real front. Legacy and unavailable views keep the
+  // south-facing seat contract, even when a save retains a remaster-mode rotation.
   function deskSeat(prop) {
     if (typeof PropAnchor === 'undefined' || !geo || !prop) return null;
-    const a = PropAnchor.deriveAnchor(prop, geo, { approach: 'south', sit: true, extra: blocked });
-    // `cx` = the FRACTIONAL tile x that centres a 1-tile chair on the desk. PropAnchor picks the nearest
-    // walkable WHOLE tile (pathing needs one), but an even-width desk's centre line falls on a tile
-    // boundary — a 2-wide desk seated at either tile sits 6px off-centre, which is exactly the "chair is
-    // stuck on the left" report. Only the RENDER + the final foot snap use cx; the walk target stays tx.
-    return a ? { tx: a.tx, ty: a.ty, face: a.face, cx: seatCx(prop, a.tx) } : null;
+    const r = (prop.r | 0) & 3;
+    const remaster = typeof IndustrialTextures !== 'undefined' && IndustrialTextures.isRemaster && IndustrialTextures.isRemaster();
+    const turned = remaster && (prop.t === 'desk' || prop.t === 'desk2') && typeof PropSprites !== 'undefined'
+      && PropSprites.facings && PropSprites.facings(prop.t).includes(r);
+    const effective = !turned && r ? Object.assign({}, prop, { r: 0 }) : prop;
+    const a = PropAnchor.deriveAnchor(effective, geo, { approach: turned ? 'front' : 'south', sit: true, extra: blocked });
+    if (!a) return null;
+    const s = { tx: a.tx, ty: a.ty, face: a.face, cx: seatCx(prop, a.tx) };
+    if (turned && (a.face === 'east' || a.face === 'west')) {
+      s.cx = a.tx;
+      s.cy = seatCy(prop, a.ty);
+    }
+    return s;
   }
-  // centre a 1-wide seat under a prop, but never drift further than one tile from the walkable anchor
-  // (a desk whose middle is walled off keeps its chair at the tile the body can actually reach).
+  // Fractional centres are render/foot anchors only; pathfinding keeps the actual
+  // walkable tile. Never centre more than half a tile away from that safe anchor.
   function seatCx(prop, tx) {
     const c = prop.x + ((prop.w || 1) / 2) - 0.5;
     return Math.abs(c - tx) <= 0.5 ? c : tx;
   }
-  // where a seated body's foot lands: the seat's centred x, its tile's y. A function declaration (not a
-  // const) because callers above this line run before it in source order.
-  function seatFoot(s) { return { x: ((s.cx == null ? s.tx : s.cx) + 0.5) * T, y: s.ty * T + T - 1 }; }
+  function seatCy(prop, ty) {
+    const c = prop.y + ((prop.h || 1) / 2) - 0.5;
+    return Math.abs(c - ty) <= 0.5 ? c : ty;
+  }
+  function seatFoot(s) {
+    return { x: ((s.cx == null ? s.tx : s.cx) + 0.5) * T,
+      y: (s.cy == null ? s.ty : s.cy) * T + T - 1 };
+  }
 
   /* ---------- capability-prop resolution (G0.1: which prop does a firing tool light?) ----------
      geo.props are in the bake's LOCAL frame; station.roomAt speaks WORLD tiles — geo.origin bridges them. */
@@ -5811,6 +5823,12 @@ const World = (() => {
       (y+h+pad)*scale+panY>=0 && (y-pad)*scale+panY<=cv.height;
   }
 
+  // Door occluders share the base material's detail plate, then re-enter the
+  // same painter order. The original canvas remains the geometry/fallback source.
+  function drawDoorSurface(ctx, d) {
+    if (!(typeof IndustrialTextures !== 'undefined' && typeof IndustrialTextures.drawBase === 'function'
+      && IndustrialTextures.drawBase(ctx, d.image, d.x, d.y))) ctx.drawImage(d.image, d.x, d.y);
+  }
   function drawLitProp(p, work, live) {
     PropSprites.draw(p, work, live);
     if (!sceneRenderer || !PropSprites.canLightResponse || !PropSprites.canLightResponse(p)) return;
@@ -6050,15 +6068,15 @@ const World = (() => {
         // `sleeper` read as the base pass, so the quilt is never held back with nobody under it.
         if (sleeper && PropSprites.drawOver) items.push({ y: sy + 0.75, draw: () => PropSprites.drawOver(dp) });
         // an ASSIGNED workstation is the hero's desk with another name: give it the same chair, in front,
-        // y-sorted exactly like the hero's (one row below the desk) so its agent reads as sitting IN it. Scoped
+        // y-sorted at the same fractional anchor as its agent so the body sits in it. Scoped
         // to assigned PCs so a decorative/unmanned console keeps its existing look and the chair only ever
         // appears where an agent will actually sit (chair + sitter stay in lockstep — see stepCrewToSeat).
-        if (p.agentId && isWorkstationProp(p.t)) { const s = deskSeat(p); if (s) items.push({ y: (s.ty + 1) * T, draw: () => drawSeatChair(s.tx, s.ty, s.cx) }); }
+        if (p.agentId && isWorkstationProp(p.t)) { const s = deskSeat(p); if (s) items.push({ y: seatFoot(s).y + 1, draw: () => drawSeatChair(s.tx, s.ty, s.cx, s.cy, s.face) }); }
       }
     }
     // one chair art everywhere: seats route through the canonical prop renderer (old F_chair = fallback)
-    function drawSeatChair(tx, ty, cx) {
-      const sx = (cx == null ? tx : cx);   // fractional x centres the chair on an even-width desk
+    function drawSeatChair(tx, ty, cx, cy, face) {
+      const sx = (cx == null ? tx : cx), sy = (cy == null ? ty : cy);
       /* A WORKSTATION SEAT USES ITS OWN ART. 'seatchair' is the glow-up chair; it is not in the CATALOG,
          so the PLACEABLE chair prop keeps its shipped art. Falls back to 'chair' if absent, which is what
          every station saved before this existed still renders. */
@@ -6066,8 +6084,13 @@ const World = (() => {
                   : (typeof PropSprites !== 'undefined' && PropSprites.has('chair')) ? 'chair' : null;
       if (seatT) {
         PropSprites.setCtx(ctx); PropSprites.setNow(now);
-        drawLitProp({ t: seatT, x: sx, y: ty, w: 1, h: 1 }, false);
-      } else F_chair(sx * T, ty * T);
+        const chair = { t: seatT, x: sx, y: sy, w: 1, h: 1 };
+        if (typeof IndustrialTextures !== 'undefined' && IndustrialTextures.isRemaster && IndustrialTextures.isRemaster()) {
+          const r = { south: 0, west: 1, north: 2, east: 3 }[face || 'north'];
+          if (r != null) chair.r = r;
+        }
+        drawLitProp(chair, false);
+      } else F_chair(sx * T, sy * T);
     }
     if (desk && !deskPropId) items.push({ y: (desk.ty + desk.h) * T, draw: () => {   // skip the synthetic desk when a PLACED workstation prop is the hero's desk (the prop draws itself)
       // one desk art everywhere: the synthetic auto-desk routes through the canonical prop renderer,
@@ -6083,7 +6106,7 @@ const World = (() => {
       const lt = PropSprites.lightOf({ t: 'desk', x: desk.tx, y: desk.ty, w: desk.w, h: desk.h }, !!(agent && agent.working), reduceMotion());
       if (lt) propLights.push(Object.assign({}, lt, { originX: (desk.tx + desk.w / 2) * T, originY: (desk.ty + desk.h / 2) * T }));
     }
-    if (seat && !deskPropId) items.push({ y: (seat.ty + 1) * T, draw: () => drawSeatChair(seat.tx, seat.ty, seat.cx) });
+    if (seat && !deskPropId) items.push({ y: seatFoot(seat).y + 1, draw: () => drawSeatChair(seat.tx, seat.ty, seat.cx, seat.cy, deskFace) });
   // a PLACED hero desk's chair is drawn by the workstation loop above; draw here only for the synthetic auto-desk
     /* a body dormant IN a bed sorts INSIDE its bed — after the frame + pillow, before the quilt — which
        is the whole two-pass trick. Everything else keeps the old key exactly (cushion pos when seated,
@@ -6101,7 +6124,7 @@ const World = (() => {
     for (const d of cache.doorOccluders || []) {
       if ((d.x + d.w) * scale + panX < 0 || d.x * scale + panX > cv.width ||
           (d.y + d.h) * scale + panY < 0 || d.y * scale + panY > cv.height) continue;
-      items.push({ y: d.sortY, draw: () => ctx.drawImage(d.image, d.x, d.y) });
+      items.push({ y: d.sortY, draw: () => drawDoorSurface(ctx, d) });
     }
     // THE FLOOR PASS — every decal, in doc order, before anything that stands on the deck. This is what
     // lets a body walk across a rug: the rug is already down when the sorted items paint over it.
