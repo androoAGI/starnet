@@ -2,7 +2,7 @@
    Rule for this area: the SCHEMATIC carries the explanation, the words are the caption.
    Belts actually march and crates actually ride, so the page demonstrates the mechanic
    instead of describing it. Everything degrades to a still frame under reduced-motion. */
-@import url('../docs.css?v=20260912-glass');
+@import url('../docs.css?v=20260913-brand-nav');
 
 /* Guides and reference pages share the docs grid; diagrams adapt inside the article. */
 .buildsteps > li{ grid-template-columns:minmax(0,1fr) minmax(300px,44%); }
