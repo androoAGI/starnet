@@ -4,7 +4,7 @@
 
   // The network lookup below remains authoritative. This is the last signed public
   // release so an offline/rate-limited page never falls back to an older train.
-  var FALLBACK_VERSION = '0.10.13';
+  var FALLBACK_VERSION = '0.11.2';
 
   // Pricing page is written but deliberately NOT deployed (Andrew, 2026-08-02). Every link to
   // it is marked data-pricing-link and hidden while this is false, so the site never offers a

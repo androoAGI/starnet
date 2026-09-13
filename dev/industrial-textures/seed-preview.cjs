@@ -1,0 +1,19 @@
+'use strict';
+const fs = require('node:fs');
+const path = require('node:path');
+const root = path.resolve(__dirname, '../..');
+const wm = require(path.join(root, 'frontend/app/worldmodel.js'));
+const scratch = path.join(root, 'dev/.scratch-workspace');
+const target = path.join(scratch, 'agent.save.json');
+if (fs.existsSync(target)) { console.log('Existing preview kept.'); process.exit(0); }
+fs.cpSync(path.join(root, 'dev/fixtures/seed-workspace'), scratch, { recursive: true });
+const save = JSON.parse(fs.readFileSync(target, 'utf8'));
+const station = wm.defaultDoc();
+station.rooms.r1.name = 'COMMAND DECK';
+station.rooms.r1.rects = [{ x1: 0, y1: 0, x2: 21, y2: 17 }];
+station.props = require('./command-deck.cjs')();
+station._nid = 40;
+save.doc.station = station;
+save.updatedAt = save.savedAt = save.doc.updatedAt = Date.now();
+fs.writeFileSync(target, JSON.stringify(save, null, 2));
+console.log('Command deck prepared with five workstations, navigation table and equipment bays.');

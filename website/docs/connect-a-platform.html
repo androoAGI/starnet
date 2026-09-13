@@ -3,79 +3,88 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Connect a platform — StarNet Docs</title>
+<title>Connect a service — StarNet Docs</title>
 <link rel="icon" type="image/svg+xml" href="../assets/favicon.svg">
-<link rel="stylesheet" href="docs.css?v=20260903">
+<link rel="stylesheet" href="docs.css?v=20260913-terminal-nav">
 </head>
-<body class="docs-page" data-group="REFERENCE" data-title="CONNECT A PLATFORM">
+<body class="docs-page" data-group="Connect your tools" data-group-id="connections" data-kind="Guide" data-title="Connect a service">
+<a class="skip-link" href="#main-content">Skip to content</a>
 
 <div class="crt-scan" aria-hidden="true"></div>
 <div class="crt-vignette" aria-hidden="true"></div>
 
 <header class="topbar" id="topbar">
-  <a class="brand" href="../index.html">STARNET TERMLINK</a>
+  <a class="brand" href="../index.html" aria-label="StarNet home">STARNET<span class="brand-divider"> / </span><span class="brand-context">Docs</span></a>
   <nav class="topnav" aria-label="Site">
-    <a href="../index.html#station">WHAT IT IS</a>
-    <a href="../index.html#difference">FEATURES</a>
-    <a href="index.html" class="on">DOCS</a>
-    <a href="../pricing.html" data-pricing-link>PRICING</a>
-    <a href="../index.html#download">DOWNLOAD</a>
-    <a href="https://github.com/androoAGI/starnet" target="_blank" rel="noopener">GITHUB</a>
+    <a href="../index.html#station">Product</a>
+    <a href="index.html" class="on">Docs</a>
+    <a href="../pricing.html" data-pricing-link>Pricing</a>
+    <a href="https://github.com/androoAGI/starnet" target="_blank" rel="noopener">GitHub &nearr;</a>
   </nav>
   <span class="topbar-right">
-    <a href="help.html">HELP</a>
-    <span class="live-dot"><span class="dot"></span>OPEN SOURCE</span>
+    <a href="help.html">Help</a>
+    <a class="nav-download" href="../index.html#download">Download &darr;</a>
   </span>
 </header>
 
 <div class="docs-shell">
   <aside class="docs-side" id="docs-side">
-    <button class="side-toggle" type="button" aria-expanded="false" aria-controls="side-nav">[ MENU ]</button>
-    <div class="side-search"><span class="ss-glyph">&gt;</span><input id="docs-search" type="search" placeholder="search docs  ( / )" autocomplete="off" spellcheck="false" aria-label="Search docs"><div class="ss-results" id="docs-results" hidden></div></div>
+    <div class="side-home">Documentation</div>
+    <div class="side-search"><label class="sr-only" for="docs-search">Search docs</label><input id="docs-search" type="search" placeholder="Search docs…" autocomplete="off" spellcheck="false" aria-controls="docs-results" aria-expanded="false"><kbd class="search-key" aria-hidden="true">/</kbd><div class="ss-results" id="docs-results" hidden></div><span id="docs-search-status" class="sr-only" role="status" aria-live="polite"></span></div>
+    <button class="side-toggle" type="button" aria-expanded="false" aria-controls="side-nav">Browse documentation</button>
     <nav id="side-nav" class="side-nav" aria-label="Docs">
-    <div class="side-group" data-group="START HERE">
-    <div class="side-title">// START HERE</div>
-    <a href="index.html">DOCS HOME</a>
-    <a href="getting-started.html">GETTING STARTED</a>
-    <a href="guides/first-line.html">YOUR FIRST WORKING LINE</a>
-    <a href="providers.html">PROVIDERS &amp; KEYS</a>
-    </div>
-    <div class="side-group" data-group="FIELD MANUAL">
-    <div class="side-title">// FIELD MANUAL</div>
-    <a href="guides/index.html">ALL GUIDES</a>
-    <a href="guides/conveyors.html">HOW CONVEYORS WORK</a>
-    <a href="guides/filter.html">SORTING WORK WITH A FILTER</a>
-    <a href="guides/splitter-joiner.html">SPLITTER &amp; JOINER</a>
-    <a href="guides/crew.html">YOUR CREW &amp; THEIR GEAR</a>
-    <a href="guides/goals.html">GOALS, QUESTS &amp; XP</a>
-    <a href="guides/night-shift.html">NIGHT SHIFT</a>
-    <a href="guides/routines.html">SKILLS, RECIPES &amp; ROUTINES</a>
-    <a href="guides/channels.html">RUN IT FROM YOUR PHONE</a>
-    </div>
-    <div class="side-group" data-group="REFERENCE">
-    <div class="side-title">// REFERENCE</div>
-    <a href="station.html">THE STATION</a>
-    <a href="agents.html">AGENTS &amp; TEAMS</a>
-    <a href="autonomy.html">AUTONOMY &amp; NIGHT SHIFT</a>
-    <a href="skills.html">SKILLS, RECIPES, ROUTINES</a>
-    <a href="connect-a-platform.html" class="active" aria-current="page">CONNECT A PLATFORM</a>
-    <a href="connectors.html">CONNECTORS &amp; INTEROP</a>
-    <a href="migrating.html">FROM OPENCLAW / HERMES</a>
-    </div>
-    <div class="side-group" data-group="HELP">
-    <div class="side-title">// HELP</div>
-    <a href="help.html">HELP CENTER</a>
-    <a href="troubleshooting.html">TROUBLESHOOTING</a>
-    <a href="shortcuts.html">KEYBOARD SHORTCUTS</a>
-    <a href="glossary.html">GLOSSARY</a>
-    </div>
+      <div class="side-quick">
+      <a href="index.html">Docs overview</a>
+      <a href="guides/index.html">Step-by-step guides</a>
+      </div>
+      <p class="side-label">Browse topics</p>
+    <details class="side-group">
+    <summary class="side-title">Start here</summary>
+    <a href="getting-started.html">Install &amp; first task</a>
+    <a href="providers.html">Models &amp; providers</a>
+    </details>
+    <details class="side-group">
+    <summary class="side-title">Station &amp; agents</summary>
+    <a href="station.html">Station &amp; capabilities</a>
+    <a href="guides/crew.html">Set up your crew</a>
+    <a href="agents.html">Agents, teams &amp; voice</a>
+    <a href="guides/goals.html">Goals, quests &amp; XP</a>
+    </details>
+    <details class="side-group">
+    <summary class="side-title">Conveyor workflows</summary>
+    <a href="guides/first-line.html">Build your first workflow</a>
+    <a href="guides/conveyors.html">Conveyor basics</a>
+    <a href="guides/filter.html">Filter &amp; route work</a>
+    <a href="guides/splitter-joiner.html">Split &amp; combine results</a>
+    </details>
+    <details class="side-group">
+    <summary class="side-title">Repeat &amp; automate</summary>
+    <a href="guides/routines.html">Create repeatable work</a>
+    <a href="skills.html">Skills &amp; routines reference</a>
+    <a href="guides/night-shift.html">Set up Night Shift</a>
+    <a href="autonomy.html">Autonomy controls</a>
+    </details>
+    <details class="side-group" open>
+    <summary class="side-title">Connect your tools</summary>
+    <a href="connect-a-platform.html" class="active" aria-current="page">Connect a service</a>
+    <a href="guides/channels.html">Messaging channels</a>
+    <a href="connectors.html">Connectors &amp; MCP reference</a>
+    <a href="migrating.html">From OpenClaw or Hermes</a>
+    </details>
+    <details class="side-group">
+    <summary class="side-title">Troubleshooting &amp; help</summary>
+    <a href="help.html">Help center</a>
+    <a href="troubleshooting.html">Troubleshooting</a>
+    <a href="shortcuts.html">Keyboard shortcuts</a>
+    <a href="glossary.html">Glossary</a>
+    </details>
     </nav>
   </aside>
-  <main class="docs-main">
-<h1>CONNECT A PLATFORM</h1>
+  <main class="docs-main" id="main-content" tabindex="-1">
+<h1>Connect a service</h1>
 <p class="doc-sub">// Printify, Etsy, Shopify, Stripe, your own internal API — the whole decision in one page</p>
 
-<h2>Which route do I need?</h2>
+<h2 id="which-route-do-i-need">Which route do I need?</h2>
 <p>There are three, and the right one depends on what the platform publishes. Check in this order:</p>
 
 <ol>
@@ -95,7 +104,7 @@ remote MCP server for Printify, Printful, Etsy or WooCommerce — the only Print
 <i>local</i> <code>npx</code> server. StarNet can run that server in a Safe Cell; the REST-key route remains
 the lighter option when you do not want to maintain a container command.</div>
 
-<h2>Route 1 — a remote MCP server</h2>
+<h2 id="route-1-a-remote-mcp-server">Route 1 — a remote MCP server</h2>
 <p>Open <b>TOOLSETS &amp; CONNECTORS</b> (dock: <b>&#8644; TOOLSETS</b>).</p>
 <ul>
   <li><b>CATALOG</b> — browse vetted servers. <b>&#9656; no setup</b> connects instantly, <b>API key</b> takes a
@@ -108,26 +117,26 @@ the lighter option when you do not want to maintain a container command.</div>
 unavailable, the connector stays honestly disconnected; StarNet never falls back to spawning it on the
 interactive host.</p>
 
-<h2>Route 2 — an API key + <code>web_request</code></h2>
+<h2 id="route-2-an-api-key-web-request">Route 2 — an API key + <code>web_request</code></h2>
 
-<h3>1. Paste the key</h3>
+<h3 id="paste-the-key">1. Paste the key</h3>
 <p><b>TOOLSETS &amp; CONNECTORS &rarr; KEYS &rarr; PICK A PLATFORM</b>. Choose your platform (or type any name),
 paste your key, and save. StarNet stores it locally and shows only the last four characters, ever.</p>
 <p>Each key becomes a named environment variable — <code>Printify</code> becomes
 <code>PRINTIFY_API_KEY</code>. Adding the platform's <b>API docs URL</b> is worth the ten seconds: it rides
 into the agent's prompt, so it can look up the right endpoint instead of guessing.</p>
 
-<h3>2. Give the agent a dish</h3>
+<h3 id="give-the-agent-a-dish">2. Give the agent a dish</h3>
 <p>A key on its own does nothing. Tools come from <a href="station.html">placed props</a>: the
 <b>dish</b> grants the web toolset, which is what contains <code>web_request</code>. Place one in the agent's
 bay from the build menu. (If you want the agent to use the key from a terminal instead, that is the
 <b>workbench</b> prop — but for calling an API you do not need it.)</p>
 
-<h3>3. Ask for the thing you want</h3>
+<h3 id="ask-for-the-thing-you-want">3. Ask for the thing you want</h3>
 <p>&ldquo;List my Printify shops and tell me which products are unpublished.&rdquo; The agent calls the API,
 you approve the call, and it reports back.</p>
 
-<h2>Your key is never shown to the model</h2>
+<h2 id="your-key-is-never-shown-to-the-model">Your key is never shown to the model</h2>
 <p>This is the part worth understanding, because it is unusual. The agent never receives your key. It writes
 a <b>placeholder</b> naming the key, and StarNet substitutes the real value at the moment the request leaves
 your machine:</p>
@@ -147,7 +156,7 @@ the agent has finished composing the request.</p>
 <p>The agent still never handles the value, and it is attached only to the first request — if the server
 redirects somewhere else, the credential is not carried along.</p>
 
-<h2>Uploading files — mockups, images, print files</h2>
+<h2 id="uploading-files-mockups-images-print-files">Uploading files — mockups, images, print files</h2>
 <p>Upload endpoints take file <b>bytes</b>, and the same substitution idea covers them. The agent never
 pastes file contents into a request; it writes a <b>reference</b> to a file in its workspace, and StarNet
 reads and encodes the bytes at the moment the request is sent. Printify's image upload, for example:</p>
@@ -161,7 +170,7 @@ reads and encodes the bytes at the moment the request is sent. Printify's image 
 the file must live in the agent's own workspace (it can never reach outside it), the bytes never pass
 through the model, and the limit is 20MB per file / 25MB per request.</p>
 
-<h2>Letting it run while you are away</h2>
+<h2 id="letting-it-run-while-you-are-away">Letting it run while you are away</h2>
 <p>By default a key is usable only in <b>watched sessions</b> — you are at the station and approve the call.
 Scheduled routines, Night Shift, and agents messaged over Telegram cannot spend it.</p>
 <p>To change that for one platform, tick <b>&ldquo;usable in scheduled &amp; messaged runs&rdquo;</b> on that key's row in
@@ -169,7 +178,7 @@ KEYS. It is per key, off by default, and revocable at any time — the next tool
 immediately. Nothing else about unattended runs widens: they still cannot run shell commands, and they still
 cannot spend any key you have not ticked.</p>
 
-<h2>When it does not work</h2>
+<h2 id="when-it-does-not-work">When it does not work</h2>
 <table>
   <tr><th>What you see</th><th>What it means</th></tr>
   <tr><td>&ldquo;no enabled service key provides X_API_KEY&rdquo;</td>
@@ -198,7 +207,7 @@ cannot spend any key you have not ticked.</p>
           disguise its requests to get around that. Use the platform's API instead.</td></tr>
 </table>
 
-<h2>What StarNet will not do</h2>
+<h2 id="what-starnet-will-not-do">What StarNet will not do</h2>
 <ul>
   <li>Show your key to the model, write it to a file, or send it anywhere except the platform you named.</li>
   <li>Forward your credential across a redirect to a different host.</li>
@@ -206,7 +215,7 @@ cannot spend any key you have not ticked.</p>
   <li>Spend a key in an unattended run you did not explicitly approve for that.</li>
 </ul>
 
-<nav class="doc-pager" aria-label="Previous and next"><a class="pg prev" href="skills.html"><span class="pg-k">&larr; PREVIOUS</span><span class="pg-t">SKILLS, RECIPES, ROUTINES</span></a><a class="pg next" href="connectors.html"><span class="pg-k">NEXT &rarr;</span><span class="pg-t">CONNECTORS &amp; INTEROP</span></a></nav>
+<nav class="doc-pager" aria-label="More in Connect your tools"><span></span><a class="pg next" href="guides/channels.html"><span class="pg-k">NEXT &rarr;</span><span class="pg-t">Messaging channels</span></a></nav>
   </main>
 </div>
 
@@ -227,7 +236,8 @@ cannot spend any key you have not ticked.</p>
   <div class="footer-fine">MIT license &middot; &copy; <span id="year">2026</span> StarNet &middot; no telemetry, no tracking &mdash; <a href="../legal/privacy.html">we collect nothing</a></div>
 </footer>
 
-<script src="search-index.js?v=20260903"></script>
-<script src="docs.js?v=20260903"></script>
+<script src="search-index.js?v=20260913-terminal-nav"></script>
+<script src="search.js?v=20260913-terminal-nav"></script>
+<script src="docs.js?v=20260913-terminal-nav"></script>
 </body>
 </html>

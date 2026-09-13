@@ -3,89 +3,98 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Agents & teams — StarNet Docs</title>
+<title>Agents, teams &amp; voice — StarNet Docs</title>
 <link rel="icon" type="image/svg+xml" href="../assets/favicon.svg">
-<link rel="stylesheet" href="docs.css?v=20260903">
+<link rel="stylesheet" href="docs.css?v=20260913-terminal-nav">
 </head>
-<body class="docs-page" data-group="REFERENCE" data-title="AGENTS &amp; TEAMS">
+<body class="docs-page" data-group="Station &amp; agents" data-group-id="station" data-kind="Reference" data-title="Agents, teams &amp; voice">
+<a class="skip-link" href="#main-content">Skip to content</a>
 
 <div class="crt-scan" aria-hidden="true"></div>
 <div class="crt-vignette" aria-hidden="true"></div>
 
 <header class="topbar" id="topbar">
-  <a class="brand" href="../index.html">STARNET TERMLINK</a>
+  <a class="brand" href="../index.html" aria-label="StarNet home">STARNET<span class="brand-divider"> / </span><span class="brand-context">Docs</span></a>
   <nav class="topnav" aria-label="Site">
-    <a href="../index.html#station">WHAT IT IS</a>
-    <a href="../index.html#difference">FEATURES</a>
-    <a href="index.html" class="on">DOCS</a>
-    <a href="../pricing.html" data-pricing-link>PRICING</a>
-    <a href="../index.html#download">DOWNLOAD</a>
-    <a href="https://github.com/androoAGI/starnet" target="_blank" rel="noopener">GITHUB</a>
+    <a href="../index.html#station">Product</a>
+    <a href="index.html" class="on">Docs</a>
+    <a href="../pricing.html" data-pricing-link>Pricing</a>
+    <a href="https://github.com/androoAGI/starnet" target="_blank" rel="noopener">GitHub &nearr;</a>
   </nav>
   <span class="topbar-right">
-    <a href="help.html">HELP</a>
-    <span class="live-dot"><span class="dot"></span>OPEN SOURCE</span>
+    <a href="help.html">Help</a>
+    <a class="nav-download" href="../index.html#download">Download &darr;</a>
   </span>
 </header>
 
 <div class="docs-shell">
   <aside class="docs-side" id="docs-side">
-    <button class="side-toggle" type="button" aria-expanded="false" aria-controls="side-nav">[ MENU ]</button>
-    <div class="side-search"><span class="ss-glyph">&gt;</span><input id="docs-search" type="search" placeholder="search docs  ( / )" autocomplete="off" spellcheck="false" aria-label="Search docs"><div class="ss-results" id="docs-results" hidden></div></div>
+    <div class="side-home">Documentation</div>
+    <div class="side-search"><label class="sr-only" for="docs-search">Search docs</label><input id="docs-search" type="search" placeholder="Search docs…" autocomplete="off" spellcheck="false" aria-controls="docs-results" aria-expanded="false"><kbd class="search-key" aria-hidden="true">/</kbd><div class="ss-results" id="docs-results" hidden></div><span id="docs-search-status" class="sr-only" role="status" aria-live="polite"></span></div>
+    <button class="side-toggle" type="button" aria-expanded="false" aria-controls="side-nav">Browse documentation</button>
     <nav id="side-nav" class="side-nav" aria-label="Docs">
-    <div class="side-group" data-group="START HERE">
-    <div class="side-title">// START HERE</div>
-    <a href="index.html">DOCS HOME</a>
-    <a href="getting-started.html">GETTING STARTED</a>
-    <a href="guides/first-line.html">YOUR FIRST WORKING LINE</a>
-    <a href="providers.html">PROVIDERS &amp; KEYS</a>
-    </div>
-    <div class="side-group" data-group="FIELD MANUAL">
-    <div class="side-title">// FIELD MANUAL</div>
-    <a href="guides/index.html">ALL GUIDES</a>
-    <a href="guides/conveyors.html">HOW CONVEYORS WORK</a>
-    <a href="guides/filter.html">SORTING WORK WITH A FILTER</a>
-    <a href="guides/splitter-joiner.html">SPLITTER &amp; JOINER</a>
-    <a href="guides/crew.html">YOUR CREW &amp; THEIR GEAR</a>
-    <a href="guides/goals.html">GOALS, QUESTS &amp; XP</a>
-    <a href="guides/night-shift.html">NIGHT SHIFT</a>
-    <a href="guides/routines.html">SKILLS, RECIPES &amp; ROUTINES</a>
-    <a href="guides/channels.html">RUN IT FROM YOUR PHONE</a>
-    </div>
-    <div class="side-group" data-group="REFERENCE">
-    <div class="side-title">// REFERENCE</div>
-    <a href="station.html">THE STATION</a>
-    <a href="agents.html" class="active" aria-current="page">AGENTS &amp; TEAMS</a>
-    <a href="autonomy.html">AUTONOMY &amp; NIGHT SHIFT</a>
-    <a href="skills.html">SKILLS, RECIPES, ROUTINES</a>
-    <a href="connect-a-platform.html">CONNECT A PLATFORM</a>
-    <a href="connectors.html">CONNECTORS &amp; INTEROP</a>
-    <a href="migrating.html">FROM OPENCLAW / HERMES</a>
-    </div>
-    <div class="side-group" data-group="HELP">
-    <div class="side-title">// HELP</div>
-    <a href="help.html">HELP CENTER</a>
-    <a href="troubleshooting.html">TROUBLESHOOTING</a>
-    <a href="shortcuts.html">KEYBOARD SHORTCUTS</a>
-    <a href="glossary.html">GLOSSARY</a>
-    </div>
+      <div class="side-quick">
+      <a href="index.html">Docs overview</a>
+      <a href="guides/index.html">Step-by-step guides</a>
+      </div>
+      <p class="side-label">Browse topics</p>
+    <details class="side-group">
+    <summary class="side-title">Start here</summary>
+    <a href="getting-started.html">Install &amp; first task</a>
+    <a href="providers.html">Models &amp; providers</a>
+    </details>
+    <details class="side-group" open>
+    <summary class="side-title">Station &amp; agents</summary>
+    <a href="station.html">Station &amp; capabilities</a>
+    <a href="guides/crew.html">Set up your crew</a>
+    <a href="agents.html" class="active" aria-current="page">Agents, teams &amp; voice</a>
+    <a href="guides/goals.html">Goals, quests &amp; XP</a>
+    </details>
+    <details class="side-group">
+    <summary class="side-title">Conveyor workflows</summary>
+    <a href="guides/first-line.html">Build your first workflow</a>
+    <a href="guides/conveyors.html">Conveyor basics</a>
+    <a href="guides/filter.html">Filter &amp; route work</a>
+    <a href="guides/splitter-joiner.html">Split &amp; combine results</a>
+    </details>
+    <details class="side-group">
+    <summary class="side-title">Repeat &amp; automate</summary>
+    <a href="guides/routines.html">Create repeatable work</a>
+    <a href="skills.html">Skills &amp; routines reference</a>
+    <a href="guides/night-shift.html">Set up Night Shift</a>
+    <a href="autonomy.html">Autonomy controls</a>
+    </details>
+    <details class="side-group">
+    <summary class="side-title">Connect your tools</summary>
+    <a href="connect-a-platform.html">Connect a service</a>
+    <a href="guides/channels.html">Messaging channels</a>
+    <a href="connectors.html">Connectors &amp; MCP reference</a>
+    <a href="migrating.html">From OpenClaw or Hermes</a>
+    </details>
+    <details class="side-group">
+    <summary class="side-title">Troubleshooting &amp; help</summary>
+    <a href="help.html">Help center</a>
+    <a href="troubleshooting.html">Troubleshooting</a>
+    <a href="shortcuts.html">Keyboard shortcuts</a>
+    <a href="glossary.html">Glossary</a>
+    </details>
     </nav>
   </aside>
-  <main class="docs-main">
-<h1>AGENTS &amp; TEAMS</h1>
+  <main class="docs-main" id="main-content" tabindex="-1">
+<h1>Agents, teams &amp; voice</h1>
 <p class="doc-sub">// recruit specialists, run them concurrently, stay in command</p>
 
-<h2>Recruiting</h2>
+<h2 id="recruiting">Recruiting</h2>
 <p>New agents come through the Recruitment Bay. Each recruit has a dossier — class, loadout,
 personality, and the skills it ships with. A short interview at creation shapes what the agent
 knows about you and your goals; the dossier keeps growing as you work together.</p>
 
-<h2>Classes and archetypes</h2>
+<h2 id="classes-and-archetypes">Classes and archetypes</h2>
 <p>StarNet ships a roster of built-in classes (researcher, builder, marketer, analyst, and
 more), each with a loadout tuned to its job. None are gated — every archetype is available
 from the start, and every agent draws on the station's shared gear.</p>
 
-<h2>The dossier learns you</h2>
+<h2 id="the-dossier-learns-you">The dossier learns you</h2>
 <p>The dossier isn't static config &mdash; it's a living study of its commander. Agents notice
 patterns in how you work and what you approve, and <b>propose</b> beliefs ("prefers a working
 demo over a written spec"); each proposal is yours to accept or strike, and the full ledger of
@@ -93,17 +102,17 @@ what your crew believes about you is readable and editable at any time. Ratings 
 finished work feed a taste profile, so delivery style converges on what you actually value.
 Nothing is learned behind your back: proposals are explicit, and struck beliefs stay struck.</p>
 
-<h2>The model is a roster property</h2>
+<h2 id="the-model-is-a-roster-property">The model is a roster property</h2>
 <p>Each agent is pinned to a model on the roster — not per-chat. Put your heavy reasoning model
 on the architect and a fast cheap model on the intern, and route work accordingly. Swap an
 agent's model at any time in its dossier.</p>
 
-<h2>Concurrency</h2>
+<h2 id="concurrency">Concurrency</h2>
 <p>Each additional bay or specialist you place can run <b>concurrently</b> — genuinely distinct,
 bounded agent runs, not one queue wearing costumes. The conveyor carries real work items
 between rooms.</p>
 
-<h2>Delegation: agents that summon agents</h2>
+<h2 id="delegation-agents-that-summon-agents">Delegation: agents that summon agents</h2>
 <p>An agent holding the <b>task delegation</b> capability can break a large job apart and hand
 the pieces out. Every worker it creates runs its <b>own real agent loop</b> — its own searching,
 reading, file writing and memory — and returns a result the lead folds back into the answer.
@@ -119,7 +128,7 @@ one that's going the wrong way, or <b>resume</b> a stalled one — it restarts o
 and appends to the same durable record, so nothing is silently lost. You watch the whole tree
 work on the station floor; a lit desk is a live worker, not a decoration.</p>
 
-<h2>Live Voice — talking to the station</h2>
+<h2 id="live-voice-talking-to-the-station">Live Voice — talking to the station</h2>
 <p>You can put COMMS down and just talk. Hands-free <b>Live Voice</b> listens, transcribes, runs
 the work, and speaks the answer back, using a speech engine <b>built into the app</b> — Whisper
 for listening, Kokoro for speaking, both on your CPU.</p>
@@ -132,13 +141,13 @@ never leaves the machine. The first session may download the open model weights 
 listening is offline; speaking is offline while Kokoro is available and otherwise may use the keyless
 Microsoft Edge Read Aloud fallback for answer text.</p>
 
-<h2>COMMS</h2>
+<h2 id="comms">COMMS</h2>
 <p>The COMMS window is command: talk to any agent, stream its work live, approve consequential
 actions, and answer the (rare, bounded) clarifying question before a big task commits. When an
 agent needs a decision it asks once with concrete choices — it can't ask and quietly mutate
 things at the same time; the harness blocks write tools until the question is settled.</p>
 
-<nav class="doc-pager" aria-label="Previous and next"><a class="pg prev" href="station.html"><span class="pg-k">&larr; PREVIOUS</span><span class="pg-t">THE STATION</span></a><a class="pg next" href="autonomy.html"><span class="pg-k">NEXT &rarr;</span><span class="pg-t">AUTONOMY &amp; NIGHT SHIFT</span></a></nav>
+<nav class="doc-pager" aria-label="More in Station &amp; agents"><a class="pg prev" href="guides/crew.html"><span class="pg-k">&larr; PREVIOUS</span><span class="pg-t">Set up your crew</span></a><a class="pg next" href="guides/goals.html"><span class="pg-k">NEXT &rarr;</span><span class="pg-t">Goals, quests &amp; XP</span></a></nav>
   </main>
 </div>
 
@@ -159,7 +168,8 @@ things at the same time; the harness blocks write tools until the question is se
   <div class="footer-fine">MIT license &middot; &copy; <span id="year">2026</span> StarNet &middot; no telemetry, no tracking &mdash; <a href="../legal/privacy.html">we collect nothing</a></div>
 </footer>
 
-<script src="search-index.js?v=20260903"></script>
-<script src="docs.js?v=20260903"></script>
+<script src="search-index.js?v=20260913-terminal-nav"></script>
+<script src="search.js?v=20260913-terminal-nav"></script>
+<script src="docs.js?v=20260913-terminal-nav"></script>
 </body>
 </html>

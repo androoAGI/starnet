@@ -2,25 +2,18 @@
    Rule for this area: the SCHEMATIC carries the explanation, the words are the caption.
    Belts actually march and crates actually ride, so the page demonstrates the mechanic
    instead of describing it. Everything degrades to a still frame under reduced-motion. */
-@import url('../docs.css');
+@import url('../docs.css?v=20260913-terminal-nav');
 
-.docs-shell{ max-width:1240px; }
-/* Guides are schematic-heavy: the article column needs its width. Below 1400px the on-page TOC
-   rail steps aside (the sidebar still lists every guide); above it, all three columns fit. */
-@media (min-width:1180px) and (max-width:1399px){
-  .docs-shell.has-toc{ grid-template-columns:236px minmax(0,1fr); max-width:1240px; }
-  .docs-shell.has-toc .docs-toc{ display:none; }
-}
-@media (min-width:1400px){ .docs-shell.has-toc{ max-width:1480px; } }
+/* Guides and reference pages share the docs grid; diagrams adapt inside the article. */
 .buildsteps > li{ grid-template-columns:minmax(0,1fr) minmax(300px,44%); }
 
 /* ================= HERO ================= */
 .fm-hero{
   border:1px solid var(--line); background:rgba(0,0,0,.35);
-  padding:18px 20px 14px; margin:0 0 26px; position:relative; overflow:hidden;
+  padding:18px 20px 14px; margin:0 0 32px; position:relative; overflow:hidden;
 }
 .fm-hero .fh-kicker{ font-size:15px; letter-spacing:3px; color:var(--amber-d); margin-bottom:2px; }
-.fm-hero h1{ margin:0 0 4px !important; }
+.fm-hero h1{ margin:0 0 16px; }
 .fm-hero .fh-sub{ margin:0 0 14px; font-size:18px; color:rgba(236,224,207,.5); letter-spacing:.5px; }
 .fm-hero svg{ display:block; width:100%; height:auto; }
 
@@ -343,3 +336,15 @@ a.quest:hover .q-title{ text-shadow:0 0 12px rgba(255,157,47,.45); }
 .gc .gc-n{ font-size:17px; letter-spacing:1.5px; color:var(--amber-b); }
 .gc .gc-p{ display:block; font-size:14px; letter-spacing:1.5px; color:var(--amber-d); margin:1px 0 6px; }
 .gc p{ margin:0; font-size:15.5px; line-height:1.5; color:var(--ink-d); }
+
+/* Guides share the station glass; schematic labels retain their authored scale. */
+.fm-hero{border-radius:12px;padding:24px;background:var(--menu-glass);box-shadow:var(--glass-rim);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px)}
+.fm-hero .fh-kicker{font:16px/1.4 'VT323',monospace;letter-spacing:1px;color:var(--amber);margin-bottom:14px}
+.fm-hero .fh-sub{font:20px/1.5 'VT323',monospace;letter-spacing:0;color:var(--ink-d)}
+.fm-hero .fh-cap{font:17px/1.5 'VT323',monospace;letter-spacing:0;color:var(--amber-d)}
+.buildsteps>li{gap:22px}.buildsteps p,.buildsteps li,.gc p{font-size:20px;line-height:1.55}
+.gc{border-radius:12px;background:var(--menu-glass);box-shadow:var(--glass-rim);overflow:hidden}
+.gc .gc-n{font-size:24px;font-weight:400;letter-spacing:.4px}.gc .gc-p{font:16px/1.5 'VT323',monospace}
+.docs-overview .docs-shell{max-width:1380px}
+.fm-hero .d-label text{font-size:13px;letter-spacing:.5px}
+@media(max-width:1000px){.buildsteps>li{grid-template-columns:minmax(0,1fr)}}

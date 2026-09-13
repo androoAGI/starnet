@@ -118,6 +118,7 @@ const WorldSurface = (() => {
   }
 
   function paintFloorTile(ctx, material, base, X, Y, tile, worldTx, worldTy, opts) {
+    if (typeof IndustrialTextures !== 'undefined' && IndustrialTextures.floor(ctx, X, Y, tile || CELL, worldTx, worldTy)) return true;
     const mat = materialSet.has(material) ? material : 'plate';
     const size = Math.max(1, Math.round(tile || CELL)), d = detailOf(opts);
     const pal = palette(base, d), p = brush(ctx, X, Y, size);
@@ -353,6 +354,7 @@ const WorldSurface = (() => {
   }
 
   function paintWallTile(ctx, material, base, X, Y, tile, height, tileX, opts) {
+    if (material !== 'viewport' && typeof IndustrialTextures !== 'undefined' && IndustrialTextures.wall(ctx, X, Y, tile || CELL, height || 30, tileX)) return true;
     if (!wallSet.has(material)) return false;
     const w = Math.max(1, Math.round(tile || CELL)), h = Math.max(1, Math.round(height || 30));
     const d = detailOf(opts), pal = palette(base, d), scale = w / CELL;

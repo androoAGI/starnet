@@ -3,106 +3,96 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Field Manual — StarNet Docs</title>
+<title>Step-by-step guides — StarNet Docs</title>
 <meta name="description" content="Visual step-by-step StarNet guides: how conveyor lines work, how to build one, and what every fault label on the floor means.">
 <link rel="canonical" href="https://starnetos.com/docs/guides/index.html">
 <link rel="icon" type="image/svg+xml" href="../../assets/favicon.svg">
-<link rel="stylesheet" href="guides.css?v=20260903">
+<link rel="stylesheet" href="guides.css?v=20260913-terminal-nav">
 </head>
-<body class="docs-page" data-group="FIELD MANUAL" data-title="ALL GUIDES">
+<body class="docs-page docs-overview" data-group="Start here" data-group-id="start" data-kind="Overview" data-title="Step-by-step guides">
+<a class="skip-link" href="#main-content">Skip to content</a>
 
 <div class="crt-scan" aria-hidden="true"></div>
 <div class="crt-vignette" aria-hidden="true"></div>
 
 <header class="topbar" id="topbar">
-  <a class="brand" href="../../index.html">STARNET TERMLINK</a>
+  <a class="brand" href="../../index.html" aria-label="StarNet home">STARNET<span class="brand-divider"> / </span><span class="brand-context">Docs</span></a>
   <nav class="topnav" aria-label="Site">
-    <a href="../../index.html#station">WHAT IT IS</a>
-    <a href="../../index.html#difference">FEATURES</a>
-    <a href="../index.html" class="on">DOCS</a>
-    <a href="../../pricing.html" data-pricing-link>PRICING</a>
-    <a href="../../index.html#download">DOWNLOAD</a>
-    <a href="https://github.com/androoAGI/starnet" target="_blank" rel="noopener">GITHUB</a>
+    <a href="../../index.html#station">Product</a>
+    <a href="../index.html" class="on">Docs</a>
+    <a href="../../pricing.html" data-pricing-link>Pricing</a>
+    <a href="https://github.com/androoAGI/starnet" target="_blank" rel="noopener">GitHub &nearr;</a>
   </nav>
   <span class="topbar-right">
-    <a href="../help.html">HELP</a>
-    <span class="live-dot"><span class="dot"></span>OPEN SOURCE</span>
+    <a href="../help.html">Help</a>
+    <a class="nav-download" href="../../index.html#download">Download &darr;</a>
   </span>
 </header>
 
 <div class="docs-shell">
   <aside class="docs-side" id="docs-side">
-    <button class="side-toggle" type="button" aria-expanded="false" aria-controls="side-nav">[ MENU ]</button>
-    <div class="side-search"><span class="ss-glyph">&gt;</span><input id="docs-search" type="search" placeholder="search docs  ( / )" autocomplete="off" spellcheck="false" aria-label="Search docs"><div class="ss-results" id="docs-results" hidden></div></div>
+    <div class="side-home">Documentation</div>
+    <div class="side-search"><label class="sr-only" for="docs-search">Search docs</label><input id="docs-search" type="search" placeholder="Search docs…" autocomplete="off" spellcheck="false" aria-controls="docs-results" aria-expanded="false"><kbd class="search-key" aria-hidden="true">/</kbd><div class="ss-results" id="docs-results" hidden></div><span id="docs-search-status" class="sr-only" role="status" aria-live="polite"></span></div>
+    <button class="side-toggle" type="button" aria-expanded="false" aria-controls="side-nav">Browse documentation</button>
     <nav id="side-nav" class="side-nav" aria-label="Docs">
-    <div class="side-group" data-group="START HERE">
-    <div class="side-title">// START HERE</div>
-    <a href="../index.html">DOCS HOME</a>
-    <a href="../getting-started.html">GETTING STARTED</a>
-    <a href="first-line.html">YOUR FIRST WORKING LINE</a>
-    <a href="../providers.html">PROVIDERS &amp; KEYS</a>
-    </div>
-    <div class="side-group" data-group="FIELD MANUAL">
-    <div class="side-title">// FIELD MANUAL</div>
-    <a href="index.html" class="active" aria-current="page">ALL GUIDES</a>
-    <a href="conveyors.html">HOW CONVEYORS WORK</a>
-    <a href="filter.html">SORTING WORK WITH A FILTER</a>
-    <a href="splitter-joiner.html">SPLITTER &amp; JOINER</a>
-    <a href="crew.html">YOUR CREW &amp; THEIR GEAR</a>
-    <a href="goals.html">GOALS, QUESTS &amp; XP</a>
-    <a href="night-shift.html">NIGHT SHIFT</a>
-    <a href="routines.html">SKILLS, RECIPES &amp; ROUTINES</a>
-    <a href="channels.html">RUN IT FROM YOUR PHONE</a>
-    </div>
-    <div class="side-group" data-group="REFERENCE">
-    <div class="side-title">// REFERENCE</div>
-    <a href="../station.html">THE STATION</a>
-    <a href="../agents.html">AGENTS &amp; TEAMS</a>
-    <a href="../autonomy.html">AUTONOMY &amp; NIGHT SHIFT</a>
-    <a href="../skills.html">SKILLS, RECIPES, ROUTINES</a>
-    <a href="../connect-a-platform.html">CONNECT A PLATFORM</a>
-    <a href="../connectors.html">CONNECTORS &amp; INTEROP</a>
-    <a href="../migrating.html">FROM OPENCLAW / HERMES</a>
-    </div>
-    <div class="side-group" data-group="HELP">
-    <div class="side-title">// HELP</div>
-    <a href="../help.html">HELP CENTER</a>
-    <a href="../troubleshooting.html">TROUBLESHOOTING</a>
-    <a href="../shortcuts.html">KEYBOARD SHORTCUTS</a>
-    <a href="../glossary.html">GLOSSARY</a>
-    </div>
+      <div class="side-quick">
+      <a href="../index.html">Docs overview</a>
+      <a href="index.html" class="active" aria-current="page">Step-by-step guides</a>
+      </div>
+      <p class="side-label">Browse topics</p>
+    <details class="side-group">
+    <summary class="side-title">Start here</summary>
+    <a href="../getting-started.html">Install &amp; first task</a>
+    <a href="../providers.html">Models &amp; providers</a>
+    </details>
+    <details class="side-group">
+    <summary class="side-title">Station &amp; agents</summary>
+    <a href="../station.html">Station &amp; capabilities</a>
+    <a href="crew.html">Set up your crew</a>
+    <a href="../agents.html">Agents, teams &amp; voice</a>
+    <a href="goals.html">Goals, quests &amp; XP</a>
+    </details>
+    <details class="side-group">
+    <summary class="side-title">Conveyor workflows</summary>
+    <a href="first-line.html">Build your first workflow</a>
+    <a href="conveyors.html">Conveyor basics</a>
+    <a href="filter.html">Filter &amp; route work</a>
+    <a href="splitter-joiner.html">Split &amp; combine results</a>
+    </details>
+    <details class="side-group">
+    <summary class="side-title">Repeat &amp; automate</summary>
+    <a href="routines.html">Create repeatable work</a>
+    <a href="../skills.html">Skills &amp; routines reference</a>
+    <a href="night-shift.html">Set up Night Shift</a>
+    <a href="../autonomy.html">Autonomy controls</a>
+    </details>
+    <details class="side-group">
+    <summary class="side-title">Connect your tools</summary>
+    <a href="../connect-a-platform.html">Connect a service</a>
+    <a href="channels.html">Messaging channels</a>
+    <a href="../connectors.html">Connectors &amp; MCP reference</a>
+    <a href="../migrating.html">From OpenClaw or Hermes</a>
+    </details>
+    <details class="side-group">
+    <summary class="side-title">Troubleshooting &amp; help</summary>
+    <a href="../help.html">Help center</a>
+    <a href="../troubleshooting.html">Troubleshooting</a>
+    <a href="../shortcuts.html">Keyboard shortcuts</a>
+    <a href="../glossary.html">Glossary</a>
+    </details>
     </nav>
   </aside>
-  <main class="docs-main">
-<div class="fm-hero">
-<div class="fh-kicker">// STARNET</div>
-<h1>FIELD MANUAL</h1>
-<p class="fh-sub">Nine short picture guides. Start at the top.</p>
-<svg viewBox="0 0 820 152" role="img" aria-label="A work line: a job enters at the INBOX, rides the belt through two agent BAYs where each does their part, and the finished work leaves through the OUTBOX."><rect class="d-machine d-lit" x="20" y="47" width="60" height="60"/><rect class="d-inner" x="28" y="55" width="44" height="10"/><g class="d-chev"><polyline points="43,74 50,83 57,74"/></g><defs><clipPath id="cl37"><rect x="80" y="62" width="180" height="30"/></clipPath></defs><rect class="d-belt" x="80" y="62" width="180" height="30"/><g class="d-rail"><line x1="80" y1="64" x2="260" y2="64"/><line x1="80" y1="90" x2="260" y2="90"/></g><g clip-path="url(#cl37)"><g class="d-chev march"><polyline points="60,70 69,77 60,84"/><polyline points="90,70 99,77 90,84"/><polyline points="120,70 129,77 120,84"/><polyline points="150,70 159,77 150,84"/><polyline points="180,70 189,77 180,84"/><polyline points="210,70 219,77 210,84"/><polyline points="240,70 249,77 240,84"/></g></g><circle class="d-led blink" cx="252" cy="68" r="3"/><rect class="d-machine" x="260" y="47" width="60" height="60"/><rect class="d-inner" x="268" y="88" width="44" height="9"/><circle class="d-led blink" cx="275" cy="62" r="4"/><rect class="d-plate" x="286" y="56" width="26" height="12"/><defs><clipPath id="cl38"><rect x="320" y="62" width="180" height="30"/></clipPath></defs><rect class="d-belt" x="320" y="62" width="180" height="30"/><g class="d-rail"><line x1="320" y1="64" x2="500" y2="64"/><line x1="320" y1="90" x2="500" y2="90"/></g><g clip-path="url(#cl38)"><g class="d-chev march"><polyline points="300,70 309,77 300,84"/><polyline points="330,70 339,77 330,84"/><polyline points="360,70 369,77 360,84"/><polyline points="390,70 399,77 390,84"/><polyline points="420,70 429,77 420,84"/><polyline points="450,70 459,77 450,84"/><polyline points="480,70 489,77 480,84"/></g></g><circle class="d-led blink" cx="492" cy="68" r="3"/><rect class="d-machine" x="500" y="47" width="60" height="60"/><rect class="d-inner" x="508" y="88" width="44" height="9"/><circle class="d-led blink" cx="515" cy="62" r="4"/><rect class="d-plate" x="526" y="56" width="26" height="12"/><defs><clipPath id="cl39"><rect x="560" y="62" width="180" height="30"/></clipPath></defs><rect class="d-belt" x="560" y="62" width="180" height="30"/><g class="d-rail"><line x1="560" y1="64" x2="740" y2="64"/><line x1="560" y1="90" x2="740" y2="90"/></g><g clip-path="url(#cl39)"><g class="d-chev march"><polyline points="540,70 549,77 540,84"/><polyline points="570,70 579,77 570,84"/><polyline points="600,70 609,77 600,84"/><polyline points="630,70 639,77 630,84"/><polyline points="660,70 669,77 660,84"/><polyline points="690,70 699,77 690,84"/><polyline points="720,70 729,77 720,84"/></g></g><circle class="d-led blink" cx="732" cy="68" r="3"/><rect class="d-machine" x="740" y="47" width="60" height="60"/><rect class="d-chute" x="749" y="59" width="42" height="39"/><g class="d-chev"><polyline points="763,76 770,85 777,76"/></g><g class="ride " style="--ride-end:150px;--ride-mid:75px"><ellipse class="d-shadow" cx="95" cy="91" rx="10" ry="3"/><rect class="d-crate" x="84" y="66" width="22" height="22"/><rect class="d-crate-top" x="84" y="66" width="22" height="6"/></g><g class="ride d2" style="--ride-end:150px;--ride-mid:75px"><ellipse class="d-shadow" cx="335" cy="91" rx="10" ry="3"/><rect class="d-crate" x="324" y="66" width="22" height="22"/><rect class="d-crate-top" x="324" y="66" width="22" height="6"/></g><g class="ride d3" style="--ride-end:150px;--ride-mid:75px"><ellipse class="d-shadow" cx="575" cy="91" rx="10" ry="3"/><rect class="d-crate" x="564" y="66" width="22" height="22"/><rect class="d-crate-top" x="564" y="66" width="22" height="6"/></g><g class="d-label"><text x="50" y="37" text-anchor="middle">THE JOB COMES IN</text></g><g class="d-label"><text x="290" y="37" text-anchor="middle">DOES THEIR PART</text></g><g class="d-label"><text x="530" y="37" text-anchor="middle">DOES THE NEXT PART</text></g><g class="d-label"><text x="770" y="37" text-anchor="middle">FINISHED WORK OUT</text></g><g class="d-sub"><text x="50" y="125" text-anchor="middle">the INBOX</text></g><g class="d-sub"><text x="290" y="125" text-anchor="middle">a BAY — one agent</text></g><g class="d-sub"><text x="530" y="125" text-anchor="middle">a BAY — one agent</text></g><g class="d-sub"><text x="770" y="125" text-anchor="middle">the OUTBOX</text></g></svg>
-</div>
-<p class="lede">Never opened StarNet? These are for you.</p>
-<p>Each one shows one thing, in pictures, in about five minutes. When you want the full detail instead, the <a href="../index.html">reference docs</a> have all of it.</p>
-<h2><span class="h-num">01</span>Getting work done</h2>
-<div class="quest-grid">
-<a class="quest" href="first-line.html"><div class="q-thumb"><svg viewBox="0 0 372 102" role="img" aria-label="A stamped starter line running"><rect class="d-machine d-lit" x="6" y="21" width="60" height="60"/><rect class="d-inner" x="14" y="29" width="44" height="10"/><g class="d-chev"><polyline points="29,48 36,57 43,48"/></g><defs><clipPath id="cl40"><rect x="66" y="36" width="90" height="30"/></clipPath></defs><rect class="d-belt" x="66" y="36" width="90" height="30"/><g class="d-rail"><line x1="66" y1="38" x2="156" y2="38"/><line x1="66" y1="64" x2="156" y2="64"/></g><g clip-path="url(#cl40)"><g class="d-chev march"><polyline points="46,44 55,51 46,58"/><polyline points="76,44 85,51 76,58"/><polyline points="106,44 115,51 106,58"/><polyline points="136,44 145,51 136,58"/></g></g><circle class="d-led blink" cx="148" cy="42" r="3"/><rect class="d-machine" x="156" y="21" width="60" height="60"/><rect class="d-inner" x="164" y="62" width="44" height="9"/><circle class="d-led blink" cx="171" cy="36" r="4"/><rect class="d-plate" x="182" y="30" width="26" height="12"/><defs><clipPath id="cl41"><rect x="216" y="36" width="90" height="30"/></clipPath></defs><rect class="d-belt" x="216" y="36" width="90" height="30"/><g class="d-rail"><line x1="216" y1="38" x2="306" y2="38"/><line x1="216" y1="64" x2="306" y2="64"/></g><g clip-path="url(#cl41)"><g class="d-chev march"><polyline points="196,44 205,51 196,58"/><polyline points="226,44 235,51 226,58"/><polyline points="256,44 265,51 256,58"/><polyline points="286,44 295,51 286,58"/></g></g><circle class="d-led blink" cx="298" cy="42" r="3"/><rect class="d-machine" x="306" y="21" width="60" height="60"/><rect class="d-chute" x="315" y="33" width="42" height="39"/><g class="d-chev"><polyline points="329,50 336,59 343,50"/></g><g class="ride " style="--ride-end:60px;--ride-mid:30px"><ellipse class="d-shadow" cx="81" cy="65" rx="10" ry="3"/><rect class="d-crate" x="70" y="40" width="22" height="22"/><rect class="d-crate-top" x="70" y="40" width="22" height="6"/></g><g class="ride d2" style="--ride-end:60px;--ride-mid:30px"><ellipse class="d-shadow" cx="231" cy="65" rx="10" ry="3"/><rect class="d-crate" x="220" y="40" width="22" height="22"/><rect class="d-crate-top" x="220" y="40" width="22" height="6"/></g></svg></div><div class="q-body"><span class="q-title">YOUR FIRST WORKING LINE</span><p class="q-blurb">Don&rsquo;t want to build? Drop a ready-made line in one click and try it.</p><div class="q-tags"><span class="tag hot">START <span class="pips">&#9679;<i>&#9679;</i><i>&#9679;</i></span></span><span class="tag">~4 MIN</span></div></div></a>
-<a class="quest" href="conveyors.html"><div class="q-thumb"><svg viewBox="0 0 282 162" role="img" aria-label="A filtered line branching to two bays"><rect class="d-machine d-lit" x="6" y="21" width="60" height="60"/><rect class="d-inner" x="14" y="29" width="44" height="10"/><g class="d-chev"><polyline points="29,48 36,57 43,48"/></g><defs><clipPath id="cl42"><rect x="66" y="36" width="60" height="30"/></clipPath></defs><rect class="d-belt" x="66" y="36" width="60" height="30"/><g class="d-rail"><line x1="66" y1="38" x2="126" y2="38"/><line x1="66" y1="64" x2="126" y2="64"/></g><g clip-path="url(#cl42)"><g class="d-chev march"><polyline points="46,44 55,51 46,58"/><polyline points="76,44 85,51 76,58"/><polyline points="106,44 115,51 106,58"/></g></g><rect class="d-machine d-lit" x="126" y="36" width="30" height="30"/><defs><clipPath id="cl43"><rect x="156" y="36" width="60" height="30"/></clipPath></defs><rect class="d-belt" x="156" y="36" width="60" height="30"/><g class="d-rail"><line x1="156" y1="38" x2="216" y2="38"/><line x1="156" y1="64" x2="216" y2="64"/></g><g clip-path="url(#cl43)"><g class="d-chev march"><polyline points="136,44 145,51 136,58"/><polyline points="166,44 175,51 166,58"/><polyline points="196,44 205,51 196,58"/></g></g><circle class="d-led blink" cx="208" cy="42" r="3"/><rect class="d-machine" x="216" y="21" width="60" height="60"/><rect class="d-inner" x="224" y="62" width="44" height="9"/><circle class="d-led blink" cx="231" cy="36" r="4"/><rect class="d-plate" x="242" y="30" width="26" height="12"/><defs><clipPath id="cl44"><rect x="126" y="66" width="30" height="30"/></clipPath></defs><rect class="d-belt" x="126" y="66" width="30" height="30"/><g class="d-rail"><line x1="128" y1="66" x2="128" y2="96"/><line x1="154" y1="66" x2="154" y2="96"/></g><g clip-path="url(#cl44)"><g class="d-chev march-s"><polyline points="134,46 141,55 148,46"/><polyline points="134,76 141,85 148,76"/></g></g><rect class="d-belt" x="126" y="96" width="30" height="30"/><g class="d-chev"><polyline points="136,104 145,111 136,118"/></g><defs><clipPath id="cl45"><rect x="156" y="96" width="60" height="30"/></clipPath></defs><rect class="d-belt" x="156" y="96" width="60" height="30"/><g class="d-rail"><line x1="156" y1="98" x2="216" y2="98"/><line x1="156" y1="124" x2="216" y2="124"/></g><g clip-path="url(#cl45)"><g class="d-chev march"><polyline points="136,104 145,111 136,118"/><polyline points="166,104 175,111 166,118"/><polyline points="196,104 205,111 196,118"/></g></g><circle class="d-led blink" cx="208" cy="102" r="3"/><rect class="d-machine" x="216" y="81" width="60" height="60"/><rect class="d-inner" x="224" y="122" width="44" height="9"/><circle class="d-led blink" cx="231" cy="96" r="4"/><rect class="d-plate" x="242" y="90" width="26" height="12"/><g class="ride " style="--ride-end:30px;--ride-mid:15px"><ellipse class="d-shadow" cx="171" cy="65" rx="10" ry="3"/><rect class="d-crate" x="160" y="40" width="22" height="22"/><rect class="d-crate-top" x="160" y="40" width="22" height="6"/></g><g class="ride d2" style="--ride-end:30px;--ride-mid:15px"><ellipse class="d-shadow" cx="171" cy="125" rx="10" ry="3"/><rect class="d-crate" x="160" y="100" width="22" height="22"/><rect class="d-crate-top" x="160" y="100" width="22" height="6"/></g></svg></div><div class="q-body"><span class="q-title">HOW CONVEYORS WORK</span><p class="q-blurb">How work flows desk to desk: what the moving boxes are, how to build a line, and how to read what the floor is telling you.</p><div class="q-tags"><span class="tag hot">START HERE <span class="pips">&#9679;<i>&#9679;</i><i>&#9679;</i></span></span><span class="tag">~5 MIN</span></div></div></a>
-<a class="quest" href="filter.html"><div class="q-thumb"><svg viewBox="0 0 282 162" role="img" aria-label="A filtered line branching to two bays"><rect class="d-machine d-lit" x="6" y="21" width="60" height="60"/><rect class="d-inner" x="14" y="29" width="44" height="10"/><g class="d-chev"><polyline points="29,48 36,57 43,48"/></g><defs><clipPath id="cl46"><rect x="66" y="36" width="60" height="30"/></clipPath></defs><rect class="d-belt" x="66" y="36" width="60" height="30"/><g class="d-rail"><line x1="66" y1="38" x2="126" y2="38"/><line x1="66" y1="64" x2="126" y2="64"/></g><g clip-path="url(#cl46)"><g class="d-chev march"><polyline points="46,44 55,51 46,58"/><polyline points="76,44 85,51 76,58"/><polyline points="106,44 115,51 106,58"/></g></g><rect class="d-machine d-lit" x="126" y="36" width="30" height="30"/><defs><clipPath id="cl47"><rect x="156" y="36" width="60" height="30"/></clipPath></defs><rect class="d-belt" x="156" y="36" width="60" height="30"/><g class="d-rail"><line x1="156" y1="38" x2="216" y2="38"/><line x1="156" y1="64" x2="216" y2="64"/></g><g clip-path="url(#cl47)"><g class="d-chev march"><polyline points="136,44 145,51 136,58"/><polyline points="166,44 175,51 166,58"/><polyline points="196,44 205,51 196,58"/></g></g><circle class="d-led blink" cx="208" cy="42" r="3"/><rect class="d-machine" x="216" y="21" width="60" height="60"/><rect class="d-inner" x="224" y="62" width="44" height="9"/><circle class="d-led blink" cx="231" cy="36" r="4"/><rect class="d-plate" x="242" y="30" width="26" height="12"/><defs><clipPath id="cl48"><rect x="126" y="66" width="30" height="30"/></clipPath></defs><rect class="d-belt" x="126" y="66" width="30" height="30"/><g class="d-rail"><line x1="128" y1="66" x2="128" y2="96"/><line x1="154" y1="66" x2="154" y2="96"/></g><g clip-path="url(#cl48)"><g class="d-chev march-s"><polyline points="134,46 141,55 148,46"/><polyline points="134,76 141,85 148,76"/></g></g><rect class="d-belt" x="126" y="96" width="30" height="30"/><g class="d-chev"><polyline points="136,104 145,111 136,118"/></g><defs><clipPath id="cl49"><rect x="156" y="96" width="60" height="30"/></clipPath></defs><rect class="d-belt" x="156" y="96" width="60" height="30"/><g class="d-rail"><line x1="156" y1="98" x2="216" y2="98"/><line x1="156" y1="124" x2="216" y2="124"/></g><g clip-path="url(#cl49)"><g class="d-chev march"><polyline points="136,104 145,111 136,118"/><polyline points="166,104 175,111 166,118"/><polyline points="196,104 205,111 196,118"/></g></g><circle class="d-led blink" cx="208" cy="102" r="3"/><rect class="d-machine" x="216" y="81" width="60" height="60"/><rect class="d-inner" x="224" y="122" width="44" height="9"/><circle class="d-led blink" cx="231" cy="96" r="4"/><rect class="d-plate" x="242" y="90" width="26" height="12"/><g class="ride " style="--ride-end:30px;--ride-mid:15px"><ellipse class="d-shadow" cx="171" cy="65" rx="10" ry="3"/><rect class="d-crate" x="160" y="40" width="22" height="22"/><rect class="d-crate-top" x="160" y="40" width="22" height="6"/></g><g class="ride d2" style="--ride-end:30px;--ride-mid:15px"><ellipse class="d-shadow" cx="171" cy="125" rx="10" ry="3"/><rect class="d-crate" x="160" y="100" width="22" height="22"/><rect class="d-crate-top" x="160" y="100" width="22" height="6"/></g></svg></div><div class="q-body"><span class="q-title">SORTING WORK WITH A FILTER</span><p class="q-blurb">Send code one way and everything else the other, without sorting anything by hand.</p><div class="q-tags"><span class="tag hot">NEW</span><span class="tag">~4 MIN</span></div></div></a>
-<a class="quest" href="splitter-joiner.html"><div class="q-thumb"><svg viewBox="0 -12 226 186" role="img" aria-label="A splitter fanning across three bays"><rect class="d-machine d-lit" x="6" y="51" width="60" height="60"/><rect class="d-inner" x="14" y="59" width="44" height="10"/><g class="d-chev"><polyline points="29,78 36,87 43,78"/></g><defs><clipPath id="cl50"><rect x="66" y="66" width="30" height="30"/></clipPath></defs><rect class="d-belt" x="66" y="66" width="30" height="30"/><g class="d-rail"><line x1="66" y1="68" x2="96" y2="68"/><line x1="66" y1="94" x2="96" y2="94"/></g><g clip-path="url(#cl50)"><g class="d-chev march"><polyline points="46,74 55,81 46,88"/><polyline points="76,74 85,81 76,88"/></g></g><rect class="d-machine d-lit" x="96" y="66" width="30" height="30"/><defs><clipPath id="cl51"><rect x="96" y="36" width="30" height="30"/></clipPath></defs><rect class="d-belt" x="96" y="36" width="30" height="30"/><g class="d-rail"><line x1="98" y1="36" x2="98" y2="66"/><line x1="124" y1="36" x2="124" y2="66"/></g><g clip-path="url(#cl51)"><g class="d-chev march-s" style="animation-direction:reverse"><polyline points="104,56 111,47 118,56"/><polyline points="104,86 111,77 118,86"/></g></g><rect class="d-belt" x="96" y="6" width="30" height="30"/><g class="d-chev"><polyline points="106,14 115,21 106,28"/></g><defs><clipPath id="cl52"><rect x="126" y="6" width="30" height="30"/></clipPath></defs><rect class="d-belt" x="126" y="6" width="30" height="30"/><g class="d-rail"><line x1="126" y1="8" x2="156" y2="8"/><line x1="126" y1="34" x2="156" y2="34"/></g><g clip-path="url(#cl52)"><g class="d-chev march"><polyline points="106,14 115,21 106,28"/><polyline points="136,14 145,21 136,28"/></g></g><circle class="d-led blink" cx="148" cy="12" r="3"/><rect class="d-machine" x="156" y="-9" width="60" height="60"/><rect class="d-inner" x="164" y="32" width="44" height="9"/><circle class="d-led blink" cx="171" cy="6" r="4"/><rect class="d-plate" x="182" y="0" width="26" height="12"/><defs><clipPath id="cl53"><rect x="126" y="66" width="30" height="30"/></clipPath></defs><rect class="d-belt" x="126" y="66" width="30" height="30"/><g class="d-rail"><line x1="126" y1="68" x2="156" y2="68"/><line x1="126" y1="94" x2="156" y2="94"/></g><g clip-path="url(#cl53)"><g class="d-chev march"><polyline points="106,74 115,81 106,88"/><polyline points="136,74 145,81 136,88"/></g></g><circle class="d-led blink" cx="148" cy="72" r="3"/><rect class="d-machine" x="156" y="51" width="60" height="60"/><rect class="d-inner" x="164" y="92" width="44" height="9"/><circle class="d-led blink" cx="171" cy="66" r="4"/><rect class="d-plate" x="182" y="60" width="26" height="12"/><defs><clipPath id="cl54"><rect x="96" y="96" width="30" height="30"/></clipPath></defs><rect class="d-belt" x="96" y="96" width="30" height="30"/><g class="d-rail"><line x1="98" y1="96" x2="98" y2="126"/><line x1="124" y1="96" x2="124" y2="126"/></g><g clip-path="url(#cl54)"><g class="d-chev march-s"><polyline points="104,76 111,85 118,76"/><polyline points="104,106 111,115 118,106"/></g></g><rect class="d-belt" x="96" y="126" width="30" height="30"/><g class="d-chev"><polyline points="106,134 115,141 106,148"/></g><defs><clipPath id="cl55"><rect x="126" y="126" width="30" height="30"/></clipPath></defs><rect class="d-belt" x="126" y="126" width="30" height="30"/><g class="d-rail"><line x1="126" y1="128" x2="156" y2="128"/><line x1="126" y1="154" x2="156" y2="154"/></g><g clip-path="url(#cl55)"><g class="d-chev march"><polyline points="106,134 115,141 106,148"/><polyline points="136,134 145,141 136,148"/></g></g><circle class="d-led blink" cx="148" cy="132" r="3"/><rect class="d-machine" x="156" y="111" width="60" height="60"/><rect class="d-inner" x="164" y="152" width="44" height="9"/><circle class="d-led blink" cx="171" cy="126" r="4"/><rect class="d-plate" x="182" y="120" width="26" height="12"/><g class="ride " style="--ride-end:0px;--ride-mid:0px"><ellipse class="d-shadow" cx="143" cy="37" rx="10" ry="3"/><rect class="d-crate" x="132" y="12" width="22" height="22"/><rect class="d-crate-top" x="132" y="12" width="22" height="6"/></g><g class="ride d2" style="--ride-end:0px;--ride-mid:0px"><ellipse class="d-shadow" cx="143" cy="97" rx="10" ry="3"/><rect class="d-crate" x="132" y="72" width="22" height="22"/><rect class="d-crate-top" x="132" y="72" width="22" height="6"/></g><g class="ride d3" style="--ride-end:0px;--ride-mid:0px"><ellipse class="d-shadow" cx="143" cy="157" rx="10" ry="3"/><rect class="d-crate" x="132" y="132" width="22" height="22"/><rect class="d-crate-top" x="132" y="132" width="22" height="6"/></g></svg></div><div class="q-body"><span class="q-title">PARALLEL CREWS: SPLITTER &amp; JOINER</span><p class="q-blurb">Give one job to three agents at once, then wait for all three and merge what they send back.</p><div class="q-tags"><span class="tag hot">NEW</span><span class="tag">~5 MIN</span></div></div></a>
-</div>
-<h2><span class="h-num">02</span>Your crew, your gear, your phone</h2>
-<div class="quest-grid">
-<a class="quest" href="crew.html"><div class="q-thumb"><svg viewBox="0 0 220 112" role="img" aria-label="An agent desk with a PC and shared gear"><rect class="d-machine" x="20" y="20" width="60" height="60"/><rect class="d-inner" x="28" y="61" width="44" height="9"/><circle class="d-led blink" cx="35" cy="35" r="4"/><rect class="d-plate" x="46" y="29" width="26" height="12"/><rect class="d-machine d-lit" x="88" y="34" width="30" height="30"/><rect class="d-machine" x="150" y="10" width="36" height="36"/><rect class="d-machine" x="150" y="58" width="36" height="36"/><g class="d-sub"><text x="103" y="84" text-anchor="middle">PC</text></g><g class="d-sub"><text x="168" y="58" text-anchor="middle">FILES</text></g><g class="d-sub"><text x="168" y="106" text-anchor="middle">WEB</text></g></svg></div><div class="q-body"><span class="q-title">YOUR CREW &amp; THEIR GEAR</span><p class="q-blurb">Recruiting agents, one desk each, and how the gear you place switches on real abilities &mdash; files, web, memory, code.</p><div class="q-tags"><span class="tag hot">NEW</span><span class="tag">~4 MIN</span></div></div></a>
-<a class="quest" href="channels.html"><div class="q-thumb"><svg viewBox="0 0 560 268" role="img" aria-label="A phone chatting with a small robot agent: your message crosses to it, the finished work comes back to the chat."><rect class="d-phonebody" x="36" y="20" width="118" height="214" rx="14"/><rect class="d-phonescreen" x="44" y="36" width="102" height="180" rx="4"/><rect x="82" y="27" width="26" height="4" rx="2" fill="rgba(255,157,47,.35)"/><rect x="78" y="223" width="34" height="4" rx="2" fill="rgba(255,157,47,.3)"/><rect class="bub-you" x="72" y="48" width="66" height="20" rx="6"/><rect class="bub-min" x="52" y="78" width="58" height="20" rx="6"/><rect class="bub-you" x="86" y="108" width="52" height="20" rx="6"/><rect class="bub-min" x="52" y="138" width="36" height="20" rx="6"/><circle class="d-led" cx="61" cy="148" r="2.6"/><circle class="d-led blink" cx="70" cy="148" r="2.6"/><circle class="d-led" cx="79" cy="148" r="2.6"/><g class="d-sub"><text x="95" y="254" text-anchor="middle">you — anywhere</text></g><path class="d-signal" d="M 162 90 C 230 56, 300 56, 368 92"/><polygon class="d-sigarrow" points="368,92 356,84 358,96"/><path class="d-signal" d="M 372 150 C 304 186, 234 186, 166 152"/><polygon class="d-sigarrow" points="166,152 178,146 177,158"/><g class="d-note"><text x="267" y="46" text-anchor="middle">“draft the launch post”</text></g><g class="d-note"><text x="267" y="200" text-anchor="middle">the finished work, back in the chat</text></g><line x1="452.4" y1="60" x2="452.4" y2="43.8" stroke="rgba(255,157,47,.55)" stroke-width="2.025"/><circle class="d-led blink" cx="452.4" cy="39.75" r="4.59"/><rect class="d-minion" x="420" y="60" width="64.8" height="51.3" rx="5.4"/><rect class="d-eye" x="433.5" y="76.2" width="12.15" height="14.85"/><rect class="d-eye" x="459.15" y="76.2" width="12.15" height="14.85"/><rect x="441.6" y="99.15" width="21.6" height="4.05" fill="rgba(255,157,47,.35)"/><rect class="d-minion" x="428.1" y="114" width="48.6" height="35.1" rx="4.05"/><rect class="d-minion" x="414.6" y="119.4" width="10.8" height="21.6"/><rect class="d-minion" x="479.4" y="119.4" width="10.8" height="21.6"/><rect class="d-minion" x="433.5" y="150.45" width="14.85" height="9.45"/><rect class="d-minion" x="456.45" y="150.45" width="14.85" height="9.45"/><rect x="444.3" y="122.1" width="16.2" height="6.75" fill="rgba(255,157,47,.3)"/><g class="d-sub"><text x="452" y="254" text-anchor="middle">your agent — home, at the station</text></g></svg></div><div class="q-body"><span class="q-title">RUN IT FROM YOUR PHONE</span><p class="q-blurb">Your agents, in your chat app. Talk to them from anywhere &mdash; Telegram, Discord, Slack, Matrix or Signal.</p><div class="q-tags"><span class="tag hot">NEW</span><span class="tag">~3 MIN</span></div></div></a>
-</div>
-<h2><span class="h-num">03</span>Goals, nights, and repeat work</h2>
-<div class="quest-grid">
-<a class="quest" href="goals.html"><div class="q-thumb"><span class="q-glyph">&#9670;</span></div><div class="q-body"><span class="q-title">GOALS, QUESTS &amp; XP</span><p class="q-blurb">Tell the station a real goal, get it broken into milestones only real work can advance, and mint XP by rating what shipped.</p><div class="q-tags"><span class="tag hot">NEW</span><span class="tag">~4 MIN</span></div></div></a>
-<a class="quest" href="night-shift.html"><div class="q-thumb"><span class="q-glyph">&#9790;</span></div><div class="q-body"><span class="q-title">NIGHT SHIFT</span><p class="q-blurb">The station works while you&rsquo;re away &mdash; the three-part leash, the six gates, the morning report, the decision trail.</p><div class="q-tags"><span class="tag hot">NEW</span><span class="tag">~5 MIN</span></div></div></a>
-<a class="quest" href="routines.html"><div class="q-thumb"><span class="q-glyph">&#9719;</span></div><div class="q-body"><span class="q-title">SKILLS, RECIPES &amp; ROUTINES</span><p class="q-blurb">Recipes are WHAT to run, routines are WHEN, skills are HOW &mdash; and how a routine drops its job onto your belts.</p><div class="q-tags"><span class="tag hot">NEW</span><span class="tag">~4 MIN</span></div></div></a>
-</div>
-<div class="tip"><span class="lbl">// WANT ONE WRITTEN NEXT?</span>Guides get written in the order people ask for them. Open an issue on <a href="https://github.com/androoAGI/starnet" target="_blank" rel="noopener">GitHub</a> with the thing you got stuck on &mdash; the sticking point <i>is</i> the guide.</div>
-<div class="callout"><b>House rule:</b> every step here was read off the shipped code, not off a plan. If a guide and your station disagree, one of them is a bug &mdash; tell us at <a href="mailto:androo.agi@gmail.com">androo.agi@gmail.com</a>.</div>
-<nav class="doc-pager" aria-label="Previous and next"><a class="pg prev" href="../providers.html"><span class="pg-k">&larr; PREVIOUS</span><span class="pg-t">PROVIDERS &amp; KEYS</span></a><a class="pg next" href="conveyors.html"><span class="pg-k">NEXT &rarr;</span><span class="pg-t">HOW CONVEYORS WORK</span></a></nav>
+  <main class="docs-main" id="main-content" tabindex="-1">
+
+<header class="doc-intro"><p class="eyebrow">LEARN BY DOING</p><h1>Step-by-step guides</h1><p class="intro-text">One useful outcome at a time. Each guide walks through a task with station diagrams and concrete steps.</p></header>
+<div class="callout">First visit? <a href="../getting-started.html">Install StarNet and run your first task</a> before building a conveyor workflow. You can chat with an agent without any belts.</div>
+<section class="guide-section"><p class="eyebrow">01</p><h2 id="get-your-crew-working">Get your crew working</h2><p>Start with a person and a task, then build your first line.</p><div class="guide-list"><a class="guide-row" href="crew.html"><span><strong>Set up your crew</strong><span>Recruit agents and place the gear that gives them real capabilities.</span></span><span aria-hidden="true">&rarr;</span></a><a class="guide-row" href="first-line.html"><span><strong>Build your first workflow</strong><span>Place a ready-made line and send it a real job.</span></span><span aria-hidden="true">&rarr;</span></a><a class="guide-row" href="goals.html"><span><strong>Work toward a goal</strong><span>Turn goals into milestones and understand quests and XP.</span></span><span aria-hidden="true">&rarr;</span></a></div></section>
+<section class="guide-section"><p class="eyebrow">02</p><h2 id="route-work-across-the-station">Route work across the station</h2><p>Understand each piece of a conveyor workflow.</p><div class="guide-list"><a class="guide-row" href="conveyors.html"><span><strong>Conveyor basics</strong><span>Follow a job from its input to its output, and read the floor’s status labels.</span></span><span aria-hidden="true">&rarr;</span></a><a class="guide-row" href="filter.html"><span><strong>Filter & route work</strong><span>Send different kinds of work to different agents.</span></span><span aria-hidden="true">&rarr;</span></a><a class="guide-row" href="splitter-joiner.html"><span><strong>Split & combine results</strong><span>Run several branches, wait for their results, and bring them together.</span></span><span aria-hidden="true">&rarr;</span></a></div></section>
+<section class="guide-section"><p class="eyebrow">03</p><h2 id="make-it-an-ongoing-routine">Make it an ongoing routine</h2><p>Repeat useful work and reach the station while you’re away.</p><div class="guide-list"><a class="guide-row" href="routines.html"><span><strong>Create repeatable work</strong><span>Choose what runs, how it runs, and when it runs.</span></span><span aria-hidden="true">&rarr;</span></a><a class="guide-row" href="night-shift.html"><span><strong>Set up Night Shift</strong><span>Configure unattended work and read the morning report.</span></span><span aria-hidden="true">&rarr;</span></a><a class="guide-row" href="channels.html"><span><strong>Message your station</strong><span>Connect a messaging channel and send tasks from your phone.</span></span><span aria-hidden="true">&rarr;</span></a></div></section>
+<aside class="support-strip"><div><strong>Looking up a setting?</strong><p>Find the reference pages alongside their related guides.</p></div><a href="../index.html#browse-topics">Browse all topics &rarr;</a></aside>
+
+
+
   </main>
 </div>
 
@@ -123,7 +113,8 @@
   <div class="footer-fine">MIT license &middot; &copy; <span id="year">2026</span> StarNet &middot; no telemetry, no tracking &mdash; <a href="../../legal/privacy.html">we collect nothing</a></div>
 </footer>
 
-<script src="../search-index.js?v=20260903"></script>
-<script src="../docs.js?v=20260903"></script>
+<script src="../search-index.js?v=20260913-terminal-nav"></script>
+<script src="../search.js?v=20260913-terminal-nav"></script>
+<script src="../docs.js?v=20260913-terminal-nav"></script>
 </body>
 </html>

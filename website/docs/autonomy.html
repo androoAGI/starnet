@@ -3,110 +3,119 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Autonomy & Night Shift — StarNet Docs</title>
+<title>Autonomy controls — StarNet Docs</title>
 <link rel="icon" type="image/svg+xml" href="../assets/favicon.svg">
-<link rel="stylesheet" href="docs.css?v=20260903">
+<link rel="stylesheet" href="docs.css?v=20260913-terminal-nav">
 </head>
-<body class="docs-page" data-group="REFERENCE" data-title="AUTONOMY &amp; NIGHT SHIFT">
+<body class="docs-page" data-group="Repeat &amp; automate" data-group-id="automation" data-kind="Reference" data-title="Autonomy controls">
+<a class="skip-link" href="#main-content">Skip to content</a>
 
 <div class="crt-scan" aria-hidden="true"></div>
 <div class="crt-vignette" aria-hidden="true"></div>
 
 <header class="topbar" id="topbar">
-  <a class="brand" href="../index.html">STARNET TERMLINK</a>
+  <a class="brand" href="../index.html" aria-label="StarNet home">STARNET<span class="brand-divider"> / </span><span class="brand-context">Docs</span></a>
   <nav class="topnav" aria-label="Site">
-    <a href="../index.html#station">WHAT IT IS</a>
-    <a href="../index.html#difference">FEATURES</a>
-    <a href="index.html" class="on">DOCS</a>
-    <a href="../pricing.html" data-pricing-link>PRICING</a>
-    <a href="../index.html#download">DOWNLOAD</a>
-    <a href="https://github.com/androoAGI/starnet" target="_blank" rel="noopener">GITHUB</a>
+    <a href="../index.html#station">Product</a>
+    <a href="index.html" class="on">Docs</a>
+    <a href="../pricing.html" data-pricing-link>Pricing</a>
+    <a href="https://github.com/androoAGI/starnet" target="_blank" rel="noopener">GitHub &nearr;</a>
   </nav>
   <span class="topbar-right">
-    <a href="help.html">HELP</a>
-    <span class="live-dot"><span class="dot"></span>OPEN SOURCE</span>
+    <a href="help.html">Help</a>
+    <a class="nav-download" href="../index.html#download">Download &darr;</a>
   </span>
 </header>
 
 <div class="docs-shell">
   <aside class="docs-side" id="docs-side">
-    <button class="side-toggle" type="button" aria-expanded="false" aria-controls="side-nav">[ MENU ]</button>
-    <div class="side-search"><span class="ss-glyph">&gt;</span><input id="docs-search" type="search" placeholder="search docs  ( / )" autocomplete="off" spellcheck="false" aria-label="Search docs"><div class="ss-results" id="docs-results" hidden></div></div>
+    <div class="side-home">Documentation</div>
+    <div class="side-search"><label class="sr-only" for="docs-search">Search docs</label><input id="docs-search" type="search" placeholder="Search docs…" autocomplete="off" spellcheck="false" aria-controls="docs-results" aria-expanded="false"><kbd class="search-key" aria-hidden="true">/</kbd><div class="ss-results" id="docs-results" hidden></div><span id="docs-search-status" class="sr-only" role="status" aria-live="polite"></span></div>
+    <button class="side-toggle" type="button" aria-expanded="false" aria-controls="side-nav">Browse documentation</button>
     <nav id="side-nav" class="side-nav" aria-label="Docs">
-    <div class="side-group" data-group="START HERE">
-    <div class="side-title">// START HERE</div>
-    <a href="index.html">DOCS HOME</a>
-    <a href="getting-started.html">GETTING STARTED</a>
-    <a href="guides/first-line.html">YOUR FIRST WORKING LINE</a>
-    <a href="providers.html">PROVIDERS &amp; KEYS</a>
-    </div>
-    <div class="side-group" data-group="FIELD MANUAL">
-    <div class="side-title">// FIELD MANUAL</div>
-    <a href="guides/index.html">ALL GUIDES</a>
-    <a href="guides/conveyors.html">HOW CONVEYORS WORK</a>
-    <a href="guides/filter.html">SORTING WORK WITH A FILTER</a>
-    <a href="guides/splitter-joiner.html">SPLITTER &amp; JOINER</a>
-    <a href="guides/crew.html">YOUR CREW &amp; THEIR GEAR</a>
-    <a href="guides/goals.html">GOALS, QUESTS &amp; XP</a>
-    <a href="guides/night-shift.html">NIGHT SHIFT</a>
-    <a href="guides/routines.html">SKILLS, RECIPES &amp; ROUTINES</a>
-    <a href="guides/channels.html">RUN IT FROM YOUR PHONE</a>
-    </div>
-    <div class="side-group" data-group="REFERENCE">
-    <div class="side-title">// REFERENCE</div>
-    <a href="station.html">THE STATION</a>
-    <a href="agents.html">AGENTS &amp; TEAMS</a>
-    <a href="autonomy.html" class="active" aria-current="page">AUTONOMY &amp; NIGHT SHIFT</a>
-    <a href="skills.html">SKILLS, RECIPES, ROUTINES</a>
-    <a href="connect-a-platform.html">CONNECT A PLATFORM</a>
-    <a href="connectors.html">CONNECTORS &amp; INTEROP</a>
-    <a href="migrating.html">FROM OPENCLAW / HERMES</a>
-    </div>
-    <div class="side-group" data-group="HELP">
-    <div class="side-title">// HELP</div>
-    <a href="help.html">HELP CENTER</a>
-    <a href="troubleshooting.html">TROUBLESHOOTING</a>
-    <a href="shortcuts.html">KEYBOARD SHORTCUTS</a>
-    <a href="glossary.html">GLOSSARY</a>
-    </div>
+      <div class="side-quick">
+      <a href="index.html">Docs overview</a>
+      <a href="guides/index.html">Step-by-step guides</a>
+      </div>
+      <p class="side-label">Browse topics</p>
+    <details class="side-group">
+    <summary class="side-title">Start here</summary>
+    <a href="getting-started.html">Install &amp; first task</a>
+    <a href="providers.html">Models &amp; providers</a>
+    </details>
+    <details class="side-group">
+    <summary class="side-title">Station &amp; agents</summary>
+    <a href="station.html">Station &amp; capabilities</a>
+    <a href="guides/crew.html">Set up your crew</a>
+    <a href="agents.html">Agents, teams &amp; voice</a>
+    <a href="guides/goals.html">Goals, quests &amp; XP</a>
+    </details>
+    <details class="side-group">
+    <summary class="side-title">Conveyor workflows</summary>
+    <a href="guides/first-line.html">Build your first workflow</a>
+    <a href="guides/conveyors.html">Conveyor basics</a>
+    <a href="guides/filter.html">Filter &amp; route work</a>
+    <a href="guides/splitter-joiner.html">Split &amp; combine results</a>
+    </details>
+    <details class="side-group" open>
+    <summary class="side-title">Repeat &amp; automate</summary>
+    <a href="guides/routines.html">Create repeatable work</a>
+    <a href="skills.html">Skills &amp; routines reference</a>
+    <a href="guides/night-shift.html">Set up Night Shift</a>
+    <a href="autonomy.html" class="active" aria-current="page">Autonomy controls</a>
+    </details>
+    <details class="side-group">
+    <summary class="side-title">Connect your tools</summary>
+    <a href="connect-a-platform.html">Connect a service</a>
+    <a href="guides/channels.html">Messaging channels</a>
+    <a href="connectors.html">Connectors &amp; MCP reference</a>
+    <a href="migrating.html">From OpenClaw or Hermes</a>
+    </details>
+    <details class="side-group">
+    <summary class="side-title">Troubleshooting &amp; help</summary>
+    <a href="help.html">Help center</a>
+    <a href="troubleshooting.html">Troubleshooting</a>
+    <a href="shortcuts.html">Keyboard shortcuts</a>
+    <a href="glossary.html">Glossary</a>
+    </details>
     </nav>
   </aside>
-  <main class="docs-main">
-<h1>AUTONOMY &amp; NIGHT SHIFT</h1>
+  <main class="docs-main" id="main-content" tabindex="-1">
+<h1>Autonomy controls</h1>
 <p class="doc-sub">// the station keeps working while you're away — on your leash</p>
 
-<h2>The autonomy model</h2>
+<h2 id="the-autonomy-model">The autonomy model</h2>
 <p>Autonomy in StarNet is a dial, not a switch: you set <b>initiative</b> (how proactive agents
 may be) and <b>reach</b> (what they may touch) explicitly. Nothing self-escalates. The honest
 pitch: StarNet is not an "autopilot for your life" — you direct; it executes and proposes.</p>
 
-<h2>Night Shift</h2>
+<h2 id="night-shift">Night Shift</h2>
 <p>When you step away, Night Shift takes over: agents pick up standing goals, continue queued
 work, and explore ideas — inside the leash you configured. Every away-run is <b>jailed</b>: real
 deliverables are produced in a sandboxed workshop area, and touching anything outside it
 requires a grant you gave beforehand.</p>
 
-<h2>Stopping work</h2>
+<h2 id="stopping-work">Stopping work</h2>
 <p>Use Stop in COMMS to interrupt the current run. Pause routines or loops in their own panels, and set Night Shift initiative to WAIT to prevent new away-work. If an older save has automation paused by a previous global stop, use <b>RESUME AUTOMATION</b> to clear that saved pause. Recovery preserves your existing permissions and job settings.</p>
 
-<h2>Honest reporting</h2>
+<h2 id="honest-reporting">Honest reporting</h2>
 <p>When you come back you get a digest of what actually happened: which runs executed, what they
 produced, what they cost, and what was declined or blocked. Deliverables open with one click.
 Work that landed while you were watching is shown as it lands — StarNet distinguishes
 "shown to you" from "done while nobody watched" and never blurs the two.</p>
 
-<h2>Schedules</h2>
+<h2 id="schedules">Schedules</h2>
 <p>Cron-style routines run real agent sessions on a timer — a morning brief, a nightly digest, a
 weekly cleanup. Every scheduled run surfaces as a readable session afterwards: same transcripts,
 same ledger, same honesty as attended work. Scheduled runs can notify you through your
 connected channels when they finish.</p>
 
-<h2>Quests</h2>
+<h2 id="quests">Quests</h2>
 <p>The quest system turns standing goals into visible, refreshing work the station proposes and
 tracks. Quests are generated from your actual dossier and interests — and like everything else,
 a quest card only ever reflects real backing state.</p>
 
-<nav class="doc-pager" aria-label="Previous and next"><a class="pg prev" href="agents.html"><span class="pg-k">&larr; PREVIOUS</span><span class="pg-t">AGENTS &amp; TEAMS</span></a><a class="pg next" href="skills.html"><span class="pg-k">NEXT &rarr;</span><span class="pg-t">SKILLS, RECIPES, ROUTINES</span></a></nav>
+<nav class="doc-pager" aria-label="More in Repeat &amp; automate"><a class="pg prev" href="guides/night-shift.html"><span class="pg-k">&larr; PREVIOUS</span><span class="pg-t">Set up Night Shift</span></a><a class="pg next" href="index.html#automation"><span class="pg-k">Explore this topic &rarr;</span><span class="pg-t">Repeat &amp; automate</span></a></nav>
   </main>
 </div>
 
@@ -127,7 +136,8 @@ a quest card only ever reflects real backing state.</p>
   <div class="footer-fine">MIT license &middot; &copy; <span id="year">2026</span> StarNet &middot; no telemetry, no tracking &mdash; <a href="../legal/privacy.html">we collect nothing</a></div>
 </footer>
 
-<script src="search-index.js?v=20260903"></script>
-<script src="docs.js?v=20260903"></script>
+<script src="search-index.js?v=20260913-terminal-nav"></script>
+<script src="search.js?v=20260913-terminal-nav"></script>
+<script src="docs.js?v=20260913-terminal-nav"></script>
 </body>
 </html>

@@ -3,111 +3,120 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Sorting Work with a Filter — StarNet Field Manual</title>
+<title>Filter &amp; route work — StarNet Docs</title>
 <meta name="description" content="Plain-English visual guide to the StarNet FILTER: send code one way and everything else the other, without sorting anything by hand.">
 <link rel="canonical" href="https://starnetos.com/docs/guides/filter.html">
 <link rel="icon" type="image/svg+xml" href="../../assets/favicon.svg">
-<link rel="stylesheet" href="guides.css?v=20260903">
+<link rel="stylesheet" href="guides.css?v=20260913-terminal-nav">
 </head>
-<body class="docs-page" data-group="FIELD MANUAL" data-title="SORTING WORK WITH A FILTER">
+<body class="docs-page" data-group="Conveyor workflows" data-group-id="workflows" data-kind="Guide" data-title="Filter &amp; route work">
+<a class="skip-link" href="#main-content">Skip to content</a>
 
 <div class="crt-scan" aria-hidden="true"></div>
 <div class="crt-vignette" aria-hidden="true"></div>
 
 <header class="topbar" id="topbar">
-  <a class="brand" href="../../index.html">STARNET TERMLINK</a>
+  <a class="brand" href="../../index.html" aria-label="StarNet home">STARNET<span class="brand-divider"> / </span><span class="brand-context">Docs</span></a>
   <nav class="topnav" aria-label="Site">
-    <a href="../../index.html#station">WHAT IT IS</a>
-    <a href="../../index.html#difference">FEATURES</a>
-    <a href="../index.html" class="on">DOCS</a>
-    <a href="../../pricing.html" data-pricing-link>PRICING</a>
-    <a href="../../index.html#download">DOWNLOAD</a>
-    <a href="https://github.com/androoAGI/starnet" target="_blank" rel="noopener">GITHUB</a>
+    <a href="../../index.html#station">Product</a>
+    <a href="../index.html" class="on">Docs</a>
+    <a href="../../pricing.html" data-pricing-link>Pricing</a>
+    <a href="https://github.com/androoAGI/starnet" target="_blank" rel="noopener">GitHub &nearr;</a>
   </nav>
   <span class="topbar-right">
-    <a href="../help.html">HELP</a>
-    <span class="live-dot"><span class="dot"></span>OPEN SOURCE</span>
+    <a href="../help.html">Help</a>
+    <a class="nav-download" href="../../index.html#download">Download &darr;</a>
   </span>
 </header>
 
 <div class="docs-shell">
   <aside class="docs-side" id="docs-side">
-    <button class="side-toggle" type="button" aria-expanded="false" aria-controls="side-nav">[ MENU ]</button>
-    <div class="side-search"><span class="ss-glyph">&gt;</span><input id="docs-search" type="search" placeholder="search docs  ( / )" autocomplete="off" spellcheck="false" aria-label="Search docs"><div class="ss-results" id="docs-results" hidden></div></div>
+    <div class="side-home">Documentation</div>
+    <div class="side-search"><label class="sr-only" for="docs-search">Search docs</label><input id="docs-search" type="search" placeholder="Search docs…" autocomplete="off" spellcheck="false" aria-controls="docs-results" aria-expanded="false"><kbd class="search-key" aria-hidden="true">/</kbd><div class="ss-results" id="docs-results" hidden></div><span id="docs-search-status" class="sr-only" role="status" aria-live="polite"></span></div>
+    <button class="side-toggle" type="button" aria-expanded="false" aria-controls="side-nav">Browse documentation</button>
     <nav id="side-nav" class="side-nav" aria-label="Docs">
-    <div class="side-group" data-group="START HERE">
-    <div class="side-title">// START HERE</div>
-    <a href="../index.html">DOCS HOME</a>
-    <a href="../getting-started.html">GETTING STARTED</a>
-    <a href="first-line.html">YOUR FIRST WORKING LINE</a>
-    <a href="../providers.html">PROVIDERS &amp; KEYS</a>
-    </div>
-    <div class="side-group" data-group="FIELD MANUAL">
-    <div class="side-title">// FIELD MANUAL</div>
-    <a href="index.html">ALL GUIDES</a>
-    <a href="conveyors.html">HOW CONVEYORS WORK</a>
-    <a href="filter.html" class="active" aria-current="page">SORTING WORK WITH A FILTER</a>
-    <a href="splitter-joiner.html">SPLITTER &amp; JOINER</a>
-    <a href="crew.html">YOUR CREW &amp; THEIR GEAR</a>
-    <a href="goals.html">GOALS, QUESTS &amp; XP</a>
-    <a href="night-shift.html">NIGHT SHIFT</a>
-    <a href="routines.html">SKILLS, RECIPES &amp; ROUTINES</a>
-    <a href="channels.html">RUN IT FROM YOUR PHONE</a>
-    </div>
-    <div class="side-group" data-group="REFERENCE">
-    <div class="side-title">// REFERENCE</div>
-    <a href="../station.html">THE STATION</a>
-    <a href="../agents.html">AGENTS &amp; TEAMS</a>
-    <a href="../autonomy.html">AUTONOMY &amp; NIGHT SHIFT</a>
-    <a href="../skills.html">SKILLS, RECIPES, ROUTINES</a>
-    <a href="../connect-a-platform.html">CONNECT A PLATFORM</a>
-    <a href="../connectors.html">CONNECTORS &amp; INTEROP</a>
-    <a href="../migrating.html">FROM OPENCLAW / HERMES</a>
-    </div>
-    <div class="side-group" data-group="HELP">
-    <div class="side-title">// HELP</div>
-    <a href="../help.html">HELP CENTER</a>
-    <a href="../troubleshooting.html">TROUBLESHOOTING</a>
-    <a href="../shortcuts.html">KEYBOARD SHORTCUTS</a>
-    <a href="../glossary.html">GLOSSARY</a>
-    </div>
+      <div class="side-quick">
+      <a href="../index.html">Docs overview</a>
+      <a href="index.html">Step-by-step guides</a>
+      </div>
+      <p class="side-label">Browse topics</p>
+    <details class="side-group">
+    <summary class="side-title">Start here</summary>
+    <a href="../getting-started.html">Install &amp; first task</a>
+    <a href="../providers.html">Models &amp; providers</a>
+    </details>
+    <details class="side-group">
+    <summary class="side-title">Station &amp; agents</summary>
+    <a href="../station.html">Station &amp; capabilities</a>
+    <a href="crew.html">Set up your crew</a>
+    <a href="../agents.html">Agents, teams &amp; voice</a>
+    <a href="goals.html">Goals, quests &amp; XP</a>
+    </details>
+    <details class="side-group" open>
+    <summary class="side-title">Conveyor workflows</summary>
+    <a href="first-line.html">Build your first workflow</a>
+    <a href="conveyors.html">Conveyor basics</a>
+    <a href="filter.html" class="active" aria-current="page">Filter &amp; route work</a>
+    <a href="splitter-joiner.html">Split &amp; combine results</a>
+    </details>
+    <details class="side-group">
+    <summary class="side-title">Repeat &amp; automate</summary>
+    <a href="routines.html">Create repeatable work</a>
+    <a href="../skills.html">Skills &amp; routines reference</a>
+    <a href="night-shift.html">Set up Night Shift</a>
+    <a href="../autonomy.html">Autonomy controls</a>
+    </details>
+    <details class="side-group">
+    <summary class="side-title">Connect your tools</summary>
+    <a href="../connect-a-platform.html">Connect a service</a>
+    <a href="channels.html">Messaging channels</a>
+    <a href="../connectors.html">Connectors &amp; MCP reference</a>
+    <a href="../migrating.html">From OpenClaw or Hermes</a>
+    </details>
+    <details class="side-group">
+    <summary class="side-title">Troubleshooting &amp; help</summary>
+    <a href="../help.html">Help center</a>
+    <a href="../troubleshooting.html">Troubleshooting</a>
+    <a href="../shortcuts.html">Keyboard shortcuts</a>
+    <a href="../glossary.html">Glossary</a>
+    </details>
     </nav>
   </aside>
-  <main class="docs-main">
+  <main class="docs-main" id="main-content" tabindex="-1">
 <div class="fm-hero">
 <div class="fh-kicker">// FIELD MANUAL &middot; ONE SIGNPOST</div>
-<h1>SORTING WORK WITH A FILTER</h1>
+<h1>Filter &amp; route work</h1>
 <p class="fh-sub">Code goes to the engineer. Everything else goes to the generalist. You never sort by hand.</p>
 <svg viewBox="0 0 600 270" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="A job enters at the INBOX, reaches a FILTER, and is sent east to the engineer if it is code, or south to the generalist for everything else"><defs></defs><rect class="d-machine d-lit" x="30" y="75" width="60" height="60"/><rect class="d-inner" x="38" y="83" width="44" height="44"/><circle class="d-led blink" cx="83" cy="82" r="2.5"/><g class="d-label"><text x="60" y="152" text-anchor="middle">INBOX</text></g><g class="d-sub"><text x="60" y="167" text-anchor="middle">the job arrives</text></g><clipPath id="cp1"><rect x="90" y="90" width="120" height="30"/></clipPath><rect class="d-belt" x="90" y="90" width="120" height="30"/><g class="d-rail"><line x1="90" y1="90" x2="210" y2="90"/><line x1="90" y1="120" x2="210" y2="120"/></g><g clip-path="url(#cp1)"><g class="d-chev march"><polyline points="71,98 79,105 71,112"/><polyline points="101,98 109,105 101,112"/><polyline points="131,98 139,105 131,112"/><polyline points="161,98 169,105 161,112"/><polyline points="191,98 199,105 191,112"/><polyline points="221,98 229,105 221,112"/></g></g><rect class="d-machine d-lit" x="210" y="90" width="30" height="30"/><polygon class="d-plate" points="225,95 235,105 225,115 215,105"/><g class="d-label"><text x="225" y="81" text-anchor="middle">FILTER</text></g><g class="alt-a"><clipPath id="cp2"><rect x="240" y="90" width="150" height="30"/></clipPath><rect class="d-belt" x="240" y="90" width="150" height="30"/><g class="d-rail"><line x1="240" y1="90" x2="390" y2="90"/><line x1="240" y1="120" x2="390" y2="120"/></g><g clip-path="url(#cp2)"><g class="d-chev march"><polyline points="221,98 229,105 221,112"/><polyline points="251,98 259,105 251,112"/><polyline points="281,98 289,105 281,112"/><polyline points="311,98 319,105 311,112"/><polyline points="341,98 349,105 341,112"/><polyline points="371,98 379,105 371,112"/><polyline points="401,98 409,105 401,112"/></g></g></g><g class="alt-b"><clipPath id="cp3"><rect x="210" y="120" width="30" height="60"/></clipPath><rect class="d-belt" x="210" y="120" width="30" height="60"/><g class="d-rail"><line x1="210" y1="120" x2="210" y2="180"/><line x1="240" y1="120" x2="240" y2="180"/></g><g clip-path="url(#cp3)"><g class="d-chev march-s"><polyline points="218,101 225,109 232,101"/><polyline points="218,131 225,139 232,131"/><polyline points="218,161 225,169 232,161"/><polyline points="218,191 225,199 232,191"/></g></g><clipPath id="cp4"><rect x="210" y="180" width="180" height="30"/></clipPath><rect class="d-belt" x="210" y="180" width="180" height="30"/><g class="d-rail"><line x1="210" y1="180" x2="390" y2="180"/><line x1="210" y1="210" x2="390" y2="210"/></g><g clip-path="url(#cp4)"><g class="d-chev march"><polyline points="191,188 199,195 191,202"/><polyline points="221,188 229,195 221,202"/><polyline points="251,188 259,195 251,202"/><polyline points="281,188 289,195 281,202"/><polyline points="311,188 319,195 311,202"/><polyline points="341,188 349,195 341,202"/><polyline points="371,188 379,195 371,202"/><polyline points="401,188 409,195 401,202"/></g></g></g><rect class="d-machine d-lit" x="390" y="75" width="60" height="60"/><rect class="d-inner" x="398" y="83" width="44" height="44"/><circle class="d-led blink" cx="443" cy="82" r="2.5"/><circle cx="420" cy="101" r="5" fill="rgba(255,157,47,.7)"/><rect x="413" y="107" width="14" height="9" rx="2" fill="rgba(255,157,47,.55)"/><g class="d-label"><text x="420" y="152" text-anchor="middle">BAY &middot; ENGINEER</text></g><g class="d-sub"><text x="420" y="167" text-anchor="middle">gets the code jobs</text></g><rect class="d-machine d-lit" x="390" y="165" width="60" height="60"/><rect class="d-inner" x="398" y="173" width="44" height="44"/><circle class="d-led blink" cx="443" cy="172" r="2.5"/><circle cx="420" cy="191" r="5" fill="rgba(255,157,47,.7)"/><rect x="413" y="197" width="14" height="9" rx="2" fill="rgba(255,157,47,.55)"/><g class="d-label"><text x="420" y="242" text-anchor="middle">BAY &middot; GENERALIST</text></g><g class="d-sub"><text x="420" y="257" text-anchor="middle">gets everything else</text></g><g class="d-note"><text x="262" y="84">CODE &rarr;</text></g><g class="d-note"><text x="262" y="174">EVERYTHING ELSE &rarr;</text></g><g class="alt-a"><g class="ride" style="--ride-end:300px;--ride-mid:150px"><rect class="d-shadow" x="96" y="112" width="20" height="4" rx="2"/><rect class="d-crate" x="95" y="94" width="20" height="20"/><rect class="d-crate-top" x="95" y="94" width="20" height="5"/></g></g><g class="alt-b"><g class="ride d2" style="--ride-end:180px;--ride-mid:90px"><rect class="d-shadow" x="216" y="202" width="20" height="4" rx="2"/><rect class="d-crate" x="215" y="184" width="20" height="20"/><rect class="d-crate-top" x="215" y="184" width="20" height="5"/></g></g></svg>
 </div>
-<div class="q-tags" style="margin:-10px 0 22px"><span class="tag hot">PLAIN ENGLISH</span><span class="tag">~4 MIN</span><span class="tag">NO SETUP NEEDED TO READ</span></div><h2><span class="h-num">01</span>The whole idea</h2><p class="lede">You have two specialists. Jobs of both kinds arrive at one door.</p>
+<div class="q-tags" style="margin:-10px 0 22px"><span class="tag hot">PLAIN ENGLISH</span><span class="tag">~4 MIN</span><span class="tag">NO SETUP NEEDED TO READ</span></div><h2 id="the-whole-idea"><span class="h-num">01</span>The whole idea</h2><p class="lede">You have two specialists. Jobs of both kinds arrive at one door.</p>
 <div class="story">
 <div class="st"><span class="st-n">1</span><p>A job arrives at the <b>INBOX</b> and rides the belt.</p></div>
 <div class="st"><span class="st-n">2</span><p>It reaches the <b>FILTER</b>. The filter reads the job.</p></div>
 <div class="st"><span class="st-n">3</span><p>Code goes <b>east</b> to the engineer. Everything else goes <b>south</b> to the generalist.</p></div>
 <div class="st"><span class="st-n">4</span><p>The right specialist does the work. You never touched it.</p></div>
 </div>
-<p>A filter is a signpost on the belt. It reads each job and points it down one lane. It never holds work, never drops work, and never asks you anything once it&rsquo;s set.</p><h2><span class="h-num">02</span>What it can tell apart</h2><p>The filter reads the <b>text of the job</b> and calls it one of exactly three things:</p>
+<p>A filter is a signpost on the belt. It reads each job and points it down one lane. It never holds work, never drops work, and never asks you anything once it&rsquo;s set.</p><h2 id="what-it-can-tell-apart"><span class="h-num">02</span>What it can tell apart</h2><p>The filter reads the <b>text of the job</b> and calls it one of exactly three things:</p>
 <div class="glossary">
 <div class="gl"><span class="gl-w">CODE</span><span class="gl-m">write, fix, refactor, ship</span></div>
 <div class="gl"><span class="gl-w">RESEARCH</span><span class="gl-m">find out, compare, dig up</span></div>
 <div class="gl"><span class="gl-w">EVERYTHING ELSE</span><span class="gl-m">the default lane</span></div>
 <div class="gl"><span class="gl-w">A LANE</span><span class="gl-m">one belt leaving the tile</span></div>
 </div>
-<p>If a job reads as both code and research, code wins. If it reads as neither, it takes the <b>EVERYTHING ELSE</b> lane. That lane is required &mdash; without it the tile shows <b>NO DEFAULT LANE &mdash; CLICK</b> until you pick one.</p><div class="tip"><span class="lbl">// ADDRESSED WORK SKIPS THE FILTER</span>A job you sent to a <b>named</b> agent already knows where it&rsquo;s going. It rides straight to that agent&rsquo;s bay and the filter never sees it. Filters sort the <i>unaddressed</i> work &mdash; the jobs that just arrive.</div><h2><span class="h-num">03</span>Build one</h2><p>Open <b>REFIT STATION</b>. Everything below is under <b>PROP</b> <span class="key">6</span>, belts are <b>BELT</b> <span class="key">7</span>.</p>
+<p>If a job reads as both code and research, code wins. If it reads as neither, it takes the <b>EVERYTHING ELSE</b> lane. That lane is required &mdash; without it the tile shows <b>NO DEFAULT LANE &mdash; CLICK</b> until you pick one.</p><div class="tip"><span class="lbl">// ADDRESSED WORK SKIPS THE FILTER</span>A job you sent to a <b>named</b> agent already knows where it&rsquo;s going. It rides straight to that agent&rsquo;s bay and the filter never sees it. Filters sort the <i>unaddressed</i> work &mdash; the jobs that just arrive.</div><h2 id="build-one"><span class="h-num">03</span>Build one</h2><p>Open <b>REFIT STATION</b>. Everything below is under <b>PROP</b> <span class="key">6</span>, belts are <b>BELT</b> <span class="key">7</span>.</p>
 <ol class="buildsteps">
 <li><div class="b-text"><span class="b-title">Put down four things</span><p>Place an <b>INBOX</b>, a <b>FILTER</b>, and two <b>BAYs</b> &mdash; one to the east of the filter, one below it. Leave gaps for belt.</p></div><div class="b-shot"><svg viewBox="0 0 360 240" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="An INBOX, a FILTER tile, and two BAYs placed with gaps for belts"><defs></defs><rect class="d-machine d-lit" x="20" y="60" width="60" height="60"/><rect class="d-inner" x="28" y="68" width="44" height="44"/><circle class="d-led blink" cx="73" cy="67" r="2.5"/><g class="d-label"><text x="50" y="137" text-anchor="middle">INBOX</text></g><rect class="d-machine d-lit" x="150" y="75" width="30" height="30"/><polygon class="d-plate" points="165,80 175,90 165,100 155,90"/><g class="d-label"><text x="165" y="66" text-anchor="middle">FILTER</text></g><rect class="d-machine d-lit" x="270" y="60" width="60" height="60"/><rect class="d-inner" x="278" y="68" width="44" height="44"/><circle class="d-led blink" cx="323" cy="67" r="2.5"/><g class="d-label"><text x="300" y="137" text-anchor="middle">BAY A</text></g><rect class="d-machine d-lit" x="270" y="150" width="60" height="60"/><rect class="d-inner" x="278" y="158" width="44" height="44"/><circle class="d-led blink" cx="323" cy="157" r="2.5"/><g class="d-label"><text x="300" y="227" text-anchor="middle">BAY B</text></g><rect class="d-ghost" x="80" y="75" width="70" height="30"/><rect class="d-ghost" x="180" y="75" width="90" height="30"/><rect class="d-ghost" x="150" y="105" width="30" height="60"/><rect class="d-ghost" x="150" y="165" width="120" height="30"/></svg><div class="b-cap">machines down, gaps left for belt</div></div></li>
 <li><div class="b-text"><span class="b-title">Run the first lane</span><p>Take <b>BELT</b> <span class="key">7</span>. Click the INBOX, then the FILTER. Then click the FILTER, then BAY A. The belt runs <b>through</b> the filter&rsquo;s square: in one side, out the other.</p></div><div class="b-shot"><svg viewBox="0 0 360 240" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="The belt runs from the INBOX through the FILTER tile and on to BAY A"><defs></defs><rect class="d-machine d-lit" x="20" y="60" width="60" height="60"/><rect class="d-inner" x="28" y="68" width="44" height="44"/><circle class="d-led blink" cx="73" cy="67" r="2.5"/><g class="d-label"><text x="50" y="137" text-anchor="middle">INBOX</text></g><clipPath id="cp5"><rect x="80" y="75" width="60" height="30"/></clipPath><rect class="d-belt" x="80" y="75" width="60" height="30"/><g class="d-rail"><line x1="80" y1="75" x2="140" y2="75"/><line x1="80" y1="105" x2="140" y2="105"/></g><g clip-path="url(#cp5)"><g class="d-chev march"><polyline points="61,83 69,90 61,97"/><polyline points="91,83 99,90 91,97"/><polyline points="121,83 129,90 121,97"/><polyline points="151,83 159,90 151,97"/></g></g><rect class="d-machine d-lit" x="150" y="75" width="30" height="30"/><polygon class="d-plate" points="165,80 175,90 165,100 155,90"/><g class="d-label"><text x="165" y="66" text-anchor="middle">FILTER</text></g><clipPath id="cp6"><rect x="180" y="75" width="90" height="30"/></clipPath><rect class="d-belt" x="180" y="75" width="90" height="30"/><g class="d-rail"><line x1="180" y1="75" x2="270" y2="75"/><line x1="180" y1="105" x2="270" y2="105"/></g><g clip-path="url(#cp6)"><g class="d-chev march"><polyline points="161,83 169,90 161,97"/><polyline points="191,83 199,90 191,97"/><polyline points="221,83 229,90 221,97"/><polyline points="251,83 259,90 251,97"/><polyline points="281,83 289,90 281,97"/></g></g><rect class="d-machine d-lit" x="270" y="60" width="60" height="60"/><rect class="d-inner" x="278" y="68" width="44" height="44"/><circle class="d-led blink" cx="323" cy="67" r="2.5"/><g class="d-label"><text x="300" y="137" text-anchor="middle">BAY A</text></g><rect class="d-machine" x="270" y="150" width="60" height="60"/><rect class="d-inner" x="278" y="158" width="44" height="44"/><circle cx="323" cy="157" r="2.5" fill="rgba(236,224,207,.2)"/><g class="d-label d-bad"><text x="300" y="227" text-anchor="middle">BAY B</text></g><rect class="d-ghost" x="150" y="105" width="30" height="60"/><rect class="d-ghost" x="150" y="165" width="120" height="30"/></svg><div class="b-cap">INBOX → FILTER → BAY A, straight east</div></div></li>
 <li><div class="b-text"><span class="b-title">Run the second lane</span><p>Click the FILTER, then BAY B. The belt leaves the filter&rsquo;s square on a <b>different side</b> and turns toward BAY B. Two belts out of one tile = two lanes.</p></div><div class="b-shot"><svg viewBox="0 0 360 240" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="A second belt leaves the FILTER tile south and turns east into BAY B"><defs></defs><rect class="d-machine d-lit" x="20" y="60" width="60" height="60"/><rect class="d-inner" x="28" y="68" width="44" height="44"/><circle class="d-led blink" cx="73" cy="67" r="2.5"/><g class="d-label"><text x="50" y="137" text-anchor="middle">INBOX</text></g><clipPath id="cp7"><rect x="80" y="75" width="60" height="30"/></clipPath><rect class="d-belt" x="80" y="75" width="60" height="30"/><g class="d-rail"><line x1="80" y1="75" x2="140" y2="75"/><line x1="80" y1="105" x2="140" y2="105"/></g><g clip-path="url(#cp7)"><g class="d-chev march"><polyline points="61,83 69,90 61,97"/><polyline points="91,83 99,90 91,97"/><polyline points="121,83 129,90 121,97"/><polyline points="151,83 159,90 151,97"/></g></g><rect class="d-machine d-lit" x="150" y="75" width="30" height="30"/><polygon class="d-plate" points="165,80 175,90 165,100 155,90"/><g class="d-label"><text x="165" y="66" text-anchor="middle">FILTER</text></g><clipPath id="cp8"><rect x="180" y="75" width="90" height="30"/></clipPath><rect class="d-belt" x="180" y="75" width="90" height="30"/><g class="d-rail"><line x1="180" y1="75" x2="270" y2="75"/><line x1="180" y1="105" x2="270" y2="105"/></g><g clip-path="url(#cp8)"><g class="d-chev march"><polyline points="161,83 169,90 161,97"/><polyline points="191,83 199,90 191,97"/><polyline points="221,83 229,90 221,97"/><polyline points="251,83 259,90 251,97"/><polyline points="281,83 289,90 281,97"/></g></g><clipPath id="cp9"><rect x="150" y="105" width="30" height="60"/></clipPath><rect class="d-belt" x="150" y="105" width="30" height="60"/><g class="d-rail"><line x1="150" y1="105" x2="150" y2="165"/><line x1="180" y1="105" x2="180" y2="165"/></g><g clip-path="url(#cp9)"><g class="d-chev march-s"><polyline points="158,86 165,94 172,86"/><polyline points="158,116 165,124 172,116"/><polyline points="158,146 165,154 172,146"/><polyline points="158,176 165,184 172,176"/></g></g><clipPath id="cp10"><rect x="150" y="165" width="120" height="30"/></clipPath><rect class="d-belt" x="150" y="165" width="120" height="30"/><g class="d-rail"><line x1="150" y1="165" x2="270" y2="165"/><line x1="150" y1="195" x2="270" y2="195"/></g><g clip-path="url(#cp10)"><g class="d-chev march"><polyline points="131,173 139,180 131,187"/><polyline points="161,173 169,180 161,187"/><polyline points="191,173 199,180 191,187"/><polyline points="221,173 229,180 221,187"/><polyline points="251,173 259,180 251,187"/><polyline points="281,173 289,180 281,187"/></g></g><rect class="d-machine d-lit" x="270" y="60" width="60" height="60"/><rect class="d-inner" x="278" y="68" width="44" height="44"/><circle class="d-led blink" cx="323" cy="67" r="2.5"/><g class="d-label"><text x="300" y="137" text-anchor="middle">BAY A</text></g><rect class="d-machine d-lit" x="270" y="150" width="60" height="60"/><rect class="d-inner" x="278" y="158" width="44" height="44"/><circle class="d-led blink" cx="323" cy="157" r="2.5"/><g class="d-label"><text x="300" y="227" text-anchor="middle">BAY B</text></g></svg><div class="b-cap">a second exit, south, turning east</div></div></li>
 <li><div class="b-text"><span class="b-title">Tell the filter what goes where</span><p>Click the FILTER tile. Point <b>CODE</b> at the engineer&rsquo;s lane and <b>EVERYTHING ELSE</b> at the generalist&rsquo;s. <b>RESEARCH</b> can go either way. Hit <b>&#9656; SAVE ROUTES</b>.</p></div><div class="b-shot"><svg viewBox="0 0 360 230" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="The FILTER card with CODE, RESEARCH and EVERYTHING ELSE each pointed at a lane, and a SAVE ROUTES button"><defs></defs><rect x="20" y="16" width="320" height="196" fill="rgba(0,0,0,.55)" stroke="rgba(255,157,47,.4)"/><g class="d-label"><text x="34" y="40">&#9646; FILTER &mdash; route by content</text></g><g class="d-sub"><text x="34" y="72">CODE &rarr;</text></g><rect class="d-pill on" x="190" y="57" width="130" height="22"/><g class="d-pill-t on"><text x="255" y="73">EAST &middot; BAY A</text></g><g class="d-sub"><text x="34" y="108">RESEARCH &rarr;</text></g><rect class="d-pill on" x="190" y="93" width="130" height="22"/><g class="d-pill-t on"><text x="255" y="109">SOUTH &middot; BAY B</text></g><g class="d-sub"><text x="34" y="144">EVERYTHING ELSE &rarr;</text></g><rect class="d-pill on" x="190" y="129" width="130" height="22"/><g class="d-pill-t on"><text x="255" y="145">SOUTH &middot; BAY B</text></g><rect class="d-pill on" x="34" y="170" width="120" height="24"/><g class="d-pill-t on"><text x="94" y="187">&#9656; SAVE ROUTES</text></g></svg><div class="b-cap">three rows, one lane each</div></div></li>
 </ol>
-<p>Give each bay an agent. When both belts glow, the filter is live. Send a coding job and a shopping-list job and watch them part ways at the tile.</p><div class="tip"><span class="lbl">// OR SKIP ALL FOUR STEPS</span>The <b>LINES</b> tool <span class="key">9</span> has two ready-made filter layouts: <b>SORTING OFFICE</b> and <b>TRIAGE DESK</b>. One click drops the whole thing.</div><h2><span class="h-num">04</span>Mid-line filters read the last output</h2><p>A filter doesn&rsquo;t have to sit right after the INBOX. Put one <b>between two desks</b> and it sorts what the first desk <i>produced</i> &mdash; not the original message. A researcher whose notes turn out to be a code problem can hand off to the engineer without anyone deciding that in advance.</p><h2><span class="h-num">05</span>Something&rsquo;s not running</h2><div class="faultgrid">
+<p>Give each bay an agent. When both belts glow, the filter is live. Send a coding job and a shopping-list job and watch them part ways at the tile.</p><div class="tip"><span class="lbl">// OR SKIP ALL FOUR STEPS</span>The <b>LINES</b> tool <span class="key">9</span> has two ready-made filter layouts: <b>SORTING OFFICE</b> and <b>TRIAGE DESK</b>. One click drops the whole thing.</div><h2 id="mid-line-filters-read-the-last-output"><span class="h-num">04</span>Mid-line filters read the last output</h2><p>A filter doesn&rsquo;t have to sit right after the INBOX. Put one <b>between two desks</b> and it sorts what the first desk <i>produced</i> &mdash; not the original message. A researcher whose notes turn out to be a code problem can hand off to the engineer without anyone deciding that in advance.</p><h2 id="something-s-not-running"><span class="h-num">05</span>Something&rsquo;s not running</h2><div class="faultgrid">
 <div class="fault"><span class="f-code">NO DEFAULT LANE &mdash; CLICK</span><p>The filter doesn&rsquo;t know where &ldquo;everything else&rdquo; goes. Click the tile and pick a lane for EVERYTHING ELSE.</p></div>
 <div class="fault"><span class="f-code">NOT ON A BELT &mdash; MOVE IT</span><p>The filter tile has no belt through it. Move it onto the line, or run the belt through its square.</p></div>
 <div class="fault"><span class="f-code">NOT FED</span><p>A belt is clipping the <b>corner</b> of the filter instead of going through. In one side, out the other.</p></div>
 <div class="fault"><span class="f-code">NO AGENT &mdash; CLICK</span><p>One of the destination desks is empty. A lane to an empty desk stays dark.</p></div>
-</div><h2><span class="h-num">06</span>Questions people actually ask</h2><details class="qa"><summary>Can I filter on my own keywords?</summary><div class="qa-body"><p>Not yet. The filter knows three kinds of work: code, research, everything else. For anything finer, put a specialist first in line and let their output decide the lane &mdash; a mid-line filter reads what they produced.</p></div></details><details class="qa"><summary>What happens to a job the filter can&rsquo;t classify?</summary><div class="qa-body"><p>It takes the EVERYTHING ELSE lane. A filter never drops work and never parks it.</p></div></details><details class="qa"><summary>Can one filter have three lanes?</summary><div class="qa-body"><p>Yes. Run three belts out of the tile on three different sides. CODE, RESEARCH, and EVERYTHING ELSE can each have their own lane.</p></div></details><details class="qa"><summary>Does the filter cost anything?</summary><div class="qa-body"><p>No. Sorting is done by the station itself, not by a model call. Only the desk that does the work spends money.</p></div></details>
-<nav class="doc-pager" aria-label="Previous and next"><a class="pg prev" href="conveyors.html"><span class="pg-k">&larr; PREVIOUS</span><span class="pg-t">HOW CONVEYORS WORK</span></a><a class="pg next" href="splitter-joiner.html"><span class="pg-k">NEXT &rarr;</span><span class="pg-t">SPLITTER &amp; JOINER</span></a></nav>
+</div><h2 id="questions-people-actually-ask"><span class="h-num">06</span>Questions people actually ask</h2><details class="qa"><summary>Can I filter on my own keywords?</summary><div class="qa-body"><p>Not yet. The filter knows three kinds of work: code, research, everything else. For anything finer, put a specialist first in line and let their output decide the lane &mdash; a mid-line filter reads what they produced.</p></div></details><details class="qa"><summary>What happens to a job the filter can&rsquo;t classify?</summary><div class="qa-body"><p>It takes the EVERYTHING ELSE lane. A filter never drops work and never parks it.</p></div></details><details class="qa"><summary>Can one filter have three lanes?</summary><div class="qa-body"><p>Yes. Run three belts out of the tile on three different sides. CODE, RESEARCH, and EVERYTHING ELSE can each have their own lane.</p></div></details><details class="qa"><summary>Does the filter cost anything?</summary><div class="qa-body"><p>No. Sorting is done by the station itself, not by a model call. Only the desk that does the work spends money.</p></div></details>
+<nav class="doc-pager" aria-label="More in Conveyor workflows"><a class="pg prev" href="conveyors.html"><span class="pg-k">&larr; PREVIOUS</span><span class="pg-t">Conveyor basics</span></a><a class="pg next" href="splitter-joiner.html"><span class="pg-k">NEXT &rarr;</span><span class="pg-t">Split &amp; combine results</span></a></nav>
   </main>
 </div>
 
@@ -128,7 +137,8 @@
   <div class="footer-fine">MIT license &middot; &copy; <span id="year">2026</span> StarNet &middot; no telemetry, no tracking &mdash; <a href="../../legal/privacy.html">we collect nothing</a></div>
 </footer>
 
-<script src="../search-index.js?v=20260903"></script>
-<script src="../docs.js?v=20260903"></script>
+<script src="../search-index.js?v=20260913-terminal-nav"></script>
+<script src="../search.js?v=20260913-terminal-nav"></script>
+<script src="../docs.js?v=20260913-terminal-nav"></script>
 </body>
 </html>

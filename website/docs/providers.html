@@ -3,87 +3,96 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Providers & keys — StarNet Docs</title>
+<title>Models &amp; providers — StarNet Docs</title>
 <meta name="description" content="Model providers supported by StarNet, including API-key, account sign-in, local, and custom OpenAI-compatible options.">
 <link rel="canonical" href="https://starnetos.com/docs/providers.html">
 <link rel="icon" type="image/svg+xml" href="../assets/favicon.svg">
-<link rel="stylesheet" href="docs.css?v=20260903">
+<link rel="stylesheet" href="docs.css?v=20260913-terminal-nav">
 </head>
-<body class="docs-page" data-group="START HERE" data-title="PROVIDERS &amp; KEYS">
+<body class="docs-page" data-group="Start here" data-group-id="start" data-kind="Reference" data-title="Models &amp; providers">
+<a class="skip-link" href="#main-content">Skip to content</a>
 
 <div class="crt-scan" aria-hidden="true"></div>
 <div class="crt-vignette" aria-hidden="true"></div>
 
 <header class="topbar" id="topbar">
-  <a class="brand" href="../index.html">STARNET TERMLINK</a>
+  <a class="brand" href="../index.html" aria-label="StarNet home">STARNET<span class="brand-divider"> / </span><span class="brand-context">Docs</span></a>
   <nav class="topnav" aria-label="Site">
-    <a href="../index.html#station">WHAT IT IS</a>
-    <a href="../index.html#difference">FEATURES</a>
-    <a href="index.html" class="on">DOCS</a>
-    <a href="../pricing.html" data-pricing-link>PRICING</a>
-    <a href="../index.html#download">DOWNLOAD</a>
-    <a href="https://github.com/androoAGI/starnet" target="_blank" rel="noopener">GITHUB</a>
+    <a href="../index.html#station">Product</a>
+    <a href="index.html" class="on">Docs</a>
+    <a href="../pricing.html" data-pricing-link>Pricing</a>
+    <a href="https://github.com/androoAGI/starnet" target="_blank" rel="noopener">GitHub &nearr;</a>
   </nav>
   <span class="topbar-right">
-    <a href="help.html">HELP</a>
-    <span class="live-dot"><span class="dot"></span>OPEN SOURCE</span>
+    <a href="help.html">Help</a>
+    <a class="nav-download" href="../index.html#download">Download &darr;</a>
   </span>
 </header>
 
 <div class="docs-shell">
   <aside class="docs-side" id="docs-side">
-    <button class="side-toggle" type="button" aria-expanded="false" aria-controls="side-nav">[ MENU ]</button>
-    <div class="side-search"><span class="ss-glyph">&gt;</span><input id="docs-search" type="search" placeholder="search docs  ( / )" autocomplete="off" spellcheck="false" aria-label="Search docs"><div class="ss-results" id="docs-results" hidden></div></div>
+    <div class="side-home">Documentation</div>
+    <div class="side-search"><label class="sr-only" for="docs-search">Search docs</label><input id="docs-search" type="search" placeholder="Search docs…" autocomplete="off" spellcheck="false" aria-controls="docs-results" aria-expanded="false"><kbd class="search-key" aria-hidden="true">/</kbd><div class="ss-results" id="docs-results" hidden></div><span id="docs-search-status" class="sr-only" role="status" aria-live="polite"></span></div>
+    <button class="side-toggle" type="button" aria-expanded="false" aria-controls="side-nav">Browse documentation</button>
     <nav id="side-nav" class="side-nav" aria-label="Docs">
-    <div class="side-group" data-group="START HERE">
-    <div class="side-title">// START HERE</div>
-    <a href="index.html">DOCS HOME</a>
-    <a href="getting-started.html">GETTING STARTED</a>
-    <a href="guides/first-line.html">YOUR FIRST WORKING LINE</a>
-    <a href="providers.html" class="active" aria-current="page">PROVIDERS &amp; KEYS</a>
-    </div>
-    <div class="side-group" data-group="FIELD MANUAL">
-    <div class="side-title">// FIELD MANUAL</div>
-    <a href="guides/index.html">ALL GUIDES</a>
-    <a href="guides/conveyors.html">HOW CONVEYORS WORK</a>
-    <a href="guides/filter.html">SORTING WORK WITH A FILTER</a>
-    <a href="guides/splitter-joiner.html">SPLITTER &amp; JOINER</a>
-    <a href="guides/crew.html">YOUR CREW &amp; THEIR GEAR</a>
-    <a href="guides/goals.html">GOALS, QUESTS &amp; XP</a>
-    <a href="guides/night-shift.html">NIGHT SHIFT</a>
-    <a href="guides/routines.html">SKILLS, RECIPES &amp; ROUTINES</a>
-    <a href="guides/channels.html">RUN IT FROM YOUR PHONE</a>
-    </div>
-    <div class="side-group" data-group="REFERENCE">
-    <div class="side-title">// REFERENCE</div>
-    <a href="station.html">THE STATION</a>
-    <a href="agents.html">AGENTS &amp; TEAMS</a>
-    <a href="autonomy.html">AUTONOMY &amp; NIGHT SHIFT</a>
-    <a href="skills.html">SKILLS, RECIPES, ROUTINES</a>
-    <a href="connect-a-platform.html">CONNECT A PLATFORM</a>
-    <a href="connectors.html">CONNECTORS &amp; INTEROP</a>
-    <a href="migrating.html">FROM OPENCLAW / HERMES</a>
-    </div>
-    <div class="side-group" data-group="HELP">
-    <div class="side-title">// HELP</div>
-    <a href="help.html">HELP CENTER</a>
-    <a href="troubleshooting.html">TROUBLESHOOTING</a>
-    <a href="shortcuts.html">KEYBOARD SHORTCUTS</a>
-    <a href="glossary.html">GLOSSARY</a>
-    </div>
+      <div class="side-quick">
+      <a href="index.html">Docs overview</a>
+      <a href="guides/index.html">Step-by-step guides</a>
+      </div>
+      <p class="side-label">Browse topics</p>
+    <details class="side-group" open>
+    <summary class="side-title">Start here</summary>
+    <a href="getting-started.html">Install &amp; first task</a>
+    <a href="providers.html" class="active" aria-current="page">Models &amp; providers</a>
+    </details>
+    <details class="side-group">
+    <summary class="side-title">Station &amp; agents</summary>
+    <a href="station.html">Station &amp; capabilities</a>
+    <a href="guides/crew.html">Set up your crew</a>
+    <a href="agents.html">Agents, teams &amp; voice</a>
+    <a href="guides/goals.html">Goals, quests &amp; XP</a>
+    </details>
+    <details class="side-group">
+    <summary class="side-title">Conveyor workflows</summary>
+    <a href="guides/first-line.html">Build your first workflow</a>
+    <a href="guides/conveyors.html">Conveyor basics</a>
+    <a href="guides/filter.html">Filter &amp; route work</a>
+    <a href="guides/splitter-joiner.html">Split &amp; combine results</a>
+    </details>
+    <details class="side-group">
+    <summary class="side-title">Repeat &amp; automate</summary>
+    <a href="guides/routines.html">Create repeatable work</a>
+    <a href="skills.html">Skills &amp; routines reference</a>
+    <a href="guides/night-shift.html">Set up Night Shift</a>
+    <a href="autonomy.html">Autonomy controls</a>
+    </details>
+    <details class="side-group">
+    <summary class="side-title">Connect your tools</summary>
+    <a href="connect-a-platform.html">Connect a service</a>
+    <a href="guides/channels.html">Messaging channels</a>
+    <a href="connectors.html">Connectors &amp; MCP reference</a>
+    <a href="migrating.html">From OpenClaw or Hermes</a>
+    </details>
+    <details class="side-group">
+    <summary class="side-title">Troubleshooting &amp; help</summary>
+    <a href="help.html">Help center</a>
+    <a href="troubleshooting.html">Troubleshooting</a>
+    <a href="shortcuts.html">Keyboard shortcuts</a>
+    <a href="glossary.html">Glossary</a>
+    </details>
     </nav>
   </aside>
-  <main class="docs-main">
-<h1>PROVIDERS &amp; KEYS</h1>
-<p class="doc-sub">// your models, your keys, your costs — nothing resold behind your back</p>
+  <main class="docs-main" id="main-content" tabindex="-1">
+<h1>Models &amp; providers</h1>
+<p class="doc-sub">Connect a model account, API key, or local endpoint.</p>
 
-<h2>Bring your own key (BYOK)</h2>
+<h2 id="bring-your-own-key-byok">Bring your own key (BYOK)</h2>
 <p>StarNet talks to models through <b>your</b> credentials. The simplest path is an
 <a href="https://openrouter.ai" target="_blank" rel="noopener">OpenRouter</a> API key: one key,
 hundreds of models, transparent per-token pricing. Paste it once in Settings and every agent can
 use any model you allow.</p>
 
-<h2>Supported providers</h2>
+<h2 id="supported-providers">Supported providers</h2>
 <p>The provider picker is a first-class roster, not one generic endpoint wearing different labels:</p>
 <ul>
 <li><b>Account sign-in:</b> ChatGPT (Codex), Grok, and Kimi for Coding. These use the provider's
@@ -96,23 +105,23 @@ OpenAI-compatible wire format.</li>
 <div class="callout"><b>Release note:</b> these docs track current source. The stable installer linked
 from the site can lag while the next Windows and macOS builds pass signing and notarization.</div>
 
-<h2>Where keys live</h2>
+<h2 id="where-keys-live">Where keys live</h2>
 <p>Keys are stored locally in your OS keychain via the desktop shell — never in plain project
 files, never sent anywhere except the provider they belong to. Provider requests leave your
 machine only when an agent actually runs.</p>
 
-<h2>Service keys (the KEYS tab)</h2>
+<h2 id="service-keys-the-keys-tab">Service keys (the KEYS tab)</h2>
 <p>Beyond model providers, agents sometimes need platform keys to do real work — a Stripe test
 key, a GitHub token, a search API key. The <b>KEYS</b> tab lets you paste any service key;
 StarNet exposes it to agent runs as an environment variable and tells the agent only the
 <b>name</b> of what's available, never the value. The key itself never enters the model prompt.</p>
 
-<h2>Cost honesty</h2>
+<h2 id="cost-honesty">Cost honesty</h2>
 <p>Every run records what it actually cost, from the provider's own usage numbers. The ledger
 shows real spend per agent and per task — there is no abstraction layer marking up your tokens,
 and no meter that guesses.</p>
 
-<nav class="doc-pager" aria-label="Previous and next"><a class="pg prev" href="guides/first-line.html"><span class="pg-k">&larr; PREVIOUS</span><span class="pg-t">YOUR FIRST WORKING LINE</span></a><a class="pg next" href="guides/index.html"><span class="pg-k">NEXT &rarr;</span><span class="pg-t">ALL GUIDES</span></a></nav>
+<nav class="doc-pager" aria-label="More in Start here"><a class="pg prev" href="getting-started.html"><span class="pg-k">&larr; PREVIOUS</span><span class="pg-t">Install &amp; first task</span></a><a class="pg next" href="index.html#start"><span class="pg-k">Explore this topic &rarr;</span><span class="pg-t">Start here</span></a></nav>
   </main>
 </div>
 
@@ -133,7 +142,8 @@ and no meter that guesses.</p>
   <div class="footer-fine">MIT license &middot; &copy; <span id="year">2026</span> StarNet &middot; no telemetry, no tracking &mdash; <a href="../legal/privacy.html">we collect nothing</a></div>
 </footer>
 
-<script src="search-index.js?v=20260903"></script>
-<script src="docs.js?v=20260903"></script>
+<script src="search-index.js?v=20260913-terminal-nav"></script>
+<script src="search.js?v=20260913-terminal-nav"></script>
+<script src="docs.js?v=20260913-terminal-nav"></script>
 </body>
 </html>

@@ -7,136 +7,114 @@
 <meta name="description" content="Documentation for installing, configuring, and operating the StarNet local-first AI agent station: getting started, the Field Manual picture guides, reference, and help.">
 <link rel="canonical" href="https://starnetos.com/docs/index.html">
 <link rel="icon" type="image/svg+xml" href="../assets/favicon.svg">
-<link rel="stylesheet" href="docs.css?v=20260903">
+<link rel="stylesheet" href="docs.css?v=20260913-terminal-nav">
 </head>
-<body class="docs-page" data-group="START HERE" data-title="DOCS HOME">
+<body class="docs-page docs-overview" data-group="Start here" data-group-id="start" data-kind="Overview" data-title="Documentation">
+<a class="skip-link" href="#main-content">Skip to content</a>
 
 <div class="crt-scan" aria-hidden="true"></div>
 <div class="crt-vignette" aria-hidden="true"></div>
 
 <header class="topbar" id="topbar">
-  <a class="brand" href="../index.html">STARNET TERMLINK</a>
+  <a class="brand" href="../index.html" aria-label="StarNet home">STARNET<span class="brand-divider"> / </span><span class="brand-context">Docs</span></a>
   <nav class="topnav" aria-label="Site">
-    <a href="../index.html#station">WHAT IT IS</a>
-    <a href="../index.html#difference">FEATURES</a>
-    <a href="index.html" class="on">DOCS</a>
-    <a href="../pricing.html" data-pricing-link>PRICING</a>
-    <a href="../index.html#download">DOWNLOAD</a>
-    <a href="https://github.com/androoAGI/starnet" target="_blank" rel="noopener">GITHUB</a>
+    <a href="../index.html#station">Product</a>
+    <a href="index.html" class="on">Docs</a>
+    <a href="../pricing.html" data-pricing-link>Pricing</a>
+    <a href="https://github.com/androoAGI/starnet" target="_blank" rel="noopener">GitHub &nearr;</a>
   </nav>
   <span class="topbar-right">
-    <a href="help.html">HELP</a>
-    <span class="live-dot"><span class="dot"></span>OPEN SOURCE</span>
+    <a href="help.html">Help</a>
+    <a class="nav-download" href="../index.html#download">Download &darr;</a>
   </span>
 </header>
 
 <div class="docs-shell">
   <aside class="docs-side" id="docs-side">
-    <button class="side-toggle" type="button" aria-expanded="false" aria-controls="side-nav">[ MENU ]</button>
-    <div class="side-search"><span class="ss-glyph">&gt;</span><input id="docs-search" type="search" placeholder="search docs  ( / )" autocomplete="off" spellcheck="false" aria-label="Search docs"><div class="ss-results" id="docs-results" hidden></div></div>
+    <div class="side-home">Documentation</div>
+    <div class="side-search"><label class="sr-only" for="docs-search">Search docs</label><input id="docs-search" type="search" placeholder="Search docs…" autocomplete="off" spellcheck="false" aria-controls="docs-results" aria-expanded="false"><kbd class="search-key" aria-hidden="true">/</kbd><div class="ss-results" id="docs-results" hidden></div><span id="docs-search-status" class="sr-only" role="status" aria-live="polite"></span></div>
+    <button class="side-toggle" type="button" aria-expanded="false" aria-controls="side-nav">Browse documentation</button>
     <nav id="side-nav" class="side-nav" aria-label="Docs">
-    <div class="side-group" data-group="START HERE">
-    <div class="side-title">// START HERE</div>
-    <a href="index.html" class="active" aria-current="page">DOCS HOME</a>
-    <a href="getting-started.html">GETTING STARTED</a>
-    <a href="guides/first-line.html">YOUR FIRST WORKING LINE</a>
-    <a href="providers.html">PROVIDERS &amp; KEYS</a>
-    </div>
-    <div class="side-group" data-group="FIELD MANUAL">
-    <div class="side-title">// FIELD MANUAL</div>
-    <a href="guides/index.html">ALL GUIDES</a>
-    <a href="guides/conveyors.html">HOW CONVEYORS WORK</a>
-    <a href="guides/filter.html">SORTING WORK WITH A FILTER</a>
-    <a href="guides/splitter-joiner.html">SPLITTER &amp; JOINER</a>
-    <a href="guides/crew.html">YOUR CREW &amp; THEIR GEAR</a>
-    <a href="guides/goals.html">GOALS, QUESTS &amp; XP</a>
-    <a href="guides/night-shift.html">NIGHT SHIFT</a>
-    <a href="guides/routines.html">SKILLS, RECIPES &amp; ROUTINES</a>
-    <a href="guides/channels.html">RUN IT FROM YOUR PHONE</a>
-    </div>
-    <div class="side-group" data-group="REFERENCE">
-    <div class="side-title">// REFERENCE</div>
-    <a href="station.html">THE STATION</a>
-    <a href="agents.html">AGENTS &amp; TEAMS</a>
-    <a href="autonomy.html">AUTONOMY &amp; NIGHT SHIFT</a>
-    <a href="skills.html">SKILLS, RECIPES, ROUTINES</a>
-    <a href="connect-a-platform.html">CONNECT A PLATFORM</a>
-    <a href="connectors.html">CONNECTORS &amp; INTEROP</a>
-    <a href="migrating.html">FROM OPENCLAW / HERMES</a>
-    </div>
-    <div class="side-group" data-group="HELP">
-    <div class="side-title">// HELP</div>
-    <a href="help.html">HELP CENTER</a>
-    <a href="troubleshooting.html">TROUBLESHOOTING</a>
-    <a href="shortcuts.html">KEYBOARD SHORTCUTS</a>
-    <a href="glossary.html">GLOSSARY</a>
-    </div>
+      <div class="side-quick">
+      <a href="index.html" class="active" aria-current="page">Docs overview</a>
+      <a href="guides/index.html">Step-by-step guides</a>
+      </div>
+      <p class="side-label">Browse topics</p>
+    <details class="side-group">
+    <summary class="side-title">Start here</summary>
+    <a href="getting-started.html">Install &amp; first task</a>
+    <a href="providers.html">Models &amp; providers</a>
+    </details>
+    <details class="side-group">
+    <summary class="side-title">Station &amp; agents</summary>
+    <a href="station.html">Station &amp; capabilities</a>
+    <a href="guides/crew.html">Set up your crew</a>
+    <a href="agents.html">Agents, teams &amp; voice</a>
+    <a href="guides/goals.html">Goals, quests &amp; XP</a>
+    </details>
+    <details class="side-group">
+    <summary class="side-title">Conveyor workflows</summary>
+    <a href="guides/first-line.html">Build your first workflow</a>
+    <a href="guides/conveyors.html">Conveyor basics</a>
+    <a href="guides/filter.html">Filter &amp; route work</a>
+    <a href="guides/splitter-joiner.html">Split &amp; combine results</a>
+    </details>
+    <details class="side-group">
+    <summary class="side-title">Repeat &amp; automate</summary>
+    <a href="guides/routines.html">Create repeatable work</a>
+    <a href="skills.html">Skills &amp; routines reference</a>
+    <a href="guides/night-shift.html">Set up Night Shift</a>
+    <a href="autonomy.html">Autonomy controls</a>
+    </details>
+    <details class="side-group">
+    <summary class="side-title">Connect your tools</summary>
+    <a href="connect-a-platform.html">Connect a service</a>
+    <a href="guides/channels.html">Messaging channels</a>
+    <a href="connectors.html">Connectors &amp; MCP reference</a>
+    <a href="migrating.html">From OpenClaw or Hermes</a>
+    </details>
+    <details class="side-group">
+    <summary class="side-title">Troubleshooting &amp; help</summary>
+    <a href="help.html">Help center</a>
+    <a href="troubleshooting.html">Troubleshooting</a>
+    <a href="shortcuts.html">Keyboard shortcuts</a>
+    <a href="glossary.html">Glossary</a>
+    </details>
     </nav>
   </aside>
-  <main class="docs-main">
-<h1>STARNET DOCS</h1>
-<p class="doc-sub">// everything you need to run your station</p>
-<div class="hub-hero">
-  <div>
-    <p style="margin:0 0 6px">StarNet is a local-first desktop harness: you recruit AI agents into a living pixel-art station, and the floor you build &mdash; gear, bays, belts &mdash; is real configuration the agents actually run under. These docs cover installing it, connecting a model provider, and using every system.</p>
-    <div class="hh-actions">
-      <a class="btn btn-primary" href="getting-started.html">[ GETTING STARTED ]</a>
-      <a class="btn" href="guides/index.html">[ FIELD MANUAL ]</a>
-      <a class="btn" href="help.html">[ HELP CENTER ]</a>
-    </div>
+  <main class="docs-main" id="main-content" tabindex="-1">
+
+<header class="doc-intro">
+  <p class="eyebrow">THE STARNET HANDBOOK</p>
+  <h1>Documentation</h1>
+  <p class="intro-text">Set up your first agent, learn a workflow, or look up a setting. Start here and find your next step.</p>
+</header>
+<section class="quickstart-block" aria-labelledby="first-task">
+  <div class="section-label"><h2 id="first-task">New to StarNet?</h2><span>Start with one agent. Build from there.</span></div>
+  <div class="learning-path">
+    <a class="start-step" href="getting-started.html#download-and-install"><span class="step-number">01 / INSTALL</span><strong>Get StarNet</strong><span>Install the app and open your station.</span><b aria-hidden="true">Install StarNet &rarr;</b></a>
+    <a class="start-step" href="providers.html"><span class="step-number">02 / CONNECT</span><strong>Connect a model</strong><span>Use a provider account, API key, or local model.</span><b aria-hidden="true">Choose a provider &rarr;</b></a>
+    <a class="start-step" href="getting-started.html#awaken-your-first-agent"><span class="step-number">03 / RUN</span><strong>Run your first task</strong><span>Meet your agent and send a request.</span><b aria-hidden="true">Send your first task &rarr;</b></a>
   </div>
-  <div class="hh-art" aria-hidden="true">
-    <svg viewBox="0 0 300 120" xmlns="http://www.w3.org/2000/svg"><rect class="hb-belt" x="10" y="50" width="280" height="24"/><line class="hb-rail" x1="10" y1="50" x2="290" y2="50"/><line class="hb-rail" x1="10" y1="74" x2="290" y2="74"/><g class="hb-chev"><polyline points="40,55 47,62 40,69"/><polyline points="80,55 87,62 80,69"/><polyline points="120,55 127,62 120,69"/><polyline points="160,55 167,62 160,69"/><polyline points="200,55 207,62 200,69"/><polyline points="240,55 247,62 240,69"/></g><rect class="hb-machine lit" x="0" y="30" width="30" height="64"/><rect class="hb-machine lit" x="270" y="30" width="30" height="64"/><g class="hb-ride" style="animation-duration:6s"><rect class="hb-crate" x="20" y="52" width="18" height="18"/><rect class="hb-crate-top" x="20" y="52" width="18" height="5"/></g></svg>
-  </div>
+</section>
+<section aria-labelledby="browse-topics">
+  <div class="section-label"><h2 id="browse-topics">Browse by topic</h2><a href="guides/index.html">Prefer a walkthrough? &rarr;</a></div>
+  <!-- docs-directory -->
+<div class="topic-grid">
+<section class="topic" id="start" aria-labelledby="start-title"><div class="topic-head"><span class="topic-number" aria-hidden="true">01</span><div><h3 id="start-title">Start here</h3><p class="topic-desc">Install StarNet, choose a model, and give your first agent a task.</p></div></div><div class="topic-links"><a href="getting-started.html"><span>Install &amp; first task</span><small>Quickstart</small></a><a href="providers.html"><span>Models &amp; providers</span><small>Reference</small></a></div></section>
+<section class="topic" id="station" aria-labelledby="station-title"><div class="topic-head"><span class="topic-number" aria-hidden="true">02</span><div><h3 id="station-title">Station &amp; agents</h3><p class="topic-desc">Build your station, recruit a crew, and give them the tools to work.</p></div></div><div class="topic-links"><a href="station.html"><span>Station &amp; capabilities</span><small>Reference</small></a><a href="guides/crew.html"><span>Set up your crew</span><small>Guide</small></a><a href="agents.html"><span>Agents, teams &amp; voice</span><small>Reference</small></a><a href="guides/goals.html"><span>Goals, quests &amp; XP</span><small>Guide</small></a></div></section>
+<section class="topic" id="workflows" aria-labelledby="workflows-title"><div class="topic-head"><span class="topic-number" aria-hidden="true">03</span><div><h3 id="workflows-title">Conveyor workflows</h3><p class="topic-desc">Send work between agents, route different jobs, and combine results.</p></div></div><div class="topic-links"><a href="guides/first-line.html"><span>Build your first workflow</span><small>Guide</small></a><a href="guides/conveyors.html"><span>Conveyor basics</span><small>Guide</small></a><a href="guides/filter.html"><span>Filter &amp; route work</span><small>Guide</small></a><a href="guides/splitter-joiner.html"><span>Split &amp; combine results</span><small>Guide</small></a></div></section>
+<section class="topic" id="automation" aria-labelledby="automation-title"><div class="topic-head"><span class="topic-number" aria-hidden="true">04</span><div><h3 id="automation-title">Repeat &amp; automate</h3><p class="topic-desc">Reuse good work, schedule routines, and configure unattended runs.</p></div></div><div class="topic-links"><a href="guides/routines.html"><span>Create repeatable work</span><small>Guide</small></a><a href="skills.html"><span>Skills &amp; routines reference</span><small>Reference</small></a><a href="guides/night-shift.html"><span>Set up Night Shift</span><small>Guide</small></a><a href="autonomy.html"><span>Autonomy controls</span><small>Reference</small></a></div></section>
+<section class="topic" id="connections" aria-labelledby="connections-title"><div class="topic-head"><span class="topic-number" aria-hidden="true">05</span><div><h3 id="connections-title">Connect your tools</h3><p class="topic-desc">Connect services, message your station, or work with another harness.</p></div></div><div class="topic-links"><a href="connect-a-platform.html"><span>Connect a service</span><small>Guide</small></a><a href="guides/channels.html"><span>Messaging channels</span><small>Guide</small></a><a href="connectors.html"><span>Connectors &amp; MCP reference</span><small>Reference</small></a><a href="migrating.html"><span>From OpenClaw or Hermes</span><small>Guide</small></a></div></section>
+<section class="topic" id="help" aria-labelledby="help-title"><div class="topic-head"><span class="topic-number" aria-hidden="true">06</span><div><h3 id="help-title">Troubleshooting &amp; help</h3><p class="topic-desc">Fix a problem, look up a shortcut, or get help from a human.</p></div></div><div class="topic-links"><a href="help.html"><span>Help center</span><small>Help</small></a><a href="troubleshooting.html"><span>Troubleshooting</span><small>Help</small></a><a href="shortcuts.html"><span>Keyboard shortcuts</span><small>Reference</small></a><a href="glossary.html"><span>Glossary</span><small>Reference</small></a></div></section>
 </div>
-<div class="callout"><b>Which build do these docs describe?</b> Current source. The stable installer
-can be one release behind while the next Windows and macOS artifacts pass signing and notarization;
-the homepage always labels the latest signed public version separately.</div>
+<!-- /docs-directory -->
+</section>
+<aside class="support-strip"><div><strong>Something not working?</strong><p>Start with the symptom, or get help from a human.</p></div><a href="troubleshooting.html">Troubleshooting &rarr;</a><a href="help.html#reach-a-human">Contact support &nearr;</a></aside>
+<p class="docs-version-note">These docs follow current source. Your installed version may differ. Check the <a href="https://github.com/androoAGI/starnet-releases/releases/latest" target="_blank" rel="noopener">public release notes</a> when a control looks different.</p>
 
-<div class="hub-group"><div class="hg-title">START HERE</div>
-<div class="doc-cards">
-  <a class="doc-card" href="getting-started.html"><div class="dc-kicker">01</div><div class="dc-title">GETTING STARTED</div><p>Install on Windows or macOS, get past the first-run OS warnings, and run your first agent.</p></a>
-  <a class="doc-card" href="guides/first-line.html"><div class="dc-kicker">02 &middot; PICTURE GUIDE</div><div class="dc-title">YOUR FIRST WORKING LINE</div><p>Drop a ready-made conveyor line in one click and send it a real job.</p></a>
-  <a class="doc-card" href="providers.html"><div class="dc-kicker">03</div><div class="dc-title">PROVIDERS &amp; KEYS</div><p>Eighteen providers, three no-key sign-ins, a free local option, and where your keys live.</p></a>
-  <a class="doc-card" href="guides/crew.html"><div class="dc-kicker">04 &middot; PICTURE GUIDE</div><div class="dc-title">YOUR CREW &amp; THEIR GEAR</div><p>Recruit agents, one desk each, and switch on real abilities by placing gear.</p></a>
-</div></div>
 
-<div class="hub-group"><div class="hg-title">FIELD MANUAL &mdash; SHORT PICTURE GUIDES</div>
-<div class="doc-cards">
-  <a class="doc-card" href="guides/conveyors.html"><div class="dc-kicker">START HERE</div><div class="dc-title">HOW CONVEYORS WORK</div><p>What the moving boxes are, how to build a line, and what every message on the floor means.</p></a>
-  <a class="doc-card" href="guides/filter.html"><div class="dc-kicker">ONE SIGNPOST</div><div class="dc-title">SORTING WORK WITH A FILTER</div><p>Code one way, everything else the other, without sorting anything by hand.</p></a>
-  <a class="doc-card" href="guides/splitter-joiner.html"><div class="dc-kicker">MANY HANDS</div><div class="dc-title">SPLITTER &amp; JOINER</div><p>One job to three agents at once; wait for all three; merge what comes back.</p></a>
-  <a class="doc-card" href="guides/goals.html"><div class="dc-kicker">PLAY TO SHIP</div><div class="dc-title">GOALS, QUESTS &amp; XP</div><p>Real goals become milestone quests only real work can advance. Rate what shipped to mint XP.</p></a>
-  <a class="doc-card" href="guides/night-shift.html"><div class="dc-kicker">WHILE YOU SLEEP</div><div class="dc-title">NIGHT SHIFT</div><p>The three-part leash, the six gates, the morning report, and the decision trail.</p></a>
-  <a class="doc-card" href="guides/routines.html"><div class="dc-kicker">REPEATABLE WORK</div><div class="dc-title">SKILLS, RECIPES &amp; ROUTINES</div><p>What to run, when it runs, and how the agent does it.</p></a>
-  <a class="doc-card" href="guides/channels.html"><div class="dc-kicker">FROM ANYWHERE</div><div class="dc-title">RUN IT FROM YOUR PHONE</div><p>Your agents in Telegram, Discord, Slack, Matrix or Signal.</p></a>
-  <a class="doc-card" href="guides/index.html"><div class="dc-kicker">THE BOARD</div><div class="dc-title">ALL GUIDES</div><p>Every guide, with difficulty and reading time.</p></a>
-</div></div>
 
-<div class="hub-group"><div class="hg-title">REFERENCE</div>
-<div class="doc-cards">
-  <a class="doc-card" href="station.html"><div class="dc-title">THE STATION</div><p>Rooms, hallways, bays, and placed objects &mdash; how the layout you draw becomes real capability.</p></a>
-  <a class="doc-card" href="agents.html"><div class="dc-title">AGENTS &amp; TEAMS</div><p>Recruiting, classes, the dossier, delegation, Live Voice, and running many agents concurrently.</p></a>
-  <a class="doc-card" href="autonomy.html"><div class="dc-title">AUTONOMY &amp; NIGHT SHIFT</div><p>The autonomy model in full: initiative, reach, leash, schedules, quests, stopping work.</p></a>
-  <a class="doc-card" href="skills.html"><div class="dc-title">SKILLS, RECIPES, ROUTINES</div><p>The three-layer model of repeatable work and how it sharpens itself.</p></a>
-  <a class="doc-card" href="connect-a-platform.html"><div class="dc-title">CONNECT A PLATFORM</div><p>Wiring one specific service end to end &mdash; which route applies, how your key is stored, what each failure means.</p></a>
-  <a class="doc-card" href="connectors.html"><div class="dc-title">CONNECTORS &amp; INTEROP</div><p>The eight capability families, MCP connectors, messaging channels, and using StarNet alongside other harnesses.</p></a>
-  <a class="doc-card" href="migrating.html"><div class="dc-title">FROM OPENCLAW / HERMES</div><p>Concept map for migrating users &mdash; and how to keep your existing harness in the loop.</p></a>
-</div></div>
-
-<div class="hub-group"><div class="hg-title">HELP</div>
-<div class="doc-cards">
-  <a class="doc-card" href="help.html"><div class="dc-title">HELP CENTER</div><p>The fastest route to an answer: common questions by topic, and how to reach a human.</p></a>
-  <a class="doc-card" href="troubleshooting.html"><div class="dc-title">TROUBLESHOOTING</div><p>Install warnings, updater behavior, uninstalling, proxies, and where to get help.</p></a>
-  <a class="doc-card" href="shortcuts.html"><div class="dc-title">KEYBOARD SHORTCUTS</div><p>Every key the app actually binds &mdash; window navigation, the build tools, undo, camera.</p></a>
-  <a class="doc-card" href="glossary.html"><div class="dc-title">GLOSSARY</div><p>Bay, belt, line, dossier, leash, sidecar &mdash; the vocabulary in plain English.</p></a>
-</div></div>
-
-<div class="callout"><b>Docs philosophy:</b> StarNet's core law is truthful telemetry &mdash; the app never
-claims state the harness can't prove. These docs follow the same rule. If something here doesn't
-match what you see in the app, that's a bug in one of them: tell us at
-<a href="mailto:androo.agi@gmail.com">androo.agi@gmail.com</a>.</div>
-<nav class="doc-pager" aria-label="Previous and next"><span></span><a class="pg next" href="getting-started.html"><span class="pg-k">NEXT &rarr;</span><span class="pg-t">GETTING STARTED</span></a></nav>
   </main>
 </div>
 
@@ -157,7 +135,8 @@ match what you see in the app, that's a bug in one of them: tell us at
   <div class="footer-fine">MIT license &middot; &copy; <span id="year">2026</span> StarNet &middot; no telemetry, no tracking &mdash; <a href="../legal/privacy.html">we collect nothing</a></div>
 </footer>
 
-<script src="search-index.js?v=20260903"></script>
-<script src="docs.js?v=20260903"></script>
+<script src="search-index.js?v=20260913-terminal-nav"></script>
+<script src="search.js?v=20260913-terminal-nav"></script>
+<script src="docs.js?v=20260913-terminal-nav"></script>
 </body>
 </html>
