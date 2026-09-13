@@ -1,14 +1,7 @@
-# Clean station style — 2026-09-13
+# Clean Cadet — character reference only
 
-Andrew rejected the dark industrial minion and requested a cleaner version of the original plain white Cadet. He explicitly selected a completely blank white face. This direction supersedes the earlier weathered gunmetal/brass minion and establishes the reference for the coming station texture revisions.
+Andrew requested a cleaner version of the original plain white Cadet and explicitly selected a completely blank white face. The character master is [cadet-master.png](cadet-master.png); [cadet-reference.png](cadet-reference.png) is the compact animation input. Broad white panels, cool-grey joints and thin slate-grey seams apply to the character. The face has no visor, eyes, mouth, markings or glow.
 
-The character master is [cadet-master.png](cadet-master.png); [cadet-reference.png](cadet-reference.png) is the compact animation input. The original Cadet supplies identity and scale. Broad matte white surfaces, restrained cool-grey dimensional shading, thin consistent slate-grey contours and clean panel seams define the new look. Keep details sparse and legible at game scale. The face has no visor, eyes, mouth, markings or glow. Avoid grunge, rust, scratched metal, brass hardware, busy mechanical detail and bulky armor.
+On 2026-09-13 Andrew explicitly rejected extending this white/minimal treatment to the station. The earlier interpretation that this character supplies the palette and sparse detail for all floors, walls, shell and props was incorrect and is superseded.
 
-## Sequence
-
-1. Revise the minion and its walking, seated and typing poses; review it at its normal station scale.
-2. Revise floors one material at a time, preserving tile boundaries, tiling continuity and walkability.
-3. Revise walls, corners and shell surfaces one material at a time, preserving joins, projection and room geometry.
-4. After the station surfaces share the same treatment, revise workstations, chairs and the remaining props individually.
-
-Use the current clean character as a line, shape and finish reference. Surface colors can vary with function; do not make every surface uniformly white. Keep adequate contrast between the white crew and the floor. Maintain existing footprints, heights and attachment points while replacing artwork. Check each asset in the running station before moving to the next. The current industrial station textures remain in place during the character revision.
+For all environment work, follow [the authoritative industrial bridge direction](../station-remaster/DIRECTION.md). Preserve the dark, detailed, worn gunmetal station with amber hardware and cyan screens. Cleaner sampling and correct proportions must retain that atmosphere.

@@ -102,6 +102,8 @@ const StationBake = (() => {
   const WALL_TONE = { face: -0.32, top: -0.10, cap: 0.30 };   // cap back at the shipped +0.30 (2026-09-05, Andrew with a 0.10.13 frame: "there is no wall line") — the bright crown IS how a top-down view reads a wall; the exterior's darkness lives in HULL_EXPOSURE, never here
   let wallPalCache = null;
   function wallPal(z) {
+    if (typeof IndustrialTextures !== 'undefined' && IndustrialTextures.enabled())
+      return { base: '#393832', face: '#292821', top: '#424037', cap: '#575246' };
     let p = wallPalCache && wallPalCache.get(z);
     if (p) return p;
     const base = (G && G.wallBaseOf && G.wallBaseOf(z)) || '#3a3b41';
@@ -2482,13 +2484,8 @@ const StationBake = (() => {
   const STRIP_TILES = 4;
   let stripCache = null;
   function faceStrip(matId, pal, h) {
-    // The same selected face must wrap onto side walls and corners. A pending
-    // atlas (or a specialized native material) falls through to the real recipe.
-    if (nextSurfaces() && WorldSurface.WALLS.includes(matId) && typeof IndustrialTextures !== 'undefined' &&
-        IndustrialTextures && typeof IndustrialTextures.wallStrip === 'function') {
-      const authored = IndustrialTextures.wallStrip(h, matId, pal.base, { detail: DEPTH.wallDetail });
-      if (authored) return authored;
-    }
+    if (matId !== 'viewport' && typeof IndustrialTextures !== 'undefined' && IndustrialTextures.enabled())
+      return IndustrialTextures.wallStrip(h);
     const key = matId + '|' + pal.base + '|' + h;
     const tx0 = 0, ty = 0;
     if (stripCache && stripCache.has(key)) return stripCache.get(key);
@@ -2667,7 +2664,7 @@ const StationBake = (() => {
     // the panel seam grid — the shipped shell, phase-locked to the same world grid it always used
     // (lines at x = 5 + 28k, y = 9 + 26k), so a re-clad station and an untouched one still align.
     dress(b, pal, x, y, w, h) {
-      if (typeof IndustrialTextures !== 'undefined' && IndustrialTextures.shellPlate(b, x, y, w, h, pal.base)) return;
+      if (typeof IndustrialTextures !== 'undefined' && IndustrialTextures.shellPlate(b, x, y, w, h)) return;
       b.strokeStyle = pal.seam; b.lineWidth = 1;
       for (let gx = 5 + Math.ceil((x - 5) / 28) * 28; gx < x + w; gx += 28) { b.beginPath(); b.moveTo(gx + .5, y); b.lineTo(gx + .5, y + h); b.stroke(); }
       for (let gy = 9 + Math.ceil((y - 9) / 26) * 26; gy < y + h; gy += 26) { b.beginPath(); b.moveTo(x, gy + .5); b.lineTo(x + w, gy + .5); b.stroke(); }
@@ -2701,7 +2698,7 @@ const StationBake = (() => {
        deliberate break of the axis's pixel-parity property, taken on Andrew's call; everything
        BELOW the veins pass still matches the pre-axis bake byte for byte. */
     veins(fg, pal, w, h, vx, vy, topOf) {
-      if (typeof IndustrialTextures !== 'undefined' && IndustrialTextures.shell(fg, w, h, vx, vy, topOf, pal.base)) return;
+      if (typeof IndustrialTextures !== 'undefined' && IndustrialTextures.shell(fg, w, h, vx, vy, topOf)) return;
       coursedVein(fg, w, h, vx, vy, {
         ch: STRAKE,
         crest: 'rgba(172,195,222,0.055)',      // the sky-catch along a plate's top edge
