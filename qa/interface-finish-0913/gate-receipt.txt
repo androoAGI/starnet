@@ -13,3 +13,12 @@ git diff --check; generated website synchronization; QA bug register validation.
 Live source verification is described in REPORT.md and the accompanying PNGs.
 Installed desktop, real DPI scaling, authenticated services and successful
 provider inference are not certified by this receipt.
+
+Integration follow-up, 2026-09-13:
+Synchronized trunk: 2d81549483c1addad2349d51543bf378c783d242
+Integrated source receipt: 68e3a76e5
+Branch gate: PASS — 772 steps (merge-fast.log)
+Trunk merge: 94cb246567d16a2e4ffff05a60bd210adfb35189
+Post-merge trunk gate: PASS — 772 steps (trunk-fast.log)
+Resolved Deliverables run-scope conflict; ordinary filter reset checked live.
+No pre-existing integration-tree documentation changes were staged or discarded.
