@@ -18,7 +18,7 @@
   "expectedClaimCount": 37,
   "releaseSurface": {
     "algorithm": "sha256",
-    "sourceCommit": "ae32f360f818144a48e840e4a84a55297063df82",
+    "sourceCommit": "0ad3f3e9e01e8b2947125b5cc716daef86b2fb7e",
     "pathSetSha256": "ade25d61e670306aad325d4f4d7314c2bbc6303368eef1fde595748446c94a21",
     "files": [
       {
@@ -243,8 +243,8 @@
       },
       {
         "path": "frontend/app/deliverables.js",
-        "bytes": 30453,
-        "sha256": "babf82335c0e85ddd7cf3d7a806520214bd4c34be118db0016a7e819681959b1"
+        "bytes": 30764,
+        "sha256": "b19cd908f302bcd2e5ce87f17049d919a52d36943e1cebfc4f500f4cc7b17367"
       },
       {
         "path": "frontend/app/diagnostics.js",
@@ -338,8 +338,8 @@
       },
       {
         "path": "frontend/app/glossary.js",
-        "bytes": 9182,
-        "sha256": "00c686a3530f754e03b43ffefbe5466b8f1842e55dfe7a437e57fc8addce4bb4"
+        "bytes": 9232,
+        "sha256": "ad6f7e39d9df46ca9835d47a6ad7bc42be98ad7e11d20aa7b70625ec0e2aacb1"
       },
       {
         "path": "frontend/app/goalloop.js",
@@ -1163,8 +1163,8 @@
       },
       {
         "path": "frontend/css/menu-glass.css",
-        "bytes": 16071,
-        "sha256": "bbb4230b627a070112324224c4d1b1b0b8df702fca54f01d73bdc5fb52287130"
+        "bytes": 16297,
+        "sha256": "bbfc9665cd1f7a5284efaf121a322ba6b1832ae8d54aca5ad41c826472b1e08e"
       },
       {
         "path": "frontend/css/motion.css",
@@ -1193,8 +1193,8 @@
       },
       {
         "path": "frontend/css/readability.css",
-        "bytes": 9962,
-        "sha256": "8e610710d95b9bd37258ddcfcef3e78ba586fd0f08ad7586341ccc38be912f05"
+        "bytes": 11010,
+        "sha256": "7a18169e2659124580d9adb54c29a0379e0073c8b33efe7d5eef3ccbfdb3ebc5"
       },
       {
         "path": "frontend/css/refit-kit.css",
@@ -1218,8 +1218,8 @@
       },
       {
         "path": "frontend/css/settings.css",
-        "bytes": 15394,
-        "sha256": "4eaec3426cc63907e853cd747de2a2a150b57bb21887f66f6be5cd7b12b303ba"
+        "bytes": 15967,
+        "sha256": "f20b9dae61f1b9b065e577e4ebf1f597f2c931b68dae966952523b82d893ecda"
       },
       {
         "path": "frontend/css/style.css",
@@ -1248,8 +1248,8 @@
       },
       {
         "path": "frontend/css/utility-menus.css",
-        "bytes": 14684,
-        "sha256": "349d9e604a61837ba225a0a027df1348afd2d0c0077b34d73ccfc29d6abc2a8c"
+        "bytes": 14705,
+        "sha256": "a7bec77f481f650cf52b74f001c6b1f8625d74bbc724ebeafdf96be883ee2803"
       },
       {
         "path": "frontend/css/warroom.css",
