@@ -39,6 +39,27 @@
 
   function selectProvider(opts) {
     opts = opts || {};
+    // Configured OAuth fallbacks need metadata at admission, but authentication only if used.
+    // Cache a successful activation for this run. Failed activation stays retryable, and a
+    // cancelled caller never starts refresh/inference. No credential is shared across wrappers.
+    if (typeof opts.tokenProvider === 'function') {
+      const base = Object.assign({}, opts); delete base.tokenProvider;
+      const metadata = selectProvider(base);
+      let active = null;
+      return Object.assign({}, metadata, {
+        async *stream(req) {
+          if (req && req.signal && req.signal.aborted) return;
+          if (!active) {
+            active = Promise.resolve().then(() => opts.tokenProvider()).then(token =>
+              selectProvider(Object.assign({}, base, { token, headers: typeof opts.headersProvider === 'function' ? opts.headersProvider() : base.headers })));
+            active.catch(() => { active = null; });
+          }
+          const live = await active;
+          if (req && req.signal && req.signal.aborted) return;
+          yield* live.stream(req);
+        }
+      });
+    }
     const id = registry.normalizeProviderId(opts.provider, registry.DEFAULT_PROVIDER_ID);
     const profile = registry.getProviderProfile(id);
     if (!profile) throw new Error('unknown provider: ' + (opts.provider || ''));

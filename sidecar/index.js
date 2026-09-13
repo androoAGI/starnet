@@ -16190,13 +16190,9 @@ async function runOnce(o) {
     if (fbManaged !== managedRun) continue;
     let fbProvider;
     if (providerUsesCodex(fbProviderId)) {
-      let fbToken;
-      try { fbToken = await ensureCodexAccessToken(); } catch (_) { continue; }
-      fbProvider = selectProvider({ provider: fbProviderId, fetch: globalThis.fetch, token: fbToken, renewToken: forceRefreshCodexAccessToken, baseUrl: fbBaseUrl, reasoningEffort });
+      fbProvider = selectProvider({ provider: fbProviderId, fetch: globalThis.fetch, tokenProvider: ensureCodexAccessToken, renewToken: forceRefreshCodexAccessToken, baseUrl: fbBaseUrl, reasoningEffort });
     } else if (providerUsesDeviceOAuth(fbProviderId)) {
-      let fbToken;
-      try { fbToken = await ensureOAuthAccessToken(fbProviderId); } catch (_) { continue; }
-      fbProvider = selectProvider({ provider: fbProviderId, fetch: globalThis.fetch, token: fbToken, headers: oauthInferenceHeaders(fbProviderId), baseUrl: fbBaseUrl, reasoningEffort });
+      fbProvider = selectProvider({ provider: fbProviderId, fetch: globalThis.fetch, tokenProvider: () => ensureOAuthAccessToken(fbProviderId), headersProvider: () => oauthInferenceHeaders(fbProviderId), baseUrl: fbBaseUrl, reasoningEffort });
     } else {
       fbProvider = selectProvider({ provider: fbProviderId, fetch: globalThis.fetch, key: fbKey, baseUrl: fbBaseUrl, reasoningEffort });
     }
@@ -16996,8 +16992,11 @@ async function runOnce(o) {
      A byte-stable constant, so it never shifts the cached system prefix. */
   const canName = !!(resolved && Array.isArray(resolved.tools) && resolved.tools.indexOf('deliverable_note') >= 0);
   const deliverableNote = canName ? DELIVERABLE_NOTE_CLAUSE : '';
-  const taskSystem = FinishLine.append((system || '') + runtimeBlock + toolNote + teamNote + manualBlock
-    + summarizeCapabilities(resolved, { surface, ownerTrusted, unrestrictedHost: unrestrictedHostNow() }) + skillBlock + runtimeSkillBlock
+  // Cache only the reusable prefix across runs. All task-specific context still follows verbatim;
+  // the per-run ID must not invalidate the manual/capability/skill prefix on every user message.
+  const cacheSystemPrefix = (system || '') + toolNote + teamNote + manualBlock
+    + summarizeCapabilities(resolved, { surface, ownerTrusted, unrestrictedHost: unrestrictedHostNow() }) + skillBlock;
+  const taskSystem = FinishLine.append(cacheSystemPrefix + runtimeBlock + runtimeSkillBlock
     + preloadedSkillBlock + serviceKeysBlock + taskIntentNote + directDomainBlock + journeyBlock
     + deliverableNote, { isTask, internal, tools: resolved.tools });
   const sys = internal
@@ -17198,6 +17197,7 @@ async function runOnce(o) {
       result = {reason:'done', turns:0, usd:0, messages:msgs.concat([{role:'assistant', content:text}])};
     } else result = await runAgentLoop({
       messages: msgs, provider, emit: loopEmit, cost, tools: o.outputOnly ? [] : toolDefs, dispatch, capCtx,
+      cacheSystemPrefix: !internal && !o.recovery ? cacheSystemPrefix : '',
       drainToolCosts: () => pendingMediaCosts.splice(0),
       acceptanceProbe,
       // Granted but unadvertised: held out of the request until tool.search reveals one (see loop.js).

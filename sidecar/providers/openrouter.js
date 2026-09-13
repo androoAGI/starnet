@@ -64,19 +64,35 @@
   function supportsExplicitCache(model) {
     return /anthropic\/|claude/i.test(String(model || ''));
   }
-  function applyCacheControl(messages, model) {
+  function applyCacheControl(messages, model, cacheSystemPrefix) {
     if (!Array.isArray(messages) || !supportsExplicitCache(model)) return messages;
     let idx = -1;
     for (let i = 0; i < messages.length; i++) {
       if (messages[i] && messages[i].role === 'system') idx = i; else break;   // last of the LEADING system block
     }
     const out = messages.slice();
-    if (idx >= 0 && typeof messages[idx].content === 'string') {
+    let systemAnchors = 1;
+    const first = messages[0];
+    const prefixMatches = idx >= 0 && first && typeof first.content === 'string'
+      && typeof cacheSystemPrefix === 'string' && cacheSystemPrefix.trim()
+      && first.content.startsWith(cacheSystemPrefix);
+    const suffix = prefixMatches ? first.content.slice(cacheSystemPrefix.length) : '';
+    if (prefixMatches && (suffix.trim() || idx > 0)) {
+      const parts = [{ type: 'text', text: cacheSystemPrefix, cache_control: { type: 'ephemeral' } }];
+      if (suffix) parts.push(Object.assign({ type: 'text', text: suffix }, idx === 0 ? { cache_control: { type: 'ephemeral' } } : {}));
+      out[0] = Object.assign({}, first, { content: parts });
+      // Recall may be another leading system message. Anchor its end as well, keeping the
+      // stable instruction anchor before all changing runtime/recall bytes.
+      systemAnchors = 2;
+      if (idx > 0 && typeof messages[idx].content === 'string') {
+        out[idx] = Object.assign({}, messages[idx], { content: [{ type: 'text', text: messages[idx].content, cache_control: { type: 'ephemeral' } }] });
+      }
+    } else if (idx >= 0 && typeof messages[idx].content === 'string') {
       out[idx] = { role: 'system', content: [{ type: 'text', text: messages[idx].content, cache_control: { type: 'ephemeral' } }] };
     }
     /* SLIDING TAIL ANCHORS (ported from the anthropic adapter's Hermes-parity pass). The single system anchor
        caches the static prefix, but the bytes migrate into the CONVERSATION as a run grows — tool results
-       re-billed as uncached input on every turn. Mark the last three stampable messages too: with the system
+       re-billed as uncached input on every turn. Mark up to three stampable tail messages (two with a split system): with the system
        anchor that is exactly Anthropic's 4-breakpoint maximum. Three (not one) because a breakpoint only looks
        BACK 20 content blocks for its predecessor, and one wide parallel-tool turn can append more than 20
        blocks — a single trailing anchor then misses the old one and the whole tail re-bills as a cold write.
@@ -86,7 +102,7 @@
        caller's message or part in place. Anthropic-through-OpenRouter only (supportsExplicitCache above);
        every other upstream sees the exact prior wire shape. */
     let stamped = 0;
-    for (let i = out.length - 1; i > idx && stamped < 3; i--) {
+    for (let i = out.length - 1; i > idx && stamped < 4 - systemAnchors; i--) {
       const m = out[i];
       if (!m || m.role === 'system') continue;
       if (typeof m.content === 'string' && m.content.trim()) {
@@ -203,7 +219,7 @@
       const meta = findModel(req.model);
       const allowed = reasoningEffortsForModel(req.model, meta);
       const effort = clampReasoningEffortForModel(req.model, req.reasoningEffort || reasoningEffort, meta);
-      const body = { model: req.model, messages: applyCacheControl(preserveClaudeContinuations(repairToolPairs(req.messages), req.model), req.model), stream: true, usage: { include: true } };
+      const body = { model: req.model, messages: applyCacheControl(preserveClaudeContinuations(repairToolPairs(req.messages), req.model), req.model, req.cacheSystemPrefix), stream: true, usage: { include: true } };
       if (effort !== 'none' || allowed.length > 1) body.reasoning = { effort };
       if (req.tools && req.tools.length) {
         body.tools = req.tools;
