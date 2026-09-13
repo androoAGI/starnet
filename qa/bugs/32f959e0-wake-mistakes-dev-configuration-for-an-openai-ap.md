@@ -40,7 +40,7 @@ Sibling entry points: the generic API-key wake branch now uses the same actual-c
 
 ## Verdict
 
-Source fix uses hasStoredCredential for credential selection instead of the DEV auto-resume eligibility getter. Live owner-origin recovery is verified; 139/139 customer-journey assertions passed; the full fast gate runs on the final candidate.
+Source fix uses hasStoredCredential for credential selection instead of the DEV auto-resume eligibility getter. Live owner-origin recovery is verified; Verification: 139/139 UI-journey assertions, 34/34 customer-journey gate steps, and 773/773 full fast-gate steps passed. Logs: .wake-credential-journeys.log, .wake-credential-customer.log, and .wake-credential-fast.log in the isolated lane.
 
 ## Regression
 
