@@ -1220,6 +1220,12 @@ const World = (() => {
           .catch(() => {});
       }
     } catch (e) {}
+    if (typeof IndustrialTextures !== 'undefined') IndustrialTextures.ready.then(() => {
+      if (IndustrialTextures.enabled()) {
+        Object.assign(CRT, { scan: .05, grain: .07, dust: .10, film: .12, curve: .02 });
+        bakeDirty = true; redrawNow();
+      }
+    });
     window.addEventListener('resize', resize);
 
     wireStageInput();

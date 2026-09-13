@@ -3,91 +3,100 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Night Shift — StarNet Field Manual</title>
+<title>Set up Night Shift — StarNet Docs</title>
 <meta name="description" content="Plain-English guide to StarNet Night Shift: how the station works while you are away, the three-part leash you set, what the morning report contains, and how to read the decision trail.">
 <link rel="canonical" href="https://starnetos.com/docs/guides/night-shift.html">
 <link rel="icon" type="image/svg+xml" href="../../assets/favicon.svg">
-<link rel="stylesheet" href="guides.css?v=20260903">
+<link rel="stylesheet" href="guides.css?v=20260913-brand-nav">
 </head>
-<body class="docs-page" data-group="FIELD MANUAL" data-title="NIGHT SHIFT">
+<body class="docs-page" data-group="Repeat &amp; automate" data-group-id="automation" data-kind="Guide" data-title="Set up Night Shift">
+<a class="skip-link" href="#main-content">Skip to content</a>
 
 <div class="crt-scan" aria-hidden="true"></div>
 <div class="crt-vignette" aria-hidden="true"></div>
 
 <header class="topbar" id="topbar">
-  <a class="brand" href="../../index.html">STARNET TERMLINK</a>
+  <a class="brand" href="../../index.html" aria-label="StarNet home"><img src="../../assets/starnet-logo-small.png" alt="StarNet" width="355" height="60"></a>
   <nav class="topnav" aria-label="Site">
-    <a href="../../index.html#station">WHAT IT IS</a>
-    <a href="../../index.html#difference">FEATURES</a>
-    <a href="../index.html" class="on">DOCS</a>
-    <a href="../../pricing.html" data-pricing-link>PRICING</a>
-    <a href="../../index.html#download">DOWNLOAD</a>
-    <a href="https://github.com/androoAGI/starnet" target="_blank" rel="noopener">GITHUB</a>
+    <a href="../../index.html#station">Product</a>
+    <a href="../index.html" class="on">Docs</a>
+    <a href="../../pricing.html" data-pricing-link>Pricing</a>
+    <a href="https://github.com/androoAGI/starnet" target="_blank" rel="noopener">GitHub<svg class="nav-external" aria-hidden="true" focusable="false" viewBox="0 0 16 16" width="12" height="12"><path d="M3 13 13 3M4 3h9v9" fill="none" stroke="currentColor" stroke-width="1.5"/></svg></a>
   </nav>
   <span class="topbar-right">
-    <a href="../help.html">HELP</a>
-    <span class="live-dot"><span class="dot"></span>OPEN SOURCE</span>
+    <a href="../help.html">Help</a>
+    <a class="nav-download" href="../../index.html#download">Download &darr;</a>
   </span>
 </header>
 
 <div class="docs-shell">
   <aside class="docs-side" id="docs-side">
-    <button class="side-toggle" type="button" aria-expanded="false" aria-controls="side-nav">[ MENU ]</button>
-    <div class="side-search"><span class="ss-glyph">&gt;</span><input id="docs-search" type="search" placeholder="search docs  ( / )" autocomplete="off" spellcheck="false" aria-label="Search docs"><div class="ss-results" id="docs-results" hidden></div></div>
+    <div class="side-home">Documentation</div>
+    <div class="side-search"><label class="sr-only" for="docs-search">Search docs</label><input id="docs-search" type="search" placeholder="Search docs…" autocomplete="off" spellcheck="false" aria-controls="docs-results" aria-expanded="false"><kbd class="search-key" aria-hidden="true">/</kbd><div class="ss-results" id="docs-results" hidden></div><span id="docs-search-status" class="sr-only" role="status" aria-live="polite"></span></div>
+    <button class="side-toggle" type="button" aria-expanded="false" aria-controls="side-nav">Browse documentation</button>
     <nav id="side-nav" class="side-nav" aria-label="Docs">
-    <div class="side-group" data-group="START HERE">
-    <div class="side-title">// START HERE</div>
-    <a href="../index.html">DOCS HOME</a>
-    <a href="../getting-started.html">GETTING STARTED</a>
-    <a href="first-line.html">YOUR FIRST WORKING LINE</a>
-    <a href="../providers.html">PROVIDERS &amp; KEYS</a>
-    </div>
-    <div class="side-group" data-group="FIELD MANUAL">
-    <div class="side-title">// FIELD MANUAL</div>
-    <a href="index.html">ALL GUIDES</a>
-    <a href="conveyors.html">HOW CONVEYORS WORK</a>
-    <a href="filter.html">SORTING WORK WITH A FILTER</a>
-    <a href="splitter-joiner.html">SPLITTER &amp; JOINER</a>
-    <a href="crew.html">YOUR CREW &amp; THEIR GEAR</a>
-    <a href="goals.html">GOALS, QUESTS &amp; XP</a>
-    <a href="night-shift.html" class="active" aria-current="page">NIGHT SHIFT</a>
-    <a href="routines.html">SKILLS, RECIPES &amp; ROUTINES</a>
-    <a href="channels.html">RUN IT FROM YOUR PHONE</a>
-    </div>
-    <div class="side-group" data-group="REFERENCE">
-    <div class="side-title">// REFERENCE</div>
-    <a href="../station.html">THE STATION</a>
-    <a href="../agents.html">AGENTS &amp; TEAMS</a>
-    <a href="../autonomy.html">AUTONOMY &amp; NIGHT SHIFT</a>
-    <a href="../skills.html">SKILLS, RECIPES, ROUTINES</a>
-    <a href="../connect-a-platform.html">CONNECT A PLATFORM</a>
-    <a href="../connectors.html">CONNECTORS &amp; INTEROP</a>
-    <a href="../migrating.html">FROM OPENCLAW / HERMES</a>
-    </div>
-    <div class="side-group" data-group="HELP">
-    <div class="side-title">// HELP</div>
-    <a href="../help.html">HELP CENTER</a>
-    <a href="../troubleshooting.html">TROUBLESHOOTING</a>
-    <a href="../shortcuts.html">KEYBOARD SHORTCUTS</a>
-    <a href="../glossary.html">GLOSSARY</a>
-    </div>
+      <div class="side-quick">
+      <a href="../index.html">Docs overview</a>
+      <a href="index.html">Step-by-step guides</a>
+      </div>
+      <p class="side-label">Browse topics</p>
+    <details class="side-group">
+    <summary class="side-title">Start here</summary>
+    <a href="../getting-started.html">Install &amp; first task</a>
+    <a href="../providers.html">Models &amp; providers</a>
+    </details>
+    <details class="side-group">
+    <summary class="side-title">Station &amp; agents</summary>
+    <a href="../station.html">Station &amp; capabilities</a>
+    <a href="crew.html">Set up your crew</a>
+    <a href="../agents.html">Agents, teams &amp; voice</a>
+    <a href="goals.html">Goals, quests &amp; XP</a>
+    </details>
+    <details class="side-group">
+    <summary class="side-title">Conveyor workflows</summary>
+    <a href="first-line.html">Build your first workflow</a>
+    <a href="conveyors.html">Conveyor basics</a>
+    <a href="filter.html">Filter &amp; route work</a>
+    <a href="splitter-joiner.html">Split &amp; combine results</a>
+    </details>
+    <details class="side-group" open>
+    <summary class="side-title">Repeat &amp; automate</summary>
+    <a href="routines.html">Create repeatable work</a>
+    <a href="../skills.html">Skills &amp; routines reference</a>
+    <a href="night-shift.html" class="active" aria-current="page">Set up Night Shift</a>
+    <a href="../autonomy.html">Autonomy controls</a>
+    </details>
+    <details class="side-group">
+    <summary class="side-title">Connect your tools</summary>
+    <a href="../connect-a-platform.html">Connect a service</a>
+    <a href="channels.html">Messaging channels</a>
+    <a href="../connectors.html">Connectors &amp; MCP reference</a>
+    <a href="../migrating.html">From OpenClaw or Hermes</a>
+    </details>
+    <details class="side-group">
+    <summary class="side-title">Troubleshooting &amp; help</summary>
+    <a href="../help.html">Help center</a>
+    <a href="../troubleshooting.html">Troubleshooting</a>
+    <a href="../shortcuts.html">Keyboard shortcuts</a>
+    <a href="../glossary.html">Glossary</a>
+    </details>
     </nav>
   </aside>
-  <main class="docs-main">
+  <main class="docs-main" id="main-content" tabindex="-1">
 <div class="fm-hero">
 <div class="fh-kicker">// FIELD MANUAL &middot; WHILE YOU SLEEP</div>
-<h1>NIGHT SHIFT</h1>
+<h1>Set up Night Shift</h1>
 <p class="fh-sub">The station works while you&rsquo;re away &mdash; inside a leash you set, with a receipt for every decision.</p>
 <svg viewBox="0 0 640 270" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="The autonomy dial with INITIATIVE set to BUILD, REACH to SANDBOX and PACE to STANDARD 3, above a night timeline where three beats fired and five were skipped"><defs></defs><g class="d-label"><text x="24" y="28">THE DIAL</text></g><g class="d-sub"><text x="24" y="60">INITIATIVE</text></g><rect class="d-pill" x="130" y="44" width="54.8" height="24"/><g class="d-pill-t"><text x="157.4" y="61">WAIT</text></g><rect class="d-pill" x="192.8" y="44" width="79.39999999999999" height="24"/><g class="d-pill-t"><text x="232.5" y="61">SUGGEST</text></g><rect class="d-pill on" x="280.2" y="44" width="63" height="24"/><g class="d-pill-t on"><text x="311.7" y="61">BUILD</text></g><rect class="d-pill" x="351.2" y="44" width="54.8" height="24"/><g class="d-pill-t"><text x="378.59999999999997" y="61">FREE</text></g><g class="d-sub"><text x="24" y="96">REACH</text></g><rect class="d-pill" x="130" y="80" width="79.39999999999999" height="24"/><g class="d-pill-t"><text x="169.7" y="97">OBSERVE</text></g><rect class="d-pill on" x="217.39999999999998" y="80" width="79.39999999999999" height="24"/><g class="d-pill-t on"><text x="257.09999999999997" y="97">SANDBOX</text></g><rect class="d-pill" x="304.79999999999995" y="80" width="169.6" height="24"/><g class="d-pill-t"><text x="389.59999999999997" y="97">SEND &amp; PUBLISH</text></g><g class="d-sub"><text x="24" y="132">PACE</text></g><rect class="d-pill" x="130" y="116" width="79.39999999999999" height="24"/><g class="d-pill-t"><text x="169.7" y="133">LIGHT 1</text></g><rect class="d-pill on" x="217.39999999999998" y="116" width="104" height="24"/><g class="d-pill-t on"><text x="269.4" y="133">STANDARD 3</text></g><rect class="d-pill" x="329.4" y="116" width="71.19999999999999" height="24"/><g class="d-pill-t"><text x="365" y="133">BUSY 6</text></g><rect class="d-pill" x="408.59999999999997" y="116" width="71.19999999999999" height="24"/><g class="d-pill-t"><text x="444.19999999999993" y="133">MAX 12</text></g><g class="d-label"><text x="24" y="178">THE NIGHT</text></g><path class="d-moon" d="M 560 20 a 12 12 0 1 0 10 18 a 9 9 0 1 1 -10 -18 z"/><line class="d-tick" x1="60" y1="210" x2="600" y2="210"/><line class="d-tick" x1="60" y1="204" x2="60" y2="216"/><g class="d-clock"><text x="60" y="234">11PM</text></g><line class="d-tick" x1="195" y1="204" x2="195" y2="216"/><g class="d-clock"><text x="195" y="234">1AM</text></g><line class="d-tick" x1="330" y1="204" x2="330" y2="216"/><g class="d-clock"><text x="330" y="234">3AM</text></g><line class="d-tick" x1="465" y1="204" x2="465" y2="216"/><g class="d-clock"><text x="465" y="234">5AM</text></g><line class="d-tick" x1="600" y1="204" x2="600" y2="216"/><g class="d-clock"><text x="600" y="234">7AM</text></g><circle class="d-beat skip" cx="92.4" cy="210" r="5"/><circle class="d-beat glow" cx="162.6" cy="210" r="6"/><circle class="d-beat glow" cx="227.4" cy="210" r="6"/><circle class="d-beat skip" cx="297.6" cy="210" r="5"/><circle class="d-beat glow" cx="362.40000000000003" cy="210" r="6"/><circle class="d-beat skip" cx="432.59999999999997" cy="210" r="5"/><circle class="d-beat skip" cx="497.40000000000003" cy="210" r="5"/><circle class="d-beat skip" cx="567.5999999999999" cy="210" r="5"/><g class="d-sub"><text x="60" y="258">&#9679; fired &nbsp; &#9675; skipped (you were present &middot; cooldown &middot; 3-a-day leash reached)</text></g></svg>
 </div>
-<div class="q-tags" style="margin:-10px 0 22px"><span class="tag hot">PLAIN ENGLISH</span><span class="tag">~5 MIN</span><span class="tag">NO SETUP NEEDED TO READ</span></div><h2><span class="h-num">01</span>The whole idea</h2><p class="lede">You go to bed. The station picks a small, grounded job toward your goals, does it, and leaves a draft on your desk.</p>
+<div class="q-tags" style="margin:-10px 0 22px"><span class="tag hot">PLAIN ENGLISH</span><span class="tag">~5 MIN</span><span class="tag">NO SETUP NEEDED TO READ</span></div><h2 id="the-whole-idea"><span class="h-num">01</span>The whole idea</h2><p class="lede">You go to bed. The station picks a small, grounded job toward your goals, does it, and leaves a draft on your desk.</p>
 <div class="story">
 <div class="st"><span class="st-n">1</span><p>You&rsquo;ve been away <b>30 minutes</b> (no clicks, no keys). The station counts you as gone.</p></div>
 <div class="st"><span class="st-n">2</span><p>About every <b>45 minutes</b> it considers one job. It checks six gates first. Most nights, most beats are skipped.</p></div>
 <div class="st"><span class="st-n">3</span><p>A job that passes runs for real &mdash; inside your <b>REACH</b> setting, under your budget caps.</p></div>
 <div class="st"><span class="st-n">4</span><p>You come back to a <b>morning report</b>: what fired, what was skipped and why, drafts to review.</p></div>
 </div>
-<p>Out of the box the station does <b>nothing</b> unattended. INITIATIVE starts at WAIT. Everything below is you choosing to turn a dial.</p><h2><span class="h-num">02</span>The three-part leash</h2><p>Open <b>SETTINGS &rsaquo; AUTONOMY</b>. Three rows:</p>
+<p>Out of the box the station does <b>nothing</b> unattended. INITIATIVE starts at WAIT. Everything below is you choosing to turn a dial.</p><h2 id="the-three-part-leash"><span class="h-num">02</span>The three-part leash</h2><p>Open <b>SETTINGS &rsaquo; AUTONOMY</b>. Three rows:</p>
 <table>
 <tr><th>INITIATIVE &mdash; does it start work on its own?</th><th></th></tr>
 <tr><td><b>WAIT</b></td><td>nothing runs unless you ask <i>(default)</i></td></tr>
@@ -104,11 +113,11 @@
 <table>
 <tr><th>PACE &mdash; how many unattended jobs per day</th><th></th></tr>
 <tr><td><b>LIGHT</b> 1 &middot; <b>STANDARD</b> 3 <i>(default)</i> &middot; <b>BUSY</b> 6 &middot; <b>MAX</b> 12</td><td>the daily limit, counted per calendar day</td></tr>
-</table><div class="trap"><span class="lbl">// FREE DOES NOT MEAN UNLEASHED</span>Even on FREE, the presets keep REACH at SANDBOX. Nothing leaves your machine overnight unless you move REACH to SEND &amp; PUBLISH yourself.</div><h2><span class="h-num">03</span>Point it somewhere</h2><div class="whys">
+</table><div class="trap"><span class="lbl">// FREE DOES NOT MEAN UNLEASHED</span>Even on FREE, the presets keep REACH at SANDBOX. Nothing leaves your machine overnight unless you move REACH to SEND &amp; PUBLISH yourself.</div><h2 id="point-it-somewhere"><span class="h-num">03</span>Point it somewhere</h2><div class="whys">
 <div class="why"><div class="w-title">FOCUS</div><p><b>STEER</b> it at a project folder, a thread, or a goal, and every overnight beat starts there. <b>CLEAR</b> hands the choice back to the station.</p></div>
 <div class="why"><div class="w-title">OFF-LIMITS</div><p><b>RULE OUT</b> anything it should never touch unattended. The station respects the list before it picks a job.</p></div>
 <div class="why"><div class="w-title">BUDGET</div><p><b>SETTINGS &rsaquo; BUDGET</b> holds hard USD caps &mdash; <b>PER RUN</b>, <b>PER AGENT</b>, <b>PER DAY</b>, <b>GLOBAL</b> &mdash; enforced against the real ledger. Night Shift can&rsquo;t spend past them.</p></div>
-</div><h2><span class="h-num">04</span>The six gates</h2><p>Before any beat fires, the station checks, in order: <b>posture</b> (is INITIATIVE above WAIT?), <b>away</b> (have you really been gone 30 minutes?), <b>leash</b> (any jobs left today?), <b>cooldown</b> (45 minutes since the last?), <b>halt</b> (does an older saved automation pause remain?), <b>concurrency</b> (is something already running?). The first gate that says no ends the beat &mdash; and that reason is what you read in the morning.</p><h2><span class="h-num">05</span>The morning report</h2><p>The first time you&rsquo;re back after a genuine absence, COMMS prints one report. Every line maps to a real record:</p>
+</div><h2 id="the-six-gates"><span class="h-num">04</span>The six gates</h2><p>Before any beat fires, the station checks, in order: <b>posture</b> (is INITIATIVE above WAIT?), <b>away</b> (have you really been gone 30 minutes?), <b>leash</b> (any jobs left today?), <b>cooldown</b> (45 minutes since the last?), <b>halt</b> (does an older saved automation pause remain?), <b>concurrency</b> (is something already running?). The first gate that says no ends the beat &mdash; and that reason is what you read in the morning.</p><h2 id="the-morning-report"><span class="h-num">05</span>The morning report</h2><p>The first time you&rsquo;re back after a genuine absence, COMMS prints one report. Every line maps to a real record:</p>
 <ul>
 <li><b>Priority</b> &mdash; what it was working toward, marked <i>(you steered this)</i> if you set a FOCUS, and why.</li>
 <li><b>Headline</b> &mdash; <i>3 beats fired, 2 drafts on your desk</i>, or <i>5 beats skipped &mdash; nothing landed on your desk</i>.</li>
@@ -116,8 +125,8 @@
 <li><b>Skipped beats, grouped by reason</b> &mdash; <i>2 beats skipped: daily limit reached (by 1:10 AM)</i>, in your local time.</li>
 <li><b>Drafts in full</b> when you say &ldquo;show me&rdquo;.</li>
 </ul>
-<p>If nothing fired, it says so plainly and says why. It never pads a quiet night.</p><h2><span class="h-num">06</span>The receipt: RECENT DECISIONS</h2><p><b>SETTINGS &rsaquo; NIGHT SHIFT</b> shows the live state &mdash; <b>STATE</b>, <b>MODE</b>, <b>DAILY LIMIT</b>, <b>LAST JOB</b>, <b>NEXT JOB EARLIEST</b> &mdash; plus <b>RECENT DECISIONS</b>: an append-only trail of every fire, skip, and defer, with the gate that decided it. It is written to disk as it happens and can&rsquo;t be edited after the fact. <b>&#9636; LAST REPORT</b> re-opens the morning report any time.</p><div class="tip"><span class="lbl">// PAUSE AWAY-WORK</span>Set INITIATIVE to WAIT to prevent new Night Shift jobs. Use Stop in COMMS for the current task. Older saved global pauses can be cleared with RESUME AUTOMATION, without changing permissions or job settings.</div><h2><span class="h-num">07</span>Questions people actually ask</h2><details class="qa"><summary>Can it email people while I sleep?</summary><div class="qa-body"><p>Only if you set REACH to SEND &amp; PUBLISH and have granted the tool. On OBSERVE or SANDBOX (the default) nothing leaves the machine.</p></div></details><details class="qa"><summary>Is there a quiet-hours setting?</summary><div class="qa-body"><p>No clock. &ldquo;Away&rdquo; means no input for 30 minutes, day or night. If you want it to work only while you sleep, leave INITIATIVE at WAIT during the day.</p></div></details><details class="qa"><summary>What counts as one of my 3 jobs?</summary><div class="qa-body"><p>One beat that fired. Skipped beats don&rsquo;t count. The counter resets each calendar day.</p></div></details><details class="qa"><summary>Where do the drafts go?</summary><div class="qa-body"><p>On your desk in COMMS, listed in the morning report, and under DRAFTS in the NIGHT SHIFT panel until you review them. A gentle nudge reminds you if they sit unreviewed.</p></div></details>
-<nav class="doc-pager" aria-label="Previous and next"><a class="pg prev" href="goals.html"><span class="pg-k">&larr; PREVIOUS</span><span class="pg-t">GOALS, QUESTS &amp; XP</span></a><a class="pg next" href="routines.html"><span class="pg-k">NEXT &rarr;</span><span class="pg-t">SKILLS, RECIPES &amp; ROUTINES</span></a></nav>
+<p>If nothing fired, it says so plainly and says why. It never pads a quiet night.</p><h2 id="the-receipt-recent-decisions"><span class="h-num">06</span>The receipt: RECENT DECISIONS</h2><p><b>SETTINGS &rsaquo; NIGHT SHIFT</b> shows the live state &mdash; <b>STATE</b>, <b>MODE</b>, <b>DAILY LIMIT</b>, <b>LAST JOB</b>, <b>NEXT JOB EARLIEST</b> &mdash; plus <b>RECENT DECISIONS</b>: an append-only trail of every fire, skip, and defer, with the gate that decided it. It is written to disk as it happens and can&rsquo;t be edited after the fact. <b>&#9636; LAST REPORT</b> re-opens the morning report any time.</p><div class="tip"><span class="lbl">// PAUSE AWAY-WORK</span>Set INITIATIVE to WAIT to prevent new Night Shift jobs. Use Stop in COMMS for the current task. Older saved global pauses can be cleared with RESUME AUTOMATION, without changing permissions or job settings.</div><h2 id="questions-people-actually-ask"><span class="h-num">07</span>Questions people actually ask</h2><details class="qa"><summary>Can it email people while I sleep?</summary><div class="qa-body"><p>Only if you set REACH to SEND &amp; PUBLISH and have granted the tool. On OBSERVE or SANDBOX (the default) nothing leaves the machine.</p></div></details><details class="qa"><summary>Is there a quiet-hours setting?</summary><div class="qa-body"><p>No clock. &ldquo;Away&rdquo; means no input for 30 minutes, day or night. If you want it to work only while you sleep, leave INITIATIVE at WAIT during the day.</p></div></details><details class="qa"><summary>What counts as one of my 3 jobs?</summary><div class="qa-body"><p>One beat that fired. Skipped beats don&rsquo;t count. The counter resets each calendar day.</p></div></details><details class="qa"><summary>Where do the drafts go?</summary><div class="qa-body"><p>On your desk in COMMS, listed in the morning report, and under DRAFTS in the NIGHT SHIFT panel until you review them. A gentle nudge reminds you if they sit unreviewed.</p></div></details>
+<nav class="doc-pager" aria-label="More in Repeat &amp; automate"><a class="pg prev" href="../skills.html"><span class="pg-k">&larr; PREVIOUS</span><span class="pg-t">Skills &amp; routines reference</span></a><a class="pg next" href="../autonomy.html"><span class="pg-k">NEXT &rarr;</span><span class="pg-t">Autonomy controls</span></a></nav>
   </main>
 </div>
 
@@ -138,7 +147,8 @@
   <div class="footer-fine">MIT license &middot; &copy; <span id="year">2026</span> StarNet &middot; no telemetry, no tracking &mdash; <a href="../../legal/privacy.html">we collect nothing</a></div>
 </footer>
 
-<script src="../search-index.js?v=20260903"></script>
-<script src="../docs.js?v=20260903"></script>
+<script src="../search-index.js?v=20260913-brand-nav"></script>
+<script src="../search.js?v=20260913-brand-nav"></script>
+<script src="../docs.js?v=20260913-brand-nav"></script>
 </body>
 </html>

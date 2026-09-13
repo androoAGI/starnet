@@ -3,80 +3,89 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Your Crew &amp; Their Gear — StarNet Field Manual</title>
+<title>Set up your crew — StarNet Docs</title>
 <meta name="description" content="Plain-English guide to StarNet agents: recruiting, one desk each, and how placed gear grants real abilities — compute, files, web, memory, terminal, images.">
 <link rel="canonical" href="https://starnetos.com/docs/guides/crew.html">
 <link rel="icon" type="image/svg+xml" href="../../assets/favicon.svg">
-<link rel="stylesheet" href="guides.css?v=20260903">
+<link rel="stylesheet" href="guides.css?v=20260913-brand-nav">
 </head>
-<body class="docs-page" data-group="FIELD MANUAL" data-title="YOUR CREW &amp; THEIR GEAR">
+<body class="docs-page" data-group="Station &amp; agents" data-group-id="station" data-kind="Guide" data-title="Set up your crew">
+<a class="skip-link" href="#main-content">Skip to content</a>
 
 <div class="crt-scan" aria-hidden="true"></div>
 <div class="crt-vignette" aria-hidden="true"></div>
 
 <header class="topbar" id="topbar">
-  <a class="brand" href="../../index.html">STARNET TERMLINK</a>
+  <a class="brand" href="../../index.html" aria-label="StarNet home"><img src="../../assets/starnet-logo-small.png" alt="StarNet" width="355" height="60"></a>
   <nav class="topnav" aria-label="Site">
-    <a href="../../index.html#station">WHAT IT IS</a>
-    <a href="../../index.html#difference">FEATURES</a>
-    <a href="../index.html" class="on">DOCS</a>
-    <a href="../../pricing.html" data-pricing-link>PRICING</a>
-    <a href="../../index.html#download">DOWNLOAD</a>
-    <a href="https://github.com/androoAGI/starnet" target="_blank" rel="noopener">GITHUB</a>
+    <a href="../../index.html#station">Product</a>
+    <a href="../index.html" class="on">Docs</a>
+    <a href="../../pricing.html" data-pricing-link>Pricing</a>
+    <a href="https://github.com/androoAGI/starnet" target="_blank" rel="noopener">GitHub<svg class="nav-external" aria-hidden="true" focusable="false" viewBox="0 0 16 16" width="12" height="12"><path d="M3 13 13 3M4 3h9v9" fill="none" stroke="currentColor" stroke-width="1.5"/></svg></a>
   </nav>
   <span class="topbar-right">
-    <a href="../help.html">HELP</a>
-    <span class="live-dot"><span class="dot"></span>OPEN SOURCE</span>
+    <a href="../help.html">Help</a>
+    <a class="nav-download" href="../../index.html#download">Download &darr;</a>
   </span>
 </header>
 
 <div class="docs-shell">
   <aside class="docs-side" id="docs-side">
-    <button class="side-toggle" type="button" aria-expanded="false" aria-controls="side-nav">[ MENU ]</button>
-    <div class="side-search"><span class="ss-glyph">&gt;</span><input id="docs-search" type="search" placeholder="search docs  ( / )" autocomplete="off" spellcheck="false" aria-label="Search docs"><div class="ss-results" id="docs-results" hidden></div></div>
+    <div class="side-home">Documentation</div>
+    <div class="side-search"><label class="sr-only" for="docs-search">Search docs</label><input id="docs-search" type="search" placeholder="Search docs…" autocomplete="off" spellcheck="false" aria-controls="docs-results" aria-expanded="false"><kbd class="search-key" aria-hidden="true">/</kbd><div class="ss-results" id="docs-results" hidden></div><span id="docs-search-status" class="sr-only" role="status" aria-live="polite"></span></div>
+    <button class="side-toggle" type="button" aria-expanded="false" aria-controls="side-nav">Browse documentation</button>
     <nav id="side-nav" class="side-nav" aria-label="Docs">
-    <div class="side-group" data-group="START HERE">
-    <div class="side-title">// START HERE</div>
-    <a href="../index.html">DOCS HOME</a>
-    <a href="../getting-started.html">GETTING STARTED</a>
-    <a href="first-line.html">YOUR FIRST WORKING LINE</a>
-    <a href="../providers.html">PROVIDERS &amp; KEYS</a>
-    </div>
-    <div class="side-group" data-group="FIELD MANUAL">
-    <div class="side-title">// FIELD MANUAL</div>
-    <a href="index.html">ALL GUIDES</a>
-    <a href="conveyors.html">HOW CONVEYORS WORK</a>
-    <a href="filter.html">SORTING WORK WITH A FILTER</a>
-    <a href="splitter-joiner.html">SPLITTER &amp; JOINER</a>
-    <a href="crew.html" class="active" aria-current="page">YOUR CREW &amp; THEIR GEAR</a>
-    <a href="goals.html">GOALS, QUESTS &amp; XP</a>
-    <a href="night-shift.html">NIGHT SHIFT</a>
-    <a href="routines.html">SKILLS, RECIPES &amp; ROUTINES</a>
-    <a href="channels.html">RUN IT FROM YOUR PHONE</a>
-    </div>
-    <div class="side-group" data-group="REFERENCE">
-    <div class="side-title">// REFERENCE</div>
-    <a href="../station.html">THE STATION</a>
-    <a href="../agents.html">AGENTS &amp; TEAMS</a>
-    <a href="../autonomy.html">AUTONOMY &amp; NIGHT SHIFT</a>
-    <a href="../skills.html">SKILLS, RECIPES, ROUTINES</a>
-    <a href="../connect-a-platform.html">CONNECT A PLATFORM</a>
-    <a href="../connectors.html">CONNECTORS &amp; INTEROP</a>
-    <a href="../migrating.html">FROM OPENCLAW / HERMES</a>
-    </div>
-    <div class="side-group" data-group="HELP">
-    <div class="side-title">// HELP</div>
-    <a href="../help.html">HELP CENTER</a>
-    <a href="../troubleshooting.html">TROUBLESHOOTING</a>
-    <a href="../shortcuts.html">KEYBOARD SHORTCUTS</a>
-    <a href="../glossary.html">GLOSSARY</a>
-    </div>
+      <div class="side-quick">
+      <a href="../index.html">Docs overview</a>
+      <a href="index.html">Step-by-step guides</a>
+      </div>
+      <p class="side-label">Browse topics</p>
+    <details class="side-group">
+    <summary class="side-title">Start here</summary>
+    <a href="../getting-started.html">Install &amp; first task</a>
+    <a href="../providers.html">Models &amp; providers</a>
+    </details>
+    <details class="side-group" open>
+    <summary class="side-title">Station &amp; agents</summary>
+    <a href="../station.html">Station &amp; capabilities</a>
+    <a href="crew.html" class="active" aria-current="page">Set up your crew</a>
+    <a href="../agents.html">Agents, teams &amp; voice</a>
+    <a href="goals.html">Goals, quests &amp; XP</a>
+    </details>
+    <details class="side-group">
+    <summary class="side-title">Conveyor workflows</summary>
+    <a href="first-line.html">Build your first workflow</a>
+    <a href="conveyors.html">Conveyor basics</a>
+    <a href="filter.html">Filter &amp; route work</a>
+    <a href="splitter-joiner.html">Split &amp; combine results</a>
+    </details>
+    <details class="side-group">
+    <summary class="side-title">Repeat &amp; automate</summary>
+    <a href="routines.html">Create repeatable work</a>
+    <a href="../skills.html">Skills &amp; routines reference</a>
+    <a href="night-shift.html">Set up Night Shift</a>
+    <a href="../autonomy.html">Autonomy controls</a>
+    </details>
+    <details class="side-group">
+    <summary class="side-title">Connect your tools</summary>
+    <a href="../connect-a-platform.html">Connect a service</a>
+    <a href="channels.html">Messaging channels</a>
+    <a href="../connectors.html">Connectors &amp; MCP reference</a>
+    <a href="../migrating.html">From OpenClaw or Hermes</a>
+    </details>
+    <details class="side-group">
+    <summary class="side-title">Troubleshooting &amp; help</summary>
+    <a href="../help.html">Help center</a>
+    <a href="../troubleshooting.html">Troubleshooting</a>
+    <a href="../shortcuts.html">Keyboard shortcuts</a>
+    <a href="../glossary.html">Glossary</a>
+    </details>
     </nav>
   </aside>
-  <main class="docs-main">
+  <main class="docs-main" id="main-content" tabindex="-1">
 <div class="fm-hero">
 <div class="fh-kicker">// FIELD MANUAL &middot; AGENTS &amp; GEAR</div>
-<h1>YOUR CREW &amp; THEIR GEAR</h1>
+<h1>Set up your crew</h1>
 <p class="fh-sub">Agents do the work. The gear you place decides what they&rsquo;re able to do.</p>
 <div class="gearstrip">
 <div class="gs"><img src="props/console.png" alt="CONSOLE prop, actual in-game art"><span class="gs-n">CONSOLE</span><span class="gs-p">COMPUTE</span></div>
@@ -89,13 +98,13 @@
 <p class="fh-cap">actual in-game art &mdash; and one of each covers your whole station</p>
 </div>
 <div class="q-tags" style="margin:-10px 0 22px"><span class="tag hot">PLAIN ENGLISH</span><span class="tag">~4 MIN</span><span class="tag">NO SETUP NEEDED TO READ</span></div>
-<h2><span class="h-num">01</span>Getting an agent</h2>
+<h2 id="getting-an-agent"><span class="h-num">01</span>Getting an agent</h2>
 <p class="lede">Hit <b>RECRUIT</b>. Pick a class. That&rsquo;s it &mdash; they walk in.</p>
 <p>A class is a head start, not a cage: a RESEARCHER comes tuned for digging, a WRITER for drafting, an ENGINEER for code. You can re-spec anyone later from the same door.</p>
 <div class="tip"><span class="lbl">// NOTHING IS LOCKED</span>There are no levels to grind and no unlocks. A brand-new agent can use everything your station has, from minute one.</div>
-<h2><span class="h-num">02</span>One desk each</h2>
+<h2 id="one-desk-each"><span class="h-num">02</span>One desk each</h2>
 <p>An agent working on a line needs a desk (a <b>BAY</b>). One agent per desk, one desk per agent. Want three jobs running at the same time? That&rsquo;s three agents at three desks.</p>
-<h2><span class="h-num">03</span>Gear = powers</h2>
+<h2 id="gear-powers"><span class="h-num">03</span>Gear = powers</h2>
 <p class="lede">Furniture isn&rsquo;t decoration. The right gear switches on a real ability &mdash; and <b>one of each is enough for the entire station</b>.</p>
 <div class="gearcards">
 <div class="gc"><div class="gc-art"><img src="props/console.png" alt="CONSOLE, actual in-game art"></div><div class="gc-body"><span class="gc-n">CONSOLE</span><span class="gc-p">grants COMPUTE</span><p>lets them run at all &mdash; no PC, no work</p></div></div>
@@ -109,12 +118,12 @@
 <div class="tip"><span class="lbl">// PLACE ONE, NOT ONE EACH</span>Gear is shared. One dish, one cabinet, one databank &mdash; place it once and your whole crew draws on it. You never furnish per agent, and adding agents never means buying the station again.</div>
 <div class="trap"><span class="lbl">// THE ONE EXCEPTION</span>Computers. Every agent needs <b>their own PC</b> at their desk &mdash; a desk without one shows <b>NO COMPUTE</b> and that agent cannot run.</div>
 <div class="tip"><span class="lbl">// IF AN AGENT &ldquo;CAN&rsquo;T&rdquo; DO SOMETHING</span>Check the gear before you blame the agent. No dish = no web. No cabinet = no files. Place the thing and the ability switches on. No restart, no settings.</div>
-<h2><span class="h-num">04</span>Where next</h2>
+<h2 id="where-next"><span class="h-num">04</span>Where next</h2>
 <div class="quest-grid">
 <a class="quest" href="conveyors.html"><div class="q-thumb"><svg viewBox="0 0 282 162" role="img" aria-label="A filtered line branching to two bays"><rect class="d-machine d-lit" x="6" y="21" width="60" height="60"/><rect class="d-inner" x="14" y="29" width="44" height="10"/><g class="d-chev"><polyline points="29,48 36,57 43,48"/></g><defs><clipPath id="cl85"><rect x="66" y="36" width="60" height="30"/></clipPath></defs><rect class="d-belt" x="66" y="36" width="60" height="30"/><g class="d-rail"><line x1="66" y1="38" x2="126" y2="38"/><line x1="66" y1="64" x2="126" y2="64"/></g><g clip-path="url(#cl85)"><g class="d-chev march"><polyline points="46,44 55,51 46,58"/><polyline points="76,44 85,51 76,58"/><polyline points="106,44 115,51 106,58"/></g></g><rect class="d-machine d-lit" x="126" y="36" width="30" height="30"/><defs><clipPath id="cl86"><rect x="156" y="36" width="60" height="30"/></clipPath></defs><rect class="d-belt" x="156" y="36" width="60" height="30"/><g class="d-rail"><line x1="156" y1="38" x2="216" y2="38"/><line x1="156" y1="64" x2="216" y2="64"/></g><g clip-path="url(#cl86)"><g class="d-chev march"><polyline points="136,44 145,51 136,58"/><polyline points="166,44 175,51 166,58"/><polyline points="196,44 205,51 196,58"/></g></g><circle class="d-led blink" cx="208" cy="42" r="3"/><rect class="d-machine" x="216" y="21" width="60" height="60"/><rect class="d-inner" x="224" y="62" width="44" height="9"/><circle class="d-led blink" cx="231" cy="36" r="4"/><rect class="d-plate" x="242" y="30" width="26" height="12"/><defs><clipPath id="cl87"><rect x="126" y="66" width="30" height="30"/></clipPath></defs><rect class="d-belt" x="126" y="66" width="30" height="30"/><g class="d-rail"><line x1="128" y1="66" x2="128" y2="96"/><line x1="154" y1="66" x2="154" y2="96"/></g><g clip-path="url(#cl87)"><g class="d-chev march-s"><polyline points="134,46 141,55 148,46"/><polyline points="134,76 141,85 148,76"/></g></g><rect class="d-belt" x="126" y="96" width="30" height="30"/><g class="d-chev"><polyline points="136,104 145,111 136,118"/></g><defs><clipPath id="cl88"><rect x="156" y="96" width="60" height="30"/></clipPath></defs><rect class="d-belt" x="156" y="96" width="60" height="30"/><g class="d-rail"><line x1="156" y1="98" x2="216" y2="98"/><line x1="156" y1="124" x2="216" y2="124"/></g><g clip-path="url(#cl88)"><g class="d-chev march"><polyline points="136,104 145,111 136,118"/><polyline points="166,104 175,111 166,118"/><polyline points="196,104 205,111 196,118"/></g></g><circle class="d-led blink" cx="208" cy="102" r="3"/><rect class="d-machine" x="216" y="81" width="60" height="60"/><rect class="d-inner" x="224" y="122" width="44" height="9"/><circle class="d-led blink" cx="231" cy="96" r="4"/><rect class="d-plate" x="242" y="90" width="26" height="12"/><g class="ride " style="--ride-end:30px;--ride-mid:15px"><ellipse class="d-shadow" cx="171" cy="65" rx="10" ry="3"/><rect class="d-crate" x="160" y="40" width="22" height="22"/><rect class="d-crate-top" x="160" y="40" width="22" height="6"/></g><g class="ride d2" style="--ride-end:30px;--ride-mid:15px"><ellipse class="d-shadow" cx="171" cy="125" rx="10" ry="3"/><rect class="d-crate" x="160" y="100" width="22" height="22"/><rect class="d-crate-top" x="160" y="100" width="22" height="6"/></g></svg></div><div class="q-body"><span class="q-title">HOW CONVEYORS WORK</span><p class="q-blurb">Put your crew on a line so jobs flow through them on their own.</p><div class="q-tags"><span class="tag hot">CORE <span class="pips">&#9679;&#9679;<i>&#9679;</i></span></span><span class="tag">~5 MIN</span></div></div></a>
 <a class="quest" href="channels.html"><div class="q-thumb"><svg viewBox="0 0 560 268" role="img" aria-label="A phone chatting with a small robot agent: your message crosses to it, the finished work comes back to the chat."><rect class="d-phonebody" x="36" y="20" width="118" height="214" rx="14"/><rect class="d-phonescreen" x="44" y="36" width="102" height="180" rx="4"/><rect x="82" y="27" width="26" height="4" rx="2" fill="rgba(255,157,47,.35)"/><rect x="78" y="223" width="34" height="4" rx="2" fill="rgba(255,157,47,.3)"/><rect class="bub-you" x="72" y="48" width="66" height="20" rx="6"/><rect class="bub-min" x="52" y="78" width="58" height="20" rx="6"/><rect class="bub-you" x="86" y="108" width="52" height="20" rx="6"/><rect class="bub-min" x="52" y="138" width="36" height="20" rx="6"/><circle class="d-led" cx="61" cy="148" r="2.6"/><circle class="d-led blink" cx="70" cy="148" r="2.6"/><circle class="d-led" cx="79" cy="148" r="2.6"/><g class="d-sub"><text x="95" y="254" text-anchor="middle">you — anywhere</text></g><path class="d-signal" d="M 162 90 C 230 56, 300 56, 368 92"/><polygon class="d-sigarrow" points="368,92 356,84 358,96"/><path class="d-signal" d="M 372 150 C 304 186, 234 186, 166 152"/><polygon class="d-sigarrow" points="166,152 178,146 177,158"/><g class="d-note"><text x="267" y="46" text-anchor="middle">“draft the launch post”</text></g><g class="d-note"><text x="267" y="200" text-anchor="middle">the finished work, back in the chat</text></g><line x1="452.4" y1="60" x2="452.4" y2="43.8" stroke="rgba(255,157,47,.55)" stroke-width="2.025"/><circle class="d-led blink" cx="452.4" cy="39.75" r="4.59"/><rect class="d-minion" x="420" y="60" width="64.8" height="51.3" rx="5.4"/><rect class="d-eye" x="433.5" y="76.2" width="12.15" height="14.85"/><rect class="d-eye" x="459.15" y="76.2" width="12.15" height="14.85"/><rect x="441.6" y="99.15" width="21.6" height="4.05" fill="rgba(255,157,47,.35)"/><rect class="d-minion" x="428.1" y="114" width="48.6" height="35.1" rx="4.05"/><rect class="d-minion" x="414.6" y="119.4" width="10.8" height="21.6"/><rect class="d-minion" x="479.4" y="119.4" width="10.8" height="21.6"/><rect class="d-minion" x="433.5" y="150.45" width="14.85" height="9.45"/><rect class="d-minion" x="456.45" y="150.45" width="14.85" height="9.45"/><rect x="444.3" y="122.1" width="16.2" height="6.75" fill="rgba(255,157,47,.3)"/><g class="d-sub"><text x="452" y="254" text-anchor="middle">your agent — home, at the station</text></g></svg></div><div class="q-body"><span class="q-title">RUN IT FROM YOUR PHONE</span><p class="q-blurb">Hand your crew work from anywhere.</p><div class="q-tags"><span class="tag">~3 MIN</span></div></div></a>
 </div>
-<nav class="doc-pager" aria-label="Previous and next"><a class="pg prev" href="splitter-joiner.html"><span class="pg-k">&larr; PREVIOUS</span><span class="pg-t">SPLITTER &amp; JOINER</span></a><a class="pg next" href="goals.html"><span class="pg-k">NEXT &rarr;</span><span class="pg-t">GOALS, QUESTS &amp; XP</span></a></nav>
+<nav class="doc-pager" aria-label="More in Station &amp; agents"><a class="pg prev" href="../station.html"><span class="pg-k">&larr; PREVIOUS</span><span class="pg-t">Station &amp; capabilities</span></a><a class="pg next" href="../agents.html"><span class="pg-k">NEXT &rarr;</span><span class="pg-t">Agents, teams &amp; voice</span></a></nav>
   </main>
 </div>
 
@@ -135,7 +144,8 @@
   <div class="footer-fine">MIT license &middot; &copy; <span id="year">2026</span> StarNet &middot; no telemetry, no tracking &mdash; <a href="../../legal/privacy.html">we collect nothing</a></div>
 </footer>
 
-<script src="../search-index.js?v=20260903"></script>
-<script src="../docs.js?v=20260903"></script>
+<script src="../search-index.js?v=20260913-brand-nav"></script>
+<script src="../search.js?v=20260913-brand-nav"></script>
+<script src="../docs.js?v=20260913-brand-nav"></script>
 </body>
 </html>

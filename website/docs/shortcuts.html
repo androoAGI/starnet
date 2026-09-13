@@ -3,83 +3,92 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Keyboard Shortcuts — StarNet Docs</title>
+<title>Keyboard shortcuts — StarNet Docs</title>
 <meta name="description" content="Every keyboard shortcut StarNet actually binds: fullscreen, the ten REFIT build tools, undo and redo, camera keys, and window navigation.">
 <link rel="canonical" href="https://starnetos.com/docs/shortcuts.html">
 <link rel="icon" type="image/svg+xml" href="../assets/favicon.svg">
-<link rel="stylesheet" href="docs.css?v=20260903">
+<link rel="stylesheet" href="docs.css?v=20260913-brand-nav">
 </head>
-<body class="docs-page" data-group="HELP" data-title="KEYBOARD SHORTCUTS">
+<body class="docs-page" data-group="Troubleshooting &amp; help" data-group-id="help" data-kind="Reference" data-title="Keyboard shortcuts">
+<a class="skip-link" href="#main-content">Skip to content</a>
 
 <div class="crt-scan" aria-hidden="true"></div>
 <div class="crt-vignette" aria-hidden="true"></div>
 
 <header class="topbar" id="topbar">
-  <a class="brand" href="../index.html">STARNET TERMLINK</a>
+  <a class="brand" href="../index.html" aria-label="StarNet home"><img src="../assets/starnet-logo-small.png" alt="StarNet" width="355" height="60"></a>
   <nav class="topnav" aria-label="Site">
-    <a href="../index.html#station">WHAT IT IS</a>
-    <a href="../index.html#difference">FEATURES</a>
-    <a href="index.html" class="on">DOCS</a>
-    <a href="../pricing.html" data-pricing-link>PRICING</a>
-    <a href="../index.html#download">DOWNLOAD</a>
-    <a href="https://github.com/androoAGI/starnet" target="_blank" rel="noopener">GITHUB</a>
+    <a href="../index.html#station">Product</a>
+    <a href="index.html" class="on">Docs</a>
+    <a href="../pricing.html" data-pricing-link>Pricing</a>
+    <a href="https://github.com/androoAGI/starnet" target="_blank" rel="noopener">GitHub<svg class="nav-external" aria-hidden="true" focusable="false" viewBox="0 0 16 16" width="12" height="12"><path d="M3 13 13 3M4 3h9v9" fill="none" stroke="currentColor" stroke-width="1.5"/></svg></a>
   </nav>
   <span class="topbar-right">
-    <a href="help.html">HELP</a>
-    <span class="live-dot"><span class="dot"></span>OPEN SOURCE</span>
+    <a href="help.html">Help</a>
+    <a class="nav-download" href="../index.html#download">Download &darr;</a>
   </span>
 </header>
 
 <div class="docs-shell">
   <aside class="docs-side" id="docs-side">
-    <button class="side-toggle" type="button" aria-expanded="false" aria-controls="side-nav">[ MENU ]</button>
-    <div class="side-search"><span class="ss-glyph">&gt;</span><input id="docs-search" type="search" placeholder="search docs  ( / )" autocomplete="off" spellcheck="false" aria-label="Search docs"><div class="ss-results" id="docs-results" hidden></div></div>
+    <div class="side-home">Documentation</div>
+    <div class="side-search"><label class="sr-only" for="docs-search">Search docs</label><input id="docs-search" type="search" placeholder="Search docs…" autocomplete="off" spellcheck="false" aria-controls="docs-results" aria-expanded="false"><kbd class="search-key" aria-hidden="true">/</kbd><div class="ss-results" id="docs-results" hidden></div><span id="docs-search-status" class="sr-only" role="status" aria-live="polite"></span></div>
+    <button class="side-toggle" type="button" aria-expanded="false" aria-controls="side-nav">Browse documentation</button>
     <nav id="side-nav" class="side-nav" aria-label="Docs">
-    <div class="side-group" data-group="START HERE">
-    <div class="side-title">// START HERE</div>
-    <a href="index.html">DOCS HOME</a>
-    <a href="getting-started.html">GETTING STARTED</a>
-    <a href="guides/first-line.html">YOUR FIRST WORKING LINE</a>
-    <a href="providers.html">PROVIDERS &amp; KEYS</a>
-    </div>
-    <div class="side-group" data-group="FIELD MANUAL">
-    <div class="side-title">// FIELD MANUAL</div>
-    <a href="guides/index.html">ALL GUIDES</a>
-    <a href="guides/conveyors.html">HOW CONVEYORS WORK</a>
-    <a href="guides/filter.html">SORTING WORK WITH A FILTER</a>
-    <a href="guides/splitter-joiner.html">SPLITTER &amp; JOINER</a>
-    <a href="guides/crew.html">YOUR CREW &amp; THEIR GEAR</a>
-    <a href="guides/goals.html">GOALS, QUESTS &amp; XP</a>
-    <a href="guides/night-shift.html">NIGHT SHIFT</a>
-    <a href="guides/routines.html">SKILLS, RECIPES &amp; ROUTINES</a>
-    <a href="guides/channels.html">RUN IT FROM YOUR PHONE</a>
-    </div>
-    <div class="side-group" data-group="REFERENCE">
-    <div class="side-title">// REFERENCE</div>
-    <a href="station.html">THE STATION</a>
-    <a href="agents.html">AGENTS &amp; TEAMS</a>
-    <a href="autonomy.html">AUTONOMY &amp; NIGHT SHIFT</a>
-    <a href="skills.html">SKILLS, RECIPES, ROUTINES</a>
-    <a href="connect-a-platform.html">CONNECT A PLATFORM</a>
-    <a href="connectors.html">CONNECTORS &amp; INTEROP</a>
-    <a href="migrating.html">FROM OPENCLAW / HERMES</a>
-    </div>
-    <div class="side-group" data-group="HELP">
-    <div class="side-title">// HELP</div>
-    <a href="help.html">HELP CENTER</a>
-    <a href="troubleshooting.html">TROUBLESHOOTING</a>
-    <a href="shortcuts.html" class="active" aria-current="page">KEYBOARD SHORTCUTS</a>
-    <a href="glossary.html">GLOSSARY</a>
-    </div>
+      <div class="side-quick">
+      <a href="index.html">Docs overview</a>
+      <a href="guides/index.html">Step-by-step guides</a>
+      </div>
+      <p class="side-label">Browse topics</p>
+    <details class="side-group">
+    <summary class="side-title">Start here</summary>
+    <a href="getting-started.html">Install &amp; first task</a>
+    <a href="providers.html">Models &amp; providers</a>
+    </details>
+    <details class="side-group">
+    <summary class="side-title">Station &amp; agents</summary>
+    <a href="station.html">Station &amp; capabilities</a>
+    <a href="guides/crew.html">Set up your crew</a>
+    <a href="agents.html">Agents, teams &amp; voice</a>
+    <a href="guides/goals.html">Goals, quests &amp; XP</a>
+    </details>
+    <details class="side-group">
+    <summary class="side-title">Conveyor workflows</summary>
+    <a href="guides/first-line.html">Build your first workflow</a>
+    <a href="guides/conveyors.html">Conveyor basics</a>
+    <a href="guides/filter.html">Filter &amp; route work</a>
+    <a href="guides/splitter-joiner.html">Split &amp; combine results</a>
+    </details>
+    <details class="side-group">
+    <summary class="side-title">Repeat &amp; automate</summary>
+    <a href="guides/routines.html">Create repeatable work</a>
+    <a href="skills.html">Skills &amp; routines reference</a>
+    <a href="guides/night-shift.html">Set up Night Shift</a>
+    <a href="autonomy.html">Autonomy controls</a>
+    </details>
+    <details class="side-group">
+    <summary class="side-title">Connect your tools</summary>
+    <a href="connect-a-platform.html">Connect a service</a>
+    <a href="guides/channels.html">Messaging channels</a>
+    <a href="connectors.html">Connectors &amp; MCP reference</a>
+    <a href="migrating.html">From OpenClaw or Hermes</a>
+    </details>
+    <details class="side-group" open>
+    <summary class="side-title">Troubleshooting &amp; help</summary>
+    <a href="help.html">Help center</a>
+    <a href="troubleshooting.html">Troubleshooting</a>
+    <a href="shortcuts.html" class="active" aria-current="page">Keyboard shortcuts</a>
+    <a href="glossary.html">Glossary</a>
+    </details>
     </nav>
   </aside>
-  <main class="docs-main">
-<h1>KEYBOARD SHORTCUTS</h1>
+  <main class="docs-main" id="main-content" tabindex="-1">
+<h1>Keyboard shortcuts</h1>
 <p class="doc-sub">// every key the app actually binds &mdash; nothing aspirational</p>
 <p>This list is read off the shipped code. If a key isn&rsquo;t here, the app doesn&rsquo;t bind it. Most things in StarNet are clicks by design; the keys below are the ones worth memorising.</p>
 
 
-<h2>Anywhere in the station</h2>
+<h2 id="anywhere-in-the-station">Anywhere in the station</h2>
 <div class="keys">
   <div class="keyrow"><span class="kd">Toggle fullscreen</span><span class="kk"><kbd>F11</kbd></span></div>
   <div class="keyrow"><span class="kd">Close the open window (inside a text field, blurs the field first)</span><span class="kk"><kbd>Esc</kbd></span></div>
@@ -89,7 +98,7 @@
   <div class="keyrow"><span class="kd">Move focus between controls inside a window</span><span class="kk"><kbd>Tab</kbd> / <kbd>Shift</kbd><span class="plus">+</span><kbd>Tab</kbd></span></div>
 </div>
 
-<h2>REFIT STATION (build mode)</h2>
+<h2 id="refit-station-build-mode">REFIT STATION (build mode)</h2>
 <p>These are live only while REFIT is open. Open it from the bottom bar: <b>&#9874; BUILD &rsaquo; REFIT STATION</b>. There is no hotkey to open REFIT itself.</p>
 <div class="keys">
   <div class="keyrow"><span class="kd"><b>SELECT</b> &mdash; click a machine to open it</span><span class="kk"><kbd>0</kbd></span></div>
@@ -103,7 +112,7 @@
   <div class="keyrow"><span class="kd"><b>DUPE</b> &mdash; click a thing to copy it</span><span class="kk"><kbd>8</kbd></span></div>
   <div class="keyrow"><span class="kd"><b>LINES</b> &mdash; pick a ready-made line, then click the deck</span><span class="kk"><kbd>9</kbd></span></div>
 </div>
-<h3>Editing and camera, inside REFIT</h3>
+<h3 id="editing-and-camera-inside-refit">Editing and camera, inside REFIT</h3>
 <div class="keys">
   <div class="keyrow"><span class="kd">Undo</span><span class="kk"><kbd>Ctrl</kbd><span class="plus">+</span><kbd>Z</kbd></span></div>
   <div class="keyrow"><span class="kd">Redo</span><span class="kk"><kbd>Ctrl</kbd><span class="plus">+</span><kbd>Y</kbd> or <kbd>Ctrl</kbd><span class="plus">+</span><kbd>Shift</kbd><span class="plus">+</span><kbd>Z</kbd></span></div>
@@ -116,7 +125,7 @@
 </div>
 <div class="callout">On a Mac, <kbd>Cmd</kbd> works wherever <kbd>Ctrl</kbd> is listed. Belts have no rotate key: re-lay a belt over an existing one and it re-aims in place; <kbd>R</kbd> and <kbd>M</kbd> turn props, not belts.</div>
 
-<h2>COMMS and windows</h2>
+<h2 id="comms-and-windows">COMMS and windows</h2>
 <div class="keys">
   <div class="keyrow"><span class="kd">Complete a slash command in the composer</span><span class="kk"><kbd>Tab</kbd></span></div>
   <div class="keyrow"><span class="kd">Run the slash command</span><span class="kk"><kbd>Enter</kbd></span></div>
@@ -128,12 +137,12 @@
   <div class="keyrow"><span class="kd">Workstream / project row menu</span><span class="kk"><kbd>Shift</kbd><span class="plus">+</span><kbd>F10</kbd></span></div>
 </div>
 
-<h2>On these docs pages</h2>
+<h2 id="on-these-docs-pages">On these docs pages</h2>
 <div class="keys">
   <div class="keyrow"><span class="kd">Search the docs</span><span class="kk"><kbd>/</kbd></span></div>
   <div class="keyrow"><span class="kd">Previous / next page</span><span class="kk"><kbd>[</kbd> / <kbd>]</kbd></span></div>
 </div>
-<nav class="doc-pager" aria-label="Previous and next"><a class="pg prev" href="troubleshooting.html"><span class="pg-k">&larr; PREVIOUS</span><span class="pg-t">TROUBLESHOOTING</span></a><a class="pg next" href="glossary.html"><span class="pg-k">NEXT &rarr;</span><span class="pg-t">GLOSSARY</span></a></nav>
+<nav class="doc-pager" aria-label="More in Troubleshooting &amp; help"><a class="pg prev" href="troubleshooting.html"><span class="pg-k">&larr; PREVIOUS</span><span class="pg-t">Troubleshooting</span></a><a class="pg next" href="glossary.html"><span class="pg-k">NEXT &rarr;</span><span class="pg-t">Glossary</span></a></nav>
   </main>
 </div>
 
@@ -154,7 +163,8 @@
   <div class="footer-fine">MIT license &middot; &copy; <span id="year">2026</span> StarNet &middot; no telemetry, no tracking &mdash; <a href="../legal/privacy.html">we collect nothing</a></div>
 </footer>
 
-<script src="search-index.js?v=20260903"></script>
-<script src="docs.js?v=20260903"></script>
+<script src="search-index.js?v=20260913-brand-nav"></script>
+<script src="search.js?v=20260913-brand-nav"></script>
+<script src="docs.js?v=20260913-brand-nav"></script>
 </body>
 </html>

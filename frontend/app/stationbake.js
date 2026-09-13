@@ -102,6 +102,8 @@ const StationBake = (() => {
   const WALL_TONE = { face: -0.32, top: -0.10, cap: 0.30 };   // cap back at the shipped +0.30 (2026-09-05, Andrew with a 0.10.13 frame: "there is no wall line") — the bright crown IS how a top-down view reads a wall; the exterior's darkness lives in HULL_EXPOSURE, never here
   let wallPalCache = null;
   function wallPal(z) {
+    if (typeof IndustrialTextures !== 'undefined' && IndustrialTextures.enabled())
+      return { base: '#393832', face: '#292821', top: '#424037', cap: '#575246' };
     let p = wallPalCache && wallPalCache.get(z);
     if (p) return p;
     const base = (G && G.wallBaseOf && G.wallBaseOf(z)) || '#3a3b41';
@@ -2482,6 +2484,8 @@ const StationBake = (() => {
   const STRIP_TILES = 4;
   let stripCache = null;
   function faceStrip(matId, pal, h) {
+    if (matId !== 'viewport' && typeof IndustrialTextures !== 'undefined' && IndustrialTextures.enabled())
+      return IndustrialTextures.wallStrip(h);
     const key = matId + '|' + pal.base + '|' + h;
     const tx0 = 0, ty = 0;
     if (stripCache && stripCache.has(key)) return stripCache.get(key);
@@ -2573,6 +2577,10 @@ const StationBake = (() => {
         const c = stripAt(strip, o + a, d);
         if (c !== null) put(d, a, c);
       }
+      if (strip.hi) IndustrialTextures.wallPatch(b, x, y, w, h, strip, (px, py) => ({
+        a: axis === 'x' ? py : px,
+        d: dir > 0 ? (axis === 'x' ? px - x : py - y) + .5 : depth - .5 - (axis === 'x' ? px - x : py - y)
+      }));
       return;
     }
     const put = (d, a, n, color) => {
@@ -2656,6 +2664,7 @@ const StationBake = (() => {
     // the panel seam grid — the shipped shell, phase-locked to the same world grid it always used
     // (lines at x = 5 + 28k, y = 9 + 26k), so a re-clad station and an untouched one still align.
     dress(b, pal, x, y, w, h) {
+      if (typeof IndustrialTextures !== 'undefined' && IndustrialTextures.shellPlate(b, x, y, w, h)) return;
       b.strokeStyle = pal.seam; b.lineWidth = 1;
       for (let gx = 5 + Math.ceil((x - 5) / 28) * 28; gx < x + w; gx += 28) { b.beginPath(); b.moveTo(gx + .5, y); b.lineTo(gx + .5, y + h); b.stroke(); }
       for (let gy = 9 + Math.ceil((y - 9) / 26) * 26; gy < y + h; gy += 26) { b.beginPath(); b.moveTo(x, gy + .5); b.lineTo(x + w, gy + .5); b.stroke(); }
@@ -2689,6 +2698,7 @@ const StationBake = (() => {
        deliberate break of the axis's pixel-parity property, taken on Andrew's call; everything
        BELOW the veins pass still matches the pre-axis bake byte for byte. */
     veins(fg, pal, w, h, vx, vy, topOf) {
+      if (typeof IndustrialTextures !== 'undefined' && IndustrialTextures.shell(fg, w, h, vx, vy, topOf)) return;
       coursedVein(fg, w, h, vx, vy, {
         ch: STRAKE,
         crest: 'rgba(172,195,222,0.055)',      // the sky-catch along a plate's top edge
@@ -3277,7 +3287,7 @@ const StationBake = (() => {
         else if (ed.speck && h2(fixed, i, 'wedge') % 3 === 0) c = U.shade(base, 0.16);
       }
       const px = d0 + step * i;
-      if (horiz) put(px, fixed, 1, 1, c); else put(fixed, px, 1, 1, c);
+      if (horiz) put(px, fixed, 1, 1, c, map); else put(fixed, px, 1, 1, c, map);
     }
   }
 
@@ -3299,7 +3309,7 @@ const StationBake = (() => {
     const yLo = outY < 0 ? Math.round(cy - HR) : Y, yHi = outY < 0 ? Y + T : Math.round(cy + HR);
     const lit = shade(pal.cap, 0.30), seam = shade(pal.cap, -0.45);
     const ccy = Math.round(Y / T);
-    const put = (x, y, w, h, c, interior = false) => {
+    const put = (x, y, w, h, c, interior = false, textureMap = null) => {
       const x0 = Math.max(xLo, x), x1 = Math.min(xHi, x + w);
       const y0 = Math.max(yLo, y), y1 = Math.min(yHi, y + h);
       if (x1 <= x0 || y1 <= y0) return;
@@ -3314,6 +3324,8 @@ const StationBake = (() => {
         const yEnd = Math.min(y1, lim);
         if (yEnd > y0) {
           b.fillStyle = c; b.fillRect(cx0, y0, cx1 - cx0, yEnd - y0);
+          if (textureMap && strip && strip.hi)
+            IndustrialTextures.wallPatch(b, cx0, y0, cx1 - cx0, yEnd - y0, strip, textureMap);
           // Record the face AFTER clipping to the silhouette and nearer walls.
           // A raised corner is an interior wall, even above the floor footprint.
           if (interior) cornerFaceRects.push([cx0, y0, cx1 - cx0, yEnd - y0]);
@@ -3325,7 +3337,7 @@ const StationBake = (() => {
         cx0 = cx1;
       }
     };
-    const putFace = (x, y, w, h, c) => put(x, y, w, h, c, true);
+    const putFace = (x, y, w, h, c, map) => put(x, y, w, h, c, true, map);
     /* the 45° split between the two duals — where the profile's own reach equals the distance along
        it, i.e. rad·2^(-1/n). At n = 2 that is the circle's HR/√2, written verbatim; at n = 1 (the
        shipped chamfer) it is HR/2, and using the circle's split there handed a slab of the chamfer
@@ -3363,7 +3375,8 @@ const StationBake = (() => {
          spacing; that reads as the wall turning away from you, and it is the end Andrew explicitly
          deprioritised ("focus on blending with the back wall mainly").
          Depth stays radial: it is what carries the courses and rails round as concentric bands. */
-      return { a: px, d: Math.max(0, Math.floor((HR - 2 - w) - r)) };
+      const depth = (HR - 2 - w) - r;
+      return { a: px, d: Math.max(0, strip && strip.hi ? depth : Math.floor(depth)) };
     };
     /* the DECK's own curve is the inner limit for the face fill — everything from the ladder down
        to it is wall face. Same centre and rounding convention as the deck cut itself, so the face
@@ -4148,8 +4161,13 @@ const StationBake = (() => {
       const pal = hullPal(grp.z);
       const recipe = HULL_RECIPES[hullMatOf(grp.z)] || hullStation;
       const sil = sils[gi];
+      const shellContext = cv => {
+        const g = cv.getContext('2d');
+        return recipe === hullStation && typeof IndustrialTextures !== 'undefined'
+          ? IndustrialTextures.detailContext(g) : g;
+      };
       const f = canvas(CW, CH2);
-      const fg = f.getContext('2d');
+      const fg = shellContext(f);
       const stamp = (dy, c) => {
         tg.globalCompositeOperation = 'source-over';
         tg.clearRect(0, 0, CW, CH2); tg.drawImage(sil, 0, dy);
@@ -4169,12 +4187,12 @@ const StationBake = (() => {
            pixels it owns, so a room standing in front of another can no longer drag its neighbour's
            coursing down with it. Rendered to a scratch layer and folded in source-atop, because the
            marks must land only where this group's skirt already is. */
-        const marks = canvas(CW, CH2), mg = marks.getContext('2d');
+        const marks = canvas(CW, CH2), mg = shellContext(marks);
         mg.imageSmoothingEnabled = false;
         if (recipe.veins && own && tops) {
           for (let i = 0; i < rects.length; i++) {
             if (groupOfRect[i] !== gi) continue;
-            const one = canvas(CW, CH2), og = one.getContext('2d');
+            const one = canvas(CW, CH2), og = shellContext(one);
             og.imageSmoothingEnabled = false;
             // world-coord keying: the canvas' top-left is world (VX, VY - M), so a recipe adding
             // these offsets gets marks that land on the same world pixel in every chunk showing them
@@ -4601,7 +4619,8 @@ const StationBake = (() => {
 
   function buildBase() {
     const baseCv = canvas(CW, CH);
-    const b = translatedContext(baseCv);
+    const rawContext = translatedContext(baseCv);
+    const b = typeof IndustrialTextures !== 'undefined' ? IndustrialTextures.detailContext(rawContext) : rawContext;
 
     /* THE EXTERIOR SHELL, PER FOOTPRINT (2026-08-05). Every pass below used to run once for the whole
        station off a single constant; each is now driven by the owning room's HULL_RECIPES entry.
@@ -5190,8 +5209,12 @@ const StationBake = (() => {
   }
 
   function drawBase(ctx, baked, ox, oy, visibleRect) {
-    if (baked && baked.chunked) for (const c of visibleChunks(baked, visibleRect)) ctx.drawImage(c.baseCv, ox + c.x, oy + c.y);
-    else if (baked && baked.baseCv) ctx.drawImage(baked.baseCv, ox, oy);
+    const draw = (cv, x, y) => {
+      if (typeof IndustrialTextures !== 'undefined' && IndustrialTextures.drawBase(ctx, cv, x, y)) return;
+      ctx.drawImage(cv, x, y);
+    };
+    if (baked && baked.chunked) for (const c of visibleChunks(baked, visibleRect)) draw(c.baseCv, ox + c.x, oy + c.y);
+    else if (baked && baked.baseCv) draw(baked.baseCv, ox, oy);
   }
   function drawLight(ctx, baked, ox, oy, visibleRect) {
     if (baked && baked.chunked) for (const c of visibleChunks(baked, visibleRect)) ctx.drawImage(c.lightCv, ox + c.x, oy + c.y);

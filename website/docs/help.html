@@ -3,78 +3,87 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Help Center — StarNet Docs</title>
+<title>Help center — StarNet Docs</title>
 <meta name="description" content="StarNet help center: the fastest route to an answer — picture guides, troubleshooting, keyboard shortcuts, glossary, common questions, and how to reach a human.">
 <link rel="canonical" href="https://starnetos.com/docs/help.html">
 <link rel="icon" type="image/svg+xml" href="../assets/favicon.svg">
-<link rel="stylesheet" href="docs.css?v=20260903">
+<link rel="stylesheet" href="docs.css?v=20260913-brand-nav">
 </head>
-<body class="docs-page" data-group="HELP" data-title="HELP CENTER">
+<body class="docs-page" data-group="Troubleshooting &amp; help" data-group-id="help" data-kind="Help" data-title="Help center">
+<a class="skip-link" href="#main-content">Skip to content</a>
 
 <div class="crt-scan" aria-hidden="true"></div>
 <div class="crt-vignette" aria-hidden="true"></div>
 
 <header class="topbar" id="topbar">
-  <a class="brand" href="../index.html">STARNET TERMLINK</a>
+  <a class="brand" href="../index.html" aria-label="StarNet home"><img src="../assets/starnet-logo-small.png" alt="StarNet" width="355" height="60"></a>
   <nav class="topnav" aria-label="Site">
-    <a href="../index.html#station">WHAT IT IS</a>
-    <a href="../index.html#difference">FEATURES</a>
-    <a href="index.html" class="on">DOCS</a>
-    <a href="../pricing.html" data-pricing-link>PRICING</a>
-    <a href="../index.html#download">DOWNLOAD</a>
-    <a href="https://github.com/androoAGI/starnet" target="_blank" rel="noopener">GITHUB</a>
+    <a href="../index.html#station">Product</a>
+    <a href="index.html" class="on">Docs</a>
+    <a href="../pricing.html" data-pricing-link>Pricing</a>
+    <a href="https://github.com/androoAGI/starnet" target="_blank" rel="noopener">GitHub<svg class="nav-external" aria-hidden="true" focusable="false" viewBox="0 0 16 16" width="12" height="12"><path d="M3 13 13 3M4 3h9v9" fill="none" stroke="currentColor" stroke-width="1.5"/></svg></a>
   </nav>
   <span class="topbar-right">
-    <a href="help.html">HELP</a>
-    <span class="live-dot"><span class="dot"></span>OPEN SOURCE</span>
+    <a href="help.html">Help</a>
+    <a class="nav-download" href="../index.html#download">Download &darr;</a>
   </span>
 </header>
 
 <div class="docs-shell">
   <aside class="docs-side" id="docs-side">
-    <button class="side-toggle" type="button" aria-expanded="false" aria-controls="side-nav">[ MENU ]</button>
-    <div class="side-search"><span class="ss-glyph">&gt;</span><input id="docs-search" type="search" placeholder="search docs  ( / )" autocomplete="off" spellcheck="false" aria-label="Search docs"><div class="ss-results" id="docs-results" hidden></div></div>
+    <div class="side-home">Documentation</div>
+    <div class="side-search"><label class="sr-only" for="docs-search">Search docs</label><input id="docs-search" type="search" placeholder="Search docs…" autocomplete="off" spellcheck="false" aria-controls="docs-results" aria-expanded="false"><kbd class="search-key" aria-hidden="true">/</kbd><div class="ss-results" id="docs-results" hidden></div><span id="docs-search-status" class="sr-only" role="status" aria-live="polite"></span></div>
+    <button class="side-toggle" type="button" aria-expanded="false" aria-controls="side-nav">Browse documentation</button>
     <nav id="side-nav" class="side-nav" aria-label="Docs">
-    <div class="side-group" data-group="START HERE">
-    <div class="side-title">// START HERE</div>
-    <a href="index.html">DOCS HOME</a>
-    <a href="getting-started.html">GETTING STARTED</a>
-    <a href="guides/first-line.html">YOUR FIRST WORKING LINE</a>
-    <a href="providers.html">PROVIDERS &amp; KEYS</a>
-    </div>
-    <div class="side-group" data-group="FIELD MANUAL">
-    <div class="side-title">// FIELD MANUAL</div>
-    <a href="guides/index.html">ALL GUIDES</a>
-    <a href="guides/conveyors.html">HOW CONVEYORS WORK</a>
-    <a href="guides/filter.html">SORTING WORK WITH A FILTER</a>
-    <a href="guides/splitter-joiner.html">SPLITTER &amp; JOINER</a>
-    <a href="guides/crew.html">YOUR CREW &amp; THEIR GEAR</a>
-    <a href="guides/goals.html">GOALS, QUESTS &amp; XP</a>
-    <a href="guides/night-shift.html">NIGHT SHIFT</a>
-    <a href="guides/routines.html">SKILLS, RECIPES &amp; ROUTINES</a>
-    <a href="guides/channels.html">RUN IT FROM YOUR PHONE</a>
-    </div>
-    <div class="side-group" data-group="REFERENCE">
-    <div class="side-title">// REFERENCE</div>
-    <a href="station.html">THE STATION</a>
-    <a href="agents.html">AGENTS &amp; TEAMS</a>
-    <a href="autonomy.html">AUTONOMY &amp; NIGHT SHIFT</a>
-    <a href="skills.html">SKILLS, RECIPES, ROUTINES</a>
-    <a href="connect-a-platform.html">CONNECT A PLATFORM</a>
-    <a href="connectors.html">CONNECTORS &amp; INTEROP</a>
-    <a href="migrating.html">FROM OPENCLAW / HERMES</a>
-    </div>
-    <div class="side-group" data-group="HELP">
-    <div class="side-title">// HELP</div>
-    <a href="help.html" class="active" aria-current="page">HELP CENTER</a>
-    <a href="troubleshooting.html">TROUBLESHOOTING</a>
-    <a href="shortcuts.html">KEYBOARD SHORTCUTS</a>
-    <a href="glossary.html">GLOSSARY</a>
-    </div>
+      <div class="side-quick">
+      <a href="index.html">Docs overview</a>
+      <a href="guides/index.html">Step-by-step guides</a>
+      </div>
+      <p class="side-label">Browse topics</p>
+    <details class="side-group">
+    <summary class="side-title">Start here</summary>
+    <a href="getting-started.html">Install &amp; first task</a>
+    <a href="providers.html">Models &amp; providers</a>
+    </details>
+    <details class="side-group">
+    <summary class="side-title">Station &amp; agents</summary>
+    <a href="station.html">Station &amp; capabilities</a>
+    <a href="guides/crew.html">Set up your crew</a>
+    <a href="agents.html">Agents, teams &amp; voice</a>
+    <a href="guides/goals.html">Goals, quests &amp; XP</a>
+    </details>
+    <details class="side-group">
+    <summary class="side-title">Conveyor workflows</summary>
+    <a href="guides/first-line.html">Build your first workflow</a>
+    <a href="guides/conveyors.html">Conveyor basics</a>
+    <a href="guides/filter.html">Filter &amp; route work</a>
+    <a href="guides/splitter-joiner.html">Split &amp; combine results</a>
+    </details>
+    <details class="side-group">
+    <summary class="side-title">Repeat &amp; automate</summary>
+    <a href="guides/routines.html">Create repeatable work</a>
+    <a href="skills.html">Skills &amp; routines reference</a>
+    <a href="guides/night-shift.html">Set up Night Shift</a>
+    <a href="autonomy.html">Autonomy controls</a>
+    </details>
+    <details class="side-group">
+    <summary class="side-title">Connect your tools</summary>
+    <a href="connect-a-platform.html">Connect a service</a>
+    <a href="guides/channels.html">Messaging channels</a>
+    <a href="connectors.html">Connectors &amp; MCP reference</a>
+    <a href="migrating.html">From OpenClaw or Hermes</a>
+    </details>
+    <details class="side-group" open>
+    <summary class="side-title">Troubleshooting &amp; help</summary>
+    <a href="help.html" class="active" aria-current="page">Help center</a>
+    <a href="troubleshooting.html">Troubleshooting</a>
+    <a href="shortcuts.html">Keyboard shortcuts</a>
+    <a href="glossary.html">Glossary</a>
+    </details>
     </nav>
   </aside>
-  <main class="docs-main">
-<h1>HELP CENTER</h1>
+  <main class="docs-main" id="main-content" tabindex="-1">
+<h1>Help center</h1>
 <p class="doc-sub">// the fastest route to an answer</p>
 <p>Type what you&rsquo;re stuck on into the search box on the left (press <kbd>/</kbd> from anywhere), or start with one of these.</p>
 
@@ -87,49 +96,49 @@
   <a class="help-card" href="glossary.html"><span class="hc-glyph">&#9776;</span><span class="hc-title">WHAT DOES THIS WORD MEAN</span><p>Bay, belt, line, dossier, leash, sidecar &mdash; the station&rsquo;s vocabulary in plain English.</p></a>
 </div>
 
-<h2>Help inside the app</h2>
+<h2 id="help-inside-the-app">Help inside the app</h2>
 <p>Open <b>&#9635; SYSTEM &rsaquo; &sect; FIELD MANUAL</b>. The <b>FIRST STEPS</b> tab has a <b>REPLAY QUICK TOUR</b> button that re-runs the real onboarding tour &mdash; the same one that placed your first gear and ran your first command. Every button in the station also has a tooltip that says what it does and, where one exists, its shortcut.</p>
 
-<h2>Common questions</h2>
+<h2 id="common-questions">Common questions</h2>
 <div class="faq">
-  <h3>Installing</h3>
+  <h3 id="installing">Installing</h3>
   <details><summary>Windows says &ldquo;Windows protected your PC&rdquo;</summary><p>SmartScreen can warn while a signing certificate builds reputation. Open <b>More info</b>, check the publisher matches the release notes, and proceed only then. Details in <a href="troubleshooting.html">troubleshooting</a>.</p></details>
   <details><summary>macOS says the app is damaged or can&rsquo;t be opened</summary><p>Public Mac builds must pass Apple notarization. A Gatekeeper failure on a real release is something to report, not bypass: <a href="mailto:androo.agi@gmail.com">androo.agi@gmail.com</a> with the exact message and version.</p></details>
   <details><summary>Which Mac download do I need?</summary><p>Apple menu &rarr; <b>About This Mac</b>. &ldquo;Apple M&hellip;&rdquo; means Apple Silicon (<code>aarch64.dmg</code>); &ldquo;Intel&rdquo; means Intel (<code>x64.dmg</code>). The wrong one won&rsquo;t run.</p></details>
   <details><summary>Can I run it without installing?</summary><p>Yes &mdash; clone the repo and <code>npm install &amp;&amp; npm start</code> with Node 18+. The station opens at <code>localhost:8787</code>. Keys live in a local file instead of the OS keychain in that mode.</p></details>
 
-  <h3>Keys, models and cost</h3>
+  <h3 id="keys-models-and-cost">Keys, models and cost</h3>
   <details><summary>Which providers work?</summary><p>Eighteen, including OpenRouter (the default), OpenAI, Anthropic, Gemini, xAI, Groq, Mistral, DeepSeek, Together, Fireworks, Perplexity, Cerebras, any OpenAI-compatible endpoint, and Ollama (free, fully local). Three need no key at all &mdash; ChatGPT, Grok, and Kimi sign in with a device code. Full list in <a href="providers.html">Providers &amp; Keys</a>.</p></details>
   <details><summary>Where is my API key stored?</summary><p>In the desktop app: your operating system&rsquo;s keychain, handed to the local sidecar at start. It is sent only to the provider you chose, from your machine. Nothing goes to a StarNet server. See <a href="../legal/privacy.html">privacy</a>.</p></details>
   <details><summary>How do I stop it spending money?</summary><p>Every conveyor line has a per-job budget ($2.00 unless you raise it). <b>SETTINGS &rsaquo; BUDGET</b> adds hard caps per run, per agent, per day, and globally, enforced against the real ledger. Use Stop in COMMS for the current task, and pause scheduled work in its own panel.</p></details>
   <details><summary>What do StarNet Credits change?</summary><p>Nothing about how the app works &mdash; it&rsquo;s one more provider, <b>STARNET</b>, that runs on a prepaid balance instead of a key you manage. Linking a station opens an account on the billing service; payment always happens in your browser, never in the app. Optional, never required.</p></details>
 
-  <h3>Belts and lines</h3>
+  <h3 id="belts-and-lines">Belts and lines</h3>
   <details><summary>Do I need belts at all?</summary><p>No. Chatting with an agent in COMMS needs no belts. Belts are for jobs that should flow through several agents on their own. <a href="guides/conveyors.html">How conveyors work</a> explains the whole idea in five minutes.</p></details>
   <details><summary>The belt is dark and nothing moves</summary><p>Follow it to the end. You&rsquo;ll find an empty desk (<b>NO AGENT &mdash; CLICK</b>), a gap, or a belt clipping the corner of a signpost instead of going through it (<b>NOT FED</b>). The full list of floor messages is in <a href="guides/conveyors.html#somethings-not-running">the conveyor guide</a>.</p></details>
   <details><summary>It says WORK LINE LOOPS</summary><p>Two desks feed each other, which would run and bill forever. The station refuses to run it. Cut one belt &mdash; or, if you want a revision cycle on purpose, put a <b>LOOP</b> tile on it (up to 5 passes by default, 20 max).</p></details>
   <details><summary>I don&rsquo;t want to build anything</summary><p>The <b>LINES</b> tool (<kbd>9</kbd> in REFIT) drops one of 19 finished layouts in a click. <a href="guides/first-line.html">Your first working line</a> walks through it.</p></details>
 
-  <h3>Agents and the station</h3>
+  <h3 id="agents-and-the-station">Agents and the station</h3>
   <details><summary>How many agents can I have?</summary><p>As many as you have bays for. Every bay is another agent running in parallel. Each needs a computer in its room (the floor says <b>NO COMPUTE</b> otherwise); everything else &mdash; dish, cabinet, workbench, core &mdash; is placed once and shared by the whole crew.</p></details>
   <details><summary>Why can&rsquo;t my agent browse the web / read files?</summary><p>Because the gear isn&rsquo;t placed. A <b>DISH</b> grants WEB, an <b>INTEL CAB</b> grants FILES, a <b>WORKBENCH</b> grants TERMINAL, a <b>CORE</b> grants MEMORY, a <b>STUDIO</b> grants IMAGES. Place it in REFIT and the ability switches on. <a href="guides/crew.html">Your crew &amp; their gear</a>.</p></details>
   <details><summary>How do I rename an agent or change its look?</summary><p><b>&#9787; CREW &rsaquo; &#9673; AGENTS</b> opens the dossier. The <b>&#9998;</b> beside the name renames; the <b>CONFIG</b> tab has a <b>SKIN</b> picker with a live preview. Both are cosmetic &mdash; nothing about the agent&rsquo;s record changes.</p></details>
   <details><summary>Does the level unlock anything?</summary><p>No. Levels are proof of work you rated well. Every tool, model, and permission is available from minute one. <a href="guides/goals.html">Goals, quests &amp; XP</a>.</p></details>
 
-  <h3>Night Shift and phones</h3>
+  <h3 id="night-shift-and-phones">Night Shift and phones</h3>
   <details><summary>Will it do things while I&rsquo;m away?</summary><p>Not until you turn the dial. INITIATIVE starts at <b>WAIT</b>. Even at <b>FREE</b>, REACH stays at <b>SANDBOX</b> &mdash; nothing leaves your machine unless you raise it yourself. <a href="guides/night-shift.html">Night Shift</a>.</p></details>
   <details><summary>Can I talk to my agents from my phone?</summary><p>Yes &mdash; pair Telegram, Discord, Slack, Matrix, or Signal. Your agents show up as contacts. <a href="guides/channels.html">Run it from your phone</a>.</p></details>
   <details><summary>My Telegram bot says DMs BLOCKED</summary><p>Telegram requires owner pairing so the first stranger to DM your bot doesn&rsquo;t own it. Hit <b>PAIR OWNER</b> in the CHANNELS window, then send <code>/pair</code> plus the one-time code to the bot within 10 minutes.</p></details>
 </div>
 
-<h2>Reach a human</h2>
+<h2 id="reach-a-human">Reach a human</h2>
 <div class="help-contact">
   <a href="https://github.com/androoAGI/starnet/issues" target="_blank" rel="noopener"><span class="hk">BUG OR REQUEST</span><span class="hv">GitHub issues</span><span class="hn">Best for anything reproducible. Include your version (bottom of the SYSTEM window) and OS.</span></a>
   <a href="mailto:androo.agi@gmail.com"><span class="hk">EMAIL</span><span class="hv">androo.agi@gmail.com</span><span class="hn">Trust failures, install problems, anything you&rsquo;d rather not post publicly.</span></a>
   <a href="https://github.com/androoAGI/starnet" target="_blank" rel="noopener"><span class="hk">READ THE SOURCE</span><span class="hv">github.com/androoAGI/starnet</span><span class="hn">MIT licensed. Every claim on this site can be checked against it.</span></a>
 </div>
 <div class="callout" style="margin-top:22px"><b>House rule:</b> these pages are read off the shipped code, not off a plan. If a page and your station disagree, one of them is a bug &mdash; tell us which.</div>
-<nav class="doc-pager" aria-label="Previous and next"><a class="pg prev" href="migrating.html"><span class="pg-k">&larr; PREVIOUS</span><span class="pg-t">FROM OPENCLAW / HERMES</span></a><a class="pg next" href="troubleshooting.html"><span class="pg-k">NEXT &rarr;</span><span class="pg-t">TROUBLESHOOTING</span></a></nav>
+<nav class="doc-pager" aria-label="More in Troubleshooting &amp; help"><span></span><a class="pg next" href="troubleshooting.html"><span class="pg-k">NEXT &rarr;</span><span class="pg-t">Troubleshooting</span></a></nav>
   </main>
 </div>
 
@@ -150,7 +159,8 @@
   <div class="footer-fine">MIT license &middot; &copy; <span id="year">2026</span> StarNet &middot; no telemetry, no tracking &mdash; <a href="../legal/privacy.html">we collect nothing</a></div>
 </footer>
 
-<script src="search-index.js?v=20260903"></script>
-<script src="docs.js?v=20260903"></script>
+<script src="search-index.js?v=20260913-brand-nav"></script>
+<script src="search.js?v=20260913-brand-nav"></script>
+<script src="docs.js?v=20260913-brand-nav"></script>
 </body>
 </html>

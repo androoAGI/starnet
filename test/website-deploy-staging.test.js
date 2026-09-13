@@ -43,7 +43,9 @@ A.eq(/data-social|discord\.gg|x\.com\/yourhandle/.test(home), false, 'homepage c
 const site = fs.readFileSync(path.join(root, 'website', 'site.js'), 'utf8');
 A.ok(/el\.hidden = !PRICING_LIVE/.test(site), 'the release flag explicitly reveals or hides every pricing fragment');
 A.eq(/RELEASES_PAGE/.test(site), false, 'unused release-page alias is gone');
-A.ok(/FALLBACK_VERSION = '0\.10\.13'/.test(site), 'offline release fallback is the latest signed train');
+const fallback = /FALLBACK_VERSION = '(\d+\.\d+\.\d+)'/.exec(site);
+A.ok(fallback, 'offline release fallback is an explicit public version');
+A.ok(fallback && home.includes('<span id="ver-badge">v' + fallback[1] + '</span>') && home.includes('<span class="ver">v' + fallback[1] + '</span>'), 'raw homepage release labels agree with the offline fallback');
 
 const privacy = fs.readFileSync(path.join(root, 'website', 'legal', 'privacy.html'), 'utf8');
 A.ok(/Edge Read Aloud/.test(privacy) && !/Live Voice works with no network at all/.test(privacy), 'public voice disclosure names the network fallback without an absolute offline claim');

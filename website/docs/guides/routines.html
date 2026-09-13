@@ -3,113 +3,122 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Skills, Recipes & Routines — StarNet Field Manual</title>
+<title>Create repeatable work — StarNet Docs</title>
 <meta name="description" content="Plain-English guide to the three kinds of repeatable work in StarNet: recipes (what to run), routines (when it runs), and skills (how an agent does it).">
 <link rel="canonical" href="https://starnetos.com/docs/guides/routines.html">
 <link rel="icon" type="image/svg+xml" href="../../assets/favicon.svg">
-<link rel="stylesheet" href="guides.css?v=20260903">
+<link rel="stylesheet" href="guides.css?v=20260913-brand-nav">
 </head>
-<body class="docs-page" data-group="FIELD MANUAL" data-title="SKILLS, RECIPES &amp; ROUTINES">
+<body class="docs-page" data-group="Repeat &amp; automate" data-group-id="automation" data-kind="Guide" data-title="Create repeatable work">
+<a class="skip-link" href="#main-content">Skip to content</a>
 
 <div class="crt-scan" aria-hidden="true"></div>
 <div class="crt-vignette" aria-hidden="true"></div>
 
 <header class="topbar" id="topbar">
-  <a class="brand" href="../../index.html">STARNET TERMLINK</a>
+  <a class="brand" href="../../index.html" aria-label="StarNet home"><img src="../../assets/starnet-logo-small.png" alt="StarNet" width="355" height="60"></a>
   <nav class="topnav" aria-label="Site">
-    <a href="../../index.html#station">WHAT IT IS</a>
-    <a href="../../index.html#difference">FEATURES</a>
-    <a href="../index.html" class="on">DOCS</a>
-    <a href="../../pricing.html" data-pricing-link>PRICING</a>
-    <a href="../../index.html#download">DOWNLOAD</a>
-    <a href="https://github.com/androoAGI/starnet" target="_blank" rel="noopener">GITHUB</a>
+    <a href="../../index.html#station">Product</a>
+    <a href="../index.html" class="on">Docs</a>
+    <a href="../../pricing.html" data-pricing-link>Pricing</a>
+    <a href="https://github.com/androoAGI/starnet" target="_blank" rel="noopener">GitHub<svg class="nav-external" aria-hidden="true" focusable="false" viewBox="0 0 16 16" width="12" height="12"><path d="M3 13 13 3M4 3h9v9" fill="none" stroke="currentColor" stroke-width="1.5"/></svg></a>
   </nav>
   <span class="topbar-right">
-    <a href="../help.html">HELP</a>
-    <span class="live-dot"><span class="dot"></span>OPEN SOURCE</span>
+    <a href="../help.html">Help</a>
+    <a class="nav-download" href="../../index.html#download">Download &darr;</a>
   </span>
 </header>
 
 <div class="docs-shell">
   <aside class="docs-side" id="docs-side">
-    <button class="side-toggle" type="button" aria-expanded="false" aria-controls="side-nav">[ MENU ]</button>
-    <div class="side-search"><span class="ss-glyph">&gt;</span><input id="docs-search" type="search" placeholder="search docs  ( / )" autocomplete="off" spellcheck="false" aria-label="Search docs"><div class="ss-results" id="docs-results" hidden></div></div>
+    <div class="side-home">Documentation</div>
+    <div class="side-search"><label class="sr-only" for="docs-search">Search docs</label><input id="docs-search" type="search" placeholder="Search docs…" autocomplete="off" spellcheck="false" aria-controls="docs-results" aria-expanded="false"><kbd class="search-key" aria-hidden="true">/</kbd><div class="ss-results" id="docs-results" hidden></div><span id="docs-search-status" class="sr-only" role="status" aria-live="polite"></span></div>
+    <button class="side-toggle" type="button" aria-expanded="false" aria-controls="side-nav">Browse documentation</button>
     <nav id="side-nav" class="side-nav" aria-label="Docs">
-    <div class="side-group" data-group="START HERE">
-    <div class="side-title">// START HERE</div>
-    <a href="../index.html">DOCS HOME</a>
-    <a href="../getting-started.html">GETTING STARTED</a>
-    <a href="first-line.html">YOUR FIRST WORKING LINE</a>
-    <a href="../providers.html">PROVIDERS &amp; KEYS</a>
-    </div>
-    <div class="side-group" data-group="FIELD MANUAL">
-    <div class="side-title">// FIELD MANUAL</div>
-    <a href="index.html">ALL GUIDES</a>
-    <a href="conveyors.html">HOW CONVEYORS WORK</a>
-    <a href="filter.html">SORTING WORK WITH A FILTER</a>
-    <a href="splitter-joiner.html">SPLITTER &amp; JOINER</a>
-    <a href="crew.html">YOUR CREW &amp; THEIR GEAR</a>
-    <a href="goals.html">GOALS, QUESTS &amp; XP</a>
-    <a href="night-shift.html">NIGHT SHIFT</a>
-    <a href="routines.html" class="active" aria-current="page">SKILLS, RECIPES &amp; ROUTINES</a>
-    <a href="channels.html">RUN IT FROM YOUR PHONE</a>
-    </div>
-    <div class="side-group" data-group="REFERENCE">
-    <div class="side-title">// REFERENCE</div>
-    <a href="../station.html">THE STATION</a>
-    <a href="../agents.html">AGENTS &amp; TEAMS</a>
-    <a href="../autonomy.html">AUTONOMY &amp; NIGHT SHIFT</a>
-    <a href="../skills.html">SKILLS, RECIPES, ROUTINES</a>
-    <a href="../connect-a-platform.html">CONNECT A PLATFORM</a>
-    <a href="../connectors.html">CONNECTORS &amp; INTEROP</a>
-    <a href="../migrating.html">FROM OPENCLAW / HERMES</a>
-    </div>
-    <div class="side-group" data-group="HELP">
-    <div class="side-title">// HELP</div>
-    <a href="../help.html">HELP CENTER</a>
-    <a href="../troubleshooting.html">TROUBLESHOOTING</a>
-    <a href="../shortcuts.html">KEYBOARD SHORTCUTS</a>
-    <a href="../glossary.html">GLOSSARY</a>
-    </div>
+      <div class="side-quick">
+      <a href="../index.html">Docs overview</a>
+      <a href="index.html">Step-by-step guides</a>
+      </div>
+      <p class="side-label">Browse topics</p>
+    <details class="side-group">
+    <summary class="side-title">Start here</summary>
+    <a href="../getting-started.html">Install &amp; first task</a>
+    <a href="../providers.html">Models &amp; providers</a>
+    </details>
+    <details class="side-group">
+    <summary class="side-title">Station &amp; agents</summary>
+    <a href="../station.html">Station &amp; capabilities</a>
+    <a href="crew.html">Set up your crew</a>
+    <a href="../agents.html">Agents, teams &amp; voice</a>
+    <a href="goals.html">Goals, quests &amp; XP</a>
+    </details>
+    <details class="side-group">
+    <summary class="side-title">Conveyor workflows</summary>
+    <a href="first-line.html">Build your first workflow</a>
+    <a href="conveyors.html">Conveyor basics</a>
+    <a href="filter.html">Filter &amp; route work</a>
+    <a href="splitter-joiner.html">Split &amp; combine results</a>
+    </details>
+    <details class="side-group" open>
+    <summary class="side-title">Repeat &amp; automate</summary>
+    <a href="routines.html" class="active" aria-current="page">Create repeatable work</a>
+    <a href="../skills.html">Skills &amp; routines reference</a>
+    <a href="night-shift.html">Set up Night Shift</a>
+    <a href="../autonomy.html">Autonomy controls</a>
+    </details>
+    <details class="side-group">
+    <summary class="side-title">Connect your tools</summary>
+    <a href="../connect-a-platform.html">Connect a service</a>
+    <a href="channels.html">Messaging channels</a>
+    <a href="../connectors.html">Connectors &amp; MCP reference</a>
+    <a href="../migrating.html">From OpenClaw or Hermes</a>
+    </details>
+    <details class="side-group">
+    <summary class="side-title">Troubleshooting &amp; help</summary>
+    <a href="../help.html">Help center</a>
+    <a href="../troubleshooting.html">Troubleshooting</a>
+    <a href="../shortcuts.html">Keyboard shortcuts</a>
+    <a href="../glossary.html">Glossary</a>
+    </details>
     </nav>
   </aside>
-  <main class="docs-main">
+  <main class="docs-main" id="main-content" tabindex="-1">
 <div class="fm-hero">
 <div class="fh-kicker">// FIELD MANUAL &middot; REPEATABLE WORK</div>
-<h1>SKILLS, RECIPES &amp; ROUTINES</h1>
+<h1>Create repeatable work</h1>
 <p class="fh-sub">Recipes are WHAT to run. Routines are WHEN. Skills are HOW.</p>
 <svg viewBox="0 0 600 200" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="A routine clock drops a job into the INBOX every weekday at 7:00; it rides a belt to a researcher bay which runs a recipe, and the brief lands in the OUTBOX"><defs></defs><circle class="d-node" cx="70" cy="105" r="30"/><line x1="70" y1="105" x2="70" y2="86" stroke="var(--amber)" stroke-width="2"/><line x1="70" y1="105" x2="84" y2="105" stroke="var(--amber-b)" stroke-width="2"/><g class="d-label"><text x="70" y="160" text-anchor="middle">ROUTINE</text></g><g class="d-sub"><text x="70" y="175" text-anchor="middle">every weekday 7:00</text></g><line class="d-path" x1="100" y1="105" x2="130" y2="105"/><rect class="d-machine d-lit" x="130" y="75" width="60" height="60"/><rect class="d-inner" x="138" y="83" width="44" height="44"/><circle class="d-led blink" cx="183" cy="82" r="2.5"/><g class="d-label"><text x="160" y="152" text-anchor="middle">INBOX</text></g><g class="d-sub"><text x="160" y="167" text-anchor="middle">the job drops in</text></g><clipPath id="cp55"><rect x="190" y="90" width="150" height="30"/></clipPath><rect class="d-belt" x="190" y="90" width="150" height="30"/><g class="d-rail"><line x1="190" y1="90" x2="340" y2="90"/><line x1="190" y1="120" x2="340" y2="120"/></g><g clip-path="url(#cp55)"><g class="d-chev march"><polyline points="171,98 179,105 171,112"/><polyline points="201,98 209,105 201,112"/><polyline points="231,98 239,105 231,112"/><polyline points="261,98 269,105 261,112"/><polyline points="291,98 299,105 291,112"/><polyline points="321,98 329,105 321,112"/><polyline points="351,98 359,105 351,112"/></g></g><rect class="d-machine d-lit" x="340" y="75" width="60" height="60"/><rect class="d-inner" x="348" y="83" width="44" height="44"/><circle class="d-led blink" cx="393" cy="82" r="2.5"/><circle cx="370" cy="101" r="5" fill="rgba(255,157,47,.7)"/><rect x="363" y="107" width="14" height="9" rx="2" fill="rgba(255,157,47,.55)"/><g class="d-label"><text x="370" y="152" text-anchor="middle">BAY &middot; RESEARCHER</text></g><g class="d-sub"><text x="370" y="167" text-anchor="middle">runs the RECIPE</text></g><clipPath id="cp56"><rect x="400" y="90" width="90" height="30"/></clipPath><rect class="d-belt" x="400" y="90" width="90" height="30"/><g class="d-rail"><line x1="400" y1="90" x2="490" y2="90"/><line x1="400" y1="120" x2="490" y2="120"/></g><g clip-path="url(#cp56)"><g class="d-chev march"><polyline points="381,98 389,105 381,112"/><polyline points="411,98 419,105 411,112"/><polyline points="441,98 449,105 441,112"/><polyline points="471,98 479,105 471,112"/><polyline points="501,98 509,105 501,112"/></g></g><rect class="d-machine d-lit" x="490" y="75" width="60" height="60"/><rect class="d-inner" x="498" y="83" width="44" height="44"/><circle class="d-led blink" cx="543" cy="82" r="2.5"/><g class="d-label"><text x="520" y="152" text-anchor="middle">OUTBOX</text></g><g class="d-sub"><text x="520" y="167" text-anchor="middle">the morning brief</text></g><g class="ride" style="--ride-end:150px;--ride-mid:75px"><rect class="d-shadow" x="196" y="112" width="20" height="4" rx="2"/><rect class="d-crate" x="195" y="94" width="20" height="20"/><rect class="d-crate-top" x="195" y="94" width="20" height="5"/></g><g class="ride d2" style="--ride-end:90px;--ride-mid:45px"><rect class="d-shadow" x="406" y="112" width="20" height="4" rx="2"/><rect class="d-crate" x="405" y="94" width="20" height="20"/><rect class="d-crate-top" x="405" y="94" width="20" height="5"/></g><g class="d-note"><text x="340" y="36" text-anchor="middle">uses a SKILL if one matches the work</text></g></svg>
 </div>
-<div class="q-tags" style="margin:-10px 0 22px"><span class="tag hot">PLAIN ENGLISH</span><span class="tag">~4 MIN</span><span class="tag">NO SETUP NEEDED TO READ</span></div><h2><span class="h-num">01</span>Three words, three jobs</h2><div class="glossary" style="grid-template-columns:repeat(3,1fr)">
+<div class="q-tags" style="margin:-10px 0 22px"><span class="tag hot">PLAIN ENGLISH</span><span class="tag">~4 MIN</span><span class="tag">NO SETUP NEEDED TO READ</span></div><h2 id="three-words-three-jobs"><span class="h-num">01</span>Three words, three jobs</h2><div class="glossary" style="grid-template-columns:repeat(3,1fr)">
 <div class="gl"><span class="gl-w">RECIPE</span><span class="gl-m">WHAT to run &mdash; a ready-made job with a tiny form</span></div>
 <div class="gl"><span class="gl-w">ROUTINE</span><span class="gl-m">WHEN it runs &mdash; a job on a schedule</span></div>
 <div class="gl"><span class="gl-w">SKILL</span><span class="gl-m">HOW to do it &mdash; a procedure an agent follows mid-task</span></div>
 </div>
-<p class="lede">&ldquo;Every weekday at 7, brief me on my competitors.&rdquo; That&rsquo;s a <b>recipe</b> (the brief) on a <b>routine</b> (7:00 weekdays), and the researcher may pull a <b>skill</b> (how to source claims properly) while doing it.</p><h2><span class="h-num">02</span>Recipes: pick a job off the shelf</h2><p>Open <b>WORK &rsaquo; &#9635; RECIPES</b>. There are <b>101 built-in recipes</b> in eight shelves &mdash; <b>developer</b>, <b>research</b>, <b>creator</b>, <b>ops</b>, <b>business</b>, <b>money</b>, <b>data</b>, <b>general</b>. Pick one, fill in its two or three fields, and it lands on TASKS as a real job for your crew.</p>
+<p class="lede">&ldquo;Every weekday at 7, brief me on my competitors.&rdquo; That&rsquo;s a <b>recipe</b> (the brief) on a <b>routine</b> (7:00 weekdays), and the researcher may pull a <b>skill</b> (how to source claims properly) while doing it.</p><h2 id="recipes-pick-a-job-off-the-shelf"><span class="h-num">02</span>Recipes: pick a job off the shelf</h2><p>Open <b>WORK &rsaquo; &#9635; RECIPES</b>. There are <b>101 built-in recipes</b> in eight shelves &mdash; <b>developer</b>, <b>research</b>, <b>creator</b>, <b>ops</b>, <b>business</b>, <b>money</b>, <b>data</b>, <b>general</b>. Pick one, fill in its two or three fields, and it lands on TASKS as a real job for your crew.</p>
 <div class="whys">
 <div class="why"><div class="w-title">Save your own</div><p><b>&#65291; SAVE A RECIPE</b> turns any job you keep typing into a form. Edit, tweak, or fork a built-in the same way.</p></div>
 <div class="why"><div class="w-title">Put it on a clock</div><p>Every recipe card has <b>&#9719; MAKE ROUTINE</b>. One click turns the WHAT into a WHEN.</p></div>
 <div class="why"><div class="w-title">Let the station suggest</div><p>The recommender ranks all 101 against what you actually do and offers one at a time &mdash; with the reason, or not at all.</p></div>
-</div><h2><span class="h-num">03</span>Routines: the same job, on a schedule</h2><p>Open <b>WORK &rsaquo; &#8734; AUTOMATION</b> and hit <b>+ ADD ROUTINE</b>. Write the job (or start from a recipe), pick who runs it, and answer <b>WHEN SHOULD IT RUN?</b> &mdash; a morning brief, a nightly summary, a recurring check.</p>
+</div><h2 id="routines-the-same-job-on-a-schedule"><span class="h-num">03</span>Routines: the same job, on a schedule</h2><p>Open <b>WORK &rsaquo; &#8734; AUTOMATION</b> and hit <b>+ ADD ROUTINE</b>. Write the job (or start from a recipe), pick who runs it, and answer <b>WHEN SHOULD IT RUN?</b> &mdash; a morning brief, a nightly summary, a recurring check.</p>
 <ol class="buildsteps">
 <li><div class="b-text"><span class="b-title">Write the job</span><p>Plain words. &ldquo;Summarize what changed in my inbox since yesterday and flag anything that needs a reply.&rdquo; Choose the agent.</p></div><div class="b-shot"><svg viewBox="0 0 600 200" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="A routine clock drops a job into the INBOX every weekday at 7:00; it rides a belt to a researcher bay which runs a recipe, and the brief lands in the OUTBOX"><defs></defs><circle class="d-node" cx="70" cy="105" r="30"/><line x1="70" y1="105" x2="70" y2="86" stroke="var(--amber)" stroke-width="2"/><line x1="70" y1="105" x2="84" y2="105" stroke="var(--amber-b)" stroke-width="2"/><g class="d-label"><text x="70" y="160" text-anchor="middle">ROUTINE</text></g><g class="d-sub"><text x="70" y="175" text-anchor="middle">every weekday 7:00</text></g><line class="d-path" x1="100" y1="105" x2="130" y2="105"/><rect class="d-machine d-lit" x="130" y="75" width="60" height="60"/><rect class="d-inner" x="138" y="83" width="44" height="44"/><circle class="d-led blink" cx="183" cy="82" r="2.5"/><g class="d-label"><text x="160" y="152" text-anchor="middle">INBOX</text></g><g class="d-sub"><text x="160" y="167" text-anchor="middle">the job drops in</text></g><clipPath id="cp57"><rect x="190" y="90" width="150" height="30"/></clipPath><rect class="d-belt" x="190" y="90" width="150" height="30"/><g class="d-rail"><line x1="190" y1="90" x2="340" y2="90"/><line x1="190" y1="120" x2="340" y2="120"/></g><g clip-path="url(#cp57)"><g class="d-chev march"><polyline points="171,98 179,105 171,112"/><polyline points="201,98 209,105 201,112"/><polyline points="231,98 239,105 231,112"/><polyline points="261,98 269,105 261,112"/><polyline points="291,98 299,105 291,112"/><polyline points="321,98 329,105 321,112"/><polyline points="351,98 359,105 351,112"/></g></g><rect class="d-machine d-lit" x="340" y="75" width="60" height="60"/><rect class="d-inner" x="348" y="83" width="44" height="44"/><circle class="d-led blink" cx="393" cy="82" r="2.5"/><circle cx="370" cy="101" r="5" fill="rgba(255,157,47,.7)"/><rect x="363" y="107" width="14" height="9" rx="2" fill="rgba(255,157,47,.55)"/><g class="d-label"><text x="370" y="152" text-anchor="middle">BAY &middot; RESEARCHER</text></g><g class="d-sub"><text x="370" y="167" text-anchor="middle">runs the RECIPE</text></g><clipPath id="cp58"><rect x="400" y="90" width="90" height="30"/></clipPath><rect class="d-belt" x="400" y="90" width="90" height="30"/><g class="d-rail"><line x1="400" y1="90" x2="490" y2="90"/><line x1="400" y1="120" x2="490" y2="120"/></g><g clip-path="url(#cp58)"><g class="d-chev march"><polyline points="381,98 389,105 381,112"/><polyline points="411,98 419,105 411,112"/><polyline points="441,98 449,105 441,112"/><polyline points="471,98 479,105 471,112"/><polyline points="501,98 509,105 501,112"/></g></g><rect class="d-machine d-lit" x="490" y="75" width="60" height="60"/><rect class="d-inner" x="498" y="83" width="44" height="44"/><circle class="d-led blink" cx="543" cy="82" r="2.5"/><g class="d-label"><text x="520" y="152" text-anchor="middle">OUTBOX</text></g><g class="d-sub"><text x="520" y="167" text-anchor="middle">the morning brief</text></g><g class="ride" style="--ride-end:150px;--ride-mid:75px"><rect class="d-shadow" x="196" y="112" width="20" height="4" rx="2"/><rect class="d-crate" x="195" y="94" width="20" height="20"/><rect class="d-crate-top" x="195" y="94" width="20" height="5"/></g><g class="ride d2" style="--ride-end:90px;--ride-mid:45px"><rect class="d-shadow" x="406" y="112" width="20" height="4" rx="2"/><rect class="d-crate" x="405" y="94" width="20" height="20"/><rect class="d-crate-top" x="405" y="94" width="20" height="5"/></g><g class="d-note"><text x="340" y="36" text-anchor="middle">uses a SKILL if one matches the work</text></g></svg><div class="b-cap">the job a routine will drop in</div></div></li>
 <li><div class="b-text"><span class="b-title">Pick the schedule</span><p>Every weekday at 7. Every Sunday night. Every 2 hours. The picker shows exactly when the next run will be.</p></div><div class="b-shot"><svg viewBox="0 0 360 120" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="A schedule picker showing NEXT RUN tomorrow 7:00"><rect x="20" y="16" width="320" height="88" fill="rgba(0,0,0,.55)" stroke="rgba(255,157,47,.4)"/><g class="d-label"><text x="34" y="40">WHEN SHOULD IT RUN?</text></g><rect class="d-pill on" x="34" y="54" width="120" height="24"/><g class="d-pill-t on"><text x="94" y="71">WEEKDAYS 7:00</text></g><g class="d-sub"><text x="34" y="96">next run: tomorrow, 7:00 AM</text></g></svg><div class="b-cap">the WHEN picker</div></div></li>
 <li><div class="b-text"><span class="b-title">Arm the scheduler</span><p>Routines only fire while scheduling is on: <b>&#9654; ENABLE SCHEDULING</b>. Off, a routine is saved but dormant &mdash; the panel says <b>&#9675; SCHEDULING IS OFF</b> so nothing is ambiguous.</p></div><div class="b-shot"><svg viewBox="0 0 360 120" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Two states: SCHEDULING IS OFF and ENABLE SCHEDULING"><rect class="d-pill" x="20" y="24" width="150" height="28"/><g class="d-pill-t"><text x="95" y="43">&#9675; SCHEDULING IS OFF</text></g><rect class="d-pill on" x="190" y="24" width="150" height="28"/><g class="d-pill-t on"><text x="265" y="43">&#9654; ENABLE SCHEDULING</text></g><g class="d-sub"><text x="20" y="90">a saved automation pause can be resumed</text></g></svg><div class="b-cap">saved is not the same as armed</div></div></li>
 </ol>
-<p>Where does the job land? At the <b>INBOX</b>. A routine is exactly the &ldquo;outside work&rdquo; the front door exists for &mdash; it drops onto your belts and flows through your line like any other job. No belts? It goes straight to the agent&rsquo;s bay.</p><div class="tip"><span class="lbl">// THREE MORE DOORS</span>Routines can also be created from an <b>INBOX</b>&rsquo;s TRIGGER zone in REFIT, proposed by the station itself when it notices a pattern, or from your phone: <b>/routine add &lt;schedule&gt; | &lt;task&gt;</b> in any paired channel.</div><h2><span class="h-num">04</span>Skills: how an agent does the work</h2><p>A skill is a procedure document. Agents don&rsquo;t launch skills &mdash; they <b>consult</b> them when a task matches. Open <b>BUILD &rsaquo; &#8644; ABILITIES</b>:</p>
+<p>Where does the job land? At the <b>INBOX</b>. A routine is exactly the &ldquo;outside work&rdquo; the front door exists for &mdash; it drops onto your belts and flows through your line like any other job. No belts? It goes straight to the agent&rsquo;s bay.</p><div class="tip"><span class="lbl">// THREE MORE DOORS</span>Routines can also be created from an <b>INBOX</b>&rsquo;s TRIGGER zone in REFIT, proposed by the station itself when it notices a pattern, or from your phone: <b>/routine add &lt;schedule&gt; | &lt;task&gt;</b> in any paired channel.</div><h2 id="skills-how-an-agent-does-the-work"><span class="h-num">04</span>Skills: how an agent does the work</h2><p>A skill is a procedure document. Agents don&rsquo;t launch skills &mdash; they <b>consult</b> them when a task matches. Open <b>BUILD &rsaquo; &#8644; ABILITIES</b>:</p>
 <table>
 <tr><th>Section</th><th>What&rsquo;s in it</th></tr>
 <tr><td><b>SKILL LIBRARY</b></td><td>73 pre-installed procedures, grouped by kind. A skill stays <b>locked</b> until the agent has the gear it needs &mdash; a browsing skill needs the DISH placed.</td></tr>
 <tr><td><b>AGENT SKILLS</b></td><td>Procedures your agents wrote or learned themselves. They appear as a compact index in future runs; the full body loads only when a task matches.</td></tr>
 <tr><td><b>SKILL EXCHANGE</b></td><td>Paste an HTTPS or GitHub link to a <b>SKILL.md</b> and hit <b>INSPECT</b> &mdash; you see provenance and a guard review before anything installs. Or import an exported package.</td></tr>
 </table>
-<p>There is no blank &ldquo;write a skill&rdquo; form. Skills enter the station two ways: an agent writes one from experience, or you install one you&rsquo;ve inspected. A routine can name up to 8 skills its agent should have on hand.</p><h2><span class="h-num">05</span>How they fit together</h2><div class="story">
+<p>There is no blank &ldquo;write a skill&rdquo; form. Skills enter the station two ways: an agent writes one from experience, or you install one you&rsquo;ve inspected. A routine can name up to 8 skills its agent should have on hand.</p><h2 id="how-they-fit-together"><span class="h-num">05</span>How they fit together</h2><div class="story">
 <div class="st"><span class="st-n">1</span><p>A <b>ROUTINE</b> fires at 7:00 and drops a job at the INBOX.</p></div>
 <div class="st"><span class="st-n">2</span><p>The job is a <b>RECIPE</b> &mdash; &ldquo;competitor brief&rdquo; with your three fields filled in.</p></div>
 <div class="st"><span class="st-n">3</span><p>The researcher pulls a matching <b>SKILL</b> mid-run &mdash; how to source every claim.</p></div>
 <div class="st"><span class="st-n">4</span><p>The brief lands in the OUTBOX. You <b>rate it</b>; the next run is built from what you valued.</p></div>
-</div><h2><span class="h-num">06</span>Questions people actually ask</h2><details class="qa"><summary>Does a routine run if the app is closed?</summary><div class="qa-body"><p>No. The station is local-first &mdash; the scheduler lives in the app on your machine. Leave it running (it&rsquo;s happy minimized) and routines fire on time.</p></div></details><details class="qa"><summary>Can a routine run through a whole conveyor line?</summary><div class="qa-body"><p>Yes. It drops in at the INBOX and follows your belts through every desk, filter, and joiner like any other job.</p></div></details><details class="qa"><summary>What&rsquo;s the difference between a routine and Night Shift?</summary><div class="qa-body"><p>A routine is a job you defined on a clock you set. Night Shift is the station choosing its own small job while you&rsquo;re away, inside a leash. Routines run whether you&rsquo;re there or not.</p></div></details><details class="qa"><summary>Where do my custom recipes live?</summary><div class="qa-body"><p>On your machine, with the rest of your station state. Nothing you save is uploaded anywhere.</p></div></details>
-<nav class="doc-pager" aria-label="Previous and next"><a class="pg prev" href="night-shift.html"><span class="pg-k">&larr; PREVIOUS</span><span class="pg-t">NIGHT SHIFT</span></a><a class="pg next" href="channels.html"><span class="pg-k">NEXT &rarr;</span><span class="pg-t">RUN IT FROM YOUR PHONE</span></a></nav>
+</div><h2 id="questions-people-actually-ask"><span class="h-num">06</span>Questions people actually ask</h2><details class="qa"><summary>Does a routine run if the app is closed?</summary><div class="qa-body"><p>No. The station is local-first &mdash; the scheduler lives in the app on your machine. Leave it running (it&rsquo;s happy minimized) and routines fire on time.</p></div></details><details class="qa"><summary>Can a routine run through a whole conveyor line?</summary><div class="qa-body"><p>Yes. It drops in at the INBOX and follows your belts through every desk, filter, and joiner like any other job.</p></div></details><details class="qa"><summary>What&rsquo;s the difference between a routine and Night Shift?</summary><div class="qa-body"><p>A routine is a job you defined on a clock you set. Night Shift is the station choosing its own small job while you&rsquo;re away, inside a leash. Routines run whether you&rsquo;re there or not.</p></div></details><details class="qa"><summary>Where do my custom recipes live?</summary><div class="qa-body"><p>On your machine, with the rest of your station state. Nothing you save is uploaded anywhere.</p></div></details>
+<nav class="doc-pager" aria-label="More in Repeat &amp; automate"><span></span><a class="pg next" href="../skills.html"><span class="pg-k">NEXT &rarr;</span><span class="pg-t">Skills &amp; routines reference</span></a></nav>
   </main>
 </div>
 
@@ -130,7 +139,8 @@
   <div class="footer-fine">MIT license &middot; &copy; <span id="year">2026</span> StarNet &middot; no telemetry, no tracking &mdash; <a href="../../legal/privacy.html">we collect nothing</a></div>
 </footer>
 
-<script src="../search-index.js?v=20260903"></script>
-<script src="../docs.js?v=20260903"></script>
+<script src="../search-index.js?v=20260913-brand-nav"></script>
+<script src="../search.js?v=20260913-brand-nav"></script>
+<script src="../docs.js?v=20260913-brand-nav"></script>
 </body>
 </html>

@@ -173,4 +173,24 @@ const short = G.resolveConfirmChoice({ custom: true, value: 'just do X' }, baseP
 A.eq(short.action, 'decline', 'an edit under the 3-step floor DECLINES (the Commander rejected the tree)');
 A.eq(G.resolveConfirmChoice({ custom: true, value: '' }, basePath).action, 'decline', 'an empty edit declines too');
 
+// A chosen next step survives projection without rewriting the plan or completed history.
+const flexible = G.makeGoal('Make a useful app', ['Build the app', 'Prepare feedback', 'Review responses'], null, 100);
+const originalOrder = flexible.milestones.map(m => m.id);
+A.ok(G.chooseNext(flexible, originalOrder[1], 200, () => false), 'Commander can choose a later open step');
+A.eq(G.nextMilestone(flexible).id, originalOrder[1], 'chosen step becomes next');
+A.eq(flexible.milestones.map(m => m.id), originalOrder, 'choosing next preserves original plan order');
+A.eq(G.project([flexible]).find(q => q.isNext).milestoneId, originalOrder[1], 'quest projection follows the chosen next step');
+flexible.milestones[1].questRef = 'live-work';
+A.eq(G.chooseNext(flexible, originalOrder[2], 300, () => true), false, 'cannot move the next step away from an accepted build');
+G.foldMilestoneDone(flexible, originalOrder[1], 'Prepared a feedback form', 400);
+A.eq(G.nextMilestone(flexible).id, originalOrder[0], 'after chosen completion returns to remaining plan');
+A.eq(G.chooseNext(flexible, originalOrder[1], 500, () => false), false, 'completed step cannot be selected again');
+A.eq(G.chooseNext(flexible, 'missing', 500, () => false), false, 'unknown step cannot be selected');
+const brief = G.briefing([flexible], () => false);
+A.eq(brief.latest.evidence, 'Prepared a feedback form', 'return briefing preserves actual evidence');
+A.eq(brief.progress.done, 1, 'return briefing counts completed plan steps');
+A.eq(flexible.status, 'active', 'work progress never confirms the overall outcome');
+flexible.status = 'done'; flexible.outcomeEvidence = 'Five people reported using it'; flexible.updatedAt = 600;
+A.eq(G.briefing([flexible]).completedGoal.outcomeEvidence, 'Five people reported using it', 'completed goal remains a readable chapter');
+A.eq(G.briefing([]).completedGoal, null, 'new Commander gets no invented history');
 A.report('goals.test');

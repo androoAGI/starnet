@@ -79,6 +79,8 @@
   const wall = () => (SB() && SB().WALL) || {};
   const depth = () => (SB() && SB().DEPTH) || {};
   const shape = () => (SB() && SB().SHAPE) || {};
+  const industrial = () => typeof IndustrialTextures !== 'undefined' && IndustrialTextures.status().requested
+    ? IndustrialTextures.lighting : null;
 
   // The tube dials have no engine object behind them (they ARE the CSS), so the lab owns the state: read the
   // shipped custom properties once, then push every edit straight back onto :root.
@@ -151,7 +153,7 @@
   let sliders = [];
   let readout;
   function syncReadout() {
-    if (readout) readout.value = JSON.stringify({ crt: pick(crt(), Object.keys(CRT_DEFAULTS)), tube: pick(tube(), Object.keys(TUBE_DEFAULTS)), light: pick(light(), Object.keys(LIGHT_DEFAULTS)), wall: pick(wall(), Object.keys(WALL_DEFAULTS)), depth: pick(depth(), Object.keys(DEPTH_DEFAULTS)), shape: pick(shape(), Object.keys(SHAPE_DEFAULTS)) }, null, 0);
+    if (readout) readout.value = JSON.stringify({ crt: pick(crt(), Object.keys(CRT_DEFAULTS)), tube: pick(tube(), Object.keys(TUBE_DEFAULTS)), light: pick(light(), Object.keys(LIGHT_DEFAULTS)), wall: pick(wall(), Object.keys(WALL_DEFAULTS)), depth: pick(depth(), Object.keys(DEPTH_DEFAULTS)), shape: pick(shape(), Object.keys(SHAPE_DEFAULTS)), ...(industrial() ? { industrial: industrial() } : {}) }, null, 0);
   }
   function pick(o, keys) { const r = {}; for (const k of keys) if (o[k] != null) r[k] = +(+o[k]).toFixed(3); return r; }
   function syncAll() { sliders.forEach(s => s._sync && s._sync()); syncReadout(); }
@@ -262,6 +264,10 @@
     sliders.push(buildSlider(body, wall, 'hullLit', 0.1, 1, 0.01, scheduleRebake));   // exterior exposure at the DECK LINE — the plate ring and the top of the skirt, where the room's light spills over the crown
     sliders.push(buildSlider(body, wall, 'hullVoid', 0, 0.8, 0.01, scheduleRebake));  // exterior exposure at the skirt's FOOT — starlight only; the skirt fades between the two
 
+    if (industrial()) {
+      section(body, 'INDUSTRIAL MATERIAL LIGHT');
+      sliders.push(buildSlider(body, industrial, 'fixtureTint', 0, .3, .01, scheduleRebake));
+    }
     section(body, 'PRESETS');
     const presetWrap = document.createElement('div');
     presetWrap.style.cssText = 'display:flex;flex-wrap:wrap;gap:4px;';

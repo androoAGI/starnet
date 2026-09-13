@@ -3,81 +3,90 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Connectors & interop — StarNet Docs</title>
+<title>Connectors &amp; MCP reference — StarNet Docs</title>
 <meta name="description" content="StarNet built-in capabilities, MCP connectors, isolated local stdio servers, messaging channels, and harness interoperability.">
 <link rel="canonical" href="https://starnetos.com/docs/connectors.html">
 <link rel="icon" type="image/svg+xml" href="../assets/favicon.svg">
-<link rel="stylesheet" href="docs.css?v=20260903">
+<link rel="stylesheet" href="docs.css?v=20260913-brand-nav">
 </head>
-<body class="docs-page" data-group="REFERENCE" data-title="CONNECTORS &amp; INTEROP">
+<body class="docs-page" data-group="Connect your tools" data-group-id="connections" data-kind="Reference" data-title="Connectors &amp; MCP reference">
+<a class="skip-link" href="#main-content">Skip to content</a>
 
 <div class="crt-scan" aria-hidden="true"></div>
 <div class="crt-vignette" aria-hidden="true"></div>
 
 <header class="topbar" id="topbar">
-  <a class="brand" href="../index.html">STARNET TERMLINK</a>
+  <a class="brand" href="../index.html" aria-label="StarNet home"><img src="../assets/starnet-logo-small.png" alt="StarNet" width="355" height="60"></a>
   <nav class="topnav" aria-label="Site">
-    <a href="../index.html#station">WHAT IT IS</a>
-    <a href="../index.html#difference">FEATURES</a>
-    <a href="index.html" class="on">DOCS</a>
-    <a href="../pricing.html" data-pricing-link>PRICING</a>
-    <a href="../index.html#download">DOWNLOAD</a>
-    <a href="https://github.com/androoAGI/starnet" target="_blank" rel="noopener">GITHUB</a>
+    <a href="../index.html#station">Product</a>
+    <a href="index.html" class="on">Docs</a>
+    <a href="../pricing.html" data-pricing-link>Pricing</a>
+    <a href="https://github.com/androoAGI/starnet" target="_blank" rel="noopener">GitHub<svg class="nav-external" aria-hidden="true" focusable="false" viewBox="0 0 16 16" width="12" height="12"><path d="M3 13 13 3M4 3h9v9" fill="none" stroke="currentColor" stroke-width="1.5"/></svg></a>
   </nav>
   <span class="topbar-right">
-    <a href="help.html">HELP</a>
-    <span class="live-dot"><span class="dot"></span>OPEN SOURCE</span>
+    <a href="help.html">Help</a>
+    <a class="nav-download" href="../index.html#download">Download &darr;</a>
   </span>
 </header>
 
 <div class="docs-shell">
   <aside class="docs-side" id="docs-side">
-    <button class="side-toggle" type="button" aria-expanded="false" aria-controls="side-nav">[ MENU ]</button>
-    <div class="side-search"><span class="ss-glyph">&gt;</span><input id="docs-search" type="search" placeholder="search docs  ( / )" autocomplete="off" spellcheck="false" aria-label="Search docs"><div class="ss-results" id="docs-results" hidden></div></div>
+    <div class="side-home">Documentation</div>
+    <div class="side-search"><label class="sr-only" for="docs-search">Search docs</label><input id="docs-search" type="search" placeholder="Search docs…" autocomplete="off" spellcheck="false" aria-controls="docs-results" aria-expanded="false"><kbd class="search-key" aria-hidden="true">/</kbd><div class="ss-results" id="docs-results" hidden></div><span id="docs-search-status" class="sr-only" role="status" aria-live="polite"></span></div>
+    <button class="side-toggle" type="button" aria-expanded="false" aria-controls="side-nav">Browse documentation</button>
     <nav id="side-nav" class="side-nav" aria-label="Docs">
-    <div class="side-group" data-group="START HERE">
-    <div class="side-title">// START HERE</div>
-    <a href="index.html">DOCS HOME</a>
-    <a href="getting-started.html">GETTING STARTED</a>
-    <a href="guides/first-line.html">YOUR FIRST WORKING LINE</a>
-    <a href="providers.html">PROVIDERS &amp; KEYS</a>
-    </div>
-    <div class="side-group" data-group="FIELD MANUAL">
-    <div class="side-title">// FIELD MANUAL</div>
-    <a href="guides/index.html">ALL GUIDES</a>
-    <a href="guides/conveyors.html">HOW CONVEYORS WORK</a>
-    <a href="guides/filter.html">SORTING WORK WITH A FILTER</a>
-    <a href="guides/splitter-joiner.html">SPLITTER &amp; JOINER</a>
-    <a href="guides/crew.html">YOUR CREW &amp; THEIR GEAR</a>
-    <a href="guides/goals.html">GOALS, QUESTS &amp; XP</a>
-    <a href="guides/night-shift.html">NIGHT SHIFT</a>
-    <a href="guides/routines.html">SKILLS, RECIPES &amp; ROUTINES</a>
-    <a href="guides/channels.html">RUN IT FROM YOUR PHONE</a>
-    </div>
-    <div class="side-group" data-group="REFERENCE">
-    <div class="side-title">// REFERENCE</div>
-    <a href="station.html">THE STATION</a>
-    <a href="agents.html">AGENTS &amp; TEAMS</a>
-    <a href="autonomy.html">AUTONOMY &amp; NIGHT SHIFT</a>
-    <a href="skills.html">SKILLS, RECIPES, ROUTINES</a>
-    <a href="connect-a-platform.html">CONNECT A PLATFORM</a>
-    <a href="connectors.html" class="active" aria-current="page">CONNECTORS &amp; INTEROP</a>
-    <a href="migrating.html">FROM OPENCLAW / HERMES</a>
-    </div>
-    <div class="side-group" data-group="HELP">
-    <div class="side-title">// HELP</div>
-    <a href="help.html">HELP CENTER</a>
-    <a href="troubleshooting.html">TROUBLESHOOTING</a>
-    <a href="shortcuts.html">KEYBOARD SHORTCUTS</a>
-    <a href="glossary.html">GLOSSARY</a>
-    </div>
+      <div class="side-quick">
+      <a href="index.html">Docs overview</a>
+      <a href="guides/index.html">Step-by-step guides</a>
+      </div>
+      <p class="side-label">Browse topics</p>
+    <details class="side-group">
+    <summary class="side-title">Start here</summary>
+    <a href="getting-started.html">Install &amp; first task</a>
+    <a href="providers.html">Models &amp; providers</a>
+    </details>
+    <details class="side-group">
+    <summary class="side-title">Station &amp; agents</summary>
+    <a href="station.html">Station &amp; capabilities</a>
+    <a href="guides/crew.html">Set up your crew</a>
+    <a href="agents.html">Agents, teams &amp; voice</a>
+    <a href="guides/goals.html">Goals, quests &amp; XP</a>
+    </details>
+    <details class="side-group">
+    <summary class="side-title">Conveyor workflows</summary>
+    <a href="guides/first-line.html">Build your first workflow</a>
+    <a href="guides/conveyors.html">Conveyor basics</a>
+    <a href="guides/filter.html">Filter &amp; route work</a>
+    <a href="guides/splitter-joiner.html">Split &amp; combine results</a>
+    </details>
+    <details class="side-group">
+    <summary class="side-title">Repeat &amp; automate</summary>
+    <a href="guides/routines.html">Create repeatable work</a>
+    <a href="skills.html">Skills &amp; routines reference</a>
+    <a href="guides/night-shift.html">Set up Night Shift</a>
+    <a href="autonomy.html">Autonomy controls</a>
+    </details>
+    <details class="side-group" open>
+    <summary class="side-title">Connect your tools</summary>
+    <a href="connect-a-platform.html">Connect a service</a>
+    <a href="guides/channels.html">Messaging channels</a>
+    <a href="connectors.html" class="active" aria-current="page">Connectors &amp; MCP reference</a>
+    <a href="migrating.html">From OpenClaw or Hermes</a>
+    </details>
+    <details class="side-group">
+    <summary class="side-title">Troubleshooting &amp; help</summary>
+    <a href="help.html">Help center</a>
+    <a href="troubleshooting.html">Troubleshooting</a>
+    <a href="shortcuts.html">Keyboard shortcuts</a>
+    <a href="glossary.html">Glossary</a>
+    </details>
     </nav>
   </aside>
-  <main class="docs-main">
-<h1>CONNECTORS &amp; INTEROP</h1>
+  <main class="docs-main" id="main-content" tabindex="-1">
+<h1>Connectors &amp; MCP reference</h1>
 <p class="doc-sub">// plug the station into your tools — and into your other harnesses</p>
 
-<h2>Built-in tools</h2>
+<h2 id="built-in-tools">Built-in tools</h2>
 <p>Agents ship with a broad real-tool belt. Everything an agent can reach outside its own
 reasoning belongs to one of <b>eight capability families</b>, and every family is gated by the
 station's capability model (<a href="station.html">object = capability</a>) — you grant it by
@@ -94,7 +103,7 @@ placing the gear, and you can revoke it the same way.</p>
 <tr><td><b>Jukebox</b></td><td>Search and control your Spotify — play, pause, queue, "what's playing".</td></tr>
 </table>
 
-<h2>Browsing that actually browses</h2>
+<h2 id="browsing-that-actually-browses">Browsing that actually browses</h2>
 <p>The web family is not just a search box. An agent can run a search, fetch a page, and then
 <b>drive a real browser</b> against it — navigating, reading the rendered page, clicking, and
 typing. When a page is unreachable or throws up a challenge, the agent reports that as the
@@ -106,7 +115,7 @@ password is typed into real Chrome and never passes through the agent or the mod
 resulting cookies live in the station's browser profile, so later runs stay signed in without
 ever having handled your credentials.</p>
 
-<h2>MCP connectors</h2>
+<h2 id="mcp-connectors">MCP connectors</h2>
 <p>StarNet speaks <b>Model Context Protocol</b>. A curated connector catalog covers popular
 services with one-click setup; connectors that need auth use <b>OAuth 2.1 dynamic client
 registration</b> or a pasted key. Any third-party <b>remote http(s)</b> MCP server can be added by
@@ -120,7 +129,7 @@ rather than pretending the process is isolated.</p>
 PLATFORM</a> walks the whole decision end to end — which of the two routes applies, how a key is stored
 and substituted without the model ever seeing it, unattended use, and what each failure message means.</div>
 
-<h2>Messaging channels</h2>
+<h2 id="messaging-channels">Messaging channels</h2>
 <p>Connect <b>Telegram</b>, <b>Discord</b>, <b>Slack</b>, <b>Matrix</b>, or <b>Signal</b> and your
 agents can report to you — and take tasking from you — where you already are. Scheduled and
 Night Shift runs can deliver their results straight to a channel. Matrix talks to whatever
@@ -129,25 +138,25 @@ never picks the server for you.</p>
 <p>Outbound messages are a capability like any other: an agent can only write to a chat someone
 has <b>already opened with this station</b>, never to an arbitrary address it decides on.</p>
 
-<h2>Telegram as a remote control</h2>
+<h2 id="telegram-as-a-remote-control">Telegram as a remote control</h2>
 <p>Telegram goes further than notifications. From your phone you can hold a real threaded
 conversation with a specific agent, start and steer runs, answer an approval an agent is
 waiting on, and orchestrate the crew — the same command surface as COMMS, reachable when you're
 nowhere near the machine. The station is still doing the work locally; Telegram is just the
 window you're looking through.</p>
 
-<h2>Harness interop</h2>
+<h2 id="harness-interop">Harness interop</h2>
 <p>Already run Claude Code, or another agent harness? StarNet exposes an <b>MCP stdio bridge</b>
 and an OpenAI-style ingress endpoint, so other tools can drive StarNet capabilities — and
 StarNet agents can sit alongside the harnesses you already use instead of replacing them.
 Your station becomes shared infrastructure, not another silo.</p>
 
-<h2>Local by default</h2>
+<h2 id="local-by-default">Local by default</h2>
 <p>Every connector and channel is opt-in. The default station touches the network only for the
 model provider you configured; anything wider is a grant you made on purpose and can revoke in
 Settings.</p>
 
-<nav class="doc-pager" aria-label="Previous and next"><a class="pg prev" href="connect-a-platform.html"><span class="pg-k">&larr; PREVIOUS</span><span class="pg-t">CONNECT A PLATFORM</span></a><a class="pg next" href="migrating.html"><span class="pg-k">NEXT &rarr;</span><span class="pg-t">FROM OPENCLAW / HERMES</span></a></nav>
+<nav class="doc-pager" aria-label="More in Connect your tools"><a class="pg prev" href="guides/channels.html"><span class="pg-k">&larr; PREVIOUS</span><span class="pg-t">Messaging channels</span></a><a class="pg next" href="migrating.html"><span class="pg-k">NEXT &rarr;</span><span class="pg-t">From OpenClaw or Hermes</span></a></nav>
   </main>
 </div>
 
@@ -168,7 +177,8 @@ Settings.</p>
   <div class="footer-fine">MIT license &middot; &copy; <span id="year">2026</span> StarNet &middot; no telemetry, no tracking &mdash; <a href="../legal/privacy.html">we collect nothing</a></div>
 </footer>
 
-<script src="search-index.js?v=20260903"></script>
-<script src="docs.js?v=20260903"></script>
+<script src="search-index.js?v=20260913-brand-nav"></script>
+<script src="search.js?v=20260913-brand-nav"></script>
+<script src="docs.js?v=20260913-brand-nav"></script>
 </body>
 </html>

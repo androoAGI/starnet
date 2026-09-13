@@ -19,19 +19,9 @@
 <link rel="canonical" href="https://starnetos.com/">
 <link rel="icon" type="image/svg+xml" href="assets/favicon.svg">
 <link rel="preload" href="app/assets/sprites/blank/rot_south.png" as="image" fetchpriority="high">
-<link rel="stylesheet" href="styles.css?v=20260903">
+<link rel="stylesheet" href="styles.css?v=20260913-brand-nav">
 </head>
 <body>
-
-<!-- boot sequence overlay -->
-<div id="boot" aria-hidden="true">
-  <div class="boot-inner">
-    <div id="boot-lines"></div>
-    <span class="boot-cursor"></span>
-    <div class="boot-skip">// click anywhere to skip</div>
-  </div>
-</div>
-<div id="boot-flash" aria-hidden="true" hidden></div>
 
 <!-- CRT overlays -->
 <div class="crt-scan" aria-hidden="true"></div>
@@ -55,18 +45,16 @@
 </div>
 
 <header class="topbar" id="topbar">
-  <a class="brand" href="#top">STARNET TERMLINK</a>
+  <a class="brand" href="#top" aria-label="StarNet home"><img src="assets/starnet-logo-small.png" alt="StarNet" width="355" height="60"></a>
   <nav class="topnav" aria-label="Site">
-    <a href="#station">WHAT IT IS</a>
-    <a href="#difference">FEATURES</a>
-    <a href="docs/index.html">DOCS</a>
-    <a href="pricing.html" data-pricing-link hidden>PRICING</a>
-    <a href="#download">DOWNLOAD</a>
-    <a href="https://github.com/androoAGI/starnet" target="_blank" rel="noopener">GITHUB</a>
+    <a href="#station">Product</a>
+    <a href="docs/index.html">Docs</a>
+    <a href="pricing.html" data-pricing-link hidden>Pricing</a>
+    <a href="https://github.com/androoAGI/starnet" target="_blank" rel="noopener">GitHub<svg class="nav-external" aria-hidden="true" focusable="false" viewBox="0 0 16 16" width="12" height="12"><path d="M3 13 13 3M4 3h9v9" fill="none" stroke="currentColor" stroke-width="1.5"/></svg></a>
   </nav>
   <span class="topbar-right">
-    <a href="docs/help.html">HELP</a>
-    <span class="live-dot"><span class="dot"></span>OPEN SOURCE</span>
+    <a href="docs/help.html">Help</a>
+    <a class="nav-download" href="#download">Download &darr;</a>
   </span>
 </header>
 
@@ -78,13 +66,13 @@
     <div class="ember" aria-hidden="true"></div>
     <div class="hero-inner">
       <img class="hero-logo" src="assets/starnet-logo-glow.png" alt="StarNet">
-      <p class="tagline">Give your AI a world to work in.<span class="cursor"></span></p>
-      <p class="subline">A videogame where the work is real. Recruit a crew of AI agents into a living pixel-art station, lay conveyor-belt workflows that actually route the work, and level up a station whose quests come from your real goals &mdash; your models, your keys, your machine.</p>
+      <h1 class="tagline">Give your AI a world to work in.<span class="cursor" aria-hidden="true"></span></h1>
+      <p class="subline">A desktop home for your AI crew. Give agents real tasks, connect their tools, and build workflows across a living pixel-art station.</p>
       <div class="cta-row">
         <a id="cta-download" class="btn btn-primary" href="#download">[ DOWNLOAD ]</a>
-        <a class="btn" href="https://github.com/androoAGI/starnet" target="_blank" rel="noopener">[ VIEW SOURCE ]</a>
+        <a class="btn" href="docs/getting-started.html">[ GET STARTED ]</a>
       </div>
-      <div class="hero-meta"><span id="ver-badge">v0.10.13</span> &middot; MIT open source &middot; Windows + macOS installers day one &middot; bring your own keys</div>
+      <div class="hero-meta"><span id="ver-badge">v0.11.2</span> &middot; MIT open source &middot; Windows + macOS &middot; bring your own keys</div>
     </div>
     <a class="hero-scroll" href="#station" aria-label="Scroll to what it is">SCROLL<span></span></a>
   </section>
@@ -121,22 +109,13 @@
       <h2>FEATURES</h2>
     </div>
     <ul class="feat-grid" data-reveal="stagger">
-      <li class="feat"><span class="f-glyph">&#9673;</span><h3>IT FINDS WORK BEFORE YOU ASSIGN IT</h3><p>Your crew keeps a dossier on its commander &mdash; goals, taste, strengths &mdash; studies what you ship, and comes back with proposals: new specialists, new missions, new beliefs about what you need. Everything is propose-and-confirm; nothing joins the station without your yes.</p></li>
-      <li class="feat"><span class="f-glyph">&#9636;</span><h3>WORKFLOWS YOU BUILD WITH YOUR HANDS</h3><p>Lay belts, filters, splitters, joiners, and loops across the floor and the station compiles them into the routing plan the server actually executes. The box on the belt and the agent that picks it up are provably the same plan.</p></li>
-      <li class="feat"><span class="f-glyph">&#9650;</span><h3>LEVEL UP BY SHIPPING YOUR LIFE</h3><p>Tell the station your real goals and it breaks them into milestone quests advanced only by real completed work. Rate a finished run <i>nailed it</i> and XP mints from your verdict &mdash; a station level that records what actually shipped. Meters describe, never gate: full power from minute one.</p></li>
-      <li class="feat"><span class="f-glyph">&#9670;</span><h3>A RECOMMENDER WITH A SPINE</h3><p>One suggestion at a time, and only with evidence &mdash; a recommendation that can't say <i>why</i> is dropped. It ranks 101 built-in mission recipes and every class against your real work history, and drafts a bespoke specialist when nothing on the shelf fits.</p></li>
-      <li class="feat"><span class="f-glyph">&#9672;</span><h3>EVERY AGENT REMEMBERS</h3><p>Each crew member keeps its own long-term notebook across runs. You keep, edit, or discard every memory before it sticks; trust grows when a memory proves useful and halves every 30 days it goes unused.</p></li>
-      <li class="feat"><span class="f-glyph">&#9787;</span><h3>A CREW THAT'S ACTUALLY YOURS</h3><p>35 curated classes plus a 20-deep specialist archive, custom classes, per-agent personalities, 36 skins &mdash; and a full build mode for the station itself: rooms, floors, walls, and a prop catalog where placed gear is real capability.</p></li>
-      <li class="feat"><span class="f-glyph">&#8635;</span><h3>WORK SHARPENS ITSELF</h3><p>Rate a delivery and the next pass is built from what you valued. Routines compound instead of decaying.</p></li>
-      <li class="feat"><span class="f-glyph">&#9790;</span><h3>NIGHT SHIFT</h3><p>The station keeps working while you're away &mdash; inside a leash you set (jobs per day, how far an action may reach), sandboxed by default, with an honest morning report and a decision ledger that records every overnight action <i>and the reason it fired</i>.</p></li>
-      <li class="feat"><span class="f-glyph">&#9635;</span><h3>IT DRIVES A REAL BROWSER</h3><p>Agents don't guess from a search snippet &mdash; they navigate, read, click, and type on the live page, and report what the page actually said.</p></li>
-      <li class="feat"><span class="f-glyph">&#9993;</span><h3>REACH IT FROM ANYWHERE</h3><p>Pair Telegram, Discord, Slack, Matrix, or Signal and your station reports in and takes orders while you're out. Use the stop command in a connected chat to interrupt its current task.</p></li>
-      <li class="feat"><span class="f-glyph">&#9835;</span><h3>TALK TO IT</h3><p>Hands-free Live Voice runs on a speech engine built into the app &mdash; no key, no account, and your voice never leaves the machine. Identical on every provider, because it doesn't use one.</p></li>
-      <li class="feat"><span class="f-glyph">&#10070;</span><h3>AGENTS SUMMON AGENTS</h3><p>Give one agent a big job and it can dispatch subtasks to crew it summons, then fold the results back &mdash; you watch the whole tree run on the floor.</p></li>
-      <li class="feat"><span class="f-glyph">&#9632;</span><h3>NOTHING FAKE, EVER</h3><p>The app never shows state the harness can't prove. No fake progress, no invented counters, real costs &mdash; an append-only ledger records every run's true spend.</p></li>
-      <li class="feat"><span class="f-glyph">&#9919;</span><h3>LOCAL-FIRST, YOUR KEYS</h3><p>Everything stays on your machine. 18 providers, three no-key OAuth sign-ins, a free local option, or StarNet credits. Zero telemetry &mdash; <a href="legal/privacy.html">we collect nothing</a>.</p></li>
-      <li class="feat"><span class="f-glyph">&#8646;</span><h3>PLAYS WELL WITH OTHER HARNESSES</h3><p>An MCP bridge and OpenAI-style endpoint let Claude Code, Hermes, or OpenClaw drive your station. <a href="docs/migrating.html">Coming from one of those?</a></p></li>
-    </ul>
+<li class="feat"><span class="f-glyph">01</span><h3>A crew shaped around you</h3><p>Recruit specialists, give them personalities, and direct their work from COMMS. Each agent has its own desk and notebook.</p><a class="feature-link" href="docs/agents.html">Meet your crew &rarr;</a></li>
+<li class="feat"><span class="f-glyph">02</span><h3>Workflows you can see</h3><p>Connect agents with conveyors. Use filters, splitters, and joiners to route real jobs and combine their results.</p><a class="feature-link" href="docs/guides/first-line.html">Build a workflow &rarr;</a></li>
+<li class="feat"><span class="f-glyph">03</span><h3>Tools that do real work</h3><p>Let agents browse, work with files, run code, and use connected services. Placed gear grants capabilities to your crew.</p><a class="feature-link" href="docs/station.html">Explore capabilities &rarr;</a></li>
+<li class="feat"><span class="f-glyph">04</span><h3>Useful work, on repeat</h3><p>Keep a successful process as a recipe, schedule a routine, or configure Night Shift for unattended work.</p><a class="feature-link" href="docs/guides/routines.html">Set up a routine &rarr;</a></li>
+<li class="feat"><span class="f-glyph">05</span><h3>Your models. Your machine.</h3><p>Choose a model provider or use a local model. Your station, conversations, and work history live on your computer.</p><a class="feature-link" href="docs/providers.html">Choose a provider &rarr;</a></li>
+<li class="feat"><span class="f-glyph">06</span><h3>Stay connected to your station</h3><p>Send tasks through messaging channels, connect external tools, and bring other agent harnesses into your workflow.</p><a class="feature-link" href="docs/connect-a-platform.html">Connect your tools &rarr;</a></li>
+</ul>
   </section>
 
   <!-- ===== download ===== -->
@@ -145,19 +124,19 @@
       <span class="section-no">03</span>
       <h2>DOWNLOAD STARNET</h2>
     </div>
-    <p class="dl-sub" data-reveal><b>The public release train targets Windows and macOS.</b> Release assets appear on the <a id="rel-page" href="https://github.com/androoAGI/starnet-releases/releases/latest" target="_blank" rel="noopener">releases page</a> after its signing, notarization, and updater-signature gates pass. Current stable version: <span class="ver">v0.10.13</span>. The live preview and docs track current source and may show work landing in the next signed release.</p>
+    <p class="dl-sub" data-reveal>Choose the installer for your computer. Current stable version: <span class="ver">v0.11.2</span>. See what changed in the <a id="rel-page" href="https://github.com/androoAGI/starnet-releases/releases/latest" target="_blank" rel="noopener">release notes</a>. The station preview and docs follow current source, which may include features coming in the next release.</p>
     <div class="dl-grid" data-reveal="stagger">
       <article class="dl-card" data-os="windows">
         <div class="dl-os">WINDOWS</div>
         <div class="dl-req">Windows 10 / 11 &middot; 64-bit</div>
         <a class="btn btn-primary dl-btn" data-asset="x64-setup.exe" href="https://github.com/androoAGI/starnet-releases/releases/latest" target="_blank" rel="noopener">[ .EXE INSTALLER ]</a>
-        <div class="dl-note">The public train requires Authenticode publisher and timestamp verification. SmartScreen can still warn while a certificate builds reputation; inspect the publisher before proceeding.</div>
+        <div class="dl-note">Open the installer and follow its steps. If SmartScreen warns, inspect the publisher before proceeding.</div>
       </article>
       <article class="dl-card" data-os="mac-arm">
         <div class="dl-os">MACOS &middot; APPLE SILICON</div>
         <div class="dl-req">M1 / M2 / M3 / M4</div>
         <a class="btn btn-primary dl-btn" data-asset="aarch64.dmg" href="https://github.com/androoAGI/starnet-releases/releases/latest" target="_blank" rel="noopener">[ .DMG ]</a>
-        <div class="dl-note">The public train requires Developer ID signing and Apple notarization. Stop and report any Gatekeeper trust failure.</div>
+        <div class="dl-note">Open the disk image and drag StarNet into Applications. If macOS reports a trust failure, contact support.</div>
       </article>
       <article class="dl-card" data-os="mac-intel">
         <div class="dl-os">MACOS &middot; INTEL</div>
@@ -173,7 +152,7 @@ cd starnet &amp;&amp; npm install &amp;&amp; npm start</code></pre>
       <button class="btn btn-small" type="button" data-copy="#src-cmd">[ COPY ]</button>
       <div class="source-run-note">Opens the station at <code>http://localhost:8787</code>. Same app, same sidecar, no installer &mdash; keys stay in a local file instead of the OS keychain.</div>
     </div>
-    <p class="dl-honesty">// honesty note: public-train requirements are not installed proof for a particular asset. The train fails closed unless Windows is Authenticode-signed and timestamped, both Mac builds are Developer-ID-signed and notarized, and updater signatures verify. Manual test builds can be unsigned and are not public releases. Linux is not a supported public target. See the <a href="docs/getting-started.html">getting-started guide</a>, and report any trust failure to <a href="mailto:androo.agi@gmail.com">androo.agi@gmail.com</a>.</p>
+    <p class="dl-honesty">Need help installing? Follow the <a href="docs/getting-started.html">quickstart</a> or open <a href="docs/troubleshooting.html">troubleshooting</a>. Public installers support Windows and macOS; Linux is not currently a supported public target.</p>
   </section>
 
   <!-- ===== docs ===== -->
@@ -182,35 +161,11 @@ cd starnet &amp;&amp; npm install &amp;&amp; npm start</code></pre>
       <span class="section-no">04</span>
       <h2>DOCS &amp; HELP</h2>
     </div>
-    <div class="docs-groups" data-reveal="stagger">
-      <div class="dg"><div class="dg-title">START HERE</div>
-        <a href="docs/getting-started.html">GETTING STARTED</a>
-        <a href="docs/guides/first-line.html">YOUR FIRST WORKING LINE</a>
-        <a href="docs/providers.html">PROVIDERS &amp; KEYS</a>
-      </div>
-      <div class="dg"><div class="dg-title">GUIDES</div>
-        <a href="docs/guides/conveyors.html">HOW CONVEYORS WORK</a>
-        <a href="docs/guides/filter.html">SORTING WITH A FILTER</a>
-        <a href="docs/guides/splitter-joiner.html">SPLITTER &amp; JOINER</a>
-        <a href="docs/guides/goals.html">GOALS, QUESTS &amp; XP</a>
-        <a href="docs/guides/night-shift.html">NIGHT SHIFT</a>
-        <a href="docs/guides/routines.html">SKILLS, RECIPES &amp; ROUTINES</a>
-      </div>
-      <div class="dg"><div class="dg-title">REFERENCE</div>
-        <a href="docs/station.html">THE STATION</a>
-        <a href="docs/agents.html">AGENTS &amp; TEAMS</a>
-        <a href="docs/autonomy.html">AUTONOMY &amp; NIGHT SHIFT</a>
-        <a href="docs/connect-a-platform.html">CONNECT A PLATFORM</a>
-        <a href="docs/connectors.html">CONNECTORS &amp; INTEROP</a>
-        <a href="docs/migrating.html">FROM OPENCLAW / HERMES</a>
-      </div>
-      <div class="dg"><div class="dg-title">HELP</div>
-        <a href="docs/help.html">HELP CENTER</a>
-        <a href="docs/troubleshooting.html">TROUBLESHOOTING</a>
-        <a href="docs/shortcuts.html">KEYBOARD SHORTCUTS</a>
-        <a href="docs/glossary.html">GLOSSARY</a>
-      </div>
-    </div>
+    <div class="site-doc-paths" data-reveal="stagger">
+    <a href="docs/getting-started.html"><span class="eyebrow">FIRST VISIT</span><h3>Get up and running</h3><p>Install StarNet, connect a model, and send your first task.</p><span>Start here &rarr;</span></a>
+    <a href="docs/index.html"><span class="eyebrow">THE HANDBOOK</span><h3>Find your next step</h3><p>Guides and reference organized around what you want to do.</p><span>Browse documentation &rarr;</span></a>
+    <a href="docs/help.html"><span class="eyebrow">NEED A HAND?</span><h3>Get unstuck</h3><p>Find an answer, troubleshoot a problem, or contact support.</p><span>Open the help center &rarr;</span></a>
+  </div>
   </section>
 
   <!-- ===== FAQ ===== -->
@@ -246,7 +201,7 @@ cd starnet &amp;&amp; npm install &amp;&amp; npm start</code></pre>
       </details>
       <details>
         <summary>Why does my OS warn me during install?</summary>
-        <p>SmartScreen can still warn while an Authenticode certificate builds reputation; inspect the publisher before proceeding. A public Mac DMG is required to pass Apple notarization, so a Gatekeeper trust failure should be reported rather than bypassed. The <a href="docs/troubleshooting.html">troubleshooting guide</a> explains both cases.</p>
+        <p>SmartScreen can still warn while an Authenticode certificate builds reputation; inspect the publisher before proceeding. A public Mac DMG is required to pass Apple notarization, so a Gatekeeper trust failure should be reported rather than bypassed. Release checks do not prove that an installer works on your computer. The <a href="docs/troubleshooting.html">troubleshooting guide</a> explains both cases.</p>
       </details>
     </div>
   </section>
@@ -269,10 +224,10 @@ cd starnet &amp;&amp; npm install &amp;&amp; npm start</code></pre>
     <a href="legal/terms.html">TERMS</a>
     <a href="mailto:androo.agi@gmail.com">CONTACT</a>
   </div>
-  <div class="footer-fine">MIT license &middot; <span id="ver-foot">v0.10.13</span> &middot; &copy; <span id="year">2026</span> StarNet &middot; no telemetry, no tracking &mdash; <a href="legal/privacy.html">we collect nothing</a></div>
+  <div class="footer-fine">MIT license &middot; <span id="ver-foot">v0.11.2</span> &middot; &copy; <span id="year">2026</span> StarNet &middot; no telemetry, no tracking &mdash; <a href="legal/privacy.html">we collect nothing</a></div>
 </footer>
 
-<script src="site.js?v=20260903"></script>
+<script src="site.js?v=20260913-brand-nav"></script>
 <script src="live-preview.js?v=20260809"></script>
 </body>
 </html>

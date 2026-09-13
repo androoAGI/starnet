@@ -1212,6 +1212,7 @@ const PropSprites = (() => {
   };
 
   F.desk = (x, y, w, h, f) => {
+    if (typeof IndustrialTextures !== 'undefined' && IndustrialTextures.workstation(ctx, x, y, w, h)) return;
     /* v43 WORKSTATION — the desk is EXACTLY as it was (v19 body: slab, apron, legs, PC tower,
        monitor, keyboard). The ONLY change is the chair.
        ⛔ CHAIR CHANGES ONLY. The v42 pass rebuilt the whole workstation off the reference and Andrew
@@ -1309,6 +1310,7 @@ const PropSprites = (() => {
   };
 
   F.desk2 = (x, y, w, h, f) => {
+    if (typeof IndustrialTextures !== 'undefined' && IndustrialTextures.workstation(ctx, x, y, w, h)) return;
     /* v45 DUAL WORKSTATION (2x1) — the desk's slab and chair, but TWO screens on a shared crossbar
        and no tower. Six props grant COMPUTE and they must differ by what is ON the desk, since the
        slab underneath is the same piece of furniture in every one of them.
@@ -3595,9 +3597,11 @@ const PropSprites = (() => {
   function cacheIdleArt(id, state) {
     const paint=F[id], frames=new Map();
     F[id]=(x,y,w,h,f)=>{
-      if ((f && f.work) || buildingShadowSilhouette || !_ink.has(id) || typeof document === 'undefined' ||
+      if ((typeof IndustrialTextures !== 'undefined' && IndustrialTextures.enabled() && (id === 'desk' || id === 'desk2')) ||
+          (f && f.work) || buildingShadowSilhouette || !_ink.has(id) || typeof document === 'undefined' ||
           (document.fonts && document.fonts.status !== 'loaded')) return paint(x,y,w,h,f);
-      const key=JSON.stringify([x,y,w,h,!!MIRROR,CHROMA,state(f||{})]);
+      const key=JSON.stringify([x,y,w,h,!!MIRROR,CHROMA,state(f||{}),
+        typeof IndustrialTextures !== 'undefined' && IndustrialTextures.enabled()]);
       let image=frames.get(key);
       if (!image) {
         image=document.createElement('canvas');image.width=w+24;image.height=h+32;
@@ -5571,6 +5575,7 @@ const PropSprites = (() => {
   };
 
   F.seatchair = (x, y, w, h, f) => {
+    if (typeof IndustrialTextures !== 'undefined' && IndustrialTextures.chair(ctx, x, y, w, h)) return;
     /* SEAT CHAIR (1x1) — the chair world.js draws at a workstation seat. NOT in the CATALOG, so the
        PLACEABLE chair prop (F.chair) keeps its shipped art untouched.
        ⛔ THIS IS F.chair's SILHOUETTE, PIXEL FOR PIXEL. Only the MATERIAL changed. Two rewrites failed
@@ -5619,6 +5624,7 @@ const PropSprites = (() => {
   };
 
   F.chair = (x, y, w, h, f) => {
+    if (typeof IndustrialTextures !== 'undefined' && IndustrialTextures.chair(ctx, x, y, w, h)) return;
     // CHAIR — the renderer draws this at EVERY agent's seat, so it appears more often than any other prop
     // on the station. It is therefore deliberately QUIET: no emissives, no accent LEDs, no bloom. Its only
     // job is to sit next to a workstation and never compete with it. v4 adds material (chrome stem, warm
@@ -5695,6 +5701,7 @@ const PropSprites = (() => {
      casters y+11) so a turned chair stands at exactly the same height as an unturned one beside it.
      WEST (r=1) is this view mirrored — px()'s LSWAP re-lights it, so the key stays high-west. */
   F['chair:e'] = (x, y, w, h, f) => {
+    if (typeof IndustrialTextures !== 'undefined' && IndustrialTextures.chair(ctx, x, y, w, h, 'e')) return;
     const r = RAMP.steel;
     shadow2(x + 3, y + 10, 7);
     // star base in profile: the arms fore-and-aft read as one low bar, casters under its ends
@@ -5756,6 +5763,7 @@ const PropSprites = (() => {
      with the pad's rear edge showing under it. ⛔ A back is the emptiest surface a prop owns: give it
      ONE organising shape and keep every mark touching it, or the marks read as glyphs. */
   F['chair:n'] = (x, y, w, h, f) => {
+    if (typeof IndustrialTextures !== 'undefined' && IndustrialTextures.chair(ctx, x, y, w, h, 'n')) return;
     const r = RAMP.steel;
     shadow2(x + 3, y + 10, 7);
     px(x + 2, y + 10, 8, 1, '#10161a');
@@ -10419,6 +10427,21 @@ const PropSprites = (() => {
                  agent can lounge at (couch/tv/arcade/…). world.js derives the approach
                  tile via propanchor.js; sit=true seats the agent, approach biases the side. */
   /* short Fallout-style blurbs for the hover card (functional props). Reused where the effect is identical. */
+  // Command-deck scenery stays in DECOR: these screens depict navigation art,
+  // not harness telemetry. Existing workstations still own agent assignments.
+  const bridgeFurniture = (name, fallback) => (x, y, w, h, f) => {
+    if (typeof IndustrialTextures !== 'undefined' && IndustrialTextures.furniture(ctx, name, x, y, w, h)) return;
+    fallback(x, y, w, h, f);
+  };
+  F.bridge_consolebank = bridgeFurniture('console-bank', F.consoleL);
+  F.bridge_tacticaltable = bridgeFurniture('tactical-table', F.wartable);
+  F.bridge_equipmentbay = bridgeFurniture('equipment-bay', F.rack);
+  F.bridge_deckperimeter = bridgeFurniture('deck-perimeter', (x, y, w, h, f) => {
+    // Classic fallback is the existing floor paint confined to a narrow ring.
+    ctx.save(); ctx.beginPath(); ctx.rect(x, y, w, h); ctx.rect(x + 2, y + 2, w - 4, h - 4); ctx.clip('evenodd');
+    try { F.hazardpad(x, y, w, h, f); } finally { ctx.restore(); }
+  });
+
   const D_WS = 'WORKSTATION — assign an agent here and it walks over and sits to work whenever it gets a task.';
   const D_FILES = 'CAPABILITY — gives the agent in this room file access (read & write its own files).';
   const D_WEB = 'CAPABILITY — gives the agent in this room web access (live search & fetch).';
@@ -10493,6 +10516,10 @@ const PropSprites = (() => {
 
     /* ===================== COSMETIC ===================== */
     // SCREENS — ops & display dressing.
+    { id: "bridge_consolebank", label: "BRIDGE CONSOLE BANK", cat: "screens", tier: "cosmetic", w: 9, h: 1, animated: false, blocks: true, mount: 'wall', desc: "Decorative instrument bank with cyan navigation displays. Fits against a north wall; grants no tools." },
+    { id: "bridge_tacticaltable", label: "TACTICAL TABLE", cat: "screens", tier: "cosmetic", w: 7, h: 4, animated: false, blocks: true, desc: "Decorative octagonal navigation table in worn steel and dark cyan glass." },
+    { id: "bridge_equipmentbay", label: "EQUIPMENT BAY", cat: "storage", tier: "cosmetic", w: 4, h: 1, animated: false, blocks: true, desc: "Decorative armored equipment cabinet with brass handles and recessed instruments." },
+    { id: "bridge_deckperimeter", label: "DECK PERIMETER", cat: "decor", tier: "cosmetic", w: 12, h: 8, animated: false, blocks: false, flat: true, desc: "Worn hazard perimeter painted on the deck. Walkable; furniture may stand inside or across it." },
     { id: "bigscreen", label: "BIG SCREEN", cat: "screens", tier: "cosmetic", w: 8, h: 1, animated: true, blocks: false },
     { id: "holotable", label: "HOLOTABLE", cat: "screens", tier: "cosmetic", w: 4, h: 2, animated: true, blocks: true },
     { id: "screens", label: "SCREENS", cat: "screens", tier: "cosmetic", w: 2, h: 1, animated: true, blocks: false },
@@ -10665,6 +10692,16 @@ const PropSprites = (() => {
     { id: "recliner_r", label: "RECLINER RIGHT ›", cat: "lounge", tier: "cosmetic", w: 1, h: 1, animated: false, blocks: true, use: { kind: 'couch', sit: false, approach: 'east' } },
   ];
   const BY_ID = {};
+  // The wider industrial art occupies three real tiles; picking, placement and
+  // navigation must reserve the same width as the visible console.
+  if (typeof IndustrialTextures !== 'undefined') {
+    const fitIndustrialDesks = () => {
+      if (IndustrialTextures.enabled())
+        for (const c of CATALOG) if (c.id === 'desk' || c.id === 'desk2') c.w = 3;
+    };
+    fitIndustrialDesks();
+    IndustrialTextures.ready.then(fitIndustrialDesks);
+  }
   for (const c of CATALOG) BY_ID[c.id] = c;
   const CATS = CATALOG.reduce((o, c) => { (o[c.cat] = o[c.cat] || []).push(c); return o; }, {});
 
@@ -10768,7 +10805,7 @@ const PropSprites = (() => {
   const NO_MIRROR = [
     'missionboard', 'trophycase', 'calwall', 'ticker',                                   // text
     'comms_dish', 'safe', 'vault', 'studio', 'bigscreen', 'holotable', 'chartwall',      // path
-    'wartable', 'bridge_tacscreen', 'bridge_orderqueue', 'war_threatcore', 'vat',
+    'wartable', 'bridge_tacticaltable', 'bridge_consolebank', 'bridge_tacscreen', 'bridge_orderqueue', 'war_threatcore', 'vat',
     'research_corelens', 'research_trendpillar', 'etsy_dyevat', 'etsy_kiln',
     'gigs_thumbwall', 'gigs_amp', 'pub_outboundchute', 'treasury_pnl_holo',
     'intake', 'bay', 'outbox', 'filter', 'merger', 'splitter', 'joiner', 'loop', 'beltH', // flow
@@ -10933,6 +10970,13 @@ const PropSprites = (() => {
       px(x + 3, y + 4, 6, 1, r.dk);                               // rounded underside rim
       px(x + 4, y + 5, 4, 1, shade(r.dk, -0.30));               // seat AO onto the stem
     } else if (f.t === 'chair') {
+      if (typeof IndustrialTextures !== 'undefined' && IndustrialTextures.enabled()) {
+        // Repeat the same authored facing and mirror through the pad's near rim.
+        // A rotated chair must not acquire the south-facing seat over its sitter.
+        ctx.save(); ctx.beginPath(); ctx.rect(x, y + 6, TILE, 3); ctx.clip();
+        try { draw(f, false); } finally { ctx.restore(); }
+        return;
+      }
       px(x + 2, y + 6, 8, 1, '#2f6a62');                          // pad south row
       px(x + 3, y + 6, 1, 1, '#26554e'); px(x + 8, y + 6, 1, 1, '#26554e');   // seat stitches
       px(x + 2, y + 7, 8, 1, r.face); px(x + 2, y + 7, 3, 1, r.lit);          // front lip
@@ -11075,7 +11119,8 @@ const PropSprites = (() => {
   const shadowMasks = new Map();
   function shadowMask(f) {
     if (typeof document === 'undefined') return null;
-    const key=[f.t,f.w||1,f.h||1,f.r||0,f.m||0].join('|');
+    const key=[f.t,f.w||1,f.h||1,f.r||0,f.m||0,
+      typeof IndustrialTextures !== 'undefined' && IndustrialTextures.enabled()].join('|');
     if(shadowMasks.has(key)) {
       const cached=shadowMasks.get(key),g=cached.getContext('2d');
       if(g && !(g.isContextLost && g.isContextLost()))return cached;
@@ -11276,6 +11321,8 @@ const PropSprites = (() => {
     screens: { c: BLUE_RGB, r: 24, a: 0.12, m: 'screen', y: 0.35 }, tank: { c: [80, 200, 220], r: 22, a: 0.12, m: 'pulse', y: 0.45 },
     ticker: { c: AMBER_RGB, r: 26, a: 0.10, m: 'screen', y: 0.35 }, chartwall: { c: BLUE_RGB, r: 26, a: 0.10, m: 'screen', y: 0.35 },
     wartable: { c: [120, 200, 255], r: 34, a: 0.12, m: 'screen', y: 0.45 }, calwall: { c: BLUE_RGB, r: 30, a: 0.10, m: 'screen', y: 0.35 },
+    bridge_consolebank: { c: [80, 180, 190], r: 40, a: 0.08, m: 'steady', y: 0.1 },
+    bridge_tacticaltable: { c: [80, 180, 190], r: 42, a: 0.10, m: 'steady', y: 0.45 },
     bridge_tacscreen: { c: BLUE_RGB, r: 24, a: 0.12, m: 'screen', y: 0.35 }, bridge_dispatch_pylon: { c: AMBER_RGB, r: 22, a: 0.12, m: 'pulse', y: 0.3 },
     bridge_orderqueue: { c: AMBER_RGB, r: 22, a: 0.10, m: 'screen', y: 0.35 }, war_pivotpanel: { c: BLUE_RGB, r: 22, a: 0.10, m: 'screen', y: 0.35 },
     war_threatcore: { c: [255, 90, 80], r: 26, a: 0.14, m: 'pulse', y: 0.3 },

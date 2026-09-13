@@ -66,7 +66,7 @@ export const NAV_LINK_PAGES = [
 // predicates match the nav markup by shape, not by one literal string — but still the NAV markup
 // specifically: legal/terms.html cites ../pricing.html in the body of clause 2, which must not count.
 const NAV_ANCHOR_RE = /<a href="((?:\.\.\/)+)index\.html#download">DOWNLOAD<\/a>/;
-const NAV_LINK_RE = /<a href="(?:\.\.\/)+pricing\.html"(?: class="on")?(?: data-pricing-link)?>PRICING<\/a>/;
+const NAV_LINK_RE = /<a href="(?:\.\.\/)+pricing\.html"(?: class="on")?(?: data-pricing-link)?>PRICING<\/a>/i;
 const navInsert = (up) => `<a href="${up}pricing.html" data-pricing-link>PRICING</a>\n    `;
 // The pre-credits cache key. "Done" means the key has moved past it — any later polish pass that
 // re-busts the cache must not read as "still needs the credits bust" and get rolled back to it.

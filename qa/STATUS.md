@@ -2835,3 +2835,7 @@ Every first-time StarNet-subscription desktop user: link → shell adopts the to
 - 2026-09-11: agent/session-failed-marker-0910 (including agent/providers-polish-0910) merged as de06c1f22. Combined pre-merge and post-merge test:fast both 771/771 GREEN. Live combined UI: all 18 provider logos, aligned statuses, animated StarNet border, flashing failed X with no duplicate label. Existing documentation edits preserved. No installer rebuild or publication.
 
 - 2026-09-12 — agent/openai-image-fix-0912 -> feat/harness-backend @ 93c994428; post-merge test:fast 771/771 and test:http 113/113 GREEN; seeded UPLINK ONLINE; mocked OpenAI Images API E2E saved a real PNG artifact. No real customer API key or OpenAI billing state was exercised.
+
+- 2026-09-12: agent/industrial-textures-0912 -> trunk 0d1e015e9; reference industrial materials now default, wider desks/chairs and sharp wall/corner/shell art. Pre-merge fast 771/771 GREEN; combined trunk f8ddd9c36 post-merge CI fast 772/772 and customer journeys 34/34 GREEN. Default seeded station, Refit placement/undo, save/restart and browser checks verified. See qa/digests/2026-09-12-industrial-textures.md. Installed desktop not rebuilt.
+
+- 2026-09-12 — Command bridge: agent/industrial-textures-0912 integrated at f56aebb6e; pre/post-merge test:fast 772/772 green; live placement, undo, save/restart and 309-tile navigation verified. [Receipt](../docs/industrial-textures/VERIFICATION.md).

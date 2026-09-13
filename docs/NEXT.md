@@ -4,6 +4,179 @@ Owner-approved onboarding and cinematic arrival run on localhost:8992 from the i
 Candidate cfd8cb9a2 passed 772/772 fast checks; full-screen arrival and interview return were
 observed in the real app. Original station data is preserved. Shared-trunk merge remains deferred
 while the integration checkout carries other active changes. Receipt: qa/arrival-integration-0912.md.
+## JOURNEY SWEEP — 2026-09-12 (`agent/journey-first-loop-0912`)
+
+Owner requested a sweep and polish. Reproduced two issues in the live seeded preview:
+closed result disclosures reopened on refresh, and a suggestion could be applied after
+the user revised its constraints. Source `f49596784` now preserves both open and closed
+disclosure choices and checks the full planning draft before adopting a suggestion.
+Changed motivation, constraints, success criteria or steps require a fresh suggestion;
+valid adoption, explicit template opening, and undo still work. Step-launch labels match.
+
+Live before/after evidence: `.dogfood/journey-first-loop/sweep-before.json` and
+`sweep-live.json` (11 interaction checks plus all four journey tabs at an 800x700 viewport,
+without horizontal overflow). Quest-window regressions: 106 assertions PASS. Full
+`npm run test:fast`: **771/771 PASS** on receipt `f08140173`; log `sweep-verified.log`
+in the same directory. Website mirror synchronized; walkthrough `REVIEW.md` updated.
+No backend changes, integration merge, installer rebuild, or publication in this pass.
+
+## JOURNEY UX HANDOFFS — 2026-09-12 (`agent/journey-first-loop-0912`)
+
+Owner requested execution of the strongest remaining UX improvements. Source `e1696ce99`,
+receipt `7d5ea4885`, implements an ambition-first entry with an explicit AI planning request,
+reviewable suggestions, editable adoption, contextual undo, and optional planning detail.
+Planning uses the existing internal model path and never creates a goal or launches its work.
+Malformed responses and connection failures preserve the draft and allow retry or manual entry.
+
+The tabs are Now, Goals, Progress, History. Saving a goal hands off to its next action unless
+the user wrote a newer draft or changed tabs while waiting. Start-step buttons identify actual
+execution. A finished step shows its recorded result alongside the next decision; its output
+link scopes the existing library to the exact bound run, with an explicit return to all work.
+Missing run outputs never substitute unrelated files. Constellation stars open their chapters,
+including the plan and history; crew review remains a separate editable conversation action.
+
+Verified live through the seeded app at :8916 and a deterministic local provider fixture:
+suggest/adopt/undo/save, delayed and failed planning requests, delayed save duplicate protection,
+new typing and navigation preservation, star-to-chapter navigation through a filtered archive,
+real harness step execution, next-step advancement without goal achievement, exact output
+retrieval, and the empty-output recovery path. New controls retain station paint. Screenshots
+were inspected. These are labelled fixture results, not real audience or business outcomes;
+the tests establish the interaction and transport, not suggestion quality across all models.
+
+Full `npm run test:fast`: **771/771 PASS** on `7d5ea4885`. Focused assertions: GoalStore 170,
+quest window 104, work quests 35, deliverables UI 20, deliverables open 11. Website mirror is
+synchronized. Evidence: `.dogfood/journey-first-loop/ux-verified.log`, `ux-live.json`,
+`ux-delayed.json`, `ux-save-delayed.json`, `ux-save-navigation.json`, `ux-run.json`,
+`ux-outputs.json`, `ux-output-empty.json`; walkthrough `REVIEW.md`, images `ux-start.png`
+and `ux-next.png` in the same directory. No backend/shared-contract changes, merge, installer
+rebuild or publication. The full plan graph remains browser-local; cross-device restoration
+has not been implemented in this pass.
+
+## JOURNEY POLISH — 2026-09-12 (`agent/journey-first-loop-0912`)
+
+Owner approved the expanded direction and requested polish. Source `c3e07f0b9`, with the
+reflection timing correction in `679a8467a`, improves the existing journey without adding
+another progression system:
+
+- Reproduced and fixed a live draft-loss bug: saving an idea erased an unfinished goal form.
+  Quest actions now use form-preserving repaints. Only submitted fields are cleared, by stable
+  identity and submitted value; newer writing during an asynchronous save remains intact.
+- Journey inputs now participate in the existing unsaved-close guard. Saved fields clear their
+  dirty marker; archive search is not treated as unsaved content.
+- Templates and idea promotion offer restore-previous-draft, including context and idea links.
+  New starting points do not inherit a different goal's success condition or motivation.
+- Goal creation displays a pending state and prevents repeat clicks/template replacement during
+  registration. Save, pause/resume, and review failures provide explicit feedback.
+- Focused directions sort first. Context, plan, and reflection editors are compact and retain
+  expansion across status changes. Archive search finds outcomes and reflections without
+  rebuilding the forms, and gives recovery guidance when nothing matches.
+- Unchanged context saves add no history; a five-second duplicate-click guard on reflections
+  preserves intentional repeated observations later. Live counts were 5 -> 5 -> 6.
+
+Live proof: the draft survives idea/reflection saves, pause/resume, template undo, and tab
+changes. A real intercepted/delayed goal registration displayed SAVING, minted one goal,
+retained text typed while pending, and restored controls after its response. A single-line
+draft triggered the real close warning. Metric saves retained values, cleared only submitted
+notes, and cleared saved dirty markers. Unique control ids and station paint were checked.
+
+Focused tests pass: GoalStore 160 assertions, quest-log window 104. Full `npm run test:fast`
+passed 771/771 against source receipt `b00834d92`; the full receipt is
+`.dogfood/journey-first-loop/polish-verified.log`. No backend/shared-contract edits. The
+generated website mirror is synchronized, and source-claims checks passed 64 assertions.
+Live receipts and the polished-controls screenshot are under `.dogfood/journey-first-loop/`.
+The source remains isolated; browser-local plan storage and the installed app are unchanged.
+
+## EXPANDED JOURNEY IN BRANCH — 2026-09-12 (`agent/journey-first-loop-0912`)
+
+Owner explicitly requested a much fuller experience before judging it. This supersedes the
+earlier prototype's suggestion to stop for a playtest before expanding the journey.
+
+Implemented in `172acd77e`, with layout and review corrections through `e529f9dc4`:
+
+- A persisted possibility shelf: an experiment question, learning notes, shelving/restoring,
+  an editable crew exploration session, and promotion into a goal with the learning retained.
+- Editable starting points for app launch, time-saving automation, and creative work.
+- Multiple directions with focus, pause/resume, reversible archiving, motivation and
+  constraints, reflections, and revision of unaccepted steps. Accepted objectives and completed
+  work remain unchanged; the earlier wording and reasons for changing direction stay recorded.
+- Actual milestone launches carry the goal, success condition, constraints, motivation, and
+  latest reflection. Crew reviews also carry recorded steps and any reported final outcome.
+- A personal constellation derived from saved goals and acknowledged outcome records, linked
+  to crew review, with existing Commander progression and station evolution alongside it.
+- A chapter archive with step evidence, user outcome reports, revisions, and reflections;
+  JSON export through a real download. Adding goals no longer silently evicts old chapters.
+
+Live verified on the isolated seed: possibility -> goal -> revised step -> pause/resume ->
+real harness run through brief.proceed/fs.write -> recorded step -> metric update -> explicit
+outcome report -> illuminated star and ORBIT stage. Reaching the metric target alone did not
+finish the goal. Browser and sidecar restarts retained ideas, links, constraints, revisions,
+reflections, and exactly the same outcome receipts. Crew review opened as an editable prompt
+with the reported result explicitly distinguished from independent verification. Export
+download retained both test goals, both ideas, and revision history. New controls use station
+paint; the next action remains visible in the docked panel. All examples are labelled local
+fixtures, not actual audience or business achievements.
+
+Focused tests pass: GoalStore 154 assertions and quest-log window 93 assertions. Final full
+`npm run test:fast` passed 771/771 against source receipt `2f99f04cb`; the receipt is
+`.dogfood/journey-first-loop/full-form-verified.log`. Source-claims checks passed 64 assertions.
+An earlier gate attempt encountered a Windows lock on the active Chrome test profile inside
+the scanned evidence folder. The profile was moved outside that folder; the evidence scan
+then passed. No test threshold was weakened. Generated website sources are synchronized.
+
+Visual walkthrough: `.dogfood/journey-first-loop/REVIEW.md` in the owned worktree, with live
+screenshots and restart/export receipts. Full plan trees and reflections remain browser-local;
+the existing sidecar owns metrics and progression. No new scheduling engine, model-learning
+claims, tool unlocks, backend/schema edits, integration merge, or installed-app changes.
+Next product work should be driven by the owner's review of this expanded experience, with
+cross-device plan persistence and stronger artifact-specific milestone evidence still open.
+
+## VERIFIED PROTOTYPE IN BRANCH — 2026-09-12 personal journey first loop (`agent/journey-first-loop-0912`)
+
+Owner direction: StarNet grows with the user's real ambitions. Explore, pursue and maintain
+are connected experiences, not mandatory modes. Validate a useful, enjoyable loop before
+adding a campaign entity, migrating all goal storage, or building a larger progression system.
+
+Live baseline on isolated seed: an explicitly saved app goal appeared under Goals, while the
+default Quests view still led with recruitment/setup. The first slice puts a return briefing
+on that view: the focused goal and success condition, latest completed step with its recorded
+evidence, chosen next step, plan review, and the existing output library. An empty local goal
+history offers exploration without requiring a long-term goal. Completed goals remain readable
+chapters. Selecting another open milestone persists its ID without rewriting plan order or
+completed history; accepted live work prevents switching or duplicate acceptance. Launched
+milestone work now carries the parent goal and its success condition.
+
+Live proof on the seeded app: real local provider transport -> brief.proceed -> fs.write ->
+run completion created `journey-feedback.html`; one of three steps completed while the overall
+goal stayed active. Deliberate provider failure awarded no progress. App, automation and
+creative goal examples rendered correctly. A reported final planned step still required explicit
+outcome confirmation; that confirmation advanced the existing station evolution to VECTOR.
+Selected next step, prior evidence and goal focus survived both browser reload and sidecar
+restart. The output-library action showed the produced file; new controls had station paint
+and the return card had no horizontal overflow. These are labelled local fixture scenarios,
+not evidence of customer adoption or actual business outcomes.
+
+Validation: full `npm run test:fast` passed 771/771 on committed candidate `8796a81f2`.
+Focused goal/return-card tests pass (94 + 122 + 93 assertions), source-claims checks pass
+64 assertions, and the generated website mirror matches all 4587 frontend files. Initial
+attempts exposed two transient timing failures (both passed individually and in the final
+gate), the required source-hash refresh and the required four-file demo regeneration.
+Only release-surface identity was refreshed; every claim verdict was preserved. No
+backend/schema changes. The compact return card's primary action is visible in the docked
+panel without scrolling; details expose its success condition and saved evidence. A restart
+retained exactly one journey outcome for the completed milestone.
+
+Implementation: `5855009f2`; mirror/source receipts through `8796a81f2`. Local raw receipts
+and the cropped visual preview live in `.dogfood/journey-first-loop/` in the owned worktree;
+`fast-complete.log` ends with `run-fast-tests: OK — 771 step(s) green`. Test processes were
+stopped. No integration merge, installer rebuild, deployment or publication was performed.
+Do not treat source proof as installer acceptance, usability validation, or release readiness.
+
+Next product checkpoint: have the owner and a small set of users try their own app-building,
+automation and creative work across return visits. Check whether the next action is useful,
+changing direction is clear, evidence is trusted, and the world payoff feels personal. Then
+decide whether to expand experiments/dependencies, actual reusable crew learning and station
+artifacts. Backend ownership consolidation follows the validated persistence requirements;
+this slice intentionally preserves existing stores and IDs. No new XP currency or tool gating.
 
 ## MERGED — speech recovery (7ccb4ebd9, 2026-09-10)
 

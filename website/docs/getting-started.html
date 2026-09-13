@@ -3,81 +3,89 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Getting started — StarNet Docs</title>
+<title>Install &amp; first task — StarNet Docs</title>
 <link rel="icon" type="image/svg+xml" href="../assets/favicon.svg">
-<link rel="stylesheet" href="docs.css?v=20260903">
+<link rel="stylesheet" href="docs.css?v=20260913-brand-nav">
 </head>
-<body class="docs-page" data-group="START HERE" data-title="GETTING STARTED">
+<body class="docs-page" data-group="Start here" data-group-id="start" data-kind="Quickstart" data-title="Install &amp; first task">
+<a class="skip-link" href="#main-content">Skip to content</a>
 
 <div class="crt-scan" aria-hidden="true"></div>
 <div class="crt-vignette" aria-hidden="true"></div>
 
 <header class="topbar" id="topbar">
-  <a class="brand" href="../index.html">STARNET TERMLINK</a>
+  <a class="brand" href="../index.html" aria-label="StarNet home"><img src="../assets/starnet-logo-small.png" alt="StarNet" width="355" height="60"></a>
   <nav class="topnav" aria-label="Site">
-    <a href="../index.html#station">WHAT IT IS</a>
-    <a href="../index.html#difference">FEATURES</a>
-    <a href="index.html" class="on">DOCS</a>
-    <a href="../pricing.html" data-pricing-link>PRICING</a>
-    <a href="../index.html#download">DOWNLOAD</a>
-    <a href="https://github.com/androoAGI/starnet" target="_blank" rel="noopener">GITHUB</a>
+    <a href="../index.html#station">Product</a>
+    <a href="index.html" class="on">Docs</a>
+    <a href="../pricing.html" data-pricing-link>Pricing</a>
+    <a href="https://github.com/androoAGI/starnet" target="_blank" rel="noopener">GitHub<svg class="nav-external" aria-hidden="true" focusable="false" viewBox="0 0 16 16" width="12" height="12"><path d="M3 13 13 3M4 3h9v9" fill="none" stroke="currentColor" stroke-width="1.5"/></svg></a>
   </nav>
   <span class="topbar-right">
-    <a href="help.html">HELP</a>
-    <span class="live-dot"><span class="dot"></span>OPEN SOURCE</span>
+    <a href="help.html">Help</a>
+    <a class="nav-download" href="../index.html#download">Download &darr;</a>
   </span>
 </header>
 
 <div class="docs-shell">
   <aside class="docs-side" id="docs-side">
-    <button class="side-toggle" type="button" aria-expanded="false" aria-controls="side-nav">[ MENU ]</button>
-    <div class="side-search"><span class="ss-glyph">&gt;</span><input id="docs-search" type="search" placeholder="search docs  ( / )" autocomplete="off" spellcheck="false" aria-label="Search docs"><div class="ss-results" id="docs-results" hidden></div></div>
+    <div class="side-home">Documentation</div>
+    <div class="side-search"><label class="sr-only" for="docs-search">Search docs</label><input id="docs-search" type="search" placeholder="Search docs…" autocomplete="off" spellcheck="false" aria-controls="docs-results" aria-expanded="false"><kbd class="search-key" aria-hidden="true">/</kbd><div class="ss-results" id="docs-results" hidden></div><span id="docs-search-status" class="sr-only" role="status" aria-live="polite"></span></div>
+    <button class="side-toggle" type="button" aria-expanded="false" aria-controls="side-nav">Browse documentation</button>
     <nav id="side-nav" class="side-nav" aria-label="Docs">
-    <div class="side-group" data-group="START HERE">
-    <div class="side-title">// START HERE</div>
-    <a href="index.html">DOCS HOME</a>
-    <a href="getting-started.html" class="active" aria-current="page">GETTING STARTED</a>
-    <a href="guides/first-line.html">YOUR FIRST WORKING LINE</a>
-    <a href="providers.html">PROVIDERS &amp; KEYS</a>
-    </div>
-    <div class="side-group" data-group="FIELD MANUAL">
-    <div class="side-title">// FIELD MANUAL</div>
-    <a href="guides/index.html">ALL GUIDES</a>
-    <a href="guides/conveyors.html">HOW CONVEYORS WORK</a>
-    <a href="guides/filter.html">SORTING WORK WITH A FILTER</a>
-    <a href="guides/splitter-joiner.html">SPLITTER &amp; JOINER</a>
-    <a href="guides/crew.html">YOUR CREW &amp; THEIR GEAR</a>
-    <a href="guides/goals.html">GOALS, QUESTS &amp; XP</a>
-    <a href="guides/night-shift.html">NIGHT SHIFT</a>
-    <a href="guides/routines.html">SKILLS, RECIPES &amp; ROUTINES</a>
-    <a href="guides/channels.html">RUN IT FROM YOUR PHONE</a>
-    </div>
-    <div class="side-group" data-group="REFERENCE">
-    <div class="side-title">// REFERENCE</div>
-    <a href="station.html">THE STATION</a>
-    <a href="agents.html">AGENTS &amp; TEAMS</a>
-    <a href="autonomy.html">AUTONOMY &amp; NIGHT SHIFT</a>
-    <a href="skills.html">SKILLS, RECIPES, ROUTINES</a>
-    <a href="connect-a-platform.html">CONNECT A PLATFORM</a>
-    <a href="connectors.html">CONNECTORS &amp; INTEROP</a>
-    <a href="migrating.html">FROM OPENCLAW / HERMES</a>
-    </div>
-    <div class="side-group" data-group="HELP">
-    <div class="side-title">// HELP</div>
-    <a href="help.html">HELP CENTER</a>
-    <a href="troubleshooting.html">TROUBLESHOOTING</a>
-    <a href="shortcuts.html">KEYBOARD SHORTCUTS</a>
-    <a href="glossary.html">GLOSSARY</a>
-    </div>
+      <div class="side-quick">
+      <a href="index.html">Docs overview</a>
+      <a href="guides/index.html">Step-by-step guides</a>
+      </div>
+      <p class="side-label">Browse topics</p>
+    <details class="side-group" open>
+    <summary class="side-title">Start here</summary>
+    <a href="getting-started.html" class="active" aria-current="page">Install &amp; first task</a>
+    <a href="providers.html">Models &amp; providers</a>
+    </details>
+    <details class="side-group">
+    <summary class="side-title">Station &amp; agents</summary>
+    <a href="station.html">Station &amp; capabilities</a>
+    <a href="guides/crew.html">Set up your crew</a>
+    <a href="agents.html">Agents, teams &amp; voice</a>
+    <a href="guides/goals.html">Goals, quests &amp; XP</a>
+    </details>
+    <details class="side-group">
+    <summary class="side-title">Conveyor workflows</summary>
+    <a href="guides/first-line.html">Build your first workflow</a>
+    <a href="guides/conveyors.html">Conveyor basics</a>
+    <a href="guides/filter.html">Filter &amp; route work</a>
+    <a href="guides/splitter-joiner.html">Split &amp; combine results</a>
+    </details>
+    <details class="side-group">
+    <summary class="side-title">Repeat &amp; automate</summary>
+    <a href="guides/routines.html">Create repeatable work</a>
+    <a href="skills.html">Skills &amp; routines reference</a>
+    <a href="guides/night-shift.html">Set up Night Shift</a>
+    <a href="autonomy.html">Autonomy controls</a>
+    </details>
+    <details class="side-group">
+    <summary class="side-title">Connect your tools</summary>
+    <a href="connect-a-platform.html">Connect a service</a>
+    <a href="guides/channels.html">Messaging channels</a>
+    <a href="connectors.html">Connectors &amp; MCP reference</a>
+    <a href="migrating.html">From OpenClaw or Hermes</a>
+    </details>
+    <details class="side-group">
+    <summary class="side-title">Troubleshooting &amp; help</summary>
+    <a href="help.html">Help center</a>
+    <a href="troubleshooting.html">Troubleshooting</a>
+    <a href="shortcuts.html">Keyboard shortcuts</a>
+    <a href="glossary.html">Glossary</a>
+    </details>
     </nav>
   </aside>
-  <main class="docs-main">
-<h1>GETTING STARTED</h1>
+  <main class="docs-main" id="main-content" tabindex="-1">
+<h1>Install &amp; first task</h1>
 <p class="doc-sub">// from download to your first working agent</p>
 
-<h2>1. Download and install</h2>
-<p><b>The public release train targets Windows and macOS.</b> Grab the right build
-from the
+<h2 id="download-and-install">1. Download and install</h2>
+<p>Download StarNet for <b>Windows or macOS</b> from the
 <a href="https://github.com/androoAGI/starnet-releases/releases/latest" target="_blank" rel="noopener">releases page</a>:</p>
 <table>
 <tr><th>Platform</th><th>Asset</th></tr>
@@ -88,53 +96,48 @@ from the
 <p>Not sure which Mac you have? Apple menu &rarr; <b>About This Mac</b>. "Apple M…" means
 Apple Silicon; "Intel" means Intel. The wrong one won't run.</p>
 
-<h3>Windows first run</h3>
-<p>The public train requires a valid Authenticode publisher and trusted timestamp. SmartScreen
-  can still show <i>"Windows protected your PC"</i> while a certificate builds reputation.
+<h3 id="windows-first-run">Windows first run</h3>
+<p>Open the installer and follow its steps. If SmartScreen shows <i>"Windows protected your PC"</i>,
   Open <b>More info</b>, verify the publisher matches the release notes, and proceed only then.</p>
 
-<h3>macOS first run</h3>
+<h3 id="macos-first-run">macOS first run</h3>
 <ol>
 <li>Open the <code>.dmg</code> and drag <b>StarNet</b> into <b>Applications</b>.</li>
-<li>Open StarNet from Applications. The public train requires Developer ID signing and a
-stapled Apple notarization ticket, so Gatekeeper should accept the release normally.</li>
+<li>Open <b>StarNet</b> from Applications.</li>
 </ol>
 <p>If Gatekeeper reports an unknown developer, missing notarization, or a damaged app, stop and
 report the release tag and asset name. Do not clear quarantine for a purported public release.</p>
 
-<h2>2. Connect a provider</h2>
-<p>On first launch StarNet asks for one model provider. An
-<b>OpenRouter API key</b> works everywhere (hundreds of models through one key), or use a
-supported OAuth sign-in. Details in <a href="providers.html">Providers &amp; keys</a>.</p>
+<h2 id="connect-a-provider">2. Connect a provider</h2>
+<p>First launch has two setup steps: choose your agent’s identity, then connect its model.
+Use a StarNet account, a supported provider sign-in, an API key, or a local model.
+The <a href="providers.html">models and providers reference</a> explains each option.</p>
+<p>Select a model before continuing. Your provider or local model must be available for the agent to answer.</p>
 
-<h2>3. Awaken your first agent</h2>
-<p>The onboarding flow walks you through recruiting your first crew member: a short interview
-shapes its dossier, it takes a desk in your station, and you give it its first task from the
-COMMS window. When it uses a real tool you'll see it move to the workstation that grants that
-tool — the animation is driven by the actual run, not a script.</p>
+<h2 id="awaken-your-first-agent">3. Send your first task</h2>
+<p>Your first crew member is the <b>Overseer</b>. Talk to it in COMMS, the station’s chat window.</p>
+<ol>
+<li>Finish the introduction and open your agent’s <b>COMMS</b> conversation.</li>
+<li>Send a small request, such as <b>“Give me a three-item checklist for planning my week.”</b></li>
+<li>Wait for the completed response. If the provider returns an error, check <a href="providers.html">your model connection</a> before trying a larger task.</li>
+</ol>
+<p>That is enough to start using StarNet. When you want work to pass through several agents, follow <a href="guides/first-line.html">Build your first workflow</a>. To give your crew more tools, see <a href="guides/crew.html">Set up your crew</a>.</p>
 
-<h2>4. Updates</h2>
-<p>The public train produces signed updater artifacts for Windows and both Mac architectures.
-The Update Center verifies downloads against a key baked into the app before installation,
-independently of OS signing. This is the supported path, not proof that a specific candidate was
-installed and updated; use the matching release installer if an update cannot complete.</p>
+<h2 id="updates">4. Updates</h2>
+<p>Use the desktop app’s <b>Update Center</b> to check for and install updates. If an update cannot
+complete, follow <a href="troubleshooting.html">the troubleshooting guide</a> and note the version and error shown.</p>
 
-<h2>Run from source</h2>
-<p>The sidecar runs on Node core modules alone — no <code>npm install</code> needed:</p>
+<h2 id="run-from-source">Run from source</h2>
+<p>For a development checkout, install Node.js 18 or later, then run:</p>
 <pre><code>git clone https://github.com/androoAGI/starnet.git
 cd starnet
-node sidecar/index.js
+npm install
+npm start
 # open http://localhost:8787</code></pre>
-<p>One exception: <b>hands-free Live Voice</b> needs the two offline speech packages
-(<code>@huggingface/transformers</code> and <code>kokoro-js</code>). The desktop installers ship them, so
-downloaded builds need nothing extra — but a from-source checkout has to install them before
-Live Voice will start:</p>
-<pre><code>npm install</code></pre>
-<p>Without them the station still runs normally. On Windows, Live Voice can fall back to the operating
-system's offline dictation engine and keyless Edge speech; on other platforms the panel refuses before
-opening your microphone because it has no local listening engine.</p>
+<p>Keep that terminal running while you use the station. The desktop installer is the simpler path if
+you do not need a source checkout. For speech setup and fallbacks, see <a href="agents.html">Agents, teams &amp; voice</a>.</p>
 
-<nav class="doc-pager" aria-label="Previous and next"><a class="pg prev" href="index.html"><span class="pg-k">&larr; PREVIOUS</span><span class="pg-t">DOCS HOME</span></a><a class="pg next" href="guides/first-line.html"><span class="pg-k">NEXT &rarr;</span><span class="pg-t">YOUR FIRST WORKING LINE</span></a></nav>
+<nav class="doc-pager" aria-label="More in Start here"><span></span><a class="pg next" href="providers.html"><span class="pg-k">NEXT &rarr;</span><span class="pg-t">Models &amp; providers</span></a></nav>
   </main>
 </div>
 
@@ -155,7 +158,8 @@ opening your microphone because it has no local listening engine.</p>
   <div class="footer-fine">MIT license &middot; &copy; <span id="year">2026</span> StarNet &middot; no telemetry, no tracking &mdash; <a href="../legal/privacy.html">we collect nothing</a></div>
 </footer>
 
-<script src="search-index.js?v=20260903"></script>
-<script src="docs.js?v=20260903"></script>
+<script src="search-index.js?v=20260913-brand-nav"></script>
+<script src="search.js?v=20260913-brand-nav"></script>
+<script src="docs.js?v=20260913-brand-nav"></script>
 </body>
 </html>

@@ -41,7 +41,7 @@ assert.match(runbook, /all three supported platform keys[\s\S]{0,180}windows-x86
   'the release runbook requires the same three supported targets');
 assert.doesNotMatch(runbook, /all five platform keys/i,
   'the release runbook does not restore the retired five-platform public contract');
-assert.match(website, /public-train requirements are not installed proof/i,
+assert.match(website, /release checks do not prove that an installer works on your computer/i,
   'website preserves the evidence boundary');
 
 const stale = /unsigned and un-notarized|isn't Apple-notarized|Until StarNet is Apple-notarized|None of the builds are code-signed|Linux builds come off[\s\S]{0,80}release train|fully supported from day one/i;

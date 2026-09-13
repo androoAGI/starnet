@@ -3,85 +3,94 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>How Conveyors Work — StarNet Field Manual</title>
+<title>Conveyor basics — StarNet Docs</title>
 <meta name="description" content="Plain-English visual guide: what the boxes on a StarNet belt are, how to build a line, how to tell it is working, and what each message on the floor means.">
 <link rel="canonical" href="https://starnetos.com/docs/guides/conveyors.html">
 <link rel="icon" type="image/svg+xml" href="../../assets/favicon.svg">
-<link rel="stylesheet" href="guides.css?v=20260903">
+<link rel="stylesheet" href="guides.css?v=20260913-brand-nav">
 </head>
-<body class="docs-page" data-group="FIELD MANUAL" data-title="HOW CONVEYORS WORK">
+<body class="docs-page" data-group="Conveyor workflows" data-group-id="workflows" data-kind="Guide" data-title="Conveyor basics">
+<a class="skip-link" href="#main-content">Skip to content</a>
 
 <div class="crt-scan" aria-hidden="true"></div>
 <div class="crt-vignette" aria-hidden="true"></div>
 
 <header class="topbar" id="topbar">
-  <a class="brand" href="../../index.html">STARNET TERMLINK</a>
+  <a class="brand" href="../../index.html" aria-label="StarNet home"><img src="../../assets/starnet-logo-small.png" alt="StarNet" width="355" height="60"></a>
   <nav class="topnav" aria-label="Site">
-    <a href="../../index.html#station">WHAT IT IS</a>
-    <a href="../../index.html#difference">FEATURES</a>
-    <a href="../index.html" class="on">DOCS</a>
-    <a href="../../pricing.html" data-pricing-link>PRICING</a>
-    <a href="../../index.html#download">DOWNLOAD</a>
-    <a href="https://github.com/androoAGI/starnet" target="_blank" rel="noopener">GITHUB</a>
+    <a href="../../index.html#station">Product</a>
+    <a href="../index.html" class="on">Docs</a>
+    <a href="../../pricing.html" data-pricing-link>Pricing</a>
+    <a href="https://github.com/androoAGI/starnet" target="_blank" rel="noopener">GitHub<svg class="nav-external" aria-hidden="true" focusable="false" viewBox="0 0 16 16" width="12" height="12"><path d="M3 13 13 3M4 3h9v9" fill="none" stroke="currentColor" stroke-width="1.5"/></svg></a>
   </nav>
   <span class="topbar-right">
-    <a href="../help.html">HELP</a>
-    <span class="live-dot"><span class="dot"></span>OPEN SOURCE</span>
+    <a href="../help.html">Help</a>
+    <a class="nav-download" href="../../index.html#download">Download &darr;</a>
   </span>
 </header>
 
 <div class="docs-shell">
   <aside class="docs-side" id="docs-side">
-    <button class="side-toggle" type="button" aria-expanded="false" aria-controls="side-nav">[ MENU ]</button>
-    <div class="side-search"><span class="ss-glyph">&gt;</span><input id="docs-search" type="search" placeholder="search docs  ( / )" autocomplete="off" spellcheck="false" aria-label="Search docs"><div class="ss-results" id="docs-results" hidden></div></div>
+    <div class="side-home">Documentation</div>
+    <div class="side-search"><label class="sr-only" for="docs-search">Search docs</label><input id="docs-search" type="search" placeholder="Search docs…" autocomplete="off" spellcheck="false" aria-controls="docs-results" aria-expanded="false"><kbd class="search-key" aria-hidden="true">/</kbd><div class="ss-results" id="docs-results" hidden></div><span id="docs-search-status" class="sr-only" role="status" aria-live="polite"></span></div>
+    <button class="side-toggle" type="button" aria-expanded="false" aria-controls="side-nav">Browse documentation</button>
     <nav id="side-nav" class="side-nav" aria-label="Docs">
-    <div class="side-group" data-group="START HERE">
-    <div class="side-title">// START HERE</div>
-    <a href="../index.html">DOCS HOME</a>
-    <a href="../getting-started.html">GETTING STARTED</a>
-    <a href="first-line.html">YOUR FIRST WORKING LINE</a>
-    <a href="../providers.html">PROVIDERS &amp; KEYS</a>
-    </div>
-    <div class="side-group" data-group="FIELD MANUAL">
-    <div class="side-title">// FIELD MANUAL</div>
-    <a href="index.html">ALL GUIDES</a>
-    <a href="conveyors.html" class="active" aria-current="page">HOW CONVEYORS WORK</a>
-    <a href="filter.html">SORTING WORK WITH A FILTER</a>
-    <a href="splitter-joiner.html">SPLITTER &amp; JOINER</a>
-    <a href="crew.html">YOUR CREW &amp; THEIR GEAR</a>
-    <a href="goals.html">GOALS, QUESTS &amp; XP</a>
-    <a href="night-shift.html">NIGHT SHIFT</a>
-    <a href="routines.html">SKILLS, RECIPES &amp; ROUTINES</a>
-    <a href="channels.html">RUN IT FROM YOUR PHONE</a>
-    </div>
-    <div class="side-group" data-group="REFERENCE">
-    <div class="side-title">// REFERENCE</div>
-    <a href="../station.html">THE STATION</a>
-    <a href="../agents.html">AGENTS &amp; TEAMS</a>
-    <a href="../autonomy.html">AUTONOMY &amp; NIGHT SHIFT</a>
-    <a href="../skills.html">SKILLS, RECIPES, ROUTINES</a>
-    <a href="../connect-a-platform.html">CONNECT A PLATFORM</a>
-    <a href="../connectors.html">CONNECTORS &amp; INTEROP</a>
-    <a href="../migrating.html">FROM OPENCLAW / HERMES</a>
-    </div>
-    <div class="side-group" data-group="HELP">
-    <div class="side-title">// HELP</div>
-    <a href="../help.html">HELP CENTER</a>
-    <a href="../troubleshooting.html">TROUBLESHOOTING</a>
-    <a href="../shortcuts.html">KEYBOARD SHORTCUTS</a>
-    <a href="../glossary.html">GLOSSARY</a>
-    </div>
+      <div class="side-quick">
+      <a href="../index.html">Docs overview</a>
+      <a href="index.html">Step-by-step guides</a>
+      </div>
+      <p class="side-label">Browse topics</p>
+    <details class="side-group">
+    <summary class="side-title">Start here</summary>
+    <a href="../getting-started.html">Install &amp; first task</a>
+    <a href="../providers.html">Models &amp; providers</a>
+    </details>
+    <details class="side-group">
+    <summary class="side-title">Station &amp; agents</summary>
+    <a href="../station.html">Station &amp; capabilities</a>
+    <a href="crew.html">Set up your crew</a>
+    <a href="../agents.html">Agents, teams &amp; voice</a>
+    <a href="goals.html">Goals, quests &amp; XP</a>
+    </details>
+    <details class="side-group" open>
+    <summary class="side-title">Conveyor workflows</summary>
+    <a href="first-line.html">Build your first workflow</a>
+    <a href="conveyors.html" class="active" aria-current="page">Conveyor basics</a>
+    <a href="filter.html">Filter &amp; route work</a>
+    <a href="splitter-joiner.html">Split &amp; combine results</a>
+    </details>
+    <details class="side-group">
+    <summary class="side-title">Repeat &amp; automate</summary>
+    <a href="routines.html">Create repeatable work</a>
+    <a href="../skills.html">Skills &amp; routines reference</a>
+    <a href="night-shift.html">Set up Night Shift</a>
+    <a href="../autonomy.html">Autonomy controls</a>
+    </details>
+    <details class="side-group">
+    <summary class="side-title">Connect your tools</summary>
+    <a href="../connect-a-platform.html">Connect a service</a>
+    <a href="channels.html">Messaging channels</a>
+    <a href="../connectors.html">Connectors &amp; MCP reference</a>
+    <a href="../migrating.html">From OpenClaw or Hermes</a>
+    </details>
+    <details class="side-group">
+    <summary class="side-title">Troubleshooting &amp; help</summary>
+    <a href="../help.html">Help center</a>
+    <a href="../troubleshooting.html">Troubleshooting</a>
+    <a href="../shortcuts.html">Keyboard shortcuts</a>
+    <a href="../glossary.html">Glossary</a>
+    </details>
     </nav>
   </aside>
-  <main class="docs-main">
+  <main class="docs-main" id="main-content" tabindex="-1">
 <div class="fm-hero">
 <div class="fh-kicker">// FIELD MANUAL &middot; START WITH THIS ONE</div>
-<h1>HOW CONVEYORS WORK</h1>
+<h1>Conveyor basics</h1>
 <p class="fh-sub">A job goes in one end. Finished work comes out the other.</p>
 <svg viewBox="0 0 820 152" role="img" aria-label="A work line: a job enters at the INBOX, rides the belt through two agent BAYs where each does their part, and the finished work leaves through the OUTBOX."><rect class="d-machine d-lit" x="20" y="47" width="60" height="60"/><rect class="d-inner" x="28" y="55" width="44" height="10"/><g class="d-chev"><polyline points="43,74 50,83 57,74"/></g><defs><clipPath id="cl1"><rect x="80" y="62" width="180" height="30"/></clipPath></defs><rect class="d-belt" x="80" y="62" width="180" height="30"/><g class="d-rail"><line x1="80" y1="64" x2="260" y2="64"/><line x1="80" y1="90" x2="260" y2="90"/></g><g clip-path="url(#cl1)"><g class="d-chev march"><polyline points="60,70 69,77 60,84"/><polyline points="90,70 99,77 90,84"/><polyline points="120,70 129,77 120,84"/><polyline points="150,70 159,77 150,84"/><polyline points="180,70 189,77 180,84"/><polyline points="210,70 219,77 210,84"/><polyline points="240,70 249,77 240,84"/></g></g><circle class="d-led blink" cx="252" cy="68" r="3"/><rect class="d-machine" x="260" y="47" width="60" height="60"/><rect class="d-inner" x="268" y="88" width="44" height="9"/><circle class="d-led blink" cx="275" cy="62" r="4"/><rect class="d-plate" x="286" y="56" width="26" height="12"/><defs><clipPath id="cl2"><rect x="320" y="62" width="180" height="30"/></clipPath></defs><rect class="d-belt" x="320" y="62" width="180" height="30"/><g class="d-rail"><line x1="320" y1="64" x2="500" y2="64"/><line x1="320" y1="90" x2="500" y2="90"/></g><g clip-path="url(#cl2)"><g class="d-chev march"><polyline points="300,70 309,77 300,84"/><polyline points="330,70 339,77 330,84"/><polyline points="360,70 369,77 360,84"/><polyline points="390,70 399,77 390,84"/><polyline points="420,70 429,77 420,84"/><polyline points="450,70 459,77 450,84"/><polyline points="480,70 489,77 480,84"/></g></g><circle class="d-led blink" cx="492" cy="68" r="3"/><rect class="d-machine" x="500" y="47" width="60" height="60"/><rect class="d-inner" x="508" y="88" width="44" height="9"/><circle class="d-led blink" cx="515" cy="62" r="4"/><rect class="d-plate" x="526" y="56" width="26" height="12"/><defs><clipPath id="cl3"><rect x="560" y="62" width="180" height="30"/></clipPath></defs><rect class="d-belt" x="560" y="62" width="180" height="30"/><g class="d-rail"><line x1="560" y1="64" x2="740" y2="64"/><line x1="560" y1="90" x2="740" y2="90"/></g><g clip-path="url(#cl3)"><g class="d-chev march"><polyline points="540,70 549,77 540,84"/><polyline points="570,70 579,77 570,84"/><polyline points="600,70 609,77 600,84"/><polyline points="630,70 639,77 630,84"/><polyline points="660,70 669,77 660,84"/><polyline points="690,70 699,77 690,84"/><polyline points="720,70 729,77 720,84"/></g></g><circle class="d-led blink" cx="732" cy="68" r="3"/><rect class="d-machine" x="740" y="47" width="60" height="60"/><rect class="d-chute" x="749" y="59" width="42" height="39"/><g class="d-chev"><polyline points="763,76 770,85 777,76"/></g><g class="ride " style="--ride-end:150px;--ride-mid:75px"><ellipse class="d-shadow" cx="95" cy="91" rx="10" ry="3"/><rect class="d-crate" x="84" y="66" width="22" height="22"/><rect class="d-crate-top" x="84" y="66" width="22" height="6"/></g><g class="ride d2" style="--ride-end:150px;--ride-mid:75px"><ellipse class="d-shadow" cx="335" cy="91" rx="10" ry="3"/><rect class="d-crate" x="324" y="66" width="22" height="22"/><rect class="d-crate-top" x="324" y="66" width="22" height="6"/></g><g class="ride d3" style="--ride-end:150px;--ride-mid:75px"><ellipse class="d-shadow" cx="575" cy="91" rx="10" ry="3"/><rect class="d-crate" x="564" y="66" width="22" height="22"/><rect class="d-crate-top" x="564" y="66" width="22" height="6"/></g><g class="d-label"><text x="50" y="37" text-anchor="middle">THE JOB COMES IN</text></g><g class="d-label"><text x="290" y="37" text-anchor="middle">DOES THEIR PART</text></g><g class="d-label"><text x="530" y="37" text-anchor="middle">DOES THE NEXT PART</text></g><g class="d-label"><text x="770" y="37" text-anchor="middle">FINISHED WORK OUT</text></g><g class="d-sub"><text x="50" y="125" text-anchor="middle">the INBOX</text></g><g class="d-sub"><text x="290" y="125" text-anchor="middle">a BAY — one agent</text></g><g class="d-sub"><text x="530" y="125" text-anchor="middle">a BAY — one agent</text></g><g class="d-sub"><text x="770" y="125" text-anchor="middle">the OUTBOX</text></g></svg>
 </div>
 <div class="q-tags" style="margin:-10px 0 22px"><span class="tag hot">PLAIN ENGLISH</span><span class="tag">~5 MIN</span><span class="tag">NO SETUP NEEDED TO READ</span></div>
-<h2><span class="h-num">01</span>The whole idea</h2>
+<h2 id="the-whole-idea"><span class="h-num">01</span>The whole idea</h2>
 <p class="lede">You hand your station a job: &ldquo;put together a report on my competitors.&rdquo;</p>
 <div class="story">
 <div class="st"><span class="st-n">1</span><p>The job shows up as a <b>box</b> on the belt.</p></div>
@@ -96,13 +105,13 @@
 <div class="gl"><span class="gl-w">A BELT</span><span class="gl-m">the path the work takes</span></div>
 <div class="gl"><span class="gl-w">A LINE</span><span class="gl-m">the whole job, start to finish</span></div>
 </div>
-<h2><span class="h-num">02</span>Why bother?</h2>
+<h2 id="why-bother"><span class="h-num">02</span>Why bother?</h2>
 <div class="whys">
 <div class="why"><div class="w-title">Each agent owns one part</div><p>One agent doing the whole job does every part half-well. On a line, the researcher researches, the writer writes, the checker checks.</p></div>
 <div class="why"><div class="w-title">The job runs without you</div><p>Hand work over at 3am, or have it arrive on a schedule. It moves through the line on its own. You come back to the finished thing.</p></div>
 <div class="why"><div class="w-title">You can watch the work</div><p>No spinner. No hidden queue. If your job is being worked on, you can see its box moving down the line.</p></div>
 </div>
-<h2><span class="h-num">03</span>The four pieces</h2>
+<h2 id="the-four-pieces"><span class="h-num">03</span>The four pieces</h2>
 <p>Open <b>REFIT STATION</b> to build. Everything below is under <b>PROP</b> <span class="key">6</span>, and the belt itself is <b>BELT</b> <span class="key">7</span>.</p>
 <div class="parts">
 <div class="part"><svg viewBox="0 0 100 90" role="img" aria-label=""><rect class="d-machine d-lit" x="6" y="8" width="60" height="60"/><rect class="d-inner" x="14" y="16" width="44" height="10"/><g class="d-chev"><polyline points="29,35 36,44 43,35"/></g><defs><clipPath id="cl4"><rect x="66" y="23" width="30" height="30"/></clipPath></defs><rect class="d-belt" x="66" y="23" width="30" height="30"/><g class="d-rail"><line x1="66" y1="25" x2="96" y2="25"/><line x1="66" y1="51" x2="96" y2="51"/></g><g clip-path="url(#cl4)"><g class="d-chev march"><polyline points="46,31 55,38 46,45"/><polyline points="76,31 85,38 76,45"/></g></g></svg><div class="p-name">THE FRONT DOOR</div><div class="p-size">called an INBOX</div><div class="p-role">Work from outside comes in here. A task you send in. A job on a schedule.</div></div>
@@ -111,7 +120,7 @@
 <div class="part"><svg viewBox="0 0 100 90" role="img" aria-label=""><defs><clipPath id="cl7"><rect x="6" y="23" width="30" height="30"/></clipPath></defs><rect class="d-belt" x="6" y="23" width="30" height="30"/><g class="d-rail"><line x1="6" y1="25" x2="36" y2="25"/><line x1="6" y1="51" x2="36" y2="51"/></g><g clip-path="url(#cl7)"><g class="d-chev march"><polyline points="-14,31 -5,38 -14,45"/><polyline points="16,31 25,38 16,45"/></g></g><rect class="d-machine d-lit" x="36" y="23" width="30" height="30"/><defs><clipPath id="cl8"><rect x="66" y="23" width="30" height="30"/></clipPath></defs><rect class="d-belt" x="66" y="23" width="30" height="30"/><g class="d-rail"><line x1="66" y1="25" x2="96" y2="25"/><line x1="66" y1="51" x2="96" y2="51"/></g><g clip-path="url(#cl8)"><g class="d-chev march"><polyline points="46,31 55,38 46,45"/><polyline points="76,31 85,38 76,45"/></g></g><defs><clipPath id="cl9"><rect x="36" y="53" width="30" height="30"/></clipPath></defs><rect class="d-belt" x="36" y="53" width="30" height="30"/><g class="d-rail"><line x1="38" y1="53" x2="38" y2="83"/><line x1="64" y1="53" x2="64" y2="83"/></g><g clip-path="url(#cl9)"><g class="d-chev march-s"><polyline points="44,33 51,42 58,33"/><polyline points="44,63 51,72 58,63"/></g></g></svg><div class="p-name">A SIGNPOST</div><div class="p-size">FILTER &middot; SPLITTER &middot; JOINER &middot; LOOP</div><div class="p-role">Sits on the belt. Points boxes left or right.</div></div>
 </div>
 <div class="tip"><span class="lbl">// YOU CAN SKIP THE FRONT DOOR</span>Chatting with an agent needs no belts at all. Belts are for real jobs &mdash; work with parts, work that should flow through several agents on its own.</div>
-<h2><span class="h-num">04</span>Build one</h2>
+<h2 id="build-one"><span class="h-num">04</span>Build one</h2>
 <ol class="buildsteps">
 <li><div class="b-text"><span class="b-title">Put down three things</span><p>Open <b>REFIT STATION</b>. Take the <b>PROP</b> tool <span class="key">6</span>. Place a front door, a desk, and an out tray in a row. Leave a small gap between each.</p></div><div class="b-shot"><svg viewBox="0 0 252 106" role="img" aria-label="Build step 1"><rect class="d-machine d-lit" x="6" y="33" width="60" height="60"/><rect class="d-inner" x="14" y="41" width="44" height="10"/><g class="d-chev"><polyline points="29,60 36,69 43,60"/></g><rect class="d-machine" x="96" y="33" width="60" height="60"/><rect class="d-inner" x="104" y="74" width="44" height="9"/><circle class="d-led blink" cx="111" cy="48" r="4"/><rect class="d-plate" x="122" y="42" width="26" height="12"/><rect class="d-machine" x="186" y="33" width="60" height="60"/><rect class="d-chute" x="195" y="45" width="42" height="39"/><g class="d-chev"><polyline points="209,62 216,71 223,62"/></g><g class="d-ghost"><rect x="66" y="48" width="30" height="30"/><rect x="156" y="48" width="30" height="30"/></g><g class="d-label"><text x="21" y="26" text-anchor="start">IN</text></g><g class="d-label"><text x="111" y="26" text-anchor="start">BAY</text></g><g class="d-label"><text x="201" y="26" text-anchor="start">OUT</text></g></svg><div class="b-cap">machines down, gaps left for belt</div></div></li>
 <li><div class="b-text"><span class="b-title">Draw the belt</span><p>Take the <b>BELT</b> tool <span class="key">7</span>. Click the front door. Then click the desk. A belt appears between them. Do the same from the desk to the out tray.</p></div><div class="b-shot"><svg viewBox="0 0 252 106" role="img" aria-label="Build step 2"><rect class="d-machine d-lit" x="6" y="33" width="60" height="60"/><rect class="d-inner" x="14" y="41" width="44" height="10"/><g class="d-chev"><polyline points="29,60 36,69 43,60"/></g><defs><clipPath id="cl10"><rect x="66" y="48" width="30" height="30"/></clipPath></defs><rect class="d-belt" x="66" y="48" width="30" height="30"/><g class="d-rail"><line x1="66" y1="50" x2="96" y2="50"/><line x1="66" y1="76" x2="96" y2="76"/></g><g clip-path="url(#cl10)"><g class="d-chev"><polyline points="46,56 55,63 46,70"/><polyline points="76,56 85,63 76,70"/></g></g><rect class="d-machine" x="96" y="33" width="60" height="60"/><rect class="d-inner" x="104" y="74" width="44" height="9"/><circle class="d-led blink" cx="111" cy="48" r="4"/><rect class="d-plate" x="122" y="42" width="26" height="12"/><defs><clipPath id="cl11"><rect x="156" y="48" width="30" height="30"/></clipPath></defs><rect class="d-belt" x="156" y="48" width="30" height="30"/><g class="d-rail"><line x1="156" y1="50" x2="186" y2="50"/><line x1="156" y1="76" x2="186" y2="76"/></g><g clip-path="url(#cl11)"><g class="d-chev"><polyline points="136,56 145,63 136,70"/><polyline points="166,56 175,63 166,70"/></g></g><rect class="d-machine" x="186" y="33" width="60" height="60"/><rect class="d-chute" x="195" y="45" width="42" height="39"/><g class="d-chev"><polyline points="209,62 216,71 223,62"/></g><g class="d-note"><text x="126" y="24" text-anchor="middle">click → click</text></g></svg><div class="b-cap">BELT tool: two clicks per link</div></div></li>
@@ -120,7 +129,7 @@
 <li><div class="b-text"><span class="b-title">Try it</span><p>Close the build screen. Send your station a task. Watch its box come out of the front door, slide to the desk, and drop in. Your agent is on it right now.</p></div><div class="b-shot"><svg viewBox="0 0 252 106" role="img" aria-label="Build step 5"><rect class="d-machine d-lit" x="6" y="33" width="60" height="60"/><rect class="d-inner" x="14" y="41" width="44" height="10"/><g class="d-chev"><polyline points="29,60 36,69 43,60"/></g><defs><clipPath id="cl16"><rect x="66" y="48" width="30" height="30"/></clipPath></defs><rect class="d-belt" x="66" y="48" width="30" height="30"/><g class="d-rail"><line x1="66" y1="50" x2="96" y2="50"/><line x1="66" y1="76" x2="96" y2="76"/></g><g clip-path="url(#cl16)"><g class="d-chev march"><polyline points="46,56 55,63 46,70"/><polyline points="76,56 85,63 76,70"/></g></g><circle class="d-led blink" cx="88" cy="54" r="3"/><rect class="d-machine" x="96" y="33" width="60" height="60"/><rect class="d-inner" x="104" y="74" width="44" height="9"/><circle class="d-led blink" cx="111" cy="48" r="4"/><rect class="d-plate" x="122" y="42" width="26" height="12"/><defs><clipPath id="cl17"><rect x="156" y="48" width="30" height="30"/></clipPath></defs><rect class="d-belt" x="156" y="48" width="30" height="30"/><g class="d-rail"><line x1="156" y1="50" x2="186" y2="50"/><line x1="156" y1="76" x2="186" y2="76"/></g><g clip-path="url(#cl17)"><g class="d-chev march"><polyline points="136,56 145,63 136,70"/><polyline points="166,56 175,63 166,70"/></g></g><circle class="d-led blink" cx="178" cy="54" r="3"/><rect class="d-machine" x="186" y="33" width="60" height="60"/><rect class="d-chute" x="195" y="45" width="42" height="39"/><g class="d-chev"><polyline points="209,62 216,71 223,62"/></g><g class="ride " style="--ride-end:0px;--ride-mid:0px"><ellipse class="d-shadow" cx="83" cy="79" rx="10" ry="3"/><rect class="d-crate" x="72" y="54" width="22" height="22"/><rect class="d-crate-top" x="72" y="54" width="22" height="6"/></g><g class="ride d2" style="--ride-end:0px;--ride-mid:0px"><ellipse class="d-shadow" cx="173" cy="79" rx="10" ry="3"/><rect class="d-crate" x="162" y="54" width="22" height="22"/><rect class="d-crate-top" x="162" y="54" width="22" height="6"/></g><g class="d-note"><text x="126" y="24" text-anchor="middle">RUNNING</text></g></svg><div class="b-cap">a real crate = a real run</div></div></li>
 </ol>
 <div class="tip"><span class="lbl">// OR SKIP ALL FIVE STEPS</span>The <b>LINES</b> tool <span class="key">9</span> drops a whole finished line in one click. See <a href="first-line.html">Your First Working Line</a>.</div>
-<h2><span class="h-num">05</span>Is it working?</h2>
+<h2 id="is-it-working"><span class="h-num">05</span>Is it working?</h2>
 <p class="lede">Lit belt = will work. Dark belt = something&rsquo;s missing.</p>
 <p>You don&rsquo;t have to test anything. Every time you change a belt, the app checks it and shows the result on the floor right away.</p>
 <div class="compare">
@@ -128,7 +137,7 @@
 <div class="cmp bad"><svg viewBox="0 0 222 94" role="img" aria-label="A belt run that is cold"><g class="cold"><rect class="d-machine d-lit" x="6" y="17" width="60" height="60"/><rect class="d-inner" x="14" y="25" width="44" height="10"/><g class="d-chev"><polyline points="29,44 36,53 43,44"/></g><defs><clipPath id="cl19"><rect x="66" y="32" width="90" height="30"/></clipPath></defs><rect class="d-belt" x="66" y="32" width="90" height="30"/><g class="d-rail"><line x1="66" y1="34" x2="156" y2="34"/><line x1="66" y1="60" x2="156" y2="60"/></g><g clip-path="url(#cl19)"><g class="d-chev"><polyline points="46,40 55,47 46,54"/><polyline points="76,40 85,47 76,54"/><polyline points="106,40 115,47 106,54"/><polyline points="136,40 145,47 136,54"/></g></g><rect class="d-machine" x="156" y="17" width="60" height="60"/><rect class="d-inner" x="164" y="58" width="44" height="9"/><circle class="d-led blink" cx="171" cy="32" r="4"/><rect class="d-plate" x="182" y="26" width="26" height="12"/></g></svg><div class="c-verdict">DARK</div><p>Same belt &mdash; but the desk is empty. Nothing moves until you fix that.</p></div>
 </div>
 <div class="trap"><span class="lbl">// THE ONE EVERYONE HITS</span>A belt that just touches the <b>corner</b> of a signpost does nothing. The belt must go <b>through</b> the signpost&rsquo;s square: in one side, out the other.</div>
-<h2><span class="h-num">06</span>Four shapes cover everything</h2>
+<h2 id="four-shapes-cover-everything"><span class="h-num">06</span>Four shapes cover everything</h2>
 <p>Same job, four ways to run it through your agents. Each shape is just belts plus one signpost.</p>
 <div class="recipes">
 <div class="recipe"><div class="r-head"><span class="r-name">ONE AFTER ANOTHER</span><span class="r-kind">HAND-OFF</span></div><div class="r-art"><svg viewBox="0 0 312 96" role="img" aria-label="INBOX to bay A to bay B: a hand-off chain"><rect class="d-machine d-lit" x="6" y="17" width="60" height="60"/><rect class="d-inner" x="14" y="25" width="44" height="10"/><g class="d-chev"><polyline points="29,44 36,53 43,44"/></g><defs><clipPath id="cl20"><rect x="66" y="32" width="60" height="30"/></clipPath></defs><rect class="d-belt" x="66" y="32" width="60" height="30"/><g class="d-rail"><line x1="66" y1="34" x2="126" y2="34"/><line x1="66" y1="60" x2="126" y2="60"/></g><g clip-path="url(#cl20)"><g class="d-chev march"><polyline points="46,40 55,47 46,54"/><polyline points="76,40 85,47 76,54"/><polyline points="106,40 115,47 106,54"/></g></g><circle class="d-led blink" cx="118" cy="38" r="3"/><rect class="d-machine" x="126" y="17" width="60" height="60"/><rect class="d-inner" x="134" y="58" width="44" height="9"/><circle class="d-led blink" cx="141" cy="32" r="4"/><rect class="d-plate" x="152" y="26" width="26" height="12"/><defs><clipPath id="cl21"><rect x="186" y="32" width="60" height="30"/></clipPath></defs><rect class="d-belt" x="186" y="32" width="60" height="30"/><g class="d-rail"><line x1="186" y1="34" x2="246" y2="34"/><line x1="186" y1="60" x2="246" y2="60"/></g><g clip-path="url(#cl21)"><g class="d-chev march"><polyline points="166,40 175,47 166,54"/><polyline points="196,40 205,47 196,54"/><polyline points="226,40 235,47 226,54"/></g></g><circle class="d-led blink" cx="238" cy="38" r="3"/><rect class="d-machine" x="246" y="17" width="60" height="60"/><rect class="d-inner" x="254" y="58" width="44" height="9"/><circle class="d-led blink" cx="261" cy="32" r="4"/><rect class="d-plate" x="272" y="26" width="26" height="12"/><g class="ride " style="--ride-end:30px;--ride-mid:15px"><ellipse class="d-shadow" cx="81" cy="61" rx="10" ry="3"/><rect class="d-crate" x="70" y="36" width="22" height="22"/><rect class="d-crate-top" x="70" y="36" width="22" height="6"/></g><g class="ride d2" style="--ride-end:30px;--ride-mid:15px"><ellipse class="d-shadow" cx="201" cy="61" rx="10" ry="3"/><rect class="d-crate" x="190" y="36" width="22" height="22"/><rect class="d-crate-top" x="190" y="36" width="22" height="6"/></g><g class="d-label"><text x="36" y="10" text-anchor="middle">IN</text></g><g class="d-label"><text x="156" y="10" text-anchor="middle">AGENT A</text></g><g class="d-label"><text x="276" y="10" text-anchor="middle">AGENT B</text></g></svg></div><p>An assembly line. Each agent does their part and passes their output to the next. What comes out is the last agent&rsquo;s finished work.</p></div>
@@ -138,7 +147,8 @@
 </div>
 <div class="trap"><span class="lbl">// THE EXPENSIVE MISTAKE</span>Desk A sends to desk B, and desk B sends back to desk A? That would run forever and bill you forever. The app refuses to run it, and tells you which belt to cut.</div>
 <div class="tip"><span class="lbl">// A BROKEN STEP NEVER EATS YOUR WORK</span>If a step fails or the budget runs out mid-line, you still get everything finished so far, plus one line telling you where it stopped.</div>
-<h2><span class="h-num">07</span>Something&rsquo;s not running</h2>
+<span id="somethings-not-running"></span>
+<h2 id="something-s-not-running"><span class="h-num">07</span>Something&rsquo;s not running</h2>
 <p>When a line won&rsquo;t run, the reason is written on the machine itself &mdash; before anything costs you money. It&rsquo;s almost always one of these four:</p>
 <div class="faultgrid">
 <div class="fault"><span class="f-code">NO AGENT — CLICK</span><p>This desk is empty. Click it and pick an agent.</p></div>
@@ -157,13 +167,13 @@
 <div class="fault"><span class="f-code">LOOP HAS NO DONE / BACK LANE</span><p>A LOOP tile needs two exits: one going onward, one going back.</p></div>
 </div></div></details>
 <div class="tip"><span class="lbl">// NOTHING YOU DO HERE IS PERMANENT</span><b>DELETE</b> <span class="key">5</span> removes anything, and UNDO brings it back. You cannot break your station by experimenting.</div>
-<h2><span class="h-num">08</span>Questions people actually ask</h2>
+<h2 id="questions-people-actually-ask"><span class="h-num">08</span>Questions people actually ask</h2>
 <details class="qa"><summary>Do I even need belts?</summary><div class="qa-body"><p>No. You can just chat with an agent, no belts anywhere. Belts are for jobs that should flow through several agents on their own &mdash; especially ones that arrive while you&rsquo;re away.</p></div></details>
 <details class="qa"><summary>My belt is dark. Why?</summary><div class="qa-body"><p>It doesn&rsquo;t end anywhere useful yet. Follow it to the end. You&rsquo;ll find an empty desk, a gap, or a belt clipping the corner of a signpost.</p></div></details>
 <details class="qa"><summary>Can two belts go to the same desk?</summary><div class="qa-body"><p>Yes. Boxes line up and wait their turn. The only thing you can&rsquo;t do is put one agent at two desks.</p></div></details>
 <details class="qa"><summary>What if it gets expensive?</summary><div class="qa-body"><p>Every line has a budget &mdash; $2.00 per job unless you raise it. At the cap it stops, hands over what it finished, and says so.</p></div></details>
 <details class="qa"><summary>Does it stop when I close the window?</summary><div class="qa-body"><p>No. The work keeps going. The moving box is just a picture of it &mdash; the picture catches up next time you look.</p></div></details>
-<nav class="doc-pager" aria-label="Previous and next"><a class="pg prev" href="index.html"><span class="pg-k">&larr; PREVIOUS</span><span class="pg-t">ALL GUIDES</span></a><a class="pg next" href="filter.html"><span class="pg-k">NEXT &rarr;</span><span class="pg-t">SORTING WORK WITH A FILTER</span></a></nav>
+<nav class="doc-pager" aria-label="More in Conveyor workflows"><a class="pg prev" href="first-line.html"><span class="pg-k">&larr; PREVIOUS</span><span class="pg-t">Build your first workflow</span></a><a class="pg next" href="filter.html"><span class="pg-k">NEXT &rarr;</span><span class="pg-t">Filter &amp; route work</span></a></nav>
   </main>
 </div>
 
@@ -184,7 +194,8 @@
   <div class="footer-fine">MIT license &middot; &copy; <span id="year">2026</span> StarNet &middot; no telemetry, no tracking &mdash; <a href="../../legal/privacy.html">we collect nothing</a></div>
 </footer>
 
-<script src="../search-index.js?v=20260903"></script>
-<script src="../docs.js?v=20260903"></script>
+<script src="../search-index.js?v=20260913-brand-nav"></script>
+<script src="../search.js?v=20260913-brand-nav"></script>
+<script src="../docs.js?v=20260913-brand-nav"></script>
 </body>
 </html>
