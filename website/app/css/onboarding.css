@@ -35,10 +35,12 @@
 
 .ov-panel:has(#cc-recovery:not(.hidden)) .ov-journey { display:none; }
 
-/* Ceremony controls stay outside the canvas for keyboard and reduced-motion access. */
-.arrival-controls{position:fixed;z-index:9999;bottom:26px;left:50%;transform:translateX(-50%);display:flex;align-items:center;gap:24px;padding:10px 16px;background:rgba(3,7,12,.88);border:1px solid currentColor;font:15px VT323,monospace;color:#efb476;letter-spacing:2px}
-.arrival-controls span{text-transform:uppercase;min-width:120px}.arrival-controls .bb{padding:8px 12px;letter-spacing:1px}
-@media(prefers-reduced-motion:reduce){.arrival-controls{transition:none}}
+/* A quiet station command, outside the canvas for keyboard access. */
+.arrival-controls{position:fixed;z-index:9999;right:24px;bottom:18px;margin:0;padding:0;background:none;border:0;box-shadow:none}
+.arrival-controls>span{display:none}
+.arrival-controls .bb{display:inline-flex;align-items:center;min-height:44px;padding:8px 10px;border:0;border-radius:0;background:none;box-shadow:none;color:var(--ph-dim);font:16px VT323,monospace;letter-spacing:1.5px;text-transform:uppercase;text-shadow:none;cursor:pointer}
+.arrival-controls .bb:hover,.arrival-controls .bb:focus-visible{background:none;border:0;box-shadow:none;color:var(--ph);text-shadow:0 0 8px var(--ph-glow2)}
+.arrival-controls .bb:focus-visible{outline:1px solid var(--ph);outline-offset:2px}
 
 /* The arriving agent's own name is the title card; no invented model-state telemetry. */
 .arrival-identity{position:fixed;z-index:9998;left:50%;top:12%;transform:translateX(-50%);max-width:80vw;text-align:center;pointer-events:none;color:var(--ph,#efb476);font-family:VT323,monospace;text-shadow:0 0 18px currentColor}
@@ -46,4 +48,4 @@
 .arrival-identity strong{display:block;font-size:clamp(28px,4vw,52px);font-weight:400;letter-spacing:8px;overflow-wrap:anywhere}
 body:has(.arrival-controls) #screen-game #stage-wrap{position:fixed;inset:0;z-index:9990;width:100%;height:100%;border:0}
 body:has(.arrival-controls) #stage-wrap .cam-hud,body:has(.arrival-controls) #nav-coach{visibility:hidden}
-@media(max-width:600px){.arrival-controls{gap:10px;bottom:16px;max-width:95vw}.arrival-identity{top:10%}.arrival-identity strong{letter-spacing:4px}}
+@media(max-width:600px){.arrival-controls{right:10px;bottom:10px}.arrival-identity{top:10%}.arrival-identity strong{letter-spacing:4px}}
