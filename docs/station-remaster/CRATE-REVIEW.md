@@ -10,6 +10,6 @@ Native rendering measured a 26×21 solid silhouette, a 2×1 tile footprint and t
 
 `crate-scale-comparison.png` compares the previous and candidate crate at identical scale, with the approved workstation and unchanged white agent. The live REFIT placement/save was observed and the loaded page reports `data-prop-review="crate"`.
 
-Validation: industrial loader contracts 299 assertions; 160-prop regression 1413 assertions; workstation state 538 assertions; render smoke 13 assertions. The native calibration render passes footprint, alpha bounds, floor contact and no-emitter checks. Full gate receipt is recorded after completion.
+Validation: industrial loader contracts 299 assertions; 160-prop regression 1413 assertions; workstation state 538 assertions; render smoke 13 assertions. The native calibration render passes footprint, alpha bounds, floor contact and no-emitter checks. On 2026-09-13, `npm run test:fast` exited 0 with `run-fast-tests: OK — 777 step(s) green` at commit `0ef2a090d`. The complete local receipt is `dev/industrial-textures/crate-review-fast.log`. Final live inspection showed the candidate crate on the command deck alongside the approved workstations and unchanged white agent.
 
 Prompt/provenance: `CRATE-PROMPT.json`, `CRATE-CALIBRATION.json`, `crate-structure-guide.png`. Recreate the native comparison with `dev/industrial-textures/review-crate-calibration.cjs` using the bundled canvas runtime. No broader prop artwork is accepted by this checkpoint.
