@@ -18,7 +18,7 @@
   "expectedClaimCount": 37,
   "releaseSurface": {
     "algorithm": "sha256",
-    "sourceCommit": "679a8467af305573986edbe4f70887f42ae322d4",
+    "sourceCommit": "e1696ce991db778b70b4d82d3a8cf319589ed955",
     "pathSetSha256": "51677953e0b1823c314c0a8ad0a8ec8e032f5d458eb166518757c4e2b284ff90",
     "files": [
       {
@@ -243,8 +243,8 @@
       },
       {
         "path": "frontend/app/deliverables.js",
-        "bytes": 30453,
-        "sha256": "babf82335c0e85ddd7cf3d7a806520214bd4c34be118db0016a7e819681959b1"
+        "bytes": 32086,
+        "sha256": "5700e5ceefefa3c7149990c212972240d6df9cd001de945810293baa2a8ffc2f"
       },
       {
         "path": "frontend/app/diagnostics.js",
@@ -353,8 +353,8 @@
       },
       {
         "path": "frontend/app/goalstore.js",
-        "bytes": 42872,
-        "sha256": "11a93aa1e0beb0a717a328c56dc2e19c8a337b53ec0a1b9ec855933f4d3d01d5"
+        "bytes": 45216,
+        "sha256": "ea18ed5be8b5dcc05eb37eb0b17f181ed688d287c9cc4d4b608a617d709c3c17"
       },
       {
         "path": "frontend/app/group-chat.js",
@@ -823,8 +823,8 @@
       },
       {
         "path": "frontend/app/stationui.js",
-        "bytes": 721738,
-        "sha256": "80b16ea4af3ad5231d531bbff5cdaf170bf86ef77b345828a32de555184e306c"
+        "bytes": 729713,
+        "sha256": "aaf769a3fd4bf39dec050c2e42eb036235c7e342d0f9d730166af7953903df45"
       },
       {
         "path": "frontend/app/study.js",
@@ -1023,8 +1023,8 @@
       },
       {
         "path": "frontend/app/workquests.js",
-        "bytes": 11613,
-        "sha256": "6425abec1ba5f6960ff36eb22913f860d3635a09fe60fce353627749272a7b98"
+        "bytes": 11645,
+        "sha256": "24d10cbfc832c1d6cca134f94d564bf7af83c5cf1c5b74de5cea6f2bacb3610a"
       },
       {
         "path": "frontend/app/workqueststore.js",
@@ -1183,8 +1183,8 @@
       },
       {
         "path": "frontend/css/quests.css",
-        "bytes": 15207,
-        "sha256": "69f88690a8d4f01ef140c421e35e3237747e5e9f7ccd049989a596eac2eb5ca4"
+        "bytes": 15580,
+        "sha256": "57ad71297a2547ac78a6bf191960dc044ed70c03cc37646eadc73f3d3071b10c"
       },
       {
         "path": "frontend/css/readability.css",
