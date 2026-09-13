@@ -153,4 +153,25 @@ for (const mat of ['basalt', 'parquet', 'rubber', 'slotted', 'terrazzo', 'octile
 }
 delete global.WorldRenderer;
 delete global.WorldSurface;
+
+// Specialized wall materials keep their function and paint under the industrial
+// remaster. In particular, the actual glass openings cannot grow or disappear.
+const specialized = ['viewport', 'wainscot', 'hedge'];
+const originalSpecialized = new Map(specialized.map(mat => [mat, wallSample(mat, 4)]));
+global.IndustrialTextures = { isRemaster: () => true };
+for (const mat of specialized) {
+  const after = wallSample(mat, 4), before = originalSpecialized.get(mat);
+  A.ok(after.join('|') !== before.join('|'), mat + ' has an authored industrial finish');
+  A.eq(after.filter(o => o.startsWith('c ')), before.filter(o => o.startsWith('c ')), mat + ' preserves exact window cut geometry');
+  A.ok(after.filter(o => o.startsWith('f ') || o.startsWith('c ')).every(o => {
+    const p = o.split(' '), x = +p[1], y = +p[2], w = +p[3], h = +p[4];
+    return x >= 0 && y >= 0 && x + w <= 4 * TILE && y + h <= FACE_H;
+  }), mat + ' remaster stays inside its original face');
+  A.ok(after.some(o => { const p = o.split(' '); return p[0] === 'f' && +p[2] === FACE_H - 1; }), mat + ' remaster keeps the floor contact row');
+  A.ok(wallSample(mat, 4).join('|') === after.join('|'), mat + ' remaster is deterministic');
+}
+global.IndustrialTextures.isRemaster = () => false;
+for (const mat of specialized) A.eq(wallSample(mat, 4), originalSpecialized.get(mat), mat + ' classic artwork is byte-for-byte unchanged');
+delete global.IndustrialTextures;
+
 A.report('stationbake.materials');

@@ -27,6 +27,8 @@ const WorldSurface = (() => {
   const WALLS = Object.freeze(['bulkhead', 'courses', 'service', 'plating', 'ribbed', 'panelled', 'pipework']);
   const materialSet = new Set(MATERIALS), wallSet = new Set(WALLS);
   const palettes = new Map();
+  const remastered = () => typeof IndustrialTextures !== 'undefined' && IndustrialTextures &&
+    typeof IndustrialTextures.isRemaster === 'function' && IndustrialTextures.isRemaster();
   const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
   const mod = (v, n) => ((v % n) + n) % n;
   const detailOf = opts => clamp(Number.isFinite(opts && opts.detail) ? opts.detail : 1, 0, 1.5);
@@ -558,6 +560,20 @@ const WorldSurface = (() => {
       if (v && (x + 5 <= v.x || x - 5 >= v.x + v.w || y + 6 <= v.y || y - 2 >= v.y + v.h)) continue;
       const p = palette(f.base, detailOf(opts));
       const mark = (dx, dy, w, h, c) => { ctx.fillStyle = c; ctx.fillRect(x + dx, y + dy, w, h); };
+      if (remastered()) {
+        // Same mount, housing bounds and real lens; dark cast metal and captive
+        // brass fasteners follow the bridge reference without moving its source.
+        mark(-2, -2, 4, 2, p.deep); mark(-1, -2, 2, 1, p.shade);
+        mark(-4, 1, 9, 5, p.deep);
+        mark(-5, 1, 1, 3, p.recess); mark(4, 1, 1, 3, p.recess);
+        mark(-4, 0, 8, 4, p.shade); mark(-3, 0, 6, 1, p.metal);
+        mark(-3, 1, 6, 3, p.deep);
+        mark(-4, 1, 1, 1, '#806440'); mark(3, 1, 1, 1, '#806440');
+        mark(-3, 2, 6, 1, f.rgb === '215,232,246' ? '#d7e8f6' : '#ffdeb3');
+        mark(-3, 3, 6, 1, '#695235');
+        mark(-4, 4, 2, 1, p.recess); mark(2, 4, 2, 1, p.recess);
+        continue;
+      }
       mark(-2, -2, 4, 2, p.deep);                         // bolted saddle under crown
       mark(-1, -2, 2, 1, p.shade);
       mark(-4, 1, 9, 5, p.deep);                         // housing casts a hard shadow
@@ -583,6 +599,14 @@ const WorldSurface = (() => {
     if (e) { p(10, 0, 2, CELL, pal.recess); p(9, 0, 1, CELL, pal.soft); }
     // The camera looks from the south: no invented visible inner south face.
     if (s) p(0, 11, CELL, 1, pal.soft);
+    if (remastered() && detail > 0) {
+      const wx = x + ((geo.origin && geo.origin.tx) || 0), wy = y + ((geo.origin && geo.origin.ty) || 0);
+      // Inlaid identification tabs, not lights: restrained brass stays inside
+      // the existing contact trim and follows the physical panel cadence.
+      if (n && mod(wx, 3) === 1) p(4, 1, 4, 1, '#665336');
+      if (w && mod(wy, 3) === 1) p(1, 4, 1, 4, '#665336');
+      if (e && mod(wy, 3) === 1) p(10, 4, 1, 4, '#665336');
+    }
   }
   function paint(ctx, geo, opts = {}) {
     if (!ctx || !geo || !geo.zoneGrid) return { tiles: 0, materials: [] };

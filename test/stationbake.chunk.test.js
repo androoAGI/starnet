@@ -70,6 +70,7 @@ function fakeCtx(canvas) {
   const fillValue = () => state.globalCompositeOperation === 'destination-out' ? 0 : styleHash(state.fillStyle);
   const strokeValue = () => styleHash(state.strokeStyle);
   return {
+    canvas,
     get fillStyle() { return state.fillStyle; }, set fillStyle(v) { state.fillStyle = v; },
     get strokeStyle() { return state.strokeStyle; }, set strokeStyle(v) { state.strokeStyle = v; },
     get lineWidth() { return state.lineWidth; }, set lineWidth(v) { state.lineWidth = v; },
@@ -363,20 +364,21 @@ function textureGeo(material, base) {
 }
 const declinedGeo = textureGeo('panelled', '#476a91');
 const nativeTextureBase = StationBake.bake(declinedGeo).baseCv;
-const wallArtCalls = [], stripArtCalls = [];
-let acceptStrip = false;
+const wallArtCalls = [], stripArtCalls = [], patchArtCalls = [], detailCanvases = [];
+let acceptStrip = false, denseStrip = false;
 global.IndustrialTextures = {
-  enabled: () => true, detailContext: ctx => ctx, floor: () => false, shell: () => false,
+  enabled: () => true, detailContext: ctx => { detailCanvases.push(ctx.canvas); return ctx; }, floor: () => false, shell: () => false,
   shellPlate: () => false, drawBase: () => false,
   wall(ctx, x, y, w, h, tx, material, base, opts) {
     wallArtCalls.push({ material, base, opts, tx }); return false;
   },
+  wallPatch(ctx, x, y, w, h, strip, map) { patchArtCalls.push({ x, y, w, h, ...map(x + w / 2, y + h / 2) }); },
   wallStrip(h, material, base, opts) {
     stripArtCalls.push({ material, base, opts, h });
     if (!acceptStrip) return null;
     const d = new Uint8ClampedArray(48 * h * 4), n = parseInt(base.slice(1), 16);
     for (let i = 0; i < d.length; i += 4) { d[i] = n >>> 16; d[i + 1] = (n >>> 8) & 255; d[i + 2] = n & 255; d[i + 3] = 255; }
-    return { d, w: 48, h, x0: 0 };
+    return { d, w: 48, h, x0: 0, ...(denseStrip ? { hi: {} } : {}) };
   }
 };
 A.eq(pixelDiff(StationBake.bake(declinedGeo).baseCv, nativeTextureBase), 0,
@@ -399,6 +401,50 @@ for (const mat of ['viewport', 'wainscot', 'hedge']) {
   A.eq(stripArtCalls.length, 0, mat + ' specialized corners are never replaced by the generic atlas');
   A.eq(wallArtCalls.length, 0, mat + ' specialized straight faces keep their own native geometry');
 }
+
+// Signed physical coordinates must survive a west/north bounds expansion for
+// every projection of the wall, including fractional high-detail corner samples.
+global.IndustrialTextures.isRemaster = () => true;
+denseStrip = true;
+function movedTextureGeo(dx, dy) {
+  const g = textureGeo('bulkhead', '#476a91'), r = g.allRects[0];
+  g.origin.tx -= dx; g.origin.ty -= dy;
+  r.x1 += dx; r.x2 += dx; r.y1 += dy; r.y2 += dy;
+  g.zoneGrid.fill(null);
+  for (let y = r.y1; y <= r.y2; y++) for (let x = r.x1; x <= r.x2; x++) g.zoneGrid[g.idx(x, y)] = 'r1';
+  g.chamfers = [[r.x1, r.y1, 'tl'], [r.x2, r.y1, 'tr'], [r.x1, r.y2, 'bl'], [r.x2, r.y2, 'br']];
+  return g;
+}
+function wallAddresses(g) {
+  wallArtCalls.length = 0; patchArtCalls.length = 0;
+  StationBake.bake(g);
+  return { straight: wallArtCalls.map(c => c.tx), projected: patchArtCalls.map(c => ({
+    x: c.x + g.origin.tx * 12, y: c.y + g.origin.ty * 12, w: c.w, h: c.h,
+    a: Math.round(c.a * 1e6) / 1e6, d: Math.round(c.d * 1e6) / 1e6
+  })) };
+}
+const oldWallAddresses = wallAddresses(movedTextureGeo(0, 0));
+A.ok(oldWallAddresses.straight.some(x => x < 0), 'remaster north faces receive signed physical tile coordinates');
+A.ok(oldWallAddresses.projected.length > 100, 'side and all curved wall faces use the shared high-detail strip');
+A.eq(wallAddresses(movedTextureGeo(3, 2)), oldWallAddresses, 'growing station bounds preserves every straight, side and corner texture address');
+
+// Door occluders keep their exact old depth/clip geometry, while capturing the
+// same high-detail plate used by the adjacent wall instead of a blurred copy.
+const doorGeo = textureGeo('bulkhead', '#476a91');
+const hall = { z: 'hall', x1: 10, x2: 12, y1: 2, y2: 5 };
+doorGeo.allRects.push(hall); doorGeo.zones.hall = hall;
+for (let y = hall.y1; y <= hall.y2; y++) for (let x = hall.x1; x <= hall.x2; x++) doorGeo.zoneGrid[doorGeo.idx(x, y)] = 'hall';
+doorGeo.isCorridor = z => z === 'hall';
+doorGeo.canStep = (x, y, nx, ny) => doorGeo.zoneGrid[doorGeo.idx(x, y)] != null && doorGeo.zoneGrid[doorGeo.idx(nx, ny)] != null;
+detailCanvases.length = 0;
+const remasterDoors = StationBake.bake(doorGeo).doorOccluders;
+A.ok(remasterDoors.length > 0, 'real corridor throat produces a depth-sorted door occluder');
+A.ok(remasterDoors.every(d => detailCanvases.includes(d.image)), 'each remaster door occluder captures the dense art plate');
+global.IndustrialTextures.isRemaster = () => false;
+const classicDoors = StationBake.bake(doorGeo).doorOccluders;
+const doorGeometry = d => ({ x: d.x, y: d.y, w: d.w, h: d.h, sortY: d.sortY });
+A.eq(remasterDoors.map(doorGeometry), classicDoors.map(doorGeometry), 'remaster preserves every door occluder footprint and depth anchor');
+
 delete global.IndustrialTextures;
 delete global.WorldSurface;
 

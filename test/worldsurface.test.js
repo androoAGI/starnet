@@ -303,4 +303,23 @@ for (const unavailable of [null, {}, { floor: () => false, wall: () => false }])
 }
 delete global.IndustrialTextures;
 
+
+// Industrial fixture housings may change their cladding but must never invent
+// or recolour a light source, move the lens, or expand the housing footprint.
+global.IndustrialTextures = { isRemaster: () => true };
+const industrialFixtures = canvas(fg.W, fg.H);
+A.eq(Surface.paintFixtures(industrialFixtures.getContext('2d'), fg), fixtures, 'industrial fixtures preserve every authoritative source record');
+A.ok(Array.from(industrialFixtures.pixels).join(',') !== Array.from(painted.pixels).join(','), 'industrial fixture hardware has its own cast-metal housing');
+for (const f of fixtures) {
+  A.eq(industrialFixtures.pixels[(f.fixtureY + 2) * fg.W + f.fixtureX], painted.pixels[(f.fixtureY + 2) * fg.W + f.fixtureX], 'industrial lens stays on its exact source anchor with unchanged source colour');
+}
+A.ok(industrialFixtures.getContext('2d').marks.every(([x, y, w, h]) => fixtures.some(f =>
+  x >= f.fixtureX - 5 && x + w <= f.fixtureX + 5 && y >= f.fixtureY - 2 && y + h <= f.fixtureY + 6)),
+  'industrial mount and brass fasteners remain inside the existing housing bounds');
+global.IndustrialTextures.isRemaster = () => false;
+const classicFixtures = canvas(fg.W, fg.H);
+Surface.paintFixtures(classicFixtures.getContext('2d'), fg);
+A.eq(Array.from(classicFixtures.pixels), Array.from(painted.pixels), 'classic fixture artwork is byte-for-byte unchanged');
+delete global.IndustrialTextures;
+
 A.report('worldsurface');
