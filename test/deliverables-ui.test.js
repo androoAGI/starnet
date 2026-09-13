@@ -31,4 +31,8 @@ A.eq(D.pillOf('produced').cls, 'ok', 'a finished run reads as good');
 A.eq(D.pillOf('failed').cls, 'bad', 'a failed run reads as bad');
 A.eq(D.pillOf('constructor').cls, 'off', 'a prototype key cannot resolve through Object.prototype into a fake pill');
 
+const runRows = [{runId:'run-1',title:'First draft'}, {runId:'run-10',title:'First draft'}, {runId:'elsewhere',summary:'run-1'}, {runId:'run-1',ask:'Review feedback'}];
+A.eq(D.rowsForRun(runRows, 'run-1', '').length, 2, 'step output filtering requires exact run identity, never prefix or text matches');
+A.eq(D.rowsForRun(runRows, 'run-1', 'FEEDBACK')[0].ask, 'Review feedback', 'search within a step retains exact provenance');
+A.eq(D.rowsForRun(runRows, 'missing', '').length, 0, 'a missing run never falls back to unrelated output');
 A.report('deliverables-ui.test');
