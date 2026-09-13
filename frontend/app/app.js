@@ -1865,7 +1865,8 @@ const App = (() => {
     const isOAuth = isOAuthProviderId(pickedProvider);
     const keyBlock = el('key-block'), keyInput = el('in-key');
     const baseBlock = el('base-url-block'), baseInput = el('in-base-url');
-    const configured = !!(Harness.configured && Harness.configured(pickedProvider));
+    // DEV auto-resume eligibility is not proof of a credential for the chosen provider.
+      const configured = !!(Harness.hasStoredCredential && Harness.hasStoredCredential(pickedProvider));
     keyBlock.classList.toggle('hidden', !providerUsesKeyBox(pickedProvider));
     if (keyInput) {
       keyInput.value = Harness.getKey ? Harness.getKey(pickedProvider) : '';
@@ -2733,7 +2734,7 @@ const App = (() => {
     } else if (isOAuthProviderId(pickedProvider)) {
       if (!oauthConnected[pickedProvider]) { msg.textContent = 'sign in with ' + OAUTH_GENESIS[pickedProvider].name + ' first, or switch to OpenRouter.'; return false; }
       Harness.setModel(model); Harness.setProv(pickedProvider);
-    } else if (pickedProvider === 'openai' && !el('in-key').value.trim() && !(Harness.configured && Harness.configured('openai')) && codexConnected) {
+    } else if (pickedProvider === 'openai' && !el('in-key').value.trim() && !(Harness.hasStoredCredential && Harness.hasStoredCredential('openai')) && codexConnected) {
       // THE MERGED OPENAI CARD, ChatGPT half: no key typed, no stored OpenAI credential, but a LIVE ChatGPT
       // sign-in — the sign-in IS the credential, so this wake rides the codex path. A typed key always wins
       // (explicit beats ambient) and falls through to the key branch below.
@@ -2743,7 +2744,8 @@ const App = (() => {
       if (providerNeedsBaseUrl(pickedProvider)) {
         if (Harness.setBaseUrl) await Harness.setBaseUrl(baseUrl, pickedProvider);
       }
-      const configured = !!(Harness.configured && Harness.configured(pickedProvider));
+      // DEV auto-resume eligibility is not proof of a credential for the chosen provider.
+      const configured = !!(Harness.hasStoredCredential && Harness.hasStoredCredential(pickedProvider));
       if (providerNeedsKey(pickedProvider) && !key && !configured) {
         // COLD-START guidance: a new user has no key AND no idea where to get one. Name the provider and link
         // the exact page that mints a key (from providerSignupUrl — same destinations the placeholder hints at).

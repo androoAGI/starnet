@@ -779,3 +779,5 @@ test/sprite-direction-details.test.js
 test/chat-history-reconcile.test.js
 
 test/arrival.test.js
+
+test/genesis-wake-credential.test.js
