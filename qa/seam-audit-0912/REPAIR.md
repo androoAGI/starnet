@@ -2,6 +2,8 @@
 
 September 13, 2026. Owned branch: `agent/seam-audit-0912-b`. Product fix: `b54b44574`; silent-catch baseline adjustment: `9049ad411`; synchronized with trunk `2d8154948` through merge `89c77215a`. No shared event/schema contracts changed. No installer or customer-station recovery is claimed.
 
+Follow-up `c3d4f4f8e` preserves review retry controls, refreshes cascade-cost feedback while retaining the draft, updates Outbox after a successful storage retry, and validates routine bindings against the latest record inside the write lock. Surface receipt `024760544` binds the final frontend bytes without changing release claim verdicts.
+
 ## Nine repaired findings
 
 | Finding | Resulting behavior | Evidence |
@@ -29,5 +31,7 @@ The live UI used port 19427 and this worktree's disposable `dev/.scratch-workspa
 The original audit probes intentionally fail on repaired source. Maintained regressions now live in `test/` and the fast/HTTP manifests. Older untagged transcripts remain accessible as session history; they are not guessed into a run. Previously erased away boundaries cannot be reconstructed with certainty; the repair preserves future unacknowledged intervals. Installed Tauri behavior, paid provider accounts and affected-customer recovery remain unverified.
 
 ## Validation status
+
+Additional focused regressions passed: `loop-review-controls.test.js` (duplicate suppression, refused/malformed acknowledgements, successful retry), `routine-origin-race.test.js` (origin removed between preflight and locked update), `returnstore-recovery.test.js`, and `seam-audit-recovery.http.test.js` (two completed local-provider runs and restart). Final live review refusal retained the draft and visible editor and re-enabled both Approve and Confirm Reject. Website mirror check passed for 4,696 frontend files and two embed-only files.
 
 Final gates pending. Earlier full runs exposed a wording-lint match and a required silent-catch baseline reduction (373 → 371); both checks passed after correction, as did the remaining 39 fast steps. The combined-tree run subsequently stopped at step 252/775 when C: reached zero free bytes and sidecar startup reported ENOSPC. That failed gate is not a passing result. Only owned dependency files were compressed to reclaim space; no other workspace or user data was removed. The historical report was restored from git after its attempted write failed.

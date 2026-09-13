@@ -1,7 +1,8 @@
 {
   "date": "2026-09-13",
   "kind": "manual transcription of actual browser tool results",
-  "source": "b54b44574; settings retry rechecked after merge 89c77215a",
+  "source": "b54b44574; settings retry rechecked after merge 89c77215a; review refusal rechecked on c3d4f4f8e source",
+  "reviewRefusalRetry": { "response": "404 no such loop for synthetic audit-loop", "approveDisabled": false, "confirmDisabled": false, "draft": "Refused review must keep this draft and remain retryable.", "editorHidden": false },
   "loopDraftAfterPolling": { "draft": "Final source: retain this review across refresh and refusal.", "hidden": false, "focused": "key-input lp-why-in" },
   "loopPauseRefusal": { "notification": "Review in progress; retry when it finishes", "pauseButtonAvailable": true, "draftRetained": true },
   "routineSave": { "name": "Repair follow-up persistence", "destination": "Keep in StarNet", "followUpChecked": true, "feedback": "saved, but the scheduler is off" },
