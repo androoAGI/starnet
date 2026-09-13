@@ -1325,7 +1325,7 @@ const PropSprites = (() => {
   };
 
   F.desk = (x, y, w, h, f) => {
-    if (typeof IndustrialTextures !== 'undefined' && IndustrialTextures.workstation(ctx, x, y, w, h)) return;
+    if (typeof IndustrialTextures !== 'undefined' && IndustrialTextures.workstation(ctx, x, y, w, h, 's', { ...f, now })) return;
     /* v43 WORKSTATION — the desk is EXACTLY as it was (v19 body: slab, apron, legs, PC tower,
        monitor, keyboard). The ONLY change is the chair.
        ⛔ CHAIR CHANGES ONLY. The v42 pass rebuilt the whole workstation off the reference and Andrew
@@ -1423,7 +1423,7 @@ const PropSprites = (() => {
   };
 
   F.desk2 = (x, y, w, h, f) => {
-    if (typeof IndustrialTextures !== 'undefined' && IndustrialTextures.workstation(ctx, x, y, w, h)) return;
+    if (typeof IndustrialTextures !== 'undefined' && IndustrialTextures.workstation(ctx, x, y, w, h, 's', { ...f, now })) return;
     /* v45 DUAL WORKSTATION (2x1) — the desk's slab and chair, but TWO screens on a shared crossbar
        and no tower. Six props grant COMPUTE and they must differ by what is ON the desk, since the
        slab underneath is the same piece of furniture in every one of them.
@@ -2483,6 +2483,7 @@ const PropSprites = (() => {
   };
 
   F.crate = (x, y, w, h) => {
+    if (typeof IndustrialTextures !== 'undefined' && typeof IndustrialTextures.crate === 'function' && IndustrialTextures.crate(ctx, x, y, w, h)) return;
     /* v69 CRATE (2x1) — a METAL freight crate. Timber is retired here: the gold crate already owns the
        "chest" read, so the plain one becomes plain galvanised steel and the two separate by MATERIAL
        rather than by decoration.
@@ -10712,7 +10713,7 @@ const PropSprites = (() => {
   // loaded remaster advertises them; a missing pack keeps the old facing contract.
   for (const id of ['desk','desk2']) for (const facing of ['e','n']) {
     F[id+':'+facing]=(x,y,w,h,f)=>{
-      if(remasterStyle() && IndustrialTextures.workstation(ctx,x,y,w,h,facing))return;
+      if(remasterStyle() && IndustrialTextures.workstation(ctx,x,y,w,h,facing,{...f,now}))return;
       F[id](x,y,w,h,f);
     };
   }
@@ -11286,6 +11287,8 @@ const PropSprites = (() => {
     const lift = f.mount === 'surface' ? SURFACE_RISE : 0;
     const X = f.x * TILE, Y = f.y * TILE - lift, W = (f.w || 1) * TILE, H = (f.h || 1) * TILE;
     const o = { x: f.x, work: !!work, agentId: f.agentId || null, dockName: f.dockName || null, door: f.door || null };
+    o.occupied = live && typeof live.occupied === 'boolean' ? live.occupied : !!work;
+    o.still = !!(live && live.still);
     if (live) { o.heat = +live.heat || 0; o.prog = (live.prog == null) ? null : Math.max(0, Math.min(1, +live.prog || 0)); }
     if (f.t === 'connector_portal') {                 // a bound portal rides its connector's live state
       const cid = f.connectorId || null;
@@ -11339,7 +11342,7 @@ const PropSprites = (() => {
        tool-fire charge bar reads left-to-right regardless of which way its prop is turned. */
     // G0.3 ACTIVITY-HEAT WASH: real token/tool flow burns the working screens brighter + shimmers faster
     // (the monitors live in the prop's upper band); a stalled run cools back to the base work-glow in ~2s.
-    if (o.work && o.heat > 0) {
+    if (o.work && o.heat > 0 && !(remasterStyle() && (f.t === 'desk' || f.t === 'desk2'))) {
       const hshim = 0.72 + 0.28 * Math.sin(now / (170 - 110 * o.heat));
       glow(X + 1, Y - 4, W - 2, Math.min(H + 4, 11), scr(o.x), (0.08 + 0.36 * o.heat) * hshim);
     }
@@ -11635,9 +11638,11 @@ const PropSprites = (() => {
   /* the light a placed prop emits THIS frame, or null. `work` is the same lit flag `draw` receives. The
      modulation is deterministic on `now` + the prop's position, so two identical screens never flicker in
      lockstep; under reduced motion every mode holds steady (`still`). */
-  function lightOf(f, work, still) {
+  function lightOf(f, work, still, live) {
     const e = EMIT[f.t]; if (!e) return null;
-    if (e.work && !work) return null;
+    const rasterDesk = remasterStyle() && (f.t === 'desk' || f.t === 'desk2');
+    const screenOn = rasterDesk && live && typeof live.occupied === 'boolean' ? live.occupied : work;
+    if (e.work && !screenOn) return null;
     const lift = f.mount === 'surface' ? SURFACE_RISE : 0;
     const W = (f.w || 1) * TILE, H = (f.h || 1) * TILE;
     const X=f.x*TILE,Y=f.y*TILE-lift;
@@ -11668,7 +11673,7 @@ const PropSprites = (() => {
       else if (e.m === 'fire') k = 0.95 + 0.035 * Math.sin(now / 800 + seed) + 0.015 * Math.sin(now / 310 + seed * 2.3);
       else if (e.m === 'pulse') k = 0.98 + 0.02 * Math.sin(now / 2800 + seed);
     }
-    const color=remasterStyle()&&DECOR_ELECTRONICS.has(f.t)?[70,155,165]:e.c;
+    const color=rasterDesk?[70,185,200]:remasterStyle()&&DECOR_ELECTRONICS.has(f.t)?[70,155,165]:e.c;
     return { x, y, r: e.r, c: color, a: e.a * k };
   }
 

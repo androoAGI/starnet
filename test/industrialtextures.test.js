@@ -97,13 +97,13 @@ function fixtureAsset(url, darkScreens) {
   }
   return {width:w,height:h,pixels,points};
 }
-function load({classic=false,fail,darkScreens=false}={}) {
+function load({classic=false,fail,darkScreens=false,review=false}={}) {
   const requests=[], pending=[], assets=new Map(), dataset={};
   class Image {
     set src(url) { this.url=url; Object.assign(this,fixtureAsset(url,darkScreens)); requests.push(url); pending.push(this); assets.set(url,this); }
     get src() { return this.url; }
   }
-  const scope={ module:{exports:{}}, URLSearchParams, location:{search:classic?'?textures=classic':''}, Image,
+  const scope={ module:{exports:{}}, URLSearchParams, location:{search:'?textures='+(classic?'classic':'industrial')+(review?'&propReview=crate':'')}, Image,
     document:{documentElement:{dataset},createElement:()=>canvas()} };
   vm.runInNewContext(source,scope,{filename:'industrialtextures.js'});
   return {api:scope.module.exports,requests,assets,dataset,async finish() {
@@ -204,6 +204,21 @@ async function main() {
   const unlit=load({darkScreens:true}); await unlit.finish();
   equal(unlit.api.workstationEmitter(0,0,36,12),null,'noncyan and dark artwork invents no screen emitter');
   ok(neutralPaintResponds,'neutral paint changes the authored material luminance');
+  equal(api.crate(canvas().getContext('2d'),0,0,24,12),false,'normal station retains its approved crate');
+  const review=load({review:true});
+  equal(review.api.crate(canvas().getContext('2d'),0,0,24,12),false,'pending review art retains native fallback');
+  await review.finish();
+  equal(review.dataset.propReview,'crate','loaded one-prop review is inspectable');
+  const cargo=draw(review.api,'crate',20,30,24,12);
+  ok([...cargo.image.paths].some(p=>p.endsWith('/calibration/crate.png')),'review uses the generated crate');
+  near(cargo.dw/cargo.dh,cargo.image.width/cargo.image.height,'crate keeps source aspect without squashing');
+  near(cargo.dx+cargo.dw/2,32,'crate remains centered on its original footprint');
+  near(cargo.dy+cargo.dh,42,'crate skids end at the original ground line');
+  ok(cargo.dw<=26&&cargo.dh<=22,'crate stays inside the original body envelope');
+  const classicReview=load({classic:true,review:true});await classicReview.finish();
+  equal(classicReview.api.crate(canvas().getContext('2d'),0,0,24,12),false,'classic never adopts review art');
+  const failedReview=load({review:true,fail:'calibration/crate.png'});await failedReview.finish();
+  equal(failedReview.api.crate(canvas().getContext('2d'),0,0,24,12),false,'failed review retains complete fallback');
   console.log('industrialtextures: OK ('+checks+' public-contract assertions; synthetic canvas assets, live artwork not assessed)');
 }
 main().catch(error=>{console.error(error);process.exitCode=1;});

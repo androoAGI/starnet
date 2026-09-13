@@ -6,8 +6,12 @@
  */
 'use strict';
 const IndustrialTextures = (() => {
-  let requested = true;
-  try { requested = new URLSearchParams(location.search).get('textures') !== 'classic'; } catch (_) {}
+  let requested = true, crateReview = false;
+  try {
+    const query = new URLSearchParams(location.search);
+    requested = query.get('textures') !== 'classic';
+    crateReview = query.get('propReview') === 'crate';
+  } catch (_) {}
   const images = {}, failed = [];
   // Exposed to the existing CRT lab for a live, reproducible material review.
   const lighting = { fixtureTint: .04 };
@@ -19,12 +23,14 @@ const IndustrialTextures = (() => {
   const names = ['floor', 'wall', 'shell', 'workstation', 'workstation-compact', 'chair-s', 'chair-e', 'chair-n',
     'tactical-table', 'console-bank', 'equipment-bay', 'deck-perimeter',
     ...floorIds.map(id => 'remaster/floors/' + id), ...wallIds.map(id => 'remaster/walls/' + id),
-    'remaster/shell', 'remaster/workstation-e', 'remaster/workstation-n', 'remaster/workstation-compact-n'];
+    'remaster/shell', 'remaster/workstation-e', 'remaster/workstation-n', 'remaster/workstation-compact-n',
+    ...(crateReview ? ['calibration/crate'] : [])];
   // The references are already lit pictures. These measured albedo gains keep
   // the existing light simulation from applying a second exposure to the art.
   const gain = { floor: 1.25, wall: 1.65, shell: 2.05, workstation: 1.5, 'workstation-compact': 1.5,
     'chair-s': 1.3, 'chair-e': 1.3, 'chair-n': 1.3,
-    'tactical-table': 1.5, 'console-bank': 1.5, 'equipment-bay': 1.5, 'deck-perimeter': 1.0 };
+    'tactical-table': 1.5, 'console-bank': 1.5, 'equipment-bay': 1.5, 'deck-perimeter': 1.0,
+    'calibration/crate': 1.5 };
   const ready = requested && typeof Image !== 'undefined' ? Promise.all(names.map(name => new Promise(resolve => {
     const img = new Image();
     img.onload = () => {
@@ -43,6 +49,7 @@ const IndustrialTextures = (() => {
     loaded = !failed.length;
     document.documentElement.dataset.texturePack = loaded ? 'industrial' : 'fallback';
     document.documentElement.dataset.textureRevision = loaded ? 'bridge-remaster' : 'native';
+    document.documentElement.dataset.propReview = loaded && crateReview ? 'crate' : 'none';
   }) : Promise.resolve();
   const enabled = () => requested && loaded;
   const isRemaster = enabled;
@@ -232,11 +239,70 @@ const IndustrialTextures = (() => {
     const dw = im.width * scale, dh = im.height * scale;
     return { name, im, x: x + (w - dw) / 2, y: y + h - dh, w: dw, h: dh };
   }
-  function workstation(ctx, x, y, w, h, facing = 's') {
+  // A screen's authored cyan phosphor is the only mutable part of its raster.
+  // Keep the bezel, brass controls, silhouette and camera projection untouched.
+  // Three front/side sources are cached once; rear views have no visible glass.
+  const workstationScreens = new Map();
+  function workstationScreen(fit) {
+    if (workstationScreens.has(fit.name)) return workstationScreens.get(fit.name);
+    const im = fit.im, g = im.getContext('2d');
+    if (!g || !g.getImageData) return null;
+    const data = g.getImageData(0, 0, im.width, im.height);
+    const off = document.createElement('canvas'); off.width = im.width; off.height = im.height;
+    const og = off.getContext('2d');
+    // Canvas-less consumers retain the image path; native/browser renderers own pixels.
+    if (!og || !og.putImageData || !og.createImageData) return null;
+    const original = data.data, dim = og.createImageData(im.width, im.height);
+    dim.data.set(original);
+    let x0 = im.width, y0 = im.height, x1 = -1, y1 = -1;
+    for (let i = 0; i < original.length; i += 4) {
+      const r = original[i], cyan = Math.min(original[i+1], original[i+2]) - r;
+      if (original[i+3] < 200 || cyan < 8 || r > Math.min(original[i+1], original[i+2]) * .8) continue;
+      // Dark smoked glass retains a faint etched diagram, never an emissive CRT.
+      dim.data[i] = Math.min(12, r * .2 + 3);
+      dim.data[i+1] = Math.min(20, original[i+1] * .055 + 7);
+      dim.data[i+2] = Math.min(22, original[i+2] * .06 + 8);
+      const pixel = i / 4, x = pixel % im.width, y = Math.floor(pixel / im.width);
+      x0 = Math.min(x0, x); x1 = Math.max(x1, x); y0 = Math.min(y0, y); y1 = Math.max(y1, y);
+    }
+    og.putImageData(dim, 0, 0);
+    const value = { off, x: x0, y: y0, w: x1-x0+1, h: y1-y0+1, frames: new Map(), original };
+    workstationScreens.set(fit.name, value); return value;
+  }
+  function workstationSweep(screen, fit, phase) {
+    if (screen.frames.has(phase)) return screen.frames.get(phase);
+    const cv = document.createElement('canvas'); cv.width = screen.w; cv.height = screen.h;
+    const g = cv.getContext('2d'), patch = g.createImageData(cv.width, cv.height), d = patch.data;
+    for (let y = 0; y < screen.h; y++) for (let x = 0; x < screen.w; x++) {
+      const source = ((screen.y+y)*fit.im.width+screen.x+x)*4, r = screen.original[source];
+      const cyan = Math.min(screen.original[source+1], screen.original[source+2]) - r;
+      if (screen.original[source+3] < 200 || cyan < 8 || r > Math.min(screen.original[source+1], screen.original[source+2]) * .8) continue;
+      // The beam crosses only existing phosphor, so even the steep side view
+      // stays in its exact screen plane. No invented work counters or code logs.
+      const position = y / Math.max(1, screen.h-1);
+      const distance = Math.abs(position - phase / 15);
+      const beam = Math.max(0, 1 - distance / .2);
+      const i = (y*screen.w+x)*4;
+      d[i]=115; d[i+1]=235; d[i+2]=244; d[i+3]=Math.round(Math.min(1,cyan/100)*beam*125);
+    }
+    g.putImageData(patch,0,0); screen.frames.set(phase,cv); return cv;
+  }
+  function workstation(ctx, x, y, w, h, facing = 's', state) {
     if (!enabled()) return false;
     const fit = workstationFit(x, y, w, h, facing);
     ctx.save(); ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high';
-    ctx.drawImage(fit.im, fit.x, fit.y, fit.w, fit.h); ctx.restore(); return true;
+    const occupied = state ? (typeof state.occupied === 'boolean' ? state.occupied : !!state.work) : true;
+    const screen = facing === 'n' ? null : workstationScreen(fit);
+    ctx.drawImage(!occupied && screen ? screen.off : fit.im, fit.x, fit.y, fit.w, fit.h);
+    if (state && occupied && screen && screen.w > 0 && screen.h > 0 && !(state && state.still)) {
+      const phase = Math.floor((Math.max(0, Number(state && state.now) || 0) % 2800) / 175);
+      const patch = workstationSweep(screen, fit, phase);
+      ctx.globalCompositeOperation = 'source-atop';
+      ctx.globalAlpha *= state && state.work ? .8 + .2*Math.min(1, Math.max(0, state.heat || 0)) : .65;
+      ctx.drawImage(patch, fit.x + screen.x / fit.im.width * fit.w, fit.y + screen.y / fit.im.height * fit.h,
+        screen.w / fit.im.width * fit.w, screen.h / fit.im.height * fit.h);
+    }
+    ctx.restore(); return true;
   }
   function workstationEmitter(x, y, w, h, facing = 's') {
     if (!enabled() || facing === 'n') return null;
@@ -280,7 +346,18 @@ const IndustrialTextures = (() => {
     ctx.drawImage(im, x + (w - dw) / 2, y + h - dh, dw, dh);
     ctx.restore(); return true;
   }
-  return Object.freeze({ ready, enabled, isRemaster, lighting, detailContext, drawBase, floor, wall, wallStrip, wallPatch, shell, shellPlate, propPanel, workstation, workstationEmitter, chair,
+  // One-prop review only. Its original 2x1 placement rectangle and ground line
+  // remain authoritative; source aspect is never stretched to fill that rectangle.
+  function crate(ctx, x, y, w, h) {
+    if (!enabled() || !crateReview || !images['calibration/crate']) return false;
+    const im = images['calibration/crate'];
+    const scale = Math.min((w + 2) / im.width, (h + 10) / im.height);
+    const dw = im.width * scale, dh = im.height * scale;
+    ctx.save(); ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high';
+    ctx.drawImage(im, x + (w - dw) / 2, y + h - dh, dw, dh);
+    ctx.restore(); return true;
+  }
+  return Object.freeze({ ready, enabled, isRemaster, lighting, detailContext, drawBase, floor, wall, wallStrip, wallPatch, shell, shellPlate, propPanel, workstation, workstationEmitter, chair, crate,
     furniture,
     status: () => ({ requested, loaded, failed: failed.slice(), assets: Object.keys(images) }) });
 })();

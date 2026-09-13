@@ -6,8 +6,12 @@
  */
 'use strict';
 const IndustrialTextures = (() => {
-  let requested = true;
-  try { requested = new URLSearchParams(location.search).get('textures') !== 'classic'; } catch (_) {}
+  let requested = true, crateReview = false;
+  try {
+    const query = new URLSearchParams(location.search);
+    requested = query.get('textures') !== 'classic';
+    crateReview = query.get('propReview') === 'crate';
+  } catch (_) {}
   const images = {}, failed = [];
   // Exposed to the existing CRT lab for a live, reproducible material review.
   const lighting = { fixtureTint: .04 };
@@ -19,12 +23,14 @@ const IndustrialTextures = (() => {
   const names = ['floor', 'wall', 'shell', 'workstation', 'workstation-compact', 'chair-s', 'chair-e', 'chair-n',
     'tactical-table', 'console-bank', 'equipment-bay', 'deck-perimeter',
     ...floorIds.map(id => 'remaster/floors/' + id), ...wallIds.map(id => 'remaster/walls/' + id),
-    'remaster/shell', 'remaster/workstation-e', 'remaster/workstation-n', 'remaster/workstation-compact-n'];
+    'remaster/shell', 'remaster/workstation-e', 'remaster/workstation-n', 'remaster/workstation-compact-n',
+    ...(crateReview ? ['calibration/crate'] : [])];
   // The references are already lit pictures. These measured albedo gains keep
   // the existing light simulation from applying a second exposure to the art.
   const gain = { floor: 1.25, wall: 1.65, shell: 2.05, workstation: 1.5, 'workstation-compact': 1.5,
     'chair-s': 1.3, 'chair-e': 1.3, 'chair-n': 1.3,
-    'tactical-table': 1.5, 'console-bank': 1.5, 'equipment-bay': 1.5, 'deck-perimeter': 1.0 };
+    'tactical-table': 1.5, 'console-bank': 1.5, 'equipment-bay': 1.5, 'deck-perimeter': 1.0,
+    'calibration/crate': 1.5 };
   const ready = requested && typeof Image !== 'undefined' ? Promise.all(names.map(name => new Promise(resolve => {
     const img = new Image();
     img.onload = () => {
@@ -43,6 +49,7 @@ const IndustrialTextures = (() => {
     loaded = !failed.length;
     document.documentElement.dataset.texturePack = loaded ? 'industrial' : 'fallback';
     document.documentElement.dataset.textureRevision = loaded ? 'bridge-remaster' : 'native';
+    document.documentElement.dataset.propReview = loaded && crateReview ? 'crate' : 'none';
   }) : Promise.resolve();
   const enabled = () => requested && loaded;
   const isRemaster = enabled;
@@ -339,7 +346,18 @@ const IndustrialTextures = (() => {
     ctx.drawImage(im, x + (w - dw) / 2, y + h - dh, dw, dh);
     ctx.restore(); return true;
   }
-  return Object.freeze({ ready, enabled, isRemaster, lighting, detailContext, drawBase, floor, wall, wallStrip, wallPatch, shell, shellPlate, propPanel, workstation, workstationEmitter, chair,
+  // One-prop review only. Its original 2x1 placement rectangle and ground line
+  // remain authoritative; source aspect is never stretched to fill that rectangle.
+  function crate(ctx, x, y, w, h) {
+    if (!enabled() || !crateReview || !images['calibration/crate']) return false;
+    const im = images['calibration/crate'];
+    const scale = Math.min((w + 2) / im.width, (h + 10) / im.height);
+    const dw = im.width * scale, dh = im.height * scale;
+    ctx.save(); ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high';
+    ctx.drawImage(im, x + (w - dw) / 2, y + h - dh, dw, dh);
+    ctx.restore(); return true;
+  }
+  return Object.freeze({ ready, enabled, isRemaster, lighting, detailContext, drawBase, floor, wall, wallStrip, wallPatch, shell, shellPlate, propPanel, workstation, workstationEmitter, chair, crate,
     furniture,
     status: () => ({ requested, loaded, failed: failed.slice(), assets: Object.keys(images) }) });
 })();

@@ -2483,6 +2483,7 @@ const PropSprites = (() => {
   };
 
   F.crate = (x, y, w, h) => {
+    if (typeof IndustrialTextures !== 'undefined' && typeof IndustrialTextures.crate === 'function' && IndustrialTextures.crate(ctx, x, y, w, h)) return;
     /* v69 CRATE (2x1) — a METAL freight crate. Timber is retired here: the gold crate already owns the
        "chest" read, so the plain one becomes plain galvanised steel and the two separate by MATERIAL
        rather than by decoration.
