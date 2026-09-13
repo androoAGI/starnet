@@ -907,6 +907,20 @@ const World = (() => {
     seat = { tx: dtx, ty: Math.min(dty + 1, z.y2), cx: dtx + 0.5 };   // 2-wide desk -> centre sits on the tile seam
     blocked.add(dtx + ',' + dty); blocked.add((dtx + 1) + ',' + dty);
   }
+  // Artwork readiness changes the available desk front, not station geometry. Refresh
+  // the hero's cached seat without rederiving the floor or interrupting unrelated trips.
+  function refreshWorkstationSeats() {
+    if (!geo || !station) return;
+    const previous = seat;
+    placeDesk();
+    const same = previous === seat || (previous && seat
+      && ['tx', 'ty', 'cx', 'cy', 'face'].every(k => previous[k] === seat[k]));
+    if (!agent || agent.goal !== 'work' || same) return;
+    // The old chair may already have been reached while images were loading. Leave
+    // the body where it is and let the existing work loop walk to the new front.
+    agent.pathPts = null; agent.target = null; agent.sitting = false;
+    agent.state = 'idle'; agent.workRetryAt = 0;
+  }
   // walk the hero to its work seat (wait in place if unreachable) + enter the 'work' goal — the shared "now sit
   // and work" step, reached EITHER straight from on-duty OR after the conveyor-fetch leg below.
   function goToSeat(now) {
@@ -1222,6 +1236,7 @@ const World = (() => {
     if (typeof IndustrialTextures !== 'undefined') IndustrialTextures.ready.then(() => {
       if (IndustrialTextures.enabled()) {
         Object.assign(CRT, { scan: .05, grain: .07, dust: .10, film: .12, curve: .02 });
+        refreshWorkstationSeats();
         bakeDirty = true; redrawNow();
       }
     });
