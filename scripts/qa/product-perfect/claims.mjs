@@ -147,7 +147,7 @@ function git(repoRoot, args, options = {}) {
     encoding: options.encoding === 'buffer' ? null : (options.encoding || 'utf8'),
     input: options.input,
     windowsHide: true,
-    maxBuffer: 64 * 1024 * 1024
+    maxBuffer: options.maxBuffer ?? 64 * 1024 * 1024
   });
   if (result.status !== 0 || result.error) {
     const stderr = Buffer.isBuffer(result.stderr)
@@ -202,21 +202,45 @@ function preloadAtCommit(repoRoot, candidateCommit, relativePaths) {
   const missing = sortedUnique(relativePaths).map(safeRelative).filter(relative => !BLOB_AT_COMMIT.has(root + '\0' + commit + '\0' + relative));
   if (!missing.length) return;
   const input = missing.map(relative => commit + ':' + relative).join('\n') + '\n';
-  const output = Buffer.from(git(repoRoot, ['cat-file', '--batch'], { encoding: 'buffer', input }));
-  let offset = 0;
-  for (const relative of missing) {
-    const lineEnd = output.indexOf(0x0a, offset);
-    if (lineEnd < 0) throw new Error('git cat-file batch ended before ' + relative);
-    const header = output.subarray(offset, lineEnd).toString('utf8');
-    const match = /^([0-9a-f]{40}) blob ([0-9]+)$/.exec(header);
+  // Prefix audits include binary assets. Read their sizes first so growth of the
+  // checked surface never overflows one aggregate stdout buffer or drops a path.
+  const headers = text(git(repoRoot, ['cat-file', '--batch-check'], { input })).trimEnd().split('\n');
+  if (headers.length !== missing.length) throw new Error('git cat-file size batch returned an unexpected record count');
+  const rows = missing.map((relative, index) => {
+    const header = headers[index], match = /^([0-9a-f]{40}) blob ([0-9]+)$/.exec(header);
     if (!match) throw new Error('git cat-file could not read ' + relative + ': ' + header);
-    const size = Number(match[2]);
-    const start = lineEnd + 1;
-    const end = start + size;
-    if (end >= output.length || output[end] !== 0x0a) throw new Error('git cat-file returned truncated bytes for ' + relative);
-    BLOB_AT_COMMIT.set(root + '\0' + commit + '\0' + relative, Buffer.from(output.subarray(start, end)));
-    offset = end + 1;
+    const size = Number(match[2]), bytes = size + Buffer.byteLength(header) + 2;
+    if (!Number.isSafeInteger(bytes)) throw new Error('git cat-file blob size is unsupported for ' + relative);
+    return { relative, oid: match[1], size, bytes, header };
+  });
+  const BATCH_BYTES = 16 * 1024 * 1024;
+  const readBatch = batch => {
+    const expectedBytes = batch.reduce((sum, row) => sum + row.bytes, 0);
+    // A single large blob gets its exact declared capacity; normal batches stay
+    // bounded. The object IDs are immutable and verified again in the payload.
+    const output = Buffer.from(git(repoRoot, ['cat-file', '--batch'], {
+      encoding: 'buffer', input: batch.map(row => row.oid).join('\n') + '\n',
+      maxBuffer: Math.max(BATCH_BYTES, expectedBytes)
+    }));
+    let offset = 0;
+    for (const row of batch) {
+      const lineEnd = output.indexOf(0x0a, offset);
+      if (lineEnd < 0) throw new Error('git cat-file batch ended before ' + row.relative);
+      const header = output.subarray(offset, lineEnd).toString('utf8');
+      if (header !== row.header) throw new Error('git cat-file payload disagrees with size record for ' + row.relative);
+      const start = lineEnd + 1, end = start + row.size;
+      if (end >= output.length || output[end] !== 0x0a) throw new Error('git cat-file returned truncated bytes for ' + row.relative);
+      BLOB_AT_COMMIT.set(root + '\0' + commit + '\0' + row.relative, Buffer.from(output.subarray(start, end)));
+      offset = end + 1;
+    }
+    if (offset !== output.length) throw new Error('git cat-file batch returned unexpected trailing bytes');
+  };
+  let batch = [], bytes = 0;
+  for (const row of rows) {
+    if (batch.length && bytes + row.bytes > BATCH_BYTES) { readBatch(batch); batch = []; bytes = 0; }
+    batch.push(row); bytes += row.bytes;
   }
+  if (batch.length) readBatch(batch);
 }
 
 function isAncestor(repoRoot, sourceCommit, candidateCommit) {
