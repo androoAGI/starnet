@@ -1,0 +1,135 @@
+[
+  {
+    "scenario": "normal",
+    "status": 200,
+    "elapsedMs": 528,
+    "firstRequestMs": 211,
+    "firstTokenMs": 324,
+    "deliveryLagMs": 2,
+    "requests": [
+      {
+        "commonPrefixChars": null,
+        "firstDifference": null,
+        "at": 211,
+        "model": "audit-model",
+        "chars": 26949,
+        "systemChars": 26506,
+        "tools": 0
+      }
+    ],
+    "events": [
+      {
+        "at": 200,
+        "name": "agent.run.start",
+        "payload": {
+          "agentId": "agent",
+          "runId": "b80ca818-d3e6-4277-9e65-6a74490eed17",
+          "trigger": "directive",
+          "model": "audit-model"
+        }
+      },
+      {
+        "at": 324,
+        "name": "agent.token",
+        "payload": {
+          "agentId": "agent",
+          "runId": "b80ca818-d3e6-4277-9e65-6a74490eed17",
+          "delta": "Audit response."
+        }
+      },
+      {
+        "at": 528,
+        "name": "cost.estimate",
+        "payload": {
+          "agentId": "agent",
+          "runId": "b80ca818-d3e6-4277-9e65-6a74490eed17",
+          "usd": 0,
+          "tokens": 103
+        }
+      },
+      {
+        "at": 528,
+        "name": "agent.run.end",
+        "payload": {
+          "agentId": "agent",
+          "runId": "b80ca818-d3e6-4277-9e65-6a74490eed17",
+          "reason": "done",
+          "turns": 1,
+          "usd": 0
+        }
+      }
+    ]
+  },
+  {
+    "scenario": "normal",
+    "status": 200,
+    "elapsedMs": 302,
+    "firstRequestMs": 13,
+    "firstTokenMs": 122,
+    "deliveryLagMs": 1,
+    "requests": [
+      {
+        "commonPrefixChars": 210,
+        "firstDifference": "nt\nRun id: b31dfb32-b7c1-41da-a949-59f2668a4706\nSurface: int",
+        "at": 13,
+        "model": "audit-model",
+        "chars": 27048,
+        "systemChars": 26506,
+        "tools": 0
+      }
+    ],
+    "events": [
+      {
+        "at": 12,
+        "name": "agent.run.start",
+        "payload": {
+          "agentId": "agent",
+          "runId": "b31dfb32-b7c1-41da-a949-59f2668a4706",
+          "trigger": "directive",
+          "model": "audit-model"
+        }
+      },
+      {
+        "at": 122,
+        "name": "agent.token",
+        "payload": {
+          "agentId": "agent",
+          "runId": "b31dfb32-b7c1-41da-a949-59f2668a4706",
+          "delta": "Audit response."
+        }
+      },
+      {
+        "at": 302,
+        "name": "cost.estimate",
+        "payload": {
+          "agentId": "agent",
+          "runId": "b31dfb32-b7c1-41da-a949-59f2668a4706",
+          "usd": 0,
+          "tokens": 103
+        }
+      },
+      {
+        "at": 302,
+        "name": "iteration.refunded",
+        "payload": {
+          "agentId": "agent",
+          "runId": "b31dfb32-b7c1-41da-a949-59f2668a4706",
+          "turn": 0,
+          "reason": "duplicate",
+          "refundsUsed": 1
+        }
+      },
+      {
+        "at": 302,
+        "name": "agent.run.end",
+        "payload": {
+          "agentId": "agent",
+          "runId": "b31dfb32-b7c1-41da-a949-59f2668a4706",
+          "reason": "done",
+          "turns": 0,
+          "usd": 0
+        }
+      }
+    ]
+  }
+]

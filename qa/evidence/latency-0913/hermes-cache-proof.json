@@ -1,0 +1,8 @@
+{
+  "commit": "b9271bcb34e1a8b8fe0eeaef0ef4a6e1f93ba543",
+  "scope": "Executed unmodified pure cache helper AST; not a full Hermes agent or provider-speed benchmark",
+  "stablePrefixUnchanged": true,
+  "runtimePreserved": true,
+  "fullTextPreserved": true,
+  "systemCacheMarkers": 2
+}
