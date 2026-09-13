@@ -21,7 +21,31 @@
 .fnv-custom-in { grid-column:1 / -1; grid-row:1; width:100%; box-sizing:border-box; resize:vertical; min-height:90px; line-height:1.45; padding:10px; }
 .fnv-custom-back { justify-self:start; }
 .fnv-custom-send { font-size:16px; }
+.fnv-text-first .fnv-line { flex:0 0 auto; min-height:0; }
+.fnv-conversation .fnv-custom-send { grid-column:2; }
+.fnv-conversation .fnv-custom-send:disabled { opacity:.4; cursor:default; }
+.fnv-suggestions { color:var(--ph-dim); font-size:16px; }
+.fnv-suggestions summary { padding:10px 0; cursor:pointer; }
+.fnv-suggestions .fnv-opt { display:block; width:100%; margin:6px 0; text-align:left; }
+.fnv-answer-hint { color:var(--ph); line-height:1.5; padding:8px 0; }
+.fnv-answer-hint:empty { display:none; }
+.fnv-text-first .fnv-opt.skip { padding:7px 0; border-color:transparent; background:transparent; font-size:15px; }
 @media (max-height:650px) { .fnv-dialogue { padding:14px; gap:9px; } .fnv-line { min-height:48px; font-size:18px; } .fnv-opt { padding:9px; } }
 @media (max-width:700px) { .ov-journey { gap:8px 14px; font-size:13px; } .fnv-dialogue { padding:14px; } }
 
 .ov-panel:has(#cc-recovery:not(.hidden)) .ov-journey { display:none; }
+
+/* A quiet station command, outside the canvas for keyboard access. */
+.arrival-controls{position:fixed;z-index:9999;right:24px;bottom:18px;margin:0;padding:0;background:none;border:0;box-shadow:none}
+.arrival-controls>span{display:none}
+.arrival-controls .bb{display:inline-flex;align-items:center;min-height:44px;padding:8px 10px;border:0;border-radius:0;background:none;box-shadow:none;color:var(--ph-dim);font:16px VT323,monospace;letter-spacing:1.5px;text-transform:uppercase;text-shadow:none;cursor:pointer}
+.arrival-controls .bb:hover,.arrival-controls .bb:focus-visible{background:none;border:0;box-shadow:none;color:var(--ph);text-shadow:0 0 8px var(--ph-glow2)}
+.arrival-controls .bb:focus-visible{outline:1px solid var(--ph);outline-offset:2px}
+
+/* The arriving agent's own name is the title card; no invented model-state telemetry. */
+.arrival-identity{position:fixed;z-index:9998;left:50%;top:12%;transform:translateX(-50%);max-width:80vw;text-align:center;pointer-events:none;color:var(--ph,#efb476);font-family:VT323,monospace;text-shadow:0 0 18px currentColor}
+.arrival-identity span{display:block;font-size:13px;letter-spacing:5px;opacity:.65;margin-bottom:10px}
+.arrival-identity strong{display:block;font-size:clamp(28px,4vw,52px);font-weight:400;letter-spacing:8px;overflow-wrap:anywhere}
+body:has(.arrival-controls) #screen-game #stage-wrap{position:fixed;inset:0;z-index:9990;width:100%;height:100%;border:0}
+body:has(.arrival-controls) #stage-wrap .cam-hud,body:has(.arrival-controls) #nav-coach{visibility:hidden}
+@media(max-width:600px){.arrival-controls{right:10px;bottom:10px}.arrival-identity{top:10%}.arrival-identity strong{letter-spacing:4px}}

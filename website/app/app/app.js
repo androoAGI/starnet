@@ -1865,7 +1865,8 @@ const App = (() => {
     const isOAuth = isOAuthProviderId(pickedProvider);
     const keyBlock = el('key-block'), keyInput = el('in-key');
     const baseBlock = el('base-url-block'), baseInput = el('in-base-url');
-    const configured = !!(Harness.configured && Harness.configured(pickedProvider));
+    // DEV auto-resume eligibility is not proof of a credential for the chosen provider.
+      const configured = !!(Harness.hasStoredCredential && Harness.hasStoredCredential(pickedProvider));
     keyBlock.classList.toggle('hidden', !providerUsesKeyBox(pickedProvider));
     if (keyInput) {
       keyInput.value = Harness.getKey ? Harness.getKey(pickedProvider) : '';
@@ -2733,7 +2734,7 @@ const App = (() => {
     } else if (isOAuthProviderId(pickedProvider)) {
       if (!oauthConnected[pickedProvider]) { msg.textContent = 'sign in with ' + OAUTH_GENESIS[pickedProvider].name + ' first, or switch to OpenRouter.'; return false; }
       Harness.setModel(model); Harness.setProv(pickedProvider);
-    } else if (pickedProvider === 'openai' && !el('in-key').value.trim() && !(Harness.configured && Harness.configured('openai')) && codexConnected) {
+    } else if (pickedProvider === 'openai' && !el('in-key').value.trim() && !(Harness.hasStoredCredential && Harness.hasStoredCredential('openai')) && codexConnected) {
       // THE MERGED OPENAI CARD, ChatGPT half: no key typed, no stored OpenAI credential, but a LIVE ChatGPT
       // sign-in — the sign-in IS the credential, so this wake rides the codex path. A typed key always wins
       // (explicit beats ambient) and falls through to the key branch below.
@@ -2743,7 +2744,8 @@ const App = (() => {
       if (providerNeedsBaseUrl(pickedProvider)) {
         if (Harness.setBaseUrl) await Harness.setBaseUrl(baseUrl, pickedProvider);
       }
-      const configured = !!(Harness.configured && Harness.configured(pickedProvider));
+      // DEV auto-resume eligibility is not proof of a credential for the chosen provider.
+      const configured = !!(Harness.hasStoredCredential && Harness.hasStoredCredential(pickedProvider));
       if (providerNeedsKey(pickedProvider) && !key && !configured) {
         // COLD-START guidance: a new user has no key AND no idea where to get one. Name the provider and link
         // the exact page that mints a key (from providerSignupUrl — same destinations the placeholder hints at).
@@ -3160,6 +3162,7 @@ const App = (() => {
     // a "build it" into a real run. SuggestStore is the recurring counterpart that fires as the dossier grows.
     const adviceDeps = {
       getSystem: () => agent ? agent.systemPrompt : '',
+      getPurpose: () => agent ? ((agent.docs && agent.docs.purpose) || agent.purpose || '') : '',
       getName: () => agent ? agent.name : 'AGENT',
       getCaps: () => ((typeof World !== 'undefined' && World.heroCaps) ? World.heroCaps('agent') : []).map(c => (typeof c === 'string' ? { id: c, label: c } : c)),
       // was the run that just ended a REAL task (tools available), not casual chat? Chat's run-meta ledger records
@@ -3185,7 +3188,7 @@ const App = (() => {
       // UNION (see the goal-milestone twin above): derived title from the directive + returns TRUE only when a
       // run really kicked off — the suggestion's attribution stamp is armed off this answer, so a busy stream
       // must report the no-op honestly.
-      launchDirective: (text) => { const ws = (typeof Workstreams !== 'undefined') ? Workstreams.create((Workstreams.deriveTitle && Workstreams.deriveTitle(text)) || 'First build', { kind: 'task' }) : null; if (ws && typeof Chat !== 'undefined' && Chat.load) Chat.load(ws); let sent = false; if (typeof Chat !== 'undefined' && Chat.send && !Chat.isBusy()) { Chat.send(text); sent = true; } persist(); return sent; }
+      launchDirective: (text) => { if (typeof Chat === 'undefined' || !Chat.send || Chat.isBusy()) return false; const ws = (typeof Workstreams !== 'undefined') ? Workstreams.create((Workstreams.deriveTitle && Workstreams.deriveTitle(text)) || 'First build', { kind: 'task' }) : null; if (ws && typeof Chat !== 'undefined' && Chat.load) Chat.load(ws); let sent = false; if (typeof Chat !== 'undefined' && Chat.send && !Chat.isBusy()) { Chat.send(text); sent = true; } persist(); return sent; }
     };
     if (typeof PitchStore !== 'undefined') PitchStore.init(adviceDeps);
     if (typeof SuggestStore !== 'undefined') SuggestStore.init(adviceDeps);

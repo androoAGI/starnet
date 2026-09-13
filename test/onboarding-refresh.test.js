@@ -3,10 +3,10 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const vm = require('node:vm');
 const source = fs.readFileSync(require('node:path').join(__dirname, '../frontend/app/onboarding.js'), 'utf8');
-async function quickRun(answers, stopAt, wake = false) {
+async function quickRun(answers, stopAt, wake = false, mind = null) {
   const timers = new Map(), prompts = [], stages = [], writes = [], postures = [], beliefs = [];
   let timerId = 0, done = 0, taught = 0, context;
-  const storage = new Map();
+  const storage = new Map(), calls = [];
   context = vm.createContext({
     console, Promise, Math,
     setTimeout(fn) { const id = ++timerId; timers.set(id, fn); return id; },
@@ -14,7 +14,8 @@ async function quickRun(answers, stopAt, wake = false) {
     localStorage: { setItem(k,v) { storage.set(k,v); }, getItem(k) { return storage.get(k) || null; }, removeItem(k) { storage.delete(k); } },
     World: {},
     Chat: { typeLine(lines, cb) { cb(); }, beginInterview() {}, endInterview() {} },
-    Harness: { configured() { return false; } },
+    WakeMind: require('../frontend/app/wakemind.js'),
+    Harness: { configured() { return !!mind; }, chat(request) { calls.push(request.messages[0].content); return Promise.resolve(mind(request.messages[0].content)); } },
     Dialogue: {
       open() {}, close() {}, isOpen() { return false; },
       setStage(title, detail) { stages.push([title, detail]); },
@@ -31,14 +32,14 @@ async function quickRun(answers, stopAt, wake = false) {
   });
   vm.runInContext(source, context);
   vm.runInContext('Onboarding.start(opts)', context);
-  for (let turn=0; turn<45; turn++) {
+  for (let turn=0; turn<180; turn++) {
     const pending = [...timers]; timers.clear();
     for (const [, fn] of pending) fn();
     await Promise.resolve(); await Promise.resolve();
     if (taught || stopAt && prompts.length >= stopAt) break;
   }
   vm.runInContext('Onboarding.stop()', context);
-  return { prompts, stages, writes, postures, beliefs, done, taught, storage };
+  return { prompts, stages, writes, postures, beliefs, done, taught, storage, calls };
 }
 (async () => {
   const result = await quickRun([{value:'quick'}, {value:'Help me prepare weekly client updates.'}, {value:'wait'}]);
@@ -62,5 +63,35 @@ async function quickRun(answers, stopAt, wake = false) {
   const stopped = await quickRun([{value:'quick'}, {value:'Should never be written'}], 2);
   assert.equal(stopped.writes.length, 0, 'abandoning a question does not commit its late answer');
   assert.equal(stopped.taught, 0, 'abandoned setup cannot open the tutorial');
+  const mind = directive => ({ text: directive.includes('THE READ')
+    ? 'READ: you want help choosing the next feature.\nPURPOSE: Help choose and build useful features.\nSTACK: NONE'
+    : directive.includes('THE TUESDAY')
+      ? 'ACK: let’s find a useful place to start.\nASK: which project would you like to make progress on?'
+      : '' });
+  const live = await quickRun([
+    {value:'loose'}, {value:'I want help deciding what to build.'},
+    {value:'My station onboarding.'}, {value:'yes'}, {value:'wait'}
+  ], null, false, mind);
+  assert.equal(live.prompts[1].lines[0].text, 'what made you want to set up an agent?');
+  assert.equal(live.prompts[1].customFirst, true, 'typing is available immediately');
+  assert.equal(live.prompts[2].lines[0].text, 'which project would you like to make progress on?');
+  assert.equal(live.prompts.filter(p => p.lines[0].text === 'which project would you like to make progress on?').length, 1, 'short path enforces budget even if model keeps asking');
+  assert(live.writes.some(w => w.context && w.context.includes('My station onboarding.')), 'exact follow-up survives in context');
+  assert(live.calls.some(c => c.includes('My station onboarding.')), 'next model turn sees prior answers');
+  assert(!live.beliefs.some(([dim]) => dim === 'pain'), 'reason for creating an agent is not filed as pain');
+  assert.equal(live.taught, 1);
+  const explore = await quickRun([{value:'loose'}, {help:true}, {value:'I want to learn animation.'}, {value:'yes'}, {value:'wait'}], null, false, mind);
+  assert(explore.calls.some(c => c.includes('helpRequested')), 'help action reaches model as a request for guidance');
+  assert(!explore.writes.some(w => w.context === 'Help me figure that out'), 'help action is never saved as a personal fact');
+  const early = await quickRun([{value:'loose'}, {value:'Just curious.'}, {value:'yes'}, {value:'wait'}], null, false,
+    d => d.includes('THE TUESDAY') ? {text:'ACK: we can explore together.\nASK: NONE'} : mind(d));
+  assert.equal(early.prompts.length, 4, 'ASK NONE skips unnecessary follow-ups');
+  const repeated = await quickRun([{value:'deep'}, {value:'Build a game.'}, {value:'A puzzle game.'}, {value:'yes'}, {value:'wait'}], null, false, mind);
+  assert.equal(repeated.prompts.filter(p => p.lines[0].text === 'which project would you like to make progress on?').length, 1, 'repeated generated questions are suppressed');
+  let nextQuestion = 0;
+  const deep = await quickRun([{value:'deep'}, {value:'Build a game.'}, {value:'Browser.'}, {value:'Puzzles.'}, {value:'A playable prototype.'}, {value:'yes'}, {value:'wait'}], null, false,
+    d => d.includes('THE TUESDAY') ? {text:'ACK: noted.\nASK: question ' + (++nextQuestion) + '?'} : mind(d));
+  assert.equal(deep.prompts.filter(p => /^question \d/.test(p.lines[0].text)).length, 3, 'deep path cannot exceed three follow-ups');
+  assert(deep.calls.some(c => c.includes('A playable prototype.')), 'final answer reaches the synthesis');
   console.log('onboarding-refresh: OK (quick setup, exact answers, posture, deferred profile and cancellation)');
 })().catch(error => { console.error(error); process.exitCode = 1; });

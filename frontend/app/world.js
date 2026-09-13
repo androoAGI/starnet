@@ -90,6 +90,7 @@ const World = (() => {
   const clampz = (v, a, b) => v < a ? a : v > b ? b : v;
   let drag = null, hoverAgent = null, onClick = null, onArcade = null, onOutbox = null, onMissionBoard = null, onTrophyCase = null, onBayAssign = null, onIntakeFeed = null, onIntakeSample = null, wakeAt = 0;
   let camLerp = null;   // {scale,panX,panY} target — a gentle one-on-one framing for voice conversations
+  let arrivalScene = null;
   let wakeDark = 0, wakeDarkTarget = 0, awakeFrozen = false;   // the AWAKENING: a darkness veil that lifts to first light, + a freeze so the newborn holds still during its first meeting
   let camAnim = null;                                          // {fromS,toS,fromX,toX,fromY,toY,t,dur,ease,onEnd} — a scripted awakening camera move
   /* FOLLOW-LOCK + IDLE CINECAM (the GTA-style idle camera). camLock is a CONTINUOUS follow of one body —
@@ -1396,7 +1397,7 @@ const World = (() => {
   }
 
   function start() { if (running) return; running = true; last = performance.now(); if (!floorLiveAt) floorLiveAt = last; frame(last); }
-  function stop() { running = false; if (raf) { cancelAnimationFrame(raf); raf = 0; } }
+  function stop() { cancelArrival(); running = false; if (raf) { cancelAnimationFrame(raf); raf = 0; } }
   function wakeIn() { wakeAt = performance.now(); }
 
   /* ---------- THE AWAKENING — a witnessed birth (cinematic camera + spark + dark->dawn) ----------
@@ -1414,6 +1415,7 @@ const World = (() => {
     // a brand-new birth: wipe any ceremony state a previous agent left on this page so the newborn gets a
     // pristine dark->dawn ritual. Only a real awakening calls this (never a re-bake/refit), so re-arming the
     // once-per-life first-light latch here keeps "a refit never re-arms it" true while fixing NEW AGENT.
+    cancelArrival();
     firstWakeDone = false;
     sparkAt = bornAt = dawnAt = truthPulseAt = 0;
     floodAt = floodEndAt = 0; floodStreams = null;
@@ -1423,7 +1425,49 @@ const World = (() => {
   // setWakeProgress LIFTS the awakening veil — it must never CREATE darkness in a lit room. The deferred
   // interview replays the meeting beats (bumpTruth) during ordinary play, so outside the ceremony
   // (awakeFrozen false) this is a no-op — the veil only moves while a birth/re-wake actually owns the room.
-  function setWakeProgress(p) { if (!awakeFrozen) return; p = p < 0 ? 0 : p > 1 ? 1 : p; wakeDarkTarget = 0.92 * (1 - p); }
+  function setWakeProgress(p) { if (!awakeFrozen) return; p = p < 0 ? 0 : p > 1 ? 1 : p; wakeDarkTarget = Math.min(wakeDarkTarget, 0.92 * (1 - p)); }
+  function cancelArrival() {
+    if (!arrivalScene) return;
+    const scene=arrivalScene;arrivalScene=null;
+    if(scene.timer)clearTimeout(scene.timer);
+    if(scene.controls)scene.controls.remove();
+    if(scene.title)scene.title.remove();
+    camAnim=null;resize();
+  }
+  function playArrival(onDone) {
+    if(typeof Arrival==='undefined'||!agent||agent.unplaced||!cache||typeof SPRITES==='undefined'||!SPRITES.ready)return false;
+    cancelArrival();kindleArmed=false;kindleP=0;sparkAt=0;
+    const reduced=reduceMotion();
+    const stamp=document.createElement('canvas');stamp.width=128;stamp.height=128;
+    if(typeof SPRITES!=='undefined'&&SPRITES.ready)SPRITES.drawBody(stamp.getContext('2d'),Object.assign({},agent,{px:64,py:100,dir:'north',seated:false,sitting:false,working:false}),performance.now(),{reducedMotion:true,skipGroundShadow:true});
+    const controls=document.createElement('div');controls.className='arrival-controls';
+    const caption=document.createElement('span');caption.setAttribute('aria-live','off');
+    const skip=document.createElement('button');skip.className='bb';skip.textContent='Skip arrival →';
+    controls.append(caption,skip);document.body.appendChild(controls);
+    const title=document.createElement('div');title.className='arrival-identity';title.setAttribute('aria-hidden','true');
+    const name=document.createElement('strong');name.textContent=agent.name||'Your agent';
+    const greeting=document.createElement('span');greeting.textContent='FIRST CONTACT';title.append(greeting,name);title.style.opacity='0';document.body.appendChild(title);
+    const scene=arrivalScene={at:performance.now(),reduced,stamp,controls,caption,title,turned:false,phase:'',timer:null};
+    const finish=()=>{if(arrivalScene!==scene)return;cancelArrival();wakeDarkTarget=.16;if(agent)agent.dir='south';if(onDone)onDone();};
+    skip.onclick=finish;
+    scene.timer=setTimeout(finish,reduced?6000:24000);
+    resize();
+    const [sc,cx,cy]=camCenterOn(agent.px,agent.py-15,3.4);
+    if(reduced){camAnim=null;scale=sc;panX=cx;panY=cy;}else camTweenTo(sc,cx,cy,8000);
+    return true;
+  }
+  function drawArrival(now) {
+    if(!arrivalScene||typeof Arrival==='undefined'||!agent)return;
+    const a=arrivalScene,f=Arrival.frame(now-a.at,a.reduced);
+    wakeDarkTarget=f.darkness;
+    a.title.style.opacity=String(f.land*(1-f.settle));
+    if(a.phase!==f.phase){a.phase=f.phase;a.caption.textContent=f.phase.toLowerCase().replaceAll('_',' ');
+      const tone={CONVERGENCE:48,EMBODIMENT:72,ARRIVAL:38}[f.phase];
+      if(tone&&typeof SFX!=='undefined'&&SFX.env)SFX.env(tone,{attack:.25,hold:.3,release:2,type:'sine',vol:.12});
+    }
+    if(f.t>=18.5&&!a.turned){a.turned=true;awakenTurn();if(typeof SFX!=='undefined'&&SFX.env)SFX.env(110,{attack:.2,hold:.1,release:1.2,type:'sine',vol:.06});}
+    Arrival.draw(ctx,{width:cv.width,height:cv.height,x:agent.px*scale+panX,y:agent.py*scale+panY,scale,elapsed:now-a.at,reduced:a.reduced,sprite:a.stamp,color:agent.color});
+  }
   function igniteSpark() { sparkAt = performance.now(); bornAt = performance.now(); wakeDark = 0.985; wakeDarkTarget = 0.985; kindleArmed = false; kindleP = 0; }   // the mind catches fire — snap to near-total dark so the spark is the ONLY light (and end any kindle)
   /* THE KINDLING — the pre-ignition beat: one dim, almost-dead ember sits where the mind will be, and the
      user must HOLD to bring it to life. Sustained attention fills kindleP; releasing lets it ebb. When it
@@ -1449,7 +1493,7 @@ const World = (() => {
   }
   function truthPulse() { truthPulseAt = performance.now(); }
   function endAwakening() { wakeDarkTarget = 0; dawnAt = performance.now(); wakeIn(); }   // DAWN: light floods + ripple fires (agent stays frozen/facing-you for the final line)
-  function releaseAwakening() { awakeFrozen = false; sparkAt = 0; floodAt = 0; floodEndAt = 0; floodStreams = null; kindleArmed = false; kindleP = 0; kindleHolding = false; armFirstWake(); }   // hand the newborn back to its own autonomous life — and let it have its FIRST LIGHT
+  function releaseAwakening() { cancelArrival(); awakeFrozen = false; sparkAt = 0; floodAt = 0; floodEndAt = 0; floodStreams = null; kindleArmed = false; kindleP = 0; kindleHolding = false; armFirstWake(); }   // hand the newborn back to its own autonomous life — and let it have its FIRST LIGHT
   // FIRST LIGHT: arm the once-per-life wake ritual the instant the newborn owns itself. The activity!=='task'
   // guard makes a summon racing the release win cleanly (the ritual simply never arms).
   function armFirstWake() {
@@ -6162,6 +6206,7 @@ const World = (() => {
       ctx.setTransform(scale, 0, 0, scale, panX, panY);
     }
     if (kindleArmed || kindleP > 0) drawKindle(now);   // THE KINDLING — dormant ember + hold prompt + awareness bar (pre-ignition)
+    if (arrivalScene) drawArrival(now);
     if (floodAt) drawFlood(now);   // THE FLOOD — the cascade of knowledge streaming in, over the dark room
     if (dawnAt && now - dawnAt < 1300) drawDawnBloom(now);   // the room takes its first breath of light
     // (the context-window gauge now lives engraved in the bottom bar — StationUI.ctxTick, not the desk)
@@ -6751,6 +6796,7 @@ const World = (() => {
   // the soul kindling: an ignition spark at the head, a halo that grows with consciousness, drifting motes.
   function drawAwakenLight(now) {
     if (!agent || agent.unplaced) return;
+    if(arrivalScene)return;
     const live = awakeFrozen || (dawnAt && now - dawnAt < 1200);
     if (!live && !(sparkAt && now - sparkAt < 1200)) return;
     const prog = Math.max(0, Math.min(1, 1 - wakeDark / 0.92));
@@ -6871,6 +6917,7 @@ const World = (() => {
       // color-into-being: the body fades up from a faint silhouette to full as the spark blooms (HERO only)
       let bornA = 1;
       if (who === agent && bornAt && now - bornAt < 1000) bornA = 0.16 + 0.84 * ((now - bornAt) / 1000);
+      if(who===agent&&arrivalScene&&typeof Arrival!=='undefined')bornA=Arrival.frame(now-arrivalScene.at,arrivalScene.reduced).body;
       const prevA = ctx.globalAlpha;
       if (bornA < 1) ctx.globalAlpha = prevA * bornA;
       let geom = null;
@@ -9578,7 +9625,7 @@ const World = (() => {
       const errors = (routingPlan && routingPlan.errors ? routingPlan.errors : []).filter(e => !e.warn);
       return planPoster.flush().then(s => Object.assign({ errors: errors, hash: routingPlan ? routingPlan.hash : null }, s));
     },
-    loadStation, spawn, spawnAgent, despawnAgent, setSkin, relabel, setActivityFor, agentRunsLive, dropRun: noteRunEnd, focusBody, lockBody, cameraMode, setCinecamIdle, setChatFocus, chatFocusPing, start, stop, setActivity, wakeIn, beginAwakening, setWakeProgress, igniteSpark, armKindle, kindleHold, camPushIn, camCreep, camPunch, camPullBack, awakenTurn, truthPulse, beginFlood, collapseFlood, endAwakening, releaseAwakening, say, focusAgent, getActivity: () => activity, getUse: () => (agent ? agent.usingProp : null), setOnClick, setOnArcade, setOnOutbox, setOnMissionBoard, setOnTrophyCase, setOnBayAssign, setOnIntakeFeed, setOnIntakeSample, refit, pauseBridge, resumeBridge, linkState, _dbgSeedRun, _dbgAgeRun, _dbgReconcile, _dbgSweep, _dbgLinkState, _dbgDropBridge, _dbgCurveState, _dbgLoseCurveContext, _dbgLoseCanvases, _dbgCanvasLoss, _dbgKillStageContext, _dbgStageState, _dbgBeltLegibility, _dbgPropClientPoint, _dbgSleep, _dbgUseProp, _dbgArrive, _dbgLeisure,
+    loadStation, spawn, spawnAgent, despawnAgent, setSkin, relabel, setActivityFor, agentRunsLive, dropRun: noteRunEnd, focusBody, lockBody, cameraMode, setCinecamIdle, setChatFocus, chatFocusPing, start, stop, setActivity, wakeIn, beginAwakening, playArrival, cancelArrival, setWakeProgress, igniteSpark, armKindle, kindleHold, camPushIn, camCreep, camPunch, camPullBack, awakenTurn, truthPulse, beginFlood, collapseFlood, endAwakening, releaseAwakening, say, focusAgent, getActivity: () => activity, getUse: () => (agent ? agent.usingProp : null), setOnClick, setOnArcade, setOnOutbox, setOnMissionBoard, setOnTrophyCase, setOnBayAssign, setOnIntakeFeed, setOnIntakeSample, refit, pauseBridge, resumeBridge, linkState, _dbgSeedRun, _dbgAgeRun, _dbgReconcile, _dbgSweep, _dbgLinkState, _dbgDropBridge, _dbgCurveState, _dbgLoseCurveContext, _dbgLoseCanvases, _dbgCanvasLoss, _dbgKillStageContext, _dbgStageState, _dbgBeltLegibility, _dbgPropClientPoint, _dbgSleep, _dbgUseProp, _dbgArrive, _dbgLeisure,
     // AGENT GROWTH: XpStore pushes pre-computed Xp.compute() snapshots here; pulseLevelUp fires
     // the addressed body's gold ring. The colony headline is the top-bar STATION chip.
     setXp: (agentId, a) => {
