@@ -66,7 +66,9 @@ Window checks: 800×600, 1024×768, 1280×720, 1440×900, 1920×1080. Text prese
 - `node --check frontend/app/deliverables.js` and `frontend/app/glossary.js`: passed.
 - `git diff --check`: passed before the implementation commit.
 - `npm run sync:website`: synchronized the generated website assets.
-- Full `npm run test:fast`: final run pending at report creation; see the final gate receipt below when available.
+- Full `npm run test:fast`: **PASS — 772 test steps green**, tested at `24b9f3ec1` on September 13, 2026. [Gate receipt](gate-receipt.txt). Full local stdout is retained in `fast.log` (excluded from Git).
 - Earlier gate attempts caught: worktree dependency detection when using only NODE_PATH (resolved with a local node_modules junction); stale generated website mirror (regenerated); stale QA index after filling the bug record (regenerated); the release-surface byte lock identifying the six changed frontend files (mechanically re-locked after source commit, without changing claims or verdicts). These are recorded rather than represented as passing runs.
 
 No installed Windows/macOS executable, actual OS display scaling/mixed-DPI move, native select popup rendering, browser zoom, authenticated service flow, real provider run, or exhaustive forced network-error/loading matrix was verified. The browser-only desktop messages were observed, not treated as desktop defects. A slash-command menu probe was inconclusive while the model picker was active and is not claimed as covered. Code inspection identified the fixed layout constraints; the repair claims rely on the browser observations, not only on CSS inspection or tests.
+
+Delivery: implementation and evidence are committed in the isolated `agent/interface-finish-0913` branch. This audit did not merge into the concurrently changing integration tree or publish an installer. The temporary seeded app and audit browser were closed after live verification.
