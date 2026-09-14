@@ -40,8 +40,6 @@
             "#1d5961",
             "#c58143"
           ],
-          "motion": [],
-          "screenRegions": [],
           "intentionalStatic": "Native trough is static; no animated function or functional process is removed.",
           "functionalCapabilitiesPreserved": [
             "2x1 blocking planter footprint and intact foliage/pot"
@@ -75,6 +73,16 @@
               "drawState": "frontend/app/propsprites.js:11279",
               "liveWorld": "frontend/app/world.js:6029"
             }
+          },
+          "motionEffects": [],
+          "screenEffects": [],
+          "screenRegions": [],
+          "regions": {},
+          "motion": null,
+          "engineAlphaNormalized": {
+            "regions": {},
+            "screenRegions": [],
+            "motion": null
           }
         }
       }
@@ -110,8 +118,6 @@
             "#467622",
             "#89a53a"
           ],
-          "motion": [],
-          "screenRegions": [],
           "functionalCapabilitiesPreserved": [
             "1x1 blocking floor-plant placement",
             "Native leisureUse=null and light=null remain unchanged; no new use action or emission."
@@ -147,6 +153,16 @@
               "drawState": "frontend/app/propsprites.js:11279",
               "liveWorld": "frontend/app/world.js:6029"
             }
+          },
+          "motionEffects": [],
+          "screenEffects": [],
+          "screenRegions": [],
+          "regions": {},
+          "motion": null,
+          "engineAlphaNormalized": {
+            "regions": {},
+            "screenRegions": [],
+            "motion": null
           }
         }
       }
@@ -181,8 +197,6 @@
             "#56852e",
             "#a5a43c"
           ],
-          "motion": [],
-          "screenRegions": [],
           "functionalCapabilitiesPreserved": [
             "Walk-over 1x1 floor placement and original pot contact",
             "Native leisureUse=null and light=null remain unchanged; no new use action or emission."
@@ -218,6 +232,16 @@
               "drawState": "frontend/app/propsprites.js:11279",
               "liveWorld": "frontend/app/world.js:6029"
             }
+          },
+          "motionEffects": [],
+          "screenEffects": [],
+          "screenRegions": [],
+          "regions": {},
+          "motion": null,
+          "engineAlphaNormalized": {
+            "regions": {},
+            "screenRegions": [],
+            "motion": null
           }
         }
       }
@@ -253,7 +277,56 @@
             "#89a634",
             "#bcd471"
           ],
-          "motion": [
+          "functionalCapabilitiesPreserved": [
+            "Biological colony breathing and drifting spore",
+            "Standing leisure prop and blocking footprint"
+          ],
+          "integrationRequirements": [
+            "Keep spores subtle; no screen scanlines, fake seal indicator or sensor status.",
+            "Glass reflections/frame remain static; intentional absence of native fake seal lamp is preserved.",
+            "Preserve nativeContract placement, mount, leisure approach and light registration. This recipe authorizes no geometry or behavior contract edits."
+          ],
+          "nativeContract": {
+            "remasterBox": {
+              "w": 1,
+              "h": 1
+            },
+            "tilePixels": 12,
+            "geometry": {
+              "blocks": true,
+              "flat": false,
+              "tableSurface": false,
+              "requiredMount": null,
+              "optionalSurfaceMount": false,
+              "surfaceRisePixels": 8
+            },
+            "leisureUse": {
+              "kind": "terra",
+              "sit": false,
+              "approach": "auto"
+            },
+            "light": {
+              "c": [
+                120,
+                255,
+                170
+              ],
+              "r": 14,
+              "a": 0.06,
+              "m": "steady",
+              "y": 0.4
+            },
+            "anchorContract": "PropAnchor derives reachable edge approach; useApproach rotates relative preference with r. Preserve standing leisure action unless special planner supplies a real body anchor.",
+            "assignedWorkstation": false,
+            "capabilityObjectType": null,
+            "sourceEvidence": {
+              "catalog": "frontend/app/propsprites.js:10911",
+              "geometry": "frontend/app/propsprites.js:11006",
+              "drawState": "frontend/app/propsprites.js:11279",
+              "liveWorld": "frontend/app/world.js:6029"
+            }
+          },
+          "motionEffects": [
             {
               "mechanism": "colony-breathe",
               "region": [
@@ -374,54 +447,151 @@
               }
             }
           ],
+          "screenEffects": [],
           "screenRegions": [],
-          "functionalCapabilitiesPreserved": [
-            "Biological colony breathing and drifting spore",
-            "Standing leisure prop and blocking footprint"
-          ],
-          "integrationRequirements": [
-            "Keep spores subtle; no screen scanlines, fake seal indicator or sensor status.",
-            "Glass reflections/frame remain static; intentional absence of native fake seal lamp is preserved.",
-            "Preserve nativeContract placement, mount, leisure approach and light registration. This recipe authorizes no geometry or behavior contract edits."
-          ],
-          "nativeContract": {
-            "remasterBox": {
-              "w": 1,
-              "h": 1
-            },
-            "tilePixels": 12,
-            "geometry": {
-              "blocks": true,
-              "flat": false,
-              "tableSurface": false,
-              "requiredMount": null,
-              "optionalSurfaceMount": false,
-              "surfaceRisePixels": 8
-            },
-            "leisureUse": {
-              "kind": "terra",
-              "sit": false,
-              "approach": "auto"
-            },
-            "light": {
-              "c": [
-                120,
-                255,
-                170
+          "regions": {
+            "colony-breathe-1": [
+              [
+                0.232,
+                0.42
               ],
-              "r": 14,
-              "a": 0.06,
-              "m": "steady",
-              "y": 0.4
+              [
+                0.751,
+                0.42
+              ],
+              [
+                0.764,
+                0.696
+              ],
+              [
+                0.241,
+                0.718
+              ]
+            ],
+            "single-spore-rise-2": [
+              [
+                0.31,
+                0.3
+              ],
+              [
+                0.6699999999999999,
+                0.3
+              ],
+              [
+                0.6699999999999999,
+                0.6599999999999999
+              ],
+              [
+                0.31,
+                0.6599999999999999
+              ]
+            ]
+          },
+          "motion": {
+            "mode": "biological-spores",
+            "mechanism": "colony-breathe",
+            "region": [
+              [
+                0.232,
+                0.42
+              ],
+              [
+                0.751,
+                0.42
+              ],
+              [
+                0.764,
+                0.696
+              ],
+              [
+                0.241,
+                0.718
+              ]
+            ],
+            "origin": [
+              0.49,
+              0.645
+            ],
+            "colour": [
+              130,
+              182,
+              82
+            ],
+            "trigger": "ambient",
+            "note": "Primary envelope only. All mandatory mechanisms, clock parameters, masks and trigger distinctions remain in motionEffects.",
+            "workGainRequired": false,
+            "clipToOriginalAlpha": true
+          },
+          "engineAlphaNormalized": {
+            "regions": {
+              "colony-breathe-1": [
+                [
+                  0.0848929,
+                  0.4225105
+                ],
+                [
+                  0.8873348,
+                  0.4225105
+                ],
+                [
+                  0.9074345,
+                  0.7139079
+                ],
+                [
+                  0.098808,
+                  0.7371353
+                ]
+              ],
+              "single-spore-rise-2": [
+                [
+                  0.2054911,
+                  0.2958159
+                ],
+                [
+                  0.7620982,
+                  0.2958159
+                ],
+                [
+                  0.7620982,
+                  0.6758996
+                ],
+                [
+                  0.2054911,
+                  0.6758996
+                ]
+              ]
             },
-            "anchorContract": "PropAnchor derives reachable edge approach; useApproach rotates relative preference with r. Preserve standing leisure action unless special planner supplies a real body anchor.",
-            "assignedWorkstation": false,
-            "capabilityObjectType": null,
-            "sourceEvidence": {
-              "catalog": "frontend/app/propsprites.js:10911",
-              "geometry": "frontend/app/propsprites.js:11006",
-              "drawState": "frontend/app/propsprites.js:11279",
-              "liveWorld": "frontend/app/world.js:6029"
+            "screenRegions": [],
+            "motion": {
+              "region": [
+                [
+                  0.0848929,
+                  0.4225105
+                ],
+                [
+                  0.8873348,
+                  0.4225105
+                ],
+                [
+                  0.9074345,
+                  0.7139079
+                ],
+                [
+                  0.098808,
+                  0.7371353
+                ]
+              ],
+              "origin": [
+                0.4837946,
+                0.6600628
+              ],
+              "colour": [
+                130,
+                182,
+                82
+              ],
+              "trigger": "ambient",
+              "workGainRequired": false
             }
           }
         }
@@ -462,7 +632,58 @@
             "#ed8c3f",
             "#a9cfec"
           ],
-          "motion": [
+          "functionalCapabilitiesPreserved": [
+            "Swimming fish and tail beats",
+            "Water-surface movement, rooted plant sway, bubbler",
+            "Standing leisure contract"
+          ],
+          "integrationRequirements": [
+            "Use aquarium-specific content animation, never screen/scanner over glass.",
+            "Moving fish are baked into base: content isolation/underpainting or a local clipped warp is required. Do not simply add extra fish.",
+            "Keep all effects off hood, cabinet, glass edge highlights and gravel.",
+            "Preserve nativeContract placement, mount, leisure approach and light registration. This recipe authorizes no geometry or behavior contract edits."
+          ],
+          "nativeContract": {
+            "remasterBox": {
+              "w": 2,
+              "h": 1
+            },
+            "tilePixels": 12,
+            "geometry": {
+              "blocks": true,
+              "flat": false,
+              "tableSurface": false,
+              "requiredMount": null,
+              "optionalSurfaceMount": false,
+              "surfaceRisePixels": 8
+            },
+            "leisureUse": {
+              "kind": "fish",
+              "sit": false,
+              "approach": "south"
+            },
+            "light": {
+              "c": [
+                80,
+                200,
+                220
+              ],
+              "r": 22,
+              "a": 0.12,
+              "m": "pulse",
+              "y": 0.45
+            },
+            "anchorContract": "PropAnchor derives reachable edge approach; useApproach rotates relative preference with r. Preserve standing leisure action unless special planner supplies a real body anchor.",
+            "assignedWorkstation": false,
+            "capabilityObjectType": null,
+            "sourceEvidence": {
+              "catalog": "frontend/app/propsprites.js:10929",
+              "geometry": "frontend/app/propsprites.js:11006",
+              "drawState": "frontend/app/propsprites.js:11279",
+              "liveWorld": "frontend/app/world.js:6029"
+            }
+          },
+          "motionEffects": [
             {
               "mechanism": "water-surface-caustics",
               "region": [
@@ -816,56 +1037,223 @@
               }
             }
           ],
+          "screenEffects": [],
           "screenRegions": [],
-          "functionalCapabilitiesPreserved": [
-            "Swimming fish and tail beats",
-            "Water-surface movement, rooted plant sway, bubbler",
-            "Standing leisure contract"
-          ],
-          "integrationRequirements": [
-            "Use aquarium-specific content animation, never screen/scanner over glass.",
-            "Moving fish are baked into base: content isolation/underpainting or a local clipped warp is required. Do not simply add extra fish.",
-            "Keep all effects off hood, cabinet, glass edge highlights and gravel.",
-            "Preserve nativeContract placement, mount, leisure approach and light registration. This recipe authorizes no geometry or behavior contract edits."
-          ],
-          "nativeContract": {
-            "remasterBox": {
-              "w": 2,
-              "h": 1
-            },
-            "tilePixels": 12,
-            "geometry": {
-              "blocks": true,
-              "flat": false,
-              "tableSurface": false,
-              "requiredMount": null,
-              "optionalSurfaceMount": false,
-              "surfaceRisePixels": 8
-            },
-            "leisureUse": {
-              "kind": "fish",
-              "sit": false,
-              "approach": "south"
-            },
-            "light": {
-              "c": [
-                80,
-                200,
-                220
+          "regions": {
+            "water-surface-caustics-1": [
+              [
+                0.142,
+                0.231
               ],
-              "r": 22,
-              "a": 0.12,
-              "m": "pulse",
-              "y": 0.45
+              [
+                0.854,
+                0.231
+              ],
+              [
+                0.861,
+                0.263
+              ],
+              [
+                0.144,
+                0.272
+              ]
+            ],
+            "fish-swim-2": [
+              [
+                0.285,
+                0.315
+              ],
+              [
+                0.745,
+                0.315
+              ],
+              [
+                0.745,
+                0.52
+              ],
+              [
+                0.285,
+                0.52
+              ]
+            ],
+            "aquatic-foliage-sway-3": [
+              [
+                0.16,
+                0.282
+              ],
+              [
+                0.8400000000000001,
+                0.282
+              ],
+              [
+                0.8400000000000001,
+                0.612
+              ],
+              [
+                0.16,
+                0.612
+              ]
+            ],
+            "bubble-rise-4": [
+              [
+                0.738,
+                0.29
+              ],
+              [
+                0.804,
+                0.29
+              ],
+              [
+                0.804,
+                0.54
+              ],
+              [
+                0.738,
+                0.54
+              ]
+            ]
+          },
+          "motion": {
+            "mode": "aquarium",
+            "mechanism": "water-surface-caustics",
+            "region": [
+              [
+                0.142,
+                0.231
+              ],
+              [
+                0.854,
+                0.231
+              ],
+              [
+                0.861,
+                0.263
+              ],
+              [
+                0.144,
+                0.272
+              ]
+            ],
+            "origin": [
+              0.5,
+              0.25
+            ],
+            "colour": [
+              184,
+              237,
+              243
+            ],
+            "trigger": "ambient",
+            "note": "Primary envelope only. All mandatory mechanisms, clock parameters, masks and trigger distinctions remain in motionEffects.",
+            "workGainRequired": false,
+            "clipToOriginalAlpha": true
+          },
+          "engineAlphaNormalized": {
+            "regions": {
+              "water-surface-caustics-1": [
+                [
+                  0.0452749,
+                  0.2073863
+                ],
+                [
+                  0.9515828,
+                  0.2073863
+                ],
+                [
+                  0.9604932,
+                  0.2431894
+                ],
+                [
+                  0.0478207,
+                  0.2532591
+                ]
+              ],
+              "fish-swim-2": [
+                [
+                  0.2273002,
+                  0.3013695
+                ],
+                [
+                  0.8128363,
+                  0.3013695
+                ],
+                [
+                  0.8128363,
+                  0.5307335
+                ],
+                [
+                  0.2273002,
+                  0.5307335
+                ]
+              ],
+              "aquatic-foliage-sway-3": [
+                [
+                  0.0681871,
+                  0.2644475
+                ],
+                [
+                  0.9337622,
+                  0.2644475
+                ],
+                [
+                  0.9337622,
+                  0.6336676
+                ],
+                [
+                  0.0681871,
+                  0.6336676
+                ]
+              ],
+              "bubble-rise-4": [
+                [
+                  0.8039259,
+                  0.2733983
+                ],
+                [
+                  0.8879376,
+                  0.2733983
+                ],
+                [
+                  0.8879376,
+                  0.5531105
+                ],
+                [
+                  0.8039259,
+                  0.5531105
+                ]
+              ]
             },
-            "anchorContract": "PropAnchor derives reachable edge approach; useApproach rotates relative preference with r. Preserve standing leisure action unless special planner supplies a real body anchor.",
-            "assignedWorkstation": false,
-            "capabilityObjectType": null,
-            "sourceEvidence": {
-              "catalog": "frontend/app/propsprites.js:10929",
-              "geometry": "frontend/app/propsprites.js:11006",
-              "drawState": "frontend/app/propsprites.js:11279",
-              "liveWorld": "frontend/app/world.js:6029"
+            "screenRegions": [],
+            "motion": {
+              "region": [
+                [
+                  0.0452749,
+                  0.2073863
+                ],
+                [
+                  0.9515828,
+                  0.2073863
+                ],
+                [
+                  0.9604932,
+                  0.2431894
+                ],
+                [
+                  0.0478207,
+                  0.2532591
+                ]
+              ],
+              "origin": [
+                0.5009747,
+                0.2286444
+              ],
+              "colour": [
+                184,
+                237,
+                243
+              ],
+              "trigger": "ambient",
+              "workGainRequired": false
             }
           }
         }
@@ -903,7 +1291,52 @@
             "#ffad35",
             "#fff28b"
           ],
-          "motion": [
+          "functionalCapabilitiesPreserved": [
+            "Rising wax blobs rather than merely pulsing glass",
+            "Required surface mount with 8 world-pixel lift"
+          ],
+          "integrationRequirements": [
+            "Isolate/reproject baked wax or use bounded fluid distortion with static silhouette; adding blobs over stationary originals is wrong.",
+            "No steam outside lamp; clip under static glass highlight layer.",
+            "Preserve nativeContract placement, mount, leisure approach and light registration. This recipe authorizes no geometry or behavior contract edits."
+          ],
+          "nativeContract": {
+            "remasterBox": {
+              "w": 1,
+              "h": 1
+            },
+            "tilePixels": 12,
+            "geometry": {
+              "blocks": false,
+              "flat": false,
+              "tableSurface": false,
+              "requiredMount": "surface",
+              "optionalSurfaceMount": false,
+              "surfaceRisePixels": 8
+            },
+            "leisureUse": null,
+            "light": {
+              "c": [
+                255,
+                90,
+                140
+              ],
+              "r": 18,
+              "a": 0.14,
+              "m": "pulse",
+              "y": 0.4
+            },
+            "anchorContract": "Requires table host; contact origin lifted exactly 8 world pixels.",
+            "assignedWorkstation": false,
+            "capabilityObjectType": null,
+            "sourceEvidence": {
+              "catalog": "frontend/app/propsprites.js:10906",
+              "geometry": "frontend/app/propsprites.js:11006",
+              "drawState": "frontend/app/propsprites.js:11279",
+              "liveWorld": "frontend/app/world.js:6029"
+            }
+          },
+          "motionEffects": [
             {
               "mechanism": "wax-rise-and-merge",
               "region": [
@@ -1221,50 +1654,247 @@
               }
             }
           ],
+          "screenEffects": [],
           "screenRegions": [],
-          "functionalCapabilitiesPreserved": [
-            "Rising wax blobs rather than merely pulsing glass",
-            "Required surface mount with 8 world-pixel lift"
-          ],
-          "integrationRequirements": [
-            "Isolate/reproject baked wax or use bounded fluid distortion with static silhouette; adding blobs over stationary originals is wrong.",
-            "No steam outside lamp; clip under static glass highlight layer.",
-            "Preserve nativeContract placement, mount, leisure approach and light registration. This recipe authorizes no geometry or behavior contract edits."
-          ],
-          "nativeContract": {
-            "remasterBox": {
-              "w": 1,
-              "h": 1
-            },
-            "tilePixels": 12,
-            "geometry": {
-              "blocks": false,
-              "flat": false,
-              "tableSurface": false,
-              "requiredMount": "surface",
-              "optionalSurfaceMount": false,
-              "surfaceRisePixels": 8
-            },
-            "leisureUse": null,
-            "light": {
-              "c": [
-                255,
-                90,
-                140
+          "regions": {
+            "wax-rise-and-merge-1": [
+              [
+                0.39,
+                0.164
               ],
-              "r": 18,
-              "a": 0.14,
-              "m": "pulse",
-              "y": 0.4
+              [
+                0.61,
+                0.164
+              ],
+              [
+                0.658,
+                0.354
+              ],
+              [
+                0.765,
+                0.606
+              ],
+              [
+                0.733,
+                0.69
+              ],
+              [
+                0.595,
+                0.711
+              ],
+              [
+                0.34,
+                0.71
+              ],
+              [
+                0.218,
+                0.668
+              ],
+              [
+                0.234,
+                0.582
+              ],
+              [
+                0.317,
+                0.348
+              ]
+            ],
+            "internal-pool-breathe-2": [
+              [
+                0.315,
+                0.637
+              ],
+              [
+                0.6839999999999999,
+                0.637
+              ],
+              [
+                0.6839999999999999,
+                0.704
+              ],
+              [
+                0.315,
+                0.704
+              ]
+            ]
+          },
+          "motion": {
+            "mode": "lava-wax",
+            "mechanism": "wax-rise-and-merge",
+            "region": [
+              [
+                0.39,
+                0.164
+              ],
+              [
+                0.61,
+                0.164
+              ],
+              [
+                0.658,
+                0.354
+              ],
+              [
+                0.765,
+                0.606
+              ],
+              [
+                0.733,
+                0.69
+              ],
+              [
+                0.595,
+                0.711
+              ],
+              [
+                0.34,
+                0.71
+              ],
+              [
+                0.218,
+                0.668
+              ],
+              [
+                0.234,
+                0.582
+              ],
+              [
+                0.317,
+                0.348
+              ]
+            ],
+            "origin": [
+              0.49,
+              0.697
+            ],
+            "colour": [
+              255,
+              139,
+              38
+            ],
+            "trigger": "ambient",
+            "note": "Primary envelope only. All mandatory mechanisms, clock parameters, masks and trigger distinctions remain in motionEffects.",
+            "workGainRequired": false,
+            "clipToOriginalAlpha": true
+          },
+          "engineAlphaNormalized": {
+            "regions": {
+              "wax-rise-and-merge-1": [
+                [
+                  0.3439535,
+                  0.1570233
+                ],
+                [
+                  0.6560465,
+                  0.1570233
+                ],
+                [
+                  0.7241395,
+                  0.3521398
+                ],
+                [
+                  0.8759302,
+                  0.6109259
+                ],
+                [
+                  0.8305349,
+                  0.697188
+                ],
+                [
+                  0.6347674,
+                  0.7187535
+                ],
+                [
+                  0.2730233,
+                  0.7177266
+                ],
+                [
+                  0.0999535,
+                  0.6745955
+                ],
+                [
+                  0.1226512,
+                  0.5862796
+                ],
+                [
+                  0.2403953,
+                  0.3459782
+                ]
+              ],
+              "internal-pool-breathe-2": [
+                [
+                  0.2375581,
+                  0.6427607
+                ],
+                [
+                  0.7610233,
+                  0.6427607
+                ],
+                [
+                  0.7610233,
+                  0.711565
+                ],
+                [
+                  0.2375581,
+                  0.711565
+                ]
+              ]
             },
-            "anchorContract": "Requires table host; contact origin lifted exactly 8 world pixels.",
-            "assignedWorkstation": false,
-            "capabilityObjectType": null,
-            "sourceEvidence": {
-              "catalog": "frontend/app/propsprites.js:10906",
-              "geometry": "frontend/app/propsprites.js:11006",
-              "drawState": "frontend/app/propsprites.js:11279",
-              "liveWorld": "frontend/app/world.js:6029"
+            "screenRegions": [],
+            "motion": {
+              "region": [
+                [
+                  0.3439535,
+                  0.1570233
+                ],
+                [
+                  0.6560465,
+                  0.1570233
+                ],
+                [
+                  0.7241395,
+                  0.3521398
+                ],
+                [
+                  0.8759302,
+                  0.6109259
+                ],
+                [
+                  0.8305349,
+                  0.697188
+                ],
+                [
+                  0.6347674,
+                  0.7187535
+                ],
+                [
+                  0.2730233,
+                  0.7177266
+                ],
+                [
+                  0.0999535,
+                  0.6745955
+                ],
+                [
+                  0.1226512,
+                  0.5862796
+                ],
+                [
+                  0.2403953,
+                  0.3459782
+                ]
+              ],
+              "origin": [
+                0.485814,
+                0.7043765
+              ],
+              "colour": [
+                255,
+                139,
+                38
+              ],
+              "trigger": "ambient",
+              "workGainRequired": false
             }
           }
         }
@@ -1302,7 +1932,52 @@
             "#ed55ef",
             "#fff1ff"
           ],
-          "motion": [
+          "functionalCapabilitiesPreserved": [
+            "Re-rooting plasma from central electrode",
+            "Surface mount8px lift and weighted contact"
+          ],
+          "integrationRequirements": [
+            "Explicit arc mechanism, not scanner lines or a rotating whole sphere.",
+            "Preserve static glass silhouette/reflections; keep violet light subtle and off wood.",
+            "Preserve nativeContract placement, mount, leisure approach and light registration. This recipe authorizes no geometry or behavior contract edits."
+          ],
+          "nativeContract": {
+            "remasterBox": {
+              "w": 1,
+              "h": 1
+            },
+            "tilePixels": 12,
+            "geometry": {
+              "blocks": false,
+              "flat": false,
+              "tableSurface": false,
+              "requiredMount": "surface",
+              "optionalSurfaceMount": false,
+              "surfaceRisePixels": 8
+            },
+            "leisureUse": null,
+            "light": {
+              "c": [
+                170,
+                110,
+                255
+              ],
+              "r": 22,
+              "a": 0.16,
+              "m": "fire",
+              "y": 0.4
+            },
+            "anchorContract": "Requires table host; contact origin lifted exactly 8 world pixels.",
+            "assignedWorkstation": false,
+            "capabilityObjectType": null,
+            "sourceEvidence": {
+              "catalog": "frontend/app/propsprites.js:10914",
+              "geometry": "frontend/app/propsprites.js:11006",
+              "drawState": "frontend/app/propsprites.js:11279",
+              "liveWorld": "frontend/app/world.js:6029"
+            }
+          },
+          "motionEffects": [
             {
               "mechanism": "electrode-arcs",
               "region": [
@@ -1525,50 +2200,279 @@
               }
             }
           ],
+          "screenEffects": [],
           "screenRegions": [],
-          "functionalCapabilitiesPreserved": [
-            "Re-rooting plasma from central electrode",
-            "Surface mount8px lift and weighted contact"
-          ],
-          "integrationRequirements": [
-            "Explicit arc mechanism, not scanner lines or a rotating whole sphere.",
-            "Preserve static glass silhouette/reflections; keep violet light subtle and off wood.",
-            "Preserve nativeContract placement, mount, leisure approach and light registration. This recipe authorizes no geometry or behavior contract edits."
-          ],
-          "nativeContract": {
-            "remasterBox": {
-              "w": 1,
-              "h": 1
-            },
-            "tilePixels": 12,
-            "geometry": {
-              "blocks": false,
-              "flat": false,
-              "tableSurface": false,
-              "requiredMount": "surface",
-              "optionalSurfaceMount": false,
-              "surfaceRisePixels": 8
-            },
-            "leisureUse": null,
-            "light": {
-              "c": [
-                170,
-                110,
-                255
+          "regions": {
+            "electrode-arcs-1": [
+              [
+                0.49,
+                0.027
               ],
-              "r": 22,
-              "a": 0.16,
-              "m": "fire",
-              "y": 0.4
+              [
+                0.71,
+                0.067
+              ],
+              [
+                0.865,
+                0.163
+              ],
+              [
+                0.937,
+                0.257
+              ],
+              [
+                0.874,
+                0.364
+              ],
+              [
+                0.681,
+                0.445
+              ],
+              [
+                0.492,
+                0.477
+              ],
+              [
+                0.25,
+                0.425
+              ],
+              [
+                0.097,
+                0.317
+              ],
+              [
+                0.063,
+                0.22
+              ],
+              [
+                0.13,
+                0.117
+              ],
+              [
+                0.29,
+                0.05
+              ]
+            ],
+            "sphere-bloom-2": [
+              [
+                0.135,
+                0.072
+              ],
+              [
+                0.855,
+                0.072
+              ],
+              [
+                0.855,
+                0.422
+              ],
+              [
+                0.135,
+                0.422
+              ]
+            ]
+          },
+          "motion": {
+            "mode": "plasma-arcs",
+            "mechanism": "electrode-arcs",
+            "region": [
+              [
+                0.49,
+                0.027
+              ],
+              [
+                0.71,
+                0.067
+              ],
+              [
+                0.865,
+                0.163
+              ],
+              [
+                0.937,
+                0.257
+              ],
+              [
+                0.874,
+                0.364
+              ],
+              [
+                0.681,
+                0.445
+              ],
+              [
+                0.492,
+                0.477
+              ],
+              [
+                0.25,
+                0.425
+              ],
+              [
+                0.097,
+                0.317
+              ],
+              [
+                0.063,
+                0.22
+              ],
+              [
+                0.13,
+                0.117
+              ],
+              [
+                0.29,
+                0.05
+              ]
+            ],
+            "origin": [
+              0.496,
+              0.274
+            ],
+            "colour": [
+              233,
+              133,
+              242
+            ],
+            "trigger": "ambient",
+            "note": "Primary envelope only. All mandatory mechanisms, clock parameters, masks and trigger distinctions remain in motionEffects.",
+            "workGainRequired": false,
+            "clipToOriginalAlpha": true
+          },
+          "engineAlphaNormalized": {
+            "regions": {
+              "electrode-arcs-1": [
+                [
+                  0.4891953,
+                  0.0151178
+                ],
+                [
+                  0.7268994,
+                  0.0576085
+                ],
+                [
+                  0.8943728,
+                  0.1595863
+                ],
+                [
+                  0.9721669,
+                  0.2594396
+                ],
+                [
+                  0.904097,
+                  0.3731023
+                ],
+                [
+                  0.6955657,
+                  0.4591461
+                ],
+                [
+                  0.4913562,
+                  0.4931387
+                ],
+                [
+                  0.2298817,
+                  0.4379007
+                ],
+                [
+                  0.0645692,
+                  0.3231757
+                ],
+                [
+                  0.0278331,
+                  0.2201356
+                ],
+                [
+                  0.1002249,
+                  0.1107219
+                ],
+                [
+                  0.2731006,
+                  0.0395499
+                ]
+              ],
+              "sphere-bloom-2": [
+                [
+                  0.1056272,
+                  0.0629199
+                ],
+                [
+                  0.883568,
+                  0.0629199
+                ],
+                [
+                  0.883568,
+                  0.4347139
+                ],
+                [
+                  0.1056272,
+                  0.4347139
+                ]
+              ]
             },
-            "anchorContract": "Requires table host; contact origin lifted exactly 8 world pixels.",
-            "assignedWorkstation": false,
-            "capabilityObjectType": null,
-            "sourceEvidence": {
-              "catalog": "frontend/app/propsprites.js:10914",
-              "geometry": "frontend/app/propsprites.js:11006",
-              "drawState": "frontend/app/propsprites.js:11279",
-              "liveWorld": "frontend/app/world.js:6029"
+            "screenRegions": [],
+            "motion": {
+              "region": [
+                [
+                  0.4891953,
+                  0.0151178
+                ],
+                [
+                  0.7268994,
+                  0.0576085
+                ],
+                [
+                  0.8943728,
+                  0.1595863
+                ],
+                [
+                  0.9721669,
+                  0.2594396
+                ],
+                [
+                  0.904097,
+                  0.3731023
+                ],
+                [
+                  0.6955657,
+                  0.4591461
+                ],
+                [
+                  0.4913562,
+                  0.4931387
+                ],
+                [
+                  0.2298817,
+                  0.4379007
+                ],
+                [
+                  0.0645692,
+                  0.3231757
+                ],
+                [
+                  0.0278331,
+                  0.2201356
+                ],
+                [
+                  0.1002249,
+                  0.1107219
+                ],
+                [
+                  0.2731006,
+                  0.0395499
+                ]
+              ],
+              "origin": [
+                0.4956781,
+                0.2774982
+              ],
+              "colour": [
+                233,
+                133,
+                242
+              ],
+              "trigger": "ambient",
+              "workGainRequired": false
             }
           }
         }
@@ -1612,7 +2516,55 @@
             "#8270ca",
             "#c9bff0"
           ],
-          "motion": [
+          "intentionalStatic": "The removed old casing control-nub blink had no instrument counterpart in the new ceramic/timber vat; omit that cosmetic LED instead of inventing electronics. Liquid work response remains mandatory.",
+          "functionalCapabilitiesPreserved": [
+            "Ambient dye ripples/bubbles",
+            "f.work intensifies bath heating/emission",
+            "Cloth visibly partly dyed, actual body/footprint preserved"
+          ],
+          "integrationRequirements": [
+            "New liquid is indigo, not old orange; use local palette.",
+            "Keep ceramic, timber, paddle and cloth out of liquid distortion. No orange stripe painted through timber to imitate removed metal heating jacket.",
+            "No process-completion percentage or fired state exists here.",
+            "Preserve nativeContract placement, mount, leisure approach and light registration. This recipe authorizes no geometry or behavior contract edits."
+          ],
+          "nativeContract": {
+            "remasterBox": {
+              "w": 2,
+              "h": 2
+            },
+            "tilePixels": 12,
+            "geometry": {
+              "blocks": true,
+              "flat": false,
+              "tableSurface": false,
+              "requiredMount": null,
+              "optionalSurfaceMount": false,
+              "surfaceRisePixels": 8
+            },
+            "leisureUse": null,
+            "light": {
+              "c": [
+                200,
+                100,
+                255
+              ],
+              "r": 20,
+              "a": 0.1,
+              "m": "pulse",
+              "y": 0.5
+            },
+            "anchorContract": "No leisure seat anchor. Footprint is the placement/pathfinding rectangle; upright visual rise is independent of the reserved box.",
+            "assignedWorkstation": false,
+            "capabilityObjectType": null,
+            "sourceEvidence": {
+              "catalog": "frontend/app/propsprites.js:10818",
+              "geometry": "frontend/app/propsprites.js:11006",
+              "drawState": "frontend/app/propsprites.js:11279",
+              "liveWorld": "frontend/app/world.js:6029"
+            }
+          },
+          "motionEffects": [
             {
               "mechanism": "dye-ripples",
               "region": [
@@ -1933,53 +2885,299 @@
               }
             }
           ],
+          "screenEffects": [],
           "screenRegions": [],
-          "intentionalStatic": "The removed old casing control-nub blink had no instrument counterpart in the new ceramic/timber vat; omit that cosmetic LED instead of inventing electronics. Liquid work response remains mandatory.",
-          "functionalCapabilitiesPreserved": [
-            "Ambient dye ripples/bubbles",
-            "f.work intensifies bath heating/emission",
-            "Cloth visibly partly dyed, actual body/footprint preserved"
-          ],
-          "integrationRequirements": [
-            "New liquid is indigo, not old orange; use local palette.",
-            "Keep ceramic, timber, paddle and cloth out of liquid distortion. No orange stripe painted through timber to imitate removed metal heating jacket.",
-            "No process-completion percentage or fired state exists here.",
-            "Preserve nativeContract placement, mount, leisure approach and light registration. This recipe authorizes no geometry or behavior contract edits."
-          ],
-          "nativeContract": {
-            "remasterBox": {
-              "w": 2,
-              "h": 2
-            },
-            "tilePixels": 12,
-            "geometry": {
-              "blocks": true,
-              "flat": false,
-              "tableSurface": false,
-              "requiredMount": null,
-              "optionalSurfaceMount": false,
-              "surfaceRisePixels": 8
-            },
-            "leisureUse": null,
-            "light": {
-              "c": [
-                200,
-                100,
-                255
+          "regions": {
+            "dye-ripples-1": [
+              [
+                0.326,
+                0.127
               ],
-              "r": 20,
-              "a": 0.1,
-              "m": "pulse",
-              "y": 0.5
+              [
+                0.483,
+                0.107
+              ],
+              [
+                0.654,
+                0.133
+              ],
+              [
+                0.772,
+                0.192
+              ],
+              [
+                0.845,
+                0.289
+              ],
+              [
+                0.816,
+                0.411
+              ],
+              [
+                0.678,
+                0.478
+              ],
+              [
+                0.463,
+                0.49
+              ],
+              [
+                0.298,
+                0.432
+              ],
+              [
+                0.225,
+                0.32
+              ],
+              [
+                0.247,
+                0.195
+              ]
+            ],
+            "surface-bubble-2": [
+              [
+                0.43,
+                0.31
+              ],
+              [
+                0.62,
+                0.31
+              ],
+              [
+                0.62,
+                0.4
+              ],
+              [
+                0.43,
+                0.4
+              ]
+            ],
+            "heated-bath-breathe-3": [
+              [
+                0.36,
+                0.39
+              ],
+              [
+                0.6599999999999999,
+                0.39
+              ],
+              [
+                0.6599999999999999,
+                0.455
+              ],
+              [
+                0.36,
+                0.455
+              ]
+            ]
+          },
+          "motion": {
+            "mode": "water",
+            "mechanism": "dye-ripples",
+            "region": [
+              [
+                0.326,
+                0.127
+              ],
+              [
+                0.483,
+                0.107
+              ],
+              [
+                0.654,
+                0.133
+              ],
+              [
+                0.772,
+                0.192
+              ],
+              [
+                0.845,
+                0.289
+              ],
+              [
+                0.816,
+                0.411
+              ],
+              [
+                0.678,
+                0.478
+              ],
+              [
+                0.463,
+                0.49
+              ],
+              [
+                0.298,
+                0.432
+              ],
+              [
+                0.225,
+                0.32
+              ],
+              [
+                0.247,
+                0.195
+              ]
+            ],
+            "origin": [
+              0.527,
+              0.353
+            ],
+            "colour": [
+              149,
+              128,
+              223
+            ],
+            "trigger": "ambient",
+            "note": "Primary envelope only. All mandatory mechanisms, clock parameters, masks and trigger distinctions remain in motionEffects.",
+            "workGainRequired": true,
+            "clipToOriginalAlpha": true
+          },
+          "engineAlphaNormalized": {
+            "regions": {
+              "dye-ripples-1": [
+                [
+                  0.2924457,
+                  0.1316862
+                ],
+                [
+                  0.483219,
+                  0.1104139
+                ],
+                [
+                  0.6910039,
+                  0.1380679
+                ],
+                [
+                  0.8343876,
+                  0.200821
+                ],
+                [
+                  0.9230911,
+                  0.3039915
+                ],
+                [
+                  0.8878527,
+                  0.4337523
+                ],
+                [
+                  0.7201667,
+                  0.5050144
+                ],
+                [
+                  0.4589167,
+                  0.5177778
+                ],
+                [
+                  0.2584225,
+                  0.4560882
+                ],
+                [
+                  0.169719,
+                  0.3369635
+                ],
+                [
+                  0.1964516,
+                  0.2040119
+                ]
+              ],
+              "surface-bubble-2": [
+                [
+                  0.4188178,
+                  0.3263274
+                ],
+                [
+                  0.6496899,
+                  0.3263274
+                ],
+                [
+                  0.6496899,
+                  0.4220526
+                ],
+                [
+                  0.4188178,
+                  0.4220526
+                ]
+              ],
+              "heated-bath-breathe-3": [
+                [
+                  0.3337597,
+                  0.4114165
+                ],
+                [
+                  0.6982946,
+                  0.4114165
+                ],
+                [
+                  0.6982946,
+                  0.4805513
+                ],
+                [
+                  0.3337597,
+                  0.4805513
+                ]
+              ]
             },
-            "anchorContract": "No leisure seat anchor. Footprint is the placement/pathfinding rectangle; upright visual rise is independent of the reserved box.",
-            "assignedWorkstation": false,
-            "capabilityObjectType": null,
-            "sourceEvidence": {
-              "catalog": "frontend/app/propsprites.js:10818",
-              "geometry": "frontend/app/propsprites.js:11006",
-              "drawState": "frontend/app/propsprites.js:11279",
-              "liveWorld": "frontend/app/world.js:6029"
+            "screenRegions": [],
+            "motion": {
+              "region": [
+                [
+                  0.2924457,
+                  0.1316862
+                ],
+                [
+                  0.483219,
+                  0.1104139
+                ],
+                [
+                  0.6910039,
+                  0.1380679
+                ],
+                [
+                  0.8343876,
+                  0.200821
+                ],
+                [
+                  0.9230911,
+                  0.3039915
+                ],
+                [
+                  0.8878527,
+                  0.4337523
+                ],
+                [
+                  0.7201667,
+                  0.5050144
+                ],
+                [
+                  0.4589167,
+                  0.5177778
+                ],
+                [
+                  0.2584225,
+                  0.4560882
+                ],
+                [
+                  0.169719,
+                  0.3369635
+                ],
+                [
+                  0.1964516,
+                  0.2040119
+                ]
+              ],
+              "origin": [
+                0.5366841,
+                0.3720628
+              ],
+              "colour": [
+                149,
+                128,
+                223
+              ],
+              "trigger": "ambient",
+              "workGainRequired": true
             }
           }
         }
@@ -2024,7 +3222,54 @@
             "#ffae39",
             "#ffdb73"
           ],
-          "motion": [
+          "functionalCapabilitiesPreserved": [
+            "Work-responsive firing heat at vent and door seams",
+            "Ambient thermal shimmer",
+            "Three-segment breath readout"
+          ],
+          "integrationRequirements": [
+            "Blank right-side panel is true safe readout region; do not turn full door or top tiles into a screen.",
+            "New top is masonry blocks, not native circular lid: relocate lid emission to existing front seam and flue.",
+            "Preserve stronger f.work heat; don't label kiln static.",
+            "Preserve nativeContract placement, mount, leisure approach and light registration. This recipe authorizes no geometry or behavior contract edits."
+          ],
+          "nativeContract": {
+            "remasterBox": {
+              "w": 2,
+              "h": 2
+            },
+            "tilePixels": 12,
+            "geometry": {
+              "blocks": true,
+              "flat": false,
+              "tableSurface": false,
+              "requiredMount": null,
+              "optionalSurfaceMount": false,
+              "surfaceRisePixels": 8
+            },
+            "leisureUse": null,
+            "light": {
+              "c": [
+                255,
+                120,
+                50
+              ],
+              "r": 28,
+              "a": 0.18,
+              "m": "fire",
+              "y": 0.5
+            },
+            "anchorContract": "No leisure seat anchor. Footprint is the placement/pathfinding rectangle; upright visual rise is independent of the reserved box.",
+            "assignedWorkstation": false,
+            "capabilityObjectType": null,
+            "sourceEvidence": {
+              "catalog": "frontend/app/propsprites.js:10819",
+              "geometry": "frontend/app/propsprites.js:11006",
+              "drawState": "frontend/app/propsprites.js:11279",
+              "liveWorld": "frontend/app/world.js:6029"
+            }
+          },
+          "motionEffects": [
             {
               "mechanism": "flue-heat",
               "region": [
@@ -2235,7 +3480,7 @@
               }
             }
           ],
-          "screenRegions": [
+          "screenEffects": [
             {
               "name": "temperature cadence window",
               "polygon": [
@@ -2287,51 +3532,292 @@
               }
             }
           ],
-          "functionalCapabilitiesPreserved": [
-            "Work-responsive firing heat at vent and door seams",
-            "Ambient thermal shimmer",
-            "Three-segment breath readout"
-          ],
-          "integrationRequirements": [
-            "Blank right-side panel is true safe readout region; do not turn full door or top tiles into a screen.",
-            "New top is masonry blocks, not native circular lid: relocate lid emission to existing front seam and flue.",
-            "Preserve stronger f.work heat; don't label kiln static.",
-            "Preserve nativeContract placement, mount, leisure approach and light registration. This recipe authorizes no geometry or behavior contract edits."
-          ],
-          "nativeContract": {
-            "remasterBox": {
-              "w": 2,
-              "h": 2
-            },
-            "tilePixels": 12,
-            "geometry": {
-              "blocks": true,
-              "flat": false,
-              "tableSurface": false,
-              "requiredMount": null,
-              "optionalSurfaceMount": false,
-              "surfaceRisePixels": 8
-            },
-            "leisureUse": null,
-            "light": {
-              "c": [
-                255,
-                120,
-                50
+          "screenRegions": [
+            [
+              [
+                0.835,
+                0.493
               ],
-              "r": 28,
-              "a": 0.18,
-              "m": "fire",
-              "y": 0.5
+              [
+                0.9059999999999999,
+                0.493
+              ],
+              [
+                0.9059999999999999,
+                0.525
+              ],
+              [
+                0.835,
+                0.525
+              ]
+            ]
+          ],
+          "regions": {
+            "flue-heat-1": [
+              [
+                0.447,
+                0.188
+              ],
+              [
+                0.53,
+                0.188
+              ],
+              [
+                0.53,
+                0.217
+              ],
+              [
+                0.447,
+                0.217
+              ]
+            ],
+            "door-seam-heat-2": [
+              [
+                0.346,
+                0.61
+              ],
+              [
+                0.608,
+                0.61
+              ],
+              [
+                0.635,
+                0.645
+              ],
+              [
+                0.642,
+                0.793
+              ],
+              [
+                0.63,
+                0.798
+              ],
+              [
+                0.622,
+                0.65
+              ],
+              [
+                0.602,
+                0.625
+              ],
+              [
+                0.346,
+                0.625
+              ]
+            ],
+            "hot-air-shimmer-3": [
+              [
+                0.425,
+                0.142
+              ],
+              [
+                0.5549999999999999,
+                0.142
+              ],
+              [
+                0.5549999999999999,
+                0.185
+              ],
+              [
+                0.425,
+                0.185
+              ]
+            ],
+            "screen-1": [
+              [
+                0.835,
+                0.493
+              ],
+              [
+                0.9059999999999999,
+                0.493
+              ],
+              [
+                0.9059999999999999,
+                0.525
+              ],
+              [
+                0.835,
+                0.525
+              ]
+            ]
+          },
+          "motion": {
+            "mode": "kiln-heat",
+            "mechanism": "flue-heat",
+            "region": [
+              [
+                0.447,
+                0.188
+              ],
+              [
+                0.53,
+                0.188
+              ],
+              [
+                0.53,
+                0.217
+              ],
+              [
+                0.447,
+                0.217
+              ]
+            ],
+            "origin": [
+              0.488,
+              0.208
+            ],
+            "colour": [
+              255,
+              172,
+              51
+            ],
+            "trigger": "ambient",
+            "note": "Primary envelope only. All mandatory mechanisms, clock parameters, masks and trigger distinctions remain in motionEffects.",
+            "workGainRequired": true,
+            "clipToOriginalAlpha": true
+          },
+          "engineAlphaNormalized": {
+            "regions": {
+              "flue-heat-1": [
+                [
+                  0.4257133,
+                  0.1739868
+                ],
+                [
+                  0.5222643,
+                  0.1739868
+                ],
+                [
+                  0.5222643,
+                  0.2053995
+                ],
+                [
+                  0.4257133,
+                  0.2053995
+                ]
+              ],
+              "door-seam-heat-2": [
+                [
+                  0.3082235,
+                  0.6310956
+                ],
+                [
+                  0.612999,
+                  0.6310956
+                ],
+                [
+                  0.6444072,
+                  0.6690074
+                ],
+                [
+                  0.65255,
+                  0.8293204
+                ],
+                [
+                  0.6385909,
+                  0.8347364
+                ],
+                [
+                  0.6292847,
+                  0.6744234
+                ],
+                [
+                  0.6060194,
+                  0.6473435
+                ],
+                [
+                  0.3082235,
+                  0.6473435
+                ]
+              ],
+              "hot-air-shimmer-3": [
+                [
+                  0.4001215,
+                  0.1241598
+                ],
+                [
+                  0.551346,
+                  0.1241598
+                ],
+                [
+                  0.551346,
+                  0.1707372
+                ],
+                [
+                  0.4001215,
+                  0.1707372
+                ]
+              ],
+              "screen-1": [
+                [
+                  0.8770603,
+                  0.5043616
+                ],
+                [
+                  0.9596521,
+                  0.5043616
+                ],
+                [
+                  0.9596521,
+                  0.5390239
+                ],
+                [
+                  0.8770603,
+                  0.5390239
+                ]
+              ]
             },
-            "anchorContract": "No leisure seat anchor. Footprint is the placement/pathfinding rectangle; upright visual rise is independent of the reserved box.",
-            "assignedWorkstation": false,
-            "capabilityObjectType": null,
-            "sourceEvidence": {
-              "catalog": "frontend/app/propsprites.js:10819",
-              "geometry": "frontend/app/propsprites.js:11006",
-              "drawState": "frontend/app/propsprites.js:11279",
-              "liveWorld": "frontend/app/world.js:6029"
+            "screenRegions": [
+              [
+                [
+                  0.8770603,
+                  0.5043616
+                ],
+                [
+                  0.9596521,
+                  0.5043616
+                ],
+                [
+                  0.9596521,
+                  0.5390239
+                ],
+                [
+                  0.8770603,
+                  0.5390239
+                ]
+              ]
+            ],
+            "motion": {
+              "region": [
+                [
+                  0.4257133,
+                  0.1739868
+                ],
+                [
+                  0.5222643,
+                  0.1739868
+                ],
+                [
+                  0.5222643,
+                  0.2053995
+                ],
+                [
+                  0.4257133,
+                  0.2053995
+                ]
+              ],
+              "origin": [
+                0.4734072,
+                0.1956507
+              ],
+              "colour": [
+                255,
+                172,
+                51
+              ],
+              "trigger": "ambient",
+              "workGainRequired": true
             }
           }
         }
@@ -2371,7 +3857,44 @@
             "#29899a",
             "#7f9841"
           ],
-          "motion": [
+          "intentionalStatic": "Former drive-caddy/read LED is absent from new cloth/storage shelf. Omit that ambient decorative blink rather than paint a fake LED on jars or cloth. The three work-responsive vial pulses are retained.",
+          "functionalCapabilitiesPreserved": [
+            "Three staggered liquid pulses with higher f.work intensity",
+            "Static wheels, handle and shelf",
+            "2x1 blocking trolley"
+          ],
+          "integrationRequirements": [
+            "Pulse the jar liquids, not full trolley or lids. No scanner, floating status glyph, or wheel rotation without actual movement.",
+            "No specimen count, test result, process-complete/fired event exists.",
+            "Preserve nativeContract placement, mount, leisure approach and light registration. This recipe authorizes no geometry or behavior contract edits."
+          ],
+          "nativeContract": {
+            "remasterBox": {
+              "w": 2,
+              "h": 1
+            },
+            "tilePixels": 12,
+            "geometry": {
+              "blocks": true,
+              "flat": false,
+              "tableSurface": false,
+              "requiredMount": null,
+              "optionalSurfaceMount": false,
+              "surfaceRisePixels": 8
+            },
+            "leisureUse": null,
+            "light": null,
+            "anchorContract": "No leisure seat anchor. Footprint is the placement/pathfinding rectangle; upright visual rise is independent of the reserved box.",
+            "assignedWorkstation": false,
+            "capabilityObjectType": null,
+            "sourceEvidence": {
+              "catalog": "frontend/app/propsprites.js:10815",
+              "geometry": "frontend/app/propsprites.js:11006",
+              "drawState": "frontend/app/propsprites.js:11279",
+              "liveWorld": "frontend/app/world.js:6029"
+            }
+          },
+          "motionEffects": [
             {
               "mechanism": "specimen-liquid-pulse",
               "region": [
@@ -2550,42 +4073,187 @@
               }
             }
           ],
+          "screenEffects": [],
           "screenRegions": [],
-          "intentionalStatic": "Former drive-caddy/read LED is absent from new cloth/storage shelf. Omit that ambient decorative blink rather than paint a fake LED on jars or cloth. The three work-responsive vial pulses are retained.",
-          "functionalCapabilitiesPreserved": [
-            "Three staggered liquid pulses with higher f.work intensity",
-            "Static wheels, handle and shelf",
-            "2x1 blocking trolley"
-          ],
-          "integrationRequirements": [
-            "Pulse the jar liquids, not full trolley or lids. No scanner, floating status glyph, or wheel rotation without actual movement.",
-            "No specimen count, test result, process-complete/fired event exists.",
-            "Preserve nativeContract placement, mount, leisure approach and light registration. This recipe authorizes no geometry or behavior contract edits."
-          ],
-          "nativeContract": {
-            "remasterBox": {
-              "w": 2,
-              "h": 1
+          "regions": {
+            "specimen-liquid-pulse-1": [
+              [
+                0.296,
+                0.176
+              ],
+              [
+                0.395,
+                0.176
+              ],
+              [
+                0.395,
+                0.31799999999999995
+              ],
+              [
+                0.296,
+                0.31799999999999995
+              ]
+            ],
+            "specimen-liquid-pulse-2": [
+              [
+                0.46,
+                0.216
+              ],
+              [
+                0.541,
+                0.216
+              ],
+              [
+                0.541,
+                0.322
+              ],
+              [
+                0.46,
+                0.322
+              ]
+            ],
+            "specimen-liquid-pulse-3": [
+              [
+                0.6,
+                0.185
+              ],
+              [
+                0.691,
+                0.185
+              ],
+              [
+                0.691,
+                0.32599999999999996
+              ],
+              [
+                0.6,
+                0.32599999999999996
+              ]
+            ]
+          },
+          "motion": {
+            "mode": "pulse",
+            "mechanism": "specimen-liquid-pulse",
+            "region": [
+              [
+                0.296,
+                0.176
+              ],
+              [
+                0.395,
+                0.176
+              ],
+              [
+                0.395,
+                0.31799999999999995
+              ],
+              [
+                0.296,
+                0.31799999999999995
+              ]
+            ],
+            "origin": [
+              0.348,
+              0.245
+            ],
+            "colour": [
+              216,
+              174,
+              70
+            ],
+            "trigger": "ambient",
+            "note": "Primary envelope only. All mandatory mechanisms, clock parameters, masks and trigger distinctions remain in motionEffects.",
+            "workGainRequired": true,
+            "clipToOriginalAlpha": true
+          },
+          "engineAlphaNormalized": {
+            "regions": {
+              "specimen-liquid-pulse-1": [
+                [
+                  0.267925,
+                  0.1604074
+                ],
+                [
+                  0.3888906,
+                  0.1604074
+                ],
+                [
+                  0.3888906,
+                  0.3151766
+                ],
+                [
+                  0.267925,
+                  0.3151766
+                ]
+              ],
+              "specimen-liquid-pulse-2": [
+                [
+                  0.4683125,
+                  0.2040043
+                ],
+                [
+                  0.5672844,
+                  0.2040043
+                ],
+                [
+                  0.5672844,
+                  0.3195363
+                ],
+                [
+                  0.4683125,
+                  0.3195363
+                ]
+              ],
+              "specimen-liquid-pulse-3": [
+                [
+                  0.639375,
+                  0.1702167
+                ],
+                [
+                  0.7505656,
+                  0.1702167
+                ],
+                [
+                  0.7505656,
+                  0.323896
+                ],
+                [
+                  0.639375,
+                  0.323896
+                ]
+              ]
             },
-            "tilePixels": 12,
-            "geometry": {
-              "blocks": true,
-              "flat": false,
-              "tableSurface": false,
-              "requiredMount": null,
-              "optionalSurfaceMount": false,
-              "surfaceRisePixels": 8
-            },
-            "leisureUse": null,
-            "light": null,
-            "anchorContract": "No leisure seat anchor. Footprint is the placement/pathfinding rectangle; upright visual rise is independent of the reserved box.",
-            "assignedWorkstation": false,
-            "capabilityObjectType": null,
-            "sourceEvidence": {
-              "catalog": "frontend/app/propsprites.js:10815",
-              "geometry": "frontend/app/propsprites.js:11006",
-              "drawState": "frontend/app/propsprites.js:11279",
-              "liveWorld": "frontend/app/world.js:6029"
+            "screenRegions": [],
+            "motion": {
+              "region": [
+                [
+                  0.267925,
+                  0.1604074
+                ],
+                [
+                  0.3888906,
+                  0.1604074
+                ],
+                [
+                  0.3888906,
+                  0.3151766
+                ],
+                [
+                  0.267925,
+                  0.3151766
+                ]
+              ],
+              "origin": [
+                0.3314625,
+                0.2356121
+              ],
+              "colour": [
+                216,
+                174,
+                70
+              ],
+              "trigger": "ambient",
+              "workGainRequired": true
             }
           }
         }
@@ -2626,7 +4294,54 @@
             "#36dc64",
             "#c1ef98"
           ],
-          "motion": [
+          "functionalCapabilitiesPreserved": [
+            "Suspended specimen bob is essential identity, not optional static decoration",
+            "Nine deterministic motes and internal culture glow",
+            "Ambient pedestal indicator cadence"
+          ],
+          "integrationRequirements": [
+            "Column is biological glass, not a screen/scanner.",
+            "Fixed specimen needs isolation/underpainting for true bob; preserve static glass highlights over moving contents.",
+            "Keep pedestal still; no f.work/fired/occupancy trigger exists in native function.",
+            "Preserve nativeContract placement, mount, leisure approach and light registration. This recipe authorizes no geometry or behavior contract edits."
+          ],
+          "nativeContract": {
+            "remasterBox": {
+              "w": 1,
+              "h": 2
+            },
+            "tilePixels": 12,
+            "geometry": {
+              "blocks": true,
+              "flat": false,
+              "tableSurface": false,
+              "requiredMount": null,
+              "optionalSurfaceMount": false,
+              "surfaceRisePixels": 8
+            },
+            "leisureUse": null,
+            "light": {
+              "c": [
+                255,
+                170,
+                90
+              ],
+              "r": 20,
+              "a": 0.12,
+              "m": "steady",
+              "y": 0.4
+            },
+            "anchorContract": "No leisure seat anchor. Footprint is the placement/pathfinding rectangle; upright visual rise is independent of the reserved box.",
+            "assignedWorkstation": false,
+            "capabilityObjectType": null,
+            "sourceEvidence": {
+              "catalog": "frontend/app/propsprites.js:10938",
+              "geometry": "frontend/app/propsprites.js:11006",
+              "drawState": "frontend/app/propsprites.js:11279",
+              "liveWorld": "frontend/app/world.js:6029"
+            }
+          },
+          "motionEffects": [
             {
               "mechanism": "suspended-specimen-bob",
               "region": [
@@ -2924,52 +4639,335 @@
               }
             }
           ],
+          "screenEffects": [],
           "screenRegions": [],
-          "functionalCapabilitiesPreserved": [
-            "Suspended specimen bob is essential identity, not optional static decoration",
-            "Nine deterministic motes and internal culture glow",
-            "Ambient pedestal indicator cadence"
-          ],
-          "integrationRequirements": [
-            "Column is biological glass, not a screen/scanner.",
-            "Fixed specimen needs isolation/underpainting for true bob; preserve static glass highlights over moving contents.",
-            "Keep pedestal still; no f.work/fired/occupancy trigger exists in native function.",
-            "Preserve nativeContract placement, mount, leisure approach and light registration. This recipe authorizes no geometry or behavior contract edits."
-          ],
-          "nativeContract": {
-            "remasterBox": {
-              "w": 1,
-              "h": 2
-            },
-            "tilePixels": 12,
-            "geometry": {
-              "blocks": true,
-              "flat": false,
-              "tableSurface": false,
-              "requiredMount": null,
-              "optionalSurfaceMount": false,
-              "surfaceRisePixels": 8
-            },
-            "leisureUse": null,
-            "light": {
-              "c": [
-                255,
-                170,
-                90
+          "regions": {
+            "suspended-specimen-bob-1": [
+              [
+                0.412,
+                0.29
               ],
-              "r": 20,
-              "a": 0.12,
-              "m": "steady",
-              "y": 0.4
+              [
+                0.51,
+                0.343
+              ],
+              [
+                0.567,
+                0.411
+              ],
+              [
+                0.614,
+                0.46
+              ],
+              [
+                0.607,
+                0.529
+              ],
+              [
+                0.55,
+                0.568
+              ],
+              [
+                0.463,
+                0.603
+              ],
+              [
+                0.38,
+                0.59
+              ],
+              [
+                0.379,
+                0.519
+              ],
+              [
+                0.395,
+                0.432
+              ],
+              [
+                0.383,
+                0.359
+              ]
+            ],
+            "culture-motes-2": [
+              [
+                0.348,
+                0.291
+              ],
+              [
+                0.624,
+                0.291
+              ],
+              [
+                0.624,
+                0.601
+              ],
+              [
+                0.348,
+                0.601
+              ]
+            ],
+            "liquid-breathe-3": [
+              [
+                0.34,
+                0.299
+              ],
+              [
+                0.63,
+                0.299
+              ],
+              [
+                0.63,
+                0.613
+              ],
+              [
+                0.34,
+                0.613
+              ]
+            ],
+            "pedestal-indicator-cycle-4": [
+              [
+                0.466,
+                0.768
+              ],
+              [
+                0.527,
+                0.768
+              ],
+              [
+                0.527,
+                0.8140000000000001
+              ],
+              [
+                0.466,
+                0.8140000000000001
+              ]
+            ]
+          },
+          "motion": {
+            "mode": "culture-column",
+            "mechanism": "suspended-specimen-bob",
+            "region": [
+              [
+                0.412,
+                0.29
+              ],
+              [
+                0.51,
+                0.343
+              ],
+              [
+                0.567,
+                0.411
+              ],
+              [
+                0.614,
+                0.46
+              ],
+              [
+                0.607,
+                0.529
+              ],
+              [
+                0.55,
+                0.568
+              ],
+              [
+                0.463,
+                0.603
+              ],
+              [
+                0.38,
+                0.59
+              ],
+              [
+                0.379,
+                0.519
+              ],
+              [
+                0.395,
+                0.432
+              ],
+              [
+                0.383,
+                0.359
+              ]
+            ],
+            "origin": [
+              0.49,
+              0.467
+            ],
+            "colour": [
+              23,
+              78,
+              40
+            ],
+            "trigger": "ambient",
+            "note": "Primary envelope only. All mandatory mechanisms, clock parameters, masks and trigger distinctions remain in motionEffects.",
+            "workGainRequired": false,
+            "clipToOriginalAlpha": true
+          },
+          "engineAlphaNormalized": {
+            "regions": {
+              "suspended-specimen-bob-1": [
+                [
+                  0.3736751,
+                  0.2997607
+                ],
+                [
+                  0.5183755,
+                  0.3564769
+                ],
+                [
+                  0.6025379,
+                  0.4292449
+                ],
+                [
+                  0.671935,
+                  0.4816806
+                ],
+                [
+                  0.6615993,
+                  0.5555186
+                ],
+                [
+                  0.5774368,
+                  0.5972532
+                ],
+                [
+                  0.4489783,
+                  0.6347073
+                ],
+                [
+                  0.326426,
+                  0.6207958
+                ],
+                [
+                  0.3249495,
+                  0.5448175
+                ],
+                [
+                  0.348574,
+                  0.4517173
+                ],
+                [
+                  0.3308556,
+                  0.3735988
+                ]
+              ],
+              "culture-motes-2": [
+                [
+                  0.2791769,
+                  0.3008308
+                ],
+                [
+                  0.6867004,
+                  0.3008308
+                ],
+                [
+                  0.6867004,
+                  0.6325671
+                ],
+                [
+                  0.2791769,
+                  0.6325671
+                ]
+              ],
+              "liquid-breathe-3": [
+                [
+                  0.2673646,
+                  0.3093918
+                ],
+                [
+                  0.6955596,
+                  0.3093918
+                ],
+                [
+                  0.6955596,
+                  0.6454085
+                ],
+                [
+                  0.2673646,
+                  0.6454085
+                ]
+              ],
+              "pedestal-indicator-cycle-4": [
+                [
+                  0.4534079,
+                  0.8112766
+                ],
+                [
+                  0.5434765,
+                  0.8112766
+                ],
+                [
+                  0.5434765,
+                  0.8605019
+                ],
+                [
+                  0.4534079,
+                  0.8605019
+                ]
+              ]
             },
-            "anchorContract": "No leisure seat anchor. Footprint is the placement/pathfinding rectangle; upright visual rise is independent of the reserved box.",
-            "assignedWorkstation": false,
-            "capabilityObjectType": null,
-            "sourceEvidence": {
-              "catalog": "frontend/app/propsprites.js:10938",
-              "geometry": "frontend/app/propsprites.js:11006",
-              "drawState": "frontend/app/propsprites.js:11279",
-              "liveWorld": "frontend/app/world.js:6029"
+            "screenRegions": [],
+            "motion": {
+              "region": [
+                [
+                  0.3736751,
+                  0.2997607
+                ],
+                [
+                  0.5183755,
+                  0.3564769
+                ],
+                [
+                  0.6025379,
+                  0.4292449
+                ],
+                [
+                  0.671935,
+                  0.4816806
+                ],
+                [
+                  0.6615993,
+                  0.5555186
+                ],
+                [
+                  0.5774368,
+                  0.5972532
+                ],
+                [
+                  0.4489783,
+                  0.6347073
+                ],
+                [
+                  0.326426,
+                  0.6207958
+                ],
+                [
+                  0.3249495,
+                  0.5448175
+                ],
+                [
+                  0.348574,
+                  0.4517173
+                ],
+                [
+                  0.3308556,
+                  0.3735988
+                ]
+              ],
+              "origin": [
+                0.4888448,
+                0.4891714
+              ],
+              "colour": [
+                23,
+                78,
+                40
+              ],
+              "trigger": "ambient",
+              "workGainRequired": false
             }
           }
         }
@@ -3008,7 +5006,55 @@
             "#b6edf0",
             "#ecb43d"
           ],
-          "motion": [
+          "functionalCapabilitiesPreserved": [
+            "Slow breath-like header/lamp cadence",
+            "Native cold-light registration",
+            "Fixed fictional sleeper artwork, not actual agent occupancy"
+          ],
+          "integrationRequirements": [
+            "Keep sleeper, straps and frost static: native code does not animate body breathing despite variable comment.",
+            "Use tiny existing lamp/control areas only; do not scan or pulse the entire person/window.",
+            "Preserve nativeContract placement, mount, leisure approach and light registration. This recipe authorizes no geometry or behavior contract edits.",
+            "Do not draw control segments on the blank screwed side plate; that native cosmetic cadence is intentionally omitted."
+          ],
+          "nativeContract": {
+            "remasterBox": {
+              "w": 1,
+              "h": 2
+            },
+            "tilePixels": 12,
+            "geometry": {
+              "blocks": true,
+              "flat": false,
+              "tableSurface": false,
+              "requiredMount": null,
+              "optionalSurfaceMount": false,
+              "surfaceRisePixels": 8
+            },
+            "leisureUse": null,
+            "light": {
+              "c": [
+                120,
+                210,
+                255
+              ],
+              "r": 24,
+              "a": 0.14,
+              "m": "pulse",
+              "y": 0.4
+            },
+            "anchorContract": "No leisure seat anchor. Footprint is the placement/pathfinding rectangle; upright visual rise is independent of the reserved box.",
+            "assignedWorkstation": false,
+            "capabilityObjectType": null,
+            "sourceEvidence": {
+              "catalog": "frontend/app/propsprites.js:10937",
+              "geometry": "frontend/app/propsprites.js:11006",
+              "drawState": "frontend/app/propsprites.js:11279",
+              "liveWorld": "frontend/app/world.js:6029"
+            }
+          },
+          "intentionalStatic": "Visual QA proves the new side plate is blank screw-fastened metal, not a display. Deliberately omit native decorative three-segment cycling there. Slow header/lamp breathing and native light remain. Sleeper was static in native code and remains static; no actual life-support telemetry is removed.",
+          "motionEffects": [
             {
               "mechanism": "slow-header-breath",
               "region": [
@@ -3132,55 +5178,153 @@
               }
             }
           ],
+          "screenEffects": [],
           "screenRegions": [],
-          "functionalCapabilitiesPreserved": [
-            "Slow breath-like header/lamp cadence",
-            "Native cold-light registration",
-            "Fixed fictional sleeper artwork, not actual agent occupancy"
-          ],
-          "integrationRequirements": [
-            "Keep sleeper, straps and frost static: native code does not animate body breathing despite variable comment.",
-            "Use tiny existing lamp/control areas only; do not scan or pulse the entire person/window.",
-            "Preserve nativeContract placement, mount, leisure approach and light registration. This recipe authorizes no geometry or behavior contract edits.",
-            "Do not draw control segments on the blank screwed side plate; that native cosmetic cadence is intentionally omitted."
-          ],
-          "nativeContract": {
-            "remasterBox": {
-              "w": 1,
-              "h": 2
-            },
-            "tilePixels": 12,
-            "geometry": {
-              "blocks": true,
-              "flat": false,
-              "tableSurface": false,
-              "requiredMount": null,
-              "optionalSurfaceMount": false,
-              "surfaceRisePixels": 8
-            },
-            "leisureUse": null,
-            "light": {
-              "c": [
-                120,
-                210,
-                255
+          "regions": {
+            "slow-header-breath-1": [
+              [
+                0.412,
+                0.143
               ],
-              "r": 24,
-              "a": 0.14,
-              "m": "pulse",
-              "y": 0.4
-            },
-            "anchorContract": "No leisure seat anchor. Footprint is the placement/pathfinding rectangle; upright visual rise is independent of the reserved box.",
-            "assignedWorkstation": false,
-            "capabilityObjectType": null,
-            "sourceEvidence": {
-              "catalog": "frontend/app/propsprites.js:10937",
-              "geometry": "frontend/app/propsprites.js:11006",
-              "drawState": "frontend/app/propsprites.js:11279",
-              "liveWorld": "frontend/app/world.js:6029"
-            }
+              [
+                0.59,
+                0.143
+              ],
+              [
+                0.59,
+                0.153
+              ],
+              [
+                0.412,
+                0.153
+              ]
+            ],
+            "slow-status-lamp-2": [
+              [
+                0.843,
+                0.472
+              ],
+              [
+                0.861,
+                0.472
+              ],
+              [
+                0.861,
+                0.484
+              ],
+              [
+                0.843,
+                0.484
+              ]
+            ]
           },
-          "intentionalStatic": "Visual QA proves the new side plate is blank screw-fastened metal, not a display. Deliberately omit native decorative three-segment cycling there. Slow header/lamp breathing and native light remain. Sleeper was static in native code and remains static; no actual life-support telemetry is removed."
+          "motion": {
+            "mode": "pulse",
+            "mechanism": "slow-header-breath",
+            "region": [
+              [
+                0.412,
+                0.143
+              ],
+              [
+                0.59,
+                0.143
+              ],
+              [
+                0.59,
+                0.153
+              ],
+              [
+                0.412,
+                0.153
+              ]
+            ],
+            "origin": [
+              0.5,
+              0.148
+            ],
+            "colour": [
+              255,
+              211,
+              108
+            ],
+            "trigger": "ambient",
+            "note": "Primary envelope only. All mandatory mechanisms, clock parameters, masks and trigger distinctions remain in motionEffects.",
+            "workGainRequired": false,
+            "clipToOriginalAlpha": true
+          },
+          "engineAlphaNormalized": {
+            "regions": {
+              "slow-header-breath-1": [
+                [
+                  0.396591,
+                  0.1386429
+                ],
+                [
+                  0.6072687,
+                  0.1386429
+                ],
+                [
+                  0.6072687,
+                  0.1492756
+                ],
+                [
+                  0.396591,
+                  0.1492756
+                ]
+              ],
+              "slow-status-lamp-2": [
+                [
+                  0.9067149,
+                  0.488459
+                ],
+                [
+                  0.9280194,
+                  0.488459
+                ],
+                [
+                  0.9280194,
+                  0.5012182
+                ],
+                [
+                  0.9067149,
+                  0.5012182
+                ]
+              ]
+            },
+            "screenRegions": [],
+            "motion": {
+              "region": [
+                [
+                  0.396591,
+                  0.1386429
+                ],
+                [
+                  0.6072687,
+                  0.1386429
+                ],
+                [
+                  0.6072687,
+                  0.1492756
+                ],
+                [
+                  0.396591,
+                  0.1492756
+                ]
+              ],
+              "origin": [
+                0.5007463,
+                0.1439592
+              ],
+              "colour": [
+                255,
+                211,
+                108
+              ],
+              "trigger": "ambient",
+              "workGainRequired": false
+            }
+          }
         }
       }
     }
