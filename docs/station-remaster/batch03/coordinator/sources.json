@@ -25,5 +25,25 @@
     "source": "docs/station-remaster/batch03/coordinator/chartwall-source.png",
     "seeds": [],
     "backgroundMode": "black"
+  },
+  {
+    "id": "calwall",
+    "source": "docs/station-remaster/batch03/coordinator/calwall-source.png",
+    "seeds": []
+  },
+  {
+    "id": "missionboard",
+    "source": "docs/station-remaster/batch03/coordinator/missionboard-source.png",
+    "seeds": []
+  },
+  {
+    "id": "trophycase",
+    "source": "docs/station-remaster/batch03/coordinator/trophycase-source.png",
+    "seeds": []
+  },
+  {
+    "id": "arc_microfiche",
+    "source": "docs/station-remaster/batch03/coordinator/arc_microfiche-source.png",
+    "seeds": []
   }
 ]
