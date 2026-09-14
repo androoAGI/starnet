@@ -3,7 +3,9 @@
  await Promise.all([IndustrialTextures.ready,PropRemaster.ready]);
  await SPRITES.init();await SPRITES.ensureSkin('station_minion');
  const query=new URLSearchParams(location.search),newOnly=query.get('set')==='new',projection=query.get('propSet')==='projection';
- const revised=new Set(['couch','quarters_pooltable','tv','fishtank','arcade','arcade2','recliner','recliner_r']);
+ const reviewManifest=projection?await(await fetch('assets/industrial/projection-correction/manifest.json')).json():null;
+ const revised=new Set((reviewManifest?.revisedViews||[]).map(v=>v.id));
+ if(projection){for(const a of document.querySelectorAll('nav a')){const url=new URL(a.href);url.searchParams.set('propSet','projection');a.href=url.href;}document.querySelector('#scope').textContent='Full catalog with projection corrections. Fixed 2× world scale; the crate and crew show physical size.';}
  const cards=[],main=document.querySelector('#catalog'),search=document.querySelector('#search'),family=document.querySelector('#family');let work=false,facing=0,placement=false;
  const cadet=(g,x,y,sitting,now)=>SPRITES.drawBody(g,{id:'review-cadet',skin:'station_minion',px:x,py:y,state:'idle',dir:sitting?'north':'south',sitting},now,{reducedMotion:true,skipGroundShadow:sitting});
  const probe=document.createElement('canvas');probe.width=64;probe.height=64;const cadetHeight=32-cadet(probe.getContext('2d'),32,32,false,0).top;
@@ -50,8 +52,8 @@
    PropSprites.draw({t:'crate',x:14,y:ground-1,w:2,h:1},false);cadet(g,204,ground*12,false,now);g.restore();
    const v=PropSprites.viewAt(p.id,r),key=v.fn===undefined?'s':['s','w','n','e'][r];
    const ready=PropRemaster.enabled(p.id,key)||((r===1||r===3)&&(PropRemaster.enabled(p.id,'e')||PropRemaster.enabled(p.id,'w')));
-   const accepted=['crate','desk','chair'].includes(p.id);
-   c.state.textContent=!ready?'Native fallback':accepted?'Accepted anchor':projection&&revised.has(c.p.id)?'Revised lounge · under visual review':'Camera / scale under correction';c.state.className=accepted?'':'pending';
+   const accepted=['crate','desk','chair'].includes(p.id)||projection&&['tv','arcade','arcade2','quarters_pooltable'].includes(p.id);
+   c.state.textContent=!ready?'Native fallback':accepted?'Accepted anchor':projection&&revised.has(c.p.id)?'Revised · under visual review':'Camera / scale under correction';c.state.className=accepted?'':'pending';
   }
   requestAnimationFrame(frame);
  }
