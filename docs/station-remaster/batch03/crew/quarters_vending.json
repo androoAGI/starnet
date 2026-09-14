@@ -1,0 +1,43 @@
+{
+  "sourceAnimation": {
+    "idleFrameVariants": 9,
+    "workFrameVariants": 9,
+    "respondsToWorkFlag": true,
+    "opaqueBoundsRelativeToFootprint": {
+      "x": -2,
+      "y": -9,
+      "w": 17,
+      "h": 33,
+      "alphaThreshold": 160
+    }
+  },
+  "bounds": {
+    "y": -9,
+    "width": 17,
+    "height": 33,
+    "x": -2
+  },
+  "id": "quarters_vending",
+  "geometry": {
+    "blocks": true,
+    "flat": false,
+    "tableSurface": false,
+    "requiredMount": null,
+    "optionalSurfaceMount": false,
+    "surfaceRisePixels": 8
+  },
+  "floorContact": {
+    "x": 6,
+    "y": 24
+  },
+  "backgroundThreshold": 235,
+  "tilePixels": 12,
+  "status": "art-draft-integration-pending",
+  "view": "s",
+  "footprint": {
+    "w": 1,
+    "h": 2
+  },
+  "anchorContract": "PropAnchor derives reachable edge approach; useApproach rotates relative preference with r. Preserve standing leisure action unless special planner supplies a real body anchor.",
+  "holeSeeds": []
+}
