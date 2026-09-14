@@ -24,7 +24,7 @@ const IndustrialTextures = (() => {
     'tactical-table', 'console-bank', 'equipment-bay', 'deck-perimeter',
     ...floorIds.map(id => 'remaster/floors/' + id), ...wallIds.map(id => 'remaster/walls/' + id),
     'remaster/shell', 'remaster/workstation-e', 'remaster/workstation-n', 'remaster/workstation-compact-n',
-    ...(crateReview ? ['calibration/crate'] : [])];
+    'calibration/crate'];
   // The references are already lit pictures. These measured albedo gains keep
   // the existing light simulation from applying a second exposure to the art.
   const gain = { floor: 1.25, wall: 1.65, shell: 2.05, workstation: 1.5, 'workstation-compact': 1.5,
@@ -349,7 +349,7 @@ const IndustrialTextures = (() => {
   // One-prop review only. Its original 2x1 placement rectangle and ground line
   // remain authoritative; source aspect is never stretched to fill that rectangle.
   function crate(ctx, x, y, w, h) {
-    if (!enabled() || !crateReview || !images['calibration/crate']) return false;
+    if (!enabled() || !images['calibration/crate']) return false;
     const im = images['calibration/crate'];
     const scale = Math.min((w + 2) / im.width, (h + 10) / im.height);
     const dw = im.width * scale, dh = im.height * scale;

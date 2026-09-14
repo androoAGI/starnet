@@ -1,0 +1,7 @@
+{
+  "id": "bench",
+  "tool": "built-in image_gen",
+  "prompt": "Edit only the framing of this StarNet long engineering bench. Preserve the EXACT complete design, south overhead-oblique camera, proportions, pixel positions relative to one another, colors, style, monitor displays, desk and feet. The very top edges of the two monitor housings have been clipped by the image border. Extend canvas upward and reconstruct only the missing top few pixels of those housings so both are completely visible. Add transparent margin on all four sides, at least5% around entire prop. Do not redesign or magnify, do not change its wide2.08:1 silhouette, no new features. Genuinely transparent RGBA background including the knee gap; no floor, shadow, checkerboard, text.",
+  "reference": "C:\\Users\\andro\\.codex\\generated_images\\01a0976c-e264-7f13-a581-78c904716b14\\exec-bf22f3d7-a81d-4d28-af24-61dd3af10a32.png",
+  "source": "C:\\Users\\andro\\.codex\\generated_images\\01a0976c-e264-7f13-a581-78c904716b14\\exec-bee3d9a2-64c6-4280-9084-928c0b6b7fd3.png"
+}

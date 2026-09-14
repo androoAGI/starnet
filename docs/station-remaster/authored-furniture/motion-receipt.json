@@ -1,0 +1,62 @@
+{
+  "renderer": "SPRITES.drawBody, station_minion scale .385",
+  "cache": {
+    "ids": [
+      "punchbag",
+      "punchbag_r"
+    ],
+    "cachedPixels": 24192,
+    "limit": 262144,
+    "readbacksPerPrepare": 1
+  },
+  "props": [
+    {
+      "id": "punchbag",
+      "sourceSha256": "7f4e79f9deb9b8f5c413c221a8c7bbf3e91a2f2c800d76150f40ff3dc64002de",
+      "fit": {
+        "x": 0,
+        "y": 0.8417177914110425,
+        "width": 12,
+        "height": 21.158282208588957
+      },
+      "frameBounds": {
+        "x": 18.46336381721187,
+        "y": 26.841717791411043,
+        "width": 13.53663618278813,
+        "height": 21.158282208588957
+      },
+      "sourceReadbacks": 1,
+      "perFrameReadbacks": 0,
+      "perFrameCanvasAllocations": 0,
+      "workChangedPixels": 1042,
+      "stationaryFrameChangedPixels": 0,
+      "neutralHash": "904709c81b0be90066259d4c4b7b0e16ea06d33b1cd6f950b55718249cbab060",
+      "reducedMotionHash": "904709c81b0be90066259d4c4b7b0e16ea06d33b1cd6f950b55718249cbab060",
+      "scope": "offline public-renderer fixture; no real activity claims"
+    },
+    {
+      "id": "punchbag_r",
+      "sourceSha256": "46a5f45af4f4c97a49c184a2ec1546b77a6a65703d844dceb6c76f260ab67134",
+      "fit": {
+        "x": 0,
+        "y": 1.2596153846153832,
+        "width": 12,
+        "height": 20.740384615384617
+      },
+      "frameBounds": {
+        "x": 20,
+        "y": 27.259615384615383,
+        "width": 13.503935404788542,
+        "height": 20.740384615384617
+      },
+      "sourceReadbacks": 1,
+      "perFrameReadbacks": 0,
+      "perFrameCanvasAllocations": 0,
+      "workChangedPixels": 961,
+      "stationaryFrameChangedPixels": 0,
+      "neutralHash": "7c8d7233b843a40a24e86b3125cac01df283c7c52b8ab8ac38cf0986925d4e3a",
+      "reducedMotionHash": "7c8d7233b843a40a24e86b3125cac01df283c7c52b8ab8ac38cf0986925d4e3a",
+      "scope": "offline public-renderer fixture; no real activity claims"
+    }
+  ]
+}

@@ -1,0 +1,7 @@
+{
+  "id": "bench",
+  "tool": "built-in image_gen",
+  "prompt": "Revise ONLY the vertical proportions of this StarNet long two-monitor bench, preserve same complete design, exact straight SOUTH overhead-oblique camera, width, colors, screen art, keyboard, all equipment and illustrated station finish. At present the desktop front lip is too high above the feet: the long legs take up almost half the silhouette. Move the front desktop plane/lip DOWN so it sits about70% from the top of the complete object, leaving ONLY30% of height for drawer pedestals/legs. Compress the vertical height of both drawer pedestals and open knee gap correspondingly. Extend the two monitor housings UPWARD enough that the COMPLETE outer silhouette remains roughly54 wide by26 high (2.08:1). A standing adult's hip-height desktop, human proportions, not a bar-height tall counter. This is a cohesive geometry redesign, NOT anisotropic stretch of the whole bitmap. All horizontal edges stay horizontal; no yaw or angle change. Complete all edges, five percent transparent padding all sides. Genuinely transparent RGBA, including knee gap; NO checkerboard or floor, no cast shadow, no text.",
+  "reference": "C:\\Users\\andro\\.codex\\generated_images\\01a0976c-e264-7f13-a581-78c904716b14\\exec-bee3d9a2-64c6-4280-9084-928c0b6b7fd3.png",
+  "source": "C:\\Users\\andro\\.codex\\generated_images\\01a0976c-e264-7f13-a581-78c904716b14\\exec-1e94801a-2a40-4ba0-93f2-27f60874adef.png"
+}

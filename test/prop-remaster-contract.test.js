@@ -12,6 +12,10 @@ for(const patch of [{image:'../escape.png'},{image:'https://example.com/a.png'},
  A.eq(pack.validate({...good,...patch}),false,'invalid assets/layers retain native view '+JSON.stringify(patch));
 A.ok(pack.validate({...good,mode:'native',nativeLayers:[{polygon:[[1,1],[2,1],[2,2],[1,2]]}]}),'authored native layer polygon accepted');
 A.ok(pack.validate({...good,mode:'native',nativeMask:'console-native.png'}),'offline alpha layer accepted');
+A.ok(pack.validate({...good,mode:'screen'}),'fully authored screen has no old sprite mask');
+A.ok(pack.validate({...good,mode:'scanner',motion:{region:[[.1,.2],[.3,.2],[.3,.4],[.1,.4]]}}),'optical motion region uses source coordinates');
+A.eq(pack.validate({...good,mode:'water',motion:{region:[[.1,.2],[.3,.2],[.3,.4]],bubbleLanes:[{x:.9,y:.2,width:.3,height:.2}]}}),false,'water cannot animate outside source bounds');
+A.eq(pack.validate({...good,mode:'scanner'}),false,'animated art needs an authored region');
 const fit=pack.fit(good.bounds,{width:100,height:200});
 A.eq(fit.width/fit.height,.5,'uniform aspect, no squash');
 A.eq(fit.x+fit.width/2,12,'center follows original bounds');
@@ -71,7 +75,13 @@ A.eq(draw('bunk',false,{sleeper:true}).state.sleeper,true,'native bed leaves spa
 ps.setSpotifyConnected(false);A.eq(draw('jukebox').state.live,false,'unbound music is not animated as connected');
 ps.setSpotifyConnected(true);A.eq(draw('jukebox').state.live,true,'connected music retained');
 const a=draw('console');A.eq([a.x,a.y,a.w,a.h],[36,48,24,12],'native local geometry unchanged');
+A.eq(a.state.now,1000,'new authored animations receive renderer clock');
+A.eq(draw('console',true,{}, {occupied:false}).state.occupied,false,'backend work cannot power an empty seat');
+A.eq(draw('console',false,{}, {occupied:true,still:true}).state.still,true,'new art receives reduced-motion state');
 A.eq(draw('console',false,{mount:'surface'}).y,40,'mount rises once by eight world pixels');
+A.eq(draw('filter',true).state.scanning,false,'agent activity cannot imply a passing transport item');
+A.eq(draw('filter',false,{}, {scanning:true}).state.scanning,true,'explicit transport occupancy reaches the new optical reader');
+still=true;A.eq(draw('tank').state.still,true,'system reduced-motion preference reaches authored water');still=false;
 // A real native callback receives frozen time under reduced motion. It must restore
 // ctx/time even though its selected function still reads the shared native closure.
 function pixels(at,reduced){
@@ -84,4 +94,3 @@ A.eq(calls.length,0,'classic bypasses replacement');
 A.ok(rects.length>5,'classic actually paints its old prop');
 A.ok(!source.slice(source.indexOf('  function draw('),source.indexOf('  const ready=')).includes('getImageData'),'frame compositor has no GPU readback');
 A.report('prop-remaster-contract');
-

@@ -1,0 +1,21 @@
+{
+  "id": "industrial_toolcaddy",
+  "source": "C:\\Users\\andro\\.codex\\generated_images\\01a0976c-e264-7f13-a581-78c904716b14\\exec-274afb7b-328f-45f0-8087-f3749884f91f.png",
+  "sourceWidth": 1392,
+  "sourceHeight": 1130,
+  "crop": {
+    "left": 99,
+    "top": 99,
+    "width": 1189,
+    "height": 954
+  },
+  "sourceAlpha": false,
+  "transparentSeeds": [
+    [
+      690,
+      310
+    ]
+  ],
+  "subjectRgbChanges": 0,
+  "output": "frontend/assets/industrial/props-v3/industrial_toolcaddy.png"
+}

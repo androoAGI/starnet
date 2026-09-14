@@ -1,0 +1,7 @@
+{
+  "id": "rack",
+  "tool": "built-in image_gen",
+  "prompt": "Edit this StarNet compact data rack so the four insert modules unambiguously read as rack-mounted server blades, not drawers. Keep exact outer cabinet silhouette, size, four module positions, overhead south camera, top vent, side rails, slate/charcoal materials, subdued painted game-art finish and wear. Replace each huge central drawer handle with a broad dark server intake grille across the middle of its blade, plus a small usable vertical ejector handle at each end. Each blade gets ONE amber status dot and one small dark rectangular activity aperture on its right, preserve generous dark reveals between blades. No dozens of tiny extra controls. Entire source still must look like refined illustrative station game art with purposeful painted planes and sharp thin edge highlights; never photoreal shine. No change to overall29:26 proportions. Genuine transparent RGBA background, all edges intact with margin; no room, floor, cast shadow, text or checkerboard.",
+  "reference": "C:\\Users\\andro\\.codex\\generated_images\\01a0976c-e264-7f13-a581-78c904716b14\\exec-bd144100-0f91-4ed7-8f45-e21e797f98df.png",
+  "source": "C:\\Users\\andro\\.codex\\generated_images\\01a0976c-e264-7f13-a581-78c904716b14\\exec-11c7130a-98cf-4b6d-9d62-ff5f894cff45.png"
+}

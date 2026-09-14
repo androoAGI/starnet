@@ -1,0 +1,98 @@
+{
+  "planned": 44,
+  "exported": 4,
+  "items": [
+    {
+      "id": "bookshelf",
+      "lane": "storage",
+      "group": "Accessories & wood",
+      "label": "BOOKSHELF",
+      "image": "assets/industrial/batch03/storage/bookshelf.png?v=e285427a3deb",
+      "width": 1279,
+      "height": 979,
+      "footprint": {
+        "w": 2,
+        "h": 1
+      },
+      "bounds": {
+        "x": -1,
+        "y": -9,
+        "width": 26,
+        "height": 22
+      },
+      "transparentPixels": 111818,
+      "opaquePixels": 1140323,
+      "status": "illustrated-style-candidate",
+      "previousImage": "assets/industrial/batch02/storage/bookshelf.png?v=67e71349e56c"
+    },
+    {
+      "id": "industrial_bench",
+      "lane": "crew",
+      "group": "Crew furniture",
+      "label": "CREW BENCH",
+      "image": "assets/industrial/batch03/crew/industrial_bench.png?v=f70c16deedf3",
+      "width": 2054,
+      "height": 516,
+      "footprint": {
+        "w": 3,
+        "h": 1
+      },
+      "bounds": {
+        "x": 0,
+        "y": 0,
+        "width": 36,
+        "height": 12
+      },
+      "transparentPixels": 209167,
+      "opaquePixels": 850697,
+      "status": "illustrated-style-candidate",
+      "previousImage": "assets/industrial/batch02/crew/industrial_bench.png?v=12e3b5a6fe76"
+    },
+    {
+      "id": "coffee",
+      "lane": "crew",
+      "group": "Crew furniture",
+      "label": "COFFEE",
+      "image": "assets/industrial/batch03/coordinator/coffee.png?v=fd78114fa53b",
+      "width": 786,
+      "height": 1407,
+      "footprint": {
+        "w": 1,
+        "h": 1
+      },
+      "bounds": {
+        "x": -1,
+        "y": -6,
+        "width": 13,
+        "height": 18
+      },
+      "transparentPixels": 179933,
+      "opaquePixels": 925969,
+      "status": "illustrated-style-candidate",
+      "previousImage": "assets/industrial/batch02/crew/coffee.png?v=48cbbf8d67db"
+    },
+    {
+      "id": "monstera",
+      "lane": "utility",
+      "group": "Plants, glass & lab",
+      "label": "MONSTERA",
+      "image": "assets/industrial/batch03/utility/monstera.png?v=a72776ff73fe",
+      "width": 1205,
+      "height": 1306,
+      "footprint": {
+        "w": 1,
+        "h": 1
+      },
+      "bounds": {
+        "x": 0,
+        "y": -1,
+        "width": 12,
+        "height": 13
+      },
+      "transparentPixels": 701831,
+      "opaquePixels": 871899,
+      "status": "illustrated-style-candidate",
+      "previousImage": "assets/industrial/batch02/utility/monstera.png?v=dba611d40150"
+    }
+  ]
+}

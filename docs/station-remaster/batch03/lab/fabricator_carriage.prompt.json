@@ -1,0 +1,4 @@
+{
+  "id": "fabricator_carriage",
+  "prompt": "From this StarNet fabricator reference, create ONE isolated animation-layer sprite of ONLY the cutting/sewing carriage: the central chunky charcoal sliding block with its small top round cap, descending warm-grey needle housing and needle foot. Preserve the exact same straight-south overhead-oblique view, hand-painted muted planes and proportions of that part. OMIT the whole machine, rail, cloth, rollers, cable, supports and all background. One coherent compact vertical carriage, wide upper block and thinner lower needle neck with small flat foot. Whole layer clearly framed, true transparent RGBA background, no shadow, checkerboard, text or extra objects. This will slide horizontally over the separately authored empty rail, so the rear is visually simple and no rail must be attached."
+}

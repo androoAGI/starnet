@@ -1,0 +1,15 @@
+{
+  "id": "ticker",
+  "source": "C:\\Users\\andro\\.codex\\generated_images\\01a0976c-e264-7f13-a581-78c904716b14\\exec-b3654c32-378c-43bc-9d20-ca410597566b.png",
+  "sourceWidth": 1983,
+  "sourceHeight": 793,
+  "crop": {
+    "left": 5,
+    "top": 17,
+    "width": 1975,
+    "height": 762
+  },
+  "sourceAlpha": false,
+  "subjectRgbChanges": 0,
+  "output": "frontend/assets/industrial/props-v2/ticker.png"
+}

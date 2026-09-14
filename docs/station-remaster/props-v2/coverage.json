@@ -3,13 +3,13 @@
   "approvedExisting": 8,
   "newIds": 26,
   "newViews": 28,
-  "completeIds": 34,
+  "completeIds": 8,
   "props": [
     {
       "id": "industrial_locker",
       "label": "MODULAR LOCKER",
       "family": "storage",
-      "status": "art-integrated",
+      "status": "casing-draft",
       "views": [
         "s"
       ],
@@ -19,7 +19,7 @@
       "id": "industrial_drawerbank",
       "label": "DRAWER BANK",
       "family": "storage",
-      "status": "art-integrated",
+      "status": "casing-draft",
       "views": [
         "s"
       ],
@@ -29,7 +29,7 @@
       "id": "industrial_supplycart",
       "label": "SUPPLY TROLLEY",
       "family": "decor",
-      "status": "art-integrated",
+      "status": "casing-draft",
       "views": [
         "s"
       ],
@@ -154,7 +154,7 @@
       "id": "console",
       "label": "CONSOLE",
       "family": "workstation",
-      "status": "art-integrated",
+      "status": "casing-draft",
       "views": [
         "s"
       ],
@@ -164,7 +164,7 @@
       "id": "consoleL",
       "label": "CONSOLE L",
       "family": "workstation",
-      "status": "art-integrated",
+      "status": "casing-draft",
       "views": [
         "s"
       ],
@@ -174,7 +174,7 @@
       "id": "pixelrig",
       "label": "PIXEL RIG",
       "family": "workstation",
-      "status": "art-integrated",
+      "status": "casing-draft",
       "views": [
         "s"
       ],
@@ -184,7 +184,7 @@
       "id": "bench",
       "label": "BENCH",
       "family": "workstation",
-      "status": "art-integrated",
+      "status": "casing-draft",
       "views": [
         "s"
       ],
@@ -214,7 +214,7 @@
       "id": "bay",
       "label": "BAY",
       "family": "workflow",
-      "status": "art-integrated",
+      "status": "casing-draft",
       "views": [
         "s"
       ],
@@ -224,7 +224,7 @@
       "id": "filter",
       "label": "FILTER",
       "family": "workflow",
-      "status": "art-integrated",
+      "status": "casing-draft",
       "views": [
         "s"
       ],
@@ -480,7 +480,7 @@
       "id": "bigscreen",
       "label": "BIG SCREEN",
       "family": "screens",
-      "status": "art-integrated",
+      "status": "casing-draft",
       "views": [
         "s"
       ],
@@ -490,7 +490,7 @@
       "id": "holotable",
       "label": "HOLOTABLE",
       "family": "screens",
-      "status": "art-integrated",
+      "status": "casing-draft",
       "views": [
         "s"
       ],
@@ -500,7 +500,7 @@
       "id": "screens",
       "label": "SCREENS",
       "family": "screens",
-      "status": "art-integrated",
+      "status": "casing-draft",
       "views": [
         "s"
       ],
@@ -510,7 +510,7 @@
       "id": "tank",
       "label": "TANK",
       "family": "screens",
-      "status": "art-integrated",
+      "status": "casing-draft",
       "views": [
         "s"
       ],
@@ -520,7 +520,7 @@
       "id": "whiteboard",
       "label": "WHITEBOARD",
       "family": "screens",
-      "status": "art-integrated",
+      "status": "casing-draft",
       "views": [
         "s"
       ],
@@ -740,7 +740,7 @@
       "id": "rackV",
       "label": "RACK V",
       "family": "storage",
-      "status": "art-integrated",
+      "status": "casing-draft",
       "views": [
         "s"
       ],
@@ -759,7 +759,7 @@
       "id": "boxes",
       "label": "BOXES",
       "family": "storage",
-      "status": "art-integrated",
+      "status": "casing-draft",
       "views": [
         "s"
       ],
@@ -779,7 +779,7 @@
       "id": "gigs_partsbin",
       "label": "PARTS BIN",
       "family": "storage",
-      "status": "art-integrated",
+      "status": "casing-draft",
       "views": [
         "s"
       ],
@@ -789,7 +789,7 @@
       "id": "treasury_coinsorter",
       "label": "COIN SORTER",
       "family": "storage",
-      "status": "art-integrated",
+      "status": "casing-draft",
       "views": [
         "s"
       ],
@@ -799,7 +799,7 @@
       "id": "treasury_token_furnace",
       "label": "TOKEN FURNACE",
       "family": "storage",
-      "status": "art-integrated",
+      "status": "casing-draft",
       "views": [
         "s"
       ],
@@ -909,7 +909,7 @@
       "id": "speaker",
       "label": "SPEAKER",
       "family": "lounge",
-      "status": "art-integrated",
+      "status": "casing-draft",
       "views": [
         "s"
       ],
@@ -939,7 +939,7 @@
       "id": "couch",
       "label": "COUCH",
       "family": "lounge",
-      "status": "art-integrated",
+      "status": "casing-draft",
       "views": [
         "s"
       ],
@@ -1029,7 +1029,7 @@
       "id": "coffee",
       "label": "COFFEE",
       "family": "decor",
-      "status": "art-integrated",
+      "status": "casing-draft",
       "views": [
         "s"
       ],
@@ -1131,7 +1131,7 @@
       "id": "sidetable",
       "label": "SIDE TABLE",
       "family": "decor",
-      "status": "art-integrated",
+      "status": "casing-draft",
       "views": [
         "s"
       ],
@@ -1141,7 +1141,7 @@
       "id": "lowtable",
       "label": "LOW TABLE",
       "family": "decor",
-      "status": "art-integrated",
+      "status": "casing-draft",
       "views": [
         "s",
         "e"
@@ -1152,7 +1152,7 @@
       "id": "glasstable",
       "label": "GLASS TABLE",
       "family": "decor",
-      "status": "art-integrated",
+      "status": "casing-draft",
       "views": [
         "s",
         "e"
@@ -1451,7 +1451,7 @@
       "id": "bookshelf",
       "label": "BOOKSHELF",
       "family": "lounge",
-      "status": "art-integrated",
+      "status": "casing-draft",
       "views": [
         "s"
       ],
@@ -1617,5 +1617,7 @@
         "s"
       ]
     }
-  ]
+  ],
+  "status": "retired-casing-drafts",
+  "note": "Superseded by props-v3 after user rejected casing-only reskins. newIds/newViews count historical drafts, not completed remasters."
 }

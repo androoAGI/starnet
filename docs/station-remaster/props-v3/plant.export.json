@@ -1,0 +1,16 @@
+{
+  "id": "plant",
+  "source": "C:\\Users\\andro\\.codex\\generated_images\\01a0976c-e264-7f13-a581-78c904716b14\\exec-03a28bc9-c5f9-4128-a442-5816f4f12165.png",
+  "sourceWidth": 930,
+  "sourceHeight": 1691,
+  "crop": {
+    "left": 14,
+    "top": 11,
+    "width": 900,
+    "height": 1631
+  },
+  "sourceAlpha": false,
+  "transparentSeeds": [],
+  "subjectRgbChanges": 0,
+  "output": "frontend/assets/industrial/props-v3/plant.png"
+}

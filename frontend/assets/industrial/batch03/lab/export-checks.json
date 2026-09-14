@@ -1,0 +1,172 @@
+{
+  "version": 1,
+  "method": "User-authorized connected neutral-background extraction; original RGB preserved",
+  "records": [
+    {
+      "id": "fabricator",
+      "source": "docs/station-remaster/batch03/lab/fabricator.source.png",
+      "original": "C:\\Users\\andro\\.codex\\generated_images\\01a0976c-e264-7f13-a581-78c904716b14\\exec-6a2d9fee-7c8d-4294-9043-9a9994251b3b.png",
+      "neutralMin": 80,
+      "seeds": [
+        [
+          600,
+          350
+        ]
+      ],
+      "output": "frontend/assets/industrial/batch03/lab/fabricator.png",
+      "sourceWidth": 1568,
+      "sourceHeight": 1003,
+      "crop": {
+        "left": 41,
+        "top": 112,
+        "width": 1486,
+        "height": 722
+      },
+      "sourceSha256": "e18747ba66d6f3d53f8bc1a0168dbca5ef414b69d82a63b99d79b75ef3e27aa4",
+      "outputSha256": "89cce468370781ab4ed272c0fa6e9e94d1ad4cd169c83ca8888f576d295ba5c3",
+      "channels": 4,
+      "transparentPixels": 308257,
+      "opaquePixels": 764635,
+      "partialPixels": 0,
+      "subjectRgbChanges": 0
+    },
+    {
+      "id": "vat",
+      "source": "docs/station-remaster/batch03/lab/vat.source.png",
+      "original": "C:\\Users\\andro\\.codex\\generated_images\\01a0976c-e264-7f13-a581-78c904716b14\\exec-9b79d0b7-ad7a-4e76-921e-508498a7e28a.png",
+      "neutralMin": 80,
+      "seeds": [],
+      "output": "frontend/assets/industrial/batch03/lab/vat.png",
+      "sourceWidth": 1518,
+      "sourceHeight": 1036,
+      "crop": {
+        "left": 45,
+        "top": 107,
+        "width": 1438,
+        "height": 835
+      },
+      "sourceSha256": "6114348b8984ddaeedf1d9e03d77134d164bfc2cb86a8972f67546df3568e4eb",
+      "outputSha256": "4bf96ebde0219e6a7af5576ed2a8fdabaf51fb750ac5938df9881fc537d06abb",
+      "channels": 4,
+      "transparentPixels": 239953,
+      "opaquePixels": 591,
+      "partialPixels": 960186,
+      "subjectRgbChanges": 0
+    },
+    {
+      "id": "tube",
+      "source": "docs/station-remaster/batch03/lab/tube.source.png",
+      "original": "C:\\Users\\andro\\.codex\\generated_images\\01a0976c-e264-7f13-a581-78c904716b14\\exec-ca3438f3-ecf0-4193-b478-d6cdbcd59cd2.png",
+      "neutralMin": 80,
+      "seeds": [],
+      "output": "frontend/assets/industrial/batch03/lab/tube.png",
+      "sourceWidth": 1649,
+      "sourceHeight": 954,
+      "crop": {
+        "left": 27,
+        "top": 64,
+        "width": 1596,
+        "height": 757
+      },
+      "sourceSha256": "c52e21548db18fd99732fb8f8f2bb2ccc2ba71286337c519077cc8d8b736f54d",
+      "outputSha256": "a714eb08baec8a2a13dabfaa9eb189c53f8827615b6797a3c6c16b16f33a109a",
+      "channels": 4,
+      "transparentPixels": 463580,
+      "opaquePixels": 635,
+      "partialPixels": 743957,
+      "subjectRgbChanges": 0
+    },
+    {
+      "id": "research_corelens",
+      "source": "docs/station-remaster/batch03/lab/research_corelens.source.png",
+      "original": "C:\\Users\\andro\\.codex\\generated_images\\01a0976c-e264-7f13-a581-78c904716b14\\exec-971a5db9-9401-42cc-8d0c-40ab4468af28.png",
+      "neutralMin": 80,
+      "seeds": [],
+      "output": "frontend/assets/industrial/batch03/lab/research_corelens.png",
+      "sourceWidth": 977,
+      "sourceHeight": 1610,
+      "crop": {
+        "left": 87,
+        "top": 76,
+        "width": 811,
+        "height": 1462
+      },
+      "sourceSha256": "5c00b09196040d2e65f88afd22f578331a754ce43656366ce52b21fa417f6dab",
+      "outputSha256": "ade4d3a459389162c9abae46c124383368fb31dcca8f6c9061a44e4542ddcbc2",
+      "channels": 4,
+      "transparentPixels": 363712,
+      "opaquePixels": 997,
+      "partialPixels": 820973,
+      "subjectRgbChanges": 0
+    },
+    {
+      "id": "research_trendpillar",
+      "source": "docs/station-remaster/batch03/lab/research_trendpillar.source.png",
+      "original": "C:\\Users\\andro\\.codex\\generated_images\\01a0976c-e264-7f13-a581-78c904716b14\\exec-91d62ffa-ab56-4122-a2a4-8c84c3eb2cc4.png",
+      "neutralMin": 80,
+      "seeds": [],
+      "output": "frontend/assets/industrial/batch03/lab/research_trendpillar.png",
+      "sourceWidth": 1007,
+      "sourceHeight": 1562,
+      "crop": {
+        "left": 63,
+        "top": 99,
+        "width": 880,
+        "height": 1363
+      },
+      "sourceSha256": "359a565df57e0f1c10a16702cdf329d1430b2e249493758dfe4409f353278860",
+      "outputSha256": "3afa2b8a0e2bb3509437cc07c7d79d5ce4006ca12508cda02dde5908ae648e5c",
+      "channels": 4,
+      "transparentPixels": 199247,
+      "opaquePixels": 1000193,
+      "partialPixels": 0,
+      "subjectRgbChanges": 0
+    },
+    {
+      "id": "etsy_packbot",
+      "source": "docs/station-remaster/batch03/lab/etsy_packbot.source.png",
+      "original": "C:\\Users\\andro\\.codex\\generated_images\\01a0976c-e264-7f13-a581-78c904716b14\\exec-60f52d03-d43a-420d-b3fb-32a1dd96cc60.png",
+      "neutralMin": 80,
+      "seeds": [],
+      "output": "frontend/assets/industrial/batch03/lab/etsy_packbot.png",
+      "sourceWidth": 1100,
+      "sourceHeight": 1430,
+      "crop": {
+        "left": 50,
+        "top": 201,
+        "width": 1003,
+        "height": 1173
+      },
+      "sourceSha256": "d7c1cd82dd2c2403c8071b1292d9b74b3c6f22cb9686431f00fadee3277b9a7b",
+      "outputSha256": "ea148d64077f983a3e50a1a3e8922025c9135a5a4ad296510f0989a13afb3dfc",
+      "channels": 4,
+      "transparentPixels": 444804,
+      "opaquePixels": 731715,
+      "partialPixels": 0,
+      "subjectRgbChanges": 0
+    },
+    {
+      "id": "fabricator_carriage",
+      "source": "docs/station-remaster/batch03/lab/fabricator_carriage.source.png",
+      "original": "C:\\Users\\andro\\.codex\\generated_images\\01a0976c-e264-7f13-a581-78c904716b14\\exec-6dbc17dd-7ced-435e-a29f-fc791b33d559.png",
+      "neutralMin": 80,
+      "seeds": [],
+      "output": "frontend/assets/industrial/batch03/lab/fabricator_carriage.png",
+      "sourceWidth": 1145,
+      "sourceHeight": 1374,
+      "crop": {
+        "left": 239,
+        "top": 109,
+        "width": 667,
+        "height": 1177
+      },
+      "sourceSha256": "40f60acc537373eac86d20f90087fe4e7e6b5b50fa1d8a56fdc46d591e5300b3",
+      "outputSha256": "387c974b41a172b7e27ef11eef18343fada4b075333650bc486adee9431b91d9",
+      "channels": 4,
+      "transparentPixels": 347156,
+      "opaquePixels": 363,
+      "partialPixels": 437540,
+      "subjectRgbChanges": 0
+    }
+  ]
+}

@@ -1,0 +1,7 @@
+{
+  "id": "comms_dish",
+  "tool": "built-in image_gen",
+  "prompt": "Correct this StarNet dish prop's footprint and camera while preserving the illustrated ceramic bowl, thin feed supports, charcoal machinery, worn painted finish and dish aiming toward upper-left. Replace the current three-prong diagonally oriented foot with a shallow RECTANGULAR four-corner base whose long near and far edges are exactly HORIZONTAL and four supports align to the screen vertical. View the base straight from SOUTH overhead oblique, not diagonally from southeast. Make the pedestal much LOWER, keeping the bowl immediately above the base rather than high on a tall column. Shift the receiver dish lower with the shorter elevation support. Resulting complete silhouette should be wide and compact:20wide by23high, width87% of height. Keep the broad oval ceramic bowl recognizable, with concise painted planar concave shading, avoid photographic gloss. This is a coherent construction redraw, not global bitmap squash or recolor. Genuinely transparent RGBA including support gaps, all edges fully framed with margins. No checkerboard, ground, floor shadow, text, label, border or watermark.",
+  "reference": "C:\\Users\\andro\\.codex\\generated_images\\01a0976c-e264-7f13-a581-78c904716b14\\exec-484f8ce7-a32a-4aea-8fcc-7a5c6764cea4.png",
+  "source": "C:\\Users\\andro\\.codex\\generated_images\\01a0976c-e264-7f13-a581-78c904716b14\\exec-c189bcf6-0f20-410e-b76e-cb2e70132023.png"
+}

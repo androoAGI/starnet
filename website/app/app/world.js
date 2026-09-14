@@ -6024,6 +6024,14 @@ const World = (() => {
     // placeable props (furniture) — drawn over the bake, y-sorted with agents, under the lightmap
     if (geo && geo.props && geo.props.length && typeof PropSprites !== 'undefined') {
       PropSprites.setCtx(ctx); PropSprites.setNow(now);
+      const leisureProps = new Set();
+      for (const body of [agent, ...crew]) if (body) { if (body.usingProp) leisureProps.add(body.usingProp); if (body.watchProp) leisureProps.add(body.watchProp); }
+      // Scan only a real transport item occupying a filter's tile. Ghost/tutorial
+      // projections and agent work elsewhere cannot make the optical reader scan.
+      const scanningTiles = new Set();
+      if (convey && convey.peekBoxes && typeof PropRemaster !== 'undefined' && PropRemaster.enabled('filter')) {
+        for (const box of convey.peekBoxes()) if (!(box.sink > 0)) scanningTiles.add(box.x + ':' + box.y);
+      }
       if (PropSprites.setOutboxCrates) PropSprites.setOutboxCrates(returnCrates());   // G2.3: uncollected while-away work stacks on the chute
       if (PropSprites.setMissionPins) { const mp = missionPinCounts(now); PropSprites.setMissionPins(mp[0], mp[1], mp[2], mp[3]); maybePinProposal(now, mp[3]); }   // G1b/G1c: open quests pin to the MISSION BOARD; a station-gap keeps it breathing; a jammed routine flags an amber JAM stub; G4: pending proposals + the walk-and-pin body
       if (PropSprites.setTrophyCount) PropSprites.setTrophyCount(trophyCount(now));   // G3b: earned trophies stand behind glass in the TROPHY CASE
@@ -6041,7 +6049,7 @@ const World = (() => {
         // and everything else — props, crates, bodies — is drawn ON them. Decals carry no seat/mount/live
         // state (no `use` row, nothing stands on them), so this branch skips work the decal cannot use.
         if (isFlatProp(p.t)) { decals.push(p); continue; }
-        const work = (p.t === 'outbox' && outboxLit) || (p.t === 'bay' && bayLit(p, now)) || workstationLit(p) || !!(agent && (agent.usingProp === p.id || agent.watchProp === p.id));
+        const work = (p.t === 'outbox' && outboxLit) || (p.t === 'bay' && bayLit(p, now)) || workstationLit(p) || leisureProps.has(p.id);
         // G0.2/G0.3 live desk truth: a LIT assigned workstation carries its agent's real activity heat
         // (token/tool-driven, heatFor) + a task-progress fraction ONLY when a real one was published
         // (deskProgFor — a live harness run has none and renders none).
@@ -6049,6 +6057,7 @@ const World = (() => {
         if (isWorkstationProp(p.t)) live = Object.assign({ heat: 0, prog: null }, live, {
           occupied: workstationOccupied(p), still: reduceMotion()
         });
+        if (p.t === 'filter') live = Object.assign({}, live, { scanning: scanningTiles.has(p.x + ':' + p.y), still: reduceMotion() });
         // A stool/chair sorts just BEHIND its sitter; a couch sorts just IN FRONT so the tall sofa back
         // occludes the sitter's lower body. Beds/beanbags never set `seated` and never enter this branch.
         // A BODY IS IN THIS BED (lyingBed): the bed paints in TWO passes around it — frame + pillow under

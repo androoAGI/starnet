@@ -1,0 +1,39 @@
+[
+  {
+    "id": "pixelrig",
+    "source": "docs/station-remaster/batch03/equipment/pixelrig.source.png",
+    "original": "C:\\Users\\andro\\.codex\\generated_images\\01a0976c-e264-7f13-a581-78c904716b14\\exec-58fbc322-8ead-4b3c-84aa-4afd39df8386.png",
+    "seeds": []
+  },
+  {
+    "id": "bench",
+    "source": "docs/station-remaster/batch03/equipment/bench.source.png",
+    "original": "C:\\Users\\andro\\.codex\\generated_images\\01a0976c-e264-7f13-a581-78c904716b14\\exec-1e94801a-2a40-4ba0-93f2-27f60874adef.png",
+    "seeds": []
+  },
+  {
+    "id": "workbench",
+    "source": "docs/station-remaster/batch03/equipment/workbench.source.png",
+    "original": "C:\\Users\\andro\\.codex\\generated_images\\01a0976c-e264-7f13-a581-78c904716b14\\exec-75298bb1-b8cd-4339-9691-59dc1e5daecc.png",
+    "seeds": []
+  },
+  {
+    "id": "rack",
+    "source": "docs/station-remaster/batch03/equipment/rack.source.png",
+    "original": "C:\\Users\\andro\\.codex\\generated_images\\01a0976c-e264-7f13-a581-78c904716b14\\exec-11c7130a-98cf-4b6d-9d62-ff5f894cff45.png",
+    "seeds": [],
+    "neutralMin": 80
+  },
+  {
+    "id": "rackV",
+    "source": "docs/station-remaster/batch03/equipment/rackV.source.png",
+    "original": "C:\\Users\\andro\\.codex\\generated_images\\01a0976c-e264-7f13-a581-78c904716b14\\exec-2a53a030-0a85-4969-bda7-63877cfadda3.png",
+    "seeds": []
+  },
+  {
+    "id": "core",
+    "source": "docs/station-remaster/batch03/equipment/core.source.png",
+    "original": "C:\\Users\\andro\\.codex\\generated_images\\01a0976c-e264-7f13-a581-78c904716b14\\exec-a1169264-56c1-4813-b823-0fa1bfb2be63.png",
+    "seeds": []
+  }
+]
