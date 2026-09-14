@@ -36,7 +36,7 @@ const PropRemaster = (() => {
     if (!v || !fileOK(v.image) || !Number.isInteger(v.sourceWidth) || !Number.isInteger(v.sourceHeight) ||
         v.sourceWidth < 1 || v.sourceHeight < 1 || v.sourceWidth > 4096 || v.sourceHeight > 4096 ||
         !rectOK(v.bounds) || !v.footprint || ![v.footprint.w,v.footprint.h].every(n => Number.isInteger(n) && n > 0 && n <= 16) ||
-        !['static','native','screen','water','scanner','steam','pulse','pool'].includes(v.mode)) return false;
+        !['static','native','screen','water','scanner','steam','pulse','pool','content','machine','service'].includes(v.mode)) return false;
     if (v.exposure != null && (!finite(v.exposure) || v.exposure < .25 || v.exposure > 3)) return false;
     if (v.nativeBounds != null && !rectOK(v.nativeBounds)) return false;
     if (v.nativeMask != null && !fileOK(v.nativeMask)) return false;
@@ -73,10 +73,24 @@ const PropRemaster = (() => {
   async function prepare(key,v) {
     try {
       if(!validate(v))throw Error('invalid manifest view');
+      const id=key.split(':')[0];
+      if(v.mode==='content'&&(typeof AuthoredPropContent==='undefined'||!AuthoredPropContent.regions[id]))throw Error('authored content unavailable');
+      if(v.mode==='service'&&(typeof AuthoredServiceContent==='undefined'||!AuthoredServiceContent.regions[id]))throw Error('authored service content unavailable');
+      if(v.mode==='machine'){
+        const machine=typeof AuthoredMachineConfig!=='undefined'&&AuthoredMachineConfig.get(id);
+        if(!machine||typeof AuthoredPropMotion==='undefined'||machine.motion.sourceWidth!==v.sourceWidth||machine.motion.sourceHeight!==v.sourceHeight)throw Error('authored machine configuration unavailable');
+        const layers={};
+        for(const [name,file]of Object.entries(machine.layers)){
+          if(!fileOK(file))throw Error('invalid machine layer');
+          const source=await image(file),scale=Math.min(1,128/Math.max(source.width,source.height));
+          const layer=canvas(source.width*scale,source.height*scale),lg=layer.getContext('2d');lg.imageSmoothingQuality='high';lg.drawImage(source,0,0,layer.width,layer.height);layers[name]=layer;
+        }
+        if(!AuthoredPropMotion.register(id,machine.motion,layers))throw Error('invalid authored mechanism');
+      }
       const im=await image(v.image);
       if(im.width!==v.sourceWidth || im.height!==v.sourceHeight)throw Error('source dimensions differ');
       const scan=canvas(im.width,im.height),sg=scan.getContext('2d');sg.drawImage(im,0,0);
-      const rgba=sg.getImageData(0,0,im.width,im.height).data;
+      let rgba=sg.getImageData(0,0,im.width,im.height).data;
       let l=im.width,t=im.height,r=-1,b=-1;
       for(let i=3;i<rgba.length;i+=4)if(rgba[i]){
         const p=(i-3)/4,x=p%im.width,y=Math.floor(p/im.width);
@@ -87,11 +101,14 @@ const PropRemaster = (() => {
       // Isolate the measured alpha rectangle before scaling. Sampling outside a
       // drawImage source crop can pull transparent padding into its edge pixels.
       const cropped=canvas(crop.width,crop.height),cg=cropped.getContext('2d');
-      const ci=cg.createImageData(crop.width,crop.height);
+      let ci=cg.createImageData(crop.width,crop.height);
       for(let row=0;row<crop.height;row++)ci.data.set(
         rgba.subarray(((crop.y+row)*im.width+crop.x)*4,((crop.y+row)*im.width+crop.x+crop.width)*4),
         row*crop.width*4);
       cg.putImageData(ci,0,0);
+      // Release full-resolution staging storage as soon as the cropped source
+      // exists. A full catalog must not retain every decode until a later GC.
+      rgba=null;ci=null;scan.width=1;scan.height=1;im.onload=null;im.onerror=null;
       const frame={...v.bounds},regions=v.nativeLayers||[],nb=v.nativeBounds||v.bounds;
       const include=(x,y)=>{const right=Math.max(frame.x+frame.width,x),bottom=Math.max(frame.y+frame.height,y);
         frame.x=Math.min(frame.x,x);frame.y=Math.min(frame.y,y);frame.width=right-frame.x;frame.height=bottom-frame.y;};
@@ -102,13 +119,14 @@ const PropRemaster = (() => {
       if(v.mode==='steam')include(box.x+v.motion.origin[0]*box.width,box.y+v.motion.origin[1]*box.height-v.motion.rise);
       if(frame.width>256||frame.height>256)throw Error('layer bounds too large');
       const pw=Math.ceil(frame.width*DENSITY),ph=Math.ceil(frame.height*DENSITY);
-      const cost=pw*ph*((v.mode==='native'?3:v.mode==='screen'?10:v.mode==='pool'?49:['water','scanner','steam','pulse'].includes(v.mode)?13:1)+(v.foreground?1:0));
+      const cost=pw*ph*((v.mode==='native'?3:v.mode==='screen'?10:v.mode==='pool'?49:['water','scanner','steam','pulse'].includes(v.mode)?13:['content','machine','service'].includes(v.mode)?2:1)+(v.foreground?1:0));
       if(pixelBudget+cost>MAX_PIXELS)throw Error('decoded prop budget exceeded');
       const body=canvas(pw,ph),g=body.getContext('2d');
       g.scale(DENSITY,DENSITY);g.translate(-frame.x,-frame.y);
       g.imageSmoothingEnabled=true;g.imageSmoothingQuality='high';
       g.filter='brightness('+(v.exposure||1)+')';
       g.drawImage(cropped,box.x,box.y,box.width,box.height);
+      cropped.width=1;cropped.height=1;
       g.filter='none';
       let mask=null,live=null;
       if(v.mode==='native'){
@@ -130,8 +148,9 @@ const PropRemaster = (() => {
         v.foreground.forEach((p,i)=>{const x=(box.x-frame.x+p[0]*box.width)*DENSITY,y=(box.y-frame.y+p[1]*box.height)*DENSITY;i?fg.lineTo(x,y):fg.moveTo(x,y);});
         fg.closePath();fg.clip();fg.drawImage(body,0,0);
       }
-      const entry={spec:v,body,mask,live,screen,motion,foreground,frame,box,crop,lost:false};
-      for(const plane of [body,mask,live,foreground,screen&&screen.off,...(motion||[])])if(plane&&plane.addEventListener)
+      const composed=['content','machine','service'].includes(v.mode)?canvas(pw,ph):null;
+      const entry={spec:v,body,mask,live,screen,motion,foreground,composed,frame,box,crop,lost:false};
+      for(const plane of [body,mask,live,foreground,composed,screen&&screen.off,...(motion||[])])if(plane&&plane.addEventListener)
         plane.addEventListener('contextlost',()=>{entry.lost=true;},{once:true});
       pixelBudget+=cost;entries.set(key,entry);revision++;
     }catch(e){failures.push({view:key,reason:String(e.message||e)});}
@@ -223,6 +242,18 @@ const PropRemaster = (() => {
     if(w!==v.footprint.w*12||h!==v.footprint.h*12||
       (v.nativeFallbackWhen||[]).some(k=>state&&state[k]))return false;
     const f=e.frame;
+    if(e.composed){
+      const g=e.composed.getContext('2d');g.save();
+      try{
+        g.setTransform(1,0,0,1,0,0);g.globalAlpha=1;g.globalCompositeOperation='source-over';g.clearRect(0,0,e.composed.width,e.composed.height);g.drawImage(e.body,0,0);
+        g.scale(DENSITY,DENSITY);g.translate(-f.x,-f.y);
+        if(v.mode==='content')AuthoredPropContent.draw(g,id,{...e.box,crop:e.crop},state||{});
+        if(v.mode==='machine')AuthoredPropMotion.draw(g,id,{...e.box,crop:e.crop},state||{});
+        if(v.mode==='service')AuthoredServiceContent.draw(g,id,{...e.box,crop:e.crop},state||{});
+      }finally{g.restore();}
+      ctx.save();try{ctx.imageSmoothingEnabled=true;ctx.imageSmoothingQuality='high';ctx.drawImage(e.composed,x+f.x,y+f.y,e.composed.width/DENSITY,e.composed.height/DENSITY);}finally{ctx.restore();}
+      return true;
+    }
     if(e.live){
       const g=e.live.getContext('2d');g.save();
       try{
@@ -289,7 +320,11 @@ const PropRemaster = (() => {
       ctx.drawImage(e.foreground,e.frame.x,e.frame.y,e.body.width/DENSITY,e.body.height/DENSITY);
     }finally{ctx.restore();}return true;
   }
-  return Object.freeze({ready,enabled,draw,drawForeground,emitter,revision:()=>revision,
+  function viewGeometry(id,view='s'){
+    const e=enabled(id,view)&&entries.get(id+':'+view);
+    return !e||e.lost?null:{box:{...e.box},crop:{...e.crop},spec:{...e.spec},surfaceSupport:e.spec.surfaceSupport};
+  }
+  return Object.freeze({ready,enabled,draw,drawForeground,emitter,viewGeometry,revision:()=>revision,
     status:()=>({views:Array.from(entries.keys()),failures:failures.slice(),pixels:pixelBudget}),
     // Pure contracts exposed for deterministic headless geometry validation.
     validate,fit});

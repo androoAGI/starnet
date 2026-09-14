@@ -16,10 +16,14 @@ const window={addEventListener(){},matchMedia:()=>({matches:false})};
 const U=new Function('window','document',read('frontend/js/util.js')+';return U;')(window,document);
 function load(file,extra){const env={document,window,Image:Asset,URLSearchParams,location:{search:''},module:{exports:{}},...extra};vm.runInNewContext(read(file),env);return env.module.exports;}
 const rgba=cv=>cv.getContext('2d').getImageData(0,0,cv.width,cv.height).data;
+const same=(a,b,label)=>assert.ok(Buffer.from(a).equals(Buffer.from(b)),label);
+const different=(a,b,label)=>assert.ok(!Buffer.from(a).equals(Buffer.from(b)),label);
 const cyan=d=>{let n=0;for(let i=0;i<d.length;i+=4)if(d[i+3]>200)n+=Math.max(0,Math.min(d[i+1],d[i+2])-d[i]);return n;};
 (async()=>{
  const industrial=load('frontend/app/industrialtextures.js');await industrial.ready;
- const art=load('frontend/app/propremaster.js',{IndustrialTextures:industrial,fetch:async url=>({ok:true,json:async()=>JSON.parse(read('frontend/'+url))})});await art.ready;
+ const content=load('frontend/app/authored-prop-content.js'),service=load('frontend/app/authored-service-content.js'),motion=load('frontend/app/authored-prop-motion.js'),machines=load('frontend/app/authored-machine-config.js');
+ const art=load('frontend/app/propremaster.js',{IndustrialTextures:industrial,AuthoredPropContent:content,AuthoredServiceContent:service,AuthoredPropMotion:motion,AuthoredMachineConfig:machines,fetch:async url=>({ok:true,json:async()=>JSON.parse(read('frontend/'+url))})});await art.ready;
+ if(process.env.STARNET_AUDIT_PROGRESS)console.log('loaded',art.status().views.length,'views');
  assert.equal(art.status().failures.length,0,JSON.stringify(art.status()));
  const props=load('frontend/app/propsprites.js',{U,IndustrialTextures:industrial,PropRemaster:art});
  const sheet=createCanvas(1280,560),sg=sheet.getContext('2d');sg.fillStyle='#0a1012';sg.fillRect(0,0,1280,560);
@@ -32,9 +36,9 @@ const cyan=d=>{let n=0;for(let i=0;i<d.length;i+=4)if(d[i+3]>200)n+=Math.max(0,M
  draw(0,false); // Warm the shared outline cache.
  const off=draw(0,false),offBusy=draw(1200,false,true),on=draw(1050,true),on2=draw(1750,true),frozen=draw(1050,true,true,true),frozen2=draw(1750,true,true,true);
  const a=rgba(off),b=rgba(on),c=rgba(on2);
- assert.deepEqual(a,rgba(offBusy),'unattended screen ignores backend work');
- assert.deepEqual(rgba(frozen),rgba(frozen2),'reduced motion is stable');
- assert.ok(cyan(b)>cyan(a)*2,'authored display powers on');assert.notDeepEqual(b,c,'new phosphor animates');
+ same(a,rgba(offBusy),'unattended screen ignores backend work');
+ same(rgba(frozen),rgba(frozen2),'reduced motion is stable');
+ assert.ok(cyan(b)>cyan(a)*2,'authored display powers on');different(b,c,'new phosphor animates');
  let moving=0,outside=0;
  for(let i=0;i<a.length;i+=4){
   assert.equal(a[i+3],b[i+3],'power preserves shape alpha');assert.equal(a[i+3],c[i+3],'motion preserves shape alpha');
@@ -51,43 +55,61 @@ const cyan=d=>{let n=0;for(let i=0;i<d.length;i+=4)if(d[i+3]>200)n+=Math.max(0,M
  assert.equal(art.emitter('console','s',12,12),null,'custom footprint cannot use authored emitter');
  const manifest=JSON.parse(read('frontend/assets/industrial/props-v3/manifest.json'));
  for(const [id,prop]of Object.entries(manifest.props))for(const [view,v]of Object.entries(prop.views)){
+  if(process.env.STARNET_AUDIT_PROGRESS)console.log('checking',id,view,v.mode);
   const render=(occupied,now,extra={})=>{const cv=createCanvas(320,270),cg=cv.getContext('2d');cg.scale(4,4);
    assert.equal(art.draw(cg,id,view,24,36,v.footprint.w*12,v.footprint.h*12,{occupied,scanning:occupied,work:occupied,fired:occupied,now,...extra},()=>{throw Error('Old pixels in '+id);}),true);
    return rgba(cv);
   };
   const idle=render(false,0),active=render(true,1050),later=render(true,1750);
-  for(let i=3;i<idle.length;i+=4)if(v.mode!=='steam'||Math.floor(i/4/320)>=(36+v.bounds.y+v.bounds.height-2)*4){assert.equal(idle[i],active[i],id+' power keeps contact/silhouette');assert.equal(idle[i],later[i],id+' motion keeps contact/silhouette');}
-  if(v.mode==='screen'){assert.ok(cyan(active)>cyan(idle)*2,id+' glass powers on');assert.notDeepEqual(active,later,id+' glass animates');}
+  for(let i=3;i<idle.length;i+=4)if(!['steam','machine','content','service'].includes(v.mode)||Math.floor(i/4/320)>=(36+v.bounds.y+v.bounds.height-1)*4){assert.equal(idle[i],active[i],id+' power keeps contact/silhouette');assert.equal(idle[i],later[i],id+' motion keeps contact/silhouette');}
+  if(v.mode==='screen'){assert.ok(cyan(active)>cyan(idle)*2,id+' glass powers on');different(active,later,id+' glass animates');}
   else if(['water','scanner','steam','pulse','pool'].includes(v.mode)){
-   assert.notDeepEqual(active,later,id+' has newly authored motion');
+   different(active,later,id+' has newly authored motion');
    if(v.motion.trigger==='fired'){
-    assert.deepEqual(render(false,100,{work:true}),render(false,2300,{work:true}),id+' room work cannot invent a verification result');
-    assert.notDeepEqual(render(true,100,{bad:true}),render(true,100,{bad:false}),id+' failure has distinct result colour');
-    assert.notDeepEqual(render(true,100,{bad:true,still:true}),render(false,100,{still:true}),id+' reduced motion retains truthful failure status');
+    same(render(false,100,{work:true}),render(false,2300,{work:true}),id+' room work cannot invent a verification result');
+    different(render(true,100,{bad:true}),render(true,100,{bad:false}),id+' failure has distinct result colour');
+    different(render(true,100,{bad:true,still:true}),render(false,100,{still:true}),id+' reduced motion retains truthful failure status');
    }
-   assert.deepEqual(render(true,100,{still:true}),render(true,2300,{still:true}),id+' obeys reduced motion');
-   if(v.mode==='scanner')assert.deepEqual(render(false,100,{work:true}),render(false,2300,{work:true}),'unrelated work cannot scan an empty conveyor');
+   same(render(true,100,{still:true}),render(true,2300,{still:true}),id+' obeys reduced motion');
+   if(v.mode==='scanner')same(render(false,100,{work:true}),render(false,2300,{work:true}),'unrelated work cannot scan an empty conveyor');
    if(v.mode==='water'){
-    assert.deepEqual(render(false,1050),active,'water is independent of occupancy');
+    same(render(false,1050),active,'water is independent of occupancy');
     assert.equal(art.emitter(id),null,'water is not a workstation display');
    }
-   if(v.mode==='pool'||v.motion.trigger==='work')assert.deepEqual(render(false,100),render(false,2300),id+' does not invent use');
-  }else {assert.deepEqual(idle,active,id+' static appearance');assert.deepEqual(active,later,id+' has no invented motion');}
+   if(v.mode==='pool'||v.motion.trigger==='work')same(render(false,100),render(false,2300),id+' does not invent use');
+  }else if(v.mode==='machine'){
+   different(active,later,id+' mechanical parts move');
+   same(render(false,100),render(false,2300),id+' idle mechanism stays parked');
+   same(render(true,100,{still:true}),render(true,2300,{still:true}),id+' mechanism respects reduced motion');
+  }else if(v.mode==='content'){
+   same(render(true,100,{still:true}),render(true,2300,{still:true}),id+' content respects reduced motion');
+   if(id==='missionboard')different(render(false,0,{pins:0}),render(false,0,{pins:3,proposals:2,jam:true}),id+' real board counts update');
+   if(id==='trophycase')different(render(false,0,{trophies:0}),render(false,0,{trophies:2,journeyStage:3}),id+' earned trophies update');
+   if(id==='comms_inbox')same(render(false,0),render(true,2500),id+' unrelated work cannot invent mail');
+  }else if(v.mode==='service'){
+   same(render(true,100,{still:true}),render(true,2300,{still:true}),id+' service obeys reduced motion');
+   if(id==='outbox')different(render(false,0,{crates:0}),render(false,0,{crates:3}),id+' reflects real uncollected count');
+   if(id==='connector_portal')different(render(false,0,{bound:false}),render(false,0,{bound:true,state:'online'}),id+' reflects actual connector state');
+   if(id==='airlock')different(render(false,0,{door:'open'}),render(false,0,{door:'closed'}),id+' keeps real door state');
+   if(id==='jukebox')different(render(false,0,{live:false}),render(false,0,{live:true}),id+' real music connection changes lights');
+  }else {same(idle,active,id+' static appearance');same(active,later,id+' has no invented motion');}
   const warmReads=readbacks;
   for(let now=0;now<6000;now+=50)art.draw(g,id,view,24,36,v.footprint.w*12,v.footprint.h*12,{now,occupied:true,scanning:true,work:true},()=>{throw Error('old pixels');});
   assert.equal(readbacks,warmReads,id+' frames never read pixels');
  }
  // The real public event-to-render path must preserve instance scope and failure.
+ if(process.env.STARNET_AUDIT_PROGRESS)console.log('per-view audits complete; checking public events');
  if(manifest.props.workbench){
   const wb=(id,now)=>{const cv=createCanvas(320,270),cg=cv.getContext('2d');cg.scale(4,4);props.setCtx(cg);props.setNow(now);props.draw({id,t:'workbench',x:2,y:3,w:2,h:1},false,{still:true});return rgba(cv);};
   const idleA=wb('verify-a',10000),idleB=wb('verify-b',10000);
   props.pulseWorkbench(true,'verify-a');const success=wb('verify-a',10100);
-  assert.notDeepEqual(success,idleA,'real verification event lights the new workbench');
-  assert.deepEqual(wb('verify-b',10100),idleB,'verification event stays on its own instance');
+  different(success,idleA,'real verification event lights the new workbench');
+  same(wb('verify-b',10100),idleB,'verification event stays on its own instance');
   props.pulseWorkbench(false,'verify-a');const failure=wb('verify-a',10200);
-  assert.notDeepEqual(failure,success,'failed verification keeps distinct new-art status');
+  different(failure,success,'failed verification keeps distinct new-art status');
  }
  [off,on,on2,frozen].forEach((cv,i)=>{sg.drawImage(cv,i*320,65);sg.fillStyle='#b6b5a6';sg.font='14px monospace';sg.fillText(['UNATTENDED','OCCUPIED / 1050 ms','OCCUPIED / 1750 ms','REDUCED MOTION'][i],i*320+15,350);});
+ if(process.env.STARNET_AUDIT_PROGRESS)console.log('public events complete; composing source sheet');
  // Same world scale, no per-object enlargement. This strip catches accidental
  // micro-sprites and furniture-height drift before the live browser check.
  sg.save();sg.translate(20,370);sg.scale(4,4);props.setCtx(sg);props.setNow(1050);
