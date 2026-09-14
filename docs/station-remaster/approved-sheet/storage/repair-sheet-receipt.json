@@ -1,0 +1,136 @@
+{
+  "version": 1,
+  "type": "eight-item-repair-sheet-candidate",
+  "source": "repair-sheet-source.png",
+  "sha256": "a9595544e9a25d2e46a2cfe629b4bf6b00a090a18a6941e935dacdcec88954d8",
+  "width": 1536,
+  "height": 1024,
+  "tool": "image_gen built-in",
+  "prompt": "repair-sheet.prompt.txt",
+  "primaryReference": "frontend/assets/industrial/complete-sheet/starnet-props-full-sheet.png",
+  "primaryReferenceSha256": "e68ef0d3711e9164a3aff5333b98522ed6fdcb4bc7654929e333cb2ff2b97ea9",
+  "alpha": {
+    "zero": 1188201,
+    "partial": 384663,
+    "opaque255": 0,
+    "maxAlpha": 254,
+    "atLeast180": 351221
+  },
+  "sourcePreserved": true,
+  "rgbChanged": false,
+  "exportStatus": "Intact source only. Coordinator owns alpha-aware cell extraction; do not flatten partial alpha or assume fully opaque interior.",
+  "layout": {
+    "rows": 2,
+    "columns": 4,
+    "indexing": "zero based",
+    "cells": [
+      {
+        "id": "industrial_floorvent",
+        "row": 0,
+        "col": 0,
+        "sourceReviewRegion": {
+          "x": 35,
+          "y": 210,
+          "width": 325,
+          "height": 195
+        },
+        "visualResult": "Requested correction visibly present; candidate requires alpha-aware extraction and native-fit QA."
+      },
+      {
+        "id": "industrial_cabletray",
+        "row": 0,
+        "col": 1,
+        "sourceReviewRegion": {
+          "x": 385,
+          "y": 245,
+          "width": 445,
+          "height": 145
+        },
+        "visualResult": "Requested correction visibly present; candidate requires alpha-aware extraction and native-fit QA."
+      },
+      {
+        "id": "sidetable",
+        "row": 0,
+        "col": 2,
+        "sourceReviewRegion": {
+          "x": 840,
+          "y": 200,
+          "width": 205,
+          "height": 235
+        },
+        "visualResult": "Requested correction visibly present; candidate requires alpha-aware extraction and native-fit QA."
+      },
+      {
+        "id": "longtable",
+        "row": 0,
+        "col": 3,
+        "sourceReviewRegion": {
+          "x": 1080,
+          "y": 190,
+          "width": 420,
+          "height": 245
+        },
+        "visualResult": "Requested correction visibly present; candidate requires alpha-aware extraction and native-fit QA."
+      },
+      {
+        "id": "treasury_pnl_holo",
+        "row": 1,
+        "col": 0,
+        "sourceReviewRegion": {
+          "x": 40,
+          "y": 685,
+          "width": 295,
+          "height": 175
+        },
+        "visualResult": "Requested correction visibly present; candidate requires alpha-aware extraction and native-fit QA."
+      },
+      {
+        "id": "treasury_coinsorter",
+        "row": 1,
+        "col": 1,
+        "sourceReviewRegion": {
+          "x": 350,
+          "y": 620,
+          "width": 425,
+          "height": 245
+        },
+        "visualResult": "Requested correction visibly present; candidate requires alpha-aware extraction and native-fit QA."
+      },
+      {
+        "id": "pub_mailpod",
+        "row": 1,
+        "col": 2,
+        "sourceReviewRegion": {
+          "x": 805,
+          "y": 555,
+          "width": 340,
+          "height": 315
+        },
+        "visualResult": "Requested correction visibly present; candidate requires alpha-aware extraction and native-fit QA."
+      },
+      {
+        "id": "recliner",
+        "row": 1,
+        "col": 3,
+        "sourceReviewRegion": {
+          "x": 1170,
+          "y": 565,
+          "width": 345,
+          "height": 310
+        },
+        "visualResult": "Requested correction visibly present; candidate requires alpha-aware extraction and native-fit QA."
+      }
+    ]
+  },
+  "notes": [
+    "No original master or existing prop PNG altered.",
+    "Real alpha present, no pixel packaging edits performed.",
+    "No floor or external scene authored, but translucent glow residue around cells must be considered by exporter.",
+    "Repair longtable:e is not in these8; assigned facing worker has matching bare primary source.",
+    "Mailpod has dark red lenses; real state still belongs to runtime.",
+    "Floorvent/cabletray are shallow horizontal shapes; use floor draw pass, not upright silhouette fitting.",
+    "Recliner back on right/front on left is deliberate native left-side seat."
+  ],
+  "liveIntegrated": false,
+  "generatedOriginalPath": "C:/Users/andro/.codex/generated_images/01a09e47-65ec-7a71-b4a1-4847c19fc477/exec-f7c9f969-8525-48b8-a5fa-a2c3cfb4177e.png"
+}
