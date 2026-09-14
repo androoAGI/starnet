@@ -1,0 +1,92 @@
+{
+  "version": 1,
+  "status": "Unintegrated calibration candidates; reduced-size proof inspected locally, no live game acceptance",
+  "generator": "Built-in image_gen, one fresh call per asset; no old art resize or code-drawn replacement",
+  "styleReferences": [
+    "C:/Users/andro/Downloads/fwefwg.JPG",
+    "C:/Users/andro/Downloads/Futuristic weapon armory interior design.png",
+    "C:/Users/andro/Downloads/bridge (1).png"
+  ],
+  "referencesRole": "Camera, dark connected value masses, mature illustrated material rendering; no requirement for all materials to be metal",
+  "sourceFiles": {
+    "coffee": "C:/Users/andro/.codex/generated_images/01a09e48-0877-7203-a53f-4b137e36d69a/exec-7878a060-5955-4c58-aeea-7a628c5dc56a.png",
+    "monstera": "C:/Users/andro/.codex/generated_images/01a09e48-0877-7203-a53f-4b137e36d69a/exec-1055c159-df09-45e8-a17c-5eae62af6864.png"
+  },
+  "qa": {
+    "proof": "size-proof.png",
+    "scales": [
+      1,
+      2,
+      4
+    ],
+    "enlargedDiagnostic": "Nearest-neighbor enlargement of the 4x raster only; this is not the actual game size",
+    "findings": [
+      "Coffee cup, brew recess and simple gauge remain identifiable at 2x; narrower actual shape than requested target is documented.",
+      "Monstera has four broad leaves and a clear ceramic pot; visible source has deliberate coarse painted/pixel-like planes. At 2x the broad leaf cluster survives, tiny vein details are not required.",
+      "Generated alpha contains isolated alpha=1 residue; authorized alpha-only packaging removes that residue, preserves all other alpha and all retained RGB.",
+      "Full-size final PNGs retained to avoid committing irreversible low-resolution-only exports. Optional 4x variants reside beside the proof."
+    ]
+  },
+  "props": {
+    "coffee": {
+      "targetAlphaAspect": 0.7,
+      "actualAlphaAspect": 0.64623,
+      "worldBounds": {
+        "x": -1,
+        "y": -6,
+        "width": 13,
+        "height": 18
+      },
+      "actualFit": {
+        "width": 11.632135,
+        "height": 18
+      },
+      "previousFit": {
+        "width": 10.055437,
+        "height": 18
+      },
+      "footprintTiles": {
+        "w": 1,
+        "h": 1
+      },
+      "floorContact": "Bottom of alpha silhouette aligns world y=12; horizontal center follows existing fit. Do not nonuniformly stretch.",
+      "materials": [
+        "muted olive enamel",
+        "smoked hopper glass",
+        "warm gray ceramic cup"
+      ],
+      "intendedMotion": "Work-triggered steam from above mug; no baked steam. Recalibrate steam origin against NEW art before runtime integration; do not reuse old coordinates blindly."
+    },
+    "monstera": {
+      "targetAlphaAspect": 0.92,
+      "actualAlphaAspect": 0.850732,
+      "worldBounds": {
+        "x": 0,
+        "y": -1,
+        "width": 12,
+        "height": 13
+      },
+      "actualFit": {
+        "width": 11.059512,
+        "height": 13
+      },
+      "footprintTiles": {
+        "w": 1,
+        "h": 1
+      },
+      "floorContact": "Bottom pot contact aligns world y=12; centered X within native allowance. Walk-over native geometry remains unchanged.",
+      "materials": [
+        "matte dark green leaves",
+        "brown-gray ceramic",
+        "dark soil"
+      ],
+      "intendedMotion": "Intentionally static foliage per existing art-direction decision; no emitted light or new use trigger."
+    }
+  },
+  "integrationRequirements": [
+    "No runtime or shared-manifest modifications are included.",
+    "Compare candidates beside workstation/crate on actual station floor at normal camera zoom before acceptance.",
+    "If wider silhouette is mandatory, regenerate broader composition; do not stretch this source.",
+    "Material and animation contracts remain owned by integrating task."
+  ]
+}
