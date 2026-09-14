@@ -1,0 +1,562 @@
+{
+  "version": 1,
+  "artSet": "catalog-command-candidate",
+  "integrationRoot": "frontend/assets/industrial/catalog-command/",
+  "count": 8,
+  "method": "Same alpha core threshold180 and Euclidean radius3 as approved sheet extraction. All original RGB and retained alpha preserved; only detached translucent background alpha removed. Tight crop; no resizing, repainting or recoloring.",
+  "sourcesPreserved": true,
+  "records": [
+    {
+      "id": "console",
+      "view": "s",
+      "image": "console.png",
+      "sourceWidth": 1009,
+      "sourceHeight": 833,
+      "bounds": {
+        "x": -3,
+        "y": -11,
+        "width": 28,
+        "height": 23
+      },
+      "footprint": {
+        "w": 2,
+        "h": 1
+      },
+      "contact": {
+        "y": 0.9963985594237695
+      },
+      "actualUniformFit": {
+        "width": 27.859543817527012,
+        "height": 23
+      },
+      "aspectRatioError": -0.0050162922311782765,
+      "source": "docs/station-remaster/catalog-command/console-v2-source.png",
+      "sourceSha256": "9b16ec410d1f493787b7dea0248e98d6cf3691855ed1cc6b4f12026dab0f4005",
+      "output": "frontend/assets/industrial/catalog-command/console.png",
+      "outputSha256": "bba19eba3657d61ad0f3cd8f615a72163607d35f770c08b34bf902790cb34206",
+      "sourceRect": {
+        "x": 0,
+        "y": 0,
+        "width": 1383,
+        "height": 1137
+      },
+      "cropInCell": {
+        "left": 187,
+        "top": 154,
+        "width": 1009,
+        "height": 833
+      },
+      "sourceCrop": {
+        "left": 187,
+        "top": 154,
+        "width": 1009,
+        "height": 833
+      },
+      "width": 1009,
+      "height": 833,
+      "alphaBounds": {
+        "x": 0,
+        "y": 0,
+        "width": 1009,
+        "height": 833
+      },
+      "retainedPixels": 658631,
+      "alphaResidueRemoved": 4117,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "opaqueCellEdgePixels": 0,
+      "rgbChanges": 0,
+      "retainedAlphaChanges": 0,
+      "alpha": {
+        "zero": 181866,
+        "partial": 658072,
+        "opaque255": 559,
+        "maxAlpha": 255
+      },
+      "liveVerified": false
+    },
+    {
+      "id": "consoleL",
+      "view": "s",
+      "image": "consoleL.png",
+      "sourceWidth": 1308,
+      "sourceHeight": 719,
+      "bounds": {
+        "x": -3,
+        "y": -11,
+        "width": 40,
+        "height": 23
+      },
+      "footprint": {
+        "w": 3,
+        "h": 1
+      },
+      "contact": {
+        "y": 0.9958275382475661
+      },
+      "actualUniformFit": {
+        "width": 40,
+        "height": 21.98776758409786
+      },
+      "aspectRatioError": 0.04603616133518784,
+      "source": "docs/station-remaster/catalog-command/consoleL-final-source.png",
+      "sourceSha256": "0f0a663c4555fecd9120dd0703458f99e516d2117669db4e47b4940f69317810",
+      "output": "frontend/assets/industrial/catalog-command/consoleL.png",
+      "outputSha256": "17742060eaf023f39727a7c1f2fec055aa0590c8e0ec1915805ea691f0f05a82",
+      "sourceRect": {
+        "x": 0,
+        "y": 0,
+        "width": 1654,
+        "height": 951
+      },
+      "cropInCell": {
+        "left": 171,
+        "top": 116,
+        "width": 1308,
+        "height": 719
+      },
+      "sourceCrop": {
+        "left": 171,
+        "top": 116,
+        "width": 1308,
+        "height": 719
+      },
+      "width": 1308,
+      "height": 719,
+      "alphaBounds": {
+        "x": 0,
+        "y": 0,
+        "width": 1308,
+        "height": 719
+      },
+      "retainedPixels": 797530,
+      "alphaResidueRemoved": 4049,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "opaqueCellEdgePixels": 0,
+      "rgbChanges": 0,
+      "retainedAlphaChanges": 0,
+      "alpha": {
+        "zero": 142922,
+        "partial": 796809,
+        "opaque255": 721,
+        "maxAlpha": 255
+      },
+      "liveVerified": false
+    },
+    {
+      "id": "bench",
+      "view": "s",
+      "image": "bench.png",
+      "sourceWidth": 1534,
+      "sourceHeight": 673,
+      "bounds": {
+        "x": -1,
+        "y": -14,
+        "width": 54,
+        "height": 26
+      },
+      "footprint": {
+        "w": 4,
+        "h": 1
+      },
+      "contact": {
+        "y": 0.9955423476968797
+      },
+      "actualUniformFit": {
+        "width": 54,
+        "height": 23.691003911342893
+      },
+      "aspectRatioError": 0.09746299047933515,
+      "source": "docs/station-remaster/catalog-command/bench-final-source.png",
+      "sourceSha256": "7507ed20103d20abba395e8e21f1b4976f4dc13619f191350417dfef670e5eee",
+      "output": "frontend/assets/industrial/catalog-command/bench.png",
+      "outputSha256": "ee09f18b7313c4cf3812757873652ffe6fba352d9ce8d0a48814c135e8d1a106",
+      "sourceRect": {
+        "x": 0,
+        "y": 0,
+        "width": 1811,
+        "height": 868
+      },
+      "cropInCell": {
+        "left": 127,
+        "top": 84,
+        "width": 1534,
+        "height": 673
+      },
+      "sourceCrop": {
+        "left": 127,
+        "top": 84,
+        "width": 1534,
+        "height": 673
+      },
+      "width": 1534,
+      "height": 673,
+      "alphaBounds": {
+        "x": 0,
+        "y": 0,
+        "width": 1534,
+        "height": 673
+      },
+      "retainedPixels": 674893,
+      "alphaResidueRemoved": 4584,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "opaqueCellEdgePixels": 0,
+      "rgbChanges": 0,
+      "retainedAlphaChanges": 0,
+      "alpha": {
+        "zero": 357489,
+        "partial": 673354,
+        "opaque255": 1539,
+        "maxAlpha": 255
+      },
+      "liveVerified": false
+    },
+    {
+      "id": "bridge_consolebank",
+      "view": "s",
+      "image": "bridge_consolebank.png",
+      "sourceWidth": 702,
+      "sourceHeight": 218,
+      "bounds": {
+        "x": 0,
+        "y": -21,
+        "width": 108,
+        "height": 33
+      },
+      "footprint": {
+        "w": 9,
+        "h": 1
+      },
+      "contact": {
+        "y": 0.9862385321100917
+      },
+      "actualUniformFit": {
+        "width": 106.26605504587157,
+        "height": 33
+      },
+      "aspectRatioError": -0.016055045871559703,
+      "source": "docs/station-remaster/catalog-command/sheet-v1-source.png",
+      "sourceSha256": "98daed3c08c8c53826c58876deed4898d474b34b65471ae7924d577cf031cabb",
+      "output": "frontend/assets/industrial/catalog-command/bridge_consolebank.png",
+      "outputSha256": "629eab19848cc67da7eeec9e1de39de4c546381380cf24b006117233317121b5",
+      "sourceRect": {
+        "x": 0,
+        "y": 585,
+        "width": 720,
+        "height": 245
+      },
+      "cropInCell": {
+        "left": 13,
+        "top": 12,
+        "width": 702,
+        "height": 218
+      },
+      "sourceCrop": {
+        "left": 13,
+        "top": 597,
+        "width": 702,
+        "height": 218
+      },
+      "width": 702,
+      "height": 218,
+      "alphaBounds": {
+        "x": 0,
+        "y": 0,
+        "width": 702,
+        "height": 218
+      },
+      "retainedPixels": 141661,
+      "alphaResidueRemoved": 5496,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "opaqueCellEdgePixels": 0,
+      "rgbChanges": 0,
+      "retainedAlphaChanges": 0,
+      "alpha": {
+        "zero": 11375,
+        "partial": 141624,
+        "opaque255": 37,
+        "maxAlpha": 255
+      },
+      "liveVerified": false
+    },
+    {
+      "id": "bridge_equipmentbay",
+      "view": "s",
+      "image": "bridge_equipmentbay.png",
+      "sourceWidth": 1597,
+      "sourceHeight": 559,
+      "bounds": {
+        "x": 0,
+        "y": -7,
+        "width": 48,
+        "height": 19
+      },
+      "footprint": {
+        "w": 4,
+        "h": 1
+      },
+      "contact": {
+        "y": 0.9946332737030411
+      },
+      "actualUniformFit": {
+        "width": 48,
+        "height": 16.801502817783344
+      },
+      "aspectRatioError": 0.1308512224209899,
+      "source": "docs/station-remaster/catalog-command/bridge_equipmentbay-final-source.png",
+      "sourceSha256": "35eb9b38abd8165830400b51e534b1d27899527a52b83df566283fa2ce0ebea6",
+      "output": "frontend/assets/industrial/catalog-command/bridge_equipmentbay.png",
+      "outputSha256": "88838e0cb05d97b8de6e6c07943a373eff94b2387ecc1cc5674528157c8524ba",
+      "sourceRect": {
+        "x": 0,
+        "y": 0,
+        "width": 1995,
+        "height": 788
+      },
+      "cropInCell": {
+        "left": 193,
+        "top": 94,
+        "width": 1597,
+        "height": 559
+      },
+      "sourceCrop": {
+        "left": 193,
+        "top": 94,
+        "width": 1597,
+        "height": 559
+      },
+      "width": 1597,
+      "height": 559,
+      "alphaBounds": {
+        "x": 0,
+        "y": 0,
+        "width": 1597,
+        "height": 559
+      },
+      "retainedPixels": 832344,
+      "alphaResidueRemoved": 5163,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "opaqueCellEdgePixels": 0,
+      "rgbChanges": 0,
+      "retainedAlphaChanges": 0,
+      "alpha": {
+        "zero": 60379,
+        "partial": 830864,
+        "opaque255": 1480,
+        "maxAlpha": 255
+      },
+      "liveVerified": false
+    },
+    {
+      "id": "bigscreen",
+      "view": "s",
+      "image": "bigscreen.png",
+      "sourceWidth": 638,
+      "sourceHeight": 167,
+      "bounds": {
+        "x": -1,
+        "y": -13,
+        "width": 98,
+        "height": 25
+      },
+      "footprint": {
+        "w": 8,
+        "h": 1
+      },
+      "contact": {
+        "y": 0.9820359281437125
+      },
+      "actualUniformFit": {
+        "width": 95.50898203592814,
+        "height": 24.999999999999996
+      },
+      "aspectRatioError": -0.02541855065379439,
+      "source": "docs/station-remaster/catalog-command/sheet-v1-source.png",
+      "sourceSha256": "98daed3c08c8c53826c58876deed4898d474b34b65471ae7924d577cf031cabb",
+      "output": "frontend/assets/industrial/catalog-command/bigscreen.png",
+      "outputSha256": "38f246f7dc1fa0c96f2eea617f3c8b5fc849eedf587b01f01ed81e91ab0ee41c",
+      "sourceRect": {
+        "x": 720,
+        "y": 620,
+        "width": 655,
+        "height": 210
+      },
+      "cropInCell": {
+        "left": 9,
+        "top": 17,
+        "width": 638,
+        "height": 167
+      },
+      "sourceCrop": {
+        "left": 729,
+        "top": 637,
+        "width": 638,
+        "height": 167
+      },
+      "width": 638,
+      "height": 167,
+      "alphaBounds": {
+        "x": 0,
+        "y": 0,
+        "width": 638,
+        "height": 167
+      },
+      "retainedPixels": 94012,
+      "alphaResidueRemoved": 2492,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "opaqueCellEdgePixels": 0,
+      "rgbChanges": 0,
+      "retainedAlphaChanges": 0,
+      "alpha": {
+        "zero": 12534,
+        "partial": 93946,
+        "opaque255": 66,
+        "maxAlpha": 255
+      },
+      "liveVerified": false
+    },
+    {
+      "id": "holotable",
+      "view": "s",
+      "image": "holotable.png",
+      "sourceWidth": 1488,
+      "sourceHeight": 810,
+      "bounds": {
+        "x": -1,
+        "y": -10,
+        "width": 50,
+        "height": 34
+      },
+      "footprint": {
+        "w": 4,
+        "h": 2
+      },
+      "contact": {
+        "y": 0.9962962962962963
+      },
+      "actualUniformFit": {
+        "width": 50,
+        "height": 27.21774193548387
+      },
+      "aspectRatioError": 0.24918518518518518,
+      "source": "docs/station-remaster/catalog-command/holotable-final-source.png",
+      "sourceSha256": "b249b6ce9585c27cfde9f8991f15dbe022b55c370a7435627ffe0a0ca2f9c559",
+      "output": "frontend/assets/industrial/catalog-command/holotable.png",
+      "outputSha256": "e031ace64c22d4bf9c53e7cd7aa4502f1abac4efca5a64060220921005287383",
+      "sourceRect": {
+        "x": 0,
+        "y": 0,
+        "width": 1521,
+        "height": 1034
+      },
+      "cropInCell": {
+        "left": 17,
+        "top": 101,
+        "width": 1488,
+        "height": 810
+      },
+      "sourceCrop": {
+        "left": 17,
+        "top": 101,
+        "width": 1488,
+        "height": 810
+      },
+      "width": 1488,
+      "height": 810,
+      "alphaBounds": {
+        "x": 0,
+        "y": 0,
+        "width": 1488,
+        "height": 810
+      },
+      "retainedPixels": 960018,
+      "alphaResidueRemoved": 11089,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "opaqueCellEdgePixels": 0,
+      "rgbChanges": 0,
+      "retainedAlphaChanges": 0,
+      "alpha": {
+        "zero": 245262,
+        "partial": 959236,
+        "opaque255": 782,
+        "maxAlpha": 255
+      },
+      "liveVerified": false
+    },
+    {
+      "id": "bridge_tacticaltable",
+      "view": "s",
+      "image": "bridge_tacticaltable.png",
+      "sourceWidth": 1350,
+      "sourceHeight": 898,
+      "bounds": {
+        "x": 0,
+        "y": -7,
+        "width": 84,
+        "height": 55
+      },
+      "footprint": {
+        "w": 7,
+        "h": 4
+      },
+      "contact": {
+        "y": 0.9966592427616926
+      },
+      "actualUniformFit": {
+        "width": 82.6837416481069,
+        "height": 55
+      },
+      "aspectRatioError": -0.015669742284441734,
+      "source": "docs/station-remaster/catalog-command/bridge_tacticaltable-final-source.png",
+      "sourceSha256": "730120434a1ce8d44f74c8ed3cd1cca9bcae3cbbe5b442655659574ec5dc3e7c",
+      "output": "frontend/assets/industrial/catalog-command/bridge_tacticaltable.png",
+      "outputSha256": "6f51ad3d61884f13b352f9a8eb909b2772e921591894b1335f156c28a033732a",
+      "sourceRect": {
+        "x": 0,
+        "y": 0,
+        "width": 1550,
+        "height": 1014
+      },
+      "cropInCell": {
+        "left": 98,
+        "top": 42,
+        "width": 1350,
+        "height": 898
+      },
+      "sourceCrop": {
+        "left": 98,
+        "top": 42,
+        "width": 1350,
+        "height": 898
+      },
+      "width": 1350,
+      "height": 898,
+      "alphaBounds": {
+        "x": 0,
+        "y": 0,
+        "width": 1350,
+        "height": 898
+      },
+      "retainedPixels": 1019709,
+      "alphaResidueRemoved": 2838,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "opaqueCellEdgePixels": 0,
+      "rgbChanges": 0,
+      "retainedAlphaChanges": 0,
+      "alpha": {
+        "zero": 192591,
+        "partial": 1017725,
+        "opaque255": 1984,
+        "maxAlpha": 255
+      },
+      "liveVerified": false
+    }
+  ]
+}
