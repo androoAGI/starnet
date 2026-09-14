@@ -20,6 +20,19 @@ const fit=pack.fit(good.bounds,{width:100,height:200});
 A.eq(fit.width/fit.height,.5,'uniform aspect, no squash');
 A.eq(fit.x+fit.width/2,12,'center follows original bounds');
 A.eq(fit.y+fit.height,12,'feet follow original ground edge');
+for (const contact of [{x:0,y:0},{x:1,y:1},{x:.35,y:.75}])
+ A.ok(pack.validate({...good,contact}),'export-normalized contact accepts finite inclusive endpoints '+JSON.stringify(contact));
+for (const contact of [{x:-.01,y:.5},{x:.5,y:1.01},{x:NaN,y:.5},{x:.5,y:Infinity},
+ {x:'0.5',y:.5},{x:.5},{y:.5},{},[.5,.5],false])
+ A.eq(pack.validate({...good,contact}),false,'invalid contact cannot enter the authored pack '+JSON.stringify(contact));
+A.ok(pack.validate({...good,contact:null}),'null contact keeps legacy optional-anchor behavior');
+const contactCrop={x:20,y:40,width:60,height:120},contactBounds={x:-2,y:-8,width:24,height:20};
+const anchored=pack.fit(contactBounds,contactCrop,{x:.35,y:.7},200);
+A.eq(anchored.width/anchored.height,.5,'contact fitting keeps the source aspect ratio');
+A.ok(Math.abs(anchored.y+(140-40)/120*anchored.height-12)<1e-10,'full-image normalized contact, through crop offset, meets ground');
+A.ok(anchored.y+anchored.height>12,'source below contact remains drawable rather than being cropped at the feet');
+A.eq(anchored.x+anchored.width/2,10,'contact fitting preserves horizontal centering');
+A.eq(pack.fit(contactBounds,contactCrop,null,200),pack.fit(contactBounds,contactCrop),'null contact preserves exact legacy fit');
 A.eq(pack.enabled('console'),false,'headless/missing manifest defaults to native');
 const no=()=>{},calls=[],rects=[];
 const painter=new Proxy({globalAlpha:1,fillRect:(...args)=>rects.push(args),
@@ -93,4 +106,39 @@ mode=false;calls.length=0;rects.length=0;draw('console',true);
 A.eq(calls.length,0,'classic bypasses replacement');
 A.ok(rects.length>5,'classic actually paints its old prop');
 A.ok(!source.slice(source.indexOf('  function draw('),source.indexOf('  const ready=')).includes('getImageData'),'frame compositor has no GPU readback');
-A.report('prop-remaster-contract');
+// Exercise the real asynchronous loader: a one-alpha fringe below the declared feet
+// must survive cropping AND frame allocation, while legacy packs still bottom-align.
+async function contactFrameRegression(){
+ const rgba=new Uint8ClampedArray(10*12*4),croppedPixels=[];
+ for(let y=2;y<=10;y++)for(let x=2;x<=7;x++)rgba[(y*10+x)*4+3]=y<9?255:1;
+ const cv=()=>{
+  const canvas={width:0,height:0};
+  const g={drawImage(){},getImageData:()=>({data:rgba}),
+   createImageData:(w,h)=>({data:new Uint8ClampedArray(w*h*4)}),
+   putImageData:im=>croppedPixels.push(new Uint8ClampedArray(im.data)),
+   scale(){},translate(){}};
+  canvas.getContext=()=>g;return canvas;
+ };
+ class SourceImage{constructor(){this.width=10;this.height=12;}set src(_){Promise.resolve().then(()=>this.onload());}}
+ const view={image:'sample.png',sourceWidth:10,sourceHeight:12,footprint:{w:1,h:1},
+  bounds:{x:0,y:-6,width:12,height:18},mode:'static'};
+ const env={module:{exports:{}},document:{createElement:cv},Image:SourceImage,
+  IndustrialTextures:{isRemaster:()=>true},
+  fetch:async()=>({ok:true,json:async()=>({version:1,props:{
+   contact_sample:{views:{s:{...view,contact:{x:.5,y:.75}}}},legacy_sample:{views:{s:view}}
+  }})})};
+ vm.runInNewContext(source,env);const loaded=env.module.exports;await loaded.ready;
+ A.eq(loaded.status().failures,[],'contact and legacy alpha-fringe fixtures load through real preparation');
+ const geo=loaded.viewGeometry('contact_sample');
+ A.eq(geo.crop,{x:2,y:2,width:6,height:9},'alpha crop retains faint fringe and removes fully transparent outside padding');
+ A.eq(geo.box,{x:0,y:-2,width:12,height:18},'declared feet at source y9 land at world y12 without compressing source');
+ A.eq(croppedPixels[0][(8*6+5)*4+3],1,'one-alpha fringe survives source crop unchanged');
+ const output=[];
+ const target={save(){},restore(){},drawImage:(image,...dest)=>output.push({dest,size:[image.width,image.height]})};
+ A.ok(loaded.draw(target,'contact_sample','s',0,0,12,12,{}),'contact sample draws through public renderer');
+ A.eq(output.pop(),{dest:[0,-6,12,22],size:[48,88]},'cached frame extends to y16 so fringe below y12 contact is not clipped');
+ A.eq(loaded.viewGeometry('legacy_sample').box,{x:0,y:-6,width:12,height:18},'absent contact keeps exact old bottom-aligned image');
+ loaded.draw(target,'legacy_sample','s',0,0,12,12,{});
+ A.eq(output.pop(),{dest:[0,-6,12,18],size:[48,72]},'legacy frame allocation is unchanged');
+}
+contactFrameRegression().then(()=>A.report('prop-remaster-contract')).catch(error=>{console.error(error);process.exitCode=1;});

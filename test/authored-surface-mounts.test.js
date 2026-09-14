@@ -79,4 +79,31 @@ tilted.setLayout([tiltHost,tiltChild]);const normal=tilted.placementFor(tiltChil
 tilted.setLayout([{...tiltHost,m:1},tiltChild]);const flipped=tilted.placementFor(tiltChild);
 near(normal.target.y,10.2,'Asymmetric source near edge resolves left quarter.');near(flipped.target.y,11.4,'Host mirroring reflects its asymmetric support around native width.');
 near(normal.target.x,flipped.target.x,'Mirroring never changes the child physical X.');
+// A contact is normalized to the complete export, not its alpha crop. Both offsets
+// matter: this cropped child has feet above its faint fringe and off its centreline.
+const anchorChildGeometry={box:{x:2,y:-8,width:5,height:10},crop:{x:20,y:40,width:50,height:100},
+  spec:{sourceWidth:100,sourceHeight:200,footprint:{w:1,h:1},contact:{x:.35,y:.6}}};
+const anchorHostGeometry={box:{x:0,y:0,width:12,height:4},
+  spec:{sourceWidth:100,sourceHeight:100,footprint:{w:1,h:1}},surfaceSupport:[[0,0],[1,0],[1,1],[0,1]]};
+const contacts=Mounts.create({ruleFor:t=>({surface:t==='table',canMirror:true}),
+  viewGeometry:t=>t==='table'?anchorHostGeometry:anchorChildGeometry});
+const anchorHost={id:'table',t:'table',x:10,y:20,w:1,h:1};
+const anchorChild={id:'sample',t:'sample',x:10,y:20,w:1,h:1};
+const anchorLayout=[anchorHost,anchorChild],anchorBefore=JSON.stringify(anchorLayout);
+contacts.setLayout(anchorLayout);
+const placed=contacts.placementFor(anchorChild);
+ok(placed.authored,'Cropped child contact seats on authored table.');
+near(placed.contact.x,123.5,'Contact X projects full source x35 through crop x20 and box offset x2.');
+near(placed.contact.y,240,'Contact Y projects full source y120 through crop y40 and box offset -8.');
+near(placed.lift,-4,'Declared contact receives the lift, not the lower alpha-fringe edge.');
+near(placed.contact.y-placed.lift,placed.target.y,'Actual declared feet touch table after lift.');
+const mirrored=contacts.placementFor({...anchorChild,m:1});
+near(mirrored.contact.x,128.5,'Mirrored child reflects projected contact around physical 12px footprint once.');
+near(mirrored.contact.y,placed.contact.y,'Mirroring leaves vertical contact unchanged.');
+eq(JSON.stringify(anchorLayout),anchorBefore,'Contact projection never changes saved placement.');
+delete anchorChildGeometry.spec.contact;
+const legacyContact=contacts.placementFor(anchorChild);
+near(legacyContact.contact.x,124.5,'Without declared contact, legacy alpha-box centre remains the X anchor.');
+near(legacyContact.contact.y,242,'Without declared contact, legacy alpha-box bottom remains the Y anchor.');
+near(legacyContact.lift,-2,'Legacy lift remains unchanged when contact is absent.');
 console.log(`authored-surface-mounts.test: OK (${assertions} assertions; 10 actual tabletop views, both mirror states)`);
