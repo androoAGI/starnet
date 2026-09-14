@@ -1,0 +1,43 @@
+{
+  "sourceAnimation": {
+    "idleFrameVariants": 1,
+    "workFrameVariants": 1,
+    "respondsToWorkFlag": false,
+    "opaqueBoundsRelativeToFootprint": {
+      "x": 0,
+      "y": -2,
+      "w": 24,
+      "h": 26,
+      "alphaThreshold": 160
+    }
+  },
+  "bounds": {
+    "y": -2,
+    "width": 24,
+    "height": 26,
+    "x": 0
+  },
+  "id": "bunk",
+  "geometry": {
+    "blocks": true,
+    "flat": false,
+    "tableSurface": false,
+    "requiredMount": null,
+    "optionalSurfaceMount": false,
+    "surfaceRisePixels": 8
+  },
+  "floorContact": {
+    "x": 12,
+    "y": 24
+  },
+  "backgroundThreshold": 235,
+  "tilePixels": 12,
+  "status": "art-draft-integration-pending",
+  "view": "s",
+  "footprint": {
+    "w": 2,
+    "h": 2
+  },
+  "anchorContract": "planBedSleep: separate mattress claim and lying pose; frame/pillow below body, quilt above.",
+  "holeSeeds": []
+}
