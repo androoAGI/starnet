@@ -18,8 +18,8 @@
   "expectedClaimCount": 37,
   "releaseSurface": {
     "algorithm": "sha256",
-    "sourceCommit": "41debd271eb4dc55f4584832ac38495fe1a6685a",
-    "pathSetSha256": "ade25d61e670306aad325d4f4d7314c2bbc6303368eef1fde595748446c94a21",
+    "sourceCommit": "b8b8cf404555ea7681d18b9374f6ad843392257a",
+    "pathSetSha256": "79e57b53df75955a24105b480796976a796723d408098f129e850e53bb1369a9",
     "files": [
       {
         "path": "INSTALL.md",
@@ -158,8 +158,8 @@
       },
       {
         "path": "frontend/app/build.js",
-        "bytes": 406307,
-        "sha256": "17594b1f563329da0ac6068323a19fcef87fd559899c7f7ed71f1ad24d96917c"
+        "bytes": 406793,
+        "sha256": "7e4ea9855aab361c92ccdd35262dd04df3812e553d5112d1512729d888aa6189"
       },
       {
         "path": "frontend/app/channels.js",
@@ -373,8 +373,8 @@
       },
       {
         "path": "frontend/app/industrialtextures.js",
-        "bytes": 21331,
-        "sha256": "49795aeed8daa5915ee2bb0573fa812aedc49c3b54222bb5142588c526ae56b8"
+        "bytes": 21289,
+        "sha256": "31f5740a1ae928373ec1c993730576388aa04331922c5ed0c8671e81c45fc653"
       },
       {
         "path": "frontend/app/intake.js",
@@ -562,9 +562,19 @@
         "sha256": "020cc272aafb603406526a9bea9dd53633aa24dd700d02b20ba267832c5e97bf"
       },
       {
+        "path": "frontend/app/prop-atlas.js",
+        "bytes": 4609,
+        "sha256": "0693c98b9a48d12aad4f0a06b2c976ff7397c4ccd6518e49c75b075d608487cb"
+      },
+      {
         "path": "frontend/app/propanchor.js",
         "bytes": 5563,
         "sha256": "b3df5e78efc7c1abb47193cf45b3a768b7dd6a6de4cf055ed6987fe4e47d8eca"
+      },
+      {
+        "path": "frontend/app/propremaster.js",
+        "bytes": 14108,
+        "sha256": "e517130ca06defdb05a4e8a2d2a253227eba96c82eb5280541cd57edc4eaa552"
       },
       {
         "path": "frontend/app/propsearch.js",
@@ -573,8 +583,8 @@
       },
       {
         "path": "frontend/app/propsprites.js",
-        "bytes": 791909,
-        "sha256": "a3f627a0d3c17c271178267980708c2c71a3f7031c208be6c63ac3611be7afe1"
+        "bytes": 795161,
+        "sha256": "ba8cef066298e8eb810263f021c309f5387cb9314bd7edc4e6350716750031b7"
       },
       {
         "path": "frontend/app/prospect.js",
@@ -1273,8 +1283,8 @@
       },
       {
         "path": "frontend/index.html",
-        "bytes": 85717,
-        "sha256": "f8d5d08ec91098fe6bd628b65f13b77cf8fd11d135a4773c37531a5e0832a048"
+        "bytes": 85761,
+        "sha256": "c3794437899acd23f09c8c5c3bd6a2acf0551ec455014347c284cca4105f0063"
       },
       {
         "path": "frontend/js/arcade.js",
@@ -1300,6 +1310,11 @@
         "path": "frontend/js/util.js",
         "bytes": 31079,
         "sha256": "c5e152e347f2733b640419b15ef7f96fffcd677900413a02bb69b752e2485b49"
+      },
+      {
+        "path": "frontend/prop-atlas.html",
+        "bytes": 2459,
+        "sha256": "da81590e9fee8e49a85a3543a28289036ae78341526fd36ff2e97123008d63d9"
       }
     ]
   },
