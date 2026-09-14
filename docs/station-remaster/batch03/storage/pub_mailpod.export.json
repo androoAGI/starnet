@@ -1,0 +1,59 @@
+{
+  "id": "pub_mailpod",
+  "status": "exported-awaiting-owner-live-review",
+  "source": "sources/pub_mailpod.png",
+  "sourceSha256": "2649c2d3d34032413fbafdb41e3b272b41398d4c1a9870a6376bbf755ff798e5",
+  "sourceWidth": 1489,
+  "sourceHeight": 1056,
+  "image": "pub_mailpod.png",
+  "sourceOutputWidth": 1430,
+  "sourceOutputHeight": 976,
+  "crop": {
+    "left": 30,
+    "top": 24,
+    "width": 1430,
+    "height": 976
+  },
+  "channels": 4,
+  "transparentPixels": 320194,
+  "opaquePixels": 1075486,
+  "partialPixels": 0,
+  "backgroundPixelsRemoved": 496898,
+  "subjectRgbChanges": 0,
+  "outputSha256": "c3dfac532179133cebcafd4c2a916bfbfd599b587638a4d9fe0cb39c9c0c10fd",
+  "holeSeeds": [],
+  "maskMethod": "Connected saturated-magenta flood fill, including key-only enclosed components. Alpha-only edits; uniform crop; no RGB recolor.",
+  "view": "s",
+  "footprint": {
+    "w": 2,
+    "h": 1
+  },
+  "bounds": {
+    "x": -3,
+    "y": -10,
+    "width": 31,
+    "height": 22
+  },
+  "tilePixels": 12,
+  "contact": {
+    "x": 12.5,
+    "y": 12
+  },
+  "anchorContract": "No leisure seat anchor. Footprint is the placement/pathfinding rectangle; upright visual rise is independent of the reserved box.",
+  "originalLight": {
+    "c": [
+      255,
+      190,
+      110
+    ],
+    "r": 16,
+    "a": 0.06,
+    "m": "steady",
+    "y": 0.4
+  },
+  "originalAnimationTriggers": [
+    "Autonomous sprite clock animation is present in the sampled default state; cosmetic motion is not evidence of provider work, route decisions or external state."
+  ],
+  "artMode": "static complete art; existing state/lighting integration remains owner decision",
+  "liveIntegrated": false
+}
