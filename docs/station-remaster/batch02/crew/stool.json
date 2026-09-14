@@ -42,23 +42,19 @@
   "holeSeeds": [
     [
       600,
-      632
+      470
     ],
     [
       600,
-      790
-    ],
-    [
-      350,
-      595
-    ],
-    [
-      355,
-      575
-    ],
-    [
-      843,
-      608
+      720
     ]
-  ]
+  ],
+  "proportionReview": {
+    "visibleSourceSeatNearRimY": 400,
+    "visibleSourceFootY": 1147,
+    "cropHeight": 990,
+    "uniformFitWorldSeatNearRimY": 2.7,
+    "worldFeetY": 11,
+    "note": "Near rim now at y2.7 vs native y3; source projection reauthored, no stretching."
+  }
 }
