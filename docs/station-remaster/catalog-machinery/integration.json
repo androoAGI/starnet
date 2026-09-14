@@ -1,0 +1,445 @@
+{
+  "version": 1,
+  "records": [
+    {
+      "id": "tank",
+      "view": "s",
+      "image": "tank.png",
+      "repoPath": "frontend/assets/industrial/catalog-machinery/tank.png",
+      "sourceWidth": 368,
+      "sourceHeight": 326,
+      "footprint": {
+        "w": 2,
+        "h": 1
+      },
+      "bounds": {
+        "x": -1,
+        "y": -11,
+        "width": 27,
+        "height": 24
+      },
+      "contact": {
+        "x": 0.5,
+        "y": 0.9938650306748467
+      },
+      "mode": "approved",
+      "effects": false,
+      "source": "docs/station-remaster/catalog-machinery/proportions-source.png",
+      "sourceSha256": "ef0f23b68abba7f75d50041a18672570fb12cd129e4680a64f284bedae1bfd66",
+      "outputSha256": "118865ad0cadb1bed23bf082691d66c7dfa467e04cbf3d294366084373bfc4d2",
+      "sourceROI": {
+        "left": 0,
+        "top": 30,
+        "width": 391,
+        "height": 380
+      },
+      "sourceCrop": {
+        "left": 20,
+        "top": 66,
+        "width": 368,
+        "height": 326
+      },
+      "actualFit": {
+        "x": -1,
+        "y": -10.771739,
+        "width": 27,
+        "height": 23.918478
+      },
+      "verification": {
+        "transparent": 17876,
+        "retained": 102092,
+        "removedAlpha": 2590,
+        "retainedRGBAMismatches": 0,
+        "allRGBMismatches": 0,
+        "widthFraction": 1,
+        "heightWithinEnvelope": true
+      },
+      "status": "source and game-scale candidate reviewed; not live integrated; image-specific effect regions need remapping"
+    },
+    {
+      "id": "tube",
+      "view": "s",
+      "image": "tube.png",
+      "repoPath": "frontend/assets/industrial/catalog-machinery/tube.png",
+      "sourceWidth": 340,
+      "sourceHeight": 200,
+      "footprint": {
+        "w": 2,
+        "h": 1
+      },
+      "bounds": {
+        "x": -1,
+        "y": -4,
+        "width": 26,
+        "height": 15
+      },
+      "contact": {
+        "x": 0.5,
+        "y": 0.985
+      },
+      "mode": "approved",
+      "effects": false,
+      "source": "docs/station-remaster/catalog-machinery/sheet-source.png",
+      "sourceSha256": "dcec1264ea356e414a9fa7a3ba9d152275c07c14f64c4bc844c1438058ae4ceb",
+      "outputSha256": "7f751d947a3baa6181a07b0176537fa94369282ae5f07262b40ea2cc78ddc843",
+      "sourceROI": {
+        "left": 380,
+        "top": 160,
+        "width": 360,
+        "height": 250
+      },
+      "sourceCrop": {
+        "left": 386,
+        "top": 190,
+        "width": 340,
+        "height": 200
+      },
+      "actualFit": {
+        "x": -0.75,
+        "y": -3.775,
+        "width": 25.5,
+        "height": 15
+      },
+      "verification": {
+        "transparent": 11671,
+        "retained": 56329,
+        "removedAlpha": 1899,
+        "retainedRGBAMismatches": 0,
+        "allRGBMismatches": 0,
+        "widthFraction": 0.980769,
+        "heightWithinEnvelope": true
+      },
+      "status": "source and game-scale candidate reviewed; not live integrated; image-specific effect regions need remapping"
+    },
+    {
+      "id": "fabricator",
+      "view": "s",
+      "image": "fabricator.png",
+      "repoPath": "frontend/assets/industrial/catalog-machinery/fabricator.png",
+      "sourceWidth": 420,
+      "sourceHeight": 274,
+      "footprint": {
+        "w": 3,
+        "h": 2
+      },
+      "bounds": {
+        "x": -3,
+        "y": -4,
+        "width": 44,
+        "height": 28
+      },
+      "contact": {
+        "x": 0.5,
+        "y": 0.9927007299270073
+      },
+      "mode": "approved",
+      "effects": false,
+      "source": "docs/station-remaster/catalog-machinery/proportions-source.png",
+      "sourceSha256": "ef0f23b68abba7f75d50041a18672570fb12cd129e4680a64f284bedae1bfd66",
+      "outputSha256": "616f99a5e027857536e1ca6aa27395c0a269b94fa107e6569e2162f5f09e3a15",
+      "sourceROI": {
+        "left": 695,
+        "top": 90,
+        "width": 435,
+        "height": 335
+      },
+      "sourceCrop": {
+        "left": 701,
+        "top": 127,
+        "width": 420,
+        "height": 274
+      },
+      "actualFit": {
+        "x": -2.459854,
+        "y": -3.79562,
+        "width": 42.919708,
+        "height": 28
+      },
+      "verification": {
+        "transparent": 10720,
+        "retained": 104360,
+        "removedAlpha": 2599,
+        "retainedRGBAMismatches": 0,
+        "allRGBMismatches": 0,
+        "widthFraction": 0.975448,
+        "heightWithinEnvelope": true
+      },
+      "status": "source and game-scale candidate reviewed; not live integrated; image-specific effect regions need remapping"
+    },
+    {
+      "id": "vat",
+      "view": "s",
+      "image": "vat.png",
+      "repoPath": "frontend/assets/industrial/catalog-machinery/vat.png",
+      "sourceWidth": 382,
+      "sourceHeight": 278,
+      "footprint": {
+        "w": 3,
+        "h": 2
+      },
+      "bounds": {
+        "x": 0,
+        "y": -4,
+        "width": 41,
+        "height": 28
+      },
+      "contact": {
+        "x": 0.5,
+        "y": 0.9892086330935251
+      },
+      "mode": "approved",
+      "effects": false,
+      "source": "docs/station-remaster/catalog-machinery/proportions-source.png",
+      "sourceSha256": "ef0f23b68abba7f75d50041a18672570fb12cd129e4680a64f284bedae1bfd66",
+      "outputSha256": "a95026e09d97e9d4524d6eaa27dbad230901370798893c417242dab9e8460095",
+      "sourceROI": {
+        "left": 1135,
+        "top": 90,
+        "width": 401,
+        "height": 340
+      },
+      "sourceCrop": {
+        "left": 1139,
+        "top": 120,
+        "width": 382,
+        "height": 278
+      },
+      "actualFit": {
+        "x": 1.26259,
+        "y": -3.697842,
+        "width": 38.47482,
+        "height": 28
+      },
+      "verification": {
+        "transparent": 8995,
+        "retained": 97201,
+        "removedAlpha": 2087,
+        "retainedRGBAMismatches": 0,
+        "allRGBMismatches": 0,
+        "widthFraction": 0.93841,
+        "heightWithinEnvelope": true
+      },
+      "status": "source and game-scale candidate reviewed; not live integrated; image-specific effect regions need remapping"
+    },
+    {
+      "id": "industrial_servicecab",
+      "view": "s",
+      "image": "industrial_servicecab.png",
+      "repoPath": "frontend/assets/industrial/catalog-machinery/industrial_servicecab.png",
+      "sourceWidth": 166,
+      "sourceHeight": 444,
+      "footprint": {
+        "w": 1,
+        "h": 2
+      },
+      "bounds": {
+        "x": 0,
+        "y": -5,
+        "width": 12,
+        "height": 29
+      },
+      "contact": {
+        "x": 0.5,
+        "y": 0.9932432432432432
+      },
+      "mode": "approved",
+      "effects": false,
+      "source": "docs/station-remaster/catalog-machinery/proportions-source.png",
+      "sourceSha256": "ef0f23b68abba7f75d50041a18672570fb12cd129e4680a64f284bedae1bfd66",
+      "outputSha256": "8675e263c5a76a824376fe16883e96ca0c3ccf221bcb662f539a29d8344b89fb",
+      "sourceROI": {
+        "left": 95,
+        "top": 465,
+        "width": 215,
+        "height": 490
+      },
+      "sourceCrop": {
+        "left": 113,
+        "top": 486,
+        "width": 166,
+        "height": 444
+      },
+      "actualFit": {
+        "x": 0.578829,
+        "y": -4.804054,
+        "width": 10.842342,
+        "height": 29
+      },
+      "verification": {
+        "transparent": 3096,
+        "retained": 70608,
+        "removedAlpha": 1653,
+        "retainedRGBAMismatches": 0,
+        "allRGBMismatches": 0,
+        "widthFraction": 0.903529,
+        "heightWithinEnvelope": true
+      },
+      "status": "source and game-scale candidate reviewed; not live integrated; image-specific effect regions need remapping"
+    },
+    {
+      "id": "cryopod",
+      "view": "s",
+      "image": "cryopod.png",
+      "repoPath": "frontend/assets/industrial/catalog-machinery/cryopod.png",
+      "sourceWidth": 194,
+      "sourceHeight": 456,
+      "footprint": {
+        "w": 1,
+        "h": 2
+      },
+      "bounds": {
+        "x": 0,
+        "y": -6,
+        "width": 12,
+        "height": 30
+      },
+      "contact": {
+        "x": 0.5,
+        "y": 0.993421052631579
+      },
+      "mode": "approved",
+      "effects": false,
+      "source": "docs/station-remaster/catalog-machinery/sheet-source.png",
+      "sourceSha256": "dcec1264ea356e414a9fa7a3ba9d152275c07c14f64c4bc844c1438058ae4ceb",
+      "outputSha256": "7b41eacbe586ed5a80f95c4e0179e1f0bfe6f0898bbdd3e9c51cd3b6ee416d50",
+      "sourceROI": {
+        "left": 440,
+        "top": 450,
+        "width": 240,
+        "height": 510
+      },
+      "sourceCrop": {
+        "left": 462,
+        "top": 474,
+        "width": 194,
+        "height": 456
+      },
+      "actualFit": {
+        "x": 0,
+        "y": -4.020619,
+        "width": 12,
+        "height": 28.206186
+      },
+      "verification": {
+        "transparent": 7695,
+        "retained": 80769,
+        "removedAlpha": 2131,
+        "retainedRGBAMismatches": 0,
+        "allRGBMismatches": 0,
+        "widthFraction": 1,
+        "heightWithinEnvelope": true
+      },
+      "status": "source and game-scale candidate reviewed; not live integrated; image-specific effect regions need remapping"
+    },
+    {
+      "id": "incubator",
+      "view": "s",
+      "image": "incubator.png",
+      "repoPath": "frontend/assets/industrial/catalog-machinery/incubator.png",
+      "sourceWidth": 193,
+      "sourceHeight": 477,
+      "footprint": {
+        "w": 1,
+        "h": 2
+      },
+      "bounds": {
+        "x": -1,
+        "y": -9,
+        "width": 14,
+        "height": 33
+      },
+      "contact": {
+        "x": 0.5,
+        "y": 0.9937106918238994
+      },
+      "mode": "approved",
+      "effects": false,
+      "source": "docs/station-remaster/catalog-machinery/proportions-source.png",
+      "sourceSha256": "ef0f23b68abba7f75d50041a18672570fb12cd129e4680a64f284bedae1bfd66",
+      "outputSha256": "e0c4e43bc7cd6f3acfc34d1e31368680f9145fd7f54675bd45e51e9f8ab185c7",
+      "sourceROI": {
+        "left": 810,
+        "top": 445,
+        "width": 225,
+        "height": 520
+      },
+      "sourceCrop": {
+        "left": 824,
+        "top": 465,
+        "width": 193,
+        "height": 477
+      },
+      "actualFit": {
+        "x": -0.676101,
+        "y": -8.792453,
+        "width": 13.352201,
+        "height": 33
+      },
+      "verification": {
+        "transparent": 13241,
+        "retained": 78820,
+        "removedAlpha": 2839,
+        "retainedRGBAMismatches": 0,
+        "allRGBMismatches": 0,
+        "widthFraction": 0.953729,
+        "heightWithinEnvelope": true
+      },
+      "status": "source and game-scale candidate reviewed; not live integrated; image-specific effect regions need remapping"
+    },
+    {
+      "id": "comms_uplink",
+      "view": "s",
+      "image": "comms_uplink.png",
+      "repoPath": "frontend/assets/industrial/catalog-machinery/comms_uplink.png",
+      "sourceWidth": 244,
+      "sourceHeight": 496,
+      "footprint": {
+        "w": 2,
+        "h": 2
+      },
+      "bounds": {
+        "x": 2,
+        "y": -11,
+        "width": 19,
+        "height": 35
+      },
+      "contact": {
+        "x": 0.5,
+        "y": 0.9939516129032258
+      },
+      "mode": "approved",
+      "effects": false,
+      "source": "docs/station-remaster/catalog-machinery/sheet-source.png",
+      "sourceSha256": "dcec1264ea356e414a9fa7a3ba9d152275c07c14f64c4bc844c1438058ae4ceb",
+      "outputSha256": "778508f399aea60ce5bb5f6a290e64a9d47bf11b6442df95a2006d2a2568fc5e",
+      "sourceROI": {
+        "left": 1160,
+        "top": 425,
+        "width": 310,
+        "height": 540
+      },
+      "sourceCrop": {
+        "left": 1184,
+        "top": 446,
+        "width": 244,
+        "height": 496
+      },
+      "actualFit": {
+        "x": 2.891129,
+        "y": -10.788306,
+        "width": 17.217742,
+        "height": 35
+      },
+      "verification": {
+        "transparent": 47635,
+        "retained": 73389,
+        "removedAlpha": 4722,
+        "retainedRGBAMismatches": 0,
+        "allRGBMismatches": 0,
+        "widthFraction": 0.906197,
+        "heightWithinEnvelope": true
+      },
+      "status": "source and game-scale candidate reviewed; not live integrated; image-specific effect regions need remapping"
+    }
+  ]
+}
