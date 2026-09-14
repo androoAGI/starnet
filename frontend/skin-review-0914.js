@@ -15,10 +15,10 @@ const studies = [
   ['masterchief','masterchief','Master Chief','Worn olive armor over a graphite undersuit, retaining the distinctive gold visor.'],
   ['grimreaper','grimreaper','Grim Reaper','Heavy charcoal robes, aged bone and a weathered steel scythe. More cloth weight, less caricature.'],
   ['crewmate','crewmate','Crewmate','Red pressure fabric and curved cyan glass, with practical limbs and a compact life-support pack.'],
-  ["bear","bear","Teddy Bear","Worn plush, stitched seams and more believable paws beneath the familiar teddy silhouette."],
-  ["pepe","pepe","Pepe","Muted amphibian skin and worn blue knitwear, with a more grounded frog face."],
+  ["bear","bear","Teddy Bear","Honey-brown mohair, a projecting stitched muzzle, bead eyes and rounded stuffed paws."],
+  ["pepe","pepe","Pepe","Classic heavy-lidded Pepe face, broad lips and familiar blue shirt."],
   ["capybara","capybara","Capybara","Coarse brown fur, a blunt muzzle and compact paws that retain the capybara shape."],
-  ["vaultboy","vaultboy","Vault Boy","Blue-and-yellow workwear, swept blond hair and natural human proportions."],
+  ["vaultboy","vaultboy","Fallout 1 Vault Dweller","Rugged brown-haired Vault Dweller, a blue-and-yellow jumpsuit and wrist-mounted Pip-Boy."],
   ["station_minion","station_minion","Station Minion","Graphite and bronze work plating with compact cyan optics and practical joints."],
   ["blank_blue","blank_blue","Blue Cadet","Cobalt ceramic over graphite articulation; a cooler Cadet variant."],
   ["blank_green","blank_green","Green Cadet","Sage ceramic shell with restrained highlights and exposed dark joints."],
@@ -30,18 +30,20 @@ const studies = [
   ["samaltman","samaltman","Sam","A restrained civilian silhouette with realistic cotton folds and casual dark trousers."],
   ["dario","dario","Dario","Layered researcher clothing, natural proportions and understated tailoring."],
   ["freddyfazbear","freddyfazbear","Freddy","Aged plush over articulated animatronic joints, retaining the hat and bow tie."],
-  ["ghostface","ghostface","Ghostface","Weighted black robes around the iconic ivory mask."],
-  ["morpheus","morpheus","Morpheus","A long leather coat, subtle surface highlights and a composed human silhouette."],
+  ["ghostface","ghostface","Ghostface","Elongated scream mask with drooping eyes and open oval mouth, framed by a deep black hood."],
+  ["morpheus","morpheus","Morpheus","Warm brown skin, a bald head, small dark glasses and the long black leather coat."],
   ["ricksanchez","ricksanchez","Rick","Worn lab cotton and spiky pale-blue hair with more natural anatomy."],
   ["ninjaturtle","ninjaturtle","Ninja Turtle","Reptile musculature, layered shell and worn red wraps."],
   ["minionchar","minionchar","Minion","Brushed-metal goggles, stitched denim and plausible compact limbs."],
-  ["pikachu","pikachu","Pikachu","Short golden fur, species-shaped anatomy and the distinctive lightning tail."],
+  ["pikachu","pikachu","Pikachu","Compact rounded body, red cheeks, black-tipped ears and a broad lightning-bolt tail."],
   ["caseyjones","caseyjones","Casey Jones","Scuffed hockey mask, rugged workwear and practical athletic proportions."],
   ["finn","finn","Finn","Stitched white hood, blue cotton and a canvas pack on a more natural frame."]
 ];
+const revisedSkins = new Set(['pepe','vaultboy','bear','ghostface','morpheus','pikachu','xenomorph']);
 const grid = document.getElementById('grid');
 studies.forEach(([id,old,name,note],i) => {
   const card = document.createElement('article');
+  card.dataset.revised = String(revisedSkins.has(id));
   card.dataset.batch = i < 5 ? 'first' : i < 10 ? 'second' : i < 15 ? 'third' : 'new';
   card.innerHTML = `<div class="name"><div class="num">0${i+1}</div><h2>${name}</h2></div><div class="pair"><div class="sprite"><img data-old="${old}" alt="Current ${name}" src="assets/sprites/${old}/rot_south.png"><span class="caption">CURRENT</span></div><div class="sprite"><img data-new="${id}" alt="Proposed ${name}" src="assets/skin-study-0914/${id}/south.png"><span class="caption">PROPOSED</span></div></div><div class="note">${note}</div><div class="scale"><img data-new="${id}" alt="${name} at 48 pixels" src="assets/skin-study-0914/${id}/south.png"><span>48PX CANVAS<br>SIZE STUDY</span></div>`;
   grid.appendChild(card);
@@ -49,13 +51,13 @@ studies.forEach(([id,old,name,note],i) => {
 document.querySelectorAll('.num').forEach((number,i) => {number.textContent=String(i+1).padStart(2,'0');});
 function showBatch(batch) {
   const query=document.getElementById('skin-search').value.trim().toLowerCase();
-  document.querySelectorAll('[data-batch]').forEach(card => {card.hidden=(batch!=='all'&&card.dataset.batch!==batch)||!card.querySelector('h2').textContent.toLowerCase().includes(query);});
+  document.querySelectorAll('[data-batch]').forEach(card => {card.hidden=(batch==='revised'?card.dataset.revised!=='true':batch!=='all'&&card.dataset.batch!==batch)||!card.querySelector('h2').textContent.toLowerCase().includes(query);});
   document.querySelectorAll('[data-show]').forEach(button => button.setAttribute('aria-pressed',String(button.dataset.show===batch)));
   document.getElementById('shown-count').textContent=`${document.querySelectorAll('article:not([hidden])').length} / ${studies.length} skins shown`;
 }
 document.getElementById('skin-search').addEventListener('input',()=>showBatch('all'));
 document.querySelectorAll('[data-show]').forEach(button => button.addEventListener('click',()=>showBatch(button.dataset.show)));
-showBatch('new');
+showBatch('revised');
 // Compare actual silhouettes at equal height; generated files have different padding.
 document.querySelectorAll('img').forEach(im => {
   const frame = document.createElement('span');
