@@ -270,5 +270,46 @@
   {
     "id": "plasmaglobe",
     "seeds": []
+  },
+  {
+    "id": "etsy_dyevat",
+    "seeds": [],
+    "maxChroma": 15
+  },
+  {
+    "id": "etsy_kiln",
+    "seeds": [
+      [
+        1032,
+        900
+      ]
+    ],
+    "maxChroma": 15
+  },
+  {
+    "id": "research_samplecart",
+    "seeds": [
+      [
+        211,
+        149
+      ],
+      [
+        1097,
+        103
+      ],
+      [
+        334,
+        103
+      ],
+      [
+        629,
+        103
+      ],
+      [
+        868,
+        103
+      ]
+    ],
+    "maxChroma": 15
   }
 ]
