@@ -17,7 +17,7 @@ The original texture task owns runtime integration in `industrial-textures-0912`
 - Prefer the wooden batch02 bookshelf over the earlier metal design.
 - Use `crew/pooltable-clean.png` for animated balls and cues. Keep the decorated original as an alternate.
 - Use the revised broad bunk and its documented quilt region for sleeper occlusion. The static empty bed cannot prove occupied behavior.
-- Round table and stool are being regenerated against the owner's measured table envelope and seated-character alignment; collect the corrected crew tip before enabling those views.
+- Round table and stool were regenerated against the owner's measured table envelope and seated-character alignment. Crew commits `df6fc2337` and `27ea5df43` contain the corrected geometry and measured source landmarks. Stool near seat rim maps to world y2.7 (target3), feet11. Round table uniformly fits to width23.36 in its24px envelope; near tabletop rim maps to y4.08 and floor12. The original texture task still owns final live seat/mount confirmation.
 - Mission board, trophy case, inbox, calendar and index labels intentionally carry no invented task or achievement state. Their surfaces are available for real content.
 - Artwork review is available by group, at full detail, over transparency checkerboards, and at four times the proposed world envelope. That scale preview does not simulate the running station.
 
