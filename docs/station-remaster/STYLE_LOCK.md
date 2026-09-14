@@ -2,6 +2,8 @@
 
 ## Canonical visual reference
 
+**Latest owner correction (2026-09-14): the runtime deployment of this sheet was rejected. Only the crate, workstation desk and chair were accepted in-station. The sheet remains a material/style reference, NOT camera, physical-scale or integration approval. Match the accepted three props' horizontal axes, visible top planes and grounded contact. Rebuild incompatible source projections; do not use source aspect ratio to invent world dimensions. This correction supersedes conflicting camera instructions below.**
+
 The owner explicitly approved the complete prop sheet: “that sprite sheet is exactly what I am going for.” This approval applies to its visual style. It does not assert that the individual assets are already cut out, mapped, animated, or integrated.
 
 **Master:** `frontend/assets/industrial/complete-sheet/starnet-props-full-sheet.png`
@@ -18,7 +20,7 @@ The actual approved image is the authority. Earlier photoreal sources, parallel 
 - Broad painted material planes, deep recesses, restrained bevels and controlled edge highlights. Detail supports the main shape instead of covering every surface.
 - Charcoal and desaturated olive structures, selective aged brass accents, and bounded cyan/teal displays. Match the sheet's actual contrast and color relationships.
 - Real material variety: stained wood, colored upholstery, paper, ceramic, rubber, glass and foliage. Do not turn every object into a metal cabinet.
-- Match the camera and proportions of the nearest approved object in the sheet. Do not impose a different perspective because an older prompt specified an angle.
+- Match projection and physical proportions to the accepted in-station crate, workstation and chair. A nearby sheet object is only a material/design reference until it passes the same room check.
 - Props must remain recognizable at their fitted game size. Review broad silhouettes, major value shapes, and material identity beside the actual crew and approved crate/workstation.
 
 Avoid photographic microtexture, realistic fabric weave, dense scratches/rivets, noisy surface treatment, excessive gloss, giant neon bloom, or a new cute/cartoon/voxel treatment. Do not treat “more detail” as an improvement to this approved style.
@@ -26,17 +28,17 @@ Avoid photographic microtexture, realistic fabric weave, dense scratches/rivets,
 ## Production rules
 
 1. Reuse the approved sheet's actual artwork wherever possible. Cutting out a sprite must preserve its interior RGB, silhouette, and proportions. Verify the background and edges rather than assuming an RGBA file has usable transparency.
-2. Any new generation, alternate facing, repaired occlusion layer, or extension must receive this exact sheet as its primary visual input. Also supply the specific matching object when available. Text descriptions alone are insufficient.
+2. New generations must receive the accepted crate, workstation and chair as primary projection references. Use the complete sheet only as secondary material/style guidance when useful; its rejected cameras must not be copied. Supply a native geometry guide or in-station context when available. Text descriptions alone are insufficient.
 3. Generate bitmap prop artwork with the built-in image tool. Do not substitute hand-drawn canvas bodies for these approved raster designs. Animation layers must preserve the same visual treatment and remain bounded to their intended surfaces.
-4. Never overwrite the approved master. Keep variants and their prompts separate. A new output is a candidate until its appearance has been compared against the master at actual display size.
+4. Never overwrite the approved master. Keep variants and their prompts separate. A new output is a candidate until its appearance has been compared against the accepted anchors in the actual room at playable display sizes.
 5. Keep visual approval, export verification, and live integration verification separate. A clean alpha edge does not establish correct floor contact, scale, facing, sitting, interaction, or animation.
 6. Sheet cell dimensions are layout, not authoritative world footprints. Fit each prop to the native placement contract without stretching. Correct an incompatible silhouette deliberately; do not globally enlarge the catalog or silently alter collision/seating.
 7. Preserve real capability and activity signals. Screens and effects must not invent task progress, balances, results, or other backend state.
 
 ## Reusable generation preamble
 
-> Primary visual reference: the owner-approved StarNet full prop sheet supplied with this request. Match that exact painted industrial game-sprite style, camera, silhouette construction, material treatment, palette and density of detail. Use the closest object in the sheet as the local design reference. Preserve its broad readable forms at the specified final game dimensions. Make only the requested new object, facing, or change. Do not reinterpret it as a photographic product render or introduce a different art style. Return production raster artwork with clean transparency; preserve the established world placement and functional surfaces.
+> Projection references: the accepted in-station crate, workstation and chair. Material/design reference: the StarNet full prop sheet. Preserve its painted industrial palette and readable detail, while matching the accepted anchors' floor axes, visible top planes, physical scale and contact. Use the supplied native geometry guide to preserve the footprint and facing. Make only the requested object or correction. Do not reinterpret it as a photographic product render. Return raster artwork with clean transparency. The output still requires visual review in its real station placement.
 
 ## Next production stages
 
-Separate and map the sheet into individual assets; verify every cell's identity rather than assuming perfect generation order. Create missing facings and any necessary moving/occluding layers from the approved artwork. Then integrate and inspect scale, floor contact, interactions and animation in the running station. Extend walls, floors, doors and fixtures using the same master only after the prop treatment is preserved.
+The extracted catalog exists but was rejected in-station. Rebuild mismatched projections, inspect each affected room against the three accepted anchors, and re-author functional/animation surfaces when the source changes. Do not use export coverage or green loading checks as a completion claim. The opt-in projection-correction set starts with eight lounge props; the remaining catalog still requires review.

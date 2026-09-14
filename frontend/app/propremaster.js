@@ -18,9 +18,9 @@
 'use strict';
 const PropRemaster = (() => {
   // The casing-only drafts remain accessible explicitly, never the default set.
-  let draftReview=false;
-  try{draftReview=new URLSearchParams(location.search).get('propReview')==='skins';}catch(_){}
-  const ROOT = 'assets/industrial/'+(draftReview?'props-v2/':'approved-sheet/'), DENSITY = 4, entries = new Map(), failures = [];
+  let draftReview=false,projectionReview=false;
+  try{const query=new URLSearchParams(location.search);draftReview=query.get('propReview')==='skins';projectionReview=query.get('propSet')==='projection';}catch(_){}
+  const ROOT = 'assets/industrial/'+(draftReview?'props-v2/':projectionReview?'projection-correction/':'approved-sheet/'), DENSITY = 4, entries = new Map(), failures = [];
   let revision = 0, pixelBudget = 0;
   const MAX_PIXELS = 12 * 1024 * 1024;
   const finite = n => typeof n === 'number' && Number.isFinite(n);
@@ -39,6 +39,7 @@ const PropRemaster = (() => {
         !['static','native','screen','water','scanner','steam','pulse','pool','content','machine','service','approved'].includes(v.mode)) return false;
     if(v.screenPower!=null&&!['occupied','ambient','bound','connected'].includes(v.screenPower))return false;
     if(v.activity!=null&&!['ambient','work','fired'].includes(v.activity))return false;
+    if(v.contact!=null&&(!v.contact||![v.contact.x,v.contact.y].every(n=>finite(n)&&n>=0&&n<=1)))return false;
     if (v.exposure != null && (!finite(v.exposure) || v.exposure < .25 || v.exposure > 3)) return false;
     if (v.nativeBounds != null && !rectOK(v.nativeBounds)) return false;
     if (v.nativeMask != null && !fileOK(v.nativeMask)) return false;
@@ -67,9 +68,9 @@ const PropRemaster = (() => {
       im.onload=()=>resolve(im); im.onerror=()=>reject(Error('asset unavailable: '+file)); im.src=ROOT+file;
     });
   }
-  function fit(bounds, crop) {
+  function fit(bounds, crop, contact, sourceHeight) {
     const s=Math.min(bounds.width/crop.width,bounds.height/crop.height);
-    return {x:bounds.x+(bounds.width-crop.width*s)/2,y:bounds.y+bounds.height-crop.height*s,
+    return {x:bounds.x+(bounds.width-crop.width*s)/2,y:bounds.y+bounds.height-(contact?(contact.y*sourceHeight-(crop.y||0)):crop.height)*s,
       width:crop.width*s,height:crop.height*s};
   }
   async function prepare(key,v) {
@@ -99,7 +100,7 @@ const PropRemaster = (() => {
         l=Math.min(l,x);t=Math.min(t,y);r=Math.max(r,x);b=Math.max(b,y);
       }
       if(r<l)throw Error('empty source');
-      const crop={x:l,y:t,width:r-l+1,height:b-t+1},box=fit(v.bounds,crop);
+      const crop={x:l,y:t,width:r-l+1,height:b-t+1},box=fit(v.bounds,crop,v.contact,v.sourceHeight);
       // Isolate the measured alpha rectangle before scaling. Sampling outside a
       // drawImage source crop can pull transparent padding into its edge pixels.
       const cropped=canvas(crop.width,crop.height),cg=cropped.getContext('2d');
@@ -114,6 +115,7 @@ const PropRemaster = (() => {
       const frame={...v.bounds},regions=v.nativeLayers||[],nb=v.nativeBounds||v.bounds;
       const include=(x,y)=>{const right=Math.max(frame.x+frame.width,x),bottom=Math.max(frame.y+frame.height,y);
         frame.x=Math.min(frame.x,x);frame.y=Math.min(frame.y,y);frame.width=right-frame.x;frame.height=bottom-frame.y;};
+      if(v.contact){include(box.x,box.y);include(box.x+box.width,box.y+box.height);}
       if(v.mode==='native'){
         for(const region of regions)for(const p of region.polygon)include(p[0],p[1]);
         if(v.nativeMask){include(nb.x,nb.y);include(nb.x+nb.width,nb.y+nb.height);}
@@ -143,7 +145,7 @@ const PropRemaster = (() => {
       // and mask decode, so enforce the shared bound again at the commit point.
       if(pixelBudget+cost>MAX_PIXELS)throw Error('decoded prop budget exceeded');
       const screen=v.mode==='screen'||v.screenPower?authoredScreen(body,v.screenRegions,box,frame):null;
-      const approved= v.mode==='approved'&&typeof ApprovedSheetEffects!=='undefined'&&ApprovedSheetEffects.ids.includes(id)
+      const approved= v.mode==='approved'&&v.effects!==false&&typeof ApprovedSheetEffects!=='undefined'&&ApprovedSheetEffects.ids.includes(id)
         ?ApprovedSheetEffects.prepare(id,im,{sourceWidth:v.sourceWidth,sourceHeight:v.sourceHeight,crop}):null;
       const indicators=v.activity?authoredIndicators(body):null;
       const motion=['water','scanner','steam','pulse','pool'].includes(v.mode)?authoredMotion(body,v,box,frame):null;

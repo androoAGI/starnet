@@ -86,8 +86,10 @@ const AuthoredSurfaceMounts = (() => {
     function actualContact(child) {
       const g=geometry(child);
       if(!g)return {x:child.w*TILE/2,y:child.h*TILE,authored:false};
-      const x=g.box.x+g.box.width/2;
-      return {x:g.mirror?child.w*TILE-x:x,y:g.box.y+g.box.height,authored:true};
+      const c=g.spec.contact;
+      const x=c?g.box.x+(c.x*g.spec.sourceWidth-g.crop.x)/g.crop.width*g.box.width:g.box.x+g.box.width/2;
+      const y=c?g.box.y+(c.y*g.spec.sourceHeight-g.crop.y)/g.crop.height*g.box.height:g.box.y+g.box.height;
+      return {x:g.mirror?child.w*TILE-x:x,y,authored:true};
     }
     function placementFor(prop) {
       const fallback=reason=>({lift:LEGACY_LIFT,authored:false,reason,hostId:null});

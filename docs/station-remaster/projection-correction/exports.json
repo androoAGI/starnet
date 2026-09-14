@@ -1,0 +1,205 @@
+{
+  "version": 1,
+  "records": [
+    {
+      "id": "quarters_pooltable",
+      "source": "frontend/assets/industrial/projection-correction/lounge-source.png",
+      "sourceSha256": "95880ed5840cd2604fbb315e96552eaaf294f2d19de41a01d9912261612bd1b6",
+      "output": "frontend/assets/industrial/projection-correction/quarters_pooltable.png",
+      "outputSha256": "6fca3b889d28186dc4cc20bd7634628d3fa06cb4bfb1db226f5d68f8adab872d",
+      "sourceCrop": {
+        "left": 488,
+        "top": 207,
+        "width": 348,
+        "height": 239
+      },
+      "retained": 73616,
+      "contact": {
+        "x": 0.5,
+        "y": 0.9916317991631799
+      },
+      "bounds": {
+        "x": -1,
+        "y": -11,
+        "width": 50,
+        "height": 35
+      },
+      "status": "projection candidate; requires in-station visual review"
+    },
+    {
+      "id": "tv",
+      "source": "frontend/assets/industrial/projection-correction/lounge-source.png",
+      "sourceSha256": "95880ed5840cd2604fbb315e96552eaaf294f2d19de41a01d9912261612bd1b6",
+      "output": "frontend/assets/industrial/projection-correction/tv.png",
+      "outputSha256": "6e3e8c7a1b30b32df65141c957373e477b323c575202b4c0598443b47eb3d36c",
+      "sourceCrop": {
+        "left": 897,
+        "top": 222,
+        "width": 287,
+        "height": 216
+      },
+      "retained": 54790,
+      "contact": {
+        "x": 0.5,
+        "y": 0.9907407407407407
+      },
+      "bounds": {
+        "x": -1,
+        "y": -12,
+        "width": 38,
+        "height": 24
+      },
+      "status": "projection candidate; requires in-station visual review"
+    },
+    {
+      "id": "arcade",
+      "source": "frontend/assets/industrial/projection-correction/lounge-source.png",
+      "sourceSha256": "95880ed5840cd2604fbb315e96552eaaf294f2d19de41a01d9912261612bd1b6",
+      "output": "frontend/assets/industrial/projection-correction/arcade.png",
+      "outputSha256": "079391010c468d92355bfa220fbb59e9f12f5097a9ee22137f5b442ce84fff01",
+      "sourceCrop": {
+        "left": 155,
+        "top": 552,
+        "width": 143,
+        "height": 326
+      },
+      "retained": 43273,
+      "contact": {
+        "x": 0.5,
+        "y": 0.99079754601227
+      },
+      "bounds": {
+        "x": -1,
+        "y": -2,
+        "width": 14,
+        "height": 26
+      },
+      "status": "projection candidate; requires in-station visual review"
+    },
+    {
+      "id": "arcade2",
+      "source": "frontend/assets/industrial/projection-correction/lounge-source.png",
+      "sourceSha256": "95880ed5840cd2604fbb315e96552eaaf294f2d19de41a01d9912261612bd1b6",
+      "output": "frontend/assets/industrial/projection-correction/arcade2.png",
+      "outputSha256": "1cb70eed38b09b9dd7364e83230ce40084547f3dda1f53a7eecba95c27d11449",
+      "sourceCrop": {
+        "left": 507,
+        "top": 552,
+        "width": 143,
+        "height": 326
+      },
+      "retained": 43251,
+      "contact": {
+        "x": 0.5,
+        "y": 0.99079754601227
+      },
+      "bounds": {
+        "x": -1,
+        "y": -3,
+        "width": 14,
+        "height": 27
+      },
+      "status": "projection candidate; requires in-station visual review"
+    },
+    {
+      "id": "recliner_r",
+      "source": "frontend/assets/industrial/projection-correction/lounge-source.png",
+      "sourceSha256": "95880ed5840cd2604fbb315e96552eaaf294f2d19de41a01d9912261612bd1b6",
+      "output": "frontend/assets/industrial/projection-correction/recliner_r.png",
+      "outputSha256": "fd08e3155b6958eddf2279ec6d2abcf5903f69ec7237a805e742019c7c7f73f5",
+      "sourceCrop": {
+        "left": 840,
+        "top": 608,
+        "width": 232,
+        "height": 259
+      },
+      "retained": 48111,
+      "contact": {
+        "x": 0.5,
+        "y": 0.9884169884169884
+      },
+      "bounds": {
+        "x": -2,
+        "y": -7,
+        "width": 17,
+        "height": 19
+      },
+      "status": "projection candidate; requires in-station visual review"
+    },
+    {
+      "id": "recliner",
+      "source": "frontend/assets/industrial/projection-correction/lounge-source.png",
+      "sourceSha256": "95880ed5840cd2604fbb315e96552eaaf294f2d19de41a01d9912261612bd1b6",
+      "output": "frontend/assets/industrial/projection-correction/recliner.png",
+      "outputSha256": "0f7e7d44ff021cb05b59f9079ffdc0b2fb0adc150c3e93a8c739101b5fcf24d1",
+      "sourceCrop": {
+        "left": 1214,
+        "top": 609,
+        "width": 232,
+        "height": 258
+      },
+      "retained": 48178,
+      "contact": {
+        "x": 0.5,
+        "y": 0.9883720930232558
+      },
+      "bounds": {
+        "x": -3,
+        "y": -7,
+        "width": 17,
+        "height": 19
+      },
+      "status": "projection candidate; requires in-station visual review"
+    },
+    {
+      "id": "couch",
+      "source": "frontend/assets/industrial/projection-correction/couch-north-source.png",
+      "sourceSha256": "c1efc1aa3c46ecdebc5e7e336e668e4c92cb57b92aea67b1c036dfe22e98ed4d",
+      "output": "frontend/assets/industrial/projection-correction/couch.png",
+      "outputSha256": "908584d564e43dc6713c7af2c7797005cfd4c93956f9e251bfc243bc7860cdcf",
+      "sourceCrop": {
+        "left": 60,
+        "top": 107,
+        "width": 2085,
+        "height": 525
+      },
+      "retained": 974405,
+      "contact": {
+        "x": 0.5,
+        "y": 0.9942857142857143
+      },
+      "bounds": {
+        "x": -1,
+        "y": -10,
+        "width": 62,
+        "height": 22
+      },
+      "status": "projection candidate; requires in-station visual review"
+    },
+    {
+      "id": "fishtank",
+      "source": "frontend/assets/industrial/projection-correction/fishtank-balanced-source.png",
+      "sourceSha256": "891ef0f090776d604d40d052c61544b28571a4a5ae4b41e2b76bff446edb47ac",
+      "output": "frontend/assets/industrial/projection-correction/fishtank.png",
+      "outputSha256": "550a15003676c436487146c89f2e982286dc91a573249625f0dc6190d39ab686",
+      "sourceCrop": {
+        "left": 210,
+        "top": 168,
+        "width": 1065,
+        "height": 809
+      },
+      "retained": 814433,
+      "contact": {
+        "x": 0.5,
+        "y": 0.9962917181705809
+      },
+      "bounds": {
+        "x": -1,
+        "y": -12,
+        "width": 26,
+        "height": 24
+      },
+      "status": "projection candidate; requires in-station visual review"
+    }
+  ]
+}

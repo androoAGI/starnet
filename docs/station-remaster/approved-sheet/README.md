@@ -1,5 +1,7 @@
 # Approved sheet production pass
 
+**Superseded by owner visual rejection on 2026-09-14.** The deployment below passed mechanical rendering checks but failed in-station orientation, proportions and convincing physical integration. Only crate, workstation desk and chair were accepted. Do not treat this historical delivery record as current visual approval. Corrective work is tracked in `../projection-correction/`.
+
 The owner's approved 160-cell master remains unchanged at `frontend/assets/industrial/complete-sheet/starnet-props-full-sheet.png` (SHA256 `e68ef0d3711e9164a3aff5333b98522ed6fdcb4bc7654929e333cb2ff2b97ea9`). This set now supplies the default local station renderer.
 
 ## Delivered
