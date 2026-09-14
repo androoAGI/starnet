@@ -2,7 +2,7 @@
 
 Final PNGs are in `frontend/assets/industrial/batch02/coordinator/`. Each original source is retained here with its exact built-in image-generation prompt. Workstation and bridge images were supplied for camera/detail only, explicitly excluding universal metal armor. The wooden index cabinet, ceramic-enamel whiteboard, oak/cork/paper chart board, sage-painted calendar, felt/cork missionboard, cherry/glass/velvet case, petrol-enamel microfiche reader, and orange-painted wooden inbox use distinct purposeful materials.
 
-`export-checks.json` records alpha counts, source/output hashes, zero RGB changes, and exact source crop. Export uses the user-authorized existing connected light-neutral background rule. Sources remain unmodified. New image files are not runtime entries or accepted live props by themselves.
+`frontend/assets/industrial/batch02/coordinator/export-checks.json` records alpha counts, source/output hashes, zero RGB changes, and exact source crop. Export uses the user-authorized existing connected light-neutral background rule. Sources remain unmodified. New image files are not runtime entries or accepted live props by themselves.
 
 ## Runtime integration notes
 
