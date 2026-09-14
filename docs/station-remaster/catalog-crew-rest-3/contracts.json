@@ -1,0 +1,149 @@
+{
+  "version": 1,
+  "cells": [
+    {
+      "id": "bookstack",
+      "view": "s",
+      "bounds": {
+        "x": 0,
+        "y": 0,
+        "width": 12,
+        "height": 10
+      },
+      "footprint": {
+        "w": 1,
+        "h": 1
+      },
+      "nativeGuide": {
+        "path": "C:\\Users\\andro\\gen-trees\\industrial-textures-0912\\dev\\.scratch-workspace\\prop-structure\\bookstack.png",
+        "sha256": "2d7278c034be7a2ee9b8e1782fa0ff3f6fd74d3d01dac2ab16e9be8bf308c8e2"
+      }
+    },
+    {
+      "id": "desklamp",
+      "view": "s",
+      "bounds": {
+        "x": 0,
+        "y": 3,
+        "width": 12,
+        "height": 9
+      },
+      "footprint": {
+        "w": 1,
+        "h": 1
+      },
+      "nativeGuide": {
+        "path": "C:\\Users\\andro\\gen-trees\\industrial-textures-0912\\dev\\.scratch-workspace\\prop-structure\\desklamp.png",
+        "sha256": "4aad738d967e1dde1ea0a06a1e4dec19356a0d3efe868f3365ba325b2624988f"
+      }
+    },
+    {
+      "id": "figurine",
+      "view": "s",
+      "bounds": {
+        "x": 1,
+        "y": 1,
+        "width": 10,
+        "height": 11
+      },
+      "footprint": {
+        "w": 1,
+        "h": 1
+      },
+      "nativeGuide": {
+        "path": "C:\\Users\\andro\\gen-trees\\industrial-textures-0912\\dev\\.scratch-workspace\\prop-structure\\figurine.png",
+        "sha256": "114f60ba3462d93b0f80ec7dfcc0ffa941a512dc13add829e4cffff5abb676f2"
+      }
+    },
+    {
+      "id": "modelship",
+      "view": "s",
+      "bounds": {
+        "x": 2,
+        "y": 1,
+        "width": 20,
+        "height": 11
+      },
+      "footprint": {
+        "w": 2,
+        "h": 1
+      },
+      "nativeGuide": {
+        "path": "C:\\Users\\andro\\gen-trees\\industrial-textures-0912\\dev\\.scratch-workspace\\prop-structure\\modelship.png",
+        "sha256": "9bfb45c5224a03098f5c8dcfca8f7fafa30b214da71d97d9ad24ab0c27acb6fc"
+      }
+    },
+    {
+      "id": "mug",
+      "view": "s",
+      "bounds": {
+        "x": 1,
+        "y": 2,
+        "width": 10,
+        "height": 9
+      },
+      "footprint": {
+        "w": 1,
+        "h": 1
+      },
+      "nativeGuide": {
+        "path": "C:\\Users\\andro\\gen-trees\\industrial-textures-0912\\dev\\.scratch-workspace\\prop-structure\\mug.png",
+        "sha256": "6a3a4dc992af5b94d93de94f7cbf5f38438662c85687ef6e86e2f1e6e8868462"
+      }
+    },
+    {
+      "id": "radio",
+      "view": "s",
+      "bounds": {
+        "x": 1,
+        "y": 3,
+        "width": 10,
+        "height": 9
+      },
+      "footprint": {
+        "w": 1,
+        "h": 1
+      },
+      "nativeGuide": {
+        "path": "C:\\Users\\andro\\gen-trees\\industrial-textures-0912\\dev\\.scratch-workspace\\prop-structure\\radio.png",
+        "sha256": "092fb29045c15e08d770de07b543df7f5ba25213924c0e9222b877d13b2be8f4"
+      }
+    },
+    {
+      "id": "guitar",
+      "view": "s",
+      "bounds": {
+        "x": -1,
+        "y": -15,
+        "width": 14,
+        "height": 27
+      },
+      "footprint": {
+        "w": 1,
+        "h": 1
+      },
+      "nativeGuide": {
+        "path": "C:\\Users\\andro\\gen-trees\\industrial-textures-0912\\dev\\.scratch-workspace\\prop-structure\\guitar.png",
+        "sha256": "38281c07f659d6023f22d698cda01ed17a116dcebad72df6f17743f77e6433a5"
+      }
+    },
+    {
+      "id": "easel",
+      "view": "s",
+      "bounds": {
+        "x": 1,
+        "y": -14,
+        "width": 34,
+        "height": 38
+      },
+      "footprint": {
+        "w": 3,
+        "h": 2
+      },
+      "nativeGuide": {
+        "path": "C:\\Users\\andro\\gen-trees\\industrial-textures-0912\\dev\\.scratch-workspace\\prop-structure\\easel.png",
+        "sha256": "660da634eaa4f22f506d2c8ff5943c6bd09f952c49e17c8b3254b8325f88822c"
+      }
+    }
+  ]
+}
