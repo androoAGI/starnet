@@ -40,21 +40,21 @@
   },
   "anchorContract": "planBedSleep: separate mattress claim and lying pose; frame/pillow below body, quilt above.",
   "holeSeeds": [],
-  "sourceWidth": 1204,
-  "sourceHeight": 1306,
-  "sourceSha256": "65ebe7c6095a7e17149584d2cf242439da5948e2e8032d7bd93fbf04626210b6",
+  "sourceWidth": 1203,
+  "sourceHeight": 1307,
+  "sourceSha256": "fd9730b6977027f65ad9900f54f6a86197848e8d4d2cd6dd689ab42453654015",
   "output": "frontend/assets/industrial/batch02/crew/bunk.png",
   "crop": {
-    "left": 41,
-    "top": 80,
-    "width": 1120,
-    "height": 1133
+    "left": 261,
+    "top": 54,
+    "width": 682,
+    "height": 1192
   },
-  "transparentPixels": 193665,
-  "opaquePixels": 1075295,
+  "transparentPixels": 92930,
+  "opaquePixels": 720014,
   "partialPixels": 0,
-  "backgroundPixelsRemoved": 497129,
+  "backgroundPixelsRemoved": 852307,
   "subjectRgbChanges": 0,
-  "outputSha256": "c0b32cd1695360a7bc1aacdc596a055fa7b5fa408aedb29785099ad2e6ae26d9",
+  "outputSha256": "a0c1361634be04f7b2a2736246f6723201524d87654e7b4f05f9a9503270a57c",
   "liveIntegrated": false
 }
