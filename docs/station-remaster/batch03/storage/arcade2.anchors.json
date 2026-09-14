@@ -1,0 +1,340 @@
+{
+  "id": "arcade2",
+  "measurement": "Conservative manually inspected source regions, normalized to full source and cropped final; world conversion uses uniform bottom-centered fit. Owner must verify live.",
+  "sourceDimensions": {
+    "width": 904,
+    "height": 1740
+  },
+  "crop": {
+    "left": 68,
+    "top": 87,
+    "width": 766,
+    "height": 1543
+  },
+  "footprint": {
+    "w": 1,
+    "h": 2
+  },
+  "worldEnvelope": {
+    "x": -1,
+    "y": -2,
+    "width": 14,
+    "height": 27
+  },
+  "uniformScale": 0.017498379779650033,
+  "contact": {
+    "x": 6,
+    "y": 25
+  },
+  "supportedViews": {
+    "facings": [
+      {
+        "r": 0,
+        "front": "south",
+        "w": 1,
+        "h": 2,
+        "type": "authored-view"
+      }
+    ],
+    "canMirror": true,
+    "classicFacings": [
+      0
+    ]
+  },
+  "geometry": {
+    "blocks": true,
+    "flat": false,
+    "tableSurface": false,
+    "requiredMount": null,
+    "optionalSurfaceMount": false,
+    "surfaceRisePixels": 8
+  },
+  "leisureUse": {
+    "kind": "arcade",
+    "sit": false,
+    "approach": "south"
+  },
+  "originalAnimationTriggers": [
+    "Actual leisure usingProp / watchProp can set work on this prop; body approach and use animation follow leisureUse. In the baseline draw work expression this leisure trigger directly checks the hero, not a separate crew leisure flag."
+  ],
+  "integrationNote": "Blank game screen and parked trackballs; preserve leisure-driven gameplay.",
+  "regions": {
+    "screen": {
+      "sourcePixels": [
+        [
+          292,
+          450
+        ],
+        [
+          616,
+          450
+        ],
+        [
+          616,
+          695
+        ],
+        [
+          292,
+          695
+        ]
+      ],
+      "exportPixels": [
+        [
+          224,
+          363
+        ],
+        [
+          548,
+          363
+        ],
+        [
+          548,
+          608
+        ],
+        [
+          224,
+          608
+        ]
+      ],
+      "worldPixels": [
+        [
+          3.217758,
+          4.351912
+        ],
+        [
+          8.887233,
+          4.351912
+        ],
+        [
+          8.887233,
+          8.639015
+        ],
+        [
+          3.217758,
+          8.639015
+        ]
+      ],
+      "sourceNormalized": [
+        [
+          0.323009,
+          0.258621
+        ],
+        [
+          0.681416,
+          0.258621
+        ],
+        [
+          0.681416,
+          0.399425
+        ],
+        [
+          0.323009,
+          0.399425
+        ]
+      ],
+      "exportNormalized": [
+        [
+          0.292428,
+          0.235256
+        ],
+        [
+          0.715405,
+          0.235256
+        ],
+        [
+          0.715405,
+          0.394038
+        ],
+        [
+          0.292428,
+          0.394038
+        ]
+      ]
+    },
+    "leftTrackball": {
+      "sourcePixels": [
+        [
+          230,
+          817
+        ],
+        [
+          309,
+          817
+        ],
+        [
+          309,
+          885
+        ],
+        [
+          230,
+          885
+        ]
+      ],
+      "exportPixels": [
+        [
+          162,
+          730
+        ],
+        [
+          241,
+          730
+        ],
+        [
+          241,
+          798
+        ],
+        [
+          162,
+          798
+        ]
+      ],
+      "worldPixels": [
+        [
+          2.132858,
+          10.773817
+        ],
+        [
+          3.51523,
+          10.773817
+        ],
+        [
+          3.51523,
+          11.963707
+        ],
+        [
+          2.132858,
+          11.963707
+        ]
+      ],
+      "sourceNormalized": [
+        [
+          0.254425,
+          0.46954
+        ],
+        [
+          0.341814,
+          0.46954
+        ],
+        [
+          0.341814,
+          0.508621
+        ],
+        [
+          0.254425,
+          0.508621
+        ]
+      ],
+      "exportNormalized": [
+        [
+          0.211488,
+          0.473104
+        ],
+        [
+          0.314621,
+          0.473104
+        ],
+        [
+          0.314621,
+          0.517174
+        ],
+        [
+          0.211488,
+          0.517174
+        ]
+      ]
+    },
+    "rightTrackball": {
+      "sourcePixels": [
+        [
+          519,
+          817
+        ],
+        [
+          595,
+          817
+        ],
+        [
+          595,
+          885
+        ],
+        [
+          519,
+          885
+        ]
+      ],
+      "exportPixels": [
+        [
+          451,
+          730
+        ],
+        [
+          527,
+          730
+        ],
+        [
+          527,
+          798
+        ],
+        [
+          451,
+          798
+        ]
+      ],
+      "worldPixels": [
+        [
+          7.18989,
+          10.773817
+        ],
+        [
+          8.519767,
+          10.773817
+        ],
+        [
+          8.519767,
+          11.963707
+        ],
+        [
+          7.18989,
+          11.963707
+        ]
+      ],
+      "sourceNormalized": [
+        [
+          0.574115,
+          0.46954
+        ],
+        [
+          0.658186,
+          0.46954
+        ],
+        [
+          0.658186,
+          0.508621
+        ],
+        [
+          0.574115,
+          0.508621
+        ]
+      ],
+      "exportNormalized": [
+        [
+          0.588773,
+          0.473104
+        ],
+        [
+          0.68799,
+          0.473104
+        ],
+        [
+          0.68799,
+          0.517174
+        ],
+        [
+          0.588773,
+          0.517174
+        ]
+      ]
+    }
+  },
+  "liveIntegrated": false
+}

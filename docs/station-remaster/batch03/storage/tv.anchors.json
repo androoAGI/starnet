@@ -1,0 +1,157 @@
+{
+  "id": "tv",
+  "measurement": "Conservative manually inspected source regions, normalized to full source and cropped final; world conversion uses uniform bottom-centered fit. Owner must verify live.",
+  "sourceDimensions": {
+    "width": 1536,
+    "height": 1024
+  },
+  "crop": {
+    "left": 32,
+    "top": 110,
+    "width": 1467,
+    "height": 767
+  },
+  "footprint": {
+    "w": 3,
+    "h": 1
+  },
+  "worldEnvelope": {
+    "x": -1,
+    "y": -12,
+    "width": 38,
+    "height": 24
+  },
+  "uniformScale": 0.025903203817314247,
+  "contact": {
+    "x": 18,
+    "y": 12
+  },
+  "supportedViews": {
+    "facings": [
+      {
+        "r": 0,
+        "front": "south",
+        "w": 3,
+        "h": 1,
+        "type": "authored-view"
+      }
+    ],
+    "canMirror": true,
+    "classicFacings": [
+      0
+    ]
+  },
+  "geometry": {
+    "blocks": true,
+    "flat": false,
+    "tableSurface": false,
+    "requiredMount": null,
+    "optionalSurfaceMount": false,
+    "surfaceRisePixels": 8
+  },
+  "leisureUse": {
+    "kind": "tv",
+    "sit": false,
+    "approach": "south"
+  },
+  "originalAnimationTriggers": [
+    "Actual leisure usingProp / watchProp can set work on this prop; body approach and use animation follow leisureUse. In the baseline draw work expression this leisure trigger directly checks the hero, not a separate crew leisure flag.",
+    "Autonomous sprite clock animation is present in the sampled default state; cosmetic motion is not evidence of provider work, route decisions or external state."
+  ],
+  "integrationNote": "Blank screen for cosmetic channel graphics. Preserve leisure watch trigger and screen light.",
+  "regions": {
+    "screen": {
+      "sourcePixels": [
+        [
+          241,
+          326
+        ],
+        [
+          1292,
+          326
+        ],
+        [
+          1292,
+          653
+        ],
+        [
+          241,
+          653
+        ]
+      ],
+      "exportPixels": [
+        [
+          209,
+          216
+        ],
+        [
+          1260,
+          216
+        ],
+        [
+          1260,
+          543
+        ],
+        [
+          209,
+          543
+        ]
+      ],
+      "worldPixels": [
+        [
+          4.41377,
+          -2.272665
+        ],
+        [
+          31.638037,
+          -2.272665
+        ],
+        [
+          31.638037,
+          6.197682
+        ],
+        [
+          4.41377,
+          6.197682
+        ]
+      ],
+      "sourceNormalized": [
+        [
+          0.156901,
+          0.318359
+        ],
+        [
+          0.841146,
+          0.318359
+        ],
+        [
+          0.841146,
+          0.637695
+        ],
+        [
+          0.156901,
+          0.637695
+        ]
+      ],
+      "exportNormalized": [
+        [
+          0.142468,
+          0.281617
+        ],
+        [
+          0.858896,
+          0.281617
+        ],
+        [
+          0.858896,
+          0.707953
+        ],
+        [
+          0.142468,
+          0.707953
+        ]
+      ]
+    }
+  },
+  "liveIntegrated": false
+}
