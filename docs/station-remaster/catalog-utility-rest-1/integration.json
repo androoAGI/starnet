@@ -1,0 +1,437 @@
+{
+  "version": 1,
+  "records": [
+    {
+      "id": "bay",
+      "view": "s",
+      "image": "bay.png",
+      "repoPath": "frontend/assets/industrial/catalog-utility-rest-1/bay.png",
+      "sourceWidth": 418,
+      "sourceHeight": 396,
+      "footprint": {
+        "w": 2,
+        "h": 2
+      },
+      "bounds": {
+        "x": -1,
+        "y": -7,
+        "width": 30,
+        "height": 31
+      },
+      "contact": {
+        "x": 0.5,
+        "y": 0.9949494949494949
+      },
+      "mode": "approved",
+      "effects": false,
+      "source": "docs/station-remaster/catalog-utility-rest-1/sheet-source.png",
+      "sourceSha256": "ce4467db6376181844df51da331b12f070401a2f839f2c78de0dc7c46001b997",
+      "outputSha256": "63cd9be55cc570eac539aab9b86ec0f583e4b571858ebefbdc6f05e66a84dd72",
+      "sourceROI": {
+        "left": 10,
+        "top": 35,
+        "width": 465,
+        "height": 450
+      },
+      "sourceCrop": {
+        "left": 36,
+        "top": 70,
+        "width": 418,
+        "height": 396
+      },
+      "actualFit": {
+        "x": -1,
+        "y": -4.277512,
+        "width": 30,
+        "height": 28.421053
+      },
+      "verification": {
+        "transparent": 22835,
+        "retained": 142693,
+        "removedAlpha": 2377,
+        "retainedRGBAMismatches": 0,
+        "allRGBMismatches": 0,
+        "widthFraction": 1
+      },
+      "status": "source and game-scale candidate reviewed; not live integrated; image-specific effect regions need remapping"
+    },
+    {
+      "id": "filter",
+      "view": "s",
+      "image": "filter.png",
+      "repoPath": "frontend/assets/industrial/catalog-utility-rest-1/filter.png",
+      "sourceWidth": 294,
+      "sourceHeight": 331,
+      "footprint": {
+        "w": 1,
+        "h": 1
+      },
+      "bounds": {
+        "x": -1,
+        "y": -8,
+        "width": 14,
+        "height": 19
+      },
+      "contact": {
+        "x": 0.5,
+        "y": 0.9909365558912386
+      },
+      "mode": "approved",
+      "effects": false,
+      "source": "docs/station-remaster/catalog-utility-rest-1/sheet-source.png",
+      "sourceSha256": "ce4467db6376181844df51da331b12f070401a2f839f2c78de0dc7c46001b997",
+      "outputSha256": "c54c6511f6720215f2e9980ede80d929c4f93d39d1d282da7f75b4c31126fd3e",
+      "sourceROI": {
+        "left": 480,
+        "top": 90,
+        "width": 315,
+        "height": 385
+      },
+      "sourceCrop": {
+        "left": 486,
+        "top": 123,
+        "width": 294,
+        "height": 331
+      },
+      "actualFit": {
+        "x": -1,
+        "y": -4.619048,
+        "width": 14,
+        "height": 15.761905
+      },
+      "verification": {
+        "transparent": 30777,
+        "retained": 66537,
+        "removedAlpha": 1929,
+        "retainedRGBAMismatches": 0,
+        "allRGBMismatches": 0,
+        "widthFraction": 1
+      },
+      "status": "source and game-scale candidate reviewed; not live integrated; image-specific effect regions need remapping"
+    },
+    {
+      "id": "joiner",
+      "view": "s",
+      "image": "joiner.png",
+      "repoPath": "frontend/assets/industrial/catalog-utility-rest-1/joiner.png",
+      "sourceWidth": 354,
+      "sourceHeight": 225,
+      "footprint": {
+        "w": 1,
+        "h": 1
+      },
+      "bounds": {
+        "x": -2,
+        "y": 0,
+        "width": 16,
+        "height": 11
+      },
+      "contact": {
+        "x": 0.5,
+        "y": 0.9866666666666667
+      },
+      "mode": "approved",
+      "effects": false,
+      "source": "docs/station-remaster/catalog-utility-rest-1/sheet-source.png",
+      "sourceSha256": "ce4467db6376181844df51da331b12f070401a2f839f2c78de0dc7c46001b997",
+      "outputSha256": "bdcfa89bd4f32d8be8c9bcb796791ffd5a2335b86ec51f45fc4fbd7b9f6b3669",
+      "sourceROI": {
+        "left": 805,
+        "top": 200,
+        "width": 395,
+        "height": 280
+      },
+      "sourceCrop": {
+        "left": 829,
+        "top": 229,
+        "width": 354,
+        "height": 225
+      },
+      "actualFit": {
+        "x": -2,
+        "y": 0.966102,
+        "width": 16,
+        "height": 10.169492
+      },
+      "verification": {
+        "transparent": 13770,
+        "retained": 65880,
+        "removedAlpha": 1863,
+        "retainedRGBAMismatches": 0,
+        "allRGBMismatches": 0,
+        "widthFraction": 1
+      },
+      "status": "source and game-scale candidate reviewed; not live integrated; image-specific effect regions need remapping"
+    },
+    {
+      "id": "loop",
+      "view": "s",
+      "image": "loop.png",
+      "repoPath": "frontend/assets/industrial/catalog-utility-rest-1/loop.png",
+      "sourceWidth": 288,
+      "sourceHeight": 345,
+      "footprint": {
+        "w": 1,
+        "h": 1
+      },
+      "bounds": {
+        "x": -1,
+        "y": -7,
+        "width": 15,
+        "height": 18
+      },
+      "contact": {
+        "x": 0.5,
+        "y": 0.991304347826087
+      },
+      "mode": "approved",
+      "effects": false,
+      "source": "docs/station-remaster/catalog-utility-rest-1/sheet-source.png",
+      "sourceSha256": "ce4467db6376181844df51da331b12f070401a2f839f2c78de0dc7c46001b997",
+      "outputSha256": "4e95919b609ca181111a58b477a9c31f2165010b7fd8e0c63a6004194ff11a28",
+      "sourceROI": {
+        "left": 1210,
+        "top": 80,
+        "width": 325,
+        "height": 400
+      },
+      "sourceCrop": {
+        "left": 1216,
+        "top": 111,
+        "width": 288,
+        "height": 345
+      },
+      "actualFit": {
+        "x": -1,
+        "y": -6.8125,
+        "width": 15,
+        "height": 17.96875
+      },
+      "verification": {
+        "transparent": 32064,
+        "retained": 67296,
+        "removedAlpha": 1566,
+        "retainedRGBAMismatches": 0,
+        "allRGBMismatches": 0,
+        "widthFraction": 1
+      },
+      "status": "source and game-scale candidate reviewed; not live integrated; image-specific effect regions need remapping"
+    },
+    {
+      "id": "merger",
+      "view": "s",
+      "image": "merger.png",
+      "repoPath": "frontend/assets/industrial/catalog-utility-rest-1/merger.png",
+      "sourceWidth": 363,
+      "sourceHeight": 213,
+      "footprint": {
+        "w": 1,
+        "h": 1
+      },
+      "bounds": {
+        "x": -2,
+        "y": 0,
+        "width": 16,
+        "height": 11
+      },
+      "contact": {
+        "x": 0.5,
+        "y": 0.9906103286384976
+      },
+      "mode": "approved",
+      "effects": false,
+      "source": "docs/station-remaster/catalog-utility-rest-1/sheet-source.png",
+      "sourceSha256": "ce4467db6376181844df51da331b12f070401a2f839f2c78de0dc7c46001b997",
+      "outputSha256": "df0259ae33c80b0904d8ff04b795c50ba1ca5c1617faef72990ec7999debed6f",
+      "sourceROI": {
+        "left": 20,
+        "top": 640,
+        "width": 400,
+        "height": 265
+      },
+      "sourceCrop": {
+        "left": 47,
+        "top": 674,
+        "width": 363,
+        "height": 213
+      },
+      "actualFit": {
+        "x": -2,
+        "y": 1.699725,
+        "width": 16,
+        "height": 9.38843
+      },
+      "verification": {
+        "transparent": 12250,
+        "retained": 65069,
+        "removedAlpha": 1320,
+        "retainedRGBAMismatches": 0,
+        "allRGBMismatches": 0,
+        "widthFraction": 1
+      },
+      "status": "source and game-scale candidate reviewed; not live integrated; image-specific effect regions need remapping"
+    },
+    {
+      "id": "splitter",
+      "view": "s",
+      "image": "splitter.png",
+      "repoPath": "frontend/assets/industrial/catalog-utility-rest-1/splitter.png",
+      "sourceWidth": 323,
+      "sourceHeight": 212,
+      "footprint": {
+        "w": 1,
+        "h": 1
+      },
+      "bounds": {
+        "x": -1,
+        "y": 0,
+        "width": 15,
+        "height": 11
+      },
+      "contact": {
+        "x": 0.5,
+        "y": 0.9858490566037735
+      },
+      "mode": "approved",
+      "effects": false,
+      "source": "docs/station-remaster/catalog-utility-rest-1/sheet-source.png",
+      "sourceSha256": "ce4467db6376181844df51da331b12f070401a2f839f2c78de0dc7c46001b997",
+      "outputSha256": "ee56d780994188ba8b83c13fa346f23dbe924d8ff5ad66f30410ce56d25bf606",
+      "sourceROI": {
+        "left": 440,
+        "top": 640,
+        "width": 360,
+        "height": 280
+      },
+      "sourceCrop": {
+        "left": 450,
+        "top": 676,
+        "width": 323,
+        "height": 212
+      },
+      "actualFit": {
+        "x": -1,
+        "y": 1.294118,
+        "width": 15,
+        "height": 9.845201
+      },
+      "verification": {
+        "transparent": 11584,
+        "retained": 56892,
+        "removedAlpha": 1366,
+        "retainedRGBAMismatches": 0,
+        "allRGBMismatches": 0,
+        "widthFraction": 1
+      },
+      "status": "source and game-scale candidate reviewed; not live integrated; image-specific effect regions need remapping"
+    },
+    {
+      "id": "outbox",
+      "view": "s",
+      "image": "outbox.png",
+      "repoPath": "frontend/assets/industrial/catalog-utility-rest-1/outbox.png",
+      "sourceWidth": 421,
+      "sourceHeight": 412,
+      "footprint": {
+        "w": 2,
+        "h": 2
+      },
+      "bounds": {
+        "x": -1,
+        "y": -8,
+        "width": 30,
+        "height": 32
+      },
+      "contact": {
+        "x": 0.5,
+        "y": 0.9951456310679612
+      },
+      "mode": "approved",
+      "effects": false,
+      "source": "docs/station-remaster/catalog-utility-rest-1/sheet-source.png",
+      "sourceSha256": "ce4467db6376181844df51da331b12f070401a2f839f2c78de0dc7c46001b997",
+      "outputSha256": "5943e3aa326d950998f79ff8c1652dfa3ce65c4756ee01e146695d05221b65df",
+      "sourceROI": {
+        "left": 810,
+        "top": 490,
+        "width": 440,
+        "height": 465
+      },
+      "sourceCrop": {
+        "left": 815,
+        "top": 519,
+        "width": 421,
+        "height": 412
+      },
+      "actualFit": {
+        "x": -1,
+        "y": -5.216152,
+        "width": 30,
+        "height": 29.35867
+      },
+      "verification": {
+        "transparent": 29914,
+        "retained": 143538,
+        "removedAlpha": 1778,
+        "retainedRGBAMismatches": 0,
+        "allRGBMismatches": 0,
+        "widthFraction": 1
+      },
+      "status": "source and game-scale candidate reviewed; not live integrated; image-specific effect regions need remapping"
+    },
+    {
+      "id": "connector_portal",
+      "view": "s",
+      "image": "connector_portal.png",
+      "repoPath": "frontend/assets/industrial/catalog-utility-rest-1/connector_portal.png",
+      "sourceWidth": 924,
+      "sourceHeight": 1626,
+      "footprint": {
+        "w": 1,
+        "h": 2
+      },
+      "bounds": {
+        "x": 0,
+        "y": -7,
+        "width": 17,
+        "height": 31
+      },
+      "contact": {
+        "x": 0.5,
+        "y": 0.9981549815498155
+      },
+      "mode": "approved",
+      "effects": false,
+      "source": "docs/station-remaster/catalog-utility-rest-1/connector-source.png",
+      "sourceSha256": "6a625391cfbe77d8d71ff5c1127a02b887099cbe51837fa248d1e0a6bbc32ec8",
+      "outputSha256": "e47660cc0ebf30136c467e31ffa8ddf27c8e07bab876b961284cc40bfbb24fa2",
+      "sourceROI": {
+        "left": 0,
+        "top": 0,
+        "width": 948,
+        "height": 1660
+      },
+      "sourceCrop": {
+        "left": 23,
+        "top": 8,
+        "width": 924,
+        "height": 1626
+      },
+      "actualFit": {
+        "x": 0,
+        "y": -5.86039,
+        "width": 17,
+        "height": 29.915584
+      },
+      "verification": {
+        "transparent": 113670,
+        "retained": 1388754,
+        "removedAlpha": 7662,
+        "retainedRGBAMismatches": 0,
+        "allRGBMismatches": 0,
+        "widthFraction": 1
+      },
+      "status": "source and game-scale candidate reviewed; not live integrated; image-specific effect regions need remapping"
+    }
+  ]
+}
