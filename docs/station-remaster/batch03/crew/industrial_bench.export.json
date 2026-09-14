@@ -1,0 +1,60 @@
+{
+  "sourceAnimation": {
+    "idleFrameVariants": 1,
+    "workFrameVariants": 1,
+    "respondsToWorkFlag": false,
+    "opaqueBoundsRelativeToFootprint": {
+      "x": 0,
+      "y": 0,
+      "w": 36,
+      "h": 12,
+      "alphaThreshold": 160
+    }
+  },
+  "bounds": {
+    "y": 0,
+    "width": 36,
+    "height": 12,
+    "x": 0
+  },
+  "id": "industrial_bench",
+  "geometry": {
+    "blocks": true,
+    "flat": false,
+    "tableSurface": false,
+    "requiredMount": null,
+    "optionalSurfaceMount": false,
+    "surfaceRisePixels": 8
+  },
+  "floorContact": {
+    "x": 18,
+    "y": 12
+  },
+  "backgroundThreshold": 235,
+  "tilePixels": 12,
+  "status": "art-draft-integration-pending",
+  "view": "s",
+  "footprint": {
+    "w": 3,
+    "h": 1
+  },
+  "anchorContract": "planCouchSit: actual cushion claims despite generic sit:false; body foot is cushion front at bottom minus 2 px; wide sofa reserves arms and y-sorts sofa back in front. Turned booth seating must be rechecked before promising all angles.",
+  "holeSeeds": [],
+  "sourceWidth": 2172,
+  "sourceHeight": 724,
+  "sourceSha256": "cf3fef483620f41cdc2520b7257db43a529692bff11be17797d22f0ed4145f66",
+  "output": "frontend/assets/industrial/batch03/crew/industrial_bench.png",
+  "crop": {
+    "left": 60,
+    "top": 108,
+    "width": 2054,
+    "height": 516
+  },
+  "transparentPixels": 209167,
+  "opaquePixels": 850697,
+  "partialPixels": 0,
+  "backgroundPixelsRemoved": 721831,
+  "subjectRgbChanges": 0,
+  "outputSha256": "f70c16deedf323879d72425af8a003061f5bf61ca39274e410538c0f36dc8158",
+  "liveIntegrated": false
+}
