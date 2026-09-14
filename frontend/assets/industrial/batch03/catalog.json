@@ -1,6 +1,46 @@
 {
   "planned": 44,
-  "exported": 39,
+  "repainted": 44,
+  "newDesigns": 34,
+  "exported": 78,
+  "sections": [
+    {
+      "id": "infrastructure",
+      "label": "Infrastructure"
+    },
+    {
+      "id": "publication",
+      "label": "Publication"
+    },
+    {
+      "id": "transport",
+      "label": "Transport"
+    },
+    {
+      "id": "habitat",
+      "label": "Habitat"
+    },
+    {
+      "id": "leisure",
+      "label": "Leisure & media"
+    },
+    {
+      "id": "furniture",
+      "label": "Furniture & fitness"
+    },
+    {
+      "id": "treasury",
+      "label": "Storage & treasury"
+    },
+    {
+      "id": "instruments",
+      "label": "Instruments"
+    },
+    {
+      "id": "control",
+      "label": "Control room"
+    }
+  ],
   "items": [
     {
       "id": "bookshelf",
@@ -23,7 +63,10 @@
       "transparentPixels": 111818,
       "opaquePixels": 1140323,
       "status": "illustrated-style-candidate",
-      "previousImage": "assets/industrial/batch02/storage/bookshelf.png?v=67e71349e56c"
+      "previousImage": "assets/industrial/batch02/storage/bookshelf.png?v=67e71349e56c",
+      "kind": "repaint",
+      "section": "storage",
+      "facings": []
     },
     {
       "id": "bookstack",
@@ -46,7 +89,10 @@
       "transparentPixels": 107426,
       "opaquePixels": 973234,
       "status": "illustrated-style-candidate",
-      "previousImage": "assets/industrial/batch02/storage/bookstack.png?v=af4c8c939e4f"
+      "previousImage": "assets/industrial/batch02/storage/bookstack.png?v=af4c8c939e4f",
+      "kind": "repaint",
+      "section": "storage",
+      "facings": []
     },
     {
       "id": "mug",
@@ -69,7 +115,10 @@
       "transparentPixels": 314570,
       "opaquePixels": 763780,
       "status": "illustrated-style-candidate",
-      "previousImage": "assets/industrial/batch02/storage/mug.png?v=e7042cfe48ad"
+      "previousImage": "assets/industrial/batch02/storage/mug.png?v=e7042cfe48ad",
+      "kind": "repaint",
+      "section": "storage",
+      "facings": []
     },
     {
       "id": "guitar",
@@ -92,7 +141,10 @@
       "transparentPixels": 486040,
       "opaquePixels": 468872,
       "status": "illustrated-style-candidate",
-      "previousImage": "assets/industrial/batch02/storage/guitar.png?v=001a861cb1a0"
+      "previousImage": "assets/industrial/batch02/storage/guitar.png?v=001a861cb1a0",
+      "kind": "repaint",
+      "section": "storage",
+      "facings": []
     },
     {
       "id": "radio",
@@ -115,7 +167,10 @@
       "transparentPixels": 206310,
       "opaquePixels": 958390,
       "status": "illustrated-style-candidate",
-      "previousImage": "assets/industrial/batch02/storage/radio.png?v=e51de0f01a45"
+      "previousImage": "assets/industrial/batch02/storage/radio.png?v=e51de0f01a45",
+      "kind": "repaint",
+      "section": "storage",
+      "facings": []
     },
     {
       "id": "figurine",
@@ -138,7 +193,10 @@
       "transparentPixels": 182367,
       "opaquePixels": 555540,
       "status": "illustrated-style-candidate",
-      "previousImage": "assets/industrial/batch02/storage/figurine.png?v=a9a8c72f71ba"
+      "previousImage": "assets/industrial/batch02/storage/figurine.png?v=a9a8c72f71ba",
+      "kind": "repaint",
+      "section": "storage",
+      "facings": []
     },
     {
       "id": "modelship",
@@ -161,7 +219,10 @@
       "transparentPixels": 365494,
       "opaquePixels": 596222,
       "status": "illustrated-style-candidate",
-      "previousImage": "assets/industrial/batch02/storage/modelship.png?v=c46f8cd9a8a9"
+      "previousImage": "assets/industrial/batch02/storage/modelship.png?v=c46f8cd9a8a9",
+      "kind": "repaint",
+      "section": "storage",
+      "facings": []
     },
     {
       "id": "toolbox",
@@ -184,7 +245,10 @@
       "transparentPixels": 66453,
       "opaquePixels": 805772,
       "status": "illustrated-style-candidate",
-      "previousImage": "assets/industrial/batch02/storage/toolbox.png?v=3b09b57b611c"
+      "previousImage": "assets/industrial/batch02/storage/toolbox.png?v=3b09b57b611c",
+      "kind": "repaint",
+      "section": "storage",
+      "facings": []
     },
     {
       "id": "desklamp",
@@ -207,7 +271,10 @@
       "transparentPixels": 599137,
       "opaquePixels": 388411,
       "status": "illustrated-style-candidate",
-      "previousImage": "assets/industrial/batch02/storage/desklamp.png?v=2b06e4499cd6"
+      "previousImage": "assets/industrial/batch02/storage/desklamp.png?v=2b06e4499cd6",
+      "kind": "repaint",
+      "section": "storage",
+      "facings": []
     },
     {
       "id": "research_papers",
@@ -230,7 +297,10 @@
       "transparentPixels": 189858,
       "opaquePixels": 834746,
       "status": "illustrated-style-candidate",
-      "previousImage": "assets/industrial/batch02/storage/research_papers.png?v=d7d884b5e5ac"
+      "previousImage": "assets/industrial/batch02/storage/research_papers.png?v=d7d884b5e5ac",
+      "kind": "repaint",
+      "section": "storage",
+      "facings": []
     },
     {
       "id": "etsy_threadrack",
@@ -253,7 +323,10 @@
       "transparentPixels": 280791,
       "opaquePixels": 810441,
       "status": "illustrated-style-candidate",
-      "previousImage": "assets/industrial/batch02/storage/etsy_threadrack.png?v=31531f03269d"
+      "previousImage": "assets/industrial/batch02/storage/etsy_threadrack.png?v=31531f03269d",
+      "kind": "repaint",
+      "section": "storage",
+      "facings": []
     },
     {
       "id": "easel",
@@ -276,7 +349,10 @@
       "transparentPixels": 405358,
       "opaquePixels": 445470,
       "status": "illustrated-style-candidate",
-      "previousImage": "assets/industrial/batch02/storage/easel.png?v=b8095f523b36"
+      "previousImage": "assets/industrial/batch02/storage/easel.png?v=b8095f523b36",
+      "kind": "repaint",
+      "section": "storage",
+      "facings": []
     },
     {
       "id": "bar",
@@ -299,7 +375,10 @@
       "transparentPixels": 135850,
       "opaquePixels": 789800,
       "status": "illustrated-style-candidate",
-      "previousImage": "assets/industrial/batch02/crew/bar.png?v=a1716318fa99"
+      "previousImage": "assets/industrial/batch02/crew/bar.png?v=a1716318fa99",
+      "kind": "repaint",
+      "section": "crew",
+      "facings": []
     },
     {
       "id": "bunk",
@@ -322,7 +401,10 @@
       "transparentPixels": 196561,
       "opaquePixels": 1089274,
       "status": "illustrated-style-candidate",
-      "previousImage": "assets/industrial/batch02/crew/bunk.png?v=c0b32cd16953"
+      "previousImage": "assets/industrial/batch02/crew/bunk.png?v=c0b32cd16953",
+      "kind": "repaint",
+      "section": "crew",
+      "facings": []
     },
     {
       "id": "quarters_pooltable",
@@ -345,7 +427,10 @@
       "transparentPixels": 170205,
       "opaquePixels": 906753,
       "status": "illustrated-style-candidate",
-      "previousImage": "assets/industrial/batch02/crew/pooltable-clean.png?v=6d88748aa059"
+      "previousImage": "assets/industrial/batch02/crew/pooltable-clean.png?v=6d88748aa059",
+      "kind": "repaint",
+      "section": "crew",
+      "facings": []
     },
     {
       "id": "pokertable",
@@ -368,7 +453,10 @@
       "transparentPixels": 265713,
       "opaquePixels": 983199,
       "status": "illustrated-style-candidate",
-      "previousImage": "assets/industrial/batch02/crew/pokertable.png?v=f67f8be1bbb9"
+      "previousImage": "assets/industrial/batch02/crew/pokertable.png?v=f67f8be1bbb9",
+      "kind": "repaint",
+      "section": "crew",
+      "facings": []
     },
     {
       "id": "beanbag",
@@ -391,7 +479,10 @@
       "transparentPixels": 300713,
       "opaquePixels": 900922,
       "status": "illustrated-style-candidate",
-      "previousImage": "assets/industrial/batch02/crew/beanbag.png?v=b2ca27498fcd"
+      "previousImage": "assets/industrial/batch02/crew/beanbag.png?v=b2ca27498fcd",
+      "kind": "repaint",
+      "section": "crew",
+      "facings": []
     },
     {
       "id": "stool",
@@ -414,7 +505,10 @@
       "transparentPixels": 319775,
       "opaquePixels": 486031,
       "status": "illustrated-style-candidate",
-      "previousImage": "assets/industrial/batch02/crew/stool.png?v=b70e2b261f26"
+      "previousImage": "assets/industrial/batch02/crew/stool.png?v=b70e2b261f26",
+      "kind": "repaint",
+      "section": "crew",
+      "facings": []
     },
     {
       "id": "industrial_bench",
@@ -437,7 +531,10 @@
       "transparentPixels": 209167,
       "opaquePixels": 850697,
       "status": "illustrated-style-candidate",
-      "previousImage": "assets/industrial/batch02/crew/industrial_bench.png?v=12e3b5a6fe76"
+      "previousImage": "assets/industrial/batch02/crew/industrial_bench.png?v=12e3b5a6fe76",
+      "kind": "repaint",
+      "section": "crew",
+      "facings": []
     },
     {
       "id": "industrial_roundtable",
@@ -460,7 +557,10 @@
       "transparentPixels": 551452,
       "opaquePixels": 813356,
       "status": "illustrated-style-candidate",
-      "previousImage": "assets/industrial/batch02/crew/industrial_roundtable.png?v=0548f3adab99"
+      "previousImage": "assets/industrial/batch02/crew/industrial_roundtable.png?v=0548f3adab99",
+      "kind": "repaint",
+      "section": "crew",
+      "facings": []
     },
     {
       "id": "sidetable",
@@ -483,7 +583,10 @@
       "transparentPixels": 182778,
       "opaquePixels": 892842,
       "status": "illustrated-style-candidate",
-      "previousImage": "assets/industrial/batch02/crew/sidetable.png?v=08e6770505e0"
+      "previousImage": "assets/industrial/batch02/crew/sidetable.png?v=08e6770505e0",
+      "kind": "repaint",
+      "section": "crew",
+      "facings": []
     },
     {
       "id": "coffee",
@@ -506,7 +609,10 @@
       "transparentPixels": 179933,
       "opaquePixels": 925969,
       "status": "illustrated-style-candidate",
-      "previousImage": "assets/industrial/batch02/crew/coffee.png?v=48cbbf8d67db"
+      "previousImage": "assets/industrial/batch02/crew/coffee.png?v=48cbbf8d67db",
+      "kind": "repaint",
+      "section": "crew",
+      "facings": []
     },
     {
       "id": "quarters_minifridge",
@@ -529,7 +635,10 @@
       "transparentPixels": 42210,
       "opaquePixels": 1081910,
       "status": "illustrated-style-candidate",
-      "previousImage": "assets/industrial/batch02/crew/quarters_minifridge.png?v=9edcd3abbf9c"
+      "previousImage": "assets/industrial/batch02/crew/quarters_minifridge.png?v=9edcd3abbf9c",
+      "kind": "repaint",
+      "section": "crew",
+      "facings": []
     },
     {
       "id": "quarters_vending",
@@ -552,7 +661,10 @@
       "transparentPixels": 34740,
       "opaquePixels": 971600,
       "status": "illustrated-style-candidate",
-      "previousImage": "assets/industrial/batch02/crew/quarters_vending.png?v=a669cc3efc94"
+      "previousImage": "assets/industrial/batch02/crew/quarters_vending.png?v=a669cc3efc94",
+      "kind": "repaint",
+      "section": "crew",
+      "facings": []
     },
     {
       "id": "industrial_planter",
@@ -575,7 +687,10 @@
       "transparentPixels": 763915,
       "opaquePixels": 809085,
       "status": "illustrated-style-candidate",
-      "previousImage": "assets/industrial/batch02/utility/industrial_planter.png?v=f808a0552b74"
+      "previousImage": "assets/industrial/batch02/utility/industrial_planter.png?v=f808a0552b74",
+      "kind": "repaint",
+      "section": "utility",
+      "facings": []
     },
     {
       "id": "tallplant",
@@ -598,7 +713,10 @@
       "transparentPixels": 1001610,
       "opaquePixels": 571928,
       "status": "illustrated-style-candidate",
-      "previousImage": "assets/industrial/batch02/utility/tallplant.png?v=b130e5d878d0"
+      "previousImage": "assets/industrial/batch02/utility/tallplant.png?v=b130e5d878d0",
+      "kind": "repaint",
+      "section": "utility",
+      "facings": []
     },
     {
       "id": "monstera",
@@ -621,7 +739,10 @@
       "transparentPixels": 701831,
       "opaquePixels": 871899,
       "status": "illustrated-style-candidate",
-      "previousImage": "assets/industrial/batch02/utility/monstera.png?v=dba611d40150"
+      "previousImage": "assets/industrial/batch02/utility/monstera.png?v=dba611d40150",
+      "kind": "repaint",
+      "section": "utility",
+      "facings": []
     },
     {
       "id": "terrarium",
@@ -644,7 +765,10 @@
       "transparentPixels": 700701,
       "opaquePixels": 872345,
       "status": "illustrated-style-candidate",
-      "previousImage": "assets/industrial/batch02/utility/terrarium.png?v=ae262c554d72"
+      "previousImage": "assets/industrial/batch02/utility/terrarium.png?v=ae262c554d72",
+      "kind": "repaint",
+      "section": "utility",
+      "facings": []
     },
     {
       "id": "fishtank",
@@ -667,7 +791,10 @@
       "transparentPixels": 544927,
       "opaquePixels": 1028803,
       "status": "illustrated-style-candidate",
-      "previousImage": "assets/industrial/batch02/utility/fishtank.png?v=8a3c60892261"
+      "previousImage": "assets/industrial/batch02/utility/fishtank.png?v=8a3c60892261",
+      "kind": "repaint",
+      "section": "utility",
+      "facings": []
     },
     {
       "id": "lavalamp",
@@ -690,7 +817,10 @@
       "transparentPixels": 805412,
       "opaquePixels": 767107,
       "status": "illustrated-style-candidate",
-      "previousImage": "assets/industrial/batch02/utility/lavalamp.png?v=6dc736f526f3"
+      "previousImage": "assets/industrial/batch02/utility/lavalamp.png?v=6dc736f526f3",
+      "kind": "repaint",
+      "section": "utility",
+      "facings": []
     },
     {
       "id": "plasmaglobe",
@@ -713,7 +843,140 @@
       "transparentPixels": 539645,
       "opaquePixels": 1033454,
       "status": "illustrated-style-candidate",
-      "previousImage": "assets/industrial/batch02/utility/plasmaglobe.png?v=9821f1f49483"
+      "previousImage": "assets/industrial/batch02/utility/plasmaglobe.png?v=9821f1f49483",
+      "kind": "repaint",
+      "section": "utility",
+      "facings": []
+    },
+    {
+      "id": "etsy_dyevat",
+      "lane": "utility",
+      "group": "Plants, glass & lab",
+      "label": "DYE VAT",
+      "image": "assets/industrial/batch03/utility/etsy_dyevat.png?v=9a02967d2f1e",
+      "width": 1254,
+      "height": 1254,
+      "footprint": {
+        "w": 2,
+        "h": 2
+      },
+      "bounds": {
+        "x": 0,
+        "y": -5,
+        "width": 29,
+        "height": 29
+      },
+      "transparentPixels": 565832,
+      "opaquePixels": 1006684,
+      "status": "illustrated-style-candidate",
+      "previousImage": "assets/industrial/batch02/utility/etsy_dyevat.png?v=f51347f568bc",
+      "kind": "repaint",
+      "section": "utility",
+      "facings": []
+    },
+    {
+      "id": "etsy_kiln",
+      "lane": "utility",
+      "group": "Plants, glass & lab",
+      "label": "KILN",
+      "image": "assets/industrial/batch03/utility/etsy_kiln.png?v=3b00448deefa",
+      "width": 1197,
+      "height": 1315,
+      "footprint": {
+        "w": 2,
+        "h": 2
+      },
+      "bounds": {
+        "x": -1,
+        "y": -9,
+        "width": 30,
+        "height": 33
+      },
+      "transparentPixels": 555905,
+      "opaquePixels": 1018150,
+      "status": "illustrated-style-candidate",
+      "previousImage": "assets/industrial/batch02/utility/etsy_kiln.png?v=2d17e182cbf1",
+      "kind": "repaint",
+      "section": "utility",
+      "facings": []
+    },
+    {
+      "id": "research_samplecart",
+      "lane": "utility",
+      "group": "Plants, glass & lab",
+      "label": "SAMPLE CART",
+      "image": "assets/industrial/batch03/utility/research_samplecart.png?v=c44ecf5fd177",
+      "width": 1564,
+      "height": 1006,
+      "footprint": {
+        "w": 2,
+        "h": 1
+      },
+      "bounds": {
+        "x": -1,
+        "y": -6,
+        "width": 28,
+        "height": 18
+      },
+      "transparentPixels": 728290,
+      "opaquePixels": 845094,
+      "status": "illustrated-style-candidate",
+      "previousImage": "assets/industrial/batch02/utility/research_samplecart.png?v=0d68403d3dd5",
+      "kind": "repaint",
+      "section": "utility",
+      "facings": []
+    },
+    {
+      "id": "incubator",
+      "lane": "utility",
+      "group": "Plants, glass & lab",
+      "label": "INCUBATOR",
+      "image": "assets/industrial/batch03/utility/incubator.png?v=8665cd1f6c77",
+      "width": 818,
+      "height": 1923,
+      "footprint": {
+        "w": 1,
+        "h": 2
+      },
+      "bounds": {
+        "x": -1,
+        "y": -9,
+        "width": 14,
+        "height": 33
+      },
+      "transparentPixels": 848406,
+      "opaquePixels": 724608,
+      "status": "illustrated-style-candidate",
+      "previousImage": "assets/industrial/batch02/utility/incubator.png?v=b48f65ac7ebd",
+      "kind": "repaint",
+      "section": "utility",
+      "facings": []
+    },
+    {
+      "id": "cryopod",
+      "lane": "utility",
+      "group": "Plants, glass & lab",
+      "label": "CRYO POD",
+      "image": "assets/industrial/batch03/utility/cryopod.png?v=0eccdbab2db8",
+      "width": 793,
+      "height": 1983,
+      "footprint": {
+        "w": 1,
+        "h": 2
+      },
+      "bounds": {
+        "x": 0,
+        "y": -6,
+        "width": 12,
+        "height": 30
+      },
+      "transparentPixels": 461326,
+      "opaquePixels": 1111193,
+      "status": "illustrated-style-candidate",
+      "previousImage": "assets/industrial/batch02/utility/cryopod.png?v=69746db020bf",
+      "kind": "repaint",
+      "section": "utility",
+      "facings": []
     },
     {
       "id": "whiteboard",
@@ -736,7 +999,10 @@
       "transparentPixels": 494245,
       "opaquePixels": 1069469,
       "status": "illustrated-style-candidate",
-      "previousImage": "assets/industrial/batch02/coordinator/whiteboard.png?v=cd5ea21a0e8b"
+      "previousImage": "assets/industrial/batch02/coordinator/whiteboard.png?v=cd5ea21a0e8b",
+      "kind": "repaint",
+      "section": "coordinator",
+      "facings": []
     },
     {
       "id": "chartwall",
@@ -759,7 +1025,10 @@
       "transparentPixels": 291026,
       "opaquePixels": 1280734,
       "status": "illustrated-style-candidate",
-      "previousImage": "assets/industrial/batch02/coordinator/chartwall.png?v=2fd8ddfed47b"
+      "previousImage": "assets/industrial/batch02/coordinator/chartwall.png?v=2fd8ddfed47b",
+      "kind": "repaint",
+      "section": "coordinator",
+      "facings": []
     },
     {
       "id": "calwall",
@@ -782,7 +1051,10 @@
       "transparentPixels": 241864,
       "opaquePixels": 1099509,
       "status": "illustrated-style-candidate",
-      "previousImage": "assets/industrial/batch02/coordinator/calwall.png?v=121e68e8160d"
+      "previousImage": "assets/industrial/batch02/coordinator/calwall.png?v=121e68e8160d",
+      "kind": "repaint",
+      "section": "coordinator",
+      "facings": []
     },
     {
       "id": "missionboard",
@@ -805,7 +1077,10 @@
       "transparentPixels": 462218,
       "opaquePixels": 1091432,
       "status": "illustrated-style-candidate",
-      "previousImage": "assets/industrial/batch02/coordinator/missionboard.png?v=d5729b2e0a92"
+      "previousImage": "assets/industrial/batch02/coordinator/missionboard.png?v=d5729b2e0a92",
+      "kind": "repaint",
+      "section": "coordinator",
+      "facings": []
     },
     {
       "id": "trophycase",
@@ -828,7 +1103,10 @@
       "transparentPixels": 148639,
       "opaquePixels": 1423411,
       "status": "illustrated-style-candidate",
-      "previousImage": "assets/industrial/batch02/coordinator/trophycase.png?v=d5cc4ab82030"
+      "previousImage": "assets/industrial/batch02/coordinator/trophycase.png?v=d5cc4ab82030",
+      "kind": "repaint",
+      "section": "coordinator",
+      "facings": []
     },
     {
       "id": "arc_indexwall",
@@ -851,7 +1129,10 @@
       "transparentPixels": 103485,
       "opaquePixels": 1461435,
       "status": "illustrated-style-candidate",
-      "previousImage": "assets/industrial/batch02/coordinator/arc_indexwall.png?v=2f45e93348e2"
+      "previousImage": "assets/industrial/batch02/coordinator/arc_indexwall.png?v=2f45e93348e2",
+      "kind": "repaint",
+      "section": "coordinator",
+      "facings": []
     },
     {
       "id": "arc_microfiche",
@@ -874,7 +1155,10 @@
       "transparentPixels": 198453,
       "opaquePixels": 1373979,
       "status": "illustrated-style-candidate",
-      "previousImage": "assets/industrial/batch02/coordinator/arc_microfiche.png?v=6c5b637f2912"
+      "previousImage": "assets/industrial/batch02/coordinator/arc_microfiche.png?v=6c5b637f2912",
+      "kind": "repaint",
+      "section": "coordinator",
+      "facings": []
     },
     {
       "id": "comms_inbox",
@@ -897,7 +1181,761 @@
       "transparentPixels": 168284,
       "opaquePixels": 1398436,
       "status": "illustrated-style-candidate",
-      "previousImage": "assets/industrial/batch02/coordinator/comms_inbox.png?v=fc00a1aa9012"
+      "previousImage": "assets/industrial/batch02/coordinator/comms_inbox.png?v=fc00a1aa9012",
+      "kind": "repaint",
+      "section": "coordinator",
+      "facings": []
+    },
+    {
+      "id": "industrial_partition",
+      "label": "MODULAR PARTITION",
+      "lane": "crew",
+      "group": "Infrastructure",
+      "section": "infrastructure",
+      "kind": "new",
+      "bounds": {
+        "x": 0,
+        "y": -9,
+        "width": 36,
+        "height": 21
+      },
+      "previousImage": null,
+      "image": "assets/industrial/batch03/crew/industrial_partition.png?v=6c41b3f21f0d",
+      "facings": [
+        "assets/industrial/batch03/crew/industrial_partition-r1.png",
+        "assets/industrial/batch03/crew/industrial_partition-r3.png"
+      ],
+      "width": 1546,
+      "height": 819,
+      "transparentPixels": 105407,
+      "opaquePixels": 1160767,
+      "status": "illustrated-style-candidate"
+    },
+    {
+      "id": "industrial_servicecab",
+      "label": "SERVICE CABINET",
+      "lane": "crew",
+      "group": "Infrastructure",
+      "section": "infrastructure",
+      "kind": "new",
+      "bounds": {
+        "x": 0,
+        "y": -5,
+        "width": 12,
+        "height": 29
+      },
+      "previousImage": null,
+      "image": "assets/industrial/batch03/crew/industrial_servicecab.png?v=b7df9c30f12a",
+      "facings": [],
+      "width": 768,
+      "height": 1733,
+      "transparentPixels": 40589,
+      "opaquePixels": 1290355,
+      "status": "illustrated-style-candidate"
+    },
+    {
+      "id": "industrial_wallpanel",
+      "label": "SERVICE PANEL",
+      "lane": "crew",
+      "group": "Infrastructure",
+      "section": "infrastructure",
+      "kind": "new",
+      "bounds": {
+        "x": 0,
+        "y": -13,
+        "width": 24,
+        "height": 23
+      },
+      "previousImage": null,
+      "image": "assets/industrial/batch03/crew/industrial_wallpanel.png?v=19ec21b64136",
+      "facings": [],
+      "width": 1239,
+      "height": 1066,
+      "transparentPixels": 85134,
+      "opaquePixels": 1235640,
+      "status": "illustrated-style-candidate"
+    },
+    {
+      "id": "industrial_floorvent",
+      "label": "FLUSH GRILLE",
+      "lane": "crew",
+      "group": "Infrastructure",
+      "section": "infrastructure",
+      "kind": "new",
+      "bounds": {
+        "x": 1,
+        "y": 1,
+        "width": 22,
+        "height": 10
+      },
+      "previousImage": null,
+      "image": "assets/industrial/batch03/crew/industrial_floorvent.png?v=703664d6440b",
+      "facings": [],
+      "width": 1767,
+      "height": 677,
+      "transparentPixels": 29474,
+      "opaquePixels": 1166785,
+      "status": "illustrated-style-candidate"
+    },
+    {
+      "id": "industrial_cabletray",
+      "label": "CABLE CHANNEL",
+      "lane": "crew",
+      "group": "Infrastructure",
+      "section": "infrastructure",
+      "kind": "new",
+      "bounds": {
+        "x": 0,
+        "y": 3,
+        "width": 36,
+        "height": 6
+      },
+      "previousImage": null,
+      "image": "assets/industrial/batch03/crew/industrial_cabletray.png?v=12e285f926a9",
+      "facings": [],
+      "width": 2122,
+      "height": 331,
+      "transparentPixels": 3318,
+      "opaquePixels": 699064,
+      "status": "illustrated-style-candidate"
+    },
+    {
+      "id": "outbox",
+      "label": "OUTBOX",
+      "lane": "storage",
+      "group": "Publication",
+      "section": "publication",
+      "kind": "new",
+      "bounds": {
+        "x": -1,
+        "y": -8,
+        "width": 30,
+        "height": 32
+      },
+      "previousImage": null,
+      "image": "assets/industrial/batch03/storage/outbox.png?v=107516ce47ea",
+      "facings": [],
+      "width": 1095,
+      "height": 1139,
+      "transparentPixels": 143178,
+      "opaquePixels": 1104027,
+      "status": "illustrated-style-candidate"
+    },
+    {
+      "id": "connector_portal",
+      "label": "CONNECTOR",
+      "lane": "storage",
+      "group": "Publication",
+      "section": "publication",
+      "kind": "new",
+      "bounds": {
+        "x": 0,
+        "y": -7,
+        "width": 17,
+        "height": 31
+      },
+      "previousImage": null,
+      "image": "assets/industrial/batch03/storage/connector_portal.png?v=386e0125f0b9",
+      "facings": [],
+      "width": 602,
+      "height": 1622,
+      "transparentPixels": 225709,
+      "opaquePixels": 750735,
+      "status": "illustrated-style-candidate"
+    },
+    {
+      "id": "pub_publishpress",
+      "label": "PUBLISH PRESS",
+      "lane": "storage",
+      "group": "Publication",
+      "section": "publication",
+      "kind": "new",
+      "bounds": {
+        "x": -1,
+        "y": -8,
+        "width": 30,
+        "height": 32
+      },
+      "previousImage": null,
+      "image": "assets/industrial/batch03/storage/pub_publishpress.png?v=304b6e948f5b",
+      "facings": [],
+      "width": 1160,
+      "height": 1204,
+      "transparentPixels": 267378,
+      "opaquePixels": 1129262,
+      "status": "illustrated-style-candidate"
+    },
+    {
+      "id": "pub_outboundchute",
+      "label": "OUTBOUND CHUTE",
+      "lane": "storage",
+      "group": "Publication",
+      "section": "publication",
+      "kind": "new",
+      "bounds": {
+        "x": -3,
+        "y": -11,
+        "width": 18,
+        "height": 35
+      },
+      "previousImage": null,
+      "image": "assets/industrial/batch03/storage/pub_outboundchute.png?v=0f0aa5b5fae2",
+      "facings": [],
+      "width": 743,
+      "height": 1593,
+      "transparentPixels": 418146,
+      "opaquePixels": 765453,
+      "status": "illustrated-style-candidate"
+    },
+    {
+      "id": "pub_mailpod",
+      "label": "MAIL POD",
+      "lane": "storage",
+      "group": "Publication",
+      "section": "publication",
+      "kind": "new",
+      "bounds": {
+        "x": -3,
+        "y": -10,
+        "width": 31,
+        "height": 22
+      },
+      "previousImage": null,
+      "image": "assets/industrial/batch03/storage/pub_mailpod.png?v=c3dfac532179",
+      "facings": [],
+      "width": 1430,
+      "height": 976,
+      "transparentPixels": 320194,
+      "opaquePixels": 1075486,
+      "status": "illustrated-style-candidate"
+    },
+    {
+      "id": "rug",
+      "label": "RUG",
+      "lane": "habitat",
+      "group": "Habitat",
+      "section": "habitat",
+      "kind": "new",
+      "bounds": {
+        "x": -1,
+        "y": 0,
+        "width": 50,
+        "height": 36
+      },
+      "previousImage": null,
+      "image": "assets/industrial/batch03/habitat/rug.png?v=beb5381e2b77",
+      "facings": [],
+      "width": 1448,
+      "height": 871,
+      "transparentPixels": 23103,
+      "opaquePixels": 1238105,
+      "status": "illustrated-style-candidate"
+    },
+    {
+      "id": "rug_small",
+      "label": "SMALL RUG",
+      "lane": "habitat",
+      "group": "Habitat",
+      "section": "habitat",
+      "kind": "new",
+      "bounds": {
+        "x": 0,
+        "y": -1,
+        "width": 36,
+        "height": 38
+      },
+      "previousImage": null,
+      "image": "assets/industrial/batch03/habitat/rug_small.png?v=11b748ce144b",
+      "facings": [],
+      "width": 1137,
+      "height": 1221,
+      "transparentPixels": 40513,
+      "opaquePixels": 1347764,
+      "status": "illustrated-style-candidate"
+    },
+    {
+      "id": "rug_large",
+      "label": "LARGE RUG",
+      "lane": "habitat",
+      "group": "Habitat",
+      "section": "habitat",
+      "kind": "new",
+      "bounds": {
+        "x": 0,
+        "y": 0,
+        "width": 60,
+        "height": 60
+      },
+      "previousImage": null,
+      "image": "assets/industrial/batch03/habitat/rug_large.png?v=4833b6a89514",
+      "facings": [],
+      "width": 1206,
+      "height": 1181,
+      "transparentPixels": 2372,
+      "opaquePixels": 1421914,
+      "status": "illustrated-style-candidate"
+    },
+    {
+      "id": "arc_floorlight",
+      "label": "FLOOR LIGHT",
+      "lane": "habitat",
+      "group": "Habitat",
+      "section": "habitat",
+      "kind": "new",
+      "bounds": {
+        "x": 1,
+        "y": 2,
+        "width": 10,
+        "height": 10
+      },
+      "previousImage": null,
+      "image": "assets/industrial/batch03/habitat/arc_floorlight.png?v=43d2db807a4c",
+      "facings": [],
+      "width": 855,
+      "height": 1158,
+      "transparentPixels": 256928,
+      "opaquePixels": 733162,
+      "status": "illustrated-style-candidate"
+    },
+    {
+      "id": "arc_ladder",
+      "label": "LADDER",
+      "lane": "habitat",
+      "group": "Habitat",
+      "section": "habitat",
+      "kind": "new",
+      "bounds": {
+        "x": 0,
+        "y": -8,
+        "width": 14,
+        "height": 19
+      },
+      "previousImage": null,
+      "image": "assets/industrial/batch03/habitat/arc_ladder.png?v=9191ebcd1811",
+      "facings": [],
+      "width": 1044,
+      "height": 1400,
+      "transparentPixels": 726962,
+      "opaquePixels": 734638,
+      "status": "illustrated-style-candidate"
+    },
+    {
+      "id": "cablerun",
+      "label": "CABLE RUN",
+      "lane": "habitat",
+      "group": "Habitat",
+      "section": "habitat",
+      "kind": "new",
+      "bounds": {
+        "x": 0,
+        "y": 2,
+        "width": 24,
+        "height": 9
+      },
+      "previousImage": null,
+      "image": "assets/industrial/batch03/habitat/cablerun.png?v=92d0b2865dc9",
+      "facings": [],
+      "width": 1993,
+      "height": 429,
+      "transparentPixels": 124115,
+      "opaquePixels": 730882,
+      "status": "illustrated-style-candidate"
+    },
+    {
+      "id": "hazardpad",
+      "label": "HAZARD PAD",
+      "lane": "habitat",
+      "group": "Habitat",
+      "section": "habitat",
+      "kind": "new",
+      "bounds": {
+        "x": 1,
+        "y": 1,
+        "width": 22,
+        "height": 10
+      },
+      "previousImage": null,
+      "image": "assets/industrial/batch03/habitat/hazardpad.png?v=ba6135bf428c",
+      "facings": [],
+      "width": 1740,
+      "height": 683,
+      "transparentPixels": 6333,
+      "opaquePixels": 1182087,
+      "status": "illustrated-style-candidate"
+    },
+    {
+      "id": "steamvent",
+      "label": "STEAM VENT",
+      "lane": "habitat",
+      "group": "Habitat",
+      "section": "habitat",
+      "kind": "new",
+      "bounds": {
+        "x": 0,
+        "y": 3,
+        "width": 12,
+        "height": 9
+      },
+      "previousImage": null,
+      "image": "assets/industrial/batch03/habitat/steamvent.png?v=940a4161bddf",
+      "facings": [],
+      "width": 1209,
+      "height": 1025,
+      "transparentPixels": 273595,
+      "opaquePixels": 965630,
+      "status": "illustrated-style-candidate"
+    },
+    {
+      "id": "djbooth",
+      "label": "DJ BOOTH",
+      "lane": "storage",
+      "group": "Leisure & media",
+      "section": "leisure",
+      "kind": "new",
+      "bounds": {
+        "x": -1,
+        "y": -5,
+        "width": 50,
+        "height": 29
+      },
+      "previousImage": null,
+      "image": "assets/industrial/batch03/storage/djbooth.png?v=254522569c74",
+      "facings": [],
+      "width": 1562,
+      "height": 701,
+      "transparentPixels": 145847,
+      "opaquePixels": 949115,
+      "status": "illustrated-style-candidate"
+    },
+    {
+      "id": "speaker",
+      "label": "SPEAKER",
+      "lane": "storage",
+      "group": "Leisure & media",
+      "section": "leisure",
+      "kind": "new",
+      "bounds": {
+        "x": 1,
+        "y": -3,
+        "width": 10,
+        "height": 15
+      },
+      "previousImage": null,
+      "image": "assets/industrial/batch03/storage/speaker.png?v=389038d1d5ce",
+      "facings": [],
+      "width": 774,
+      "height": 1297,
+      "transparentPixels": 54418,
+      "opaquePixels": 949460,
+      "status": "illustrated-style-candidate"
+    },
+    {
+      "id": "tv",
+      "label": "TV",
+      "lane": "storage",
+      "group": "Leisure & media",
+      "section": "leisure",
+      "kind": "new",
+      "bounds": {
+        "x": -1,
+        "y": -12,
+        "width": 38,
+        "height": 24
+      },
+      "previousImage": null,
+      "image": "assets/industrial/batch03/storage/tv.png?v=f0bc5e6157fd",
+      "facings": [],
+      "width": 1467,
+      "height": 767,
+      "transparentPixels": 121266,
+      "opaquePixels": 1003923,
+      "status": "illustrated-style-candidate"
+    },
+    {
+      "id": "arcade",
+      "label": "ARCADE",
+      "lane": "storage",
+      "group": "Leisure & media",
+      "section": "leisure",
+      "kind": "new",
+      "bounds": {
+        "x": -1,
+        "y": -2,
+        "width": 14,
+        "height": 26
+      },
+      "previousImage": null,
+      "image": "assets/industrial/batch03/storage/arcade.png?v=dbd442b59c74",
+      "facings": [],
+      "width": 737,
+      "height": 1610,
+      "transparentPixels": 120963,
+      "opaquePixels": 1065607,
+      "status": "illustrated-style-candidate"
+    },
+    {
+      "id": "arcade2",
+      "label": "ARCADE II",
+      "lane": "storage",
+      "group": "Leisure & media",
+      "section": "leisure",
+      "kind": "new",
+      "bounds": {
+        "x": -1,
+        "y": -2,
+        "width": 14,
+        "height": 27
+      },
+      "previousImage": null,
+      "image": "assets/industrial/batch03/storage/arcade2.png?v=5bba2038556f",
+      "facings": [],
+      "width": 766,
+      "height": 1543,
+      "transparentPixels": 136247,
+      "opaquePixels": 1045691,
+      "status": "illustrated-style-candidate"
+    },
+    {
+      "id": "jukebox",
+      "label": "JUKEBOX",
+      "lane": "storage",
+      "group": "Leisure & media",
+      "section": "leisure",
+      "kind": "new",
+      "bounds": {
+        "x": -1,
+        "y": -3,
+        "width": 18,
+        "height": 27
+      },
+      "previousImage": null,
+      "image": "assets/industrial/batch03/storage/jukebox.png?v=d341279c2146",
+      "facings": [],
+      "width": 783,
+      "height": 1395,
+      "transparentPixels": 128803,
+      "opaquePixels": 963482,
+      "status": "illustrated-style-candidate"
+    },
+    {
+      "id": "gigs_thumbwall",
+      "label": "THUMB WALL",
+      "lane": "storage",
+      "group": "Leisure & media",
+      "section": "leisure",
+      "kind": "new",
+      "bounds": {
+        "x": -1,
+        "y": -6,
+        "width": 26,
+        "height": 18
+      },
+      "previousImage": null,
+      "image": "assets/industrial/batch03/storage/gigs_thumbwall.png?v=f2753b6675fe",
+      "facings": [],
+      "width": 1411,
+      "height": 812,
+      "transparentPixels": 128908,
+      "opaquePixels": 1016824,
+      "status": "illustrated-style-candidate"
+    },
+    {
+      "id": "gigs_amp",
+      "label": "AMP",
+      "lane": "storage",
+      "group": "Leisure & media",
+      "section": "leisure",
+      "kind": "new",
+      "bounds": {
+        "x": -1,
+        "y": -7,
+        "width": 16,
+        "height": 20
+      },
+      "previousImage": null,
+      "image": "assets/industrial/batch03/storage/gigs_amp.png?v=0c59603b77f2",
+      "facings": [],
+      "width": 1017,
+      "height": 1192,
+      "transparentPixels": 110506,
+      "opaquePixels": 1101758,
+      "status": "illustrated-style-candidate"
+    },
+    {
+      "id": "pinball",
+      "label": "PINBALL",
+      "lane": "storage",
+      "group": "Leisure & media",
+      "section": "leisure",
+      "kind": "new",
+      "bounds": {
+        "x": -1,
+        "y": -3,
+        "width": 16,
+        "height": 27
+      },
+      "previousImage": null,
+      "image": "assets/industrial/batch03/storage/pinball.png?v=b750070e381d",
+      "facings": [],
+      "width": 737,
+      "height": 1566,
+      "transparentPixels": 357124,
+      "opaquePixels": 797018,
+      "status": "illustrated-style-candidate"
+    },
+    {
+      "id": "gachapon",
+      "label": "GACHAPON",
+      "lane": "storage",
+      "group": "Leisure & media",
+      "section": "leisure",
+      "kind": "new",
+      "bounds": {
+        "x": 0,
+        "y": -7,
+        "width": 11,
+        "height": 19
+      },
+      "previousImage": null,
+      "image": "assets/industrial/batch03/storage/gachapon.png?v=a7b8b893af0d",
+      "facings": [],
+      "width": 718,
+      "height": 1488,
+      "transparentPixels": 143986,
+      "opaquePixels": 924398,
+      "status": "illustrated-style-candidate"
+    },
+    {
+      "id": "holopet",
+      "label": "HOLO PET",
+      "lane": "storage",
+      "group": "Leisure & media",
+      "section": "leisure",
+      "kind": "new",
+      "bounds": {
+        "x": 3,
+        "y": -6,
+        "width": 6,
+        "height": 16
+      },
+      "previousImage": null,
+      "image": "assets/industrial/batch03/storage/holopet.png?v=6d65bfdc7e90",
+      "facings": [],
+      "width": 671,
+      "height": 1740,
+      "transparentPixels": 600383,
+      "opaquePixels": 567157,
+      "status": "illustrated-style-candidate"
+    },
+    {
+      "id": "deskterminal",
+      "label": "TERMINAL",
+      "lane": "storage",
+      "group": "Leisure & media",
+      "section": "leisure",
+      "kind": "new",
+      "bounds": {
+        "x": 0,
+        "y": 0,
+        "width": 12,
+        "height": 12
+      },
+      "previousImage": null,
+      "image": "assets/industrial/batch03/storage/deskterminal.png?v=ed537d209c24",
+      "facings": [],
+      "width": 1131,
+      "height": 1059,
+      "transparentPixels": 197446,
+      "opaquePixels": 1000283,
+      "status": "illustrated-style-candidate"
+    },
+    {
+      "id": "quarters_lockerbank",
+      "label": "LOCKERS",
+      "lane": "crew",
+      "group": "Furniture & fitness",
+      "section": "furniture",
+      "kind": "new",
+      "bounds": {
+        "x": -1,
+        "y": -20,
+        "width": 38,
+        "height": 32
+      },
+      "previousImage": null,
+      "image": "assets/industrial/batch03/crew/quarters_lockerbank.png?v=edf308ad7edf",
+      "facings": [],
+      "width": 1286,
+      "height": 981,
+      "transparentPixels": 101413,
+      "opaquePixels": 1160153,
+      "status": "illustrated-style-candidate"
+    },
+    {
+      "id": "glasstable",
+      "label": "GLASS TABLE",
+      "lane": "crew",
+      "group": "Furniture & fitness",
+      "section": "furniture",
+      "kind": "new",
+      "bounds": {
+        "x": 0,
+        "y": -6,
+        "width": 36,
+        "height": 18
+      },
+      "previousImage": null,
+      "image": "assets/industrial/batch03/crew/glasstable.png?v=4c5bb258ff59",
+      "facings": [],
+      "width": 1706,
+      "height": 513,
+      "transparentPixels": 295821,
+      "opaquePixels": 579357,
+      "status": "illustrated-style-candidate"
+    },
+    {
+      "id": "dinertable",
+      "label": "DINER TABLE",
+      "lane": "crew",
+      "group": "Furniture & fitness",
+      "section": "furniture",
+      "kind": "new",
+      "bounds": {
+        "x": -1,
+        "y": 3,
+        "width": 38,
+        "height": 22
+      },
+      "previousImage": null,
+      "image": "assets/industrial/batch03/crew/dinertable.png?v=dd0d73b53527",
+      "facings": [],
+      "width": 1584,
+      "height": 787,
+      "transparentPixels": 501720,
+      "opaquePixels": 744888,
+      "status": "illustrated-style-candidate"
+    },
+    {
+      "id": "loungetable",
+      "label": "LOUNGE TABLE",
+      "lane": "crew",
+      "group": "Furniture & fitness",
+      "section": "furniture",
+      "kind": "new",
+      "bounds": {
+        "x": 0,
+        "y": -6,
+        "width": 24,
+        "height": 18
+      },
+      "previousImage": null,
+      "image": "assets/industrial/batch03/crew/loungetable.png?v=8ff07738bfc4",
+      "facings": [],
+      "width": 1414,
+      "height": 608,
+      "transparentPixels": 209596,
+      "opaquePixels": 650116,
+      "status": "illustrated-style-candidate"
     }
   ]
 }
