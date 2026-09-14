@@ -595,6 +595,169 @@
       "islandPixelsRemoved": 0,
       "subjectRgbChanges": 0,
       "outputSha256": "0eccdbab2db8bd4a74c5de635e093e73679c0cff437ebfab8c10072a569e779e"
+    },
+    {
+      "id": "intake",
+      "seeds": [],
+      "maxChroma": 15,
+      "source": "docs/station-remaster/batch03/utility/sources/intake.png",
+      "sourceSha256": "73469d91b31537c519db92f7377e1b48da8860cf7f1a8cbffe025a08276de81f",
+      "sourceWidth": 1298,
+      "sourceHeight": 1212,
+      "output": "frontend/assets/industrial/batch03/utility/intake.png",
+      "canvasPreserved": true,
+      "alphaBounds": {
+        "x": 17,
+        "y": 13,
+        "width": 1265,
+        "height": 1180
+      },
+      "channels": 4,
+      "transparentPixels": 532781,
+      "opaquePixels": 1040395,
+      "partialPixels": 0,
+      "backgroundPixelsRemoved": 532781,
+      "islandPixelsRemoved": 0,
+      "subjectRgbChanges": 0,
+      "outputSha256": "05c94d79e01fe2e420eacc5f02684e8ea2c3cae681a93fe1bbfd38bb832f6b3b"
+    },
+    {
+      "id": "merger",
+      "seeds": [],
+      "maxChroma": 15,
+      "source": "docs/station-remaster/batch03/utility/sources/merger.png",
+      "sourceSha256": "39c36beab14648e6f2a5b9f0b47c3b4974cd5118c4a1bc4486926fd1a469ba92",
+      "sourceWidth": 1512,
+      "sourceHeight": 1040,
+      "output": "frontend/assets/industrial/batch03/utility/merger.png",
+      "canvasPreserved": true,
+      "alphaBounds": {
+        "x": 26,
+        "y": 31,
+        "width": 1460,
+        "height": 929
+      },
+      "channels": 4,
+      "transparentPixels": 751090,
+      "opaquePixels": 821390,
+      "partialPixels": 0,
+      "backgroundPixelsRemoved": 751090,
+      "islandPixelsRemoved": 0,
+      "subjectRgbChanges": 0,
+      "outputSha256": "da07e96a6a64f95e4db1e622f7dfb92cc3622f03e36fb148b5ce24e1e11db5db"
+    },
+    {
+      "id": "splitter",
+      "seeds": [],
+      "maxChroma": 15,
+      "source": "docs/station-remaster/batch03/utility/sources/splitter.png",
+      "sourceSha256": "386fecd304f1fdca111551e9d1da2bb8cd1d8ba592d5d0831d881789f10a987c",
+      "sourceWidth": 1464,
+      "sourceHeight": 1075,
+      "output": "frontend/assets/industrial/batch03/utility/splitter.png",
+      "canvasPreserved": true,
+      "alphaBounds": {
+        "x": 24,
+        "y": 16,
+        "width": 1417,
+        "height": 1027
+      },
+      "channels": 4,
+      "transparentPixels": 714324,
+      "opaquePixels": 859476,
+      "partialPixels": 0,
+      "backgroundPixelsRemoved": 714324,
+      "islandPixelsRemoved": 0,
+      "subjectRgbChanges": 0,
+      "outputSha256": "388d4307db1d717bca132d8309826ce7227d2c87017897954c28f27232025970"
+    },
+    {
+      "id": "joiner",
+      "seeds": [],
+      "maxChroma": 15,
+      "source": "docs/station-remaster/batch03/utility/sources/joiner.png",
+      "sourceSha256": "f3b0760b08aa09a44815c50a3648733988ba0986497d155e7f265e30a539d127",
+      "sourceWidth": 1511,
+      "sourceHeight": 1041,
+      "output": "frontend/assets/industrial/batch03/utility/joiner.png",
+      "canvasPreserved": true,
+      "alphaBounds": {
+        "x": 30,
+        "y": 59,
+        "width": 1451,
+        "height": 911
+      },
+      "channels": 4,
+      "transparentPixels": 667472,
+      "opaquePixels": 905479,
+      "partialPixels": 0,
+      "backgroundPixelsRemoved": 667472,
+      "islandPixelsRemoved": 0,
+      "subjectRgbChanges": 0,
+      "outputSha256": "3bf5428b39a425bfeb1dbe710026a6ffa7477b1046528dc3cbe496c4c9f46faa"
+    },
+    {
+      "id": "loop",
+      "seeds": [],
+      "maxChroma": 15,
+      "source": "docs/station-remaster/batch03/utility/sources/loop.png",
+      "sourceSha256": "252cdb9222b511939327665a8627508e53adb9cd437f57662dfb67f4f14b3d54",
+      "sourceWidth": 1145,
+      "sourceHeight": 1374,
+      "output": "frontend/assets/industrial/batch03/utility/loop.png",
+      "canvasPreserved": true,
+      "alphaBounds": {
+        "x": 12,
+        "y": 8,
+        "width": 1120,
+        "height": 1334
+      },
+      "channels": 4,
+      "transparentPixels": 760249,
+      "opaquePixels": 812981,
+      "partialPixels": 0,
+      "backgroundPixelsRemoved": 760249,
+      "islandPixelsRemoved": 0,
+      "subjectRgbChanges": 0,
+      "outputSha256": "0f985d7919581b1ecc475b60ea98e54246cddc39cc181043a622455af92f24c5"
+    },
+    {
+      "id": "bay",
+      "seeds": [
+        [
+          514,
+          209
+        ],
+        [
+          335,
+          200
+        ],
+        [
+          881,
+          200
+        ]
+      ],
+      "maxChroma": 15,
+      "source": "docs/station-remaster/batch03/utility/sources/bay.png",
+      "sourceSha256": "1f483b5b96ff93f0fa4c4f50200d44a84f08558f76617129f729ab554f6c2df0",
+      "sourceWidth": 1232,
+      "sourceHeight": 1277,
+      "output": "frontend/assets/industrial/batch03/utility/bay.png",
+      "canvasPreserved": true,
+      "alphaBounds": {
+        "x": 3,
+        "y": 27,
+        "width": 1226,
+        "height": 1200
+      },
+      "channels": 4,
+      "transparentPixels": 527418,
+      "opaquePixels": 1045846,
+      "partialPixels": 0,
+      "backgroundPixelsRemoved": 527418,
+      "islandPixelsRemoved": 0,
+      "subjectRgbChanges": 0,
+      "outputSha256": "d3c7c023004b2a294c8187fb89c983129c873e423a42f21435a444c3c82c09ef"
     }
   ]
 }
