@@ -8,7 +8,8 @@
     "engineAlphaNormalized": "Top-left of nonzero-alpha bounds; x=(normalizedX*width-alphaBounds.x)/alphaBounds.width and analogous y. Rect extents are scaled without subtracting origin.",
     "alphaRule": "All alpha > 0 pixels count, matching frontend/app/propremaster.js:60 through :68.",
     "precision": "Manual region annotations are approximate visual calibration; image sizes, hashes, alpha bounds and coordinate conversion are exact. Owner must validate overlays at game scale.",
-    "status": "Recipe recommendations; no renderer changes or live verification."
+    "status": "Recipe recommendations; no renderer changes or live verification.",
+    "canonicalInterface": "view.regions is a name-to-polygon map; screenRegions is an array of polygons; motion contains the primary region/origin, RGB colour, trigger and mechanism, with additional per-effect layers when present. engineAlphaNormalized repeats these canonical fields after alpha-crop conversion. screenEffects and motionEffects retain full annotation/provenance descriptors."
   },
   "sharedIntegrationRequirements": [
     "Retain catalog footprints, blocking, optional table mounting, leisure selection and simulation triggers independently of skin rendering.",
@@ -58,8 +59,6 @@
             "Bookshelf leisure use: standing, south approach, 18-34 second dwell and 3-6 second fidget cadence.",
             "Existing blocking footprint and collision."
           ],
-          "screenRegions": [],
-          "motionRegions": [],
           "notes": [],
           "integrationRequirements": [
             "Keep bookshelf leisure descriptor and actor reading behavior; no animation in the furniture is required to make the book-reading action functional."
@@ -90,6 +89,14 @@
               "partial": 0
             },
             "nativeAndSmallScaleReview": "Art visually inspected; overlay geometry is a manual proposal, not a tested runtime result."
+          },
+          "screenEffects": [],
+          "motionEffects": [],
+          "regions": {},
+          "screenRegions": [],
+          "engineAlphaNormalized": {
+            "regions": {},
+            "screenRegions": []
           }
         }
       }
@@ -133,8 +140,6 @@
           "functionalCapabilitiesPreserved": [
             "Optional surface mount and existing nonblocking placement."
           ],
-          "screenRegions": [],
-          "motionRegions": [],
           "notes": [],
           "integrationRequirements": [],
           "nativePlacement": {
@@ -163,6 +168,14 @@
               "partial": 0
             },
             "nativeAndSmallScaleReview": "Art visually inspected; overlay geometry is a manual proposal, not a tested runtime result."
+          },
+          "screenEffects": [],
+          "motionEffects": [],
+          "regions": {},
+          "screenRegions": [],
+          "engineAlphaNormalized": {
+            "regions": {},
+            "screenRegions": []
           }
         }
       }
@@ -203,8 +216,40 @@
             "Optional surface mount.",
             "Autonomous thin steam curl."
           ],
-          "screenRegions": [],
-          "motionRegions": [
+          "notes": [],
+          "integrationRequirements": [
+            "Render a narrow low-opacity curl above the liquid; never a large smoke cloud.",
+            "Use a separate overlay for steam so it can rise outside mug alpha without filling the handle hole."
+          ],
+          "nativePlacement": {
+            "footprint": {
+              "w": 1,
+              "h": 1
+            },
+            "bounds": {
+              "x": 1,
+              "y": 2,
+              "width": 10,
+              "height": 9
+            },
+            "tilePixels": 12,
+            "contact": {
+              "x": 6,
+              "y": 11
+            },
+            "anchorContract": "Can sit on bare deck or valid table; table mount lifts contact origin exactly 8 world pixels."
+          },
+          "qa": {
+            "sourceReceiptShaMatches": true,
+            "alphaCounts": {
+              "transparent": 314570,
+              "opaque": 763780,
+              "partial": 0
+            },
+            "nativeAndSmallScaleReview": "Art visually inspected; overlay geometry is a manual proposal, not a tested runtime result."
+          },
+          "screenEffects": [],
+          "motionEffects": [
             {
               "name": "coffee surface / steam emission",
               "exportedImageNormalized": {
@@ -311,40 +356,205 @@
               "mechanism": "steam",
               "periodMs": 3000,
               "maxOpacity": 0.13,
-              "workDependent": false
+              "workDependent": false,
+              "regionName": "coffee_surface_steam_emission",
+              "rise": 4,
+              "riseUnits": "world pixels"
             }
           ],
-          "notes": [],
-          "integrationRequirements": [
-            "Render a narrow low-opacity curl above the liquid; never a large smoke cloud.",
-            "Use a separate overlay for steam so it can rise outside mug alpha without filling the handle hole."
-          ],
-          "nativePlacement": {
-            "footprint": {
-              "w": 1,
-              "h": 1
-            },
-            "bounds": {
-              "x": 1,
-              "y": 2,
-              "width": 10,
-              "height": 9
-            },
-            "tilePixels": 12,
-            "contact": {
-              "x": 6,
-              "y": 11
-            },
-            "anchorContract": "Can sit on bare deck or valid table; table mount lifts contact origin exactly 8 world pixels."
+          "regions": {
+            "coffee_surface_steam_emission": [
+              [
+                0.13,
+                0.18
+              ],
+              [
+                0.48,
+                0.16
+              ],
+              [
+                0.65,
+                0.31
+              ],
+              [
+                0.58,
+                0.45
+              ],
+              [
+                0.28,
+                0.47
+              ],
+              [
+                0.1,
+                0.31
+              ]
+            ]
           },
-          "qa": {
-            "sourceReceiptShaMatches": true,
-            "alphaCounts": {
-              "transparent": 314570,
-              "opaque": 763780,
-              "partial": 0
+          "screenRegions": [],
+          "engineAlphaNormalized": {
+            "regions": {
+              "coffee_surface_steam_emission": [
+                [
+                  0.13,
+                  0.18
+                ],
+                [
+                  0.48,
+                  0.16
+                ],
+                [
+                  0.65,
+                  0.31
+                ],
+                [
+                  0.58,
+                  0.45
+                ],
+                [
+                  0.28,
+                  0.47
+                ],
+                [
+                  0.1,
+                  0.31
+                ]
+              ]
             },
-            "nativeAndSmallScaleReview": "Art visually inspected; overlay geometry is a manual proposal, not a tested runtime result."
+            "screenRegions": [],
+            "motion": {
+              "region": [
+                [
+                  0.13,
+                  0.18
+                ],
+                [
+                  0.48,
+                  0.16
+                ],
+                [
+                  0.65,
+                  0.31
+                ],
+                [
+                  0.58,
+                  0.45
+                ],
+                [
+                  0.28,
+                  0.47
+                ],
+                [
+                  0.1,
+                  0.31
+                ]
+              ],
+              "colour": [
+                223,
+                232,
+                234
+              ],
+              "trigger": "ambient",
+              "mechanism": "steam",
+              "clipToOriginalAlpha": false,
+              "origin": [
+                0.36,
+                0.3
+              ],
+              "path": [
+                [
+                  0.36,
+                  0.3
+                ],
+                [
+                  0.345,
+                  0.23
+                ],
+                [
+                  0.365,
+                  0.16
+                ],
+                [
+                  0.355,
+                  0.09
+                ]
+              ],
+              "periodMs": 3000,
+              "workDependent": false,
+              "maxOverlayOpacity": 0.13,
+              "rise": 4,
+              "riseUnits": "world pixels",
+              "riseEvidence": {
+                "source": "frontend/app/propsprites.js:9556 and :9560",
+                "derivation": "Native liquid is y+3; highest steam pixel is y-1: (y+3)-(y-1)=4 world pixels. This is not a normalized image distance."
+              }
+            }
+          },
+          "motion": {
+            "region": [
+              [
+                0.13,
+                0.18
+              ],
+              [
+                0.48,
+                0.16
+              ],
+              [
+                0.65,
+                0.31
+              ],
+              [
+                0.58,
+                0.45
+              ],
+              [
+                0.28,
+                0.47
+              ],
+              [
+                0.1,
+                0.31
+              ]
+            ],
+            "colour": [
+              223,
+              232,
+              234
+            ],
+            "trigger": "ambient",
+            "mechanism": "steam",
+            "clipToOriginalAlpha": false,
+            "origin": [
+              0.36,
+              0.3
+            ],
+            "path": [
+              [
+                0.36,
+                0.3
+              ],
+              [
+                0.345,
+                0.23
+              ],
+              [
+                0.365,
+                0.16
+              ],
+              [
+                0.355,
+                0.09
+              ]
+            ],
+            "periodMs": 3000,
+            "workDependent": false,
+            "maxOverlayOpacity": 0.13,
+            "rise": 4,
+            "riseUnits": "world pixels",
+            "riseEvidence": {
+              "source": "frontend/app/propsprites.js:9556 and :9560",
+              "derivation": "Native liquid is y+3; highest steam pixel is y-1: (y+3)-(y-1)=4 world pixels. This is not a normalized image distance."
+            }
           }
         }
       }
@@ -389,7 +599,54 @@
             "Three-position analog needle drift.",
             "Existing low steady radio light."
           ],
-          "screenRegions": [
+          "notes": [],
+          "integrationRequirements": [
+            "The source contains a baked orange needle: derive a clean dial layer or mask and reconstruct its background before moving the needle; never draw duplicate needles.",
+            "Keep dial ticks and glass frame; no digital text or full-screen scanning sweep.",
+            "No native audio playback or tuning input was found; this recipe does not add either."
+          ],
+          "nativePlacement": {
+            "footprint": {
+              "w": 1,
+              "h": 1
+            },
+            "bounds": {
+              "x": 1,
+              "y": 3,
+              "width": 10,
+              "height": 9
+            },
+            "tilePixels": 12,
+            "contact": {
+              "x": 6,
+              "y": 12
+            },
+            "anchorContract": "Can sit on bare deck or valid table; table mount lifts contact origin exactly 8 world pixels."
+          },
+          "qa": {
+            "sourceReceiptShaMatches": true,
+            "alphaCounts": {
+              "transparent": 206310,
+              "opaque": 958390,
+              "partial": 0
+            },
+            "nativeAndSmallScaleReview": "Art visually inspected; overlay geometry is a manual proposal, not a tested runtime result."
+          },
+          "light": {
+            "native": {
+              "c": [
+                255,
+                120,
+                80
+              ],
+              "r": 10,
+              "a": 0.06,
+              "m": "steady",
+              "y": 0.5
+            },
+            "policy": "Preserve steady scene-light behavior; anchor the local dial effect to the measured dial rather than the old sprite location."
+          },
+          "screenEffects": [
             {
               "name": "analog dial interior",
               "exportedImageNormalized": {
@@ -458,56 +715,182 @@
                 0.579
               ],
               "positionsCoordinateSpace": "exportedImageNormalized; same engineAlphaNormalized for this tight crop",
-              "workDependent": false
+              "workDependent": false,
+              "regionName": "analog_dial_interior"
             }
           ],
-          "motionRegions": [],
-          "notes": [],
-          "integrationRequirements": [
-            "The source contains a baked orange needle: derive a clean dial layer or mask and reconstruct its background before moving the needle; never draw duplicate needles.",
-            "Keep dial ticks and glass frame; no digital text or full-screen scanning sweep.",
-            "No native audio playback or tuning input was found; this recipe does not add either."
-          ],
-          "nativePlacement": {
-            "footprint": {
-              "w": 1,
-              "h": 1
-            },
-            "bounds": {
-              "x": 1,
-              "y": 3,
-              "width": 10,
-              "height": 9
-            },
-            "tilePixels": 12,
-            "contact": {
-              "x": 6,
-              "y": 12
-            },
-            "anchorContract": "Can sit on bare deck or valid table; table mount lifts contact origin exactly 8 world pixels."
-          },
-          "qa": {
-            "sourceReceiptShaMatches": true,
-            "alphaCounts": {
-              "transparent": 206310,
-              "opaque": 958390,
-              "partial": 0
-            },
-            "nativeAndSmallScaleReview": "Art visually inspected; overlay geometry is a manual proposal, not a tested runtime result."
-          },
-          "light": {
-            "native": {
-              "c": [
-                255,
-                120,
-                80
+          "motionEffects": [],
+          "regions": {
+            "analog_dial_interior": [
+              [
+                0.618,
+                0.425
               ],
-              "r": 10,
-              "a": 0.06,
-              "m": "steady",
-              "y": 0.5
+              [
+                0.925,
+                0.425
+              ],
+              [
+                0.925,
+                0.584
+              ],
+              [
+                0.618,
+                0.584
+              ]
+            ]
+          },
+          "screenRegions": [
+            [
+              [
+                0.618,
+                0.425
+              ],
+              [
+                0.925,
+                0.425
+              ],
+              [
+                0.925,
+                0.584
+              ],
+              [
+                0.618,
+                0.584
+              ]
+            ]
+          ],
+          "engineAlphaNormalized": {
+            "regions": {
+              "analog_dial_interior": [
+                [
+                  0.618,
+                  0.425
+                ],
+                [
+                  0.925,
+                  0.425
+                ],
+                [
+                  0.925,
+                  0.584
+                ],
+                [
+                  0.618,
+                  0.584
+                ]
+              ]
             },
-            "policy": "Preserve steady scene-light behavior; anchor the local dial effect to the measured dial rather than the old sprite location."
+            "screenRegions": [
+              [
+                [
+                  0.618,
+                  0.425
+                ],
+                [
+                  0.925,
+                  0.425
+                ],
+                [
+                  0.925,
+                  0.584
+                ],
+                [
+                  0.618,
+                  0.584
+                ]
+              ]
+            ],
+            "motion": {
+              "region": [
+                [
+                  0.618,
+                  0.425
+                ],
+                [
+                  0.925,
+                  0.425
+                ],
+                [
+                  0.925,
+                  0.584
+                ],
+                [
+                  0.618,
+                  0.584
+                ]
+              ],
+              "colour": [
+                217,
+                160,
+                96
+              ],
+              "trigger": "ambient",
+              "mechanism": "analog-needle",
+              "clipToOriginalAlpha": true,
+              "stepMs": 900,
+              "steps": 3,
+              "workDependent": false,
+              "needleXPositions": [
+                0.69,
+                0.76,
+                0.83
+              ],
+              "needleYRange": [
+                0.43,
+                0.579
+              ],
+              "positionsCoordinateSpace": "exportedImageNormalized; same engineAlphaNormalized for this tight crop"
+            }
+          },
+          "motion": {
+            "region": [
+              [
+                0.618,
+                0.425
+              ],
+              [
+                0.925,
+                0.425
+              ],
+              [
+                0.925,
+                0.584
+              ],
+              [
+                0.618,
+                0.584
+              ]
+            ],
+            "colour": [
+              217,
+              160,
+              96
+            ],
+            "trigger": "ambient",
+            "mechanism": "analog-needle",
+            "clipToOriginalAlpha": true,
+            "stepMs": 900,
+            "steps": 3,
+            "workDependent": false,
+            "needleXPositions": [
+              0.69,
+              0.76,
+              0.83
+            ],
+            "needleYRange": [
+              0.43,
+              0.579
+            ],
+            "positionsCoordinateSpace": "exportedImageNormalized; same engineAlphaNormalized for this tight crop"
+          },
+          "screenBehavior": {
+            "mechanism": "analog-needle",
+            "stepMs": 900,
+            "steps": 3,
+            "trigger": "ambient",
+            "bakedNeedleRemovalRequired": true,
+            "idlePowerLedIntentionallyRemoved": true
           }
         }
       }
@@ -547,8 +930,6 @@
           "functionalCapabilitiesPreserved": [
             "Existing floor placement and blocking footprint."
           ],
-          "screenRegions": [],
-          "motionRegions": [],
           "notes": [],
           "integrationRequirements": [
             "Do not infer a new play-music interaction from the prop identity."
@@ -579,6 +960,14 @@
               "partial": 0
             },
             "nativeAndSmallScaleReview": "Art visually inspected; overlay geometry is a manual proposal, not a tested runtime result."
+          },
+          "screenEffects": [],
+          "motionEffects": [],
+          "regions": {},
+          "screenRegions": [],
+          "engineAlphaNormalized": {
+            "regions": {},
+            "screenRegions": []
           }
         }
       }
@@ -619,8 +1008,6 @@
           "functionalCapabilitiesPreserved": [
             "Optional surface mount and collectible decoration."
           ],
-          "screenRegions": [],
-          "motionRegions": [],
           "notes": [],
           "integrationRequirements": [
             "Keep visor painted; do not introduce a fake task/status LED."
@@ -651,6 +1038,14 @@
               "partial": 0
             },
             "nativeAndSmallScaleReview": "Art visually inspected; overlay geometry is a manual proposal, not a tested runtime result."
+          },
+          "screenEffects": [],
+          "motionEffects": [],
+          "regions": {},
+          "screenRegions": [],
+          "engineAlphaNormalized": {
+            "regions": {},
+            "screenRegions": []
           }
         }
       }
@@ -692,8 +1087,41 @@
             "Optional surface mount.",
             "Autonomous paired miniature-thruster pulse."
           ],
-          "screenRegions": [],
-          "motionRegions": [
+          "notes": [],
+          "integrationRequirements": [
+            "The new ship points LEFT; its aft engines are on the RIGHT. Old left-edge thruster coordinates would light the nose.",
+            "Confine pulse to outlet polygons, with restrained bloom; no thrust trail or movement of the model.",
+            "Canonical motion describes the upper aft outlet; motion.layers[0] describes the lower aft outlet. Render both with the same 2200 ms native phase, once each. Never replace the two polygons with a single hull-covering rectangle."
+          ],
+          "nativePlacement": {
+            "footprint": {
+              "w": 2,
+              "h": 1
+            },
+            "bounds": {
+              "x": 2,
+              "y": 1,
+              "width": 20,
+              "height": 11
+            },
+            "tilePixels": 12,
+            "contact": {
+              "x": 12,
+              "y": 12
+            },
+            "anchorContract": "Can sit on bare deck or valid table; table mount lifts contact origin exactly 8 world pixels."
+          },
+          "qa": {
+            "sourceReceiptShaMatches": true,
+            "alphaCounts": {
+              "transparent": 365494,
+              "opaque": 596222,
+              "partial": 0
+            },
+            "nativeAndSmallScaleReview": "Art visually inspected; overlay geometry is a manual proposal, not a tested runtime result."
+          },
+          "screenEffects": [],
+          "motionEffects": [
             {
               "name": "upper aft outlet",
               "exportedImageNormalized": {
@@ -740,7 +1168,8 @@
               "mechanism": "pulse",
               "periodMs": 2200,
               "maxOpacity": 0.3,
-              "workDependent": false
+              "workDependent": false,
+              "regionName": "upper_aft_outlet"
             },
             {
               "name": "lower aft outlet",
@@ -788,40 +1217,221 @@
               "mechanism": "pulse",
               "periodMs": 2200,
               "maxOpacity": 0.3,
-              "workDependent": false
+              "workDependent": false,
+              "regionName": "lower_aft_outlet"
             }
           ],
-          "notes": [],
-          "integrationRequirements": [
-            "The new ship points LEFT; its aft engines are on the RIGHT. Old left-edge thruster coordinates would light the nose.",
-            "Confine pulse to outlet polygons, with restrained bloom; no thrust trail or movement of the model."
-          ],
-          "nativePlacement": {
-            "footprint": {
-              "w": 2,
-              "h": 1
-            },
-            "bounds": {
-              "x": 2,
-              "y": 1,
-              "width": 20,
-              "height": 11
-            },
-            "tilePixels": 12,
-            "contact": {
-              "x": 12,
-              "y": 12
-            },
-            "anchorContract": "Can sit on bare deck or valid table; table mount lifts contact origin exactly 8 world pixels."
+          "regions": {
+            "upper_aft_outlet": [
+              [
+                0.946,
+                0.26
+              ],
+              [
+                0.981,
+                0.27
+              ],
+              [
+                0.982,
+                0.369
+              ],
+              [
+                0.949,
+                0.389
+              ]
+            ],
+            "lower_aft_outlet": [
+              [
+                0.954,
+                0.468
+              ],
+              [
+                0.988,
+                0.478
+              ],
+              [
+                0.989,
+                0.583
+              ],
+              [
+                0.952,
+                0.597
+              ]
+            ]
           },
-          "qa": {
-            "sourceReceiptShaMatches": true,
-            "alphaCounts": {
-              "transparent": 365494,
-              "opaque": 596222,
-              "partial": 0
+          "screenRegions": [],
+          "engineAlphaNormalized": {
+            "regions": {
+              "upper_aft_outlet": [
+                [
+                  0.946,
+                  0.26
+                ],
+                [
+                  0.981,
+                  0.27
+                ],
+                [
+                  0.982,
+                  0.369
+                ],
+                [
+                  0.949,
+                  0.389
+                ]
+              ],
+              "lower_aft_outlet": [
+                [
+                  0.954,
+                  0.468
+                ],
+                [
+                  0.988,
+                  0.478
+                ],
+                [
+                  0.989,
+                  0.583
+                ],
+                [
+                  0.952,
+                  0.597
+                ]
+              ]
             },
-            "nativeAndSmallScaleReview": "Art visually inspected; overlay geometry is a manual proposal, not a tested runtime result."
+            "screenRegions": [],
+            "motion": {
+              "region": [
+                [
+                  0.946,
+                  0.26
+                ],
+                [
+                  0.981,
+                  0.27
+                ],
+                [
+                  0.982,
+                  0.369
+                ],
+                [
+                  0.949,
+                  0.389
+                ]
+              ],
+              "colour": [
+                117,
+                167,
+                181
+              ],
+              "trigger": "ambient",
+              "mechanism": "pulse",
+              "clipToOriginalAlpha": true,
+              "periodMs": 2200,
+              "workDependent": false,
+              "maxOverlayOpacity": 0.3,
+              "layers": [
+                {
+                  "name": "lower_aft_outlet",
+                  "region": [
+                    [
+                      0.954,
+                      0.468
+                    ],
+                    [
+                      0.988,
+                      0.478
+                    ],
+                    [
+                      0.989,
+                      0.583
+                    ],
+                    [
+                      0.952,
+                      0.597
+                    ]
+                  ],
+                  "colour": [
+                    117,
+                    167,
+                    181
+                  ],
+                  "trigger": "ambient",
+                  "mechanism": "pulse",
+                  "clipToOriginalAlpha": true,
+                  "periodMs": 2200,
+                  "workDependent": false,
+                  "maxOverlayOpacity": 0.3
+                }
+              ],
+              "layerPolicy": "Draw the primary region and each additional layer once; share the same native phase."
+            }
+          },
+          "motion": {
+            "region": [
+              [
+                0.946,
+                0.26
+              ],
+              [
+                0.981,
+                0.27
+              ],
+              [
+                0.982,
+                0.369
+              ],
+              [
+                0.949,
+                0.389
+              ]
+            ],
+            "colour": [
+              117,
+              167,
+              181
+            ],
+            "trigger": "ambient",
+            "mechanism": "pulse",
+            "clipToOriginalAlpha": true,
+            "periodMs": 2200,
+            "workDependent": false,
+            "maxOverlayOpacity": 0.3,
+            "layers": [
+              {
+                "name": "lower_aft_outlet",
+                "region": [
+                  [
+                    0.954,
+                    0.468
+                  ],
+                  [
+                    0.988,
+                    0.478
+                  ],
+                  [
+                    0.989,
+                    0.583
+                  ],
+                  [
+                    0.952,
+                    0.597
+                  ]
+                ],
+                "colour": [
+                  117,
+                  167,
+                  181
+                ],
+                "trigger": "ambient",
+                "mechanism": "pulse",
+                "clipToOriginalAlpha": true,
+                "periodMs": 2200,
+                "workDependent": false,
+                "maxOverlayOpacity": 0.3
+              }
+            ],
+            "layerPolicy": "Draw the primary region and each additional layer once; share the same native phase."
           }
         }
       }
@@ -861,8 +1471,6 @@
           "functionalCapabilitiesPreserved": [
             "Optional surface mount and existing nonblocking placement."
           ],
-          "screenRegions": [],
-          "motionRegions": [],
           "notes": [],
           "integrationRequirements": [
             "Do not promise opening lids or moving tools; these are not existing functions."
@@ -893,6 +1501,14 @@
               "partial": 0
             },
             "nativeAndSmallScaleReview": "Art visually inspected; overlay geometry is a manual proposal, not a tested runtime result."
+          },
+          "screenEffects": [],
+          "motionEffects": [],
+          "regions": {},
+          "screenRegions": [],
+          "engineAlphaNormalized": {
+            "regions": {},
+            "screenRegions": []
           }
         }
       }
@@ -910,7 +1526,7 @@
             "width": 1033,
             "height": 956
           },
-          "mode": "steady-light",
+          "mode": "static",
           "originalTrigger": {
             "kind": "constant lamp illumination",
             "condition": "Native mouth bloom/spill and catalog light are steady; no work or blink gate.",
@@ -936,8 +1552,55 @@
             "Optional surface mount.",
             "Warm steady lamp emission and restrained local spill."
           ],
-          "screenRegions": [],
-          "motionRegions": [
+          "notes": [],
+          "integrationRequirements": [
+            "Retain catalog scene light c=[255,214,150], r=26, a=.22, m=steady, y=.3.",
+            "Use the slanted shade mouth for local emission; leave open arm/base cutouts transparent.",
+            "Use static art plus nativeLight; the retained steady-light descriptor is a local emission measurement, not a new runtime mode or animated motion."
+          ],
+          "nativePlacement": {
+            "footprint": {
+              "w": 1,
+              "h": 1
+            },
+            "bounds": {
+              "x": 0,
+              "y": 3,
+              "width": 12,
+              "height": 9
+            },
+            "tilePixels": 12,
+            "contact": {
+              "x": 6,
+              "y": 12
+            },
+            "anchorContract": "Can sit on bare deck or valid table; table mount lifts contact origin exactly 8 world pixels."
+          },
+          "qa": {
+            "sourceReceiptShaMatches": true,
+            "alphaCounts": {
+              "transparent": 599137,
+              "opaque": 388411,
+              "partial": 0
+            },
+            "nativeAndSmallScaleReview": "Art visually inspected; overlay geometry is a manual proposal, not a tested runtime result."
+          },
+          "light": {
+            "native": {
+              "c": [
+                255,
+                214,
+                150
+              ],
+              "r": 26,
+              "a": 0.22,
+              "m": "steady",
+              "y": 0.3
+            },
+            "policy": "Preserve steady scene light independently of static sprite mode."
+          },
+          "screenEffects": [],
+          "motionEffects": [
             {
               "name": "lamp mouth",
               "exportedImageNormalized": {
@@ -1008,54 +1671,80 @@
               "mechanism": "steady-light",
               "workDependent": false,
               "nativeBloomOpacity": 0.62,
-              "nativeSpillOpacity": 0.18
+              "nativeSpillOpacity": 0.18,
+              "regionName": "lamp_mouth"
             }
           ],
-          "notes": [],
-          "integrationRequirements": [
-            "Retain catalog scene light c=[255,214,150], r=26, a=.22, m=steady, y=.3.",
-            "Use the slanted shade mouth for local emission; leave open arm/base cutouts transparent."
-          ],
-          "nativePlacement": {
-            "footprint": {
-              "w": 1,
-              "h": 1
-            },
-            "bounds": {
-              "x": 0,
-              "y": 3,
-              "width": 12,
-              "height": 9
-            },
-            "tilePixels": 12,
-            "contact": {
-              "x": 6,
-              "y": 12
-            },
-            "anchorContract": "Can sit on bare deck or valid table; table mount lifts contact origin exactly 8 world pixels."
-          },
-          "qa": {
-            "sourceReceiptShaMatches": true,
-            "alphaCounts": {
-              "transparent": 599137,
-              "opaque": 388411,
-              "partial": 0
-            },
-            "nativeAndSmallScaleReview": "Art visually inspected; overlay geometry is a manual proposal, not a tested runtime result."
-          },
-          "light": {
-            "native": {
-              "c": [
-                255,
-                214,
-                150
+          "regions": {
+            "lamp_mouth": [
+              [
+                0.025,
+                0.319
               ],
-              "r": 26,
-              "a": 0.22,
-              "m": "steady",
-              "y": 0.3
+              [
+                0.105,
+                0.323
+              ],
+              [
+                0.435,
+                0.49
+              ],
+              [
+                0.475,
+                0.555
+              ],
+              [
+                0.414,
+                0.583
+              ],
+              [
+                0.079,
+                0.402
+              ]
+            ]
+          },
+          "screenRegions": [],
+          "engineAlphaNormalized": {
+            "regions": {
+              "lamp_mouth": [
+                [
+                  0.025,
+                  0.319
+                ],
+                [
+                  0.105,
+                  0.323
+                ],
+                [
+                  0.435,
+                  0.49
+                ],
+                [
+                  0.475,
+                  0.555
+                ],
+                [
+                  0.414,
+                  0.583
+                ],
+                [
+                  0.079,
+                  0.402
+                ]
+              ]
             },
-            "policy": "Preserve steady scene light independently of static sprite mode."
+            "screenRegions": []
+          },
+          "nativeLight": {
+            "c": [
+              255,
+              214,
+              150
+            ],
+            "r": 26,
+            "a": 0.22,
+            "m": "steady",
+            "y": 0.3
           }
         }
       }
@@ -1101,8 +1790,42 @@
             "Optional surface mount.",
             "A work-state-dependent fresh-sheet offset and feed edge."
           ],
-          "screenRegions": [],
-          "motionRegions": [
+          "notes": [],
+          "integrationRequirements": [
+            "Make a separated central-sheet layer or mask before moving it; source is a single flattened PNG.",
+            "Keep ink matte; no scanning light or glowing progress bar.",
+            "Use a small work-state offset/revealed edge, preserving page content. Native feed is a work-state change rather than a continuously running conveyor.",
+            "Restore the resting position when work ends; preserve the generic work trigger and native fallback until this layer is implemented."
+          ],
+          "nativePlacement": {
+            "footprint": {
+              "w": 2,
+              "h": 1
+            },
+            "bounds": {
+              "x": 1,
+              "y": 1,
+              "width": 20,
+              "height": 10
+            },
+            "tilePixels": 12,
+            "contact": {
+              "x": 11,
+              "y": 11
+            },
+            "anchorContract": "Can sit on bare deck or valid table; table mount lifts contact origin exactly 8 world pixels."
+          },
+          "qa": {
+            "sourceReceiptShaMatches": true,
+            "alphaCounts": {
+              "transparent": 189858,
+              "opaque": 834746,
+              "partial": 0
+            },
+            "nativeAndSmallScaleReview": "Art visually inspected; overlay geometry is a manual proposal, not a tested runtime result."
+          },
+          "screenEffects": [],
+          "motionEffects": [
             {
               "name": "central top sheet",
               "exportedImageNormalized": {
@@ -1164,42 +1887,137 @@
                 1,
                 0
               ],
-              "offsetPolicy": "Map the original one-world-pixel rightward offset into the fitted sprite; do not use source pixel distance as world distance."
+              "offsetPolicy": "Map the original one-world-pixel rightward offset into the fitted sprite; do not use source pixel distance as world distance.",
+              "regionName": "central_top_sheet"
             }
           ],
-          "notes": [],
-          "integrationRequirements": [
-            "Make a separated central-sheet layer or mask before moving it; source is a single flattened PNG.",
-            "Keep ink matte; no scanning light or glowing progress bar.",
-            "Use a small work-state offset/revealed edge, preserving page content. Native feed is a work-state change rather than a continuously running conveyor.",
-            "Restore the resting position when work ends; preserve the generic work trigger and native fallback until this layer is implemented."
-          ],
-          "nativePlacement": {
-            "footprint": {
-              "w": 2,
-              "h": 1
-            },
-            "bounds": {
-              "x": 1,
-              "y": 1,
-              "width": 20,
-              "height": 10
-            },
-            "tilePixels": 12,
-            "contact": {
-              "x": 11,
-              "y": 11
-            },
-            "anchorContract": "Can sit on bare deck or valid table; table mount lifts contact origin exactly 8 world pixels."
+          "regions": {
+            "central_top_sheet": [
+              [
+                0.39,
+                0.075
+              ],
+              [
+                0.646,
+                0.115
+              ],
+              [
+                0.625,
+                0.845
+              ],
+              [
+                0.37,
+                0.79
+              ]
+            ]
           },
-          "qa": {
-            "sourceReceiptShaMatches": true,
-            "alphaCounts": {
-              "transparent": 189858,
-              "opaque": 834746,
-              "partial": 0
+          "screenRegions": [],
+          "engineAlphaNormalized": {
+            "regions": {
+              "central_top_sheet": [
+                [
+                  0.39,
+                  0.075
+                ],
+                [
+                  0.646,
+                  0.115
+                ],
+                [
+                  0.625,
+                  0.845
+                ],
+                [
+                  0.37,
+                  0.79
+                ]
+              ]
             },
-            "nativeAndSmallScaleReview": "Art visually inspected; overlay geometry is a manual proposal, not a tested runtime result."
+            "screenRegions": [],
+            "motion": {
+              "region": [
+                [
+                  0.39,
+                  0.075
+                ],
+                [
+                  0.646,
+                  0.115
+                ],
+                [
+                  0.625,
+                  0.845
+                ],
+                [
+                  0.37,
+                  0.79
+                ]
+              ],
+              "colour": [
+                214,
+                201,
+                165
+              ],
+              "trigger": "work",
+              "mechanism": "sheet-feed",
+              "clipToOriginalAlpha": true,
+              "origin": [
+                0.505,
+                0.46
+              ],
+              "workDependent": true,
+              "restOffset": [
+                0,
+                0
+              ],
+              "workOffsetWorldPixels": [
+                1,
+                0
+              ],
+              "offsetPolicy": "Map the original one-world-pixel rightward offset into the fitted sprite; do not use source pixel distance as world distance."
+            }
+          },
+          "motion": {
+            "region": [
+              [
+                0.39,
+                0.075
+              ],
+              [
+                0.646,
+                0.115
+              ],
+              [
+                0.625,
+                0.845
+              ],
+              [
+                0.37,
+                0.79
+              ]
+            ],
+            "colour": [
+              214,
+              201,
+              165
+            ],
+            "trigger": "work",
+            "mechanism": "sheet-feed",
+            "clipToOriginalAlpha": true,
+            "origin": [
+              0.505,
+              0.46
+            ],
+            "workDependent": true,
+            "restOffset": [
+              0,
+              0
+            ],
+            "workOffsetWorldPixels": [
+              1,
+              0
+            ],
+            "offsetPolicy": "Map the original one-world-pixel rightward offset into the fitted sprite; do not use source pixel distance as world distance."
           }
         }
       }
@@ -1245,8 +2063,41 @@
             "Existing blocking floor footprint.",
             "Work-triggered visible thread-feed behavior."
           ],
-          "screenRegions": [],
-          "motionRegions": [
+          "notes": [],
+          "integrationRequirements": [
+            "The new art lacks the old external guide/strand. Owner must author a small separated thread-band overlay inside the marked red spool, or add an explicit physical thread path; static source alone is not a preserved feed mechanism.",
+            "Do not overlay the old native casing or floating LED on the wooden rack.",
+            "Keep work-only thread movement tied to the original flag; do not claim real job completion or spool inventory from animation phase."
+          ],
+          "nativePlacement": {
+            "footprint": {
+              "w": 2,
+              "h": 1
+            },
+            "bounds": {
+              "x": -1,
+              "y": -8,
+              "width": 26,
+              "height": 20
+            },
+            "tilePixels": 12,
+            "contact": {
+              "x": 12,
+              "y": 12
+            },
+            "anchorContract": "No leisure seat anchor. Footprint is the placement/pathfinding rectangle; upright visual rise is independent of the reserved box."
+          },
+          "qa": {
+            "sourceReceiptShaMatches": true,
+            "alphaCounts": {
+              "transparent": 280791,
+              "opaque": 810441,
+              "partial": 0
+            },
+            "nativeAndSmallScaleReview": "Art visually inspected; overlay geometry is a manual proposal, not a tested runtime result."
+          },
+          "screenEffects": [],
+          "motionEffects": [
             {
               "name": "upper left red spool winding",
               "exportedImageNormalized": {
@@ -1330,41 +2181,153 @@
               "stepMs": 260,
               "workDependent": true,
               "emissive": false,
-              "geometryStatus": "Calibrated visible winding region; replacement moving thread layer still needs owner implementation."
+              "geometryStatus": "Calibrated visible winding region; replacement moving thread layer still needs owner implementation.",
+              "regionName": "upper_left_red_spool_winding"
             }
           ],
-          "notes": [],
-          "integrationRequirements": [
-            "The new art lacks the old external guide/strand. Owner must author a small separated thread-band overlay inside the marked red spool, or add an explicit physical thread path; static source alone is not a preserved feed mechanism.",
-            "Do not overlay the old native casing or floating LED on the wooden rack.",
-            "Keep work-only thread movement tied to the original flag; do not claim real job completion or spool inventory from animation phase."
-          ],
-          "nativePlacement": {
-            "footprint": {
-              "w": 2,
-              "h": 1
-            },
-            "bounds": {
-              "x": -1,
-              "y": -8,
-              "width": 26,
-              "height": 20
-            },
-            "tilePixels": 12,
-            "contact": {
-              "x": 12,
-              "y": 12
-            },
-            "anchorContract": "No leisure seat anchor. Footprint is the placement/pathfinding rectangle; upright visual rise is independent of the reserved box."
+          "regions": {
+            "upper_left_red_spool_winding": [
+              [
+                0.133,
+                0.15
+              ],
+              [
+                0.268,
+                0.15
+              ],
+              [
+                0.268,
+                0.333
+              ],
+              [
+                0.133,
+                0.333
+              ]
+            ]
           },
-          "qa": {
-            "sourceReceiptShaMatches": true,
-            "alphaCounts": {
-              "transparent": 280791,
-              "opaque": 810441,
-              "partial": 0
+          "screenRegions": [],
+          "engineAlphaNormalized": {
+            "regions": {
+              "upper_left_red_spool_winding": [
+                [
+                  0.133,
+                  0.15
+                ],
+                [
+                  0.268,
+                  0.15
+                ],
+                [
+                  0.268,
+                  0.333
+                ],
+                [
+                  0.133,
+                  0.333
+                ]
+              ]
             },
-            "nativeAndSmallScaleReview": "Art visually inspected; overlay geometry is a manual proposal, not a tested runtime result."
+            "screenRegions": [],
+            "motion": {
+              "region": [
+                [
+                  0.133,
+                  0.15
+                ],
+                [
+                  0.268,
+                  0.15
+                ],
+                [
+                  0.268,
+                  0.333
+                ],
+                [
+                  0.133,
+                  0.333
+                ]
+              ],
+              "colour": [
+                190,
+                105,
+                80
+              ],
+              "trigger": "work",
+              "mechanism": "thread-feed",
+              "clipToOriginalAlpha": true,
+              "origin": [
+                0.2,
+                0.2
+              ],
+              "path": [
+                [
+                  0.15,
+                  0.24
+                ],
+                [
+                  0.2,
+                  0.214
+                ],
+                [
+                  0.251,
+                  0.195
+                ]
+              ],
+              "stepMs": 260,
+              "workDependent": true,
+              "geometryStatus": "Calibrated visible winding region; replacement moving thread layer still needs owner implementation.",
+              "emissive": false
+            }
+          },
+          "motion": {
+            "region": [
+              [
+                0.133,
+                0.15
+              ],
+              [
+                0.268,
+                0.15
+              ],
+              [
+                0.268,
+                0.333
+              ],
+              [
+                0.133,
+                0.333
+              ]
+            ],
+            "colour": [
+              190,
+              105,
+              80
+            ],
+            "trigger": "work",
+            "mechanism": "thread-feed",
+            "clipToOriginalAlpha": true,
+            "origin": [
+              0.2,
+              0.2
+            ],
+            "path": [
+              [
+                0.15,
+                0.24
+              ],
+              [
+                0.2,
+                0.214
+              ],
+              [
+                0.251,
+                0.195
+              ]
+            ],
+            "stepMs": 260,
+            "workDependent": true,
+            "geometryStatus": "Calibrated visible winding region; replacement moving thread layer still needs owner implementation.",
+            "emissive": false
           }
         }
       }
@@ -1412,8 +2375,42 @@
             "Existing floor/blocking geometry.",
             "Work-state-dependent reveal of painted canvas content."
           ],
-          "screenRegions": [],
-          "motionRegions": [
+          "notes": [],
+          "integrationRequirements": [
+            "Keep the new Saturn illustration: reveal muted painted color using a clipped prepared art layer, not a solid rectangle and not the old portrait sprite.",
+            "Retain the original 2400 ms illustrative cycle only while work is true; its phase must never be labeled actual job progress.",
+            "Prepare a canvas base and paint layer from the source before animating; no finished integration is implied by these bounds.",
+            "The native easel scene-light entry is a decorative canvas glow (c=[255,214,150], r=16, a=.05, steady, y=.4); intentionally suppress it with the removed sparkle, because the new prop contains no light source. This does not remove a usable task-lamp capability."
+          ],
+          "nativePlacement": {
+            "footprint": {
+              "w": 3,
+              "h": 2
+            },
+            "bounds": {
+              "x": 1,
+              "y": -14,
+              "width": 34,
+              "height": 38
+            },
+            "tilePixels": 12,
+            "contact": {
+              "x": 18,
+              "y": 24
+            },
+            "anchorContract": "No leisure seat anchor. Footprint is the placement/pathfinding rectangle; upright visual rise is independent of the reserved box."
+          },
+          "qa": {
+            "sourceReceiptShaMatches": true,
+            "alphaCounts": {
+              "transparent": 405358,
+              "opaque": 445470,
+              "partial": 0
+            },
+            "nativeAndSmallScaleReview": "Art visually inspected; overlay geometry is a manual proposal, not a tested runtime result."
+          },
+          "screenEffects": [],
+          "motionEffects": [
             {
               "name": "canvas interior excluding wood/clamp/ledge",
               "exportedImageNormalized": {
@@ -1470,42 +2467,127 @@
               "workDependent": true,
               "emissive": false,
               "revealDirection": "top-to-bottom",
-              "contentPolicy": "Reuse existing Saturn artwork colors and shapes; no flat paint-over, no task-percent assertion."
+              "contentPolicy": "Reuse existing Saturn artwork colors and shapes; no flat paint-over, no task-percent assertion.",
+              "regionName": "canvas_interior_excluding_wood_clamp_ledge"
             }
           ],
-          "notes": [],
-          "integrationRequirements": [
-            "Keep the new Saturn illustration: reveal muted painted color using a clipped prepared art layer, not a solid rectangle and not the old portrait sprite.",
-            "Retain the original 2400 ms illustrative cycle only while work is true; its phase must never be labeled actual job progress.",
-            "Prepare a canvas base and paint layer from the source before animating; no finished integration is implied by these bounds.",
-            "The native easel scene-light entry is a decorative canvas glow (c=[255,214,150], r=16, a=.05, steady, y=.4); intentionally suppress it with the removed sparkle, because the new prop contains no light source. This does not remove a usable task-lamp capability."
-          ],
-          "nativePlacement": {
-            "footprint": {
-              "w": 3,
-              "h": 2
-            },
-            "bounds": {
-              "x": 1,
-              "y": -14,
-              "width": 34,
-              "height": 38
-            },
-            "tilePixels": 12,
-            "contact": {
-              "x": 18,
-              "y": 24
-            },
-            "anchorContract": "No leisure seat anchor. Footprint is the placement/pathfinding rectangle; upright visual rise is independent of the reserved box."
+          "regions": {
+            "canvas_interior_excluding_wood_clamp_ledge": [
+              [
+                0.105,
+                0.21
+              ],
+              [
+                0.894,
+                0.21
+              ],
+              [
+                0.881,
+                0.539
+              ],
+              [
+                0.113,
+                0.539
+              ]
+            ]
           },
-          "qa": {
-            "sourceReceiptShaMatches": true,
-            "alphaCounts": {
-              "transparent": 405358,
-              "opaque": 445470,
-              "partial": 0
+          "screenRegions": [],
+          "engineAlphaNormalized": {
+            "regions": {
+              "canvas_interior_excluding_wood_clamp_ledge": [
+                [
+                  0.105,
+                  0.21
+                ],
+                [
+                  0.894,
+                  0.21
+                ],
+                [
+                  0.881,
+                  0.539
+                ],
+                [
+                  0.113,
+                  0.539
+                ]
+              ]
             },
-            "nativeAndSmallScaleReview": "Art visually inspected; overlay geometry is a manual proposal, not a tested runtime result."
+            "screenRegions": [],
+            "motion": {
+              "region": [
+                [
+                  0.105,
+                  0.21
+                ],
+                [
+                  0.894,
+                  0.21
+                ],
+                [
+                  0.881,
+                  0.539
+                ],
+                [
+                  0.113,
+                  0.539
+                ]
+              ],
+              "colour": [
+                172,
+                104,
+                62
+              ],
+              "trigger": "work",
+              "mechanism": "paint-reveal",
+              "clipToOriginalAlpha": true,
+              "origin": [
+                0.5,
+                0.21
+              ],
+              "periodMs": 2400,
+              "workDependent": true,
+              "emissive": false,
+              "revealDirection": "top-to-bottom",
+              "contentPolicy": "Reuse existing Saturn artwork colors and shapes; no flat paint-over, no task-percent assertion."
+            }
+          },
+          "motion": {
+            "region": [
+              [
+                0.105,
+                0.21
+              ],
+              [
+                0.894,
+                0.21
+              ],
+              [
+                0.881,
+                0.539
+              ],
+              [
+                0.113,
+                0.539
+              ]
+            ],
+            "colour": [
+              172,
+              104,
+              62
+            ],
+            "trigger": "work",
+            "mechanism": "paint-reveal",
+            "clipToOriginalAlpha": true,
+            "origin": [
+              0.5,
+              0.21
+            ],
+            "periodMs": 2400,
+            "workDependent": true,
+            "emissive": false,
+            "revealDirection": "top-to-bottom",
+            "contentPolicy": "Reuse existing Saturn artwork colors and shapes; no flat paint-over, no task-percent assertion."
           }
         }
       }
@@ -1533,6 +2615,8 @@
     "allSurfacePolygonPixelsOpaque": true,
     "evidenceFilesAndLineNumbersExist": true,
     "runtimeEdits": false,
-    "liveOverlayVerification": false
+    "liveOverlayVerification": false,
+    "canonicalInterfaceValidated": true,
+    "mugNativeSteamRiseWorldPixels": 4
   }
 }
