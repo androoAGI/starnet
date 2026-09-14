@@ -1,0 +1,143 @@
+{
+  "version": 1,
+  "id": "couch-alt",
+  "status": "calibration-candidate-geometry-target-missed",
+  "image": "frontend/assets/industrial/scale-calibration/crew/couch-alt.png",
+  "source": "docs/station-remaster/scale-calibration/crew/sources/couch-alt.png",
+  "sourceSha256": "2f15ac71ae81747462fbfb18314104e6368fa820a6d9e40e815e9f58ae96c490",
+  "outputSha256": "4264fec38b37f300779ea18d04a343f38e2a8d180ffe154f631598cd0455fa99",
+  "sourceWidth": 2062,
+  "sourceHeight": 763,
+  "width": 1641,
+  "height": 465,
+  "crop": {
+    "x": 211,
+    "y": 149,
+    "width": 1641,
+    "height": 465
+  },
+  "alphaBounds": {
+    "x": 0,
+    "y": 0,
+    "width": 1641,
+    "height": 465
+  },
+  "alphaExport": {
+    "method": "Preserve generated RGBA; set alpha below8 to0 to remove faint scattered alpha debris, then tight axis-aligned crop. No RGB edits, no resizing, no stretching.",
+    "authorization": "User earlier explicitly authorized deterministic alpha-only export/packing.",
+    "removedLowAlphaPixels": 8727,
+    "transparentPixels": 89782,
+    "partialPixels": 672490,
+    "opaquePixels": 793,
+    "subjectRgbChanges": 0,
+    "mostCommonAlphaValues": [
+      {
+        "alpha": 253,
+        "pixels": 526491
+      },
+      {
+        "alpha": 254,
+        "pixels": 110127
+      },
+      {
+        "alpha": 0,
+        "pixels": 89782
+      },
+      {
+        "alpha": 252,
+        "pixels": 16396
+      },
+      {
+        "alpha": 251,
+        "pixels": 4126
+      },
+      {
+        "alpha": 250,
+        "pixels": 1763
+      },
+      {
+        "alpha": 249,
+        "pixels": 1588
+      },
+      {
+        "alpha": 248,
+        "pixels": 1351
+      }
+    ]
+  },
+  "intendedEnvelope": {
+    "x": -1,
+    "y": -12,
+    "width": 62,
+    "height": 24
+  },
+  "actualUniformFit": {
+    "x": -1.0,
+    "y": -5.568555758683729,
+    "width": 62.0,
+    "height": 17.56855575868373
+  },
+  "actualAspectRatio": 3.529032258064516,
+  "targetAspectRatio": 2.7,
+  "screenAtAssumed2xZoom": {
+    "width": 124.0,
+    "height": 35.13711151736746
+  },
+  "nativeContract": {
+    "footprint": {
+      "w": 5,
+      "h": 1
+    },
+    "facing": "back view, sofa faces north",
+    "candidateSlotWorldX": [
+      18,
+      30,
+      42
+    ],
+    "seatFootWorldY": 10,
+    "seatLift": 0,
+    "couchSortRelativeToSitter": 1,
+    "catalogSitEnabled": false,
+    "evidence": [
+      "frontend/app/world.js:2666",
+      "frontend/app/world.js:6076",
+      "frontend/app/propsprites.js:10853"
+    ],
+    "note": "Dormant back-view planner geometry retained in concept; current catalog sit:false. No sitter overlay verified."
+  },
+  "references": [
+    {
+      "path": "C:\\Users\\andro\\Downloads\\bridge.png",
+      "sha256": "a4cc8c2b7769b44b0368c94dd55994e7e2b6a9f58ccd32160f09239c92a4e071",
+      "width": 1402,
+      "height": 1122
+    },
+    {
+      "path": "C:\\Users\\andro\\Downloads\\bridge (1).png",
+      "sha256": "a4cc8c2b7769b44b0368c94dd55994e7e2b6a9f58ccd32160f09239c92a4e071",
+      "width": 1402,
+      "height": 1122
+    },
+    {
+      "path": "C:\\Users\\andro\\Downloads\\ChatGPT Image Sep 12, 2026, 04_58_34 PM.png",
+      "sha256": "e4dd46fbebb5bf3679bc5b6eb165fa2759681ea05a2e81c8e41ea22bb135df77",
+      "width": 1321,
+      "height": 1191
+    }
+  ],
+  "visualAssessment": {
+    "improvements": [
+      "Broad olive upholstery values replace nearblack textured fabric.",
+      "No fine weaving, stitch rows, rivets or chipped metal noise.",
+      "Three broad cushion masses and two squat arms remain readable."
+    ],
+    "gaps": [
+      "Generated silhouette3.53:1 remains too wide/shallow versus requested2.7:1.",
+      "At62worldpx width the couch is17.57worldpx high rather than requested23\u201324; increasing manifestheight alone cannot fix uniform fit.",
+      "Near rear panel still consumes a large fraction of image; camera/visible seat-plane separation not yet accepted.",
+      "No live placement, lighting, zoom or sitter proof."
+    ],
+    "recommendedUse": "Review as a value/detail-density alternate only; root chooses/calibrates camera before integration."
+  },
+  "liveIntegrated": false
+}
