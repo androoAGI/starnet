@@ -1,0 +1,339 @@
+{
+  "id": "shelf",
+  "measurement": "Manually inspected conservative source-surface regions, mapped with uniform bottom-centered PropRemaster fit; not live verified.",
+  "sourceDimensions": {
+    "width": 1793,
+    "height": 877
+  },
+  "crop": {
+    "left": 38,
+    "top": 99,
+    "width": 1717,
+    "height": 706
+  },
+  "sourceSha256": "6d105cacc142b298fe994f357c02cab2cb334dc93a5a9b66876715351fa3cbc0",
+  "outputSha256": "2db1bf09a0d0c82c5d551ef431c9392b705e0a2168779e94e93265c276293667",
+  "footprint": {
+    "w": 4,
+    "h": 1
+  },
+  "worldEnvelope": {
+    "x": 0,
+    "y": -14,
+    "width": 53,
+    "height": 26
+  },
+  "tilePixels": 12,
+  "uniformScale": 0.030867792661619105,
+  "contact": {
+    "x": 26.5,
+    "y": 12
+  },
+  "supportedViews": {
+    "facings": [
+      {
+        "r": 0,
+        "front": "south",
+        "w": 4,
+        "h": 1,
+        "type": "authored-view"
+      }
+    ],
+    "canMirror": true,
+    "classicFacings": [
+      0
+    ]
+  },
+  "geometry": {
+    "blocks": true,
+    "flat": false,
+    "tableSurface": false,
+    "requiredMount": null,
+    "optionalSurfaceMount": false,
+    "surfaceRisePixels": 8
+  },
+  "originalAnimationTriggers": [
+    "Real fs.* tool completion chooses the granting prop instance and overlays a 900 ms success accent or red failure surge.",
+    "Autonomous sprite clock animation is present in the sampled default state; cosmetic motion is not evidence of provider work, route decisions or external state."
+  ],
+  "integrationNote": "File capability hardware, not books. Stored modules are decorative static stock; real fs.* completion drives right-hand status strip/accent. Blank strip provided.",
+  "regions": {
+    "statusStrip": {
+      "sourcePixels": [
+        [
+          1590,
+          297
+        ],
+        [
+          1628,
+          297
+        ],
+        [
+          1628,
+          446
+        ],
+        [
+          1590,
+          446
+        ]
+      ],
+      "sourceNormalized": [
+        [
+          0.886782,
+          0.338655
+        ],
+        [
+          0.907975,
+          0.338655
+        ],
+        [
+          0.907975,
+          0.508552
+        ],
+        [
+          0.886782,
+          0.508552
+        ]
+      ],
+      "exportPixels": [
+        [
+          1552,
+          198
+        ],
+        [
+          1590,
+          198
+        ],
+        [
+          1590,
+          347
+        ],
+        [
+          1552,
+          347
+        ]
+      ],
+      "exportNormalized": [
+        [
+          0.903902,
+          0.280453
+        ],
+        [
+          0.926034,
+          0.280453
+        ],
+        [
+          0.926034,
+          0.491501
+        ],
+        [
+          0.903902,
+          0.491501
+        ]
+      ],
+      "worldPixels": [
+        [
+          47.906814,
+          -3.680839
+        ],
+        [
+          49.07979,
+          -3.680839
+        ],
+        [
+          49.07979,
+          0.918462
+        ],
+        [
+          47.906814,
+          0.918462
+        ]
+      ]
+    },
+    "upperHardwareBay": {
+      "sourcePixels": [
+        [
+          184,
+          260
+        ],
+        [
+          1534,
+          260
+        ],
+        [
+          1534,
+          447
+        ],
+        [
+          184,
+          447
+        ]
+      ],
+      "sourceNormalized": [
+        [
+          0.102621,
+          0.296465
+        ],
+        [
+          0.855549,
+          0.296465
+        ],
+        [
+          0.855549,
+          0.509692
+        ],
+        [
+          0.102621,
+          0.509692
+        ]
+      ],
+      "exportPixels": [
+        [
+          146,
+          161
+        ],
+        [
+          1496,
+          161
+        ],
+        [
+          1496,
+          348
+        ],
+        [
+          146,
+          348
+        ]
+      ],
+      "exportNormalized": [
+        [
+          0.085032,
+          0.228045
+        ],
+        [
+          0.871287,
+          0.228045
+        ],
+        [
+          0.871287,
+          0.492918
+        ],
+        [
+          0.085032,
+          0.492918
+        ]
+      ],
+      "worldPixels": [
+        [
+          4.506698,
+          -4.822947
+        ],
+        [
+          46.178218,
+          -4.822947
+        ],
+        [
+          46.178218,
+          0.94933
+        ],
+        [
+          4.506698,
+          0.94933
+        ]
+      ]
+    },
+    "lowerHardwareBay": {
+      "sourcePixels": [
+        [
+          180,
+          501
+        ],
+        [
+          1525,
+          501
+        ],
+        [
+          1525,
+          675
+        ],
+        [
+          180,
+          675
+        ]
+      ],
+      "sourceNormalized": [
+        [
+          0.10039,
+          0.571266
+        ],
+        [
+          0.85053,
+          0.571266
+        ],
+        [
+          0.85053,
+          0.769669
+        ],
+        [
+          0.10039,
+          0.769669
+        ]
+      ],
+      "exportPixels": [
+        [
+          142,
+          402
+        ],
+        [
+          1487,
+          402
+        ],
+        [
+          1487,
+          576
+        ],
+        [
+          142,
+          576
+        ]
+      ],
+      "exportNormalized": [
+        [
+          0.082702,
+          0.569405
+        ],
+        [
+          0.866045,
+          0.569405
+        ],
+        [
+          0.866045,
+          0.815864
+        ],
+        [
+          0.082702,
+          0.815864
+        ]
+      ],
+      "worldPixels": [
+        [
+          4.383227,
+          2.616191
+        ],
+        [
+          45.900408,
+          2.616191
+        ],
+        [
+          45.900408,
+          7.987187
+        ],
+        [
+          4.383227,
+          7.987187
+        ]
+      ]
+    }
+  },
+  "liveIntegrated": false
+}

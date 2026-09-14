@@ -1,0 +1,207 @@
+{
+  "id": "treasury_pnl_holo",
+  "measurement": "Manually inspected conservative source-surface regions, mapped with uniform bottom-centered PropRemaster fit; not live verified.",
+  "sourceDimensions": {
+    "width": 1774,
+    "height": 887
+  },
+  "crop": {
+    "left": 226,
+    "top": 205,
+    "width": 1322,
+    "height": 471
+  },
+  "sourceSha256": "c949e216b38f6d66ed41794ea8a91b02521aa0f5f5a290120e224a308167e02b",
+  "outputSha256": "4f39007954e5ca081d9aa9f33991eb58988b3d2cc7230eff22b43fe0825a74b9",
+  "footprint": {
+    "w": 1,
+    "h": 1
+  },
+  "worldEnvelope": {
+    "x": 1,
+    "y": 5,
+    "width": 10,
+    "height": 5
+  },
+  "tilePixels": 12,
+  "uniformScale": 0.007564296520423601,
+  "contact": {
+    "x": 6,
+    "y": 10
+  },
+  "supportedViews": {
+    "facings": [
+      {
+        "r": 0,
+        "front": "south",
+        "w": 1,
+        "h": 1,
+        "type": "authored-view"
+      }
+    ],
+    "canMirror": false,
+    "classicFacings": [
+      0
+    ]
+  },
+  "geometry": {
+    "blocks": false,
+    "flat": false,
+    "tableSurface": false,
+    "requiredMount": null,
+    "optionalSurfaceMount": false,
+    "surfaceRisePixels": 8
+  },
+  "originalAnimationTriggers": [
+    "Autonomous sprite clock animation is present in the sampled default state; cosmetic motion is not evidence of provider work, route decisions or external state."
+  ],
+  "integrationNote": "Flush walk-over emitter ONLY is solid art and fitted to native opaque envelope10x5 at(1,5). Native cosmetic projection extends ABOVE solid bounds and is rendered separately. Do not squeeze chart into disk or add solid pedestal. If showing actual P&L, use supplied real values, not clock-generated digits.",
+  "regions": {
+    "emitterLens": {
+      "sourcePixels": [
+        [
+          541,
+          318
+        ],
+        [
+          1204,
+          318
+        ],
+        [
+          1315,
+          417
+        ],
+        [
+          1168,
+          513
+        ],
+        [
+          591,
+          513
+        ],
+        [
+          457,
+          417
+        ]
+      ],
+      "sourceNormalized": [
+        [
+          0.304961,
+          0.358512
+        ],
+        [
+          0.678692,
+          0.358512
+        ],
+        [
+          0.741263,
+          0.470124
+        ],
+        [
+          0.658399,
+          0.578354
+        ],
+        [
+          0.333145,
+          0.578354
+        ],
+        [
+          0.25761,
+          0.470124
+        ]
+      ],
+      "exportPixels": [
+        [
+          315,
+          113
+        ],
+        [
+          978,
+          113
+        ],
+        [
+          1089,
+          212
+        ],
+        [
+          942,
+          308
+        ],
+        [
+          365,
+          308
+        ],
+        [
+          231,
+          212
+        ]
+      ],
+      "exportNormalized": [
+        [
+          0.238275,
+          0.239915
+        ],
+        [
+          0.739788,
+          0.239915
+        ],
+        [
+          0.823752,
+          0.450106
+        ],
+        [
+          0.712557,
+          0.653928
+        ],
+        [
+          0.276097,
+          0.653928
+        ],
+        [
+          0.174735,
+          0.450106
+        ]
+      ],
+      "worldPixels": [
+        [
+          3.382753,
+          7.291982
+        ],
+        [
+          8.397882,
+          7.291982
+        ],
+        [
+          9.237519,
+          8.040847
+        ],
+        [
+          8.125567,
+          8.76702
+        ],
+        [
+          3.760968,
+          8.76702
+        ],
+        [
+          2.747352,
+          8.040847
+        ]
+      ]
+    }
+  },
+  "liveIntegrated": false,
+  "nativeProjectionContract": {
+    "worldOrigin": {
+      "x": 6,
+      "y": 6
+    },
+    "worldVisualBounds": {
+      "x": 0,
+      "y": -5,
+      "width": 12,
+      "height": 11
+    },
+    "note": "Translucent native chart not captured by alpha160 solid bounds. Project above disk; coordinates from existing source renderer, not a new bitmap region."
+  }
+}

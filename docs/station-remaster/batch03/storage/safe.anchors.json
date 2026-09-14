@@ -1,0 +1,339 @@
+{
+  "id": "safe",
+  "measurement": "Manually inspected conservative source-surface regions, mapped with uniform bottom-centered PropRemaster fit; not live verified.",
+  "sourceDimensions": {
+    "width": 940,
+    "height": 1672
+  },
+  "crop": {
+    "left": 110,
+    "top": 78,
+    "width": 720,
+    "height": 1505
+  },
+  "sourceSha256": "627cf2f7c29b9a930afc35cfa11233c956584dfc33fabf2e0d907d743bbfeba9",
+  "outputSha256": "ab45278b5d48d5b319a9d01d57456df0889d47b569ea6b403e9a1b80937cac70",
+  "footprint": {
+    "w": 1,
+    "h": 2
+  },
+  "worldEnvelope": {
+    "x": -1,
+    "y": -8,
+    "width": 18,
+    "height": 32
+  },
+  "tilePixels": 12,
+  "uniformScale": 0.0212624584717608,
+  "contact": {
+    "x": 8,
+    "y": 24
+  },
+  "supportedViews": {
+    "facings": [
+      {
+        "r": 0,
+        "front": "south",
+        "w": 1,
+        "h": 2,
+        "type": "authored-view"
+      }
+    ],
+    "canMirror": false,
+    "classicFacings": [
+      0
+    ]
+  },
+  "geometry": {
+    "blocks": true,
+    "flat": false,
+    "tableSurface": false,
+    "requiredMount": null,
+    "optionalSurfaceMount": false,
+    "surfaceRisePixels": 8
+  },
+  "originalAnimationTriggers": [
+    "Real fs.* tool completion chooses the granting prop instance and overlays a 900 ms success accent or red failure surge.",
+    "Autonomous sprite clock animation is present in the sampled default state; cosmetic motion is not evidence of provider work, route decisions or external state."
+  ],
+  "integrationNote": "Real fs.* completion chooses granting prop and drives 900ms success/failure. Blank status; no fake glow. Dial parked, movement requires component mask/recomposition. Footprint remains1x2.",
+  "regions": {
+    "status": {
+      "sourcePixels": [
+        [
+          375,
+          315
+        ],
+        [
+          563,
+          315
+        ],
+        [
+          563,
+          353
+        ],
+        [
+          375,
+          353
+        ]
+      ],
+      "sourceNormalized": [
+        [
+          0.398936,
+          0.188397
+        ],
+        [
+          0.598936,
+          0.188397
+        ],
+        [
+          0.598936,
+          0.211124
+        ],
+        [
+          0.398936,
+          0.211124
+        ]
+      ],
+      "exportPixels": [
+        [
+          265,
+          237
+        ],
+        [
+          453,
+          237
+        ],
+        [
+          453,
+          275
+        ],
+        [
+          265,
+          275
+        ]
+      ],
+      "exportNormalized": [
+        [
+          0.368056,
+          0.157475
+        ],
+        [
+          0.629167,
+          0.157475
+        ],
+        [
+          0.629167,
+          0.182724
+        ],
+        [
+          0.368056,
+          0.182724
+        ]
+      ],
+      "worldPixels": [
+        [
+          5.980066,
+          -2.960797
+        ],
+        [
+          9.977409,
+          -2.960797
+        ],
+        [
+          9.977409,
+          -2.152824
+        ],
+        [
+          5.980066,
+          -2.152824
+        ]
+      ]
+    },
+    "dial": {
+      "sourcePixels": [
+        [
+          367,
+          772
+        ],
+        [
+          571,
+          772
+        ],
+        [
+          571,
+          978
+        ],
+        [
+          367,
+          978
+        ]
+      ],
+      "sourceNormalized": [
+        [
+          0.390426,
+          0.461722
+        ],
+        [
+          0.607447,
+          0.461722
+        ],
+        [
+          0.607447,
+          0.584928
+        ],
+        [
+          0.390426,
+          0.584928
+        ]
+      ],
+      "exportPixels": [
+        [
+          257,
+          694
+        ],
+        [
+          461,
+          694
+        ],
+        [
+          461,
+          900
+        ],
+        [
+          257,
+          900
+        ]
+      ],
+      "exportNormalized": [
+        [
+          0.356944,
+          0.46113
+        ],
+        [
+          0.640278,
+          0.46113
+        ],
+        [
+          0.640278,
+          0.598007
+        ],
+        [
+          0.356944,
+          0.598007
+        ]
+      ],
+      "worldPixels": [
+        [
+          5.809967,
+          6.756146
+        ],
+        [
+          10.147508,
+          6.756146
+        ],
+        [
+          10.147508,
+          11.136213
+        ],
+        [
+          5.809967,
+          11.136213
+        ]
+      ]
+    },
+    "indicator": {
+      "sourcePixels": [
+        [
+          454,
+          1129
+        ],
+        [
+          485,
+          1129
+        ],
+        [
+          485,
+          1152
+        ],
+        [
+          454,
+          1152
+        ]
+      ],
+      "sourceNormalized": [
+        [
+          0.482979,
+          0.675239
+        ],
+        [
+          0.515957,
+          0.675239
+        ],
+        [
+          0.515957,
+          0.688995
+        ],
+        [
+          0.482979,
+          0.688995
+        ]
+      ],
+      "exportPixels": [
+        [
+          344,
+          1051
+        ],
+        [
+          375,
+          1051
+        ],
+        [
+          375,
+          1074
+        ],
+        [
+          344,
+          1074
+        ]
+      ],
+      "exportNormalized": [
+        [
+          0.477778,
+          0.698339
+        ],
+        [
+          0.520833,
+          0.698339
+        ],
+        [
+          0.520833,
+          0.713621
+        ],
+        [
+          0.477778,
+          0.713621
+        ]
+      ],
+      "worldPixels": [
+        [
+          7.659801,
+          14.346844
+        ],
+        [
+          8.318937,
+          14.346844
+        ],
+        [
+          8.318937,
+          14.83588
+        ],
+        [
+          7.659801,
+          14.83588
+        ]
+      ]
+    }
+  },
+  "liveIntegrated": false
+}

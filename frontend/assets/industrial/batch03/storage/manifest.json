@@ -1,7 +1,7 @@
 {
   "version": 1,
   "lane": "storage",
-  "status": "29 painted/new exports; awaiting owner live review",
+  "status": "39 painted/new exports; awaiting owner live review",
   "tilePixels": 12,
   "runtimeIntegrated": false,
   "records": [
@@ -282,6 +282,74 @@
       "originalAnimationTriggers": [
         "Successful /api/connectors poll supplies bound server state and toolCount; removed servers clear on successful reconciliation.",
         "Real mcp__<connector>__* calls pulse that bound connector for 900 ms."
+      ],
+      "artMode": "static complete art; existing state/lighting integration remains owner decision",
+      "liveIntegrated": false
+    },
+    {
+      "id": "crt_pile",
+      "status": "exported-awaiting-owner-live-review",
+      "source": "sources/crt_pile.png",
+      "sourceSha256": "501f92eae373a029423ce8ccf96863b898ba72019d97438dddf7cfe9986909d3",
+      "sourceWidth": 1319,
+      "sourceHeight": 1192,
+      "image": "crt_pile.png",
+      "sourceOutputWidth": 818,
+      "sourceOutputHeight": 1047,
+      "crop": {
+        "left": 253,
+        "top": 57,
+        "width": 818,
+        "height": 1047
+      },
+      "channels": 4,
+      "transparentPixels": 150010,
+      "opaquePixels": 706436,
+      "partialPixels": 0,
+      "backgroundPixelsRemoved": 865812,
+      "subjectRgbChanges": 0,
+      "outputSha256": "3758079158d874903890e7970516e6895d3f37da1f95c70dd306c9743dd8d559",
+      "holeSeeds": [
+        [
+          855,
+          400
+        ],
+        [
+          877,
+          443
+        ]
+      ],
+      "maskMethod": "Connected saturated-magenta flood fill, including key-only enclosed components. Alpha-only edits; uniform crop; no RGB recolor.",
+      "view": "s",
+      "footprint": {
+        "w": 1,
+        "h": 1
+      },
+      "bounds": {
+        "x": -1,
+        "y": -4,
+        "width": 12,
+        "height": 17
+      },
+      "tilePixels": 12,
+      "contact": {
+        "x": 5,
+        "y": 13
+      },
+      "anchorContract": "Can sit on bare deck or valid table; table mount lifts contact origin exactly 8 world pixels.",
+      "originalLight": {
+        "c": [
+          98,
+          255,
+          158
+        ],
+        "r": 14,
+        "a": 0.06,
+        "m": "screen",
+        "y": 0.4
+      },
+      "originalAnimationTriggers": [
+        "Autonomous sprite clock animation is present in the sampled default state; cosmetic motion is not evidence of provider work, route decisions or external state."
       ],
       "artMode": "static complete art; existing state/lighting integration remains owner decision",
       "liveIntegrated": false
@@ -800,6 +868,120 @@
       "liveIntegrated": false
     },
     {
+      "id": "gigs_partsbin",
+      "status": "exported-awaiting-owner-live-review",
+      "source": "sources/gigs_partsbin.png",
+      "sourceSha256": "4829bb2079fce790d0d633ba2dd69038741a4db3d152e36223f48e8e1d31caa0",
+      "sourceWidth": 1468,
+      "sourceHeight": 1071,
+      "image": "gigs_partsbin.png",
+      "sourceOutputWidth": 1410,
+      "sourceOutputHeight": 719,
+      "crop": {
+        "left": 29,
+        "top": 173,
+        "width": 1410,
+        "height": 719
+      },
+      "channels": 4,
+      "transparentPixels": 91591,
+      "opaquePixels": 922199,
+      "partialPixels": 0,
+      "backgroundPixelsRemoved": 650029,
+      "subjectRgbChanges": 0,
+      "outputSha256": "367e56abc9ada1a92a863847a895e82fabb9612aa477a12a14548db7e12b736e",
+      "holeSeeds": [],
+      "maskMethod": "Connected saturated-magenta flood fill, including key-only enclosed components. Alpha-only edits; uniform crop; no RGB recolor.",
+      "view": "s",
+      "footprint": {
+        "w": 2,
+        "h": 1
+      },
+      "bounds": {
+        "x": -1,
+        "y": -7,
+        "width": 26,
+        "height": 19
+      },
+      "tilePixels": 12,
+      "contact": {
+        "x": 12,
+        "y": 12
+      },
+      "anchorContract": "Can sit on bare deck or valid table; table mount lifts contact origin exactly 8 world pixels.",
+      "originalLight": null,
+      "originalAnimationTriggers": [
+        "Autonomous sprite clock animation is present in the sampled default state; cosmetic motion is not evidence of provider work, route decisions or external state."
+      ],
+      "artMode": "static complete art; existing state/lighting integration remains owner decision",
+      "liveIntegrated": false
+    },
+    {
+      "id": "gigs_servercart",
+      "status": "exported-awaiting-owner-live-review",
+      "source": "sources/gigs_servercart.png",
+      "sourceSha256": "f2333835c4eb4b06421a62cbe9027ca5887040ca1c27c9b32c7d0eb3fcf00be8",
+      "sourceWidth": 1182,
+      "sourceHeight": 1330,
+      "image": "gigs_servercart.png",
+      "sourceOutputWidth": 984,
+      "sourceOutputHeight": 1192,
+      "crop": {
+        "left": 99,
+        "top": 78,
+        "width": 984,
+        "height": 1192
+      },
+      "channels": 4,
+      "transparentPixels": 232370,
+      "opaquePixels": 940558,
+      "partialPixels": 0,
+      "backgroundPixelsRemoved": 631502,
+      "subjectRgbChanges": 0,
+      "outputSha256": "0d9b43368c59eda5fe6b6e12c04cf482799e124e8bb298a77af713fce422f5ef",
+      "holeSeeds": [
+        [
+          288,
+          136
+        ]
+      ],
+      "maskMethod": "Connected saturated-magenta flood fill, including key-only enclosed components. Alpha-only edits; uniform crop; no RGB recolor.",
+      "view": "s",
+      "footprint": {
+        "w": 1,
+        "h": 1
+      },
+      "bounds": {
+        "x": 1,
+        "y": -6,
+        "width": 16,
+        "height": 18
+      },
+      "tilePixels": 12,
+      "contact": {
+        "x": 9,
+        "y": 12
+      },
+      "anchorContract": "No leisure seat anchor. Footprint is the placement/pathfinding rectangle; upright visual rise is independent of the reserved box.",
+      "originalLight": {
+        "c": [
+          120,
+          255,
+          180
+        ],
+        "r": 14,
+        "a": 0.08,
+        "m": "screen",
+        "y": 0.4
+      },
+      "originalAnimationTriggers": [
+        "Real notebook.*, skill.*, recall_conversation, widget.get, widget.set tool completion chooses the granting prop instance and overlays a 900 ms success accent or red failure surge.",
+        "Autonomous sprite clock animation is present in the sampled default state; cosmetic motion is not evidence of provider work, route decisions or external state."
+      ],
+      "artMode": "static complete art; existing state/lighting integration remains owner decision",
+      "liveIntegrated": false
+    },
+    {
       "id": "gigs_thumbwall",
       "status": "exported-awaiting-owner-live-review",
       "source": "sources/gigs_thumbwall.png",
@@ -854,6 +1036,65 @@
       },
       "originalAnimationTriggers": [
         "Autonomous sprite clock animation is present in the sampled default state; cosmetic motion is not evidence of provider work, route decisions or external state."
+      ],
+      "artMode": "static complete art; existing state/lighting integration remains owner decision",
+      "liveIntegrated": false
+    },
+    {
+      "id": "goldcrate",
+      "status": "exported-awaiting-owner-live-review",
+      "source": "sources/goldcrate.png",
+      "sourceSha256": "4f2f19483ec6beb987b8a1465873cc48ed416f475ca8634f6ac027f25e5f6a19",
+      "sourceWidth": 1366,
+      "sourceHeight": 1152,
+      "image": "goldcrate.png",
+      "sourceOutputWidth": 1280,
+      "sourceOutputHeight": 885,
+      "crop": {
+        "left": 43,
+        "top": 143,
+        "width": 1280,
+        "height": 885
+      },
+      "channels": 4,
+      "transparentPixels": 127270,
+      "opaquePixels": 1005530,
+      "partialPixels": 0,
+      "backgroundPixelsRemoved": 568102,
+      "subjectRgbChanges": 0,
+      "outputSha256": "bd090ba17450ae0df4c4f367b2e6ac6f16d5d9cbb5ed311956b5c04c562c8133",
+      "holeSeeds": [],
+      "maskMethod": "Connected saturated-magenta flood fill, including key-only enclosed components. Alpha-only edits; uniform crop; no RGB recolor.",
+      "view": "s",
+      "footprint": {
+        "w": 2,
+        "h": 1
+      },
+      "bounds": {
+        "x": -1,
+        "y": -10,
+        "width": 26,
+        "height": 22
+      },
+      "tilePixels": 12,
+      "contact": {
+        "x": 12,
+        "y": 12
+      },
+      "anchorContract": "No leisure seat anchor. Footprint is the placement/pathfinding rectangle; upright visual rise is independent of the reserved box.",
+      "originalLight": {
+        "c": [
+          255,
+          214,
+          120
+        ],
+        "r": 14,
+        "a": 0.06,
+        "m": "steady",
+        "y": 0.4
+      },
+      "originalAnimationTriggers": [
+        "No direct event-driven or sampled default sprite animation. Preserve static art; no invented status or progress."
       ],
       "artMode": "static complete art; existing state/lighting integration remains owner decision",
       "liveIntegrated": false
@@ -1615,6 +1856,106 @@
       "liveIntegrated": false
     },
     {
+      "id": "safe",
+      "status": "exported-awaiting-owner-live-review",
+      "source": "sources/safe.png",
+      "sourceSha256": "627cf2f7c29b9a930afc35cfa11233c956584dfc33fabf2e0d907d743bbfeba9",
+      "sourceWidth": 940,
+      "sourceHeight": 1672,
+      "image": "safe.png",
+      "sourceOutputWidth": 720,
+      "sourceOutputHeight": 1505,
+      "crop": {
+        "left": 110,
+        "top": 78,
+        "width": 720,
+        "height": 1505
+      },
+      "channels": 4,
+      "transparentPixels": 92741,
+      "opaquePixels": 990859,
+      "partialPixels": 0,
+      "backgroundPixelsRemoved": 580821,
+      "subjectRgbChanges": 0,
+      "outputSha256": "ab45278b5d48d5b319a9d01d57456df0889d47b569ea6b403e9a1b80937cac70",
+      "holeSeeds": [],
+      "maskMethod": "Connected saturated-magenta flood fill, including key-only enclosed components. Alpha-only edits; uniform crop; no RGB recolor.",
+      "view": "s",
+      "footprint": {
+        "w": 1,
+        "h": 2
+      },
+      "bounds": {
+        "x": -1,
+        "y": -8,
+        "width": 18,
+        "height": 32
+      },
+      "tilePixels": 12,
+      "contact": {
+        "x": 8,
+        "y": 24
+      },
+      "anchorContract": "No leisure seat anchor. Footprint is the placement/pathfinding rectangle; upright visual rise is independent of the reserved box.",
+      "originalLight": null,
+      "originalAnimationTriggers": [
+        "Real fs.* tool completion chooses the granting prop instance and overlays a 900 ms success accent or red failure surge.",
+        "Autonomous sprite clock animation is present in the sampled default state; cosmetic motion is not evidence of provider work, route decisions or external state."
+      ],
+      "artMode": "static complete art; existing state/lighting integration remains owner decision",
+      "liveIntegrated": false
+    },
+    {
+      "id": "shelf",
+      "status": "exported-awaiting-owner-live-review",
+      "source": "sources/shelf.png",
+      "sourceSha256": "6d105cacc142b298fe994f357c02cab2cb334dc93a5a9b66876715351fa3cbc0",
+      "sourceWidth": 1793,
+      "sourceHeight": 877,
+      "image": "shelf.png",
+      "sourceOutputWidth": 1717,
+      "sourceOutputHeight": 706,
+      "crop": {
+        "left": 38,
+        "top": 99,
+        "width": 1717,
+        "height": 706
+      },
+      "channels": 4,
+      "transparentPixels": 178257,
+      "opaquePixels": 1033945,
+      "partialPixels": 0,
+      "backgroundPixelsRemoved": 538516,
+      "subjectRgbChanges": 0,
+      "outputSha256": "2db1bf09a0d0c82c5d551ef431c9392b705e0a2168779e94e93265c276293667",
+      "holeSeeds": [],
+      "maskMethod": "Connected saturated-magenta flood fill, including key-only enclosed components. Alpha-only edits; uniform crop; no RGB recolor.",
+      "view": "s",
+      "footprint": {
+        "w": 4,
+        "h": 1
+      },
+      "bounds": {
+        "x": 0,
+        "y": -14,
+        "width": 53,
+        "height": 26
+      },
+      "tilePixels": 12,
+      "contact": {
+        "x": 26.5,
+        "y": 12
+      },
+      "anchorContract": "No leisure seat anchor. Footprint is the placement/pathfinding rectangle; upright visual rise is independent of the reserved box.",
+      "originalLight": null,
+      "originalAnimationTriggers": [
+        "Real fs.* tool completion chooses the granting prop instance and overlays a 900 ms success accent or red failure surge.",
+        "Autonomous sprite clock animation is present in the sampled default state; cosmetic motion is not evidence of provider work, route decisions or external state."
+      ],
+      "artMode": "static complete art; existing state/lighting integration remains owner decision",
+      "liveIntegrated": false
+    },
+    {
       "id": "speaker",
       "status": "exported-awaiting-owner-live-review",
       "source": "sources/speaker.png",
@@ -1723,6 +2064,173 @@
       "liveIntegrated": false
     },
     {
+      "id": "treasury_coinsorter",
+      "status": "exported-awaiting-owner-live-review",
+      "source": "sources/treasury_coinsorter.png",
+      "sourceSha256": "acc70ca66f84c9ba0f6ed3c1c421b6d7195f9f40a83a6c45686c72540d843a33",
+      "sourceWidth": 1649,
+      "sourceHeight": 954,
+      "image": "treasury_coinsorter.png",
+      "sourceOutputWidth": 1584,
+      "sourceOutputHeight": 816,
+      "crop": {
+        "left": 34,
+        "top": 65,
+        "width": 1584,
+        "height": 816
+      },
+      "channels": 4,
+      "transparentPixels": 295953,
+      "opaquePixels": 996591,
+      "partialPixels": 0,
+      "backgroundPixelsRemoved": 576555,
+      "subjectRgbChanges": 0,
+      "outputSha256": "167f81b0edeeaeda42e7166e2cb1cfccf8f800fa8d380583d5a0df7c95bc4ece",
+      "holeSeeds": [],
+      "maskMethod": "Connected saturated-magenta flood fill, including key-only enclosed components. Alpha-only edits; uniform crop; no RGB recolor.",
+      "view": "s",
+      "footprint": {
+        "w": 2,
+        "h": 1
+      },
+      "bounds": {
+        "x": -1,
+        "y": -3,
+        "width": 26,
+        "height": 15
+      },
+      "tilePixels": 12,
+      "contact": {
+        "x": 12,
+        "y": 12
+      },
+      "anchorContract": "No leisure seat anchor. Footprint is the placement/pathfinding rectangle; upright visual rise is independent of the reserved box.",
+      "originalLight": null,
+      "originalAnimationTriggers": [
+        "Autonomous sprite clock animation is present in the sampled default state; cosmetic motion is not evidence of provider work, route decisions or external state."
+      ],
+      "artMode": "static complete art; existing state/lighting integration remains owner decision",
+      "liveIntegrated": false
+    },
+    {
+      "id": "treasury_pnl_holo",
+      "status": "exported-awaiting-owner-live-review",
+      "source": "sources/treasury_pnl_holo.png",
+      "sourceSha256": "c949e216b38f6d66ed41794ea8a91b02521aa0f5f5a290120e224a308167e02b",
+      "sourceWidth": 1774,
+      "sourceHeight": 887,
+      "image": "treasury_pnl_holo.png",
+      "sourceOutputWidth": 1322,
+      "sourceOutputHeight": 471,
+      "crop": {
+        "left": 226,
+        "top": 205,
+        "width": 1322,
+        "height": 471
+      },
+      "channels": 4,
+      "transparentPixels": 117537,
+      "opaquePixels": 505125,
+      "partialPixels": 0,
+      "backgroundPixelsRemoved": 1068413,
+      "subjectRgbChanges": 0,
+      "outputSha256": "4f39007954e5ca081d9aa9f33991eb58988b3d2cc7230eff22b43fe0825a74b9",
+      "holeSeeds": [],
+      "maskMethod": "Connected saturated-magenta flood fill, including key-only enclosed components. Alpha-only edits; uniform crop; no RGB recolor.",
+      "view": "s",
+      "footprint": {
+        "w": 1,
+        "h": 1
+      },
+      "bounds": {
+        "x": 1,
+        "y": 5,
+        "width": 10,
+        "height": 5
+      },
+      "tilePixels": 12,
+      "contact": {
+        "x": 6,
+        "y": 10
+      },
+      "anchorContract": "No leisure seat anchor. Footprint is the placement/pathfinding rectangle; upright visual rise is independent of the reserved box.",
+      "originalLight": {
+        "c": [
+          120,
+          255,
+          180
+        ],
+        "r": 18,
+        "a": 0.12,
+        "m": "screen",
+        "y": 0.35
+      },
+      "originalAnimationTriggers": [
+        "Autonomous sprite clock animation is present in the sampled default state; cosmetic motion is not evidence of provider work, route decisions or external state."
+      ],
+      "artMode": "static complete art; existing state/lighting integration remains owner decision",
+      "liveIntegrated": false
+    },
+    {
+      "id": "treasury_token_furnace",
+      "status": "exported-awaiting-owner-live-review",
+      "source": "sources/treasury_token_furnace.png",
+      "sourceSha256": "c0128fb85be7b5fe600e4f9dbadba3c0e0c7d92650ab8ea89f215b9ba9db7008",
+      "sourceWidth": 851,
+      "sourceHeight": 1848,
+      "image": "treasury_token_furnace.png",
+      "sourceOutputWidth": 805,
+      "sourceOutputHeight": 1540,
+      "crop": {
+        "left": 15,
+        "top": 138,
+        "width": 805,
+        "height": 1540
+      },
+      "channels": 4,
+      "transparentPixels": 215891,
+      "opaquePixels": 1023809,
+      "partialPixels": 0,
+      "backgroundPixelsRemoved": 548839,
+      "subjectRgbChanges": 0,
+      "outputSha256": "eaa6150a099c0a11d62c8780233a088e7cd867c18cdce65e3b7ba06115602639",
+      "holeSeeds": [],
+      "maskMethod": "Connected saturated-magenta flood fill, including key-only enclosed components. Alpha-only edits; uniform crop; no RGB recolor.",
+      "view": "s",
+      "footprint": {
+        "w": 1,
+        "h": 2
+      },
+      "bounds": {
+        "x": -1,
+        "y": -7,
+        "width": 14,
+        "height": 31
+      },
+      "tilePixels": 12,
+      "contact": {
+        "x": 6,
+        "y": 24
+      },
+      "anchorContract": "No leisure seat anchor. Footprint is the placement/pathfinding rectangle; upright visual rise is independent of the reserved box.",
+      "originalLight": {
+        "c": [
+          255,
+          130,
+          50
+        ],
+        "r": 26,
+        "a": 0.16,
+        "m": "fire",
+        "y": 0.45
+      },
+      "originalAnimationTriggers": [
+        "Autonomous sprite clock animation is present in the sampled default state; cosmetic motion is not evidence of provider work, route decisions or external state."
+      ],
+      "artMode": "static complete art; existing state/lighting integration remains owner decision",
+      "liveIntegrated": false
+    },
+    {
       "id": "tv",
       "status": "exported-awaiting-owner-live-review",
       "source": "sources/tv.png",
@@ -1777,6 +2285,56 @@
       },
       "originalAnimationTriggers": [
         "Actual leisure usingProp / watchProp can set work on this prop; body approach and use animation follow leisureUse. In the baseline draw work expression this leisure trigger directly checks the hero, not a separate crew leisure flag.",
+        "Autonomous sprite clock animation is present in the sampled default state; cosmetic motion is not evidence of provider work, route decisions or external state."
+      ],
+      "artMode": "static complete art; existing state/lighting integration remains owner decision",
+      "liveIntegrated": false
+    },
+    {
+      "id": "vault",
+      "status": "exported-awaiting-owner-live-review",
+      "source": "sources/vault.png",
+      "sourceSha256": "948d6375303267a64eec5d6716c4930e14295f922706e24a28896b803daff18a",
+      "sourceWidth": 1544,
+      "sourceHeight": 1019,
+      "image": "vault.png",
+      "sourceOutputWidth": 1448,
+      "sourceOutputHeight": 895,
+      "crop": {
+        "left": 48,
+        "top": 62,
+        "width": 1448,
+        "height": 895
+      },
+      "channels": 4,
+      "transparentPixels": 110801,
+      "opaquePixels": 1185159,
+      "partialPixels": 0,
+      "backgroundPixelsRemoved": 388177,
+      "subjectRgbChanges": 0,
+      "outputSha256": "194d4832bf3d517cd2017edf3d272c27ebacf0941bcce467f39bd919400fa4e6",
+      "holeSeeds": [],
+      "maskMethod": "Connected saturated-magenta flood fill, including key-only enclosed components. Alpha-only edits; uniform crop; no RGB recolor.",
+      "view": "s",
+      "footprint": {
+        "w": 3,
+        "h": 2
+      },
+      "bounds": {
+        "x": -3,
+        "y": -5,
+        "width": 44,
+        "height": 29
+      },
+      "tilePixels": 12,
+      "contact": {
+        "x": 19,
+        "y": 24
+      },
+      "anchorContract": "No leisure seat anchor. Footprint is the placement/pathfinding rectangle; upright visual rise is independent of the reserved box.",
+      "originalLight": null,
+      "originalAnimationTriggers": [
+        "Real fs.* tool completion chooses the granting prop instance and overlays a 900 ms success accent or red failure surge.",
         "Autonomous sprite clock animation is present in the sampled default state; cosmetic motion is not evidence of provider work, route decisions or external state."
       ],
       "artMode": "static complete art; existing state/lighting integration remains owner decision",
