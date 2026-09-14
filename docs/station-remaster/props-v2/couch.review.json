@@ -1,0 +1,33 @@
+{
+  "id": "couch",
+  "tool": "built-in image_gen",
+  "variant": "s",
+  "status": "generated candidate; root actual-scale review pending",
+  "native": {
+    "key": "couch",
+    "r": 0,
+    "image": "couch.png",
+    "footprint": {
+      "w": 5,
+      "h": 1
+    },
+    "bounds": {
+      "x": -1,
+      "y": -8,
+      "width": 62,
+      "height": 20
+    },
+    "guide": "dev/.scratch-workspace/prop-structure/couch.png"
+  },
+  "references": [
+    "dev/.scratch-workspace/prop-structure/couch.png",
+    "frontend/assets/industrial/calibration/crate.png",
+    "docs/station-remaster/bridge-reference.png"
+  ],
+  "source": "Original native geometry plus approved crate and bridge; no rejected drafts used",
+  "ratioDeviationPercent": 6.268,
+  "aspectTolerancePercent": 8,
+  "aspectPass": true,
+  "rgbRepaint": null,
+  "runtimeIntegrated": null
+}
