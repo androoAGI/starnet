@@ -1,0 +1,1621 @@
+{
+  "catalog": 160,
+  "approvedExisting": 8,
+  "newIds": 26,
+  "newViews": 28,
+  "completeIds": 34,
+  "props": [
+    {
+      "id": "industrial_locker",
+      "label": "MODULAR LOCKER",
+      "family": "storage",
+      "status": "art-integrated",
+      "views": [
+        "s"
+      ],
+      "missing": []
+    },
+    {
+      "id": "industrial_drawerbank",
+      "label": "DRAWER BANK",
+      "family": "storage",
+      "status": "art-integrated",
+      "views": [
+        "s"
+      ],
+      "missing": []
+    },
+    {
+      "id": "industrial_supplycart",
+      "label": "SUPPLY TROLLEY",
+      "family": "decor",
+      "status": "art-integrated",
+      "views": [
+        "s"
+      ],
+      "missing": []
+    },
+    {
+      "id": "industrial_toolcaddy",
+      "label": "TOOL CADDY",
+      "family": "decor",
+      "status": "in-progress",
+      "views": [],
+      "missing": [
+        "s"
+      ]
+    },
+    {
+      "id": "industrial_planter",
+      "label": "PLANTER TROUGH",
+      "family": "decor",
+      "status": "in-progress",
+      "views": [],
+      "missing": [
+        "s"
+      ]
+    },
+    {
+      "id": "industrial_partition",
+      "label": "MODULAR PARTITION",
+      "family": "decor",
+      "status": "in-progress",
+      "views": [],
+      "missing": [
+        "s",
+        "e"
+      ]
+    },
+    {
+      "id": "industrial_bench",
+      "label": "CREW BENCH",
+      "family": "lounge",
+      "status": "in-progress",
+      "views": [],
+      "missing": [
+        "s"
+      ]
+    },
+    {
+      "id": "industrial_roundtable",
+      "label": "PEDESTAL TABLE",
+      "family": "decor",
+      "status": "in-progress",
+      "views": [],
+      "missing": [
+        "s"
+      ]
+    },
+    {
+      "id": "industrial_servicecab",
+      "label": "SERVICE CABINET",
+      "family": "decor",
+      "status": "in-progress",
+      "views": [],
+      "missing": [
+        "s"
+      ]
+    },
+    {
+      "id": "industrial_wallpanel",
+      "label": "SERVICE PANEL",
+      "family": "decor",
+      "status": "in-progress",
+      "views": [],
+      "missing": [
+        "s"
+      ]
+    },
+    {
+      "id": "industrial_floorvent",
+      "label": "FLUSH GRILLE",
+      "family": "decor",
+      "status": "in-progress",
+      "views": [],
+      "missing": [
+        "s"
+      ]
+    },
+    {
+      "id": "industrial_cabletray",
+      "label": "CABLE CHANNEL",
+      "family": "decor",
+      "status": "in-progress",
+      "views": [],
+      "missing": [
+        "s"
+      ]
+    },
+    {
+      "id": "desk",
+      "label": "DESK",
+      "family": "workstation",
+      "status": "approved-existing",
+      "views": [
+        "s",
+        "w",
+        "n",
+        "e"
+      ]
+    },
+    {
+      "id": "desk2",
+      "label": "DESK ×2",
+      "family": "workstation",
+      "status": "approved-existing",
+      "views": [
+        "s",
+        "w",
+        "n",
+        "e"
+      ]
+    },
+    {
+      "id": "console",
+      "label": "CONSOLE",
+      "family": "workstation",
+      "status": "art-integrated",
+      "views": [
+        "s"
+      ],
+      "missing": []
+    },
+    {
+      "id": "consoleL",
+      "label": "CONSOLE L",
+      "family": "workstation",
+      "status": "art-integrated",
+      "views": [
+        "s"
+      ],
+      "missing": []
+    },
+    {
+      "id": "pixelrig",
+      "label": "PIXEL RIG",
+      "family": "workstation",
+      "status": "art-integrated",
+      "views": [
+        "s"
+      ],
+      "missing": []
+    },
+    {
+      "id": "bench",
+      "label": "BENCH",
+      "family": "workstation",
+      "status": "art-integrated",
+      "views": [
+        "s"
+      ],
+      "missing": []
+    },
+    {
+      "id": "workbench",
+      "label": "WORKBENCH",
+      "family": "workstation",
+      "status": "in-progress",
+      "views": [],
+      "missing": [
+        "s"
+      ]
+    },
+    {
+      "id": "intake",
+      "label": "INBOX",
+      "family": "workflow",
+      "status": "in-progress",
+      "views": [],
+      "missing": [
+        "s"
+      ]
+    },
+    {
+      "id": "bay",
+      "label": "BAY",
+      "family": "workflow",
+      "status": "art-integrated",
+      "views": [
+        "s"
+      ],
+      "missing": []
+    },
+    {
+      "id": "filter",
+      "label": "FILTER",
+      "family": "workflow",
+      "status": "art-integrated",
+      "views": [
+        "s"
+      ],
+      "missing": []
+    },
+    {
+      "id": "merger",
+      "label": "MERGER",
+      "family": "workflow",
+      "status": "in-progress",
+      "views": [],
+      "missing": [
+        "s"
+      ]
+    },
+    {
+      "id": "splitter",
+      "label": "SPLITTER",
+      "family": "workflow",
+      "status": "in-progress",
+      "views": [],
+      "missing": [
+        "s"
+      ]
+    },
+    {
+      "id": "joiner",
+      "label": "JOINER",
+      "family": "workflow",
+      "status": "in-progress",
+      "views": [],
+      "missing": [
+        "s"
+      ]
+    },
+    {
+      "id": "loop",
+      "label": "LOOP",
+      "family": "workflow",
+      "status": "in-progress",
+      "views": [],
+      "missing": [
+        "s"
+      ]
+    },
+    {
+      "id": "outbox",
+      "label": "OUTBOX",
+      "family": "workflow",
+      "status": "in-progress",
+      "views": [],
+      "missing": [
+        "s"
+      ]
+    },
+    {
+      "id": "connector_portal",
+      "label": "CONNECTOR",
+      "family": "capability",
+      "status": "in-progress",
+      "views": [],
+      "missing": [
+        "s"
+      ]
+    },
+    {
+      "id": "comms_dish",
+      "label": "DISH",
+      "family": "capability",
+      "status": "in-progress",
+      "views": [],
+      "missing": [
+        "s"
+      ]
+    },
+    {
+      "id": "comms_uplink",
+      "label": "UPLINK",
+      "family": "capability",
+      "status": "in-progress",
+      "views": [],
+      "missing": [
+        "s"
+      ]
+    },
+    {
+      "id": "comms_beacon",
+      "label": "BEACON",
+      "family": "capability",
+      "status": "in-progress",
+      "views": [],
+      "missing": [
+        "s"
+      ]
+    },
+    {
+      "id": "war_intelcab",
+      "label": "INTEL CAB",
+      "family": "capability",
+      "status": "in-progress",
+      "views": [],
+      "missing": [
+        "s"
+      ]
+    },
+    {
+      "id": "safe",
+      "label": "SAFE",
+      "family": "capability",
+      "status": "in-progress",
+      "views": [],
+      "missing": [
+        "s"
+      ]
+    },
+    {
+      "id": "vault",
+      "label": "VAULT",
+      "family": "capability",
+      "status": "in-progress",
+      "views": [],
+      "missing": [
+        "s"
+      ]
+    },
+    {
+      "id": "rack",
+      "label": "RACK",
+      "family": "capability",
+      "status": "in-progress",
+      "views": [],
+      "missing": [
+        "s"
+      ]
+    },
+    {
+      "id": "shelf",
+      "label": "SHELF",
+      "family": "capability",
+      "status": "in-progress",
+      "views": [],
+      "missing": [
+        "s"
+      ]
+    },
+    {
+      "id": "core",
+      "label": "CORE",
+      "family": "capability",
+      "status": "in-progress",
+      "views": [],
+      "missing": [
+        "s"
+      ]
+    },
+    {
+      "id": "gigs_servercart",
+      "label": "SERVER CART",
+      "family": "capability",
+      "status": "in-progress",
+      "views": [],
+      "missing": [
+        "s"
+      ]
+    },
+    {
+      "id": "bridge_relaystack",
+      "label": "RELAY STACK",
+      "family": "capability",
+      "status": "in-progress",
+      "views": [],
+      "missing": [
+        "s"
+      ]
+    },
+    {
+      "id": "studio",
+      "label": "STUDIO",
+      "family": "capability",
+      "status": "in-progress",
+      "views": [],
+      "missing": [
+        "s"
+      ]
+    },
+    {
+      "id": "airlock",
+      "label": "AIRLOCK",
+      "family": "isolation",
+      "status": "in-progress",
+      "views": [],
+      "missing": [
+        "s"
+      ]
+    },
+    {
+      "id": "missionboard",
+      "label": "MISSION BOARD",
+      "family": "command",
+      "status": "in-progress",
+      "views": [],
+      "missing": [
+        "s"
+      ]
+    },
+    {
+      "id": "trophycase",
+      "label": "TROPHY CASE",
+      "family": "command",
+      "status": "in-progress",
+      "views": [],
+      "missing": [
+        "s"
+      ]
+    },
+    {
+      "id": "bridge_consolebank",
+      "label": "BRIDGE CONSOLE BANK",
+      "family": "screens",
+      "status": "approved-existing",
+      "views": [
+        "s"
+      ]
+    },
+    {
+      "id": "bridge_tacticaltable",
+      "label": "TACTICAL TABLE",
+      "family": "screens",
+      "status": "approved-existing",
+      "views": [
+        "s"
+      ]
+    },
+    {
+      "id": "bridge_equipmentbay",
+      "label": "EQUIPMENT BAY",
+      "family": "storage",
+      "status": "approved-existing",
+      "views": [
+        "s"
+      ]
+    },
+    {
+      "id": "bridge_deckperimeter",
+      "label": "DECK PERIMETER",
+      "family": "decor",
+      "status": "approved-existing",
+      "views": [
+        "s"
+      ]
+    },
+    {
+      "id": "bigscreen",
+      "label": "BIG SCREEN",
+      "family": "screens",
+      "status": "art-integrated",
+      "views": [
+        "s"
+      ],
+      "missing": []
+    },
+    {
+      "id": "holotable",
+      "label": "HOLOTABLE",
+      "family": "screens",
+      "status": "art-integrated",
+      "views": [
+        "s"
+      ],
+      "missing": []
+    },
+    {
+      "id": "screens",
+      "label": "SCREENS",
+      "family": "screens",
+      "status": "art-integrated",
+      "views": [
+        "s"
+      ],
+      "missing": []
+    },
+    {
+      "id": "tank",
+      "label": "TANK",
+      "family": "screens",
+      "status": "art-integrated",
+      "views": [
+        "s"
+      ],
+      "missing": []
+    },
+    {
+      "id": "whiteboard",
+      "label": "WHITEBOARD",
+      "family": "screens",
+      "status": "art-integrated",
+      "views": [
+        "s"
+      ],
+      "missing": []
+    },
+    {
+      "id": "ticker",
+      "label": "TICKER",
+      "family": "screens",
+      "status": "in-progress",
+      "views": [],
+      "missing": [
+        "s"
+      ]
+    },
+    {
+      "id": "chartwall",
+      "label": "CHART WALL",
+      "family": "screens",
+      "status": "in-progress",
+      "views": [],
+      "missing": [
+        "s"
+      ]
+    },
+    {
+      "id": "wartable",
+      "label": "WAR TABLE",
+      "family": "screens",
+      "status": "in-progress",
+      "views": [],
+      "missing": [
+        "s"
+      ]
+    },
+    {
+      "id": "calwall",
+      "label": "CAL WALL",
+      "family": "screens",
+      "status": "in-progress",
+      "views": [],
+      "missing": [
+        "s"
+      ]
+    },
+    {
+      "id": "bridge_tacscreen",
+      "label": "TAC SCREEN",
+      "family": "screens",
+      "status": "in-progress",
+      "views": [],
+      "missing": [
+        "s"
+      ]
+    },
+    {
+      "id": "bridge_dispatch_pylon",
+      "label": "DISPATCH PYLON",
+      "family": "screens",
+      "status": "in-progress",
+      "views": [],
+      "missing": [
+        "s"
+      ]
+    },
+    {
+      "id": "bridge_orderqueue",
+      "label": "ORDER QUEUE",
+      "family": "screens",
+      "status": "in-progress",
+      "views": [],
+      "missing": [
+        "s"
+      ]
+    },
+    {
+      "id": "war_pivotpanel",
+      "label": "PIVOT PANEL",
+      "family": "screens",
+      "status": "in-progress",
+      "views": [],
+      "missing": [
+        "s"
+      ]
+    },
+    {
+      "id": "war_threatcore",
+      "label": "THREAT CORE",
+      "family": "screens",
+      "status": "in-progress",
+      "views": [],
+      "missing": [
+        "s"
+      ]
+    },
+    {
+      "id": "fabricator",
+      "label": "FABRICATOR",
+      "family": "lab",
+      "status": "in-progress",
+      "views": [],
+      "missing": [
+        "s"
+      ]
+    },
+    {
+      "id": "vat",
+      "label": "VAT",
+      "family": "lab",
+      "status": "in-progress",
+      "views": [],
+      "missing": [
+        "s"
+      ]
+    },
+    {
+      "id": "easel",
+      "label": "EASEL",
+      "family": "lab",
+      "status": "in-progress",
+      "views": [],
+      "missing": [
+        "s"
+      ]
+    },
+    {
+      "id": "tube",
+      "label": "TUBE",
+      "family": "lab",
+      "status": "in-progress",
+      "views": [],
+      "missing": [
+        "s"
+      ]
+    },
+    {
+      "id": "research_corelens",
+      "label": "CORE LENS",
+      "family": "lab",
+      "status": "in-progress",
+      "views": [],
+      "missing": [
+        "s"
+      ]
+    },
+    {
+      "id": "research_trendpillar",
+      "label": "TREND PILLAR",
+      "family": "lab",
+      "status": "in-progress",
+      "views": [],
+      "missing": [
+        "s"
+      ]
+    },
+    {
+      "id": "research_samplecart",
+      "label": "SAMPLE CART",
+      "family": "lab",
+      "status": "in-progress",
+      "views": [],
+      "missing": [
+        "s"
+      ]
+    },
+    {
+      "id": "research_papers",
+      "label": "PAPERS",
+      "family": "lab",
+      "status": "in-progress",
+      "views": [],
+      "missing": [
+        "s"
+      ]
+    },
+    {
+      "id": "etsy_threadrack",
+      "label": "THREAD RACK",
+      "family": "lab",
+      "status": "in-progress",
+      "views": [],
+      "missing": [
+        "s"
+      ]
+    },
+    {
+      "id": "etsy_dyevat",
+      "label": "DYE VAT",
+      "family": "lab",
+      "status": "in-progress",
+      "views": [],
+      "missing": [
+        "s"
+      ]
+    },
+    {
+      "id": "etsy_kiln",
+      "label": "KILN",
+      "family": "lab",
+      "status": "in-progress",
+      "views": [],
+      "missing": [
+        "s"
+      ]
+    },
+    {
+      "id": "etsy_packbot",
+      "label": "PACK BOT",
+      "family": "lab",
+      "status": "in-progress",
+      "views": [],
+      "missing": [
+        "s"
+      ]
+    },
+    {
+      "id": "rackV",
+      "label": "RACK V",
+      "family": "storage",
+      "status": "art-integrated",
+      "views": [
+        "s"
+      ],
+      "missing": []
+    },
+    {
+      "id": "crate",
+      "label": "CRATE",
+      "family": "storage",
+      "status": "approved-existing",
+      "views": [
+        "s"
+      ]
+    },
+    {
+      "id": "boxes",
+      "label": "BOXES",
+      "family": "storage",
+      "status": "art-integrated",
+      "views": [
+        "s"
+      ],
+      "missing": []
+    },
+    {
+      "id": "goldcrate",
+      "label": "GOLD CRATE",
+      "family": "storage",
+      "status": "in-progress",
+      "views": [],
+      "missing": [
+        "s"
+      ]
+    },
+    {
+      "id": "gigs_partsbin",
+      "label": "PARTS BIN",
+      "family": "storage",
+      "status": "art-integrated",
+      "views": [
+        "s"
+      ],
+      "missing": []
+    },
+    {
+      "id": "treasury_coinsorter",
+      "label": "COIN SORTER",
+      "family": "storage",
+      "status": "art-integrated",
+      "views": [
+        "s"
+      ],
+      "missing": []
+    },
+    {
+      "id": "treasury_token_furnace",
+      "label": "TOKEN FURNACE",
+      "family": "storage",
+      "status": "art-integrated",
+      "views": [
+        "s"
+      ],
+      "missing": []
+    },
+    {
+      "id": "commswall",
+      "label": "COMMS WALL",
+      "family": "comms",
+      "status": "in-progress",
+      "views": [],
+      "missing": [
+        "s"
+      ]
+    },
+    {
+      "id": "comms_inbox",
+      "label": "INBOX",
+      "family": "comms",
+      "status": "in-progress",
+      "views": [],
+      "missing": [
+        "s"
+      ]
+    },
+    {
+      "id": "gigs_thumbwall",
+      "label": "THUMB WALL",
+      "family": "comms",
+      "status": "in-progress",
+      "views": [],
+      "missing": [
+        "s"
+      ]
+    },
+    {
+      "id": "gigs_amp",
+      "label": "AMP",
+      "family": "comms",
+      "status": "in-progress",
+      "views": [],
+      "missing": [
+        "s"
+      ]
+    },
+    {
+      "id": "pub_publishpress",
+      "label": "PUBLISH PRESS",
+      "family": "comms",
+      "status": "in-progress",
+      "views": [],
+      "missing": [
+        "s"
+      ]
+    },
+    {
+      "id": "pub_outboundchute",
+      "label": "OUTBOUND CHUTE",
+      "family": "comms",
+      "status": "in-progress",
+      "views": [],
+      "missing": [
+        "s"
+      ]
+    },
+    {
+      "id": "pub_mailpod",
+      "label": "MAIL POD",
+      "family": "comms",
+      "status": "in-progress",
+      "views": [],
+      "missing": [
+        "s"
+      ]
+    },
+    {
+      "id": "arc_indexwall",
+      "label": "INDEX WALL",
+      "family": "comms",
+      "status": "in-progress",
+      "views": [],
+      "missing": [
+        "s"
+      ]
+    },
+    {
+      "id": "arc_microfiche",
+      "label": "MICROFICHE",
+      "family": "comms",
+      "status": "in-progress",
+      "views": [],
+      "missing": [
+        "s"
+      ]
+    },
+    {
+      "id": "djbooth",
+      "label": "DJ BOOTH",
+      "family": "lounge",
+      "status": "in-progress",
+      "views": [],
+      "missing": [
+        "s"
+      ]
+    },
+    {
+      "id": "speaker",
+      "label": "SPEAKER",
+      "family": "lounge",
+      "status": "art-integrated",
+      "views": [
+        "s"
+      ],
+      "missing": []
+    },
+    {
+      "id": "bar",
+      "label": "BAR",
+      "family": "lounge",
+      "status": "in-progress",
+      "views": [],
+      "missing": [
+        "s"
+      ]
+    },
+    {
+      "id": "tv",
+      "label": "TV",
+      "family": "lounge",
+      "status": "in-progress",
+      "views": [],
+      "missing": [
+        "s"
+      ]
+    },
+    {
+      "id": "couch",
+      "label": "COUCH",
+      "family": "lounge",
+      "status": "art-integrated",
+      "views": [
+        "s"
+      ],
+      "missing": []
+    },
+    {
+      "id": "arcade",
+      "label": "ARCADE",
+      "family": "lounge",
+      "status": "in-progress",
+      "views": [],
+      "missing": [
+        "s"
+      ]
+    },
+    {
+      "id": "arcade2",
+      "label": "ARCADE II",
+      "family": "lounge",
+      "status": "in-progress",
+      "views": [],
+      "missing": [
+        "s"
+      ]
+    },
+    {
+      "id": "jukebox",
+      "label": "JUKEBOX",
+      "family": "lounge",
+      "status": "in-progress",
+      "views": [],
+      "missing": [
+        "s"
+      ]
+    },
+    {
+      "id": "bunk",
+      "label": "BED",
+      "family": "lounge",
+      "status": "in-progress",
+      "views": [],
+      "missing": [
+        "s"
+      ]
+    },
+    {
+      "id": "quarters_pooltable",
+      "label": "POOL TABLE",
+      "family": "lounge",
+      "status": "in-progress",
+      "views": [],
+      "missing": [
+        "s"
+      ]
+    },
+    {
+      "id": "quarters_vending",
+      "label": "VENDING",
+      "family": "lounge",
+      "status": "in-progress",
+      "views": [],
+      "missing": [
+        "s"
+      ]
+    },
+    {
+      "id": "quarters_lockerbank",
+      "label": "LOCKERS",
+      "family": "lounge",
+      "status": "in-progress",
+      "views": [],
+      "missing": [
+        "s"
+      ]
+    },
+    {
+      "id": "quarters_minifridge",
+      "label": "MINIFRIDGE",
+      "family": "lounge",
+      "status": "in-progress",
+      "views": [],
+      "missing": [
+        "s"
+      ]
+    },
+    {
+      "id": "coffee",
+      "label": "COFFEE",
+      "family": "decor",
+      "status": "art-integrated",
+      "views": [
+        "s"
+      ],
+      "missing": []
+    },
+    {
+      "id": "plant",
+      "label": "PLANT",
+      "family": "decor",
+      "status": "in-progress",
+      "views": [],
+      "missing": [
+        "s"
+      ]
+    },
+    {
+      "id": "rug",
+      "label": "RUG",
+      "family": "decor",
+      "status": "in-progress",
+      "views": [],
+      "missing": [
+        "s"
+      ]
+    },
+    {
+      "id": "rug_small",
+      "label": "SMALL RUG",
+      "family": "decor",
+      "status": "in-progress",
+      "views": [],
+      "missing": [
+        "s"
+      ]
+    },
+    {
+      "id": "rug_large",
+      "label": "LARGE RUG",
+      "family": "decor",
+      "status": "in-progress",
+      "views": [],
+      "missing": [
+        "s"
+      ]
+    },
+    {
+      "id": "treasury_pnl_holo",
+      "label": "PNL HOLO",
+      "family": "decor",
+      "status": "in-progress",
+      "views": [],
+      "missing": [
+        "s"
+      ]
+    },
+    {
+      "id": "arc_floorlight",
+      "label": "FLOOR LIGHT",
+      "family": "decor",
+      "status": "in-progress",
+      "views": [],
+      "missing": [
+        "s"
+      ]
+    },
+    {
+      "id": "arc_ladder",
+      "label": "LADDER",
+      "family": "decor",
+      "status": "in-progress",
+      "views": [],
+      "missing": [
+        "s"
+      ]
+    },
+    {
+      "id": "stool",
+      "label": "STOOL",
+      "family": "decor",
+      "status": "in-progress",
+      "views": [],
+      "missing": [
+        "s"
+      ]
+    },
+    {
+      "id": "chair",
+      "label": "CHAIR",
+      "family": "decor",
+      "status": "approved-existing",
+      "views": [
+        "s",
+        "w",
+        "n",
+        "e"
+      ]
+    },
+    {
+      "id": "sidetable",
+      "label": "SIDE TABLE",
+      "family": "decor",
+      "status": "art-integrated",
+      "views": [
+        "s"
+      ],
+      "missing": []
+    },
+    {
+      "id": "lowtable",
+      "label": "LOW TABLE",
+      "family": "decor",
+      "status": "art-integrated",
+      "views": [
+        "s",
+        "e"
+      ],
+      "missing": []
+    },
+    {
+      "id": "glasstable",
+      "label": "GLASS TABLE",
+      "family": "decor",
+      "status": "art-integrated",
+      "views": [
+        "s",
+        "e"
+      ],
+      "missing": []
+    },
+    {
+      "id": "dinertable",
+      "label": "DINER TABLE",
+      "family": "decor",
+      "status": "in-progress",
+      "views": [],
+      "missing": [
+        "s",
+        "e"
+      ]
+    },
+    {
+      "id": "guitar",
+      "label": "GUITAR",
+      "family": "decor",
+      "status": "in-progress",
+      "views": [],
+      "missing": [
+        "s"
+      ]
+    },
+    {
+      "id": "booth",
+      "label": "BOOTH",
+      "family": "decor",
+      "status": "in-progress",
+      "views": [],
+      "missing": [
+        "s",
+        "e"
+      ]
+    },
+    {
+      "id": "dinerchair",
+      "label": "DINER CHAIR",
+      "family": "decor",
+      "status": "in-progress",
+      "views": [],
+      "missing": [
+        "s",
+        "n",
+        "e"
+      ]
+    },
+    {
+      "id": "podchair",
+      "label": "POD CHAIR",
+      "family": "decor",
+      "status": "in-progress",
+      "views": [],
+      "missing": [
+        "s",
+        "n",
+        "e"
+      ]
+    },
+    {
+      "id": "loungetable",
+      "label": "LOUNGE TABLE",
+      "family": "decor",
+      "status": "in-progress",
+      "views": [],
+      "missing": [
+        "s",
+        "e"
+      ]
+    },
+    {
+      "id": "longtable",
+      "label": "LONG TABLE",
+      "family": "decor",
+      "status": "in-progress",
+      "views": [],
+      "missing": [
+        "s",
+        "e"
+      ]
+    },
+    {
+      "id": "lavalamp",
+      "label": "LAVA LAMP",
+      "family": "decor",
+      "status": "in-progress",
+      "views": [],
+      "missing": [
+        "s"
+      ]
+    },
+    {
+      "id": "crt_pile",
+      "label": "CRT PILE",
+      "family": "decor",
+      "status": "in-progress",
+      "views": [],
+      "missing": [
+        "s"
+      ]
+    },
+    {
+      "id": "cablerun",
+      "label": "CABLE RUN",
+      "family": "decor",
+      "status": "in-progress",
+      "views": [],
+      "missing": [
+        "s"
+      ]
+    },
+    {
+      "id": "hazardpad",
+      "label": "HAZARD PAD",
+      "family": "decor",
+      "status": "in-progress",
+      "views": [],
+      "missing": [
+        "s"
+      ]
+    },
+    {
+      "id": "tallplant",
+      "label": "TALL PLANT",
+      "family": "decor",
+      "status": "in-progress",
+      "views": [],
+      "missing": [
+        "s"
+      ]
+    },
+    {
+      "id": "terrarium",
+      "label": "TERRARIUM",
+      "family": "decor",
+      "status": "in-progress",
+      "views": [],
+      "missing": [
+        "s"
+      ]
+    },
+    {
+      "id": "holopet",
+      "label": "HOLO PET",
+      "family": "decor",
+      "status": "in-progress",
+      "views": [],
+      "missing": [
+        "s"
+      ]
+    },
+    {
+      "id": "plasmaglobe",
+      "label": "PLASMA GLOBE",
+      "family": "decor",
+      "status": "in-progress",
+      "views": [],
+      "missing": [
+        "s"
+      ]
+    },
+    {
+      "id": "gachapon",
+      "label": "GACHAPON",
+      "family": "decor",
+      "status": "in-progress",
+      "views": [],
+      "missing": [
+        "s"
+      ]
+    },
+    {
+      "id": "monstera",
+      "label": "MONSTERA",
+      "family": "decor",
+      "status": "in-progress",
+      "views": [],
+      "missing": [
+        "s"
+      ]
+    },
+    {
+      "id": "mug",
+      "label": "MUG",
+      "family": "decor",
+      "status": "in-progress",
+      "views": [],
+      "missing": [
+        "s"
+      ]
+    },
+    {
+      "id": "bookstack",
+      "label": "BOOKS",
+      "family": "decor",
+      "status": "in-progress",
+      "views": [],
+      "missing": [
+        "s"
+      ]
+    },
+    {
+      "id": "desklamp",
+      "label": "DESK LAMP",
+      "family": "decor",
+      "status": "in-progress",
+      "views": [],
+      "missing": [
+        "s"
+      ]
+    },
+    {
+      "id": "radio",
+      "label": "RADIO",
+      "family": "decor",
+      "status": "in-progress",
+      "views": [],
+      "missing": [
+        "s"
+      ]
+    },
+    {
+      "id": "toolbox",
+      "label": "TOOLBOX",
+      "family": "decor",
+      "status": "in-progress",
+      "views": [],
+      "missing": [
+        "s"
+      ]
+    },
+    {
+      "id": "figurine",
+      "label": "FIGURINE",
+      "family": "decor",
+      "status": "in-progress",
+      "views": [],
+      "missing": [
+        "s"
+      ]
+    },
+    {
+      "id": "deskterminal",
+      "label": "TERMINAL",
+      "family": "decor",
+      "status": "in-progress",
+      "views": [],
+      "missing": [
+        "s"
+      ]
+    },
+    {
+      "id": "modelship",
+      "label": "MODEL SHIP",
+      "family": "decor",
+      "status": "in-progress",
+      "views": [],
+      "missing": [
+        "s"
+      ]
+    },
+    {
+      "id": "steamvent",
+      "label": "STEAM VENT",
+      "family": "decor",
+      "status": "in-progress",
+      "views": [],
+      "missing": [
+        "s"
+      ]
+    },
+    {
+      "id": "fishtank",
+      "label": "FISH TANK",
+      "family": "lounge",
+      "status": "in-progress",
+      "views": [],
+      "missing": [
+        "s"
+      ]
+    },
+    {
+      "id": "pokertable",
+      "label": "POKER TABLE",
+      "family": "lounge",
+      "status": "in-progress",
+      "views": [],
+      "missing": [
+        "s"
+      ]
+    },
+    {
+      "id": "bookshelf",
+      "label": "BOOKSHELF",
+      "family": "lounge",
+      "status": "art-integrated",
+      "views": [
+        "s"
+      ],
+      "missing": []
+    },
+    {
+      "id": "beanbag",
+      "label": "BEANBAG",
+      "family": "lounge",
+      "status": "in-progress",
+      "views": [],
+      "missing": [
+        "s"
+      ]
+    },
+    {
+      "id": "pinball",
+      "label": "PINBALL",
+      "family": "lounge",
+      "status": "in-progress",
+      "views": [],
+      "missing": [
+        "s"
+      ]
+    },
+    {
+      "id": "cryopod",
+      "label": "CRYO POD",
+      "family": "decor",
+      "status": "in-progress",
+      "views": [],
+      "missing": [
+        "s"
+      ]
+    },
+    {
+      "id": "incubator",
+      "label": "INCUBATOR",
+      "family": "decor",
+      "status": "in-progress",
+      "views": [],
+      "missing": [
+        "s"
+      ]
+    },
+    {
+      "id": "telescope",
+      "label": "TELESCOPE ›",
+      "family": "decor",
+      "status": "in-progress",
+      "views": [],
+      "missing": [
+        "s"
+      ]
+    },
+    {
+      "id": "telescope_r",
+      "label": "TELESCOPE ‹",
+      "family": "decor",
+      "status": "in-progress",
+      "views": [],
+      "missing": [
+        "s"
+      ]
+    },
+    {
+      "id": "camerarig",
+      "label": "CAMERA RIG ‹",
+      "family": "decor",
+      "status": "in-progress",
+      "views": [],
+      "missing": [
+        "s"
+      ]
+    },
+    {
+      "id": "camerarig_r",
+      "label": "CAMERA RIG ›",
+      "family": "decor",
+      "status": "in-progress",
+      "views": [],
+      "missing": [
+        "s"
+      ]
+    },
+    {
+      "id": "weaponrack",
+      "label": "WEAPON RACK ‹",
+      "family": "decor",
+      "status": "in-progress",
+      "views": [],
+      "missing": [
+        "s"
+      ]
+    },
+    {
+      "id": "weaponrack_r",
+      "label": "WEAPON RACK ›",
+      "family": "decor",
+      "status": "in-progress",
+      "views": [],
+      "missing": [
+        "s"
+      ]
+    },
+    {
+      "id": "punchbag",
+      "label": "HEAVY BAG ‹",
+      "family": "decor",
+      "status": "in-progress",
+      "views": [],
+      "missing": [
+        "s"
+      ]
+    },
+    {
+      "id": "punchbag_r",
+      "label": "HEAVY BAG ›",
+      "family": "decor",
+      "status": "in-progress",
+      "views": [],
+      "missing": [
+        "s"
+      ]
+    },
+    {
+      "id": "benchpress",
+      "label": "BENCH PRESS ‹",
+      "family": "decor",
+      "status": "in-progress",
+      "views": [],
+      "missing": [
+        "s"
+      ]
+    },
+    {
+      "id": "benchpress_r",
+      "label": "BENCH PRESS ›",
+      "family": "decor",
+      "status": "in-progress",
+      "views": [],
+      "missing": [
+        "s"
+      ]
+    },
+    {
+      "id": "recliner",
+      "label": "RECLINER ‹ LEFT",
+      "family": "lounge",
+      "status": "in-progress",
+      "views": [],
+      "missing": [
+        "s"
+      ]
+    },
+    {
+      "id": "recliner_r",
+      "label": "RECLINER RIGHT ›",
+      "family": "lounge",
+      "status": "in-progress",
+      "views": [],
+      "missing": [
+        "s"
+      ]
+    }
+  ]
+}

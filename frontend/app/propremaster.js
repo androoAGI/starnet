@@ -29,6 +29,7 @@ const PropRemaster = (() => {
         v.sourceWidth < 1 || v.sourceHeight < 1 || v.sourceWidth > 4096 || v.sourceHeight > 4096 ||
         !rectOK(v.bounds) || !v.footprint || ![v.footprint.w,v.footprint.h].every(n => Number.isInteger(n) && n > 0 && n <= 16) ||
         !['static','native'].includes(v.mode)) return false;
+    if (v.exposure != null && (!finite(v.exposure) || v.exposure < .25 || v.exposure > 3)) return false;
     if (v.nativeBounds != null && !rectOK(v.nativeBounds)) return false;
     if (v.nativeMask != null && !fileOK(v.nativeMask)) return false;
     if (v.nativeLayers != null && (!Array.isArray(v.nativeLayers) || v.nativeLayers.length > 32 ||
@@ -89,7 +90,9 @@ const PropRemaster = (() => {
       const body=canvas(pw,ph),g=body.getContext('2d');
       g.scale(DENSITY,DENSITY);g.translate(-frame.x,-frame.y);
       g.imageSmoothingEnabled=true;g.imageSmoothingQuality='high';
+      g.filter='brightness('+(v.exposure||1)+')';
       g.drawImage(cropped,box.x,box.y,box.width,box.height);
+      g.filter='none';
       let mask=null,live=null;
       if(v.mode==='native'){
         mask=canvas(pw,ph);const mg=mask.getContext('2d');
@@ -162,4 +165,3 @@ const PropRemaster = (() => {
     validate,fit});
 })();
 if(typeof module!=='undefined'&&module.exports)module.exports=PropRemaster;
-

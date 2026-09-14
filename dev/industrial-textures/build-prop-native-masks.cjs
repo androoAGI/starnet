@@ -92,12 +92,11 @@ function apply(ps,p,s,at){
    for(const work of [false,true])for(const at of times)render({},work,at);
    for(const state of states(c.id).slice(1))for(const work of [false,true])
     for(const at of [137,683,2129,5003,9011])render(state,work,at);
-   // One-world-pixel expansion seals the glass background around moving pixels.
-   const expanded=new Uint8Array(union.length);
-   for(let y=0;y<CH;y++)for(let x=0;x<CW;x++)if(union[y*CW+x])
-    for(let dy=-1;dy<=1;dy++)for(let dx=-1;dx<=1;dx++){
-     if(x+dx>=0&&x+dx<CW&&y+dy>=0&&y+dy<CH)expanded[(y+dy)*CW+x+dx]=1;
-    }
+   // Preserve exactly the moving/stateful pixels. A whole-world-pixel dilation
+   // covered thin screen rims and controls, visibly restoring the old casing.
+   // Full glass backgrounds already differ between idle and working samples;
+   // explicitly moving geometry still receives the manual regions below.
+   const expanded=union;
    const mg=createCanvas(CW,CH).getContext('2d'),mi=mg.createImageData(CW,CH);
    for(let i=0;i<expanded.length;i++)if(expanded[i])mi.data.set([255,255,255,255],i*4);
    mg.putImageData(mi,0,0);mg.fillStyle='#fff';
@@ -130,4 +129,3 @@ function apply(ps,p,s,at){
  fs.writeFileSync(path.join(out,'native-layer-manifest.json'),JSON.stringify(result,null,2)+'\n');
  console.log(JSON.stringify({out,props:Object.keys(result.props).length,views:Object.values(result.props).reduce((n,p)=>n+Object.keys(p.views).length,0)}));
 })().catch(e=>{console.error(e);process.exitCode=1;});
-

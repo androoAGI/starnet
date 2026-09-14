@@ -2,6 +2,12 @@
 
 Andrew stopped and rejected the white/minimal station texture exploration. The attached [bridge reference](bridge-reference.png) is the visual authority for station surfaces and props. The earlier armory attachment remains a compatible secondary reference. The clean blank white Cadet request applies to the character; it does not authorize turning the environment into white ceramic or removing its industrial character.
 
+## Approved prop standard — latest instruction
+
+Andrew explicitly approved `frontend/assets/industrial/calibration/crate.png` in the running station and requested that every catalog prop follow it. Its readable original silhouette, broad cool steel panels, restrained wear and clear functional parts are the prop finish standard. The bridge supplies the world context; its density must not turn each small prop into an ornate miniature cabinet. The full scope is all 160 catalog IDs, retaining the eight already approved raster props and remastering the other 152 with their supported authored views.
+
+Use each original sprite as the structural reference. Match its measured cropped envelope and internal top/front proportions, not just the placement rectangle. Regenerate artwork with excessive aspect drift; never rotate an elevated bitmap to invent another view. Runtime native animation regions preserve real screen states, moving parts and interaction layers. Generating a draft does not establish integration or visual acceptance: the current coverage ledger is `props-v2/coverage.json`.
+
 ## Preserve the reference
 
 - Near-black gunmetal, charcoal plates and heavy structural bulkheads.

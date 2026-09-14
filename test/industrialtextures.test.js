@@ -204,7 +204,7 @@ async function main() {
   const unlit=load({darkScreens:true}); await unlit.finish();
   equal(unlit.api.workstationEmitter(0,0,36,12),null,'noncyan and dark artwork invents no screen emitter');
   ok(neutralPaintResponds,'neutral paint changes the authored material luminance');
-  equal(api.crate(canvas().getContext('2d'),0,0,24,12),false,'normal station retains its approved crate');
+  equal(api.crate(canvas().getContext('2d'),0,0,24,12),true,'normal station uses the user-approved crate');
   const review=load({review:true});
   equal(review.api.crate(canvas().getContext('2d'),0,0,24,12),false,'pending review art retains native fallback');
   await review.finish();
