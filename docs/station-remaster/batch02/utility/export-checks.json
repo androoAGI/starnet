@@ -455,29 +455,6 @@
     },
     {
       "seeds": [],
-      "id": "terrarium",
-      "source": "docs/station-remaster/batch02/utility/sources/terrarium.png",
-      "sourceSha256": "cc7cde0cb223780f013c5425e4ce946afc0b6d5ceea2161d2808dd23953fe793",
-      "sourceWidth": 1039,
-      "sourceHeight": 1513,
-      "output": "frontend/assets/industrial/batch02/utility/terrarium.png",
-      "canvasPreserved": true,
-      "alphaBounds": {
-        "x": 200,
-        "y": 85,
-        "width": 638,
-        "height": 1346
-      },
-      "channels": 4,
-      "transparentPixels": 794391,
-      "opaquePixels": 777616,
-      "partialPixels": 0,
-      "backgroundPixelsRemoved": 794391,
-      "subjectRgbChanges": 0,
-      "outputSha256": "51bd39f5e1e5c5b39bc1e0bd2c56cb4860c6e07698c08cf4dee6b54b1dce9f6e"
-    },
-    {
-      "seeds": [],
       "id": "fishtank",
       "source": "docs/station-remaster/batch02/utility/sources/fishtank.png",
       "sourceSha256": "a8ad0c199e7d63670b8ceb08dcfde019a501b729b97f66563a926e0508fd74ce",
@@ -521,6 +498,34 @@
       "backgroundPixelsRemoved": 842166,
       "subjectRgbChanges": 0,
       "outputSha256": "6dc736f526f36253a7f055c8d4dd6843367ff55a8e029b606f6db7a5e2fb4eb4"
+    },
+    {
+      "seeds": [
+        [
+          480,
+          175
+        ]
+      ],
+      "id": "terrarium",
+      "source": "docs/station-remaster/batch02/utility/sources/terrarium.png",
+      "sourceSha256": "cc7cde0cb223780f013c5425e4ce946afc0b6d5ceea2161d2808dd23953fe793",
+      "sourceWidth": 1039,
+      "sourceHeight": 1513,
+      "output": "frontend/assets/industrial/batch02/utility/terrarium.png",
+      "canvasPreserved": true,
+      "alphaBounds": {
+        "x": 200,
+        "y": 85,
+        "width": 638,
+        "height": 1346
+      },
+      "channels": 4,
+      "transparentPixels": 809269,
+      "opaquePixels": 762738,
+      "partialPixels": 0,
+      "backgroundPixelsRemoved": 809269,
+      "subjectRgbChanges": 0,
+      "outputSha256": "f2f25e8ab45b847093f33e918db0b3eff9948e6a9ab00392fe1f8a394c6711a7"
     }
   ]
 }
