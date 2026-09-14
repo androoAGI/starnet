@@ -40,33 +40,21 @@
   },
   "anchorContract": "No leisure seat anchor. Footprint is the placement/pathfinding rectangle; upright visual rise is independent of the reserved box.",
   "holeSeeds": [],
-  "proportionReview": {
-    "sourceNearSurfaceRimY": 500,
-    "sourceFootY": 966,
-    "sourceTopY": 25,
-    "cropWidth": 1374,
-    "cropHeight": 941,
-    "uniformFitWorldWidth": 23.36,
-    "uniformFitWorldNearSurfaceRimY": 4.08,
-    "worldFloorY": 12,
-    "topEllipseDepthOverWidth": 0.346,
-    "note": "Reauthored ellipse and pedestal; no bitmap stretching. Near top rim now ~y4 for SURFACE_RISE8."
-  },
   "sourceWidth": 1536,
   "sourceHeight": 1024,
-  "sourceSha256": "0f0e117ddadca3852e41fae5d5c0e98512dc442ec8931b8f64246d5fc4a11257",
+  "sourceSha256": "bb41fc830b5d3f7975d3e0eaa56296390490f04242682b857b560230df00d046",
   "output": "frontend/assets/industrial/batch02/crew/industrial_roundtable.png",
   "crop": {
-    "left": 81,
-    "top": 25,
-    "width": 1374,
-    "height": 941
+    "left": 282,
+    "top": 8,
+    "width": 969,
+    "height": 980
   },
-  "transparentPixels": 532402,
-  "opaquePixels": 760532,
+  "transparentPixels": 314255,
+  "opaquePixels": 635365,
   "partialPixels": 0,
-  "backgroundPixelsRemoved": 812332,
+  "backgroundPixelsRemoved": 937499,
   "subjectRgbChanges": 0,
-  "outputSha256": "0548f3adab9984e6df35d23489e6a89de240ec0087d4156a9ad9b2a45f9e466d",
+  "outputSha256": "95fcba62234c5935c0f4824f91236627b440cd505fb90e7d8ac354a8d06a4ed7",
   "liveIntegrated": false
 }
