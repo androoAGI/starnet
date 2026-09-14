@@ -2,7 +2,7 @@
   "version": 1,
   "planned": 44,
   "exported": 44,
-  "generatedAt": "2026-09-14T06:23:36.090Z",
+  "generatedAt": "2026-09-14T06:34:59.626Z",
   "note": "Artwork exports are separate from user acceptance and live runtime integration.",
   "items": [
     {
@@ -384,9 +384,9 @@
       "lane": "crew",
       "group": "Crew furniture",
       "label": "STOOL",
-      "image": "assets/industrial/batch02/crew/stool.png?v=fc70abe9c1e7",
-      "width": 770,
-      "height": 1087,
+      "image": "assets/industrial/batch02/crew/stool.png?v=b70e2b261f26",
+      "width": 790,
+      "height": 990,
       "footprint": {
         "w": 1,
         "h": 1
@@ -397,8 +397,8 @@
         "width": 10,
         "height": 11
       },
-      "transparentPixels": 267793,
-      "opaquePixels": 569197,
+      "transparentPixels": 316784,
+      "opaquePixels": 465316,
       "status": "exported-art-awaiting-live-review"
     },
     {
@@ -428,9 +428,9 @@
       "lane": "crew",
       "group": "Crew furniture",
       "label": "PEDESTAL TABLE",
-      "image": "assets/industrial/batch02/crew/industrial_roundtable.png?v=95fcba62234c",
-      "width": 969,
-      "height": 980,
+      "image": "assets/industrial/batch02/crew/industrial_roundtable.png?v=0548f3adab99",
+      "width": 1374,
+      "height": 941,
       "footprint": {
         "w": 2,
         "h": 1
@@ -441,8 +441,8 @@
         "width": 24,
         "height": 16
       },
-      "transparentPixels": 314255,
-      "opaquePixels": 635365,
+      "transparentPixels": 532402,
+      "opaquePixels": 760532,
       "status": "exported-art-awaiting-live-review"
     },
     {
