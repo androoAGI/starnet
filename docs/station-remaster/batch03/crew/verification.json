@@ -1,0 +1,138 @@
+{
+  "count": 11,
+  "allPassed": true,
+  "rows": [
+    {
+      "id": "bar",
+      "rgba": true,
+      "size": [
+        1650,
+        561
+      ],
+      "alphaValues": 2,
+      "shaMatch": true,
+      "sourceShaMatch": true,
+      "rgbChanges": 0
+    },
+    {
+      "id": "beanbag",
+      "rgba": true,
+      "size": [
+        1161,
+        1035
+      ],
+      "alphaValues": 2,
+      "shaMatch": true,
+      "sourceShaMatch": true,
+      "rgbChanges": 0
+    },
+    {
+      "id": "bunk",
+      "rgba": true,
+      "size": [
+        1123,
+        1145
+      ],
+      "alphaValues": 2,
+      "shaMatch": true,
+      "sourceShaMatch": true,
+      "rgbChanges": 0
+    },
+    {
+      "id": "industrial_bench",
+      "rgba": true,
+      "size": [
+        2054,
+        516
+      ],
+      "alphaValues": 2,
+      "shaMatch": true,
+      "sourceShaMatch": true,
+      "rgbChanges": 0
+    },
+    {
+      "id": "industrial_roundtable",
+      "rgba": true,
+      "size": [
+        1387,
+        984
+      ],
+      "alphaValues": 2,
+      "shaMatch": true,
+      "sourceShaMatch": true,
+      "rgbChanges": 0
+    },
+    {
+      "id": "pokertable",
+      "rgba": true,
+      "size": [
+        1593,
+        784
+      ],
+      "alphaValues": 2,
+      "shaMatch": true,
+      "sourceShaMatch": true,
+      "rgbChanges": 0
+    },
+    {
+      "id": "quarters_minifridge",
+      "rgba": true,
+      "size": [
+        716,
+        1570
+      ],
+      "alphaValues": 2,
+      "shaMatch": true,
+      "sourceShaMatch": true,
+      "rgbChanges": 0
+    },
+    {
+      "id": "quarters_pooltable",
+      "rgba": true,
+      "size": [
+        1273,
+        846
+      ],
+      "alphaValues": 2,
+      "shaMatch": true,
+      "sourceShaMatch": true,
+      "rgbChanges": 0
+    },
+    {
+      "id": "quarters_vending",
+      "rgba": true,
+      "size": [
+        670,
+        1502
+      ],
+      "alphaValues": 2,
+      "shaMatch": true,
+      "sourceShaMatch": true,
+      "rgbChanges": 0
+    },
+    {
+      "id": "sidetable",
+      "rgba": true,
+      "size": [
+        910,
+        1182
+      ],
+      "alphaValues": 2,
+      "shaMatch": true,
+      "sourceShaMatch": true,
+      "rgbChanges": 0
+    },
+    {
+      "id": "stool",
+      "rgba": true,
+      "size": [
+        801,
+        1006
+      ],
+      "alphaValues": 2,
+      "shaMatch": true,
+      "sourceShaMatch": true,
+      "rgbChanges": 0
+    }
+  ]
+}
