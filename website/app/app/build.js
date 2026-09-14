@@ -5877,6 +5877,17 @@ const Build = (() => {
       return { lineId: comp.key, name, docks: ids.length, index: order.indexOf(agentId), order };
     } catch (e) { return null; }
   }
+  // Optional authored skins arrive after the UI scripts. Refresh only the art
+  // preview and thumbnails; selection, orientation and station data stay intact.
+  if (typeof window !== 'undefined' && window.addEventListener) {
+    window.addEventListener('starnet:prop-art-ready', () => {
+      if (!root) return;
+      const host = root.querySelector('#refit-selected-prop');
+      if (host) delete host.dataset.previewKey;
+      renderPropPreview(); paintThumbs(0,true);
+    });
+  }
+
   const api = { init, open, close, toggle, isOpen, requisition, openAssign, noteLineDelivered, lineOfAgentInfo, nagLabel: code => VAL_LABEL[code] || code };   // nagLabel: the floor's own nag copy for a compiler code (ROUTINES RUN NOW refusal reads it)
   if (typeof window !== 'undefined' && window.__STARNET_DEV__) api.__test__ = __test__;
   return api;
