@@ -1,0 +1,26 @@
+{
+  "version": 1,
+  "generator": "Codex built-in image_gen",
+  "originals": [
+    {
+      "source": "docs/station-remaster/catalog-glass-fix/attempt1-source.png",
+      "toolOutput": "C:/Users/andro/.codex/generated_images/01a09e48-0877-7203-a53f-4b137e36d69a/exec-a9008389-a877-4aa1-890c-9628842b2830.png",
+      "sha256": "a9ab3cb8d59b3ea95cd1a25ea6682a1aab117c85cc0c5035990a95a8fbf548ed"
+    },
+    {
+      "source": "docs/station-remaster/catalog-glass-fix/attempt2-source.png",
+      "toolOutput": "C:/Users/andro/.codex/generated_images/01a09e48-0877-7203-a53f-4b137e36d69a/exec-6fd97de6-82db-472c-87c5-caeb88cc6112.png",
+      "sha256": "065f4a0bfb77a2eff3eb60752414c32bb0955459da02146a08fc12bce42f5304"
+    },
+    {
+      "source": "docs/station-remaster/catalog-glass-fix/final-source.png",
+      "toolOutput": "C:/Users/andro/.codex/generated_images/01a09e48-0877-7203-a53f-4b137e36d69a/exec-c17c0fa7-2e81-41a1-8f4a-9a4f20589188.png",
+      "sha256": "e4d99817fcbe93257c7167b44d80c14d827c410f5705aa99dd838ed1530e18ca"
+    },
+    {
+      "source": "docs/station-remaster/catalog-glass-fix/selected-source.png",
+      "toolOutput": "C:/Users/andro/.codex/generated_images/01a09e48-0877-7203-a53f-4b137e36d69a/exec-462ad2c7-b13b-4e91-959e-633f061bda66.png",
+      "sha256": "df5ea713e3e152f37d93d843a4bbc45c5bb6aa53590c8688d3ff70d3567f362d"
+    }
+  ]
+}
