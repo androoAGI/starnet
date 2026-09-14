@@ -1,0 +1,49 @@
+{
+  "id": "pub_outboundchute",
+  "status": "exported-awaiting-owner-live-review",
+  "source": "sources/pub_outboundchute.png",
+  "sourceSha256": "ee623c1357bf660655d11e0e12dce2fdf9486c2a2047cff53696f3e1d8833cab",
+  "sourceWidth": 900,
+  "sourceHeight": 1748,
+  "image": "pub_outboundchute.png",
+  "sourceOutputWidth": 743,
+  "sourceOutputHeight": 1593,
+  "crop": {
+    "left": 112,
+    "top": 57,
+    "width": 743,
+    "height": 1593
+  },
+  "channels": 4,
+  "transparentPixels": 418146,
+  "opaquePixels": 765453,
+  "partialPixels": 0,
+  "backgroundPixelsRemoved": 807747,
+  "subjectRgbChanges": 0,
+  "outputSha256": "0f0aa5b5fae2d5aa51c42eafe316e627444c79988020189049f5119c4fa0cbcf",
+  "holeSeeds": [],
+  "maskMethod": "Connected saturated-magenta flood fill, including key-only enclosed components. Alpha-only edits; uniform crop; no RGB recolor.",
+  "view": "s",
+  "footprint": {
+    "w": 1,
+    "h": 2
+  },
+  "bounds": {
+    "x": -3,
+    "y": -11,
+    "width": 18,
+    "height": 35
+  },
+  "tilePixels": 12,
+  "contact": {
+    "x": 6,
+    "y": 24
+  },
+  "anchorContract": "No leisure seat anchor. Footprint is the placement/pathfinding rectangle; upright visual rise is independent of the reserved box.",
+  "originalLight": null,
+  "originalAnimationTriggers": [
+    "Autonomous sprite clock animation is present in the sampled default state; cosmetic motion is not evidence of provider work, route decisions or external state."
+  ],
+  "artMode": "static complete art; existing state/lighting integration remains owner decision",
+  "liveIntegrated": false
+}

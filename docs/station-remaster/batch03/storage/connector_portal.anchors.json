@@ -1,0 +1,253 @@
+{
+  "id": "connector_portal",
+  "measurement": "Conservative manual visual selection inside inspected source surfaces; conversion uses PropRemaster.fit uniform bottom-centered mapping. Owner must verify live.",
+  "footprint": {
+    "w": 1,
+    "h": 2
+  },
+  "worldEnvelope": {
+    "x": 0,
+    "y": -7,
+    "width": 17,
+    "height": 31
+  },
+  "uniformScale": 0.01911220715166461,
+  "renderedArtBox": {
+    "x": 2.7472256473489525,
+    "y": -7,
+    "width": 11.505548705302095,
+    "height": 31
+  },
+  "contact": {
+    "x": 8.5,
+    "y": 24
+  },
+  "regions": {
+    "statusStrip": {
+      "sourcePixels": [
+        [
+          327,
+          249
+        ],
+        [
+          536,
+          249
+        ],
+        [
+          536,
+          318
+        ],
+        [
+          327,
+          318
+        ]
+      ],
+      "exportPixels": [
+        [
+          168,
+          220
+        ],
+        [
+          377,
+          220
+        ],
+        [
+          377,
+          289
+        ],
+        [
+          168,
+          289
+        ]
+      ],
+      "worldPixels": [
+        [
+          5.958,
+          -2.795
+        ],
+        [
+          9.953,
+          -2.795
+        ],
+        [
+          9.953,
+          -1.477
+        ],
+        [
+          5.958,
+          -1.477
+        ]
+      ]
+    },
+    "socketTop": {
+      "sourcePixels": [
+        [
+          382,
+          451
+        ],
+        [
+          480,
+          451
+        ],
+        [
+          480,
+          541
+        ],
+        [
+          382,
+          541
+        ]
+      ],
+      "exportPixels": [
+        [
+          223,
+          422
+        ],
+        [
+          321,
+          422
+        ],
+        [
+          321,
+          512
+        ],
+        [
+          223,
+          512
+        ]
+      ],
+      "worldPixels": [
+        [
+          7.009,
+          1.065
+        ],
+        [
+          8.882,
+          1.065
+        ],
+        [
+          8.882,
+          2.785
+        ],
+        [
+          7.009,
+          2.785
+        ]
+      ]
+    },
+    "socketMiddle": {
+      "sourcePixels": [
+        [
+          355,
+          746
+        ],
+        [
+          507,
+          746
+        ],
+        [
+          507,
+          833
+        ],
+        [
+          355,
+          833
+        ]
+      ],
+      "exportPixels": [
+        [
+          196,
+          717
+        ],
+        [
+          348,
+          717
+        ],
+        [
+          348,
+          804
+        ],
+        [
+          196,
+          804
+        ]
+      ],
+      "worldPixels": [
+        [
+          6.493,
+          6.703
+        ],
+        [
+          9.398,
+          6.703
+        ],
+        [
+          9.398,
+          8.366
+        ],
+        [
+          6.493,
+          8.366
+        ]
+      ]
+    },
+    "socketBottom": {
+      "sourcePixels": [
+        [
+          379,
+          1046
+        ],
+        [
+          487,
+          1046
+        ],
+        [
+          487,
+          1136
+        ],
+        [
+          379,
+          1136
+        ]
+      ],
+      "exportPixels": [
+        [
+          220,
+          1017
+        ],
+        [
+          328,
+          1017
+        ],
+        [
+          328,
+          1107
+        ],
+        [
+          220,
+          1107
+        ]
+      ],
+      "worldPixels": [
+        [
+          6.952,
+          12.437
+        ],
+        [
+          9.016,
+          12.437
+        ],
+        [
+          9.016,
+          14.157
+        ],
+        [
+          6.952,
+          14.157
+        ]
+      ]
+    }
+  },
+  "liveIntegrated": false,
+  "stateNote": "All sockets empty, strip dark. Bind/server/tool state and pulses must come from real connector poll and calls."
+}
