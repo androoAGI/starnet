@@ -39,6 +39,10 @@
     "h": 1
   },
   "anchorContract": "No leisure seat anchor. Footprint is the placement/pathfinding rectangle; upright visual rise is independent of the reserved box.",
-  "holeSeeds": [],
-  "alphaNote": "Original RGBA body mostly alpha252/253, distant faint residue. Binary alpha160 cutoff, RGB preserved."
+  "holeSeeds": [
+    [
+      500,
+      820
+    ]
+  ]
 }
