@@ -1,0 +1,39 @@
+Primary visual reference: the attached OWNER-APPROVED StarNet full prop sheet. Match that exact painted industrial game-sprite style, camera, silhouettes, material treatment, palette and density of detail. Create ONE supplemental sprite sheet showing ONLY the 24 missing views specified below. These are the EXACT SAME objects in the approved sheet, rotated into their required physical orientation. No new design reinterpretation, no swaps of material, no photo/PBR, no more detailed miniature treatment.
+
+LAYOUT: exactly SIX columns and FOUR rows, 24 equally sized cells, row-major order specified below. Large landscape atlas preferably1536x1024 or larger, all24 complete, one isolated sprite per cell. Center each sprite within its cell, at least12percent empty gutters on every side, no overlaps. Transparent background preferred, no checkerboard, no cast shadows or halos; no grid lines, no labels, no letters or numbers. Keep global light from upper-left, camera fixed as in primaryreference. Rotate the OBJECT, not a flat bitmap. Upright supports remain vertical, overhead top planes stay visible. North=N faces away; show backs of screens/chair shells, no cyan display face on a monitor's back. West=W seat or operator front points LEFT; East=E front points RIGHT. For elongated tables/panels turned90degrees, long footprint runs screenTOPtoBOTTOM; true elevated geometry, not rotated picture. West/east chairs must visibly face opposite sides.
+
+Identify matching designs from approved master by its16columns x10rows, coordinates below are ONE-BASED and must NOT appear in image.
+
+OUTPUT ROW1 left-to-right:
+1 industrial_partition W: approved master row1column6 darkrectangular brass-trim partition, rotated to tall narrow depthwise panel; near edge atRIGHT, little thickness, intacttwofeet, physical silhouette width:height8:44.
+2 same partition E, opposite face, near edgeLEFT,8:44.
+3 desk W: masterrow1column13, exact matching workstation and screen arrangement rotated operatorLEFT, sideview, narrow18:41 footprintshape.
+4 desk N: same masterrow1column13 fromREAR, monitor backs, matching keyboard/table/cabinet construction but no displays onbacks;40:23 broadshape.
+5 desk E: exactsame workstation operatorRIGHT,18:41.
+6 desk2 W: masterrow1column14, exactmatching secondworkstation screenarrangement operatorLEFT,18:41.
+
+OUTPUT ROW2 left-to-right:
+1 desk2 N: same secondworkstation viewedREAR,40:23, screensdarksolidbacks.
+2 desk2 E: secondworkstation operatorRIGHT,18:41.
+3 chair W: masterrow7column16 blue-gray upholstered officechair onwheeledbase, seatpointsLEFT,10:16.
+4 chair N: sameofficechair fromBACK,12:16, visiblebackofbackrest notseatfront.
+5 chair E: sameofficechair seatpointsRIGHT,10:16.
+6 lowtable E: masterrow8column2 simple lowbrown rectangular woodtable; rotate its longaxisTOPtoBOTTOM, short horizontalnearedge,16:36.
+
+OUTPUT ROW3 left-to-right:
+1 glasstable E: masterrow8column3 pale-teal clearglasstop fourblacklegs, longaxisTOPtoBOTTOM,12:36.
+2 dinertable E: masterrow8column4 squarecreamtable withredseats, rotatephysical table/seatingarrangement90degrees preserving same assembly and numberofchairs as reference;26:37.
+3 booth W: masterrow8column6 burgundy upholstered dinerbench, viewprofile withseatfrontLEFT, highbackRIGHT;12:29.
+4 booth E: same burgundydinerbench oppositeprofile, seatfrontRIGHT/highbackLEFT;12:29.
+5 dinerchair W: masterrow8column7 singleburgundychair withblackframe,seatLEFT;11:16.
+6 dinerchair N: sameburgundychair fromBACK,11:16.
+
+OUTPUT ROW4 left-to-right:
+1 dinerchair E: sameburgundychair seatRIGHT;11:16.
+2 podchair W: masterrow8column8 ivoryegg-shaped shellchair withblackinterior andburgundyseat, ovalopeningLEFT;11:17.
+3 podchair N: SAMEeggchair fromBACK, closedivory convexshell, blackbase, no large forwardopening;10:17.
+4 podchair E: sameeggchair ovalopeningRIGHT;11:17.
+5 loungetable E: masterrow8column9 warmbrown ovalwoodtable blacklegs; elongatedoval rotated longaxisTOPtoBOTTOM, shortaxiswidth,14:24.
+6 longtable E: masterrow8column10 longbrown diningtable withits matching darkchairs asvisible inmaster; longaxisTOPtoBOTTOM withsame numberofchairs arrangedaroundtable,16:36.
+
+Silhouette ratios guide worldfit; DO NOT force equal sprite heights orwidths. This is matching alternate camera-facing artwork for an existing collection. Preserve the master material identities and broad values. Each complete object must remain legible at small game size. No duplicates of the existing six rotated equipment pairs from the master lastrow; only these24 requested views. No new room orfloor.
