@@ -1,0 +1,515 @@
+{
+  "version": 1,
+  "planned": 44,
+  "exported": 23,
+  "generatedAt": "2026-09-14T05:58:52.806Z",
+  "note": "Artwork exports are separate from user acceptance and live runtime integration.",
+  "items": [
+    {
+      "id": "bookshelf",
+      "lane": "storage",
+      "group": "Accessories & wood",
+      "label": "BOOKSHELF",
+      "image": "assets/industrial/batch02/storage/bookshelf.png",
+      "width": 1281,
+      "height": 976,
+      "footprint": {
+        "w": 2,
+        "h": 1
+      },
+      "bounds": {
+        "x": -1,
+        "y": -9,
+        "width": 26,
+        "height": 22
+      },
+      "transparentPixels": 113324,
+      "opaquePixels": 1136932,
+      "status": "exported-art-awaiting-live-review"
+    },
+    {
+      "id": "bookstack",
+      "lane": "storage",
+      "group": "Accessories & wood",
+      "label": "BOOKS",
+      "image": "assets/industrial/batch02/storage/bookstack.png",
+      "width": 1161,
+      "height": 925,
+      "footprint": {
+        "w": 1,
+        "h": 1
+      },
+      "bounds": {
+        "x": 0,
+        "y": 0,
+        "width": 12,
+        "height": 10
+      },
+      "transparentPixels": 106379,
+      "opaquePixels": 967546,
+      "status": "exported-art-awaiting-live-review"
+    },
+    {
+      "id": "mug",
+      "lane": "storage",
+      "group": "Accessories & wood",
+      "label": "MUG",
+      "image": "assets/industrial/batch02/storage/mug.png",
+      "width": 1034,
+      "height": 1008,
+      "footprint": {
+        "w": 1,
+        "h": 1
+      },
+      "bounds": {
+        "x": 1,
+        "y": 2,
+        "width": 10,
+        "height": 9
+      },
+      "transparentPixels": 310403,
+      "opaquePixels": 731869,
+      "status": "exported-art-awaiting-live-review"
+    },
+    {
+      "id": "guitar",
+      "lane": "storage",
+      "group": "Accessories & wood",
+      "label": "GUITAR",
+      "image": "assets/industrial/batch02/storage/guitar.png",
+      "width": 587,
+      "height": 1622,
+      "footprint": {
+        "w": 1,
+        "h": 1
+      },
+      "bounds": {
+        "x": -1,
+        "y": -15,
+        "width": 14,
+        "height": 27
+      },
+      "transparentPixels": 489389,
+      "opaquePixels": 462725,
+      "status": "exported-art-awaiting-live-review"
+    },
+    {
+      "id": "radio",
+      "lane": "storage",
+      "group": "Accessories & wood",
+      "label": "RADIO",
+      "image": "assets/industrial/batch02/storage/radio.png",
+      "width": 1200,
+      "height": 921,
+      "footprint": {
+        "w": 1,
+        "h": 1
+      },
+      "bounds": {
+        "x": 1,
+        "y": 3,
+        "width": 10,
+        "height": 9
+      },
+      "transparentPixels": 203120,
+      "opaquePixels": 902080,
+      "status": "exported-art-awaiting-live-review"
+    },
+    {
+      "id": "figurine",
+      "lane": "storage",
+      "group": "Accessories & wood",
+      "label": "FIGURINE",
+      "image": "assets/industrial/batch02/storage/figurine.png",
+      "width": 661,
+      "height": 1092,
+      "footprint": {
+        "w": 1,
+        "h": 1
+      },
+      "bounds": {
+        "x": 1,
+        "y": 1,
+        "width": 10,
+        "height": 11
+      },
+      "transparentPixels": 179588,
+      "opaquePixels": 542224,
+      "status": "exported-art-awaiting-live-review"
+    },
+    {
+      "id": "modelship",
+      "lane": "storage",
+      "group": "Accessories & wood",
+      "label": "MODEL SHIP",
+      "image": "assets/industrial/batch02/storage/modelship.png",
+      "width": 1282,
+      "height": 746,
+      "footprint": {
+        "w": 2,
+        "h": 1
+      },
+      "bounds": {
+        "x": 2,
+        "y": 1,
+        "width": 20,
+        "height": 11
+      },
+      "transparentPixels": 364338,
+      "opaquePixels": 592034,
+      "status": "exported-art-awaiting-live-review"
+    },
+    {
+      "id": "toolbox",
+      "lane": "storage",
+      "group": "Accessories & wood",
+      "label": "TOOLBOX",
+      "image": "assets/industrial/batch02/storage/toolbox.png",
+      "width": 1252,
+      "height": 694,
+      "footprint": {
+        "w": 1,
+        "h": 1
+      },
+      "bounds": {
+        "x": 0,
+        "y": 1,
+        "width": 12,
+        "height": 10
+      },
+      "transparentPixels": 66603,
+      "opaquePixels": 802285,
+      "status": "exported-art-awaiting-live-review"
+    },
+    {
+      "id": "bar",
+      "lane": "crew",
+      "group": "Crew furniture",
+      "label": "BAR",
+      "image": "assets/industrial/batch02/crew/bar.png",
+      "width": 1649,
+      "height": 557,
+      "footprint": {
+        "w": 4,
+        "h": 1
+      },
+      "bounds": {
+        "x": -1,
+        "y": -12,
+        "width": 50,
+        "height": 24
+      },
+      "transparentPixels": 136257,
+      "opaquePixels": 782236,
+      "status": "exported-art-awaiting-live-review"
+    },
+    {
+      "id": "bunk",
+      "lane": "crew",
+      "group": "Crew furniture",
+      "label": "BED",
+      "image": "assets/industrial/batch02/crew/bunk.png",
+      "width": 682,
+      "height": 1192,
+      "footprint": {
+        "w": 2,
+        "h": 2
+      },
+      "bounds": {
+        "x": 0,
+        "y": -2,
+        "width": 24,
+        "height": 26
+      },
+      "transparentPixels": 92930,
+      "opaquePixels": 720014,
+      "status": "exported-art-awaiting-live-review"
+    },
+    {
+      "id": "quarters_pooltable",
+      "lane": "crew",
+      "group": "Crew furniture",
+      "label": "POOL TABLE",
+      "image": "assets/industrial/batch02/crew/quarters_pooltable.png",
+      "width": 1269,
+      "height": 840,
+      "footprint": {
+        "w": 4,
+        "h": 2
+      },
+      "bounds": {
+        "x": -1,
+        "y": -17,
+        "width": 50,
+        "height": 41
+      },
+      "transparentPixels": 162673,
+      "opaquePixels": 903287,
+      "status": "exported-art-awaiting-live-review"
+    },
+    {
+      "id": "pokertable",
+      "lane": "crew",
+      "group": "Crew furniture",
+      "label": "POKER TABLE",
+      "image": "assets/industrial/batch02/crew/pokertable.png",
+      "width": 1580,
+      "height": 778,
+      "footprint": {
+        "w": 4,
+        "h": 2
+      },
+      "bounds": {
+        "x": -1,
+        "y": -5,
+        "width": 50,
+        "height": 29
+      },
+      "transparentPixels": 264580,
+      "opaquePixels": 964660,
+      "status": "exported-art-awaiting-live-review"
+    },
+    {
+      "id": "beanbag",
+      "lane": "crew",
+      "group": "Crew furniture",
+      "label": "BEANBAG",
+      "image": "assets/industrial/batch02/crew/beanbag.png",
+      "width": 1141,
+      "height": 1030,
+      "footprint": {
+        "w": 1,
+        "h": 1
+      },
+      "bounds": {
+        "x": -1,
+        "y": 1,
+        "width": 14,
+        "height": 11
+      },
+      "transparentPixels": 296863,
+      "opaquePixels": 878367,
+      "status": "exported-art-awaiting-live-review"
+    },
+    {
+      "id": "stool",
+      "lane": "crew",
+      "group": "Crew furniture",
+      "label": "STOOL",
+      "image": "assets/industrial/batch02/crew/stool.png",
+      "width": 770,
+      "height": 1087,
+      "footprint": {
+        "w": 1,
+        "h": 1
+      },
+      "bounds": {
+        "x": 1,
+        "y": 0,
+        "width": 10,
+        "height": 11
+      },
+      "transparentPixels": 267793,
+      "opaquePixels": 569197,
+      "status": "exported-art-awaiting-live-review"
+    },
+    {
+      "id": "industrial_bench",
+      "lane": "crew",
+      "group": "Crew furniture",
+      "label": "CREW BENCH",
+      "image": "assets/industrial/batch02/crew/industrial_bench.png",
+      "width": 2046,
+      "height": 509,
+      "footprint": {
+        "w": 3,
+        "h": 1
+      },
+      "bounds": {
+        "x": 0,
+        "y": 0,
+        "width": 36,
+        "height": 12
+      },
+      "transparentPixels": 211665,
+      "opaquePixels": 829749,
+      "status": "exported-art-awaiting-live-review"
+    },
+    {
+      "id": "industrial_roundtable",
+      "lane": "crew",
+      "group": "Crew furniture",
+      "label": "PEDESTAL TABLE",
+      "image": "assets/industrial/batch02/crew/industrial_roundtable.png",
+      "width": 969,
+      "height": 980,
+      "footprint": {
+        "w": 2,
+        "h": 1
+      },
+      "bounds": {
+        "x": 0,
+        "y": -4,
+        "width": 24,
+        "height": 16
+      },
+      "transparentPixels": 314255,
+      "opaquePixels": 635365,
+      "status": "exported-art-awaiting-live-review"
+    },
+    {
+      "id": "industrial_planter",
+      "lane": "utility",
+      "group": "Plants, glass & lab",
+      "label": "PLANTER TROUGH",
+      "image": "assets/industrial/batch02/utility/industrial_planter.png",
+      "width": 1430,
+      "height": 1100,
+      "footprint": {
+        "w": 2,
+        "h": 1
+      },
+      "bounds": {
+        "x": 0,
+        "y": -8,
+        "width": 26,
+        "height": 20
+      },
+      "transparentPixels": 817547,
+      "opaquePixels": 755453,
+      "status": "exported-art-awaiting-live-review"
+    },
+    {
+      "id": "tallplant",
+      "lane": "utility",
+      "group": "Plants, glass & lab",
+      "label": "TALL PLANT",
+      "image": "assets/industrial/batch02/utility/tallplant.png",
+      "width": 887,
+      "height": 1774,
+      "footprint": {
+        "w": 1,
+        "h": 1
+      },
+      "bounds": {
+        "x": 1,
+        "y": -14,
+        "width": 13,
+        "height": 26
+      },
+      "transparentPixels": 1085046,
+      "opaquePixels": 488492,
+      "status": "exported-art-awaiting-live-review"
+    },
+    {
+      "id": "monstera",
+      "lane": "utility",
+      "group": "Plants, glass & lab",
+      "label": "MONSTERA",
+      "image": "assets/industrial/batch02/utility/monstera.png",
+      "width": 1205,
+      "height": 1305,
+      "footprint": {
+        "w": 1,
+        "h": 1
+      },
+      "bounds": {
+        "x": 0,
+        "y": -1,
+        "width": 12,
+        "height": 13
+      },
+      "transparentPixels": 724105,
+      "opaquePixels": 848420,
+      "status": "exported-art-awaiting-live-review"
+    },
+    {
+      "id": "whiteboard",
+      "lane": "coordinator",
+      "group": "Boards & archive",
+      "label": "WHITEBOARD",
+      "image": "assets/industrial/batch02/coordinator/whiteboard.png",
+      "width": 1757,
+      "height": 718,
+      "footprint": {
+        "w": 4,
+        "h": 1
+      },
+      "bounds": {
+        "x": -1,
+        "y": -11,
+        "width": 50,
+        "height": 23
+      },
+      "transparentPixels": 368787,
+      "opaquePixels": 667,
+      "status": "exported-art-awaiting-live-review"
+    },
+    {
+      "id": "chartwall",
+      "lane": "coordinator",
+      "group": "Boards & archive",
+      "label": "CHART WALL",
+      "image": "assets/industrial/batch02/coordinator/chartwall.png",
+      "width": 1557,
+      "height": 781,
+      "footprint": {
+        "w": 3,
+        "h": 1
+      },
+      "bounds": {
+        "x": -1,
+        "y": -10,
+        "width": 38,
+        "height": 22
+      },
+      "transparentPixels": 227931,
+      "opaquePixels": 191,
+      "status": "exported-art-awaiting-live-review"
+    },
+    {
+      "id": "calwall",
+      "lane": "coordinator",
+      "group": "Boards & archive",
+      "label": "CAL WALL",
+      "image": "assets/industrial/batch02/coordinator/calwall.png",
+      "width": 1995,
+      "height": 561,
+      "footprint": {
+        "w": 6,
+        "h": 1
+      },
+      "bounds": {
+        "x": -1,
+        "y": -8,
+        "width": 74,
+        "height": 20
+      },
+      "transparentPixels": 204650,
+      "opaquePixels": 408,
+      "status": "exported-art-awaiting-live-review"
+    },
+    {
+      "id": "arc_indexwall",
+      "lane": "coordinator",
+      "group": "Boards & archive",
+      "label": "INDEX WALL",
+      "image": "assets/industrial/batch02/coordinator/arc_indexwall.png",
+      "width": 1787,
+      "height": 655,
+      "footprint": {
+        "w": 4,
+        "h": 1
+      },
+      "bounds": {
+        "x": -1,
+        "y": -13,
+        "width": 50,
+        "height": 23
+      },
+      "transparentPixels": 76476,
+      "opaquePixels": 2063,
+      "status": "exported-art-awaiting-live-review"
+    }
+  ]
+}
