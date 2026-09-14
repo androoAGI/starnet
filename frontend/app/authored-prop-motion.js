@@ -102,17 +102,23 @@ const AuthoredPropMotion = (() => {
   function disc(ctx,p,r,fill) { ctx.fillStyle=fill;ctx.beginPath();ctx.arc(p[0],p[1],r,0,Math.PI*2);ctx.fill(); }
   function segment(ctx,a,b,width,pal) {
     const dx=b[0]-a[0],dy=b[1]-a[1],len=Math.hypot(dx,dy),nx=-dy/len,ny=dx/len;
-    const corners = (half,shift=0) => [[a[0]+nx*half,a[1]+ny*half+shift],[b[0]+nx*half,b[1]+ny*half+shift],
-      [b[0]-nx*half,b[1]-ny*half+shift],[a[0]-nx*half,a[1]-ny*half+shift]];
-    ctx.fillStyle=pal.dark;path(ctx,corners(width*.62,width*.18));ctx.fill();
+    const local = (along,across,shift=0) => [a[0]+dx*along+nx*across,a[1]+dy*along+ny*across+shift];
+    const corners = (half,shift=0) => [[0,-.56],[.15,-1],[.85,-1],[1,-.56],[1,.56],[.85,1],[.15,1],[0,.56]]
+      .map(([along,across])=>local(along,half*across,shift));
+    ctx.fillStyle=pal.dark;path(ctx,corners(width*.61,width*.13));ctx.fill();
     ctx.fillStyle=pal.edge;path(ctx,corners(width*.5));ctx.fill();
-    ctx.fillStyle=pal.metal;path(ctx,corners(width*.29));ctx.fill();
+    ctx.fillStyle=pal.metal;path(ctx,corners(width*.31));ctx.fill();
     ctx.strokeStyle=pal.light;ctx.lineWidth=width*.07;ctx.beginPath();
-    ctx.moveTo(a[0]+nx*width*.3,a[1]+ny*width*.3);ctx.lineTo(b[0]+nx*width*.3,b[1]+ny*width*.3);ctx.stroke();
+    ctx.moveTo(...local(.17,-width*.34));ctx.lineTo(...local(.83,-width*.34));ctx.stroke();
+    // A recessed service seam and two hardware bolts keep wide members reading
+    // as painted box-section links at station scale, rather than diagram lines.
+    ctx.strokeStyle=pal.dark;ctx.lineWidth=width*.075;ctx.beginPath();
+    ctx.moveTo(...local(.55,-width*.2));ctx.lineTo(...local(.55,width*.24));ctx.stroke();
+    for(const end of [.22,.78])disc(ctx,local(end,0),width*.055,pal.dark);
   }
   function capsule(ctx,c,p,pal) {
     const w=c.size[0]*c.sourceWidth,h=c.size[1]*c.sourceHeight,x=p.center[0]-w/2,y=p.center[1]-h/2;
-    ctx.fillStyle=pal.dark;ctx.fillRect(x,y,w,h);
+    ctx.fillStyle=pal.dark;path(ctx,[[x,y+h*.23],[x+w*.08,y],[x+w*.92,y],[x+w,y+h*.23],[x+w,y+h*.77],[x+w*.92,y+h],[x+w*.08,y+h],[x,y+h*.77]]);ctx.fill();
     ctx.fillStyle=pal.metal;ctx.fillRect(x+w*.11,y+h*.15,w*.78,h*.7);
     ctx.fillStyle=pal.edge;ctx.fillRect(x+w*.06,y,w*.14,h);ctx.fillRect(x+w*.8,y,w*.14,h);
     ctx.fillStyle=pal.light;ctx.fillRect(x+w*.23,y+h*.16,w*.5,h*.1);
@@ -122,9 +128,14 @@ const AuthoredPropMotion = (() => {
     const w=c.sourceWidth,t=c.thickness*w,r=c.joint*w;
     segment(ctx,p.shoulder,p.elbow,t,pal);segment(ctx,p.elbow,p.wrist,t*.82,pal);
     for (const [i,j] of [p.shoulder,p.elbow,p.wrist].entries()) {
-      disc(ctx,j,r*(i===2?.7:1),pal.dark);disc(ctx,j,r*(i===2?.52:.77),pal.metal);
-      disc(ctx,j,r*(i===2?.22:.38),pal.edge);
-      ctx.fillStyle=pal.light;ctx.fillRect(j[0]-r*.1,j[1]-r*.48,r*.2,r*.14);
+      const ring=r*(i===2?.7:1),octagon=radius=>Array.from({length:8},(_,n)=>[j[0]+Math.cos((n+.5)*Math.PI/4)*radius,j[1]+Math.sin((n+.5)*Math.PI/4)*radius]);
+      ctx.fillStyle=pal.dark;path(ctx,octagon(ring));ctx.fill();
+      ctx.fillStyle=pal.metal;path(ctx,octagon(ring*.8));ctx.fill();
+      disc(ctx,j,ring*.43,pal.edge);disc(ctx,j,ring*.2,pal.dark);
+      for(let n=0;n<4;n++){
+        const angle=(n+.5)*Math.PI/2,bolt=[j[0]+Math.cos(angle)*ring*.62,j[1]+Math.sin(angle)*ring*.62];
+        disc(ctx,bolt,ring*.08,pal.dark);disc(ctx,[bolt[0],bolt[1]-ring*.025],ring*.04,pal.light);
+      }
     }
     const tool=c.tool*w,spread=tool*(.25+p.open*.28),x=p.wrist[0],y=p.wrist[1]+r*.6;
     segment(ctx,[x-spread,y],[x-spread,y+tool*.55],t*.35,pal);

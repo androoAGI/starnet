@@ -1,0 +1,86 @@
+[
+  {
+    "id": "fabricator",
+    "sourceSha256": "89cce468370781ab4ed272c0fa6e9e94d1ad4cd169c83ca8888f576d295ba5c3",
+    "footprint": {
+      "w": 3,
+      "h": 2
+    },
+    "nativeBounds": {
+      "x": -3,
+      "y": -4,
+      "width": 44,
+      "height": 28
+    },
+    "fittedBody": {
+      "x": -3,
+      "y": 2.6218034993270507,
+      "width": 44,
+      "height": 21.37819650067295
+    },
+    "scale": 4,
+    "idleHash": "02fca902649309d8729bf47495017edf7d6d15ae5aec748676dd6a65d3369604",
+    "workHash": "3efb26cac0d7c40d74c382e426bb4dfd67843067a5e6819ab3af2f4f032c14c3",
+    "reducedMotionHash": "02fca902649309d8729bf47495017edf7d6d15ae5aec748676dd6a65d3369604",
+    "workChangedPixels": 487,
+    "escapedClipPixels": 0,
+    "staticOldSpriteCallbacks": 0,
+    "verification": "offline raster fixture; live browser inspection is separate"
+  },
+  {
+    "id": "tube",
+    "sourceSha256": "a714eb08baec8a2a13dabfaa9eb189c53f8827615b6797a3c6c16b16f33a109a",
+    "footprint": {
+      "w": 2,
+      "h": 1
+    },
+    "nativeBounds": {
+      "x": -1,
+      "y": -4,
+      "width": 26,
+      "height": 15
+    },
+    "fittedBody": {
+      "x": -1,
+      "y": -1.3320802005012524,
+      "width": 26,
+      "height": 12.332080200501252
+    },
+    "scale": 4,
+    "idleHash": "1bc24e8fe68028dea3b4c488f12c02ae799415b065306839626f62a4ae55b6f1",
+    "workHash": "0079a3e3c965cc8ecbb05b2f81ca0848231182e700012ae66cb809c615c08af2",
+    "reducedMotionHash": "1bc24e8fe68028dea3b4c488f12c02ae799415b065306839626f62a4ae55b6f1",
+    "workChangedPixels": 198,
+    "escapedClipPixels": 0,
+    "staticOldSpriteCallbacks": 0,
+    "verification": "offline raster fixture; live browser inspection is separate"
+  },
+  {
+    "id": "etsy_packbot",
+    "sourceSha256": "ea148d64077f983a3e50a1a3e8922025c9135a5a4ad296510f0989a13afb3dfc",
+    "footprint": {
+      "w": 2,
+      "h": 2
+    },
+    "nativeBounds": {
+      "x": -1,
+      "y": -15,
+      "width": 30,
+      "height": 39
+    },
+    "fittedBody": {
+      "x": -1,
+      "y": -11.084745762711862,
+      "width": 30,
+      "height": 35.08474576271186
+    },
+    "scale": 4,
+    "idleHash": "766161635d546b3bbc513d7ba34d77eb982e87d106dc8b5c1de4976da82240e5",
+    "workHash": "2c1fd7311304b83e9aa4cbbd90487ce93221a6986d0306b3457dc6a0f5391a6c",
+    "reducedMotionHash": "766161635d546b3bbc513d7ba34d77eb982e87d106dc8b5c1de4976da82240e5",
+    "workChangedPixels": 2226,
+    "escapedClipPixels": 0,
+    "staticOldSpriteCallbacks": 0,
+    "verification": "offline raster fixture; live browser inspection is separate"
+  }
+]

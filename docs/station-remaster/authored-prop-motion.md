@@ -85,3 +85,50 @@ node test/authored-prop-motion.test.js
 This module alone is **not** a completed prop remaster. Final artwork geometry,
 runtime script wiring, actual activity delivery, native-scale review, and live app
 proof belong to the integration lane. No shipped manifest entries are changed here.
+
+## Batch03 lab calibration
+
+`frontend/app/authored-machine-config.js` now supplies the three final calibrations.
+`AuthoredMachineConfig.byId[id]` and `.get(id)` return the same frozen specification:
+`{image, sha256, bounds, footprint, layers, motion}`. `image` and every `layers` value
+are leaf PNG filenames, suitable for the production `props-v3` image loader. The
+separate `.sourceRoot` names the source export directory only for review fixtures.
+
+- Fabricator: 1486 × 722 exported pixels; the newly authored carriage travels
+  horizontally between source x560 and x1175. Its coupling is aligned to the
+  metal rail, with the cutting foot extending onto the fabric below it.
+- Tube: 1596 × 757 pixels; a chamfered metal capsule travels between the two
+  barrel collars. The clip excludes the brass casing and upper glass reflection.
+- Packing robot: 1003 × 1173 pixels; the shoulder center maps to source (855,190),
+  inside the authored mast flange. New broad, chamfered box-section links, inset
+  service panels, octagonal bolted joints, and an articulated pincer keep their
+  lengths through all three measured deck poses. The complete body fits the
+  existing 30 × 39 world-pixel envelope uniformly; its feet end at y24.
+
+The authored bodies and head are bound to SHA-256 values from source commit
+`85fc38d52`; the configuration test rejects a changed PNG or dimension silently
+using those measurements. No generated texture was recoloured or stretched.
+
+`frontend/authored-machine-review.html` is an isolated browser fixture served by
+the seeded sidecar. It shows the three complete machines, the approved crate, and
+the actual station minion at 4 display pixels per world pixel. Its buttons control
+explicitly labelled demonstration work, reduced motion, and fixed frames. It does
+not read or mutate the user's saved layout. DOM-visible pose and pixel receipts
+support browser checks without claiming backend activity.
+
+Additional validation:
+
+```text
+node test/authored-prop-motion.test.js                  # 57 assertions
+node test/authored-machine-config.test.js               # 23 assertions
+node dev/industrial-textures/verify-authored-machines.cjs
+```
+
+The raster verifier needs the bundled `@napi-rs/canvas` module on `NODE_PATH`.
+It passes all three machines: actual rendered pixels differ while working,
+reduced-motion pixels are identical to idle, and zero pixels escape the calibrated
+apertures. The output is [the composite sheet](authored-machines/native-motion-composites.png)
+and [the pixel receipt](authored-machines/raster-receipt.json). These were visually
+inspected at native scale. They are offline fixture evidence. The seeded page
+responded HTTP 200 on port18816; the worker's browser tool returned no available
+surfaces, so root owns the remaining live browser observation and production wiring.
