@@ -1,32 +1,27 @@
 {
-  "id": "toolbox",
+  "id": "desklamp",
   "status": "exported-awaiting-owner-live-review",
-  "source": "sources/toolbox.png",
-  "sourceSha256": "44c2420bf5db4159eaeb528a9994a37d43b4a00be9b0ba688da412c32f3a0be0",
-  "sourceWidth": 1374,
-  "sourceHeight": 1145,
-  "image": "toolbox.png",
-  "sourceOutputWidth": 1252,
-  "sourceOutputHeight": 694,
+  "source": "sources/desklamp.png",
+  "sourceSha256": "95496150d2a01074ec12dfca043bb106ae969fca4604eb41d0af05a71a828d96",
+  "sourceWidth": 1448,
+  "sourceHeight": 1086,
+  "image": "desklamp.png",
+  "sourceOutputWidth": 1034,
+  "sourceOutputHeight": 954,
   "crop": {
-    "left": 61,
-    "top": 203,
-    "width": 1252,
-    "height": 694
+    "left": 189,
+    "top": 53,
+    "width": 1034,
+    "height": 954
   },
   "channels": 4,
-  "transparentPixels": 66479,
-  "opaquePixels": 802409,
+  "transparentPixels": 598112,
+  "opaquePixels": 388324,
   "partialPixels": 0,
-  "backgroundPixelsRemoved": 770821,
+  "backgroundPixelsRemoved": 1184204,
   "subjectRgbChanges": 0,
-  "outputSha256": "3b09b57b611c0a6bf4904d3b613e15d6b434cad8afee97f571b60eef434146d5",
-  "holeSeeds": [
-    [
-      1263,
-      515
-    ]
-  ],
+  "outputSha256": "2b06e4499cd6031157ae5e541b8c5c8119c640abc50f72763ea3cef3a28d34b2",
+  "holeSeeds": [],
   "maskMethod": "Connected saturated-magenta flood fill, including key-only enclosed components. Alpha-only edits; uniform crop; no RGB recolor.",
   "view": "s",
   "footprint": {
@@ -35,17 +30,27 @@
   },
   "bounds": {
     "x": 0,
-    "y": 1,
+    "y": 3,
     "width": 12,
-    "height": 10
+    "height": 9
   },
   "tilePixels": 12,
   "contact": {
     "x": 6,
-    "y": 11
+    "y": 12
   },
   "anchorContract": "Can sit on bare deck or valid table; table mount lifts contact origin exactly 8 world pixels.",
-  "originalLight": null,
+  "originalLight": {
+    "c": [
+      255,
+      214,
+      150
+    ],
+    "r": 26,
+    "a": 0.22,
+    "m": "steady",
+    "y": 0.3
+  },
   "originalAnimationTriggers": [
     "No direct event-driven or sampled default sprite animation. Preserve static art; no invented status or progress."
   ],

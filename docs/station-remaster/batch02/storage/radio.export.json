@@ -15,12 +15,12 @@
     "height": 921
   },
   "channels": 4,
-  "transparentPixels": 203120,
-  "opaquePixels": 902080,
+  "transparentPixels": 203066,
+  "opaquePixels": 902134,
   "partialPixels": 0,
-  "backgroundPixelsRemoved": 671100,
+  "backgroundPixelsRemoved": 671046,
   "subjectRgbChanges": 0,
-  "outputSha256": "0292ec24e044162d1732f72adabf1e24a97e1d3f7f47d31895596ea9c98cc136",
+  "outputSha256": "e51de0f01a45ab11d307428d5d644a017095bae65bc2e17cadcd83b45e577ff2",
   "holeSeeds": [
     [
       615,
