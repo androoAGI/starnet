@@ -408,5 +408,20 @@
   {
     "seeds": [],
     "id": "lavalamp"
+  },
+  {
+    "id": "plasmaglobe",
+    "seeds": [],
+    "maxChroma": 25
+  },
+  {
+    "id": "etsy_dyevat",
+    "seeds": [],
+    "maxChroma": 15
+  },
+  {
+    "id": "etsy_kiln",
+    "seeds": [],
+    "maxChroma": 25
   }
 ]

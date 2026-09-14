@@ -60,12 +60,13 @@
         "height": 774
       },
       "channels": 4,
-      "transparentPixels": 817547,
-      "opaquePixels": 755453,
+      "transparentPixels": 817601,
+      "opaquePixels": 755399,
       "partialPixels": 0,
       "backgroundPixelsRemoved": 817547,
+      "islandPixelsRemoved": 54,
       "subjectRgbChanges": 0,
-      "outputSha256": "abaa00ff1ac928c4516ff19049c23cf9792f918b89b11ea150a2e0e5a620ad68"
+      "outputSha256": "f808a0552b7414696c96acfbb09514f38c8b7f580f6b87695d3ff6f7d3742669"
     },
     {
       "id": "tallplant",
@@ -296,12 +297,13 @@
         "height": 1725
       },
       "channels": 4,
-      "transparentPixels": 1085046,
-      "opaquePixels": 488492,
+      "transparentPixels": 1085200,
+      "opaquePixels": 488338,
       "partialPixels": 0,
       "backgroundPixelsRemoved": 1085046,
+      "islandPixelsRemoved": 154,
       "subjectRgbChanges": 0,
-      "outputSha256": "5b689b47e4b809f34af1a935fd688174e23fc6885259db7d0836b025de5f9d2d"
+      "outputSha256": "b130e5d878d0880a62e0e9386c23a2e97565dbd5091b690b611f7a9ea8719e39"
     },
     {
       "id": "monstera",
@@ -442,16 +444,46 @@
       "alphaBounds": {
         "x": 25,
         "y": 8,
-        "width": 1180,
-        "height": 1289
+        "width": 1159,
+        "height": 1242
       },
       "channels": 4,
-      "transparentPixels": 724105,
-      "opaquePixels": 848420,
+      "transparentPixels": 724117,
+      "opaquePixels": 848408,
       "partialPixels": 0,
       "backgroundPixelsRemoved": 724105,
+      "islandPixelsRemoved": 12,
       "subjectRgbChanges": 0,
-      "outputSha256": "98413192e141076c1232024cb9097caa77c4b7f900bf03c3f6a85a0e64ef3a18"
+      "outputSha256": "dba611d401507c09fe2ac59134541cdeff893e69226031e0d449272fe0d93570"
+    },
+    {
+      "seeds": [
+        [
+          480,
+          175
+        ]
+      ],
+      "id": "terrarium",
+      "source": "docs/station-remaster/batch02/utility/sources/terrarium.png",
+      "sourceSha256": "cc7cde0cb223780f013c5425e4ce946afc0b6d5ceea2161d2808dd23953fe793",
+      "sourceWidth": 1039,
+      "sourceHeight": 1513,
+      "output": "frontend/assets/industrial/batch02/utility/terrarium.png",
+      "canvasPreserved": true,
+      "alphaBounds": {
+        "x": 200,
+        "y": 85,
+        "width": 638,
+        "height": 1346
+      },
+      "channels": 4,
+      "transparentPixels": 810561,
+      "opaquePixels": 761446,
+      "partialPixels": 0,
+      "backgroundPixelsRemoved": 809269,
+      "islandPixelsRemoved": 1292,
+      "subjectRgbChanges": 0,
+      "outputSha256": "ae262c554d721727c250ebeaf21fda35afe5ccf254319fcd07f4edaa21f54d77"
     },
     {
       "seeds": [],
@@ -473,6 +505,7 @@
       "opaquePixels": 991947,
       "partialPixels": 0,
       "backgroundPixelsRemoved": 580578,
+      "islandPixelsRemoved": 0,
       "subjectRgbChanges": 0,
       "outputSha256": "8a3c60892261ef844014c138f114d21db74408805ca3a54a60f5727d153794f2"
     },
@@ -496,36 +529,84 @@
       "opaquePixels": 730353,
       "partialPixels": 0,
       "backgroundPixelsRemoved": 842166,
+      "islandPixelsRemoved": 0,
       "subjectRgbChanges": 0,
       "outputSha256": "6dc736f526f36253a7f055c8d4dd6843367ff55a8e029b606f6db7a5e2fb4eb4"
     },
     {
-      "seeds": [
-        [
-          480,
-          175
-        ]
-      ],
-      "id": "terrarium",
-      "source": "docs/station-remaster/batch02/utility/sources/terrarium.png",
-      "sourceSha256": "cc7cde0cb223780f013c5425e4ce946afc0b6d5ceea2161d2808dd23953fe793",
-      "sourceWidth": 1039,
-      "sourceHeight": 1513,
-      "output": "frontend/assets/industrial/batch02/utility/terrarium.png",
+      "id": "plasmaglobe",
+      "seeds": [],
+      "maxChroma": 25,
+      "source": "docs/station-remaster/batch02/utility/sources/plasmaglobe.png",
+      "sourceSha256": "3517ba5986fc6cd513a897ba4a1530a113cdf29d22f5b3ca8218feb5af085a9b",
+      "sourceWidth": 912,
+      "sourceHeight": 1724,
+      "output": "frontend/assets/industrial/batch02/utility/plasmaglobe.png",
       "canvasPreserved": true,
       "alphaBounds": {
-        "x": 200,
-        "y": 85,
-        "width": 638,
-        "height": 1346
+        "x": 30,
+        "y": 26,
+        "width": 851,
+        "height": 1638
       },
       "channels": 4,
-      "transparentPixels": 809269,
-      "opaquePixels": 762738,
+      "transparentPixels": 527789,
+      "opaquePixels": 1044499,
       "partialPixels": 0,
-      "backgroundPixelsRemoved": 809269,
+      "backgroundPixelsRemoved": 527789,
+      "islandPixelsRemoved": 0,
       "subjectRgbChanges": 0,
-      "outputSha256": "f2f25e8ab45b847093f33e918db0b3eff9948e6a9ab00392fe1f8a394c6711a7"
+      "outputSha256": "9821f1f49483a96f761388af5b6527221cef8a0199db4d94581ccc8545e52882"
+    },
+    {
+      "id": "etsy_dyevat",
+      "seeds": [],
+      "maxChroma": 15,
+      "source": "docs/station-remaster/batch02/utility/sources/etsy_dyevat.png",
+      "sourceSha256": "f080a28841e9a5803f3db2f275b5b7884b20bf28881514ee8d8423e69dc5b267",
+      "sourceWidth": 1254,
+      "sourceHeight": 1254,
+      "output": "frontend/assets/industrial/batch02/utility/etsy_dyevat.png",
+      "canvasPreserved": true,
+      "alphaBounds": {
+        "x": 107,
+        "y": 5,
+        "width": 1033,
+        "height": 1179
+      },
+      "channels": 4,
+      "transparentPixels": 571540,
+      "opaquePixels": 1000976,
+      "partialPixels": 0,
+      "backgroundPixelsRemoved": 571506,
+      "islandPixelsRemoved": 34,
+      "subjectRgbChanges": 0,
+      "outputSha256": "f51347f568bc7090fe4281fe2cfc4546076f89f8446761e419bbc5f6f56b0464"
+    },
+    {
+      "id": "etsy_kiln",
+      "seeds": [],
+      "maxChroma": 25,
+      "source": "docs/station-remaster/batch02/utility/sources/etsy_kiln.png",
+      "sourceSha256": "f6df1ab055b2f04a75cdc52ac0d3c46b7fbbbb85a03e088db592b492acd14c4a",
+      "sourceWidth": 1196,
+      "sourceHeight": 1315,
+      "output": "frontend/assets/industrial/batch02/utility/etsy_kiln.png",
+      "canvasPreserved": true,
+      "alphaBounds": {
+        "x": 110,
+        "y": 47,
+        "width": 994,
+        "height": 1199
+      },
+      "channels": 4,
+      "transparentPixels": 598778,
+      "opaquePixels": 973962,
+      "partialPixels": 0,
+      "backgroundPixelsRemoved": 598778,
+      "islandPixelsRemoved": 0,
+      "subjectRgbChanges": 0,
+      "outputSha256": "2d17e182cbf1bfa864416fcc08ffbf12696cfb30bcea8e3445595d3fd86a224b"
     }
   ]
 }
