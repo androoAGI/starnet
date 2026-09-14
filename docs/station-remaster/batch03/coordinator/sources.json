@@ -1,1 +1,29 @@
-[{"id":"coffee","source":"docs/station-remaster/batch03/coordinator/coffee-source.png","seeds":[]}]
+[
+  {
+    "id": "coffee",
+    "source": "docs/station-remaster/batch03/coordinator/coffee-source.png",
+    "seeds": []
+  },
+  {
+    "id": "arc_indexwall",
+    "source": "docs/station-remaster/batch03/coordinator/arc_indexwall-source.png",
+    "seeds": []
+  },
+  {
+    "id": "comms_inbox",
+    "source": "docs/station-remaster/batch03/coordinator/comms_inbox-source.png",
+    "seeds": []
+  },
+  {
+    "id": "whiteboard",
+    "source": "docs/station-remaster/batch03/coordinator/whiteboard-source.png",
+    "seeds": [],
+    "backgroundMode": "black"
+  },
+  {
+    "id": "chartwall",
+    "source": "docs/station-remaster/batch03/coordinator/chartwall-source.png",
+    "seeds": [],
+    "backgroundMode": "black"
+  }
+]
