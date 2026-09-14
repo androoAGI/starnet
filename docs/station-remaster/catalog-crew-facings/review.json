@@ -1,0 +1,96 @@
+{
+  "version": 1,
+  "scope": "Nine supported alternate facings only; eight primary assets unchanged.",
+  "nativeContract": "C:/Users/andro/gen-trees/prop-coordination-0914/dev/industrial-textures/prop-structure-manifest.json",
+  "mapping": {
+    "w": 1,
+    "n": 2,
+    "e": 3
+  },
+  "generation": "Built-in imagegen: initial nine-view sheet, targeted four-view geometry repair, then targeted east-booth repair. All originals retained.",
+  "sourceFiles": [
+    {
+      "path": "docs\\station-remaster\\catalog-crew-facings\\sources\\booth-e-repair.png",
+      "sha256": "0294c1d232d617911ab959fabe329d4d1a76e38a9dea36312e20b30e79fe2c4d"
+    },
+    {
+      "path": "docs\\station-remaster\\catalog-crew-facings\\sources\\repair.png",
+      "sha256": "9adc7d3a840c574c5031cb07218b4affd823af360f1dd22f7dbb6e0ba764428a"
+    },
+    {
+      "path": "docs\\station-remaster\\catalog-crew-facings\\sources\\sheet.png",
+      "sha256": "1fc7962b3a247f1f62a4c52dc20a0fca41f375a8fff149710d3b89493a6196e0"
+    }
+  ],
+  "promptSequence": [
+    {
+      "prompt": "sheet.prompt.txt",
+      "output": "sources/sheet.png",
+      "references": "layout.json refs: four unchanged primary PNGs"
+    },
+    {
+      "prompt": "repair.prompt.txt",
+      "output": "sources/repair.png",
+      "references": "Initial sheet tight exported podchair:n, booth:w, booth:e, dinertable:e, row-major; originals reproducible from source sheet."
+    },
+    {
+      "prompt": "booth-e-repair.prompt.txt",
+      "output": "sources/booth-e-repair.png",
+      "references": "Repair sheet exported booth:w and booth:e; original repair sheet retained."
+    }
+  ],
+  "checks": {
+    "facing": "Dinerchair w/e seat fronts point left/right, backposts opposite; n exposes rear posts. Pod w/e openings point left/right; n shows closed shell. Booth backs right/left for w/e and seat arrangement extends vertically. Dinertable long axis vertical, no baked chairs.",
+    "fit": "Every final exported silhouette >=90% native width and height at uniform contain-fit. No bitmap rotations, no nonuniform resizing, native bounds unchanged.",
+    "rgba": "Every retained body RGB and alpha exactly equals source; alpha>=180 core plus original edges within radius3, detached fog removed.",
+    "smallScale": "Inspected fit-qa.png at 4x native world scale, plus complete generated source images.",
+    "live": "Not integrated or live-accepted in this worker."
+  },
+  "integrationRequirements": [
+    "Integrate view-specific records; preserve original primary s images.",
+    "Use same renderer contain-fit and alpha crop semantics as primary exports.",
+    "Validate seat anchoring and occlusion in live app; source/facing inspection is not live acceptance."
+  ],
+  "primaryHashChecks": [
+    {
+      "path": "frontend\\assets\\industrial\\catalog-crew\\beanbag.png",
+      "unchanged": true,
+      "sha256": "d1413f0f35659effcc7d56c36a491732996b18c62653c2ac3cec2be279a65f2d"
+    },
+    {
+      "path": "frontend\\assets\\industrial\\catalog-crew\\booth.png",
+      "unchanged": true,
+      "sha256": "357b75e172ae7e7fb8cf46c5e00bc276f2949c5c66aea010f9ad79c60a7d4cef"
+    },
+    {
+      "path": "frontend\\assets\\industrial\\catalog-crew\\bunk.png",
+      "unchanged": true,
+      "sha256": "f74a4246d439d09837daac1f23571cb65027a14987aae2bf4123a4a47c01d185"
+    },
+    {
+      "path": "frontend\\assets\\industrial\\catalog-crew\\dinerchair.png",
+      "unchanged": true,
+      "sha256": "aaed440b4f9e3eec27ab2a22315e57c517639dd67858be632631344157c97e11"
+    },
+    {
+      "path": "frontend\\assets\\industrial\\catalog-crew\\dinertable.png",
+      "unchanged": true,
+      "sha256": "362375703cea48e3dfad67015b64767b39fbac4409e3756308ed269a1e8ce007"
+    },
+    {
+      "path": "frontend\\assets\\industrial\\catalog-crew\\industrial_bench.png",
+      "unchanged": true,
+      "sha256": "9fce4522d701e77c81a7feb8993c1b0901772958d2ffc05db1ec45792be17a8e"
+    },
+    {
+      "path": "frontend\\assets\\industrial\\catalog-crew\\industrial_planter.png",
+      "unchanged": true,
+      "sha256": "7a6750513a004087da2f9a73bf61598c6222ecf031beb0c08a21f3b900d86a76"
+    },
+    {
+      "path": "frontend\\assets\\industrial\\catalog-crew\\podchair.png",
+      "unchanged": true,
+      "sha256": "706927fb51caaf597e79fbd95d2ac872c118e7e08873b571ea00ed8ccc6590a3"
+    }
+  ]
+}
