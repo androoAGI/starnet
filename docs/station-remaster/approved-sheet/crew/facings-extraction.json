@@ -1,0 +1,1468 @@
+{
+  "version": 1,
+  "method": "Same alpha>=180 core and radius3 support-preserving removal as parent extractor; retained body RGB/alpha exact. Remove detached haze and alpha1, tight crop, no rescale/recolour/bitmap-facing transforms.",
+  "count": 24,
+  "requestedCount": 24,
+  "partitionRepair": "Native F industrial_partition:e has opposite west via viewAt mirror fallback (propsprites.js:11062); source pair duplicated visually. New AI-authored opposite source substitutes e; original retained as w.",
+  "longtableRepair": "Dedicated bare east table replaces initial baked-chair assembly. Source override supplies bare same-style top/legs.",
+  "repairProvenance": {
+    "partition": {
+      "prompt": "docs/station-remaster/approved-sheet/crew/partition-opposite.prompt.txt",
+      "primaryReference": "frontend/assets/industrial/complete-sheet/starnet-props-full-sheet.png",
+      "secondaryReference": "frontend/assets/industrial/approved-sheet/facings-source.png"
+    },
+    "longtable": {
+      "prompt": "docs/station-remaster/approved-sheet/crew/longtable-e.prompt.txt",
+      "primaryReference": "frontend/assets/industrial/complete-sheet/starnet-props-full-sheet.png",
+      "secondaryReference": "docs/station-remaster/approved-sheet/storage/repair-sheet-source.png",
+      "matchingCell": "top row far right bare longtable"
+    }
+  },
+  "integrationNotes": [
+    "Uniform fits are measured, not resized to match native bounds. Partition-e repair has a broader aspect than the native narrow 8x44 envelope, so it draws shorter than partition-w at equal width; do not stretch silently.",
+    "Desk sprites include operator chairs and dinertable includes surrounding chairs as in their source assemblies. Integration must account for these occupied surfaces instead of adding duplicate baked seating.",
+    "True opposite direction and bare longtable verified visually in fitted QA; no live occupancy, camera or collision verification performed."
+  ],
+  "records": [
+    {
+      "id": "industrial_partition",
+      "view": "w",
+      "name": "industrial_partition-w",
+      "status": "exported-not-live-verified",
+      "output": "frontend/assets/industrial/approved-sheet/industrial_partition-w.png",
+      "outputSha256": "0ff75f57d40580ba039beaac275cd550590007bd72ba2a8a36597866a6571d23",
+      "source": "frontend/assets/industrial/approved-sheet/facings-source.png",
+      "sourceSha256": "d88b5268adb64925c27f80d4b74e10d79640edac898918fc5cb6f5c060e155ed",
+      "sourceRect": {
+        "left": 0,
+        "top": 0,
+        "width": 256,
+        "height": 256
+      },
+      "sourceCrop": {
+        "left": 108,
+        "top": 41,
+        "width": 68,
+        "height": 210
+      },
+      "width": 68,
+      "height": 210,
+      "alphaBounds": {
+        "x": 0,
+        "y": 0,
+        "width": 68,
+        "height": 210
+      },
+      "retainedPixels": 10363,
+      "alphaResidueRemoved": 636,
+      "retainedRgbChanges": 0,
+      "retainedAlphaChanges": 0,
+      "maxSourceAlpha": 254,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "opaqueCellEdgePixels": 0,
+      "alphaCounts": {
+        "transparent": 3917,
+        "partial": 10363,
+        "opaque": 0
+      },
+      "nativeFootprint": {
+        "w": 1,
+        "h": 3
+      },
+      "nativeBounds": {
+        "x": 2,
+        "y": -9,
+        "width": 8,
+        "height": 44
+      },
+      "uniformFit": {
+        "x": 2,
+        "y": 10.294117647058822,
+        "width": 8,
+        "height": 24.705882352941178
+      },
+      "repairSourceUsed": false
+    },
+    {
+      "id": "industrial_partition",
+      "view": "e",
+      "name": "industrial_partition-e",
+      "status": "exported-not-live-verified",
+      "output": "frontend/assets/industrial/approved-sheet/industrial_partition-e.png",
+      "outputSha256": "1790acc6e330638dd265d3cfe2c0d7e54c68d2d2548d2a4babee81a3cced525f",
+      "source": "docs/station-remaster/approved-sheet/crew/sources/partition-e.png",
+      "sourceSha256": "316dd5c15f5ee1790091d3b6b087da70c55a18b0c0edd4dee3849d6d92e09232",
+      "sourceRect": {
+        "left": 0,
+        "top": 0,
+        "width": 1024,
+        "height": 1536
+      },
+      "sourceCrop": {
+        "left": 270,
+        "top": 170,
+        "width": 508,
+        "height": 1216
+      },
+      "width": 508,
+      "height": 1216,
+      "alphaBounds": {
+        "x": 0,
+        "y": 0,
+        "width": 508,
+        "height": 1216
+      },
+      "retainedPixels": 391408,
+      "alphaResidueRemoved": 2946,
+      "retainedRgbChanges": 0,
+      "retainedAlphaChanges": 0,
+      "maxSourceAlpha": 254,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "opaqueCellEdgePixels": 0,
+      "alphaCounts": {
+        "transparent": 226320,
+        "partial": 391408,
+        "opaque": 0
+      },
+      "nativeFootprint": {
+        "w": 1,
+        "h": 3
+      },
+      "nativeBounds": {
+        "x": 2,
+        "y": -9,
+        "width": 8,
+        "height": 44
+      },
+      "uniformFit": {
+        "x": 2,
+        "y": 15.8503937007874,
+        "width": 8,
+        "height": 19.1496062992126
+      },
+      "repairSourceUsed": true
+    },
+    {
+      "id": "desk",
+      "view": "e",
+      "name": "desk-e",
+      "status": "exported-not-live-verified",
+      "output": "frontend/assets/industrial/approved-sheet/desk-e.png",
+      "outputSha256": "6560272282713dd12238be0eb9924906a3f5f314c86802f8c7d2e0c528fad99f",
+      "source": "frontend/assets/industrial/approved-sheet/facings-source.png",
+      "sourceSha256": "d88b5268adb64925c27f80d4b74e10d79640edac898918fc5cb6f5c060e155ed",
+      "sourceRect": {
+        "left": 512,
+        "top": 0,
+        "width": 256,
+        "height": 256
+      },
+      "sourceCrop": {
+        "left": 569,
+        "top": 61,
+        "width": 138,
+        "height": 190
+      },
+      "width": 138,
+      "height": 190,
+      "alphaBounds": {
+        "x": 0,
+        "y": 0,
+        "width": 138,
+        "height": 190
+      },
+      "retainedPixels": 15800,
+      "alphaResidueRemoved": 2157,
+      "retainedRgbChanges": 0,
+      "retainedAlphaChanges": 0,
+      "maxSourceAlpha": 254,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "opaqueCellEdgePixels": 0,
+      "alphaCounts": {
+        "transparent": 10420,
+        "partial": 15800,
+        "opaque": 0
+      },
+      "nativeFootprint": {
+        "w": 1,
+        "h": 3
+      },
+      "nativeBounds": {
+        "x": -3,
+        "y": -5,
+        "width": 18,
+        "height": 41
+      },
+      "uniformFit": {
+        "x": -3,
+        "y": 11.217391304347828,
+        "width": 18,
+        "height": 24.782608695652172
+      },
+      "repairSourceUsed": false
+    },
+    {
+      "id": "desk",
+      "view": "n",
+      "name": "desk-n",
+      "status": "exported-not-live-verified",
+      "output": "frontend/assets/industrial/approved-sheet/desk-n.png",
+      "outputSha256": "a052f0638859c7fb356c0d3f1ae3ff36461e89ba8dba4c8c2b61d5a269e5021b",
+      "source": "frontend/assets/industrial/approved-sheet/facings-source.png",
+      "sourceSha256": "d88b5268adb64925c27f80d4b74e10d79640edac898918fc5cb6f5c060e155ed",
+      "sourceRect": {
+        "left": 768,
+        "top": 0,
+        "width": 256,
+        "height": 256
+      },
+      "sourceCrop": {
+        "left": 798,
+        "top": 80,
+        "width": 212,
+        "height": 168
+      },
+      "width": 212,
+      "height": 168,
+      "alphaBounds": {
+        "x": 0,
+        "y": 0,
+        "width": 212,
+        "height": 168
+      },
+      "retainedPixels": 26892,
+      "alphaResidueRemoved": 2436,
+      "retainedRgbChanges": 0,
+      "retainedAlphaChanges": 0,
+      "maxSourceAlpha": 254,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "opaqueCellEdgePixels": 0,
+      "alphaCounts": {
+        "transparent": 8724,
+        "partial": 26892,
+        "opaque": 0
+      },
+      "nativeFootprint": {
+        "w": 3,
+        "h": 1
+      },
+      "nativeBounds": {
+        "x": -2,
+        "y": -11,
+        "width": 40,
+        "height": 23
+      },
+      "uniformFit": {
+        "x": 3.4880952380952372,
+        "y": -11.000000000000004,
+        "width": 29.023809523809526,
+        "height": 23.000000000000004
+      },
+      "repairSourceUsed": false
+    },
+    {
+      "id": "desk",
+      "view": "w",
+      "name": "desk-w",
+      "status": "exported-not-live-verified",
+      "output": "frontend/assets/industrial/approved-sheet/desk-w.png",
+      "outputSha256": "8302a63ef00bc673e46c074dae162a48de9260ea323ee89fec943959053a8de1",
+      "source": "frontend/assets/industrial/approved-sheet/facings-source.png",
+      "sourceSha256": "d88b5268adb64925c27f80d4b74e10d79640edac898918fc5cb6f5c060e155ed",
+      "sourceRect": {
+        "left": 1024,
+        "top": 0,
+        "width": 256,
+        "height": 256
+      },
+      "sourceCrop": {
+        "left": 1075,
+        "top": 60,
+        "width": 128,
+        "height": 190
+      },
+      "width": 128,
+      "height": 190,
+      "alphaBounds": {
+        "x": 0,
+        "y": 0,
+        "width": 128,
+        "height": 190
+      },
+      "retainedPixels": 14940,
+      "alphaResidueRemoved": 1713,
+      "retainedRgbChanges": 0,
+      "retainedAlphaChanges": 0,
+      "maxSourceAlpha": 254,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "opaqueCellEdgePixels": 0,
+      "alphaCounts": {
+        "transparent": 9380,
+        "partial": 14940,
+        "opaque": 0
+      },
+      "nativeFootprint": {
+        "w": 1,
+        "h": 3
+      },
+      "nativeBounds": {
+        "x": -3,
+        "y": -5,
+        "width": 18,
+        "height": 41
+      },
+      "uniformFit": {
+        "x": -3,
+        "y": 9.28125,
+        "width": 18,
+        "height": 26.71875
+      },
+      "repairSourceUsed": false
+    },
+    {
+      "id": "desk2",
+      "view": "w",
+      "name": "desk2-w",
+      "status": "exported-not-live-verified",
+      "output": "frontend/assets/industrial/approved-sheet/desk2-w.png",
+      "outputSha256": "19891fd748e67a8ed889cdfde3cbca03c317178483a415a84daa7ba6af8f39e5",
+      "source": "frontend/assets/industrial/approved-sheet/facings-source.png",
+      "sourceSha256": "d88b5268adb64925c27f80d4b74e10d79640edac898918fc5cb6f5c060e155ed",
+      "sourceRect": {
+        "left": 1280,
+        "top": 0,
+        "width": 256,
+        "height": 256
+      },
+      "sourceCrop": {
+        "left": 1311,
+        "top": 64,
+        "width": 146,
+        "height": 186
+      },
+      "width": 146,
+      "height": 186,
+      "alphaBounds": {
+        "x": 0,
+        "y": 0,
+        "width": 146,
+        "height": 186
+      },
+      "retainedPixels": 19575,
+      "alphaResidueRemoved": 1935,
+      "retainedRgbChanges": 0,
+      "retainedAlphaChanges": 0,
+      "maxSourceAlpha": 254,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "opaqueCellEdgePixels": 0,
+      "alphaCounts": {
+        "transparent": 7581,
+        "partial": 19575,
+        "opaque": 0
+      },
+      "nativeFootprint": {
+        "w": 1,
+        "h": 3
+      },
+      "nativeBounds": {
+        "x": -3,
+        "y": -5,
+        "width": 18,
+        "height": 41
+      },
+      "uniformFit": {
+        "x": -3,
+        "y": 13.068493150684933,
+        "width": 18,
+        "height": 22.931506849315067
+      },
+      "repairSourceUsed": false
+    },
+    {
+      "id": "desk2",
+      "view": "n",
+      "name": "desk2-n",
+      "status": "exported-not-live-verified",
+      "output": "frontend/assets/industrial/approved-sheet/desk2-n.png",
+      "outputSha256": "8ac34992a2ec80ce9d4fa051bdb5f8d88080c9cbcf6f1202c7c3c53d8dbf704b",
+      "source": "frontend/assets/industrial/approved-sheet/facings-source.png",
+      "sourceSha256": "d88b5268adb64925c27f80d4b74e10d79640edac898918fc5cb6f5c060e155ed",
+      "sourceRect": {
+        "left": 0,
+        "top": 256,
+        "width": 256,
+        "height": 256
+      },
+      "sourceCrop": {
+        "left": 41,
+        "top": 316,
+        "width": 201,
+        "height": 163
+      },
+      "width": 201,
+      "height": 163,
+      "alphaBounds": {
+        "x": 0,
+        "y": 0,
+        "width": 201,
+        "height": 163
+      },
+      "retainedPixels": 25385,
+      "alphaResidueRemoved": 2581,
+      "retainedRgbChanges": 0,
+      "retainedAlphaChanges": 0,
+      "maxSourceAlpha": 254,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "opaqueCellEdgePixels": 0,
+      "alphaCounts": {
+        "transparent": 7378,
+        "partial": 25385,
+        "opaque": 0
+      },
+      "nativeFootprint": {
+        "w": 3,
+        "h": 1
+      },
+      "nativeBounds": {
+        "x": -2,
+        "y": -11,
+        "width": 40,
+        "height": 23
+      },
+      "uniformFit": {
+        "x": 3.819018404907977,
+        "y": -11,
+        "width": 28.361963190184046,
+        "height": 23
+      },
+      "repairSourceUsed": false
+    },
+    {
+      "id": "desk2",
+      "view": "e",
+      "name": "desk2-e",
+      "status": "exported-not-live-verified",
+      "output": "frontend/assets/industrial/approved-sheet/desk2-e.png",
+      "outputSha256": "ce27a1f1d572e310d9169de9dff1727bde34e6a1b52a3d547bcc6d52402f2896",
+      "source": "frontend/assets/industrial/approved-sheet/facings-source.png",
+      "sourceSha256": "d88b5268adb64925c27f80d4b74e10d79640edac898918fc5cb6f5c060e155ed",
+      "sourceRect": {
+        "left": 256,
+        "top": 256,
+        "width": 256,
+        "height": 256
+      },
+      "sourceCrop": {
+        "left": 338,
+        "top": 298,
+        "width": 139,
+        "height": 186
+      },
+      "width": 139,
+      "height": 186,
+      "alphaBounds": {
+        "x": 0,
+        "y": 0,
+        "width": 139,
+        "height": 186
+      },
+      "retainedPixels": 18988,
+      "alphaResidueRemoved": 1525,
+      "retainedRgbChanges": 0,
+      "retainedAlphaChanges": 0,
+      "maxSourceAlpha": 254,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "opaqueCellEdgePixels": 0,
+      "alphaCounts": {
+        "transparent": 6866,
+        "partial": 18988,
+        "opaque": 0
+      },
+      "nativeFootprint": {
+        "w": 1,
+        "h": 3
+      },
+      "nativeBounds": {
+        "x": -3,
+        "y": -5,
+        "width": 18,
+        "height": 41
+      },
+      "uniformFit": {
+        "x": -3,
+        "y": 11.913669064748202,
+        "width": 18,
+        "height": 24.086330935251798
+      },
+      "repairSourceUsed": false
+    },
+    {
+      "id": "chair",
+      "view": "w",
+      "name": "chair-w",
+      "status": "exported-not-live-verified",
+      "output": "frontend/assets/industrial/approved-sheet/chair-w.png",
+      "outputSha256": "9d3914b87a9c4f416b428c09ce805ff1ac4c39cc16a29a998e91b99928f2d614",
+      "source": "frontend/assets/industrial/approved-sheet/facings-source.png",
+      "sourceSha256": "d88b5268adb64925c27f80d4b74e10d79640edac898918fc5cb6f5c060e155ed",
+      "sourceRect": {
+        "left": 512,
+        "top": 256,
+        "width": 256,
+        "height": 256
+      },
+      "sourceCrop": {
+        "left": 583,
+        "top": 305,
+        "width": 107,
+        "height": 172
+      },
+      "width": 107,
+      "height": 172,
+      "alphaBounds": {
+        "x": 0,
+        "y": 0,
+        "width": 107,
+        "height": 172
+      },
+      "retainedPixels": 11147,
+      "alphaResidueRemoved": 1859,
+      "retainedRgbChanges": 0,
+      "retainedAlphaChanges": 0,
+      "maxSourceAlpha": 254,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "opaqueCellEdgePixels": 0,
+      "alphaCounts": {
+        "transparent": 7257,
+        "partial": 11147,
+        "opaque": 0
+      },
+      "nativeFootprint": {
+        "w": 1,
+        "h": 1
+      },
+      "nativeBounds": {
+        "x": 1,
+        "y": -4,
+        "width": 10,
+        "height": 16
+      },
+      "uniformFit": {
+        "x": 1.0232558139534884,
+        "y": -4,
+        "width": 9.953488372093023,
+        "height": 16
+      },
+      "repairSourceUsed": false
+    },
+    {
+      "id": "chair",
+      "view": "n",
+      "name": "chair-n",
+      "status": "exported-not-live-verified",
+      "output": "frontend/assets/industrial/approved-sheet/chair-n.png",
+      "outputSha256": "3e6c87bc7d18e82b013203664fd970fdc584101edfcaf29673af65f4c739c832",
+      "source": "frontend/assets/industrial/approved-sheet/facings-source.png",
+      "sourceSha256": "d88b5268adb64925c27f80d4b74e10d79640edac898918fc5cb6f5c060e155ed",
+      "sourceRect": {
+        "left": 768,
+        "top": 256,
+        "width": 256,
+        "height": 256
+      },
+      "sourceCrop": {
+        "left": 841,
+        "top": 310,
+        "width": 111,
+        "height": 167
+      },
+      "width": 111,
+      "height": 167,
+      "alphaBounds": {
+        "x": 0,
+        "y": 0,
+        "width": 111,
+        "height": 167
+      },
+      "retainedPixels": 13135,
+      "alphaResidueRemoved": 1578,
+      "retainedRgbChanges": 0,
+      "retainedAlphaChanges": 0,
+      "maxSourceAlpha": 254,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "opaqueCellEdgePixels": 0,
+      "alphaCounts": {
+        "transparent": 5402,
+        "partial": 13135,
+        "opaque": 0
+      },
+      "nativeFootprint": {
+        "w": 1,
+        "h": 1
+      },
+      "nativeBounds": {
+        "x": 0,
+        "y": -4,
+        "width": 12,
+        "height": 16
+      },
+      "uniformFit": {
+        "x": 0.682634730538922,
+        "y": -4,
+        "width": 10.634730538922156,
+        "height": 16
+      },
+      "repairSourceUsed": false
+    },
+    {
+      "id": "chair",
+      "view": "e",
+      "name": "chair-e",
+      "status": "exported-not-live-verified",
+      "output": "frontend/assets/industrial/approved-sheet/chair-e.png",
+      "outputSha256": "9ee819732cc08490975cc2335f1eb3379f5201d70589ca0b17d89dba0656bb6d",
+      "source": "frontend/assets/industrial/approved-sheet/facings-source.png",
+      "sourceSha256": "d88b5268adb64925c27f80d4b74e10d79640edac898918fc5cb6f5c060e155ed",
+      "sourceRect": {
+        "left": 1024,
+        "top": 256,
+        "width": 256,
+        "height": 256
+      },
+      "sourceCrop": {
+        "left": 1097,
+        "top": 306,
+        "width": 108,
+        "height": 171
+      },
+      "width": 108,
+      "height": 171,
+      "alphaBounds": {
+        "x": 0,
+        "y": 0,
+        "width": 108,
+        "height": 171
+      },
+      "retainedPixels": 11222,
+      "alphaResidueRemoved": 1839,
+      "retainedRgbChanges": 0,
+      "retainedAlphaChanges": 0,
+      "maxSourceAlpha": 254,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "opaqueCellEdgePixels": 0,
+      "alphaCounts": {
+        "transparent": 7246,
+        "partial": 11222,
+        "opaque": 0
+      },
+      "nativeFootprint": {
+        "w": 1,
+        "h": 1
+      },
+      "nativeBounds": {
+        "x": 1,
+        "y": -4,
+        "width": 10,
+        "height": 16
+      },
+      "uniformFit": {
+        "x": 1,
+        "y": -3.833333333333332,
+        "width": 10,
+        "height": 15.833333333333332
+      },
+      "repairSourceUsed": false
+    },
+    {
+      "id": "lowtable",
+      "view": "e",
+      "name": "lowtable-e",
+      "status": "exported-not-live-verified",
+      "output": "frontend/assets/industrial/approved-sheet/lowtable-e.png",
+      "outputSha256": "5c241d2d9df57763188170b4445e8fa00379951511157d9914298985aa6d4269",
+      "source": "frontend/assets/industrial/approved-sheet/facings-source.png",
+      "sourceSha256": "d88b5268adb64925c27f80d4b74e10d79640edac898918fc5cb6f5c060e155ed",
+      "sourceRect": {
+        "left": 1280,
+        "top": 256,
+        "width": 256,
+        "height": 256
+      },
+      "sourceCrop": {
+        "left": 1360,
+        "top": 302,
+        "width": 88,
+        "height": 177
+      },
+      "width": 88,
+      "height": 177,
+      "alphaBounds": {
+        "x": 0,
+        "y": 0,
+        "width": 88,
+        "height": 177
+      },
+      "retainedPixels": 12871,
+      "alphaResidueRemoved": 1116,
+      "retainedRgbChanges": 0,
+      "retainedAlphaChanges": 0,
+      "maxSourceAlpha": 254,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "opaqueCellEdgePixels": 0,
+      "alphaCounts": {
+        "transparent": 2705,
+        "partial": 12871,
+        "opaque": 0
+      },
+      "nativeFootprint": {
+        "w": 1,
+        "h": 3
+      },
+      "nativeBounds": {
+        "x": -2,
+        "y": 0,
+        "width": 16,
+        "height": 36
+      },
+      "uniformFit": {
+        "x": -2,
+        "y": 3.81818181818182,
+        "width": 16,
+        "height": 32.18181818181818
+      },
+      "repairSourceUsed": false
+    },
+    {
+      "id": "glasstable",
+      "view": "e",
+      "name": "glasstable-e",
+      "status": "exported-not-live-verified",
+      "output": "frontend/assets/industrial/approved-sheet/glasstable-e.png",
+      "outputSha256": "c0c50ba069ca5c39aaf6751d50c53f2f54d7f3135ef71a9e74cf380275aa6cf9",
+      "source": "frontend/assets/industrial/approved-sheet/facings-source.png",
+      "sourceSha256": "d88b5268adb64925c27f80d4b74e10d79640edac898918fc5cb6f5c060e155ed",
+      "sourceRect": {
+        "left": 0,
+        "top": 512,
+        "width": 256,
+        "height": 256
+      },
+      "sourceCrop": {
+        "left": 98,
+        "top": 538,
+        "width": 95,
+        "height": 176
+      },
+      "width": 95,
+      "height": 176,
+      "alphaBounds": {
+        "x": 0,
+        "y": 0,
+        "width": 95,
+        "height": 176
+      },
+      "retainedPixels": 13439,
+      "alphaResidueRemoved": 2009,
+      "retainedRgbChanges": 0,
+      "retainedAlphaChanges": 0,
+      "maxSourceAlpha": 253,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "opaqueCellEdgePixels": 0,
+      "alphaCounts": {
+        "transparent": 3281,
+        "partial": 13439,
+        "opaque": 0
+      },
+      "nativeFootprint": {
+        "w": 1,
+        "h": 3
+      },
+      "nativeBounds": {
+        "x": 0,
+        "y": 0,
+        "width": 12,
+        "height": 36
+      },
+      "uniformFit": {
+        "x": 0,
+        "y": 13.768421052631577,
+        "width": 12,
+        "height": 22.231578947368423
+      },
+      "repairSourceUsed": false
+    },
+    {
+      "id": "dinertable",
+      "view": "e",
+      "name": "dinertable-e",
+      "status": "exported-not-live-verified",
+      "output": "frontend/assets/industrial/approved-sheet/dinertable-e.png",
+      "outputSha256": "7dd0f1f44f1499e073bcf125b020dc0e52e7ee2c1f86a69e18ef36efa813bbb6",
+      "source": "frontend/assets/industrial/approved-sheet/facings-source.png",
+      "sourceSha256": "d88b5268adb64925c27f80d4b74e10d79640edac898918fc5cb6f5c060e155ed",
+      "sourceRect": {
+        "left": 256,
+        "top": 512,
+        "width": 256,
+        "height": 256
+      },
+      "sourceCrop": {
+        "left": 318,
+        "top": 535,
+        "width": 165,
+        "height": 175
+      },
+      "width": 165,
+      "height": 175,
+      "alphaBounds": {
+        "x": 0,
+        "y": 0,
+        "width": 165,
+        "height": 175
+      },
+      "retainedPixels": 20535,
+      "alphaResidueRemoved": 1460,
+      "retainedRgbChanges": 0,
+      "retainedAlphaChanges": 0,
+      "maxSourceAlpha": 254,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "opaqueCellEdgePixels": 0,
+      "alphaCounts": {
+        "transparent": 8340,
+        "partial": 20535,
+        "opaque": 0
+      },
+      "nativeFootprint": {
+        "w": 2,
+        "h": 3
+      },
+      "nativeBounds": {
+        "x": -1,
+        "y": 0,
+        "width": 26,
+        "height": 37
+      },
+      "uniformFit": {
+        "x": -0.9999999999999982,
+        "y": 9.424242424242426,
+        "width": 25.999999999999996,
+        "height": 27.575757575757574
+      },
+      "repairSourceUsed": false
+    },
+    {
+      "id": "booth",
+      "view": "w",
+      "name": "booth-w",
+      "status": "exported-not-live-verified",
+      "output": "frontend/assets/industrial/approved-sheet/booth-w.png",
+      "outputSha256": "4f1bdae74b8d879f42d318906f3e0346ddf964dde2e1aecf297ca324c7a658e0",
+      "source": "frontend/assets/industrial/approved-sheet/facings-source.png",
+      "sourceSha256": "d88b5268adb64925c27f80d4b74e10d79640edac898918fc5cb6f5c060e155ed",
+      "sourceRect": {
+        "left": 512,
+        "top": 512,
+        "width": 256,
+        "height": 256
+      },
+      "sourceCrop": {
+        "left": 586,
+        "top": 539,
+        "width": 120,
+        "height": 171
+      },
+      "width": 120,
+      "height": 171,
+      "alphaBounds": {
+        "x": 0,
+        "y": 0,
+        "width": 120,
+        "height": 171
+      },
+      "retainedPixels": 14847,
+      "alphaResidueRemoved": 1152,
+      "retainedRgbChanges": 0,
+      "retainedAlphaChanges": 0,
+      "maxSourceAlpha": 253,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "opaqueCellEdgePixels": 0,
+      "alphaCounts": {
+        "transparent": 5673,
+        "partial": 14847,
+        "opaque": 0
+      },
+      "nativeFootprint": {
+        "w": 1,
+        "h": 2
+      },
+      "nativeBounds": {
+        "x": 0,
+        "y": -5,
+        "width": 12,
+        "height": 29
+      },
+      "uniformFit": {
+        "x": 0,
+        "y": 6.899999999999999,
+        "width": 12,
+        "height": 17.1
+      },
+      "repairSourceUsed": false
+    },
+    {
+      "id": "booth",
+      "view": "e",
+      "name": "booth-e",
+      "status": "exported-not-live-verified",
+      "output": "frontend/assets/industrial/approved-sheet/booth-e.png",
+      "outputSha256": "a4323ecf64543765f060db464e09f78e8586603e4025600ac84b44a6bec630ca",
+      "source": "frontend/assets/industrial/approved-sheet/facings-source.png",
+      "sourceSha256": "d88b5268adb64925c27f80d4b74e10d79640edac898918fc5cb6f5c060e155ed",
+      "sourceRect": {
+        "left": 768,
+        "top": 512,
+        "width": 256,
+        "height": 256
+      },
+      "sourceCrop": {
+        "left": 831,
+        "top": 539,
+        "width": 122,
+        "height": 171
+      },
+      "width": 122,
+      "height": 171,
+      "alphaBounds": {
+        "x": 0,
+        "y": 0,
+        "width": 122,
+        "height": 171
+      },
+      "retainedPixels": 15083,
+      "alphaResidueRemoved": 1088,
+      "retainedRgbChanges": 0,
+      "retainedAlphaChanges": 0,
+      "maxSourceAlpha": 254,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "opaqueCellEdgePixels": 0,
+      "alphaCounts": {
+        "transparent": 5779,
+        "partial": 15083,
+        "opaque": 0
+      },
+      "nativeFootprint": {
+        "w": 1,
+        "h": 2
+      },
+      "nativeBounds": {
+        "x": 0,
+        "y": -5,
+        "width": 12,
+        "height": 29
+      },
+      "uniformFit": {
+        "x": 0,
+        "y": 7.1803278688524586,
+        "width": 12,
+        "height": 16.81967213114754
+      },
+      "repairSourceUsed": false
+    },
+    {
+      "id": "dinerchair",
+      "view": "w",
+      "name": "dinerchair-w",
+      "status": "exported-not-live-verified",
+      "output": "frontend/assets/industrial/approved-sheet/dinerchair-w.png",
+      "outputSha256": "120aadd2dbeb4a4140a451db78f581976b39d00891202f33b296cec61f2f23a0",
+      "source": "frontend/assets/industrial/approved-sheet/facings-source.png",
+      "sourceSha256": "d88b5268adb64925c27f80d4b74e10d79640edac898918fc5cb6f5c060e155ed",
+      "sourceRect": {
+        "left": 1024,
+        "top": 512,
+        "width": 256,
+        "height": 256
+      },
+      "sourceCrop": {
+        "left": 1097,
+        "top": 555,
+        "width": 108,
+        "height": 155
+      },
+      "width": 108,
+      "height": 155,
+      "alphaBounds": {
+        "x": 0,
+        "y": 0,
+        "width": 108,
+        "height": 155
+      },
+      "retainedPixels": 9202,
+      "alphaResidueRemoved": 1197,
+      "retainedRgbChanges": 0,
+      "retainedAlphaChanges": 0,
+      "maxSourceAlpha": 254,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "opaqueCellEdgePixels": 0,
+      "alphaCounts": {
+        "transparent": 7538,
+        "partial": 9202,
+        "opaque": 0
+      },
+      "nativeFootprint": {
+        "w": 1,
+        "h": 1
+      },
+      "nativeBounds": {
+        "x": 0,
+        "y": -4,
+        "width": 11,
+        "height": 16
+      },
+      "uniformFit": {
+        "x": 0,
+        "y": -3.7870370370370363,
+        "width": 11,
+        "height": 15.787037037037036
+      },
+      "repairSourceUsed": false
+    },
+    {
+      "id": "dinerchair",
+      "view": "n",
+      "name": "dinerchair-n",
+      "status": "exported-not-live-verified",
+      "output": "frontend/assets/industrial/approved-sheet/dinerchair-n.png",
+      "outputSha256": "5c39e2d3d6271cf426d485f3fb5fd5e55b17d5da757e1a5c63902e5709bca781",
+      "source": "frontend/assets/industrial/approved-sheet/facings-source.png",
+      "sourceSha256": "d88b5268adb64925c27f80d4b74e10d79640edac898918fc5cb6f5c060e155ed",
+      "sourceRect": {
+        "left": 1280,
+        "top": 512,
+        "width": 256,
+        "height": 244
+      },
+      "sourceCrop": {
+        "left": 1357,
+        "top": 556,
+        "width": 96,
+        "height": 150
+      },
+      "width": 96,
+      "height": 150,
+      "alphaBounds": {
+        "x": 0,
+        "y": 0,
+        "width": 96,
+        "height": 150
+      },
+      "retainedPixels": 10488,
+      "alphaResidueRemoved": 1472,
+      "retainedRgbChanges": 0,
+      "retainedAlphaChanges": 0,
+      "maxSourceAlpha": 253,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "opaqueCellEdgePixels": 0,
+      "alphaCounts": {
+        "transparent": 3912,
+        "partial": 10488,
+        "opaque": 0
+      },
+      "nativeFootprint": {
+        "w": 1,
+        "h": 1
+      },
+      "nativeBounds": {
+        "x": 1,
+        "y": -4,
+        "width": 11,
+        "height": 16
+      },
+      "uniformFit": {
+        "x": 1.38,
+        "y": -4,
+        "width": 10.24,
+        "height": 16
+      },
+      "repairSourceUsed": false
+    },
+    {
+      "id": "dinerchair",
+      "view": "e",
+      "name": "dinerchair-e",
+      "status": "exported-not-live-verified",
+      "output": "frontend/assets/industrial/approved-sheet/dinerchair-e.png",
+      "outputSha256": "4ea8d2b1962bacf3358250ede2763f8d8f8310d1636cdc0ce4317bc11c30e363",
+      "source": "frontend/assets/industrial/approved-sheet/facings-source.png",
+      "sourceSha256": "d88b5268adb64925c27f80d4b74e10d79640edac898918fc5cb6f5c060e155ed",
+      "sourceRect": {
+        "left": 0,
+        "top": 768,
+        "width": 256,
+        "height": 256
+      },
+      "sourceCrop": {
+        "left": 93,
+        "top": 794,
+        "width": 116,
+        "height": 165
+      },
+      "width": 116,
+      "height": 165,
+      "alphaBounds": {
+        "x": 0,
+        "y": 0,
+        "width": 116,
+        "height": 165
+      },
+      "retainedPixels": 10547,
+      "alphaResidueRemoved": 1224,
+      "retainedRgbChanges": 0,
+      "retainedAlphaChanges": 0,
+      "maxSourceAlpha": 254,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "opaqueCellEdgePixels": 0,
+      "alphaCounts": {
+        "transparent": 8593,
+        "partial": 10547,
+        "opaque": 0
+      },
+      "nativeFootprint": {
+        "w": 1,
+        "h": 1
+      },
+      "nativeBounds": {
+        "x": 1,
+        "y": -4,
+        "width": 11,
+        "height": 16
+      },
+      "uniformFit": {
+        "x": 1,
+        "y": -3.6465517241379306,
+        "width": 11,
+        "height": 15.64655172413793
+      },
+      "repairSourceUsed": false
+    },
+    {
+      "id": "podchair",
+      "view": "w",
+      "name": "podchair-w",
+      "status": "exported-not-live-verified",
+      "output": "frontend/assets/industrial/approved-sheet/podchair-w.png",
+      "outputSha256": "b729aaaaeca792058f92c04b4058fc6df1d6d0c48542dffaae27e714092b80f0",
+      "source": "frontend/assets/industrial/approved-sheet/facings-source.png",
+      "sourceSha256": "d88b5268adb64925c27f80d4b74e10d79640edac898918fc5cb6f5c060e155ed",
+      "sourceRect": {
+        "left": 256,
+        "top": 768,
+        "width": 256,
+        "height": 256
+      },
+      "sourceCrop": {
+        "left": 328,
+        "top": 768,
+        "width": 129,
+        "height": 189
+      },
+      "width": 129,
+      "height": 189,
+      "alphaBounds": {
+        "x": 0,
+        "y": 0,
+        "width": 129,
+        "height": 189
+      },
+      "retainedPixels": 17866,
+      "alphaResidueRemoved": 986,
+      "retainedRgbChanges": 0,
+      "retainedAlphaChanges": 0,
+      "maxSourceAlpha": 254,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "opaqueCellEdgePixels": 0,
+      "alphaCounts": {
+        "transparent": 6515,
+        "partial": 17866,
+        "opaque": 0
+      },
+      "nativeFootprint": {
+        "w": 1,
+        "h": 1
+      },
+      "nativeBounds": {
+        "x": 0,
+        "y": -5,
+        "width": 11,
+        "height": 17
+      },
+      "uniformFit": {
+        "x": 0,
+        "y": -4.11627906976744,
+        "width": 11,
+        "height": 16.11627906976744
+      },
+      "repairSourceUsed": false
+    },
+    {
+      "id": "podchair",
+      "view": "n",
+      "name": "podchair-n",
+      "status": "exported-not-live-verified",
+      "output": "frontend/assets/industrial/approved-sheet/podchair-n.png",
+      "outputSha256": "67dfe88ea86849387828cc5a62c4931bf1c31965b13cad2bd7675baefbb60452",
+      "source": "frontend/assets/industrial/approved-sheet/facings-source.png",
+      "sourceSha256": "d88b5268adb64925c27f80d4b74e10d79640edac898918fc5cb6f5c060e155ed",
+      "sourceRect": {
+        "left": 512,
+        "top": 768,
+        "width": 256,
+        "height": 256
+      },
+      "sourceCrop": {
+        "left": 587,
+        "top": 770,
+        "width": 118,
+        "height": 185
+      },
+      "width": 118,
+      "height": 185,
+      "alphaBounds": {
+        "x": 0,
+        "y": 0,
+        "width": 118,
+        "height": 185
+      },
+      "retainedPixels": 16255,
+      "alphaResidueRemoved": 817,
+      "retainedRgbChanges": 0,
+      "retainedAlphaChanges": 0,
+      "maxSourceAlpha": 254,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "opaqueCellEdgePixels": 0,
+      "alphaCounts": {
+        "transparent": 5575,
+        "partial": 16255,
+        "opaque": 0
+      },
+      "nativeFootprint": {
+        "w": 1,
+        "h": 1
+      },
+      "nativeBounds": {
+        "x": 1,
+        "y": -5,
+        "width": 10,
+        "height": 17
+      },
+      "uniformFit": {
+        "x": 1,
+        "y": -3.6779661016949152,
+        "width": 10,
+        "height": 15.677966101694915
+      },
+      "repairSourceUsed": false
+    },
+    {
+      "id": "podchair",
+      "view": "e",
+      "name": "podchair-e",
+      "status": "exported-not-live-verified",
+      "output": "frontend/assets/industrial/approved-sheet/podchair-e.png",
+      "outputSha256": "1f14a78f91eaf74fb70c93e40c070c3581fd2bb2a5fbbb4d3c6e80c4f34a8cf2",
+      "source": "frontend/assets/industrial/approved-sheet/facings-source.png",
+      "sourceSha256": "d88b5268adb64925c27f80d4b74e10d79640edac898918fc5cb6f5c060e155ed",
+      "sourceRect": {
+        "left": 768,
+        "top": 768,
+        "width": 256,
+        "height": 256
+      },
+      "sourceCrop": {
+        "left": 830,
+        "top": 768,
+        "width": 127,
+        "height": 188
+      },
+      "width": 127,
+      "height": 188,
+      "alphaBounds": {
+        "x": 0,
+        "y": 0,
+        "width": 127,
+        "height": 188
+      },
+      "retainedPixels": 17549,
+      "alphaResidueRemoved": 1019,
+      "retainedRgbChanges": 0,
+      "retainedAlphaChanges": 0,
+      "maxSourceAlpha": 254,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "opaqueCellEdgePixels": 0,
+      "alphaCounts": {
+        "transparent": 6327,
+        "partial": 17549,
+        "opaque": 0
+      },
+      "nativeFootprint": {
+        "w": 1,
+        "h": 1
+      },
+      "nativeBounds": {
+        "x": 1,
+        "y": -5,
+        "width": 11,
+        "height": 17
+      },
+      "uniformFit": {
+        "x": 1,
+        "y": -4.283464566929133,
+        "width": 11,
+        "height": 16.283464566929133
+      },
+      "repairSourceUsed": false
+    },
+    {
+      "id": "loungetable",
+      "view": "e",
+      "name": "loungetable-e",
+      "status": "exported-not-live-verified",
+      "output": "frontend/assets/industrial/approved-sheet/loungetable-e.png",
+      "outputSha256": "22fb604ebd332bdec71c60254868a6f79b7b00add734929a36eb5cc75af56e32",
+      "source": "frontend/assets/industrial/approved-sheet/facings-source.png",
+      "sourceSha256": "d88b5268adb64925c27f80d4b74e10d79640edac898918fc5cb6f5c060e155ed",
+      "sourceRect": {
+        "left": 1024,
+        "top": 768,
+        "width": 256,
+        "height": 256
+      },
+      "sourceCrop": {
+        "left": 1092,
+        "top": 778,
+        "width": 114,
+        "height": 167
+      },
+      "width": 114,
+      "height": 167,
+      "alphaBounds": {
+        "x": 0,
+        "y": 0,
+        "width": 114,
+        "height": 167
+      },
+      "retainedPixels": 14563,
+      "alphaResidueRemoved": 1114,
+      "retainedRgbChanges": 0,
+      "retainedAlphaChanges": 0,
+      "maxSourceAlpha": 254,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "opaqueCellEdgePixels": 0,
+      "alphaCounts": {
+        "transparent": 4475,
+        "partial": 14563,
+        "opaque": 0
+      },
+      "nativeFootprint": {
+        "w": 1,
+        "h": 2
+      },
+      "nativeBounds": {
+        "x": -1,
+        "y": 0,
+        "width": 14,
+        "height": 24
+      },
+      "uniformFit": {
+        "x": -1,
+        "y": 3.4912280701754383,
+        "width": 14,
+        "height": 20.50877192982456
+      },
+      "repairSourceUsed": false
+    },
+    {
+      "id": "longtable",
+      "view": "e",
+      "name": "longtable-e",
+      "status": "exported-not-live-verified",
+      "output": "frontend/assets/industrial/approved-sheet/longtable-e.png",
+      "outputSha256": "a5fff5fcd41986123f2819957fb42efa607c81b906a2db21121689de8afc7cc4",
+      "source": "docs/station-remaster/approved-sheet/crew/sources/longtable-e.png",
+      "sourceSha256": "1a41b84e4da6bdf7be08f55455801255cd910264241cda3aebd7d1b90a01d9dd",
+      "sourceRect": {
+        "left": 0,
+        "top": 0,
+        "width": 836,
+        "height": 1881
+      },
+      "sourceCrop": {
+        "left": 181,
+        "top": 239,
+        "width": 474,
+        "height": 1371
+      },
+      "width": 474,
+      "height": 1371,
+      "alphaBounds": {
+        "x": 0,
+        "y": 0,
+        "width": 474,
+        "height": 1371
+      },
+      "retainedPixels": 561911,
+      "alphaResidueRemoved": 4383,
+      "retainedRgbChanges": 0,
+      "retainedAlphaChanges": 0,
+      "maxSourceAlpha": 255,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "opaqueCellEdgePixels": 0,
+      "alphaCounts": {
+        "transparent": 87943,
+        "partial": 561702,
+        "opaque": 209
+      },
+      "nativeFootprint": {
+        "w": 1,
+        "h": 3
+      },
+      "nativeBounds": {
+        "x": -2,
+        "y": 0,
+        "width": 16,
+        "height": 36
+      },
+      "uniformFit": {
+        "x": -0.22319474835886233,
+        "y": 0,
+        "width": 12.446389496717725,
+        "height": 36
+      },
+      "repairSourceUsed": true
+    }
+  ]
+}
