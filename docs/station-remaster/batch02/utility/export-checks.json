@@ -452,6 +452,80 @@
       "backgroundPixelsRemoved": 724105,
       "subjectRgbChanges": 0,
       "outputSha256": "98413192e141076c1232024cb9097caa77c4b7f900bf03c3f6a85a0e64ef3a18"
+    },
+    {
+      "seeds": [],
+      "id": "fishtank",
+      "source": "docs/station-remaster/batch02/utility/sources/fishtank.png",
+      "sourceSha256": "a8ad0c199e7d63670b8ceb08dcfde019a501b729b97f66563a926e0508fd74ce",
+      "sourceWidth": 1305,
+      "sourceHeight": 1205,
+      "output": "frontend/assets/industrial/batch02/utility/fishtank.png",
+      "canvasPreserved": true,
+      "alphaBounds": {
+        "x": 147,
+        "y": 79,
+        "width": 1019,
+        "height": 1047
+      },
+      "channels": 4,
+      "transparentPixels": 580578,
+      "opaquePixels": 991947,
+      "partialPixels": 0,
+      "backgroundPixelsRemoved": 580578,
+      "subjectRgbChanges": 0,
+      "outputSha256": "8a3c60892261ef844014c138f114d21db74408805ca3a54a60f5727d153794f2"
+    },
+    {
+      "seeds": [],
+      "id": "lavalamp",
+      "source": "docs/station-remaster/batch02/utility/sources/lavalamp.png",
+      "sourceSha256": "0875958f57dfa84e7c8648f3b44692b9be241c95988931d11e0b279eb7ba31ce",
+      "sourceWidth": 793,
+      "sourceHeight": 1983,
+      "output": "frontend/assets/industrial/batch02/utility/lavalamp.png",
+      "canvasPreserved": true,
+      "alphaBounds": {
+        "x": 129,
+        "y": 31,
+        "width": 536,
+        "height": 1910
+      },
+      "channels": 4,
+      "transparentPixels": 842166,
+      "opaquePixels": 730353,
+      "partialPixels": 0,
+      "backgroundPixelsRemoved": 842166,
+      "subjectRgbChanges": 0,
+      "outputSha256": "6dc736f526f36253a7f055c8d4dd6843367ff55a8e029b606f6db7a5e2fb4eb4"
+    },
+    {
+      "seeds": [
+        [
+          480,
+          175
+        ]
+      ],
+      "id": "terrarium",
+      "source": "docs/station-remaster/batch02/utility/sources/terrarium.png",
+      "sourceSha256": "cc7cde0cb223780f013c5425e4ce946afc0b6d5ceea2161d2808dd23953fe793",
+      "sourceWidth": 1039,
+      "sourceHeight": 1513,
+      "output": "frontend/assets/industrial/batch02/utility/terrarium.png",
+      "canvasPreserved": true,
+      "alphaBounds": {
+        "x": 200,
+        "y": 85,
+        "width": 638,
+        "height": 1346
+      },
+      "channels": 4,
+      "transparentPixels": 809269,
+      "opaquePixels": 762738,
+      "partialPixels": 0,
+      "backgroundPixelsRemoved": 809269,
+      "subjectRgbChanges": 0,
+      "outputSha256": "f2f25e8ab45b847093f33e918db0b3eff9948e6a9ab00392fe1f8a394c6711a7"
     }
   ]
 }

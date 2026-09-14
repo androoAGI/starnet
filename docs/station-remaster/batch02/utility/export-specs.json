@@ -391,5 +391,22 @@
         868
       ]
     ]
+  },
+  {
+    "seeds": [
+      [
+        480,
+        175
+      ]
+    ],
+    "id": "terrarium"
+  },
+  {
+    "seeds": [],
+    "id": "fishtank"
+  },
+  {
+    "seeds": [],
+    "id": "lavalamp"
   }
 ]
