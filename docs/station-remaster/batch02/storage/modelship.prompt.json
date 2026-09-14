@@ -1,0 +1,11 @@
+{
+  "id": "modelship",
+  "tool": "built-in image_gen",
+  "prompt": "Use case: stylized-concept. Generate ONE complete finely rendered realistic StarNet game prop sprite, isolated centered intact with margin. References are CAMERA AND DETAIL QUALITY ONLY. DO NOT transfer armored metal, hazard stripes, bolted casing or mechanical forms onto naturally wood, paper, ceramic or fabric objects. New material variety is essential. Fixed high overhead oblique camera from due south, front horizontal, zero yaw, depth recedes straight up page; see tops and fronts, no isometric diagonal. Gentle material wear, physically convincing construction, clear readable silhouette at small game scale, fine authored illustration detail not pixel-block style or cartoon. Soft upper-left light, no glow, NO CAST SHADOW or floor or plinth unless subject requires an integral stand. Plain perfectly flat saturated magenta #ff00ff backdrop for reliable masking; no magenta object details, no checkerboard, no environment, no text or watermark. Subject: A desktop MODEL SPACECRAFT, wide horizontal silhouette proportion 20:11, small ivory painted survey shuttle with muted orange wing tips, dark cockpit glazing and two compact rear engines. It rests on two tiny brass brackets on a low warm walnut oval display stand. High overhead oblique from south, spacecraft nose points left along horizontal long axis, wings/engine silhouette readable. Fine scale-model detail, no glow or exhaust.",
+  "references": [
+    "C:/Users/andro/gen-trees/industrial-textures-0912/frontend/assets/industrial/workstation.png",
+    "C:/Users/andro/Downloads/bridge.png"
+  ],
+  "originalPath": "C:\\Users\\andro\\.codex\\generated_images\\01a09e47-65ec-7a71-b4a1-4847c19fc477\\exec-ef16310d-2b4e-47a1-9dc7-2697eb345e05.png",
+  "materialDirection": "User requested diverse natural materials; references constrain camera/detail only."
+}
