@@ -1,0 +1,57 @@
+{
+  "id": "industrial_supplycart",
+  "source": "C:\\Users\\andro\\.codex\\generated_images\\01a0976c-e264-7f13-a581-78c904716b14\\exec-923a9172-56cd-4361-93de-230e8a43194d.png",
+  "sourceWidth": 1392,
+  "sourceHeight": 1130,
+  "crop": {
+    "left": 213,
+    "top": 26,
+    "width": 968,
+    "height": 1069
+  },
+  "sourceAlpha": false,
+  "transparentSeeds": [
+    [
+      696,
+      110
+    ],
+    [
+      696,
+      545
+    ],
+    [
+      312,
+      550
+    ],
+    [
+      1080,
+      550
+    ],
+    [
+      395,
+      705
+    ],
+    [
+      990,
+      705
+    ],
+    [
+      390,
+      753
+    ],
+    [
+      995,
+      753
+    ],
+    [
+      375,
+      810
+    ],
+    [
+      1010,
+      810
+    ]
+  ],
+  "subjectRgbChanges": 0,
+  "output": "frontend/assets/industrial/props-v3/industrial_supplycart.png"
+}

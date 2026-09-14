@@ -11348,7 +11348,8 @@ const PropSprites = (() => {
        tool-fire charge bar reads left-to-right regardless of which way its prop is turned. */
     // G0.3 ACTIVITY-HEAT WASH: real token/tool flow burns the working screens brighter + shimmers faster
     // (the monitors live in the prop's upper band); a stalled run cools back to the base work-glow in ~2s.
-    if (o.work && o.heat > 0 && !(remasterStyle() && (f.t === 'desk' || f.t === 'desk2'))) {
+    const authoredScreen = authoredScreenOf(f);
+    if (o.work && o.heat > 0 && !authoredScreen && !(remasterStyle() && (f.t === 'desk' || f.t === 'desk2'))) {
       const hshim = 0.72 + 0.28 * Math.sin(now / (170 - 110 * o.heat));
       glow(X + 1, Y - 4, W - 2, Math.min(H + 4, 11), scr(o.x), (0.08 + 0.36 * o.heat) * hshim);
     }
@@ -11647,12 +11648,17 @@ const PropSprites = (() => {
   function lightOf(f, work, still, live) {
     const e = EMIT[f.t]; if (!e) return null;
     const rasterDesk = remasterStyle() && (f.t === 'desk' || f.t === 'desk2');
-    const screenOn = rasterDesk && live && typeof live.occupied === 'boolean' ? live.occupied : work;
+    const authoredScreen = authoredScreenOf(f);
+    const screenOn = (rasterDesk || authoredScreen) && live && typeof live.occupied === 'boolean' ? live.occupied : work;
     if (e.work && !screenOn) return null;
     const lift = f.mount === 'surface' ? SURFACE_RISE : 0;
     const W = (f.w || 1) * TILE, H = (f.h || 1) * TILE;
     const X=f.x*TILE,Y=f.y*TILE-lift;
     let x=X+W/2,y=Y+H*e.y;
+    if(authoredScreen){
+      x=X+authoredScreen.x;y=Y+authoredScreen.y;
+      if(authoredScreen.mirror)x=2*X+W-x;
+    }
     if(remasterStyle()&&(f.t==='desk'||f.t==='desk2')){
       const facing=(f.r|0)&3,view=viewAt(f.t,facing),source=facing===2?'n':facing===0?'s':'e';
       const mirror=((((canMirror(f.t)&&f.m)?1:0)^(view&&view.mirror?1:0))&1)!==0;
@@ -11679,7 +11685,7 @@ const PropSprites = (() => {
       else if (e.m === 'fire') k = 0.95 + 0.035 * Math.sin(now / 800 + seed) + 0.015 * Math.sin(now / 310 + seed * 2.3);
       else if (e.m === 'pulse') k = 0.98 + 0.02 * Math.sin(now / 2800 + seed);
     }
-    const color=rasterDesk?[70,185,200]:remasterStyle()&&DECOR_ELECTRONICS.has(f.t)?[70,155,165]:e.c;
+    const color=rasterDesk||authoredScreen?[70,185,200]:remasterStyle()&&DECOR_ELECTRONICS.has(f.t)?[70,155,165]:e.c;
     return { x, y, r: e.r, c: color, a: e.a * k };
   }
 
@@ -11724,8 +11730,16 @@ const PropSprites = (() => {
     } finally { ctx.restore(); }
   }
 
-  // Authored skin ownership stops at this seam. The old functions still own every
-  // real screen/state/moving-part layer, and viewAt still owns direction/mirroring.
+  function authoredScreenOf(f){
+    if(typeof PropRemaster==='undefined'||typeof PropRemaster.emitter!=='function')return null;
+    const view=viewAt(f.t,(f.r|0)&3)||viewAt(f.t,0);if(!view)return null;
+    const key=['s','n','e','w'].find(s=>F[s==='s'?f.t:viewKey(f.t,s)]===view.fn);
+    if(!key)return null;
+    const p=PropRemaster.emitter(f.t,key,(f.w||1)*TILE,(f.h||1)*TILE);
+    return p?{...p,mirror:((((canMirror(f.t)&&f.m)?1:0)^view.mirror)&1)!==0}:null;
+  }
+  // Complete authored views receive live state here. Only explicit legacy drafts
+  // call the old painter for moving layers; viewAt still owns direction/mirroring.
   // These previously approved raster assets keep their existing renderer.
   const APPROVED_RASTER = new Set(['crate','desk','desk2','chair','bridge_consolebank',
     'bridge_tacticaltable','bridge_equipmentbay','bridge_deckperimeter']);
@@ -11748,7 +11762,7 @@ const PropSprites = (() => {
               native(x,y,w,h,o);
             } finally { ctx = previous; now = previousNow; nativeSkinDepth--; }
           };
-          if (!PropRemaster.draw(ctx,c.id,facing,x,y,w,h,o,paintNative)) native(x,y,w,h,o);
+          if (!PropRemaster.draw(ctx,c.id,facing,x,y,w,h,{...o,now},paintNative)) native(x,y,w,h,o);
         };
       }
     }

@@ -23,10 +23,10 @@ const approved=new Set(['crate','desk','desk2','chair','bridge_consolebank','bri
     ...(layer.nativeMask?{nativeMask:layer.nativeMask,nativeBounds:layer.nativeBounds}:{})};
   }
   if(Object.keys(views).length)manifest.props[id]={views};
-  ledger.push({id,label:p.label,family:p.family,status:missing.length?'in-progress':'art-integrated',views:Object.keys(views),missing});
+  ledger.push({id,label:p.label,family:p.family,status:missing.length?'in-progress':'casing-draft',views:Object.keys(views),missing});
  }
  fs.mkdirSync(dir,{recursive:true});fs.writeFileSync(path.join(dir,'manifest.json'),JSON.stringify(manifest,null,2)+'\n');
- const report={catalog:ledger.length,approvedExisting:approved.size,newIds:Object.keys(manifest.props).length,newViews:Object.values(manifest.props).reduce((n,p)=>n+Object.keys(p.views).length,0),completeIds:ledger.filter(p=>p.status!=='in-progress').length,props:ledger};
+ const report={status:'retired-casing-drafts',catalog:ledger.length,approvedExisting:approved.size,newIds:Object.keys(manifest.props).length,newViews:Object.values(manifest.props).reduce((n,p)=>n+Object.keys(p.views).length,0),completeIds:approved.size,note:'Historical casing drafts are not completed remasters. Full designs are tracked in props-v3/coverage.json.',props:ledger};
  fs.writeFileSync(path.join(root,'docs/station-remaster/props-v2/coverage.json'),JSON.stringify(report,null,2)+'\n');
  console.log(JSON.stringify({catalog:report.catalog,approvedExisting:report.approvedExisting,newIds:report.newIds,newViews:report.newViews,completeIds:report.completeIds}));
 })().catch(e=>{console.error(e);process.exitCode=1;});

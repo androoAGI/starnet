@@ -12,6 +12,7 @@ for(const patch of [{image:'../escape.png'},{image:'https://example.com/a.png'},
  A.eq(pack.validate({...good,...patch}),false,'invalid assets/layers retain native view '+JSON.stringify(patch));
 A.ok(pack.validate({...good,mode:'native',nativeLayers:[{polygon:[[1,1],[2,1],[2,2],[1,2]]}]}),'authored native layer polygon accepted');
 A.ok(pack.validate({...good,mode:'native',nativeMask:'console-native.png'}),'offline alpha layer accepted');
+A.ok(pack.validate({...good,mode:'screen'}),'fully authored screen has no old sprite mask');
 const fit=pack.fit(good.bounds,{width:100,height:200});
 A.eq(fit.width/fit.height,.5,'uniform aspect, no squash');
 A.eq(fit.x+fit.width/2,12,'center follows original bounds');
@@ -71,6 +72,9 @@ A.eq(draw('bunk',false,{sleeper:true}).state.sleeper,true,'native bed leaves spa
 ps.setSpotifyConnected(false);A.eq(draw('jukebox').state.live,false,'unbound music is not animated as connected');
 ps.setSpotifyConnected(true);A.eq(draw('jukebox').state.live,true,'connected music retained');
 const a=draw('console');A.eq([a.x,a.y,a.w,a.h],[36,48,24,12],'native local geometry unchanged');
+A.eq(a.state.now,1000,'new authored animations receive renderer clock');
+A.eq(draw('console',true,{}, {occupied:false}).state.occupied,false,'backend work cannot power an empty seat');
+A.eq(draw('console',false,{}, {occupied:true,still:true}).state.still,true,'new art receives reduced-motion state');
 A.eq(draw('console',false,{mount:'surface'}).y,40,'mount rises once by eight world pixels');
 // A real native callback receives frozen time under reduced motion. It must restore
 // ctx/time even though its selected function still reads the shared native closure.
@@ -84,4 +88,3 @@ A.eq(calls.length,0,'classic bypasses replacement');
 A.ok(rects.length>5,'classic actually paints its old prop');
 A.ok(!source.slice(source.indexOf('  function draw('),source.indexOf('  const ready=')).includes('getImageData'),'frame compositor has no GPU readback');
 A.report('prop-remaster-contract');
-

@@ -1,0 +1,983 @@
+{
+  "catalog": 160,
+  "approved": 8,
+  "newDesigns": 7,
+  "remainingFullRedesign": 145,
+  "definition": "Accepted existing art is counted separately. New fully rebuilt designs require user visual acceptance; prior casing-only drafts are not complete.",
+  "props": [
+    {
+      "id": "industrial_locker",
+      "label": "MODULAR LOCKER",
+      "status": "new-design-awaiting-review",
+      "views": [
+        "s"
+      ]
+    },
+    {
+      "id": "industrial_drawerbank",
+      "label": "DRAWER BANK",
+      "status": "new-design-awaiting-review",
+      "views": [
+        "s"
+      ]
+    },
+    {
+      "id": "industrial_supplycart",
+      "label": "SUPPLY TROLLEY",
+      "status": "new-design-awaiting-review",
+      "views": [
+        "s"
+      ]
+    },
+    {
+      "id": "industrial_toolcaddy",
+      "label": "TOOL CADDY",
+      "status": "new-design-awaiting-review",
+      "views": [
+        "s"
+      ]
+    },
+    {
+      "id": "industrial_planter",
+      "label": "PLANTER TROUGH",
+      "status": "awaiting-full-redesign",
+      "views": []
+    },
+    {
+      "id": "industrial_partition",
+      "label": "MODULAR PARTITION",
+      "status": "awaiting-full-redesign",
+      "views": []
+    },
+    {
+      "id": "industrial_bench",
+      "label": "CREW BENCH",
+      "status": "awaiting-full-redesign",
+      "views": []
+    },
+    {
+      "id": "industrial_roundtable",
+      "label": "PEDESTAL TABLE",
+      "status": "awaiting-full-redesign",
+      "views": []
+    },
+    {
+      "id": "industrial_servicecab",
+      "label": "SERVICE CABINET",
+      "status": "awaiting-full-redesign",
+      "views": []
+    },
+    {
+      "id": "industrial_wallpanel",
+      "label": "SERVICE PANEL",
+      "status": "awaiting-full-redesign",
+      "views": []
+    },
+    {
+      "id": "industrial_floorvent",
+      "label": "FLUSH GRILLE",
+      "status": "awaiting-full-redesign",
+      "views": []
+    },
+    {
+      "id": "industrial_cabletray",
+      "label": "CABLE CHANNEL",
+      "status": "awaiting-full-redesign",
+      "views": []
+    },
+    {
+      "id": "desk",
+      "label": "DESK",
+      "status": "approved-existing",
+      "views": []
+    },
+    {
+      "id": "desk2",
+      "label": "DESK ×2",
+      "status": "approved-existing",
+      "views": []
+    },
+    {
+      "id": "console",
+      "label": "CONSOLE",
+      "status": "new-design-awaiting-review",
+      "views": [
+        "s"
+      ]
+    },
+    {
+      "id": "consoleL",
+      "label": "CONSOLE L",
+      "status": "new-design-awaiting-review",
+      "views": [
+        "s"
+      ]
+    },
+    {
+      "id": "pixelrig",
+      "label": "PIXEL RIG",
+      "status": "awaiting-full-redesign",
+      "views": []
+    },
+    {
+      "id": "bench",
+      "label": "BENCH",
+      "status": "awaiting-full-redesign",
+      "views": []
+    },
+    {
+      "id": "workbench",
+      "label": "WORKBENCH",
+      "status": "awaiting-full-redesign",
+      "views": []
+    },
+    {
+      "id": "intake",
+      "label": "INBOX",
+      "status": "awaiting-full-redesign",
+      "views": []
+    },
+    {
+      "id": "bay",
+      "label": "BAY",
+      "status": "awaiting-full-redesign",
+      "views": []
+    },
+    {
+      "id": "filter",
+      "label": "FILTER",
+      "status": "awaiting-full-redesign",
+      "views": []
+    },
+    {
+      "id": "merger",
+      "label": "MERGER",
+      "status": "awaiting-full-redesign",
+      "views": []
+    },
+    {
+      "id": "splitter",
+      "label": "SPLITTER",
+      "status": "awaiting-full-redesign",
+      "views": []
+    },
+    {
+      "id": "joiner",
+      "label": "JOINER",
+      "status": "awaiting-full-redesign",
+      "views": []
+    },
+    {
+      "id": "loop",
+      "label": "LOOP",
+      "status": "awaiting-full-redesign",
+      "views": []
+    },
+    {
+      "id": "outbox",
+      "label": "OUTBOX",
+      "status": "awaiting-full-redesign",
+      "views": []
+    },
+    {
+      "id": "connector_portal",
+      "label": "CONNECTOR",
+      "status": "awaiting-full-redesign",
+      "views": []
+    },
+    {
+      "id": "comms_dish",
+      "label": "DISH",
+      "status": "awaiting-full-redesign",
+      "views": []
+    },
+    {
+      "id": "comms_uplink",
+      "label": "UPLINK",
+      "status": "awaiting-full-redesign",
+      "views": []
+    },
+    {
+      "id": "comms_beacon",
+      "label": "BEACON",
+      "status": "awaiting-full-redesign",
+      "views": []
+    },
+    {
+      "id": "war_intelcab",
+      "label": "INTEL CAB",
+      "status": "awaiting-full-redesign",
+      "views": []
+    },
+    {
+      "id": "safe",
+      "label": "SAFE",
+      "status": "awaiting-full-redesign",
+      "views": []
+    },
+    {
+      "id": "vault",
+      "label": "VAULT",
+      "status": "awaiting-full-redesign",
+      "views": []
+    },
+    {
+      "id": "rack",
+      "label": "RACK",
+      "status": "awaiting-full-redesign",
+      "views": []
+    },
+    {
+      "id": "shelf",
+      "label": "SHELF",
+      "status": "awaiting-full-redesign",
+      "views": []
+    },
+    {
+      "id": "core",
+      "label": "CORE",
+      "status": "awaiting-full-redesign",
+      "views": []
+    },
+    {
+      "id": "gigs_servercart",
+      "label": "SERVER CART",
+      "status": "awaiting-full-redesign",
+      "views": []
+    },
+    {
+      "id": "bridge_relaystack",
+      "label": "RELAY STACK",
+      "status": "awaiting-full-redesign",
+      "views": []
+    },
+    {
+      "id": "studio",
+      "label": "STUDIO",
+      "status": "awaiting-full-redesign",
+      "views": []
+    },
+    {
+      "id": "airlock",
+      "label": "AIRLOCK",
+      "status": "awaiting-full-redesign",
+      "views": []
+    },
+    {
+      "id": "missionboard",
+      "label": "MISSION BOARD",
+      "status": "awaiting-full-redesign",
+      "views": []
+    },
+    {
+      "id": "trophycase",
+      "label": "TROPHY CASE",
+      "status": "awaiting-full-redesign",
+      "views": []
+    },
+    {
+      "id": "bridge_consolebank",
+      "label": "BRIDGE CONSOLE BANK",
+      "status": "approved-existing",
+      "views": []
+    },
+    {
+      "id": "bridge_tacticaltable",
+      "label": "TACTICAL TABLE",
+      "status": "approved-existing",
+      "views": []
+    },
+    {
+      "id": "bridge_equipmentbay",
+      "label": "EQUIPMENT BAY",
+      "status": "approved-existing",
+      "views": []
+    },
+    {
+      "id": "bridge_deckperimeter",
+      "label": "DECK PERIMETER",
+      "status": "approved-existing",
+      "views": []
+    },
+    {
+      "id": "bigscreen",
+      "label": "BIG SCREEN",
+      "status": "awaiting-full-redesign",
+      "views": []
+    },
+    {
+      "id": "holotable",
+      "label": "HOLOTABLE",
+      "status": "awaiting-full-redesign",
+      "views": []
+    },
+    {
+      "id": "screens",
+      "label": "SCREENS",
+      "status": "awaiting-full-redesign",
+      "views": []
+    },
+    {
+      "id": "tank",
+      "label": "TANK",
+      "status": "awaiting-full-redesign",
+      "views": []
+    },
+    {
+      "id": "whiteboard",
+      "label": "WHITEBOARD",
+      "status": "awaiting-full-redesign",
+      "views": []
+    },
+    {
+      "id": "ticker",
+      "label": "TICKER",
+      "status": "awaiting-full-redesign",
+      "views": []
+    },
+    {
+      "id": "chartwall",
+      "label": "CHART WALL",
+      "status": "awaiting-full-redesign",
+      "views": []
+    },
+    {
+      "id": "wartable",
+      "label": "WAR TABLE",
+      "status": "awaiting-full-redesign",
+      "views": []
+    },
+    {
+      "id": "calwall",
+      "label": "CAL WALL",
+      "status": "awaiting-full-redesign",
+      "views": []
+    },
+    {
+      "id": "bridge_tacscreen",
+      "label": "TAC SCREEN",
+      "status": "awaiting-full-redesign",
+      "views": []
+    },
+    {
+      "id": "bridge_dispatch_pylon",
+      "label": "DISPATCH PYLON",
+      "status": "awaiting-full-redesign",
+      "views": []
+    },
+    {
+      "id": "bridge_orderqueue",
+      "label": "ORDER QUEUE",
+      "status": "awaiting-full-redesign",
+      "views": []
+    },
+    {
+      "id": "war_pivotpanel",
+      "label": "PIVOT PANEL",
+      "status": "awaiting-full-redesign",
+      "views": []
+    },
+    {
+      "id": "war_threatcore",
+      "label": "THREAT CORE",
+      "status": "awaiting-full-redesign",
+      "views": []
+    },
+    {
+      "id": "fabricator",
+      "label": "FABRICATOR",
+      "status": "awaiting-full-redesign",
+      "views": []
+    },
+    {
+      "id": "vat",
+      "label": "VAT",
+      "status": "awaiting-full-redesign",
+      "views": []
+    },
+    {
+      "id": "easel",
+      "label": "EASEL",
+      "status": "awaiting-full-redesign",
+      "views": []
+    },
+    {
+      "id": "tube",
+      "label": "TUBE",
+      "status": "awaiting-full-redesign",
+      "views": []
+    },
+    {
+      "id": "research_corelens",
+      "label": "CORE LENS",
+      "status": "awaiting-full-redesign",
+      "views": []
+    },
+    {
+      "id": "research_trendpillar",
+      "label": "TREND PILLAR",
+      "status": "awaiting-full-redesign",
+      "views": []
+    },
+    {
+      "id": "research_samplecart",
+      "label": "SAMPLE CART",
+      "status": "awaiting-full-redesign",
+      "views": []
+    },
+    {
+      "id": "research_papers",
+      "label": "PAPERS",
+      "status": "awaiting-full-redesign",
+      "views": []
+    },
+    {
+      "id": "etsy_threadrack",
+      "label": "THREAD RACK",
+      "status": "awaiting-full-redesign",
+      "views": []
+    },
+    {
+      "id": "etsy_dyevat",
+      "label": "DYE VAT",
+      "status": "awaiting-full-redesign",
+      "views": []
+    },
+    {
+      "id": "etsy_kiln",
+      "label": "KILN",
+      "status": "awaiting-full-redesign",
+      "views": []
+    },
+    {
+      "id": "etsy_packbot",
+      "label": "PACK BOT",
+      "status": "awaiting-full-redesign",
+      "views": []
+    },
+    {
+      "id": "rackV",
+      "label": "RACK V",
+      "status": "awaiting-full-redesign",
+      "views": []
+    },
+    {
+      "id": "crate",
+      "label": "CRATE",
+      "status": "approved-existing",
+      "views": []
+    },
+    {
+      "id": "boxes",
+      "label": "BOXES",
+      "status": "awaiting-full-redesign",
+      "views": []
+    },
+    {
+      "id": "goldcrate",
+      "label": "GOLD CRATE",
+      "status": "awaiting-full-redesign",
+      "views": []
+    },
+    {
+      "id": "gigs_partsbin",
+      "label": "PARTS BIN",
+      "status": "awaiting-full-redesign",
+      "views": []
+    },
+    {
+      "id": "treasury_coinsorter",
+      "label": "COIN SORTER",
+      "status": "awaiting-full-redesign",
+      "views": []
+    },
+    {
+      "id": "treasury_token_furnace",
+      "label": "TOKEN FURNACE",
+      "status": "awaiting-full-redesign",
+      "views": []
+    },
+    {
+      "id": "commswall",
+      "label": "COMMS WALL",
+      "status": "awaiting-full-redesign",
+      "views": []
+    },
+    {
+      "id": "comms_inbox",
+      "label": "INBOX",
+      "status": "awaiting-full-redesign",
+      "views": []
+    },
+    {
+      "id": "gigs_thumbwall",
+      "label": "THUMB WALL",
+      "status": "awaiting-full-redesign",
+      "views": []
+    },
+    {
+      "id": "gigs_amp",
+      "label": "AMP",
+      "status": "awaiting-full-redesign",
+      "views": []
+    },
+    {
+      "id": "pub_publishpress",
+      "label": "PUBLISH PRESS",
+      "status": "awaiting-full-redesign",
+      "views": []
+    },
+    {
+      "id": "pub_outboundchute",
+      "label": "OUTBOUND CHUTE",
+      "status": "awaiting-full-redesign",
+      "views": []
+    },
+    {
+      "id": "pub_mailpod",
+      "label": "MAIL POD",
+      "status": "awaiting-full-redesign",
+      "views": []
+    },
+    {
+      "id": "arc_indexwall",
+      "label": "INDEX WALL",
+      "status": "awaiting-full-redesign",
+      "views": []
+    },
+    {
+      "id": "arc_microfiche",
+      "label": "MICROFICHE",
+      "status": "awaiting-full-redesign",
+      "views": []
+    },
+    {
+      "id": "djbooth",
+      "label": "DJ BOOTH",
+      "status": "awaiting-full-redesign",
+      "views": []
+    },
+    {
+      "id": "speaker",
+      "label": "SPEAKER",
+      "status": "awaiting-full-redesign",
+      "views": []
+    },
+    {
+      "id": "bar",
+      "label": "BAR",
+      "status": "awaiting-full-redesign",
+      "views": []
+    },
+    {
+      "id": "tv",
+      "label": "TV",
+      "status": "awaiting-full-redesign",
+      "views": []
+    },
+    {
+      "id": "couch",
+      "label": "COUCH",
+      "status": "awaiting-full-redesign",
+      "views": []
+    },
+    {
+      "id": "arcade",
+      "label": "ARCADE",
+      "status": "awaiting-full-redesign",
+      "views": []
+    },
+    {
+      "id": "arcade2",
+      "label": "ARCADE II",
+      "status": "awaiting-full-redesign",
+      "views": []
+    },
+    {
+      "id": "jukebox",
+      "label": "JUKEBOX",
+      "status": "awaiting-full-redesign",
+      "views": []
+    },
+    {
+      "id": "bunk",
+      "label": "BED",
+      "status": "awaiting-full-redesign",
+      "views": []
+    },
+    {
+      "id": "quarters_pooltable",
+      "label": "POOL TABLE",
+      "status": "awaiting-full-redesign",
+      "views": []
+    },
+    {
+      "id": "quarters_vending",
+      "label": "VENDING",
+      "status": "awaiting-full-redesign",
+      "views": []
+    },
+    {
+      "id": "quarters_lockerbank",
+      "label": "LOCKERS",
+      "status": "awaiting-full-redesign",
+      "views": []
+    },
+    {
+      "id": "quarters_minifridge",
+      "label": "MINIFRIDGE",
+      "status": "awaiting-full-redesign",
+      "views": []
+    },
+    {
+      "id": "coffee",
+      "label": "COFFEE",
+      "status": "awaiting-full-redesign",
+      "views": []
+    },
+    {
+      "id": "plant",
+      "label": "PLANT",
+      "status": "new-design-awaiting-review",
+      "views": [
+        "s"
+      ]
+    },
+    {
+      "id": "rug",
+      "label": "RUG",
+      "status": "awaiting-full-redesign",
+      "views": []
+    },
+    {
+      "id": "rug_small",
+      "label": "SMALL RUG",
+      "status": "awaiting-full-redesign",
+      "views": []
+    },
+    {
+      "id": "rug_large",
+      "label": "LARGE RUG",
+      "status": "awaiting-full-redesign",
+      "views": []
+    },
+    {
+      "id": "treasury_pnl_holo",
+      "label": "PNL HOLO",
+      "status": "awaiting-full-redesign",
+      "views": []
+    },
+    {
+      "id": "arc_floorlight",
+      "label": "FLOOR LIGHT",
+      "status": "awaiting-full-redesign",
+      "views": []
+    },
+    {
+      "id": "arc_ladder",
+      "label": "LADDER",
+      "status": "awaiting-full-redesign",
+      "views": []
+    },
+    {
+      "id": "stool",
+      "label": "STOOL",
+      "status": "awaiting-full-redesign",
+      "views": []
+    },
+    {
+      "id": "chair",
+      "label": "CHAIR",
+      "status": "approved-existing",
+      "views": []
+    },
+    {
+      "id": "sidetable",
+      "label": "SIDE TABLE",
+      "status": "awaiting-full-redesign",
+      "views": []
+    },
+    {
+      "id": "lowtable",
+      "label": "LOW TABLE",
+      "status": "awaiting-full-redesign",
+      "views": []
+    },
+    {
+      "id": "glasstable",
+      "label": "GLASS TABLE",
+      "status": "awaiting-full-redesign",
+      "views": []
+    },
+    {
+      "id": "dinertable",
+      "label": "DINER TABLE",
+      "status": "awaiting-full-redesign",
+      "views": []
+    },
+    {
+      "id": "guitar",
+      "label": "GUITAR",
+      "status": "awaiting-full-redesign",
+      "views": []
+    },
+    {
+      "id": "booth",
+      "label": "BOOTH",
+      "status": "awaiting-full-redesign",
+      "views": []
+    },
+    {
+      "id": "dinerchair",
+      "label": "DINER CHAIR",
+      "status": "awaiting-full-redesign",
+      "views": []
+    },
+    {
+      "id": "podchair",
+      "label": "POD CHAIR",
+      "status": "awaiting-full-redesign",
+      "views": []
+    },
+    {
+      "id": "loungetable",
+      "label": "LOUNGE TABLE",
+      "status": "awaiting-full-redesign",
+      "views": []
+    },
+    {
+      "id": "longtable",
+      "label": "LONG TABLE",
+      "status": "awaiting-full-redesign",
+      "views": []
+    },
+    {
+      "id": "lavalamp",
+      "label": "LAVA LAMP",
+      "status": "awaiting-full-redesign",
+      "views": []
+    },
+    {
+      "id": "crt_pile",
+      "label": "CRT PILE",
+      "status": "awaiting-full-redesign",
+      "views": []
+    },
+    {
+      "id": "cablerun",
+      "label": "CABLE RUN",
+      "status": "awaiting-full-redesign",
+      "views": []
+    },
+    {
+      "id": "hazardpad",
+      "label": "HAZARD PAD",
+      "status": "awaiting-full-redesign",
+      "views": []
+    },
+    {
+      "id": "tallplant",
+      "label": "TALL PLANT",
+      "status": "awaiting-full-redesign",
+      "views": []
+    },
+    {
+      "id": "terrarium",
+      "label": "TERRARIUM",
+      "status": "awaiting-full-redesign",
+      "views": []
+    },
+    {
+      "id": "holopet",
+      "label": "HOLO PET",
+      "status": "awaiting-full-redesign",
+      "views": []
+    },
+    {
+      "id": "plasmaglobe",
+      "label": "PLASMA GLOBE",
+      "status": "awaiting-full-redesign",
+      "views": []
+    },
+    {
+      "id": "gachapon",
+      "label": "GACHAPON",
+      "status": "awaiting-full-redesign",
+      "views": []
+    },
+    {
+      "id": "monstera",
+      "label": "MONSTERA",
+      "status": "awaiting-full-redesign",
+      "views": []
+    },
+    {
+      "id": "mug",
+      "label": "MUG",
+      "status": "awaiting-full-redesign",
+      "views": []
+    },
+    {
+      "id": "bookstack",
+      "label": "BOOKS",
+      "status": "awaiting-full-redesign",
+      "views": []
+    },
+    {
+      "id": "desklamp",
+      "label": "DESK LAMP",
+      "status": "awaiting-full-redesign",
+      "views": []
+    },
+    {
+      "id": "radio",
+      "label": "RADIO",
+      "status": "awaiting-full-redesign",
+      "views": []
+    },
+    {
+      "id": "toolbox",
+      "label": "TOOLBOX",
+      "status": "awaiting-full-redesign",
+      "views": []
+    },
+    {
+      "id": "figurine",
+      "label": "FIGURINE",
+      "status": "awaiting-full-redesign",
+      "views": []
+    },
+    {
+      "id": "deskterminal",
+      "label": "TERMINAL",
+      "status": "awaiting-full-redesign",
+      "views": []
+    },
+    {
+      "id": "modelship",
+      "label": "MODEL SHIP",
+      "status": "awaiting-full-redesign",
+      "views": []
+    },
+    {
+      "id": "steamvent",
+      "label": "STEAM VENT",
+      "status": "awaiting-full-redesign",
+      "views": []
+    },
+    {
+      "id": "fishtank",
+      "label": "FISH TANK",
+      "status": "awaiting-full-redesign",
+      "views": []
+    },
+    {
+      "id": "pokertable",
+      "label": "POKER TABLE",
+      "status": "awaiting-full-redesign",
+      "views": []
+    },
+    {
+      "id": "bookshelf",
+      "label": "BOOKSHELF",
+      "status": "awaiting-full-redesign",
+      "views": []
+    },
+    {
+      "id": "beanbag",
+      "label": "BEANBAG",
+      "status": "awaiting-full-redesign",
+      "views": []
+    },
+    {
+      "id": "pinball",
+      "label": "PINBALL",
+      "status": "awaiting-full-redesign",
+      "views": []
+    },
+    {
+      "id": "cryopod",
+      "label": "CRYO POD",
+      "status": "awaiting-full-redesign",
+      "views": []
+    },
+    {
+      "id": "incubator",
+      "label": "INCUBATOR",
+      "status": "awaiting-full-redesign",
+      "views": []
+    },
+    {
+      "id": "telescope",
+      "label": "TELESCOPE ›",
+      "status": "awaiting-full-redesign",
+      "views": []
+    },
+    {
+      "id": "telescope_r",
+      "label": "TELESCOPE ‹",
+      "status": "awaiting-full-redesign",
+      "views": []
+    },
+    {
+      "id": "camerarig",
+      "label": "CAMERA RIG ‹",
+      "status": "awaiting-full-redesign",
+      "views": []
+    },
+    {
+      "id": "camerarig_r",
+      "label": "CAMERA RIG ›",
+      "status": "awaiting-full-redesign",
+      "views": []
+    },
+    {
+      "id": "weaponrack",
+      "label": "WEAPON RACK ‹",
+      "status": "awaiting-full-redesign",
+      "views": []
+    },
+    {
+      "id": "weaponrack_r",
+      "label": "WEAPON RACK ›",
+      "status": "awaiting-full-redesign",
+      "views": []
+    },
+    {
+      "id": "punchbag",
+      "label": "HEAVY BAG ‹",
+      "status": "awaiting-full-redesign",
+      "views": []
+    },
+    {
+      "id": "punchbag_r",
+      "label": "HEAVY BAG ›",
+      "status": "awaiting-full-redesign",
+      "views": []
+    },
+    {
+      "id": "benchpress",
+      "label": "BENCH PRESS ‹",
+      "status": "awaiting-full-redesign",
+      "views": []
+    },
+    {
+      "id": "benchpress_r",
+      "label": "BENCH PRESS ›",
+      "status": "awaiting-full-redesign",
+      "views": []
+    },
+    {
+      "id": "recliner",
+      "label": "RECLINER ‹ LEFT",
+      "status": "awaiting-full-redesign",
+      "views": []
+    },
+    {
+      "id": "recliner_r",
+      "label": "RECLINER RIGHT ›",
+      "status": "awaiting-full-redesign",
+      "views": []
+    }
+  ]
+}
