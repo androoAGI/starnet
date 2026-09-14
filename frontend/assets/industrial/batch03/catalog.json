@@ -1,8 +1,8 @@
 {
   "planned": 44,
   "repainted": 44,
-  "newDesigns": 63,
-  "exported": 107,
+  "newDesigns": 78,
+  "exported": 122,
   "sections": [
     {
       "id": "infrastructure",
@@ -43,6 +43,58 @@
   ],
   "items": [
     {
+      "id": "coffee",
+      "lane": "crew",
+      "group": "Crew furniture",
+      "label": "COFFEE",
+      "image": "assets/industrial/batch03/coordinator/coffee.png?v=fd78114fa53b",
+      "width": 786,
+      "height": 1407,
+      "footprint": {
+        "w": 1,
+        "h": 1
+      },
+      "bounds": {
+        "x": -1,
+        "y": -6,
+        "width": 13,
+        "height": 18
+      },
+      "transparentPixels": 179933,
+      "opaquePixels": 925969,
+      "status": "illustrated-style-candidate",
+      "previousImage": "assets/industrial/batch02/crew/coffee.png?v=48cbbf8d67db",
+      "kind": "repaint",
+      "section": "crew",
+      "facings": []
+    },
+    {
+      "id": "industrial_bench",
+      "lane": "crew",
+      "group": "Crew furniture",
+      "label": "CREW BENCH",
+      "image": "assets/industrial/batch03/crew/industrial_bench.png?v=f70c16deedf3",
+      "width": 2054,
+      "height": 516,
+      "footprint": {
+        "w": 3,
+        "h": 1
+      },
+      "bounds": {
+        "x": 0,
+        "y": 0,
+        "width": 36,
+        "height": 12
+      },
+      "transparentPixels": 209167,
+      "opaquePixels": 850697,
+      "status": "illustrated-style-candidate",
+      "previousImage": "assets/industrial/batch02/crew/industrial_bench.png?v=12e3b5a6fe76",
+      "kind": "repaint",
+      "section": "crew",
+      "facings": []
+    },
+    {
       "id": "bookshelf",
       "lane": "storage",
       "group": "Accessories & wood",
@@ -66,6 +118,32 @@
       "previousImage": "assets/industrial/batch02/storage/bookshelf.png?v=67e71349e56c",
       "kind": "repaint",
       "section": "storage",
+      "facings": []
+    },
+    {
+      "id": "monstera",
+      "lane": "utility",
+      "group": "Plants, glass & lab",
+      "label": "MONSTERA",
+      "image": "assets/industrial/batch03/utility/monstera.png?v=a72776ff73fe",
+      "width": 1205,
+      "height": 1306,
+      "footprint": {
+        "w": 1,
+        "h": 1
+      },
+      "bounds": {
+        "x": 0,
+        "y": -1,
+        "width": 12,
+        "height": 13
+      },
+      "transparentPixels": 701831,
+      "opaquePixels": 871899,
+      "status": "illustrated-style-candidate",
+      "previousImage": "assets/industrial/batch02/utility/monstera.png?v=dba611d40150",
+      "kind": "repaint",
+      "section": "utility",
       "facings": []
     },
     {
@@ -511,32 +589,6 @@
       "facings": []
     },
     {
-      "id": "industrial_bench",
-      "lane": "crew",
-      "group": "Crew furniture",
-      "label": "CREW BENCH",
-      "image": "assets/industrial/batch03/crew/industrial_bench.png?v=f70c16deedf3",
-      "width": 2054,
-      "height": 516,
-      "footprint": {
-        "w": 3,
-        "h": 1
-      },
-      "bounds": {
-        "x": 0,
-        "y": 0,
-        "width": 36,
-        "height": 12
-      },
-      "transparentPixels": 209167,
-      "opaquePixels": 850697,
-      "status": "illustrated-style-candidate",
-      "previousImage": "assets/industrial/batch02/crew/industrial_bench.png?v=12e3b5a6fe76",
-      "kind": "repaint",
-      "section": "crew",
-      "facings": []
-    },
-    {
       "id": "industrial_roundtable",
       "lane": "crew",
       "group": "Crew furniture",
@@ -584,32 +636,6 @@
       "opaquePixels": 892842,
       "status": "illustrated-style-candidate",
       "previousImage": "assets/industrial/batch02/crew/sidetable.png?v=08e6770505e0",
-      "kind": "repaint",
-      "section": "crew",
-      "facings": []
-    },
-    {
-      "id": "coffee",
-      "lane": "crew",
-      "group": "Crew furniture",
-      "label": "COFFEE",
-      "image": "assets/industrial/batch03/coordinator/coffee.png?v=fd78114fa53b",
-      "width": 786,
-      "height": 1407,
-      "footprint": {
-        "w": 1,
-        "h": 1
-      },
-      "bounds": {
-        "x": -1,
-        "y": -6,
-        "width": 13,
-        "height": 18
-      },
-      "transparentPixels": 179933,
-      "opaquePixels": 925969,
-      "status": "illustrated-style-candidate",
-      "previousImage": "assets/industrial/batch02/crew/coffee.png?v=48cbbf8d67db",
       "kind": "repaint",
       "section": "crew",
       "facings": []
@@ -714,32 +740,6 @@
       "opaquePixels": 571928,
       "status": "illustrated-style-candidate",
       "previousImage": "assets/industrial/batch02/utility/tallplant.png?v=b130e5d878d0",
-      "kind": "repaint",
-      "section": "utility",
-      "facings": []
-    },
-    {
-      "id": "monstera",
-      "lane": "utility",
-      "group": "Plants, glass & lab",
-      "label": "MONSTERA",
-      "image": "assets/industrial/batch03/utility/monstera.png?v=a72776ff73fe",
-      "width": 1205,
-      "height": 1306,
-      "footprint": {
-        "w": 1,
-        "h": 1
-      },
-      "bounds": {
-        "x": 0,
-        "y": -1,
-        "width": 12,
-        "height": 13
-      },
-      "transparentPixels": 701831,
-      "opaquePixels": 871899,
-      "status": "illustrated-style-candidate",
-      "previousImage": "assets/industrial/batch02/utility/monstera.png?v=dba611d40150",
       "kind": "repaint",
       "section": "utility",
       "facings": []
@@ -1202,8 +1202,8 @@
       "previousImage": null,
       "image": "assets/industrial/batch03/crew/industrial_partition.png?v=6c41b3f21f0d",
       "facings": [
-        "assets/industrial/batch03/crew/industrial_partition-r1.png",
-        "assets/industrial/batch03/crew/industrial_partition-r3.png"
+        "assets/industrial/batch03/crew/industrial_partition-r1.png?v=55232a62a489",
+        "assets/industrial/batch03/crew/industrial_partition-r3.png?v=99659b4c13ab"
       ],
       "width": 1546,
       "height": 819,
@@ -2019,7 +2019,7 @@
       "previousImage": null,
       "image": "assets/industrial/batch03/crew/glasstable.png?v=4c5bb258ff59",
       "facings": [
-        "assets/industrial/batch03/crew/glasstable-r3.png"
+        "assets/industrial/batch03/crew/glasstable-r3.png?v=2ea807ffd994"
       ],
       "width": 1706,
       "height": 513,
@@ -2043,7 +2043,7 @@
       "previousImage": null,
       "image": "assets/industrial/batch03/crew/dinertable.png?v=dd0d73b53527",
       "facings": [
-        "assets/industrial/batch03/crew/dinertable-r3.png"
+        "assets/industrial/batch03/crew/dinertable-r3.png?v=fc5c0475318f"
       ],
       "width": 1584,
       "height": 787,
@@ -2066,7 +2066,10 @@
       },
       "previousImage": null,
       "image": "assets/industrial/batch03/crew/booth.png?v=8628b934e7c0",
-      "facings": [],
+      "facings": [
+        "assets/industrial/batch03/crew/booth-r1.png?v=37172383f62b",
+        "assets/industrial/batch03/crew/booth-r3.png?v=a85a3e117ad7"
+      ],
       "width": 1392,
       "height": 606,
       "transparentPixels": 118222,
@@ -2088,7 +2091,11 @@
       },
       "previousImage": null,
       "image": "assets/industrial/batch03/crew/dinerchair.png?v=ad8a304c5415",
-      "facings": [],
+      "facings": [
+        "assets/industrial/batch03/crew/dinerchair-r1.png?v=0be27c75e660",
+        "assets/industrial/batch03/crew/dinerchair-r2.png?v=e5cf90ba1e2b",
+        "assets/industrial/batch03/crew/dinerchair-r3.png?v=30175e80d02c"
+      ],
       "width": 626,
       "height": 1283,
       "transparentPixels": 291093,
@@ -2110,7 +2117,11 @@
       },
       "previousImage": null,
       "image": "assets/industrial/batch03/crew/podchair.png?v=dfd792efe876",
-      "facings": [],
+      "facings": [
+        "assets/industrial/batch03/crew/podchair-r1.png?v=139ef44b6334",
+        "assets/industrial/batch03/crew/podchair-r2.png?v=2482cbde722e",
+        "assets/industrial/batch03/crew/podchair-r3.png?v=562e4c62215f"
+      ],
       "width": 896,
       "height": 1357,
       "transparentPixels": 330480,
@@ -2133,7 +2144,7 @@
       "previousImage": null,
       "image": "assets/industrial/batch03/crew/loungetable.png?v=8ff07738bfc4",
       "facings": [
-        "assets/industrial/batch03/crew/loungetable-r3.png"
+        "assets/industrial/batch03/crew/loungetable-r3.png?v=2f417d8bad9f"
       ],
       "width": 1414,
       "height": 608,
@@ -2157,12 +2168,144 @@
       "previousImage": null,
       "image": "assets/industrial/batch03/crew/longtable.png?v=5cba6e531d62",
       "facings": [
-        "assets/industrial/batch03/crew/longtable-r3.png"
+        "assets/industrial/batch03/crew/longtable-r3.png?v=f717f6428b9e"
       ],
       "width": 1762,
       "height": 645,
       "transparentPixels": 401412,
       "opaquePixels": 735078,
+      "status": "illustrated-style-candidate"
+    },
+    {
+      "id": "punchbag",
+      "label": "HEAVY BAG ‹",
+      "lane": "crew",
+      "group": "Furniture & fitness",
+      "section": "furniture",
+      "kind": "new",
+      "bounds": {
+        "x": 0,
+        "y": -8,
+        "width": 12,
+        "height": 30
+      },
+      "previousImage": null,
+      "image": "assets/industrial/batch03/crew/punchbag.png?v=7f4e79f9deb9",
+      "facings": [],
+      "width": 815,
+      "height": 1437,
+      "transparentPixels": 682156,
+      "opaquePixels": 488999,
+      "status": "illustrated-style-candidate"
+    },
+    {
+      "id": "punchbag_r",
+      "label": "HEAVY BAG ›",
+      "lane": "crew",
+      "group": "Furniture & fitness",
+      "section": "furniture",
+      "kind": "new",
+      "bounds": {
+        "x": 0,
+        "y": -8,
+        "width": 12,
+        "height": 30
+      },
+      "previousImage": null,
+      "image": "assets/industrial/batch03/crew/punchbag_r.png?v=46a5f45af4f4",
+      "facings": [],
+      "width": 832,
+      "height": 1438,
+      "transparentPixels": 705796,
+      "opaquePixels": 490620,
+      "status": "illustrated-style-candidate"
+    },
+    {
+      "id": "benchpress",
+      "label": "BENCH PRESS ‹",
+      "lane": "crew",
+      "group": "Furniture & fitness",
+      "section": "furniture",
+      "kind": "new",
+      "bounds": {
+        "x": 1,
+        "y": -8,
+        "width": 36,
+        "height": 20
+      },
+      "previousImage": null,
+      "image": "assets/industrial/batch03/crew/benchpress.png?v=6df4315a6a07",
+      "facings": [],
+      "width": 1564,
+      "height": 677,
+      "transparentPixels": 587927,
+      "opaquePixels": 470901,
+      "status": "illustrated-style-candidate"
+    },
+    {
+      "id": "benchpress_r",
+      "label": "BENCH PRESS ›",
+      "lane": "crew",
+      "group": "Furniture & fitness",
+      "section": "furniture",
+      "kind": "new",
+      "bounds": {
+        "x": -1,
+        "y": -8,
+        "width": 36,
+        "height": 20
+      },
+      "previousImage": null,
+      "image": "assets/industrial/batch03/crew/benchpress_r.png?v=68a24f6132ca",
+      "facings": [],
+      "width": 1584,
+      "height": 692,
+      "transparentPixels": 618615,
+      "opaquePixels": 477513,
+      "status": "illustrated-style-candidate"
+    },
+    {
+      "id": "recliner",
+      "label": "RECLINER ‹ LEFT",
+      "lane": "crew",
+      "group": "Furniture & fitness",
+      "section": "furniture",
+      "kind": "new",
+      "bounds": {
+        "x": -3,
+        "y": -7,
+        "width": 17,
+        "height": 19
+      },
+      "previousImage": null,
+      "image": "assets/industrial/batch03/crew/recliner.png?v=51ba59d0a05c",
+      "facings": [],
+      "width": 1083,
+      "height": 1112,
+      "transparentPixels": 452129,
+      "opaquePixels": 752167,
+      "status": "illustrated-style-candidate"
+    },
+    {
+      "id": "recliner_r",
+      "label": "RECLINER RIGHT ›",
+      "lane": "crew",
+      "group": "Furniture & fitness",
+      "section": "furniture",
+      "kind": "new",
+      "bounds": {
+        "x": -2,
+        "y": -7,
+        "width": 17,
+        "height": 19
+      },
+      "previousImage": null,
+      "image": "assets/industrial/batch03/crew/recliner_r.png?v=58a124f023cb",
+      "facings": [],
+      "width": 1090,
+      "height": 1115,
+      "transparentPixels": 445327,
+      "opaquePixels": 770023,
       "status": "illustrated-style-candidate"
     },
     {
@@ -2317,6 +2460,204 @@
       "height": 816,
       "transparentPixels": 295953,
       "opaquePixels": 996591,
+      "status": "illustrated-style-candidate"
+    },
+    {
+      "id": "treasury_token_furnace",
+      "label": "TOKEN FURNACE",
+      "lane": "storage",
+      "group": "Storage & treasury",
+      "section": "treasury",
+      "kind": "new",
+      "bounds": {
+        "x": -1,
+        "y": -7,
+        "width": 14,
+        "height": 31
+      },
+      "previousImage": null,
+      "image": "assets/industrial/batch03/storage/treasury_token_furnace.png?v=eaa6150a099c",
+      "facings": [],
+      "width": 805,
+      "height": 1540,
+      "transparentPixels": 215891,
+      "opaquePixels": 1023809,
+      "status": "illustrated-style-candidate"
+    },
+    {
+      "id": "treasury_pnl_holo",
+      "label": "PNL HOLO",
+      "lane": "storage",
+      "group": "Storage & treasury",
+      "section": "treasury",
+      "kind": "new",
+      "bounds": {
+        "x": 1,
+        "y": 5,
+        "width": 10,
+        "height": 5
+      },
+      "previousImage": null,
+      "image": "assets/industrial/batch03/storage/treasury_pnl_holo.png?v=4f39007954e5",
+      "facings": [],
+      "width": 1322,
+      "height": 471,
+      "transparentPixels": 117537,
+      "opaquePixels": 505125,
+      "status": "illustrated-style-candidate"
+    },
+    {
+      "id": "crt_pile",
+      "label": "CRT PILE",
+      "lane": "storage",
+      "group": "Storage & treasury",
+      "section": "treasury",
+      "kind": "new",
+      "bounds": {
+        "x": -1,
+        "y": -4,
+        "width": 12,
+        "height": 17
+      },
+      "previousImage": null,
+      "image": "assets/industrial/batch03/storage/crt_pile.png?v=3758079158d8",
+      "facings": [],
+      "width": 818,
+      "height": 1047,
+      "transparentPixels": 150010,
+      "opaquePixels": 706436,
+      "status": "illustrated-style-candidate"
+    },
+    {
+      "id": "telescope",
+      "label": "TELESCOPE ›",
+      "lane": "utility",
+      "group": "Instruments",
+      "section": "instruments",
+      "kind": "new",
+      "bounds": {
+        "x": -3,
+        "y": -8,
+        "width": 19,
+        "height": 31
+      },
+      "previousImage": null,
+      "image": "assets/industrial/batch03/utility/telescope.png?v=342717e5d885",
+      "facings": [],
+      "width": 982,
+      "height": 1602,
+      "transparentPixels": 1100486,
+      "opaquePixels": 472678,
+      "status": "illustrated-style-candidate"
+    },
+    {
+      "id": "telescope_r",
+      "label": "TELESCOPE ‹",
+      "lane": "utility",
+      "group": "Instruments",
+      "section": "instruments",
+      "kind": "new",
+      "bounds": {
+        "x": -4,
+        "y": -8,
+        "width": 19,
+        "height": 31
+      },
+      "previousImage": null,
+      "image": "assets/industrial/batch03/utility/telescope_r.png?v=daf380fd03bc",
+      "facings": [],
+      "width": 979,
+      "height": 1606,
+      "transparentPixels": 1102476,
+      "opaquePixels": 469798,
+      "status": "illustrated-style-candidate"
+    },
+    {
+      "id": "camerarig",
+      "label": "CAMERA RIG ‹",
+      "lane": "utility",
+      "group": "Instruments",
+      "section": "instruments",
+      "kind": "new",
+      "bounds": {
+        "x": -1,
+        "y": -6,
+        "width": 15,
+        "height": 29
+      },
+      "previousImage": null,
+      "image": "assets/industrial/batch03/utility/camerarig.png?v=ffa99bc652a0",
+      "facings": [],
+      "width": 903,
+      "height": 1742,
+      "transparentPixels": 1014368,
+      "opaquePixels": 558658,
+      "status": "illustrated-style-candidate"
+    },
+    {
+      "id": "camerarig_r",
+      "label": "CAMERA RIG ›",
+      "lane": "utility",
+      "group": "Instruments",
+      "section": "instruments",
+      "kind": "new",
+      "bounds": {
+        "x": -2,
+        "y": -6,
+        "width": 15,
+        "height": 29
+      },
+      "previousImage": null,
+      "image": "assets/industrial/batch03/utility/camerarig_r.png?v=db30d9599e42",
+      "facings": [],
+      "width": 903,
+      "height": 1742,
+      "transparentPixels": 1040592,
+      "opaquePixels": 532434,
+      "status": "illustrated-style-candidate"
+    },
+    {
+      "id": "weaponrack",
+      "label": "WEAPON RACK ‹",
+      "lane": "utility",
+      "group": "Instruments",
+      "section": "instruments",
+      "kind": "new",
+      "bounds": {
+        "x": 1,
+        "y": -16,
+        "width": 34,
+        "height": 22
+      },
+      "previousImage": null,
+      "image": "assets/industrial/batch03/utility/weaponrack.png?v=e8ad55a3b54d",
+      "facings": [],
+      "width": 1559,
+      "height": 1009,
+      "transparentPixels": 480726,
+      "opaquePixels": 1092305,
+      "status": "illustrated-style-candidate"
+    },
+    {
+      "id": "weaponrack_r",
+      "label": "WEAPON RACK ›",
+      "lane": "utility",
+      "group": "Instruments",
+      "section": "instruments",
+      "kind": "new",
+      "bounds": {
+        "x": 1,
+        "y": -16,
+        "width": 34,
+        "height": 22
+      },
+      "previousImage": null,
+      "image": "assets/industrial/batch03/utility/weaponrack_r.png?v=00e4f55c22b1",
+      "facings": [],
+      "width": 1559,
+      "height": 1009,
+      "transparentPixels": 480691,
+      "opaquePixels": 1092340,
       "status": "illustrated-style-candidate"
     },
     {
