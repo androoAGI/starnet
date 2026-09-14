@@ -125,6 +125,223 @@
       "islandPixelsRemoved": 0,
       "subjectRgbChanges": 0,
       "outputSha256": "a72776ff73fe4d9fdabb8c3d46df9b5028e75978e3b0d7c3c74175f3f0a33b47"
+    },
+    {
+      "id": "industrial_planter",
+      "seeds": [],
+      "source": "docs/station-remaster/batch03/utility/sources/industrial_planter.png",
+      "sourceSha256": "136a75ee9eaf2bcefad6c5a0bf17d618ce4e154a60a050ea9880d487fd19dd86",
+      "sourceWidth": 1430,
+      "sourceHeight": 1100,
+      "output": "frontend/assets/industrial/batch03/utility/industrial_planter.png",
+      "canvasPreserved": true,
+      "alphaBounds": {
+        "x": 26,
+        "y": 96,
+        "width": 1379,
+        "height": 800
+      },
+      "channels": 4,
+      "transparentPixels": 763915,
+      "opaquePixels": 809085,
+      "partialPixels": 0,
+      "backgroundPixelsRemoved": 763897,
+      "islandPixelsRemoved": 18,
+      "subjectRgbChanges": 0,
+      "outputSha256": "20702ead904c798b595e6cd89acb40bc6aee17e04cf3b1c9b852c91ad0d13603"
+    },
+    {
+      "id": "terrarium",
+      "seeds": [],
+      "source": "docs/station-remaster/batch03/utility/sources/terrarium.png",
+      "sourceSha256": "0e05e942177ee15544e17982be8730102b20f0d08229361105e3cdbdd470ce05",
+      "sourceWidth": 1039,
+      "sourceHeight": 1514,
+      "output": "frontend/assets/industrial/batch03/utility/terrarium.png",
+      "canvasPreserved": true,
+      "alphaBounds": {
+        "x": 184,
+        "y": 30,
+        "width": 672,
+        "height": 1434
+      },
+      "channels": 4,
+      "transparentPixels": 700701,
+      "opaquePixels": 872345,
+      "partialPixels": 0,
+      "backgroundPixelsRemoved": 700701,
+      "islandPixelsRemoved": 0,
+      "subjectRgbChanges": 0,
+      "outputSha256": "b591ddaa41c4086e90b3ef493684e238572d976d441591503f0acfc242579094"
+    },
+    {
+      "id": "tallplant",
+      "seeds": [
+        [
+          544,
+          243
+        ],
+        [
+          347,
+          245
+        ],
+        [
+          322,
+          296
+        ],
+        [
+          539,
+          330
+        ],
+        [
+          544,
+          379
+        ],
+        [
+          594,
+          415
+        ],
+        [
+          575,
+          440
+        ],
+        [
+          573,
+          504
+        ],
+        [
+          410,
+          530
+        ],
+        [
+          368,
+          534
+        ],
+        [
+          516,
+          538
+        ],
+        [
+          515,
+          565
+        ],
+        [
+          532,
+          633
+        ],
+        [
+          554,
+          634
+        ],
+        [
+          553,
+          664
+        ],
+        [
+          503,
+          668
+        ],
+        [
+          518,
+          724
+        ],
+        [
+          285,
+          731
+        ],
+        [
+          479,
+          767
+        ],
+        [
+          490,
+          813
+        ],
+        [
+          336,
+          838
+        ],
+        [
+          472,
+          838
+        ],
+        [
+          425,
+          849
+        ],
+        [
+          322,
+          858
+        ],
+        [
+          619,
+          865
+        ],
+        [
+          636,
+          877
+        ],
+        [
+          473,
+          887
+        ],
+        [
+          366,
+          906
+        ],
+        [
+          593,
+          910
+        ],
+        [
+          587,
+          943
+        ],
+        [
+          323,
+          966
+        ],
+        [
+          488,
+          984
+        ],
+        [
+          506,
+          1048
+        ],
+        [
+          366,
+          1114
+        ],
+        [
+          378,
+          1186
+        ],
+        [
+          531,
+          1247
+        ]
+      ],
+      "source": "docs/station-remaster/batch03/utility/sources/tallplant.png",
+      "sourceSha256": "72eb2bb135793e74e374b303eaf982a72ddf1ba9d78e27591b89e348d4dd96ac",
+      "sourceWidth": 887,
+      "sourceHeight": 1774,
+      "output": "frontend/assets/industrial/batch03/utility/tallplant.png",
+      "canvasPreserved": true,
+      "alphaBounds": {
+        "x": 116,
+        "y": 17,
+        "width": 664,
+        "height": 1731
+      },
+      "channels": 4,
+      "transparentPixels": 1001610,
+      "opaquePixels": 571928,
+      "partialPixels": 0,
+      "backgroundPixelsRemoved": 1001581,
+      "islandPixelsRemoved": 29,
+      "subjectRgbChanges": 0,
+      "outputSha256": "0a954344173bf3dcb92242b50fd3cf111a0333718ba95d5453bdd50ee4119ce3"
     }
   ]
 }
