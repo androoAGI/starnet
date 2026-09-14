@@ -1,0 +1,832 @@
+{
+  "version": 1,
+  "source": "frontend/assets/industrial/approved-sheet/facings-source.png",
+  "sha256": "d88b5268adb64925c27f80d4b74e10d79640edac898918fc5cb6f5c060e155ed",
+  "width": 1536,
+  "height": 1024,
+  "mode": "RGBA",
+  "columns": 6,
+  "rows": 4,
+  "count": 24,
+  "cellIndexConvention": "Zero-based row-major. Requested order and observed mapped direction are both retained.",
+  "master": {
+    "path": "frontend/assets/industrial/complete-sheet/starnet-props-full-sheet.png",
+    "sha256": "e68ef0d3711e9164a3aff5333b98522ed6fdcb4bc7654929e333cb2ff2b97ea9"
+  },
+  "sourceCopiedUnchanged": true,
+  "alpha": {
+    "transparentPixels": 1159592,
+    "partialPixels": 413272,
+    "opaquePixels": 0,
+    "note": "Background is visibly dark with gradients/halos. Real clean sprite alpha is NOT established; root owns extraction."
+  },
+  "scopeAudit": {
+    "nativeStructureSource": "dev/industrial-textures/prop-structure-manifest.json",
+    "nativeStructureSha256": "a63f61bf25f2a4b08e089d7ecf8286d1152d4c76c5426a58b16bb5601697ca94",
+    "supportedMissingViews": 24,
+    "ids": 12,
+    "excludedAlreadyPresentNamedPairs": [
+      "telescope_r",
+      "camerarig_r",
+      "weaponrack_r",
+      "punchbag_r",
+      "benchpress_r",
+      "recliner_r"
+    ],
+    "excludedNonCatalogInternal": "seatchair has renderer facings but is not a separate entry in the approved160 catalog; its operator-chair relationship belongs to integration.",
+    "sideSymmetricTables": [
+      "lowtable",
+      "glasstable",
+      "dinertable",
+      "loungetable",
+      "longtable"
+    ],
+    "evidence": [
+      "frontend/app/propsprites.js:10714",
+      "frontend/app/propsprites.js:11058",
+      "frontend/app/propsprites.js:11074"
+    ]
+  },
+  "cells": [
+    {
+      "index": 0,
+      "row": 0,
+      "column": 0,
+      "requestedId": "industrial_partition",
+      "requestedView": "w",
+      "r": 1,
+      "nativeFootprint": {
+        "w": 1,
+        "h": 3
+      },
+      "nativeBounds": {
+        "x": 2,
+        "y": -9,
+        "width": 8,
+        "height": 44
+      },
+      "approvedMasterCell": {
+        "id": "industrial_partition",
+        "row": 0,
+        "column": 5
+      },
+      "cellBounds": {
+        "x": 0,
+        "y": 0,
+        "width": 256,
+        "height": 256
+      },
+      "mappedId": "industrial_partition",
+      "mappedView": "w",
+      "visualStatus": "partition-pair-appears-same-direction; distinct-opposite-facing-not-proven",
+      "integrationRequirements": [
+        "Do not claim this pair as two separately authored directions without review. Native viewAt supports reflected opposite profiles, but this task has not flipped any bitmap."
+      ]
+    },
+    {
+      "index": 1,
+      "row": 0,
+      "column": 1,
+      "requestedId": "industrial_partition",
+      "requestedView": "e",
+      "r": 3,
+      "nativeFootprint": {
+        "w": 1,
+        "h": 3
+      },
+      "nativeBounds": {
+        "x": 2,
+        "y": -9,
+        "width": 8,
+        "height": 44
+      },
+      "approvedMasterCell": {
+        "id": "industrial_partition",
+        "row": 0,
+        "column": 5
+      },
+      "cellBounds": {
+        "x": 256,
+        "y": 0,
+        "width": 256,
+        "height": 256
+      },
+      "mappedId": "industrial_partition",
+      "mappedView": "e",
+      "visualStatus": "partition-pair-appears-same-direction; distinct-opposite-facing-not-proven",
+      "integrationRequirements": [
+        "Do not claim this pair as two separately authored directions without review. Native viewAt supports reflected opposite profiles, but this task has not flipped any bitmap."
+      ]
+    },
+    {
+      "index": 2,
+      "row": 0,
+      "column": 2,
+      "requestedId": "desk",
+      "requestedView": "w",
+      "r": 3,
+      "nativeFootprint": {
+        "w": 1,
+        "h": 3
+      },
+      "nativeBounds": {
+        "x": -3,
+        "y": -5,
+        "width": 18,
+        "height": 41
+      },
+      "approvedMasterCell": {
+        "id": "desk",
+        "row": 0,
+        "column": 12
+      },
+      "cellBounds": {
+        "x": 512,
+        "y": 0,
+        "width": 256,
+        "height": 256
+      },
+      "mappedId": "desk",
+      "mappedView": "e",
+      "visualStatus": "mapped-by-visible-operator-chair-on-right; generation-swapped-desk-side-cells"
+    },
+    {
+      "index": 3,
+      "row": 0,
+      "column": 3,
+      "requestedId": "desk",
+      "requestedView": "n",
+      "r": 2,
+      "nativeFootprint": {
+        "w": 3,
+        "h": 1
+      },
+      "nativeBounds": {
+        "x": -2,
+        "y": -11,
+        "width": 40,
+        "height": 23
+      },
+      "approvedMasterCell": {
+        "id": "desk",
+        "row": 0,
+        "column": 12
+      },
+      "cellBounds": {
+        "x": 768,
+        "y": 0,
+        "width": 256,
+        "height": 256
+      },
+      "mappedId": "desk",
+      "mappedView": "n",
+      "visualStatus": "candidate-direction-visible-not-live-verified"
+    },
+    {
+      "index": 4,
+      "row": 0,
+      "column": 4,
+      "requestedId": "desk",
+      "requestedView": "e",
+      "r": 1,
+      "nativeFootprint": {
+        "w": 1,
+        "h": 3
+      },
+      "nativeBounds": {
+        "x": -3,
+        "y": -5,
+        "width": 18,
+        "height": 41
+      },
+      "approvedMasterCell": {
+        "id": "desk",
+        "row": 0,
+        "column": 12
+      },
+      "cellBounds": {
+        "x": 1024,
+        "y": 0,
+        "width": 256,
+        "height": 256
+      },
+      "mappedId": "desk",
+      "mappedView": "w",
+      "visualStatus": "mapped-by-visible-operator-chair-on-left; generation-swapped-desk-side-cells"
+    },
+    {
+      "index": 5,
+      "row": 0,
+      "column": 5,
+      "requestedId": "desk2",
+      "requestedView": "w",
+      "r": 1,
+      "nativeFootprint": {
+        "w": 1,
+        "h": 3
+      },
+      "nativeBounds": {
+        "x": -3,
+        "y": -5,
+        "width": 18,
+        "height": 41
+      },
+      "approvedMasterCell": {
+        "id": "desk2",
+        "row": 0,
+        "column": 13
+      },
+      "cellBounds": {
+        "x": 1280,
+        "y": 0,
+        "width": 256,
+        "height": 256
+      },
+      "mappedId": "desk2",
+      "mappedView": "w",
+      "visualStatus": "candidate-direction-visible-not-live-verified"
+    },
+    {
+      "index": 6,
+      "row": 1,
+      "column": 0,
+      "requestedId": "desk2",
+      "requestedView": "n",
+      "r": 2,
+      "nativeFootprint": {
+        "w": 3,
+        "h": 1
+      },
+      "nativeBounds": {
+        "x": -2,
+        "y": -11,
+        "width": 40,
+        "height": 23
+      },
+      "approvedMasterCell": {
+        "id": "desk2",
+        "row": 0,
+        "column": 13
+      },
+      "cellBounds": {
+        "x": 0,
+        "y": 256,
+        "width": 256,
+        "height": 256
+      },
+      "mappedId": "desk2",
+      "mappedView": "n",
+      "visualStatus": "candidate-direction-visible-not-live-verified"
+    },
+    {
+      "index": 7,
+      "row": 1,
+      "column": 1,
+      "requestedId": "desk2",
+      "requestedView": "e",
+      "r": 3,
+      "nativeFootprint": {
+        "w": 1,
+        "h": 3
+      },
+      "nativeBounds": {
+        "x": -3,
+        "y": -5,
+        "width": 18,
+        "height": 41
+      },
+      "approvedMasterCell": {
+        "id": "desk2",
+        "row": 0,
+        "column": 13
+      },
+      "cellBounds": {
+        "x": 256,
+        "y": 256,
+        "width": 256,
+        "height": 256
+      },
+      "mappedId": "desk2",
+      "mappedView": "e",
+      "visualStatus": "candidate-direction-visible-not-live-verified"
+    },
+    {
+      "index": 8,
+      "row": 1,
+      "column": 2,
+      "requestedId": "chair",
+      "requestedView": "w",
+      "r": 1,
+      "nativeFootprint": {
+        "w": 1,
+        "h": 1
+      },
+      "nativeBounds": {
+        "x": 1,
+        "y": -4,
+        "width": 10,
+        "height": 16
+      },
+      "approvedMasterCell": {
+        "id": "chair",
+        "row": 6,
+        "column": 15
+      },
+      "cellBounds": {
+        "x": 512,
+        "y": 256,
+        "width": 256,
+        "height": 256
+      },
+      "mappedId": "chair",
+      "mappedView": "w",
+      "visualStatus": "candidate-direction-visible-not-live-verified"
+    },
+    {
+      "index": 9,
+      "row": 1,
+      "column": 3,
+      "requestedId": "chair",
+      "requestedView": "n",
+      "r": 2,
+      "nativeFootprint": {
+        "w": 1,
+        "h": 1
+      },
+      "nativeBounds": {
+        "x": 0,
+        "y": -4,
+        "width": 12,
+        "height": 16
+      },
+      "approvedMasterCell": {
+        "id": "chair",
+        "row": 6,
+        "column": 15
+      },
+      "cellBounds": {
+        "x": 768,
+        "y": 256,
+        "width": 256,
+        "height": 256
+      },
+      "mappedId": "chair",
+      "mappedView": "n",
+      "visualStatus": "candidate-direction-visible-not-live-verified"
+    },
+    {
+      "index": 10,
+      "row": 1,
+      "column": 4,
+      "requestedId": "chair",
+      "requestedView": "e",
+      "r": 3,
+      "nativeFootprint": {
+        "w": 1,
+        "h": 1
+      },
+      "nativeBounds": {
+        "x": 1,
+        "y": -4,
+        "width": 10,
+        "height": 16
+      },
+      "approvedMasterCell": {
+        "id": "chair",
+        "row": 6,
+        "column": 15
+      },
+      "cellBounds": {
+        "x": 1024,
+        "y": 256,
+        "width": 256,
+        "height": 256
+      },
+      "mappedId": "chair",
+      "mappedView": "e",
+      "visualStatus": "candidate-direction-visible-not-live-verified"
+    },
+    {
+      "index": 11,
+      "row": 1,
+      "column": 5,
+      "requestedId": "lowtable",
+      "requestedView": "e",
+      "r": 3,
+      "nativeFootprint": {
+        "w": 1,
+        "h": 3
+      },
+      "nativeBounds": {
+        "x": -2,
+        "y": 0,
+        "width": 16,
+        "height": 36
+      },
+      "approvedMasterCell": {
+        "id": "lowtable",
+        "row": 7,
+        "column": 1
+      },
+      "cellBounds": {
+        "x": 1280,
+        "y": 256,
+        "width": 256,
+        "height": 256
+      },
+      "mappedId": "lowtable",
+      "mappedView": "e",
+      "visualStatus": "candidate-direction-visible-not-live-verified"
+    },
+    {
+      "index": 12,
+      "row": 2,
+      "column": 0,
+      "requestedId": "glasstable",
+      "requestedView": "e",
+      "r": 3,
+      "nativeFootprint": {
+        "w": 1,
+        "h": 3
+      },
+      "nativeBounds": {
+        "x": 0,
+        "y": 0,
+        "width": 12,
+        "height": 36
+      },
+      "approvedMasterCell": {
+        "id": "glasstable",
+        "row": 7,
+        "column": 2
+      },
+      "cellBounds": {
+        "x": 0,
+        "y": 512,
+        "width": 256,
+        "height": 256
+      },
+      "mappedId": "glasstable",
+      "mappedView": "e",
+      "visualStatus": "candidate-direction-visible-not-live-verified"
+    },
+    {
+      "index": 13,
+      "row": 2,
+      "column": 1,
+      "requestedId": "dinertable",
+      "requestedView": "e",
+      "r": 3,
+      "nativeFootprint": {
+        "w": 2,
+        "h": 3
+      },
+      "nativeBounds": {
+        "x": -1,
+        "y": 0,
+        "width": 26,
+        "height": 37
+      },
+      "approvedMasterCell": {
+        "id": "dinertable",
+        "row": 7,
+        "column": 3
+      },
+      "cellBounds": {
+        "x": 256,
+        "y": 512,
+        "width": 256,
+        "height": 256
+      },
+      "mappedId": "dinertable",
+      "mappedView": "e",
+      "visualStatus": "candidate-direction-visible-not-live-verified"
+    },
+    {
+      "index": 14,
+      "row": 2,
+      "column": 2,
+      "requestedId": "booth",
+      "requestedView": "w",
+      "r": 1,
+      "nativeFootprint": {
+        "w": 1,
+        "h": 2
+      },
+      "nativeBounds": {
+        "x": 0,
+        "y": -5,
+        "width": 12,
+        "height": 29
+      },
+      "approvedMasterCell": {
+        "id": "booth",
+        "row": 7,
+        "column": 5
+      },
+      "cellBounds": {
+        "x": 512,
+        "y": 512,
+        "width": 256,
+        "height": 256
+      },
+      "mappedId": "booth",
+      "mappedView": "w",
+      "visualStatus": "candidate-direction-visible-not-live-verified"
+    },
+    {
+      "index": 15,
+      "row": 2,
+      "column": 3,
+      "requestedId": "booth",
+      "requestedView": "e",
+      "r": 3,
+      "nativeFootprint": {
+        "w": 1,
+        "h": 2
+      },
+      "nativeBounds": {
+        "x": 0,
+        "y": -5,
+        "width": 12,
+        "height": 29
+      },
+      "approvedMasterCell": {
+        "id": "booth",
+        "row": 7,
+        "column": 5
+      },
+      "cellBounds": {
+        "x": 768,
+        "y": 512,
+        "width": 256,
+        "height": 256
+      },
+      "mappedId": "booth",
+      "mappedView": "e",
+      "visualStatus": "candidate-direction-visible-not-live-verified"
+    },
+    {
+      "index": 16,
+      "row": 2,
+      "column": 4,
+      "requestedId": "dinerchair",
+      "requestedView": "w",
+      "r": 1,
+      "nativeFootprint": {
+        "w": 1,
+        "h": 1
+      },
+      "nativeBounds": {
+        "x": 0,
+        "y": -4,
+        "width": 11,
+        "height": 16
+      },
+      "approvedMasterCell": {
+        "id": "dinerchair",
+        "row": 7,
+        "column": 6
+      },
+      "cellBounds": {
+        "x": 1024,
+        "y": 512,
+        "width": 256,
+        "height": 256
+      },
+      "mappedId": "dinerchair",
+      "mappedView": "w",
+      "visualStatus": "candidate-direction-visible-not-live-verified"
+    },
+    {
+      "index": 17,
+      "row": 2,
+      "column": 5,
+      "requestedId": "dinerchair",
+      "requestedView": "n",
+      "r": 2,
+      "nativeFootprint": {
+        "w": 1,
+        "h": 1
+      },
+      "nativeBounds": {
+        "x": 1,
+        "y": -4,
+        "width": 11,
+        "height": 16
+      },
+      "approvedMasterCell": {
+        "id": "dinerchair",
+        "row": 7,
+        "column": 6
+      },
+      "cellBounds": {
+        "x": 1280,
+        "y": 512,
+        "width": 256,
+        "height": 256
+      },
+      "mappedId": "dinerchair",
+      "mappedView": "n",
+      "visualStatus": "candidate-direction-visible-not-live-verified"
+    },
+    {
+      "index": 18,
+      "row": 3,
+      "column": 0,
+      "requestedId": "dinerchair",
+      "requestedView": "e",
+      "r": 3,
+      "nativeFootprint": {
+        "w": 1,
+        "h": 1
+      },
+      "nativeBounds": {
+        "x": 1,
+        "y": -4,
+        "width": 11,
+        "height": 16
+      },
+      "approvedMasterCell": {
+        "id": "dinerchair",
+        "row": 7,
+        "column": 6
+      },
+      "cellBounds": {
+        "x": 0,
+        "y": 768,
+        "width": 256,
+        "height": 256
+      },
+      "mappedId": "dinerchair",
+      "mappedView": "e",
+      "visualStatus": "candidate-direction-visible-not-live-verified"
+    },
+    {
+      "index": 19,
+      "row": 3,
+      "column": 1,
+      "requestedId": "podchair",
+      "requestedView": "w",
+      "r": 1,
+      "nativeFootprint": {
+        "w": 1,
+        "h": 1
+      },
+      "nativeBounds": {
+        "x": 0,
+        "y": -5,
+        "width": 11,
+        "height": 17
+      },
+      "approvedMasterCell": {
+        "id": "podchair",
+        "row": 7,
+        "column": 7
+      },
+      "cellBounds": {
+        "x": 256,
+        "y": 768,
+        "width": 256,
+        "height": 256
+      },
+      "mappedId": "podchair",
+      "mappedView": "w",
+      "visualStatus": "candidate-direction-visible-not-live-verified"
+    },
+    {
+      "index": 20,
+      "row": 3,
+      "column": 2,
+      "requestedId": "podchair",
+      "requestedView": "n",
+      "r": 2,
+      "nativeFootprint": {
+        "w": 1,
+        "h": 1
+      },
+      "nativeBounds": {
+        "x": 1,
+        "y": -5,
+        "width": 10,
+        "height": 17
+      },
+      "approvedMasterCell": {
+        "id": "podchair",
+        "row": 7,
+        "column": 7
+      },
+      "cellBounds": {
+        "x": 512,
+        "y": 768,
+        "width": 256,
+        "height": 256
+      },
+      "mappedId": "podchair",
+      "mappedView": "n",
+      "visualStatus": "candidate-direction-visible-not-live-verified"
+    },
+    {
+      "index": 21,
+      "row": 3,
+      "column": 3,
+      "requestedId": "podchair",
+      "requestedView": "e",
+      "r": 3,
+      "nativeFootprint": {
+        "w": 1,
+        "h": 1
+      },
+      "nativeBounds": {
+        "x": 1,
+        "y": -5,
+        "width": 11,
+        "height": 17
+      },
+      "approvedMasterCell": {
+        "id": "podchair",
+        "row": 7,
+        "column": 7
+      },
+      "cellBounds": {
+        "x": 768,
+        "y": 768,
+        "width": 256,
+        "height": 256
+      },
+      "mappedId": "podchair",
+      "mappedView": "e",
+      "visualStatus": "candidate-direction-visible-not-live-verified"
+    },
+    {
+      "index": 22,
+      "row": 3,
+      "column": 4,
+      "requestedId": "loungetable",
+      "requestedView": "e",
+      "r": 3,
+      "nativeFootprint": {
+        "w": 1,
+        "h": 2
+      },
+      "nativeBounds": {
+        "x": -1,
+        "y": 0,
+        "width": 14,
+        "height": 24
+      },
+      "approvedMasterCell": {
+        "id": "loungetable",
+        "row": 7,
+        "column": 8
+      },
+      "cellBounds": {
+        "x": 1024,
+        "y": 768,
+        "width": 256,
+        "height": 256
+      },
+      "mappedId": "loungetable",
+      "mappedView": "e",
+      "visualStatus": "candidate-direction-visible-not-live-verified"
+    },
+    {
+      "index": 23,
+      "row": 3,
+      "column": 5,
+      "requestedId": "longtable",
+      "requestedView": "e",
+      "r": 3,
+      "nativeFootprint": {
+        "w": 1,
+        "h": 3
+      },
+      "nativeBounds": {
+        "x": -2,
+        "y": 0,
+        "width": 16,
+        "height": 36
+      },
+      "approvedMasterCell": {
+        "id": "longtable",
+        "row": 7,
+        "column": 9
+      },
+      "cellBounds": {
+        "x": 1280,
+        "y": 768,
+        "width": 256,
+        "height": 256
+      },
+      "mappedId": "longtable",
+      "mappedView": "e",
+      "visualStatus": "candidate-direction-visible-not-live-verified"
+    }
+  ],
+  "remainingGaps": [
+    "Partition w/e sprites look identical in direction. Opposite-facing distinction requires owner decision or repair.",
+    "The sheet added/preserved operator chairs and dining-table seats as visible master components; owner must avoid double-rendering runtime body/seating layers.",
+    "All24 cells need background extraction and fitted-size inspection; no runtime changes or live checks performed."
+  ],
+  "runtimeIntegrated": false
+}
