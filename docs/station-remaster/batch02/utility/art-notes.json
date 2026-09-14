@@ -1,0 +1,309 @@
+{
+  "industrial_planter": {
+    "materials": [
+      "living foliage",
+      "glazed ceramic",
+      "terracotta",
+      "soil",
+      "oak"
+    ],
+    "motion": [],
+    "contact": [
+      717,
+      866
+    ]
+  },
+  "tallplant": {
+    "materials": [
+      "living foliage",
+      "natural bark",
+      "terracotta",
+      "soil"
+    ],
+    "motion": [
+      {
+        "name": "leaf crown and fronds",
+        "normalizedRect": [
+          0.13,
+          0.01,
+          0.74,
+          0.7
+        ],
+        "behavior": "Optional subtle cosmetic leaf movement; trunk and pot fixed."
+      }
+    ],
+    "contact": [
+      446,
+      1741
+    ]
+  },
+  "monstera": {
+    "materials": [
+      "green leaves",
+      "cream/teal glazed ceramic",
+      "soil"
+    ],
+    "motion": [
+      {
+        "name": "leaf canopy",
+        "normalizedRect": [
+          0.02,
+          0.01,
+          0.96,
+          0.85
+        ],
+        "behavior": "Optional leaf sway with holes retained; pot remains fixed."
+      }
+    ],
+    "contact": [
+      635,
+      1248
+    ]
+  },
+  "terrarium": {
+    "materials": [
+      "glass",
+      "walnut",
+      "brass",
+      "soil",
+      "moss"
+    ],
+    "motion": [
+      {
+        "name": "living enclosure",
+        "normalizedRect": [
+          0.245,
+          0.26,
+          0.505,
+          0.46
+        ],
+        "behavior": "Tiny cosmetic moisture/moss light changes only; preserve glass and branch."
+      }
+    ],
+    "contact": [
+      519,
+      1429
+    ],
+    "interaction": "Standing leisure approach from reachable prop edge remains owned by PropAnchor; no seat."
+  },
+  "fishtank": {
+    "materials": [
+      "glass",
+      "water",
+      "walnut",
+      "painted hood",
+      "aquatic plants"
+    ],
+    "motion": [
+      {
+        "name": "water interior",
+        "normalizedRect": [
+          0.13,
+          0.27,
+          0.74,
+          0.31
+        ],
+        "behavior": "New fish swimming/bubbles/caustics need authored layers; retain tank boundaries, do not animate as monitor."
+      }
+    ],
+    "contact": [
+      655,
+      1124
+    ],
+    "interaction": "Standing leisure approach from reachable prop edge remains owned by PropAnchor; no seat."
+  },
+  "lavalamp": {
+    "materials": [
+      "glass",
+      "colored liquid",
+      "wax",
+      "teal ceramic",
+      "brass"
+    ],
+    "motion": [
+      {
+        "name": "wax vessel",
+        "normalizedRect": [
+          0.18,
+          0.155,
+          0.63,
+          0.57
+        ],
+        "behavior": "Slow wax deformation/rise within bottle; decorative glow only."
+      }
+    ],
+    "contact": [
+      397,
+      1939
+    ],
+    "surface": true
+  },
+  "plasmaglobe": {
+    "materials": [
+      "glass",
+      "walnut",
+      "ivory ceramic",
+      "brass"
+    ],
+    "motion": [
+      {
+        "name": "plasma sphere",
+        "normalizedRect": [
+          0.04,
+          0.02,
+          0.92,
+          0.475
+        ],
+        "behavior": "Authored plasma arc flicker inside sphere; optional cosmetic only."
+      }
+    ],
+    "contact": [
+      455,
+      1662
+    ],
+    "surface": true
+  },
+  "etsy_dyevat": {
+    "materials": [
+      "stoneware",
+      "oak",
+      "indigo dye",
+      "cotton"
+    ],
+    "motion": [
+      {
+        "name": "dye surface",
+        "normalizedRect": [
+          0.16,
+          0.09,
+          0.68,
+          0.43
+        ],
+        "behavior": "Subtle liquid ripple around fixed cloth/paddle; process-related activity only with real state."
+      }
+    ],
+    "contact": [
+      627,
+      1181
+    ]
+  },
+  "etsy_kiln": {
+    "materials": [
+      "refractory brick",
+      "terracotta",
+      "iron",
+      "maroon enamel"
+    ],
+    "motion": [
+      {
+        "name": "top vent",
+        "normalizedRect": [
+          0.44,
+          0.188,
+          0.095,
+          0.03
+        ],
+        "behavior": "Heat glow only when appropriate kiln state is wired."
+      },
+      {
+        "name": "front door seam",
+        "normalizedRect": [
+          0.35,
+          0.604,
+          0.265,
+          0.035
+        ],
+        "behavior": "Restrained heat leak; no fake job progress."
+      }
+    ],
+    "contact": [
+      596,
+      1244
+    ]
+  },
+  "research_samplecart": {
+    "materials": [
+      "sage enamel",
+      "cream panels",
+      "glass",
+      "rubber",
+      "fabric",
+      "ceramic"
+    ],
+    "motion": [
+      {
+        "name": "specimen jars",
+        "normalizedRect": [
+          0.278,
+          0.03,
+          0.434,
+          0.3
+        ],
+        "behavior": "Optional subtle liquid/specimen effect; cart wheels remain static without actual movement."
+      }
+    ],
+    "contact": [
+      782,
+      949
+    ]
+  },
+  "incubator": {
+    "materials": [
+      "cream enamel",
+      "burgundy panels",
+      "glass",
+      "green culture",
+      "rubber"
+    ],
+    "motion": [
+      {
+        "name": "culture column",
+        "normalizedRect": [
+          0.32,
+          0.24,
+          0.34,
+          0.4
+        ],
+        "behavior": "Slow suspended specimen drift and motes; no reported provider-work inference."
+      }
+    ],
+    "contact": [
+      407,
+      1747
+    ]
+  },
+  "cryopod": {
+    "materials": [
+      "ivory medical polymer",
+      "blue enamel",
+      "frosted glass",
+      "padded fabric"
+    ],
+    "motion": [
+      {
+        "name": "frosted occupancy window",
+        "normalizedRect": [
+          0.28,
+          0.177,
+          0.438,
+          0.565
+        ],
+        "behavior": "Subtle decorative frost/light only; fixed clothed sleeper image is artwork, not real agent occupancy."
+      },
+      {
+        "name": "upper lamp",
+        "normalizedRect": [
+          0.4,
+          0.158,
+          0.2,
+          0.012
+        ],
+        "behavior": "Never imply real vital signs or work state; integration owner chooses truthful mapping."
+      }
+    ],
+    "contact": [
+      396,
+      1875
+    ]
+  }
+}
