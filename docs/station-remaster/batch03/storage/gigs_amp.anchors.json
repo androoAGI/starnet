@@ -1,0 +1,336 @@
+{
+  "id": "gigs_amp",
+  "measurement": "Conservative manually inspected source regions, normalized to full source and cropped final; world conversion uses uniform bottom-centered fit. Owner must verify live.",
+  "sourceDimensions": {
+    "width": 1122,
+    "height": 1402
+  },
+  "crop": {
+    "left": 51,
+    "top": 98,
+    "width": 1017,
+    "height": 1192
+  },
+  "footprint": {
+    "w": 1,
+    "h": 1
+  },
+  "worldEnvelope": {
+    "x": -1,
+    "y": -7,
+    "width": 16,
+    "height": 20
+  },
+  "uniformScale": 0.015732546705998034,
+  "contact": {
+    "x": 7,
+    "y": 13
+  },
+  "supportedViews": {
+    "facings": [
+      {
+        "r": 0,
+        "front": "south",
+        "w": 1,
+        "h": 1,
+        "type": "authored-view"
+      }
+    ],
+    "canMirror": false,
+    "classicFacings": [
+      0
+    ]
+  },
+  "geometry": {
+    "blocks": true,
+    "flat": false,
+    "tableSurface": false,
+    "requiredMount": null,
+    "optionalSurfaceMount": true,
+    "surfaceRisePixels": 8
+  },
+  "leisureUse": null,
+  "originalAnimationTriggers": [
+    "Autonomous sprite clock animation is present in the sampled default state; cosmetic motion is not evidence of provider work, route decisions or external state."
+  ],
+  "integrationNote": "Meter needle is baked at rest; to animate mask/recompose meter. Optional surface mount rise8. Cosmetic clock only.",
+  "regions": {
+    "meter": {
+      "sourcePixels": [
+        [
+          803,
+          364
+        ],
+        [
+          889,
+          364
+        ],
+        [
+          889,
+          415
+        ],
+        [
+          803,
+          415
+        ]
+      ],
+      "exportPixels": [
+        [
+          752,
+          266
+        ],
+        [
+          838,
+          266
+        ],
+        [
+          838,
+          317
+        ],
+        [
+          752,
+          317
+        ]
+      ],
+      "worldPixels": [
+        [
+          10.830875,
+          -1.568338
+        ],
+        [
+          12.183874,
+          -1.568338
+        ],
+        [
+          12.183874,
+          -0.765978
+        ],
+        [
+          10.830875,
+          -0.765978
+        ]
+      ],
+      "sourceNormalized": [
+        [
+          0.715686,
+          0.259629
+        ],
+        [
+          0.792335,
+          0.259629
+        ],
+        [
+          0.792335,
+          0.296006
+        ],
+        [
+          0.715686,
+          0.296006
+        ]
+      ],
+      "exportNormalized": [
+        [
+          0.73943,
+          0.223154
+        ],
+        [
+          0.823992,
+          0.223154
+        ],
+        [
+          0.823992,
+          0.26594
+        ],
+        [
+          0.73943,
+          0.26594
+        ]
+      ]
+    },
+    "powerLens": {
+      "sourcePixels": [
+        [
+          942,
+          376
+        ],
+        [
+          967,
+          376
+        ],
+        [
+          967,
+          405
+        ],
+        [
+          942,
+          405
+        ]
+      ],
+      "exportPixels": [
+        [
+          891,
+          278
+        ],
+        [
+          916,
+          278
+        ],
+        [
+          916,
+          307
+        ],
+        [
+          891,
+          307
+        ]
+      ],
+      "worldPixels": [
+        [
+          13.017699,
+          -1.379548
+        ],
+        [
+          13.411013,
+          -1.379548
+        ],
+        [
+          13.411013,
+          -0.923304
+        ],
+        [
+          13.017699,
+          -0.923304
+        ]
+      ],
+      "sourceNormalized": [
+        [
+          0.839572,
+          0.268188
+        ],
+        [
+          0.861854,
+          0.268188
+        ],
+        [
+          0.861854,
+          0.288873
+        ],
+        [
+          0.839572,
+          0.288873
+        ]
+      ],
+      "exportNormalized": [
+        [
+          0.876106,
+          0.233221
+        ],
+        [
+          0.900688,
+          0.233221
+        ],
+        [
+          0.900688,
+          0.25755
+        ],
+        [
+          0.876106,
+          0.25755
+        ]
+      ]
+    },
+    "speakerCloth": {
+      "sourcePixels": [
+        [
+          145,
+          502
+        ],
+        [
+          968,
+          502
+        ],
+        [
+          968,
+          1138
+        ],
+        [
+          145,
+          1138
+        ]
+      ],
+      "exportPixels": [
+        [
+          94,
+          404
+        ],
+        [
+          917,
+          404
+        ],
+        [
+          917,
+          1040
+        ],
+        [
+          94,
+          1040
+        ]
+      ],
+      "worldPixels": [
+        [
+          0.478859,
+          0.602753
+        ],
+        [
+          13.426745,
+          0.602753
+        ],
+        [
+          13.426745,
+          10.608653
+        ],
+        [
+          0.478859,
+          10.608653
+        ]
+      ],
+      "sourceNormalized": [
+        [
+          0.129234,
+          0.35806
+        ],
+        [
+          0.862745,
+          0.35806
+        ],
+        [
+          0.862745,
+          0.811698
+        ],
+        [
+          0.129234,
+          0.811698
+        ]
+      ],
+      "exportNormalized": [
+        [
+          0.092429,
+          0.338926
+        ],
+        [
+          0.901672,
+          0.338926
+        ],
+        [
+          0.901672,
+          0.872483
+        ],
+        [
+          0.092429,
+          0.872483
+        ]
+      ]
+    }
+  },
+  "liveIntegrated": false
+}

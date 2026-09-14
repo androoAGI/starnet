@@ -1,0 +1,434 @@
+{
+  "id": "jukebox",
+  "measurement": "Conservative manually inspected source regions, normalized to full source and cropped final; world conversion uses uniform bottom-centered fit. Owner must verify live.",
+  "sourceDimensions": {
+    "width": 1024,
+    "height": 1536
+  },
+  "crop": {
+    "left": 121,
+    "top": 30,
+    "width": 783,
+    "height": 1395
+  },
+  "footprint": {
+    "w": 1,
+    "h": 2
+  },
+  "worldEnvelope": {
+    "x": -1,
+    "y": -3,
+    "width": 18,
+    "height": 27
+  },
+  "uniformScale": 0.01935483870967742,
+  "contact": {
+    "x": 8,
+    "y": 24
+  },
+  "supportedViews": {
+    "facings": [
+      {
+        "r": 0,
+        "front": "south",
+        "w": 1,
+        "h": 2,
+        "type": "authored-view"
+      }
+    ],
+    "canMirror": true,
+    "classicFacings": [
+      0
+    ]
+  },
+  "geometry": {
+    "blocks": true,
+    "flat": false,
+    "tableSurface": false,
+    "requiredMount": null,
+    "optionalSurfaceMount": false,
+    "surfaceRisePixels": 8
+  },
+  "leisureUse": {
+    "kind": "juke",
+    "sit": false,
+    "approach": "south"
+  },
+  "originalAnimationTriggers": [
+    "/api/spotify/status connected:true powers lamps, disc and bubble chase; disconnected is dark. This is actual Spotify capability despite its cosmetic catalog tier.",
+    "Real spotify_* tool completion chooses the granting prop instance and overlays a 900 ms success accent or red failure surge.",
+    "Actual leisure usingProp / watchProp can set work on this prop; body approach and use animation follow leisureUse. In the baseline draw work expression this leisure trigger directly checks the hero, not a separate crew leisure flag."
+  ],
+  "integrationNote": "Remain unpowered until actual /api/spotify/status connected:true. Only real spotify_* completion supplies 900ms success/failure cue. Record is parked; spin needs extracted disc or reauthored runtime overlay. Tubes are unlit amber material.",
+  "regions": {
+    "record": {
+      "sourcePixels": [
+        [
+          349,
+          271
+        ],
+        [
+          676,
+          271
+        ],
+        [
+          676,
+          584
+        ],
+        [
+          349,
+          584
+        ]
+      ],
+      "exportPixels": [
+        [
+          228,
+          241
+        ],
+        [
+          555,
+          241
+        ],
+        [
+          555,
+          554
+        ],
+        [
+          228,
+          554
+        ]
+      ],
+      "worldPixels": [
+        [
+          4.835484,
+          1.664516
+        ],
+        [
+          11.164516,
+          1.664516
+        ],
+        [
+          11.164516,
+          7.722581
+        ],
+        [
+          4.835484,
+          7.722581
+        ]
+      ],
+      "sourceNormalized": [
+        [
+          0.34082,
+          0.176432
+        ],
+        [
+          0.660156,
+          0.176432
+        ],
+        [
+          0.660156,
+          0.380208
+        ],
+        [
+          0.34082,
+          0.380208
+        ]
+      ],
+      "exportNormalized": [
+        [
+          0.291188,
+          0.17276
+        ],
+        [
+          0.708812,
+          0.17276
+        ],
+        [
+          0.708812,
+          0.397133
+        ],
+        [
+          0.291188,
+          0.397133
+        ]
+      ]
+    },
+    "status": {
+      "sourcePixels": [
+        [
+          417,
+          656
+        ],
+        [
+          607,
+          656
+        ],
+        [
+          607,
+          698
+        ],
+        [
+          417,
+          698
+        ]
+      ],
+      "exportPixels": [
+        [
+          296,
+          626
+        ],
+        [
+          486,
+          626
+        ],
+        [
+          486,
+          668
+        ],
+        [
+          296,
+          668
+        ]
+      ],
+      "worldPixels": [
+        [
+          6.151613,
+          9.116129
+        ],
+        [
+          9.829032,
+          9.116129
+        ],
+        [
+          9.829032,
+          9.929032
+        ],
+        [
+          6.151613,
+          9.929032
+        ]
+      ],
+      "sourceNormalized": [
+        [
+          0.407227,
+          0.427083
+        ],
+        [
+          0.592773,
+          0.427083
+        ],
+        [
+          0.592773,
+          0.454427
+        ],
+        [
+          0.407227,
+          0.454427
+        ]
+      ],
+      "exportNormalized": [
+        [
+          0.378033,
+          0.448746
+        ],
+        [
+          0.62069,
+          0.448746
+        ],
+        [
+          0.62069,
+          0.478853
+        ],
+        [
+          0.378033,
+          0.478853
+        ]
+      ]
+    },
+    "westLightTube": {
+      "sourcePixels": [
+        [
+          174,
+          424
+        ],
+        [
+          215,
+          424
+        ],
+        [
+          215,
+          621
+        ],
+        [
+          174,
+          621
+        ]
+      ],
+      "exportPixels": [
+        [
+          53,
+          394
+        ],
+        [
+          94,
+          394
+        ],
+        [
+          94,
+          591
+        ],
+        [
+          53,
+          591
+        ]
+      ],
+      "worldPixels": [
+        [
+          1.448387,
+          4.625806
+        ],
+        [
+          2.241935,
+          4.625806
+        ],
+        [
+          2.241935,
+          8.43871
+        ],
+        [
+          1.448387,
+          8.43871
+        ]
+      ],
+      "sourceNormalized": [
+        [
+          0.169922,
+          0.276042
+        ],
+        [
+          0.209961,
+          0.276042
+        ],
+        [
+          0.209961,
+          0.404297
+        ],
+        [
+          0.169922,
+          0.404297
+        ]
+      ],
+      "exportNormalized": [
+        [
+          0.067688,
+          0.282437
+        ],
+        [
+          0.120051,
+          0.282437
+        ],
+        [
+          0.120051,
+          0.423656
+        ],
+        [
+          0.067688,
+          0.423656
+        ]
+      ]
+    },
+    "eastLightTube": {
+      "sourcePixels": [
+        [
+          803,
+          424
+        ],
+        [
+          847,
+          424
+        ],
+        [
+          847,
+          621
+        ],
+        [
+          803,
+          621
+        ]
+      ],
+      "exportPixels": [
+        [
+          682,
+          394
+        ],
+        [
+          726,
+          394
+        ],
+        [
+          726,
+          591
+        ],
+        [
+          682,
+          591
+        ]
+      ],
+      "worldPixels": [
+        [
+          13.622581,
+          4.625806
+        ],
+        [
+          14.474194,
+          4.625806
+        ],
+        [
+          14.474194,
+          8.43871
+        ],
+        [
+          13.622581,
+          8.43871
+        ]
+      ],
+      "sourceNormalized": [
+        [
+          0.78418,
+          0.276042
+        ],
+        [
+          0.827148,
+          0.276042
+        ],
+        [
+          0.827148,
+          0.404297
+        ],
+        [
+          0.78418,
+          0.404297
+        ]
+      ],
+      "exportNormalized": [
+        [
+          0.871009,
+          0.282437
+        ],
+        [
+          0.927203,
+          0.282437
+        ],
+        [
+          0.927203,
+          0.423656
+        ],
+        [
+          0.871009,
+          0.423656
+        ]
+      ]
+    }
+  },
+  "liveIntegrated": false
+}

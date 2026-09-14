@@ -1,0 +1,336 @@
+{
+  "id": "deskterminal",
+  "measurement": "Conservative manually inspected source regions, normalized to full source and cropped final; world conversion uses uniform bottom-centered fit. Owner must verify live.",
+  "sourceDimensions": {
+    "width": 1254,
+    "height": 1254
+  },
+  "crop": {
+    "left": 62,
+    "top": 98,
+    "width": 1131,
+    "height": 1059
+  },
+  "footprint": {
+    "w": 1,
+    "h": 1
+  },
+  "worldEnvelope": {
+    "x": 0,
+    "y": 0,
+    "width": 12,
+    "height": 12
+  },
+  "uniformScale": 0.010610079575596816,
+  "contact": {
+    "x": 6,
+    "y": 12
+  },
+  "supportedViews": {
+    "facings": [
+      {
+        "r": 0,
+        "front": "south",
+        "w": 1,
+        "h": 1,
+        "type": "authored-view"
+      }
+    ],
+    "canMirror": true,
+    "classicFacings": [
+      0
+    ]
+  },
+  "geometry": {
+    "blocks": false,
+    "flat": false,
+    "tableSurface": false,
+    "requiredMount": null,
+    "optionalSurfaceMount": true,
+    "surfaceRisePixels": 8
+  },
+  "leisureUse": null,
+  "originalAnimationTriggers": [
+    "Autonomous sprite clock animation is present in the sampled default state; cosmetic motion is not evidence of provider work, route decisions or external state."
+  ],
+  "integrationNote": "Blank screen for cosmetic cursor/content, no invented harness status. Optional table lift8.",
+  "regions": {
+    "screen": {
+      "sourcePixels": [
+        [
+          369,
+          371
+        ],
+        [
+          807,
+          371
+        ],
+        [
+          807,
+          670
+        ],
+        [
+          369,
+          670
+        ]
+      ],
+      "exportPixels": [
+        [
+          307,
+          273
+        ],
+        [
+          745,
+          273
+        ],
+        [
+          745,
+          572
+        ],
+        [
+          307,
+          572
+        ]
+      ],
+      "worldPixels": [
+        [
+          3.257294,
+          3.660477
+        ],
+        [
+          7.904509,
+          3.660477
+        ],
+        [
+          7.904509,
+          6.832891
+        ],
+        [
+          3.257294,
+          6.832891
+        ]
+      ],
+      "sourceNormalized": [
+        [
+          0.294258,
+          0.295853
+        ],
+        [
+          0.643541,
+          0.295853
+        ],
+        [
+          0.643541,
+          0.53429
+        ],
+        [
+          0.294258,
+          0.53429
+        ]
+      ],
+      "exportNormalized": [
+        [
+          0.271441,
+          0.25779
+        ],
+        [
+          0.658709,
+          0.25779
+        ],
+        [
+          0.658709,
+          0.540132
+        ],
+        [
+          0.271441,
+          0.540132
+        ]
+      ]
+    },
+    "keyboard": {
+      "sourcePixels": [
+        [
+          227,
+          815
+        ],
+        [
+          851,
+          815
+        ],
+        [
+          851,
+          990
+        ],
+        [
+          227,
+          990
+        ]
+      ],
+      "exportPixels": [
+        [
+          165,
+          717
+        ],
+        [
+          789,
+          717
+        ],
+        [
+          789,
+          892
+        ],
+        [
+          165,
+          892
+        ]
+      ],
+      "worldPixels": [
+        [
+          1.750663,
+          8.371353
+        ],
+        [
+          8.371353,
+          8.371353
+        ],
+        [
+          8.371353,
+          10.228117
+        ],
+        [
+          1.750663,
+          10.228117
+        ]
+      ],
+      "sourceNormalized": [
+        [
+          0.181021,
+          0.64992
+        ],
+        [
+          0.678628,
+          0.64992
+        ],
+        [
+          0.678628,
+          0.789474
+        ],
+        [
+          0.181021,
+          0.789474
+        ]
+      ],
+      "exportNormalized": [
+        [
+          0.145889,
+          0.677054
+        ],
+        [
+          0.697613,
+          0.677054
+        ],
+        [
+          0.697613,
+          0.842304
+        ],
+        [
+          0.145889,
+          0.842304
+        ]
+      ]
+    },
+    "indicator": {
+      "sourcePixels": [
+        [
+          936,
+          428
+        ],
+        [
+          963,
+          428
+        ],
+        [
+          963,
+          444
+        ],
+        [
+          936,
+          444
+        ]
+      ],
+      "exportPixels": [
+        [
+          874,
+          330
+        ],
+        [
+          901,
+          330
+        ],
+        [
+          901,
+          346
+        ],
+        [
+          874,
+          346
+        ]
+      ],
+      "worldPixels": [
+        [
+          9.27321,
+          4.265252
+        ],
+        [
+          9.559682,
+          4.265252
+        ],
+        [
+          9.559682,
+          4.435013
+        ],
+        [
+          9.27321,
+          4.435013
+        ]
+      ],
+      "sourceNormalized": [
+        [
+          0.746411,
+          0.341308
+        ],
+        [
+          0.767943,
+          0.341308
+        ],
+        [
+          0.767943,
+          0.354067
+        ],
+        [
+          0.746411,
+          0.354067
+        ]
+      ],
+      "exportNormalized": [
+        [
+          0.772767,
+          0.311615
+        ],
+        [
+          0.79664,
+          0.311615
+        ],
+        [
+          0.79664,
+          0.326723
+        ],
+        [
+          0.772767,
+          0.326723
+        ]
+      ]
+    }
+  },
+  "liveIntegrated": false
+}
