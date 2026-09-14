@@ -1,0 +1,60 @@
+{
+  "sourceAnimation": {
+    "idleFrameVariants": 2,
+    "workFrameVariants": 2,
+    "respondsToWorkFlag": true,
+    "opaqueBoundsRelativeToFootprint": {
+      "x": -1,
+      "y": -12,
+      "w": 50,
+      "h": 24,
+      "alphaThreshold": 160
+    }
+  },
+  "bounds": {
+    "y": -12,
+    "width": 50,
+    "height": 24,
+    "x": -1
+  },
+  "id": "bar",
+  "geometry": {
+    "blocks": true,
+    "flat": false,
+    "tableSurface": false,
+    "requiredMount": null,
+    "optionalSurfaceMount": false,
+    "surfaceRisePixels": 8
+  },
+  "floorContact": {
+    "x": 24,
+    "y": 12
+  },
+  "backgroundThreshold": 235,
+  "tilePixels": 12,
+  "status": "art-draft-integration-pending",
+  "view": "s",
+  "footprint": {
+    "w": 4,
+    "h": 1
+  },
+  "anchorContract": "PropAnchor derives reachable edge approach; useApproach rotates relative preference with r. Preserve standing leisure action unless special planner supplies a real body anchor.",
+  "holeSeeds": [],
+  "sourceWidth": 1809,
+  "sourceHeight": 869,
+  "sourceSha256": "b5552bb2c9ca2e4575cfacb6ad24423e8b5850cf31e9e5d7d4f68c91dd2b376c",
+  "output": "frontend/assets/industrial/batch02/crew/bar.png",
+  "crop": {
+    "left": 80,
+    "top": 136,
+    "width": 1649,
+    "height": 557
+  },
+  "transparentPixels": 136257,
+  "opaquePixels": 782236,
+  "partialPixels": 0,
+  "backgroundPixelsRemoved": 789785,
+  "subjectRgbChanges": 0,
+  "outputSha256": "a1716318fa99da6becba36710a06429c5ad4ce1e98caa20ff30b73d1d8923c86",
+  "liveIntegrated": false
+}

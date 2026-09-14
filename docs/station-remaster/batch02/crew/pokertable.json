@@ -1,0 +1,43 @@
+{
+  "sourceAnimation": {
+    "idleFrameVariants": 1,
+    "workFrameVariants": 1,
+    "respondsToWorkFlag": false,
+    "opaqueBoundsRelativeToFootprint": {
+      "x": -1,
+      "y": -5,
+      "w": 50,
+      "h": 29,
+      "alphaThreshold": 160
+    }
+  },
+  "bounds": {
+    "y": -5,
+    "width": 50,
+    "height": 29,
+    "x": -1
+  },
+  "id": "pokertable",
+  "geometry": {
+    "blocks": true,
+    "flat": false,
+    "tableSurface": false,
+    "requiredMount": null,
+    "optionalSurfaceMount": false,
+    "surfaceRisePixels": 8
+  },
+  "floorContact": {
+    "x": 24,
+    "y": 24
+  },
+  "backgroundThreshold": 235,
+  "tilePixels": 12,
+  "status": "art-draft-integration-pending",
+  "view": "s",
+  "footprint": {
+    "w": 4,
+    "h": 2
+  },
+  "anchorContract": "PropAnchor derives reachable edge approach; useApproach rotates relative preference with r. Preserve standing leisure action unless special planner supplies a real body anchor.",
+  "holeSeeds": []
+}
