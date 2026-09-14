@@ -85,6 +85,90 @@
       "opaquePixels": 408,
       "partialPixels": 914137,
       "subjectRgbChanges": 0
+    },
+    {
+      "id": "missionboard",
+      "source": "docs/station-remaster/batch02/coordinator/missionboard-source.png",
+      "seeds": [],
+      "output": "frontend/assets/industrial/batch02/coordinator/missionboard.png",
+      "sourceWidth": 1546,
+      "sourceHeight": 1017,
+      "crop": {
+        "left": 36,
+        "top": 59,
+        "width": 1474,
+        "height": 894
+      },
+      "sourceSha256": "8fb889cee2debbd3164dc6ef7ab0e8622e157a815e11cfcca8eb8dcb1520760b",
+      "outputSha256": "d5729b2e0a9279fe6234fed7b6ccef61dfbed101c855d8e98ace9a2e98487420",
+      "channels": 4,
+      "transparentPixels": 391416,
+      "opaquePixels": 926340,
+      "partialPixels": 0,
+      "subjectRgbChanges": 0
+    },
+    {
+      "id": "trophycase",
+      "source": "docs/station-remaster/batch02/coordinator/trophycase-source.png",
+      "seeds": [],
+      "output": "frontend/assets/industrial/batch02/coordinator/trophycase.png",
+      "sourceWidth": 1168,
+      "sourceHeight": 1347,
+      "crop": {
+        "left": 60,
+        "top": 42,
+        "width": 1047,
+        "height": 1244
+      },
+      "sourceSha256": "5eaff00bfb84f6672fc7946c5128e25a1556cfaf3bac3f9b1ac16aa500892b5e",
+      "outputSha256": "d5cc4ab82030ca37684b62f68da8b1178984f52c99e38f9671fa7cc0144f1de6",
+      "channels": 4,
+      "transparentPixels": 125603,
+      "opaquePixels": 1176865,
+      "partialPixels": 0,
+      "subjectRgbChanges": 0
+    },
+    {
+      "id": "arc_microfiche",
+      "source": "docs/station-remaster/batch02/coordinator/arc_microfiche-source.png",
+      "seeds": [],
+      "output": "frontend/assets/industrial/batch02/coordinator/arc_microfiche.png",
+      "sourceWidth": 1402,
+      "sourceHeight": 1122,
+      "crop": {
+        "left": 43,
+        "top": 20,
+        "width": 1315,
+        "height": 1064
+      },
+      "sourceSha256": "251e9beadde127482c342c01cf109aa50bf5bb53aa6e780d1e33fbcac97c6c2e",
+      "outputSha256": "6c5b637f2912beea906cfdcedc6fea77f87131dc24ed34d301e5a04dd9c83886",
+      "channels": 4,
+      "transparentPixels": 170855,
+      "opaquePixels": 1228305,
+      "partialPixels": 0,
+      "subjectRgbChanges": 0
+    },
+    {
+      "id": "comms_inbox",
+      "source": "docs/station-remaster/batch02/coordinator/comms_inbox-source.png",
+      "seeds": [],
+      "output": "frontend/assets/industrial/batch02/coordinator/comms_inbox.png",
+      "sourceWidth": 1536,
+      "sourceHeight": 1024,
+      "crop": {
+        "left": 78,
+        "top": 52,
+        "width": 1381,
+        "height": 919
+      },
+      "sourceSha256": "f5de774f970cdffa0db821be2be2ced6e978dfc37e82e9817b3b27b11fcf6475",
+      "outputSha256": "fc00a1aa901268329b66903334c0e644da1d6c5845b9d3cd5e05091a18856405",
+      "channels": 4,
+      "transparentPixels": 121242,
+      "opaquePixels": 1147897,
+      "partialPixels": 0,
+      "subjectRgbChanges": 0
     }
   ]
 }
