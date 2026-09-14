@@ -1,0 +1,11 @@
+{
+  "id": "bookshelf",
+  "tool": "built-in image_gen",
+  "prompt": "Use case: style-transfer. RESTYLE image 1 (wooden bookshelf) as a crafted 2D HAND-PAINTED STRATEGY-GAME SPRITE in the actual illustrated rendering language of image 2 (StarNet workstation). Image 1 establishes only object identity, exact silhouette, two shelf layout, book groupings and fixed overhead-oblique south camera; image 2 is rendering-style authority ONLY, not metal-material authority. Preserve warm wood furniture and cloth/paper books. Keep the same complete wide squat bookshelf form, broad top, horizontal front edges, two wooden feet and wood-backed shelf recesses. New rendering: crisp angular planes, controlled dark edge separations, 3–5 BROAD PAINTED TONES per material, restrained deliberate edge highlights, mature detailed illustrated sci-fi game-art craft. Wood reads through warm muted ochre/chestnut painted colors and ONLY A FEW BROAD STYLIZED GRAIN STROKES. Cloth-bound books are simplified indigo, burgundy, olive and ochre geometric spines with cream paper blocks and sparse painted linework. Completely remove realistic knots, fine wood grain, fibers, pores, micro-scratches, photographic surface detail, glossy PBR material gradients and studio-product shading. Give each shape broad painterly value planes with clean readable edges; no photorealistic surface texture. This must feel like illustrated in-game environment art, not a photograph. Do not become a flat icon or cartoony toy, keep structural depth and visual weight. Keep original image framing, complete silhouette, south elevation and overhead top visibility. Physical envelope: 2x1 tiles, painted silhouette fitted uniformly in 26x22 world pixels; no nonuniform stretch. Plain perfectly flat saturated magenta #ff00ff background, no magenta object marks, no cast shadow, no floor, no added props, no lettering or watermark.",
+  "references": [
+    "C:/Users/andro/gen-trees/prop-storage-0914/docs/station-remaster/batch02/storage/sources/bookshelf.png",
+    "C:/Users/andro/gen-trees/industrial-textures-0912/frontend/assets/industrial/workstation.png"
+  ],
+  "originalPath": "C:\\Users\\andro\\.codex\\generated_images\\01a09e47-65ec-7a71-b4a1-4847c19fc477\\exec-4eea5b15-2290-44dc-a751-268c65e964c3.png",
+  "status": "Single calibration sample, not approved or live integrated"
+}

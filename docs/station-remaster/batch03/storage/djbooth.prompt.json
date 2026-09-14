@@ -1,0 +1,11 @@
+{
+  "id": "djbooth",
+  "prompt": "Generate ONE entirely new complete standalone StarNet prop sprite, no atlas. References: first workstation for fixed high overhead oblique SOUTH camera and mature illustrated game-art construction; second wooden bookshelf is primary PAINTED style anchor. Horizontal front edges, never isometric diamonds, no rotated bitmap. Full silhouette and feet framed with margin. Crafted 2D hand-painted strategy-game rendering, crisp angular planes, controlled dark edge separations, 3–5 broad painted tones per material, few deliberate highlights, selective purposeful detail. No photographic surface grain, fibers, scratches, PBR studio gloss, noise or excessive bolts. Mature detailed station art, not flat icon or cartoony toy. Material variety appropriate to purpose, don't copy workstation metal onto everything. Flat uniform pure magenta #ff00ff background, including all empty silhouette gaps; NO magenta materials on object. No floor, cast shadow, halo, text, watermark, humans, adjacent props. All lights unlit colored lenses unless requested decorative playfield. A broad low DJ mixing booth, silhouette aspect 50:29, 4x2 tile footprint. Chestnut wood side cheeks, dark teal enamel frame, sloped graphite control tabletop. Two large empty circular graphite turntable platters on left/right with simple static spindle centers, compact centered mixer of broad ivory faders, orderly muted orange/teal knobs. Dark blank narrow readouts. Front has charcoal cloth panels and sculpted low feet. Preserve visible usable decks for runtime spin cues; no spinning streaks, no fake status.",
+  "referencedImagePaths": [
+    "C:/Users/andro/gen-trees/industrial-textures-0912/frontend/assets/industrial/workstation.png",
+    "C:/Users/andro/gen-trees/prop-storage-0914/docs/station-remaster/batch03/storage/sources/bookshelf.png"
+  ],
+  "generatedSource": "C:\\Users\\andro\\.codex\\generated_images\\01a09e47-65ec-7a71-b4a1-4847c19fc477\\exec-823c5240-0741-4284-b805-94be484fd9b5.png",
+  "tool": "image_gen",
+  "styleAcceptance": "working calibration, not user acceptance"
+}

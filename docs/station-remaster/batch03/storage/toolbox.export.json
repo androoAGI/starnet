@@ -1,0 +1,49 @@
+{
+  "id": "toolbox",
+  "status": "exported-awaiting-owner-live-review",
+  "source": "sources/toolbox.png",
+  "sourceSha256": "82fd8572cc178c97f3fb5b51ccb0b62c53857d5af87b38ab1747e77154921105",
+  "sourceWidth": 1374,
+  "sourceHeight": 1145,
+  "image": "toolbox.png",
+  "sourceOutputWidth": 1255,
+  "sourceOutputHeight": 695,
+  "crop": {
+    "left": 59,
+    "top": 202,
+    "width": 1255,
+    "height": 695
+  },
+  "channels": 4,
+  "transparentPixels": 66453,
+  "opaquePixels": 805772,
+  "partialPixels": 0,
+  "backgroundPixelsRemoved": 767458,
+  "subjectRgbChanges": 0,
+  "outputSha256": "d1453a168ee3851d20805909047ef6745952f927479a538a0452bbe9f2f258cf",
+  "holeSeeds": [],
+  "maskMethod": "Connected saturated-magenta flood fill, including key-only enclosed components. Alpha-only edits; uniform crop; no RGB recolor.",
+  "view": "s",
+  "footprint": {
+    "w": 1,
+    "h": 1
+  },
+  "bounds": {
+    "x": 0,
+    "y": 1,
+    "width": 12,
+    "height": 10
+  },
+  "tilePixels": 12,
+  "contact": {
+    "x": 6,
+    "y": 11
+  },
+  "anchorContract": "Can sit on bare deck or valid table; table mount lifts contact origin exactly 8 world pixels.",
+  "originalLight": null,
+  "originalAnimationTriggers": [
+    "No direct event-driven or sampled default sprite animation. Preserve static art; no invented status or progress."
+  ],
+  "artMode": "static complete art; existing state/lighting integration remains owner decision",
+  "liveIntegrated": false
+}

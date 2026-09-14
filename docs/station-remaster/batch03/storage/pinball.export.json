@@ -1,0 +1,60 @@
+{
+  "id": "pinball",
+  "status": "exported-awaiting-owner-live-review",
+  "source": "sources/pinball.png",
+  "sourceSha256": "0697b8e24b8514edad24f767686a643dd866b166dbbb410bc4a30094e2630938",
+  "sourceWidth": 965,
+  "sourceHeight": 1629,
+  "image": "pinball.png",
+  "sourceOutputWidth": 737,
+  "sourceOutputHeight": 1566,
+  "crop": {
+    "left": 114,
+    "top": 23,
+    "width": 737,
+    "height": 1566
+  },
+  "channels": 4,
+  "transparentPixels": 357124,
+  "opaquePixels": 797018,
+  "partialPixels": 0,
+  "backgroundPixelsRemoved": 774967,
+  "subjectRgbChanges": 0,
+  "outputSha256": "b750070e381da650c06af1539d5fea23b12b555cf8fcca41c9f07ead25d0928c",
+  "holeSeeds": [],
+  "maskMethod": "Connected saturated-magenta flood fill, including key-only enclosed components. Alpha-only edits; uniform crop; no RGB recolor.",
+  "view": "s",
+  "footprint": {
+    "w": 1,
+    "h": 2
+  },
+  "bounds": {
+    "x": -1,
+    "y": -3,
+    "width": 16,
+    "height": 27
+  },
+  "tilePixels": 12,
+  "contact": {
+    "x": 7,
+    "y": 24
+  },
+  "anchorContract": "PropAnchor derives reachable edge approach; useApproach rotates relative preference with r. Preserve standing leisure action unless special planner supplies a real body anchor.",
+  "originalLight": {
+    "c": [
+      255,
+      190,
+      90
+    ],
+    "r": 20,
+    "a": 0.12,
+    "m": "screen",
+    "y": 0.4
+  },
+  "originalAnimationTriggers": [
+    "Actual leisure usingProp / watchProp can set work on this prop; body approach and use animation follow leisureUse. In the baseline draw work expression this leisure trigger directly checks the hero, not a separate crew leisure flag.",
+    "Autonomous sprite clock animation is present in the sampled default state; cosmetic motion is not evidence of provider work, route decisions or external state."
+  ],
+  "artMode": "static complete art; existing state/lighting integration remains owner decision",
+  "liveIntegrated": false
+}

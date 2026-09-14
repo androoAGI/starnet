@@ -1,0 +1,49 @@
+{
+  "id": "bookstack",
+  "status": "exported-awaiting-owner-live-review",
+  "source": "sources/bookstack.png",
+  "sourceSha256": "dd4db471d316dbef360f89b0424b43ef39bc7addc71252949cdb14d5d69279b2",
+  "sourceWidth": 1374,
+  "sourceHeight": 1145,
+  "image": "bookstack.png",
+  "sourceOutputWidth": 1161,
+  "sourceOutputHeight": 925,
+  "crop": {
+    "left": 108,
+    "top": 108,
+    "width": 1161,
+    "height": 925
+  },
+  "channels": 4,
+  "transparentPixels": 106115,
+  "opaquePixels": 967810,
+  "partialPixels": 0,
+  "backgroundPixelsRemoved": 605420,
+  "subjectRgbChanges": 0,
+  "outputSha256": "af4c8c939e4fb454d2046573f12b37f257848a940968b12bbae8a197895c07fb",
+  "holeSeeds": [],
+  "maskMethod": "Connected saturated-magenta flood fill, including key-only enclosed components. Alpha-only edits; uniform crop; no RGB recolor.",
+  "view": "s",
+  "footprint": {
+    "w": 1,
+    "h": 1
+  },
+  "bounds": {
+    "x": 0,
+    "y": 0,
+    "width": 12,
+    "height": 10
+  },
+  "tilePixels": 12,
+  "contact": {
+    "x": 6,
+    "y": 10
+  },
+  "anchorContract": "Can sit on bare deck or valid table; table mount lifts contact origin exactly 8 world pixels.",
+  "originalLight": null,
+  "originalAnimationTriggers": [
+    "No direct event-driven or sampled default sprite animation. Preserve static art; no invented status or progress."
+  ],
+  "artMode": "static complete art; existing state/lighting integration remains owner decision",
+  "liveIntegrated": false
+}

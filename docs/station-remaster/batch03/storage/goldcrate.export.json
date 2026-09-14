@@ -1,0 +1,59 @@
+{
+  "id": "goldcrate",
+  "status": "exported-awaiting-owner-live-review",
+  "source": "sources/goldcrate.png",
+  "sourceSha256": "4f2f19483ec6beb987b8a1465873cc48ed416f475ca8634f6ac027f25e5f6a19",
+  "sourceWidth": 1366,
+  "sourceHeight": 1152,
+  "image": "goldcrate.png",
+  "sourceOutputWidth": 1280,
+  "sourceOutputHeight": 885,
+  "crop": {
+    "left": 43,
+    "top": 143,
+    "width": 1280,
+    "height": 885
+  },
+  "channels": 4,
+  "transparentPixels": 127270,
+  "opaquePixels": 1005530,
+  "partialPixels": 0,
+  "backgroundPixelsRemoved": 568102,
+  "subjectRgbChanges": 0,
+  "outputSha256": "bd090ba17450ae0df4c4f367b2e6ac6f16d5d9cbb5ed311956b5c04c562c8133",
+  "holeSeeds": [],
+  "maskMethod": "Connected saturated-magenta flood fill, including key-only enclosed components. Alpha-only edits; uniform crop; no RGB recolor.",
+  "view": "s",
+  "footprint": {
+    "w": 2,
+    "h": 1
+  },
+  "bounds": {
+    "x": -1,
+    "y": -10,
+    "width": 26,
+    "height": 22
+  },
+  "tilePixels": 12,
+  "contact": {
+    "x": 12,
+    "y": 12
+  },
+  "anchorContract": "No leisure seat anchor. Footprint is the placement/pathfinding rectangle; upright visual rise is independent of the reserved box.",
+  "originalLight": {
+    "c": [
+      255,
+      214,
+      120
+    ],
+    "r": 14,
+    "a": 0.06,
+    "m": "steady",
+    "y": 0.4
+  },
+  "originalAnimationTriggers": [
+    "No direct event-driven or sampled default sprite animation. Preserve static art; no invented status or progress."
+  ],
+  "artMode": "static complete art; existing state/lighting integration remains owner decision",
+  "liveIntegrated": false
+}

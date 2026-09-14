@@ -1,0 +1,49 @@
+{
+  "id": "guitar",
+  "status": "exported-awaiting-owner-live-review",
+  "source": "sources/guitar.png",
+  "sourceSha256": "612c331b69583df1357d07053cf9115847312475531d9f286cd55237c899574d",
+  "sourceWidth": 904,
+  "sourceHeight": 1740,
+  "image": "guitar.png",
+  "sourceOutputWidth": 588,
+  "sourceOutputHeight": 1624,
+  "crop": {
+    "left": 158,
+    "top": 33,
+    "width": 588,
+    "height": 1624
+  },
+  "channels": 4,
+  "transparentPixels": 486040,
+  "opaquePixels": 468872,
+  "partialPixels": 0,
+  "backgroundPixelsRemoved": 1104088,
+  "subjectRgbChanges": 0,
+  "outputSha256": "598bd161ee937061d300d6c21ca8fa6af12efde3e09a8e8d87d5369433f9a363",
+  "holeSeeds": [],
+  "maskMethod": "Connected saturated-magenta flood fill, including key-only enclosed components. Alpha-only edits; uniform crop; no RGB recolor.",
+  "view": "s",
+  "footprint": {
+    "w": 1,
+    "h": 1
+  },
+  "bounds": {
+    "x": -1,
+    "y": -15,
+    "width": 14,
+    "height": 27
+  },
+  "tilePixels": 12,
+  "contact": {
+    "x": 6,
+    "y": 12
+  },
+  "anchorContract": "No leisure seat anchor. Footprint is the placement/pathfinding rectangle; upright visual rise is independent of the reserved box.",
+  "originalLight": null,
+  "originalAnimationTriggers": [
+    "No direct event-driven or sampled default sprite animation. Preserve static art; no invented status or progress."
+  ],
+  "artMode": "static complete art; existing state/lighting integration remains owner decision",
+  "liveIntegrated": false
+}

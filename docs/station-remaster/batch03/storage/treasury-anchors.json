@@ -1,0 +1,4000 @@
+{
+  "version": 1,
+  "tilePixels": 12,
+  "regionsAreLiveVerified": false,
+  "normalizedDefinitions": {
+    "sourceNormalized": "x/fullSourceWidth,y/fullSourceHeight",
+    "exportNormalized": "x/croppedWidth,y/croppedHeight"
+  },
+  "records": [
+    {
+      "id": "safe",
+      "measurement": "Manually inspected conservative source-surface regions, mapped with uniform bottom-centered PropRemaster fit; not live verified.",
+      "sourceDimensions": {
+        "width": 940,
+        "height": 1672
+      },
+      "crop": {
+        "left": 110,
+        "top": 78,
+        "width": 720,
+        "height": 1505
+      },
+      "sourceSha256": "627cf2f7c29b9a930afc35cfa11233c956584dfc33fabf2e0d907d743bbfeba9",
+      "outputSha256": "ab45278b5d48d5b319a9d01d57456df0889d47b569ea6b403e9a1b80937cac70",
+      "footprint": {
+        "w": 1,
+        "h": 2
+      },
+      "worldEnvelope": {
+        "x": -1,
+        "y": -8,
+        "width": 18,
+        "height": 32
+      },
+      "tilePixels": 12,
+      "uniformScale": 0.0212624584717608,
+      "contact": {
+        "x": 8,
+        "y": 24
+      },
+      "supportedViews": {
+        "facings": [
+          {
+            "r": 0,
+            "front": "south",
+            "w": 1,
+            "h": 2,
+            "type": "authored-view"
+          }
+        ],
+        "canMirror": false,
+        "classicFacings": [
+          0
+        ]
+      },
+      "geometry": {
+        "blocks": true,
+        "flat": false,
+        "tableSurface": false,
+        "requiredMount": null,
+        "optionalSurfaceMount": false,
+        "surfaceRisePixels": 8
+      },
+      "originalAnimationTriggers": [
+        "Real fs.* tool completion chooses the granting prop instance and overlays a 900 ms success accent or red failure surge.",
+        "Autonomous sprite clock animation is present in the sampled default state; cosmetic motion is not evidence of provider work, route decisions or external state."
+      ],
+      "integrationNote": "Real fs.* completion chooses granting prop and drives 900ms success/failure. Blank status; no fake glow. Dial parked, movement requires component mask/recomposition. Footprint remains1x2.",
+      "regions": {
+        "status": {
+          "sourcePixels": [
+            [
+              375,
+              315
+            ],
+            [
+              563,
+              315
+            ],
+            [
+              563,
+              353
+            ],
+            [
+              375,
+              353
+            ]
+          ],
+          "sourceNormalized": [
+            [
+              0.398936,
+              0.188397
+            ],
+            [
+              0.598936,
+              0.188397
+            ],
+            [
+              0.598936,
+              0.211124
+            ],
+            [
+              0.398936,
+              0.211124
+            ]
+          ],
+          "exportPixels": [
+            [
+              265,
+              237
+            ],
+            [
+              453,
+              237
+            ],
+            [
+              453,
+              275
+            ],
+            [
+              265,
+              275
+            ]
+          ],
+          "exportNormalized": [
+            [
+              0.368056,
+              0.157475
+            ],
+            [
+              0.629167,
+              0.157475
+            ],
+            [
+              0.629167,
+              0.182724
+            ],
+            [
+              0.368056,
+              0.182724
+            ]
+          ],
+          "worldPixels": [
+            [
+              5.980066,
+              -2.960797
+            ],
+            [
+              9.977409,
+              -2.960797
+            ],
+            [
+              9.977409,
+              -2.152824
+            ],
+            [
+              5.980066,
+              -2.152824
+            ]
+          ]
+        },
+        "dial": {
+          "sourcePixels": [
+            [
+              367,
+              772
+            ],
+            [
+              571,
+              772
+            ],
+            [
+              571,
+              978
+            ],
+            [
+              367,
+              978
+            ]
+          ],
+          "sourceNormalized": [
+            [
+              0.390426,
+              0.461722
+            ],
+            [
+              0.607447,
+              0.461722
+            ],
+            [
+              0.607447,
+              0.584928
+            ],
+            [
+              0.390426,
+              0.584928
+            ]
+          ],
+          "exportPixels": [
+            [
+              257,
+              694
+            ],
+            [
+              461,
+              694
+            ],
+            [
+              461,
+              900
+            ],
+            [
+              257,
+              900
+            ]
+          ],
+          "exportNormalized": [
+            [
+              0.356944,
+              0.46113
+            ],
+            [
+              0.640278,
+              0.46113
+            ],
+            [
+              0.640278,
+              0.598007
+            ],
+            [
+              0.356944,
+              0.598007
+            ]
+          ],
+          "worldPixels": [
+            [
+              5.809967,
+              6.756146
+            ],
+            [
+              10.147508,
+              6.756146
+            ],
+            [
+              10.147508,
+              11.136213
+            ],
+            [
+              5.809967,
+              11.136213
+            ]
+          ]
+        },
+        "indicator": {
+          "sourcePixels": [
+            [
+              454,
+              1129
+            ],
+            [
+              485,
+              1129
+            ],
+            [
+              485,
+              1152
+            ],
+            [
+              454,
+              1152
+            ]
+          ],
+          "sourceNormalized": [
+            [
+              0.482979,
+              0.675239
+            ],
+            [
+              0.515957,
+              0.675239
+            ],
+            [
+              0.515957,
+              0.688995
+            ],
+            [
+              0.482979,
+              0.688995
+            ]
+          ],
+          "exportPixels": [
+            [
+              344,
+              1051
+            ],
+            [
+              375,
+              1051
+            ],
+            [
+              375,
+              1074
+            ],
+            [
+              344,
+              1074
+            ]
+          ],
+          "exportNormalized": [
+            [
+              0.477778,
+              0.698339
+            ],
+            [
+              0.520833,
+              0.698339
+            ],
+            [
+              0.520833,
+              0.713621
+            ],
+            [
+              0.477778,
+              0.713621
+            ]
+          ],
+          "worldPixels": [
+            [
+              7.659801,
+              14.346844
+            ],
+            [
+              8.318937,
+              14.346844
+            ],
+            [
+              8.318937,
+              14.83588
+            ],
+            [
+              7.659801,
+              14.83588
+            ]
+          ]
+        }
+      },
+      "liveIntegrated": false
+    },
+    {
+      "id": "vault",
+      "measurement": "Manually inspected conservative source-surface regions, mapped with uniform bottom-centered PropRemaster fit; not live verified.",
+      "sourceDimensions": {
+        "width": 1544,
+        "height": 1019
+      },
+      "crop": {
+        "left": 48,
+        "top": 62,
+        "width": 1448,
+        "height": 895
+      },
+      "sourceSha256": "948d6375303267a64eec5d6716c4930e14295f922706e24a28896b803daff18a",
+      "outputSha256": "194d4832bf3d517cd2017edf3d272c27ebacf0941bcce467f39bd919400fa4e6",
+      "footprint": {
+        "w": 3,
+        "h": 2
+      },
+      "worldEnvelope": {
+        "x": -3,
+        "y": -5,
+        "width": 44,
+        "height": 29
+      },
+      "tilePixels": 12,
+      "uniformScale": 0.03038674033149171,
+      "contact": {
+        "x": 19,
+        "y": 24
+      },
+      "supportedViews": {
+        "facings": [
+          {
+            "r": 0,
+            "front": "south",
+            "w": 3,
+            "h": 2,
+            "type": "authored-view"
+          }
+        ],
+        "canMirror": false,
+        "classicFacings": [
+          0
+        ]
+      },
+      "geometry": {
+        "blocks": true,
+        "flat": false,
+        "tableSurface": false,
+        "requiredMount": null,
+        "optionalSurfaceMount": false,
+        "surfaceRisePixels": 8
+      },
+      "originalAnimationTriggers": [
+        "Real fs.* tool completion chooses the granting prop instance and overlays a 900 ms success accent or red failure surge.",
+        "Autonomous sprite clock animation is present in the sampled default state; cosmetic motion is not evidence of provider work, route decisions or external state."
+      ],
+      "integrationNote": "Real fs.* completion only. Closed thick door/wheel parked; no contents/count. Blank readout and unlit accent lenses. Do not rotate whole elevation.",
+      "regions": {
+        "status": {
+          "sourcePixels": [
+            [
+              1126,
+              425
+            ],
+            [
+              1193,
+              425
+            ],
+            [
+              1193,
+              459
+            ],
+            [
+              1126,
+              459
+            ]
+          ],
+          "sourceNormalized": [
+            [
+              0.729275,
+              0.417076
+            ],
+            [
+              0.772668,
+              0.417076
+            ],
+            [
+              0.772668,
+              0.450442
+            ],
+            [
+              0.729275,
+              0.450442
+            ]
+          ],
+          "exportPixels": [
+            [
+              1078,
+              363
+            ],
+            [
+              1145,
+              363
+            ],
+            [
+              1145,
+              397
+            ],
+            [
+              1078,
+              397
+            ]
+          ],
+          "exportNormalized": [
+            [
+              0.744475,
+              0.405587
+            ],
+            [
+              0.790746,
+              0.405587
+            ],
+            [
+              0.790746,
+              0.443575
+            ],
+            [
+              0.744475,
+              0.443575
+            ]
+          ],
+          "worldPixels": [
+            [
+              29.756906,
+              7.834254
+            ],
+            [
+              31.792818,
+              7.834254
+            ],
+            [
+              31.792818,
+              8.867403
+            ],
+            [
+              29.756906,
+              8.867403
+            ]
+          ]
+        },
+        "wheel": {
+          "sourcePixels": [
+            [
+              640,
+              444
+            ],
+            [
+              868,
+              444
+            ],
+            [
+              868,
+              681
+            ],
+            [
+              640,
+              681
+            ]
+          ],
+          "sourceNormalized": [
+            [
+              0.414508,
+              0.435721
+            ],
+            [
+              0.562176,
+              0.435721
+            ],
+            [
+              0.562176,
+              0.668302
+            ],
+            [
+              0.414508,
+              0.668302
+            ]
+          ],
+          "exportPixels": [
+            [
+              592,
+              382
+            ],
+            [
+              820,
+              382
+            ],
+            [
+              820,
+              619
+            ],
+            [
+              592,
+              619
+            ]
+          ],
+          "exportNormalized": [
+            [
+              0.40884,
+              0.426816
+            ],
+            [
+              0.566298,
+              0.426816
+            ],
+            [
+              0.566298,
+              0.69162
+            ],
+            [
+              0.40884,
+              0.69162
+            ]
+          ],
+          "worldPixels": [
+            [
+              14.98895,
+              8.411602
+            ],
+            [
+              21.917127,
+              8.411602
+            ],
+            [
+              21.917127,
+              15.61326
+            ],
+            [
+              14.98895,
+              15.61326
+            ]
+          ]
+        },
+        "westIndicator": {
+          "sourcePixels": [
+            [
+              133,
+              373
+            ],
+            [
+              154,
+              373
+            ],
+            [
+              154,
+              393
+            ],
+            [
+              133,
+              393
+            ]
+          ],
+          "sourceNormalized": [
+            [
+              0.08614,
+              0.366045
+            ],
+            [
+              0.099741,
+              0.366045
+            ],
+            [
+              0.099741,
+              0.385672
+            ],
+            [
+              0.08614,
+              0.385672
+            ]
+          ],
+          "exportPixels": [
+            [
+              85,
+              311
+            ],
+            [
+              106,
+              311
+            ],
+            [
+              106,
+              331
+            ],
+            [
+              85,
+              331
+            ]
+          ],
+          "exportNormalized": [
+            [
+              0.058702,
+              0.347486
+            ],
+            [
+              0.073204,
+              0.347486
+            ],
+            [
+              0.073204,
+              0.369832
+            ],
+            [
+              0.058702,
+              0.369832
+            ]
+          ],
+          "worldPixels": [
+            [
+              -0.417127,
+              6.254144
+            ],
+            [
+              0.220994,
+              6.254144
+            ],
+            [
+              0.220994,
+              6.861878
+            ],
+            [
+              -0.417127,
+              6.861878
+            ]
+          ]
+        },
+        "eastIndicator": {
+          "sourcePixels": [
+            [
+              1389,
+              375
+            ],
+            [
+              1412,
+              375
+            ],
+            [
+              1412,
+              397
+            ],
+            [
+              1389,
+              397
+            ]
+          ],
+          "sourceNormalized": [
+            [
+              0.899611,
+              0.368008
+            ],
+            [
+              0.914508,
+              0.368008
+            ],
+            [
+              0.914508,
+              0.389598
+            ],
+            [
+              0.899611,
+              0.389598
+            ]
+          ],
+          "exportPixels": [
+            [
+              1341,
+              313
+            ],
+            [
+              1364,
+              313
+            ],
+            [
+              1364,
+              335
+            ],
+            [
+              1341,
+              335
+            ]
+          ],
+          "exportNormalized": [
+            [
+              0.926105,
+              0.349721
+            ],
+            [
+              0.941989,
+              0.349721
+            ],
+            [
+              0.941989,
+              0.374302
+            ],
+            [
+              0.926105,
+              0.374302
+            ]
+          ],
+          "worldPixels": [
+            [
+              37.748619,
+              6.314917
+            ],
+            [
+              38.447514,
+              6.314917
+            ],
+            [
+              38.447514,
+              6.983425
+            ],
+            [
+              37.748619,
+              6.983425
+            ]
+          ]
+        }
+      },
+      "liveIntegrated": false
+    },
+    {
+      "id": "shelf",
+      "measurement": "Manually inspected conservative source-surface regions, mapped with uniform bottom-centered PropRemaster fit; not live verified.",
+      "sourceDimensions": {
+        "width": 1793,
+        "height": 877
+      },
+      "crop": {
+        "left": 38,
+        "top": 99,
+        "width": 1717,
+        "height": 706
+      },
+      "sourceSha256": "6d105cacc142b298fe994f357c02cab2cb334dc93a5a9b66876715351fa3cbc0",
+      "outputSha256": "2db1bf09a0d0c82c5d551ef431c9392b705e0a2168779e94e93265c276293667",
+      "footprint": {
+        "w": 4,
+        "h": 1
+      },
+      "worldEnvelope": {
+        "x": 0,
+        "y": -14,
+        "width": 53,
+        "height": 26
+      },
+      "tilePixels": 12,
+      "uniformScale": 0.030867792661619105,
+      "contact": {
+        "x": 26.5,
+        "y": 12
+      },
+      "supportedViews": {
+        "facings": [
+          {
+            "r": 0,
+            "front": "south",
+            "w": 4,
+            "h": 1,
+            "type": "authored-view"
+          }
+        ],
+        "canMirror": true,
+        "classicFacings": [
+          0
+        ]
+      },
+      "geometry": {
+        "blocks": true,
+        "flat": false,
+        "tableSurface": false,
+        "requiredMount": null,
+        "optionalSurfaceMount": false,
+        "surfaceRisePixels": 8
+      },
+      "originalAnimationTriggers": [
+        "Real fs.* tool completion chooses the granting prop instance and overlays a 900 ms success accent or red failure surge.",
+        "Autonomous sprite clock animation is present in the sampled default state; cosmetic motion is not evidence of provider work, route decisions or external state."
+      ],
+      "integrationNote": "File capability hardware, not books. Stored modules are decorative static stock; real fs.* completion drives right-hand status strip/accent. Blank strip provided.",
+      "regions": {
+        "statusStrip": {
+          "sourcePixels": [
+            [
+              1590,
+              297
+            ],
+            [
+              1628,
+              297
+            ],
+            [
+              1628,
+              446
+            ],
+            [
+              1590,
+              446
+            ]
+          ],
+          "sourceNormalized": [
+            [
+              0.886782,
+              0.338655
+            ],
+            [
+              0.907975,
+              0.338655
+            ],
+            [
+              0.907975,
+              0.508552
+            ],
+            [
+              0.886782,
+              0.508552
+            ]
+          ],
+          "exportPixels": [
+            [
+              1552,
+              198
+            ],
+            [
+              1590,
+              198
+            ],
+            [
+              1590,
+              347
+            ],
+            [
+              1552,
+              347
+            ]
+          ],
+          "exportNormalized": [
+            [
+              0.903902,
+              0.280453
+            ],
+            [
+              0.926034,
+              0.280453
+            ],
+            [
+              0.926034,
+              0.491501
+            ],
+            [
+              0.903902,
+              0.491501
+            ]
+          ],
+          "worldPixels": [
+            [
+              47.906814,
+              -3.680839
+            ],
+            [
+              49.07979,
+              -3.680839
+            ],
+            [
+              49.07979,
+              0.918462
+            ],
+            [
+              47.906814,
+              0.918462
+            ]
+          ]
+        },
+        "upperHardwareBay": {
+          "sourcePixels": [
+            [
+              184,
+              260
+            ],
+            [
+              1534,
+              260
+            ],
+            [
+              1534,
+              447
+            ],
+            [
+              184,
+              447
+            ]
+          ],
+          "sourceNormalized": [
+            [
+              0.102621,
+              0.296465
+            ],
+            [
+              0.855549,
+              0.296465
+            ],
+            [
+              0.855549,
+              0.509692
+            ],
+            [
+              0.102621,
+              0.509692
+            ]
+          ],
+          "exportPixels": [
+            [
+              146,
+              161
+            ],
+            [
+              1496,
+              161
+            ],
+            [
+              1496,
+              348
+            ],
+            [
+              146,
+              348
+            ]
+          ],
+          "exportNormalized": [
+            [
+              0.085032,
+              0.228045
+            ],
+            [
+              0.871287,
+              0.228045
+            ],
+            [
+              0.871287,
+              0.492918
+            ],
+            [
+              0.085032,
+              0.492918
+            ]
+          ],
+          "worldPixels": [
+            [
+              4.506698,
+              -4.822947
+            ],
+            [
+              46.178218,
+              -4.822947
+            ],
+            [
+              46.178218,
+              0.94933
+            ],
+            [
+              4.506698,
+              0.94933
+            ]
+          ]
+        },
+        "lowerHardwareBay": {
+          "sourcePixels": [
+            [
+              180,
+              501
+            ],
+            [
+              1525,
+              501
+            ],
+            [
+              1525,
+              675
+            ],
+            [
+              180,
+              675
+            ]
+          ],
+          "sourceNormalized": [
+            [
+              0.10039,
+              0.571266
+            ],
+            [
+              0.85053,
+              0.571266
+            ],
+            [
+              0.85053,
+              0.769669
+            ],
+            [
+              0.10039,
+              0.769669
+            ]
+          ],
+          "exportPixels": [
+            [
+              142,
+              402
+            ],
+            [
+              1487,
+              402
+            ],
+            [
+              1487,
+              576
+            ],
+            [
+              142,
+              576
+            ]
+          ],
+          "exportNormalized": [
+            [
+              0.082702,
+              0.569405
+            ],
+            [
+              0.866045,
+              0.569405
+            ],
+            [
+              0.866045,
+              0.815864
+            ],
+            [
+              0.082702,
+              0.815864
+            ]
+          ],
+          "worldPixels": [
+            [
+              4.383227,
+              2.616191
+            ],
+            [
+              45.900408,
+              2.616191
+            ],
+            [
+              45.900408,
+              7.987187
+            ],
+            [
+              4.383227,
+              7.987187
+            ]
+          ]
+        }
+      },
+      "liveIntegrated": false
+    },
+    {
+      "id": "gigs_servercart",
+      "measurement": "Manually inspected conservative source-surface regions, mapped with uniform bottom-centered PropRemaster fit; not live verified.",
+      "sourceDimensions": {
+        "width": 1182,
+        "height": 1330
+      },
+      "crop": {
+        "left": 99,
+        "top": 78,
+        "width": 984,
+        "height": 1192
+      },
+      "sourceSha256": "f2333835c4eb4b06421a62cbe9027ca5887040ca1c27c9b32c7d0eb3fcf00be8",
+      "outputSha256": "0d9b43368c59eda5fe6b6e12c04cf482799e124e8bb298a77af713fce422f5ef",
+      "footprint": {
+        "w": 1,
+        "h": 1
+      },
+      "worldEnvelope": {
+        "x": 1,
+        "y": -6,
+        "width": 16,
+        "height": 18
+      },
+      "tilePixels": 12,
+      "uniformScale": 0.015100671140939598,
+      "contact": {
+        "x": 9,
+        "y": 12
+      },
+      "supportedViews": {
+        "facings": [
+          {
+            "r": 0,
+            "front": "south",
+            "w": 1,
+            "h": 1,
+            "type": "authored-view"
+          }
+        ],
+        "canMirror": true,
+        "classicFacings": [
+          0
+        ]
+      },
+      "geometry": {
+        "blocks": true,
+        "flat": false,
+        "tableSurface": false,
+        "requiredMount": null,
+        "optionalSurfaceMount": false,
+        "surfaceRisePixels": 8
+      },
+      "originalAnimationTriggers": [
+        "Real notebook.*, skill.*, recall_conversation, widget.get, widget.set tool completion chooses the granting prop instance and overlays a 900 ms success accent or red failure surge.",
+        "Autonomous sprite clock animation is present in the sampled default state; cosmetic motion is not evidence of provider work, route decisions or external state."
+      ],
+      "integrationNote": "Actual notebook.*, skill.*, recall_conversation, widget.get/set completion drives memory capability cues. Three blank readouts and unlit status stacks. Preserve cart handle and castors.",
+      "regions": {
+        "topReadout": {
+          "sourcePixels": [
+            [
+              691,
+              462
+            ],
+            [
+              832,
+              462
+            ],
+            [
+              832,
+              480
+            ],
+            [
+              691,
+              480
+            ]
+          ],
+          "sourceNormalized": [
+            [
+              0.584602,
+              0.347368
+            ],
+            [
+              0.703892,
+              0.347368
+            ],
+            [
+              0.703892,
+              0.360902
+            ],
+            [
+              0.584602,
+              0.360902
+            ]
+          ],
+          "exportPixels": [
+            [
+              592,
+              384
+            ],
+            [
+              733,
+              384
+            ],
+            [
+              733,
+              402
+            ],
+            [
+              592,
+              402
+            ]
+          ],
+          "exportNormalized": [
+            [
+              0.601626,
+              0.322148
+            ],
+            [
+              0.744919,
+              0.322148
+            ],
+            [
+              0.744919,
+              0.337248
+            ],
+            [
+              0.601626,
+              0.337248
+            ]
+          ],
+          "worldPixels": [
+            [
+              10.510067,
+              -0.201342
+            ],
+            [
+              12.639262,
+              -0.201342
+            ],
+            [
+              12.639262,
+              0.07047
+            ],
+            [
+              10.510067,
+              0.07047
+            ]
+          ]
+        },
+        "middleReadout": {
+          "sourcePixels": [
+            [
+              691,
+              625
+            ],
+            [
+              832,
+              625
+            ],
+            [
+              832,
+              644
+            ],
+            [
+              691,
+              644
+            ]
+          ],
+          "sourceNormalized": [
+            [
+              0.584602,
+              0.469925
+            ],
+            [
+              0.703892,
+              0.469925
+            ],
+            [
+              0.703892,
+              0.484211
+            ],
+            [
+              0.584602,
+              0.484211
+            ]
+          ],
+          "exportPixels": [
+            [
+              592,
+              547
+            ],
+            [
+              733,
+              547
+            ],
+            [
+              733,
+              566
+            ],
+            [
+              592,
+              566
+            ]
+          ],
+          "exportNormalized": [
+            [
+              0.601626,
+              0.458893
+            ],
+            [
+              0.744919,
+              0.458893
+            ],
+            [
+              0.744919,
+              0.474832
+            ],
+            [
+              0.601626,
+              0.474832
+            ]
+          ],
+          "worldPixels": [
+            [
+              10.510067,
+              2.260067
+            ],
+            [
+              12.639262,
+              2.260067
+            ],
+            [
+              12.639262,
+              2.54698
+            ],
+            [
+              10.510067,
+              2.54698
+            ]
+          ]
+        },
+        "bottomReadout": {
+          "sourcePixels": [
+            [
+              691,
+              790
+            ],
+            [
+              832,
+              790
+            ],
+            [
+              832,
+              808
+            ],
+            [
+              691,
+              808
+            ]
+          ],
+          "sourceNormalized": [
+            [
+              0.584602,
+              0.593985
+            ],
+            [
+              0.703892,
+              0.593985
+            ],
+            [
+              0.703892,
+              0.607519
+            ],
+            [
+              0.584602,
+              0.607519
+            ]
+          ],
+          "exportPixels": [
+            [
+              592,
+              712
+            ],
+            [
+              733,
+              712
+            ],
+            [
+              733,
+              730
+            ],
+            [
+              592,
+              730
+            ]
+          ],
+          "exportNormalized": [
+            [
+              0.601626,
+              0.597315
+            ],
+            [
+              0.744919,
+              0.597315
+            ],
+            [
+              0.744919,
+              0.612416
+            ],
+            [
+              0.601626,
+              0.612416
+            ]
+          ],
+          "worldPixels": [
+            [
+              10.510067,
+              4.751678
+            ],
+            [
+              12.639262,
+              4.751678
+            ],
+            [
+              12.639262,
+              5.02349
+            ],
+            [
+              10.510067,
+              5.02349
+            ]
+          ]
+        },
+        "topStatusStack": {
+          "sourcePixels": [
+            [
+              869,
+              455
+            ],
+            [
+              882,
+              455
+            ],
+            [
+              882,
+              528
+            ],
+            [
+              869,
+              528
+            ]
+          ],
+          "sourceNormalized": [
+            [
+              0.735195,
+              0.342105
+            ],
+            [
+              0.746193,
+              0.342105
+            ],
+            [
+              0.746193,
+              0.396992
+            ],
+            [
+              0.735195,
+              0.396992
+            ]
+          ],
+          "exportPixels": [
+            [
+              770,
+              377
+            ],
+            [
+              783,
+              377
+            ],
+            [
+              783,
+              450
+            ],
+            [
+              770,
+              450
+            ]
+          ],
+          "exportNormalized": [
+            [
+              0.78252,
+              0.316275
+            ],
+            [
+              0.795732,
+              0.316275
+            ],
+            [
+              0.795732,
+              0.377517
+            ],
+            [
+              0.78252,
+              0.377517
+            ]
+          ],
+          "worldPixels": [
+            [
+              13.197987,
+              -0.307047
+            ],
+            [
+              13.394295,
+              -0.307047
+            ],
+            [
+              13.394295,
+              0.795302
+            ],
+            [
+              13.197987,
+              0.795302
+            ]
+          ]
+        },
+        "middleStatusStack": {
+          "sourcePixels": [
+            [
+              869,
+              619
+            ],
+            [
+              882,
+              619
+            ],
+            [
+              882,
+              694
+            ],
+            [
+              869,
+              694
+            ]
+          ],
+          "sourceNormalized": [
+            [
+              0.735195,
+              0.465414
+            ],
+            [
+              0.746193,
+              0.465414
+            ],
+            [
+              0.746193,
+              0.521805
+            ],
+            [
+              0.735195,
+              0.521805
+            ]
+          ],
+          "exportPixels": [
+            [
+              770,
+              541
+            ],
+            [
+              783,
+              541
+            ],
+            [
+              783,
+              616
+            ],
+            [
+              770,
+              616
+            ]
+          ],
+          "exportNormalized": [
+            [
+              0.78252,
+              0.453859
+            ],
+            [
+              0.795732,
+              0.453859
+            ],
+            [
+              0.795732,
+              0.516779
+            ],
+            [
+              0.78252,
+              0.516779
+            ]
+          ],
+          "worldPixels": [
+            [
+              13.197987,
+              2.169463
+            ],
+            [
+              13.394295,
+              2.169463
+            ],
+            [
+              13.394295,
+              3.302013
+            ],
+            [
+              13.197987,
+              3.302013
+            ]
+          ]
+        },
+        "bottomStatusStack": {
+          "sourcePixels": [
+            [
+              869,
+              785
+            ],
+            [
+              882,
+              785
+            ],
+            [
+              882,
+              860
+            ],
+            [
+              869,
+              860
+            ]
+          ],
+          "sourceNormalized": [
+            [
+              0.735195,
+              0.590226
+            ],
+            [
+              0.746193,
+              0.590226
+            ],
+            [
+              0.746193,
+              0.646617
+            ],
+            [
+              0.735195,
+              0.646617
+            ]
+          ],
+          "exportPixels": [
+            [
+              770,
+              707
+            ],
+            [
+              783,
+              707
+            ],
+            [
+              783,
+              782
+            ],
+            [
+              770,
+              782
+            ]
+          ],
+          "exportNormalized": [
+            [
+              0.78252,
+              0.593121
+            ],
+            [
+              0.795732,
+              0.593121
+            ],
+            [
+              0.795732,
+              0.65604
+            ],
+            [
+              0.78252,
+              0.65604
+            ]
+          ],
+          "worldPixels": [
+            [
+              13.197987,
+              4.676174
+            ],
+            [
+              13.394295,
+              4.676174
+            ],
+            [
+              13.394295,
+              5.808725
+            ],
+            [
+              13.197987,
+              5.808725
+            ]
+          ]
+        }
+      },
+      "liveIntegrated": false
+    },
+    {
+      "id": "goldcrate",
+      "measurement": "Manually inspected conservative source-surface regions, mapped with uniform bottom-centered PropRemaster fit; not live verified.",
+      "sourceDimensions": {
+        "width": 1366,
+        "height": 1152
+      },
+      "crop": {
+        "left": 43,
+        "top": 143,
+        "width": 1280,
+        "height": 885
+      },
+      "sourceSha256": "4f2f19483ec6beb987b8a1465873cc48ed416f475ca8634f6ac027f25e5f6a19",
+      "outputSha256": "bd090ba17450ae0df4c4f367b2e6ac6f16d5d9cbb5ed311956b5c04c562c8133",
+      "footprint": {
+        "w": 2,
+        "h": 1
+      },
+      "worldEnvelope": {
+        "x": -1,
+        "y": -10,
+        "width": 26,
+        "height": 22
+      },
+      "tilePixels": 12,
+      "uniformScale": 0.0203125,
+      "contact": {
+        "x": 12,
+        "y": 12
+      },
+      "supportedViews": {
+        "facings": [
+          {
+            "r": 0,
+            "front": "south",
+            "w": 2,
+            "h": 1,
+            "type": "authored-view"
+          }
+        ],
+        "canMirror": true,
+        "classicFacings": [
+          0
+        ]
+      },
+      "geometry": {
+        "blocks": true,
+        "flat": false,
+        "tableSurface": false,
+        "requiredMount": null,
+        "optionalSurfaceMount": false,
+        "surfaceRisePixels": 8
+      },
+      "originalAnimationTriggers": [
+        "No direct event-driven or sampled default sprite animation. Preserve static art; no invented status or progress."
+      ],
+      "integrationNote": "Entirely static closed chest. No currency count or glow; latch region identifies anatomy only, not suggested live progress.",
+      "regions": {
+        "closedLatch": {
+          "sourcePixels": [
+            [
+              648,
+              545
+            ],
+            [
+              720,
+              545
+            ],
+            [
+              720,
+              749
+            ],
+            [
+              648,
+              749
+            ]
+          ],
+          "sourceNormalized": [
+            [
+              0.474378,
+              0.47309
+            ],
+            [
+              0.527086,
+              0.47309
+            ],
+            [
+              0.527086,
+              0.650174
+            ],
+            [
+              0.474378,
+              0.650174
+            ]
+          ],
+          "exportPixels": [
+            [
+              605,
+              402
+            ],
+            [
+              677,
+              402
+            ],
+            [
+              677,
+              606
+            ],
+            [
+              605,
+              606
+            ]
+          ],
+          "exportNormalized": [
+            [
+              0.472656,
+              0.454237
+            ],
+            [
+              0.528906,
+              0.454237
+            ],
+            [
+              0.528906,
+              0.684746
+            ],
+            [
+              0.472656,
+              0.684746
+            ]
+          ],
+          "worldPixels": [
+            [
+              11.289063,
+              2.189063
+            ],
+            [
+              12.751563,
+              2.189063
+            ],
+            [
+              12.751563,
+              6.332813
+            ],
+            [
+              11.289063,
+              6.332813
+            ]
+          ]
+        }
+      },
+      "liveIntegrated": false
+    },
+    {
+      "id": "gigs_partsbin",
+      "measurement": "Manually inspected conservative source-surface regions, mapped with uniform bottom-centered PropRemaster fit; not live verified.",
+      "sourceDimensions": {
+        "width": 1468,
+        "height": 1071
+      },
+      "crop": {
+        "left": 29,
+        "top": 173,
+        "width": 1410,
+        "height": 719
+      },
+      "sourceSha256": "4829bb2079fce790d0d633ba2dd69038741a4db3d152e36223f48e8e1d31caa0",
+      "outputSha256": "367e56abc9ada1a92a863847a895e82fabb9612aa477a12a14548db7e12b736e",
+      "footprint": {
+        "w": 2,
+        "h": 1
+      },
+      "worldEnvelope": {
+        "x": -1,
+        "y": -7,
+        "width": 26,
+        "height": 19
+      },
+      "tilePixels": 12,
+      "uniformScale": 0.018439716312056736,
+      "contact": {
+        "x": 12,
+        "y": 12
+      },
+      "supportedViews": {
+        "facings": [
+          {
+            "r": 0,
+            "front": "south",
+            "w": 2,
+            "h": 1,
+            "type": "authored-view"
+          }
+        ],
+        "canMirror": true,
+        "classicFacings": [
+          0
+        ]
+      },
+      "geometry": {
+        "blocks": true,
+        "flat": false,
+        "tableSurface": false,
+        "requiredMount": null,
+        "optionalSurfaceMount": true,
+        "surfaceRisePixels": 8
+      },
+      "originalAnimationTriggers": [
+        "Autonomous sprite clock animation is present in the sampled default state; cosmetic motion is not evidence of provider work, route decisions or external state."
+      ],
+      "integrationNote": "Decorative physical parts. Clock-based sheen may move; no claim of real stock. Optional tabletop lift8. All compartment parts baked; avoid duplicate runtime inventory.",
+      "regions": {
+        "boltCompartment": {
+          "sourcePixels": [
+            [
+              164,
+              219
+            ],
+            [
+              413,
+              219
+            ],
+            [
+              383,
+              652
+            ],
+            [
+              137,
+              652
+            ]
+          ],
+          "sourceNormalized": [
+            [
+              0.111717,
+              0.204482
+            ],
+            [
+              0.281335,
+              0.204482
+            ],
+            [
+              0.260899,
+              0.608777
+            ],
+            [
+              0.093324,
+              0.608777
+            ]
+          ],
+          "exportPixels": [
+            [
+              135,
+              46
+            ],
+            [
+              384,
+              46
+            ],
+            [
+              354,
+              479
+            ],
+            [
+              108,
+              479
+            ]
+          ],
+          "exportNormalized": [
+            [
+              0.095745,
+              0.063978
+            ],
+            [
+              0.27234,
+              0.063978
+            ],
+            [
+              0.251064,
+              0.666203
+            ],
+            [
+              0.076596,
+              0.666203
+            ]
+          ],
+          "worldPixels": [
+            [
+              1.489362,
+              -0.409929
+            ],
+            [
+              6.080851,
+              -0.409929
+            ],
+            [
+              5.52766,
+              7.574468
+            ],
+            [
+              0.991489,
+              7.574468
+            ]
+          ]
+        },
+        "collarCompartment": {
+          "sourcePixels": [
+            [
+              485,
+              218
+            ],
+            [
+              689,
+              218
+            ],
+            [
+              689,
+              653
+            ],
+            [
+              485,
+              653
+            ]
+          ],
+          "sourceNormalized": [
+            [
+              0.330381,
+              0.203548
+            ],
+            [
+              0.469346,
+              0.203548
+            ],
+            [
+              0.469346,
+              0.609711
+            ],
+            [
+              0.330381,
+              0.609711
+            ]
+          ],
+          "exportPixels": [
+            [
+              456,
+              45
+            ],
+            [
+              660,
+              45
+            ],
+            [
+              660,
+              480
+            ],
+            [
+              456,
+              480
+            ]
+          ],
+          "exportNormalized": [
+            [
+              0.323404,
+              0.062587
+            ],
+            [
+              0.468085,
+              0.062587
+            ],
+            [
+              0.468085,
+              0.667594
+            ],
+            [
+              0.323404,
+              0.667594
+            ]
+          ],
+          "worldPixels": [
+            [
+              7.408511,
+              -0.428369
+            ],
+            [
+              11.170213,
+              -0.428369
+            ],
+            [
+              11.170213,
+              7.592908
+            ],
+            [
+              7.408511,
+              7.592908
+            ]
+          ]
+        },
+        "plugCompartment": {
+          "sourcePixels": [
+            [
+              765,
+              218
+            ],
+            [
+              965,
+              218
+            ],
+            [
+              965,
+              653
+            ],
+            [
+              765,
+              653
+            ]
+          ],
+          "sourceNormalized": [
+            [
+              0.521117,
+              0.203548
+            ],
+            [
+              0.657357,
+              0.203548
+            ],
+            [
+              0.657357,
+              0.609711
+            ],
+            [
+              0.521117,
+              0.609711
+            ]
+          ],
+          "exportPixels": [
+            [
+              736,
+              45
+            ],
+            [
+              936,
+              45
+            ],
+            [
+              936,
+              480
+            ],
+            [
+              736,
+              480
+            ]
+          ],
+          "exportNormalized": [
+            [
+              0.521986,
+              0.062587
+            ],
+            [
+              0.66383,
+              0.062587
+            ],
+            [
+              0.66383,
+              0.667594
+            ],
+            [
+              0.521986,
+              0.667594
+            ]
+          ],
+          "worldPixels": [
+            [
+              12.571631,
+              -0.428369
+            ],
+            [
+              16.259574,
+              -0.428369
+            ],
+            [
+              16.259574,
+              7.592908
+            ],
+            [
+              12.571631,
+              7.592908
+            ]
+          ]
+        },
+        "moduleCompartment": {
+          "sourcePixels": [
+            [
+              1064,
+              217
+            ],
+            [
+              1294,
+              217
+            ],
+            [
+              1294,
+              653
+            ],
+            [
+              1064,
+              653
+            ]
+          ],
+          "sourceNormalized": [
+            [
+              0.724796,
+              0.202614
+            ],
+            [
+              0.881471,
+              0.202614
+            ],
+            [
+              0.881471,
+              0.609711
+            ],
+            [
+              0.724796,
+              0.609711
+            ]
+          ],
+          "exportPixels": [
+            [
+              1035,
+              44
+            ],
+            [
+              1265,
+              44
+            ],
+            [
+              1265,
+              480
+            ],
+            [
+              1035,
+              480
+            ]
+          ],
+          "exportNormalized": [
+            [
+              0.734043,
+              0.061196
+            ],
+            [
+              0.897163,
+              0.061196
+            ],
+            [
+              0.897163,
+              0.667594
+            ],
+            [
+              0.734043,
+              0.667594
+            ]
+          ],
+          "worldPixels": [
+            [
+              18.085106,
+              -0.446809
+            ],
+            [
+              22.326241,
+              -0.446809
+            ],
+            [
+              22.326241,
+              7.592908
+            ],
+            [
+              18.085106,
+              7.592908
+            ]
+          ]
+        }
+      },
+      "liveIntegrated": false
+    },
+    {
+      "id": "treasury_coinsorter",
+      "measurement": "Manually inspected conservative source-surface regions, mapped with uniform bottom-centered PropRemaster fit; not live verified.",
+      "sourceDimensions": {
+        "width": 1649,
+        "height": 954
+      },
+      "crop": {
+        "left": 34,
+        "top": 65,
+        "width": 1584,
+        "height": 816
+      },
+      "sourceSha256": "acc70ca66f84c9ba0f6ed3c1c421b6d7195f9f40a83a6c45686c72540d843a33",
+      "outputSha256": "167f81b0edeeaeda42e7166e2cb1cfccf8f800fa8d380583d5a0df7c95bc4ece",
+      "footprint": {
+        "w": 2,
+        "h": 1
+      },
+      "worldEnvelope": {
+        "x": -1,
+        "y": -3,
+        "width": 26,
+        "height": 15
+      },
+      "tilePixels": 12,
+      "uniformScale": 0.016414141414141416,
+      "contact": {
+        "x": 12,
+        "y": 12
+      },
+      "supportedViews": {
+        "facings": [
+          {
+            "r": 0,
+            "front": "south",
+            "w": 2,
+            "h": 1,
+            "type": "authored-view"
+          }
+        ],
+        "canMirror": true,
+        "classicFacings": [
+          0
+        ]
+      },
+      "geometry": {
+        "blocks": true,
+        "flat": false,
+        "tableSurface": false,
+        "requiredMount": null,
+        "optionalSurfaceMount": false,
+        "surfaceRisePixels": 8
+      },
+      "originalAnimationTriggers": [
+        "Autonomous sprite clock animation is present in the sampled default state; cosmetic motion is not evidence of provider work, route decisions or external state."
+      ],
+      "integrationNote": "Empty channels/blank counter. Owner supplies coin motion and any count; native autonomous counting is cosmetic, never real balance evidence. Moving roller accents stay inside roller regions.",
+      "regions": {
+        "feedHopper": {
+          "sourcePixels": [
+            [
+              131,
+              87
+            ],
+            [
+              388,
+              87
+            ],
+            [
+              363,
+              172
+            ],
+            [
+              103,
+              172
+            ]
+          ],
+          "sourceNormalized": [
+            [
+              0.079442,
+              0.091195
+            ],
+            [
+              0.235294,
+              0.091195
+            ],
+            [
+              0.220133,
+              0.180294
+            ],
+            [
+              0.062462,
+              0.180294
+            ]
+          ],
+          "exportPixels": [
+            [
+              97,
+              22
+            ],
+            [
+              354,
+              22
+            ],
+            [
+              329,
+              107
+            ],
+            [
+              69,
+              107
+            ]
+          ],
+          "exportNormalized": [
+            [
+              0.061237,
+              0.026961
+            ],
+            [
+              0.223485,
+              0.026961
+            ],
+            [
+              0.207702,
+              0.131127
+            ],
+            [
+              0.043561,
+              0.131127
+            ]
+          ],
+          "worldPixels": [
+            [
+              0.592172,
+              -1.032828
+            ],
+            [
+              4.810606,
+              -1.032828
+            ],
+            [
+              4.400253,
+              0.362374
+            ],
+            [
+              0.132576,
+              0.362374
+            ]
+          ]
+        },
+        "leftCoinLane": {
+          "sourcePixels": [
+            [
+              257,
+              461
+            ],
+            [
+              439,
+              461
+            ],
+            [
+              402,
+              599
+            ],
+            [
+              214,
+              599
+            ]
+          ],
+          "sourceNormalized": [
+            [
+              0.155852,
+              0.483229
+            ],
+            [
+              0.266222,
+              0.483229
+            ],
+            [
+              0.243784,
+              0.627883
+            ],
+            [
+              0.129776,
+              0.627883
+            ]
+          ],
+          "exportPixels": [
+            [
+              223,
+              396
+            ],
+            [
+              405,
+              396
+            ],
+            [
+              368,
+              534
+            ],
+            [
+              180,
+              534
+            ]
+          ],
+          "exportNormalized": [
+            [
+              0.140783,
+              0.485294
+            ],
+            [
+              0.255682,
+              0.485294
+            ],
+            [
+              0.232323,
+              0.654412
+            ],
+            [
+              0.113636,
+              0.654412
+            ]
+          ],
+          "worldPixels": [
+            [
+              2.660354,
+              5.106061
+            ],
+            [
+              5.647727,
+              5.106061
+            ],
+            [
+              5.040404,
+              7.371212
+            ],
+            [
+              1.954545,
+              7.371212
+            ]
+          ]
+        },
+        "middleCoinLane": {
+          "sourcePixels": [
+            [
+              665,
+              460
+            ],
+            [
+              830,
+              460
+            ],
+            [
+              799,
+              650
+            ],
+            [
+              680,
+              650
+            ]
+          ],
+          "sourceNormalized": [
+            [
+              0.403275,
+              0.48218
+            ],
+            [
+              0.503335,
+              0.48218
+            ],
+            [
+              0.484536,
+              0.681342
+            ],
+            [
+              0.412371,
+              0.681342
+            ]
+          ],
+          "exportPixels": [
+            [
+              631,
+              395
+            ],
+            [
+              796,
+              395
+            ],
+            [
+              765,
+              585
+            ],
+            [
+              646,
+              585
+            ]
+          ],
+          "exportNormalized": [
+            [
+              0.398359,
+              0.484069
+            ],
+            [
+              0.502525,
+              0.484069
+            ],
+            [
+              0.482955,
+              0.716912
+            ],
+            [
+              0.407828,
+              0.716912
+            ]
+          ],
+          "worldPixels": [
+            [
+              9.357323,
+              5.089646
+            ],
+            [
+              12.065657,
+              5.089646
+            ],
+            [
+              11.556818,
+              8.208333
+            ],
+            [
+              9.603535,
+              8.208333
+            ]
+          ]
+        },
+        "rightCoinLane": {
+          "sourcePixels": [
+            [
+              1030,
+              462
+            ],
+            [
+              1179,
+              462
+            ],
+            [
+              1200,
+              605
+            ],
+            [
+              1080,
+              605
+            ]
+          ],
+          "sourceNormalized": [
+            [
+              0.624621,
+              0.484277
+            ],
+            [
+              0.714979,
+              0.484277
+            ],
+            [
+              0.727714,
+              0.634172
+            ],
+            [
+              0.654942,
+              0.634172
+            ]
+          ],
+          "exportPixels": [
+            [
+              996,
+              397
+            ],
+            [
+              1145,
+              397
+            ],
+            [
+              1166,
+              540
+            ],
+            [
+              1046,
+              540
+            ]
+          ],
+          "exportNormalized": [
+            [
+              0.628788,
+              0.48652
+            ],
+            [
+              0.722854,
+              0.48652
+            ],
+            [
+              0.736111,
+              0.661765
+            ],
+            [
+              0.660354,
+              0.661765
+            ]
+          ],
+          "worldPixels": [
+            [
+              15.348485,
+              5.122475
+            ],
+            [
+              17.794192,
+              5.122475
+            ],
+            [
+              18.138889,
+              7.469697
+            ],
+            [
+              16.169192,
+              7.469697
+            ]
+          ]
+        },
+        "leftRoller": {
+          "sourcePixels": [
+            [
+              514,
+              432
+            ],
+            [
+              580,
+              432
+            ],
+            [
+              580,
+              584
+            ],
+            [
+              514,
+              584
+            ]
+          ],
+          "sourceNormalized": [
+            [
+              0.311704,
+              0.45283
+            ],
+            [
+              0.351728,
+              0.45283
+            ],
+            [
+              0.351728,
+              0.612159
+            ],
+            [
+              0.311704,
+              0.612159
+            ]
+          ],
+          "exportPixels": [
+            [
+              480,
+              367
+            ],
+            [
+              546,
+              367
+            ],
+            [
+              546,
+              519
+            ],
+            [
+              480,
+              519
+            ]
+          ],
+          "exportNormalized": [
+            [
+              0.30303,
+              0.449755
+            ],
+            [
+              0.344697,
+              0.449755
+            ],
+            [
+              0.344697,
+              0.636029
+            ],
+            [
+              0.30303,
+              0.636029
+            ]
+          ],
+          "worldPixels": [
+            [
+              6.878788,
+              4.630051
+            ],
+            [
+              7.962121,
+              4.630051
+            ],
+            [
+              7.962121,
+              7.125
+            ],
+            [
+              6.878788,
+              7.125
+            ]
+          ]
+        },
+        "rightRoller": {
+          "sourcePixels": [
+            [
+              893,
+              433
+            ],
+            [
+              959,
+              433
+            ],
+            [
+              959,
+              585
+            ],
+            [
+              893,
+              585
+            ]
+          ],
+          "sourceNormalized": [
+            [
+              0.54154,
+              0.453878
+            ],
+            [
+              0.581565,
+              0.453878
+            ],
+            [
+              0.581565,
+              0.613208
+            ],
+            [
+              0.54154,
+              0.613208
+            ]
+          ],
+          "exportPixels": [
+            [
+              859,
+              368
+            ],
+            [
+              925,
+              368
+            ],
+            [
+              925,
+              520
+            ],
+            [
+              859,
+              520
+            ]
+          ],
+          "exportNormalized": [
+            [
+              0.542298,
+              0.45098
+            ],
+            [
+              0.583965,
+              0.45098
+            ],
+            [
+              0.583965,
+              0.637255
+            ],
+            [
+              0.542298,
+              0.637255
+            ]
+          ],
+          "worldPixels": [
+            [
+              13.099747,
+              4.646465
+            ],
+            [
+              14.183081,
+              4.646465
+            ],
+            [
+              14.183081,
+              7.141414
+            ],
+            [
+              13.099747,
+              7.141414
+            ]
+          ]
+        },
+        "counter": {
+          "sourcePixels": [
+            [
+              1376,
+              331
+            ],
+            [
+              1525,
+              331
+            ],
+            [
+              1525,
+              403
+            ],
+            [
+              1376,
+              403
+            ]
+          ],
+          "sourceNormalized": [
+            [
+              0.834445,
+              0.34696
+            ],
+            [
+              0.924803,
+              0.34696
+            ],
+            [
+              0.924803,
+              0.422432
+            ],
+            [
+              0.834445,
+              0.422432
+            ]
+          ],
+          "exportPixels": [
+            [
+              1342,
+              266
+            ],
+            [
+              1491,
+              266
+            ],
+            [
+              1491,
+              338
+            ],
+            [
+              1342,
+              338
+            ]
+          ],
+          "exportNormalized": [
+            [
+              0.847222,
+              0.32598
+            ],
+            [
+              0.941288,
+              0.32598
+            ],
+            [
+              0.941288,
+              0.414216
+            ],
+            [
+              0.847222,
+              0.414216
+            ]
+          ],
+          "worldPixels": [
+            [
+              21.027778,
+              2.972222
+            ],
+            [
+              23.473485,
+              2.972222
+            ],
+            [
+              23.473485,
+              4.15404
+            ],
+            [
+              21.027778,
+              4.15404
+            ]
+          ]
+        }
+      },
+      "liveIntegrated": false
+    },
+    {
+      "id": "treasury_token_furnace",
+      "measurement": "Manually inspected conservative source-surface regions, mapped with uniform bottom-centered PropRemaster fit; not live verified.",
+      "sourceDimensions": {
+        "width": 851,
+        "height": 1848
+      },
+      "crop": {
+        "left": 15,
+        "top": 138,
+        "width": 805,
+        "height": 1540
+      },
+      "sourceSha256": "c0128fb85be7b5fe600e4f9dbadba3c0e0c7d92650ab8ea89f215b9ba9db7008",
+      "outputSha256": "eaa6150a099c0a11d62c8780233a088e7cd867c18cdce65e3b7ba06115602639",
+      "footprint": {
+        "w": 1,
+        "h": 2
+      },
+      "worldEnvelope": {
+        "x": -1,
+        "y": -7,
+        "width": 14,
+        "height": 31
+      },
+      "tilePixels": 12,
+      "uniformScale": 0.017391304347826087,
+      "contact": {
+        "x": 6,
+        "y": 24
+      },
+      "supportedViews": {
+        "facings": [
+          {
+            "r": 0,
+            "front": "south",
+            "w": 1,
+            "h": 2,
+            "type": "authored-view"
+          }
+        ],
+        "canMirror": true,
+        "classicFacings": [
+          0
+        ]
+      },
+      "geometry": {
+        "blocks": true,
+        "flat": false,
+        "tableSurface": false,
+        "requiredMount": null,
+        "optionalSurfaceMount": false,
+        "surfaceRisePixels": 8
+      },
+      "originalAnimationTriggers": [
+        "Autonomous sprite clock animation is present in the sampled default state; cosmetic motion is not evidence of provider work, route decisions or external state."
+      ],
+      "integrationNote": "Empty firebox and feed/output. Decorative native fire flicker goes behind mouth; no output count or token throughput is asserted. Door parked partly open, do not animate without component recomposition.",
+      "regions": {
+        "feedHopper": {
+          "sourcePixels": [
+            [
+              107,
+              247
+            ],
+            [
+              413,
+              247
+            ],
+            [
+              404,
+              349
+            ],
+            [
+              85,
+              349
+            ]
+          ],
+          "sourceNormalized": [
+            [
+              0.125734,
+              0.133658
+            ],
+            [
+              0.485311,
+              0.133658
+            ],
+            [
+              0.474736,
+              0.188853
+            ],
+            [
+              0.099882,
+              0.188853
+            ]
+          ],
+          "exportPixels": [
+            [
+              92,
+              109
+            ],
+            [
+              398,
+              109
+            ],
+            [
+              389,
+              211
+            ],
+            [
+              70,
+              211
+            ]
+          ],
+          "exportNormalized": [
+            [
+              0.114286,
+              0.070779
+            ],
+            [
+              0.49441,
+              0.070779
+            ],
+            [
+              0.48323,
+              0.137013
+            ],
+            [
+              0.086957,
+              0.137013
+            ]
+          ],
+          "worldPixels": [
+            [
+              0.6,
+              -0.886957
+            ],
+            [
+              5.921739,
+              -0.886957
+            ],
+            [
+              5.765217,
+              0.886957
+            ],
+            [
+              0.217391,
+              0.886957
+            ]
+          ]
+        },
+        "firebox": {
+          "sourcePixels": [
+            [
+              316,
+              1008
+            ],
+            [
+              532,
+              1008
+            ],
+            [
+              532,
+              1193
+            ],
+            [
+              316,
+              1193
+            ]
+          ],
+          "sourceNormalized": [
+            [
+              0.371328,
+              0.545455
+            ],
+            [
+              0.625147,
+              0.545455
+            ],
+            [
+              0.625147,
+              0.645563
+            ],
+            [
+              0.371328,
+              0.645563
+            ]
+          ],
+          "exportPixels": [
+            [
+              301,
+              870
+            ],
+            [
+              517,
+              870
+            ],
+            [
+              517,
+              1055
+            ],
+            [
+              301,
+              1055
+            ]
+          ],
+          "exportNormalized": [
+            [
+              0.373913,
+              0.564935
+            ],
+            [
+              0.642236,
+              0.564935
+            ],
+            [
+              0.642236,
+              0.685065
+            ],
+            [
+              0.373913,
+              0.685065
+            ]
+          ],
+          "worldPixels": [
+            [
+              4.234783,
+              12.347826
+            ],
+            [
+              7.991304,
+              12.347826
+            ],
+            [
+              7.991304,
+              15.565217
+            ],
+            [
+              4.234783,
+              15.565217
+            ]
+          ]
+        },
+        "outputChute": {
+          "sourcePixels": [
+            [
+              337,
+              1418
+            ],
+            [
+              513,
+              1418
+            ],
+            [
+              531,
+              1518
+            ],
+            [
+              320,
+              1518
+            ]
+          ],
+          "sourceNormalized": [
+            [
+              0.396005,
+              0.767316
+            ],
+            [
+              0.60282,
+              0.767316
+            ],
+            [
+              0.623972,
+              0.821429
+            ],
+            [
+              0.376028,
+              0.821429
+            ]
+          ],
+          "exportPixels": [
+            [
+              322,
+              1280
+            ],
+            [
+              498,
+              1280
+            ],
+            [
+              516,
+              1380
+            ],
+            [
+              305,
+              1380
+            ]
+          ],
+          "exportNormalized": [
+            [
+              0.4,
+              0.831169
+            ],
+            [
+              0.618634,
+              0.831169
+            ],
+            [
+              0.640994,
+              0.896104
+            ],
+            [
+              0.378882,
+              0.896104
+            ]
+          ],
+          "worldPixels": [
+            [
+              4.6,
+              19.478261
+            ],
+            [
+              7.66087,
+              19.478261
+            ],
+            [
+              7.973913,
+              21.217391
+            ],
+            [
+              4.304348,
+              21.217391
+            ]
+          ]
+        },
+        "parkedDoor": {
+          "sourcePixels": [
+            [
+              29,
+              1030
+            ],
+            [
+              199,
+              963
+            ],
+            [
+              201,
+              1268
+            ],
+            [
+              31,
+              1355
+            ]
+          ],
+          "sourceNormalized": [
+            [
+              0.034078,
+              0.557359
+            ],
+            [
+              0.233843,
+              0.521104
+            ],
+            [
+              0.236193,
+              0.686147
+            ],
+            [
+              0.036428,
+              0.733225
+            ]
+          ],
+          "exportPixels": [
+            [
+              14,
+              892
+            ],
+            [
+              184,
+              825
+            ],
+            [
+              186,
+              1130
+            ],
+            [
+              16,
+              1217
+            ]
+          ],
+          "exportNormalized": [
+            [
+              0.017391,
+              0.579221
+            ],
+            [
+              0.228571,
+              0.535714
+            ],
+            [
+              0.231056,
+              0.733766
+            ],
+            [
+              0.019876,
+              0.79026
+            ]
+          ],
+          "worldPixels": [
+            [
+              -0.756522,
+              12.730435
+            ],
+            [
+              2.2,
+              11.565217
+            ],
+            [
+              2.234783,
+              16.869565
+            ],
+            [
+              -0.721739,
+              18.382609
+            ]
+          ]
+        },
+        "flueMouth": {
+          "sourcePixels": [
+            [
+              596,
+              162
+            ],
+            [
+              711,
+              162
+            ],
+            [
+              711,
+              205
+            ],
+            [
+              596,
+              205
+            ]
+          ],
+          "sourceNormalized": [
+            [
+              0.700353,
+              0.087662
+            ],
+            [
+              0.835488,
+              0.087662
+            ],
+            [
+              0.835488,
+              0.110931
+            ],
+            [
+              0.700353,
+              0.110931
+            ]
+          ],
+          "exportPixels": [
+            [
+              581,
+              24
+            ],
+            [
+              696,
+              24
+            ],
+            [
+              696,
+              67
+            ],
+            [
+              581,
+              67
+            ]
+          ],
+          "exportNormalized": [
+            [
+              0.721739,
+              0.015584
+            ],
+            [
+              0.864596,
+              0.015584
+            ],
+            [
+              0.864596,
+              0.043506
+            ],
+            [
+              0.721739,
+              0.043506
+            ]
+          ],
+          "worldPixels": [
+            [
+              9.104348,
+              -2.365217
+            ],
+            [
+              11.104348,
+              -2.365217
+            ],
+            [
+              11.104348,
+              -1.617391
+            ],
+            [
+              9.104348,
+              -1.617391
+            ]
+          ]
+        }
+      },
+      "liveIntegrated": false
+    },
+    {
+      "id": "treasury_pnl_holo",
+      "measurement": "Manually inspected conservative source-surface regions, mapped with uniform bottom-centered PropRemaster fit; not live verified.",
+      "sourceDimensions": {
+        "width": 1774,
+        "height": 887
+      },
+      "crop": {
+        "left": 226,
+        "top": 205,
+        "width": 1322,
+        "height": 471
+      },
+      "sourceSha256": "c949e216b38f6d66ed41794ea8a91b02521aa0f5f5a290120e224a308167e02b",
+      "outputSha256": "4f39007954e5ca081d9aa9f33991eb58988b3d2cc7230eff22b43fe0825a74b9",
+      "footprint": {
+        "w": 1,
+        "h": 1
+      },
+      "worldEnvelope": {
+        "x": 1,
+        "y": 5,
+        "width": 10,
+        "height": 5
+      },
+      "tilePixels": 12,
+      "uniformScale": 0.007564296520423601,
+      "contact": {
+        "x": 6,
+        "y": 10
+      },
+      "supportedViews": {
+        "facings": [
+          {
+            "r": 0,
+            "front": "south",
+            "w": 1,
+            "h": 1,
+            "type": "authored-view"
+          }
+        ],
+        "canMirror": false,
+        "classicFacings": [
+          0
+        ]
+      },
+      "geometry": {
+        "blocks": false,
+        "flat": false,
+        "tableSurface": false,
+        "requiredMount": null,
+        "optionalSurfaceMount": false,
+        "surfaceRisePixels": 8
+      },
+      "originalAnimationTriggers": [
+        "Autonomous sprite clock animation is present in the sampled default state; cosmetic motion is not evidence of provider work, route decisions or external state."
+      ],
+      "integrationNote": "Flush walk-over emitter ONLY is solid art and fitted to native opaque envelope10x5 at(1,5). Native cosmetic projection extends ABOVE solid bounds and is rendered separately. Do not squeeze chart into disk or add solid pedestal. If showing actual P&L, use supplied real values, not clock-generated digits.",
+      "regions": {
+        "emitterLens": {
+          "sourcePixels": [
+            [
+              541,
+              318
+            ],
+            [
+              1204,
+              318
+            ],
+            [
+              1315,
+              417
+            ],
+            [
+              1168,
+              513
+            ],
+            [
+              591,
+              513
+            ],
+            [
+              457,
+              417
+            ]
+          ],
+          "sourceNormalized": [
+            [
+              0.304961,
+              0.358512
+            ],
+            [
+              0.678692,
+              0.358512
+            ],
+            [
+              0.741263,
+              0.470124
+            ],
+            [
+              0.658399,
+              0.578354
+            ],
+            [
+              0.333145,
+              0.578354
+            ],
+            [
+              0.25761,
+              0.470124
+            ]
+          ],
+          "exportPixels": [
+            [
+              315,
+              113
+            ],
+            [
+              978,
+              113
+            ],
+            [
+              1089,
+              212
+            ],
+            [
+              942,
+              308
+            ],
+            [
+              365,
+              308
+            ],
+            [
+              231,
+              212
+            ]
+          ],
+          "exportNormalized": [
+            [
+              0.238275,
+              0.239915
+            ],
+            [
+              0.739788,
+              0.239915
+            ],
+            [
+              0.823752,
+              0.450106
+            ],
+            [
+              0.712557,
+              0.653928
+            ],
+            [
+              0.276097,
+              0.653928
+            ],
+            [
+              0.174735,
+              0.450106
+            ]
+          ],
+          "worldPixels": [
+            [
+              3.382753,
+              7.291982
+            ],
+            [
+              8.397882,
+              7.291982
+            ],
+            [
+              9.237519,
+              8.040847
+            ],
+            [
+              8.125567,
+              8.76702
+            ],
+            [
+              3.760968,
+              8.76702
+            ],
+            [
+              2.747352,
+              8.040847
+            ]
+          ]
+        }
+      },
+      "liveIntegrated": false,
+      "nativeProjectionContract": {
+        "worldOrigin": {
+          "x": 6,
+          "y": 6
+        },
+        "worldVisualBounds": {
+          "x": 0,
+          "y": -5,
+          "width": 12,
+          "height": 11
+        },
+        "note": "Translucent native chart not captured by alpha160 solid bounds. Project above disk; coordinates from existing source renderer, not a new bitmap region."
+      }
+    },
+    {
+      "id": "crt_pile",
+      "measurement": "Manually inspected conservative source-surface regions, mapped with uniform bottom-centered PropRemaster fit; not live verified.",
+      "sourceDimensions": {
+        "width": 1319,
+        "height": 1192
+      },
+      "crop": {
+        "left": 253,
+        "top": 57,
+        "width": 818,
+        "height": 1047
+      },
+      "sourceSha256": "501f92eae373a029423ce8ccf96863b898ba72019d97438dddf7cfe9986909d3",
+      "outputSha256": "3758079158d874903890e7970516e6895d3f37da1f95c70dd306c9743dd8d559",
+      "footprint": {
+        "w": 1,
+        "h": 1
+      },
+      "worldEnvelope": {
+        "x": -1,
+        "y": -4,
+        "width": 12,
+        "height": 17
+      },
+      "tilePixels": 12,
+      "uniformScale": 0.014669926650366748,
+      "contact": {
+        "x": 5,
+        "y": 13
+      },
+      "supportedViews": {
+        "facings": [
+          {
+            "r": 0,
+            "front": "south",
+            "w": 1,
+            "h": 1,
+            "type": "authored-view"
+          }
+        ],
+        "canMirror": true,
+        "classicFacings": [
+          0
+        ]
+      },
+      "geometry": {
+        "blocks": true,
+        "flat": false,
+        "tableSurface": false,
+        "requiredMount": null,
+        "optionalSurfaceMount": true,
+        "surfaceRisePixels": 8
+      },
+      "originalAnimationTriggers": [
+        "Autonomous sprite clock animation is present in the sampled default state; cosmetic motion is not evidence of provider work, route decisions or external state."
+      ],
+      "integrationNote": "Two shells with overhanging top monitor. Lower screen dead; upper screen accepts cosmetic static. Optional tabletop mount rises8. No fake task telemetry.",
+      "regions": {
+        "upperScreen": {
+          "sourcePixels": [
+            [
+              375,
+              345
+            ],
+            [
+              676,
+              345
+            ],
+            [
+              676,
+              539
+            ],
+            [
+              375,
+              539
+            ]
+          ],
+          "sourceNormalized": [
+            [
+              0.284306,
+              0.28943
+            ],
+            [
+              0.512509,
+              0.28943
+            ],
+            [
+              0.512509,
+              0.452181
+            ],
+            [
+              0.284306,
+              0.452181
+            ]
+          ],
+          "exportPixels": [
+            [
+              122,
+              288
+            ],
+            [
+              423,
+              288
+            ],
+            [
+              423,
+              482
+            ],
+            [
+              122,
+              482
+            ]
+          ],
+          "exportNormalized": [
+            [
+              0.149144,
+              0.275072
+            ],
+            [
+              0.517115,
+              0.275072
+            ],
+            [
+              0.517115,
+              0.460363
+            ],
+            [
+              0.149144,
+              0.460363
+            ]
+          ],
+          "worldPixels": [
+            [
+              0.789731,
+              1.865526
+            ],
+            [
+              5.205379,
+              1.865526
+            ],
+            [
+              5.205379,
+              4.711491
+            ],
+            [
+              0.789731,
+              4.711491
+            ]
+          ]
+        },
+        "lowerScreen": {
+          "sourcePixels": [
+            [
+              425,
+              738
+            ],
+            [
+              854,
+              738
+            ],
+            [
+              854,
+              961
+            ],
+            [
+              425,
+              961
+            ]
+          ],
+          "sourceNormalized": [
+            [
+              0.322214,
+              0.619128
+            ],
+            [
+              0.64746,
+              0.619128
+            ],
+            [
+              0.64746,
+              0.806208
+            ],
+            [
+              0.322214,
+              0.806208
+            ]
+          ],
+          "exportPixels": [
+            [
+              172,
+              681
+            ],
+            [
+              601,
+              681
+            ],
+            [
+              601,
+              904
+            ],
+            [
+              172,
+              904
+            ]
+          ],
+          "exportNormalized": [
+            [
+              0.210269,
+              0.65043
+            ],
+            [
+              0.734719,
+              0.65043
+            ],
+            [
+              0.734719,
+              0.863419
+            ],
+            [
+              0.210269,
+              0.863419
+            ]
+          ],
+          "worldPixels": [
+            [
+              1.523227,
+              7.630807
+            ],
+            [
+              7.816626,
+              7.630807
+            ],
+            [
+              7.816626,
+              10.9022
+            ],
+            [
+              1.523227,
+              10.9022
+            ]
+          ]
+        }
+      },
+      "liveIntegrated": false
+    }
+  ]
+}
