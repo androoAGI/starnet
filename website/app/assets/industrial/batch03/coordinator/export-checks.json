@@ -1,0 +1,27 @@
+{
+  "version": 1,
+  "method": "User-authorized connected neutral-background extraction; original RGB preserved",
+  "records": [
+    {
+      "id": "coffee",
+      "source": "docs/station-remaster/batch03/coordinator/coffee-source.png",
+      "seeds": [],
+      "output": "frontend/assets/industrial/batch03/coordinator/coffee.png",
+      "sourceWidth": 1065,
+      "sourceHeight": 1477,
+      "crop": {
+        "left": 141,
+        "top": 38,
+        "width": 786,
+        "height": 1407
+      },
+      "sourceSha256": "83cc0b0b480197c2f82ff41384f29d15f5c50be9e6d6eca21e738bc80da4bdb1",
+      "outputSha256": "fd78114fa53b8f3afc1f453316ff3b07618aac60136a6f0fc3b74a89d40dae20",
+      "channels": 4,
+      "transparentPixels": 179933,
+      "opaquePixels": 925969,
+      "partialPixels": 0,
+      "subjectRgbChanges": 0
+    }
+  ]
+}

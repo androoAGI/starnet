@@ -11233,6 +11233,7 @@ const PropSprites = (() => {
   function drawOver(f) {
     const fn = OVER[f && f.t]; if (!fn) return;
     const lift = f.mount === 'surface' ? SURFACE_RISE : 0;
+    if(typeof PropRemaster!=='undefined'&&PropRemaster.drawForeground&&PropRemaster.drawForeground(ctx,f.t,'s',f.x*TILE,f.y*TILE-lift,(f.w||1)*TILE,(f.h||1)*TILE,canMirror(f.t)&&!!f.m))return;
     fn(f.x * TILE, f.y * TILE - lift, (f.w || 1) * TILE, (f.h || 1) * TILE, { x: f.x, now });
   }
   /* SEAT-FRONT OVERLAY (stool-sit lane): ONLY the front rim of a single-tile seat's pad, redrawn by the
@@ -11295,6 +11296,7 @@ const PropSprites = (() => {
     const o = { x: f.x, work: !!work, agentId: f.agentId || null, dockName: f.dockName || null, door: f.door || null };
     o.occupied = live && typeof live.occupied === 'boolean' ? live.occupied : !!work;
     o.still = !!(live && live.still);
+    o.scanning = !!(live && live.scanning);
     if (live) { o.heat = +live.heat || 0; o.prog = (live.prog == null) ? null : Math.max(0, Math.min(1, +live.prog || 0)); }
     if (f.t === 'connector_portal') {                 // a bound portal rides its connector's live state
       const cid = f.connectorId || null;
@@ -11752,17 +11754,17 @@ const PropSprites = (() => {
         if (!native) continue; // never invent an unsupported upright facing
         F[key] = (x,y,w,h,o={}) => {
           if (nativeSkinDepth) return native(x,y,w,h,o);
+          const still = o.still || (typeof window !== 'undefined' && window.matchMedia &&
+            window.matchMedia('(prefers-reduced-motion: reduce)').matches);
           const paintNative = target => {
             const previous = ctx, previousNow = now;
             ctx = target; nativeSkinDepth++;
             try {
-              const still = o.still || (typeof window !== 'undefined' && window.matchMedia &&
-                window.matchMedia('(prefers-reduced-motion: reduce)').matches);
               if (still) now = 0; // freeze only decorative motion; o still carries real states
               native(x,y,w,h,o);
             } finally { ctx = previous; now = previousNow; nativeSkinDepth--; }
           };
-          if (!PropRemaster.draw(ctx,c.id,facing,x,y,w,h,{...o,now},paintNative)) native(x,y,w,h,o);
+          if (!PropRemaster.draw(ctx,c.id,facing,x,y,w,h,{...o,now,still:!!still},paintNative)) native(x,y,w,h,o);
         };
       }
     }
