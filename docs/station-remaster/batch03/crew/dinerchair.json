@@ -1,0 +1,294 @@
+{
+  "id": "dinerchair",
+  "nativeId": "dinerchair",
+  "view": "s",
+  "footprint": {
+    "w": 1,
+    "h": 1
+  },
+  "bounds": {
+    "x": 1,
+    "y": -4,
+    "width": 11,
+    "height": 16
+  },
+  "geometry": {
+    "blocks": true,
+    "flat": false,
+    "tableSurface": false,
+    "requiredMount": null,
+    "optionalSurfaceMount": false,
+    "surfaceRisePixels": 8
+  },
+  "orientation": {
+    "facings": [
+      {
+        "r": 0,
+        "front": "south",
+        "w": 1,
+        "h": 1,
+        "type": "authored-view"
+      },
+      {
+        "r": 1,
+        "front": "west",
+        "w": 1,
+        "h": 1,
+        "type": "mirrored-authored-view"
+      },
+      {
+        "r": 2,
+        "front": "north",
+        "w": 1,
+        "h": 1,
+        "type": "authored-view"
+      },
+      {
+        "r": 3,
+        "front": "east",
+        "w": 1,
+        "h": 1,
+        "type": "authored-view"
+      }
+    ],
+    "canMirror": true,
+    "classicFacings": [
+      0,
+      1,
+      2,
+      3
+    ]
+  },
+  "anchorContract": "planSeat: one occupant claim, walk to an adjacent tile, render on the seat tile at bottom minus 1 px plus per-type seat lift; explicit rotated facing beats counter inference.",
+  "sourceAnimation": {
+    "idleFrameVariants": 1,
+    "workFrameVariants": 1,
+    "respondsToWorkFlag": false,
+    "opaqueBoundsRelativeToFootprint": {
+      "x": 1,
+      "y": -4,
+      "w": 11,
+      "h": 16,
+      "alphaThreshold": 160
+    }
+  },
+  "tilePixels": 12,
+  "floorContact": {
+    "x": 6,
+    "y": 12
+  },
+  "visualBottomContact": {
+    "x": 6.5,
+    "y": 12
+  },
+  "status": "art-draft-integration-pending",
+  "backgroundThreshold": 235,
+  "holeSeeds": [
+    [
+      500,
+      510
+    ]
+  ],
+  "authoredGeometry": {
+    "method": "Manual visual annotation of painted source geometry; approximate edges, not live validated. Normalized coordinates refer to final tight alpha crop, not full original canvas.",
+    "fitWorldPixels": {
+      "x": 2.5966484801247076,
+      "y": -4.0,
+      "width": 7.806703039750585,
+      "height": 16.0,
+      "bottom": 12.0
+    },
+    "regions": {
+      "seatSupport": {
+        "cropNormalized": [
+          [
+            0.115,
+            0.365
+          ],
+          [
+            0.89,
+            0.365
+          ],
+          [
+            0.93,
+            0.619
+          ],
+          [
+            0.065,
+            0.619
+          ]
+        ],
+        "sourcePixels": [
+          [
+            279.99,
+            568.3
+          ],
+          [
+            765.14,
+            568.3
+          ],
+          [
+            790.18,
+            894.18
+          ],
+          [
+            248.69,
+            894.18
+          ]
+        ],
+        "sourceNormalized": [
+          [
+            0.269221,
+            0.375608
+          ],
+          [
+            0.735712,
+            0.375608
+          ],
+          [
+            0.759788,
+            0.590996
+          ],
+          [
+            0.239125,
+            0.590996
+          ]
+        ],
+        "worldPixels": [
+          [
+            3.4944,
+            1.84
+          ],
+          [
+            9.5446,
+            1.84
+          ],
+          [
+            9.8569,
+            5.904
+          ],
+          [
+            3.1041,
+            5.904
+          ]
+        ]
+      },
+      "nearSupportEdge": {
+        "cropNormalized": [
+          [
+            0.065,
+            0.619
+          ],
+          [
+            0.93,
+            0.619
+          ]
+        ],
+        "sourcePixels": [
+          [
+            248.69,
+            894.18
+          ],
+          [
+            790.18,
+            894.18
+          ]
+        ],
+        "sourceNormalized": [
+          [
+            0.239125,
+            0.590996
+          ],
+          [
+            0.759788,
+            0.590996
+          ]
+        ],
+        "worldPixels": [
+          [
+            3.1041,
+            5.904
+          ],
+          [
+            9.8569,
+            5.904
+          ]
+        ]
+      },
+      "backRest": {
+        "cropNormalized": [
+          [
+            0.1,
+            0.025
+          ],
+          [
+            0.89,
+            0.025
+          ],
+          [
+            0.89,
+            0.275
+          ],
+          [
+            0.1,
+            0.275
+          ]
+        ],
+        "sourcePixels": [
+          [
+            270.6,
+            132.07
+          ],
+          [
+            765.14,
+            132.07
+          ],
+          [
+            765.14,
+            452.83
+          ],
+          [
+            270.6,
+            452.83
+          ]
+        ],
+        "sourceNormalized": [
+          [
+            0.260192,
+            0.087293
+          ],
+          [
+            0.735712,
+            0.087293
+          ],
+          [
+            0.735712,
+            0.299289
+          ],
+          [
+            0.260192,
+            0.299289
+          ]
+        ],
+        "worldPixels": [
+          [
+            3.3773,
+            -3.6
+          ],
+          [
+            9.5446,
+            -3.6
+          ],
+          [
+            9.5446,
+            0.4
+          ],
+          [
+            3.3773,
+            0.4
+          ]
+        ]
+      }
+    }
+  }
+}
