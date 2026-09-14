@@ -1,0 +1,59 @@
+{
+  "id": "gigs_thumbwall",
+  "status": "exported-awaiting-owner-live-review",
+  "source": "sources/gigs_thumbwall.png",
+  "sourceSha256": "ff257949a44e95d16b9ed968321538f5e194841da50ace998f5d836a756f5fa0",
+  "sourceWidth": 1508,
+  "sourceHeight": 1043,
+  "image": "gigs_thumbwall.png",
+  "sourceOutputWidth": 1411,
+  "sourceOutputHeight": 812,
+  "crop": {
+    "left": 48,
+    "top": 112,
+    "width": 1411,
+    "height": 812
+  },
+  "channels": 4,
+  "transparentPixels": 128908,
+  "opaquePixels": 1016824,
+  "partialPixels": 0,
+  "backgroundPixelsRemoved": 556020,
+  "subjectRgbChanges": 0,
+  "outputSha256": "f2753b6675fe7fc45aa6d7e5cbd4b5cbfb2a06fd4b499114906a597eae038977",
+  "holeSeeds": [],
+  "maskMethod": "Connected saturated-magenta flood fill, including key-only enclosed components. Alpha-only edits; uniform crop; no RGB recolor.",
+  "view": "s",
+  "footprint": {
+    "w": 2,
+    "h": 1
+  },
+  "bounds": {
+    "x": -1,
+    "y": -6,
+    "width": 26,
+    "height": 18
+  },
+  "tilePixels": 12,
+  "contact": {
+    "x": 12,
+    "y": 12
+  },
+  "anchorContract": "No leisure seat anchor. Footprint is the placement/pathfinding rectangle; upright visual rise is independent of the reserved box.",
+  "originalLight": {
+    "c": [
+      255,
+      150,
+      200
+    ],
+    "r": 20,
+    "a": 0.08,
+    "m": "screen",
+    "y": 0.35
+  },
+  "originalAnimationTriggers": [
+    "Autonomous sprite clock animation is present in the sampled default state; cosmetic motion is not evidence of provider work, route decisions or external state."
+  ],
+  "artMode": "static complete art; existing state/lighting integration remains owner decision",
+  "liveIntegrated": false
+}
