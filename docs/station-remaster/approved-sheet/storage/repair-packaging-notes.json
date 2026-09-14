@@ -1,0 +1,29 @@
+{
+  "version": 1,
+  "count": 9,
+  "sourceArtStatus": "Eight sheet repairs plus one holopet support correction authored and packaged. Existing approved master remains unchanged.",
+  "reproduction": "From repository root run node dev/industrial-textures/extract-approved-repairs.cjs with sharp available.",
+  "verification": "All nine PNGs decoded and compared against exact source crop. Zero RGB changes, zero retained-alpha changes, zero opaque ROI edge pixels. Full-scale green-background composite visually inspected; clear shapes, empty sockets and no detached background haze. Native envelope downsample inspected separately.",
+  "qaFiles": {
+    "repair-extraction-qa.png": "Rows: floorvent/cabletray/sidetable; longtable/pnl disk/coinsorter; mailpod/recliner/holopet. Uniform preview fit on green.",
+    "repair-native-qa.png": "Same order. Fit inside each existing south-view native bounds, then six-times nearest-neighbor enlargement. This is a conservative fit illustration, not the live renderer."
+  },
+  "holopet": {
+    "tool": "image_gen built-in",
+    "primaryReference": "frontend/assets/industrial/complete-sheet/starnet-props-full-sheet.png",
+    "primaryReferenceSha256": "e68ef0d3711e9164a3aff5333b98522ed6fdcb4bc7654929e333cb2ff2b97ea9",
+    "source": "holopet-repair-source.png",
+    "generatedOriginalPath": "C:/Users/andro/.codex/generated_images/01a09e47-65ec-7a71-b4a1-4847c19fc477/exec-c8959d63-29e7-43c8-9e0a-35b83ecb9823.png",
+    "prompt": "holopet-repair.prompt.txt",
+    "correction": "Raised pedestal replaced by a thin flush floor emitter disk; cyan seated pet and curled-tail identity retained. The projected pet is visual decoration and has no collision or claimed live occupancy.",
+    "emitterApproximateExportNormalized": {"center": [0.497, 0.854], "radius": [0.465, 0.139]},
+    "floorContactExportNormalized": [0.497, 0.989],
+    "notes": "Projection extends above flush disk. Preserve native walk-over collision; do not turn the full projected silhouette into a solid obstacle. Literal uniform fitting into the old 6px-wide complete sprite bounds makes the pet very small; coordinator should evaluate its approved-sheet fit consistently with the rest of the catalog."
+  },
+  "integrationNotes": [
+    "Bare longtable primary is included; matching east-facing art is delivered separately by crew at 2c16d366b.",
+    "Floorvent, cabletray and pnl disk remain flat floor props. Empty sorter trough and mailpod sockets are available for native cargo effects; baked lenses do not assert runtime status.",
+    "Retained source alpha has maximum254; never flatten or force255. Original source and prompt provenance are committed.",
+    "No runtime, collision or manifest edited. No claim of live validation or separate user approval of repair candidates."
+  ]
+}

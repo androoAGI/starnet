@@ -1,0 +1,431 @@
+{
+  "version": 1,
+  "count": 9,
+  "method": "Same alpha core threshold180 and Euclidean radius3 as approved sheet extraction. All original RGB and retained alpha preserved; only detached translucent background alpha removed. Tight crop; no resizing, repainting or recoloring.",
+  "sourcesPreserved": true,
+  "records": [
+    {
+      "id": "industrial_floorvent",
+      "source": "docs/station-remaster/approved-sheet/storage/repair-sheet-source.png",
+      "sourceSha256": "a9595544e9a25d2e46a2cfe629b4bf6b00a090a18a6941e935dacdcec88954d8",
+      "output": "frontend/assets/industrial/approved-sheet/industrial_floorvent.png",
+      "outputSha256": "7f6c7f50434ca84257c0903c391c7181fd175f1aa38ac114e92486c414cb621a",
+      "sourceRect": {
+        "x": 35,
+        "y": 210,
+        "width": 325,
+        "height": 195
+      },
+      "cropInCell": {
+        "left": 19,
+        "top": 20,
+        "width": 283,
+        "height": 149
+      },
+      "sourceCrop": {
+        "left": 54,
+        "top": 230,
+        "width": 283,
+        "height": 149
+      },
+      "width": 283,
+      "height": 149,
+      "alphaBounds": {
+        "x": 0,
+        "y": 0,
+        "width": 283,
+        "height": 149
+      },
+      "retainedPixels": 41303,
+      "alphaResidueRemoved": 2101,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "opaqueCellEdgePixels": 0,
+      "rgbChanges": 0,
+      "retainedAlphaChanges": 0,
+      "alpha": {
+        "zero": 864,
+        "partial": 41303,
+        "opaque255": 0,
+        "maxAlpha": 254
+      },
+      "liveVerified": false
+    },
+    {
+      "id": "industrial_cabletray",
+      "source": "docs/station-remaster/approved-sheet/storage/repair-sheet-source.png",
+      "sourceSha256": "a9595544e9a25d2e46a2cfe629b4bf6b00a090a18a6941e935dacdcec88954d8",
+      "output": "frontend/assets/industrial/approved-sheet/industrial_cabletray.png",
+      "outputSha256": "33c72cb8f790dfffc444122784124c1e94f3ba72f2f2e34988569a8902f11142",
+      "sourceRect": {
+        "x": 385,
+        "y": 245,
+        "width": 445,
+        "height": 145
+      },
+      "cropInCell": {
+        "left": 13,
+        "top": 18,
+        "width": 418,
+        "height": 96
+      },
+      "sourceCrop": {
+        "left": 398,
+        "top": 263,
+        "width": 418,
+        "height": 96
+      },
+      "width": 418,
+      "height": 96,
+      "alphaBounds": {
+        "x": 0,
+        "y": 0,
+        "width": 418,
+        "height": 96
+      },
+      "retainedPixels": 39575,
+      "alphaResidueRemoved": 1712,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "opaqueCellEdgePixels": 0,
+      "rgbChanges": 0,
+      "retainedAlphaChanges": 0,
+      "alpha": {
+        "zero": 553,
+        "partial": 39575,
+        "opaque255": 0,
+        "maxAlpha": 254
+      },
+      "liveVerified": false
+    },
+    {
+      "id": "sidetable",
+      "source": "docs/station-remaster/approved-sheet/storage/repair-sheet-source.png",
+      "sourceSha256": "a9595544e9a25d2e46a2cfe629b4bf6b00a090a18a6941e935dacdcec88954d8",
+      "output": "frontend/assets/industrial/approved-sheet/sidetable.png",
+      "outputSha256": "6237868cfd2df133e31b2360a6764c6b35c5a2b29c2d47a2e4119a691231ee7d",
+      "sourceRect": {
+        "x": 840,
+        "y": 200,
+        "width": 205,
+        "height": 235
+      },
+      "cropInCell": {
+        "left": 18,
+        "top": 17,
+        "width": 173,
+        "height": 203
+      },
+      "sourceCrop": {
+        "left": 858,
+        "top": 217,
+        "width": 173,
+        "height": 203
+      },
+      "width": 173,
+      "height": 203,
+      "alphaBounds": {
+        "x": 0,
+        "y": 0,
+        "width": 173,
+        "height": 203
+      },
+      "retainedPixels": 24224,
+      "alphaResidueRemoved": 1051,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "opaqueCellEdgePixels": 0,
+      "rgbChanges": 0,
+      "retainedAlphaChanges": 0,
+      "alpha": {
+        "zero": 10895,
+        "partial": 24224,
+        "opaque255": 0,
+        "maxAlpha": 254
+      },
+      "liveVerified": false
+    },
+    {
+      "id": "longtable",
+      "source": "docs/station-remaster/approved-sheet/storage/repair-sheet-source.png",
+      "sourceSha256": "a9595544e9a25d2e46a2cfe629b4bf6b00a090a18a6941e935dacdcec88954d8",
+      "output": "frontend/assets/industrial/approved-sheet/longtable.png",
+      "outputSha256": "24513a547387a625fbf2fe91209c27e69a9721b643e06a5c315b0db31b5a3dd3",
+      "sourceRect": {
+        "x": 1080,
+        "y": 190,
+        "width": 420,
+        "height": 245
+      },
+      "cropInCell": {
+        "left": 11,
+        "top": 23,
+        "width": 384,
+        "height": 202
+      },
+      "sourceCrop": {
+        "left": 1091,
+        "top": 213,
+        "width": 384,
+        "height": 202
+      },
+      "width": 384,
+      "height": 202,
+      "alphaBounds": {
+        "x": 0,
+        "y": 0,
+        "width": 384,
+        "height": 202
+      },
+      "retainedPixels": 59586,
+      "alphaResidueRemoved": 3642,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "opaqueCellEdgePixels": 0,
+      "rgbChanges": 0,
+      "retainedAlphaChanges": 0,
+      "alpha": {
+        "zero": 17982,
+        "partial": 59586,
+        "opaque255": 0,
+        "maxAlpha": 254
+      },
+      "liveVerified": false
+    },
+    {
+      "id": "treasury_pnl_holo",
+      "source": "docs/station-remaster/approved-sheet/storage/repair-sheet-source.png",
+      "sourceSha256": "a9595544e9a25d2e46a2cfe629b4bf6b00a090a18a6941e935dacdcec88954d8",
+      "output": "frontend/assets/industrial/approved-sheet/treasury_pnl_holo.png",
+      "outputSha256": "80dd4cb142dec15b1776bbd78851b71796a95ee8821202eb16822cf379135dba",
+      "sourceRect": {
+        "x": 40,
+        "y": 685,
+        "width": 295,
+        "height": 175
+      },
+      "cropInCell": {
+        "left": 14,
+        "top": 19,
+        "width": 253,
+        "height": 127
+      },
+      "sourceCrop": {
+        "left": 54,
+        "top": 704,
+        "width": 253,
+        "height": 127
+      },
+      "width": 253,
+      "height": 127,
+      "alphaBounds": {
+        "x": 0,
+        "y": 0,
+        "width": 253,
+        "height": 127
+      },
+      "retainedPixels": 25121,
+      "alphaResidueRemoved": 718,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "opaqueCellEdgePixels": 0,
+      "rgbChanges": 0,
+      "retainedAlphaChanges": 0,
+      "alpha": {
+        "zero": 7010,
+        "partial": 25121,
+        "opaque255": 0,
+        "maxAlpha": 254
+      },
+      "liveVerified": false
+    },
+    {
+      "id": "treasury_coinsorter",
+      "source": "docs/station-remaster/approved-sheet/storage/repair-sheet-source.png",
+      "sourceSha256": "a9595544e9a25d2e46a2cfe629b4bf6b00a090a18a6941e935dacdcec88954d8",
+      "output": "frontend/assets/industrial/approved-sheet/treasury_coinsorter.png",
+      "outputSha256": "36875be755995d0dd28d57c9219b81da110f2515fbcadf229e98a12a212d3c37",
+      "sourceRect": {
+        "x": 350,
+        "y": 620,
+        "width": 425,
+        "height": 245
+      },
+      "cropInCell": {
+        "left": 13,
+        "top": 20,
+        "width": 406,
+        "height": 203
+      },
+      "sourceCrop": {
+        "left": 363,
+        "top": 640,
+        "width": 406,
+        "height": 203
+      },
+      "width": 406,
+      "height": 203,
+      "alphaBounds": {
+        "x": 0,
+        "y": 0,
+        "width": 406,
+        "height": 203
+      },
+      "retainedPixels": 70624,
+      "alphaResidueRemoved": 2661,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "opaqueCellEdgePixels": 0,
+      "rgbChanges": 0,
+      "retainedAlphaChanges": 0,
+      "alpha": {
+        "zero": 11794,
+        "partial": 70624,
+        "opaque255": 0,
+        "maxAlpha": 254
+      },
+      "liveVerified": false
+    },
+    {
+      "id": "pub_mailpod",
+      "source": "docs/station-remaster/approved-sheet/storage/repair-sheet-source.png",
+      "sourceSha256": "a9595544e9a25d2e46a2cfe629b4bf6b00a090a18a6941e935dacdcec88954d8",
+      "output": "frontend/assets/industrial/approved-sheet/pub_mailpod.png",
+      "outputSha256": "bce09a0c09be219da5c01a7f53cc4f756bf7250b8a728b88a050f8b116c24a09",
+      "sourceRect": {
+        "x": 805,
+        "y": 555,
+        "width": 340,
+        "height": 315
+      },
+      "cropInCell": {
+        "left": 8,
+        "top": 24,
+        "width": 319,
+        "height": 264
+      },
+      "sourceCrop": {
+        "left": 813,
+        "top": 579,
+        "width": 319,
+        "height": 264
+      },
+      "width": 319,
+      "height": 264,
+      "alphaBounds": {
+        "x": 0,
+        "y": 0,
+        "width": 319,
+        "height": 264
+      },
+      "retainedPixels": 58745,
+      "alphaResidueRemoved": 1640,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "opaqueCellEdgePixels": 0,
+      "rgbChanges": 0,
+      "retainedAlphaChanges": 0,
+      "alpha": {
+        "zero": 25471,
+        "partial": 58745,
+        "opaque255": 0,
+        "maxAlpha": 254
+      },
+      "liveVerified": false
+    },
+    {
+      "id": "recliner",
+      "source": "docs/station-remaster/approved-sheet/storage/repair-sheet-source.png",
+      "sourceSha256": "a9595544e9a25d2e46a2cfe629b4bf6b00a090a18a6941e935dacdcec88954d8",
+      "output": "frontend/assets/industrial/approved-sheet/recliner.png",
+      "outputSha256": "c9cc41ba8932e492938b3b11e03ea8c668d4e3bc5f4653545c43f42a219e2ee1",
+      "sourceRect": {
+        "x": 1170,
+        "y": 565,
+        "width": 345,
+        "height": 310
+      },
+      "cropInCell": {
+        "left": 24,
+        "top": 21,
+        "width": 302,
+        "height": 269
+      },
+      "sourceCrop": {
+        "left": 1194,
+        "top": 586,
+        "width": 302,
+        "height": 269
+      },
+      "width": 302,
+      "height": 269,
+      "alphaBounds": {
+        "x": 0,
+        "y": 0,
+        "width": 302,
+        "height": 269
+      },
+      "retainedPixels": 48976,
+      "alphaResidueRemoved": 1084,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "opaqueCellEdgePixels": 0,
+      "rgbChanges": 0,
+      "retainedAlphaChanges": 0,
+      "alpha": {
+        "zero": 32262,
+        "partial": 48976,
+        "opaque255": 0,
+        "maxAlpha": 254
+      },
+      "liveVerified": false
+    },
+    {
+      "id": "holopet",
+      "source": "docs/station-remaster/approved-sheet/storage/holopet-repair-source.png",
+      "sourceSha256": "c3c6506b00486392b1dace79fe3d520c830888ec8708f0f6a92522fcb9bb42a2",
+      "output": "frontend/assets/industrial/approved-sheet/holopet.png",
+      "outputSha256": "ed9c5786a65606b3540389ec5f6dcbb89417b9f63f99eafd2cc1f3ce4db44ff9",
+      "sourceRect": {
+        "x": 0,
+        "y": 0,
+        "width": 1536,
+        "height": 1024
+      },
+      "cropInCell": {
+        "left": 534,
+        "top": 223,
+        "width": 475,
+        "height": 563
+      },
+      "sourceCrop": {
+        "left": 534,
+        "top": 223,
+        "width": 475,
+        "height": 563
+      },
+      "width": 475,
+      "height": 563,
+      "alphaBounds": {
+        "x": 0,
+        "y": 0,
+        "width": 475,
+        "height": 563
+      },
+      "retainedPixels": 183422,
+      "alphaResidueRemoved": 3519,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "opaqueCellEdgePixels": 0,
+      "rgbChanges": 0,
+      "retainedAlphaChanges": 0,
+      "alpha": {
+        "zero": 84003,
+        "partial": 183422,
+        "opaque255": 0,
+        "maxAlpha": 254
+      },
+      "liveVerified": false
+    }
+  ]
+}
