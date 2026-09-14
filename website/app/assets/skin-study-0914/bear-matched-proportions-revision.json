@@ -1,0 +1,15 @@
+{
+  "description": "Full body UPRIGHT STANDING bipedal teddy bear agent with ADULT HUMAN BODY PROPORTIONS matching a realistically proportioned game crew member. Small round teddy head only one fifth of total body height, narrow shoulders, slim elongated torso, two long straight legs comprising nearly half total height, distinct knees, small feet planted beneath hips, arms hanging straight down beside torso. Neutral standing pose, NO sitting, NO crouching, NO squat baby body, NO oversized head, NO splayed feet forward. Honey brown textured mohair plush, stitched center seams, little round ears, black glass bead eyes, projecting beige stitched muzzle, tiny triangular dark nose, subtle beige paw pads. Clearly a teddy bear but built with the same upright human proportions as neighboring human agent sprites. Detailed pixel art for a dark industrial station, low top-down view, overhead-left light, transparent background.",
+  "characters": [
+    {
+      "id": "bear",
+      "characterId": "316ac751-87f9-44fa-8b59-da066fd47bd7",
+      "rotations": {
+        "south": "https://backblaze.pixellab.ai/file/pixellab-characters/1ff7d2cf-cfe6-44f9-9533-9eea41eb05cb/316ac751-87f9-44fa-8b59-da066fd47bd7/rotations/south.png?t=1789367987",
+        "east": "https://backblaze.pixellab.ai/file/pixellab-characters/1ff7d2cf-cfe6-44f9-9533-9eea41eb05cb/316ac751-87f9-44fa-8b59-da066fd47bd7/rotations/east.png?t=1789367987",
+        "north": "https://backblaze.pixellab.ai/file/pixellab-characters/1ff7d2cf-cfe6-44f9-9533-9eea41eb05cb/316ac751-87f9-44fa-8b59-da066fd47bd7/rotations/north.png?t=1789367987",
+        "west": "https://backblaze.pixellab.ai/file/pixellab-characters/1ff7d2cf-cfe6-44f9-9533-9eea41eb05cb/316ac751-87f9-44fa-8b59-da066fd47bd7/rotations/west.png?t=1789367987"
+      }
+    }
+  ]
+}
