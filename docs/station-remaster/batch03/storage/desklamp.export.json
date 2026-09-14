@@ -1,0 +1,59 @@
+{
+  "id": "desklamp",
+  "status": "exported-awaiting-owner-live-review",
+  "source": "sources/desklamp.png",
+  "sourceSha256": "43bb42bdb83ddd6d13d5061282f7a1980bb05effffa22302333d77340aa30004",
+  "sourceWidth": 1448,
+  "sourceHeight": 1086,
+  "image": "desklamp.png",
+  "sourceOutputWidth": 1033,
+  "sourceOutputHeight": 956,
+  "crop": {
+    "left": 189,
+    "top": 53,
+    "width": 1033,
+    "height": 956
+  },
+  "channels": 4,
+  "transparentPixels": 599137,
+  "opaquePixels": 388411,
+  "partialPixels": 0,
+  "backgroundPixelsRemoved": 1184117,
+  "subjectRgbChanges": 0,
+  "outputSha256": "a7e20fe99936ba5b847ffd560dbe17dc78c27a1854d345f9786fc213bd069c4e",
+  "holeSeeds": [],
+  "maskMethod": "Connected saturated-magenta flood fill, including key-only enclosed components. Alpha-only edits; uniform crop; no RGB recolor.",
+  "view": "s",
+  "footprint": {
+    "w": 1,
+    "h": 1
+  },
+  "bounds": {
+    "x": 0,
+    "y": 3,
+    "width": 12,
+    "height": 9
+  },
+  "tilePixels": 12,
+  "contact": {
+    "x": 6,
+    "y": 12
+  },
+  "anchorContract": "Can sit on bare deck or valid table; table mount lifts contact origin exactly 8 world pixels.",
+  "originalLight": {
+    "c": [
+      255,
+      214,
+      150
+    ],
+    "r": 26,
+    "a": 0.22,
+    "m": "steady",
+    "y": 0.3
+  },
+  "originalAnimationTriggers": [
+    "No direct event-driven or sampled default sprite animation. Preserve static art; no invented status or progress."
+  ],
+  "artMode": "static complete art; existing state/lighting integration remains owner decision",
+  "liveIntegrated": false
+}
