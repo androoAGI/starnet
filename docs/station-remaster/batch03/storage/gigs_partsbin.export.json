@@ -1,0 +1,49 @@
+{
+  "id": "gigs_partsbin",
+  "status": "exported-awaiting-owner-live-review",
+  "source": "sources/gigs_partsbin.png",
+  "sourceSha256": "4829bb2079fce790d0d633ba2dd69038741a4db3d152e36223f48e8e1d31caa0",
+  "sourceWidth": 1468,
+  "sourceHeight": 1071,
+  "image": "gigs_partsbin.png",
+  "sourceOutputWidth": 1410,
+  "sourceOutputHeight": 719,
+  "crop": {
+    "left": 29,
+    "top": 173,
+    "width": 1410,
+    "height": 719
+  },
+  "channels": 4,
+  "transparentPixels": 91591,
+  "opaquePixels": 922199,
+  "partialPixels": 0,
+  "backgroundPixelsRemoved": 650029,
+  "subjectRgbChanges": 0,
+  "outputSha256": "367e56abc9ada1a92a863847a895e82fabb9612aa477a12a14548db7e12b736e",
+  "holeSeeds": [],
+  "maskMethod": "Connected saturated-magenta flood fill, including key-only enclosed components. Alpha-only edits; uniform crop; no RGB recolor.",
+  "view": "s",
+  "footprint": {
+    "w": 2,
+    "h": 1
+  },
+  "bounds": {
+    "x": -1,
+    "y": -7,
+    "width": 26,
+    "height": 19
+  },
+  "tilePixels": 12,
+  "contact": {
+    "x": 12,
+    "y": 12
+  },
+  "anchorContract": "Can sit on bare deck or valid table; table mount lifts contact origin exactly 8 world pixels.",
+  "originalLight": null,
+  "originalAnimationTriggers": [
+    "Autonomous sprite clock animation is present in the sampled default state; cosmetic motion is not evidence of provider work, route decisions or external state."
+  ],
+  "artMode": "static complete art; existing state/lighting integration remains owner decision",
+  "liveIntegrated": false
+}
