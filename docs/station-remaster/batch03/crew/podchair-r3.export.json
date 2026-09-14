@@ -1,0 +1,312 @@
+{
+  "id": "podchair-r3",
+  "nativeId": "podchair",
+  "view": "e",
+  "footprint": {
+    "w": 1,
+    "h": 1
+  },
+  "bounds": {
+    "x": 1,
+    "y": -5,
+    "width": 11,
+    "height": 17
+  },
+  "geometry": {
+    "blocks": true,
+    "flat": false,
+    "tableSurface": false,
+    "requiredMount": null,
+    "optionalSurfaceMount": false,
+    "surfaceRisePixels": 8
+  },
+  "orientation": {
+    "facings": [
+      {
+        "r": 0,
+        "front": "south",
+        "w": 1,
+        "h": 1,
+        "type": "authored-view"
+      },
+      {
+        "r": 1,
+        "front": "west",
+        "w": 1,
+        "h": 1,
+        "type": "mirrored-authored-view"
+      },
+      {
+        "r": 2,
+        "front": "north",
+        "w": 1,
+        "h": 1,
+        "type": "authored-view"
+      },
+      {
+        "r": 3,
+        "front": "east",
+        "w": 1,
+        "h": 1,
+        "type": "authored-view"
+      }
+    ],
+    "canMirror": true,
+    "classicFacings": [
+      0,
+      1,
+      2,
+      3
+    ]
+  },
+  "anchorContract": "planSeat: one occupant claim, walk to an adjacent tile, render on the seat tile at bottom minus 1 px plus per-type seat lift; explicit rotated facing beats counter inference.",
+  "sourceAnimation": {
+    "idleFrameVariants": 1,
+    "workFrameVariants": 1,
+    "respondsToWorkFlag": false,
+    "opaqueBoundsRelativeToFootprint": {
+      "x": 1,
+      "y": -5,
+      "w": 10,
+      "h": 17,
+      "alphaThreshold": 160
+    }
+  },
+  "tilePixels": 12,
+  "floorContact": {
+    "x": 6,
+    "y": 12
+  },
+  "visualBottomContact": {
+    "x": 6.5,
+    "y": 12
+  },
+  "status": "art-draft-integration-pending",
+  "backgroundThreshold": 235,
+  "holeSeeds": [],
+  "sourceWidth": 1009,
+  "sourceHeight": 1559,
+  "sourceSha256": "ef0f4d98007bd17508756740660eb445afd78d100a6b4b5d976eddce7fb3070d",
+  "output": "frontend/assets/industrial/batch03/crew/podchair-r3.png",
+  "crop": {
+    "left": 48,
+    "top": 67,
+    "width": 921,
+    "height": 1390
+  },
+  "transparentPixels": 518058,
+  "opaquePixels": 762132,
+  "partialPixels": 0,
+  "backgroundPixelsRemoved": 810899,
+  "subjectRgbChanges": 0,
+  "outputSha256": "562e4c62215f476b018379e9edc7e819c388121129b283e532f1ad5e392a8e9b",
+  "liveIntegrated": false,
+  "authoredGeometry": {
+    "method": "Manual visual annotation of painted source geometry; approximate edges, not live validated. Normalized coordinates refer to final tight alpha crop, not full original canvas.",
+    "fitWorldPixels": {
+      "x": 1.0,
+      "y": -4.601520086862106,
+      "width": 11.0,
+      "height": 16.601520086862106,
+      "bottom": 12.0
+    },
+    "regions": {
+      "seatSupport": {
+        "cropNormalized": [
+          [
+            0.393,
+            0.465
+          ],
+          [
+            0.72,
+            0.462
+          ],
+          [
+            0.929,
+            0.515
+          ],
+          [
+            0.83,
+            0.546
+          ],
+          [
+            0.527,
+            0.557
+          ]
+        ],
+        "sourcePixels": [
+          [
+            409.95,
+            713.35
+          ],
+          [
+            711.12,
+            709.18
+          ],
+          [
+            903.61,
+            782.85
+          ],
+          [
+            812.43,
+            825.94
+          ],
+          [
+            533.37,
+            841.23
+          ]
+        ],
+        "sourceNormalized": [
+          [
+            0.406296,
+            0.457569
+          ],
+          [
+            0.704777,
+            0.454894
+          ],
+          [
+            0.895549,
+            0.502149
+          ],
+          [
+            0.805183,
+            0.529788
+          ],
+          [
+            0.52861,
+            0.539596
+          ]
+        ],
+        "worldPixels": [
+          [
+            5.323,
+            3.1182
+          ],
+          [
+            8.92,
+            3.0684
+          ],
+          [
+            11.219,
+            3.9483
+          ],
+          [
+            10.13,
+            4.4629
+          ],
+          [
+            6.797,
+            4.6455
+          ]
+        ]
+      },
+      "nearRimOcclusion": {
+        "cropNormalized": [
+          [
+            0.32,
+            0.49
+          ],
+          [
+            0.51,
+            0.67
+          ],
+          [
+            0.97,
+            0.59
+          ],
+          [
+            0.98,
+            0.71
+          ],
+          [
+            0.49,
+            0.77
+          ],
+          [
+            0.26,
+            0.61
+          ]
+        ],
+        "sourcePixels": [
+          [
+            342.72,
+            748.1
+          ],
+          [
+            517.71,
+            998.3
+          ],
+          [
+            941.37,
+            887.1
+          ],
+          [
+            950.58,
+            1053.9
+          ],
+          [
+            499.29,
+            1137.3
+          ],
+          [
+            287.46,
+            914.9
+          ]
+        ],
+        "sourceNormalized": [
+          [
+            0.339663,
+            0.479859
+          ],
+          [
+            0.513092,
+            0.640346
+          ],
+          [
+            0.932973,
+            0.569019
+          ],
+          [
+            0.942101,
+            0.67601
+          ],
+          [
+            0.494836,
+            0.729506
+          ],
+          [
+            0.284896,
+            0.586851
+          ]
+        ],
+        "worldPixels": [
+          [
+            4.52,
+            3.5332
+          ],
+          [
+            6.61,
+            6.5215
+          ],
+          [
+            11.67,
+            5.1934
+          ],
+          [
+            11.78,
+            7.1856
+          ],
+          [
+            6.39,
+            8.1817
+          ],
+          [
+            3.86,
+            5.5254
+          ]
+        ]
+      }
+    }
+  }
+}
