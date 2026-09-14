@@ -41,15 +41,11 @@
   "anchorContract": "No leisure seat anchor. Footprint is the placement/pathfinding rectangle; upright visual rise is independent of the reserved box.",
   "holeSeeds": [],
   "proportionReview": {
-    "sourceNearSurfaceRimY": 500,
-    "sourceFootY": 966,
-    "sourceTopY": 25,
-    "cropWidth": 1374,
-    "cropHeight": 941,
-    "uniformFitWorldWidth": 23.36,
-    "uniformFitWorldNearSurfaceRimY": 4.08,
+    "sourceNearTopRimY": 500,
+    "cropTop": 19,
+    "cropHeight": 984,
+    "uniformFitWorldNearRimY": 3.821,
     "worldFloorY": 12,
-    "topEllipseDepthOverWidth": 0.346,
-    "note": "Reauthored ellipse and pedestal; no bitmap stretching. Near top rim now ~y4 for SURFACE_RISE8."
+    "uniformFitWorldWidth": 22.553
   }
 }

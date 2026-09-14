@@ -1,0 +1,76 @@
+{
+  "sourceAnimation": {
+    "idleFrameVariants": 1,
+    "workFrameVariants": 1,
+    "respondsToWorkFlag": false,
+    "opaqueBoundsRelativeToFootprint": {
+      "x": 1,
+      "y": 0,
+      "w": 10,
+      "h": 11,
+      "alphaThreshold": 160
+    }
+  },
+  "bounds": {
+    "y": 0,
+    "width": 10,
+    "height": 11,
+    "x": 1
+  },
+  "id": "stool",
+  "geometry": {
+    "blocks": true,
+    "flat": false,
+    "tableSurface": false,
+    "requiredMount": null,
+    "optionalSurfaceMount": false,
+    "surfaceRisePixels": 8
+  },
+  "floorContact": {
+    "x": 6,
+    "y": 12
+  },
+  "backgroundThreshold": 235,
+  "tilePixels": 12,
+  "status": "art-draft-integration-pending",
+  "view": "s",
+  "footprint": {
+    "w": 1,
+    "h": 1
+  },
+  "anchorContract": "planSeat: one occupant claim, walk to an adjacent tile, render on the seat tile at bottom minus 1 px plus per-type seat lift; explicit rotated facing beats counter inference.",
+  "holeSeeds": [
+    [
+      600,
+      470
+    ],
+    [
+      600,
+      720
+    ]
+  ],
+  "proportionReview": {
+    "sourceNearSeatRimY": 400,
+    "cropTop": 145,
+    "cropHeight": 1006,
+    "uniformFitWorldNearRimY": 2.788,
+    "worldFeetY": 11
+  },
+  "sourceWidth": 1197,
+  "sourceHeight": 1314,
+  "sourceSha256": "105d7c63e778c0355b59f9474e64657bd2a4e0178c13c3620d16c32875cf51af",
+  "output": "frontend/assets/industrial/batch03/crew/stool.png",
+  "crop": {
+    "left": 198,
+    "top": 145,
+    "width": 801,
+    "height": 1006
+  },
+  "transparentPixels": 319775,
+  "opaquePixels": 486031,
+  "partialPixels": 0,
+  "backgroundPixelsRemoved": 1086827,
+  "subjectRgbChanges": 0,
+  "outputSha256": "748c058493d2b98abbe7772dc1af9f95a5594418f2f5bdaf3114764e67e1edb7",
+  "liveIntegrated": false
+}
