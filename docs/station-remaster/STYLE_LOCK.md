@@ -2,6 +2,8 @@
 
 ## Canonical visual reference
 
+**Follow-up owner review:** the projection-correction TV, two arcades and pool table are accepted; aquarium is improved. Preserve these. The couch is still rejected because its visible seat depth/camera does not match the neighboring recliners. Correct the couch using those recliners as the geometry reference, verify in the saved lounge, then continue through the remaining catalog. Do not treat the previous rear-view couch as an accepted camera reference.
+
 **Latest owner correction (2026-09-14): the runtime deployment of this sheet was rejected. Only the crate, workstation desk and chair were accepted in-station. The sheet remains a material/style reference, NOT camera, physical-scale or integration approval. Match the accepted three props' horizontal axes, visible top planes and grounded contact. Rebuild incompatible source projections; do not use source aspect ratio to invent world dimensions. This correction supersedes conflicting camera instructions below.**
 
 The owner explicitly approved the complete prop sheet: “that sprite sheet is exactly what I am going for.” This approval applies to its visual style. It does not assert that the individual assets are already cut out, mapped, animated, or integrated.

@@ -1,6 +1,6 @@
 # Projection correction — lounge review
 
-The owner rejected the deployed sheet's orientation and scale. The sheet remains the material/style authority; only the crate, workstation and chair were accepted in the station. This is a correction candidate, not completion or owner approval of the catalog.
+The owner rejected the deployed sheet's orientation and scale. The sheet remains the material/style authority. The crate, workstation and chair were accepted initially; follow-up review also accepted this set's TV, two arcades and pool table, and called the aquarium improved. The first rear couch was rejected for its mismatched camera. This remains a correction candidate for the rest of the catalog.
 
 Review the saved station at `http://127.0.0.1:18793/?propSet=projection`. The ordinary URL retains the earlier set for comparison. `prop-atlas.html?propSet=projection&set=new` filters the eight revised props; `approved-prop-check.html?propSet=projection` reports loading and geometry checks. None of these routes change the saved layout.
 
@@ -15,7 +15,7 @@ Sources use Codex's built-in image tool. Prompts are adjacent to this file. The 
 - Rebuilt the TV with horizontal edges and a low support; its fitted height is 24 world pixels, replacing the previous 44.24-pixel tower.
 - Gave the pool table horizontal rails and a readable felt plane. The first fit shrank its width to 40.77; the revised envelope permits the full 50-pixel width, including its narrow border outside the four-tile footprint. Bottom contact remains y=24.
 - Rebuilt the recliners as opposed views with visible seat tops. Their seat-plane depth/width is approximately 0.60, close to the accepted chair's approximately 0.63. They retain the native 19-pixel standing height.
-- Rejected the first couch from the group source. Rejected the next front-facing wide couch because it faced away from the saved TV. `couch-north-source.png` is the current back view, with blue cushions on the far side and a dark near panel. Actual uniform fit is 62 by 15.61, not the requested source ratio. It remains visually shallow; do not claim that a prompt's dimensions were achieved.
+- Rejected the first couch from the group source, then a front-facing couch, then `couch-north-source.png`, whose shallow projection the owner rejected. Current `couch-angle-source.png` is generated directly from both recliners as the geometry/material references. It has substantially deeper seat tops, the same upholstered arm construction, and a lower near back. Actual uniform fit is 62 by 22.75, preserving floor contact y=12. Inspected beside both recliners in the saved lounge; not yet owner-approved.
 - Rejected the first front-on aquarium and then the overhead tray-like revision. `fishtank-balanced-source.png` restores a substantial front glass face beneath a visible top surface, fitting uniformly to 26 by 19.75 world pixels. Keep source history distinct from the selected export.
 - Added optional physical contact coordinates so retained alpha fringe cannot lift the opaque feet. Legacy entries retain their existing fit.
 - Corrected mounted-child draw ordering to follow the host's authored sort depth. Covered by actual world/builder ordering regression tests; a live far-row mount demonstration is still outstanding.

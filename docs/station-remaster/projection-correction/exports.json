@@ -153,26 +153,26 @@
     },
     {
       "id": "couch",
-      "source": "frontend/assets/industrial/projection-correction/couch-north-source.png",
-      "sourceSha256": "c1efc1aa3c46ecdebc5e7e336e668e4c92cb57b92aea67b1c036dfe22e98ed4d",
+      "source": "frontend/assets/industrial/projection-correction/couch-angle-source.png",
+      "sourceSha256": "0b26a8c5401e40d586179c4abf614072b311c10cf18fcec6e24ba1932a82502c",
       "output": "frontend/assets/industrial/projection-correction/couch.png",
-      "outputSha256": "908584d564e43dc6713c7af2c7797005cfd4c93956f9e251bfc243bc7860cdcf",
+      "outputSha256": "c802cfc380ee9b173e0a1be75c17dd01471bd4cfed4071fab8369cae3ae0fd97",
       "sourceCrop": {
-        "left": 60,
-        "top": 107,
-        "width": 2085,
-        "height": 525
+        "left": 61,
+        "top": 52,
+        "width": 1859,
+        "height": 682
       },
-      "retained": 974405,
+      "retained": 1012489,
       "contact": {
         "x": 0.5,
-        "y": 0.9942857142857143
+        "y": 0.9970674486803519
       },
       "bounds": {
         "x": -1,
-        "y": -10,
+        "y": -14,
         "width": 62,
-        "height": 22
+        "height": 26
       },
       "status": "projection candidate; requires in-station visual review"
     },

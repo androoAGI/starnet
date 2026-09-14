@@ -2178,23 +2178,23 @@
       "views": {
         "s": {
           "image": "couch.png",
-          "sourceWidth": 2085,
-          "sourceHeight": 525,
+          "sourceWidth": 1859,
+          "sourceHeight": 682,
           "footprint": {
             "w": 5,
             "h": 1
           },
           "bounds": {
             "x": -1,
-            "y": -10,
+            "y": -14,
             "width": 62,
-            "height": 22
+            "height": 26
           },
           "mode": "approved",
           "exposure": 1,
           "contact": {
             "x": 0.5,
-            "y": 0.9942857142857143
+            "y": 0.9970674486803519
           },
           "effects": false
         }

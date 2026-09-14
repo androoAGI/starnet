@@ -3,13 +3,13 @@ const fs=require('node:fs'),sharp=require('sharp'),crypto=require('node:crypto')
 const root='frontend/assets/industrial/projection-correction',old='frontend/assets/industrial/approved-sheet';
 const hash=b=>crypto.createHash('sha256').update(b).digest('hex');
 const items=[['quarters_pooltable',475,193,371,266],['tv',889,208,301,233],['arcade',142,539,163,352],['arcade2',496,539,160,348],['recliner_r',826,595,260,286],['recliner',1203,595,258,286],['couch'],['fishtank']];
-const envelopes={couch:{x:-1,y:-10,width:62,height:22},quarters_pooltable:{x:-1,y:-11,width:50,height:35},tv:{x:-1,y:-12,width:38,height:24},fishtank:{x:-1,y:-12,width:26,height:24},arcade:{x:-1,y:-2,width:14,height:26},arcade2:{x:-1,y:-3,width:14,height:27},recliner:{x:-3,y:-7,width:17,height:19},recliner_r:{x:-2,y:-7,width:17,height:19}};
+const envelopes={couch:{x:-1,y:-14,width:62,height:26},quarters_pooltable:{x:-1,y:-11,width:50,height:35},tv:{x:-1,y:-12,width:38,height:24},fishtank:{x:-1,y:-12,width:26,height:24},arcade:{x:-1,y:-2,width:14,height:26},arcade2:{x:-1,y:-3,width:14,height:27},recliner:{x:-3,y:-7,width:17,height:19},recliner_r:{x:-2,y:-7,width:17,height:19}};
 (async()=>{
  const manifest=JSON.parse(fs.readFileSync(old+'/manifest.json')),records=[];
  // Keep accepted anchors and untouched props byte-identical in this opt-in set.
  for(const p of Object.values(manifest.props))for(const v of Object.values(p.views))fs.copyFileSync(old+'/'+v.image,root+'/'+v.image);
  for(const [id,rx,ry,rw,rh]of items){
-  const source=root+'/'+(rw?'lounge-source':id==='couch'?'couch-north-source':id==='fishtank'?'fishtank-balanced-source':id+'-source')+'.png',bytes=fs.readFileSync(source),s=await sharp(bytes).ensureAlpha().raw().toBuffer({resolveWithObject:true});
+  const source=root+'/'+(rw?'lounge-source':id==='couch'?'couch-angle-source':id==='fishtank'?'fishtank-balanced-source':id+'-source')+'.png',bytes=fs.readFileSync(source),s=await sharp(bytes).ensureAlpha().raw().toBuffer({resolveWithObject:true});
   const left=rx||0,top=ry||0,w=rw||s.info.width,h=rh||s.info.height,raw=Buffer.alloc(w*h*4),core=new Uint8Array(w*h);let contactBottom=-1;
   for(let y=0;y<h;y++)for(let x=0;x<w;x++){const d=(y*w+x)*4,q=((y+top)*s.info.width+x+left)*4;s.data.copy(raw,d,q,q+4);if(raw[d+3]>=180){core[y*w+x]=1;contactBottom=Math.max(contactBottom,y);}}
   let l=w,t=h,r=-1,b=-1,retained=0;
