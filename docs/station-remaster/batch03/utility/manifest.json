@@ -1,0 +1,67 @@
+{
+  "version": 1,
+  "status": "single calibration candidate; not user accepted or runtime integrated",
+  "scope": "ONLY monstera restyled; no other prop changed",
+  "tool": "built-in image_gen style-transfer",
+  "references": [
+    {
+      "image": "C:/Users/andro/gen-trees/prop-utility-0914/docs/station-remaster/batch02/utility/sources/monstera.png",
+      "role": "object identity, silhouette, camera and pot footprint only; photographic treatment explicitly rejected"
+    },
+    {
+      "image": "C:/Users/andro/gen-trees/industrial-textures-0912/frontend/assets/industrial/workstation.png",
+      "role": "authoritative illustrated rendering/detail hierarchy; no metal-material copying"
+    }
+  ],
+  "generatedSource": "C:\\Users\\andro\\.codex\\generated_images\\01a09e48-0877-7203-a53f-4b137e36d69a\\exec-d8e7f86f-fbbd-4290-88ef-5868f0774bdd.png",
+  "source": "docs/station-remaster/batch03/utility/sources/monstera.png",
+  "prompt": "docs/station-remaster/batch03/utility/prompts/monstera.txt",
+  "props": {
+    "monstera": {
+      "image": "frontend/assets/industrial/batch03/utility/monstera.png",
+      "sourceWidth": 1205,
+      "sourceHeight": 1306,
+      "facing": "south",
+      "r": 0,
+      "footprint": {
+        "w": 1,
+        "h": 1
+      },
+      "tilePixels": 12,
+      "desiredWorldEnvelope": {
+        "x": 0,
+        "y": -1,
+        "width": 12,
+        "height": 13
+      },
+      "floorContact": {
+        "sourcePixelsApprox": [
+          637,
+          1260
+        ],
+        "desiredWorldPixels": [
+          6,
+          12
+        ],
+        "status": "intended prior contact preserved; calibrate exact alignment during integration"
+      },
+      "requiredMount": null,
+      "blocks": false,
+      "seatAnchors": [],
+      "materials": [
+        "broad painted green leaves",
+        "ivory/teal painted ceramic",
+        "dark painted soil"
+      ],
+      "rendering": "Designed dark leaf edges and three-to-five broad green values, deliberate central vein strokes, matte painted depth. No photographic leaf microtexture or raytraced wet gloss.",
+      "animation": "Unresolved; preserve fixed pot and use only newly authored leaf regions if later animation is added"
+    }
+  },
+  "verification": {
+    "sourceVisual": "Compared own source and workstation before generation; inspected full new result and dark-matte comparison",
+    "export": "RGBA, alpha0 and255; 701831 transparent pixels,871899 opaque; RGBchanges0; original source and canvas intact",
+    "comparison": "comparison.png includes equal display size and uniform12x13 world-envelope previews at4display px/worldpx",
+    "live": "No runtime or save changes; no live integration claim",
+    "tests": "Export verifies alpha/RGB/source hashes. Runtime test gate not run for bounded artwork calibration."
+  }
+}
