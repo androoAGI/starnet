@@ -1,0 +1,65 @@
+{
+  "sourceAnimation": {
+    "idleFrameVariants": 1,
+    "workFrameVariants": 1,
+    "respondsToWorkFlag": false,
+    "opaqueBoundsRelativeToFootprint": {
+      "x": -1,
+      "y": 1,
+      "w": 14,
+      "h": 11,
+      "alphaThreshold": 160
+    }
+  },
+  "bounds": {
+    "y": 1,
+    "width": 14,
+    "height": 11,
+    "x": -1
+  },
+  "id": "beanbag",
+  "geometry": {
+    "blocks": true,
+    "flat": false,
+    "tableSurface": false,
+    "requiredMount": null,
+    "optionalSurfaceMount": false,
+    "surfaceRisePixels": 8
+  },
+  "floorContact": {
+    "x": 6,
+    "y": 12
+  },
+  "backgroundThreshold": 235,
+  "tilePixels": 12,
+  "status": "art-draft-integration-pending",
+  "view": "s",
+  "footprint": {
+    "w": 1,
+    "h": 1
+  },
+  "anchorContract": "PropAnchor derives reachable edge approach; useApproach rotates relative preference with r. Preserve standing leisure action unless special planner supplies a real body anchor.",
+  "holeSeeds": [
+    [
+      707,
+      73
+    ]
+  ],
+  "sourceWidth": 1415,
+  "sourceHeight": 1112,
+  "sourceSha256": "deae5a0a7c15f315be5bb626fe32ffc6cbcb4008d6c589cf112afc13a17ed18f",
+  "output": "frontend/assets/industrial/batch02/crew/beanbag.png",
+  "crop": {
+    "left": 140,
+    "top": 30,
+    "width": 1141,
+    "height": 1030
+  },
+  "transparentPixels": 296863,
+  "opaquePixels": 878367,
+  "partialPixels": 0,
+  "backgroundPixelsRemoved": 695113,
+  "subjectRgbChanges": 0,
+  "outputSha256": "b2ca27498fcd96724f9801fe933cc44a96f8076b888c906e060a49269d0663ca",
+  "liveIntegrated": false
+}
