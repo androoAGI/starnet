@@ -1,0 +1,65 @@
+{
+  "id": "gigs_servercart",
+  "status": "exported-awaiting-owner-live-review",
+  "source": "sources/gigs_servercart.png",
+  "sourceSha256": "f2333835c4eb4b06421a62cbe9027ca5887040ca1c27c9b32c7d0eb3fcf00be8",
+  "sourceWidth": 1182,
+  "sourceHeight": 1330,
+  "image": "gigs_servercart.png",
+  "sourceOutputWidth": 984,
+  "sourceOutputHeight": 1192,
+  "crop": {
+    "left": 99,
+    "top": 78,
+    "width": 984,
+    "height": 1192
+  },
+  "channels": 4,
+  "transparentPixels": 232370,
+  "opaquePixels": 940558,
+  "partialPixels": 0,
+  "backgroundPixelsRemoved": 631502,
+  "subjectRgbChanges": 0,
+  "outputSha256": "0d9b43368c59eda5fe6b6e12c04cf482799e124e8bb298a77af713fce422f5ef",
+  "holeSeeds": [
+    [
+      288,
+      136
+    ]
+  ],
+  "maskMethod": "Connected saturated-magenta flood fill, including key-only enclosed components. Alpha-only edits; uniform crop; no RGB recolor.",
+  "view": "s",
+  "footprint": {
+    "w": 1,
+    "h": 1
+  },
+  "bounds": {
+    "x": 1,
+    "y": -6,
+    "width": 16,
+    "height": 18
+  },
+  "tilePixels": 12,
+  "contact": {
+    "x": 9,
+    "y": 12
+  },
+  "anchorContract": "No leisure seat anchor. Footprint is the placement/pathfinding rectangle; upright visual rise is independent of the reserved box.",
+  "originalLight": {
+    "c": [
+      120,
+      255,
+      180
+    ],
+    "r": 14,
+    "a": 0.08,
+    "m": "screen",
+    "y": 0.4
+  },
+  "originalAnimationTriggers": [
+    "Real notebook.*, skill.*, recall_conversation, widget.get, widget.set tool completion chooses the granting prop instance and overlays a 900 ms success accent or red failure surge.",
+    "Autonomous sprite clock animation is present in the sampled default state; cosmetic motion is not evidence of provider work, route decisions or external state."
+  ],
+  "artMode": "static complete art; existing state/lighting integration remains owner decision",
+  "liveIntegrated": false
+}
