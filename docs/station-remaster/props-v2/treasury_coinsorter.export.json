@@ -1,0 +1,38 @@
+{
+  "id": "treasury_coinsorter",
+  "source": "C:/Users/andro/.codex/generated_images/01a09c6e-ef28-70a0-bd8b-b60f1a9b9f92/exec-a0969a72-9177-431f-8acf-90131199c002.png",
+  "sourceWidth": 1651,
+  "sourceHeight": 953,
+  "crop": {
+    "left": 1,
+    "top": 5,
+    "width": 1648,
+    "height": 947
+  },
+  "sourceAlpha": false,
+  "subjectRgbChanges": 0,
+  "output": "frontend/assets/industrial/props-v2/treasury_coinsorter.png",
+  "native": {
+    "key": "treasury_coinsorter",
+    "r": 0,
+    "image": "treasury_coinsorter.png",
+    "footprint": {
+      "w": 2,
+      "h": 1
+    },
+    "bounds": {
+      "x": -1,
+      "y": -3,
+      "width": 26,
+      "height": 15
+    },
+    "guide": "dev/.scratch-workspace/prop-structure/treasury_coinsorter.png"
+  },
+  "aspectError": 0.0039801803265373525,
+  "verification": {
+    "nativeDecode": true,
+    "retainedPixels": 1381105,
+    "transparentPixels": 179551,
+    "changedRgb": 0
+  }
+}

@@ -1,0 +1,23 @@
+{
+  "generator": "built-in image_gen",
+  "attempts": [
+    {
+      "id": "boxes",
+      "prompt": "Use case: style-transfer. Production StarNet prop sprite. IMAGE 1 is the EXACT native STRUCTURE and camera guide: preserve its silhouette, width:height proportion, relative component sizes, their positions, baseline, and directly front-facing overhead-oblique angle. The pixelated guide is only a structure map; refine it into finished art. IMAGE 2 is the APPROVED CRATE: match its cool charcoal steel, broad readable panels, modest bevels, quiet restrained scuffing and selective pale metal edge highlights. IMAGE 3 shows the station atmosphere. Prioritize the crate's restrained construction, NOT the bridge's density.\n\nSame station-aligned parallel camera: horizontal edges stay horizontal, vertical supports vertical, shallow top planes visible directly above the front, NO diagonal isometric yaw, no perspective vanishing point. Keep the native prop recognizable at its actual tiny game size. Do not add busy greebles, gold decoration, repeated bolts everywhere, extra compartments or redesign the silhouette. Material hues only where the actual object needs them. All screens/status glass dark and unlit, ready for native runtime animation. Single complete isolated object with real transparent RGBA background, including empty gaps. No floor, cast shadow, text, border or backdrop; don't paint a checkerboard. Finish the requested object only.\n\nSUBJECT: BOXES: exactly THREE freight cartons in the guide arrangement: broad front-left carton, slightly taller rear-right carton, one small carton perched on the left. Taped flap creases, simple pale shipping labels and tiny colored cargo tabs. These are FIBREBOARD cartons with muted natural brown/gray paper material, not armored steel chests. Retain guide's broad visible lid planes, short front faces, height offsets. Combined visible object ratio WIDTH:HEIGHT exactly 24:13 (1.846), without counting background padding. No pallets or added boxes.",
+      "references": [
+        "C:/Users/andro/gen-trees/prop-remaster-art-a-0913/dev/.scratch-workspace/prop-structure/boxes.png",
+        "C:/Users/andro/gen-trees/prop-remaster-art-a-0913/frontend/assets/industrial/calibration/crate.png",
+        "C:/Users/andro/gen-trees/prop-remaster-art-a-0913/docs/station-remaster/bridge-reference.png"
+      ]
+    },
+    {
+      "id": "boxes",
+      "prompt": "PRECISE STRUCTURE-PRESERVING SPRITE REMASTER. Image1 is exact native structure/camera; Image2 approvedcrate material/style; Image3 station atmosphere only. Refine image1 into finished art without moving its major shapes. Same cool charcoal steel, broad readable plates, restrained scuffing and paleedge catches as crate. Keep object-specific natural materials/colors. No fancy additional armor/greebles/golddecoration; no cartoon simplification.\n\nCRITICAL: exact silhouette envelope WIDTH:HEIGHT stated below. Copy nativeguide tightcrop, objectreaches all4edges within1% each, no large top/bottom margins. Emptygaps andcutcorners transparent. Preserve dominanttop/front planeheights fromguide, internalcomponentpositions and originalphysical identity. Parallel front-on overheadoblique camera: horizontaledges horizontal, verticalsvertical, NOisometricyaw or sideperspective. Allscreens dark/off fornativeanimation; no syntheticglow/effects. TrueRGBA transparentbackground; no paintedchecker/floor/shadow/text.\n\nSUBJECT: THREE fibreboardfreightcartons inexactguidearrangement: broadlow front-left, slightlytaller rear-right, smallcarton perchedleft. Papertexture mutedbrown/gray, tapedflaps, paleshippinglabels andtinycargo tabs. No steelarmor/pallet. Nativeenvelope24×13, ratio1.84615. Visiblelids takeatleast40%ofeachcartonheight; fronts short. Totalobjectfillsimage, no toppadding.",
+      "references": [
+        "C:/Users/andro/gen-trees/prop-remaster-art-a-0913/dev/.scratch-workspace/prop-structure/boxes.png",
+        "C:/Users/andro/gen-trees/prop-remaster-art-a-0913/frontend/assets/industrial/calibration/crate.png",
+        "C:/Users/andro/gen-trees/prop-remaster-art-a-0913/docs/station-remaster/bridge-reference.png"
+      ]
+    }
+  ]
+}
