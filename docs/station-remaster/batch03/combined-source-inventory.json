@@ -1,0 +1,2242 @@
+{
+  "catalog": 160,
+  "sourceCandidates": 152,
+  "approvedExisting": 8,
+  "missingSourceIds": [],
+  "repaintsDoNotIncreaseCoverage": true,
+  "scope": "Cross-task source inventory only; source availability is distinct from complete runtime mechanisms and user visual acceptance.",
+  "records": [
+    {
+      "id": "industrial_locker",
+      "owner": "earlier-source",
+      "category": "prior-source",
+      "available": true,
+      "files": [
+        {
+          "workspace": "C:/Users/andro/gen-trees/industrial-textures-0912",
+          "path": "frontend/assets/industrial/props-v3/industrial_locker.png",
+          "sha256": "b6af4b7dbe269a88efa60cb4bf165a74b089456208545c68c1887671c180fd02"
+        }
+      ]
+    },
+    {
+      "id": "industrial_drawerbank",
+      "owner": "earlier-source",
+      "category": "prior-source",
+      "available": true,
+      "files": [
+        {
+          "workspace": "C:/Users/andro/gen-trees/industrial-textures-0912",
+          "path": "frontend/assets/industrial/props-v3/industrial_drawerbank.png",
+          "sha256": "85dfde82da9d929218bbc902890092767e803aa2b0e814e61378fe032e1a2c7d"
+        }
+      ]
+    },
+    {
+      "id": "industrial_supplycart",
+      "owner": "earlier-source",
+      "category": "prior-source",
+      "available": true,
+      "files": [
+        {
+          "workspace": "C:/Users/andro/gen-trees/industrial-textures-0912",
+          "path": "frontend/assets/industrial/props-v3/industrial_supplycart.png",
+          "sha256": "5eab8eaaaac8c475f801bad7cb7f5ccaaf9a961ecea11e2f15bd3c8d8586eae3"
+        }
+      ]
+    },
+    {
+      "id": "industrial_toolcaddy",
+      "owner": "earlier-source",
+      "category": "prior-source",
+      "available": true,
+      "files": [
+        {
+          "workspace": "C:/Users/andro/gen-trees/industrial-textures-0912",
+          "path": "frontend/assets/industrial/props-v3/industrial_toolcaddy.png",
+          "sha256": "9f78e0bed77a7fa81e6adc2efa78a986a4d03f1c024dbc23d4383b92bba4e5b6"
+        }
+      ]
+    },
+    {
+      "id": "industrial_planter",
+      "owner": "parallel-art",
+      "category": "repaint",
+      "available": true,
+      "completeViews": true,
+      "files": [
+        {
+          "workspace": "C:\\Users\\andro\\gen-trees\\prop-coordination-0914",
+          "path": "frontend/assets/industrial/batch03/utility/industrial_planter.png",
+          "sha256": "20702ead904c798b595e6cd89acb40bc6aee17e04cf3b1c9b852c91ad0d13603"
+        }
+      ]
+    },
+    {
+      "id": "industrial_partition",
+      "owner": "parallel-art",
+      "category": "new-source",
+      "available": true,
+      "completeViews": true,
+      "files": [
+        {
+          "workspace": "C:\\Users\\andro\\gen-trees\\prop-coordination-0914",
+          "path": "frontend/assets/industrial/batch03/crew/industrial_partition.png",
+          "sha256": "6c41b3f21f0dd1a920fc6be82e1d8d1403f36a9f5b04c1cebe448e6258b72a65"
+        },
+        {
+          "workspace": "C:\\Users\\andro\\gen-trees\\prop-coordination-0914",
+          "path": "frontend/assets/industrial/batch03/crew/industrial_partition-r1.png",
+          "sha256": "55232a62a489cb4bda17392be945838f0e19a34f037e1a844ef713f25a506302"
+        },
+        {
+          "workspace": "C:\\Users\\andro\\gen-trees\\prop-coordination-0914",
+          "path": "frontend/assets/industrial/batch03/crew/industrial_partition-r3.png",
+          "sha256": "99659b4c13ab4592729421ac132f1ce4072ba3fecf3cd897095049dc4943ffca"
+        }
+      ]
+    },
+    {
+      "id": "industrial_bench",
+      "owner": "parallel-art",
+      "category": "repaint",
+      "available": true,
+      "completeViews": true,
+      "files": [
+        {
+          "workspace": "C:\\Users\\andro\\gen-trees\\prop-coordination-0914",
+          "path": "frontend/assets/industrial/batch03/crew/industrial_bench.png",
+          "sha256": "f70c16deedf323879d72425af8a003061f5bf61ca39274e410538c0f36dc8158"
+        }
+      ]
+    },
+    {
+      "id": "industrial_roundtable",
+      "owner": "parallel-art",
+      "category": "repaint",
+      "available": true,
+      "completeViews": true,
+      "files": [
+        {
+          "workspace": "C:\\Users\\andro\\gen-trees\\prop-coordination-0914",
+          "path": "frontend/assets/industrial/batch03/crew/industrial_roundtable.png",
+          "sha256": "ac00ab5bb415f212f398690e614641771a5b56f0741d2d5aa21b65ca57a22503"
+        }
+      ]
+    },
+    {
+      "id": "industrial_servicecab",
+      "owner": "parallel-art",
+      "category": "new-source",
+      "available": true,
+      "completeViews": true,
+      "files": [
+        {
+          "workspace": "C:\\Users\\andro\\gen-trees\\prop-coordination-0914",
+          "path": "frontend/assets/industrial/batch03/crew/industrial_servicecab.png",
+          "sha256": "b7df9c30f12a89512ac2ec08358385212f193d45e280df7db483e6a3c3a8f2c1"
+        }
+      ]
+    },
+    {
+      "id": "industrial_wallpanel",
+      "owner": "parallel-art",
+      "category": "new-source",
+      "available": true,
+      "completeViews": true,
+      "files": [
+        {
+          "workspace": "C:\\Users\\andro\\gen-trees\\prop-coordination-0914",
+          "path": "frontend/assets/industrial/batch03/crew/industrial_wallpanel.png",
+          "sha256": "19ec21b641367f79ed5d33f1acf1e3ed844602684c01579829ca7ae1d36e172f"
+        }
+      ]
+    },
+    {
+      "id": "industrial_floorvent",
+      "owner": "parallel-art",
+      "category": "new-source",
+      "available": true,
+      "completeViews": true,
+      "files": [
+        {
+          "workspace": "C:\\Users\\andro\\gen-trees\\prop-coordination-0914",
+          "path": "frontend/assets/industrial/batch03/crew/industrial_floorvent.png",
+          "sha256": "703664d6440b6ef85f1675f0f44dfe240830d7d20b9338297decb0c502f89f90"
+        }
+      ]
+    },
+    {
+      "id": "industrial_cabletray",
+      "owner": "parallel-art",
+      "category": "new-source",
+      "available": true,
+      "completeViews": true,
+      "files": [
+        {
+          "workspace": "C:\\Users\\andro\\gen-trees\\prop-coordination-0914",
+          "path": "frontend/assets/industrial/batch03/crew/industrial_cabletray.png",
+          "sha256": "12e285f926a935f03152485b7528aa6e65abcf000aa10596b06e3976124daa31"
+        }
+      ]
+    },
+    {
+      "id": "desk",
+      "owner": "existing",
+      "category": "approved-existing",
+      "available": true,
+      "evidence": "Original-task coverage status; approved artwork retained."
+    },
+    {
+      "id": "desk2",
+      "owner": "existing",
+      "category": "approved-existing",
+      "available": true,
+      "evidence": "Original-task coverage status; approved artwork retained."
+    },
+    {
+      "id": "console",
+      "owner": "earlier-source",
+      "category": "prior-source",
+      "available": true,
+      "files": [
+        {
+          "workspace": "C:/Users/andro/gen-trees/industrial-textures-0912",
+          "path": "frontend/assets/industrial/props-v3/console.png",
+          "sha256": "32d3a568498c1e989ebbea768857c739b29c06cd0f5a8cb5ab482e2cacd0c2dc"
+        }
+      ]
+    },
+    {
+      "id": "consoleL",
+      "owner": "earlier-source",
+      "category": "prior-source",
+      "available": true,
+      "files": [
+        {
+          "workspace": "C:/Users/andro/gen-trees/industrial-textures-0912",
+          "path": "frontend/assets/industrial/props-v3/consoleL.png",
+          "sha256": "0c81fbae0328223a333d61e2b441ab865d076f35cb099dd8cf06970c22364788"
+        }
+      ]
+    },
+    {
+      "id": "pixelrig",
+      "owner": "original-task",
+      "category": "new-source",
+      "available": true,
+      "files": [
+        {
+          "workspace": "C:/Users/andro/gen-trees/industrial-textures-0912",
+          "path": "frontend/assets/industrial/batch03/equipment/pixelrig.png",
+          "sha256": "ea784893834d7fe03deef828ed2317fa69f7c2758da32ef9b07fc3123997ef10"
+        }
+      ]
+    },
+    {
+      "id": "bench",
+      "owner": "original-task",
+      "category": "new-source",
+      "available": true,
+      "files": [
+        {
+          "workspace": "C:/Users/andro/gen-trees/industrial-textures-0912",
+          "path": "frontend/assets/industrial/batch03/equipment/bench.png",
+          "sha256": "722932d2ac60341dc05fc8930dead2e9bb8291c1e1baee647b72aa18fc5e2ffe"
+        }
+      ]
+    },
+    {
+      "id": "workbench",
+      "owner": "original-task",
+      "category": "new-source",
+      "available": true,
+      "files": [
+        {
+          "workspace": "C:/Users/andro/gen-trees/industrial-textures-0912",
+          "path": "frontend/assets/industrial/batch03/equipment/workbench.png",
+          "sha256": "2b9d4bfe33adfbddc6c345d17cfb02903560dfce106a10b307feb7e10b045ceb"
+        }
+      ]
+    },
+    {
+      "id": "intake",
+      "owner": "parallel-art",
+      "category": "new-source",
+      "available": true,
+      "completeViews": true,
+      "files": [
+        {
+          "workspace": "C:\\Users\\andro\\gen-trees\\prop-coordination-0914",
+          "path": "frontend/assets/industrial/batch03/utility/intake.png",
+          "sha256": "05c94d79e01fe2e420eacc5f02684e8ea2c3cae681a93fe1bbfd38bb832f6b3b"
+        }
+      ]
+    },
+    {
+      "id": "bay",
+      "owner": "parallel-art",
+      "category": "new-source",
+      "available": true,
+      "completeViews": true,
+      "files": [
+        {
+          "workspace": "C:\\Users\\andro\\gen-trees\\prop-coordination-0914",
+          "path": "frontend/assets/industrial/batch03/utility/bay.png",
+          "sha256": "d3c7c023004b2a294c8187fb89c983129c873e423a42f21435a444c3c82c09ef"
+        }
+      ]
+    },
+    {
+      "id": "filter",
+      "owner": "earlier-source",
+      "category": "prior-source",
+      "available": true,
+      "files": [
+        {
+          "workspace": "C:/Users/andro/gen-trees/industrial-textures-0912",
+          "path": "frontend/assets/industrial/props-v3/filter.png",
+          "sha256": "6dadbe171bdf509434b6739c9d475fd04abffd8462ffde6c73a55584f55e1305"
+        }
+      ]
+    },
+    {
+      "id": "merger",
+      "owner": "parallel-art",
+      "category": "new-source",
+      "available": true,
+      "completeViews": true,
+      "files": [
+        {
+          "workspace": "C:\\Users\\andro\\gen-trees\\prop-coordination-0914",
+          "path": "frontend/assets/industrial/batch03/utility/merger.png",
+          "sha256": "da07e96a6a64f95e4db1e622f7dfb92cc3622f03e36fb148b5ce24e1e11db5db"
+        }
+      ]
+    },
+    {
+      "id": "splitter",
+      "owner": "parallel-art",
+      "category": "new-source",
+      "available": true,
+      "completeViews": true,
+      "files": [
+        {
+          "workspace": "C:\\Users\\andro\\gen-trees\\prop-coordination-0914",
+          "path": "frontend/assets/industrial/batch03/utility/splitter.png",
+          "sha256": "388d4307db1d717bca132d8309826ce7227d2c87017897954c28f27232025970"
+        }
+      ]
+    },
+    {
+      "id": "joiner",
+      "owner": "parallel-art",
+      "category": "new-source",
+      "available": true,
+      "completeViews": true,
+      "files": [
+        {
+          "workspace": "C:\\Users\\andro\\gen-trees\\prop-coordination-0914",
+          "path": "frontend/assets/industrial/batch03/utility/joiner.png",
+          "sha256": "3bf5428b39a425bfeb1dbe710026a6ffa7477b1046528dc3cbe496c4c9f46faa"
+        }
+      ]
+    },
+    {
+      "id": "loop",
+      "owner": "parallel-art",
+      "category": "new-source",
+      "available": true,
+      "completeViews": true,
+      "files": [
+        {
+          "workspace": "C:\\Users\\andro\\gen-trees\\prop-coordination-0914",
+          "path": "frontend/assets/industrial/batch03/utility/loop.png",
+          "sha256": "0f985d7919581b1ecc475b60ea98e54246cddc39cc181043a622455af92f24c5"
+        }
+      ]
+    },
+    {
+      "id": "outbox",
+      "owner": "parallel-art",
+      "category": "new-source",
+      "available": true,
+      "completeViews": true,
+      "files": [
+        {
+          "workspace": "C:\\Users\\andro\\gen-trees\\prop-coordination-0914",
+          "path": "frontend/assets/industrial/batch03/storage/outbox.png",
+          "sha256": "107516ce47eada8b9c662b67399c8fdaf2da28c560d060f478912a70ca03f92a"
+        }
+      ]
+    },
+    {
+      "id": "connector_portal",
+      "owner": "parallel-art",
+      "category": "new-source",
+      "available": true,
+      "completeViews": true,
+      "files": [
+        {
+          "workspace": "C:\\Users\\andro\\gen-trees\\prop-coordination-0914",
+          "path": "frontend/assets/industrial/batch03/storage/connector_portal.png",
+          "sha256": "386e0125f0b9c39dcdc3cf454c6df1ce1d6c96dc9d00c7768e90bc11f3ee0c8f"
+        }
+      ]
+    },
+    {
+      "id": "comms_dish",
+      "owner": "original-task",
+      "category": "new-source",
+      "available": true,
+      "files": [
+        {
+          "workspace": "C:/Users/andro/gen-trees/industrial-textures-0912",
+          "path": "frontend/assets/industrial/batch03/communications/comms_dish.png",
+          "sha256": "2672f308f91474d91c053eb97d9fbab6afbd1724d5e7b3d95439a6e9641764d6"
+        }
+      ]
+    },
+    {
+      "id": "comms_uplink",
+      "owner": "original-task",
+      "category": "new-source",
+      "available": true,
+      "files": [
+        {
+          "workspace": "C:/Users/andro/gen-trees/industrial-textures-0912",
+          "path": "frontend/assets/industrial/batch03/communications/comms_uplink.png",
+          "sha256": "60fa6b380c6ecaba75b1ec051b0bf8f2496de92f0c08bf5904f620baa6bea631"
+        }
+      ]
+    },
+    {
+      "id": "comms_beacon",
+      "owner": "original-task",
+      "category": "new-source",
+      "available": true,
+      "files": [
+        {
+          "workspace": "C:/Users/andro/gen-trees/industrial-textures-0912",
+          "path": "frontend/assets/industrial/batch03/communications/comms_beacon.png",
+          "sha256": "858334f2c95daead2c7dc216628e08a3862908a8341377002194e35ede51862b"
+        }
+      ]
+    },
+    {
+      "id": "war_intelcab",
+      "owner": "original-task",
+      "category": "new-source",
+      "available": true,
+      "files": [
+        {
+          "workspace": "C:/Users/andro/gen-trees/industrial-textures-0912",
+          "path": "frontend/assets/industrial/batch03/communications/war_intelcab.png",
+          "sha256": "a23f94de2de6b6fd0eefc401d9949e5e67e970eb39ca0ee6e49d63c0912a75e6"
+        }
+      ]
+    },
+    {
+      "id": "safe",
+      "owner": "parallel-art",
+      "category": "new-source",
+      "available": true,
+      "completeViews": true,
+      "files": [
+        {
+          "workspace": "C:\\Users\\andro\\gen-trees\\prop-coordination-0914",
+          "path": "frontend/assets/industrial/batch03/storage/safe.png",
+          "sha256": "ab45278b5d48d5b319a9d01d57456df0889d47b569ea6b403e9a1b80937cac70"
+        }
+      ]
+    },
+    {
+      "id": "vault",
+      "owner": "parallel-art",
+      "category": "new-source",
+      "available": true,
+      "completeViews": true,
+      "files": [
+        {
+          "workspace": "C:\\Users\\andro\\gen-trees\\prop-coordination-0914",
+          "path": "frontend/assets/industrial/batch03/storage/vault.png",
+          "sha256": "194d4832bf3d517cd2017edf3d272c27ebacf0941bcce467f39bd919400fa4e6"
+        }
+      ]
+    },
+    {
+      "id": "rack",
+      "owner": "original-task",
+      "category": "new-source",
+      "available": true,
+      "files": [
+        {
+          "workspace": "C:/Users/andro/gen-trees/industrial-textures-0912",
+          "path": "frontend/assets/industrial/batch03/equipment/rack.png",
+          "sha256": "962e67f6c6810801e12642b4aadb934e03d6ca21d85e044785995225cea80074"
+        }
+      ]
+    },
+    {
+      "id": "shelf",
+      "owner": "parallel-art",
+      "category": "new-source",
+      "available": true,
+      "completeViews": true,
+      "files": [
+        {
+          "workspace": "C:\\Users\\andro\\gen-trees\\prop-coordination-0914",
+          "path": "frontend/assets/industrial/batch03/storage/shelf.png",
+          "sha256": "2db1bf09a0d0c82c5d551ef431c9392b705e0a2168779e94e93265c276293667"
+        }
+      ]
+    },
+    {
+      "id": "core",
+      "owner": "original-task",
+      "category": "new-source",
+      "available": true,
+      "files": [
+        {
+          "workspace": "C:/Users/andro/gen-trees/industrial-textures-0912",
+          "path": "frontend/assets/industrial/batch03/equipment/core.png",
+          "sha256": "d4464c71c3b3e1feb10fb8d20eb037510b0021e07630fafe3301792788699463"
+        }
+      ]
+    },
+    {
+      "id": "gigs_servercart",
+      "owner": "parallel-art",
+      "category": "new-source",
+      "available": true,
+      "completeViews": true,
+      "files": [
+        {
+          "workspace": "C:\\Users\\andro\\gen-trees\\prop-coordination-0914",
+          "path": "frontend/assets/industrial/batch03/storage/gigs_servercart.png",
+          "sha256": "0d9b43368c59eda5fe6b6e12c04cf482799e124e8bb298a77af713fce422f5ef"
+        }
+      ]
+    },
+    {
+      "id": "bridge_relaystack",
+      "owner": "original-task",
+      "category": "new-source",
+      "available": true,
+      "files": [
+        {
+          "workspace": "C:/Users/andro/gen-trees/industrial-textures-0912",
+          "path": "frontend/assets/industrial/batch03/communications/bridge_relaystack.png",
+          "sha256": "b0fd3108785befa7c372504a19544072999a2d1c01a403e8a0120a74c9fc95e3"
+        }
+      ]
+    },
+    {
+      "id": "studio",
+      "owner": "parallel-art",
+      "category": "new-source",
+      "available": true,
+      "completeViews": true,
+      "files": [
+        {
+          "workspace": "C:\\Users\\andro\\gen-trees\\prop-coordination-0914",
+          "path": "frontend/assets/industrial/batch03/control/studio.png",
+          "sha256": "2f9d5168d65918c0dc51a72ca0019511ba9a1c1d4e76f5f05a776be37ea1a5b0"
+        }
+      ]
+    },
+    {
+      "id": "airlock",
+      "owner": "parallel-art",
+      "category": "new-source",
+      "available": true,
+      "completeViews": true,
+      "files": [
+        {
+          "workspace": "C:\\Users\\andro\\gen-trees\\prop-coordination-0914",
+          "path": "frontend/assets/industrial/batch03/control/airlock.png",
+          "sha256": "d9324c2cc05335e0ce3dd674456e7e1b035547030ef2704e5a8173876067039a"
+        }
+      ]
+    },
+    {
+      "id": "missionboard",
+      "owner": "parallel-art",
+      "category": "repaint",
+      "available": true,
+      "completeViews": true,
+      "files": [
+        {
+          "workspace": "C:\\Users\\andro\\gen-trees\\prop-coordination-0914",
+          "path": "frontend/assets/industrial/batch03/coordinator/missionboard.png",
+          "sha256": "018e6c959050f90bb2613137a8ee1c660299d43a96f72d6946c6db8e4fcb8520"
+        }
+      ]
+    },
+    {
+      "id": "trophycase",
+      "owner": "parallel-art",
+      "category": "repaint",
+      "available": true,
+      "completeViews": true,
+      "files": [
+        {
+          "workspace": "C:\\Users\\andro\\gen-trees\\prop-coordination-0914",
+          "path": "frontend/assets/industrial/batch03/coordinator/trophycase.png",
+          "sha256": "56cd79addf5417f81f92c008b026cd13ec1b8432f0f696d0eef4265526381ce5"
+        }
+      ]
+    },
+    {
+      "id": "bridge_consolebank",
+      "owner": "existing",
+      "category": "approved-existing",
+      "available": true,
+      "evidence": "Original-task coverage status; approved artwork retained."
+    },
+    {
+      "id": "bridge_tacticaltable",
+      "owner": "existing",
+      "category": "approved-existing",
+      "available": true,
+      "evidence": "Original-task coverage status; approved artwork retained."
+    },
+    {
+      "id": "bridge_equipmentbay",
+      "owner": "existing",
+      "category": "approved-existing",
+      "available": true,
+      "evidence": "Original-task coverage status; approved artwork retained."
+    },
+    {
+      "id": "bridge_deckperimeter",
+      "owner": "existing",
+      "category": "approved-existing",
+      "available": true,
+      "evidence": "Original-task coverage status; approved artwork retained."
+    },
+    {
+      "id": "bigscreen",
+      "owner": "parallel-art",
+      "category": "new-source",
+      "available": true,
+      "completeViews": true,
+      "files": [
+        {
+          "workspace": "C:\\Users\\andro\\gen-trees\\prop-coordination-0914",
+          "path": "frontend/assets/industrial/batch03/control/bigscreen.png",
+          "sha256": "14fa364268005215b0b69d61da3d9c03c62f25d9b02e2379a5b65ed43a2469d0"
+        }
+      ]
+    },
+    {
+      "id": "holotable",
+      "owner": "parallel-art",
+      "category": "new-source",
+      "available": true,
+      "completeViews": true,
+      "files": [
+        {
+          "workspace": "C:\\Users\\andro\\gen-trees\\prop-coordination-0914",
+          "path": "frontend/assets/industrial/batch03/control/holotable.png",
+          "sha256": "0cb0c136531c1d55737740c3295b8426f36dbdf222538a6805bdee65c133eb8c"
+        }
+      ]
+    },
+    {
+      "id": "screens",
+      "owner": "parallel-art",
+      "category": "new-source",
+      "available": true,
+      "completeViews": true,
+      "files": [
+        {
+          "workspace": "C:\\Users\\andro\\gen-trees\\prop-coordination-0914",
+          "path": "frontend/assets/industrial/batch03/control/screens.png",
+          "sha256": "e856c656fe2e29c4275ad7331c3c4ed806815d7f5d9c5323aff087dba81497bb"
+        }
+      ]
+    },
+    {
+      "id": "tank",
+      "owner": "earlier-source",
+      "category": "prior-source",
+      "available": true,
+      "files": [
+        {
+          "workspace": "C:/Users/andro/gen-trees/industrial-textures-0912",
+          "path": "frontend/assets/industrial/props-v3/tank.png",
+          "sha256": "c0a8eeb85f7d64b3779ae735eda5d78fe01e07f9e3dc7be8f1fbd593787951b9"
+        }
+      ]
+    },
+    {
+      "id": "whiteboard",
+      "owner": "parallel-art",
+      "category": "repaint",
+      "available": true,
+      "completeViews": true,
+      "files": [
+        {
+          "workspace": "C:\\Users\\andro\\gen-trees\\prop-coordination-0914",
+          "path": "frontend/assets/industrial/batch03/coordinator/whiteboard.png",
+          "sha256": "6ec329907fc006fe9303455f5e0ac98cf49032b3ace1e4b4fb30a42bf726eab3"
+        }
+      ]
+    },
+    {
+      "id": "ticker",
+      "owner": "parallel-art",
+      "category": "new-source",
+      "available": true,
+      "completeViews": true,
+      "files": [
+        {
+          "workspace": "C:\\Users\\andro\\gen-trees\\prop-coordination-0914",
+          "path": "frontend/assets/industrial/batch03/control/ticker.png",
+          "sha256": "b3fdd41f5785dfe2c71e9f7c65f6b406ee652d015a5028e4c0bf8e95db037638"
+        }
+      ]
+    },
+    {
+      "id": "chartwall",
+      "owner": "parallel-art",
+      "category": "repaint",
+      "available": true,
+      "completeViews": true,
+      "files": [
+        {
+          "workspace": "C:\\Users\\andro\\gen-trees\\prop-coordination-0914",
+          "path": "frontend/assets/industrial/batch03/coordinator/chartwall.png",
+          "sha256": "794c655d74c1962e5e29b01727b742e3433deab1abfc77604a8a4454faf1eb91"
+        }
+      ]
+    },
+    {
+      "id": "wartable",
+      "owner": "parallel-art",
+      "category": "new-source",
+      "available": true,
+      "completeViews": true,
+      "files": [
+        {
+          "workspace": "C:\\Users\\andro\\gen-trees\\prop-coordination-0914",
+          "path": "frontend/assets/industrial/batch03/control/wartable.png",
+          "sha256": "9797781caf6b8a8c62bcb07f8365c0303e407094fb22037c5ea2373500a01eab"
+        }
+      ]
+    },
+    {
+      "id": "calwall",
+      "owner": "parallel-art",
+      "category": "repaint",
+      "available": true,
+      "completeViews": true,
+      "files": [
+        {
+          "workspace": "C:\\Users\\andro\\gen-trees\\prop-coordination-0914",
+          "path": "frontend/assets/industrial/batch03/coordinator/calwall.png",
+          "sha256": "03f570e9abf5691a68115b76c496b787484522fd32d0b89a977c3bb1cf60f73c"
+        }
+      ]
+    },
+    {
+      "id": "bridge_tacscreen",
+      "owner": "parallel-art",
+      "category": "new-source",
+      "available": true,
+      "completeViews": true,
+      "files": [
+        {
+          "workspace": "C:\\Users\\andro\\gen-trees\\prop-coordination-0914",
+          "path": "frontend/assets/industrial/batch03/control/bridge_tacscreen.png",
+          "sha256": "aa2e482c7a47ddee634876c9997517cb4934cff9cfa049a74d73929c8eca733d"
+        }
+      ]
+    },
+    {
+      "id": "bridge_dispatch_pylon",
+      "owner": "parallel-art",
+      "category": "new-source",
+      "available": true,
+      "completeViews": true,
+      "files": [
+        {
+          "workspace": "C:\\Users\\andro\\gen-trees\\prop-coordination-0914",
+          "path": "frontend/assets/industrial/batch03/control/bridge_dispatch_pylon.png",
+          "sha256": "3718d8ffe92cc84082ca15c91b600bbfc8496c67ba901a620b3d4707ea8e3d9e"
+        }
+      ]
+    },
+    {
+      "id": "bridge_orderqueue",
+      "owner": "parallel-art",
+      "category": "new-source",
+      "available": true,
+      "completeViews": true,
+      "files": [
+        {
+          "workspace": "C:\\Users\\andro\\gen-trees\\prop-coordination-0914",
+          "path": "frontend/assets/industrial/batch03/control/bridge_orderqueue.png",
+          "sha256": "789186ab7f0578ec36fdadb76dd27e32a8485ec018e4ceaa1ce3b6cafa783949"
+        }
+      ]
+    },
+    {
+      "id": "war_pivotpanel",
+      "owner": "parallel-art",
+      "category": "new-source",
+      "available": true,
+      "completeViews": true,
+      "files": [
+        {
+          "workspace": "C:\\Users\\andro\\gen-trees\\prop-coordination-0914",
+          "path": "frontend/assets/industrial/batch03/control/war_pivotpanel.png",
+          "sha256": "79c81b064d9e74e3dcf53dcb79ddab6cba95f78007425d2f0192dae4b37d4ed4"
+        }
+      ]
+    },
+    {
+      "id": "war_threatcore",
+      "owner": "parallel-art",
+      "category": "new-source",
+      "available": true,
+      "completeViews": true,
+      "files": [
+        {
+          "workspace": "C:\\Users\\andro\\gen-trees\\prop-coordination-0914",
+          "path": "frontend/assets/industrial/batch03/control/war_threatcore.png",
+          "sha256": "f9656b137af99ba90fb27f9c575155e591768f593e7710a151e66219b66a7f38"
+        }
+      ]
+    },
+    {
+      "id": "fabricator",
+      "owner": "original-task",
+      "category": "new-source",
+      "available": true,
+      "files": [
+        {
+          "workspace": "C:/Users/andro/gen-trees/industrial-textures-0912",
+          "path": "frontend/assets/industrial/batch03/lab/fabricator.png",
+          "sha256": "89cce468370781ab4ed272c0fa6e9e94d1ad4cd169c83ca8888f576d295ba5c3"
+        }
+      ],
+      "note": "Body source; original task separately supplies moving mechanisms."
+    },
+    {
+      "id": "vat",
+      "owner": "original-task",
+      "category": "new-source",
+      "available": true,
+      "files": [
+        {
+          "workspace": "C:/Users/andro/gen-trees/industrial-textures-0912",
+          "path": "frontend/assets/industrial/batch03/lab/vat.png",
+          "sha256": "4bf96ebde0219e6a7af5576ed2a8fdabaf51fb750ac5938df9881fc537d06abb"
+        }
+      ]
+    },
+    {
+      "id": "easel",
+      "owner": "parallel-art",
+      "category": "repaint",
+      "available": true,
+      "completeViews": true,
+      "files": [
+        {
+          "workspace": "C:\\Users\\andro\\gen-trees\\prop-coordination-0914",
+          "path": "frontend/assets/industrial/batch03/storage/easel.png",
+          "sha256": "549f703bc641394344ca53321bb56d39bf70140d000950f2f53cb16a75973a5d"
+        }
+      ]
+    },
+    {
+      "id": "tube",
+      "owner": "original-task",
+      "category": "new-source",
+      "available": true,
+      "files": [
+        {
+          "workspace": "C:/Users/andro/gen-trees/industrial-textures-0912",
+          "path": "frontend/assets/industrial/batch03/lab/tube.png",
+          "sha256": "a714eb08baec8a2a13dabfaa9eb189c53f8827615b6797a3c6c16b16f33a109a"
+        }
+      ],
+      "note": "Body source; original task separately supplies moving mechanisms."
+    },
+    {
+      "id": "research_corelens",
+      "owner": "original-task",
+      "category": "new-source",
+      "available": true,
+      "files": [
+        {
+          "workspace": "C:/Users/andro/gen-trees/industrial-textures-0912",
+          "path": "frontend/assets/industrial/batch03/lab/research_corelens.png",
+          "sha256": "ade4d3a459389162c9abae46c124383368fb31dcca8f6c9061a44e4542ddcbc2"
+        }
+      ]
+    },
+    {
+      "id": "research_trendpillar",
+      "owner": "original-task",
+      "category": "new-source",
+      "available": true,
+      "files": [
+        {
+          "workspace": "C:/Users/andro/gen-trees/industrial-textures-0912",
+          "path": "frontend/assets/industrial/batch03/lab/research_trendpillar.png",
+          "sha256": "3afa2b8a0e2bb3509437cc07c7d79d5ce4006ca12508cda02dde5908ae648e5c"
+        }
+      ]
+    },
+    {
+      "id": "research_samplecart",
+      "owner": "parallel-art",
+      "category": "repaint",
+      "available": true,
+      "completeViews": true,
+      "files": [
+        {
+          "workspace": "C:\\Users\\andro\\gen-trees\\prop-coordination-0914",
+          "path": "frontend/assets/industrial/batch03/utility/research_samplecart.png",
+          "sha256": "c44ecf5fd17775f839c6cdb7a9c6041ed714ecc0544d5d381046aaa6e01b5272"
+        }
+      ]
+    },
+    {
+      "id": "research_papers",
+      "owner": "parallel-art",
+      "category": "repaint",
+      "available": true,
+      "completeViews": true,
+      "files": [
+        {
+          "workspace": "C:\\Users\\andro\\gen-trees\\prop-coordination-0914",
+          "path": "frontend/assets/industrial/batch03/storage/research_papers.png",
+          "sha256": "28e84f602e7248254e15c8e8f51743e1c91ffbd2e9b8c0e2c53f576654ce42a3"
+        }
+      ]
+    },
+    {
+      "id": "etsy_threadrack",
+      "owner": "parallel-art",
+      "category": "repaint",
+      "available": true,
+      "completeViews": true,
+      "files": [
+        {
+          "workspace": "C:\\Users\\andro\\gen-trees\\prop-coordination-0914",
+          "path": "frontend/assets/industrial/batch03/storage/etsy_threadrack.png",
+          "sha256": "c8e3e860fe082a645fc712adb4a951f2588b7b3d5093b2c9029b60dcc7536411"
+        }
+      ]
+    },
+    {
+      "id": "etsy_dyevat",
+      "owner": "parallel-art",
+      "category": "repaint",
+      "available": true,
+      "completeViews": true,
+      "files": [
+        {
+          "workspace": "C:\\Users\\andro\\gen-trees\\prop-coordination-0914",
+          "path": "frontend/assets/industrial/batch03/utility/etsy_dyevat.png",
+          "sha256": "9a02967d2f1eeaf212349208e61342e191afec1ae2ed3a5ecf5a7945a6051269"
+        }
+      ]
+    },
+    {
+      "id": "etsy_kiln",
+      "owner": "parallel-art",
+      "category": "repaint",
+      "available": true,
+      "completeViews": true,
+      "files": [
+        {
+          "workspace": "C:\\Users\\andro\\gen-trees\\prop-coordination-0914",
+          "path": "frontend/assets/industrial/batch03/utility/etsy_kiln.png",
+          "sha256": "3b00448deefa5a1e28293d8980e9aec73531876de2a7c4b365911f54922fc1b7"
+        }
+      ]
+    },
+    {
+      "id": "etsy_packbot",
+      "owner": "original-task",
+      "category": "new-source",
+      "available": true,
+      "files": [
+        {
+          "workspace": "C:/Users/andro/gen-trees/industrial-textures-0912",
+          "path": "frontend/assets/industrial/batch03/lab/etsy_packbot.png",
+          "sha256": "ea148d64077f983a3e50a1a3e8922025c9135a5a4ad296510f0989a13afb3dfc"
+        }
+      ],
+      "note": "Body source; original task separately supplies moving mechanisms."
+    },
+    {
+      "id": "rackV",
+      "owner": "original-task",
+      "category": "new-source",
+      "available": true,
+      "files": [
+        {
+          "workspace": "C:/Users/andro/gen-trees/industrial-textures-0912",
+          "path": "frontend/assets/industrial/batch03/equipment/rackV.png",
+          "sha256": "fabed4ad3a2e17ce696373faf455664e32309d3263f27e3013b8b43eb3987dee"
+        }
+      ]
+    },
+    {
+      "id": "crate",
+      "owner": "existing",
+      "category": "approved-existing",
+      "available": true,
+      "evidence": "Original-task coverage status; approved artwork retained."
+    },
+    {
+      "id": "boxes",
+      "owner": "earlier-source",
+      "category": "prior-source",
+      "available": true,
+      "files": [
+        {
+          "workspace": "C:/Users/andro/gen-trees/industrial-textures-0912",
+          "path": "frontend/assets/industrial/props-v3/boxes.png",
+          "sha256": "05890689d7b8135e10c6281a12cd9d7f84797c0bf596e218d4441cc2d64bd430"
+        }
+      ]
+    },
+    {
+      "id": "goldcrate",
+      "owner": "parallel-art",
+      "category": "new-source",
+      "available": true,
+      "completeViews": true,
+      "files": [
+        {
+          "workspace": "C:\\Users\\andro\\gen-trees\\prop-coordination-0914",
+          "path": "frontend/assets/industrial/batch03/storage/goldcrate.png",
+          "sha256": "bd090ba17450ae0df4c4f367b2e6ac6f16d5d9cbb5ed311956b5c04c562c8133"
+        }
+      ]
+    },
+    {
+      "id": "gigs_partsbin",
+      "owner": "parallel-art",
+      "category": "new-source",
+      "available": true,
+      "completeViews": true,
+      "files": [
+        {
+          "workspace": "C:\\Users\\andro\\gen-trees\\prop-coordination-0914",
+          "path": "frontend/assets/industrial/batch03/storage/gigs_partsbin.png",
+          "sha256": "367e56abc9ada1a92a863847a895e82fabb9612aa477a12a14548db7e12b736e"
+        }
+      ]
+    },
+    {
+      "id": "treasury_coinsorter",
+      "owner": "parallel-art",
+      "category": "new-source",
+      "available": true,
+      "completeViews": true,
+      "files": [
+        {
+          "workspace": "C:\\Users\\andro\\gen-trees\\prop-coordination-0914",
+          "path": "frontend/assets/industrial/batch03/storage/treasury_coinsorter.png",
+          "sha256": "167f81b0edeeaeda42e7166e2cb1cfccf8f800fa8d380583d5a0df7c95bc4ece"
+        }
+      ]
+    },
+    {
+      "id": "treasury_token_furnace",
+      "owner": "parallel-art",
+      "category": "new-source",
+      "available": true,
+      "completeViews": true,
+      "files": [
+        {
+          "workspace": "C:\\Users\\andro\\gen-trees\\prop-coordination-0914",
+          "path": "frontend/assets/industrial/batch03/storage/treasury_token_furnace.png",
+          "sha256": "eaa6150a099c0a11d62c8780233a088e7cd867c18cdce65e3b7ba06115602639"
+        }
+      ]
+    },
+    {
+      "id": "commswall",
+      "owner": "original-task",
+      "category": "new-source",
+      "available": true,
+      "files": [
+        {
+          "workspace": "C:/Users/andro/gen-trees/industrial-textures-0912",
+          "path": "frontend/assets/industrial/batch03/communications/commswall.png",
+          "sha256": "9b2524540e2fc14f692a9ae106d7586eaf7d26a8ed7cedddbc34d16e9243b46e"
+        }
+      ]
+    },
+    {
+      "id": "comms_inbox",
+      "owner": "parallel-art",
+      "category": "repaint",
+      "available": true,
+      "completeViews": true,
+      "files": [
+        {
+          "workspace": "C:\\Users\\andro\\gen-trees\\prop-coordination-0914",
+          "path": "frontend/assets/industrial/batch03/coordinator/comms_inbox.png",
+          "sha256": "8172027972dac4cc088817376d2ca40fde2defce6355426c868e1cc502756b70"
+        }
+      ]
+    },
+    {
+      "id": "gigs_thumbwall",
+      "owner": "parallel-art",
+      "category": "new-source",
+      "available": true,
+      "completeViews": true,
+      "files": [
+        {
+          "workspace": "C:\\Users\\andro\\gen-trees\\prop-coordination-0914",
+          "path": "frontend/assets/industrial/batch03/storage/gigs_thumbwall.png",
+          "sha256": "f2753b6675fe7fc45aa6d7e5cbd4b5cbfb2a06fd4b499114906a597eae038977"
+        }
+      ]
+    },
+    {
+      "id": "gigs_amp",
+      "owner": "parallel-art",
+      "category": "new-source",
+      "available": true,
+      "completeViews": true,
+      "files": [
+        {
+          "workspace": "C:\\Users\\andro\\gen-trees\\prop-coordination-0914",
+          "path": "frontend/assets/industrial/batch03/storage/gigs_amp.png",
+          "sha256": "0c59603b77f2abfdc9efe774192085e8b4e76b4a633f33306b87b072eb74116b"
+        }
+      ]
+    },
+    {
+      "id": "pub_publishpress",
+      "owner": "parallel-art",
+      "category": "new-source",
+      "available": true,
+      "completeViews": true,
+      "files": [
+        {
+          "workspace": "C:\\Users\\andro\\gen-trees\\prop-coordination-0914",
+          "path": "frontend/assets/industrial/batch03/storage/pub_publishpress.png",
+          "sha256": "304b6e948f5bffefe72845c8e7c7d45569c63759683e1cd6f9e9617b8374ebf1"
+        }
+      ]
+    },
+    {
+      "id": "pub_outboundchute",
+      "owner": "parallel-art",
+      "category": "new-source",
+      "available": true,
+      "completeViews": true,
+      "files": [
+        {
+          "workspace": "C:\\Users\\andro\\gen-trees\\prop-coordination-0914",
+          "path": "frontend/assets/industrial/batch03/storage/pub_outboundchute.png",
+          "sha256": "0f0aa5b5fae2d5aa51c42eafe316e627444c79988020189049f5119c4fa0cbcf"
+        }
+      ]
+    },
+    {
+      "id": "pub_mailpod",
+      "owner": "parallel-art",
+      "category": "new-source",
+      "available": true,
+      "completeViews": true,
+      "files": [
+        {
+          "workspace": "C:\\Users\\andro\\gen-trees\\prop-coordination-0914",
+          "path": "frontend/assets/industrial/batch03/storage/pub_mailpod.png",
+          "sha256": "c3dfac532179133cebcafd4c2a916bfbfd599b587638a4d9fe0cb39c9c0c10fd"
+        }
+      ]
+    },
+    {
+      "id": "arc_indexwall",
+      "owner": "parallel-art",
+      "category": "repaint",
+      "available": true,
+      "completeViews": true,
+      "files": [
+        {
+          "workspace": "C:\\Users\\andro\\gen-trees\\prop-coordination-0914",
+          "path": "frontend/assets/industrial/batch03/coordinator/arc_indexwall.png",
+          "sha256": "5d579e37dbd5c79f12ec4bcac5045456d36a6084980aff19dcd777020c8f1f7c"
+        }
+      ]
+    },
+    {
+      "id": "arc_microfiche",
+      "owner": "parallel-art",
+      "category": "repaint",
+      "available": true,
+      "completeViews": true,
+      "files": [
+        {
+          "workspace": "C:\\Users\\andro\\gen-trees\\prop-coordination-0914",
+          "path": "frontend/assets/industrial/batch03/coordinator/arc_microfiche.png",
+          "sha256": "922a14eedc46410e30d68ac45158df84ef5c4257d1d6ed8fc26e2e55aa806432"
+        }
+      ]
+    },
+    {
+      "id": "djbooth",
+      "owner": "parallel-art",
+      "category": "new-source",
+      "available": true,
+      "completeViews": true,
+      "files": [
+        {
+          "workspace": "C:\\Users\\andro\\gen-trees\\prop-coordination-0914",
+          "path": "frontend/assets/industrial/batch03/storage/djbooth.png",
+          "sha256": "254522569c74605e43b90234d57e487d6184efcf1458c0db9ecb80cac8446c78"
+        }
+      ]
+    },
+    {
+      "id": "speaker",
+      "owner": "parallel-art",
+      "category": "new-source",
+      "available": true,
+      "completeViews": true,
+      "files": [
+        {
+          "workspace": "C:\\Users\\andro\\gen-trees\\prop-coordination-0914",
+          "path": "frontend/assets/industrial/batch03/storage/speaker.png",
+          "sha256": "389038d1d5ce1b6c8af50dd6f1e5bc517351d60ff891c73ca012ee76eaff0367"
+        }
+      ]
+    },
+    {
+      "id": "bar",
+      "owner": "parallel-art",
+      "category": "repaint",
+      "available": true,
+      "completeViews": true,
+      "files": [
+        {
+          "workspace": "C:\\Users\\andro\\gen-trees\\prop-coordination-0914",
+          "path": "frontend/assets/industrial/batch03/crew/bar.png",
+          "sha256": "3568ee12531ed00917aa03a26f69f3b0a60caa8c0aff3084dbea1c7e462aa5e1"
+        }
+      ]
+    },
+    {
+      "id": "tv",
+      "owner": "parallel-art",
+      "category": "new-source",
+      "available": true,
+      "completeViews": true,
+      "files": [
+        {
+          "workspace": "C:\\Users\\andro\\gen-trees\\prop-coordination-0914",
+          "path": "frontend/assets/industrial/batch03/storage/tv.png",
+          "sha256": "f0bc5e6157fdf78c54ebf0ced49c9abcedd46c36daadb2f87f73ac14b4b862c7"
+        }
+      ]
+    },
+    {
+      "id": "couch",
+      "owner": "earlier-source",
+      "category": "prior-source",
+      "available": true,
+      "files": [
+        {
+          "workspace": "C:/Users/andro/gen-trees/industrial-textures-0912",
+          "path": "frontend/assets/industrial/props-v3/couch.png",
+          "sha256": "e386bb7cb9a89e42605a0b9503033f350a8894ddf826ff1f58caf13a33ae646b"
+        }
+      ]
+    },
+    {
+      "id": "arcade",
+      "owner": "parallel-art",
+      "category": "new-source",
+      "available": true,
+      "completeViews": true,
+      "files": [
+        {
+          "workspace": "C:\\Users\\andro\\gen-trees\\prop-coordination-0914",
+          "path": "frontend/assets/industrial/batch03/storage/arcade.png",
+          "sha256": "dbd442b59c74c981a36f0a01415b2627ad32211e7c693bdb89a6b4368a8041a5"
+        }
+      ]
+    },
+    {
+      "id": "arcade2",
+      "owner": "parallel-art",
+      "category": "new-source",
+      "available": true,
+      "completeViews": true,
+      "files": [
+        {
+          "workspace": "C:\\Users\\andro\\gen-trees\\prop-coordination-0914",
+          "path": "frontend/assets/industrial/batch03/storage/arcade2.png",
+          "sha256": "5bba2038556f09baec64a9ffb7b82c7aed9175f5b3388a54e5020c705ceae08c"
+        }
+      ]
+    },
+    {
+      "id": "jukebox",
+      "owner": "parallel-art",
+      "category": "new-source",
+      "available": true,
+      "completeViews": true,
+      "files": [
+        {
+          "workspace": "C:\\Users\\andro\\gen-trees\\prop-coordination-0914",
+          "path": "frontend/assets/industrial/batch03/storage/jukebox.png",
+          "sha256": "d341279c214635f8591aea5b3a0de9495b36500a40918ef8c55ccaabf4aa6132"
+        }
+      ]
+    },
+    {
+      "id": "bunk",
+      "owner": "parallel-art",
+      "category": "repaint",
+      "available": true,
+      "completeViews": true,
+      "files": [
+        {
+          "workspace": "C:\\Users\\andro\\gen-trees\\prop-coordination-0914",
+          "path": "frontend/assets/industrial/batch03/crew/bunk.png",
+          "sha256": "a5ad18bfb5ca8153b0b0b4f158355572092afdddf22dba041731ad4d9a1af59a"
+        }
+      ]
+    },
+    {
+      "id": "quarters_pooltable",
+      "owner": "parallel-art",
+      "category": "repaint",
+      "available": true,
+      "completeViews": true,
+      "files": [
+        {
+          "workspace": "C:\\Users\\andro\\gen-trees\\prop-coordination-0914",
+          "path": "frontend/assets/industrial/batch03/crew/quarters_pooltable.png",
+          "sha256": "fe250fa2f9c97823de17754bc669e93113207540632a4040ba262c1ee5925f02"
+        }
+      ]
+    },
+    {
+      "id": "quarters_vending",
+      "owner": "parallel-art",
+      "category": "repaint",
+      "available": true,
+      "completeViews": true,
+      "files": [
+        {
+          "workspace": "C:\\Users\\andro\\gen-trees\\prop-coordination-0914",
+          "path": "frontend/assets/industrial/batch03/crew/quarters_vending.png",
+          "sha256": "5fb34ea221beb85c6289f9eed2b7b7b586ae3eb110ade375f1710a2529af3756"
+        }
+      ]
+    },
+    {
+      "id": "quarters_lockerbank",
+      "owner": "parallel-art",
+      "category": "new-source",
+      "available": true,
+      "completeViews": true,
+      "files": [
+        {
+          "workspace": "C:\\Users\\andro\\gen-trees\\prop-coordination-0914",
+          "path": "frontend/assets/industrial/batch03/crew/quarters_lockerbank.png",
+          "sha256": "edf308ad7edf8c011873fb5480a91ec1f8f1271b8de3a07858197e85952657b9"
+        }
+      ]
+    },
+    {
+      "id": "quarters_minifridge",
+      "owner": "parallel-art",
+      "category": "repaint",
+      "available": true,
+      "completeViews": true,
+      "files": [
+        {
+          "workspace": "C:\\Users\\andro\\gen-trees\\prop-coordination-0914",
+          "path": "frontend/assets/industrial/batch03/crew/quarters_minifridge.png",
+          "sha256": "df5c8ef2d8a4bf5e69206f67f6617c50403d290bab270fbb8c5fc8716f09ef5d"
+        }
+      ]
+    },
+    {
+      "id": "coffee",
+      "owner": "parallel-art",
+      "category": "repaint",
+      "available": true,
+      "completeViews": true,
+      "files": [
+        {
+          "workspace": "C:\\Users\\andro\\gen-trees\\prop-coordination-0914",
+          "path": "frontend/assets/industrial/batch03/coordinator/coffee.png",
+          "sha256": "fd78114fa53b8f3afc1f453316ff3b07618aac60136a6f0fc3b74a89d40dae20"
+        }
+      ]
+    },
+    {
+      "id": "plant",
+      "owner": "earlier-source",
+      "category": "prior-source",
+      "available": true,
+      "files": [
+        {
+          "workspace": "C:/Users/andro/gen-trees/industrial-textures-0912",
+          "path": "frontend/assets/industrial/props-v3/plant.png",
+          "sha256": "5a816fcb1ab44816d1c1ff77c7fe27ecf64336051b74b054815d5dccf01ea57f"
+        }
+      ]
+    },
+    {
+      "id": "rug",
+      "owner": "parallel-art",
+      "category": "new-source",
+      "available": true,
+      "completeViews": true,
+      "files": [
+        {
+          "workspace": "C:\\Users\\andro\\gen-trees\\prop-coordination-0914",
+          "path": "frontend/assets/industrial/batch03/habitat/rug.png",
+          "sha256": "beb5381e2b77f33d9ba11716a13377b801492d9bfc6a7f0f9f17949142671911"
+        }
+      ]
+    },
+    {
+      "id": "rug_small",
+      "owner": "parallel-art",
+      "category": "new-source",
+      "available": true,
+      "completeViews": true,
+      "files": [
+        {
+          "workspace": "C:\\Users\\andro\\gen-trees\\prop-coordination-0914",
+          "path": "frontend/assets/industrial/batch03/habitat/rug_small.png",
+          "sha256": "11b748ce144b8400bbe85f5fb737a0a2aaef68b7e2c02391b814dea00b32fd49"
+        }
+      ]
+    },
+    {
+      "id": "rug_large",
+      "owner": "parallel-art",
+      "category": "new-source",
+      "available": true,
+      "completeViews": true,
+      "files": [
+        {
+          "workspace": "C:\\Users\\andro\\gen-trees\\prop-coordination-0914",
+          "path": "frontend/assets/industrial/batch03/habitat/rug_large.png",
+          "sha256": "4833b6a895140eea978a594efaed699d8f102ab6e71872a08f0f7b591f60dbc4"
+        }
+      ]
+    },
+    {
+      "id": "treasury_pnl_holo",
+      "owner": "parallel-art",
+      "category": "new-source",
+      "available": true,
+      "completeViews": true,
+      "files": [
+        {
+          "workspace": "C:\\Users\\andro\\gen-trees\\prop-coordination-0914",
+          "path": "frontend/assets/industrial/batch03/storage/treasury_pnl_holo.png",
+          "sha256": "4f39007954e5ca081d9aa9f33991eb58988b3d2cc7230eff22b43fe0825a74b9"
+        }
+      ]
+    },
+    {
+      "id": "arc_floorlight",
+      "owner": "parallel-art",
+      "category": "new-source",
+      "available": true,
+      "completeViews": true,
+      "files": [
+        {
+          "workspace": "C:\\Users\\andro\\gen-trees\\prop-coordination-0914",
+          "path": "frontend/assets/industrial/batch03/habitat/arc_floorlight.png",
+          "sha256": "43d2db807a4c409ed949b99bc48cdd4dd75863cfdbd99fdd30315f0b26c7ae1b"
+        }
+      ]
+    },
+    {
+      "id": "arc_ladder",
+      "owner": "parallel-art",
+      "category": "new-source",
+      "available": true,
+      "completeViews": true,
+      "files": [
+        {
+          "workspace": "C:\\Users\\andro\\gen-trees\\prop-coordination-0914",
+          "path": "frontend/assets/industrial/batch03/habitat/arc_ladder.png",
+          "sha256": "9191ebcd181116d51cfab4ad4e90fa22220326ecceac73f58ec39c89797b443f"
+        }
+      ]
+    },
+    {
+      "id": "stool",
+      "owner": "parallel-art",
+      "category": "repaint",
+      "available": true,
+      "completeViews": true,
+      "files": [
+        {
+          "workspace": "C:\\Users\\andro\\gen-trees\\prop-coordination-0914",
+          "path": "frontend/assets/industrial/batch03/crew/stool.png",
+          "sha256": "748c058493d2b98abbe7772dc1af9f95a5594418f2f5bdaf3114764e67e1edb7"
+        }
+      ]
+    },
+    {
+      "id": "chair",
+      "owner": "existing",
+      "category": "approved-existing",
+      "available": true,
+      "evidence": "Original-task coverage status; approved artwork retained."
+    },
+    {
+      "id": "sidetable",
+      "owner": "parallel-art",
+      "category": "repaint",
+      "available": true,
+      "completeViews": true,
+      "files": [
+        {
+          "workspace": "C:\\Users\\andro\\gen-trees\\prop-coordination-0914",
+          "path": "frontend/assets/industrial/batch03/crew/sidetable.png",
+          "sha256": "261b792dedc52640f284dc691f82bd9ae4e3d243b4837a440a750769a91ea784"
+        }
+      ]
+    },
+    {
+      "id": "lowtable",
+      "owner": "earlier-source",
+      "category": "prior-source",
+      "available": true,
+      "files": [
+        {
+          "workspace": "C:/Users/andro/gen-trees/industrial-textures-0912",
+          "path": "frontend/assets/industrial/props-v3/lowtable.png",
+          "sha256": "eba90a2ee2c3e773e01e5d235a8b5f5c829b5a6f572ef4ae0882a28af233ca65"
+        },
+        {
+          "workspace": "C:/Users/andro/gen-trees/industrial-textures-0912",
+          "path": "frontend/assets/industrial/props-v3/lowtable-r3.png",
+          "sha256": "c08b11195caf5a6b620c8017f18aff10aeb35b16b368fd089a692984c41537a4"
+        }
+      ]
+    },
+    {
+      "id": "glasstable",
+      "owner": "parallel-art",
+      "category": "new-source",
+      "available": true,
+      "completeViews": true,
+      "files": [
+        {
+          "workspace": "C:\\Users\\andro\\gen-trees\\prop-coordination-0914",
+          "path": "frontend/assets/industrial/batch03/crew/glasstable.png",
+          "sha256": "4c5bb258ff59ba139fb100f4fd4aa2ce8bf0c90e8a04794e92004f42be4c97dd"
+        },
+        {
+          "workspace": "C:\\Users\\andro\\gen-trees\\prop-coordination-0914",
+          "path": "frontend/assets/industrial/batch03/crew/glasstable-r3.png",
+          "sha256": "2ea807ffd99482d5d07dbcb23f434dca4b93962d52100764783a40436537d6df"
+        }
+      ]
+    },
+    {
+      "id": "dinertable",
+      "owner": "parallel-art",
+      "category": "new-source",
+      "available": true,
+      "completeViews": true,
+      "files": [
+        {
+          "workspace": "C:\\Users\\andro\\gen-trees\\prop-coordination-0914",
+          "path": "frontend/assets/industrial/batch03/crew/dinertable.png",
+          "sha256": "dd0d73b53527d0fb4875097c6dcbc2773c53850cb01dcb7cef83a4b58e412b70"
+        },
+        {
+          "workspace": "C:\\Users\\andro\\gen-trees\\prop-coordination-0914",
+          "path": "frontend/assets/industrial/batch03/crew/dinertable-r3.png",
+          "sha256": "fc5c0475318f548acfdc440b5c640f1f2ee0d614804d5bee7cf14774f8ce922c"
+        }
+      ]
+    },
+    {
+      "id": "guitar",
+      "owner": "parallel-art",
+      "category": "repaint",
+      "available": true,
+      "completeViews": true,
+      "files": [
+        {
+          "workspace": "C:\\Users\\andro\\gen-trees\\prop-coordination-0914",
+          "path": "frontend/assets/industrial/batch03/storage/guitar.png",
+          "sha256": "598bd161ee937061d300d6c21ca8fa6af12efde3e09a8e8d87d5369433f9a363"
+        }
+      ]
+    },
+    {
+      "id": "booth",
+      "owner": "parallel-art",
+      "category": "new-source",
+      "available": true,
+      "completeViews": true,
+      "files": [
+        {
+          "workspace": "C:\\Users\\andro\\gen-trees\\prop-coordination-0914",
+          "path": "frontend/assets/industrial/batch03/crew/booth.png",
+          "sha256": "8628b934e7c02c2558ad97346f8cf2599ee21be15083e29ea978599c47c6b274"
+        },
+        {
+          "workspace": "C:\\Users\\andro\\gen-trees\\prop-coordination-0914",
+          "path": "frontend/assets/industrial/batch03/crew/booth-r1.png",
+          "sha256": "37172383f62b9f42f84254dd989b1e56b7babbe37cfd1be3a0e6087224200d5f"
+        },
+        {
+          "workspace": "C:\\Users\\andro\\gen-trees\\prop-coordination-0914",
+          "path": "frontend/assets/industrial/batch03/crew/booth-r3.png",
+          "sha256": "a85a3e117ad74f9e78f7f23c6b94739aa232feaf1b677882b1ccefee7c450610"
+        }
+      ]
+    },
+    {
+      "id": "dinerchair",
+      "owner": "parallel-art",
+      "category": "new-source",
+      "available": true,
+      "completeViews": true,
+      "files": [
+        {
+          "workspace": "C:\\Users\\andro\\gen-trees\\prop-coordination-0914",
+          "path": "frontend/assets/industrial/batch03/crew/dinerchair.png",
+          "sha256": "ad8a304c5415a7fee47be4fb84cf5ec326911d4370e0061f8d171be14ec04a7a"
+        },
+        {
+          "workspace": "C:\\Users\\andro\\gen-trees\\prop-coordination-0914",
+          "path": "frontend/assets/industrial/batch03/crew/dinerchair-r1.png",
+          "sha256": "0be27c75e660b876b5bbffae8535d09dc61ad299c736b8ab081061975900ca6c"
+        },
+        {
+          "workspace": "C:\\Users\\andro\\gen-trees\\prop-coordination-0914",
+          "path": "frontend/assets/industrial/batch03/crew/dinerchair-r2.png",
+          "sha256": "e5cf90ba1e2bbecbcb67382c7c2eaadffb2c8d82737f2121007fd6c13a5da9ca"
+        },
+        {
+          "workspace": "C:\\Users\\andro\\gen-trees\\prop-coordination-0914",
+          "path": "frontend/assets/industrial/batch03/crew/dinerchair-r3.png",
+          "sha256": "30175e80d02c9e13bc599428054b705a8c8ae588a61e0684e810f850756aa4be"
+        }
+      ]
+    },
+    {
+      "id": "podchair",
+      "owner": "parallel-art",
+      "category": "new-source",
+      "available": true,
+      "completeViews": true,
+      "files": [
+        {
+          "workspace": "C:\\Users\\andro\\gen-trees\\prop-coordination-0914",
+          "path": "frontend/assets/industrial/batch03/crew/podchair.png",
+          "sha256": "dfd792efe8760df4d6c03af59ef4870c489eceda9f1cc7a77a4242c26aa501f6"
+        },
+        {
+          "workspace": "C:\\Users\\andro\\gen-trees\\prop-coordination-0914",
+          "path": "frontend/assets/industrial/batch03/crew/podchair-r1.png",
+          "sha256": "139ef44b6334686b701ed55ff81230b4c79a62b86a0e6ba304e171c3a4f75cd4"
+        },
+        {
+          "workspace": "C:\\Users\\andro\\gen-trees\\prop-coordination-0914",
+          "path": "frontend/assets/industrial/batch03/crew/podchair-r2.png",
+          "sha256": "2482cbde722e505e293d5c6fb817d7065d00efe134c01134161ac4ca4ee2d7c4"
+        },
+        {
+          "workspace": "C:\\Users\\andro\\gen-trees\\prop-coordination-0914",
+          "path": "frontend/assets/industrial/batch03/crew/podchair-r3.png",
+          "sha256": "562e4c62215f476b018379e9edc7e819c388121129b283e532f1ad5e392a8e9b"
+        }
+      ]
+    },
+    {
+      "id": "loungetable",
+      "owner": "parallel-art",
+      "category": "new-source",
+      "available": true,
+      "completeViews": true,
+      "files": [
+        {
+          "workspace": "C:\\Users\\andro\\gen-trees\\prop-coordination-0914",
+          "path": "frontend/assets/industrial/batch03/crew/loungetable.png",
+          "sha256": "8ff07738bfc4208769cae579d1481ff386d7c9bd55088afc0a66e8863d1af464"
+        },
+        {
+          "workspace": "C:\\Users\\andro\\gen-trees\\prop-coordination-0914",
+          "path": "frontend/assets/industrial/batch03/crew/loungetable-r3.png",
+          "sha256": "2f417d8bad9f1ebfda4a6fb5271c79b7a43d5e19eeaea9a2eeaa8fb003a1d9f3"
+        }
+      ]
+    },
+    {
+      "id": "longtable",
+      "owner": "parallel-art",
+      "category": "new-source",
+      "available": true,
+      "completeViews": true,
+      "files": [
+        {
+          "workspace": "C:\\Users\\andro\\gen-trees\\prop-coordination-0914",
+          "path": "frontend/assets/industrial/batch03/crew/longtable.png",
+          "sha256": "5cba6e531d62d3ea55ee40cf8c04b1771a2c7166d62b739f6fcda17279dbc64f"
+        },
+        {
+          "workspace": "C:\\Users\\andro\\gen-trees\\prop-coordination-0914",
+          "path": "frontend/assets/industrial/batch03/crew/longtable-r3.png",
+          "sha256": "f717f6428b9e63a93ee6f29926593c1795f702c69e6691e5034cb2a8cb2c669f"
+        }
+      ]
+    },
+    {
+      "id": "lavalamp",
+      "owner": "parallel-art",
+      "category": "repaint",
+      "available": true,
+      "completeViews": true,
+      "files": [
+        {
+          "workspace": "C:\\Users\\andro\\gen-trees\\prop-coordination-0914",
+          "path": "frontend/assets/industrial/batch03/utility/lavalamp.png",
+          "sha256": "0e7d65f917ffbf36808fb82912c2dcc71c5c1187caf03811138e0d98bdfff2db"
+        }
+      ]
+    },
+    {
+      "id": "crt_pile",
+      "owner": "parallel-art",
+      "category": "new-source",
+      "available": true,
+      "completeViews": true,
+      "files": [
+        {
+          "workspace": "C:\\Users\\andro\\gen-trees\\prop-coordination-0914",
+          "path": "frontend/assets/industrial/batch03/storage/crt_pile.png",
+          "sha256": "3758079158d874903890e7970516e6895d3f37da1f95c70dd306c9743dd8d559"
+        }
+      ]
+    },
+    {
+      "id": "cablerun",
+      "owner": "parallel-art",
+      "category": "new-source",
+      "available": true,
+      "completeViews": true,
+      "files": [
+        {
+          "workspace": "C:\\Users\\andro\\gen-trees\\prop-coordination-0914",
+          "path": "frontend/assets/industrial/batch03/habitat/cablerun.png",
+          "sha256": "92d0b2865dc9bd58a65f2331cf516bc3ba22411a702eaaad240c7e2e9333647c"
+        }
+      ]
+    },
+    {
+      "id": "hazardpad",
+      "owner": "parallel-art",
+      "category": "new-source",
+      "available": true,
+      "completeViews": true,
+      "files": [
+        {
+          "workspace": "C:\\Users\\andro\\gen-trees\\prop-coordination-0914",
+          "path": "frontend/assets/industrial/batch03/habitat/hazardpad.png",
+          "sha256": "ba6135bf428c9e05c25dc84a9ee58cd8f15bfb6b30a07c14e4afa4021780dd80"
+        }
+      ]
+    },
+    {
+      "id": "tallplant",
+      "owner": "parallel-art",
+      "category": "repaint",
+      "available": true,
+      "completeViews": true,
+      "files": [
+        {
+          "workspace": "C:\\Users\\andro\\gen-trees\\prop-coordination-0914",
+          "path": "frontend/assets/industrial/batch03/utility/tallplant.png",
+          "sha256": "0a954344173bf3dcb92242b50fd3cf111a0333718ba95d5453bdd50ee4119ce3"
+        }
+      ]
+    },
+    {
+      "id": "terrarium",
+      "owner": "parallel-art",
+      "category": "repaint",
+      "available": true,
+      "completeViews": true,
+      "files": [
+        {
+          "workspace": "C:\\Users\\andro\\gen-trees\\prop-coordination-0914",
+          "path": "frontend/assets/industrial/batch03/utility/terrarium.png",
+          "sha256": "b591ddaa41c4086e90b3ef493684e238572d976d441591503f0acfc242579094"
+        }
+      ]
+    },
+    {
+      "id": "holopet",
+      "owner": "parallel-art",
+      "category": "new-source",
+      "available": true,
+      "completeViews": true,
+      "files": [
+        {
+          "workspace": "C:\\Users\\andro\\gen-trees\\prop-coordination-0914",
+          "path": "frontend/assets/industrial/batch03/storage/holopet.png",
+          "sha256": "6d65bfdc7e90fb73422c602ee77755864b6913edf219789fe88b4cd0a242d2ec"
+        }
+      ]
+    },
+    {
+      "id": "plasmaglobe",
+      "owner": "parallel-art",
+      "category": "repaint",
+      "available": true,
+      "completeViews": true,
+      "files": [
+        {
+          "workspace": "C:\\Users\\andro\\gen-trees\\prop-coordination-0914",
+          "path": "frontend/assets/industrial/batch03/utility/plasmaglobe.png",
+          "sha256": "e02e107a72ba6ba83b78334c4b7017bc332dcdfe15ae34865506974d33d460ac"
+        }
+      ]
+    },
+    {
+      "id": "gachapon",
+      "owner": "parallel-art",
+      "category": "new-source",
+      "available": true,
+      "completeViews": true,
+      "files": [
+        {
+          "workspace": "C:\\Users\\andro\\gen-trees\\prop-coordination-0914",
+          "path": "frontend/assets/industrial/batch03/storage/gachapon.png",
+          "sha256": "a7b8b893af0d90a69adafb111b4f1bcc5688c4295e1a0af11a9498bf474d6046"
+        }
+      ]
+    },
+    {
+      "id": "monstera",
+      "owner": "parallel-art",
+      "category": "repaint",
+      "available": true,
+      "completeViews": true,
+      "files": [
+        {
+          "workspace": "C:\\Users\\andro\\gen-trees\\prop-coordination-0914",
+          "path": "frontend/assets/industrial/batch03/utility/monstera.png",
+          "sha256": "a72776ff73fe4d9fdabb8c3d46df9b5028e75978e3b0d7c3c74175f3f0a33b47"
+        }
+      ]
+    },
+    {
+      "id": "mug",
+      "owner": "parallel-art",
+      "category": "repaint",
+      "available": true,
+      "completeViews": true,
+      "files": [
+        {
+          "workspace": "C:\\Users\\andro\\gen-trees\\prop-coordination-0914",
+          "path": "frontend/assets/industrial/batch03/storage/mug.png",
+          "sha256": "1af0e806f672e1390a3304b535bd7e13982f3b7f2858b4b27c20d0cc424070e0"
+        }
+      ]
+    },
+    {
+      "id": "bookstack",
+      "owner": "parallel-art",
+      "category": "repaint",
+      "available": true,
+      "completeViews": true,
+      "files": [
+        {
+          "workspace": "C:\\Users\\andro\\gen-trees\\prop-coordination-0914",
+          "path": "frontend/assets/industrial/batch03/storage/bookstack.png",
+          "sha256": "4696f250b7da85a66b41fb18e202db3ce7dc99e43dc6842c6906e3a0c6ff9da6"
+        }
+      ]
+    },
+    {
+      "id": "desklamp",
+      "owner": "parallel-art",
+      "category": "repaint",
+      "available": true,
+      "completeViews": true,
+      "files": [
+        {
+          "workspace": "C:\\Users\\andro\\gen-trees\\prop-coordination-0914",
+          "path": "frontend/assets/industrial/batch03/storage/desklamp.png",
+          "sha256": "a7e20fe99936ba5b847ffd560dbe17dc78c27a1854d345f9786fc213bd069c4e"
+        }
+      ]
+    },
+    {
+      "id": "radio",
+      "owner": "parallel-art",
+      "category": "repaint",
+      "available": true,
+      "completeViews": true,
+      "files": [
+        {
+          "workspace": "C:\\Users\\andro\\gen-trees\\prop-coordination-0914",
+          "path": "frontend/assets/industrial/batch03/storage/radio.png",
+          "sha256": "cc8752c8e346989a022c50b0cf64711251054f3df3605e068eda33cfd3bb4c18"
+        }
+      ]
+    },
+    {
+      "id": "toolbox",
+      "owner": "parallel-art",
+      "category": "repaint",
+      "available": true,
+      "completeViews": true,
+      "files": [
+        {
+          "workspace": "C:\\Users\\andro\\gen-trees\\prop-coordination-0914",
+          "path": "frontend/assets/industrial/batch03/storage/toolbox.png",
+          "sha256": "d1453a168ee3851d20805909047ef6745952f927479a538a0452bbe9f2f258cf"
+        }
+      ]
+    },
+    {
+      "id": "figurine",
+      "owner": "parallel-art",
+      "category": "repaint",
+      "available": true,
+      "completeViews": true,
+      "files": [
+        {
+          "workspace": "C:\\Users\\andro\\gen-trees\\prop-coordination-0914",
+          "path": "frontend/assets/industrial/batch03/storage/figurine.png",
+          "sha256": "530675aa02c58720172111e8b95f2ab86c38a9b1061390f9b21ecb59bade611d"
+        }
+      ]
+    },
+    {
+      "id": "deskterminal",
+      "owner": "parallel-art",
+      "category": "new-source",
+      "available": true,
+      "completeViews": true,
+      "files": [
+        {
+          "workspace": "C:\\Users\\andro\\gen-trees\\prop-coordination-0914",
+          "path": "frontend/assets/industrial/batch03/storage/deskterminal.png",
+          "sha256": "ed537d209c24c2fcfcc5ce6c742285d0434359463e321745cf81c722e35e19ff"
+        }
+      ]
+    },
+    {
+      "id": "modelship",
+      "owner": "parallel-art",
+      "category": "repaint",
+      "available": true,
+      "completeViews": true,
+      "files": [
+        {
+          "workspace": "C:\\Users\\andro\\gen-trees\\prop-coordination-0914",
+          "path": "frontend/assets/industrial/batch03/storage/modelship.png",
+          "sha256": "9fb08f8ee2c057fad95a5af7ef9d80ef48f7205d6c579bb20d1cd7522d0a29db"
+        }
+      ]
+    },
+    {
+      "id": "steamvent",
+      "owner": "parallel-art",
+      "category": "new-source",
+      "available": true,
+      "completeViews": true,
+      "files": [
+        {
+          "workspace": "C:\\Users\\andro\\gen-trees\\prop-coordination-0914",
+          "path": "frontend/assets/industrial/batch03/habitat/steamvent.png",
+          "sha256": "940a4161bddf981ebc5b698aa15a0eeda78fed36c8066f1b3b70e96d871fbcc9"
+        }
+      ]
+    },
+    {
+      "id": "fishtank",
+      "owner": "parallel-art",
+      "category": "repaint",
+      "available": true,
+      "completeViews": true,
+      "files": [
+        {
+          "workspace": "C:\\Users\\andro\\gen-trees\\prop-coordination-0914",
+          "path": "frontend/assets/industrial/batch03/utility/fishtank.png",
+          "sha256": "063b2807b5ed711a94fb640e294055168f85e398ddb73a42197636d7fb72be0f"
+        }
+      ]
+    },
+    {
+      "id": "pokertable",
+      "owner": "parallel-art",
+      "category": "repaint",
+      "available": true,
+      "completeViews": true,
+      "files": [
+        {
+          "workspace": "C:\\Users\\andro\\gen-trees\\prop-coordination-0914",
+          "path": "frontend/assets/industrial/batch03/crew/pokertable.png",
+          "sha256": "9ae85192340c5e5eda42eb9ac307aff68b98905212fdebafb2d7104580a8fad5"
+        }
+      ]
+    },
+    {
+      "id": "bookshelf",
+      "owner": "parallel-art",
+      "category": "repaint",
+      "available": true,
+      "completeViews": true,
+      "files": [
+        {
+          "workspace": "C:\\Users\\andro\\gen-trees\\prop-coordination-0914",
+          "path": "frontend/assets/industrial/batch03/storage/bookshelf.png",
+          "sha256": "e285427a3debc3c0df7671149658ccf08f5afca84eba73e1a605fd1fef4daaf5"
+        }
+      ]
+    },
+    {
+      "id": "beanbag",
+      "owner": "parallel-art",
+      "category": "repaint",
+      "available": true,
+      "completeViews": true,
+      "files": [
+        {
+          "workspace": "C:\\Users\\andro\\gen-trees\\prop-coordination-0914",
+          "path": "frontend/assets/industrial/batch03/crew/beanbag.png",
+          "sha256": "f26477994924d6c7af622f8ba00bb5c8fb66e72d9df9935d711180010429c2ef"
+        }
+      ]
+    },
+    {
+      "id": "pinball",
+      "owner": "parallel-art",
+      "category": "new-source",
+      "available": true,
+      "completeViews": true,
+      "files": [
+        {
+          "workspace": "C:\\Users\\andro\\gen-trees\\prop-coordination-0914",
+          "path": "frontend/assets/industrial/batch03/storage/pinball.png",
+          "sha256": "b750070e381da650c06af1539d5fea23b12b555cf8fcca41c9f07ead25d0928c"
+        }
+      ]
+    },
+    {
+      "id": "cryopod",
+      "owner": "parallel-art",
+      "category": "repaint",
+      "available": true,
+      "completeViews": true,
+      "files": [
+        {
+          "workspace": "C:\\Users\\andro\\gen-trees\\prop-coordination-0914",
+          "path": "frontend/assets/industrial/batch03/utility/cryopod.png",
+          "sha256": "0eccdbab2db8bd4a74c5de635e093e73679c0cff437ebfab8c10072a569e779e"
+        }
+      ]
+    },
+    {
+      "id": "incubator",
+      "owner": "parallel-art",
+      "category": "repaint",
+      "available": true,
+      "completeViews": true,
+      "files": [
+        {
+          "workspace": "C:\\Users\\andro\\gen-trees\\prop-coordination-0914",
+          "path": "frontend/assets/industrial/batch03/utility/incubator.png",
+          "sha256": "8665cd1f6c7771bc79e2a032abd8fbb5166b689c2e0adb1ed845def723b1de31"
+        }
+      ]
+    },
+    {
+      "id": "telescope",
+      "owner": "parallel-art",
+      "category": "new-source",
+      "available": true,
+      "completeViews": true,
+      "files": [
+        {
+          "workspace": "C:\\Users\\andro\\gen-trees\\prop-coordination-0914",
+          "path": "frontend/assets/industrial/batch03/utility/telescope.png",
+          "sha256": "342717e5d8851043d330e63725488fc3c3eb7b3b27f54bac39fb5eff400f0d29"
+        }
+      ]
+    },
+    {
+      "id": "telescope_r",
+      "owner": "parallel-art",
+      "category": "new-source",
+      "available": true,
+      "completeViews": true,
+      "files": [
+        {
+          "workspace": "C:\\Users\\andro\\gen-trees\\prop-coordination-0914",
+          "path": "frontend/assets/industrial/batch03/utility/telescope_r.png",
+          "sha256": "daf380fd03bcad28110e4ee97994a3fab71f56106cbc52ec2ce85e9f01bfffec"
+        }
+      ]
+    },
+    {
+      "id": "camerarig",
+      "owner": "parallel-art",
+      "category": "new-source",
+      "available": true,
+      "completeViews": true,
+      "files": [
+        {
+          "workspace": "C:\\Users\\andro\\gen-trees\\prop-coordination-0914",
+          "path": "frontend/assets/industrial/batch03/utility/camerarig.png",
+          "sha256": "ffa99bc652a09fbb2236a51b5a6b52a4b65fd9ccfac4e2e08ce2d31573dd99f1"
+        }
+      ]
+    },
+    {
+      "id": "camerarig_r",
+      "owner": "parallel-art",
+      "category": "new-source",
+      "available": true,
+      "completeViews": true,
+      "files": [
+        {
+          "workspace": "C:\\Users\\andro\\gen-trees\\prop-coordination-0914",
+          "path": "frontend/assets/industrial/batch03/utility/camerarig_r.png",
+          "sha256": "db30d9599e4259f2e1055e84fc1b37602563a68d872677df7f438021591c55e0"
+        }
+      ]
+    },
+    {
+      "id": "weaponrack",
+      "owner": "parallel-art",
+      "category": "new-source",
+      "available": true,
+      "completeViews": true,
+      "files": [
+        {
+          "workspace": "C:\\Users\\andro\\gen-trees\\prop-coordination-0914",
+          "path": "frontend/assets/industrial/batch03/utility/weaponrack.png",
+          "sha256": "e8ad55a3b54d09063c352661838d2e788f3135ec453e2d63678c4846c5c22190"
+        }
+      ]
+    },
+    {
+      "id": "weaponrack_r",
+      "owner": "parallel-art",
+      "category": "new-source",
+      "available": true,
+      "completeViews": true,
+      "files": [
+        {
+          "workspace": "C:\\Users\\andro\\gen-trees\\prop-coordination-0914",
+          "path": "frontend/assets/industrial/batch03/utility/weaponrack_r.png",
+          "sha256": "00e4f55c22b1452b10072423cf02a253484f9caeb29d1394f5d8173c1825289b"
+        }
+      ]
+    },
+    {
+      "id": "punchbag",
+      "owner": "parallel-art",
+      "category": "new-source",
+      "available": true,
+      "completeViews": true,
+      "files": [
+        {
+          "workspace": "C:\\Users\\andro\\gen-trees\\prop-coordination-0914",
+          "path": "frontend/assets/industrial/batch03/crew/punchbag.png",
+          "sha256": "7f4e79f9deb9b8f5c413c221a8c7bbf3e91a2f2c800d76150f40ff3dc64002de"
+        }
+      ]
+    },
+    {
+      "id": "punchbag_r",
+      "owner": "parallel-art",
+      "category": "new-source",
+      "available": true,
+      "completeViews": true,
+      "files": [
+        {
+          "workspace": "C:\\Users\\andro\\gen-trees\\prop-coordination-0914",
+          "path": "frontend/assets/industrial/batch03/crew/punchbag_r.png",
+          "sha256": "46a5f45af4f4c97a49c184a2ec1546b77a6a65703d844dceb6c76f260ab67134"
+        }
+      ]
+    },
+    {
+      "id": "benchpress",
+      "owner": "parallel-art",
+      "category": "new-source",
+      "available": true,
+      "completeViews": true,
+      "files": [
+        {
+          "workspace": "C:\\Users\\andro\\gen-trees\\prop-coordination-0914",
+          "path": "frontend/assets/industrial/batch03/crew/benchpress.png",
+          "sha256": "6df4315a6a0736fdac8ea18ceb4f83f4f4d6e04d179131ce7fc08bd943266f0a"
+        }
+      ]
+    },
+    {
+      "id": "benchpress_r",
+      "owner": "parallel-art",
+      "category": "new-source",
+      "available": true,
+      "completeViews": true,
+      "files": [
+        {
+          "workspace": "C:\\Users\\andro\\gen-trees\\prop-coordination-0914",
+          "path": "frontend/assets/industrial/batch03/crew/benchpress_r.png",
+          "sha256": "68a24f6132cadd424c7ff922fdb9d7edad1233337fcfd2501e96f33ef7188ffe"
+        }
+      ]
+    },
+    {
+      "id": "recliner",
+      "owner": "parallel-art",
+      "category": "new-source",
+      "available": true,
+      "completeViews": true,
+      "files": [
+        {
+          "workspace": "C:\\Users\\andro\\gen-trees\\prop-coordination-0914",
+          "path": "frontend/assets/industrial/batch03/crew/recliner.png",
+          "sha256": "51ba59d0a05c788a04e9fc6b6378a0306adc11a566cecd1f47d048bf62ba24c0"
+        }
+      ]
+    },
+    {
+      "id": "recliner_r",
+      "owner": "parallel-art",
+      "category": "new-source",
+      "available": true,
+      "completeViews": true,
+      "files": [
+        {
+          "workspace": "C:\\Users\\andro\\gen-trees\\prop-coordination-0914",
+          "path": "frontend/assets/industrial/batch03/crew/recliner_r.png",
+          "sha256": "58a124f023cbe4aa1f33b2670f07b3b77af429d55beceecee8d33bfd32238e05"
+        }
+      ]
+    }
+  ]
+}
