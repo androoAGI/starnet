@@ -11232,7 +11232,7 @@ const PropSprites = (() => {
   function hasOver(t) { return !!OVER[t]; }
   function drawOver(f) {
     const fn = OVER[f && f.t]; if (!fn) return;
-    const lift = f.mount === 'surface' ? SURFACE_RISE : 0;
+    const lift = surfaceLift(f);
     if(typeof PropRemaster!=='undefined'&&PropRemaster.drawForeground&&PropRemaster.drawForeground(ctx,f.t,'s',f.x*TILE,f.y*TILE-lift,(f.w||1)*TILE,(f.h||1)*TILE,canMirror(f.t)&&!!f.m))return;
     fn(f.x * TILE, f.y * TILE - lift, (f.w || 1) * TILE, (f.h || 1) * TILE, { x: f.x, now });
   }
@@ -11242,7 +11242,7 @@ const PropSprites = (() => {
      are byte-for-byte the same rows F.stool / F.chair already drew (sorted just BEHIND the sitter); a
      divergent copy would ghost a second seat when the body wanders mid-frame. Keep them in lockstep. */
   function drawSeatFront(f) {
-    const lift = f.mount === 'surface' ? SURFACE_RISE : 0;
+    const lift = surfaceLift(f);
     const x = f.x * TILE, y = f.y * TILE - lift;
     const r = RAMP.steel;
     if (f.t === 'stool' && typeof PropRemaster !== 'undefined' && PropRemaster.enabled('stool')) {
@@ -11291,7 +11291,7 @@ const PropSprites = (() => {
     // function anchors its contact to its own footprint bottom, so lifting the origin lifts the whole
     // thing and keeps every internal offset valid. This is deliberately the only place the lift is
     // applied — a prop function must never bake its own mount height.
-    const lift = f.mount === 'surface' ? SURFACE_RISE : 0;
+    const lift = surfaceLift(f);
     const X = f.x * TILE, Y = f.y * TILE - lift, W = (f.w || 1) * TILE, H = (f.h || 1) * TILE;
     const o = { x: f.x, work: !!work, agentId: f.agentId || null, dockName: f.dockName || null, door: f.door || null };
     o.occupied = live && typeof live.occupied === 'boolean' ? live.occupied : !!work;
@@ -11527,7 +11527,7 @@ const PropSprites = (() => {
     let image;
     try {image=responseOverlay(f,sample);} catch(_) {responseMetrics.failures++;return false;}
     if(!image)return false;
-    const lift=f.mount==='surface'?SURFACE_RISE:0;
+    const lift=surfaceLift(f);
     ctx.save();
     try {
       ctx.globalCompositeOperation='source-over';ctx.imageSmoothingEnabled=false;
@@ -11653,7 +11653,7 @@ const PropSprites = (() => {
     const authoredScreen = authoredScreenOf(f);
     const screenOn = (rasterDesk || authoredScreen) && live && typeof live.occupied === 'boolean' ? live.occupied : work;
     if (e.work && !screenOn) return null;
-    const lift = f.mount === 'surface' ? SURFACE_RISE : 0;
+    const lift = surfaceLift(f);
     const W = (f.w || 1) * TILE, H = (f.h || 1) * TILE;
     const X=f.x*TILE,Y=f.y*TILE-lift;
     let x=X+W/2,y=Y+H*e.y;
@@ -11720,7 +11720,7 @@ const PropSprites = (() => {
           bayTextLayouts.set(key, layout);
         }
         const x = (p.x + (p.w || 1) / 2) * TILE;
-        const anchor = p.y * TILE - (p.mount === 'surface' ? SURFACE_RISE : 0) + 1;
+        const anchor = p.y * TILE - (surfaceLift(p)) + 1;
         const box = { x: x - layout.width / 2, y: anchor - h / 2, w: layout.width, h };
         ctx.shadowBlur = 0;
         ctx.fillStyle = '#0b1916'; ctx.fillRect(box.x, box.y, box.w, box.h);
@@ -11743,8 +11743,15 @@ const PropSprites = (() => {
   // Complete authored views receive live state here. Only explicit legacy drafts
   // call the old painter for moving layers; viewAt still owns direction/mirroring.
   let nativeSkinDepth = 0;
+  let surfaceMounts=null,surfaceLayout=null;
+  function setSurfaceLayout(layout){
+    if(typeof AuthoredSurfaceMounts==='undefined'||typeof PropRemaster==='undefined')return;
+    if(!surfaceMounts)surfaceMounts=AuthoredSurfaceMounts.create({viewGeometry:(id,face)=>PropRemaster.viewGeometry(id,face),ruleFor:id=>({...spec(id),canMirror:canMirror(id)})});
+    if(layout!==surfaceLayout){surfaceLayout=layout;surfaceMounts.setLayout(layout);}
+  }
+  function surfaceLift(f){return f.mount==='surface'?(surfaceMounts?surfaceMounts.liftFor(f):SURFACE_RISE):0;}
   if (typeof PropRemaster !== 'undefined') {
-    for (const c of CATALOG) {
+    for (const c of [...CATALOG,{id:'seatchair',artId:'chair'}]) {
       for (const facing of ['s','n','e','w']) {
         const key = facing === 's' ? c.id : viewKey(c.id,facing), native = F[key];
         if (!native) continue; // never invent an unsupported upright facing
@@ -11760,7 +11767,7 @@ const PropSprites = (() => {
               native(x,y,w,h,o);
             } finally { ctx = previous; now = previousNow; nativeSkinDepth--; }
           };
-          if (!PropRemaster.draw(ctx,c.id,facing,x,y,w,h,{...o,now,still:!!still},paintNative)) native(x,y,w,h,o);
+          if (!PropRemaster.draw(ctx,c.artId||c.id,facing,x,y,w,h,{...o,now,still:!!still},paintNative)) native(x,y,w,h,o);
         };
       }
     }
@@ -11776,6 +11783,7 @@ const PropSprites = (() => {
   }
 
   return {
+    setSurfaceLayout,
     setCtx(c) { ctx = c; },
     setNow(t) { now = t; },
     // v13 LOCAL COLOUR knob (see CHROMA above) — live-tunable like the CRT LAB's own dials, so the

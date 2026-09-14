@@ -1,0 +1,18 @@
+<!doctype html><html lang="en"><meta charset="utf-8"><title>Approved prop verification</title>
+<style>body{background:#101719;color:#d1c8b2;font:14px monospace;padding:24px}canvas{border:1px solid #4c5553;margin:5px}pre{white-space:pre-wrap}a{color:#9acbcb}</style>
+<h1>Approved prop verification</h1><p><a href="prop-atlas.html">Browse props</a> · <a href="/">Open station</a></p><pre id="report">Loading…</pre><div id="samples"></div>
+<script src="js/util.js"></script><script src="app/industrialtextures.js"></script><script src="app/approved-sheet-effects.js"></script><script src="app/propremaster.js"></script><script src="app/propsprites.js"></script><script src="app/authored-surface-mounts.js"></script>
+<script>
+(async()=>{
+ await Promise.all([IndustrialTextures.ready,PropRemaster.ready]);
+ const manifest=await(await fetch('assets/industrial/approved-sheet/manifest.json')).json(),status=PropRemaster.status(),failures=[...status.failures],records=[];
+ function render(id,r,work,still){const fp=PropSprites.footprintAt(id,r),cv=document.createElement('canvas');cv.width=320;cv.height=220;const g=cv.getContext('2d');g.scale(2,2);PropSprites.setCtx(g);PropSprites.setNow(work?1600:0);PropSprites.draw({id:'check-'+id,t:id,x:4,y:5,w:fp.w,h:fp.h,r},work,{occupied:work,scanning:work,still});const p=g.getImageData(0,0,cv.width,cv.height).data;let count=0,hash=0;for(let i=0;i<p.length;i++){hash=(hash*31+p[i])>>>0;if(i%4===3&&p[i])count++;}const t=g.getTransform();if(t.a!==2||t.d!==2||t.e!==0||t.f!==0)failures.push({id,r,error:'transform leak'});return{cv,count,hash};}
+ for(const p of PropSprites.CATALOG){for(const r of PropSprites.facings(p.id)){const a=render(p.id,r,false,true),b=render(p.id,r,true,false),again=render(p.id,r,false,true);if(!a.count||!b.count)failures.push({id:p.id,r,error:'empty render'});if(a.hash!==again.hash)failures.push({id:p.id,r,error:'still not deterministic'});records.push({id:p.id,r,pixels:a.count,changesWithWork:a.hash!==b.hash});}
+ if(['couch','coffee','bookshelf','desk','lowtable','fishtank'].includes(p.id)){const a=render(p.id,0,false,true);a.cv.setAttribute('aria-label',p.label);document.querySelector('#samples').append(a.cv);}}
+ const mounts=AuthoredSurfaceMounts.create({viewGeometry:(id,face)=>PropRemaster.viewGeometry(id,face),ruleFor:id=>PropSprites.spec(id)}),placements=[];
+ for(const [id,p]of Object.entries(manifest.props))for(const [face,v]of Object.entries(p.views))if(v.surfaceSupport){const host={id:'host',t:id,x:4,y:5,...v.footprint,r:['s','w','n','e'].indexOf(face)},child={id:'child',t:'mug',x:4+Math.floor(host.w/2),y:5+host.h-1,w:1,h:1,mount:'surface'};mounts.setLayout([host,child]);const result=mounts.placementFor(child);placements.push({id,face,authored:result.authored,lift:result.lift});if(!result.authored)failures.push({id,face,error:'table support unavailable',reason:result.reason});}
+ const loaded=status.views.length,expected=Object.values(manifest.props).reduce((n,p)=>n+Object.keys(p.views).length,0);if(loaded!==expected)failures.push({error:'view coverage',loaded,expected});
+ const report={ok:failures.length===0,props:PropSprites.CATALOG.length,loadedViews:loaded,expectedViews:expected,nativeRotationsRendered:records.length,tabletopViews:placements.length,placements,changedWithWork:records.filter(r=>r.changesWithWork).length,cachedPixels:status.pixels,failures};
+ document.querySelector('#report').textContent=JSON.stringify(report,null,2);document.body.dataset.result=report.ok?'pass':'fail';
+})().catch(e=>{document.querySelector('#report').textContent=String(e.stack||e);document.body.dataset.result='fail';});
+</script></html>

@@ -4915,6 +4915,7 @@ const Build = (() => {
     framePropLights = [];
     if (typeof PropSprites === 'undefined') return;
     const list = station.props();
+    if(PropSprites.setSurfaceLayout)PropSprites.setSurfaceLayout(list);
     if (!list.length) return;
     PropSprites.setCtx(ctx); PropSprites.setNow(now);
     // MOUNT LIFT — resolved per frame through station.mountOf, the SAME seam world.js draws through.

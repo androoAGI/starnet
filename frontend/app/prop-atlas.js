@@ -31,8 +31,10 @@
    PropSprites.setCtx(g);
    if(placement&&['couch','industrial_bench'].includes(p.id))for(let slot=1;slot<=fp.w-2;slot++)cadet(g,(x+slot+.5)*12,ground*12-2,true,now);
    const mounted=!!(p.mount==='surface'||placement&&p.stack);
-   if(mounted)PropSprites.draw({t:'lowtable',x,y:ground-1,w:3,h:1},false,{still:true});
+   const host={id:'preview-host',t:'lowtable',x,y:ground-1,w:3,h:1};
+   if(mounted)PropSprites.draw(host,false,{still:true});
    const prop={id:'atlas-'+p.id,t:p.id,x:x+(mounted&&fp.w===1?1:0),y,w:fp.w,h:fp.h,r,...(mounted?{mount:'surface'}:{})};
+   if(PropSprites.setSurfaceLayout)PropSprites.setSurfaceLayout(mounted?[host,prop]:[prop]);
    // This labelled gallery owns only its demonstration instances, never the station.
    if(work&&p.id==='workbench'){
     const beat=Math.floor(now/2400);

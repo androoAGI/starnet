@@ -119,10 +119,10 @@
             "h": 1
           },
           "bounds": {
-            "x": 0,
-            "y": -26.7,
-            "width": 36,
-            "height": 38.7
+            "x": 6.8372,
+            "y": -12,
+            "width": 22.3256,
+            "height": 24
           },
           "mode": "approved",
           "exposure": 1
@@ -136,10 +136,10 @@
             "h": 3
           },
           "bounds": {
-            "x": 2,
-            "y": 10.2941,
-            "width": 8,
-            "height": 24.7059
+            "x": -1.7714,
+            "y": -13,
+            "width": 15.5429,
+            "height": 48
           },
           "mode": "approved",
           "exposure": 1
@@ -153,10 +153,10 @@
             "h": 3
           },
           "bounds": {
-            "x": 2,
-            "y": 15.8504,
-            "width": 8,
-            "height": 19.1496
+            "x": -4.0263,
+            "y": -13,
+            "width": 20.0526,
+            "height": 48
           },
           "mode": "approved",
           "exposure": 1
@@ -195,10 +195,10 @@
             "h": 1
           },
           "bounds": {
-            "x": 2.7246,
-            "y": -8,
-            "width": 18.5507,
-            "height": 20
+            "x": 0,
+            "y": -13.875,
+            "width": 24,
+            "height": 25.875
           },
           "mode": "approved",
           "exposure": 1,
@@ -206,20 +206,20 @@
             "space": "export-normalized",
             "points": [
               [
-                0.25,
-                0.07
+                0.234375,
+                0.1884058
               ],
               [
                 0.75,
-                0.07
+                0.1884058
               ],
               [
-                0.92,
-                0.5
+                0.765625,
+                0.6231884
               ],
               [
-                0.08,
-                0.5
+                0.21875,
+                0.6231884
               ]
             ]
           }
@@ -272,16 +272,16 @@
       "views": {
         "s": {
           "image": "industrial_floorvent.png",
-          "sourceWidth": 65,
-          "sourceHeight": 54,
+          "sourceWidth": 283,
+          "sourceHeight": 149,
           "footprint": {
             "w": 2,
             "h": 1
           },
           "bounds": {
-            "x": 5.9815,
+            "x": 2.5034,
             "y": 1,
-            "width": 12.037,
+            "width": 18.9933,
             "height": 10
           },
           "mode": "approved",
@@ -293,16 +293,16 @@
       "views": {
         "s": {
           "image": "industrial_cabletray.png",
-          "sourceWidth": 72,
-          "sourceHeight": 52,
+          "sourceWidth": 418,
+          "sourceHeight": 96,
           "footprint": {
             "w": 3,
             "h": 1
           },
           "bounds": {
-            "x": 13.8462,
+            "x": 4.9375,
             "y": 3,
-            "width": 8.3077,
+            "width": 26.125,
             "height": 6
           },
           "mode": "approved",
@@ -346,6 +346,7 @@
           },
           "mode": "approved",
           "exposure": 1,
+          "embeddedSeat": true,
           "screenPower": "occupied"
         },
         "n": {
@@ -363,7 +364,8 @@
             "height": 31.6981
           },
           "mode": "approved",
-          "exposure": 1
+          "exposure": 1,
+          "embeddedSeat": true
         },
         "e": {
           "image": "desk-e.png",
@@ -381,6 +383,7 @@
           },
           "mode": "approved",
           "exposure": 1,
+          "embeddedSeat": true,
           "screenPower": "occupied"
         }
       }
@@ -421,6 +424,7 @@
           },
           "mode": "approved",
           "exposure": 1,
+          "embeddedSeat": true,
           "screenPower": "occupied"
         },
         "n": {
@@ -438,7 +442,8 @@
             "height": 32.4378
           },
           "mode": "approved",
-          "exposure": 1
+          "exposure": 1,
+          "embeddedSeat": true
         },
         "e": {
           "image": "desk2-e.png",
@@ -456,6 +461,7 @@
           },
           "mode": "approved",
           "exposure": 1,
+          "embeddedSeat": true,
           "screenPower": "occupied"
         }
       }
@@ -1845,17 +1851,17 @@
       "views": {
         "s": {
           "image": "treasury_coinsorter.png",
-          "sourceWidth": 84,
-          "sourceHeight": 86,
+          "sourceWidth": 406,
+          "sourceHeight": 203,
           "footprint": {
             "w": 2,
             "h": 1
           },
           "bounds": {
             "x": -1,
-            "y": -14.619,
+            "y": -1,
             "width": 26,
-            "height": 26.619
+            "height": 13
           },
           "mode": "approved",
           "exposure": 1
@@ -2017,17 +2023,17 @@
       "views": {
         "s": {
           "image": "pub_mailpod.png",
-          "sourceWidth": 61,
-          "sourceHeight": 86,
+          "sourceWidth": 319,
+          "sourceHeight": 264,
           "footprint": {
             "w": 2,
             "h": 1
           },
           "bounds": {
             "x": -3,
-            "y": -31.7049,
+            "y": -13.6552,
             "width": 31,
-            "height": 43.7049
+            "height": 25.6552
           },
           "mode": "approved",
           "exposure": 1,
@@ -2465,17 +2471,17 @@
       "views": {
         "s": {
           "image": "treasury_pnl_holo.png",
-          "sourceWidth": 62,
-          "sourceHeight": 81,
+          "sourceWidth": 253,
+          "sourceHeight": 127,
           "footprint": {
             "w": 1,
             "h": 1
           },
           "bounds": {
             "x": 1,
-            "y": -3.0645,
+            "y": 4.9802,
             "width": 10,
-            "height": 13.0645
+            "height": 5.0198
           },
           "mode": "approved",
           "exposure": 1
@@ -2621,20 +2627,41 @@
       "views": {
         "s": {
           "image": "sidetable.png",
-          "sourceWidth": 57,
-          "sourceHeight": 71,
+          "sourceWidth": 173,
+          "sourceHeight": 203,
           "footprint": {
             "w": 1,
             "h": 1
           },
           "bounds": {
             "x": 0,
-            "y": -2.9474,
+            "y": -2.0809,
             "width": 12,
-            "height": 14.9474
+            "height": 14.0809
           },
           "mode": "approved",
-          "exposure": 1
+          "exposure": 1,
+          "surfaceSupport": {
+            "space": "export-normalized",
+            "points": [
+              [
+                0.2485549,
+                0.1330049
+              ],
+              [
+                0.7398844,
+                0.1330049
+              ],
+              [
+                0.7861272,
+                0.4926108
+              ],
+              [
+                0.2138728,
+                0.4926108
+              ]
+            ]
+          }
         }
       }
     },
@@ -2660,20 +2687,20 @@
             "space": "export-normalized",
             "points": [
               [
-                0.08,
-                0.08
+                0.1046512,
+                0.1176471
               ],
               [
-                0.92,
-                0.08
+                0.8953488,
+                0.1176471
               ],
               [
-                0.97,
-                0.59
+                0.9069767,
+                0.5294118
               ],
               [
-                0.03,
-                0.59
+                0.0813953,
+                0.5294118
               ]
             ]
           }
@@ -2693,7 +2720,28 @@
             "height": 18
           },
           "mode": "approved",
-          "exposure": 1
+          "exposure": 1,
+          "surfaceSupport": {
+            "space": "export-normalized",
+            "points": [
+              [
+                0.1704545,
+                0.0564972
+              ],
+              [
+                0.8068182,
+                0.0564972
+              ],
+              [
+                0.8522727,
+                0.6723164
+              ],
+              [
+                0.1363636,
+                0.6723164
+              ]
+            ]
+          }
         }
       }
     },
@@ -2719,20 +2767,20 @@
             "space": "export-normalized",
             "points": [
               [
-                0.1,
-                0.05
+                0.1111111,
+                0.1132075
               ],
               [
-                0.9,
-                0.05
+                0.8765432,
+                0.1132075
               ],
               [
-                0.94,
-                0.58
+                0.9012346,
+                0.490566
               ],
               [
-                0.06,
-                0.58
+                0.0864198,
+                0.490566
               ]
             ]
           }
@@ -2752,7 +2800,28 @@
             "height": 18
           },
           "mode": "approved",
-          "exposure": 1
+          "exposure": 1,
+          "surfaceSupport": {
+            "space": "export-normalized",
+            "points": [
+              [
+                0.1894737,
+                0.0795455
+              ],
+              [
+                0.8105263,
+                0.0795455
+              ],
+              [
+                0.8105263,
+                0.6136364
+              ],
+              [
+                0.1894737,
+                0.6136364
+              ]
+            ]
+          }
         }
       }
     },
@@ -3036,20 +3105,20 @@
             "space": "export-normalized",
             "points": [
               [
-                0.24,
-                0.09
+                0.2564103,
+                0.1785714
               ],
               [
-                0.76,
-                0.09
+                0.7435897,
+                0.1785714
               ],
               [
-                0.89,
-                0.61
+                0.7692308,
+                0.6071429
               ],
               [
-                0.11,
-                0.61
+                0.2307692,
+                0.6071429
               ]
             ]
           }
@@ -3069,7 +3138,28 @@
             "height": 18
           },
           "mode": "approved",
-          "exposure": 1
+          "exposure": 1,
+          "surfaceSupport": {
+            "space": "export-normalized",
+            "points": [
+              [
+                0.2982456,
+                0.1437126
+              ],
+              [
+                0.7017544,
+                0.1437126
+              ],
+              [
+                0.7807018,
+                0.6646707
+              ],
+              [
+                0.2105263,
+                0.6646707
+              ]
+            ]
+          }
         }
       }
     },
@@ -3077,20 +3167,41 @@
       "views": {
         "s": {
           "image": "longtable.png",
-          "sourceWidth": 99,
-          "sourceHeight": 75,
+          "sourceWidth": 384,
+          "sourceHeight": 202,
           "footprint": {
             "w": 3,
             "h": 1
           },
           "bounds": {
-            "x": 2.16,
-            "y": -12,
-            "width": 31.68,
-            "height": 24
+            "x": -1,
+            "y": -7.9896,
+            "width": 38,
+            "height": 19.9896
           },
           "mode": "approved",
-          "exposure": 1
+          "exposure": 1,
+          "surfaceSupport": {
+            "space": "export-normalized",
+            "points": [
+              [
+                0.0494792,
+                0.0841584
+              ],
+              [
+                0.9479167,
+                0.0841584
+              ],
+              [
+                0.9479167,
+                0.5891089
+              ],
+              [
+                0.0494792,
+                0.5891089
+              ]
+            ]
+          }
         },
         "e": {
           "image": "longtable-e.png",
@@ -3107,7 +3218,28 @@
             "height": 24
           },
           "mode": "approved",
-          "exposure": 1
+          "exposure": 1,
+          "surfaceSupport": {
+            "space": "export-normalized",
+            "points": [
+              [
+                0.1371308,
+                0.0255288
+              ],
+              [
+                0.8544304,
+                0.0255288
+              ],
+              [
+                0.9113924,
+                0.8533917
+              ],
+              [
+                0.0843882,
+                0.8533917
+              ]
+            ]
+          }
         }
       }
     },
@@ -3242,17 +3374,17 @@
       "views": {
         "s": {
           "image": "holopet.png",
-          "sourceWidth": 69,
-          "sourceHeight": 77,
+          "sourceWidth": 475,
+          "sourceHeight": 563,
           "footprint": {
             "w": 1,
             "h": 1
           },
           "bounds": {
-            "x": 3,
-            "y": 3.3043,
-            "width": 6,
-            "height": 6.6957
+            "x": -1.5933,
+            "y": -8,
+            "width": 15.1865,
+            "height": 18
           },
           "mode": "approved",
           "exposure": 1
@@ -3875,17 +4007,17 @@
       "views": {
         "s": {
           "image": "recliner.png",
-          "sourceWidth": 61,
-          "sourceHeight": 69,
+          "sourceWidth": 302,
+          "sourceHeight": 269,
           "footprint": {
             "w": 1,
             "h": 1
           },
           "bounds": {
             "x": -3,
-            "y": -7.2295,
+            "y": -3.1424,
             "width": 17,
-            "height": 19.2295
+            "height": 15.1424
           },
           "mode": "approved",
           "exposure": 1

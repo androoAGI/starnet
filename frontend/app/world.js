@@ -6024,6 +6024,7 @@ const World = (() => {
     // placeable props (furniture) — drawn over the bake, y-sorted with agents, under the lightmap
     if (geo && geo.props && geo.props.length && typeof PropSprites !== 'undefined') {
       PropSprites.setCtx(ctx); PropSprites.setNow(now);
+      if(PropSprites.setSurfaceLayout)PropSprites.setSurfaceLayout(geo.props);
       const leisureProps = new Set();
       for (const body of [agent, ...crew]) if (body) { if (body.usingProp) leisureProps.add(body.usingProp); if (body.watchProp) leisureProps.add(body.watchProp); }
       // Scan only a real transport item occupying a filter's tile. Ghost/tutorial
@@ -6113,7 +6114,8 @@ const World = (() => {
         // y-sorted at the same fractional anchor as its agent so the body sits in it. Scoped
         // to assigned PCs so a decorative/unmanned console keeps its existing look and the chair only ever
         // appears where an agent will actually sit (chair + sitter stay in lockstep — see stepCrewToSeat).
-        if (p.agentId && isWorkstationProp(p.t)) { const s = deskSeat(p); if (s) items.push({ y: seatFoot(s).y + 1, draw: () => drawSeatChair(s.tx, s.ty, s.cx, s.cy, s.face) }); }
+        const embeddedSeat=typeof PropRemaster!=='undefined'&&PropRemaster.viewGeometry(p.t,['s','w','n','e'][(p.r|0)&3])?.spec.embeddedSeat;
+        if (p.agentId && isWorkstationProp(p.t) && !embeddedSeat) { const s = deskSeat(p); if (s) items.push({ y: seatFoot(s).y + 1, draw: () => drawSeatChair(s.tx, s.ty, s.cx, s.cy, s.face) }); }
       }
     }
     // one chair art everywhere: seats route through the canonical prop renderer (old F_chair = fallback)

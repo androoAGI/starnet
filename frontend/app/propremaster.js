@@ -235,6 +235,13 @@ const PropRemaster = (() => {
       g.globalCompositeOperation='destination-in';g.drawImage(body,0,0);return cv;
     });
   }
+  function authoredIndicators(body){
+    const src=body.getContext('2d').getImageData(0,0,body.width,body.height).data;
+    return [[239,194,103],[222,85,68]].map(colour=>{const cv=canvas(body.width,body.height),g=cv.getContext('2d'),p=g.createImageData(body.width,body.height);
+      for(let i=0;i<src.length;i+=4){const hi=Math.max(src[i],src[i+1],src[i+2]),lo=Math.min(src[i],src[i+1],src[i+2]);if(src[i+3]<180||hi<110||hi-lo<32)continue;
+        p.data[i]=colour[0];p.data[i+1]=colour[1];p.data[i+2]=colour[2];p.data[i+3]=Math.min(100,hi-lo);}
+      g.putImageData(p,0,0);return cv;});
+  }
   function remasterOn(){
     return typeof IndustrialTextures!=='undefined' && typeof IndustrialTextures.isRemaster==='function' && IndustrialTextures.isRemaster();
   }
@@ -272,6 +279,7 @@ const PropRemaster = (() => {
     ctx.save();
     try{
       ctx.imageSmoothingEnabled=true;ctx.imageSmoothingQuality='high';
+      const baseAlpha=ctx.globalAlpha;
       const occupied=v.screenPower==='ambient'?true:v.screenPower==='connected'?!!state?.live:v.screenPower==='bound'?!!state?.bound&&state.state==='online':state&&typeof state.occupied==='boolean'?state.occupied:!!(state&&state.work);
       ctx.drawImage(e.screen&&!occupied?e.screen.off:e.body,x+f.x,y+f.y,e.body.width/DENSITY,e.body.height/DENSITY);
       if(e.live)ctx.drawImage(e.live,x+f.x,y+f.y,e.live.width/DENSITY,e.live.height/DENSITY);
@@ -293,7 +301,7 @@ const PropRemaster = (() => {
         }else ctx.drawImage(e.motion[phase],x+f.x,y+f.y,e.body.width/DENSITY,e.body.height/DENSITY);
       }
       if(v.mode==='approved'){
-        ctx.globalCompositeOperation='source-over';ctx.globalAlpha=1;
+        ctx.globalCompositeOperation='source-over';ctx.globalAlpha=baseAlpha;
         if(e.approved&&typeof ApprovedSheetEffects!=='undefined')ApprovedSheetEffects.draw(ctx,id,{x:x+e.box.x,y:y+e.box.y,width:e.box.width,height:e.box.height,crop:e.crop,sourceWidth:v.sourceWidth,sourceHeight:v.sourceHeight},{...state,prepared:e.approved});
         approvedState(ctx,id,e,x,y,state||{});
       }
@@ -310,14 +318,7 @@ const PropRemaster = (() => {
     if(id==='airlock'&&state.door)label=String(state.door).slice(0,16);
     if(label){ctx.font='3px monospace';ctx.textAlign='center';ctx.fillStyle='#cbb985';ctx.fillText(label,x+e.spec.footprint.w*6,y+e.box.y+e.box.height+3);}
     const trigger=e.spec.activity,amount=trigger==='fired'?Math.max(0,Math.min(1,+state.fired||0)):trigger==='work'&&state.work?1:trigger==='ambient'?.3:0;
-    if(amount&&!e.approved&&e.indicators){ctx.globalAlpha=amount*(state.still?.45:.35+.15*Math.sin((+state.now||0)/280));ctx.drawImage(e.indicators[state.bad?1:0],x+e.frame.x,y+e.frame.y,e.body.width/DENSITY,e.body.height/DENSITY);}
-  }
-  function authoredIndicators(body){
-    const src=body.getContext('2d').getImageData(0,0,body.width,body.height).data;
-    return [[239,194,103],[222,85,68]].map(colour=>{const cv=canvas(body.width,body.height),g=cv.getContext('2d'),p=g.createImageData(body.width,body.height);
-      for(let i=0;i<src.length;i+=4){const hi=Math.max(src[i],src[i+1],src[i+2]),lo=Math.min(src[i],src[i+1],src[i+2]);if(src[i+3]<180||hi<110||hi-lo<32)continue;
-        p.data[i]=colour[0];p.data[i+1]=colour[1];p.data[i+2]=colour[2];p.data[i+3]=Math.min(100,hi-lo);}
-      g.putImageData(p,0,0);return cv;});
+    if(amount&&!e.approved&&e.indicators){ctx.globalAlpha*=amount*(state.still?.45:.35+.15*Math.sin((+state.now||0)/280));ctx.drawImage(e.indicators[state.bad?1:0],x+e.frame.x,y+e.frame.y,e.body.width/DENSITY,e.body.height/DENSITY);}
   }
   const ready=(async()=>{
     if(typeof document==='undefined'||typeof Image==='undefined'||typeof fetch!=='function')return;
