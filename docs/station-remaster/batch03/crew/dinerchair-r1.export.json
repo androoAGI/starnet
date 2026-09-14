@@ -1,0 +1,237 @@
+{
+  "id": "dinerchair-r1",
+  "nativeId": "dinerchair",
+  "view": "w",
+  "footprint": {
+    "w": 1,
+    "h": 1
+  },
+  "bounds": {
+    "x": 0,
+    "y": -4,
+    "width": 11,
+    "height": 16
+  },
+  "geometry": {
+    "blocks": true,
+    "flat": false,
+    "tableSurface": false,
+    "requiredMount": null,
+    "optionalSurfaceMount": false,
+    "surfaceRisePixels": 8
+  },
+  "orientation": {
+    "facings": [
+      {
+        "r": 0,
+        "front": "south",
+        "w": 1,
+        "h": 1,
+        "type": "authored-view"
+      },
+      {
+        "r": 1,
+        "front": "west",
+        "w": 1,
+        "h": 1,
+        "type": "mirrored-authored-view"
+      },
+      {
+        "r": 2,
+        "front": "north",
+        "w": 1,
+        "h": 1,
+        "type": "authored-view"
+      },
+      {
+        "r": 3,
+        "front": "east",
+        "w": 1,
+        "h": 1,
+        "type": "authored-view"
+      }
+    ],
+    "canMirror": true,
+    "classicFacings": [
+      0,
+      1,
+      2,
+      3
+    ]
+  },
+  "anchorContract": "planSeat: one occupant claim, walk to an adjacent tile, render on the seat tile at bottom minus 1 px plus per-type seat lift; explicit rotated facing beats counter inference.",
+  "sourceAnimation": {
+    "idleFrameVariants": 1,
+    "workFrameVariants": 1,
+    "respondsToWorkFlag": false,
+    "opaqueBoundsRelativeToFootprint": {
+      "x": 1,
+      "y": -4,
+      "w": 11,
+      "h": 16,
+      "alphaThreshold": 160
+    }
+  },
+  "tilePixels": 12,
+  "floorContact": {
+    "x": 6,
+    "y": 12
+  },
+  "visualBottomContact": {
+    "x": 5.5,
+    "y": 12
+  },
+  "status": "art-draft-integration-pending",
+  "backgroundThreshold": 235,
+  "holeSeeds": [
+    [
+      821,
+      700
+    ]
+  ],
+  "sourceWidth": 1040,
+  "sourceHeight": 1512,
+  "sourceSha256": "589d21dad77f9ca063e289b8dc6cef88c5bd8f93e5f1fbd5305e5700896be3ef",
+  "output": "frontend/assets/industrial/batch03/crew/dinerchair-r1.png",
+  "crop": {
+    "left": 161,
+    "top": 69,
+    "width": 773,
+    "height": 1311
+  },
+  "transparentPixels": 595076,
+  "opaquePixels": 418327,
+  "partialPixels": 0,
+  "backgroundPixelsRemoved": 1154153,
+  "subjectRgbChanges": 0,
+  "outputSha256": "0be27c75e660b876b5bbffae8535d09dc61ad299c736b8ab081061975900ca6c",
+  "liveIntegrated": false,
+  "authoredGeometry": {
+    "method": "Manual visual annotation of painted source geometry; approximate edges, not live validated. Normalized coordinates refer to final tight alpha crop, not full original canvas.",
+    "fitWorldPixels": {
+      "x": 0.7829900839054158,
+      "y": -4.0,
+      "width": 9.434019832189168,
+      "height": 16.0,
+      "bottom": 12.0
+    },
+    "regions": {
+      "seatSupport": {
+        "cropNormalized": [
+          [
+            0.1,
+            0.35
+          ],
+          [
+            0.72,
+            0.35
+          ],
+          [
+            0.824,
+            0.575
+          ],
+          [
+            0.038,
+            0.575
+          ]
+        ],
+        "sourcePixels": [
+          [
+            238.3,
+            527.85
+          ],
+          [
+            717.56,
+            527.85
+          ],
+          [
+            797.95,
+            822.82
+          ],
+          [
+            190.37,
+            822.82
+          ]
+        ],
+        "sourceNormalized": [
+          [
+            0.229135,
+            0.349107
+          ],
+          [
+            0.689962,
+            0.349107
+          ],
+          [
+            0.767262,
+            0.544196
+          ],
+          [
+            0.183052,
+            0.544196
+          ]
+        ],
+        "worldPixels": [
+          [
+            1.7264,
+            1.6
+          ],
+          [
+            7.5755,
+            1.6
+          ],
+          [
+            8.5566,
+            5.2
+          ],
+          [
+            1.1415,
+            5.2
+          ]
+        ]
+      },
+      "nearSupportEdge": {
+        "cropNormalized": [
+          [
+            0.038,
+            0.575
+          ],
+          [
+            0.824,
+            0.575
+          ]
+        ],
+        "sourcePixels": [
+          [
+            190.37,
+            822.82
+          ],
+          [
+            797.95,
+            822.82
+          ]
+        ],
+        "sourceNormalized": [
+          [
+            0.183052,
+            0.544196
+          ],
+          [
+            0.767262,
+            0.544196
+          ]
+        ],
+        "worldPixels": [
+          [
+            1.1415,
+            5.2
+          ],
+          [
+            8.5566,
+            5.2
+          ]
+        ]
+      }
+    }
+  }
+}
