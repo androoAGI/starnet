@@ -1,0 +1,62 @@
+{
+  "sourceAnimation": {
+    "idleFrameVariants": 1,
+    "workFrameVariants": 1,
+    "respondsToWorkFlag": false,
+    "opaqueBoundsRelativeToFootprint": {
+      "x": 0,
+      "y": -3,
+      "w": 12,
+      "h": 15,
+      "alphaThreshold": 160
+    }
+  },
+  "bounds": {
+    "y": -3,
+    "width": 12,
+    "height": 15,
+    "x": 0
+  },
+  "id": "sidetable",
+  "geometry": {
+    "blocks": true,
+    "flat": false,
+    "tableSurface": true,
+    "requiredMount": null,
+    "optionalSurfaceMount": false,
+    "surfaceRisePixels": 8
+  },
+  "floorContact": {
+    "x": 6,
+    "y": 12
+  },
+  "backgroundThreshold": 235,
+  "tilePixels": 12,
+  "status": "art-draft-integration-pending",
+  "view": "s",
+  "footprint": {
+    "w": 1,
+    "h": 1
+  },
+  "anchorContract": "No leisure seat anchor. Footprint is the placement/pathfinding rectangle; upright visual rise is independent of the reserved box.",
+  "holeSeeds": [],
+  "alphaCutoff": 160,
+  "alphaNote": "Original RGBA body mostly alpha252/253, distant faint residue. Binary alpha160 cutoff, RGB preserved.",
+  "sourceWidth": 1122,
+  "sourceHeight": 1402,
+  "sourceSha256": "0b53813a3de420554320b709e1be1b26e79068c236b8999bf7cf4fe3a18536ed",
+  "output": "frontend/assets/industrial/batch02/crew/sidetable.png",
+  "crop": {
+    "left": 122,
+    "top": 117,
+    "width": 881,
+    "height": 1168
+  },
+  "transparentPixels": 174692,
+  "opaquePixels": 854316,
+  "partialPixels": 0,
+  "backgroundPixelsRemoved": 704790,
+  "subjectRgbChanges": 0,
+  "outputSha256": "08e6770505e0713547cedad683c2c6d2fcadfc0475b46094be18d23d00c5e5bd",
+  "liveIntegrated": false
+}
