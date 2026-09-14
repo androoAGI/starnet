@@ -1,5 +1,7 @@
 # Final-size art calibration
 
+**Superseding owner approval:** the complete generated prop sheet is now the canonical visual target. Read [STYLE_LOCK.md](../STYLE_LOCK.md). The individual calibration experiments below are historical comparisons and do not override that approved sheet.
+
 The September 14 owner correction rejects the shrunken, over-detailed appearance across the catalog. Earlier source validation and motion handoffs do not establish visual acceptance. Existing artwork remains available as a comparison, not an accepted final style.
 
 The three supplied station images define the art direction. New candidates must be designed around their actual game footprint and measured crew scale. Preserve dark industrial materials, structured silhouettes and selective warm/cool highlights, while allocating broad value shapes that survive the fitted rendering size. Cloth, wood, paper and foliage retain their material identities.
