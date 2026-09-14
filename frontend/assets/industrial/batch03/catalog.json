@@ -1,6 +1,6 @@
 {
   "planned": 44,
-  "exported": 32,
+  "exported": 39,
   "items": [
     {
       "id": "bookshelf",
@@ -647,6 +647,75 @@
       "previousImage": "assets/industrial/batch02/utility/terrarium.png?v=ae262c554d72"
     },
     {
+      "id": "fishtank",
+      "lane": "utility",
+      "group": "Plants, glass & lab",
+      "label": "FISH TANK",
+      "image": "assets/industrial/batch03/utility/fishtank.png?v=063b2807b5ed",
+      "width": 1306,
+      "height": 1205,
+      "footprint": {
+        "w": 2,
+        "h": 1
+      },
+      "bounds": {
+        "x": -1,
+        "y": -12,
+        "width": 26,
+        "height": 24
+      },
+      "transparentPixels": 544927,
+      "opaquePixels": 1028803,
+      "status": "illustrated-style-candidate",
+      "previousImage": "assets/industrial/batch02/utility/fishtank.png?v=8a3c60892261"
+    },
+    {
+      "id": "lavalamp",
+      "lane": "utility",
+      "group": "Plants, glass & lab",
+      "label": "LAVA LAMP",
+      "image": "assets/industrial/batch03/utility/lavalamp.png?v=0e7d65f917ff",
+      "width": 793,
+      "height": 1983,
+      "footprint": {
+        "w": 1,
+        "h": 1
+      },
+      "bounds": {
+        "x": 2,
+        "y": -8,
+        "width": 8,
+        "height": 20
+      },
+      "transparentPixels": 805412,
+      "opaquePixels": 767107,
+      "status": "illustrated-style-candidate",
+      "previousImage": "assets/industrial/batch02/utility/lavalamp.png?v=6dc736f526f3"
+    },
+    {
+      "id": "plasmaglobe",
+      "lane": "utility",
+      "group": "Plants, glass & lab",
+      "label": "PLASMA GLOBE",
+      "image": "assets/industrial/batch03/utility/plasmaglobe.png?v=e02e107a72ba",
+      "width": 913,
+      "height": 1723,
+      "footprint": {
+        "w": 1,
+        "h": 1
+      },
+      "bounds": {
+        "x": 1,
+        "y": -5,
+        "width": 9,
+        "height": 17
+      },
+      "transparentPixels": 539645,
+      "opaquePixels": 1033454,
+      "status": "illustrated-style-candidate",
+      "previousImage": "assets/industrial/batch02/utility/plasmaglobe.png?v=9821f1f49483"
+    },
+    {
       "id": "whiteboard",
       "lane": "coordinator",
       "group": "Boards & archive",
@@ -693,6 +762,75 @@
       "previousImage": "assets/industrial/batch02/coordinator/chartwall.png?v=2fd8ddfed47b"
     },
     {
+      "id": "calwall",
+      "lane": "coordinator",
+      "group": "Boards & archive",
+      "label": "CAL WALL",
+      "image": "assets/industrial/batch03/coordinator/calwall.png?v=03f570e9abf5",
+      "width": 2167,
+      "height": 619,
+      "footprint": {
+        "w": 6,
+        "h": 1
+      },
+      "bounds": {
+        "x": -1,
+        "y": -8,
+        "width": 74,
+        "height": 20
+      },
+      "transparentPixels": 241864,
+      "opaquePixels": 1099509,
+      "status": "illustrated-style-candidate",
+      "previousImage": "assets/industrial/batch02/coordinator/calwall.png?v=121e68e8160d"
+    },
+    {
+      "id": "missionboard",
+      "lane": "coordinator",
+      "group": "Boards & archive",
+      "label": "MISSION BOARD",
+      "image": "assets/industrial/batch03/coordinator/missionboard.png?v=018e6c959050",
+      "width": 1610,
+      "height": 965,
+      "footprint": {
+        "w": 3,
+        "h": 1
+      },
+      "bounds": {
+        "x": -1,
+        "y": -13,
+        "width": 38,
+        "height": 25
+      },
+      "transparentPixels": 462218,
+      "opaquePixels": 1091432,
+      "status": "illustrated-style-candidate",
+      "previousImage": "assets/industrial/batch02/coordinator/missionboard.png?v=d5729b2e0a92"
+    },
+    {
+      "id": "trophycase",
+      "lane": "coordinator",
+      "group": "Boards & archive",
+      "label": "TROPHY CASE",
+      "image": "assets/industrial/batch03/coordinator/trophycase.png?v=56cd79addf54",
+      "width": 1150,
+      "height": 1367,
+      "footprint": {
+        "w": 2,
+        "h": 2
+      },
+      "bounds": {
+        "x": -1,
+        "y": -6,
+        "width": 26,
+        "height": 30
+      },
+      "transparentPixels": 148639,
+      "opaquePixels": 1423411,
+      "status": "illustrated-style-candidate",
+      "previousImage": "assets/industrial/batch02/coordinator/trophycase.png?v=d5cc4ab82030"
+    },
+    {
       "id": "arc_indexwall",
       "lane": "coordinator",
       "group": "Boards & archive",
@@ -714,6 +852,29 @@
       "opaquePixels": 1461435,
       "status": "illustrated-style-candidate",
       "previousImage": "assets/industrial/batch02/coordinator/arc_indexwall.png?v=2f45e93348e2"
+    },
+    {
+      "id": "arc_microfiche",
+      "lane": "coordinator",
+      "group": "Boards & archive",
+      "label": "MICROFICHE",
+      "image": "assets/industrial/batch03/coordinator/arc_microfiche.png?v=922a14eedc46",
+      "width": 1394,
+      "height": 1128,
+      "footprint": {
+        "w": 2,
+        "h": 1
+      },
+      "bounds": {
+        "x": -1,
+        "y": -12,
+        "width": 30,
+        "height": 24
+      },
+      "transparentPixels": 198453,
+      "opaquePixels": 1373979,
+      "status": "illustrated-style-candidate",
+      "previousImage": "assets/industrial/batch02/coordinator/arc_microfiche.png?v=6c5b637f2912"
     },
     {
       "id": "comms_inbox",
