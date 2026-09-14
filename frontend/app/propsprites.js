@@ -11233,6 +11233,7 @@ const PropSprites = (() => {
   function drawOver(f) {
     const fn = OVER[f && f.t]; if (!fn) return;
     const lift = f.mount === 'surface' ? SURFACE_RISE : 0;
+    if(typeof PropRemaster!=='undefined'&&PropRemaster.drawForeground&&PropRemaster.drawForeground(ctx,f.t,'s',f.x*TILE,f.y*TILE-lift,(f.w||1)*TILE,(f.h||1)*TILE,canMirror(f.t)&&!!f.m))return;
     fn(f.x * TILE, f.y * TILE - lift, (f.w || 1) * TILE, (f.h || 1) * TILE, { x: f.x, now });
   }
   /* SEAT-FRONT OVERLAY (stool-sit lane): ONLY the front rim of a single-tile seat's pad, redrawn by the

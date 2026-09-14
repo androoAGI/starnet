@@ -1,8 +1,8 @@
 {
   "catalog": 160,
   "approved": 8,
-  "newDesigns": 12,
-  "remainingFullRedesign": 140,
+  "newDesigns": 46,
+  "remainingFullRedesign": 106,
   "definition": "Accepted existing art is counted separately. New fully rebuilt designs require user visual acceptance; prior casing-only drafts are not complete.",
   "props": [
     {
@@ -40,8 +40,10 @@
     {
       "id": "industrial_planter",
       "label": "PLANTER TROUGH",
-      "status": "awaiting-full-redesign",
-      "views": []
+      "status": "new-design-awaiting-review",
+      "views": [
+        "s"
+      ]
     },
     {
       "id": "industrial_partition",
@@ -52,8 +54,10 @@
     {
       "id": "industrial_bench",
       "label": "CREW BENCH",
-      "status": "awaiting-full-redesign",
-      "views": []
+      "status": "new-design-awaiting-review",
+      "views": [
+        "s"
+      ]
     },
     {
       "id": "industrial_roundtable",
@@ -116,20 +120,26 @@
     {
       "id": "pixelrig",
       "label": "PIXEL RIG",
-      "status": "awaiting-full-redesign",
-      "views": []
+      "status": "new-design-awaiting-review",
+      "views": [
+        "s"
+      ]
     },
     {
       "id": "bench",
       "label": "BENCH",
-      "status": "awaiting-full-redesign",
-      "views": []
+      "status": "new-design-awaiting-review",
+      "views": [
+        "s"
+      ]
     },
     {
       "id": "workbench",
       "label": "WORKBENCH",
-      "status": "awaiting-full-redesign",
-      "views": []
+      "status": "new-design-awaiting-review",
+      "views": [
+        "s"
+      ]
     },
     {
       "id": "intake",
@@ -226,8 +236,10 @@
     {
       "id": "rack",
       "label": "RACK",
-      "status": "awaiting-full-redesign",
-      "views": []
+      "status": "new-design-awaiting-review",
+      "views": [
+        "s"
+      ]
     },
     {
       "id": "shelf",
@@ -238,8 +250,10 @@
     {
       "id": "core",
       "label": "CORE",
-      "status": "awaiting-full-redesign",
-      "views": []
+      "status": "new-design-awaiting-review",
+      "views": [
+        "s"
+      ]
     },
     {
       "id": "gigs_servercart",
@@ -330,8 +344,10 @@
     {
       "id": "whiteboard",
       "label": "WHITEBOARD",
-      "status": "awaiting-full-redesign",
-      "views": []
+      "status": "new-design-awaiting-review",
+      "views": [
+        "s"
+      ]
     },
     {
       "id": "ticker",
@@ -342,8 +358,10 @@
     {
       "id": "chartwall",
       "label": "CHART WALL",
-      "status": "awaiting-full-redesign",
-      "views": []
+      "status": "new-design-awaiting-review",
+      "views": [
+        "s"
+      ]
     },
     {
       "id": "wartable",
@@ -402,8 +420,10 @@
     {
       "id": "easel",
       "label": "EASEL",
-      "status": "awaiting-full-redesign",
-      "views": []
+      "status": "new-design-awaiting-review",
+      "views": [
+        "s"
+      ]
     },
     {
       "id": "tube",
@@ -432,14 +452,18 @@
     {
       "id": "research_papers",
       "label": "PAPERS",
-      "status": "awaiting-full-redesign",
-      "views": []
+      "status": "new-design-awaiting-review",
+      "views": [
+        "s"
+      ]
     },
     {
       "id": "etsy_threadrack",
       "label": "THREAD RACK",
-      "status": "awaiting-full-redesign",
-      "views": []
+      "status": "new-design-awaiting-review",
+      "views": [
+        "s"
+      ]
     },
     {
       "id": "etsy_dyevat",
@@ -462,8 +486,10 @@
     {
       "id": "rackV",
       "label": "RACK V",
-      "status": "awaiting-full-redesign",
-      "views": []
+      "status": "new-design-awaiting-review",
+      "views": [
+        "s"
+      ]
     },
     {
       "id": "crate",
@@ -548,8 +574,10 @@
     {
       "id": "arc_indexwall",
       "label": "INDEX WALL",
-      "status": "awaiting-full-redesign",
-      "views": []
+      "status": "new-design-awaiting-review",
+      "views": [
+        "s"
+      ]
     },
     {
       "id": "arc_microfiche",
@@ -572,8 +600,10 @@
     {
       "id": "bar",
       "label": "BAR",
-      "status": "awaiting-full-redesign",
-      "views": []
+      "status": "new-design-awaiting-review",
+      "views": [
+        "s"
+      ]
     },
     {
       "id": "tv",
@@ -610,20 +640,26 @@
     {
       "id": "bunk",
       "label": "BED",
-      "status": "awaiting-full-redesign",
-      "views": []
+      "status": "new-design-awaiting-review",
+      "views": [
+        "s"
+      ]
     },
     {
       "id": "quarters_pooltable",
       "label": "POOL TABLE",
-      "status": "awaiting-full-redesign",
-      "views": []
+      "status": "new-design-awaiting-review",
+      "views": [
+        "s"
+      ]
     },
     {
       "id": "quarters_vending",
       "label": "VENDING",
-      "status": "awaiting-full-redesign",
-      "views": []
+      "status": "new-design-awaiting-review",
+      "views": [
+        "s"
+      ]
     },
     {
       "id": "quarters_lockerbank",
@@ -634,14 +670,18 @@
     {
       "id": "quarters_minifridge",
       "label": "MINIFRIDGE",
-      "status": "awaiting-full-redesign",
-      "views": []
+      "status": "new-design-awaiting-review",
+      "views": [
+        "s"
+      ]
     },
     {
       "id": "coffee",
       "label": "COFFEE",
-      "status": "awaiting-full-redesign",
-      "views": []
+      "status": "new-design-awaiting-review",
+      "views": [
+        "s"
+      ]
     },
     {
       "id": "plant",
@@ -702,8 +742,10 @@
     {
       "id": "sidetable",
       "label": "SIDE TABLE",
-      "status": "awaiting-full-redesign",
-      "views": []
+      "status": "new-design-awaiting-review",
+      "views": [
+        "s"
+      ]
     },
     {
       "id": "lowtable",
@@ -729,8 +771,10 @@
     {
       "id": "guitar",
       "label": "GUITAR",
-      "status": "awaiting-full-redesign",
-      "views": []
+      "status": "new-design-awaiting-review",
+      "views": [
+        "s"
+      ]
     },
     {
       "id": "booth",
@@ -789,8 +833,10 @@
     {
       "id": "tallplant",
       "label": "TALL PLANT",
-      "status": "awaiting-full-redesign",
-      "views": []
+      "status": "new-design-awaiting-review",
+      "views": [
+        "s"
+      ]
     },
     {
       "id": "terrarium",
@@ -819,44 +865,58 @@
     {
       "id": "monstera",
       "label": "MONSTERA",
-      "status": "awaiting-full-redesign",
-      "views": []
+      "status": "new-design-awaiting-review",
+      "views": [
+        "s"
+      ]
     },
     {
       "id": "mug",
       "label": "MUG",
-      "status": "awaiting-full-redesign",
-      "views": []
+      "status": "new-design-awaiting-review",
+      "views": [
+        "s"
+      ]
     },
     {
       "id": "bookstack",
       "label": "BOOKS",
-      "status": "awaiting-full-redesign",
-      "views": []
+      "status": "new-design-awaiting-review",
+      "views": [
+        "s"
+      ]
     },
     {
       "id": "desklamp",
       "label": "DESK LAMP",
-      "status": "awaiting-full-redesign",
-      "views": []
+      "status": "new-design-awaiting-review",
+      "views": [
+        "s"
+      ]
     },
     {
       "id": "radio",
       "label": "RADIO",
-      "status": "awaiting-full-redesign",
-      "views": []
+      "status": "new-design-awaiting-review",
+      "views": [
+        "s"
+      ]
     },
     {
       "id": "toolbox",
       "label": "TOOLBOX",
-      "status": "awaiting-full-redesign",
-      "views": []
+      "status": "new-design-awaiting-review",
+      "views": [
+        "s"
+      ]
     },
     {
       "id": "figurine",
       "label": "FIGURINE",
-      "status": "awaiting-full-redesign",
-      "views": []
+      "status": "new-design-awaiting-review",
+      "views": [
+        "s"
+      ]
     },
     {
       "id": "deskterminal",
@@ -867,8 +927,10 @@
     {
       "id": "modelship",
       "label": "MODEL SHIP",
-      "status": "awaiting-full-redesign",
-      "views": []
+      "status": "new-design-awaiting-review",
+      "views": [
+        "s"
+      ]
     },
     {
       "id": "steamvent",
@@ -885,20 +947,26 @@
     {
       "id": "pokertable",
       "label": "POKER TABLE",
-      "status": "awaiting-full-redesign",
-      "views": []
+      "status": "new-design-awaiting-review",
+      "views": [
+        "s"
+      ]
     },
     {
       "id": "bookshelf",
       "label": "BOOKSHELF",
-      "status": "awaiting-full-redesign",
-      "views": []
+      "status": "new-design-awaiting-review",
+      "views": [
+        "s"
+      ]
     },
     {
       "id": "beanbag",
       "label": "BEANBAG",
-      "status": "awaiting-full-redesign",
-      "views": []
+      "status": "new-design-awaiting-review",
+      "views": [
+        "s"
+      ]
     },
     {
       "id": "pinball",

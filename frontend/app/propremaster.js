@@ -36,7 +36,7 @@ const PropRemaster = (() => {
     if (!v || !fileOK(v.image) || !Number.isInteger(v.sourceWidth) || !Number.isInteger(v.sourceHeight) ||
         v.sourceWidth < 1 || v.sourceHeight < 1 || v.sourceWidth > 4096 || v.sourceHeight > 4096 ||
         !rectOK(v.bounds) || !v.footprint || ![v.footprint.w,v.footprint.h].every(n => Number.isInteger(n) && n > 0 && n <= 16) ||
-        !['static','native','screen','water','scanner'].includes(v.mode)) return false;
+        !['static','native','screen','water','scanner','steam','pulse','pool'].includes(v.mode)) return false;
     if (v.exposure != null && (!finite(v.exposure) || v.exposure < .25 || v.exposure > 3)) return false;
     if (v.nativeBounds != null && !rectOK(v.nativeBounds)) return false;
     if (v.nativeMask != null && !fileOK(v.nativeMask)) return false;
@@ -47,8 +47,12 @@ const PropRemaster = (() => {
         v.nativeFallbackWhen.some(s => !['sleeper','crates','pins','trophies','journeyStage'].includes(s)))) return false;
     if(v.screenRegions!=null&&(!Array.isArray(v.screenRegions)||v.screenRegions.length>8||v.screenRegions.some(poly=>
       !Array.isArray(poly)||poly.length<3||poly.length>16||poly.some(p=>!Array.isArray(p)||p.length!==2||p.some(n=>!finite(n)||n<0||n>1)))))return false;
-    if(['water','scanner'].includes(v.mode)&&(!v.motion||!unitPoly(v.motion.region)))return false;
+    if(['water','scanner','pulse','pool'].includes(v.mode)&&(!v.motion||!unitPoly(v.motion.region)))return false;
     if(v.mode==='water'&&(!Array.isArray(v.motion.bubbleLanes)||v.motion.bubbleLanes.length>4||!v.motion.bubbleLanes.every(unitRect)))return false;
+    if(v.mode==='steam'&&(!v.motion||!unitPoint(v.motion.origin)||!finite(v.motion.rise)||v.motion.rise<=0||v.motion.rise>12||v.motion.trigger!=null&&!['ambient','work'].includes(v.motion.trigger)))return false;
+    if(v.mode==='pulse'&&(!Array.isArray(v.motion.colour)||v.motion.colour.length!==3||!v.motion.colour.every(n=>finite(n)&&n>=0&&n<=255)||!['work','ambient','fired'].includes(v.motion.trigger)))return false;
+    if(v.motion&&v.motion.failureColour!=null&&(!Array.isArray(v.motion.failureColour)||v.motion.failureColour.length!==3||!v.motion.failureColour.every(n=>finite(n)&&n>=0&&n<=255)))return false;
+    if(v.foreground!=null&&!unitPoly(v.foreground))return false;
     return v.mode !== 'native' || !!v.nativeMask || !!(v.nativeLayers && v.nativeLayers.length);
   }
   function canvas(w,h) {
@@ -95,9 +99,10 @@ const PropRemaster = (() => {
         for(const region of regions)for(const p of region.polygon)include(p[0],p[1]);
         if(v.nativeMask){include(nb.x,nb.y);include(nb.x+nb.width,nb.y+nb.height);}
       }
+      if(v.mode==='steam')include(box.x+v.motion.origin[0]*box.width,box.y+v.motion.origin[1]*box.height-v.motion.rise);
       if(frame.width>256||frame.height>256)throw Error('layer bounds too large');
       const pw=Math.ceil(frame.width*DENSITY),ph=Math.ceil(frame.height*DENSITY);
-      const cost=pw*ph*(v.mode==='native'?3:v.mode==='screen'?10:['water','scanner'].includes(v.mode)?13:1);
+      const cost=pw*ph*((v.mode==='native'?3:v.mode==='screen'?10:v.mode==='pool'?49:['water','scanner','steam','pulse'].includes(v.mode)?13:1)+(v.foreground?1:0));
       if(pixelBudget+cost>MAX_PIXELS)throw Error('decoded prop budget exceeded');
       const body=canvas(pw,ph),g=body.getContext('2d');
       g.scale(DENSITY,DENSITY);g.translate(-frame.x,-frame.y);
@@ -118,9 +123,15 @@ const PropRemaster = (() => {
       // and mask decode, so enforce the shared bound again at the commit point.
       if(pixelBudget+cost>MAX_PIXELS)throw Error('decoded prop budget exceeded');
       const screen=v.mode==='screen'?authoredScreen(body,v.screenRegions,box,frame):null;
-      const motion=['water','scanner'].includes(v.mode)?authoredMotion(body,v,box,frame):null;
-      const entry={spec:v,body,mask,live,screen,motion,frame,box,crop,lost:false};
-      for(const plane of [body,mask,live,screen&&screen.off,...(motion||[])])if(plane&&plane.addEventListener)
+      const motion=['water','scanner','steam','pulse','pool'].includes(v.mode)?authoredMotion(body,v,box,frame):null;
+      let foreground=null;
+      if(v.foreground){
+        foreground=canvas(pw,ph);const fg=foreground.getContext('2d');fg.beginPath();
+        v.foreground.forEach((p,i)=>{const x=(box.x-frame.x+p[0]*box.width)*DENSITY,y=(box.y-frame.y+p[1]*box.height)*DENSITY;i?fg.lineTo(x,y):fg.moveTo(x,y);});
+        fg.closePath();fg.clip();fg.drawImage(body,0,0);
+      }
+      const entry={spec:v,body,mask,live,screen,motion,foreground,frame,box,crop,lost:false};
+      for(const plane of [body,mask,live,foreground,screen&&screen.off,...(motion||[])])if(plane&&plane.addEventListener)
         plane.addEventListener('contextlost',()=>{entry.lost=true;},{once:true});
       pixelBudget+=cost;entries.set(key,entry);revision++;
     }catch(e){failures.push({view:key,reason:String(e.message||e)});}
@@ -162,10 +173,22 @@ const PropRemaster = (() => {
   // All frames are built once, with no legacy sprite fragments or frame readback.
   function authoredMotion(body,v,box,frame){
     const X=n=>(box.x-frame.x+n*box.width)*DENSITY,Y=n=>(box.y-frame.y+n*box.height)*DENSITY;
-    return Array.from({length:12},(_,phase)=>{
-      const cv=canvas(body.width,body.height),g=cv.getContext('2d'),u=phase/12;
+    const frames=v.mode==='pool'?48:12;
+    return Array.from({length:frames},(_,phase)=>{
+      const cv=canvas(body.width,body.height),g=cv.getContext('2d'),u=phase/frames;
+      if(v.mode==='steam'){
+        const x=X(v.motion.origin[0]),y=Y(v.motion.origin[1]),rise=v.motion.rise*DENSITY;
+        g.strokeStyle='rgba(218,224,214,'+(.10+.10*Math.sin(u*Math.PI))+')';g.lineWidth=DENSITY*.22;
+        g.beginPath();g.moveTo(x,y);g.bezierCurveTo(x+DENSITY*Math.sin(u*6.28),y-rise*.35,x-DENSITY*Math.cos(u*6.28),y-rise*.7,x,y-rise);g.stroke();return cv;
+      }
       g.save();g.beginPath();v.motion.region.forEach((p,i)=>i?g.lineTo(X(p[0]),Y(p[1])):g.moveTo(X(p[0]),Y(p[1])));g.closePath();g.clip();
-      if(v.mode==='scanner'){
+      if(v.mode==='pulse'){
+        g.fillStyle='rgba('+v.motion.colour.join(',')+','+(.04+.18*Math.pow(Math.sin(u*Math.PI),2))+')';g.fillRect(0,0,body.width,body.height);
+      }else if(v.mode==='pool'){
+        const balls=[[.27+.34*(1-Math.cos(u*Math.PI*2))*.5,.29,'#e0d3af'],[.69,.22,'#a25d30'],[.72,.30,'#357b6d'],[.68,.39,'#9b3840']];
+        for(const [x,y,colour]of balls){const cx=X(x),cy=Y(y),radius=DENSITY*.62;g.fillStyle='#121915';g.beginPath();g.ellipse(cx+DENSITY*.16,cy+DENSITY*.25,radius,radius*.65,0,0,Math.PI*2);g.fill();
+          const sphere=g.createRadialGradient(cx-radius*.3,cy-radius*.4,0,cx,cy,radius);sphere.addColorStop(0,'#f2e4c3');sphere.addColorStop(.3,colour);sphere.addColorStop(1,'#252724');g.fillStyle=sphere;g.beginPath();g.arc(cx,cy,radius,0,Math.PI*2);g.fill();}
+      }else if(v.mode==='scanner'){
         const xs=v.motion.region.map(p=>X(p[0])),ys=v.motion.region.map(p=>Y(p[1]));
         const left=Math.min(...xs),top=Math.min(...ys),width=Math.max(...xs)-left,height=Math.max(...ys)-top;
         g.fillStyle='rgba(207,157,249,.48)';g.fillRect(left+u*width,top,Math.max(1,DENSITY*.32),height);
@@ -222,10 +245,16 @@ const PropRemaster = (() => {
         ctx.globalAlpha *= .65 + .2 * Math.max(0,Math.min(1,Number(state&&state.heat)||0));
         ctx.drawImage(screenBeam(e.screen,phase),x+f.x,y+f.y,e.body.width/DENSITY,e.body.height/DENSITY);
       }
-      if(e.motion&&!(state&&state.still)&&(v.mode==='water'||!!(state&&state.scanning))){
-        const period=v.mode==='water'?4800:900,phase=Math.floor((Math.max(0,Number(state&&state.now)||0)%period)/period*12);
-        ctx.globalCompositeOperation='source-atop';
-        ctx.drawImage(e.motion[phase],x+f.x,y+f.y,e.body.width/DENSITY,e.body.height/DENSITY);
+      const fired=v.mode==='pulse'&&v.motion.trigger==='fired';
+      const active=fired?!!(state&&state.fired):v.mode==='scanner'?!!(state&&state.scanning):v.mode==='pool'||['pulse','steam'].includes(v.mode)&&v.motion.trigger==='work'?!!(state&&state.work):true;
+      const moving=!(state&&state.still)&&active;
+      if(e.motion&&(moving||v.mode==='pool'||fired&&active)){
+        const period=v.mode==='scanner'?900:4800,phase=moving?Math.floor((Math.max(0,Number(state&&state.now)||0)%period)/period*e.motion.length):fired?6:0;
+        ctx.globalCompositeOperation=v.mode==='steam'?'source-over':'source-atop';
+        if(fired&&state.bad&&v.motion.failureColour){
+          ctx.fillStyle='rgba('+v.motion.failureColour.join(',')+',.48)';ctx.beginPath();
+          v.motion.region.forEach((p,i)=>{const px=x+e.box.x+p[0]*e.box.width,py=y+e.box.y+p[1]*e.box.height;i?ctx.lineTo(px,py):ctx.moveTo(px,py);});ctx.closePath();ctx.fill();
+        }else ctx.drawImage(e.motion[phase],x+f.x,y+f.y,e.body.width/DENSITY,e.body.height/DENSITY);
       }
     }finally{ctx.restore();}
     return true;
@@ -253,7 +282,14 @@ const PropRemaster = (() => {
     if(e&&(e.lost||(w!=null&&w!==e.spec.footprint.w*12)||(h!=null&&h!==e.spec.footprint.h*12)))return null;
     return p?{x:e.frame.x+p.x,y:e.frame.y+p.y}:null;
   }
-  return Object.freeze({ready,enabled,draw,emitter,revision:()=>revision,
+  function drawForeground(ctx,id,view,x,y,w,h,mirror=false){
+    const e=enabled(id,view)&&entries.get(id+':'+view);
+    if(!e||e.lost||!e.foreground||w!==e.spec.footprint.w*12||h!==e.spec.footprint.h*12)return false;
+    ctx.save();try{ctx.translate(x,y);if(mirror){ctx.translate(w,0);ctx.scale(-1,1);}ctx.imageSmoothingEnabled=true;ctx.imageSmoothingQuality='high';
+      ctx.drawImage(e.foreground,e.frame.x,e.frame.y,e.body.width/DENSITY,e.body.height/DENSITY);
+    }finally{ctx.restore();}return true;
+  }
+  return Object.freeze({ready,enabled,draw,drawForeground,emitter,revision:()=>revision,
     status:()=>({views:Array.from(entries.keys()),failures:failures.slice(),pixels:pixelBudget}),
     // Pure contracts exposed for deterministic headless geometry validation.
     validate,fit});

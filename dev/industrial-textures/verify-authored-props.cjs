@@ -52,24 +52,40 @@ const cyan=d=>{let n=0;for(let i=0;i<d.length;i+=4)if(d[i+3]>200)n+=Math.max(0,M
  const manifest=JSON.parse(read('frontend/assets/industrial/props-v3/manifest.json'));
  for(const [id,prop]of Object.entries(manifest.props))for(const [view,v]of Object.entries(prop.views)){
   const render=(occupied,now,extra={})=>{const cv=createCanvas(320,270),cg=cv.getContext('2d');cg.scale(4,4);
-   assert.equal(art.draw(cg,id,view,24,36,v.footprint.w*12,v.footprint.h*12,{occupied,scanning:occupied,now,...extra},()=>{throw Error('Old pixels in '+id);}),true);
+   assert.equal(art.draw(cg,id,view,24,36,v.footprint.w*12,v.footprint.h*12,{occupied,scanning:occupied,work:occupied,fired:occupied,now,...extra},()=>{throw Error('Old pixels in '+id);}),true);
    return rgba(cv);
   };
   const idle=render(false,0),active=render(true,1050),later=render(true,1750);
-  for(let i=3;i<idle.length;i+=4){assert.equal(idle[i],active[i],id+' power keeps contact/silhouette');assert.equal(idle[i],later[i],id+' motion keeps contact/silhouette');}
+  for(let i=3;i<idle.length;i+=4)if(v.mode!=='steam'||Math.floor(i/4/320)>=(36+v.bounds.y+v.bounds.height-2)*4){assert.equal(idle[i],active[i],id+' power keeps contact/silhouette');assert.equal(idle[i],later[i],id+' motion keeps contact/silhouette');}
   if(v.mode==='screen'){assert.ok(cyan(active)>cyan(idle)*2,id+' glass powers on');assert.notDeepEqual(active,later,id+' glass animates');}
-  else if(v.mode==='water'||v.mode==='scanner'){
+  else if(['water','scanner','steam','pulse','pool'].includes(v.mode)){
    assert.notDeepEqual(active,later,id+' has newly authored motion');
+   if(v.motion.trigger==='fired'){
+    assert.deepEqual(render(false,100,{work:true}),render(false,2300,{work:true}),id+' room work cannot invent a verification result');
+    assert.notDeepEqual(render(true,100,{bad:true}),render(true,100,{bad:false}),id+' failure has distinct result colour');
+    assert.notDeepEqual(render(true,100,{bad:true,still:true}),render(false,100,{still:true}),id+' reduced motion retains truthful failure status');
+   }
    assert.deepEqual(render(true,100,{still:true}),render(true,2300,{still:true}),id+' obeys reduced motion');
    if(v.mode==='scanner')assert.deepEqual(render(false,100,{work:true}),render(false,2300,{work:true}),'unrelated work cannot scan an empty conveyor');
    if(v.mode==='water'){
     assert.deepEqual(render(false,1050),active,'water is independent of occupancy');
     assert.equal(art.emitter(id),null,'water is not a workstation display');
    }
+   if(v.mode==='pool'||v.motion.trigger==='work')assert.deepEqual(render(false,100),render(false,2300),id+' does not invent use');
   }else {assert.deepEqual(idle,active,id+' static appearance');assert.deepEqual(active,later,id+' has no invented motion');}
   const warmReads=readbacks;
-  for(let now=0;now<6000;now+=50)art.draw(g,id,view,24,36,v.footprint.w*12,v.footprint.h*12,{now,occupied:true,scanning:true},()=>{throw Error('old pixels');});
+  for(let now=0;now<6000;now+=50)art.draw(g,id,view,24,36,v.footprint.w*12,v.footprint.h*12,{now,occupied:true,scanning:true,work:true},()=>{throw Error('old pixels');});
   assert.equal(readbacks,warmReads,id+' frames never read pixels');
+ }
+ // The real public event-to-render path must preserve instance scope and failure.
+ if(manifest.props.workbench){
+  const wb=(id,now)=>{const cv=createCanvas(320,270),cg=cv.getContext('2d');cg.scale(4,4);props.setCtx(cg);props.setNow(now);props.draw({id,t:'workbench',x:2,y:3,w:2,h:1},false,{still:true});return rgba(cv);};
+  const idleA=wb('verify-a',10000),idleB=wb('verify-b',10000);
+  props.pulseWorkbench(true,'verify-a');const success=wb('verify-a',10100);
+  assert.notDeepEqual(success,idleA,'real verification event lights the new workbench');
+  assert.deepEqual(wb('verify-b',10100),idleB,'verification event stays on its own instance');
+  props.pulseWorkbench(false,'verify-a');const failure=wb('verify-a',10200);
+  assert.notDeepEqual(failure,success,'failed verification keeps distinct new-art status');
  }
  [off,on,on2,frozen].forEach((cv,i)=>{sg.drawImage(cv,i*320,65);sg.fillStyle='#b6b5a6';sg.font='14px monospace';sg.fillText(['UNATTENDED','OCCUPIED / 1050 ms','OCCUPIED / 1750 ms','REDUCED MOTION'][i],i*320+15,350);});
  // Same world scale, no per-object enlargement. This strip catches accidental
@@ -79,7 +95,26 @@ const cyan=d=>{let n=0;for(let i=0;i<d.length;i+=4)if(d[i+3]>200)n+=Math.max(0,M
  for(const f of [{t:'console',x:1,y:2,w:2,h:1},{t:'desk',x:6,y:2,w:3,h:1},{t:'crate',x:12,y:2,w:2,h:1}])props.draw(f,false,{occupied:true,still:true});sg.restore();
  const output=path.join(root,'dev/.scratch-workspace/props-v3');fs.mkdirSync(output,{recursive:true});
  fs.writeFileSync(path.join(output,'console-states.png'),sheet.toBuffer('image/png'));
+ // Review contact sheets use the public game painter at one fixed scale. They
+ // are labelled fixture renders, not saved-station screenshots or backend work.
+ const cadet=new Image();cadet.src=fs.readFileSync(path.join(root,'frontend/assets/sprites/station_minion/rot_south.png'));
+ const measure=createCanvas(cadet.width,cadet.height);measure.getContext('2d').drawImage(cadet,0,0);const md=rgba(measure);let foot=0;
+ for(let i=3;i<md.length;i+=4)if(md[i]>50)foot=Math.max(foot,Math.floor(i/4/cadet.width)+1);
+ const ids=Object.keys(manifest.props);
+ for(let page=0;page<Math.ceil(ids.length/20);page++){
+   const cv=createCanvas(1344,1240),cg=cv.getContext('2d');cg.fillStyle='#0b1214';cg.fillRect(0,0,cv.width,cv.height);cg.fillStyle='#c0b69a';cg.font='16px monospace';cg.fillText('STARNET · SAME WORLD SCALE · AUTHORING PREVIEW',16,25);
+   for(const [index,id]of ids.slice(page*20,page*20+20).entries()){
+     const col=index%4,row=Math.floor(index/4),spec=props.spec(id),x=col*336,y=40+row*240;cg.save();cg.translate(x+10,y+8);cg.scale(2.55,2.55);
+     for(let fy=0;fy<7;fy++)for(let fx=0;fx<10;fx++)industrial.floor(cg,fx*12,fy*12,12,fx,fy,'plate');
+     props.setCtx(cg);props.setNow(1750);const mounted=spec.mount==='surface'||spec.stack;
+     if(mounted)props.draw({t:'lowtable',x:1,y:5,w:3,h:1},false,{still:true});
+     props.draw({t:id,id:'review-'+id,x:1,y:6-spec.h,w:spec.w,h:spec.h,...(mounted?{mount:'surface'}:{})},true,{occupied:true,scanning:true});
+     cg.imageSmoothingEnabled=true;cg.drawImage(cadet,110-cadet.width*.385/2,72-foot*.385,cadet.width*.385,cadet.height*.385);cg.restore();
+     cg.fillStyle='#c0b69a';cg.font='14px monospace';cg.fillText(id,x+12,y+230);
+   }
+   fs.writeFileSync(path.join(output,'contact-'+(page+1)+'.png'),cv.toBuffer('image/png'));
+ }
  for(const loss of losses)loss();assert.equal(art.draw(g,'console','s',24,36,24,12,{},()=>{}),false,'lost art returns fallback');
- const result={status:'PASS',newSpriteOwnsWholeBody:true,oldSpriteCallbackCalls:0,occupancy:true,reducedMotion:true,alphaStable:true,screenOnlyMotion:true,framesWithoutReadback:120,cyanLight:true,customFootprintFallback:true,contextLossFallback:true,views:art.status().views};
+ const result={status:'PASS',newSpriteOwnsWholeBody:true,oldSpriteCallbackCalls:0,occupancy:true,reducedMotion:true,physicalContactStable:true,alphaStableExceptSteam:true,consoleScreenOnlyMotion:true,framesWithoutReadbackPerView:120,cyanLight:true,customFootprintFallback:true,contextLossFallback:true,views:art.status().views};
  fs.writeFileSync(path.join(output,'verification.json'),JSON.stringify(result,null,2)+'\n');console.log(JSON.stringify(result));
 })().catch(e=>{console.error(e);process.exitCode=1;});

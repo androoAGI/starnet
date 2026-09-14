@@ -6024,6 +6024,8 @@ const World = (() => {
     // placeable props (furniture) — drawn over the bake, y-sorted with agents, under the lightmap
     if (geo && geo.props && geo.props.length && typeof PropSprites !== 'undefined') {
       PropSprites.setCtx(ctx); PropSprites.setNow(now);
+      const leisureProps = new Set();
+      for (const body of [agent, ...crew]) if (body) { if (body.usingProp) leisureProps.add(body.usingProp); if (body.watchProp) leisureProps.add(body.watchProp); }
       // Scan only a real transport item occupying a filter's tile. Ghost/tutorial
       // projections and agent work elsewhere cannot make the optical reader scan.
       const scanningTiles = new Set();
@@ -6047,7 +6049,7 @@ const World = (() => {
         // and everything else — props, crates, bodies — is drawn ON them. Decals carry no seat/mount/live
         // state (no `use` row, nothing stands on them), so this branch skips work the decal cannot use.
         if (isFlatProp(p.t)) { decals.push(p); continue; }
-        const work = (p.t === 'outbox' && outboxLit) || (p.t === 'bay' && bayLit(p, now)) || workstationLit(p) || !!(agent && (agent.usingProp === p.id || agent.watchProp === p.id));
+        const work = (p.t === 'outbox' && outboxLit) || (p.t === 'bay' && bayLit(p, now)) || workstationLit(p) || leisureProps.has(p.id);
         // G0.2/G0.3 live desk truth: a LIT assigned workstation carries its agent's real activity heat
         // (token/tool-driven, heatFor) + a task-progress fraction ONLY when a real one was published
         // (deskProgFor — a live harness run has none and renders none).
