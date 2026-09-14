@@ -1,0 +1,90 @@
+{
+  "version": 1,
+  "method": "User-authorized connected neutral-background extraction; original RGB preserved",
+  "records": [
+    {
+      "id": "arc_indexwall",
+      "source": "docs/station-remaster/batch02/coordinator/arc_indexwall-source.png",
+      "seeds": [],
+      "output": "frontend/assets/industrial/batch02/coordinator/arc_indexwall.png",
+      "sourceWidth": 1902,
+      "sourceHeight": 827,
+      "crop": {
+        "left": 58,
+        "top": 87,
+        "width": 1787,
+        "height": 655
+      },
+      "sourceSha256": "e7653d077996e513a53e202812d4a67917df8534c315719cb3ce3a1a19b299e1",
+      "outputSha256": "2f45e93348e2c8bcb4085e0264311b20200870eb1d27083b980d38c622ea7de4",
+      "channels": 4,
+      "transparentPixels": 76476,
+      "opaquePixels": 2063,
+      "partialPixels": 1091946,
+      "subjectRgbChanges": 0
+    },
+    {
+      "id": "whiteboard",
+      "source": "docs/station-remaster/batch02/coordinator/whiteboard-source.png",
+      "seeds": [],
+      "output": "frontend/assets/industrial/batch02/coordinator/whiteboard.png",
+      "sourceWidth": 1849,
+      "sourceHeight": 851,
+      "crop": {
+        "left": 46,
+        "top": 71,
+        "width": 1757,
+        "height": 718
+      },
+      "sourceSha256": "2dfcb40ddd17979ac5cd10a9d6c72b89e32a0e444ce13cdaee5a1776dce14998",
+      "outputSha256": "cd5ea21a0e8baed45ba1dd5d306840bef618838e692d9d8a4d3c7e1dc4179b3d",
+      "channels": 4,
+      "transparentPixels": 368787,
+      "opaquePixels": 667,
+      "partialPixels": 892072,
+      "subjectRgbChanges": 0
+    },
+    {
+      "id": "chartwall",
+      "source": "docs/station-remaster/batch02/coordinator/chartwall-source.png",
+      "seeds": [],
+      "output": "frontend/assets/industrial/batch02/coordinator/chartwall.png",
+      "sourceWidth": 1650,
+      "sourceHeight": 953,
+      "crop": {
+        "left": 47,
+        "top": 94,
+        "width": 1557,
+        "height": 781
+      },
+      "sourceSha256": "0f1a71397cda388dc8874a8fc52bdb77017c2140312b0b36df388c9ea0194d6c",
+      "outputSha256": "2fd8ddfed47b96f9baba28500a0c50cff7ad7ed543b11eae380d80d065e37324",
+      "channels": 4,
+      "transparentPixels": 227931,
+      "opaquePixels": 191,
+      "partialPixels": 987895,
+      "subjectRgbChanges": 0
+    },
+    {
+      "id": "calwall",
+      "source": "docs/station-remaster/batch02/coordinator/calwall-source.png",
+      "seeds": [],
+      "output": "frontend/assets/industrial/batch02/coordinator/calwall.png",
+      "sourceWidth": 2089,
+      "sourceHeight": 753,
+      "crop": {
+        "left": 47,
+        "top": 111,
+        "width": 1995,
+        "height": 561
+      },
+      "sourceSha256": "b6d86719e2449dc0ba15fb02bf00927e2250a88c7bfc576dc3aabd2be43ffe72",
+      "outputSha256": "121e68e8160d5187d05e13cbc5113942b765e0a018098e3f07669e3294b97850",
+      "channels": 4,
+      "transparentPixels": 204650,
+      "opaquePixels": 408,
+      "partialPixels": 914137,
+      "subjectRgbChanges": 0
+    }
+  ]
+}
