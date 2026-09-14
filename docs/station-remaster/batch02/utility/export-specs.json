@@ -423,5 +423,43 @@
     "id": "etsy_kiln",
     "seeds": [],
     "maxChroma": 25
+  },
+  {
+    "id": "research_samplecart",
+    "seeds": [
+      [
+        220,
+        220
+      ],
+      [
+        382,
+        110
+      ],
+      [
+        672,
+        110
+      ],
+      [
+        1174,
+        110
+      ]
+    ],
+    "maxChroma": 15
+  },
+  {
+    "id": "incubator",
+    "seeds": [
+      [
+        519,
+        139
+      ]
+    ],
+    "minNeutral": 100,
+    "maxChroma": 20
+  },
+  {
+    "id": "cryopod",
+    "seeds": [],
+    "maxChroma": 15
   }
 ]

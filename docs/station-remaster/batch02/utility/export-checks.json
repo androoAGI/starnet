@@ -607,6 +607,104 @@
       "islandPixelsRemoved": 0,
       "subjectRgbChanges": 0,
       "outputSha256": "2d17e182cbf1bfa864416fcc08ffbf12696cfb30bcea8e3445595d3fd86a224b"
+    },
+    {
+      "id": "research_samplecart",
+      "seeds": [
+        [
+          220,
+          220
+        ],
+        [
+          382,
+          110
+        ],
+        [
+          672,
+          110
+        ],
+        [
+          1174,
+          110
+        ]
+      ],
+      "maxChroma": 15,
+      "source": "docs/station-remaster/batch02/utility/sources/research_samplecart.png",
+      "sourceSha256": "13ed0b06fceb553f4a17e4344560f87dcc464b47a7c17229dc074bcf9cbeacaa",
+      "sourceWidth": 1564,
+      "sourceHeight": 1006,
+      "output": "frontend/assets/industrial/batch02/utility/research_samplecart.png",
+      "canvasPreserved": true,
+      "alphaBounds": {
+        "x": 129,
+        "y": 28,
+        "width": 1268,
+        "height": 923
+      },
+      "channels": 4,
+      "transparentPixels": 739317,
+      "opaquePixels": 834067,
+      "partialPixels": 0,
+      "backgroundPixelsRemoved": 739265,
+      "islandPixelsRemoved": 52,
+      "subjectRgbChanges": 0,
+      "outputSha256": "0d68403d3dd56b7ddf686110b2c5b8a87f364232f1aa04d6e14ae8d50134f1bb"
+    },
+    {
+      "id": "incubator",
+      "seeds": [
+        [
+          519,
+          139
+        ]
+      ],
+      "minNeutral": 100,
+      "maxChroma": 20,
+      "source": "docs/station-remaster/batch02/utility/sources/incubator.png",
+      "sourceSha256": "8b9bf318fc263d73bb9e4d5f99f910e37d466a628cfadac56e8e795bb50b94ac",
+      "sourceWidth": 817,
+      "sourceHeight": 1923,
+      "output": "frontend/assets/industrial/batch02/utility/incubator.png",
+      "canvasPreserved": true,
+      "alphaBounds": {
+        "x": 153,
+        "y": 24,
+        "width": 498,
+        "height": 1725
+      },
+      "channels": 4,
+      "transparentPixels": 932086,
+      "opaquePixels": 639005,
+      "partialPixels": 0,
+      "backgroundPixelsRemoved": 932082,
+      "islandPixelsRemoved": 4,
+      "subjectRgbChanges": 0,
+      "outputSha256": "b48f65ac7ebd7ee21794628fd90400c5bec508b481f235856fb7e0f2616a7019"
+    },
+    {
+      "id": "cryopod",
+      "seeds": [],
+      "maxChroma": 15,
+      "source": "docs/station-remaster/batch02/utility/sources/cryopod.png",
+      "sourceSha256": "fcae6ae2a1018a0fb1402e9658a6da70cee00310eebfdc89eda0c80032f11fa5",
+      "sourceWidth": 793,
+      "sourceHeight": 1983,
+      "output": "frontend/assets/industrial/batch02/utility/cryopod.png",
+      "canvasPreserved": true,
+      "alphaBounds": {
+        "x": 83,
+        "y": 50,
+        "width": 628,
+        "height": 1827
+      },
+      "channels": 4,
+      "transparentPixels": 541641,
+      "opaquePixels": 1030878,
+      "partialPixels": 0,
+      "backgroundPixelsRemoved": 541641,
+      "islandPixelsRemoved": 0,
+      "subjectRgbChanges": 0,
+      "outputSha256": "69746db020bfe03f5d7f3dd5ca32af2f50456446ea9746b407e5eedd3a47a41d"
     }
   ]
 }

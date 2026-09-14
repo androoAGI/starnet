@@ -1,0 +1,752 @@
+{
+  "version": 1,
+  "tilePixels": 12,
+  "lane": "utility",
+  "tool": "built-in image_gen",
+  "export": "User-authorized deterministic alpha extraction; unchanged RGB and original canvas, no rotation/stretch",
+  "contractSource": "Owner prop-structure-manifest.json and prop-inventory.json read2026-09-14",
+  "props": {
+    "industrial_planter": {
+      "label": "PLANTER TROUGH",
+      "facing": "south",
+      "r": 0,
+      "image": "frontend/assets/industrial/batch02/utility/industrial_planter.png",
+      "sourceWidth": 1430,
+      "sourceHeight": 1100,
+      "alphaBounds": {
+        "x": 31,
+        "y": 94,
+        "width": 1377,
+        "height": 774
+      },
+      "footprint": {
+        "w": 2,
+        "h": 1
+      },
+      "desiredWorldEnvelope": {
+        "x": 0,
+        "y": -8,
+        "width": 26,
+        "height": 20
+      },
+      "floorContact": {
+        "sourcePixelsApprox": [
+          717,
+          866
+        ],
+        "worldPixels": [
+          12,
+          12
+        ],
+        "space": "native prop origin at12px/tile; uniform fit within desired envelope and align front contact line; anchors provisional until live placement"
+      },
+      "blocks": true,
+      "requiredMount": null,
+      "mountRisePixels": 0,
+      "seatAnchors": [],
+      "interaction": "No new position or seat anchors; preserve existing native interaction contract.",
+      "materials": [
+        "living foliage",
+        "glazed ceramic",
+        "terracotta",
+        "soil",
+        "oak"
+      ],
+      "authoredMotionRegions": [],
+      "animationStatus": "Static artwork; no native animation flag",
+      "status": "exported art candidate; not user accepted or live integrated"
+    },
+    "tallplant": {
+      "label": "TALL PLANT",
+      "facing": "south",
+      "r": 0,
+      "image": "frontend/assets/industrial/batch02/utility/tallplant.png",
+      "sourceWidth": 887,
+      "sourceHeight": 1774,
+      "alphaBounds": {
+        "x": 121,
+        "y": 18,
+        "width": 645,
+        "height": 1725
+      },
+      "footprint": {
+        "w": 1,
+        "h": 1
+      },
+      "desiredWorldEnvelope": {
+        "x": 1,
+        "y": -14,
+        "width": 13,
+        "height": 26
+      },
+      "floorContact": {
+        "sourcePixelsApprox": [
+          446,
+          1741
+        ],
+        "worldPixels": [
+          6,
+          12
+        ],
+        "space": "native prop origin at12px/tile; uniform fit within desired envelope and align front contact line; anchors provisional until live placement"
+      },
+      "blocks": true,
+      "requiredMount": null,
+      "mountRisePixels": 0,
+      "seatAnchors": [],
+      "interaction": "No new position or seat anchors; preserve existing native interaction contract.",
+      "materials": [
+        "living foliage",
+        "natural bark",
+        "terracotta",
+        "soil"
+      ],
+      "authoredMotionRegions": [
+        {
+          "name": "leaf crown and fronds",
+          "normalizedRect": [
+            0.13,
+            0.01,
+            0.74,
+            0.7
+          ],
+          "behavior": "Optional subtle cosmetic leaf movement; trunk and pot fixed."
+        }
+      ],
+      "animationStatus": "UNRESOLVED: static complete source artwork; runtime owner must create new state/motion layers",
+      "status": "exported art candidate; not user accepted or live integrated"
+    },
+    "monstera": {
+      "label": "MONSTERA",
+      "facing": "south",
+      "r": 0,
+      "image": "frontend/assets/industrial/batch02/utility/monstera.png",
+      "sourceWidth": 1205,
+      "sourceHeight": 1305,
+      "alphaBounds": {
+        "x": 25,
+        "y": 8,
+        "width": 1159,
+        "height": 1242
+      },
+      "footprint": {
+        "w": 1,
+        "h": 1
+      },
+      "desiredWorldEnvelope": {
+        "x": 0,
+        "y": -1,
+        "width": 12,
+        "height": 13
+      },
+      "floorContact": {
+        "sourcePixelsApprox": [
+          635,
+          1248
+        ],
+        "worldPixels": [
+          6,
+          12
+        ],
+        "space": "native prop origin at12px/tile; uniform fit within desired envelope and align front contact line; anchors provisional until live placement"
+      },
+      "blocks": false,
+      "requiredMount": null,
+      "mountRisePixels": 0,
+      "seatAnchors": [],
+      "interaction": "No new position or seat anchors; preserve existing native interaction contract.",
+      "materials": [
+        "green leaves",
+        "cream/teal glazed ceramic",
+        "soil"
+      ],
+      "authoredMotionRegions": [
+        {
+          "name": "leaf canopy",
+          "normalizedRect": [
+            0.02,
+            0.01,
+            0.96,
+            0.85
+          ],
+          "behavior": "Optional leaf sway with holes retained; pot remains fixed."
+        }
+      ],
+      "animationStatus": "UNRESOLVED: static complete source artwork; runtime owner must create new state/motion layers",
+      "status": "exported art candidate; not user accepted or live integrated"
+    },
+    "terrarium": {
+      "label": "TERRARIUM",
+      "facing": "south",
+      "r": 0,
+      "image": "frontend/assets/industrial/batch02/utility/terrarium.png",
+      "sourceWidth": 1039,
+      "sourceHeight": 1513,
+      "alphaBounds": {
+        "x": 200,
+        "y": 85,
+        "width": 638,
+        "height": 1346
+      },
+      "footprint": {
+        "w": 1,
+        "h": 1
+      },
+      "desiredWorldEnvelope": {
+        "x": 0,
+        "y": -5,
+        "width": 11,
+        "height": 16
+      },
+      "floorContact": {
+        "sourcePixelsApprox": [
+          519,
+          1429
+        ],
+        "worldPixels": [
+          6,
+          12
+        ],
+        "space": "native prop origin at12px/tile; uniform fit within desired envelope and align front contact line; anchors provisional until live placement"
+      },
+      "blocks": true,
+      "requiredMount": null,
+      "mountRisePixels": 0,
+      "seatAnchors": [],
+      "interaction": "Standing leisure approach from reachable prop edge remains owned by PropAnchor; no seat.",
+      "materials": [
+        "glass",
+        "walnut",
+        "brass",
+        "soil",
+        "moss"
+      ],
+      "authoredMotionRegions": [
+        {
+          "name": "living enclosure",
+          "normalizedRect": [
+            0.245,
+            0.26,
+            0.505,
+            0.46
+          ],
+          "behavior": "Tiny cosmetic moisture/moss light changes only; preserve glass and branch."
+        }
+      ],
+      "animationStatus": "UNRESOLVED: static complete source artwork; runtime owner must create new state/motion layers",
+      "status": "exported art candidate; not user accepted or live integrated"
+    },
+    "fishtank": {
+      "label": "FISH TANK",
+      "facing": "south",
+      "r": 0,
+      "image": "frontend/assets/industrial/batch02/utility/fishtank.png",
+      "sourceWidth": 1305,
+      "sourceHeight": 1205,
+      "alphaBounds": {
+        "x": 147,
+        "y": 79,
+        "width": 1019,
+        "height": 1047
+      },
+      "footprint": {
+        "w": 2,
+        "h": 1
+      },
+      "desiredWorldEnvelope": {
+        "x": -1,
+        "y": -12,
+        "width": 26,
+        "height": 24
+      },
+      "floorContact": {
+        "sourcePixelsApprox": [
+          655,
+          1124
+        ],
+        "worldPixels": [
+          12,
+          12
+        ],
+        "space": "native prop origin at12px/tile; uniform fit within desired envelope and align front contact line; anchors provisional until live placement"
+      },
+      "blocks": true,
+      "requiredMount": null,
+      "mountRisePixels": 0,
+      "seatAnchors": [],
+      "interaction": "Standing leisure approach from reachable prop edge remains owned by PropAnchor; no seat.",
+      "materials": [
+        "glass",
+        "water",
+        "walnut",
+        "painted hood",
+        "aquatic plants"
+      ],
+      "authoredMotionRegions": [
+        {
+          "name": "water interior",
+          "normalizedRect": [
+            0.13,
+            0.27,
+            0.74,
+            0.31
+          ],
+          "behavior": "New fish swimming/bubbles/caustics need authored layers; retain tank boundaries, do not animate as monitor."
+        }
+      ],
+      "animationStatus": "UNRESOLVED: static complete source artwork; runtime owner must create new state/motion layers",
+      "status": "exported art candidate; not user accepted or live integrated"
+    },
+    "lavalamp": {
+      "label": "LAVA LAMP",
+      "facing": "south",
+      "r": 0,
+      "image": "frontend/assets/industrial/batch02/utility/lavalamp.png",
+      "sourceWidth": 793,
+      "sourceHeight": 1983,
+      "alphaBounds": {
+        "x": 129,
+        "y": 31,
+        "width": 536,
+        "height": 1910
+      },
+      "footprint": {
+        "w": 1,
+        "h": 1
+      },
+      "desiredWorldEnvelope": {
+        "x": 2,
+        "y": -8,
+        "width": 8,
+        "height": 20
+      },
+      "floorContact": {
+        "sourcePixelsApprox": [
+          397,
+          1939
+        ],
+        "worldPixels": [
+          6,
+          12
+        ],
+        "space": "native prop origin at12px/tile; uniform fit within desired envelope and align front contact line; anchors provisional until live placement"
+      },
+      "blocks": false,
+      "requiredMount": "surface",
+      "mountRisePixels": 8,
+      "seatAnchors": [],
+      "interaction": "No new position or seat anchors; preserve existing native interaction contract.",
+      "materials": [
+        "glass",
+        "colored liquid",
+        "wax",
+        "teal ceramic",
+        "brass"
+      ],
+      "authoredMotionRegions": [
+        {
+          "name": "wax vessel",
+          "normalizedRect": [
+            0.18,
+            0.155,
+            0.63,
+            0.57
+          ],
+          "behavior": "Slow wax deformation/rise within bottle; decorative glow only."
+        }
+      ],
+      "animationStatus": "UNRESOLVED: static complete source artwork; runtime owner must create new state/motion layers",
+      "status": "exported art candidate; not user accepted or live integrated"
+    },
+    "plasmaglobe": {
+      "label": "PLASMA GLOBE",
+      "facing": "south",
+      "r": 0,
+      "image": "frontend/assets/industrial/batch02/utility/plasmaglobe.png",
+      "sourceWidth": 912,
+      "sourceHeight": 1724,
+      "alphaBounds": {
+        "x": 30,
+        "y": 26,
+        "width": 851,
+        "height": 1638
+      },
+      "footprint": {
+        "w": 1,
+        "h": 1
+      },
+      "desiredWorldEnvelope": {
+        "x": 1,
+        "y": -5,
+        "width": 9,
+        "height": 17
+      },
+      "floorContact": {
+        "sourcePixelsApprox": [
+          455,
+          1662
+        ],
+        "worldPixels": [
+          6,
+          12
+        ],
+        "space": "native prop origin at12px/tile; uniform fit within desired envelope and align front contact line; anchors provisional until live placement"
+      },
+      "blocks": false,
+      "requiredMount": "surface",
+      "mountRisePixels": 8,
+      "seatAnchors": [],
+      "interaction": "No new position or seat anchors; preserve existing native interaction contract.",
+      "materials": [
+        "glass",
+        "walnut",
+        "ivory ceramic",
+        "brass"
+      ],
+      "authoredMotionRegions": [
+        {
+          "name": "plasma sphere",
+          "normalizedRect": [
+            0.04,
+            0.02,
+            0.92,
+            0.475
+          ],
+          "behavior": "Authored plasma arc flicker inside sphere; optional cosmetic only."
+        }
+      ],
+      "animationStatus": "UNRESOLVED: static complete source artwork; runtime owner must create new state/motion layers",
+      "status": "exported art candidate; not user accepted or live integrated"
+    },
+    "etsy_dyevat": {
+      "label": "DYE VAT",
+      "facing": "south",
+      "r": 0,
+      "image": "frontend/assets/industrial/batch02/utility/etsy_dyevat.png",
+      "sourceWidth": 1254,
+      "sourceHeight": 1254,
+      "alphaBounds": {
+        "x": 107,
+        "y": 5,
+        "width": 1033,
+        "height": 1179
+      },
+      "footprint": {
+        "w": 2,
+        "h": 2
+      },
+      "desiredWorldEnvelope": {
+        "x": 0,
+        "y": -5,
+        "width": 29,
+        "height": 29
+      },
+      "floorContact": {
+        "sourcePixelsApprox": [
+          627,
+          1181
+        ],
+        "worldPixels": [
+          12,
+          24
+        ],
+        "space": "native prop origin at12px/tile; uniform fit within desired envelope and align front contact line; anchors provisional until live placement"
+      },
+      "blocks": true,
+      "requiredMount": null,
+      "mountRisePixels": 0,
+      "seatAnchors": [],
+      "interaction": "No new position or seat anchors; preserve existing native interaction contract.",
+      "materials": [
+        "stoneware",
+        "oak",
+        "indigo dye",
+        "cotton"
+      ],
+      "authoredMotionRegions": [
+        {
+          "name": "dye surface",
+          "normalizedRect": [
+            0.16,
+            0.09,
+            0.68,
+            0.43
+          ],
+          "behavior": "Subtle liquid ripple around fixed cloth/paddle; process-related activity only with real state."
+        }
+      ],
+      "animationStatus": "UNRESOLVED: static complete source artwork; runtime owner must create new state/motion layers",
+      "status": "exported art candidate; not user accepted or live integrated"
+    },
+    "etsy_kiln": {
+      "label": "KILN",
+      "facing": "south",
+      "r": 0,
+      "image": "frontend/assets/industrial/batch02/utility/etsy_kiln.png",
+      "sourceWidth": 1196,
+      "sourceHeight": 1315,
+      "alphaBounds": {
+        "x": 110,
+        "y": 47,
+        "width": 994,
+        "height": 1199
+      },
+      "footprint": {
+        "w": 2,
+        "h": 2
+      },
+      "desiredWorldEnvelope": {
+        "x": -1,
+        "y": -9,
+        "width": 30,
+        "height": 33
+      },
+      "floorContact": {
+        "sourcePixelsApprox": [
+          596,
+          1244
+        ],
+        "worldPixels": [
+          12,
+          24
+        ],
+        "space": "native prop origin at12px/tile; uniform fit within desired envelope and align front contact line; anchors provisional until live placement"
+      },
+      "blocks": true,
+      "requiredMount": null,
+      "mountRisePixels": 0,
+      "seatAnchors": [],
+      "interaction": "No new position or seat anchors; preserve existing native interaction contract.",
+      "materials": [
+        "refractory brick",
+        "terracotta",
+        "iron",
+        "maroon enamel"
+      ],
+      "authoredMotionRegions": [
+        {
+          "name": "top vent",
+          "normalizedRect": [
+            0.44,
+            0.188,
+            0.095,
+            0.03
+          ],
+          "behavior": "Heat glow only when appropriate kiln state is wired."
+        },
+        {
+          "name": "front door seam",
+          "normalizedRect": [
+            0.35,
+            0.604,
+            0.265,
+            0.035
+          ],
+          "behavior": "Restrained heat leak; no fake job progress."
+        }
+      ],
+      "animationStatus": "UNRESOLVED: static complete source artwork; runtime owner must create new state/motion layers",
+      "status": "exported art candidate; not user accepted or live integrated"
+    },
+    "research_samplecart": {
+      "label": "SAMPLE CART",
+      "facing": "south",
+      "r": 0,
+      "image": "frontend/assets/industrial/batch02/utility/research_samplecart.png",
+      "sourceWidth": 1564,
+      "sourceHeight": 1006,
+      "alphaBounds": {
+        "x": 129,
+        "y": 28,
+        "width": 1268,
+        "height": 923
+      },
+      "footprint": {
+        "w": 2,
+        "h": 1
+      },
+      "desiredWorldEnvelope": {
+        "x": -1,
+        "y": -6,
+        "width": 28,
+        "height": 18
+      },
+      "floorContact": {
+        "sourcePixelsApprox": [
+          782,
+          949
+        ],
+        "worldPixels": [
+          12,
+          12
+        ],
+        "space": "native prop origin at12px/tile; uniform fit within desired envelope and align front contact line; anchors provisional until live placement"
+      },
+      "blocks": true,
+      "requiredMount": null,
+      "mountRisePixels": 0,
+      "seatAnchors": [],
+      "interaction": "No new position or seat anchors; preserve existing native interaction contract.",
+      "materials": [
+        "sage enamel",
+        "cream panels",
+        "glass",
+        "rubber",
+        "fabric",
+        "ceramic"
+      ],
+      "authoredMotionRegions": [
+        {
+          "name": "specimen jars",
+          "normalizedRect": [
+            0.278,
+            0.03,
+            0.434,
+            0.3
+          ],
+          "behavior": "Optional subtle liquid/specimen effect; cart wheels remain static without actual movement."
+        }
+      ],
+      "animationStatus": "UNRESOLVED: static complete source artwork; runtime owner must create new state/motion layers",
+      "status": "exported art candidate; not user accepted or live integrated"
+    },
+    "incubator": {
+      "label": "INCUBATOR",
+      "facing": "south",
+      "r": 0,
+      "image": "frontend/assets/industrial/batch02/utility/incubator.png",
+      "sourceWidth": 817,
+      "sourceHeight": 1923,
+      "alphaBounds": {
+        "x": 153,
+        "y": 24,
+        "width": 498,
+        "height": 1725
+      },
+      "footprint": {
+        "w": 1,
+        "h": 2
+      },
+      "desiredWorldEnvelope": {
+        "x": -1,
+        "y": -9,
+        "width": 14,
+        "height": 33
+      },
+      "floorContact": {
+        "sourcePixelsApprox": [
+          407,
+          1747
+        ],
+        "worldPixels": [
+          6,
+          24
+        ],
+        "space": "native prop origin at12px/tile; uniform fit within desired envelope and align front contact line; anchors provisional until live placement"
+      },
+      "blocks": true,
+      "requiredMount": null,
+      "mountRisePixels": 0,
+      "seatAnchors": [],
+      "interaction": "No new position or seat anchors; preserve existing native interaction contract.",
+      "materials": [
+        "cream enamel",
+        "burgundy panels",
+        "glass",
+        "green culture",
+        "rubber"
+      ],
+      "authoredMotionRegions": [
+        {
+          "name": "culture column",
+          "normalizedRect": [
+            0.32,
+            0.24,
+            0.34,
+            0.4
+          ],
+          "behavior": "Slow suspended specimen drift and motes; no reported provider-work inference."
+        }
+      ],
+      "animationStatus": "UNRESOLVED: static complete source artwork; runtime owner must create new state/motion layers",
+      "status": "exported art candidate; not user accepted or live integrated"
+    },
+    "cryopod": {
+      "label": "CRYO POD",
+      "facing": "south",
+      "r": 0,
+      "image": "frontend/assets/industrial/batch02/utility/cryopod.png",
+      "sourceWidth": 793,
+      "sourceHeight": 1983,
+      "alphaBounds": {
+        "x": 83,
+        "y": 50,
+        "width": 628,
+        "height": 1827
+      },
+      "footprint": {
+        "w": 1,
+        "h": 2
+      },
+      "desiredWorldEnvelope": {
+        "x": 0,
+        "y": -6,
+        "width": 12,
+        "height": 30
+      },
+      "floorContact": {
+        "sourcePixelsApprox": [
+          396,
+          1875
+        ],
+        "worldPixels": [
+          6,
+          24
+        ],
+        "space": "native prop origin at12px/tile; uniform fit within desired envelope and align front contact line; anchors provisional until live placement"
+      },
+      "blocks": true,
+      "requiredMount": null,
+      "mountRisePixels": 0,
+      "seatAnchors": [],
+      "interaction": "No new position or seat anchors; preserve existing native interaction contract.",
+      "materials": [
+        "ivory medical polymer",
+        "blue enamel",
+        "frosted glass",
+        "padded fabric"
+      ],
+      "authoredMotionRegions": [
+        {
+          "name": "frosted occupancy window",
+          "normalizedRect": [
+            0.28,
+            0.177,
+            0.438,
+            0.565
+          ],
+          "behavior": "Subtle decorative frost/light only; fixed clothed sleeper image is artwork, not real agent occupancy."
+        },
+        {
+          "name": "upper lamp",
+          "normalizedRect": [
+            0.4,
+            0.158,
+            0.2,
+            0.012
+          ],
+          "behavior": "Never imply real vital signs or work state; integration owner chooses truthful mapping."
+        }
+      ],
+      "animationStatus": "UNRESOLVED: static complete source artwork; runtime owner must create new state/motion layers",
+      "status": "exported art candidate; not user accepted or live integrated"
+    }
+  },
+  "verification": {
+    "count": 12,
+    "PNG": "All12 RGBA, alpha0 and255, source hashes preserved and RGBchanges0",
+    "visual": "All12 inspected on dark matte; proof01-04, intended scale sheet also provided",
+    "live": "Not integrated; simulation, mounting, contact and interaction live checks pending owner",
+    "tests": "No test:fast run for isolated artwork; integration owner gate remains required"
+  }
+}
