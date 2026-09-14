@@ -46,7 +46,7 @@ for(const c of ps.CATALOG){
 for(const id of ['crate','desk','desk2','chair','bridge_consolebank','bridge_tacticaltable','bridge_equipmentbay','bridge_deckperimeter']){
  const c=ps.spec(id);if(!c)continue;calls.length=0;
  ps.draw({t:id,x:0,y:0,w:c.w,h:c.h},false);
- A.eq(calls.length,0,'already approved renderer retained '+id);
+ A.eq(calls.length,1,'complete approved sheet overrides earlier raster '+id);
 }
 function draw(t,work=false,record={},live={}){
  calls.length=0;const c=ps.spec(t);ps.draw({t,x:3,y:4,w:c.w,h:c.h,id:'one',...record},work,live);return calls.at(-1);

@@ -20,7 +20,7 @@ const PropRemaster = (() => {
   // The casing-only drafts remain accessible explicitly, never the default set.
   let draftReview=false;
   try{draftReview=new URLSearchParams(location.search).get('propReview')==='skins';}catch(_){}
-  const ROOT = 'assets/industrial/'+(draftReview?'props-v2/':'props-v3/'), DENSITY = 4, entries = new Map(), failures = [];
+  const ROOT = 'assets/industrial/'+(draftReview?'props-v2/':'approved-sheet/'), DENSITY = 4, entries = new Map(), failures = [];
   let revision = 0, pixelBudget = 0;
   const MAX_PIXELS = 12 * 1024 * 1024;
   const finite = n => typeof n === 'number' && Number.isFinite(n);
@@ -36,7 +36,9 @@ const PropRemaster = (() => {
     if (!v || !fileOK(v.image) || !Number.isInteger(v.sourceWidth) || !Number.isInteger(v.sourceHeight) ||
         v.sourceWidth < 1 || v.sourceHeight < 1 || v.sourceWidth > 4096 || v.sourceHeight > 4096 ||
         !rectOK(v.bounds) || !v.footprint || ![v.footprint.w,v.footprint.h].every(n => Number.isInteger(n) && n > 0 && n <= 16) ||
-        !['static','native','screen','water','scanner','steam','pulse','pool','content','machine','service'].includes(v.mode)) return false;
+        !['static','native','screen','water','scanner','steam','pulse','pool','content','machine','service','approved'].includes(v.mode)) return false;
+    if(v.screenPower!=null&&!['occupied','ambient','bound','connected'].includes(v.screenPower))return false;
+    if(v.activity!=null&&!['ambient','work','fired'].includes(v.activity))return false;
     if (v.exposure != null && (!finite(v.exposure) || v.exposure < .25 || v.exposure > 3)) return false;
     if (v.nativeBounds != null && !rectOK(v.nativeBounds)) return false;
     if (v.nativeMask != null && !fileOK(v.nativeMask)) return false;
@@ -119,7 +121,7 @@ const PropRemaster = (() => {
       if(v.mode==='steam')include(box.x+v.motion.origin[0]*box.width,box.y+v.motion.origin[1]*box.height-v.motion.rise);
       if(frame.width>256||frame.height>256)throw Error('layer bounds too large');
       const pw=Math.ceil(frame.width*DENSITY),ph=Math.ceil(frame.height*DENSITY);
-      const cost=pw*ph*((v.mode==='native'?3:v.mode==='screen'?10:v.mode==='pool'?49:['water','scanner','steam','pulse'].includes(v.mode)?13:['content','machine','service'].includes(v.mode)?2:1)+(v.foreground?1:0));
+      const cost=pw*ph*((v.mode==='native'?3:v.mode==='screen'||v.screenPower?10:v.mode==='pool'?49:['water','scanner','steam','pulse'].includes(v.mode)?13:['content','machine','service'].includes(v.mode)?2:1)+(v.foreground?1:0)+(v.activity?2:0));
       if(pixelBudget+cost>MAX_PIXELS)throw Error('decoded prop budget exceeded');
       const body=canvas(pw,ph),g=body.getContext('2d');
       g.scale(DENSITY,DENSITY);g.translate(-frame.x,-frame.y);
@@ -140,7 +142,10 @@ const PropRemaster = (() => {
       // Concurrent image decodes may finish between the initial budget check
       // and mask decode, so enforce the shared bound again at the commit point.
       if(pixelBudget+cost>MAX_PIXELS)throw Error('decoded prop budget exceeded');
-      const screen=v.mode==='screen'?authoredScreen(body,v.screenRegions,box,frame):null;
+      const screen=v.mode==='screen'||v.screenPower?authoredScreen(body,v.screenRegions,box,frame):null;
+      const approved= v.mode==='approved'&&typeof ApprovedSheetEffects!=='undefined'&&ApprovedSheetEffects.ids.includes(id)
+        ?ApprovedSheetEffects.prepare(id,im,{sourceWidth:v.sourceWidth,sourceHeight:v.sourceHeight,crop}):null;
+      const indicators=v.activity?authoredIndicators(body):null;
       const motion=['water','scanner','steam','pulse','pool'].includes(v.mode)?authoredMotion(body,v,box,frame):null;
       let foreground=null;
       if(v.foreground){
@@ -149,7 +154,7 @@ const PropRemaster = (() => {
         fg.closePath();fg.clip();fg.drawImage(body,0,0);
       }
       const composed=['content','machine','service'].includes(v.mode)?canvas(pw,ph):null;
-      const entry={spec:v,body,mask,live,screen,motion,foreground,composed,frame,box,crop,lost:false};
+      const entry={spec:v,body,mask,live,screen,motion,foreground,composed,approved,indicators,frame,box,crop,lost:false};
       for(const plane of [body,mask,live,foreground,composed,screen&&screen.off,...(motion||[])])if(plane&&plane.addEventListener)
         plane.addEventListener('contextlost',()=>{entry.lost=true;},{once:true});
       pixelBudget+=cost;entries.set(key,entry);revision++;
@@ -267,7 +272,7 @@ const PropRemaster = (() => {
     ctx.save();
     try{
       ctx.imageSmoothingEnabled=true;ctx.imageSmoothingQuality='high';
-      const occupied=state&&typeof state.occupied==='boolean'?state.occupied:!!(state&&state.work);
+      const occupied=v.screenPower==='ambient'?true:v.screenPower==='connected'?!!state?.live:v.screenPower==='bound'?!!state?.bound&&state.state==='online':state&&typeof state.occupied==='boolean'?state.occupied:!!(state&&state.work);
       ctx.drawImage(e.screen&&!occupied?e.screen.off:e.body,x+f.x,y+f.y,e.body.width/DENSITY,e.body.height/DENSITY);
       if(e.live)ctx.drawImage(e.live,x+f.x,y+f.y,e.live.width/DENSITY,e.live.height/DENSITY);
       if(e.screen&&occupied&&!(state&&state.still)){
@@ -287,8 +292,32 @@ const PropRemaster = (() => {
           v.motion.region.forEach((p,i)=>{const px=x+e.box.x+p[0]*e.box.width,py=y+e.box.y+p[1]*e.box.height;i?ctx.lineTo(px,py):ctx.moveTo(px,py);});ctx.closePath();ctx.fill();
         }else ctx.drawImage(e.motion[phase],x+f.x,y+f.y,e.body.width/DENSITY,e.body.height/DENSITY);
       }
+      if(v.mode==='approved'){
+        ctx.globalCompositeOperation='source-over';ctx.globalAlpha=1;
+        if(e.approved&&typeof ApprovedSheetEffects!=='undefined')ApprovedSheetEffects.draw(ctx,id,{x:x+e.box.x,y:y+e.box.y,width:e.box.width,height:e.box.height,crop:e.crop,sourceWidth:v.sourceWidth,sourceHeight:v.sourceHeight},{...state,prepared:e.approved});
+        approvedState(ctx,id,e,x,y,state||{});
+      }
     }finally{ctx.restore();}
     return true;
+  }
+  function approvedState(ctx,id,e,x,y,state){
+    // Small real-state marks sit below the source artwork. These are readable
+    // telemetry, never invented inventory or replacement geometry in the PNG.
+    let label=null;
+    if(id==='outbox'&&state.crates>0)label=String(state.crates)+' pending';
+    if(id==='missionboard'&&state.pins>0)label=String(state.pins)+' quests';
+    if(id==='trophycase'&&state.trophies>0)label=String(state.trophies)+' earned';
+    if(id==='airlock'&&state.door)label=String(state.door).slice(0,16);
+    if(label){ctx.font='3px monospace';ctx.textAlign='center';ctx.fillStyle='#cbb985';ctx.fillText(label,x+e.spec.footprint.w*6,y+e.box.y+e.box.height+3);}
+    const trigger=e.spec.activity,amount=trigger==='fired'?Math.max(0,Math.min(1,+state.fired||0)):trigger==='work'&&state.work?1:trigger==='ambient'?.3:0;
+    if(amount&&!e.approved&&e.indicators){ctx.globalAlpha=amount*(state.still?.45:.35+.15*Math.sin((+state.now||0)/280));ctx.drawImage(e.indicators[state.bad?1:0],x+e.frame.x,y+e.frame.y,e.body.width/DENSITY,e.body.height/DENSITY);}
+  }
+  function authoredIndicators(body){
+    const src=body.getContext('2d').getImageData(0,0,body.width,body.height).data;
+    return [[239,194,103],[222,85,68]].map(colour=>{const cv=canvas(body.width,body.height),g=cv.getContext('2d'),p=g.createImageData(body.width,body.height);
+      for(let i=0;i<src.length;i+=4){const hi=Math.max(src[i],src[i+1],src[i+2]),lo=Math.min(src[i],src[i+1],src[i+2]);if(src[i+3]<180||hi<110||hi-lo<32)continue;
+        p.data[i]=colour[0];p.data[i+1]=colour[1];p.data[i+2]=colour[2];p.data[i+3]=Math.min(100,hi-lo);}
+      g.putImageData(p,0,0);return cv;});
   }
   const ready=(async()=>{
     if(typeof document==='undefined'||typeof Image==='undefined'||typeof fetch!=='function')return;

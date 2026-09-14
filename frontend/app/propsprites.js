@@ -11661,7 +11661,7 @@ const PropSprites = (() => {
       x=X+authoredScreen.x;y=Y+authoredScreen.y;
       if(authoredScreen.mirror)x=2*X+W-x;
     }
-    if(remasterStyle()&&(f.t==='desk'||f.t==='desk2')){
+    if(!authoredScreen&&remasterStyle()&&(f.t==='desk'||f.t==='desk2')&&!(typeof PropRemaster!=='undefined'&&PropRemaster.enabled(f.t))){
       const facing=(f.r|0)&3,view=viewAt(f.t,facing),source=facing===2?'n':facing===0?'s':'e';
       const mirror=((((canMirror(f.t)&&f.m)?1:0)^(view&&view.mirror?1:0))&1)!==0;
       if(typeof IndustrialTextures.workstationEmitter==='function'){
@@ -11742,13 +11742,9 @@ const PropSprites = (() => {
   }
   // Complete authored views receive live state here. Only explicit legacy drafts
   // call the old painter for moving layers; viewAt still owns direction/mirroring.
-  // These previously approved raster assets keep their existing renderer.
-  const APPROVED_RASTER = new Set(['crate','desk','desk2','chair','bridge_consolebank',
-    'bridge_tacticaltable','bridge_equipmentbay','bridge_deckperimeter']);
   let nativeSkinDepth = 0;
   if (typeof PropRemaster !== 'undefined') {
     for (const c of CATALOG) {
-      if (APPROVED_RASTER.has(c.id)) continue;
       for (const facing of ['s','n','e','w']) {
         const key = facing === 's' ? c.id : viewKey(c.id,facing), native = F[key];
         if (!native) continue; // never invent an unsupported upright facing
