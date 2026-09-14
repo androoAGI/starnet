@@ -1,0 +1,99 @@
+{
+  "version": 1,
+  "lane": "storage",
+  "status": "art-candidates-alpha-failed",
+  "readyForRuntime": false,
+  "integrationOwner": "agent/industrial-textures-0912",
+  "tilePixels": 12,
+  "notes": [
+    "These are intact built-in image_gen outputs, with baked checkerboards and NO alpha.",
+    "Do not load directly as runtime sprites. Owner export workflow must extract silhouettes and reassess geometry.",
+    "No runtime manifest or renderer was edited. No acceptance or live integration claimed."
+  ],
+  "candidates": {
+    "bookshelf": {
+      "image": "bookshelf.png",
+      "sourceWidth": 1364,
+      "sourceHeight": 1153,
+      "mode": "static",
+      "view": "s",
+      "footprint": {
+        "w": 2,
+        "h": 1
+      },
+      "bounds": {
+        "x": -1,
+        "y": -9,
+        "width": 26,
+        "height": 22
+      },
+      "floorContact": {
+        "x": 12,
+        "y": 13,
+        "meaning": "Proposed bottom-center of authored visual envelope; preserve south standing approach."
+      },
+      "alpha": {
+        "format": "RGB24",
+        "transparentPixels": 0,
+        "partialPixels": 0,
+        "opaquePixels": 1572692,
+        "actualAlphaBounds": {
+          "x": 0,
+          "y": 0,
+          "width": 1364,
+          "height": 1153
+        }
+      },
+      "holes": [
+        "Background around silhouette and between integral feet under lower shelf must become transparent.",
+        "Shelf interiors are opaque dark back panels; do not erase recesses."
+      ],
+      "review": "Native visual inspection: coherent materials, open shelves, physical books, overhead south camera. Game-scale inspection: shelves and upright book blocks remain visible; checkerboard makes direct use fail."
+    },
+    "boxes": {
+      "image": "boxes.png",
+      "sourceWidth": 1704,
+      "sourceHeight": 923,
+      "mode": "static",
+      "view": "s",
+      "footprint": {
+        "w": 2,
+        "h": 1
+      },
+      "bounds": {
+        "x": 0,
+        "y": -1,
+        "width": 24,
+        "height": 13
+      },
+      "floorContact": {
+        "x": 12,
+        "y": 12,
+        "meaning": "Proposed bottom-center of envelope. Optional table mount lifts origin 8 world pixels."
+      },
+      "alpha": {
+        "format": "RGB24",
+        "transparentPixels": 0,
+        "partialPixels": 0,
+        "opaquePixels": 1572792,
+        "actualAlphaBounds": {
+          "x": 0,
+          "y": 0,
+          "width": 1704,
+          "height": 923
+        }
+      },
+      "holes": [
+        "Background above low left case and around entire irregular cluster must become transparent.",
+        "Dark seams between touching boxes are object shading; do not erase."
+      ],
+      "review": "Native visual inspection: three distinct case forms, horizontal front edge, restrained accents, no invented status lights. Game-scale inspection: wide asymmetric cluster and top-right box remain legible; checkerboard makes direct use fail."
+    }
+  },
+  "verification": {
+    "nativeImageInspection": true,
+    "gameScaleInspection": "game-scale-qa.png: originals uniformly fitted inside world envelope, high quality downsample, then enlarged 7x nearest for inspection only; no source editing.",
+    "testFast": "Not run: asset-only unintegrated handoff; parent/owner owns integration gate.",
+    "liveIntegrated": false
+  }
+}
