@@ -1,0 +1,3196 @@
+{
+  "version": 1,
+  "scope": "Original twelve utility props; south view only",
+  "status": "Recipe data and region QA; runtime mechanisms not implemented or live-verified here",
+  "coordinateConvention": {
+    "source": "All region, polygon, origin and geometry-bearing parameter points are [u,v] normalized to the FULL exported PNG, top-left origin.",
+    "engineAlphaNormalized": "Same corresponding points normalized to nonzero-alpha bounding rectangle. Formula u'=(u*width-alphaBounds.x)/alphaBounds.width, v'=(v*height-alphaBounds.y)/alphaBounds.height. Values are not clamped.",
+    "geometryNote": "Regions are bounded effect/content envelopes, not pixel-perfect segmentation masks. Explicit mask/clip/exclusion requirements still apply. Do not treat a polygon covering glass as permission to paint through a specimen or a reflection."
+  },
+  "timingConvention": "Clock denominators reproduce native formulas and are not necessarily full periods. Keep world/prop phase when provided. Work means incoming f.work only; no invented fired, completion, occupancy or harness-vitals telemetry.",
+  "integrationStatus": "Meaningful motion on baked content requires local deformation or isolated/underpainted content layers; generic screen pulses cannot substitute for fish, lava, plasma or specimen motion.",
+  "props": {
+    "industrial_planter": {
+      "views": {
+        "s": {
+          "image": "frontend/assets/industrial/batch03/utility/industrial_planter.png",
+          "outputSha256": "20702ead904c798b595e6cd89acb40bc6aee17e04cf3b1c9b852c91ad0d13603",
+          "width": 1430,
+          "height": 1100,
+          "alphaBounds": {
+            "x": 26,
+            "y": 96,
+            "width": 1379,
+            "height": 800
+          },
+          "mode": "static",
+          "originalTrigger": {
+            "kind": "none",
+            "condition": "F.industrial_planter reads no now, f.work, fired or blink state.",
+            "evidence": [
+              "frontend/app/propsprites.js:10575",
+              "frontend/app/propsprites.js:10579"
+            ],
+            "workResponse": false,
+            "firedResponse": false
+          },
+          "palette": [
+            "#244b26",
+            "#73913d",
+            "#1d5961",
+            "#c58143"
+          ],
+          "motion": [],
+          "screenRegions": [],
+          "intentionalStatic": "Native trough is static; no animated function or functional process is removed.",
+          "functionalCapabilitiesPreserved": [
+            "2x1 blocking planter footprint and intact foliage/pot"
+          ],
+          "integrationRequirements": [
+            "Keep whole sprite static; do not add glow, blinking telemetry or blanket sway to this trough.",
+            "Preserve nativeContract placement, mount, leisure approach and light registration. This recipe authorizes no geometry or behavior contract edits."
+          ],
+          "nativeContract": {
+            "remasterBox": {
+              "w": 2,
+              "h": 1
+            },
+            "tilePixels": 12,
+            "geometry": {
+              "blocks": true,
+              "flat": false,
+              "tableSurface": false,
+              "requiredMount": null,
+              "optionalSurfaceMount": false,
+              "surfaceRisePixels": 8
+            },
+            "leisureUse": null,
+            "light": null,
+            "anchorContract": "No leisure seat anchor. Footprint is the placement/pathfinding rectangle; upright visual rise is independent of the reserved box.",
+            "assignedWorkstation": false,
+            "capabilityObjectType": null,
+            "sourceEvidence": {
+              "catalog": "frontend/app/propsprites.js:10730",
+              "geometry": "frontend/app/propsprites.js:11006",
+              "drawState": "frontend/app/propsprites.js:11279",
+              "liveWorld": "frontend/app/world.js:6029"
+            }
+          }
+        }
+      }
+    },
+    "tallplant": {
+      "views": {
+        "s": {
+          "image": "frontend/assets/industrial/batch03/utility/tallplant.png",
+          "outputSha256": "0a954344173bf3dcb92242b50fd3cf111a0333718ba95d5453bdd50ee4119ce3",
+          "width": 887,
+          "height": 1774,
+          "alphaBounds": {
+            "x": 116,
+            "y": 17,
+            "width": 664,
+            "height": 1731
+          },
+          "mode": "static",
+          "originalTrigger": {
+            "kind": "ambient",
+            "condition": "sway=flick(1400,ph+x)>0?1:0; only upper blade tips move",
+            "evidence": [
+              "frontend/app/propsprites.js:1784",
+              "frontend/app/propsprites.js:1785",
+              "frontend/app/propsprites.js:1806",
+              "frontend/app/propsprites.js:1816"
+            ],
+            "workResponse": false,
+            "firedResponse": false
+          },
+          "palette": [
+            "#274719",
+            "#467622",
+            "#89a53a"
+          ],
+          "motion": [],
+          "screenRegions": [],
+          "functionalCapabilitiesPreserved": [
+            "1x1 blocking floor-plant placement",
+            "Native leisureUse=null and light=null remain unchanged; no new use action or emission."
+          ],
+          "integrationRequirements": [
+            "Keep pot and foliage static. Preserve native placement, leisure and lighting registration; this recipe changes no runtime contracts.",
+            "Do not add emissive flicker to compensate for intentionally omitted cosmetic sway.",
+            "Preserve nativeContract placement, mount, leisure approach and light registration. This recipe authorizes no geometry or behavior contract edits."
+          ],
+          "intentionalStatic": "Art-direction judgment authorized by coordinator: quiet painted foliage deliberately omits the native cosmetic upper-leaf air-handling sway. This is not a change to placement, leisure availability, lighting or a work-triggered mechanism. Source evidence records the old ambient movement separately.",
+          "nativeContract": {
+            "remasterBox": {
+              "w": 1,
+              "h": 1
+            },
+            "tilePixels": 12,
+            "geometry": {
+              "blocks": true,
+              "flat": false,
+              "tableSurface": false,
+              "requiredMount": null,
+              "optionalSurfaceMount": false,
+              "surfaceRisePixels": 8
+            },
+            "leisureUse": null,
+            "light": null,
+            "anchorContract": "No leisure seat anchor. Footprint is the placement/pathfinding rectangle; upright visual rise is independent of the reserved box.",
+            "assignedWorkstation": false,
+            "capabilityObjectType": null,
+            "sourceEvidence": {
+              "catalog": "frontend/app/propsprites.js:10910",
+              "geometry": "frontend/app/propsprites.js:11006",
+              "drawState": "frontend/app/propsprites.js:11279",
+              "liveWorld": "frontend/app/world.js:6029"
+            }
+          }
+        }
+      }
+    },
+    "monstera": {
+      "views": {
+        "s": {
+          "image": "frontend/assets/industrial/batch03/utility/monstera.png",
+          "outputSha256": "a72776ff73fe4d9fdabb8c3d46df9b5028e75978e3b0d7c3c74175f3f0a33b47",
+          "width": 1205,
+          "height": 1306,
+          "alphaBounds": {
+            "x": 22,
+            "y": 7,
+            "width": 1165,
+            "height": 1255
+          },
+          "mode": "static",
+          "originalTrigger": {
+            "kind": "ambient",
+            "condition": "nod=blink(2000,ph+x)?1:0; crown paddle alone shifts with air handling",
+            "evidence": [
+              "frontend/app/propsprites.js:1971",
+              "frontend/app/propsprites.js:1998",
+              "frontend/app/propsprites.js:2000"
+            ],
+            "workResponse": false,
+            "firedResponse": false
+          },
+          "palette": [
+            "#215b29",
+            "#56852e",
+            "#a5a43c"
+          ],
+          "motion": [],
+          "screenRegions": [],
+          "functionalCapabilitiesPreserved": [
+            "Walk-over 1x1 floor placement and original pot contact",
+            "Native leisureUse=null and light=null remain unchanged; no new use action or emission."
+          ],
+          "integrationRequirements": [
+            "Keep pot and foliage static. Preserve native placement, leisure and lighting registration; this recipe changes no runtime contracts.",
+            "Do not add emissive flicker to compensate for intentionally omitted cosmetic sway.",
+            "Preserve nativeContract placement, mount, leisure approach and light registration. This recipe authorizes no geometry or behavior contract edits."
+          ],
+          "intentionalStatic": "Art-direction judgment authorized by coordinator: quiet painted foliage deliberately omits the native cosmetic upper-leaf air-handling sway. This is not a change to placement, leisure availability, lighting or a work-triggered mechanism. Source evidence records the old ambient movement separately.",
+          "nativeContract": {
+            "remasterBox": {
+              "w": 1,
+              "h": 1
+            },
+            "tilePixels": 12,
+            "geometry": {
+              "blocks": false,
+              "flat": false,
+              "tableSurface": false,
+              "requiredMount": null,
+              "optionalSurfaceMount": false,
+              "surfaceRisePixels": 8
+            },
+            "leisureUse": null,
+            "light": null,
+            "anchorContract": "No leisure seat anchor. Footprint is the placement/pathfinding rectangle; upright visual rise is independent of the reserved box.",
+            "assignedWorkstation": false,
+            "capabilityObjectType": null,
+            "sourceEvidence": {
+              "catalog": "frontend/app/propsprites.js:10917",
+              "geometry": "frontend/app/propsprites.js:11006",
+              "drawState": "frontend/app/propsprites.js:11279",
+              "liveWorld": "frontend/app/world.js:6029"
+            }
+          }
+        }
+      }
+    },
+    "terrarium": {
+      "views": {
+        "s": {
+          "image": "frontend/assets/industrial/batch03/utility/terrarium.png",
+          "outputSha256": "b591ddaa41c4086e90b3ef493684e238572d976d441591503f0acfc242579094",
+          "width": 1039,
+          "height": 1514,
+          "alphaBounds": {
+            "x": 184,
+            "y": 30,
+            "width": 672,
+            "height": 1434
+          },
+          "mode": "biological-spores",
+          "originalTrigger": {
+            "kind": "ambient",
+            "condition": "colony bloom flick(900,ph+x), one spore rises at now/800 and wanders at now/1300; no sensor lamp",
+            "evidence": [
+              "frontend/app/propsprites.js:1844",
+              "frontend/app/propsprites.js:1846",
+              "frontend/app/propsprites.js:1847",
+              "frontend/app/propsprites.js:1850"
+            ],
+            "workResponse": false,
+            "firedResponse": false
+          },
+          "palette": [
+            "#2c5d20",
+            "#89a634",
+            "#bcd471"
+          ],
+          "motion": [
+            {
+              "mechanism": "colony-breathe",
+              "region": [
+                [
+                  0.232,
+                  0.42
+                ],
+                [
+                  0.751,
+                  0.42
+                ],
+                [
+                  0.764,
+                  0.696
+                ],
+                [
+                  0.241,
+                  0.718
+                ]
+              ],
+              "origin": [
+                0.49,
+                0.645
+              ],
+              "colour": "#82b652",
+              "trigger": "ambient",
+              "parameters": {
+                "clockDenominatorMs": 900,
+                "opacityRange": [
+                  0.015,
+                  0.06
+                ],
+                "mask": "living foliage/moss inside front glass only; preserve wood/soil/rocks",
+                "compositing": "Clip to specified material/content mask and sprite alpha; keep static silhouette and foreground occluders. Region is an envelope, not a segmentation mask."
+              },
+              "engineAlphaNormalized": {
+                "region": [
+                  [
+                    0.0848929,
+                    0.4225105
+                  ],
+                  [
+                    0.8873348,
+                    0.4225105
+                  ],
+                  [
+                    0.9074345,
+                    0.7139079
+                  ],
+                  [
+                    0.098808,
+                    0.7371353
+                  ]
+                ],
+                "origin": [
+                  0.4837946,
+                  0.6600628
+                ]
+              }
+            },
+            {
+              "mechanism": "single-spore-rise",
+              "region": [
+                [
+                  0.31,
+                  0.3
+                ],
+                [
+                  0.6699999999999999,
+                  0.3
+                ],
+                [
+                  0.6699999999999999,
+                  0.6599999999999999
+                ],
+                [
+                  0.31,
+                  0.6599999999999999
+                ]
+              ],
+              "origin": [
+                0.49,
+                0.66
+              ],
+              "colour": "#bdd782",
+              "trigger": "ambient",
+              "parameters": {
+                "count": 1,
+                "riseStepMs": 800,
+                "wanderStepMs": 1300,
+                "maxWorldDiameterPixels": 0.35,
+                "clip": "front pane; not over brass frame",
+                "compositing": "Clip to specified material/content mask and sprite alpha; keep static silhouette and foreground occluders. Region is an envelope, not a segmentation mask."
+              },
+              "engineAlphaNormalized": {
+                "region": [
+                  [
+                    0.2054911,
+                    0.2958159
+                  ],
+                  [
+                    0.7620982,
+                    0.2958159
+                  ],
+                  [
+                    0.7620982,
+                    0.6758996
+                  ],
+                  [
+                    0.2054911,
+                    0.6758996
+                  ]
+                ],
+                "origin": [
+                  0.4837946,
+                  0.6758996
+                ]
+              }
+            }
+          ],
+          "screenRegions": [],
+          "functionalCapabilitiesPreserved": [
+            "Biological colony breathing and drifting spore",
+            "Standing leisure prop and blocking footprint"
+          ],
+          "integrationRequirements": [
+            "Keep spores subtle; no screen scanlines, fake seal indicator or sensor status.",
+            "Glass reflections/frame remain static; intentional absence of native fake seal lamp is preserved.",
+            "Preserve nativeContract placement, mount, leisure approach and light registration. This recipe authorizes no geometry or behavior contract edits."
+          ],
+          "nativeContract": {
+            "remasterBox": {
+              "w": 1,
+              "h": 1
+            },
+            "tilePixels": 12,
+            "geometry": {
+              "blocks": true,
+              "flat": false,
+              "tableSurface": false,
+              "requiredMount": null,
+              "optionalSurfaceMount": false,
+              "surfaceRisePixels": 8
+            },
+            "leisureUse": {
+              "kind": "terra",
+              "sit": false,
+              "approach": "auto"
+            },
+            "light": {
+              "c": [
+                120,
+                255,
+                170
+              ],
+              "r": 14,
+              "a": 0.06,
+              "m": "steady",
+              "y": 0.4
+            },
+            "anchorContract": "PropAnchor derives reachable edge approach; useApproach rotates relative preference with r. Preserve standing leisure action unless special planner supplies a real body anchor.",
+            "assignedWorkstation": false,
+            "capabilityObjectType": null,
+            "sourceEvidence": {
+              "catalog": "frontend/app/propsprites.js:10911",
+              "geometry": "frontend/app/propsprites.js:11006",
+              "drawState": "frontend/app/propsprites.js:11279",
+              "liveWorld": "frontend/app/world.js:6029"
+            }
+          }
+        }
+      }
+    },
+    "fishtank": {
+      "views": {
+        "s": {
+          "image": "frontend/assets/industrial/batch03/utility/fishtank.png",
+          "outputSha256": "063b2807b5ed711a94fb640e294055168f85e398ddb73a42197636d7fb72be0f",
+          "width": 1306,
+          "height": 1205,
+          "alphaBounds": {
+            "x": 139,
+            "y": 55,
+            "width": 1026,
+            "height": 1077
+          },
+          "mode": "aquarium",
+          "originalTrigger": {
+            "kind": "ambient",
+            "condition": "surface sine caustics; plant sway; three fish traverse with beating tails; four rising bubbles",
+            "evidence": [
+              "frontend/app/propsprites.js:2067",
+              "frontend/app/propsprites.js:2087",
+              "frontend/app/propsprites.js:2101",
+              "frontend/app/propsprites.js:2102",
+              "frontend/app/propsprites.js:2112",
+              "frontend/app/propsprites.js:2117"
+            ],
+            "workResponse": false,
+            "firedResponse": false
+          },
+          "palette": [
+            "#0b637c",
+            "#40b9d8",
+            "#b8edf3",
+            "#ed8c3f",
+            "#a9cfec"
+          ],
+          "motion": [
+            {
+              "mechanism": "water-surface-caustics",
+              "region": [
+                [
+                  0.142,
+                  0.231
+                ],
+                [
+                  0.854,
+                  0.231
+                ],
+                [
+                  0.861,
+                  0.263
+                ],
+                [
+                  0.144,
+                  0.272
+                ]
+              ],
+              "origin": [
+                0.5,
+                0.25
+              ],
+              "colour": "#b8edf3",
+              "trigger": "ambient",
+              "parameters": {
+                "clockDenominatorsMs": [
+                  620,
+                  410
+                ],
+                "opacityRange": [
+                  0.015,
+                  0.06
+                ],
+                "compositing": "Clip to specified material/content mask and sprite alpha; keep static silhouette and foreground occluders. Region is an envelope, not a segmentation mask."
+              },
+              "engineAlphaNormalized": {
+                "region": [
+                  [
+                    0.0452749,
+                    0.2073863
+                  ],
+                  [
+                    0.9515828,
+                    0.2073863
+                  ],
+                  [
+                    0.9604932,
+                    0.2431894
+                  ],
+                  [
+                    0.0478207,
+                    0.2532591
+                  ]
+                ],
+                "origin": [
+                  0.5009747,
+                  0.2286444
+                ]
+              }
+            },
+            {
+              "mechanism": "fish-swim",
+              "region": [
+                [
+                  0.285,
+                  0.315
+                ],
+                [
+                  0.745,
+                  0.315
+                ],
+                [
+                  0.745,
+                  0.52
+                ],
+                [
+                  0.285,
+                  0.52
+                ]
+              ],
+              "origin": [
+                0.5,
+                0.42
+              ],
+              "colour": "#ed8c3f",
+              "trigger": "ambient",
+              "parameters": {
+                "nativeFishClocksMs": [
+                  2600,
+                  3400,
+                  4200
+                ],
+                "verticalClockMs": 1900,
+                "tailBeatMs": 170,
+                "count": 3,
+                "sourceFishRegions": [
+                  [
+                    [
+                      0.415,
+                      0.345
+                    ],
+                    [
+                      0.52,
+                      0.345
+                    ],
+                    [
+                      0.52,
+                      0.39999999999999997
+                    ],
+                    [
+                      0.415,
+                      0.39999999999999997
+                    ]
+                  ],
+                  [
+                    [
+                      0.618,
+                      0.398
+                    ],
+                    [
+                      0.718,
+                      0.398
+                    ],
+                    [
+                      0.718,
+                      0.458
+                    ],
+                    [
+                      0.618,
+                      0.458
+                    ]
+                  ],
+                  [
+                    [
+                      0.654,
+                      0.488
+                    ],
+                    [
+                      0.754,
+                      0.488
+                    ],
+                    [
+                      0.754,
+                      0.538
+                    ],
+                    [
+                      0.654,
+                      0.538
+                    ]
+                  ]
+                ],
+                "mask": "isolate fish from existing art and repair water behind before translating; fish layers must not duplicate baked fish",
+                "amplitude": "short local traverses within water; do not move wood/plants",
+                "compositing": "Clip to specified material/content mask and sprite alpha; keep static silhouette and foreground occluders. Region is an envelope, not a segmentation mask."
+              },
+              "engineAlphaNormalized": {
+                "region": [
+                  [
+                    0.2273002,
+                    0.3013695
+                  ],
+                  [
+                    0.8128363,
+                    0.3013695
+                  ],
+                  [
+                    0.8128363,
+                    0.5307335
+                  ],
+                  [
+                    0.2273002,
+                    0.5307335
+                  ]
+                ],
+                "origin": [
+                  0.5009747,
+                  0.4188487
+                ],
+                "sourceFishRegions": [
+                  [
+                    [
+                      0.3927778,
+                      0.334935
+                    ],
+                    [
+                      0.5264327,
+                      0.334935
+                    ],
+                    [
+                      0.5264327,
+                      0.3964717
+                    ],
+                    [
+                      0.3927778,
+                      0.3964717
+                    ]
+                  ],
+                  [
+                    [
+                      0.6511774,
+                      0.394234
+                    ],
+                    [
+                      0.7784678,
+                      0.394234
+                    ],
+                    [
+                      0.7784678,
+                      0.4613649
+                    ],
+                    [
+                      0.6511774,
+                      0.4613649
+                    ]
+                  ],
+                  [
+                    [
+                      0.6970019,
+                      0.4949304
+                    ],
+                    [
+                      0.8242924,
+                      0.4949304
+                    ],
+                    [
+                      0.8242924,
+                      0.5508728
+                    ],
+                    [
+                      0.6970019,
+                      0.5508728
+                    ]
+                  ]
+                ]
+              }
+            },
+            {
+              "mechanism": "aquatic-foliage-sway",
+              "region": [
+                [
+                  0.16,
+                  0.282
+                ],
+                [
+                  0.8400000000000001,
+                  0.282
+                ],
+                [
+                  0.8400000000000001,
+                  0.612
+                ],
+                [
+                  0.16,
+                  0.612
+                ]
+              ],
+              "origin": [
+                0.5,
+                0.605
+              ],
+              "colour": "#568e39",
+              "trigger": "ambient",
+              "parameters": {
+                "clockDenominatorMs": 1100,
+                "mask": "only green aquatic leaves; keep roots/gravel fixed",
+                "maxWorldDisplacementPixels": 0.4,
+                "compositing": "Clip to specified material/content mask and sprite alpha; keep static silhouette and foreground occluders. Region is an envelope, not a segmentation mask."
+              },
+              "engineAlphaNormalized": {
+                "region": [
+                  [
+                    0.0681871,
+                    0.2644475
+                  ],
+                  [
+                    0.9337622,
+                    0.2644475
+                  ],
+                  [
+                    0.9337622,
+                    0.6336676
+                  ],
+                  [
+                    0.0681871,
+                    0.6336676
+                  ]
+                ],
+                "origin": [
+                  0.5009747,
+                  0.6258357
+                ]
+              }
+            },
+            {
+              "mechanism": "bubble-rise",
+              "region": [
+                [
+                  0.738,
+                  0.29
+                ],
+                [
+                  0.804,
+                  0.29
+                ],
+                [
+                  0.804,
+                  0.54
+                ],
+                [
+                  0.738,
+                  0.54
+                ]
+              ],
+              "origin": [
+                0.77,
+                0.54
+              ],
+              "colour": "#bfeeff",
+              "trigger": "ambient",
+              "parameters": {
+                "count": 4,
+                "riseStepMs": 190,
+                "clip": "inside water, stop below hood",
+                "compositing": "Clip to specified material/content mask and sprite alpha; keep static silhouette and foreground occluders. Region is an envelope, not a segmentation mask."
+              },
+              "engineAlphaNormalized": {
+                "region": [
+                  [
+                    0.8039259,
+                    0.2733983
+                  ],
+                  [
+                    0.8879376,
+                    0.2733983
+                  ],
+                  [
+                    0.8879376,
+                    0.5531105
+                  ],
+                  [
+                    0.8039259,
+                    0.5531105
+                  ]
+                ],
+                "origin": [
+                  0.8446589,
+                  0.5531105
+                ]
+              }
+            }
+          ],
+          "screenRegions": [],
+          "functionalCapabilitiesPreserved": [
+            "Swimming fish and tail beats",
+            "Water-surface movement, rooted plant sway, bubbler",
+            "Standing leisure contract"
+          ],
+          "integrationRequirements": [
+            "Use aquarium-specific content animation, never screen/scanner over glass.",
+            "Moving fish are baked into base: content isolation/underpainting or a local clipped warp is required. Do not simply add extra fish.",
+            "Keep all effects off hood, cabinet, glass edge highlights and gravel.",
+            "Preserve nativeContract placement, mount, leisure approach and light registration. This recipe authorizes no geometry or behavior contract edits."
+          ],
+          "nativeContract": {
+            "remasterBox": {
+              "w": 2,
+              "h": 1
+            },
+            "tilePixels": 12,
+            "geometry": {
+              "blocks": true,
+              "flat": false,
+              "tableSurface": false,
+              "requiredMount": null,
+              "optionalSurfaceMount": false,
+              "surfaceRisePixels": 8
+            },
+            "leisureUse": {
+              "kind": "fish",
+              "sit": false,
+              "approach": "south"
+            },
+            "light": {
+              "c": [
+                80,
+                200,
+                220
+              ],
+              "r": 22,
+              "a": 0.12,
+              "m": "pulse",
+              "y": 0.45
+            },
+            "anchorContract": "PropAnchor derives reachable edge approach; useApproach rotates relative preference with r. Preserve standing leisure action unless special planner supplies a real body anchor.",
+            "assignedWorkstation": false,
+            "capabilityObjectType": null,
+            "sourceEvidence": {
+              "catalog": "frontend/app/propsprites.js:10929",
+              "geometry": "frontend/app/propsprites.js:11006",
+              "drawState": "frontend/app/propsprites.js:11279",
+              "liveWorld": "frontend/app/world.js:6029"
+            }
+          }
+        }
+      }
+    },
+    "lavalamp": {
+      "views": {
+        "s": {
+          "image": "frontend/assets/industrial/batch03/utility/lavalamp.png",
+          "outputSha256": "0e7d65f917ffbf36808fb82912c2dcc71c5c1187caf03811138e0d98bdfff2db",
+          "width": 793,
+          "height": 1983,
+          "alphaBounds": {
+            "x": 117,
+            "y": 22,
+            "width": 559,
+            "height": 1931
+          },
+          "mode": "lava-wax",
+          "originalTrigger": {
+            "kind": "ambient",
+            "condition": "Two wax blobs rise independently via now/620 and now/940 modulo11; pool/breathing haze remains lit",
+            "evidence": [
+              "frontend/app/propsprites.js:1668",
+              "frontend/app/propsprites.js:1672",
+              "frontend/app/propsprites.js:1673",
+              "frontend/app/propsprites.js:1681"
+            ],
+            "workResponse": false,
+            "firedResponse": false
+          },
+          "palette": [
+            "#39113f",
+            "#ea431b",
+            "#ffad35",
+            "#fff28b"
+          ],
+          "motion": [
+            {
+              "mechanism": "wax-rise-and-merge",
+              "region": [
+                [
+                  0.39,
+                  0.164
+                ],
+                [
+                  0.61,
+                  0.164
+                ],
+                [
+                  0.658,
+                  0.354
+                ],
+                [
+                  0.765,
+                  0.606
+                ],
+                [
+                  0.733,
+                  0.69
+                ],
+                [
+                  0.595,
+                  0.711
+                ],
+                [
+                  0.34,
+                  0.71
+                ],
+                [
+                  0.218,
+                  0.668
+                ],
+                [
+                  0.234,
+                  0.582
+                ],
+                [
+                  0.317,
+                  0.348
+                ]
+              ],
+              "origin": [
+                0.49,
+                0.697
+              ],
+              "colour": "#ff8b26",
+              "trigger": "ambient",
+              "parameters": {
+                "nativeRiseClocksMs": [
+                  620,
+                  940
+                ],
+                "nativeSpan": 11,
+                "mask": "orange/yellow wax only inside purple glass; cap/base remain static",
+                "behavior": "Two independent upward loops, small organic deformation, merge into bottom pool",
+                "bakedWaxRegions": [
+                  [
+                    [
+                      0.371,
+                      0.191
+                    ],
+                    [
+                      0.627,
+                      0.191
+                    ],
+                    [
+                      0.627,
+                      0.3
+                    ],
+                    [
+                      0.371,
+                      0.3
+                    ]
+                  ],
+                  [
+                    [
+                      0.51,
+                      0.321
+                    ],
+                    [
+                      0.737,
+                      0.321
+                    ],
+                    [
+                      0.737,
+                      0.488
+                    ],
+                    [
+                      0.51,
+                      0.488
+                    ]
+                  ],
+                  [
+                    [
+                      0.31,
+                      0.431
+                    ],
+                    [
+                      0.534,
+                      0.431
+                    ],
+                    [
+                      0.534,
+                      0.608
+                    ],
+                    [
+                      0.31,
+                      0.608
+                    ]
+                  ],
+                  [
+                    [
+                      0.273,
+                      0.57
+                    ],
+                    [
+                      0.6819999999999999,
+                      0.57
+                    ],
+                    [
+                      0.6819999999999999,
+                      0.709
+                    ],
+                    [
+                      0.273,
+                      0.709
+                    ]
+                  ]
+                ],
+                "compositing": "Clip to specified material/content mask and sprite alpha; keep static silhouette and foreground occluders. Region is an envelope, not a segmentation mask."
+              },
+              "engineAlphaNormalized": {
+                "region": [
+                  [
+                    0.3439535,
+                    0.1570233
+                  ],
+                  [
+                    0.6560465,
+                    0.1570233
+                  ],
+                  [
+                    0.7241395,
+                    0.3521398
+                  ],
+                  [
+                    0.8759302,
+                    0.6109259
+                  ],
+                  [
+                    0.8305349,
+                    0.697188
+                  ],
+                  [
+                    0.6347674,
+                    0.7187535
+                  ],
+                  [
+                    0.2730233,
+                    0.7177266
+                  ],
+                  [
+                    0.0999535,
+                    0.6745955
+                  ],
+                  [
+                    0.1226512,
+                    0.5862796
+                  ],
+                  [
+                    0.2403953,
+                    0.3459782
+                  ]
+                ],
+                "origin": [
+                  0.485814,
+                  0.7043765
+                ],
+                "bakedWaxRegions": [
+                  [
+                    [
+                      0.317,
+                      0.1847504
+                    ],
+                    [
+                      0.6801628,
+                      0.1847504
+                    ],
+                    [
+                      0.6801628,
+                      0.2966857
+                    ],
+                    [
+                      0.317,
+                      0.2966857
+                    ]
+                  ],
+                  [
+                    [
+                      0.514186,
+                      0.3182512
+                    ],
+                    [
+                      0.8362093,
+                      0.3182512
+                    ],
+                    [
+                      0.8362093,
+                      0.4897483
+                    ],
+                    [
+                      0.514186,
+                      0.4897483
+                    ]
+                  ],
+                  [
+                    [
+                      0.2304651,
+                      0.4312134
+                    ],
+                    [
+                      0.5482326,
+                      0.4312134
+                    ],
+                    [
+                      0.5482326,
+                      0.6129798
+                    ],
+                    [
+                      0.2304651,
+                      0.6129798
+                    ]
+                  ],
+                  [
+                    [
+                      0.1779767,
+                      0.5739565
+                    ],
+                    [
+                      0.758186,
+                      0.5739565
+                    ],
+                    [
+                      0.758186,
+                      0.7166996
+                    ],
+                    [
+                      0.1779767,
+                      0.7166996
+                    ]
+                  ]
+                ]
+              }
+            },
+            {
+              "mechanism": "internal-pool-breathe",
+              "region": [
+                [
+                  0.315,
+                  0.637
+                ],
+                [
+                  0.6839999999999999,
+                  0.637
+                ],
+                [
+                  0.6839999999999999,
+                  0.704
+                ],
+                [
+                  0.315,
+                  0.704
+                ]
+              ],
+              "origin": [
+                0.5,
+                0.682
+              ],
+              "colour": "#ffda5e",
+              "trigger": "ambient",
+              "parameters": {
+                "clockDenominatorMs": 1100,
+                "opacityRange": [
+                  0.01,
+                  0.055
+                ],
+                "compositing": "Clip to specified material/content mask and sprite alpha; keep static silhouette and foreground occluders. Region is an envelope, not a segmentation mask."
+              },
+              "engineAlphaNormalized": {
+                "region": [
+                  [
+                    0.2375581,
+                    0.6427607
+                  ],
+                  [
+                    0.7610233,
+                    0.6427607
+                  ],
+                  [
+                    0.7610233,
+                    0.711565
+                  ],
+                  [
+                    0.2375581,
+                    0.711565
+                  ]
+                ],
+                "origin": [
+                  0.5,
+                  0.6889726
+                ]
+              }
+            }
+          ],
+          "screenRegions": [],
+          "functionalCapabilitiesPreserved": [
+            "Rising wax blobs rather than merely pulsing glass",
+            "Required surface mount with 8 world-pixel lift"
+          ],
+          "integrationRequirements": [
+            "Isolate/reproject baked wax or use bounded fluid distortion with static silhouette; adding blobs over stationary originals is wrong.",
+            "No steam outside lamp; clip under static glass highlight layer.",
+            "Preserve nativeContract placement, mount, leisure approach and light registration. This recipe authorizes no geometry or behavior contract edits."
+          ],
+          "nativeContract": {
+            "remasterBox": {
+              "w": 1,
+              "h": 1
+            },
+            "tilePixels": 12,
+            "geometry": {
+              "blocks": false,
+              "flat": false,
+              "tableSurface": false,
+              "requiredMount": "surface",
+              "optionalSurfaceMount": false,
+              "surfaceRisePixels": 8
+            },
+            "leisureUse": null,
+            "light": {
+              "c": [
+                255,
+                90,
+                140
+              ],
+              "r": 18,
+              "a": 0.14,
+              "m": "pulse",
+              "y": 0.4
+            },
+            "anchorContract": "Requires table host; contact origin lifted exactly 8 world pixels.",
+            "assignedWorkstation": false,
+            "capabilityObjectType": null,
+            "sourceEvidence": {
+              "catalog": "frontend/app/propsprites.js:10906",
+              "geometry": "frontend/app/propsprites.js:11006",
+              "drawState": "frontend/app/propsprites.js:11279",
+              "liveWorld": "frontend/app/world.js:6029"
+            }
+          }
+        }
+      }
+    },
+    "plasmaglobe": {
+      "views": {
+        "s": {
+          "image": "frontend/assets/industrial/batch03/utility/plasmaglobe.png",
+          "outputSha256": "e02e107a72ba6ba83b78334c4b7017bc332dcdfe15ae34865506974d33d460ac",
+          "width": 913,
+          "height": 1723,
+          "alphaBounds": {
+            "x": 34,
+            "y": 22,
+            "width": 845,
+            "height": 1622
+          },
+          "mode": "plasma-arcs",
+          "originalTrigger": {
+            "kind": "ambient",
+            "condition": "Two arc endpoints re-root on independent130/190 clocks, flick300 globe bloom",
+            "evidence": [
+              "frontend/app/propsprites.js:1913",
+              "frontend/app/propsprites.js:1914",
+              "frontend/app/propsprites.js:1915",
+              "frontend/app/propsprites.js:1920"
+            ],
+            "workResponse": false,
+            "firedResponse": false
+          },
+          "palette": [
+            "#30113f",
+            "#7726a7",
+            "#ed55ef",
+            "#fff1ff"
+          ],
+          "motion": [
+            {
+              "mechanism": "electrode-arcs",
+              "region": [
+                [
+                  0.49,
+                  0.027
+                ],
+                [
+                  0.71,
+                  0.067
+                ],
+                [
+                  0.865,
+                  0.163
+                ],
+                [
+                  0.937,
+                  0.257
+                ],
+                [
+                  0.874,
+                  0.364
+                ],
+                [
+                  0.681,
+                  0.445
+                ],
+                [
+                  0.492,
+                  0.477
+                ],
+                [
+                  0.25,
+                  0.425
+                ],
+                [
+                  0.097,
+                  0.317
+                ],
+                [
+                  0.063,
+                  0.22
+                ],
+                [
+                  0.13,
+                  0.117
+                ],
+                [
+                  0.29,
+                  0.05
+                ]
+              ],
+              "origin": [
+                0.496,
+                0.274
+              ],
+              "colour": "#e985f2",
+              "trigger": "ambient",
+              "parameters": {
+                "reRootStepMs": [
+                  130,
+                  190
+                ],
+                "count": 2,
+                "endpointRegions": [
+                  [
+                    0.25,
+                    0.12
+                  ],
+                  [
+                    0.805,
+                    0.21
+                  ],
+                  [
+                    0.22,
+                    0.35
+                  ],
+                  [
+                    0.78,
+                    0.365
+                  ]
+                ],
+                "clip": "sphere glass interior, exclude wooden base/electrode stem below globe",
+                "bakedArcs": "Existing arcs must be attenuated/replaced or locally warped; do not stack a constant bright cobweb",
+                "compositing": "Clip to specified material/content mask and sprite alpha; keep static silhouette and foreground occluders. Region is an envelope, not a segmentation mask."
+              },
+              "engineAlphaNormalized": {
+                "region": [
+                  [
+                    0.4891953,
+                    0.0151178
+                  ],
+                  [
+                    0.7268994,
+                    0.0576085
+                  ],
+                  [
+                    0.8943728,
+                    0.1595863
+                  ],
+                  [
+                    0.9721669,
+                    0.2594396
+                  ],
+                  [
+                    0.904097,
+                    0.3731023
+                  ],
+                  [
+                    0.6955657,
+                    0.4591461
+                  ],
+                  [
+                    0.4913562,
+                    0.4931387
+                  ],
+                  [
+                    0.2298817,
+                    0.4379007
+                  ],
+                  [
+                    0.0645692,
+                    0.3231757
+                  ],
+                  [
+                    0.0278331,
+                    0.2201356
+                  ],
+                  [
+                    0.1002249,
+                    0.1107219
+                  ],
+                  [
+                    0.2731006,
+                    0.0395499
+                  ]
+                ],
+                "origin": [
+                  0.4956781,
+                  0.2774982
+                ],
+                "endpointRegions": [
+                  [
+                    0.2298817,
+                    0.1139088
+                  ],
+                  [
+                    0.8295444,
+                    0.2095129
+                  ],
+                  [
+                    0.1974675,
+                    0.3582306
+                  ],
+                  [
+                    0.8025325,
+                    0.3741646
+                  ]
+                ]
+              }
+            },
+            {
+              "mechanism": "sphere-bloom",
+              "region": [
+                [
+                  0.135,
+                  0.072
+                ],
+                [
+                  0.855,
+                  0.072
+                ],
+                [
+                  0.855,
+                  0.422
+                ],
+                [
+                  0.135,
+                  0.422
+                ]
+              ],
+              "origin": [
+                0.495,
+                0.275
+              ],
+              "colour": "#b745db",
+              "trigger": "ambient",
+              "parameters": {
+                "clockDenominatorMs": 300,
+                "opacityRange": [
+                  0.01,
+                  0.055
+                ],
+                "compositing": "Clip to specified material/content mask and sprite alpha; keep static silhouette and foreground occluders. Region is an envelope, not a segmentation mask.",
+                "clip": "Intersect with electrode-arcs sphere polygon and globe glass material; the rectangular envelope alone reaches outside the curved sphere."
+              },
+              "engineAlphaNormalized": {
+                "region": [
+                  [
+                    0.1056272,
+                    0.0629199
+                  ],
+                  [
+                    0.883568,
+                    0.0629199
+                  ],
+                  [
+                    0.883568,
+                    0.4347139
+                  ],
+                  [
+                    0.1056272,
+                    0.4347139
+                  ]
+                ],
+                "origin": [
+                  0.4945976,
+                  0.2785604
+                ]
+              }
+            }
+          ],
+          "screenRegions": [],
+          "functionalCapabilitiesPreserved": [
+            "Re-rooting plasma from central electrode",
+            "Surface mount8px lift and weighted contact"
+          ],
+          "integrationRequirements": [
+            "Explicit arc mechanism, not scanner lines or a rotating whole sphere.",
+            "Preserve static glass silhouette/reflections; keep violet light subtle and off wood.",
+            "Preserve nativeContract placement, mount, leisure approach and light registration. This recipe authorizes no geometry or behavior contract edits."
+          ],
+          "nativeContract": {
+            "remasterBox": {
+              "w": 1,
+              "h": 1
+            },
+            "tilePixels": 12,
+            "geometry": {
+              "blocks": false,
+              "flat": false,
+              "tableSurface": false,
+              "requiredMount": "surface",
+              "optionalSurfaceMount": false,
+              "surfaceRisePixels": 8
+            },
+            "leisureUse": null,
+            "light": {
+              "c": [
+                170,
+                110,
+                255
+              ],
+              "r": 22,
+              "a": 0.16,
+              "m": "fire",
+              "y": 0.4
+            },
+            "anchorContract": "Requires table host; contact origin lifted exactly 8 world pixels.",
+            "assignedWorkstation": false,
+            "capabilityObjectType": null,
+            "sourceEvidence": {
+              "catalog": "frontend/app/propsprites.js:10914",
+              "geometry": "frontend/app/propsprites.js:11006",
+              "drawState": "frontend/app/propsprites.js:11279",
+              "liveWorld": "frontend/app/world.js:6029"
+            }
+          }
+        }
+      }
+    },
+    "etsy_dyevat": {
+      "views": {
+        "s": {
+          "image": "frontend/assets/industrial/batch03/utility/etsy_dyevat.png",
+          "outputSha256": "9a02967d2f1eeaf212349208e61342e191afec1ae2ed3a5ecf5a7945a6051269",
+          "width": 1254,
+          "height": 1254,
+          "alphaBounds": {
+            "x": 107,
+            "y": 4,
+            "width": 1032,
+            "height": 1179
+          },
+          "mode": "water",
+          "originalTrigger": {
+            "kind": "ambient-plus-work",
+            "condition": "Ambient ripples now/1400 and bubble now/2600; f.work boosts heating jacket, bath emission and cloth glow",
+            "evidence": [
+              "frontend/app/propsprites.js:7817",
+              "frontend/app/propsprites.js:7832",
+              "frontend/app/propsprites.js:7852",
+              "frontend/app/propsprites.js:7856",
+              "frontend/app/propsprites.js:7861",
+              "frontend/app/propsprites.js:7870",
+              "frontend/app/propsprites.js:7877",
+              "frontend/app/propsprites.js:7885",
+              "frontend/app/world.js:6044"
+            ],
+            "workResponse": true,
+            "firedResponse": false,
+            "workMeaning": "Use incoming f.work unchanged. World derives it from actual prop use/watch or workstation activity; it is not proof of successful process completion."
+          },
+          "palette": [
+            "#191341",
+            "#342683",
+            "#8270ca",
+            "#c9bff0"
+          ],
+          "motion": [
+            {
+              "mechanism": "dye-ripples",
+              "region": [
+                [
+                  0.326,
+                  0.127
+                ],
+                [
+                  0.483,
+                  0.107
+                ],
+                [
+                  0.654,
+                  0.133
+                ],
+                [
+                  0.772,
+                  0.192
+                ],
+                [
+                  0.845,
+                  0.289
+                ],
+                [
+                  0.816,
+                  0.411
+                ],
+                [
+                  0.678,
+                  0.478
+                ],
+                [
+                  0.463,
+                  0.49
+                ],
+                [
+                  0.298,
+                  0.432
+                ],
+                [
+                  0.225,
+                  0.32
+                ],
+                [
+                  0.247,
+                  0.195
+                ]
+              ],
+              "origin": [
+                0.527,
+                0.353
+              ],
+              "colour": "#9580df",
+              "trigger": "ambient-and-work",
+              "parameters": {
+                "clockDenominatorMs": 1400,
+                "opacityIdle": 0.04,
+                "opacityWork": 0.09,
+                "excludePolygons": [
+                  [
+                    [
+                      0.12,
+                      0.116
+                    ],
+                    [
+                      0.245,
+                      0.1
+                    ],
+                    [
+                      0.329,
+                      0.225
+                    ],
+                    [
+                      0.348,
+                      0.367
+                    ],
+                    [
+                      0.309,
+                      0.394
+                    ],
+                    [
+                      0.188,
+                      0.287
+                    ]
+                  ],
+                  [
+                    [
+                      0.262,
+                      0.11
+                    ],
+                    [
+                      0.318,
+                      0.081
+                    ],
+                    [
+                      0.835,
+                      0.301
+                    ],
+                    [
+                      0.816,
+                      0.366
+                    ]
+                  ]
+                ],
+                "mask": "indigo liquid only, exclude cloth/paddle/rim",
+                "compositing": "Clip to specified material/content mask and sprite alpha; keep static silhouette and foreground occluders. Region is an envelope, not a segmentation mask."
+              },
+              "engineAlphaNormalized": {
+                "region": [
+                  [
+                    0.2924457,
+                    0.1316862
+                  ],
+                  [
+                    0.483219,
+                    0.1104139
+                  ],
+                  [
+                    0.6910039,
+                    0.1380679
+                  ],
+                  [
+                    0.8343876,
+                    0.200821
+                  ],
+                  [
+                    0.9230911,
+                    0.3039915
+                  ],
+                  [
+                    0.8878527,
+                    0.4337523
+                  ],
+                  [
+                    0.7201667,
+                    0.5050144
+                  ],
+                  [
+                    0.4589167,
+                    0.5177778
+                  ],
+                  [
+                    0.2584225,
+                    0.4560882
+                  ],
+                  [
+                    0.169719,
+                    0.3369635
+                  ],
+                  [
+                    0.1964516,
+                    0.2040119
+                  ]
+                ],
+                "origin": [
+                  0.5366841,
+                  0.3720628
+                ],
+                "excludePolygons": [
+                  [
+                    [
+                      0.0421318,
+                      0.1199864
+                    ],
+                    [
+                      0.1940213,
+                      0.1029686
+                    ],
+                    [
+                      0.2960911,
+                      0.2359203
+                    ],
+                    [
+                      0.3191783,
+                      0.3869534
+                    ],
+                    [
+                      0.2717888,
+                      0.4156709
+                    ],
+                    [
+                      0.1247597,
+                      0.3018643
+                    ]
+                  ],
+                  [
+                    [
+                      0.2146783,
+                      0.1136047
+                    ],
+                    [
+                      0.2827248,
+                      0.08276
+                    ],
+                    [
+                      0.9109399,
+                      0.3167549
+                    ],
+                    [
+                      0.8878527,
+                      0.3858897
+                    ]
+                  ]
+                ]
+              }
+            },
+            {
+              "mechanism": "surface-bubble",
+              "region": [
+                [
+                  0.43,
+                  0.31
+                ],
+                [
+                  0.62,
+                  0.31
+                ],
+                [
+                  0.62,
+                  0.4
+                ],
+                [
+                  0.43,
+                  0.4
+                ]
+              ],
+              "origin": [
+                0.51,
+                0.375
+              ],
+              "colour": "#d0bff1",
+              "trigger": "ambient",
+              "parameters": {
+                "cycleMs": 2600,
+                "visibleFraction": 0.6,
+                "compositing": "Clip to specified material/content mask and sprite alpha; keep static silhouette and foreground occluders. Region is an envelope, not a segmentation mask."
+              },
+              "engineAlphaNormalized": {
+                "region": [
+                  [
+                    0.4188178,
+                    0.3263274
+                  ],
+                  [
+                    0.6496899,
+                    0.3263274
+                  ],
+                  [
+                    0.6496899,
+                    0.4220526
+                  ],
+                  [
+                    0.4188178,
+                    0.4220526
+                  ]
+                ],
+                "origin": [
+                  0.5160271,
+                  0.3954623
+                ]
+              }
+            },
+            {
+              "mechanism": "heated-bath-breathe",
+              "region": [
+                [
+                  0.36,
+                  0.39
+                ],
+                [
+                  0.6599999999999999,
+                  0.39
+                ],
+                [
+                  0.6599999999999999,
+                  0.455
+                ],
+                [
+                  0.36,
+                  0.455
+                ]
+              ],
+              "origin": [
+                0.51,
+                0.425
+              ],
+              "colour": "#7e68c1",
+              "trigger": "ambient-and-work",
+              "parameters": {
+                "clockDenominatorMs": 800,
+                "opacityIdle": 0.02,
+                "opacityWork": 0.07,
+                "compositing": "Clip to specified material/content mask and sprite alpha; keep static silhouette and foreground occluders. Region is an envelope, not a segmentation mask."
+              },
+              "engineAlphaNormalized": {
+                "region": [
+                  [
+                    0.3337597,
+                    0.4114165
+                  ],
+                  [
+                    0.6982946,
+                    0.4114165
+                  ],
+                  [
+                    0.6982946,
+                    0.4805513
+                  ],
+                  [
+                    0.3337597,
+                    0.4805513
+                  ]
+                ],
+                "origin": [
+                  0.5160271,
+                  0.4486429
+                ]
+              }
+            }
+          ],
+          "screenRegions": [],
+          "intentionalStatic": "The removed old casing control-nub blink had no instrument counterpart in the new ceramic/timber vat; omit that cosmetic LED instead of inventing electronics. Liquid work response remains mandatory.",
+          "functionalCapabilitiesPreserved": [
+            "Ambient dye ripples/bubbles",
+            "f.work intensifies bath heating/emission",
+            "Cloth visibly partly dyed, actual body/footprint preserved"
+          ],
+          "integrationRequirements": [
+            "New liquid is indigo, not old orange; use local palette.",
+            "Keep ceramic, timber, paddle and cloth out of liquid distortion. No orange stripe painted through timber to imitate removed metal heating jacket.",
+            "No process-completion percentage or fired state exists here.",
+            "Preserve nativeContract placement, mount, leisure approach and light registration. This recipe authorizes no geometry or behavior contract edits."
+          ],
+          "nativeContract": {
+            "remasterBox": {
+              "w": 2,
+              "h": 2
+            },
+            "tilePixels": 12,
+            "geometry": {
+              "blocks": true,
+              "flat": false,
+              "tableSurface": false,
+              "requiredMount": null,
+              "optionalSurfaceMount": false,
+              "surfaceRisePixels": 8
+            },
+            "leisureUse": null,
+            "light": {
+              "c": [
+                200,
+                100,
+                255
+              ],
+              "r": 20,
+              "a": 0.1,
+              "m": "pulse",
+              "y": 0.5
+            },
+            "anchorContract": "No leisure seat anchor. Footprint is the placement/pathfinding rectangle; upright visual rise is independent of the reserved box.",
+            "assignedWorkstation": false,
+            "capabilityObjectType": null,
+            "sourceEvidence": {
+              "catalog": "frontend/app/propsprites.js:10818",
+              "geometry": "frontend/app/propsprites.js:11006",
+              "drawState": "frontend/app/propsprites.js:11279",
+              "liveWorld": "frontend/app/world.js:6029"
+            }
+          }
+        }
+      }
+    },
+    "etsy_kiln": {
+      "views": {
+        "s": {
+          "image": "frontend/assets/industrial/batch03/utility/etsy_kiln.png",
+          "outputSha256": "3b00448deefa5a1e28293d8980e9aec73531876de2a7c4b365911f54922fc1b7",
+          "width": 1197,
+          "height": 1315,
+          "alphaBounds": {
+            "x": 97,
+            "y": 36,
+            "width": 1029,
+            "height": 1214
+          },
+          "mode": "kiln-heat",
+          "originalTrigger": {
+            "kind": "ambient-plus-work",
+            "condition": "breath=.5+.5*sin(now/1000+ph); heat=(f.work?.58:.24)+.28*breath; seam/flue emission and420ms heat shimmer; readout breath-tied",
+            "evidence": [
+              "frontend/app/propsprites.js:7888",
+              "frontend/app/propsprites.js:7889",
+              "frontend/app/propsprites.js:7890",
+              "frontend/app/propsprites.js:7909",
+              "frontend/app/propsprites.js:7916",
+              "frontend/app/propsprites.js:7938",
+              "frontend/app/propsprites.js:7944",
+              "frontend/app/propsprites.js:7957",
+              "frontend/app/propsprites.js:7958",
+              "frontend/app/world.js:6044"
+            ],
+            "workResponse": true,
+            "firedResponse": false,
+            "workMeaning": "Use incoming f.work unchanged. World derives it from actual prop use/watch or workstation activity; it is not proof of successful process completion."
+          },
+          "palette": [
+            "#712b14",
+            "#ed6b19",
+            "#ffae39",
+            "#ffdb73"
+          ],
+          "motion": [
+            {
+              "mechanism": "flue-heat",
+              "region": [
+                [
+                  0.447,
+                  0.188
+                ],
+                [
+                  0.53,
+                  0.188
+                ],
+                [
+                  0.53,
+                  0.217
+                ],
+                [
+                  0.447,
+                  0.217
+                ]
+              ],
+              "origin": [
+                0.488,
+                0.208
+              ],
+              "colour": "#ffac33",
+              "trigger": "ambient-and-work",
+              "parameters": {
+                "nativeHeat": {
+                  "idleBase": 0.24,
+                  "workBase": 0.58,
+                  "breathAmplitude": 0.28
+                },
+                "clockDenominatorMs": 1000,
+                "opacityIdle": 0.05,
+                "opacityWork": 0.15,
+                "compositing": "Clip to specified material/content mask and sprite alpha; keep static silhouette and foreground occluders. Region is an envelope, not a segmentation mask."
+              },
+              "engineAlphaNormalized": {
+                "region": [
+                  [
+                    0.4257133,
+                    0.1739868
+                  ],
+                  [
+                    0.5222643,
+                    0.1739868
+                  ],
+                  [
+                    0.5222643,
+                    0.2053995
+                  ],
+                  [
+                    0.4257133,
+                    0.2053995
+                  ]
+                ],
+                "origin": [
+                  0.4734072,
+                  0.1956507
+                ]
+              }
+            },
+            {
+              "mechanism": "door-seam-heat",
+              "region": [
+                [
+                  0.346,
+                  0.61
+                ],
+                [
+                  0.608,
+                  0.61
+                ],
+                [
+                  0.635,
+                  0.645
+                ],
+                [
+                  0.642,
+                  0.793
+                ],
+                [
+                  0.63,
+                  0.798
+                ],
+                [
+                  0.622,
+                  0.65
+                ],
+                [
+                  0.602,
+                  0.625
+                ],
+                [
+                  0.346,
+                  0.625
+                ]
+              ],
+              "origin": [
+                0.62,
+                0.65
+              ],
+              "colour": "#ffb13c",
+              "trigger": "ambient-and-work",
+              "parameters": {
+                "clockDenominatorMs": 1000,
+                "opacityIdle": 0.04,
+                "opacityWork": 0.16,
+                "compositing": "Clip to specified material/content mask and sprite alpha; keep static silhouette and foreground occluders. Region is an envelope, not a segmentation mask."
+              },
+              "engineAlphaNormalized": {
+                "region": [
+                  [
+                    0.3082235,
+                    0.6310956
+                  ],
+                  [
+                    0.612999,
+                    0.6310956
+                  ],
+                  [
+                    0.6444072,
+                    0.6690074
+                  ],
+                  [
+                    0.65255,
+                    0.8293204
+                  ],
+                  [
+                    0.6385909,
+                    0.8347364
+                  ],
+                  [
+                    0.6292847,
+                    0.6744234
+                  ],
+                  [
+                    0.6060194,
+                    0.6473435
+                  ],
+                  [
+                    0.3082235,
+                    0.6473435
+                  ]
+                ],
+                "origin": [
+                  0.6269582,
+                  0.6744234
+                ]
+              }
+            },
+            {
+              "mechanism": "hot-air-shimmer",
+              "region": [
+                [
+                  0.425,
+                  0.142
+                ],
+                [
+                  0.5549999999999999,
+                  0.142
+                ],
+                [
+                  0.5549999999999999,
+                  0.185
+                ],
+                [
+                  0.425,
+                  0.185
+                ]
+              ],
+              "origin": [
+                0.49,
+                0.184
+              ],
+              "colour": "#b8a385",
+              "trigger": "ambient",
+              "parameters": {
+                "blinkArgumentMs": 420,
+                "count": 1,
+                "opacityMax": 0.07,
+                "avoid": "No opaque smoke, no sparks, don't cross chimney frame",
+                "compositing": "Clip to specified material/content mask and sprite alpha; keep static silhouette and foreground occluders. Region is an envelope, not a segmentation mask."
+              },
+              "engineAlphaNormalized": {
+                "region": [
+                  [
+                    0.4001215,
+                    0.1241598
+                  ],
+                  [
+                    0.551346,
+                    0.1241598
+                  ],
+                  [
+                    0.551346,
+                    0.1707372
+                  ],
+                  [
+                    0.4001215,
+                    0.1707372
+                  ]
+                ],
+                "origin": [
+                  0.4757337,
+                  0.169654
+                ]
+              }
+            }
+          ],
+          "screenRegions": [
+            {
+              "name": "temperature cadence window",
+              "polygon": [
+                [
+                  0.835,
+                  0.493
+                ],
+                [
+                  0.9059999999999999,
+                  0.493
+                ],
+                [
+                  0.9059999999999999,
+                  0.525
+                ],
+                [
+                  0.835,
+                  0.525
+                ]
+              ],
+              "colour": "#f6ad37",
+              "trigger": "ambient-breath",
+              "mechanism": "three-segment-breath-readout",
+              "parameters": {
+                "segments": 3,
+                "clockDenominatorMs": 1000,
+                "formula": "breath>s/3.2",
+                "noNumericTelemetry": true
+              },
+              "engineAlphaNormalized": {
+                "polygon": [
+                  [
+                    0.8770603,
+                    0.5043616
+                  ],
+                  [
+                    0.9596521,
+                    0.5043616
+                  ],
+                  [
+                    0.9596521,
+                    0.5390239
+                  ],
+                  [
+                    0.8770603,
+                    0.5390239
+                  ]
+                ]
+              }
+            }
+          ],
+          "functionalCapabilitiesPreserved": [
+            "Work-responsive firing heat at vent and door seams",
+            "Ambient thermal shimmer",
+            "Three-segment breath readout"
+          ],
+          "integrationRequirements": [
+            "Blank right-side panel is true safe readout region; do not turn full door or top tiles into a screen.",
+            "New top is masonry blocks, not native circular lid: relocate lid emission to existing front seam and flue.",
+            "Preserve stronger f.work heat; don't label kiln static.",
+            "Preserve nativeContract placement, mount, leisure approach and light registration. This recipe authorizes no geometry or behavior contract edits."
+          ],
+          "nativeContract": {
+            "remasterBox": {
+              "w": 2,
+              "h": 2
+            },
+            "tilePixels": 12,
+            "geometry": {
+              "blocks": true,
+              "flat": false,
+              "tableSurface": false,
+              "requiredMount": null,
+              "optionalSurfaceMount": false,
+              "surfaceRisePixels": 8
+            },
+            "leisureUse": null,
+            "light": {
+              "c": [
+                255,
+                120,
+                50
+              ],
+              "r": 28,
+              "a": 0.18,
+              "m": "fire",
+              "y": 0.5
+            },
+            "anchorContract": "No leisure seat anchor. Footprint is the placement/pathfinding rectangle; upright visual rise is independent of the reserved box.",
+            "assignedWorkstation": false,
+            "capabilityObjectType": null,
+            "sourceEvidence": {
+              "catalog": "frontend/app/propsprites.js:10819",
+              "geometry": "frontend/app/propsprites.js:11006",
+              "drawState": "frontend/app/propsprites.js:11279",
+              "liveWorld": "frontend/app/world.js:6029"
+            }
+          }
+        }
+      }
+    },
+    "research_samplecart": {
+      "views": {
+        "s": {
+          "image": "frontend/assets/industrial/batch03/utility/research_samplecart.png",
+          "outputSha256": "c44ecf5fd17775f839c6cdb7a9c6041ed714ecc0544d5d381046aaa6e01b5272",
+          "width": 1564,
+          "height": 1006,
+          "alphaBounds": {
+            "x": 120,
+            "y": 29,
+            "width": 1280,
+            "height": 923
+          },
+          "mode": "pulse",
+          "originalTrigger": {
+            "kind": "ambient-plus-work",
+            "condition": "Three vial liquids pulse sin(now/760+i*1.7+ph); f.work increases vial bloom and tray spill; former drive-caddy LED blinks520 ambient",
+            "evidence": [
+              "frontend/app/propsprites.js:7307",
+              "frontend/app/propsprites.js:7324",
+              "frontend/app/propsprites.js:7336",
+              "frontend/app/propsprites.js:7343",
+              "frontend/app/propsprites.js:7345",
+              "frontend/app/world.js:6044"
+            ],
+            "workResponse": true,
+            "firedResponse": false,
+            "workMeaning": "Use incoming f.work unchanged. World derives it from actual prop use/watch or workstation activity; it is not proof of successful process completion."
+          },
+          "palette": [
+            "#c59825",
+            "#29899a",
+            "#7f9841"
+          ],
+          "motion": [
+            {
+              "mechanism": "specimen-liquid-pulse",
+              "region": [
+                [
+                  0.296,
+                  0.176
+                ],
+                [
+                  0.395,
+                  0.176
+                ],
+                [
+                  0.395,
+                  0.31799999999999995
+                ],
+                [
+                  0.296,
+                  0.31799999999999995
+                ]
+              ],
+              "origin": [
+                0.348,
+                0.245
+              ],
+              "colour": "#d8ae46",
+              "trigger": "ambient-and-work",
+              "parameters": {
+                "clockDenominatorMs": 760,
+                "phase": 0,
+                "opacityIdle": 0.025,
+                "opacityWork": 0.07,
+                "mask": "amber liquid only, preserve mineral specimen and glass",
+                "compositing": "Clip to specified material/content mask and sprite alpha; keep static silhouette and foreground occluders. Region is an envelope, not a segmentation mask."
+              },
+              "engineAlphaNormalized": {
+                "region": [
+                  [
+                    0.267925,
+                    0.1604074
+                  ],
+                  [
+                    0.3888906,
+                    0.1604074
+                  ],
+                  [
+                    0.3888906,
+                    0.3151766
+                  ],
+                  [
+                    0.267925,
+                    0.3151766
+                  ]
+                ],
+                "origin": [
+                  0.3314625,
+                  0.2356121
+                ]
+              }
+            },
+            {
+              "mechanism": "specimen-liquid-pulse",
+              "region": [
+                [
+                  0.46,
+                  0.216
+                ],
+                [
+                  0.541,
+                  0.216
+                ],
+                [
+                  0.541,
+                  0.322
+                ],
+                [
+                  0.46,
+                  0.322
+                ]
+              ],
+              "origin": [
+                0.5,
+                0.27
+              ],
+              "colour": "#72c9d6",
+              "trigger": "ambient-and-work",
+              "parameters": {
+                "clockDenominatorMs": 760,
+                "phase": 1.7,
+                "opacityIdle": 0.025,
+                "opacityWork": 0.07,
+                "mask": "blue liquid, preserve coral specimen",
+                "compositing": "Clip to specified material/content mask and sprite alpha; keep static silhouette and foreground occluders. Region is an envelope, not a segmentation mask."
+              },
+              "engineAlphaNormalized": {
+                "region": [
+                  [
+                    0.4683125,
+                    0.2040043
+                  ],
+                  [
+                    0.5672844,
+                    0.2040043
+                  ],
+                  [
+                    0.5672844,
+                    0.3195363
+                  ],
+                  [
+                    0.4683125,
+                    0.3195363
+                  ]
+                ],
+                "origin": [
+                  0.5171875,
+                  0.2628602
+                ]
+              }
+            },
+            {
+              "mechanism": "specimen-liquid-pulse",
+              "region": [
+                [
+                  0.6,
+                  0.185
+                ],
+                [
+                  0.691,
+                  0.185
+                ],
+                [
+                  0.691,
+                  0.32599999999999996
+                ],
+                [
+                  0.6,
+                  0.32599999999999996
+                ]
+              ],
+              "origin": [
+                0.646,
+                0.26
+              ],
+              "colour": "#a7c66e",
+              "trigger": "ambient-and-work",
+              "parameters": {
+                "clockDenominatorMs": 760,
+                "phase": 3.4,
+                "opacityIdle": 0.025,
+                "opacityWork": 0.07,
+                "mask": "green liquid, preserve leaf specimen",
+                "compositing": "Clip to specified material/content mask and sprite alpha; keep static silhouette and foreground occluders. Region is an envelope, not a segmentation mask."
+              },
+              "engineAlphaNormalized": {
+                "region": [
+                  [
+                    0.639375,
+                    0.1702167
+                  ],
+                  [
+                    0.7505656,
+                    0.1702167
+                  ],
+                  [
+                    0.7505656,
+                    0.323896
+                  ],
+                  [
+                    0.639375,
+                    0.323896
+                  ]
+                ],
+                "origin": [
+                  0.6955813,
+                  0.251961
+                ]
+              }
+            }
+          ],
+          "screenRegions": [],
+          "intentionalStatic": "Former drive-caddy/read LED is absent from new cloth/storage shelf. Omit that ambient decorative blink rather than paint a fake LED on jars or cloth. The three work-responsive vial pulses are retained.",
+          "functionalCapabilitiesPreserved": [
+            "Three staggered liquid pulses with higher f.work intensity",
+            "Static wheels, handle and shelf",
+            "2x1 blocking trolley"
+          ],
+          "integrationRequirements": [
+            "Pulse the jar liquids, not full trolley or lids. No scanner, floating status glyph, or wheel rotation without actual movement.",
+            "No specimen count, test result, process-complete/fired event exists.",
+            "Preserve nativeContract placement, mount, leisure approach and light registration. This recipe authorizes no geometry or behavior contract edits."
+          ],
+          "nativeContract": {
+            "remasterBox": {
+              "w": 2,
+              "h": 1
+            },
+            "tilePixels": 12,
+            "geometry": {
+              "blocks": true,
+              "flat": false,
+              "tableSurface": false,
+              "requiredMount": null,
+              "optionalSurfaceMount": false,
+              "surfaceRisePixels": 8
+            },
+            "leisureUse": null,
+            "light": null,
+            "anchorContract": "No leisure seat anchor. Footprint is the placement/pathfinding rectangle; upright visual rise is independent of the reserved box.",
+            "assignedWorkstation": false,
+            "capabilityObjectType": null,
+            "sourceEvidence": {
+              "catalog": "frontend/app/propsprites.js:10815",
+              "geometry": "frontend/app/propsprites.js:11006",
+              "drawState": "frontend/app/propsprites.js:11279",
+              "liveWorld": "frontend/app/world.js:6029"
+            }
+          }
+        }
+      }
+    },
+    "incubator": {
+      "views": {
+        "s": {
+          "image": "frontend/assets/industrial/batch03/utility/incubator.png",
+          "outputSha256": "8665cd1f6c7771bc79e2a032abd8fbb5166b689c2e0adb1ed845def723b1de31",
+          "width": 818,
+          "height": 1923,
+          "alphaBounds": {
+            "x": 130,
+            "y": 19,
+            "width": 554,
+            "height": 1797
+          },
+          "mode": "culture-column",
+          "originalTrigger": {
+            "kind": "ambient",
+            "condition": "Specimen bob=round(sin((now/1000+x)*.9)*1.2);9 deterministic motes rise; cylinder bloom sin(now/620);3 pedestal lights cycle700",
+            "evidence": [
+              "frontend/app/propsprites.js:9958",
+              "frontend/app/propsprites.js:9959",
+              "frontend/app/propsprites.js:9985",
+              "frontend/app/propsprites.js:9995",
+              "frontend/app/propsprites.js:10000",
+              "frontend/app/propsprites.js:10009",
+              "frontend/app/propsprites.js:10016"
+            ],
+            "workResponse": false,
+            "firedResponse": false
+          },
+          "palette": [
+            "#0b4228",
+            "#159443",
+            "#36dc64",
+            "#c1ef98"
+          ],
+          "motion": [
+            {
+              "mechanism": "suspended-specimen-bob",
+              "region": [
+                [
+                  0.412,
+                  0.29
+                ],
+                [
+                  0.51,
+                  0.343
+                ],
+                [
+                  0.567,
+                  0.411
+                ],
+                [
+                  0.614,
+                  0.46
+                ],
+                [
+                  0.607,
+                  0.529
+                ],
+                [
+                  0.55,
+                  0.568
+                ],
+                [
+                  0.463,
+                  0.603
+                ],
+                [
+                  0.38,
+                  0.59
+                ],
+                [
+                  0.379,
+                  0.519
+                ],
+                [
+                  0.395,
+                  0.432
+                ],
+                [
+                  0.383,
+                  0.359
+                ]
+              ],
+              "origin": [
+                0.49,
+                0.467
+              ],
+              "colour": "#174e28",
+              "trigger": "ambient",
+              "parameters": {
+                "clockDenominatorMs": 1000,
+                "frequencyMultiplier": 0.9,
+                "maxWorldDisplacementPixels": 1.2,
+                "mask": "dark organic specimen including long filaments, excluding water/motes/glass streaks",
+                "required": "Erase/underpaint original specimen and composite moving layer behind glass, or contained local deformation; no duplicate specimen",
+                "compositing": "Clip to specified material/content mask and sprite alpha; keep static silhouette and foreground occluders. Region is an envelope, not a segmentation mask."
+              },
+              "engineAlphaNormalized": {
+                "region": [
+                  [
+                    0.3736751,
+                    0.2997607
+                  ],
+                  [
+                    0.5183755,
+                    0.3564769
+                  ],
+                  [
+                    0.6025379,
+                    0.4292449
+                  ],
+                  [
+                    0.671935,
+                    0.4816806
+                  ],
+                  [
+                    0.6615993,
+                    0.5555186
+                  ],
+                  [
+                    0.5774368,
+                    0.5972532
+                  ],
+                  [
+                    0.4489783,
+                    0.6347073
+                  ],
+                  [
+                    0.326426,
+                    0.6207958
+                  ],
+                  [
+                    0.3249495,
+                    0.5448175
+                  ],
+                  [
+                    0.348574,
+                    0.4517173
+                  ],
+                  [
+                    0.3308556,
+                    0.3735988
+                  ]
+                ],
+                "origin": [
+                  0.4888448,
+                  0.4891714
+                ]
+              }
+            },
+            {
+              "mechanism": "culture-motes",
+              "region": [
+                [
+                  0.348,
+                  0.291
+                ],
+                [
+                  0.624,
+                  0.291
+                ],
+                [
+                  0.624,
+                  0.601
+                ],
+                [
+                  0.348,
+                  0.601
+                ]
+              ],
+              "origin": [
+                0.49,
+                0.602
+              ],
+              "colour": "#d5f7b2",
+              "trigger": "ambient",
+              "parameters": {
+                "count": 9,
+                "deterministicSeed": "U.hash('inc'+x+i)",
+                "riseStepMsRange": [
+                  900,
+                  1599
+                ],
+                "nativeSpanPixelsRange": [
+                  14,
+                  17
+                ],
+                "clip": "liquid only, avoid upper meniscus/rim",
+                "compositing": "Clip to specified material/content mask and sprite alpha; keep static silhouette and foreground occluders. Region is an envelope, not a segmentation mask."
+              },
+              "engineAlphaNormalized": {
+                "region": [
+                  [
+                    0.2791769,
+                    0.3008308
+                  ],
+                  [
+                    0.6867004,
+                    0.3008308
+                  ],
+                  [
+                    0.6867004,
+                    0.6325671
+                  ],
+                  [
+                    0.2791769,
+                    0.6325671
+                  ]
+                ],
+                "origin": [
+                  0.4888448,
+                  0.6336372
+                ]
+              }
+            },
+            {
+              "mechanism": "liquid-breathe",
+              "region": [
+                [
+                  0.34,
+                  0.299
+                ],
+                [
+                  0.63,
+                  0.299
+                ],
+                [
+                  0.63,
+                  0.613
+                ],
+                [
+                  0.34,
+                  0.613
+                ]
+              ],
+              "origin": [
+                0.495,
+                0.592
+              ],
+              "colour": "#64dd7c",
+              "trigger": "ambient",
+              "parameters": {
+                "clockDenominatorMs": 620,
+                "opacityRange": [
+                  0.015,
+                  0.055
+                ],
+                "compositing": "Clip to specified material/content mask and sprite alpha; keep static silhouette and foreground occluders. Region is an envelope, not a segmentation mask."
+              },
+              "engineAlphaNormalized": {
+                "region": [
+                  [
+                    0.2673646,
+                    0.3093918
+                  ],
+                  [
+                    0.6955596,
+                    0.3093918
+                  ],
+                  [
+                    0.6955596,
+                    0.6454085
+                  ],
+                  [
+                    0.2673646,
+                    0.6454085
+                  ]
+                ],
+                "origin": [
+                  0.4962274,
+                  0.622936
+                ]
+              }
+            },
+            {
+              "mechanism": "pedestal-indicator-cycle",
+              "region": [
+                [
+                  0.466,
+                  0.768
+                ],
+                [
+                  0.527,
+                  0.768
+                ],
+                [
+                  0.527,
+                  0.8140000000000001
+                ],
+                [
+                  0.466,
+                  0.8140000000000001
+                ]
+              ],
+              "origin": [
+                0.495,
+                0.786
+              ],
+              "colour": "#ffb347",
+              "trigger": "ambient",
+              "parameters": {
+                "stepMs": 700,
+                "segments": 3,
+                "adaptation": "Use three existing amber vent slits only; don't invent new lamps",
+                "compositing": "Clip to specified material/content mask and sprite alpha; keep static silhouette and foreground occluders. Region is an envelope, not a segmentation mask."
+              },
+              "engineAlphaNormalized": {
+                "region": [
+                  [
+                    0.4534079,
+                    0.8112766
+                  ],
+                  [
+                    0.5434765,
+                    0.8112766
+                  ],
+                  [
+                    0.5434765,
+                    0.8605019
+                  ],
+                  [
+                    0.4534079,
+                    0.8605019
+                  ]
+                ],
+                "origin": [
+                  0.4962274,
+                  0.8305387
+                ]
+              }
+            }
+          ],
+          "screenRegions": [],
+          "functionalCapabilitiesPreserved": [
+            "Suspended specimen bob is essential identity, not optional static decoration",
+            "Nine deterministic motes and internal culture glow",
+            "Ambient pedestal indicator cadence"
+          ],
+          "integrationRequirements": [
+            "Column is biological glass, not a screen/scanner.",
+            "Fixed specimen needs isolation/underpainting for true bob; preserve static glass highlights over moving contents.",
+            "Keep pedestal still; no f.work/fired/occupancy trigger exists in native function.",
+            "Preserve nativeContract placement, mount, leisure approach and light registration. This recipe authorizes no geometry or behavior contract edits."
+          ],
+          "nativeContract": {
+            "remasterBox": {
+              "w": 1,
+              "h": 2
+            },
+            "tilePixels": 12,
+            "geometry": {
+              "blocks": true,
+              "flat": false,
+              "tableSurface": false,
+              "requiredMount": null,
+              "optionalSurfaceMount": false,
+              "surfaceRisePixels": 8
+            },
+            "leisureUse": null,
+            "light": {
+              "c": [
+                255,
+                170,
+                90
+              ],
+              "r": 20,
+              "a": 0.12,
+              "m": "steady",
+              "y": 0.4
+            },
+            "anchorContract": "No leisure seat anchor. Footprint is the placement/pathfinding rectangle; upright visual rise is independent of the reserved box.",
+            "assignedWorkstation": false,
+            "capabilityObjectType": null,
+            "sourceEvidence": {
+              "catalog": "frontend/app/propsprites.js:10938",
+              "geometry": "frontend/app/propsprites.js:11006",
+              "drawState": "frontend/app/propsprites.js:11279",
+              "liveWorld": "frontend/app/world.js:6029"
+            }
+          }
+        }
+      }
+    },
+    "cryopod": {
+      "views": {
+        "s": {
+          "image": "frontend/assets/industrial/batch03/utility/cryopod.png",
+          "outputSha256": "0eccdbab2db8bd4a74c5de635e093e73679c0cff437ebfab8c10072a569e779e",
+          "width": 793,
+          "height": 1983,
+          "alphaBounds": {
+            "x": 61,
+            "y": 25,
+            "width": 670,
+            "height": 1865
+          },
+          "mode": "pulse",
+          "originalTrigger": {
+            "kind": "ambient",
+            "condition": "br=.55+.45*sin(now/2600+x); header bloom breathes, slow lamp blink2600,3-segment control cycles900; sleeper itself is static",
+            "evidence": [
+              "frontend/app/propsprites.js:9902",
+              "frontend/app/propsprites.js:9909",
+              "frontend/app/propsprites.js:9910",
+              "frontend/app/propsprites.js:9915",
+              "frontend/app/propsprites.js:9934",
+              "frontend/app/propsprites.js:9941"
+            ],
+            "workResponse": false,
+            "firedResponse": false
+          },
+          "palette": [
+            "#63bccf",
+            "#b6edf0",
+            "#ecb43d"
+          ],
+          "motion": [
+            {
+              "mechanism": "slow-header-breath",
+              "region": [
+                [
+                  0.412,
+                  0.143
+                ],
+                [
+                  0.59,
+                  0.143
+                ],
+                [
+                  0.59,
+                  0.153
+                ],
+                [
+                  0.412,
+                  0.153
+                ]
+              ],
+              "origin": [
+                0.5,
+                0.148
+              ],
+              "colour": "#ffd36c",
+              "trigger": "ambient",
+              "parameters": {
+                "clockDenominatorMs": 2600,
+                "nativeBreathBase": 0.55,
+                "nativeBreathAmplitude": 0.45,
+                "opacityRange": [
+                  0.01,
+                  0.065
+                ],
+                "adaptation": "Existing new header is warm amber; preserve its palette.",
+                "compositing": "Clip to specified material/content mask and sprite alpha; keep static silhouette and foreground occluders. Region is an envelope, not a segmentation mask."
+              },
+              "engineAlphaNormalized": {
+                "region": [
+                  [
+                    0.396591,
+                    0.1386429
+                  ],
+                  [
+                    0.6072687,
+                    0.1386429
+                  ],
+                  [
+                    0.6072687,
+                    0.1492756
+                  ],
+                  [
+                    0.396591,
+                    0.1492756
+                  ]
+                ],
+                "origin": [
+                  0.5007463,
+                  0.1439592
+                ]
+              }
+            },
+            {
+              "mechanism": "slow-status-lamp",
+              "region": [
+                [
+                  0.843,
+                  0.472
+                ],
+                [
+                  0.861,
+                  0.472
+                ],
+                [
+                  0.861,
+                  0.484
+                ],
+                [
+                  0.843,
+                  0.484
+                ]
+              ],
+              "origin": [
+                0.852,
+                0.478
+              ],
+              "colour": "#ffbf45",
+              "trigger": "ambient",
+              "parameters": {
+                "blinkArgumentMs": 2600,
+                "opacityRange": [
+                  0.015,
+                  0.07
+                ],
+                "meaning": "fictional pod ambience, not harness agent vitals",
+                "compositing": "Clip to specified material/content mask and sprite alpha; keep static silhouette and foreground occluders. Region is an envelope, not a segmentation mask."
+              },
+              "engineAlphaNormalized": {
+                "region": [
+                  [
+                    0.9067149,
+                    0.488459
+                  ],
+                  [
+                    0.9280194,
+                    0.488459
+                  ],
+                  [
+                    0.9280194,
+                    0.5012182
+                  ],
+                  [
+                    0.9067149,
+                    0.5012182
+                  ]
+                ],
+                "origin": [
+                  0.9173672,
+                  0.4948386
+                ]
+              }
+            }
+          ],
+          "screenRegions": [],
+          "functionalCapabilitiesPreserved": [
+            "Slow breath-like header/lamp cadence",
+            "Native cold-light registration",
+            "Fixed fictional sleeper artwork, not actual agent occupancy"
+          ],
+          "integrationRequirements": [
+            "Keep sleeper, straps and frost static: native code does not animate body breathing despite variable comment.",
+            "Use tiny existing lamp/control areas only; do not scan or pulse the entire person/window.",
+            "Preserve nativeContract placement, mount, leisure approach and light registration. This recipe authorizes no geometry or behavior contract edits.",
+            "Do not draw control segments on the blank screwed side plate; that native cosmetic cadence is intentionally omitted."
+          ],
+          "nativeContract": {
+            "remasterBox": {
+              "w": 1,
+              "h": 2
+            },
+            "tilePixels": 12,
+            "geometry": {
+              "blocks": true,
+              "flat": false,
+              "tableSurface": false,
+              "requiredMount": null,
+              "optionalSurfaceMount": false,
+              "surfaceRisePixels": 8
+            },
+            "leisureUse": null,
+            "light": {
+              "c": [
+                120,
+                210,
+                255
+              ],
+              "r": 24,
+              "a": 0.14,
+              "m": "pulse",
+              "y": 0.4
+            },
+            "anchorContract": "No leisure seat anchor. Footprint is the placement/pathfinding rectangle; upright visual rise is independent of the reserved box.",
+            "assignedWorkstation": false,
+            "capabilityObjectType": null,
+            "sourceEvidence": {
+              "catalog": "frontend/app/propsprites.js:10937",
+              "geometry": "frontend/app/propsprites.js:11006",
+              "drawState": "frontend/app/propsprites.js:11279",
+              "liveWorld": "frontend/app/world.js:6029"
+            }
+          },
+          "intentionalStatic": "Visual QA proves the new side plate is blank screw-fastened metal, not a display. Deliberately omit native decorative three-segment cycling there. Slow header/lamp breathing and native light remain. Sleeper was static in native code and remains static; no actual life-support telemetry is removed."
+        }
+      }
+    }
+  },
+  "nativeEvidenceSnapshot": {
+    "commit": "4f743db5b4560f5f2c8dd27450c5395faa6a2967",
+    "sourceSha256": {
+      "frontend/app/propsprites.js": "b3bc2df66a627194449f2bf3de8b32782d912a1c8f95442e5eaa429d7f461b40",
+      "frontend/app/world.js": "89915daf28292c5afeeec4c03933a35d3352e072db1c74884de864d7a231c1cb"
+    },
+    "note": "Evidence line references correspond to this utility worktree snapshot; use function names if integration line offsets have changed."
+  }
+}
