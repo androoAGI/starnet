@@ -4,11 +4,11 @@
 One tracked file per bug under `qa/bugs/`; this is only the index. File a new bug with
 `node scripts/qa/bugs.mjs --new --title "..." --surface <surface>`.
 
-**4** open (open+claimed) of 145 total — 0 P0 · 4 P1 · 0 P2
+**5** open (open+claimed) of 146 total — 0 P0 · 4 P1 · 1 P2
 
 Engineering status is separate from delivery and customer recovery. Legacy rows without origin are not a customer census.
 
-User/owner reports: **62** · source fixed: **58** · installer verified: **6** · customer confirmed: **1** · still reported failing: **1** · recovery unconfirmed: **60**.
+User/owner reports: **63** · source fixed: **58** · installer verified: **6** · customer confirmed: **1** · still reported failing: **1** · recovery unconfirmed: **61**.
 
 | Report | Family | Source | Installer | Customer |
 | --- | --- | --- | --- | --- |
@@ -52,6 +52,7 @@ User/owner reports: **62** · source fixed: **58** · installer verified: **6** 
 | [New backdrops stall switching and zoomed-out terrain rendering](bugs/04ca4207-new-backdrops-stall-switching-and-zoomed-out-ter.md) | backdrop-performance | fixed | verified | unconfirmed |
 | [Customer viewport becomes blank after ten to twenty minutes](bugs/9256a771-viewport-black-after-idle.md) | durability-and-visibility | fixed | unverified | unconfirmed |
 | [Website station preview fails when hosting beacon is blocked](bugs/b3b8d28f-website-station-preview-fails-when-hosting-beaco.md) | deployment-integrity | fixed | not-applicable | unconfirmed |
+| [Earned XP appears frozen or misses ratings from another window](bugs/6ad254f9-earned-xp-appears-frozen-or-misses-ratings-from.md) | work-rating | open | unverified | unconfirmed |
 | [Deliverable naming instruction conflicts with explicit stop limits](bugs/5a35bcfe-deliverable-note-overrides-stop.md) | task-scope | fixed | unverified | unconfirmed |
 | [Paused routines falsely keep an idle desktop armed](bugs/ce430c35-paused-routines-falsely-keep-an-idle-desktop-arm.md) | lifecycle-truth | fixed | verified | unconfirmed |
 | [Dense service cards squeeze technical prose into tiny columns](bugs/734b469e-dense-service-cards-squeeze-technical-prose-into.md) | record-readability | fixed | unverified | unconfirmed |
@@ -165,6 +166,7 @@ User/owner reports: **62** · source fixed: **58** · installer verified: **6** 
 | P1 | fixed | world | [ROUTINES › REVOKE ACCESS toasts "access revoked" (green) on a 4xx/5xx — bare `fetch` resolves, so the unattended grant survives its own success message](bugs/fd0f7223-routines-revoke-access-toasts-access-revoked.md) | sweep/world | 3f0d1205 |
 | P1 | fixed | world | [Customer viewport becomes blank after ten to twenty minutes](bugs/9256a771-viewport-black-after-idle.md) | reliability-followup | 57112a690f8174f3ba3f3ac33fe786d07fa51c5d |
 | P1 | fixed | world | [Website station preview fails when hosting beacon is blocked](bugs/b3b8d28f-website-station-preview-fails-when-hosting-beaco.md) | website-station-boot-0905 | 27560918e |
+| P2 | open | sessions | [Earned XP appears frozen or misses ratings from another window](bugs/6ad254f9-earned-xp-appears-frozen-or-misses-ratings-from.md) | agent/xp-status-0914 | — |
 | P2 | fixed | autonomy | [Cancelled edit starts a replacement language server](bugs/37059128-cancelled-edit-starts-a-replacement-language-ser.md) | reliability-audit | 547dd03d7 |
 | P2 | fixed | autonomy | [Deliverable naming instruction conflicts with explicit stop limits](bugs/5a35bcfe-deliverable-note-overrides-stop.md) | report-0110-0908 | 72a8a3043c263cd53ed353daed2042e256c8e236 |
 | P2 | fixed | autonomy | [Loop pause and resume discard refused control responses](bugs/32fd08b2-loop-pause-and-resume-discard-refused-control-re.md) | agent/seam-audit-0912-b | b5c5cba75 |
@@ -231,7 +233,7 @@ User/owner reports: **62** · source fixed: **58** · installer verified: **6** 
 | autonomy | 1 |
 | providers | 1 |
 | safecell | 0 |
-| sessions | 0 |
+| sessions | 1 |
 | skills | 1 |
 | onboarding | 1 |
 | world | 0 |
