@@ -28,4 +28,10 @@ The integration owner imports selected art and verifies actual station lighting,
 
 ## Acceptance state
 
-Production started. Generated outputs, checks and commit receipts will be listed here once available. User acceptance and in-station verification remain separate from file generation.
+All three workers completed the first batch: six designs, seven authored views. Commits are storage `4354709868934f7a6089e1436604e22c1c32d3f9`, crew `b63885e13`, and utility `9cb96b26a1229bdd779517b7d4d0de39200946f7`. They are merged only into the isolated coordinator branch. The original texture task received every lane handoff and retains live integration ownership.
+
+Six source images remain RGB with baked checkerboards, including after targeted built-in background extraction attempts. Tank has genuine RGBA but faint peripheral alpha residue. Do not consume these candidates as final runtime sprites. A question requesting explicit permission to use the existing non-imagegen exporter is pending in the coordination task; no such edits were performed here.
+
+All designs were visually inspected, and worker metadata records source dimensions, alpha checks, proposed world envelopes, interaction anchors and unresolved animation. Exact built-in image generation prompts and intact sources are retained in each lane. User acceptance and in-station verification remain separate from file generation. The coordinator comparison page is `frontend/prop-parallel-review.html`; it previews proposed scale, not station lighting or live simulation.
+
+No runtime, shared contract, original atlas or live save was changed by these lanes. Full test:fast and live runtime gates remain the integration owner's next-stage checks; no merge-to-trunk claim is made.
