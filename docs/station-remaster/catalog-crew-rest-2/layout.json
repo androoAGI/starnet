@@ -1,0 +1,223 @@
+{
+  "version": 1,
+  "cells": [
+    {
+      "id": "benchpress",
+      "view": "s",
+      "bounds": {
+        "x": 1,
+        "y": -8,
+        "width": 36,
+        "height": 20
+      },
+      "footprint": {
+        "w": 3,
+        "h": 1
+      },
+      "nativeGuide": {
+        "path": "C:\\Users\\andro\\gen-trees\\industrial-textures-0912\\dev\\.scratch-workspace\\prop-structure\\benchpress.png",
+        "sha256": "3f380a4c354553a1485ffa7c057e36760928157baafd6ede8e1e81c830987772"
+      },
+      "rect": {
+        "left": 0,
+        "top": 0,
+        "width": 600,
+        "height": 550
+      },
+      "source": "docs\\station-remaster\\catalog-crew-rest-2\\sources\\repair.png",
+      "sourceSha256": "41786c4c864817265080f5cc670e307be07bd1c1be22e3abade21d86a482000e"
+    },
+    {
+      "id": "benchpress_r",
+      "view": "s",
+      "bounds": {
+        "x": -1,
+        "y": -8,
+        "width": 36,
+        "height": 20
+      },
+      "footprint": {
+        "w": 3,
+        "h": 1
+      },
+      "nativeGuide": {
+        "path": "C:\\Users\\andro\\gen-trees\\industrial-textures-0912\\dev\\.scratch-workspace\\prop-structure\\benchpress_r.png",
+        "sha256": "0ba709f27b82cc5af2d05a8ddd4c31d5f860ee9d8bed3fad3ba9dd5c5959ac97"
+      },
+      "rect": {
+        "left": 0,
+        "top": 0,
+        "width": 1660,
+        "height": 948
+      },
+      "source": "docs\\station-remaster\\catalog-crew-rest-2\\sources\\benchpress-r-final.png",
+      "sourceSha256": "13f2c9d29f77de19cafd73620fd9ff55f1ca87964c4b0ec41375ced4deb9bed5"
+    },
+    {
+      "id": "punchbag",
+      "view": "s",
+      "bounds": {
+        "x": 0,
+        "y": -8,
+        "width": 12,
+        "height": 30
+      },
+      "footprint": {
+        "w": 1,
+        "h": 2
+      },
+      "nativeGuide": {
+        "path": "C:\\Users\\andro\\gen-trees\\industrial-textures-0912\\dev\\.scratch-workspace\\prop-structure\\punchbag.png",
+        "sha256": "cf8546a36cdf676fa938ceded5bed0b30bc848349500249270688763ded8f54d"
+      },
+      "rect": {
+        "left": 895,
+        "top": 0,
+        "width": 335,
+        "height": 510
+      }
+    },
+    {
+      "id": "punchbag_r",
+      "view": "s",
+      "bounds": {
+        "x": 0,
+        "y": -8,
+        "width": 12,
+        "height": 30
+      },
+      "footprint": {
+        "w": 1,
+        "h": 2
+      },
+      "nativeGuide": {
+        "path": "C:\\Users\\andro\\gen-trees\\industrial-textures-0912\\dev\\.scratch-workspace\\prop-structure\\punchbag_r.png",
+        "sha256": "8d3659160228b486b6af4e7ddd9d77b688fe662fe1eb51ad79a967d14612dab5"
+      },
+      "rect": {
+        "left": 1230,
+        "top": 0,
+        "width": 356,
+        "height": 510
+      }
+    },
+    {
+      "id": "weaponrack",
+      "view": "s",
+      "bounds": {
+        "x": 1,
+        "y": -16,
+        "width": 34,
+        "height": 22
+      },
+      "footprint": {
+        "w": 3,
+        "h": 1
+      },
+      "nativeGuide": {
+        "path": "C:\\Users\\andro\\gen-trees\\industrial-textures-0912\\dev\\.scratch-workspace\\prop-structure\\weaponrack.png",
+        "sha256": "d4f14af9c8e689845f8fcbca6a889b2e5919d0d198f4c975b20b896d3db6f396"
+      },
+      "rect": {
+        "left": 0,
+        "top": 550,
+        "width": 585,
+        "height": 474
+      },
+      "source": "docs\\station-remaster\\catalog-crew-rest-2\\sources\\repair.png",
+      "sourceSha256": "41786c4c864817265080f5cc670e307be07bd1c1be22e3abade21d86a482000e"
+    },
+    {
+      "id": "weaponrack_r",
+      "view": "s",
+      "bounds": {
+        "x": 1,
+        "y": -16,
+        "width": 34,
+        "height": 22
+      },
+      "footprint": {
+        "w": 3,
+        "h": 1
+      },
+      "nativeGuide": {
+        "path": "C:\\Users\\andro\\gen-trees\\industrial-textures-0912\\dev\\.scratch-workspace\\prop-structure\\weaponrack_r.png",
+        "sha256": "c8fbb4810fb2a21bf16bd0964eac68e539fa1314f1036cdd5f623cd591a8e2e6"
+      },
+      "rect": {
+        "left": 0,
+        "top": 580,
+        "width": 1160,
+        "height": 776
+      },
+      "source": "docs\\station-remaster\\catalog-crew-rest-2\\sources\\paired-repair.png",
+      "sourceSha256": "9f8252ff00449da322725248fc46d4bd5f8bb86e2497e8c9af7df8fbaa3d22c7"
+    },
+    {
+      "id": "pinball",
+      "view": "s",
+      "bounds": {
+        "x": -1,
+        "y": -3,
+        "width": 16,
+        "height": 27
+      },
+      "footprint": {
+        "w": 1,
+        "h": 2
+      },
+      "nativeGuide": {
+        "path": "C:\\Users\\andro\\gen-trees\\industrial-textures-0912\\dev\\.scratch-workspace\\prop-structure\\pinball.png",
+        "sha256": "211663ce49cb14c9374861018a619cc628f910f4625391aae29949ce836d0efb"
+      },
+      "rect": {
+        "left": 1150,
+        "top": 0,
+        "width": 386,
+        "height": 580
+      },
+      "source": "docs\\station-remaster\\catalog-crew-rest-2\\sources\\repair.png",
+      "sourceSha256": "41786c4c864817265080f5cc670e307be07bd1c1be22e3abade21d86a482000e"
+    },
+    {
+      "id": "gachapon",
+      "view": "s",
+      "bounds": {
+        "x": 0,
+        "y": -7,
+        "width": 11,
+        "height": 19
+      },
+      "footprint": {
+        "w": 1,
+        "h": 1
+      },
+      "nativeGuide": {
+        "path": "C:\\Users\\andro\\gen-trees\\industrial-textures-0912\\dev\\.scratch-workspace\\prop-structure\\gachapon.png",
+        "sha256": "6c79abc7c31385b11342ca5e02f3d4bfed8c7c6a0c15cda25d105687d8007bc0"
+      },
+      "rect": {
+        "left": 1230,
+        "top": 510,
+        "width": 356,
+        "height": 482
+      }
+    }
+  ],
+  "source": "docs\\station-remaster\\catalog-crew-rest-2\\sources\\sheet.png",
+  "sourceSha256": "a02642a41edf6c953ea28dbb4e061b9e7cdac3904c455adc0c295dae8d9081fb",
+  "refs": [
+    {
+      "path": "C:\\Users\\andro\\gen-trees\\prop-coordination-0914\\frontend\\assets\\industrial\\projection-correction\\crate.png",
+      "sha256": "a4c596600f4c1c0bf0c2f4df0892a9f0c49b074dd91079b5926b0fd27cd0ba16"
+    },
+    {
+      "path": "C:\\Users\\andro\\gen-trees\\prop-coordination-0914\\frontend\\assets\\industrial\\projection-correction\\desk.png",
+      "sha256": "49e35c9b58a2e1f4939ed1320e70e4f11a54b46afbe46661122638ddf7ca5fd4"
+    },
+    {
+      "path": "C:\\Users\\andro\\gen-trees\\prop-coordination-0914\\frontend\\assets\\industrial\\projection-correction\\chair.png",
+      "sha256": "1c9257ded875c31688c9f759c424db2814ab707e36790db7793e20aac85c2d79"
+    }
+  ]
+}

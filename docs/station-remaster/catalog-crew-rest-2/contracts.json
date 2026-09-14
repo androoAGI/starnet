@@ -1,0 +1,149 @@
+{
+  "version": 1,
+  "cells": [
+    {
+      "id": "benchpress",
+      "view": "s",
+      "bounds": {
+        "x": 1,
+        "y": -8,
+        "width": 36,
+        "height": 20
+      },
+      "footprint": {
+        "w": 3,
+        "h": 1
+      },
+      "nativeGuide": {
+        "path": "C:\\Users\\andro\\gen-trees\\industrial-textures-0912\\dev\\.scratch-workspace\\prop-structure\\benchpress.png",
+        "sha256": "3f380a4c354553a1485ffa7c057e36760928157baafd6ede8e1e81c830987772"
+      }
+    },
+    {
+      "id": "benchpress_r",
+      "view": "s",
+      "bounds": {
+        "x": -1,
+        "y": -8,
+        "width": 36,
+        "height": 20
+      },
+      "footprint": {
+        "w": 3,
+        "h": 1
+      },
+      "nativeGuide": {
+        "path": "C:\\Users\\andro\\gen-trees\\industrial-textures-0912\\dev\\.scratch-workspace\\prop-structure\\benchpress_r.png",
+        "sha256": "0ba709f27b82cc5af2d05a8ddd4c31d5f860ee9d8bed3fad3ba9dd5c5959ac97"
+      }
+    },
+    {
+      "id": "punchbag",
+      "view": "s",
+      "bounds": {
+        "x": 0,
+        "y": -8,
+        "width": 12,
+        "height": 30
+      },
+      "footprint": {
+        "w": 1,
+        "h": 2
+      },
+      "nativeGuide": {
+        "path": "C:\\Users\\andro\\gen-trees\\industrial-textures-0912\\dev\\.scratch-workspace\\prop-structure\\punchbag.png",
+        "sha256": "cf8546a36cdf676fa938ceded5bed0b30bc848349500249270688763ded8f54d"
+      }
+    },
+    {
+      "id": "punchbag_r",
+      "view": "s",
+      "bounds": {
+        "x": 0,
+        "y": -8,
+        "width": 12,
+        "height": 30
+      },
+      "footprint": {
+        "w": 1,
+        "h": 2
+      },
+      "nativeGuide": {
+        "path": "C:\\Users\\andro\\gen-trees\\industrial-textures-0912\\dev\\.scratch-workspace\\prop-structure\\punchbag_r.png",
+        "sha256": "8d3659160228b486b6af4e7ddd9d77b688fe662fe1eb51ad79a967d14612dab5"
+      }
+    },
+    {
+      "id": "weaponrack",
+      "view": "s",
+      "bounds": {
+        "x": 1,
+        "y": -16,
+        "width": 34,
+        "height": 22
+      },
+      "footprint": {
+        "w": 3,
+        "h": 1
+      },
+      "nativeGuide": {
+        "path": "C:\\Users\\andro\\gen-trees\\industrial-textures-0912\\dev\\.scratch-workspace\\prop-structure\\weaponrack.png",
+        "sha256": "d4f14af9c8e689845f8fcbca6a889b2e5919d0d198f4c975b20b896d3db6f396"
+      }
+    },
+    {
+      "id": "weaponrack_r",
+      "view": "s",
+      "bounds": {
+        "x": 1,
+        "y": -16,
+        "width": 34,
+        "height": 22
+      },
+      "footprint": {
+        "w": 3,
+        "h": 1
+      },
+      "nativeGuide": {
+        "path": "C:\\Users\\andro\\gen-trees\\industrial-textures-0912\\dev\\.scratch-workspace\\prop-structure\\weaponrack_r.png",
+        "sha256": "c8fbb4810fb2a21bf16bd0964eac68e539fa1314f1036cdd5f623cd591a8e2e6"
+      }
+    },
+    {
+      "id": "pinball",
+      "view": "s",
+      "bounds": {
+        "x": -1,
+        "y": -3,
+        "width": 16,
+        "height": 27
+      },
+      "footprint": {
+        "w": 1,
+        "h": 2
+      },
+      "nativeGuide": {
+        "path": "C:\\Users\\andro\\gen-trees\\industrial-textures-0912\\dev\\.scratch-workspace\\prop-structure\\pinball.png",
+        "sha256": "211663ce49cb14c9374861018a619cc628f910f4625391aae29949ce836d0efb"
+      }
+    },
+    {
+      "id": "gachapon",
+      "view": "s",
+      "bounds": {
+        "x": 0,
+        "y": -7,
+        "width": 11,
+        "height": 19
+      },
+      "footprint": {
+        "w": 1,
+        "h": 1
+      },
+      "nativeGuide": {
+        "path": "C:\\Users\\andro\\gen-trees\\industrial-textures-0912\\dev\\.scratch-workspace\\prop-structure\\gachapon.png",
+        "sha256": "6c79abc7c31385b11342ca5e02f3d4bfed8c7c6a0c15cda25d105687d8007bc0"
+      }
+    }
+  ]
+}
