@@ -1,0 +1,1538 @@
+{
+  "version": 1,
+  "scope": "Original twelve storage accessories; calibration recipes only, not a renderer manifest.",
+  "sourceArtCommit": "ba76e48dbab148023a020275bdc6a36acfc34c61",
+  "auditBaseCommit": "95ad7a7a810a587c9cf2f0dac7c7b3b36897402a",
+  "coordinateConvention": {
+    "exportedImageNormalized": "Top-left origin; x / PNG width and y / PNG height, before engine alpha crop. Regions are manually annotated on actual exported art.",
+    "engineAlphaNormalized": "Top-left of nonzero-alpha bounds; x=(normalizedX*width-alphaBounds.x)/alphaBounds.width and analogous y. Rect extents are scaled without subtracting origin.",
+    "alphaRule": "All alpha > 0 pixels count, matching frontend/app/propremaster.js:60 through :68.",
+    "precision": "Manual region annotations are approximate visual calibration; image sizes, hashes, alpha bounds and coordinate conversion are exact. Owner must validate overlays at game scale.",
+    "status": "Recipe recommendations; no renderer changes or live verification."
+  },
+  "sharedIntegrationRequirements": [
+    "Retain catalog footprints, blocking, optional table mounting, leisure selection and simulation triggers independently of skin rendering.",
+    "Pass the existing native work flag; do not substitute idle clock, animation phase, or invented task progress for real trigger state.",
+    "Named modes below describe mechanism intent, not currently accepted propremaster.js manifest values. Owner must implement/adapt them; do not paste this JSON into the renderer manifest.",
+    "Clip surface motion to annotated polygons and actual subject alpha. Steam and light spill are separate overlay passes that may extend beyond subject alpha; never turn transparent cutouts opaque.",
+    "Static source pixels are not a completed motion implementation. Keep a working native fallback for functional work effects until the owner integrates and verifies their replacement."
+  ],
+  "props": {
+    "bookshelf": {
+      "views": {
+        "s": {
+          "image": "frontend/assets/industrial/batch03/storage/bookshelf.png",
+          "outputSha256": "e285427a3debc3c0df7671149658ccf08f5afca84eba73e1a605fd1fef4daaf5",
+          "width": 1279,
+          "height": 979,
+          "alphaBounds": {
+            "x": 0,
+            "y": 0,
+            "width": 1279,
+            "height": 979
+          },
+          "mode": "static",
+          "originalTrigger": {
+            "kind": "leisure-use without internal sprite animation",
+            "condition": "The existing bookshelf leisure action remains selectable; approach south, standing read. Native sprite itself is static.",
+            "evidence": [
+              "frontend/app/propsprites.js:9731",
+              "frontend/app/propsprites.js:10932",
+              "frontend/app/world.js:363"
+            ]
+          },
+          "palette": {
+            "wood": "#927044",
+            "books": [
+              "#596f68",
+              "#8f4b42",
+              "#c19a55"
+            ]
+          },
+          "intentionalStatic": {
+            "enabled": true,
+            "scope": "Entire art",
+            "rationale": "Wood shelves and book spines have no display or powered part. Static painting preserves the original static renderer."
+          },
+          "functionalCapabilitiesPreserved": [
+            "Bookshelf leisure use: standing, south approach, 18-34 second dwell and 3-6 second fidget cadence.",
+            "Existing blocking footprint and collision."
+          ],
+          "screenRegions": [],
+          "motionRegions": [],
+          "notes": [],
+          "integrationRequirements": [
+            "Keep bookshelf leisure descriptor and actor reading behavior; no animation in the furniture is required to make the book-reading action functional."
+          ],
+          "nativePlacement": {
+            "footprint": {
+              "w": 2,
+              "h": 1
+            },
+            "bounds": {
+              "x": -1,
+              "y": -9,
+              "width": 26,
+              "height": 22
+            },
+            "tilePixels": 12,
+            "contact": {
+              "x": 12,
+              "y": 13
+            },
+            "anchorContract": "PropAnchor derives reachable edge approach; useApproach rotates relative preference with r. Preserve standing leisure action unless special planner supplies a real body anchor."
+          },
+          "qa": {
+            "sourceReceiptShaMatches": true,
+            "alphaCounts": {
+              "transparent": 111818,
+              "opaque": 1140323,
+              "partial": 0
+            },
+            "nativeAndSmallScaleReview": "Art visually inspected; overlay geometry is a manual proposal, not a tested runtime result."
+          }
+        }
+      }
+    },
+    "bookstack": {
+      "views": {
+        "s": {
+          "image": "frontend/assets/industrial/batch03/storage/bookstack.png",
+          "outputSha256": "4696f250b7da85a66b41fb18e202db3ce7dc99e43dc6842c6906e3a0c6ff9da6",
+          "width": 1162,
+          "height": 930,
+          "alphaBounds": {
+            "x": 0,
+            "y": 0,
+            "width": 1162,
+            "height": 930
+          },
+          "mode": "static",
+          "originalTrigger": {
+            "kind": "none",
+            "condition": "Native renderer has no clock or work-dependent branch.",
+            "evidence": [
+              "frontend/app/propsprites.js:9563",
+              "frontend/app/propsprites.js:10921"
+            ]
+          },
+          "palette": {
+            "covers": [
+              "#526354",
+              "#91473f",
+              "#b48c41",
+              "#3d5b69"
+            ],
+            "paper": "#d5c4a4"
+          },
+          "intentionalStatic": {
+            "enabled": true,
+            "scope": "Entire art",
+            "rationale": "Printed books are intentionally matte and still."
+          },
+          "functionalCapabilitiesPreserved": [
+            "Optional surface mount and existing nonblocking placement."
+          ],
+          "screenRegions": [],
+          "motionRegions": [],
+          "notes": [],
+          "integrationRequirements": [],
+          "nativePlacement": {
+            "footprint": {
+              "w": 1,
+              "h": 1
+            },
+            "bounds": {
+              "x": 0,
+              "y": 0,
+              "width": 12,
+              "height": 10
+            },
+            "tilePixels": 12,
+            "contact": {
+              "x": 6,
+              "y": 10
+            },
+            "anchorContract": "Can sit on bare deck or valid table; table mount lifts contact origin exactly 8 world pixels."
+          },
+          "qa": {
+            "sourceReceiptShaMatches": true,
+            "alphaCounts": {
+              "transparent": 107426,
+              "opaque": 973234,
+              "partial": 0
+            },
+            "nativeAndSmallScaleReview": "Art visually inspected; overlay geometry is a manual proposal, not a tested runtime result."
+          }
+        }
+      }
+    },
+    "mug": {
+      "views": {
+        "s": {
+          "image": "frontend/assets/industrial/batch03/storage/mug.png",
+          "outputSha256": "1af0e806f672e1390a3304b535bd7e13982f3b7f2858b4b27c20d0cc424070e0",
+          "width": 1050,
+          "height": 1027,
+          "alphaBounds": {
+            "x": 0,
+            "y": 0,
+            "width": 1050,
+            "height": 1027
+          },
+          "mode": "steam",
+          "originalTrigger": {
+            "kind": "autonomous cosmetic clock",
+            "condition": "blink(3000, phase + x); independent of work.",
+            "evidence": [
+              "frontend/app/propsprites.js:9538",
+              "frontend/app/propsprites.js:9560"
+            ]
+          },
+          "palette": {
+            "ceramic": "#c89b3a",
+            "coffee": "#35261e",
+            "steam": "#dfe8ea"
+          },
+          "intentionalStatic": {
+            "enabled": false,
+            "scope": "Ceramic and liquid stay static; thin steam is separate.",
+            "rationale": "Retain the recognizable native hot-drink curl; it is cosmetic, not evidence of work."
+          },
+          "functionalCapabilitiesPreserved": [
+            "Optional surface mount.",
+            "Autonomous thin steam curl."
+          ],
+          "screenRegions": [],
+          "motionRegions": [
+            {
+              "name": "coffee surface / steam emission",
+              "exportedImageNormalized": {
+                "polygon": [
+                  [
+                    0.13,
+                    0.18
+                  ],
+                  [
+                    0.48,
+                    0.16
+                  ],
+                  [
+                    0.65,
+                    0.31
+                  ],
+                  [
+                    0.58,
+                    0.45
+                  ],
+                  [
+                    0.28,
+                    0.47
+                  ],
+                  [
+                    0.1,
+                    0.31
+                  ]
+                ],
+                "origin": [
+                  0.36,
+                  0.3
+                ],
+                "path": [
+                  [
+                    0.36,
+                    0.3
+                  ],
+                  [
+                    0.345,
+                    0.23
+                  ],
+                  [
+                    0.365,
+                    0.16
+                  ],
+                  [
+                    0.355,
+                    0.09
+                  ]
+                ]
+              },
+              "engineAlphaNormalized": {
+                "polygon": [
+                  [
+                    0.13,
+                    0.18
+                  ],
+                  [
+                    0.48,
+                    0.16
+                  ],
+                  [
+                    0.65,
+                    0.31
+                  ],
+                  [
+                    0.58,
+                    0.45
+                  ],
+                  [
+                    0.28,
+                    0.47
+                  ],
+                  [
+                    0.1,
+                    0.31
+                  ]
+                ],
+                "origin": [
+                  0.36,
+                  0.3
+                ],
+                "path": [
+                  [
+                    0.36,
+                    0.3
+                  ],
+                  [
+                    0.345,
+                    0.23
+                  ],
+                  [
+                    0.365,
+                    0.16
+                  ],
+                  [
+                    0.355,
+                    0.09
+                  ]
+                ]
+              },
+              "colour": "#dfe8ea",
+              "mechanism": "steam",
+              "periodMs": 3000,
+              "maxOpacity": 0.13,
+              "workDependent": false
+            }
+          ],
+          "notes": [],
+          "integrationRequirements": [
+            "Render a narrow low-opacity curl above the liquid; never a large smoke cloud.",
+            "Use a separate overlay for steam so it can rise outside mug alpha without filling the handle hole."
+          ],
+          "nativePlacement": {
+            "footprint": {
+              "w": 1,
+              "h": 1
+            },
+            "bounds": {
+              "x": 1,
+              "y": 2,
+              "width": 10,
+              "height": 9
+            },
+            "tilePixels": 12,
+            "contact": {
+              "x": 6,
+              "y": 11
+            },
+            "anchorContract": "Can sit on bare deck or valid table; table mount lifts contact origin exactly 8 world pixels."
+          },
+          "qa": {
+            "sourceReceiptShaMatches": true,
+            "alphaCounts": {
+              "transparent": 314570,
+              "opaque": 763780,
+              "partial": 0
+            },
+            "nativeAndSmallScaleReview": "Art visually inspected; overlay geometry is a manual proposal, not a tested runtime result."
+          }
+        }
+      }
+    },
+    "radio": {
+      "views": {
+        "s": {
+          "image": "frontend/assets/industrial/batch03/storage/radio.png",
+          "outputSha256": "cc8752c8e346989a022c50b0cf64711251054f3df3605e068eda33cfd3bb4c18",
+          "width": 1226,
+          "height": 950,
+          "alphaBounds": {
+            "x": 0,
+            "y": 0,
+            "width": 1226,
+            "height": 950
+          },
+          "mode": "screen",
+          "originalTrigger": {
+            "kind": "autonomous analog tuning and cosmetic power blink",
+            "condition": "Needle advances among three positions every 900 ms; legacy power lamp blink is 1400 ms, independent of work.",
+            "evidence": [
+              "frontend/app/propsprites.js:9607",
+              "frontend/app/propsprites.js:9621",
+              "frontend/app/propsprites.js:9623",
+              "frontend/app/propsprites.js:9625"
+            ]
+          },
+          "palette": {
+            "case": "#47736d",
+            "dial": "#30382f",
+            "needle": "#d9a060",
+            "dialGlow": "#ffc45a"
+          },
+          "intentionalStatic": {
+            "enabled": true,
+            "scope": "Case, grille and knobs; remove the separate idle power-LED blink because new art has no LED.",
+            "rationale": "Preserve analog tuning motion inside the real dial. Do not invent an LED on the wooden speaker grille."
+          },
+          "functionalCapabilitiesPreserved": [
+            "Optional surface mount.",
+            "Three-position analog needle drift.",
+            "Existing low steady radio light."
+          ],
+          "screenRegions": [
+            {
+              "name": "analog dial interior",
+              "exportedImageNormalized": {
+                "rect": {
+                  "x": 0.616,
+                  "y": 0.416,
+                  "width": 0.312,
+                  "height": 0.173
+                },
+                "polygon": [
+                  [
+                    0.618,
+                    0.425
+                  ],
+                  [
+                    0.925,
+                    0.425
+                  ],
+                  [
+                    0.925,
+                    0.584
+                  ],
+                  [
+                    0.618,
+                    0.584
+                  ]
+                ]
+              },
+              "engineAlphaNormalized": {
+                "rect": {
+                  "x": 0.616,
+                  "y": 0.416,
+                  "width": 0.312,
+                  "height": 0.173
+                },
+                "polygon": [
+                  [
+                    0.618,
+                    0.425
+                  ],
+                  [
+                    0.925,
+                    0.425
+                  ],
+                  [
+                    0.925,
+                    0.584
+                  ],
+                  [
+                    0.618,
+                    0.584
+                  ]
+                ]
+              },
+              "colour": "#d9a060",
+              "mechanism": "analog-needle",
+              "stepMs": 900,
+              "steps": 3,
+              "needleXPositions": [
+                0.69,
+                0.76,
+                0.83
+              ],
+              "needleYRange": [
+                0.43,
+                0.579
+              ],
+              "positionsCoordinateSpace": "exportedImageNormalized; same engineAlphaNormalized for this tight crop",
+              "workDependent": false
+            }
+          ],
+          "motionRegions": [],
+          "notes": [],
+          "integrationRequirements": [
+            "The source contains a baked orange needle: derive a clean dial layer or mask and reconstruct its background before moving the needle; never draw duplicate needles.",
+            "Keep dial ticks and glass frame; no digital text or full-screen scanning sweep.",
+            "No native audio playback or tuning input was found; this recipe does not add either."
+          ],
+          "nativePlacement": {
+            "footprint": {
+              "w": 1,
+              "h": 1
+            },
+            "bounds": {
+              "x": 1,
+              "y": 3,
+              "width": 10,
+              "height": 9
+            },
+            "tilePixels": 12,
+            "contact": {
+              "x": 6,
+              "y": 12
+            },
+            "anchorContract": "Can sit on bare deck or valid table; table mount lifts contact origin exactly 8 world pixels."
+          },
+          "qa": {
+            "sourceReceiptShaMatches": true,
+            "alphaCounts": {
+              "transparent": 206310,
+              "opaque": 958390,
+              "partial": 0
+            },
+            "nativeAndSmallScaleReview": "Art visually inspected; overlay geometry is a manual proposal, not a tested runtime result."
+          },
+          "light": {
+            "native": {
+              "c": [
+                255,
+                120,
+                80
+              ],
+              "r": 10,
+              "a": 0.06,
+              "m": "steady",
+              "y": 0.5
+            },
+            "policy": "Preserve steady scene-light behavior; anchor the local dial effect to the measured dial rather than the old sprite location."
+          }
+        }
+      }
+    },
+    "guitar": {
+      "views": {
+        "s": {
+          "image": "frontend/assets/industrial/batch03/storage/guitar.png",
+          "outputSha256": "598bd161ee937061d300d6c21ca8fa6af12efde3e09a8e8d87d5369433f9a363",
+          "width": 588,
+          "height": 1624,
+          "alphaBounds": {
+            "x": 0,
+            "y": 0,
+            "width": 588,
+            "height": 1624
+          },
+          "mode": "static",
+          "originalTrigger": {
+            "kind": "none",
+            "condition": "Native acoustic guitar renderer has no clock or work branch.",
+            "evidence": [
+              "frontend/app/propsprites.js:6835",
+              "frontend/app/propsprites.js:10899"
+            ]
+          },
+          "palette": {
+            "wood": "#ad7841",
+            "soundhole": "#31261c",
+            "strings": "#c6bd9e"
+          },
+          "intentionalStatic": {
+            "enabled": true,
+            "scope": "Entire guitar and stand",
+            "rationale": "Static acoustic instrument has no powered display. No native playing/audio interaction was found."
+          },
+          "functionalCapabilitiesPreserved": [
+            "Existing floor placement and blocking footprint."
+          ],
+          "screenRegions": [],
+          "motionRegions": [],
+          "notes": [],
+          "integrationRequirements": [
+            "Do not infer a new play-music interaction from the prop identity."
+          ],
+          "nativePlacement": {
+            "footprint": {
+              "w": 1,
+              "h": 1
+            },
+            "bounds": {
+              "x": -1,
+              "y": -15,
+              "width": 14,
+              "height": 27
+            },
+            "tilePixels": 12,
+            "contact": {
+              "x": 6,
+              "y": 12
+            },
+            "anchorContract": "No leisure seat anchor. Footprint is the placement/pathfinding rectangle; upright visual rise is independent of the reserved box."
+          },
+          "qa": {
+            "sourceReceiptShaMatches": true,
+            "alphaCounts": {
+              "transparent": 486040,
+              "opaque": 468872,
+              "partial": 0
+            },
+            "nativeAndSmallScaleReview": "Art visually inspected; overlay geometry is a manual proposal, not a tested runtime result."
+          }
+        }
+      }
+    },
+    "figurine": {
+      "views": {
+        "s": {
+          "image": "frontend/assets/industrial/batch03/storage/figurine.png",
+          "outputSha256": "530675aa02c58720172111e8b95f2ab86c38a9b1061390f9b21ecb59bade611d",
+          "width": 669,
+          "height": 1103,
+          "alphaBounds": {
+            "x": 0,
+            "y": 0,
+            "width": 669,
+            "height": 1103
+          },
+          "mode": "static",
+          "originalTrigger": {
+            "kind": "autonomous cosmetic eye blink removed",
+            "condition": "Legacy eye band blink(2400, phase + x); independent of work.",
+            "evidence": [
+              "frontend/app/propsprites.js:9649",
+              "frontend/app/propsprites.js:9665",
+              "frontend/app/propsprites.js:10925"
+            ]
+          },
+          "palette": {
+            "suit": "#c5bda2",
+            "trim": "#b76c39",
+            "visor": "#28373a"
+          },
+          "intentionalStatic": {
+            "enabled": true,
+            "scope": "Entire figurine, including visor",
+            "rationale": "New art is an unpowered astronaut collectible with dark visor, not an electronic head. The old blinking eye is decorative and intentionally removed."
+          },
+          "functionalCapabilitiesPreserved": [
+            "Optional surface mount and collectible decoration."
+          ],
+          "screenRegions": [],
+          "motionRegions": [],
+          "notes": [],
+          "integrationRequirements": [
+            "Keep visor painted; do not introduce a fake task/status LED."
+          ],
+          "nativePlacement": {
+            "footprint": {
+              "w": 1,
+              "h": 1
+            },
+            "bounds": {
+              "x": 1,
+              "y": 1,
+              "width": 10,
+              "height": 11
+            },
+            "tilePixels": 12,
+            "contact": {
+              "x": 6,
+              "y": 12
+            },
+            "anchorContract": "Can sit on bare deck or valid table; table mount lifts contact origin exactly 8 world pixels."
+          },
+          "qa": {
+            "sourceReceiptShaMatches": true,
+            "alphaCounts": {
+              "transparent": 182367,
+              "opaque": 555540,
+              "partial": 0
+            },
+            "nativeAndSmallScaleReview": "Art visually inspected; overlay geometry is a manual proposal, not a tested runtime result."
+          }
+        }
+      }
+    },
+    "modelship": {
+      "views": {
+        "s": {
+          "image": "frontend/assets/industrial/batch03/storage/modelship.png",
+          "outputSha256": "9fb08f8ee2c057fad95a5af7ef9d80ef48f7205d6c579bb20d1cd7522d0a29db",
+          "width": 1284,
+          "height": 749,
+          "alphaBounds": {
+            "x": 0,
+            "y": 0,
+            "width": 1284,
+            "height": 749
+          },
+          "mode": "pulse",
+          "originalTrigger": {
+            "kind": "autonomous cosmetic thruster glow",
+            "condition": "blink(2200, phase + x); independent of work.",
+            "evidence": [
+              "frontend/app/propsprites.js:9692",
+              "frontend/app/propsprites.js:9720",
+              "frontend/app/propsprites.js:9722"
+            ]
+          },
+          "palette": {
+            "hull": "#c3bba0",
+            "trim": "#aa5e33",
+            "engineGlow": "#75a7b5"
+          },
+          "intentionalStatic": {
+            "enabled": false,
+            "scope": "Hull and stand static; two aft outlet accents pulse.",
+            "rationale": "Retain miniature engine animation as decoration only."
+          },
+          "functionalCapabilitiesPreserved": [
+            "Optional surface mount.",
+            "Autonomous paired miniature-thruster pulse."
+          ],
+          "screenRegions": [],
+          "motionRegions": [
+            {
+              "name": "upper aft outlet",
+              "exportedImageNormalized": {
+                "polygon": [
+                  [
+                    0.946,
+                    0.26
+                  ],
+                  [
+                    0.981,
+                    0.27
+                  ],
+                  [
+                    0.982,
+                    0.369
+                  ],
+                  [
+                    0.949,
+                    0.389
+                  ]
+                ]
+              },
+              "engineAlphaNormalized": {
+                "polygon": [
+                  [
+                    0.946,
+                    0.26
+                  ],
+                  [
+                    0.981,
+                    0.27
+                  ],
+                  [
+                    0.982,
+                    0.369
+                  ],
+                  [
+                    0.949,
+                    0.389
+                  ]
+                ]
+              },
+              "colour": "#75a7b5",
+              "mechanism": "pulse",
+              "periodMs": 2200,
+              "maxOpacity": 0.3,
+              "workDependent": false
+            },
+            {
+              "name": "lower aft outlet",
+              "exportedImageNormalized": {
+                "polygon": [
+                  [
+                    0.954,
+                    0.468
+                  ],
+                  [
+                    0.988,
+                    0.478
+                  ],
+                  [
+                    0.989,
+                    0.583
+                  ],
+                  [
+                    0.952,
+                    0.597
+                  ]
+                ]
+              },
+              "engineAlphaNormalized": {
+                "polygon": [
+                  [
+                    0.954,
+                    0.468
+                  ],
+                  [
+                    0.988,
+                    0.478
+                  ],
+                  [
+                    0.989,
+                    0.583
+                  ],
+                  [
+                    0.952,
+                    0.597
+                  ]
+                ]
+              },
+              "colour": "#75a7b5",
+              "mechanism": "pulse",
+              "periodMs": 2200,
+              "maxOpacity": 0.3,
+              "workDependent": false
+            }
+          ],
+          "notes": [],
+          "integrationRequirements": [
+            "The new ship points LEFT; its aft engines are on the RIGHT. Old left-edge thruster coordinates would light the nose.",
+            "Confine pulse to outlet polygons, with restrained bloom; no thrust trail or movement of the model."
+          ],
+          "nativePlacement": {
+            "footprint": {
+              "w": 2,
+              "h": 1
+            },
+            "bounds": {
+              "x": 2,
+              "y": 1,
+              "width": 20,
+              "height": 11
+            },
+            "tilePixels": 12,
+            "contact": {
+              "x": 12,
+              "y": 12
+            },
+            "anchorContract": "Can sit on bare deck or valid table; table mount lifts contact origin exactly 8 world pixels."
+          },
+          "qa": {
+            "sourceReceiptShaMatches": true,
+            "alphaCounts": {
+              "transparent": 365494,
+              "opaque": 596222,
+              "partial": 0
+            },
+            "nativeAndSmallScaleReview": "Art visually inspected; overlay geometry is a manual proposal, not a tested runtime result."
+          }
+        }
+      }
+    },
+    "toolbox": {
+      "views": {
+        "s": {
+          "image": "frontend/assets/industrial/batch03/storage/toolbox.png",
+          "outputSha256": "d1453a168ee3851d20805909047ef6745952f927479a538a0452bbe9f2f258cf",
+          "width": 1255,
+          "height": 695,
+          "alphaBounds": {
+            "x": 0,
+            "y": 0,
+            "width": 1255,
+            "height": 695
+          },
+          "mode": "static",
+          "originalTrigger": {
+            "kind": "none",
+            "condition": "Native toolbox has no clock or work-dependent branch.",
+            "evidence": [
+              "frontend/app/propsprites.js:9628",
+              "frontend/app/propsprites.js:10924"
+            ]
+          },
+          "palette": {
+            "case": "#a74a38",
+            "handle": "#293633",
+            "latches": "#b8b8a2"
+          },
+          "intentionalStatic": {
+            "enabled": true,
+            "scope": "Entire closed toolbox",
+            "rationale": "New design is a closed red toolbox. No opening trigger exists in the native renderer; static storage preserves its capabilities."
+          },
+          "functionalCapabilitiesPreserved": [
+            "Optional surface mount and existing nonblocking placement."
+          ],
+          "screenRegions": [],
+          "motionRegions": [],
+          "notes": [],
+          "integrationRequirements": [
+            "Do not promise opening lids or moving tools; these are not existing functions."
+          ],
+          "nativePlacement": {
+            "footprint": {
+              "w": 1,
+              "h": 1
+            },
+            "bounds": {
+              "x": 0,
+              "y": 1,
+              "width": 12,
+              "height": 10
+            },
+            "tilePixels": 12,
+            "contact": {
+              "x": 6,
+              "y": 11
+            },
+            "anchorContract": "Can sit on bare deck or valid table; table mount lifts contact origin exactly 8 world pixels."
+          },
+          "qa": {
+            "sourceReceiptShaMatches": true,
+            "alphaCounts": {
+              "transparent": 66453,
+              "opaque": 805772,
+              "partial": 0
+            },
+            "nativeAndSmallScaleReview": "Art visually inspected; overlay geometry is a manual proposal, not a tested runtime result."
+          }
+        }
+      }
+    },
+    "desklamp": {
+      "views": {
+        "s": {
+          "image": "frontend/assets/industrial/batch03/storage/desklamp.png",
+          "outputSha256": "a7e20fe99936ba5b847ffd560dbe17dc78c27a1854d345f9786fc213bd069c4e",
+          "width": 1033,
+          "height": 956,
+          "alphaBounds": {
+            "x": 0,
+            "y": 0,
+            "width": 1033,
+            "height": 956
+          },
+          "mode": "steady-light",
+          "originalTrigger": {
+            "kind": "constant lamp illumination",
+            "condition": "Native mouth bloom/spill and catalog light are steady; no work or blink gate.",
+            "evidence": [
+              "frontend/app/propsprites.js:9582",
+              "frontend/app/propsprites.js:9601",
+              "frontend/app/propsprites.js:9602",
+              "frontend/app/propsprites.js:9603",
+              "frontend/app/propsprites.js:10922"
+            ]
+          },
+          "palette": {
+            "shade": "#778976",
+            "stem": "#a89663",
+            "mouth": "#ffd9a0"
+          },
+          "intentionalStatic": {
+            "enabled": true,
+            "scope": "Rigid lamp art; illumination is steady, not animated.",
+            "rationale": "Static geometry must not disable actual task-lamp lighting."
+          },
+          "functionalCapabilitiesPreserved": [
+            "Optional surface mount.",
+            "Warm steady lamp emission and restrained local spill."
+          ],
+          "screenRegions": [],
+          "motionRegions": [
+            {
+              "name": "lamp mouth",
+              "exportedImageNormalized": {
+                "polygon": [
+                  [
+                    0.025,
+                    0.319
+                  ],
+                  [
+                    0.105,
+                    0.323
+                  ],
+                  [
+                    0.435,
+                    0.49
+                  ],
+                  [
+                    0.475,
+                    0.555
+                  ],
+                  [
+                    0.414,
+                    0.583
+                  ],
+                  [
+                    0.079,
+                    0.402
+                  ]
+                ],
+                "origin": [
+                  0.25,
+                  0.455
+                ]
+              },
+              "engineAlphaNormalized": {
+                "polygon": [
+                  [
+                    0.025,
+                    0.319
+                  ],
+                  [
+                    0.105,
+                    0.323
+                  ],
+                  [
+                    0.435,
+                    0.49
+                  ],
+                  [
+                    0.475,
+                    0.555
+                  ],
+                  [
+                    0.414,
+                    0.583
+                  ],
+                  [
+                    0.079,
+                    0.402
+                  ]
+                ],
+                "origin": [
+                  0.25,
+                  0.455
+                ]
+              },
+              "colour": "#ffd9a0",
+              "mechanism": "steady-light",
+              "workDependent": false,
+              "nativeBloomOpacity": 0.62,
+              "nativeSpillOpacity": 0.18
+            }
+          ],
+          "notes": [],
+          "integrationRequirements": [
+            "Retain catalog scene light c=[255,214,150], r=26, a=.22, m=steady, y=.3.",
+            "Use the slanted shade mouth for local emission; leave open arm/base cutouts transparent."
+          ],
+          "nativePlacement": {
+            "footprint": {
+              "w": 1,
+              "h": 1
+            },
+            "bounds": {
+              "x": 0,
+              "y": 3,
+              "width": 12,
+              "height": 9
+            },
+            "tilePixels": 12,
+            "contact": {
+              "x": 6,
+              "y": 12
+            },
+            "anchorContract": "Can sit on bare deck or valid table; table mount lifts contact origin exactly 8 world pixels."
+          },
+          "qa": {
+            "sourceReceiptShaMatches": true,
+            "alphaCounts": {
+              "transparent": 599137,
+              "opaque": 388411,
+              "partial": 0
+            },
+            "nativeAndSmallScaleReview": "Art visually inspected; overlay geometry is a manual proposal, not a tested runtime result."
+          },
+          "light": {
+            "native": {
+              "c": [
+                255,
+                214,
+                150
+              ],
+              "r": 26,
+              "a": 0.22,
+              "m": "steady",
+              "y": 0.3
+            },
+            "policy": "Preserve steady scene light independently of static sprite mode."
+          }
+        }
+      }
+    },
+    "research_papers": {
+      "views": {
+        "s": {
+          "image": "frontend/assets/industrial/batch03/storage/research_papers.png",
+          "outputSha256": "28e84f602e7248254e15c8e8f51743e1c91ffbd2e9b8c0e2c53f576654ce42a3",
+          "width": 1702,
+          "height": 602,
+          "alphaBounds": {
+            "x": 0,
+            "y": 0,
+            "width": 1702,
+            "height": 602
+          },
+          "mode": "sheet-feed",
+          "originalTrigger": {
+            "kind": "work-dependent sheet feed; cosmetic idle tick removed",
+            "condition": "Boolean(f && f.work). Existing caller work includes actual usingProp/watchProp and workstation-lit signals; no idle timer may turn work on.",
+            "evidence": [
+              "frontend/app/propsprites.js:7353",
+              "frontend/app/propsprites.js:7355",
+              "frontend/app/propsprites.js:7379",
+              "frontend/app/propsprites.js:7393",
+              "frontend/app/propsprites.js:7395",
+              "frontend/app/world.js:6044",
+              "frontend/app/world.js:5863"
+            ]
+          },
+          "palette": {
+            "paper": "#d6c9a5",
+            "ink": "#627e7b",
+            "folder": "#987342"
+          },
+          "intentionalStatic": {
+            "enabled": true,
+            "scope": "Idle pages, ink and read-head sparkle",
+            "rationale": "Paper is nonemissive. Remove autonomous 600 ms read-head flicker; retain work-triggered shift/feed of the top sheet."
+          },
+          "functionalCapabilitiesPreserved": [
+            "Optional surface mount.",
+            "A work-state-dependent fresh-sheet offset and feed edge."
+          ],
+          "screenRegions": [],
+          "motionRegions": [
+            {
+              "name": "central top sheet",
+              "exportedImageNormalized": {
+                "polygon": [
+                  [
+                    0.39,
+                    0.075
+                  ],
+                  [
+                    0.646,
+                    0.115
+                  ],
+                  [
+                    0.625,
+                    0.845
+                  ],
+                  [
+                    0.37,
+                    0.79
+                  ]
+                ],
+                "origin": [
+                  0.505,
+                  0.46
+                ]
+              },
+              "engineAlphaNormalized": {
+                "polygon": [
+                  [
+                    0.39,
+                    0.075
+                  ],
+                  [
+                    0.646,
+                    0.115
+                  ],
+                  [
+                    0.625,
+                    0.845
+                  ],
+                  [
+                    0.37,
+                    0.79
+                  ]
+                ],
+                "origin": [
+                  0.505,
+                  0.46
+                ]
+              },
+              "colour": "#d6c9a5",
+              "mechanism": "sheet-feed",
+              "workDependent": true,
+              "restOffset": [
+                0,
+                0
+              ],
+              "workOffsetWorldPixels": [
+                1,
+                0
+              ],
+              "offsetPolicy": "Map the original one-world-pixel rightward offset into the fitted sprite; do not use source pixel distance as world distance."
+            }
+          ],
+          "notes": [],
+          "integrationRequirements": [
+            "Make a separated central-sheet layer or mask before moving it; source is a single flattened PNG.",
+            "Keep ink matte; no scanning light or glowing progress bar.",
+            "Use a small work-state offset/revealed edge, preserving page content. Native feed is a work-state change rather than a continuously running conveyor.",
+            "Restore the resting position when work ends; preserve the generic work trigger and native fallback until this layer is implemented."
+          ],
+          "nativePlacement": {
+            "footprint": {
+              "w": 2,
+              "h": 1
+            },
+            "bounds": {
+              "x": 1,
+              "y": 1,
+              "width": 20,
+              "height": 10
+            },
+            "tilePixels": 12,
+            "contact": {
+              "x": 11,
+              "y": 11
+            },
+            "anchorContract": "Can sit on bare deck or valid table; table mount lifts contact origin exactly 8 world pixels."
+          },
+          "qa": {
+            "sourceReceiptShaMatches": true,
+            "alphaCounts": {
+              "transparent": 189858,
+              "opaque": 834746,
+              "partial": 0
+            },
+            "nativeAndSmallScaleReview": "Art visually inspected; overlay geometry is a manual proposal, not a tested runtime result."
+          }
+        }
+      }
+    },
+    "etsy_threadrack": {
+      "views": {
+        "s": {
+          "image": "frontend/assets/industrial/batch03/storage/etsy_threadrack.png",
+          "outputSha256": "c8e3e860fe082a645fc712adb4a951f2588b7b3d5093b2c9029b60dcc7536411",
+          "width": 1296,
+          "height": 842,
+          "alphaBounds": {
+            "x": 0,
+            "y": 0,
+            "width": 1296,
+            "height": 842
+          },
+          "mode": "thread-feed",
+          "originalTrigger": {
+            "kind": "work-dependent thread motion; legacy LED-rate change",
+            "condition": "Boolean(f && f.work) gates strand feed; native strand advances every 260 ms. Legacy feed LED cadence is 900 ms working / 1800 ms idle.",
+            "evidence": [
+              "frontend/app/propsprites.js:7765",
+              "frontend/app/propsprites.js:7766",
+              "frontend/app/propsprites.js:7787",
+              "frontend/app/propsprites.js:7788",
+              "frontend/app/propsprites.js:7814",
+              "frontend/app/world.js:6044",
+              "frontend/app/world.js:5863"
+            ]
+          },
+          "palette": {
+            "wood": "#9d7441",
+            "redThread": "#a24736",
+            "threadHighlight": "#be6950"
+          },
+          "intentionalStatic": {
+            "enabled": true,
+            "scope": "Idle rack and all LED/bloom decoration",
+            "rationale": "New wooden rack has no feed LED. Suppress fabricated electronics, but retain genuine work-triggered thread feeding as nonemissive spool-band movement."
+          },
+          "functionalCapabilitiesPreserved": [
+            "Existing blocking floor footprint.",
+            "Work-triggered visible thread-feed behavior."
+          ],
+          "screenRegions": [],
+          "motionRegions": [
+            {
+              "name": "upper left red spool winding",
+              "exportedImageNormalized": {
+                "polygon": [
+                  [
+                    0.133,
+                    0.15
+                  ],
+                  [
+                    0.268,
+                    0.15
+                  ],
+                  [
+                    0.268,
+                    0.333
+                  ],
+                  [
+                    0.133,
+                    0.333
+                  ]
+                ],
+                "origin": [
+                  0.2,
+                  0.2
+                ],
+                "path": [
+                  [
+                    0.15,
+                    0.24
+                  ],
+                  [
+                    0.2,
+                    0.214
+                  ],
+                  [
+                    0.251,
+                    0.195
+                  ]
+                ]
+              },
+              "engineAlphaNormalized": {
+                "polygon": [
+                  [
+                    0.133,
+                    0.15
+                  ],
+                  [
+                    0.268,
+                    0.15
+                  ],
+                  [
+                    0.268,
+                    0.333
+                  ],
+                  [
+                    0.133,
+                    0.333
+                  ]
+                ],
+                "origin": [
+                  0.2,
+                  0.2
+                ],
+                "path": [
+                  [
+                    0.15,
+                    0.24
+                  ],
+                  [
+                    0.2,
+                    0.214
+                  ],
+                  [
+                    0.251,
+                    0.195
+                  ]
+                ]
+              },
+              "colour": "#be6950",
+              "mechanism": "thread-feed",
+              "stepMs": 260,
+              "workDependent": true,
+              "emissive": false,
+              "geometryStatus": "Calibrated visible winding region; replacement moving thread layer still needs owner implementation."
+            }
+          ],
+          "notes": [],
+          "integrationRequirements": [
+            "The new art lacks the old external guide/strand. Owner must author a small separated thread-band overlay inside the marked red spool, or add an explicit physical thread path; static source alone is not a preserved feed mechanism.",
+            "Do not overlay the old native casing or floating LED on the wooden rack.",
+            "Keep work-only thread movement tied to the original flag; do not claim real job completion or spool inventory from animation phase."
+          ],
+          "nativePlacement": {
+            "footprint": {
+              "w": 2,
+              "h": 1
+            },
+            "bounds": {
+              "x": -1,
+              "y": -8,
+              "width": 26,
+              "height": 20
+            },
+            "tilePixels": 12,
+            "contact": {
+              "x": 12,
+              "y": 12
+            },
+            "anchorContract": "No leisure seat anchor. Footprint is the placement/pathfinding rectangle; upright visual rise is independent of the reserved box."
+          },
+          "qa": {
+            "sourceReceiptShaMatches": true,
+            "alphaCounts": {
+              "transparent": 280791,
+              "opaque": 810441,
+              "partial": 0
+            },
+            "nativeAndSmallScaleReview": "Art visually inspected; overlay geometry is a manual proposal, not a tested runtime result."
+          }
+        }
+      }
+    },
+    "easel": {
+      "views": {
+        "s": {
+          "image": "frontend/assets/industrial/batch03/storage/easel.png",
+          "outputSha256": "549f703bc641394344ca53321bb56d39bf70140d000950f2f53cb16a75973a5d",
+          "width": 671,
+          "height": 1268,
+          "alphaBounds": {
+            "x": 0,
+            "y": 0,
+            "width": 671,
+            "height": 1268
+          },
+          "mode": "paint-reveal",
+          "originalTrigger": {
+            "kind": "work-dependent painted-content reveal; cosmetic idle pin blink removed",
+            "condition": "Boolean(f && f.work) gates the native paint reveal; loop period 2400 ms. Idle pin blink is 1600 ms and is intentionally omitted.",
+            "evidence": [
+              "frontend/app/propsprites.js:2708",
+              "frontend/app/propsprites.js:2718",
+              "frontend/app/propsprites.js:2774",
+              "frontend/app/propsprites.js:2781",
+              "frontend/app/propsprites.js:2792",
+              "frontend/app/propsprites.js:2796",
+              "frontend/app/world.js:6044",
+              "frontend/app/world.js:5863"
+            ]
+          },
+          "palette": {
+            "canvas": "#d8cfaf",
+            "planet": "#ac683e",
+            "space": "#607472",
+            "wood": "#99703f"
+          },
+          "intentionalStatic": {
+            "enabled": true,
+            "scope": "Idle easel, pin sparkle, wet-edge sparkle and decorative canvas bloom",
+            "rationale": "A wood easel and painted canvas are not lamps. Remove cosmetic sparkles while preserving the actual work-triggered painting transition."
+          },
+          "functionalCapabilitiesPreserved": [
+            "Existing floor/blocking geometry.",
+            "Work-state-dependent reveal of painted canvas content."
+          ],
+          "screenRegions": [],
+          "motionRegions": [
+            {
+              "name": "canvas interior excluding wood/clamp/ledge",
+              "exportedImageNormalized": {
+                "polygon": [
+                  [
+                    0.105,
+                    0.21
+                  ],
+                  [
+                    0.894,
+                    0.21
+                  ],
+                  [
+                    0.881,
+                    0.539
+                  ],
+                  [
+                    0.113,
+                    0.539
+                  ]
+                ],
+                "origin": [
+                  0.5,
+                  0.21
+                ]
+              },
+              "engineAlphaNormalized": {
+                "polygon": [
+                  [
+                    0.105,
+                    0.21
+                  ],
+                  [
+                    0.894,
+                    0.21
+                  ],
+                  [
+                    0.881,
+                    0.539
+                  ],
+                  [
+                    0.113,
+                    0.539
+                  ]
+                ],
+                "origin": [
+                  0.5,
+                  0.21
+                ]
+              },
+              "colour": "#ac683e",
+              "mechanism": "paint-reveal",
+              "periodMs": 2400,
+              "workDependent": true,
+              "emissive": false,
+              "revealDirection": "top-to-bottom",
+              "contentPolicy": "Reuse existing Saturn artwork colors and shapes; no flat paint-over, no task-percent assertion."
+            }
+          ],
+          "notes": [],
+          "integrationRequirements": [
+            "Keep the new Saturn illustration: reveal muted painted color using a clipped prepared art layer, not a solid rectangle and not the old portrait sprite.",
+            "Retain the original 2400 ms illustrative cycle only while work is true; its phase must never be labeled actual job progress.",
+            "Prepare a canvas base and paint layer from the source before animating; no finished integration is implied by these bounds.",
+            "The native easel scene-light entry is a decorative canvas glow (c=[255,214,150], r=16, a=.05, steady, y=.4); intentionally suppress it with the removed sparkle, because the new prop contains no light source. This does not remove a usable task-lamp capability."
+          ],
+          "nativePlacement": {
+            "footprint": {
+              "w": 3,
+              "h": 2
+            },
+            "bounds": {
+              "x": 1,
+              "y": -14,
+              "width": 34,
+              "height": 38
+            },
+            "tilePixels": 12,
+            "contact": {
+              "x": 18,
+              "y": 24
+            },
+            "anchorContract": "No leisure seat anchor. Footprint is the placement/pathfinding rectangle; upright visual rise is independent of the reserved box."
+          },
+          "qa": {
+            "sourceReceiptShaMatches": true,
+            "alphaCounts": {
+              "transparent": 405358,
+              "opaque": 445470,
+              "partial": 0
+            },
+            "nativeAndSmallScaleReview": "Art visually inspected; overlay geometry is a manual proposal, not a tested runtime result."
+          }
+        }
+      }
+    }
+  },
+  "nativeEvidenceFiles": {
+    "frontend/app/propsprites.js": {
+      "sha256": "b3bc2df66a627194449f2bf3de8b32782d912a1c8f95442e5eaa429d7f461b40",
+      "lineReferences": "One-based at auditBaseCommit"
+    },
+    "frontend/app/world.js": {
+      "sha256": "89915daf28292c5afeeec4c03933a35d3352e072db1c74884de864d7a231c1cb",
+      "lineReferences": "One-based at auditBaseCommit"
+    },
+    "frontend/app/propremaster.js": {
+      "sha256": "82fb5fc0e2873c895ae17f22bb8be448a477c9b0d56d80f5b9d13a7c3fb6fcc0",
+      "lineReferences": "One-based at auditBaseCommit"
+    }
+  },
+  "verification": {
+    "exportedHashesVerified": 12,
+    "exportedDimensionsAndAlphaBoundsVerified": 12,
+    "allExpectedViewsPresent": true,
+    "surfacePolygonsCheckedAgainstActualAlpha": 8,
+    "allSurfacePolygonPixelsOpaque": true,
+    "evidenceFilesAndLineNumbersExist": true,
+    "runtimeEdits": false,
+    "liveOverlayVerification": false
+  }
+}
