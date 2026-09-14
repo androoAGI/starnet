@@ -1,0 +1,15 @@
+{
+  "characters": [
+    {
+      "id": "pepe",
+      "characterId": "c338ce16-7d3e-438a-9898-f873f2988261",
+      "rotations": {
+        "south": "https://backblaze.pixellab.ai/file/pixellab-characters/1ff7d2cf-cfe6-44f9-9533-9eea41eb05cb/c338ce16-7d3e-438a-9898-f873f2988261/rotations/south.png?t=1789363785",
+        "east": "https://backblaze.pixellab.ai/file/pixellab-characters/1ff7d2cf-cfe6-44f9-9533-9eea41eb05cb/c338ce16-7d3e-438a-9898-f873f2988261/rotations/east.png?t=1789363785",
+        "north": "https://backblaze.pixellab.ai/file/pixellab-characters/1ff7d2cf-cfe6-44f9-9533-9eea41eb05cb/c338ce16-7d3e-438a-9898-f873f2988261/rotations/north.png?t=1789363785",
+        "west": "https://backblaze.pixellab.ai/file/pixellab-characters/1ff7d2cf-cfe6-44f9-9533-9eea41eb05cb/c338ce16-7d3e-438a-9898-f873f2988261/rotations/west.png?t=1789363785"
+      }
+    }
+  ],
+  "reason": "Restore heavy eyelids and broad lips characteristic of Pepe."
+}
