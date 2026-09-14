@@ -1,0 +1,265 @@
+{
+  "version": 1,
+  "styleReferences": [
+    "assets/industrial/scale-calibration/references/reference-small.jpg",
+    "assets/industrial/scale-calibration/references/reference-armory.png",
+    "assets/industrial/scale-calibration/references/reference-bridge.png"
+  ],
+  "items": [
+    {
+      "id": "couch",
+      "originalId": "couch",
+      "current": {
+        "image": "assets/industrial/scale-calibration/before/couch.png",
+        "width": 2147,
+        "height": 527,
+        "crop": {
+          "x": 0,
+          "y": 0,
+          "width": 2147,
+          "height": 527
+        },
+        "sha256": "e386bb7cb9a89e42605a0b9503033f350a8894ddf826ff1f58caf13a33ae646b",
+        "bounds": {
+          "x": -1,
+          "y": -8,
+          "width": 62,
+          "height": 20
+        },
+        "fit": {
+          "width": 62,
+          "height": 15.218444340940847
+        },
+        "exposure": 1.1
+      },
+      "candidate": {
+        "image": "assets/industrial/scale-calibration/coordinator/couch.png",
+        "width": 1303,
+        "height": 488,
+        "crop": {
+          "x": 0,
+          "y": 0,
+          "width": 1303,
+          "height": 488
+        },
+        "sha256": "c45a26d009ea732947be82ee1486c2dbd9b32ede920896a0bb76f919fd706290",
+        "bounds": {
+          "x": -1,
+          "y": -12,
+          "width": 62,
+          "height": 24
+        },
+        "fit": {
+          "width": 62.00000000000001,
+          "height": 23.220260936300846
+        },
+        "exposure": 1
+      },
+      "status": "Calibration candidate; not accepted or runtime integrated"
+    },
+    {
+      "id": "couch-alt",
+      "originalId": "couch",
+      "current": {
+        "image": "assets/industrial/scale-calibration/before/couch-alt.png",
+        "width": 2147,
+        "height": 527,
+        "crop": {
+          "x": 0,
+          "y": 0,
+          "width": 2147,
+          "height": 527
+        },
+        "sha256": "e386bb7cb9a89e42605a0b9503033f350a8894ddf826ff1f58caf13a33ae646b",
+        "bounds": {
+          "x": -1,
+          "y": -8,
+          "width": 62,
+          "height": 20
+        },
+        "fit": {
+          "width": 62,
+          "height": 15.218444340940847
+        },
+        "exposure": 1.1
+      },
+      "candidate": {
+        "image": "assets/industrial/scale-calibration/crew/couch-alt.png",
+        "width": 1641,
+        "height": 465,
+        "crop": {
+          "x": 0,
+          "y": 0,
+          "width": 1641,
+          "height": 465
+        },
+        "sha256": "4264fec38b37f300779ea18d04a343f38e2a8d180ffe154f631598cd0455fa99",
+        "bounds": {
+          "x": -1,
+          "y": -12,
+          "width": 62,
+          "height": 24
+        },
+        "fit": {
+          "width": 62,
+          "height": 17.56855575868373
+        },
+        "exposure": 1
+      },
+      "status": "Calibration candidate; not accepted or runtime integrated"
+    },
+    {
+      "id": "desk",
+      "originalId": "desk",
+      "current": {
+        "image": "assets/industrial/scale-calibration/before/desk.png",
+        "width": 1024,
+        "height": 623,
+        "crop": {
+          "x": 0,
+          "y": 0,
+          "width": 1024,
+          "height": 623
+        },
+        "sha256": "f58e27eb623bb0ea9f77107ce9a90fbda7b4714b0feaa4e9f74a035d76ea78c4",
+        "bounds": {
+          "x": -1,
+          "y": -11.5,
+          "width": 38,
+          "height": 23.5
+        },
+        "fit": {
+          "width": 38,
+          "height": 23.119140625
+        },
+        "exposure": 1.5
+      },
+      "candidate": {
+        "image": "assets/industrial/scale-calibration/coordinator/desk.png",
+        "width": 748,
+        "height": 631,
+        "crop": {
+          "x": 0,
+          "y": 0,
+          "width": 748,
+          "height": 631
+        },
+        "sha256": "f0a01a02249713a2cd0c2b5424dd8f188f44df4145167ea722d6f0f18069f54f",
+        "bounds": {
+          "x": -1,
+          "y": -12,
+          "width": 38,
+          "height": 24
+        },
+        "fit": {
+          "width": 28.450079239302696,
+          "height": 24
+        },
+        "exposure": 1
+      },
+      "status": "Calibration candidate; not accepted or runtime integrated"
+    },
+    {
+      "id": "coffee",
+      "originalId": "coffee",
+      "current": {
+        "image": "assets/industrial/scale-calibration/before/coffee.png",
+        "width": 786,
+        "height": 1407,
+        "crop": {
+          "x": 0,
+          "y": 0,
+          "width": 786,
+          "height": 1407
+        },
+        "sha256": "fd78114fa53b8f3afc1f453316ff3b07618aac60136a6f0fc3b74a89d40dae20",
+        "bounds": {
+          "x": -1,
+          "y": -6,
+          "width": 13,
+          "height": 18
+        },
+        "fit": {
+          "width": 10.055437100213219,
+          "height": 18
+        },
+        "exposure": 1
+      },
+      "candidate": {
+        "image": "assets/industrial/scale-calibration/utility/coffee.png",
+        "width": 917,
+        "height": 1419,
+        "crop": {
+          "x": 0,
+          "y": 0,
+          "width": 917,
+          "height": 1419
+        },
+        "sha256": "57634b735d1d3573c88b0019e5c793fe4a2c1987e5467ba3800171debcc6eed4",
+        "bounds": {
+          "x": -1,
+          "y": -6,
+          "width": 13,
+          "height": 18
+        },
+        "fit": {
+          "width": 11.632135306553911,
+          "height": 18
+        },
+        "exposure": 1
+      },
+      "status": "Calibration candidate; not accepted or runtime integrated"
+    },
+    {
+      "id": "monstera",
+      "originalId": "monstera",
+      "current": {
+        "image": "assets/industrial/scale-calibration/before/monstera.png",
+        "width": 1205,
+        "height": 1306,
+        "crop": {
+          "x": 22,
+          "y": 7,
+          "width": 1165,
+          "height": 1255
+        },
+        "sha256": "a72776ff73fe4d9fdabb8c3d46df9b5028e75978e3b0d7c3c74175f3f0a33b47",
+        "bounds": {
+          "x": 0,
+          "y": -1,
+          "width": 12,
+          "height": 13
+        },
+        "fit": {
+          "width": 12,
+          "height": 12.927038626609443
+        },
+        "exposure": 1
+      },
+      "candidate": {
+        "image": "assets/industrial/scale-calibration/utility/monstera.png",
+        "width": 872,
+        "height": 1025,
+        "crop": {
+          "x": 0,
+          "y": 0,
+          "width": 872,
+          "height": 1025
+        },
+        "sha256": "1730edc043cc4f69405e3d30e0e77974005f2aa049368ac6a5481ff65fba8f7c",
+        "bounds": {
+          "x": 0,
+          "y": -1,
+          "width": 12,
+          "height": 13
+        },
+        "fit": {
+          "width": 11.059512195121952,
+          "height": 13
+        },
+        "exposure": 1
+      },
+      "status": "Calibration candidate; not accepted or runtime integrated"
+    }
+  ]
+}

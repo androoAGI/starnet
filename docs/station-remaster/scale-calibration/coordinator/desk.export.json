@@ -1,0 +1,18 @@
+{
+  "source": "docs/station-remaster/scale-calibration/coordinator/desk.source.png",
+  "output": "frontend/assets/industrial/scale-calibration/coordinator/desk.png",
+  "sourceSha256": "ca382008a47f8622b8f6c65d970b0d9f219693825f60642a5a339fe7534c1c56",
+  "outputSha256": "f0a01a02249713a2cd0c2b5424dd8f188f44df4145167ea722d6f0f18069f54f",
+  "sourceWidth": 1578,
+  "sourceHeight": 996,
+  "crop": {
+    "left": 415,
+    "top": 172,
+    "width": 748,
+    "height": 631
+  },
+  "alphaDustCleared": 4772,
+  "alphaThreshold": 1,
+  "rgbEdits": false,
+  "scope": "Remove only alpha=1 residue then tight crop; generated alpha>=2 and retained RGB unchanged."
+}
