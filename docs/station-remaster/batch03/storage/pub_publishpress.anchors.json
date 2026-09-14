@@ -77,6 +77,42 @@
           9.112,
           9.802
         ]
+      ],
+      "sourceNormalized": [
+        [
+          0.344316,
+          0.506564
+        ],
+        [
+          0.654036,
+          0.506564
+        ],
+        [
+          0.654036,
+          0.537452
+        ],
+        [
+          0.344316,
+          0.537452
+        ]
+      ],
+      "exportNormalized": [
+        [
+          0.337069,
+          0.510797
+        ],
+        [
+          0.661207,
+          0.510797
+        ],
+        [
+          0.661207,
+          0.54402
+        ],
+        [
+          0.337069,
+          0.54402
+        ]
       ]
     },
     "outputTray": {
@@ -132,6 +168,42 @@
         [
           7.483,
           19.216
+        ]
+      ],
+      "sourceNormalized": [
+        [
+          0.313015,
+          0.656371
+        ],
+        [
+          0.681219,
+          0.656371
+        ],
+        [
+          0.701812,
+          0.818533
+        ],
+        [
+          0.292422,
+          0.818533
+        ]
+      ],
+      "exportNormalized": [
+        [
+          0.30431,
+          0.671927
+        ],
+        [
+          0.689655,
+          0.671927
+        ],
+        [
+          0.711207,
+          0.846346
+        ],
+        [
+          0.282759,
+          0.846346
         ]
       ]
     },
@@ -189,6 +261,42 @@
           7.172,
           6.259
         ]
+      ],
+      "sourceNormalized": [
+        [
+          0.282537,
+          0.321236
+        ],
+        [
+          0.716639,
+          0.321236
+        ],
+        [
+          0.716639,
+          0.43166
+        ],
+        [
+          0.282537,
+          0.43166
+        ]
+      ],
+      "exportNormalized": [
+        [
+          0.272414,
+          0.311462
+        ],
+        [
+          0.726724,
+          0.311462
+        ],
+        [
+          0.726724,
+          0.430233
+        ],
+        [
+          0.272414,
+          0.430233
+        ]
       ]
     },
     "statusPanel": {
@@ -245,9 +353,55 @@
           24.991,
           12.207
         ]
+      ],
+      "sourceNormalized": [
+        [
+          0.850082,
+          0.535907
+        ],
+        [
+          0.934926,
+          0.535907
+        ],
+        [
+          0.934926,
+          0.609266
+        ],
+        [
+          0.850082,
+          0.609266
+        ]
+      ],
+      "exportNormalized": [
+        [
+          0.866379,
+          0.542359
+        ],
+        [
+          0.955172,
+          0.542359
+        ],
+        [
+          0.955172,
+          0.621262
+        ],
+        [
+          0.866379,
+          0.621262
+        ]
       ]
     }
   },
   "liveIntegrated": false,
-  "animationNote": "Platen is authored parked. A moving-platen implementation must mask/recompose it before motion; static full-image override would lose native cycle."
+  "animationNote": "Platen is authored parked. A moving-platen implementation must mask/recompose it before motion; static full-image override would lose native cycle.",
+  "sourceDimensions": {
+    "width": 1214,
+    "height": 1295
+  },
+  "crop": {
+    "left": 27,
+    "top": 41,
+    "width": 1160,
+    "height": 1204
+  }
 }

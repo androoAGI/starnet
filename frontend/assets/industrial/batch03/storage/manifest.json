@@ -1,10 +1,128 @@
 {
   "version": 1,
   "lane": "storage",
-  "status": "17 painted/new exports; awaiting owner live review",
+  "status": "29 painted/new exports; awaiting owner live review",
   "tilePixels": 12,
   "runtimeIntegrated": false,
   "records": [
+    {
+      "id": "arcade",
+      "status": "exported-awaiting-owner-live-review",
+      "source": "sources/arcade.png",
+      "sourceSha256": "bf8c79291179e89203f24f5af6ba8d1b968e7ea40921b96aa06b40a3f0a88fd1",
+      "sourceWidth": 918,
+      "sourceHeight": 1713,
+      "image": "arcade.png",
+      "sourceOutputWidth": 737,
+      "sourceOutputHeight": 1610,
+      "crop": {
+        "left": 89,
+        "top": 40,
+        "width": 737,
+        "height": 1610
+      },
+      "channels": 4,
+      "transparentPixels": 120963,
+      "opaquePixels": 1065607,
+      "partialPixels": 0,
+      "backgroundPixelsRemoved": 506927,
+      "subjectRgbChanges": 0,
+      "outputSha256": "dbd442b59c74c981a36f0a01415b2627ad32211e7c693bdb89a6b4368a8041a5",
+      "holeSeeds": [],
+      "maskMethod": "Connected saturated-magenta flood fill, including key-only enclosed components. Alpha-only edits; uniform crop; no RGB recolor.",
+      "view": "s",
+      "footprint": {
+        "w": 1,
+        "h": 2
+      },
+      "bounds": {
+        "x": -1,
+        "y": -2,
+        "width": 14,
+        "height": 26
+      },
+      "tilePixels": 12,
+      "contact": {
+        "x": 6,
+        "y": 24
+      },
+      "anchorContract": "PropAnchor derives reachable edge approach; useApproach rotates relative preference with r. Preserve standing leisure action unless special planner supplies a real body anchor.",
+      "originalLight": {
+        "c": [
+          255,
+          120,
+          200
+        ],
+        "r": 22,
+        "a": 0.14,
+        "m": "screen",
+        "y": 0.3
+      },
+      "originalAnimationTriggers": [
+        "Actual leisure usingProp / watchProp can set work on this prop; body approach and use animation follow leisureUse. In the baseline draw work expression this leisure trigger directly checks the hero, not a separate crew leisure flag."
+      ],
+      "artMode": "static complete art; existing state/lighting integration remains owner decision",
+      "liveIntegrated": false
+    },
+    {
+      "id": "arcade2",
+      "status": "exported-awaiting-owner-live-review",
+      "source": "sources/arcade2.png",
+      "sourceSha256": "a6e58a1e1d2b90477021d310f6d7591be63d16a7bd52b75ead017b77d495b6fa",
+      "sourceWidth": 904,
+      "sourceHeight": 1740,
+      "image": "arcade2.png",
+      "sourceOutputWidth": 766,
+      "sourceOutputHeight": 1543,
+      "crop": {
+        "left": 68,
+        "top": 87,
+        "width": 766,
+        "height": 1543
+      },
+      "channels": 4,
+      "transparentPixels": 136247,
+      "opaquePixels": 1045691,
+      "partialPixels": 0,
+      "backgroundPixelsRemoved": 527269,
+      "subjectRgbChanges": 0,
+      "outputSha256": "5bba2038556f09baec64a9ffb7b82c7aed9175f5b3388a54e5020c705ceae08c",
+      "holeSeeds": [],
+      "maskMethod": "Connected saturated-magenta flood fill, including key-only enclosed components. Alpha-only edits; uniform crop; no RGB recolor.",
+      "view": "s",
+      "footprint": {
+        "w": 1,
+        "h": 2
+      },
+      "bounds": {
+        "x": -1,
+        "y": -2,
+        "width": 14,
+        "height": 27
+      },
+      "tilePixels": 12,
+      "contact": {
+        "x": 6,
+        "y": 25
+      },
+      "anchorContract": "PropAnchor derives reachable edge approach; useApproach rotates relative preference with r. Preserve standing leisure action unless special planner supplies a real body anchor.",
+      "originalLight": {
+        "c": [
+          120,
+          255,
+          200
+        ],
+        "r": 22,
+        "a": 0.14,
+        "m": "screen",
+        "y": 0.3
+      },
+      "originalAnimationTriggers": [
+        "Actual leisure usingProp / watchProp can set work on this prop; body approach and use animation follow leisureUse. In the baseline draw work expression this leisure trigger directly checks the hero, not a separate crew leisure flag."
+      ],
+      "artMode": "static complete art; existing state/lighting integration remains owner decision",
+      "liveIntegrated": false
+    },
     {
       "id": "bookshelf",
       "status": "exported-awaiting-owner-live-review",
@@ -223,6 +341,124 @@
       },
       "originalAnimationTriggers": [
         "No direct event-driven or sampled default sprite animation. Preserve static art; no invented status or progress."
+      ],
+      "artMode": "static complete art; existing state/lighting integration remains owner decision",
+      "liveIntegrated": false
+    },
+    {
+      "id": "deskterminal",
+      "status": "exported-awaiting-owner-live-review",
+      "source": "sources/deskterminal.png",
+      "sourceSha256": "2df37eaa82b2acf24d17661b124ce2f1d89954da26a82ee94ca2c4fe57ad8ddb",
+      "sourceWidth": 1254,
+      "sourceHeight": 1254,
+      "image": "deskterminal.png",
+      "sourceOutputWidth": 1131,
+      "sourceOutputHeight": 1059,
+      "crop": {
+        "left": 62,
+        "top": 98,
+        "width": 1131,
+        "height": 1059
+      },
+      "channels": 4,
+      "transparentPixels": 197446,
+      "opaquePixels": 1000283,
+      "partialPixels": 0,
+      "backgroundPixelsRemoved": 572233,
+      "subjectRgbChanges": 0,
+      "outputSha256": "ed537d209c24c2fcfcc5ce6c742285d0434359463e321745cf81c722e35e19ff",
+      "holeSeeds": [],
+      "maskMethod": "Connected saturated-magenta flood fill, including key-only enclosed components. Alpha-only edits; uniform crop; no RGB recolor.",
+      "view": "s",
+      "footprint": {
+        "w": 1,
+        "h": 1
+      },
+      "bounds": {
+        "x": 0,
+        "y": 0,
+        "width": 12,
+        "height": 12
+      },
+      "tilePixels": 12,
+      "contact": {
+        "x": 6,
+        "y": 12
+      },
+      "anchorContract": "Can sit on bare deck or valid table; table mount lifts contact origin exactly 8 world pixels.",
+      "originalLight": {
+        "c": [
+          98,
+          255,
+          158
+        ],
+        "r": 18,
+        "a": 0.1,
+        "m": "screen",
+        "y": 0.35
+      },
+      "originalAnimationTriggers": [
+        "Autonomous sprite clock animation is present in the sampled default state; cosmetic motion is not evidence of provider work, route decisions or external state."
+      ],
+      "artMode": "static complete art; existing state/lighting integration remains owner decision",
+      "liveIntegrated": false
+    },
+    {
+      "id": "djbooth",
+      "status": "exported-awaiting-owner-live-review",
+      "source": "sources/djbooth.png",
+      "sourceSha256": "9e4433b6e2f41c1935ad4976e5bbd27d89721c9f2bb6557c6514f760c4177246",
+      "sourceWidth": 1647,
+      "sourceHeight": 955,
+      "image": "djbooth.png",
+      "sourceOutputWidth": 1562,
+      "sourceOutputHeight": 701,
+      "crop": {
+        "left": 42,
+        "top": 136,
+        "width": 1562,
+        "height": 701
+      },
+      "channels": 4,
+      "transparentPixels": 145847,
+      "opaquePixels": 949115,
+      "partialPixels": 0,
+      "backgroundPixelsRemoved": 623770,
+      "subjectRgbChanges": 0,
+      "outputSha256": "254522569c74605e43b90234d57e487d6184efcf1458c0db9ecb80cac8446c78",
+      "holeSeeds": [],
+      "maskMethod": "Connected saturated-magenta flood fill, including key-only enclosed components. Alpha-only edits; uniform crop; no RGB recolor.",
+      "view": "s",
+      "footprint": {
+        "w": 4,
+        "h": 2
+      },
+      "bounds": {
+        "x": -1,
+        "y": -5,
+        "width": 50,
+        "height": 29
+      },
+      "tilePixels": 12,
+      "contact": {
+        "x": 24,
+        "y": 24
+      },
+      "anchorContract": "PropAnchor derives reachable edge approach; useApproach rotates relative preference with r. Preserve standing leisure action unless special planner supplies a real body anchor.",
+      "originalLight": {
+        "c": [
+          255,
+          90,
+          190
+        ],
+        "r": 30,
+        "a": 0.12,
+        "m": "pulse",
+        "y": 0.4
+      },
+      "originalAnimationTriggers": [
+        "Actual leisure usingProp / watchProp can set work on this prop; body approach and use animation follow leisureUse. In the baseline draw work expression this leisure trigger directly checks the hero, not a separate crew leisure flag."
       ],
       "artMode": "static complete art; existing state/lighting integration remains owner decision",
       "liveIntegrated": false
@@ -455,6 +691,174 @@
       "liveIntegrated": false
     },
     {
+      "id": "gachapon",
+      "status": "exported-awaiting-owner-live-review",
+      "source": "sources/gachapon.png",
+      "sourceSha256": "4dbfd85a38dfeb891a2c42ce9108c075ad0836ece5c3dad4aa815fe98b60be41",
+      "sourceWidth": 953,
+      "sourceHeight": 1650,
+      "image": "gachapon.png",
+      "sourceOutputWidth": 718,
+      "sourceOutputHeight": 1488,
+      "crop": {
+        "left": 117,
+        "top": 69,
+        "width": 718,
+        "height": 1488
+      },
+      "channels": 4,
+      "transparentPixels": 143986,
+      "opaquePixels": 924398,
+      "partialPixels": 0,
+      "backgroundPixelsRemoved": 648052,
+      "subjectRgbChanges": 0,
+      "outputSha256": "a7b8b893af0d90a69adafb111b4f1bcc5688c4295e1a0af11a9498bf474d6046",
+      "holeSeeds": [],
+      "maskMethod": "Connected saturated-magenta flood fill, including key-only enclosed components. Alpha-only edits; uniform crop; no RGB recolor.",
+      "view": "s",
+      "footprint": {
+        "w": 1,
+        "h": 1
+      },
+      "bounds": {
+        "x": 0,
+        "y": -7,
+        "width": 11,
+        "height": 19
+      },
+      "tilePixels": 12,
+      "contact": {
+        "x": 5.5,
+        "y": 12
+      },
+      "anchorContract": "PropAnchor derives reachable edge approach; useApproach rotates relative preference with r. Preserve standing leisure action unless special planner supplies a real body anchor.",
+      "originalLight": null,
+      "originalAnimationTriggers": [
+        "Actual leisure usingProp / watchProp can set work on this prop; body approach and use animation follow leisureUse. In the baseline draw work expression this leisure trigger directly checks the hero, not a separate crew leisure flag.",
+        "Autonomous sprite clock animation is present in the sampled default state; cosmetic motion is not evidence of provider work, route decisions or external state."
+      ],
+      "artMode": "static complete art; existing state/lighting integration remains owner decision",
+      "liveIntegrated": false
+    },
+    {
+      "id": "gigs_amp",
+      "status": "exported-awaiting-owner-live-review",
+      "source": "sources/gigs_amp.png",
+      "sourceSha256": "b7c3f26ac255ab808918c9bdbade60342e68da544f320303c034cbbc12652a0b",
+      "sourceWidth": 1122,
+      "sourceHeight": 1402,
+      "image": "gigs_amp.png",
+      "sourceOutputWidth": 1017,
+      "sourceOutputHeight": 1192,
+      "crop": {
+        "left": 51,
+        "top": 98,
+        "width": 1017,
+        "height": 1192
+      },
+      "channels": 4,
+      "transparentPixels": 110506,
+      "opaquePixels": 1101758,
+      "partialPixels": 0,
+      "backgroundPixelsRemoved": 471286,
+      "subjectRgbChanges": 0,
+      "outputSha256": "0c59603b77f2abfdc9efe774192085e8b4e76b4a633f33306b87b072eb74116b",
+      "holeSeeds": [],
+      "maskMethod": "Connected saturated-magenta flood fill, including key-only enclosed components. Alpha-only edits; uniform crop; no RGB recolor.",
+      "view": "s",
+      "footprint": {
+        "w": 1,
+        "h": 1
+      },
+      "bounds": {
+        "x": -1,
+        "y": -7,
+        "width": 16,
+        "height": 20
+      },
+      "tilePixels": 12,
+      "contact": {
+        "x": 7,
+        "y": 13
+      },
+      "anchorContract": "Can sit on bare deck or valid table; table mount lifts contact origin exactly 8 world pixels.",
+      "originalLight": {
+        "c": [
+          255,
+          120,
+          120
+        ],
+        "r": 14,
+        "a": 0.08,
+        "m": "pulse",
+        "y": 0.4
+      },
+      "originalAnimationTriggers": [
+        "Autonomous sprite clock animation is present in the sampled default state; cosmetic motion is not evidence of provider work, route decisions or external state."
+      ],
+      "artMode": "static complete art; existing state/lighting integration remains owner decision",
+      "liveIntegrated": false
+    },
+    {
+      "id": "gigs_thumbwall",
+      "status": "exported-awaiting-owner-live-review",
+      "source": "sources/gigs_thumbwall.png",
+      "sourceSha256": "ff257949a44e95d16b9ed968321538f5e194841da50ace998f5d836a756f5fa0",
+      "sourceWidth": 1508,
+      "sourceHeight": 1043,
+      "image": "gigs_thumbwall.png",
+      "sourceOutputWidth": 1411,
+      "sourceOutputHeight": 812,
+      "crop": {
+        "left": 48,
+        "top": 112,
+        "width": 1411,
+        "height": 812
+      },
+      "channels": 4,
+      "transparentPixels": 128908,
+      "opaquePixels": 1016824,
+      "partialPixels": 0,
+      "backgroundPixelsRemoved": 556020,
+      "subjectRgbChanges": 0,
+      "outputSha256": "f2753b6675fe7fc45aa6d7e5cbd4b5cbfb2a06fd4b499114906a597eae038977",
+      "holeSeeds": [],
+      "maskMethod": "Connected saturated-magenta flood fill, including key-only enclosed components. Alpha-only edits; uniform crop; no RGB recolor.",
+      "view": "s",
+      "footprint": {
+        "w": 2,
+        "h": 1
+      },
+      "bounds": {
+        "x": -1,
+        "y": -6,
+        "width": 26,
+        "height": 18
+      },
+      "tilePixels": 12,
+      "contact": {
+        "x": 12,
+        "y": 12
+      },
+      "anchorContract": "No leisure seat anchor. Footprint is the placement/pathfinding rectangle; upright visual rise is independent of the reserved box.",
+      "originalLight": {
+        "c": [
+          255,
+          150,
+          200
+        ],
+        "r": 20,
+        "a": 0.08,
+        "m": "screen",
+        "y": 0.35
+      },
+      "originalAnimationTriggers": [
+        "Autonomous sprite clock animation is present in the sampled default state; cosmetic motion is not evidence of provider work, route decisions or external state."
+      ],
+      "artMode": "static complete art; existing state/lighting integration remains owner decision",
+      "liveIntegrated": false
+    },
+    {
       "id": "guitar",
       "status": "exported-awaiting-owner-live-review",
       "source": "sources/guitar.png",
@@ -499,6 +903,127 @@
       "originalLight": null,
       "originalAnimationTriggers": [
         "No direct event-driven or sampled default sprite animation. Preserve static art; no invented status or progress."
+      ],
+      "artMode": "static complete art; existing state/lighting integration remains owner decision",
+      "liveIntegrated": false
+    },
+    {
+      "id": "holopet",
+      "status": "exported-awaiting-owner-live-review",
+      "source": "sources/holopet.png",
+      "sourceSha256": "750ed7845770b50185fb261a8b8945a64f5b258e83794cc9a1ab1a41583fd910",
+      "sourceWidth": 768,
+      "sourceHeight": 2048,
+      "image": "holopet.png",
+      "sourceOutputWidth": 671,
+      "sourceOutputHeight": 1740,
+      "crop": {
+        "left": 70,
+        "top": 181,
+        "width": 671,
+        "height": 1740
+      },
+      "channels": 4,
+      "transparentPixels": 600383,
+      "opaquePixels": 567157,
+      "partialPixels": 0,
+      "backgroundPixelsRemoved": 1005707,
+      "subjectRgbChanges": 0,
+      "outputSha256": "6d65bfdc7e90fb73422c602ee77755864b6913edf219789fe88b4cd0a242d2ec",
+      "holeSeeds": [],
+      "maskMethod": "Connected saturated-magenta flood fill, including key-only enclosed components. Alpha-only edits; uniform crop; no RGB recolor.",
+      "view": "s",
+      "footprint": {
+        "w": 1,
+        "h": 1
+      },
+      "bounds": {
+        "x": 3,
+        "y": -6,
+        "width": 6,
+        "height": 16
+      },
+      "tilePixels": 12,
+      "contact": {
+        "x": 6,
+        "y": 10
+      },
+      "anchorContract": "PropAnchor derives reachable edge approach; useApproach rotates relative preference with r. Preserve standing leisure action unless special planner supplies a real body anchor.",
+      "originalLight": {
+        "c": [
+          120,
+          255,
+          220
+        ],
+        "r": 16,
+        "a": 0.12,
+        "m": "pulse",
+        "y": 0.4
+      },
+      "originalAnimationTriggers": [
+        "Actual leisure usingProp / watchProp can set work on this prop; body approach and use animation follow leisureUse. In the baseline draw work expression this leisure trigger directly checks the hero, not a separate crew leisure flag.",
+        "Autonomous sprite clock animation is present in the sampled default state; cosmetic motion is not evidence of provider work, route decisions or external state."
+      ],
+      "artMode": "static complete art; existing state/lighting integration remains owner decision",
+      "liveIntegrated": false
+    },
+    {
+      "id": "jukebox",
+      "status": "exported-awaiting-owner-live-review",
+      "source": "sources/jukebox.png",
+      "sourceSha256": "8055ef2b1aeac84c6ab18146da112dbe40132722080584ae320aba260a627d4f",
+      "sourceWidth": 1024,
+      "sourceHeight": 1536,
+      "image": "jukebox.png",
+      "sourceOutputWidth": 783,
+      "sourceOutputHeight": 1395,
+      "crop": {
+        "left": 121,
+        "top": 30,
+        "width": 783,
+        "height": 1395
+      },
+      "channels": 4,
+      "transparentPixels": 128803,
+      "opaquePixels": 963482,
+      "partialPixels": 0,
+      "backgroundPixelsRemoved": 609382,
+      "subjectRgbChanges": 0,
+      "outputSha256": "d341279c214635f8591aea5b3a0de9495b36500a40918ef8c55ccaabf4aa6132",
+      "holeSeeds": [],
+      "maskMethod": "Connected saturated-magenta flood fill, including key-only enclosed components. Alpha-only edits; uniform crop; no RGB recolor.",
+      "view": "s",
+      "footprint": {
+        "w": 1,
+        "h": 2
+      },
+      "bounds": {
+        "x": -1,
+        "y": -3,
+        "width": 18,
+        "height": 27
+      },
+      "tilePixels": 12,
+      "contact": {
+        "x": 8,
+        "y": 24
+      },
+      "anchorContract": "PropAnchor derives reachable edge approach; useApproach rotates relative preference with r. Preserve standing leisure action unless special planner supplies a real body anchor.",
+      "originalLight": {
+        "c": [
+          255,
+          180,
+          80
+        ],
+        "r": 22,
+        "a": 0.12,
+        "m": "pulse",
+        "y": 0.35
+      },
+      "originalAnimationTriggers": [
+        "/api/spotify/status connected:true powers lamps, disc and bubble chase; disconnected is dark. This is actual Spotify capability despite its cosmetic catalog tier.",
+        "Real spotify_* tool completion chooses the granting prop instance and overlays a 900 ms success accent or red failure surge.",
+        "Actual leisure usingProp / watchProp can set work on this prop; body approach and use animation follow leisureUse. In the baseline draw work expression this leisure trigger directly checks the hero, not a separate crew leisure flag."
       ],
       "artMode": "static complete art; existing state/lighting integration remains owner decision",
       "liveIntegrated": false
@@ -662,6 +1187,66 @@
       "originalAnimationTriggers": [
         "Real reply delivery flashes for 600 ms after the outbound crate reaches the chute.",
         "ReturnStore pending count renders uncollected result crates (capped visible stack and count).",
+        "Autonomous sprite clock animation is present in the sampled default state; cosmetic motion is not evidence of provider work, route decisions or external state."
+      ],
+      "artMode": "static complete art; existing state/lighting integration remains owner decision",
+      "liveIntegrated": false
+    },
+    {
+      "id": "pinball",
+      "status": "exported-awaiting-owner-live-review",
+      "source": "sources/pinball.png",
+      "sourceSha256": "0697b8e24b8514edad24f767686a643dd866b166dbbb410bc4a30094e2630938",
+      "sourceWidth": 965,
+      "sourceHeight": 1629,
+      "image": "pinball.png",
+      "sourceOutputWidth": 737,
+      "sourceOutputHeight": 1566,
+      "crop": {
+        "left": 114,
+        "top": 23,
+        "width": 737,
+        "height": 1566
+      },
+      "channels": 4,
+      "transparentPixels": 357124,
+      "opaquePixels": 797018,
+      "partialPixels": 0,
+      "backgroundPixelsRemoved": 774967,
+      "subjectRgbChanges": 0,
+      "outputSha256": "b750070e381da650c06af1539d5fea23b12b555cf8fcca41c9f07ead25d0928c",
+      "holeSeeds": [],
+      "maskMethod": "Connected saturated-magenta flood fill, including key-only enclosed components. Alpha-only edits; uniform crop; no RGB recolor.",
+      "view": "s",
+      "footprint": {
+        "w": 1,
+        "h": 2
+      },
+      "bounds": {
+        "x": -1,
+        "y": -3,
+        "width": 16,
+        "height": 27
+      },
+      "tilePixels": 12,
+      "contact": {
+        "x": 7,
+        "y": 24
+      },
+      "anchorContract": "PropAnchor derives reachable edge approach; useApproach rotates relative preference with r. Preserve standing leisure action unless special planner supplies a real body anchor.",
+      "originalLight": {
+        "c": [
+          255,
+          190,
+          90
+        ],
+        "r": 20,
+        "a": 0.12,
+        "m": "screen",
+        "y": 0.4
+      },
+      "originalAnimationTriggers": [
+        "Actual leisure usingProp / watchProp can set work on this prop; body approach and use animation follow leisureUse. In the baseline draw work expression this leisure trigger directly checks the hero, not a separate crew leisure flag.",
         "Autonomous sprite clock animation is present in the sampled default state; cosmetic motion is not evidence of provider work, route decisions or external state."
       ],
       "artMode": "static complete art; existing state/lighting integration remains owner decision",
@@ -1030,6 +1615,65 @@
       "liveIntegrated": false
     },
     {
+      "id": "speaker",
+      "status": "exported-awaiting-owner-live-review",
+      "source": "sources/speaker.png",
+      "sourceSha256": "c62cc271c62bd98447da39bd26dbc64c6301858a81e0a1de1b79cdbeecfb9fae",
+      "sourceWidth": 1024,
+      "sourceHeight": 1536,
+      "image": "speaker.png",
+      "sourceOutputWidth": 774,
+      "sourceOutputHeight": 1297,
+      "crop": {
+        "left": 125,
+        "top": 105,
+        "width": 774,
+        "height": 1297
+      },
+      "channels": 4,
+      "transparentPixels": 54418,
+      "opaquePixels": 949460,
+      "partialPixels": 0,
+      "backgroundPixelsRemoved": 623404,
+      "subjectRgbChanges": 0,
+      "outputSha256": "389038d1d5ce1b6c8af50dd6f1e5bc517351d60ff891c73ca012ee76eaff0367",
+      "holeSeeds": [],
+      "maskMethod": "Connected saturated-magenta flood fill, including key-only enclosed components. Alpha-only edits; uniform crop; no RGB recolor.",
+      "view": "s",
+      "footprint": {
+        "w": 1,
+        "h": 1
+      },
+      "bounds": {
+        "x": 1,
+        "y": -3,
+        "width": 10,
+        "height": 15
+      },
+      "tilePixels": 12,
+      "contact": {
+        "x": 6,
+        "y": 12
+      },
+      "anchorContract": "Can sit on bare deck or valid table; table mount lifts contact origin exactly 8 world pixels.",
+      "originalLight": {
+        "c": [
+          255,
+          120,
+          120
+        ],
+        "r": 10,
+        "a": 0.05,
+        "m": "pulse",
+        "y": 0.5
+      },
+      "originalAnimationTriggers": [
+        "Autonomous sprite clock animation is present in the sampled default state; cosmetic motion is not evidence of provider work, route decisions or external state."
+      ],
+      "artMode": "static complete art; existing state/lighting integration remains owner decision",
+      "liveIntegrated": false
+    },
+    {
       "id": "toolbox",
       "status": "exported-awaiting-owner-live-review",
       "source": "sources/toolbox.png",
@@ -1074,6 +1718,66 @@
       "originalLight": null,
       "originalAnimationTriggers": [
         "No direct event-driven or sampled default sprite animation. Preserve static art; no invented status or progress."
+      ],
+      "artMode": "static complete art; existing state/lighting integration remains owner decision",
+      "liveIntegrated": false
+    },
+    {
+      "id": "tv",
+      "status": "exported-awaiting-owner-live-review",
+      "source": "sources/tv.png",
+      "sourceSha256": "acfb4b075050e2fd96e6fcc3dbdcea760422ff401c3c09af0a2a6e1d5e4c9950",
+      "sourceWidth": 1536,
+      "sourceHeight": 1024,
+      "image": "tv.png",
+      "sourceOutputWidth": 1467,
+      "sourceOutputHeight": 767,
+      "crop": {
+        "left": 32,
+        "top": 110,
+        "width": 1467,
+        "height": 767
+      },
+      "channels": 4,
+      "transparentPixels": 121266,
+      "opaquePixels": 1003923,
+      "partialPixels": 0,
+      "backgroundPixelsRemoved": 568941,
+      "subjectRgbChanges": 0,
+      "outputSha256": "f0bc5e6157fdf78c54ebf0ced49c9abcedd46c36daadb2f87f73ac14b4b862c7",
+      "holeSeeds": [],
+      "maskMethod": "Connected saturated-magenta flood fill, including key-only enclosed components. Alpha-only edits; uniform crop; no RGB recolor.",
+      "view": "s",
+      "footprint": {
+        "w": 3,
+        "h": 1
+      },
+      "bounds": {
+        "x": -1,
+        "y": -12,
+        "width": 38,
+        "height": 24
+      },
+      "tilePixels": 12,
+      "contact": {
+        "x": 18,
+        "y": 12
+      },
+      "anchorContract": "PropAnchor derives reachable edge approach; useApproach rotates relative preference with r. Preserve standing leisure action unless special planner supplies a real body anchor.",
+      "originalLight": {
+        "c": [
+          140,
+          200,
+          255
+        ],
+        "r": 26,
+        "a": 0.14,
+        "m": "screen",
+        "y": 0.4
+      },
+      "originalAnimationTriggers": [
+        "Actual leisure usingProp / watchProp can set work on this prop; body approach and use animation follow leisureUse. In the baseline draw work expression this leisure trigger directly checks the hero, not a separate crew leisure flag.",
+        "Autonomous sprite clock animation is present in the sampled default state; cosmetic motion is not evidence of provider work, route decisions or external state."
       ],
       "artMode": "static complete art; existing state/lighting integration remains owner decision",
       "liveIntegrated": false

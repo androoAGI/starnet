@@ -1,4 +1,4 @@
-# Seventeen painted storage and publication props
+# Painted storage, publication and leisure props
 
 This set responds to the user's correction that batch02 leaned too hyperrealistic. Twelve storage designs retain their identities, silhouettes and material variety while replacing realistic grain/fibers with broad painted planes and controlled dark edges. The wooden bookshelf calibrated the working balance against the owner's workstation; the remaining eleven were individually restyled using their original image plus those style references. This working balance is not a claim of user approval.
 
@@ -11,3 +11,7 @@ Inspected: every full generated source, every 4x world-envelope preview, the 12-
 publication-anchors.json and per-ID anchors.json record conservative manually selected source regions for cargo, statuses and display areas, converted through the same uniform bottom-centered fit into world pixels (12 pixels per tile). They are measured proposals requiring live review, not runtime-verified coordinates. The outbox existing shipped-pallet origin at footprint center/bottom+6 is explicitly retained. The press platen is parked in authored art: preserving a moving platen requires masking and recomposition before animation. Native connector truth, route direction, real counts, flashes, motion and lighting remain owner responsibilities.
 
 No runtime, shared manifest, original owned sprites or other worktrees changed. No live integration, floor contact beside agents, behavior acceptance or test:fast gate claimed. Parent/owner owns those checks. Reserved equipment IDs were not generated.
+
+Twelve new leisure/media designs bring this lane to 29 exports: djbooth, speaker, tv, arcade, arcade2, jukebox, gigs_thumbwall, gigs_amp, pinball, gachapon, holopet and deskterminal. media-contact-sheet.png shows large and 4x-world previews. media-anchors.json and per-ID files include full source pixels, cropped export pixels, both source/export normalized coordinates, uniform-fit world pixels, all south-only view contracts, mount/blocking/leisure data and animation notes. Publication regions now also include both normalized coordinate systems. These are measured integration proposals, not live proof.
+
+Jukebox status/tubes are unlit: real Spotify connection powers them and actual tool results drive success/failure cues. Screens remain blank. Pinball lower field omits moving ball/flippers; owner renders those. Native static meter needles, platters, record and crank require masking/recomposition if animated. Holopet's first pedestal design was rejected because its tile is walkable; final has a flush emitter and detached hologram. Both generated sources/prompts are retained. Final holo is decorative mint material, not evidence of harness state.
