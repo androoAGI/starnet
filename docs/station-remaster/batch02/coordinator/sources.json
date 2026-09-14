@@ -18,5 +18,25 @@
     "id": "calwall",
     "source": "docs/station-remaster/batch02/coordinator/calwall-source.png",
     "seeds": []
+  },
+  {
+    "id": "missionboard",
+    "source": "docs/station-remaster/batch02/coordinator/missionboard-source.png",
+    "seeds": []
+  },
+  {
+    "id": "trophycase",
+    "source": "docs/station-remaster/batch02/coordinator/trophycase-source.png",
+    "seeds": []
+  },
+  {
+    "id": "arc_microfiche",
+    "source": "docs/station-remaster/batch02/coordinator/arc_microfiche-source.png",
+    "seeds": []
+  },
+  {
+    "id": "comms_inbox",
+    "source": "docs/station-remaster/batch02/coordinator/comms_inbox-source.png",
+    "seeds": []
   }
 ]
