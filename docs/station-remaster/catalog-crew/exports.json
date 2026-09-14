@@ -38,8 +38,8 @@
       "id": "industrial_bench",
       "view": "s",
       "image": "frontend/assets/industrial/catalog-crew/industrial_bench.png",
-      "sourceWidth": 445,
-      "sourceHeight": 208,
+      "sourceWidth": 1328,
+      "sourceHeight": 441,
       "bounds": {
         "x": 0,
         "y": 0,
@@ -52,7 +52,7 @@
       },
       "contact": {
         "x": 0.5,
-        "y": 0.9831730769230769,
+        "y": 0.9920634920634921,
         "space": "exported-image-normalized",
         "targetWorld": {
           "x": 18,
@@ -60,40 +60,40 @@
         }
       },
       "fit": {
-        "x": 5.163461538461538,
-        "y": 0,
-        "width": 25.673076923076923,
-        "height": 12
+        "x": 0,
+        "y": 0.045180722891565495,
+        "width": 36,
+        "height": 11.954819277108435
       },
       "underfill": {
-        "x": 0.7131410256410257,
-        "y": 1
+        "x": 1,
+        "y": 0.9962349397590362
       },
       "otherSupportedViewsUnchanged": [],
-      "source": "docs/station-remaster/catalog-crew/sources/sheet.png",
-      "sourceSha256": "3c869bbebe5b1b1b5e273f0ccbe9b75bbd112fdec971cbd814cc90818f118178",
+      "source": "docs/station-remaster/catalog-crew/sources/industrial_bench-width-4.png",
+      "sourceSha256": "d0f5b2034865c6e77ed4446d98a6beb0f07b24e25c07ab260946556e260773c8",
       "sourceCrop": {
-        "left": 18,
-        "top": 219,
-        "width": 445,
-        "height": 208
+        "left": 422,
+        "top": 142,
+        "width": 1328,
+        "height": 441
       },
-      "outputSha256": "546f8bfb1eeb8e9599536b619f8fde7f6f1faf52a04f8f18972b6328877749f0",
+      "outputSha256": "9fce4522d701e77c81a7feb8993c1b0901772958d2ffc05db1ec45792be17a8e",
       "alphaBounds": {
         "x": 0,
         "y": 0,
-        "width": 445,
-        "height": 208
+        "width": 1328,
+        "height": 441
       },
       "alphaCounts": {
-        "transparent": 12637,
-        "partial": 79923,
-        "opaque": 0
+        "transparent": 81599,
+        "partial": 503841,
+        "opaque": 208
       },
-      "maxSourceAlpha": 254,
+      "maxSourceAlpha": 255,
       "coreThreshold": 180,
       "edgeRadius": 3,
-      "removedFogPixels": 1713,
+      "removedFogPixels": 3799,
       "retainedRgbChanges": 0,
       "retainedAlphaChanges": 0,
       "opaqueCellEdgePixels": 0,
@@ -172,8 +172,8 @@
       "id": "dinertable",
       "view": "s",
       "image": "frontend/assets/industrial/catalog-crew/dinertable.png",
-      "sourceWidth": 352,
-      "sourceHeight": 294,
+      "sourceWidth": 1237,
+      "sourceHeight": 737,
       "bounds": {
         "x": -1,
         "y": 3,
@@ -186,7 +186,7 @@
       },
       "contact": {
         "x": 0.5,
-        "y": 0.9914965986394558,
+        "y": 0.9952510176390773,
         "space": "exported-image-normalized",
         "targetWorld": {
           "x": 18,
@@ -194,42 +194,42 @@
         }
       },
       "fit": {
-        "x": 4.829931972789115,
+        "x": -0.4626865671641802,
         "y": 3,
-        "width": 26.34013605442177,
+        "width": 36.92537313432836,
         "height": 22
       },
       "underfill": {
-        "x": 0.6931614751163624,
+        "x": 0.97172034564022,
         "y": 1
       },
       "otherSupportedViewsUnchanged": [
         "e"
       ],
-      "source": "docs/station-remaster/catalog-crew/sources/sheet.png",
-      "sourceSha256": "3c869bbebe5b1b1b5e273f0ccbe9b75bbd112fdec971cbd814cc90818f118178",
+      "source": "docs/station-remaster/catalog-crew/sources/dinertable-width-2.png",
+      "sourceSha256": "e44c28bc43640d264ca709b531125e46d4917508ed4052f4be5b515d6ebefce1",
       "sourceCrop": {
-        "left": 776,
-        "top": 156,
-        "width": 352,
-        "height": 294
+        "left": 206,
+        "top": 115,
+        "width": 1237,
+        "height": 737
       },
-      "outputSha256": "9d52b45b639eca468593690a9b50b808a2c4c7cf43d8787ab8caea8aa1da42bc",
+      "outputSha256": "362375703cea48e3dfad67015b64767b39fbac4409e3756308ed269a1e8ce007",
       "alphaBounds": {
         "x": 0,
         "y": 0,
-        "width": 352,
-        "height": 294
+        "width": 1237,
+        "height": 737
       },
       "alphaCounts": {
-        "transparent": 31246,
-        "partial": 72242,
-        "opaque": 0
+        "transparent": 294272,
+        "partial": 616507,
+        "opaque": 890
       },
-      "maxSourceAlpha": 254,
+      "maxSourceAlpha": 255,
       "coreThreshold": 180,
       "edgeRadius": 3,
-      "removedFogPixels": 1700,
+      "removedFogPixels": 4186,
       "retainedRgbChanges": 0,
       "retainedAlphaChanges": 0,
       "opaqueCellEdgePixels": 0,
@@ -441,8 +441,8 @@
       "id": "bunk",
       "view": "s",
       "image": "frontend/assets/industrial/catalog-crew/bunk.png",
-      "sourceWidth": 278,
-      "sourceHeight": 392,
+      "sourceWidth": 1139,
+      "sourceHeight": 1188,
       "bounds": {
         "x": 0,
         "y": -2,
@@ -455,7 +455,7 @@
       },
       "contact": {
         "x": 0.5,
-        "y": 0.9910714285714286,
+        "y": 0.9970538720538721,
         "space": "exported-image-normalized",
         "targetWorld": {
           "x": 12,
@@ -463,40 +463,40 @@
         }
       },
       "fit": {
-        "x": 2.7806122448979593,
-        "y": -2,
-        "width": 18.43877551020408,
-        "height": 26
+        "x": 0,
+        "y": -1.0324846356453037,
+        "width": 24,
+        "height": 25.032484635645304
       },
       "underfill": {
-        "x": 0.76828231292517,
-        "y": 1
+        "x": 1,
+        "y": 0.9627878706017424
       },
       "otherSupportedViewsUnchanged": [],
-      "source": "docs/station-remaster/catalog-crew/sources/sheet.png",
-      "sourceSha256": "3c869bbebe5b1b1b5e273f0ccbe9b75bbd112fdec971cbd814cc90818f118178",
+      "source": "docs/station-remaster/catalog-crew/sources/bunk-width-1.png",
+      "sourceSha256": "fb906d3b596888824c8f341f7a1620dbf0077186f99248e4d97dd7279ba15481",
       "sourceCrop": {
-        "left": 788,
-        "top": 518,
-        "width": 278,
-        "height": 392
+        "left": 33,
+        "top": 54,
+        "width": 1139,
+        "height": 1188
       },
-      "outputSha256": "b40c9ef2ae8e4cef9c2fc114b9391bf791351c4d498ea55ac071dc583cc9541e",
+      "outputSha256": "f74a4246d439d09837daac1f23571cb65027a14987aae2bf4123a4a47c01d185",
       "alphaBounds": {
         "x": 0,
         "y": 0,
-        "width": 278,
-        "height": 392
+        "width": 1139,
+        "height": 1188
       },
       "alphaCounts": {
-        "transparent": 11653,
-        "partial": 97323,
-        "opaque": 0
+        "transparent": 143594,
+        "partial": 1208382,
+        "opaque": 1156
       },
-      "maxSourceAlpha": 254,
+      "maxSourceAlpha": 255,
       "coreThreshold": 180,
       "edgeRadius": 3,
-      "removedFogPixels": 2518,
+      "removedFogPixels": 7810,
       "retainedRgbChanges": 0,
       "retainedAlphaChanges": 0,
       "opaqueCellEdgePixels": 0,
