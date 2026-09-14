@@ -1,0 +1,60 @@
+{
+  "sourceAnimation": {
+    "idleFrameVariants": 1,
+    "workFrameVariants": 1,
+    "respondsToWorkFlag": false,
+    "opaqueBoundsRelativeToFootprint": {
+      "x": -1,
+      "y": -5,
+      "w": 50,
+      "h": 29,
+      "alphaThreshold": 160
+    }
+  },
+  "bounds": {
+    "y": -5,
+    "width": 50,
+    "height": 29,
+    "x": -1
+  },
+  "id": "pokertable",
+  "geometry": {
+    "blocks": true,
+    "flat": false,
+    "tableSurface": false,
+    "requiredMount": null,
+    "optionalSurfaceMount": false,
+    "surfaceRisePixels": 8
+  },
+  "floorContact": {
+    "x": 24,
+    "y": 24
+  },
+  "backgroundThreshold": 235,
+  "tilePixels": 12,
+  "status": "art-draft-integration-pending",
+  "view": "s",
+  "footprint": {
+    "w": 4,
+    "h": 2
+  },
+  "anchorContract": "PropAnchor derives reachable edge approach; useApproach rotates relative preference with r. Preserve standing leisure action unless special planner supplies a real body anchor.",
+  "holeSeeds": [],
+  "sourceWidth": 1647,
+  "sourceHeight": 955,
+  "sourceSha256": "8f563c70aefe480fe38fd20c9e3269919a3f205badacd09c26bc70980f5382c0",
+  "output": "frontend/assets/industrial/batch03/crew/pokertable.png",
+  "crop": {
+    "left": 22,
+    "top": 83,
+    "width": 1593,
+    "height": 784
+  },
+  "transparentPixels": 265713,
+  "opaquePixels": 983199,
+  "partialPixels": 0,
+  "backgroundPixelsRemoved": 589686,
+  "subjectRgbChanges": 0,
+  "outputSha256": "9ae85192340c5e5eda42eb9ac307aff68b98905212fdebafb2d7104580a8fad5",
+  "liveIntegrated": false
+}

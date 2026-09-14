@@ -1,0 +1,53 @@
+{
+  "sourceAnimation": {
+    "idleFrameVariants": 8,
+    "workFrameVariants": 8,
+    "respondsToWorkFlag": false,
+    "opaqueBoundsRelativeToFootprint": {
+      "x": -1,
+      "y": -17,
+      "w": 50,
+      "h": 41,
+      "alphaThreshold": 160
+    }
+  },
+  "bounds": {
+    "y": -17,
+    "width": 50,
+    "height": 41,
+    "x": -1
+  },
+  "id": "quarters_pooltable",
+  "geometry": {
+    "blocks": true,
+    "flat": false,
+    "tableSurface": false,
+    "requiredMount": null,
+    "optionalSurfaceMount": false,
+    "surfaceRisePixels": 8
+  },
+  "floorContact": {
+    "x": 24,
+    "y": 24
+  },
+  "backgroundThreshold": 235,
+  "tilePixels": 12,
+  "status": "art-draft-integration-pending",
+  "view": "s",
+  "footprint": {
+    "w": 4,
+    "h": 2
+  },
+  "anchorContract": "PropAnchor derives reachable edge approach; useApproach rotates relative preference with r. Preserve standing leisure action unless special planner supplies a real body anchor.",
+  "holeSeeds": [
+    [
+      500,
+      790
+    ],
+    [
+      900,
+      790
+    ]
+  ],
+  "purpose": "Empty illustrated felt for live ball overlay; based on clean pool source"
+}
