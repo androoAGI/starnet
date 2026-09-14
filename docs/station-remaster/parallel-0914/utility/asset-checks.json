@@ -1,0 +1,41 @@
+{
+  "filter": {
+    "file": "frontend/assets/industrial/parallel-0914/utility/filter.png",
+    "mode": "RGB",
+    "size": [
+      1076,
+      1462
+    ],
+    "sha256": "e1ee77ad89a2cae220c865e74bb4d51da0d25a0a4b61eca86978dcbc2a4753fc",
+    "alpha": null
+  },
+  "tank": {
+    "file": "frontend/assets/industrial/parallel-0914/utility/tank.png",
+    "mode": "RGBA",
+    "size": [
+      1331,
+      1182
+    ],
+    "sha256": "65074f90fd8e643e631fcf3f3408369a95ebdfd3ca0195de442fd49b40ef9db4",
+    "alpha": {
+      "extrema": [
+        0,
+        255
+      ],
+      "bounds": [
+        0,
+        90,
+        1299,
+        1158
+      ],
+      "transparentPixels": 478853,
+      "partialAlphaPixels": 1093603,
+      "cornerAlpha": [
+        0,
+        0,
+        0,
+        0
+      ]
+    }
+  }
+}
