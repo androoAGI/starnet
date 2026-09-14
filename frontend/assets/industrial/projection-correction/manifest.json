@@ -59,20 +59,25 @@
       "views": {
         "s": {
           "image": "industrial_supplycart.png",
-          "sourceWidth": 75,
-          "sourceHeight": 77,
+          "sourceWidth": 319,
+          "sourceHeight": 281,
           "footprint": {
             "w": 2,
             "h": 1
           },
           "bounds": {
             "x": 1,
-            "y": -10.5867,
+            "y": -11,
             "width": 22,
-            "height": 22.5867
+            "height": 23
           },
           "mode": "approved",
-          "exposure": 1
+          "exposure": 1,
+          "contact": {
+            "x": 0.5,
+            "y": 0.9893238434163701
+          },
+          "effects": false
         }
       }
     },
@@ -80,20 +85,25 @@
       "views": {
         "s": {
           "image": "industrial_toolcaddy.png",
-          "sourceWidth": 79,
-          "sourceHeight": 76,
+          "sourceWidth": 248,
+          "sourceHeight": 208,
           "footprint": {
             "w": 1,
             "h": 1
           },
           "bounds": {
             "x": 1,
-            "y": 2.3797,
+            "y": 2,
             "width": 10,
-            "height": 9.6203
+            "height": 10
           },
           "mode": "approved",
-          "exposure": 1
+          "exposure": 1,
+          "contact": {
+            "x": 0.5,
+            "y": 0.9855769230769231
+          },
+          "effects": false
         }
       }
     },
@@ -127,20 +137,25 @@
       "views": {
         "s": {
           "image": "industrial_partition.png",
-          "sourceWidth": 80,
-          "sourceHeight": 86,
+          "sourceWidth": 529,
+          "sourceHeight": 286,
           "footprint": {
             "w": 3,
             "h": 1
           },
           "bounds": {
-            "x": 6.8372,
-            "y": -12,
-            "width": 22.3256,
-            "height": 24
+            "x": 0,
+            "y": -9,
+            "width": 36,
+            "height": 21
           },
           "mode": "approved",
-          "exposure": 1
+          "exposure": 1,
+          "contact": {
+            "x": 0.5,
+            "y": 0.9895104895104895
+          },
+          "effects": false
         },
         "w": {
           "image": "industrial_partition-w.png",
@@ -161,20 +176,25 @@
         },
         "e": {
           "image": "industrial_partition-e.png",
-          "sourceWidth": 508,
-          "sourceHeight": 1216,
+          "sourceWidth": 135,
+          "sourceHeight": 607,
           "footprint": {
             "w": 1,
             "h": 3
           },
           "bounds": {
-            "x": -4.0263,
-            "y": -13,
-            "width": 20.0526,
-            "height": 48
+            "x": 2,
+            "y": -9,
+            "width": 8,
+            "height": 44
           },
           "mode": "approved",
-          "exposure": 1
+          "exposure": 1,
+          "contact": {
+            "x": 0.5,
+            "y": 0.9950576606260296
+          },
+          "effects": false
         }
       }
     },
@@ -208,17 +228,17 @@
       "views": {
         "s": {
           "image": "industrial_roundtable.png",
-          "sourceWidth": 64,
-          "sourceHeight": 69,
+          "sourceWidth": 419,
+          "sourceHeight": 295,
           "footprint": {
             "w": 2,
             "h": 1
           },
           "bounds": {
             "x": 0,
-            "y": -13.875,
+            "y": -4,
             "width": 24,
-            "height": 25.875
+            "height": 16
           },
           "mode": "approved",
           "exposure": 1,
@@ -226,23 +246,28 @@
             "space": "export-normalized",
             "points": [
               [
-                0.234375,
-                0.1884058
+                0.1980907,
+                0.1762712
               ],
               [
-                0.75,
-                0.1884058
+                0.7995227,
+                0.1762712
               ],
               [
-                0.765625,
-                0.6231884
+                0.7995227,
+                0.440678
               ],
               [
-                0.21875,
-                0.6231884
+                0.1980907,
+                0.440678
               ]
             ]
-          }
+          },
+          "contact": {
+            "x": 0.5,
+            "y": 0.988135593220339
+          },
+          "effects": false
         }
       }
     },
@@ -276,20 +301,25 @@
       "views": {
         "s": {
           "image": "industrial_wallpanel.png",
-          "sourceWidth": 52,
-          "sourceHeight": 67,
+          "sourceWidth": 294,
+          "sourceHeight": 252,
           "footprint": {
             "w": 2,
             "h": 1
           },
           "bounds": {
             "x": 0,
-            "y": -20.9231,
+            "y": -13,
             "width": 24,
-            "height": 30.9231
+            "height": 23
           },
           "mode": "approved",
-          "exposure": 1
+          "exposure": 1,
+          "contact": {
+            "x": 0.5,
+            "y": 0.9880952380952381
+          },
+          "effects": false
         }
       }
     },
@@ -297,20 +327,25 @@
       "views": {
         "s": {
           "image": "industrial_floorvent.png",
-          "sourceWidth": 283,
-          "sourceHeight": 149,
+          "sourceWidth": 423,
+          "sourceHeight": 173,
           "footprint": {
             "w": 2,
             "h": 1
           },
           "bounds": {
-            "x": 2.5034,
+            "x": 1,
             "y": 1,
-            "width": 18.9933,
+            "width": 22,
             "height": 10
           },
           "mode": "approved",
-          "exposure": 1
+          "exposure": 1,
+          "contact": {
+            "x": 0.5,
+            "y": 0.9826589595375722
+          },
+          "effects": false
         }
       }
     },
@@ -318,20 +353,25 @@
       "views": {
         "s": {
           "image": "industrial_cabletray.png",
-          "sourceWidth": 418,
-          "sourceHeight": 96,
+          "sourceWidth": 1133,
+          "sourceHeight": 178,
           "footprint": {
             "w": 3,
             "h": 1
           },
           "bounds": {
-            "x": 4.9375,
+            "x": 0,
             "y": 3,
-            "width": 26.125,
+            "width": 36,
             "height": 6
           },
           "mode": "approved",
-          "exposure": 1
+          "exposure": 1,
+          "contact": {
+            "x": 0.5,
+            "y": 0.9831460674157303
+          },
+          "effects": false
         }
       }
     },
@@ -417,21 +457,26 @@
       "views": {
         "s": {
           "image": "desk2.png",
-          "sourceWidth": 74,
-          "sourceHeight": 71,
+          "sourceWidth": 687,
+          "sourceHeight": 423,
           "footprint": {
             "w": 3,
             "h": 1
           },
           "bounds": {
             "x": -1,
-            "y": -24.4595,
+            "y": -11,
             "width": 38,
-            "height": 36.4595
+            "height": 23
           },
           "mode": "approved",
           "exposure": 1,
-          "screenPower": "occupied"
+          "screenPower": "occupied",
+          "contact": {
+            "x": 0.5,
+            "y": 0.9929078014184397
+          },
+          "effects": false
         },
         "w": {
           "image": "desk2-w.png",
@@ -454,40 +499,50 @@
         },
         "n": {
           "image": "desk2-n.png",
-          "sourceWidth": 201,
-          "sourceHeight": 163,
+          "sourceWidth": 679,
+          "sourceHeight": 411,
           "footprint": {
             "w": 3,
             "h": 1
           },
           "bounds": {
             "x": -2,
-            "y": -20.4378,
+            "y": -11,
             "width": 40,
-            "height": 32.4378
+            "height": 23
           },
           "mode": "approved",
           "exposure": 1,
-          "embeddedSeat": true
+          "embeddedSeat": true,
+          "contact": {
+            "x": 0.5,
+            "y": 0.9927007299270073
+          },
+          "effects": false
         },
         "e": {
           "image": "desk2-e.png",
-          "sourceWidth": 139,
-          "sourceHeight": 186,
+          "sourceWidth": 218,
+          "sourceHeight": 529,
           "footprint": {
             "w": 1,
             "h": 3
           },
           "bounds": {
             "x": -3,
-            "y": 11.9137,
+            "y": -5,
             "width": 18,
-            "height": 24.0863
+            "height": 41
           },
           "mode": "approved",
           "exposure": 1,
           "embeddedSeat": true,
-          "screenPower": "occupied"
+          "screenPower": "occupied",
+          "contact": {
+            "x": 0.5,
+            "y": 0.994328922495274
+          },
+          "effects": false
         }
       }
     },
@@ -603,21 +658,26 @@
       "views": {
         "s": {
           "image": "workbench.png",
-          "sourceWidth": 86,
-          "sourceHeight": 76,
+          "sourceWidth": 431,
+          "sourceHeight": 395,
           "footprint": {
             "w": 2,
             "h": 1
           },
           "bounds": {
             "x": -1,
-            "y": -14.5116,
+            "y": -15,
             "width": 30,
-            "height": 26.5116
+            "height": 27
           },
           "mode": "approved",
           "exposure": 1,
-          "activity": "fired"
+          "activity": "fired",
+          "contact": {
+            "x": 0.5,
+            "y": 0.9924050632911392
+          },
+          "effects": false
         }
       }
     },
@@ -652,21 +712,26 @@
       "views": {
         "s": {
           "image": "bay.png",
-          "sourceWidth": 82,
-          "sourceHeight": 87,
+          "sourceWidth": 418,
+          "sourceHeight": 396,
           "footprint": {
             "w": 2,
             "h": 2
           },
           "bounds": {
             "x": -1,
-            "y": -7.8293,
+            "y": -7,
             "width": 30,
-            "height": 31.8293
+            "height": 31
           },
           "mode": "approved",
           "exposure": 1,
-          "activity": "work"
+          "activity": "work",
+          "contact": {
+            "x": 0.5,
+            "y": 0.9949494949494949
+          },
+          "effects": false
         }
       }
     },
@@ -674,20 +739,25 @@
       "views": {
         "s": {
           "image": "filter.png",
-          "sourceWidth": 64,
-          "sourceHeight": 92,
+          "sourceWidth": 294,
+          "sourceHeight": 331,
           "footprint": {
             "w": 1,
             "h": 1
           },
           "bounds": {
             "x": -1,
-            "y": -9.125,
+            "y": -8,
             "width": 14,
-            "height": 20.125
+            "height": 19
           },
           "mode": "approved",
-          "exposure": 1
+          "exposure": 1,
+          "contact": {
+            "x": 0.5,
+            "y": 0.9909365558912386
+          },
+          "effects": false
         }
       }
     },
@@ -695,21 +765,26 @@
       "views": {
         "s": {
           "image": "merger.png",
-          "sourceWidth": 91,
-          "sourceHeight": 80,
+          "sourceWidth": 363,
+          "sourceHeight": 213,
           "footprint": {
             "w": 1,
             "h": 1
           },
           "bounds": {
             "x": -2,
-            "y": -3.0659,
+            "y": 0,
             "width": 16,
-            "height": 14.0659
+            "height": 11
           },
           "mode": "approved",
           "exposure": 1,
-          "activity": "work"
+          "activity": "work",
+          "contact": {
+            "x": 0.5,
+            "y": 0.9906103286384976
+          },
+          "effects": false
         }
       }
     },
@@ -717,21 +792,26 @@
       "views": {
         "s": {
           "image": "splitter.png",
-          "sourceWidth": 91,
-          "sourceHeight": 80,
+          "sourceWidth": 323,
+          "sourceHeight": 212,
           "footprint": {
             "w": 1,
             "h": 1
           },
           "bounds": {
             "x": -1,
-            "y": -2.1868,
+            "y": 0,
             "width": 15,
-            "height": 13.1868
+            "height": 11
           },
           "mode": "approved",
           "exposure": 1,
-          "activity": "work"
+          "activity": "work",
+          "contact": {
+            "x": 0.5,
+            "y": 0.9858490566037735
+          },
+          "effects": false
         }
       }
     },
@@ -739,21 +819,26 @@
       "views": {
         "s": {
           "image": "joiner.png",
-          "sourceWidth": 81,
-          "sourceHeight": 76,
+          "sourceWidth": 354,
+          "sourceHeight": 225,
           "footprint": {
             "w": 1,
             "h": 1
           },
           "bounds": {
             "x": -2,
-            "y": -4.0123,
+            "y": 0,
             "width": 16,
-            "height": 15.0123
+            "height": 11
           },
           "mode": "approved",
           "exposure": 1,
-          "activity": "work"
+          "activity": "work",
+          "contact": {
+            "x": 0.5,
+            "y": 0.9866666666666667
+          },
+          "effects": false
         }
       }
     },
@@ -761,21 +846,26 @@
       "views": {
         "s": {
           "image": "loop.png",
-          "sourceWidth": 84,
-          "sourceHeight": 73,
+          "sourceWidth": 288,
+          "sourceHeight": 345,
           "footprint": {
             "w": 1,
             "h": 1
           },
           "bounds": {
             "x": -1,
-            "y": -2.0357,
+            "y": -7,
             "width": 15,
-            "height": 13.0357
+            "height": 18
           },
           "mode": "approved",
           "exposure": 1,
-          "activity": "work"
+          "activity": "work",
+          "contact": {
+            "x": 0.5,
+            "y": 0.991304347826087
+          },
+          "effects": false
         }
       }
     },
@@ -783,21 +873,26 @@
       "views": {
         "s": {
           "image": "outbox.png",
-          "sourceWidth": 67,
-          "sourceHeight": 82,
+          "sourceWidth": 421,
+          "sourceHeight": 412,
           "footprint": {
             "w": 2,
             "h": 2
           },
           "bounds": {
             "x": -1,
-            "y": -12.7164,
+            "y": -8,
             "width": 30,
-            "height": 36.7164
+            "height": 32
           },
           "mode": "approved",
           "exposure": 1,
-          "activity": "work"
+          "activity": "work",
+          "contact": {
+            "x": 0.5,
+            "y": 0.9951456310679612
+          },
+          "effects": false
         }
       }
     },
@@ -805,22 +900,27 @@
       "views": {
         "s": {
           "image": "connector_portal.png",
-          "sourceWidth": 76,
-          "sourceHeight": 84,
+          "sourceWidth": 924,
+          "sourceHeight": 1626,
           "footprint": {
             "w": 1,
             "h": 2
           },
           "bounds": {
             "x": 0,
-            "y": 5.2105,
+            "y": -7,
             "width": 17,
-            "height": 18.7895
+            "height": 31
           },
           "mode": "approved",
           "exposure": 1,
           "screenPower": "bound",
-          "activity": "fired"
+          "activity": "fired",
+          "contact": {
+            "x": 0.5,
+            "y": 0.9981549815498155
+          },
+          "effects": false
         }
       }
     },
@@ -828,21 +928,26 @@
       "views": {
         "s": {
           "image": "comms_dish.png",
-          "sourceWidth": 67,
-          "sourceHeight": 86,
+          "sourceWidth": 661,
+          "sourceHeight": 739,
           "footprint": {
             "w": 2,
             "h": 2
           },
           "bounds": {
             "x": 2,
-            "y": -1.6716,
+            "y": 1,
             "width": 20,
-            "height": 25.6716
+            "height": 23
           },
           "mode": "approved",
           "exposure": 1,
-          "activity": "work"
+          "activity": "work",
+          "contact": {
+            "x": 0.5,
+            "y": 0.9959404600811907
+          },
+          "effects": false
         }
       }
     },
@@ -877,21 +982,26 @@
       "views": {
         "s": {
           "image": "comms_beacon.png",
-          "sourceWidth": 47,
-          "sourceHeight": 94,
+          "sourceWidth": 272,
+          "sourceHeight": 344,
           "footprint": {
             "w": 1,
             "h": 2
           },
           "bounds": {
             "x": 0,
-            "y": -10,
+            "y": -2,
             "width": 17,
-            "height": 34
+            "height": 26
           },
           "mode": "approved",
           "exposure": 1,
-          "activity": "ambient"
+          "activity": "ambient",
+          "contact": {
+            "x": 0.5,
+            "y": 0.9912790697674418
+          },
+          "effects": false
         }
       }
     },
@@ -952,20 +1062,25 @@
       "views": {
         "s": {
           "image": "vault.png",
-          "sourceWidth": 77,
-          "sourceHeight": 80,
+          "sourceWidth": 459,
+          "sourceHeight": 259,
           "footprint": {
             "w": 3,
             "h": 2
           },
           "bounds": {
             "x": -3,
-            "y": -21.7143,
+            "y": -5,
             "width": 44,
-            "height": 45.7143
+            "height": 29
           },
           "mode": "approved",
-          "exposure": 1
+          "exposure": 1,
+          "contact": {
+            "x": 0.5,
+            "y": 0.9884169884169884
+          },
+          "effects": false
         }
       }
     },
@@ -1053,20 +1168,25 @@
       "views": {
         "s": {
           "image": "gigs_servercart.png",
-          "sourceWidth": 65,
-          "sourceHeight": 85,
+          "sourceWidth": 289,
+          "sourceHeight": 320,
           "footprint": {
             "w": 1,
             "h": 1
           },
           "bounds": {
             "x": 1,
-            "y": -8.9231,
+            "y": -6,
             "width": 16,
-            "height": 20.9231
+            "height": 18
           },
           "mode": "approved",
-          "exposure": 1
+          "exposure": 1,
+          "contact": {
+            "x": 0.5,
+            "y": 0.990625
+          },
+          "effects": false
         }
       }
     },
@@ -1074,21 +1194,26 @@
       "views": {
         "s": {
           "image": "bridge_relaystack.png",
-          "sourceWidth": 60,
-          "sourceHeight": 100,
+          "sourceWidth": 293,
+          "sourceHeight": 599,
           "footprint": {
             "w": 1,
             "h": 2
           },
           "bounds": {
             "x": 0,
-            "y": -4.3333,
+            "y": -8,
             "width": 17,
-            "height": 28.3333
+            "height": 32
           },
           "mode": "approved",
           "exposure": 1,
-          "activity": "work"
+          "activity": "work",
+          "contact": {
+            "x": 0.5,
+            "y": 0.994991652754591
+          },
+          "effects": false
         }
       }
     },
@@ -1096,20 +1221,25 @@
       "views": {
         "s": {
           "image": "studio.png",
-          "sourceWidth": 89,
-          "sourceHeight": 82,
+          "sourceWidth": 350,
+          "sourceHeight": 374,
           "footprint": {
             "w": 2,
             "h": 2
           },
           "bounds": {
             "x": 0,
-            "y": -2.7191,
+            "y": -6,
             "width": 29,
-            "height": 26.7191
+            "height": 30
           },
           "mode": "approved",
-          "exposure": 1
+          "exposure": 1,
+          "contact": {
+            "x": 0.5,
+            "y": 0.9919786096256684
+          },
+          "effects": false
         }
       }
     },
@@ -1117,21 +1247,26 @@
       "views": {
         "s": {
           "image": "airlock.png",
-          "sourceWidth": 87,
-          "sourceHeight": 85,
+          "sourceWidth": 218,
+          "sourceHeight": 215,
           "footprint": {
             "w": 1,
             "h": 1
           },
           "bounds": {
             "x": -1,
-            "y": -0.6782,
+            "y": -1,
             "width": 14,
-            "height": 13.6782
+            "height": 14
           },
           "mode": "approved",
           "exposure": 1,
-          "activity": "work"
+          "activity": "work",
+          "contact": {
+            "x": 0.5,
+            "y": 0.986046511627907
+          },
+          "effects": false
         }
       }
     },
@@ -1139,20 +1274,25 @@
       "views": {
         "s": {
           "image": "missionboard.png",
-          "sourceWidth": 84,
-          "sourceHeight": 70,
+          "sourceWidth": 393,
+          "sourceHeight": 229,
           "footprint": {
             "w": 3,
             "h": 1
           },
           "bounds": {
             "x": -1,
-            "y": -19.6667,
+            "y": -13,
             "width": 38,
-            "height": 31.6667
+            "height": 25
           },
           "mode": "approved",
-          "exposure": 1
+          "exposure": 1,
+          "contact": {
+            "x": 0.5,
+            "y": 0.9868995633187773
+          },
+          "effects": false
         }
       }
     },
@@ -1160,20 +1300,25 @@
       "views": {
         "s": {
           "image": "trophycase.png",
-          "sourceWidth": 75,
-          "sourceHeight": 85,
+          "sourceWidth": 307,
+          "sourceHeight": 345,
           "footprint": {
             "w": 2,
             "h": 2
           },
           "bounds": {
             "x": -1,
-            "y": -5.4667,
+            "y": -6,
             "width": 26,
-            "height": 29.4667
+            "height": 30
           },
           "mode": "approved",
-          "exposure": 1
+          "exposure": 1,
+          "contact": {
+            "x": 0.5,
+            "y": 0.9927536231884058
+          },
+          "effects": false
         }
       }
     },
@@ -1261,20 +1406,25 @@
       "views": {
         "s": {
           "image": "bridge_deckperimeter.png",
-          "sourceWidth": 89,
-          "sourceHeight": 50,
+          "sourceWidth": 401,
+          "sourceHeight": 255,
           "footprint": {
             "w": 12,
             "h": 8
           },
           "bounds": {
             "x": 0,
-            "y": 14.1011,
+            "y": 1,
             "width": 144,
-            "height": 80.8989
+            "height": 94
           },
           "mode": "approved",
-          "exposure": 1
+          "exposure": 1,
+          "contact": {
+            "x": 0.5,
+            "y": 0.9882352941176471
+          },
+          "effects": false
         }
       }
     },
@@ -1336,21 +1486,26 @@
       "views": {
         "s": {
           "image": "screens.png",
-          "sourceWidth": 85,
-          "sourceHeight": 86,
+          "sourceWidth": 343,
+          "sourceHeight": 306,
           "footprint": {
             "w": 2,
             "h": 1
           },
           "bounds": {
             "x": -1,
-            "y": -14.3059,
+            "y": -15,
             "width": 26,
-            "height": 26.3059
+            "height": 27
           },
           "mode": "approved",
           "exposure": 1,
-          "screenPower": "occupied"
+          "screenPower": "occupied",
+          "contact": {
+            "x": 0.5,
+            "y": 0.9934640522875817
+          },
+          "effects": false
         }
       }
     },
@@ -1384,20 +1539,25 @@
       "views": {
         "s": {
           "image": "whiteboard.png",
-          "sourceWidth": 82,
-          "sourceHeight": 67,
+          "sourceWidth": 555,
+          "sourceHeight": 247,
           "footprint": {
             "w": 4,
             "h": 1
           },
           "bounds": {
             "x": -1,
-            "y": -28.8537,
+            "y": -11,
             "width": 50,
-            "height": 40.8537
+            "height": 23
           },
           "mode": "approved",
-          "exposure": 1
+          "exposure": 1,
+          "contact": {
+            "x": 0.5,
+            "y": 0.9878542510121457
+          },
+          "effects": false
         }
       }
     },
@@ -1405,21 +1565,26 @@
       "views": {
         "s": {
           "image": "ticker.png",
-          "sourceWidth": 86,
-          "sourceHeight": 27,
+          "sourceWidth": 477,
+          "sourceHeight": 214,
           "footprint": {
             "w": 4,
             "h": 1
           },
           "bounds": {
             "x": -1,
-            "y": -3.6977,
+            "y": -8,
             "width": 50,
-            "height": 15.6977
+            "height": 20
           },
           "mode": "approved",
           "exposure": 1,
-          "screenPower": "ambient"
+          "screenPower": "ambient",
+          "contact": {
+            "x": 0.5,
+            "y": 0.985981308411215
+          },
+          "effects": false
         }
       }
     },
@@ -1427,21 +1592,26 @@
       "views": {
         "s": {
           "image": "chartwall.png",
-          "sourceWidth": 89,
-          "sourceHeight": 60,
+          "sourceWidth": 477,
+          "sourceHeight": 232,
           "footprint": {
             "w": 3,
             "h": 1
           },
           "bounds": {
             "x": -1,
-            "y": -13.618,
+            "y": -10,
             "width": 38,
-            "height": 25.618
+            "height": 22
           },
           "mode": "approved",
           "exposure": 1,
-          "screenPower": "ambient"
+          "screenPower": "ambient",
+          "contact": {
+            "x": 0.5,
+            "y": 0.9870689655172413
+          },
+          "effects": false
         }
       }
     },
@@ -1449,20 +1619,25 @@
       "views": {
         "s": {
           "image": "wartable.png",
-          "sourceWidth": 89,
-          "sourceHeight": 70,
+          "sourceWidth": 1981,
+          "sourceHeight": 703,
           "footprint": {
             "w": 5,
             "h": 2
           },
           "bounds": {
             "x": -1,
-            "y": -27.9101,
+            "y": -1,
             "width": 66,
-            "height": 51.9101
+            "height": 25
           },
           "mode": "approved",
-          "exposure": 1
+          "exposure": 1,
+          "contact": {
+            "x": 0.5,
+            "y": 0.9971550497866287
+          },
+          "effects": false
         }
       }
     },
@@ -1470,20 +1645,25 @@
       "views": {
         "s": {
           "image": "calwall.png",
-          "sourceWidth": 78,
-          "sourceHeight": 72,
+          "sourceWidth": 737,
+          "sourceHeight": 205,
           "footprint": {
             "w": 6,
             "h": 1
           },
           "bounds": {
-            "x": 5.6667,
-            "y": -44,
-            "width": 60.6667,
-            "height": 56
+            "x": -1,
+            "y": -8,
+            "width": 74,
+            "height": 20
           },
           "mode": "approved",
-          "exposure": 1
+          "exposure": 1,
+          "contact": {
+            "x": 0.5,
+            "y": 0.9902439024390244
+          },
+          "effects": false
         }
       }
     },
@@ -1491,21 +1671,26 @@
       "views": {
         "s": {
           "image": "bridge_tacscreen.png",
-          "sourceWidth": 86,
-          "sourceHeight": 67,
+          "sourceWidth": 340,
+          "sourceHeight": 269,
           "footprint": {
             "w": 2,
             "h": 1
           },
           "bounds": {
             "x": -1,
-            "y": -8.2558,
+            "y": -9,
             "width": 26,
-            "height": 20.2558
+            "height": 21
           },
           "mode": "approved",
           "exposure": 1,
-          "screenPower": "occupied"
+          "screenPower": "occupied",
+          "contact": {
+            "x": 0.5,
+            "y": 0.9888475836431226
+          },
+          "effects": false
         }
       }
     },
@@ -1513,20 +1698,25 @@
       "views": {
         "s": {
           "image": "bridge_dispatch_pylon.png",
-          "sourceWidth": 48,
-          "sourceHeight": 96,
+          "sourceWidth": 302,
+          "sourceHeight": 573,
           "footprint": {
             "w": 1,
             "h": 2
           },
           "bounds": {
             "x": -2,
-            "y": -14,
+            "y": -11,
             "width": 19,
-            "height": 38
+            "height": 35
           },
           "mode": "approved",
-          "exposure": 1
+          "exposure": 1,
+          "contact": {
+            "x": 0.5,
+            "y": 0.9947643979057592
+          },
+          "effects": false
         }
       }
     },
@@ -1534,20 +1724,25 @@
       "views": {
         "s": {
           "image": "bridge_orderqueue.png",
-          "sourceWidth": 70,
-          "sourceHeight": 72,
+          "sourceWidth": 405,
+          "sourceHeight": 335,
           "footprint": {
             "w": 2,
             "h": 1
           },
           "bounds": {
             "x": -3,
-            "y": -16.8,
+            "y": -12,
             "width": 28,
-            "height": 28.8
+            "height": 24
           },
           "mode": "approved",
-          "exposure": 1
+          "exposure": 1,
+          "contact": {
+            "x": 0.5,
+            "y": 0.991044776119403
+          },
+          "effects": false
         }
       }
     },
@@ -1555,20 +1750,25 @@
       "views": {
         "s": {
           "image": "war_pivotpanel.png",
-          "sourceWidth": 63,
-          "sourceHeight": 90,
+          "sourceWidth": 509,
+          "sourceHeight": 351,
           "footprint": {
             "w": 2,
             "h": 1
           },
           "bounds": {
             "x": -1,
-            "y": -25.1429,
+            "y": -6,
             "width": 26,
-            "height": 37.1429
+            "height": 18
           },
           "mode": "approved",
-          "exposure": 1
+          "exposure": 1,
+          "contact": {
+            "x": 0.5,
+            "y": 0.9914529914529915
+          },
+          "effects": false
         }
       }
     },
@@ -1576,20 +1776,25 @@
       "views": {
         "s": {
           "image": "war_threatcore.png",
-          "sourceWidth": 80,
-          "sourceHeight": 87,
+          "sourceWidth": 200,
+          "sourceHeight": 388,
           "footprint": {
             "w": 1,
             "h": 2
           },
           "bounds": {
             "x": -1,
-            "y": 4.425,
+            "y": -10,
             "width": 18,
-            "height": 19.575
+            "height": 34
           },
           "mode": "approved",
-          "exposure": 1
+          "exposure": 1,
+          "contact": {
+            "x": 0.5,
+            "y": 0.9922680412371134
+          },
+          "effects": false
         }
       }
     },
@@ -1651,20 +1856,25 @@
       "views": {
         "s": {
           "image": "easel.png",
-          "sourceWidth": 58,
-          "sourceHeight": 101,
+          "sourceWidth": 649,
+          "sourceHeight": 748,
           "footprint": {
             "w": 3,
             "h": 2
           },
           "bounds": {
             "x": 1,
-            "y": -35.2069,
+            "y": -14,
             "width": 34,
-            "height": 59.2069
+            "height": 38
           },
           "mode": "approved",
-          "exposure": 1
+          "exposure": 1,
+          "contact": {
+            "x": 0.5,
+            "y": 0.9953208556149733
+          },
+          "effects": false
         }
       }
     },
@@ -1699,21 +1909,26 @@
       "views": {
         "s": {
           "image": "research_corelens.png",
-          "sourceWidth": 70,
-          "sourceHeight": 95,
+          "sourceWidth": 272,
+          "sourceHeight": 363,
           "footprint": {
             "w": 1,
             "h": 2
           },
           "bounds": {
             "x": -2,
-            "y": -3.1429,
+            "y": -9,
             "width": 20,
-            "height": 27.1429
+            "height": 33
           },
           "mode": "approved",
           "exposure": 1,
-          "screenPower": "occupied"
+          "screenPower": "occupied",
+          "contact": {
+            "x": 0.5,
+            "y": 0.9917355371900827
+          },
+          "effects": false
         }
       }
     },
@@ -1721,21 +1936,26 @@
       "views": {
         "s": {
           "image": "research_trendpillar.png",
-          "sourceWidth": 54,
-          "sourceHeight": 93,
+          "sourceWidth": 272,
+          "sourceHeight": 362,
           "footprint": {
             "w": 1,
             "h": 2
           },
           "bounds": {
             "x": -2,
-            "y": -10.4444,
+            "y": -7,
             "width": 20,
-            "height": 34.4444
+            "height": 31
           },
           "mode": "approved",
           "exposure": 1,
-          "screenPower": "occupied"
+          "screenPower": "occupied",
+          "contact": {
+            "x": 0.5,
+            "y": 0.9917127071823204
+          },
+          "effects": false
         }
       }
     },
@@ -1743,20 +1963,25 @@
       "views": {
         "s": {
           "image": "research_samplecart.png",
-          "sourceWidth": 82,
-          "sourceHeight": 72,
+          "sourceWidth": 650,
+          "sourceHeight": 459,
           "footprint": {
             "w": 2,
             "h": 1
           },
           "bounds": {
             "x": -1,
-            "y": -12.5854,
+            "y": -6,
             "width": 28,
-            "height": 24.5854
+            "height": 18
           },
           "mode": "approved",
-          "exposure": 1
+          "exposure": 1,
+          "contact": {
+            "x": 0.5,
+            "y": 0.9956427015250545
+          },
+          "effects": false
         }
       }
     },
@@ -1764,20 +1989,25 @@
       "views": {
         "s": {
           "image": "research_papers.png",
-          "sourceWidth": 72,
-          "sourceHeight": 68,
+          "sourceWidth": 433,
+          "sourceHeight": 241,
           "footprint": {
             "w": 2,
             "h": 1
           },
           "bounds": {
             "x": 1,
-            "y": -7.8889,
+            "y": 1,
             "width": 20,
-            "height": 18.8889
+            "height": 10
           },
           "mode": "approved",
-          "exposure": 1
+          "exposure": 1,
+          "contact": {
+            "x": 0.5,
+            "y": 0.9875518672199171
+          },
+          "effects": false
         }
       }
     },
@@ -1785,20 +2015,25 @@
       "views": {
         "s": {
           "image": "etsy_threadrack.png",
-          "sourceWidth": 85,
-          "sourceHeight": 79,
+          "sourceWidth": 406,
+          "sourceHeight": 314,
           "footprint": {
             "w": 2,
             "h": 1
           },
           "bounds": {
             "x": -1,
-            "y": -12.1647,
+            "y": -8,
             "width": 26,
-            "height": 24.1647
+            "height": 20
           },
           "mode": "approved",
-          "exposure": 1
+          "exposure": 1,
+          "contact": {
+            "x": 0.5,
+            "y": 0.9936305732484076
+          },
+          "effects": false
         }
       }
     },
@@ -1806,20 +2041,25 @@
       "views": {
         "s": {
           "image": "etsy_dyevat.png",
-          "sourceWidth": 77,
-          "sourceHeight": 91,
+          "sourceWidth": 368,
+          "sourceHeight": 308,
           "footprint": {
             "w": 2,
             "h": 2
           },
           "bounds": {
             "x": 0,
-            "y": -10.2727,
+            "y": -5,
             "width": 29,
-            "height": 34.2727
+            "height": 29
           },
           "mode": "approved",
-          "exposure": 1
+          "exposure": 1,
+          "contact": {
+            "x": 0.5,
+            "y": 0.9902597402597403
+          },
+          "effects": false
         }
       }
     },
@@ -1827,20 +2067,25 @@
       "views": {
         "s": {
           "image": "etsy_kiln.png",
-          "sourceWidth": 83,
-          "sourceHeight": 91,
+          "sourceWidth": 324,
+          "sourceHeight": 374,
           "footprint": {
             "w": 2,
             "h": 2
           },
           "bounds": {
             "x": -1,
-            "y": -8.8916,
+            "y": -9,
             "width": 30,
-            "height": 32.8916
+            "height": 33
           },
           "mode": "approved",
-          "exposure": 1
+          "exposure": 1,
+          "contact": {
+            "x": 0.5,
+            "y": 0.9919786096256684
+          },
+          "effects": false
         }
       }
     },
@@ -1848,21 +2093,26 @@
       "views": {
         "s": {
           "image": "etsy_packbot.png",
-          "sourceWidth": 83,
-          "sourceHeight": 93,
+          "sourceWidth": 270,
+          "sourceHeight": 358,
           "footprint": {
             "w": 2,
             "h": 2
           },
           "bounds": {
             "x": -1,
-            "y": -9.6145,
+            "y": -15,
             "width": 30,
-            "height": 33.6145
+            "height": 39
           },
           "mode": "approved",
           "exposure": 1,
-          "activity": "work"
+          "activity": "work",
+          "contact": {
+            "x": 0.5,
+            "y": 0.9916201117318436
+          },
+          "effects": false
         }
       }
     },
@@ -1918,20 +2168,25 @@
       "views": {
         "s": {
           "image": "boxes.png",
-          "sourceWidth": 77,
-          "sourceHeight": 64,
+          "sourceWidth": 314,
+          "sourceHeight": 193,
           "footprint": {
             "w": 2,
             "h": 1
           },
           "bounds": {
             "x": 0,
-            "y": -7.9481,
+            "y": -1,
             "width": 24,
-            "height": 19.9481
+            "height": 13
           },
           "mode": "approved",
-          "exposure": 1
+          "exposure": 1,
+          "contact": {
+            "x": 0.5,
+            "y": 0.9844559585492227
+          },
+          "effects": false
         }
       }
     },
@@ -1939,20 +2194,25 @@
       "views": {
         "s": {
           "image": "goldcrate.png",
-          "sourceWidth": 83,
-          "sourceHeight": 65,
+          "sourceWidth": 312,
+          "sourceHeight": 225,
           "footprint": {
             "w": 2,
             "h": 1
           },
           "bounds": {
             "x": -1,
-            "y": -8.3614,
+            "y": -10,
             "width": 26,
-            "height": 20.3614
+            "height": 22
           },
           "mode": "approved",
-          "exposure": 1
+          "exposure": 1,
+          "contact": {
+            "x": 0.5,
+            "y": 0.9866666666666667
+          },
+          "effects": false
         }
       }
     },
@@ -1960,20 +2220,25 @@
       "views": {
         "s": {
           "image": "gigs_partsbin.png",
-          "sourceWidth": 82,
-          "sourceHeight": 65,
+          "sourceWidth": 312,
+          "sourceHeight": 211,
           "footprint": {
             "w": 2,
             "h": 1
           },
           "bounds": {
             "x": -1,
-            "y": -8.6098,
+            "y": -7,
             "width": 26,
-            "height": 20.6098
+            "height": 19
           },
           "mode": "approved",
-          "exposure": 1
+          "exposure": 1,
+          "contact": {
+            "x": 0.5,
+            "y": 0.985781990521327
+          },
+          "effects": false
         }
       }
     },
@@ -1981,20 +2246,25 @@
       "views": {
         "s": {
           "image": "treasury_coinsorter.png",
-          "sourceWidth": 406,
-          "sourceHeight": 203,
+          "sourceWidth": 578,
+          "sourceHeight": 317,
           "footprint": {
             "w": 2,
             "h": 1
           },
           "bounds": {
             "x": -1,
-            "y": -1,
+            "y": -3,
             "width": 26,
-            "height": 13
+            "height": 15
           },
           "mode": "approved",
-          "exposure": 1
+          "exposure": 1,
+          "contact": {
+            "x": 0.5,
+            "y": 0.9936908517350158
+          },
+          "effects": false
         }
       }
     },
@@ -2002,20 +2272,25 @@
       "views": {
         "s": {
           "image": "treasury_token_furnace.png",
-          "sourceWidth": 83,
-          "sourceHeight": 81,
+          "sourceWidth": 197,
+          "sourceHeight": 437,
           "footprint": {
             "w": 1,
             "h": 2
           },
           "bounds": {
             "x": -1,
-            "y": 10.3373,
+            "y": -7,
             "width": 14,
-            "height": 13.6627
+            "height": 31
           },
           "mode": "approved",
-          "exposure": 1
+          "exposure": 1,
+          "contact": {
+            "x": 0.5,
+            "y": 0.9931350114416476
+          },
+          "effects": false
         }
       }
     },
@@ -2023,21 +2298,26 @@
       "views": {
         "s": {
           "image": "commswall.png",
-          "sourceWidth": 70,
-          "sourceHeight": 69,
+          "sourceWidth": 646,
+          "sourceHeight": 199,
           "footprint": {
             "w": 6,
             "h": 1
           },
           "bounds": {
-            "x": 7.5942,
-            "y": -46,
-            "width": 56.8116,
-            "height": 56
+            "x": -1,
+            "y": -13,
+            "width": 74,
+            "height": 23
           },
           "mode": "approved",
           "exposure": 1,
-          "screenPower": "ambient"
+          "screenPower": "ambient",
+          "contact": {
+            "x": 0.5,
+            "y": 0.9849246231155779
+          },
+          "effects": false
         }
       }
     },
@@ -2045,20 +2325,25 @@
       "views": {
         "s": {
           "image": "comms_inbox.png",
-          "sourceWidth": 77,
-          "sourceHeight": 75,
+          "sourceWidth": 457,
+          "sourceHeight": 297,
           "footprint": {
             "w": 2,
             "h": 1
           },
           "bounds": {
             "x": -1,
-            "y": -17.2208,
+            "y": -8,
             "width": 30,
-            "height": 29.2208
+            "height": 20
           },
           "mode": "approved",
-          "exposure": 1
+          "exposure": 1,
+          "contact": {
+            "x": 0.5,
+            "y": 0.9865319865319865
+          },
+          "effects": false
         }
       }
     },
@@ -2066,21 +2351,26 @@
       "views": {
         "s": {
           "image": "gigs_thumbwall.png",
-          "sourceWidth": 75,
-          "sourceHeight": 75,
+          "sourceWidth": 372,
+          "sourceHeight": 222,
           "footprint": {
             "w": 2,
             "h": 1
           },
           "bounds": {
             "x": -1,
-            "y": -14,
+            "y": -6,
             "width": 26,
-            "height": 26
+            "height": 18
           },
           "mode": "approved",
           "exposure": 1,
-          "screenPower": "ambient"
+          "screenPower": "ambient",
+          "contact": {
+            "x": 0.5,
+            "y": 0.9864864864864865
+          },
+          "effects": false
         }
       }
     },
@@ -2088,20 +2378,25 @@
       "views": {
         "s": {
           "image": "gigs_amp.png",
-          "sourceWidth": 77,
-          "sourceHeight": 74,
+          "sourceWidth": 225,
+          "sourceHeight": 281,
           "footprint": {
             "w": 1,
             "h": 1
           },
           "bounds": {
             "x": -1,
-            "y": -2.3766,
+            "y": -7,
             "width": 16,
-            "height": 15.3766
+            "height": 20
           },
           "mode": "approved",
-          "exposure": 1
+          "exposure": 1,
+          "contact": {
+            "x": 0.5,
+            "y": 0.9893238434163701
+          },
+          "effects": false
         }
       }
     },
@@ -2109,21 +2404,26 @@
       "views": {
         "s": {
           "image": "pub_publishpress.png",
-          "sourceWidth": 84,
-          "sourceHeight": 91,
+          "sourceWidth": 435,
+          "sourceHeight": 401,
           "footprint": {
             "w": 2,
             "h": 2
           },
           "bounds": {
             "x": -1,
-            "y": -8.5,
+            "y": -8,
             "width": 30,
-            "height": 32.5
+            "height": 32
           },
           "mode": "approved",
           "exposure": 1,
-          "activity": "work"
+          "activity": "work",
+          "contact": {
+            "x": 0.5,
+            "y": 0.9950124688279302
+          },
+          "effects": false
         }
       }
     },
@@ -2131,21 +2431,26 @@
       "views": {
         "s": {
           "image": "pub_outboundchute.png",
-          "sourceWidth": 64,
-          "sourceHeight": 87,
+          "sourceWidth": 428,
+          "sourceHeight": 650,
           "footprint": {
             "w": 1,
             "h": 2
           },
           "bounds": {
             "x": -3,
-            "y": -0.4688,
+            "y": -11,
             "width": 18,
-            "height": 24.4688
+            "height": 35
           },
           "mode": "approved",
           "exposure": 1,
-          "activity": "work"
+          "activity": "work",
+          "contact": {
+            "x": 0.5,
+            "y": 0.9953846153846154
+          },
+          "effects": false
         }
       }
     },
@@ -2153,21 +2458,26 @@
       "views": {
         "s": {
           "image": "pub_mailpod.png",
-          "sourceWidth": 319,
-          "sourceHeight": 264,
+          "sourceWidth": 727,
+          "sourceHeight": 513,
           "footprint": {
             "w": 2,
             "h": 1
           },
           "bounds": {
             "x": -3,
-            "y": -13.6552,
+            "y": -10,
             "width": 31,
-            "height": 25.6552
+            "height": 22
           },
           "mode": "approved",
           "exposure": 1,
-          "activity": "work"
+          "activity": "work",
+          "contact": {
+            "x": 0.5,
+            "y": 0.9941520467836257
+          },
+          "effects": false
         }
       }
     },
@@ -2201,20 +2511,25 @@
       "views": {
         "s": {
           "image": "arc_microfiche.png",
-          "sourceWidth": 75,
-          "sourceHeight": 77,
+          "sourceWidth": 338,
+          "sourceHeight": 277,
           "footprint": {
             "w": 2,
             "h": 1
           },
           "bounds": {
             "x": -1,
-            "y": -18.8,
+            "y": -12,
             "width": 30,
-            "height": 30.8
+            "height": 24
           },
           "mode": "approved",
-          "exposure": 1
+          "exposure": 1,
+          "contact": {
+            "x": 0.5,
+            "y": 0.9927797833935018
+          },
+          "effects": false
         }
       }
     },
@@ -2222,20 +2537,25 @@
       "views": {
         "s": {
           "image": "djbooth.png",
-          "sourceWidth": 100,
-          "sourceHeight": 67,
+          "sourceWidth": 849,
+          "sourceHeight": 507,
           "footprint": {
             "w": 4,
             "h": 2
           },
           "bounds": {
             "x": -1,
-            "y": -9.5,
+            "y": -5,
             "width": 50,
-            "height": 33.5
+            "height": 29
           },
           "mode": "approved",
-          "exposure": 1
+          "exposure": 1,
+          "contact": {
+            "x": 0.5,
+            "y": 0.9930966469428008
+          },
+          "effects": false
         }
       }
     },
@@ -2243,20 +2563,25 @@
       "views": {
         "s": {
           "image": "speaker.png",
-          "sourceWidth": 48,
-          "sourceHeight": 75,
+          "sourceWidth": 231,
+          "sourceHeight": 352,
           "footprint": {
             "w": 1,
             "h": 1
           },
           "bounds": {
             "x": 1,
-            "y": -3.625,
+            "y": -3,
             "width": 10,
-            "height": 15.625
+            "height": 15
           },
           "mode": "approved",
-          "exposure": 1
+          "exposure": 1,
+          "contact": {
+            "x": 0.5,
+            "y": 0.9900568181818182
+          },
+          "effects": false
         }
       }
     },
@@ -2264,21 +2589,26 @@
       "views": {
         "s": {
           "image": "bar.png",
-          "sourceWidth": 100,
-          "sourceHeight": 86,
+          "sourceWidth": 974,
+          "sourceHeight": 499,
           "footprint": {
             "w": 4,
             "h": 1
           },
           "bounds": {
             "x": -1,
-            "y": -31,
+            "y": -12,
             "width": 50,
-            "height": 43
+            "height": 24
           },
           "mode": "approved",
           "exposure": 1,
-          "activity": "work"
+          "activity": "work",
+          "contact": {
+            "x": 0.5,
+            "y": 0.9929859719438878
+          },
+          "effects": false
         }
       }
     },
@@ -2498,20 +2828,25 @@
       "views": {
         "s": {
           "image": "quarters_lockerbank.png",
-          "sourceWidth": 89,
-          "sourceHeight": 80,
+          "sourceWidth": 558,
+          "sourceHeight": 495,
           "footprint": {
             "w": 3,
             "h": 1
           },
           "bounds": {
             "x": -1,
-            "y": -22.1573,
+            "y": -20,
             "width": 38,
-            "height": 34.1573
+            "height": 32
           },
           "mode": "approved",
-          "exposure": 1
+          "exposure": 1,
+          "contact": {
+            "x": 0.5,
+            "y": 0.9929292929292929
+          },
+          "effects": false
         }
       }
     },
@@ -2572,8 +2907,190 @@
       "views": {
         "s": {
           "image": "plant.png",
-          "sourceWidth": 65,
-          "sourceHeight": 78,
+          "sourceWidth": 640,
+          "sourceHeight": 1412,
+          "footprint": {
+            "w": 1,
+            "h": 1
+          },
+          "bounds": {
+            "x": 1,
+            "y": -8,
+            "width": 10,
+            "height": 20
+          },
+          "mode": "approved",
+          "exposure": 1,
+          "contact": {
+            "x": 0.5,
+            "y": 0.9975212464589235
+          },
+          "effects": false
+        }
+      }
+    },
+    "rug": {
+      "views": {
+        "s": {
+          "image": "rug.png",
+          "sourceWidth": 350,
+          "sourceHeight": 228,
+          "footprint": {
+            "w": 4,
+            "h": 3
+          },
+          "bounds": {
+            "x": -1,
+            "y": 0,
+            "width": 50,
+            "height": 36
+          },
+          "mode": "approved",
+          "exposure": 1,
+          "contact": {
+            "x": 0.5,
+            "y": 0.9868421052631579
+          },
+          "effects": false
+        }
+      }
+    },
+    "rug_small": {
+      "views": {
+        "s": {
+          "image": "rug_small.png",
+          "sourceWidth": 248,
+          "sourceHeight": 228,
+          "footprint": {
+            "w": 3,
+            "h": 3
+          },
+          "bounds": {
+            "x": 0,
+            "y": -1,
+            "width": 36,
+            "height": 38
+          },
+          "mode": "approved",
+          "exposure": 1,
+          "contact": {
+            "x": 0.5,
+            "y": 0.9868421052631579
+          },
+          "effects": false
+        }
+      }
+    },
+    "rug_large": {
+      "views": {
+        "s": {
+          "image": "rug_large.png",
+          "sourceWidth": 299,
+          "sourceHeight": 281,
+          "footprint": {
+            "w": 5,
+            "h": 5
+          },
+          "bounds": {
+            "x": 0,
+            "y": 0,
+            "width": 60,
+            "height": 60
+          },
+          "mode": "approved",
+          "exposure": 1,
+          "contact": {
+            "x": 0.5,
+            "y": 0.9893238434163701
+          },
+          "effects": false
+        }
+      }
+    },
+    "treasury_pnl_holo": {
+      "views": {
+        "s": {
+          "image": "treasury_pnl_holo.png",
+          "sourceWidth": 322,
+          "sourceHeight": 174,
+          "footprint": {
+            "w": 1,
+            "h": 1
+          },
+          "bounds": {
+            "x": 1,
+            "y": 5,
+            "width": 10,
+            "height": 5
+          },
+          "mode": "approved",
+          "exposure": 1,
+          "contact": {
+            "x": 0.5,
+            "y": 0.9885057471264368
+          },
+          "effects": false
+        }
+      }
+    },
+    "arc_floorlight": {
+      "views": {
+        "s": {
+          "image": "arc_floorlight.png",
+          "sourceWidth": 175,
+          "sourceHeight": 175,
+          "footprint": {
+            "w": 1,
+            "h": 1
+          },
+          "bounds": {
+            "x": 1,
+            "y": 2,
+            "width": 10,
+            "height": 10
+          },
+          "mode": "approved",
+          "exposure": 1,
+          "contact": {
+            "x": 0.5,
+            "y": 0.9942857142857143
+          },
+          "effects": false
+        }
+      }
+    },
+    "arc_ladder": {
+      "views": {
+        "s": {
+          "image": "arc_ladder.png",
+          "sourceWidth": 331,
+          "sourceHeight": 506,
+          "footprint": {
+            "w": 1,
+            "h": 1
+          },
+          "bounds": {
+            "x": 0,
+            "y": -8,
+            "width": 14,
+            "height": 19
+          },
+          "mode": "approved",
+          "exposure": 1,
+          "contact": {
+            "x": 0.5,
+            "y": 0.9940711462450593
+          },
+          "effects": false
+        }
+      }
+    },
+    "stool": {
+      "views": {
+        "s": {
+          "image": "stool.png",
+          "sourceWidth": 400,
+          "sourceHeight": 454,
           "footprint": {
             "w": 1,
             "h": 1
@@ -2582,157 +3099,15 @@
             "x": 1,
             "y": 0,
             "width": 10,
-            "height": 12
+            "height": 11
           },
           "mode": "approved",
-          "exposure": 1
-        }
-      }
-    },
-    "rug": {
-      "views": {
-        "s": {
-          "image": "rug.png",
-          "sourceWidth": 96,
-          "sourceHeight": 59,
-          "footprint": {
-            "w": 4,
-            "h": 3
+          "exposure": 1,
+          "contact": {
+            "x": 0.5,
+            "y": 0.9922907488986784
           },
-          "bounds": {
-            "x": -1,
-            "y": 5.2708,
-            "width": 50,
-            "height": 30.7292
-          },
-          "mode": "approved",
-          "exposure": 1
-        }
-      }
-    },
-    "rug_small": {
-      "views": {
-        "s": {
-          "image": "rug_small.png",
-          "sourceWidth": 65,
-          "sourceHeight": 49,
-          "footprint": {
-            "w": 3,
-            "h": 3
-          },
-          "bounds": {
-            "x": 0,
-            "y": 9.8615,
-            "width": 36,
-            "height": 27.1385
-          },
-          "mode": "approved",
-          "exposure": 1
-        }
-      }
-    },
-    "rug_large": {
-      "views": {
-        "s": {
-          "image": "rug_large.png",
-          "sourceWidth": 99,
-          "sourceHeight": 65,
-          "footprint": {
-            "w": 5,
-            "h": 5
-          },
-          "bounds": {
-            "x": 0,
-            "y": 20.6061,
-            "width": 60,
-            "height": 39.3939
-          },
-          "mode": "approved",
-          "exposure": 1
-        }
-      }
-    },
-    "treasury_pnl_holo": {
-      "views": {
-        "s": {
-          "image": "treasury_pnl_holo.png",
-          "sourceWidth": 253,
-          "sourceHeight": 127,
-          "footprint": {
-            "w": 1,
-            "h": 1
-          },
-          "bounds": {
-            "x": 1,
-            "y": 4.9802,
-            "width": 10,
-            "height": 5.0198
-          },
-          "mode": "approved",
-          "exposure": 1
-        }
-      }
-    },
-    "arc_floorlight": {
-      "views": {
-        "s": {
-          "image": "arc_floorlight.png",
-          "sourceWidth": 33,
-          "sourceHeight": 79,
-          "footprint": {
-            "w": 1,
-            "h": 1
-          },
-          "bounds": {
-            "x": 1,
-            "y": -11.9394,
-            "width": 10,
-            "height": 23.9394
-          },
-          "mode": "approved",
-          "exposure": 1
-        }
-      }
-    },
-    "arc_ladder": {
-      "views": {
-        "s": {
-          "image": "arc_ladder.png",
-          "sourceWidth": 41,
-          "sourceHeight": 82,
-          "footprint": {
-            "w": 1,
-            "h": 1
-          },
-          "bounds": {
-            "x": 0,
-            "y": -17,
-            "width": 14,
-            "height": 28
-          },
-          "mode": "approved",
-          "exposure": 1
-        }
-      }
-    },
-    "stool": {
-      "views": {
-        "s": {
-          "image": "stool.png",
-          "sourceWidth": 48,
-          "sourceHeight": 57,
-          "footprint": {
-            "w": 1,
-            "h": 1
-          },
-          "bounds": {
-            "x": 1,
-            "y": -0.875,
-            "width": 10,
-            "height": 11.875
-          },
-          "mode": "approved",
-          "exposure": 1
+          "effects": false
         }
       }
     },
@@ -2812,17 +3187,17 @@
       "views": {
         "s": {
           "image": "sidetable.png",
-          "sourceWidth": 173,
-          "sourceHeight": 203,
+          "sourceWidth": 236,
+          "sourceHeight": 311,
           "footprint": {
             "w": 1,
             "h": 1
           },
           "bounds": {
             "x": 0,
-            "y": -2.0809,
+            "y": -3,
             "width": 12,
-            "height": 14.0809
+            "height": 15
           },
           "mode": "approved",
           "exposure": 1,
@@ -2830,23 +3205,28 @@
             "space": "export-normalized",
             "points": [
               [
-                0.2485549,
-                0.1330049
+                0.0932203,
+                0.0353698
               ],
               [
-                0.7398844,
-                0.1330049
+                0.9025424,
+                0.0353698
               ],
               [
-                0.7861272,
-                0.4926108
+                0.9279661,
+                0.4533762
               ],
               [
-                0.2138728,
-                0.4926108
+                0.0720339,
+                0.4533762
               ]
             ]
-          }
+          },
+          "contact": {
+            "x": 0.5,
+            "y": 0.9919614147909968
+          },
+          "effects": false
         }
       }
     },
@@ -3082,20 +3462,25 @@
       "views": {
         "s": {
           "image": "guitar.png",
-          "sourceWidth": 44,
-          "sourceHeight": 88,
+          "sourceWidth": 218,
+          "sourceHeight": 444,
           "footprint": {
             "w": 1,
             "h": 1
           },
           "bounds": {
             "x": -1,
-            "y": -16,
+            "y": -15,
             "width": 14,
-            "height": 28
+            "height": 27
           },
           "mode": "approved",
-          "exposure": 1
+          "exposure": 1,
+          "contact": {
+            "x": 0.5,
+            "y": 0.9921171171171171
+          },
+          "effects": false
         }
       }
     },
@@ -3537,20 +3922,25 @@
       "views": {
         "s": {
           "image": "lavalamp.png",
-          "sourceWidth": 33,
-          "sourceHeight": 76,
+          "sourceWidth": 282,
+          "sourceHeight": 658,
           "footprint": {
             "w": 1,
             "h": 1
           },
           "bounds": {
             "x": 2,
-            "y": -6.4242,
+            "y": -8,
             "width": 8,
-            "height": 18.4242
+            "height": 20
           },
           "mode": "approved",
-          "exposure": 1
+          "exposure": 1,
+          "contact": {
+            "x": 0.5,
+            "y": 0.9946808510638298
+          },
+          "effects": false
         }
       }
     },
@@ -3558,21 +3948,26 @@
       "views": {
         "s": {
           "image": "crt_pile.png",
-          "sourceWidth": 99,
-          "sourceHeight": 79,
+          "sourceWidth": 205,
+          "sourceHeight": 309,
           "footprint": {
             "w": 1,
             "h": 1
           },
           "bounds": {
             "x": -1,
-            "y": 3.4242,
+            "y": -4,
             "width": 12,
-            "height": 9.5758
+            "height": 17
           },
           "mode": "approved",
           "exposure": 1,
-          "screenPower": "ambient"
+          "screenPower": "ambient",
+          "contact": {
+            "x": 0.5,
+            "y": 0.9902912621359223
+          },
+          "effects": false
         }
       }
     },
@@ -3580,20 +3975,25 @@
       "views": {
         "s": {
           "image": "cablerun.png",
-          "sourceWidth": 77,
-          "sourceHeight": 50,
+          "sourceWidth": 1135,
+          "sourceHeight": 250,
           "footprint": {
             "w": 2,
             "h": 1
           },
           "bounds": {
-            "x": 5.07,
+            "x": 0,
             "y": 2,
-            "width": 13.86,
+            "width": 24,
             "height": 9
           },
           "mode": "approved",
-          "exposure": 1
+          "exposure": 1,
+          "contact": {
+            "x": 0.5,
+            "y": 0.992
+          },
+          "effects": false
         }
       }
     },
@@ -3601,20 +4001,25 @@
       "views": {
         "s": {
           "image": "hazardpad.png",
-          "sourceWidth": 78,
-          "sourceHeight": 65,
+          "sourceWidth": 413,
+          "sourceHeight": 177,
           "footprint": {
             "w": 2,
             "h": 1
           },
           "bounds": {
-            "x": 6,
+            "x": 1,
             "y": 1,
-            "width": 12,
+            "width": 22,
             "height": 10
           },
           "mode": "approved",
-          "exposure": 1
+          "exposure": 1,
+          "contact": {
+            "x": 0.5,
+            "y": 0.9830508474576272
+          },
+          "effects": false
         }
       }
     },
@@ -3622,20 +4027,25 @@
       "views": {
         "s": {
           "image": "tallplant.png",
-          "sourceWidth": 66,
-          "sourceHeight": 90,
+          "sourceWidth": 227,
+          "sourceHeight": 435,
           "footprint": {
             "w": 1,
             "h": 1
           },
           "bounds": {
             "x": 1,
-            "y": -5.7273,
+            "y": -14,
             "width": 13,
-            "height": 17.7273
+            "height": 26
           },
           "mode": "approved",
-          "exposure": 1
+          "exposure": 1,
+          "contact": {
+            "x": 0.5,
+            "y": 0.9942528735632183
+          },
+          "effects": false
         }
       }
     },
@@ -3643,20 +4053,25 @@
       "views": {
         "s": {
           "image": "terrarium.png",
-          "sourceWidth": 63,
-          "sourceHeight": 71,
+          "sourceWidth": 227,
+          "sourceHeight": 367,
           "footprint": {
             "w": 1,
             "h": 1
           },
           "bounds": {
             "x": 0,
-            "y": -1.3968,
+            "y": -5,
             "width": 11,
-            "height": 12.3968
+            "height": 16
           },
           "mode": "approved",
-          "exposure": 1
+          "exposure": 1,
+          "contact": {
+            "x": 0.5,
+            "y": 0.9904632152588556
+          },
+          "effects": false
         }
       }
     },
@@ -3664,20 +4079,25 @@
       "views": {
         "s": {
           "image": "holopet.png",
-          "sourceWidth": 475,
-          "sourceHeight": 563,
+          "sourceWidth": 436,
+          "sourceHeight": 1295,
           "footprint": {
             "w": 1,
             "h": 1
           },
           "bounds": {
-            "x": -1.5933,
-            "y": -8,
-            "width": 15.1865,
-            "height": 18
+            "x": 3,
+            "y": -6,
+            "width": 6,
+            "height": 16
           },
           "mode": "approved",
-          "exposure": 1
+          "exposure": 1,
+          "contact": {
+            "x": 0.5,
+            "y": 0.9972972972972973
+          },
+          "effects": false
         }
       }
     },
@@ -3685,20 +4105,25 @@
       "views": {
         "s": {
           "image": "plasmaglobe.png",
-          "sourceWidth": 50,
-          "sourceHeight": 73,
+          "sourceWidth": 312,
+          "sourceHeight": 656,
           "footprint": {
             "w": 1,
             "h": 1
           },
           "bounds": {
             "x": 1,
-            "y": -1.14,
+            "y": -5,
             "width": 9,
-            "height": 13.14
+            "height": 17
           },
           "mode": "approved",
-          "exposure": 1
+          "exposure": 1,
+          "contact": {
+            "x": 0.5,
+            "y": 0.9946646341463414
+          },
+          "effects": false
         }
       }
     },
@@ -3706,20 +4131,25 @@
       "views": {
         "s": {
           "image": "gachapon.png",
-          "sourceWidth": 51,
-          "sourceHeight": 80,
+          "sourceWidth": 200,
+          "sourceHeight": 316,
           "footprint": {
             "w": 1,
             "h": 1
           },
           "bounds": {
             "x": 0,
-            "y": -5.2549,
+            "y": -7,
             "width": 11,
-            "height": 17.2549
+            "height": 19
           },
           "mode": "approved",
-          "exposure": 1
+          "exposure": 1,
+          "contact": {
+            "x": 0.5,
+            "y": 0.9889240506329114
+          },
+          "effects": false
         }
       }
     },
@@ -3727,20 +4157,25 @@
       "views": {
         "s": {
           "image": "monstera.png",
-          "sourceWidth": 71,
-          "sourceHeight": 74,
+          "sourceWidth": 345,
+          "sourceHeight": 377,
           "footprint": {
             "w": 1,
             "h": 1
           },
           "bounds": {
             "x": 0,
-            "y": -0.507,
+            "y": -1,
             "width": 12,
-            "height": 12.507
+            "height": 13
           },
           "mode": "approved",
-          "exposure": 1
+          "exposure": 1,
+          "contact": {
+            "x": 0.5,
+            "y": 0.9907161803713528
+          },
+          "effects": false
         }
       }
     },
@@ -3748,20 +4183,25 @@
       "views": {
         "s": {
           "image": "mug.png",
-          "sourceWidth": 50,
-          "sourceHeight": 53,
+          "sourceWidth": 571,
+          "sourceHeight": 520,
           "footprint": {
             "w": 1,
             "h": 1
           },
           "bounds": {
             "x": 1,
-            "y": 0.4,
+            "y": 2,
             "width": 10,
-            "height": 10.6
+            "height": 9
           },
           "mode": "approved",
-          "exposure": 1
+          "exposure": 1,
+          "contact": {
+            "x": 0.5,
+            "y": 0.9932692307692308
+          },
+          "effects": false
         }
       }
     },
@@ -3769,20 +4209,25 @@
       "views": {
         "s": {
           "image": "bookstack.png",
-          "sourceWidth": 74,
-          "sourceHeight": 64,
+          "sourceWidth": 298,
+          "sourceHeight": 260,
           "footprint": {
             "w": 1,
             "h": 1
           },
           "bounds": {
             "x": 0,
-            "y": -0.3784,
+            "y": 0,
             "width": 12,
-            "height": 10.3784
+            "height": 10
           },
           "mode": "approved",
-          "exposure": 1
+          "exposure": 1,
+          "contact": {
+            "x": 0.5,
+            "y": 0.9903846153846154
+          },
+          "effects": false
         }
       }
     },
@@ -3790,20 +4235,25 @@
       "views": {
         "s": {
           "image": "desklamp.png",
-          "sourceWidth": 56,
-          "sourceHeight": 65,
+          "sourceWidth": 363,
+          "sourceHeight": 252,
           "footprint": {
             "w": 1,
             "h": 1
           },
           "bounds": {
             "x": 0,
-            "y": -1.9286,
+            "y": 3,
             "width": 12,
-            "height": 13.9286
+            "height": 9
           },
           "mode": "approved",
-          "exposure": 1
+          "exposure": 1,
+          "contact": {
+            "x": 0.5,
+            "y": 0.9861111111111112
+          },
+          "effects": false
         }
       }
     },
@@ -3811,21 +4261,26 @@
       "views": {
         "s": {
           "image": "radio.png",
-          "sourceWidth": 72,
-          "sourceHeight": 55,
+          "sourceWidth": 668,
+          "sourceHeight": 547,
           "footprint": {
             "w": 1,
             "h": 1
           },
           "bounds": {
             "x": 1,
-            "y": 4.3611,
+            "y": 3,
             "width": 10,
-            "height": 7.6389
+            "height": 9
           },
           "mode": "approved",
           "exposure": 1,
-          "activity": "ambient"
+          "activity": "ambient",
+          "contact": {
+            "x": 0.5,
+            "y": 0.993601462522852
+          },
+          "effects": false
         }
       }
     },
@@ -3833,20 +4288,25 @@
       "views": {
         "s": {
           "image": "toolbox.png",
-          "sourceWidth": 77,
-          "sourceHeight": 49,
+          "sourceWidth": 223,
+          "sourceHeight": 188,
           "footprint": {
             "w": 1,
             "h": 1
           },
           "bounds": {
             "x": 0,
-            "y": 3.3636,
+            "y": 1,
             "width": 12,
-            "height": 7.6364
+            "height": 10
           },
           "mode": "approved",
-          "exposure": 1
+          "exposure": 1,
+          "contact": {
+            "x": 0.5,
+            "y": 0.9840425531914894
+          },
+          "effects": false
         }
       }
     },
@@ -3854,20 +4314,25 @@
       "views": {
         "s": {
           "image": "figurine.png",
-          "sourceWidth": 45,
-          "sourceHeight": 72,
+          "sourceWidth": 231,
+          "sourceHeight": 277,
           "footprint": {
             "w": 1,
             "h": 1
           },
           "bounds": {
             "x": 1,
-            "y": -4,
+            "y": 1,
             "width": 10,
-            "height": 16
+            "height": 11
           },
           "mode": "approved",
-          "exposure": 1
+          "exposure": 1,
+          "contact": {
+            "x": 0.5,
+            "y": 0.9873646209386282
+          },
+          "effects": false
         }
       }
     },
@@ -3875,21 +4340,26 @@
       "views": {
         "s": {
           "image": "deskterminal.png",
-          "sourceWidth": 83,
-          "sourceHeight": 73,
+          "sourceWidth": 247,
+          "sourceHeight": 243,
           "footprint": {
             "w": 1,
             "h": 1
           },
           "bounds": {
             "x": 0,
-            "y": 1.4458,
+            "y": 0,
             "width": 12,
-            "height": 10.5542
+            "height": 12
           },
           "mode": "approved",
           "exposure": 1,
-          "screenPower": "occupied"
+          "screenPower": "occupied",
+          "contact": {
+            "x": 0.5,
+            "y": 0.9876543209876543
+          },
+          "effects": false
         }
       }
     },
@@ -3897,21 +4367,26 @@
       "views": {
         "s": {
           "image": "modelship.png",
-          "sourceWidth": 87,
-          "sourceHeight": 60,
+          "sourceWidth": 447,
+          "sourceHeight": 225,
           "footprint": {
             "w": 2,
             "h": 1
           },
           "bounds": {
             "x": 2,
-            "y": -1.7931,
+            "y": 1,
             "width": 20,
-            "height": 13.7931
+            "height": 11
           },
           "mode": "approved",
           "exposure": 1,
-          "activity": "ambient"
+          "activity": "ambient",
+          "contact": {
+            "x": 0.5,
+            "y": 0.9844444444444445
+          },
+          "effects": false
         }
       }
     },
@@ -3919,20 +4394,25 @@
       "views": {
         "s": {
           "image": "steamvent.png",
-          "sourceWidth": 58,
-          "sourceHeight": 86,
+          "sourceWidth": 845,
+          "sourceHeight": 473,
           "footprint": {
             "w": 1,
             "h": 1
           },
           "bounds": {
             "x": 0,
-            "y": -5.7931,
+            "y": 3,
             "width": 12,
-            "height": 17.7931
+            "height": 9
           },
           "mode": "approved",
-          "exposure": 1
+          "exposure": 1,
+          "contact": {
+            "x": 0.5,
+            "y": 0.9936575052854123
+          },
+          "effects": false
         }
       }
     },
@@ -3966,20 +4446,25 @@
       "views": {
         "s": {
           "image": "pokertable.png",
-          "sourceWidth": 93,
-          "sourceHeight": 56,
+          "sourceWidth": 457,
+          "sourceHeight": 283,
           "footprint": {
             "w": 4,
             "h": 2
           },
           "bounds": {
             "x": -1,
-            "y": -6.1075,
+            "y": -5,
             "width": 50,
-            "height": 30.1075
+            "height": 29
           },
           "mode": "approved",
-          "exposure": 1
+          "exposure": 1,
+          "contact": {
+            "x": 0.5,
+            "y": 0.9876325088339223
+          },
+          "effects": false
         }
       }
     },
@@ -4039,20 +4524,25 @@
       "views": {
         "s": {
           "image": "pinball.png",
-          "sourceWidth": 47,
-          "sourceHeight": 81,
+          "sourceWidth": 336,
+          "sourceHeight": 567,
           "footprint": {
             "w": 1,
             "h": 2
           },
           "bounds": {
             "x": -1,
-            "y": -3.5745,
+            "y": -3,
             "width": 16,
-            "height": 27.5745
+            "height": 27
           },
           "mode": "approved",
-          "exposure": 1
+          "exposure": 1,
+          "contact": {
+            "x": 0.5,
+            "y": 0.9938271604938271
+          },
+          "effects": false
         }
       }
     },
@@ -4112,20 +4602,25 @@
       "views": {
         "s": {
           "image": "telescope.png",
-          "sourceWidth": 51,
-          "sourceHeight": 78,
+          "sourceWidth": 326,
+          "sourceHeight": 372,
           "footprint": {
             "w": 1,
             "h": 2
           },
           "bounds": {
             "x": -3,
-            "y": -6.0588,
+            "y": -8,
             "width": 19,
-            "height": 29.0588
+            "height": 31
           },
           "mode": "approved",
-          "exposure": 1
+          "exposure": 1,
+          "contact": {
+            "x": 0.5,
+            "y": 0.9919354838709677
+          },
+          "effects": false
         }
       }
     },
@@ -4133,20 +4628,25 @@
       "views": {
         "s": {
           "image": "telescope_r.png",
-          "sourceWidth": 57,
-          "sourceHeight": 67,
+          "sourceWidth": 312,
+          "sourceHeight": 374,
           "footprint": {
             "w": 1,
             "h": 2
           },
           "bounds": {
             "x": -4,
-            "y": 0.6667,
+            "y": -8,
             "width": 19,
-            "height": 22.3333
+            "height": 31
           },
           "mode": "approved",
-          "exposure": 1
+          "exposure": 1,
+          "contact": {
+            "x": 0.5,
+            "y": 0.9919786096256684
+          },
+          "effects": false
         }
       }
     },
@@ -4154,20 +4654,25 @@
       "views": {
         "s": {
           "image": "camerarig.png",
-          "sourceWidth": 53,
-          "sourceHeight": 78,
+          "sourceWidth": 199,
+          "sourceHeight": 339,
           "footprint": {
             "w": 1,
             "h": 2
           },
           "bounds": {
             "x": -1,
-            "y": 0.9245,
+            "y": -6,
             "width": 15,
-            "height": 22.0755
+            "height": 29
           },
           "mode": "approved",
-          "exposure": 1
+          "exposure": 1,
+          "contact": {
+            "x": 0.5,
+            "y": 0.9941002949852508
+          },
+          "effects": false
         }
       }
     },
@@ -4175,20 +4680,25 @@
       "views": {
         "s": {
           "image": "camerarig_r.png",
-          "sourceWidth": 51,
-          "sourceHeight": 74,
+          "sourceWidth": 202,
+          "sourceHeight": 339,
           "footprint": {
             "w": 1,
             "h": 2
           },
           "bounds": {
             "x": -2,
-            "y": 1.2353,
+            "y": -6,
             "width": 15,
-            "height": 21.7647
+            "height": 29
           },
           "mode": "approved",
-          "exposure": 1
+          "exposure": 1,
+          "contact": {
+            "x": 0.5,
+            "y": 0.9941002949852508
+          },
+          "effects": false
         }
       }
     },
@@ -4196,20 +4706,25 @@
       "views": {
         "s": {
           "image": "weaponrack.png",
-          "sourceWidth": 77,
-          "sourceHeight": 72,
+          "sourceWidth": 553,
+          "sourceHeight": 384,
           "footprint": {
             "w": 3,
             "h": 1
           },
           "bounds": {
             "x": 1,
-            "y": -25.7922,
+            "y": -16,
             "width": 34,
-            "height": 31.7922
+            "height": 22
           },
           "mode": "approved",
-          "exposure": 1
+          "exposure": 1,
+          "contact": {
+            "x": 0.5,
+            "y": 0.9908854166666666
+          },
+          "effects": false
         }
       }
     },
@@ -4217,20 +4732,25 @@
       "views": {
         "s": {
           "image": "weaponrack_r.png",
-          "sourceWidth": 50,
-          "sourceHeight": 70,
+          "sourceWidth": 1126,
+          "sourceHeight": 722,
           "footprint": {
             "w": 3,
             "h": 1
           },
           "bounds": {
             "x": 1,
-            "y": -41.6,
+            "y": -16,
             "width": 34,
-            "height": 47.6
+            "height": 22
           },
           "mode": "approved",
-          "exposure": 1
+          "exposure": 1,
+          "contact": {
+            "x": 0.5,
+            "y": 0.9951523545706371
+          },
+          "effects": false
         }
       }
     },
@@ -4238,20 +4758,25 @@
       "views": {
         "s": {
           "image": "punchbag.png",
-          "sourceWidth": 33,
-          "sourceHeight": 78,
+          "sourceWidth": 172,
+          "sourceHeight": 416,
           "footprint": {
             "w": 1,
             "h": 2
           },
           "bounds": {
             "x": 0,
-            "y": -6.3636,
+            "y": -8,
             "width": 12,
-            "height": 28.3636
+            "height": 30
           },
           "mode": "approved",
-          "exposure": 1
+          "exposure": 1,
+          "contact": {
+            "x": 0.5,
+            "y": 0.9915865384615384
+          },
+          "effects": false
         }
       }
     },
@@ -4259,20 +4784,25 @@
       "views": {
         "s": {
           "image": "punchbag_r.png",
-          "sourceWidth": 30,
-          "sourceHeight": 78,
+          "sourceWidth": 171,
+          "sourceHeight": 417,
           "footprint": {
             "w": 1,
             "h": 2
           },
           "bounds": {
             "x": 0,
-            "y": -9.2,
+            "y": -8,
             "width": 12,
-            "height": 31.2
+            "height": 30
           },
           "mode": "approved",
-          "exposure": 1
+          "exposure": 1,
+          "contact": {
+            "x": 0.5,
+            "y": 0.9916067146282974
+          },
+          "effects": false
         }
       }
     },
@@ -4280,20 +4810,25 @@
       "views": {
         "s": {
           "image": "benchpress.png",
-          "sourceWidth": 101,
-          "sourceHeight": 70,
+          "sourceWidth": 587,
+          "sourceHeight": 344,
           "footprint": {
             "w": 3,
             "h": 1
           },
           "bounds": {
             "x": 1,
-            "y": -12.9505,
+            "y": -8,
             "width": 36,
-            "height": 24.9505
+            "height": 20
           },
           "mode": "approved",
-          "exposure": 1
+          "exposure": 1,
+          "contact": {
+            "x": 0.5,
+            "y": 0.9898255813953488
+          },
+          "effects": false
         }
       }
     },
@@ -4301,20 +4836,25 @@
       "views": {
         "s": {
           "image": "benchpress_r.png",
-          "sourceWidth": 57,
-          "sourceHeight": 70,
+          "sourceWidth": 1572,
+          "sourceHeight": 865,
           "footprint": {
             "w": 3,
             "h": 1
           },
           "bounds": {
             "x": -1,
-            "y": -32.2105,
+            "y": -8,
             "width": 36,
-            "height": 44.2105
+            "height": 20
           },
           "mode": "approved",
-          "exposure": 1
+          "exposure": 1,
+          "contact": {
+            "x": 0.5,
+            "y": 0.9959537572254336
+          },
+          "effects": false
         }
       }
     },
@@ -4696,6 +5236,546 @@
       "id": "bridge_tacticaltable",
       "view": "s",
       "group": "command"
+    },
+    {
+      "id": "airlock",
+      "view": "s",
+      "group": "floor"
+    },
+    {
+      "id": "arc_floorlight",
+      "view": "s",
+      "group": "floor"
+    },
+    {
+      "id": "cablerun",
+      "view": "s",
+      "group": "floor"
+    },
+    {
+      "id": "hazardpad",
+      "view": "s",
+      "group": "floor"
+    },
+    {
+      "id": "industrial_cabletray",
+      "view": "s",
+      "group": "floor"
+    },
+    {
+      "id": "industrial_floorvent",
+      "view": "s",
+      "group": "floor"
+    },
+    {
+      "id": "rug",
+      "view": "s",
+      "group": "floor"
+    },
+    {
+      "id": "rug_small",
+      "view": "s",
+      "group": "floor"
+    },
+    {
+      "id": "rug_large",
+      "view": "s",
+      "group": "floor"
+    },
+    {
+      "id": "bridge_deckperimeter",
+      "view": "s",
+      "group": "floor"
+    },
+    {
+      "id": "bar",
+      "view": "s",
+      "group": "club"
+    },
+    {
+      "id": "industrial_roundtable",
+      "view": "s",
+      "group": "club"
+    },
+    {
+      "id": "sidetable",
+      "view": "s",
+      "group": "club"
+    },
+    {
+      "id": "stool",
+      "view": "s",
+      "group": "club"
+    },
+    {
+      "id": "pokertable",
+      "view": "s",
+      "group": "club"
+    },
+    {
+      "id": "djbooth",
+      "view": "s",
+      "group": "club"
+    },
+    {
+      "id": "quarters_lockerbank",
+      "view": "s",
+      "group": "club"
+    },
+    {
+      "id": "trophycase",
+      "view": "s",
+      "group": "club"
+    },
+    {
+      "id": "bay",
+      "view": "s",
+      "group": "workflow"
+    },
+    {
+      "id": "filter",
+      "view": "s",
+      "group": "workflow"
+    },
+    {
+      "id": "joiner",
+      "view": "s",
+      "group": "workflow"
+    },
+    {
+      "id": "loop",
+      "view": "s",
+      "group": "workflow"
+    },
+    {
+      "id": "merger",
+      "view": "s",
+      "group": "workflow"
+    },
+    {
+      "id": "splitter",
+      "view": "s",
+      "group": "workflow"
+    },
+    {
+      "id": "outbox",
+      "view": "s",
+      "group": "workflow"
+    },
+    {
+      "id": "connector_portal",
+      "view": "s",
+      "group": "workflow"
+    },
+    {
+      "id": "etsy_dyevat",
+      "view": "s",
+      "group": "craft-publishing"
+    },
+    {
+      "id": "etsy_kiln",
+      "view": "s",
+      "group": "craft-publishing"
+    },
+    {
+      "id": "etsy_packbot",
+      "view": "s",
+      "group": "craft-publishing"
+    },
+    {
+      "id": "etsy_threadrack",
+      "view": "s",
+      "group": "craft-publishing"
+    },
+    {
+      "id": "research_samplecart",
+      "view": "s",
+      "group": "craft-publishing"
+    },
+    {
+      "id": "pub_mailpod",
+      "view": "s",
+      "group": "craft-publishing"
+    },
+    {
+      "id": "pub_outboundchute",
+      "view": "s",
+      "group": "craft-publishing"
+    },
+    {
+      "id": "pub_publishpress",
+      "view": "s",
+      "group": "craft-publishing"
+    },
+    {
+      "id": "benchpress",
+      "view": "s",
+      "group": "fitness"
+    },
+    {
+      "id": "benchpress_r",
+      "view": "s",
+      "group": "fitness"
+    },
+    {
+      "id": "punchbag",
+      "view": "s",
+      "group": "fitness"
+    },
+    {
+      "id": "punchbag_r",
+      "view": "s",
+      "group": "fitness"
+    },
+    {
+      "id": "weaponrack",
+      "view": "s",
+      "group": "fitness"
+    },
+    {
+      "id": "weaponrack_r",
+      "view": "s",
+      "group": "fitness"
+    },
+    {
+      "id": "pinball",
+      "view": "s",
+      "group": "fitness"
+    },
+    {
+      "id": "gachapon",
+      "view": "s",
+      "group": "fitness"
+    },
+    {
+      "id": "comms_beacon",
+      "view": "s",
+      "group": "comms-optics"
+    },
+    {
+      "id": "comms_dish",
+      "view": "s",
+      "group": "comms-optics"
+    },
+    {
+      "id": "research_corelens",
+      "view": "s",
+      "group": "comms-optics"
+    },
+    {
+      "id": "research_trendpillar",
+      "view": "s",
+      "group": "comms-optics"
+    },
+    {
+      "id": "studio",
+      "view": "s",
+      "group": "comms-optics"
+    },
+    {
+      "id": "telescope",
+      "view": "s",
+      "group": "comms-optics"
+    },
+    {
+      "id": "telescope_r",
+      "view": "s",
+      "group": "comms-optics"
+    },
+    {
+      "id": "steamvent",
+      "view": "s",
+      "group": "comms-optics"
+    },
+    {
+      "id": "boxes",
+      "view": "s",
+      "group": "storage-carts"
+    },
+    {
+      "id": "gigs_partsbin",
+      "view": "s",
+      "group": "storage-carts"
+    },
+    {
+      "id": "goldcrate",
+      "view": "s",
+      "group": "storage-carts"
+    },
+    {
+      "id": "toolbox",
+      "view": "s",
+      "group": "storage-carts"
+    },
+    {
+      "id": "industrial_supplycart",
+      "view": "s",
+      "group": "storage-carts"
+    },
+    {
+      "id": "industrial_toolcaddy",
+      "view": "s",
+      "group": "storage-carts"
+    },
+    {
+      "id": "gigs_servercart",
+      "view": "s",
+      "group": "storage-carts"
+    },
+    {
+      "id": "vault",
+      "view": "s",
+      "group": "storage-carts"
+    },
+    {
+      "id": "camerarig",
+      "view": "s",
+      "group": "cameras-work"
+    },
+    {
+      "id": "camerarig_r",
+      "view": "s",
+      "group": "cameras-work"
+    },
+    {
+      "id": "gigs_amp",
+      "view": "s",
+      "group": "cameras-work"
+    },
+    {
+      "id": "industrial_partition",
+      "view": "s",
+      "group": "cameras-work"
+    },
+    {
+      "id": "research_papers",
+      "view": "s",
+      "group": "cameras-work"
+    },
+    {
+      "id": "screens",
+      "view": "s",
+      "group": "cameras-work"
+    },
+    {
+      "id": "workbench",
+      "view": "s",
+      "group": "cameras-work"
+    },
+    {
+      "id": "comms_inbox",
+      "view": "s",
+      "group": "cameras-work"
+    },
+    {
+      "id": "calwall",
+      "view": "s",
+      "group": "walls-displays"
+    },
+    {
+      "id": "chartwall",
+      "view": "s",
+      "group": "walls-displays"
+    },
+    {
+      "id": "commswall",
+      "view": "s",
+      "group": "walls-displays"
+    },
+    {
+      "id": "gigs_thumbwall",
+      "view": "s",
+      "group": "walls-displays"
+    },
+    {
+      "id": "industrial_wallpanel",
+      "view": "s",
+      "group": "walls-displays"
+    },
+    {
+      "id": "missionboard",
+      "view": "s",
+      "group": "walls-displays"
+    },
+    {
+      "id": "whiteboard",
+      "view": "s",
+      "group": "walls-displays"
+    },
+    {
+      "id": "ticker",
+      "view": "s",
+      "group": "walls-displays"
+    },
+    {
+      "id": "bookstack",
+      "view": "s",
+      "group": "accessories"
+    },
+    {
+      "id": "desklamp",
+      "view": "s",
+      "group": "accessories"
+    },
+    {
+      "id": "figurine",
+      "view": "s",
+      "group": "accessories"
+    },
+    {
+      "id": "modelship",
+      "view": "s",
+      "group": "accessories"
+    },
+    {
+      "id": "mug",
+      "view": "s",
+      "group": "accessories"
+    },
+    {
+      "id": "radio",
+      "view": "s",
+      "group": "accessories"
+    },
+    {
+      "id": "guitar",
+      "view": "s",
+      "group": "accessories"
+    },
+    {
+      "id": "easel",
+      "view": "s",
+      "group": "accessories"
+    },
+    {
+      "id": "treasury_coinsorter",
+      "view": "s",
+      "group": "treasury-war"
+    },
+    {
+      "id": "treasury_pnl_holo",
+      "view": "s",
+      "group": "treasury-war"
+    },
+    {
+      "id": "treasury_token_furnace",
+      "view": "s",
+      "group": "treasury-war"
+    },
+    {
+      "id": "war_pivotpanel",
+      "view": "s",
+      "group": "treasury-war"
+    },
+    {
+      "id": "war_threatcore",
+      "view": "s",
+      "group": "treasury-war"
+    },
+    {
+      "id": "wartable",
+      "view": "s",
+      "group": "treasury-war"
+    },
+    {
+      "id": "arc_ladder",
+      "view": "s",
+      "group": "archive-tech"
+    },
+    {
+      "id": "arc_microfiche",
+      "view": "s",
+      "group": "archive-tech"
+    },
+    {
+      "id": "bridge_dispatch_pylon",
+      "view": "s",
+      "group": "archive-tech"
+    },
+    {
+      "id": "bridge_orderqueue",
+      "view": "s",
+      "group": "archive-tech"
+    },
+    {
+      "id": "bridge_relaystack",
+      "view": "s",
+      "group": "archive-tech"
+    },
+    {
+      "id": "bridge_tacscreen",
+      "view": "s",
+      "group": "archive-tech"
+    },
+    {
+      "id": "crt_pile",
+      "view": "s",
+      "group": "archive-tech"
+    },
+    {
+      "id": "deskterminal",
+      "view": "s",
+      "group": "archive-tech"
+    },
+    {
+      "id": "desk2",
+      "view": "s",
+      "group": "desk-facings"
+    },
+    {
+      "id": "desk2",
+      "view": "n",
+      "group": "desk-facings"
+    },
+    {
+      "id": "desk2",
+      "view": "e",
+      "group": "desk-facings"
+    },
+    {
+      "id": "industrial_partition",
+      "view": "e",
+      "group": "desk-facings"
+    },
+    {
+      "id": "plant",
+      "view": "s",
+      "group": "plants-decor"
+    },
+    {
+      "id": "tallplant",
+      "view": "s",
+      "group": "plants-decor"
+    },
+    {
+      "id": "monstera",
+      "view": "s",
+      "group": "plants-decor"
+    },
+    {
+      "id": "terrarium",
+      "view": "s",
+      "group": "plants-decor"
+    },
+    {
+      "id": "lavalamp",
+      "view": "s",
+      "group": "plants-decor"
+    },
+    {
+      "id": "plasmaglobe",
+      "view": "s",
+      "group": "plants-decor"
+    },
+    {
+      "id": "holopet",
+      "view": "s",
+      "group": "plants-decor"
+    },
+    {
+      "id": "speaker",
+      "view": "s",
+      "group": "plants-decor"
     }
   ]
 }

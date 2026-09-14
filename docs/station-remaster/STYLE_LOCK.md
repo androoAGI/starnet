@@ -2,7 +2,7 @@
 
 ## Canonical visual reference
 
-**Follow-up owner review:** the projection-correction TV, two arcades and pool table are accepted; aquarium is improved. Preserve these. The couch is still rejected because its visible seat depth/camera does not match the neighboring recliners. Correct the couch using those recliners as the geometry reference, verify in the saved lounge, then continue through the remaining catalog. Do not treat the previous rear-view couch as an accepted camera reference.
+**Follow-up owner review:** the projection-correction TV, two arcades and pool table are accepted; aquarium is improved. Preserve these. The previous couch was rejected because its visible seat depth/camera did not match the neighboring recliners. A replacement generated from both recliners has now been inspected in the saved lounge; owner acceptance remains pending. Do not treat the rejected rear-view couch as an accepted camera reference.
 
 **Latest owner correction (2026-09-14): the runtime deployment of this sheet was rejected. Only the crate, workstation desk and chair were accepted in-station. The sheet remains a material/style reference, NOT camera, physical-scale or integration approval. Match the accepted three props' horizontal axes, visible top planes and grounded contact. Rebuild incompatible source projections; do not use source aspect ratio to invent world dimensions. This correction supersedes conflicting camera instructions below.**
 
@@ -43,4 +43,4 @@ Avoid photographic microtexture, realistic fabric weave, dense scratches/rivets,
 
 ## Next production stages
 
-The extracted catalog exists but was rejected in-station. Rebuild mismatched projections, inspect each affected room against the three accepted anchors, and re-author functional/animation surfaces when the source changes. Do not use export coverage or green loading checks as a completion claim. The opt-in projection-correction set now includes additional catalog cohorts; `projection-correction/coverage.json` records exactly which props are revised and which remain. The new couch-angle candidate has been inspected beside both recliners in the saved lounge but is not owner-approved. New cohorts stay candidates until their camera, proportions, contact and materials pass the same review.
+The opt-in projection-correction pass now contains 173 revised views across 157 props plus the three unchanged accepted anchors, covering all 160 catalog props. Each cohort was inspected in the running room fixture and the couch was inspected in the saved lounge. `projection-correction/coverage.json` records coverage; the README and cohort receipts record remaining proportion differences. This is generated-art coverage, not owner approval or full animation acceptance. Re-author functional/animation surfaces when source changes require it; do not infer that work from green loading checks. The new couch and catalog remain candidates for owner review.

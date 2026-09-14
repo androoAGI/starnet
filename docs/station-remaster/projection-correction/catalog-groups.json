@@ -1,12 +1,92 @@
 {
   "groups": [
-    {"name":"utility","file":"docs/station-remaster/catalog-utility/integration.json"},
-    {"name":"storage","file":"docs/station-remaster/catalog-storage/integration.json"},
-    {"name":"machinery","file":"docs/station-remaster/catalog-machinery/integration.json"},
-    {"name":"crew","file":"docs/station-remaster/catalog-crew/exports.json"},
-    {"name":"tables","file":"docs/station-remaster/catalog-tables/integration.json"},
-    {"name":"glass-depth","file":"docs/station-remaster/catalog-glass-fix/integration.json"},
-    {"name":"crew-facings","file":"docs/station-remaster/catalog-crew-facings/exports.json"},
-    {"name":"command","file":"docs/station-remaster/catalog-command/integration.json"}
+    {
+      "name": "utility",
+      "file": "docs/station-remaster/catalog-utility/integration.json"
+    },
+    {
+      "name": "storage",
+      "file": "docs/station-remaster/catalog-storage/integration.json"
+    },
+    {
+      "name": "machinery",
+      "file": "docs/station-remaster/catalog-machinery/integration.json"
+    },
+    {
+      "name": "crew",
+      "file": "docs/station-remaster/catalog-crew/exports.json"
+    },
+    {
+      "name": "tables",
+      "file": "docs/station-remaster/catalog-tables/integration.json"
+    },
+    {
+      "name": "glass-depth",
+      "file": "docs/station-remaster/catalog-glass-fix/integration.json"
+    },
+    {
+      "name": "crew-facings",
+      "file": "docs/station-remaster/catalog-crew-facings/exports.json"
+    },
+    {
+      "name": "command",
+      "file": "docs/station-remaster/catalog-command/integration.json"
+    },
+    {
+      "name": "floor",
+      "file": "docs/station-remaster/catalog-floor/integration.json"
+    },
+    {
+      "name": "club",
+      "file": "docs/station-remaster/catalog-crew-rest-1/exports.json"
+    },
+    {
+      "name": "workflow",
+      "file": "docs/station-remaster/catalog-utility-rest-1/integration.json"
+    },
+    {
+      "name": "craft-publishing",
+      "file": "docs/station-remaster/catalog-utility-rest-2/integration.json"
+    },
+    {
+      "name": "fitness",
+      "file": "docs/station-remaster/catalog-crew-rest-2/exports.json"
+    },
+    {
+      "name": "comms-optics",
+      "file": "docs/station-remaster/catalog-utility-rest-3/integration.json"
+    },
+    {
+      "name": "storage-carts",
+      "file": "docs/station-remaster/catalog-storage-rest-1/integration.json"
+    },
+    {
+      "name": "cameras-work",
+      "file": "docs/station-remaster/catalog-storage-rest-4/integration.json"
+    },
+    {
+      "name": "walls-displays",
+      "file": "docs/station-remaster/catalog-storage-rest-2/integration.json"
+    },
+    {
+      "name": "accessories",
+      "file": "docs/station-remaster/catalog-crew-rest-3/exports.json"
+    },
+    {
+      "file": "docs/station-remaster/catalog-utility-rest-4/integration.json",
+      "name": "treasury-war"
+    },
+    {
+      "file": "docs/station-remaster/catalog-storage-rest-3/integration.json",
+      "name": "archive-tech"
+    },
+    {
+      "file": "docs/station-remaster/catalog-storage-rest-5/integration.json",
+      "name": "desk-facings"
+    },
+    {
+      "name": "plants-decor",
+      "file": "docs/station-remaster/catalog-crew-rest-4/exports.json"
+    }
   ]
 }

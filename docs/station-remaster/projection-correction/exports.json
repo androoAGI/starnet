@@ -3818,6 +3818,6738 @@
       "liveVerified": false,
       "group": "command",
       "retained": 1019709
+    },
+    {
+      "id": "airlock",
+      "view": "s",
+      "image": "airlock.png",
+      "repoPath": "frontend/assets/industrial/catalog-floor/airlock.png",
+      "sourceWidth": 218,
+      "sourceHeight": 215,
+      "footprint": {
+        "w": 1,
+        "h": 1
+      },
+      "bounds": {
+        "x": -1,
+        "y": -1,
+        "width": 14,
+        "height": 14
+      },
+      "contact": {
+        "x": 0.5,
+        "y": 0.986046511627907
+      },
+      "actualFit": {
+        "width": 14,
+        "height": 13.807339449541285
+      },
+      "source": "docs/station-remaster/catalog-floor/sheet-source.png",
+      "sourceSha256": "e88ce751d4371dd831bd9c0904beab19a87b447d0f3f7f79d00f1a4c49ed5cf6",
+      "outputSha256": "debacfd80937a3620fdb553fc4c41790854c74c71e6982963e2849b1d3b46cfb",
+      "sourceCrop": {
+        "left": 186,
+        "top": 86,
+        "width": 218,
+        "height": 215
+      },
+      "retained": 38920,
+      "status": "candidate; retained source RGBA, native floor footprint, uniform fit",
+      "group": "floor",
+      "output": "frontend/assets/industrial/projection-correction/airlock.png"
+    },
+    {
+      "id": "arc_floorlight",
+      "view": "s",
+      "image": "arc_floorlight.png",
+      "repoPath": "frontend/assets/industrial/catalog-floor/arc_floorlight.png",
+      "sourceWidth": 175,
+      "sourceHeight": 175,
+      "footprint": {
+        "w": 1,
+        "h": 1
+      },
+      "bounds": {
+        "x": 1,
+        "y": 2,
+        "width": 10,
+        "height": 10
+      },
+      "contact": {
+        "x": 0.5,
+        "y": 0.9942857142857143
+      },
+      "actualFit": {
+        "width": 10,
+        "height": 10
+      },
+      "source": "docs/station-remaster/catalog-floor/sheet-source.png",
+      "sourceSha256": "e88ce751d4371dd831bd9c0904beab19a87b447d0f3f7f79d00f1a4c49ed5cf6",
+      "outputSha256": "ec1a963a2096031b70296d3188dbcc3bee6b026c659cb4cae27994b3f4811eb9",
+      "sourceCrop": {
+        "left": 685,
+        "top": 101,
+        "width": 175,
+        "height": 175
+      },
+      "retained": 23835,
+      "status": "candidate; retained source RGBA, native floor footprint, uniform fit",
+      "group": "floor",
+      "output": "frontend/assets/industrial/projection-correction/arc_floorlight.png"
+    },
+    {
+      "id": "cablerun",
+      "view": "s",
+      "image": "cablerun.png",
+      "repoPath": "frontend/assets/industrial/catalog-floor/cablerun.png",
+      "sourceWidth": 1135,
+      "sourceHeight": 250,
+      "footprint": {
+        "w": 2,
+        "h": 1
+      },
+      "bounds": {
+        "x": 0,
+        "y": 2,
+        "width": 24,
+        "height": 9
+      },
+      "contact": {
+        "x": 0.5,
+        "y": 0.992
+      },
+      "actualFit": {
+        "width": 24,
+        "height": 5.286343612334802
+      },
+      "source": "docs/station-remaster/catalog-floor/cables-source.png",
+      "sourceSha256": "cfee594b977556737294fd14482ed4b4f3cb18ec554b81889eeca996745eee15",
+      "outputSha256": "f949a26e4d9c8a4129656b401625e93369eb63c5ab88e95dc0aa1a460d8ae3fe",
+      "sourceCrop": {
+        "left": 32,
+        "top": 380,
+        "width": 1135,
+        "height": 250
+      },
+      "retained": 183163,
+      "status": "candidate; retained source RGBA, native floor footprint, uniform fit",
+      "group": "floor",
+      "output": "frontend/assets/industrial/projection-correction/cablerun.png"
+    },
+    {
+      "id": "hazardpad",
+      "view": "s",
+      "image": "hazardpad.png",
+      "repoPath": "frontend/assets/industrial/catalog-floor/hazardpad.png",
+      "sourceWidth": 413,
+      "sourceHeight": 177,
+      "footprint": {
+        "w": 2,
+        "h": 1
+      },
+      "bounds": {
+        "x": 1,
+        "y": 1,
+        "width": 22,
+        "height": 10
+      },
+      "contact": {
+        "x": 0.5,
+        "y": 0.9830508474576272
+      },
+      "actualFit": {
+        "width": 22,
+        "height": 9.428571428571429
+      },
+      "source": "docs/station-remaster/catalog-floor/sheet-source.png",
+      "sourceSha256": "e88ce751d4371dd831bd9c0904beab19a87b447d0f3f7f79d00f1a4c49ed5cf6",
+      "outputSha256": "91e997a13856176ec829f99569b46bdbd45bbc4199c71922c4bb17f336f428c6",
+      "sourceCrop": {
+        "left": 585,
+        "top": 376,
+        "width": 413,
+        "height": 177
+      },
+      "retained": 72082,
+      "status": "candidate; retained source RGBA, native floor footprint, uniform fit",
+      "group": "floor",
+      "output": "frontend/assets/industrial/projection-correction/hazardpad.png"
+    },
+    {
+      "id": "industrial_cabletray",
+      "view": "s",
+      "image": "industrial_cabletray.png",
+      "repoPath": "frontend/assets/industrial/catalog-floor/industrial_cabletray.png",
+      "sourceWidth": 1133,
+      "sourceHeight": 178,
+      "footprint": {
+        "w": 3,
+        "h": 1
+      },
+      "bounds": {
+        "x": 0,
+        "y": 3,
+        "width": 36,
+        "height": 6
+      },
+      "contact": {
+        "x": 0.5,
+        "y": 0.9831460674157303
+      },
+      "actualFit": {
+        "width": 36,
+        "height": 5.655781112091791
+      },
+      "source": "docs/station-remaster/catalog-floor/cables-source.png",
+      "sourceSha256": "cfee594b977556737294fd14482ed4b4f3cb18ec554b81889eeca996745eee15",
+      "outputSha256": "68fa45018c20c5a71a3ae8f3566ca7f52b2fe8ac4af913ed42f0e7608e4f304b",
+      "sourceCrop": {
+        "left": 33,
+        "top": 858,
+        "width": 1133,
+        "height": 178
+      },
+      "retained": 199243,
+      "status": "candidate; retained source RGBA, native floor footprint, uniform fit",
+      "group": "floor",
+      "output": "frontend/assets/industrial/projection-correction/industrial_cabletray.png"
+    },
+    {
+      "id": "industrial_floorvent",
+      "view": "s",
+      "image": "industrial_floorvent.png",
+      "repoPath": "frontend/assets/industrial/catalog-floor/industrial_floorvent.png",
+      "sourceWidth": 423,
+      "sourceHeight": 173,
+      "footprint": {
+        "w": 2,
+        "h": 1
+      },
+      "bounds": {
+        "x": 1,
+        "y": 1,
+        "width": 22,
+        "height": 10
+      },
+      "contact": {
+        "x": 0.5,
+        "y": 0.9826589595375722
+      },
+      "actualFit": {
+        "width": 22,
+        "height": 8.997635933806146
+      },
+      "source": "docs/station-remaster/catalog-floor/sheet-source.png",
+      "sourceSha256": "e88ce751d4371dd831bd9c0904beab19a87b447d0f3f7f79d00f1a4c49ed5cf6",
+      "outputSha256": "1f2ed30538c55eaaa1b76df0212c4588dacf26baf9c80f25f16fee2ce8103efe",
+      "sourceCrop": {
+        "left": 577,
+        "top": 623,
+        "width": 423,
+        "height": 173
+      },
+      "retained": 71811,
+      "status": "candidate; retained source RGBA, native floor footprint, uniform fit",
+      "group": "floor",
+      "output": "frontend/assets/industrial/projection-correction/industrial_floorvent.png"
+    },
+    {
+      "id": "rug",
+      "view": "s",
+      "image": "rug.png",
+      "repoPath": "frontend/assets/industrial/catalog-floor/rug.png",
+      "sourceWidth": 350,
+      "sourceHeight": 228,
+      "footprint": {
+        "w": 4,
+        "h": 3
+      },
+      "bounds": {
+        "x": -1,
+        "y": 0,
+        "width": 50,
+        "height": 36
+      },
+      "contact": {
+        "x": 0.5,
+        "y": 0.9868421052631579
+      },
+      "actualFit": {
+        "width": 50,
+        "height": 32.57142857142857
+      },
+      "source": "docs/station-remaster/catalog-floor/sheet-source.png",
+      "sourceSha256": "e88ce751d4371dd831bd9c0904beab19a87b447d0f3f7f79d00f1a4c49ed5cf6",
+      "outputSha256": "0d0acf0d0b733bf51df5f00aaf45148ee1a64a5d7e7c3742da99d7a0f2eb76ad",
+      "sourceCrop": {
+        "left": 120,
+        "top": 857,
+        "width": 350,
+        "height": 228
+      },
+      "retained": 78871,
+      "status": "candidate; retained source RGBA, native floor footprint, uniform fit",
+      "group": "floor",
+      "output": "frontend/assets/industrial/projection-correction/rug.png"
+    },
+    {
+      "id": "rug_small",
+      "view": "s",
+      "image": "rug_small.png",
+      "repoPath": "frontend/assets/industrial/catalog-floor/rug_small.png",
+      "sourceWidth": 248,
+      "sourceHeight": 228,
+      "footprint": {
+        "w": 3,
+        "h": 3
+      },
+      "bounds": {
+        "x": 0,
+        "y": -1,
+        "width": 36,
+        "height": 38
+      },
+      "contact": {
+        "x": 0.5,
+        "y": 0.9868421052631579
+      },
+      "actualFit": {
+        "width": 36,
+        "height": 33.09677419354839
+      },
+      "source": "docs/station-remaster/catalog-floor/sheet-source.png",
+      "sourceSha256": "e88ce751d4371dd831bd9c0904beab19a87b447d0f3f7f79d00f1a4c49ed5cf6",
+      "outputSha256": "b8d1e86b67b547b92d9e5f9c8efa4496095ec89eee373468838317da4905a398",
+      "sourceCrop": {
+        "left": 663,
+        "top": 858,
+        "width": 248,
+        "height": 228
+      },
+      "retained": 55491,
+      "status": "candidate; retained source RGBA, native floor footprint, uniform fit",
+      "group": "floor",
+      "output": "frontend/assets/industrial/projection-correction/rug_small.png"
+    },
+    {
+      "id": "rug_large",
+      "view": "s",
+      "image": "rug_large.png",
+      "repoPath": "frontend/assets/industrial/catalog-floor/rug_large.png",
+      "sourceWidth": 299,
+      "sourceHeight": 281,
+      "footprint": {
+        "w": 5,
+        "h": 5
+      },
+      "bounds": {
+        "x": 0,
+        "y": 0,
+        "width": 60,
+        "height": 60
+      },
+      "contact": {
+        "x": 0.5,
+        "y": 0.9893238434163701
+      },
+      "actualFit": {
+        "width": 60,
+        "height": 56.38795986622074
+      },
+      "source": "docs/station-remaster/catalog-floor/sheet-source.png",
+      "sourceSha256": "e88ce751d4371dd831bd9c0904beab19a87b447d0f3f7f79d00f1a4c49ed5cf6",
+      "outputSha256": "63fc2b2f236d6586f8336d99866660a6c191b0fab3a768ad9e4709140a3ec269",
+      "sourceCrop": {
+        "left": 146,
+        "top": 1117,
+        "width": 299,
+        "height": 281
+      },
+      "retained": 82933,
+      "status": "candidate; retained source RGBA, native floor footprint, uniform fit",
+      "group": "floor",
+      "output": "frontend/assets/industrial/projection-correction/rug_large.png"
+    },
+    {
+      "id": "bridge_deckperimeter",
+      "view": "s",
+      "image": "bridge_deckperimeter.png",
+      "repoPath": "frontend/assets/industrial/catalog-floor/bridge_deckperimeter.png",
+      "sourceWidth": 401,
+      "sourceHeight": 255,
+      "footprint": {
+        "w": 12,
+        "h": 8
+      },
+      "bounds": {
+        "x": 0,
+        "y": 1,
+        "width": 144,
+        "height": 94
+      },
+      "contact": {
+        "x": 0.5,
+        "y": 0.9882352941176471
+      },
+      "actualFit": {
+        "width": 144,
+        "height": 91.571072319202
+      },
+      "source": "docs/station-remaster/catalog-floor/sheet-source.png",
+      "sourceSha256": "e88ce751d4371dd831bd9c0904beab19a87b447d0f3f7f79d00f1a4c49ed5cf6",
+      "outputSha256": "e6ce8b5087bfbcd07de6a7e27dd4bc6c4299d55d621079f1fd711cde82790ba7",
+      "sourceCrop": {
+        "left": 588,
+        "top": 1133,
+        "width": 401,
+        "height": 255
+      },
+      "retained": 24065,
+      "status": "candidate; retained source RGBA, native floor footprint, uniform fit",
+      "group": "floor",
+      "output": "frontend/assets/industrial/projection-correction/bridge_deckperimeter.png"
+    },
+    {
+      "id": "bar",
+      "view": "s",
+      "image": "frontend/assets/industrial/catalog-crew-rest-1/bar.png",
+      "sourceWidth": 974,
+      "sourceHeight": 499,
+      "bounds": {
+        "x": -1,
+        "y": -12,
+        "width": 50,
+        "height": 24
+      },
+      "footprint": {
+        "w": 4,
+        "h": 1
+      },
+      "contact": {
+        "x": 0.5,
+        "y": 0.9929859719438878
+      },
+      "fit": {
+        "x": 0.577154308617235,
+        "y": -12,
+        "width": 46.84569138276553,
+        "height": 24
+      },
+      "underfill": {
+        "x": 0.9369138276553106,
+        "y": 1
+      },
+      "source": "docs\\station-remaster\\catalog-crew-rest-1\\sources\\repair.png",
+      "sourceSha256": "d669c4a8e99ec4594213653285af861876b5f2d391818deb4aa0621f63e52c59",
+      "sourceCrop": {
+        "left": 8,
+        "top": 22,
+        "width": 974,
+        "height": 499
+      },
+      "outputSha256": "01c68e030bc796dc9575531e589f238d5ac1845717ab718bd32e55819d68f49c",
+      "alphaBounds": {
+        "x": 0,
+        "y": 0,
+        "width": 974,
+        "height": 499
+      },
+      "alphaCounts": {
+        "transparent": 85085,
+        "partial": 399270,
+        "opaque": 1671
+      },
+      "maxSourceAlpha": 255,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "removedFogPixels": 3164,
+      "retainedRgbChanges": 0,
+      "retainedAlphaChanges": 0,
+      "opaqueCellEdgePixels": 0,
+      "liveAccepted": false,
+      "group": "club",
+      "output": "frontend/assets/industrial/projection-correction/bar.png",
+      "retained": 400941
+    },
+    {
+      "id": "industrial_roundtable",
+      "view": "s",
+      "image": "frontend/assets/industrial/catalog-crew-rest-1/industrial_roundtable.png",
+      "sourceWidth": 419,
+      "sourceHeight": 295,
+      "bounds": {
+        "x": 0,
+        "y": -4,
+        "width": 24,
+        "height": 16
+      },
+      "footprint": {
+        "w": 2,
+        "h": 1
+      },
+      "surfaceSupport": {
+        "space": "export-normalized",
+        "points": [
+          [
+            0.1980907,
+            0.1762712
+          ],
+          [
+            0.7995227,
+            0.1762712
+          ],
+          [
+            0.7995227,
+            0.440678
+          ],
+          [
+            0.1980907,
+            0.440678
+          ]
+        ]
+      },
+      "contact": {
+        "x": 0.5,
+        "y": 0.988135593220339
+      },
+      "fit": {
+        "x": 0.6372881355932201,
+        "y": -4,
+        "width": 22.72542372881356,
+        "height": 16
+      },
+      "underfill": {
+        "x": 0.9468926553672317,
+        "y": 1
+      },
+      "source": "docs\\station-remaster\\catalog-crew-rest-1\\sources\\sheet.png",
+      "sourceSha256": "bfa8cb5c831e1e72c2e3e481d4466d493e63f177a80ba447e29b517bb5b4368b",
+      "sourceCrop": {
+        "left": 490,
+        "top": 151,
+        "width": 419,
+        "height": 295
+      },
+      "outputSha256": "d3dbac6f8c95df5f3db87b8ba327c427a33d1953560315bfe4e40a2b0aaccfce",
+      "alphaBounds": {
+        "x": 0,
+        "y": 0,
+        "width": 419,
+        "height": 295
+      },
+      "alphaCounts": {
+        "transparent": 41918,
+        "partial": 81655,
+        "opaque": 32
+      },
+      "maxSourceAlpha": 255,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "removedFogPixels": 2462,
+      "retainedRgbChanges": 0,
+      "retainedAlphaChanges": 0,
+      "opaqueCellEdgePixels": 0,
+      "liveAccepted": false,
+      "group": "club",
+      "output": "frontend/assets/industrial/projection-correction/industrial_roundtable.png",
+      "retained": 81687
+    },
+    {
+      "id": "sidetable",
+      "view": "s",
+      "image": "frontend/assets/industrial/catalog-crew-rest-1/sidetable.png",
+      "sourceWidth": 236,
+      "sourceHeight": 311,
+      "bounds": {
+        "x": 0,
+        "y": -3,
+        "width": 12,
+        "height": 15
+      },
+      "footprint": {
+        "w": 1,
+        "h": 1
+      },
+      "surfaceSupport": {
+        "space": "export-normalized",
+        "points": [
+          [
+            0.0932203,
+            0.0353698
+          ],
+          [
+            0.9025424,
+            0.0353698
+          ],
+          [
+            0.9279661,
+            0.4533762
+          ],
+          [
+            0.0720339,
+            0.4533762
+          ]
+        ]
+      },
+      "contact": {
+        "x": 0.5,
+        "y": 0.9919614147909968
+      },
+      "fit": {
+        "x": 0.30868167202572394,
+        "y": -2.9999999999999982,
+        "width": 11.382636655948552,
+        "height": 14.999999999999998
+      },
+      "underfill": {
+        "x": 0.9485530546623794,
+        "y": 0.9999999999999999
+      },
+      "source": "docs\\station-remaster\\catalog-crew-rest-1\\sources\\sheet.png",
+      "sourceSha256": "bfa8cb5c831e1e72c2e3e481d4466d493e63f177a80ba447e29b517bb5b4368b",
+      "sourceCrop": {
+        "left": 948,
+        "top": 139,
+        "width": 236,
+        "height": 311
+      },
+      "outputSha256": "521647f8007b07f0b3d8898ed4cadc371bb6a9a430a35f5261a529b65bc13616",
+      "alphaBounds": {
+        "x": 0,
+        "y": 0,
+        "width": 236,
+        "height": 311
+      },
+      "alphaCounts": {
+        "transparent": 22368,
+        "partial": 50854,
+        "opaque": 174
+      },
+      "maxSourceAlpha": 255,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "removedFogPixels": 2476,
+      "retainedRgbChanges": 0,
+      "retainedAlphaChanges": 0,
+      "opaqueCellEdgePixels": 0,
+      "liveAccepted": false,
+      "group": "club",
+      "output": "frontend/assets/industrial/projection-correction/sidetable.png",
+      "retained": 51028
+    },
+    {
+      "id": "stool",
+      "view": "s",
+      "image": "frontend/assets/industrial/catalog-crew-rest-1/stool.png",
+      "sourceWidth": 400,
+      "sourceHeight": 454,
+      "bounds": {
+        "x": 1,
+        "y": 0,
+        "width": 10,
+        "height": 11
+      },
+      "footprint": {
+        "w": 1,
+        "h": 1
+      },
+      "contact": {
+        "x": 0.5,
+        "y": 0.9922907488986784
+      },
+      "fit": {
+        "x": 1.1541850220264314,
+        "y": 0,
+        "width": 9.691629955947137,
+        "height": 11
+      },
+      "underfill": {
+        "x": 0.9691629955947137,
+        "y": 1
+      },
+      "source": "docs\\station-remaster\\catalog-crew-rest-1\\sources\\repair.png",
+      "sourceSha256": "d669c4a8e99ec4594213653285af861876b5f2d391818deb4aa0621f63e52c59",
+      "sourceCrop": {
+        "left": 1017,
+        "top": 67,
+        "width": 400,
+        "height": 454
+      },
+      "outputSha256": "83b51f81da85db8ce4d0b35f2d0e1942734f087c77d1f85abe5cbc450b65e050",
+      "alphaBounds": {
+        "x": 0,
+        "y": 0,
+        "width": 400,
+        "height": 454
+      },
+      "alphaCounts": {
+        "transparent": 57210,
+        "partial": 124012,
+        "opaque": 378
+      },
+      "maxSourceAlpha": 255,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "removedFogPixels": 2290,
+      "retainedRgbChanges": 0,
+      "retainedAlphaChanges": 0,
+      "opaqueCellEdgePixels": 0,
+      "liveAccepted": false,
+      "group": "club",
+      "output": "frontend/assets/industrial/projection-correction/stool.png",
+      "retained": 124390
+    },
+    {
+      "id": "pokertable",
+      "view": "s",
+      "image": "frontend/assets/industrial/catalog-crew-rest-1/pokertable.png",
+      "sourceWidth": 457,
+      "sourceHeight": 283,
+      "bounds": {
+        "x": -1,
+        "y": -5,
+        "width": 50,
+        "height": 29
+      },
+      "footprint": {
+        "w": 4,
+        "h": 2
+      },
+      "contact": {
+        "x": 0.5,
+        "y": 0.9876325088339223
+      },
+      "fit": {
+        "x": 0.5848056537102444,
+        "y": -5.0000000000000036,
+        "width": 46.83038869257951,
+        "height": 29.000000000000004
+      },
+      "underfill": {
+        "x": 0.9366077738515902,
+        "y": 1.0000000000000002
+      },
+      "source": "docs\\station-remaster\\catalog-crew-rest-1\\sources\\sheet.png",
+      "sourceSha256": "bfa8cb5c831e1e72c2e3e481d4466d493e63f177a80ba447e29b517bb5b4368b",
+      "sourceCrop": {
+        "left": 29,
+        "top": 566,
+        "width": 457,
+        "height": 283
+      },
+      "outputSha256": "e05a20907b7bf17b357a65c6d77ee74202608a852b41dfd8cbd3f119e7d890be",
+      "alphaBounds": {
+        "x": 0,
+        "y": 0,
+        "width": 457,
+        "height": 283
+      },
+      "alphaCounts": {
+        "transparent": 32559,
+        "partial": 96694,
+        "opaque": 78
+      },
+      "maxSourceAlpha": 255,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "removedFogPixels": 1662,
+      "retainedRgbChanges": 0,
+      "retainedAlphaChanges": 0,
+      "opaqueCellEdgePixels": 0,
+      "liveAccepted": false,
+      "group": "club",
+      "output": "frontend/assets/industrial/projection-correction/pokertable.png",
+      "retained": 96772
+    },
+    {
+      "id": "djbooth",
+      "view": "s",
+      "image": "frontend/assets/industrial/catalog-crew-rest-1/djbooth.png",
+      "sourceWidth": 849,
+      "sourceHeight": 507,
+      "bounds": {
+        "x": -1,
+        "y": -5,
+        "width": 50,
+        "height": 29
+      },
+      "footprint": {
+        "w": 4,
+        "h": 2
+      },
+      "contact": {
+        "x": 0.5,
+        "y": 0.9930966469428008
+      },
+      "fit": {
+        "x": -0.2810650887573978,
+        "y": -5,
+        "width": 48.562130177514796,
+        "height": 29
+      },
+      "underfill": {
+        "x": 0.9712426035502959,
+        "y": 1
+      },
+      "source": "docs\\station-remaster\\catalog-crew-rest-1\\sources\\repair.png",
+      "sourceSha256": "d669c4a8e99ec4594213653285af861876b5f2d391818deb4aa0621f63e52c59",
+      "sourceCrop": {
+        "left": 8,
+        "top": 549,
+        "width": 849,
+        "height": 507
+      },
+      "outputSha256": "9c2b783eb3a9477139954952ad6d874847755fef68eb57fab8b610ff7d79f7a4",
+      "alphaBounds": {
+        "x": 0,
+        "y": 0,
+        "width": 849,
+        "height": 507
+      },
+      "alphaCounts": {
+        "transparent": 69775,
+        "partial": 359922,
+        "opaque": 746
+      },
+      "maxSourceAlpha": 255,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "removedFogPixels": 2573,
+      "retainedRgbChanges": 0,
+      "retainedAlphaChanges": 0,
+      "opaqueCellEdgePixels": 0,
+      "liveAccepted": false,
+      "group": "club",
+      "output": "frontend/assets/industrial/projection-correction/djbooth.png",
+      "retained": 360668
+    },
+    {
+      "id": "quarters_lockerbank",
+      "view": "s",
+      "image": "frontend/assets/industrial/catalog-crew-rest-1/quarters_lockerbank.png",
+      "sourceWidth": 558,
+      "sourceHeight": 495,
+      "bounds": {
+        "x": -1,
+        "y": -20,
+        "width": 38,
+        "height": 32
+      },
+      "footprint": {
+        "w": 3,
+        "h": 1
+      },
+      "contact": {
+        "x": 0.5,
+        "y": 0.9929292929292929
+      },
+      "fit": {
+        "x": -0.036363636363635266,
+        "y": -20,
+        "width": 36.07272727272727,
+        "height": 32
+      },
+      "underfill": {
+        "x": 0.9492822966507176,
+        "y": 1
+      },
+      "source": "docs\\station-remaster\\catalog-crew-rest-1\\sources\\repair.png",
+      "sourceSha256": "d669c4a8e99ec4594213653285af861876b5f2d391818deb4aa0621f63e52c59",
+      "sourceCrop": {
+        "left": 872,
+        "top": 561,
+        "width": 558,
+        "height": 495
+      },
+      "outputSha256": "ee94e36598847f9ef394b0571f47bc8f1bfc9278dc242ea9d24bf925af38be8c",
+      "alphaBounds": {
+        "x": 0,
+        "y": 0,
+        "width": 558,
+        "height": 495
+      },
+      "alphaCounts": {
+        "transparent": 15533,
+        "partial": 260207,
+        "opaque": 470
+      },
+      "maxSourceAlpha": 255,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "removedFogPixels": 3064,
+      "retainedRgbChanges": 0,
+      "retainedAlphaChanges": 0,
+      "opaqueCellEdgePixels": 0,
+      "liveAccepted": false,
+      "group": "club",
+      "output": "frontend/assets/industrial/projection-correction/quarters_lockerbank.png",
+      "retained": 260677
+    },
+    {
+      "id": "trophycase",
+      "view": "s",
+      "image": "frontend/assets/industrial/catalog-crew-rest-1/trophycase.png",
+      "sourceWidth": 307,
+      "sourceHeight": 345,
+      "bounds": {
+        "x": -1,
+        "y": -6,
+        "width": 26,
+        "height": 30
+      },
+      "footprint": {
+        "w": 2,
+        "h": 2
+      },
+      "contact": {
+        "x": 0.5,
+        "y": 0.9927536231884058
+      },
+      "fit": {
+        "x": -1,
+        "y": -5.2182410423452765,
+        "width": 26,
+        "height": 29.218241042345277
+      },
+      "underfill": {
+        "x": 1,
+        "y": 0.9739413680781759
+      },
+      "source": "docs\\station-remaster\\catalog-crew-rest-1\\sources\\sheet.png",
+      "sourceSha256": "bfa8cb5c831e1e72c2e3e481d4466d493e63f177a80ba447e29b517bb5b4368b",
+      "sourceCrop": {
+        "left": 1248,
+        "top": 521,
+        "width": 307,
+        "height": 345
+      },
+      "outputSha256": "f94bbe031f81b0cc5c6074016185e8ad84024d43426b8e80812907b3ab47a955",
+      "alphaBounds": {
+        "x": 0,
+        "y": 0,
+        "width": 307,
+        "height": 345
+      },
+      "alphaCounts": {
+        "transparent": 3177,
+        "partial": 102677,
+        "opaque": 61
+      },
+      "maxSourceAlpha": 255,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "removedFogPixels": 2067,
+      "retainedRgbChanges": 0,
+      "retainedAlphaChanges": 0,
+      "opaqueCellEdgePixels": 0,
+      "liveAccepted": false,
+      "group": "club",
+      "output": "frontend/assets/industrial/projection-correction/trophycase.png",
+      "retained": 102738
+    },
+    {
+      "id": "bay",
+      "view": "s",
+      "image": "bay.png",
+      "repoPath": "frontend/assets/industrial/catalog-utility-rest-1/bay.png",
+      "sourceWidth": 418,
+      "sourceHeight": 396,
+      "footprint": {
+        "w": 2,
+        "h": 2
+      },
+      "bounds": {
+        "x": -1,
+        "y": -7,
+        "width": 30,
+        "height": 31
+      },
+      "contact": {
+        "x": 0.5,
+        "y": 0.9949494949494949
+      },
+      "mode": "approved",
+      "effects": false,
+      "source": "docs/station-remaster/catalog-utility-rest-1/sheet-source.png",
+      "sourceSha256": "ce4467db6376181844df51da331b12f070401a2f839f2c78de0dc7c46001b997",
+      "outputSha256": "63cd9be55cc570eac539aab9b86ec0f583e4b571858ebefbdc6f05e66a84dd72",
+      "sourceROI": {
+        "left": 10,
+        "top": 35,
+        "width": 465,
+        "height": 450
+      },
+      "sourceCrop": {
+        "left": 36,
+        "top": 70,
+        "width": 418,
+        "height": 396
+      },
+      "actualFit": {
+        "x": -1,
+        "y": -4.277512,
+        "width": 30,
+        "height": 28.421053
+      },
+      "verification": {
+        "transparent": 22835,
+        "retained": 142693,
+        "removedAlpha": 2377,
+        "retainedRGBAMismatches": 0,
+        "allRGBMismatches": 0,
+        "widthFraction": 1
+      },
+      "status": "source and game-scale candidate reviewed; not live integrated; image-specific effect regions need remapping",
+      "group": "workflow",
+      "output": "frontend/assets/industrial/projection-correction/bay.png",
+      "retained": 142693
+    },
+    {
+      "id": "filter",
+      "view": "s",
+      "image": "filter.png",
+      "repoPath": "frontend/assets/industrial/catalog-utility-rest-1/filter.png",
+      "sourceWidth": 294,
+      "sourceHeight": 331,
+      "footprint": {
+        "w": 1,
+        "h": 1
+      },
+      "bounds": {
+        "x": -1,
+        "y": -8,
+        "width": 14,
+        "height": 19
+      },
+      "contact": {
+        "x": 0.5,
+        "y": 0.9909365558912386
+      },
+      "mode": "approved",
+      "effects": false,
+      "source": "docs/station-remaster/catalog-utility-rest-1/sheet-source.png",
+      "sourceSha256": "ce4467db6376181844df51da331b12f070401a2f839f2c78de0dc7c46001b997",
+      "outputSha256": "c54c6511f6720215f2e9980ede80d929c4f93d39d1d282da7f75b4c31126fd3e",
+      "sourceROI": {
+        "left": 480,
+        "top": 90,
+        "width": 315,
+        "height": 385
+      },
+      "sourceCrop": {
+        "left": 486,
+        "top": 123,
+        "width": 294,
+        "height": 331
+      },
+      "actualFit": {
+        "x": -1,
+        "y": -4.619048,
+        "width": 14,
+        "height": 15.761905
+      },
+      "verification": {
+        "transparent": 30777,
+        "retained": 66537,
+        "removedAlpha": 1929,
+        "retainedRGBAMismatches": 0,
+        "allRGBMismatches": 0,
+        "widthFraction": 1
+      },
+      "status": "source and game-scale candidate reviewed; not live integrated; image-specific effect regions need remapping",
+      "group": "workflow",
+      "output": "frontend/assets/industrial/projection-correction/filter.png",
+      "retained": 66537
+    },
+    {
+      "id": "joiner",
+      "view": "s",
+      "image": "joiner.png",
+      "repoPath": "frontend/assets/industrial/catalog-utility-rest-1/joiner.png",
+      "sourceWidth": 354,
+      "sourceHeight": 225,
+      "footprint": {
+        "w": 1,
+        "h": 1
+      },
+      "bounds": {
+        "x": -2,
+        "y": 0,
+        "width": 16,
+        "height": 11
+      },
+      "contact": {
+        "x": 0.5,
+        "y": 0.9866666666666667
+      },
+      "mode": "approved",
+      "effects": false,
+      "source": "docs/station-remaster/catalog-utility-rest-1/sheet-source.png",
+      "sourceSha256": "ce4467db6376181844df51da331b12f070401a2f839f2c78de0dc7c46001b997",
+      "outputSha256": "bdcfa89bd4f32d8be8c9bcb796791ffd5a2335b86ec51f45fc4fbd7b9f6b3669",
+      "sourceROI": {
+        "left": 805,
+        "top": 200,
+        "width": 395,
+        "height": 280
+      },
+      "sourceCrop": {
+        "left": 829,
+        "top": 229,
+        "width": 354,
+        "height": 225
+      },
+      "actualFit": {
+        "x": -2,
+        "y": 0.966102,
+        "width": 16,
+        "height": 10.169492
+      },
+      "verification": {
+        "transparent": 13770,
+        "retained": 65880,
+        "removedAlpha": 1863,
+        "retainedRGBAMismatches": 0,
+        "allRGBMismatches": 0,
+        "widthFraction": 1
+      },
+      "status": "source and game-scale candidate reviewed; not live integrated; image-specific effect regions need remapping",
+      "group": "workflow",
+      "output": "frontend/assets/industrial/projection-correction/joiner.png",
+      "retained": 65880
+    },
+    {
+      "id": "loop",
+      "view": "s",
+      "image": "loop.png",
+      "repoPath": "frontend/assets/industrial/catalog-utility-rest-1/loop.png",
+      "sourceWidth": 288,
+      "sourceHeight": 345,
+      "footprint": {
+        "w": 1,
+        "h": 1
+      },
+      "bounds": {
+        "x": -1,
+        "y": -7,
+        "width": 15,
+        "height": 18
+      },
+      "contact": {
+        "x": 0.5,
+        "y": 0.991304347826087
+      },
+      "mode": "approved",
+      "effects": false,
+      "source": "docs/station-remaster/catalog-utility-rest-1/sheet-source.png",
+      "sourceSha256": "ce4467db6376181844df51da331b12f070401a2f839f2c78de0dc7c46001b997",
+      "outputSha256": "4e95919b609ca181111a58b477a9c31f2165010b7fd8e0c63a6004194ff11a28",
+      "sourceROI": {
+        "left": 1210,
+        "top": 80,
+        "width": 325,
+        "height": 400
+      },
+      "sourceCrop": {
+        "left": 1216,
+        "top": 111,
+        "width": 288,
+        "height": 345
+      },
+      "actualFit": {
+        "x": -1,
+        "y": -6.8125,
+        "width": 15,
+        "height": 17.96875
+      },
+      "verification": {
+        "transparent": 32064,
+        "retained": 67296,
+        "removedAlpha": 1566,
+        "retainedRGBAMismatches": 0,
+        "allRGBMismatches": 0,
+        "widthFraction": 1
+      },
+      "status": "source and game-scale candidate reviewed; not live integrated; image-specific effect regions need remapping",
+      "group": "workflow",
+      "output": "frontend/assets/industrial/projection-correction/loop.png",
+      "retained": 67296
+    },
+    {
+      "id": "merger",
+      "view": "s",
+      "image": "merger.png",
+      "repoPath": "frontend/assets/industrial/catalog-utility-rest-1/merger.png",
+      "sourceWidth": 363,
+      "sourceHeight": 213,
+      "footprint": {
+        "w": 1,
+        "h": 1
+      },
+      "bounds": {
+        "x": -2,
+        "y": 0,
+        "width": 16,
+        "height": 11
+      },
+      "contact": {
+        "x": 0.5,
+        "y": 0.9906103286384976
+      },
+      "mode": "approved",
+      "effects": false,
+      "source": "docs/station-remaster/catalog-utility-rest-1/sheet-source.png",
+      "sourceSha256": "ce4467db6376181844df51da331b12f070401a2f839f2c78de0dc7c46001b997",
+      "outputSha256": "df0259ae33c80b0904d8ff04b795c50ba1ca5c1617faef72990ec7999debed6f",
+      "sourceROI": {
+        "left": 20,
+        "top": 640,
+        "width": 400,
+        "height": 265
+      },
+      "sourceCrop": {
+        "left": 47,
+        "top": 674,
+        "width": 363,
+        "height": 213
+      },
+      "actualFit": {
+        "x": -2,
+        "y": 1.699725,
+        "width": 16,
+        "height": 9.38843
+      },
+      "verification": {
+        "transparent": 12250,
+        "retained": 65069,
+        "removedAlpha": 1320,
+        "retainedRGBAMismatches": 0,
+        "allRGBMismatches": 0,
+        "widthFraction": 1
+      },
+      "status": "source and game-scale candidate reviewed; not live integrated; image-specific effect regions need remapping",
+      "group": "workflow",
+      "output": "frontend/assets/industrial/projection-correction/merger.png",
+      "retained": 65069
+    },
+    {
+      "id": "splitter",
+      "view": "s",
+      "image": "splitter.png",
+      "repoPath": "frontend/assets/industrial/catalog-utility-rest-1/splitter.png",
+      "sourceWidth": 323,
+      "sourceHeight": 212,
+      "footprint": {
+        "w": 1,
+        "h": 1
+      },
+      "bounds": {
+        "x": -1,
+        "y": 0,
+        "width": 15,
+        "height": 11
+      },
+      "contact": {
+        "x": 0.5,
+        "y": 0.9858490566037735
+      },
+      "mode": "approved",
+      "effects": false,
+      "source": "docs/station-remaster/catalog-utility-rest-1/sheet-source.png",
+      "sourceSha256": "ce4467db6376181844df51da331b12f070401a2f839f2c78de0dc7c46001b997",
+      "outputSha256": "ee56d780994188ba8b83c13fa346f23dbe924d8ff5ad66f30410ce56d25bf606",
+      "sourceROI": {
+        "left": 440,
+        "top": 640,
+        "width": 360,
+        "height": 280
+      },
+      "sourceCrop": {
+        "left": 450,
+        "top": 676,
+        "width": 323,
+        "height": 212
+      },
+      "actualFit": {
+        "x": -1,
+        "y": 1.294118,
+        "width": 15,
+        "height": 9.845201
+      },
+      "verification": {
+        "transparent": 11584,
+        "retained": 56892,
+        "removedAlpha": 1366,
+        "retainedRGBAMismatches": 0,
+        "allRGBMismatches": 0,
+        "widthFraction": 1
+      },
+      "status": "source and game-scale candidate reviewed; not live integrated; image-specific effect regions need remapping",
+      "group": "workflow",
+      "output": "frontend/assets/industrial/projection-correction/splitter.png",
+      "retained": 56892
+    },
+    {
+      "id": "outbox",
+      "view": "s",
+      "image": "outbox.png",
+      "repoPath": "frontend/assets/industrial/catalog-utility-rest-1/outbox.png",
+      "sourceWidth": 421,
+      "sourceHeight": 412,
+      "footprint": {
+        "w": 2,
+        "h": 2
+      },
+      "bounds": {
+        "x": -1,
+        "y": -8,
+        "width": 30,
+        "height": 32
+      },
+      "contact": {
+        "x": 0.5,
+        "y": 0.9951456310679612
+      },
+      "mode": "approved",
+      "effects": false,
+      "source": "docs/station-remaster/catalog-utility-rest-1/sheet-source.png",
+      "sourceSha256": "ce4467db6376181844df51da331b12f070401a2f839f2c78de0dc7c46001b997",
+      "outputSha256": "5943e3aa326d950998f79ff8c1652dfa3ce65c4756ee01e146695d05221b65df",
+      "sourceROI": {
+        "left": 810,
+        "top": 490,
+        "width": 440,
+        "height": 465
+      },
+      "sourceCrop": {
+        "left": 815,
+        "top": 519,
+        "width": 421,
+        "height": 412
+      },
+      "actualFit": {
+        "x": -1,
+        "y": -5.216152,
+        "width": 30,
+        "height": 29.35867
+      },
+      "verification": {
+        "transparent": 29914,
+        "retained": 143538,
+        "removedAlpha": 1778,
+        "retainedRGBAMismatches": 0,
+        "allRGBMismatches": 0,
+        "widthFraction": 1
+      },
+      "status": "source and game-scale candidate reviewed; not live integrated; image-specific effect regions need remapping",
+      "group": "workflow",
+      "output": "frontend/assets/industrial/projection-correction/outbox.png",
+      "retained": 143538
+    },
+    {
+      "id": "connector_portal",
+      "view": "s",
+      "image": "connector_portal.png",
+      "repoPath": "frontend/assets/industrial/catalog-utility-rest-1/connector_portal.png",
+      "sourceWidth": 924,
+      "sourceHeight": 1626,
+      "footprint": {
+        "w": 1,
+        "h": 2
+      },
+      "bounds": {
+        "x": 0,
+        "y": -7,
+        "width": 17,
+        "height": 31
+      },
+      "contact": {
+        "x": 0.5,
+        "y": 0.9981549815498155
+      },
+      "mode": "approved",
+      "effects": false,
+      "source": "docs/station-remaster/catalog-utility-rest-1/connector-source.png",
+      "sourceSha256": "6a625391cfbe77d8d71ff5c1127a02b887099cbe51837fa248d1e0a6bbc32ec8",
+      "outputSha256": "e47660cc0ebf30136c467e31ffa8ddf27c8e07bab876b961284cc40bfbb24fa2",
+      "sourceROI": {
+        "left": 0,
+        "top": 0,
+        "width": 948,
+        "height": 1660
+      },
+      "sourceCrop": {
+        "left": 23,
+        "top": 8,
+        "width": 924,
+        "height": 1626
+      },
+      "actualFit": {
+        "x": 0,
+        "y": -5.86039,
+        "width": 17,
+        "height": 29.915584
+      },
+      "verification": {
+        "transparent": 113670,
+        "retained": 1388754,
+        "removedAlpha": 7662,
+        "retainedRGBAMismatches": 0,
+        "allRGBMismatches": 0,
+        "widthFraction": 1
+      },
+      "status": "source and game-scale candidate reviewed; not live integrated; image-specific effect regions need remapping",
+      "group": "workflow",
+      "output": "frontend/assets/industrial/projection-correction/connector_portal.png",
+      "retained": 1388754
+    },
+    {
+      "id": "etsy_dyevat",
+      "view": "s",
+      "image": "etsy_dyevat.png",
+      "repoPath": "frontend/assets/industrial/catalog-utility-rest-2/etsy_dyevat.png",
+      "sourceWidth": 368,
+      "sourceHeight": 308,
+      "footprint": {
+        "w": 2,
+        "h": 2
+      },
+      "bounds": {
+        "x": 0,
+        "y": -5,
+        "width": 29,
+        "height": 29
+      },
+      "contact": {
+        "x": 0.5,
+        "y": 0.9902597402597403
+      },
+      "mode": "approved",
+      "effects": false,
+      "source": "docs/station-remaster/catalog-utility-rest-2/sheet-source.png",
+      "sourceSha256": "22751b040b46e97b6e7e0f89800199ec871fe3f23ac42e3f0162091f53e9a75c",
+      "outputSha256": "f54dfdb3e19993656586154dca5a83581efbecb09d5fa54045ecb2839597b5d9",
+      "sourceROI": {
+        "left": 20,
+        "top": 135,
+        "width": 380,
+        "height": 330
+      },
+      "sourceCrop": {
+        "left": 27,
+        "top": 149,
+        "width": 368,
+        "height": 308
+      },
+      "actualFit": {
+        "x": 0,
+        "y": -0.035326,
+        "width": 29,
+        "height": 24.271739
+      },
+      "verification": {
+        "transparent": 21999,
+        "retained": 91345,
+        "removedAlpha": 3134,
+        "retainedRGBAMismatches": 0,
+        "allRGBMismatches": 0,
+        "widthFraction": 1
+      },
+      "status": "source and game-scale candidate reviewed; not live integrated; image-specific effect regions need remapping",
+      "group": "craft-publishing",
+      "output": "frontend/assets/industrial/projection-correction/etsy_dyevat.png",
+      "retained": 91345
+    },
+    {
+      "id": "etsy_kiln",
+      "view": "s",
+      "image": "etsy_kiln.png",
+      "repoPath": "frontend/assets/industrial/catalog-utility-rest-2/etsy_kiln.png",
+      "sourceWidth": 324,
+      "sourceHeight": 374,
+      "footprint": {
+        "w": 2,
+        "h": 2
+      },
+      "bounds": {
+        "x": -1,
+        "y": -9,
+        "width": 30,
+        "height": 33
+      },
+      "contact": {
+        "x": 0.5,
+        "y": 0.9919786096256684
+      },
+      "mode": "approved",
+      "effects": false,
+      "source": "docs/station-remaster/catalog-utility-rest-2/sheet-source.png",
+      "sourceSha256": "22751b040b46e97b6e7e0f89800199ec871fe3f23ac42e3f0162091f53e9a75c",
+      "outputSha256": "a099176d03017b33cdfaf5053903a5c3db38072b8a790b7a4f4fea349029da88",
+      "sourceROI": {
+        "left": 415,
+        "top": 65,
+        "width": 350,
+        "height": 400
+      },
+      "sourceCrop": {
+        "left": 428,
+        "top": 85,
+        "width": 324,
+        "height": 374
+      },
+      "actualFit": {
+        "x": -0.294118,
+        "y": -8.735294,
+        "width": 28.588235,
+        "height": 33
+      },
+      "verification": {
+        "transparent": 22459,
+        "retained": 98717,
+        "removedAlpha": 3669,
+        "retainedRGBAMismatches": 0,
+        "allRGBMismatches": 0,
+        "widthFraction": 0.952941
+      },
+      "status": "source and game-scale candidate reviewed; not live integrated; image-specific effect regions need remapping",
+      "group": "craft-publishing",
+      "output": "frontend/assets/industrial/projection-correction/etsy_kiln.png",
+      "retained": 98717
+    },
+    {
+      "id": "etsy_packbot",
+      "view": "s",
+      "image": "etsy_packbot.png",
+      "repoPath": "frontend/assets/industrial/catalog-utility-rest-2/etsy_packbot.png",
+      "sourceWidth": 270,
+      "sourceHeight": 358,
+      "footprint": {
+        "w": 2,
+        "h": 2
+      },
+      "bounds": {
+        "x": -1,
+        "y": -15,
+        "width": 30,
+        "height": 39
+      },
+      "contact": {
+        "x": 0.5,
+        "y": 0.9916201117318436
+      },
+      "mode": "approved",
+      "effects": false,
+      "source": "docs/station-remaster/catalog-utility-rest-2/sheet-source.png",
+      "sourceSha256": "22751b040b46e97b6e7e0f89800199ec871fe3f23ac42e3f0162091f53e9a75c",
+      "outputSha256": "a9689f6a6e996a535d19f9efe295903b4fc8d58f4d7bbfab6d334e6285ab5a94",
+      "sourceROI": {
+        "left": 780,
+        "top": 80,
+        "width": 295,
+        "height": 390
+      },
+      "sourceCrop": {
+        "left": 792,
+        "top": 99,
+        "width": 270,
+        "height": 358
+      },
+      "actualFit": {
+        "x": -0.706704,
+        "y": -14.673184,
+        "width": 29.413408,
+        "height": 39
+      },
+      "verification": {
+        "transparent": 24545,
+        "retained": 72115,
+        "removedAlpha": 4021,
+        "retainedRGBAMismatches": 0,
+        "allRGBMismatches": 0,
+        "widthFraction": 0.980447
+      },
+      "status": "source and game-scale candidate reviewed; not live integrated; image-specific effect regions need remapping",
+      "group": "craft-publishing",
+      "output": "frontend/assets/industrial/projection-correction/etsy_packbot.png",
+      "retained": 72115
+    },
+    {
+      "id": "etsy_threadrack",
+      "view": "s",
+      "image": "etsy_threadrack.png",
+      "repoPath": "frontend/assets/industrial/catalog-utility-rest-2/etsy_threadrack.png",
+      "sourceWidth": 406,
+      "sourceHeight": 314,
+      "footprint": {
+        "w": 2,
+        "h": 1
+      },
+      "bounds": {
+        "x": -1,
+        "y": -8,
+        "width": 26,
+        "height": 20
+      },
+      "contact": {
+        "x": 0.5,
+        "y": 0.9936305732484076
+      },
+      "mode": "approved",
+      "effects": false,
+      "source": "docs/station-remaster/catalog-utility-rest-2/sheet-source.png",
+      "sourceSha256": "22751b040b46e97b6e7e0f89800199ec871fe3f23ac42e3f0162091f53e9a75c",
+      "outputSha256": "f9766b4059fb2559947c13a2adfa25684efecac9c1f295cacb24ec5de727212e",
+      "sourceROI": {
+        "left": 1090,
+        "top": 120,
+        "width": 430,
+        "height": 355
+      },
+      "sourceCrop": {
+        "left": 1104,
+        "top": 134,
+        "width": 406,
+        "height": 314
+      },
+      "actualFit": {
+        "x": -0.929936,
+        "y": -7.872611,
+        "width": 25.859873,
+        "height": 20
+      },
+      "verification": {
+        "transparent": 46298,
+        "retained": 81186,
+        "removedAlpha": 3195,
+        "retainedRGBAMismatches": 0,
+        "allRGBMismatches": 0,
+        "widthFraction": 0.99461
+      },
+      "status": "source and game-scale candidate reviewed; not live integrated; image-specific effect regions need remapping",
+      "group": "craft-publishing",
+      "output": "frontend/assets/industrial/projection-correction/etsy_threadrack.png",
+      "retained": 81186
+    },
+    {
+      "id": "research_samplecart",
+      "view": "s",
+      "image": "research_samplecart.png",
+      "repoPath": "frontend/assets/industrial/catalog-utility-rest-2/research_samplecart.png",
+      "sourceWidth": 650,
+      "sourceHeight": 459,
+      "footprint": {
+        "w": 2,
+        "h": 1
+      },
+      "bounds": {
+        "x": -1,
+        "y": -6,
+        "width": 28,
+        "height": 18
+      },
+      "contact": {
+        "x": 0.5,
+        "y": 0.9956427015250545
+      },
+      "mode": "approved",
+      "effects": false,
+      "source": "docs/station-remaster/catalog-utility-rest-2/correction-source.png",
+      "sourceSha256": "c4086f80f13f8cb43f2abd9391e7bbdc35e68ade6150eed0b5ecac13e47a301e",
+      "outputSha256": "7b714b66081f79f3a9425d50db9d407728a869c20ce6cdcc9a3720fcc249f8aa",
+      "sourceROI": {
+        "left": 15,
+        "top": 270,
+        "width": 680,
+        "height": 480
+      },
+      "sourceCrop": {
+        "left": 30,
+        "top": 286,
+        "width": 650,
+        "height": 459
+      },
+      "actualFit": {
+        "x": 0.254902,
+        "y": -5.921569,
+        "width": 25.490196,
+        "height": 18
+      },
+      "verification": {
+        "transparent": 60711,
+        "retained": 237639,
+        "removedAlpha": 3869,
+        "retainedRGBAMismatches": 0,
+        "allRGBMismatches": 0,
+        "widthFraction": 0.910364
+      },
+      "status": "source and game-scale candidate reviewed; not live integrated; image-specific effect regions need remapping",
+      "group": "craft-publishing",
+      "output": "frontend/assets/industrial/projection-correction/research_samplecart.png",
+      "retained": 237639
+    },
+    {
+      "id": "pub_mailpod",
+      "view": "s",
+      "image": "pub_mailpod.png",
+      "repoPath": "frontend/assets/industrial/catalog-utility-rest-2/pub_mailpod.png",
+      "sourceWidth": 727,
+      "sourceHeight": 513,
+      "footprint": {
+        "w": 2,
+        "h": 1
+      },
+      "bounds": {
+        "x": -3,
+        "y": -10,
+        "width": 31,
+        "height": 22
+      },
+      "contact": {
+        "x": 0.5,
+        "y": 0.9941520467836257
+      },
+      "mode": "approved",
+      "effects": false,
+      "source": "docs/station-remaster/catalog-utility-rest-2/correction-source.png",
+      "sourceSha256": "c4086f80f13f8cb43f2abd9391e7bbdc35e68ade6150eed0b5ecac13e47a301e",
+      "outputSha256": "afe8ef47fe2b717c96e4429ffead5374d192a681e9d5d6de579fdebf34aecbd6",
+      "sourceROI": {
+        "left": 705,
+        "top": 210,
+        "width": 752,
+        "height": 545
+      },
+      "sourceCrop": {
+        "left": 722,
+        "top": 223,
+        "width": 727,
+        "height": 513
+      },
+      "actualFit": {
+        "x": -3,
+        "y": -9.746905,
+        "width": 31,
+        "height": 21.874828
+      },
+      "verification": {
+        "transparent": 92104,
+        "retained": 280847,
+        "removedAlpha": 4411,
+        "retainedRGBAMismatches": 0,
+        "allRGBMismatches": 0,
+        "widthFraction": 1
+      },
+      "status": "source and game-scale candidate reviewed; not live integrated; image-specific effect regions need remapping",
+      "group": "craft-publishing",
+      "output": "frontend/assets/industrial/projection-correction/pub_mailpod.png",
+      "retained": 280847
+    },
+    {
+      "id": "pub_outboundchute",
+      "view": "s",
+      "image": "pub_outboundchute.png",
+      "repoPath": "frontend/assets/industrial/catalog-utility-rest-2/pub_outboundchute.png",
+      "sourceWidth": 428,
+      "sourceHeight": 650,
+      "footprint": {
+        "w": 1,
+        "h": 2
+      },
+      "bounds": {
+        "x": -3,
+        "y": -11,
+        "width": 18,
+        "height": 35
+      },
+      "contact": {
+        "x": 0.5,
+        "y": 0.9953846153846154
+      },
+      "mode": "approved",
+      "effects": false,
+      "source": "docs/station-remaster/catalog-utility-rest-2/correction-source.png",
+      "sourceSha256": "c4086f80f13f8cb43f2abd9391e7bbdc35e68ade6150eed0b5ecac13e47a301e",
+      "outputSha256": "31b2f6a9f9d68a366b12e9cc40f176ec317607b74eec2cd6b485b1ac15dd3254",
+      "sourceROI": {
+        "left": 1470,
+        "top": 85,
+        "width": 440,
+        "height": 675
+      },
+      "sourceCrop": {
+        "left": 1481,
+        "top": 98,
+        "width": 428,
+        "height": 650
+      },
+      "actualFit": {
+        "x": -3,
+        "y": -3.21028,
+        "width": 18,
+        "height": 27.336449
+      },
+      "verification": {
+        "transparent": 43157,
+        "retained": 235043,
+        "removedAlpha": 3190,
+        "retainedRGBAMismatches": 0,
+        "allRGBMismatches": 0,
+        "widthFraction": 1
+      },
+      "status": "source and game-scale candidate reviewed; not live integrated; image-specific effect regions need remapping",
+      "group": "craft-publishing",
+      "output": "frontend/assets/industrial/projection-correction/pub_outboundchute.png",
+      "retained": 235043
+    },
+    {
+      "id": "pub_publishpress",
+      "view": "s",
+      "image": "pub_publishpress.png",
+      "repoPath": "frontend/assets/industrial/catalog-utility-rest-2/pub_publishpress.png",
+      "sourceWidth": 435,
+      "sourceHeight": 401,
+      "footprint": {
+        "w": 2,
+        "h": 2
+      },
+      "bounds": {
+        "x": -1,
+        "y": -8,
+        "width": 30,
+        "height": 32
+      },
+      "contact": {
+        "x": 0.5,
+        "y": 0.9950124688279302
+      },
+      "mode": "approved",
+      "effects": false,
+      "source": "docs/station-remaster/catalog-utility-rest-2/sheet-source.png",
+      "sourceSha256": "22751b040b46e97b6e7e0f89800199ec871fe3f23ac42e3f0162091f53e9a75c",
+      "outputSha256": "ca7214d8970eaf6a780f90398d84f761ebe1cb51198b0d8d620579c7db16aa02",
+      "sourceROI": {
+        "left": 1060,
+        "top": 505,
+        "width": 450,
+        "height": 450
+      },
+      "sourceCrop": {
+        "left": 1072,
+        "top": 524,
+        "width": 435,
+        "height": 401
+      },
+      "actualFit": {
+        "x": -1,
+        "y": -3.517241,
+        "width": 30,
+        "height": 27.655172
+      },
+      "verification": {
+        "transparent": 27380,
+        "retained": 147055,
+        "removedAlpha": 3078,
+        "retainedRGBAMismatches": 0,
+        "allRGBMismatches": 0,
+        "widthFraction": 1
+      },
+      "status": "source and game-scale candidate reviewed; not live integrated; image-specific effect regions need remapping",
+      "group": "craft-publishing",
+      "output": "frontend/assets/industrial/projection-correction/pub_publishpress.png",
+      "retained": 147055
+    },
+    {
+      "id": "benchpress",
+      "view": "s",
+      "image": "frontend/assets/industrial/catalog-crew-rest-2/benchpress.png",
+      "sourceWidth": 587,
+      "sourceHeight": 344,
+      "bounds": {
+        "x": 1,
+        "y": -8,
+        "width": 36,
+        "height": 20
+      },
+      "footprint": {
+        "w": 3,
+        "h": 1
+      },
+      "contact": {
+        "x": 0.5,
+        "y": 0.9898255813953488
+      },
+      "fit": {
+        "x": 1.9360465116279073,
+        "y": -8,
+        "width": 34.127906976744185,
+        "height": 20
+      },
+      "underfill": {
+        "x": 0.9479974160206718,
+        "y": 1
+      },
+      "source": "docs\\station-remaster\\catalog-crew-rest-2\\sources\\repair.png",
+      "sourceSha256": "41786c4c864817265080f5cc670e307be07bd1c1be22e3abade21d86a482000e",
+      "sourceCrop": {
+        "left": 8,
+        "top": 161,
+        "width": 587,
+        "height": 344
+      },
+      "outputSha256": "46e9d93e54e34178502a6dd81c55c51a1437542b51be690734ae409bcb3be28d",
+      "alphaBounds": {
+        "x": 0,
+        "y": 0,
+        "width": 587,
+        "height": 344
+      },
+      "alphaCounts": {
+        "transparent": 86824,
+        "partial": 115104,
+        "opaque": 0
+      },
+      "maxSourceAlpha": 254,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "removedFogPixels": 4895,
+      "retainedRgbChanges": 0,
+      "retainedAlphaChanges": 0,
+      "opaqueCellEdgePixels": 0,
+      "liveAccepted": false,
+      "group": "fitness",
+      "output": "frontend/assets/industrial/projection-correction/benchpress.png",
+      "retained": 115104
+    },
+    {
+      "id": "benchpress_r",
+      "view": "s",
+      "image": "frontend/assets/industrial/catalog-crew-rest-2/benchpress_r.png",
+      "sourceWidth": 1572,
+      "sourceHeight": 865,
+      "bounds": {
+        "x": -1,
+        "y": -8,
+        "width": 36,
+        "height": 20
+      },
+      "footprint": {
+        "w": 3,
+        "h": 1
+      },
+      "contact": {
+        "x": 0.5,
+        "y": 0.9959537572254336
+      },
+      "fit": {
+        "x": -1,
+        "y": -7.809160305343511,
+        "width": 36,
+        "height": 19.80916030534351
+      },
+      "underfill": {
+        "x": 1,
+        "y": 0.9904580152671756
+      },
+      "source": "docs\\station-remaster\\catalog-crew-rest-2\\sources\\benchpress-r-final.png",
+      "sourceSha256": "13f2c9d29f77de19cafd73620fd9ff55f1ca87964c4b0ec41375ced4deb9bed5",
+      "sourceCrop": {
+        "left": 61,
+        "top": 34,
+        "width": 1572,
+        "height": 865
+      },
+      "outputSha256": "ff8e5e79a32b921091e57bb1e26ef6ba2c0e0ed0c5e00e5c971fd837966a0c1e",
+      "alphaBounds": {
+        "x": 0,
+        "y": 0,
+        "width": 1572,
+        "height": 865
+      },
+      "alphaCounts": {
+        "transparent": 614789,
+        "partial": 742619,
+        "opaque": 2372
+      },
+      "maxSourceAlpha": 255,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "removedFogPixels": 6682,
+      "retainedRgbChanges": 0,
+      "retainedAlphaChanges": 0,
+      "opaqueCellEdgePixels": 0,
+      "liveAccepted": false,
+      "group": "fitness",
+      "output": "frontend/assets/industrial/projection-correction/benchpress_r.png",
+      "retained": 744991
+    },
+    {
+      "id": "punchbag",
+      "view": "s",
+      "image": "frontend/assets/industrial/catalog-crew-rest-2/punchbag.png",
+      "sourceWidth": 172,
+      "sourceHeight": 416,
+      "bounds": {
+        "x": 0,
+        "y": -8,
+        "width": 12,
+        "height": 30
+      },
+      "footprint": {
+        "w": 1,
+        "h": 2
+      },
+      "contact": {
+        "x": 0.5,
+        "y": 0.9915865384615384
+      },
+      "fit": {
+        "x": 0,
+        "y": -7.023255813953487,
+        "width": 12,
+        "height": 29.023255813953487
+      },
+      "underfill": {
+        "x": 1,
+        "y": 0.9674418604651163
+      },
+      "source": "docs\\station-remaster\\catalog-crew-rest-2\\sources\\sheet.png",
+      "sourceSha256": "a02642a41edf6c953ea28dbb4e061b9e7cdac3904c455adc0c295dae8d9081fb",
+      "sourceCrop": {
+        "left": 947,
+        "top": 68,
+        "width": 172,
+        "height": 416
+      },
+      "outputSha256": "253310ae004a8a5d942cbdad8a98ec42d7ee788a5401dc9233c1d068275995e1",
+      "alphaBounds": {
+        "x": 0,
+        "y": 0,
+        "width": 172,
+        "height": 416
+      },
+      "alphaCounts": {
+        "transparent": 17276,
+        "partial": 53656,
+        "opaque": 620
+      },
+      "maxSourceAlpha": 255,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "removedFogPixels": 4964,
+      "retainedRgbChanges": 0,
+      "retainedAlphaChanges": 0,
+      "opaqueCellEdgePixels": 0,
+      "liveAccepted": false,
+      "group": "fitness",
+      "output": "frontend/assets/industrial/projection-correction/punchbag.png",
+      "retained": 54276
+    },
+    {
+      "id": "punchbag_r",
+      "view": "s",
+      "image": "frontend/assets/industrial/catalog-crew-rest-2/punchbag_r.png",
+      "sourceWidth": 171,
+      "sourceHeight": 417,
+      "bounds": {
+        "x": 0,
+        "y": -8,
+        "width": 12,
+        "height": 30
+      },
+      "footprint": {
+        "w": 1,
+        "h": 2
+      },
+      "contact": {
+        "x": 0.5,
+        "y": 0.9916067146282974
+      },
+      "fit": {
+        "x": 0,
+        "y": -7.263157894736839,
+        "width": 12,
+        "height": 29.26315789473684
+      },
+      "underfill": {
+        "x": 1,
+        "y": 0.975438596491228
+      },
+      "source": "docs\\station-remaster\\catalog-crew-rest-2\\sources\\sheet.png",
+      "sourceSha256": "a02642a41edf6c953ea28dbb4e061b9e7cdac3904c455adc0c295dae8d9081fb",
+      "sourceCrop": {
+        "left": 1295,
+        "top": 67,
+        "width": 171,
+        "height": 417
+      },
+      "outputSha256": "c7a97d2106af6e1d2880d78fbaf46cb7ae76101a4f960caa95f9cc7b75cf0159",
+      "alphaBounds": {
+        "x": 0,
+        "y": 0,
+        "width": 171,
+        "height": 417
+      },
+      "alphaCounts": {
+        "transparent": 17519,
+        "partial": 53508,
+        "opaque": 280
+      },
+      "maxSourceAlpha": 255,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "removedFogPixels": 6788,
+      "retainedRgbChanges": 0,
+      "retainedAlphaChanges": 0,
+      "opaqueCellEdgePixels": 0,
+      "liveAccepted": false,
+      "group": "fitness",
+      "output": "frontend/assets/industrial/projection-correction/punchbag_r.png",
+      "retained": 53788
+    },
+    {
+      "id": "weaponrack",
+      "view": "s",
+      "image": "frontend/assets/industrial/catalog-crew-rest-2/weaponrack.png",
+      "sourceWidth": 553,
+      "sourceHeight": 384,
+      "bounds": {
+        "x": 1,
+        "y": -16,
+        "width": 34,
+        "height": 22
+      },
+      "footprint": {
+        "w": 3,
+        "h": 1
+      },
+      "contact": {
+        "x": 0.5,
+        "y": 0.9908854166666666
+      },
+      "fit": {
+        "x": 2.158854166666668,
+        "y": -16,
+        "width": 31.682291666666664,
+        "height": 22
+      },
+      "underfill": {
+        "x": 0.9318321078431372,
+        "y": 1
+      },
+      "source": "docs\\station-remaster\\catalog-crew-rest-2\\sources\\repair.png",
+      "sourceSha256": "41786c4c864817265080f5cc670e307be07bd1c1be22e3abade21d86a482000e",
+      "sourceCrop": {
+        "left": 19,
+        "top": 591,
+        "width": 553,
+        "height": 384
+      },
+      "outputSha256": "1e1de681322449c53cabf53a9f4203faae8370772e30ec55a634bc5ebe231e84",
+      "alphaBounds": {
+        "x": 0,
+        "y": 0,
+        "width": 553,
+        "height": 384
+      },
+      "alphaCounts": {
+        "transparent": 2065,
+        "partial": 210287,
+        "opaque": 0
+      },
+      "maxSourceAlpha": 254,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "removedFogPixels": 2900,
+      "retainedRgbChanges": 0,
+      "retainedAlphaChanges": 0,
+      "opaqueCellEdgePixels": 0,
+      "liveAccepted": false,
+      "group": "fitness",
+      "output": "frontend/assets/industrial/projection-correction/weaponrack.png",
+      "retained": 210287
+    },
+    {
+      "id": "weaponrack_r",
+      "view": "s",
+      "image": "frontend/assets/industrial/catalog-crew-rest-2/weaponrack_r.png",
+      "sourceWidth": 1126,
+      "sourceHeight": 722,
+      "bounds": {
+        "x": 1,
+        "y": -16,
+        "width": 34,
+        "height": 22
+      },
+      "footprint": {
+        "w": 3,
+        "h": 1
+      },
+      "contact": {
+        "x": 0.5,
+        "y": 0.9951523545706371
+      },
+      "fit": {
+        "x": 1,
+        "y": -15.801065719360569,
+        "width": 34,
+        "height": 21.80106571936057
+      },
+      "underfill": {
+        "x": 1,
+        "y": 0.9909575326982076
+      },
+      "source": "docs\\station-remaster\\catalog-crew-rest-2\\sources\\paired-repair.png",
+      "sourceSha256": "9f8252ff00449da322725248fc46d4bd5f8bb86e2497e8c9af7df8fbaa3d22c7",
+      "sourceCrop": {
+        "left": 17,
+        "top": 593,
+        "width": 1126,
+        "height": 722
+      },
+      "outputSha256": "6fbcb30b5647c8337722cad4599c3f2fe647c727839f1e168e44f0a94f1020dc",
+      "alphaBounds": {
+        "x": 0,
+        "y": 0,
+        "width": 1126,
+        "height": 722
+      },
+      "alphaCounts": {
+        "transparent": 8942,
+        "partial": 803603,
+        "opaque": 427
+      },
+      "maxSourceAlpha": 255,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "removedFogPixels": 4169,
+      "retainedRgbChanges": 0,
+      "retainedAlphaChanges": 0,
+      "opaqueCellEdgePixels": 0,
+      "liveAccepted": false,
+      "group": "fitness",
+      "output": "frontend/assets/industrial/projection-correction/weaponrack_r.png",
+      "retained": 804030
+    },
+    {
+      "id": "pinball",
+      "view": "s",
+      "image": "frontend/assets/industrial/catalog-crew-rest-2/pinball.png",
+      "sourceWidth": 336,
+      "sourceHeight": 567,
+      "bounds": {
+        "x": -1,
+        "y": -3,
+        "width": 16,
+        "height": 27
+      },
+      "footprint": {
+        "w": 1,
+        "h": 2
+      },
+      "contact": {
+        "x": 0.5,
+        "y": 0.9938271604938271
+      },
+      "fit": {
+        "x": -1,
+        "y": -3,
+        "width": 16,
+        "height": 27
+      },
+      "underfill": {
+        "x": 1,
+        "y": 1
+      },
+      "source": "docs\\station-remaster\\catalog-crew-rest-2\\sources\\repair.png",
+      "sourceSha256": "41786c4c864817265080f5cc670e307be07bd1c1be22e3abade21d86a482000e",
+      "sourceCrop": {
+        "left": 1182,
+        "top": 6,
+        "width": 336,
+        "height": 567
+      },
+      "outputSha256": "1e485de99e9e1f12cfb25fbcb5910bd3449e3a89d1afb06c5902ac8ad8dd812d",
+      "alphaBounds": {
+        "x": 0,
+        "y": 0,
+        "width": 336,
+        "height": 567
+      },
+      "alphaCounts": {
+        "transparent": 47469,
+        "partial": 143043,
+        "opaque": 0
+      },
+      "maxSourceAlpha": 254,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "removedFogPixels": 2391,
+      "retainedRgbChanges": 0,
+      "retainedAlphaChanges": 0,
+      "opaqueCellEdgePixels": 0,
+      "liveAccepted": false,
+      "group": "fitness",
+      "output": "frontend/assets/industrial/projection-correction/pinball.png",
+      "retained": 143043
+    },
+    {
+      "id": "gachapon",
+      "view": "s",
+      "image": "frontend/assets/industrial/catalog-crew-rest-2/gachapon.png",
+      "sourceWidth": 200,
+      "sourceHeight": 316,
+      "bounds": {
+        "x": 0,
+        "y": -7,
+        "width": 11,
+        "height": 19
+      },
+      "footprint": {
+        "w": 1,
+        "h": 1
+      },
+      "contact": {
+        "x": 0.5,
+        "y": 0.9889240506329114
+      },
+      "fit": {
+        "x": 0,
+        "y": -5.379999999999999,
+        "width": 11,
+        "height": 17.38
+      },
+      "underfill": {
+        "x": 1,
+        "y": 0.9147368421052631
+      },
+      "source": "docs\\station-remaster\\catalog-crew-rest-2\\sources\\sheet.png",
+      "sourceSha256": "a02642a41edf6c953ea28dbb4e061b9e7cdac3904c455adc0c295dae8d9081fb",
+      "sourceCrop": {
+        "left": 1319,
+        "top": 590,
+        "width": 200,
+        "height": 316
+      },
+      "outputSha256": "64f11bf3520ac9bf38f9ed8ac880de3cbd1a29a840c39f58b2c1c868b8f4b342",
+      "alphaBounds": {
+        "x": 0,
+        "y": 0,
+        "width": 200,
+        "height": 316
+      },
+      "alphaCounts": {
+        "transparent": 15099,
+        "partial": 47876,
+        "opaque": 225
+      },
+      "maxSourceAlpha": 255,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "removedFogPixels": 3081,
+      "retainedRgbChanges": 0,
+      "retainedAlphaChanges": 0,
+      "opaqueCellEdgePixels": 0,
+      "liveAccepted": false,
+      "group": "fitness",
+      "output": "frontend/assets/industrial/projection-correction/gachapon.png",
+      "retained": 48101
+    },
+    {
+      "id": "comms_beacon",
+      "view": "s",
+      "image": "comms_beacon.png",
+      "repoPath": "frontend/assets/industrial/catalog-utility-rest-3/comms_beacon.png",
+      "sourceWidth": 272,
+      "sourceHeight": 344,
+      "footprint": {
+        "w": 1,
+        "h": 2
+      },
+      "bounds": {
+        "x": 0,
+        "y": -2,
+        "width": 17,
+        "height": 26
+      },
+      "contact": {
+        "x": 0.5,
+        "y": 0.9912790697674418
+      },
+      "mode": "approved",
+      "effects": false,
+      "source": "docs/station-remaster/catalog-utility-rest-3/sheet-source.png",
+      "sourceSha256": "1b8fd3c95f80db8ff1d32238b096eddabbe6bee099ac4368eb0728598ae893d7",
+      "outputSha256": "f0ef11b2bad78ff11a4e364f609fd34ed41807c6d3f87e8e2004c1651e4a1110",
+      "sourceROI": {
+        "left": 55,
+        "top": 110,
+        "width": 300,
+        "height": 380
+      },
+      "sourceCrop": {
+        "left": 70,
+        "top": 127,
+        "width": 272,
+        "height": 344
+      },
+      "actualFit": {
+        "x": 0,
+        "y": 2.6875,
+        "width": 17,
+        "height": 21.5
+      },
+      "verification": {
+        "transparent": 21849,
+        "retained": 71719,
+        "removedAlpha": 2403,
+        "retainedRGBAMismatches": 0,
+        "allRGBMismatches": 0,
+        "widthFraction": 1
+      },
+      "status": "source and game-scale candidate reviewed; not live integrated; image-specific effect regions need remapping",
+      "group": "comms-optics",
+      "output": "frontend/assets/industrial/projection-correction/comms_beacon.png",
+      "retained": 71719
+    },
+    {
+      "id": "comms_dish",
+      "view": "s",
+      "image": "comms_dish.png",
+      "repoPath": "frontend/assets/industrial/catalog-utility-rest-3/comms_dish.png",
+      "sourceWidth": 661,
+      "sourceHeight": 739,
+      "footprint": {
+        "w": 2,
+        "h": 2
+      },
+      "bounds": {
+        "x": 2,
+        "y": 1,
+        "width": 20,
+        "height": 23
+      },
+      "contact": {
+        "x": 0.5,
+        "y": 0.9959404600811907
+      },
+      "mode": "approved",
+      "effects": false,
+      "source": "docs/station-remaster/catalog-utility-rest-3/correction-source.png",
+      "sourceSha256": "4cebb4642439b36c477675700c78fe0595c9c8e8d7061bc64f4b615cbd5d9006",
+      "outputSha256": "06681ccb82906bdd64da6a1c81def5dbf85f8d89864bd5cd4f3b02d45e1fe7a0",
+      "sourceROI": {
+        "left": 75,
+        "top": 65,
+        "width": 695,
+        "height": 785
+      },
+      "sourceCrop": {
+        "left": 93,
+        "top": 84,
+        "width": 661,
+        "height": 739
+      },
+      "actualFit": {
+        "x": 2,
+        "y": 1.730711,
+        "width": 20,
+        "height": 22.360061
+      },
+      "verification": {
+        "transparent": 102477,
+        "retained": 386002,
+        "removedAlpha": 1991,
+        "retainedRGBAMismatches": 0,
+        "allRGBMismatches": 0,
+        "widthFraction": 1
+      },
+      "status": "source and game-scale candidate reviewed; not live integrated; image-specific effect regions need remapping",
+      "group": "comms-optics",
+      "output": "frontend/assets/industrial/projection-correction/comms_dish.png",
+      "retained": 386002
+    },
+    {
+      "id": "research_corelens",
+      "view": "s",
+      "image": "research_corelens.png",
+      "repoPath": "frontend/assets/industrial/catalog-utility-rest-3/research_corelens.png",
+      "sourceWidth": 272,
+      "sourceHeight": 363,
+      "footprint": {
+        "w": 1,
+        "h": 2
+      },
+      "bounds": {
+        "x": -2,
+        "y": -9,
+        "width": 20,
+        "height": 33
+      },
+      "contact": {
+        "x": 0.5,
+        "y": 0.9917355371900827
+      },
+      "mode": "approved",
+      "effects": false,
+      "source": "docs/station-remaster/catalog-utility-rest-3/sheet-source.png",
+      "sourceSha256": "1b8fd3c95f80db8ff1d32238b096eddabbe6bee099ac4368eb0728598ae893d7",
+      "outputSha256": "7682006af5dda549c4ac55fe2810290f1c55ae1df54e477931a3fc98b165f47a",
+      "sourceROI": {
+        "left": 825,
+        "top": 105,
+        "width": 300,
+        "height": 390
+      },
+      "sourceCrop": {
+        "left": 836,
+        "top": 118,
+        "width": 272,
+        "height": 363
+      },
+      "actualFit": {
+        "x": -2,
+        "y": -2.470588,
+        "width": 20,
+        "height": 26.691176
+      },
+      "verification": {
+        "transparent": 26205,
+        "retained": 72531,
+        "removedAlpha": 3440,
+        "retainedRGBAMismatches": 0,
+        "allRGBMismatches": 0,
+        "widthFraction": 1
+      },
+      "status": "source and game-scale candidate reviewed; not live integrated; image-specific effect regions need remapping",
+      "group": "comms-optics",
+      "output": "frontend/assets/industrial/projection-correction/research_corelens.png",
+      "retained": 72531
+    },
+    {
+      "id": "research_trendpillar",
+      "view": "s",
+      "image": "research_trendpillar.png",
+      "repoPath": "frontend/assets/industrial/catalog-utility-rest-3/research_trendpillar.png",
+      "sourceWidth": 272,
+      "sourceHeight": 362,
+      "footprint": {
+        "w": 1,
+        "h": 2
+      },
+      "bounds": {
+        "x": -2,
+        "y": -7,
+        "width": 20,
+        "height": 31
+      },
+      "contact": {
+        "x": 0.5,
+        "y": 0.9917127071823204
+      },
+      "mode": "approved",
+      "effects": false,
+      "source": "docs/station-remaster/catalog-utility-rest-3/sheet-source.png",
+      "sourceSha256": "1b8fd3c95f80db8ff1d32238b096eddabbe6bee099ac4368eb0728598ae893d7",
+      "outputSha256": "07a6a1950f9ea43569776a00e71f9a94b0b9ef6ab41e9f390a8b70c852a4c815",
+      "sourceROI": {
+        "left": 1200,
+        "top": 100,
+        "width": 300,
+        "height": 395
+      },
+      "sourceCrop": {
+        "left": 1215,
+        "top": 118,
+        "width": 272,
+        "height": 362
+      },
+      "actualFit": {
+        "x": -2,
+        "y": -2.397059,
+        "width": 20,
+        "height": 26.617647
+      },
+      "verification": {
+        "transparent": 18379,
+        "retained": 80085,
+        "removedAlpha": 2235,
+        "retainedRGBAMismatches": 0,
+        "allRGBMismatches": 0,
+        "widthFraction": 1
+      },
+      "status": "source and game-scale candidate reviewed; not live integrated; image-specific effect regions need remapping",
+      "group": "comms-optics",
+      "output": "frontend/assets/industrial/projection-correction/research_trendpillar.png",
+      "retained": 80085
+    },
+    {
+      "id": "studio",
+      "view": "s",
+      "image": "studio.png",
+      "repoPath": "frontend/assets/industrial/catalog-utility-rest-3/studio.png",
+      "sourceWidth": 350,
+      "sourceHeight": 374,
+      "footprint": {
+        "w": 2,
+        "h": 2
+      },
+      "bounds": {
+        "x": 0,
+        "y": -6,
+        "width": 29,
+        "height": 30
+      },
+      "contact": {
+        "x": 0.5,
+        "y": 0.9919786096256684
+      },
+      "mode": "approved",
+      "effects": false,
+      "source": "docs/station-remaster/catalog-utility-rest-3/sheet-source.png",
+      "sourceSha256": "1b8fd3c95f80db8ff1d32238b096eddabbe6bee099ac4368eb0728598ae893d7",
+      "outputSha256": "7190c9bffc91d7c5ab58e7c183e640fa09f522b8be9c553096fe67fd9c9f3b3d",
+      "sourceROI": {
+        "left": 25,
+        "top": 550,
+        "width": 380,
+        "height": 400
+      },
+      "sourceCrop": {
+        "left": 34,
+        "top": 564,
+        "width": 350,
+        "height": 374
+      },
+      "actualFit": {
+        "x": 0.462567,
+        "y": -5.759358,
+        "width": 28.074866,
+        "height": 30
+      },
+      "verification": {
+        "transparent": 9653,
+        "retained": 121247,
+        "removedAlpha": 2863,
+        "retainedRGBAMismatches": 0,
+        "allRGBMismatches": 0,
+        "widthFraction": 0.968099
+      },
+      "status": "source and game-scale candidate reviewed; not live integrated; image-specific effect regions need remapping",
+      "group": "comms-optics",
+      "output": "frontend/assets/industrial/projection-correction/studio.png",
+      "retained": 121247
+    },
+    {
+      "id": "telescope",
+      "view": "s",
+      "image": "telescope.png",
+      "repoPath": "frontend/assets/industrial/catalog-utility-rest-3/telescope.png",
+      "sourceWidth": 326,
+      "sourceHeight": 372,
+      "footprint": {
+        "w": 1,
+        "h": 2
+      },
+      "bounds": {
+        "x": -3,
+        "y": -8,
+        "width": 19,
+        "height": 31
+      },
+      "contact": {
+        "x": 0.5,
+        "y": 0.9919354838709677
+      },
+      "mode": "approved",
+      "effects": false,
+      "source": "docs/station-remaster/catalog-utility-rest-3/sheet-source.png",
+      "sourceSha256": "1b8fd3c95f80db8ff1d32238b096eddabbe6bee099ac4368eb0728598ae893d7",
+      "outputSha256": "7c5d3c5df92c09015b4be5e0ca40f983ab3364305cdc085e0444bd52fd9ef290",
+      "sourceROI": {
+        "left": 415,
+        "top": 550,
+        "width": 350,
+        "height": 400
+      },
+      "sourceCrop": {
+        "left": 424,
+        "top": 562,
+        "width": 326,
+        "height": 372
+      },
+      "actualFit": {
+        "x": -3,
+        "y": 1.493865,
+        "width": 19,
+        "height": 21.680982
+      },
+      "verification": {
+        "transparent": 68986,
+        "retained": 52286,
+        "removedAlpha": 5442,
+        "retainedRGBAMismatches": 0,
+        "allRGBMismatches": 0,
+        "widthFraction": 1
+      },
+      "status": "source and game-scale candidate reviewed; not live integrated; image-specific effect regions need remapping",
+      "group": "comms-optics",
+      "output": "frontend/assets/industrial/projection-correction/telescope.png",
+      "retained": 52286
+    },
+    {
+      "id": "telescope_r",
+      "view": "s",
+      "image": "telescope_r.png",
+      "repoPath": "frontend/assets/industrial/catalog-utility-rest-3/telescope_r.png",
+      "sourceWidth": 312,
+      "sourceHeight": 374,
+      "footprint": {
+        "w": 1,
+        "h": 2
+      },
+      "bounds": {
+        "x": -4,
+        "y": -8,
+        "width": 19,
+        "height": 31
+      },
+      "contact": {
+        "x": 0.5,
+        "y": 0.9919786096256684
+      },
+      "mode": "approved",
+      "effects": false,
+      "source": "docs/station-remaster/catalog-utility-rest-3/sheet-source.png",
+      "sourceSha256": "1b8fd3c95f80db8ff1d32238b096eddabbe6bee099ac4368eb0728598ae893d7",
+      "outputSha256": "8056a91ccaf95812463c7bd1144fe28de6e962ae31262c7167f490a40ba04d33",
+      "sourceROI": {
+        "left": 800,
+        "top": 550,
+        "width": 340,
+        "height": 400
+      },
+      "sourceCrop": {
+        "left": 815,
+        "top": 564,
+        "width": 312,
+        "height": 374
+      },
+      "actualFit": {
+        "x": -4,
+        "y": 0.407051,
+        "width": 19,
+        "height": 22.775641
+      },
+      "verification": {
+        "transparent": 65484,
+        "retained": 51204,
+        "removedAlpha": 4729,
+        "retainedRGBAMismatches": 0,
+        "allRGBMismatches": 0,
+        "widthFraction": 1
+      },
+      "status": "source and game-scale candidate reviewed; not live integrated; image-specific effect regions need remapping",
+      "group": "comms-optics",
+      "output": "frontend/assets/industrial/projection-correction/telescope_r.png",
+      "retained": 51204
+    },
+    {
+      "id": "steamvent",
+      "view": "s",
+      "image": "steamvent.png",
+      "repoPath": "frontend/assets/industrial/catalog-utility-rest-3/steamvent.png",
+      "sourceWidth": 845,
+      "sourceHeight": 473,
+      "footprint": {
+        "w": 1,
+        "h": 1
+      },
+      "bounds": {
+        "x": 0,
+        "y": 3,
+        "width": 12,
+        "height": 9
+      },
+      "contact": {
+        "x": 0.5,
+        "y": 0.9936575052854123
+      },
+      "mode": "approved",
+      "effects": false,
+      "source": "docs/station-remaster/catalog-utility-rest-3/correction-source.png",
+      "sourceSha256": "4cebb4642439b36c477675700c78fe0595c9c8e8d7061bc64f4b615cbd5d9006",
+      "outputSha256": "c4a0ffd900317965fb51f0ffabe94a8e44e432974df94d4105790c9005dde3a3",
+      "sourceROI": {
+        "left": 810,
+        "top": 340,
+        "width": 865,
+        "height": 490
+      },
+      "sourceCrop": {
+        "left": 821,
+        "top": 353,
+        "width": 845,
+        "height": 473
+      },
+      "actualFit": {
+        "x": 0,
+        "y": 5.325444,
+        "width": 12,
+        "height": 6.71716
+      },
+      "verification": {
+        "transparent": 74578,
+        "retained": 325107,
+        "removedAlpha": 6574,
+        "retainedRGBAMismatches": 0,
+        "allRGBMismatches": 0,
+        "widthFraction": 1
+      },
+      "status": "source and game-scale candidate reviewed; not live integrated; image-specific effect regions need remapping",
+      "group": "comms-optics",
+      "output": "frontend/assets/industrial/projection-correction/steamvent.png",
+      "retained": 325107
+    },
+    {
+      "id": "boxes",
+      "view": "s",
+      "image": "boxes.png",
+      "sourceWidth": 314,
+      "sourceHeight": 193,
+      "bounds": {
+        "x": 0,
+        "y": -1,
+        "width": 24,
+        "height": 13
+      },
+      "footprint": {
+        "w": 2,
+        "h": 1
+      },
+      "contact": {
+        "x": 0.5,
+        "y": 0.9844559585492227
+      },
+      "actualUniformFit": {
+        "width": 21.150259067357513,
+        "height": 13
+      },
+      "aspectRatioError": -0.11873920552677031,
+      "source": "docs/station-remaster/catalog-storage-rest-1/sheet-v2-source.png",
+      "sourceSha256": "d5757ff2bc97d7ed1e812d5344960a8d44f490882a0b238d173c1c8cfd88f30e",
+      "output": "frontend/assets/industrial/projection-correction/boxes.png",
+      "outputSha256": "7782bddbfb84ac0878a98516698a13d231d554e6ee8330d00abacccdb7deacb3",
+      "sourceRect": {
+        "x": 0,
+        "y": 0,
+        "width": 650,
+        "height": 295
+      },
+      "cropInCell": {
+        "left": 186,
+        "top": 69,
+        "width": 314,
+        "height": 193
+      },
+      "sourceCrop": {
+        "left": 186,
+        "top": 69,
+        "width": 314,
+        "height": 193
+      },
+      "width": 314,
+      "height": 193,
+      "alphaBounds": {
+        "x": 0,
+        "y": 0,
+        "width": 314,
+        "height": 193
+      },
+      "retainedPixels": 48332,
+      "alphaResidueRemoved": 2192,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "opaqueCellEdgePixels": 0,
+      "rgbChanges": 0,
+      "retainedAlphaChanges": 0,
+      "alpha": {
+        "zero": 12270,
+        "partial": 48120,
+        "opaque255": 212,
+        "maxAlpha": 255
+      },
+      "liveVerified": false,
+      "group": "storage-carts",
+      "retained": 48332
+    },
+    {
+      "id": "gigs_partsbin",
+      "view": "s",
+      "image": "gigs_partsbin.png",
+      "sourceWidth": 312,
+      "sourceHeight": 211,
+      "bounds": {
+        "x": -1,
+        "y": -7,
+        "width": 26,
+        "height": 19
+      },
+      "footprint": {
+        "w": 2,
+        "h": 1
+      },
+      "contact": {
+        "x": 0.5,
+        "y": 0.985781990521327
+      },
+      "actualUniformFit": {
+        "width": 26,
+        "height": 17.583333333333332
+      },
+      "aspectRatioError": 0.08056872037914675,
+      "source": "docs/station-remaster/catalog-storage-rest-1/sheet-v2-source.png",
+      "sourceSha256": "d5757ff2bc97d7ed1e812d5344960a8d44f490882a0b238d173c1c8cfd88f30e",
+      "output": "frontend/assets/industrial/projection-correction/gigs_partsbin.png",
+      "outputSha256": "3cecb553e23d27870d7db21936407bedd6c14986911b2be5aa40b8278f00649b",
+      "sourceRect": {
+        "x": 650,
+        "y": 0,
+        "width": 663,
+        "height": 295
+      },
+      "cropInCell": {
+        "left": 124,
+        "top": 62,
+        "width": 312,
+        "height": 211
+      },
+      "sourceCrop": {
+        "left": 774,
+        "top": 62,
+        "width": 312,
+        "height": 211
+      },
+      "width": 312,
+      "height": 211,
+      "alphaBounds": {
+        "x": 0,
+        "y": 0,
+        "width": 312,
+        "height": 211
+      },
+      "retainedPixels": 56800,
+      "alphaResidueRemoved": 1464,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "opaqueCellEdgePixels": 0,
+      "rgbChanges": 0,
+      "retainedAlphaChanges": 0,
+      "alpha": {
+        "zero": 9032,
+        "partial": 56716,
+        "opaque255": 84,
+        "maxAlpha": 255
+      },
+      "liveVerified": false,
+      "group": "storage-carts",
+      "retained": 56800
+    },
+    {
+      "id": "goldcrate",
+      "view": "s",
+      "image": "goldcrate.png",
+      "sourceWidth": 312,
+      "sourceHeight": 225,
+      "bounds": {
+        "x": -1,
+        "y": -10,
+        "width": 26,
+        "height": 22
+      },
+      "footprint": {
+        "w": 2,
+        "h": 1
+      },
+      "contact": {
+        "x": 0.5,
+        "y": 0.9866666666666667
+      },
+      "actualUniformFit": {
+        "width": 26,
+        "height": 18.75
+      },
+      "aspectRatioError": 0.17333333333333334,
+      "source": "docs/station-remaster/catalog-storage-rest-1/sheet-v2-source.png",
+      "sourceSha256": "d5757ff2bc97d7ed1e812d5344960a8d44f490882a0b238d173c1c8cfd88f30e",
+      "output": "frontend/assets/industrial/projection-correction/goldcrate.png",
+      "outputSha256": "fb3e10ed65d6f5e5b0315349f8e43c39b31038240b09dfd3bfc782c452648320",
+      "sourceRect": {
+        "x": 0,
+        "y": 295,
+        "width": 650,
+        "height": 255
+      },
+      "cropInCell": {
+        "left": 189,
+        "top": 18,
+        "width": 312,
+        "height": 225
+      },
+      "sourceCrop": {
+        "left": 189,
+        "top": 313,
+        "width": 312,
+        "height": 225
+      },
+      "width": 312,
+      "height": 225,
+      "alphaBounds": {
+        "x": 0,
+        "y": 0,
+        "width": 312,
+        "height": 225
+      },
+      "retainedPixels": 64138,
+      "alphaResidueRemoved": 2435,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "opaqueCellEdgePixels": 0,
+      "rgbChanges": 0,
+      "retainedAlphaChanges": 0,
+      "alpha": {
+        "zero": 6062,
+        "partial": 64005,
+        "opaque255": 133,
+        "maxAlpha": 255
+      },
+      "liveVerified": false,
+      "group": "storage-carts",
+      "retained": 64138
+    },
+    {
+      "id": "toolbox",
+      "view": "s",
+      "image": "toolbox.png",
+      "sourceWidth": 223,
+      "sourceHeight": 188,
+      "bounds": {
+        "x": 0,
+        "y": 1,
+        "width": 12,
+        "height": 10
+      },
+      "footprint": {
+        "w": 1,
+        "h": 1
+      },
+      "contact": {
+        "x": 0.5,
+        "y": 0.9840425531914894
+      },
+      "actualUniformFit": {
+        "width": 11.861702127659575,
+        "height": 10
+      },
+      "aspectRatioError": -0.011524822695035408,
+      "source": "docs/station-remaster/catalog-storage-rest-1/sheet-v2-source.png",
+      "sourceSha256": "d5757ff2bc97d7ed1e812d5344960a8d44f490882a0b238d173c1c8cfd88f30e",
+      "output": "frontend/assets/industrial/projection-correction/toolbox.png",
+      "outputSha256": "a72246746ae146ef74373148a8c61e80e4a098814ae3102262aeae4f6f7e3d6d",
+      "sourceRect": {
+        "x": 650,
+        "y": 295,
+        "width": 663,
+        "height": 255
+      },
+      "cropInCell": {
+        "left": 169,
+        "top": 50,
+        "width": 223,
+        "height": 188
+      },
+      "sourceCrop": {
+        "left": 819,
+        "top": 345,
+        "width": 223,
+        "height": 188
+      },
+      "width": 223,
+      "height": 188,
+      "alphaBounds": {
+        "x": 0,
+        "y": 0,
+        "width": 223,
+        "height": 188
+      },
+      "retainedPixels": 36869,
+      "alphaResidueRemoved": 1656,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "opaqueCellEdgePixels": 0,
+      "rgbChanges": 0,
+      "retainedAlphaChanges": 0,
+      "alpha": {
+        "zero": 5055,
+        "partial": 36697,
+        "opaque255": 172,
+        "maxAlpha": 255
+      },
+      "liveVerified": false,
+      "group": "storage-carts",
+      "retained": 36869
+    },
+    {
+      "id": "industrial_supplycart",
+      "view": "s",
+      "image": "industrial_supplycart.png",
+      "sourceWidth": 319,
+      "sourceHeight": 281,
+      "bounds": {
+        "x": 1,
+        "y": -11,
+        "width": 22,
+        "height": 23
+      },
+      "footprint": {
+        "w": 2,
+        "h": 1
+      },
+      "contact": {
+        "x": 0.5,
+        "y": 0.9893238434163701
+      },
+      "actualUniformFit": {
+        "width": 22,
+        "height": 19.379310344827587
+      },
+      "aspectRatioError": 0.18683274021352303,
+      "source": "docs/station-remaster/catalog-storage-rest-1/sheet-v2-source.png",
+      "sourceSha256": "d5757ff2bc97d7ed1e812d5344960a8d44f490882a0b238d173c1c8cfd88f30e",
+      "output": "frontend/assets/industrial/projection-correction/industrial_supplycart.png",
+      "outputSha256": "6a8ce03fab3f30500646a190490f4f13d8a60666f809d1489d757abcd57106f5",
+      "sourceRect": {
+        "x": 0,
+        "y": 550,
+        "width": 650,
+        "height": 287
+      },
+      "cropInCell": {
+        "left": 189,
+        "top": 6,
+        "width": 319,
+        "height": 281
+      },
+      "sourceCrop": {
+        "left": 189,
+        "top": 556,
+        "width": 319,
+        "height": 281
+      },
+      "width": 319,
+      "height": 281,
+      "alphaBounds": {
+        "x": 0,
+        "y": 0,
+        "width": 319,
+        "height": 281
+      },
+      "retainedPixels": 64741,
+      "alphaResidueRemoved": 2887,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "opaqueCellEdgePixels": 0,
+      "rgbChanges": 0,
+      "retainedAlphaChanges": 0,
+      "alpha": {
+        "zero": 24898,
+        "partial": 64527,
+        "opaque255": 214,
+        "maxAlpha": 255
+      },
+      "liveVerified": false,
+      "group": "storage-carts",
+      "retained": 64741
+    },
+    {
+      "id": "industrial_toolcaddy",
+      "view": "s",
+      "image": "industrial_toolcaddy.png",
+      "sourceWidth": 248,
+      "sourceHeight": 208,
+      "bounds": {
+        "x": 1,
+        "y": 2,
+        "width": 10,
+        "height": 10
+      },
+      "footprint": {
+        "w": 1,
+        "h": 1
+      },
+      "contact": {
+        "x": 0.5,
+        "y": 0.9855769230769231
+      },
+      "actualUniformFit": {
+        "width": 10,
+        "height": 8.387096774193548
+      },
+      "aspectRatioError": 0.1923076923076923,
+      "source": "docs/station-remaster/catalog-storage-rest-1/sheet-v2-source.png",
+      "sourceSha256": "d5757ff2bc97d7ed1e812d5344960a8d44f490882a0b238d173c1c8cfd88f30e",
+      "output": "frontend/assets/industrial/projection-correction/industrial_toolcaddy.png",
+      "outputSha256": "fcb4942d0b6f95d1efcab6c94232474381e458032d14edb29d89aebc088e065c",
+      "sourceRect": {
+        "x": 650,
+        "y": 550,
+        "width": 663,
+        "height": 287
+      },
+      "cropInCell": {
+        "left": 154,
+        "top": 62,
+        "width": 248,
+        "height": 208
+      },
+      "sourceCrop": {
+        "left": 804,
+        "top": 612,
+        "width": 248,
+        "height": 208
+      },
+      "width": 248,
+      "height": 208,
+      "alphaBounds": {
+        "x": 0,
+        "y": 0,
+        "width": 248,
+        "height": 208
+      },
+      "retainedPixels": 41284,
+      "alphaResidueRemoved": 2057,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "opaqueCellEdgePixels": 0,
+      "rgbChanges": 0,
+      "retainedAlphaChanges": 0,
+      "alpha": {
+        "zero": 10300,
+        "partial": 41000,
+        "opaque255": 284,
+        "maxAlpha": 255
+      },
+      "liveVerified": false,
+      "group": "storage-carts",
+      "retained": 41284
+    },
+    {
+      "id": "gigs_servercart",
+      "view": "s",
+      "image": "gigs_servercart.png",
+      "sourceWidth": 289,
+      "sourceHeight": 320,
+      "bounds": {
+        "x": 1,
+        "y": -6,
+        "width": 16,
+        "height": 18
+      },
+      "footprint": {
+        "w": 1,
+        "h": 1
+      },
+      "contact": {
+        "x": 0.5,
+        "y": 0.990625
+      },
+      "actualUniformFit": {
+        "width": 16,
+        "height": 17.716262975778548
+      },
+      "aspectRatioError": 0.01601562500000009,
+      "source": "docs/station-remaster/catalog-storage-rest-1/sheet-v2-source.png",
+      "sourceSha256": "d5757ff2bc97d7ed1e812d5344960a8d44f490882a0b238d173c1c8cfd88f30e",
+      "output": "frontend/assets/industrial/projection-correction/gigs_servercart.png",
+      "outputSha256": "dfce99ae9de1a6795e24514bcc6d35f2c009a4dba0e40c1af92e2b6e0a4c1211",
+      "sourceRect": {
+        "x": 0,
+        "y": 837,
+        "width": 650,
+        "height": 361
+      },
+      "cropInCell": {
+        "left": 184,
+        "top": 2,
+        "width": 289,
+        "height": 320
+      },
+      "sourceCrop": {
+        "left": 184,
+        "top": 839,
+        "width": 289,
+        "height": 320
+      },
+      "width": 289,
+      "height": 320,
+      "alphaBounds": {
+        "x": 0,
+        "y": 0,
+        "width": 289,
+        "height": 320
+      },
+      "retainedPixels": 73450,
+      "alphaResidueRemoved": 2774,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "opaqueCellEdgePixels": 0,
+      "rgbChanges": 0,
+      "retainedAlphaChanges": 0,
+      "alpha": {
+        "zero": 19030,
+        "partial": 73134,
+        "opaque255": 316,
+        "maxAlpha": 255
+      },
+      "liveVerified": false,
+      "group": "storage-carts",
+      "retained": 73450
+    },
+    {
+      "id": "vault",
+      "view": "s",
+      "image": "vault.png",
+      "sourceWidth": 459,
+      "sourceHeight": 259,
+      "bounds": {
+        "x": -3,
+        "y": -5,
+        "width": 44,
+        "height": 29
+      },
+      "footprint": {
+        "w": 3,
+        "h": 2
+      },
+      "contact": {
+        "x": 0.5,
+        "y": 0.9884169884169884
+      },
+      "actualUniformFit": {
+        "width": 44,
+        "height": 24.82788671023965
+      },
+      "aspectRatioError": 0.16804141804141803,
+      "source": "docs/station-remaster/catalog-storage-rest-1/sheet-v2-source.png",
+      "sourceSha256": "d5757ff2bc97d7ed1e812d5344960a8d44f490882a0b238d173c1c8cfd88f30e",
+      "output": "frontend/assets/industrial/projection-correction/vault.png",
+      "outputSha256": "c2a75370627461a72ce0c20427da75c85bd33a4710996c48180eb6b8362c5f9c",
+      "sourceRect": {
+        "x": 650,
+        "y": 837,
+        "width": 663,
+        "height": 361
+      },
+      "cropInCell": {
+        "left": 38,
+        "top": 40,
+        "width": 459,
+        "height": 259
+      },
+      "sourceCrop": {
+        "left": 688,
+        "top": 877,
+        "width": 459,
+        "height": 259
+      },
+      "width": 459,
+      "height": 259,
+      "alphaBounds": {
+        "x": 0,
+        "y": 0,
+        "width": 459,
+        "height": 259
+      },
+      "retainedPixels": 109125,
+      "alphaResidueRemoved": 3012,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "opaqueCellEdgePixels": 0,
+      "rgbChanges": 0,
+      "retainedAlphaChanges": 0,
+      "alpha": {
+        "zero": 9756,
+        "partial": 108992,
+        "opaque255": 133,
+        "maxAlpha": 255
+      },
+      "liveVerified": false,
+      "group": "storage-carts",
+      "retained": 109125
+    },
+    {
+      "id": "camerarig",
+      "view": "s",
+      "image": "camerarig.png",
+      "sourceWidth": 199,
+      "sourceHeight": 339,
+      "bounds": {
+        "x": -1,
+        "y": -6,
+        "width": 15,
+        "height": 29
+      },
+      "footprint": {
+        "w": 1,
+        "h": 2
+      },
+      "contact": {
+        "x": 0.5,
+        "y": 0.9941002949852508
+      },
+      "actualUniformFit": {
+        "width": 14.999999999999998,
+        "height": 25.552763819095475
+      },
+      "aspectRatioError": 0.13490658800393307,
+      "source": "docs/station-remaster/catalog-storage-rest-4/sheet-v1-source.png",
+      "sourceSha256": "a60937dec2b0e2376ceb5519bcc809ae37144fe6c53feb938e327118d0be29c1",
+      "output": "frontend/assets/industrial/projection-correction/camerarig.png",
+      "outputSha256": "2a82168f3e731b8735df347ca93bf43ecdf741b1589044f7cc2e253db64f4e9c",
+      "sourceRect": {
+        "x": 0,
+        "y": 0,
+        "width": 520,
+        "height": 380
+      },
+      "cropInCell": {
+        "left": 106,
+        "top": 20,
+        "width": 199,
+        "height": 339
+      },
+      "sourceCrop": {
+        "left": 106,
+        "top": 20,
+        "width": 199,
+        "height": 339
+      },
+      "width": 199,
+      "height": 339,
+      "alphaBounds": {
+        "x": 0,
+        "y": 0,
+        "width": 199,
+        "height": 339
+      },
+      "retainedPixels": 31719,
+      "alphaResidueRemoved": 4706,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "opaqueCellEdgePixels": 0,
+      "rgbChanges": 0,
+      "retainedAlphaChanges": 0,
+      "alpha": {
+        "zero": 35742,
+        "partial": 31568,
+        "opaque255": 151,
+        "maxAlpha": 255
+      },
+      "liveVerified": false,
+      "group": "cameras-work",
+      "retained": 31719
+    },
+    {
+      "id": "camerarig_r",
+      "view": "s",
+      "image": "camerarig_r.png",
+      "sourceWidth": 202,
+      "sourceHeight": 339,
+      "bounds": {
+        "x": -2,
+        "y": -6,
+        "width": 15,
+        "height": 29
+      },
+      "footprint": {
+        "w": 1,
+        "h": 2
+      },
+      "contact": {
+        "x": 0.5,
+        "y": 0.9941002949852508
+      },
+      "actualUniformFit": {
+        "width": 15,
+        "height": 25.173267326732674
+      },
+      "aspectRatioError": 0.15201573254670575,
+      "source": "docs/station-remaster/catalog-storage-rest-4/sheet-v1-source.png",
+      "sourceSha256": "a60937dec2b0e2376ceb5519bcc809ae37144fe6c53feb938e327118d0be29c1",
+      "output": "frontend/assets/industrial/projection-correction/camerarig_r.png",
+      "outputSha256": "7a4ef54b3086e3cc89f2b49b4a1cd37c399c50beee6c38cbedcc85156f480f37",
+      "sourceRect": {
+        "x": 520,
+        "y": 0,
+        "width": 563,
+        "height": 380
+      },
+      "cropInCell": {
+        "left": 254,
+        "top": 20,
+        "width": 202,
+        "height": 339
+      },
+      "sourceCrop": {
+        "left": 774,
+        "top": 20,
+        "width": 202,
+        "height": 339
+      },
+      "width": 202,
+      "height": 339,
+      "alphaBounds": {
+        "x": 0,
+        "y": 0,
+        "width": 202,
+        "height": 339
+      },
+      "retainedPixels": 31910,
+      "alphaResidueRemoved": 4349,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "opaqueCellEdgePixels": 0,
+      "rgbChanges": 0,
+      "retainedAlphaChanges": 0,
+      "alpha": {
+        "zero": 36568,
+        "partial": 31774,
+        "opaque255": 136,
+        "maxAlpha": 255
+      },
+      "liveVerified": false,
+      "group": "cameras-work",
+      "retained": 31910
+    },
+    {
+      "id": "gigs_amp",
+      "view": "s",
+      "image": "gigs_amp.png",
+      "sourceWidth": 225,
+      "sourceHeight": 281,
+      "bounds": {
+        "x": -1,
+        "y": -7,
+        "width": 16,
+        "height": 20
+      },
+      "footprint": {
+        "w": 1,
+        "h": 1
+      },
+      "contact": {
+        "x": 0.5,
+        "y": 0.9893238434163701
+      },
+      "actualUniformFit": {
+        "width": 16,
+        "height": 19.982222222222223
+      },
+      "aspectRatioError": 0.000889679715302405,
+      "source": "docs/station-remaster/catalog-storage-rest-4/sheet-v1-source.png",
+      "sourceSha256": "a60937dec2b0e2376ceb5519bcc809ae37144fe6c53feb938e327118d0be29c1",
+      "output": "frontend/assets/industrial/projection-correction/gigs_amp.png",
+      "outputSha256": "baf2548cd85928e71b57fc411ec3c746972e8c15c76ded29b020064a82e05a5b",
+      "sourceRect": {
+        "x": 0,
+        "y": 380,
+        "width": 480,
+        "height": 310
+      },
+      "cropInCell": {
+        "left": 84,
+        "top": 11,
+        "width": 225,
+        "height": 281
+      },
+      "sourceCrop": {
+        "left": 84,
+        "top": 391,
+        "width": 225,
+        "height": 281
+      },
+      "width": 225,
+      "height": 281,
+      "alphaBounds": {
+        "x": 0,
+        "y": 0,
+        "width": 225,
+        "height": 281
+      },
+      "retainedPixels": 55929,
+      "alphaResidueRemoved": 2236,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "opaqueCellEdgePixels": 0,
+      "rgbChanges": 0,
+      "retainedAlphaChanges": 0,
+      "alpha": {
+        "zero": 7296,
+        "partial": 55848,
+        "opaque255": 81,
+        "maxAlpha": 255
+      },
+      "liveVerified": false,
+      "group": "cameras-work",
+      "retained": 55929
+    },
+    {
+      "id": "industrial_partition",
+      "view": "s",
+      "image": "industrial_partition.png",
+      "sourceWidth": 529,
+      "sourceHeight": 286,
+      "bounds": {
+        "x": 0,
+        "y": -9,
+        "width": 36,
+        "height": 21
+      },
+      "footprint": {
+        "w": 3,
+        "h": 1
+      },
+      "contact": {
+        "x": 0.5,
+        "y": 0.9895104895104895
+      },
+      "actualUniformFit": {
+        "width": 36,
+        "height": 19.46313799621928
+      },
+      "aspectRatioError": 0.07896270396270388,
+      "source": "docs/station-remaster/catalog-storage-rest-4/sheet-v1-source.png",
+      "sourceSha256": "a60937dec2b0e2376ceb5519bcc809ae37144fe6c53feb938e327118d0be29c1",
+      "output": "frontend/assets/industrial/projection-correction/industrial_partition.png",
+      "outputSha256": "0324da4693382cef5699f7cf406240e89f33e935aff15b60448c0f4fc07b99d8",
+      "sourceRect": {
+        "x": 480,
+        "y": 380,
+        "width": 603,
+        "height": 310
+      },
+      "cropInCell": {
+        "left": 27,
+        "top": 6,
+        "width": 529,
+        "height": 286
+      },
+      "sourceCrop": {
+        "left": 507,
+        "top": 386,
+        "width": 529,
+        "height": 286
+      },
+      "width": 529,
+      "height": 286,
+      "alphaBounds": {
+        "x": 0,
+        "y": 0,
+        "width": 529,
+        "height": 286
+      },
+      "retainedPixels": 131835,
+      "alphaResidueRemoved": 2250,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "opaqueCellEdgePixels": 0,
+      "rgbChanges": 0,
+      "retainedAlphaChanges": 0,
+      "alpha": {
+        "zero": 19459,
+        "partial": 131383,
+        "opaque255": 452,
+        "maxAlpha": 255
+      },
+      "liveVerified": false,
+      "group": "cameras-work",
+      "retained": 131835
+    },
+    {
+      "id": "research_papers",
+      "view": "s",
+      "image": "research_papers.png",
+      "sourceWidth": 433,
+      "sourceHeight": 241,
+      "bounds": {
+        "x": 1,
+        "y": 1,
+        "width": 20,
+        "height": 10
+      },
+      "footprint": {
+        "w": 2,
+        "h": 1
+      },
+      "contact": {
+        "x": 0.5,
+        "y": 0.9875518672199171
+      },
+      "actualUniformFit": {
+        "width": 17.966804979253112,
+        "height": 10
+      },
+      "aspectRatioError": -0.10165975103734437,
+      "source": "docs/station-remaster/catalog-storage-rest-4/sheet-v1-source.png",
+      "sourceSha256": "a60937dec2b0e2376ceb5519bcc809ae37144fe6c53feb938e327118d0be29c1",
+      "output": "frontend/assets/industrial/projection-correction/research_papers.png",
+      "outputSha256": "6ad820ce2adeb21a10dd3dd6d5da83894b306f294b1ae9180600a2b4224485ea",
+      "sourceRect": {
+        "x": 0,
+        "y": 690,
+        "width": 520,
+        "height": 320
+      },
+      "cropInCell": {
+        "left": 44,
+        "top": 54,
+        "width": 433,
+        "height": 241
+      },
+      "sourceCrop": {
+        "left": 44,
+        "top": 744,
+        "width": 433,
+        "height": 241
+      },
+      "width": 433,
+      "height": 241,
+      "alphaBounds": {
+        "x": 0,
+        "y": 0,
+        "width": 433,
+        "height": 241
+      },
+      "retainedPixels": 88525,
+      "alphaResidueRemoved": 3541,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "opaqueCellEdgePixels": 0,
+      "rgbChanges": 0,
+      "retainedAlphaChanges": 0,
+      "alpha": {
+        "zero": 15828,
+        "partial": 88335,
+        "opaque255": 190,
+        "maxAlpha": 255
+      },
+      "liveVerified": false,
+      "group": "cameras-work",
+      "retained": 88525
+    },
+    {
+      "id": "screens",
+      "view": "s",
+      "image": "screens.png",
+      "sourceWidth": 343,
+      "sourceHeight": 306,
+      "bounds": {
+        "x": -1,
+        "y": -15,
+        "width": 26,
+        "height": 27
+      },
+      "footprint": {
+        "w": 2,
+        "h": 1
+      },
+      "contact": {
+        "x": 0.5,
+        "y": 0.9934640522875817
+      },
+      "actualUniformFit": {
+        "width": 26,
+        "height": 23.19533527696793
+      },
+      "aspectRatioError": 0.16402714932126705,
+      "source": "docs/station-remaster/catalog-storage-rest-4/sheet-v1-source.png",
+      "sourceSha256": "a60937dec2b0e2376ceb5519bcc809ae37144fe6c53feb938e327118d0be29c1",
+      "output": "frontend/assets/industrial/projection-correction/screens.png",
+      "outputSha256": "947c40d61bd83432f169bb9a5d73b586d034d80586ef5c3498aa49d0c4c74379",
+      "sourceRect": {
+        "x": 520,
+        "y": 690,
+        "width": 563,
+        "height": 320
+      },
+      "cropInCell": {
+        "left": 80,
+        "top": 5,
+        "width": 343,
+        "height": 306
+      },
+      "sourceCrop": {
+        "left": 600,
+        "top": 695,
+        "width": 343,
+        "height": 306
+      },
+      "width": 343,
+      "height": 306,
+      "alphaBounds": {
+        "x": 0,
+        "y": 0,
+        "width": 343,
+        "height": 306
+      },
+      "retainedPixels": 69139,
+      "alphaResidueRemoved": 5327,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "opaqueCellEdgePixels": 0,
+      "rgbChanges": 0,
+      "retainedAlphaChanges": 0,
+      "alpha": {
+        "zero": 35819,
+        "partial": 68906,
+        "opaque255": 233,
+        "maxAlpha": 255
+      },
+      "liveVerified": false,
+      "group": "cameras-work",
+      "retained": 69139
+    },
+    {
+      "id": "workbench",
+      "view": "s",
+      "image": "workbench.png",
+      "sourceWidth": 431,
+      "sourceHeight": 395,
+      "bounds": {
+        "x": -1,
+        "y": -15,
+        "width": 30,
+        "height": 27
+      },
+      "footprint": {
+        "w": 2,
+        "h": 1
+      },
+      "contact": {
+        "x": 0.5,
+        "y": 0.9924050632911392
+      },
+      "actualUniformFit": {
+        "width": 29.46075949367089,
+        "height": 27
+      },
+      "aspectRatioError": -0.01797468354430376,
+      "source": "docs/station-remaster/catalog-storage-rest-4/sheet-v1-source.png",
+      "sourceSha256": "a60937dec2b0e2376ceb5519bcc809ae37144fe6c53feb938e327118d0be29c1",
+      "output": "frontend/assets/industrial/projection-correction/workbench.png",
+      "outputSha256": "9f94ec6290bf4e12d98ec297a2767297d259a2744763d5c07490515eff394106",
+      "sourceRect": {
+        "x": 0,
+        "y": 1010,
+        "width": 530,
+        "height": 443
+      },
+      "cropInCell": {
+        "left": 50,
+        "top": 19,
+        "width": 431,
+        "height": 395
+      },
+      "sourceCrop": {
+        "left": 50,
+        "top": 1029,
+        "width": 431,
+        "height": 395
+      },
+      "width": 431,
+      "height": 395,
+      "alphaBounds": {
+        "x": 0,
+        "y": 0,
+        "width": 431,
+        "height": 395
+      },
+      "retainedPixels": 133273,
+      "alphaResidueRemoved": 3998,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "opaqueCellEdgePixels": 0,
+      "rgbChanges": 0,
+      "retainedAlphaChanges": 0,
+      "alpha": {
+        "zero": 36972,
+        "partial": 132861,
+        "opaque255": 412,
+        "maxAlpha": 255
+      },
+      "liveVerified": false,
+      "group": "cameras-work",
+      "retained": 133273
+    },
+    {
+      "id": "comms_inbox",
+      "view": "s",
+      "image": "comms_inbox.png",
+      "sourceWidth": 457,
+      "sourceHeight": 297,
+      "bounds": {
+        "x": -1,
+        "y": -8,
+        "width": 30,
+        "height": 20
+      },
+      "footprint": {
+        "w": 2,
+        "h": 1
+      },
+      "contact": {
+        "x": 0.5,
+        "y": 0.9865319865319865
+      },
+      "actualUniformFit": {
+        "width": 29.999999999999996,
+        "height": 19.49671772428884
+      },
+      "aspectRatioError": 0.02581369248035914,
+      "source": "docs/station-remaster/catalog-storage-rest-4/sheet-v1-source.png",
+      "sourceSha256": "a60937dec2b0e2376ceb5519bcc809ae37144fe6c53feb938e327118d0be29c1",
+      "output": "frontend/assets/industrial/projection-correction/comms_inbox.png",
+      "outputSha256": "1fe9b7c51de02628ee95da5ab3f89b6e225ad1249a321d3b3cef4844282e4560",
+      "sourceRect": {
+        "x": 530,
+        "y": 1010,
+        "width": 553,
+        "height": 443
+      },
+      "cropInCell": {
+        "left": 49,
+        "top": 109,
+        "width": 457,
+        "height": 297
+      },
+      "sourceCrop": {
+        "left": 579,
+        "top": 1119,
+        "width": 457,
+        "height": 297
+      },
+      "width": 457,
+      "height": 297,
+      "alphaBounds": {
+        "x": 0,
+        "y": 0,
+        "width": 457,
+        "height": 297
+      },
+      "retainedPixels": 109885,
+      "alphaResidueRemoved": 4650,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "opaqueCellEdgePixels": 0,
+      "rgbChanges": 0,
+      "retainedAlphaChanges": 0,
+      "alpha": {
+        "zero": 25844,
+        "partial": 109678,
+        "opaque255": 207,
+        "maxAlpha": 255
+      },
+      "liveVerified": false,
+      "group": "cameras-work",
+      "retained": 109885
+    },
+    {
+      "id": "calwall",
+      "view": "s",
+      "image": "calwall.png",
+      "sourceWidth": 737,
+      "sourceHeight": 205,
+      "bounds": {
+        "x": -1,
+        "y": -8,
+        "width": 74,
+        "height": 20
+      },
+      "footprint": {
+        "w": 6,
+        "h": 1
+      },
+      "contact": {
+        "x": 0.5,
+        "y": 0.9902439024390244
+      },
+      "actualUniformFit": {
+        "width": 71.90243902439025,
+        "height": 20
+      },
+      "aspectRatioError": -0.028345418589321048,
+      "source": "docs/station-remaster/catalog-storage-rest-2/sheet-v2-source.png",
+      "sourceSha256": "c9e0613ad8dba4058560b1fadd5f09c5351dc30adc50b4712fc3a435078588d8",
+      "output": "frontend/assets/industrial/projection-correction/calwall.png",
+      "outputSha256": "6fe303ec73c92c37d0536e606c1beb5b58386e283f6b5ebff585f1dbb548add6",
+      "sourceRect": {
+        "x": 0,
+        "y": 0,
+        "width": 860,
+        "height": 260
+      },
+      "cropInCell": {
+        "left": 80,
+        "top": 21,
+        "width": 737,
+        "height": 205
+      },
+      "sourceCrop": {
+        "left": 80,
+        "top": 21,
+        "width": 737,
+        "height": 205
+      },
+      "width": 737,
+      "height": 205,
+      "alphaBounds": {
+        "x": 0,
+        "y": 0,
+        "width": 737,
+        "height": 205
+      },
+      "retainedPixels": 122802,
+      "alphaResidueRemoved": 4935,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "opaqueCellEdgePixels": 0,
+      "rgbChanges": 0,
+      "retainedAlphaChanges": 0,
+      "alpha": {
+        "zero": 28283,
+        "partial": 122802,
+        "opaque255": 0,
+        "maxAlpha": 254
+      },
+      "liveVerified": false,
+      "group": "walls-displays",
+      "retained": 122802
+    },
+    {
+      "id": "chartwall",
+      "view": "s",
+      "image": "chartwall.png",
+      "sourceWidth": 477,
+      "sourceHeight": 232,
+      "bounds": {
+        "x": -1,
+        "y": -10,
+        "width": 38,
+        "height": 22
+      },
+      "footprint": {
+        "w": 3,
+        "h": 1
+      },
+      "contact": {
+        "x": 0.5,
+        "y": 0.9870689655172413
+      },
+      "actualUniformFit": {
+        "width": 38,
+        "height": 18.48218029350105
+      },
+      "aspectRatioError": 0.19033575317604345,
+      "source": "docs/station-remaster/catalog-storage-rest-2/sheet-v2-source.png",
+      "sourceSha256": "c9e0613ad8dba4058560b1fadd5f09c5351dc30adc50b4712fc3a435078588d8",
+      "output": "frontend/assets/industrial/projection-correction/chartwall.png",
+      "outputSha256": "d94810cd61bedf44aa0ce43a623dae2e9de1d9bda2e7280b32b028fb1b88e875",
+      "sourceRect": {
+        "x": 860,
+        "y": 0,
+        "width": 676,
+        "height": 260
+      },
+      "cropInCell": {
+        "left": 59,
+        "top": 21,
+        "width": 477,
+        "height": 232
+      },
+      "sourceCrop": {
+        "left": 919,
+        "top": 21,
+        "width": 477,
+        "height": 232
+      },
+      "width": 477,
+      "height": 232,
+      "alphaBounds": {
+        "x": 0,
+        "y": 0,
+        "width": 477,
+        "height": 232
+      },
+      "retainedPixels": 84275,
+      "alphaResidueRemoved": 3977,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "opaqueCellEdgePixels": 0,
+      "rgbChanges": 0,
+      "retainedAlphaChanges": 0,
+      "alpha": {
+        "zero": 26389,
+        "partial": 84275,
+        "opaque255": 0,
+        "maxAlpha": 254
+      },
+      "liveVerified": false,
+      "group": "walls-displays",
+      "retained": 84275
+    },
+    {
+      "id": "commswall",
+      "view": "s",
+      "image": "commswall.png",
+      "sourceWidth": 646,
+      "sourceHeight": 199,
+      "bounds": {
+        "x": -1,
+        "y": -13,
+        "width": 74,
+        "height": 23
+      },
+      "footprint": {
+        "w": 6,
+        "h": 1
+      },
+      "contact": {
+        "x": 0.5,
+        "y": 0.9849246231155779
+      },
+      "actualUniformFit": {
+        "width": 74,
+        "height": 22.795665634674922
+      },
+      "aspectRatioError": 0.008963737606953792,
+      "source": "docs/station-remaster/catalog-storage-rest-2/sheet-v2-source.png",
+      "sourceSha256": "c9e0613ad8dba4058560b1fadd5f09c5351dc30adc50b4712fc3a435078588d8",
+      "output": "frontend/assets/industrial/projection-correction/commswall.png",
+      "outputSha256": "7bd497dbbe11b41f66074a45d0b86005963f0b0acd6cef322893d20b3d8455e3",
+      "sourceRect": {
+        "x": 0,
+        "y": 260,
+        "width": 880,
+        "height": 226
+      },
+      "cropInCell": {
+        "left": 126,
+        "top": 10,
+        "width": 646,
+        "height": 199
+      },
+      "sourceCrop": {
+        "left": 126,
+        "top": 270,
+        "width": 646,
+        "height": 199
+      },
+      "width": 646,
+      "height": 199,
+      "alphaBounds": {
+        "x": 0,
+        "y": 0,
+        "width": 646,
+        "height": 199
+      },
+      "retainedPixels": 115078,
+      "alphaResidueRemoved": 3838,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "opaqueCellEdgePixels": 0,
+      "rgbChanges": 0,
+      "retainedAlphaChanges": 0,
+      "alpha": {
+        "zero": 13476,
+        "partial": 115078,
+        "opaque255": 0,
+        "maxAlpha": 254
+      },
+      "liveVerified": false,
+      "group": "walls-displays",
+      "retained": 115078
+    },
+    {
+      "id": "gigs_thumbwall",
+      "view": "s",
+      "image": "gigs_thumbwall.png",
+      "sourceWidth": 372,
+      "sourceHeight": 222,
+      "bounds": {
+        "x": -1,
+        "y": -6,
+        "width": 26,
+        "height": 18
+      },
+      "footprint": {
+        "w": 2,
+        "h": 1
+      },
+      "contact": {
+        "x": 0.5,
+        "y": 0.9864864864864865
+      },
+      "actualUniformFit": {
+        "width": 25.999999999999996,
+        "height": 15.516129032258062
+      },
+      "aspectRatioError": 0.16008316008316004,
+      "source": "docs/station-remaster/catalog-storage-rest-2/sheet-v2-source.png",
+      "sourceSha256": "c9e0613ad8dba4058560b1fadd5f09c5351dc30adc50b4712fc3a435078588d8",
+      "output": "frontend/assets/industrial/projection-correction/gigs_thumbwall.png",
+      "outputSha256": "ddafabbffd8a547588ef20cb87c59ec711c90e9dd1417428f5f41f882b844c35",
+      "sourceRect": {
+        "x": 880,
+        "y": 260,
+        "width": 656,
+        "height": 226
+      },
+      "cropInCell": {
+        "left": 90,
+        "top": 3,
+        "width": 372,
+        "height": 222
+      },
+      "sourceCrop": {
+        "left": 970,
+        "top": 263,
+        "width": 372,
+        "height": 222
+      },
+      "width": 372,
+      "height": 222,
+      "alphaBounds": {
+        "x": 0,
+        "y": 0,
+        "width": 372,
+        "height": 222
+      },
+      "retainedPixels": 74624,
+      "alphaResidueRemoved": 2140,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "opaqueCellEdgePixels": 0,
+      "rgbChanges": 0,
+      "retainedAlphaChanges": 0,
+      "alpha": {
+        "zero": 7960,
+        "partial": 74624,
+        "opaque255": 0,
+        "maxAlpha": 254
+      },
+      "liveVerified": false,
+      "group": "walls-displays",
+      "retained": 74624
+    },
+    {
+      "id": "industrial_wallpanel",
+      "view": "s",
+      "image": "industrial_wallpanel.png",
+      "sourceWidth": 294,
+      "sourceHeight": 252,
+      "bounds": {
+        "x": 0,
+        "y": -13,
+        "width": 24,
+        "height": 23
+      },
+      "footprint": {
+        "w": 2,
+        "h": 1
+      },
+      "contact": {
+        "x": 0.5,
+        "y": 0.9880952380952381
+      },
+      "actualUniformFit": {
+        "width": 23.999999999999996,
+        "height": 20.57142857142857
+      },
+      "aspectRatioError": 0.11805555555555558,
+      "source": "docs/station-remaster/catalog-storage-rest-2/sheet-v2-source.png",
+      "sourceSha256": "c9e0613ad8dba4058560b1fadd5f09c5351dc30adc50b4712fc3a435078588d8",
+      "output": "frontend/assets/industrial/projection-correction/industrial_wallpanel.png",
+      "outputSha256": "54ed31b46af45244c3421df9d0b948c2c392c935cda2c44af6462ce3c1010e1c",
+      "sourceRect": {
+        "x": 0,
+        "y": 486,
+        "width": 800,
+        "height": 252
+      },
+      "cropInCell": {
+        "left": 268,
+        "top": 0,
+        "width": 294,
+        "height": 252
+      },
+      "sourceCrop": {
+        "left": 268,
+        "top": 486,
+        "width": 294,
+        "height": 252
+      },
+      "width": 294,
+      "height": 252,
+      "alphaBounds": {
+        "x": 0,
+        "y": 0,
+        "width": 294,
+        "height": 252
+      },
+      "retainedPixels": 69101,
+      "alphaResidueRemoved": 1960,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "opaqueCellEdgePixels": 0,
+      "rgbChanges": 0,
+      "retainedAlphaChanges": 0,
+      "alpha": {
+        "zero": 4987,
+        "partial": 69101,
+        "opaque255": 0,
+        "maxAlpha": 254
+      },
+      "liveVerified": false,
+      "group": "walls-displays",
+      "retained": 69101
+    },
+    {
+      "id": "missionboard",
+      "view": "s",
+      "image": "missionboard.png",
+      "sourceWidth": 393,
+      "sourceHeight": 229,
+      "bounds": {
+        "x": -1,
+        "y": -13,
+        "width": 38,
+        "height": 25
+      },
+      "footprint": {
+        "w": 3,
+        "h": 1
+      },
+      "contact": {
+        "x": 0.5,
+        "y": 0.9868995633187773
+      },
+      "actualUniformFit": {
+        "width": 38,
+        "height": 22.142493638676847
+      },
+      "aspectRatioError": 0.1290507929211675,
+      "source": "docs/station-remaster/catalog-storage-rest-2/sheet-v2-source.png",
+      "sourceSha256": "c9e0613ad8dba4058560b1fadd5f09c5351dc30adc50b4712fc3a435078588d8",
+      "output": "frontend/assets/industrial/projection-correction/missionboard.png",
+      "outputSha256": "23666085cfe75c12762b0c316ff368b3270d8cbcb3a69b0501b45e6851d427a0",
+      "sourceRect": {
+        "x": 800,
+        "y": 486,
+        "width": 736,
+        "height": 252
+      },
+      "cropInCell": {
+        "left": 159,
+        "top": 17,
+        "width": 393,
+        "height": 229
+      },
+      "sourceCrop": {
+        "left": 959,
+        "top": 503,
+        "width": 393,
+        "height": 229
+      },
+      "width": 393,
+      "height": 229,
+      "alphaBounds": {
+        "x": 0,
+        "y": 0,
+        "width": 393,
+        "height": 229
+      },
+      "retainedPixels": 81886,
+      "alphaResidueRemoved": 3311,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "opaqueCellEdgePixels": 0,
+      "rgbChanges": 0,
+      "retainedAlphaChanges": 0,
+      "alpha": {
+        "zero": 8111,
+        "partial": 81886,
+        "opaque255": 0,
+        "maxAlpha": 254
+      },
+      "liveVerified": false,
+      "group": "walls-displays",
+      "retained": 81886
+    },
+    {
+      "id": "whiteboard",
+      "view": "s",
+      "image": "whiteboard.png",
+      "sourceWidth": 555,
+      "sourceHeight": 247,
+      "bounds": {
+        "x": -1,
+        "y": -11,
+        "width": 50,
+        "height": 23
+      },
+      "footprint": {
+        "w": 4,
+        "h": 1
+      },
+      "contact": {
+        "x": 0.5,
+        "y": 0.9878542510121457
+      },
+      "actualUniformFit": {
+        "width": 50,
+        "height": 22.25225225225225
+      },
+      "aspectRatioError": 0.033603238866396934,
+      "source": "docs/station-remaster/catalog-storage-rest-2/sheet-v2-source.png",
+      "sourceSha256": "c9e0613ad8dba4058560b1fadd5f09c5351dc30adc50b4712fc3a435078588d8",
+      "output": "frontend/assets/industrial/projection-correction/whiteboard.png",
+      "outputSha256": "6d3426755f8b2677f11f2dc9d0370a4e09c0f9bb9b7cbe2e70bb8107609e55cb",
+      "sourceRect": {
+        "x": 0,
+        "y": 738,
+        "width": 780,
+        "height": 286
+      },
+      "cropInCell": {
+        "left": 131,
+        "top": 0,
+        "width": 555,
+        "height": 247
+      },
+      "sourceCrop": {
+        "left": 131,
+        "top": 738,
+        "width": 555,
+        "height": 247
+      },
+      "width": 555,
+      "height": 247,
+      "alphaBounds": {
+        "x": 0,
+        "y": 0,
+        "width": 555,
+        "height": 247
+      },
+      "retainedPixels": 109095,
+      "alphaResidueRemoved": 4378,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "opaqueCellEdgePixels": 0,
+      "rgbChanges": 0,
+      "retainedAlphaChanges": 0,
+      "alpha": {
+        "zero": 27990,
+        "partial": 109095,
+        "opaque255": 0,
+        "maxAlpha": 254
+      },
+      "liveVerified": false,
+      "group": "walls-displays",
+      "retained": 109095
+    },
+    {
+      "id": "ticker",
+      "view": "s",
+      "image": "ticker.png",
+      "sourceWidth": 477,
+      "sourceHeight": 214,
+      "bounds": {
+        "x": -1,
+        "y": -8,
+        "width": 50,
+        "height": 20
+      },
+      "footprint": {
+        "w": 4,
+        "h": 1
+      },
+      "contact": {
+        "x": 0.5,
+        "y": 0.985981308411215
+      },
+      "actualUniformFit": {
+        "width": 44.57943925233645,
+        "height": 20
+      },
+      "aspectRatioError": -0.1084112149532711,
+      "source": "docs/station-remaster/catalog-storage-rest-2/sheet-v2-source.png",
+      "sourceSha256": "c9e0613ad8dba4058560b1fadd5f09c5351dc30adc50b4712fc3a435078588d8",
+      "output": "frontend/assets/industrial/projection-correction/ticker.png",
+      "outputSha256": "1fb0766c906e51e6df52e6e08df8525fb74fa58830cba1f8a25fce9fc4a1a826",
+      "sourceRect": {
+        "x": 780,
+        "y": 738,
+        "width": 756,
+        "height": 286
+      },
+      "cropInCell": {
+        "left": 137,
+        "top": 17,
+        "width": 477,
+        "height": 214
+      },
+      "sourceCrop": {
+        "left": 917,
+        "top": 755,
+        "width": 477,
+        "height": 214
+      },
+      "width": 477,
+      "height": 214,
+      "alphaBounds": {
+        "x": 0,
+        "y": 0,
+        "width": 477,
+        "height": 214
+      },
+      "retainedPixels": 73141,
+      "alphaResidueRemoved": 2607,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "opaqueCellEdgePixels": 0,
+      "rgbChanges": 0,
+      "retainedAlphaChanges": 0,
+      "alpha": {
+        "zero": 28937,
+        "partial": 73141,
+        "opaque255": 0,
+        "maxAlpha": 254
+      },
+      "liveVerified": false,
+      "group": "walls-displays",
+      "retained": 73141
+    },
+    {
+      "id": "bookstack",
+      "view": "s",
+      "image": "frontend/assets/industrial/catalog-crew-rest-3/bookstack.png",
+      "sourceWidth": 298,
+      "sourceHeight": 260,
+      "bounds": {
+        "x": 0,
+        "y": 0,
+        "width": 12,
+        "height": 10
+      },
+      "footprint": {
+        "w": 1,
+        "h": 1
+      },
+      "contact": {
+        "x": 0.5,
+        "y": 0.9903846153846154
+      },
+      "fit": {
+        "x": 0.26923076923076916,
+        "y": 0,
+        "width": 11.461538461538462,
+        "height": 10
+      },
+      "underfill": {
+        "x": 0.9551282051282052,
+        "y": 1
+      },
+      "source": "docs\\station-remaster\\catalog-crew-rest-3\\sources\\sheet.png",
+      "sourceSha256": "b9da8ce5f21c3154583bb6bde480fdcb443501d85ba000a37d8e9ba9e25788b5",
+      "sourceCrop": {
+        "left": 43,
+        "top": 162,
+        "width": 298,
+        "height": 260
+      },
+      "outputSha256": "4bd337b6527a80c7620aee89d2ba85f1655d4c3f13d8816b3f6607bbf6a56bdf",
+      "alphaBounds": {
+        "x": 0,
+        "y": 0,
+        "width": 298,
+        "height": 260
+      },
+      "alphaCounts": {
+        "transparent": 8048,
+        "partial": 69432,
+        "opaque": 0
+      },
+      "maxSourceAlpha": 254,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "removedFogPixels": 1995,
+      "retainedRgbChanges": 0,
+      "retainedAlphaChanges": 0,
+      "opaqueCellEdgePixels": 0,
+      "liveAccepted": false,
+      "group": "accessories",
+      "output": "frontend/assets/industrial/projection-correction/bookstack.png",
+      "retained": 69432
+    },
+    {
+      "id": "desklamp",
+      "view": "s",
+      "image": "frontend/assets/industrial/catalog-crew-rest-3/desklamp.png",
+      "sourceWidth": 363,
+      "sourceHeight": 252,
+      "bounds": {
+        "x": 0,
+        "y": 3,
+        "width": 12,
+        "height": 9
+      },
+      "footprint": {
+        "w": 1,
+        "h": 1
+      },
+      "contact": {
+        "x": 0.5,
+        "y": 0.9861111111111112
+      },
+      "fit": {
+        "x": 0,
+        "y": 3.669421487603305,
+        "width": 12,
+        "height": 8.330578512396695
+      },
+      "underfill": {
+        "x": 1,
+        "y": 0.9256198347107438
+      },
+      "source": "docs\\station-remaster\\catalog-crew-rest-3\\sources\\sheet.png",
+      "sourceSha256": "b9da8ce5f21c3154583bb6bde480fdcb443501d85ba000a37d8e9ba9e25788b5",
+      "sourceCrop": {
+        "left": 376,
+        "top": 167,
+        "width": 363,
+        "height": 252
+      },
+      "outputSha256": "d62f1900df46894b83010197e4d3e7cfa76f238fce0ca4a2d35af4df2d5eb3db",
+      "alphaBounds": {
+        "x": 0,
+        "y": 0,
+        "width": 363,
+        "height": 252
+      },
+      "alphaCounts": {
+        "transparent": 37768,
+        "partial": 53708,
+        "opaque": 0
+      },
+      "maxSourceAlpha": 254,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "removedFogPixels": 2302,
+      "retainedRgbChanges": 0,
+      "retainedAlphaChanges": 0,
+      "opaqueCellEdgePixels": 0,
+      "liveAccepted": false,
+      "group": "accessories",
+      "output": "frontend/assets/industrial/projection-correction/desklamp.png",
+      "retained": 53708
+    },
+    {
+      "id": "figurine",
+      "view": "s",
+      "image": "frontend/assets/industrial/catalog-crew-rest-3/figurine.png",
+      "sourceWidth": 231,
+      "sourceHeight": 277,
+      "bounds": {
+        "x": 1,
+        "y": 1,
+        "width": 10,
+        "height": 11
+      },
+      "footprint": {
+        "w": 1,
+        "h": 1
+      },
+      "contact": {
+        "x": 0.5,
+        "y": 0.9873646209386282
+      },
+      "fit": {
+        "x": 1.4133574007220213,
+        "y": 1,
+        "width": 9.173285198555957,
+        "height": 11
+      },
+      "underfill": {
+        "x": 0.9173285198555957,
+        "y": 1
+      },
+      "source": "docs\\station-remaster\\catalog-crew-rest-3\\sources\\sheet.png",
+      "sourceSha256": "b9da8ce5f21c3154583bb6bde480fdcb443501d85ba000a37d8e9ba9e25788b5",
+      "sourceCrop": {
+        "left": 807,
+        "top": 145,
+        "width": 231,
+        "height": 277
+      },
+      "outputSha256": "e69a5da955ddfc32793411f3532f71d70a6fda6487efb3eacc63e54a170e29fc",
+      "alphaBounds": {
+        "x": 0,
+        "y": 0,
+        "width": 231,
+        "height": 277
+      },
+      "alphaCounts": {
+        "transparent": 15914,
+        "partial": 48073,
+        "opaque": 0
+      },
+      "maxSourceAlpha": 254,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "removedFogPixels": 1545,
+      "retainedRgbChanges": 0,
+      "retainedAlphaChanges": 0,
+      "opaqueCellEdgePixels": 0,
+      "liveAccepted": false,
+      "group": "accessories",
+      "output": "frontend/assets/industrial/projection-correction/figurine.png",
+      "retained": 48073
+    },
+    {
+      "id": "modelship",
+      "view": "s",
+      "image": "frontend/assets/industrial/catalog-crew-rest-3/modelship.png",
+      "sourceWidth": 447,
+      "sourceHeight": 225,
+      "bounds": {
+        "x": 2,
+        "y": 1,
+        "width": 20,
+        "height": 11
+      },
+      "footprint": {
+        "w": 2,
+        "h": 1
+      },
+      "contact": {
+        "x": 0.5,
+        "y": 0.9844444444444445
+      },
+      "fit": {
+        "x": 2,
+        "y": 1.9328859060402674,
+        "width": 20,
+        "height": 10.067114093959733
+      },
+      "underfill": {
+        "x": 1,
+        "y": 0.9151921903599757
+      },
+      "source": "docs\\station-remaster\\catalog-crew-rest-3\\sources\\sheet.png",
+      "sourceSha256": "b9da8ce5f21c3154583bb6bde480fdcb443501d85ba000a37d8e9ba9e25788b5",
+      "sourceCrop": {
+        "left": 1072,
+        "top": 191,
+        "width": 447,
+        "height": 225
+      },
+      "outputSha256": "b58b1ec847aa770718dcc3fe387fd7764a343a3ef30398fbe67335fd9e510421",
+      "alphaBounds": {
+        "x": 0,
+        "y": 0,
+        "width": 447,
+        "height": 225
+      },
+      "alphaCounts": {
+        "transparent": 36849,
+        "partial": 63726,
+        "opaque": 0
+      },
+      "maxSourceAlpha": 254,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "removedFogPixels": 2448,
+      "retainedRgbChanges": 0,
+      "retainedAlphaChanges": 0,
+      "opaqueCellEdgePixels": 0,
+      "liveAccepted": false,
+      "group": "accessories",
+      "output": "frontend/assets/industrial/projection-correction/modelship.png",
+      "retained": 63726
+    },
+    {
+      "id": "mug",
+      "view": "s",
+      "image": "frontend/assets/industrial/catalog-crew-rest-3/mug.png",
+      "sourceWidth": 571,
+      "sourceHeight": 520,
+      "bounds": {
+        "x": 1,
+        "y": 2,
+        "width": 10,
+        "height": 9
+      },
+      "footprint": {
+        "w": 1,
+        "h": 1
+      },
+      "contact": {
+        "x": 0.5,
+        "y": 0.9932692307692308
+      },
+      "fit": {
+        "x": 1.0586538461538462,
+        "y": 2,
+        "width": 9.882692307692308,
+        "height": 9
+      },
+      "underfill": {
+        "x": 0.9882692307692308,
+        "y": 1
+      },
+      "source": "docs\\station-remaster\\catalog-crew-rest-3\\sources\\repair.png",
+      "sourceSha256": "c3922dcc4f4efed0384e92958289f8055c1dde97653512f8658090e6f34fddad",
+      "sourceCrop": {
+        "left": 39,
+        "top": 173,
+        "width": 571,
+        "height": 520
+      },
+      "outputSha256": "cc9bfb852adf47e8af6192de7b61f9c91ef731ec22aaac1d6708bc56fab40b2c",
+      "alphaBounds": {
+        "x": 0,
+        "y": 0,
+        "width": 571,
+        "height": 520
+      },
+      "alphaCounts": {
+        "transparent": 72977,
+        "partial": 223187,
+        "opaque": 756
+      },
+      "maxSourceAlpha": 255,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "removedFogPixels": 1816,
+      "retainedRgbChanges": 0,
+      "retainedAlphaChanges": 0,
+      "opaqueCellEdgePixels": 0,
+      "liveAccepted": false,
+      "group": "accessories",
+      "output": "frontend/assets/industrial/projection-correction/mug.png",
+      "retained": 223943
+    },
+    {
+      "id": "radio",
+      "view": "s",
+      "image": "frontend/assets/industrial/catalog-crew-rest-3/radio.png",
+      "sourceWidth": 668,
+      "sourceHeight": 547,
+      "bounds": {
+        "x": 1,
+        "y": 3,
+        "width": 10,
+        "height": 9
+      },
+      "footprint": {
+        "w": 1,
+        "h": 1
+      },
+      "contact": {
+        "x": 0.5,
+        "y": 0.993601462522852
+      },
+      "fit": {
+        "x": 1,
+        "y": 3.8113772455089823,
+        "width": 10,
+        "height": 8.188622754491018
+      },
+      "underfill": {
+        "x": 1,
+        "y": 0.9098469727212242
+      },
+      "source": "docs\\station-remaster\\catalog-crew-rest-3\\sources\\repair.png",
+      "sourceSha256": "c3922dcc4f4efed0384e92958289f8055c1dde97653512f8658090e6f34fddad",
+      "sourceCrop": {
+        "left": 641,
+        "top": 127,
+        "width": 668,
+        "height": 547
+      },
+      "outputSha256": "a8cc8751808dc052f023c4a97bdcf5588e94d66a3888a4a83f24e2098f4f5c35",
+      "alphaBounds": {
+        "x": 0,
+        "y": 0,
+        "width": 668,
+        "height": 547
+      },
+      "alphaCounts": {
+        "transparent": 26756,
+        "partial": 337114,
+        "opaque": 1526
+      },
+      "maxSourceAlpha": 255,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "removedFogPixels": 2768,
+      "retainedRgbChanges": 0,
+      "retainedAlphaChanges": 0,
+      "opaqueCellEdgePixels": 0,
+      "liveAccepted": false,
+      "group": "accessories",
+      "output": "frontend/assets/industrial/projection-correction/radio.png",
+      "retained": 338640
+    },
+    {
+      "id": "guitar",
+      "view": "s",
+      "image": "frontend/assets/industrial/catalog-crew-rest-3/guitar.png",
+      "sourceWidth": 218,
+      "sourceHeight": 444,
+      "bounds": {
+        "x": -1,
+        "y": -15,
+        "width": 14,
+        "height": 27
+      },
+      "footprint": {
+        "w": 1,
+        "h": 1
+      },
+      "contact": {
+        "x": 0.5,
+        "y": 0.9921171171171171
+      },
+      "fit": {
+        "x": -0.628378378378379,
+        "y": -15,
+        "width": 13.256756756756758,
+        "height": 27
+      },
+      "underfill": {
+        "x": 0.946911196911197,
+        "y": 1
+      },
+      "source": "docs\\station-remaster\\catalog-crew-rest-3\\sources\\sheet.png",
+      "sourceSha256": "b9da8ce5f21c3154583bb6bde480fdcb443501d85ba000a37d8e9ba9e25788b5",
+      "sourceCrop": {
+        "left": 832,
+        "top": 473,
+        "width": 218,
+        "height": 444
+      },
+      "outputSha256": "ea691650d04e6f82593a82fc4c39fad0269b190e9bda46424b8020e0d377d625",
+      "alphaBounds": {
+        "x": 0,
+        "y": 0,
+        "width": 218,
+        "height": 444
+      },
+      "alphaCounts": {
+        "transparent": 50988,
+        "partial": 45804,
+        "opaque": 0
+      },
+      "maxSourceAlpha": 254,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "removedFogPixels": 2487,
+      "retainedRgbChanges": 0,
+      "retainedAlphaChanges": 0,
+      "opaqueCellEdgePixels": 0,
+      "liveAccepted": false,
+      "group": "accessories",
+      "output": "frontend/assets/industrial/projection-correction/guitar.png",
+      "retained": 45804
+    },
+    {
+      "id": "easel",
+      "view": "s",
+      "image": "frontend/assets/industrial/catalog-crew-rest-3/easel.png",
+      "sourceWidth": 649,
+      "sourceHeight": 748,
+      "bounds": {
+        "x": 1,
+        "y": -14,
+        "width": 34,
+        "height": 38
+      },
+      "footprint": {
+        "w": 3,
+        "h": 2
+      },
+      "contact": {
+        "x": 0.5,
+        "y": 0.9953208556149733
+      },
+      "fit": {
+        "x": 1.514705882352942,
+        "y": -14,
+        "width": 32.970588235294116,
+        "height": 38
+      },
+      "underfill": {
+        "x": 0.9697231833910034,
+        "y": 1
+      },
+      "source": "docs\\station-remaster\\catalog-crew-rest-3\\sources\\repair.png",
+      "sourceSha256": "c3922dcc4f4efed0384e92958289f8055c1dde97653512f8658090e6f34fddad",
+      "sourceCrop": {
+        "left": 1346,
+        "top": 13,
+        "width": 649,
+        "height": 748
+      },
+      "outputSha256": "b333e5a51b9b501eaed5a0ebf8bce0bec111035e6aa5489aef3578583c781906",
+      "alphaBounds": {
+        "x": 0,
+        "y": 0,
+        "width": 649,
+        "height": 748
+      },
+      "alphaCounts": {
+        "transparent": 147221,
+        "partial": 337244,
+        "opaque": 987
+      },
+      "maxSourceAlpha": 255,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "removedFogPixels": 3497,
+      "retainedRgbChanges": 0,
+      "retainedAlphaChanges": 0,
+      "opaqueCellEdgePixels": 0,
+      "liveAccepted": false,
+      "group": "accessories",
+      "output": "frontend/assets/industrial/projection-correction/easel.png",
+      "retained": 338231
+    },
+    {
+      "id": "treasury_coinsorter",
+      "view": "s",
+      "image": "treasury_coinsorter.png",
+      "repoPath": "frontend/assets/industrial/catalog-utility-rest-4/treasury_coinsorter.png",
+      "sourceWidth": 578,
+      "sourceHeight": 317,
+      "footprint": {
+        "w": 2,
+        "h": 1
+      },
+      "bounds": {
+        "x": -1,
+        "y": -3,
+        "width": 26,
+        "height": 15
+      },
+      "contact": {
+        "x": 0.5,
+        "y": 0.9936908517350158
+      },
+      "mode": "approved",
+      "effects": false,
+      "source": "docs/station-remaster/catalog-utility-rest-4/sheet-source.png",
+      "sourceSha256": "5cde18178c6617c7b23d71d0c5bda8793ed67534f202a31dca3aed140760db71",
+      "outputSha256": "c85789cddb9fff30c368d13a8c90f00ccb565a9b1be32f9eadc0793514b3ebb0",
+      "sourceROI": {
+        "left": 40,
+        "top": 125,
+        "width": 610,
+        "height": 360
+      },
+      "sourceCrop": {
+        "left": 58,
+        "top": 144,
+        "width": 578,
+        "height": 317
+      },
+      "actualFit": {
+        "x": -1,
+        "y": -2.16955,
+        "width": 26,
+        "height": 14.259516
+      },
+      "verification": {
+        "transparent": 21364,
+        "retained": 161862,
+        "removedAlpha": 3050,
+        "retainedRGBAMismatches": 0,
+        "allRGBMismatches": 0,
+        "widthFraction": 1
+      },
+      "status": "source and game-scale candidate reviewed; not live integrated; image-specific effect regions need remapping",
+      "group": "treasury-war",
+      "output": "frontend/assets/industrial/projection-correction/treasury_coinsorter.png",
+      "retained": 161862
+    },
+    {
+      "id": "treasury_pnl_holo",
+      "view": "s",
+      "image": "treasury_pnl_holo.png",
+      "repoPath": "frontend/assets/industrial/catalog-utility-rest-4/treasury_pnl_holo.png",
+      "sourceWidth": 322,
+      "sourceHeight": 174,
+      "footprint": {
+        "w": 1,
+        "h": 1
+      },
+      "bounds": {
+        "x": 1,
+        "y": 5,
+        "width": 10,
+        "height": 5
+      },
+      "contact": {
+        "x": 0.5,
+        "y": 0.9885057471264368
+      },
+      "mode": "approved",
+      "effects": false,
+      "source": "docs/station-remaster/catalog-utility-rest-4/sheet-source.png",
+      "sourceSha256": "5cde18178c6617c7b23d71d0c5bda8793ed67534f202a31dca3aed140760db71",
+      "outputSha256": "1dd220465ca88fc60181a40cc5b58080f8c9ab701f790006565884f807bfe203",
+      "sourceROI": {
+        "left": 750,
+        "top": 270,
+        "width": 365,
+        "height": 210
+      },
+      "sourceCrop": {
+        "left": 774,
+        "top": 288,
+        "width": 322,
+        "height": 174
+      },
+      "actualFit": {
+        "x": 1.373563,
+        "y": 5.057471,
+        "width": 9.252874,
+        "height": 5
+      },
+      "verification": {
+        "transparent": 8605,
+        "retained": 47423,
+        "removedAlpha": 1342,
+        "retainedRGBAMismatches": 0,
+        "allRGBMismatches": 0,
+        "widthFraction": 0.925287
+      },
+      "status": "source and game-scale candidate reviewed; not live integrated; image-specific effect regions need remapping",
+      "group": "treasury-war",
+      "output": "frontend/assets/industrial/projection-correction/treasury_pnl_holo.png",
+      "retained": 47423
+    },
+    {
+      "id": "treasury_token_furnace",
+      "view": "s",
+      "image": "treasury_token_furnace.png",
+      "repoPath": "frontend/assets/industrial/catalog-utility-rest-4/treasury_token_furnace.png",
+      "sourceWidth": 197,
+      "sourceHeight": 437,
+      "footprint": {
+        "w": 1,
+        "h": 2
+      },
+      "bounds": {
+        "x": -1,
+        "y": -7,
+        "width": 14,
+        "height": 31
+      },
+      "contact": {
+        "x": 0.5,
+        "y": 0.9931350114416476
+      },
+      "mode": "approved",
+      "effects": false,
+      "source": "docs/station-remaster/catalog-utility-rest-4/sheet-source.png",
+      "sourceSha256": "5cde18178c6617c7b23d71d0c5bda8793ed67534f202a31dca3aed140760db71",
+      "outputSha256": "5160109986c8bb3643a2d370a4424974228223a55f49ab85238086c4d65a1c30",
+      "sourceROI": {
+        "left": 1235,
+        "top": 30,
+        "width": 240,
+        "height": 465
+      },
+      "sourceCrop": {
+        "left": 1256,
+        "top": 50,
+        "width": 197,
+        "height": 437
+      },
+      "actualFit": {
+        "x": -0.987414,
+        "y": -6.787185,
+        "width": 13.974828,
+        "height": 31
+      },
+      "verification": {
+        "transparent": 16924,
+        "retained": 69165,
+        "removedAlpha": 1750,
+        "retainedRGBAMismatches": 0,
+        "allRGBMismatches": 0,
+        "widthFraction": 0.998202
+      },
+      "status": "source and game-scale candidate reviewed; not live integrated; image-specific effect regions need remapping",
+      "group": "treasury-war",
+      "output": "frontend/assets/industrial/projection-correction/treasury_token_furnace.png",
+      "retained": 69165
+    },
+    {
+      "id": "war_pivotpanel",
+      "view": "s",
+      "image": "war_pivotpanel.png",
+      "repoPath": "frontend/assets/industrial/catalog-utility-rest-4/war_pivotpanel.png",
+      "sourceWidth": 509,
+      "sourceHeight": 351,
+      "footprint": {
+        "w": 2,
+        "h": 1
+      },
+      "bounds": {
+        "x": -1,
+        "y": -6,
+        "width": 26,
+        "height": 18
+      },
+      "contact": {
+        "x": 0.5,
+        "y": 0.9914529914529915
+      },
+      "mode": "approved",
+      "effects": false,
+      "source": "docs/station-remaster/catalog-utility-rest-4/sheet-source.png",
+      "sourceSha256": "5cde18178c6617c7b23d71d0c5bda8793ed67534f202a31dca3aed140760db71",
+      "outputSha256": "77a5cbe8b65af843c3d1b80e737d1d2d84741869fc24af719664d350691899b5",
+      "sourceROI": {
+        "left": 15,
+        "top": 555,
+        "width": 535,
+        "height": 395
+      },
+      "sourceCrop": {
+        "left": 31,
+        "top": 578,
+        "width": 509,
+        "height": 351
+      },
+      "actualFit": {
+        "x": -1,
+        "y": -5.776031,
+        "width": 26,
+        "height": 17.929273
+      },
+      "verification": {
+        "transparent": 50763,
+        "retained": 127896,
+        "removedAlpha": 4386,
+        "retainedRGBAMismatches": 0,
+        "allRGBMismatches": 0,
+        "widthFraction": 1
+      },
+      "status": "source and game-scale candidate reviewed; not live integrated; image-specific effect regions need remapping",
+      "group": "treasury-war",
+      "output": "frontend/assets/industrial/projection-correction/war_pivotpanel.png",
+      "retained": 127896
+    },
+    {
+      "id": "war_threatcore",
+      "view": "s",
+      "image": "war_threatcore.png",
+      "repoPath": "frontend/assets/industrial/catalog-utility-rest-4/war_threatcore.png",
+      "sourceWidth": 200,
+      "sourceHeight": 388,
+      "footprint": {
+        "w": 1,
+        "h": 2
+      },
+      "bounds": {
+        "x": -1,
+        "y": -10,
+        "width": 18,
+        "height": 34
+      },
+      "contact": {
+        "x": 0.5,
+        "y": 0.9922680412371134
+      },
+      "mode": "approved",
+      "effects": false,
+      "source": "docs/station-remaster/catalog-utility-rest-4/sheet-source.png",
+      "sourceSha256": "5cde18178c6617c7b23d71d0c5bda8793ed67534f202a31dca3aed140760db71",
+      "outputSha256": "9e7b73aa1b12b03ecfa00e48dc914333b7e47365427e44cf7d02b0e1086a3763",
+      "sourceROI": {
+        "left": 555,
+        "top": 535,
+        "width": 225,
+        "height": 425
+      },
+      "sourceCrop": {
+        "left": 568,
+        "top": 557,
+        "width": 200,
+        "height": 388
+      },
+      "actualFit": {
+        "x": -0.762887,
+        "y": -9.737113,
+        "width": 17.525773,
+        "height": 34
+      },
+      "verification": {
+        "transparent": 21696,
+        "retained": 55904,
+        "removedAlpha": 1932,
+        "retainedRGBAMismatches": 0,
+        "allRGBMismatches": 0,
+        "widthFraction": 0.973654
+      },
+      "status": "source and game-scale candidate reviewed; not live integrated; image-specific effect regions need remapping",
+      "group": "treasury-war",
+      "output": "frontend/assets/industrial/projection-correction/war_threatcore.png",
+      "retained": 55904
+    },
+    {
+      "id": "wartable",
+      "view": "s",
+      "image": "wartable.png",
+      "repoPath": "frontend/assets/industrial/catalog-utility-rest-4/wartable.png",
+      "sourceWidth": 1981,
+      "sourceHeight": 703,
+      "footprint": {
+        "w": 5,
+        "h": 2
+      },
+      "bounds": {
+        "x": -1,
+        "y": -1,
+        "width": 66,
+        "height": 25
+      },
+      "contact": {
+        "x": 0.5,
+        "y": 0.9971550497866287
+      },
+      "mode": "approved",
+      "effects": false,
+      "source": "docs/station-remaster/catalog-utility-rest-4/table-depth-source.png",
+      "sourceSha256": "ba15044aeb49fad5047dd5eb1e1a736dbe3a239f2282aabc72abcfb066853f62",
+      "outputSha256": "32de70511393483186505919f789a437c32bb7d833f76861caaabe023923d989",
+      "sourceROI": {
+        "left": 0,
+        "top": 0,
+        "width": 2042,
+        "height": 770
+      },
+      "sourceCrop": {
+        "left": 31,
+        "top": 37,
+        "width": 1981,
+        "height": 703
+      },
+      "actualFit": {
+        "x": -1,
+        "y": 0.645129,
+        "width": 66,
+        "height": 23.421504
+      },
+      "verification": {
+        "transparent": 196334,
+        "retained": 1196309,
+        "removedAlpha": 3474,
+        "retainedRGBAMismatches": 0,
+        "allRGBMismatches": 0,
+        "widthFraction": 1
+      },
+      "status": "source and game-scale candidate reviewed; not live integrated; image-specific effect regions need remapping",
+      "group": "treasury-war",
+      "output": "frontend/assets/industrial/projection-correction/wartable.png",
+      "retained": 1196309
+    },
+    {
+      "id": "arc_ladder",
+      "view": "s",
+      "image": "arc_ladder.png",
+      "sourceWidth": 331,
+      "sourceHeight": 506,
+      "bounds": {
+        "x": 0,
+        "y": -8,
+        "width": 14,
+        "height": 19
+      },
+      "footprint": {
+        "w": 1,
+        "h": 1
+      },
+      "contact": {
+        "x": 0.5,
+        "y": 0.9940711462450593
+      },
+      "actualUniformFit": {
+        "width": 12.428853754940711,
+        "height": 19
+      },
+      "aspectRatioError": -0.11222473178994918,
+      "source": "docs/station-remaster/catalog-storage-rest-3/narrow-correction-source.png",
+      "sourceSha256": "af94a864ae4dccbadf6a29a0b728e851142b713b2fa8cbc410701fe62a92ef1a",
+      "output": "frontend/assets/industrial/projection-correction/arc_ladder.png",
+      "outputSha256": "5d543cbbd15eb062099f71a914b1a0f5929473974c3b3e44d0a5ec6b589cca60",
+      "sourceRect": {
+        "x": 0,
+        "y": 0,
+        "width": 600,
+        "height": 625
+      },
+      "cropInCell": {
+        "left": 207,
+        "top": 61,
+        "width": 331,
+        "height": 506
+      },
+      "sourceCrop": {
+        "left": 207,
+        "top": 61,
+        "width": 331,
+        "height": 506
+      },
+      "width": 331,
+      "height": 506,
+      "alphaBounds": {
+        "x": 0,
+        "y": 0,
+        "width": 331,
+        "height": 506
+      },
+      "retainedPixels": 113975,
+      "alphaResidueRemoved": 2682,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "opaqueCellEdgePixels": 0,
+      "rgbChanges": 0,
+      "retainedAlphaChanges": 0,
+      "alpha": {
+        "zero": 53511,
+        "partial": 113471,
+        "opaque255": 504,
+        "maxAlpha": 255
+      },
+      "liveVerified": false,
+      "group": "archive-tech",
+      "retained": 113975
+    },
+    {
+      "id": "arc_microfiche",
+      "view": "s",
+      "image": "arc_microfiche.png",
+      "sourceWidth": 338,
+      "sourceHeight": 277,
+      "bounds": {
+        "x": -1,
+        "y": -12,
+        "width": 30,
+        "height": 24
+      },
+      "footprint": {
+        "w": 2,
+        "h": 1
+      },
+      "contact": {
+        "x": 0.5,
+        "y": 0.9927797833935018
+      },
+      "actualUniformFit": {
+        "width": 29.285198555956676,
+        "height": 24
+      },
+      "aspectRatioError": -0.02382671480144405,
+      "source": "docs/station-remaster/catalog-storage-rest-3/sheet-v2-source.png",
+      "sourceSha256": "8bb42319c775a0aea635dbf2d2173bf043b8022bf8fa469ac91d35b0e7362a6e",
+      "output": "frontend/assets/industrial/projection-correction/arc_microfiche.png",
+      "outputSha256": "4237dbbcad3ccec9b9a026cf043c867194e7d44ef41a071a70ead519edbe27e8",
+      "sourceRect": {
+        "x": 500,
+        "y": 0,
+        "width": 524,
+        "height": 395
+      },
+      "cropInCell": {
+        "left": 52,
+        "top": 95,
+        "width": 338,
+        "height": 277
+      },
+      "sourceCrop": {
+        "left": 552,
+        "top": 95,
+        "width": 338,
+        "height": 277
+      },
+      "width": 338,
+      "height": 277,
+      "alphaBounds": {
+        "x": 0,
+        "y": 0,
+        "width": 338,
+        "height": 277
+      },
+      "retainedPixels": 79619,
+      "alphaResidueRemoved": 1785,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "opaqueCellEdgePixels": 0,
+      "rgbChanges": 0,
+      "retainedAlphaChanges": 0,
+      "alpha": {
+        "zero": 14007,
+        "partial": 79619,
+        "opaque255": 0,
+        "maxAlpha": 254
+      },
+      "liveVerified": false,
+      "group": "archive-tech",
+      "retained": 79619
+    },
+    {
+      "id": "bridge_dispatch_pylon",
+      "view": "s",
+      "image": "bridge_dispatch_pylon.png",
+      "sourceWidth": 302,
+      "sourceHeight": 573,
+      "bounds": {
+        "x": -2,
+        "y": -11,
+        "width": 19,
+        "height": 35
+      },
+      "footprint": {
+        "w": 1,
+        "h": 2
+      },
+      "contact": {
+        "x": 0.5,
+        "y": 0.9947643979057592
+      },
+      "actualUniformFit": {
+        "width": 18.44677137870855,
+        "height": 35
+      },
+      "aspectRatioError": -0.029117295857444603,
+      "source": "docs/station-remaster/catalog-storage-rest-3/narrow-correction-source.png",
+      "sourceSha256": "af94a864ae4dccbadf6a29a0b728e851142b713b2fa8cbc410701fe62a92ef1a",
+      "output": "frontend/assets/industrial/projection-correction/bridge_dispatch_pylon.png",
+      "outputSha256": "1dedd24c99f02c3503fa0efee2a826b508da301170e7a28315c208cccfa9ac30",
+      "sourceRect": {
+        "x": 600,
+        "y": 0,
+        "width": 599,
+        "height": 625
+      },
+      "cropInCell": {
+        "left": 84,
+        "top": 29,
+        "width": 302,
+        "height": 573
+      },
+      "sourceCrop": {
+        "left": 684,
+        "top": 29,
+        "width": 302,
+        "height": 573
+      },
+      "width": 302,
+      "height": 573,
+      "alphaBounds": {
+        "x": 0,
+        "y": 0,
+        "width": 302,
+        "height": 573
+      },
+      "retainedPixels": 121857,
+      "alphaResidueRemoved": 2087,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "opaqueCellEdgePixels": 0,
+      "rgbChanges": 0,
+      "retainedAlphaChanges": 0,
+      "alpha": {
+        "zero": 51189,
+        "partial": 121631,
+        "opaque255": 226,
+        "maxAlpha": 255
+      },
+      "liveVerified": false,
+      "group": "archive-tech",
+      "retained": 121857
+    },
+    {
+      "id": "bridge_orderqueue",
+      "view": "s",
+      "image": "bridge_orderqueue.png",
+      "sourceWidth": 405,
+      "sourceHeight": 335,
+      "bounds": {
+        "x": -3,
+        "y": -12,
+        "width": 28,
+        "height": 24
+      },
+      "footprint": {
+        "w": 2,
+        "h": 1
+      },
+      "contact": {
+        "x": 0.5,
+        "y": 0.991044776119403
+      },
+      "actualUniformFit": {
+        "width": 27.999999999999996,
+        "height": 23.16049382716049
+      },
+      "aspectRatioError": 0.036247334754797356,
+      "source": "docs/station-remaster/catalog-storage-rest-3/sheet-v2-source.png",
+      "sourceSha256": "8bb42319c775a0aea635dbf2d2173bf043b8022bf8fa469ac91d35b0e7362a6e",
+      "output": "frontend/assets/industrial/projection-correction/bridge_orderqueue.png",
+      "outputSha256": "70ba570d57f7f5518294deed7fa0e07b3d85cc28ca5ab5c3ea23bc3249eec516",
+      "sourceRect": {
+        "x": 500,
+        "y": 395,
+        "width": 524,
+        "height": 385
+      },
+      "cropInCell": {
+        "left": 17,
+        "top": 37,
+        "width": 405,
+        "height": 335
+      },
+      "sourceCrop": {
+        "left": 517,
+        "top": 432,
+        "width": 405,
+        "height": 335
+      },
+      "width": 405,
+      "height": 335,
+      "alphaBounds": {
+        "x": 0,
+        "y": 0,
+        "width": 405,
+        "height": 335
+      },
+      "retainedPixels": 104933,
+      "alphaResidueRemoved": 1976,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "opaqueCellEdgePixels": 0,
+      "rgbChanges": 0,
+      "retainedAlphaChanges": 0,
+      "alpha": {
+        "zero": 30742,
+        "partial": 104933,
+        "opaque255": 0,
+        "maxAlpha": 254
+      },
+      "liveVerified": false,
+      "group": "archive-tech",
+      "retained": 104933
+    },
+    {
+      "id": "bridge_relaystack",
+      "view": "s",
+      "image": "bridge_relaystack.png",
+      "sourceWidth": 293,
+      "sourceHeight": 599,
+      "bounds": {
+        "x": 0,
+        "y": -8,
+        "width": 17,
+        "height": 32
+      },
+      "footprint": {
+        "w": 1,
+        "h": 2
+      },
+      "contact": {
+        "x": 0.5,
+        "y": 0.994991652754591
+      },
+      "actualUniformFit": {
+        "width": 15.652754590984975,
+        "height": 32
+      },
+      "aspectRatioError": -0.07924972994206037,
+      "source": "docs/station-remaster/catalog-storage-rest-3/narrow-correction-source.png",
+      "sourceSha256": "af94a864ae4dccbadf6a29a0b728e851142b713b2fa8cbc410701fe62a92ef1a",
+      "output": "frontend/assets/industrial/projection-correction/bridge_relaystack.png",
+      "outputSha256": "48b14f0d7e28938b73c762590d3f8942074ed6d942859b6415b625277baf0f71",
+      "sourceRect": {
+        "x": 0,
+        "y": 625,
+        "width": 600,
+        "height": 687
+      },
+      "cropInCell": {
+        "left": 219,
+        "top": 22,
+        "width": 293,
+        "height": 599
+      },
+      "sourceCrop": {
+        "left": 219,
+        "top": 647,
+        "width": 293,
+        "height": 599
+      },
+      "width": 293,
+      "height": 599,
+      "alphaBounds": {
+        "x": 0,
+        "y": 0,
+        "width": 293,
+        "height": 599
+      },
+      "retainedPixels": 144666,
+      "alphaResidueRemoved": 2950,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "opaqueCellEdgePixels": 0,
+      "rgbChanges": 0,
+      "retainedAlphaChanges": 0,
+      "alpha": {
+        "zero": 30841,
+        "partial": 144279,
+        "opaque255": 387,
+        "maxAlpha": 255
+      },
+      "liveVerified": false,
+      "group": "archive-tech",
+      "retained": 144666
+    },
+    {
+      "id": "bridge_tacscreen",
+      "view": "s",
+      "image": "bridge_tacscreen.png",
+      "sourceWidth": 340,
+      "sourceHeight": 269,
+      "bounds": {
+        "x": -1,
+        "y": -9,
+        "width": 26,
+        "height": 21
+      },
+      "footprint": {
+        "w": 2,
+        "h": 1
+      },
+      "contact": {
+        "x": 0.5,
+        "y": 0.9888475836431226
+      },
+      "actualUniformFit": {
+        "width": 26.000000000000004,
+        "height": 20.57058823529412
+      },
+      "aspectRatioError": 0.02087503574492433,
+      "source": "docs/station-remaster/catalog-storage-rest-3/sheet-v2-source.png",
+      "sourceSha256": "8bb42319c775a0aea635dbf2d2173bf043b8022bf8fa469ac91d35b0e7362a6e",
+      "output": "frontend/assets/industrial/projection-correction/bridge_tacscreen.png",
+      "outputSha256": "f06d70834c2928970e17d704e33d3e93d3dc4ddef52c5af300aa0a78eda70603",
+      "sourceRect": {
+        "x": 500,
+        "y": 780,
+        "width": 524,
+        "height": 375
+      },
+      "cropInCell": {
+        "left": 43,
+        "top": 75,
+        "width": 340,
+        "height": 269
+      },
+      "sourceCrop": {
+        "left": 543,
+        "top": 855,
+        "width": 340,
+        "height": 269
+      },
+      "width": 340,
+      "height": 269,
+      "alphaBounds": {
+        "x": 0,
+        "y": 0,
+        "width": 340,
+        "height": 269
+      },
+      "retainedPixels": 79702,
+      "alphaResidueRemoved": 962,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "opaqueCellEdgePixels": 0,
+      "rgbChanges": 0,
+      "retainedAlphaChanges": 0,
+      "alpha": {
+        "zero": 11758,
+        "partial": 79702,
+        "opaque255": 0,
+        "maxAlpha": 254
+      },
+      "liveVerified": false,
+      "group": "archive-tech",
+      "retained": 79702
+    },
+    {
+      "id": "crt_pile",
+      "view": "s",
+      "image": "crt_pile.png",
+      "sourceWidth": 205,
+      "sourceHeight": 309,
+      "bounds": {
+        "x": -1,
+        "y": -4,
+        "width": 12,
+        "height": 17
+      },
+      "footprint": {
+        "w": 1,
+        "h": 1
+      },
+      "contact": {
+        "x": 0.5,
+        "y": 0.9902912621359223
+      },
+      "actualUniformFit": {
+        "width": 11.27831715210356,
+        "height": 17
+      },
+      "aspectRatioError": -0.060140237324703416,
+      "source": "docs/station-remaster/catalog-storage-rest-3/sheet-v1-source.png",
+      "sourceSha256": "8885f16ec9329c520cc6c5335ea4b4d8385c4d5cd86a36c7f52dd65efd107563",
+      "output": "frontend/assets/industrial/projection-correction/crt_pile.png",
+      "outputSha256": "2ac9984165e1447a68978e8d5e63d727a495df4143686a7294906c01cf908650",
+      "sourceRect": {
+        "x": 0,
+        "y": 1155,
+        "width": 500,
+        "height": 381
+      },
+      "cropInCell": {
+        "left": 186,
+        "top": 17,
+        "width": 205,
+        "height": 309
+      },
+      "sourceCrop": {
+        "left": 186,
+        "top": 1172,
+        "width": 205,
+        "height": 309
+      },
+      "width": 205,
+      "height": 309,
+      "alphaBounds": {
+        "x": 0,
+        "y": 0,
+        "width": 205,
+        "height": 309
+      },
+      "retainedPixels": 56139,
+      "alphaResidueRemoved": 1592,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "opaqueCellEdgePixels": 0,
+      "rgbChanges": 0,
+      "retainedAlphaChanges": 0,
+      "alpha": {
+        "zero": 7206,
+        "partial": 56139,
+        "opaque255": 0,
+        "maxAlpha": 254
+      },
+      "liveVerified": false,
+      "group": "archive-tech",
+      "retained": 56139
+    },
+    {
+      "id": "deskterminal",
+      "view": "s",
+      "image": "deskterminal.png",
+      "sourceWidth": 247,
+      "sourceHeight": 243,
+      "bounds": {
+        "x": 0,
+        "y": 0,
+        "width": 12,
+        "height": 12
+      },
+      "footprint": {
+        "w": 1,
+        "h": 1
+      },
+      "contact": {
+        "x": 0.5,
+        "y": 0.9876543209876543
+      },
+      "actualUniformFit": {
+        "width": 12,
+        "height": 11.805668016194332
+      },
+      "aspectRatioError": 0.016460905349794164,
+      "source": "docs/station-remaster/catalog-storage-rest-3/sheet-v2-source.png",
+      "sourceSha256": "8bb42319c775a0aea635dbf2d2173bf043b8022bf8fa469ac91d35b0e7362a6e",
+      "output": "frontend/assets/industrial/projection-correction/deskterminal.png",
+      "outputSha256": "7846862a885c3b5ca99111bf5080b566fa340d14a8137a0620cf649598c95424",
+      "sourceRect": {
+        "x": 500,
+        "y": 1155,
+        "width": 524,
+        "height": 381
+      },
+      "cropInCell": {
+        "left": 88,
+        "top": 79,
+        "width": 247,
+        "height": 243
+      },
+      "sourceCrop": {
+        "left": 588,
+        "top": 1234,
+        "width": 247,
+        "height": 243
+      },
+      "width": 247,
+      "height": 243,
+      "alphaBounds": {
+        "x": 0,
+        "y": 0,
+        "width": 247,
+        "height": 243
+      },
+      "retainedPixels": 53149,
+      "alphaResidueRemoved": 1297,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "opaqueCellEdgePixels": 0,
+      "rgbChanges": 0,
+      "retainedAlphaChanges": 0,
+      "alpha": {
+        "zero": 6872,
+        "partial": 53149,
+        "opaque255": 0,
+        "maxAlpha": 254
+      },
+      "liveVerified": false,
+      "group": "archive-tech",
+      "retained": 53149
+    },
+    {
+      "id": "desk2",
+      "view": "s",
+      "image": "desk2.png",
+      "sourceWidth": 687,
+      "sourceHeight": 423,
+      "bounds": {
+        "x": -1,
+        "y": -11,
+        "width": 38,
+        "height": 23
+      },
+      "footprint": {
+        "w": 3,
+        "h": 1
+      },
+      "contact": {
+        "x": 0.5,
+        "y": 0.9929078014184397
+      },
+      "actualUniformFit": {
+        "width": 37.354609929078016,
+        "height": 23
+      },
+      "aspectRatioError": -0.016983949234789075,
+      "source": "docs/station-remaster/catalog-storage-rest-5/sheet-v1-source.png",
+      "sourceSha256": "b221dd4a8016d0b802343a737cd4dca42020f2fcda882c4f00ec42e85014d0aa",
+      "output": "frontend/assets/industrial/projection-correction/desk2.png",
+      "outputSha256": "604ba83c2a3291b537f511ff33e7c61eec1116b717a2f0cc3459efcaa72bf9c8",
+      "sourceRect": {
+        "x": 0,
+        "y": 0,
+        "width": 735,
+        "height": 475
+      },
+      "cropInCell": {
+        "left": 40,
+        "top": 11,
+        "width": 687,
+        "height": 423
+      },
+      "sourceCrop": {
+        "left": 40,
+        "top": 11,
+        "width": 687,
+        "height": 423
+      },
+      "width": 687,
+      "height": 423,
+      "alphaBounds": {
+        "x": 0,
+        "y": 0,
+        "width": 687,
+        "height": 423
+      },
+      "retainedPixels": 225232,
+      "alphaResidueRemoved": 3292,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "opaqueCellEdgePixels": 0,
+      "rgbChanges": 0,
+      "retainedAlphaChanges": 0,
+      "alpha": {
+        "zero": 65369,
+        "partial": 224904,
+        "opaque255": 328,
+        "maxAlpha": 255
+      },
+      "liveVerified": false,
+      "group": "desk-facings",
+      "retained": 225232
+    },
+    {
+      "id": "desk2",
+      "view": "n",
+      "image": "desk2-n.png",
+      "sourceWidth": 679,
+      "sourceHeight": 411,
+      "bounds": {
+        "x": -2,
+        "y": -11,
+        "width": 40,
+        "height": 23
+      },
+      "footprint": {
+        "w": 3,
+        "h": 1
+      },
+      "contact": {
+        "x": 0.5,
+        "y": 0.9927007299270073
+      },
+      "actualUniformFit": {
+        "width": 37.99756690997567,
+        "height": 23
+      },
+      "aspectRatioError": -0.05006082725060823,
+      "source": "docs/station-remaster/catalog-storage-rest-5/sheet-v1-source.png",
+      "sourceSha256": "b221dd4a8016d0b802343a737cd4dca42020f2fcda882c4f00ec42e85014d0aa",
+      "output": "frontend/assets/industrial/projection-correction/desk2-n.png",
+      "outputSha256": "5912f0113b485d4c92e76edc428a652ba2be637c02674e3ee4a84167b9ff256e",
+      "sourceRect": {
+        "x": 735,
+        "y": 0,
+        "width": 726,
+        "height": 475
+      },
+      "cropInCell": {
+        "left": 3,
+        "top": 11,
+        "width": 679,
+        "height": 411
+      },
+      "sourceCrop": {
+        "left": 738,
+        "top": 11,
+        "width": 679,
+        "height": 411
+      },
+      "width": 679,
+      "height": 411,
+      "alphaBounds": {
+        "x": 0,
+        "y": 0,
+        "width": 679,
+        "height": 411
+      },
+      "retainedPixels": 208381,
+      "alphaResidueRemoved": 2790,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "opaqueCellEdgePixels": 0,
+      "rgbChanges": 0,
+      "retainedAlphaChanges": 0,
+      "alpha": {
+        "zero": 70688,
+        "partial": 208124,
+        "opaque255": 257,
+        "maxAlpha": 255
+      },
+      "liveVerified": false,
+      "group": "desk-facings",
+      "retained": 208381
+    },
+    {
+      "id": "desk2",
+      "view": "e",
+      "image": "desk2-e.png",
+      "sourceWidth": 218,
+      "sourceHeight": 529,
+      "bounds": {
+        "x": -3,
+        "y": -5,
+        "width": 18,
+        "height": 41
+      },
+      "footprint": {
+        "w": 1,
+        "h": 3
+      },
+      "contact": {
+        "x": 0.5,
+        "y": 0.994328922495274
+      },
+      "actualUniformFit": {
+        "width": 16.896030245746694,
+        "height": 41
+      },
+      "aspectRatioError": -0.06133165301407273,
+      "source": "docs/station-remaster/catalog-storage-rest-5/sheet-v1-source.png",
+      "sourceSha256": "b221dd4a8016d0b802343a737cd4dca42020f2fcda882c4f00ec42e85014d0aa",
+      "output": "frontend/assets/industrial/projection-correction/desk2-e.png",
+      "outputSha256": "75e098f51985cffc05a07d362626f5879e6d11faf3b8de626066293215058929",
+      "sourceRect": {
+        "x": 0,
+        "y": 475,
+        "width": 735,
+        "height": 601
+      },
+      "cropInCell": {
+        "left": 284,
+        "top": 38,
+        "width": 218,
+        "height": 529
+      },
+      "sourceCrop": {
+        "left": 284,
+        "top": 513,
+        "width": 218,
+        "height": 529
+      },
+      "width": 218,
+      "height": 529,
+      "alphaBounds": {
+        "x": 0,
+        "y": 0,
+        "width": 218,
+        "height": 529
+      },
+      "retainedPixels": 83262,
+      "alphaResidueRemoved": 2222,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "opaqueCellEdgePixels": 0,
+      "rgbChanges": 0,
+      "retainedAlphaChanges": 0,
+      "alpha": {
+        "zero": 32060,
+        "partial": 82983,
+        "opaque255": 279,
+        "maxAlpha": 255
+      },
+      "liveVerified": false,
+      "group": "desk-facings",
+      "retained": 83262
+    },
+    {
+      "id": "industrial_partition",
+      "view": "e",
+      "image": "industrial_partition-e.png",
+      "sourceWidth": 135,
+      "sourceHeight": 607,
+      "bounds": {
+        "x": 2,
+        "y": -9,
+        "width": 8,
+        "height": 44
+      },
+      "footprint": {
+        "w": 1,
+        "h": 3
+      },
+      "contact": {
+        "x": 0.5,
+        "y": 0.9950576606260296
+      },
+      "actualUniformFit": {
+        "width": 8,
+        "height": 35.970370370370375
+      },
+      "aspectRatioError": 0.2232289950576607,
+      "source": "docs/station-remaster/catalog-storage-rest-3/narrow-correction-source.png",
+      "sourceSha256": "af94a864ae4dccbadf6a29a0b728e851142b713b2fa8cbc410701fe62a92ef1a",
+      "output": "frontend/assets/industrial/projection-correction/industrial_partition-e.png",
+      "outputSha256": "b24d0e04f2e21a8631910ef8f3a8453c62a72720c4ca57e316352a633d93a08e",
+      "sourceRect": {
+        "x": 600,
+        "y": 625,
+        "width": 599,
+        "height": 687
+      },
+      "cropInCell": {
+        "left": 166,
+        "top": 21,
+        "width": 135,
+        "height": 607
+      },
+      "sourceCrop": {
+        "left": 766,
+        "top": 646,
+        "width": 135,
+        "height": 607
+      },
+      "width": 135,
+      "height": 607,
+      "alphaBounds": {
+        "x": 0,
+        "y": 0,
+        "width": 135,
+        "height": 607
+      },
+      "retainedPixels": 52146,
+      "alphaResidueRemoved": 1126,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "opaqueCellEdgePixels": 0,
+      "rgbChanges": 0,
+      "retainedAlphaChanges": 0,
+      "alpha": {
+        "zero": 29799,
+        "partial": 51831,
+        "opaque255": 315,
+        "maxAlpha": 255
+      },
+      "liveVerified": false,
+      "group": "desk-facings",
+      "retained": 52146
+    },
+    {
+      "id": "plant",
+      "view": "s",
+      "image": "frontend/assets/industrial/catalog-crew-rest-4/plant.png",
+      "sourceWidth": 640,
+      "sourceHeight": 1412,
+      "bounds": {
+        "x": 1,
+        "y": -8,
+        "width": 10,
+        "height": 20
+      },
+      "footprint": {
+        "w": 1,
+        "h": 1
+      },
+      "contact": {
+        "x": 0.5,
+        "y": 0.9975212464589235
+      },
+      "fit": {
+        "x": 1.4674220963172804,
+        "y": -8,
+        "width": 9.06515580736544,
+        "height": 20
+      },
+      "underfill": {
+        "x": 0.9065155807365439,
+        "y": 1
+      },
+      "sourceSeparation": {
+        "side": "left",
+        "breakY": 600,
+        "upperX": 630,
+        "lowerX": 670,
+        "endY": 1000
+      },
+      "source": "docs\\station-remaster\\catalog-crew-rest-4\\sources\\plant-holopet-repair.png",
+      "sourceSha256": "4c347abddea3d8cd2311011c68b37de4bafbab55f8404e4f7f7257d7bad116b8",
+      "sourceCrop": {
+        "left": 10,
+        "top": 15,
+        "width": 640,
+        "height": 1412
+      },
+      "outputSha256": "cd139153fd94f1b9ecf64aabd7d90b492798d3e4d7df92ee78caa2f2398a8bdf",
+      "alphaBounds": {
+        "x": 0,
+        "y": 0,
+        "width": 640,
+        "height": 1412
+      },
+      "alphaCounts": {
+        "transparent": 405520,
+        "partial": 496379,
+        "opaque": 1781
+      },
+      "maxSourceAlpha": 255,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "removedFogPixels": 13732,
+      "retainedRgbChanges": 0,
+      "retainedAlphaChanges": 0,
+      "opaqueCellEdgePixels": 0,
+      "liveAccepted": false,
+      "group": "plants-decor",
+      "output": "frontend/assets/industrial/projection-correction/plant.png",
+      "retained": 498160
+    },
+    {
+      "id": "tallplant",
+      "view": "s",
+      "image": "frontend/assets/industrial/catalog-crew-rest-4/tallplant.png",
+      "sourceWidth": 227,
+      "sourceHeight": 435,
+      "bounds": {
+        "x": 1,
+        "y": -14,
+        "width": 13,
+        "height": 26
+      },
+      "footprint": {
+        "w": 1,
+        "h": 1
+      },
+      "contact": {
+        "x": 0.5,
+        "y": 0.9942528735632183
+      },
+      "fit": {
+        "x": 1,
+        "y": -12.911894273127754,
+        "width": 13,
+        "height": 24.911894273127754
+      },
+      "underfill": {
+        "x": 1,
+        "y": 0.9581497797356828
+      },
+      "source": "docs\\station-remaster\\catalog-crew-rest-4\\sources\\sheet.png",
+      "sourceSha256": "9879459b690c46e9bc7c2e0a05e68f2f611635cfcb2a8cf1006fcc2837d8d9b5",
+      "sourceCrop": {
+        "left": 455,
+        "top": 61,
+        "width": 227,
+        "height": 435
+      },
+      "outputSha256": "4c82c40a0b12ec78455654e4b894345eb0ec64d4f8a7da6cba24e6ab1dd4b1c1",
+      "alphaBounds": {
+        "x": 0,
+        "y": 0,
+        "width": 227,
+        "height": 435
+      },
+      "alphaCounts": {
+        "transparent": 43999,
+        "partial": 54746,
+        "opaque": 0
+      },
+      "maxSourceAlpha": 254,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "removedFogPixels": 3778,
+      "retainedRgbChanges": 0,
+      "retainedAlphaChanges": 0,
+      "opaqueCellEdgePixels": 0,
+      "liveAccepted": false,
+      "group": "plants-decor",
+      "output": "frontend/assets/industrial/projection-correction/tallplant.png",
+      "retained": 54746
+    },
+    {
+      "id": "monstera",
+      "view": "s",
+      "image": "frontend/assets/industrial/catalog-crew-rest-4/monstera.png",
+      "sourceWidth": 345,
+      "sourceHeight": 377,
+      "bounds": {
+        "x": 0,
+        "y": -1,
+        "width": 12,
+        "height": 13
+      },
+      "footprint": {
+        "w": 1,
+        "h": 1
+      },
+      "contact": {
+        "x": 0.5,
+        "y": 0.9907161803713528
+      },
+      "fit": {
+        "x": 0.0517241379310347,
+        "y": -1,
+        "width": 11.89655172413793,
+        "height": 13
+      },
+      "underfill": {
+        "x": 0.9913793103448275,
+        "y": 1
+      },
+      "source": "docs\\station-remaster\\catalog-crew-rest-4\\sources\\sheet.png",
+      "sourceSha256": "9879459b690c46e9bc7c2e0a05e68f2f611635cfcb2a8cf1006fcc2837d8d9b5",
+      "sourceCrop": {
+        "left": 780,
+        "top": 112,
+        "width": 345,
+        "height": 377
+      },
+      "outputSha256": "3c6a11b106d73cb925173f09a7959f373a51b5f2ebf8bfe2afe4d015794e9c4d",
+      "alphaBounds": {
+        "x": 0,
+        "y": 0,
+        "width": 345,
+        "height": 377
+      },
+      "alphaCounts": {
+        "transparent": 52873,
+        "partial": 77192,
+        "opaque": 0
+      },
+      "maxSourceAlpha": 254,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "removedFogPixels": 6700,
+      "retainedRgbChanges": 0,
+      "retainedAlphaChanges": 0,
+      "opaqueCellEdgePixels": 0,
+      "liveAccepted": false,
+      "group": "plants-decor",
+      "output": "frontend/assets/industrial/projection-correction/monstera.png",
+      "retained": 77192
+    },
+    {
+      "id": "terrarium",
+      "view": "s",
+      "image": "frontend/assets/industrial/catalog-crew-rest-4/terrarium.png",
+      "sourceWidth": 227,
+      "sourceHeight": 367,
+      "bounds": {
+        "x": 0,
+        "y": -5,
+        "width": 11,
+        "height": 16
+      },
+      "footprint": {
+        "w": 1,
+        "h": 1
+      },
+      "contact": {
+        "x": 0.5,
+        "y": 0.9904632152588556
+      },
+      "fit": {
+        "x": 0.5517711171662123,
+        "y": -5,
+        "width": 9.896457765667575,
+        "height": 16
+      },
+      "underfill": {
+        "x": 0.8996779786970523,
+        "y": 1
+      },
+      "source": "docs\\station-remaster\\catalog-crew-rest-4\\sources\\sheet.png",
+      "sourceSha256": "9879459b690c46e9bc7c2e0a05e68f2f611635cfcb2a8cf1006fcc2837d8d9b5",
+      "sourceCrop": {
+        "left": 1230,
+        "top": 123,
+        "width": 227,
+        "height": 367
+      },
+      "outputSha256": "ec8e6377e836116f7a9796a032ae98126568b7d9452ae0dfa7e5c347fa61547b",
+      "alphaBounds": {
+        "x": 0,
+        "y": 0,
+        "width": 227,
+        "height": 367
+      },
+      "alphaCounts": {
+        "transparent": 6820,
+        "partial": 76489,
+        "opaque": 0
+      },
+      "maxSourceAlpha": 254,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "removedFogPixels": 2061,
+      "retainedRgbChanges": 0,
+      "retainedAlphaChanges": 0,
+      "opaqueCellEdgePixels": 0,
+      "liveAccepted": false,
+      "group": "plants-decor",
+      "output": "frontend/assets/industrial/projection-correction/terrarium.png",
+      "retained": 76489
+    },
+    {
+      "id": "lavalamp",
+      "view": "s",
+      "image": "frontend/assets/industrial/catalog-crew-rest-4/lavalamp.png",
+      "sourceWidth": 282,
+      "sourceHeight": 658,
+      "bounds": {
+        "x": 2,
+        "y": -8,
+        "width": 8,
+        "height": 20
+      },
+      "footprint": {
+        "w": 1,
+        "h": 1
+      },
+      "contact": {
+        "x": 0.5,
+        "y": 0.9946808510638298
+      },
+      "fit": {
+        "x": 2,
+        "y": -6.666666666666668,
+        "width": 8,
+        "height": 18.666666666666668
+      },
+      "underfill": {
+        "x": 1,
+        "y": 0.9333333333333333
+      },
+      "source": "docs\\station-remaster\\catalog-crew-rest-4\\sources\\repair.png",
+      "sourceSha256": "a1985b17c62d45f6d2e234991155649f7cf5321dd858cfc2e39256e5fb6dca90",
+      "sourceCrop": {
+        "left": 615,
+        "top": 61,
+        "width": 282,
+        "height": 658
+      },
+      "outputSha256": "e9edb437ac96161620650a2de950adc3669d4f356d8257007615e1fb32d7ec40",
+      "alphaBounds": {
+        "x": 0,
+        "y": 0,
+        "width": 282,
+        "height": 658
+      },
+      "alphaCounts": {
+        "transparent": 50146,
+        "partial": 135249,
+        "opaque": 161
+      },
+      "maxSourceAlpha": 255,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "removedFogPixels": 2882,
+      "retainedRgbChanges": 0,
+      "retainedAlphaChanges": 0,
+      "opaqueCellEdgePixels": 0,
+      "liveAccepted": false,
+      "group": "plants-decor",
+      "output": "frontend/assets/industrial/projection-correction/lavalamp.png",
+      "retained": 135410
+    },
+    {
+      "id": "plasmaglobe",
+      "view": "s",
+      "image": "frontend/assets/industrial/catalog-crew-rest-4/plasmaglobe.png",
+      "sourceWidth": 312,
+      "sourceHeight": 656,
+      "bounds": {
+        "x": 1,
+        "y": -5,
+        "width": 9,
+        "height": 17
+      },
+      "footprint": {
+        "w": 1,
+        "h": 1
+      },
+      "contact": {
+        "x": 0.5,
+        "y": 0.9946646341463414
+      },
+      "fit": {
+        "x": 1.4573170731707323,
+        "y": -5,
+        "width": 8.085365853658535,
+        "height": 17
+      },
+      "underfill": {
+        "x": 0.8983739837398372,
+        "y": 1
+      },
+      "source": "docs\\station-remaster\\catalog-crew-rest-4\\sources\\repair.png",
+      "sourceSha256": "a1985b17c62d45f6d2e234991155649f7cf5321dd858cfc2e39256e5fb6dca90",
+      "sourceCrop": {
+        "left": 158,
+        "top": 746,
+        "width": 312,
+        "height": 656
+      },
+      "outputSha256": "6b2cf54c59d1cf0e6a3cfabcdaafb12088cb3ef2bda15570ddb02278578c912d",
+      "alphaBounds": {
+        "x": 0,
+        "y": 0,
+        "width": 312,
+        "height": 656
+      },
+      "alphaCounts": {
+        "transparent": 75049,
+        "partial": 129439,
+        "opaque": 184
+      },
+      "maxSourceAlpha": 255,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "removedFogPixels": 2969,
+      "retainedRgbChanges": 0,
+      "retainedAlphaChanges": 0,
+      "opaqueCellEdgePixels": 0,
+      "liveAccepted": false,
+      "group": "plants-decor",
+      "output": "frontend/assets/industrial/projection-correction/plasmaglobe.png",
+      "retained": 129623
+    },
+    {
+      "id": "holopet",
+      "view": "s",
+      "image": "frontend/assets/industrial/catalog-crew-rest-4/holopet.png",
+      "sourceWidth": 436,
+      "sourceHeight": 1295,
+      "bounds": {
+        "x": 3,
+        "y": -6,
+        "width": 6,
+        "height": 16
+      },
+      "footprint": {
+        "w": 1,
+        "h": 1
+      },
+      "contact": {
+        "x": 0.5,
+        "y": 0.9972972972972973
+      },
+      "fit": {
+        "x": 3.306563706563707,
+        "y": -6,
+        "width": 5.386872586872586,
+        "height": 16
+      },
+      "underfill": {
+        "x": 0.8978120978120977,
+        "y": 1
+      },
+      "sourceSeparation": {
+        "side": "right",
+        "breakY": 600,
+        "upperX": 630,
+        "lowerX": 670,
+        "endY": 1000
+      },
+      "source": "docs\\station-remaster\\catalog-crew-rest-4\\sources\\plant-holopet-repair.png",
+      "sourceSha256": "4c347abddea3d8cd2311011c68b37de4bafbab55f8404e4f7f7257d7bad116b8",
+      "sourceCrop": {
+        "left": 639,
+        "top": 126,
+        "width": 436,
+        "height": 1295
+      },
+      "outputSha256": "5c64731f815767a4d7352303ab817d1ed07b6f126610add56703543eb13dff94",
+      "alphaBounds": {
+        "x": 0,
+        "y": 0,
+        "width": 436,
+        "height": 1295
+      },
+      "alphaCounts": {
+        "transparent": 348432,
+        "partial": 215123,
+        "opaque": 1065
+      },
+      "maxSourceAlpha": 255,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "removedFogPixels": 6567,
+      "retainedRgbChanges": 0,
+      "retainedAlphaChanges": 0,
+      "opaqueCellEdgePixels": 0,
+      "liveAccepted": false,
+      "group": "plants-decor",
+      "output": "frontend/assets/industrial/projection-correction/holopet.png",
+      "retained": 216188
+    },
+    {
+      "id": "speaker",
+      "view": "s",
+      "image": "frontend/assets/industrial/catalog-crew-rest-4/speaker.png",
+      "sourceWidth": 231,
+      "sourceHeight": 352,
+      "bounds": {
+        "x": 1,
+        "y": -3,
+        "width": 10,
+        "height": 15
+      },
+      "footprint": {
+        "w": 1,
+        "h": 1
+      },
+      "contact": {
+        "x": 0.5,
+        "y": 0.9900568181818182
+      },
+      "fit": {
+        "x": 1.078125,
+        "y": -2.9999999999999982,
+        "width": 9.84375,
+        "height": 14.999999999999998
+      },
+      "underfill": {
+        "x": 0.984375,
+        "y": 0.9999999999999999
+      },
+      "source": "docs\\station-remaster\\catalog-crew-rest-4\\sources\\sheet.png",
+      "sourceSha256": "9879459b690c46e9bc7c2e0a05e68f2f611635cfcb2a8cf1006fcc2837d8d9b5",
+      "sourceCrop": {
+        "left": 1226,
+        "top": 581,
+        "width": 231,
+        "height": 352
+      },
+      "outputSha256": "4626b07e94a15badee4a7e97fbf80ac22994f4d87ffc35e4dbe3050140771039",
+      "alphaBounds": {
+        "x": 0,
+        "y": 0,
+        "width": 231,
+        "height": 352
+      },
+      "alphaCounts": {
+        "transparent": 6915,
+        "partial": 74397,
+        "opaque": 0
+      },
+      "maxSourceAlpha": 254,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "removedFogPixels": 1988,
+      "retainedRgbChanges": 0,
+      "retainedAlphaChanges": 0,
+      "opaqueCellEdgePixels": 0,
+      "liveAccepted": false,
+      "group": "plants-decor",
+      "output": "frontend/assets/industrial/projection-correction/speaker.png",
+      "retained": 74397
     }
   ]
 }
