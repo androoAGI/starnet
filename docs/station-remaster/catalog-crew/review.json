@@ -1,0 +1,30 @@
+{
+  "version": 1,
+  "status": "eight-primary-view-candidates-exported-not-live-accepted",
+  "visualChecks": {
+    "sourceInspected": true,
+    "nativeFitFourTimesScreenPreviewInspected": true,
+    "comparedWithAcceptedCouchReclinerCratePoolSources": true,
+    "dinertableHasNoBakedChairs": true,
+    "bunkHasNoOccupantOrSecondBed": true,
+    "industrialBenchUsesWoodAndOliveUpholstery": true,
+    "industrialPlanterIsWideTroughWithVisibleSoil": true
+  },
+  "geometryNotes": {
+    "industrial_bench": "Source is deeper than requested3:1; uniform36x12 envelope produces25.67x12. Lowering/reprojecting its body is needed to fill36 width without stretching.",
+    "dinerchair": "Uniform11x16 envelope produces8.59x16. South facing is clear, but silhouette underfills width22percent.",
+    "dinertable": "Empty top is correct; tall pedestal makes source aspect1.20 instead of target1.73. Native38x22 fit produces26.34x22. Needs wider/lower authored geometry for full native width.",
+    "booth": "South-facing visible seat,21.45x19 fit inside24x19 envelope.",
+    "podchair": "South-facing opening;10x13.63 fit inside10x17 envelope. Do not stretch shell vertically.",
+    "beanbag": "Low soft upper-plane silhouette;12.97x11 fit inside14x11.",
+    "bunk": "Single bed remains narrower than24x26 target:18.44x26. Preserve this measurement for owner review; no collision footprint changed.",
+    "industrial_planter": "Wide planted trough;26x18.02 fit inside26x20. Three broad leaf clusters remain readable."
+  },
+  "integrationRequirements": [
+    "Only s views are new. Dinerchair, dinertable, booth and podchair alternate facings remain their previous sources and are not claimed as corrected.",
+    "Bounds are preserved native contracts, not silently expanded to force new source width. Exports include actual uniform fits and underfill ratios.",
+    "Furniture seat, sleeper and surface-mount layers are not supplied. Verify occlusion and body/blanket placement before enabling those interactions on new skins.",
+    "Dinertable native source envelope ends atworld25 although logical2tile contact is24; contact receipt states logicaltarget separately. Owner should resolve exact support contact in placement review.",
+    "No runtime, main manifest, save or parent worktree edits; no live acceptance asserted."
+  ]
+}
