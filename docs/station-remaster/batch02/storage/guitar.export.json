@@ -1,0 +1,58 @@
+{
+  "id": "guitar",
+  "status": "exported-awaiting-owner-live-review",
+  "source": "sources/guitar.png",
+  "sourceSha256": "380a7221dc43a6842dd89a0162068692425e79cc917c8f8690607acf54d686be",
+  "sourceWidth": 904,
+  "sourceHeight": 1740,
+  "image": "guitar.png",
+  "sourceOutputWidth": 587,
+  "sourceOutputHeight": 1622,
+  "crop": {
+    "left": 159,
+    "top": 35,
+    "width": 587,
+    "height": 1622
+  },
+  "channels": 4,
+  "transparentPixels": 489389,
+  "opaquePixels": 462725,
+  "partialPixels": 0,
+  "backgroundPixelsRemoved": 1110235,
+  "subjectRgbChanges": 0,
+  "outputSha256": "7cb759e93c677b597ecab265c450e0e9c0cceb3c26335c33de5eaa7bbfbd95c0",
+  "holeSeeds": [
+    [
+      663,
+      895
+    ],
+    [
+      718,
+      1570
+    ]
+  ],
+  "maskMethod": "Connected saturated-magenta flood fill, including key-only enclosed components. Alpha-only edits; uniform crop; no RGB recolor.",
+  "view": "s",
+  "footprint": {
+    "w": 1,
+    "h": 1
+  },
+  "bounds": {
+    "x": -1,
+    "y": -15,
+    "width": 14,
+    "height": 27
+  },
+  "tilePixels": 12,
+  "contact": {
+    "x": 6,
+    "y": 12
+  },
+  "anchorContract": "No leisure seat anchor. Footprint is the placement/pathfinding rectangle; upright visual rise is independent of the reserved box.",
+  "originalLight": null,
+  "originalAnimationTriggers": [
+    "No direct event-driven or sampled default sprite animation. Preserve static art; no invented status or progress."
+  ],
+  "artMode": "static complete art; existing state/lighting integration remains owner decision",
+  "liveIntegrated": false
+}
