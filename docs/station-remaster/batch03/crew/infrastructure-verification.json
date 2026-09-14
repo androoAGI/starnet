@@ -1,0 +1,202 @@
+{
+  "count": 7,
+  "allPassed": true,
+  "results": [
+    {
+      "id": "industrial_partition",
+      "passed": true,
+      "alphaValues": [
+        0,
+        255
+      ],
+      "crop": {
+        "left": 48,
+        "top": 52,
+        "width": 1546,
+        "height": 819
+      },
+      "fitWorldPixels": {
+        "x": 0.0,
+        "y": -7.071151358344114,
+        "width": 36.0,
+        "height": 19.071151358344114,
+        "bottom": 12
+      },
+      "bounds": {
+        "x": 0,
+        "y": -9,
+        "width": 36,
+        "height": 21
+      },
+      "liveVerified": false
+    },
+    {
+      "id": "industrial_partition-r1",
+      "passed": true,
+      "alphaValues": [
+        0,
+        255
+      ],
+      "crop": {
+        "left": 259,
+        "top": 31,
+        "width": 320,
+        "height": 1754
+      },
+      "fitWorldPixels": {
+        "x": 2.0,
+        "y": -8.850000000000001,
+        "width": 8.0,
+        "height": 43.85,
+        "bottom": 35
+      },
+      "bounds": {
+        "x": 2,
+        "y": -9,
+        "width": 8,
+        "height": 44
+      },
+      "liveVerified": false
+    },
+    {
+      "id": "industrial_partition-r3",
+      "passed": true,
+      "alphaValues": [
+        0,
+        255
+      ],
+      "crop": {
+        "left": 275,
+        "top": 31,
+        "width": 311,
+        "height": 1753
+      },
+      "fitWorldPixels": {
+        "x": 2.096976611523103,
+        "y": -9.0,
+        "width": 7.806046776953794,
+        "height": 44.0,
+        "bottom": 35
+      },
+      "bounds": {
+        "x": 2,
+        "y": -9,
+        "width": 8,
+        "height": 44
+      },
+      "liveVerified": false
+    },
+    {
+      "id": "industrial_servicecab",
+      "passed": true,
+      "alphaValues": [
+        0,
+        255
+      ],
+      "crop": {
+        "left": 20,
+        "top": 140,
+        "width": 768,
+        "height": 1733
+      },
+      "fitWorldPixels": {
+        "x": 0.0,
+        "y": -3.078125,
+        "width": 12.0,
+        "height": 27.078125,
+        "bottom": 24
+      },
+      "bounds": {
+        "x": 0,
+        "y": -5,
+        "width": 12,
+        "height": 29
+      },
+      "liveVerified": false
+    },
+    {
+      "id": "industrial_wallpanel",
+      "passed": true,
+      "alphaValues": [
+        0,
+        255
+      ],
+      "crop": {
+        "left": 20,
+        "top": 83,
+        "width": 1239,
+        "height": 1066
+      },
+      "fitWorldPixels": {
+        "x": 0.0,
+        "y": -10.648910411622278,
+        "width": 24.0,
+        "height": 20.64891041162228,
+        "bottom": 10
+      },
+      "bounds": {
+        "x": 0,
+        "y": -13,
+        "width": 24,
+        "height": 23
+      },
+      "liveVerified": false
+    },
+    {
+      "id": "industrial_floorvent",
+      "passed": true,
+      "alphaValues": [
+        0,
+        255
+      ],
+      "crop": {
+        "left": 47,
+        "top": 83,
+        "width": 1767,
+        "height": 677
+      },
+      "fitWorldPixels": {
+        "x": 1.0,
+        "y": 2.571024335031126,
+        "width": 22.0,
+        "height": 8.428975664968874,
+        "bottom": 11
+      },
+      "bounds": {
+        "x": 1,
+        "y": 1,
+        "width": 22,
+        "height": 10
+      },
+      "liveVerified": false
+    },
+    {
+      "id": "industrial_cabletray",
+      "passed": true,
+      "alphaValues": [
+        0,
+        255
+      ],
+      "crop": {
+        "left": 22,
+        "top": 185,
+        "width": 2122,
+        "height": 331
+      },
+      "fitWorldPixels": {
+        "x": 0.0,
+        "y": 3.3845428840716307,
+        "width": 36.0,
+        "height": 5.615457115928369,
+        "bottom": 9
+      },
+      "bounds": {
+        "x": 0,
+        "y": 3,
+        "width": 36,
+        "height": 6
+      },
+      "liveVerified": false
+    }
+  ]
+}
