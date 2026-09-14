@@ -258,5 +258,17 @@
   {
     "id": "terrarium",
     "seeds": []
+  },
+  {
+    "id": "fishtank",
+    "seeds": []
+  },
+  {
+    "id": "lavalamp",
+    "seeds": []
+  },
+  {
+    "id": "plasmaglobe",
+    "seeds": []
   }
 ]
