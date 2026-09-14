@@ -1,0 +1,65 @@
+{
+  "sourceAnimation": {
+    "idleFrameVariants": 1,
+    "workFrameVariants": 1,
+    "respondsToWorkFlag": false,
+    "opaqueBoundsRelativeToFootprint": {
+      "x": 0,
+      "y": -3,
+      "w": 12,
+      "h": 15,
+      "alphaThreshold": 160
+    }
+  },
+  "bounds": {
+    "y": -3,
+    "width": 12,
+    "height": 15,
+    "x": 0
+  },
+  "id": "sidetable",
+  "geometry": {
+    "blocks": true,
+    "flat": false,
+    "tableSurface": true,
+    "requiredMount": null,
+    "optionalSurfaceMount": false,
+    "surfaceRisePixels": 8
+  },
+  "floorContact": {
+    "x": 6,
+    "y": 12
+  },
+  "backgroundThreshold": 235,
+  "tilePixels": 12,
+  "status": "art-draft-integration-pending",
+  "view": "s",
+  "footprint": {
+    "w": 1,
+    "h": 1
+  },
+  "anchorContract": "No leisure seat anchor. Footprint is the placement/pathfinding rectangle; upright visual rise is independent of the reserved box.",
+  "holeSeeds": [
+    [
+      500,
+      820
+    ]
+  ],
+  "sourceWidth": 1122,
+  "sourceHeight": 1402,
+  "sourceSha256": "504b0630c123f158692071a764a20db83f68a29fc84b9f4e7cfaefda00ec9b2f",
+  "output": "frontend/assets/industrial/batch03/crew/sidetable.png",
+  "crop": {
+    "left": 106,
+    "top": 107,
+    "width": 910,
+    "height": 1182
+  },
+  "transparentPixels": 182778,
+  "opaquePixels": 892842,
+  "partialPixels": 0,
+  "backgroundPixelsRemoved": 680202,
+  "subjectRgbChanges": 0,
+  "outputSha256": "261b792dedc52640f284dc691f82bd9ae4e3d243b4837a440a750769a91ea784",
+  "liveIntegrated": false
+}
