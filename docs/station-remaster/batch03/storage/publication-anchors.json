@@ -1,0 +1,1108 @@
+{
+  "version": 1,
+  "tilePixels": 12,
+  "regionsAreLiveVerified": false,
+  "records": [
+    {
+      "id": "outbox",
+      "measurement": "Conservative manual visual selection inside inspected source surfaces; conversion uses PropRemaster.fit uniform bottom-centered mapping. Owner must verify live.",
+      "footprint": {
+        "w": 2,
+        "h": 2
+      },
+      "worldEnvelope": {
+        "x": -1,
+        "y": -8,
+        "width": 30,
+        "height": 32
+      },
+      "uniformScale": 0.0273972602739726,
+      "renderedArtBox": {
+        "x": -1,
+        "y": -7.205479452054792,
+        "width": 30,
+        "height": 31.205479452054792
+      },
+      "contact": {
+        "x": 14,
+        "y": 24
+      },
+      "regions": {
+        "receivingMouth": {
+          "sourcePixels": [
+            [
+              375,
+              180
+            ],
+            [
+              832,
+              180
+            ],
+            [
+              832,
+              505
+            ],
+            [
+              375,
+              505
+            ]
+          ],
+          "exportPixels": [
+            [
+              315,
+              104
+            ],
+            [
+              772,
+              104
+            ],
+            [
+              772,
+              429
+            ],
+            [
+              315,
+              429
+            ]
+          ],
+          "worldPixels": [
+            [
+              7.63,
+              -4.356
+            ],
+            [
+              20.151,
+              -4.356
+            ],
+            [
+              20.151,
+              4.548
+            ],
+            [
+              7.63,
+              4.548
+            ]
+          ]
+        },
+        "conveyorCargoSurface": {
+          "sourcePixels": [
+            [
+              420,
+              625
+            ],
+            [
+              785,
+              625
+            ],
+            [
+              805,
+              1005
+            ],
+            [
+              398,
+              1005
+            ]
+          ],
+          "exportPixels": [
+            [
+              360,
+              549
+            ],
+            [
+              725,
+              549
+            ],
+            [
+              745,
+              929
+            ],
+            [
+              338,
+              929
+            ]
+          ],
+          "worldPixels": [
+            [
+              8.863,
+              7.836
+            ],
+            [
+              18.863,
+              7.836
+            ],
+            [
+              19.411,
+              18.247
+            ],
+            [
+              8.26,
+              18.247
+            ]
+          ]
+        },
+        "statusPlate": {
+          "sourcePixels": [
+            [
+              966,
+              359
+            ],
+            [
+              1080,
+              359
+            ],
+            [
+              1080,
+              409
+            ],
+            [
+              966,
+              409
+            ]
+          ],
+          "exportPixels": [
+            [
+              906,
+              283
+            ],
+            [
+              1020,
+              283
+            ],
+            [
+              1020,
+              333
+            ],
+            [
+              906,
+              333
+            ]
+          ],
+          "worldPixels": [
+            [
+              23.822,
+              0.548
+            ],
+            [
+              26.945,
+              0.548
+            ],
+            [
+              26.945,
+              1.918
+            ],
+            [
+              23.822,
+              1.918
+            ]
+          ]
+        }
+      },
+      "liveIntegrated": false,
+      "existingWorldCargoContract": {
+        "shippedPalletOrigin": {
+          "x": 12,
+          "y": 30
+        },
+        "note": "world.js draws shipped pallet from real known done count at footprint center and bottom+6. Preserve separately; generated art includes no floor pallet or finished crates."
+      }
+    },
+    {
+      "id": "connector_portal",
+      "measurement": "Conservative manual visual selection inside inspected source surfaces; conversion uses PropRemaster.fit uniform bottom-centered mapping. Owner must verify live.",
+      "footprint": {
+        "w": 1,
+        "h": 2
+      },
+      "worldEnvelope": {
+        "x": 0,
+        "y": -7,
+        "width": 17,
+        "height": 31
+      },
+      "uniformScale": 0.01911220715166461,
+      "renderedArtBox": {
+        "x": 2.7472256473489525,
+        "y": -7,
+        "width": 11.505548705302095,
+        "height": 31
+      },
+      "contact": {
+        "x": 8.5,
+        "y": 24
+      },
+      "regions": {
+        "statusStrip": {
+          "sourcePixels": [
+            [
+              327,
+              249
+            ],
+            [
+              536,
+              249
+            ],
+            [
+              536,
+              318
+            ],
+            [
+              327,
+              318
+            ]
+          ],
+          "exportPixels": [
+            [
+              168,
+              220
+            ],
+            [
+              377,
+              220
+            ],
+            [
+              377,
+              289
+            ],
+            [
+              168,
+              289
+            ]
+          ],
+          "worldPixels": [
+            [
+              5.958,
+              -2.795
+            ],
+            [
+              9.953,
+              -2.795
+            ],
+            [
+              9.953,
+              -1.477
+            ],
+            [
+              5.958,
+              -1.477
+            ]
+          ]
+        },
+        "socketTop": {
+          "sourcePixels": [
+            [
+              382,
+              451
+            ],
+            [
+              480,
+              451
+            ],
+            [
+              480,
+              541
+            ],
+            [
+              382,
+              541
+            ]
+          ],
+          "exportPixels": [
+            [
+              223,
+              422
+            ],
+            [
+              321,
+              422
+            ],
+            [
+              321,
+              512
+            ],
+            [
+              223,
+              512
+            ]
+          ],
+          "worldPixels": [
+            [
+              7.009,
+              1.065
+            ],
+            [
+              8.882,
+              1.065
+            ],
+            [
+              8.882,
+              2.785
+            ],
+            [
+              7.009,
+              2.785
+            ]
+          ]
+        },
+        "socketMiddle": {
+          "sourcePixels": [
+            [
+              355,
+              746
+            ],
+            [
+              507,
+              746
+            ],
+            [
+              507,
+              833
+            ],
+            [
+              355,
+              833
+            ]
+          ],
+          "exportPixels": [
+            [
+              196,
+              717
+            ],
+            [
+              348,
+              717
+            ],
+            [
+              348,
+              804
+            ],
+            [
+              196,
+              804
+            ]
+          ],
+          "worldPixels": [
+            [
+              6.493,
+              6.703
+            ],
+            [
+              9.398,
+              6.703
+            ],
+            [
+              9.398,
+              8.366
+            ],
+            [
+              6.493,
+              8.366
+            ]
+          ]
+        },
+        "socketBottom": {
+          "sourcePixels": [
+            [
+              379,
+              1046
+            ],
+            [
+              487,
+              1046
+            ],
+            [
+              487,
+              1136
+            ],
+            [
+              379,
+              1136
+            ]
+          ],
+          "exportPixels": [
+            [
+              220,
+              1017
+            ],
+            [
+              328,
+              1017
+            ],
+            [
+              328,
+              1107
+            ],
+            [
+              220,
+              1107
+            ]
+          ],
+          "worldPixels": [
+            [
+              6.952,
+              12.437
+            ],
+            [
+              9.016,
+              12.437
+            ],
+            [
+              9.016,
+              14.157
+            ],
+            [
+              6.952,
+              14.157
+            ]
+          ]
+        }
+      },
+      "liveIntegrated": false,
+      "stateNote": "All sockets empty, strip dark. Bind/server/tool state and pulses must come from real connector poll and calls."
+    },
+    {
+      "id": "pub_publishpress",
+      "measurement": "Conservative manual visual selection inside inspected source surfaces; conversion uses PropRemaster.fit uniform bottom-centered mapping. Owner must verify live.",
+      "footprint": {
+        "w": 2,
+        "h": 2
+      },
+      "worldEnvelope": {
+        "x": -1,
+        "y": -8,
+        "width": 30,
+        "height": 32
+      },
+      "uniformScale": 0.02586206896551724,
+      "renderedArtBox": {
+        "x": -1,
+        "y": -7.137931034482758,
+        "width": 30,
+        "height": 31.137931034482758
+      },
+      "contact": {
+        "x": 14,
+        "y": 24
+      },
+      "regions": {
+        "emptyThroat": {
+          "sourcePixels": [
+            [
+              418,
+              656
+            ],
+            [
+              794,
+              656
+            ],
+            [
+              794,
+              696
+            ],
+            [
+              418,
+              696
+            ]
+          ],
+          "exportPixels": [
+            [
+              391,
+              615
+            ],
+            [
+              767,
+              615
+            ],
+            [
+              767,
+              655
+            ],
+            [
+              391,
+              655
+            ]
+          ],
+          "worldPixels": [
+            [
+              9.112,
+              8.767
+            ],
+            [
+              18.836,
+              8.767
+            ],
+            [
+              18.836,
+              9.802
+            ],
+            [
+              9.112,
+              9.802
+            ]
+          ]
+        },
+        "outputTray": {
+          "sourcePixels": [
+            [
+              380,
+              850
+            ],
+            [
+              827,
+              850
+            ],
+            [
+              852,
+              1060
+            ],
+            [
+              355,
+              1060
+            ]
+          ],
+          "exportPixels": [
+            [
+              353,
+              809
+            ],
+            [
+              800,
+              809
+            ],
+            [
+              825,
+              1019
+            ],
+            [
+              328,
+              1019
+            ]
+          ],
+          "worldPixels": [
+            [
+              8.129,
+              13.784
+            ],
+            [
+              19.69,
+              13.784
+            ],
+            [
+              20.336,
+              19.216
+            ],
+            [
+              7.483,
+              19.216
+            ]
+          ]
+        },
+        "parkedPlaten": {
+          "sourcePixels": [
+            [
+              343,
+              416
+            ],
+            [
+              870,
+              416
+            ],
+            [
+              870,
+              559
+            ],
+            [
+              343,
+              559
+            ]
+          ],
+          "exportPixels": [
+            [
+              316,
+              375
+            ],
+            [
+              843,
+              375
+            ],
+            [
+              843,
+              518
+            ],
+            [
+              316,
+              518
+            ]
+          ],
+          "worldPixels": [
+            [
+              7.172,
+              2.56
+            ],
+            [
+              20.802,
+              2.56
+            ],
+            [
+              20.802,
+              6.259
+            ],
+            [
+              7.172,
+              6.259
+            ]
+          ]
+        },
+        "statusPanel": {
+          "sourcePixels": [
+            [
+              1032,
+              694
+            ],
+            [
+              1135,
+              694
+            ],
+            [
+              1135,
+              789
+            ],
+            [
+              1032,
+              789
+            ]
+          ],
+          "exportPixels": [
+            [
+              1005,
+              653
+            ],
+            [
+              1108,
+              653
+            ],
+            [
+              1108,
+              748
+            ],
+            [
+              1005,
+              748
+            ]
+          ],
+          "worldPixels": [
+            [
+              24.991,
+              9.75
+            ],
+            [
+              27.655,
+              9.75
+            ],
+            [
+              27.655,
+              12.207
+            ],
+            [
+              24.991,
+              12.207
+            ]
+          ]
+        }
+      },
+      "liveIntegrated": false,
+      "animationNote": "Platen is authored parked. A moving-platen implementation must mask/recompose it before motion; static full-image override would lose native cycle."
+    },
+    {
+      "id": "pub_outboundchute",
+      "measurement": "Conservative manual visual selection inside inspected source surfaces; conversion uses PropRemaster.fit uniform bottom-centered mapping. Owner must verify live.",
+      "footprint": {
+        "w": 1,
+        "h": 2
+      },
+      "worldEnvelope": {
+        "x": -3,
+        "y": -11,
+        "width": 18,
+        "height": 35
+      },
+      "uniformScale": 0.02197112366603892,
+      "renderedArtBox": {
+        "x": -2.1622724419334585,
+        "y": -11,
+        "width": 16.324544883866917,
+        "height": 35
+      },
+      "contact": {
+        "x": 6,
+        "y": 24
+      },
+      "regions": {
+        "hopperOpening": {
+          "sourcePixels": [
+            [
+              250,
+              165
+            ],
+            [
+              650,
+              165
+            ],
+            [
+              583,
+              307
+            ],
+            [
+              303,
+              307
+            ]
+          ],
+          "exportPixels": [
+            [
+              138,
+              108
+            ],
+            [
+              538,
+              108
+            ],
+            [
+              471,
+              250
+            ],
+            [
+              191,
+              250
+            ]
+          ],
+          "worldPixels": [
+            [
+              0.87,
+              -8.627
+            ],
+            [
+              9.658,
+              -8.627
+            ],
+            [
+              8.186,
+              -5.507
+            ],
+            [
+              2.034,
+              -5.507
+            ]
+          ]
+        },
+        "capsuleLane": {
+          "sourcePixels": [
+            [
+              391,
+              627
+            ],
+            [
+              509,
+              627
+            ],
+            [
+              509,
+              1280
+            ],
+            [
+              391,
+              1280
+            ]
+          ],
+          "exportPixels": [
+            [
+              279,
+              570
+            ],
+            [
+              397,
+              570
+            ],
+            [
+              397,
+              1223
+            ],
+            [
+              279,
+              1223
+            ]
+          ],
+          "worldPixels": [
+            [
+              3.968,
+              1.524
+            ],
+            [
+              6.56,
+              1.524
+            ],
+            [
+              6.56,
+              15.871
+            ],
+            [
+              3.968,
+              15.871
+            ]
+          ]
+        }
+      },
+      "liveIntegrated": false
+    },
+    {
+      "id": "pub_mailpod",
+      "measurement": "Conservative manual visual selection inside inspected source surfaces; conversion uses PropRemaster.fit uniform bottom-centered mapping. Owner must verify live.",
+      "footprint": {
+        "w": 2,
+        "h": 1
+      },
+      "worldEnvelope": {
+        "x": -3,
+        "y": -10,
+        "width": 31,
+        "height": 22
+      },
+      "uniformScale": 0.021678321678321677,
+      "renderedArtBox": {
+        "x": -2.9999999999999982,
+        "y": -9.158041958041956,
+        "width": 30.999999999999996,
+        "height": 21.158041958041956
+      },
+      "contact": {
+        "x": 12.5,
+        "y": 12
+      },
+      "regions": {
+        "westEmptyBay": {
+          "sourcePixels": [
+            [
+              270,
+              475
+            ],
+            [
+              629,
+              475
+            ],
+            [
+              630,
+              662
+            ],
+            [
+              248,
+              662
+            ]
+          ],
+          "exportPixels": [
+            [
+              240,
+              451
+            ],
+            [
+              599,
+              451
+            ],
+            [
+              600,
+              638
+            ],
+            [
+              218,
+              638
+            ]
+          ],
+          "worldPixels": [
+            [
+              2.203,
+              0.619
+            ],
+            [
+              9.985,
+              0.619
+            ],
+            [
+              10.007,
+              4.673
+            ],
+            [
+              1.726,
+              4.673
+            ]
+          ]
+        },
+        "eastEmptyBay": {
+          "sourcePixels": [
+            [
+              861,
+              476
+            ],
+            [
+              1225,
+              476
+            ],
+            [
+              1239,
+              662
+            ],
+            [
+              846,
+              662
+            ]
+          ],
+          "exportPixels": [
+            [
+              831,
+              452
+            ],
+            [
+              1195,
+              452
+            ],
+            [
+              1209,
+              638
+            ],
+            [
+              816,
+              638
+            ]
+          ],
+          "worldPixels": [
+            [
+              15.015,
+              0.641
+            ],
+            [
+              22.906,
+              0.641
+            ],
+            [
+              23.209,
+              4.673
+            ],
+            [
+              14.69,
+              4.673
+            ]
+          ]
+        },
+        "westIndicator": {
+          "sourcePixels": [
+            [
+              434,
+              390
+            ],
+            [
+              454,
+              390
+            ],
+            [
+              454,
+              410
+            ],
+            [
+              434,
+              410
+            ]
+          ],
+          "exportPixels": [
+            [
+              404,
+              366
+            ],
+            [
+              424,
+              366
+            ],
+            [
+              424,
+              386
+            ],
+            [
+              404,
+              386
+            ]
+          ],
+          "worldPixels": [
+            [
+              5.758,
+              -1.224
+            ],
+            [
+              6.192,
+              -1.224
+            ],
+            [
+              6.192,
+              -0.79
+            ],
+            [
+              5.758,
+              -0.79
+            ]
+          ]
+        },
+        "eastIndicator": {
+          "sourcePixels": [
+            [
+              1034,
+              390
+            ],
+            [
+              1054,
+              390
+            ],
+            [
+              1054,
+              410
+            ],
+            [
+              1034,
+              410
+            ]
+          ],
+          "exportPixels": [
+            [
+              1004,
+              366
+            ],
+            [
+              1024,
+              366
+            ],
+            [
+              1024,
+              386
+            ],
+            [
+              1004,
+              386
+            ]
+          ],
+          "worldPixels": [
+            [
+              18.765,
+              -1.224
+            ],
+            [
+              19.199,
+              -1.224
+            ],
+            [
+              19.199,
+              -0.79
+            ],
+            [
+              18.765,
+              -0.79
+            ]
+          ]
+        }
+      },
+      "liveIntegrated": false
+    }
+  ]
+}
