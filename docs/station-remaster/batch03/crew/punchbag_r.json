@@ -1,0 +1,259 @@
+{
+  "id": "punchbag_r",
+  "nativeId": "punchbag_r",
+  "view": "s",
+  "footprint": {
+    "w": 1,
+    "h": 2
+  },
+  "bounds": {
+    "x": 0,
+    "y": -8,
+    "width": 12,
+    "height": 30
+  },
+  "geometry": {
+    "blocks": true,
+    "flat": false,
+    "tableSurface": false,
+    "requiredMount": null,
+    "optionalSurfaceMount": false,
+    "surfaceRisePixels": 8
+  },
+  "orientation": {
+    "facings": [
+      {
+        "r": 0,
+        "front": "south",
+        "w": 1,
+        "h": 2,
+        "type": "authored-view"
+      }
+    ],
+    "canMirror": true,
+    "classicFacings": [
+      0
+    ]
+  },
+  "anchorContract": "PropAnchor derives reachable edge approach; useApproach rotates relative preference with r. Preserve standing leisure action unless special planner supplies a real body anchor.",
+  "sourceAnimation": {
+    "idleFrameVariants": 3,
+    "workFrameVariants": 3,
+    "respondsToWorkFlag": false,
+    "opaqueBoundsRelativeToFootprint": {
+      "x": 0,
+      "y": -8,
+      "w": 12,
+      "h": 30,
+      "alphaThreshold": 160
+    }
+  },
+  "tilePixels": 12,
+  "floorContact": {
+    "x": 6,
+    "y": 24
+  },
+  "visualBottomContact": {
+    "x": 6,
+    "y": 22
+  },
+  "status": "art-draft-integration-pending",
+  "backgroundThreshold": 235,
+  "holeSeeds": [
+    [
+      729,
+      146
+    ],
+    [
+      729,
+      192
+    ],
+    [
+      729,
+      237
+    ],
+    [
+      730,
+      308
+    ]
+  ],
+  "motionIntegrationNote": "Static neutral keyart only. Extract alpha-masked movingBagAndChain region and sway around swingPivot, including chain; static mast and base remain fixed. Autonomous native swing must be restored by owner.",
+  "authoredGeometry": {
+    "method": "Manual visual annotation of painted source geometry; approximate edges, not live validated. Normalized coordinates refer to final tight alpha crop, not full original canvas.",
+    "fitWorldPixels": {
+      "x": 0.0,
+      "y": 1.2596153846153832,
+      "width": 12.0,
+      "height": 20.740384615384617,
+      "bottom": 22.0
+    },
+    "regions": {
+      "swingPivot": {
+        "cropNormalized": [
+          0.839,
+          0.05424
+        ],
+        "sourcePixels": [
+          729.05,
+          110.0
+        ],
+        "sourceNormalized": [
+          0.711961,
+          0.071613
+        ],
+        "worldPixels": [
+          10.068,
+          2.3846
+        ]
+      },
+      "movingBagAndChain": {
+        "cropNormalized": [
+          [
+            0.682,
+            0.055
+          ],
+          [
+            1,
+            0.055
+          ],
+          [
+            1,
+            0.75
+          ],
+          [
+            0.682,
+            0.75
+          ]
+        ],
+        "sourcePixels": [
+          [
+            598.42,
+            111.09
+          ],
+          [
+            863,
+            111.09
+          ],
+          [
+            863,
+            1110.5
+          ],
+          [
+            598.42,
+            1110.5
+          ]
+        ],
+        "sourceNormalized": [
+          [
+            0.584398,
+            0.072324
+          ],
+          [
+            0.842773,
+            0.072324
+          ],
+          [
+            0.842773,
+            0.722982
+          ],
+          [
+            0.584398,
+            0.722982
+          ]
+        ],
+        "worldPixels": [
+          [
+            8.184,
+            2.4003
+          ],
+          [
+            12.0,
+            2.4003
+          ],
+          [
+            12.0,
+            16.8149
+          ],
+          [
+            8.184,
+            16.8149
+          ]
+        ]
+      },
+      "bagBody": {
+        "cropNormalized": [
+          [
+            0.682,
+            0.21
+          ],
+          [
+            1,
+            0.21
+          ],
+          [
+            1,
+            0.75
+          ],
+          [
+            0.682,
+            0.75
+          ]
+        ],
+        "sourcePixels": [
+          [
+            598.42,
+            333.98
+          ],
+          [
+            863,
+            333.98
+          ],
+          [
+            863,
+            1110.5
+          ],
+          [
+            598.42,
+            1110.5
+          ]
+        ],
+        "sourceNormalized": [
+          [
+            0.584398,
+            0.217435
+          ],
+          [
+            0.842773,
+            0.217435
+          ],
+          [
+            0.842773,
+            0.722982
+          ],
+          [
+            0.584398,
+            0.722982
+          ]
+        ],
+        "worldPixels": [
+          [
+            8.184,
+            5.6151
+          ],
+          [
+            12.0,
+            5.6151
+          ],
+          [
+            12.0,
+            16.8149
+          ],
+          [
+            8.184,
+            16.8149
+          ]
+        ]
+      }
+    }
+  }
+}
