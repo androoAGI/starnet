@@ -12,7 +12,7 @@ const sourcePath=path.join(docs,'sources',id+'.png'),source=fs.readFileSync(sour
 const {data,info}=await sharp(source).ensureAlpha().raw().toBuffer({resolveWithObject:true});
 const original=Buffer.from(data),w=info.width,h=info.height,n=w*h,seen=new Uint8Array(n),queue=new Int32Array(n);
 let head=0,end=0,components=0;
-const key=i=>{const p=i*4;return data[p]-data[p+1]>30&&data[p+2]-data[p+1]>30&&data[p]+data[p+2]>180;};
+const key=i=>{const p=i*4,r=data[p],g=data[p+1],b=data[p+2];return r-g>30&&b-g>30&&r+b>180&&b>r*.82&&r>b*.8;};
 const visit=i=>{if(i<0||i>=n||seen[i]||!key(i))return;seen[i]=1;queue[end++]=i;};
 for(let x=0;x<w;x++){visit(x);visit((h-1)*w+x);}for(let y=0;y<h;y++){visit(y*w);visit(y*w+w-1);}
 const drain=()=>{while(head<end){const i=queue[head++],x=i%w;if(x)visit(i-1);if(x<w-1)visit(i+1);visit(i-w);visit(i+w);}};

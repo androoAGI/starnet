@@ -6,25 +6,29 @@
   "sourceWidth": 904,
   "sourceHeight": 1740,
   "image": "guitar.png",
-  "sourceOutputWidth": 587,
+  "sourceOutputWidth": 588,
   "sourceOutputHeight": 1622,
   "crop": {
-    "left": 159,
+    "left": 158,
     "top": 35,
-    "width": 587,
+    "width": 588,
     "height": 1622
   },
   "channels": 4,
-  "transparentPixels": 489389,
-  "opaquePixels": 462725,
+  "transparentPixels": 490528,
+  "opaquePixels": 463208,
   "partialPixels": 0,
-  "backgroundPixelsRemoved": 1110235,
+  "backgroundPixelsRemoved": 1109752,
   "subjectRgbChanges": 0,
-  "outputSha256": "7cb759e93c677b597ecab265c450e0e9c0cceb3c26335c33de5eaa7bbfbd95c0",
+  "outputSha256": "001a861cb1a0973040a871ec817d5dd3f1f066d378631cfe7b50ea116196b923",
   "holeSeeds": [
     [
-      663,
-      895
+      279,
+      799
+    ],
+    [
+      243,
+      1011
     ],
     [
       718,
