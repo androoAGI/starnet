@@ -1,0 +1,278 @@
+{
+  "id": "benchpress_r",
+  "nativeId": "benchpress_r",
+  "view": "s",
+  "footprint": {
+    "w": 3,
+    "h": 1
+  },
+  "bounds": {
+    "x": -1,
+    "y": -8,
+    "width": 36,
+    "height": 20
+  },
+  "geometry": {
+    "blocks": true,
+    "flat": false,
+    "tableSurface": false,
+    "requiredMount": null,
+    "optionalSurfaceMount": false,
+    "surfaceRisePixels": 8
+  },
+  "orientation": {
+    "facings": [
+      {
+        "r": 0,
+        "front": "south",
+        "w": 3,
+        "h": 1,
+        "type": "authored-view"
+      }
+    ],
+    "canMirror": true,
+    "classicFacings": [
+      0
+    ]
+  },
+  "anchorContract": "PropAnchor derives reachable edge approach; useApproach rotates relative preference with r. Preserve standing leisure action unless special planner supplies a real body anchor.",
+  "sourceAnimation": {
+    "idleFrameVariants": 1,
+    "workFrameVariants": 1,
+    "respondsToWorkFlag": false,
+    "opaqueBoundsRelativeToFootprint": {
+      "x": -1,
+      "y": -8,
+      "w": 36,
+      "h": 20,
+      "alphaThreshold": 160
+    }
+  },
+  "tilePixels": 12,
+  "floorContact": {
+    "x": 18,
+    "y": 12
+  },
+  "visualBottomContact": {
+    "x": 17,
+    "y": 12
+  },
+  "status": "art-draft-integration-pending",
+  "backgroundThreshold": 235,
+  "holeSeeds": [
+    [
+      1270,
+      330
+    ],
+    [
+      1330,
+      640
+    ],
+    [
+      174,
+      593
+    ]
+  ],
+  "authoredGeometry": {
+    "method": "Manual visual annotation of painted source geometry; approximate edges, not live validated. Normalized coordinates refer to final tight alpha crop, not full original canvas.",
+    "fitWorldPixels": {
+      "x": -1.0,
+      "y": -3.7272727272727284,
+      "width": 36.0,
+      "height": 15.727272727272728,
+      "bottom": 12.0
+    },
+    "regions": {
+      "bodyPadSupport": {
+        "cropNormalized": [
+          [
+            0.023,
+            0.41
+          ],
+          [
+            0.665,
+            0.41
+          ],
+          [
+            0.667,
+            0.552
+          ],
+          [
+            0.016,
+            0.552
+          ]
+        ],
+        "sourcePixels": [
+          [
+            83.43,
+            406.72
+          ],
+          [
+            1100.36,
+            406.72
+          ],
+          [
+            1103.53,
+            504.98
+          ],
+          [
+            72.34,
+            504.98
+          ]
+        ],
+        "sourceNormalized": [
+          [
+            0.049603,
+            0.434995
+          ],
+          [
+            0.654197,
+            0.434995
+          ],
+          [
+            0.656081,
+            0.54009
+          ],
+          [
+            0.043011,
+            0.54009
+          ]
+        ],
+        "worldPixels": [
+          [
+            -0.172,
+            2.7209
+          ],
+          [
+            22.94,
+            2.7209
+          ],
+          [
+            23.012,
+            4.9542
+          ],
+          [
+            -0.424,
+            4.9542
+          ]
+        ]
+      },
+      "headPadSupport": {
+        "cropNormalized": [
+          [
+            0.694,
+            0.379
+          ],
+          [
+            0.844,
+            0.379
+          ],
+          [
+            0.844,
+            0.545
+          ],
+          [
+            0.694,
+            0.545
+          ]
+        ],
+        "sourcePixels": [
+          [
+            1146.3,
+            385.27
+          ],
+          [
+            1383.9,
+            385.27
+          ],
+          [
+            1383.9,
+            500.14
+          ],
+          [
+            1146.3,
+            500.14
+          ]
+        ],
+        "sourceNormalized": [
+          [
+            0.681508,
+            0.412051
+          ],
+          [
+            0.822768,
+            0.412051
+          ],
+          [
+            0.822768,
+            0.534909
+          ],
+          [
+            0.681508,
+            0.534909
+          ]
+        ],
+        "worldPixels": [
+          [
+            23.984,
+            2.2334
+          ],
+          [
+            29.384,
+            2.2334
+          ],
+          [
+            29.384,
+            4.8441
+          ],
+          [
+            23.984,
+            4.8441
+          ]
+        ]
+      },
+      "barbellAxis": {
+        "cropNormalized": [
+          [
+            0.622,
+            0.195
+          ],
+          [
+            0.914,
+            0.195
+          ]
+        ],
+        "sourcePixels": [
+          [
+            1032.25,
+            257.94
+          ],
+          [
+            1494.78,
+            257.94
+          ]
+        ],
+        "sourceNormalized": [
+          [
+            0.613703,
+            0.275872
+          ],
+          [
+            0.88869,
+            0.275872
+          ]
+        ],
+        "worldPixels": [
+          [
+            21.392,
+            -0.6605
+          ],
+          [
+            31.904,
+            -0.6605
+          ]
+        ]
+      }
+    }
+  }
+}
