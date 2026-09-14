@@ -1,0 +1,1481 @@
+[
+  {
+    "id": "studio",
+    "inventory": {
+      "id": "studio",
+      "label": "STUDIO",
+      "family": "capability",
+      "tier": "functional",
+      "oldConcept": "CAPABILITY — gives the agent in this room a media studio (generate & analyze images). It glows magenta while an image renders.",
+      "classicBox": {
+        "w": 2,
+        "h": 2
+      },
+      "remasterBox": {
+        "w": 2,
+        "h": 2
+      },
+      "tilePixels": 12,
+      "orientation": {
+        "facings": [
+          {
+            "r": 0,
+            "front": "south",
+            "w": 2,
+            "h": 2,
+            "type": "authored-view"
+          }
+        ],
+        "canMirror": false,
+        "classicFacings": [
+          0
+        ]
+      },
+      "geometry": {
+        "blocks": true,
+        "flat": false,
+        "tableSurface": false,
+        "requiredMount": null,
+        "optionalSurfaceMount": false,
+        "surfaceRisePixels": 8
+      },
+      "assignedWorkstation": false,
+      "leisureUse": null,
+      "capabilityObjectType": "studio",
+      "animatedCatalogFlag": true,
+      "light": {
+        "c": [
+          255,
+          106,
+          213
+        ],
+        "r": 30,
+        "a": 0.16,
+        "m": "pulse",
+        "y": 0.4
+      },
+      "sampledAnimation": {
+        "remaster": {
+          "idleFrameVariants": 1,
+          "workFrameVariants": 9,
+          "respondsToWorkFlag": true,
+          "opaqueBoundsRelativeToFootprint": {
+            "x": 0,
+            "y": -6,
+            "w": 29,
+            "h": 30,
+            "alphaThreshold": 160
+          }
+        },
+        "classic": {
+          "idleFrameVariants": 1,
+          "workFrameVariants": 9,
+          "respondsToWorkFlag": true,
+          "opaqueBoundsRelativeToFootprint": {
+            "x": 0,
+            "y": -6,
+            "w": 29,
+            "h": 30,
+            "alphaThreshold": 160
+          }
+        }
+      },
+      "art": {
+        "implementation": "native-procedural-construction",
+        "assets": [],
+        "detailStatus": "Industrial palette/construction pass exists; no individually authored remaster raster silhouette yet.",
+        "completion": "baseline-audited; comprehensive prop pass not accepted"
+      },
+      "liveAnimationTriggers": [
+        "Real image_*, voice_generate tool completion chooses the granting prop instance and overlays a 900 ms success accent or red failure surge."
+      ],
+      "anchorContract": "No leisure seat anchor. Footprint is the placement/pathfinding rectangle; upright visual rise is independent of the reserved box.",
+      "directionalArtNeed": "South-only at baseline. For free placement, author side/rear projections rather than rotate the elevation; preserve upright box unless footprint is genuine plan.",
+      "sourceEvidence": {
+        "catalog": "frontend/app/propsprites.js:10779",
+        "geometry": "frontend/app/propsprites.js:11006",
+        "drawState": "frontend/app/propsprites.js:11279",
+        "liveWorld": "frontend/app/world.js:6029"
+      }
+    },
+    "structure": {
+      "label": "STUDIO",
+      "family": "capability",
+      "description": "CAPABILITY — gives the agent in this room a media studio (generate & analyze images). It glows magenta while an image renders.",
+      "flat": false,
+      "views": {
+        "s": {
+          "key": "studio",
+          "r": 0,
+          "image": "studio.png",
+          "footprint": {
+            "w": 2,
+            "h": 2
+          },
+          "bounds": {
+            "x": 0,
+            "y": -6,
+            "width": 29,
+            "height": 30
+          },
+          "guide": "dev/.scratch-workspace/prop-structure/studio.png"
+        }
+      }
+    }
+  },
+  {
+    "id": "airlock",
+    "inventory": {
+      "id": "airlock",
+      "label": "AIRLOCK",
+      "family": "isolation",
+      "tier": "functional",
+      "oldConcept": "AIRLOCK — seals a room on the floor (a staging / merge gate); the agent's body can't path in or out. Click to cycle open / sealed / jammed.",
+      "classicBox": {
+        "w": 1,
+        "h": 1
+      },
+      "remasterBox": {
+        "w": 1,
+        "h": 1
+      },
+      "tilePixels": 12,
+      "orientation": {
+        "facings": [
+          {
+            "r": 0,
+            "front": "south",
+            "w": 1,
+            "h": 1,
+            "type": "authored-view"
+          }
+        ],
+        "canMirror": true,
+        "classicFacings": [
+          0
+        ]
+      },
+      "geometry": {
+        "blocks": false,
+        "flat": false,
+        "tableSurface": false,
+        "requiredMount": null,
+        "optionalSurfaceMount": false,
+        "surfaceRisePixels": 8
+      },
+      "assignedWorkstation": false,
+      "leisureUse": null,
+      "capabilityObjectType": null,
+      "animatedCatalogFlag": true,
+      "light": {
+        "c": [
+          255,
+          90,
+          70
+        ],
+        "r": 18,
+        "a": 0.1,
+        "m": "pulse",
+        "y": 0.5
+      },
+      "sampledAnimation": {
+        "remaster": {
+          "idleFrameVariants": 9,
+          "workFrameVariants": 9,
+          "respondsToWorkFlag": false,
+          "opaqueBoundsRelativeToFootprint": {
+            "x": -1,
+            "y": -1,
+            "w": 14,
+            "h": 14,
+            "alphaThreshold": 160
+          }
+        },
+        "classic": {
+          "idleFrameVariants": 9,
+          "workFrameVariants": 9,
+          "respondsToWorkFlag": false,
+          "opaqueBoundsRelativeToFootprint": {
+            "x": -1,
+            "y": -1,
+            "w": 14,
+            "h": 14,
+            "alphaThreshold": 160
+          }
+        }
+      },
+      "art": {
+        "implementation": "native-procedural-construction",
+        "assets": [],
+        "detailStatus": "Industrial palette/construction pass exists; no individually authored remaster raster silhouette yet.",
+        "completion": "baseline-audited; comprehensive prop pass not accepted"
+      },
+      "liveAnimationTriggers": [
+        "Saved live door state selects open, closed or jammed iris geometry; jam sparks use the frame clock.",
+        "Autonomous sprite clock animation is present in the sampled default state; cosmetic motion is not evidence of provider work, route decisions or external state."
+      ],
+      "anchorContract": "No leisure seat anchor. Footprint is the placement/pathfinding rectangle; upright visual rise is independent of the reserved box.",
+      "directionalArtNeed": "South-only at baseline. For free placement, author side/rear projections rather than rotate the elevation; preserve upright box unless footprint is genuine plan.",
+      "sourceEvidence": {
+        "catalog": "frontend/app/propsprites.js:10781",
+        "geometry": "frontend/app/propsprites.js:11006",
+        "drawState": "frontend/app/propsprites.js:11279",
+        "liveWorld": "frontend/app/world.js:6029"
+      }
+    },
+    "structure": {
+      "label": "AIRLOCK",
+      "family": "isolation",
+      "description": "AIRLOCK — seals a room on the floor (a staging / merge gate); the agent's body can't path in or out. Click to cycle open / sealed / jammed.",
+      "flat": false,
+      "views": {
+        "s": {
+          "key": "airlock",
+          "r": 0,
+          "image": "airlock.png",
+          "footprint": {
+            "w": 1,
+            "h": 1
+          },
+          "bounds": {
+            "x": -1,
+            "y": -1,
+            "width": 14,
+            "height": 14
+          },
+          "guide": "dev/.scratch-workspace/prop-structure/airlock.png"
+        }
+      }
+    }
+  },
+  {
+    "id": "bigscreen",
+    "inventory": {
+      "id": "bigscreen",
+      "label": "BIG SCREEN",
+      "family": "screens",
+      "tier": "cosmetic",
+      "oldConcept": "BIG SCREEN",
+      "classicBox": {
+        "w": 8,
+        "h": 1
+      },
+      "remasterBox": {
+        "w": 8,
+        "h": 1
+      },
+      "tilePixels": 12,
+      "orientation": {
+        "facings": [
+          {
+            "r": 0,
+            "front": "south",
+            "w": 8,
+            "h": 1,
+            "type": "authored-view"
+          }
+        ],
+        "canMirror": false,
+        "classicFacings": [
+          0
+        ]
+      },
+      "geometry": {
+        "blocks": false,
+        "flat": false,
+        "tableSurface": false,
+        "requiredMount": null,
+        "optionalSurfaceMount": false,
+        "surfaceRisePixels": 8
+      },
+      "assignedWorkstation": false,
+      "leisureUse": null,
+      "capabilityObjectType": null,
+      "animatedCatalogFlag": true,
+      "light": {
+        "c": [
+          110,
+          190,
+          255
+        ],
+        "r": 46,
+        "a": 0.12,
+        "m": "screen",
+        "y": 0.4
+      },
+      "sampledAnimation": {
+        "remaster": {
+          "idleFrameVariants": 9,
+          "workFrameVariants": 9,
+          "respondsToWorkFlag": true,
+          "opaqueBoundsRelativeToFootprint": {
+            "x": -1,
+            "y": -13,
+            "w": 98,
+            "h": 25,
+            "alphaThreshold": 160
+          }
+        },
+        "classic": {
+          "idleFrameVariants": 9,
+          "workFrameVariants": 9,
+          "respondsToWorkFlag": true,
+          "opaqueBoundsRelativeToFootprint": {
+            "x": -1,
+            "y": -13,
+            "w": 98,
+            "h": 25,
+            "alphaThreshold": 160
+          }
+        }
+      },
+      "art": {
+        "implementation": "native-procedural-construction",
+        "assets": [],
+        "detailStatus": "Industrial palette/construction pass exists; no individually authored remaster raster silhouette yet.",
+        "completion": "baseline-audited; comprehensive prop pass not accepted"
+      },
+      "liveAnimationTriggers": [
+        "Autonomous sprite clock animation is present in the sampled default state; cosmetic motion is not evidence of provider work, route decisions or external state."
+      ],
+      "anchorContract": "No leisure seat anchor. Footprint is the placement/pathfinding rectangle; upright visual rise is independent of the reserved box.",
+      "directionalArtNeed": "South-only at baseline. For free placement, author side/rear projections rather than rotate the elevation; preserve upright box unless footprint is genuine plan.",
+      "sourceEvidence": {
+        "catalog": "frontend/app/propsprites.js:10794",
+        "geometry": "frontend/app/propsprites.js:11006",
+        "drawState": "frontend/app/propsprites.js:11279",
+        "liveWorld": "frontend/app/world.js:6029"
+      }
+    },
+    "structure": {
+      "label": "BIG SCREEN",
+      "family": "screens",
+      "flat": false,
+      "views": {
+        "s": {
+          "key": "bigscreen",
+          "r": 0,
+          "image": "bigscreen.png",
+          "footprint": {
+            "w": 8,
+            "h": 1
+          },
+          "bounds": {
+            "x": -1,
+            "y": -13,
+            "width": 98,
+            "height": 25
+          },
+          "guide": "dev/.scratch-workspace/prop-structure/bigscreen.png"
+        }
+      }
+    }
+  },
+  {
+    "id": "holotable",
+    "inventory": {
+      "id": "holotable",
+      "label": "HOLOTABLE",
+      "family": "screens",
+      "tier": "cosmetic",
+      "oldConcept": "HOLOTABLE",
+      "classicBox": {
+        "w": 4,
+        "h": 2
+      },
+      "remasterBox": {
+        "w": 4,
+        "h": 2
+      },
+      "tilePixels": 12,
+      "orientation": {
+        "facings": [
+          {
+            "r": 0,
+            "front": "south",
+            "w": 4,
+            "h": 2,
+            "type": "authored-view"
+          }
+        ],
+        "canMirror": false,
+        "classicFacings": [
+          0
+        ]
+      },
+      "geometry": {
+        "blocks": true,
+        "flat": false,
+        "tableSurface": false,
+        "requiredMount": null,
+        "optionalSurfaceMount": false,
+        "surfaceRisePixels": 8
+      },
+      "assignedWorkstation": false,
+      "leisureUse": null,
+      "capabilityObjectType": null,
+      "animatedCatalogFlag": true,
+      "light": {
+        "c": [
+          120,
+          200,
+          255
+        ],
+        "r": 30,
+        "a": 0.14,
+        "m": "screen",
+        "y": 0.45
+      },
+      "sampledAnimation": {
+        "remaster": {
+          "idleFrameVariants": 9,
+          "workFrameVariants": 9,
+          "respondsToWorkFlag": true,
+          "opaqueBoundsRelativeToFootprint": {
+            "x": -1,
+            "y": -10,
+            "w": 50,
+            "h": 34,
+            "alphaThreshold": 160
+          }
+        },
+        "classic": {
+          "idleFrameVariants": 9,
+          "workFrameVariants": 9,
+          "respondsToWorkFlag": true,
+          "opaqueBoundsRelativeToFootprint": {
+            "x": -1,
+            "y": -10,
+            "w": 50,
+            "h": 34,
+            "alphaThreshold": 160
+          }
+        }
+      },
+      "art": {
+        "implementation": "native-procedural-construction",
+        "assets": [],
+        "detailStatus": "Industrial palette/construction pass exists; no individually authored remaster raster silhouette yet.",
+        "completion": "baseline-audited; comprehensive prop pass not accepted"
+      },
+      "liveAnimationTriggers": [
+        "Autonomous sprite clock animation is present in the sampled default state; cosmetic motion is not evidence of provider work, route decisions or external state."
+      ],
+      "anchorContract": "No leisure seat anchor. Footprint is the placement/pathfinding rectangle; upright visual rise is independent of the reserved box.",
+      "directionalArtNeed": "South-only at baseline. For free placement, author side/rear projections rather than rotate the elevation; preserve upright box unless footprint is genuine plan.",
+      "sourceEvidence": {
+        "catalog": "frontend/app/propsprites.js:10795",
+        "geometry": "frontend/app/propsprites.js:11006",
+        "drawState": "frontend/app/propsprites.js:11279",
+        "liveWorld": "frontend/app/world.js:6029"
+      }
+    },
+    "structure": {
+      "label": "HOLOTABLE",
+      "family": "screens",
+      "flat": false,
+      "views": {
+        "s": {
+          "key": "holotable",
+          "r": 0,
+          "image": "holotable.png",
+          "footprint": {
+            "w": 4,
+            "h": 2
+          },
+          "bounds": {
+            "x": -1,
+            "y": -10,
+            "width": 50,
+            "height": 34
+          },
+          "guide": "dev/.scratch-workspace/prop-structure/holotable.png"
+        }
+      }
+    }
+  },
+  {
+    "id": "screens",
+    "inventory": {
+      "id": "screens",
+      "label": "SCREENS",
+      "family": "screens",
+      "tier": "cosmetic",
+      "oldConcept": "SCREENS",
+      "classicBox": {
+        "w": 2,
+        "h": 1
+      },
+      "remasterBox": {
+        "w": 2,
+        "h": 1
+      },
+      "tilePixels": 12,
+      "orientation": {
+        "facings": [
+          {
+            "r": 0,
+            "front": "south",
+            "w": 2,
+            "h": 1,
+            "type": "authored-view"
+          }
+        ],
+        "canMirror": true,
+        "classicFacings": [
+          0
+        ]
+      },
+      "geometry": {
+        "blocks": false,
+        "flat": false,
+        "tableSurface": false,
+        "requiredMount": null,
+        "optionalSurfaceMount": false,
+        "surfaceRisePixels": 8
+      },
+      "assignedWorkstation": false,
+      "leisureUse": null,
+      "capabilityObjectType": null,
+      "animatedCatalogFlag": true,
+      "light": {
+        "c": [
+          110,
+          190,
+          255
+        ],
+        "r": 24,
+        "a": 0.12,
+        "m": "screen",
+        "y": 0.35
+      },
+      "sampledAnimation": {
+        "remaster": {
+          "idleFrameVariants": 9,
+          "workFrameVariants": 9,
+          "respondsToWorkFlag": true,
+          "opaqueBoundsRelativeToFootprint": {
+            "x": -1,
+            "y": -15,
+            "w": 26,
+            "h": 27,
+            "alphaThreshold": 160
+          }
+        },
+        "classic": {
+          "idleFrameVariants": 9,
+          "workFrameVariants": 9,
+          "respondsToWorkFlag": true,
+          "opaqueBoundsRelativeToFootprint": {
+            "x": -1,
+            "y": -15,
+            "w": 26,
+            "h": 27,
+            "alphaThreshold": 160
+          }
+        }
+      },
+      "art": {
+        "implementation": "native-procedural-construction",
+        "assets": [],
+        "detailStatus": "Industrial palette/construction pass exists; no individually authored remaster raster silhouette yet.",
+        "completion": "baseline-audited; comprehensive prop pass not accepted"
+      },
+      "liveAnimationTriggers": [
+        "Autonomous sprite clock animation is present in the sampled default state; cosmetic motion is not evidence of provider work, route decisions or external state."
+      ],
+      "anchorContract": "No leisure seat anchor. Footprint is the placement/pathfinding rectangle; upright visual rise is independent of the reserved box.",
+      "directionalArtNeed": "South-only at baseline. For free placement, author side/rear projections rather than rotate the elevation; preserve upright box unless footprint is genuine plan.",
+      "sourceEvidence": {
+        "catalog": "frontend/app/propsprites.js:10796",
+        "geometry": "frontend/app/propsprites.js:11006",
+        "drawState": "frontend/app/propsprites.js:11279",
+        "liveWorld": "frontend/app/world.js:6029"
+      }
+    },
+    "structure": {
+      "label": "SCREENS",
+      "family": "screens",
+      "flat": false,
+      "views": {
+        "s": {
+          "key": "screens",
+          "r": 0,
+          "image": "screens.png",
+          "footprint": {
+            "w": 2,
+            "h": 1
+          },
+          "bounds": {
+            "x": -1,
+            "y": -15,
+            "width": 26,
+            "height": 27
+          },
+          "guide": "dev/.scratch-workspace/prop-structure/screens.png"
+        }
+      }
+    }
+  },
+  {
+    "id": "ticker",
+    "inventory": {
+      "id": "ticker",
+      "label": "TICKER",
+      "family": "screens",
+      "tier": "cosmetic",
+      "oldConcept": "TICKER",
+      "classicBox": {
+        "w": 4,
+        "h": 1
+      },
+      "remasterBox": {
+        "w": 4,
+        "h": 1
+      },
+      "tilePixels": 12,
+      "orientation": {
+        "facings": [
+          {
+            "r": 0,
+            "front": "south",
+            "w": 4,
+            "h": 1,
+            "type": "authored-view"
+          }
+        ],
+        "canMirror": false,
+        "classicFacings": [
+          0
+        ]
+      },
+      "geometry": {
+        "blocks": false,
+        "flat": false,
+        "tableSurface": false,
+        "requiredMount": null,
+        "optionalSurfaceMount": false,
+        "surfaceRisePixels": 8
+      },
+      "assignedWorkstation": false,
+      "leisureUse": null,
+      "capabilityObjectType": null,
+      "animatedCatalogFlag": true,
+      "light": {
+        "c": [
+          255,
+          190,
+          110
+        ],
+        "r": 26,
+        "a": 0.1,
+        "m": "screen",
+        "y": 0.35
+      },
+      "sampledAnimation": {
+        "remaster": {
+          "idleFrameVariants": 9,
+          "workFrameVariants": 9,
+          "respondsToWorkFlag": true,
+          "opaqueBoundsRelativeToFootprint": {
+            "x": -1,
+            "y": -8,
+            "w": 50,
+            "h": 20,
+            "alphaThreshold": 160
+          }
+        },
+        "classic": {
+          "idleFrameVariants": 9,
+          "workFrameVariants": 9,
+          "respondsToWorkFlag": true,
+          "opaqueBoundsRelativeToFootprint": {
+            "x": -1,
+            "y": -8,
+            "w": 50,
+            "h": 20,
+            "alphaThreshold": 160
+          }
+        }
+      },
+      "art": {
+        "implementation": "native-procedural-construction",
+        "assets": [],
+        "detailStatus": "Industrial palette/construction pass exists; no individually authored remaster raster silhouette yet.",
+        "completion": "baseline-audited; comprehensive prop pass not accepted"
+      },
+      "liveAnimationTriggers": [
+        "Autonomous sprite clock animation is present in the sampled default state; cosmetic motion is not evidence of provider work, route decisions or external state."
+      ],
+      "anchorContract": "No leisure seat anchor. Footprint is the placement/pathfinding rectangle; upright visual rise is independent of the reserved box.",
+      "directionalArtNeed": "South-only at baseline. For free placement, author side/rear projections rather than rotate the elevation; preserve upright box unless footprint is genuine plan.",
+      "sourceEvidence": {
+        "catalog": "frontend/app/propsprites.js:10799",
+        "geometry": "frontend/app/propsprites.js:11006",
+        "drawState": "frontend/app/propsprites.js:11279",
+        "liveWorld": "frontend/app/world.js:6029"
+      }
+    },
+    "structure": {
+      "label": "TICKER",
+      "family": "screens",
+      "flat": false,
+      "views": {
+        "s": {
+          "key": "ticker",
+          "r": 0,
+          "image": "ticker.png",
+          "footprint": {
+            "w": 4,
+            "h": 1
+          },
+          "bounds": {
+            "x": -1,
+            "y": -8,
+            "width": 50,
+            "height": 20
+          },
+          "guide": "dev/.scratch-workspace/prop-structure/ticker.png"
+        }
+      }
+    }
+  },
+  {
+    "id": "wartable",
+    "inventory": {
+      "id": "wartable",
+      "label": "WAR TABLE",
+      "family": "screens",
+      "tier": "cosmetic",
+      "oldConcept": "WAR TABLE",
+      "classicBox": {
+        "w": 5,
+        "h": 2
+      },
+      "remasterBox": {
+        "w": 5,
+        "h": 2
+      },
+      "tilePixels": 12,
+      "orientation": {
+        "facings": [
+          {
+            "r": 0,
+            "front": "south",
+            "w": 5,
+            "h": 2,
+            "type": "authored-view"
+          }
+        ],
+        "canMirror": false,
+        "classicFacings": [
+          0
+        ]
+      },
+      "geometry": {
+        "blocks": true,
+        "flat": false,
+        "tableSurface": false,
+        "requiredMount": null,
+        "optionalSurfaceMount": false,
+        "surfaceRisePixels": 8
+      },
+      "assignedWorkstation": false,
+      "leisureUse": null,
+      "capabilityObjectType": null,
+      "animatedCatalogFlag": true,
+      "light": {
+        "c": [
+          120,
+          200,
+          255
+        ],
+        "r": 34,
+        "a": 0.12,
+        "m": "screen",
+        "y": 0.45
+      },
+      "sampledAnimation": {
+        "remaster": {
+          "idleFrameVariants": 9,
+          "workFrameVariants": 9,
+          "respondsToWorkFlag": true,
+          "opaqueBoundsRelativeToFootprint": {
+            "x": -1,
+            "y": -1,
+            "w": 66,
+            "h": 25,
+            "alphaThreshold": 160
+          }
+        },
+        "classic": {
+          "idleFrameVariants": 9,
+          "workFrameVariants": 9,
+          "respondsToWorkFlag": true,
+          "opaqueBoundsRelativeToFootprint": {
+            "x": -1,
+            "y": -1,
+            "w": 66,
+            "h": 25,
+            "alphaThreshold": 160
+          }
+        }
+      },
+      "art": {
+        "implementation": "native-procedural-construction",
+        "assets": [],
+        "detailStatus": "Industrial palette/construction pass exists; no individually authored remaster raster silhouette yet.",
+        "completion": "baseline-audited; comprehensive prop pass not accepted"
+      },
+      "liveAnimationTriggers": [
+        "Autonomous sprite clock animation is present in the sampled default state; cosmetic motion is not evidence of provider work, route decisions or external state."
+      ],
+      "anchorContract": "No leisure seat anchor. Footprint is the placement/pathfinding rectangle; upright visual rise is independent of the reserved box.",
+      "directionalArtNeed": "South-only at baseline. For free placement, author side/rear projections rather than rotate the elevation; preserve upright box unless footprint is genuine plan.",
+      "sourceEvidence": {
+        "catalog": "frontend/app/propsprites.js:10801",
+        "geometry": "frontend/app/propsprites.js:11006",
+        "drawState": "frontend/app/propsprites.js:11279",
+        "liveWorld": "frontend/app/world.js:6029"
+      }
+    },
+    "structure": {
+      "label": "WAR TABLE",
+      "family": "screens",
+      "flat": false,
+      "views": {
+        "s": {
+          "key": "wartable",
+          "r": 0,
+          "image": "wartable.png",
+          "footprint": {
+            "w": 5,
+            "h": 2
+          },
+          "bounds": {
+            "x": -1,
+            "y": -1,
+            "width": 66,
+            "height": 25
+          },
+          "guide": "dev/.scratch-workspace/prop-structure/wartable.png"
+        }
+      }
+    }
+  },
+  {
+    "id": "bridge_tacscreen",
+    "inventory": {
+      "id": "bridge_tacscreen",
+      "label": "TAC SCREEN",
+      "family": "screens",
+      "tier": "cosmetic",
+      "oldConcept": "TAC SCREEN",
+      "classicBox": {
+        "w": 2,
+        "h": 1
+      },
+      "remasterBox": {
+        "w": 2,
+        "h": 1
+      },
+      "tilePixels": 12,
+      "orientation": {
+        "facings": [
+          {
+            "r": 0,
+            "front": "south",
+            "w": 2,
+            "h": 1,
+            "type": "authored-view"
+          }
+        ],
+        "canMirror": false,
+        "classicFacings": [
+          0
+        ]
+      },
+      "geometry": {
+        "blocks": false,
+        "flat": false,
+        "tableSurface": false,
+        "requiredMount": null,
+        "optionalSurfaceMount": false,
+        "surfaceRisePixels": 8
+      },
+      "assignedWorkstation": false,
+      "leisureUse": null,
+      "capabilityObjectType": null,
+      "animatedCatalogFlag": true,
+      "light": {
+        "c": [
+          110,
+          190,
+          255
+        ],
+        "r": 24,
+        "a": 0.12,
+        "m": "screen",
+        "y": 0.35
+      },
+      "sampledAnimation": {
+        "remaster": {
+          "idleFrameVariants": 9,
+          "workFrameVariants": 9,
+          "respondsToWorkFlag": true,
+          "opaqueBoundsRelativeToFootprint": {
+            "x": -1,
+            "y": -9,
+            "w": 26,
+            "h": 21,
+            "alphaThreshold": 160
+          }
+        },
+        "classic": {
+          "idleFrameVariants": 9,
+          "workFrameVariants": 9,
+          "respondsToWorkFlag": true,
+          "opaqueBoundsRelativeToFootprint": {
+            "x": -1,
+            "y": -9,
+            "w": 26,
+            "h": 21,
+            "alphaThreshold": 160
+          }
+        }
+      },
+      "art": {
+        "implementation": "native-procedural-construction",
+        "assets": [],
+        "detailStatus": "Industrial palette/construction pass exists; no individually authored remaster raster silhouette yet.",
+        "completion": "baseline-audited; comprehensive prop pass not accepted"
+      },
+      "liveAnimationTriggers": [
+        "Autonomous sprite clock animation is present in the sampled default state; cosmetic motion is not evidence of provider work, route decisions or external state."
+      ],
+      "anchorContract": "No leisure seat anchor. Footprint is the placement/pathfinding rectangle; upright visual rise is independent of the reserved box.",
+      "directionalArtNeed": "South-only at baseline. For free placement, author side/rear projections rather than rotate the elevation; preserve upright box unless footprint is genuine plan.",
+      "sourceEvidence": {
+        "catalog": "frontend/app/propsprites.js:10803",
+        "geometry": "frontend/app/propsprites.js:11006",
+        "drawState": "frontend/app/propsprites.js:11279",
+        "liveWorld": "frontend/app/world.js:6029"
+      }
+    },
+    "structure": {
+      "label": "TAC SCREEN",
+      "family": "screens",
+      "flat": false,
+      "views": {
+        "s": {
+          "key": "bridge_tacscreen",
+          "r": 0,
+          "image": "bridge_tacscreen.png",
+          "footprint": {
+            "w": 2,
+            "h": 1
+          },
+          "bounds": {
+            "x": -1,
+            "y": -9,
+            "width": 26,
+            "height": 21
+          },
+          "guide": "dev/.scratch-workspace/prop-structure/bridge_tacscreen.png"
+        }
+      }
+    }
+  },
+  {
+    "id": "bridge_dispatch_pylon",
+    "inventory": {
+      "id": "bridge_dispatch_pylon",
+      "label": "DISPATCH PYLON",
+      "family": "screens",
+      "tier": "cosmetic",
+      "oldConcept": "DISPATCH PYLON",
+      "classicBox": {
+        "w": 1,
+        "h": 2
+      },
+      "remasterBox": {
+        "w": 1,
+        "h": 2
+      },
+      "tilePixels": 12,
+      "orientation": {
+        "facings": [
+          {
+            "r": 0,
+            "front": "south",
+            "w": 1,
+            "h": 2,
+            "type": "authored-view"
+          }
+        ],
+        "canMirror": true,
+        "classicFacings": [
+          0
+        ]
+      },
+      "geometry": {
+        "blocks": true,
+        "flat": false,
+        "tableSurface": false,
+        "requiredMount": null,
+        "optionalSurfaceMount": false,
+        "surfaceRisePixels": 8
+      },
+      "assignedWorkstation": false,
+      "leisureUse": null,
+      "capabilityObjectType": null,
+      "animatedCatalogFlag": true,
+      "light": {
+        "c": [
+          255,
+          190,
+          110
+        ],
+        "r": 22,
+        "a": 0.12,
+        "m": "pulse",
+        "y": 0.3
+      },
+      "sampledAnimation": {
+        "remaster": {
+          "idleFrameVariants": 9,
+          "workFrameVariants": 9,
+          "respondsToWorkFlag": true,
+          "opaqueBoundsRelativeToFootprint": {
+            "x": -2,
+            "y": -11,
+            "w": 19,
+            "h": 35,
+            "alphaThreshold": 160
+          }
+        },
+        "classic": {
+          "idleFrameVariants": 9,
+          "workFrameVariants": 9,
+          "respondsToWorkFlag": true,
+          "opaqueBoundsRelativeToFootprint": {
+            "x": -2,
+            "y": -11,
+            "w": 19,
+            "h": 35,
+            "alphaThreshold": 160
+          }
+        }
+      },
+      "art": {
+        "implementation": "native-procedural-construction",
+        "assets": [],
+        "detailStatus": "Industrial palette/construction pass exists; no individually authored remaster raster silhouette yet.",
+        "completion": "baseline-audited; comprehensive prop pass not accepted"
+      },
+      "liveAnimationTriggers": [
+        "Autonomous sprite clock animation is present in the sampled default state; cosmetic motion is not evidence of provider work, route decisions or external state."
+      ],
+      "anchorContract": "No leisure seat anchor. Footprint is the placement/pathfinding rectangle; upright visual rise is independent of the reserved box.",
+      "directionalArtNeed": "South-only at baseline. For free placement, author side/rear projections rather than rotate the elevation; preserve upright box unless footprint is genuine plan.",
+      "sourceEvidence": {
+        "catalog": "frontend/app/propsprites.js:10804",
+        "geometry": "frontend/app/propsprites.js:11006",
+        "drawState": "frontend/app/propsprites.js:11279",
+        "liveWorld": "frontend/app/world.js:6029"
+      }
+    },
+    "structure": {
+      "label": "DISPATCH PYLON",
+      "family": "screens",
+      "flat": false,
+      "views": {
+        "s": {
+          "key": "bridge_dispatch_pylon",
+          "r": 0,
+          "image": "bridge_dispatch_pylon.png",
+          "footprint": {
+            "w": 1,
+            "h": 2
+          },
+          "bounds": {
+            "x": -2,
+            "y": -11,
+            "width": 19,
+            "height": 35
+          },
+          "guide": "dev/.scratch-workspace/prop-structure/bridge_dispatch_pylon.png"
+        }
+      }
+    }
+  },
+  {
+    "id": "bridge_orderqueue",
+    "inventory": {
+      "id": "bridge_orderqueue",
+      "label": "ORDER QUEUE",
+      "family": "screens",
+      "tier": "cosmetic",
+      "oldConcept": "ORDER QUEUE",
+      "classicBox": {
+        "w": 2,
+        "h": 1
+      },
+      "remasterBox": {
+        "w": 2,
+        "h": 1
+      },
+      "tilePixels": 12,
+      "orientation": {
+        "facings": [
+          {
+            "r": 0,
+            "front": "south",
+            "w": 2,
+            "h": 1,
+            "type": "authored-view"
+          }
+        ],
+        "canMirror": false,
+        "classicFacings": [
+          0
+        ]
+      },
+      "geometry": {
+        "blocks": true,
+        "flat": false,
+        "tableSurface": false,
+        "requiredMount": null,
+        "optionalSurfaceMount": false,
+        "surfaceRisePixels": 8
+      },
+      "assignedWorkstation": false,
+      "leisureUse": null,
+      "capabilityObjectType": null,
+      "animatedCatalogFlag": true,
+      "light": {
+        "c": [
+          255,
+          190,
+          110
+        ],
+        "r": 22,
+        "a": 0.1,
+        "m": "screen",
+        "y": 0.35
+      },
+      "sampledAnimation": {
+        "remaster": {
+          "idleFrameVariants": 9,
+          "workFrameVariants": 9,
+          "respondsToWorkFlag": true,
+          "opaqueBoundsRelativeToFootprint": {
+            "x": -3,
+            "y": -12,
+            "w": 28,
+            "h": 24,
+            "alphaThreshold": 160
+          }
+        },
+        "classic": {
+          "idleFrameVariants": 9,
+          "workFrameVariants": 9,
+          "respondsToWorkFlag": true,
+          "opaqueBoundsRelativeToFootprint": {
+            "x": -3,
+            "y": -12,
+            "w": 28,
+            "h": 24,
+            "alphaThreshold": 160
+          }
+        }
+      },
+      "art": {
+        "implementation": "native-procedural-construction",
+        "assets": [],
+        "detailStatus": "Industrial palette/construction pass exists; no individually authored remaster raster silhouette yet.",
+        "completion": "baseline-audited; comprehensive prop pass not accepted"
+      },
+      "liveAnimationTriggers": [
+        "Autonomous sprite clock animation is present in the sampled default state; cosmetic motion is not evidence of provider work, route decisions or external state."
+      ],
+      "anchorContract": "No leisure seat anchor. Footprint is the placement/pathfinding rectangle; upright visual rise is independent of the reserved box.",
+      "directionalArtNeed": "South-only at baseline. For free placement, author side/rear projections rather than rotate the elevation; preserve upright box unless footprint is genuine plan.",
+      "sourceEvidence": {
+        "catalog": "frontend/app/propsprites.js:10805",
+        "geometry": "frontend/app/propsprites.js:11006",
+        "drawState": "frontend/app/propsprites.js:11279",
+        "liveWorld": "frontend/app/world.js:6029"
+      }
+    },
+    "structure": {
+      "label": "ORDER QUEUE",
+      "family": "screens",
+      "flat": false,
+      "views": {
+        "s": {
+          "key": "bridge_orderqueue",
+          "r": 0,
+          "image": "bridge_orderqueue.png",
+          "footprint": {
+            "w": 2,
+            "h": 1
+          },
+          "bounds": {
+            "x": -3,
+            "y": -12,
+            "width": 28,
+            "height": 24
+          },
+          "guide": "dev/.scratch-workspace/prop-structure/bridge_orderqueue.png"
+        }
+      }
+    }
+  },
+  {
+    "id": "war_pivotpanel",
+    "inventory": {
+      "id": "war_pivotpanel",
+      "label": "PIVOT PANEL",
+      "family": "screens",
+      "tier": "cosmetic",
+      "oldConcept": "PIVOT PANEL",
+      "classicBox": {
+        "w": 2,
+        "h": 1
+      },
+      "remasterBox": {
+        "w": 2,
+        "h": 1
+      },
+      "tilePixels": 12,
+      "orientation": {
+        "facings": [
+          {
+            "r": 0,
+            "front": "south",
+            "w": 2,
+            "h": 1,
+            "type": "authored-view"
+          }
+        ],
+        "canMirror": true,
+        "classicFacings": [
+          0
+        ]
+      },
+      "geometry": {
+        "blocks": true,
+        "flat": false,
+        "tableSurface": false,
+        "requiredMount": null,
+        "optionalSurfaceMount": false,
+        "surfaceRisePixels": 8
+      },
+      "assignedWorkstation": false,
+      "leisureUse": null,
+      "capabilityObjectType": null,
+      "animatedCatalogFlag": true,
+      "light": {
+        "c": [
+          110,
+          190,
+          255
+        ],
+        "r": 22,
+        "a": 0.1,
+        "m": "screen",
+        "y": 0.35
+      },
+      "sampledAnimation": {
+        "remaster": {
+          "idleFrameVariants": 8,
+          "workFrameVariants": 8,
+          "respondsToWorkFlag": true,
+          "opaqueBoundsRelativeToFootprint": {
+            "x": -1,
+            "y": -6,
+            "w": 26,
+            "h": 18,
+            "alphaThreshold": 160
+          }
+        },
+        "classic": {
+          "idleFrameVariants": 8,
+          "workFrameVariants": 8,
+          "respondsToWorkFlag": true,
+          "opaqueBoundsRelativeToFootprint": {
+            "x": -1,
+            "y": -6,
+            "w": 26,
+            "h": 18,
+            "alphaThreshold": 160
+          }
+        }
+      },
+      "art": {
+        "implementation": "native-procedural-construction",
+        "assets": [],
+        "detailStatus": "Industrial palette/construction pass exists; no individually authored remaster raster silhouette yet.",
+        "completion": "baseline-audited; comprehensive prop pass not accepted"
+      },
+      "liveAnimationTriggers": [
+        "Autonomous sprite clock animation is present in the sampled default state; cosmetic motion is not evidence of provider work, route decisions or external state."
+      ],
+      "anchorContract": "No leisure seat anchor. Footprint is the placement/pathfinding rectangle; upright visual rise is independent of the reserved box.",
+      "directionalArtNeed": "South-only at baseline. For free placement, author side/rear projections rather than rotate the elevation; preserve upright box unless footprint is genuine plan.",
+      "sourceEvidence": {
+        "catalog": "frontend/app/propsprites.js:10806",
+        "geometry": "frontend/app/propsprites.js:11006",
+        "drawState": "frontend/app/propsprites.js:11279",
+        "liveWorld": "frontend/app/world.js:6029"
+      }
+    },
+    "structure": {
+      "label": "PIVOT PANEL",
+      "family": "screens",
+      "flat": false,
+      "views": {
+        "s": {
+          "key": "war_pivotpanel",
+          "r": 0,
+          "image": "war_pivotpanel.png",
+          "footprint": {
+            "w": 2,
+            "h": 1
+          },
+          "bounds": {
+            "x": -1,
+            "y": -6,
+            "width": 26,
+            "height": 18
+          },
+          "guide": "dev/.scratch-workspace/prop-structure/war_pivotpanel.png"
+        }
+      }
+    }
+  },
+  {
+    "id": "war_threatcore",
+    "inventory": {
+      "id": "war_threatcore",
+      "label": "THREAT CORE",
+      "family": "screens",
+      "tier": "cosmetic",
+      "oldConcept": "THREAT CORE",
+      "classicBox": {
+        "w": 1,
+        "h": 2
+      },
+      "remasterBox": {
+        "w": 1,
+        "h": 2
+      },
+      "tilePixels": 12,
+      "orientation": {
+        "facings": [
+          {
+            "r": 0,
+            "front": "south",
+            "w": 1,
+            "h": 2,
+            "type": "authored-view"
+          }
+        ],
+        "canMirror": false,
+        "classicFacings": [
+          0
+        ]
+      },
+      "geometry": {
+        "blocks": true,
+        "flat": false,
+        "tableSurface": false,
+        "requiredMount": null,
+        "optionalSurfaceMount": false,
+        "surfaceRisePixels": 8
+      },
+      "assignedWorkstation": false,
+      "leisureUse": null,
+      "capabilityObjectType": null,
+      "animatedCatalogFlag": true,
+      "light": {
+        "c": [
+          255,
+          90,
+          80
+        ],
+        "r": 26,
+        "a": 0.14,
+        "m": "pulse",
+        "y": 0.3
+      },
+      "sampledAnimation": {
+        "remaster": {
+          "idleFrameVariants": 9,
+          "workFrameVariants": 9,
+          "respondsToWorkFlag": true,
+          "opaqueBoundsRelativeToFootprint": {
+            "x": -1,
+            "y": -10,
+            "w": 18,
+            "h": 34,
+            "alphaThreshold": 160
+          }
+        },
+        "classic": {
+          "idleFrameVariants": 9,
+          "workFrameVariants": 9,
+          "respondsToWorkFlag": true,
+          "opaqueBoundsRelativeToFootprint": {
+            "x": -1,
+            "y": -10,
+            "w": 18,
+            "h": 34,
+            "alphaThreshold": 160
+          }
+        }
+      },
+      "art": {
+        "implementation": "native-procedural-construction",
+        "assets": [],
+        "detailStatus": "Industrial palette/construction pass exists; no individually authored remaster raster silhouette yet.",
+        "completion": "baseline-audited; comprehensive prop pass not accepted"
+      },
+      "liveAnimationTriggers": [
+        "Autonomous sprite clock animation is present in the sampled default state; cosmetic motion is not evidence of provider work, route decisions or external state."
+      ],
+      "anchorContract": "No leisure seat anchor. Footprint is the placement/pathfinding rectangle; upright visual rise is independent of the reserved box.",
+      "directionalArtNeed": "South-only at baseline. For free placement, author side/rear projections rather than rotate the elevation; preserve upright box unless footprint is genuine plan.",
+      "sourceEvidence": {
+        "catalog": "frontend/app/propsprites.js:10807",
+        "geometry": "frontend/app/propsprites.js:11006",
+        "drawState": "frontend/app/propsprites.js:11279",
+        "liveWorld": "frontend/app/world.js:6029"
+      }
+    },
+    "structure": {
+      "label": "THREAT CORE",
+      "family": "screens",
+      "flat": false,
+      "views": {
+        "s": {
+          "key": "war_threatcore",
+          "r": 0,
+          "image": "war_threatcore.png",
+          "footprint": {
+            "w": 1,
+            "h": 2
+          },
+          "bounds": {
+            "x": -1,
+            "y": -10,
+            "width": 18,
+            "height": 34
+          },
+          "guide": "dev/.scratch-workspace/prop-structure/war_threatcore.png"
+        }
+      }
+    }
+  }
+]

@@ -1,8 +1,8 @@
 {
   "planned": 44,
   "repainted": 44,
-  "newDesigns": 34,
-  "exported": 78,
+  "newDesigns": 63,
+  "exported": 107,
   "sections": [
     {
       "id": "infrastructure",
@@ -1410,6 +1410,138 @@
       "status": "illustrated-style-candidate"
     },
     {
+      "id": "intake",
+      "label": "INBOX",
+      "lane": "utility",
+      "group": "Transport",
+      "section": "transport",
+      "kind": "new",
+      "bounds": {
+        "x": -1,
+        "y": -4,
+        "width": 30,
+        "height": 28
+      },
+      "previousImage": null,
+      "image": "assets/industrial/batch03/utility/intake.png?v=05c94d79e01f",
+      "facings": [],
+      "width": 1298,
+      "height": 1212,
+      "transparentPixels": 532781,
+      "opaquePixels": 1040395,
+      "status": "illustrated-style-candidate"
+    },
+    {
+      "id": "bay",
+      "label": "BAY",
+      "lane": "utility",
+      "group": "Transport",
+      "section": "transport",
+      "kind": "new",
+      "bounds": {
+        "x": -1,
+        "y": -7,
+        "width": 30,
+        "height": 31
+      },
+      "previousImage": null,
+      "image": "assets/industrial/batch03/utility/bay.png?v=d3c7c023004b",
+      "facings": [],
+      "width": 1232,
+      "height": 1277,
+      "transparentPixels": 527418,
+      "opaquePixels": 1045846,
+      "status": "illustrated-style-candidate"
+    },
+    {
+      "id": "merger",
+      "label": "MERGER",
+      "lane": "utility",
+      "group": "Transport",
+      "section": "transport",
+      "kind": "new",
+      "bounds": {
+        "x": -2,
+        "y": 0,
+        "width": 16,
+        "height": 11
+      },
+      "previousImage": null,
+      "image": "assets/industrial/batch03/utility/merger.png?v=da07e96a6a64",
+      "facings": [],
+      "width": 1512,
+      "height": 1040,
+      "transparentPixels": 751090,
+      "opaquePixels": 821390,
+      "status": "illustrated-style-candidate"
+    },
+    {
+      "id": "splitter",
+      "label": "SPLITTER",
+      "lane": "utility",
+      "group": "Transport",
+      "section": "transport",
+      "kind": "new",
+      "bounds": {
+        "x": -1,
+        "y": 0,
+        "width": 15,
+        "height": 11
+      },
+      "previousImage": null,
+      "image": "assets/industrial/batch03/utility/splitter.png?v=388d4307db1d",
+      "facings": [],
+      "width": 1464,
+      "height": 1075,
+      "transparentPixels": 714324,
+      "opaquePixels": 859476,
+      "status": "illustrated-style-candidate"
+    },
+    {
+      "id": "joiner",
+      "label": "JOINER",
+      "lane": "utility",
+      "group": "Transport",
+      "section": "transport",
+      "kind": "new",
+      "bounds": {
+        "x": -2,
+        "y": 0,
+        "width": 16,
+        "height": 11
+      },
+      "previousImage": null,
+      "image": "assets/industrial/batch03/utility/joiner.png?v=3bf5428b39a4",
+      "facings": [],
+      "width": 1511,
+      "height": 1041,
+      "transparentPixels": 667472,
+      "opaquePixels": 905479,
+      "status": "illustrated-style-candidate"
+    },
+    {
+      "id": "loop",
+      "label": "LOOP",
+      "lane": "utility",
+      "group": "Transport",
+      "section": "transport",
+      "kind": "new",
+      "bounds": {
+        "x": -1,
+        "y": -7,
+        "width": 15,
+        "height": 18
+      },
+      "previousImage": null,
+      "image": "assets/industrial/batch03/utility/loop.png?v=0f985d791958",
+      "facings": [],
+      "width": 1145,
+      "height": 1374,
+      "transparentPixels": 760249,
+      "opaquePixels": 812981,
+      "status": "illustrated-style-candidate"
+    },
+    {
       "id": "rug",
       "label": "RUG",
       "lane": "habitat",
@@ -1886,7 +2018,9 @@
       },
       "previousImage": null,
       "image": "assets/industrial/batch03/crew/glasstable.png?v=4c5bb258ff59",
-      "facings": [],
+      "facings": [
+        "assets/industrial/batch03/crew/glasstable-r3.png"
+      ],
       "width": 1706,
       "height": 513,
       "transparentPixels": 295821,
@@ -1908,11 +2042,79 @@
       },
       "previousImage": null,
       "image": "assets/industrial/batch03/crew/dinertable.png?v=dd0d73b53527",
-      "facings": [],
+      "facings": [
+        "assets/industrial/batch03/crew/dinertable-r3.png"
+      ],
       "width": 1584,
       "height": 787,
       "transparentPixels": 501720,
       "opaquePixels": 744888,
+      "status": "illustrated-style-candidate"
+    },
+    {
+      "id": "booth",
+      "label": "BOOTH",
+      "lane": "crew",
+      "group": "Furniture & fitness",
+      "section": "furniture",
+      "kind": "new",
+      "bounds": {
+        "x": 0,
+        "y": -7,
+        "width": 24,
+        "height": 19
+      },
+      "previousImage": null,
+      "image": "assets/industrial/batch03/crew/booth.png?v=8628b934e7c0",
+      "facings": [],
+      "width": 1392,
+      "height": 606,
+      "transparentPixels": 118222,
+      "opaquePixels": 725330,
+      "status": "illustrated-style-candidate"
+    },
+    {
+      "id": "dinerchair",
+      "label": "DINER CHAIR",
+      "lane": "crew",
+      "group": "Furniture & fitness",
+      "section": "furniture",
+      "kind": "new",
+      "bounds": {
+        "x": 1,
+        "y": -4,
+        "width": 11,
+        "height": 16
+      },
+      "previousImage": null,
+      "image": "assets/industrial/batch03/crew/dinerchair.png?v=ad8a304c5415",
+      "facings": [],
+      "width": 626,
+      "height": 1283,
+      "transparentPixels": 291093,
+      "opaquePixels": 512065,
+      "status": "illustrated-style-candidate"
+    },
+    {
+      "id": "podchair",
+      "label": "POD CHAIR",
+      "lane": "crew",
+      "group": "Furniture & fitness",
+      "section": "furniture",
+      "kind": "new",
+      "bounds": {
+        "x": 1,
+        "y": -5,
+        "width": 10,
+        "height": 17
+      },
+      "previousImage": null,
+      "image": "assets/industrial/batch03/crew/podchair.png?v=dfd792efe876",
+      "facings": [],
+      "width": 896,
+      "height": 1357,
+      "transparentPixels": 330480,
+      "opaquePixels": 885392,
       "status": "illustrated-style-candidate"
     },
     {
@@ -1930,11 +2132,455 @@
       },
       "previousImage": null,
       "image": "assets/industrial/batch03/crew/loungetable.png?v=8ff07738bfc4",
-      "facings": [],
+      "facings": [
+        "assets/industrial/batch03/crew/loungetable-r3.png"
+      ],
       "width": 1414,
       "height": 608,
       "transparentPixels": 209596,
       "opaquePixels": 650116,
+      "status": "illustrated-style-candidate"
+    },
+    {
+      "id": "longtable",
+      "label": "LONG TABLE",
+      "lane": "crew",
+      "group": "Furniture & fitness",
+      "section": "furniture",
+      "kind": "new",
+      "bounds": {
+        "x": -1,
+        "y": -6,
+        "width": 38,
+        "height": 18
+      },
+      "previousImage": null,
+      "image": "assets/industrial/batch03/crew/longtable.png?v=5cba6e531d62",
+      "facings": [
+        "assets/industrial/batch03/crew/longtable-r3.png"
+      ],
+      "width": 1762,
+      "height": 645,
+      "transparentPixels": 401412,
+      "opaquePixels": 735078,
+      "status": "illustrated-style-candidate"
+    },
+    {
+      "id": "safe",
+      "label": "SAFE",
+      "lane": "storage",
+      "group": "Storage & treasury",
+      "section": "treasury",
+      "kind": "new",
+      "bounds": {
+        "x": -1,
+        "y": -8,
+        "width": 18,
+        "height": 32
+      },
+      "previousImage": null,
+      "image": "assets/industrial/batch03/storage/safe.png?v=ab45278b5d48",
+      "facings": [],
+      "width": 720,
+      "height": 1505,
+      "transparentPixels": 92741,
+      "opaquePixels": 990859,
+      "status": "illustrated-style-candidate"
+    },
+    {
+      "id": "vault",
+      "label": "VAULT",
+      "lane": "storage",
+      "group": "Storage & treasury",
+      "section": "treasury",
+      "kind": "new",
+      "bounds": {
+        "x": -3,
+        "y": -5,
+        "width": 44,
+        "height": 29
+      },
+      "previousImage": null,
+      "image": "assets/industrial/batch03/storage/vault.png?v=194d4832bf3d",
+      "facings": [],
+      "width": 1448,
+      "height": 895,
+      "transparentPixels": 110801,
+      "opaquePixels": 1185159,
+      "status": "illustrated-style-candidate"
+    },
+    {
+      "id": "shelf",
+      "label": "SHELF",
+      "lane": "storage",
+      "group": "Storage & treasury",
+      "section": "treasury",
+      "kind": "new",
+      "bounds": {
+        "x": 0,
+        "y": -14,
+        "width": 53,
+        "height": 26
+      },
+      "previousImage": null,
+      "image": "assets/industrial/batch03/storage/shelf.png?v=2db1bf09a0d0",
+      "facings": [],
+      "width": 1717,
+      "height": 706,
+      "transparentPixels": 178257,
+      "opaquePixels": 1033945,
+      "status": "illustrated-style-candidate"
+    },
+    {
+      "id": "gigs_servercart",
+      "label": "SERVER CART",
+      "lane": "storage",
+      "group": "Storage & treasury",
+      "section": "treasury",
+      "kind": "new",
+      "bounds": {
+        "x": 1,
+        "y": -6,
+        "width": 16,
+        "height": 18
+      },
+      "previousImage": null,
+      "image": "assets/industrial/batch03/storage/gigs_servercart.png?v=0d9b43368c59",
+      "facings": [],
+      "width": 984,
+      "height": 1192,
+      "transparentPixels": 232370,
+      "opaquePixels": 940558,
+      "status": "illustrated-style-candidate"
+    },
+    {
+      "id": "goldcrate",
+      "label": "GOLD CRATE",
+      "lane": "storage",
+      "group": "Storage & treasury",
+      "section": "treasury",
+      "kind": "new",
+      "bounds": {
+        "x": -1,
+        "y": -10,
+        "width": 26,
+        "height": 22
+      },
+      "previousImage": null,
+      "image": "assets/industrial/batch03/storage/goldcrate.png?v=bd090ba17450",
+      "facings": [],
+      "width": 1280,
+      "height": 885,
+      "transparentPixels": 127270,
+      "opaquePixels": 1005530,
+      "status": "illustrated-style-candidate"
+    },
+    {
+      "id": "gigs_partsbin",
+      "label": "PARTS BIN",
+      "lane": "storage",
+      "group": "Storage & treasury",
+      "section": "treasury",
+      "kind": "new",
+      "bounds": {
+        "x": -1,
+        "y": -7,
+        "width": 26,
+        "height": 19
+      },
+      "previousImage": null,
+      "image": "assets/industrial/batch03/storage/gigs_partsbin.png?v=367e56abc9ad",
+      "facings": [],
+      "width": 1410,
+      "height": 719,
+      "transparentPixels": 91591,
+      "opaquePixels": 922199,
+      "status": "illustrated-style-candidate"
+    },
+    {
+      "id": "treasury_coinsorter",
+      "label": "COIN SORTER",
+      "lane": "storage",
+      "group": "Storage & treasury",
+      "section": "treasury",
+      "kind": "new",
+      "bounds": {
+        "x": -1,
+        "y": -3,
+        "width": 26,
+        "height": 15
+      },
+      "previousImage": null,
+      "image": "assets/industrial/batch03/storage/treasury_coinsorter.png?v=167f81b0edee",
+      "facings": [],
+      "width": 1584,
+      "height": 816,
+      "transparentPixels": 295953,
+      "opaquePixels": 996591,
+      "status": "illustrated-style-candidate"
+    },
+    {
+      "id": "studio",
+      "label": "STUDIO",
+      "lane": "control",
+      "group": "Control room",
+      "section": "control",
+      "kind": "new",
+      "bounds": {
+        "x": 0,
+        "y": -6,
+        "width": 29,
+        "height": 30
+      },
+      "previousImage": null,
+      "image": "assets/industrial/batch03/control/studio.png?v=2f9d5168d659",
+      "facings": [],
+      "width": 1179,
+      "height": 1234,
+      "transparentPixels": 224129,
+      "opaquePixels": 1230757,
+      "status": "illustrated-style-candidate"
+    },
+    {
+      "id": "airlock",
+      "label": "AIRLOCK",
+      "lane": "control",
+      "group": "Control room",
+      "section": "control",
+      "kind": "new",
+      "bounds": {
+        "x": -1,
+        "y": -1,
+        "width": 14,
+        "height": 14
+      },
+      "previousImage": null,
+      "image": "assets/industrial/batch03/control/airlock.png?v=d9324c2cc053",
+      "facings": [],
+      "width": 1176,
+      "height": 1132,
+      "transparentPixels": 464336,
+      "opaquePixels": 866896,
+      "status": "illustrated-style-candidate"
+    },
+    {
+      "id": "bigscreen",
+      "label": "BIG SCREEN",
+      "lane": "control",
+      "group": "Control room",
+      "section": "control",
+      "kind": "new",
+      "bounds": {
+        "x": -1,
+        "y": -13,
+        "width": 98,
+        "height": 25
+      },
+      "previousImage": null,
+      "image": "assets/industrial/batch03/control/bigscreen.png?v=14fa36426800",
+      "facings": [],
+      "width": 2107,
+      "height": 473,
+      "transparentPixels": 151407,
+      "opaquePixels": 845204,
+      "status": "illustrated-style-candidate"
+    },
+    {
+      "id": "holotable",
+      "label": "HOLOTABLE",
+      "lane": "control",
+      "group": "Control room",
+      "section": "control",
+      "kind": "new",
+      "bounds": {
+        "x": -1,
+        "y": -10,
+        "width": 50,
+        "height": 34
+      },
+      "previousImage": null,
+      "image": "assets/industrial/batch03/control/holotable.png?v=0cb0c136531c",
+      "facings": [],
+      "width": 1492,
+      "height": 744,
+      "transparentPixels": 281966,
+      "opaquePixels": 828082,
+      "status": "illustrated-style-candidate"
+    },
+    {
+      "id": "screens",
+      "label": "SCREENS",
+      "lane": "control",
+      "group": "Control room",
+      "section": "control",
+      "kind": "new",
+      "bounds": {
+        "x": -1,
+        "y": -15,
+        "width": 26,
+        "height": 27
+      },
+      "previousImage": null,
+      "image": "assets/industrial/batch03/control/screens.png?v=e856c656fe2e",
+      "facings": [],
+      "width": 1019,
+      "height": 1100,
+      "transparentPixels": 218552,
+      "opaquePixels": 902348,
+      "status": "illustrated-style-candidate"
+    },
+    {
+      "id": "ticker",
+      "label": "TICKER",
+      "lane": "control",
+      "group": "Control room",
+      "section": "control",
+      "kind": "new",
+      "bounds": {
+        "x": -1,
+        "y": -8,
+        "width": 50,
+        "height": 20
+      },
+      "previousImage": null,
+      "image": "assets/industrial/batch03/control/ticker.png?v=b3fdd41f5785",
+      "facings": [],
+      "width": 1955,
+      "height": 497,
+      "transparentPixels": 174900,
+      "opaquePixels": 796735,
+      "status": "illustrated-style-candidate"
+    },
+    {
+      "id": "wartable",
+      "label": "WAR TABLE",
+      "lane": "control",
+      "group": "Control room",
+      "section": "control",
+      "kind": "new",
+      "bounds": {
+        "x": -1,
+        "y": -1,
+        "width": 66,
+        "height": 25
+      },
+      "previousImage": null,
+      "image": "assets/industrial/batch03/control/wartable.png?v=9797781caf6b",
+      "facings": [],
+      "width": 2008,
+      "height": 522,
+      "transparentPixels": 386290,
+      "opaquePixels": 661886,
+      "status": "illustrated-style-candidate"
+    },
+    {
+      "id": "bridge_tacscreen",
+      "label": "TAC SCREEN",
+      "lane": "control",
+      "group": "Control room",
+      "section": "control",
+      "kind": "new",
+      "bounds": {
+        "x": -1,
+        "y": -9,
+        "width": 26,
+        "height": 21
+      },
+      "previousImage": null,
+      "image": "assets/industrial/batch03/control/bridge_tacscreen.png?v=aa2e482c7a47",
+      "facings": [],
+      "width": 1314,
+      "height": 911,
+      "transparentPixels": 174481,
+      "opaquePixels": 1022573,
+      "status": "illustrated-style-candidate"
+    },
+    {
+      "id": "bridge_dispatch_pylon",
+      "label": "DISPATCH PYLON",
+      "lane": "control",
+      "group": "Control room",
+      "section": "control",
+      "kind": "new",
+      "bounds": {
+        "x": -2,
+        "y": -11,
+        "width": 19,
+        "height": 35
+      },
+      "previousImage": null,
+      "image": "assets/industrial/batch03/control/bridge_dispatch_pylon.png?v=3718d8ffe92c",
+      "facings": [],
+      "width": 693,
+      "height": 1519,
+      "transparentPixels": 124610,
+      "opaquePixels": 928057,
+      "status": "illustrated-style-candidate"
+    },
+    {
+      "id": "bridge_orderqueue",
+      "label": "ORDER QUEUE",
+      "lane": "control",
+      "group": "Control room",
+      "section": "control",
+      "kind": "new",
+      "bounds": {
+        "x": -3,
+        "y": -12,
+        "width": 28,
+        "height": 24
+      },
+      "previousImage": null,
+      "image": "assets/industrial/batch03/control/bridge_orderqueue.png?v=789186ab7f05",
+      "facings": [],
+      "width": 1311,
+      "height": 920,
+      "transparentPixels": 90416,
+      "opaquePixels": 1115704,
+      "status": "illustrated-style-candidate"
+    },
+    {
+      "id": "war_pivotpanel",
+      "label": "PIVOT PANEL",
+      "lane": "control",
+      "group": "Control room",
+      "section": "control",
+      "kind": "new",
+      "bounds": {
+        "x": -1,
+        "y": -6,
+        "width": 26,
+        "height": 18
+      },
+      "previousImage": null,
+      "image": "assets/industrial/batch03/control/war_pivotpanel.png?v=79c81b064d9e",
+      "facings": [],
+      "width": 1432,
+      "height": 818,
+      "transparentPixels": 234091,
+      "opaquePixels": 937285,
+      "status": "illustrated-style-candidate"
+    },
+    {
+      "id": "war_threatcore",
+      "label": "THREAT CORE",
+      "lane": "control",
+      "group": "Control room",
+      "section": "control",
+      "kind": "new",
+      "bounds": {
+        "x": -1,
+        "y": -10,
+        "width": 18,
+        "height": 34
+      },
+      "previousImage": null,
+      "image": "assets/industrial/batch03/control/war_threatcore.png?v=f9656b137af9",
+      "facings": [],
+      "width": 660,
+      "height": 1580,
+      "transparentPixels": 208306,
+      "opaquePixels": 834494,
       "status": "illustrated-style-candidate"
     }
   ]

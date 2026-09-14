@@ -1,0 +1,288 @@
+{
+  "version": 1,
+  "method": "User-authorized connected background extraction (declared key color); native alpha retained; original RGB preserved",
+  "records": [
+    {
+      "id": "studio",
+      "source": "docs/station-remaster/batch03/control/studio-source.png",
+      "generated": "C:\\Users\\andro\\.codex\\generated_images\\01a09e45-c8db-79c2-b990-4349e09fba9c\\exec-089f72e2-edc6-40dc-acaa-c0aac410a5bf.png",
+      "backgroundMode": "magenta",
+      "seeds": [],
+      "output": "frontend/assets/industrial/batch03/control/studio.png",
+      "sourceWidth": 1233,
+      "sourceHeight": 1275,
+      "crop": {
+        "left": 27,
+        "top": 19,
+        "width": 1179,
+        "height": 1234
+      },
+      "sourceSha256": "ac1587a5f1b0511f71848b0a68aee3e7b88df779e907425fc9d1b2babc829b2c",
+      "outputSha256": "2f9d5168d65918c0dc51a72ca0019511ba9a1c1d4e76f5f05a776be37ea1a5b0",
+      "channels": 4,
+      "transparentPixels": 224129,
+      "opaquePixels": 1230757,
+      "partialPixels": 0,
+      "subjectRgbChanges": 0
+    },
+    {
+      "id": "airlock",
+      "source": "docs/station-remaster/batch03/control/airlock-source.png",
+      "generated": "C:\\Users\\andro\\.codex\\generated_images\\01a09e45-c8db-79c2-b990-4349e09fba9c\\exec-043af029-3171-408c-ad93-27be0e881539.png",
+      "backgroundMode": "magenta",
+      "seeds": [
+        [
+          620,
+          610
+        ]
+      ],
+      "output": "frontend/assets/industrial/batch03/control/airlock.png",
+      "sourceWidth": 1254,
+      "sourceHeight": 1254,
+      "crop": {
+        "left": 39,
+        "top": 39,
+        "width": 1176,
+        "height": 1132
+      },
+      "sourceSha256": "90bb03a2498fe703c965f328d90811b355474d82dd370025df83a6d67038015c",
+      "outputSha256": "d9324c2cc05335e0ce3dd674456e7e1b035547030ef2704e5a8173876067039a",
+      "channels": 4,
+      "transparentPixels": 464336,
+      "opaquePixels": 866896,
+      "partialPixels": 0,
+      "subjectRgbChanges": 0
+    },
+    {
+      "id": "bigscreen",
+      "source": "docs/station-remaster/batch03/control/bigscreen-source.png",
+      "generated": "C:\\Users\\andro\\.codex\\generated_images\\01a09e45-c8db-79c2-b990-4349e09fba9c\\exec-03b770c7-0e1c-4694-affe-26b004a72736.png",
+      "backgroundMode": "magenta",
+      "seeds": [],
+      "output": "frontend/assets/industrial/batch03/control/bigscreen.png",
+      "sourceWidth": 2172,
+      "sourceHeight": 724,
+      "crop": {
+        "left": 32,
+        "top": 124,
+        "width": 2107,
+        "height": 473
+      },
+      "sourceSha256": "80bacb95f2e87b66a35a463a61ce2dfab3c5b6517203f6df90dd82a103ac0271",
+      "outputSha256": "14fa364268005215b0b69d61da3d9c03c62f25d9b02e2379a5b65ed43a2469d0",
+      "channels": 4,
+      "transparentPixels": 151407,
+      "opaquePixels": 845204,
+      "partialPixels": 0,
+      "subjectRgbChanges": 0
+    },
+    {
+      "id": "holotable",
+      "source": "docs/station-remaster/batch03/control/holotable-source.png",
+      "generated": "C:\\Users\\andro\\.codex\\generated_images\\01a09e45-c8db-79c2-b990-4349e09fba9c\\exec-e5c9b9aa-386a-4966-872a-c3b9856df4c9.png",
+      "backgroundMode": "magenta",
+      "seeds": [],
+      "output": "frontend/assets/industrial/batch03/control/holotable.png",
+      "sourceWidth": 1521,
+      "sourceHeight": 1034,
+      "crop": {
+        "left": 15,
+        "top": 140,
+        "width": 1492,
+        "height": 744
+      },
+      "sourceSha256": "4d9064278fba1270ec30e82d56284a5b60751e76fc15c8a163388750dac8f4c9",
+      "outputSha256": "0cb0c136531c1d55737740c3295b8426f36dbdf222538a6805bdee65c133eb8c",
+      "channels": 4,
+      "transparentPixels": 281966,
+      "opaquePixels": 828082,
+      "partialPixels": 0,
+      "subjectRgbChanges": 0
+    },
+    {
+      "id": "ticker",
+      "source": "docs/station-remaster/batch03/control/ticker-source.png",
+      "generated": "C:\\Users\\andro\\.codex\\generated_images\\01a09e45-c8db-79c2-b990-4349e09fba9c\\exec-8f76ffe1-26aa-4e66-a3ed-b45f8a3075d1.png",
+      "backgroundMode": "magenta",
+      "seeds": [],
+      "output": "frontend/assets/industrial/batch03/control/ticker.png",
+      "sourceWidth": 1983,
+      "sourceHeight": 793,
+      "crop": {
+        "left": 14,
+        "top": 153,
+        "width": 1955,
+        "height": 497
+      },
+      "sourceSha256": "016ef16751f79c689d9250160385149a7de35c9d5c7ea7d1c25b6909595ac351",
+      "outputSha256": "b3fdd41f5785dfe2c71e9f7c65f6b406ee652d015a5028e4c0bf8e95db037638",
+      "channels": 4,
+      "transparentPixels": 174900,
+      "opaquePixels": 796735,
+      "partialPixels": 0,
+      "subjectRgbChanges": 0
+    },
+    {
+      "id": "wartable",
+      "source": "docs/station-remaster/batch03/control/wartable-source.png",
+      "generated": "C:\\Users\\andro\\.codex\\generated_images\\01a09e45-c8db-79c2-b990-4349e09fba9c\\exec-7cc2d31e-0dc7-4c3a-a225-8d82744f5db9.png",
+      "backgroundMode": "magenta",
+      "seeds": [],
+      "output": "frontend/assets/industrial/batch03/control/wartable.png",
+      "sourceWidth": 2037,
+      "sourceHeight": 772,
+      "crop": {
+        "left": 14,
+        "top": 134,
+        "width": 2008,
+        "height": 522
+      },
+      "sourceSha256": "5637c94a6e7a6c827283240c95f99f9d093e8ddf933d42d292674a2da7548f7e",
+      "outputSha256": "9797781caf6b8a8c62bcb07f8365c0303e407094fb22037c5ea2373500a01eab",
+      "channels": 4,
+      "transparentPixels": 386290,
+      "opaquePixels": 661886,
+      "partialPixels": 0,
+      "subjectRgbChanges": 0
+    },
+    {
+      "id": "bridge_tacscreen",
+      "source": "docs/station-remaster/batch03/control/bridge_tacscreen-source.png",
+      "generated": "C:\\Users\\andro\\.codex\\generated_images\\01a09e45-c8db-79c2-b990-4349e09fba9c\\exec-e8012a38-237f-44aa-ae06-eaf0f9f14db0.png",
+      "backgroundMode": "magenta",
+      "seeds": [],
+      "output": "frontend/assets/industrial/batch03/control/bridge_tacscreen.png",
+      "sourceWidth": 1396,
+      "sourceHeight": 1127,
+      "crop": {
+        "left": 41,
+        "top": 95,
+        "width": 1314,
+        "height": 911
+      },
+      "sourceSha256": "4cb0cae48e3031433d72a627d7e4455fddb3fdb176219282f477be313aaf68fe",
+      "outputSha256": "aa2e482c7a47ddee634876c9997517cb4934cff9cfa049a74d73929c8eca733d",
+      "channels": 4,
+      "transparentPixels": 174481,
+      "opaquePixels": 1022573,
+      "partialPixels": 0,
+      "subjectRgbChanges": 0
+    },
+    {
+      "id": "bridge_dispatch_pylon",
+      "source": "docs/station-remaster/batch03/control/bridge_dispatch_pylon-source.png",
+      "generated": "C:\\Users\\andro\\.codex\\generated_images\\01a09e45-c8db-79c2-b990-4349e09fba9c\\exec-771d02f4-86fd-454a-ae5a-66fb23f2c209.png",
+      "backgroundMode": "magenta",
+      "seeds": [],
+      "output": "frontend/assets/industrial/batch03/control/bridge_dispatch_pylon.png",
+      "sourceWidth": 924,
+      "sourceHeight": 1702,
+      "crop": {
+        "left": 113,
+        "top": 99,
+        "width": 693,
+        "height": 1519
+      },
+      "sourceSha256": "a05b14d33fc8c4bf1a76f718046ec27243e7e1f603600608920703e7306653f0",
+      "outputSha256": "3718d8ffe92cc84082ca15c91b600bbfc8496c67ba901a620b3d4707ea8e3d9e",
+      "channels": 4,
+      "transparentPixels": 124610,
+      "opaquePixels": 928057,
+      "partialPixels": 0,
+      "subjectRgbChanges": 0
+    },
+    {
+      "id": "bridge_orderqueue",
+      "source": "docs/station-remaster/batch03/control/bridge_orderqueue-source.png",
+      "generated": "C:\\Users\\andro\\.codex\\generated_images\\01a09e45-c8db-79c2-b990-4349e09fba9c\\exec-6a85b573-2a4a-42b4-9b8f-a5ad4d2fc7ea.png",
+      "backgroundMode": "magenta",
+      "seeds": [],
+      "output": "frontend/assets/industrial/batch03/control/bridge_orderqueue.png",
+      "sourceWidth": 1355,
+      "sourceHeight": 1161,
+      "crop": {
+        "left": 22,
+        "top": 119,
+        "width": 1311,
+        "height": 920
+      },
+      "sourceSha256": "ed07d18e49ad1103d145e62af0545ac980b4cc29134c1e82ac574e2b70cf5c4a",
+      "outputSha256": "789186ab7f0578ec36fdadb76dd27e32a8485ec018e4ceaa1ce3b6cafa783949",
+      "channels": 4,
+      "transparentPixels": 90416,
+      "opaquePixels": 1115704,
+      "partialPixels": 0,
+      "subjectRgbChanges": 0
+    },
+    {
+      "id": "war_pivotpanel",
+      "source": "docs/station-remaster/batch03/control/war_pivotpanel-source.png",
+      "generated": "C:\\Users\\andro\\.codex\\generated_images\\01a09e45-c8db-79c2-b990-4349e09fba9c\\exec-f1f3c7d3-27a2-4560-b58f-146c74dbf48b.png",
+      "backgroundMode": "magenta",
+      "seeds": [],
+      "output": "frontend/assets/industrial/batch03/control/war_pivotpanel.png",
+      "sourceWidth": 1508,
+      "sourceHeight": 1043,
+      "crop": {
+        "left": 38,
+        "top": 113,
+        "width": 1432,
+        "height": 818
+      },
+      "sourceSha256": "c045add39201a5a990a26bce7d3215e363ef657d318dcd150d0b038b08bc21e3",
+      "outputSha256": "79c81b064d9e74e3dcf53dcb79ddab6cba95f78007425d2f0192dae4b37d4ed4",
+      "channels": 4,
+      "transparentPixels": 234091,
+      "opaquePixels": 937285,
+      "partialPixels": 0,
+      "subjectRgbChanges": 0
+    },
+    {
+      "id": "war_threatcore",
+      "source": "docs/station-remaster/batch03/control/war_threatcore-source.png",
+      "generated": "C:\\Users\\andro\\.codex\\generated_images\\01a09e45-c8db-79c2-b990-4349e09fba9c\\exec-1d62dd96-7f89-44d6-90a4-1ed7bd5f5c54.png",
+      "backgroundMode": "magenta",
+      "seeds": [],
+      "output": "frontend/assets/industrial/batch03/control/war_threatcore.png",
+      "sourceWidth": 912,
+      "sourceHeight": 1724,
+      "crop": {
+        "left": 126,
+        "top": 50,
+        "width": 660,
+        "height": 1580
+      },
+      "sourceSha256": "34c18d74c91e2d022ecb8f06898d54015830469db5d132a7bee244ab209e39be",
+      "outputSha256": "f9656b137af99ba90fb27f9c575155e591768f593e7710a151e66219b66a7f38",
+      "channels": 4,
+      "transparentPixels": 208306,
+      "opaquePixels": 834494,
+      "partialPixels": 0,
+      "subjectRgbChanges": 0
+    },
+    {
+      "id": "screens",
+      "source": "docs/station-remaster/batch03/control/screens-source.png",
+      "generated": "C:\\Users\\andro\\.codex\\generated_images\\01a09e45-c8db-79c2-b990-4349e09fba9c\\exec-08964e8d-6284-40ee-ba15-e8293791661b.png",
+      "initialGenerated": "C:\\Users\\andro\\.codex\\generated_images\\01a09e45-c8db-79c2-b990-4349e09fba9c\\exec-3cbccdb7-87dc-4a39-ab7c-268af44ff7b4.png",
+      "backgroundMode": "magenta",
+      "seeds": [],
+      "output": "frontend/assets/industrial/batch03/control/screens.png",
+      "sourceWidth": 1281,
+      "sourceHeight": 1227,
+      "crop": {
+        "left": 132,
+        "top": 66,
+        "width": 1019,
+        "height": 1100
+      },
+      "sourceSha256": "34e07b455319f11064f119b680fa4d976c0a85e52cd9bd1cafb2d7be2c9174b5",
+      "outputSha256": "e856c656fe2e29c4275ad7331c3c4ed806815d7f5d9c5323aff087dba81497bb",
+      "channels": 4,
+      "transparentPixels": 218552,
+      "opaquePixels": 902348,
+      "partialPixels": 0,
+      "subjectRgbChanges": 0
+    }
+  ]
+}
