@@ -1,0 +1,35 @@
+{
+  "id": "lowtable",
+  "asset": "lowtable-r3",
+  "tool": "built-in image_gen",
+  "variant": "e",
+  "status": "generated candidate; root actual-scale review pending",
+  "native": {
+    "key": "lowtable-r3",
+    "r": 3,
+    "image": "lowtable-r3.png",
+    "footprint": {
+      "w": 1,
+      "h": 3
+    },
+    "bounds": {
+      "x": -2,
+      "y": 0,
+      "width": 16,
+      "height": 36
+    },
+    "guide": "dev/.scratch-workspace/prop-structure/lowtable-r3.png"
+  },
+  "references": [
+    "dev/.scratch-workspace/prop-structure/lowtable-r3.png",
+    "frontend/assets/industrial/calibration/crate.png",
+    "docs/station-remaster/bridge-reference.png",
+    "frontend/assets/industrial/props-v2/lowtable.png"
+  ],
+  "source": "Original native geometry plus approved crate and bridge; no previously rejected prop family art used",
+  "ratioDeviationPercent": -3.758,
+  "aspectTolerancePercent": 8,
+  "aspectPass": true,
+  "rgbRepaint": false,
+  "runtimeIntegrated": false
+}

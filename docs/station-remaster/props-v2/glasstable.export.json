@@ -1,0 +1,15 @@
+{
+  "id": "glasstable",
+  "source": "C:/Users/andro/.codex/generated_images/01a09c6e-42f0-7c90-bc97-768d6754278f/exec-6c9a0971-61c7-4b77-8651-d87546d651f1.png",
+  "sourceWidth": 1774,
+  "sourceHeight": 887,
+  "crop": {
+    "left": 18,
+    "top": 17,
+    "width": 1739,
+    "height": 825
+  },
+  "sourceAlpha": false,
+  "subjectRgbChanges": 0,
+  "output": "frontend/assets/industrial/props-v2/glasstable.png"
+}

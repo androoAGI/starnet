@@ -1,0 +1,15 @@
+{
+  "id": "coffee",
+  "source": "C:/Users/andro/.codex/generated_images/01a09c6e-42f0-7c90-bc97-768d6754278f/exec-b9912601-8246-453b-b9e8-ec7ae99d8426.png",
+  "sourceWidth": 1065,
+  "sourceHeight": 1476,
+  "crop": {
+    "left": 86,
+    "top": 89,
+    "width": 879,
+    "height": 1298
+  },
+  "sourceAlpha": true,
+  "subjectRgbChanges": 0,
+  "output": "frontend/assets/industrial/props-v2/coffee.png"
+}
