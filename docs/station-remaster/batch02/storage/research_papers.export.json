@@ -15,12 +15,12 @@
     "height": 595
   },
   "channels": 4,
-  "transparentPixels": 192865,
-  "opaquePixels": 816255,
+  "transparentPixels": 192577,
+  "opaquePixels": 816543,
   "partialPixels": 0,
-  "backgroundPixelsRemoved": 757283,
+  "backgroundPixelsRemoved": 756995,
   "subjectRgbChanges": 0,
-  "outputSha256": "f02192893a584674a9224439dcdf447ded2e30a53b43d57308d0acdd1fbe6ae4",
+  "outputSha256": "d7d884b5e5ac90bbdae4cbd88d3b04ebec28f32c25c6bac4c67d3299c1312b17",
   "holeSeeds": [
     [
       881,
@@ -53,10 +53,6 @@
     [
       674,
       691
-    ],
-    [
-      536,
-      700
     ]
   ],
   "maskMethod": "Connected saturated-magenta flood fill, including key-only enclosed components. Alpha-only edits; uniform crop; no RGB recolor.",
