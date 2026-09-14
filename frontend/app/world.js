@@ -6079,10 +6079,12 @@ const World = (() => {
         // table while the table is actually under it. Reclaim the table and the prop drops back to the
         // deck instead of floating — which is why no saved station ever needs migrating for this.
         const mounted = (station && station.mountOf) ? station.mountOf(p) : null;
-        // a table-top object must draw AFTER its table: both occupy the same tiles, so their sort keys are
-        // equal and array order would decide it — which is whichever the player happened to place first
-        if (mounted === 'surface') sy += 0.5;
         let dp = mounted ? Object.assign({}, p, { mount: mounted }) : p;
+        // A far-row child on a deep table must sort after the WHOLE host, not just its own row.
+        if (mounted === 'surface') {
+          const placement = PropSprites.surfacePlacement ? PropSprites.surfacePlacement(dp) : null;
+          sy = placement && placement.authored && Number.isFinite(placement.sortY) ? placement.sortY : sy + 0.5;
+        }
         // a bound BAY's gantry plate carries its agent's NAME, resolved live from the body roster each
         // frame (never persisted — the doc keeps only agentId, so renames and reassignment stay truthful)
         if (p.t === 'bay' && p.agentId) {

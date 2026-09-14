@@ -4921,8 +4921,7 @@ const Build = (() => {
     // MOUNT LIFT — resolved per frame through station.mountOf, the SAME seam world.js draws through.
     // REFIT is where props are actually placed, so a table-top prop that only lifted in the live world
     // looked, in the one view you judge it from, like it had been dropped INSIDE the table.
-    // The +0.5 goes with it: a mounted prop and its table cover the same tiles, so their sort keys tie
-    // and raw array order (whichever was placed first) would decide who draws on top.
+    // Authored mounts sort after their whole host, including children on a deep table's far row.
     // …resolved ONCE PER EDIT, not per frame: mountOf is O(props) inside the model (a propById find
     // plus a surface-host scan), so asking it for every prop every frame was O(props²) at 60fps —
     // and the map+sort it fed allocated two arrays a frame for an order that cannot change without a
@@ -4973,14 +4972,20 @@ const Build = (() => {
       try { m = station.mountOf ? station.mountOf(p) : null; } catch (_) { m = null; }
       if (m) mounts.set(p.id, m);
     }
-    // MOUNT LIFT sort key, unchanged: a mounted prop and its table cover the same tiles, so their
-    // keys would tie and raw array order would decide who draws on top. `p.mount` is still consulted
-    // for the unmounted branch exactly as the old map+sort did.
+    // Authored placement supplies host-relative pixel depth; this list sorts in tiles.
+    // Uncalibrated mounts retain their existing offset and saved-field fallback.
     // FLOOR DECALS (catalog `flat`: rug / cable run / hazard pad) sort BELOW the whole floor: they are
     // deck paint, and anything placed on them must draw on top (the same floor pass world.js runs, in
     // the form this sorted list can express). -1e6 is unreachable by a real footprint key.
     const flatOf = p => { const s = PropSprites.spec(p.t); return !!(s && s.flat); };
-    const key = p => flatOf(p) ? -1e6 : (p.y + (p.h || 1)) + ((mounts.get(p.id) || p.mount) ? 0.5 : 0);
+    const key = p => {
+      if (flatOf(p)) return -1e6;
+      const mounted = mounts.get(p.id) || p.mount;
+      const placement = mounted === 'surface' && PropSprites.surfacePlacement
+        ? PropSprites.surfacePlacement({...p,mount:mounted}) : null;
+      if (placement && placement.authored && Number.isFinite(placement.sortY)) return placement.sortY / PropSprites.TILE;
+      return p.y + (p.h || 1) + (mounted ? 0.5 : 0);
+    };
     const arr = list.slice().sort((a, b) => key(a) - key(b));   // stable, and never touches doc.props
     mountMap = mounts;
     return (mountOrder = arr);
@@ -5882,6 +5887,7 @@ const Build = (() => {
   // preview and thumbnails; selection, orientation and station data stay intact.
   if (typeof window !== 'undefined' && window.addEventListener) {
     window.addEventListener('starnet:prop-art-ready', () => {
+      mountOrder = null; // Loaded support geometry can change host-relative sorting without an edit.
       if (!root) return;
       const host = root.querySelector('#refit-selected-prop');
       if (host) delete host.dataset.previewKey;

@@ -11750,6 +11750,7 @@ const PropSprites = (() => {
     if(layout!==surfaceLayout){surfaceLayout=layout;surfaceMounts.setLayout(layout);}
   }
   function surfaceLift(f){return f.mount==='surface'?(surfaceMounts?surfaceMounts.liftFor(f):SURFACE_RISE):0;}
+  function surfacePlacement(f){return f.mount==='surface'&&surfaceMounts?surfaceMounts.placementFor(f):null;}
   if (typeof PropRemaster !== 'undefined') {
     for (const c of [...CATALOG,{id:'seatchair',artId:'chair'}]) {
       for (const facing of ['s','n','e','w']) {
@@ -11784,6 +11785,7 @@ const PropSprites = (() => {
 
   return {
     setSurfaceLayout,
+    surfacePlacement,
     setCtx(c) { ctx = c; },
     setNow(t) { now = t; },
     // v13 LOCAL COLOUR knob (see CHROMA above) — live-tunable like the CRT LAB's own dials, so the
