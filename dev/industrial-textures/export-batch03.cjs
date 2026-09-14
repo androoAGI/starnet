@@ -11,7 +11,7 @@ async function main(){
   const original=Buffer.from(data),w=info.width,h=info.height,n=w*h,seen=new Uint8Array(n),queue=new Int32Array(n);let head=0,end=0;
   const hasAlpha=data.some((v,i)=>i%4===3&&v<250);
   if(!hasAlpha){
-   const visit=i=>{if(i<0||i>=n||seen[i])return;const p=i*4,lo=Math.min(data[p],data[p+1],data[p+2]),hi=Math.max(data[p],data[p+1],data[p+2]);if(lo<145||hi-lo>25)return;seen[i]=1;queue[end++]=i;};
+   const visit=i=>{if(i<0||i>=n||seen[i])return;const p=i*4,lo=Math.min(data[p],data[p+1],data[p+2]),hi=Math.max(data[p],data[p+1],data[p+2]);if(a.backgroundMode==='black'?hi>8:(lo<145||hi-lo>25))return;seen[i]=1;queue[end++]=i;};
    for(let x=0;x<w;x++){visit(x);visit((h-1)*w+x);}for(let y=0;y<h;y++){visit(y*w);visit(y*w+w-1);}
    for(const [x,y]of a.seeds||[]){visit(y*w+x);if(!seen[y*w+x])throw Error('Invalid background seed '+a.id);}
    while(head<end){const i=queue[head++],x=i%w;if(x)visit(i-1);if(x<w-1)visit(i+1);visit(i-w);visit(i+w);}
