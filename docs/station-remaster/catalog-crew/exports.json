@@ -1,0 +1,571 @@
+{
+  "version": 1,
+  "count": 8,
+  "scope": "Eight primary s views only. Existing alternate facings are not replaced or claimed as corrected.",
+  "method": "Generated RGBA source preserved. Alpha>=180 core with radius3 preserves nearby original edge RGBA; remove detached fog/alpha1. Tight crop only, no RGB or retained alpha modification.",
+  "refs": [
+    {
+      "id": "couch",
+      "path": "C:\\Users\\andro\\gen-trees\\prop-coordination-0914\\frontend\\assets\\industrial\\projection-correction\\couch.png",
+      "sha256": "c802cfc380ee9b173e0a1be75c17dd01471bd4cfed4071fab8369cae3ae0fd97",
+      "width": 1859,
+      "height": 682
+    },
+    {
+      "id": "recliner",
+      "path": "C:\\Users\\andro\\gen-trees\\prop-coordination-0914\\frontend\\assets\\industrial\\projection-correction\\recliner.png",
+      "sha256": "0f7e7d44ff021cb05b59f9079ffdc0b2fb0adc150c3e93a8c739101b5fcf24d1",
+      "width": 232,
+      "height": 258
+    },
+    {
+      "id": "crate",
+      "path": "C:\\Users\\andro\\gen-trees\\prop-coordination-0914\\frontend\\assets\\industrial\\projection-correction\\crate.png",
+      "sha256": "a4c596600f4c1c0bf0c2f4df0892a9f0c49b074dd91079b5926b0fd27cd0ba16",
+      "width": 75,
+      "height": 60
+    },
+    {
+      "id": "quarters_pooltable",
+      "path": "C:\\Users\\andro\\gen-trees\\prop-coordination-0914\\frontend\\assets\\industrial\\projection-correction\\quarters_pooltable.png",
+      "sha256": "6fca3b889d28186dc4cc20bd7634628d3fa06cb4bfb1db226f5d68f8adab872d",
+      "width": 348,
+      "height": 239
+    }
+  ],
+  "records": [
+    {
+      "id": "industrial_bench",
+      "view": "s",
+      "image": "frontend/assets/industrial/catalog-crew/industrial_bench.png",
+      "sourceWidth": 445,
+      "sourceHeight": 208,
+      "bounds": {
+        "x": 0,
+        "y": 0,
+        "width": 36,
+        "height": 12
+      },
+      "footprint": {
+        "w": 3,
+        "h": 1
+      },
+      "contact": {
+        "x": 0.5,
+        "y": 0.9831730769230769,
+        "space": "exported-image-normalized",
+        "targetWorld": {
+          "x": 18,
+          "y": 12
+        }
+      },
+      "fit": {
+        "x": 5.163461538461538,
+        "y": 0,
+        "width": 25.673076923076923,
+        "height": 12
+      },
+      "underfill": {
+        "x": 0.7131410256410257,
+        "y": 1
+      },
+      "otherSupportedViewsUnchanged": [],
+      "source": "docs/station-remaster/catalog-crew/sources/sheet.png",
+      "sourceSha256": "3c869bbebe5b1b1b5e273f0ccbe9b75bbd112fdec971cbd814cc90818f118178",
+      "sourceCrop": {
+        "left": 18,
+        "top": 219,
+        "width": 445,
+        "height": 208
+      },
+      "outputSha256": "546f8bfb1eeb8e9599536b619f8fde7f6f1faf52a04f8f18972b6328877749f0",
+      "alphaBounds": {
+        "x": 0,
+        "y": 0,
+        "width": 445,
+        "height": 208
+      },
+      "alphaCounts": {
+        "transparent": 12637,
+        "partial": 79923,
+        "opaque": 0
+      },
+      "maxSourceAlpha": 254,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "removedFogPixels": 1713,
+      "retainedRgbChanges": 0,
+      "retainedAlphaChanges": 0,
+      "opaqueCellEdgePixels": 0,
+      "liveAccepted": false
+    },
+    {
+      "id": "dinerchair",
+      "view": "s",
+      "image": "frontend/assets/industrial/catalog-crew/dinerchair.png",
+      "sourceWidth": 167,
+      "sourceHeight": 311,
+      "bounds": {
+        "x": 1,
+        "y": -4,
+        "width": 11,
+        "height": 16
+      },
+      "footprint": {
+        "w": 1,
+        "h": 1
+      },
+      "contact": {
+        "x": 0.5,
+        "y": 0.9887459807073955,
+        "space": "exported-image-normalized",
+        "targetWorld": {
+          "x": 6,
+          "y": 12
+        }
+      },
+      "fit": {
+        "x": 2.204180064308682,
+        "y": -4,
+        "width": 8.591639871382636,
+        "height": 16
+      },
+      "underfill": {
+        "x": 0.7810581701256942,
+        "y": 1
+      },
+      "otherSupportedViewsUnchanged": [
+        "w",
+        "n",
+        "e"
+      ],
+      "source": "docs/station-remaster/catalog-crew/sources/sheet.png",
+      "sourceSha256": "3c869bbebe5b1b1b5e273f0ccbe9b75bbd112fdec971cbd814cc90818f118178",
+      "sourceCrop": {
+        "left": 535,
+        "top": 129,
+        "width": 167,
+        "height": 311
+      },
+      "outputSha256": "aaed440b4f9e3eec27ab2a22315e57c517639dd67858be632631344157c97e11",
+      "alphaBounds": {
+        "x": 0,
+        "y": 0,
+        "width": 167,
+        "height": 311
+      },
+      "alphaCounts": {
+        "transparent": 11425,
+        "partial": 40512,
+        "opaque": 0
+      },
+      "maxSourceAlpha": 254,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "removedFogPixels": 1541,
+      "retainedRgbChanges": 0,
+      "retainedAlphaChanges": 0,
+      "opaqueCellEdgePixels": 0,
+      "liveAccepted": false
+    },
+    {
+      "id": "dinertable",
+      "view": "s",
+      "image": "frontend/assets/industrial/catalog-crew/dinertable.png",
+      "sourceWidth": 352,
+      "sourceHeight": 294,
+      "bounds": {
+        "x": -1,
+        "y": 3,
+        "width": 38,
+        "height": 22
+      },
+      "footprint": {
+        "w": 3,
+        "h": 2
+      },
+      "contact": {
+        "x": 0.5,
+        "y": 0.9914965986394558,
+        "space": "exported-image-normalized",
+        "targetWorld": {
+          "x": 18,
+          "y": 24
+        }
+      },
+      "fit": {
+        "x": 4.829931972789115,
+        "y": 3,
+        "width": 26.34013605442177,
+        "height": 22
+      },
+      "underfill": {
+        "x": 0.6931614751163624,
+        "y": 1
+      },
+      "otherSupportedViewsUnchanged": [
+        "e"
+      ],
+      "source": "docs/station-remaster/catalog-crew/sources/sheet.png",
+      "sourceSha256": "3c869bbebe5b1b1b5e273f0ccbe9b75bbd112fdec971cbd814cc90818f118178",
+      "sourceCrop": {
+        "left": 776,
+        "top": 156,
+        "width": 352,
+        "height": 294
+      },
+      "outputSha256": "9d52b45b639eca468593690a9b50b808a2c4c7cf43d8787ab8caea8aa1da42bc",
+      "alphaBounds": {
+        "x": 0,
+        "y": 0,
+        "width": 352,
+        "height": 294
+      },
+      "alphaCounts": {
+        "transparent": 31246,
+        "partial": 72242,
+        "opaque": 0
+      },
+      "maxSourceAlpha": 254,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "removedFogPixels": 1700,
+      "retainedRgbChanges": 0,
+      "retainedAlphaChanges": 0,
+      "opaqueCellEdgePixels": 0,
+      "liveAccepted": false
+    },
+    {
+      "id": "booth",
+      "view": "s",
+      "image": "frontend/assets/industrial/catalog-crew/booth.png",
+      "sourceWidth": 333,
+      "sourceHeight": 295,
+      "bounds": {
+        "x": 0,
+        "y": -7,
+        "width": 24,
+        "height": 19
+      },
+      "footprint": {
+        "w": 2,
+        "h": 1
+      },
+      "contact": {
+        "x": 0.5,
+        "y": 0.988135593220339,
+        "space": "exported-image-normalized",
+        "targetWorld": {
+          "x": 12,
+          "y": 12
+        }
+      },
+      "fit": {
+        "x": 1.2762711864406775,
+        "y": -7,
+        "width": 21.447457627118645,
+        "height": 19
+      },
+      "underfill": {
+        "x": 0.8936440677966102,
+        "y": 1
+      },
+      "otherSupportedViewsUnchanged": [
+        "w",
+        "e"
+      ],
+      "source": "docs/station-remaster/catalog-crew/sources/sheet.png",
+      "sourceSha256": "3c869bbebe5b1b1b5e273f0ccbe9b75bbd112fdec971cbd814cc90818f118178",
+      "sourceCrop": {
+        "left": 1170,
+        "top": 132,
+        "width": 333,
+        "height": 295
+      },
+      "outputSha256": "357b75e172ae7e7fb8cf46c5e00bc276f2949c5c66aea010f9ad79c60a7d4cef",
+      "alphaBounds": {
+        "x": 0,
+        "y": 0,
+        "width": 333,
+        "height": 295
+      },
+      "alphaCounts": {
+        "transparent": 3218,
+        "partial": 95017,
+        "opaque": 0
+      },
+      "maxSourceAlpha": 254,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "removedFogPixels": 2111,
+      "retainedRgbChanges": 0,
+      "retainedAlphaChanges": 0,
+      "opaqueCellEdgePixels": 0,
+      "liveAccepted": false
+    },
+    {
+      "id": "podchair",
+      "view": "s",
+      "image": "frontend/assets/industrial/catalog-crew/podchair.png",
+      "sourceWidth": 237,
+      "sourceHeight": 323,
+      "bounds": {
+        "x": 1,
+        "y": -5,
+        "width": 10,
+        "height": 17
+      },
+      "footprint": {
+        "w": 1,
+        "h": 1
+      },
+      "contact": {
+        "x": 0.5,
+        "y": 0.9891640866873065,
+        "space": "exported-image-normalized",
+        "targetWorld": {
+          "x": 6,
+          "y": 12
+        }
+      },
+      "fit": {
+        "x": 1,
+        "y": -1.628691983122362,
+        "width": 10,
+        "height": 13.628691983122362
+      },
+      "underfill": {
+        "x": 1,
+        "y": 0.8016877637130801
+      },
+      "otherSupportedViewsUnchanged": [
+        "w",
+        "n",
+        "e"
+      ],
+      "source": "docs/station-remaster/catalog-crew/sources/sheet.png",
+      "sourceSha256": "3c869bbebe5b1b1b5e273f0ccbe9b75bbd112fdec971cbd814cc90818f118178",
+      "sourceCrop": {
+        "left": 52,
+        "top": 561,
+        "width": 237,
+        "height": 323
+      },
+      "outputSha256": "706927fb51caaf597e79fbd95d2ac872c118e7e08873b571ea00ed8ccc6590a3",
+      "alphaBounds": {
+        "x": 0,
+        "y": 0,
+        "width": 237,
+        "height": 323
+      },
+      "alphaCounts": {
+        "transparent": 20175,
+        "partial": 56376,
+        "opaque": 0
+      },
+      "maxSourceAlpha": 254,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "removedFogPixels": 899,
+      "retainedRgbChanges": 0,
+      "retainedAlphaChanges": 0,
+      "opaqueCellEdgePixels": 0,
+      "liveAccepted": false
+    },
+    {
+      "id": "beanbag",
+      "view": "s",
+      "image": "frontend/assets/industrial/catalog-crew/beanbag.png",
+      "sourceWidth": 322,
+      "sourceHeight": 273,
+      "bounds": {
+        "x": -1,
+        "y": 1,
+        "width": 14,
+        "height": 11
+      },
+      "footprint": {
+        "w": 1,
+        "h": 1
+      },
+      "contact": {
+        "x": 0.5,
+        "y": 0.9871794871794872,
+        "space": "exported-image-normalized",
+        "targetWorld": {
+          "x": 6,
+          "y": 12
+        }
+      },
+      "fit": {
+        "x": -0.4871794871794872,
+        "y": 1,
+        "width": 12.974358974358974,
+        "height": 11
+      },
+      "underfill": {
+        "x": 0.9267399267399268,
+        "y": 1
+      },
+      "otherSupportedViewsUnchanged": [],
+      "source": "docs/station-remaster/catalog-crew/sources/sheet.png",
+      "sourceSha256": "3c869bbebe5b1b1b5e273f0ccbe9b75bbd112fdec971cbd814cc90818f118178",
+      "sourceCrop": {
+        "left": 395,
+        "top": 612,
+        "width": 322,
+        "height": 273
+      },
+      "outputSha256": "d1413f0f35659effcc7d56c36a491732996b18c62653c2ac3cec2be279a65f2d",
+      "alphaBounds": {
+        "x": 0,
+        "y": 0,
+        "width": 322,
+        "height": 273
+      },
+      "alphaCounts": {
+        "transparent": 18194,
+        "partial": 69712,
+        "opaque": 0
+      },
+      "maxSourceAlpha": 254,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "removedFogPixels": 1702,
+      "retainedRgbChanges": 0,
+      "retainedAlphaChanges": 0,
+      "opaqueCellEdgePixels": 0,
+      "liveAccepted": false
+    },
+    {
+      "id": "bunk",
+      "view": "s",
+      "image": "frontend/assets/industrial/catalog-crew/bunk.png",
+      "sourceWidth": 278,
+      "sourceHeight": 392,
+      "bounds": {
+        "x": 0,
+        "y": -2,
+        "width": 24,
+        "height": 26
+      },
+      "footprint": {
+        "w": 2,
+        "h": 2
+      },
+      "contact": {
+        "x": 0.5,
+        "y": 0.9910714285714286,
+        "space": "exported-image-normalized",
+        "targetWorld": {
+          "x": 12,
+          "y": 24
+        }
+      },
+      "fit": {
+        "x": 2.7806122448979593,
+        "y": -2,
+        "width": 18.43877551020408,
+        "height": 26
+      },
+      "underfill": {
+        "x": 0.76828231292517,
+        "y": 1
+      },
+      "otherSupportedViewsUnchanged": [],
+      "source": "docs/station-remaster/catalog-crew/sources/sheet.png",
+      "sourceSha256": "3c869bbebe5b1b1b5e273f0ccbe9b75bbd112fdec971cbd814cc90818f118178",
+      "sourceCrop": {
+        "left": 788,
+        "top": 518,
+        "width": 278,
+        "height": 392
+      },
+      "outputSha256": "b40c9ef2ae8e4cef9c2fc114b9391bf791351c4d498ea55ac071dc583cc9541e",
+      "alphaBounds": {
+        "x": 0,
+        "y": 0,
+        "width": 278,
+        "height": 392
+      },
+      "alphaCounts": {
+        "transparent": 11653,
+        "partial": 97323,
+        "opaque": 0
+      },
+      "maxSourceAlpha": 254,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "removedFogPixels": 2518,
+      "retainedRgbChanges": 0,
+      "retainedAlphaChanges": 0,
+      "opaqueCellEdgePixels": 0,
+      "liveAccepted": false
+    },
+    {
+      "id": "industrial_planter",
+      "view": "s",
+      "image": "frontend/assets/industrial/catalog-crew/industrial_planter.png",
+      "sourceWidth": 401,
+      "sourceHeight": 278,
+      "bounds": {
+        "x": 0,
+        "y": -8,
+        "width": 26,
+        "height": 20
+      },
+      "footprint": {
+        "w": 2,
+        "h": 1
+      },
+      "contact": {
+        "x": 0.5,
+        "y": 0.987410071942446,
+        "space": "exported-image-normalized",
+        "targetWorld": {
+          "x": 12,
+          "y": 12
+        }
+      },
+      "fit": {
+        "x": 0,
+        "y": -6.024937655860349,
+        "width": 26,
+        "height": 18.02493765586035
+      },
+      "underfill": {
+        "x": 1,
+        "y": 0.9012468827930175
+      },
+      "otherSupportedViewsUnchanged": [],
+      "source": "docs/station-remaster/catalog-crew/sources/sheet.png",
+      "sourceSha256": "3c869bbebe5b1b1b5e273f0ccbe9b75bbd112fdec971cbd814cc90818f118178",
+      "sourceCrop": {
+        "left": 1112,
+        "top": 601,
+        "width": 401,
+        "height": 278
+      },
+      "outputSha256": "7a6750513a004087da2f9a73bf61598c6222ecf031beb0c08a21f3b900d86a76",
+      "alphaBounds": {
+        "x": 0,
+        "y": 0,
+        "width": 401,
+        "height": 278
+      },
+      "alphaCounts": {
+        "transparent": 26052,
+        "partial": 85426,
+        "opaque": 0
+      },
+      "maxSourceAlpha": 254,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "removedFogPixels": 2798,
+      "retainedRgbChanges": 0,
+      "retainedAlphaChanges": 0,
+      "opaqueCellEdgePixels": 0,
+      "liveAccepted": false
+    }
+  ]
+}
