@@ -1,7 +1,7 @@
 /* Authored prop artwork. No catalog, simulation, or orientation ownership.
    Manifest v1: {version:1,props:{id:{views:{s:{image:"id.png",
      sourceWidth,sourceHeight,footprint:{w,h},bounds:{x,y,width,height},
-     mode:"static"|"native"|"screen",nativeLayers:[{polygon:[[x,y],...]}],
+     mode:"static"|"native"|"screen"|"water"|"scanner",nativeLayers:[{polygon:[[x,y],...]}],
      nativeMask:"optional-mask.png",nativeBounds:{x,y,width,height},
      nativeFallbackWhen:["sleeper"]}}}}}.
    Bounds/layers use WORLD pixels relative to the native prop origin (12px/tile).
@@ -29,11 +29,14 @@ const PropRemaster = (() => {
     Math.abs(r.x) <= 192 && Math.abs(r.y) <= 192;
   const fileOK = s => typeof s === 'string' && /^[A-Za-z0-9][A-Za-z0-9_-]*\.png$/.test(s);
   const pointOK = p => Array.isArray(p) && p.length === 2 && p.every(finite) && p.every(n => Math.abs(n) <= 384);
+  const unitPoint = p => Array.isArray(p)&&p.length===2&&p.every(n=>finite(n)&&n>=0&&n<=1);
+  const unitPoly = p => Array.isArray(p)&&p.length>=3&&p.length<=16&&p.every(unitPoint);
+  const unitRect = r => r&&[r.x,r.y,r.width,r.height].every(finite)&&r.x>=0&&r.y>=0&&r.width>0&&r.height>0&&r.x+r.width<=1&&r.y+r.height<=1;
   function validate(v) {
     if (!v || !fileOK(v.image) || !Number.isInteger(v.sourceWidth) || !Number.isInteger(v.sourceHeight) ||
         v.sourceWidth < 1 || v.sourceHeight < 1 || v.sourceWidth > 4096 || v.sourceHeight > 4096 ||
         !rectOK(v.bounds) || !v.footprint || ![v.footprint.w,v.footprint.h].every(n => Number.isInteger(n) && n > 0 && n <= 16) ||
-        !['static','native','screen'].includes(v.mode)) return false;
+        !['static','native','screen','water','scanner'].includes(v.mode)) return false;
     if (v.exposure != null && (!finite(v.exposure) || v.exposure < .25 || v.exposure > 3)) return false;
     if (v.nativeBounds != null && !rectOK(v.nativeBounds)) return false;
     if (v.nativeMask != null && !fileOK(v.nativeMask)) return false;
@@ -44,6 +47,8 @@ const PropRemaster = (() => {
         v.nativeFallbackWhen.some(s => !['sleeper','crates','pins','trophies','journeyStage'].includes(s)))) return false;
     if(v.screenRegions!=null&&(!Array.isArray(v.screenRegions)||v.screenRegions.length>8||v.screenRegions.some(poly=>
       !Array.isArray(poly)||poly.length<3||poly.length>16||poly.some(p=>!Array.isArray(p)||p.length!==2||p.some(n=>!finite(n)||n<0||n>1)))))return false;
+    if(['water','scanner'].includes(v.mode)&&(!v.motion||!unitPoly(v.motion.region)))return false;
+    if(v.mode==='water'&&(!Array.isArray(v.motion.bubbleLanes)||v.motion.bubbleLanes.length>4||!v.motion.bubbleLanes.every(unitRect)))return false;
     return v.mode !== 'native' || !!v.nativeMask || !!(v.nativeLayers && v.nativeLayers.length);
   }
   function canvas(w,h) {
@@ -92,7 +97,7 @@ const PropRemaster = (() => {
       }
       if(frame.width>256||frame.height>256)throw Error('layer bounds too large');
       const pw=Math.ceil(frame.width*DENSITY),ph=Math.ceil(frame.height*DENSITY);
-      const cost=pw*ph*(v.mode==='native'?3:v.mode==='screen'?10:1);
+      const cost=pw*ph*(v.mode==='native'?3:v.mode==='screen'?10:['water','scanner'].includes(v.mode)?13:1);
       if(pixelBudget+cost>MAX_PIXELS)throw Error('decoded prop budget exceeded');
       const body=canvas(pw,ph),g=body.getContext('2d');
       g.scale(DENSITY,DENSITY);g.translate(-frame.x,-frame.y);
@@ -113,8 +118,9 @@ const PropRemaster = (() => {
       // and mask decode, so enforce the shared bound again at the commit point.
       if(pixelBudget+cost>MAX_PIXELS)throw Error('decoded prop budget exceeded');
       const screen=v.mode==='screen'?authoredScreen(body,v.screenRegions,box,frame):null;
-      const entry={spec:v,body,mask,live,screen,frame,box,crop,lost:false};
-      for(const plane of [body,mask,live,screen&&screen.off])if(plane&&plane.addEventListener)
+      const motion=['water','scanner'].includes(v.mode)?authoredMotion(body,v,box,frame):null;
+      const entry={spec:v,body,mask,live,screen,motion,frame,box,crop,lost:false};
+      for(const plane of [body,mask,live,screen&&screen.off,...(motion||[])])if(plane&&plane.addEventListener)
         plane.addEventListener('contextlost',()=>{entry.lost=true;},{once:true});
       pixelBudget+=cost;entries.set(key,entry);revision++;
     }catch(e){failures.push({view:key,reason:String(e.message||e)});}
@@ -151,6 +157,37 @@ const PropRemaster = (() => {
     }
     g.putImageData(p,0,0);s.frames.set(phase,cv);return cv;
   }
+  // Motion is authored in the new sprite's source coordinates. Water stays
+  // decorative; the reader receives an explicit real-belt occupancy flag.
+  // All frames are built once, with no legacy sprite fragments or frame readback.
+  function authoredMotion(body,v,box,frame){
+    const X=n=>(box.x-frame.x+n*box.width)*DENSITY,Y=n=>(box.y-frame.y+n*box.height)*DENSITY;
+    return Array.from({length:12},(_,phase)=>{
+      const cv=canvas(body.width,body.height),g=cv.getContext('2d'),u=phase/12;
+      g.save();g.beginPath();v.motion.region.forEach((p,i)=>i?g.lineTo(X(p[0]),Y(p[1])):g.moveTo(X(p[0]),Y(p[1])));g.closePath();g.clip();
+      if(v.mode==='scanner'){
+        const xs=v.motion.region.map(p=>X(p[0])),ys=v.motion.region.map(p=>Y(p[1]));
+        const left=Math.min(...xs),top=Math.min(...ys),width=Math.max(...xs)-left,height=Math.max(...ys)-top;
+        g.fillStyle='rgba(207,157,249,.48)';g.fillRect(left+u*width,top,Math.max(1,DENSITY*.32),height);
+      }else{
+        g.strokeStyle='rgba(157,236,225,.20)';g.lineWidth=DENSITY*.16;
+        for(let n=0;n<5;n++){
+          const yy=.61+n*.023+Math.sin(u*Math.PI*2+n)*.014;
+          g.beginPath();g.moveTo(X(.13),Y(yy));g.bezierCurveTo(X(.32),Y(yy+.025),X(.51),Y(yy-.025),X(.73),Y(yy));g.stroke();
+        }
+      }
+      g.restore();
+      if(v.mode==='water')for(const [laneIndex,lane]of v.motion.bubbleLanes.entries()){
+        g.save();g.beginPath();g.rect(X(lane.x),Y(lane.y),lane.width*box.width*DENSITY,lane.height*box.height*DENSITY);g.clip();
+        for(let n=0;n<3;n++){
+          const progress=(u+n/3+laneIndex*.17)%1,cx=X(lane.x+lane.width*(.3+.35*Math.sin(n*2+u*4))),cy=Y(lane.y+lane.height*(1-progress));
+          const radius=DENSITY*(.18+n*.055);g.strokeStyle='rgba(181,242,236,'+(.24+.4*Math.sin(progress*Math.PI))+')';g.lineWidth=DENSITY*.12;
+          g.beginPath();g.arc(cx,cy,radius,0,Math.PI*2);g.stroke();
+        }g.restore();
+      }
+      g.globalCompositeOperation='destination-in';g.drawImage(body,0,0);return cv;
+    });
+  }
   function remasterOn(){
     return typeof IndustrialTextures!=='undefined' && typeof IndustrialTextures.isRemaster==='function' && IndustrialTextures.isRemaster();
   }
@@ -184,6 +221,11 @@ const PropRemaster = (() => {
         ctx.globalCompositeOperation='source-atop';
         ctx.globalAlpha *= .65 + .2 * Math.max(0,Math.min(1,Number(state&&state.heat)||0));
         ctx.drawImage(screenBeam(e.screen,phase),x+f.x,y+f.y,e.body.width/DENSITY,e.body.height/DENSITY);
+      }
+      if(e.motion&&!(state&&state.still)&&(v.mode==='water'||!!(state&&state.scanning))){
+        const period=v.mode==='water'?4800:900,phase=Math.floor((Math.max(0,Number(state&&state.now)||0)%period)/period*12);
+        ctx.globalCompositeOperation='source-atop';
+        ctx.drawImage(e.motion[phase],x+f.x,y+f.y,e.body.width/DENSITY,e.body.height/DENSITY);
       }
     }finally{ctx.restore();}
     return true;

@@ -51,14 +51,25 @@ const cyan=d=>{let n=0;for(let i=0;i<d.length;i+=4)if(d[i+3]>200)n+=Math.max(0,M
  assert.equal(art.emitter('console','s',12,12),null,'custom footprint cannot use authored emitter');
  const manifest=JSON.parse(read('frontend/assets/industrial/props-v3/manifest.json'));
  for(const [id,prop]of Object.entries(manifest.props))for(const [view,v]of Object.entries(prop.views)){
-  const render=(occupied,now)=>{const cv=createCanvas(320,270),cg=cv.getContext('2d');cg.scale(4,4);
-   assert.equal(art.draw(cg,id,view,24,36,v.footprint.w*12,v.footprint.h*12,{occupied,now},()=>{throw Error('Old pixels in '+id);}),true);
+  const render=(occupied,now,extra={})=>{const cv=createCanvas(320,270),cg=cv.getContext('2d');cg.scale(4,4);
+   assert.equal(art.draw(cg,id,view,24,36,v.footprint.w*12,v.footprint.h*12,{occupied,scanning:occupied,now,...extra},()=>{throw Error('Old pixels in '+id);}),true);
    return rgba(cv);
   };
   const idle=render(false,0),active=render(true,1050),later=render(true,1750);
   for(let i=3;i<idle.length;i+=4){assert.equal(idle[i],active[i],id+' power keeps contact/silhouette');assert.equal(idle[i],later[i],id+' motion keeps contact/silhouette');}
   if(v.mode==='screen'){assert.ok(cyan(active)>cyan(idle)*2,id+' glass powers on');assert.notDeepEqual(active,later,id+' glass animates');}
-  else {assert.deepEqual(idle,active,id+' static appearance');assert.deepEqual(active,later,id+' has no invented motion');}
+  else if(v.mode==='water'||v.mode==='scanner'){
+   assert.notDeepEqual(active,later,id+' has newly authored motion');
+   assert.deepEqual(render(true,100,{still:true}),render(true,2300,{still:true}),id+' obeys reduced motion');
+   if(v.mode==='scanner')assert.deepEqual(render(false,100,{work:true}),render(false,2300,{work:true}),'unrelated work cannot scan an empty conveyor');
+   if(v.mode==='water'){
+    assert.deepEqual(render(false,1050),active,'water is independent of occupancy');
+    assert.equal(art.emitter(id),null,'water is not a workstation display');
+   }
+  }else {assert.deepEqual(idle,active,id+' static appearance');assert.deepEqual(active,later,id+' has no invented motion');}
+  const warmReads=readbacks;
+  for(let now=0;now<6000;now+=50)art.draw(g,id,view,24,36,v.footprint.w*12,v.footprint.h*12,{now,occupied:true,scanning:true},()=>{throw Error('old pixels');});
+  assert.equal(readbacks,warmReads,id+' frames never read pixels');
  }
  [off,on,on2,frozen].forEach((cv,i)=>{sg.drawImage(cv,i*320,65);sg.fillStyle='#b6b5a6';sg.font='14px monospace';sg.fillText(['UNATTENDED','OCCUPIED / 1050 ms','OCCUPIED / 1750 ms','REDUCED MOTION'][i],i*320+15,350);});
  // Same world scale, no per-object enlargement. This strip catches accidental

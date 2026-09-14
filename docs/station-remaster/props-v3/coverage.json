@@ -1,8 +1,8 @@
 {
   "catalog": 160,
   "approved": 8,
-  "newDesigns": 7,
-  "remainingFullRedesign": 145,
+  "newDesigns": 12,
+  "remainingFullRedesign": 140,
   "definition": "Accepted existing art is counted separately. New fully rebuilt designs require user visual acceptance; prior casing-only drafts are not complete.",
   "props": [
     {
@@ -146,8 +146,10 @@
     {
       "id": "filter",
       "label": "FILTER",
-      "status": "awaiting-full-redesign",
-      "views": []
+      "status": "new-design-awaiting-review",
+      "views": [
+        "s"
+      ]
     },
     {
       "id": "merger",
@@ -320,8 +322,10 @@
     {
       "id": "tank",
       "label": "TANK",
-      "status": "awaiting-full-redesign",
-      "views": []
+      "status": "new-design-awaiting-review",
+      "views": [
+        "s"
+      ]
     },
     {
       "id": "whiteboard",
@@ -470,8 +474,10 @@
     {
       "id": "boxes",
       "label": "BOXES",
-      "status": "awaiting-full-redesign",
-      "views": []
+      "status": "new-design-awaiting-review",
+      "views": [
+        "s"
+      ]
     },
     {
       "id": "goldcrate",
@@ -578,8 +584,10 @@
     {
       "id": "couch",
       "label": "COUCH",
-      "status": "awaiting-full-redesign",
-      "views": []
+      "status": "new-design-awaiting-review",
+      "views": [
+        "s"
+      ]
     },
     {
       "id": "arcade",
@@ -700,8 +708,11 @@
     {
       "id": "lowtable",
       "label": "LOW TABLE",
-      "status": "awaiting-full-redesign",
-      "views": []
+      "status": "new-design-awaiting-review",
+      "views": [
+        "s",
+        "e"
+      ]
     },
     {
       "id": "glasstable",
