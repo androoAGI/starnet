@@ -1,0 +1,60 @@
+{
+  "sourceAnimation": {
+    "idleFrameVariants": 1,
+    "workFrameVariants": 1,
+    "respondsToWorkFlag": false,
+    "opaqueBoundsRelativeToFootprint": {
+      "x": 0,
+      "y": -4,
+      "w": 24,
+      "h": 16,
+      "alphaThreshold": 160
+    }
+  },
+  "bounds": {
+    "y": -4,
+    "width": 24,
+    "height": 16,
+    "x": 0
+  },
+  "id": "industrial_roundtable",
+  "geometry": {
+    "blocks": true,
+    "flat": false,
+    "tableSurface": true,
+    "requiredMount": null,
+    "optionalSurfaceMount": false,
+    "surfaceRisePixels": 8
+  },
+  "floorContact": {
+    "x": 12,
+    "y": 12
+  },
+  "backgroundThreshold": 235,
+  "tilePixels": 12,
+  "status": "art-draft-integration-pending",
+  "view": "s",
+  "footprint": {
+    "w": 2,
+    "h": 1
+  },
+  "anchorContract": "No leisure seat anchor. Footprint is the placement/pathfinding rectangle; upright visual rise is independent of the reserved box.",
+  "holeSeeds": [],
+  "sourceWidth": 1536,
+  "sourceHeight": 1024,
+  "sourceSha256": "bb41fc830b5d3f7975d3e0eaa56296390490f04242682b857b560230df00d046",
+  "output": "frontend/assets/industrial/batch02/crew/industrial_roundtable.png",
+  "crop": {
+    "left": 282,
+    "top": 8,
+    "width": 969,
+    "height": 980
+  },
+  "transparentPixels": 314255,
+  "opaquePixels": 635365,
+  "partialPixels": 0,
+  "backgroundPixelsRemoved": 937499,
+  "subjectRgbChanges": 0,
+  "outputSha256": "95fcba62234c5935c0f4824f91236627b440cd505fb90e7d8ac354a8d06a4ed7",
+  "liveIntegrated": false
+}

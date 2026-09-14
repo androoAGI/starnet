@@ -39,5 +39,26 @@
     "h": 1
   },
   "anchorContract": "planSeat: one occupant claim, walk to an adjacent tile, render on the seat tile at bottom minus 1 px plus per-type seat lift; explicit rotated facing beats counter inference.",
-  "holeSeeds": []
+  "holeSeeds": [
+    [
+      600,
+      632
+    ],
+    [
+      600,
+      790
+    ],
+    [
+      350,
+      595
+    ],
+    [
+      355,
+      575
+    ],
+    [
+      843,
+      608
+    ]
+  ]
 }
