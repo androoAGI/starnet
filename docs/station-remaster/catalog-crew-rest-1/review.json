@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "inspected": [
+    "complete generated sources",
+    "fit-qa.png at4x worldsize",
+    "usable top quad trace for both tables"
+  ],
+  "checks": "8/8 fit at least90% both native dimensions; zero retained RGBA changes; realalpha and no cell core cuts.",
+  "surfaceSupport": "Export-normalized conservative usable quadrilaterals traced inside clear tabletops; excludes metal oval rim and side-table edge.",
+  "functionalNotes": {
+    "trophycase": "Empty glasscase intentional: draw only real earned trophies.",
+    "djbooth": "Runtime must retarget controls/EQ to new art and work state.",
+    "quarters_lockerbank": "Door geometry baked; future interaction must use new face.",
+    "stool": "Native gas-lift seat identity and support retained; live sitter alignment remains integrator check."
+  },
+  "liveAccepted": false
+}
