@@ -5,9 +5,12 @@ const hash=b=>crypto.createHash('sha256').update(b).digest('hex');
 (async()=>{
  const layout=JSON.parse(fs.readFileSync(docs+'/layout.json','utf8')),bytes=fs.readFileSync(layout.source);
  if(hash(bytes)!==layout.sourceSha256)throw Error('Source changed');
- const {data,info}=await sharp(bytes).ensureAlpha().raw().toBuffer({resolveWithObject:true});
+ const defaultSource=await sharp(bytes).ensureAlpha().raw().toBuffer({resolveWithObject:true});
  fs.mkdirSync(out,{recursive:true});const records=[];
  for(const cell of layout.cells){
+  const sourcePath=cell.source||layout.source,sourceBytes=cell.source?fs.readFileSync(cell.source):bytes;
+  if(cell.source&&hash(sourceBytes)!==cell.sourceSha256)throw Error('Override source changed '+cell.id);
+  const {data,info}=cell.source?await sharp(sourceBytes).ensureAlpha().raw().toBuffer({resolveWithObject:true}):defaultSource;
   const {left,top,width:w,height:h}=cell.rect,raw=Buffer.alloc(w*h*4),core=new Uint8Array(w*h),radius=3;
   let maxAlpha=0,coreCount=0,edgeCore=0;
   for(let y=0;y<h;y++)for(let x=0;x<w;x++){
@@ -34,7 +37,7 @@ const hash=b=>crypto.createHash('sha256').update(b).digest('hex');
   records.push({id:cell.id,view:'s',image,sourceWidth:crop.width,sourceHeight:crop.height,bounds,footprint:cell.footprint,
    contact:{x:.5,y:(lastCoreY+.5)/crop.height,space:'exported-image-normalized',targetWorld:{x:cell.footprint.w*6,y:cell.footprint.h*12}},
    fit,underfill:{x:fit.width/bounds.width,y:fit.height/bounds.height},otherSupportedViewsUnchanged:cell.otherSupportedViewsUnchanged,
-   source:layout.source,sourceSha256:hash(bytes),sourceCrop:{left:left+l,top:top+t,width:crop.width,height:crop.height},outputSha256:hash(png),
+   source:sourcePath,sourceSha256:hash(sourceBytes),sourceCrop:{left:left+l,top:top+t,width:crop.width,height:crop.height},outputSha256:hash(png),
    alphaBounds:{x:0,y:0,width:crop.width,height:crop.height},alphaCounts:{transparent:zero,partial,opaque},maxSourceAlpha:maxAlpha,coreThreshold:180,edgeRadius:radius,removedFogPixels:removed,
    retainedRgbChanges:rgbChanges,retainedAlphaChanges:alphaChanges,opaqueCellEdgePixels:edgeCore,liveAccepted:false});
  }

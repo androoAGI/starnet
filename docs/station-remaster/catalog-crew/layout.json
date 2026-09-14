@@ -41,8 +41,8 @@
       "rect": {
         "left": 0,
         "top": 0,
-        "width": 500,
-        "height": 480
+        "width": 2172,
+        "height": 724
       },
       "bounds": {
         "x": 0,
@@ -54,7 +54,9 @@
         "w": 3,
         "h": 1
       },
-      "otherSupportedViewsUnchanged": []
+      "otherSupportedViewsUnchanged": [],
+      "source": "docs/station-remaster/catalog-crew/sources/industrial_bench-width-4.png",
+      "sourceSha256": "d0f5b2034865c6e77ed4446d98a6beb0f07b24e25c07ab260946556e260773c8"
     },
     {
       "id": "dinerchair",
@@ -85,10 +87,10 @@
       "id": "dinertable",
       "view": "s",
       "rect": {
-        "left": 740,
+        "left": 0,
         "top": 0,
-        "width": 410,
-        "height": 480
+        "width": 1649,
+        "height": 954
       },
       "bounds": {
         "x": -1,
@@ -102,7 +104,9 @@
       },
       "otherSupportedViewsUnchanged": [
         "e"
-      ]
+      ],
+      "source": "docs/station-remaster/catalog-crew/sources/dinertable-width-2.png",
+      "sourceSha256": "e44c28bc43640d264ca709b531125e46d4917508ed4052f4be5b515d6ebefce1"
     },
     {
       "id": "booth",
@@ -178,10 +182,10 @@
       "id": "bunk",
       "view": "s",
       "rect": {
-        "left": 750,
-        "top": 480,
-        "width": 350,
-        "height": 544
+        "left": 0,
+        "top": 0,
+        "width": 1205,
+        "height": 1306
       },
       "bounds": {
         "x": 0,
@@ -193,7 +197,9 @@
         "w": 2,
         "h": 2
       },
-      "otherSupportedViewsUnchanged": []
+      "otherSupportedViewsUnchanged": [],
+      "source": "docs/station-remaster/catalog-crew/sources/bunk-width-1.png",
+      "sourceSha256": "fb906d3b596888824c8f341f7a1620dbf0077186f99248e4d97dd7279ba15481"
     },
     {
       "id": "industrial_planter",

@@ -6,8 +6,8 @@
       "id": "industrial_bench",
       "view": "s",
       "image": "frontend/assets/industrial/catalog-crew/industrial_bench.png",
-      "sourceWidth": 445,
-      "sourceHeight": 208,
+      "sourceWidth": 1328,
+      "sourceHeight": 441,
       "bounds": {
         "x": 0,
         "y": 0,
@@ -20,7 +20,7 @@
       },
       "contact": {
         "x": 0.5,
-        "y": 0.9831730769230769,
+        "y": 0.9920634920634921,
         "space": "exported-image-normalized",
         "targetWorld": {
           "x": 18,
@@ -64,8 +64,8 @@
       "id": "dinertable",
       "view": "s",
       "image": "frontend/assets/industrial/catalog-crew/dinertable.png",
-      "sourceWidth": 352,
-      "sourceHeight": 294,
+      "sourceWidth": 1237,
+      "sourceHeight": 737,
       "bounds": {
         "x": -1,
         "y": 3,
@@ -78,7 +78,7 @@
       },
       "contact": {
         "x": 0.5,
-        "y": 0.9914965986394558,
+        "y": 0.9952510176390773,
         "space": "exported-image-normalized",
         "targetWorld": {
           "x": 18,
@@ -181,8 +181,8 @@
       "id": "bunk",
       "view": "s",
       "image": "frontend/assets/industrial/catalog-crew/bunk.png",
-      "sourceWidth": 278,
-      "sourceHeight": 392,
+      "sourceWidth": 1139,
+      "sourceHeight": 1188,
       "bounds": {
         "x": 0,
         "y": -2,
@@ -195,7 +195,7 @@
       },
       "contact": {
         "x": 0.5,
-        "y": 0.9910714285714286,
+        "y": 0.9970538720538721,
         "space": "exported-image-normalized",
         "targetWorld": {
           "x": 12,
