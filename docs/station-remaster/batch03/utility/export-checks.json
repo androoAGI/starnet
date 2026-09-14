@@ -515,6 +515,86 @@
       "islandPixelsRemoved": 0,
       "subjectRgbChanges": 0,
       "outputSha256": "c44ecf5fd17775f839c6cdb7a9c6041ed714ecc0544d5d381046aaa6e01b5272"
+    },
+    {
+      "id": "incubator",
+      "seeds": [
+        [
+          491,
+          96
+        ],
+        [
+          604,
+          1260
+        ],
+        [
+          198,
+          1278
+        ],
+        [
+          610,
+          1568
+        ],
+        [
+          202,
+          1571
+        ]
+      ],
+      "maxChroma": 15,
+      "source": "docs/station-remaster/batch03/utility/sources/incubator.png",
+      "sourceSha256": "1849641c72478133763c7d608e68db3a82998c185a5de5de9d0fd87b3df7e988",
+      "sourceWidth": 818,
+      "sourceHeight": 1923,
+      "output": "frontend/assets/industrial/batch03/utility/incubator.png",
+      "canvasPreserved": true,
+      "alphaBounds": {
+        "x": 130,
+        "y": 19,
+        "width": 554,
+        "height": 1797
+      },
+      "channels": 4,
+      "transparentPixels": 848406,
+      "opaquePixels": 724608,
+      "partialPixels": 0,
+      "backgroundPixelsRemoved": 848406,
+      "islandPixelsRemoved": 0,
+      "subjectRgbChanges": 0,
+      "outputSha256": "8665cd1f6c7771bc79e2a032abd8fbb5166b689c2e0adb1ed845def723b1de31"
+    },
+    {
+      "id": "cryopod",
+      "seeds": [
+        [
+          128,
+          1480
+        ],
+        [
+          664,
+          1481
+        ]
+      ],
+      "maxChroma": 15,
+      "source": "docs/station-remaster/batch03/utility/sources/cryopod.png",
+      "sourceSha256": "34728b41d5b08769614edbb30399c464fdc49eb955587657a4dc445f9bb9ff72",
+      "sourceWidth": 793,
+      "sourceHeight": 1983,
+      "output": "frontend/assets/industrial/batch03/utility/cryopod.png",
+      "canvasPreserved": true,
+      "alphaBounds": {
+        "x": 61,
+        "y": 25,
+        "width": 670,
+        "height": 1865
+      },
+      "channels": 4,
+      "transparentPixels": 461326,
+      "opaquePixels": 1111193,
+      "partialPixels": 0,
+      "backgroundPixelsRemoved": 461326,
+      "islandPixelsRemoved": 0,
+      "subjectRgbChanges": 0,
+      "outputSha256": "0eccdbab2db8bd4a74c5de635e093e73679c0cff437ebfab8c10072a569e779e"
     }
   ]
 }
