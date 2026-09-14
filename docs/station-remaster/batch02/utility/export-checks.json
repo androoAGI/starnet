@@ -1,0 +1,457 @@
+{
+  "version": 1,
+  "authorization": "User explicitly proceeded with deterministic exporter 2026-09-14",
+  "method": "Light-neutral flood fill with inspected enclosed-hole seeds; original RGB and canvas preserved",
+  "records": [
+    {
+      "id": "industrial_planter",
+      "seeds": [
+        [
+          1016,
+          129
+        ],
+        [
+          845,
+          223
+        ],
+        [
+          266,
+          224
+        ],
+        [
+          1040,
+          224
+        ],
+        [
+          1028,
+          226
+        ],
+        [
+          814,
+          235
+        ],
+        [
+          1141,
+          235
+        ],
+        [
+          932,
+          248
+        ],
+        [
+          1083,
+          257
+        ],
+        [
+          939,
+          260
+        ]
+      ],
+      "source": "docs/station-remaster/batch02/utility/sources/industrial_planter.png",
+      "sourceSha256": "cf574fecd3602ecd999f2145ce0978f89f20846f3bef2664d3666fda81a0c9ae",
+      "sourceWidth": 1430,
+      "sourceHeight": 1100,
+      "output": "frontend/assets/industrial/batch02/utility/industrial_planter.png",
+      "canvasPreserved": true,
+      "alphaBounds": {
+        "x": 31,
+        "y": 94,
+        "width": 1377,
+        "height": 774
+      },
+      "channels": 4,
+      "transparentPixels": 817547,
+      "opaquePixels": 755453,
+      "partialPixels": 0,
+      "backgroundPixelsRemoved": 817547,
+      "subjectRgbChanges": 0,
+      "outputSha256": "abaa00ff1ac928c4516ff19049c23cf9792f918b89b11ea150a2e0e5a620ad68"
+    },
+    {
+      "id": "tallplant",
+      "seeds": [
+        [
+          357,
+          239
+        ],
+        [
+          529,
+          242
+        ],
+        [
+          293,
+          274
+        ],
+        [
+          317,
+          298
+        ],
+        [
+          529,
+          301
+        ],
+        [
+          365,
+          311
+        ],
+        [
+          548,
+          317
+        ],
+        [
+          318,
+          319
+        ],
+        [
+          284,
+          320
+        ],
+        [
+          542,
+          352
+        ],
+        [
+          547,
+          378
+        ],
+        [
+          330,
+          405
+        ],
+        [
+          522,
+          415
+        ],
+        [
+          576,
+          434
+        ],
+        [
+          362,
+          442
+        ],
+        [
+          366,
+          528
+        ],
+        [
+          409,
+          528
+        ],
+        [
+          516,
+          537
+        ],
+        [
+          592,
+          538
+        ],
+        [
+          513,
+          556
+        ],
+        [
+          516,
+          564
+        ],
+        [
+          467,
+          590
+        ],
+        [
+          467,
+          611
+        ],
+        [
+          529,
+          623
+        ],
+        [
+          424,
+          649
+        ],
+        [
+          551,
+          662
+        ],
+        [
+          516,
+          663
+        ],
+        [
+          474,
+          707
+        ],
+        [
+          286,
+          730
+        ],
+        [
+          494,
+          732
+        ],
+        [
+          431,
+          744
+        ],
+        [
+          472,
+          766
+        ],
+        [
+          418,
+          802
+        ],
+        [
+          422,
+          810
+        ],
+        [
+          484,
+          812
+        ],
+        [
+          346,
+          815
+        ],
+        [
+          466,
+          829
+        ],
+        [
+          323,
+          833
+        ],
+        [
+          414,
+          843
+        ],
+        [
+          425,
+          843
+        ],
+        [
+          328,
+          850
+        ],
+        [
+          474,
+          881
+        ],
+        [
+          596,
+          898
+        ],
+        [
+          358,
+          900
+        ],
+        [
+          588,
+          941
+        ],
+        [
+          330,
+          945
+        ],
+        [
+          321,
+          967
+        ],
+        [
+          485,
+          980
+        ],
+        [
+          504,
+          1047
+        ],
+        [
+          362,
+          1110
+        ],
+        [
+          428,
+          1153
+        ],
+        [
+          430,
+          1167
+        ],
+        [
+          384,
+          1169
+        ]
+      ],
+      "source": "docs/station-remaster/batch02/utility/sources/tallplant.png",
+      "sourceSha256": "6387eec23f511009f4b68ea5be9619772bbaaff1c5f283d1042ba73b0462ee32",
+      "sourceWidth": 887,
+      "sourceHeight": 1774,
+      "output": "frontend/assets/industrial/batch02/utility/tallplant.png",
+      "canvasPreserved": true,
+      "alphaBounds": {
+        "x": 121,
+        "y": 18,
+        "width": 645,
+        "height": 1725
+      },
+      "channels": 4,
+      "transparentPixels": 1085046,
+      "opaquePixels": 488492,
+      "partialPixels": 0,
+      "backgroundPixelsRemoved": 1085046,
+      "subjectRgbChanges": 0,
+      "outputSha256": "5b689b47e4b809f34af1a935fd688174e23fc6885259db7d0836b025de5f9d2d"
+    },
+    {
+      "id": "monstera",
+      "minNeutral": 100,
+      "maxChroma": 25,
+      "seeds": [
+        [
+          691,
+          199
+        ],
+        [
+          762,
+          200
+        ],
+        [
+          735,
+          248
+        ],
+        [
+          336,
+          518
+        ],
+        [
+          264,
+          551
+        ],
+        [
+          214,
+          444
+        ],
+        [
+          919,
+          640
+        ],
+        [
+          980,
+          538
+        ],
+        [
+          961,
+          867
+        ],
+        [
+          611,
+          54
+        ],
+        [
+          721,
+          97
+        ],
+        [
+          471,
+          130
+        ],
+        [
+          542,
+          226
+        ],
+        [
+          834,
+          227
+        ],
+        [
+          253,
+          250
+        ],
+        [
+          587,
+          299
+        ],
+        [
+          729,
+          354
+        ],
+        [
+          190,
+          362
+        ],
+        [
+          694,
+          422
+        ],
+        [
+          1029,
+          427
+        ],
+        [
+          663,
+          434
+        ],
+        [
+          159,
+          441
+        ],
+        [
+          1041,
+          517
+        ],
+        [
+          123,
+          532
+        ],
+        [
+          181,
+          567
+        ],
+        [
+          1023,
+          596
+        ],
+        [
+          1065,
+          610
+        ],
+        [
+          996,
+          649
+        ],
+        [
+          1098,
+          707
+        ],
+        [
+          345,
+          788
+        ],
+        [
+          333,
+          868
+        ]
+      ],
+      "source": "docs/station-remaster/batch02/utility/sources/monstera.png",
+      "sourceSha256": "fcfb8165d5a4f8e3e18c5f0e7db81d6601a09374bd67831d25f5a0bc6a76d178",
+      "sourceWidth": 1205,
+      "sourceHeight": 1305,
+      "output": "frontend/assets/industrial/batch02/utility/monstera.png",
+      "canvasPreserved": true,
+      "alphaBounds": {
+        "x": 25,
+        "y": 8,
+        "width": 1180,
+        "height": 1289
+      },
+      "channels": 4,
+      "transparentPixels": 724105,
+      "opaquePixels": 848420,
+      "partialPixels": 0,
+      "backgroundPixelsRemoved": 724105,
+      "subjectRgbChanges": 0,
+      "outputSha256": "98413192e141076c1232024cb9097caa77c4b7f900bf03c3f6a85a0e64ef3a18"
+    }
+  ]
+}
