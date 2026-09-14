@@ -758,6 +758,152 @@
       "islandPixelsRemoved": 0,
       "subjectRgbChanges": 0,
       "outputSha256": "d3c7c023004b2a294c8187fb89c983129c873e423a42f21435a444c3c82c09ef"
+    },
+    {
+      "id": "telescope",
+      "seeds": [
+        [
+          546,
+          810
+        ],
+        [
+          456,
+          810
+        ],
+        [
+          521,
+          526
+        ],
+        [
+          300,
+          369
+        ]
+      ],
+      "maxChroma": 15,
+      "source": "docs/station-remaster/batch03/utility/sources/telescope.png",
+      "sourceSha256": "102f4462faafa30a052326be7b95805c2fe58bfcbf90f14e43c18df6a0c51cae",
+      "sourceWidth": 982,
+      "sourceHeight": 1602,
+      "output": "frontend/assets/industrial/batch03/utility/telescope.png",
+      "canvasPreserved": true,
+      "alphaBounds": {
+        "x": 32,
+        "y": 3,
+        "width": 926,
+        "height": 1540
+      },
+      "channels": 4,
+      "transparentPixels": 1100486,
+      "opaquePixels": 472678,
+      "partialPixels": 0,
+      "backgroundPixelsRemoved": 1100486,
+      "islandPixelsRemoved": 0,
+      "subjectRgbChanges": 0,
+      "outputSha256": "342717e5d8851043d330e63725488fc3c3eb7b3b27f54bac39fb5eff400f0d29"
+    },
+    {
+      "id": "telescope_r",
+      "seeds": [
+        [
+          493,
+          781
+        ],
+        [
+          406,
+          780
+        ],
+        [
+          429,
+          507
+        ],
+        [
+          670,
+          370
+        ]
+      ],
+      "maxChroma": 15,
+      "source": "docs/station-remaster/batch03/utility/sources/telescope_r.png",
+      "sourceSha256": "2d353ac23d87f36d53e5977b7375265ab528c07a22cb1ce4c7d0ce376d3929ea",
+      "sourceWidth": 979,
+      "sourceHeight": 1606,
+      "output": "frontend/assets/industrial/batch03/utility/telescope_r.png",
+      "canvasPreserved": true,
+      "alphaBounds": {
+        "x": 40,
+        "y": 6,
+        "width": 893,
+        "height": 1514
+      },
+      "channels": 4,
+      "transparentPixels": 1102476,
+      "opaquePixels": 469798,
+      "partialPixels": 0,
+      "backgroundPixelsRemoved": 1102476,
+      "islandPixelsRemoved": 0,
+      "subjectRgbChanges": 0,
+      "outputSha256": "daf380fd03bcad28110e4ee97994a3fab71f56106cbc52ec2ce85e9f01bfffec"
+    },
+    {
+      "id": "camerarig",
+      "seeds": [
+        [
+          413,
+          738
+        ],
+        [
+          508,
+          738
+        ],
+        [
+          593,
+          93
+        ],
+        [
+          578,
+          541
+        ],
+        [
+          577,
+          419
+        ],
+        [
+          682,
+          1055
+        ],
+        [
+          782,
+          1383
+        ],
+        [
+          570,
+          684
+        ],
+        [
+          609,
+          839
+        ]
+      ],
+      "maxChroma": 15,
+      "source": "docs/station-remaster/batch03/utility/sources/camerarig.png",
+      "sourceSha256": "bd7799b01474b56492e159f89bcb3cf840bd962d398ff4d9ce91d7582ee97129",
+      "sourceWidth": 903,
+      "sourceHeight": 1742,
+      "output": "frontend/assets/industrial/batch03/utility/camerarig.png",
+      "canvasPreserved": true,
+      "alphaBounds": {
+        "x": 15,
+        "y": 38,
+        "width": 872,
+        "height": 1635
+      },
+      "channels": 4,
+      "transparentPixels": 1014368,
+      "opaquePixels": 558658,
+      "partialPixels": 0,
+      "backgroundPixelsRemoved": 1014368,
+      "islandPixelsRemoved": 0,
+      "subjectRgbChanges": 0,
+      "outputSha256": "ffa99bc652a09fbb2236a51b5a6b52a4b65fd9ccfac4e2e08ce2d31573dd99f1"
     }
   ]
 }
