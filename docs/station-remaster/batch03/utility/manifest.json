@@ -836,6 +836,914 @@
         "sourceSha256": "34728b41d5b08769614edbb30399c464fdc49eb955587657a4dc445f9bb9ff72",
         "outputSha256": "0eccdbab2db8bd4a74c5de635e093e73679c0cff437ebfab8c10072a569e779e"
       }
+    },
+    "intake": {
+      "label": "INBOX",
+      "facing": "south",
+      "r": 0,
+      "supportedViews": {
+        "s": {
+          "key": "intake",
+          "r": 0,
+          "image": "intake.png",
+          "footprint": {
+            "w": 2,
+            "h": 2
+          },
+          "bounds": {
+            "x": -1,
+            "y": -4,
+            "width": 30,
+            "height": 28
+          },
+          "guide": "dev/.scratch-workspace/prop-structure/intake.png"
+        }
+      },
+      "image": "frontend/assets/industrial/batch03/utility/intake.png",
+      "sourceWidth": 1298,
+      "sourceHeight": 1212,
+      "alphaBounds": {
+        "x": 17,
+        "y": 13,
+        "width": 1265,
+        "height": 1180
+      },
+      "cropPolicy": "Original full canvas retained. Alpha bounds are optional trim metadata; never nonuniform stretch or rotate.",
+      "footprint": {
+        "w": 2,
+        "h": 2
+      },
+      "desiredWorldEnvelope": {
+        "x": -1,
+        "y": -4,
+        "width": 30,
+        "height": 28
+      },
+      "floorContact": {
+        "sourcePixelsApprox": [
+          649,
+          1191
+        ],
+        "worldPixels": [
+          12,
+          24
+        ],
+        "status": "provisional owner live fit required"
+      },
+      "blocks": true,
+      "seatAnchors": [],
+      "interaction": "No leisure seat anchor. Footprint is the placement/pathfinding rectangle; upright visual rise is independent of the reserved box.",
+      "portAndMotionRegions": {
+        "ports": [
+          {
+            "name": "east output",
+            "edge": "E",
+            "point": [
+              0.975,
+              0.555
+            ]
+          }
+        ],
+        "emptyRegions": [
+          {
+            "name": "hopper interior",
+            "rect": [
+              0.16,
+              0.065,
+              0.46,
+              0.345
+            ]
+          },
+          {
+            "name": "east roller tongue",
+            "rect": [
+              0.705,
+              0.5,
+              0.27,
+              0.105
+            ]
+          }
+        ],
+        "motion": [
+          {
+            "name": "feed roller",
+            "rect": [
+              0.22,
+              0.59,
+              0.34,
+              0.09
+            ],
+            "behavior": "Only owner-triggered feed motion; never bake a parcel."
+          },
+          {
+            "name": "indicator",
+            "rect": [
+              0.65,
+              0.68,
+              0.045,
+              0.045
+            ],
+            "behavior": "Runtime state only."
+          }
+        ]
+      },
+      "animationStatus": "Static neutral base; animated rollers, switch/barrier/tally and actual parcel routing require owner runtime mapping.",
+      "status": "Illustrated candidate, unintegrated, not user accepted",
+      "exportVerification": {
+        "transparentPixels": 532781,
+        "opaquePixels": 1040395,
+        "partialPixels": 0,
+        "subjectRgbChanges": 0,
+        "sourceSha256": "73469d91b31537c519db92f7377e1b48da8860cf7f1a8cbffe025a08276de81f",
+        "outputSha256": "05c94d79e01fe2e420eacc5f02684e8ea2c3cae681a93fe1bbfd38bb832f6b3b"
+      }
+    },
+    "bay": {
+      "label": "BAY",
+      "facing": "south",
+      "r": 0,
+      "supportedViews": {
+        "s": {
+          "key": "bay",
+          "r": 0,
+          "image": "bay.png",
+          "footprint": {
+            "w": 2,
+            "h": 2
+          },
+          "bounds": {
+            "x": -1,
+            "y": -7,
+            "width": 30,
+            "height": 31
+          },
+          "guide": "dev/.scratch-workspace/prop-structure/bay.png"
+        }
+      },
+      "image": "frontend/assets/industrial/batch03/utility/bay.png",
+      "sourceWidth": 1232,
+      "sourceHeight": 1277,
+      "alphaBounds": {
+        "x": 3,
+        "y": 27,
+        "width": 1226,
+        "height": 1200
+      },
+      "cropPolicy": "Original full canvas retained. Alpha bounds are optional trim metadata; never nonuniform stretch or rotate.",
+      "footprint": {
+        "w": 2,
+        "h": 2
+      },
+      "desiredWorldEnvelope": {
+        "x": -1,
+        "y": -7,
+        "width": 30,
+        "height": 31
+      },
+      "floorContact": {
+        "sourcePixelsApprox": [
+          616,
+          1225
+        ],
+        "worldPixels": [
+          12,
+          24
+        ],
+        "status": "provisional owner live fit required"
+      },
+      "blocks": true,
+      "seatAnchors": [],
+      "interaction": "No leisure seat anchor. Footprint is the placement/pathfinding rectangle; upright visual rise is independent of the reserved box.",
+      "portAndMotionRegions": {
+        "ports": [
+          {
+            "name": "west connection",
+            "edge": "W",
+            "point": [
+              0.065,
+              0.51
+            ]
+          },
+          {
+            "name": "east connection",
+            "edge": "E",
+            "point": [
+              0.935,
+              0.51
+            ]
+          }
+        ],
+        "emptyRegions": [
+          {
+            "name": "central berth",
+            "rect": [
+              0.275,
+              0.34,
+              0.45,
+              0.33
+            ]
+          }
+        ],
+        "motion": [
+          {
+            "name": "nameplate",
+            "rect": [
+              0.304,
+              0.09,
+              0.393,
+              0.059
+            ],
+            "behavior": "Resolved live dock name and binding only; blank base."
+          },
+          {
+            "name": "west rollers",
+            "rect": [
+              0.09,
+              0.365,
+              0.15,
+              0.29
+            ],
+            "behavior": "Parcel transfer only."
+          },
+          {
+            "name": "east rollers",
+            "rect": [
+              0.76,
+              0.365,
+              0.14,
+              0.29
+            ],
+            "behavior": "Parcel transfer only."
+          }
+        ]
+      },
+      "animationStatus": "Static neutral base; animated rollers, switch/barrier/tally and actual parcel routing require owner runtime mapping.",
+      "status": "Illustrated candidate, unintegrated, not user accepted",
+      "exportVerification": {
+        "transparentPixels": 527418,
+        "opaquePixels": 1045846,
+        "partialPixels": 0,
+        "subjectRgbChanges": 0,
+        "sourceSha256": "1f483b5b96ff93f0fa4c4f50200d44a84f08558f76617129f729ab554f6c2df0",
+        "outputSha256": "d3c7c023004b2a294c8187fb89c983129c873e423a42f21435a444c3c82c09ef"
+      }
+    },
+    "merger": {
+      "label": "MERGER",
+      "facing": "south",
+      "r": 0,
+      "supportedViews": {
+        "s": {
+          "key": "merger",
+          "r": 0,
+          "image": "merger.png",
+          "footprint": {
+            "w": 1,
+            "h": 1
+          },
+          "bounds": {
+            "x": -2,
+            "y": 0,
+            "width": 16,
+            "height": 11
+          },
+          "guide": "dev/.scratch-workspace/prop-structure/merger.png"
+        }
+      },
+      "image": "frontend/assets/industrial/batch03/utility/merger.png",
+      "sourceWidth": 1512,
+      "sourceHeight": 1040,
+      "alphaBounds": {
+        "x": 26,
+        "y": 31,
+        "width": 1460,
+        "height": 929
+      },
+      "cropPolicy": "Original full canvas retained. Alpha bounds are optional trim metadata; never nonuniform stretch or rotate.",
+      "footprint": {
+        "w": 1,
+        "h": 1
+      },
+      "desiredWorldEnvelope": {
+        "x": -2,
+        "y": 0,
+        "width": 16,
+        "height": 11
+      },
+      "floorContact": {
+        "sourcePixelsApprox": [
+          756,
+          958
+        ],
+        "worldPixels": [
+          6,
+          12
+        ],
+        "status": "provisional owner live fit required"
+      },
+      "blocks": false,
+      "seatAnchors": [],
+      "interaction": "No leisure seat anchor. Footprint is the placement/pathfinding rectangle; upright visual rise is independent of the reserved box.",
+      "portAndMotionRegions": {
+        "ports": [
+          {
+            "name": "west upper in",
+            "edge": "W",
+            "point": [
+              0.04,
+              0.18
+            ]
+          },
+          {
+            "name": "west lower in",
+            "edge": "W",
+            "point": [
+              0.04,
+              0.72
+            ]
+          },
+          {
+            "name": "east out",
+            "edge": "E",
+            "point": [
+              0.96,
+              0.455
+            ]
+          }
+        ],
+        "emptyRegions": [
+          {
+            "name": "upper channel",
+            "polygon": [
+              [
+                0.04,
+                0.12
+              ],
+              [
+                0.3,
+                0.12
+              ],
+              [
+                0.45,
+                0.31
+              ],
+              [
+                0.68,
+                0.4
+              ],
+              [
+                0.96,
+                0.4
+              ],
+              [
+                0.96,
+                0.53
+              ],
+              [
+                0.64,
+                0.53
+              ],
+              [
+                0.34,
+                0.31
+              ],
+              [
+                0.04,
+                0.25
+              ]
+            ]
+          },
+          {
+            "name": "lower channel",
+            "polygon": [
+              [
+                0.04,
+                0.66
+              ],
+              [
+                0.3,
+                0.66
+              ],
+              [
+                0.45,
+                0.57
+              ],
+              [
+                0.65,
+                0.5
+              ],
+              [
+                0.7,
+                0.53
+              ],
+              [
+                0.4,
+                0.7
+              ],
+              [
+                0.3,
+                0.79
+              ],
+              [
+                0.04,
+                0.79
+              ]
+            ]
+          }
+        ],
+        "motion": [
+          {
+            "name": "all rollers",
+            "rect": [
+              0.03,
+              0.1,
+              0.94,
+              0.7
+            ],
+            "behavior": "Route work through; never combine jobs or show fictional merge."
+          }
+        ]
+      },
+      "animationStatus": "Static neutral base; animated rollers, switch/barrier/tally and actual parcel routing require owner runtime mapping.",
+      "status": "Illustrated candidate, unintegrated, not user accepted",
+      "exportVerification": {
+        "transparentPixels": 751090,
+        "opaquePixels": 821390,
+        "partialPixels": 0,
+        "subjectRgbChanges": 0,
+        "sourceSha256": "39c36beab14648e6f2a5b9f0b47c3b4974cd5118c4a1bc4486926fd1a469ba92",
+        "outputSha256": "da07e96a6a64f95e4db1e622f7dfb92cc3622f03e36fb148b5ce24e1e11db5db"
+      }
+    },
+    "splitter": {
+      "label": "SPLITTER",
+      "facing": "south",
+      "r": 0,
+      "supportedViews": {
+        "s": {
+          "key": "splitter",
+          "r": 0,
+          "image": "splitter.png",
+          "footprint": {
+            "w": 1,
+            "h": 1
+          },
+          "bounds": {
+            "x": -1,
+            "y": 0,
+            "width": 15,
+            "height": 11
+          },
+          "guide": "dev/.scratch-workspace/prop-structure/splitter.png"
+        }
+      },
+      "image": "frontend/assets/industrial/batch03/utility/splitter.png",
+      "sourceWidth": 1464,
+      "sourceHeight": 1075,
+      "alphaBounds": {
+        "x": 24,
+        "y": 16,
+        "width": 1417,
+        "height": 1027
+      },
+      "cropPolicy": "Original full canvas retained. Alpha bounds are optional trim metadata; never nonuniform stretch or rotate.",
+      "footprint": {
+        "w": 1,
+        "h": 1
+      },
+      "desiredWorldEnvelope": {
+        "x": -1,
+        "y": 0,
+        "width": 15,
+        "height": 11
+      },
+      "floorContact": {
+        "sourcePixelsApprox": [
+          732,
+          1041
+        ],
+        "worldPixels": [
+          6,
+          12
+        ],
+        "status": "provisional owner live fit required"
+      },
+      "blocks": false,
+      "seatAnchors": [],
+      "interaction": "No leisure seat anchor. Footprint is the placement/pathfinding rectangle; upright visual rise is independent of the reserved box.",
+      "portAndMotionRegions": {
+        "ports": [
+          {
+            "name": "west in",
+            "edge": "W",
+            "point": [
+              0.05,
+              0.47
+            ]
+          },
+          {
+            "name": "east upper out",
+            "edge": "E",
+            "point": [
+              0.95,
+              0.22
+            ]
+          },
+          {
+            "name": "east lower out",
+            "edge": "E",
+            "point": [
+              0.95,
+              0.71
+            ]
+          }
+        ],
+        "emptyRegions": [
+          {
+            "name": "open fork",
+            "polygon": [
+              [
+                0.05,
+                0.4
+              ],
+              [
+                0.47,
+                0.37
+              ],
+              [
+                0.7,
+                0.14
+              ],
+              [
+                0.95,
+                0.14
+              ],
+              [
+                0.95,
+                0.28
+              ],
+              [
+                0.75,
+                0.28
+              ],
+              [
+                0.59,
+                0.47
+              ],
+              [
+                0.76,
+                0.63
+              ],
+              [
+                0.95,
+                0.63
+              ],
+              [
+                0.95,
+                0.78
+              ],
+              [
+                0.68,
+                0.78
+              ],
+              [
+                0.47,
+                0.58
+              ],
+              [
+                0.05,
+                0.55
+              ]
+            ]
+          }
+        ],
+        "motion": [
+          {
+            "name": "deflector pivot",
+            "rect": [
+              0.52,
+              0.41,
+              0.09,
+              0.12
+            ],
+            "behavior": "Only actual chosen output/round robin state; neutral base."
+          },
+          {
+            "name": "side actuator",
+            "rect": [
+              0.5,
+              0.72,
+              0.14,
+              0.18
+            ],
+            "behavior": "Coordinate with actual switch motion."
+          }
+        ]
+      },
+      "animationStatus": "Static neutral base; animated rollers, switch/barrier/tally and actual parcel routing require owner runtime mapping.",
+      "status": "Illustrated candidate, unintegrated, not user accepted",
+      "exportVerification": {
+        "transparentPixels": 714324,
+        "opaquePixels": 859476,
+        "partialPixels": 0,
+        "subjectRgbChanges": 0,
+        "sourceSha256": "386fecd304f1fdca111551e9d1da2bb8cd1d8ba592d5d0831d881789f10a987c",
+        "outputSha256": "388d4307db1d717bca132d8309826ce7227d2c87017897954c28f27232025970"
+      }
+    },
+    "joiner": {
+      "label": "JOINER",
+      "facing": "south",
+      "r": 0,
+      "supportedViews": {
+        "s": {
+          "key": "joiner",
+          "r": 0,
+          "image": "joiner.png",
+          "footprint": {
+            "w": 1,
+            "h": 1
+          },
+          "bounds": {
+            "x": -2,
+            "y": 0,
+            "width": 16,
+            "height": 11
+          },
+          "guide": "dev/.scratch-workspace/prop-structure/joiner.png"
+        }
+      },
+      "image": "frontend/assets/industrial/batch03/utility/joiner.png",
+      "sourceWidth": 1511,
+      "sourceHeight": 1041,
+      "alphaBounds": {
+        "x": 30,
+        "y": 59,
+        "width": 1451,
+        "height": 911
+      },
+      "cropPolicy": "Original full canvas retained. Alpha bounds are optional trim metadata; never nonuniform stretch or rotate.",
+      "footprint": {
+        "w": 1,
+        "h": 1
+      },
+      "desiredWorldEnvelope": {
+        "x": -2,
+        "y": 0,
+        "width": 16,
+        "height": 11
+      },
+      "floorContact": {
+        "sourcePixelsApprox": [
+          755,
+          968
+        ],
+        "worldPixels": [
+          6,
+          12
+        ],
+        "status": "provisional owner live fit required"
+      },
+      "blocks": false,
+      "seatAnchors": [],
+      "interaction": "No leisure seat anchor. Footprint is the placement/pathfinding rectangle; upright visual rise is independent of the reserved box.",
+      "portAndMotionRegions": {
+        "ports": [
+          {
+            "name": "west upper in",
+            "edge": "W",
+            "point": [
+              0.04,
+              0.24
+            ]
+          },
+          {
+            "name": "west lower in",
+            "edge": "W",
+            "point": [
+              0.04,
+              0.65
+            ]
+          },
+          {
+            "name": "east out",
+            "edge": "E",
+            "point": [
+              0.955,
+              0.45
+            ]
+          }
+        ],
+        "emptyRegions": [
+          {
+            "name": "upper holding tray",
+            "rect": [
+              0.27,
+              0.19,
+              0.18,
+              0.14
+            ]
+          },
+          {
+            "name": "lower holding tray",
+            "rect": [
+              0.27,
+              0.6,
+              0.18,
+              0.14
+            ]
+          },
+          {
+            "name": "merged output",
+            "rect": [
+              0.62,
+              0.4,
+              0.33,
+              0.12
+            ]
+          }
+        ],
+        "motion": [
+          {
+            "name": "upper stop socket",
+            "rect": [
+              0.546,
+              0.357,
+              0.04,
+              0.06
+            ],
+            "behavior": "Raise/lower pin only from real join hold state."
+          },
+          {
+            "name": "lower stop socket",
+            "rect": [
+              0.546,
+              0.487,
+              0.04,
+              0.06
+            ],
+            "behavior": "Raise/lower pin only from real join hold state."
+          },
+          {
+            "name": "latch actuator",
+            "rect": [
+              0.55,
+              0.69,
+              0.16,
+              0.11
+            ],
+            "behavior": "Real barrier completion/timeout state."
+          }
+        ]
+      },
+      "animationStatus": "Static neutral base; animated rollers, switch/barrier/tally and actual parcel routing require owner runtime mapping.",
+      "status": "Illustrated candidate, unintegrated, not user accepted",
+      "exportVerification": {
+        "transparentPixels": 667472,
+        "opaquePixels": 905479,
+        "partialPixels": 0,
+        "subjectRgbChanges": 0,
+        "sourceSha256": "f3b0760b08aa09a44815c50a3648733988ba0986497d155e7f265e30a539d127",
+        "outputSha256": "3bf5428b39a425bfeb1dbe710026a6ffa7477b1046528dc3cbe496c4c9f46faa"
+      }
+    },
+    "loop": {
+      "label": "LOOP",
+      "facing": "south",
+      "r": 0,
+      "supportedViews": {
+        "s": {
+          "key": "loop",
+          "r": 0,
+          "image": "loop.png",
+          "footprint": {
+            "w": 1,
+            "h": 1
+          },
+          "bounds": {
+            "x": -1,
+            "y": -7,
+            "width": 15,
+            "height": 18
+          },
+          "guide": "dev/.scratch-workspace/prop-structure/loop.png"
+        }
+      },
+      "image": "frontend/assets/industrial/batch03/utility/loop.png",
+      "sourceWidth": 1145,
+      "sourceHeight": 1374,
+      "alphaBounds": {
+        "x": 12,
+        "y": 8,
+        "width": 1120,
+        "height": 1334
+      },
+      "cropPolicy": "Original full canvas retained. Alpha bounds are optional trim metadata; never nonuniform stretch or rotate.",
+      "footprint": {
+        "w": 1,
+        "h": 1
+      },
+      "desiredWorldEnvelope": {
+        "x": -1,
+        "y": -7,
+        "width": 15,
+        "height": 18
+      },
+      "floorContact": {
+        "sourcePixelsApprox": [
+          572,
+          1340
+        ],
+        "worldPixels": [
+          6,
+          12
+        ],
+        "status": "provisional owner live fit required"
+      },
+      "blocks": false,
+      "seatAnchors": [],
+      "interaction": "No leisure seat anchor. Footprint is the placement/pathfinding rectangle; upright visual rise is independent of the reserved box.",
+      "portAndMotionRegions": {
+        "ports": [
+          {
+            "name": "west in",
+            "edge": "W",
+            "point": [
+              0.028,
+              0.53
+            ]
+          },
+          {
+            "name": "DONE east upper",
+            "edge": "E",
+            "point": [
+              0.97,
+              0.4
+            ]
+          },
+          {
+            "name": "BACK east lower",
+            "edge": "E",
+            "point": [
+              0.97,
+              0.68
+            ]
+          }
+        ],
+        "emptyRegions": [
+          {
+            "name": "empty fork deck",
+            "rect": [
+              0.045,
+              0.36,
+              0.9,
+              0.37
+            ]
+          }
+        ],
+        "motion": [
+          {
+            "name": "tally display",
+            "rect": [
+              0.462,
+              0.08,
+              0.075,
+              0.072
+            ],
+            "behavior": "Real iteration count only, blank base."
+          },
+          {
+            "name": "four tally lamps",
+            "rect": [
+              0.452,
+              0.168,
+              0.105,
+              0.075
+            ],
+            "behavior": "Real iteration/cap state only; base unlit."
+          },
+          {
+            "name": "deflector island",
+            "rect": [
+              0.49,
+              0.45,
+              0.16,
+              0.12
+            ],
+            "behavior": "Actual selected BACK/DONE route only."
+          }
+        ]
+      },
+      "animationStatus": "Static neutral base; animated rollers, switch/barrier/tally and actual parcel routing require owner runtime mapping.",
+      "status": "Illustrated candidate, unintegrated, not user accepted",
+      "exportVerification": {
+        "transparentPixels": 760249,
+        "opaquePixels": 812981,
+        "partialPixels": 0,
+        "subjectRgbChanges": 0,
+        "sourceSha256": "252cdb9222b511939327665a8627508e53adb9cd437f57662dfb67f4f14b3d54",
+        "outputSha256": "0f985d7919581b1ecc475b60ea98e54246cddc39cc181043a622455af92f24c5"
+      }
     }
   },
   "verification": {

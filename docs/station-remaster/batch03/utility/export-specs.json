@@ -369,7 +369,7 @@
         200
       ],
       [
-        880,
+        881,
         200
       ]
     ],
@@ -377,6 +377,21 @@
   },
   {
     "id": "merger",
+    "seeds": [],
+    "maxChroma": 15
+  },
+  {
+    "id": "splitter",
+    "seeds": [],
+    "maxChroma": 15
+  },
+  {
+    "id": "joiner",
+    "seeds": [],
+    "maxChroma": 15
+  },
+  {
+    "id": "loop",
     "seeds": [],
     "maxChroma": 15
   }
