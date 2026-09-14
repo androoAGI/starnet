@@ -4,10 +4,10 @@ slug: earned-xp-appears-frozen-or-misses-ratings-from
 title: Earned XP appears frozen or misses ratings from another window
 surface: sessions
 severity: P2
-status: open
+status: fixed
 found: 2026-09-14
 lane: agent/xp-status-0914
-fix:
+fix: 05a399cf0
 origin: customer
 report: Owner relayed a new customer report on 2026-09-14: misses the XP system working. Exact failing action is unknown.
 affected: Unknown customer version and platform; reproduced on source 7a087d3be
@@ -39,9 +39,13 @@ Live after repair: the already-open Growth panel advanced from 90 to 129 XP with
 
 Source seams: `frontend/app/stationui.js` refreshGrowthLive / refreshDossierLive; `frontend/app/xpstore.js` recordWorkRating / syncRatingHistory / init. Regressions: test/dossier-growth-live.test.js, test/xpstore.test.js, test/growth-rating-upgrade.e2e.test.js. Local detailed receipts are retained in `.dogfood/xp/` in the owning worktree.
 
+Final live checks: a fresh browser origin after a real sidecar restart recovered 168 XP / five approvals / level 3. Further ratings produced exactly the ledger-derived totals: NOVA 213 XP / level 3, XP-SPEC 90 XP / level 2. The specialist showed its own level-up broadcast, retained level 2 on reload, and its already-open panel advanced 60 to 90 XP. The overseer did not inherit specialist XP. Commander progression independently moved from 10 points / level 1 to 110 points / level 2 after a real goal-linked test run and explicit confirmation of the synthetic test outcome. Browser error log was empty.
+
+Candidate e064281ed: `npm run test:fast` 780/780 PASS (`.dogfood/xp/fast-locked.log`); `npm run qa:customer-journeys` 34/34 PASS (`.dogfood/xp/journeys-final.log`). Focused XP-store 101, growth-dossier 10, real-run upgrade/restart 31 and claim-lock 64 assertions PASS. The earlier gates correctly caught an in-flight website-mirror mismatch and changed source hashes; the final candidate has a synchronized mirror and updated source locks with all claim verdicts unchanged.
+
 ## Verdict
 
-The open dossier refreshed only status, not XP or kudos. The rating adapter incorrectly treated a single acknowledgement as proof that all preceding ratings had been consumed. Repair refreshes read-only progression independently of editors and advances the rating checkpoint only after a complete history snapshot. Older checkpoints receive one safe replay when the saved receipt history has not reached its eviction cap. Capped histories retain their prior checkpoint rather than risking duplicate awards; older missing receipts in that exceptional case are not claimed recovered. The new customer's exact cause and recovery remain unconfirmed. Source verification is in progress; no installer or public release is claimed.
+The open dossier refreshed only status, not XP or kudos. The rating adapter incorrectly treated a single acknowledgement as proof that all preceding ratings had been consumed. Repair refreshes read-only progression independently of editors and advances the rating checkpoint only after a complete history snapshot. Older checkpoints receive one safe replay when the saved receipt history has not reached its eviction cap. Capped histories retain their prior checkpoint rather than risking duplicate awards; older missing receipts in that exceptional case are not claimed recovered. The new customer's exact cause and recovery remain unconfirmed. The reproduced source defects are repaired and verified; no installer or public release is claimed.
 
 ## Regression
 
