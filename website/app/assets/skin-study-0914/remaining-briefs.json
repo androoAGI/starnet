@@ -1,0 +1,140 @@
+[
+  [
+    "bear",
+    "Teddy Bear",
+    "A bipedal worn teddy bear with warm tawny short plush fur, rounded modest ears, realistic stitched seams along torso and limbs, small dark glass eyes, beige muzzle and belly, compact paws, natural upright bear anatomy. Preserve comforting recognizable teddy silhouette but render tactile aged fabric and subdued colors, eerie station companion, not chibi.",
+    0.85
+  ],
+  [
+    "pepe",
+    "Pepe",
+    "Pepe the frog as a grounded bipedal station resident, muted olive green moist amphibian skin, broad flat mouth, modest protruding expressive eyes, blue worn crewneck sweater and brown utility trousers, practical dark shoes. Preserve recognizable frog face and blue shirt, restrained adult proportions, believable fabric and subtle skin highlights.",
+    0.8
+  ],
+  [
+    "capybara",
+    "Capybara",
+    "An upright anthropomorphic capybara station companion with warm brown coarse short fur, blunt rectangular muzzle, tiny rounded ears, small dark eyes, stout natural rodent torso and compact paws. Anatomically recognizable capybara, calm serious expression, believable fur shading, subtle worn brown utility harness. Bipedal neutral standing posture, no giant cartoon head.",
+    0.9
+  ],
+  [
+    "vaultboy",
+    "Vault Boy",
+    "Vault Boy reimagined as a young adult space station technician, swept blond hair, blue work jumpsuit with yellow collar belt and piping, brown boots, natural human head and hands, friendly composed face rather than exaggerated mascot grin. Realistic fabric seams folds and reinforced knees. Preserve blond swept hair and blue-yellow jumpsuit.",
+    0.55
+  ],
+  [
+    "station_minion",
+    "Station Minion",
+    "A compact industrial humanoid station worker robot in dark graphite and weathered bronze segmented plating, small faceless helmet with recessed cyan horizontal visor, closely fitted chest plate, articulated mechanical limbs, practical gripper hands and broad planted work feet, restrained glowing optics. Serious utilitarian heavy machinery with believable joints.",
+    0.55
+  ],
+  [
+    "blank_blue",
+    "Blue Cadet",
+    "A faceless BLUE ceramic humanoid service android. Small smooth oval head with ONE thin horizontal black visor slit, no eyes mouth or nose, no skull. Adult proportions six heads tall, natural long limbs, modest hands feet. Clean muted cobalt blue segmented shell over graphite neck and mechanical joints, ivory tiny seams, restrained metal reflections and wear. Same clean anatomical design as an ivory station cadet, blue armor variant.",
+    0.55
+  ],
+  [
+    "blank_green",
+    "Green Cadet",
+    "A faceless GREEN ceramic humanoid service android. Small smooth oval head with ONE thin horizontal black visor slit, no eyes mouth or nose, no skull. Adult proportions six heads tall, natural long limbs, modest hands feet. Clean muted sage green segmented shell over graphite neck and mechanical joints, ivory tiny seams, restrained metal reflections and wear. Same clean anatomical design as an ivory station cadet, green armor variant.",
+    0.55
+  ],
+  [
+    "blank_red",
+    "Red Cadet",
+    "A faceless RED ceramic humanoid service android. Small smooth oval head with ONE thin horizontal black visor slit, no eyes mouth or nose, no skull. Adult proportions six heads tall, natural long limbs, modest hands feet. Clean muted oxide red segmented shell over graphite neck and mechanical joints, ivory tiny seams, restrained metal reflections and wear. Same clean anatomical design as an ivory station cadet, red armor variant.",
+    0.55
+  ],
+  [
+    "blank_amber",
+    "Amber Cadet",
+    "A faceless AMBER ceramic humanoid service android. Small smooth oval head with ONE thin horizontal black visor slit, no eyes mouth or nose, no skull. Adult proportions six heads tall, natural long limbs, modest hands feet. Clean muted ochre amber segmented shell over graphite neck and mechanical joints, ivory tiny seams, restrained metal reflections and wear. Same clean anatomical design as an ivory station cadet, amber armor variant.",
+    0.55
+  ],
+  [
+    "heisenberg",
+    "Heisenberg",
+    "Walter White as Heisenberg, middle-aged man with compact black porkpie hat, dark glasses and short brown goatee, muted tan utility jacket over olive shirt, brown trousers and worn dark shoes. Natural adult human anatomy and realistic tailoring, reserved stern face, hands empty. Preserve hat glasses goatee and tan jacket.",
+    0.55
+  ],
+  [
+    "endoskeleton",
+    "Endoskeleton",
+    "A Terminator-style bare robotic endoskeleton, small angular chrome skull with two tiny red optical sensors, exposed steel rib frame and mechanical spine, realistic piston assemblies and articulated metal limbs, slender athletic proportions, no flesh and no outer armor. Distinguish brushed steel from dark recessed joints with restrained highlights.",
+    0.55
+  ],
+  [
+    "ultrondroid",
+    "Ultron Droid",
+    "A lean Ultron humanoid android with sculpted small silver gunmetal face, narrow red luminous eyes, red-lit recessed chest core, layered graphite metal torso and articulated limbs. Sleek intimidating adult proportions with long natural legs, exposed dark mechanical joints, restrained red accents, hands empty. Preserve the slender grey red-eyed droid identity, different from bulky overseer armor.",
+    0.55
+  ],
+  [
+    "samaltman",
+    "Sam",
+    "Sam Altman as an adult male station crew member, short wavy medium brown hair, clean-shaven face, grey-blue casual crewneck shirt, dark charcoal jeans and simple dark shoes. Natural realistic human proportions and subtle facial likeness, modest head hands feet, relaxed neutral posture. Believable cotton fabric folds, understated station civilian style, hands empty.",
+    0.55
+  ],
+  [
+    "dario",
+    "Dario",
+    "Dario Amodei as an adult male station researcher, thick wavy dark brown hair, natural face and restrained thoughtful expression, charcoal blue casual jacket over pale shirt, dark trousers and plain shoes. Natural realistic human proportions, modest head hands feet, believable fabric and tailoring, relaxed neutral posture, hands empty.",
+    0.55
+  ],
+  [
+    "freddyfazbear",
+    "Freddy",
+    "Freddy Fazbear as a worn brown bear animatronic with compact black top hat and bow tie, beige muzzle and belly panel, small round ears, realistic segmented plush-covered mechanical joints, dark inset glass eyes and subtle seams. Keep recognizable bear animatronic silhouette but use believable adult bipedal anatomy, aged textile surfaces and restrained metal at joints, eerie not cute, empty paws.",
+    0.8
+  ],
+  [
+    "ghostface",
+    "Ghostface",
+    "Ghostface in a flowing heavy black hooded robe with iconic elongated ivory screaming mask, narrow black eye sockets and long open dark mouth, gloved empty hands, practical dark boots below robe hem. Modest mask size relative to natural adult human body, realistic weighted cloth folds and restrained charcoal highlights. Preserve mask and hood silhouette.",
+    0.6
+  ],
+  [
+    "morpheus",
+    "Morpheus",
+    "Morpheus from the Matrix, a bald Black adult man wearing small dark round sunglasses, a long tailored black leather coat over charcoal suit, polished black shoes. Natural human proportions, confident composed neutral posture, realistic leather sheen and weighted coat folds, small head and practical hands, empty hands. Preserve bald head glasses and long black coat identity.",
+    0.55
+  ],
+  [
+    "ricksanchez",
+    "Rick",
+    "Rick Sanchez as a grounded elderly station scientist, spiky pale blue-grey hair, lined angular face, off-white lab coat over muted aqua shirt, brown trousers, dark shoes, thin adult human proportions, restrained expressive face, no drool. Believable cotton folds and a small chest instrument pen. Preserve spiky hair lab coat and aqua shirt, empty hands.",
+    0.6
+  ],
+  [
+    "ninjaturtle",
+    "Ninja Turtle",
+    "A Teenage Mutant Ninja Turtle with muted olive green skin, red eye bandana, realistic brown segmented chest shell and darker domed back shell, brown utility belt, worn red elbow and knee wraps, broad athletic humanoid anatomy with believable reptile musculature and three-finger hands. Small natural head compared to torso, restrained leather and shell textures. Hands empty, no weapons.",
+    0.65
+  ],
+  [
+    "minionchar",
+    "Minion",
+    "A yellow Minion station mechanic with one large central eye behind a brushed steel round goggle, short sparse dark hair, worn navy denim overalls and black gloves and boots. Preserve recognizable short cylindrical yellow body and single-eye identity with plausible compact limbs and tactile fabric seams and rubber soles. Believable material shading, restrained mustard yellow, serious neutral pose, no giant caricature hands.",
+    0.9
+  ],
+  [
+    "pikachu",
+    "Pikachu",
+    "Pikachu as a believable small bipedal yellow electric rodent station companion. Anatomically coherent compact furry torso, modest head, long upright black-tipped ears, small glossy dark eyes, subtle red cheek patches, short paws, broad brown-striped back and distinctive angular lightning bolt tail visible at side. Golden short fur with restrained highlights, preserve species silhouette rather than stretching into human anatomy. Neutral upright stance.",
+    0.9
+  ],
+  [
+    "caseyjones",
+    "Casey Jones",
+    "Casey Jones as a rugged adult human in an aged off-white hockey mask with ventilation holes, long dark hair behind mask, sleeveless muted dark green work shirt, worn brown utility trousers, forearm wraps, dark heavy boots and an understated diagonal bag strap. Natural athletic adult proportions, realistic mask scuffs leather and fabric. Preserve hockey mask identity, empty hands.",
+    0.55
+  ],
+  [
+    "finn",
+    "Finn",
+    "Finn the Human as a young adult adventurer aboard a space station, fitted off-white hood with two short rounded ear points, visible natural human face, blue short sleeve shirt, navy shorts, modest green backpack, pale socks and black practical shoes. Natural slim human proportions, small head hands feet, realistic stitched canvas cotton folds, retain white hood blue outfit and green pack, empty hands.",
+    0.65
+  ]
+]
