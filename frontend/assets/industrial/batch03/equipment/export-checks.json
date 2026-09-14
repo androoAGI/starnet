@@ -1,0 +1,139 @@
+{
+  "version": 1,
+  "method": "User-authorized connected neutral-background extraction; original RGB preserved",
+  "records": [
+    {
+      "id": "pixelrig",
+      "source": "docs/station-remaster/batch03/equipment/pixelrig.source.png",
+      "original": "C:\\Users\\andro\\.codex\\generated_images\\01a0976c-e264-7f13-a581-78c904716b14\\exec-58fbc322-8ead-4b3c-84aa-4afd39df8386.png",
+      "seeds": [],
+      "output": "frontend/assets/industrial/batch03/equipment/pixelrig.png",
+      "sourceWidth": 1347,
+      "sourceHeight": 1167,
+      "crop": {
+        "left": 52,
+        "top": 50,
+        "width": 1244,
+        "height": 1051
+      },
+      "sourceSha256": "1a91e223a101f5fe10ab055b8a7639c8a0f758b73d0d1ff7d046901ad747bef2",
+      "outputSha256": "ea784893834d7fe03deef828ed2317fa69f7c2758da32ef9b07fc3123997ef10",
+      "channels": 4,
+      "transparentPixels": 355359,
+      "opaquePixels": 2127,
+      "partialPixels": 949958,
+      "subjectRgbChanges": 0
+    },
+    {
+      "id": "bench",
+      "source": "docs/station-remaster/batch03/equipment/bench.source.png",
+      "original": "C:\\Users\\andro\\.codex\\generated_images\\01a0976c-e264-7f13-a581-78c904716b14\\exec-1e94801a-2a40-4ba0-93f2-27f60874adef.png",
+      "seeds": [],
+      "output": "frontend/assets/industrial/batch03/equipment/bench.png",
+      "sourceWidth": 1808,
+      "sourceHeight": 870,
+      "crop": {
+        "left": 17,
+        "top": 67,
+        "width": 1774,
+        "height": 749
+      },
+      "sourceSha256": "8806782f62c6171072757d33f32665af0957f4e8c8b660d2b015b3d85ba1554d",
+      "outputSha256": "722932d2ac60341dc05fc8930dead2e9bb8291c1e1baee647b72aa18fc5e2ffe",
+      "channels": 4,
+      "transparentPixels": 379681,
+      "opaquePixels": 949045,
+      "partialPixels": 0,
+      "subjectRgbChanges": 0
+    },
+    {
+      "id": "workbench",
+      "source": "docs/station-remaster/batch03/equipment/workbench.source.png",
+      "original": "C:\\Users\\andro\\.codex\\generated_images\\01a0976c-e264-7f13-a581-78c904716b14\\exec-75298bb1-b8cd-4339-9691-59dc1e5daecc.png",
+      "seeds": [],
+      "output": "frontend/assets/industrial/batch03/equipment/workbench.png",
+      "sourceWidth": 1322,
+      "sourceHeight": 1190,
+      "crop": {
+        "left": 122,
+        "top": 123,
+        "width": 1091,
+        "height": 959
+      },
+      "sourceSha256": "4f7ec15e91a9ef8df1202c6b694e9889c6d25781683bcb78e17cfc32812522d7",
+      "outputSha256": "2b9d4bfe33adfbddc6c345d17cfb02903560dfce106a10b307feb7e10b045ceb",
+      "channels": 4,
+      "transparentPixels": 175477,
+      "opaquePixels": 304,
+      "partialPixels": 870488,
+      "subjectRgbChanges": 0
+    },
+    {
+      "id": "rack",
+      "source": "docs/station-remaster/batch03/equipment/rack.source.png",
+      "original": "C:\\Users\\andro\\.codex\\generated_images\\01a0976c-e264-7f13-a581-78c904716b14\\exec-11c7130a-98cf-4b6d-9d62-ff5f894cff45.png",
+      "seeds": [],
+      "neutralMin": 80,
+      "output": "frontend/assets/industrial/batch03/equipment/rack.png",
+      "sourceWidth": 1325,
+      "sourceHeight": 1187,
+      "crop": {
+        "left": 94,
+        "top": 99,
+        "width": 1138,
+        "height": 995
+      },
+      "sourceSha256": "fa520d8bb7c375ea89866a54f63d6eff080a74c0d486084ae40c04241a7fe7b7",
+      "outputSha256": "962e67f6c6810801e12642b4aadb934e03d6ca21d85e044785995225cea80074",
+      "channels": 4,
+      "transparentPixels": 33183,
+      "opaquePixels": 1099127,
+      "partialPixels": 0,
+      "subjectRgbChanges": 0
+    },
+    {
+      "id": "rackV",
+      "source": "docs/station-remaster/batch03/equipment/rackV.source.png",
+      "original": "C:\\Users\\andro\\.codex\\generated_images\\01a0976c-e264-7f13-a581-78c904716b14\\exec-2a53a030-0a85-4969-bda7-63877cfadda3.png",
+      "seeds": [],
+      "output": "frontend/assets/industrial/batch03/equipment/rackV.png",
+      "sourceWidth": 782,
+      "sourceHeight": 2010,
+      "crop": {
+        "left": 180,
+        "top": 169,
+        "width": 488,
+        "height": 1657
+      },
+      "sourceSha256": "01d1b733c99a7fd8398a0dbe785c7803a453a1a46daa2f05ba5e3f440acd4bf0",
+      "outputSha256": "fabed4ad3a2e17ce696373faf455664e32309d3263f27e3013b8b43eb3987dee",
+      "channels": 4,
+      "transparentPixels": 126039,
+      "opaquePixels": 1680,
+      "partialPixels": 680897,
+      "subjectRgbChanges": 0
+    },
+    {
+      "id": "core",
+      "source": "docs/station-remaster/batch03/equipment/core.source.png",
+      "original": "C:\\Users\\andro\\.codex\\generated_images\\01a0976c-e264-7f13-a581-78c904716b14\\exec-a1169264-56c1-4813-b823-0fa1bfb2be63.png",
+      "seeds": [],
+      "output": "frontend/assets/industrial/batch03/equipment/core.png",
+      "sourceWidth": 928,
+      "sourceHeight": 1695,
+      "crop": {
+        "left": 75,
+        "top": 85,
+        "width": 778,
+        "height": 1529
+      },
+      "sourceSha256": "39a4de0ee47965e022aba5050b764738d7bf3dfaf8dfa9c4358729df48dcfa94",
+      "outputSha256": "d4464c71c3b3e1feb10fb8d20eb037510b0021e07630fafe3301792788699463",
+      "channels": 4,
+      "transparentPixels": 183467,
+      "opaquePixels": 105,
+      "partialPixels": 1005990,
+      "subjectRgbChanges": 0
+    }
+  ]
+}
