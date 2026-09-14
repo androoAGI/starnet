@@ -1,0 +1,58 @@
+{
+  "tool": "built-in image_gen",
+  "references": [
+    "C:/Users/andro/gen-trees/industrial-textures-0912/frontend/assets/industrial/workstation.png",
+    "C:/Users/andro/gen-trees/industrial-textures-0912/docs/station-remaster/bridge-reference.png"
+  ],
+  "referenceRole": "Camera alignment, detail fidelity and atmosphere only; explicit varied material subject design supersedes armored-metal direction.",
+  "generated": [
+    {
+      "id": "industrial_planter",
+      "path": "C:\\Users\\andro\\.codex\\generated_images\\01a09e48-0877-7203-a53f-4b137e36d69a\\exec-ec1211a2-e235-4e17-93f2-58781c40e4b3.png"
+    },
+    {
+      "id": "tallplant",
+      "path": "C:\\Users\\andro\\.codex\\generated_images\\01a09e48-0877-7203-a53f-4b137e36d69a\\exec-36ba775e-3316-42c6-8fc1-6e6db5c813cb.png"
+    },
+    {
+      "id": "monstera",
+      "path": "C:\\Users\\andro\\.codex\\generated_images\\01a09e48-0877-7203-a53f-4b137e36d69a\\exec-01b51542-6b7c-4543-b4d1-942a20500add.png"
+    },
+    {
+      "id": "terrarium",
+      "path": "C:\\Users\\andro\\.codex\\generated_images\\01a09e48-0877-7203-a53f-4b137e36d69a\\exec-474ee590-0324-4bf5-953e-a2670ec0baf2.png"
+    },
+    {
+      "id": "fishtank",
+      "path": "C:\\Users\\andro\\.codex\\generated_images\\01a09e48-0877-7203-a53f-4b137e36d69a\\exec-80d5e5ba-18b1-43b6-935c-a1681e2de2da.png"
+    },
+    {
+      "id": "lavalamp",
+      "path": "C:\\Users\\andro\\.codex\\generated_images\\01a09e48-0877-7203-a53f-4b137e36d69a\\exec-11898b3d-6b20-414b-8946-3072ccca33da.png"
+    },
+    {
+      "id": "plasmaglobe",
+      "path": "C:\\Users\\andro\\.codex\\generated_images\\01a09e48-0877-7203-a53f-4b137e36d69a\\exec-add79592-b8e5-49c9-b9cd-f4e8e9dd512d.png"
+    },
+    {
+      "id": "etsy_dyevat",
+      "path": "C:\\Users\\andro\\.codex\\generated_images\\01a09e48-0877-7203-a53f-4b137e36d69a\\exec-7948639f-0e4a-4dd7-ad68-ac73de418068.png"
+    },
+    {
+      "id": "etsy_kiln",
+      "path": "C:\\Users\\andro\\.codex\\generated_images\\01a09e48-0877-7203-a53f-4b137e36d69a\\exec-7e363e8b-c105-4c0b-ba4a-0bb1d19f6cfc.png"
+    },
+    {
+      "id": "research_samplecart",
+      "path": "C:\\Users\\andro\\.codex\\generated_images\\01a09e48-0877-7203-a53f-4b137e36d69a\\exec-cc23fe4b-a983-4355-9dfd-06a8c04f06c5.png"
+    },
+    {
+      "id": "incubator",
+      "path": "C:\\Users\\andro\\.codex\\generated_images\\01a09e48-0877-7203-a53f-4b137e36d69a\\exec-9bdcc123-11fd-46df-87a5-b2e4030e96ac.png"
+    },
+    {
+      "id": "cryopod",
+      "path": "C:\\Users\\andro\\.codex\\generated_images\\01a09e48-0877-7203-a53f-4b137e36d69a\\exec-0d6b383f-9f20-444c-a89a-30f04449d007.png"
+    }
+  ]
+}
