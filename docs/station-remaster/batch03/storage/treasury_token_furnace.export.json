@@ -1,0 +1,59 @@
+{
+  "id": "treasury_token_furnace",
+  "status": "exported-awaiting-owner-live-review",
+  "source": "sources/treasury_token_furnace.png",
+  "sourceSha256": "c0128fb85be7b5fe600e4f9dbadba3c0e0c7d92650ab8ea89f215b9ba9db7008",
+  "sourceWidth": 851,
+  "sourceHeight": 1848,
+  "image": "treasury_token_furnace.png",
+  "sourceOutputWidth": 805,
+  "sourceOutputHeight": 1540,
+  "crop": {
+    "left": 15,
+    "top": 138,
+    "width": 805,
+    "height": 1540
+  },
+  "channels": 4,
+  "transparentPixels": 215891,
+  "opaquePixels": 1023809,
+  "partialPixels": 0,
+  "backgroundPixelsRemoved": 548839,
+  "subjectRgbChanges": 0,
+  "outputSha256": "eaa6150a099c0a11d62c8780233a088e7cd867c18cdce65e3b7ba06115602639",
+  "holeSeeds": [],
+  "maskMethod": "Connected saturated-magenta flood fill, including key-only enclosed components. Alpha-only edits; uniform crop; no RGB recolor.",
+  "view": "s",
+  "footprint": {
+    "w": 1,
+    "h": 2
+  },
+  "bounds": {
+    "x": -1,
+    "y": -7,
+    "width": 14,
+    "height": 31
+  },
+  "tilePixels": 12,
+  "contact": {
+    "x": 6,
+    "y": 24
+  },
+  "anchorContract": "No leisure seat anchor. Footprint is the placement/pathfinding rectangle; upright visual rise is independent of the reserved box.",
+  "originalLight": {
+    "c": [
+      255,
+      130,
+      50
+    ],
+    "r": 26,
+    "a": 0.16,
+    "m": "fire",
+    "y": 0.45
+  },
+  "originalAnimationTriggers": [
+    "Autonomous sprite clock animation is present in the sampled default state; cosmetic motion is not evidence of provider work, route decisions or external state."
+  ],
+  "artMode": "static complete art; existing state/lighting integration remains owner decision",
+  "liveIntegrated": false
+}
