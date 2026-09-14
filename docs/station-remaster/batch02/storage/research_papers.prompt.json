@@ -1,0 +1,11 @@
+{
+  "id": "research_papers",
+  "tool": "built-in image_gen",
+  "prompt": "Use case: stylized-concept. Generate ONE complete finely rendered realistic StarNet game prop sprite, isolated centered intact with margin. References are CAMERA AND DETAIL QUALITY ONLY. DO NOT transfer armored metal, hazard stripes, bolted casing or mechanical forms onto naturally wood, paper, ceramic or fabric objects. New material variety is essential. Fixed high overhead oblique camera from due south, front horizontal, zero yaw, depth recedes straight up page; see tops and fronts, no isometric diagonal. Gentle material wear, physically convincing construction, clear readable silhouette at small game scale, fine authored illustration detail not pixel-block style or cartoon. Soft upper-left light, no glow, NO CAST SHADOW or floor or plinth unless subject requires an integral stand. Plain perfectly flat saturated magenta #ff00ff backdrop for reliable masking; no magenta object details, no checkerboard, no environment, no text or watermark. Subject: A tidy spread of real RESEARCH PAPERS and a thin kraft folder, wide low silhouette proportion 20:10, overlapping ivory sheets bearing small blue-grey schematic linework and graphs, two paperclips and one graphite pencil lying along front. No legible text or numbers. High overhead oblique, shallow stack of natural paper with curled corner and visible page layers. Light cream paper silhouette must remain sharply against saturated magenta.",
+  "references": [
+    "C:/Users/andro/gen-trees/industrial-textures-0912/frontend/assets/industrial/workstation.png",
+    "C:/Users/andro/Downloads/bridge.png"
+  ],
+  "originalPath": "C:\\Users\\andro\\.codex\\generated_images\\01a09e47-65ec-7a71-b4a1-4847c19fc477\\exec-ee19281f-f226-42ac-ac7d-54f4a79cd6c0.png",
+  "materialDirection": "User requested diverse natural materials; references constrain camera/detail only."
+}
