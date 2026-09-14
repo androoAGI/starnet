@@ -904,6 +904,118 @@
       "islandPixelsRemoved": 0,
       "subjectRgbChanges": 0,
       "outputSha256": "ffa99bc652a09fbb2236a51b5a6b52a4b65fd9ccfac4e2e08ce2d31573dd99f1"
+    },
+    {
+      "id": "weaponrack",
+      "seeds": [],
+      "maxChroma": 15,
+      "source": "docs/station-remaster/batch03/utility/sources/weaponrack.png",
+      "sourceSha256": "3b7d66799dac70114f948c293128b35fa2ddc8d9e96344c4f17304b87ec88fec",
+      "sourceWidth": 1559,
+      "sourceHeight": 1009,
+      "output": "frontend/assets/industrial/batch03/utility/weaponrack.png",
+      "canvasPreserved": true,
+      "alphaBounds": {
+        "x": 5,
+        "y": 125,
+        "width": 1549,
+        "height": 759
+      },
+      "channels": 4,
+      "transparentPixels": 480726,
+      "opaquePixels": 1092305,
+      "partialPixels": 0,
+      "backgroundPixelsRemoved": 480726,
+      "islandPixelsRemoved": 0,
+      "subjectRgbChanges": 0,
+      "outputSha256": "e8ad55a3b54d09063c352661838d2e788f3135ec453e2d63678c4846c5c22190"
+    },
+    {
+      "id": "weaponrack_r",
+      "seeds": [],
+      "maxChroma": 15,
+      "source": "docs/station-remaster/batch03/utility/sources/weaponrack_r.png",
+      "sourceSha256": "91e8b4d9910349f9a8ac0b1523b03137c9cd44848a2eef236df9fc685b7fc066",
+      "sourceWidth": 1559,
+      "sourceHeight": 1009,
+      "output": "frontend/assets/industrial/batch03/utility/weaponrack_r.png",
+      "canvasPreserved": true,
+      "alphaBounds": {
+        "x": 5,
+        "y": 123,
+        "width": 1549,
+        "height": 761
+      },
+      "channels": 4,
+      "transparentPixels": 480691,
+      "opaquePixels": 1092340,
+      "partialPixels": 0,
+      "backgroundPixelsRemoved": 480691,
+      "islandPixelsRemoved": 0,
+      "subjectRgbChanges": 0,
+      "outputSha256": "00e4f55c22b1452b10072423cf02a253484f9caeb29d1394f5d8173c1825289b"
+    },
+    {
+      "id": "camerarig_r",
+      "seeds": [
+        [
+          479,
+          708
+        ],
+        [
+          392,
+          707
+        ],
+        [
+          332,
+          508
+        ],
+        [
+          311,
+          88
+        ],
+        [
+          330,
+          404
+        ],
+        [
+          292,
+          799
+        ],
+        [
+          222,
+          1023
+        ],
+        [
+          115,
+          1361
+        ],
+        [
+          335,
+          655
+        ]
+      ],
+      "maxChroma": 15,
+      "source": "docs/station-remaster/batch03/utility/sources/camerarig_r.png",
+      "sourceSha256": "d0b9644c0fb2b36d588b4fa019a2fa44ba81f279af277381e10316fd0ea107c4",
+      "sourceWidth": 903,
+      "sourceHeight": 1742,
+      "output": "frontend/assets/industrial/batch03/utility/camerarig_r.png",
+      "canvasPreserved": true,
+      "alphaBounds": {
+        "x": 25,
+        "y": 36,
+        "width": 859,
+        "height": 1614
+      },
+      "channels": 4,
+      "transparentPixels": 1040592,
+      "opaquePixels": 532434,
+      "partialPixels": 0,
+      "backgroundPixelsRemoved": 1040592,
+      "islandPixelsRemoved": 0,
+      "subjectRgbChanges": 0,
+      "outputSha256": "db30d9599e4259f2e1055e84fc1b37602563a68d872677df7f438021591c55e0"
     }
   ]
 }
