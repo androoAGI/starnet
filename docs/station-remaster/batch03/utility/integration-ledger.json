@@ -1,0 +1,1652 @@
+{
+  "tilePixels": 12,
+  "coordinateConvention": "All normalized rectangles x,y,width,height refer to full original canvas; port points normalized full canvas. Anchors provisional, live owner validation required.",
+  "runtimeStatus": "No runtime integration or animation layers created. Static candidates; exact native state remains authoritative.",
+  "props": {
+    "industrial_planter": {
+      "facing": "south",
+      "r": 0,
+      "image": "frontend/assets/industrial/batch03/utility/industrial_planter.png",
+      "footprint": {
+        "w": 2,
+        "h": 1
+      },
+      "desiredWorldEnvelope": {
+        "x": 0,
+        "y": -8,
+        "width": 26,
+        "height": 20
+      },
+      "floorContact": {
+        "sourcePixelsApprox": [
+          715,
+          894
+        ],
+        "worldPixels": [
+          12,
+          12
+        ],
+        "space": "native prop origin at12px/tile; uniform fit within desired envelope and align front contact line; anchors provisional until live placement"
+      },
+      "wallContact": null,
+      "requiredMount": null,
+      "seatAnchors": [],
+      "motionRegions": [],
+      "ports": [],
+      "contentRegions": [],
+      "equipmentDirection": null,
+      "animationStatus": "Static artwork; no native animation flag"
+    },
+    "tallplant": {
+      "facing": "south",
+      "r": 0,
+      "image": "frontend/assets/industrial/batch03/utility/tallplant.png",
+      "footprint": {
+        "w": 1,
+        "h": 1
+      },
+      "desiredWorldEnvelope": {
+        "x": 1,
+        "y": -14,
+        "width": 13,
+        "height": 26
+      },
+      "floorContact": {
+        "sourcePixelsApprox": [
+          448,
+          1746
+        ],
+        "worldPixels": [
+          6,
+          12
+        ],
+        "space": "native prop origin at12px/tile; uniform fit within desired envelope and align front contact line; anchors provisional until live placement"
+      },
+      "wallContact": null,
+      "requiredMount": null,
+      "seatAnchors": [],
+      "motionRegions": [
+        {
+          "name": "leaf crown and fronds",
+          "normalizedRect": [
+            0.13,
+            0.01,
+            0.74,
+            0.7
+          ],
+          "behavior": "Optional subtle cosmetic leaf movement; trunk and pot fixed."
+        }
+      ],
+      "ports": [],
+      "contentRegions": [],
+      "equipmentDirection": null,
+      "animationStatus": "UNRESOLVED: static complete source artwork; runtime owner must create new state/motion layers"
+    },
+    "monstera": {
+      "facing": "south",
+      "r": 0,
+      "image": "frontend/assets/industrial/batch03/utility/monstera.png",
+      "footprint": {
+        "w": 1,
+        "h": 1
+      },
+      "desiredWorldEnvelope": {
+        "x": 0,
+        "y": -1,
+        "width": 12,
+        "height": 13
+      },
+      "floorContact": {
+        "sourcePixelsApprox": [
+          604,
+          1260
+        ],
+        "worldPixels": [
+          6,
+          12
+        ],
+        "space": "native prop origin at12px/tile; uniform fit within desired envelope and align front contact line; anchors provisional until live placement"
+      },
+      "wallContact": null,
+      "requiredMount": null,
+      "seatAnchors": [],
+      "motionRegions": [
+        {
+          "name": "leaf canopy",
+          "normalizedRect": [
+            0.02,
+            0.01,
+            0.96,
+            0.85
+          ],
+          "behavior": "Optional leaf sway with holes retained; pot remains fixed."
+        }
+      ],
+      "ports": [],
+      "contentRegions": [],
+      "equipmentDirection": null,
+      "animationStatus": "UNRESOLVED: static complete source artwork; runtime owner must create new state/motion layers"
+    },
+    "terrarium": {
+      "facing": "south",
+      "r": 0,
+      "image": "frontend/assets/industrial/batch03/utility/terrarium.png",
+      "footprint": {
+        "w": 1,
+        "h": 1
+      },
+      "desiredWorldEnvelope": {
+        "x": 0,
+        "y": -5,
+        "width": 11,
+        "height": 16
+      },
+      "floorContact": {
+        "sourcePixelsApprox": [
+          520,
+          1462
+        ],
+        "worldPixels": [
+          6,
+          12
+        ],
+        "space": "native prop origin at12px/tile; uniform fit within desired envelope and align front contact line; anchors provisional until live placement"
+      },
+      "wallContact": null,
+      "requiredMount": null,
+      "seatAnchors": [],
+      "motionRegions": [
+        {
+          "name": "living enclosure",
+          "normalizedRect": [
+            0.245,
+            0.26,
+            0.505,
+            0.46
+          ],
+          "behavior": "Tiny cosmetic moisture/moss light changes only; preserve glass and branch."
+        }
+      ],
+      "ports": [],
+      "contentRegions": [],
+      "equipmentDirection": null,
+      "animationStatus": "UNRESOLVED: static complete source artwork; runtime owner must create new state/motion layers"
+    },
+    "fishtank": {
+      "facing": "south",
+      "r": 0,
+      "image": "frontend/assets/industrial/batch03/utility/fishtank.png",
+      "footprint": {
+        "w": 2,
+        "h": 1
+      },
+      "desiredWorldEnvelope": {
+        "x": -1,
+        "y": -12,
+        "width": 26,
+        "height": 24
+      },
+      "floorContact": {
+        "sourcePixelsApprox": [
+          652,
+          1130
+        ],
+        "worldPixels": [
+          12,
+          12
+        ],
+        "space": "native prop origin at12px/tile; uniform fit within desired envelope and align front contact line; anchors provisional until live placement"
+      },
+      "wallContact": null,
+      "requiredMount": null,
+      "seatAnchors": [],
+      "motionRegions": [
+        {
+          "name": "water interior",
+          "normalizedRect": [
+            0.13,
+            0.27,
+            0.74,
+            0.31
+          ],
+          "behavior": "New fish swimming/bubbles/caustics need authored layers; retain tank boundaries, do not animate as monitor."
+        }
+      ],
+      "ports": [],
+      "contentRegions": [],
+      "equipmentDirection": null,
+      "animationStatus": "UNRESOLVED: static complete source artwork; runtime owner must create new state/motion layers"
+    },
+    "lavalamp": {
+      "facing": "south",
+      "r": 0,
+      "image": "frontend/assets/industrial/batch03/utility/lavalamp.png",
+      "footprint": {
+        "w": 1,
+        "h": 1
+      },
+      "desiredWorldEnvelope": {
+        "x": 2,
+        "y": -8,
+        "width": 8,
+        "height": 20
+      },
+      "floorContact": {
+        "sourcePixelsApprox": [
+          396,
+          1951
+        ],
+        "worldPixels": [
+          6,
+          12
+        ],
+        "space": "native prop origin at12px/tile; uniform fit within desired envelope and align front contact line; anchors provisional until live placement"
+      },
+      "wallContact": null,
+      "requiredMount": "surface",
+      "seatAnchors": [],
+      "motionRegions": [
+        {
+          "name": "wax vessel",
+          "normalizedRect": [
+            0.18,
+            0.155,
+            0.63,
+            0.57
+          ],
+          "behavior": "Slow wax deformation/rise within bottle; decorative glow only."
+        }
+      ],
+      "ports": [],
+      "contentRegions": [],
+      "equipmentDirection": null,
+      "animationStatus": "UNRESOLVED: static complete source artwork; runtime owner must create new state/motion layers"
+    },
+    "plasmaglobe": {
+      "facing": "south",
+      "r": 0,
+      "image": "frontend/assets/industrial/batch03/utility/plasmaglobe.png",
+      "footprint": {
+        "w": 1,
+        "h": 1
+      },
+      "desiredWorldEnvelope": {
+        "x": 1,
+        "y": -5,
+        "width": 9,
+        "height": 17
+      },
+      "floorContact": {
+        "sourcePixelsApprox": [
+          456,
+          1642
+        ],
+        "worldPixels": [
+          6,
+          12
+        ],
+        "space": "native prop origin at12px/tile; uniform fit within desired envelope and align front contact line; anchors provisional until live placement"
+      },
+      "wallContact": null,
+      "requiredMount": "surface",
+      "seatAnchors": [],
+      "motionRegions": [
+        {
+          "name": "plasma sphere",
+          "normalizedRect": [
+            0.04,
+            0.02,
+            0.92,
+            0.475
+          ],
+          "behavior": "Authored plasma arc flicker inside sphere; optional cosmetic only."
+        }
+      ],
+      "ports": [],
+      "contentRegions": [],
+      "equipmentDirection": null,
+      "animationStatus": "UNRESOLVED: static complete source artwork; runtime owner must create new state/motion layers"
+    },
+    "etsy_dyevat": {
+      "facing": "south",
+      "r": 0,
+      "image": "frontend/assets/industrial/batch03/utility/etsy_dyevat.png",
+      "footprint": {
+        "w": 2,
+        "h": 2
+      },
+      "desiredWorldEnvelope": {
+        "x": 0,
+        "y": -5,
+        "width": 29,
+        "height": 29
+      },
+      "floorContact": {
+        "sourcePixelsApprox": [
+          623,
+          1181
+        ],
+        "worldPixels": [
+          12,
+          24
+        ],
+        "space": "native prop origin at12px/tile; uniform fit within desired envelope and align front contact line; anchors provisional until live placement"
+      },
+      "wallContact": null,
+      "requiredMount": null,
+      "seatAnchors": [],
+      "motionRegions": [
+        {
+          "name": "dye surface",
+          "normalizedRect": [
+            0.16,
+            0.09,
+            0.68,
+            0.43
+          ],
+          "behavior": "Subtle liquid ripple around fixed cloth/paddle; process-related activity only with real state."
+        }
+      ],
+      "ports": [],
+      "contentRegions": [],
+      "equipmentDirection": null,
+      "animationStatus": "UNRESOLVED: static complete source artwork; runtime owner must create new state/motion layers"
+    },
+    "etsy_kiln": {
+      "facing": "south",
+      "r": 0,
+      "image": "frontend/assets/industrial/batch03/utility/etsy_kiln.png",
+      "footprint": {
+        "w": 2,
+        "h": 2
+      },
+      "desiredWorldEnvelope": {
+        "x": -1,
+        "y": -9,
+        "width": 30,
+        "height": 33
+      },
+      "floorContact": {
+        "sourcePixelsApprox": [
+          611,
+          1248
+        ],
+        "worldPixels": [
+          12,
+          24
+        ],
+        "space": "native prop origin at12px/tile; uniform fit within desired envelope and align front contact line; anchors provisional until live placement"
+      },
+      "wallContact": null,
+      "requiredMount": null,
+      "seatAnchors": [],
+      "motionRegions": [
+        {
+          "name": "top vent",
+          "normalizedRect": [
+            0.44,
+            0.188,
+            0.095,
+            0.03
+          ],
+          "behavior": "Heat glow only when appropriate kiln state is wired."
+        },
+        {
+          "name": "front door seam",
+          "normalizedRect": [
+            0.35,
+            0.604,
+            0.265,
+            0.035
+          ],
+          "behavior": "Restrained heat leak; no fake job progress."
+        }
+      ],
+      "ports": [],
+      "contentRegions": [],
+      "equipmentDirection": null,
+      "animationStatus": "UNRESOLVED: static complete source artwork; runtime owner must create new state/motion layers"
+    },
+    "research_samplecart": {
+      "facing": "south",
+      "r": 0,
+      "image": "frontend/assets/industrial/batch03/utility/research_samplecart.png",
+      "footprint": {
+        "w": 2,
+        "h": 1
+      },
+      "desiredWorldEnvelope": {
+        "x": -1,
+        "y": -6,
+        "width": 28,
+        "height": 18
+      },
+      "floorContact": {
+        "sourcePixelsApprox": [
+          760,
+          950
+        ],
+        "worldPixels": [
+          12,
+          12
+        ],
+        "space": "native prop origin at12px/tile; uniform fit within desired envelope and align front contact line; anchors provisional until live placement"
+      },
+      "wallContact": null,
+      "requiredMount": null,
+      "seatAnchors": [],
+      "motionRegions": [
+        {
+          "name": "specimen jars",
+          "normalizedRect": [
+            0.278,
+            0.03,
+            0.434,
+            0.3
+          ],
+          "behavior": "Optional subtle liquid/specimen effect; cart wheels remain static without actual movement."
+        }
+      ],
+      "ports": [],
+      "contentRegions": [],
+      "equipmentDirection": null,
+      "animationStatus": "UNRESOLVED: static complete source artwork; runtime owner must create new state/motion layers"
+    },
+    "incubator": {
+      "facing": "south",
+      "r": 0,
+      "image": "frontend/assets/industrial/batch03/utility/incubator.png",
+      "footprint": {
+        "w": 1,
+        "h": 2
+      },
+      "desiredWorldEnvelope": {
+        "x": -1,
+        "y": -9,
+        "width": 14,
+        "height": 33
+      },
+      "floorContact": {
+        "sourcePixelsApprox": [
+          407,
+          1814
+        ],
+        "worldPixels": [
+          6,
+          24
+        ],
+        "space": "native prop origin at12px/tile; uniform fit within desired envelope and align front contact line; anchors provisional until live placement"
+      },
+      "wallContact": null,
+      "requiredMount": null,
+      "seatAnchors": [],
+      "motionRegions": [
+        {
+          "name": "culture column",
+          "normalizedRect": [
+            0.32,
+            0.24,
+            0.34,
+            0.4
+          ],
+          "behavior": "Slow suspended specimen drift and motes; no reported provider-work inference."
+        }
+      ],
+      "ports": [],
+      "contentRegions": [],
+      "equipmentDirection": null,
+      "animationStatus": "UNRESOLVED: static complete source artwork; runtime owner must create new state/motion layers"
+    },
+    "cryopod": {
+      "facing": "south",
+      "r": 0,
+      "image": "frontend/assets/industrial/batch03/utility/cryopod.png",
+      "footprint": {
+        "w": 1,
+        "h": 2
+      },
+      "desiredWorldEnvelope": {
+        "x": 0,
+        "y": -6,
+        "width": 12,
+        "height": 30
+      },
+      "floorContact": {
+        "sourcePixelsApprox": [
+          396,
+          1888
+        ],
+        "worldPixels": [
+          6,
+          24
+        ],
+        "space": "native prop origin at12px/tile; uniform fit within desired envelope and align front contact line; anchors provisional until live placement"
+      },
+      "wallContact": null,
+      "requiredMount": null,
+      "seatAnchors": [],
+      "motionRegions": [
+        {
+          "name": "frosted occupancy window",
+          "normalizedRect": [
+            0.28,
+            0.177,
+            0.438,
+            0.565
+          ],
+          "behavior": "Subtle decorative frost/light only; fixed clothed sleeper image is artwork, not real agent occupancy."
+        },
+        {
+          "name": "upper lamp",
+          "normalizedRect": [
+            0.4,
+            0.158,
+            0.2,
+            0.012
+          ],
+          "behavior": "Never imply real vital signs or work state; integration owner chooses truthful mapping."
+        }
+      ],
+      "ports": [],
+      "contentRegions": [],
+      "equipmentDirection": null,
+      "animationStatus": "UNRESOLVED: static complete source artwork; runtime owner must create new state/motion layers"
+    },
+    "intake": {
+      "facing": "south",
+      "r": 0,
+      "image": "frontend/assets/industrial/batch03/utility/intake.png",
+      "footprint": {
+        "w": 2,
+        "h": 2
+      },
+      "desiredWorldEnvelope": {
+        "x": -1,
+        "y": -4,
+        "width": 30,
+        "height": 28
+      },
+      "floorContact": {
+        "sourcePixelsApprox": [
+          649,
+          1191
+        ],
+        "worldPixels": [
+          12,
+          24
+        ],
+        "status": "provisional owner live fit required"
+      },
+      "wallContact": null,
+      "requiredMount": null,
+      "seatAnchors": [],
+      "motionRegions": [
+        {
+          "name": "feed roller",
+          "rect": [
+            0.22,
+            0.59,
+            0.34,
+            0.09
+          ],
+          "behavior": "Only owner-triggered feed motion; never bake a parcel."
+        },
+        {
+          "name": "indicator",
+          "rect": [
+            0.65,
+            0.68,
+            0.045,
+            0.045
+          ],
+          "behavior": "Runtime state only."
+        }
+      ],
+      "ports": [
+        {
+          "name": "east output",
+          "edge": "E",
+          "point": [
+            0.975,
+            0.555
+          ]
+        }
+      ],
+      "contentRegions": [
+        {
+          "name": "hopper interior",
+          "rect": [
+            0.16,
+            0.065,
+            0.46,
+            0.345
+          ]
+        },
+        {
+          "name": "east roller tongue",
+          "rect": [
+            0.705,
+            0.5,
+            0.27,
+            0.105
+          ]
+        }
+      ],
+      "equipmentDirection": null,
+      "animationStatus": "Static neutral base; animated rollers, switch/barrier/tally and actual parcel routing require owner runtime mapping."
+    },
+    "bay": {
+      "facing": "south",
+      "r": 0,
+      "image": "frontend/assets/industrial/batch03/utility/bay.png",
+      "footprint": {
+        "w": 2,
+        "h": 2
+      },
+      "desiredWorldEnvelope": {
+        "x": -1,
+        "y": -7,
+        "width": 30,
+        "height": 31
+      },
+      "floorContact": {
+        "sourcePixelsApprox": [
+          616,
+          1225
+        ],
+        "worldPixels": [
+          12,
+          24
+        ],
+        "status": "provisional owner live fit required"
+      },
+      "wallContact": null,
+      "requiredMount": null,
+      "seatAnchors": [],
+      "motionRegions": [
+        {
+          "name": "nameplate",
+          "rect": [
+            0.304,
+            0.09,
+            0.393,
+            0.059
+          ],
+          "behavior": "Resolved live dock name and binding only; blank base."
+        },
+        {
+          "name": "west rollers",
+          "rect": [
+            0.09,
+            0.365,
+            0.15,
+            0.29
+          ],
+          "behavior": "Parcel transfer only."
+        },
+        {
+          "name": "east rollers",
+          "rect": [
+            0.76,
+            0.365,
+            0.14,
+            0.29
+          ],
+          "behavior": "Parcel transfer only."
+        }
+      ],
+      "ports": [
+        {
+          "name": "west connection",
+          "edge": "W",
+          "point": [
+            0.065,
+            0.51
+          ]
+        },
+        {
+          "name": "east connection",
+          "edge": "E",
+          "point": [
+            0.935,
+            0.51
+          ]
+        }
+      ],
+      "contentRegions": [
+        {
+          "name": "central berth",
+          "rect": [
+            0.275,
+            0.34,
+            0.45,
+            0.33
+          ]
+        }
+      ],
+      "equipmentDirection": null,
+      "animationStatus": "Static neutral base; animated rollers, switch/barrier/tally and actual parcel routing require owner runtime mapping."
+    },
+    "merger": {
+      "facing": "south",
+      "r": 0,
+      "image": "frontend/assets/industrial/batch03/utility/merger.png",
+      "footprint": {
+        "w": 1,
+        "h": 1
+      },
+      "desiredWorldEnvelope": {
+        "x": -2,
+        "y": 0,
+        "width": 16,
+        "height": 11
+      },
+      "floorContact": {
+        "sourcePixelsApprox": [
+          756,
+          958
+        ],
+        "worldPixels": [
+          6,
+          12
+        ],
+        "status": "provisional owner live fit required"
+      },
+      "wallContact": null,
+      "requiredMount": null,
+      "seatAnchors": [],
+      "motionRegions": [
+        {
+          "name": "all rollers",
+          "rect": [
+            0.03,
+            0.1,
+            0.94,
+            0.7
+          ],
+          "behavior": "Route work through; never combine jobs or show fictional merge."
+        }
+      ],
+      "ports": [
+        {
+          "name": "west upper in",
+          "edge": "W",
+          "point": [
+            0.04,
+            0.18
+          ]
+        },
+        {
+          "name": "west lower in",
+          "edge": "W",
+          "point": [
+            0.04,
+            0.72
+          ]
+        },
+        {
+          "name": "east out",
+          "edge": "E",
+          "point": [
+            0.96,
+            0.455
+          ]
+        }
+      ],
+      "contentRegions": [
+        {
+          "name": "upper channel",
+          "polygon": [
+            [
+              0.04,
+              0.12
+            ],
+            [
+              0.3,
+              0.12
+            ],
+            [
+              0.45,
+              0.31
+            ],
+            [
+              0.68,
+              0.4
+            ],
+            [
+              0.96,
+              0.4
+            ],
+            [
+              0.96,
+              0.53
+            ],
+            [
+              0.64,
+              0.53
+            ],
+            [
+              0.34,
+              0.31
+            ],
+            [
+              0.04,
+              0.25
+            ]
+          ]
+        },
+        {
+          "name": "lower channel",
+          "polygon": [
+            [
+              0.04,
+              0.66
+            ],
+            [
+              0.3,
+              0.66
+            ],
+            [
+              0.45,
+              0.57
+            ],
+            [
+              0.65,
+              0.5
+            ],
+            [
+              0.7,
+              0.53
+            ],
+            [
+              0.4,
+              0.7
+            ],
+            [
+              0.3,
+              0.79
+            ],
+            [
+              0.04,
+              0.79
+            ]
+          ]
+        }
+      ],
+      "equipmentDirection": null,
+      "animationStatus": "Static neutral base; animated rollers, switch/barrier/tally and actual parcel routing require owner runtime mapping."
+    },
+    "splitter": {
+      "facing": "south",
+      "r": 0,
+      "image": "frontend/assets/industrial/batch03/utility/splitter.png",
+      "footprint": {
+        "w": 1,
+        "h": 1
+      },
+      "desiredWorldEnvelope": {
+        "x": -1,
+        "y": 0,
+        "width": 15,
+        "height": 11
+      },
+      "floorContact": {
+        "sourcePixelsApprox": [
+          732,
+          1041
+        ],
+        "worldPixels": [
+          6,
+          12
+        ],
+        "status": "provisional owner live fit required"
+      },
+      "wallContact": null,
+      "requiredMount": null,
+      "seatAnchors": [],
+      "motionRegions": [
+        {
+          "name": "deflector pivot",
+          "rect": [
+            0.52,
+            0.41,
+            0.09,
+            0.12
+          ],
+          "behavior": "Only actual chosen output/round robin state; neutral base."
+        },
+        {
+          "name": "side actuator",
+          "rect": [
+            0.5,
+            0.72,
+            0.14,
+            0.18
+          ],
+          "behavior": "Coordinate with actual switch motion."
+        }
+      ],
+      "ports": [
+        {
+          "name": "west in",
+          "edge": "W",
+          "point": [
+            0.05,
+            0.47
+          ]
+        },
+        {
+          "name": "east upper out",
+          "edge": "E",
+          "point": [
+            0.95,
+            0.22
+          ]
+        },
+        {
+          "name": "east lower out",
+          "edge": "E",
+          "point": [
+            0.95,
+            0.71
+          ]
+        }
+      ],
+      "contentRegions": [
+        {
+          "name": "open fork",
+          "polygon": [
+            [
+              0.05,
+              0.4
+            ],
+            [
+              0.47,
+              0.37
+            ],
+            [
+              0.7,
+              0.14
+            ],
+            [
+              0.95,
+              0.14
+            ],
+            [
+              0.95,
+              0.28
+            ],
+            [
+              0.75,
+              0.28
+            ],
+            [
+              0.59,
+              0.47
+            ],
+            [
+              0.76,
+              0.63
+            ],
+            [
+              0.95,
+              0.63
+            ],
+            [
+              0.95,
+              0.78
+            ],
+            [
+              0.68,
+              0.78
+            ],
+            [
+              0.47,
+              0.58
+            ],
+            [
+              0.05,
+              0.55
+            ]
+          ]
+        }
+      ],
+      "equipmentDirection": null,
+      "animationStatus": "Static neutral base; animated rollers, switch/barrier/tally and actual parcel routing require owner runtime mapping."
+    },
+    "joiner": {
+      "facing": "south",
+      "r": 0,
+      "image": "frontend/assets/industrial/batch03/utility/joiner.png",
+      "footprint": {
+        "w": 1,
+        "h": 1
+      },
+      "desiredWorldEnvelope": {
+        "x": -2,
+        "y": 0,
+        "width": 16,
+        "height": 11
+      },
+      "floorContact": {
+        "sourcePixelsApprox": [
+          755,
+          968
+        ],
+        "worldPixels": [
+          6,
+          12
+        ],
+        "status": "provisional owner live fit required"
+      },
+      "wallContact": null,
+      "requiredMount": null,
+      "seatAnchors": [],
+      "motionRegions": [
+        {
+          "name": "upper stop socket",
+          "rect": [
+            0.546,
+            0.357,
+            0.04,
+            0.06
+          ],
+          "behavior": "Raise/lower pin only from real join hold state."
+        },
+        {
+          "name": "lower stop socket",
+          "rect": [
+            0.546,
+            0.487,
+            0.04,
+            0.06
+          ],
+          "behavior": "Raise/lower pin only from real join hold state."
+        },
+        {
+          "name": "latch actuator",
+          "rect": [
+            0.55,
+            0.69,
+            0.16,
+            0.11
+          ],
+          "behavior": "Real barrier completion/timeout state."
+        }
+      ],
+      "ports": [
+        {
+          "name": "west upper in",
+          "edge": "W",
+          "point": [
+            0.04,
+            0.24
+          ]
+        },
+        {
+          "name": "west lower in",
+          "edge": "W",
+          "point": [
+            0.04,
+            0.65
+          ]
+        },
+        {
+          "name": "east out",
+          "edge": "E",
+          "point": [
+            0.955,
+            0.45
+          ]
+        }
+      ],
+      "contentRegions": [
+        {
+          "name": "upper holding tray",
+          "rect": [
+            0.27,
+            0.19,
+            0.18,
+            0.14
+          ]
+        },
+        {
+          "name": "lower holding tray",
+          "rect": [
+            0.27,
+            0.6,
+            0.18,
+            0.14
+          ]
+        },
+        {
+          "name": "merged output",
+          "rect": [
+            0.62,
+            0.4,
+            0.33,
+            0.12
+          ]
+        }
+      ],
+      "equipmentDirection": null,
+      "animationStatus": "Static neutral base; animated rollers, switch/barrier/tally and actual parcel routing require owner runtime mapping."
+    },
+    "loop": {
+      "facing": "south",
+      "r": 0,
+      "image": "frontend/assets/industrial/batch03/utility/loop.png",
+      "footprint": {
+        "w": 1,
+        "h": 1
+      },
+      "desiredWorldEnvelope": {
+        "x": -1,
+        "y": -7,
+        "width": 15,
+        "height": 18
+      },
+      "floorContact": {
+        "sourcePixelsApprox": [
+          572,
+          1340
+        ],
+        "worldPixels": [
+          6,
+          12
+        ],
+        "status": "provisional owner live fit required"
+      },
+      "wallContact": null,
+      "requiredMount": null,
+      "seatAnchors": [],
+      "motionRegions": [
+        {
+          "name": "tally display",
+          "rect": [
+            0.462,
+            0.08,
+            0.075,
+            0.072
+          ],
+          "behavior": "Real iteration count only, blank base."
+        },
+        {
+          "name": "four tally lamps",
+          "rect": [
+            0.452,
+            0.168,
+            0.105,
+            0.075
+          ],
+          "behavior": "Real iteration/cap state only; base unlit."
+        },
+        {
+          "name": "deflector island",
+          "rect": [
+            0.49,
+            0.45,
+            0.16,
+            0.12
+          ],
+          "behavior": "Actual selected BACK/DONE route only."
+        }
+      ],
+      "ports": [
+        {
+          "name": "west in",
+          "edge": "W",
+          "point": [
+            0.028,
+            0.53
+          ]
+        },
+        {
+          "name": "DONE east upper",
+          "edge": "E",
+          "point": [
+            0.97,
+            0.4
+          ]
+        },
+        {
+          "name": "BACK east lower",
+          "edge": "E",
+          "point": [
+            0.97,
+            0.68
+          ]
+        }
+      ],
+      "contentRegions": [
+        {
+          "name": "empty fork deck",
+          "rect": [
+            0.045,
+            0.36,
+            0.9,
+            0.37
+          ]
+        }
+      ],
+      "equipmentDirection": null,
+      "animationStatus": "Static neutral base; animated rollers, switch/barrier/tally and actual parcel routing require owner runtime mapping."
+    },
+    "telescope": {
+      "facing": "south",
+      "r": 0,
+      "image": "frontend/assets/industrial/batch03/utility/telescope.png",
+      "footprint": {
+        "w": 1,
+        "h": 2
+      },
+      "desiredWorldEnvelope": {
+        "x": -3,
+        "y": -8,
+        "width": 19,
+        "height": 31
+      },
+      "floorContact": {
+        "sourcePixelsApprox": [
+          495,
+          1541
+        ],
+        "worldPixels": [
+          6,
+          24
+        ],
+        "status": "provisional owner live fit required"
+      },
+      "wallContact": null,
+      "requiredMount": null,
+      "seatAnchors": [],
+      "motionRegions": [],
+      "ports": [],
+      "contentRegions": [
+        {
+          "name": "objective glass",
+          "normalizedRect": [
+            0.82,
+            0.025,
+            0.14,
+            0.105
+          ]
+        },
+        {
+          "name": "optical assembly",
+          "normalizedRect": [
+            0.04,
+            0.01,
+            0.93,
+            0.395
+          ]
+        }
+      ],
+      "equipmentDirection": "Objective northeast/up-right, rear eyepiece lower-left.",
+      "animationStatus": "Catalog animated flag exists, but sampled native art has one frame/no trigger. Preserve static telescope; no invented tracking."
+    },
+    "telescope_r": {
+      "facing": "south",
+      "r": 0,
+      "image": "frontend/assets/industrial/batch03/utility/telescope_r.png",
+      "footprint": {
+        "w": 1,
+        "h": 2
+      },
+      "desiredWorldEnvelope": {
+        "x": -4,
+        "y": -8,
+        "width": 19,
+        "height": 31
+      },
+      "floorContact": {
+        "sourcePixelsApprox": [
+          486,
+          1518
+        ],
+        "worldPixels": [
+          6,
+          24
+        ],
+        "status": "provisional owner live fit required"
+      },
+      "wallContact": null,
+      "requiredMount": null,
+      "seatAnchors": [],
+      "motionRegions": [],
+      "ports": [],
+      "contentRegions": [
+        {
+          "name": "objective glass",
+          "normalizedRect": [
+            0.065,
+            0.025,
+            0.12,
+            0.105
+          ]
+        },
+        {
+          "name": "optical assembly",
+          "normalizedRect": [
+            0.04,
+            0.01,
+            0.92,
+            0.395
+          ]
+        }
+      ],
+      "equipmentDirection": "Objective northwest/up-left, rear eyepiece lower-right.",
+      "animationStatus": "Separately generated complete view; no bitmap mirror/rotation. Static native contract."
+    },
+    "camerarig": {
+      "facing": "south",
+      "r": 0,
+      "image": "frontend/assets/industrial/batch03/utility/camerarig.png",
+      "footprint": {
+        "w": 1,
+        "h": 2
+      },
+      "desiredWorldEnvelope": {
+        "x": -1,
+        "y": -6,
+        "width": 15,
+        "height": 29
+      },
+      "floorContact": {
+        "sourcePixelsApprox": [
+          451,
+          1671
+        ],
+        "worldPixels": [
+          6,
+          24
+        ],
+        "status": "provisional owner live fit required"
+      },
+      "wallContact": null,
+      "requiredMount": null,
+      "seatAnchors": [],
+      "motionRegions": [
+        {
+          "name": "red tally lens",
+          "normalizedRect": [
+            0.39,
+            0.069,
+            0.022,
+            0.018
+          ],
+          "behavior": "Native cosmetic blink only, never assert live recording/provider work."
+        }
+      ],
+      "ports": [],
+      "contentRegions": [
+        {
+          "name": "lens glass",
+          "normalizedRect": [
+            0.075,
+            0.13,
+            0.08,
+            0.115
+          ]
+        },
+        {
+          "name": "camera head",
+          "normalizedRect": [
+            0.017,
+            0.02,
+            0.966,
+            0.24
+          ]
+        }
+      ],
+      "equipmentDirection": "Lens west/left, operator eyepiece right.",
+      "animationStatus": "Tripod static. Tally animation owner integration unresolved."
+    },
+    "camerarig_r": {
+      "facing": "south",
+      "r": 0,
+      "image": "frontend/assets/industrial/batch03/utility/camerarig_r.png",
+      "footprint": {
+        "w": 1,
+        "h": 2
+      },
+      "desiredWorldEnvelope": {
+        "x": -2,
+        "y": -6,
+        "width": 15,
+        "height": 29
+      },
+      "floorContact": {
+        "sourcePixelsApprox": [
+          454,
+          1648
+        ],
+        "worldPixels": [
+          6,
+          24
+        ],
+        "status": "provisional owner live fit required"
+      },
+      "wallContact": null,
+      "requiredMount": null,
+      "seatAnchors": [],
+      "motionRegions": [
+        {
+          "name": "red tally lens",
+          "normalizedRect": [
+            0.587,
+            0.065,
+            0.022,
+            0.018
+          ],
+          "behavior": "Native cosmetic blink only; no recording assertion."
+        }
+      ],
+      "ports": [],
+      "contentRegions": [
+        {
+          "name": "lens glass",
+          "normalizedRect": [
+            0.838,
+            0.122,
+            0.079,
+            0.111
+          ]
+        },
+        {
+          "name": "camera head",
+          "normalizedRect": [
+            0.03,
+            0.02,
+            0.95,
+            0.235
+          ]
+        }
+      ],
+      "equipmentDirection": "Lens east/right, operator eyepiece left.",
+      "animationStatus": "New opposite-side body view has changed access panel/battery arrangement; no bitmap manipulation."
+    },
+    "weaponrack": {
+      "facing": "south",
+      "r": 0,
+      "image": "frontend/assets/industrial/batch03/utility/weaponrack.png",
+      "footprint": {
+        "w": 3,
+        "h": 1
+      },
+      "desiredWorldEnvelope": {
+        "x": 1,
+        "y": -16,
+        "width": 34,
+        "height": 22
+      },
+      "floorContact": null,
+      "wallContact": {
+        "sourceNormalizedLine": [
+          [
+            0.055,
+            0.172
+          ],
+          [
+            0.945,
+            0.172
+          ]
+        ],
+        "sourceMountPointsNormalized": [
+          [
+            0.055,
+            0.172
+          ],
+          [
+            0.945,
+            0.172
+          ],
+          [
+            0.055,
+            0.827
+          ],
+          [
+            0.945,
+            0.827
+          ]
+        ],
+        "nativeMount": "wall",
+        "worldEnvelope": {
+          "x": 1,
+          "y": -16,
+          "width": 34,
+          "height": 22
+        },
+        "status": "preserve native host test; owner validates wall placement"
+      },
+      "requiredMount": "wall",
+      "seatAnchors": [],
+      "motionRegions": [
+        {
+          "name": "amber charge cell",
+          "normalizedRect": [
+            0.416,
+            0.336,
+            0.049,
+            0.035
+          ],
+          "behavior": "Native decorative breathing cell only; bright painted glass is not ammunition/work telemetry."
+        }
+      ],
+      "ports": [],
+      "contentRegions": [
+        {
+          "name": "rifle",
+          "normalizedRect": [
+            0.105,
+            0.223,
+            0.79,
+            0.31
+          ]
+        },
+        {
+          "name": "blade",
+          "normalizedRect": [
+            0.273,
+            0.65,
+            0.46,
+            0.108
+          ]
+        }
+      ],
+      "equipmentDirection": "Rifle muzzle and blade point east/right.",
+      "animationStatus": "Wall host required. One rifle plus one blade keeps native reduced object count. Whole display opaque except background; black felt in cutouts must remain."
+    },
+    "weaponrack_r": {
+      "facing": "south",
+      "r": 0,
+      "image": "frontend/assets/industrial/batch03/utility/weaponrack_r.png",
+      "footprint": {
+        "w": 3,
+        "h": 1
+      },
+      "desiredWorldEnvelope": {
+        "x": 1,
+        "y": -16,
+        "width": 34,
+        "height": 22
+      },
+      "floorContact": null,
+      "wallContact": {
+        "sourceNormalizedLine": [
+          [
+            0.055,
+            0.172
+          ],
+          [
+            0.945,
+            0.172
+          ]
+        ],
+        "sourceMountPointsNormalized": [
+          [
+            0.055,
+            0.172
+          ],
+          [
+            0.945,
+            0.172
+          ],
+          [
+            0.055,
+            0.827
+          ],
+          [
+            0.945,
+            0.827
+          ]
+        ],
+        "nativeMount": "wall",
+        "worldEnvelope": {
+          "x": 1,
+          "y": -16,
+          "width": 34,
+          "height": 22
+        },
+        "status": "preserve native host test; owner validates wall placement"
+      },
+      "requiredMount": "wall",
+      "seatAnchors": [],
+      "motionRegions": [
+        {
+          "name": "amber charge cell",
+          "normalizedRect": [
+            0.528,
+            0.336,
+            0.049,
+            0.035
+          ],
+          "behavior": "Decorative breathing only; no telemetry."
+        }
+      ],
+      "ports": [],
+      "contentRegions": [
+        {
+          "name": "rifle",
+          "normalizedRect": [
+            0.1,
+            0.223,
+            0.798,
+            0.315
+          ]
+        },
+        {
+          "name": "blade",
+          "normalizedRect": [
+            0.277,
+            0.651,
+            0.443,
+            0.106
+          ]
+        }
+      ],
+      "equipmentDirection": "Rifle muzzle and blade point west/left.",
+      "animationStatus": "Wall host required; separately authored opposite weapon profiles and asymmetric receiver. No bitmap mirror/rotation."
+    }
+  }
+}

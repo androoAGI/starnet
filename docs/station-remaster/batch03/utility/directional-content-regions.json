@@ -1,0 +1,205 @@
+{
+  "coordinateSpace": "Full original canvas normalized [x,y,w,h], approximate until owner overlay calibration.",
+  "props": {
+    "telescope": {
+      "equipmentDirection": "Objective northeast/up-right, rear eyepiece lower-left.",
+      "pair": "telescope_r",
+      "motion": [],
+      "content": [
+        {
+          "name": "objective glass",
+          "normalizedRect": [
+            0.82,
+            0.025,
+            0.14,
+            0.105
+          ]
+        },
+        {
+          "name": "optical assembly",
+          "normalizedRect": [
+            0.04,
+            0.01,
+            0.93,
+            0.395
+          ]
+        }
+      ],
+      "notes": "Catalog animated flag exists, but sampled native art has one frame/no trigger. Preserve static telescope; no invented tracking."
+    },
+    "telescope_r": {
+      "equipmentDirection": "Objective northwest/up-left, rear eyepiece lower-right.",
+      "pair": "telescope",
+      "motion": [],
+      "content": [
+        {
+          "name": "objective glass",
+          "normalizedRect": [
+            0.065,
+            0.025,
+            0.12,
+            0.105
+          ]
+        },
+        {
+          "name": "optical assembly",
+          "normalizedRect": [
+            0.04,
+            0.01,
+            0.92,
+            0.395
+          ]
+        }
+      ],
+      "notes": "Separately generated complete view; no bitmap mirror/rotation. Static native contract."
+    },
+    "camerarig": {
+      "equipmentDirection": "Lens west/left, operator eyepiece right.",
+      "pair": "camerarig_r",
+      "motion": [
+        {
+          "name": "red tally lens",
+          "normalizedRect": [
+            0.39,
+            0.069,
+            0.022,
+            0.018
+          ],
+          "behavior": "Native cosmetic blink only, never assert live recording/provider work."
+        }
+      ],
+      "content": [
+        {
+          "name": "lens glass",
+          "normalizedRect": [
+            0.075,
+            0.13,
+            0.08,
+            0.115
+          ]
+        },
+        {
+          "name": "camera head",
+          "normalizedRect": [
+            0.017,
+            0.02,
+            0.966,
+            0.24
+          ]
+        }
+      ],
+      "notes": "Tripod static. Tally animation owner integration unresolved."
+    },
+    "camerarig_r": {
+      "equipmentDirection": "Lens east/right, operator eyepiece left.",
+      "pair": "camerarig",
+      "motion": [
+        {
+          "name": "red tally lens",
+          "normalizedRect": [
+            0.587,
+            0.065,
+            0.022,
+            0.018
+          ],
+          "behavior": "Native cosmetic blink only; no recording assertion."
+        }
+      ],
+      "content": [
+        {
+          "name": "lens glass",
+          "normalizedRect": [
+            0.838,
+            0.122,
+            0.079,
+            0.111
+          ]
+        },
+        {
+          "name": "camera head",
+          "normalizedRect": [
+            0.03,
+            0.02,
+            0.95,
+            0.235
+          ]
+        }
+      ],
+      "notes": "New opposite-side body view has changed access panel/battery arrangement; no bitmap manipulation."
+    },
+    "weaponrack": {
+      "equipmentDirection": "Rifle muzzle and blade point east/right.",
+      "pair": "weaponrack_r",
+      "motion": [
+        {
+          "name": "amber charge cell",
+          "normalizedRect": [
+            0.416,
+            0.336,
+            0.049,
+            0.035
+          ],
+          "behavior": "Native decorative breathing cell only; bright painted glass is not ammunition/work telemetry."
+        }
+      ],
+      "content": [
+        {
+          "name": "rifle",
+          "normalizedRect": [
+            0.105,
+            0.223,
+            0.79,
+            0.31
+          ]
+        },
+        {
+          "name": "blade",
+          "normalizedRect": [
+            0.273,
+            0.65,
+            0.46,
+            0.108
+          ]
+        }
+      ],
+      "notes": "Wall host required. One rifle plus one blade keeps native reduced object count. Whole display opaque except background; black felt in cutouts must remain."
+    },
+    "weaponrack_r": {
+      "equipmentDirection": "Rifle muzzle and blade point west/left.",
+      "pair": "weaponrack",
+      "motion": [
+        {
+          "name": "amber charge cell",
+          "normalizedRect": [
+            0.528,
+            0.336,
+            0.049,
+            0.035
+          ],
+          "behavior": "Decorative breathing only; no telemetry."
+        }
+      ],
+      "content": [
+        {
+          "name": "rifle",
+          "normalizedRect": [
+            0.1,
+            0.223,
+            0.798,
+            0.315
+          ]
+        },
+        {
+          "name": "blade",
+          "normalizedRect": [
+            0.277,
+            0.651,
+            0.443,
+            0.106
+          ]
+        }
+      ],
+      "notes": "Wall host required; separately authored opposite weapon profiles and asymmetric receiver. No bitmap mirror/rotation."
+    }
+  }
+}
