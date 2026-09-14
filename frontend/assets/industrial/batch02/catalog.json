@@ -1,8 +1,8 @@
 {
   "version": 1,
   "planned": 44,
-  "exported": 38,
-  "generatedAt": "2026-09-14T06:13:42.847Z",
+  "exported": 44,
+  "generatedAt": "2026-09-14T06:23:36.090Z",
   "note": "Artwork exports are separate from user acceptance and live runtime integration.",
   "items": [
     {
@@ -538,7 +538,7 @@
       "lane": "utility",
       "group": "Plants, glass & lab",
       "label": "PLANTER TROUGH",
-      "image": "assets/industrial/batch02/utility/industrial_planter.png?v=abaa00ff1ac9",
+      "image": "assets/industrial/batch02/utility/industrial_planter.png?v=f808a0552b74",
       "width": 1430,
       "height": 1100,
       "footprint": {
@@ -551,8 +551,8 @@
         "width": 26,
         "height": 20
       },
-      "transparentPixels": 817547,
-      "opaquePixels": 755453,
+      "transparentPixels": 817601,
+      "opaquePixels": 755399,
       "status": "exported-art-awaiting-live-review"
     },
     {
@@ -560,7 +560,7 @@
       "lane": "utility",
       "group": "Plants, glass & lab",
       "label": "TALL PLANT",
-      "image": "assets/industrial/batch02/utility/tallplant.png?v=5b689b47e4b8",
+      "image": "assets/industrial/batch02/utility/tallplant.png?v=b130e5d878d0",
       "width": 887,
       "height": 1774,
       "footprint": {
@@ -573,8 +573,8 @@
         "width": 13,
         "height": 26
       },
-      "transparentPixels": 1085046,
-      "opaquePixels": 488492,
+      "transparentPixels": 1085200,
+      "opaquePixels": 488338,
       "status": "exported-art-awaiting-live-review"
     },
     {
@@ -582,7 +582,7 @@
       "lane": "utility",
       "group": "Plants, glass & lab",
       "label": "MONSTERA",
-      "image": "assets/industrial/batch02/utility/monstera.png?v=98413192e141",
+      "image": "assets/industrial/batch02/utility/monstera.png?v=dba611d40150",
       "width": 1205,
       "height": 1305,
       "footprint": {
@@ -595,8 +595,8 @@
         "width": 12,
         "height": 13
       },
-      "transparentPixels": 724105,
-      "opaquePixels": 848420,
+      "transparentPixels": 724117,
+      "opaquePixels": 848408,
       "status": "exported-art-awaiting-live-review"
     },
     {
@@ -604,7 +604,7 @@
       "lane": "utility",
       "group": "Plants, glass & lab",
       "label": "TERRARIUM",
-      "image": "assets/industrial/batch02/utility/terrarium.png?v=f2f25e8ab45b",
+      "image": "assets/industrial/batch02/utility/terrarium.png?v=ae262c554d72",
       "width": 1039,
       "height": 1513,
       "footprint": {
@@ -617,8 +617,8 @@
         "width": 11,
         "height": 16
       },
-      "transparentPixels": 809269,
-      "opaquePixels": 762738,
+      "transparentPixels": 810561,
+      "opaquePixels": 761446,
       "status": "exported-art-awaiting-live-review"
     },
     {
@@ -663,6 +663,138 @@
       },
       "transparentPixels": 842166,
       "opaquePixels": 730353,
+      "status": "exported-art-awaiting-live-review"
+    },
+    {
+      "id": "plasmaglobe",
+      "lane": "utility",
+      "group": "Plants, glass & lab",
+      "label": "PLASMA GLOBE",
+      "image": "assets/industrial/batch02/utility/plasmaglobe.png?v=9821f1f49483",
+      "width": 912,
+      "height": 1724,
+      "footprint": {
+        "w": 1,
+        "h": 1
+      },
+      "bounds": {
+        "x": 1,
+        "y": -5,
+        "width": 9,
+        "height": 17
+      },
+      "transparentPixels": 527789,
+      "opaquePixels": 1044499,
+      "status": "exported-art-awaiting-live-review"
+    },
+    {
+      "id": "etsy_dyevat",
+      "lane": "utility",
+      "group": "Plants, glass & lab",
+      "label": "DYE VAT",
+      "image": "assets/industrial/batch02/utility/etsy_dyevat.png?v=f51347f568bc",
+      "width": 1254,
+      "height": 1254,
+      "footprint": {
+        "w": 2,
+        "h": 2
+      },
+      "bounds": {
+        "x": 0,
+        "y": -5,
+        "width": 29,
+        "height": 29
+      },
+      "transparentPixels": 571540,
+      "opaquePixels": 1000976,
+      "status": "exported-art-awaiting-live-review"
+    },
+    {
+      "id": "etsy_kiln",
+      "lane": "utility",
+      "group": "Plants, glass & lab",
+      "label": "KILN",
+      "image": "assets/industrial/batch02/utility/etsy_kiln.png?v=2d17e182cbf1",
+      "width": 1196,
+      "height": 1315,
+      "footprint": {
+        "w": 2,
+        "h": 2
+      },
+      "bounds": {
+        "x": -1,
+        "y": -9,
+        "width": 30,
+        "height": 33
+      },
+      "transparentPixels": 598778,
+      "opaquePixels": 973962,
+      "status": "exported-art-awaiting-live-review"
+    },
+    {
+      "id": "research_samplecart",
+      "lane": "utility",
+      "group": "Plants, glass & lab",
+      "label": "SAMPLE CART",
+      "image": "assets/industrial/batch02/utility/research_samplecart.png?v=0d68403d3dd5",
+      "width": 1564,
+      "height": 1006,
+      "footprint": {
+        "w": 2,
+        "h": 1
+      },
+      "bounds": {
+        "x": -1,
+        "y": -6,
+        "width": 28,
+        "height": 18
+      },
+      "transparentPixels": 739317,
+      "opaquePixels": 834067,
+      "status": "exported-art-awaiting-live-review"
+    },
+    {
+      "id": "incubator",
+      "lane": "utility",
+      "group": "Plants, glass & lab",
+      "label": "INCUBATOR",
+      "image": "assets/industrial/batch02/utility/incubator.png?v=b48f65ac7ebd",
+      "width": 817,
+      "height": 1923,
+      "footprint": {
+        "w": 1,
+        "h": 2
+      },
+      "bounds": {
+        "x": -1,
+        "y": -9,
+        "width": 14,
+        "height": 33
+      },
+      "transparentPixels": 932086,
+      "opaquePixels": 639005,
+      "status": "exported-art-awaiting-live-review"
+    },
+    {
+      "id": "cryopod",
+      "lane": "utility",
+      "group": "Plants, glass & lab",
+      "label": "CRYO POD",
+      "image": "assets/industrial/batch02/utility/cryopod.png?v=69746db020bf",
+      "width": 793,
+      "height": 1983,
+      "footprint": {
+        "w": 1,
+        "h": 2
+      },
+      "bounds": {
+        "x": 0,
+        "y": -6,
+        "width": 12,
+        "height": 30
+      },
+      "transparentPixels": 541641,
+      "opaquePixels": 1030878,
       "status": "exported-art-awaiting-live-review"
     },
     {
