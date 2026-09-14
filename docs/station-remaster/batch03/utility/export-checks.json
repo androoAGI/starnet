@@ -342,6 +342,78 @@
       "islandPixelsRemoved": 29,
       "subjectRgbChanges": 0,
       "outputSha256": "0a954344173bf3dcb92242b50fd3cf111a0333718ba95d5453bdd50ee4119ce3"
+    },
+    {
+      "id": "fishtank",
+      "seeds": [],
+      "source": "docs/station-remaster/batch03/utility/sources/fishtank.png",
+      "sourceSha256": "52e01b274b15fe8853b0cf4fc38b744fe072259ff421725ed52f7922cae4bd77",
+      "sourceWidth": 1306,
+      "sourceHeight": 1205,
+      "output": "frontend/assets/industrial/batch03/utility/fishtank.png",
+      "canvasPreserved": true,
+      "alphaBounds": {
+        "x": 139,
+        "y": 55,
+        "width": 1026,
+        "height": 1077
+      },
+      "channels": 4,
+      "transparentPixels": 544927,
+      "opaquePixels": 1028803,
+      "partialPixels": 0,
+      "backgroundPixelsRemoved": 544927,
+      "islandPixelsRemoved": 0,
+      "subjectRgbChanges": 0,
+      "outputSha256": "063b2807b5ed711a94fb640e294055168f85e398ddb73a42197636d7fb72be0f"
+    },
+    {
+      "id": "lavalamp",
+      "seeds": [],
+      "source": "docs/station-remaster/batch03/utility/sources/lavalamp.png",
+      "sourceSha256": "d6e4b4087b315ac8abc8c99a23e03b5bd9dc31c51bc52ba5b67d6ec1855e99a3",
+      "sourceWidth": 793,
+      "sourceHeight": 1983,
+      "output": "frontend/assets/industrial/batch03/utility/lavalamp.png",
+      "canvasPreserved": true,
+      "alphaBounds": {
+        "x": 117,
+        "y": 22,
+        "width": 559,
+        "height": 1931
+      },
+      "channels": 4,
+      "transparentPixels": 805412,
+      "opaquePixels": 767107,
+      "partialPixels": 0,
+      "backgroundPixelsRemoved": 805412,
+      "islandPixelsRemoved": 0,
+      "subjectRgbChanges": 0,
+      "outputSha256": "0e7d65f917ffbf36808fb82912c2dcc71c5c1187caf03811138e0d98bdfff2db"
+    },
+    {
+      "id": "plasmaglobe",
+      "seeds": [],
+      "source": "docs/station-remaster/batch03/utility/sources/plasmaglobe.png",
+      "sourceSha256": "496d2ffe1570c9e179d569c6c9f14ebb8114e2a9ebf6790107c91722c9ae4803",
+      "sourceWidth": 913,
+      "sourceHeight": 1723,
+      "output": "frontend/assets/industrial/batch03/utility/plasmaglobe.png",
+      "canvasPreserved": true,
+      "alphaBounds": {
+        "x": 34,
+        "y": 22,
+        "width": 845,
+        "height": 1622
+      },
+      "channels": 4,
+      "transparentPixels": 539645,
+      "opaquePixels": 1033454,
+      "partialPixels": 0,
+      "backgroundPixelsRemoved": 539645,
+      "islandPixelsRemoved": 0,
+      "subjectRgbChanges": 0,
+      "outputSha256": "e02e107a72ba6ba83b78334c4b7017bc332dcdfe15ae34865506974d33d460ac"
     }
   ]
 }
