@@ -1,0 +1,33 @@
+{
+  "id": "plant",
+  "asset": "plant",
+  "tool": "built-in image_gen",
+  "variant": "s",
+  "status": "generated candidate; root actual-scale review pending",
+  "native": {
+    "key": "plant",
+    "r": 0,
+    "image": "plant.png",
+    "footprint": {
+      "w": 1,
+      "h": 1
+    },
+    "bounds": {
+      "x": 1,
+      "y": -8,
+      "width": 10,
+      "height": 20
+    },
+    "guide": "dev/.scratch-workspace/prop-structure/plant.png"
+  },
+  "references": [
+    "dev/.scratch-workspace/prop-structure/plant.png",
+    "frontend/assets/industrial/calibration/crate.png",
+    "docs/station-remaster/bridge-reference.png"
+  ],
+  "ratioDeviationPercent": -0.225,
+  "aspectTolerancePercent": 8,
+  "aspectPass": true,
+  "rgbRepaint": false,
+  "runtimeIntegrated": false
+}
