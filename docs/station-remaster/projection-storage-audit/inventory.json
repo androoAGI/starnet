@@ -1,0 +1,2120 @@
+{
+  "version": 1,
+  "scope": "40 storage and furniture IDs, snapshot of coordinator projection set; read-only audit, no new art or runtime edits",
+  "tileWorldPixels": 12,
+  "referenceCamera": {
+    "primary": [
+      "frontend/assets/industrial/calibration/crate.png",
+      "frontend/assets/industrial/workstation.png",
+      "frontend/assets/industrial/projection-correction/chair.png"
+    ],
+    "description": "Accepted in-station anchors control projection: orthographic horizontal front edges, no diamond yaw, visible receding top planes, grounded contact. Do not invent a numeric pitch from a prompt. Native bounds specify the maximum standing envelope and footprint, not a license to stretch source art.",
+    "secondary": "frontend/assets/industrial/complete-sheet/starnet-props-full-sheet.png is material/style only"
+  },
+  "evidence": [
+    "docs/station-remaster/STYLE_LOCK.md:5",
+    "docs/station-remaster/projection-correction/README.md:11",
+    "frontend/app/propremaster.js:71",
+    "dev/industrial-textures/prop-structure-manifest.json",
+    "frontend/app/propsprites.js:1193 (rackV server function)",
+    "frontend/app/propsprites.js:4741 (bar open standing front)",
+    "frontend/app/propsprites.js:6430 (diner table)",
+    "frontend/app/propsprites.js:6432 (diner east table)"
+  ],
+  "groups": {
+    "wide-storage": [
+      {
+        "id": "bookshelf",
+        "action": "regenerate",
+        "reason": "Rebuild as a low wide wooden bookcase: visible top plane, two broad shelf cavities, grouped books. Current tall front elevation plus top plant makes native fit only 18.82px wide instead of26.",
+        "image": "frontend/assets/industrial/projection-correction/bookshelf.png",
+        "sha256": "41906bd080885cd565fa4b19df306e0d26785b3116137af0fd5638cb4b8d253c",
+        "footprintTiles": {
+          "w": 2,
+          "h": 1
+        },
+        "sourceSize": {
+          "width": 71,
+          "height": 83
+        },
+        "nativeStandingEnvelope": {
+          "x": -1,
+          "y": -9,
+          "width": 26,
+          "height": 22
+        },
+        "currentManifestEnvelope": {
+          "x": -1,
+          "y": -17.3944,
+          "width": 26,
+          "height": 30.3944
+        },
+        "uniformFitIntoNative": {
+          "width": 18.82,
+          "height": 22
+        },
+        "nativeViews": {
+          "s": {
+            "footprint": {
+              "w": 2,
+              "h": 1
+            },
+            "bounds": {
+              "x": -1,
+              "y": -9,
+              "width": 26,
+              "height": 22
+            }
+          }
+        },
+        "liveVerified": false
+      },
+      {
+        "id": "shelf",
+        "action": "regenerate",
+        "reason": "Four-tile shelf needs a horizontal53×26 envelope; current nearly square bay is physically too tall when made53px wide.",
+        "image": "frontend/assets/industrial/projection-correction/shelf.png",
+        "sha256": "10de96e47d2865fff8017a4e6828088738dd02cfe83e2dd9756b591b15af3df8",
+        "footprintTiles": {
+          "w": 4,
+          "h": 1
+        },
+        "sourceSize": {
+          "width": 79,
+          "height": 75
+        },
+        "nativeStandingEnvelope": {
+          "x": 0,
+          "y": -14,
+          "width": 53,
+          "height": 26
+        },
+        "currentManifestEnvelope": {
+          "x": 0,
+          "y": -38.3165,
+          "width": 53,
+          "height": 50.3165
+        },
+        "uniformFitIntoNative": {
+          "width": 27.39,
+          "height": 26
+        },
+        "nativeViews": {
+          "s": {
+            "footprint": {
+              "w": 4,
+              "h": 1
+            },
+            "bounds": {
+              "x": 0,
+              "y": -14,
+              "width": 53,
+              "height": 26
+            }
+          }
+        },
+        "liveVerified": false
+      },
+      {
+        "id": "industrial_drawerbank",
+        "action": "regenerate",
+        "reason": "Three-tile drawer bank must be a low36×15 horizontal bank; current two-column upright chest becomes38.86px tall.",
+        "image": "frontend/assets/industrial/projection-correction/industrial_drawerbank.png",
+        "sha256": "76c394d7bafdaeba4058f426c3f7b5aa0621a1e3392762f1d1ca465090b8ddd8",
+        "footprintTiles": {
+          "w": 3,
+          "h": 1
+        },
+        "sourceSize": {
+          "width": 63,
+          "height": 68
+        },
+        "nativeStandingEnvelope": {
+          "x": 0,
+          "y": -3,
+          "width": 36,
+          "height": 15
+        },
+        "currentManifestEnvelope": {
+          "x": 0,
+          "y": -26.8571,
+          "width": 36,
+          "height": 38.8571
+        },
+        "uniformFitIntoNative": {
+          "width": 13.9,
+          "height": 15
+        },
+        "nativeViews": {
+          "s": {
+            "footprint": {
+              "w": 3,
+              "h": 1
+            },
+            "bounds": {
+              "x": 0,
+              "y": -3,
+              "width": 36,
+              "height": 15
+            }
+          }
+        },
+        "liveVerified": false
+      },
+      {
+        "id": "arc_indexwall",
+        "action": "regenerate",
+        "reason": "Four-tile archive index needs a low wide wall of drawers. Current square cabinet expands to45.12px tall against23 native.",
+        "image": "frontend/assets/industrial/projection-correction/arc_indexwall.png",
+        "sha256": "f4d233b698fa676ea809c02c3d1940ad9b5e8501435c32441e847c6cb02bb0cd",
+        "footprintTiles": {
+          "w": 4,
+          "h": 1
+        },
+        "sourceSize": {
+          "width": 82,
+          "height": 74
+        },
+        "nativeStandingEnvelope": {
+          "x": -1,
+          "y": -13,
+          "width": 50,
+          "height": 23
+        },
+        "currentManifestEnvelope": {
+          "x": -1,
+          "y": -35.122,
+          "width": 50,
+          "height": 45.122
+        },
+        "uniformFitIntoNative": {
+          "width": 25.49,
+          "height": 23
+        },
+        "nativeViews": {
+          "s": {
+            "footprint": {
+              "w": 4,
+              "h": 1
+            },
+            "bounds": {
+              "x": -1,
+              "y": -13,
+              "width": 50,
+              "height": 23
+            }
+          }
+        },
+        "liveVerified": false
+      }
+    ],
+    "deep-storage": [
+      {
+        "id": "rackV",
+        "action": "regenerate",
+        "reason": "Native is a narrow1×2 server tower with blade and LED rows, not open shelving. Re-author slim14×36 silhouette and real north-south depth.",
+        "image": "frontend/assets/industrial/projection-correction/rackV.png",
+        "sha256": "a3466f499ce9f00dd17047d534564ffd0a079eeb4cf5e09e8e05251442ed3874",
+        "footprintTiles": {
+          "w": 1,
+          "h": 2
+        },
+        "sourceSize": {
+          "width": 72,
+          "height": 82
+        },
+        "nativeStandingEnvelope": {
+          "x": -1,
+          "y": -12,
+          "width": 14,
+          "height": 36
+        },
+        "currentManifestEnvelope": {
+          "x": -1,
+          "y": 8.0556,
+          "width": 14,
+          "height": 15.9444
+        },
+        "uniformFitIntoNative": {
+          "width": 14,
+          "height": 15.94
+        },
+        "nativeViews": {
+          "s": {
+            "footprint": {
+              "w": 1,
+              "h": 2
+            },
+            "bounds": {
+              "x": -1,
+              "y": -12,
+              "width": 14,
+              "height": 36
+            }
+          }
+        },
+        "liveVerified": false
+      },
+      {
+        "id": "industrial_servicecab",
+        "action": "regenerate",
+        "reason": "Native1×2 footprint and12×29 envelope require deep narrow cabinet; current square front compresses to12.17px high.",
+        "image": "frontend/assets/industrial/projection-correction/industrial_servicecab.png",
+        "sha256": "4564f3ca2238e8e886193df9747cfb3f21e7e25161cb8cfd91d1563e57bce9fb",
+        "footprintTiles": {
+          "w": 1,
+          "h": 2
+        },
+        "sourceSize": {
+          "width": 69,
+          "height": 70
+        },
+        "nativeStandingEnvelope": {
+          "x": 0,
+          "y": -5,
+          "width": 12,
+          "height": 29
+        },
+        "currentManifestEnvelope": {
+          "x": 0,
+          "y": 11.8261,
+          "width": 12,
+          "height": 12.1739
+        },
+        "uniformFitIntoNative": {
+          "width": 12,
+          "height": 12.17
+        },
+        "nativeViews": {
+          "s": {
+            "footprint": {
+              "w": 1,
+              "h": 2
+            },
+            "bounds": {
+              "x": 0,
+              "y": -5,
+              "width": 12,
+              "height": 29
+            }
+          }
+        },
+        "liveVerified": false
+      },
+      {
+        "id": "war_intelcab",
+        "action": "regenerate",
+        "reason": "Native1×2 intelligence cabinet needs narrow17×31 body and deep top; current wide console shrinks to17×15.",
+        "image": "frontend/assets/industrial/projection-correction/war_intelcab.png",
+        "sha256": "1f91a375abe22570cf4143e61237c7c5981d8e224b09a1a4358b8e0f41795e2f",
+        "footprintTiles": {
+          "w": 1,
+          "h": 2
+        },
+        "sourceSize": {
+          "width": 85,
+          "height": 75
+        },
+        "nativeStandingEnvelope": {
+          "x": 0,
+          "y": -7,
+          "width": 17,
+          "height": 31
+        },
+        "currentManifestEnvelope": {
+          "x": 0,
+          "y": 9,
+          "width": 17,
+          "height": 15
+        },
+        "uniformFitIntoNative": {
+          "width": 17,
+          "height": 15
+        },
+        "nativeViews": {
+          "s": {
+            "footprint": {
+              "w": 1,
+              "h": 2
+            },
+            "bounds": {
+              "x": 0,
+              "y": -7,
+              "width": 17,
+              "height": 31
+            }
+          }
+        },
+        "liveVerified": false
+      },
+      {
+        "id": "safe",
+        "action": "regenerate",
+        "reason": "Native1×2 safe needs depth along screen y and18×32 body; current short front-heavy safe is only23.45px tall at width18. Preserve wheel/lock face with more receding body.",
+        "image": "frontend/assets/industrial/projection-correction/safe.png",
+        "sha256": "7201067ef8d671e540aea5902346d1ffc25b01f5203d50cf955d215f2473b6fa",
+        "footprintTiles": {
+          "w": 1,
+          "h": 2
+        },
+        "sourceSize": {
+          "width": 66,
+          "height": 86
+        },
+        "nativeStandingEnvelope": {
+          "x": -1,
+          "y": -8,
+          "width": 18,
+          "height": 32
+        },
+        "currentManifestEnvelope": {
+          "x": -1,
+          "y": 0.5455,
+          "width": 18,
+          "height": 23.4545
+        },
+        "uniformFitIntoNative": {
+          "width": 18,
+          "height": 23.45
+        },
+        "nativeViews": {
+          "s": {
+            "footprint": {
+              "w": 1,
+              "h": 2
+            },
+            "bounds": {
+              "x": -1,
+              "y": -8,
+              "width": 18,
+              "height": 32
+            }
+          }
+        },
+        "liveVerified": false
+      }
+    ],
+    "medium-storage": [
+      {
+        "id": "industrial_locker",
+        "action": "regenerate",
+        "reason": "Two-tile24×24 locker is drawn as narrow tall55×83 silhouette; native fit loses one third of width. Re-author broader locker with anchor camera.",
+        "image": "frontend/assets/industrial/projection-correction/industrial_locker.png",
+        "sha256": "46f1ac07c56df477d548de3f2458a71715210b88eaee065f0ed00c41ce7661f0",
+        "footprintTiles": {
+          "w": 2,
+          "h": 1
+        },
+        "sourceSize": {
+          "width": 55,
+          "height": 83
+        },
+        "nativeStandingEnvelope": {
+          "x": 0,
+          "y": -12,
+          "width": 24,
+          "height": 24
+        },
+        "currentManifestEnvelope": {
+          "x": 0,
+          "y": -24.2182,
+          "width": 24,
+          "height": 36.2182
+        },
+        "uniformFitIntoNative": {
+          "width": 15.9,
+          "height": 24
+        },
+        "nativeViews": {
+          "s": {
+            "footprint": {
+              "w": 2,
+              "h": 1
+            },
+            "bounds": {
+              "x": 0,
+              "y": -12,
+              "width": 24,
+              "height": 24
+            }
+          }
+        },
+        "liveVerified": false
+      },
+      {
+        "id": "rack",
+        "action": "regenerate",
+        "reason": "Two-tile server bank native29×26 is wider than current68×92 tower. Re-author broad rack while preserving server function and bounded status surfaces.",
+        "image": "frontend/assets/industrial/projection-correction/rack.png",
+        "sha256": "1f0629f8360e4563a164080a9e501b45c54c7de70d85b60310b616c3b508a494",
+        "footprintTiles": {
+          "w": 2,
+          "h": 1
+        },
+        "sourceSize": {
+          "width": 68,
+          "height": 92
+        },
+        "nativeStandingEnvelope": {
+          "x": 0,
+          "y": -14,
+          "width": 29,
+          "height": 26
+        },
+        "currentManifestEnvelope": {
+          "x": 0,
+          "y": -27.2353,
+          "width": 29,
+          "height": 39.2353
+        },
+        "uniformFitIntoNative": {
+          "width": 19.22,
+          "height": 26
+        },
+        "nativeViews": {
+          "s": {
+            "footprint": {
+              "w": 2,
+              "h": 1
+            },
+            "bounds": {
+              "x": 0,
+              "y": -14,
+              "width": 29,
+              "height": 26
+            }
+          }
+        },
+        "liveVerified": false
+      },
+      {
+        "id": "vault",
+        "action": "regenerate",
+        "reason": "Three-by-two vault native44×29 is much wider/lower than77×80 square safe source. Re-author wide heavy vault with visible top depth.",
+        "image": "frontend/assets/industrial/projection-correction/vault.png",
+        "sha256": "00f44a87ee49d8a4ce0e9ee08449229775f67b9e77669b5321e2a27daa77fbb8",
+        "footprintTiles": {
+          "w": 3,
+          "h": 2
+        },
+        "sourceSize": {
+          "width": 77,
+          "height": 80
+        },
+        "nativeStandingEnvelope": {
+          "x": -3,
+          "y": -5,
+          "width": 44,
+          "height": 29
+        },
+        "currentManifestEnvelope": {
+          "x": -3,
+          "y": -21.7143,
+          "width": 44,
+          "height": 45.7143
+        },
+        "uniformFitIntoNative": {
+          "width": 27.91,
+          "height": 29
+        },
+        "nativeViews": {
+          "s": {
+            "footprint": {
+              "w": 3,
+              "h": 2
+            },
+            "bounds": {
+              "x": -3,
+              "y": -5,
+              "width": 44,
+              "height": 29
+            }
+          }
+        },
+        "liveVerified": false
+      }
+    ],
+    "angled-small-storage": [
+      {
+        "id": "industrial_toolcaddy",
+        "action": "regenerate",
+        "reason": "Current tray and wheel axes are diagonally yawed. Match accepted workstation horizontal front edge; retain tools and1×1 footprint.",
+        "image": "frontend/assets/industrial/projection-correction/industrial_toolcaddy.png",
+        "sha256": "1d909264e0f91f9befa4492ce6ffd1fc46af28040c1005a4f5492268c2974afd",
+        "footprintTiles": {
+          "w": 1,
+          "h": 1
+        },
+        "sourceSize": {
+          "width": 79,
+          "height": 76
+        },
+        "nativeStandingEnvelope": {
+          "x": 1,
+          "y": 2,
+          "width": 10,
+          "height": 10
+        },
+        "currentManifestEnvelope": {
+          "x": 1,
+          "y": 2.3797,
+          "width": 10,
+          "height": 9.6203
+        },
+        "uniformFitIntoNative": {
+          "width": 10,
+          "height": 9.62
+        },
+        "nativeViews": {
+          "s": {
+            "footprint": {
+              "w": 1,
+              "h": 1
+            },
+            "bounds": {
+              "x": 1,
+              "y": 2,
+              "width": 10,
+              "height": 10
+            }
+          }
+        },
+        "liveVerified": false
+      },
+      {
+        "id": "gigs_servercart",
+        "action": "regenerate",
+        "reason": "Current laptop-cart top and frame are diamond-yawed. New source needed to make horizontal front with visible north-south top depth; bounds cannot unyaw.",
+        "image": "frontend/assets/industrial/projection-correction/gigs_servercart.png",
+        "sha256": "8c7986679b4b88dd7854fee6e18fcf43183e8f0f6e82478999e3ca6237b9b0b4",
+        "footprintTiles": {
+          "w": 1,
+          "h": 1
+        },
+        "sourceSize": {
+          "width": 65,
+          "height": 85
+        },
+        "nativeStandingEnvelope": {
+          "x": 1,
+          "y": -6,
+          "width": 16,
+          "height": 18
+        },
+        "currentManifestEnvelope": {
+          "x": 1,
+          "y": -8.9231,
+          "width": 16,
+          "height": 20.9231
+        },
+        "uniformFitIntoNative": {
+          "width": 13.76,
+          "height": 18
+        },
+        "nativeViews": {
+          "s": {
+            "footprint": {
+              "w": 1,
+              "h": 1
+            },
+            "bounds": {
+              "x": 1,
+              "y": -6,
+              "width": 16,
+              "height": 18
+            }
+          }
+        },
+        "liveVerified": false
+      },
+      {
+        "id": "boxes",
+        "action": "regenerate",
+        "reason": "Current three cartons make tall dense cluster. Spread broad box masses over2×1 native24×13 envelope with consistent accepted floor axes.",
+        "image": "frontend/assets/industrial/projection-correction/boxes.png",
+        "sha256": "9d8bebc4a0b719665945be4bab55c5342fedd38d7e7a61533dbba7fe9f27a8ad",
+        "footprintTiles": {
+          "w": 2,
+          "h": 1
+        },
+        "sourceSize": {
+          "width": 77,
+          "height": 64
+        },
+        "nativeStandingEnvelope": {
+          "x": 0,
+          "y": -1,
+          "width": 24,
+          "height": 13
+        },
+        "currentManifestEnvelope": {
+          "x": 0,
+          "y": -7.9481,
+          "width": 24,
+          "height": 19.9481
+        },
+        "uniformFitIntoNative": {
+          "width": 15.64,
+          "height": 13
+        },
+        "nativeViews": {
+          "s": {
+            "footprint": {
+              "w": 2,
+              "h": 1
+            },
+            "bounds": {
+              "x": 0,
+              "y": -1,
+              "width": 24,
+              "height": 13
+            }
+          }
+        },
+        "liveVerified": false
+      }
+    ],
+    "wide-work-surfaces": [
+      {
+        "id": "industrial_bench",
+        "action": "regenerate",
+        "reason": "Current three-tile cushion body is too deep/square: native fit width19.56 vs36. Re-author wide backless seat, preserve blue upholstery.",
+        "image": "frontend/assets/industrial/projection-correction/industrial_bench.png",
+        "sha256": "1724b783ced180fa1f2926111ee88e809bbe1f7f47d6c62c8f1726af5f276264",
+        "footprintTiles": {
+          "w": 3,
+          "h": 1
+        },
+        "sourceSize": {
+          "width": 88,
+          "height": 54
+        },
+        "nativeStandingEnvelope": {
+          "x": 0,
+          "y": 0,
+          "width": 36,
+          "height": 12
+        },
+        "currentManifestEnvelope": {
+          "x": 4.1481,
+          "y": -5,
+          "width": 27.7037,
+          "height": 17
+        },
+        "uniformFitIntoNative": {
+          "width": 19.56,
+          "height": 12
+        },
+        "nativeViews": {
+          "s": {
+            "footprint": {
+              "w": 3,
+              "h": 1
+            },
+            "bounds": {
+              "x": 0,
+              "y": 0,
+              "width": 36,
+              "height": 12
+            }
+          }
+        },
+        "liveVerified": false
+      },
+      {
+        "id": "lowtable",
+        "action": "regenerate",
+        "reason": "Current image full-width fit is too tall for38×17; existing correction further narrows to30.35. Re-author long shallow top and supported feet; matching east view and mount anchors required.",
+        "image": "frontend/assets/industrial/projection-correction/lowtable.png",
+        "sha256": "213ab8626b32f601fba0fcf086c1df7d11d2e92b0d2a42ad007f97609e5146ca",
+        "footprintTiles": {
+          "w": 3,
+          "h": 1
+        },
+        "sourceSize": {
+          "width": 86,
+          "height": 51
+        },
+        "nativeStandingEnvelope": {
+          "x": -1,
+          "y": -5,
+          "width": 38,
+          "height": 17
+        },
+        "currentManifestEnvelope": {
+          "x": 2.8235,
+          "y": -6,
+          "width": 30.3529,
+          "height": 18
+        },
+        "uniformFitIntoNative": {
+          "width": 28.67,
+          "height": 17
+        },
+        "nativeViews": {
+          "s": {
+            "footprint": {
+              "w": 3,
+              "h": 1
+            },
+            "bounds": {
+              "x": -1,
+              "y": -5,
+              "width": 38,
+              "height": 17
+            }
+          },
+          "e": {
+            "footprint": {
+              "w": 1,
+              "h": 3
+            },
+            "bounds": {
+              "x": -2,
+              "y": 0,
+              "width": 16,
+              "height": 36
+            }
+          }
+        },
+        "liveVerified": false
+      },
+      {
+        "id": "glasstable",
+        "action": "regenerate",
+        "reason": "Current top fits only27.51px of36 native width at18 high. Re-author horizontal broad shallow glass top with matching east view and mount anchors.",
+        "image": "frontend/assets/industrial/projection-correction/glasstable.png",
+        "sha256": "2951efc70bff35db3edee284b73bdcbe5b93f8f60776f7a97845da3b8068f0cb",
+        "footprintTiles": {
+          "w": 3,
+          "h": 1
+        },
+        "sourceSize": {
+          "width": 81,
+          "height": 53
+        },
+        "nativeStandingEnvelope": {
+          "x": 0,
+          "y": -6,
+          "width": 36,
+          "height": 18
+        },
+        "currentManifestEnvelope": {
+          "x": 4.2453,
+          "y": -6,
+          "width": 27.5094,
+          "height": 18
+        },
+        "uniformFitIntoNative": {
+          "width": 27.51,
+          "height": 18
+        },
+        "nativeViews": {
+          "s": {
+            "footprint": {
+              "w": 3,
+              "h": 1
+            },
+            "bounds": {
+              "x": 0,
+              "y": -6,
+              "width": 36,
+              "height": 18
+            }
+          },
+          "e": {
+            "footprint": {
+              "w": 1,
+              "h": 3
+            },
+            "bounds": {
+              "x": 0,
+              "y": 0,
+              "width": 12,
+              "height": 36
+            }
+          }
+        },
+        "liveVerified": false
+      },
+      {
+        "id": "bench",
+        "action": "regenerate",
+        "reason": "Four-tile54×26 work bench is only34.27px wide when constrained to native height. Re-author broad work surface, grouped tools, clear standing front.",
+        "image": "frontend/assets/industrial/projection-correction/bench.png",
+        "sha256": "198428f21f81990088dc99c8a17f3afd94b7a127fab70ede4bbdea95b240422e",
+        "footprintTiles": {
+          "w": 4,
+          "h": 1
+        },
+        "sourceSize": {
+          "width": 87,
+          "height": 66
+        },
+        "nativeStandingEnvelope": {
+          "x": -1,
+          "y": -14,
+          "width": 54,
+          "height": 26
+        },
+        "currentManifestEnvelope": {
+          "x": -1,
+          "y": -28.9655,
+          "width": 54,
+          "height": 40.9655
+        },
+        "uniformFitIntoNative": {
+          "width": 34.27,
+          "height": 26
+        },
+        "nativeViews": {
+          "s": {
+            "footprint": {
+              "w": 4,
+              "h": 1
+            },
+            "bounds": {
+              "x": -1,
+              "y": -14,
+              "width": 54,
+              "height": 26
+            }
+          }
+        },
+        "liveVerified": false
+      }
+    ],
+    "shared-table-surfaces": [
+      {
+        "id": "dinertable",
+        "action": "regenerate",
+        "reason": "Native dinerTop is a separate butcher-block table; source bakes two red chairs. Re-author standalone3×2 table and2×3 east view; keep native mounted-child support independent.",
+        "image": "frontend/assets/industrial/projection-correction/dinertable.png",
+        "sha256": "72999f393916c43026b779b817bf64970c0e0ca561549fb0a2370c5bd7001dda",
+        "footprintTiles": {
+          "w": 3,
+          "h": 2
+        },
+        "sourceSize": {
+          "width": 89,
+          "height": 67
+        },
+        "nativeStandingEnvelope": {
+          "x": -1,
+          "y": 3,
+          "width": 38,
+          "height": 22
+        },
+        "currentManifestEnvelope": {
+          "x": 2.0597,
+          "y": 1,
+          "width": 31.8806,
+          "height": 24
+        },
+        "uniformFitIntoNative": {
+          "width": 29.22,
+          "height": 22
+        },
+        "nativeViews": {
+          "s": {
+            "footprint": {
+              "w": 3,
+              "h": 2
+            },
+            "bounds": {
+              "x": -1,
+              "y": 3,
+              "width": 38,
+              "height": 22
+            }
+          },
+          "e": {
+            "footprint": {
+              "w": 2,
+              "h": 3
+            },
+            "bounds": {
+              "x": -1,
+              "y": 0,
+              "width": 26,
+              "height": 37
+            }
+          }
+        },
+        "liveVerified": false
+      },
+      {
+        "id": "bar",
+        "action": "regenerate",
+        "reason": "Native4×1 bar has open standing front, panelled counter and integrated back shelf. Source bakes stools and becomes43px tall vs24 native. Re-author50×24 clear-front bar.",
+        "image": "frontend/assets/industrial/projection-correction/bar.png",
+        "sha256": "bd8ee612a0de3ee5f765e0068a9974bf1b2fc29453e689dd180dd6947b8a238a",
+        "footprintTiles": {
+          "w": 4,
+          "h": 1
+        },
+        "sourceSize": {
+          "width": 100,
+          "height": 86
+        },
+        "nativeStandingEnvelope": {
+          "x": -1,
+          "y": -12,
+          "width": 50,
+          "height": 24
+        },
+        "currentManifestEnvelope": {
+          "x": -1,
+          "y": -31,
+          "width": 50,
+          "height": 43
+        },
+        "uniformFitIntoNative": {
+          "width": 27.91,
+          "height": 24
+        },
+        "nativeViews": {
+          "s": {
+            "footprint": {
+              "w": 4,
+              "h": 1
+            },
+            "bounds": {
+              "x": -1,
+              "y": -12,
+              "width": 50,
+              "height": 24
+            }
+          }
+        },
+        "liveVerified": false
+      },
+      {
+        "id": "industrial_roundtable",
+        "action": "regenerate",
+        "reason": "Current nearly circular top projects too deeply; whole source native fit becomes14.84px wide instead24. Re-author shallower ellipse and low pedestal with accepted overhead camera.",
+        "image": "frontend/assets/industrial/projection-correction/industrial_roundtable.png",
+        "sha256": "f25e457cfca4bf02bcc3dc6e0eb5c359a4039a4dfe80befea80d3efab058b4aa",
+        "footprintTiles": {
+          "w": 2,
+          "h": 1
+        },
+        "sourceSize": {
+          "width": 64,
+          "height": 69
+        },
+        "nativeStandingEnvelope": {
+          "x": 0,
+          "y": -4,
+          "width": 24,
+          "height": 16
+        },
+        "currentManifestEnvelope": {
+          "x": 0,
+          "y": -13.875,
+          "width": 24,
+          "height": 25.875
+        },
+        "uniformFitIntoNative": {
+          "width": 14.84,
+          "height": 16
+        },
+        "nativeViews": {
+          "s": {
+            "footprint": {
+              "w": 2,
+              "h": 1
+            },
+            "bounds": {
+              "x": 0,
+              "y": -4,
+              "width": 24,
+              "height": 16
+            }
+          }
+        },
+        "liveVerified": false
+      }
+    ],
+    "remaining-seat": [
+      {
+        "id": "podchair",
+        "action": "regenerate",
+        "reason": "Current wide egg source only10.92px tall when width10; native body10×17. Re-author narrower upright egg with visible seat plane; all s,w,n,e facings need matching seat/foreground anchors.",
+        "image": "frontend/assets/industrial/projection-correction/podchair.png",
+        "sha256": "751043f710ad6000dfd01e19f72ef5a4df7c40a4fbc5dd6093d7940daf8dcce1",
+        "footprintTiles": {
+          "w": 1,
+          "h": 1
+        },
+        "sourceSize": {
+          "width": 76,
+          "height": 83
+        },
+        "nativeStandingEnvelope": {
+          "x": 1,
+          "y": -5,
+          "width": 10,
+          "height": 17
+        },
+        "currentManifestEnvelope": {
+          "x": 1,
+          "y": 1.0789,
+          "width": 10,
+          "height": 10.9211
+        },
+        "uniformFitIntoNative": {
+          "width": 10,
+          "height": 10.92
+        },
+        "nativeViews": {
+          "s": {
+            "footprint": {
+              "w": 1,
+              "h": 1
+            },
+            "bounds": {
+              "x": 1,
+              "y": -5,
+              "width": 10,
+              "height": 17
+            }
+          },
+          "w": {
+            "footprint": {
+              "w": 1,
+              "h": 1
+            },
+            "bounds": {
+              "x": 0,
+              "y": -5,
+              "width": 11,
+              "height": 17
+            }
+          },
+          "n": {
+            "footprint": {
+              "w": 1,
+              "h": 1
+            },
+            "bounds": {
+              "x": 1,
+              "y": -5,
+              "width": 10,
+              "height": 17
+            }
+          },
+          "e": {
+            "footprint": {
+              "w": 1,
+              "h": 1
+            },
+            "bounds": {
+              "x": 1,
+              "y": -5,
+              "width": 11,
+              "height": 17
+            }
+          }
+        },
+        "liveVerified": false
+      }
+    ],
+    "bounds-first": [
+      {
+        "id": "quarters_lockerbank",
+        "action": "reuse-bounds-first",
+        "reason": "Near native aspect:38×34.16 vs38×32. Try native envelope/contact and room comparison first; only regenerate if cap depth still fails accepted camera.",
+        "image": "frontend/assets/industrial/projection-correction/quarters_lockerbank.png",
+        "sha256": "77a01e19fbdc614271e2eedf848eab50caf3f9af2110f86599bd5e3e2fd7fb43",
+        "footprintTiles": {
+          "w": 3,
+          "h": 1
+        },
+        "sourceSize": {
+          "width": 89,
+          "height": 80
+        },
+        "nativeStandingEnvelope": {
+          "x": -1,
+          "y": -20,
+          "width": 38,
+          "height": 32
+        },
+        "currentManifestEnvelope": {
+          "x": -1,
+          "y": -22.1573,
+          "width": 38,
+          "height": 34.1573
+        },
+        "uniformFitIntoNative": {
+          "width": 35.6,
+          "height": 32
+        },
+        "nativeViews": {
+          "s": {
+            "footprint": {
+              "w": 3,
+              "h": 1
+            },
+            "bounds": {
+              "x": -1,
+              "y": -20,
+              "width": 38,
+              "height": 32
+            }
+          }
+        },
+        "liveVerified": false
+      },
+      {
+        "id": "trophycase",
+        "action": "reuse-bounds-first",
+        "reason": "26×29.47 nearly native26×30 and horizontal frame. Keep source first; earned trophy content must remain truthful and masks independent.",
+        "image": "frontend/assets/industrial/projection-correction/trophycase.png",
+        "sha256": "24e81a571efd3d2db9d8cdb63b146e10f318f55561c11ed4331be6bedf6df6c8",
+        "footprintTiles": {
+          "w": 2,
+          "h": 2
+        },
+        "sourceSize": {
+          "width": 75,
+          "height": 85
+        },
+        "nativeStandingEnvelope": {
+          "x": -1,
+          "y": -6,
+          "width": 26,
+          "height": 30
+        },
+        "currentManifestEnvelope": {
+          "x": -1,
+          "y": -5.4667,
+          "width": 26,
+          "height": 29.4667
+        },
+        "uniformFitIntoNative": {
+          "width": 26,
+          "height": 29.47
+        },
+        "nativeViews": {
+          "s": {
+            "footprint": {
+              "w": 2,
+              "h": 2
+            },
+            "bounds": {
+              "x": -1,
+              "y": -6,
+              "width": 26,
+              "height": 30
+            }
+          }
+        },
+        "liveVerified": false
+      },
+      {
+        "id": "industrial_supplycart",
+        "action": "reuse-bounds-first",
+        "reason": "22×22.59 nearly native22×23; axes are horizontal. Retain source and calibrate wheel contact.",
+        "image": "frontend/assets/industrial/projection-correction/industrial_supplycart.png",
+        "sha256": "1a1859ba521ea7fadeba8b61682b326193d4aa2d7b8b44c36824a6c39180f3e5",
+        "footprintTiles": {
+          "w": 2,
+          "h": 1
+        },
+        "sourceSize": {
+          "width": 75,
+          "height": 77
+        },
+        "nativeStandingEnvelope": {
+          "x": 1,
+          "y": -11,
+          "width": 22,
+          "height": 23
+        },
+        "currentManifestEnvelope": {
+          "x": 1,
+          "y": -10.5867,
+          "width": 22,
+          "height": 22.5867
+        },
+        "uniformFitIntoNative": {
+          "width": 22,
+          "height": 22.59
+        },
+        "nativeViews": {
+          "s": {
+            "footprint": {
+              "w": 2,
+              "h": 1
+            },
+            "bounds": {
+              "x": 1,
+              "y": -11,
+              "width": 22,
+              "height": 23
+            }
+          }
+        },
+        "liveVerified": false
+      },
+      {
+        "id": "gigs_partsbin",
+        "action": "reuse-bounds-first",
+        "reason": "26×20.61 vs26×19 is a small fit discrepancy. Retain open-bin source first; keep fill contents decorative/runtime contract distinct.",
+        "image": "frontend/assets/industrial/projection-correction/gigs_partsbin.png",
+        "sha256": "87d1e312d2fe9741eb2a6ab7de3aa86a5a4084660e94b3d899f30e0d47709cb5",
+        "footprintTiles": {
+          "w": 2,
+          "h": 1
+        },
+        "sourceSize": {
+          "width": 82,
+          "height": 65
+        },
+        "nativeStandingEnvelope": {
+          "x": -1,
+          "y": -7,
+          "width": 26,
+          "height": 19
+        },
+        "currentManifestEnvelope": {
+          "x": -1,
+          "y": -8.6098,
+          "width": 26,
+          "height": 20.6098
+        },
+        "uniformFitIntoNative": {
+          "width": 23.97,
+          "height": 19
+        },
+        "nativeViews": {
+          "s": {
+            "footprint": {
+              "w": 2,
+              "h": 1
+            },
+            "bounds": {
+              "x": -1,
+              "y": -7,
+              "width": 26,
+              "height": 19
+            }
+          }
+        },
+        "liveVerified": false
+      },
+      {
+        "id": "goldcrate",
+        "action": "reuse-bounds-first",
+        "reason": "26×20.36 fits26×22; horizontal lid axes and broad form are plausible. Compare directly to accepted crate without recoloring approved gold material.",
+        "image": "frontend/assets/industrial/projection-correction/goldcrate.png",
+        "sha256": "c116c1a34f4d7c0a33672ff5d8d462d1663b7b70501e4a3e72b89dc6c6b415b7",
+        "footprintTiles": {
+          "w": 2,
+          "h": 1
+        },
+        "sourceSize": {
+          "width": 83,
+          "height": 65
+        },
+        "nativeStandingEnvelope": {
+          "x": -1,
+          "y": -10,
+          "width": 26,
+          "height": 22
+        },
+        "currentManifestEnvelope": {
+          "x": -1,
+          "y": -8.3614,
+          "width": 26,
+          "height": 20.3614
+        },
+        "uniformFitIntoNative": {
+          "width": 26,
+          "height": 20.36
+        },
+        "nativeViews": {
+          "s": {
+            "footprint": {
+              "w": 2,
+              "h": 1
+            },
+            "bounds": {
+              "x": -1,
+              "y": -10,
+              "width": 26,
+              "height": 22
+            }
+          }
+        },
+        "liveVerified": false
+      },
+      {
+        "id": "workbench",
+        "action": "reuse-bounds-first",
+        "reason": "30×26.51 almost native30×27; visibly overhead tool surface and horizontal frame. Keep source first, confirm contact/standing edge.",
+        "image": "frontend/assets/industrial/projection-correction/workbench.png",
+        "sha256": "57437e9ad775823f10a84e3c03c1a5fd355f9857874fbd491e7f2048ee3f0e99",
+        "footprintTiles": {
+          "w": 2,
+          "h": 1
+        },
+        "sourceSize": {
+          "width": 86,
+          "height": 76
+        },
+        "nativeStandingEnvelope": {
+          "x": -1,
+          "y": -15,
+          "width": 30,
+          "height": 27
+        },
+        "currentManifestEnvelope": {
+          "x": -1,
+          "y": -14.5116,
+          "width": 30,
+          "height": 26.5116
+        },
+        "uniformFitIntoNative": {
+          "width": 30,
+          "height": 26.51
+        },
+        "nativeViews": {
+          "s": {
+            "footprint": {
+              "w": 2,
+              "h": 1
+            },
+            "bounds": {
+              "x": -1,
+              "y": -15,
+              "width": 30,
+              "height": 27
+            }
+          }
+        },
+        "liveVerified": false
+      },
+      {
+        "id": "bunk",
+        "action": "reuse-bounds-first",
+        "reason": "24×25.46 nearly native24×26. Keep body first; validate bed orientation and sleeper occlusion in room.",
+        "image": "frontend/assets/industrial/projection-correction/bunk.png",
+        "sha256": "f1d15dc7a370cdbbd846b721f0080356f092cc233fdb237a574a0cd89457d3e4",
+        "footprintTiles": {
+          "w": 2,
+          "h": 2
+        },
+        "sourceSize": {
+          "width": 82,
+          "height": 87
+        },
+        "nativeStandingEnvelope": {
+          "x": 0,
+          "y": -2,
+          "width": 24,
+          "height": 26
+        },
+        "currentManifestEnvelope": {
+          "x": 0,
+          "y": -1.4634,
+          "width": 24,
+          "height": 25.4634
+        },
+        "uniformFitIntoNative": {
+          "width": 24,
+          "height": 25.46
+        },
+        "nativeViews": {
+          "s": {
+            "footprint": {
+              "w": 2,
+              "h": 2
+            },
+            "bounds": {
+              "x": 0,
+              "y": -2,
+              "width": 24,
+              "height": 26
+            }
+          }
+        },
+        "liveVerified": false
+      },
+      {
+        "id": "sidetable",
+        "action": "reuse-bounds-first",
+        "reason": "Bare repair12×14.08 fits native12×15. Keep source; re-anchor tabletop support from actual ellipse, not old source coordinates.",
+        "image": "frontend/assets/industrial/projection-correction/sidetable.png",
+        "sha256": "6237868cfd2df133e31b2360a6764c6b35c5a2b29c2d47a2e4119a691231ee7d",
+        "footprintTiles": {
+          "w": 1,
+          "h": 1
+        },
+        "sourceSize": {
+          "width": 173,
+          "height": 203
+        },
+        "nativeStandingEnvelope": {
+          "x": 0,
+          "y": -3,
+          "width": 12,
+          "height": 15
+        },
+        "currentManifestEnvelope": {
+          "x": 0,
+          "y": -2.0809,
+          "width": 12,
+          "height": 14.0809
+        },
+        "uniformFitIntoNative": {
+          "width": 12,
+          "height": 14.08
+        },
+        "nativeViews": {
+          "s": {
+            "footprint": {
+              "w": 1,
+              "h": 1
+            },
+            "bounds": {
+              "x": 0,
+              "y": -3,
+              "width": 12,
+              "height": 15
+            }
+          }
+        },
+        "liveVerified": false
+      },
+      {
+        "id": "longtable",
+        "action": "reuse-bounds-first",
+        "reason": "Bare primary38×19.99 vs native38×18 is10% height mismatch. First constrain native envelope and inspect34.22px fitted width; regenerate only if room requires full38 span. East view especially needs separate fit review.",
+        "image": "frontend/assets/industrial/projection-correction/longtable.png",
+        "sha256": "24513a547387a625fbf2fe91209c27e69a9721b643e06a5c315b0db31b5a3dd3",
+        "footprintTiles": {
+          "w": 3,
+          "h": 1
+        },
+        "sourceSize": {
+          "width": 384,
+          "height": 202
+        },
+        "nativeStandingEnvelope": {
+          "x": -1,
+          "y": -6,
+          "width": 38,
+          "height": 18
+        },
+        "currentManifestEnvelope": {
+          "x": -1,
+          "y": -7.9896,
+          "width": 38,
+          "height": 19.9896
+        },
+        "uniformFitIntoNative": {
+          "width": 34.22,
+          "height": 18
+        },
+        "nativeViews": {
+          "s": {
+            "footprint": {
+              "w": 3,
+              "h": 1
+            },
+            "bounds": {
+              "x": -1,
+              "y": -6,
+              "width": 38,
+              "height": 18
+            }
+          },
+          "e": {
+            "footprint": {
+              "w": 1,
+              "h": 3
+            },
+            "bounds": {
+              "x": -2,
+              "y": 0,
+              "width": 16,
+              "height": 36
+            }
+          }
+        },
+        "liveVerified": false
+      },
+      {
+        "id": "loungetable",
+        "action": "reuse-bounds-first",
+        "reason": "24×17.23 nearly native24×18. Keep broad ellipse first and update authored mount support for both views.",
+        "image": "frontend/assets/industrial/projection-correction/loungetable.png",
+        "sha256": "f75e50930edebaeb4390d6ae58a83c441baaa921797dcf24a28f76c0ed5cee02",
+        "footprintTiles": {
+          "w": 2,
+          "h": 1
+        },
+        "sourceSize": {
+          "width": 78,
+          "height": 56
+        },
+        "nativeStandingEnvelope": {
+          "x": 0,
+          "y": -6,
+          "width": 24,
+          "height": 18
+        },
+        "currentManifestEnvelope": {
+          "x": 0,
+          "y": -5.2308,
+          "width": 24,
+          "height": 17.2308
+        },
+        "uniformFitIntoNative": {
+          "width": 24,
+          "height": 17.23
+        },
+        "nativeViews": {
+          "s": {
+            "footprint": {
+              "w": 2,
+              "h": 1
+            },
+            "bounds": {
+              "x": 0,
+              "y": -6,
+              "width": 24,
+              "height": 18
+            }
+          },
+          "e": {
+            "footprint": {
+              "w": 1,
+              "h": 2
+            },
+            "bounds": {
+              "x": -1,
+              "y": 0,
+              "width": 14,
+              "height": 24
+            }
+          }
+        },
+        "liveVerified": false
+      },
+      {
+        "id": "booth",
+        "action": "reuse-bounds-first",
+        "reason": "24×18.42 nearly native24×19 with visible cushion plane. Keep first, evaluate actual facing and seated body/near-edge occlusion; side views separately.",
+        "image": "frontend/assets/industrial/projection-correction/booth.png",
+        "sha256": "8305a5b5521e774c3678a0c7a991230aa157c98d94defe9578559a83ddee5314",
+        "footprintTiles": {
+          "w": 2,
+          "h": 1
+        },
+        "sourceSize": {
+          "width": 86,
+          "height": 66
+        },
+        "nativeStandingEnvelope": {
+          "x": 0,
+          "y": -7,
+          "width": 24,
+          "height": 19
+        },
+        "currentManifestEnvelope": {
+          "x": 0,
+          "y": -6.4186,
+          "width": 24,
+          "height": 18.4186
+        },
+        "uniformFitIntoNative": {
+          "width": 24,
+          "height": 18.42
+        },
+        "nativeViews": {
+          "s": {
+            "footprint": {
+              "w": 2,
+              "h": 1
+            },
+            "bounds": {
+              "x": 0,
+              "y": -7,
+              "width": 24,
+              "height": 19
+            }
+          },
+          "w": {
+            "footprint": {
+              "w": 1,
+              "h": 2
+            },
+            "bounds": {
+              "x": 0,
+              "y": -5,
+              "width": 12,
+              "height": 29
+            }
+          },
+          "e": {
+            "footprint": {
+              "w": 1,
+              "h": 2
+            },
+            "bounds": {
+              "x": 0,
+              "y": -5,
+              "width": 12,
+              "height": 29
+            }
+          }
+        },
+        "liveVerified": false
+      },
+      {
+        "id": "dinerchair",
+        "action": "reuse-bounds-first",
+        "reason": "11×15.81 nearly native11×16. Keep and compare seat plane to accepted chair in all facings.",
+        "image": "frontend/assets/industrial/projection-correction/dinerchair.png",
+        "sha256": "94ff7b645328935bb9c82fddade75e06513c3978a45ec0d5304a4070f55a9a0b",
+        "footprintTiles": {
+          "w": 1,
+          "h": 1
+        },
+        "sourceSize": {
+          "width": 48,
+          "height": 69
+        },
+        "nativeStandingEnvelope": {
+          "x": 1,
+          "y": -4,
+          "width": 11,
+          "height": 16
+        },
+        "currentManifestEnvelope": {
+          "x": 1,
+          "y": -3.8125,
+          "width": 11,
+          "height": 15.8125
+        },
+        "uniformFitIntoNative": {
+          "width": 11,
+          "height": 15.81
+        },
+        "nativeViews": {
+          "s": {
+            "footprint": {
+              "w": 1,
+              "h": 1
+            },
+            "bounds": {
+              "x": 1,
+              "y": -4,
+              "width": 11,
+              "height": 16
+            }
+          },
+          "w": {
+            "footprint": {
+              "w": 1,
+              "h": 1
+            },
+            "bounds": {
+              "x": 0,
+              "y": -4,
+              "width": 11,
+              "height": 16
+            }
+          },
+          "n": {
+            "footprint": {
+              "w": 1,
+              "h": 1
+            },
+            "bounds": {
+              "x": 1,
+              "y": -4,
+              "width": 11,
+              "height": 16
+            }
+          },
+          "e": {
+            "footprint": {
+              "w": 1,
+              "h": 1
+            },
+            "bounds": {
+              "x": 1,
+              "y": -4,
+              "width": 11,
+              "height": 16
+            }
+          }
+        },
+        "liveVerified": false
+      },
+      {
+        "id": "stool",
+        "action": "reuse-bounds-first",
+        "reason": "10×11.88 vs10×11 small height mismatch; keep source and correct floor contact.",
+        "image": "frontend/assets/industrial/projection-correction/stool.png",
+        "sha256": "71dff90905cff953465fb89f2ac5e565344fd82aa51a41b84807f545c8389530",
+        "footprintTiles": {
+          "w": 1,
+          "h": 1
+        },
+        "sourceSize": {
+          "width": 48,
+          "height": 57
+        },
+        "nativeStandingEnvelope": {
+          "x": 1,
+          "y": 0,
+          "width": 10,
+          "height": 11
+        },
+        "currentManifestEnvelope": {
+          "x": 1,
+          "y": -0.875,
+          "width": 10,
+          "height": 11.875
+        },
+        "uniformFitIntoNative": {
+          "width": 9.26,
+          "height": 11
+        },
+        "nativeViews": {
+          "s": {
+            "footprint": {
+              "w": 1,
+              "h": 1
+            },
+            "bounds": {
+              "x": 1,
+              "y": 0,
+              "width": 10,
+              "height": 11
+            }
+          }
+        },
+        "liveVerified": false
+      },
+      {
+        "id": "beanbag",
+        "action": "reuse-bounds-first",
+        "reason": "14×11.28 nearly native14×11, broad top depression reads correctly. Keep first.",
+        "image": "frontend/assets/industrial/projection-correction/beanbag.png",
+        "sha256": "91acb23f7d4462180d9eefcb5ef7cb65b6989253f87e12b2eb1ed21f4522c531",
+        "footprintTiles": {
+          "w": 1,
+          "h": 1
+        },
+        "sourceSize": {
+          "width": 72,
+          "height": 58
+        },
+        "nativeStandingEnvelope": {
+          "x": -1,
+          "y": 1,
+          "width": 14,
+          "height": 11
+        },
+        "currentManifestEnvelope": {
+          "x": -1,
+          "y": 0.7222,
+          "width": 14,
+          "height": 11.2778
+        },
+        "uniformFitIntoNative": {
+          "width": 13.66,
+          "height": 11
+        },
+        "nativeViews": {
+          "s": {
+            "footprint": {
+              "w": 1,
+              "h": 1
+            },
+            "bounds": {
+              "x": -1,
+              "y": 1,
+              "width": 14,
+              "height": 11
+            }
+          }
+        },
+        "liveVerified": false
+      }
+    ],
+    "recent-correction": [
+      {
+        "id": "recliner",
+        "action": "retain-current-candidate",
+        "reason": "Recent opposed source correction already uses17×19 native envelope. Do not regenerate preemptively while couch is being fixed; room seating check still required.",
+        "image": "frontend/assets/industrial/projection-correction/recliner.png",
+        "sha256": "0f7e7d44ff021cb05b59f9079ffdc0b2fb0adc150c3e93a8c739101b5fcf24d1",
+        "footprintTiles": {
+          "w": 1,
+          "h": 1
+        },
+        "sourceSize": {
+          "width": 232,
+          "height": 258
+        },
+        "nativeStandingEnvelope": {
+          "x": -3,
+          "y": -7,
+          "width": 17,
+          "height": 19
+        },
+        "currentManifestEnvelope": {
+          "x": -3,
+          "y": -7,
+          "width": 17,
+          "height": 19
+        },
+        "uniformFitIntoNative": {
+          "width": 17,
+          "height": 18.91
+        },
+        "nativeViews": {
+          "s": {
+            "footprint": {
+              "w": 1,
+              "h": 1
+            },
+            "bounds": {
+              "x": -3,
+              "y": -7,
+              "width": 17,
+              "height": 19
+            }
+          }
+        },
+        "liveVerified": false
+      },
+      {
+        "id": "recliner_r",
+        "action": "retain-current-candidate",
+        "reason": "Recent opposed source correction already uses17×19 native envelope. Keep distinct left/right sources; no bitmap rotation.",
+        "image": "frontend/assets/industrial/projection-correction/recliner_r.png",
+        "sha256": "fd08e3155b6958eddf2279ec6d2abcf5903f69ec7237a805e742019c7c7f73f5",
+        "footprintTiles": {
+          "w": 1,
+          "h": 1
+        },
+        "sourceSize": {
+          "width": 232,
+          "height": 259
+        },
+        "nativeStandingEnvelope": {
+          "x": -2,
+          "y": -7,
+          "width": 17,
+          "height": 19
+        },
+        "currentManifestEnvelope": {
+          "x": -2,
+          "y": -7,
+          "width": 17,
+          "height": 19
+        },
+        "uniformFitIntoNative": {
+          "width": 17,
+          "height": 18.98
+        },
+        "nativeViews": {
+          "s": {
+            "footprint": {
+              "w": 1,
+              "h": 1
+            },
+            "bounds": {
+              "x": -2,
+              "y": -7,
+              "width": 17,
+              "height": 19
+            }
+          }
+        },
+        "liveVerified": false
+      }
+    ],
+    "protected-anchor-context": [
+      {
+        "id": "desk",
+        "action": "defer",
+        "reason": "Canonical3-tile desk is not accepted compact two-tile workstation fallback. Do not replace the accepted live fallback. Audit canonical s,w,n,e separately only when scheduled.",
+        "image": "frontend/assets/industrial/projection-correction/desk.png",
+        "sha256": "49e35c9b58a2e1f4939ed1320e70e4f11a54b46afbe46661122638ddf7ca5fd4",
+        "footprintTiles": {
+          "w": 3,
+          "h": 1
+        },
+        "sourceSize": {
+          "width": 91,
+          "height": 68
+        },
+        "nativeStandingEnvelope": {
+          "x": -1,
+          "y": -11,
+          "width": 38,
+          "height": 23
+        },
+        "currentManifestEnvelope": {
+          "x": -1,
+          "y": -16.3956,
+          "width": 38,
+          "height": 28.3956
+        },
+        "uniformFitIntoNative": {
+          "width": 30.78,
+          "height": 23
+        },
+        "nativeViews": {
+          "s": {
+            "footprint": {
+              "w": 3,
+              "h": 1
+            },
+            "bounds": {
+              "x": -1,
+              "y": -11,
+              "width": 38,
+              "height": 23
+            }
+          },
+          "w": {
+            "footprint": {
+              "w": 1,
+              "h": 3
+            },
+            "bounds": {
+              "x": -3,
+              "y": -5,
+              "width": 18,
+              "height": 41
+            }
+          },
+          "n": {
+            "footprint": {
+              "w": 3,
+              "h": 1
+            },
+            "bounds": {
+              "x": -2,
+              "y": -11,
+              "width": 40,
+              "height": 23
+            }
+          },
+          "e": {
+            "footprint": {
+              "w": 1,
+              "h": 3
+            },
+            "bounds": {
+              "x": -3,
+              "y": -5,
+              "width": 18,
+              "height": 41
+            }
+          }
+        },
+        "liveVerified": false
+      },
+      {
+        "id": "desk2",
+        "action": "defer",
+        "reason": "Canonical3-tile desk2 source is narrower/taller than native38×23. Requires later full directional workstation task; do not confuse with accepted compact workstation render.",
+        "image": "frontend/assets/industrial/projection-correction/desk2.png",
+        "sha256": "ddfa301af6029b8bd95c96ae3e1236752a29382da065d4af5a3430892da74ce3",
+        "footprintTiles": {
+          "w": 3,
+          "h": 1
+        },
+        "sourceSize": {
+          "width": 74,
+          "height": 71
+        },
+        "nativeStandingEnvelope": {
+          "x": -1,
+          "y": -11,
+          "width": 38,
+          "height": 23
+        },
+        "currentManifestEnvelope": {
+          "x": -1,
+          "y": -24.4595,
+          "width": 38,
+          "height": 36.4595
+        },
+        "uniformFitIntoNative": {
+          "width": 23.97,
+          "height": 23
+        },
+        "nativeViews": {
+          "s": {
+            "footprint": {
+              "w": 3,
+              "h": 1
+            },
+            "bounds": {
+              "x": -1,
+              "y": -11,
+              "width": 38,
+              "height": 23
+            }
+          },
+          "w": {
+            "footprint": {
+              "w": 1,
+              "h": 3
+            },
+            "bounds": {
+              "x": -3,
+              "y": -5,
+              "width": 18,
+              "height": 41
+            }
+          },
+          "n": {
+            "footprint": {
+              "w": 3,
+              "h": 1
+            },
+            "bounds": {
+              "x": -2,
+              "y": -11,
+              "width": 40,
+              "height": 23
+            }
+          },
+          "e": {
+            "footprint": {
+              "w": 1,
+              "h": 3
+            },
+            "bounds": {
+              "x": -3,
+              "y": -5,
+              "width": 18,
+              "height": 41
+            }
+          }
+        },
+        "liveVerified": false
+      }
+    ]
+  },
+  "limits": [
+    "Classification is source/geometry triage, not live visual acceptance. Bounds-first means try source without regeneration, not approved.",
+    "Do not use the current aspect-derived manifest height as physical truth. Restore native bounds before comparing, then regenerate silhouettes that lose major footprint coverage.",
+    "Accepted TV, arcade pair and pool table excluded; improved aquarium excluded; root-owned couch correction excluded.",
+    "Native support points, facings, seating masks and content regions must be remeasured after source regeneration."
+  ]
+}

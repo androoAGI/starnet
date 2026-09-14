@@ -1,0 +1,202 @@
+{
+  "bookshelf": [
+    "wide-storage",
+    "regenerate",
+    "Rebuild as a low wide wooden bookcase: visible top plane, two broad shelf cavities, grouped books. Current tall front elevation plus top plant makes native fit only 18.82px wide instead of26."
+  ],
+  "shelf": [
+    "wide-storage",
+    "regenerate",
+    "Four-tile shelf needs a horizontal53×26 envelope; current nearly square bay is physically too tall when made53px wide."
+  ],
+  "industrial_drawerbank": [
+    "wide-storage",
+    "regenerate",
+    "Three-tile drawer bank must be a low36×15 horizontal bank; current two-column upright chest becomes38.86px tall."
+  ],
+  "arc_indexwall": [
+    "wide-storage",
+    "regenerate",
+    "Four-tile archive index needs a low wide wall of drawers. Current square cabinet expands to45.12px tall against23 native."
+  ],
+  "rackV": [
+    "deep-storage",
+    "regenerate",
+    "Native is a narrow1×2 server tower with blade and LED rows, not open shelving. Re-author slim14×36 silhouette and real north-south depth."
+  ],
+  "industrial_servicecab": [
+    "deep-storage",
+    "regenerate",
+    "Native1×2 footprint and12×29 envelope require deep narrow cabinet; current square front compresses to12.17px high."
+  ],
+  "war_intelcab": [
+    "deep-storage",
+    "regenerate",
+    "Native1×2 intelligence cabinet needs narrow17×31 body and deep top; current wide console shrinks to17×15."
+  ],
+  "safe": [
+    "deep-storage",
+    "regenerate",
+    "Native1×2 safe needs depth along screen y and18×32 body; current short front-heavy safe is only23.45px tall at width18. Preserve wheel/lock face with more receding body."
+  ],
+  "industrial_locker": [
+    "medium-storage",
+    "regenerate",
+    "Two-tile24×24 locker is drawn as narrow tall55×83 silhouette; native fit loses one third of width. Re-author broader locker with anchor camera."
+  ],
+  "rack": [
+    "medium-storage",
+    "regenerate",
+    "Two-tile server bank native29×26 is wider than current68×92 tower. Re-author broad rack while preserving server function and bounded status surfaces."
+  ],
+  "vault": [
+    "medium-storage",
+    "regenerate",
+    "Three-by-two vault native44×29 is much wider/lower than77×80 square safe source. Re-author wide heavy vault with visible top depth."
+  ],
+  "industrial_toolcaddy": [
+    "angled-small-storage",
+    "regenerate",
+    "Current tray and wheel axes are diagonally yawed. Match accepted workstation horizontal front edge; retain tools and1×1 footprint."
+  ],
+  "gigs_servercart": [
+    "angled-small-storage",
+    "regenerate",
+    "Current laptop-cart top and frame are diamond-yawed. New source needed to make horizontal front with visible north-south top depth; bounds cannot unyaw."
+  ],
+  "boxes": [
+    "angled-small-storage",
+    "regenerate",
+    "Current three cartons make tall dense cluster. Spread broad box masses over2×1 native24×13 envelope with consistent accepted floor axes."
+  ],
+  "industrial_bench": [
+    "wide-work-surfaces",
+    "regenerate",
+    "Current three-tile cushion body is too deep/square: native fit width19.56 vs36. Re-author wide backless seat, preserve blue upholstery."
+  ],
+  "lowtable": [
+    "wide-work-surfaces",
+    "regenerate",
+    "Current image full-width fit is too tall for38×17; existing correction further narrows to30.35. Re-author long shallow top and supported feet; matching east view and mount anchors required."
+  ],
+  "glasstable": [
+    "wide-work-surfaces",
+    "regenerate",
+    "Current top fits only27.51px of36 native width at18 high. Re-author horizontal broad shallow glass top with matching east view and mount anchors."
+  ],
+  "bench": [
+    "wide-work-surfaces",
+    "regenerate",
+    "Four-tile54×26 work bench is only34.27px wide when constrained to native height. Re-author broad work surface, grouped tools, clear standing front."
+  ],
+  "dinertable": [
+    "shared-table-surfaces",
+    "regenerate",
+    "Native dinerTop is a separate butcher-block table; source bakes two red chairs. Re-author standalone3×2 table and2×3 east view; keep native mounted-child support independent."
+  ],
+  "bar": [
+    "shared-table-surfaces",
+    "regenerate",
+    "Native4×1 bar has open standing front, panelled counter and integrated back shelf. Source bakes stools and becomes43px tall vs24 native. Re-author50×24 clear-front bar."
+  ],
+  "industrial_roundtable": [
+    "shared-table-surfaces",
+    "regenerate",
+    "Current nearly circular top projects too deeply; whole source native fit becomes14.84px wide instead24. Re-author shallower ellipse and low pedestal with accepted overhead camera."
+  ],
+  "podchair": [
+    "remaining-seat",
+    "regenerate",
+    "Current wide egg source only10.92px tall when width10; native body10×17. Re-author narrower upright egg with visible seat plane; all s,w,n,e facings need matching seat/foreground anchors."
+  ],
+  "quarters_lockerbank": [
+    "bounds-first",
+    "reuse-bounds-first",
+    "Near native aspect:38×34.16 vs38×32. Try native envelope/contact and room comparison first; only regenerate if cap depth still fails accepted camera."
+  ],
+  "trophycase": [
+    "bounds-first",
+    "reuse-bounds-first",
+    "26×29.47 nearly native26×30 and horizontal frame. Keep source first; earned trophy content must remain truthful and masks independent."
+  ],
+  "industrial_supplycart": [
+    "bounds-first",
+    "reuse-bounds-first",
+    "22×22.59 nearly native22×23; axes are horizontal. Retain source and calibrate wheel contact."
+  ],
+  "gigs_partsbin": [
+    "bounds-first",
+    "reuse-bounds-first",
+    "26×20.61 vs26×19 is a small fit discrepancy. Retain open-bin source first; keep fill contents decorative/runtime contract distinct."
+  ],
+  "goldcrate": [
+    "bounds-first",
+    "reuse-bounds-first",
+    "26×20.36 fits26×22; horizontal lid axes and broad form are plausible. Compare directly to accepted crate without recoloring approved gold material."
+  ],
+  "workbench": [
+    "bounds-first",
+    "reuse-bounds-first",
+    "30×26.51 almost native30×27; visibly overhead tool surface and horizontal frame. Keep source first, confirm contact/standing edge."
+  ],
+  "bunk": [
+    "bounds-first",
+    "reuse-bounds-first",
+    "24×25.46 nearly native24×26. Keep body first; validate bed orientation and sleeper occlusion in room."
+  ],
+  "sidetable": [
+    "bounds-first",
+    "reuse-bounds-first",
+    "Bare repair12×14.08 fits native12×15. Keep source; re-anchor tabletop support from actual ellipse, not old source coordinates."
+  ],
+  "longtable": [
+    "bounds-first",
+    "reuse-bounds-first",
+    "Bare primary38×19.99 vs native38×18 is10% height mismatch. First constrain native envelope and inspect34.22px fitted width; regenerate only if room requires full38 span. East view especially needs separate fit review."
+  ],
+  "loungetable": [
+    "bounds-first",
+    "reuse-bounds-first",
+    "24×17.23 nearly native24×18. Keep broad ellipse first and update authored mount support for both views."
+  ],
+  "booth": [
+    "bounds-first",
+    "reuse-bounds-first",
+    "24×18.42 nearly native24×19 with visible cushion plane. Keep first, evaluate actual facing and seated body/near-edge occlusion; side views separately."
+  ],
+  "dinerchair": [
+    "bounds-first",
+    "reuse-bounds-first",
+    "11×15.81 nearly native11×16. Keep and compare seat plane to accepted chair in all facings."
+  ],
+  "stool": [
+    "bounds-first",
+    "reuse-bounds-first",
+    "10×11.88 vs10×11 small height mismatch; keep source and correct floor contact."
+  ],
+  "beanbag": [
+    "bounds-first",
+    "reuse-bounds-first",
+    "14×11.28 nearly native14×11, broad top depression reads correctly. Keep first."
+  ],
+  "recliner": [
+    "recent-correction",
+    "retain-current-candidate",
+    "Recent opposed source correction already uses17×19 native envelope. Do not regenerate preemptively while couch is being fixed; room seating check still required."
+  ],
+  "recliner_r": [
+    "recent-correction",
+    "retain-current-candidate",
+    "Recent opposed source correction already uses17×19 native envelope. Keep distinct left/right sources; no bitmap rotation."
+  ],
+  "desk": [
+    "protected-anchor-context",
+    "defer",
+    "Canonical3-tile desk is not accepted compact two-tile workstation fallback. Do not replace the accepted live fallback. Audit canonical s,w,n,e separately only when scheduled."
+  ],
+  "desk2": [
+    "protected-anchor-context",
+    "defer",
+    "Canonical3-tile desk2 source is narrower/taller than native38×23. Requires later full directional workstation task; do not confuse with accepted compact workstation render."
+  ]
+}
