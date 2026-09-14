@@ -787,3 +787,4 @@ test/chat-history-reconcile.test.js
 test/arrival.test.js
 
 test/genesis-wake-credential.test.js
+test/dossier-growth-live.test.js

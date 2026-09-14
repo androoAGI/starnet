@@ -18,7 +18,7 @@
   "expectedClaimCount": 37,
   "releaseSurface": {
     "algorithm": "sha256",
-    "sourceCommit": "49733139ec126ced0db47ea4cb972bd5e7c25d9b",
+    "sourceCommit": "cb5a3171401c2006e7702b9d8a9991baabd01db4",
     "pathSetSha256": "351b99eefc97dea05f446766c5f9412bac5e270902bdc49695a7b07bdfa464ed",
     "files": [
       {
@@ -833,8 +833,8 @@
       },
       {
         "path": "frontend/app/stationui.js",
-        "bytes": 730866,
-        "sha256": "35e03f48254269d3e09217878db764a62707fb442d1d50654999eefbb69f21f0"
+        "bytes": 732496,
+        "sha256": "6bfd0988e0e4f8fad9061c90c5b5180c25d58a7785ed3710a0b843456562ee70"
       },
       {
         "path": "frontend/app/study.js",
@@ -1098,13 +1098,13 @@
       },
       {
         "path": "frontend/app/xp.js",
-        "bytes": 37386,
-        "sha256": "f110743ffde976b5a7df51d21465e95de3f451a6f0a279cda96b1d7640bf78c1"
+        "bytes": 37399,
+        "sha256": "33ae75ae8c3a1b87f108ca9cbdb3da4d03a62a5b697f369dd860a28460959527"
       },
       {
         "path": "frontend/app/xpstore.js",
-        "bytes": 21245,
-        "sha256": "4c01ff53de1543cba6e51feee4be35b27d3586f6515f7f8b8bf6f6dd3cbe08d6"
+        "bytes": 23724,
+        "sha256": "e8209bb05d8e41cba564296ce87e91da06177f2fb4f1a42b879e6a52eb39dfe5"
       },
       {
         "path": "frontend/app/zones.js",

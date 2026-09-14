@@ -531,5 +531,5 @@
     return MILESTONES.map(m => ({ id: m.id, label: m.label, hint: m.hint, earned: earned.indexOf(m.id) !== -1 }));
   }
 
-  return { fresh, clone, applyEvent, reconcile, compute, reliability, credential, practice, scoreEvent, levelForXp, xpForLevel, milestones, MILESTONES, LEVEL_K, MIN_SAMPLES, MIN_RUNS, workSize, crewSplit };
+  return { fresh, clone, applyEvent, reconcile, compute, reliability, credential, practice, scoreEvent, levelForXp, xpForLevel, milestones, MILESTONES, LEVEL_K, MIN_SAMPLES, MIN_RUNS, RECEIPT_CAP, workSize, crewSplit };
 });
