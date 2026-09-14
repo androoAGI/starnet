@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "inspected": [
+    "all complete sources",
+    "4x native world comparison",
+    "mug handle opening and lamp arm clear alpha"
+  ],
+  "checks": "Eight native envelopes >=90%; source RGBA retained exactly; sources/prompt correction chain preserved.",
+  "functionalNotes": {
+    "mug": "No baked steam; retarget steam origin inside visible coffee rim.",
+    "radio": "Real analog needle baked static; retarget motion to new dial if enabled.",
+    "modelship": "Hull points east, engines west; tiny display stand retained.",
+    "desklamp": "Static illuminated shade; preserve native steady light capability.",
+    "easel": "Painted cream canvas remains canvas, not screen; any work paint effect must target new canvas.",
+    "bookstack": "Three stacked hardbacks; static.",
+    "figurine": "Carved bust not full figure."
+  },
+  "liveAccepted": false
+}
