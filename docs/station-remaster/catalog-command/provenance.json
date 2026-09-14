@@ -1,0 +1,170 @@
+{
+  "version": 1,
+  "tool": "image_gen built-in",
+  "primaryProjectionReferences": [
+    {
+      "path": "frontend/assets/industrial/workstation.png",
+      "sha256": "f58e27eb623bb0ea9f77107ce9a90fbda7b4714b0feaa4e9f74a035d76ea78c4"
+    },
+    {
+      "path": "frontend/assets/industrial/projection-correction/tv.png",
+      "sha256": "6e3e8c7a1b30b32df65141c957373e477b323c575202b4c0598443b47eb3d36c"
+    },
+    {
+      "path": "frontend/assets/industrial/projection-correction/quarters_pooltable.png",
+      "sha256": "6fca3b889d28186dc4cc20bd7634628d3fa06cb4bfb1db226f5d68f8adab872d"
+    },
+    {
+      "path": "frontend/assets/industrial/approved-sheet/crate.png",
+      "sha256": "a4c596600f4c1c0bf0c2f4df0892a9f0c49b074dd91079b5926b0fd27cd0ba16"
+    }
+  ],
+  "nativeGuideRoot": "C:/Users/andro/gen-trees/industrial-textures-0912/dev/.scratch-workspace/prop-structure/",
+  "nativeGuidesInspected": [
+    "console",
+    "consoleL",
+    "bench",
+    "bridge_consolebank",
+    "bridge_equipmentbay",
+    "bigscreen",
+    "holotable",
+    "bridge_tacticaltable"
+  ],
+  "sources": [
+    {
+      "source": "docs/station-remaster/catalog-command/sheet-v1-source.png",
+      "sha256": "98daed3c08c8c53826c58876deed4898d474b34b65471ae7924d577cf031cabb",
+      "prompt": "docs/station-remaster/catalog-command/sheet-v1.prompt.txt",
+      "generatedOriginalPath": "C:/Users/andro/.codex/generated_images/01a09e47-65ec-7a71-b4a1-4847c19fc477/exec-519e8844-09fc-461b-abc1-80bb547dc096.png",
+      "selectedFor": [
+        "bridge_consolebank",
+        "bigscreen"
+      ]
+    },
+    {
+      "source": "docs/station-remaster/catalog-command/sheet-v2-source.png",
+      "sha256": "020a24b0069018d1b6837387cd2964722fdf01df2531f26eb576ad7b665dede8",
+      "prompt": "docs/station-remaster/catalog-command/sheet-v2.prompt.txt",
+      "generatedOriginalPath": "C:/Users/andro/.codex/generated_images/01a09e47-65ec-7a71-b4a1-4847c19fc477/exec-d656c397-a9ac-4142-a799-54a6f7edcaf2.png",
+      "selectedFor": []
+    },
+    {
+      "source": "docs/station-remaster/catalog-command/console-source.png",
+      "sha256": "ded23a366a763355b43fe3a9ccd6e8a55006fafe8a3ee590ab9a7e3dd12b6f2a",
+      "prompt": "docs/station-remaster/catalog-command/console.prompt.txt",
+      "generatedOriginalPath": "C:/Users/andro/.codex/generated_images/01a09e47-65ec-7a71-b4a1-4847c19fc477/exec-e3eb8b67-0138-492c-8a8c-b1d51b6c93e3.png",
+      "selectedFor": []
+    },
+    {
+      "source": "docs/station-remaster/catalog-command/consoleL-source.png",
+      "sha256": "0d2b57e1eb8905ccfb23499be4137f6a06b8904aa7d69e85427c3e79553240c3",
+      "prompt": "docs/station-remaster/catalog-command/consoleL.prompt.txt",
+      "generatedOriginalPath": "C:/Users/andro/.codex/generated_images/01a09e47-65ec-7a71-b4a1-4847c19fc477/exec-0565ab0b-db11-438c-ae6d-8ef2c89faa27.png",
+      "selectedFor": []
+    },
+    {
+      "source": "docs/station-remaster/catalog-command/bench-source.png",
+      "sha256": "af0d51a32c5251dd56e1d8ba923835f17706257b3be178e86e7c3eb4ca3bd5ea",
+      "prompt": "docs/station-remaster/catalog-command/bench.prompt.txt",
+      "generatedOriginalPath": "C:/Users/andro/.codex/generated_images/01a09e47-65ec-7a71-b4a1-4847c19fc477/exec-13fea611-745b-43aa-8621-878da153ddf6.png",
+      "selectedFor": []
+    },
+    {
+      "source": "docs/station-remaster/catalog-command/console-v2-source.png",
+      "sha256": "9b16ec410d1f493787b7dea0248e98d6cf3691855ed1cc6b4f12026dab0f4005",
+      "prompt": "docs/station-remaster/catalog-command/console-v2.prompt.txt",
+      "generatedOriginalPath": "C:/Users/andro/.codex/generated_images/01a09e47-65ec-7a71-b4a1-4847c19fc477/exec-8ff32f3a-7f03-416e-b7f4-586aec08c1b4.png",
+      "selectedFor": [
+        "console"
+      ]
+    },
+    {
+      "source": "docs/station-remaster/catalog-command/consoleL-v2-source.png",
+      "sha256": "bbc18755013dfe551bbddb81e5664ff700a5144b4d66b4e0cc6898ae306fb882",
+      "prompt": "docs/station-remaster/catalog-command/consoleL-v2.prompt.txt",
+      "generatedOriginalPath": "C:/Users/andro/.codex/generated_images/01a09e47-65ec-7a71-b4a1-4847c19fc477/exec-cd4be930-c9de-4012-9741-4078d00f12f0.png",
+      "selectedFor": []
+    },
+    {
+      "source": "docs/station-remaster/catalog-command/bench-v2-source.png",
+      "sha256": "4d5059a3440bb5a6274868bbe12b0e0690f882b0488ab172fc5aa2a3a621411e",
+      "prompt": "docs/station-remaster/catalog-command/bench-v2.prompt.txt",
+      "generatedOriginalPath": "C:/Users/andro/.codex/generated_images/01a09e47-65ec-7a71-b4a1-4847c19fc477/exec-8bf83ba2-b362-480b-84cf-0b4f20b0b5e7.png",
+      "selectedFor": []
+    },
+    {
+      "source": "docs/station-remaster/catalog-command/bridge_equipmentbay-source.png",
+      "sha256": "41b2256d4d91132e170d2bfdd5d6822a5f8440e2158897fcb97b6e951b6d875d",
+      "prompt": "docs/station-remaster/catalog-command/bridge_equipmentbay.prompt.txt",
+      "generatedOriginalPath": "C:/Users/andro/.codex/generated_images/01a09e47-65ec-7a71-b4a1-4847c19fc477/exec-bb17b465-9e17-4ee7-bc2f-1b3d2b9749a2.png",
+      "selectedFor": []
+    },
+    {
+      "source": "docs/station-remaster/catalog-command/holotable-source.png",
+      "sha256": "6d5dd3fce48ea7a51e59b14cd2357c65e400b3e0c48aa66b17e5303519997928",
+      "prompt": "docs/station-remaster/catalog-command/holotable.prompt.txt",
+      "generatedOriginalPath": "C:/Users/andro/.codex/generated_images/01a09e47-65ec-7a71-b4a1-4847c19fc477/exec-0de171d3-8672-484c-9fda-869fe6b37fe2.png",
+      "selectedFor": []
+    },
+    {
+      "source": "docs/station-remaster/catalog-command/bridge_tacticaltable-source.png",
+      "sha256": "766a0adbac1ee89f126b13c2121146fd2553941b4f4acf86d3c77bbaea1bea5b",
+      "prompt": "docs/station-remaster/catalog-command/bridge_tacticaltable.prompt.txt",
+      "generatedOriginalPath": "C:/Users/andro/.codex/generated_images/01a09e47-65ec-7a71-b4a1-4847c19fc477/exec-2edeb052-bf4f-47ef-ae18-9e427b6bdd48.png",
+      "selectedFor": []
+    },
+    {
+      "source": "docs/station-remaster/catalog-command/consoleL-final-source.png",
+      "sha256": "0f0a663c4555fecd9120dd0703458f99e516d2117669db4e47b4940f69317810",
+      "prompt": "docs/station-remaster/catalog-command/consoleL-final.prompt.txt",
+      "generatedOriginalPath": "C:/Users/andro/.codex/generated_images/01a09e47-65ec-7a71-b4a1-4847c19fc477/exec-b10cc84c-7b32-43d1-a0af-5227b6a578bd.png",
+      "selectedFor": [
+        "consoleL"
+      ]
+    },
+    {
+      "source": "docs/station-remaster/catalog-command/bench-final-source.png",
+      "sha256": "7507ed20103d20abba395e8e21f1b4976f4dc13619f191350417dfef670e5eee",
+      "prompt": "docs/station-remaster/catalog-command/bench-final.prompt.txt",
+      "generatedOriginalPath": "C:/Users/andro/.codex/generated_images/01a09e47-65ec-7a71-b4a1-4847c19fc477/exec-cea1ed75-faee-4b50-b43f-a68a90925fed.png",
+      "selectedFor": [
+        "bench"
+      ]
+    },
+    {
+      "source": "docs/station-remaster/catalog-command/bridge_equipmentbay-final-source.png",
+      "sha256": "35eb9b38abd8165830400b51e534b1d27899527a52b83df566283fa2ce0ebea6",
+      "prompt": "docs/station-remaster/catalog-command/bridge_equipmentbay-final.prompt.txt",
+      "generatedOriginalPath": "C:/Users/andro/.codex/generated_images/01a09e47-65ec-7a71-b4a1-4847c19fc477/exec-de0944d3-53c9-4233-b9cf-9f1b7a465e8b.png",
+      "selectedFor": [
+        "bridge_equipmentbay"
+      ]
+    },
+    {
+      "source": "docs/station-remaster/catalog-command/bridge_tacticaltable-final-source.png",
+      "sha256": "730120434a1ce8d44f74c8ed3cd1cca9bcae3cbbe5b442655659574ec5dc3e7c",
+      "prompt": "docs/station-remaster/catalog-command/bridge_tacticaltable-final.prompt.txt",
+      "generatedOriginalPath": "C:/Users/andro/.codex/generated_images/01a09e47-65ec-7a71-b4a1-4847c19fc477/exec-f754c155-bc1f-4821-bcc3-79eb74184de9.png",
+      "selectedFor": [
+        "bridge_tacticaltable"
+      ]
+    },
+    {
+      "source": "docs/station-remaster/catalog-command/holotable-final-source.png",
+      "sha256": "b249b6ce9585c27cfde9f8991f15dbe022b55c370a7435627ffe0a0ca2f9c559",
+      "prompt": "docs/station-remaster/catalog-command/holotable-final.prompt.txt",
+      "generatedOriginalPath": "C:/Users/andro/.codex/generated_images/01a09e47-65ec-7a71-b4a1-4847c19fc477/exec-802b3ac8-4256-4784-891e-cdc27200d335.png",
+      "selectedFor": [
+        "holotable"
+      ]
+    }
+  ],
+  "preFinalInputs": "*-pre-final.png preserve exact PNGs supplied to final edits; pre-final-integration.json binds them to original generated source crops.",
+  "rejectedDirections": [
+    "Guide-derived equipmentbay and holotable copied old frontal projection; excluded despite native aspect guidance.",
+    "Initial sheet and individual versions often matched canvas ratio while opaque body remained shallow; source edits attempted and measured rather than changing bounds."
+  ],
+  "verification": "Eight final PNGs bytewise compared against decoded source crop: zero RGB changes, zero retained-alpha changes, zero opaque ROI edge pixels. Complete source and1x/2x/3x native-fit preview visually inspected.",
+  "geometryStatus": "Five source ratios within4.6% native; bench+9.7%, equipmentbay+13.1%, holotable+24.9% remain shallow. These three are explicit residual geometry candidates, not proof that source envelope target was met. No further generation cycle performed after bounded final attempt.",
+  "runtimeAccepted": false
+}
