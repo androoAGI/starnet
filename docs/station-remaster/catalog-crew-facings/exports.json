@@ -1,0 +1,606 @@
+{
+  "version": 1,
+  "count": 9,
+  "scope": "Nine supported alternate facings; four associated primary designs unchanged.",
+  "method": "Generated RGBA source preserved. Alpha>=180 core with radius3 preserves nearby original edge RGBA; remove detached fog/alpha1. Tight crop only, no RGB or retained alpha modification.",
+  "refs": [
+    {
+      "id": "dinerchair",
+      "path": "frontend\\assets\\industrial\\catalog-crew\\dinerchair.png",
+      "sha256": "aaed440b4f9e3eec27ab2a22315e57c517639dd67858be632631344157c97e11"
+    },
+    {
+      "id": "podchair",
+      "path": "frontend\\assets\\industrial\\catalog-crew\\podchair.png",
+      "sha256": "706927fb51caaf597e79fbd95d2ac872c118e7e08873b571ea00ed8ccc6590a3"
+    },
+    {
+      "id": "booth",
+      "path": "frontend\\assets\\industrial\\catalog-crew\\booth.png",
+      "sha256": "357b75e172ae7e7fb8cf46c5e00bc276f2949c5c66aea010f9ad79c60a7d4cef"
+    },
+    {
+      "id": "dinertable",
+      "path": "frontend\\assets\\industrial\\catalog-crew\\dinertable.png",
+      "sha256": "362375703cea48e3dfad67015b64767b39fbac4409e3756308ed269a1e8ce007"
+    }
+  ],
+  "records": [
+    {
+      "id": "dinerchair",
+      "view": "w",
+      "image": "frontend/assets/industrial/catalog-crew-facings/dinerchair-w.png",
+      "sourceWidth": 226,
+      "sourceHeight": 359,
+      "bounds": {
+        "x": 0,
+        "y": -4,
+        "width": 11,
+        "height": 16
+      },
+      "footprint": {
+        "w": 1,
+        "h": 1
+      },
+      "contact": {
+        "x": 0.5,
+        "y": 0.9902506963788301,
+        "space": "exported-image-normalized",
+        "targetWorld": {
+          "x": 6,
+          "y": 12
+        }
+      },
+      "fit": {
+        "x": 0.46378830083565425,
+        "y": -4,
+        "width": 10.072423398328691,
+        "height": 16
+      },
+      "underfill": {
+        "x": 0.9156748543935174,
+        "y": 1
+      },
+      "source": "docs\\station-remaster\\catalog-crew-facings\\sources\\sheet.png",
+      "sourceSha256": "1fc7962b3a247f1f62a4c52dc20a0fca41f375a8fff149710d3b89493a6196e0",
+      "sourceCrop": {
+        "left": 65,
+        "top": 37,
+        "width": 226,
+        "height": 359
+      },
+      "outputSha256": "83f592249092cb694cb0ec1abd000bc59e90df71f649f0172c37d34d55c9feb8",
+      "alphaBounds": {
+        "x": 0,
+        "y": 0,
+        "width": 226,
+        "height": 359
+      },
+      "alphaCounts": {
+        "transparent": 39565,
+        "partial": 41569,
+        "opaque": 0
+      },
+      "maxSourceAlpha": 254,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "removedFogPixels": 1778,
+      "retainedRgbChanges": 0,
+      "retainedAlphaChanges": 0,
+      "opaqueCellEdgePixels": 0,
+      "liveAccepted": false
+    },
+    {
+      "id": "dinerchair",
+      "view": "n",
+      "image": "frontend/assets/industrial/catalog-crew-facings/dinerchair-n.png",
+      "sourceWidth": 218,
+      "sourceHeight": 300,
+      "bounds": {
+        "x": 1,
+        "y": -4,
+        "width": 11,
+        "height": 16
+      },
+      "footprint": {
+        "w": 1,
+        "h": 1
+      },
+      "contact": {
+        "x": 0.5,
+        "y": 0.9883333333333333,
+        "space": "exported-image-normalized",
+        "targetWorld": {
+          "x": 6,
+          "y": 12
+        }
+      },
+      "fit": {
+        "x": 1,
+        "y": -3.1376146788990837,
+        "width": 11,
+        "height": 15.137614678899084
+      },
+      "underfill": {
+        "x": 1,
+        "y": 0.9461009174311927
+      },
+      "source": "docs\\station-remaster\\catalog-crew-facings\\sources\\sheet.png",
+      "sourceSha256": "1fc7962b3a247f1f62a4c52dc20a0fca41f375a8fff149710d3b89493a6196e0",
+      "sourceCrop": {
+        "left": 403,
+        "top": 96,
+        "width": 218,
+        "height": 300
+      },
+      "outputSha256": "78aa189e9907408bd7383110a8d4e2edf4a8874337baeb3ad0d6dfe34a218f5e",
+      "alphaBounds": {
+        "x": 0,
+        "y": 0,
+        "width": 218,
+        "height": 300
+      },
+      "alphaCounts": {
+        "transparent": 18443,
+        "partial": 46957,
+        "opaque": 0
+      },
+      "maxSourceAlpha": 254,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "removedFogPixels": 2251,
+      "retainedRgbChanges": 0,
+      "retainedAlphaChanges": 0,
+      "opaqueCellEdgePixels": 0,
+      "liveAccepted": false
+    },
+    {
+      "id": "dinerchair",
+      "view": "e",
+      "image": "frontend/assets/industrial/catalog-crew-facings/dinerchair-e.png",
+      "sourceWidth": 227,
+      "sourceHeight": 359,
+      "bounds": {
+        "x": 1,
+        "y": -4,
+        "width": 11,
+        "height": 16
+      },
+      "footprint": {
+        "w": 1,
+        "h": 1
+      },
+      "contact": {
+        "x": 0.5,
+        "y": 0.9902506963788301,
+        "space": "exported-image-normalized",
+        "targetWorld": {
+          "x": 6,
+          "y": 12
+        }
+      },
+      "fit": {
+        "x": 1.4415041782729805,
+        "y": -4,
+        "width": 10.116991643454039,
+        "height": 16
+      },
+      "underfill": {
+        "x": 0.9197265130412763,
+        "y": 1
+      },
+      "source": "docs\\station-remaster\\catalog-crew-facings\\sources\\sheet.png",
+      "sourceSha256": "1fc7962b3a247f1f62a4c52dc20a0fca41f375a8fff149710d3b89493a6196e0",
+      "sourceCrop": {
+        "left": 733,
+        "top": 37,
+        "width": 227,
+        "height": 359
+      },
+      "outputSha256": "9103e5f07187377da58478c180ced662a185f2c31a1e0ced5f63e36de6756abf",
+      "alphaBounds": {
+        "x": 0,
+        "y": 0,
+        "width": 227,
+        "height": 359
+      },
+      "alphaCounts": {
+        "transparent": 39917,
+        "partial": 41576,
+        "opaque": 0
+      },
+      "maxSourceAlpha": 254,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "removedFogPixels": 1530,
+      "retainedRgbChanges": 0,
+      "retainedAlphaChanges": 0,
+      "opaqueCellEdgePixels": 0,
+      "liveAccepted": false
+    },
+    {
+      "id": "podchair",
+      "view": "w",
+      "image": "frontend/assets/industrial/catalog-crew-facings/podchair-w.png",
+      "sourceWidth": 262,
+      "sourceHeight": 384,
+      "bounds": {
+        "x": 0,
+        "y": -5,
+        "width": 11,
+        "height": 17
+      },
+      "footprint": {
+        "w": 1,
+        "h": 1
+      },
+      "contact": {
+        "x": 0.5,
+        "y": 0.9908854166666666,
+        "space": "exported-image-normalized",
+        "targetWorld": {
+          "x": 6,
+          "y": 12
+        }
+      },
+      "fit": {
+        "x": 0,
+        "y": -4.122137404580151,
+        "width": 11,
+        "height": 16.12213740458015
+      },
+      "underfill": {
+        "x": 1,
+        "y": 0.9483610237988325
+      },
+      "source": "docs\\station-remaster\\catalog-crew-facings\\sources\\sheet.png",
+      "sourceSha256": "1fc7962b3a247f1f62a4c52dc20a0fca41f375a8fff149710d3b89493a6196e0",
+      "sourceCrop": {
+        "left": 42,
+        "top": 455,
+        "width": 262,
+        "height": 384
+      },
+      "outputSha256": "0b15c34125f3cb6645828920eb133f6b5f3160870aba2b1c30c42fe9229ceb6f",
+      "alphaBounds": {
+        "x": 0,
+        "y": 0,
+        "width": 262,
+        "height": 384
+      },
+      "alphaCounts": {
+        "transparent": 27235,
+        "partial": 73373,
+        "opaque": 0
+      },
+      "maxSourceAlpha": 254,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "removedFogPixels": 1258,
+      "retainedRgbChanges": 0,
+      "retainedAlphaChanges": 0,
+      "opaqueCellEdgePixels": 0,
+      "liveAccepted": false
+    },
+    {
+      "id": "podchair",
+      "view": "n",
+      "image": "frontend/assets/industrial/catalog-crew-facings/podchair-n.png",
+      "sourceWidth": 356,
+      "sourceHeight": 650,
+      "bounds": {
+        "x": 1,
+        "y": -5,
+        "width": 10,
+        "height": 17
+      },
+      "footprint": {
+        "w": 1,
+        "h": 1
+      },
+      "contact": {
+        "x": 0.5,
+        "y": 0.9961538461538462,
+        "space": "exported-image-normalized",
+        "targetWorld": {
+          "x": 6,
+          "y": 12
+        }
+      },
+      "fit": {
+        "x": 1.344615384615385,
+        "y": -5,
+        "width": 9.31076923076923,
+        "height": 17
+      },
+      "underfill": {
+        "x": 0.931076923076923,
+        "y": 1
+      },
+      "source": "docs\\station-remaster\\catalog-crew-facings\\sources\\repair.png",
+      "sourceSha256": "9adc7d3a840c574c5031cb07218b4affd823af360f1dd22f7dbb6e0ba764428a",
+      "sourceCrop": {
+        "left": 113,
+        "top": 13,
+        "width": 356,
+        "height": 650
+      },
+      "outputSha256": "55696264d747b83de6248233388704f5465dd77aa268808a9a5bb5e87b3a4c69",
+      "alphaBounds": {
+        "x": 0,
+        "y": 0,
+        "width": 356,
+        "height": 650
+      },
+      "alphaCounts": {
+        "transparent": 59234,
+        "partial": 171524,
+        "opaque": 642
+      },
+      "maxSourceAlpha": 255,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "removedFogPixels": 1288,
+      "retainedRgbChanges": 0,
+      "retainedAlphaChanges": 0,
+      "opaqueCellEdgePixels": 0,
+      "liveAccepted": false
+    },
+    {
+      "id": "podchair",
+      "view": "e",
+      "image": "frontend/assets/industrial/catalog-crew-facings/podchair-e.png",
+      "sourceWidth": 262,
+      "sourceHeight": 386,
+      "bounds": {
+        "x": 1,
+        "y": -5,
+        "width": 11,
+        "height": 17
+      },
+      "footprint": {
+        "w": 1,
+        "h": 1
+      },
+      "contact": {
+        "x": 0.5,
+        "y": 0.9909326424870466,
+        "space": "exported-image-normalized",
+        "targetWorld": {
+          "x": 6,
+          "y": 12
+        }
+      },
+      "fit": {
+        "x": 1,
+        "y": -4.206106870229007,
+        "width": 11,
+        "height": 16.206106870229007
+      },
+      "underfill": {
+        "x": 1,
+        "y": 0.953300404131118
+      },
+      "source": "docs\\station-remaster\\catalog-crew-facings\\sources\\sheet.png",
+      "sourceSha256": "1fc7962b3a247f1f62a4c52dc20a0fca41f375a8fff149710d3b89493a6196e0",
+      "sourceCrop": {
+        "left": 720,
+        "top": 454,
+        "width": 262,
+        "height": 386
+      },
+      "outputSha256": "97d288fe7d695a482dbce1fe8598a147ecb285fc5d548fc1a77f6c6a8d5609cd",
+      "alphaBounds": {
+        "x": 0,
+        "y": 0,
+        "width": 262,
+        "height": 386
+      },
+      "alphaCounts": {
+        "transparent": 27854,
+        "partial": 73278,
+        "opaque": 0
+      },
+      "maxSourceAlpha": 254,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "removedFogPixels": 1266,
+      "retainedRgbChanges": 0,
+      "retainedAlphaChanges": 0,
+      "opaqueCellEdgePixels": 0,
+      "liveAccepted": false
+    },
+    {
+      "id": "booth",
+      "view": "w",
+      "image": "frontend/assets/industrial/catalog-crew-facings/booth-w.png",
+      "sourceWidth": 289,
+      "sourceHeight": 646,
+      "bounds": {
+        "x": 0,
+        "y": -5,
+        "width": 12,
+        "height": 29
+      },
+      "footprint": {
+        "w": 1,
+        "h": 2
+      },
+      "contact": {
+        "x": 0.5,
+        "y": 0.9945820433436533,
+        "space": "exported-image-normalized",
+        "targetWorld": {
+          "x": 6,
+          "y": 24
+        }
+      },
+      "fit": {
+        "x": 0,
+        "y": -2.823529411764703,
+        "width": 12,
+        "height": 26.823529411764703
+      },
+      "underfill": {
+        "x": 1,
+        "y": 0.9249492900608518
+      },
+      "source": "docs\\station-remaster\\catalog-crew-facings\\sources\\repair.png",
+      "sourceSha256": "9adc7d3a840c574c5031cb07218b4affd823af360f1dd22f7dbb6e0ba764428a",
+      "sourceCrop": {
+        "left": 616,
+        "top": 28,
+        "width": 289,
+        "height": 646
+      },
+      "outputSha256": "bb7afdb1978254c1bb059f83b3a5e5ed58f2affb87cc3b04e00563e5ee87aa92",
+      "alphaBounds": {
+        "x": 0,
+        "y": 0,
+        "width": 289,
+        "height": 646
+      },
+      "alphaCounts": {
+        "transparent": 22107,
+        "partial": 164006,
+        "opaque": 581
+      },
+      "maxSourceAlpha": 255,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "removedFogPixels": 1620,
+      "retainedRgbChanges": 0,
+      "retainedAlphaChanges": 0,
+      "opaqueCellEdgePixels": 0,
+      "liveAccepted": false
+    },
+    {
+      "id": "booth",
+      "view": "e",
+      "image": "frontend/assets/industrial/catalog-crew-facings/booth-e.png",
+      "sourceWidth": 696,
+      "sourceHeight": 1789,
+      "bounds": {
+        "x": 0,
+        "y": -5,
+        "width": 12,
+        "height": 29
+      },
+      "footprint": {
+        "w": 1,
+        "h": 2
+      },
+      "contact": {
+        "x": 0.5,
+        "y": 0.9980435997764114,
+        "space": "exported-image-normalized",
+        "targetWorld": {
+          "x": 6,
+          "y": 24
+        }
+      },
+      "fit": {
+        "x": 0.35885969815539376,
+        "y": -5,
+        "width": 11.282280603689212,
+        "height": 29
+      },
+      "underfill": {
+        "x": 0.9401900503074344,
+        "y": 1
+      },
+      "source": "docs\\station-remaster\\catalog-crew-facings\\sources\\booth-e-repair.png",
+      "sourceSha256": "0294c1d232d617911ab959fabe329d4d1a76e38a9dea36312e20b30e79fe2c4d",
+      "sourceCrop": {
+        "left": 69,
+        "top": 15,
+        "width": 696,
+        "height": 1789
+      },
+      "outputSha256": "3fc3d0d83a7203ca55b5f61abfc50cfecf03ce98d169997c5d28ecfe90fe5e71",
+      "alphaBounds": {
+        "x": 0,
+        "y": 0,
+        "width": 696,
+        "height": 1789
+      },
+      "alphaCounts": {
+        "transparent": 147631,
+        "partial": 1097091,
+        "opaque": 422
+      },
+      "maxSourceAlpha": 255,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "removedFogPixels": 7743,
+      "retainedRgbChanges": 0,
+      "retainedAlphaChanges": 0,
+      "opaqueCellEdgePixels": 0,
+      "liveAccepted": false
+    },
+    {
+      "id": "dinertable",
+      "view": "e",
+      "image": "frontend/assets/industrial/catalog-crew-facings/dinertable-e.png",
+      "sourceWidth": 447,
+      "sourceHeight": 679,
+      "bounds": {
+        "x": -1,
+        "y": 0,
+        "width": 26,
+        "height": 37
+      },
+      "footprint": {
+        "w": 2,
+        "h": 3
+      },
+      "contact": {
+        "x": 0.5,
+        "y": 0.9948453608247423,
+        "space": "exported-image-normalized",
+        "targetWorld": {
+          "x": 12,
+          "y": 36
+        }
+      },
+      "fit": {
+        "x": -0.17893961708394635,
+        "y": 0,
+        "width": 24.357879234167893,
+        "height": 37
+      },
+      "underfill": {
+        "x": 0.9368415090064575,
+        "y": 1
+      },
+      "source": "docs\\station-remaster\\catalog-crew-facings\\sources\\repair.png",
+      "sourceSha256": "9adc7d3a840c574c5031cb07218b4affd823af360f1dd22f7dbb6e0ba764428a",
+      "sourceCrop": {
+        "left": 542,
+        "top": 716,
+        "width": 447,
+        "height": 679
+      },
+      "outputSha256": "14c374b59da0f9dd71e6ee29611ea02e581c772d437ac0d92953c511b875fe85",
+      "alphaBounds": {
+        "x": 0,
+        "y": 0,
+        "width": 447,
+        "height": 679
+      },
+      "alphaCounts": {
+        "transparent": 63670,
+        "partial": 239104,
+        "opaque": 739
+      },
+      "maxSourceAlpha": 255,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "removedFogPixels": 1657,
+      "retainedRgbChanges": 0,
+      "retainedAlphaChanges": 0,
+      "opaqueCellEdgePixels": 0,
+      "liveAccepted": false
+    }
+  ]
+}

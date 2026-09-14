@@ -1,0 +1,240 @@
+{
+  "version": 1,
+  "status": "candidate-not-integrated",
+  "records": [
+    {
+      "id": "dinerchair",
+      "view": "w",
+      "image": "frontend/assets/industrial/catalog-crew-facings/dinerchair-w.png",
+      "sourceWidth": 226,
+      "sourceHeight": 359,
+      "bounds": {
+        "x": 0,
+        "y": -4,
+        "width": 11,
+        "height": 16
+      },
+      "footprint": {
+        "w": 1,
+        "h": 1
+      },
+      "contact": {
+        "x": 0.5,
+        "y": 0.9902506963788301,
+        "space": "exported-image-normalized",
+        "targetWorld": {
+          "x": 6,
+          "y": 12
+        }
+      }
+    },
+    {
+      "id": "dinerchair",
+      "view": "n",
+      "image": "frontend/assets/industrial/catalog-crew-facings/dinerchair-n.png",
+      "sourceWidth": 218,
+      "sourceHeight": 300,
+      "bounds": {
+        "x": 1,
+        "y": -4,
+        "width": 11,
+        "height": 16
+      },
+      "footprint": {
+        "w": 1,
+        "h": 1
+      },
+      "contact": {
+        "x": 0.5,
+        "y": 0.9883333333333333,
+        "space": "exported-image-normalized",
+        "targetWorld": {
+          "x": 6,
+          "y": 12
+        }
+      }
+    },
+    {
+      "id": "dinerchair",
+      "view": "e",
+      "image": "frontend/assets/industrial/catalog-crew-facings/dinerchair-e.png",
+      "sourceWidth": 227,
+      "sourceHeight": 359,
+      "bounds": {
+        "x": 1,
+        "y": -4,
+        "width": 11,
+        "height": 16
+      },
+      "footprint": {
+        "w": 1,
+        "h": 1
+      },
+      "contact": {
+        "x": 0.5,
+        "y": 0.9902506963788301,
+        "space": "exported-image-normalized",
+        "targetWorld": {
+          "x": 6,
+          "y": 12
+        }
+      }
+    },
+    {
+      "id": "podchair",
+      "view": "w",
+      "image": "frontend/assets/industrial/catalog-crew-facings/podchair-w.png",
+      "sourceWidth": 262,
+      "sourceHeight": 384,
+      "bounds": {
+        "x": 0,
+        "y": -5,
+        "width": 11,
+        "height": 17
+      },
+      "footprint": {
+        "w": 1,
+        "h": 1
+      },
+      "contact": {
+        "x": 0.5,
+        "y": 0.9908854166666666,
+        "space": "exported-image-normalized",
+        "targetWorld": {
+          "x": 6,
+          "y": 12
+        }
+      }
+    },
+    {
+      "id": "podchair",
+      "view": "n",
+      "image": "frontend/assets/industrial/catalog-crew-facings/podchair-n.png",
+      "sourceWidth": 356,
+      "sourceHeight": 650,
+      "bounds": {
+        "x": 1,
+        "y": -5,
+        "width": 10,
+        "height": 17
+      },
+      "footprint": {
+        "w": 1,
+        "h": 1
+      },
+      "contact": {
+        "x": 0.5,
+        "y": 0.9961538461538462,
+        "space": "exported-image-normalized",
+        "targetWorld": {
+          "x": 6,
+          "y": 12
+        }
+      }
+    },
+    {
+      "id": "podchair",
+      "view": "e",
+      "image": "frontend/assets/industrial/catalog-crew-facings/podchair-e.png",
+      "sourceWidth": 262,
+      "sourceHeight": 386,
+      "bounds": {
+        "x": 1,
+        "y": -5,
+        "width": 11,
+        "height": 17
+      },
+      "footprint": {
+        "w": 1,
+        "h": 1
+      },
+      "contact": {
+        "x": 0.5,
+        "y": 0.9909326424870466,
+        "space": "exported-image-normalized",
+        "targetWorld": {
+          "x": 6,
+          "y": 12
+        }
+      }
+    },
+    {
+      "id": "booth",
+      "view": "w",
+      "image": "frontend/assets/industrial/catalog-crew-facings/booth-w.png",
+      "sourceWidth": 289,
+      "sourceHeight": 646,
+      "bounds": {
+        "x": 0,
+        "y": -5,
+        "width": 12,
+        "height": 29
+      },
+      "footprint": {
+        "w": 1,
+        "h": 2
+      },
+      "contact": {
+        "x": 0.5,
+        "y": 0.9945820433436533,
+        "space": "exported-image-normalized",
+        "targetWorld": {
+          "x": 6,
+          "y": 24
+        }
+      }
+    },
+    {
+      "id": "booth",
+      "view": "e",
+      "image": "frontend/assets/industrial/catalog-crew-facings/booth-e.png",
+      "sourceWidth": 696,
+      "sourceHeight": 1789,
+      "bounds": {
+        "x": 0,
+        "y": -5,
+        "width": 12,
+        "height": 29
+      },
+      "footprint": {
+        "w": 1,
+        "h": 2
+      },
+      "contact": {
+        "x": 0.5,
+        "y": 0.9980435997764114,
+        "space": "exported-image-normalized",
+        "targetWorld": {
+          "x": 6,
+          "y": 24
+        }
+      }
+    },
+    {
+      "id": "dinertable",
+      "view": "e",
+      "image": "frontend/assets/industrial/catalog-crew-facings/dinertable-e.png",
+      "sourceWidth": 447,
+      "sourceHeight": 679,
+      "bounds": {
+        "x": -1,
+        "y": 0,
+        "width": 26,
+        "height": 37
+      },
+      "footprint": {
+        "w": 2,
+        "h": 3
+      },
+      "contact": {
+        "x": 0.5,
+        "y": 0.9948453608247423,
+        "space": "exported-image-normalized",
+        "targetWorld": {
+          "x": 12,
+          "y": 36
+        }
+      }
+    }
+  ]
+}
