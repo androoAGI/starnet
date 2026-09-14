@@ -1,0 +1,410 @@
+{
+  "id": "booth-r1",
+  "nativeId": "booth",
+  "view": "w",
+  "footprint": {
+    "w": 1,
+    "h": 2
+  },
+  "bounds": {
+    "x": 0,
+    "y": -5,
+    "width": 12,
+    "height": 29
+  },
+  "geometry": {
+    "blocks": true,
+    "flat": false,
+    "tableSurface": false,
+    "requiredMount": null,
+    "optionalSurfaceMount": false,
+    "surfaceRisePixels": 8
+  },
+  "orientation": {
+    "facings": [
+      {
+        "r": 0,
+        "front": "south",
+        "w": 2,
+        "h": 1,
+        "type": "authored-view"
+      },
+      {
+        "r": 1,
+        "front": "west",
+        "w": 1,
+        "h": 2,
+        "type": "mirrored-authored-view"
+      },
+      {
+        "r": 3,
+        "front": "east",
+        "w": 1,
+        "h": 2,
+        "type": "authored-view"
+      }
+    ],
+    "canMirror": true,
+    "classicFacings": [
+      0,
+      1,
+      3
+    ]
+  },
+  "anchorContract": "planCouchSit: actual cushion claims despite generic sit:false; body foot is cushion front at bottom minus 2 px; wide sofa reserves arms and y-sorts sofa back in front. Turned booth seating must be rechecked before promising all angles.",
+  "sourceAnimation": {
+    "idleFrameVariants": 1,
+    "workFrameVariants": 1,
+    "respondsToWorkFlag": false,
+    "opaqueBoundsRelativeToFootprint": {
+      "x": 0,
+      "y": -7,
+      "w": 24,
+      "h": 19,
+      "alphaThreshold": 160
+    }
+  },
+  "tilePixels": 12,
+  "floorContact": {
+    "x": 6,
+    "y": 24
+  },
+  "visualBottomContact": {
+    "x": 6,
+    "y": 24
+  },
+  "status": "art-draft-integration-pending",
+  "backgroundThreshold": 235,
+  "holeSeeds": [],
+  "sourceWidth": 887,
+  "sourceHeight": 1774,
+  "sourceSha256": "3c07f5df601614f4a19cb96fa10f52f2b76f8293852ef348ce6f1e359070c35d",
+  "output": "frontend/assets/industrial/batch03/crew/booth-r1.png",
+  "crop": {
+    "left": 149,
+    "top": 36,
+    "width": 610,
+    "height": 1673
+  },
+  "transparentPixels": 280458,
+  "opaquePixels": 740072,
+  "partialPixels": 0,
+  "backgroundPixelsRemoved": 833466,
+  "subjectRgbChanges": 0,
+  "outputSha256": "37172383f62b9f42f84254dd989b1e56b7babbe37cfd1be3a0e6087224200d5f",
+  "liveIntegrated": false,
+  "authoredGeometry": {
+    "method": "Manual visual annotation of painted source geometry; approximate edges, not live validated. Normalized coordinates refer to final tight alpha crop, not full original canvas.",
+    "fitWorldPixels": {
+      "x": 0.7130902570233113,
+      "y": -5.0000000000000036,
+      "width": 10.573819485953377,
+      "height": 29.000000000000004,
+      "bottom": 24.0
+    },
+    "regions": {
+      "seatSupport": {
+        "cropNormalized": [
+          [
+            [
+              0.157,
+              0.242
+            ],
+            [
+              0.536,
+              0.242
+            ],
+            [
+              0.565,
+              0.439
+            ],
+            [
+              0.13,
+              0.439
+            ]
+          ],
+          [
+            [
+              0.084,
+              0.469
+            ],
+            [
+              0.56,
+              0.469
+            ],
+            [
+              0.6,
+              0.708
+            ],
+            [
+              0.063,
+              0.708
+            ]
+          ]
+        ],
+        "sourcePixels": [
+          [
+            [
+              244.77,
+              440.87
+            ],
+            [
+              475.96,
+              440.87
+            ],
+            [
+              493.65,
+              770.45
+            ],
+            [
+              228.3,
+              770.45
+            ]
+          ],
+          [
+            [
+              200.24,
+              820.64
+            ],
+            [
+              490.6,
+              820.64
+            ],
+            [
+              515.0,
+              1220.48
+            ],
+            [
+              187.43,
+              1220.48
+            ]
+          ]
+        ],
+        "sourceNormalized": [
+          [
+            [
+              0.275953,
+              0.248515
+            ],
+            [
+              0.536595,
+              0.248515
+            ],
+            [
+              0.556539,
+              0.434299
+            ],
+            [
+              0.257384,
+              0.434299
+            ]
+          ],
+          [
+            [
+              0.22575,
+              0.462591
+            ],
+            [
+              0.5531,
+              0.462591
+            ],
+            [
+              0.580609,
+              0.687984
+            ],
+            [
+              0.211308,
+              0.687984
+            ]
+          ]
+        ],
+        "worldPixels": [
+          [
+            [
+              2.3732,
+              2.018
+            ],
+            [
+              6.3807,
+              2.018
+            ],
+            [
+              6.6873,
+              7.731
+            ],
+            [
+              2.0877,
+              7.731
+            ]
+          ],
+          [
+            [
+              1.6013,
+              8.601
+            ],
+            [
+              6.6344,
+              8.601
+            ],
+            [
+              7.0574,
+              15.532
+            ],
+            [
+              1.3792,
+              15.532
+            ]
+          ]
+        ]
+      },
+      "backOcclusion": {
+        "cropNormalized": [
+          [
+            0.63,
+            0.02
+          ],
+          [
+            0.8,
+            0.02
+          ],
+          [
+            0.96,
+            0.52
+          ],
+          [
+            0.67,
+            0.7
+          ]
+        ],
+        "sourcePixels": [
+          [
+            533.3,
+            69.46
+          ],
+          [
+            637.0,
+            69.46
+          ],
+          [
+            734.6,
+            905.96
+          ],
+          [
+            557.7,
+            1207.1
+          ]
+        ],
+        "sourceNormalized": [
+          [
+            0.60124,
+            0.039154
+          ],
+          [
+            0.718151,
+            0.039154
+          ],
+          [
+            0.828185,
+            0.510688
+          ],
+          [
+            0.628749,
+            0.68044
+          ]
+        ],
+        "worldPixels": [
+          [
+            7.3746,
+            -4.42
+          ],
+          [
+            9.1721,
+            -4.42
+          ],
+          [
+            10.864,
+            10.08
+          ],
+          [
+            7.7975,
+            15.3
+          ]
+        ]
+      },
+      "nearArmOcclusion": {
+        "cropNormalized": [
+          [
+            0.025,
+            0.731
+          ],
+          [
+            0.99,
+            0.731
+          ],
+          [
+            0.99,
+            0.93
+          ],
+          [
+            0.025,
+            0.93
+          ]
+        ],
+        "sourcePixels": [
+          [
+            164.25,
+            1258.96
+          ],
+          [
+            752.9,
+            1258.96
+          ],
+          [
+            752.9,
+            1591.89
+          ],
+          [
+            164.25,
+            1591.89
+          ]
+        ],
+        "sourceNormalized": [
+          [
+            0.185175,
+            0.709675
+          ],
+          [
+            0.848816,
+            0.709675
+          ],
+          [
+            0.848816,
+            0.897345
+          ],
+          [
+            0.185175,
+            0.897345
+          ]
+        ],
+        "worldPixels": [
+          [
+            0.9774,
+            16.199
+          ],
+          [
+            11.1812,
+            16.199
+          ],
+          [
+            11.1812,
+            21.97
+          ],
+          [
+            0.9774,
+            21.97
+          ]
+        ]
+      }
+    }
+  }
+}
