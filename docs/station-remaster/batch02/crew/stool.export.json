@@ -1,0 +1,81 @@
+{
+  "sourceAnimation": {
+    "idleFrameVariants": 1,
+    "workFrameVariants": 1,
+    "respondsToWorkFlag": false,
+    "opaqueBoundsRelativeToFootprint": {
+      "x": 1,
+      "y": 0,
+      "w": 10,
+      "h": 11,
+      "alphaThreshold": 160
+    }
+  },
+  "bounds": {
+    "y": 0,
+    "width": 10,
+    "height": 11,
+    "x": 1
+  },
+  "id": "stool",
+  "geometry": {
+    "blocks": true,
+    "flat": false,
+    "tableSurface": false,
+    "requiredMount": null,
+    "optionalSurfaceMount": false,
+    "surfaceRisePixels": 8
+  },
+  "floorContact": {
+    "x": 6,
+    "y": 12
+  },
+  "backgroundThreshold": 235,
+  "tilePixels": 12,
+  "status": "art-draft-integration-pending",
+  "view": "s",
+  "footprint": {
+    "w": 1,
+    "h": 1
+  },
+  "anchorContract": "planSeat: one occupant claim, walk to an adjacent tile, render on the seat tile at bottom minus 1 px plus per-type seat lift; explicit rotated facing beats counter inference.",
+  "holeSeeds": [
+    [
+      600,
+      632
+    ],
+    [
+      600,
+      790
+    ],
+    [
+      350,
+      595
+    ],
+    [
+      355,
+      575
+    ],
+    [
+      843,
+      608
+    ]
+  ],
+  "sourceWidth": 1196,
+  "sourceHeight": 1315,
+  "sourceSha256": "ddabe74fa4607379a0e434216183a7bed629c78ea171d50cd0971a18bb75e0c8",
+  "output": "frontend/assets/industrial/batch02/crew/stool.png",
+  "crop": {
+    "left": 213,
+    "top": 75,
+    "width": 770,
+    "height": 1087
+  },
+  "transparentPixels": 267793,
+  "opaquePixels": 569197,
+  "partialPixels": 0,
+  "backgroundPixelsRemoved": 1003543,
+  "subjectRgbChanges": 0,
+  "outputSha256": "fc70abe9c1e75cfb24add529cb7f67e24bfb77db230cc968ca68e0396620299d",
+  "liveIntegrated": false
+}
