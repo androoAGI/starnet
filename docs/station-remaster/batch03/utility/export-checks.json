@@ -1,0 +1,130 @@
+{
+  "version": 1,
+  "authorization": "User explicitly proceeded with deterministic exporter 2026-09-14",
+  "method": "Light-neutral flood fill with inspected enclosed-hole seeds; original RGB and canvas preserved",
+  "records": [
+    {
+      "id": "monstera",
+      "minNeutral": 100,
+      "maxChroma": 25,
+      "seeds": [
+        [
+          473,
+          131
+        ],
+        [
+          772,
+          187
+        ],
+        [
+          831,
+          230
+        ],
+        [
+          585,
+          304
+        ],
+        [
+          728,
+          357
+        ],
+        [
+          140,
+          362
+        ],
+        [
+          690,
+          424
+        ],
+        [
+          1029,
+          434
+        ],
+        [
+          657,
+          438
+        ],
+        [
+          211,
+          441
+        ],
+        [
+          160,
+          444
+        ],
+        [
+          333,
+          493
+        ],
+        [
+          359,
+          503
+        ],
+        [
+          1042,
+          522
+        ],
+        [
+          127,
+          538
+        ],
+        [
+          184,
+          568
+        ],
+        [
+          919,
+          606
+        ],
+        [
+          1064,
+          613
+        ],
+        [
+          994,
+          654
+        ],
+        [
+          1093,
+          708
+        ],
+        [
+          342,
+          793
+        ],
+        [
+          960,
+          845
+        ],
+        [
+          330,
+          872
+        ],
+        [
+          310,
+          980
+        ]
+      ],
+      "source": "docs/station-remaster/batch03/utility/sources/monstera.png",
+      "sourceSha256": "aa4f8213d221a2e668cb3fba872b240018fd3358a9df9e1ca82b838bb7c4bc56",
+      "sourceWidth": 1205,
+      "sourceHeight": 1306,
+      "output": "frontend/assets/industrial/batch03/utility/monstera.png",
+      "canvasPreserved": true,
+      "alphaBounds": {
+        "x": 22,
+        "y": 7,
+        "width": 1165,
+        "height": 1255
+      },
+      "channels": 4,
+      "transparentPixels": 701831,
+      "opaquePixels": 871899,
+      "partialPixels": 0,
+      "backgroundPixelsRemoved": 701831,
+      "islandPixelsRemoved": 0,
+      "subjectRgbChanges": 0,
+      "outputSha256": "a72776ff73fe4d9fdabb8c3d46df9b5028e75978e3b0d7c3c74175f3f0a33b47"
+    }
+  ]
+}
