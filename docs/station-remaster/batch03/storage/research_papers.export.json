@@ -1,0 +1,118 @@
+{
+  "id": "research_papers",
+  "status": "exported-awaiting-owner-live-review",
+  "source": "sources/research_papers.png",
+  "sourceSha256": "e087ac6227a533be3367ba85a33ee54a5c65b3f0c92ee2297175ef1d4189f3ba",
+  "sourceWidth": 1774,
+  "sourceHeight": 887,
+  "image": "research_papers.png",
+  "sourceOutputWidth": 1702,
+  "sourceOutputHeight": 602,
+  "crop": {
+    "left": 40,
+    "top": 133,
+    "width": 1702,
+    "height": 602
+  },
+  "channels": 4,
+  "transparentPixels": 189858,
+  "opaquePixels": 834746,
+  "partialPixels": 0,
+  "backgroundPixelsRemoved": 738792,
+  "subjectRgbChanges": 0,
+  "outputSha256": "28e84f602e7248254e15c8e8f51743e1c91ffbd2e9b8c0e2c53f576654ce42a3",
+  "holeSeeds": [
+    [
+      595,
+      641
+    ],
+    [
+      596,
+      642
+    ],
+    [
+      573,
+      643
+    ],
+    [
+      597,
+      643
+    ],
+    [
+      572,
+      644
+    ],
+    [
+      571,
+      645
+    ],
+    [
+      570,
+      646
+    ],
+    [
+      569,
+      647
+    ],
+    [
+      568,
+      648
+    ],
+    [
+      581,
+      648
+    ],
+    [
+      608,
+      664
+    ],
+    [
+      568,
+      665
+    ],
+    [
+      628,
+      676
+    ],
+    [
+      619,
+      681
+    ],
+    [
+      530,
+      695
+    ],
+    [
+      677,
+      696
+    ],
+    [
+      543,
+      698
+    ]
+  ],
+  "maskMethod": "Connected saturated-magenta flood fill, including key-only enclosed components. Alpha-only edits; uniform crop; no RGB recolor.",
+  "view": "s",
+  "footprint": {
+    "w": 2,
+    "h": 1
+  },
+  "bounds": {
+    "x": 1,
+    "y": 1,
+    "width": 20,
+    "height": 10
+  },
+  "tilePixels": 12,
+  "contact": {
+    "x": 11,
+    "y": 11
+  },
+  "anchorContract": "Can sit on bare deck or valid table; table mount lifts contact origin exactly 8 world pixels.",
+  "originalLight": null,
+  "originalAnimationTriggers": [
+    "Autonomous sprite clock animation is present in the sampled default state; cosmetic motion is not evidence of provider work, route decisions or external state."
+  ],
+  "artMode": "static complete art; existing state/lighting integration remains owner decision",
+  "liveIntegrated": false
+}
