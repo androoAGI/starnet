@@ -1,0 +1,7 @@
+{
+  "id": "comms_uplink",
+  "tool": "built-in image_gen",
+  "prompt": "Correct this StarNet uplink prop's proportions. It is much too tall and skinny for the game. KEEP the exact width, same antenna crossbar, equipment box, two feet, charcoal illustrated materials, south-facing overhead-oblique view and open construction. SHORTEN THE OPEN LATTICE SECTION by roughly HALF: use only THREE short evenly-spaced zig-zag braces between broad uprights rather than the current tall four-bay structure. Shorten uprights coherently, retain real gaps. Move antenna crossbar down with shortened structure. The resulting WHOLE object from top of ceramic aerial tips to bottom of feet must be only1.85times as tall as it is wide (width:height19:35), a stout compact receiver mast. Do not scale the whole picture or make feet wider; physically redesign the mast to be shorter. Keep all horizontal edges horizontal, no yaw, no isometric rotation. Complete object on truly transparent RGBA including all lattice gaps, generous transparent margins, no checkerboard, floor or cast shadow.",
+  "reference": "C:\\Users\\andro\\.codex\\generated_images\\01a0976c-e264-7f13-a581-78c904716b14\\exec-48489199-aca0-4f92-99c5-15461843de83.png",
+  "source": "C:\\Users\\andro\\.codex\\generated_images\\01a0976c-e264-7f13-a581-78c904716b14\\exec-3843bbaa-9bb1-40ce-8be5-3c5d099e5832.png"
+}

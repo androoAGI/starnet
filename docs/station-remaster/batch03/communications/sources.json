@@ -1,0 +1,61 @@
+[
+  {
+    "id": "comms_dish",
+    "source": "docs/station-remaster/batch03/communications/comms_dish.source.png",
+    "original": "C:\\Users\\andro\\.codex\\generated_images\\01a0976c-e264-7f13-a581-78c904716b14\\exec-c189bcf6-0f20-410e-b76e-cb2e70132023.png",
+    "neutralMin": 80,
+    "seeds": []
+  },
+  {
+    "id": "comms_uplink",
+    "source": "docs/station-remaster/batch03/communications/comms_uplink.source.png",
+    "original": "C:\\Users\\andro\\.codex\\generated_images\\01a0976c-e264-7f13-a581-78c904716b14\\exec-3843bbaa-9bb1-40ce-8be5-3c5d099e5832.png",
+    "neutralMin": 80,
+    "seeds": [
+      [
+        450,
+        652
+      ],
+      [
+        472,
+        809
+      ],
+      [
+        425,
+        920
+      ],
+      [
+        435,
+        1090
+      ]
+    ]
+  },
+  {
+    "id": "comms_beacon",
+    "source": "docs/station-remaster/batch03/communications/comms_beacon.source.png",
+    "original": "C:\\Users\\andro\\.codex\\generated_images\\01a0976c-e264-7f13-a581-78c904716b14\\exec-d55d3407-5c4b-4325-a9ce-8112243f67e6.png",
+    "neutralMin": 80,
+    "seeds": []
+  },
+  {
+    "id": "commswall",
+    "source": "docs/station-remaster/batch03/communications/commswall.source.png",
+    "original": "C:\\Users\\andro\\.codex\\generated_images\\01a0976c-e264-7f13-a581-78c904716b14\\exec-31b8c26c-89c5-45ce-9231-855454e2b0fc.png",
+    "neutralMin": 80,
+    "seeds": []
+  },
+  {
+    "id": "bridge_relaystack",
+    "source": "docs/station-remaster/batch03/communications/bridge_relaystack.source.png",
+    "original": "C:\\Users\\andro\\.codex\\generated_images\\01a0976c-e264-7f13-a581-78c904716b14\\exec-7e2bc05b-d491-47d2-b7a4-21061e09cb93.png",
+    "neutralMin": 80,
+    "seeds": []
+  },
+  {
+    "id": "war_intelcab",
+    "source": "docs/station-remaster/batch03/communications/war_intelcab.source.png",
+    "original": "C:\\Users\\andro\\.codex\\generated_images\\01a0976c-e264-7f13-a581-78c904716b14\\exec-3066bc09-296c-4fa6-88bb-fe14c4c6481e.png",
+    "neutralMin": 80,
+    "seeds": []
+  }
+]

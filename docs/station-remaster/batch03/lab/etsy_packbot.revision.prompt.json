@@ -1,0 +1,5 @@
+{
+  "id": "etsy_packbot",
+  "prompt": "Revise this SAME animation-ready robot BASE. Its mast is much too tall for StarNet proportions. Keep the deck, feet, camera and painted material craft. SHORTEN the mast shaft between the exposed shoulder ring and the deck so the entire silhouette becomes30 units wide by39 units high: overall height ONLY1.3times overall width, not twice width. The round shoulder socket should end just above the deck's rear-right corner with enough room for a folded short arm over deck. Do not squash or stretch any existing parts: redraw compact geometrical construction with shortened column, preserve round ring and deck proportions. No arm or gripper in this body, empty upper-left alpha region. Entire object with margin on genuine transparent background. Controlled dark matte painted planes, reduce excessive tiny scratches.",
+  "referenced_image": "C:\\Users\\andro\\.codex\\generated_images\\01a0976c-e264-7f13-a581-78c904716b14\\exec-93b4d39e-a98a-4ae0-a92d-cab174d01960.png"
+}
