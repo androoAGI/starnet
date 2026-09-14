@@ -1805,7 +1805,7 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
       '<div class="gx-well"><span class="gx-lbl">Positive feedback</span><span class="v">' + g.positiveFeedback + '</span></div>' +
       // what a level actually MEANS (UX sweep 2026-07-15): honest — levels gate nothing (sandbox law);
       // they are the agent's proven track record from work you rated well.
-      '<div class="gx-row gx-dim" style="font-size:11px;margin-top:4px;">Earn XP from completed work and feedback. Levels celebrate progress; every capability is available from the start.</div>' +
+      '<div class="gx-row gx-dim" style="font-size:11px;margin-top:4px;">Rate completed work “nailed it” to earn XP. Positive turn-in feedback earns XP too. Levels celebrate progress; every capability is available from the start.</div>' +
       '</div>';
 
     const confnum = g.known ? (g.confidence + '<span style="font-size:18px;color:var(--ph-dim);">%</span>') : '—';
@@ -3135,6 +3135,37 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
     pctx.drawImage(buf, minX, minY, sw, sh,
       Math.round((cv.width - dw) / 2), Math.round(cv.height - padBot - dh), dw, dh);
   }
+  // Refresh only read-only growth surfaces. Rebuilding the dossier would discard CONFIG/MEMORY drafts.
+  function refreshGrowthLive(w, a) {
+    if (!a || typeof Xp === 'undefined') return;
+    const station = typeof XpStore !== 'undefined' ? XpStore.stationStats() : null;
+    const view = stats => stats ? [Xp.compute(stats), stats.counters] : null;
+    const key = JSON.stringify([a.id, view(a.stats), view(station), present.length]);
+    const growth = w.querySelector('.ag-growth');
+    if (growth && growth._growthKey !== key) {
+      const holder = document.createElement('div');
+      holder.innerHTML = agGrowth(a);
+      const next = holder.firstElementChild;
+      if (next) {
+        // The skillbase has its own asynchronous loader; keep its live node and pending response intact.
+        const practice = growth.querySelector('#gx-practice');
+        const placeholder = next.querySelector('#gx-practice');
+        if (practice && placeholder) placeholder.replaceWith(practice);
+        next._growthKey = key;
+        growth.replaceWith(next);
+      }
+    }
+    const stats = w.querySelector('.ag-hero .stat-grid');
+    const html = stats ? agStats(a) : '';
+    if (stats && stats._growthHtml !== html) {
+      const holder = document.createElement('div'); holder.innerHTML = html;
+      const next = holder.firstElementChild;
+      if (next) { next._growthHtml = html; stats.replaceWith(next); }
+    }
+    const level = w.querySelector('.ag-lv');
+    if (level && a.stats) level.textContent = 'Lv ' + Xp.compute(a.stats).level;
+  }
+
   // BRIEF live telemetry, painted in place (no DOM rebuild → open CONFIG/MEMORY editors are never wiped).
   // Touches only: the hero status dot + role line (agHead), and the roster idle/working hints (railTop). Every
   // lookup is scoped to the open dossier window and no-ops if the node isn't there (e.g. mid-rename, retab).
@@ -3143,6 +3174,7 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
     const act = activity();
     const dn = linkDown();   // E2: keep the live-painted status honest — link gone → OFFLINE, not ONLINE
     const selected = present[sel] || null;
+    refreshGrowthLive(w, selected);
     const selectedLive = !!(selected && agentLive(selected.id));
     let focusedId = '';
     try { focusedId = (typeof App !== 'undefined' && App.currentAgent && App.currentAgent() || {}).id || ''; } catch (_) {}
