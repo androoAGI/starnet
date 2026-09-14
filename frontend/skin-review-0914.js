@@ -9,12 +9,17 @@ const studies = [
   ['skeleton','skeleton','Skeleton','Aged ivory bone, a smaller skull and a more natural rib cage, pelvis and limb structure.'],
   ['plaguedoctor','plaguedoctor','Plague Doctor','Weathered leather and heavy cloth, with a compact beaked respirator for the quarantine deck.'],
   ['secretagent','secretagent','Secret Agent','Tailored charcoal wool, restrained proportions and clean tailoring. Sunglasses stay.'],
-  ['voidwizard','voidwizard','Void Wizard','Muted aubergine robes, bronze fastenings and weighted folds beneath the familiar pointed hat.']
+  ['voidwizard','voidwizard','Void Wizard','Muted aubergine robes, bronze fastenings and weighted folds beneath the familiar pointed hat.'],
+  ['xenomorph','xenomorph','Xenomorph','Glossy carapace over matte biomechanical ribs, with a longer dome and a readable tail.'],
+  ['robocop','robocop','Robocop','Brushed silver-blue armor, a narrow visor and more believable articulated joints.'],
+  ['masterchief','masterchief','Master Chief','Worn olive armor over a graphite undersuit, retaining the distinctive gold visor.'],
+  ['grimreaper','grimreaper','Grim Reaper','Heavy charcoal robes, aged bone and a weathered steel scythe. More cloth weight, less caricature.'],
+  ['crewmate','crewmate','Crewmate','Red pressure fabric and curved cyan glass, with practical limbs and a compact life-support pack.']
 ];
 const grid = document.getElementById('grid');
 studies.forEach(([id,old,name,note],i) => {
   const card = document.createElement('article');
-  card.dataset.batch = i < 5 ? 'first' : 'new';
+  card.dataset.batch = i < 5 ? 'first' : i < 10 ? 'second' : 'new';
   card.innerHTML = `<div class="name"><div class="num">0${i+1}</div><h2>${name}</h2></div><div class="pair"><div class="sprite"><img data-old="${old}" alt="Current ${name}" src="assets/sprites/${old}/rot_south.png"><span class="caption">CURRENT</span></div><div class="sprite"><img data-new="${id}" alt="Proposed ${name}" src="assets/skin-study-0914/${id}/south.png"><span class="caption">PROPOSED</span></div></div><div class="note">${note}</div><div class="scale"><img data-new="${id}" alt="${name} at 48 pixels" src="assets/skin-study-0914/${id}/south.png"><span>48PX CANVAS<br>SIZE STUDY</span></div>`;
   grid.appendChild(card);
 });
