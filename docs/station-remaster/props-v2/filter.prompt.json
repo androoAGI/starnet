@@ -1,0 +1,33 @@
+{
+  "id": "filter",
+  "prompt": "Use case: style-transfer. Make ONE finished transparent-background StarNet game prop from image 1, which is the binding ORIGINAL GEOMETRY GUIDE. Image 2 is the approved crate: use its restrained dark cool steel, broad readable plates, crisp worn bevels, very sparse warm brass catches, and subtle aged metal surface. Image 3 is station context only. Keep the guide’s precise overall silhouette/aspect, camera elevation, straight-on orthographic alignment, top-face depth, feet, open gaps, and every component/screen location. Reconstruct the coarse guide into refined painted game sprite detail; do not preserve giant pixel blocks. No new appendages, no taller/wider body, no perspective yaw or isometric diamond. Match the crate material density: broad clear forms, not ornate busy machinery. Functional glass MUST be smoked-black/OFF with no bright graphics; existing game code provides the exact animated pixels there. Keep dark glass rectangles in precisely their guide positions and sizes. Finish for tiny in-game legibility, not product photography. Entire single prop visible with tight balanced transparent margin; true transparent alpha, NO floor, ground/shadow scene, labels, text, humans, border, checkerboard illustration or second object.\nSubject details: A narrow routing filter machine. Keep the single upright rectangular smoked-black inset centered over a shallow routing tray, its right projecting port and side bracket, and short base with two small muted brass catches. The central native purple/cyan pixels are a dynamic display REGION: preserve its geometry but render it as dark inactive glass. Do not replace it with a larger screen.\nGeometry calibration: the complete opaque prop occupies 14 units wide by 19 units high. Keep its isolated SUBJECT width:height ratio exactly 0.7368, within 5%, before any margin; never make its body taller or wider. Preserve every original internal component position ratio. IMPORTANT: leave generous 10% fully transparent margin around ALL FOUR SIDES so no object edge is cut off. The guide is cropped tightly for measurement, but your output must not crop the object.",
+  "source": "C:\\Users\\andro\\.codex\\generated_images\\01a09c6d-7ce8-7071-b2c5-8b947d23d158\\exec-70755e37-de7a-4a7b-87d4-0c5b1fb538da.png",
+  "tool": "built-in image_gen",
+  "references": [
+    {
+      "role": "binding geometry",
+      "path": "C:/Users/andro/gen-trees/industrial-textures-0912/dev/.scratch-workspace/prop-structure/filter.png"
+    },
+    {
+      "role": "approved material",
+      "path": "C:/Users/andro/gen-trees/industrial-textures-0912/frontend/assets/industrial/calibration/crate.png"
+    },
+    {
+      "role": "station context",
+      "path": "C:/Users/andro/Downloads/bridge.png"
+    }
+  ],
+  "nativeBounds": {
+    "x": -1,
+    "y": -8,
+    "width": 14,
+    "height": 19
+  },
+  "croppedAspectRatio": 0.7647058823529411,
+  "aspectDrift": 0.037815126050420256,
+  "review": {
+    "geometry": "Within 8 percent native crop ratio; no edge clipping",
+    "material": "Approved crate dark steel reference",
+    "liveApp": false
+  }
+}
