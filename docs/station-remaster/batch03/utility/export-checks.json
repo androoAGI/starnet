@@ -414,6 +414,107 @@
       "islandPixelsRemoved": 0,
       "subjectRgbChanges": 0,
       "outputSha256": "e02e107a72ba6ba83b78334c4b7017bc332dcdfe15ae34865506974d33d460ac"
+    },
+    {
+      "id": "etsy_dyevat",
+      "seeds": [],
+      "maxChroma": 15,
+      "source": "docs/station-remaster/batch03/utility/sources/etsy_dyevat.png",
+      "sourceSha256": "9e23edc939d7180d23ad37c7e84b80f5b849e2bcde8187ab00a8cee521f511aa",
+      "sourceWidth": 1254,
+      "sourceHeight": 1254,
+      "output": "frontend/assets/industrial/batch03/utility/etsy_dyevat.png",
+      "canvasPreserved": true,
+      "alphaBounds": {
+        "x": 107,
+        "y": 4,
+        "width": 1032,
+        "height": 1179
+      },
+      "channels": 4,
+      "transparentPixels": 565832,
+      "opaquePixels": 1006684,
+      "partialPixels": 0,
+      "backgroundPixelsRemoved": 565789,
+      "islandPixelsRemoved": 43,
+      "subjectRgbChanges": 0,
+      "outputSha256": "9a02967d2f1eeaf212349208e61342e191afec1ae2ed3a5ecf5a7945a6051269"
+    },
+    {
+      "id": "etsy_kiln",
+      "seeds": [
+        [
+          1032,
+          900
+        ]
+      ],
+      "maxChroma": 15,
+      "source": "docs/station-remaster/batch03/utility/sources/etsy_kiln.png",
+      "sourceSha256": "cb4464d6c710522ae2e7857a3851cd353297d076e437b8b455020331217ef3ee",
+      "sourceWidth": 1197,
+      "sourceHeight": 1315,
+      "output": "frontend/assets/industrial/batch03/utility/etsy_kiln.png",
+      "canvasPreserved": true,
+      "alphaBounds": {
+        "x": 97,
+        "y": 36,
+        "width": 1029,
+        "height": 1214
+      },
+      "channels": 4,
+      "transparentPixels": 555905,
+      "opaquePixels": 1018150,
+      "partialPixels": 0,
+      "backgroundPixelsRemoved": 555905,
+      "islandPixelsRemoved": 0,
+      "subjectRgbChanges": 0,
+      "outputSha256": "3b00448deefa5a1e28293d8980e9aec73531876de2a7c4b365911f54922fc1b7"
+    },
+    {
+      "id": "research_samplecart",
+      "seeds": [
+        [
+          211,
+          149
+        ],
+        [
+          1097,
+          103
+        ],
+        [
+          334,
+          103
+        ],
+        [
+          629,
+          103
+        ],
+        [
+          868,
+          103
+        ]
+      ],
+      "maxChroma": 15,
+      "source": "docs/station-remaster/batch03/utility/sources/research_samplecart.png",
+      "sourceSha256": "417f332881db82322c2a9b759d51decc9f04722e2c032b990351536190ae17e0",
+      "sourceWidth": 1564,
+      "sourceHeight": 1006,
+      "output": "frontend/assets/industrial/batch03/utility/research_samplecart.png",
+      "canvasPreserved": true,
+      "alphaBounds": {
+        "x": 120,
+        "y": 29,
+        "width": 1280,
+        "height": 923
+      },
+      "channels": 4,
+      "transparentPixels": 728290,
+      "opaquePixels": 845094,
+      "partialPixels": 0,
+      "backgroundPixelsRemoved": 728290,
+      "islandPixelsRemoved": 0,
+      "subjectRgbChanges": 0,
+      "outputSha256": "c44ecf5fd17775f839c6cdb7a9c6041ed714ecc0544d5d381046aaa6e01b5272"
     }
   ]
 }
