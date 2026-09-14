@@ -1,0 +1,221 @@
+{
+  "id": "loungetable-r3",
+  "nativeId": "loungetable",
+  "view": "e",
+  "footprint": {
+    "w": 1,
+    "h": 2
+  },
+  "bounds": {
+    "x": -1,
+    "y": 0,
+    "width": 14,
+    "height": 24
+  },
+  "geometry": {
+    "blocks": true,
+    "flat": false,
+    "tableSurface": true,
+    "requiredMount": null,
+    "optionalSurfaceMount": false,
+    "surfaceRisePixels": 8
+  },
+  "orientation": {
+    "facings": [
+      {
+        "r": 0,
+        "front": "south",
+        "w": 2,
+        "h": 1,
+        "type": "authored-view"
+      },
+      {
+        "r": 3,
+        "front": "east",
+        "w": 1,
+        "h": 2,
+        "type": "authored-view"
+      }
+    ],
+    "canMirror": true,
+    "classicFacings": [
+      0,
+      3
+    ]
+  },
+  "anchorContract": "No leisure seat anchor. Footprint is the placement/pathfinding rectangle; upright visual rise is independent of the reserved box.",
+  "sourceAnimation": {
+    "idleFrameVariants": 1,
+    "workFrameVariants": 1,
+    "respondsToWorkFlag": false,
+    "opaqueBoundsRelativeToFootprint": {
+      "x": 0,
+      "y": -6,
+      "w": 24,
+      "h": 18,
+      "alphaThreshold": 160
+    }
+  },
+  "tilePixels": 12,
+  "floorContact": {
+    "x": 6,
+    "y": 24
+  },
+  "visualBottomContact": {
+    "x": 6,
+    "y": 24
+  },
+  "status": "art-draft-integration-pending",
+  "backgroundThreshold": 235,
+  "holeSeeds": [
+    [
+      500,
+      1200
+    ]
+  ],
+  "sourceWidth": 958,
+  "sourceHeight": 1642,
+  "sourceSha256": "22d5274d1cf9f0f5c08b0a2687484028255d2ab39a8cc91559435a3bfb1a1c47",
+  "output": "frontend/assets/industrial/batch03/crew/loungetable-r3.png",
+  "crop": {
+    "left": 58,
+    "top": 83,
+    "width": 843,
+    "height": 1417
+  },
+  "transparentPixels": 265831,
+  "opaquePixels": 928700,
+  "partialPixels": 0,
+  "backgroundPixelsRemoved": 644336,
+  "subjectRgbChanges": 0,
+  "outputSha256": "2f417d8bad9f1ebfda4a6fb5271c79b7a43d5e19eeaea9a2eeaa8fb003a1d9f3",
+  "liveIntegrated": false,
+  "authoredGeometry": {
+    "method": "Manual visual annotation of painted source geometry; approximate edges, not live validated. Normalized coordinates refer to final tight alpha crop, not full original canvas.",
+    "fitWorldPixels": {
+      "x": -0.9999999999999991,
+      "y": 0.4673784104389114,
+      "width": 13.999999999999998,
+      "height": 23.53262158956109,
+      "bottom": 24.0
+    },
+    "regions": {
+      "tableSupport": {
+        "cropNormalized": [
+          [
+            0.195,
+            0.006
+          ],
+          [
+            0.807,
+            0.006
+          ],
+          [
+            0.945,
+            0.702
+          ],
+          [
+            0.049,
+            0.702
+          ]
+        ],
+        "sourcePixels": [
+          [
+            222.39,
+            91.5
+          ],
+          [
+            738.3,
+            91.5
+          ],
+          [
+            854.63,
+            1077.73
+          ],
+          [
+            99.31,
+            1077.73
+          ]
+        ],
+        "sourceNormalized": [
+          [
+            0.232135,
+            0.055726
+          ],
+          [
+            0.770669,
+            0.055726
+          ],
+          [
+            0.892103,
+            0.656354
+          ],
+          [
+            0.103661,
+            0.656354
+          ]
+        ],
+        "worldPixels": [
+          [
+            1.73,
+            0.6086
+          ],
+          [
+            10.298,
+            0.6086
+          ],
+          [
+            12.23,
+            16.9873
+          ],
+          [
+            -0.314,
+            16.9873
+          ]
+        ]
+      },
+      "nearSupportEdge": {
+        "cropNormalized": [
+          [
+            0.049,
+            0.702
+          ],
+          [
+            0.945,
+            0.702
+          ]
+        ],
+        "sourcePixels": [
+          [
+            99.31,
+            1077.73
+          ],
+          [
+            854.63,
+            1077.73
+          ]
+        ],
+        "sourceNormalized": [
+          [
+            0.103661,
+            0.656354
+          ],
+          [
+            0.892103,
+            0.656354
+          ]
+        ],
+        "worldPixels": [
+          [
+            -0.314,
+            16.9873
+          ],
+          [
+            12.23,
+            16.9873
+          ]
+        ]
+      }
+    }
+  }
+}
