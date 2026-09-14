@@ -18,7 +18,7 @@
   "expectedClaimCount": 37,
   "releaseSurface": {
     "algorithm": "sha256",
-    "sourceCommit": "83278a5e382ae9f0793e72924a58e879a80d8cb3",
+    "sourceCommit": "7ab730b8000721f5f6d861157702089201b3439e",
     "pathSetSha256": "09dd6eec20e51b479a42a9552f9966c1e5a48b523604257112037117a4da0199",
     "files": [
       {
@@ -1308,13 +1308,13 @@
       },
       {
         "path": "frontend/skin-review-0914.html",
-        "bytes": 3586,
-        "sha256": "778104ad8f68864d5768f231f659284f2dad118c35ef0e555baac50d824b27f7"
+        "bytes": 3662,
+        "sha256": "2d911940c71473d176a56f4dcbf21cb2a7951ada3d0ced8e3428a37881537324"
       },
       {
         "path": "frontend/skin-review-0914.js",
-        "bytes": 4712,
-        "sha256": "a15051bf9f09588c4abee17c72c0ed4848805e51b46269f71060b28020b5ed2e"
+        "bytes": 5395,
+        "sha256": "dccbb548b3588ed4feb41cad3f4c22158e88f8e77f2ad7caacaec5f744266551"
       }
     ]
   },
