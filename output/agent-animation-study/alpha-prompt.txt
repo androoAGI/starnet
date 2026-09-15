@@ -1,0 +1,2 @@
+Tool: built-in image_gen
+Use case: background-extraction. Edit the provided five-character sprite board. Remove ONLY the charcoal background, making it truly transparent alpha. Preserve all five character designs, their exact proportions, every interior pixel, colors and current poses. Preserve order and full bodies with generous separation. No redesign, no shadows, no floor, no glow, no text, no new details. Return the five same characters against actual transparent background.
