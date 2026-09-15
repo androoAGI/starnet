@@ -16787,7 +16787,10 @@ async function runOnce(o) {
   // the browser pushed via /api/roster) AND SUMMON new specialists (team.summon). Only the lead gets this (it alone
   // gets the orchestrator object above); a non-lead worker stays byte-identical (empty) so it can never re-delegate.
   let teamNote = '';
-  if (o.lead) {
+  // CHAT DIET (2026-09-15, issue #17): a non-task turn ("hello", an ack, a question about the agent itself) has NO
+  // tools on the wire, so a briefing that says "call team.dispatch" would describe a capability the model does not
+  // have this turn. It also cost ~2.6KB of prefill on every greeting — on a 3B local model that is real seconds.
+  if (o.lead && isTask) {
     teamNote = '\n\n[ORCHESTRATION] You are the lead orchestrator. You can build and direct a crew for the Commander:';
     const lines = [];
     // S3: each crew line carries that specialist's EARNED track record when it has one (browser-computed,
@@ -16854,18 +16857,25 @@ async function runOnce(o) {
     // Class Loadouts S1: union the running agent's per-agent class SKILL PACKAGE (roster record) with the global
     // prefs — ADD-only (see catalog.compose). Still gated by the station gear + the budget; package composes first.
     const agentSkills = (rosterIdent && Array.isArray(rosterIdent.skills)) ? rosterIdent.skills : [];
-    skillBlock = skillsCatalog.compose(SKILL_LIBRARY, { overrides: skillPrefs.overrides(), placedTypes: skillPlacedTypes, agentSkills: agentSkills });
+    // CHAT DIET: recipes are for WORK. A greeting shipped ~12KB of skill bodies (5 library skills are default-on with
+    // no gear requirement) to every provider, and a 3B local model spent minutes re-reading them before saying hi.
+    skillBlock = isTask
+      ? skillsCatalog.compose(SKILL_LIBRARY, { overrides: skillPrefs.overrides(), placedTypes: skillPlacedTypes, agentSkills: agentSkills })
+      : '';
   } catch (_) { /* a skill-injection hiccup must never break a run */ }
   // STARNET OPERATOR MANUAL: how the station works, so the agent can guide a stuck Commander. Interactive
   // only (same gate as capsummary — a Commander is present to help and the build UI exists). Sits right
   // BEFORE the authoritative <capabilities_ground_truth>, which it defers to, so the two never disagree.
-  const manualBlock = (surface === 'interactive') ? starnetManual() : '';
+  // CHAT DIET: ~9KB. Gated on isTask too — a 'how do I …' question classifies as a task (classify.js defaults to
+  // task), so the manual still reaches the turns that need it; a bare greeting or ack does not pay for it.
+  const manualBlock = (isTask && surface === 'interactive') ? starnetManual() : '';
   const runtimeVersion = computeVersionSurface();
   const runtimeBlock = runtimeIdentityBlock({ provider: providerId, model, agentId, runId, surface, trigger, fallbackModels, harness: runtimeVersion.harness, app: runtimeVersion.app });
   // RUNTIME SKILL LIBRARY (skill-builder-gap): index the agent's own authored skills + preload any it invokes,
   // riding the same skill.view/skill.manage capability gate. Never breaks a run.
   try {
-    if (resolved.tools.indexOf('skill.view') >= 0) {
+    // CHAT DIET: the index exists so the model can CALL skill.view; on a non-task turn no tool is on the wire.
+    if (isTask && resolved.tools.indexOf('skill.view') >= 0) {
       const rs = runtimeSkills.composeIndex(skillStore.list(agentId), {
         budget: 6000,
         platform: process.platform,
@@ -16996,10 +17006,16 @@ async function runOnce(o) {
      A byte-stable constant, so it never shifts the cached system prefix. */
   const canName = !!(resolved && Array.isArray(resolved.tools) && resolved.tools.indexOf('deliverable_note') >= 0);
   const deliverableNote = canName ? DELIVERABLE_NOTE_CLAUSE : '';
-  const taskSystem = FinishLine.append((system || '') + runtimeBlock + toolNote + teamNote + manualBlock
+  /* PREFIX-CACHE ORDER (2026-09-15, issue #17): runtimeBlock carries the per-run 'Run id:' line. It used to sit
+     FIRST in the appended payload, so the ~25-40KB of byte-stable prose after it (briefing, manual, capabilities,
+     skills) began at a different byte on every turn — Anthropic/OpenRouter cache_control and llama.cpp's prefix
+     KV cache both missed from the run id onward, and a local model re-evaluated the whole prompt each message.
+     It now rides LAST, after every block that is stable across a session's turns, so the shared prefix survives.
+     Content is byte-identical; only the position moved. */
+  const taskSystem = FinishLine.append((system || '') + toolNote + teamNote + manualBlock
     + summarizeCapabilities(resolved, { surface, ownerTrusted, unrestrictedHost: unrestrictedHostNow() }) + skillBlock + runtimeSkillBlock
     + preloadedSkillBlock + serviceKeysBlock + taskIntentNote + directDomainBlock + journeyBlock
-    + deliverableNote, { isTask, internal, tools: resolved.tools });
+    + deliverableNote + runtimeBlock, { isTask, internal, tools: resolved.tools });
   const sys = internal
     ? (String(system || '') + evidenceBlock)
     : withQuests(taskSystem, questsBlock);   // ground-truth caps + task-context doctrine share the one final prompt seam

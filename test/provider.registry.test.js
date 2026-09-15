@@ -174,6 +174,32 @@ module.exports = (async () => {
     A.ok(linked && typeof linked.stream === 'function', 'a linked starnet (dynamic baseUrl supplied) constructs normally');
   }
 
+  // OUTPUT CEILING (issue #17): Ollama's wire has no ceiling of its own, so its profile declares one and the
+  // factory carries it to the adapter; hosted profiles declare none and keep their wire byte-identical.
+  A.eq(factory.getProviderProfile('ollama').maxOutputTokens, 4096, 'Ollama profile declares a 4096-token output ceiling');
+  A.eq(factory.getProviderProfile('openai').maxOutputTokens, undefined, 'hosted OpenAI-compatible profiles declare no ceiling');
+  {
+    const wireFor = async (id, env) => {
+      const prev = process.env.SKYNET_OLLAMA_MAX_TOKENS;
+      if (env == null) delete process.env.SKYNET_OLLAMA_MAX_TOKENS; else process.env.SKYNET_OLLAMA_MAX_TOKENS = env;
+      try {
+        let wire = null;
+        const p = factory.selectProvider({ provider: id, key: 'k', fetch: async (url, init) => {
+          if (init && init.method === 'POST') { wire = JSON.parse(init.body); return new Response('data: [DONE]\n\n', { status: 200, headers: { 'Content-Type': 'text/event-stream' } }); }
+          return new Response(JSON.stringify({ data: [] }), { status: 200 });
+        } });
+        for await (const _ of p.stream({ model: 'm', messages: [{ role: 'user', content: 'hi' }] })) { /* drain */ }
+        return wire;
+      } finally {
+        if (prev == null) delete process.env.SKYNET_OLLAMA_MAX_TOKENS; else process.env.SKYNET_OLLAMA_MAX_TOKENS = prev;
+      }
+    };
+    A.eq((await wireFor('ollama')).max_tokens, 4096, 'an Ollama run carries the profile ceiling as max_tokens');
+    A.eq((await wireFor('ollama', '8192')).max_tokens, 8192, 'SKYNET_OLLAMA_MAX_TOKENS overrides the declared ceiling');
+    A.eq((await wireFor('ollama', 'junk')).max_tokens, 4096, 'a junk override falls back to the declared ceiling');
+    A.eq((await wireFor('deepseek')).max_tokens, undefined, 'a hosted OpenAI-compatible run sends no max_tokens');
+  }
+
   const anthropic = factory.selectProvider({ provider: 'anthropic', fetch: async () => new Response('', { status: 200 }) });
   A.ok(anthropic && typeof anthropic.stream === 'function', 'factory returns Anthropic adapter');
   const gemini = factory.selectProvider({ provider: 'gemini', fetch: async () => new Response('', { status: 200 }) });
