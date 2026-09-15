@@ -1,4 +1,10 @@
-# Compact low tactical console and screen light
+# Restored thin hexagonal tactical table
+
+Current revision: hex-thin-v5 restores the original clipped-corner cyan table style at the owner's request, with a slimmer metal rim and shallow casing. It replaces the rejected rectangular compact-v4 console. The built-in image tool edited the original image in `before/bridge_tacticaltable.png`; [exact prompt](hex-thin-v5-prompt.md). Selected source: `sources/bridge_tacticaltable-hex-thin-v5.png`. Workspace asset: `frontend/assets/industrial/tactical-table-polish/bridge_tacticaltable.png`; runtime: `frontend/assets/industrial/projection-correction/bridge_tacticaltable.png`.
+
+The compact 50 x 28 world-pixel envelope remains; aspect-preserving art is 50 x 25.56 pixels. The original saved 7 x 4 placement reservation and floor anchor remain. The screen overlay polygon and emission origin now follow the restored glass. No global lighting or CRT settings changed. Reloaded Kepler and inspected the command room at room framing and close zoom: clipped silhouette, slimmer border and centered cyan spill are visible. Live diagnostics: 184 views, zero failures, density 6. Projection export (178 views), alpha geometry (184 views), effects and screen-light checks passed. Owner acceptance remains pending.
+
+## Previous compact-v4 revision (rejected)
 
 Preview: http://127.0.0.1:18795/?propSet=projection&skinSet=study&showcase=kepler
 

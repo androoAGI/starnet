@@ -2609,28 +2609,44 @@
       "reason": "Source-specific local state or decorative mechanism.",
       "inCurrentDemo": false,
       "image": "frontend/assets/industrial/projection-correction/bridge_tacticaltable.png",
-      "sourceWidth": 1392,
-      "sourceHeight": 542,
-      "sha256": "934a107662dc6b9a6162e421567d199b134455c1669ea5a5937130fc3f046ec0",
+      "sourceWidth": 1614,
+      "sourceHeight": 825,
+      "sha256": "99165ab21424a61dd836b7b05aed1061310cc71aab8542e425677f0745e6fd60",
       "regions": [
         {
           "kind": "screen",
           "region": [
             [
-              0.185,
-              0.195
+              0.15,
+              0.15
             ],
             [
-              0.69,
-              0.195
+              0.85,
+              0.15
             ],
             [
-              0.69,
-              0.5800000000000001
+              0.91,
+              0.28
             ],
             [
-              0.185,
-              0.5800000000000001
+              0.91,
+              0.75
+            ],
+            [
+              0.85,
+              0.87
+            ],
+            [
+              0.15,
+              0.87
+            ],
+            [
+              0.09,
+              0.75
+            ],
+            [
+              0.09,
+              0.28
             ]
           ],
           "gate": "occupied",

@@ -4,7 +4,7 @@ const fs=require('node:fs'),sharp=require('sharp'),crypto=require('node:crypto')
 const root='frontend/assets/industrial/tactical-table-polish',docs='docs/station-remaster/tactical-table-polish';
 const generated='C:/Users/andro/.codex/generated_images/01a09e45-c8db-79c2-b990-4349e09fba9c';
 const hash=b=>crypto.createHash('sha256').update(b).digest('hex');
-const jobs=[['bridge_tacticaltable','99473951-af37-49ec-a7fd-9e4ff0b3b893','compact-v4']];
+const jobs=[['bridge_tacticaltable','44ac680d-0b14-47d2-ac91-c7e575aad227','hex-thin-v5']];
 (async()=>{
  fs.mkdirSync(root+'/sources',{recursive:true});fs.mkdirSync(root+'/before',{recursive:true});fs.mkdirSync(docs,{recursive:true});
  const manifest=JSON.parse(fs.readFileSync('frontend/assets/industrial/projection-correction/manifest.json')),records=[];
@@ -22,7 +22,7 @@ const jobs=[['bridge_tacticaltable','99473951-af37-49ec-a7fd-9e4ff0b3b893','comp
   const old=manifest.props[id].views.s;
   // The former 84x55 display box made this bigger than two desks. Keep the
   // saved floor anchor, but author a compact 50x28 visual envelope beside them.
-  records.push({id,view:'s',before,source,sourceSha256:hash(bytes),repoPath,outputSha256:hash(out),sourceCrop:crop,sourceWidth:crop.width,sourceHeight:crop.height,footprint:old.footprint,bounds:{x:17,y:20,width:50,height:28},exposure:1,contact:{x:.5,y:(foot+1-top)/crop.height},retained,status:'compact low tactical table candidate; owner review pending'});
+  records.push({id,view:'s',before,source,sourceSha256:hash(bytes),repoPath,outputSha256:hash(out),sourceCrop:crop,sourceWidth:crop.width,sourceHeight:crop.height,footprint:old.footprint,bounds:{x:17,y:20,width:50,height:28},exposure:1,contact:{x:.5,y:(foot+1-top)/crop.height},retained,status:'restored hexagonal style with thinner rim; owner review pending'});
   console.log(id,crop);
  }
  fs.writeFileSync(docs+'/integration.json',JSON.stringify({records},null,2)+'\n');
