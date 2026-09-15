@@ -11760,10 +11760,10 @@ const PropSprites = (() => {
             while(chars.length && ctx.measureText(first+chars[0]).width<=maxWidth)first+=chars.shift();
             // Prefer a word boundary when it leaves a useful first line.
             const split=Math.max(first.lastIndexOf(' '),first.lastIndexOf('-'));
-            if(split>first.length/2){chars.unshift(...Array.from(first.slice(split+1)));first=first.slice(0,split);}
+            if(split>0){chars.unshift(...Array.from(first.slice(split+1)));first=first.slice(0,split);}
             let second=chars.join('').trim();
             if(ctx.measureText(second).width>maxWidth){const tail=Array.from(second);while(tail.length&&ctx.measureText(tail.join('')+'…').width>maxWidth)tail.pop();second=tail.join('')+'…';}
-            lines=[first.trim(),second];
+            lines=second?[first.trim(),second]:[first.trim()];
           }
           layout={font,lines};if(bayTextLayouts.size>=256)bayTextLayouts.clear();bayTextLayouts.set(key,layout);
         }

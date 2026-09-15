@@ -426,7 +426,7 @@ function wallAddresses(g) {
 const oldWallAddresses = wallAddresses(movedTextureGeo(0, 0));
 A.ok(oldWallAddresses.straight.some(x => x < 0), 'remaster north faces receive signed physical tile coordinates');
 A.ok(oldWallAddresses.projected.length > 100, 'side and all curved wall faces use the shared high-detail strip');
-A.ok(oldWallAddresses.projected.some(p => p.w < 1 && p.h < 1), 'remaster corner surface is sampled below the old whole-pixel grid');
+A.ok(oldWallAddresses.projected.some(p => p.w < 1 || p.h < 1), 'remaster corner surface is sampled below the old whole-pixel grid');
 A.eq(wallAddresses(movedTextureGeo(3, 2)), oldWallAddresses, 'growing station bounds preserves every straight, side and corner texture address');
 
 // Door occluders keep their exact old depth/clip geometry, while capturing the

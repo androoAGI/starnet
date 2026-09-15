@@ -3304,6 +3304,13 @@ const StationBake = (() => {
      wall as it narrows. */
   function cornerFaceSlice(put, pal, ed, strip, map, alongWorld, horiz, fixed, d0, len, step, s, sample = 1) {
     if (len <= 0) return;
+    if(sample < 1 && strip && strip.hi) {
+      // A single dense strip patch per row avoids thousands of tiny canvas calls.
+      const span=Math.ceil(len/sample)*sample,lo=step>0?d0:d0-span+sample;
+      if(horiz)put(lo,fixed,span,sample,pal.face,map);
+      else put(fixed,lo,sample,span,pal.face,map);
+      return;
+    }
     const base = ed.glass ? U.shade(pal.base, -0.55) : pal.face;
     const spoke = !strip && ed.pitch > 0 && (((Math.round(s) % ed.pitch) + ed.pitch) % ed.pitch) === 0;
     for (let i = 0; i < len; i += sample) {
