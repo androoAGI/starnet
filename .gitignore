@@ -203,3 +203,6 @@ sidecar/mcp/google-client.json
 
 # Local generated minion sources, archive downloads and assembly reports.
 /dev/industrial-textures/minion-source/
+
+# Local shell material live-proof images and disposable browser profile.
+/.shell-proof/

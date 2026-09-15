@@ -16,18 +16,21 @@ const IndustrialTextures = (() => {
   let loaded = false;
   const names = ['floor', 'wall', 'shell', 'workstation', 'workstation-compact', 'chair-s', 'chair-e', 'chair-n',
     'tactical-table', 'console-bank', 'equipment-bay', 'deck-perimeter'];
+  const shellMaterials = ['monocoque', 'timber', 'clapboard', 'shingle', 'brick', 'stone', 'stucco', 'curtain', 'hedge'];
+  const shellNames = shellMaterials.map(id => 'shell-' + id);
+  const shellTints = new Map();
   // The references are already lit pictures. These measured albedo gains keep
   // the existing light simulation from applying a second exposure to the art.
   const gain = { floor: 1.25, wall: 1.65, shell: 2.05, workstation: 1.5, 'workstation-compact': 1.5,
     'chair-s': 1.3, 'chair-e': 1.3, 'chair-n': 1.3,
     'tactical-table': 1.5, 'console-bank': 1.5, 'equipment-bay': 1.5, 'deck-perimeter': 1.0 };
-  const ready = requested && typeof Image !== 'undefined' ? Promise.all(names.map(name => new Promise(resolve => {
+  const ready = requested && typeof Image !== 'undefined' ? Promise.all([...names, ...shellNames].map(name => new Promise(resolve => {
     const img = new Image();
     img.onload = () => {
       try {
         const cv = document.createElement('canvas'); cv.width = img.width; cv.height = img.height;
         const ctx = cv.getContext('2d');
-        ctx.filter = 'brightness(' + gain[name] + ')'; ctx.drawImage(img, 0, 0);
+        ctx.filter = 'brightness(' + (gain[name] || 1) + ')'; ctx.drawImage(img, 0, 0);
         images[name] = cv;
       } catch (_) { failed.push(name); }
       resolve();
@@ -35,7 +38,8 @@ const IndustrialTextures = (() => {
     img.onerror = () => { failed.push(name); resolve(); };
     img.src = 'assets/industrial/' + name + '.png';
   }))).then(() => {
-    loaded = !failed.length;
+    // Optional shell failures fall back per material, without disabling the station pack.
+    loaded = !failed.some(name => names.includes(name));
     document.documentElement.dataset.texturePack = loaded ? 'industrial' : 'fallback';
   }) : Promise.resolve();
   const enabled = () => requested && loaded;
@@ -146,9 +150,33 @@ const IndustrialTextures = (() => {
     }
     g.restore();
   }
-  function shell(ctx, width, height, vx, vy, topOf) {
+  function shellImage(material, base) {
+    const im = images[material === 'station' ? 'shell' : 'shell-' + material];
+    if (!im || material === 'station' || !/^#[0-9a-f]{6}$/i.test(base || '')) return im;
+    const key = material + ':' + base;
+    if (shellTints.has(key)) return shellTints.get(key);
+    // Preserve the saved paint hue. Normalize the authored relief to the palette's
+    // exposure instead of multiplying an already-coloured brick or wood picture.
+    const cv = document.createElement('canvas'); cv.width = cv.height = 576;
+    const g = cv.getContext('2d'); g.drawImage(im, 0, 0, 576, 576);
+    const pixels = g.getImageData(0, 0, 576, 576), d = pixels.data;
+    let total = 0;
+    for (let i = 0; i < d.length; i += 4) total += .299 * d[i] + .587 * d[i + 1] + .114 * d[i + 2];
+    const mean = Math.max(1, total / (d.length / 4));
+    const n = parseInt(base.slice(1), 16), rgb = [n >> 16 & 255, n >> 8 & 255, n & 255];
+    for (let i = 0; i < d.length; i += 4) {
+      const relief = (.299 * d[i] + .587 * d[i + 1] + .114 * d[i + 2]) / mean;
+      for (let c = 0; c < 3; c++) d[i + c] = Math.min(220, rgb[c] * 2.05 * relief);
+      d[i + 3] = 255; // Shell opacity belongs to the contour mask, never authored image alpha.
+    }
+    g.putImageData(pixels, 0, 0);
+    if (shellTints.size >= 24) shellTints.delete(shellTints.keys().next().value);
+    shellTints.set(key, cv); return cv;
+  }
+  function shell(ctx, width, height, vx, vy, topOf, material = 'station', base = null) {
     if (!enabled()) return false;
-    const im = images.shell, period = 96;
+    const im = shellImage(material, base), period = 96;
+    if (!im) return false;
     ctx.save(); ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high';
     // Sample each column relative to its actual contour top. The geometry's
     // alpha mask and exposure pass still clip and shade the resulting cladding.
@@ -166,11 +194,13 @@ const IndustrialTextures = (() => {
     }
     ctx.restore(); return true;
   }
-  function shellPlate(ctx, x, y, width, height) {
+  function shellPlate(ctx, x, y, width, height, material = 'station', base = null) {
     if (!enabled()) return false;
+    const im = shellImage(material, base);
+    if (!im) return false;
     ctx.save(); ctx.imageSmoothingEnabled = true;
     for (let yy = y; yy < y + height; yy += 96) for (let xx = x; xx < x + width; xx += 96) {
-      const w = Math.min(96, x + width - xx), h = Math.min(96, y + height - yy), im = images.shell;
+      const w = Math.min(96, x + width - xx), h = Math.min(96, y + height - yy);
       ctx.drawImage(im, 0, 0, im.width * w / 96, im.height * h / 96, xx, yy, w, h);
     }
     ctx.restore(); return true;

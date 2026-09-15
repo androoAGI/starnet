@@ -3099,6 +3099,22 @@ const StationBake = (() => {
     station: hullStation, monocoque: hullMonocoque, timber: hullTimber, clapboard: hullClapboard, shingle: hullShingle,
     brick: hullBrick, stone: hullStone, stucco: hullStucco, curtain: hullCurtain, hedge: hullHedge
   };
+  // Re-clad existing IDs: saved rooms, paint hues, silhouette ownership and the
+  // palette chips all keep the same contract. Classic mode / missing artwork
+  // continues through the original recipe for that individual material.
+  for (const [id, classic] of Object.entries(HULL_RECIPES)) {
+    if (id === 'station') continue;
+    HULL_RECIPES[id] = { ...classic,
+      dress(b, pal, x, y, w, h) {
+        if (typeof IndustrialTextures !== 'undefined' && IndustrialTextures.shellPlate(b, x, y, w, h, id, pal.base)) return;
+        if (classic.dress) classic.dress(b, pal, x, y, w, h);
+      },
+      veins(g, pal, w, h, vx, vy, topOf) {
+        if (typeof IndustrialTextures !== 'undefined' && IndustrialTextures.shell(g, w, h, vx, vy, topOf, id, pal.base)) return;
+        if (classic.veins) classic.veins(g, pal, w, h, vx, vy, topOf);
+      }
+    };
+  }
 
   /* how wide the LIT TOP SURFACE is on a wall that is not extruded up-screen. Hard-clamped to
      pad-1 — past that the crown falls outside the ambient plate and burns against the starfield
@@ -4163,7 +4179,7 @@ const StationBake = (() => {
       const sil = sils[gi];
       const shellContext = cv => {
         const g = cv.getContext('2d');
-        return recipe === hullStation && typeof IndustrialTextures !== 'undefined'
+        return typeof IndustrialTextures !== 'undefined'
           ? IndustrialTextures.detailContext(g) : g;
       };
       const f = canvas(CW, CH2);
