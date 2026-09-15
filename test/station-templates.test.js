@@ -6,7 +6,7 @@ const remasterContext={module:{exports:{}},IndustrialTextures:{enabled:()=>true,
 require('node:vm').runInNewContext(require('node:fs').readFileSync(require.resolve('../frontend/app/propsprites.js'),'utf8'),remasterContext);
 const T=require('../frontend/app/stationtemplates.js');
 const approved=require('./fixtures/station-default-approved.json');
-assert.equal(T.catalog.length,6); // default plus five additional builds
+assert.equal(T.catalog.length,7); // default, five purpose builds, and cozy workshop
 for(const P of [legacySprites,remasterContext.module.exports])for(const item of T.catalog) {
   const doc=T.build(item.id,M,P,1000),s=M.create(doc);
   assert.equal(s.rooms().filter(r=>r.kind!=='corridor').length,item.rooms);
@@ -21,6 +21,18 @@ for(const P of [legacySprites,remasterContext.module.exports])for(const item of 
     if(p.x<0||p.x>17||p.y<0||p.y>10)assert.equal(p.w,P.spec(p.t).w);
   }
   const g=s.projectGeometry();
+  if(item.id==='cozy') {
+    const pipeline=require('../frontend/app/pipeline.js');
+    assert.equal(s.belts().length,6,'cozy: both conveyor runs are installed');
+    const fresh=pipeline.compileRoutingPlan(g);
+    assert.deepEqual(fresh.errors.map(e=>e.code),['UNBOUND_BAY'],'cozy: only agent assignment remains');
+    const bay=s.props().find(p=>p.t==='bay');
+    assert.equal(s.assignPropAgent(bay.id,'test-agent').ok,true);
+    const bound=pipeline.compileRoutingPlan(s.projectGeometry());
+    assert.deepEqual(bound.errors,[],'cozy: connected routing plan');
+    assert.equal(bound.reach['test-agent'],true,'cozy: inbox reaches assigned bay');
+    assert.equal(Object.keys(pipeline.liveTiles(bound)).length,6,'cozy: both runs energized');
+  }
   // Every room is reachable from the central room through the real projected graph.
   const origin=[8-g.origin.tx,5-g.origin.ty];
   for(const r of s.rooms().filter(r=>r.kind!=='corridor')){
@@ -52,4 +64,4 @@ for(const P of [legacySprites,remasterContext.module.exports])for(const item of 
   const invalid=structuredClone(doc);invalid.props[0].x=999;
   const snapshot=current.serialize();assert.equal(current.replaceLayout(invalid).ok,false);assert.deepEqual(current.serialize(),snapshot);
 }
-console.log('station-templates: six layouts, classic/remastered catalogs, approved home, clear entrances, prop access, ownership, undo/redo and persistence PASS');
+console.log('station-templates: seven layouts, classic/remastered catalogs, approved home, connected cozy conveyors, clear entrances, prop access, ownership, undo/redo and persistence PASS');

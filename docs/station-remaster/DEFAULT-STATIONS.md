@@ -99,3 +99,28 @@ planning-authority / finite-claims assertions in `qa-product-perfect-claims` and
 reached its 900,000 ms timeout. `station-default-fast.log` contains the output.
 The full gate is **not green**; no integration merge or release was performed.
 Real provider execution and the installed desktop build were not verified here.
+
+## Cozy Workshop — September 15
+
+Added a seventh choice, COZY WORKSHOP: the approved home between an 18×11
+wood-floored workroom to the north and an 18×11 lounge to the south. The lounge
+has a sofa, rug, coffee corner, shelves, plants, and a bed. The workroom uses
+the existing `front_desk` blueprint: Inbox → Bay → Outbox, with two connected
+three-tile conveyor runs. The bay is unassigned; the picker explains that the
+user assigns an agent. No agent recruitment or task execution is implied.
+Picker schematics now include real belt tiles.
+
+Applied through the live picker at 18845, inspected the full station and bay
+assignment dialog, observed the save acknowledgment, and compared the saved
+rooms, props, and belts exactly against the remastered factory. The preview
+is left showing this cozy build. Snapshot receipts are in
+`.dogfood/station-cozy/`. A stale save alert encountered before applying was
+resolved with the app's Reload current station control; subsequent saves passed.
+
+Seven-preset tests pass for both sprite catalogs, including approved-home
+preservation, room sizes, entrances, walking paths, persistence, and conveyor
+compilation. The fresh line reports only UNBOUND_BAY; assigning a test agent
+in the model yields zero routing errors and energizes all six belt tiles.
+Worldmodel passes 536 assertions; blueprints pass 2,180. Syntax/diff checks
+pass and the live browser reports no errors. The full gate above was not
+rerun; no merge, release, or real provider job was performed.

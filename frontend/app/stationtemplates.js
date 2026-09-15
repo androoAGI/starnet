@@ -5,12 +5,15 @@ const StationTemplates = (() => {
   const catalog = [
     { id: 'default', name: 'DEFAULT', rooms: 1, description: 'One open room. All five essentials, your workstation, and space to grow.', wings: [] },
     { id: 'retreat', name: 'QUIET RETREAT', rooms: 2, description: 'Your home station with a quiet library and lounge to the south.', wings: [['reading','south']] },
+    { id: 'cozy', name: 'COZY WORKSHOP', rooms: 3, description: 'Warm wood floors, a furnished lounge, and an Inbox → Bay → Outbox conveyor workshop. Assign an agent to the bay to use the line.', wings: [['cozyWorkshop','north'],['cozyLounge','south']] },
     { id: 'creative', name: 'CREATIVE STUDIO', rooms: 3, description: 'A writing and design studio on one side, a review room on the other.', wings: [['creative','west'],['review','east']] },
     { id: 'research', name: 'RESEARCH STATION', rooms: 3, description: 'An analysis lab to the north and a dedicated reference archive to the east.', wings: [['research','north'],['archive','east']] },
     { id: 'engineering', name: 'ENGINEERING STATION', rooms: 5, description: 'Workshop, analysis lab, review room, and quiet lounge around your home station.', wings: [['engineering','west'],['review','east'],['research','north'],['reading','south']] },
     { id: 'operations', name: 'OPERATIONS STATION', rooms: 5, description: 'Planning, communications, reference, and review rooms around a central home station.', wings: [['archive','west'],['comms','east'],['planning','north'],['review','south']] }
   ];
   const rooms = {
+    cozyWorkshop: { name: 'WORKROOM', kind: 'factory', floorStyle: 'walnut', floorMat: 'plank', blueprint: ['front_desk',3,1], props: [['plant',1,1],['plant',16,1],['desk',2,7],['industrial_drawerbank',12,7],['bookshelf',14,9]] },
+    cozyLounge: { name: 'LOUNGE', kind: 'quarters', floorStyle: 'walnut', floorMat: 'plank', props: [['couch',1,1],['rug',1,2],['industrial_roundtable',2,6],['coffee',5,6],['bookshelf',12,1],['plant',16,1],['bunk',13,7],['plant',1,8]] },
     reading: { name: 'LIBRARY', kind: 'quarters', floorStyle: 'walnut', floorMat: 'plank', props: [['couch',1,1],['bookshelf',13,1],['plant',16,8],['industrial_roundtable',2,4]] },
     creative: { name: 'STUDIO', kind: 'lab', floorStyle: 'hull', floorMat: 'resin', props: [['desk',3,1],['easel',11,1],['plant',16,1],['bookshelf',1,8],['industrial_drawerbank',11,8]] },
     review: { name: 'REVIEW', kind: 'hab', floorStyle: 'ash', floorMat: 'resin', props: [['desk',2,1],['whiteboard',11,0],['plant',16,1],['industrial_roundtable',7,4]] },
@@ -41,6 +44,10 @@ const StationTemplates = (() => {
         const spec = sprites.spec(t);
         if (!spec) throw new Error('Missing station furniture: '+t);
         requireOK(station.addProp({t,x:slot.x+x,y:slot.y+y,w:spec.w,h:spec.h,block:spec.blocks!==false}));
+      }
+      if (r.blueprint) {
+        const [blueprint,x,y] = r.blueprint;
+        requireOK(station.stampBlueprint(blueprint,slot.x+x,slot.y+y));
       }
     });
     const doc = station.serialize();

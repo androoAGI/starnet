@@ -1805,6 +1805,7 @@ const Build = (() => {
         const x=ox+(r.x1-bounds.minTx)*scale,y=oy+(r.y1-bounds.minTy)*scale,w=(r.x2-r.x1+1)*scale,h=(r.y2-r.y1+1)*scale;
         ctx.fillRect(x,y,w,h);ctx.strokeRect(x+.5,y+.5,w-1,h-1);
       }
+      for(const key of Object.keys(doc.belts)) {const [x,y]=key.split(',').map(Number);ctx.fillStyle='#b6a375';ctx.fillRect(ox+(x-bounds.minTx)*scale,oy+(y-bounds.minTy)*scale,scale,scale);}
       for(const p of doc.props) {ctx.fillStyle=WorldModel.capForProp(p.t)?'#d2b276':'#6d957e';ctx.fillRect(ox+(p.x-bounds.minTx)*scale,oy+(p.y-bounds.minTy)*scale,Math.max(2,p.w*scale),Math.max(2,p.h*scale));}
       button.onclick = () => {
         selected=item;armed=false;apply.disabled=false;apply.textContent='USE '+item.name;
