@@ -18,7 +18,7 @@
   "expectedClaimCount": 37,
   "releaseSurface": {
     "algorithm": "sha256",
-    "sourceCommit": "b8648b228f20867f790cb159840017022c67c3d1",
+    "sourceCommit": "bd9091202957a77eedf4c7b82620d65e44e6fb6e",
     "pathSetSha256": "1d26a45a2a9aac628d8d2335638d02a6051d605c116824ae8d4c28390781a868",
     "files": [
       {
@@ -423,8 +423,8 @@
       },
       {
         "path": "frontend/app/industrialtextures.js",
-        "bytes": 23563,
-        "sha256": "ff6fe37f1fb16f7a77d57858537e16da912ac448cba8f9a44b72a1542e2a1497"
+        "bytes": 24998,
+        "sha256": "3f494735052364c2d99f9849a7733f5d38294d935d22fc749006143614f2b2d6"
       },
       {
         "path": "frontend/app/intake.js",
@@ -818,8 +818,8 @@
       },
       {
         "path": "frontend/app/remaster-runtime-audit.js",
-        "bytes": 10295,
-        "sha256": "a3f370c0e5ced687dfab2ec56fc10a6b59ceb2d81cb5f9e0c4cd244eb991fc99"
+        "bytes": 11198,
+        "sha256": "99406d32ceddfb2498dd09ee2aea190c34d512f1435c6880da829383031108ea"
       },
       {
         "path": "frontend/app/resummonstore.js",
@@ -918,8 +918,8 @@
       },
       {
         "path": "frontend/app/stationbake.js",
-        "bytes": 355810,
-        "sha256": "5259d97b56ecac35e3d53307fdc7c8546c950c1a22f612795f8486dfe13c7885"
+        "bytes": 356738,
+        "sha256": "bd8aa15abef31f82f1451d40c52fa2fc49e6457a5cb4cb695c9f0b0bb0b85a1b"
       },
       {
         "path": "frontend/app/stationcommands.js",
