@@ -39,10 +39,14 @@ Standing art and height remain unchanged at 18 world pixels. Approved boots now 
 
 After the original reproduction steps, run `pack-walk-fixes.cjs --activate`, then `pack-skeleton-walk-cleanup.cjs`, then `validate-approved-motion.cjs`. The cleanup uses a single source scale across all poses and preserves each original pose's alignment. Final validation: 525 packed frames, 40 unchanged 76px standing rotations, walking heights 73–80px, no clipped content. The panel revision is `grounded-walks-0915`; `data-motion` records actual render height, ground gap, speed, pose and travel.
 
-## 20px rollout and remaining-direction polish
+## Historical 20px rollout and remaining-direction polish
 
 The user subsequently approved **20 world pixels** as the baseline. The demo and all comparison skins now default to 20/76. The five new front studies are documented in `../rollout-20px/README.md`.
 
 `polish-jobs.json` selects replacements for the remaining 29 walking tracks, completing the walk treatment across all 40 directions of the original five skins. `polish-initial-jobs.json` preserves the first pass; two Void Wizard loops were regenerated because their final frames developed noisy robe edges. `polish-retries.json` records those replacements. Each selected loop was reviewed on a contact sheet before activation; no sprite was stretched independently to fit its frame.
 
 For the current runtime, follow the previous reproduction commands with `pack-walk-fixes.cjs --jobs=polish-jobs.json --activate`, `contact-polished-walks.cjs`, and `validate-approved-motion.cjs`. Standing rotations, seated poses and typing frames retain their prior art. The new panel revision is `industrial-rollout-20px`.
+
+## Superseded by the 19px full catalog rollout
+
+The latest user approval is **19 world pixels**. The active panel revision is `industrial-rollout-19px`. Use `../rollout-20px/README.md` for current packing, review, validation and blocked-design status; the directory name is historical. Do not blindly rerun the older reproduction sequence above over the current catalog, because it can restore obsolete manifest selections.

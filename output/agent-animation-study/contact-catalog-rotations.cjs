@@ -1,0 +1,3 @@
+const fs=require('fs'),sharp=require('sharp');
+const ids=process.argv.slice(2),dirs=['south','south-east','east','north-east','north','north-west','west','south-west'],base='output/agent-animation-study/rollout-20px';
+(async()=>{const layers=[];for(let y=0;y<ids.length;y++)for(let x=0;x<dirs.length;x++){const f=base+'/full-motion/'+ids[y]+'/refs/'+dirs[x]+'.png';if(fs.existsSync(f))layers.push({input:f,left:x*96,top:y*96});}const out=base+'/rotations-'+ids.join('-')+'.png';await sharp({create:{width:768,height:ids.length*96,channels:4,background:'#344047'}}).composite(layers).png().toFile(out);console.log(out);})();
