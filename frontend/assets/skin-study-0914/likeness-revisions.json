@@ -1,0 +1,111 @@
+{
+  "characters": [
+    {
+      "id": "pepe",
+      "characterId": "982de205-d58d-42bd-8650-f43c9ea8da6d",
+      "rotations": {
+        "south": "https://backblaze.pixellab.ai/file/pixellab-characters/1ff7d2cf-cfe6-44f9-9533-9eea41eb05cb/982de205-d58d-42bd-8650-f43c9ea8da6d/rotations/south.png?t=1789365637",
+        "east": "https://backblaze.pixellab.ai/file/pixellab-characters/1ff7d2cf-cfe6-44f9-9533-9eea41eb05cb/982de205-d58d-42bd-8650-f43c9ea8da6d/rotations/east.png?t=1789365637",
+        "north": "https://backblaze.pixellab.ai/file/pixellab-characters/1ff7d2cf-cfe6-44f9-9533-9eea41eb05cb/982de205-d58d-42bd-8650-f43c9ea8da6d/rotations/north.png?t=1789365637",
+        "west": "https://backblaze.pixellab.ai/file/pixellab-characters/1ff7d2cf-cfe6-44f9-9533-9eea41eb05cb/982de205-d58d-42bd-8650-f43c9ea8da6d/rotations/west.png?t=1789365637"
+      }
+    },
+    {
+      "id": "vaultboy",
+      "characterId": "e5340cea-f76a-46ea-a906-c0c9ddb26695",
+      "rotations": {
+        "south": "https://backblaze.pixellab.ai/file/pixellab-characters/1ff7d2cf-cfe6-44f9-9533-9eea41eb05cb/e5340cea-f76a-46ea-a906-c0c9ddb26695/rotations/south.png?t=1789365684",
+        "east": "https://backblaze.pixellab.ai/file/pixellab-characters/1ff7d2cf-cfe6-44f9-9533-9eea41eb05cb/e5340cea-f76a-46ea-a906-c0c9ddb26695/rotations/east.png?t=1789365684",
+        "north": "https://backblaze.pixellab.ai/file/pixellab-characters/1ff7d2cf-cfe6-44f9-9533-9eea41eb05cb/e5340cea-f76a-46ea-a906-c0c9ddb26695/rotations/north.png?t=1789365684",
+        "west": "https://backblaze.pixellab.ai/file/pixellab-characters/1ff7d2cf-cfe6-44f9-9533-9eea41eb05cb/e5340cea-f76a-46ea-a906-c0c9ddb26695/rotations/west.png?t=1789365684"
+      }
+    },
+    {
+      "id": "bear",
+      "characterId": "52b8eca1-300b-4bef-8831-d81c945f19e4",
+      "rotations": {
+        "south": "https://backblaze.pixellab.ai/file/pixellab-characters/1ff7d2cf-cfe6-44f9-9533-9eea41eb05cb/52b8eca1-300b-4bef-8831-d81c945f19e4/rotations/south.png?t=1789365613",
+        "east": "https://backblaze.pixellab.ai/file/pixellab-characters/1ff7d2cf-cfe6-44f9-9533-9eea41eb05cb/52b8eca1-300b-4bef-8831-d81c945f19e4/rotations/east.png?t=1789365613",
+        "north": "https://backblaze.pixellab.ai/file/pixellab-characters/1ff7d2cf-cfe6-44f9-9533-9eea41eb05cb/52b8eca1-300b-4bef-8831-d81c945f19e4/rotations/north.png?t=1789365613",
+        "west": "https://backblaze.pixellab.ai/file/pixellab-characters/1ff7d2cf-cfe6-44f9-9533-9eea41eb05cb/52b8eca1-300b-4bef-8831-d81c945f19e4/rotations/west.png?t=1789365613"
+      }
+    },
+    {
+      "id": "ghostface",
+      "characterId": "9462c054-939c-458b-82de-207fceca9774",
+      "rotations": {
+        "south": "https://backblaze.pixellab.ai/file/pixellab-characters/1ff7d2cf-cfe6-44f9-9533-9eea41eb05cb/9462c054-939c-458b-82de-207fceca9774/rotations/south.png?t=1789365605",
+        "east": "https://backblaze.pixellab.ai/file/pixellab-characters/1ff7d2cf-cfe6-44f9-9533-9eea41eb05cb/9462c054-939c-458b-82de-207fceca9774/rotations/east.png?t=1789365605",
+        "north": "https://backblaze.pixellab.ai/file/pixellab-characters/1ff7d2cf-cfe6-44f9-9533-9eea41eb05cb/9462c054-939c-458b-82de-207fceca9774/rotations/north.png?t=1789365605",
+        "west": "https://backblaze.pixellab.ai/file/pixellab-characters/1ff7d2cf-cfe6-44f9-9533-9eea41eb05cb/9462c054-939c-458b-82de-207fceca9774/rotations/west.png?t=1789365605"
+      }
+    },
+    {
+      "id": "morpheus",
+      "characterId": "897660b3-933d-4cff-b0e6-d9fed4ad6544",
+      "rotations": {
+        "south": "https://backblaze.pixellab.ai/file/pixellab-characters/1ff7d2cf-cfe6-44f9-9533-9eea41eb05cb/897660b3-933d-4cff-b0e6-d9fed4ad6544/rotations/south.png?t=1789365608",
+        "east": "https://backblaze.pixellab.ai/file/pixellab-characters/1ff7d2cf-cfe6-44f9-9533-9eea41eb05cb/897660b3-933d-4cff-b0e6-d9fed4ad6544/rotations/east.png?t=1789365608",
+        "north": "https://backblaze.pixellab.ai/file/pixellab-characters/1ff7d2cf-cfe6-44f9-9533-9eea41eb05cb/897660b3-933d-4cff-b0e6-d9fed4ad6544/rotations/north.png?t=1789365608",
+        "west": "https://backblaze.pixellab.ai/file/pixellab-characters/1ff7d2cf-cfe6-44f9-9533-9eea41eb05cb/897660b3-933d-4cff-b0e6-d9fed4ad6544/rotations/west.png?t=1789365608"
+      }
+    },
+    {
+      "id": "pikachu",
+      "characterId": "061c2e04-62c5-4414-9100-3bc3ec8116fe",
+      "rotations": {
+        "south": "https://backblaze.pixellab.ai/file/pixellab-characters/1ff7d2cf-cfe6-44f9-9533-9eea41eb05cb/061c2e04-62c5-4414-9100-3bc3ec8116fe/rotations/south.png?t=1789365625",
+        "east": "https://backblaze.pixellab.ai/file/pixellab-characters/1ff7d2cf-cfe6-44f9-9533-9eea41eb05cb/061c2e04-62c5-4414-9100-3bc3ec8116fe/rotations/east.png?t=1789365625",
+        "north": "https://backblaze.pixellab.ai/file/pixellab-characters/1ff7d2cf-cfe6-44f9-9533-9eea41eb05cb/061c2e04-62c5-4414-9100-3bc3ec8116fe/rotations/north.png?t=1789365625",
+        "west": "https://backblaze.pixellab.ai/file/pixellab-characters/1ff7d2cf-cfe6-44f9-9533-9eea41eb05cb/061c2e04-62c5-4414-9100-3bc3ec8116fe/rotations/west.png?t=1789365625"
+      }
+    },
+    {
+      "id": "xenomorph",
+      "characterId": "34ffad36-1c46-428d-a238-9f89637ca184",
+      "rotations": {
+        "south": "https://backblaze.pixellab.ai/file/pixellab-characters/1ff7d2cf-cfe6-44f9-9533-9eea41eb05cb/34ffad36-1c46-428d-a238-9f89637ca184/rotations/south.png?t=1789365657",
+        "east": "https://backblaze.pixellab.ai/file/pixellab-characters/1ff7d2cf-cfe6-44f9-9533-9eea41eb05cb/34ffad36-1c46-428d-a238-9f89637ca184/rotations/east.png?t=1789365657",
+        "north": "https://backblaze.pixellab.ai/file/pixellab-characters/1ff7d2cf-cfe6-44f9-9533-9eea41eb05cb/34ffad36-1c46-428d-a238-9f89637ca184/rotations/north.png?t=1789365657",
+        "west": "https://backblaze.pixellab.ai/file/pixellab-characters/1ff7d2cf-cfe6-44f9-9533-9eea41eb05cb/34ffad36-1c46-428d-a238-9f89637ca184/rotations/west.png?t=1789365657"
+      }
+    }
+  ],
+  "briefs": [
+    [
+      "pepe",
+      "Pepe",
+      "Pepe the Frog by Matt Furie, accurate recognizable classic Pepe face. WIDE FLAT olive-green frog head, two prominent HALF-CLOSED HEAVY EYELIDS with sleepy looking eyes, thick wide SALMON TAN LIPS forming a mildly downturned mouth. No smiling generic frog, no tiny mouth, no round baby head. Classic plain blue long sleeve shirt, brown trousers. Slight slouch, thin arms, modest frog hands, adult bipedal body. Preserve classic melancholic Pepe expression and face silhouette. Detailed pixel art with muted colors, natural cloth folds."
+    ],
+    [
+      "vaultboy",
+      "Fallout 1 Vault Dweller",
+      "The original Fallout 1 male Vault Dweller rendered as a gritty 1997 isometric RPG sprite. Adult rugged brown-haired man with short cropped dark hair, serious weathered face, realistic adult human proportions, fitted worn cobalt BLUE VAULT 13 JUMPSUIT with YELLOW central zipper stripe and yellow collar and belt trim, leather utility belt, chunky brown work boots, wrist-mounted bulky Pip-Boy on left forearm. Weathered practical fabric and knee reinforcement. Not Vault Boy mascot, no blond quiff, no cartoon grin, no anime. Empty hands. Fallout 1 grounded retro postapocalyptic pixel-art character."
+    ],
+    [
+      "bear",
+      "Teddy Bear",
+      "A beautifully crafted vintage STEIFF STYLE TEDDY BEAR standing upright, recognizable plush toy with natural teddy proportions. Warm desaturated honey-brown textured mohair fur, rounded modest ears, small deep black glass bead eyes, projecting short beige stuffed muzzle, tiny stitched dark brown triangular nose and stitched mouth, visible subtle center seam, rounded padded arms, short rounded legs and oval beige fabric paw pads, soft slightly pear-shaped body. Endearing but not babyish, no flat yellow cartoon face, no huge oval contrasting belly, no long human legs, no human fingers. Tactile worn mohair and restrained stitched details, high-quality detailed pixel art, neutral stance."
+    ],
+    [
+      "ghostface",
+      "Ghostface",
+      "The accurate iconic Ghostface costume from Scream. Adult human in a long loose jet-black hooded robe with ragged draping sleeve panels, black gloves and boots. The distinctive elongated ivory-white FUN WORLD GHOSTFACE MASK: drooping long black oval eye sockets angled inward, narrow nose slits and very LONG OPEN BLACK OVAL SCREAMING MOUTH, stretched ghostlike cheeks. Mask is the key silhouette, not a skull, no skeletal teeth. Black hood wraps closely around the mask and conceals hair and skin. Cloth hangs heavily around natural adult body proportions. Empty hands, no weapon. Detailed restrained charcoal shading, recognizable Scream horror film appearance."
+    ],
+    [
+      "morpheus",
+      "Morpheus",
+      "Accurate Morpheus as portrayed by Laurence Fishburne in The Matrix (1999), bald Black middle-aged man, clearly rich warm DARK BROWN SKIN, broad strong face and natural lips, iconic SMALL ROUND RIMLESS BLACK SUNGLASSES with nose bridge. Long black leather trench coat over dark tailored suit and high collared shirt, polished black shoes, confident upright relaxed posture, empty hands. Natural adult proportions, realistic face likeness at pixel scale, warm brown facial midtones remain visible. Leather lapels and long coat show restrained grey highlights. Do not make grey-skinned, faceless or pale. Detailed cinematic pixel-art station character."
+    ],
+    [
+      "pikachu",
+      "Pikachu",
+      "Accurate classic PIKACHU from Pokemon, recognizable canonical proportions. Small compact rounded yellow mouse body, relatively broad head, long upright black-tipped ears, large black oval eyes with tiny white glints, small black triangular nose, tiny curved mouth, TWO clearly visible RED CIRCULAR CHEEKS, short little arms and squat hind legs, two brown stripes on back, broad flat LIGHTNING-BOLT ZIGZAG TAIL visibly extending at the side with brown base. Not a tall skinny rodent, no long torso, no long human legs, no realistic rat snout. Faithful Pokemon character silhouette with carefully shaded short golden fur, polished restrained pixel-art finish. Neutral standing pose."
+    ],
+    [
+      "xenomorph",
+      "Xenomorph",
+      "Accurate adult Xenomorph drone from Alien (1979), H R Giger biomechanical creature, elongated smooth banana-shaped black head dome projecting far BACK from the face, NO EYES, small exposed silver teeth below front of dome, ribbed biomechanical chest and abdomen, four distinctive dorsal tubes on back, long jointed clawed arms, digitigrade legs, LONG SEGMENTED TAIL curved visibly beside body with pointed blade tip. Lean sinister creature anatomy with slightly hunched neck, NOT a round-headed human android, no eye visor, no face stripe. Glossy blue-black carapace and matte ribbing separated by restrained cool grey highlights. Detailed cinematic horror pixel art."
+    ]
+  ]
+}

@@ -1,0 +1,83 @@
+{
+  "status": "review-candidates",
+  "generator": "PixelLab standard",
+  "briefs": [
+    [
+      "ultron",
+      "Ultron",
+      "Ultron inspired ominous humanoid android in layered charcoal titanium armor, distinctive angular metal face and two narrow red illuminated eyes, restrained red seams across the chest, athletic adult proportions, compact head, believable articulated shoulder elbow knee assemblies, brushed worn metal highlights, hands empty."
+    ],
+    [
+      "skeleton",
+      "Skeleton",
+      "An eerie anatomically believable human skeleton, compact adult skull, realistic rib cage pelvis long limb bones articulated joints, warm aged ivory bone with subtle grey shading and fine cracks, slender natural adult proportions, head one sixth of body height, neutral relaxed arms, no clothes, no weapon, no oversized cartoon skull."
+    ],
+    [
+      "plaguedoctor",
+      "Plague Doctor",
+      "An eerie plague doctor reimagined as a station quarantine specialist. Weathered dark brown leather calf-length coat, narrow brim brown hat, modest ivory beaked respirator with dark circular glass lenses, small chest filter cartridge, dark gloves, fitted trousers and practical boots. Realistic heavy fabric folds and leather seams. Adult human proportions, hat compact, hands empty. Preserve brown coat hat and beak identity."
+    ],
+    [
+      "secretagent",
+      "Secret Agent",
+      "A composed male undercover agent in a tailored charcoal suit, crisp grey-white shirt and slim black tie, short neatly combed dark hair and black sunglasses, natural adult human proportions with small head and realistic hands, subtle tailoring folds polished dark shoes and understated watch, neutral stance empty hands. Serious cinematic pixel art adapted to an industrial space station."
+    ],
+    [
+      "voidwizard",
+      "Void Wizard",
+      "An eerie void wizard aboard a dark orbital station. Deep muted aubergine long coat and layered robes, compact bent pointed wizard hat, face hidden in black shadow with two tiny restrained violet eyes, aged bronze fastenings and belt, subtle violet embroidery along hems, realistic heavy cloth folds, narrow shoulders and long natural human limbs, visible boots under split robe hem. Empty gloved hands, no staff, no floating particles. Preserve purple pointed hat and mysterious silhouette."
+    ]
+  ],
+  "characters": [
+    {
+      "id": "ultron",
+      "characterId": "644529de-1bf9-4f59-a961-dd765fdee9d1",
+      "rotations": {
+        "south": "https://backblaze.pixellab.ai/file/pixellab-characters/1ff7d2cf-cfe6-44f9-9533-9eea41eb05cb/644529de-1bf9-4f59-a961-dd765fdee9d1/rotations/south.png?t=1789361899",
+        "east": "https://backblaze.pixellab.ai/file/pixellab-characters/1ff7d2cf-cfe6-44f9-9533-9eea41eb05cb/644529de-1bf9-4f59-a961-dd765fdee9d1/rotations/east.png?t=1789361899",
+        "north": "https://backblaze.pixellab.ai/file/pixellab-characters/1ff7d2cf-cfe6-44f9-9533-9eea41eb05cb/644529de-1bf9-4f59-a961-dd765fdee9d1/rotations/north.png?t=1789361899",
+        "west": "https://backblaze.pixellab.ai/file/pixellab-characters/1ff7d2cf-cfe6-44f9-9533-9eea41eb05cb/644529de-1bf9-4f59-a961-dd765fdee9d1/rotations/west.png?t=1789361899"
+      }
+    },
+    {
+      "id": "skeleton",
+      "characterId": "bec9e917-452f-4b79-9e35-9ec7e23e44a7",
+      "rotations": {
+        "south": "https://backblaze.pixellab.ai/file/pixellab-characters/1ff7d2cf-cfe6-44f9-9533-9eea41eb05cb/bec9e917-452f-4b79-9e35-9ec7e23e44a7/rotations/south.png?t=1789361935",
+        "east": "https://backblaze.pixellab.ai/file/pixellab-characters/1ff7d2cf-cfe6-44f9-9533-9eea41eb05cb/bec9e917-452f-4b79-9e35-9ec7e23e44a7/rotations/east.png?t=1789361935",
+        "north": "https://backblaze.pixellab.ai/file/pixellab-characters/1ff7d2cf-cfe6-44f9-9533-9eea41eb05cb/bec9e917-452f-4b79-9e35-9ec7e23e44a7/rotations/north.png?t=1789361935",
+        "west": "https://backblaze.pixellab.ai/file/pixellab-characters/1ff7d2cf-cfe6-44f9-9533-9eea41eb05cb/bec9e917-452f-4b79-9e35-9ec7e23e44a7/rotations/west.png?t=1789361935"
+      }
+    },
+    {
+      "id": "plaguedoctor",
+      "characterId": "542f620c-ebfe-4142-893b-69ea7ed4b4f4",
+      "rotations": {
+        "south": "https://backblaze.pixellab.ai/file/pixellab-characters/1ff7d2cf-cfe6-44f9-9533-9eea41eb05cb/542f620c-ebfe-4142-893b-69ea7ed4b4f4/rotations/south.png?t=1789361915",
+        "east": "https://backblaze.pixellab.ai/file/pixellab-characters/1ff7d2cf-cfe6-44f9-9533-9eea41eb05cb/542f620c-ebfe-4142-893b-69ea7ed4b4f4/rotations/east.png?t=1789361915",
+        "north": "https://backblaze.pixellab.ai/file/pixellab-characters/1ff7d2cf-cfe6-44f9-9533-9eea41eb05cb/542f620c-ebfe-4142-893b-69ea7ed4b4f4/rotations/north.png?t=1789361915",
+        "west": "https://backblaze.pixellab.ai/file/pixellab-characters/1ff7d2cf-cfe6-44f9-9533-9eea41eb05cb/542f620c-ebfe-4142-893b-69ea7ed4b4f4/rotations/west.png?t=1789361915"
+      }
+    },
+    {
+      "id": "secretagent",
+      "characterId": "6b5ba974-3e31-4053-bc38-34468f5d4eff",
+      "rotations": {
+        "south": "https://backblaze.pixellab.ai/file/pixellab-characters/1ff7d2cf-cfe6-44f9-9533-9eea41eb05cb/6b5ba974-3e31-4053-bc38-34468f5d4eff/rotations/south.png?t=1789361905",
+        "east": "https://backblaze.pixellab.ai/file/pixellab-characters/1ff7d2cf-cfe6-44f9-9533-9eea41eb05cb/6b5ba974-3e31-4053-bc38-34468f5d4eff/rotations/east.png?t=1789361905",
+        "north": "https://backblaze.pixellab.ai/file/pixellab-characters/1ff7d2cf-cfe6-44f9-9533-9eea41eb05cb/6b5ba974-3e31-4053-bc38-34468f5d4eff/rotations/north.png?t=1789361905",
+        "west": "https://backblaze.pixellab.ai/file/pixellab-characters/1ff7d2cf-cfe6-44f9-9533-9eea41eb05cb/6b5ba974-3e31-4053-bc38-34468f5d4eff/rotations/west.png?t=1789361905"
+      }
+    },
+    {
+      "id": "voidwizard",
+      "characterId": "458cb476-aa15-4af8-b568-c7320331b9d7",
+      "rotations": {
+        "south": "https://backblaze.pixellab.ai/file/pixellab-characters/1ff7d2cf-cfe6-44f9-9533-9eea41eb05cb/458cb476-aa15-4af8-b568-c7320331b9d7/rotations/south.png?t=1789361939",
+        "east": "https://backblaze.pixellab.ai/file/pixellab-characters/1ff7d2cf-cfe6-44f9-9533-9eea41eb05cb/458cb476-aa15-4af8-b568-c7320331b9d7/rotations/east.png?t=1789361939",
+        "north": "https://backblaze.pixellab.ai/file/pixellab-characters/1ff7d2cf-cfe6-44f9-9533-9eea41eb05cb/458cb476-aa15-4af8-b568-c7320331b9d7/rotations/north.png?t=1789361939",
+        "west": "https://backblaze.pixellab.ai/file/pixellab-characters/1ff7d2cf-cfe6-44f9-9533-9eea41eb05cb/458cb476-aa15-4af8-b568-c7320331b9d7/rotations/west.png?t=1789361939"
+      }
+    }
+  ]
+}
