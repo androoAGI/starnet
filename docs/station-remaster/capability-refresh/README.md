@@ -25,3 +25,13 @@ Screen and status-light masks were remapped to the new art. The workbench displa
 This is a local visual candidate, not a claim of user art approval or station-wide release readiness. Original capability behavior is preserved; no external tool action was triggered merely to animate the art.
 
 Preview: http://127.0.0.1:18796/?propSet=projection&skinSet=study&remasterAudit=1&capabilityReview=1
+
+## Completed regression gate
+
+`npm run test:fast`: **793 steps green**, exit 0. Runtime/art source commit: `935b5957b` (subsequent commits record screenshots only). Log: `dev/.scratch-workspace/capability-refresh-test-fast.log`.
+
+## Normal furnished station
+
+Run `node dev/launch-capability-default-station.mjs` to view the existing 33-region, 159-prop layout with all five refreshed capability props in the central observatory. The geometry is copied into a separate preview save; the original layout save is preserved. The WEB and MEMORY variants are replaced with the refreshed dish and server cart using their native footprints. All five placements pass the model's collision/floor checks.
+
+URL: http://127.0.0.1:18797/?propSet=projection&skinSet=study
