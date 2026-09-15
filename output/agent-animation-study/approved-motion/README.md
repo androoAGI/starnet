@@ -30,3 +30,11 @@ Live verification observed all five using approved_* walking tracks and changing
 4. validate-approved-motion.cjs checks alpha bounds, standing height, foot anchor and clipping.
 
 Runtime code is isolated in frontend/agent-demo and mirrored under website/app. No integration-tree merge or production-world change.
+
+## September 15 walk and floor-contact correction
+
+The original pinned front/back cycles frequently raised both feet together or barely stepped. Replaced all ten north/south loops with PixelLab PixMiniMax alternating-step cycles. `walk-fixes.json` preserves the eleven new job results and selections. Skeleton west also had solid-black rear limbs: ImageGen repaired the generated nine-cell strip, with the unchanged reference frame retained. The source is `walk-fixes/skeleton-west-clean-source.png`; the final packed strip is `walk-fixes/skeleton-west-clean.png`.
+
+Standing art and height remain unchanged at 18 world pixels. Approved boots now sit 0.25 world pixels above their contact anchor instead of 3. Grounding uses the actual standing height and a narrower, stronger contact. Walk stride calculation excludes the 68 transparent rows in the master and invalidates its cache when scale changes. Movement speed scales from the legacy 35px body size to the approved body height so the smaller crew walks at a readable cadence.
+
+After the original reproduction steps, run `pack-walk-fixes.cjs --activate`, then `pack-skeleton-walk-cleanup.cjs`, then `validate-approved-motion.cjs`. The cleanup uses a single source scale across all poses and preserves each original pose's alignment. Final validation: 525 packed frames, 40 unchanged 76px standing rotations, walking heights 73–80px, no clipped content. The panel revision is `grounded-walks-0915`; `data-motion` records actual render height, ground gap, speed, pose and travel.

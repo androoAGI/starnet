@@ -127,8 +127,11 @@ const SPRITES = (() => {
     } catch (e) { return null; }   // tainted/unreadable → caller falls back
   }
   function cycleUnitsFor(set, sc, frameH) {
-    if (cycleCache[set] != null) return cycleCache[set];
-    const fallback = frameH * sc * CYCLE_PER_HEIGHT;
+    const cacheKey = set + ':' + sc;
+    if (cycleCache[cacheKey] != null) return cycleCache[cacheKey];
+    // Approved masters contain 68 rows of transparent packing. They are not leg length.
+    const visibleHeight = set.startsWith('approved_') ? 76 : frameH;
+    const fallback = visibleHeight * sc * CYCLE_PER_HEIGHT;
     const side = frames[set + '.walk.east'] || frames[set + '.walk.west'];
     const idleFr = frames[set + '.rot.east'] || frames[set + '.rot.west'];
     let out = fallback;
@@ -143,7 +146,7 @@ const SPRITES = (() => {
         out = Math.max(fallback * 0.5, Math.min(fallback, measured));
       }
     }
-    return (cycleCache[set] = out);
+    return (cycleCache[cacheKey] = out);
   }
 
   /* per-TRACK content-bottom padding, for the seat perch: the set-level footPad is measured off a
@@ -548,11 +551,11 @@ const SPRITES = (() => {
     const zs = (_m && _m.a > 0) ? _m.a : 1;
     const snap = v => Math.round(v * zs) / zs;
     const x = snap(b.px - dw / 2);
-    // anchor the FEET (not the transparent image bottom) near the floor line so the contact shadow
-    // reads as sitting under them. `fp` is the scaled padding below the feet; GROUND_BITE lifts the
-    // feet a few px ABOVE the shadow so it shows just beneath them — flush (0/positive) looks sunk,
-    // and the old image-bottom anchor left every skin hovering well above it.
-    const GROUND_BITE = -3;
+    // Keep the approved boots against the floor contact. The legacy three-world-pixel
+    // lift separated an 18px body from its shadow by one sixth of its visible height.
+    const GROUND_BITE = set.startsWith('approved_') ? -0.25 : -3;
+    b._renderGroundGap = -GROUND_BITE;
+    b._renderStandingHeight = set.startsWith('approved_') ? 76 * sc : null;
     // SEAT LIFT: a body seated on a raised single-tile seat (stool/chair) draws its pixels this many px
     // higher so the hips land on the seat pad — world.js's planSeat measured it off the prop art. The
     // sort key and the ground shadow deliberately stay at b.py (the seat tile's floor line): only the

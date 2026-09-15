@@ -46,7 +46,8 @@
       const missing=requiredSkins.filter((_,i)=>!loaded[i]);if(missing.length)throw new Error('Could not load: '+missing.join(', '));
       const picker=panel.querySelector('select');
       for(const a of App.agents()){const o=document.createElement('option');o.value=a.id;o.textContent=a.id===hero.id?a.name+' · Ultron':a.name;picker.append(o);}
-      panel.querySelector('#agent-demo-status').textContent='Five revised animated skins · eight-direction movement';
+      panel.querySelector('#agent-demo-status').textContent='Repaired walk cycles · five animated skins';
+      panel.dataset.revision='grounded-walks-0915';
       panel.dataset.ready='true';
       World.showSkinReview(false);panel.dataset.comparison='hidden';
       picker.value=hero.id;World.lockBody(hero.id);
