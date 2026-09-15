@@ -757,28 +757,28 @@
       "reason": "Source-specific local state or decorative mechanism.",
       "inCurrentDemo": true,
       "image": "frontend/assets/industrial/projection-correction/intake.png",
-      "sourceWidth": 405,
-      "sourceHeight": 406,
-      "sha256": "0e65f7717d4f6771107bf5eeac24f3e5c8f4ddcf16068792c39e1cf8e974ac13",
+      "sourceWidth": 1214,
+      "sourceHeight": 976,
+      "sha256": "c35cc05ee193f149e663517652d73470c799fe70de082913adf6ca28c31e6c47",
       "regions": [
         {
           "kind": "lamp",
           "region": [
             [
-              0.183,
-              0.754
+              0.19,
+              0.827
             ],
             [
-              0.237,
-              0.754
+              0.24,
+              0.827
             ],
             [
-              0.237,
-              0.773
+              0.24,
+              0.855
             ],
             [
-              0.183,
-              0.773
+              0.19,
+              0.855
             ]
           ],
           "gate": "work",
@@ -792,20 +792,20 @@
           "kind": "lamp",
           "region": [
             [
-              0.54,
-              0.754
+              0.596,
+              0.827
             ],
             [
-              0.5850000000000001,
-              0.754
+              0.641,
+              0.827
             ],
             [
-              0.5850000000000001,
-              0.773
+              0.641,
+              0.855
             ],
             [
-              0.54,
-              0.773
+              0.596,
+              0.855
             ]
           ],
           "gate": "work",
@@ -1330,28 +1330,28 @@
       "reason": "Source-specific local state or decorative mechanism.",
       "inCurrentDemo": true,
       "image": "frontend/assets/industrial/projection-correction/outbox.png",
-      "sourceWidth": 421,
-      "sourceHeight": 412,
-      "sha256": "5943e3aa326d950998f79ff8c1652dfa3ce65c4756ee01e146695d05221b65df",
+      "sourceWidth": 1206,
+      "sourceHeight": 1014,
+      "sha256": "2cb3e45343d58b0ea8df50c3d644383363b79731586e23c99a9f817b33d2be87",
       "regions": [
         {
           "kind": "lamp",
           "region": [
             [
-              0.26,
-              0.925
+              0.166,
+              0.802
             ],
             [
-              0.35,
-              0.925
+              0.254,
+              0.802
             ],
             [
-              0.35,
-              0.9420000000000001
+              0.254,
+              0.8250000000000001
             ],
             [
-              0.26,
-              0.9420000000000001
+              0.166,
+              0.8250000000000001
             ]
           ],
           "gate": "pending",
@@ -1365,20 +1365,20 @@
           "kind": "lamp",
           "region": [
             [
-              0.69,
-              0.925
+              0.746,
+              0.802
             ],
             [
-              0.8099999999999999,
-              0.925
+              0.836,
+              0.802
             ],
             [
-              0.8099999999999999,
-              0.9430000000000001
+              0.836,
+              0.8250000000000001
             ],
             [
-              0.69,
-              0.9430000000000001
+              0.746,
+              0.8250000000000001
             ]
           ],
           "gate": "work",

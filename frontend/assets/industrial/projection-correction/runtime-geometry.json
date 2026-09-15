@@ -327,14 +327,14 @@
     },
     "intake:s": {
       "image": "intake.png",
-      "width": 405,
-      "height": 406,
-      "sha256": "0e65f7717d4f6771107bf5eeac24f3e5c8f4ddcf16068792c39e1cf8e974ac13",
+      "width": 1214,
+      "height": 976,
+      "sha256": "c35cc05ee193f149e663517652d73470c799fe70de082913adf6ca28c31e6c47",
       "crop": {
         "x": 0,
         "y": 0,
-        "width": 405,
-        "height": 406
+        "width": 1214,
+        "height": 976
       }
     },
     "bay:s": {
@@ -411,14 +411,14 @@
     },
     "outbox:s": {
       "image": "outbox.png",
-      "width": 421,
-      "height": 412,
-      "sha256": "5943e3aa326d950998f79ff8c1652dfa3ce65c4756ee01e146695d05221b65df",
+      "width": 1206,
+      "height": 1014,
+      "sha256": "2cb3e45343d58b0ea8df50c3d644383363b79731586e23c99a9f817b33d2be87",
       "crop": {
         "x": 0,
         "y": 0,
-        "width": 421,
-        "height": 412
+        "width": 1206,
+        "height": 1014
       }
     },
     "connector_portal:s": {

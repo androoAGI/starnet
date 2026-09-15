@@ -1,0 +1,72 @@
+{
+  "records": [
+    {
+      "id": "intake",
+      "view": "s",
+      "before": "frontend/assets/industrial/dispatch-polish/before/intake.png",
+      "source": "frontend/assets/industrial/dispatch-polish/sources/intake-v2.png",
+      "sourceSha256": "d5c361b69819573bbd4ea399201e22ce082ae046336b597b4bc27306742fdf35",
+      "repoPath": "frontend/assets/industrial/dispatch-polish/intake.png",
+      "outputSha256": "c35cc05ee193f149e663517652d73470c799fe70de082913adf6ca28c31e6c47",
+      "sourceCrop": {
+        "left": 50,
+        "top": 119,
+        "width": 1214,
+        "height": 976
+      },
+      "sourceWidth": 1214,
+      "sourceHeight": 976,
+      "footprint": {
+        "w": 2,
+        "h": 2
+      },
+      "bounds": {
+        "x": -1,
+        "y": -4,
+        "width": 30,
+        "height": 28
+      },
+      "exposure": 1.12,
+      "contact": {
+        "x": 0.5,
+        "y": 0.9989754098360656
+      },
+      "retained": 971456,
+      "status": "redesigned machine candidate; inspect floor contact and belt handoff live"
+    },
+    {
+      "id": "outbox",
+      "view": "s",
+      "before": "frontend/assets/industrial/dispatch-polish/before/outbox.png",
+      "source": "frontend/assets/industrial/dispatch-polish/sources/outbox-v2.png",
+      "sourceSha256": "1329d6dc7dc60ae8b2cac62718748aa3fd7472f9a6dd4eb7e9abf26ed23da738",
+      "repoPath": "frontend/assets/industrial/dispatch-polish/outbox.png",
+      "outputSha256": "2cb3e45343d58b0ea8df50c3d644383363b79731586e23c99a9f817b33d2be87",
+      "sourceCrop": {
+        "left": 24,
+        "top": 136,
+        "width": 1206,
+        "height": 1014
+      },
+      "sourceWidth": 1206,
+      "sourceHeight": 1014,
+      "footprint": {
+        "w": 2,
+        "h": 2
+      },
+      "bounds": {
+        "x": -1,
+        "y": -8,
+        "width": 30,
+        "height": 32
+      },
+      "exposure": 1.12,
+      "contact": {
+        "x": 0.5,
+        "y": 0.9990138067061144
+      },
+      "retained": 1094216,
+      "status": "redesigned machine candidate; inspect floor contact and belt handoff live"
+    }
+  ]
+}

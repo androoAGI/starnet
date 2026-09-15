@@ -491,62 +491,6 @@
       "retained": 110536
     },
     {
-      "id": "intake",
-      "view": "s",
-      "image": "intake.png",
-      "repoPath": "frontend/assets/industrial/catalog-utility/intake.png",
-      "sourceWidth": 405,
-      "sourceHeight": 406,
-      "footprint": {
-        "w": 2,
-        "h": 2
-      },
-      "bounds": {
-        "x": -1,
-        "y": -4,
-        "width": 30,
-        "height": 28
-      },
-      "contact": {
-        "x": 0.5,
-        "y": 0.9926108374384236
-      },
-      "mode": "approved",
-      "effects": false,
-      "source": "docs/station-remaster/catalog-utility/sheet-source.png",
-      "sourceSha256": "af07907f829821db2e288c6bcf32ab8966193dae9d1b247f7338d30150b20d42",
-      "outputSha256": "0e65f7717d4f6771107bf5eeac24f3e5c8f4ddcf16068792c39e1cf8e974ac13",
-      "sourceROI": {
-        "left": 470,
-        "top": 505,
-        "width": 465,
-        "height": 480
-      },
-      "sourceCrop": {
-        "left": 509,
-        "top": 541,
-        "width": 405,
-        "height": 406
-      },
-      "actualFit": {
-        "x": 0.034483,
-        "y": -3.793103,
-        "width": 27.931034,
-        "height": 28
-      },
-      "verification": {
-        "transparent": 34158,
-        "retained": 130272,
-        "removedAlpha": 1899,
-        "retainedRGBAMismatches": 0,
-        "allRGBMismatches": 0
-      },
-      "status": "source and game-scale candidate reviewed; not live integrated; image-specific effect regions need remapping",
-      "group": "utility",
-      "output": "frontend/assets/industrial/projection-correction/intake.png",
-      "retained": 130272
-    },
-    {
       "id": "core",
       "view": "s",
       "image": "core.png",
@@ -4891,63 +4835,6 @@
       "group": "workflow",
       "output": "frontend/assets/industrial/projection-correction/splitter.png",
       "retained": 56892
-    },
-    {
-      "id": "outbox",
-      "view": "s",
-      "image": "outbox.png",
-      "repoPath": "frontend/assets/industrial/catalog-utility-rest-1/outbox.png",
-      "sourceWidth": 421,
-      "sourceHeight": 412,
-      "footprint": {
-        "w": 2,
-        "h": 2
-      },
-      "bounds": {
-        "x": -1,
-        "y": -8,
-        "width": 30,
-        "height": 32
-      },
-      "contact": {
-        "x": 0.5,
-        "y": 0.9951456310679612
-      },
-      "mode": "approved",
-      "effects": false,
-      "source": "docs/station-remaster/catalog-utility-rest-1/sheet-source.png",
-      "sourceSha256": "ce4467db6376181844df51da331b12f070401a2f839f2c78de0dc7c46001b997",
-      "outputSha256": "5943e3aa326d950998f79ff8c1652dfa3ce65c4756ee01e146695d05221b65df",
-      "sourceROI": {
-        "left": 810,
-        "top": 490,
-        "width": 440,
-        "height": 465
-      },
-      "sourceCrop": {
-        "left": 815,
-        "top": 519,
-        "width": 421,
-        "height": 412
-      },
-      "actualFit": {
-        "x": -1,
-        "y": -5.216152,
-        "width": 30,
-        "height": 29.35867
-      },
-      "verification": {
-        "transparent": 29914,
-        "retained": 143538,
-        "removedAlpha": 1778,
-        "retainedRGBAMismatches": 0,
-        "allRGBMismatches": 0,
-        "widthFraction": 1
-      },
-      "status": "source and game-scale candidate reviewed; not live integrated; image-specific effect regions need remapping",
-      "group": "workflow",
-      "output": "frontend/assets/industrial/projection-correction/outbox.png",
-      "retained": 143538
     },
     {
       "id": "connector_portal",
@@ -10621,6 +10508,78 @@
       "status": "resolution restoration; original design and world bounds retained; owner review pending",
       "group": "sharpness-restoration",
       "output": "frontend/assets/industrial/projection-correction/bridge_deckperimeter.png"
+    },
+    {
+      "id": "intake",
+      "view": "s",
+      "before": "frontend/assets/industrial/dispatch-polish/before/intake.png",
+      "source": "frontend/assets/industrial/dispatch-polish/sources/intake-v2.png",
+      "sourceSha256": "d5c361b69819573bbd4ea399201e22ce082ae046336b597b4bc27306742fdf35",
+      "repoPath": "frontend/assets/industrial/dispatch-polish/intake.png",
+      "outputSha256": "c35cc05ee193f149e663517652d73470c799fe70de082913adf6ca28c31e6c47",
+      "sourceCrop": {
+        "left": 50,
+        "top": 119,
+        "width": 1214,
+        "height": 976
+      },
+      "sourceWidth": 1214,
+      "sourceHeight": 976,
+      "footprint": {
+        "w": 2,
+        "h": 2
+      },
+      "bounds": {
+        "x": -1,
+        "y": -4,
+        "width": 30,
+        "height": 28
+      },
+      "exposure": 1.12,
+      "contact": {
+        "x": 0.5,
+        "y": 0.9989754098360656
+      },
+      "retained": 971456,
+      "status": "redesigned machine candidate; inspect floor contact and belt handoff live",
+      "group": "dispatch-polish",
+      "output": "frontend/assets/industrial/projection-correction/intake.png"
+    },
+    {
+      "id": "outbox",
+      "view": "s",
+      "before": "frontend/assets/industrial/dispatch-polish/before/outbox.png",
+      "source": "frontend/assets/industrial/dispatch-polish/sources/outbox-v2.png",
+      "sourceSha256": "1329d6dc7dc60ae8b2cac62718748aa3fd7472f9a6dd4eb7e9abf26ed23da738",
+      "repoPath": "frontend/assets/industrial/dispatch-polish/outbox.png",
+      "outputSha256": "2cb3e45343d58b0ea8df50c3d644383363b79731586e23c99a9f817b33d2be87",
+      "sourceCrop": {
+        "left": 24,
+        "top": 136,
+        "width": 1206,
+        "height": 1014
+      },
+      "sourceWidth": 1206,
+      "sourceHeight": 1014,
+      "footprint": {
+        "w": 2,
+        "h": 2
+      },
+      "bounds": {
+        "x": -1,
+        "y": -8,
+        "width": 30,
+        "height": 32
+      },
+      "exposure": 1.12,
+      "contact": {
+        "x": 0.5,
+        "y": 0.9990138067061144
+      },
+      "retained": 1094216,
+      "status": "redesigned machine candidate; inspect floor contact and belt handoff live",
+      "group": "dispatch-polish",
+      "output": "frontend/assets/industrial/projection-correction/outbox.png"
     }
   ]
 }

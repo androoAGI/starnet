@@ -776,16 +776,16 @@
       "crop": {
         "x": 0,
         "y": 0,
-        "width": 405,
-        "height": 406
+        "width": 1214,
+        "height": 976
       },
       "body": {
-        "width": 27.93103448275862,
-        "height": 28
+        "width": 29.999999999999996,
+        "height": 24.118616144975284
       },
-      "sourceWidth": 405,
-      "sourceHeight": 406,
-      "sourcePixelsPerWorldPixel": 14.5,
+      "sourceWidth": 1214,
+      "sourceHeight": 976,
+      "sourcePixelsPerWorldPixel": 40.47,
       "zoomLimit": 6,
       "sourceExpansionAtMaxZoom": 1,
       "status": "source-inspected",
@@ -972,16 +972,16 @@
       "crop": {
         "x": 0,
         "y": 0,
-        "width": 421,
-        "height": 412
+        "width": 1206,
+        "height": 1014
       },
       "body": {
-        "width": 30,
-        "height": 29.358669833729216
+        "width": 29.999999999999996,
+        "height": 25.223880597014922
       },
-      "sourceWidth": 421,
-      "sourceHeight": 412,
-      "sourcePixelsPerWorldPixel": 14.03,
+      "sourceWidth": 1206,
+      "sourceHeight": 1014,
+      "sourcePixelsPerWorldPixel": 40.2,
       "zoomLimit": 6,
       "sourceExpansionAtMaxZoom": 1,
       "status": "source-inspected",

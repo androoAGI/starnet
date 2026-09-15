@@ -95,6 +95,10 @@
     {
       "name": "sharpness-restoration",
       "file": "docs/station-remaster/sharpness-restoration/integration.json"
+    },
+    {
+      "name": "dispatch-polish",
+      "file": "docs/station-remaster/dispatch-polish/integration.json"
     }
   ]
 }

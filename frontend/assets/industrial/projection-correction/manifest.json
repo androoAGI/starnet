@@ -700,8 +700,8 @@
       "views": {
         "s": {
           "image": "intake.png",
-          "sourceWidth": 405,
-          "sourceHeight": 406,
+          "sourceWidth": 1214,
+          "sourceHeight": 976,
           "footprint": {
             "w": 2,
             "h": 2
@@ -713,11 +713,11 @@
             "height": 28
           },
           "mode": "approved",
-          "exposure": 1,
+          "exposure": 1.12,
           "activity": "work",
           "contact": {
             "x": 0.5,
-            "y": 0.9926108374384236
+            "y": 0.9989754098360656
           },
           "effects": false
         }
@@ -888,8 +888,8 @@
       "views": {
         "s": {
           "image": "outbox.png",
-          "sourceWidth": 421,
-          "sourceHeight": 412,
+          "sourceWidth": 1206,
+          "sourceHeight": 1014,
           "footprint": {
             "w": 2,
             "h": 2
@@ -901,11 +901,11 @@
             "height": 32
           },
           "mode": "approved",
-          "exposure": 1,
+          "exposure": 1.12,
           "activity": "work",
           "contact": {
             "x": 0.5,
-            "y": 0.9951456310679612
+            "y": 0.9990138067061144
           },
           "effects": false
         }
@@ -5003,11 +5003,6 @@
       "group": "utility"
     },
     {
-      "id": "intake",
-      "view": "s",
-      "group": "utility"
-    },
-    {
       "id": "core",
       "view": "s",
       "group": "utility"
@@ -5359,11 +5354,6 @@
     },
     {
       "id": "splitter",
-      "view": "s",
-      "group": "workflow"
-    },
-    {
-      "id": "outbox",
       "view": "s",
       "group": "workflow"
     },
@@ -5826,6 +5816,16 @@
       "id": "bridge_deckperimeter",
       "view": "s",
       "group": "sharpness-restoration"
+    },
+    {
+      "id": "intake",
+      "view": "s",
+      "group": "dispatch-polish"
+    },
+    {
+      "id": "outbox",
+      "view": "s",
+      "group": "dispatch-polish"
     }
   ]
 }
