@@ -1,0 +1,18 @@
+[
+  {
+    "id": "plaguedoctor",
+    "dir": "west",
+    "source": "exec-5b714125-122f-49f7-93a7-fb917e8bb29f.png",
+    "height": 64,
+    "width": 37,
+    "foot": 110
+  },
+  {
+    "id": "voidwizard",
+    "dir": "east",
+    "source": "exec-a79616a0-356a-49c1-90c0-b14aeed4e765.png",
+    "height": 59,
+    "width": 34,
+    "foot": 110
+  }
+]

@@ -531,6 +531,7 @@ const SPRITES = (() => {
       : (key.indexOf('.walk.') !== -1 && b.odo != null && stride > 0)
         ? Math.floor(b.odo / stride + aph)
         : Math.floor(nowMs / (1000 / fps) + aph);
+    b._renderFrame = fr.length > 1 ? ((idx % fr.length) + fr.length) % fr.length : 0;
     const f = fr.length > 1 ? fr[((idx % fr.length) + fr.length) % fr.length] : fr[0];
     // footprint = native master × per-set scale → identical on-floor size as before, but f is now the
     // full-resolution master. Draw it DOWN to that size with smoothing ON so the detail survives (and
@@ -558,7 +559,7 @@ const SPRITES = (() => {
     // SPRITE rises, the shadow pool remains on the deck under the stool where light actually lands.
     // Gated on the RESOLVED track actually being a sit pose: a set with no sit frames (minionchar,
     // 2026-08-10) falls back to rot/stand, and lifting a STANDING body onto the pad reads as levitation.
-    const seatLift = (b.sitting && b.seatLift && key.indexOf('.sit.') !== -1) ? b.seatLift : 0;
+    const seatLift = (b.sitting && b.seatLift && /\.(sit|type)\./.test(key)) ? b.seatLift : 0;
     // perched: anchor by THIS sit frame's own bottom padding (getTrackPad), not the standing footPad —
     // sets whose sit master carries extra empty rows below the tucked legs (skeleton) otherwise float.
     const pad = (seatLift ? getTrackPad(key) : getFootPad(set)) * sc;

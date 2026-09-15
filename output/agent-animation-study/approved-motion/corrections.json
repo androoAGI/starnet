@@ -1,0 +1,50 @@
+[
+  {
+    "id": "ultron",
+    "dir": "north",
+    "job": "17ec6177-c35b-45bb-b60b-31e06dad9e0e",
+    "track": "sit",
+    "revision": true,
+    "done": true,
+    "frames": 5,
+    "result": "status: completed\nid: 17ec6177-c35b-45bb-b60b-31e06dad9e0e\njob_id: 17ec6177-c35b-45bb-b60b-31e06dad9e0e\nframes: 5\ndownload: https://api.pixellab.ai/mcp/images/17ec6177-c35b-45bb-b60b-31e06dad9e0e/download?index=0 ... ?index=4\n(1 more frames not shown — fetch them from the download URLs above)"
+  },
+  {
+    "id": "plaguedoctor",
+    "dir": "south",
+    "job": "266e632b-13dd-4fc4-a989-7a64a28e2e96",
+    "track": "sit",
+    "revision": true,
+    "done": true,
+    "frames": 5,
+    "result": "status: completed\nid: 266e632b-13dd-4fc4-a989-7a64a28e2e96\njob_id: 266e632b-13dd-4fc4-a989-7a64a28e2e96\nframes: 5\ndownload: https://api.pixellab.ai/mcp/images/266e632b-13dd-4fc4-a989-7a64a28e2e96/download?index=0 ... ?index=4\n(1 more frames not shown — fetch them from the download URLs above)"
+  },
+  {
+    "id": "plaguedoctor",
+    "dir": "north",
+    "job": "169b16cb-8af2-44f6-a873-075a7d1d1720",
+    "track": "sit",
+    "revision": true,
+    "done": true,
+    "frames": 5,
+    "result": "status: completed\nid: 169b16cb-8af2-44f6-a873-075a7d1d1720\njob_id: 169b16cb-8af2-44f6-a873-075a7d1d1720\nframes: 5\ndownload: https://api.pixellab.ai/mcp/images/169b16cb-8af2-44f6-a873-075a7d1d1720/download?index=0 ... ?index=4\n(1 more frames not shown — fetch them from the download URLs above)"
+  },
+  {
+    "id": "plaguedoctor",
+    "dir": "west",
+    "job": "fbac9cd8-b373-45c5-9f6b-79225907d61f",
+    "track": "sit",
+    "revision": true,
+    "done": false,
+    "frames": 5
+  },
+  {
+    "id": "voidwizard",
+    "dir": "east",
+    "job": "7a6180b6-8e8b-4001-a667-e4d6af772d1a",
+    "track": "sit",
+    "revision": true,
+    "done": false,
+    "frames": 5
+  }
+]

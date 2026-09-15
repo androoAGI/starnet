@@ -1,0 +1,37 @@
+[
+  {
+    "id": "secretagent",
+    "track": "type",
+    "dir": "north",
+    "job": "63bf77aa-f164-4509-bc9b-84e9ded72a7f",
+    "done": true,
+    "frames": 5,
+    "result": "status: completed\nid: 63bf77aa-f164-4509-bc9b-84e9ded72a7f\njob_id: 63bf77aa-f164-4509-bc9b-84e9ded72a7f\nframes: 5\ndownload: https://api.pixellab.ai/mcp/images/63bf77aa-f164-4509-bc9b-84e9ded72a7f/download?index=0 ... ?index=4\n(1 more frames not shown — fetch them from the download URLs above)"
+  },
+  {
+    "id": "skeleton",
+    "track": "type",
+    "dir": "north",
+    "job": "18c17b14-dea3-4e67-976a-ed2322f03269",
+    "done": true,
+    "frames": 5,
+    "result": "status: completed\nid: 18c17b14-dea3-4e67-976a-ed2322f03269\njob_id: 18c17b14-dea3-4e67-976a-ed2322f03269\nframes: 5\ndownload: https://api.pixellab.ai/mcp/images/18c17b14-dea3-4e67-976a-ed2322f03269/download?index=0 ... ?index=4\n(1 more frames not shown — fetch them from the download URLs above)"
+  },
+  {
+    "id": "ultron",
+    "track": "type",
+    "dir": "north",
+    "job": "bf80ff6b-250b-4734-af11-a3d2c5279d2b",
+    "done": true,
+    "frames": 5,
+    "result": "status: completed\nid: bf80ff6b-250b-4734-af11-a3d2c5279d2b\njob_id: bf80ff6b-250b-4734-af11-a3d2c5279d2b\nframes: 5\ndownload: https://api.pixellab.ai/mcp/images/bf80ff6b-250b-4734-af11-a3d2c5279d2b/download?index=0 ... ?index=4\n(1 more frames not shown — fetch them from the download URLs above)"
+  },
+  {
+    "id": "voidwizard",
+    "track": "type",
+    "dir": "north",
+    "job": "677cdf47-bbd1-4ec5-b20e-05d6bbffc35f",
+    "done": false,
+    "frames": 5
+  }
+]

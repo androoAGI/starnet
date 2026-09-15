@@ -1574,6 +1574,7 @@ const World = (() => {
   // This file is an isolated snapshot for the development art review entry only.
   // Mannequins are render-only: never roster members, tasks, or persisted station objects.
   let skinReview = null;
+  const demoMotionEvidence={},demoWalkEvidence={};let demoMotionEvidenceAt=0;
   function showSkinReview(enabled, zoom, id='secretagent') {
     if (!window.__STARNET_DEV__ || !geo || !agent || !cache) return false;
     if (!enabled) { skinReview = null; return true; }
@@ -6965,6 +6966,13 @@ const World = (() => {
       // Do not flash the cyan procedural body while the real default skin is actively loading.
       // A genuine load failure still clears `loading` and gets the honest fallback on the next frame.
       if (!geom && !(typeof SPRITES !== 'undefined' && SPRITES.loading)) drawFallback(now, who);
+      // Expose observed render frames/positions for development verification only.
+      if(geom && window.__STARNET_DEV__){
+        const evidence=demoWalkEvidence[who.id]||(demoWalkEvidence[who.id]={frames:new Set(),poses:new Set(),origin:null,distance:0});
+        if(who.state==='walk'&&who._pose&&who._pose.includes('.walk.')){evidence.frames.add(who._pose+':'+who._renderFrame);evidence.poses.add(who._pose);if(!evidence.origin)evidence.origin={x:who.px,y:who.py};evidence.distance=Math.max(evidence.distance,Math.hypot(who.px-evidence.origin.x,who.py-evidence.origin.y));}
+        demoMotionEvidence[who.id]={pose:who._pose,frame:who._renderFrame,x:Math.round(who.px*100)/100,y:Math.round(who.py*100)/100,state:who.state,walkFrames:evidence.frames.size,walkPoses:[...evidence.poses],walkDistance:Math.round(evidence.distance*100)/100};
+        if(now-demoMotionEvidenceAt>250){const panel=document.getElementById('agent-station-demo');if(panel)panel.dataset.motion=JSON.stringify(demoMotionEvidence);demoMotionEvidenceAt=now;}
+      }
       // remember the visible head-top (world px) so overlays (nameplate, speech bubble) anchor
       // above the ACTUAL drawn sprite — skins are taller than the old 15px assumption, which
       // parked bubbles over the face. Fallback bodies keep the legacy 15px estimate (null).

@@ -1,0 +1,547 @@
+[
+  {
+    "id": "secretagent",
+    "dir": "east",
+    "track": "walk",
+    "job": "e8ca3339-a14f-4923-9a3c-59a5943b727c",
+    "response": "id: e8ca3339-a14f-4923-9a3c-59a5943b727c\njob_id: e8ca3339-a14f-4923-9a3c-59a5943b727c\naction: One seamless walk-in-place cycle facing EAST the entire time, exactly matching input facing. Natural alternating left and right steps, small opposing arm swings, planted feet bear weight. Preserve exact body proportions, head size and pixel scale. Center stays fixed. Fixed overhead camera. Maximum one pixel head bob. Do not turn or rotate. End at identical starting neutral standing pose.\nframes: 8\nsize: 96x96px\ntransparent: True\nlast_frame: yes (interpolating to it)\ncost: 2 generations\nstatus: processing (~30-180s)\n\nhint: get_image(job_id=\"e8ca3339-a14f-4923-9a3c-59a5943b727c\")",
+    "done": true,
+    "result": "status: completed\nid: e8ca3339-a14f-4923-9a3c-59a5943b727c\njob_id: e8ca3339-a14f-4923-9a3c-59a5943b727c\nframes: 9\ndownload: https://api.pixellab.ai/mcp/images/e8ca3339-a14f-4923-9a3c-59a5943b727c/download?index=0 ... ?index=8\n(5 more frames not shown — fetch them from the download URLs above)"
+  },
+  {
+    "id": "secretagent",
+    "dir": "north-east",
+    "track": "walk",
+    "job": "d28c9700-6a75-42e1-b6f9-3dc62bd8b52e",
+    "response": "id: d28c9700-6a75-42e1-b6f9-3dc62bd8b52e\njob_id: d28c9700-6a75-42e1-b6f9-3dc62bd8b52e\naction: One seamless walk-in-place cycle facing NORTH-EAST the entire time, exactly matching input facing. Natural alternating left and right steps, small opposing arm swings, planted feet bear weight. Preserve exact body proportions, head size and pixel scale. Center stays fixed. Fixed overhead camera. Maximum one pixel head bob. Do not turn or rotate. End at identical starting neutral standing pose.\nframes: 8\nsize: 96x96px\ntransparent: True\nlast_frame: yes (interpolating to it)\ncost: 2 generations\nstatus: processing (~30-180s)\n\nhint: get_image(job_id=\"d28c9700-6a75-42e1-b6f9-3dc62bd8b52e\")",
+    "done": true,
+    "result": "status: completed\nid: d28c9700-6a75-42e1-b6f9-3dc62bd8b52e\njob_id: d28c9700-6a75-42e1-b6f9-3dc62bd8b52e\nframes: 9\ndownload: https://api.pixellab.ai/mcp/images/d28c9700-6a75-42e1-b6f9-3dc62bd8b52e/download?index=0 ... ?index=8\n(5 more frames not shown — fetch them from the download URLs above)",
+    "frames": 9
+  },
+  {
+    "id": "secretagent",
+    "dir": "north-west",
+    "track": "walk",
+    "job": "b0b0b346-b562-4a31-903c-51144d66625d",
+    "response": "id: b0b0b346-b562-4a31-903c-51144d66625d\njob_id: b0b0b346-b562-4a31-903c-51144d66625d\naction: One seamless walk-in-place cycle facing NORTH-WEST the entire time, exactly matching input facing. Natural alternating left and right steps, small opposing arm swings, planted feet bear weight. Preserve exact body proportions, head size and pixel scale. Center stays fixed. Fixed overhead camera. Maximum one pixel head bob. Do not turn or rotate. End at identical starting neutral standing pose.\nframes: 8\nsize: 96x96px\ntransparent: True\nlast_frame: yes (interpolating to it)\ncost: 2 generations\nstatus: processing (~30-180s)\n\nhint: get_image(job_id=\"b0b0b346-b562-4a31-903c-51144d66625d\")",
+    "done": true,
+    "result": "status: completed\nid: b0b0b346-b562-4a31-903c-51144d66625d\njob_id: b0b0b346-b562-4a31-903c-51144d66625d\nframes: 9\ndownload: https://api.pixellab.ai/mcp/images/b0b0b346-b562-4a31-903c-51144d66625d/download?index=0 ... ?index=8\n(5 more frames not shown — fetch them from the download URLs above)"
+  },
+  {
+    "id": "secretagent",
+    "dir": "north",
+    "track": "walk",
+    "job": "e09ecbf3-1b85-4f26-9542-83ec8cc9793b",
+    "response": "id: e09ecbf3-1b85-4f26-9542-83ec8cc9793b\njob_id: e09ecbf3-1b85-4f26-9542-83ec8cc9793b\naction: One seamless walk-in-place cycle facing NORTH the entire time, exactly matching input facing. Natural alternating left and right steps, small opposing arm swings, planted feet bear weight. Preserve exact body proportions, head size and pixel scale. Center stays fixed. Fixed overhead camera. Maximum one pixel head bob. Do not turn or rotate. End at identical starting neutral standing pose.\nframes: 8\nsize: 96x96px\ntransparent: True\nlast_frame: yes (interpolating to it)\ncost: 2 generations\nstatus: processing (~30-180s)\n\nhint: get_image(job_id=\"e09ecbf3-1b85-4f26-9542-83ec8cc9793b\")",
+    "done": true,
+    "result": "status: completed\nid: e09ecbf3-1b85-4f26-9542-83ec8cc9793b\njob_id: e09ecbf3-1b85-4f26-9542-83ec8cc9793b\nframes: 9\ndownload: https://api.pixellab.ai/mcp/images/e09ecbf3-1b85-4f26-9542-83ec8cc9793b/download?index=0 ... ?index=8\n(5 more frames not shown — fetch them from the download URLs above)"
+  },
+  {
+    "id": "secretagent",
+    "dir": "south-east",
+    "track": "walk",
+    "job": "70e5bef5-ac59-4df4-930f-2492d2cc029f",
+    "response": "id: 70e5bef5-ac59-4df4-930f-2492d2cc029f\njob_id: 70e5bef5-ac59-4df4-930f-2492d2cc029f\naction: One seamless walk-in-place cycle facing SOUTH-EAST the entire time, exactly matching input facing. Natural alternating left and right steps, small opposing arm swings, planted feet bear weight. Preserve exact body proportions, head size and pixel scale. Center stays fixed. Fixed overhead camera. Maximum one pixel head bob. Do not turn or rotate. End at identical starting neutral standing pose.\nframes: 8\nsize: 96x96px\ntransparent: True\nlast_frame: yes (interpolating to it)\ncost: 2 generations\nstatus: processing (~30-180s)\n\nhint: get_image(job_id=\"70e5bef5-ac59-4df4-930f-2492d2cc029f\")",
+    "done": true,
+    "result": "status: completed\nid: 70e5bef5-ac59-4df4-930f-2492d2cc029f\njob_id: 70e5bef5-ac59-4df4-930f-2492d2cc029f\nframes: 9\ndownload: https://api.pixellab.ai/mcp/images/70e5bef5-ac59-4df4-930f-2492d2cc029f/download?index=0 ... ?index=8\n(5 more frames not shown — fetch them from the download URLs above)",
+    "frames": 9
+  },
+  {
+    "id": "secretagent",
+    "dir": "south-west",
+    "track": "walk",
+    "job": "ba0dd8f7-4c45-4a01-ad4d-41e44e4ac092",
+    "response": "id: ba0dd8f7-4c45-4a01-ad4d-41e44e4ac092\njob_id: ba0dd8f7-4c45-4a01-ad4d-41e44e4ac092\naction: One seamless walk-in-place cycle facing SOUTH-WEST the entire time, exactly matching input facing. Natural alternating left and right steps, small opposing arm swings, planted feet bear weight. Preserve exact body proportions, head size and pixel scale. Center stays fixed. Fixed overhead camera. Maximum one pixel head bob. Do not turn or rotate. End at identical starting neutral standing pose.\nframes: 8\nsize: 96x96px\ntransparent: True\nlast_frame: yes (interpolating to it)\ncost: 2 generations\nstatus: processing (~30-180s)\n\nhint: get_image(job_id=\"ba0dd8f7-4c45-4a01-ad4d-41e44e4ac092\")",
+    "done": true,
+    "result": "status: completed\nid: ba0dd8f7-4c45-4a01-ad4d-41e44e4ac092\njob_id: ba0dd8f7-4c45-4a01-ad4d-41e44e4ac092\nframes: 9\ndownload: https://api.pixellab.ai/mcp/images/ba0dd8f7-4c45-4a01-ad4d-41e44e4ac092/download?index=0 ... ?index=8\n(5 more frames not shown — fetch them from the download URLs above)",
+    "frames": 9
+  },
+  {
+    "id": "secretagent",
+    "dir": "south",
+    "track": "walk",
+    "job": "6490a3db-8b31-45ab-8440-caba5d9d7a73",
+    "response": "id: 6490a3db-8b31-45ab-8440-caba5d9d7a73\njob_id: 6490a3db-8b31-45ab-8440-caba5d9d7a73\naction: One seamless walk-in-place cycle facing SOUTH the entire time, exactly matching input facing. Natural alternating left and right steps, small opposing arm swings, planted feet bear weight. Preserve exact body proportions, head size and pixel scale. Center stays fixed. Fixed overhead camera. Maximum one pixel head bob. Do not turn or rotate. End at identical starting neutral standing pose.\nframes: 8\nsize: 96x96px\ntransparent: True\nlast_frame: yes (interpolating to it)\ncost: 2 generations\nstatus: processing (~30-180s)\n\nhint: get_image(job_id=\"6490a3db-8b31-45ab-8440-caba5d9d7a73\")",
+    "done": true,
+    "result": "status: completed\nid: 6490a3db-8b31-45ab-8440-caba5d9d7a73\njob_id: 6490a3db-8b31-45ab-8440-caba5d9d7a73\nframes: 9\ndownload: https://api.pixellab.ai/mcp/images/6490a3db-8b31-45ab-8440-caba5d9d7a73/download?index=0 ... ?index=8\n(5 more frames not shown — fetch them from the download URLs above)"
+  },
+  {
+    "id": "secretagent",
+    "dir": "west",
+    "track": "walk",
+    "job": "060a38fa-b9a9-4506-8ff5-ca889b915b17",
+    "response": "id: 060a38fa-b9a9-4506-8ff5-ca889b915b17\njob_id: 060a38fa-b9a9-4506-8ff5-ca889b915b17\naction: One seamless walk-in-place cycle facing WEST the entire time, exactly matching input facing. Natural alternating left and right steps, small opposing arm swings, planted feet bear weight. Preserve exact body proportions, head size and pixel scale. Center stays fixed. Fixed overhead camera. Maximum one pixel head bob. Do not turn or rotate. End at identical starting neutral standing pose.\nframes: 8\nsize: 96x96px\ntransparent: True\nlast_frame: yes (interpolating to it)\ncost: 2 generations\nstatus: processing (~30-180s)\n\nhint: get_image(job_id=\"060a38fa-b9a9-4506-8ff5-ca889b915b17\")",
+    "done": true,
+    "result": "status: completed\nid: 060a38fa-b9a9-4506-8ff5-ca889b915b17\njob_id: 060a38fa-b9a9-4506-8ff5-ca889b915b17\nframes: 9\ndownload: https://api.pixellab.ai/mcp/images/060a38fa-b9a9-4506-8ff5-ca889b915b17/download?index=0 ... ?index=8\n(5 more frames not shown — fetch them from the download URLs above)",
+    "frames": 9
+  },
+  {
+    "id": "skeleton",
+    "dir": "east",
+    "track": "walk",
+    "job": "a3836742-0329-4d33-87ee-3442ba1f2828",
+    "response": "id: a3836742-0329-4d33-87ee-3442ba1f2828\njob_id: a3836742-0329-4d33-87ee-3442ba1f2828\naction: One seamless walk-in-place cycle facing EAST the entire time, exactly matching input facing. Natural alternating left and right steps, small opposing arm swings, planted feet bear weight. Preserve exact body proportions, head size and pixel scale. Center stays fixed. Fixed overhead camera. Maximum one pixel head bob. Do not turn or rotate. End at identical starting neutral standing pose.\nframes: 8\nsize: 96x96px\ntransparent: True\nlast_frame: yes (interpolating to it)\ncost: 2 generations\nstatus: processing (~30-180s)\n\nhint: get_image(job_id=\"a3836742-0329-4d33-87ee-3442ba1f2828\")",
+    "done": true,
+    "result": "status: completed\nid: a3836742-0329-4d33-87ee-3442ba1f2828\njob_id: a3836742-0329-4d33-87ee-3442ba1f2828\nframes: 9\ndownload: https://api.pixellab.ai/mcp/images/a3836742-0329-4d33-87ee-3442ba1f2828/download?index=0 ... ?index=8\n(5 more frames not shown — fetch them from the download URLs above)"
+  },
+  {
+    "id": "skeleton",
+    "dir": "north-east",
+    "track": "walk",
+    "job": "d6e1d63e-8cc6-4c88-8e67-3801cb618ab9",
+    "response": "id: d6e1d63e-8cc6-4c88-8e67-3801cb618ab9\njob_id: d6e1d63e-8cc6-4c88-8e67-3801cb618ab9\naction: One seamless walk-in-place cycle facing NORTH-EAST the entire time, exactly matching input facing. Natural alternating left and right steps, small opposing arm swings, planted feet bear weight. Preserve exact body proportions, head size and pixel scale. Center stays fixed. Fixed overhead camera. Maximum one pixel head bob. Do not turn or rotate. End at identical starting neutral standing pose.\nframes: 8\nsize: 96x96px\ntransparent: True\nlast_frame: yes (interpolating to it)\ncost: 2 generations\nstatus: processing (~30-180s)\n\nhint: get_image(job_id=\"d6e1d63e-8cc6-4c88-8e67-3801cb618ab9\")",
+    "done": true,
+    "result": "status: completed\nid: d6e1d63e-8cc6-4c88-8e67-3801cb618ab9\njob_id: d6e1d63e-8cc6-4c88-8e67-3801cb618ab9\nframes: 9\ndownload: https://api.pixellab.ai/mcp/images/d6e1d63e-8cc6-4c88-8e67-3801cb618ab9/download?index=0 ... ?index=8\n(5 more frames not shown — fetch them from the download URLs above)",
+    "frames": 9
+  },
+  {
+    "id": "secretagent",
+    "dir": "east",
+    "track": "sit",
+    "job": "84522ab3-9124-4e9b-ae51-e714bca70afb",
+    "done": true,
+    "result": "status: completed\nid: 84522ab3-9124-4e9b-ae51-e714bca70afb\njob_id: 84522ab3-9124-4e9b-ae51-e714bca70afb\nframes: 5\ndownload: https://api.pixellab.ai/mcp/images/84522ab3-9124-4e9b-ae51-e714bca70afb/download?index=0 ... ?index=4\n(1 more frames not shown — fetch them from the download URLs above)",
+    "frames": 5
+  },
+  {
+    "id": "secretagent",
+    "dir": "north",
+    "track": "sit",
+    "job": "0d8c3b30-c800-417b-b1a6-c0df9aef82f3",
+    "done": true,
+    "result": "status: completed\nid: 0d8c3b30-c800-417b-b1a6-c0df9aef82f3\njob_id: 0d8c3b30-c800-417b-b1a6-c0df9aef82f3\nframes: 5\ndownload: https://api.pixellab.ai/mcp/images/0d8c3b30-c800-417b-b1a6-c0df9aef82f3/download?index=0 ... ?index=4\n(1 more frames not shown — fetch them from the download URLs above)",
+    "frames": 5
+  },
+  {
+    "id": "secretagent",
+    "dir": "south",
+    "track": "sit",
+    "job": "07ded7ba-38a7-44fb-aa9b-7abd4f6cf744",
+    "done": true,
+    "result": "status: completed\nid: 07ded7ba-38a7-44fb-aa9b-7abd4f6cf744\njob_id: 07ded7ba-38a7-44fb-aa9b-7abd4f6cf744\nframes: 5\ndownload: https://api.pixellab.ai/mcp/images/07ded7ba-38a7-44fb-aa9b-7abd4f6cf744/download?index=0 ... ?index=4\n(1 more frames not shown — fetch them from the download URLs above)",
+    "frames": 5
+  },
+  {
+    "id": "secretagent",
+    "dir": "west",
+    "track": "sit",
+    "job": "a6d51188-b9c5-41bb-a018-1fad5193cd90",
+    "done": true,
+    "result": "status: completed\nid: a6d51188-b9c5-41bb-a018-1fad5193cd90\njob_id: a6d51188-b9c5-41bb-a018-1fad5193cd90\nframes: 5\ndownload: https://api.pixellab.ai/mcp/images/a6d51188-b9c5-41bb-a018-1fad5193cd90/download?index=0 ... ?index=4\n(1 more frames not shown — fetch them from the download URLs above)",
+    "frames": 5
+  },
+  {
+    "id": "skeleton",
+    "dir": "north-west",
+    "track": "walk",
+    "job": "6a585ae7-340f-4e30-80c7-ecc47dd20d60",
+    "done": true,
+    "result": "status: completed\nid: 6a585ae7-340f-4e30-80c7-ecc47dd20d60\njob_id: 6a585ae7-340f-4e30-80c7-ecc47dd20d60\nframes: 9\ndownload: https://api.pixellab.ai/mcp/images/6a585ae7-340f-4e30-80c7-ecc47dd20d60/download?index=0 ... ?index=8\n(5 more frames not shown — fetch them from the download URLs above)",
+    "frames": 9
+  },
+  {
+    "id": "skeleton",
+    "dir": "north",
+    "track": "walk",
+    "job": "74d285e5-f329-4e64-a99f-ac93c5428145",
+    "done": true,
+    "result": "status: completed\nid: 74d285e5-f329-4e64-a99f-ac93c5428145\njob_id: 74d285e5-f329-4e64-a99f-ac93c5428145\nframes: 9\ndownload: https://api.pixellab.ai/mcp/images/74d285e5-f329-4e64-a99f-ac93c5428145/download?index=0 ... ?index=8\n(5 more frames not shown — fetch them from the download URLs above)",
+    "frames": 9
+  },
+  {
+    "id": "skeleton",
+    "dir": "south-east",
+    "track": "walk",
+    "job": "79d23c3e-7fbf-45d1-9f75-9089dc90b85d",
+    "done": true,
+    "result": "status: completed\nid: 79d23c3e-7fbf-45d1-9f75-9089dc90b85d\njob_id: 79d23c3e-7fbf-45d1-9f75-9089dc90b85d\nframes: 9\ndownload: https://api.pixellab.ai/mcp/images/79d23c3e-7fbf-45d1-9f75-9089dc90b85d/download?index=0 ... ?index=8\n(5 more frames not shown — fetch them from the download URLs above)",
+    "frames": 9
+  },
+  {
+    "id": "skeleton",
+    "dir": "south-west",
+    "track": "walk",
+    "job": "52437b55-51a9-45ce-8e79-3e755eb3ea98",
+    "done": true,
+    "result": "status: completed\nid: 52437b55-51a9-45ce-8e79-3e755eb3ea98\njob_id: 52437b55-51a9-45ce-8e79-3e755eb3ea98\nframes: 9\ndownload: https://api.pixellab.ai/mcp/images/52437b55-51a9-45ce-8e79-3e755eb3ea98/download?index=0 ... ?index=8\n(5 more frames not shown — fetch them from the download URLs above)",
+    "frames": 9
+  },
+  {
+    "id": "skeleton",
+    "dir": "south",
+    "track": "walk",
+    "job": "5cc785c1-261b-4fd8-8175-21d6ba43a2e2",
+    "done": true,
+    "result": "status: completed\nid: 5cc785c1-261b-4fd8-8175-21d6ba43a2e2\njob_id: 5cc785c1-261b-4fd8-8175-21d6ba43a2e2\nframes: 9\ndownload: https://api.pixellab.ai/mcp/images/5cc785c1-261b-4fd8-8175-21d6ba43a2e2/download?index=0 ... ?index=8\n(5 more frames not shown — fetch them from the download URLs above)",
+    "frames": 9
+  },
+  {
+    "id": "skeleton",
+    "dir": "west",
+    "track": "walk",
+    "job": "55a5ffa8-d664-406c-8641-2eda90734030",
+    "done": true,
+    "result": "status: completed\nid: 55a5ffa8-d664-406c-8641-2eda90734030\njob_id: 55a5ffa8-d664-406c-8641-2eda90734030\nframes: 9\ndownload: https://api.pixellab.ai/mcp/images/55a5ffa8-d664-406c-8641-2eda90734030/download?index=0 ... ?index=8\n(5 more frames not shown — fetch them from the download URLs above)",
+    "frames": 9
+  },
+  {
+    "id": "skeleton",
+    "dir": "east",
+    "track": "sit",
+    "job": "d66b8c31-3653-4474-960f-d7b748645e5f",
+    "done": true,
+    "result": "status: completed\nid: d66b8c31-3653-4474-960f-d7b748645e5f\njob_id: d66b8c31-3653-4474-960f-d7b748645e5f\nframes: 5\ndownload: https://api.pixellab.ai/mcp/images/d66b8c31-3653-4474-960f-d7b748645e5f/download?index=0 ... ?index=4\n(1 more frames not shown — fetch them from the download URLs above)",
+    "frames": 5
+  },
+  {
+    "id": "skeleton",
+    "dir": "north",
+    "track": "sit",
+    "job": "89dc7b0a-6eb8-41cb-9886-3801ef4ecf20",
+    "done": true,
+    "result": "status: completed\nid: 89dc7b0a-6eb8-41cb-9886-3801ef4ecf20\njob_id: 89dc7b0a-6eb8-41cb-9886-3801ef4ecf20\nframes: 5\ndownload: https://api.pixellab.ai/mcp/images/89dc7b0a-6eb8-41cb-9886-3801ef4ecf20/download?index=0 ... ?index=4\n(1 more frames not shown — fetch them from the download URLs above)",
+    "frames": 5
+  },
+  {
+    "id": "skeleton",
+    "dir": "south",
+    "track": "sit",
+    "job": "ca6b5f31-e4ab-4dca-a624-532699009b25",
+    "done": true,
+    "result": "status: completed\nid: ca6b5f31-e4ab-4dca-a624-532699009b25\njob_id: ca6b5f31-e4ab-4dca-a624-532699009b25\nframes: 5\ndownload: https://api.pixellab.ai/mcp/images/ca6b5f31-e4ab-4dca-a624-532699009b25/download?index=0 ... ?index=4\n(1 more frames not shown — fetch them from the download URLs above)",
+    "frames": 5
+  },
+  {
+    "id": "skeleton",
+    "dir": "west",
+    "track": "sit",
+    "job": "2b5ea608-b08c-47a9-9e70-4fcf680d2d67",
+    "done": true,
+    "result": "status: completed\nid: 2b5ea608-b08c-47a9-9e70-4fcf680d2d67\njob_id: 2b5ea608-b08c-47a9-9e70-4fcf680d2d67\nframes: 5\ndownload: https://api.pixellab.ai/mcp/images/2b5ea608-b08c-47a9-9e70-4fcf680d2d67/download?index=0 ... ?index=4\n(1 more frames not shown — fetch them from the download URLs above)",
+    "frames": 5
+  },
+  {
+    "id": "ultron",
+    "dir": "east",
+    "track": "walk",
+    "job": "15e1bee3-eba7-4b7f-a4dd-59cd29fc7f93",
+    "done": true,
+    "result": "status: completed\nid: 15e1bee3-eba7-4b7f-a4dd-59cd29fc7f93\njob_id: 15e1bee3-eba7-4b7f-a4dd-59cd29fc7f93\nframes: 9\ndownload: https://api.pixellab.ai/mcp/images/15e1bee3-eba7-4b7f-a4dd-59cd29fc7f93/download?index=0 ... ?index=8\n(5 more frames not shown — fetch them from the download URLs above)",
+    "frames": 9
+  },
+  {
+    "id": "ultron",
+    "dir": "north-east",
+    "track": "walk",
+    "job": "5f0a993a-c93b-4d2f-898e-b7998c969ad4",
+    "done": true,
+    "result": "status: completed\nid: 5f0a993a-c93b-4d2f-898e-b7998c969ad4\njob_id: 5f0a993a-c93b-4d2f-898e-b7998c969ad4\nframes: 9\ndownload: https://api.pixellab.ai/mcp/images/5f0a993a-c93b-4d2f-898e-b7998c969ad4/download?index=0 ... ?index=8\n(5 more frames not shown — fetch them from the download URLs above)",
+    "frames": 9
+  },
+  {
+    "id": "ultron",
+    "dir": "north-west",
+    "track": "walk",
+    "job": "7fdbcf94-3464-4750-83c3-c4f301649bed",
+    "done": true,
+    "result": "status: completed\nid: 7fdbcf94-3464-4750-83c3-c4f301649bed\njob_id: 7fdbcf94-3464-4750-83c3-c4f301649bed\nframes: 9\ndownload: https://api.pixellab.ai/mcp/images/7fdbcf94-3464-4750-83c3-c4f301649bed/download?index=0 ... ?index=8\n(5 more frames not shown — fetch them from the download URLs above)",
+    "frames": 9
+  },
+  {
+    "id": "ultron",
+    "dir": "north",
+    "track": "walk",
+    "job": "4e23ebee-0968-4ff6-9726-ab7587541d75",
+    "done": true,
+    "result": "status: completed\nid: 4e23ebee-0968-4ff6-9726-ab7587541d75\njob_id: 4e23ebee-0968-4ff6-9726-ab7587541d75\nframes: 9\ndownload: https://api.pixellab.ai/mcp/images/4e23ebee-0968-4ff6-9726-ab7587541d75/download?index=0 ... ?index=8\n(5 more frames not shown — fetch them from the download URLs above)",
+    "frames": 9
+  },
+  {
+    "id": "ultron",
+    "dir": "south-east",
+    "track": "walk",
+    "job": "6f2999b2-71d0-471c-b3a7-432d6415cb06",
+    "done": true,
+    "result": "status: completed\nid: 6f2999b2-71d0-471c-b3a7-432d6415cb06\njob_id: 6f2999b2-71d0-471c-b3a7-432d6415cb06\nframes: 9\ndownload: https://api.pixellab.ai/mcp/images/6f2999b2-71d0-471c-b3a7-432d6415cb06/download?index=0 ... ?index=8\n(5 more frames not shown — fetch them from the download URLs above)",
+    "frames": 9
+  },
+  {
+    "id": "ultron",
+    "dir": "south-west",
+    "track": "walk",
+    "job": "0b7ca55a-8b2c-4fe9-829b-9675e253391d",
+    "done": true,
+    "result": "status: completed\nid: 0b7ca55a-8b2c-4fe9-829b-9675e253391d\njob_id: 0b7ca55a-8b2c-4fe9-829b-9675e253391d\nframes: 9\ndownload: https://api.pixellab.ai/mcp/images/0b7ca55a-8b2c-4fe9-829b-9675e253391d/download?index=0 ... ?index=8\n(5 more frames not shown — fetch them from the download URLs above)",
+    "frames": 9
+  },
+  {
+    "id": "ultron",
+    "dir": "south",
+    "track": "walk",
+    "job": "0d97b96d-6ff4-470c-bcde-5369ea29b534",
+    "done": true,
+    "result": "status: completed\nid: 0d97b96d-6ff4-470c-bcde-5369ea29b534\njob_id: 0d97b96d-6ff4-470c-bcde-5369ea29b534\nframes: 9\ndownload: https://api.pixellab.ai/mcp/images/0d97b96d-6ff4-470c-bcde-5369ea29b534/download?index=0 ... ?index=8\n(5 more frames not shown — fetch them from the download URLs above)",
+    "frames": 9
+  },
+  {
+    "id": "ultron",
+    "dir": "west",
+    "track": "walk",
+    "job": "d5018d3f-054b-4316-99d1-526194b7b10a",
+    "done": true,
+    "result": "status: completed\nid: d5018d3f-054b-4316-99d1-526194b7b10a\njob_id: d5018d3f-054b-4316-99d1-526194b7b10a\nframes: 9\ndownload: https://api.pixellab.ai/mcp/images/d5018d3f-054b-4316-99d1-526194b7b10a/download?index=0 ... ?index=8\n(5 more frames not shown — fetch them from the download URLs above)",
+    "frames": 9
+  },
+  {
+    "id": "ultron",
+    "dir": "east",
+    "track": "sit",
+    "job": "8c53a5a9-30a2-4c72-a436-9424831e82e9",
+    "done": true,
+    "result": "status: completed\nid: 8c53a5a9-30a2-4c72-a436-9424831e82e9\njob_id: 8c53a5a9-30a2-4c72-a436-9424831e82e9\nframes: 5\ndownload: https://api.pixellab.ai/mcp/images/8c53a5a9-30a2-4c72-a436-9424831e82e9/download?index=0 ... ?index=4\n(1 more frames not shown — fetch them from the download URLs above)",
+    "frames": 5
+  },
+  {
+    "id": "ultron",
+    "dir": "north",
+    "track": "sit",
+    "job": "f09c8f85-649d-4f04-8ce1-c8ebf8f6144a",
+    "done": true,
+    "result": "status: completed\nid: f09c8f85-649d-4f04-8ce1-c8ebf8f6144a\njob_id: f09c8f85-649d-4f04-8ce1-c8ebf8f6144a\nframes: 5\ndownload: https://api.pixellab.ai/mcp/images/f09c8f85-649d-4f04-8ce1-c8ebf8f6144a/download?index=0 ... ?index=4\n(1 more frames not shown — fetch them from the download URLs above)",
+    "frames": 5
+  },
+  {
+    "id": "ultron",
+    "dir": "south",
+    "track": "sit",
+    "job": "d0e9467d-f264-4994-9873-8f52250f74e7",
+    "done": true,
+    "result": "status: completed\nid: d0e9467d-f264-4994-9873-8f52250f74e7\njob_id: d0e9467d-f264-4994-9873-8f52250f74e7\nframes: 5\ndownload: https://api.pixellab.ai/mcp/images/d0e9467d-f264-4994-9873-8f52250f74e7/download?index=0 ... ?index=4\n(1 more frames not shown — fetch them from the download URLs above)",
+    "frames": 5
+  },
+  {
+    "id": "ultron",
+    "dir": "west",
+    "track": "sit",
+    "job": "42ecd694-f0f2-49f7-a8f7-674f2cc45fab",
+    "done": true,
+    "result": "status: completed\nid: 42ecd694-f0f2-49f7-a8f7-674f2cc45fab\njob_id: 42ecd694-f0f2-49f7-a8f7-674f2cc45fab\nframes: 5\ndownload: https://api.pixellab.ai/mcp/images/42ecd694-f0f2-49f7-a8f7-674f2cc45fab/download?index=0 ... ?index=4\n(1 more frames not shown — fetch them from the download URLs above)",
+    "frames": 5
+  },
+  {
+    "id": "plaguedoctor",
+    "dir": "east",
+    "track": "walk",
+    "job": "3878339c-c48f-4909-a9f6-ae56a53cb701",
+    "done": true,
+    "result": "status: completed\nid: 3878339c-c48f-4909-a9f6-ae56a53cb701\njob_id: 3878339c-c48f-4909-a9f6-ae56a53cb701\nframes: 9\ndownload: https://api.pixellab.ai/mcp/images/3878339c-c48f-4909-a9f6-ae56a53cb701/download?index=0 ... ?index=8\n(5 more frames not shown — fetch them from the download URLs above)",
+    "frames": 9
+  },
+  {
+    "id": "plaguedoctor",
+    "dir": "north-east",
+    "track": "walk",
+    "job": "78a2eba5-1269-465b-848a-07fe9837ad18",
+    "done": true,
+    "result": "status: completed\nid: 78a2eba5-1269-465b-848a-07fe9837ad18\njob_id: 78a2eba5-1269-465b-848a-07fe9837ad18\nframes: 9\ndownload: https://api.pixellab.ai/mcp/images/78a2eba5-1269-465b-848a-07fe9837ad18/download?index=0 ... ?index=8\n(5 more frames not shown — fetch them from the download URLs above)",
+    "frames": 9
+  },
+  {
+    "id": "plaguedoctor",
+    "dir": "north-west",
+    "track": "walk",
+    "job": "9761f33c-7ac7-44e3-920b-42fd123b4bf1",
+    "done": true,
+    "result": "status: completed\nid: 9761f33c-7ac7-44e3-920b-42fd123b4bf1\njob_id: 9761f33c-7ac7-44e3-920b-42fd123b4bf1\nframes: 9\ndownload: https://api.pixellab.ai/mcp/images/9761f33c-7ac7-44e3-920b-42fd123b4bf1/download?index=0 ... ?index=8\n(5 more frames not shown — fetch them from the download URLs above)",
+    "frames": 9
+  },
+  {
+    "id": "plaguedoctor",
+    "dir": "north",
+    "track": "walk",
+    "job": "0114898a-6d84-40e3-b043-c0609c1023ed",
+    "done": true,
+    "result": "status: completed\nid: 0114898a-6d84-40e3-b043-c0609c1023ed\njob_id: 0114898a-6d84-40e3-b043-c0609c1023ed\nframes: 9\ndownload: https://api.pixellab.ai/mcp/images/0114898a-6d84-40e3-b043-c0609c1023ed/download?index=0 ... ?index=8\n(5 more frames not shown — fetch them from the download URLs above)",
+    "frames": 9
+  },
+  {
+    "id": "plaguedoctor",
+    "dir": "south-east",
+    "track": "walk",
+    "job": "9afdcd2c-e35f-41f8-8886-83652db6a237",
+    "done": true,
+    "result": "status: completed\nid: 9afdcd2c-e35f-41f8-8886-83652db6a237\njob_id: 9afdcd2c-e35f-41f8-8886-83652db6a237\nframes: 9\ndownload: https://api.pixellab.ai/mcp/images/9afdcd2c-e35f-41f8-8886-83652db6a237/download?index=0 ... ?index=8\n(5 more frames not shown — fetch them from the download URLs above)",
+    "frames": 9
+  },
+  {
+    "id": "plaguedoctor",
+    "dir": "south-west",
+    "track": "walk",
+    "job": "074048d8-9e39-4829-ae21-eeb5944a7211",
+    "done": true,
+    "result": "status: completed\nid: 074048d8-9e39-4829-ae21-eeb5944a7211\njob_id: 074048d8-9e39-4829-ae21-eeb5944a7211\nframes: 9\ndownload: https://api.pixellab.ai/mcp/images/074048d8-9e39-4829-ae21-eeb5944a7211/download?index=0 ... ?index=8\n(5 more frames not shown — fetch them from the download URLs above)",
+    "frames": 9
+  },
+  {
+    "id": "plaguedoctor",
+    "dir": "south",
+    "track": "walk",
+    "job": "5765f642-8644-4c2b-896f-5eeff95d1fe0",
+    "done": true,
+    "result": "status: completed\nid: 5765f642-8644-4c2b-896f-5eeff95d1fe0\njob_id: 5765f642-8644-4c2b-896f-5eeff95d1fe0\nframes: 9\ndownload: https://api.pixellab.ai/mcp/images/5765f642-8644-4c2b-896f-5eeff95d1fe0/download?index=0 ... ?index=8\n(5 more frames not shown — fetch them from the download URLs above)",
+    "frames": 9
+  },
+  {
+    "id": "plaguedoctor",
+    "dir": "west",
+    "track": "walk",
+    "job": "b1afd6e1-f7d2-4334-9b9e-b33ea2f92ef8",
+    "done": true,
+    "result": "status: completed\nid: b1afd6e1-f7d2-4334-9b9e-b33ea2f92ef8\njob_id: b1afd6e1-f7d2-4334-9b9e-b33ea2f92ef8\nframes: 9\ndownload: https://api.pixellab.ai/mcp/images/b1afd6e1-f7d2-4334-9b9e-b33ea2f92ef8/download?index=0 ... ?index=8\n(5 more frames not shown — fetch them from the download URLs above)",
+    "frames": 9
+  },
+  {
+    "id": "plaguedoctor",
+    "dir": "east",
+    "track": "sit",
+    "job": "78a1da9b-25f2-4cec-85bf-67b6a0363aaa",
+    "done": true,
+    "result": "status: completed\nid: 78a1da9b-25f2-4cec-85bf-67b6a0363aaa\njob_id: 78a1da9b-25f2-4cec-85bf-67b6a0363aaa\nframes: 5\ndownload: https://api.pixellab.ai/mcp/images/78a1da9b-25f2-4cec-85bf-67b6a0363aaa/download?index=0 ... ?index=4\n(1 more frames not shown — fetch them from the download URLs above)",
+    "frames": 5
+  },
+  {
+    "id": "plaguedoctor",
+    "dir": "north",
+    "track": "sit",
+    "job": "951197d4-bfad-4a6c-bef2-c0be214fa01c",
+    "done": true,
+    "result": "status: completed\nid: 951197d4-bfad-4a6c-bef2-c0be214fa01c\njob_id: 951197d4-bfad-4a6c-bef2-c0be214fa01c\nframes: 5\ndownload: https://api.pixellab.ai/mcp/images/951197d4-bfad-4a6c-bef2-c0be214fa01c/download?index=0 ... ?index=4\n(1 more frames not shown — fetch them from the download URLs above)",
+    "frames": 5
+  },
+  {
+    "id": "plaguedoctor",
+    "dir": "south",
+    "track": "sit",
+    "job": "5fe8dfae-6cf4-4fe8-a039-b05abf0c61fd",
+    "done": true,
+    "result": "status: completed\nid: 5fe8dfae-6cf4-4fe8-a039-b05abf0c61fd\njob_id: 5fe8dfae-6cf4-4fe8-a039-b05abf0c61fd\nframes: 5\ndownload: https://api.pixellab.ai/mcp/images/5fe8dfae-6cf4-4fe8-a039-b05abf0c61fd/download?index=0 ... ?index=4\n(1 more frames not shown — fetch them from the download URLs above)",
+    "frames": 5
+  },
+  {
+    "id": "plaguedoctor",
+    "dir": "west",
+    "track": "sit",
+    "job": "f0901683-b031-4017-b8cd-35f0126a3aa5",
+    "done": true,
+    "result": "status: completed\nid: f0901683-b031-4017-b8cd-35f0126a3aa5\njob_id: f0901683-b031-4017-b8cd-35f0126a3aa5\nframes: 5\ndownload: https://api.pixellab.ai/mcp/images/f0901683-b031-4017-b8cd-35f0126a3aa5/download?index=0 ... ?index=4\n(1 more frames not shown — fetch them from the download URLs above)",
+    "frames": 5
+  },
+  {
+    "id": "voidwizard",
+    "dir": "east",
+    "track": "walk",
+    "job": "ceea0e92-0d68-4077-ad52-e12f8729899b",
+    "done": true,
+    "result": "status: completed\nid: ceea0e92-0d68-4077-ad52-e12f8729899b\njob_id: ceea0e92-0d68-4077-ad52-e12f8729899b\nframes: 9\ndownload: https://api.pixellab.ai/mcp/images/ceea0e92-0d68-4077-ad52-e12f8729899b/download?index=0 ... ?index=8\n(5 more frames not shown — fetch them from the download URLs above)",
+    "frames": 9
+  },
+  {
+    "id": "voidwizard",
+    "dir": "north-east",
+    "track": "walk",
+    "job": "6019466f-d72f-49e7-890f-621d0290f99a",
+    "done": true,
+    "result": "status: completed\nid: 6019466f-d72f-49e7-890f-621d0290f99a\njob_id: 6019466f-d72f-49e7-890f-621d0290f99a\nframes: 9\ndownload: https://api.pixellab.ai/mcp/images/6019466f-d72f-49e7-890f-621d0290f99a/download?index=0 ... ?index=8\n(5 more frames not shown — fetch them from the download URLs above)",
+    "frames": 9
+  },
+  {
+    "id": "voidwizard",
+    "dir": "north-west",
+    "track": "walk",
+    "job": "cbcd8117-74ee-48e9-8b8b-7720e0d1b032",
+    "done": true,
+    "result": "status: completed\nid: cbcd8117-74ee-48e9-8b8b-7720e0d1b032\njob_id: cbcd8117-74ee-48e9-8b8b-7720e0d1b032\nframes: 9\ndownload: https://api.pixellab.ai/mcp/images/cbcd8117-74ee-48e9-8b8b-7720e0d1b032/download?index=0 ... ?index=8\n(5 more frames not shown — fetch them from the download URLs above)",
+    "frames": 9
+  },
+  {
+    "id": "voidwizard",
+    "dir": "north",
+    "track": "walk",
+    "job": "e59819b9-c453-46ac-b1eb-6bb13bfe2c9b",
+    "done": true,
+    "result": "status: completed\nid: e59819b9-c453-46ac-b1eb-6bb13bfe2c9b\njob_id: e59819b9-c453-46ac-b1eb-6bb13bfe2c9b\nframes: 9\ndownload: https://api.pixellab.ai/mcp/images/e59819b9-c453-46ac-b1eb-6bb13bfe2c9b/download?index=0 ... ?index=8\n(5 more frames not shown — fetch them from the download URLs above)",
+    "frames": 9
+  },
+  {
+    "id": "voidwizard",
+    "dir": "south-east",
+    "track": "walk",
+    "job": "0b1eb482-ba3f-40e2-a211-78d6c57ec6e9",
+    "done": true,
+    "result": "status: completed\nid: 0b1eb482-ba3f-40e2-a211-78d6c57ec6e9\njob_id: 0b1eb482-ba3f-40e2-a211-78d6c57ec6e9\nframes: 9\ndownload: https://api.pixellab.ai/mcp/images/0b1eb482-ba3f-40e2-a211-78d6c57ec6e9/download?index=0 ... ?index=8\n(5 more frames not shown — fetch them from the download URLs above)",
+    "frames": 9
+  },
+  {
+    "id": "voidwizard",
+    "dir": "south-west",
+    "track": "walk",
+    "job": "95dded39-668d-4817-aa45-33a17b21350f",
+    "done": true,
+    "result": "status: completed\nid: 95dded39-668d-4817-aa45-33a17b21350f\njob_id: 95dded39-668d-4817-aa45-33a17b21350f\nframes: 9\ndownload: https://api.pixellab.ai/mcp/images/95dded39-668d-4817-aa45-33a17b21350f/download?index=0 ... ?index=8\n(5 more frames not shown — fetch them from the download URLs above)",
+    "frames": 9
+  },
+  {
+    "id": "voidwizard",
+    "dir": "south",
+    "track": "walk",
+    "job": "4857d979-8e0b-42e8-835c-b0651b6023a6",
+    "done": true,
+    "result": "status: completed\nid: 4857d979-8e0b-42e8-835c-b0651b6023a6\njob_id: 4857d979-8e0b-42e8-835c-b0651b6023a6\nframes: 9\ndownload: https://api.pixellab.ai/mcp/images/4857d979-8e0b-42e8-835c-b0651b6023a6/download?index=0 ... ?index=8\n(5 more frames not shown — fetch them from the download URLs above)",
+    "frames": 9
+  },
+  {
+    "id": "voidwizard",
+    "dir": "west",
+    "track": "walk",
+    "job": "de06244e-98b2-403f-bd68-aab9c6d07c83",
+    "done": true,
+    "result": "status: completed\nid: de06244e-98b2-403f-bd68-aab9c6d07c83\njob_id: de06244e-98b2-403f-bd68-aab9c6d07c83\nframes: 9\ndownload: https://api.pixellab.ai/mcp/images/de06244e-98b2-403f-bd68-aab9c6d07c83/download?index=0 ... ?index=8\n(5 more frames not shown — fetch them from the download URLs above)",
+    "frames": 9
+  },
+  {
+    "id": "voidwizard",
+    "dir": "east",
+    "track": "sit",
+    "job": "e00fc18c-5e46-4c04-bca6-595ea353eb1a",
+    "done": true,
+    "result": "status: completed\nid: e00fc18c-5e46-4c04-bca6-595ea353eb1a\njob_id: e00fc18c-5e46-4c04-bca6-595ea353eb1a\nframes: 5\ndownload: https://api.pixellab.ai/mcp/images/e00fc18c-5e46-4c04-bca6-595ea353eb1a/download?index=0 ... ?index=4\n(1 more frames not shown — fetch them from the download URLs above)",
+    "frames": 5
+  },
+  {
+    "id": "voidwizard",
+    "dir": "north",
+    "track": "sit",
+    "job": "b3d396e0-6a07-461b-99eb-c80a4d59735d",
+    "done": true,
+    "result": "status: completed\nid: b3d396e0-6a07-461b-99eb-c80a4d59735d\njob_id: b3d396e0-6a07-461b-99eb-c80a4d59735d\nframes: 5\ndownload: https://api.pixellab.ai/mcp/images/b3d396e0-6a07-461b-99eb-c80a4d59735d/download?index=0 ... ?index=4\n(1 more frames not shown — fetch them from the download URLs above)",
+    "frames": 5
+  },
+  {
+    "id": "voidwizard",
+    "dir": "south",
+    "track": "sit",
+    "job": "e819f88c-1e01-4bfd-b26e-54a70c5f25fd",
+    "done": true,
+    "result": "status: completed\nid: e819f88c-1e01-4bfd-b26e-54a70c5f25fd\njob_id: e819f88c-1e01-4bfd-b26e-54a70c5f25fd\nframes: 5\ndownload: https://api.pixellab.ai/mcp/images/e819f88c-1e01-4bfd-b26e-54a70c5f25fd/download?index=0 ... ?index=4\n(1 more frames not shown — fetch them from the download URLs above)",
+    "frames": 5
+  },
+  {
+    "id": "voidwizard",
+    "dir": "west",
+    "track": "sit",
+    "job": "259698a1-7b04-46e0-8a55-57021b6c5723",
+    "done": true,
+    "result": "status: completed\nid: 259698a1-7b04-46e0-8a55-57021b6c5723\njob_id: 259698a1-7b04-46e0-8a55-57021b6c5723\nframes: 5\ndownload: https://api.pixellab.ai/mcp/images/259698a1-7b04-46e0-8a55-57021b6c5723/download?index=0 ... ?index=4\n(1 more frames not shown — fetch them from the download URLs above)",
+    "frames": 5
+  }
+]

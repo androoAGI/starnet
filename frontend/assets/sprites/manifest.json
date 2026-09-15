@@ -6235,6 +6235,21 @@
     ],
     "industrial_voidwizard.rot.south": [
       "industrial_voidwizard/rot_south.png"
+    ],
+    "approved_secretagent.rot.south": [
+      "approved_secretagent/rot_south.png"
+    ],
+    "approved_ultron.rot.south": [
+      "approved_ultron/rot_south.png"
+    ],
+    "approved_skeleton.rot.south": [
+      "approved_skeleton/rot_south.png"
+    ],
+    "approved_plaguedoctor.rot.south": [
+      "approved_plaguedoctor/rot_south.png"
+    ],
+    "approved_voidwizard.rot.south": [
+      "approved_voidwizard/rot_south.png"
     ]
   }
 }
