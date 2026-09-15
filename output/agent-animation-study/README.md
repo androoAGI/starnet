@@ -13,3 +13,7 @@ Default visible character height is approximately 8% above the original Secret A
 Use the agent, motion and direction controls to inspect tracks. Pause, step or click an individual frame. Height changes the character-to-environment ratio; zoom changes the whole scene. The original skin remains visible beside the new crew in the texture-room view. A missing track is explicitly shown as missing, with labeled standing fallbacks in the scene.
 
 `sync-frames.cjs` downloads returned frames and builds the local preview manifest. `verify-frames.cjs` checks decoding, nonempty alpha, canvas-edge clipping and distinct images within animation tracks; it writes `frame-validation.json`. Those checks do not replace visual animation review.
+
+The first walk attempts drifted into other facings during playback. They remain as source history under `walk/`, but the reviewed manifest selects the corrected `walk-fixed/` tracks instead. Each corrected direction is generated with its own rotation supplied as both start and end reference, plus explicit fixed-facing instructions. The frame pack exports only manifest-selected tracks. Custom tracks contain a reference frame followed by the generated frames; the review exposes them all.
+
+The full review scope per character is eight standing views, eight walk directions, four breathing-idle directions, four gestures, four sit-down transitions with a seated hold, and a north-facing seated typing loop. This does not claim a production renderer/manifest migration or additional action families beyond those listed.

@@ -1,0 +1,9 @@
+{
+  "content": [
+    {
+      "type": "text",
+      "text": "character: 24f874f4-f802-4ae6-960c-5e1545e33f95\nanimation: v3 custom (Maintain this seated pose throughout. Loop small alternating hand and finger movements as if typing, slight natural forearm motion. Keep head, torso, bent legs, feet and character position stable. No furniture, no keyboard, no desk, no chair, no objects added.)\ndirections: north (1 jobs)\ngroup: 44249053-6058-40bf-962d-f6853393f9cf\nframes: 7 (1 reference + 6 animated)\ncost: 1 generation (1/dir x 1)\neta: ~30-60s/direction\n\nhint: get_character(character_id=\"24f874f4-f802-4ae6-960c-5e1545e33f95\")\nadd more directions to this group: animate_character(character_id=\"24f874f4-f802-4ae6-960c-5e1545e33f95\", action_description=\"Maintain this seated pose throughout. Loop small alternating hand and finger movements as if typing, slight natural forearm motion. Keep head, torso, bent legs, feet and character position stable. No furniture, no keyboard, no desk, no chair, no objects added.\", animation_group_id=\"44249053-6058-40bf-962d-f6853393f9cf\", directions=[...])"
+    }
+  ],
+  "isError": false
+}
