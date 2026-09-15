@@ -18,8 +18,8 @@
   "expectedClaimCount": 37,
   "releaseSurface": {
     "algorithm": "sha256",
-    "sourceCommit": "a9d33d4ba0274bfe3bef1e077aa1a94c67ece009",
-    "pathSetSha256": "1af5099dec6de75b495f661e504e8807f02fad4e5e51ca05cb0b54a685484a24",
+    "sourceCommit": "ec7cd8cd606ab298ee4d41f958ea71dfc50fa97e",
+    "pathSetSha256": "c4ecd804a954875e8d12ca5ea636843f939f71a3641d787e31893e698663b9b1",
     "files": [
       {
         "path": "INSTALL.md",
@@ -102,6 +102,11 @@
         "sha256": "1e3129b3f9f7d562a01eb72376f932b2e4a35faf07684f0220463909ec318003"
       },
       {
+        "path": "frontend/agent-demo/proportion-review.js",
+        "bytes": 4500,
+        "sha256": "27d85b0558d1ddd73747041023dd48176f1bd852368ca621240c99a33576b1be"
+      },
+      {
         "path": "frontend/agent-demo/propremaster.js",
         "bytes": 29916,
         "sha256": "c6b8f423e293c63c9c28303397d8a48da49c5422888db17fc66c81c6aadf334b"
@@ -135,6 +140,11 @@
         "path": "frontend/agent-motion-review.js",
         "bytes": 8514,
         "sha256": "6853cf0d75a2afc0bb78d91d4426d224c8b8997cd7bbe91bd5e6cd52673eff61"
+      },
+      {
+        "path": "frontend/agent-proportion-review.html",
+        "bytes": 4278,
+        "sha256": "2c84ed00bf088a981a41f976d9bba3f23e2a644fd01f3c6854ce0961163b0c80"
       },
       {
         "path": "frontend/agent-station-demo.html",
