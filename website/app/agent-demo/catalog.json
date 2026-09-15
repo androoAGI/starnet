@@ -4,7 +4,7 @@
     {
       "id": "android",
       "skin": "blank",
-      "name": "Cadet / Android",
+      "name": "Silver Cadet",
       "stage": "complete",
       "targetStandingHeight": 19,
       "walkFramesReady": true,
@@ -13,7 +13,9 @@
       "retainedOriginal": false,
       "sourceStandingHeight": 76,
       "readyForStation": true,
-      "renderSet": "approved_android"
+      "renderSet": "approved_android",
+      "motionSource": "pixel-cadets-0915",
+      "style": "Pixel-shaded faceless messenger figure"
     },
     {
       "id": "astronaut",
@@ -293,7 +295,9 @@
       "retainedOriginal": false,
       "sourceStandingHeight": 76,
       "readyForStation": true,
-      "renderSet": "approved_blank_blue"
+      "renderSet": "approved_blank_blue",
+      "motionSource": "pixel-cadets-0915",
+      "style": "Pixel-shaded faceless messenger figure"
     },
     {
       "id": "blank_green",
@@ -307,7 +311,9 @@
       "retainedOriginal": false,
       "sourceStandingHeight": 76,
       "readyForStation": true,
-      "renderSet": "approved_blank_green"
+      "renderSet": "approved_blank_green",
+      "motionSource": "pixel-cadets-0915",
+      "style": "Pixel-shaded faceless messenger figure"
     },
     {
       "id": "blank_red",
@@ -321,7 +327,9 @@
       "retainedOriginal": false,
       "sourceStandingHeight": 76,
       "readyForStation": true,
-      "renderSet": "approved_blank_red"
+      "renderSet": "approved_blank_red",
+      "motionSource": "pixel-cadets-0915",
+      "style": "Pixel-shaded faceless messenger figure"
     },
     {
       "id": "blank_amber",
@@ -335,7 +343,9 @@
       "retainedOriginal": false,
       "sourceStandingHeight": 76,
       "readyForStation": true,
-      "renderSet": "approved_blank_amber"
+      "renderSet": "approved_blank_amber",
+      "motionSource": "pixel-cadets-0915",
+      "style": "Pixel-shaded faceless messenger figure"
     },
     {
       "id": "heisenberg",

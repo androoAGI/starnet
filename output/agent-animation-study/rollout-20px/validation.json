@@ -11,8 +11,8 @@
       "walkFrames": 64,
       "seats": 4,
       "typingFrames": 4,
-      "minWalkHeight": 73,
-      "maxWalkHeight": 79
+      "minWalkHeight": 74,
+      "maxWalkHeight": 78
     },
     {
       "id": "astronaut",
@@ -232,7 +232,7 @@
       "seats": 4,
       "typingFrames": 4,
       "minWalkHeight": 73,
-      "maxWalkHeight": 78
+      "maxWalkHeight": 79
     },
     {
       "id": "blank_green",
@@ -242,7 +242,7 @@
       "walkFrames": 64,
       "seats": 4,
       "typingFrames": 4,
-      "minWalkHeight": 72,
+      "minWalkHeight": 73,
       "maxWalkHeight": 80
     },
     {
@@ -253,8 +253,8 @@
       "walkFrames": 64,
       "seats": 4,
       "typingFrames": 4,
-      "minWalkHeight": 74,
-      "maxWalkHeight": 78
+      "minWalkHeight": 71,
+      "maxWalkHeight": 79
     },
     {
       "id": "blank_amber",
@@ -264,7 +264,7 @@
       "walkFrames": 64,
       "seats": 4,
       "typingFrames": 4,
-      "minWalkHeight": 73,
+      "minWalkHeight": 74,
       "maxWalkHeight": 80
     },
     {
