@@ -1,0 +1,252 @@
+{
+  "floorMaterials": 24,
+  "wallMaterials": 10,
+  "missing": [],
+  "records": [
+    {
+      "kind": "floors",
+      "id": "spine",
+      "path": "frontend/assets/industrial/remaster/floors/spine.png",
+      "bytes": 2910066,
+      "sha256": "de8d657ac8ab7b2ff7b46649655e2a2c1bd2f30856f419ebca95bb3e2fe240ae"
+    },
+    {
+      "kind": "floors",
+      "id": "alloy",
+      "path": "frontend/assets/industrial/remaster/floors/alloy.png",
+      "bytes": 2219260,
+      "sha256": "eccf90759ea2e723866aff8088fc759e9a5a75a500062530ff3e5e21b77960ac"
+    },
+    {
+      "kind": "floors",
+      "id": "runner",
+      "path": "frontend/assets/industrial/remaster/floors/runner.png",
+      "bytes": 541667,
+      "sha256": "a02853bb3f566aa22509645d9b625082bdc02df0e65656bc1c67abaef9606545"
+    },
+    {
+      "kind": "floors",
+      "id": "treadway",
+      "path": "frontend/assets/industrial/remaster/floors/treadway.png",
+      "bytes": 555963,
+      "sha256": "cdab7e2e0047c1a06b081ff7d359c2c75f296cdaa4c0c68c5f44b379a67bcd5c"
+    },
+    {
+      "kind": "floors",
+      "id": "meshway",
+      "path": "frontend/assets/industrial/remaster/floors/meshway.png",
+      "bytes": 546178,
+      "sha256": "e399e1907f1723564824ae0acfe73f7a2143f09de51065f651859f09b034bdfa"
+    },
+    {
+      "kind": "floors",
+      "id": "plate",
+      "path": "frontend/assets/industrial/remaster/floors/plate.png",
+      "bytes": 2863448,
+      "sha256": "d7b3ef127b46e186a41568bec665169de0d6043c01b969aa9ed358fcd913e4d6"
+    },
+    {
+      "kind": "floors",
+      "id": "diamond",
+      "path": "frontend/assets/industrial/remaster/floors/diamond.png",
+      "bytes": 489947,
+      "sha256": "7cf6c162b228aaef2bd2bad90f3f27e4e6c80fd9519bce18453a8b93b3867f0f"
+    },
+    {
+      "kind": "floors",
+      "id": "cargo",
+      "path": "frontend/assets/industrial/remaster/floors/cargo.png",
+      "bytes": 515849,
+      "sha256": "d519c24a1666de5daf60af4a8ca5b066150a166d4bd5871ffcfb7b33f606ec57"
+    },
+    {
+      "kind": "floors",
+      "id": "panel",
+      "path": "frontend/assets/industrial/remaster/floors/panel.png",
+      "bytes": 2921839,
+      "sha256": "24c78ccd35bdc60e11f13eb827e6639250562bc8de79e2e19922c5ab69b4f2a8"
+    },
+    {
+      "kind": "floors",
+      "id": "tile",
+      "path": "frontend/assets/industrial/remaster/floors/tile.png",
+      "bytes": 2955091,
+      "sha256": "e63425bf9f2012126f025ae1643f7197af301c02ffbd36a518bcd5e392304cd2"
+    },
+    {
+      "kind": "floors",
+      "id": "ceramic",
+      "path": "frontend/assets/industrial/remaster/floors/ceramic.png",
+      "bytes": 490383,
+      "sha256": "656fad5c4e5e91a91e2fd0f5477b00ce07f7e16dd1d39e2a5ac4997e4781debb"
+    },
+    {
+      "kind": "floors",
+      "id": "resin",
+      "path": "frontend/assets/industrial/remaster/floors/resin.png",
+      "bytes": 461271,
+      "sha256": "9e5edeb52dec183f6e30bcadcafd068042ff66f1991c7ed3c32e13e0160c06b5"
+    },
+    {
+      "kind": "floors",
+      "id": "tread",
+      "path": "frontend/assets/industrial/remaster/floors/tread.png",
+      "bytes": 3025296,
+      "sha256": "e81aa4fd511095cf9705801d1d5384e3bd4523ce593e5686502d0d4c6a458fc6"
+    },
+    {
+      "kind": "floors",
+      "id": "soft",
+      "path": "frontend/assets/industrial/remaster/floors/soft.png",
+      "bytes": 3135570,
+      "sha256": "def7e66bf6cf696fbffff093d833a2d80454046ac7f9d5d00e54b4e72c54f85f"
+    },
+    {
+      "kind": "floors",
+      "id": "grate",
+      "path": "frontend/assets/industrial/remaster/floors/grate.png",
+      "bytes": 520730,
+      "sha256": "b798c48b9437e2eea086996503f5b66d08c3cb32f8c6acf101c950a66444e00e"
+    },
+    {
+      "kind": "floors",
+      "id": "hex",
+      "path": "frontend/assets/industrial/remaster/floors/hex.png",
+      "bytes": 2837016,
+      "sha256": "5298cb6060dfe723a62eddb607ccd2554b747f58a0a3cfcad3e100385fb49a4c"
+    },
+    {
+      "kind": "floors",
+      "id": "plank",
+      "path": "frontend/assets/industrial/remaster/floors/plank.png",
+      "bytes": 451727,
+      "sha256": "9155ca078f571f55a9a8bd4ee364794bf94437446cc9f07d6a8e5cddca5d4c31"
+    },
+    {
+      "kind": "floors",
+      "id": "turf",
+      "path": "frontend/assets/industrial/remaster/floors/turf.png",
+      "bytes": 574732,
+      "sha256": "954842a8ee322bb028164c9aae9359aa3f4bcb06ee49632a33dcf0057582da57"
+    },
+    {
+      "kind": "floors",
+      "id": "basalt",
+      "path": "frontend/assets/industrial/remaster/floors/basalt.png",
+      "bytes": 2852382,
+      "sha256": "25c8185f612c0703c1a2b43270891a20f205ab18da7916c02040544e2882b046"
+    },
+    {
+      "kind": "floors",
+      "id": "parquet",
+      "path": "frontend/assets/industrial/remaster/floors/parquet.png",
+      "bytes": 3068862,
+      "sha256": "f43dcbdf86ac7a600dca49c70dcda15745fe9fd4d6e57759c4e0709ccede5597"
+    },
+    {
+      "kind": "floors",
+      "id": "rubber",
+      "path": "frontend/assets/industrial/remaster/floors/rubber.png",
+      "bytes": 3037534,
+      "sha256": "07a43df4b34395a3ed6974c9dd84ef2c1959e7e4d6a1c203af40fd29aa2a9417"
+    },
+    {
+      "kind": "floors",
+      "id": "slotted",
+      "path": "frontend/assets/industrial/remaster/floors/slotted.png",
+      "bytes": 2865661,
+      "sha256": "5ccbb442e519f5e62efe644ae923b498b92ddd2b9b439c22d5fe7b51acf48471"
+    },
+    {
+      "kind": "floors",
+      "id": "terrazzo",
+      "path": "frontend/assets/industrial/remaster/floors/terrazzo.png",
+      "bytes": 2768131,
+      "sha256": "b79e7cc21604c99dcf16410f04fdb1d64a16e5dd36a3486b73de0a5e65835ad2"
+    },
+    {
+      "kind": "floors",
+      "id": "octile",
+      "path": "frontend/assets/industrial/remaster/floors/octile.png",
+      "bytes": 2897853,
+      "sha256": "082b11531fbb8eb2a2496ad57870141bd087549316c3e324706f30e0eaeec878"
+    },
+    {
+      "kind": "walls",
+      "id": "bulkhead",
+      "path": "frontend/assets/industrial/remaster/walls/bulkhead.png",
+      "bytes": 1603644,
+      "sha256": "6334f46f2e50f973959d3d78f80b5d8ca394b586a12750a81c92a91a46b6cbb9"
+    },
+    {
+      "kind": "walls",
+      "id": "courses",
+      "path": "frontend/assets/industrial/remaster/walls/courses.png",
+      "bytes": 543217,
+      "sha256": "51f08b23729d399cfe174f1232d9d0d008e0e275e592c4627260bb8f0c7b00b3"
+    },
+    {
+      "kind": "walls",
+      "id": "service",
+      "path": "frontend/assets/industrial/remaster/walls/service.png",
+      "bytes": 541142,
+      "sha256": "eea464eaa234d03a0565a6a3b5a2a2c03e03c25acf36b09ff085852ebb99e219"
+    },
+    {
+      "kind": "walls",
+      "id": "plating",
+      "path": "frontend/assets/industrial/remaster/walls/plating.png",
+      "bytes": 555026,
+      "sha256": "dd988629f1829c614e0ba4b9b1da0f1dbb3961cd799717ed8cf07f853739a790"
+    },
+    {
+      "kind": "walls",
+      "id": "ribbed",
+      "path": "frontend/assets/industrial/remaster/walls/ribbed.png",
+      "bytes": 517769,
+      "sha256": "e416b0690cf1e158b4c7f1e0649d876d4a94ea95037c8b57bbb3b2e43f08e582"
+    },
+    {
+      "kind": "walls",
+      "id": "panelled",
+      "path": "frontend/assets/industrial/remaster/walls/panelled.png",
+      "bytes": 530436,
+      "sha256": "b3a4c9a21de7e3d3e2c1a9b013553869e27112076cdf04eca22d6bd3f4ddabd4"
+    },
+    {
+      "kind": "walls",
+      "id": "viewport",
+      "path": "frontend/assets/industrial/remaster/walls/viewport.png",
+      "bytes": 1818987,
+      "sha256": "fab01544d11f837862f19df4c23bfaa815f7648974b58aaa7828423069063952"
+    },
+    {
+      "kind": "walls",
+      "id": "pipework",
+      "path": "frontend/assets/industrial/remaster/walls/pipework.png",
+      "bytes": 519265,
+      "sha256": "184841ad5ffb87091f6ed6e7264081d2ac83ae77df2f2ad0db001aa2cd0a0f95"
+    },
+    {
+      "kind": "walls",
+      "id": "wainscot",
+      "path": "frontend/assets/industrial/remaster/walls/wainscot.png",
+      "bytes": 2534190,
+      "sha256": "7d1b6a3066d998f7ce5517287e828673d4a99e44e2b488db6d582889b316923b"
+    },
+    {
+      "kind": "walls",
+      "id": "hedge",
+      "path": "frontend/assets/industrial/remaster/walls/hedge.png",
+      "bytes": 2294521,
+      "sha256": "5627e5b9c944785ec16a3257e54f38e12064a4e263abf2666c80ad404fa4cd61"
+    },
+    {
+      "kind": "coping",
+      "id": "crown",
+      "path": "frontend/assets/industrial/remaster/crown.png",
+      "bytes": 2163633,
+      "sha256": "e44d3aa3703e06563a2d0ae4ad09b474dfee0089a27a80c158156d7b3fbc498e"
+    }
+  ]
+}

@@ -1,0 +1,99 @@
+[
+  {
+    "viewport": [
+      1031,
+      912
+    ],
+    "dpr": 1,
+    "props": 188,
+    "scale": 0.62,
+    "frames": 383,
+    "callbackMs": {
+      "p50": 8.7,
+      "p95": 40.3
+    },
+    "intervalMs": {
+      "p50": 20.8,
+      "p95": 41.7
+    },
+    "renderFaults": 0,
+    "raster": [],
+    "renderer": {
+      "generation": "II",
+      "frames": 23376,
+      "rebuilds": 7,
+      "entities": 187,
+      "frameIntervalMedianMs": 16.7,
+      "frameIntervalP95Ms": 41.6,
+      "renderMedianMs": 8.2,
+      "renderP95Ms": 9.3,
+      "lightingMedianMs": 1.9,
+      "samples": 120,
+      "viewport": {
+        "x": -105.49959602954762,
+        "y": -279.4999999999999,
+        "w": 1662.999192059095,
+        "h": 1471.0526315789475
+      },
+      "appearance": {
+        "crew": {
+          "cachedFrames": 128,
+          "limit": 128,
+          "builds": 132
+        },
+        "props": {
+          "builds": 55,
+          "hits": 364720,
+          "evictions": 0,
+          "failures": 0,
+          "draws": 364775,
+          "entries": 32,
+          "pixels": 124016,
+          "bytes": 496064,
+          "maxEntries": 96,
+          "maxPixels": 262144,
+          "maxBytes": 1048576,
+          "maxSinglePixels": 65536,
+          "supportedTypes": 36
+        }
+      },
+      "lighting": {
+        "geometryRevision": 7,
+        "staticBuilds": 7,
+        "dynamicBuilds": 152,
+        "visibilityBuilds": 681,
+        "frames": 23376,
+        "preparations": 46752,
+        "beamBuilds": 57,
+        "lastBuildMs": 1.8,
+        "droppedSources": 0,
+        "supported": true,
+        "contextLosses": 0,
+        "contextRecoveries": 0,
+        "configRevision": 7,
+        "sampleCacheHits": 35785,
+        "sampleCacheMisses": 375742,
+        "sampleCacheEvictions": 0,
+        "sampleCacheInvalidations": 23390,
+        "quality": "high",
+        "width": 1452,
+        "height": 1118,
+        "resolution": 1,
+        "segments": 96,
+        "sources": 228,
+        "cachedStamps": 183,
+        "areaSamples": 5,
+        "sampleCacheSize": 86,
+        "sampleCacheLimit": 512,
+        "shafts": 32,
+        "ambient": 0.6,
+        "cacheBytes": 49706928,
+        "disposed": false
+      }
+    },
+    "canvas": [
+      1031,
+      912
+    ]
+  }
+]
