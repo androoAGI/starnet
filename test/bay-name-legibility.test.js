@@ -29,7 +29,7 @@ for (let i = 0; i < nearby.boxes.length; i++) for (let j = i + 1; j < nearby.box
   assert.ok(a.x + a.w <= b.x || b.x + b.w <= a.x || a.y + a.h <= b.y || b.y + b.h <= a.y, 'adjacent names do not overprint');
 }
 const crew = paint([{ ...bay, dockName: 'CREW-NEON' }], 2);
-assert.deepEqual(crew.text.map(t=>t.s), ['CREW','NEON'], 'distinctive crew name survives as a complete second line');
+assert.deepEqual(crew.text.map(t=>t.s), ['NEON'], 'bay shows the agent name without the crew prefix');
 const long = paint([{ ...bay, dockName: 'A very long research specialist name that cannot fit on a bay' }], 1);
 assert.equal(long.text.length, 2); assert.ok(long.text[1].s.endsWith('…'), 'overlong names use two bounded lines with an honest ellipsis');
 assert.ok(long.boxes[0].w <= bay.w * PS.TILE, 'a tag never grows wider than its bay');

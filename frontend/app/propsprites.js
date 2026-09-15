@@ -11747,17 +11747,17 @@ const PropSprites = (() => {
       ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.shadowBlur = 0;
       for (const p of props) {
         if (!p.agentId) continue;
-        const name = String(p.dockName || String(p.agentId).replace(/^tg_/, '')).replace(/\s+/g,' ').trim().toUpperCase();
+        const name = String(p.dockName || String(p.agentId).replace(/^tg_/, '')).replace(/\s+/g,' ').trim().replace(/^crew[\s_-]+(?=\S)/i,'').toUpperCase();
         const width = Math.max(12,(p.w || 1)*TILE-1), maxWidth=width-4;
         const key=name+'|'+width;
         let layout=bayTextLayouts.get(key);
         if(!layout) {
-          let font=6;ctx.font=font+"px 'Arial',sans-serif";
+          let font=6;ctx.font=font+"px 'VT323','Courier New',monospace";
           let lines=[name];
           if(ctx.measureText(name).width>maxWidth) {
-            font=4;ctx.font=font+"px 'Arial',sans-serif";
+            font=4;ctx.font=font+"px 'VT323','Courier New',monospace";
             if(!/[ -]/.test(name) && name.length<=12) {
-              while(font>3 && ctx.measureText(name).width>maxWidth){font-=.25;ctx.font=font+"px 'Arial',sans-serif";}
+              while(font>3 && ctx.measureText(name).width>maxWidth){font-=.25;ctx.font=font+"px 'VT323','Courier New',monospace";}
             }
             const chars=Array.from(name);let first='';
             while(chars.length && ctx.measureText(first+chars[0]).width<=maxWidth)first+=chars.shift();
@@ -11777,7 +11777,7 @@ const PropSprites = (() => {
         ctx.strokeStyle='#28353c';ctx.strokeRect(left+.7,top+.7,width-1.4,h-1.4);
         // A small cyan rail ties the plate to the station's screen language.
         ctx.strokeStyle='#64a7af';ctx.lineWidth=.5;ctx.beginPath();ctx.moveTo(left+2,top+h-1.1);ctx.lineTo(left+width-2,top+h-1.1);ctx.stroke();
-        ctx.font=layout.font+"px 'Arial',sans-serif";ctx.fillStyle='#d4e0e3';
+        ctx.font=layout.font+"px 'VT323','Courier New',monospace";ctx.fillStyle='#d4e0e3';
         layout.lines.forEach((line,i)=>ctx.fillText(line,x,anchor+(i-(layout.lines.length-1)/2)*4.5-.25));
       }
     } finally { ctx.restore(); }
