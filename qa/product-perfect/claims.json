@@ -18,7 +18,7 @@
   "expectedClaimCount": 37,
   "releaseSurface": {
     "algorithm": "sha256",
-    "sourceCommit": "2a60d365417092d4233e92e844c8deed082fc5d3",
+    "sourceCommit": "ebe55d5fe24ee35804b554907d7564948c523a07",
     "pathSetSha256": "90d5146b4d0b5c89f766aa2966a81bc4d704b403cadbe92b22bbafbbc3682eb1",
     "files": [
       {
@@ -88,8 +88,8 @@
       },
       {
         "path": "frontend/agent-demo/demo.js",
-        "bytes": 5653,
-        "sha256": "1f08a36d7050968f528eb19d2c9de87ce5a5506dea74af0fc288300d3e9f848f"
+        "bytes": 6135,
+        "sha256": "b450bfbcc5b0df0cc0674da4161b605ba10156678e34899b67296e9984e598cc"
       },
       {
         "path": "frontend/agent-demo/industrialtextures.js",
@@ -118,13 +118,13 @@
       },
       {
         "path": "frontend/agent-demo/review-world.js",
-        "bytes": 738747,
-        "sha256": "bf415f65245eb0022af506f8903b795771d4e93174153ae0db47f02b4ef73c26"
+        "bytes": 739868,
+        "sha256": "683c1f8146161cd574ea5767635acea2dc813fbe6b27bc5197f8eae448002bc4"
       },
       {
         "path": "frontend/agent-demo/sprites.js",
-        "bytes": 40295,
-        "sha256": "608865b6bbd218723e8fb9778aeae089d34163c3916fde4545cc8d18d1aea8fd"
+        "bytes": 40380,
+        "sha256": "9ebe168cb6ea53bb15acdde3bf532871b9aae9fa94c741e30b7d37ba3a50961f"
       },
       {
         "path": "frontend/agent-demo/stationbake.js",
