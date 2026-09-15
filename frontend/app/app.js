@@ -2260,7 +2260,7 @@ const App = (() => {
       const invoke = window.__TAURI__ && window.__TAURI__.core && window.__TAURI__.core.invoke;
       if (invoke) await invoke('harness_clear_credits_token');
       const response = await Harness.api.post('/api/credits/unlink', {});
-      if (!response || !response.ok || (response.j && response.j.ok === false)) throw new Error('unlink refused');
+      if (!response || !response.ok || !response.j || response.j.ok !== true || response.j.unlinked !== true) throw new Error('unlink refused');
       if (Harness.refreshCreditsConfigured) await Harness.refreshCreditsConfigured();
       starnetLinked = false; starnetBalanceUsd = null; starnetPurchaseUrl = ''; starnetLinkStatus = '';
       if (switchBtn) { switchBtn.classList.add('hidden'); switchBtn.disabled = false; }

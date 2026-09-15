@@ -107,6 +107,7 @@ test/errorclass.test.js
 test/billing.test.js
 test/credits.test.js
 test/credits-link.test.js
+test/credits-store-recovery.test.js
 test/friendlyerror.test.js
 test/codexsignin.test.js
 test/oauthsignin.test.js
