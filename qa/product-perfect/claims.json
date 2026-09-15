@@ -18,8 +18,8 @@
   "expectedClaimCount": 37,
   "releaseSurface": {
     "algorithm": "sha256",
-    "sourceCommit": "47142c91b8efb375b5ca15c2cee7126c9f6c5694",
-    "pathSetSha256": "c0feb19a36763454ea2415ef4fb6a89946836d9c1c79ef8b1a19c416e9aba622",
+    "sourceCommit": "695ae36964bb354c0340cd33b1860d138cde8aa3",
+    "pathSetSha256": "1d26a45a2a9aac628d8d2335638d02a6051d605c116824ae8d4c28390781a868",
     "files": [
       {
         "path": "INSTALL.md",
@@ -68,8 +68,13 @@
       },
       {
         "path": "frontend/app/app.js",
-        "bytes": 382220,
-        "sha256": "06ce5ce45191bad5f6e97bdea4d286411428c3b35b4c8f30d8e044475c0785ae"
+        "bytes": 382261,
+        "sha256": "8345904feb80642c5a4f86cec11e0c2f0d8bcb6067030cc9678bcb45803f1074"
+      },
+      {
+        "path": "frontend/app/approved-sheet-effects.js",
+        "bytes": 10178,
+        "sha256": "85f2264d5e9d09a898d70bfecf07102da014b976e4f294229d59511b4bb0fafb"
       },
       {
         "path": "frontend/app/armconfirm.js",
@@ -80,6 +85,51 @@
         "path": "frontend/app/asciifx.js",
         "bytes": 13178,
         "sha256": "d29f87854ec3c8211eaba8e2198eec2cb76ccc77950d525985a1d509aa5afc1a"
+      },
+      {
+        "path": "frontend/app/authored-furniture-config.js",
+        "bytes": 1269,
+        "sha256": "9dac85cb89204906f9c0c10d885286d0e9c91f04cadcc5dede5bb5ad00b48369"
+      },
+      {
+        "path": "frontend/app/authored-furniture-motion.js",
+        "bytes": 6061,
+        "sha256": "fea0e866f467dcfa7ad8fc3d1450182acbdc1fcaf9f5518f72d7475f9e1429fb"
+      },
+      {
+        "path": "frontend/app/authored-machine-config.js",
+        "bytes": 2206,
+        "sha256": "4de79510c4070ab9cc017855e07cb969043fec93348cf33fcddab6db3cffd281"
+      },
+      {
+        "path": "frontend/app/authored-machine-review.js",
+        "bytes": 3885,
+        "sha256": "b755a823bfb04e632d3bea34e7bb14c3b763445ab56fe23c058c96358ec2daf4"
+      },
+      {
+        "path": "frontend/app/authored-prop-content.js",
+        "bytes": 12206,
+        "sha256": "12ad2b34e4aa25f17be4522aacc06009223baf89295116b00f1dce590dbe1c70"
+      },
+      {
+        "path": "frontend/app/authored-prop-motion.js",
+        "bytes": 10670,
+        "sha256": "bc0205d216b2a99202fc6ff8999783dd637259a8af5876ae1ea2953b332a0130"
+      },
+      {
+        "path": "frontend/app/authored-service-content.js",
+        "bytes": 13157,
+        "sha256": "d802d94301a6b93b7bfbad1a9b924c05f5058613941e10a21aef481438da3c3e"
+      },
+      {
+        "path": "frontend/app/authored-surface-calibration.js",
+        "bytes": 10655,
+        "sha256": "bd2d67f4c5b8f43672cab92978000d755578388f5c4445f9c72298a6fbb61c67"
+      },
+      {
+        "path": "frontend/app/authored-surface-mounts.js",
+        "bytes": 7602,
+        "sha256": "d2bffa57ca297d34c957e26409be43785912ef192483c2f3d8481b3bebc5ef6f"
       },
       {
         "path": "frontend/app/autojobs.js",
@@ -158,8 +208,8 @@
       },
       {
         "path": "frontend/app/build.js",
-        "bytes": 406793,
-        "sha256": "7e4ea9855aab361c92ccdd35262dd04df3812e553d5112d1512729d888aa6189"
+        "bytes": 414034,
+        "sha256": "e1771c88bc24125ac49376f25fdcd61a766e3f8c59fa31fa80d7df5236637467"
       },
       {
         "path": "frontend/app/channels.js",
@@ -218,8 +268,8 @@
       },
       {
         "path": "frontend/app/crtlab.js",
-        "bytes": 22861,
-        "sha256": "ca2772fbff0e0a180882df0bfe81184e433b78cb94021694e38fb15c79306d66"
+        "bytes": 23806,
+        "sha256": "1a1f2e190b9ee83c49b42176e047c66948e1669b9ca964c0581c4a0f30aa4467"
       },
       {
         "path": "frontend/app/ctxgauge.js",
@@ -373,8 +423,8 @@
       },
       {
         "path": "frontend/app/industrialtextures.js",
-        "bytes": 21289,
-        "sha256": "31f5740a1ae928373ec1c993730576388aa04331922c5ed0c8671e81c45fc653"
+        "bytes": 23563,
+        "sha256": "ff6fe37f1fb16f7a77d57858537e16da912ac448cba8f9a44b72a1542e2a1497"
       },
       {
         "path": "frontend/app/intake.js",
@@ -405,6 +455,11 @@
         "path": "frontend/app/keepawake.js",
         "bytes": 2826,
         "sha256": "5a2e446ed18eaf4f8be5e6e65ff67e3360ba991d3829a8dc8f321e5a949c5c33"
+      },
+      {
+        "path": "frontend/app/kepler-showcase.js",
+        "bytes": 4882,
+        "sha256": "a3c4f3501266dc649d29237aa35a9050e9c4a1bf7f401a1e94f58bd703b97718"
       },
       {
         "path": "frontend/app/keycta.js",
@@ -557,24 +612,54 @@
         "sha256": "c149f9ba05582be3365fb4bbb77cc0f8e06f94bfa471bd20533f5cf32a54f9de"
       },
       {
+        "path": "frontend/app/projection-audit-panel.js",
+        "bytes": 2414,
+        "sha256": "4d3e183cf6f4bfe50f2bf5dbb5d67f9eef1585da2c18502114f708eed764692c"
+      },
+      {
+        "path": "frontend/app/projection-prop-effects.js",
+        "bytes": 42684,
+        "sha256": "c9dbe5ccba794cce81c893d81a99e17d6798ec0700fad308a72807a931338cbe"
+      },
+      {
         "path": "frontend/app/projects.js",
         "bytes": 5632,
         "sha256": "020cc272aafb603406526a9bea9dd53633aa24dd700d02b20ba267832c5e97bf"
       },
       {
         "path": "frontend/app/prop-atlas.js",
-        "bytes": 5907,
-        "sha256": "a35a87a46c6e87ef6a05d058bfb77dac34a4e07d234844fd26c129ddf6eea2f0"
+        "bytes": 6661,
+        "sha256": "39e9a10e2679b09176a1ce8f5acd7c857c238c179473dd4951bc0ff52103e685"
+      },
+      {
+        "path": "frontend/app/prop-catalog-data.js",
+        "bytes": 128872,
+        "sha256": "4de744a82749d9a8355c9e9b0c6ccd86646b43352356da3de1fd1e9296ad5a08"
+      },
+      {
+        "path": "frontend/app/prop-catalog-fixture.js",
+        "bytes": 4114,
+        "sha256": "a6613c8692248c403762e7a5aee7a373f6a0e4bd9831aa63f899d00f42e4b1c5"
+      },
+      {
+        "path": "frontend/app/prop-catalog-review.js",
+        "bytes": 9290,
+        "sha256": "7379f93e23d3cbb112c9652d77b7097c33aea9dc86eb1e7db77a4ee835734fb7"
+      },
+      {
+        "path": "frontend/app/prop-room-review.js",
+        "bytes": 6760,
+        "sha256": "f479637ce750e07625e63608a55eec3c21762a42f7cd098b04b62a3c875a220e"
       },
       {
         "path": "frontend/app/propanchor.js",
-        "bytes": 5563,
-        "sha256": "b3df5e78efc7c1abb47193cf45b3a768b7dd6a6de4cf055ed6987fe4e47d8eca"
+        "bytes": 5665,
+        "sha256": "af31cc67bd2c6a052be6b96f8c387870f2ded792df7afdabe84b7d018c83190e"
       },
       {
         "path": "frontend/app/propremaster.js",
-        "bytes": 21019,
-        "sha256": "1701e633c885e71e93e6c7d0ec37b0e8d2b1f606f1716afaa8f953b5caf39795"
+        "bytes": 31648,
+        "sha256": "8dcbe07abd1a2b633117dead5f7cbb4174ba01c9787c16bbe480606227f4b8ac"
       },
       {
         "path": "frontend/app/propsearch.js",
@@ -583,8 +668,8 @@
       },
       {
         "path": "frontend/app/propsprites.js",
-        "bytes": 795404,
-        "sha256": "cddc790bd4fdfbb437985d4c729fa7e0d0989641e8b2da21ba46ef84de628c6e"
+        "bytes": 798976,
+        "sha256": "9e6ff25446b90407b5be13b0460c0f889e06819792c958def9b0679e498f65d4"
       },
       {
         "path": "frontend/app/prospect.js",
@@ -732,6 +817,11 @@
         "sha256": "605fd941a5090bbc5cd2294345b30eb42d6fdfc1e3512eaeb068252c0c47532e"
       },
       {
+        "path": "frontend/app/remaster-runtime-audit.js",
+        "bytes": 9781,
+        "sha256": "8e07b49f10161b81f9355c01454464bd54cb5fc47d35363337a3d251c2a8daca"
+      },
+      {
         "path": "frontend/app/resummonstore.js",
         "bytes": 9991,
         "sha256": "a8be763d5b41253326778e552903ba57c98ebdeef27239df0db0ce923b2a6c6d"
@@ -787,6 +877,16 @@
         "sha256": "49491ab6369a1040d9c650696cc93515297b85023f42ab9f0ebd6345ee00e5bd"
       },
       {
+        "path": "frontend/app/skin-study-preview.js",
+        "bytes": 2481,
+        "sha256": "f4520cc4014a4530774e241e62924459edc0f2335f67251bca0a5d209ceaeae2"
+      },
+      {
+        "path": "frontend/app/skin-study-tone.js",
+        "bytes": 1484,
+        "sha256": "5a2c4140666f772d3d45f61010849ef36d7161c945d013dad8eecfcbe2f35941"
+      },
+      {
         "path": "frontend/app/skinstage.js",
         "bytes": 4558,
         "sha256": "b35b35c83e01198617ef9c8c07ec58aa78b5764cf2c1a0e5599a45b2c4984b22"
@@ -818,8 +918,8 @@
       },
       {
         "path": "frontend/app/stationbake.js",
-        "bytes": 355346,
-        "sha256": "04f808ea5c6d98de8627ba9d11678b816a2f319af113414126f8dd2877043b9a"
+        "bytes": 355810,
+        "sha256": "5259d97b56ecac35e3d53307fdc7c8546c950c1a22f612795f8486dfe13c7885"
       },
       {
         "path": "frontend/app/stationcommands.js",
@@ -1073,8 +1173,8 @@
       },
       {
         "path": "frontend/app/world.js",
-        "bytes": 736293,
-        "sha256": "312e361afe1b48078feaa93598640c285eb71045affbdd4d55e146c18e4b9fdc"
+        "bytes": 748706,
+        "sha256": "ac614b145cf2b44eccbe85cbdbc1481a02294a4f486db1f55db31a6c7c1cee1a"
       },
       {
         "path": "frontend/app/worldlab.js",
@@ -1083,23 +1183,23 @@
       },
       {
         "path": "frontend/app/worldlight.js",
-        "bytes": 35285,
-        "sha256": "2721b051d459b6b5517bf1f0b533fee19a2cafb1433bff15f49a977f80c5c01a"
+        "bytes": 35404,
+        "sha256": "57417b89beb72da0dec7c1fc34ab082e2d2bb76170d0b07ee8e0d1f7d075b655"
       },
       {
         "path": "frontend/app/worldmodel.js",
-        "bytes": 159220,
-        "sha256": "777296fcbe609fae4acd3a0f5cefad3019706d8f7b14bf539c937b7877825d22"
+        "bytes": 159814,
+        "sha256": "6df6ca40c27c218663d8c8e0175d00b812361bcbbaa9ebc5680d99c1d4115831"
       },
       {
         "path": "frontend/app/worldrenderer.js",
-        "bytes": 10425,
-        "sha256": "8d7d80ac61c4ac0dc14f394a7dfd4311873b29b585352fecbe6a97be0643ecc9"
+        "bytes": 11322,
+        "sha256": "23578793d273ef70127846b49596bd1cfa207649670802f1ce963f3a7e3ac6f9"
       },
       {
         "path": "frontend/app/worldsurface.js",
-        "bytes": 35615,
-        "sha256": "f463a5f3869e4264dff4c636d06c7c76d7ea04a8ee960cc5c08645087685f7ec"
+        "bytes": 36144,
+        "sha256": "a7b5f3e84ed4989249478c87b4e5bf4e24c32c1d6949083669bdd55e394bb837"
       },
       {
         "path": "frontend/app/xp.js",
@@ -1115,6 +1215,16 @@
         "path": "frontend/app/zones.js",
         "bytes": 12313,
         "sha256": "5abb6deb7e64dcb053854fae98a3ffbabfc2bab1fbba2398b184aaaa784991aa"
+      },
+      {
+        "path": "frontend/approved-prop-check.html",
+        "bytes": 3962,
+        "sha256": "cf9940f3d15777c5604905720f504efdb8e0ec1ff321767377daac3a2a78b3e0"
+      },
+      {
+        "path": "frontend/authored-machine-review.html",
+        "bytes": 2128,
+        "sha256": "d4c24d6e3642d8ced027a9b9748bd5e42bccaac5439ab3f5697280717fb1724a"
       },
       {
         "path": "frontend/css/agent-dossier.css",
@@ -1208,8 +1318,8 @@
       },
       {
         "path": "frontend/css/refit-kit.css",
-        "bytes": 15290,
-        "sha256": "eba32124c47736c6d5598e3f0736a2441b4ea5856679427e5d3c34f534a60985"
+        "bytes": 16261,
+        "sha256": "77dc0472f0bc309461f8ef20f430cc0c232cd70d7119477203af52a113100557"
       },
       {
         "path": "frontend/css/refit-polish.css",
@@ -1277,14 +1387,54 @@
         "sha256": "ac1e58355cebace3168f21b4e9dabdcc5a2d3f5cc9b3d0a33874259c7b3e2446"
       },
       {
+        "path": "frontend/dev/authored-content-checks.js",
+        "bytes": 3875,
+        "sha256": "7cbd1a5464056e3f96811896943e310d8512e5c77429bcf6cd4d24e1dfcaf9d6"
+      },
+      {
+        "path": "frontend/dev/authored-content-fixture.html",
+        "bytes": 4758,
+        "sha256": "5c37b0c1dfd7a3a0b30e69d6467109639cf6047d072073225950663d55dafb8d"
+      },
+      {
+        "path": "frontend/dev/authored-furniture-review.html",
+        "bytes": 1635,
+        "sha256": "e02aeb62a38207cf60bdcf202a93591de2e2d6f470003beeff64ad8e2e8e00f6"
+      },
+      {
+        "path": "frontend/dev/authored-furniture-review.js",
+        "bytes": 2298,
+        "sha256": "00bc440cdda6e6a417477a8b6a1cd2712008926f9e548ba49b2eefd9c5bd5969"
+      },
+      {
+        "path": "frontend/dev/authored-mount-checks.js",
+        "bytes": 4998,
+        "sha256": "1ad4ff1a7fe678b03fed782393e26c9276b925deab8bbf5cadc0ec629ae22c28"
+      },
+      {
+        "path": "frontend/dev/authored-mount-fixture.html",
+        "bytes": 1708,
+        "sha256": "69efe567a9902fe701330610a670f76907af3cd826538717a56b62e2296a21e6"
+      },
+      {
+        "path": "frontend/dev/authored-service-checks.js",
+        "bytes": 4366,
+        "sha256": "8e23bc66a6477581f4733c8cbd3b2c79926a3fa6b288bca99048def4626756c4"
+      },
+      {
+        "path": "frontend/dev/authored-service-fixture.html",
+        "bytes": 5532,
+        "sha256": "c7af253fe60903389f227afc4d081e9d82f5ddd58c5c2b252abd14cebd24da90"
+      },
+      {
         "path": "frontend/dev/session-indicators.html",
         "bytes": 4099,
         "sha256": "5848ee6029be8d16ff70fee94322ef9493f0cfea67c384dc828ba0f0c7681283"
       },
       {
         "path": "frontend/index.html",
-        "bytes": 85761,
-        "sha256": "c3794437899acd23f09c8c5c3bd6a2acf0551ec455014347c284cca4105f0063"
+        "bytes": 86440,
+        "sha256": "3ea6cd6a991a46a50983b653e4eea3f904447b6e6ac1b09ba437f7ad485679d7"
       },
       {
         "path": "frontend/js/arcade.js",
@@ -1293,8 +1443,8 @@
       },
       {
         "path": "frontend/js/assets.js",
-        "bytes": 40299,
-        "sha256": "92b29c3102e7713de06e9fbe93ae06ed832922d93469eb2c2da08dbcc7c71512"
+        "bytes": 41654,
+        "sha256": "c6dd029e6ed2d9228defd7283072e1929d9a87da4adeaca60adebd201996e07a"
       },
       {
         "path": "frontend/js/audio.js",
@@ -1313,8 +1463,8 @@
       },
       {
         "path": "frontend/prop-atlas.html",
-        "bytes": 2651,
-        "sha256": "ac7241e0b9291b54a6bf4996df2e4f4be3551d8f14aae8c0e3a456f92f6c0ca7"
+        "bytes": 2951,
+        "sha256": "11f2f227318976f63194613f04d0b4d8aea400d28eae96134ef661968227f2e9"
       },
       {
         "path": "frontend/prop-batch-review.html",
@@ -1322,14 +1472,44 @@
         "sha256": "b8cabdc2005a8085dcbea2c2706722bb75237d65f204ec4937ddce260f3e528e"
       },
       {
+        "path": "frontend/prop-camera-audit.html",
+        "bytes": 3070,
+        "sha256": "4733be27d938a9a569e1201854d94237884205d6f473d1d9919626aa91ffd3bc"
+      },
+      {
+        "path": "frontend/prop-catalog-review.html",
+        "bytes": 5215,
+        "sha256": "946afca03aa2c0848b88411759279ae54ca1fd8e3d1276ad2bcfeed367faf1ed"
+      },
+      {
+        "path": "frontend/prop-motion-calibration.html",
+        "bytes": 4020,
+        "sha256": "ec0386fd0cd19dcdad24627acd1b4ba9fac8bb66f3c03cd288316a0f928f8665"
+      },
+      {
         "path": "frontend/prop-parallel-review.html",
         "bytes": 5388,
         "sha256": "e324ce131a0ca0eedee4c798502f6845c3cfc9e7f83c8b4b3541d25e15d65ba3"
       },
       {
+        "path": "frontend/prop-room-review.html",
+        "bytes": 1866,
+        "sha256": "9b16a2b44beb68a14e6e485654251723e81c0646a37a5577742c2f014c4948b8"
+      },
+      {
+        "path": "frontend/prop-scale-review.html",
+        "bytes": 5647,
+        "sha256": "7c2970bdbc3e5be537a6afc9efb1c27a5f767c4343aeb8e4506e7cc864bde7a4"
+      },
+      {
+        "path": "frontend/prop-sharpness-audit.html",
+        "bytes": 4076,
+        "sha256": "fad2a72f090439bffebdd508ad15fef125883e50043940bfae744b6250910325"
+      },
+      {
         "path": "frontend/prop-style-review.html",
-        "bytes": 5350,
-        "sha256": "0b9d97ed3e0654b6973ffc73c233e9bbce8ebca54b4b2d6a8b4f1943f035ca69"
+        "bytes": 6101,
+        "sha256": "4cd6de478e38bedc5b1a79b20a16fc764fb8c410beb84d6f2be8315596cd0187"
       }
     ]
   },
