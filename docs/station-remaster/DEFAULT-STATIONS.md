@@ -9,11 +9,15 @@ remaster at `2133aeb0a`. This is an isolated source preview, not an installed re
 
 - A new station starts with the file cabinet, web dish, workbench, memory server,
   media studio, one adoptable agent workstation, and two plants.
-- The default is an 18 × 11 room with a clear central walkway. Existing saved
-  stations do not go through the new-station composition factory.
-- All equipment and both plants back onto the north wall at row 1. The workstation
-  sits on the center axis, with files/memory and the terminal to the left,
-  media/web to the right, and plants at the two ends. The remaining floor is open.
+- The default is one 166-tile room: a 22 × 7 main floor with a six-tile-wide
+  command alcove recessed two tiles into the back wall. Three non-overlapping
+  rectangles describe this continuous stepped silhouette. Existing saved stations
+  do not go through the new-station composition factory.
+- Every prop backs onto its section of the north wall. The workstation and two
+  plants occupy the central alcove; files, memory, and terminal share the left
+  equipment bay; media and web share the right. The shallow foreground stays open.
+- Template corridors connect to the new footprint, including the central alcove
+  for the northern wing. All six template layouts retain reachable rooms.
 - The latest projection-corrected prop art loads without a query parameter.
   Explicit classic, approved-sheet, and casing-draft comparisons remain available.
 - The optional tutorial explains the actual equipment and offers a real file task.
@@ -42,8 +46,12 @@ roster remain outside this layout operation; existing desk owners retain desks.
 Composition refinement: worldmodel passed 536 assertions and all six template
 connectivity/placement checks passed. Applied the revised default through the
 live picker at port 18845, inspected the finished room, observed the saved-layout
-notification, and verified all eight final prop positions against the factory
-in the server's scratch save. Earlier screenshots below precede this refinement.
+notification, and verified the stepped geometry and all eight final prop positions
+against the factory in the server's scratch save. Every prop's front approach is
+reachable through the projected navigation graph. The enlarged live view was
+inspected for wall joins and prop spacing. Earlier screenshots below precede
+this refinement. The aggregate gate below remains failed; it was not rerun for
+these layout changes.
 
 Final focused checks passed: station template connectivity, catalog footprints,
 all five grants, desk ownership, rejected invalid placements, save round-trips,

@@ -930,7 +930,7 @@ A.eq(JSON.stringify(WM.deserialize({ rooms: {}, order: [], props: [], edges: [{ 
   for (const type of PS.STARTER) {
     A.eq(starter.props().filter(p => p.t === type).length, 1, 'fresh station includes exactly one ' + type);
   }
-  const construction = WM.create();
+  const construction = WM.create({ ...WM.starterDoc(), props: [] });
   for (const prop of starter.props()) {
     const spec = PS.spec(prop.t);
     A.eq([prop.w, prop.h], [spec.w, spec.h], prop.t + ' uses its catalog footprint');

@@ -19,10 +19,10 @@ const StationTemplates = (() => {
     planning: { name: 'PLANNING', kind: 'bridge', floorStyle: 'cobalt', floorMat: 'panel', props: [['desk',3,2],['missionboard',10,1],['plant',13,8]] }
   };
   const slots = [
-    { x:21, y:0, hall:{x1:18,y1:4,x2:20,y2:6} },
-    { x:-19, y:0, hall:{x1:-3,y1:4,x2:-1,y2:6} },
-    { x:0, y:-14, hall:{x1:7,y1:-3,x2:10,y2:-1} },
-    { x:0, y:14, hall:{x1:7,y1:11,x2:10,y2:13} }
+    { x:25, y:0, hall:{x1:22,y1:3,x2:24,y2:5} },
+    { x:-19, y:0, hall:{x1:-3,y1:3,x2:-1,y2:5} },
+    { x:2, y:-16, hall:{x1:9,y1:-5,x2:12,y2:-3} },
+    { x:2, y:10, hall:{x1:9,y1:7,x2:12,y2:9} }
   ];
   function build(id, model, sprites, nextId) {
     const entry = catalog.find(c => c.id === id);
@@ -31,7 +31,7 @@ const StationTemplates = (() => {
     const requireOK = r => { if (!r.ok) throw new Error(r.msg || r.error); return r; };
     entry.wings.forEach((type, i) => {
       const r = rooms[type], slot = slots[i];
-      // North/south wings span the central room; east/west are slightly narrower.
+      // North/south wings center on the command alcove; side wings are narrower.
       const width = i < 2 ? 16 : 18;
       requireOK(station.addRoom({kind:r.kind,name:r.name,floorStyle:r.floorStyle,floorMat:r.floorMat,
         rect:{x1:slot.x,y1:slot.y,x2:slot.x+width-1,y2:slot.y+10}}));
