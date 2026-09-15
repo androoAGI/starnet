@@ -20,6 +20,9 @@ remaster at `2133aeb0a`. This is an isolated source preview, not an installed re
   All six template layouts retain reachable rooms.
 - The latest projection-corrected prop art loads without a query parameter.
   Explicit classic, approved-sheet, and casing-draft comparisons remain available.
+- The five essentials now use the workstation-derived capability-v2 replacements
+  from texture-coordinator snapshot `3545e946c`. See
+  [import verification](capability-v2/DEFAULT-IMPORT.md) for scope and evidence.
 - The optional tutorial explains the actual equipment and offers a real file task.
   It never opens the placement loop or creates duplicate props. Tool execution
   still depends on the existing access settings and configured services.

@@ -673,8 +673,8 @@
       "views": {
         "s": {
           "image": "workbench.png",
-          "sourceWidth": 1202,
-          "sourceHeight": 651,
+          "sourceWidth": 1515,
+          "sourceHeight": 909,
           "footprint": {
             "w": 2,
             "h": 1
@@ -686,11 +686,11 @@
             "height": 27
           },
           "mode": "approved",
-          "exposure": 1.35,
+          "exposure": 1,
           "activity": "fired",
           "contact": {
             "x": 0.5,
-            "y": 0.9984639016897081
+            "y": 0.9988998899889989
           },
           "effects": false
         }
@@ -943,8 +943,8 @@
       "views": {
         "s": {
           "image": "comms_dish.png",
-          "sourceWidth": 661,
-          "sourceHeight": 739,
+          "sourceWidth": 777,
+          "sourceHeight": 1039,
           "footprint": {
             "w": 2,
             "h": 2
@@ -960,7 +960,7 @@
           "activity": "work",
           "contact": {
             "x": 0.5,
-            "y": 0.9959404600811907
+            "y": 0.9990375360923965
           },
           "effects": false
         }
@@ -1024,8 +1024,8 @@
       "views": {
         "s": {
           "image": "war_intelcab.png",
-          "sourceWidth": 825,
-          "sourceHeight": 1491,
+          "sourceWidth": 950,
+          "sourceHeight": 930,
           "footprint": {
             "w": 1,
             "h": 2
@@ -1041,7 +1041,7 @@
           "activity": "work",
           "contact": {
             "x": 0.5,
-            "y": 0.9979879275653923
+            "y": 1
           },
           "effects": false
         }
@@ -1183,8 +1183,8 @@
       "views": {
         "s": {
           "image": "gigs_servercart.png",
-          "sourceWidth": 289,
-          "sourceHeight": 320,
+          "sourceWidth": 1071,
+          "sourceHeight": 1004,
           "footprint": {
             "w": 1,
             "h": 1
@@ -1199,7 +1199,7 @@
           "exposure": 1,
           "contact": {
             "x": 0.5,
-            "y": 0.990625
+            "y": 0.999003984063745
           },
           "effects": false
         }
@@ -1236,8 +1236,8 @@
       "views": {
         "s": {
           "image": "studio.png",
-          "sourceWidth": 350,
-          "sourceHeight": 374,
+          "sourceWidth": 1422,
+          "sourceHeight": 856,
           "footprint": {
             "w": 2,
             "h": 2
@@ -1252,7 +1252,7 @@
           "exposure": 1,
           "contact": {
             "x": 0.5,
-            "y": 0.9919786096256684
+            "y": 0.9988317757009346
           },
           "effects": false
         }
