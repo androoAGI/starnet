@@ -6,15 +6,17 @@
  */
 'use strict';
 const IndustrialTextures = (() => {
-  let requested = true, crateReview = false;
+  let requested = true, crateReview = false, projectionReview = false;
   try {
     const query = new URLSearchParams(location.search);
     requested = query.get('textures') !== 'classic';
     crateReview = query.get('propReview') === 'crate';
+    projectionReview = query.get('propSet') === 'projection';
   } catch (_) {}
   const images = {}, failed = [];
   // Exposed to the existing CRT lab for a live, reproducible material review.
-  const lighting = { fixtureTint: .04 };
+  // Values read back from the live CRT lab after the combined-room review.
+  const lighting = { fixtureTint: .04, floorGain: projectionReview?.92:1, wallGain: projectionReview?.90:1 };
   const plates = new WeakMap();
   const detailTargets = new WeakMap(), wallStrips = new Map(), materials = new Map(), emitters = new Map();
   let loaded = false;
@@ -59,18 +61,21 @@ const IndustrialTextures = (() => {
   // albedo, before lighting; the dark engraved structure survives every hue.
   function material(name, base) {
     const im = images[name];
-    if (!base || !im) return im;
-    const key = name + ':' + base;
+    const gain = projectionReview ? Math.max(.65,Math.min(1.2,Number(name.includes('/floors/')?lighting.floorGain:name.includes('/walls/')?lighting.wallGain:1)||1)) : 1;
+    if (!im || !base && gain===1) return im;
+    const key = name + ':' + base + ':' + gain;
     if (materials.has(key)) return materials.get(key);
     const cv = document.createElement('canvas'); cv.width = im.width; cv.height = im.height;
     const g = cv.getContext('2d');
+    let paintGain=1;
     if (/^#[0-9a-f]{6}$/i.test(base)) {
       const rgb = parseInt(base.slice(1), 16), mean = ((rgb >> 16) + ((rgb >> 8) & 255) + (rgb & 255)) / 3;
-      g.filter = 'brightness(' + Math.max(.8, Math.min(1.25, .8 + mean / 300)) + ')';
+      paintGain=Math.max(.8, Math.min(1.25, .8 + mean / 300));
     }
+    g.filter='brightness('+(paintGain*gain)+')';
     g.drawImage(im, 0, 0); g.filter = 'none';
-    g.globalCompositeOperation = 'color'; g.globalAlpha = .42;
-    g.fillStyle = base; g.fillRect(0, 0, cv.width, cv.height);
+    if(base){g.globalCompositeOperation = 'color'; g.globalAlpha = .42;
+    g.fillStyle = base; g.fillRect(0, 0, cv.width, cv.height);}
     g.globalAlpha = 1; g.globalCompositeOperation = 'source-over';
     if (materials.size > 128) materials.clear();
     materials.set(key, cv); return cv;
@@ -159,7 +164,7 @@ const IndustrialTextures = (() => {
   function wallStrip(height, id = 'bulkhead', base, opts) {
     if (!enabled()) return null;
     if (opts && opts.detail === 0) return null;
-    const key = [height, id, base || '', opts && opts.detail].join(':');
+    const key = [height, id, base || '', opts && opts.detail,projectionReview?lighting.wallGain:1].join(':');
     if (wallStrips.has(key)) return wallStrips.get(key);
     const im = material('remaster/walls/' + (wallIds.includes(id) ? id : 'bulkhead'), base);
     const render = scale => {

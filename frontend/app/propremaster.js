@@ -23,6 +23,7 @@ const PropRemaster = (() => {
   const ROOT = 'assets/industrial/'+(draftReview?'props-v2/':projectionReview?'projection-correction/':'approved-sheet/'), DENSITY = 4, entries = new Map(), failures = [];
   let revision = 0, pixelBudget = 0;
   const MAX_PIXELS = 12 * 1024 * 1024;
+  let measuredGeometry={};
   const finite = n => typeof n === 'number' && Number.isFinite(n);
   const rectOK = r => r && [r.x,r.y,r.width,r.height].every(finite) &&
     r.width > 0 && r.height > 0 && r.width <= 192 && r.height <= 192 &&
@@ -92,30 +93,43 @@ const PropRemaster = (() => {
       }
       const im=await image(v.image);
       if(im.width!==v.sourceWidth || im.height!==v.sourceHeight)throw Error('source dimensions differ');
-      const scan=canvas(im.width,im.height),sg=scan.getContext('2d');sg.drawImage(im,0,0);
-      let rgba=sg.getImageData(0,0,im.width,im.height).data;
-      let l=im.width,t=im.height,r=-1,b=-1;
-      for(let i=3;i<rgba.length;i+=4)if(rgba[i]){
-        const p=(i-3)/4,x=p%im.width,y=Math.floor(p/im.width);
-        l=Math.min(l,x);t=Math.min(t,y);r=Math.max(r,x);b=Math.max(b,y);
+      const view=key.split(':')[1];
+      const projectionHandled=projectionReview&&typeof ProjectionPropEffects!=='undefined'&&ProjectionPropEffects.matches(id,view,v);
+      const projection=projectionHandled?ProjectionPropEffects.prepare(id,view,im,v):null;
+      const measured=measuredGeometry[key],mc=measured&&measured.crop;
+      const measuredOK=measured&&measured.image===v.image&&measured.width===im.width&&measured.height===im.height&&mc&&
+        [mc.x,mc.y,mc.width,mc.height].every(Number.isInteger)&&mc.x>=0&&mc.y>=0&&mc.width>0&&mc.height>0&&mc.x+mc.width<=im.width&&mc.y+mc.height<=im.height;
+      let crop,scan,rgba;
+      if(measuredOK)crop={...mc};
+      else {
+        scan=canvas(im.width,im.height);const sg=scan.getContext('2d');sg.drawImage(im,0,0);
+        rgba=sg.getImageData(0,0,im.width,im.height).data;
+        let l=im.width,t=im.height,r=-1,b=-1;
+        for(let i=3;i<rgba.length;i+=4)if(rgba[i]){const p=(i-3)/4,x=p%im.width,y=Math.floor(p/im.width);l=Math.min(l,x);t=Math.min(t,y);r=Math.max(r,x);b=Math.max(b,y);}
+        if(r<l)throw Error('empty source');crop={x:l,y:t,width:r-l+1,height:b-t+1};
       }
-      if(r<l)throw Error('empty source');
-      const crop={x:l,y:t,width:r-l+1,height:b-t+1},box=fit(v.bounds,crop,v.contact,v.sourceHeight);
+      const box=fit(v.bounds,crop,v.contact,v.sourceHeight);
       // Isolate the measured alpha rectangle before scaling. Sampling outside a
       // drawImage source crop can pull transparent padding into its edge pixels.
       const cropped=canvas(crop.width,crop.height),cg=cropped.getContext('2d');
-      let ci=cg.createImageData(crop.width,crop.height);
-      for(let row=0;row<crop.height;row++)ci.data.set(
-        rgba.subarray(((crop.y+row)*im.width+crop.x)*4,((crop.y+row)*im.width+crop.x+crop.width)*4),
-        row*crop.width*4);
-      cg.putImageData(ci,0,0);
+      // Integer 1:1 staging cannot blend outside the alpha crop. Downscale only
+      // afterward, from this isolated canvas, preserving the same sampling edge.
+      if(measuredOK){cg.imageSmoothingEnabled=false;cg.drawImage(im,crop.x,crop.y,crop.width,crop.height,0,0,crop.width,crop.height);}
+      else {const ci=cg.createImageData(crop.width,crop.height);
+        for(let row=0;row<crop.height;row++)ci.data.set(rgba.subarray(((crop.y+row)*im.width+crop.x)*4,((crop.y+row)*im.width+crop.x+crop.width)*4),row*crop.width*4);
+        cg.putImageData(ci,0,0);}
       // Release full-resolution staging storage as soon as the cropped source
       // exists. A full catalog must not retain every decode until a later GC.
-      rgba=null;ci=null;scan.width=1;scan.height=1;im.onload=null;im.onerror=null;
+      rgba=null;if(scan){scan.width=1;scan.height=1;}im.onload=null;im.onerror=null;
       const frame={...v.bounds},regions=v.nativeLayers||[],nb=v.nativeBounds||v.bounds;
       const include=(x,y)=>{const right=Math.max(frame.x+frame.width,x),bottom=Math.max(frame.y+frame.height,y);
         frame.x=Math.min(frame.x,x);frame.y=Math.min(frame.y,y);frame.width=right-frame.x;frame.height=bottom-frame.y;};
       if(v.contact){include(box.x,box.y);include(box.x+box.width,box.y+box.height);}
+      if(projectionHandled){
+        const extent=ProjectionPropEffects.frameBounds(id,view);
+        if(extent){const px=u=>box.x+(u*v.sourceWidth-crop.x)/crop.width*box.width,py=u=>box.y+(u*v.sourceHeight-crop.y)/crop.height*box.height;
+          include(px(extent.x),py(extent.y));include(px(extent.x+extent.width),py(extent.y+extent.height));}
+      }
       if(v.mode==='native'){
         for(const region of regions)for(const p of region.polygon)include(p[0],p[1]);
         if(v.nativeMask){include(nb.x,nb.y);include(nb.x+nb.width,nb.y+nb.height);}
@@ -123,7 +137,7 @@ const PropRemaster = (() => {
       if(v.mode==='steam')include(box.x+v.motion.origin[0]*box.width,box.y+v.motion.origin[1]*box.height-v.motion.rise);
       if(frame.width>256||frame.height>256)throw Error('layer bounds too large');
       const pw=Math.ceil(frame.width*DENSITY),ph=Math.ceil(frame.height*DENSITY);
-      const cost=pw*ph*((v.mode==='native'?3:v.mode==='screen'||v.screenPower?10:v.mode==='pool'?49:['water','scanner','steam','pulse'].includes(v.mode)?13:['content','machine','service'].includes(v.mode)?2:1)+(v.foreground?1:0)+(v.activity?2:0));
+      const cost=pw*ph*((projectionHandled?1:v.mode==='native'?3:v.mode==='screen'||v.screenPower?10:v.mode==='pool'?49:['water','scanner','steam','pulse'].includes(v.mode)?13:['content','machine','service'].includes(v.mode)?2:1)+(v.foreground?1:0)+(!projectionHandled&&v.activity?2:0))+(projection?.image?projection.width*projection.height:0);
       if(pixelBudget+cost>MAX_PIXELS)throw Error('decoded prop budget exceeded');
       const body=canvas(pw,ph),g=body.getContext('2d');
       g.scale(DENSITY,DENSITY);g.translate(-frame.x,-frame.y);
@@ -144,11 +158,11 @@ const PropRemaster = (() => {
       // Concurrent image decodes may finish between the initial budget check
       // and mask decode, so enforce the shared bound again at the commit point.
       if(pixelBudget+cost>MAX_PIXELS)throw Error('decoded prop budget exceeded');
-      const screen=v.mode==='screen'||v.screenPower?authoredScreen(body,v.screenRegions,box,frame):null;
-      const approved= v.mode==='approved'&&v.effects!==false&&typeof ApprovedSheetEffects!=='undefined'&&ApprovedSheetEffects.ids.includes(id)
+      const screen=!projectionHandled&&(v.mode==='screen'||v.screenPower)?authoredScreen(body,v.screenRegions,box,frame):null;
+      const approved= !projectionHandled&&v.mode==='approved'&&v.effects!==false&&typeof ApprovedSheetEffects!=='undefined'&&ApprovedSheetEffects.ids.includes(id)
         ?ApprovedSheetEffects.prepare(id,im,{sourceWidth:v.sourceWidth,sourceHeight:v.sourceHeight,crop}):null;
-      const indicators=v.activity?authoredIndicators(body):null;
-      const motion=['water','scanner','steam','pulse','pool'].includes(v.mode)?authoredMotion(body,v,box,frame):null;
+      const indicators=!projectionHandled&&v.activity?authoredIndicators(body):null;
+      const motion=!projectionHandled&&['water','scanner','steam','pulse','pool'].includes(v.mode)?authoredMotion(body,v,box,frame):null;
       let foreground=null;
       if(v.foreground){
         foreground=canvas(pw,ph);const fg=foreground.getContext('2d');fg.beginPath();
@@ -156,9 +170,13 @@ const PropRemaster = (() => {
         fg.closePath();fg.clip();fg.drawImage(body,0,0);
       }
       const composed=['content','machine','service'].includes(v.mode)?canvas(pw,ph):null;
-      const entry={spec:v,body,mask,live,screen,motion,foreground,composed,approved,indicators,frame,box,crop,lost:false};
+      let projectionEmitter=null;
+      if(projectionHandled){const emitter=ProjectionPropEffects.classify(id,view).effects.find(e=>['screen','connector','lamp'].includes(e.kind));
+        if(emitter){const cx=emitter.region.reduce((n,p)=>n+p[0],0)/emitter.region.length,cy=emitter.region.reduce((n,p)=>n+p[1],0)/emitter.region.length;
+          projectionEmitter={x:box.x+(cx*v.sourceWidth-crop.x)/crop.width*box.width,y:box.y+(cy*v.sourceHeight-crop.y)/crop.height*box.height};}}
+      const entry={spec:v,body,mask,live,screen,motion,foreground,composed,approved,indicators,projectionHandled,projection,projectionEmitter,frame,box,crop,lost:false};
       for(const plane of [body,mask,live,foreground,composed,screen&&screen.off,...(motion||[])])if(plane&&plane.addEventListener)
-        plane.addEventListener('contextlost',()=>{entry.lost=true;},{once:true});
+        plane.addEventListener('contextlost',()=>{entry.lost=true;if(entry.projection)ProjectionPropEffects.dispose(entry.projection);},{once:true});
       pixelBudget+=cost;entries.set(key,entry);revision++;
     }catch(e){failures.push({view:key,reason:String(e.message||e)});}
   }
@@ -307,6 +325,8 @@ const PropRemaster = (() => {
         if(e.approved&&typeof ApprovedSheetEffects!=='undefined')ApprovedSheetEffects.draw(ctx,id,{x:x+e.box.x,y:y+e.box.y,width:e.box.width,height:e.box.height,crop:e.crop,sourceWidth:v.sourceWidth,sourceHeight:v.sourceHeight},{...state,prepared:e.approved});
         approvedState(ctx,id,e,x,y,state||{});
       }
+      if(e.projectionHandled){ctx.globalAlpha=baseAlpha;ctx.globalCompositeOperation='source-over';
+        ProjectionPropEffects.draw(ctx,id,view,{x:x+e.box.x,y:y+e.box.y,width:e.box.width,height:e.box.height,crop:e.crop,sourceWidth:v.sourceWidth,sourceHeight:v.sourceHeight},state||{},e.projection);}
     }finally{ctx.restore();}
     return true;
   }
@@ -330,6 +350,7 @@ const PropRemaster = (() => {
       const response=await fetch(ROOT+'manifest.json');if(!response.ok)throw Error('manifest unavailable');
       const manifest=await response.json();
       if(!manifest||manifest.version!==1||!manifest.props||typeof manifest.props!=='object')throw Error('invalid manifest');
+      if(projectionReview)try{const geometry=await fetch(ROOT+'runtime-geometry.json');if(geometry.ok){const data=await geometry.json();if(data.version===1&&data.views)measuredGeometry=data.views;}}catch(_){} // older packs retain measured-at-load fallback
       const queue=[];
       for(const [id,p]of Object.entries(manifest.props)){
         if(!/^[A-Za-z0-9_]+$/.test(id)||!p||!p.views)continue;
@@ -343,6 +364,7 @@ const PropRemaster = (() => {
   function emitter(id,view='s',w,h){
     const e=enabled(id,view)&&entries.get(id+':'+view),p=e&&e.screen&&e.screen.centroid;
     if(e&&(e.lost||(w!=null&&w!==e.spec.footprint.w*12)||(h!=null&&h!==e.spec.footprint.h*12)))return null;
+    if(e?.projectionEmitter)return {...e.projectionEmitter};
     return p?{x:e.frame.x+p.x,y:e.frame.y+p.y}:null;
   }
   function drawForeground(ctx,id,view,x,y,w,h,mirror=false){
@@ -356,7 +378,7 @@ const PropRemaster = (() => {
     const e=enabled(id,view)&&entries.get(id+':'+view);
     return !e||e.lost?null:{box:{...e.box},crop:{...e.crop},spec:{...e.spec},surfaceSupport:e.spec.surfaceSupport};
   }
-  return Object.freeze({ready,enabled,draw,drawForeground,emitter,viewGeometry,revision:()=>revision,
+  return Object.freeze({ready,enabled,draw,drawForeground,emitter,viewGeometry,isProjection:()=>projectionReview,revision:()=>revision,
     status:()=>({views:Array.from(entries.keys()),failures:failures.slice(),pixels:pixelBudget}),
     // Pure contracts exposed for deterministic headless geometry validation.
     validate,fit});

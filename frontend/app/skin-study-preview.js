@@ -12,7 +12,9 @@ const SkinStudy=(()=>{
   const label=document.createElement('label');label.textContent=sets.length+' skin studies · standing poses only ';
   const picker=document.createElement('select');picker.setAttribute('aria-label','Preview agent skin');picker.style.cssText='background:#172124;color:#ded5b6;border:1px solid #746546;padding:4px';
   for(const [value,text]of [['mixed','Mixed crew'],...sets.map(set=>[set,bySet[set].id.replaceAll('_',' ')])]){const option=document.createElement('option');option.value=value;option.textContent=text;picker.append(option);}
-  picker.onchange=()=>{selection=picker.value;panel.dataset.selection=selection;};label.append(picker);panel.append(label);document.body.append(panel);panel.dataset.expected=String(sets.length*4);panel.dataset.selection='mixed';
+  picker.onchange=()=>{selection=picker.value;panel.dataset.selection=selection;};label.append(picker);panel.append(label);
+  const catalog=document.createElement('a');catalog.href='prop-catalog-review.html?propSet=projection';catalog.textContent='Review all props';catalog.style.cssText='display:block;color:#bda77a;margin-top:6px;text-underline-offset:3px';panel.append(catalog);
+  document.body.append(panel);panel.dataset.expected=String(sets.length*4);panel.dataset.selection='mixed';
  }
  function setFor(b){
   if(!enabled||!sets.length)return null;

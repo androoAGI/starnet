@@ -114,6 +114,7 @@
     label.style.cssText = 'flex:0 0 62px;font-size:11px;opacity:.85;';
     const input = document.createElement('input');
     input.type = 'range'; input.min = min; input.max = max; input.step = step;
+    input.setAttribute('aria-label',key);
     input.value = (target()[key] != null ? target()[key] : 0);
     input.style.cssText = 'flex:1;min-width:0;accent-color:#ffaa33;';
     const val = document.createElement('span');
@@ -267,6 +268,8 @@
     if (industrial()) {
       section(body, 'INDUSTRIAL MATERIAL LIGHT');
       sliders.push(buildSlider(body, industrial, 'fixtureTint', 0, .3, .01, scheduleRebake));
+      sliders.push(buildSlider(body, industrial, 'floorGain', .65, 1.2, .01, scheduleRebake));
+      sliders.push(buildSlider(body, industrial, 'wallGain', .65, 1.2, .01, scheduleRebake));
     }
     section(body, 'PRESETS');
     const presetWrap = document.createElement('div');

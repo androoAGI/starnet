@@ -11305,6 +11305,9 @@ const PropSprites = (() => {
       o.fired = connectorFired(cid);
     }
     if (f.t === 'workbench') { const wf = workbenchFiredFor(f.id); o.fired = wf.fired; o.bad = wf.bad; }   // shell/verify pulse (room-scoped by propId)
+    if (typeof PropRemaster !== 'undefined' && PropRemaster.isProjection && PropRemaster.isProjection() && f.t !== 'workbench' && f.t !== 'connector_portal') {
+      o.fired = propFired(f.id); o.bad = !!(o.fired && propPulse[f.id] && propPulse[f.id].bad);
+    }
     if (f.t === 'bunk') o.sleeper = !!f.sleeper;      // a dormant body is IN it → hold the quilt back for drawOver
     if (f.t === 'jukebox') o.live = jukeConnected;   // dead until Spotify is connected in TOOLSETS (object=capability truth)
     if (f.t === 'outbox') o.crates = outboxCrates;   // G2.3: uncollected while-away runs stack as crates

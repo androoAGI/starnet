@@ -604,7 +604,7 @@ const SPRITES = (() => {
     const prevQuality = ctx.imageSmoothingQuality;
     ctx.imageSmoothingEnabled = true;
     if ('imageSmoothingQuality' in ctx) ctx.imageSmoothingQuality = 'high';
-    try { ctx.drawImage(lightFrame(f, light), x, y, dw, drawHeight); }
+    try { ctx.drawImage(lightFrame(studyFrame&&typeof SkinStudyTone!=='undefined'?SkinStudyTone.frame(f):f, light), x, y, dw, drawHeight); }
     finally {
       ctx.imageSmoothingEnabled = prevSmooth;
       if ('imageSmoothingQuality' in ctx) ctx.imageSmoothingQuality = prevQuality;
