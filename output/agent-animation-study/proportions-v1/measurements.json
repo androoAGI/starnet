@@ -1,0 +1,20 @@
+{
+  "a": {
+    "source": "exec-9ce7b8e4-8e18-4e6b-8040-e1bbd5bc43d6.png",
+    "width": 29,
+    "height": 76,
+    "bodyWorldHeight": 18
+  },
+  "b": {
+    "source": "exec-fec82c23-6935-4da4-acf8-ac023151e7e9.png",
+    "width": 34,
+    "height": 76,
+    "bodyWorldHeight": 18
+  },
+  "c": {
+    "source": "exec-6f6428f5-cd14-4fb2-8712-f70f75a6b305.png",
+    "width": 36,
+    "height": 76,
+    "bodyWorldHeight": 18
+  }
+}
