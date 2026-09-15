@@ -121,6 +121,14 @@
 }
 
 /* Build Mode: furnished stations and manual tools share one glass workspace. */
+.refit-overlay .refit-prop-actions .refit-guide-card { width: min(430px,90%); padding: 22px; }
+.refit-prop-actions-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
+.refit-overlay .refit-prop-actions h3 { margin: 6px 0 0; }
+.refit-prop-dimensions { color: var(--ph-dim); font-size: 14px; }
+.refit-prop-action-status { color: var(--text); font-size: 15px; line-height: 1.4; min-height: 2.8em; }
+.refit-prop-action-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.refit-overlay .refit-prop-action-grid .bb { min-height: 44px; }
+.refit-overlay .refit-prop-actions .refit-prop-config { width: 100%; margin-top: 18px; }
 .refit-overlay {
   --refit-glass: linear-gradient(125deg,rgba(var(--ph-bright-rgb),.09),rgba(var(--ph-rgb),.045) 48%,rgba(var(--ph-rgb),.015));
   --refit-sheet: color-mix(in srgb,var(--panel) 92%,transparent);

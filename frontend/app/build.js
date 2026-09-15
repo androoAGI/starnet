@@ -1064,7 +1064,7 @@ const Build = (() => {
           + '<span class="refit-pl-what">' + esc(paletteLabel || 'OPTIONS') + '</span>'
         : esc(paletteLabel || 'OPTIONS');
     }
-    if (section) section.classList.toggle('is-empty', !pal.children.length);
+    if (section) section.classList.toggle('is-empty', !pal.children.length && tool === 'select');
     updateSafetyClearance();
   }
 
@@ -4012,7 +4012,7 @@ const Build = (() => {
      this ONE dispatch point — select-mode clicks, click-on-machine-wins from armed tools, freshly
      placed configurables, and the openAssign deep link. The follow-up per-dock step editor replaces
      the routing INSIDE this function; callers never fan out on prop type themselves. */
-  function onInspect(p, ev) {
+  function openPropSettings(p, ev) {
     if (!p) return;
     const t = p.t;
     if (WORKSTATION_TYPES[t]) return openWorkstationPicker(p.id, ev);
@@ -4025,6 +4025,46 @@ const Build = (() => {
     const sp = propSpec(t);
     renderEquipmentInfo(t, p);
     flashTip(ev, ((sp.label || t) + '').toUpperCase() + ' — MOVE (4) relocates · DELETE (5) removes', true);
+  }
+  function onInspect(p, ev) {
+    if (!p) return;
+    cardCloseAll(); hideTip(); hidePropCard();
+    const id = p.id, sp = propSpec(p.t);
+    const g = document.createElement('div');
+    g.className = 'refit-guide refit-prop-actions refit-workflow-editor';
+    g.setAttribute('role','dialog'); g.setAttribute('aria-modal','true'); g.setAttribute('aria-label','Edit '+(sp.label || p.t));
+    g.innerHTML = '<div class="refit-guide-card"><div class="refit-prop-actions-head"><div><span class="ui-overline">EDIT PROP</span><h3>'+esc(sp.label || p.t)+'</h3></div><button class="bb" data-workflow-close>CLOSE</button></div>'+
+      '<p class="refit-prop-dimensions"></p><p class="refit-prop-action-status" role="status">Choose an action. You can undo layout changes.</p>'+
+      '<div class="refit-prop-action-grid"><button class="bb" data-prop-move>MOVE</button><button class="bb" data-prop-turn>ROTATE</button><button class="bb" data-prop-copy>COPY</button><button class="bb refit-danger" data-prop-delete>DELETE</button></div>'+
+      (isEditableProp(p.t)?'<button class="bb refit-prop-config" data-prop-config>OPEN '+(p.t==='bay'?'AGENT & STEP':WORKSTATION_TYPES[p.t]?'AGENT ASSIGNMENT':'CONTROLS')+' →</button>':'')+'</div>';
+    const closeP = () => { g.remove(); root?.querySelector('[data-tool="select"]')?.focus(); };
+    cardRegister(g,closeP); root.appendChild(g);
+    g.querySelector('[data-workflow-close]').onclick = closeP;
+    const status = g.querySelector('.refit-prop-action-status');
+    const refresh = () => {
+      const prop = station.propById(id); if (!prop) { closeP(); return; }
+      g.querySelector('.refit-prop-dimensions').textContent = prop.w+' × '+prop.h+' tiles'+(canTurn(prop.t)?' · Facing '+FACE_WORD[(prop.r|0)&3]:' · Fixed orientation');
+    };
+    refresh();
+    const turn = g.querySelector('[data-prop-turn]'); turn.disabled = !canTurn(p.t);
+    if (turn.disabled) turn.title = 'This prop has one fixed orientation.';
+    turn.onclick = () => {
+      const prop = station.propById(id); if (!prop) return closeP();
+      const r = nextFace(prop.t,prop.r|0,1), result = station.faceProp(id,r,propBox(prop.t,r,prop));
+      status.textContent = result.ok ? 'Rotated. Facing '+FACE_WORD[r]+'. Undo restores the previous orientation.' : (result.msg || 'Not enough space to rotate here.');
+      refresh(); sfx(result.ok?'click':'bad');
+    };
+    g.querySelector('[data-prop-move]').onclick = () => {
+      closeP(); selectTool('move');
+      hoverPropId = id;
+      setHint('Drag '+(sp.label || p.t)+' to a clear space. Its outline shows where it will fit.');
+      pushFlash([{x1:p.x,y1:p.y,x2:p.x+p.w-1,y2:p.y+p.h-1}],false);
+    };
+    g.querySelector('[data-prop-copy]').onclick = () => { closeP(); selectTool('dupe'); pickupDupe({tx:p.x,ty:p.y},ev); };
+    const del = g.querySelector('[data-prop-delete]');
+    ArmConfirm.wire(del,{armedLabel:'CONFIRM DELETE',onConfirm:()=>{ const result=station.removeProp(id); if(result.ok){closeP();feedback(result,ev,'prop removed · UNDO restores it');}else status.textContent=result.msg || 'Could not remove this prop.'; }});
+    const configure = g.querySelector('[data-prop-config]');
+    if (configure) configure.onclick = () => { closeP(); openPropSettings(station.propById(id),ev); };
   }
   const openPropEditor = (id, t, ev) => { const p = station && station.propById(id); if (p) onInspect(p, ev); };
   const PROP_EDITABLE = { bay: 1, filter: 1, merger: 1, splitter: 1, joiner: 1, loop: 1, airlock: 1, connector_portal: 1, intake: 1, outbox: 1 };   // merger/splitter = flow card only (no config)
@@ -4058,6 +4098,7 @@ const Build = (() => {
     if (propType === 'airlock') placement.door = 'closed';   // a fresh airlock seals its room (then click to cycle)
     const grant = (typeof WorldModel !== 'undefined' && WorldModel.grantLabelForProp) ? WorldModel.grantLabelForProp(propType) : null;
     const res = station.addProp(placement);
+    if (res && !res.ok) res.msg = placementReason({v:res,rects:[{x1:px,y1:py,x2:px+s.w-1,y2:py+s.h-1}]});
     if (res && res.ok) {
       pushFlash([{ x1: px, y1: py, x2: px + s.w - 1, y2: py + s.h - 1 }], false);
       // a prop just landed → resolve the quest generators + fold NOW, so a station gap this placement closes
@@ -5616,6 +5657,19 @@ const Build = (() => {
     ctx.restore();
   }
 
+  function placementReason(g) {
+    const code = g.v && g.v.error;
+    if (code === 'OFF_DECK') return 'Place this on a room floor';
+    if (code === 'NEEDS_WALL') return 'Place this against the back wall';
+    if (code === 'NEEDS_SURFACE') return 'Place this on a table or counter';
+    if (code === 'OVERLAP') {
+      const ignore = drag && drag.mode === 'propmove' ? drag.propId : null;
+      const hit = station.props().find(p=>p.id!==ignore && !propSpec(p.t).flat && g.rects.some(r=>p.x<=r.x2 && p.x+p.w-1>=r.x1 && p.y<=r.y2 && p.y+p.h-1>=r.y1));
+      if (hit) return 'Blocked by '+(propSpec(hit.t).label || hit.t)+' · choose a clear space';
+      return 'Overlaps another room · move beside its edge';
+    }
+    return (g.v && g.v.msg) || 'Choose a clear space';
+  }
   function drawGhost(t, now) {
     // paint brush: tint the crossed tiles with the chosen deck colour
     if (drag && drag.mode === 'paint' && drag.moved) {
@@ -5683,9 +5737,18 @@ const Build = (() => {
     const lines = [dims];
     // a sized footprint also gets its area — "how much floor is this?" is the other question a drag asks
     if (!g.belt && !g.move && g.kind !== 'line' && w * h > 1) lines[0] = dims + '   ' + (w * h) + ' TILES';
-    if (!ok) lines.push(((footprint && footprint.msg) || (g.v && g.v.msg) || 'blocked').toUpperCase());
+    if (!ok) lines.push(((footprint && footprint.msg) || placementReason(g)).toUpperCase());
     // the hover preview teaches BOTH gestures: this size on a click, any size on a drag
     else if (g.stamp) lines.push(g.kind === 'prop' ? 'CLICK TO PLACE' : 'CLICK TO PLACE · DRAG TO SIZE');
+    if (g.kind === 'prop' && canTurn(propType) && !propSpec(propType).flat) {
+      const r = propFacing(propType), v = [[0,1],[-1,0],[0,-1],[1,0]][r];
+      const cx = (r0.x1+w/2)*t, cy=(r0.y1+h/2)*t, len=t*.8;
+      ctx.save(); ctx.strokeStyle=line; ctx.lineWidth=2/zoom;
+      ctx.beginPath(); ctx.moveTo(cx,cy); ctx.lineTo(cx+v[0]*len,cy+v[1]*len);
+      const ex=cx+v[0]*len, ey=cy+v[1]*len, a=t*.2;
+      ctx.moveTo(ex-v[0]*a-v[1]*a,ey-v[1]*a+v[0]*a);ctx.lineTo(ex,ey);ctx.lineTo(ex-v[0]*a+v[1]*a,ey-v[1]*a-v[0]*a);ctx.stroke();ctx.restore();
+      lines.push('FACING '+FACE_WORD[r].toUpperCase()+' · R TO ROTATE');
+    }
     if (footprint && footprint.ok) {
       const n = footprint.openings.length;
       lines.push(n ? n + (n === 1 ? ' OPEN CONNECTION' : ' OPEN CONNECTIONS') : footprint.sealed ? 'SEALED EDGE' : 'SEPARATE SECTION');

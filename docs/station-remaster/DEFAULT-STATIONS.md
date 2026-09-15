@@ -186,3 +186,27 @@ Focused checks pass: seven templates, refit card stack (68), junction cards
 (117), run gate (23), test-ride intake (29), real footprint edit parity,
 mobile controls (26), control theming (173), syntax, and whitespace. The earlier
 full-gate failure remains; the full gate was not rerun and no merge was made.
+
+## Placement feedback and click-to-edit — September 15
+
+Clicking a prop now opens a shared glass action panel with Move, Rotate, Copy,
+and a two-step Delete action. Configurable equipment retains a separate entry
+to its existing agent assignment or workflow settings. The panel shows saved
+dimensions and facing, disables rotation for fixed artwork, and preserves the
+saved footprint when rotating. Move and Copy keep their Back to Select control
+visible even though those tools have no catalog options.
+
+Placement previews now name blocking props, explain off-floor placement in
+plain language, and show a facing arrow plus the rotation shortcut for rotatable
+props. Rejected placement clicks use the same explanation as the preview.
+
+Live verification on 18845 exercised Rotate, Copy, Move, confirmed Delete,
+Undo for each operation, and the existing agent assignment picker. Compared
+the final saved Creative Studio exactly against the original station snapshot:
+`.dogfood/build-interactions/before.json` and `restored.json`. After reloading,
+verified Back to Select during Move and matching off-floor preview/click
+messages. Left the prop action panel open for review. Browser errors: none.
+
+Focused checks pass: card stack (68), junction cards (117), real footprint edit
+parity, control theming (173), syntax, and whitespace. The inherited full-gate
+failure recorded above remains; no full-gate rerun or merge was performed.
