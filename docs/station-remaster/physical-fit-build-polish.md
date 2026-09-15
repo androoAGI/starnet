@@ -1,5 +1,7 @@
 # Physical fit, depth and build polish — 2026-09-15
 
+Follow-up: the [catalog, viewport and full-gate audit](runtime-readiness-audit.md) supersedes the incomplete verification status below. The full 793-step gate now passes; overview performance remains an explicitly measured concern.
+
 Local preview: http://127.0.0.1:18795/?propSet=projection&skinSet=study&showcase=kepler
 
 ## Changes
