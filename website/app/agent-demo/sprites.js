@@ -508,6 +508,10 @@ const SPRITES = (() => {
     // (dev/idlesoak.mjs asserts a waving body resolves to a `.gesture.` track). Nothing reads it
     // to make a decision — a rendering claim has to be provable from the render, not re-derived.
     b._pose = key;
+    // Compare the selected artwork with post-collision displacement from this simulation tick.
+    // Screen culling can skip draws for seconds, so inter-draw positions are not a heading sample.
+    b._renderTravelError=key.includes('.walk.')&&b._resolvedTravelHeading!=null&&!b._strideBlocked
+      ?Math.abs(ang(DIR8_A[key.split('.').at(-1)]-b._resolvedTravelHeading))*180/Math.PI:null;
 
     const fr = tintFrames(b.id, key);
     if (!fr || !fr.length) return null;

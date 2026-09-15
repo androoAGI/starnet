@@ -469,7 +469,7 @@ const World = (() => {
     if(b.odo==null)b.odo=0;
     if(t-(b.odoAt||0)>150)b.spd=0;
     b.odoAt=t;
-    b._gaitStart={x:b.px,y:b.py,odo:b.odo};b._strideBlocked=false;b._resolvedTravelHeading=null;
+    b._gaitStart ||= {x:b.px,y:b.py,odo:b.odo};b._strideBlocked=false;b._resolvedTravelHeading=null;
     const heading=d>1e-4?Math.atan2(dy,dx):b.faceA;
     const turn=angNorm(heading-b.faceA),remain=Math.abs(turn);
     const target=Math.min(TURN_RATE,Math.sqrt(2*TURN_ACCEL_A*remain));
@@ -494,7 +494,7 @@ const World = (() => {
     const dx=b.px-start.x,dy=b.py-start.y,distance=Math.hypot(dx,dy);
     const forward=dx*Math.cos(b._travelHeading)+dy*Math.sin(b._travelHeading);
     // Separation runs after movement. A blocked/shoved body plants instead of cycling forward in reverse.
-    b._strideBlocked=distance<.001||forward<=.001;
+    b._strideBlocked=!(b._travelStep>0)||distance<.001||forward<=.001;
     b.odo=start.odo+(b._strideBlocked?0:distance);
     if(!b._strideBlocked)b._resolvedTravelHeading=Math.atan2(dy,dx);
   }
@@ -5663,6 +5663,7 @@ const World = (() => {
 
   function tick(dt, now) {
     if (!agent || agent.unplaced || !geo || awakeFrozen) return;   // frozen during the awakening: the newborn holds still, facing the Commander
+    for(const body of [agent,...crew]){body._gaitStart={x:body.px,y:body.py,odo:body.odo||0};body._travelStep=0;body._resolvedTravelHeading=null;}
     self = agent;                                                  // B1: the hero tick runs with self===agent (engine core reads the current body via self) — byte-identical hero path
     if (!agent.lastTaskAt) agent.lastTaskAt = now;                 // anchor downtime at the first live tick
     // TIER D · D3 — STATION-LEVEL SLOT SWEEP (G4): the whole-encounter hard timeout + broken-participant check run
@@ -6994,14 +6995,10 @@ const World = (() => {
       if(geom && window.__STARNET_DEV__){
         const evidence=demoWalkEvidence[who.id]||(demoWalkEvidence[who.id]={frames:new Set(),poses:new Set(),origin:null,distance:0});
         if(who.state==='walk'&&who._pose&&who._pose.includes('.walk.')){evidence.frames.add(who._pose+':'+who._renderFrame);evidence.poses.add(who._pose);if(!evidence.origin)evidence.origin={x:who.px,y:who.py};evidence.distance=Math.max(evidence.distance,Math.hypot(who.px-evidence.origin.x,who.py-evidence.origin.y));}
-        const previous=evidence.previous,dx=previous?who.px-previous.x:0,dy=previous?who.py-previous.y:0;
-        if(previous&&who.state==='walk'&&Math.hypot(dx,dy)>.001&&who._pose?.includes('.walk.')){
-          const angles={east:0,'south-east':Math.PI/4,south:Math.PI/2,'south-west':3*Math.PI/4,west:Math.PI,'north-west':-3*Math.PI/4,north:-Math.PI/2,'north-east':-Math.PI/4};
-          const facing=angles[who._pose.split('.').at(-1)];
-          const error=Math.abs(angNorm(facing-Math.atan2(dy,dx)))*180/Math.PI;
-          evidence.maxFacingError=Math.max(evidence.maxFacingError||0,error);if(error>90)evidence.backwardFrames=(evidence.backwardFrames||0)+1;
+        if(who._renderTravelError!=null){
+          evidence.maxFacingError=Math.max(evidence.maxFacingError||0,who._renderTravelError);
+          if(who._renderTravelError>90)evidence.backwardFrames=(evidence.backwardFrames||0)+1;
         }
-        evidence.previous={x:who.px,y:who.py};
         demoMotionEvidence[who.id]={pose:who._pose,frame:who._renderFrame,x:Math.round(who.px*100)/100,y:Math.round(who.py*100)/100,state:who.state,standingHeight:who._renderStandingHeight,groundGap:who._renderGroundGap,speaking:!!who.speaking,speechAccent:who._renderSpeechAccent||0,maxFacingError:Math.round((evidence.maxFacingError||0)*10)/10,backwardFrames:evidence.backwardFrames||0,speed:who.state==='walk'?Math.round((who.spd||0)*100)/100:0,walkFrames:evidence.frames.size,walkPoses:[...evidence.poses],walkDistance:Math.round(evidence.distance*100)/100};
         if(now-demoMotionEvidenceAt>250){const panel=document.getElementById('agent-station-demo');if(panel)panel.dataset.motion=JSON.stringify(demoMotionEvidence);demoMotionEvidenceAt=now;}
       }
