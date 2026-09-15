@@ -9,11 +9,12 @@ remaster at `2133aeb0a`. This is an isolated source preview, not an installed re
 
 - A new station starts with the file cabinet, web dish, workbench, memory server,
   media studio, one adoptable agent workstation, and two plants.
-- The default is one rectangular 22 × 7 room (154 tiles), with straight walls
-  for easy expansion. Existing saved stations
+- The default uses the original rectangular 18 × 11 room (198 tiles).
+  Keep these dimensions for future layout refinements: the user explicitly rejected
+  widening the default. Existing saved stations
   do not go through the new-station composition factory.
 - Every prop backs onto the north wall. The workstation and two
-  plants occupy the center; files, memory, and terminal share the left
+  plants frame the two ends; files, memory, and terminal share the left
   equipment bay; media and web share the right. The shallow foreground stays open.
 - Template corridors connect to the rectangular footprint on all four sides.
   All six template layouts retain reachable rooms.
