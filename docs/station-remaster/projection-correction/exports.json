@@ -213,10 +213,10 @@
         "h": 1
       },
       "bounds": {
-        "x": -1,
-        "y": -6,
-        "width": 13,
-        "height": 18
+        "x": 2.5,
+        "y": 2,
+        "width": 7,
+        "height": 10
       },
       "contact": {
         "x": 0.5,
@@ -255,7 +255,16 @@
       "status": "source and game-scale candidate reviewed; not live integrated; image-specific effect regions need remapping",
       "group": "utility",
       "output": "frontend/assets/industrial/projection-correction/coffee.png",
-      "retained": 61019
+      "retained": 61019,
+      "displayFit": {
+        "sourceBounds": {
+          "x": -1,
+          "y": -6,
+          "width": 13,
+          "height": 18
+        },
+        "reason": "Countertop appliance height calibrated against the adjacent crew and low table."
+      }
     },
     {
       "id": "quarters_minifridge",
@@ -8594,10 +8603,10 @@
       "sourceWidth": 571,
       "sourceHeight": 520,
       "bounds": {
-        "x": 1,
-        "y": 2,
-        "width": 10,
-        "height": 9
+        "x": 4,
+        "y": 8,
+        "width": 4,
+        "height": 4
       },
       "footprint": {
         "w": 1,
@@ -8647,7 +8656,16 @@
       "liveAccepted": false,
       "group": "accessories",
       "output": "frontend/assets/industrial/projection-correction/mug.png",
-      "retained": 223943
+      "retained": 223943,
+      "displayFit": {
+        "sourceBounds": {
+          "x": 1,
+          "y": 2,
+          "width": 10,
+          "height": 9
+        },
+        "reason": "Hand-sized mug; the tile remains its placement cell, not its physical width."
+      }
     },
     {
       "id": "radio",
