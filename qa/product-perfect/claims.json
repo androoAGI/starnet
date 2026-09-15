@@ -18,7 +18,7 @@
   "expectedClaimCount": 37,
   "releaseSurface": {
     "algorithm": "sha256",
-    "sourceCommit": "cd80ace6f6ec08592ca65d59cb7eaf336aea646c",
+    "sourceCommit": "ce97ac8daf7c832e976a31ad9e0ac11b030a77e7",
     "pathSetSha256": "1d26a45a2a9aac628d8d2335638d02a6051d605c116824ae8d4c28390781a868",
     "files": [
       {
@@ -818,8 +818,8 @@
       },
       {
         "path": "frontend/app/remaster-runtime-audit.js",
-        "bytes": 11198,
-        "sha256": "99406d32ceddfb2498dd09ee2aea190c34d512f1435c6880da829383031108ea"
+        "bytes": 13630,
+        "sha256": "76107f7164f20509cc595d7b8dd09754f6c26f0dba1bf41bc2a3f552ed6598dc"
       },
       {
         "path": "frontend/app/resummonstore.js",
@@ -1173,8 +1173,8 @@
       },
       {
         "path": "frontend/app/world.js",
-        "bytes": 749234,
-        "sha256": "8b8c698c5eb9eccd1e87526dfe81395a0f8c81a159129007da9613c44b11ff02"
+        "bytes": 749759,
+        "sha256": "b8e8c91d3f12ac99902af5ec0c89d41eeac49b5c2ed745799001047cd8b79afd"
       },
       {
         "path": "frontend/app/worldlab.js",
