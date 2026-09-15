@@ -286,6 +286,7 @@ test/qa-closer.test.js
 test/qa-ready.test.js
 test/qa-product-perfect.test.js
 test/qa-product-perfect-claims.test.js
+test/qa-claims-streaming.test.js
 test/website-pricing-hold.test.js
 test/website-docs-navigation.test.js
 test/genesis-starnet-link.test.js

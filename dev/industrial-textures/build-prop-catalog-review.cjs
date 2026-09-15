@@ -2,6 +2,7 @@
 const fs = require('node:fs'), path = require('node:path'), crypto = require('node:crypto');
 const root = path.resolve(__dirname, '../..');
 global.IndustrialTextures = { isRemaster: () => true, enabled: () => true, ready: Promise.resolve() };
+global.PropRemaster = { isProjection: () => true, enabled: () => false, revision:()=>0, ready: Promise.resolve() };
 const P = require(path.join(root, 'frontend/app/propsprites.js'));
 const manifestFile = 'frontend/assets/industrial/projection-correction/manifest.json';
 const bytes = fs.readFileSync(path.join(root, manifestFile)), manifest = JSON.parse(bytes);

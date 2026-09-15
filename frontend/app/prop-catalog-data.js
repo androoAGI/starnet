@@ -5,7 +5,7 @@ const PropCatalogData = {
   "catalogTypes": 160,
   "supportedViews": 208,
   "source": "frontend/assets/industrial/projection-correction/manifest.json",
-  "sourceSha256": "8600c7a130a5a21b94776fbf047480a31fe77068d451dc5d9ed1ea94b9c6f183",
+  "sourceSha256": "370763a93e3215bebc59497de70495079dcdda35eb3c810a5050caa7c1517c5d",
   "categories": [
     {
       "id": "workstation",
@@ -1744,8 +1744,8 @@ const PropCatalogData = {
       "category": "screens",
       "tier": "cosmetic",
       "footprint": {
-        "w": 7,
-        "h": 4
+        "w": 5,
+        "h": 3
       },
       "bounds": {
         "x": 0,

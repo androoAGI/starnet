@@ -2464,8 +2464,9 @@ const World = (() => {
      unturned prop (r absent) resolves byte-identically to the pre-rotation behaviour. */
   function useApproach(use, p) {
     const want = (use && use.approach) || 'south';
-    if (want === 'auto' || !p || !p.r) return want;
-    return PropAnchor.turnSide ? PropAnchor.turnSide(want, p.r) : want;
+    if (want === 'auto' || !p) return want;
+    const face=p.r&&PropAnchor.turnSide?PropAnchor.turnSide(want,p.r):want;
+    return p.m?(face==='west'?'east':face==='east'?'west':face):face;
   }
   // FLOOR DECAL? (catalog `flat` — rug / cable run / hazard pad). Deck paint with zero rise: it renders
   // in its own pass UNDER every body and prop, because a decal y-sorted with the bodies buries whoever
@@ -2658,7 +2659,11 @@ const World = (() => {
               the sit frame's OWN bottom padding — so all 36 skins land on the cushion. 2px, the
               chair's value, because the cushion sits barely above the near arm's crown. */
   const SIDE_SEAT = { recliner: { face: 'west', dx: -2, lift: 2 }, recliner_r: { face: 'east', dx: 2, lift: 2 } };
-  const sideSeat = p => (p && SIDE_SEAT[p.t]) || null;
+  const sideSeat = p => {
+    const side=p&&SIDE_SEAT[p.t];
+    if(!side)return null;
+    return p.m ? {...side,face:side.face==='west'?'east':'west',dx:-side.dx} : side;
+  };
   function planCouchSit(now, couch, tvId, faceDir, zone) {
     /* STALE-CLAIM RULE: drop whatever seat this body still holds BEFORE claiming a new one. Committing to a
        new destination means it is leaving the old seat regardless, and an inherited `pendSeat` is worse than
@@ -5250,11 +5255,11 @@ const World = (() => {
     const p = geo.props.find(q => q.id === b.usingProp);
     return (p && (propUse(p) || {}).kind === 'bed') ? p : null;
   }
-  function planBedSleep(now) {
+  function planBedSleep(now, reviewBedId = null, reviewZone = null) {
     if (!geo || !geo.props || !geo.props.length) return false;
     releaseSeat();                                             // STALE-CLAIM RULE (see planCouchSit)
-    const zone = zoneFor(self);
-    const beds = geo.props.filter(p => { const u = propUse(p); return u && u.kind === 'bed'; });
+    const zone = reviewZone || zoneFor(self);
+    const beds = geo.props.filter(p => { const u = propUse(p); return u && u.kind === 'bed' && (!reviewBedId || p.id===reviewBedId); });
     if (!beds.length) return false;
     const order = U.irnd(0, beds.length - 1);
     for (let k = 0; k < beds.length; k++) {
@@ -5834,8 +5839,10 @@ const World = (() => {
     if (typeof SpaceBG !== 'undefined') SpaceBG.draw(ctx, cv.width, cv.height, now, cam);
     else { ctx.fillStyle = '#040302'; ctx.fillRect(0, 0, cv.width, cv.height); }
   }
+  const reviewPerformance = { enabled:false, samples:[] };
   function frame(now) {
     if (running) raf = requestAnimationFrame(frame);   // schedule next frame FIRST — a throw below can't kill the loop
+    const reviewStart=reviewPerformance.enabled?performance.now():0;
     try {
       frameBody(now);
       if (renderFaults) { renderFaults = 0; lastFaultMsg = ''; }   // a clean frame clears the fault state
@@ -5844,6 +5851,8 @@ const World = (() => {
       const msg = (e && e.message) || String(e);
       if (msg !== lastFaultMsg) { lastFaultMsg = msg; try { console.error('[world] render frame threw (x' + renderFaults + '):', e); } catch (_) {} }
       if (renderFaults >= RENDER_FAULT_LIMIT) { try { drawRenderFault(); } catch (_) {} }
+    } finally {
+      if(reviewPerformance.enabled && reviewPerformance.samples.length<3600)reviewPerformance.samples.push({t:now,ms:performance.now()-reviewStart});
     }
   }
 
@@ -9836,6 +9845,52 @@ const World = (() => {
         const now=performance.now(),ok=kind==='couch'?planCouchSit(now,p,null,'north',zone):planSeat(now,p,zone);
         if(ok&&b.pendSeat)arrive(now); // already-adjacent plans may have arrived themselves
         return ok;
+      }finally{self=keep;}
+    },
+    _dbgReviewPerformance: enabled => {
+      const samples=reviewPerformance.samples.slice();
+      if(typeof enabled==='boolean'){reviewPerformance.enabled=enabled;reviewPerformance.samples=[];}
+      return {samples,renderFaults,props:geo?.props.length||0,scale,canvas:cv?[cv.width,cv.height]:null};
+    },
+    // Local catalog audit: real geometry, routing, approach, claim and arrival
+    // functions. Actor positioning/arrival are controlled fixture setup, not
+    // evidence that the idle scheduler selected these props autonomously.
+    _dbgReviewProp: (aid, propId, action='inspect') => {
+      const b=bodyForAgent(aid),p=geo?.props.find(p=>p.id===propId);
+      if(!b||!p)return null;
+      const s=PropSprites.spec(p.t),u=propUse(p),f=PropSprites.footprintAt(p.t,p.r||0);
+      const front={x:Math.floor(p.x+p.w/2),y:p.y+p.h},back={x:front.x,y:p.y-1};
+      const walkable=q=>geo.walkable(q.x,q.y,blocked);
+      const route=walkable(front)&&walkable(back)?geo.path(front.x,front.y,back.x,back.y,blocked):null;
+      const anchor=isWorkstationProp(p.t)?deskSeat(p):u&&PropAnchor.deriveAnchor(p,geo,{approach:useApproach(u,p),sit:!!u.sit,extra:blocked});
+      const out={id:p.id,type:p.t,r:p.r||0,mirror:!!p.m,footprint:[p.w,p.h],canonical:[f.w,f.h],mount:station.mountOf(p),
+        kind:u?.kind||null,workstation:isWorkstationProp(p.t),front:walkable(front),back:walkable(back),route:route?route.length:null,
+        anchor:anchor||null,side:sideSeat(p),flat:!!s.flat,interaction:'none'};
+      if(action==='inspect')return out;
+      const keep=self;self=b;
+      try{
+        releaseSeat();seizeFromIdle(b);b.sitting=false;b.seated=false;b.lying=false;b.pathPts=null;b.target=null;b.goal=null;b.usingProp=null;
+        if(action==='walk' && route){
+          Object.assign(b,{px:footOf(front.x,front.y).x,py:footOf(front.x,front.y).y,goal:'wander',idleUntil:performance.now()+60000});
+          out.destination=footOf(back.x,back.y);out.planned=setPathTo(back);return out;
+        }
+        let start=walkable(front)?front:anchor&&{x:anchor.tx,y:anchor.ty};
+        if(start){const pt=footOf(start.x,start.y);b.px=pt.x;b.py=pt.y;}
+        const zone={kind:'leash',cx:p.x,cy:p.y,r:Math.max(p.w,p.h)+8},now=performance.now();
+        if(u?.kind==='seat'||u?.kind==='couch'){
+          out.interaction='seat';out.planned=u.kind==='seat'?planSeat(now,p,zone):planCouchSit(now,p,null,'north',zone);
+          if(out.planned&&b.pendSeat){b.target=null;b.pathPts=null;arrive(now);}
+        }else if(u?.kind==='bed'){
+          out.interaction='bed';out.planned=planBedSleep(now,p.id,zone);
+          if(out.planned&&b.pendSeat){b.target=null;b.pathPts=null;arrive(now);}
+        }else if(isWorkstationProp(p.t)&&anchor){
+          out.interaction='workstation';const pt=seatFoot(anchor);b.px=pt.x;b.py=pt.y;stepCrewToSeat(b,anchor,16,now);out.planned=!!b.sitting;
+        }else if(u&&anchor){
+          out.interaction='approach';out.planned=setPathTo({x:anchor.tx,y:anchor.ty});
+          if(out.planned){b.goal='use';b.usingProp=p.id;b.useFace=anchor.face;b.useSit=!!anchor.sit;b.target=null;b.pathPts=null;const pt=footOf(anchor.tx,anchor.ty);b.px=pt.x;b.py=pt.y;arrive(now);}
+        }
+        out.result={seated:!!b.seated,sitting:!!b.sitting,lying:!!b.lying,dir:b.dir,usingProp:b.usingProp||null,px:b.px,py:b.py,seatLift:b.seatLift||0};
+        return out;
       }finally{self=keep;}
     },
     // TEST/DEBUG ONLY — read the huddle SELECTION counters (see huddleStats). Answers "why was there

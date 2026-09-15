@@ -104,6 +104,13 @@ for (const id of ['recliner', 'recliner_r']) {
 const src = fs.readFileSync(path.join(__dirname, '..', 'frontend', 'app', 'world.js'), 'utf8');
 
 const decl = src.slice(src.indexOf('const SIDE_SEAT ='), src.indexOf('function planCouchSit('));
+const resolveSide=Function(decl+';return sideSeat;')();
+for(const t of ['recliner','recliner_r']){
+  const normal=resolveSide({t}),flipped=resolveSide({t,m:true});
+  A.eq(flipped.dx,-normal.dx,t+' mirrored cushion follows the artwork');
+  A.eq(flipped.face,normal.face==='west'?'east':'west',t+' mirrored sitter faces the front');
+  A.eq(flipped.lift,normal.lift,t+' mirror retains the same perch');
+}
 A.ok(decl.length > 0, 'SIDE_SEAT is declared ahead of planCouchSit');
 A.ok(/recliner:\s*\{\s*face:\s*'west'/.test(decl) && /recliner_r:\s*\{\s*face:\s*'east'/.test(decl),
   'each profile seat carries the ONE direction its art points (a chair cannot swivel to the planner)');
