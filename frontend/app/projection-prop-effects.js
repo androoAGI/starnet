@@ -220,7 +220,8 @@ const ProjectionPropEffects = (() => {
   }
   function frameBounds(id,view='s'){
     if(!classify(id,view)||!designs[id]||view!=='s')return null;
-    const points=[[0,0],[1,1]];for(const e of designs[id]){points.push(...e.region);if(e.rise&&e.origin)points.push([e.origin[0],e.origin[1]-e.rise]);}return bbox(points);
+    const points=[[0,0],[1,1]];for(const e of designs[id]){points.push(...e.region);if(e.rise&&e.origin)points.push([e.origin[0],e.origin[1]-e.rise]);}
+    const b=bbox(points);if(b.y<0){b.y-=.01;b.height+=.01;}return b; // stroke/antialias allowance above emitters
   }
   const ids=Object.freeze(Object.keys(designs));
   function dispose(p){if(p&&p.image){p.image.width=1;p.image.height=1;p.image=null;}}
