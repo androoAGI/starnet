@@ -459,11 +459,9 @@ const World = (() => {
      `lastLeg` brakes into the FINAL stop only; intermediate waypoints are taken at pace so the body doesn't
      stutter at every corner. dx,dy = the vector it is stepping along, d = its length. */
   function stepGait(b, dx, dy, d, top, lastLeg, dt) {
-    const visible=(DATA.SKINS[b.skin]?.sourceStandingHeight || 76) * SPRITES.bodyScale(b);
-    const compact=b.id==='ULTRON'||(DATA.SKINS[b.skin]?.set||'').startsWith('approved_')||!!DATA.SKINS[b.skin]?.sourceStandingHeight;
-    if(compact)top*=visible/35;
+    // Art height controls rendering, not travel speed: 19 px skins share the normal station pace.
     const seconds=Math.max(0,Math.min(100,dt))/1000;
-    const accel=compact?Math.max(35,visible*3.2):ACCEL;
+    const accel=ACCEL;
     if(b.faceA==null||b.dir!==b.faceDir)b.faceA=DIR_A[b.dir]??Math.PI/2;
     const t=typeof performance!=='undefined'?performance.now():Date.now();
     if(b.odo==null)b.odo=0;
@@ -482,7 +480,8 @@ const World = (() => {
     const want=(lastLeg?Math.min(top,Math.sqrt(Math.max(0,d)*2*accel)):top)*alignment;
     const cur=b.spd||0,rate=accel*seconds;
     b.spd=cur<want?Math.min(want,cur+rate):Math.max(want,cur-rate);
-    const step=Math.min(d,b.spd*seconds)*alignment;
+    // Speed already eases with alignment. Applying it twice makes every corner drag.
+    const step=error>=Math.PI/4?0:Math.min(d,b.spd*seconds);
     // Only translation advances the stride. Rotation used to add almost an entire fake cycle.
     b.odo+=step;b._travelHeading=heading;b._travelStep=step;
     b.dir=b.faceDir=bucketDir(b.faceA,b.dir);
