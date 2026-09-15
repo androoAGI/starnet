@@ -1368,24 +1368,24 @@
       "views": {
         "s": {
           "image": "bridge_tacticaltable.png",
-          "sourceWidth": 1399,
-          "sourceHeight": 883,
+          "sourceWidth": 1392,
+          "sourceHeight": 542,
           "footprint": {
             "w": 7,
             "h": 4
           },
           "bounds": {
-            "x": 0,
-            "y": -7,
-            "width": 84,
-            "height": 55
+            "x": 17,
+            "y": 20,
+            "width": 50,
+            "height": 28
           },
           "mode": "approved",
           "exposure": 1,
           "screenPower": "occupied",
           "contact": {
             "x": 0.5,
-            "y": 1
+            "y": 0.9981549815498155
           },
           "effects": false
         }

@@ -4,35 +4,35 @@
       "id": "bridge_tacticaltable",
       "view": "s",
       "before": "frontend/assets/industrial/tactical-table-polish/before/bridge_tacticaltable.png",
-      "source": "frontend/assets/industrial/tactical-table-polish/sources/bridge_tacticaltable-grounded-v3.png",
-      "sourceSha256": "3948c52992fa1eaf6fe99f5db93be8a1356b1bd87fe7abf1f2040c02d9fd488e",
+      "source": "frontend/assets/industrial/tactical-table-polish/sources/bridge_tacticaltable-compact-v4.png",
+      "sourceSha256": "cf06b3f97dd2de7a7ea952680881dd575d7b8d76fc61b5c2590c91fe4c0bd06a",
       "repoPath": "frontend/assets/industrial/tactical-table-polish/bridge_tacticaltable.png",
-      "outputSha256": "6560a50fb23cdefd2a9d7cbf2f26ba106f708e45f0187da70ee838c5595c8c03",
+      "outputSha256": "934a107662dc6b9a6162e421567d199b134455c1669ea5a5937130fc3f046ec0",
       "sourceCrop": {
-        "left": 57,
-        "top": 73,
-        "width": 1399,
-        "height": 883
+        "left": 191,
+        "top": 172,
+        "width": 1392,
+        "height": 542
       },
-      "sourceWidth": 1399,
-      "sourceHeight": 883,
+      "sourceWidth": 1392,
+      "sourceHeight": 542,
       "footprint": {
         "w": 7,
         "h": 4
       },
       "bounds": {
-        "x": 0,
-        "y": -7,
-        "width": 84,
-        "height": 55
+        "x": 17,
+        "y": 20,
+        "width": 50,
+        "height": 28
       },
       "exposure": 1,
       "contact": {
         "x": 0.5,
-        "y": 1
+        "y": 0.9981549815498155
       },
-      "retained": 1074678,
-      "status": "raised tactical table candidate; owner review pending"
+      "retained": 684593,
+      "status": "compact low tactical table candidate; owner review pending"
     }
   ]
 }

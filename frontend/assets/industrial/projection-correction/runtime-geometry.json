@@ -627,14 +627,14 @@
     },
     "bridge_tacticaltable:s": {
       "image": "bridge_tacticaltable.png",
-      "width": 1399,
-      "height": 883,
-      "sha256": "6560a50fb23cdefd2a9d7cbf2f26ba106f708e45f0187da70ee838c5595c8c03",
+      "width": 1392,
+      "height": 542,
+      "sha256": "934a107662dc6b9a6162e421567d199b134455c1669ea5a5937130fc3f046ec0",
       "crop": {
         "x": 0,
         "y": 0,
-        "width": 1399,
-        "height": 883
+        "width": 1392,
+        "height": 542
       }
     },
     "bridge_equipmentbay:s": {
