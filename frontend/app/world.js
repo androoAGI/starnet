@@ -35,6 +35,7 @@ const World = (() => {
   let routingNags = null;                        // [{x,y,w,h,label,warn}] in-world callouts mirroring the compiler's errors
   let feedState = { known: false, fed: true };   // server-proven "something feeds the intake" truth (channels/cron); fed=true until proven otherwise
   let feedNagOn = false;                         // a NO FEED nag is showing → the intake becomes clickable (→ CHANNELS)
+  let selectedRoutingTile = null;                // explicit canvas selection; full routing instructions never open on hover
 
   /* ---------- canvas + camera ---------- */
   let cv, ctx, raf = 0, last = 0, fnow = 0, running = false, ro = null, listenersBound = false;   // listenersBound: init() can run again per new agent — bind canvas/window/doc handlers + the SSE bridge ONCE
@@ -1357,6 +1358,8 @@ const World = (() => {
       if (wasDrag) return;
       const wp = toWorld(ev);
       if (!wp) return;
+      const selectedNag = (routingNags || []).find(n => wp.x >= n.x * T && wp.x < (n.x + n.w) * T && wp.y >= n.y * T - 10 && wp.y < (n.y + n.h) * T + 2);
+      selectedRoutingTile = selectedNag ? selectedNag.x + ',' + selectedNag.y : null;
       // Every body that raises the agent hover nameplate is also a real dossier target. Pass its stable
       // roster id through the click seam so a specialist opens ITS dossier instead of falling through or
       // reusing the Overseer's index. The greeting remains hero-only: crew clicks open a panel, not a hero line.
@@ -7561,18 +7564,83 @@ const World = (() => {
   // amber (warn) / red (blocker) corner brackets + a one-line instruction over the broken piece, gently pulsing
   // label collision (2026-07-11): neighboring nags on one row — or two nags on the SAME prop (e.g.
   // BAY_NOT_FED + NO COMPUTE) — used to print on a shared baseline and mash into garble. Each label
-  // claims a box; a collider steps UP one line at a time until it fits. Rebuilt per draw call.
-  function placeNagLabel(placed, cx, y, w, h) {
-    const hits = b => cx - w / 2 < b.x + b.w && cx + w / 2 > b.x && y < b.y + b.h && y + h > b.y;
-    let guard = 24;
-    while (guard-- > 0 && placed.some(hits)) y -= h + 1;
-    placed.push({ x: cx - w / 2, y, w, h });
-    return y;
+  // claims a bounded box. Overview aggregates by room; selection reveals full detail.
+  // Pure layout: low zoom aggregates actual findings; selection retains their exact
+  // wording. Bounds are a real room rectangle intersected with the visible canvas.
+  function layoutRoutingNagLabels(nags, options) {
+    const { tile, zoom, viewport, containerFor, selected, measure } = options;
+    const groups = new Map(), result = [], pad = 2, line = 9;
+    const intersect = (a, b) => ({ x: Math.max(a.x, b.x), y: Math.max(a.y, b.y),
+      w: Math.min(a.x + a.w, b.x + b.w) - Math.max(a.x, b.x),
+      h: Math.min(a.y + a.h, b.y + b.h) - Math.max(a.y, b.y) });
+    const overlap = (a, b) => a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
+    const fitText = (text, width) => {
+      const chars = Array.from(text);
+      if (measure(text) <= width) return text;
+      while (chars.length && measure(chars.join('') + '…') > width) chars.pop();
+      return measure('…') <= width ? chars.join('') + '…' : '';
+    };
+    for (const n of nags) {
+      const prop = { x: n.x * tile, y: n.y * tile, w: n.w * tile, h: n.h * tile };
+      if (!overlap(prop, viewport)) continue;
+      const key = n.x + ',' + n.y, detail = key === selected;
+      const room = containerFor(n) || prop;
+      const bounds = intersect(room, viewport);
+      const groupKey = detail ? 'selected:' + key : zoom < 1.5 ? JSON.stringify(room) : key;
+      let group = groups.get(groupKey);
+      if (!group) groups.set(groupKey, group = { nags: [], prop, bounds, detail });
+      group.nags.push(n);
+    }
+    // Reserve selected detail first. It may use the available screen when a tiny
+    // prop/room cannot contain its full instruction; other labels stay on deck.
+    for (const g of [...groups.values()].sort((a, b) => Number(b.detail) - Number(a.detail))) {
+      const bounds = g.detail ? viewport : g.bounds;
+      const unit = g.detail ? Math.max(1, 1.5 / zoom) : 1;
+      const rowHeight = line * unit, padding = pad * unit;
+      const widthOf = text => measure(text) * unit;
+      if (bounds.w < 12 || bounds.h < rowHeight + padding * 2) continue;
+      const maxWidth = Math.min(bounds.w - padding * 2, g.detail ? 240 / zoom : zoom < 1.5 ? 80 : 96);
+      if (maxWidth < widthOf('M')) continue;
+      let lines;
+      if (g.detail) {
+        lines = [];
+        for (const n of g.nags) {
+          let row = '';
+          // Character wrapping also handles user-authored roles without spaces.
+          for (const char of Array.from(n.label)) {
+            if (row && widthOf(row + char) > maxWidth) { lines.push(row); row = ''; }
+            row += char;
+          }
+          if (row) lines.push(row);
+        }
+      } else {
+        const text = zoom < 1.5 ? g.nags.length + (g.nags.length === 1 ? ' ISSUE' : ' ISSUES')
+          : g.nags[0].label.split(' — ')[0] + (g.nags.length > 1 ? ' +' + (g.nags.length - 1) : '');
+        lines = [fitText(text, maxWidth)];
+      }
+      const capacity = Math.max(1, Math.floor((bounds.h - padding * 2) / rowHeight));
+      // Extreme authored descriptions keep their full text in the existing REFIT
+      // selection card. The on-canvas detail explicitly indicates truncation.
+      if (lines.length > capacity) lines = lines.slice(0, capacity - 1).concat([fitText('… SELECT IN REFIT', maxWidth / unit)]);
+      const w = Math.min(bounds.w, Math.max(...lines.map(widthOf)) + padding * 2), h = lines.length * rowHeight + padding * 2;
+      const x = Math.max(bounds.x, Math.min(bounds.x + bounds.w - w, g.prop.x + g.prop.w / 2 - w / 2));
+      let y = Math.max(bounds.y, Math.min(bounds.y + bounds.h - h, g.prop.y - h - 2));
+      let box = { x, y, w, h };
+      if (result.some(b => overlap(box, b))) {
+        let found = false;
+        for (y = bounds.y; y + h <= bounds.y + bounds.h; y += rowHeight + 1) {
+          box = { x, y, w, h };
+          if (!result.some(b => overlap(box, b))) { found = true; break; }
+        }
+        if (!found) continue; // the prop's warning brackets remain, even in a full room
+      }
+      result.push({ ...box, lines, font: 8 * unit, padding, rowHeight, detail: g.detail, count: g.nags.length, warn: g.nags.every(n => n.warn) });
+    }
+    return result;
   }
   function drawRoutingNags(now) {
     if (!routingNags || !routingNags.length) return;
     const pulse = 0.55 + 0.35 * Math.sin(now / 280);
-    const placed = [];
     for (const n of routingNags) {
       const X = n.x * T, Y = n.y * T, Wd = n.w * T, Hd = n.h * T;
       const col = n.warn ? '#ffbe3c' : '#ff5046';
@@ -7586,13 +7654,30 @@ const World = (() => {
       ctx.moveTo(X + .5, Y + Hd - .5 - L); ctx.lineTo(X + .5, Y + Hd - .5); ctx.lineTo(X + .5 + L, Y + Hd - .5);
       ctx.moveTo(X + Wd - .5, Y + Hd - .5 - L); ctx.lineTo(X + Wd - .5, Y + Hd - .5); ctx.lineTo(X + Wd - .5 - L, Y + Hd - .5);
       ctx.stroke();
-      ctx.font = NAG_FONT; ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
-      ctx.shadowBlur = 3; ctx.shadowColor = col; ctx.fillStyle = col;
-      // alphabetic baseline at y: label box spans roughly [y-8, y] (8px VT323)
-      const ly = placeNagLabel(placed, X + Wd / 2, Y - 3 - 8, ctx.measureText(n.label).width, 9);
-      ctx.fillText(n.label, X + Wd / 2, ly + 8);
       ctx.restore();
     }
+    ctx.save();
+    ctx.font = NAG_FONT; ctx.textAlign = 'left'; ctx.textBaseline = 'top';
+    const viewport = { x: (4 - panX) / scale, y: (4 - panY) / scale,
+      w: Math.max(0, (cv.width - 8) / scale), h: Math.max(0, (cv.height - 8) / scale) };
+    const labels = layoutRoutingNagLabels(routingNags, {
+      tile: T, zoom: scale / (window.devicePixelRatio || 1), viewport, selected: selectedRoutingTile,
+      measure: text => ctx.measureText(text).width,
+      containerFor: n => {
+        const id = roomOfLocalTile(n.x, n.y), room = id && station.roomById && station.roomById(id);
+        const ox = geo.origin.tx, oy = geo.origin.ty;
+        const r = room && room.rects.find(r => n.x + ox >= r.x1 && n.x + ox <= r.x2 && n.y + oy >= r.y1 && n.y + oy <= r.y2);
+        return r ? { x: (r.x1 - ox) * T + 2, y: (r.y1 - oy) * T + 2,
+          w: (r.x2 - r.x1 + 1) * T - 4, h: (r.y2 - r.y1 + 1) * T - 4 } : null;
+      }
+    });
+    for (const box of labels) {
+      ctx.shadowBlur = 0; ctx.fillStyle = '#111812'; ctx.fillRect(box.x, box.y, box.w, box.h);
+      ctx.fillStyle = box.warn ? '#ffbe3c' : '#ff5046'; ctx.shadowColor = ctx.fillStyle; ctx.shadowBlur = 2;
+      ctx.font = box.font + "px 'VT323','Courier New',monospace";
+      box.lines.forEach((text, i) => ctx.fillText(text, box.x + box.padding, box.y + box.padding + i * box.rowHeight));
+    }
+    ctx.restore();
   }
   // the hover-glance tag over a clickable OUTBOX: crates pending → "N TO REVIEW — CLICK"; pallet only →
   // the LOGBOOK click-through. Names what the stacked boxes ARE and what the click does (the 2026-07-16
@@ -8056,7 +8141,7 @@ const World = (() => {
     // means "a complete route runs here" and a cold line always means the chain is incomplete
     beltLiveSet = (routingPlan && Pipeline.liveTiles) ? Pipeline.liveTiles(routingPlan) : null;
     beltTileSet = new Set(((geo && geo.belts) || []).map(b => b.x + ',' + b.y));
-    routeTagCache = null; hoverBeltTile = null;   // the floor changed — every cached hover answer is stale
+    routeTagCache = null; hoverBeltTile = null; selectedRoutingTile = null;   // the floor changed — cached positions and answers are stale
     routingNags = buildRoutingNags();
     /* GHOST PROJECTION (Phase 3): re-derive its route data from the SAME plan + geometry this
        recompile produced. The live world runs it too (not just REFIT): between REFIT sessions this
