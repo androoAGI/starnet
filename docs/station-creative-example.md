@@ -40,5 +40,9 @@ proof. The finished response can be expanded inline.
 - No paid-provider sample was run in the user's preview. It contains one agent;
   the guide correctly leaves the sample disabled until a second is assigned.
 
-Full-gate result is recorded in the task handoff; the local run log is
-`.dogfood/build-interactions/creative-test-fast.log`.
+Full gate: **incomplete**. `npm run test:fast` reached
+`qa-product-perfect-claims.test.js` and spent several minutes there without a
+verdict. Stopped only this task's gate process tree; no full-green claim or merge.
+The preceding library pass had already reported planning-authority failures in
+that same audit. Logs: `.dogfood/build-interactions/creative-test-fast.log` and
+`library-test-fast.log` in the same directory.
