@@ -61,6 +61,7 @@ const SPRITES = (() => {
       : ((DATA.SKINS[b && b.skin] && DATA.SKINS[b.skin].set) || DATA.SKINS[DATA.DEFAULT_SKIN].set);
   }
   function bodyScale(b) { return drawScaleFor(setForBody(b)); }
+  function isReviewSet(set) { return /^(approved|readability|industrial)_/.test(set); }
 
   /* foot-line measurement — every PixelLab master leaves transparent padding BELOW the feet
      (the crew sets all sit ~23px up from the 92px canvas bottom). The contact shadow is drawn
@@ -553,9 +554,9 @@ const SPRITES = (() => {
     const x = snap(b.px - dw / 2);
     // Keep the approved boots against the floor contact. The legacy three-world-pixel
     // lift separated an 18px body from its shadow by one sixth of its visible height.
-    const GROUND_BITE = set.startsWith('approved_') ? -0.25 : -3;
+    const GROUND_BITE = isReviewSet(set) ? -0.25 : -3;
     b._renderGroundGap = -GROUND_BITE;
-    b._renderStandingHeight = set.startsWith('approved_') ? 76 * sc : null;
+    b._renderStandingHeight = isReviewSet(set) ? 76 * sc : null;
     // SEAT LIFT: a body seated on a raised single-tile seat (stool/chair) draws its pixels this many px
     // higher so the hips land on the seat pad — world.js's planSeat measured it off the prop art. The
     // sort key and the ground shadow deliberately stay at b.py (the seat tile's floor line): only the
