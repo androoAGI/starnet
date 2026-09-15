@@ -1252,6 +1252,11 @@ const World = (() => {
     if (typeof IndustrialTextures !== 'undefined') IndustrialTextures.ready.then(() => {
       if (IndustrialTextures.enabled()) {
         Object.assign(CRT, { scan: .05, grain: .07, dust: .10, film: .12, curve: .02 });
+        if(typeof PropRemaster!=='undefined' && PropRemaster.isProjection()){
+          // Calibrated in the live lab: the old .28 sharpen re-emphasized
+          // subpixel wall hardware after the station was reduced for overview.
+          Object.assign(CRT,{grain:.06,sharpen:.08});
+        }
         refreshWorkstationSeats();
         bakeDirty = true; redrawNow();
       }

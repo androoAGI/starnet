@@ -11543,6 +11543,30 @@ const PropSprites = (() => {
   // the whole station stalls the GPU; a straight blit of this 4x raster retains
   // the shaped penumbra and remains sharp through the normal camera zoom range.
   const projectedShadows = new WeakMap();
+  const contactShadows = new WeakMap();
+  function contactShadow(mask,h){
+    if(contactShadows.has(mask))return contactShadows.get(mask);
+    // Use only opaque pixels at the physical foot. A chair's separated feet
+    // stay separated; the empty span below a table does not become a black oval.
+    const w=mask.width, floor=48+h,top=Math.max(0,floor-5),rows=Math.min(7,mask.height-top);
+    if(rows<=0)return null;
+    const data=mask.getContext('2d').getImageData(0,top,w,rows).data;
+    const cv=document.createElement('canvas');cv.width=w+4;cv.height=7;
+    const g=cv.getContext('2d'),im=g.createImageData(cv.width,cv.height);
+    for(let x=0;x<w;x++){
+      let foot=-1;
+      for(let y=rows-1;y>=0;y--)if(data[(y*w+x)*4+3]>=150){foot=y;break;}
+      if(foot<0)continue;
+      for(let dy=-2;dy<=2;dy++)for(let dx=-2;dx<=2;dx++){
+        const xx=x+2+dx,yy=3+dy,i=(yy*cv.width+xx)*4;
+        const a=Math.round(255*Math.max(0,1-Math.hypot(dx/3,dy/2.5)));
+        im.data[i]=8;im.data[i+1]=10;im.data[i+2]=24;im.data[i+3]=Math.max(im.data[i+3],a);
+      }
+    }
+    g.putImageData(im,0,0);contactShadows.set(mask,cv);
+    if(cv.addEventListener)cv.addEventListener('contextlost',()=>contactShadows.delete(mask),{once:true});
+    return cv;
+  }
   function projectedShadow(mask, h) {
     if(projectedShadows.has(mask))return projectedShadows.get(mask);
     if(typeof document==='undefined')return null;
@@ -11569,10 +11593,16 @@ const PropSprites = (() => {
     const s = spec(f.t); if (s && s.flat) return;
     const X = f.x * TILE, Y = f.y * TILE, W = (f.w || 1) * TILE, H = (f.h || 1) * TILE;
     const mask=shadowMask(f);
+    if(mask && typeof PropRemaster!=='undefined' && PropRemaster.isProjection() && (mounted||f.mount)!=='wall'){
+      let contact;
+      try{contact=contactShadow(mask,H);}catch(_){contactShadows.set(mask,null);} // optional grounding cannot hide the prop
+      if(contact){ctx.save();ctx.globalAlpha*=Math.max(0,Math.min(.6,+IndustrialTextures.lighting.contact||0));ctx.imageSmoothingEnabled=true;
+        ctx.drawImage(contact,X-18,Y+H-3);ctx.restore();}
+    }
     if(mask&&ctx.transform) {
       const projected=projectedShadow(mask,H);
       if(projected&&ctx.globalAlpha===1){
-        const smooth=ctx.imageSmoothingEnabled;ctx.imageSmoothingEnabled=false;
+        const smooth=ctx.imageSmoothingEnabled;ctx.imageSmoothingEnabled=typeof PropRemaster!=='undefined'&&PropRemaster.isProjection();
         try{ctx.drawImage(projected.cv,X+projected.x,Y+projected.y,projected.w,projected.h);}
         finally{ctx.imageSmoothingEnabled=smooth;}
         return;

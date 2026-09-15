@@ -16,8 +16,9 @@ const IndustrialTextures = (() => {
   const images = {}, failed = [];
   // Exposed to the existing CRT lab for a live, reproducible material review.
   // Values read back from the live CRT lab after the combined-room review.
-  const lighting = { fixtureTint: .04, floorGain: projectionReview?.92:1, wallGain: projectionReview?.90:1 };
+  const lighting = { fixtureTint: .04, floorGain: projectionReview?1.04:1, wallGain: projectionReview?.82:1, contact: .28 };
   const plates = new WeakMap();
+  const platePyramids = new WeakMap();
   const detailTargets = new WeakMap(), wallStrips = new Map(), materials = new Map(), emitters = new Map();
   let loaded = false;
   const floorIds = 'spine alloy plate panel tile tread soft grate hex plank turf diamond resin ceramic cargo runner treadway meshway basalt parquet rubber slotted terrazzo octile'.split(' ');
@@ -102,6 +103,7 @@ const IndustrialTextures = (() => {
         const value = target[key]; if (typeof value !== 'function') return value;
         if (['getImageData', 'getTransform', 'measureText', 'isPointInPath', 'isPointInStroke', 'getContextAttributes'].includes(key)) return value.bind(target);
         if (key === 'drawImage') return (im, ...args) => {
+          platePyramids.delete(cv);
           const result = target.drawImage(im, ...args), hi = plates.get(im);
           if (!hi) g.drawImage(im, ...args);
           else if (args.length === 2) g.drawImage(hi, ...args, im.width, im.height);
@@ -129,7 +131,7 @@ const IndustrialTextures = (() => {
           }
           return a;
         };
-        return (...args) => { const result = value.apply(target, args); g[key](...args); return result; };
+        return (...args) => { platePyramids.delete(cv); const result = value.apply(target, args); g[key](...args); return result; };
       }
     });
     detailTargets.set(proxy, { g, scale });
@@ -138,8 +140,30 @@ const IndustrialTextures = (() => {
   function drawBase(ctx, cv, x = 0, y = 0) {
     const hi = enabled() && plates.get(cv);
     if (!hi) return false;
+    let source=hi;
+    if(projectionReview && ctx.getTransform){
+      // Pre-filter the authored plate in bounded half-size steps. A direct
+      // six-to-one sample makes rivets and cable ribs alias at overview zoom.
+      // Each level keeps the same world rectangle and premultiplied alpha.
+      const m=ctx.getTransform(), density=Math.max(Math.hypot(m.a,m.b),Math.hypot(m.c,m.d));
+      const target=Math.max(.25,density), baseDensity=hi.width/cv.width;
+      let chain=platePyramids.get(hi);
+      if(!chain){chain=[hi];platePyramids.set(hi,chain);}
+      let level=0;
+      while(baseDensity/Math.pow(2,level+1)>=target && level<5){
+        level++;
+        if(!chain[level]){
+          const previous=chain[level-1],small=document.createElement('canvas');
+          small.width=Math.max(1,Math.ceil(previous.width/2));small.height=Math.max(1,Math.ceil(previous.height/2));
+          const sg=small.getContext('2d');sg.imageSmoothingEnabled=true;sg.imageSmoothingQuality='high';
+          sg.drawImage(previous,0,0,small.width,small.height);chain.push(small);
+          if(small.addEventListener)small.addEventListener('contextlost',()=>platePyramids.delete(hi),{once:true});
+        }
+      }
+      source=chain[level];
+    }
     ctx.save(); ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high';
-    ctx.drawImage(hi, x, y, cv.width, cv.height); ctx.restore(); return true;
+    ctx.drawImage(source, x, y, cv.width, cv.height); ctx.restore(); return true;
   }
 
   function floor(ctx, X, Y, size, tx, ty, id = 'plate', base, opts) {
