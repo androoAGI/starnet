@@ -156,3 +156,33 @@ delivery to the drafter, drafter-to-reviewer handoff, reviewer output, and all
 eight connected belt tiles. Worldmodel passes 536 assertions; syntax and diff
 checks pass. The existing full-gate failure above remains; it was not rerun.
 No merge, release, or real provider execution was performed.
+
+## Build Mode and preset gallery — September 15
+
+Station presets now have a persistent, prominent entry inside the build panel.
+The workspace title is BUILD MODE, the exit action says SAVE & EXIT, and
+CONVEYOR LINES is distinct from whole-station presets. The landing panel offers
+furniture, expansion, and workflow entry points. Active tools display contextual
+instructions above their options and an explicit STOP PLACING / BACK TO SELECT
+action. Existing tool shortcuts remain available.
+
+The preset gallery uses the shared phosphor glass palette, rounded cards,
+supersampled floor plans, room/workflow counts from each actual template,
+selected-state checks, and persistent back/apply controls. Descriptions scroll
+with the gallery; replacement explanation and the existing two-step apply
+confirmation remain visible. On screens up to 700px wide, the build panel is a
+compact bottom sheet and camera framing reserves its actual height. Narrow
+Undo/Redo controls now occupy separate grid cells.
+
+Live checks at 909×913, 600×760, and 390×760 verified preset selection,
+confirmation without applying, back navigation, room guidance, stop placement,
+furniture search (couch), conveyor selection, and camera framing. The viewport
+override was reset. The saved Creative Studio was compared exactly with the
+pre-check snapshot in `.dogfood/build-mode-glass/before.json`; UI verification
+did not change the station. Existing stale-save alerts after restarting the
+preview were resolved with Reload current station. Final browser errors: none.
+
+Focused checks pass: seven templates, refit card stack (68), junction cards
+(117), run gate (23), test-ride intake (29), real footprint edit parity,
+mobile controls (26), control theming (173), syntax, and whitespace. The earlier
+full-gate failure remains; the full gate was not rerun and no merge was made.

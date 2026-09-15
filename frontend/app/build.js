@@ -34,7 +34,7 @@ const Build = (() => {
     { id: 'prop', key: '6', label: 'PROPS', verb: 'click the deck to place it', hint: 'browse equipment and decoration, then click the deck to place your selection', cursor: 'crosshair' },
     { id: 'belt', key: '7', label: 'BELT', verb: 'click one machine, then another', hint: 'CLICK one machine, then another — the belt lays itself · (or drag to lay tiles by hand)', cursor: 'crosshair' },
     { id: 'dupe', key: '8', label: 'COPY', verb: 'click a room or prop to copy it', hint: 'click a room or prop to copy it · then every click stamps a copy — mirror your build fast', cursor: 'copy' },
-    { id: 'line', key: '9', label: 'LAYOUTS', verb: 'pick a layout, then click the deck', hint: 'pick a STARTER LINE below, then click the deck — a whole working layout stamps at once, yours to edit', cursor: 'copy' },
+    { id: 'line', key: '9', label: 'CONVEYOR LINES', verb: 'choose a conveyor line below, then click clear floor to place it', hint: 'add connected workflow equipment to your existing station — choose a line, then place it on clear floor', cursor: 'copy' },
   ];
   // Every tool stays visible. The Select landing offers two starting points without
   // arming a placement tool. Shortcut numbers remain compatible with the guide/tutorial.
@@ -309,7 +309,7 @@ const Build = (() => {
     root.innerHTML = `
       <canvas class="refit-canvas"></canvas>
       <div class="refit-top">
-        <span class="refit-title">▮ REFIT MODE</span>
+        <span class="refit-title">BUILD MODE</span>
         <span class="refit-sub" id="refit-sub"></span>
         <span class="refit-spacer"></span>
         <span class="refit-zoom" id="refit-zoom">
@@ -322,17 +322,18 @@ const Build = (() => {
           <button class="bb sm" id="refit-redo" title="redo (Ctrl+Shift+Z)">↷ REDO</button>
         </span>
         <button class="bb sm" id="refit-fit" title="frame the station">⊹ FIT</button>
-        <button class="bb sm" id="refit-stations" type="button">STATION BUILDS</button>
-        <button class="bb sm" id="refit-test" title="Preview routing with an animated example. This does not run an AI task; use Run a sample job on a configured line for real work.">▸ PREVIEW</button>
+        <button class="bb sm" id="refit-test" title="Preview routing with an animated example. This does not run an AI task; use Run a sample job on a configured line for real work.">▸ PREVIEW FLOW</button>
         <button class="bb sm" id="refit-help" title="how to build">? HELP</button>
-        <button class="bb sm refit-primary" id="refit-done" title="finish + save (Esc)">DONE</button>
+        <button class="bb sm refit-primary" id="refit-done" title="finish + save (Esc)">SAVE & EXIT</button>
       </div>
       <div class="refit-dock" role="region" aria-label="Construction kit">
-        <div class="refit-dock-head"><span class="refit-dock-head-t">BUILD KIT</span><span class="refit-dock-caption">SHAPE YOUR STATION</span><button class="bb sm" type="button" id="refit-kit-toggle" aria-expanded="true" aria-controls="refit-option-section">MINIMIZE ▴</button></div>
+        <div class="refit-dock-head"><span class="refit-dock-head-t">YOUR STATION</span><span class="refit-dock-caption">SHAPE YOUR STATION</span><button class="bb sm" type="button" id="refit-kit-toggle" aria-expanded="true" aria-controls="refit-option-section">MINIMIZE ▴</button></div>
+        <button class="bb refit-presets-entry" id="refit-stations" type="button"><span class="refit-presets-symbol" aria-hidden="true">▦</span><span><b>Station presets</b><small>Choose a furnished starting layout</small></span><span aria-hidden="true">→</span></button>
         <div class="refit-dock-section refit-mode-section">
           <div id="refit-tools"></div>
         </div>
         <div class="refit-dock-section refit-option-section" id="refit-option-section">
+          <div class="refit-tool-help" id="refit-tool-help"><span></span><button class="bb sm" type="button" id="refit-stop">STOP PLACING</button></div>
           <div class="refit-section-label" id="refit-palette-label">OPTIONS</div>
           <div class="refit-palette" id="refit-palette"></div>
         </div>
@@ -392,6 +393,7 @@ const Build = (() => {
       if (ev.target === cv) { ev.preventDefault(); ev.stopPropagation(); }
     }, true);
     root.querySelector('#refit-kit-toggle').onclick = () => toggleKit();
+    root.querySelector('#refit-stop').onclick = () => selectTool('select');
     renderPalette();
     repaintIcons();
     setCursor();
@@ -739,10 +741,10 @@ const Build = (() => {
       paletteLabel = 'INSPECT';
       const note = document.createElement('div');
       note.className = 'refit-selectnote';
-      note.innerHTML = '<span class="ui-overline">SELECT</span><b>Make it your space</b><span>Click a room or object to edit it. To add something, choose a tool above or start here.</span>';
+      note.innerHTML = '<span class="ui-overline">SELECT</span><b>Make it your space</b><span>Start with a furnished preset above, or customize this station. Click any object on the floor to edit it.</span>';
       pal.appendChild(note);
       const starts = document.createElement('div'); starts.className = 'refit-starts';
-      for (const [id,name,why] of [['prop','Browse props','Equipment, furniture and decoration'],['room','Add a room','Choose a room type, then click or drag']]) {
+      for (const [id,name,why] of [['prop','Add props & furniture','Find equipment and decorations'],['room','Expand your station','Add a room, then connect it with a hallway'],['line','Set up a workflow','Place a connected conveyor line']]) {
         const b = document.createElement('button'); b.type = 'button'; b.className = 'refit-start'; b.dataset.startTool = id;
         b.innerHTML = '<span class="refit-start-key">' + esc(TOOLS.find(t => t.id === id).key) + '</span><b>' + esc(name) + '</b><span>' + esc(why) + '</span><em>CHOOSE →</em>';
         b.onclick = () => selectTool(id); starts.appendChild(b);
@@ -1071,9 +1073,10 @@ const Build = (() => {
     const dock = root.querySelector('.refit-dock');
     if (!dock) return;
     const top = root.querySelector('.refit-top');
-    if (top) dock.style.top = (top.offsetHeight + 10) + 'px';
-    // This console is always on the left; it does not occupy the bottom action rail.
-    document.body.style.setProperty('--refit-dock-clearance', '58px');
+    const bottomSheet = window.matchMedia('(max-width: 700px)').matches;
+    if (bottomSheet) dock.style.removeProperty('top');
+    else if (top) dock.style.top = (top.offsetHeight + 10) + 'px';
+    document.body.style.setProperty('--refit-dock-clearance', bottomSheet ? (dock.offsetHeight + 20) + 'px' : '58px');
   }
 
   function toggleKit(collapsed) {
@@ -1649,6 +1652,21 @@ const Build = (() => {
     }
     hintEl.innerHTML = '<span class="refit-hint-verb">' + esc(msg || verb) + '</span>'
       + '<span class="refit-hint-keys">' + esc(CAMERA_KEYS) + '</span>';
+    const help = root.querySelector('#refit-tool-help');
+    if (help) {
+      help.hidden = tool === 'select';
+      const guidance = {
+        room: 'Choose a room type below. Drag in empty space to draw your room, or click to repeat the last size.',
+        hall: 'Choose a hallway width below, then drag between rooms to connect them.',
+        move: 'Drag a room or prop to its new position. Furniture moves with its room.',
+        dupe: 'Click the room or prop you want to copy, then click a clear space to place the copy.',
+        reclaim: 'Click a room, prop or belt to remove it. Undo brings it back.',
+        belt: 'Click the machine where work starts, then its destination. A conveyor connects them.',
+        line: 'Choose a conveyor line below, then click clear floor to place it. Assign agents after placing.'
+      };
+      help.querySelector('span').textContent = msg || guidance[tool] || verb;
+      help.querySelector('button').textContent = ['move','dupe','reclaim','paint'].includes(tool) ? 'BACK TO SELECT' : 'STOP PLACING';
+    }
   }
   function setCursor() {
     if (!cv) return;
@@ -1778,11 +1796,11 @@ const Build = (() => {
     cardCloseAll();
     const g = document.createElement('div');
     g.className = 'refit-guide refit-station-builds refit-workflow-editor';
-    g.setAttribute('role','dialog');g.setAttribute('aria-modal','true');g.setAttribute('aria-label','Station builds');
-    g.innerHTML = '<div class="refit-guide-box station-build-box"><div class="station-build-heading"><h2>STATION BUILDS</h2><button class="bb sm" data-workflow-close>CLOSE</button></div>' +
-      '<p>Every build includes the five essentials and a workstation. Extra rooms give your work space to grow. Crew and workflows are yours to configure.</p>' +
-      '<div class="station-build-grid"></div><p class="station-build-status" role="status">Choose a build to preview its floor plan.</p>' +
-      '<div class="station-build-actions"><button class="bb" data-restore-build>RESTORE PREVIOUS LAYOUT</button><button class="bb refit-primary" data-use-build disabled>USE SELECTED BUILD</button></div></div>';
+    g.setAttribute('role','dialog');g.setAttribute('aria-modal','true');g.setAttribute('aria-label','Station presets');
+    g.innerHTML = '<div class="refit-guide-box station-build-box"><div class="station-build-heading"><div><span class="station-build-eyebrow">BUILD MODE / STATION PRESETS</span><h2>A place for your work</h2></div><button class="bb sm" data-workflow-close>BACK TO BUILD</button></div>' +
+      '<p class="station-build-intro">Choose your starting layout, then make it yours. Every station includes your workstation and all five essentials.</p>' +
+      '<div class="station-build-grid" aria-label="Available station presets"></div><div class="station-build-footer"><p class="station-build-status" role="status">Select a preset to continue. You can customize every room afterward.</p>' +
+      '<div class="station-build-actions"><button class="bb" data-restore-build>RESTORE PREVIOUS</button><button class="bb refit-primary" data-use-build disabled>CHOOSE A PRESET</button></div><small class="station-build-note">Applying replaces rooms, props and conveyors. Your current layout is backed up; agents and conversations stay.</small></div></div>';
     g.style.setProperty('--station-build-scale', typeof U.uiZoom === 'function' ? U.uiZoom() : 1);
     const closeP = () => { g.remove(); root?.querySelector('#refit-stations')?.focus(); };
     cardRegister(g, closeP); root.appendChild(g);
@@ -1795,13 +1813,16 @@ const Build = (() => {
     for (const item of StationTemplates.catalog) {
       const button = document.createElement('button'); button.className = 'bb station-build-card';
       button.type = 'button'; button.dataset.stationBuild = item.id; button.setAttribute('aria-pressed','false');
-      button.innerHTML = '<canvas width="230" height="140" aria-hidden="true"></canvas><b>' + esc(item.name) + '</b><span>' + item.rooms + (item.rooms === 1 ? ' ROOM' : ' ROOMS') + '</span><small>' + esc(item.description) + '</small>';
       const doc = StationTemplates.build(item.id, WorldModel, PropSprites);
+      const bays = doc.props.filter(p=>p.t==='bay').length;
+      button.innerHTML = '<div class="station-build-art"><canvas width="460" height="280" aria-hidden="true"></canvas><span class="station-build-check" aria-hidden="true">✓</span></div><div class="station-build-copy"><div class="station-build-meta"><span>' + item.rooms + (item.rooms === 1 ? ' ROOM' : ' ROOMS') + '</span>' + (bays ? '<span>'+bays+' WORKFLOW '+(bays===1?'STEP':'STEPS')+'</span>' : '') + '</div><b>' + esc(item.name) + '</b><small>' + esc(item.description) + '</small></div>';
       const bounds = WorldModel.create(doc).bounds(), ctx = button.querySelector('canvas').getContext('2d');
+      ctx.scale(2,2);
+      const theme = getComputedStyle(root), accent = theme.getPropertyValue('--ph').trim() || '#b6a375';
       const scale = Math.min(210/(bounds.maxTx-bounds.minTx+1),120/(bounds.maxTy-bounds.minTy+1));
       const ox = (230-(bounds.maxTx-bounds.minTx+1)*scale)/2, oy = (140-(bounds.maxTy-bounds.minTy+1)*scale)/2;
       for (const room of Object.values(doc.rooms)) for (const r of room.rects) {
-        ctx.fillStyle = room.kind==='corridor'?'#46433a':'#363b40'; ctx.strokeStyle='#b6a375';
+        ctx.fillStyle = room.kind==='corridor'?'#343636':room.floorMat==='plank'?'#494139':'#343e43'; ctx.strokeStyle=accent;
         const x=ox+(r.x1-bounds.minTx)*scale,y=oy+(r.y1-bounds.minTy)*scale,w=(r.x2-r.x1+1)*scale,h=(r.y2-r.y1+1)*scale;
         ctx.fillRect(x,y,w,h);ctx.strokeRect(x+.5,y+.5,w-1,h-1);
       }
@@ -1810,7 +1831,7 @@ const Build = (() => {
       button.onclick = () => {
         selected=item;armed=false;apply.disabled=false;apply.textContent='USE '+item.name;
         for(const b of g.querySelectorAll('[data-station-build]'))b.setAttribute('aria-pressed',b===button?'true':'false');
-        status.textContent=item.description+' Applying replaces the floor layout. Your current layout is backed up first; UNDO is also available in REFIT.';
+        status.textContent=item.name+' · '+item.rooms+' '+(item.rooms===1?'room':'rooms')+' · '+doc.props.length+' props'+(bays?' · '+bays+' workflow '+(bays===1?'step':'steps')+' to assign':'')+'.';
       };
       g.querySelector('.station-build-grid').appendChild(button);
     }
@@ -3702,7 +3723,8 @@ const Build = (() => {
     const dock = root.querySelector('.refit-dock');
     if (dock) {
       const d = dock.getBoundingClientRect();
-      if (!dock.classList.contains('is-collapsed')) out.l = Math.max(0, d.right - c.left) * sx;
+      if (window.matchMedia('(max-width: 700px)').matches) out.b = Math.max(0, c.bottom - d.top) * sy;
+      else if (!dock.classList.contains('is-collapsed')) out.l = Math.max(0, d.right - c.left) * sx;
     }
     return out;
   }
