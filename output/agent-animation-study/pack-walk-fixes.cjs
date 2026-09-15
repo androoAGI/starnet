@@ -2,7 +2,8 @@
 const fs = require('fs'), path = require('path'), sharp = require('sharp');
 const base = 'output/agent-animation-study/approved-motion';
 (async () => {
-  const jobs = JSON.parse(fs.readFileSync(base + '/walk-fixes.json'));
+  const jobFile = process.argv.find(a=>a.startsWith('--jobs='))?.slice(7) || 'walk-fixes.json';
+  const jobs = JSON.parse(fs.readFileSync(base + '/' + jobFile));
   for (const j of jobs.filter(j => j.done)) {
     const dir = `${base}/walk-fixes/${j.id}/${j.dir}/${j.job}`;
     fs.mkdirSync(dir, { recursive: true });

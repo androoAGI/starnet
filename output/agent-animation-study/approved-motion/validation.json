@@ -3,7 +3,7 @@
     "frames": 525,
     "rotations": 40,
     "walkHeightRange": [
-      73,
+      72,
       80
     ],
     "clipped": 0
@@ -279,71 +279,71 @@
       "width": 28,
       "height": 76,
       "foot": 112,
-      "hash": "d0a56fd9f9b04a540b89c548bc26217006eabe425210883b12733a0c53017f19"
+      "hash": "dc8bc8095f0a1ea9e3fd4c9352d0b1d748d2c95c1d5f241c4bbea85f4bc0fb19"
     },
     {
       "id": "plaguedoctor",
       "file": "walk_east_1.png",
       "width": 33,
-      "height": 75,
+      "height": 78,
       "foot": 112,
-      "hash": "0cffae1c4b4fe5b7d55f4d609be890f3eceb4f2474a4cae0eca056e8150401b0"
+      "hash": "3581fbe428c7cc52a4f7767a1ad2fada0f2395385fdb2a33459395ed21b86bd4"
     },
     {
       "id": "plaguedoctor",
       "file": "walk_east_2.png",
-      "width": 34,
-      "height": 74,
+      "width": 42,
+      "height": 78,
       "foot": 112,
-      "hash": "d17561e40156d3e452a60fb5a17ff9f067463e1147694ca08bbb4931cc83700e"
+      "hash": "97d00d7af46746271bd33f997ee8df081d2a6630edf78a1598398b0dd8d8d1c4"
     },
     {
       "id": "plaguedoctor",
       "file": "walk_east_3.png",
-      "width": 28,
-      "height": 74,
+      "width": 42,
+      "height": 76,
       "foot": 111,
-      "hash": "399cef108847ffe214f57281b65ee4bed39e02345378f517caa3a41b4029bd95"
+      "hash": "45e7c7c7637d01dbcd5b9c235b5d84526b9906c00ce633a2b9f6fa8a5160d900"
     },
     {
       "id": "plaguedoctor",
       "file": "walk_east_4.png",
-      "width": 28,
+      "width": 33,
       "height": 75,
       "foot": 111,
-      "hash": "64c8d7a4b384e7ffffb835e9ddcbf5ca89b10696f99e076049f194f4c3876c38"
+      "hash": "6800aa997cc60db590826fe369ce007a05a0d45180624e1a6d3bc1d05da70e24"
     },
     {
       "id": "plaguedoctor",
       "file": "walk_east_5.png",
-      "width": 29,
+      "width": 31,
       "height": 75,
       "foot": 111,
-      "hash": "d901ca04f88dc20aede610301234ce84db87028d12a0eef20c483686596fe152"
+      "hash": "a40f6a3ed57b0beb50892f5caf1b4ae3409db651ff6761bfaeac0fe89bf9abdc"
     },
     {
       "id": "plaguedoctor",
       "file": "walk_east_6.png",
-      "width": 31,
-      "height": 74,
-      "foot": 112,
-      "hash": "956ca100a80c3884a861498f1008938dbb695e4d9b00929d81acebba74034d9a"
+      "width": 28,
+      "height": 76,
+      "foot": 111,
+      "hash": "e285448df09776d592f49e873d3514ad27f9fed37e23105e6a7f738467df9b79"
     },
     {
       "id": "plaguedoctor",
       "file": "walk_east_7.png",
-      "width": 28,
-      "height": 75,
-      "foot": 112,
-      "hash": "e4935d7e21bfcfa99ee0f36e9326acd9b68a7daa05da35cecdef4805379c8ca8"
+      "width": 30,
+      "height": 77,
+      "foot": 111,
+      "hash": "67b32494e640f40289955f66c0b70a6cf1c42adf427214e30e52023c9c9eb13f"
     },
     {
       "id": "plaguedoctor",
       "file": "walk_east_8.png",
-      "width": 28,
+      "width": 42,
       "height": 76,
-      "foot": 112,
-      "hash": "d0a56fd9f9b04a540b89c548bc26217006eabe425210883b12733a0c53017f19"
+      "foot": 111,
+      "hash": "2972f4df8b958cfd5293a5110ddb0bb24385e17c16afcafba462177df6e5f069"
     },
     {
       "id": "plaguedoctor",
@@ -351,71 +351,71 @@
       "width": 26,
       "height": 76,
       "foot": 112,
-      "hash": "537412835977cb1b0bcea055c91163ee522afb9b74fe03094638f6863f9c70f3"
+      "hash": "38f821b6fd1a846d1d1888ef4a8127dd13733038b774d8e3f591eae18f49685e"
     },
     {
       "id": "plaguedoctor",
       "file": "walk_north-east_1.png",
-      "width": 27,
-      "height": 77,
+      "width": 30,
+      "height": 76,
       "foot": 112,
-      "hash": "959e24d9f180a433404f87640960f4fb46370179587f27144f94258cc6689605"
+      "hash": "a8efcf4eff369ebc8a2589ca29a5f6bb6691dff3b2677d7bfb9c2fdff9f293f1"
     },
     {
       "id": "plaguedoctor",
       "file": "walk_north-east_2.png",
-      "width": 29,
-      "height": 78,
+      "width": 33,
+      "height": 76,
       "foot": 112,
-      "hash": "f7839897dadd501b8d3d55b66c86acc9e86d3fb19a4baa5344d85f30e6423b0a"
+      "hash": "177eaa44a6c1f2dd3b42f4c9b89c29031055dd20ce1a84b676f09d78794d26af"
     },
     {
       "id": "plaguedoctor",
       "file": "walk_north-east_3.png",
-      "width": 31,
+      "width": 35,
       "height": 77,
       "foot": 112,
-      "hash": "592f8ab83d4624721b24efe2775e8823830aeddcbffd809f68bc7677f88c7535"
+      "hash": "533ce28f2c723335806d754c8823fd0431e900d2c028b58ee776bdd30fb7c4de"
     },
     {
       "id": "plaguedoctor",
       "file": "walk_north-east_4.png",
-      "width": 32,
-      "height": 76,
-      "foot": 112,
-      "hash": "68cb9d106c40579a67524c3d47cf529f5a21d077b003e7e9a18ae414b460f25f"
+      "width": 33,
+      "height": 75,
+      "foot": 111,
+      "hash": "ae1e24ffe49ec531259b289c34ce96111c4060debf1cb8cb32d4f5a046fd91b3"
     },
     {
       "id": "plaguedoctor",
       "file": "walk_north-east_5.png",
-      "width": 31,
-      "height": 76,
+      "width": 30,
+      "height": 75,
       "foot": 111,
-      "hash": "c42d46d21171261470de44822fc15d08feace9937b2aa990de3f53330ad5d43d"
+      "hash": "db02ea0f8abf22447df661522aa92601542f5f2d8f49b876f9dd3587def43e75"
     },
     {
       "id": "plaguedoctor",
       "file": "walk_north-east_6.png",
-      "width": 29,
-      "height": 76,
+      "width": 26,
+      "height": 74,
       "foot": 110,
-      "hash": "cb11ee2847e9268ba44011e0b70fc92840bd76b6434005d3c3db32816cdfd897"
+      "hash": "d9cccc1e6d42d37108a146c6fba25bb6cb0a345f4ec7da83e2662ec8b016a852"
     },
     {
       "id": "plaguedoctor",
       "file": "walk_north-east_7.png",
-      "width": 27,
+      "width": 28,
       "height": 75,
-      "foot": 110,
-      "hash": "45a32946f2dcb9f4d8384ebf058a4a657b088faa2ab4fb5044b20b20f1cbd04e"
+      "foot": 111,
+      "hash": "08b19a08c082613d5372d09c3c949957b38db32b7005781cc98f74e5ed24cf21"
     },
     {
       "id": "plaguedoctor",
       "file": "walk_north-east_8.png",
-      "width": 26,
-      "height": 76,
-      "foot": 112,
-      "hash": "72658a7529903beeafaa8b02cf5164c954b0941781e297ba69ea6c85e53f2194"
+      "width": 34,
+      "height": 75,
+      "foot": 110,
+      "hash": "c93b40feef1aaa35d70d6f32b63dd636e652fca6a60da87272642c3cdaa8e75a"
     },
     {
       "id": "plaguedoctor",
@@ -423,71 +423,71 @@
       "width": 27,
       "height": 76,
       "foot": 112,
-      "hash": "63f1bdb106ca7940e47c5af4659aa19b35b8ad6ba18de125341385c38c0b0eda"
+      "hash": "afaec16cff7cc24af29008ec023ba05ba667a9c2d75ccde45015325cac94330d"
     },
     {
       "id": "plaguedoctor",
       "file": "walk_north-west_1.png",
-      "width": 28,
-      "height": 76,
-      "foot": 112,
-      "hash": "56b801bd657e0188879ddc2f7fcf8647c643434722579627f63b8dfe39a086c7"
+      "width": 26,
+      "height": 75,
+      "foot": 110,
+      "hash": "eb5a47fea61ee5f88f28190c0b14cde799c1002fe5663f857a6c6d2c1bf957be"
     },
     {
       "id": "plaguedoctor",
       "file": "walk_north-west_2.png",
-      "width": 30,
-      "height": 77,
-      "foot": 111,
-      "hash": "880864d53842fce71bf80e7f3f8545320d02ad266c73309567bf449de60fec2b"
+      "width": 27,
+      "height": 76,
+      "foot": 110,
+      "hash": "908fc8b599dd912de26bb374827faa0918b677240df76eeb5eeda4383a4713a8"
     },
     {
       "id": "plaguedoctor",
       "file": "walk_north-west_3.png",
-      "width": 32,
-      "height": 78,
-      "foot": 112,
-      "hash": "419c391eafb26101bd41f31ba87ea228010e80cf341ab1825aa4f3ac3b7d4e68"
+      "width": 29,
+      "height": 77,
+      "foot": 111,
+      "hash": "3d793df6fedfe7ee7b29b22f0e755a04656d9fdf734edbfcf7f862fd33741b3e"
     },
     {
       "id": "plaguedoctor",
       "file": "walk_north-west_4.png",
-      "width": 34,
-      "height": 78,
+      "width": 30,
+      "height": 77,
       "foot": 112,
-      "hash": "2e55077a5d70ac340db7d68ee1a7cc75f057b9602f81f53b811a0a21aaa1a6d7"
+      "hash": "9d7a0df6d1fe0afeb84471e5d2340ec78ef0c1bf6e2909c5c7009a8632cc71c2"
     },
     {
       "id": "plaguedoctor",
       "file": "walk_north-west_5.png",
-      "width": 33,
-      "height": 78,
-      "foot": 112,
-      "hash": "773d29a08b351d7a4dfcca311b68129a3ca55891bc932baae5ade592afb9c68d"
+      "width": 28,
+      "height": 75,
+      "foot": 111,
+      "hash": "92809289cf052971d0e235d9f72b7aeb58799fecfe7fe890904bc4987d09b191"
     },
     {
       "id": "plaguedoctor",
       "file": "walk_north-west_6.png",
-      "width": 31,
-      "height": 78,
-      "foot": 111,
-      "hash": "f86fe570dcb6681458fd0a99ff1a4cea56e07370114e4684b92d8abd206ace70"
+      "width": 26,
+      "height": 74,
+      "foot": 110,
+      "hash": "e7cff84ab0ce83d189d0b2b3b383a825f4b6c6cebb8c5999deb78ef00a428c68"
     },
     {
       "id": "plaguedoctor",
       "file": "walk_north-west_7.png",
-      "width": 28,
-      "height": 76,
-      "foot": 111,
-      "hash": "0ae51b05639a72fd101305706a9c35cc40af36ccd5158172f5408eff7f069dd6"
+      "width": 26,
+      "height": 75,
+      "foot": 110,
+      "hash": "691f6d634bbb55475cc6927def7680f3bc41a15b2e254c8597dfed0258f4711d"
     },
     {
       "id": "plaguedoctor",
       "file": "walk_north-west_8.png",
-      "width": 27,
-      "height": 76,
+      "width": 26,
+      "height": 78,
       "foot": 112,
-      "hash": "b875d274bf01998bdb7a4a15bec769cc8068bee60d0a244542aa21b32dedd95b"
+      "hash": "57e43fce9cd48f27049875099ba0fc751531e59e918343b67820d1e0f82d2d6f"
     },
     {
       "id": "plaguedoctor",
@@ -567,143 +567,143 @@
       "width": 29,
       "height": 76,
       "foot": 112,
-      "hash": "49a0f06078b38c68032eb7e7faf79d69582ad8f0f3d48dd3b2aa70add79a887b"
+      "hash": "a707c9f13ed6d476315ae671952d215910d54bccdaa567af680a44395b76ef13"
     },
     {
       "id": "plaguedoctor",
       "file": "walk_south-east_1.png",
-      "width": 30,
-      "height": 75,
-      "foot": 110,
-      "hash": "95ed2756dff2f649279aef0dab9b8a830598ed75d3b516dae87c8f0bfc17222f"
+      "width": 29,
+      "height": 76,
+      "foot": 111,
+      "hash": "4bbece1cc9b200db5bb10c9226215eb6e54345028ebdea56c792933c0a4522f1"
     },
     {
       "id": "plaguedoctor",
       "file": "walk_south-east_2.png",
-      "width": 31,
-      "height": 76,
+      "width": 32,
+      "height": 75,
       "foot": 110,
-      "hash": "b87d660ae21a13aa3aea3f76c1fe5580becf15c9a4dcf9a847b892e2f61a04a5"
+      "hash": "496e7c02a6ced1f42cbd7704b400793a2cba83011c75c5c332a5f7fa33ccc260"
     },
     {
       "id": "plaguedoctor",
       "file": "walk_south-east_3.png",
       "width": 32,
-      "height": 77,
-      "foot": 109,
-      "hash": "7ea4242e0d580f14ee1e02c98d7ccbc5bc8b1a8c066cc164a99a2b370d726a99"
+      "height": 76,
+      "foot": 111,
+      "hash": "ea72df24b9a44aa57b3dc70868e0b96d07301f7fe842060aa9838a9aa5a033f8"
     },
     {
       "id": "plaguedoctor",
       "file": "walk_south-east_4.png",
-      "width": 34,
-      "height": 78,
+      "width": 28,
+      "height": 75,
       "foot": 111,
-      "hash": "c8d40cb4f391c141eaad31a78e268e9a3e59fa4bf5fc1328a86bf269b80b9e37"
+      "hash": "31bff7444a89260eb022081f14ef491d29dfaba1c60264b31f1f28f6bb979f03"
     },
     {
       "id": "plaguedoctor",
       "file": "walk_south-east_5.png",
-      "width": 34,
-      "height": 78,
-      "foot": 112,
-      "hash": "9a2a477e60f33db2732395d03da6f831ec77ffef40ed0d4e071426143d32d4fd"
+      "width": 28,
+      "height": 75,
+      "foot": 111,
+      "hash": "1eff848fcbde9ae1edd1313bf3b22f3380e44b8909230cb7cec3f945f4447448"
     },
     {
       "id": "plaguedoctor",
       "file": "walk_south-east_6.png",
-      "width": 31,
-      "height": 76,
-      "foot": 112,
-      "hash": "8e735033ed58e3a95e4e1e248a43b7b6af419cd3764f455c95fa0e4cb477a846"
+      "width": 28,
+      "height": 75,
+      "foot": 111,
+      "hash": "9e77d9485adf249485e297b9ff094d197b429335dd146053f6cab348b1db96c6"
     },
     {
       "id": "plaguedoctor",
       "file": "walk_south-east_7.png",
       "width": 29,
       "height": 75,
-      "foot": 112,
-      "hash": "e66e95deed29b4375b302ccb6ae3844a2b376b6b05df66eaa65225c8c1ccf7fc"
+      "foot": 110,
+      "hash": "199bad91cd7c86eb9a8b11906285dedb5d774f8ae1fc6ec6525117662d401fb6"
     },
     {
       "id": "plaguedoctor",
       "file": "walk_south-east_8.png",
-      "width": 29,
+      "width": 31,
       "height": 76,
-      "foot": 112,
-      "hash": "6fdfb8b348668db5111a9d53d825566359637f02a08467dfee9b20b7a25aeb9d"
+      "foot": 111,
+      "hash": "e837a011e8a8be78a5b3a8ada2770316faa09f70bfe48dba30ee1ae0c88910b9"
     },
     {
       "id": "plaguedoctor",
       "file": "walk_south-west_0.png",
-      "width": 29,
+      "width": 30,
       "height": 76,
       "foot": 112,
-      "hash": "de3998636bf1028c7d9673c5b6f20051bb2bcb2d1ef4ddd3c8b9a0c3ca8e1652"
+      "hash": "f72e0e966676567ebd6288ca9bad4220fa1531c5caeed44ea56230dd9453d80d"
     },
     {
       "id": "plaguedoctor",
       "file": "walk_south-west_1.png",
-      "width": 28,
-      "height": 76,
-      "foot": 111,
-      "hash": "03985ff094e3eef607f20d9b0f0f55435057eb115ef49272523b83b5c0bb75e0"
+      "width": 32,
+      "height": 77,
+      "foot": 112,
+      "hash": "e900fb05558fdb0d60c82cc8cfaec410b32cf454fc6925f7d6d35396b701b5dd"
     },
     {
       "id": "plaguedoctor",
       "file": "walk_south-west_2.png",
-      "width": 29,
-      "height": 75,
-      "foot": 110,
-      "hash": "c7101b94d4c0124be8a60da2d9f068503f6df32bdaa848ef4d7fc0eecda8646e"
+      "width": 34,
+      "height": 77,
+      "foot": 112,
+      "hash": "587d13e57c8a2ed67ea66108741565aa533d2ff58f00f6ac5d9fd4a9177d6374"
     },
     {
       "id": "plaguedoctor",
       "file": "walk_south-west_3.png",
-      "width": 29,
-      "height": 75,
+      "width": 34,
+      "height": 76,
       "foot": 110,
-      "hash": "41f1d2c81b8739849c073fc4f2451c4699c48de186474436f5d02113d093c0ce"
+      "hash": "60f322cac6f3e3b4bb568afb4cadd3780b57834036bd7c2759fffde462e07e98"
     },
     {
       "id": "plaguedoctor",
       "file": "walk_south-west_4.png",
       "width": 30,
-      "height": 75,
-      "foot": 111,
-      "hash": "2f7a32bb3e7d5b886335123ad46ae84fef0d19cd94b3868870530af0ae901091"
+      "height": 76,
+      "foot": 110,
+      "hash": "2e3b4438d040d0e51e15fe93321731bd48424f380062a50c476808384b5b0c5c"
     },
     {
       "id": "plaguedoctor",
       "file": "walk_south-west_5.png",
-      "width": 32,
+      "width": 29,
       "height": 76,
       "foot": 111,
-      "hash": "38649fb55196f502c5647365fe3bf02704bdd3bbcb42b360310a77cf4db008e5"
+      "hash": "b742495a0ad950ab8ddd3f2ac56280c4177af0be56ea27758d106453173c2c53"
     },
     {
       "id": "plaguedoctor",
       "file": "walk_south-west_6.png",
-      "width": 33,
-      "height": 78,
+      "width": 29,
+      "height": 76,
       "foot": 112,
-      "hash": "2f1fe028fb223a589dbcd99178eaa4b470cbdff9a542450b1c65a3ff3ca6d89b"
+      "hash": "49b6dc753c5fca9133dd0202a0067f7f81a9dcd8c62cebb74de832ce39132f08"
     },
     {
       "id": "plaguedoctor",
       "file": "walk_south-west_7.png",
-      "width": 31,
-      "height": 78,
-      "foot": 113,
-      "hash": "512429ba8f20d0a96912fdcbcc9b9675f36704ecc7129c8514e1bfa2a350dc92"
+      "width": 28,
+      "height": 75,
+      "foot": 111,
+      "hash": "d65006714dc245f8729afcfd42dddbefc33023f787c20408c15e287871030e21"
     },
     {
       "id": "plaguedoctor",
       "file": "walk_south-west_8.png",
       "width": 30,
-      "height": 76,
-      "foot": 112,
-      "hash": "d293fa92f3eade6dc056e390d0d57dcb3c788e7000c50d83e508a3817607c67b"
+      "height": 75,
+      "foot": 110,
+      "hash": "91d2e3f7028eb041154dee5e9b8d71049bbaa26491053ec92aeba9a828e8d343"
     },
     {
       "id": "plaguedoctor",
@@ -783,71 +783,71 @@
       "width": 28,
       "height": 76,
       "foot": 112,
-      "hash": "62520ac695d4f5c90dc3999d01942f109669fdee04f291d064900de209227897"
+      "hash": "6e762302f213850eec9ac688548b5bbf02d95372fa9ae99a8b3e7bf4682f56e3"
     },
     {
       "id": "plaguedoctor",
       "file": "walk_west_1.png",
-      "width": 29,
-      "height": 76,
+      "width": 28,
+      "height": 77,
       "foot": 112,
-      "hash": "cd2b7aaeae0ab7a6f6d498a08e74a3ae9457565ec845e5a9b1b230129c13916c"
+      "hash": "84f20dcd3a6f7bae232fa11718937d1e77e87b57899598d2622f641b53447e63"
     },
     {
       "id": "plaguedoctor",
       "file": "walk_west_2.png",
       "width": 34,
-      "height": 75,
+      "height": 78,
       "foot": 112,
-      "hash": "8d5f0d687bdb0850e8b835412effa553e835270791a2d400257996a0c423ca10"
+      "hash": "aec0645a64278e77c1053af6b8e94313ee3534b13b876e020466398d3512cc51"
     },
     {
       "id": "plaguedoctor",
       "file": "walk_west_3.png",
-      "width": 31,
-      "height": 74,
-      "foot": 111,
-      "hash": "2df9bbeba3ddfbde2d25a145ffad8ec6d6b59bf881b8e4b86fc333155321f17a"
+      "width": 40,
+      "height": 78,
+      "foot": 112,
+      "hash": "5fc9f8b8689370b3b4b1c234182e2f2b3f31dff0f8f10b9f1824a09bc2a9cd3f"
     },
     {
       "id": "plaguedoctor",
       "file": "walk_west_4.png",
-      "width": 28,
-      "height": 75,
-      "foot": 111,
-      "hash": "3b6d68645200ace7abe04c0e8fd138bde4829441017f5cddcc702f2db15f2809"
+      "width": 43,
+      "height": 77,
+      "foot": 112,
+      "hash": "0eedec2b9c6164876c7e7b43846c574f3ab07d38e866c1f45f506fff6cf6eb9f"
     },
     {
       "id": "plaguedoctor",
       "file": "walk_west_5.png",
-      "width": 30,
-      "height": 75,
-      "foot": 111,
-      "hash": "aad236ddc96eb9d459970ba455765efdddcefc9b50dc3b5c5e04fa07d2eb6a81"
+      "width": 33,
+      "height": 76,
+      "foot": 112,
+      "hash": "c41aca1b1bccecdd6722575a1753afd2f33636c9896c87c7a0e537b1496d567b"
     },
     {
       "id": "plaguedoctor",
       "file": "walk_west_6.png",
-      "width": 35,
-      "height": 75,
-      "foot": 112,
-      "hash": "b6f28e017d48c2854ef2d01d808c6f04fcbe2dad9f2602fb87408dad4a3c2910"
+      "width": 28,
+      "height": 76,
+      "foot": 111,
+      "hash": "4075ef639187baf15d69a11a7fe6aa9613982d6bb5d85b157be7d0b054ec2838"
     },
     {
       "id": "plaguedoctor",
       "file": "walk_west_7.png",
-      "width": 31,
-      "height": 75,
-      "foot": 112,
-      "hash": "63eb07cf7c18525ae558d4fdd099013760d66ef3b1357c3de877b909ede8e97b"
+      "width": 28,
+      "height": 76,
+      "foot": 110,
+      "hash": "a7957d134569ebb96660cacbd0d61fa473e1aeea0dbaede889c4039c7f358b60"
     },
     {
       "id": "plaguedoctor",
       "file": "walk_west_8.png",
       "width": 28,
       "height": 76,
-      "foot": 112,
-      "hash": "62520ac695d4f5c90dc3999d01942f109669fdee04f291d064900de209227897"
+      "foot": 110,
+      "hash": "b30ddb5bfd6dacf023c23989f53d7ae72bdccad99b55959d91a99064a7c63900"
     },
     {
       "id": "secretagent",
@@ -1119,39 +1119,39 @@
       "width": 18,
       "height": 76,
       "foot": 112,
-      "hash": "6ba5f151b75f82c0a187a3990f2c1b48ddaa27f134f35aee74bf3c3d7635e986"
+      "hash": "2590f750e5227c14098da787e460882d32b52d61166e3700ce6dea225a37f40c"
     },
     {
       "id": "secretagent",
       "file": "walk_east_1.png",
-      "width": 29,
+      "width": 27,
       "height": 76,
-      "foot": 112,
-      "hash": "81bc1d691c94693fbd6adb5f23535e787773fe204a5a7ba99854fd02e735c588"
+      "foot": 111,
+      "hash": "ee7e842435dd82e85350ba06deb57d19180f1d30fbc667309d96173c217d4161"
     },
     {
       "id": "secretagent",
       "file": "walk_east_2.png",
-      "width": 35,
-      "height": 75,
-      "foot": 112,
-      "hash": "770afd85431c433ec896879817e951a6899918414569c5eb91067052b82a5bca"
+      "width": 42,
+      "height": 76,
+      "foot": 110,
+      "hash": "d44ae0adcff3b8697063b6b7b5a9010218529a37518eace01f51e41ea143b01d"
     },
     {
       "id": "secretagent",
       "file": "walk_east_3.png",
-      "width": 27,
-      "height": 74,
-      "foot": 111,
-      "hash": "0ab904cb84c9db0a5e6117eaac8c14f328c8e3574cac672b640132d8434e118a"
+      "width": 46,
+      "height": 75,
+      "foot": 110,
+      "hash": "8466af94c3e28b8556cafef4ceccfd52aa33b4829cbe064444a520ab50187a58"
     },
     {
       "id": "secretagent",
       "file": "walk_east_4.png",
-      "width": 18,
-      "height": 75,
-      "foot": 111,
-      "hash": "94815c97e2edba59f217d2dec9eb27d1fb1c54ba7bfceea7454259d63a6dc8a5"
+      "width": 39,
+      "height": 74,
+      "foot": 110,
+      "hash": "eb231c0d0215e2be3003aafc54a9b037850a897955393935c7b4adb62c4cdbd9"
     },
     {
       "id": "secretagent",
@@ -1159,31 +1159,31 @@
       "width": 27,
       "height": 74,
       "foot": 110,
-      "hash": "fc33a9bd167ad60cb4e5df55b498b19340c408a0cabdb6db2c9947096bdae013"
+      "hash": "a74466b5e07e386a27f801e246e580ad99e29cc79814bfb744b349343a7b2456"
     },
     {
       "id": "secretagent",
       "file": "walk_east_6.png",
-      "width": 36,
+      "width": 18,
       "height": 74,
-      "foot": 111,
-      "hash": "0ab6db31ff731a402bc71826bc72f9ee2b8b351badb5c4a38e452dd214a19031"
+      "foot": 109,
+      "hash": "523c80eeb21936b6fff131f02aaca2425b8bd2cd78e27c2a6272253564d2fb75"
     },
     {
       "id": "secretagent",
       "file": "walk_east_7.png",
       "width": 28,
-      "height": 75,
-      "foot": 112,
-      "hash": "cbb9c92440122b973eeb563913e661fa0a346ae0de5fd8bd61629e8bf3b850f8"
+      "height": 74,
+      "foot": 108,
+      "hash": "3e5983a460a0150634805464b477c30840b2981cfbea0cf791668ffab7c85aac"
     },
     {
       "id": "secretagent",
       "file": "walk_east_8.png",
-      "width": 18,
-      "height": 76,
-      "foot": 112,
-      "hash": "6ba5f151b75f82c0a187a3990f2c1b48ddaa27f134f35aee74bf3c3d7635e986"
+      "width": 41,
+      "height": 75,
+      "foot": 110,
+      "hash": "07025cbd58730cdd7bb254c0eb65ca459ffe64d79c938dfb6b1014365e48fd0d"
     },
     {
       "id": "secretagent",
@@ -1196,66 +1196,66 @@
     {
       "id": "secretagent",
       "file": "walk_north-east_1.png",
-      "width": 32,
-      "height": 78,
-      "foot": 112,
-      "hash": "2921c06b63ef7519cca5900adfc1290f71e1c77469c937869afb2f745d7d6409"
+      "width": 34,
+      "height": 77,
+      "foot": 113,
+      "hash": "824fe16de0619dcfef8dd0bdc7d6366b2095f37cdb4d93b10d0ff032cd10dd5a"
     },
     {
       "id": "secretagent",
       "file": "walk_north-east_2.png",
-      "width": 32,
-      "height": 80,
+      "width": 37,
+      "height": 78,
       "foot": 113,
-      "hash": "6e8176fe604a69e37b8edb491ad69284d11abb5e9f9ac44971bfc65cd79fcc3b"
+      "hash": "7799deccd3ec3470f3b6c50ba2eef8a1187c2dac2f7041e32bd402d6f68c7bb8"
     },
     {
       "id": "secretagent",
       "file": "walk_north-east_3.png",
-      "width": 29,
+      "width": 34,
       "height": 78,
       "foot": 112,
-      "hash": "8943346dc8f8c83228354239c41a89148c995bbeff6a5f9aef9f2cf6e001d1e1"
+      "hash": "df00085a7981736bf504108c0ac28e3d5363e0222a11aacbf31d6054b5be328c"
     },
     {
       "id": "secretagent",
       "file": "walk_north-east_4.png",
-      "width": 25,
+      "width": 31,
       "height": 77,
       "foot": 112,
-      "hash": "15f9abb8eb86f1ea24b2a3b92a5cda2564ff36750c8e882fb9ae01a4a4b87a93"
+      "hash": "b2274507bd43c165ed1a751ccc2b20fe2fee937641db0bb97322b36b50fc9cae"
     },
     {
       "id": "secretagent",
       "file": "walk_north-east_5.png",
       "width": 24,
-      "height": 76,
+      "height": 74,
       "foot": 110,
-      "hash": "b50341116d56cae5f682e96ee2f47f19df666e974158f13d858be75e2049cc65"
+      "hash": "7865f14b302eab6cfa85ae3b85ddaba1fda5f7360bcb77066385101becd11fde"
     },
     {
       "id": "secretagent",
       "file": "walk_north-east_6.png",
-      "width": 24,
-      "height": 75,
-      "foot": 108,
-      "hash": "938206032820b45ba7470119f02c7938dfc8cc68dc82214975acd5236817b014"
+      "width": 26,
+      "height": 73,
+      "foot": 109,
+      "hash": "deb29645c97488431b6822e84418353d90de2fd6fc93aadc9b9a9913db6b250d"
     },
     {
       "id": "secretagent",
       "file": "walk_north-east_7.png",
-      "width": 28,
-      "height": 75,
+      "width": 30,
+      "height": 74,
       "foot": 109,
-      "hash": "dcae072215219155fe0ae2b08190c1a3d8510db113167b99b9d24276157fef83"
+      "hash": "abbec92d7200a90e6b6e938f823d263dc43df9e5515c32f9a0af6d5747cb11b3"
     },
     {
       "id": "secretagent",
       "file": "walk_north-east_8.png",
-      "width": 31,
-      "height": 76,
-      "foot": 112,
-      "hash": "e6e81e983980eeecb72ca9d0d01096affd8cd71165093e489db9ec578d607e18"
+      "width": 32,
+      "height": 74,
+      "foot": 108,
+      "hash": "1dff6d34c8c71ef1720bf4994af7e15bff6e3344a27bf80791606a0983f21946"
     },
     {
       "id": "secretagent",
@@ -1268,66 +1268,66 @@
     {
       "id": "secretagent",
       "file": "walk_north-west_1.png",
-      "width": 28,
+      "width": 34,
       "height": 78,
       "foot": 113,
-      "hash": "ca64e5879464da35c777756f34e444a33cc00ba088e2f5d0d15e1ff62acc062f"
+      "hash": "f85eccf1327e7f5756d17d8a892ef0d93fb8fdfc377da389e5ec800b36374471"
     },
     {
       "id": "secretagent",
       "file": "walk_north-west_2.png",
-      "width": 25,
-      "height": 80,
+      "width": 38,
+      "height": 79,
       "foot": 113,
-      "hash": "f7e7704ef54fb554429c438a2d77bc8c0fbf9b92e305d5e26a7a05149b5183d9"
+      "hash": "44f3e7d8bac7979b0a8c35ef6f6f920d7f86c5eec2cb3e8972e934b53b4a4d89"
     },
     {
       "id": "secretagent",
       "file": "walk_north-west_3.png",
-      "width": 23,
+      "width": 41,
       "height": 78,
-      "foot": 112,
-      "hash": "5a40c22d71587e495fb5303561441bec307821ee6803702dfa204524ab8080a4"
+      "foot": 113,
+      "hash": "613d8b0bb96d038583e869b6b6f73497643147981ffa4bd9adab3f21cb3d907c"
     },
     {
       "id": "secretagent",
       "file": "walk_north-west_4.png",
-      "width": 26,
-      "height": 74,
-      "foot": 110,
-      "hash": "35de3bd33288eeb4e9faf974e99e4c869436e2f9218c7d8d0717a779b98b86e3"
+      "width": 36,
+      "height": 77,
+      "foot": 113,
+      "hash": "111a7a907a5efbac61f0924380fa22d42fd2659c54e7db14b2006b27a8419de3"
     },
     {
       "id": "secretagent",
       "file": "walk_north-west_5.png",
-      "width": 30,
-      "height": 74,
-      "foot": 109,
-      "hash": "cc8c9cfdee382dd7560c066433fee897a620e7d302cb3012d978f6328117e551"
+      "width": 31,
+      "height": 75,
+      "foot": 111,
+      "hash": "fe4b83ef624ecaf9b8f4f36111ecb42f97756331e09e293628899288186b1991"
     },
     {
       "id": "secretagent",
       "file": "walk_north-west_6.png",
-      "width": 31,
-      "height": 76,
+      "width": 26,
+      "height": 74,
       "foot": 109,
-      "hash": "37da5b955d3baddbea3187e88c9db2a7e7e2ed065d2e960ccf70289ebc1afe9d"
+      "hash": "1611975d4df105edabbc4b19cfc60fda94d86b5c91d236c3bd3b2f9a61e749b4"
     },
     {
       "id": "secretagent",
       "file": "walk_north-west_7.png",
       "width": 27,
-      "height": 77,
+      "height": 76,
       "foot": 110,
-      "hash": "bd66bda59256a807f080af42eea9f2e14e4d841f08cde418ad3941f4d40669d1"
+      "hash": "95df5fd78f830056566e178ededbab0624777affeda08830c31144352a445f4b"
     },
     {
       "id": "secretagent",
       "file": "walk_north-west_8.png",
-      "width": 31,
-      "height": 76,
+      "width": 34,
+      "height": 77,
       "foot": 112,
-      "hash": "79b8297c855c4179d440207c714aec35547c8f9842d1e9e38dd56bed54f384db"
+      "hash": "9dc298f44424ed55595fe8043c64a36375636a477debccd65acae7707c667d1e"
     },
     {
       "id": "secretagent",
@@ -1407,71 +1407,71 @@
       "width": 30,
       "height": 76,
       "foot": 112,
-      "hash": "e196152f1731e38b2eb42a892d515319c78b3bf3eb36a122d767a07847e5a9eb"
+      "hash": "053705d4b48d9f2eaa1c561bdc7b85b4109a35647fc178e60a3f3a20d4c302fb"
     },
     {
       "id": "secretagent",
       "file": "walk_south-east_1.png",
-      "width": 29,
+      "width": 32,
       "height": 75,
-      "foot": 111,
-      "hash": "2df5b27a84fae0e055046808b7f360d003f06dc1d6b55dc052ffdf04e8f76391"
+      "foot": 110,
+      "hash": "38bb3ddad2e74e9fed208cd030df367a17481b15579b3af50242956a2e8e9b8a"
     },
     {
       "id": "secretagent",
       "file": "walk_south-east_2.png",
-      "width": 31,
-      "height": 75,
-      "foot": 111,
-      "hash": "c448af74943b828b319226467b04da5a90b3abc6caf2b9b493deefa5f1c6c857"
+      "width": 39,
+      "height": 74,
+      "foot": 110,
+      "hash": "8725e7e1c36825119541618f5be4737946b5a147e7c5903bec3fd2e8fee6b290"
     },
     {
       "id": "secretagent",
       "file": "walk_south-east_3.png",
-      "width": 33,
-      "height": 74,
+      "width": 41,
+      "height": 73,
       "foot": 110,
-      "hash": "fa54ef9ad79511b527e3ccd7f2ccccd264ffb662537224c6beb4980672f92305"
+      "hash": "e931a4ffee593cf1a566d1b073b4551c0932d729427ef5d8a9065b9e69242367"
     },
     {
       "id": "secretagent",
       "file": "walk_south-east_4.png",
-      "width": 33,
-      "height": 76,
-      "foot": 112,
-      "hash": "381e66dce46c421c4ba351d0749e0aa3cd9ab51b1876bfa36a8c19822d874c91"
+      "width": 32,
+      "height": 74,
+      "foot": 110,
+      "hash": "c753ef8ce124e0e265b8a684a6c3c44797e45d5282f48a52b94984111b89c64c"
     },
     {
       "id": "secretagent",
       "file": "walk_south-east_5.png",
-      "width": 32,
-      "height": 76,
-      "foot": 112,
-      "hash": "2c32388fd6303bc700ca68469b5124d0ad103526253bd7f15726d34442a6cafd"
+      "width": 24,
+      "height": 74,
+      "foot": 110,
+      "hash": "01380a66dfe845e79adcd7484a505754210f36812bc4e6d50f796b159efff1f5"
     },
     {
       "id": "secretagent",
       "file": "walk_south-east_6.png",
       "width": 30,
-      "height": 76,
-      "foot": 112,
-      "hash": "95579a12267d40b24b9ed375d0f436958c804881863aad1d70dd7d6eb30cc193"
+      "height": 74,
+      "foot": 109,
+      "hash": "13f02af4eb23b6d54a208b447a27928bb41b92cc2b022870e45fdba4982d3c7c"
     },
     {
       "id": "secretagent",
       "file": "walk_south-east_7.png",
-      "width": 29,
-      "height": 76,
-      "foot": 112,
-      "hash": "497f87a89491c46930106dfcc9deebbaeee909a41fdd3fe3607a34ebd66d2b6c"
+      "width": 34,
+      "height": 74,
+      "foot": 110,
+      "hash": "63d0176c13a5474485384df8d841c310259a4d528d9b6e02c6ce3cede8759438"
     },
     {
       "id": "secretagent",
       "file": "walk_south-east_8.png",
-      "width": 30,
-      "height": 76,
+      "width": 37,
+      "height": 75,
       "foot": 112,
-      "hash": "4da4d916ae8e9df7e4a4eeae490e820e33b3b28c90f3c1e4716a036ea6efd3bb"
+      "hash": "0e6ecf9185d642a4d52d84db6e2b2af36558e18396f2c5fda05754bc041f928c"
     },
     {
       "id": "secretagent",
@@ -1479,71 +1479,71 @@
       "width": 30,
       "height": 76,
       "foot": 112,
-      "hash": "1893db9a896b231dd825370be176d410cdde859a3089a08de41fc5e4628aa1c8"
+      "hash": "e482489b5ac4f6c9590b266ef01709b5491578654c75b93846d8f606811e94af"
     },
     {
       "id": "secretagent",
       "file": "walk_south-west_1.png",
-      "width": 29,
-      "height": 75,
+      "width": 32,
+      "height": 76,
       "foot": 111,
-      "hash": "2e8c0bd9cb7d3ee911a5f4fb17b53a1bfed0150c8f822bbdd784eb9c7338cdb1"
+      "hash": "e5656fe289afcc90cc1a81976580671aa44efea627366918d75de8580a3543f2"
     },
     {
       "id": "secretagent",
       "file": "walk_south-west_2.png",
-      "width": 30,
-      "height": 73,
-      "foot": 108,
-      "hash": "742e483dc16889917825eab7160fb8c45c2da6d7206ae30b07d9455d9e4fb1f0"
+      "width": 35,
+      "height": 76,
+      "foot": 110,
+      "hash": "8a46f99537547b5f10c94c9ae0a7186f64a7e6f6b1ea05fef3473cbf53ab836e"
     },
     {
       "id": "secretagent",
       "file": "walk_south-west_3.png",
-      "width": 31,
-      "height": 75,
-      "foot": 109,
-      "hash": "4a0b170a24d3a0189f99973e2c98a3d634a17c52aa8904dfe2015c8f1527184d"
+      "width": 38,
+      "height": 77,
+      "foot": 111,
+      "hash": "fecb9f9e6f30abd45139cdacda17d3295e07307be278d78bbff1fcffb9cb4fb9"
     },
     {
       "id": "secretagent",
       "file": "walk_south-west_4.png",
-      "width": 34,
+      "width": 41,
       "height": 76,
-      "foot": 112,
-      "hash": "6ff458e410b378013ffa9b745b1af493df0d45d771b1a3eaad5f7267e1381c9a"
+      "foot": 111,
+      "hash": "84e8606faa9d03d4ec3fa20466813e7c0906f2238f6ea7dbf1ca4a770e0c95ac"
     },
     {
       "id": "secretagent",
       "file": "walk_south-west_5.png",
-      "width": 36,
+      "width": 39,
       "height": 76,
-      "foot": 112,
-      "hash": "72b9abdfadfa1e1377888a8a1a07e6427a7b7af50ba0ca6dd2e2cb08ac54189a"
+      "foot": 111,
+      "hash": "9063245c1139f8aadee77a4cd8f4afc124a4e7e54b7da5ad91013d9a30aa694c"
     },
     {
       "id": "secretagent",
       "file": "walk_south-west_6.png",
-      "width": 34,
-      "height": 78,
-      "foot": 112,
-      "hash": "d2372c777ee272e7a3b19f5e80e07748263a618362a654a43290068746866d2f"
+      "width": 35,
+      "height": 76,
+      "foot": 110,
+      "hash": "fd71907b02d305f4d07bb9ee77420ff76be1be6534a5c4f0f024105a86653884"
     },
     {
       "id": "secretagent",
       "file": "walk_south-west_7.png",
-      "width": 32,
-      "height": 78,
-      "foot": 112,
-      "hash": "e9d257ed65d2c03ab7744face4ae52bd538d8e949aec0438bd88807e723760b5"
+      "width": 33,
+      "height": 76,
+      "foot": 110,
+      "hash": "69737944aa58411a3f48c37094207dee0d1c82466a61a10e442fcf25922b0968"
     },
     {
       "id": "secretagent",
       "file": "walk_south-west_8.png",
-      "width": 30,
+      "width": 31,
       "height": 76,
-      "foot": 112,
-      "hash": "cb56122a62da470462d1dc0e3d700bea3b1c328b45336f395d65577ec9520006"
+      "foot": 110,
+      "hash": "c0662ffb61fe4eaf68940a2d92a3516f8b101e0b632e072a43947ca224ce107a"
     },
     {
       "id": "secretagent",
@@ -1623,71 +1623,71 @@
       "width": 18,
       "height": 76,
       "foot": 112,
-      "hash": "c0cf816eb56d4075138ffaa949f76ecaaf3847881a395e12010c8d704940985e"
+      "hash": "ec97fee06f3945aac9203738e63b2966eacb8c0d7b6052c1f45d8081b5665fa4"
     },
     {
       "id": "secretagent",
       "file": "walk_west_1.png",
-      "width": 29,
-      "height": 76,
+      "width": 25,
+      "height": 77,
       "foot": 112,
-      "hash": "3bc279ea14ac56526f57dcd1d07166872dad0990778ac5c7271ddda321ea9b27"
+      "hash": "f8f95021bd59dc426f46e70d6407f351b503ec1c1906bc59f8c14dbaa700f04d"
     },
     {
       "id": "secretagent",
       "file": "walk_west_2.png",
-      "width": 36,
-      "height": 75,
+      "width": 37,
+      "height": 78,
       "foot": 112,
-      "hash": "e7a494afba1f6d53b15697de0a53a8d565d22b76afaa70063ac9da939c7235b0"
+      "hash": "4ebabbb7e2317cb2f78854f298dcde139dbef41cac5688f09bad3be3aa91dfc5"
     },
     {
       "id": "secretagent",
       "file": "walk_west_3.png",
-      "width": 27,
+      "width": 43,
       "height": 76,
-      "foot": 112,
-      "hash": "fff9c5e06ea3a146fdb97fb14613634370f0f19bbe0a74943ef5dc9bb20f632f"
+      "foot": 111,
+      "hash": "139b653a1b9232fae15ca27cd67a942cb16b4659c45791cb464bd7f9540a6440"
     },
     {
       "id": "secretagent",
       "file": "walk_west_4.png",
-      "width": 18,
-      "height": 76,
-      "foot": 111,
-      "hash": "669dfa360722d61494d71c69ce986c1474fa3f6250f6a7bfd7d56288ba143985"
+      "width": 41,
+      "height": 74,
+      "foot": 110,
+      "hash": "7cca8d508ae0e26c78fc99cc7507818bcb0eac7b974334dab3f8d6add1d7c3ee"
     },
     {
       "id": "secretagent",
       "file": "walk_west_5.png",
-      "width": 29,
-      "height": 75,
-      "foot": 111,
-      "hash": "247ba3ec06467e66490b7ec7c957ca1e4cfd68f93e714e2e444e4601b5a07b11"
+      "width": 30,
+      "height": 73,
+      "foot": 109,
+      "hash": "8255b14f15928cc53356ed9d68b98051aa6de4aafe3400cb3b157c381931827b"
     },
     {
       "id": "secretagent",
       "file": "walk_west_6.png",
-      "width": 38,
-      "height": 74,
-      "foot": 111,
-      "hash": "deee5f54bde75e966f0945522b3f917421908a5bd67d86bff05071818f1db9bf"
+      "width": 20,
+      "height": 73,
+      "foot": 108,
+      "hash": "0d6435348fa08d07a3aac29faeff09d8d43d654fe7e945e8dfd60acd7e38950f"
     },
     {
       "id": "secretagent",
       "file": "walk_west_7.png",
-      "width": 30,
-      "height": 76,
-      "foot": 112,
-      "hash": "40c307adac925f98d52845b62c191ea7be589963bdd9f19325acb7df2d69a584"
+      "width": 22,
+      "height": 74,
+      "foot": 108,
+      "hash": "13a8352ae35e668e75e8eec419cd4ca9e32f8eef9a20ada31e77ba0dfcb6365a"
     },
     {
       "id": "secretagent",
       "file": "walk_west_8.png",
-      "width": 18,
-      "height": 76,
-      "foot": 112,
-      "hash": "3b214ff84e1e1666ca30287bcb6c816e775641c2b1e9853bd89e543f9ab5a50b"
+      "width": 36,
+      "height": 74,
+      "foot": 109,
+      "hash": "efbd28d75dde565048f3abe9e796219e96e5f16eb999221cd20816110142d20d"
     },
     {
       "id": "skeleton",
@@ -1959,71 +1959,71 @@
       "width": 21,
       "height": 76,
       "foot": 112,
-      "hash": "de6c831ae699b7093b3bef00627820354c0f340f9647459991d225fd87fde4a1"
+      "hash": "a823d363abd61802b9cb6c4aa63f4be4da83a064228a5c67f6016d6bdf5a5dff"
     },
     {
       "id": "skeleton",
       "file": "walk_east_1.png",
-      "width": 21,
-      "height": 77,
+      "width": 25,
+      "height": 76,
       "foot": 112,
-      "hash": "46114b4c89aa9edb9d1c19b33f2fd118140e68330a1bde32369bb76553f57e2c"
+      "hash": "0b41471469137aed6c93a87386b90227da042f233caa743da6774ab57f574304"
     },
     {
       "id": "skeleton",
       "file": "walk_east_2.png",
-      "width": 33,
-      "height": 78,
+      "width": 37,
+      "height": 76,
       "foot": 112,
-      "hash": "a66e45b60fc8d9f0ee2bca16b6d7c64e2dbc02cddbd707e446aea8ec874342b3"
+      "hash": "e4d0bbbbcad540ad4b22eb2a9d1754f3466f2a9e52de713c16aa729416b2127d"
     },
     {
       "id": "skeleton",
       "file": "walk_east_3.png",
-      "width": 37,
-      "height": 76,
+      "width": 44,
+      "height": 75,
       "foot": 112,
-      "hash": "7818c0b662ee10099f60897aada45e789e18d7b52075f658db13eb07b63d2249"
+      "hash": "dea912fb7e5e0af88124b2f80cd82bcd3baaf7201b9cb22533daa6666f6b203c"
     },
     {
       "id": "skeleton",
       "file": "walk_east_4.png",
-      "width": 37,
+      "width": 44,
       "height": 75,
       "foot": 112,
-      "hash": "1f3b058e810d84fdfe61d2f89d799153eff52ff7fbb2f946eb446df2220f4921"
+      "hash": "8d132530ef09a00628e3dc12387b01784aff20a62137a95ffc6bfd8fdfacee93"
     },
     {
       "id": "skeleton",
       "file": "walk_east_5.png",
-      "width": 32,
-      "height": 75,
+      "width": 35,
+      "height": 74,
       "foot": 111,
-      "hash": "e2887720f4f6ae1de13ae822f3623ae235d8ea77cfc451b2ce7533f167f594bb"
+      "hash": "b833bc84c7a4c41d798ce77fa47850f83f0bb0f67887117df0c1e11e4889fd83"
     },
     {
       "id": "skeleton",
       "file": "walk_east_6.png",
       "width": 25,
       "height": 75,
-      "foot": 110,
-      "hash": "55479e5f039fe2b08c6bb20d953c0a133d3d5d5614dabb7cff362e75ab4079dd"
+      "foot": 111,
+      "hash": "a86cfe6399a6686a191a96c48cd85e82ab7b23c76816f8b9d2ac46e9831e076e"
     },
     {
       "id": "skeleton",
       "file": "walk_east_7.png",
       "width": 21,
-      "height": 76,
-      "foot": 110,
-      "hash": "8caf692e9e7d472e42e0b1b8c0169439b84af5d2700ac54b04d86d379a1684ef"
+      "height": 75,
+      "foot": 111,
+      "hash": "4809d9c0eac766eb1c34f0b8eb05abfa2ea439f364d64388808676ce67489753"
     },
     {
       "id": "skeleton",
       "file": "walk_east_8.png",
-      "width": 21,
+      "width": 32,
       "height": 76,
       "foot": 112,
-      "hash": "a24ee99fcc157bfa1307da201009f8f0dc903890283376f31a794bedb1f94468"
+      "hash": "0597f087983db46051acf616f2edbe0d5335568a9dccdf723201cdadf9d50dee"
     },
     {
       "id": "skeleton",
@@ -2031,71 +2031,71 @@
       "width": 28,
       "height": 76,
       "foot": 112,
-      "hash": "4abf43e2e327304273de458f8a0c02072378e5069c0b81292394b58cf82e8694"
+      "hash": "5bf79add82774cde27e5087e273fe42df5b61bffdc9a21f8858e4a5a7511bc65"
     },
     {
       "id": "skeleton",
       "file": "walk_north-east_1.png",
-      "width": 30,
+      "width": 33,
       "height": 77,
       "foot": 112,
-      "hash": "bda8ef50bd002a5a743b532dda93517720f95fab0dc96895fc18311a6503e36e"
+      "hash": "ea45bf92cc11537b2aa993e7060288711149cdd4a75e14724c23120a60f7ed49"
     },
     {
       "id": "skeleton",
       "file": "walk_north-east_2.png",
-      "width": 33,
-      "height": 78,
-      "foot": 112,
-      "hash": "81a25d714f9c23da89570c2343364839cf5665afa67f562236ce160d82c218d5"
+      "width": 37,
+      "height": 76,
+      "foot": 111,
+      "hash": "c547ee54c1b18c041e6ba6200e7dc02adb3eb74a8cf4cefae1e62da1ded4b6f0"
     },
     {
       "id": "skeleton",
       "file": "walk_north-east_3.png",
-      "width": 35,
+      "width": 42,
       "height": 76,
       "foot": 112,
-      "hash": "db214c14d3a407ab1a6b543a83b72fb78e68ee1adc57e8ef2de611398192dfeb"
+      "hash": "7a8e8a9201b5a17993ecba6d834132ccbb5b8bf18903f11512e2a7bbc692c34d"
     },
     {
       "id": "skeleton",
       "file": "walk_north-east_4.png",
-      "width": 32,
-      "height": 75,
+      "width": 36,
+      "height": 76,
       "foot": 112,
-      "hash": "ac0f1d6f1effde6c02198660f7a99c208c3f682bfcbcaa4c67789969b450f9a7"
+      "hash": "23a18ef679b976dd739a15e8a46d68c1bc5ad911006d5a3aa59b37cf77830a67"
     },
     {
       "id": "skeleton",
       "file": "walk_north-east_5.png",
-      "width": 30,
-      "height": 75,
-      "foot": 111,
-      "hash": "37ae37848062c90dace26d32896111c39d4ca75ad3bdb5ed2d596edfdf83f523"
+      "width": 28,
+      "height": 76,
+      "foot": 112,
+      "hash": "06e2b63dd09307412934b33813c26c23f8a7a2799006db4574819b39971ebae9"
     },
     {
       "id": "skeleton",
       "file": "walk_north-east_6.png",
-      "width": 28,
+      "width": 23,
       "height": 75,
-      "foot": 109,
-      "hash": "5b50ef6953a8e591bc103530c5607138161c9b8dadf20ef9f9417a54d97c5136"
+      "foot": 110,
+      "hash": "110fb9a0568b2918a7f10a1e9aa5b5b297b3c1f0b9245bbcb574ceb258036bb2"
     },
     {
       "id": "skeleton",
       "file": "walk_north-east_7.png",
-      "width": 27,
-      "height": 76,
+      "width": 30,
+      "height": 75,
       "foot": 110,
-      "hash": "d681b223d764fdc87253fdf512293e94daf15cafd70988167103bfbe224716ee"
+      "hash": "e268e66558adb1fb24de1dc245fd8fcff2fec0ef61244344af7ac582da87e5e6"
     },
     {
       "id": "skeleton",
       "file": "walk_north-east_8.png",
-      "width": 28,
-      "height": 76,
-      "foot": 112,
-      "hash": "fb14491e7542e8fdd50539ad9beab36cadc33b9166e169cb9083d7078521a63a"
+      "width": 38,
+      "height": 74,
+      "foot": 110,
+      "hash": "4923d5dd6e5e97614b482660e70e3c8455f1c673b797170959aa7bc6ed80889f"
     },
     {
       "id": "skeleton",
@@ -2103,71 +2103,71 @@
       "width": 29,
       "height": 76,
       "foot": 112,
-      "hash": "502e6253202159f4acad2fedbc7f378aac14d8aa6f3ae93c15d9504b5b009f6d"
+      "hash": "3260f324495705e7ebe08818cb7b545fb3f4b180ddb2638b4811a436c63c6fab"
     },
     {
       "id": "skeleton",
       "file": "walk_north-west_1.png",
-      "width": 28,
+      "width": 35,
       "height": 76,
       "foot": 112,
-      "hash": "6733e5d3c7a8853aa0bef64c8a603a14158c16e6c205b0411585d6b81fa281d9"
+      "hash": "b6f9ffca13eb0c25df9ca4d1f6fc8d0f34e1eb4049550cc7c854652ee28884bf"
     },
     {
       "id": "skeleton",
       "file": "walk_north-west_2.png",
-      "width": 26,
-      "height": 77,
+      "width": 39,
+      "height": 76,
       "foot": 112,
-      "hash": "86c6807dc464b5788af6121c340ebbc40a66846dfca73c4390b78da9ec1799fd"
+      "hash": "ecdcdd66ea553bef3c5e3cd13b66dcd9134080f4c8dbf2a1445e45b3401ad3ab"
     },
     {
       "id": "skeleton",
       "file": "walk_north-west_3.png",
-      "width": 23,
-      "height": 75,
-      "foot": 110,
-      "hash": "a66dd6029ddab32e9e42d74d433fed2792b833474924433fcbf43cd3fb2b5b07"
+      "width": 36,
+      "height": 76,
+      "foot": 112,
+      "hash": "e5d816421388152cf33d7680ef415516b60aef1c4936143f1561d9bd77c28a33"
     },
     {
       "id": "skeleton",
       "file": "walk_north-west_4.png",
-      "width": 26,
+      "width": 31,
       "height": 75,
-      "foot": 110,
-      "hash": "728c4f87b2f065356dfcc204234c33f18d7b619d4c37bb94d7a07bb3affbc848"
+      "foot": 111,
+      "hash": "b2df9e488b39d783a8a76c015b27f24aa656a29e04601ae4431718200e3da595"
     },
     {
       "id": "skeleton",
       "file": "walk_north-west_5.png",
-      "width": 31,
-      "height": 75,
+      "width": 26,
+      "height": 74,
       "foot": 110,
-      "hash": "a26d5603f8f05b72238f8a2e9d4f2303a40b5fe7f8c258f3003b39276a6ae8d2"
+      "hash": "e0e0237b2b245bf1634d71e013d5b8b3cacefdaa542401413edfa9e208e46b18"
     },
     {
       "id": "skeleton",
       "file": "walk_north-west_6.png",
-      "width": 30,
-      "height": 76,
+      "width": 26,
+      "height": 75,
       "foot": 111,
-      "hash": "1e8310115ac7d2d23685f252697d5451da0467a00812763058082398a477ef02"
+      "hash": "0bbe210d616ece7fc485fcf19ae310a0359e80da2c7c1251bb273f27a03989c5"
     },
     {
       "id": "skeleton",
       "file": "walk_north-west_7.png",
-      "width": 27,
-      "height": 76,
-      "foot": 112,
-      "hash": "7c6267d689b9de860e731a97451ad3684f788967ac51fdcb3f7c2bac95114549"
+      "width": 34,
+      "height": 75,
+      "foot": 111,
+      "hash": "2a390899b3dac9eeedc170653190335e2c9541f93032bd882651c4b78bdee438"
     },
     {
       "id": "skeleton",
       "file": "walk_north-west_8.png",
-      "width": 29,
-      "height": 76,
-      "foot": 112,
-      "hash": "c87be31fcdf82a5bd55030b44101d679de88b22cc6d05cbd7fbc7ff5adc062f6"
+      "width": 40,
+      "height": 75,
+      "foot": 111,
+      "hash": "832631f90e2d9ee2932d6709871929822b17e8a4d597ec7efacb69cf7e52d90a"
     },
     {
       "id": "skeleton",
@@ -2247,71 +2247,71 @@
       "width": 30,
       "height": 76,
       "foot": 112,
-      "hash": "08d93605ec5a25e396098ee36e1580238b6e3f47cd9add1fd9b6edfde2a039be"
+      "hash": "212521c3e050ae2ed8e521788d9a0a4d606b560e5a76c0f02465fedef5914106"
     },
     {
       "id": "skeleton",
       "file": "walk_south-east_1.png",
-      "width": 31,
-      "height": 75,
+      "width": 26,
+      "height": 76,
       "foot": 111,
-      "hash": "5d46ad5cc5b9cb5b82e4412067056413db1a819df8b18dec36ad9195b264bf4c"
+      "hash": "d33064918990a2fa9731bb4ebfc0c63afab6c239b7ca7d200e745fc27e3cedc5"
     },
     {
       "id": "skeleton",
       "file": "walk_south-east_2.png",
-      "width": 29,
+      "width": 32,
       "height": 76,
-      "foot": 111,
-      "hash": "6ed8f9890b06c59a16a4c5b8c1c4311776edde119b773717ca1bd53d182c79e7"
+      "foot": 110,
+      "hash": "6b8607415d4a9d94ea1057132bbacb8aad9f0a6d895ef14087e4d42121c874f8"
     },
     {
       "id": "skeleton",
       "file": "walk_south-east_3.png",
-      "width": 28,
+      "width": 44,
       "height": 75,
-      "foot": 110,
-      "hash": "1e35c2fad64acb97b6a01274d481502be4e67a1d4a79c1568673dcf16dc8bb75"
+      "foot": 109,
+      "hash": "6401bc7a9d66608dfb760faa74dc0ec233285299af0dc64a8ede3c0ed47a1e95"
     },
     {
       "id": "skeleton",
       "file": "walk_south-east_4.png",
-      "width": 25,
-      "height": 76,
-      "foot": 112,
-      "hash": "309e9b0c170f72f666c7cad5fac5afcc040b000e2a06aeb919de25bfa4059dac"
+      "width": 49,
+      "height": 75,
+      "foot": 110,
+      "hash": "9720172386c393851a3fe14139720de7c7727de3f78b5552f96bdbc65eaf3e2c"
     },
     {
       "id": "skeleton",
       "file": "walk_south-east_5.png",
-      "width": 22,
-      "height": 77,
-      "foot": 112,
-      "hash": "4532235177e24f700950b1d921f24a9fa346ab81b51886c753ce370a507441fd"
+      "width": 39,
+      "height": 75,
+      "foot": 111,
+      "hash": "7e2ec70d5798a44f862e080b2ca16e8621054095f506310cf4fb35411424c6b7"
     },
     {
       "id": "skeleton",
       "file": "walk_south-east_6.png",
-      "width": 23,
-      "height": 78,
-      "foot": 112,
-      "hash": "0c86687d0d2c61e59df72be6d278ace506867c5d6d085b7a37ba849ead198440"
+      "width": 32,
+      "height": 75,
+      "foot": 110,
+      "hash": "55d5369f7604e29dc1c92f99b7c45b397f5f056087c037d048a3b6615af45d36"
     },
     {
       "id": "skeleton",
       "file": "walk_south-east_7.png",
-      "width": 27,
-      "height": 77,
-      "foot": 112,
-      "hash": "254f64bd31613f3ed83248077e78df5d47cbbaea9793555d430896f89525b5c7"
+      "width": 25,
+      "height": 75,
+      "foot": 109,
+      "hash": "da4ebd46759e329bbbfb8d9ecb91dcda9caf6223ad1d547989e6aaf6fc2ffd17"
     },
     {
       "id": "skeleton",
       "file": "walk_south-east_8.png",
-      "width": 30,
-      "height": 76,
-      "foot": 112,
-      "hash": "5caf3e5b02beaab77a0a3dac9c755107f13d7d93cf74b17f86a5a92a72725330"
+      "width": 31,
+      "height": 75,
+      "foot": 109,
+      "hash": "73611cda77b3632a60e71045b30ffcf64408efe1209437687620ba09e7de64de"
     },
     {
       "id": "skeleton",
@@ -2319,71 +2319,71 @@
       "width": 30,
       "height": 76,
       "foot": 112,
-      "hash": "019ea417b13b4a4bcbfcd1eaa755b914c5dafeb053a00b49f8b719a0a2eecb5c"
+      "hash": "ab0e2c92c61c0316469c524071e44be9a0072ebad859a1b35ba416ee057420a3"
     },
     {
       "id": "skeleton",
       "file": "walk_south-west_1.png",
-      "width": 28,
-      "height": 75,
-      "foot": 110,
-      "hash": "f9668a17dcd8e58486ecf7a66426b87af05bdcc92a1312ff2f7104b5ea2de0de"
+      "width": 33,
+      "height": 77,
+      "foot": 112,
+      "hash": "33eb89e06c35fad5832307bbe4a4420c14f2dd132e8dffd2af058f3ef8801344"
     },
     {
       "id": "skeleton",
       "file": "walk_south-west_2.png",
-      "width": 25,
-      "height": 75,
-      "foot": 109,
-      "hash": "2da2b82bba34fc358cfb408199c32078db18fc1e5e8f667ae40b148cbde43bfa"
+      "width": 37,
+      "height": 77,
+      "foot": 111,
+      "hash": "0a0c50955b12b480de03993ac14f0867998efb552fa89659aec5b7a9bb5632d3"
     },
     {
       "id": "skeleton",
       "file": "walk_south-west_3.png",
-      "width": 23,
-      "height": 75,
-      "foot": 110,
-      "hash": "437ca1a0acf68049910e8dab24fee80c7302b8154b879a5bac98feebea22738c"
+      "width": 39,
+      "height": 77,
+      "foot": 111,
+      "hash": "51cebe1838def5151c2f205cf3d5e060fa47689ad89cbae1b50ba3028240f67b"
     },
     {
       "id": "skeleton",
       "file": "walk_south-west_4.png",
-      "width": 23,
-      "height": 75,
-      "foot": 111,
-      "hash": "9962df1fdc4f7a20a1fe7cd5fcd7904877bc6cd4e837accfeb238afab73a4ff7"
+      "width": 35,
+      "height": 77,
+      "foot": 112,
+      "hash": "eeedc48c42ddaaf2567b752b870b0460637fe9dd8cffc3415bd6c869aad25df7"
     },
     {
       "id": "skeleton",
       "file": "walk_south-west_5.png",
-      "width": 22,
-      "height": 77,
+      "width": 31,
+      "height": 76,
       "foot": 112,
-      "hash": "74c810994e8399869587b814f3dc5bc8e1d8fed74bc612c6f6973d9f4d0556c6"
+      "hash": "8fc705d0819fb83d513e871b61bd41e8966e2386759deca49249d442cf349484"
     },
     {
       "id": "skeleton",
       "file": "walk_south-west_6.png",
-      "width": 25,
-      "height": 77,
-      "foot": 111,
-      "hash": "edcbf1a9d0412416f981f4af8f698b277f2cbfeb509d128643ffe9c1fc8d31f9"
+      "width": 27,
+      "height": 76,
+      "foot": 112,
+      "hash": "6dd06ca83c7440bbd76a8a98b0ad12d48bda5e257ca0a7a84f21e1817ffbc040"
     },
     {
       "id": "skeleton",
       "file": "walk_south-west_7.png",
-      "width": 27,
-      "height": 77,
-      "foot": 111,
-      "hash": "2a03cf5789b2d9c6a6183fd2c5bcb704723c61d36bcca61ac7cf9cde4d80fb25"
+      "width": 29,
+      "height": 75,
+      "foot": 110,
+      "hash": "199eed7fce15fa818f6159d44d2b5acffb6aed384e4860342d436e5fbf0b7080"
     },
     {
       "id": "skeleton",
       "file": "walk_south-west_8.png",
-      "width": 30,
-      "height": 76,
-      "foot": 112,
-      "hash": "f04d84ef5b70b48974b8c9a893377777136c7ba6a328bbea734c84878bce91d1"
+      "width": 35,
+      "height": 75,
+      "foot": 109,
+      "hash": "dbd3b6288a86fda629fb8f562a658781a5b3ab21206cd6bd5521579b2ede75b0"
     },
     {
       "id": "skeleton",
@@ -2799,71 +2799,71 @@
       "width": 19,
       "height": 76,
       "foot": 112,
-      "hash": "2a057d839ca541b10906ea819d532bbe7db03fcf17839c845873fdcccd6aca10"
+      "hash": "60d5e8e138e4e56f5be4e00dac8e57ecf176057c82b9d946b64ce7737cafa810"
     },
     {
       "id": "ultron",
       "file": "walk_east_1.png",
-      "width": 22,
+      "width": 32,
       "height": 76,
-      "foot": 111,
-      "hash": "074ac67265c414ba54e6af7cee09c81bd2c07deda940fb672d493f89e769ce36"
+      "foot": 112,
+      "hash": "4b4912b1ffae8c90e36d83bf478053eed195e67f6168812b596130bdef91995f"
     },
     {
       "id": "ultron",
       "file": "walk_east_2.png",
-      "width": 24,
+      "width": 43,
       "height": 76,
-      "foot": 110,
-      "hash": "cb13d0409857042cd5a2908344c4d15a7d3c369450e4fd9e7f4a50afca8607ed"
+      "foot": 112,
+      "hash": "648ad3052886a454833c58cbc6422302f121fb7adfb7547541a9e96f3ba9dae9"
     },
     {
       "id": "ultron",
       "file": "walk_east_3.png",
-      "width": 31,
-      "height": 76,
+      "width": 47,
+      "height": 75,
       "foot": 111,
-      "hash": "40659438f01d2546aac40c4bda16650507157ffb36512bd058b70cea3099ac7b"
+      "hash": "dc40991ab2cea771dcf05899d5ed3396d344e89532add1621e09dc35b25365d3"
     },
     {
       "id": "ultron",
       "file": "walk_east_4.png",
-      "width": 33,
-      "height": 76,
-      "foot": 112,
-      "hash": "2ff0f78306c06b3fba3cf6bc33e519d8ee11ac267b994a8421b0971b0b5be941"
+      "width": 36,
+      "height": 74,
+      "foot": 110,
+      "hash": "1bf12ba7fcf6b83c69e748c169d9ea8b5868c717a8786a1adb96c0730a00bd05"
     },
     {
       "id": "ultron",
       "file": "walk_east_5.png",
-      "width": 32,
-      "height": 76,
-      "foot": 112,
-      "hash": "4650606682b442b24063d58a8190806bbff19be8102f76ba5f086f37dd45d9b6"
+      "width": 23,
+      "height": 75,
+      "foot": 111,
+      "hash": "c95d39f2e3b779bf2307a2c8cbf441d03ad54b310ade1fd7b2c8c157f5bfddf0"
     },
     {
       "id": "ultron",
       "file": "walk_east_6.png",
-      "width": 28,
-      "height": 78,
-      "foot": 112,
-      "hash": "9d2df16b029471be83700959eef481c47a92160ef46dca76120b4a42cfed16cf"
+      "width": 22,
+      "height": 74,
+      "foot": 110,
+      "hash": "e19499cc44624ea3e70ef1019e080c972ab9c349adff98d3eb9ba49e53eac284"
     },
     {
       "id": "ultron",
       "file": "walk_east_7.png",
-      "width": 21,
-      "height": 78,
-      "foot": 112,
-      "hash": "fb373d339f16011cb39f79a254939f60707c2a33bf2a2e3572073cfae87335c3"
+      "width": 36,
+      "height": 74,
+      "foot": 110,
+      "hash": "08b040ce572bf058df1b08699ff9b7cb13d09fc5983b387f1382b33acfe24494"
     },
     {
       "id": "ultron",
       "file": "walk_east_8.png",
-      "width": 19,
-      "height": 76,
-      "foot": 112,
-      "hash": "96915a707fa792ecafebe1da0a97e05008201b05eab958a54403f935e71e52ff"
+      "width": 45,
+      "height": 75,
+      "foot": 111,
+      "hash": "f62a984a0fbf6fd57ecda6cff4244f4b18a8386ad15662b71271c2ca210c3f2a"
     },
     {
       "id": "ultron",
@@ -2876,66 +2876,66 @@
     {
       "id": "ultron",
       "file": "walk_north-east_1.png",
-      "width": 33,
+      "width": 35,
       "height": 77,
       "foot": 112,
-      "hash": "2162bb1ee6b4669e1ae47d62c179678a77e0e76ec1a293c530187130097134f7"
+      "hash": "c06ab002abefb08fff02ef483f1e29f2aa42e75d076818f55a74817f464c17bf"
     },
     {
       "id": "ultron",
       "file": "walk_north-east_2.png",
-      "width": 35,
+      "width": 39,
       "height": 78,
       "foot": 112,
-      "hash": "b43e3bbd865fb4d9816d14cead9033b5a6a5e49224126fee077738261d20b91a"
+      "hash": "e1e15f0c8b7dcec3c9e94bf54ba0818765c49ac09aa790e1990ce2058c7396d3"
     },
     {
       "id": "ultron",
       "file": "walk_north-east_3.png",
-      "width": 35,
-      "height": 77,
+      "width": 41,
+      "height": 76,
       "foot": 112,
-      "hash": "315da019558c2969949f7245bcb84f989a19542d6902c1540b2fd876b76d8be5"
+      "hash": "675d0634931280239cd2fb60cbbe672e3721ca8b83d5fc74793657ed1678c70b"
     },
     {
       "id": "ultron",
       "file": "walk_north-east_4.png",
-      "width": 32,
-      "height": 77,
-      "foot": 113,
-      "hash": "81b672adaf8b0877516c58248960117dbcfc879afa95466aa0ab9e47b4ea8964"
+      "width": 36,
+      "height": 75,
+      "foot": 112,
+      "hash": "b1dc60b693ab7948e86e6d459237626493deccb2a7bd0d57dddfcd6c691ae340"
     },
     {
       "id": "ultron",
       "file": "walk_north-east_5.png",
-      "width": 29,
-      "height": 76,
-      "foot": 111,
-      "hash": "798b75400bdd1f4ac23a7eeacddeb56eea6720e4ff3387d7c31afaa7cff388ee"
+      "width": 30,
+      "height": 74,
+      "foot": 110,
+      "hash": "26744435da3992b3f066657e277880240fefb1ad07436bcefa448a01242dd88e"
     },
     {
       "id": "ultron",
       "file": "walk_north-east_6.png",
       "width": 27,
-      "height": 75,
-      "foot": 109,
-      "hash": "33bc485de5d3da59e62681915ca17f8c968990ed1dfd938fc516e383c2266cd9"
+      "height": 76,
+      "foot": 110,
+      "hash": "94a550831b6a905d28f08291aaa89a1fab8d1dc5e7d341aaae33c24f783fadd4"
     },
     {
       "id": "ultron",
       "file": "walk_north-east_7.png",
-      "width": 28,
+      "width": 33,
       "height": 76,
       "foot": 110,
-      "hash": "87e213756f6754d7c7b1f22c3dcea5ff455aa299207cfc716e110a6c47efb932"
+      "hash": "ba517e9b228159cb5fa745875cfbbb5fbe8167df715e9eeb8d313a483901eadb"
     },
     {
       "id": "ultron",
       "file": "walk_north-east_8.png",
-      "width": 30,
-      "height": 76,
-      "foot": 112,
-      "hash": "77691a1fe58180590bbed8459bf5db3b56b8c8dabdcdf41bf1da50c5e50b5607"
+      "width": 43,
+      "height": 74,
+      "foot": 110,
+      "hash": "2abdd81477aaa0d1c34fede23995c1303d5e8c6e09d607ebc0983fa5077392f5"
     },
     {
       "id": "ultron",
@@ -2948,66 +2948,66 @@
     {
       "id": "ultron",
       "file": "walk_north-west_1.png",
-      "width": 26,
+      "width": 33,
       "height": 77,
       "foot": 112,
-      "hash": "d3452cffd496bd381495774afc63efc648fd450c40b62f1722f63d5ca0dbd5d3"
+      "hash": "467b736dc57fb50b743880d599be4df9739228a55b6a946586bb2add53edbb23"
     },
     {
       "id": "ultron",
       "file": "walk_north-west_2.png",
-      "width": 27,
-      "height": 79,
+      "width": 39,
+      "height": 76,
       "foot": 112,
-      "hash": "89e51576ab0297ab1e08dcbc492fb1f83294254b7903f144c65ace0a2129aeb9"
+      "hash": "83c85232398290f1a60e9c1816c0e6d14c5765d86a57af4ca661165c3d4007b5"
     },
     {
       "id": "ultron",
       "file": "walk_north-west_3.png",
-      "width": 29,
-      "height": 78,
+      "width": 39,
+      "height": 76,
       "foot": 113,
-      "hash": "ddda14a44e776ff319b4f2fa6a74de8112379ef5a6ea3fc4a77b1d65f8f77435"
+      "hash": "0e569097948e3130a2e7f10b59df80235445813439ac6d78beaa7a9bf15fbbcc"
     },
     {
       "id": "ultron",
       "file": "walk_north-west_4.png",
-      "width": 31,
-      "height": 79,
-      "foot": 115,
-      "hash": "1959faac2e9a84314b294639c4d9d446fa30cea1228a2930c398f6c6b5744bb7"
+      "width": 33,
+      "height": 76,
+      "foot": 112,
+      "hash": "f4141af4869b043869468edfb5482719446ff9cecb88f00bb8ffaa6533229f27"
     },
     {
       "id": "ultron",
       "file": "walk_north-west_5.png",
-      "width": 31,
-      "height": 79,
-      "foot": 114,
-      "hash": "f3e7c87b163138a637bb28bfdee435fa7b423b78fa24b65d200f417326a02e4e"
+      "width": 28,
+      "height": 75,
+      "foot": 110,
+      "hash": "2dac58ff08146e5f2cc85f65c5b2750a219474d9023bd80e962c6e6e9df8f590"
     },
     {
       "id": "ultron",
       "file": "walk_north-west_6.png",
-      "width": 30,
-      "height": 80,
-      "foot": 113,
-      "hash": "b1c860d77adee48d18d288460a64ca9ffe764a4bf0cd7470f3a01375ac45f397"
+      "width": 24,
+      "height": 75,
+      "foot": 110,
+      "hash": "15927bd2487bf25951e461eb2ae9eeb0d62624ae9a899dc7cdb960948d4c0345"
     },
     {
       "id": "ultron",
       "file": "walk_north-west_7.png",
-      "width": 30,
-      "height": 77,
-      "foot": 111,
-      "hash": "5ca35e7a76a25d30a47b760586af68e5e63051ed0e794317f808b1ad350db137"
+      "width": 34,
+      "height": 74,
+      "foot": 110,
+      "hash": "e56faa5d7be7c142bd9075ad540337895ce6ffd19bbd529cef1829d9c21d42b8"
     },
     {
       "id": "ultron",
       "file": "walk_north-west_8.png",
-      "width": 28,
-      "height": 76,
-      "foot": 112,
-      "hash": "5d480ca347c177c57613f864e4cb009cc26cd5ad58db5033c68529a705503b75"
+      "width": 42,
+      "height": 74,
+      "foot": 111,
+      "hash": "b04bdb9361cde39abed3c03269eda884b6578d3e5d42ee1430c219eac6b325c8"
     },
     {
       "id": "ultron",
@@ -3087,71 +3087,71 @@
       "width": 32,
       "height": 76,
       "foot": 112,
-      "hash": "ec9fba96aba21964c91bbcc71be55edd5509c4a0a7e3e6ce6f823fffcf3d8f5e"
+      "hash": "8b799be4a07520930d61c75931b3bf398faf68676e8f48e28f3af0c621cb833a"
     },
     {
       "id": "ultron",
       "file": "walk_south-east_1.png",
       "width": 32,
-      "height": 76,
-      "foot": 112,
-      "hash": "5db5f60b4f3890e2174ca649900a29781da10b9931c860468db42dcaf63fdd31"
+      "height": 75,
+      "foot": 111,
+      "hash": "9b4e86d1e2c111b17f95abd99e3565030eb4585b6254a3b891672b2a0bffd44c"
     },
     {
       "id": "ultron",
       "file": "walk_south-east_2.png",
-      "width": 32,
+      "width": 38,
       "height": 74,
-      "foot": 109,
-      "hash": "806f7282d10d6de53599c0c5ce9663678da3aec2306321d6ca9d74cbd40a897c"
+      "foot": 110,
+      "hash": "932635a6bc8e7cb4a030869ee595f5907dea7da0f2b515b56b70fc6d3bd8e9ee"
     },
     {
       "id": "ultron",
       "file": "walk_south-east_3.png",
-      "width": 34,
-      "height": 78,
-      "foot": 112,
-      "hash": "0ddf04e19369a75c4bc8b1b33d9ce1eaa09a1f50b398b5ffc57090c30e6c35c8"
+      "width": 41,
+      "height": 74,
+      "foot": 111,
+      "hash": "6fdb5140eca6a57eae1d06107ed826319998d6bda99c8ba3f76dc08ed01e3501"
     },
     {
       "id": "ultron",
       "file": "walk_south-east_4.png",
-      "width": 36,
-      "height": 76,
-      "foot": 110,
-      "hash": "9a638266854cf321c2d71da36eaa06d3439d2d8a2be63bd7417d39533b945373"
+      "width": 37,
+      "height": 75,
+      "foot": 112,
+      "hash": "0490a7da927af700111d7aae1ffc27048f041b4e3eaea09864b6e7fc12472ad5"
     },
     {
       "id": "ultron",
       "file": "walk_south-east_5.png",
-      "width": 37,
-      "height": 77,
-      "foot": 112,
-      "hash": "15ab9990b8167ba2dcaf9dade69c191506e7ab9e48e72a65eb59bf4cfe724993"
+      "width": 27,
+      "height": 74,
+      "foot": 110,
+      "hash": "5cc6bf5cbfca4eb3cf20f3a3d317d26d58f11468c8f680f6fd4bcee0f6c8bd32"
     },
     {
       "id": "ultron",
       "file": "walk_south-east_6.png",
-      "width": 35,
-      "height": 76,
-      "foot": 112,
-      "hash": "1a6acd52844d867d66334ce83de08c9f907796b43754c379bf66284de0215872"
+      "width": 32,
+      "height": 75,
+      "foot": 111,
+      "hash": "6f9928229757264862191824f0f6086d381ee8748f21bea60a55d638b90a3f6c"
     },
     {
       "id": "ultron",
       "file": "walk_south-east_7.png",
-      "width": 33,
-      "height": 76,
-      "foot": 112,
-      "hash": "b79d90e36303813796c4e6089e6b462ed9dd85c4b4209bfaceea06cdf37110ba"
+      "width": 36,
+      "height": 75,
+      "foot": 111,
+      "hash": "e0b5dc453aac9ecb4582c9ddc84d74fdb9675b401b11daffd4b72a139fe5e9b9"
     },
     {
       "id": "ultron",
       "file": "walk_south-east_8.png",
-      "width": 32,
-      "height": 76,
-      "foot": 112,
-      "hash": "ec9fba96aba21964c91bbcc71be55edd5509c4a0a7e3e6ce6f823fffcf3d8f5e"
+      "width": 39,
+      "height": 74,
+      "foot": 111,
+      "hash": "759bb205b6c8346e2dd8c0becda2722ac828c06975e3edb63ec2b8c5419fad62"
     },
     {
       "id": "ultron",
@@ -3164,66 +3164,66 @@
     {
       "id": "ultron",
       "file": "walk_south-west_1.png",
-      "width": 35,
-      "height": 75,
-      "foot": 110,
-      "hash": "a67d6fa848bad6c7f8aa44557637ec0a4d5fc50a8d93edd969ea95ba71b4633d"
+      "width": 33,
+      "height": 76,
+      "foot": 111,
+      "hash": "2649b5d06a857bbdafa9a145740f60c8d111e224b7828a9ace2e01a5ba6a28bb"
     },
     {
       "id": "ultron",
       "file": "walk_south-west_2.png",
-      "width": 37,
-      "height": 76,
-      "foot": 110,
-      "hash": "dc9dcfcd919db67058fca306c6312ad2e58475415c0ee335594050b703652edb"
+      "width": 38,
+      "height": 74,
+      "foot": 109,
+      "hash": "7343abcc8624bd54cb6463cb279c2d9d4fbb65ec71d9604157a016f4dcb7fe09"
     },
     {
       "id": "ultron",
       "file": "walk_south-west_3.png",
-      "width": 40,
-      "height": 76,
-      "foot": 110,
-      "hash": "fb1e9d5083ab8dfaecda42971b3a172c78fbcd0a94d279e7a0dee24da46a9dbc"
+      "width": 44,
+      "height": 75,
+      "foot": 109,
+      "hash": "98da35b86e59d6c10179e5a6efdefb794235bbc6990242aeacb665dc68a18015"
     },
     {
       "id": "ultron",
       "file": "walk_south-west_4.png",
-      "width": 40,
-      "height": 77,
-      "foot": 112,
-      "hash": "a5081b4e9b6e60d55180dc5b8886fec6f555cf7b3ec113d94447dbfb437ae1e3"
+      "width": 39,
+      "height": 75,
+      "foot": 109,
+      "hash": "b317c86bb72e293e914f6ba8a1096c384e5aa52355acd86ba8c6ce273896d6e9"
     },
     {
       "id": "ultron",
       "file": "walk_south-west_5.png",
-      "width": 36,
-      "height": 77,
-      "foot": 112,
-      "hash": "6050a0f8c351a89a4311eef97e2fd0b8270caa52347ea1ca6fa679d62a5742b4"
+      "width": 30,
+      "height": 76,
+      "foot": 110,
+      "hash": "cb20594e916d7b0c93deefc5a907c095199bac0776c5a6cea68407e89f52f53a"
     },
     {
       "id": "ultron",
       "file": "walk_south-west_6.png",
-      "width": 35,
-      "height": 78,
-      "foot": 112,
-      "hash": "d3cd9fc9f1bdd77ac6fcb60b397d599d983297b614aba4e575d76bb06e26bf08"
+      "width": 33,
+      "height": 76,
+      "foot": 111,
+      "hash": "59cc2d4d0bf10474c9c6887e3b291707bbd12c10ddb9b18e783f9399db564782"
     },
     {
       "id": "ultron",
       "file": "walk_south-west_7.png",
-      "width": 33,
-      "height": 78,
-      "foot": 112,
-      "hash": "0889874f03feb8ce5060f393c749348a81187762e46131d59da0ab236ba97cf2"
+      "width": 36,
+      "height": 77,
+      "foot": 111,
+      "hash": "ab5d7f1fc1460ca520d544963e89d4bc38ba0bdc4a20ea33d511d938f9830ee6"
     },
     {
       "id": "ultron",
       "file": "walk_south-west_8.png",
-      "width": 33,
-      "height": 76,
+      "width": 39,
+      "height": 78,
       "foot": 112,
-      "hash": "dd8680bf778462799864cecc56d6f3f5fa7b419c5de3aa6782a66f6f3e86f960"
+      "hash": "d1d61c78866c32e6a372742a4ff548cfd35f3aec66c2fb833b9e0e5748bba3b0"
     },
     {
       "id": "ultron",
@@ -3303,71 +3303,71 @@
       "width": 19,
       "height": 76,
       "foot": 112,
-      "hash": "199a96cd6328091565141c0caf7d3717180949176dd2795196809f976e8c18a7"
+      "hash": "ffa650c6c47cb91cde3739b5b8aef4020380251034d8ee052679cd55dd5c5aed"
     },
     {
       "id": "ultron",
       "file": "walk_west_1.png",
-      "width": 25,
-      "height": 75,
-      "foot": 111,
-      "hash": "49cd6f49203d004eea2e83e13f5dec91fabcdc0f8310966cb75ea7c36ca6237e"
+      "width": 22,
+      "height": 77,
+      "foot": 112,
+      "hash": "fa891dc2bd5ddee94571945ac1d2513f9219af41a3177d7937c45a92093fe45c"
     },
     {
       "id": "ultron",
       "file": "walk_west_2.png",
-      "width": 35,
-      "height": 73,
-      "foot": 110,
-      "hash": "9e7903387e02a00fc4c3596d78885a475be9d57491b020441ec5240afec7f15f"
+      "width": 33,
+      "height": 77,
+      "foot": 111,
+      "hash": "d28e56d698ff3d10428866018b6914c92ad367647056c43ce01345e066e0babc"
     },
     {
       "id": "ultron",
       "file": "walk_west_3.png",
-      "width": 34,
-      "height": 74,
-      "foot": 110,
-      "hash": "2fc1fc122323b48410ebcb09411fcc4d1570fd86b755fcf6d257f7ac99de92a0"
+      "width": 43,
+      "height": 75,
+      "foot": 111,
+      "hash": "3db2011d2229082d69d75ab3ca2691561f9bfea4753c23fd5f87a7b0f887903b"
     },
     {
       "id": "ultron",
       "file": "walk_west_4.png",
-      "width": 25,
-      "height": 76,
-      "foot": 112,
-      "hash": "db540991f8c422e872e5ae29f3577c8ab4db1e00e8534e5870609aa2e8f4ebaf"
+      "width": 43,
+      "height": 73,
+      "foot": 110,
+      "hash": "b6b03b109c608b13a114dd533c40ef2e56e13c2db65cc4a1724902f518fbf0fb"
     },
     {
       "id": "ultron",
       "file": "walk_west_5.png",
-      "width": 17,
-      "height": 76,
-      "foot": 112,
-      "hash": "fd47f7adab7f64a0742d7647fce89690eead48b013d39e65dc1b83a344c2814f"
+      "width": 33,
+      "height": 74,
+      "foot": 110,
+      "hash": "a81aebfeff09e03ca0f5ac24b5f8e067312b2241c9a3e31562a7bd4dde95f13f"
     },
     {
       "id": "ultron",
       "file": "walk_west_6.png",
-      "width": 28,
-      "height": 75,
-      "foot": 112,
-      "hash": "16781ffe567f403541be1791b92fb8164f70a2610274cc98ff0e6a3890ce8ce9"
+      "width": 24,
+      "height": 74,
+      "foot": 109,
+      "hash": "4755ba124cb780153befc0e5c6d1d5c6ad5612a5934c8bbceeb5596f75f08667"
     },
     {
       "id": "ultron",
       "file": "walk_west_7.png",
-      "width": 28,
-      "height": 76,
-      "foot": 112,
-      "hash": "ac1e280d304eafaebf14903c46b85ffcdd35d624f213ab934fad7cedaac7737c"
+      "width": 21,
+      "height": 74,
+      "foot": 108,
+      "hash": "b8746a0ca6486391fc400f403ea0f621ba1f733d5f9b3a2c6e104eff538a822f"
     },
     {
       "id": "ultron",
       "file": "walk_west_8.png",
-      "width": 19,
-      "height": 76,
-      "foot": 112,
-      "hash": "199a96cd6328091565141c0caf7d3717180949176dd2795196809f976e8c18a7"
+      "width": 27,
+      "height": 75,
+      "foot": 110,
+      "hash": "fd0a05068c8097e165ea229959cd1c54848906926ee6c4e9e491fa2b10faf0a6"
     },
     {
       "id": "voidwizard",
@@ -3639,71 +3639,71 @@
       "width": 21,
       "height": 76,
       "foot": 112,
-      "hash": "f2412f5e3f22f9d971151209d7e4509ed67285d83e044a0e30f327f18aa69c2f"
+      "hash": "9ac1eb2f4d4a8254b37b1473b299a77f4af714401f671391e13683db72af4606"
     },
     {
       "id": "voidwizard",
       "file": "walk_east_1.png",
-      "width": 28,
-      "height": 76,
+      "width": 27,
+      "height": 77,
       "foot": 112,
-      "hash": "f86ffd31b4ca6e1ef879868d49285c3246c70817df0a9ded2e9ea21728a48309"
+      "hash": "62090634244b371e1773a71c68458105f0f2e560d6761d47fba8e869ede79868"
     },
     {
       "id": "voidwizard",
       "file": "walk_east_2.png",
-      "width": 36,
-      "height": 75,
+      "width": 38,
+      "height": 78,
       "foot": 112,
-      "hash": "a4dfc6694d4260b8c96744563817cb1f25fa9b1ce1af08a6095e5498a9817b48"
+      "hash": "adcc07f9cfd0e8c11a7cd84d186272917d7f2b3d1e13966f046f81c46e3dcd30"
     },
     {
       "id": "voidwizard",
       "file": "walk_east_3.png",
-      "width": 26,
-      "height": 74,
-      "foot": 111,
-      "hash": "e3b3997ed741bde81ea5d9d069819cd2a1a525f7f18f7f97f4a9cc19b5b32417"
+      "width": 45,
+      "height": 77,
+      "foot": 112,
+      "hash": "d13abd76ab1a9834e4b205f961ce72fc649e475c72115c1d22686177227927e8"
     },
     {
       "id": "voidwizard",
       "file": "walk_east_4.png",
-      "width": 21,
-      "height": 75,
-      "foot": 111,
-      "hash": "36061a2f496f59eae2be5b26c361d5131a8810b3d21aa28005be2e5bb5146459"
+      "width": 40,
+      "height": 73,
+      "foot": 109,
+      "hash": "e2c27eaddfa83e0aa12f54d033afcb23d1310d3009f1a57f04b1d0dbea83b1d3"
     },
     {
       "id": "voidwizard",
       "file": "walk_east_5.png",
-      "width": 24,
-      "height": 75,
-      "foot": 111,
-      "hash": "5f3032c97d76ed1cbeb860161113ff50bd8b2e175a85b2338518656de35cd9ee"
+      "width": 28,
+      "height": 72,
+      "foot": 109,
+      "hash": "0747421f2a3a959279f9cded199a67ea1e173651d23916c69d5fe0dc38b3e7b8"
     },
     {
       "id": "voidwizard",
       "file": "walk_east_6.png",
-      "width": 35,
-      "height": 75,
-      "foot": 112,
-      "hash": "cf51cd95698c065b8c36678b9dec5785a59816baea206da1681e3501eccd1d09"
+      "width": 21,
+      "height": 74,
+      "foot": 109,
+      "hash": "481886bdc428cb9d4c30025c2fa7d3dac5c0993259b2f8ab4b65e9a7b617a8dc"
     },
     {
       "id": "voidwizard",
       "file": "walk_east_7.png",
-      "width": 25,
+      "width": 27,
       "height": 75,
-      "foot": 112,
-      "hash": "e6f65e244702dfe77bf44b68bdd46ae528d6183d6de59d2ddc4897ae246e3ab7"
+      "foot": 109,
+      "hash": "cc34abbc5617613280a0f0e2de9b8c23fb1abececbcee52d3323cafb0a995ad2"
     },
     {
       "id": "voidwizard",
       "file": "walk_east_8.png",
-      "width": 21,
-      "height": 76,
-      "foot": 112,
-      "hash": "8059954878bdf40ddc49eed481561f9b0e8392780db1497900aa637137161b7a"
+      "width": 40,
+      "height": 74,
+      "foot": 109,
+      "hash": "25f9d32bd16cb3648ca6d24578822d0cc9b9e507b33c20402e7a4cd4471413d2"
     },
     {
       "id": "voidwizard",
@@ -3711,7 +3711,7 @@
       "width": 31,
       "height": 76,
       "foot": 112,
-      "hash": "cf81386044c52b68e2b06a5ecb36bb666912ab95659158f03bf6e6b0dcab1a0d"
+      "hash": "fff92b9f61f706b45b5e1c2bcc58e6cb1ccb61a9659b58dd5a3216862336675a"
     },
     {
       "id": "voidwizard",
@@ -3719,63 +3719,63 @@
       "width": 34,
       "height": 77,
       "foot": 112,
-      "hash": "07f4f89d4cb3acc86b8fee4637400f4bda93aed6f028e77e15bbe97888fec334"
+      "hash": "ec58d459bb1f75f7544eb545216f08550c77d778bb7468789a5d0da432773e4c"
     },
     {
       "id": "voidwizard",
       "file": "walk_north-east_2.png",
-      "width": 37,
-      "height": 79,
+      "width": 38,
+      "height": 78,
       "foot": 112,
-      "hash": "f6d84235435a9dda03f3e1b29f920c4919e435de193fe0024daf0db41c3253de"
+      "hash": "e1f794424c0a02252864da358ab6cddc5d00dfc98b7b4ea5dc72168ed2c102b5"
     },
     {
       "id": "voidwizard",
       "file": "walk_north-east_3.png",
-      "width": 36,
-      "height": 77,
+      "width": 41,
+      "height": 78,
       "foot": 112,
-      "hash": "81c6839f4ce86b3944074a8f48caddcdb314f21c3f79d61a60daf41396ab5c70"
+      "hash": "d5d3b847c357a62dd4fb94382728dc1bbb8fc997c21ba009780e55a87d3ac3d2"
     },
     {
       "id": "voidwizard",
       "file": "walk_north-east_4.png",
-      "width": 32,
+      "width": 38,
       "height": 76,
       "foot": 112,
-      "hash": "50c95749c5785ae69f05c9f1a9ea5f7c03f6b5c41f3ae2ee6b0953d736b8d847"
+      "hash": "dee3a9e861f5063ac0f0b0253871310bcf4f095866a43cc1b64b781694a38e17"
     },
     {
       "id": "voidwizard",
       "file": "walk_north-east_5.png",
-      "width": 29,
+      "width": 34,
       "height": 75,
-      "foot": 110,
-      "hash": "a05c9df29d021b022fe2a0ff399fe7a0daa881cbc9f9b3ff9efc3c7458a4e5ce"
+      "foot": 111,
+      "hash": "084b1868e1eaab6373a09d636f8977d8cff99f06e9bb5e6dc00304693e4be765"
     },
     {
       "id": "voidwizard",
       "file": "walk_north-east_6.png",
-      "width": 27,
+      "width": 30,
       "height": 77,
-      "foot": 110,
-      "hash": "61e208e6f9e49c0ae9454c2360b71a57e4b7b83b2a4e3aec3cf9cb35cd71e43d"
+      "foot": 112,
+      "hash": "2b9b43a3c83a1fdcc8a88468d69dd7d9efca0fe9900e94b8bfedf45d9cf46e89"
     },
     {
       "id": "voidwizard",
       "file": "walk_north-east_7.png",
-      "width": 29,
-      "height": 75,
-      "foot": 110,
-      "hash": "deca2090c01e9a70f7ffa8ed8dc33d61938d150cd636764d02707eb343a222dc"
+      "width": 26,
+      "height": 77,
+      "foot": 111,
+      "hash": "0bdfc319ea349f0084189614678bccdcbac0073b8e8ab95657182a7697e63205"
     },
     {
       "id": "voidwizard",
       "file": "walk_north-east_8.png",
-      "width": 31,
+      "width": 30,
       "height": 76,
-      "foot": 112,
-      "hash": "4db33a40559da0cb71e4809e06c2f19085767b4f049a70ccfb78a638b52d18fe"
+      "foot": 110,
+      "hash": "258f0b7526ab3f20b37d55a7901493f7948392abf6e3a32ec7add01965bb8f02"
     },
     {
       "id": "voidwizard",
@@ -3783,7 +3783,7 @@
       "width": 30,
       "height": 76,
       "foot": 112,
-      "hash": "7607878f76db9604037890a65074d7a19272cbb288f5b728aad1397702fdc661"
+      "hash": "1f49e97434cd3617305d524b058886a88e8dee16efce7b00dc529d5644156968"
     },
     {
       "id": "voidwizard",
@@ -3791,63 +3791,63 @@
       "width": 28,
       "height": 77,
       "foot": 112,
-      "hash": "5c646119e3c93c91a39355734bab679e2eec43e5673b16e40ad9a9ef678ed096"
+      "hash": "51fc349d035c4778ae8efa410c9a69690ba23562e6bf04d26274ceb435df614b"
     },
     {
       "id": "voidwizard",
       "file": "walk_north-west_2.png",
       "width": 26,
-      "height": 78,
+      "height": 77,
       "foot": 112,
-      "hash": "3de63506f17215b38a01bd88718af225a5cc2b1e76a62e99c609623d7fd752ca"
+      "hash": "975944af90f62b4bbbf2a54c0c70b1ae589318bda5d28b290f2873cb4fcb4af3"
     },
     {
       "id": "voidwizard",
       "file": "walk_north-west_3.png",
-      "width": 26,
+      "width": 24,
       "height": 77,
-      "foot": 112,
-      "hash": "33e5f6a49c0db47133438ad0c4a601684b219240fbee79e0dbc7d8b678eacbdc"
+      "foot": 111,
+      "hash": "d4e9515beec2d9e4f96ba28b728c5d81e5ab604e0e7393d727e00b74cd32667d"
     },
     {
       "id": "voidwizard",
       "file": "walk_north-west_4.png",
-      "width": 26,
-      "height": 76,
-      "foot": 112,
-      "hash": "45a503531df05ac20d1f7e117dc027954d2ad33c0944fe294d37b06b5487383a"
+      "width": 25,
+      "height": 77,
+      "foot": 111,
+      "hash": "2a567b1d7acbeeed7a899522658280f16cb33291f99f0eec54258b9291d95053"
     },
     {
       "id": "voidwizard",
       "file": "walk_north-west_5.png",
-      "width": 24,
-      "height": 77,
-      "foot": 112,
-      "hash": "fc86d85bba8d031985f50b4544e1dced4a5f61fa5d4d732a7ce0e2781d11025d"
+      "width": 26,
+      "height": 78,
+      "foot": 111,
+      "hash": "8eaffb8c3d4308c3de67dd020a0a33d0946472db5a9f4c3c6b48bd646d33326e"
     },
     {
       "id": "voidwizard",
       "file": "walk_north-west_6.png",
-      "width": 25,
-      "height": 76,
-      "foot": 110,
-      "hash": "73e1a7fff489fee1d43eeb5133c1ba0868c8ac03731ad87413cdf088deccdb56"
+      "width": 29,
+      "height": 77,
+      "foot": 111,
+      "hash": "259612d008921a88a3a5f888bdd3b8539af99b1310bf1efd07e283dafe698f9e"
     },
     {
       "id": "voidwizard",
       "file": "walk_north-west_7.png",
-      "width": 27,
-      "height": 76,
-      "foot": 110,
-      "hash": "f6fda1db3a5256a6bb30775089512d5af1590c2b4fa86150f438c04de47b5459"
+      "width": 31,
+      "height": 77,
+      "foot": 111,
+      "hash": "df59ce331283ce372036f236d8eff41dfb3a6d0d3201e72586afecc5aceb652b"
     },
     {
       "id": "voidwizard",
       "file": "walk_north-west_8.png",
-      "width": 30,
-      "height": 76,
+      "width": 33,
+      "height": 77,
       "foot": 112,
-      "hash": "7607878f76db9604037890a65074d7a19272cbb288f5b728aad1397702fdc661"
+      "hash": "1fb612ae037214df6bf1d20fd6e6eb0d3bc6220595766cacfcfdd821e66d58ba"
     },
     {
       "id": "voidwizard",
@@ -3927,71 +3927,71 @@
       "width": 31,
       "height": 76,
       "foot": 112,
-      "hash": "4c9ce5759e9f885e905af48544fa013141998eebb66591223c0133f6579f45ac"
+      "hash": "a0377dbff18ac7b9b5ab7511f9b313e0de19b21b7916aff61ab78fcf2ad5daee"
     },
     {
       "id": "voidwizard",
       "file": "walk_south-east_1.png",
-      "width": 28,
-      "height": 77,
-      "foot": 112,
-      "hash": "0ce0b5a7895f78cb34eadfc84ed66a3d3ebc5b641adf0d36525d3b87e86f26a6"
+      "width": 26,
+      "height": 74,
+      "foot": 110,
+      "hash": "84a3ee0ebdb1def47fa9adac83841bf72bf48710bdacaa04eecb98c4546847d5"
     },
     {
       "id": "voidwizard",
       "file": "walk_south-east_2.png",
-      "width": 25,
-      "height": 76,
+      "width": 24,
+      "height": 74,
       "foot": 110,
-      "hash": "3be992d9207fef756f7c381467cba6792df3d0bc5459bcb69d014a6b793a7d4f"
+      "hash": "4513e8dffd26e6f6764a54e18ef0708b9a76643c68dcf735c19a10b88ec7150d"
     },
     {
       "id": "voidwizard",
       "file": "walk_south-east_3.png",
-      "width": 25,
-      "height": 76,
-      "foot": 111,
-      "hash": "b43347c9229227c1098305b339c4e7809686efb5eb0fe509969ddd0126daa612"
+      "width": 24,
+      "height": 74,
+      "foot": 109,
+      "hash": "188b8968e9ebed5d80f622a5f2d8a5f6b1817e8d0b530a10197d9562eab5eb4f"
     },
     {
       "id": "voidwizard",
       "file": "walk_south-east_4.png",
       "width": 25,
-      "height": 77,
-      "foot": 112,
-      "hash": "547d38e7603329dbf14d1f177e19ac330dfa315260f1dc5f782d72849d979528"
+      "height": 74,
+      "foot": 109,
+      "hash": "3965bc9f048eebff51467a56cb896e9bc2946e1144dd6c90505a44a662255a36"
     },
     {
       "id": "voidwizard",
       "file": "walk_south-east_5.png",
-      "width": 25,
+      "width": 30,
       "height": 77,
-      "foot": 112,
-      "hash": "a46bfc9055ce03ce1ab3df589f7ca6fd21e6666e03bcb944dc11c01ad74418b7"
+      "foot": 111,
+      "hash": "7f1e2d5108ca9c5ec11b8d542901c0ea4f80fce3b55e8d20b4cfc90e572aa8ec"
     },
     {
       "id": "voidwizard",
       "file": "walk_south-east_6.png",
-      "width": 26,
-      "height": 78,
+      "width": 34,
+      "height": 77,
       "foot": 112,
-      "hash": "65bafa5e1f3dde01a3a7bcb3b2ebd7c31414b319babec9a685e32fa7c9aef6cb"
+      "hash": "5824ea9085e10a0a5590562c390a60e3113d004ae733a3d24b279aaf0f1a4b09"
     },
     {
       "id": "voidwizard",
       "file": "walk_south-east_7.png",
-      "width": 28,
-      "height": 77,
+      "width": 35,
+      "height": 76,
       "foot": 112,
-      "hash": "6fd96c37c75c9eb0ab616e398c34ee6053619988a8d49eb2dd9e938dd796d678"
+      "hash": "4bc376734369cd5dfa7e50b8c5645db7c8a47ac73463b650061f4e293f780b4e"
     },
     {
       "id": "voidwizard",
       "file": "walk_south-east_8.png",
-      "width": 31,
+      "width": 33,
       "height": 76,
       "foot": 112,
-      "hash": "bbbd5a1cc894055acbba324fc58e3272ef1cbb750c5d4d3317267c4e7a79347f"
+      "hash": "2bd05f598ddd44b58ed0ee943e9570e7b3efb9c350a04a658b75ce27f977a259"
     },
     {
       "id": "voidwizard",
@@ -3999,63 +3999,63 @@
       "width": 31,
       "height": 76,
       "foot": 112,
-      "hash": "dbe46c1d56452bcf527ecca0ee1fd50e0892c10ba16d931ae14f2416b98c4ba0"
+      "hash": "c6d15a428d1e333864f9dd036180a0ceb75f041c96da83e2605a82ee50ca4f5e"
     },
     {
       "id": "voidwizard",
       "file": "walk_south-west_1.png",
-      "width": 28,
-      "height": 76,
+      "width": 29,
+      "height": 77,
       "foot": 112,
-      "hash": "0b5ba36e31695bc54a5913b93a5eff2ee001785740393526753d3f511e7e9dbf"
+      "hash": "1578982e38985daeb35a41df725add1860cdbe3ca2c045ea0b2abb0a4bd4e55b"
     },
     {
       "id": "voidwizard",
       "file": "walk_south-west_2.png",
-      "width": 27,
-      "height": 77,
-      "foot": 111,
-      "hash": "0ff1b5a6c3c77dceb52d77d0fd066ca0394918fa9dcc4cc26713cc4e652b17d2"
+      "width": 26,
+      "height": 78,
+      "foot": 112,
+      "hash": "97672aa3dcfa9ad0d0f23d1de45b65a073e2a0e0ea6cecf67723e3269289bc40"
     },
     {
       "id": "voidwizard",
       "file": "walk_south-west_3.png",
-      "width": 24,
-      "height": 77,
-      "foot": 111,
-      "hash": "d61cb0575c82317dbcf748ec1cd872afa17e853cdbb5a312f44b5dacbf04457c"
+      "width": 25,
+      "height": 76,
+      "foot": 110,
+      "hash": "74b263fc15cdf393b755d9b37d15a64740230663905d2dc2e886f5e0bdbe8ae4"
     },
     {
       "id": "voidwizard",
       "file": "walk_south-west_4.png",
       "width": 25,
-      "height": 74,
-      "foot": 110,
-      "hash": "90c8369e66e9be9410223c472984cf0af8cee82b2159d55db4f0798fe599935b"
+      "height": 76,
+      "foot": 112,
+      "hash": "cdccf6f789b10678749f00c8e2ca97953ee9d1a7961dcfe8925c96494329232f"
     },
     {
       "id": "voidwizard",
       "file": "walk_south-west_5.png",
-      "width": 26,
-      "height": 76,
-      "foot": 111,
-      "hash": "c63abe9a38d64a20475594da10fe73496215ad9c172fde7a4551a45867d9751d"
+      "width": 25,
+      "height": 77,
+      "foot": 112,
+      "hash": "a26f29afb5cb62c4853ee0ac6e49e81ae9b2467f74b5607d51cd6b2397341a61"
     },
     {
       "id": "voidwizard",
       "file": "walk_south-west_6.png",
-      "width": 29,
+      "width": 25,
       "height": 78,
       "foot": 112,
-      "hash": "56059dd2b6ee1c079af77f1d8c18305a4a484135f5fac312982f72425970ea50"
+      "hash": "9ef9ae2f1f3219ed96e92631ad718f0d009c45c4a2280ad2f489930993a23383"
     },
     {
       "id": "voidwizard",
       "file": "walk_south-west_7.png",
-      "width": 33,
+      "width": 26,
       "height": 77,
-      "foot": 112,
-      "hash": "beaefed3bf98d8ea856e580d089fade78c59e6c74a2dd24776a91b087d601361"
+      "foot": 111,
+      "hash": "1289a493a4e04c298a04948979ab2e777992163bf5caddabdc24e10571986be8"
     },
     {
       "id": "voidwizard",
@@ -4063,7 +4063,7 @@
       "width": 31,
       "height": 76,
       "foot": 112,
-      "hash": "662e20092a33567bd846099e26ec18e0e3376de4a98bfc897432dee584b7ad4a"
+      "hash": "3c22c0079c35b4e562ab84f9de33308ad180a8abdc8260b1266c795362b20c5f"
     },
     {
       "id": "voidwizard",
@@ -4143,63 +4143,63 @@
       "width": 22,
       "height": 76,
       "foot": 112,
-      "hash": "17273ca4953a704ef914992e31a692cde5b2428b766660b8b1cf78cb7ec8b270"
+      "hash": "6a8a2b50c713835b1db6893063cba6ec8d8a03738e81b082faa6a8883adb8d7a"
     },
     {
       "id": "voidwizard",
       "file": "walk_west_1.png",
-      "width": 25,
-      "height": 76,
+      "width": 22,
+      "height": 77,
       "foot": 112,
-      "hash": "2fb4f8c370b65771cc23dcafde8989e24ead3e5e48c096fc57544e92f49c9ddb"
+      "hash": "b08a1fcc0ff0b9fb3a64cb5724123a960da06e2ebd2b1e55c95a446e6eaa010d"
     },
     {
       "id": "voidwizard",
       "file": "walk_west_2.png",
-      "width": 34,
-      "height": 75,
+      "width": 25,
+      "height": 77,
       "foot": 112,
-      "hash": "05c38d62da925430e8d4e7b79774c17364d7e351f3dc320bb65b47b648163135"
+      "hash": "e1c4a630293ff83670427f9df05da2170eb40c139f812d1d2d006de237ef183b"
     },
     {
       "id": "voidwizard",
       "file": "walk_west_3.png",
       "width": 30,
-      "height": 74,
+      "height": 77,
       "foot": 111,
-      "hash": "38e8d803c2542a3cd265966b73a3c46d111ea0bb22f898acf845ab1103d3afa7"
+      "hash": "b595198099c649f3cf267414170d92630c249307829a4b98451e57a082324613"
     },
     {
       "id": "voidwizard",
       "file": "walk_west_4.png",
-      "width": 22,
+      "width": 34,
       "height": 75,
-      "foot": 111,
-      "hash": "981ce44fc98c7ed10665db53c28daa49c52be8501d68dbff1dd5871178785610"
+      "foot": 110,
+      "hash": "f42751d1e2b6f4aaffac50a3a0c7c89638edac77c3a2d54e5703b021e0bfe992"
     },
     {
       "id": "voidwizard",
       "file": "walk_west_5.png",
-      "width": 26,
-      "height": 74,
-      "foot": 110,
-      "hash": "4ef29d8140732d37cd5dd08119f9ec7e6a568f0bd7c2aee90bfc1264a05f6767"
+      "width": 32,
+      "height": 76,
+      "foot": 111,
+      "hash": "0c1a778715c7f51e8ee1edd1b8775d3bad06a46d3d4762965fe369f79ea875f0"
     },
     {
       "id": "voidwizard",
       "file": "walk_west_6.png",
-      "width": 34,
-      "height": 75,
+      "width": 27,
+      "height": 76,
       "foot": 112,
-      "hash": "f5ed48c317b85bbfc8564ccbde6c989c3a0600810967403a3b5ba7b51a50c987"
+      "hash": "7057133a8eb6e9e217f6b871c0aed1f80b404fdca57215f56f337189bcf47b15"
     },
     {
       "id": "voidwizard",
       "file": "walk_west_7.png",
-      "width": 27,
+      "width": 24,
       "height": 75,
       "foot": 112,
-      "hash": "98594581afbe3e56b30539d7bfb365a0c8e3ea2b5e7feb7010928d8c2d50ba30"
+      "hash": "78cd1f53b0ce4521bfd9642278727c8793e3a031380ab913a3dfadadaa3cb5e5"
     },
     {
       "id": "voidwizard",
@@ -4207,7 +4207,7 @@
       "width": 22,
       "height": 76,
       "foot": 112,
-      "hash": "588e8eeeb36dded83d6d6dd673dd239311365b98be68e2baca4c989f6033d7aa"
+      "hash": "311a94a186a3fe7782f82f759f00e75353efdb6076be37120e32b8f077daeda0"
     }
   ]
 }

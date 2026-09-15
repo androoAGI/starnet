@@ -38,3 +38,11 @@ The original pinned front/back cycles frequently raised both feet together or ba
 Standing art and height remain unchanged at 18 world pixels. Approved boots now sit 0.25 world pixels above their contact anchor instead of 3. Grounding uses the actual standing height and a narrower, stronger contact. Walk stride calculation excludes the 68 transparent rows in the master and invalidates its cache when scale changes. Movement speed scales from the legacy 35px body size to the approved body height so the smaller crew walks at a readable cadence.
 
 After the original reproduction steps, run `pack-walk-fixes.cjs --activate`, then `pack-skeleton-walk-cleanup.cjs`, then `validate-approved-motion.cjs`. The cleanup uses a single source scale across all poses and preserves each original pose's alignment. Final validation: 525 packed frames, 40 unchanged 76px standing rotations, walking heights 73–80px, no clipped content. The panel revision is `grounded-walks-0915`; `data-motion` records actual render height, ground gap, speed, pose and travel.
+
+## 20px rollout and remaining-direction polish
+
+The user subsequently approved **20 world pixels** as the baseline. The demo and all comparison skins now default to 20/76. The five new front studies are documented in `../rollout-20px/README.md`.
+
+`polish-jobs.json` selects replacements for the remaining 29 walking tracks, completing the walk treatment across all 40 directions of the original five skins. `polish-initial-jobs.json` preserves the first pass; two Void Wizard loops were regenerated because their final frames developed noisy robe edges. `polish-retries.json` records those replacements. Each selected loop was reviewed on a contact sheet before activation; no sprite was stretched independently to fit its frame.
+
+For the current runtime, follow the previous reproduction commands with `pack-walk-fixes.cjs --jobs=polish-jobs.json --activate`, `contact-polished-walks.cjs`, and `validate-approved-motion.cjs`. Standing rotations, seated poses and typing frames retain their prior art. The new panel revision is `industrial-rollout-20px`.
