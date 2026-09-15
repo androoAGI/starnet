@@ -25,12 +25,13 @@ const inactive={now:2100,work:false,occupied:false,scanning:false,live:false,bou
    if(e.kind==='hologram'){const r=fx.frameBounds(id);mg.fillRect(box.x+r.x*w-2,box.y+r.y*h-2,r.width*w+4,r.height*h+4);continue;}
    mg.beginPath();e.region.forEach((q,i)=>i?mg.lineTo(box.x+q[0]*w,box.y+q[1]*h):mg.moveTo(box.x+q[0]*w,box.y+q[1]*h));mg.closePath();mg.fill();mg.stroke();
   }
-  const maskData=mg.getImageData(0,0,460,440).data;let changed=0,escaped=0;
-  for(let i=0;i<a.length;i+=4)if(a[i]!==b[i]||a[i+1]!==b[i+1]||a[i+2]!==b[i+2]||a[i+3]!==b[i+3]){changed++;if(!maskData[i+3])escaped++;}
+  const maskData=mg.getImageData(0,0,460,440).data;let changed=0,escaped=0,outsideBody=0;
+  for(let i=0;i<a.length;i+=4)if(a[i]!==b[i]||a[i+1]!==b[i+1]||a[i+2]!==b[i+2]||a[i+3]!==b[i+3]){changed++;if(!maskData[i+3])escaped++;if(a[i+3]===0&&b[i+3]>8)outsideBody++;}
   assert.equal(escaped,0,id+' cannot affect pixels outside authored regions');
   const stateChanges=!off.toBuffer('image/png').equals(on.toBuffer('image/png'));
   if(fx.classify(id).effects.some(e=>!['ambient'].includes(e.gate)))assert(stateChanges,id+' real state changes visible pixels');
-  receipts.push({id,changedPixels:changed,escapedPixels:escaped,activeIdleDifferent:stateChanges,stillDeterministic:true});
+  if(!['steamvent','coffee','treasury_pnl_holo'].includes(id))assert.equal(outsideBody,0,id+' cannot paint solid effects beside the source silhouette');
+  receipts.push({id,changedPixels:changed,escapedPixels:escaped,outsideSourceAlpha:outsideBody,activeIdleDifferent:stateChanges,stillDeterministic:true});
   images.set(id,{im,off,on,v});fx.dispose(p);
  }
  // Actual world scale rather than normalizing all objects to equal size.

@@ -7,6 +7,7 @@
       "id": "console",
       "changedPixels": 306,
       "escapedPixels": 0,
+      "outsideSourceAlpha": 0,
       "activeIdleDifferent": true,
       "stillDeterministic": true
     },
@@ -14,6 +15,7 @@
       "id": "consoleL",
       "changedPixels": 246,
       "escapedPixels": 0,
+      "outsideSourceAlpha": 0,
       "activeIdleDifferent": true,
       "stillDeterministic": true
     },
@@ -21,6 +23,7 @@
       "id": "pixelrig",
       "changedPixels": 420,
       "escapedPixels": 0,
+      "outsideSourceAlpha": 0,
       "activeIdleDifferent": true,
       "stillDeterministic": true
     },
@@ -28,6 +31,7 @@
       "id": "bench",
       "changedPixels": 82,
       "escapedPixels": 0,
+      "outsideSourceAlpha": 0,
       "activeIdleDifferent": true,
       "stillDeterministic": true
     },
@@ -35,6 +39,7 @@
       "id": "bridge_consolebank",
       "changedPixels": 304,
       "escapedPixels": 0,
+      "outsideSourceAlpha": 0,
       "activeIdleDifferent": true,
       "stillDeterministic": true
     },
@@ -42,6 +47,7 @@
       "id": "bridge_tacticaltable",
       "changedPixels": 366,
       "escapedPixels": 0,
+      "outsideSourceAlpha": 0,
       "activeIdleDifferent": true,
       "stillDeterministic": true
     },
@@ -49,6 +55,7 @@
       "id": "bigscreen",
       "changedPixels": 190,
       "escapedPixels": 0,
+      "outsideSourceAlpha": 0,
       "activeIdleDifferent": true,
       "stillDeterministic": true
     },
@@ -56,6 +63,7 @@
       "id": "holotable",
       "changedPixels": 354,
       "escapedPixels": 0,
+      "outsideSourceAlpha": 0,
       "activeIdleDifferent": true,
       "stillDeterministic": true
     },
@@ -63,6 +71,7 @@
       "id": "screens",
       "changedPixels": 729,
       "escapedPixels": 0,
+      "outsideSourceAlpha": 0,
       "activeIdleDifferent": true,
       "stillDeterministic": true
     },
@@ -70,6 +79,7 @@
       "id": "bridge_tacscreen",
       "changedPixels": 453,
       "escapedPixels": 0,
+      "outsideSourceAlpha": 0,
       "activeIdleDifferent": true,
       "stillDeterministic": true
     },
@@ -77,6 +87,7 @@
       "id": "deskterminal",
       "changedPixels": 551,
       "escapedPixels": 0,
+      "outsideSourceAlpha": 0,
       "activeIdleDifferent": true,
       "stillDeterministic": true
     },
@@ -84,6 +95,7 @@
       "id": "workbench",
       "changedPixels": 170,
       "escapedPixels": 0,
+      "outsideSourceAlpha": 0,
       "activeIdleDifferent": true,
       "stillDeterministic": true
     },
@@ -91,6 +103,7 @@
       "id": "intake",
       "changedPixels": 92,
       "escapedPixels": 0,
+      "outsideSourceAlpha": 0,
       "activeIdleDifferent": true,
       "stillDeterministic": true
     },
@@ -98,6 +111,7 @@
       "id": "bay",
       "changedPixels": 156,
       "escapedPixels": 0,
+      "outsideSourceAlpha": 0,
       "activeIdleDifferent": true,
       "stillDeterministic": true
     },
@@ -105,6 +119,7 @@
       "id": "filter",
       "changedPixels": 75,
       "escapedPixels": 0,
+      "outsideSourceAlpha": 0,
       "activeIdleDifferent": true,
       "stillDeterministic": true
     },
@@ -112,6 +127,7 @@
       "id": "merger",
       "changedPixels": 263,
       "escapedPixels": 0,
+      "outsideSourceAlpha": 0,
       "activeIdleDifferent": true,
       "stillDeterministic": true
     },
@@ -119,13 +135,15 @@
       "id": "splitter",
       "changedPixels": 275,
       "escapedPixels": 0,
+      "outsideSourceAlpha": 0,
       "activeIdleDifferent": true,
       "stillDeterministic": true
     },
     {
       "id": "joiner",
-      "changedPixels": 243,
+      "changedPixels": 133,
       "escapedPixels": 0,
+      "outsideSourceAlpha": 0,
       "activeIdleDifferent": true,
       "stillDeterministic": true
     },
@@ -133,6 +151,7 @@
       "id": "loop",
       "changedPixels": 184,
       "escapedPixels": 0,
+      "outsideSourceAlpha": 0,
       "activeIdleDifferent": true,
       "stillDeterministic": true
     },
@@ -140,6 +159,7 @@
       "id": "outbox",
       "changedPixels": 192,
       "escapedPixels": 0,
+      "outsideSourceAlpha": 0,
       "activeIdleDifferent": true,
       "stillDeterministic": true
     },
@@ -147,6 +167,7 @@
       "id": "connector_portal",
       "changedPixels": 48,
       "escapedPixels": 0,
+      "outsideSourceAlpha": 0,
       "activeIdleDifferent": true,
       "stillDeterministic": true
     },
@@ -154,6 +175,7 @@
       "id": "comms_dish",
       "changedPixels": 70,
       "escapedPixels": 0,
+      "outsideSourceAlpha": 0,
       "activeIdleDifferent": true,
       "stillDeterministic": true
     },
@@ -161,6 +183,7 @@
       "id": "comms_uplink",
       "changedPixels": 88,
       "escapedPixels": 0,
+      "outsideSourceAlpha": 0,
       "activeIdleDifferent": true,
       "stillDeterministic": true
     },
@@ -168,6 +191,7 @@
       "id": "comms_beacon",
       "changedPixels": 2063,
       "escapedPixels": 0,
+      "outsideSourceAlpha": 0,
       "activeIdleDifferent": true,
       "stillDeterministic": true
     },
@@ -175,6 +199,7 @@
       "id": "war_intelcab",
       "changedPixels": 238,
       "escapedPixels": 0,
+      "outsideSourceAlpha": 0,
       "activeIdleDifferent": true,
       "stillDeterministic": true
     },
@@ -182,6 +207,7 @@
       "id": "rack",
       "changedPixels": 114,
       "escapedPixels": 0,
+      "outsideSourceAlpha": 0,
       "activeIdleDifferent": true,
       "stillDeterministic": true
     },
@@ -189,6 +215,7 @@
       "id": "core",
       "changedPixels": 150,
       "escapedPixels": 0,
+      "outsideSourceAlpha": 0,
       "activeIdleDifferent": true,
       "stillDeterministic": true
     },
@@ -196,6 +223,7 @@
       "id": "gigs_servercart",
       "changedPixels": 90,
       "escapedPixels": 0,
+      "outsideSourceAlpha": 0,
       "activeIdleDifferent": true,
       "stillDeterministic": true
     },
@@ -203,6 +231,7 @@
       "id": "bridge_relaystack",
       "changedPixels": 280,
       "escapedPixels": 0,
+      "outsideSourceAlpha": 0,
       "activeIdleDifferent": true,
       "stillDeterministic": true
     },
@@ -210,6 +239,7 @@
       "id": "studio",
       "changedPixels": 504,
       "escapedPixels": 0,
+      "outsideSourceAlpha": 0,
       "activeIdleDifferent": true,
       "stillDeterministic": true
     },
@@ -217,6 +247,7 @@
       "id": "airlock",
       "changedPixels": 0,
       "escapedPixels": 0,
+      "outsideSourceAlpha": 0,
       "activeIdleDifferent": true,
       "stillDeterministic": true
     },
@@ -224,6 +255,7 @@
       "id": "missionboard",
       "changedPixels": 600,
       "escapedPixels": 0,
+      "outsideSourceAlpha": 0,
       "activeIdleDifferent": true,
       "stillDeterministic": true
     },
@@ -231,6 +263,7 @@
       "id": "trophycase",
       "changedPixels": 260,
       "escapedPixels": 0,
+      "outsideSourceAlpha": 0,
       "activeIdleDifferent": true,
       "stillDeterministic": true
     },
@@ -238,6 +271,7 @@
       "id": "bridge_equipmentbay",
       "changedPixels": 16,
       "escapedPixels": 0,
+      "outsideSourceAlpha": 0,
       "activeIdleDifferent": true,
       "stillDeterministic": true
     },
@@ -245,6 +279,7 @@
       "id": "tank",
       "changedPixels": 295,
       "escapedPixels": 0,
+      "outsideSourceAlpha": 0,
       "activeIdleDifferent": false,
       "stillDeterministic": true
     },
@@ -252,6 +287,7 @@
       "id": "ticker",
       "changedPixels": 360,
       "escapedPixels": 0,
+      "outsideSourceAlpha": 0,
       "activeIdleDifferent": false,
       "stillDeterministic": true
     },
@@ -259,6 +295,7 @@
       "id": "chartwall",
       "changedPixels": 314,
       "escapedPixels": 0,
+      "outsideSourceAlpha": 0,
       "activeIdleDifferent": false,
       "stillDeterministic": true
     },
@@ -266,6 +303,7 @@
       "id": "wartable",
       "changedPixels": 372,
       "escapedPixels": 0,
+      "outsideSourceAlpha": 0,
       "activeIdleDifferent": true,
       "stillDeterministic": true
     },
@@ -273,6 +311,7 @@
       "id": "bridge_dispatch_pylon",
       "changedPixels": 60,
       "escapedPixels": 0,
+      "outsideSourceAlpha": 0,
       "activeIdleDifferent": true,
       "stillDeterministic": true
     },
@@ -280,6 +319,7 @@
       "id": "bridge_orderqueue",
       "changedPixels": 1039,
       "escapedPixels": 0,
+      "outsideSourceAlpha": 0,
       "activeIdleDifferent": true,
       "stillDeterministic": true
     },
@@ -287,6 +327,7 @@
       "id": "war_pivotpanel",
       "changedPixels": 312,
       "escapedPixels": 0,
+      "outsideSourceAlpha": 0,
       "activeIdleDifferent": true,
       "stillDeterministic": true
     },
@@ -294,6 +335,7 @@
       "id": "war_threatcore",
       "changedPixels": 945,
       "escapedPixels": 0,
+      "outsideSourceAlpha": 0,
       "activeIdleDifferent": true,
       "stillDeterministic": true
     },
@@ -301,6 +343,7 @@
       "id": "fabricator",
       "changedPixels": 11,
       "escapedPixels": 0,
+      "outsideSourceAlpha": 0,
       "activeIdleDifferent": true,
       "stillDeterministic": true
     },
@@ -308,6 +351,7 @@
       "id": "vat",
       "changedPixels": 276,
       "escapedPixels": 0,
+      "outsideSourceAlpha": 0,
       "activeIdleDifferent": true,
       "stillDeterministic": true
     },
@@ -315,6 +359,7 @@
       "id": "tube",
       "changedPixels": 212,
       "escapedPixels": 0,
+      "outsideSourceAlpha": 0,
       "activeIdleDifferent": true,
       "stillDeterministic": true
     },
@@ -322,6 +367,7 @@
       "id": "research_corelens",
       "changedPixels": 278,
       "escapedPixels": 0,
+      "outsideSourceAlpha": 0,
       "activeIdleDifferent": true,
       "stillDeterministic": true
     },
@@ -329,6 +375,7 @@
       "id": "research_trendpillar",
       "changedPixels": 234,
       "escapedPixels": 0,
+      "outsideSourceAlpha": 0,
       "activeIdleDifferent": true,
       "stillDeterministic": true
     },
@@ -336,13 +383,15 @@
       "id": "research_samplecart",
       "changedPixels": 71,
       "escapedPixels": 0,
+      "outsideSourceAlpha": 0,
       "activeIdleDifferent": true,
       "stillDeterministic": true
     },
     {
       "id": "etsy_threadrack",
-      "changedPixels": 30,
+      "changedPixels": 24,
       "escapedPixels": 0,
+      "outsideSourceAlpha": 0,
       "activeIdleDifferent": true,
       "stillDeterministic": true
     },
@@ -350,6 +399,7 @@
       "id": "etsy_dyevat",
       "changedPixels": 200,
       "escapedPixels": 0,
+      "outsideSourceAlpha": 0,
       "activeIdleDifferent": true,
       "stillDeterministic": true
     },
@@ -357,6 +407,7 @@
       "id": "etsy_kiln",
       "changedPixels": 520,
       "escapedPixels": 0,
+      "outsideSourceAlpha": 0,
       "activeIdleDifferent": true,
       "stillDeterministic": true
     },
@@ -364,6 +415,7 @@
       "id": "etsy_packbot",
       "changedPixels": 89,
       "escapedPixels": 0,
+      "outsideSourceAlpha": 0,
       "activeIdleDifferent": true,
       "stillDeterministic": true
     },
@@ -371,6 +423,7 @@
       "id": "rackV",
       "changedPixels": 187,
       "escapedPixels": 0,
+      "outsideSourceAlpha": 0,
       "activeIdleDifferent": true,
       "stillDeterministic": true
     },
@@ -378,6 +431,7 @@
       "id": "treasury_coinsorter",
       "changedPixels": 54,
       "escapedPixels": 0,
+      "outsideSourceAlpha": 0,
       "activeIdleDifferent": true,
       "stillDeterministic": true
     },
@@ -385,6 +439,7 @@
       "id": "treasury_token_furnace",
       "changedPixels": 489,
       "escapedPixels": 0,
+      "outsideSourceAlpha": 0,
       "activeIdleDifferent": true,
       "stillDeterministic": true
     },
@@ -392,6 +447,7 @@
       "id": "commswall",
       "changedPixels": 162,
       "escapedPixels": 0,
+      "outsideSourceAlpha": 0,
       "activeIdleDifferent": false,
       "stillDeterministic": true
     },
@@ -399,6 +455,7 @@
       "id": "comms_inbox",
       "changedPixels": 287,
       "escapedPixels": 0,
+      "outsideSourceAlpha": 0,
       "activeIdleDifferent": true,
       "stillDeterministic": true
     },
@@ -406,6 +463,7 @@
       "id": "gigs_thumbwall",
       "changedPixels": 468,
       "escapedPixels": 0,
+      "outsideSourceAlpha": 0,
       "activeIdleDifferent": false,
       "stillDeterministic": true
     },
@@ -413,6 +471,7 @@
       "id": "gigs_amp",
       "changedPixels": 42,
       "escapedPixels": 0,
+      "outsideSourceAlpha": 0,
       "activeIdleDifferent": true,
       "stillDeterministic": true
     },
@@ -420,6 +479,7 @@
       "id": "pub_publishpress",
       "changedPixels": 1710,
       "escapedPixels": 0,
+      "outsideSourceAlpha": 0,
       "activeIdleDifferent": true,
       "stillDeterministic": true
     },
@@ -427,6 +487,7 @@
       "id": "pub_outboundchute",
       "changedPixels": 117,
       "escapedPixels": 0,
+      "outsideSourceAlpha": 0,
       "activeIdleDifferent": true,
       "stillDeterministic": true
     },
@@ -434,6 +495,7 @@
       "id": "pub_mailpod",
       "changedPixels": 32,
       "escapedPixels": 0,
+      "outsideSourceAlpha": 0,
       "activeIdleDifferent": true,
       "stillDeterministic": true
     },
@@ -441,6 +503,7 @@
       "id": "arc_microfiche",
       "changedPixels": 379,
       "escapedPixels": 0,
+      "outsideSourceAlpha": 0,
       "activeIdleDifferent": true,
       "stillDeterministic": true
     },
@@ -448,6 +511,7 @@
       "id": "djbooth",
       "changedPixels": 85,
       "escapedPixels": 0,
+      "outsideSourceAlpha": 0,
       "activeIdleDifferent": true,
       "stillDeterministic": true
     },
@@ -455,6 +519,7 @@
       "id": "speaker",
       "changedPixels": 923,
       "escapedPixels": 0,
+      "outsideSourceAlpha": 0,
       "activeIdleDifferent": true,
       "stillDeterministic": true
     },
@@ -462,6 +527,7 @@
       "id": "tv",
       "changedPixels": 321,
       "escapedPixels": 0,
+      "outsideSourceAlpha": 0,
       "activeIdleDifferent": false,
       "stillDeterministic": true
     },
@@ -469,6 +535,7 @@
       "id": "arcade",
       "changedPixels": 150,
       "escapedPixels": 0,
+      "outsideSourceAlpha": 0,
       "activeIdleDifferent": true,
       "stillDeterministic": true
     },
@@ -476,6 +543,7 @@
       "id": "arcade2",
       "changedPixels": 150,
       "escapedPixels": 0,
+      "outsideSourceAlpha": 0,
       "activeIdleDifferent": true,
       "stillDeterministic": true
     },
@@ -483,6 +551,7 @@
       "id": "jukebox",
       "changedPixels": 262,
       "escapedPixels": 0,
+      "outsideSourceAlpha": 0,
       "activeIdleDifferent": true,
       "stillDeterministic": true
     },
@@ -490,6 +559,7 @@
       "id": "quarters_vending",
       "changedPixels": 77,
       "escapedPixels": 0,
+      "outsideSourceAlpha": 0,
       "activeIdleDifferent": true,
       "stillDeterministic": true
     },
@@ -497,6 +567,7 @@
       "id": "quarters_minifridge",
       "changedPixels": 44,
       "escapedPixels": 0,
+      "outsideSourceAlpha": 0,
       "activeIdleDifferent": true,
       "stillDeterministic": true
     },
@@ -504,6 +575,7 @@
       "id": "coffee",
       "changedPixels": 381,
       "escapedPixels": 0,
+      "outsideSourceAlpha": 0,
       "activeIdleDifferent": false,
       "stillDeterministic": true
     },
@@ -511,6 +583,7 @@
       "id": "treasury_pnl_holo",
       "changedPixels": 1933,
       "escapedPixels": 0,
+      "outsideSourceAlpha": 1454,
       "activeIdleDifferent": false,
       "stillDeterministic": true
     },
@@ -518,6 +591,7 @@
       "id": "arc_floorlight",
       "changedPixels": 3353,
       "escapedPixels": 0,
+      "outsideSourceAlpha": 0,
       "activeIdleDifferent": false,
       "stillDeterministic": true
     },
@@ -525,6 +599,7 @@
       "id": "lavalamp",
       "changedPixels": 2636,
       "escapedPixels": 0,
+      "outsideSourceAlpha": 0,
       "activeIdleDifferent": false,
       "stillDeterministic": true
     },
@@ -532,6 +607,7 @@
       "id": "crt_pile",
       "changedPixels": 411,
       "escapedPixels": 0,
+      "outsideSourceAlpha": 0,
       "activeIdleDifferent": false,
       "stillDeterministic": true
     },
@@ -539,6 +615,7 @@
       "id": "holopet",
       "changedPixels": 48,
       "escapedPixels": 0,
+      "outsideSourceAlpha": 0,
       "activeIdleDifferent": false,
       "stillDeterministic": true
     },
@@ -546,6 +623,7 @@
       "id": "plasmaglobe",
       "changedPixels": 253,
       "escapedPixels": 0,
+      "outsideSourceAlpha": 0,
       "activeIdleDifferent": false,
       "stillDeterministic": true
     },
@@ -553,6 +631,7 @@
       "id": "desklamp",
       "changedPixels": 1272,
       "escapedPixels": 0,
+      "outsideSourceAlpha": 0,
       "activeIdleDifferent": false,
       "stillDeterministic": true
     },
@@ -560,6 +639,7 @@
       "id": "radio",
       "changedPixels": 3203,
       "escapedPixels": 0,
+      "outsideSourceAlpha": 0,
       "activeIdleDifferent": false,
       "stillDeterministic": true
     },
@@ -567,6 +647,7 @@
       "id": "steamvent",
       "changedPixels": 485,
       "escapedPixels": 0,
+      "outsideSourceAlpha": 0,
       "activeIdleDifferent": false,
       "stillDeterministic": true
     },
@@ -574,6 +655,7 @@
       "id": "fishtank",
       "changedPixels": 2387,
       "escapedPixels": 0,
+      "outsideSourceAlpha": 0,
       "activeIdleDifferent": false,
       "stillDeterministic": true
     },
@@ -581,6 +663,7 @@
       "id": "pinball",
       "changedPixels": 293,
       "escapedPixels": 0,
+      "outsideSourceAlpha": 0,
       "activeIdleDifferent": true,
       "stillDeterministic": true
     },
@@ -588,6 +671,7 @@
       "id": "cryopod",
       "changedPixels": 106,
       "escapedPixels": 0,
+      "outsideSourceAlpha": 0,
       "activeIdleDifferent": false,
       "stillDeterministic": true
     },
@@ -595,6 +679,7 @@
       "id": "incubator",
       "changedPixels": 1547,
       "escapedPixels": 0,
+      "outsideSourceAlpha": 0,
       "activeIdleDifferent": false,
       "stillDeterministic": true
     },
@@ -602,6 +687,7 @@
       "id": "camerarig",
       "changedPixels": 120,
       "escapedPixels": 0,
+      "outsideSourceAlpha": 0,
       "activeIdleDifferent": true,
       "stillDeterministic": true
     },
@@ -609,6 +695,7 @@
       "id": "camerarig_r",
       "changedPixels": 139,
       "escapedPixels": 0,
+      "outsideSourceAlpha": 0,
       "activeIdleDifferent": true,
       "stillDeterministic": true
     },
@@ -616,6 +703,7 @@
       "id": "industrial_servicecab",
       "changedPixels": 35,
       "escapedPixels": 0,
+      "outsideSourceAlpha": 0,
       "activeIdleDifferent": true,
       "stillDeterministic": true
     }

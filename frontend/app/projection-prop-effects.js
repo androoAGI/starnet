@@ -30,7 +30,7 @@ const ProjectionPropEffects = (() => {
     filter:[scan(rect(.398,.236,.122,.185),'scanning',C.violet)],
     merger:[lamp(rect(.045,.205,.025,.11)),lamp(rect(.045,.58,.025,.11)),lamp(rect(.943,.34,.016,.11))],
     splitter:[lamp(rect(.025,.345,.018,.12),'work',C.cyan),lamp(rect(.94,.11,.018,.12),'work',C.cyan),lamp(rect(.94,.53,.018,.12),'work',C.cyan)],
-    joiner:[lamp(rect(.045,.10,.02,.10)),lamp(rect(.93,.21,.018,.10)),lamp(rect(.045,.63,.02,.10))],
+    joiner:[lamp(rect(.058,.21,.01,.07)),lamp(rect(.936,.365,.012,.12)),lamp(rect(.058,.55,.01,.075))],
     loop:[lamp(rect(.055,.56,.018,.10),'work',C.cyan),lamp(rect(.91,.44,.018,.10),'work',C.cyan)],
     outbox:[lamp(rect(.26,.925,.09,.017),'pending',C.cyan),lamp(rect(.69,.925,.12,.018),'work',C.cyan)],
     connector_portal:[{kind:'connector',region:rect(.27,.31,.15,.51),centres:[[.292,.338],[.292,.56],[.292,.783]],gate:'bound',colour:C.cyan},result(rect(.856,.09,.012,.055),C.cyan)],
@@ -61,7 +61,7 @@ const ProjectionPropEffects = (() => {
     research_corelens:[scan(rect(.39,.265,.20,.115),'occupied'),result(rect(.35,.64,.26,.015))],
     research_trendpillar:[screen(rect(.255,.26,.47,.25),'occupied')],
     research_samplecart:[{kind:'samples',region:rect(.20,.18,.39,.17),gate:'work',colour:C.cyan}],
-    etsy_threadrack:[{kind:'thread',region:[[.56,.27],[.855,.07],[.88,.10],[.59,.31]],gate:'work',colour:C.amber}],
+    etsy_threadrack:[lamp(rect(.88,.075,.019,.02),'work',C.amber)],
     etsy_dyevat:[{kind:'ripple',region:[[.23,.17],[.56,.17],[.63,.26],[.55,.36],[.24,.36],[.17,.27]],gate:'work',colour:C.amber}],
     etsy_kiln:[{kind:'heat',region:rect(.235,.63,.54,.018),gate:'work',colour:C.amber}],
     etsy_packbot:[lamp(rect(.47,.842,.075,.021),'work',C.amber),scan(rect(.46,.16,.07,.025),'work',C.cyan)],
@@ -182,8 +182,7 @@ const ProjectionPropEffects = (() => {
       for(let i=0;i<n;i++){const x=b.x+b.width*(.16+(i%3)*.33),y=b.y+b.height*(.24+Math.floor(i/3)*.60);ellipse(c,x,y,b.width*.042,b.height*.065,rgb(e.colour,.85));c.fillStyle=rgb(e.colour,.80);c.fillRect(x-b.width*.008,y,b.width*.016,b.height*.09);}return;
     }
     if(!v)return;
-    if(e.kind==='thread'){line(c,[[b.x+b.width*frac(t/1200),b.y+b.height*(1-frac(t/1200))],[b.x+b.width*Math.min(1,frac(t/1200)+.12),b.y+b.height*(1-Math.min(1,frac(t/1200)+.12))]],rgb(e.colour,.5),.008);}
-    else if(e.kind==='ripple'||e.kind==='water'){
+    if(e.kind==='ripple'||e.kind==='water'){
       const q=frac(t/3800);c.beginPath();c.ellipse(b.x+b.width*.5,b.y+b.height*.5,b.width*(.10+.32*q),b.height*(.12+.3*q),0,0,Math.PI*1.6);c.strokeStyle=rgb(e.colour,.20*(1-q));c.lineWidth=.005;c.stroke();
     }else if(e.kind==='samples'){for(let i=0;i<3;i++)ellipse(c,b.x+b.width*(.13+i*.33),b.y+b.height*.70,b.width*.045,b.height*.05,rgb(e.colour,.14+.10*Math.sin(t/1300+i)));}
     else if(e.kind==='fish'||e.kind==='wax'||e.kind==='specimen'){
