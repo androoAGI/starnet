@@ -8,13 +8,12 @@ remaster at `2133aeb0a`. This is an isolated source preview, not an installed re
 ## Behavior
 
 - A new station starts with the file cabinet, web dish, workbench, memory server,
-  media studio, one adoptable agent workstation, two plants, a crate, a rug,
-  and a compact bench.
+  media studio, one adoptable agent workstation, and two plants.
 - The default is an 18 × 11 room with a clear central walkway. Existing saved
   stations do not go through the new-station composition factory.
-- The main workstation groups files and memory together. Media equipment shares
-  the opposite wall; the workbench and storage form a lower workshop corner.
-  A small rug and bench finish the remaining corner, on a quieter resin floor.
+- The five essential props share a single back line, with their floor footprints
+  ending at the same depth. The workstation sits on the center axis with one plant
+  on each side. Broad aisles and a quiet resin floor keep the default sparse.
 - The latest projection-corrected prop art loads without a query parameter.
   Explicit classic, approved-sheet, and casing-draft comparisons remain available.
 - The optional tutorial explains the actual equipment and offers a real file task.
@@ -40,10 +39,10 @@ roster remain outside this layout operation; existing desk owners retain desks.
 
 ## Verification
 
-Composition refinement: worldmodel passed 542 assertions and all six template
+Composition refinement: worldmodel passed 536 assertions and all six template
 connectivity/placement checks passed. Applied the revised default through the
 live picker at port 18845, inspected the finished room, observed the saved-layout
-notification, and verified all eleven final prop positions and the resin floor
+notification, and verified all eight final prop positions against the factory
 in the server's scratch save. Earlier screenshots below precede this refinement.
 
 Final focused checks passed: station template connectivity, catalog footprints,

@@ -2459,19 +2459,16 @@ const WorldModel = (() => {
       doc.props = [
         // The five essentials are real floor grants. Keep the desk unassigned so
         // ensureWorkstation adopts it for the new Commander on the normal boot path.
-        // Files and memory support the main workstation; media occupies the
-        // opposite wall. Leave the center and all four future doorways clear.
-        { id: 'p' + doc._nid++, t: 'desk', x: 5, y: 3, w: 2, h: 1, block: true },
+        // A single aligned equipment wall frames a centered workstation.
+        // Matching plant offsets keep decoration quiet and the aisles open.
+        { id: 'p' + doc._nid++, t: 'desk', x: 8, y: 6, w: 2, h: 1, block: true },
         { id: 'p' + doc._nid++, t: 'war_intelcab', x: 2, y: 1, w: 1, h: 2, block: true },
-        { id: 'p' + doc._nid++, t: 'gigs_servercart', x: 4, y: 1, w: 1, h: 1, block: true },
-        { id: 'p' + doc._nid++, t: 'comms_dish', x: 15, y: 2, w: 2, h: 2, block: true },
-        { id: 'p' + doc._nid++, t: 'workbench', x: 2, y: 7, w: 2, h: 1, block: true },
-        { id: 'p' + doc._nid++, t: 'studio', x: 12, y: 2, w: 2, h: 2, block: true },
-        { id: 'p' + doc._nid++, t: 'crate', x: 2, y: 9, w: 2, h: 1, block: true },
-        { id: 'p' + doc._nid++, t: 'plant', x: 9, y: 2, w: 1, h: 1, block: false },
-        { id: 'p' + doc._nid++, t: 'plant', x: 16, y: 8, w: 1, h: 1, block: false },
-        { id: 'p' + doc._nid++, t: 'rug', x: 11, y: 6, w: 4, h: 3, block: false },
-        { id: 'p' + doc._nid++, t: 'industrial_bench', x: 12, y: 5, w: 3, h: 1, block: true }
+        { id: 'p' + doc._nid++, t: 'gigs_servercart', x: 4, y: 2, w: 1, h: 1, block: true },
+        { id: 'p' + doc._nid++, t: 'comms_dish', x: 14, y: 1, w: 2, h: 2, block: true },
+        { id: 'p' + doc._nid++, t: 'workbench', x: 7, y: 2, w: 2, h: 1, block: true },
+        { id: 'p' + doc._nid++, t: 'studio', x: 11, y: 1, w: 2, h: 2, block: true },
+        { id: 'p' + doc._nid++, t: 'plant', x: 5, y: 6, w: 1, h: 1, block: false },
+        { id: 'p' + doc._nid++, t: 'plant', x: 12, y: 6, w: 1, h: 1, block: false }
       ];
       return doc;
     },
