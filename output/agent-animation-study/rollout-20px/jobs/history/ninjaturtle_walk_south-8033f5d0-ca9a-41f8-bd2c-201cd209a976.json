@@ -1,0 +1,11 @@
+{
+  "id": "ninjaturtle",
+  "track": "walk",
+  "dir": "south",
+  "pinLast": true,
+  "request": "id: 8033f5d0-ca9a-41f8-bd2c-201cd209a976\njob_id: 8033f5d0-ca9a-41f8-bd2c-201cd209a976\ndescription: A seamless two-step walk in place, facing south throughout. Alternate left foot contact, passing pose, right foot contact, passing pose. One foot always carries weight on the same baseline. Opposite arm swings. The body stays upright and centered; head stays steady, only tiny shoulder counter-rotation. Preserve exact input body size, shape, clothing, leg colors and pixel style. No turns, no jump, no both-feet lift, no objects and no ground shadow. Return to the original facing and neutral stance in the last frame; do not rotate the torso toward the camera during the step. Keep the head and face rigid with an unchanged clean outline; no speckled pixels or protruding head artifacts.\nframes: 8\nsize: 96x96px\ntransparent: True\nlast_frame: yes (animating toward it)\ncost: 2 generations\nstatus: processing (~1-5 min)\n\nhint: get_image(job_id=\"8033f5d0-ca9a-41f8-bd2c-201cd209a976\")",
+  "job": "8033f5d0-ca9a-41f8-bd2c-201cd209a976",
+  "source": "output/agent-animation-study/rollout-20px/full-motion/ninjaturtle/refs/south.png",
+  "result": "status: failed\nid: 8033f5d0-ca9a-41f8-bd2c-201cd209a976\njob_id: 8033f5d0-ca9a-41f8-bd2c-201cd209a976\nerror: Generation failed ([502] Service temporarily unavailable. Please try again in a moment.)",
+  "failed": true
+}

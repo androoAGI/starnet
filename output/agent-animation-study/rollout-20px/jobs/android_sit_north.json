@@ -1,0 +1,13 @@
+{
+  "id": "android",
+  "track": "sit",
+  "dir": "north",
+  "request": "id: d39d4b4d-3fc8-46e3-900d-a0925dfb141c\njob_id: d39d4b4d-3fc8-46e3-900d-a0925dfb141c\ndescription: Sit down on an invisible chair while facing directly away from camera. End in a compact seated posture: knees point straight forward AWAY from camera and remain only hip-width apart, ankles close together. Upper thighs are foreshortened and mostly hidden behind the torso, not stretched sideways. Both elbows are tucked tightly beside the waist. Hands reach forward away from camera, in front of the chest and mostly hidden by the body from this rear view. No sideways arms, no T pose, no wide-legged squat. Keep head and torso upright and same size. Do not draw chair, desk, keyboard, floor or shadow. Preserve exact pixel art character.\nframes: 4\nsize: 96x96px\ntransparent: True\ncost: 2 generations\nstatus: processing (~1-5 min)\n\nhint: get_image(job_id=\"d39d4b4d-3fc8-46e3-900d-a0925dfb141c\")",
+  "job": "d39d4b4d-3fc8-46e3-900d-a0925dfb141c",
+  "source": "output/agent-animation-study/rollout-20px/full-motion/android/refs/north.png",
+  "result": "status: completed\nid: d39d4b4d-3fc8-46e3-900d-a0925dfb141c\njob_id: d39d4b4d-3fc8-46e3-900d-a0925dfb141c\nframes: 5\ndownload: https://api.pixellab.ai/mcp/images/d39d4b4d-3fc8-46e3-900d-a0925dfb141c/download?index=0 ... ?index=4\n(1 more frames not shown — fetch them from the download URLs above)",
+  "done": true,
+  "packed": true,
+  "lastRaw": "output/agent-animation-study/rollout-20px/full-motion/android/minimax/sit-north/d39d4b4d-3fc8-46e3-900d-a0925dfb141c/4.png",
+  "frameCount": 5
+}

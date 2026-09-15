@@ -1,0 +1,9 @@
+{
+  "id": "masterchief",
+  "track": "walk",
+  "dir": "south-east",
+  "job": "9af5aaf8-ec37-4ee7-8c9b-216928856f3f",
+  "done": true,
+  "packed": true,
+  "lastRaw": "output/agent-animation-study/rollout-20px/full-motion/masterchief/minimax/walk-south-east/9af5aaf8-ec37-4ee7-8c9b-216928856f3f/8.png"
+}

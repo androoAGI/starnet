@@ -1,0 +1,13 @@
+{
+  "id": "xenomorph",
+  "track": "sit",
+  "dir": "north",
+  "request": "id: ce57fe36-20d6-4f13-b784-1da68c49b0d5\njob_id: ce57fe36-20d6-4f13-b784-1da68c49b0d5\ndescription: Sit down on an invisible chair while facing directly away from camera. End in a compact seated posture: knees point straight forward AWAY from camera and remain only hip-width apart, ankles close together. Upper thighs are foreshortened and mostly hidden behind the torso, not stretched sideways. Both elbows are tucked tightly beside the waist. Hands reach forward away from camera, in front of the chest and mostly hidden by the body from this rear view. No sideways arms, no T pose, no wide-legged squat. Keep head and torso upright and same size. Do not draw chair, desk, keyboard, floor or shadow. Preserve exact pixel art character.\nframes: 4\nsize: 96x96px\ntransparent: True\ncost: 2 generations\nstatus: processing (~1-5 min)\n\nhint: get_image(job_id=\"ce57fe36-20d6-4f13-b784-1da68c49b0d5\")",
+  "job": "ce57fe36-20d6-4f13-b784-1da68c49b0d5",
+  "source": "output/agent-animation-study/rollout-20px/full-motion/xenomorph/refs/north.png",
+  "result": "status: completed\nid: ce57fe36-20d6-4f13-b784-1da68c49b0d5\njob_id: ce57fe36-20d6-4f13-b784-1da68c49b0d5\nframes: 5\ndownload: https://api.pixellab.ai/mcp/images/ce57fe36-20d6-4f13-b784-1da68c49b0d5/download?index=0 ... ?index=4\n(1 more frames not shown — fetch them from the download URLs above)",
+  "done": true,
+  "packed": true,
+  "lastRaw": "output/agent-animation-study/rollout-20px/full-motion/xenomorph/minimax/sit-north/ce57fe36-20d6-4f13-b784-1da68c49b0d5/4.png",
+  "frameCount": 5
+}

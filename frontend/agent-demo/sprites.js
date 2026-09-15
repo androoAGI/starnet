@@ -57,7 +57,7 @@ const SPRITES = (() => {
      still, not a floor body — has to cancel this scale out exactly. Re-deriving it in the UI would drift
      the moment ULTRON, a new set, or the DATA.SKINS fallback changed; asking the engine cannot. */
   function setForBody(b) {
-    return (b && b.id === 'ULTRON') ? 'ultron'
+    return (b && b.id === 'ULTRON') ? 'approved_ultron'
       : ((DATA.SKINS[b && b.skin] && DATA.SKINS[b.skin].set) || DATA.SKINS[DATA.DEFAULT_SKIN].set);
   }
   function bodyScale(b) { return drawScaleFor(setForBody(b)); }
@@ -131,7 +131,7 @@ const SPRITES = (() => {
     const cacheKey = set + ':' + sc;
     if (cycleCache[cacheKey] != null) return cycleCache[cacheKey];
     // Approved masters contain 68 rows of transparent packing. They are not leg length.
-    const visibleHeight = set.startsWith('approved_') ? 76 : frameH;
+    const visibleHeight = isReviewSet(set) ? 76 : (DATA.SKINS[set]?.sourceStandingHeight || frameH);
     const fallback = visibleHeight * sc * CYCLE_PER_HEIGHT;
     const side = frames[set + '.walk.east'] || frames[set + '.walk.west'];
     const idleFr = frames[set + '.rot.east'] || frames[set + '.rot.west'];
@@ -406,8 +406,7 @@ const SPRITES = (() => {
   function drawBody(ctx, b, nowMs, appearance) {
     const reduced = !!(appearance && appearance.reducedMotion);
     const light = bodyLight(appearance && appearance.light);
-    const set = b.id === 'ULTRON' ? 'ultron'
-      : ((DATA.SKINS[b.skin] && DATA.SKINS[b.skin].set) || DATA.SKINS[DATA.DEFAULT_SKIN].set);
+    const set = setForBody(b);
     if (!loadedSets.has(set)) { loadSet(set); return null; }
     const glancing = b.glance && b.glance.until > nowMs;   // brief look-up: overrides facing & typing
     const meeting = b.meet && b.meet.until > nowMs;        // hallway chat: stand still, face partner
@@ -554,9 +553,10 @@ const SPRITES = (() => {
     const x = snap(b.px - dw / 2);
     // Keep the approved boots against the floor contact. The legacy three-world-pixel
     // lift separated an 18px body from its shadow by one sixth of its visible height.
-    const GROUND_BITE = isReviewSet(set) ? -0.25 : -3;
+    const sourceHeight = isReviewSet(set) ? 76 : DATA.SKINS[set]?.sourceStandingHeight;
+    const GROUND_BITE = sourceHeight ? -0.25 : -3;
     b._renderGroundGap = -GROUND_BITE;
-    b._renderStandingHeight = isReviewSet(set) ? 76 * sc : null;
+    b._renderStandingHeight = sourceHeight ? sourceHeight * sc : null;
     // SEAT LIFT: a body seated on a raised single-tile seat (stool/chair) draws its pixels this many px
     // higher so the hips land on the seat pad — world.js's planSeat measured it off the prop art. The
     // sort key and the ground shadow deliberately stay at b.py (the seat tile's floor line): only the

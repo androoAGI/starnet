@@ -1,0 +1,13 @@
+{
+  "id": "endoskeleton",
+  "track": "sit",
+  "dir": "north",
+  "request": "id: bfca0bf1-e83a-474b-a8e3-06a0ff11f431\njob_id: bfca0bf1-e83a-474b-a8e3-06a0ff11f431\ndescription: Sit down on an invisible chair while facing directly away from camera. End in a compact seated posture: knees point straight forward AWAY from camera and remain only hip-width apart, ankles close together. Upper thighs are foreshortened and mostly hidden behind the torso, not stretched sideways. Both elbows are tucked tightly beside the waist. Hands reach forward away from camera, in front of the chest and mostly hidden by the body from this rear view. No sideways arms, no T pose, no wide-legged squat. Keep head and torso upright and same size. Do not draw chair, desk, keyboard, floor or shadow. Preserve exact pixel art character.\nframes: 4\nsize: 96x96px\ntransparent: True\ncost: 2 generations\nstatus: processing (~1-5 min)\n\nhint: get_image(job_id=\"bfca0bf1-e83a-474b-a8e3-06a0ff11f431\")",
+  "job": "bfca0bf1-e83a-474b-a8e3-06a0ff11f431",
+  "source": "output/agent-animation-study/rollout-20px/full-motion/endoskeleton/refs/north.png",
+  "result": "status: completed\nid: bfca0bf1-e83a-474b-a8e3-06a0ff11f431\njob_id: bfca0bf1-e83a-474b-a8e3-06a0ff11f431\nframes: 5\ndownload: https://api.pixellab.ai/mcp/images/bfca0bf1-e83a-474b-a8e3-06a0ff11f431/download?index=0 ... ?index=4\n(1 more frames not shown — fetch them from the download URLs above)",
+  "done": true,
+  "packed": true,
+  "lastRaw": "output/agent-animation-study/rollout-20px/full-motion/endoskeleton/minimax/sit-north/bfca0bf1-e83a-474b-a8e3-06a0ff11f431/4.png",
+  "frameCount": 5
+}

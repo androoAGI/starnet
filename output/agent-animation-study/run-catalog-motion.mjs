@@ -7,10 +7,11 @@ const initial=await run(`node -e "const fs=require('fs'),b='${base}';console.log
 const data=JSON.parse(initial.output),queue=data.queue;
 for(const j of data.jobs){const target=queue.find(x=>x.id===j.id&&x.track===j.track&&x.dir===j.dir);if(target)Object.assign(target,j);}
 let ticks=0;
-while(queue.some(j=>!j.packed&&!j.failed)){
+while(true){
  const resets=await run(`node -e "const fs=require('fs'),p='${base}/reset-requests.json',f='${base}/reset-inflight.json',read=x=>fs.existsSync(x)?JSON.parse(fs.readFileSync(x)):[],q=read(f).concat(read(p));fs.writeFileSync(f,JSON.stringify(q));fs.writeFileSync(p,'[]');console.log(JSON.stringify(q));"`,10000),deferred=[];
  for(const reset of JSON.parse(resets.output)){const j=queue.find(x=>x.id===reset.id&&x.track===reset.track&&x.dir===reset.dir);if(!j)continue;if(j.job&&!j.done&&!j.failed){deferred.push(reset);continue;}await save(`${base}/jobs/history/${j.id}_${j.track}_${j.dir}-${j.job||'unsubmitted'}.json`,j);for(const key of Object.keys(j))delete j[key];Object.assign(j,reset);await save(jobFile(j),j);}
  if(JSON.parse(resets.output).length)await save(base+'/reset-inflight.json',deferred);
+ if(!queue.some(j=>!j.packed&&!j.failed)&&!deferred.length)break;
  const rs=await run(`node -e "const fs=require('fs'),b='${base}/full-motion';console.log(JSON.stringify({ready:fs.readdirSync(b).filter(id=>['rotation','character'].some(n=>{try{return JSON.parse(fs.readFileSync(b+'/'+id+'/'+n+'.json')).detail?.startsWith('status: completed')}catch{return false}})),prompts:JSON.parse(fs.readFileSync('${base}/motion-prompts.json'))}));"`,6000),state=JSON.parse(rs.output),ready=new Set(state.ready),prompts=state.prompts;
  let active=queue.filter(j=>j.job&&!j.done&&!j.failed);
  for(const j of queue){

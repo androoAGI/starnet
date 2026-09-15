@@ -1,0 +1,13 @@
+{
+  "id": "xenomorph",
+  "track": "sit",
+  "dir": "east",
+  "request": "id: 11dbc1d6-6e29-44eb-8a6a-620e75587b74\njob_id: 11dbc1d6-6e29-44eb-8a6a-620e75587b74\ndescription: The character lowers into a seated pose on an invisible chair, facing east throughout. Hips move down, thighs extend forward, knees bend and remain hip-width apart, with feet below knees. Torso stays upright, head stays same size. Elbows stay tucked beside the waist and hands reach forward at desk height. End fully seated with a compact silhouette, not arms stretched sideways. Do not draw a chair, desk, keyboard, floor, shadow or any object. Preserve the exact character design and pixel art.\nframes: 4\nsize: 96x96px\ntransparent: True\ncost: 2 generations\nstatus: processing (~1-5 min)\n\nhint: get_image(job_id=\"11dbc1d6-6e29-44eb-8a6a-620e75587b74\")",
+  "job": "11dbc1d6-6e29-44eb-8a6a-620e75587b74",
+  "source": "output/agent-animation-study/rollout-20px/full-motion/xenomorph/refs/east.png",
+  "result": "status: completed\nid: 11dbc1d6-6e29-44eb-8a6a-620e75587b74\njob_id: 11dbc1d6-6e29-44eb-8a6a-620e75587b74\nframes: 5\ndownload: https://api.pixellab.ai/mcp/images/11dbc1d6-6e29-44eb-8a6a-620e75587b74/download?index=0 ... ?index=4\n(1 more frames not shown — fetch them from the download URLs above)",
+  "done": true,
+  "packed": true,
+  "lastRaw": "output/agent-animation-study/rollout-20px/full-motion/xenomorph/minimax/sit-east/11dbc1d6-6e29-44eb-8a6a-620e75587b74/4.png",
+  "frameCount": 5
+}

@@ -1,0 +1,22 @@
+[
+  {
+    "id": "pepe",
+    "result": "id: 102ce2d9-4e6b-4ec7-999f-10d89544009f\nname: StarNet 19px industrial pepe\nmode: v3 reference (2 generations, 8 directions)\nbody: humanoid\nsize: 96x96px\nview: low top-down\nstyle: from reference image (outline/detail hints ignored)\nstatus: processing (~3-5 min)\n\nhint: get_character(character_id=\"102ce2d9-4e6b-4ec7-999f-10d89544009f\")"
+  },
+  {
+    "id": "vaultboy",
+    "result": "id: 7df8f11e-12b7-43c3-8272-79659968d68f\nname: StarNet 19px industrial vaultboy\nmode: v3 reference (2 generations, 8 directions)\nbody: humanoid\nsize: 96x96px\nview: low top-down\nstyle: from reference image (outline/detail hints ignored)\nstatus: processing (~3-5 min)\n\nhint: get_character(character_id=\"7df8f11e-12b7-43c3-8272-79659968d68f\")"
+  },
+  {
+    "id": "bear",
+    "result": "id: 00e681dc-c4b7-4d4a-9e36-2cc9fab792ed\nname: StarNet 19px industrial bear\nmode: v3 reference (2 generations, 8 directions)\nbody: humanoid\nsize: 96x96px\nview: low top-down\nstyle: from reference image (outline/detail hints ignored)\nstatus: processing (~3-5 min)\n\nhint: get_character(character_id=\"00e681dc-c4b7-4d4a-9e36-2cc9fab792ed\")"
+  },
+  {
+    "id": "ghostface",
+    "result": "id: 043719dc-2d1e-4aad-97ec-56c3b332a288\nname: StarNet 19px industrial ghostface\nmode: v3 reference (2 generations, 8 directions)\nbody: humanoid\nsize: 96x96px\nview: low top-down\nstyle: from reference image (outline/detail hints ignored)\nstatus: processing (~3-5 min)\n\nhint: get_character(character_id=\"043719dc-2d1e-4aad-97ec-56c3b332a288\")"
+  },
+  {
+    "id": "morpheus",
+    "result": "id: 1e53b511-d0f4-42d9-b357-09989f6e1855\nname: StarNet 19px industrial morpheus\nmode: v3 reference (2 generations, 8 directions)\nbody: humanoid\nsize: 96x96px\nview: low top-down\nstyle: from reference image (outline/detail hints ignored)\nstatus: processing (~3-5 min)\n\nhint: get_character(character_id=\"1e53b511-d0f4-42d9-b357-09989f6e1855\")"
+  }
+]

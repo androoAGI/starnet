@@ -1,0 +1,13 @@
+{
+  "id": "robot",
+  "track": "walk",
+  "dir": "north-east",
+  "request": "id: 59d819ea-b95a-4e27-bb1f-1e0852883292\njob_id: 59d819ea-b95a-4e27-bb1f-1e0852883292\ndescription: A seamless two-step walk in place, facing north-east throughout. Alternate left foot contact, passing pose, right foot contact, passing pose. One foot always carries weight on the same baseline. Opposite arm swings. The body stays upright and centered; head stays steady, only tiny shoulder counter-rotation. Preserve exact input body size, shape, clothing, leg colors and pixel style. No turns, no jump, no both-feet lift, no objects and no ground shadow.\nframes: 8\nsize: 96x96px\ntransparent: True\ncost: 2 generations\nstatus: processing (~1-5 min)\n\nhint: get_image(job_id=\"59d819ea-b95a-4e27-bb1f-1e0852883292\")",
+  "job": "59d819ea-b95a-4e27-bb1f-1e0852883292",
+  "source": "output/agent-animation-study/rollout-20px/full-motion/robot/refs/north-east.png",
+  "result": "status: completed\nid: 59d819ea-b95a-4e27-bb1f-1e0852883292\njob_id: 59d819ea-b95a-4e27-bb1f-1e0852883292\nframes: 9\ndownload: https://api.pixellab.ai/mcp/images/59d819ea-b95a-4e27-bb1f-1e0852883292/download?index=0 ... ?index=8\n(5 more frames not shown — fetch them from the download URLs above)",
+  "done": true,
+  "packed": true,
+  "lastRaw": "output/agent-animation-study/rollout-20px/full-motion/robot/minimax/walk-north-east/59d819ea-b95a-4e27-bb1f-1e0852883292/8.png",
+  "frameCount": 9
+}

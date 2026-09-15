@@ -462,7 +462,7 @@ const World = (() => {
   function stepGait(b, dx, dy, d, top, lastLeg, dt) {
     // The legacy pace was tuned for roughly 35px-tall bodies. Keep the approved
     // 18px crew at a walking pace in body lengths, rather than racing across the deck.
-    if ((DATA.SKINS[b.skin]?.set || '').startsWith('approved_')) top *= 76 * SPRITES.bodyScale(b) / 35;
+    if (b.id === 'ULTRON' || (DATA.SKINS[b.skin]?.set || '').startsWith('approved_') || DATA.SKINS[b.skin]?.sourceStandingHeight) top *= (DATA.SKINS[b.skin]?.sourceStandingHeight || 76) * SPRITES.bodyScale(b) / 35;
     if (b.faceA == null || b.dir !== b.faceDir) b.faceA = DIR_A[b.dir] != null ? DIR_A[b.dir] : Math.PI / 2;
     const t = (typeof performance !== 'undefined' ? performance.now() : Date.now());
     if (b.odo == null || t - (b.odoAt || 0) > 150) { b.odo = 0; b.spd = 0; }   // wasn't walking last frame → a NEW walk
@@ -6201,7 +6201,7 @@ const World = (() => {
     drawPropShadows();
     if (sceneRenderer) sceneRenderer.drawGrounding(ctx, [agent, ...crew].filter(b => b && !b.unplaced && !b.seated && !b.lying)
       .map(b => ({ x: bodyPosX(b), y: bodyPosY(b), width: 6,
-        height: (DATA.SKINS[b.skin]?.set || '').startsWith('approved_') ? 76 * SPRITES.bodyScale(b) : 20,
+        height: b.id === 'ULTRON' || (DATA.SKINS[b.skin]?.set || '').startsWith('approved_') || DATA.SKINS[b.skin]?.sourceStandingHeight ? (DATA.SKINS[b.skin]?.sourceStandingHeight || 76) * SPRITES.bodyScale(b) : 20,
         opacity: .24 })));
     if (sceneRenderer) {
       sceneRenderer.drawEntities(ctx, items);
@@ -8696,6 +8696,7 @@ const World = (() => {
     if (!sk || (typeof DATA === 'undefined' || !DATA.SKINS || !DATA.SKINS[sk])) return false;
     const b = bodyForAgent(agentId);
     if (!b) return false;
+    if(b.skin!==sk){delete demoWalkEvidence[b.id];delete demoMotionEvidence[b.id];}
     b.skin = sk;
     return true;
   }

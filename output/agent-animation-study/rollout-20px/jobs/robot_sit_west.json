@@ -1,0 +1,13 @@
+{
+  "id": "robot",
+  "track": "sit",
+  "dir": "west",
+  "request": "id: 3591944c-69fe-4512-8bf6-49ed46d453d6\njob_id: 3591944c-69fe-4512-8bf6-49ed46d453d6\ndescription: The character lowers into a seated pose on an invisible chair, facing west throughout. Hips move down, thighs extend forward, knees bend and remain hip-width apart, with feet below knees. Torso stays upright, head stays same size. Elbows stay tucked beside the waist and hands reach forward at desk height. End fully seated with a compact silhouette, not arms stretched sideways. Do not draw a chair, desk, keyboard, floor, shadow or any object. Preserve the exact character design and pixel art.\nframes: 4\nsize: 96x96px\ntransparent: True\ncost: 2 generations\nstatus: processing (~1-5 min)\n\nhint: get_image(job_id=\"3591944c-69fe-4512-8bf6-49ed46d453d6\")",
+  "job": "3591944c-69fe-4512-8bf6-49ed46d453d6",
+  "source": "output/agent-animation-study/rollout-20px/full-motion/robot/refs/west.png",
+  "result": "status: completed\nid: 3591944c-69fe-4512-8bf6-49ed46d453d6\njob_id: 3591944c-69fe-4512-8bf6-49ed46d453d6\nframes: 5\ndownload: https://api.pixellab.ai/mcp/images/3591944c-69fe-4512-8bf6-49ed46d453d6/download?index=0 ... ?index=4\n(1 more frames not shown — fetch them from the download URLs above)",
+  "done": true,
+  "packed": true,
+  "lastRaw": "output/agent-animation-study/rollout-20px/full-motion/robot/minimax/sit-west/3591944c-69fe-4512-8bf6-49ed46d453d6/4.png",
+  "frameCount": 5
+}

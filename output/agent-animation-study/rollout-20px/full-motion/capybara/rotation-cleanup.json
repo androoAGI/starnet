@@ -1,0 +1,9 @@
+{
+  "source": "output/agent-animation-study/rollout-20px/capybara-rotation-clean-source.png",
+  "tool": "built-in ImageGen",
+  "edit": "Remove invented gray hip equipment from all rotations; preserve original south front",
+  "columns": 4,
+  "rows": 2,
+  "standingHeight": 76,
+  "worldHeight": 19
+}

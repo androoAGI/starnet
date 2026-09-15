@@ -2,7 +2,7 @@
 'use strict';
 (() => {
   if (!['127.0.0.1','localhost'].includes(location.hostname)) return;
-  const skins=[['blank','ultron','Ultron'],['skeleton','skeleton','Skeleton'],['plaguedoctor','plaguedoctor','Plague Doctor'],['secretagent','secretagent','Secret Agent'],['voidwizard','voidwizard','Void Wizard']];
+  const skins=[['approved_ultron','ultron','Ultron'],['skeleton','skeleton','Skeleton'],['plaguedoctor','plaguedoctor','Plague Doctor'],['secretagent','secretagent','Secret Agent'],['voidwizard','voidwizard','Void Wizard']];
   const nextSkins=[['pepe','pepe','Pepe'],['vaultboy','vaultboy','Fallout 1 Vault Dweller'],['bear','bear','Teddy Bear'],['ghostface','ghostface','Ghostface'],['morpheus','morpheus','Morpheus']];
   const comparisonSkins=[...skins,...nextSkins];
   const height=19; // User-approved standing height for the industrial skin rollout.
@@ -28,32 +28,54 @@
   skinPicker.style.cssText='appearance:none;background:#1a2528;color:#d8ceae;border:1px solid #877957;padding:5px 24px 5px 7px;background-image:linear-gradient(45deg,transparent 50%,#d8ceae 50%),linear-gradient(135deg,#d8ceae 50%,transparent 50%);background-position:calc(100% - 12px) 50%,calc(100% - 8px) 50%;background-size:4px 4px;background-repeat:no-repeat';
   for(const[,id,name]of comparisonSkins){const o=document.createElement('option');o.value=id;o.textContent=name;skinPicker.append(o);}skinPicker.value='ultron';
   const skinLabel=document.createElement('label');skinLabel.style.cssText='display:block;margin-bottom:8px';skinLabel.textContent='Compare skin ';skinLabel.append(skinPicker);compare.prepend(skinLabel);
-  panel.append(compare);
-  const showReview=z=>{panel.querySelector('input').value='19';panel.querySelector('output').textContent='19 px';for(const[skin]of skins)DATA.SKINS[skin].scale=19/76;World.showSkinReview(true,z,skinPicker.value);};
+  const compareContainer=document.createElement('details');const compareSummary=document.createElement('summary');compareSummary.textContent='Front pose comparison';compareContainer.append(compareSummary,compare);panel.append(compareContainer);
+  const setHeight=h=>{for(const entry of Object.values(DATA.SKINS))if(/^(approved|readability|industrial)_/.test(entry.set||'')||entry.sourceStandingHeight)entry.scale=h/(entry.sourceStandingHeight||76);};
+  const showReview=z=>{panel.querySelector('input').value='19';panel.querySelector('output').textContent='19 px';setHeight(19);World.showSkinReview(true,z,skinPicker.value);};
   skinPicker.onchange=()=>showReview(Number(panel.dataset.reviewZoom)||2);
   compare.querySelector('#review-normal').onclick=()=>showReview(2);
   compare.querySelector('#review-close').onclick=()=>showReview(4);
   compare.querySelector('#review-hide').onclick=()=>{World.showSkinReview(false);panel.dataset.comparison='hidden';};
-  panel.querySelector('input').oninput=e=>{World.showSkinReview(false);panel.dataset.comparison='hidden';const h=Number(e.target.value);for(const[skin]of skins)DATA.SKINS[skin].scale=h/76;panel.querySelector('output').textContent=h+' px';};
-  panel.querySelector('select').onchange=e=>{World.showSkinReview(false);panel.dataset.comparison='hidden';if(e.target.value)World.lockBody(e.target.value);else World.focusAgent();};
+  panel.querySelector('input').oninput=e=>{World.showSkinReview(false);panel.dataset.comparison='hidden';const h=Number(e.target.value);setHeight(h);panel.querySelector('output').textContent=h+' px';};
+  panel.querySelector('select').onchange=e=>{World.showSkinReview(false);panel.dataset.comparison='hidden';if(e.target.value)World.lockBody(e.target.value);else World.focusAgent();const id=shownSkins.get(e.target.value);if(id){liveSkin.value=id;panel.dataset.liveSkin=id;const item=catalogSkins.find(x=>x.id===id);motionStatus.textContent=describeSkin(item);}};
   let tries=0;
+  let catalogSkins=[];const shownSkins=new Map();
+  const liveSkin=document.createElement('select');liveSkin.setAttribute('aria-label','Live agent skin');liveSkin.className='fbc-sel';
+  const liveLabel=document.createElement('label');liveLabel.style.cssText='display:block;margin-top:8px';liveLabel.textContent='Live agent skin ';liveLabel.append(liveSkin);panel.insertBefore(liveLabel,compareContainer);
+  const motionStatus=document.createElement('div');motionStatus.style.marginTop='5px';liveLabel.append(motionStatus);
+  const describeSkin=item=>item?.retainedOriginal?'Existing art · rendered at 19 px':item?.complete?'Walk and seated frames available':'Walk ready · seated frames in progress';
+  const nextGroup=document.createElement('button');nextGroup.className='bb';nextGroup.textContent='Next five skins';liveLabel.append(nextGroup);let groupOffset=0;
+  nextGroup.onclick=async()=>{const available=catalogSkins.filter(x=>x.walkReady).concat(catalogSkins.filter(x=>x.retainedOriginal));if(!available.length)return;const agents=App.agents().slice(0,5),selected=agents.map((a,i)=>available[(groupOffset+i)%available.length]);await Promise.all(selected.map(x=>SPRITES.ensureSkin(x.renderSet)));World.showSkinReview(false);panel.dataset.comparison='hidden';for(let i=0;i<agents.length;i++){World.setSkin(agents[i].id,selected[i].renderSet);shownSkins.set(agents[i].id,selected[i].id);const option=Array.from(panel.querySelector('select').options).find(o=>o.value===agents[i].id);if(option)option.textContent=agents[i].name+' · '+selected[i].name;}panel.dataset.reviewGroup=JSON.stringify(selected.map(x=>x.id));groupOffset=(groupOffset+5)%available.length;liveSkin.value=shownSkins.get(panel.querySelector('select').value)||selected[0].id;panel.dataset.liveSkin=liveSkin.value;motionStatus.textContent=selected.map(x=>x.name).join(' · ');};
+  const skinRequests=new Map();
+  liveSkin.onchange=async()=>{
+    const selected=catalogSkins.find(x=>x.id===liveSkin.value);if(!selected?.readyForStation)return;
+    const follow=panel.querySelector('select'),id=follow.value||App.currentAgent().id,request={};skinRequests.set(id,request);
+    await SPRITES.ensureSkin(selected.renderSet);if(skinRequests.get(id)!==request)return;
+    World.setSkin(id,selected.renderSet);shownSkins.set(id,selected.id);
+    const option=Array.from(follow.options).find(o=>o.value===id);if(option)option.textContent=(App.agents().find(a=>a.id===id)?.name||id)+' · '+selected.name;
+    if(follow.value===id){World.showSkinReview(false);panel.dataset.comparison='hidden';World.lockBody(id);liveSkin.value=selected.id;panel.dataset.liveSkin=selected.id;motionStatus.textContent=describeSkin(selected);}
+  };
   const timer=setInterval(async()=>{
     if(++tries>180){clearInterval(timer);panel.querySelector('#agent-demo-status').textContent='Station did not finish loading.';return;}
     if(!window.__STARNET_DEV__||typeof App==='undefined'||!App.currentAgent()||!World.dbg()||!SPRITES.ready)return;
     clearInterval(timer);
     try{
-      const hero=App.currentAgent();World.setSkin(hero.id,'blank');
+      const response=await fetch('agent-demo/catalog.json',{cache:'no-store'});if(!response.ok)throw Error('Catalog unavailable');catalogSkins=(await response.json()).skins;
+      for(const item of catalogSkins){const o=document.createElement('option');o.value=item.id;o.textContent=item.name+(item.retainedOriginal?' · existing art':item.walkReady?'':' · pending');o.disabled=!item.readyForStation;liveSkin.append(o);if(!item.readyForStation)continue;const set=item.renderSet;DATA.SKINS[set]={name:item.name,set,scale:height/item.sourceStandingHeight,sourceStandingHeight:item.sourceStandingHeight};if(item.id!=='ultron')DATA.SKINS[item.skin]={...DATA.SKINS[item.skin],name:item.name,set,scale:height/item.sourceStandingHeight,sourceStandingHeight:item.sourceStandingHeight};}
+      liveSkin.value='ultron';
+      const hero=App.currentAgent();World.setSkin(hero.id,'approved_ultron');
       for(const[skin,,name]of skins.slice(1))if(!App.agents().some(a=>a.skin===skin))App.summonAgent({id:'industrial-demo-'+skin,name,agentName:name,skin},{desk:true,activate:false});
       const requiredSkins=[...skins.map(([skin])=>skin),...comparisonSkins.map(([,id])=>'readability_'+id),...comparisonSkins.map(([,id])=>'industrial_'+id)];
       const loaded=await Promise.all(requiredSkins.map(skin=>SPRITES.ensureSkin(skin)));
       const missing=requiredSkins.filter((_,i)=>!loaded[i]);if(missing.length)throw new Error('Could not load: '+missing.join(', '));
       const picker=panel.querySelector('select');
-      for(const a of App.agents()){const o=document.createElement('option');o.value=a.id;o.textContent=a.id===hero.id?a.name+' · Ultron':a.name;picker.append(o);}
-      panel.querySelector('#agent-demo-status').textContent='19 px baseline · five animated skins · five new front studies';
+      for(const a of App.agents()){shownSkins.set(a.id,a.id===hero.id?'ultron':catalogSkins.find(x=>x.skin===a.skin)?.id);const o=document.createElement('option');o.value=a.id;o.textContent=a.id===hero.id?a.name+' · Ultron':a.name;picker.append(o);}
+      const redesigned=catalogSkins.filter(x=>x.walkReady).length,retained=catalogSkins.filter(x=>x.retainedOriginal).length,pending=catalogSkins.length-redesigned-retained;
+      panel.querySelector('#agent-demo-status').textContent='19 px · '+redesigned+' redesigned · '+retained+' existing'+(pending?' · '+pending+' pending':'');
       panel.dataset.revision='industrial-rollout-19px';
-      panel.dataset.ready='true';
       World.showSkinReview(false);panel.dataset.comparison='hidden';
       picker.value=hero.id;World.lockBody(hero.id);
+      await nextGroup.onclick();
+      panel.dataset.ready='true';
     }catch(e){panel.querySelector('#agent-demo-status').textContent='Demo setup: '+e.message;console.error(e);}
   },500);
 })();

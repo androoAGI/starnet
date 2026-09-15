@@ -1,0 +1,9 @@
+{
+  "id": "bear",
+  "track": "sit",
+  "dir": "south",
+  "job": "6d6373a3-e905-4583-80cc-4b9a364de78f",
+  "done": true,
+  "packed": true,
+  "lastRaw": "output/agent-animation-study/rollout-20px/full-motion/bear/minimax/sit-south/6d6373a3-e905-4583-80cc-4b9a364de78f/4.png"
+}

@@ -1,0 +1,14 @@
+{
+  "id": "capybara",
+  "track": "walk",
+  "dir": "south-east",
+  "pinLast": true,
+  "request": "id: 71031e0a-00a1-4034-961b-2f138aaf9909\njob_id: 71031e0a-00a1-4034-961b-2f138aaf9909\ndescription: A seamless two-step walk in place, facing south-east throughout. Alternate left foot contact, passing pose, right foot contact, passing pose. One foot always carries weight on the same baseline. Opposite arm swings. The body stays upright and centered; head stays steady, only tiny shoulder counter-rotation. Preserve exact input body size, shape, clothing, leg colors and pixel style. No turns, no jump, no both-feet lift, no objects and no ground shadow.\nframes: 8\nsize: 96x96px\ntransparent: True\nlast_frame: yes (animating toward it)\ncost: 2 generations\nstatus: processing (~1-5 min)\n\nhint: get_image(job_id=\"71031e0a-00a1-4034-961b-2f138aaf9909\")",
+  "job": "71031e0a-00a1-4034-961b-2f138aaf9909",
+  "source": "output/agent-animation-study/rollout-20px/full-motion/capybara/refs/south-east.png",
+  "result": "status: completed\nid: 71031e0a-00a1-4034-961b-2f138aaf9909\njob_id: 71031e0a-00a1-4034-961b-2f138aaf9909\nframes: 9\ndownload: https://api.pixellab.ai/mcp/images/71031e0a-00a1-4034-961b-2f138aaf9909/download?index=0 ... ?index=8\n(5 more frames not shown — fetch them from the download URLs above)",
+  "done": true,
+  "packed": true,
+  "lastRaw": "output/agent-animation-study/rollout-20px/full-motion/capybara/minimax/walk-south-east/71031e0a-00a1-4034-961b-2f138aaf9909/8.png",
+  "frameCount": 9
+}

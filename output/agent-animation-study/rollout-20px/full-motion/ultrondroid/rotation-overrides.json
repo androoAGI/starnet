@@ -1,0 +1,8 @@
+{
+  "south-west": {
+    "source": "output/agent-animation-study/rollout-20px/ultrondroid-south-west-source.png",
+    "tool": "built-in ImageGen",
+    "sourceStandingHeight": 76,
+    "worldStandingHeight": 19
+  }
+}

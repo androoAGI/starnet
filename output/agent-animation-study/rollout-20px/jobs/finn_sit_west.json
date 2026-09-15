@@ -1,0 +1,13 @@
+{
+  "id": "finn",
+  "track": "sit",
+  "dir": "west",
+  "request": "id: 03614ef5-b8cf-456f-bb53-d275ee914bdb\njob_id: 03614ef5-b8cf-456f-bb53-d275ee914bdb\ndescription: Sit down fully on an invisible chair facing west. Lower hips substantially until the seated silhouette is three quarters of standing height. Thighs extend forward in the facing direction, knees bend at right angles, shins point down and feet remain below knees. Keep original head and torso size, torso upright. Elbows stay tucked against ribs at waist, hands reach together forward at desk height inside shoulder width. For south view the thighs and forearms are foreshortened toward camera. Visibly seated, not standing with straight legs. Preserve exact character, clothing and colors. No chair, desk, keyboard, floor, shadow or new objects.\nframes: 4\nsize: 96x96px\ntransparent: True\ncost: 2 generations\nstatus: processing (~1-5 min)\n\nhint: get_image(job_id=\"03614ef5-b8cf-456f-bb53-d275ee914bdb\")",
+  "job": "03614ef5-b8cf-456f-bb53-d275ee914bdb",
+  "source": "output/agent-animation-study/rollout-20px/full-motion/finn/refs/west.png",
+  "result": "status: completed\nid: 03614ef5-b8cf-456f-bb53-d275ee914bdb\njob_id: 03614ef5-b8cf-456f-bb53-d275ee914bdb\nframes: 5\ndownload: https://api.pixellab.ai/mcp/images/03614ef5-b8cf-456f-bb53-d275ee914bdb/download?index=0 ... ?index=4\n(1 more frames not shown — fetch them from the download URLs above)",
+  "done": true,
+  "packed": true,
+  "lastRaw": "output/agent-animation-study/rollout-20px/full-motion/finn/minimax/sit-west/03614ef5-b8cf-456f-bb53-d275ee914bdb/4.png",
+  "frameCount": 5
+}

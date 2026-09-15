@@ -1,0 +1,39 @@
+{
+  "url": "http://127.0.0.1:18814/agent-station-demo.html?propSet=projection",
+  "standingHeight": 19,
+  "groundGap": 0.25,
+  "browserErrors": [],
+  "source": "Actual rendered data-motion telemetry; station screenshot inspected",
+  "skins": [
+    {
+      "id": "ultrondroid",
+      "walkFrames": 64,
+      "directions": 8,
+      "walkDistance": 87.24
+    },
+    {
+      "id": "samaltman",
+      "walkFrames": 64,
+      "directions": 8,
+      "walkDistance": 111.31
+    },
+    {
+      "id": "dario",
+      "walkFrames": 64,
+      "directions": 8,
+      "walkDistance": 103.23
+    },
+    {
+      "id": "freddyfazbear",
+      "walkFrames": 64,
+      "directions": 8,
+      "walkDistance": 118.79
+    },
+    {
+      "id": "ninjaturtle",
+      "walkFrames": 64,
+      "directions": 8,
+      "walkDistance": 132.54
+    }
+  ]
+}
