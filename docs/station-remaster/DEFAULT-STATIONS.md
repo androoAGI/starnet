@@ -210,3 +210,39 @@ messages. Left the prop action panel open for review. Browser errors: none.
 Focused checks pass: card stack (68), junction cards (117), real footprint edit
 parity, control theming (173), syntax, and whitespace. The inherited full-gate
 failure recorded above remains; no full-gate rerun or merge was performed.
+
+## Library-first Build Mode — September 15
+
+Replaced the stacked ten-tool console and large preset invitation with a compact
+category bar: Props, Rooms, Surfaces, Conveyors, Edit. Each category exposes only
+its relevant tools; all keyboard shortcuts remain available. Presets use a small
+header entry. Build Mode opens directly into the furniture library without
+arming a prop. Common furniture appears first, with persistent search and filters.
+
+The desktop catalog has three columns and its own scroll area. At the preview's
+909×913 viewport it shows twelve complete cards. Selecting a prop shows compact
+placement controls; Cancel restores browsing and the shelf's scroll position.
+Changing a shelf or typing a new search cancels the old placement. Browsing the
+abilities shelf still reads real tool access without triggering an equipment
+inspection tutorial event. Room previews are larger and instructions appear once.
+
+On phones the library shows six complete cards at 390×760. Choosing a prop
+folds the library into a placement tray and frames the station in the freed space;
+Cancel restores the library. Window resizing now reframes the station to prevent
+the old camera position putting it outside the new viewport. The viewport override
+is reset after verification.
+
+Live checks cover search, shelf switching without arming, scroll preservation,
+selection/cancellation, ability access, room/surface/conveyor navigation, preset
+access, and phone browsing/placement. Placed a plant through the new catalog and
+undid it. After the save acknowledgment, compared the saved station exactly with
+`.dogfood/build-interactions/library-before.json`; restored proof is
+`library-restored.json`. No template or station layout changes in this pass.
+
+Focused checks pass: prop search (255), card stack (68), junction cards (117),
+real footprint edit parity, mobile controls (26), control theming (173), syntax,
+and whitespace. Reran `npm run test:fast`; it reproduced the inherited
+`qa-product-perfect-claims` planning-authority failures (expected PASS, got BLOCKED,
+and missing open grep-verdict explanation). Stopped that run after confirmed
+failures instead of waiting for the previously observed overall timeout. Log:
+`.dogfood/build-interactions/library-test-fast.log`. No merge or release.
