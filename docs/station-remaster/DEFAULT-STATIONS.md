@@ -11,9 +11,9 @@ remaster at `2133aeb0a`. This is an isolated source preview, not an installed re
   media studio, one adoptable agent workstation, and two plants.
 - The default is an 18 × 11 room with a clear central walkway. Existing saved
   stations do not go through the new-station composition factory.
-- The five essential props share a single back line, with their floor footprints
-  ending at the same depth. The workstation sits on the center axis with one plant
-  on each side. Broad aisles and a quiet resin floor keep the default sparse.
+- All equipment and both plants back onto the north wall at row 1. The workstation
+  sits on the center axis, with files/memory and the terminal to the left,
+  media/web to the right, and plants at the two ends. The remaining floor is open.
 - The latest projection-corrected prop art loads without a query parameter.
   Explicit classic, approved-sheet, and casing-draft comparisons remain available.
 - The optional tutorial explains the actual equipment and offers a real file task.
