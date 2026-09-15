@@ -1746,6 +1746,37 @@ const WorldModel = (() => {
       return { ok: true };
     }
 
+    // Whole-layout changes use the same single-step history and invalidation as
+    // ordinary REFIT edits. Assemble and validate before touching the live doc.
+    function replaceLayout(layout) {
+      if (!layout || layout.schema !== 'starnet.station' || !Array.isArray(layout.props) || !layout.rooms) return fail('BAD_LAYOUT');
+      const candidate = migrate(clone(layout));
+      if (!candidate.order.length || new Set(candidate.props.map(p => p.id)).size !== candidate.props.length) return fail('BAD_LAYOUT');
+      const probe = makeStation(clone(candidate));
+      for (const rid of candidate.order) {
+        const room = candidate.rooms[rid];
+        if (!room.rects.length || room.rects.some(r => ![r.x1,r.y1,r.x2,r.y2].every(Number.isFinite))) return fail('BAD_LAYOUT');
+        const placed = probe.canPlaceRoom(room.rects, room.kind, rid);
+        if (!placed.ok) return placed;
+      }
+      for (const p of candidate.props) {
+        const placed = probe.canPlaceProp(p.t,p.x,p.y,p.w,p.h,p.id);
+        if (!placed.ok) return placed;
+      }
+      const next = makeStation(candidate);
+      const owners = [...new Set(doc.props.filter(p => p.agentId).map(p => p.agentId))];
+      for (const aid of owners) {
+        const placed = next.ensureWorkstation(aid);
+        if (!placed.ok) return placed;
+      }
+      const prepared = next.serialize();
+      prepared.meta.createdAt = doc.meta.createdAt;
+      snapshot();
+      restore(prepared);
+      emit([], {global:true});
+      return {ok:true};
+    }
+
     function undo() {
       if (!undoStack.length) return fail('NOTHING', 'nothing to undo');
       redoStack.push(snap());
@@ -2336,7 +2367,7 @@ const WorldModel = (() => {
       // agent-bay binding queries
       propsByType, propsByAgent, pipelineEdges, setPipelineEdges, addPipelineEdge, removePipelineEdge, agentRoomId, bayObjects,
       capForProp: t => CAP_PROP_MAP[t] || null,   // a prop type's capability objectType (single source for the UI)
-      undo, redo, canUndo, canRedo,
+      undo, redo, canUndo, canRedo, replaceLayout,
       // projection + io
       projectGeometry, serialize, onChange,
     };

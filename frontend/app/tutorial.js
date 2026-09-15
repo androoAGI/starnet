@@ -1,19 +1,11 @@
 /* STARNET — tutorial.js : THE FIRST COMMAND + coachmarks + Field Manual (diegetic onboarding, P0–P3).
 
-   The mind that just woke up (onboarding.js) keeps talking — and teaches the Commander the ONE
-   real loop. It opens with the KIT-OUT: the floor is REAL, so a fresh station is compute-only and the
-   Commander must PLACE the capability gear (cabinet→FILES · dish→WEB · workbench→TERMINAL · server→
-   MEMORY) — each placement genuinely hands the agent that power (heroCaps → the run's real tools). Most
-   beats speak in COMMS (Chat.typeLine); the placement guidance is a floating coach bubble over REFIT
-   (which covers COMMS). Choices are Chat.choices.
-
-   Honest by mandate (this serves the polish-audit through-line "make the one real loop visible +
-   shrink what lies"): it names the crew as echoes, never fakes a number, and — crucially — only runs
-   the first real job AFTER the Commander has placed the CABINET, so the file write+read (fs.write +
-   fs.read, fs.write consent-gated) executes against tools that ACTUALLY EXIST. A fresh station grants
-   none of these out of the box (the moat — sidecar/capability/office.js + capgate F1), so the kit-out
-   is what makes the consent→execute→prove demo true instead of an app-lie. The bus-timed beats
-   (agent.run.start / permission.prompt / agent.run.end) then narrate the genuine run, never a sim.
+   The default station starts furnished with five essential capability props. The
+   optional tour explains the workstation, reads the actual equipment in the agent's
+   scope, and offers a real file task. It never asks for duplicate prop placements.
+   Existing edited stations are described from their current floor, not from the
+   starter template. Runtime access and provider availability remain separate facts.
+   Bus-timed beats narrate agent.run.start / permission.prompt / agent.run.end.
 
    Lifecycle: fires once, right after the awakening lands (app.js passes Onboarding.start({ taught })).
    Fully skippable; a self-owned localStorage flag (starnet.tutorial.v1) means it never repeats.
@@ -162,11 +154,8 @@ const Tutorial = (() => {
      The in-panel dialogue outs (res.skip → finishUp) remain the bail path — no-gating holds. */
 
   /* ================= THE FIRST COMMAND ================= */
-  // The demo is fs.write + fs.read — but the fresh station is COMPUTE-ONLY (the moat: web/files/terminal must be
-  // PLACED, see sidecar/capability/office.js + capgate F1). So the FIRST lesson is the kit-out: the Commander
-  // places the real capability gear, the agent genuinely gains files (heroCaps → fs.read/fs.write), and ONLY THEN
-  // does this run — so the walk → consent → execute → prove loop is real, never an app-lie. fs.write requires
-  // consent, so the Commander still sees the genuine consent gate; placing the CABINET first is what makes it true.
+  // The file task is offered when the actual floor has file equipment. The real
+  // preflight, permission settings and run events govern what happens next.
   const TASK = 'write the line "starnet online" to a file called hello.txt, then read it back and show me';
 
   // the capability gear the kit-out walks through, in order. `grant` is the power-word grantLabelForProp returns
@@ -257,21 +246,29 @@ const Tutorial = (() => {
     try { if (World.truthPulse) World.truthPulse(); World.say('tools for the task.'); } catch (_) {}
     await dsay('props with ability badges provide tools, like files, web or a terminal. decoration changes how the station looks.', 44, 360);
     if (!active) return;
-    await dsay('you only need the abilities your work uses. ABILITIES shows my current access — your settings may already provide the tools without extra props.', 44, 280);
+    await dsay('the default station comes with all five essentials already placed. ABILITIES shows my current access, including any service setup or access settings your task needs.', 44, 280);
     if (!active) return;
     beatKitInvite();
   }
   function beatKitInvite() {
     if (!active) return;
-    if (!hasDialogue()) return beatKitIntro();
+    if (!hasDialogue()) return finishUp(false);
+    // Read the actual floor: an older or edited station may have fewer props.
+    // Touring never asks the Commander to place a duplicate or opens REFIT.
+    let caps = [];
+    try { caps = World.heroCaps(typeof App !== 'undefined' && App.heroId ? App.heroId() : 'agent').map(c => c.objectType || c); } catch (_) {}
+    const labels = { cabinet: 'files', dish: 'web', workbench: 'terminal', notebook: 'memory', studio: 'media' };
+    const placed = Object.keys(labels).filter(c => caps.includes(c)).map(c => labels[c]);
+    const summary = placed.length ? 'this station has equipment for ' + listWords(placed) + '. ' : 'this station has no essential equipment placed yet. ';
     Dialogue.open({ name: agentName });
+    if (Dialogue.setStage) Dialogue.setStage('YOUR EQUIPMENT', 'Start with a real task');
     Dialogue.node({
-      lines: [seg('want to try placing equipment? this optional tour demonstrates four abilities. matching badges are alternatives — you don’t need every prop, and you can stop whenever you like.', 44, 0)],
+      lines: [seg(summary + 'you can rearrange or add equipment in REFIT whenever you want. start in COMMS by asking for something useful; ABILITIES shows the tools available with your current settings.', 44, 0)],
       options: [
-        { label: '▸ TRY THE EQUIPMENT TOUR', value: 'go' },
-        { label: 'I’ll explore on my own', value: 'skip', skip: true }
+        ...(caps.includes('cabinet') ? [{ label: '▸ TRY A REAL FILE TASK', value: 'demo' }] : []),
+        { label: 'I’m ready to work', value: 'done', skip: true }
       ]
-    }).then(res => { if (!active) return; if (res.skip) return finishUp(true); beatKitIntro(); });
+    }).then(res => { if (!active) return; if (res.value === 'demo') return beatCommand(); finishUp(false); });
   }
 
   /* ---- THE KIT-OUT: a guided, GLOW-DRIVEN placement loop. One self-rescheduling tick (kitTick) is the whole
@@ -484,7 +481,7 @@ const Tutorial = (() => {
       if (!ready.ok) return beatSidecarDown(ready.why);  // can't actually run → own it in words, no scary error, no 8s freeze
       spotlight('#chat-panel');
       say([
-        seg('watch, then. i’ll use the files you just gave me — write a line, read it back — right here on your machine.', 46, 380),
+        seg('watch, then. i’ll write a line to a file, then read it back — right here on your machine.', 46, 380),
         seg('  and watch me stop to ask before i touch anything. heading to my station now.', 46, 0)
       ], () => { clearSpot(); if (typeof Chat.send === 'function') Chat.send(TASK); armStall(); });   // hand off to the REAL loop (+ a failsafe if it never reaches the bus)
     });

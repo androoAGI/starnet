@@ -322,6 +322,7 @@ const Build = (() => {
           <button class="bb sm" id="refit-redo" title="redo (Ctrl+Shift+Z)">↷ REDO</button>
         </span>
         <button class="bb sm" id="refit-fit" title="frame the station">⊹ FIT</button>
+        <button class="bb sm" id="refit-stations" type="button">STATION BUILDS</button>
         <button class="bb sm" id="refit-test" title="Preview routing with an animated example. This does not run an AI task; use Run a sample job on a configured line for real work.">▸ PREVIEW</button>
         <button class="bb sm" id="refit-help" title="how to build">? HELP</button>
         <button class="bb sm refit-primary" id="refit-done" title="finish + save (Esc)">DONE</button>
@@ -398,6 +399,7 @@ const Build = (() => {
     root.querySelector('#refit-done').onclick = close;
     root.querySelector('#refit-help').onclick = showGuide;
     root.querySelector('#refit-fit').onclick = () => { fitCamera(); };
+    root.querySelector('#refit-stations').onclick = showStationBuilds;
     root.querySelector('#refit-zin').onclick = () => zoomStep(+1);
     root.querySelector('#refit-zout').onclick = () => zoomStep(-1);
     root.querySelector('#refit-zlvl').onclick = () => zoomTo(2);   // 2 = the entering default (a tile reads at 24px)
@@ -1770,6 +1772,68 @@ const Build = (() => {
   }
   // an opener calls this FIRST: whatever is up closes properly, then the new card takes the surface.
   function cardCloseAll() { for (let i = 0; i < 16; i++) { const el = cardTop(); if (!el) break; cardClose(el); } }
+
+  function showStationBuilds() {
+    if (!root || !station || typeof StationTemplates === 'undefined') return;
+    cardCloseAll();
+    const g = document.createElement('div');
+    g.className = 'refit-guide refit-station-builds refit-workflow-editor';
+    g.setAttribute('role','dialog');g.setAttribute('aria-modal','true');g.setAttribute('aria-label','Station builds');
+    g.innerHTML = '<div class="refit-guide-box station-build-box"><div class="station-build-heading"><h2>STATION BUILDS</h2><button class="bb sm" data-workflow-close>CLOSE</button></div>' +
+      '<p>Every build includes the five essentials and a workstation. Extra rooms give your work space to grow. Crew and workflows are yours to configure.</p>' +
+      '<div class="station-build-grid"></div><p class="station-build-status" role="status">Choose a build to preview its floor plan.</p>' +
+      '<div class="station-build-actions"><button class="bb" data-restore-build>RESTORE PREVIOUS LAYOUT</button><button class="bb refit-primary" data-use-build disabled>USE SELECTED BUILD</button></div></div>';
+    g.style.setProperty('--station-build-scale', typeof U.uiZoom === 'function' ? U.uiZoom() : 1);
+    const closeP = () => { g.remove(); root?.querySelector('#refit-stations')?.focus(); };
+    cardRegister(g, closeP); root.appendChild(g);
+    g.querySelector('[data-workflow-close]').onclick = closeP;
+    const status = g.querySelector('.station-build-status'), apply = g.querySelector('[data-use-build]');
+    const backupKey = 'starnet.layoutBackup.' + station.doc().meta.createdAt;
+    let selected = null, armed = false;
+    const backupButton = g.querySelector('[data-restore-build]');
+    try { backupButton.disabled = !localStorage.getItem(backupKey); } catch (_) { backupButton.disabled = true; }
+    for (const item of StationTemplates.catalog) {
+      const button = document.createElement('button'); button.className = 'bb station-build-card';
+      button.type = 'button'; button.dataset.stationBuild = item.id; button.setAttribute('aria-pressed','false');
+      button.innerHTML = '<canvas width="230" height="140" aria-hidden="true"></canvas><b>' + esc(item.name) + '</b><span>' + item.rooms + (item.rooms === 1 ? ' ROOM' : ' ROOMS') + '</span><small>' + esc(item.description) + '</small>';
+      const doc = StationTemplates.build(item.id, WorldModel, PropSprites);
+      const bounds = WorldModel.create(doc).bounds(), ctx = button.querySelector('canvas').getContext('2d');
+      const scale = Math.min(210/(bounds.maxTx-bounds.minTx+1),120/(bounds.maxTy-bounds.minTy+1));
+      const ox = (230-(bounds.maxTx-bounds.minTx+1)*scale)/2, oy = (140-(bounds.maxTy-bounds.minTy+1)*scale)/2;
+      for (const room of Object.values(doc.rooms)) for (const r of room.rects) {
+        ctx.fillStyle = room.kind==='corridor'?'#46433a':'#363b40'; ctx.strokeStyle='#b6a375';
+        const x=ox+(r.x1-bounds.minTx)*scale,y=oy+(r.y1-bounds.minTy)*scale,w=(r.x2-r.x1+1)*scale,h=(r.y2-r.y1+1)*scale;
+        ctx.fillRect(x,y,w,h);ctx.strokeRect(x+.5,y+.5,w-1,h-1);
+      }
+      for(const p of doc.props) {ctx.fillStyle=WorldModel.capForProp(p.t)?'#d2b276':'#6d957e';ctx.fillRect(ox+(p.x-bounds.minTx)*scale,oy+(p.y-bounds.minTy)*scale,Math.max(2,p.w*scale),Math.max(2,p.h*scale));}
+      button.onclick = () => {
+        selected=item;armed=false;apply.disabled=false;apply.textContent='USE '+item.name;
+        for(const b of g.querySelectorAll('[data-station-build]'))b.setAttribute('aria-pressed',b===button?'true':'false');
+        status.textContent=item.description+' Applying replaces the floor layout. Your current layout is backed up first; UNDO is also available in REFIT.';
+      };
+      g.querySelector('.station-build-grid').appendChild(button);
+    }
+    apply.onclick = () => {
+      if(!selected)return;
+      if(!armed){armed=true;apply.textContent='CONFIRM — USE '+selected.name;status.textContent='Replace the current rooms, props, and conveyors with '+selected.name+'? Agents and conversations remain. Click again to apply.';return;}
+      try {
+        const doc=StationTemplates.build(selected.id,WorldModel,PropSprites,station.doc()._nid+100);
+        localStorage.setItem(backupKey,JSON.stringify(station.serialize()));
+        const result=station.replaceLayout(doc);if(!result.ok)throw Error(result.msg||result.error);
+        fitCamera();closeP();sfx('click');
+      }catch(e){armed=false;status.textContent='Layout unchanged: '+e.message;apply.textContent='USE '+selected.name;}
+    };
+    backupButton.onclick = () => {
+      try {
+        const originalBackup=localStorage.getItem(backupKey),saved=JSON.parse(originalBackup);
+        const current=JSON.stringify(station.serialize());
+        localStorage.setItem(backupKey,current);
+        const result=station.replaceLayout(saved);
+        if(!result.ok){localStorage.setItem(backupKey,originalBackup);throw Error(result.msg||result.error);}
+        fitCamera();closeP();
+      }catch(e){status.textContent='Could not restore the previous layout: '+e.message;}
+    };
+  }
 
   /* ---------- first-use guide ---------- */
   function hasSeen() { try { return !!localStorage.getItem(SEEN_KEY); } catch (e) { return false; } }

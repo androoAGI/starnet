@@ -11,7 +11,7 @@ const IndustrialTextures = (() => {
     const query = new URLSearchParams(location.search);
     requested = query.get('textures') !== 'classic';
     crateReview = query.get('propReview') === 'crate';
-    projectionReview = query.get('propSet') === 'projection';
+    projectionReview = query.get('textures') !== 'classic' && query.get('propReview') !== 'skins' && query.get('propSet') !== 'approved';
   } catch (_) {}
   const images = {}, failed = [];
   // Exposed to the existing CRT lab for a live, reproducible material review.

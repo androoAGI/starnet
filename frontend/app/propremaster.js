@@ -17,9 +17,9 @@
    Source readback happens ONCE at load; frames use small cached canvases only. */
 'use strict';
 const PropRemaster = (() => {
-  // The casing-only drafts remain accessible explicitly, never the default set.
+  // The corrected remaster is the default. Earlier art remains an explicit review choice.
   let draftReview=false,projectionReview=false;
-  try{const query=new URLSearchParams(location.search);draftReview=query.get('propReview')==='skins';projectionReview=query.get('propSet')==='projection';}catch(_){}
+  try{const query=new URLSearchParams(location.search);draftReview=query.get('propReview')==='skins';projectionReview=!draftReview&&query.get('textures')!=='classic'&&query.get('propSet')!=='approved';}catch(_){}
   // Match the camera's 6x close-zoom limit. A 4x staging canvas softened even
   // full-resolution sources before they reached the final CRT pass.
   const ROOT = 'assets/industrial/'+(draftReview?'props-v2/':projectionReview?'projection-correction/':'approved-sheet/'), DENSITY = projectionReview ? 6 : 4, entries = new Map(), failures = [];

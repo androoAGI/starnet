@@ -16,7 +16,7 @@
 
 const StationBake = (() => {
   let projectionPresentation=false;
-  try{projectionPresentation=new URLSearchParams(location.search).get('propSet')==='projection';}catch(_){}
+  try{const query=new URLSearchParams(location.search);projectionPresentation=query.get('textures')!=='classic'&&query.get('propReview')!=='skins'&&query.get('propSet')!=='approved';}catch(_){}
   const nextSurfaces = () => typeof WorldSurface !== 'undefined' &&
     (typeof WorldRenderer === 'undefined' || WorldRenderer.enabled());
   const remastered = () => typeof IndustrialTextures !== 'undefined' && IndustrialTextures &&
