@@ -5,6 +5,11 @@ const fits={
   mug:{bounds:{x:4,y:8,width:4,height:4},reason:'Hand-sized mug; the tile remains its placement cell, not its physical width.'}
 };
 function apply(manifest,records){
+  // The authored sofa back is taller than the native one. Raise the sitter's artwork
+  // onto its cushion while retaining the floor foot/sort key and blocking rectangle.
+  manifest.props.couch.views.s.seatLift=6;
+  const couch=records.find(r=>r.id==='couch'&&(r.view||'s')==='s');
+  if(couch)couch.seatLift=6;
   for(const[id,fit]of Object.entries(fits)){
     const view=manifest.props[id].views.s,record=records.find(r=>r.id===id&&(r.view||'s')==='s');
     if(!record)throw Error('Missing authored receipt '+id);

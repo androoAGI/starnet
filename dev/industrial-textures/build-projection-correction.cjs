@@ -24,12 +24,13 @@ const envelopes={couch:{x:-1,y:-14,width:62,height:26},quarters_pooltable:{x:-1,
   for(const r of JSON.parse(fs.readFileSync(group.file)).records){
    if((group.exclude||[]).includes(r.id))continue;
    const face=r.view||'s',previous=manifest.props[r.id]?.views[face];if(!previous)throw Error('Unknown catalog view '+r.id+':'+face);
-   if(JSON.stringify(previous.footprint)!==JSON.stringify(r.footprint))throw Error('Footprint changed '+r.id);
+   const compactTable=r.id==='bridge_tacticaltable'&&face==='s'&&r.footprint.w===5&&r.footprint.h===3;
+   if(!compactTable&&JSON.stringify(previous.footprint)!==JSON.stringify(r.footprint))throw Error('Footprint changed '+r.id);
    const from=r.repoPath||r.output||r.image,bytes=fs.readFileSync(from),image=r.id+(face==='s'?'':'-'+face)+'.png';
    if(hash(bytes)!==r.outputSha256)throw Error('Export receipt mismatch '+r.id);
    const meta=await sharp(bytes).metadata();if(meta.width!==r.sourceWidth||meta.height!==r.sourceHeight)throw Error('Dimensions mismatch '+r.id);
    fs.copyFileSync(from,root+'/'+image);
-   const next={...previous,image,sourceWidth:r.sourceWidth,sourceHeight:r.sourceHeight,bounds:r.bounds,contact:{x:r.contact.x??.5,y:r.contact.y},effects:false};
+   const next={...previous,footprint:r.footprint,image,sourceWidth:r.sourceWidth,sourceHeight:r.sourceHeight,bounds:r.bounds,contact:{x:r.contact.x??.5,y:r.contact.y},effects:false};
    if(r.exposure!=null)next.exposure=r.exposure;
    if(r.surfaceSupport)next.surfaceSupport=r.surfaceSupport;else if(previous.surfaceSupport)throw Error('Changed table requires new surface points '+r.id+':'+face);
    manifest.props[r.id].views[face]=next;

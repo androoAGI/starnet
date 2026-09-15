@@ -1371,12 +1371,12 @@
           "sourceWidth": 1614,
           "sourceHeight": 825,
           "footprint": {
-            "w": 7,
-            "h": 4
+            "w": 5,
+            "h": 3
           },
           "bounds": {
-            "x": 17,
-            "y": 20,
+            "x": 5,
+            "y": 8,
             "width": 50,
             "height": 28
           },
@@ -2681,7 +2681,8 @@
             "x": 0.5,
             "y": 0.9970674486803519
           },
-          "effects": false
+          "effects": false,
+          "seatLift": 6
         }
       }
     },

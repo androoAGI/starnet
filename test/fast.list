@@ -798,3 +798,4 @@ test/projection-prop-effects.test.js
 test/projection-load-geometry.test.js
 dev/industrial-textures/prop-catalog-review.test.cjs
 test/projection-depth-rendering.test.js
+test/remaster-physical-fit.test.js

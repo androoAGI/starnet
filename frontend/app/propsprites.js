@@ -11001,7 +11001,10 @@ const PropSprites = (() => {
     screens: 'SCREENS', lab: 'LAB', storage: 'STORAGE', comms: 'COMMS', lounge: 'LOUNGE', decor: 'DECOR',
   };
 
-  const spec = id => BY_ID[id] || null;
+  const compactTactical = Object.assign({}, BY_ID.bridge_tacticaltable, { w:5, h:3,
+    footprintMigration:{from:{w:7,h:4},to:{w:5,h:3},dx:1,dy:1} });
+  const projectionCatalog = () => typeof PropRemaster !== 'undefined' && typeof PropRemaster.isProjection==='function' && PropRemaster.isProjection();
+  const spec = id => id === 'bridge_tacticaltable' && projectionCatalog() ? compactTactical : BY_ID[id] || null;
   const has = id => !!F[id];
 
   /* ---- ORIENTATION eligibility + AUTHORED TURNED VIEWS ---------------------------------------
@@ -11229,6 +11232,13 @@ const PropSprites = (() => {
   const OVER = {
     bunk: (X, Y, W, H, o) => bunkQuilt(X, Y, W, H, true, o.now),
   };
+  function hitTest(f,x,y) {
+    if(typeof PropRemaster==='undefined'||!PropRemaster.hitTest)return null;
+    const w=(f.w||1)*TILE,h=(f.h||1)*TILE;
+    let lx=x-f.x*TILE;const ly=y-f.y*TILE+surfaceLift(f);
+    if(canMirror(f.t)&&f.m)lx=w-lx;
+    return PropRemaster.hitTest(f.t,['s','w','n','e'][(f.r|0)&3],lx,ly,w,h);
+  }
   function hasOver(t) { return !!OVER[t]; }
   function drawOver(f) {
     const fn = OVER[f && f.t]; if (!fn) return;
@@ -11819,7 +11829,7 @@ const PropSprites = (() => {
   }
 
   return {
-    setSurfaceLayout,
+    setSurfaceLayout, hitTest,
     surfacePlacement,
     setCtx(c) { ctx = c; },
     setNow(t) { now = t; },
@@ -11827,7 +11837,7 @@ const PropSprites = (() => {
     // value is DIALLED on a real deck and copied back into the constant, never guessed.
     setChroma(k) { CHROMA = (k == null ? 1 : +k) || 1; _cboost.clear(); },
     getChroma: () => CHROMA,
-    draw, drawBayNames, drawOver, hasOver, drawSeatFront, CATALOG, CATS, spec, has, TILE,
+    draw, drawBayNames, drawOver, hasOver, drawSeatFront, get CATALOG(){return projectionCatalog()?CATALOG.map(c=>spec(c.id)):CATALOG;}, CATS, spec, has, TILE,
     drawShadow, lightOf, EMIT, canLightResponse, drawLightResponse, lightResponseStats, invalidateLightResponse,
     // ORIENTATION: what each prop's art can honestly do, and the box it covers once turned. The
     // builder asks BEFORE offering an R/M affordance — never an input that produces broken art.

@@ -14,7 +14,7 @@ const hash=b=>crypto.createHash('sha256').update(b).digest('hex');
  for(const [id,p]of Object.entries(old.props)){
   assert.deepEqual(Object.keys(next.props[id].views),Object.keys(p.views));
   for(const [f,v]of Object.entries(p.views)){
-   assert.deepEqual(next.props[id].views[f].footprint,v.footprint,id+' footprint');
+   assert.deepEqual(next.props[id].views[f].footprint,id==='bridge_tacticaltable'&&f==='s'?{w:5,h:3}:v.footprint,id+' footprint');
    if(!changed.has(id+':'+f)){assert.deepEqual(next.props[id].views[f],v,id+' metadata unchanged');assert.deepEqual(read(candidate+v.image),read(base+v.image),id+' image unchanged');}
   }
  }

@@ -562,7 +562,9 @@ const SPRITES = (() => {
     // SPRITE rises, the shadow pool remains on the deck under the stool where light actually lands.
     // Gated on the RESOLVED track actually being a sit pose: a set with no sit frames (minionchar,
     // 2026-08-10) falls back to rot/stand, and lifting a STANDING body onto the pad reads as levitation.
-    const seatLift = (b.sitting && b.seatLift && key.indexOf('.sit.') !== -1) ? b.seatLift : 0;
+    // A study frame behind a tall sofa back may use the calibrated perch: the back
+    // hides its legs. Open chairs still require authored sit frames before lifting.
+    const seatLift = (b.sitting && b.seatLift && (key.indexOf('.sit.') !== -1 || (studyFrame && b.seated && b.seatBehindBack))) ? b.seatLift : 0;
     // perched: anchor by THIS sit frame's own bottom padding (getTrackPad), not the standing footPad —
     // sets whose sit master carries extra empty rows below the tucked legs (skeleton) otherwise float.
     const pad = (studyFrame ? studyFrame.height-1-studyFrame.bottom : (seatLift ? getTrackPad(key) : getFootPad(set))) * sc;

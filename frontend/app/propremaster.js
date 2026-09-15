@@ -177,6 +177,10 @@ const PropRemaster = (() => {
         if(emitter){const cx=emitter.region.reduce((n,p)=>n+p[0],0)/emitter.region.length,cy=emitter.region.reduce((n,p)=>n+p[1],0)/emitter.region.length;
           projectionEmitter={x:box.x+(cx*v.sourceWidth-crop.x)/crop.width*box.width,y:box.y+(cy*v.sourceHeight-crop.y)/crop.height*box.height};}}
       const entry={spec:v,body,mask,live,screen,motion,foreground,composed,approved,indicators,projectionHandled,projection,projectionEmitter,frame,box,crop,lost:false};
+      // One byte per prepared pixel; pointer picking never reads a canvas in-frame.
+      const pickPixels=body.getContext('2d').getImageData(0,0,pw,ph).data;
+      entry.pickAlpha=new Uint8Array(pw*ph);
+      for(let i=0;i<entry.pickAlpha.length;i++)entry.pickAlpha[i]=pickPixels[i*4+3];
       for(const plane of [body,mask,live,foreground,composed,screen&&screen.off,...(motion||[])])if(plane&&plane.addEventListener)
         plane.addEventListener('contextlost',()=>{entry.lost=true;if(entry.projection)ProjectionPropEffects.dispose(entry.projection);},{once:true});
       pixelBudget+=cost;entries.set(key,entry);revision++;
@@ -393,7 +397,13 @@ const PropRemaster = (() => {
     const e=enabled(id,view)&&entries.get(id+':'+view);
     return !e||e.lost?null:{box:{...e.box},crop:{...e.crop},spec:{...e.spec},surfaceSupport:e.spec.surfaceSupport};
   }
-  return Object.freeze({ready,enabled,draw,drawForeground,emitter,screenEmission,viewGeometry,isProjection:()=>projectionReview,revision:()=>revision,
+  function hitTest(id,view,x,y,w,h){
+    const e=enabled(id,view)&&entries.get(id+':'+view);
+    if(!e||e.lost||w!==e.spec.footprint.w*12||h!==e.spec.footprint.h*12)return null;
+    const px=Math.floor((x-e.frame.x)*DENSITY),py=Math.floor((y-e.frame.y)*DENSITY);
+    return px>=0&&py>=0&&px<e.body.width&&py<e.body.height&&e.pickAlpha[py*e.body.width+px]>=24;
+  }
+  return Object.freeze({ready,enabled,draw,drawForeground,emitter,screenEmission,viewGeometry,hitTest,isProjection:()=>projectionReview,revision:()=>revision,
     status:()=>({views:Array.from(entries.keys()),failures:failures.slice(),pixels:pixelBudget}),
     // Pure contracts exposed for deterministic headless geometry validation.
     validate,fit});

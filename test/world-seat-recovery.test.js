@@ -100,4 +100,18 @@ if(src.includes('function invalidateRefitLeisure(')){
  A.eq(draw(false).fallback,1,'missing detail plate falls back to the original doorway canvas');
  A.eq(draw(null).fallback,1,'classic doorway draw remains available without a texture module');
 }
+// An authored sofa perch changes only the displayed sitter height, never floor/sort contact.
+{
+ const run=remaster=>Function('PropRemaster','geo',`
+ const self={},T=12,U={irnd:()=>0},occupiedSeats=new Set(),blocked=new Set(),SEAT_NB=[[0,1]],sideSeat=()=>null;
+ const releaseSeat=()=>{},tileInZone=()=>true,setPathTo=()=>{self.target={};return true;},arrive=()=>{};
+ ${fn('planCouchSit')}
+ const p={id:'c',t:'couch',x:4,y:5,w:5,h:1};planCouchSit(0,p,null,'north',{});return self;
+ `)(remaster,{walkable:()=>true});
+ const native=run({enabled:()=>false}),authored=run({enabled:()=>true,viewGeometry:()=>({spec:{seatLift:6}})});
+ A.eq(authored.pendSeat.py,native.pendSeat.py,'authored couch retains its floor/sort anchor');
+ A.eq(authored.pendSeat.px,native.pendSeat.px,'authored couch retains its cushion claim');
+ A.eq(authored.pendSeat.lift,6,'authored cushion lifts the sitter above the taller back');
+ A.eq(native.pendSeat.lift,0,'classic couch retains its original perch');
+}
 A.report('world-seat-recovery');

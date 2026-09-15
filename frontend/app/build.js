@@ -17,7 +17,7 @@ const Build = (() => {
     // place something. Key 0, ESC and right-click all return here from any armed tool.
     // labels are WORDS ONLY — the leading symbol each one used to carry (◎ ▦ ═ …) is now a pixel
     // icon painted on the button's canvas, because those glyphs fall back to a system font
-    { id: 'select', key: '0', label: 'SELECT', verb: 'click a machine to open it', hint: 'click any machine or belt to open it — its picker, its routes, where its lane goes', cursor: 'default' },
+    { id: 'select', key: '0', label: 'SELECT', verb: 'click an object for Move, Rotate, Copy or Delete', hint: 'click an object to select it · edit it with the buttons in the build kit', cursor: 'default' },
     { id: 'room', key: '1', label: 'ROOM', verb: 'click to place · drag to size', hint: 'click the deck to place a room at the last size you drew, or drag out any size', cursor: 'crosshair' },
     { id: 'hall', key: '2', label: 'HALLWAY', verb: 'click to run · drag to size', hint: 'click to run a corridor at the last length you drew, or drag along an axis for any length', cursor: 'crosshair' },
     // 'paint' stays the INTERNAL id (the drag mode, the model's paintTiles verb, the key map and every
@@ -124,6 +124,7 @@ const Build = (() => {
 
   // interaction state
   let tool = 'select', kind = 'hab', style = 'cobalt', mat = 'plate', hallWidth = 2, propType = 'war_intelcab', propCat = 'all', propTier = 'functional';
+  let selectedPropId=null, movingPropId=null;
   let propSection = 'abilities', propAbility = '', equipmentAgentId = '';
   let equipmentAccessKey = '', equipmentAccessView = null, equipmentAccessTicket = 0;
   let hoverThumb = null;
@@ -250,6 +251,7 @@ const Build = (() => {
       bakeDirtyRects = bakeDirtyRects && rects ? bakeDirtyRects.concat(rects) : (rects || bakeDirtyRects);
       if (bakeDirtyRectsGlobal) bakeDirtyRects = null;
       updateUndoRedo();
+      renderSelection();
       if (tool === 'prop') renderEquipmentInfo();
     });
     bakeDirty = true; bakeDirtyRects = null; bakeDirtyRectsGlobal = false; planDirty = true;
@@ -331,6 +333,7 @@ const Build = (() => {
         <div class="refit-dock-section refit-mode-section">
           <div id="refit-tools"></div>
         </div>
+        <section id="refit-selection" class="refit-selection" aria-label="Selected object" hidden></section>
         <div class="refit-dock-section refit-option-section" id="refit-option-section">
           <div class="refit-section-label" id="refit-palette-label">OPTIONS</div>
           <div class="refit-palette" id="refit-palette"></div>
@@ -739,6 +742,12 @@ const Build = (() => {
       note.className = 'refit-selectnote';
       note.innerHTML = '<span class="ui-overline">SELECT</span><b>Make it your space</b><span>Click a room or object to edit it. To add something, choose a tool above or start here.</span>';
       pal.appendChild(note);
+      const finder=document.createElement('select');finder.setAttribute('aria-label','Find a placed object');finder.className='refit-object-finder';
+      const refresh=()=>{finder.replaceChildren();const blank=document.createElement('option');blank.value='';blank.textContent='Find a placed object…';finder.append(blank);
+        for(const p of station.props().slice().sort((a,b)=>propLabel(a.t).localeCompare(propLabel(b.t)))){const o=document.createElement('option');o.value=p.id;o.textContent=propLabel(p.t)+' · '+p.x+', '+p.y;finder.append(o);}};
+      refresh();finder.onfocus=refresh;
+      finder.onchange=()=>{const p=station.propById(finder.value);if(!p)return;onInspect(p,orientEv());zoom=Math.max(zoom,1);panX=cv.width*.72-(p.x+p.w/2)*T()*zoom;panY=cv.height*.5-(p.y+p.h/2)*T()*zoom;};
+      pal.append(finder);
       const starts = document.createElement('div'); starts.className = 'refit-starts';
       for (const [id,name,why] of [['prop','Browse props','Equipment, furniture and decoration'],['room','Add a room','Choose a room type, then click or drag']]) {
         const b = document.createElement('button'); b.type = 'button'; b.className = 'refit-start'; b.dataset.startTool = id;
@@ -1142,7 +1151,8 @@ const Build = (() => {
 
     const tile = (typeof PropSprites !== 'undefined') ? PropSprites.TILE : 12;
     const nativeW = c.w * tile + THUMB_PAD * 2, nativeH = c.h * tile + THUMB_PAD * 2;
-    const off = document.createElement('canvas'); off.width = nativeW; off.height = nativeH;
+    const density=typeof PropRemaster!=='undefined'&&PropRemaster.isProjection()?4:1;
+    const off = document.createElement('canvas'); off.width = nativeW*density; off.height = nativeH*density;
 
     const lbl = document.createElement('span'); lbl.className = 'refit-proptile-lbl'; lbl.textContent = core ? 'ABILITY · ' + abilityName(capOf(c)) : c.label;
     b.appendChild(cvEl); b.appendChild(lbl);
@@ -1155,7 +1165,7 @@ const Build = (() => {
     // (the old '○' walkable marker is gone — playtesting showed it read as an unexplained mystery badge;
     //  the hover card already states "N×M · walkable", which is where that fact is actually legible)
     propThumbs.push({ id: c.id, w: c.w, h: c.h, off, octx: off.getContext('2d'), dctx: cvEl.getContext('2d'),
-                      nativeW, nativeH, bw: cvEl.width, bh: cvEl.height });
+                      nativeW, nativeH, density, bw: cvEl.width, bh: cvEl.height });
     return b;
   }
   // One static, truthful preview per selection/orientation change. The gallery already owns
@@ -1183,11 +1193,12 @@ const Build = (() => {
       designs.onclick = () => chooseAbility(capOf(c), true); if (more) more.prepend(designs);
     }
     const nativeW = box.w * 12 + 24, nativeH = box.h * 12 + 24;
-    const off = document.createElement('canvas'); off.width = nativeW; off.height = nativeH;
-    const o = off.getContext('2d'); o.translate(12, 12); o.imageSmoothingEnabled = false;
+    const density=typeof PropRemaster!=='undefined'&&PropRemaster.isProjection()?6:1;
+    const off = document.createElement('canvas'); off.width = nativeW*density; off.height = nativeH*density;
+    const o = off.getContext('2d'); o.scale(density,density);o.translate(12, 12); o.imageSmoothingEnabled = true;
     PropSprites.setCtx(o); PropSprites.setNow(0);
     PropSprites.draw({ t: c.id, x: 0, y: 0, w: box.w, h: box.h, r, m }, false);
-    const cv = host.querySelector('canvas'), d = cv.getContext('2d'); d.imageSmoothingEnabled = false;
+    const cv = host.querySelector('canvas'), d = cv.getContext('2d'); d.imageSmoothingEnabled = true;d.imageSmoothingQuality='high';
     const scale = Math.min(cv.width / nativeW, cv.height / nativeH);
     const w = Math.round(nativeW * scale), h = Math.round(nativeH * scale);
     d.drawImage(off, Math.round((cv.width - w) / 2), Math.round((cv.height - h) / 2), w, h);
@@ -1202,7 +1213,8 @@ const Build = (() => {
       if (!all && th.id !== propType && th.id !== hoverThumb) continue;
       const o = th.octx;
       o.setTransform(1, 0, 0, 1, 0, 0);
-      o.clearRect(0, 0, th.nativeW, th.nativeH);
+      o.clearRect(0, 0, th.off.width, th.off.height);
+      o.scale(th.density||1,th.density||1);
       o.imageSmoothingEnabled = false;
       o.translate(THUMB_PAD, THUMB_PAD);
       PropSprites.setCtx(o); PropSprites.setNow(now);
@@ -1211,7 +1223,7 @@ const Build = (() => {
       const dw = Math.round(th.nativeW * s), dh = Math.round(th.nativeH * s);
       d.setTransform(1, 0, 0, 1, 0, 0);
       d.clearRect(0, 0, th.bw, th.bh);
-      d.imageSmoothingEnabled = false;
+      d.imageSmoothingEnabled = (th.density||1)>1;d.imageSmoothingQuality='high';
       d.drawImage(th.off, Math.round((th.bw - dw) / 2), Math.round((th.bh - dh) / 2), dw, dh);
     }
   }
@@ -1590,7 +1602,8 @@ const Build = (() => {
      you land it. Do not reinstate a second voice for the same step. */
 
   function selectTool(id, o) {
-    tool = id; drag = null; connectFrom = null; dupe = null; hideTip(); hidePropCard();
+    movingPropId=null;selectedPropId=null;renderSelection();
+    tool = id; releaseDrag(); connectFrom = null; dupe = null; hideTip(); hidePropCard();
     root.querySelectorAll('.refit-tool').forEach(b => {
       const active = b.dataset.tool === id;
       b.classList.toggle('active', active);
@@ -3247,6 +3260,9 @@ const Build = (() => {
 
   function renderFinCard() {
     if (!root || !running) return;
+    // Workflow setup stays with workflow tools while decorating stays unobstructed.
+    if(!['belt','line'].includes(tool)) { if(finCardEl)finCardEl.style.display='none'; return; }
+    if(finCardEl)finCardEl.style.display='';
     bumpUi();   // the card is about to be re-measured/rebuilt — drop its pinned-position memo
     const c = finPick();
     if (!c) { renderOrders(); return; }   // no line yet → the stage BEFORE it, in the same slot
@@ -3660,6 +3676,16 @@ const Build = (() => {
     const c = toCanvas(ev), t = T();
     return { tx: Math.floor(((c.x - panX) / zoom) / t), ty: Math.floor(((c.y - panY) / zoom) / t) };
   }
+  function propAtEvent(ev) {
+    const c=toCanvas(ev),x=(c.x-panX)/zoom,y=(c.y-panY)/zoom,t=T();
+    const order=propDrawOrder(station.props());
+    for(let i=order.length-1;i>=0;i--){
+      const p=order[i],m=mountMap.get(p.id),dp=m?{...p,mount:m}:p;
+      const hit=PropSprites.hitTest?PropSprites.hitTest(dp,x,y):null;
+      if(hit===true || hit===null&&x>=p.x*t&&x<(p.x+p.w)*t&&y>=p.y*t&&y<(p.y+p.h)*t)return p.id;
+    }
+    return null;
+  }
   function visibleBakeRect(g) {
     if (!cv || !g) return null;
     const t = g.TILE || T(), ox = g.origin.tx * t, oy = g.origin.ty * t;
@@ -3688,9 +3714,9 @@ const Build = (() => {
     if (tool === 'select') {
       // SELECT (the default): a click INSPECTS what's under it — machine → its editor/picker/flow
       // card, belt tile → where this lane goes. Empty deck does nothing (space-drag still pans).
-      const pid = station.propAt(w.tx, w.ty);
+      const pid = propAtEvent(ev);
       const p = pid && station.propById(pid);
-      if (p) { onInspect(p, ev); return; }
+      if (p) { drag={mode:'selectpress',propId:p.id,start:w,cur:w,moved:false};return; }
       if (station.beltAt(w.tx, w.ty)) { openBeltCard(w.tx, w.ty, ev); return; }
       // ...and a ROOM opens its own sheet. Clicking the thing you spent build mode MAKING used to
       // be the one dead click in the editor.
@@ -3703,7 +3729,7 @@ const Build = (() => {
          another, and the path lays itself (station.connectBelt — oriented, hooked, junction-aware).
          Clicking empty floor still starts the classic hand-laid drag; a second click on the same
          machine (or any empty click mid-connect) cancels. */
-      const pid = station.propAt(w.tx, w.ty);
+      const pid = propAtEvent(ev);
       const pp = pid && station.propById(pid);
       if (pp && CONNECT_TYPES[pp.t]) {
         if (!connectFrom) { connectFrom = pid; sfx('click'); flashTip(ev, 'FROM ▸ ' + (propSpec(pp.t).label || pp.t).toUpperCase() + ' — now click a destination', true); return; }
@@ -3738,7 +3764,15 @@ const Build = (() => {
       stampLine(w, ev);
       return;
     } else if (tool === 'move') {
-      const pid = station.propAt(w.tx, w.ty);   // props sit on top of rooms — move them first
+      if(movingPropId){
+        const p=station.propById(movingPropId);
+        if(!p){movingPropId=null;return;}
+        const res=station.moveProp(p.id,w.tx-p.x,w.ty-p.y);
+        feedback(res,ev,'moved · Undo restores the previous position');
+        if(res&&res.ok){const id=p.id;selectTool('select');selectedPropId=id;renderSelection();}
+        return;
+      }
+      const pid = propAtEvent(ev);   // props sit on top of rooms — move them first
       if (pid) { drag = { mode: 'propmove', propId: pid, start: w, cur: w, moved: false }; return; }
       const id = station.roomAt(w.tx, w.ty);
       if (!id) { flashTip(ev, 'nothing to move here'); return; }
@@ -3764,10 +3798,11 @@ const Build = (() => {
     const w = toWorldTile(ev);
     if (drag) {
       if (w.tx !== drag.cur.tx || w.ty !== drag.cur.ty) { drag.moved = true; snapTick(drag.mode); }
+      if(drag.mode==='selectpress'&&drag.moved)drag.mode='propmove';
       if (drag.mode === 'paint' || drag.mode === 'reclaim') rasterTo(drag, w);   // accumulate every tile the brush crosses
       drag.cur = w;
     } else {
-      hoverPropId = station.propAt(w.tx, w.ty);
+      hoverPropId = propAtEvent(ev);
       hoverRoomId = station.roomAt(w.tx, w.ty);
       hoverTile = { tx: w.tx, ty: w.ty };
       // hovering a placed FUNCTIONAL prop shows its Fallout-style card (what it does + its live assignment)
@@ -3785,6 +3820,7 @@ const Build = (() => {
     const d = drag; drag = null;
     setCursor();
     if (d.mode === 'pan') return;
+    if (d.mode === 'selectpress') return onInspect(station.propById(d.propId),ev);
     if (d.mode === 'draw') return commitDraw(d, ev);
     if (d.mode === 'move') return commitMove(d, ev);
     if (d.mode === 'propmove') return commitPropMove(d, ev);
@@ -3925,7 +3961,35 @@ const Build = (() => {
      this ONE dispatch point — select-mode clicks, click-on-machine-wins from armed tools, freshly
      placed configurables, and the openAssign deep link. The follow-up per-dock step editor replaces
      the routing INSIDE this function; callers never fan out on prop type themselves. */
-  function onInspect(p, ev) {
+  function onInspect(p,ev) {
+    if(!p)return;
+    if(ev&&ev.detail>=2&&isEditableProp(p.t))return configureProp(p,ev);
+    selectedPropId=p.id;renderSelection();
+    setHint('Selected '+propLabel(p.t)+' · choose an action in the build kit');
+  }
+  function renderSelection(){
+    const host=root&&root.querySelector('#refit-selection');if(!host)return;
+    const p=station&&station.propById(selectedPropId);host.hidden=!p;root.classList.toggle('has-selection',!!p);
+    if(!p){host.replaceChildren();return;}
+    host.innerHTML='<b>'+esc(propLabel(p.t))+'</b><span>'+p.w+' × '+p.h+' floor tiles'+(canTurn(p.t)?' · '+FACE_WORD[(p.r|0)&3]:'')+'</span><div class="refit-selection-actions"></div>';
+    const actions=host.querySelector('div');
+    const add=(label,fn)=>{const b=document.createElement('button');b.className='bb sm';b.type='button';b.textContent=label;b.onclick=fn;actions.appendChild(b);};
+    add('MOVE',()=>{const id=p.id;selectTool('move');movingPropId=id;selectedPropId=id;renderSelection();setHint('Click a clear spot to move '+propLabel(p.t)+' · Esc cancels');});
+    if(canTurn(p.t))add('ROTATE',()=>{const nr=nextFace(p.t,p.r|0,1);feedback(station.faceProp(p.id,nr,propBox(p.t,nr,p)),orientEv(),'turned');renderSelection();});
+    if(canFlip(p.t))add('FLIP',()=>{feedback(station.mirrorProp(p.id),orientEv(),'flipped');renderSelection();});
+    add('COPY',()=>{selectTool('dupe');pickupDupe({tx:p.x,ty:p.y},orientEv(),p.id);});
+    if(isEditableProp(p.t))add('CONFIGURE',()=>configureProp(p,orientEv()));
+    add('DELETE',()=>{feedback(station.removeProp(p.id),orientEv(),'removed · Undo restores it');selectedPropId=null;movingPropId=null;renderSelection();setHint();});
+    add('DESELECT',()=>{selectedPropId=null;renderSelection();setHint();});
+    const position=document.createElement('details');position.className='refit-position';
+    position.innerHTML='<summary>Position on grid</summary><label>X <input aria-label="Object grid X" type="number" step="1" value="'+p.x+'"></label><label>Y <input aria-label="Object grid Y" type="number" step="1" value="'+p.y+'"></label><button class="bb sm" type="button">APPLY POSITION</button>';
+    position.querySelector('button').onclick=()=>{
+      const inputs=position.querySelectorAll('input'),x=Number(inputs[0].value),y=Number(inputs[1].value);
+      if(!Number.isInteger(x)||!Number.isInteger(y)){feedback({ok:false,msg:'Use whole tile coordinates'},orientEv());return;}
+      feedback(station.moveProp(p.id,x-p.x,y-p.y),orientEv(),'position updated');renderSelection();
+    };host.append(position);
+  }
+  function configureProp(p, ev) {
     if (!p) return;
     const t = p.t;
     if (WORKSTATION_TYPES[t]) return openWorkstationPicker(p.id, ev);
@@ -3939,7 +4003,7 @@ const Build = (() => {
     renderEquipmentInfo(t, p);
     flashTip(ev, ((sp.label || t) + '').toUpperCase() + ' — MOVE (4) relocates · DELETE (5) removes', true);
   }
-  const openPropEditor = (id, t, ev) => { const p = station && station.propById(id); if (p) onInspect(p, ev); };
+  const openPropEditor = (id, t, ev) => { const p = station && station.propById(id); if (p) configureProp(p, ev); };
   const PROP_EDITABLE = { bay: 1, filter: 1, merger: 1, splitter: 1, joiner: 1, loop: 1, airlock: 1, connector_portal: 1, intake: 1, outbox: 1 };   // merger/splitter = flow card only (no config)
   const isEditableProp = t => !!PROP_EDITABLE[t] || !!WORKSTATION_TYPES[t];   // a workstation binds an agent + opens its picker on place/click
   function commitPropStamp(d, ev) {
@@ -4025,7 +4089,9 @@ const Build = (() => {
         }
       }
     }
-    feedback(station.moveProp(d.propId, dx, dy), ev, okMsg);
+    const moved = station.moveProp(d.propId, dx, dy);
+    feedback(moved, ev, okMsg);
+    if(moved && moved.ok){selectedPropId=d.propId;renderSelection();}
   }
   function commitPaint(d, ev) {
     // WALLS are a whole-room surface — there's no per-tile wall, so a drag means the same thing
@@ -4081,8 +4147,8 @@ const Build = (() => {
      Props copy their type/footprint + carried config (filter routes, airlock seal) but NEVER an
      agent/connector binding: two bays on one agent is a routing error (DUP_AGENT) and a portal bind is a
      live server relationship, not geometry. Rooms copy their full multi-rect shape + kind + deck style. */
-  function pickupDupe(w, ev) {
-    const pid = station.propAt(w.tx, w.ty);
+  function pickupDupe(w, ev, pickedId) {
+    const pid = pickedId || propAtEvent(ev);
     if (pid) {
       const p = station.propById(pid);
       const s = propSpec(p.t);
@@ -4232,7 +4298,7 @@ const Build = (() => {
     const modal = cardTop();
     // Inputs keep every ordinary editing key, but ESC still belongs to the mounted card so its
     // registered close path can save the field before dismissing it.
-    if (a && (a.tagName === 'INPUT' || a.tagName === 'TEXTAREA' || a.isContentEditable)
+    if (a && (a.tagName === 'INPUT' || a.tagName === 'TEXTAREA' || a.tagName === 'SELECT' || a.isContentEditable)
       && (!modal || ev.key !== 'Escape')) return;
     /* A MOUNTED CARD OWNS THE KEYBOARD (2026-08-07 conveyor audit). These shortcuts drive the FLOOR, and
        the floor is not what you are looking at while a card is up: with the STEP editor open, `9` armed
@@ -4424,6 +4490,11 @@ const Build = (() => {
   let propHoverMemo = null;
   function ghostInfo() {
     if (!drag) {
+      if(tool==='move'&&movingPropId&&hoverTile){
+        const p=station.propById(movingPropId);if(!p)return null;
+        const {tx,ty}=hoverTile;
+        return {rects:[{x1:tx,y1:ty,x2:tx+p.w-1,y2:ty+p.h-1}],v:station.canPlaceProp(p.t,tx,ty,p.w,p.h,p.id),move:true,dx:tx-p.x,dy:ty-p.y,preview:{...p,x:tx,y:ty}};
+      }
       // DUPE armed: the copy ghosts under the cursor with no drag — every click stamps
       if (tool === 'dupe' && dupe && hoverTile) return dupeGhost(hoverTile.tx, hoverTile.ty);
       // LINES armed: the whole blueprint ghosts under the cursor — click stamps, red stays red
@@ -4469,7 +4540,7 @@ const Build = (() => {
       const dx = drag.cur.tx - drag.start.tx, dy = drag.cur.ty - drag.start.ty;
       const nx = p.x + dx, ny = p.y + dy;
       const rect = { x1: nx, y1: ny, x2: nx + p.w - 1, y2: ny + p.h - 1 };
-      return { rects: [rect], v: station.canPlaceProp(p.t, nx, ny, p.w, p.h, p.id), move: true, dx, dy };
+      return { rects: [rect], v: station.canPlaceProp(p.t, nx, ny, p.w, p.h, p.id), move: true, dx, dy, preview:{...p,x:nx,y:ny} };
     }
     if (drag.mode === 'move') {
       const rm = station.roomById(drag.roomId); if (!rm) return null;
@@ -4935,9 +5006,15 @@ const Build = (() => {
        top edge as you pan. Zoomed all the way out to the whole station nothing is culled and the
        cost is unchanged — which is the honest worst case, and exactly what the bench reports. */
     const order = propDrawOrder(list);
+    // The editor uses the same silhouette contact shadows as the live world.
+    // Surface-mounted objects keep their no-floor-shadow rule.
     const tp = T(), zt = zoom * tp;
     const vx0 = (-panX) / zt - PROP_CULL_PAD, vy0 = (-panY) / zt - PROP_CULL_PAD;
     const vx1 = (cv.width - panX) / zt + PROP_CULL_PAD, vy1 = (cv.height - panY) / zt + PROP_CULL_PAD;
+    if(PropSprites.drawShadow)for(const p of order){
+      if(p.x>vx1||p.y>vy1||p.x+(p.w||1)-1<vx0||p.y+(p.h||1)-1<vy0)continue;
+      PropSprites.drawShadow(p,mountMap.get(p.id)||null);
+    }
     let bayNames = null;   // aid -> name, resolved once per paint (the roster read is a callback into app.js)
     for (const p of order) {
       const m = mountMap.get(p.id);
@@ -5288,6 +5365,11 @@ const Build = (() => {
   }
 
   function drawHover(t) {
+    const selected=selectedPropId&&station.propById(selectedPropId);
+    if(selected){
+      ctx.save();ctx.strokeStyle='rgba(244,200,112,.9)';ctx.lineWidth=1.5/zoom;
+      ctx.strokeRect(selected.x*t,selected.y*t,selected.w*t,selected.h*t);ctx.restore();
+    }
     if (drag) return;
     // a hovered prop (select/move/reclaim) outlines on top of any room outline
     if ((tool === 'select' || tool === 'move' || tool === 'reclaim' || (tool === 'dupe' && !dupe)) && hoverPropId) {
@@ -5553,6 +5635,15 @@ const Build = (() => {
     }
     const g = ghostInfo();
     if (!g) return;
+    // Show the actual art at the exact candidate footprint, including its facing
+    // and tabletop lift. The outline still communicates the model's occupied tiles.
+    const rr=g.rects[0];
+    const preview=g.preview||(g.kind==='prop'?{t:propType,x:rr.x1,y:rr.y1,w:rr.x2-rr.x1+1,h:rr.y2-rr.y1+1,r:propFacing(propType),m:propFlipOn(propType)}:null);
+    if(preview){
+      const mount=station.mountOf?station.mountOf(preview):null;
+      ctx.save();ctx.globalAlpha=.65;PropSprites.setCtx(ctx);PropSprites.setNow(now);
+      try{PropSprites.draw(mount?{...preview,mount}:preview,false);}finally{ctx.restore();}
+    }
     const footprint = structureGhost(g);
     const ok = g.v && g.v.ok && (!footprint || footprint.ok);
     // a HOVER PREVIEW is quieter than a live gesture — it is showing you an option, not a commitment,

@@ -148,7 +148,10 @@ const IndustrialTextures = (() => {
       // six-to-one sample makes rivets and cable ribs alias at overview zoom.
       // Each level keeps the same world rectangle and premultiplied alpha.
       const m=ctx.getTransform(), density=Math.max(Math.hypot(m.a,m.b),Math.hypot(m.c,m.d));
-      const target=Math.max(.25,density), baseDensity=hi.width/cv.width;
+      // At distant zoom the architecture needs broad planes, not every rivet.
+      // Prefilter only the baked environment; props, crew and lights retain detail.
+      const distanceDetail=.60+.40*Math.max(0,Math.min(1,(density-1.4)/1.1));
+      const target=Math.max(.25,density*distanceDetail), baseDensity=hi.width/cv.width;
       let chain=platePyramids.get(hi);
       if(!chain){chain=[hi];platePyramids.set(hi,chain);}
       let level=0;

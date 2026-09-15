@@ -174,7 +174,8 @@
         "width": 62,
         "height": 26
       },
-      "status": "projection candidate; requires in-station visual review"
+      "status": "projection candidate; requires in-station visual review",
+      "seatLift": 6
     },
     {
       "id": "fishtank",
@@ -10564,12 +10565,12 @@
       "sourceWidth": 1614,
       "sourceHeight": 825,
       "footprint": {
-        "w": 7,
-        "h": 4
+        "w": 5,
+        "h": 3
       },
       "bounds": {
-        "x": 17,
-        "y": 20,
+        "x": 5,
+        "y": 8,
         "width": 50,
         "height": 28
       },

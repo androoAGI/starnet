@@ -116,8 +116,8 @@ A.ok(/lift:\s*[1-9]/.test(decl), 'and a non-zero perch lift, which is what makes
 
 const pcs = src.slice(src.indexOf('function planCouchSit('), src.indexOf('/* SINGLE-TILE REAL SIT'));
 A.ok(/const side = sideSeat\(couch\);/.test(pcs), 'planCouchSit resolves whether the cushion it claimed is a profile seat');
-A.ok(/pendSeat = \{ px: \(sx \+ 0\.5\) \* T \+ \(side \? side\.dx : 0\), py: \(couch\.y \+ h\) \* T - 2, lift: side \? side\.lift : 0 \}/.test(pcs),
-  'the render anchor slides onto the cushion and perches for a profile seat, and stays byte-identical for every other couch');
+A.ok(/pendSeat = \{ px: \(sx \+ 0\.5\) \* T \+ \(side \? side\.dx : 0\), py: \(couch\.y \+ h\) \* T - 2, lift: side \? side\.lift :/.test(pcs),
+  'profile seats retain their cushion offset, floor anchor and explicit perch ahead of authored sofa calibration');
 A.ok(/self\.useFace = side \? side\.face : \(faceDir \|\| 'south'\);/.test(pcs),
   "a profile seat's sitter faces the way the chair points, not the way the planner guessed");
 

@@ -14,7 +14,7 @@ async function materials(){
   for(let x=8;x<56;x++){g.fillStyle=x%2?'#c0c0c0':'#404040';g.fillRect(x,8,1,48);}
   const target=Canvas.createCanvas(400,400),ctx=target.getContext('2d'),native=ctx.drawImage.bind(ctx);let source;
   ctx.drawImage=(im,...args)=>{source=im;return native(im,...args);};
-  ctx.setTransform(1,0,0,1,0,0);assert(api.drawBase(ctx,base));assert.equal(source.width,96,'overview uses a prefiltered 1.5x plate');
+  ctx.setTransform(1,0,0,1,0,0);assert(api.drawBase(ctx,base));assert.equal(source.width,48,'distant architecture uses a coarser 0.75x plate while props remain independent');
   const first=source;api.drawBase(ctx,base);assert.equal(source,first,'stationary frames reuse the plate');
   const px=ctx.getImageData(0,0,64,64).data;assert.equal(px[3],0,'empty space stays transparent');assert.equal(px[(32*64+32)*4+3],255,'interior remains opaque');
   ctx.setTransform(6,0,0,6,0,0);api.drawBase(ctx,base);assert.equal(source.width,384,'close view retains the full authored detail');

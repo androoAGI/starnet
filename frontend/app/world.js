@@ -1648,7 +1648,7 @@ const World = (() => {
     const room=id&&station.serialize().rooms[id];
     if(id&&!room)return false;
     camLock=null;camLerp=null;camUserAt=performance.now();
-    if(!room){fitCamera();scale*=.90;panX=(cv.width-cache.W*scale)/2;panY=(cv.height-cache.H*scale)/2+40;}
+    if(!room){fitCamera();scale=Math.min(scale*.90,cv.height*.76/cache.H);panX=(cv.width-cache.W*scale)/2;panY=cv.height*.57-cache.H*scale/2;}
     else{
       const r=room.rects,x1=Math.min(...r.map(v=>v.x1)),x2=Math.max(...r.map(v=>v.x2))+1;
       const y1=Math.min(...r.map(v=>v.y1)),y2=Math.max(...r.map(v=>v.y2))+1;
@@ -2583,7 +2583,7 @@ const World = (() => {
   function releaseSeat() {
     if (!self) return;
     if (self.seatKey) occupiedSeats.delete(self.seatKey);
-    self.seatKey = null; self.seated = false; self.pendSeat = null; self.barJoinUntil = 0; self.seatLift = 0;
+    self.seatKey = null; self.seated = false; self.pendSeat = null; self.barJoinUntil = 0; self.seatLift = 0;self.seatBehindBack=false;
     self.lying = false;   // out of the seat is out of the BED: the covers pose dies with the claim
   }
   /* on arrival, snap the render position onto the claimed stool/chair/couch/bed anchor (logical pos stays
@@ -2592,8 +2592,8 @@ const World = (() => {
      the first arrival, so a second arrive() for the same goal (the engine can re-run it; the dev harness
      does) would otherwise stand a sleeper up out of a mattress it still holds the claim to. */
   function takeSeat() {
-    if (self.seatKey && self.pendSeat) { self.seated = true; self.seatPx = self.pendSeat.px; self.seatPy = self.pendSeat.py; self.seatLift = self.pendSeat.lift || 0; self.pendSeat = null; }
-    else if (!(self.lying && self.seatKey)) { self.seated = false; self.seatLift = 0; }
+    if (self.seatKey && self.pendSeat) { self.seated = true; self.seatPx = self.pendSeat.px; self.seatPy = self.pendSeat.py; self.seatLift = self.pendSeat.lift || 0;self.seatBehindBack=!!self.pendSeat.behindBack; self.pendSeat = null; }
+    else if (!(self.lying && self.seatKey)) { self.seated = false; self.seatLift = 0;self.seatBehindBack=false; }
   }
   /* B2: drop ANY body's idle/leisure latch (couch cushion claim + the engine goal bookkeeping) when a task SEIZES
      it — the crew analogue of the hero summon-seize's releaseSeat()+goal-clear (tick ~1614). Without this, a crew
@@ -2603,7 +2603,7 @@ const World = (() => {
   function seizeFromIdle(b) {
     if (!b) return;
     if (b.seatKey) occupiedSeats.delete(b.seatKey);
-    b.seatKey = null; b.seated = false; b.pendSeat = null; b.barJoinUntil = 0; b.seatLift = 0; b.lying = false;   // seized out of bed too
+    b.seatKey = null; b.seated = false; b.pendSeat = null; b.barJoinUntil = 0; b.seatLift = 0;b.seatBehindBack=false; b.lying = false;   // seized out of bed too
     b.goal = null; b.usingProp = null; b.watchProp = null; b.studyKey = null; b.quirkKind = null; b.stilling = false;
     b.useBeat = null; setTalking(b, false);   // a seized body is not mid-leisure and is not talking to anyone
     b.pauseUntil = 0; b.pauseLook = null; b.idleUntil = 0;
@@ -2684,7 +2684,8 @@ const World = (() => {
         if (!setPathTo({ x: ax, y: ay })) continue;
         occupiedSeats.add(couch.id + ':' + slot); self.seatKey = couch.id + ':' + slot;
         const side = sideSeat(couch);
-        self.pendSeat = { px: (sx + 0.5) * T + (side ? side.dx : 0), py: (couch.y + h) * T - 2, lift: side ? side.lift : 0 };   // render foot at the cushion front
+        const authoredLift=typeof PropRemaster!=='undefined'&&PropRemaster.enabled(couch.t)?PropRemaster.viewGeometry(couch.t,['s','w','n','e'][(couch.r|0)&3])?.spec.seatLift:0;
+        self.pendSeat = { px: (sx + 0.5) * T + (side ? side.dx : 0), py: (couch.y + h) * T - 2, lift: side ? side.lift : (Number.isFinite(authoredLift)?authoredLift:0),behindBack:!side&&authoredLift>0 };   // floor/sort anchor stays at the cushion front
         self.goal = tvId ? 'lounge' : 'use'; self.usingProp = couch.id; self.watchProp = tvId || null;
         self.useSit = true; self.useFace = side ? side.face : (faceDir || 'south');   // a profile chair points ONE way — see SIDE_SEAT
         if (!self.target) arrive(now);                       // already adjacent → settle immediately
@@ -9815,6 +9816,28 @@ const World = (() => {
     // TEST/DEBUG ONLY — containment harness: raw-place a body (bypassing every walkable-checked picker)
     // so the per-tick containment backstop (containBody / hero ensureAgentValid) is provable live.
     _dbgTeleport: (aid, px, py) => { const b = bodyForAgent(aid); if (!b) return false; b.pathPts = null; b.target = null; b.sitting = false; b.seated = false; b.px = +px; b.py = +py; return true; },
+    // Local review controls use the real navigation path, including obstacle clearance.
+    _dbgReviewWalk: (aid, tx, ty) => {
+      const b=bodyForAgent(aid);if(!b||!geo||!Number.isInteger(tx)||!Number.isInteger(ty))return false;
+      const keep=self;self=b;
+      try{releaseSeat();b.sitting=false;b.seated=false;b.usingProp=null;b.goal='wander';return setPathTo({x:tx,y:ty});}
+      finally{self=keep;}
+    },
+    _dbgReviewSeat: (aid, propId) => {
+      const b=bodyForAgent(aid),p=geo&&geo.props.find(p=>p.id===propId);
+      const kind=p&&propUse(p)?.kind;if(!b||!p||!['seat','couch'].includes(kind))return false;
+      // Fixture scope: let the borrowed actor review a seat outside its usual roam radius.
+      // Occupancy, collision, approach path, arrival and rendering remain the real mechanisms.
+      const keep=self;self=b;
+      try{
+        releaseSeat();b.sitting=false;b.seated=false;b.pathPts=null;b.target=null;
+        for(const [dx,dy] of SEAT_NB){if(geo.walkable(p.x+dx,p.y+dy,blocked)){const f=footOf(p.x+dx,p.y+dy);b.px=f.x;b.py=f.y;break;}}
+        const zone={kind:'leash',cx:p.x,cy:p.y,r:Math.max(p.w,p.h)+4};
+        const now=performance.now(),ok=kind==='couch'?planCouchSit(now,p,null,'north',zone):planSeat(now,p,zone);
+        if(ok&&b.pendSeat)arrive(now); // already-adjacent plans may have arrived themselves
+        return ok;
+      }finally{self=keep;}
+    },
     // TEST/DEBUG ONLY — read the huddle SELECTION counters (see huddleStats). Answers "why was there
     // no trio" without a second instrumented build: planned vs. how many candidates each huddle saw
     // vs. roll vs. tile failure. Read-only snapshot; the caller cannot mutate the live object.

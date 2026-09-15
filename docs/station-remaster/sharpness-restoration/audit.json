@@ -1468,8 +1468,8 @@
       "view": "s",
       "image": "bridge_tacticaltable.png",
       "bounds": {
-        "x": 17,
-        "y": 20,
+        "x": 5,
+        "y": 8,
         "width": 50,
         "height": 28
       },
