@@ -99,6 +99,10 @@
     {
       "name": "dispatch-polish",
       "file": "docs/station-remaster/dispatch-polish/integration.json"
+    },
+    {
+      "name": "tactical-table-polish",
+      "file": "docs/station-remaster/tactical-table-polish/integration.json"
     }
   ]
 }

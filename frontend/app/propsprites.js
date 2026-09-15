@@ -11681,11 +11681,13 @@ const PropSprites = (() => {
      modulation is deterministic on `now` + the prop's position, so two identical screens never flicker in
      lockstep; under reduced motion every mode holds steady (`still`). */
   function lightOf(f, work, still, live) {
-    const e = EMIT[f.t]; if (!e) return null;
+    const authoredScreen = authoredScreenOf(f,{...live,work});
+    const phosphor=authoredScreen?.screenEmission;
+    const e = EMIT[f.t] || (phosphor?{r:24,a:.14,m:'screen',y:.35}:null); if (!e) return null;
+    if(phosphor&&authoredScreen.power<=0)return null;
     const rasterDesk = remasterStyle() && (f.t === 'desk' || f.t === 'desk2');
-    const authoredScreen = authoredScreenOf(f);
     const screenOn = (rasterDesk || authoredScreen) && live && typeof live.occupied === 'boolean' ? live.occupied : work;
-    if (e.work && !screenOn) return null;
+    if (e.work && !screenOn && !phosphor) return null;
     const lift = surfaceLift(f);
     const W = (f.w || 1) * TILE, H = (f.h || 1) * TILE;
     const X=f.x*TILE,Y=f.y*TILE-lift;
@@ -11720,8 +11722,8 @@ const PropSprites = (() => {
       else if (e.m === 'fire') k = 0.95 + 0.035 * Math.sin(now / 800 + seed) + 0.015 * Math.sin(now / 310 + seed * 2.3);
       else if (e.m === 'pulse') k = 0.98 + 0.02 * Math.sin(now / 2800 + seed);
     }
-    const color=rasterDesk||authoredScreen?[70,185,200]:remasterStyle()&&DECOR_ELECTRONICS.has(f.t)?[70,155,165]:e.c;
-    return { x, y, r: e.r, c: color, a: e.a * k };
+    const color=phosphor?authoredScreen.c:rasterDesk||authoredScreen?[70,185,200]:remasterStyle()&&DECOR_ELECTRONICS.has(f.t)?[70,155,165]:e.c;
+    return { x, y, r: e.r, c: color, a: e.a * k * (phosphor?authoredScreen.power*1.35:1) };
   }
 
   // Compact physical nameplates, painted after lighting for contrast. Geometry
@@ -11765,12 +11767,12 @@ const PropSprites = (() => {
     } finally { ctx.restore(); }
   }
 
-  function authoredScreenOf(f){
+  function authoredScreenOf(f,state){
     if(typeof PropRemaster==='undefined'||typeof PropRemaster.emitter!=='function')return null;
     const view=viewAt(f.t,(f.r|0)&3)||viewAt(f.t,0);if(!view)return null;
     const key=['s','n','e','w'].find(s=>F[s==='s'?f.t:viewKey(f.t,s)]===view.fn);
     if(!key)return null;
-    const p=PropRemaster.emitter(f.t,key,(f.w||1)*TILE,(f.h||1)*TILE);
+    const p=(state&&PropRemaster.screenEmission?.(f.t,key,(f.w||1)*TILE,(f.h||1)*TILE,state))||PropRemaster.emitter(f.t,key,(f.w||1)*TILE,(f.h||1)*TILE);
     return p?{...p,mirror:((((canMirror(f.t)&&f.m)?1:0)^view.mirror)&1)!==0}:null;
   }
   // Complete authored views receive live state here. Only explicit legacy drafts

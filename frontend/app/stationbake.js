@@ -278,7 +278,7 @@ const StationBake = (() => {
   const LIGHT = { ambient: 0.82, ambR: 7, ambG: 5, ambB: 3, pool: 0.85, room: 0.46, corridor: 0.34, door: 0.4, floor: 0.24, crown: 0.45, pitch: 8, reach: 1.3, falloff: 0.85, cool: 0.45, warm: 0.16, spill: 0.7 };   // floor 0.26→0.3, warm 0.14→0.3 (2026-09-03 overhaul: the film is what puts light ON the deck under a lamp; measured lounge sd 28.8→35+, crushed 4%→2%) · crown = how far the ambient gives way over a wall's lit top surface (0 = off, the old inversion)
   // Live-lab calibration shared by the saved station and catalog rooms.
   // Interior area lights carry the occupied deck; exterior cladding recedes.
-  if(projectionPresentation){Object.assign(WALL,{hullLit:.52,hullVoid:.24});Object.assign(LIGHT,{room:.64,pool:1,reach:1.5});}
+  if(projectionPresentation){Object.assign(WALL,{hullLit:.52,hullVoid:.24});Object.assign(LIGHT,{room:.60,pool:.96,reach:1.5});}
   const POOL_RGB = '246,224,188';   // warm-neutral tungsten — the deck pools (locked by simulation-lighting.test.js)
   const LAMP_RGB = '255,192,104';   // the film's tungsten — a touch more saturated than the deck pool, it sits ON things
   const STAR_RGB = '150,186,255';   // the sky through the glass

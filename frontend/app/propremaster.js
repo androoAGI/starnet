@@ -375,6 +375,13 @@ const PropRemaster = (() => {
     if(e?.projectionEmitter)return {...e.projectionEmitter};
     return p?{x:e.frame.x+p.x,y:e.frame.y+p.y}:null;
   }
+  function screenEmission(id,view='s',w,h,state={}){
+    const e=enabled(id,view)&&entries.get(id+':'+view);
+    if(!e||e.lost||!e.projectionHandled||w!==e.spec.footprint.w*12||h!==e.spec.footprint.h*12)return null;
+    const p=ProjectionPropEffects.screenEmission(id,view,state);if(!p)return null;
+    return {...p,screenEmission:true,x:e.box.x+(p.x*e.spec.sourceWidth-e.crop.x)/e.crop.width*e.box.width,
+      y:e.box.y+(p.y*e.spec.sourceHeight-e.crop.y)/e.crop.height*e.box.height};
+  }
   function drawForeground(ctx,id,view,x,y,w,h,mirror=false){
     const e=enabled(id,view)&&entries.get(id+':'+view);
     if(!e||e.lost||!e.foreground||w!==e.spec.footprint.w*12||h!==e.spec.footprint.h*12)return false;
@@ -386,7 +393,7 @@ const PropRemaster = (() => {
     const e=enabled(id,view)&&entries.get(id+':'+view);
     return !e||e.lost?null:{box:{...e.box},crop:{...e.crop},spec:{...e.spec},surfaceSupport:e.spec.surfaceSupport};
   }
-  return Object.freeze({ready,enabled,draw,drawForeground,emitter,viewGeometry,isProjection:()=>projectionReview,revision:()=>revision,
+  return Object.freeze({ready,enabled,draw,drawForeground,emitter,screenEmission,viewGeometry,isProjection:()=>projectionReview,revision:()=>revision,
     status:()=>({views:Array.from(entries.keys()),failures:failures.slice(),pixels:pixelBudget}),
     // Pure contracts exposed for deterministic headless geometry validation.
     validate,fit});

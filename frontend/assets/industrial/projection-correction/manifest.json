@@ -1368,8 +1368,8 @@
       "views": {
         "s": {
           "image": "bridge_tacticaltable.png",
-          "sourceWidth": 1607,
-          "sourceHeight": 901,
+          "sourceWidth": 1522,
+          "sourceHeight": 677,
           "footprint": {
             "w": 7,
             "h": 4
@@ -1385,7 +1385,7 @@
           "screenPower": "occupied",
           "contact": {
             "x": 0.5,
-            "y": 0.9988901220865705
+            "y": 0.9985228951255539
           },
           "effects": false
         }
@@ -5773,11 +5773,6 @@
       "group": "camera-audit"
     },
     {
-      "id": "bridge_tacticaltable",
-      "view": "s",
-      "group": "camera-audit"
-    },
-    {
       "id": "toolbox",
       "view": "s",
       "group": "camera-audit"
@@ -5826,6 +5821,11 @@
       "id": "outbox",
       "view": "s",
       "group": "dispatch-polish"
+    },
+    {
+      "id": "bridge_tacticaltable",
+      "view": "s",
+      "group": "tactical-table-polish"
     }
   ]
 }
