@@ -1,0 +1,83 @@
+{
+  "status": "review-candidates",
+  "generator": "PixelLab standard",
+  "briefs": [
+    [
+      "xenomorph",
+      "Xenomorph",
+      "An eerie xenomorph creature with a long smooth black biomechanical dome, eyeless head, narrow ribbed torso, long sinewy digitigrade legs and jointed hands, a visible slender curved tail beside its feet. Subtle blue-grey edge highlights distinguish glossy carapace from matte ribbing. Ominous athletic proportions, preserve elongated alien dome and biomechanical identity, no cute eyes."
+    ],
+    [
+      "robocop",
+      "Robocop",
+      "Robocop, a believable adult humanoid cyborg wearing brushed silver-blue titanium armor and graphite mechanical underlayers. Compact helmet with one narrow dark visor, exposed stern lower human face, sculpted chest plate, articulated knee and elbow joints, practical integrated armored boots. Restrained metallic specular highlights and light wear. Preserve silver blue armor and black visor identity. Hands empty."
+    ],
+    [
+      "masterchief",
+      "Master Chief",
+      "Master Chief in grounded military olive green powered armor, compact iconic angular helmet and amber gold glass visor, layered worn olive plates over graphite undersuit, broad but natural athletic shoulders, articulated joints, practical gloves and boots, restrained stenciled markings, subtle edge abrasion. Preserve helmet gold visor and green armor identity, realistic adult proportions. Hands empty, no gun."
+    ],
+    [
+      "grimreaper",
+      "Grim Reaper",
+      "An eerie Grim Reaper with a compact aged ivory human skull inside a deep charcoal hood, heavy black layered robes with visible folds and slightly worn hems, narrow skeletal hands, dark boots barely visible. Holds a long slender wood-handled scythe upright beside the body, weathered steel blade curves above one shoulder, full scythe fits in frame. Preserve hood skull and scythe identity. Realistic cloth weight and adult anatomy."
+    ],
+    [
+      "crewmate",
+      "Crewmate",
+      "A station crewmate wearing a muted red pressure suit, a compact helmet with broad cyan-blue curved glass visor, dark collar seal, modest integrated life support backpack, natural adult torso and limbs, black work gloves and practical boots, believable fabric folds and stitched reinforcement panels. Preserve bright red suit and cyan visor identity while refining cartoon proportions. Full body with arms and legs, hands empty."
+    ]
+  ],
+  "characters": [
+    {
+      "id": "xenomorph",
+      "characterId": "76cacaa5-a178-4468-b584-b8c5d098ff01",
+      "rotations": {
+        "south": "https://backblaze.pixellab.ai/file/pixellab-characters/1ff7d2cf-cfe6-44f9-9533-9eea41eb05cb/76cacaa5-a178-4468-b584-b8c5d098ff01/rotations/south.png?t=1789362607",
+        "east": "https://backblaze.pixellab.ai/file/pixellab-characters/1ff7d2cf-cfe6-44f9-9533-9eea41eb05cb/76cacaa5-a178-4468-b584-b8c5d098ff01/rotations/east.png?t=1789362607",
+        "north": "https://backblaze.pixellab.ai/file/pixellab-characters/1ff7d2cf-cfe6-44f9-9533-9eea41eb05cb/76cacaa5-a178-4468-b584-b8c5d098ff01/rotations/north.png?t=1789362607",
+        "west": "https://backblaze.pixellab.ai/file/pixellab-characters/1ff7d2cf-cfe6-44f9-9533-9eea41eb05cb/76cacaa5-a178-4468-b584-b8c5d098ff01/rotations/west.png?t=1789362607"
+      }
+    },
+    {
+      "id": "robocop",
+      "characterId": "b1fba669-01c7-40b0-b8a9-8e157c977ad5",
+      "rotations": {
+        "south": "https://backblaze.pixellab.ai/file/pixellab-characters/1ff7d2cf-cfe6-44f9-9533-9eea41eb05cb/b1fba669-01c7-40b0-b8a9-8e157c977ad5/rotations/south.png?t=1789362579",
+        "east": "https://backblaze.pixellab.ai/file/pixellab-characters/1ff7d2cf-cfe6-44f9-9533-9eea41eb05cb/b1fba669-01c7-40b0-b8a9-8e157c977ad5/rotations/east.png?t=1789362579",
+        "north": "https://backblaze.pixellab.ai/file/pixellab-characters/1ff7d2cf-cfe6-44f9-9533-9eea41eb05cb/b1fba669-01c7-40b0-b8a9-8e157c977ad5/rotations/north.png?t=1789362579",
+        "west": "https://backblaze.pixellab.ai/file/pixellab-characters/1ff7d2cf-cfe6-44f9-9533-9eea41eb05cb/b1fba669-01c7-40b0-b8a9-8e157c977ad5/rotations/west.png?t=1789362579"
+      }
+    },
+    {
+      "id": "masterchief",
+      "characterId": "2253cb32-36a1-49d4-88dd-4aa5dee75ed9",
+      "rotations": {
+        "south": "https://backblaze.pixellab.ai/file/pixellab-characters/1ff7d2cf-cfe6-44f9-9533-9eea41eb05cb/2253cb32-36a1-49d4-88dd-4aa5dee75ed9/rotations/south.png?t=1789362609",
+        "east": "https://backblaze.pixellab.ai/file/pixellab-characters/1ff7d2cf-cfe6-44f9-9533-9eea41eb05cb/2253cb32-36a1-49d4-88dd-4aa5dee75ed9/rotations/east.png?t=1789362609",
+        "north": "https://backblaze.pixellab.ai/file/pixellab-characters/1ff7d2cf-cfe6-44f9-9533-9eea41eb05cb/2253cb32-36a1-49d4-88dd-4aa5dee75ed9/rotations/north.png?t=1789362609",
+        "west": "https://backblaze.pixellab.ai/file/pixellab-characters/1ff7d2cf-cfe6-44f9-9533-9eea41eb05cb/2253cb32-36a1-49d4-88dd-4aa5dee75ed9/rotations/west.png?t=1789362609"
+      }
+    },
+    {
+      "id": "grimreaper",
+      "characterId": "a38e3541-420b-4b5a-b367-37765a0cc4e1",
+      "rotations": {
+        "south": "https://backblaze.pixellab.ai/file/pixellab-characters/1ff7d2cf-cfe6-44f9-9533-9eea41eb05cb/a38e3541-420b-4b5a-b367-37765a0cc4e1/rotations/south.png?t=1789362608",
+        "east": "https://backblaze.pixellab.ai/file/pixellab-characters/1ff7d2cf-cfe6-44f9-9533-9eea41eb05cb/a38e3541-420b-4b5a-b367-37765a0cc4e1/rotations/east.png?t=1789362608",
+        "north": "https://backblaze.pixellab.ai/file/pixellab-characters/1ff7d2cf-cfe6-44f9-9533-9eea41eb05cb/a38e3541-420b-4b5a-b367-37765a0cc4e1/rotations/north.png?t=1789362608",
+        "west": "https://backblaze.pixellab.ai/file/pixellab-characters/1ff7d2cf-cfe6-44f9-9533-9eea41eb05cb/a38e3541-420b-4b5a-b367-37765a0cc4e1/rotations/west.png?t=1789362608"
+      }
+    },
+    {
+      "id": "crewmate",
+      "characterId": "7ab3c3d1-c45d-40bb-8286-9a4f5cd6caf9",
+      "rotations": {
+        "south": "https://backblaze.pixellab.ai/file/pixellab-characters/1ff7d2cf-cfe6-44f9-9533-9eea41eb05cb/7ab3c3d1-c45d-40bb-8286-9a4f5cd6caf9/rotations/south.png?t=1789362599",
+        "east": "https://backblaze.pixellab.ai/file/pixellab-characters/1ff7d2cf-cfe6-44f9-9533-9eea41eb05cb/7ab3c3d1-c45d-40bb-8286-9a4f5cd6caf9/rotations/east.png?t=1789362599",
+        "north": "https://backblaze.pixellab.ai/file/pixellab-characters/1ff7d2cf-cfe6-44f9-9533-9eea41eb05cb/7ab3c3d1-c45d-40bb-8286-9a4f5cd6caf9/rotations/north.png?t=1789362599",
+        "west": "https://backblaze.pixellab.ai/file/pixellab-characters/1ff7d2cf-cfe6-44f9-9533-9eea41eb05cb/7ab3c3d1-c45d-40bb-8286-9a4f5cd6caf9/rotations/west.png?t=1789362599"
+      }
+    }
+  ]
+}

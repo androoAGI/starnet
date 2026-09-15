@@ -6,16 +6,21 @@
  */
 'use strict';
 const IndustrialTextures = (() => {
-  let requested = true, crateReview = false;
+  let requested = true, crateReview = false, projectionReview = false;
   try {
     const query = new URLSearchParams(location.search);
     requested = query.get('textures') !== 'classic';
     crateReview = query.get('propReview') === 'crate';
+    projectionReview = query.get('propSet') === 'projection';
   } catch (_) {}
   const images = {}, failed = [];
   // Exposed to the existing CRT lab for a live, reproducible material review.
-  const lighting = { fixtureTint: .04 };
+  // Values read back from the live CRT lab after the combined-room review.
+  const lighting = { fixtureTint: projectionReview?.14:.04, propTint: projectionReview?.65:.48,
+    propLift: projectionReview?.85:.65, ambientLift: projectionReview?.10:0,
+    floorGain: projectionReview?1.04:1, wallGain: projectionReview?.86:1, contact: .28 };
   const plates = new WeakMap();
+  const platePyramids = new WeakMap();
   const detailTargets = new WeakMap(), wallStrips = new Map(), materials = new Map(), emitters = new Map();
   let loaded = false;
   const floorIds = 'spine alloy plate panel tile tread soft grate hex plank turf diamond resin ceramic cargo runner treadway meshway basalt parquet rubber slotted terrazzo octile'.split(' ');
@@ -59,18 +64,21 @@ const IndustrialTextures = (() => {
   // albedo, before lighting; the dark engraved structure survives every hue.
   function material(name, base) {
     const im = images[name];
-    if (!base || !im) return im;
-    const key = name + ':' + base;
+    const gain = projectionReview ? Math.max(.65,Math.min(1.2,Number(name.includes('/floors/')?lighting.floorGain:name.includes('/walls/')?lighting.wallGain:1)||1)) : 1;
+    if (!im || !base && gain===1) return im;
+    const key = name + ':' + base + ':' + gain;
     if (materials.has(key)) return materials.get(key);
     const cv = document.createElement('canvas'); cv.width = im.width; cv.height = im.height;
     const g = cv.getContext('2d');
+    let paintGain=1;
     if (/^#[0-9a-f]{6}$/i.test(base)) {
       const rgb = parseInt(base.slice(1), 16), mean = ((rgb >> 16) + ((rgb >> 8) & 255) + (rgb & 255)) / 3;
-      g.filter = 'brightness(' + Math.max(.8, Math.min(1.25, .8 + mean / 300)) + ')';
+      paintGain=Math.max(.8, Math.min(1.25, .8 + mean / 300));
     }
+    g.filter='brightness('+(paintGain*gain)+')';
     g.drawImage(im, 0, 0); g.filter = 'none';
-    g.globalCompositeOperation = 'color'; g.globalAlpha = .42;
-    g.fillStyle = base; g.fillRect(0, 0, cv.width, cv.height);
+    if(base){g.globalCompositeOperation = 'color'; g.globalAlpha = .42;
+    g.fillStyle = base; g.fillRect(0, 0, cv.width, cv.height);}
     g.globalAlpha = 1; g.globalCompositeOperation = 'source-over';
     if (materials.size > 128) materials.clear();
     materials.set(key, cv); return cv;
@@ -97,6 +105,7 @@ const IndustrialTextures = (() => {
         const value = target[key]; if (typeof value !== 'function') return value;
         if (['getImageData', 'getTransform', 'measureText', 'isPointInPath', 'isPointInStroke', 'getContextAttributes'].includes(key)) return value.bind(target);
         if (key === 'drawImage') return (im, ...args) => {
+          platePyramids.delete(cv);
           const result = target.drawImage(im, ...args), hi = plates.get(im);
           if (!hi) g.drawImage(im, ...args);
           else if (args.length === 2) g.drawImage(hi, ...args, im.width, im.height);
@@ -124,7 +133,7 @@ const IndustrialTextures = (() => {
           }
           return a;
         };
-        return (...args) => { const result = value.apply(target, args); g[key](...args); return result; };
+        return (...args) => { platePyramids.delete(cv); const result = value.apply(target, args); g[key](...args); return result; };
       }
     });
     detailTargets.set(proxy, { g, scale });
@@ -133,8 +142,33 @@ const IndustrialTextures = (() => {
   function drawBase(ctx, cv, x = 0, y = 0) {
     const hi = enabled() && plates.get(cv);
     if (!hi) return false;
+    let source=hi;
+    if(projectionReview && ctx.getTransform){
+      // Pre-filter the authored plate in bounded half-size steps. A direct
+      // six-to-one sample makes rivets and cable ribs alias at overview zoom.
+      // Each level keeps the same world rectangle and premultiplied alpha.
+      const m=ctx.getTransform(), density=Math.max(Math.hypot(m.a,m.b),Math.hypot(m.c,m.d));
+      // At distant zoom the architecture needs broad planes, not every rivet.
+      // Prefilter only the baked environment; props, crew and lights retain detail.
+      const distanceDetail=.60+.40*Math.max(0,Math.min(1,(density-1.4)/1.1));
+      const target=Math.max(.25,density*distanceDetail), baseDensity=hi.width/cv.width;
+      let chain=platePyramids.get(hi);
+      if(!chain){chain=[hi];platePyramids.set(hi,chain);}
+      let level=0;
+      while(baseDensity/Math.pow(2,level+1)>=target && level<5){
+        level++;
+        if(!chain[level]){
+          const previous=chain[level-1],small=document.createElement('canvas');
+          small.width=Math.max(1,Math.ceil(previous.width/2));small.height=Math.max(1,Math.ceil(previous.height/2));
+          const sg=small.getContext('2d');sg.imageSmoothingEnabled=true;sg.imageSmoothingQuality='high';
+          sg.drawImage(previous,0,0,small.width,small.height);chain.push(small);
+          if(small.addEventListener)small.addEventListener('contextlost',()=>platePyramids.delete(hi),{once:true});
+        }
+      }
+      source=chain[level];
+    }
     ctx.save(); ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high';
-    ctx.drawImage(hi, x, y, cv.width, cv.height); ctx.restore(); return true;
+    ctx.drawImage(source, x, y, cv.width, cv.height); ctx.restore(); return true;
   }
 
   function floor(ctx, X, Y, size, tx, ty, id = 'plate', base, opts) {
@@ -159,7 +193,7 @@ const IndustrialTextures = (() => {
   function wallStrip(height, id = 'bulkhead', base, opts) {
     if (!enabled()) return null;
     if (opts && opts.detail === 0) return null;
-    const key = [height, id, base || '', opts && opts.detail].join(':');
+    const key = [height, id, base || '', opts && opts.detail,projectionReview?lighting.wallGain:1].join(':');
     if (wallStrips.has(key)) return wallStrips.get(key);
     const im = material('remaster/walls/' + (wallIds.includes(id) ? id : 'bulkhead'), base);
     const render = scale => {

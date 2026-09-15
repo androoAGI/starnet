@@ -9865,8 +9865,14 @@ const World = (() => {
       const anchor=isWorkstationProp(p.t)?deskSeat(p):u&&PropAnchor.deriveAnchor(p,geo,{approach:useApproach(u,p),sit:!!u.sit,extra:blocked});
       const out={id:p.id,type:p.t,r:p.r||0,mirror:!!p.m,footprint:[p.w,p.h],canonical:[f.w,f.h],mount:station.mountOf(p),
         kind:u?.kind||null,workstation:isWorkstationProp(p.t),front:walkable(front),back:walkable(back),route:route?route.length:null,
-        anchor:anchor||null,side:sideSeat(p),flat:!!s.flat,interaction:'none'};
+        anchor:anchor||null,side:sideSeat(p),flat:!!s.flat,interaction:'none',motion:{spd:b.spd,odo:b.odo,odoAge:performance.now()-(b.odoAt||0),paused:fnow<(b.pauseUntil||0),frozen:awakeFrozen,activity,bodies:allBodies().length}};
       if(action==='inspect')return out;
+      if(action==='use'&&isWorkstationProp(p.t)){
+        // The generated working chair belongs to an assigned desk. Exercise
+        // that real ownership path so the fixture never sits on a bare tile.
+        for(const q of geo.props)if(q.agentId===aid&&isWorkstationProp(q.t))station.assignPropAgent(q.id,'');
+        station.assignPropAgent(p.id,aid);rederive();
+      }
       const keep=self;self=b;
       try{
         releaseSeat();seizeFromIdle(b);b.sitting=false;b.seated=false;b.lying=false;b.pathPts=null;b.target=null;b.goal=null;b.usingProp=null;

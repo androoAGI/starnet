@@ -98,7 +98,8 @@ const props = read('propsprites.js');
 const start = props.indexOf('  function lightOf('), stop = props.indexOf('\n  }',start)+4;
 // These probes cover the classic light model; authored workstation emitters have
 // their own real-asset and remaster contract tests. Supply the extracted closure.
-const emission = new Function('EMIT','TILE','SURFACE_RISE','remasterStyle','authoredScreenOf','let now=0;'+props.slice(start,stop)+';return (t,f,work,still)=>{now=t;return lightOf(f,work,still);};');
+const emission = new Function('EMIT','TILE','SURFACE_RISE','remasterStyle','authoredScreenOf',
+  'let now=0;const surfaceMounts=null;'+A.fnBody(props,'function surfaceLift(')+props.slice(start,stop)+';return (t,f,work,still)=>{now=t;return lightOf(f,work,still);};');
 for(const [mode,limit] of [['screen',.031],['pulse',.041],['fire',.101],['steady',0]]) {
   const light = emission({probe:{c:[120,200,255],r:22,a:1,m:mode,y:.3,work:true}},12,8,()=>false,()=>null);
   const f={t:'probe',x:4,y:6}; const samples=[];

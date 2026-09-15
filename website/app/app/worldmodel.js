@@ -2386,6 +2386,15 @@ const WorldModel = (() => {
     if (propRules) doc.props = doc.props.filter(p => !(p && typeof p.t === 'string') || !!propRules(p.t));
     doc.props = doc.props.filter(p => p && typeof p === 'object' && typeof p.t === 'string')
       .map(p => { const o = { id: p.id || null, t: p.t, x: p.x | 0, y: p.y | 0, w: Math.max(1, p.w | 0 || 1), h: Math.max(1, p.h | 0 || 1) }; if (p.block === false && !LEGACY_WALKABLE_DOCKS[p.t]) o.block = false; if (typeof p.agentId === 'string' && p.agentId) o.agentId = p.agentId; const r0 = cleanRot(p.r); if (r0) o.r = r0; if (p.m) o.m = 1; if (typeof p.role === 'string' && p.role) o.role = p.role.slice(0, 24); if (typeof p.brief === 'string' && p.brief.trim()) o.brief = p.brief.slice(0, 2000); if (typeof p.label === 'string' && p.label.trim()) o.label = p.label.slice(0, 48); if (p.t === 'intake' && p.limits && typeof p.limits === 'object') { const nl = normalizeLimits(p.limits); if (nl) o.limits = { maxHops: nl.maxHops, maxUsdPerMessage: nl.maxUsdPerMessage, maxUsdPerDay: nl.maxUsdPerDay }; } applyJunctionCfg(o, p); if (cleanDoor(p.door)) o.door = p.door; if (typeof p.connectorId === 'string' && p.connectorId.trim()) o.connectorId = p.connectorId.trim(); return o; });
+    // Explicit, pack-owned shrinking only. Keep the rendered centre and floor line;
+    // never enlarge obstacles or reinterpret a custom saved size. Idempotent on reload.
+    for (const p of doc.props) {
+      const m = propRules && propRules(p.t)?.footprintMigration;
+        if (!m || !m.from || !m.to || (p.r|0) !== 0 || p.w !== m.from.w || p.h !== m.from.h) continue;
+      if (![m.to.w,m.to.h,m.dx,m.dy].every(Number.isInteger) || m.to.w<1 || m.to.h<1 ||
+          m.dx<0 || m.dy<0 || m.dx+m.to.w>p.w || m.dy+m.to.h>p.h) continue;
+      p.x+=m.dx;p.y+=m.dy;p.w=m.to.w;p.h=m.to.h;
+    }
     // belts are additive (v1 docs predate them); keep only well-formed "int,int" -> E|W|N|S entries.
     if (!doc.belts || typeof doc.belts !== 'object' || Array.isArray(doc.belts)) doc.belts = {};
     else { const clean = {}; for (const k in doc.belts) { const d = doc.belts[k]; if (/^-?\d+,-?\d+$/.test(k) && (d === 'E' || d === 'W' || d === 'N' || d === 'S')) clean[k] = d; } doc.belts = clean; }

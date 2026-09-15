@@ -11001,7 +11001,10 @@ const PropSprites = (() => {
     screens: 'SCREENS', lab: 'LAB', storage: 'STORAGE', comms: 'COMMS', lounge: 'LOUNGE', decor: 'DECOR',
   };
 
-  const spec = id => BY_ID[id] || null;
+  const compactTactical = Object.assign({}, BY_ID.bridge_tacticaltable, { w:5, h:3,
+    footprintMigration:{from:{w:7,h:4},to:{w:5,h:3},dx:1,dy:1} });
+  const projectionCatalog = () => typeof PropRemaster !== 'undefined' && typeof PropRemaster.isProjection==='function' && PropRemaster.isProjection();
+  const spec = id => id === 'bridge_tacticaltable' && projectionCatalog() ? compactTactical : BY_ID[id] || null;
   const has = id => !!F[id];
 
   /* ---- ORIENTATION eligibility + AUTHORED TURNED VIEWS ---------------------------------------
@@ -11229,10 +11232,17 @@ const PropSprites = (() => {
   const OVER = {
     bunk: (X, Y, W, H, o) => bunkQuilt(X, Y, W, H, true, o.now),
   };
+  function hitTest(f,x,y) {
+    if(typeof PropRemaster==='undefined'||!PropRemaster.hitTest)return null;
+    const w=(f.w||1)*TILE,h=(f.h||1)*TILE;
+    let lx=x-f.x*TILE;const ly=y-f.y*TILE+surfaceLift(f);
+    if(canMirror(f.t)&&f.m)lx=w-lx;
+    return PropRemaster.hitTest(f.t,['s','w','n','e'][(f.r|0)&3],lx,ly,w,h);
+  }
   function hasOver(t) { return !!OVER[t]; }
   function drawOver(f) {
     const fn = OVER[f && f.t]; if (!fn) return;
-    const lift = f.mount === 'surface' ? SURFACE_RISE : 0;
+    const lift = surfaceLift(f);
     if(typeof PropRemaster!=='undefined'&&PropRemaster.drawForeground&&PropRemaster.drawForeground(ctx,f.t,'s',f.x*TILE,f.y*TILE-lift,(f.w||1)*TILE,(f.h||1)*TILE,canMirror(f.t)&&!!f.m))return;
     fn(f.x * TILE, f.y * TILE - lift, (f.w || 1) * TILE, (f.h || 1) * TILE, { x: f.x, now });
   }
@@ -11242,7 +11252,7 @@ const PropSprites = (() => {
      are byte-for-byte the same rows F.stool / F.chair already drew (sorted just BEHIND the sitter); a
      divergent copy would ghost a second seat when the body wanders mid-frame. Keep them in lockstep. */
   function drawSeatFront(f) {
-    const lift = f.mount === 'surface' ? SURFACE_RISE : 0;
+    const lift = surfaceLift(f);
     const x = f.x * TILE, y = f.y * TILE - lift;
     const r = RAMP.steel;
     if (f.t === 'stool' && typeof PropRemaster !== 'undefined' && PropRemaster.enabled('stool')) {
@@ -11291,7 +11301,7 @@ const PropSprites = (() => {
     // function anchors its contact to its own footprint bottom, so lifting the origin lifts the whole
     // thing and keeps every internal offset valid. This is deliberately the only place the lift is
     // applied — a prop function must never bake its own mount height.
-    const lift = f.mount === 'surface' ? SURFACE_RISE : 0;
+    const lift = surfaceLift(f);
     const X = f.x * TILE, Y = f.y * TILE - lift, W = (f.w || 1) * TILE, H = (f.h || 1) * TILE;
     const o = { x: f.x, work: !!work, agentId: f.agentId || null, dockName: f.dockName || null, door: f.door || null };
     o.occupied = live && typeof live.occupied === 'boolean' ? live.occupied : !!work;
@@ -11305,6 +11315,9 @@ const PropSprites = (() => {
       o.fired = connectorFired(cid);
     }
     if (f.t === 'workbench') { const wf = workbenchFiredFor(f.id); o.fired = wf.fired; o.bad = wf.bad; }   // shell/verify pulse (room-scoped by propId)
+    if (typeof PropRemaster !== 'undefined' && PropRemaster.isProjection && PropRemaster.isProjection() && f.t !== 'workbench' && f.t !== 'connector_portal') {
+      o.fired = propFired(f.id); o.bad = !!(o.fired && propPulse[f.id] && propPulse[f.id].bad);
+    }
     if (f.t === 'bunk') o.sleeper = !!f.sleeper;      // a dormant body is IN it → hold the quilt back for drawOver
     if (f.t === 'jukebox') o.live = jukeConnected;   // dead until Spotify is connected in TOOLSETS (object=capability truth)
     if (f.t === 'outbox') o.crates = outboxCrates;   // G2.3: uncollected while-away runs stack as crates
@@ -11440,7 +11453,7 @@ const PropSprites = (() => {
      Screens/lamps inside these rigid casings retain their real per-frame content. */
   const LIGHT_RESPONSE_TYPES = new Set(('desk desk2 console consoleL pixelrig bench crate boxes goldcrate safe vault rack rackV shelf ' +
     'war_intelcab quarters_lockerbank quarters_minifridge bookshelf stool chair couch booth recliner recliner_r ' +
-    'sidetable lowtable glasstable dinertable loungetable longtable dinerchair podchair plant bookstack toolbox').split(' '));
+    'sidetable lowtable glasstable dinertable loungetable longtable bridge_tacticaltable dinerchair podchair plant bookstack toolbox').split(' '));
   const RESPONSE_LIMIT = 96, RESPONSE_PIXELS = 262144, RESPONSE_SINGLE = 65536;
   const RESPONSE_SHADE = [8,10,18];
   const lightResponses = new Map();
@@ -11527,7 +11540,7 @@ const PropSprites = (() => {
     let image;
     try {image=responseOverlay(f,sample);} catch(_) {responseMetrics.failures++;return false;}
     if(!image)return false;
-    const lift=f.mount==='surface'?SURFACE_RISE:0;
+    const lift=surfaceLift(f);
     ctx.save();
     try {
       ctx.globalCompositeOperation='source-over';ctx.imageSmoothingEnabled=false;
@@ -11540,6 +11553,30 @@ const PropSprites = (() => {
   // the whole station stalls the GPU; a straight blit of this 4x raster retains
   // the shaped penumbra and remains sharp through the normal camera zoom range.
   const projectedShadows = new WeakMap();
+  const contactShadows = new WeakMap();
+  function contactShadow(mask,h){
+    if(contactShadows.has(mask))return contactShadows.get(mask);
+    // Use only opaque pixels at the physical foot. A chair's separated feet
+    // stay separated; the empty span below a table does not become a black oval.
+    const w=mask.width, floor=48+h,top=Math.max(0,floor-5),rows=Math.min(7,mask.height-top);
+    if(rows<=0)return null;
+    const data=mask.getContext('2d').getImageData(0,top,w,rows).data;
+    const cv=document.createElement('canvas');cv.width=w+4;cv.height=7;
+    const g=cv.getContext('2d'),im=g.createImageData(cv.width,cv.height);
+    for(let x=0;x<w;x++){
+      let foot=-1;
+      for(let y=rows-1;y>=0;y--)if(data[(y*w+x)*4+3]>=150){foot=y;break;}
+      if(foot<0)continue;
+      for(let dy=-2;dy<=2;dy++)for(let dx=-2;dx<=2;dx++){
+        const xx=x+2+dx,yy=3+dy,i=(yy*cv.width+xx)*4;
+        const a=Math.round(255*Math.max(0,1-Math.hypot(dx/3,dy/2.5)));
+        im.data[i]=8;im.data[i+1]=10;im.data[i+2]=24;im.data[i+3]=Math.max(im.data[i+3],a);
+      }
+    }
+    g.putImageData(im,0,0);contactShadows.set(mask,cv);
+    if(cv.addEventListener)cv.addEventListener('contextlost',()=>contactShadows.delete(mask),{once:true});
+    return cv;
+  }
   function projectedShadow(mask, h) {
     if(projectedShadows.has(mask))return projectedShadows.get(mask);
     if(typeof document==='undefined')return null;
@@ -11566,10 +11603,16 @@ const PropSprites = (() => {
     const s = spec(f.t); if (s && s.flat) return;
     const X = f.x * TILE, Y = f.y * TILE, W = (f.w || 1) * TILE, H = (f.h || 1) * TILE;
     const mask=shadowMask(f);
+    if(mask && typeof PropRemaster!=='undefined' && PropRemaster.isProjection() && (mounted||f.mount)!=='wall'){
+      let contact;
+      try{contact=contactShadow(mask,H);}catch(_){contactShadows.set(mask,null);} // optional grounding cannot hide the prop
+      if(contact){ctx.save();ctx.globalAlpha*=Math.max(0,Math.min(.6,+IndustrialTextures.lighting.contact||0));ctx.imageSmoothingEnabled=true;
+        ctx.drawImage(contact,X-18,Y+H-3);ctx.restore();}
+    }
     if(mask&&ctx.transform) {
       const projected=projectedShadow(mask,H);
       if(projected&&ctx.globalAlpha===1){
-        const smooth=ctx.imageSmoothingEnabled;ctx.imageSmoothingEnabled=false;
+        const smooth=ctx.imageSmoothingEnabled;ctx.imageSmoothingEnabled=typeof PropRemaster!=='undefined'&&PropRemaster.isProjection();
         try{ctx.drawImage(projected.cv,X+projected.x,Y+projected.y,projected.w,projected.h);}
         finally{ctx.imageSmoothingEnabled=smooth;}
         return;
@@ -11613,8 +11656,8 @@ const PropSprites = (() => {
     screens: { c: BLUE_RGB, r: 24, a: 0.12, m: 'screen', y: 0.35 }, tank: { c: [80, 200, 220], r: 22, a: 0.12, m: 'pulse', y: 0.45 },
     ticker: { c: AMBER_RGB, r: 26, a: 0.10, m: 'screen', y: 0.35 }, chartwall: { c: BLUE_RGB, r: 26, a: 0.10, m: 'screen', y: 0.35 },
     wartable: { c: [120, 200, 255], r: 34, a: 0.12, m: 'screen', y: 0.45 }, calwall: { c: BLUE_RGB, r: 30, a: 0.10, m: 'screen', y: 0.35 },
-    bridge_consolebank: { c: [80, 180, 190], r: 40, a: 0.08, m: 'steady', y: 0.1 },
-    bridge_tacticaltable: { c: [80, 180, 190], r: 42, a: 0.10, m: 'steady', y: 0.45 },
+    bridge_consolebank: { c: [80, 180, 190], r: 52, a: 0.24, m: 'steady', y: 0.1 },
+    bridge_tacticaltable: { c: [80, 180, 190], r: 64, a: 0.30, m: 'steady', y: 0.45 },
     bridge_tacscreen: { c: BLUE_RGB, r: 24, a: 0.12, m: 'screen', y: 0.35 }, bridge_dispatch_pylon: { c: AMBER_RGB, r: 22, a: 0.12, m: 'pulse', y: 0.3 },
     bridge_orderqueue: { c: AMBER_RGB, r: 22, a: 0.10, m: 'screen', y: 0.35 }, war_pivotpanel: { c: BLUE_RGB, r: 22, a: 0.10, m: 'screen', y: 0.35 },
     war_threatcore: { c: [255, 90, 80], r: 26, a: 0.14, m: 'pulse', y: 0.3 },
@@ -11648,12 +11691,14 @@ const PropSprites = (() => {
      modulation is deterministic on `now` + the prop's position, so two identical screens never flicker in
      lockstep; under reduced motion every mode holds steady (`still`). */
   function lightOf(f, work, still, live) {
-    const e = EMIT[f.t]; if (!e) return null;
+    const authoredScreen = authoredScreenOf(f,{...live,work});
+    const phosphor=authoredScreen?.screenEmission;
+    const e = EMIT[f.t] || (phosphor?{r:24,a:.14,m:'screen',y:.35}:null); if (!e) return null;
+    if(phosphor&&authoredScreen.power<=0)return null;
     const rasterDesk = remasterStyle() && (f.t === 'desk' || f.t === 'desk2');
-    const authoredScreen = authoredScreenOf(f);
     const screenOn = (rasterDesk || authoredScreen) && live && typeof live.occupied === 'boolean' ? live.occupied : work;
-    if (e.work && !screenOn) return null;
-    const lift = f.mount === 'surface' ? SURFACE_RISE : 0;
+    if (e.work && !screenOn && !phosphor) return null;
+    const lift = surfaceLift(f);
     const W = (f.w || 1) * TILE, H = (f.h || 1) * TILE;
     const X=f.x*TILE,Y=f.y*TILE-lift;
     let x=X+W/2,y=Y+H*e.y;
@@ -11661,7 +11706,7 @@ const PropSprites = (() => {
       x=X+authoredScreen.x;y=Y+authoredScreen.y;
       if(authoredScreen.mirror)x=2*X+W-x;
     }
-    if(remasterStyle()&&(f.t==='desk'||f.t==='desk2')){
+    if(!authoredScreen&&remasterStyle()&&(f.t==='desk'||f.t==='desk2')&&!(typeof PropRemaster!=='undefined'&&PropRemaster.enabled(f.t))){
       const facing=(f.r|0)&3,view=viewAt(f.t,facing),source=facing===2?'n':facing===0?'s':'e';
       const mirror=((((canMirror(f.t)&&f.m)?1:0)^(view&&view.mirror?1:0))&1)!==0;
       if(typeof IndustrialTextures.workstationEmitter==='function'){
@@ -11687,8 +11732,8 @@ const PropSprites = (() => {
       else if (e.m === 'fire') k = 0.95 + 0.035 * Math.sin(now / 800 + seed) + 0.015 * Math.sin(now / 310 + seed * 2.3);
       else if (e.m === 'pulse') k = 0.98 + 0.02 * Math.sin(now / 2800 + seed);
     }
-    const color=rasterDesk||authoredScreen?[70,185,200]:remasterStyle()&&DECOR_ELECTRONICS.has(f.t)?[70,155,165]:e.c;
-    return { x, y, r: e.r, c: color, a: e.a * k };
+    const color=phosphor?authoredScreen.c:rasterDesk||authoredScreen?[70,185,200]:remasterStyle()&&DECOR_ELECTRONICS.has(f.t)?[70,155,165]:e.c;
+    return { x, y, r: e.r, c: color, a: e.a * k * (phosphor?authoredScreen.power*1.35:1) };
   }
 
   // Compact physical nameplates, painted after lighting for contrast. Geometry
@@ -11720,7 +11765,7 @@ const PropSprites = (() => {
           bayTextLayouts.set(key, layout);
         }
         const x = (p.x + (p.w || 1) / 2) * TILE;
-        const anchor = p.y * TILE - (p.mount === 'surface' ? SURFACE_RISE : 0) + 1;
+        const anchor = p.y * TILE - (surfaceLift(p)) + 1;
         const box = { x: x - layout.width / 2, y: anchor - h / 2, w: layout.width, h };
         ctx.shadowBlur = 0;
         ctx.fillStyle = '#0b1916'; ctx.fillRect(box.x, box.y, box.w, box.h);
@@ -11732,23 +11777,27 @@ const PropSprites = (() => {
     } finally { ctx.restore(); }
   }
 
-  function authoredScreenOf(f){
+  function authoredScreenOf(f,state){
     if(typeof PropRemaster==='undefined'||typeof PropRemaster.emitter!=='function')return null;
     const view=viewAt(f.t,(f.r|0)&3)||viewAt(f.t,0);if(!view)return null;
     const key=['s','n','e','w'].find(s=>F[s==='s'?f.t:viewKey(f.t,s)]===view.fn);
     if(!key)return null;
-    const p=PropRemaster.emitter(f.t,key,(f.w||1)*TILE,(f.h||1)*TILE);
+    const p=(state&&PropRemaster.screenEmission?.(f.t,key,(f.w||1)*TILE,(f.h||1)*TILE,state))||PropRemaster.emitter(f.t,key,(f.w||1)*TILE,(f.h||1)*TILE);
     return p?{...p,mirror:((((canMirror(f.t)&&f.m)?1:0)^view.mirror)&1)!==0}:null;
   }
   // Complete authored views receive live state here. Only explicit legacy drafts
   // call the old painter for moving layers; viewAt still owns direction/mirroring.
-  // These previously approved raster assets keep their existing renderer.
-  const APPROVED_RASTER = new Set(['crate','desk','desk2','chair','bridge_consolebank',
-    'bridge_tacticaltable','bridge_equipmentbay','bridge_deckperimeter']);
   let nativeSkinDepth = 0;
+  let surfaceMounts=null,surfaceLayout=null;
+  function setSurfaceLayout(layout){
+    if(typeof AuthoredSurfaceMounts==='undefined'||typeof PropRemaster==='undefined')return;
+    if(!surfaceMounts)surfaceMounts=AuthoredSurfaceMounts.create({viewGeometry:(id,face)=>PropRemaster.viewGeometry(id,face),ruleFor:id=>({...spec(id),canMirror:canMirror(id)})});
+    if(layout!==surfaceLayout){surfaceLayout=layout;surfaceMounts.setLayout(layout);}
+  }
+  function surfaceLift(f){return f.mount==='surface'?(surfaceMounts?surfaceMounts.liftFor(f):SURFACE_RISE):0;}
+  function surfacePlacement(f){return f.mount==='surface'&&surfaceMounts?surfaceMounts.placementFor(f):null;}
   if (typeof PropRemaster !== 'undefined') {
-    for (const c of CATALOG) {
-      if (APPROVED_RASTER.has(c.id)) continue;
+    for (const c of [...CATALOG,{id:'seatchair',artId:'chair'}]) {
       for (const facing of ['s','n','e','w']) {
         const key = facing === 's' ? c.id : viewKey(c.id,facing), native = F[key];
         if (!native) continue; // never invent an unsupported upright facing
@@ -11764,7 +11813,7 @@ const PropSprites = (() => {
               native(x,y,w,h,o);
             } finally { ctx = previous; now = previousNow; nativeSkinDepth--; }
           };
-          if (!PropRemaster.draw(ctx,c.id,facing,x,y,w,h,{...o,now,still:!!still},paintNative)) native(x,y,w,h,o);
+          if (!PropRemaster.draw(ctx,c.artId||c.id,facing,x,y,w,h,{...o,now,still:!!still},paintNative)) native(x,y,w,h,o);
         };
       }
     }
@@ -11780,13 +11829,15 @@ const PropSprites = (() => {
   }
 
   return {
+    setSurfaceLayout, hitTest,
+    surfacePlacement,
     setCtx(c) { ctx = c; },
     setNow(t) { now = t; },
     // v13 LOCAL COLOUR knob (see CHROMA above) — live-tunable like the CRT LAB's own dials, so the
     // value is DIALLED on a real deck and copied back into the constant, never guessed.
     setChroma(k) { CHROMA = (k == null ? 1 : +k) || 1; _cboost.clear(); },
     getChroma: () => CHROMA,
-    draw, drawBayNames, drawOver, hasOver, drawSeatFront, CATALOG, CATS, spec, has, TILE,
+    draw, drawBayNames, drawOver, hasOver, drawSeatFront, get CATALOG(){return projectionCatalog()?CATALOG.map(c=>spec(c.id)):CATALOG;}, CATS, spec, has, TILE,
     drawShadow, lightOf, EMIT, canLightResponse, drawLightResponse, lightResponseStats, invalidateLightResponse,
     // ORIENTATION: what each prop's art can honestly do, and the box it covers once turned. The
     // builder asks BEFORE offering an R/M affordance — never an input that produces broken art.

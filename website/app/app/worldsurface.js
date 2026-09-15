@@ -518,6 +518,13 @@ const WorldSurface = (() => {
         // Pitch is fixed in the signed physical tile frame. A bounds expansion
         // therefore does not slide the existing lamps or their illumination.
         let selected = candidates.filter(c => mod(c.tx + ox, 6) === 3);
+        // One smaller infill practical per 18 physical tiles adds back-wall
+        // coverage without moving or brightening the existing six-tile rhythm.
+        if (opts.infillFixtures && !corridor && length >= 12) {
+          const infill = candidates.filter(c => mod(c.tx + ox, 18) === 6 &&
+            selected.some(p => p.tx < c.tx) && selected.some(p => p.tx > c.tx));
+          selected = selected.concat(infill.map(c => ({ ...c, infill: true }))).sort((a,b) => a.tx-b.tx);
+        }
         if (corridor) selected = [];  // one practical fixture, only on a long hall
         if (!selected.length) selected = [candidates[Math.floor(candidates.length / 2)]];
         for (const c of selected) {
@@ -540,7 +547,7 @@ const WorldSurface = (() => {
           output.push({
             id: 'wall:' + (c.tx + ox) + ',' + (y + oy), kind: 'wall-fixture', zone: z,
             x: c.anchor.tx * T + T / 2, y: c.anchor.ty * T + T / 2,
-            r: T * (corridor ? 4.5 : taskLamp ? 5.8 : 6.5), rgb, gain: corridor ? 0.64 : taskLamp ? 1.16 : 0.82,
+            r: T * (c.infill ? 4.1 : corridor ? 4.5 : taskLamp ? 5.8 : 6.5), rgb, gain: c.infill ? 0.48 : corridor ? 0.64 : taskLamp ? 1.16 : 0.82,
             fixtureX, fixtureY, tileX: c.tx, tileY: y,
             emitX: fixtureX, emitY: fixtureY + 2.5, normalX: 0, normalY: 1,
             base: geo.wallBaseOf ? geo.wallBaseOf(z) : '#3a3b41'
