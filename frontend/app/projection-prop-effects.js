@@ -6,7 +6,7 @@
 const ProjectionPropEffects = (() => {
   const rect=(x,y,w,h)=>[[x,y],[x+w,y],[x+w,y+h],[x,y+h]];
   const C={cyan:[78,206,221],amber:[238,177,62],rose:[233,103,134],green:[144,224,81],violet:[158,130,229]};
-  const screen=(region,gate='occupied',colour=C.cyan)=>({kind:'screen',region,gate,colour});
+  const screen=(region,gate='occupied',colour=C.cyan,idleOpacity=.88)=>({kind:'screen',region,gate,colour,idleOpacity});
   const lamp=(region,gate='work',colour=C.amber)=>({kind:'lamp',region,gate,colour});
   const scan=(region,gate='work',colour=C.cyan)=>({kind:'scan',region,gate,colour});
   const result=(region,colour=C.amber)=>({kind:'result',region,gate:'fired',colour});
@@ -17,8 +17,10 @@ const ProjectionPropEffects = (() => {
     consoleL:[screen(rect(.12,.157,.199,.212)),screen(rect(.406,.157,.166,.212))],
     pixelrig:[screen(rect(.19,.09,.63,.19))],
     bench:[screen(rect(.10,.145,.145,.163)),screen(rect(.804,.25,.075,.088))],
-    bridge_consolebank:[screen(rect(.045,.16,.22,.37)),screen(rect(.365,.16,.255,.37)),screen(rect(.725,.16,.20,.37))],
-    bridge_tacticaltable:[screen([[.13,.22],[.85,.22],[.92,.60],[.08,.60]])],
+    // Their painted graticules are static glass artwork. Do not cover them with
+    // opaque rectangles when idle; animated sweeps still require occupancy.
+    bridge_consolebank:[screen(rect(.045,.16,.22,.37),'occupied',C.cyan,0),screen(rect(.365,.16,.255,.37),'occupied',C.cyan,0),screen(rect(.725,.16,.20,.37),'occupied',C.cyan,0)],
+    bridge_tacticaltable:[screen([[.13,.22],[.85,.22],[.92,.60],[.08,.60]],'occupied',C.cyan,0)],
     bigscreen:[screen(rect(.06,.20,.86,.32))],
     holotable:[screen([[.09,.20],[.89,.20],[.89,.61],[.09,.61]])],
     screens:[screen(rect(.29,.075,.42,.20)),screen(rect(.07,.49,.34,.19)),screen(rect(.60,.49,.33,.19))],
@@ -150,7 +152,7 @@ const ProjectionPropEffects = (() => {
     const b=bbox(e.region),v=amount(e.gate,s),phase=e.phase||0,wave=.5+.5*Math.sin(t/670+phase);
     const fill=(col,a)=>{c.fillStyle=rgb(col,a);c.fillRect(b.x,b.y,b.width,b.height);};
     if(e.kind==='screen'||e.kind==='lamp'||e.kind==='scan'||e.kind==='bands'||e.kind==='heat'){
-      if(!v){fill([6,13,17],.88);return;}
+      if(!v){const opacity=e.idleOpacity??.88;if(opacity>0)fill([6,13,17],opacity);return;}
       if(e.kind==='screen'||e.kind==='scan'){
         const y=b.y+b.height*frac(t/2400+phase);line(c,[[b.x,y],[b.x+b.width,y]],rgb(e.colour,.16+.14*clamp(s.heat)),Math.min(.012,b.height*.08));
       }else if(e.kind==='bands'){

@@ -40,6 +40,11 @@ assert.deepEqual(record('filter',{now:900,work:true}),record('filter',{now:900})
 assert.notDeepEqual(record('filter',{now:900,scanning:true}),record('filter',{now:900}));
 assert.deepEqual(record('console',{now:500,occupied:false,work:true}),record('console',{now:500,occupied:false}), 'vacant workstation stays off');
 assert.notDeepEqual(record('console',{now:500,occupied:true}),record('console',{now:500,occupied:false}));
+for(const id of ['bridge_consolebank','bridge_tacticaltable']){
+ assert.equal(record(id,{occupied:false}).calls.some(c=>c[0]==='fillRect'),false,id+' idle preserves painted glass');
+ assert.deepEqual(record(id,{now:100,occupied:false}),record(id,{now:3100,occupied:false}),id+' static art does not invent activity');
+ assert.notDeepEqual(record(id,{now:500,occupied:true}),record(id,{now:500,occupied:false}),id+' occupancy still controls sweeps');
+}
 assert.deepEqual(record('jukebox',{now:500,work:true}),record('jukebox',{now:500}), 'work cannot invent a music connection');
 assert.notDeepEqual(record('jukebox',{now:500,live:true}),record('jukebox',{now:500}));
 assert.deepEqual(record('workbench',{now:200,bad:true}),record('workbench',{now:200,bad:false}));

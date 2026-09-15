@@ -28,3 +28,20 @@ The local review overlay provides whole-station and individual-room camera views
 
 Preset source: `dev/kepler-showcase.cjs`. The first-launch save and test logs live
 under the ignored `dev/.scratch-workspace/kepler-showcase/` directory.
+
+## Owner follow-up: restore 0.11.2 CRT
+
+Removed the industrial asset-ready CRT overrides and the matching lab RESET
+override. The renderer now keeps `v0.11.2`'s existing WorldRenderer.PHOSPHOR values:
+scan .10, grain .26, dust .35, film .38, curve .04, sharpen .28. Confirmed these
+values in the running CRT LAB; visually inspected the command room after reload.
+This supersedes the reduced CRT settings in the earlier depth-polish receipt.
+
+The console bank and tactical table's idle overlay previously covered their
+painted glass with an 88%-opaque dark fill. These two props now preserve their
+static artwork while idle; animated sweeps remain occupancy-gated. No source
+PNGs, geometry, work state or saved layout changed.
+
+Focused checks passed: projection-prop-effects (including idle preservation and
+occupancy checks), worldrenderer, crt-glprobe, Kepler routing/placement, and syntax.
+The full regression suite was not rerun for this filter adjustment.

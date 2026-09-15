@@ -1251,12 +1251,8 @@ const World = (() => {
     } catch (e) {}
     if (typeof IndustrialTextures !== 'undefined') IndustrialTextures.ready.then(() => {
       if (IndustrialTextures.enabled()) {
-        Object.assign(CRT, { scan: .05, grain: .07, dust: .10, film: .12, curve: .02 });
-        if(typeof PropRemaster!=='undefined' && PropRemaster.isProjection()){
-          // Calibrated in the live lab: the old .28 sharpen re-emphasized
-          // subpixel wall hardware after the station was reduced for overview.
-          Object.assign(CRT,{grain:.06,sharpen:.08});
-        }
+        // Keep the shipped v0.11.2 PHOSPHOR treatment for these PNG props too.
+        // Asset readiness must not reduce static, film, scanlines or curvature.
         refreshWorkstationSeats();
         bakeDirty = true; redrawNow();
       }
