@@ -29,3 +29,7 @@ Reference roles: the existing south-facing Secret Agent supplies identity; `fron
 **Walking (all three):** One complete seamless walk-in-place cycle facing south toward viewer throughout. Fixed overhead camera. Alternate natural left/right steps and small opposing arm swings; planted feet briefly bear weight, subtle knee bends and restrained vertical motion. Maintain body proportions, head size, clothing, scale and center position. Do not turn sideways, show the back, change camera, or travel across the canvas. End matching the starting neutral south-facing pose.
 
 These are controlled visual candidates for user evaluation. Prompted head-count ratios are art direction, not a claim of exact generated anatomical measurements.
+
+## Verification
+
+The complete `npm run test:fast` gate passed all 779 steps. Node syntax checks passed for the review and packing scripts. Live browser checks confirmed all four variants load, standing/walking switching, per-candidate close-ups, fixed-height metadata, pause holding the same frame across a lighting change, and the station-lighting toggle. The browser error log was empty. All 30 packed images have transparent margins and no edge clipping. No full-direction or seating revision is claimed.
