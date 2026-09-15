@@ -1,0 +1,77 @@
+[
+  {
+    "id": "android",
+    "before": {
+      "width": 32,
+      "height": 76,
+      "meanLuminance": 128,
+      "highlightP95": 245
+    },
+    "after": {
+      "width": 31,
+      "height": 76,
+      "meanLuminance": 125,
+      "highlightP95": 204
+    }
+  },
+  {
+    "id": "blank_blue",
+    "before": {
+      "width": 31,
+      "height": 76,
+      "meanLuminance": 82,
+      "highlightP95": 222
+    },
+    "after": {
+      "width": 31,
+      "height": 76,
+      "meanLuminance": 88,
+      "highlightP95": 165
+    }
+  },
+  {
+    "id": "blank_green",
+    "before": {
+      "width": 31,
+      "height": 76,
+      "meanLuminance": 102,
+      "highlightP95": 230
+    },
+    "after": {
+      "width": 31,
+      "height": 76,
+      "meanLuminance": 105,
+      "highlightP95": 195
+    }
+  },
+  {
+    "id": "blank_red",
+    "before": {
+      "width": 32,
+      "height": 76,
+      "meanLuminance": 58,
+      "highlightP95": 187
+    },
+    "after": {
+      "width": 32,
+      "height": 76,
+      "meanLuminance": 63,
+      "highlightP95": 142
+    }
+  },
+  {
+    "id": "blank_amber",
+    "before": {
+      "width": 32,
+      "height": 76,
+      "meanLuminance": 122,
+      "highlightP95": 242
+    },
+    "after": {
+      "width": 32,
+      "height": 76,
+      "meanLuminance": 129,
+      "highlightP95": 214
+    }
+  }
+]

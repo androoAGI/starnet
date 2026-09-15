@@ -1,0 +1,15 @@
+{
+  "id": "android",
+  "track": "walk",
+  "dir": "south-west",
+  "promptOverride": "Seamless two-step walk in place facing SOUTH-WEST, a THREE-QUARTER FRONT view. Keep the torso facing diagonally toward camera and left exactly like input throughout every frame. Both front shoulders remain visible; never become a side profile. Alternate left and right leg steps with opposite arm swing and knees flexing. Feet contact original baseline, head steady, body centered and upright. End at exact input neutral pose. Keep exact proportions, faceless sphere head, original color and crisp pixel shading. No turning, jumping, objects, shadow or new details. Preserve muted satin colors, restrained highlights, plain torso and cylindrical limbs. No muscle definition or bright gloss.",
+  "pinLast": true,
+  "request": "id: 1e7b878f-2b6b-46fc-9726-71831cdf53e3\njob_id: 1e7b878f-2b6b-46fc-9726-71831cdf53e3\ndescription: Seamless two-step walk in place facing SOUTH-WEST, a THREE-QUARTER FRONT view. Keep the torso facing diagonally toward camera and left exactly like input throughout every frame. Both front shoulders remain visible; never become a side profile. Alternate left and right leg steps with opposite arm swing and knees flexing. Feet contact original baseline, head steady, body centered and upright. End at exact input neutral pose. Keep exact proportions, faceless sphere head, original color and crisp pixel shading. No turning, jumping, objects, shadow or new details. Preserve muted satin colors, restrained highlights, plain torso and cylindrical limbs. No muscle definition or bright gloss.\nframes: 8\nsize: 96x96px\ntransparent: True\nlast_frame: yes (animating toward it)\ncost: 2 generations\nstatus: processing (~1-5 min)\n\nhint: get_image(job_id=\"1e7b878f-2b6b-46fc-9726-71831cdf53e3\")",
+  "job": "1e7b878f-2b6b-46fc-9726-71831cdf53e3",
+  "source": "output/agent-animation-study/satin-cadets-0915/full-motion/android/refs/south-west.png",
+  "result": "status: completed\nid: 1e7b878f-2b6b-46fc-9726-71831cdf53e3\njob_id: 1e7b878f-2b6b-46fc-9726-71831cdf53e3\nframes: 9\ndownload: https://api.pixellab.ai/mcp/images/1e7b878f-2b6b-46fc-9726-71831cdf53e3/download?index=0 ... ?index=8\n(5 more frames not shown — fetch them from the download URLs above)",
+  "done": true,
+  "packed": true,
+  "lastRaw": "output/agent-animation-study/satin-cadets-0915/full-motion/android/minimax/walk-south-west/1e7b878f-2b6b-46fc-9726-71831cdf53e3/8.png",
+  "frameCount": 9
+}

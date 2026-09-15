@@ -1,0 +1,15 @@
+{
+  "id": "android",
+  "track": "walk",
+  "dir": "north-west",
+  "promptOverride": "Seamless two-step walk IN PLACE facing north-west, a THREE-QUARTER REAR view throughout. Torso stays diagonally away from camera and left exactly like input. Both rear shoulders remain visible. Never rotate into side profile. Alternate left foot, passing pose, right foot, passing pose with opposite arm swing and flexing knees. Feet contact original baseline, head steady, body centered upright. End at exact input neutral pose. Preserve exact size, proportions, color, featureless ball head and crisp pixel shading. No turning, jumping, objects, shadow or added details. Preserve muted satin colors, restrained highlights, plain torso and cylindrical limbs. No muscle definition or bright gloss.",
+  "pinLast": true,
+  "request": "id: 6d4a6396-a9e6-42f0-b73c-b61393eb38ec\njob_id: 6d4a6396-a9e6-42f0-b73c-b61393eb38ec\ndescription: Seamless two-step walk IN PLACE facing north-west, a THREE-QUARTER REAR view throughout. Torso stays diagonally away from camera and left exactly like input. Both rear shoulders remain visible. Never rotate into side profile. Alternate left foot, passing pose, right foot, passing pose with opposite arm swing and flexing knees. Feet contact original baseline, head steady, body centered upright. End at exact input neutral pose. Preserve exact size, proportions, color, featureless ball head and crisp pixel shading. No turning, jumping, objects, shadow or added details. Preserve muted satin colors, restrained highlights, plain torso and cylindrical limbs. No muscle definition or bright gloss.\nframes: 8\nsize: 96x96px\ntransparent: True\nlast_frame: yes (animating toward it)\ncost: 2 generations\nstatus: processing (~1-5 min)\n\nhint: get_image(job_id=\"6d4a6396-a9e6-42f0-b73c-b61393eb38ec\")",
+  "job": "6d4a6396-a9e6-42f0-b73c-b61393eb38ec",
+  "source": "output/agent-animation-study/satin-cadets-0915/full-motion/android/refs/north-west.png",
+  "result": "status: completed\nid: 6d4a6396-a9e6-42f0-b73c-b61393eb38ec\njob_id: 6d4a6396-a9e6-42f0-b73c-b61393eb38ec\nframes: 9\ndownload: https://api.pixellab.ai/mcp/images/6d4a6396-a9e6-42f0-b73c-b61393eb38ec/download?index=0 ... ?index=8\n(5 more frames not shown — fetch them from the download URLs above)",
+  "done": true,
+  "packed": true,
+  "lastRaw": "output/agent-animation-study/satin-cadets-0915/full-motion/android/minimax/walk-north-west/6d4a6396-a9e6-42f0-b73c-b61393eb38ec/8.png",
+  "frameCount": 9
+}

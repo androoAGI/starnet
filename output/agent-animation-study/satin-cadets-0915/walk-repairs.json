@@ -1,0 +1,370 @@
+[
+  {
+    "id": "android",
+    "dir": "south-east",
+    "source": "android-south-east-walk-repair.png",
+    "method": "Built-in ImageGen edit of generated eight-frame walk; mechanical equal-cell extraction, height normalization and transparent atlas packing",
+    "files": [
+      "../agent-demo/approved-motion/android/walk_south-east_repair_0.png",
+      "../agent-demo/approved-motion/android/walk_south-east_repair_1.png",
+      "../agent-demo/approved-motion/android/walk_south-east_repair_2.png",
+      "../agent-demo/approved-motion/android/walk_south-east_repair_3.png",
+      "../agent-demo/approved-motion/android/walk_south-east_repair_4.png",
+      "../agent-demo/approved-motion/android/walk_south-east_repair_5.png",
+      "../agent-demo/approved-motion/android/walk_south-east_repair_6.png",
+      "../agent-demo/approved-motion/android/walk_south-east_repair_7.png"
+    ]
+  },
+  {
+    "id": "android",
+    "dir": "north-east",
+    "source": "android-north-east-walk-repair.png",
+    "method": "Built-in ImageGen edit of generated eight-frame walk; mechanical equal-cell extraction, height normalization and transparent atlas packing",
+    "files": [
+      "../agent-demo/approved-motion/android/walk_north-east_repair_0.png",
+      "../agent-demo/approved-motion/android/walk_north-east_repair_1.png",
+      "../agent-demo/approved-motion/android/walk_north-east_repair_2.png",
+      "../agent-demo/approved-motion/android/walk_north-east_repair_3.png",
+      "../agent-demo/approved-motion/android/walk_north-east_repair_4.png",
+      "../agent-demo/approved-motion/android/walk_north-east_repair_5.png",
+      "../agent-demo/approved-motion/android/walk_north-east_repair_6.png",
+      "../agent-demo/approved-motion/android/walk_north-east_repair_7.png"
+    ]
+  },
+  {
+    "id": "android",
+    "dir": "north-west",
+    "source": "android-north-west-walk-repair.png",
+    "method": "Built-in ImageGen edit of generated eight-frame walk; mechanical equal-cell extraction, height normalization and transparent atlas packing",
+    "files": [
+      "../agent-demo/approved-motion/android/walk_north-west_repair_0.png",
+      "../agent-demo/approved-motion/android/walk_north-west_repair_1.png",
+      "../agent-demo/approved-motion/android/walk_north-west_repair_2.png",
+      "../agent-demo/approved-motion/android/walk_north-west_repair_3.png",
+      "../agent-demo/approved-motion/android/walk_north-west_repair_4.png",
+      "../agent-demo/approved-motion/android/walk_north-west_repair_5.png",
+      "../agent-demo/approved-motion/android/walk_north-west_repair_6.png",
+      "../agent-demo/approved-motion/android/walk_north-west_repair_7.png"
+    ]
+  },
+  {
+    "id": "android",
+    "dir": "south-west",
+    "source": "android-south-west-walk-repair.png",
+    "method": "Built-in ImageGen edit of generated eight-frame walk; mechanical equal-cell extraction, height normalization and transparent atlas packing",
+    "files": [
+      "../agent-demo/approved-motion/android/walk_south-west_repair_0.png",
+      "../agent-demo/approved-motion/android/walk_south-west_repair_1.png",
+      "../agent-demo/approved-motion/android/walk_south-west_repair_2.png",
+      "../agent-demo/approved-motion/android/walk_south-west_repair_3.png",
+      "../agent-demo/approved-motion/android/walk_south-west_repair_4.png",
+      "../agent-demo/approved-motion/android/walk_south-west_repair_5.png",
+      "../agent-demo/approved-motion/android/walk_south-west_repair_6.png",
+      "../agent-demo/approved-motion/android/walk_south-west_repair_7.png"
+    ]
+  },
+  {
+    "id": "blank_blue",
+    "dir": "south",
+    "source": "blank_blue-south-walk-repair.png",
+    "method": "Built-in ImageGen edit of generated eight-frame walk; mechanical equal-cell extraction, height normalization and transparent atlas packing",
+    "files": [
+      "../agent-demo/approved-motion/blank_blue/walk_south_repair_0.png",
+      "../agent-demo/approved-motion/blank_blue/walk_south_repair_1.png",
+      "../agent-demo/approved-motion/blank_blue/walk_south_repair_2.png",
+      "../agent-demo/approved-motion/blank_blue/walk_south_repair_3.png",
+      "../agent-demo/approved-motion/blank_blue/walk_south_repair_4.png",
+      "../agent-demo/approved-motion/blank_blue/walk_south_repair_5.png",
+      "../agent-demo/approved-motion/blank_blue/walk_south_repair_6.png",
+      "../agent-demo/approved-motion/blank_blue/walk_south_repair_7.png"
+    ]
+  },
+  {
+    "id": "blank_blue",
+    "dir": "south-east",
+    "source": "blank_blue-south-east-walk-repair.png",
+    "method": "Built-in ImageGen edit of generated eight-frame walk; mechanical equal-cell extraction, height normalization and transparent atlas packing",
+    "files": [
+      "../agent-demo/approved-motion/blank_blue/walk_south-east_repair_0.png",
+      "../agent-demo/approved-motion/blank_blue/walk_south-east_repair_1.png",
+      "../agent-demo/approved-motion/blank_blue/walk_south-east_repair_2.png",
+      "../agent-demo/approved-motion/blank_blue/walk_south-east_repair_3.png",
+      "../agent-demo/approved-motion/blank_blue/walk_south-east_repair_4.png",
+      "../agent-demo/approved-motion/blank_blue/walk_south-east_repair_5.png",
+      "../agent-demo/approved-motion/blank_blue/walk_south-east_repair_6.png",
+      "../agent-demo/approved-motion/blank_blue/walk_south-east_repair_7.png"
+    ]
+  },
+  {
+    "id": "blank_blue",
+    "dir": "north-east",
+    "source": "blank_blue-north-east-walk-repair.png",
+    "method": "Built-in ImageGen edit of generated eight-frame walk; mechanical equal-cell extraction, height normalization and transparent atlas packing",
+    "files": [
+      "../agent-demo/approved-motion/blank_blue/walk_north-east_repair_0.png",
+      "../agent-demo/approved-motion/blank_blue/walk_north-east_repair_1.png",
+      "../agent-demo/approved-motion/blank_blue/walk_north-east_repair_2.png",
+      "../agent-demo/approved-motion/blank_blue/walk_north-east_repair_3.png",
+      "../agent-demo/approved-motion/blank_blue/walk_north-east_repair_4.png",
+      "../agent-demo/approved-motion/blank_blue/walk_north-east_repair_5.png",
+      "../agent-demo/approved-motion/blank_blue/walk_north-east_repair_6.png",
+      "../agent-demo/approved-motion/blank_blue/walk_north-east_repair_7.png"
+    ]
+  },
+  {
+    "id": "blank_blue",
+    "dir": "north-west",
+    "source": "blank_blue-north-west-walk-repair.png",
+    "method": "Built-in ImageGen edit of generated eight-frame walk; mechanical equal-cell extraction, height normalization and transparent atlas packing",
+    "files": [
+      "../agent-demo/approved-motion/blank_blue/walk_north-west_repair_0.png",
+      "../agent-demo/approved-motion/blank_blue/walk_north-west_repair_1.png",
+      "../agent-demo/approved-motion/blank_blue/walk_north-west_repair_2.png",
+      "../agent-demo/approved-motion/blank_blue/walk_north-west_repair_3.png",
+      "../agent-demo/approved-motion/blank_blue/walk_north-west_repair_4.png",
+      "../agent-demo/approved-motion/blank_blue/walk_north-west_repair_5.png",
+      "../agent-demo/approved-motion/blank_blue/walk_north-west_repair_6.png",
+      "../agent-demo/approved-motion/blank_blue/walk_north-west_repair_7.png"
+    ]
+  },
+  {
+    "id": "blank_blue",
+    "dir": "south-west",
+    "source": "blank_blue-south-west-walk-repair.png",
+    "method": "Built-in ImageGen edit of generated eight-frame walk; mechanical equal-cell extraction, height normalization and transparent atlas packing",
+    "files": [
+      "../agent-demo/approved-motion/blank_blue/walk_south-west_repair_0.png",
+      "../agent-demo/approved-motion/blank_blue/walk_south-west_repair_1.png",
+      "../agent-demo/approved-motion/blank_blue/walk_south-west_repair_2.png",
+      "../agent-demo/approved-motion/blank_blue/walk_south-west_repair_3.png",
+      "../agent-demo/approved-motion/blank_blue/walk_south-west_repair_4.png",
+      "../agent-demo/approved-motion/blank_blue/walk_south-west_repair_5.png",
+      "../agent-demo/approved-motion/blank_blue/walk_south-west_repair_6.png",
+      "../agent-demo/approved-motion/blank_blue/walk_south-west_repair_7.png"
+    ]
+  },
+  {
+    "id": "blank_green",
+    "dir": "south",
+    "source": "blank_green-south-walk-repair.png",
+    "method": "Built-in ImageGen edit of generated eight-frame walk; mechanical equal-cell extraction, height normalization and transparent atlas packing",
+    "files": [
+      "../agent-demo/approved-motion/blank_green/walk_south_repair_0.png",
+      "../agent-demo/approved-motion/blank_green/walk_south_repair_1.png",
+      "../agent-demo/approved-motion/blank_green/walk_south_repair_2.png",
+      "../agent-demo/approved-motion/blank_green/walk_south_repair_3.png",
+      "../agent-demo/approved-motion/blank_green/walk_south_repair_4.png",
+      "../agent-demo/approved-motion/blank_green/walk_south_repair_5.png",
+      "../agent-demo/approved-motion/blank_green/walk_south_repair_6.png",
+      "../agent-demo/approved-motion/blank_green/walk_south_repair_7.png"
+    ]
+  },
+  {
+    "id": "blank_green",
+    "dir": "south-east",
+    "source": "blank_green-south-east-walk-repair.png",
+    "method": "Built-in ImageGen edit of generated eight-frame walk; mechanical equal-cell extraction, height normalization and transparent atlas packing",
+    "files": [
+      "../agent-demo/approved-motion/blank_green/walk_south-east_repair_0.png",
+      "../agent-demo/approved-motion/blank_green/walk_south-east_repair_1.png",
+      "../agent-demo/approved-motion/blank_green/walk_south-east_repair_2.png",
+      "../agent-demo/approved-motion/blank_green/walk_south-east_repair_3.png",
+      "../agent-demo/approved-motion/blank_green/walk_south-east_repair_4.png",
+      "../agent-demo/approved-motion/blank_green/walk_south-east_repair_5.png",
+      "../agent-demo/approved-motion/blank_green/walk_south-east_repair_6.png",
+      "../agent-demo/approved-motion/blank_green/walk_south-east_repair_7.png"
+    ]
+  },
+  {
+    "id": "blank_green",
+    "dir": "north-east",
+    "source": "blank_green-north-east-walk-repair.png",
+    "method": "Built-in ImageGen edit of generated eight-frame walk; mechanical equal-cell extraction, height normalization and transparent atlas packing",
+    "files": [
+      "../agent-demo/approved-motion/blank_green/walk_north-east_repair_0.png",
+      "../agent-demo/approved-motion/blank_green/walk_north-east_repair_1.png",
+      "../agent-demo/approved-motion/blank_green/walk_north-east_repair_2.png",
+      "../agent-demo/approved-motion/blank_green/walk_north-east_repair_3.png",
+      "../agent-demo/approved-motion/blank_green/walk_north-east_repair_4.png",
+      "../agent-demo/approved-motion/blank_green/walk_north-east_repair_5.png",
+      "../agent-demo/approved-motion/blank_green/walk_north-east_repair_6.png",
+      "../agent-demo/approved-motion/blank_green/walk_north-east_repair_7.png"
+    ]
+  },
+  {
+    "id": "blank_green",
+    "dir": "north-west",
+    "source": "blank_green-north-west-walk-repair.png",
+    "method": "Built-in ImageGen edit of generated eight-frame walk; mechanical equal-cell extraction, height normalization and transparent atlas packing",
+    "files": [
+      "../agent-demo/approved-motion/blank_green/walk_north-west_repair_0.png",
+      "../agent-demo/approved-motion/blank_green/walk_north-west_repair_1.png",
+      "../agent-demo/approved-motion/blank_green/walk_north-west_repair_2.png",
+      "../agent-demo/approved-motion/blank_green/walk_north-west_repair_3.png",
+      "../agent-demo/approved-motion/blank_green/walk_north-west_repair_4.png",
+      "../agent-demo/approved-motion/blank_green/walk_north-west_repair_5.png",
+      "../agent-demo/approved-motion/blank_green/walk_north-west_repair_6.png",
+      "../agent-demo/approved-motion/blank_green/walk_north-west_repair_7.png"
+    ]
+  },
+  {
+    "id": "blank_green",
+    "dir": "south-west",
+    "source": "blank_green-south-west-walk-repair.png",
+    "method": "Built-in ImageGen edit of generated eight-frame walk; mechanical equal-cell extraction, height normalization and transparent atlas packing",
+    "files": [
+      "../agent-demo/approved-motion/blank_green/walk_south-west_repair_0.png",
+      "../agent-demo/approved-motion/blank_green/walk_south-west_repair_1.png",
+      "../agent-demo/approved-motion/blank_green/walk_south-west_repair_2.png",
+      "../agent-demo/approved-motion/blank_green/walk_south-west_repair_3.png",
+      "../agent-demo/approved-motion/blank_green/walk_south-west_repair_4.png",
+      "../agent-demo/approved-motion/blank_green/walk_south-west_repair_5.png",
+      "../agent-demo/approved-motion/blank_green/walk_south-west_repair_6.png",
+      "../agent-demo/approved-motion/blank_green/walk_south-west_repair_7.png"
+    ]
+  },
+  {
+    "id": "blank_red",
+    "dir": "south",
+    "source": "blank_red-south-walk-repair.png",
+    "method": "Built-in ImageGen edit of generated eight-frame walk; mechanical equal-cell extraction, height normalization and transparent atlas packing",
+    "files": [
+      "../agent-demo/approved-motion/blank_red/walk_south_repair_0.png",
+      "../agent-demo/approved-motion/blank_red/walk_south_repair_1.png",
+      "../agent-demo/approved-motion/blank_red/walk_south_repair_2.png",
+      "../agent-demo/approved-motion/blank_red/walk_south_repair_3.png",
+      "../agent-demo/approved-motion/blank_red/walk_south_repair_4.png",
+      "../agent-demo/approved-motion/blank_red/walk_south_repair_5.png",
+      "../agent-demo/approved-motion/blank_red/walk_south_repair_6.png",
+      "../agent-demo/approved-motion/blank_red/walk_south_repair_7.png"
+    ]
+  },
+  {
+    "id": "blank_red",
+    "dir": "south-east",
+    "source": "blank_red-south-east-walk-repair.png",
+    "method": "Built-in ImageGen edit of generated eight-frame walk; mechanical equal-cell extraction, height normalization and transparent atlas packing",
+    "files": [
+      "../agent-demo/approved-motion/blank_red/walk_south-east_repair_0.png",
+      "../agent-demo/approved-motion/blank_red/walk_south-east_repair_1.png",
+      "../agent-demo/approved-motion/blank_red/walk_south-east_repair_2.png",
+      "../agent-demo/approved-motion/blank_red/walk_south-east_repair_3.png",
+      "../agent-demo/approved-motion/blank_red/walk_south-east_repair_4.png",
+      "../agent-demo/approved-motion/blank_red/walk_south-east_repair_5.png",
+      "../agent-demo/approved-motion/blank_red/walk_south-east_repair_6.png",
+      "../agent-demo/approved-motion/blank_red/walk_south-east_repair_7.png"
+    ]
+  },
+  {
+    "id": "blank_red",
+    "dir": "north-east",
+    "source": "blank_red-north-east-walk-repair.png",
+    "method": "Built-in ImageGen edit of generated eight-frame walk; mechanical equal-cell extraction, height normalization and transparent atlas packing",
+    "files": [
+      "../agent-demo/approved-motion/blank_red/walk_north-east_repair_0.png",
+      "../agent-demo/approved-motion/blank_red/walk_north-east_repair_1.png",
+      "../agent-demo/approved-motion/blank_red/walk_north-east_repair_2.png",
+      "../agent-demo/approved-motion/blank_red/walk_north-east_repair_3.png",
+      "../agent-demo/approved-motion/blank_red/walk_north-east_repair_4.png",
+      "../agent-demo/approved-motion/blank_red/walk_north-east_repair_5.png",
+      "../agent-demo/approved-motion/blank_red/walk_north-east_repair_6.png",
+      "../agent-demo/approved-motion/blank_red/walk_north-east_repair_7.png"
+    ]
+  },
+  {
+    "id": "blank_red",
+    "dir": "north-west",
+    "source": "blank_red-north-west-walk-repair.png",
+    "method": "Built-in ImageGen edit of generated eight-frame walk; mechanical equal-cell extraction, height normalization and transparent atlas packing",
+    "files": [
+      "../agent-demo/approved-motion/blank_red/walk_north-west_repair_0.png",
+      "../agent-demo/approved-motion/blank_red/walk_north-west_repair_1.png",
+      "../agent-demo/approved-motion/blank_red/walk_north-west_repair_2.png",
+      "../agent-demo/approved-motion/blank_red/walk_north-west_repair_3.png",
+      "../agent-demo/approved-motion/blank_red/walk_north-west_repair_4.png",
+      "../agent-demo/approved-motion/blank_red/walk_north-west_repair_5.png",
+      "../agent-demo/approved-motion/blank_red/walk_north-west_repair_6.png",
+      "../agent-demo/approved-motion/blank_red/walk_north-west_repair_7.png"
+    ]
+  },
+  {
+    "id": "blank_red",
+    "dir": "south-west",
+    "source": "blank_red-south-west-walk-repair.png",
+    "method": "Built-in ImageGen edit of generated eight-frame walk; mechanical equal-cell extraction, height normalization and transparent atlas packing",
+    "files": [
+      "../agent-demo/approved-motion/blank_red/walk_south-west_repair_0.png",
+      "../agent-demo/approved-motion/blank_red/walk_south-west_repair_1.png",
+      "../agent-demo/approved-motion/blank_red/walk_south-west_repair_2.png",
+      "../agent-demo/approved-motion/blank_red/walk_south-west_repair_3.png",
+      "../agent-demo/approved-motion/blank_red/walk_south-west_repair_4.png",
+      "../agent-demo/approved-motion/blank_red/walk_south-west_repair_5.png",
+      "../agent-demo/approved-motion/blank_red/walk_south-west_repair_6.png",
+      "../agent-demo/approved-motion/blank_red/walk_south-west_repair_7.png"
+    ]
+  },
+  {
+    "id": "blank_amber",
+    "dir": "south-east",
+    "source": "blank_amber-south-east-walk-repair.png",
+    "method": "Built-in ImageGen edit of generated eight-frame walk; mechanical equal-cell extraction, height normalization and transparent atlas packing",
+    "files": [
+      "../agent-demo/approved-motion/blank_amber/walk_south-east_repair_0.png",
+      "../agent-demo/approved-motion/blank_amber/walk_south-east_repair_1.png",
+      "../agent-demo/approved-motion/blank_amber/walk_south-east_repair_2.png",
+      "../agent-demo/approved-motion/blank_amber/walk_south-east_repair_3.png",
+      "../agent-demo/approved-motion/blank_amber/walk_south-east_repair_4.png",
+      "../agent-demo/approved-motion/blank_amber/walk_south-east_repair_5.png",
+      "../agent-demo/approved-motion/blank_amber/walk_south-east_repair_6.png",
+      "../agent-demo/approved-motion/blank_amber/walk_south-east_repair_7.png"
+    ]
+  },
+  {
+    "id": "blank_amber",
+    "dir": "north-east",
+    "source": "blank_amber-north-east-walk-repair.png",
+    "method": "Built-in ImageGen edit of generated eight-frame walk; mechanical equal-cell extraction, height normalization and transparent atlas packing",
+    "files": [
+      "../agent-demo/approved-motion/blank_amber/walk_north-east_repair_0.png",
+      "../agent-demo/approved-motion/blank_amber/walk_north-east_repair_1.png",
+      "../agent-demo/approved-motion/blank_amber/walk_north-east_repair_2.png",
+      "../agent-demo/approved-motion/blank_amber/walk_north-east_repair_3.png",
+      "../agent-demo/approved-motion/blank_amber/walk_north-east_repair_4.png",
+      "../agent-demo/approved-motion/blank_amber/walk_north-east_repair_5.png",
+      "../agent-demo/approved-motion/blank_amber/walk_north-east_repair_6.png",
+      "../agent-demo/approved-motion/blank_amber/walk_north-east_repair_7.png"
+    ]
+  },
+  {
+    "id": "blank_amber",
+    "dir": "north-west",
+    "source": "blank_amber-north-west-walk-repair.png",
+    "method": "Built-in ImageGen edit of generated eight-frame walk; mechanical equal-cell extraction, height normalization and transparent atlas packing",
+    "files": [
+      "../agent-demo/approved-motion/blank_amber/walk_north-west_repair_0.png",
+      "../agent-demo/approved-motion/blank_amber/walk_north-west_repair_1.png",
+      "../agent-demo/approved-motion/blank_amber/walk_north-west_repair_2.png",
+      "../agent-demo/approved-motion/blank_amber/walk_north-west_repair_3.png",
+      "../agent-demo/approved-motion/blank_amber/walk_north-west_repair_4.png",
+      "../agent-demo/approved-motion/blank_amber/walk_north-west_repair_5.png",
+      "../agent-demo/approved-motion/blank_amber/walk_north-west_repair_6.png",
+      "../agent-demo/approved-motion/blank_amber/walk_north-west_repair_7.png"
+    ]
+  },
+  {
+    "id": "blank_amber",
+    "dir": "south-west",
+    "source": "blank_amber-south-west-walk-repair.png",
+    "method": "Built-in ImageGen edit of generated eight-frame walk; mechanical equal-cell extraction, height normalization and transparent atlas packing",
+    "files": [
+      "../agent-demo/approved-motion/blank_amber/walk_south-west_repair_0.png",
+      "../agent-demo/approved-motion/blank_amber/walk_south-west_repair_1.png",
+      "../agent-demo/approved-motion/blank_amber/walk_south-west_repair_2.png",
+      "../agent-demo/approved-motion/blank_amber/walk_south-west_repair_3.png",
+      "../agent-demo/approved-motion/blank_amber/walk_south-west_repair_4.png",
+      "../agent-demo/approved-motion/blank_amber/walk_south-west_repair_5.png",
+      "../agent-demo/approved-motion/blank_amber/walk_south-west_repair_6.png",
+      "../agent-demo/approved-motion/blank_amber/walk_south-west_repair_7.png"
+    ]
+  }
+]

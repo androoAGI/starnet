@@ -1,0 +1,13 @@
+{
+  "id": "blank_amber",
+  "track": "sit",
+  "dir": "east",
+  "request": "id: 1ae34bff-4141-457d-a062-b55265f7a383\njob_id: 1ae34bff-4141-457d-a062-b55265f7a383\ndescription: Sit down fully on an invisible chair facing east throughout. Lower hips to three quarters standing height, thighs forward, knees bent right angles, shins down, feet below knees. Upright torso, unchanged head and torso size. Elbows tucked at waist, hands forward at desk height within shoulder width. South view thighs foreshortened toward camera. No chair, desk, keyboard, floor, shadow or objects. Preserve exact faceless spherical head, continuous rounded limbs, proportions, color and crisp pixel-cluster shading. No eyes, mouth, armor, joints or smooth gradients. Preserve muted satin colors, restrained highlights, plain torso and cylindrical limbs. No muscle definition or bright gloss.\nframes: 4\nsize: 96x96px\ntransparent: True\ncost: 2 generations\nstatus: processing (~1-5 min)\n\nhint: get_image(job_id=\"1ae34bff-4141-457d-a062-b55265f7a383\")",
+  "job": "1ae34bff-4141-457d-a062-b55265f7a383",
+  "source": "output/agent-animation-study/satin-cadets-0915/full-motion/blank_amber/refs/east.png",
+  "result": "status: completed\nid: 1ae34bff-4141-457d-a062-b55265f7a383\njob_id: 1ae34bff-4141-457d-a062-b55265f7a383\nframes: 5\ndownload: https://api.pixellab.ai/mcp/images/1ae34bff-4141-457d-a062-b55265f7a383/download?index=0 ... ?index=4\n(1 more frames not shown — fetch them from the download URLs above)",
+  "done": true,
+  "packed": true,
+  "lastRaw": "output/agent-animation-study/satin-cadets-0915/full-motion/blank_amber/minimax/sit-east/1ae34bff-4141-457d-a062-b55265f7a383/4.png",
+  "frameCount": 5
+}

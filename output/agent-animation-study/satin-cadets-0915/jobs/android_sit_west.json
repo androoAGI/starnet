@@ -1,0 +1,13 @@
+{
+  "id": "android",
+  "track": "sit",
+  "dir": "west",
+  "request": "id: fed180e9-3123-4b35-8491-221e0af98cea\njob_id: fed180e9-3123-4b35-8491-221e0af98cea\ndescription: Sit down fully on an invisible chair facing west throughout. Lower hips to three quarters standing height, thighs forward, knees bent right angles, shins down, feet below knees. Upright torso, unchanged head and torso size. Elbows tucked at waist, hands forward at desk height within shoulder width. South view thighs foreshortened toward camera. No chair, desk, keyboard, floor, shadow or objects. Preserve exact faceless spherical head, continuous rounded limbs, proportions, color and crisp pixel-cluster shading. No eyes, mouth, armor, joints or smooth gradients. Preserve muted satin colors, restrained highlights, plain torso and cylindrical limbs. No muscle definition or bright gloss.\nframes: 4\nsize: 96x96px\ntransparent: True\ncost: 2 generations\nstatus: processing (~1-5 min)\n\nhint: get_image(job_id=\"fed180e9-3123-4b35-8491-221e0af98cea\")",
+  "job": "fed180e9-3123-4b35-8491-221e0af98cea",
+  "source": "output/agent-animation-study/satin-cadets-0915/full-motion/android/refs/west.png",
+  "result": "status: completed\nid: fed180e9-3123-4b35-8491-221e0af98cea\njob_id: fed180e9-3123-4b35-8491-221e0af98cea\nframes: 5\ndownload: https://api.pixellab.ai/mcp/images/fed180e9-3123-4b35-8491-221e0af98cea/download?index=0 ... ?index=4\n(1 more frames not shown — fetch them from the download URLs above)",
+  "done": true,
+  "packed": true,
+  "lastRaw": "output/agent-animation-study/satin-cadets-0915/full-motion/android/minimax/sit-west/fed180e9-3123-4b35-8491-221e0af98cea/4.png",
+  "frameCount": 5
+}
