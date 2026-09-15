@@ -18,8 +18,8 @@
   "expectedClaimCount": 37,
   "releaseSurface": {
     "algorithm": "sha256",
-    "sourceCommit": "cb5a3171401c2006e7702b9d8a9991baabd01db4",
-    "pathSetSha256": "351b99eefc97dea05f446766c5f9412bac5e270902bdc49695a7b07bdfa464ed",
+    "sourceCommit": "7b3ebf04a695add19ad186496b63ad239368e0d6",
+    "pathSetSha256": "88ee073482f8afc4d2aaf41b4c0cb9b1a6d2a2a57819a4a753a65b8055ed0bea",
     "files": [
       {
         "path": "INSTALL.md",
@@ -378,8 +378,8 @@
       },
       {
         "path": "frontend/app/industrialtextures.js",
-        "bytes": 12133,
-        "sha256": "ef28d9ca9b32e50dc04bc3bb99bb918f8f181307d88be712d19b3af162aee51e"
+        "bytes": 14071,
+        "sha256": "9c165a30da957dcb083d9dadcf0cb0703615ff2eb15180e221cf3214ecf08999"
       },
       {
         "path": "frontend/app/intake.js",
@@ -813,8 +813,8 @@
       },
       {
         "path": "frontend/app/stationbake.js",
-        "bytes": 351911,
-        "sha256": "75ebee865dc8a1bf40f3f88fda6e4c2c9c01af5781ec3e06b6a3fb696dfa0f49"
+        "bytes": 352744,
+        "sha256": "aac3eb93217df609a50aa1a2b2bd76722b6675f026289c945fe76b7e1e84b6bc"
       },
       {
         "path": "frontend/app/stationcommands.js",
@@ -1110,6 +1110,16 @@
         "path": "frontend/app/zones.js",
         "bytes": 12313,
         "sha256": "5abb6deb7e64dcb053854fae98a3ffbabfc2bab1fbba2398b184aaaa784991aa"
+      },
+      {
+        "path": "frontend/assets/industrial/shell-clean-preview.html",
+        "bytes": 5027,
+        "sha256": "3306f4c401165b3c19fc7bfe9e99328e28e90fc4e16c5d6d1d53e4f8e58eeb02"
+      },
+      {
+        "path": "frontend/assets/industrial/shell-variants/preview.html",
+        "bytes": 2371,
+        "sha256": "de3b4e9f81e8b21fecfc1459f22267ff479340e78fdc7c5c586cf86061ede616"
       },
       {
         "path": "frontend/css/agent-dossier.css",
