@@ -790,3 +790,10 @@ test/authored-prop-motion.test.js
 test/authored-machine-config.test.js
 test/authored-service-content.test.js
 test/coordinated-prop-recipes.test.js
+test/routing-label-layout.test.js
+test/prop-layout-polish.test.js
+test/skin-study-tone.test.js
+test/skin-study-preview.test.js
+test/projection-prop-effects.test.js
+test/projection-load-geometry.test.js
+dev/industrial-textures/prop-catalog-review.test.cjs

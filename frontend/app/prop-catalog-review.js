@@ -13,7 +13,7 @@
   const $ = id => document.getElementById(id), data = PropCatalogData, F = PropCatalogFixture;
   const ctx = cv.getContext('2d'), visited = new Set();
   const filters = { category: query.get('category') || '', search: query.get('q') || '', facing: query.get('facing') || '', mount: query.get('mount') || '', page: Number(query.get('page')) || 0 };
-  let powered = false, moving = false, outlines = false, scale = 2, room = null, frame = 0, selected = null;
+  let powered = false, moving = false, outlines = false, scale = 2, requestedScale='fit', room = null, frame = 0, selected = null;
   await Promise.all([IndustrialTextures.ready, PropRemaster.ready]);
   await SPRITES.init(); await SPRITES.ensureSkin('station_minion');
   for (const c of data.categories) {
@@ -32,7 +32,8 @@
   $('power').onclick = () => { powered = !powered; $('power').textContent = 'Fixture state: ' + (powered ? 'powered (preview)' : 'idle'); $('power').setAttribute('aria-pressed', powered); paint(); };
   $('motion').onclick = () => { moving = !moving; $('motion').textContent = 'Motion: ' + (moving ? 'fixture preview' : 'frozen'); $('motion').setAttribute('aria-pressed', moving); cancelAnimationFrame(frame); paint(); };
   $('outlines').onclick = () => { outlines = !outlines; $('outlines').setAttribute('aria-pressed', outlines); $('outlines').textContent = outlines ? 'Hide footprints' : 'Show footprints'; paint(); };
-  $('scale').onchange = () => { scale = Number($('scale').value); resize(); paint(); };
+  $('scale').onchange = () => { requestedScale=$('scale').value; resize(); paint(); };
+  window.addEventListener('resize',()=>{resize();paint();});
   function syncURL() {
     const url = new URL(location.href);
     for (const [key, value] of Object.entries({ category: filters.category, q: filters.search, facing: filters.facing, mount: filters.mount, page: filters.page })) {
@@ -42,6 +43,7 @@
   }
   function resize() {
     if (!room) return;
+    scale=requestedScale==='fit'?Math.min(2,(cv.parentElement.clientWidth-4)/room.geo.W,Math.max(240,window.innerHeight*.61)/room.geo.H):Number(requestedScale);
     cv.width = Math.ceil(room.geo.W * scale); cv.height = Math.ceil(room.geo.H * scale);
     cv.style.width = cv.width + 'px'; cv.style.height = cv.height + 'px';
   }
@@ -95,7 +97,7 @@
       '. Loader failures: ' + status.failures.length + '. Rendered this visit: ' + visited.size + ' directions / ' + new Set([...visited].map(k => k.split(':')[0])).size + ' types. Filter: ' + selected.matching.length + ' directions.';
     const failures = mounts.filter(m => !m.authored);
     $('report').textContent = (selected.entries.length ? 'This room: ' + selected.entries.length + ' catalog views, ' + room.supports.length + ' support tables, and 3 scale anchors.' : 'No catalog views match these filters.') +
-      '\nFixture state: ' + (powered ? 'powered demonstration only' : 'idle') + '; motion ' + (moving ? 'running' : 'frozen') + '. ' +
+      '\nDisplay scale: '+scale.toFixed(2)+' px / world px. Fixture state: ' + (powered ? 'powered demonstration only' : 'idle') + '; motion ' + (moving ? 'running' : 'frozen') + '. ' +
       'Placement conflicts: ' + room.violations.length + '; missing current-view art: ' + missing.length + '; surface fallback placements: ' + failures.length + '.';
     $('diagnostics').textContent = JSON.stringify({ fixtureOnly: true, ownerApproval: 'not asserted', violations: room.violations, missing: missing.map(v => v.key), runtimeDrift: runtimeDrift.map(v => v.key), mounts, assetFailures: status.failures }, null, 2);
     document.body.dataset.result = room.violations.length || missing.length || runtimeDrift.length || failures.length ? 'review-issues' : 'rendered';

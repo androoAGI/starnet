@@ -24,7 +24,7 @@ The standalone page already loads the module after its dependencies, including
 - Every room has the unchanged accepted workstation, crate and chair plus the real white cadet for scale.
 - Supporting furniture/anchors are excluded from catalog coverage counts. Rendered-this-visit counts are in-memory, never approval.
 - Idle/powered and frozen/animated states are explicitly fixture previews; they do not issue tool calls or create agent work.
-- Footprint overlay and explicit 2/3/4 display-pixels-per-world-pixel scale assist room review.
+- Footprint overlay, a default fit-to-room view, and explicit 1/2/3/4 display-pixels-per-world-pixel scales assist room review.
 
 The DOM exposes `#coverage`, `#report`, `#diagnostics`, and the read-only diagnostic object
 `window.PropCatalogReviewState` with current keys, missing art, loader failures, runtime catalog
@@ -49,12 +49,13 @@ Verified: pure tests cover 76 all/category layouts and 38 table-mounted cases. B
 160 types / 208 directions / 35 rooms, zero page exceptions, no placement conflicts, no missing
 art and no authored-surface fallback. Pixel sample `[33,28,23,255]` confirms a rendered room.
 
-This is a programmatic coverage pass, not visual approval of all 208 views. Actual screenshot
-inspection covered the first room and a filtered mug-on-table room: furnished station geometry,
-surface placement, the human sprite and fixed scale anchors were visible. No additional angle or
-shrunken-prop defect was established from those two screenshots; the remaining rooms still need
-the coordinator's visual review. The screenshots are local `.dogfood/catalog-review/first-room.png`
-and `surface-room.png`; the committed browser receipt records the coverage sweep separately.
+The fixture lane's screenshot inspection covered the first room and a filtered mug-on-table
+room. The coordinator subsequently inspected all 35 rooms in the integrated running demo,
+covering all 208 supported directions. This is a visual review pass, not owner approval.
+See [integrated polish verification](../projection-correction/POLISH-2-7.md) for final checks
+and release limits. The fixture lane's screenshots are local
+`.dogfood/catalog-review/first-room.png` and `surface-room.png`; the committed browser receipt
+records its programmatic coverage sweep separately.
 
 Full `npm run test:fast` was attempted but stopped at unrelated step 83/783,
 `test/local-voice.test.js:32`: expected model-package availability false, actual true.
