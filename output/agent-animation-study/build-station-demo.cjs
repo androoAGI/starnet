@@ -35,6 +35,9 @@ fs.writeFileSync(path.join(demo,'sprites.js'),engine);
    const key=track==='rotations'?'rot':track==='idle'?'idle':track;
    original.sprites[set+'.'+key+'.'+dir]=track==='sit'?[out.at(-1)]:track==='walk'?out.slice(1):out;
   }
+  const portraitDir=path.join(front,'assets/sprites',set);fs.mkdirSync(portraitDir,{recursive:true});
+  fs.copyFileSync(path.join(front,'assets/agent-demo/frames',id,'rotations_south_0.png'),path.join(portraitDir,'rot_south.png'));
+  fs.cpSync(portraitDir,path.join(root,'website/app/assets/sprites',set),{recursive:true});
  }
  fs.writeFileSync(path.join(demo,'manifest.json'),JSON.stringify(original));
  for(const folder of ['agent-demo','assets/agent-demo','assets/industrial/remaster','assets/industrial/calibration','assets/industrial/approved-sheet','assets/industrial/projection-correction'])fs.cpSync(path.join(front,folder),path.join(root,'website/app',folder),{recursive:true});
