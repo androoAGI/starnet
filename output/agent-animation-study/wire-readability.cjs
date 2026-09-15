@@ -4,7 +4,7 @@ const marker='  /* ---------- camera helpers ---------- */';
 const injected=`  // This file is an isolated snapshot for the development art review entry only.
   // Mannequins are render-only: never roster members, tasks, or persisted station objects.
   let skinReview = null;
-  function showSkinReview(enabled, zoom) {
+  function showSkinReview(enabled, zoom, id='secretagent') {
     if (!window.__STARNET_DEV__ || !geo || !agent || !cache) return false;
     if (!enabled) { skinReview = null; return true; }
     const deskRef = (geo.props || []).find(p => p.t === 'desk') || {x:tileOf(agent.px,agent.py).x,y:tileOf(agent.px,agent.py).y,w:2,h:1};
@@ -14,7 +14,9 @@ const injected=`  // This file is an isolated snapshot for the development art r
       if ([0,1,2].every(n=>geo.walkable(x+n,y,blocked)&&geo.walkable(x+n,y-1,blocked))) spot={x,y};
     }
     if (!spot) return false;
-    skinReview={spot};
+    if (!['ultron','skeleton','plaguedoctor','secretagent','voidwizard'].includes(id)) return false;
+    skinReview={spot,id};
+    const panel=document.getElementById('agent-station-demo');if(panel){delete panel.dataset.reviewPose0;delete panel.dataset.reviewPose1;panel.dataset.comparison='loading';}
     camLock=null;camAnim=null;camUserAt=fnow;
     const z=zoom || scale;
     camLerp={scale:z,panX:cv.width/2-(spot.x+1.5)*T*z,panY:cv.height*.43-((spot.y+1)*T-10)*z};
@@ -28,7 +30,7 @@ w=w.replace(hook,`    if (skinReview) {
       camUserAt=now; // Keep the idle camera director from leaving an explicit art comparison.
       const spot=skinReview.spot;
       const light=sceneRenderer && sceneRenderer.sampleLight((spot.x+1.5)*T,(spot.y+1)*T-1);
-      ['industrial_secretagent','readability_secretagent'].forEach((skin,i)=>{
+      ['industrial_'+skinReview.id,'readability_'+skinReview.id].forEach((skin,i)=>{
         const f=footOf(spot.x+i*2,spot.y);
         const b={id:'skin-review-'+i,skin,px:f.x,py:f.y,dir:'south',state:'idle',aph:0};
         items.push({y:f.y,draw:()=>{

@@ -8,6 +8,7 @@
   for(const [skin,id,name]of skins) {
     DATA.SKINS[skin]={...DATA.SKINS[skin],name,set:'industrial_'+id,scale:height/76};
     DATA.SKINS['industrial_'+id]=DATA.SKINS[skin];
+    DATA.SKINS['readability_'+id]={name:name+' readability study',set:'readability_'+id,scale:18/76};
   }
   const panel=document.createElement('aside');panel.id='agent-station-demo';
   panel.style.cssText='position:fixed;z-index:9999;bottom:55px;left:14px;padding:10px 14px;background:#10191bea;border:1px solid #877957;color:#d8ceae;font:12px monospace;max-width:420px;box-shadow:0 4px 18px #0008';
@@ -19,8 +20,13 @@
   const compare=document.createElement('div');
   compare.style.cssText='margin-top:9px;border-top:1px solid #877957;padding-top:8px';
   compare.innerHTML='<strong>FRONT POSE COMPARISON</strong><div>Current left · revised right · both 18 px</div><div style="margin:6px 0">Art mannequins beside live station furniture</div><button class="bb" id="review-normal">Compare at normal zoom</button> <button class="bb" id="review-close">Close look</button> <button class="bb" id="review-hide">Hide comparison</button>';
+  const skinPicker=document.createElement('select');skinPicker.id='review-skin';skinPicker.className='fbc-sel';skinPicker.setAttribute('aria-label','Compare skin');
+  skinPicker.style.cssText='appearance:none;background:#1a2528;color:#d8ceae;border:1px solid #877957;padding:5px 24px 5px 7px;background-image:linear-gradient(45deg,transparent 50%,#d8ceae 50%),linear-gradient(135deg,#d8ceae 50%,transparent 50%);background-position:calc(100% - 12px) 50%,calc(100% - 8px) 50%;background-size:4px 4px;background-repeat:no-repeat';
+  for(const[,id,name]of skins){const o=document.createElement('option');o.value=id;o.textContent=name;skinPicker.append(o);}skinPicker.value='ultron';
+  const skinLabel=document.createElement('label');skinLabel.style.cssText='display:block;margin-bottom:8px';skinLabel.textContent='Compare skin ';skinLabel.append(skinPicker);compare.prepend(skinLabel);
   panel.append(compare);
-  const showReview=z=>{panel.querySelector('input').value='18';panel.querySelector('output').textContent='18 px';for(const[skin]of skins)DATA.SKINS[skin].scale=18/76;World.showSkinReview(true,z);};
+  const showReview=z=>{panel.querySelector('input').value='18';panel.querySelector('output').textContent='18 px';for(const[skin]of skins)DATA.SKINS[skin].scale=18/76;World.showSkinReview(true,z,skinPicker.value);};
+  skinPicker.onchange=()=>showReview(Number(panel.dataset.reviewZoom)||2);
   compare.querySelector('#review-normal').onclick=()=>showReview(2);
   compare.querySelector('#review-close').onclick=()=>showReview(4);
   compare.querySelector('#review-hide').onclick=()=>{World.showSkinReview(false);panel.dataset.comparison='hidden';};
@@ -34,10 +40,10 @@
     try{
       const hero=App.currentAgent();World.setSkin(hero.id,'blank');
       for(const[skin,,name]of skins.slice(1))if(!App.agents().some(a=>a.skin===skin))App.summonAgent({id:'industrial-demo-'+skin,name,agentName:name,skin},{desk:true,activate:false});
-      await Promise.all([...skins.map(([skin])=>SPRITES.ensureSkin(skin)),SPRITES.ensureSkin('readability_secretagent')]);
+      await Promise.all([...skins.map(([skin])=>SPRITES.ensureSkin(skin)),...skins.map(([,id])=>SPRITES.ensureSkin('readability_'+id))]);
       const picker=panel.querySelector('select');
       for(const a of App.agents()){const o=document.createElement('option');o.value=a.id;o.textContent=a.id===hero.id?a.name+' · Ultron':a.name;picker.append(o);}
-      panel.querySelector('#agent-demo-status').textContent='Five animated skins · 18 px is 9% taller than the old Secret Agent';
+      panel.querySelector('#agent-demo-status').textContent='Five original animated skins · five revised front poses';
       panel.dataset.ready='true';
       showReview(2);
     }catch(e){panel.querySelector('#agent-demo-status').textContent='Demo setup: '+e.message;console.error(e);}
