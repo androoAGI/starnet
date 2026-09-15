@@ -16,7 +16,9 @@ const IndustrialTextures = (() => {
   const images = {}, failed = [];
   // Exposed to the existing CRT lab for a live, reproducible material review.
   // Values read back from the live CRT lab after the combined-room review.
-  const lighting = { fixtureTint: .04, floorGain: projectionReview?1.04:1, wallGain: projectionReview?.82:1, contact: .28 };
+  const lighting = { fixtureTint: projectionReview?.14:.04, propTint: projectionReview?.65:.48,
+    propLift: projectionReview?.85:.65, ambientLift: projectionReview?.08:0,
+    floorGain: projectionReview?1.04:1, wallGain: projectionReview?.82:1, contact: .28 };
   const plates = new WeakMap();
   const platePyramids = new WeakMap();
   const detailTargets = new WeakMap(), wallStrips = new Map(), materials = new Map(), emitters = new Map();
