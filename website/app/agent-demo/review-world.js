@@ -441,7 +441,6 @@ const World = (() => {
   const DIR_A = { east: 0, south: Math.PI / 2, west: Math.PI, north: -Math.PI / 2 };
   const TURN_RATE = 9;       // rad/s CEILING for the facing slew (see the easing in stepGait)
   const TURN_ACCEL_A = 55;   // rad/s² — the facing spins up and brakes instead of slewing flat
-  const TURN_FOOT_R = 4.2;   // world units from the pivot axis to the feet: a 90° pivot ≈ one stride
   const DIR_HYST = 0.13;     // rad (~7.5°) a bucket holds PAST its own boundary before handing over
   const ACCEL = 150;         // world units/s² — spools up to hero pace in ~0.23s, and brakes at the same rate
   const CORNER_LOOK = 2.5;   // world units: hand over to the next waypoint this early (see the walk blocks)
@@ -460,35 +459,32 @@ const World = (() => {
      `lastLeg` brakes into the FINAL stop only; intermediate waypoints are taken at pace so the body doesn't
      stutter at every corner. dx,dy = the vector it is stepping along, d = its length. */
   function stepGait(b, dx, dy, d, top, lastLeg, dt) {
-    // The legacy pace was tuned for roughly 35px-tall bodies. Keep the approved
-    // 18px crew at a walking pace in body lengths, rather than racing across the deck.
-    if (b.id === 'ULTRON' || (DATA.SKINS[b.skin]?.set || '').startsWith('approved_') || DATA.SKINS[b.skin]?.sourceStandingHeight) top *= (DATA.SKINS[b.skin]?.sourceStandingHeight || 76) * SPRITES.bodyScale(b) / 35;
-    if (b.faceA == null || b.dir !== b.faceDir) b.faceA = DIR_A[b.dir] != null ? DIR_A[b.dir] : Math.PI / 2;
-    const t = (typeof performance !== 'undefined' ? performance.now() : Date.now());
-    if (b.odo == null || t - (b.odoAt || 0) > 150) { b.odo = 0; b.spd = 0; }   // wasn't walking last frame → a NEW walk
-    b.odoAt = t;
-    const want = lastLeg ? Math.min(top, Math.sqrt(Math.max(0, d) * 2 * ACCEL)) : top;
-    const rate = ACCEL * dt / 1000, cur = b.spd || 0;
-    b.spd = cur < want ? Math.min(want, cur + rate) : Math.max(want, cur - rate);
-    const step = Math.min(d, b.spd * dt / 1000);
-    if (d > 1e-4) {
-      const turn = angNorm(Math.atan2(dy, dx) - b.faceA);
-      const s = dt / 1000, remain = Math.abs(turn);
-      // Angular ACCELERATION, not a flat rate — the same easing the linear speed gets above. A
-      // constant slew made a cornering body read as a turntable: it pivoted at a machine-perfect
-      // rate while its legs stood still. Brake term arrives at the heading at rest.
-      const target = Math.min(TURN_RATE, Math.sqrt(2 * TURN_ACCEL_A * remain));
-      const curW = b.angW || 0;
-      b.angW = curW < target ? Math.min(target, curW + TURN_ACCEL_A * s)
-                             : Math.max(target, curW - TURN_ACCEL_A * s);
-      const swept = Math.min(remain, b.angW * s);
-      b.faceA = angNorm(b.faceA + Math.sign(turn) * swept);
-      // The feet also travel when the body pivots — they sweep an arc about the stance centre. Adding
-      // that arc to the stride odometer keeps the legs cycling through a corner instead of freezing
-      // mid-stride while the sprite rotates, which is what made cornering look like sliding.
-      b.odo += step + swept * TURN_FOOT_R;
-    }
-    b.dir = b.faceDir = bucketDir(b.faceA, b.dir);
+    const visible=(DATA.SKINS[b.skin]?.sourceStandingHeight || 76) * SPRITES.bodyScale(b);
+    const compact=b.id==='ULTRON'||(DATA.SKINS[b.skin]?.set||'').startsWith('approved_')||!!DATA.SKINS[b.skin]?.sourceStandingHeight;
+    if(compact)top*=visible/35;
+    const seconds=Math.max(0,Math.min(100,dt))/1000;
+    const accel=compact?Math.max(35,visible*3.2):ACCEL;
+    if(b.faceA==null||b.dir!==b.faceDir)b.faceA=DIR_A[b.dir]??Math.PI/2;
+    const t=typeof performance!=='undefined'?performance.now():Date.now();
+    if(b.odo==null)b.odo=0;
+    if(t-(b.odoAt||0)>150)b.spd=0;
+    b.odoAt=t;
+    const heading=d>1e-4?Math.atan2(dy,dx):b.faceA;
+    const turn=angNorm(heading-b.faceA),remain=Math.abs(turn);
+    const target=Math.min(TURN_RATE,Math.sqrt(2*TURN_ACCEL_A*remain));
+    const curW=b.angW||0;
+    b.angW=curW<target?Math.min(target,curW+TURN_ACCEL_A*seconds):Math.max(target,curW-TURN_ACCEL_A*seconds);
+    b.faceA=angNorm(b.faceA+Math.sign(turn)*Math.min(remain,b.angW*seconds));
+    // Turn before travelling backwards. Gentle corners retain momentum; sharp turns plant first.
+    const error=Math.abs(angNorm(heading-b.faceA));
+    const alignment=error>=Math.PI/4?0:Math.cos(error*2)**2;
+    const want=(lastLeg?Math.min(top,Math.sqrt(Math.max(0,d)*2*accel)):top)*alignment;
+    const cur=b.spd||0,rate=accel*seconds;
+    b.spd=cur<want?Math.min(want,cur+rate):Math.max(want,cur-rate);
+    const step=Math.min(d,b.spd*seconds)*alignment;
+    // Only translation advances the stride. Rotation used to add almost an entire fake cycle.
+    b.odo+=step;b._travelHeading=heading;b._travelStep=step;
+    b.dir=b.faceDir=bucketDir(b.faceA,b.dir);
     return step;
   }
 
@@ -2313,7 +2309,7 @@ const World = (() => {
       // The old code teleported px/py exactly onto every waypoint, which is what made the body pivot on the
       // spot at each tile. Keep that lookahead only when the new leg is clear;
       // tight doorways must reach the waypoint before turning.
-      if (more ? (d < 1e-6 || (d < CORNER_LOOK && canRoundCorner(b))) : d < 1.1) {
+      if (more ? (d < 1e-6 || (d < CORNER_LOOK && canRoundCorner(b))) : d < 0.12) {
         if (more) crewNextWaypoint(b);
         else { b.px = b.target.x; b.py = b.target.y; b.target = null; }
       } else {
@@ -2377,7 +2373,7 @@ const World = (() => {
           if (now < (self.pauseUntil || 0)) break;
         }
         if (now < (self.pauseUntil || 0)) { self.state = 'idle'; }
-        else if (more ? (d < 1e-6 || (d < CORNER_LOOK && canRoundCorner(self))) : d < 1.1) {   // early hand-over, no snap — see stepCrewToSeat's note
+        else if (more ? (d < 1e-6 || (d < CORNER_LOOK && canRoundCorner(self))) : d < 0.12) {   // early hand-over, no snap — see stepCrewToSeat's note
           if (more) nextWaypoint();
           else { self.px = self.target.x; self.py = self.target.y; arrive(now); }
         } else {
@@ -3691,11 +3687,21 @@ const World = (() => {
 
      The gap (slotMs - speakMs) is load-bearing: without it the speakers swap instantly and it reads
      as sprites vibrating rather than one listening while another speaks. */
+  // Shared by speaker selection and bubble expiry: varied phrase lengths with real listening gaps.
+  function conversationWindow(elapsed,slotMs,speakMs){
+    const lengths=[1,1.38,.84,1.17,1.56,.93],rests=[.38,.58,.31,.48,.7,.42];
+    const cycle=lengths.reduce((n,x)=>n+x*slotMs,0);
+    const laps=Math.floor(Math.max(0,elapsed)/cycle);let at=laps*cycle,turn=laps*lengths.length;
+    for(let i=0;i<lengths.length;i++){
+      const duration=lengths[i]*slotMs;
+      if(elapsed<at+duration||i===lengths.length-1)return{turn,start:at,end:at+duration,speakEnd:at+Math.min(duration-rests[i]*1000,duration*speakMs/slotMs)};
+      at+=duration;turn++;
+    }
+  }
   function myTurnN(elapsed, idx, n, slotMs, speakMs) {
-    if (!(elapsed >= 0) || !(slotMs > 0) || !(n > 0)) return false;
-    if (!(idx >= 0) || idx >= n) return false;              // not in the roster ⇒ silent (never guess a turn)
-    const mine = (Math.floor(elapsed / slotMs) % n) === idx;
-    return mine && (elapsed % slotMs) < speakMs;
+    if(!(elapsed>=0)||!(slotMs>0)||!(n>0)||idx<0||idx>=n)return false;
+    const window=conversationWindow(elapsed,slotMs,speakMs);
+    return window.turn%n===idx&&elapsed<window.speakEnd;
   }
   function myTurn(elapsed, first, slotMs, speakMs) {
     return myTurnN(elapsed, first ? 0 : 1, 2, slotMs, speakMs);
@@ -3802,9 +3808,10 @@ const World = (() => {
      cannot overlap as long as speak + fade <= slot, which is a property of the tuning and is
      locked as such in test/glyph-speech.test.js. */
   function chatterWindow(startedAt, elapsed, slotMs, speakMs, fadeMs) {
-    const turn = Math.floor(Math.max(0, elapsed) / slotMs);
-    return { turn: turn, until: startedAt + turn * slotMs + speakMs + fadeMs };
+    const window=conversationWindow(Math.max(0,elapsed),slotMs,speakMs);
+    return {turn:window.turn,until:startedAt+Math.min(window.speakEnd+fadeMs,window.end)};
   }
+
   // one utterance: a few short words, all drawn from the speaker's own dialect
   function glyphPhrase(seed, dialect) {
     if (!dialect || !dialect.length) return [];
@@ -5763,7 +5770,7 @@ const World = (() => {
           if (now < (agent.pauseUntil || 0)) break;
         }
         if (now < (agent.pauseUntil || 0)) { agent.state = 'idle'; }
-        else if (more ? (d < 1e-6 || (d < CORNER_LOOK && canRoundCorner(agent))) : d < 1.1) {   // early hand-over, no snap — see stepCrewToSeat's note
+        else if (more ? (d < 1e-6 || (d < CORNER_LOOK && canRoundCorner(agent))) : d < 0.12) {   // early hand-over, no snap — see stepCrewToSeat's note
           if (more) nextWaypoint();
           else { agent.px = agent.target.x; agent.py = agent.target.y; arrive(now); }
         } else {
@@ -6975,7 +6982,15 @@ const World = (() => {
       if(geom && window.__STARNET_DEV__){
         const evidence=demoWalkEvidence[who.id]||(demoWalkEvidence[who.id]={frames:new Set(),poses:new Set(),origin:null,distance:0});
         if(who.state==='walk'&&who._pose&&who._pose.includes('.walk.')){evidence.frames.add(who._pose+':'+who._renderFrame);evidence.poses.add(who._pose);if(!evidence.origin)evidence.origin={x:who.px,y:who.py};evidence.distance=Math.max(evidence.distance,Math.hypot(who.px-evidence.origin.x,who.py-evidence.origin.y));}
-        demoMotionEvidence[who.id]={pose:who._pose,frame:who._renderFrame,x:Math.round(who.px*100)/100,y:Math.round(who.py*100)/100,state:who.state,standingHeight:who._renderStandingHeight,groundGap:who._renderGroundGap,speed:who.state==='walk'?Math.round((who.spd||0)*100)/100:0,walkFrames:evidence.frames.size,walkPoses:[...evidence.poses],walkDistance:Math.round(evidence.distance*100)/100};
+        const previous=evidence.previous,dx=previous?who.px-previous.x:0,dy=previous?who.py-previous.y:0;
+        if(previous&&who.state==='walk'&&Math.hypot(dx,dy)>.001&&who._pose?.includes('.walk.')){
+          const angles={east:0,'south-east':Math.PI/4,south:Math.PI/2,'south-west':3*Math.PI/4,west:Math.PI,'north-west':-3*Math.PI/4,north:-Math.PI/2,'north-east':-Math.PI/4};
+          const facing=angles[who._pose.split('.').at(-1)];
+          const error=Math.abs(angNorm(facing-Math.atan2(dy,dx)))*180/Math.PI;
+          evidence.maxFacingError=Math.max(evidence.maxFacingError||0,error);if(error>90)evidence.backwardFrames=(evidence.backwardFrames||0)+1;
+        }
+        evidence.previous={x:who.px,y:who.py};
+        demoMotionEvidence[who.id]={pose:who._pose,frame:who._renderFrame,x:Math.round(who.px*100)/100,y:Math.round(who.py*100)/100,state:who.state,standingHeight:who._renderStandingHeight,groundGap:who._renderGroundGap,speaking:!!who.speaking,speechAccent:who._renderSpeechAccent||0,maxFacingError:Math.round((evidence.maxFacingError||0)*10)/10,backwardFrames:evidence.backwardFrames||0,speed:who.state==='walk'?Math.round((who.spd||0)*100)/100:0,walkFrames:evidence.frames.size,walkPoses:[...evidence.poses],walkDistance:Math.round(evidence.distance*100)/100};
         if(now-demoMotionEvidenceAt>250){const panel=document.getElementById('agent-station-demo');if(panel)panel.dataset.motion=JSON.stringify(demoMotionEvidence);demoMotionEvidenceAt=now;}
       }
       // remember the visible head-top (world px) so overlays (nameplate, speech bubble) anchor

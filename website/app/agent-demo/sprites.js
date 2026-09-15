@@ -370,7 +370,10 @@ const SPRITES = (() => {
     const dt = Math.max(0, Math.min(100, nowMs - (b._rAt || 0)));   // clamp: first frame / tab-restore must not spin
     b._rAt = nowMs;
     if (b._rA == null) { b._rA = want; b._rW = 0; b._turnAng = 0; }  // new body: snap, no tween
-    else {
+    else if (b.state === 'walk' && !glancing) {
+      // Locomotion already eases facing; a second lag draws a backwards-moving body.
+      b._rA=want;b._rW=0;
+    } else {
       const turn = ang(want - b._rA), remain = Math.abs(turn);
       const s = dt / 1000;
       // brake so the facing ARRIVES at rest: v = sqrt(2·a·s) is the fastest it can still stop in time
@@ -408,7 +411,7 @@ const SPRITES = (() => {
     const light = bodyLight(appearance && appearance.light);
     const set = setForBody(b);
     if (!loadedSets.has(set)) { loadSet(set); return null; }
-    const glancing = b.glance && b.glance.until > nowMs;   // brief look-up: overrides facing & typing
+    const glancing = b.state !== 'walk' && b.glance && b.glance.until > nowMs;   // brief look-up: overrides facing & typing
     const meeting = b.meet && b.meet.until > nowMs;        // hallway chat: stand still, face partner
     const dir = glancing ? b.glance.dir : (b.dir || 'south');
     // per-agent animation offset. Prefer the FLOAT `aph`: `phase` is an integer (world.js needs it as a
@@ -433,13 +436,9 @@ const SPRITES = (() => {
     } else if (b.sitting) {
       key = pick(set, ['sit', 'rot'], dir); fps = 4;
     } else if (b.speaking) {
-      // talking out loud: prefer a dedicated talk track (open/closed mouth chatter) when the set
-      // ships one — the mouth carries the speech, so keep only the gentle idle sway. Sets without
-      // a talk track keep the livelier bob + 1px head bounce so speech never reads as a frozen pose.
-      key = pick(set, ['talk', 'rot'], dir); fps = 6;
-      bob = (key && key.indexOf('.talk.') !== -1)
-        ? Math.sin(nowMs / 600 + aph) * 0.7
-        : Math.sin(nowMs / 170 + aph) * 1.1 - (Math.floor(nowMs / 150) % 2 ? 1 : 0);
+      // Keep the feet planted. No whole-body hop as a substitute for missing mouth art.
+      key = pick8(set, ['talk','rot'], dir8, dir); fps = 6;
+      bob = 0;
     } else {
       key = pick8(set, ['rot'], dir8, dir);
       bob = Math.sin(nowMs / 600 + aph) * 0.7;
@@ -451,7 +450,7 @@ const SPRITES = (() => {
       // NOT while glancing: a glance is a ~380ms look toward something, i.e. a HEAD turn. Letting
       // it drive the legs made a body take a full stride to look sideways and step back again.
       // The facing still eases round; only the footwork is suppressed.
-      if (!glancing && (b._rW || 0) > TURN_STEP_W) {
+      if (!isReviewSet(set) && !glancing && (b._rW || 0) > TURN_STEP_W) {
         const wk = pick8(set, ['walk'], dir8, dir);
         if (wk) { key = wk; turnStep = true; bob *= 0.35; }
       }
@@ -572,10 +571,17 @@ const SPRITES = (() => {
     // tracks own their motion. Portraits keep their established framing. Omitting appearance
     // preserves the original three-argument renderer until the caller opts into local lighting.
     const planted = !!appearance && !b.noShadow && !b.seated && !b.sitting && !b.sleeping
-      && b.state !== 'sleep' && b.state !== 'walk' && !b.working && !b.speaking
-      && !meeting && !glancing && !turnStep && (key.indexOf('.rot.') !== -1 || key.indexOf('.blink.') !== -1);
+      && b.state !== 'sleep' && b.state !== 'walk' && !b.working
+      && !meeting && !glancing && !turnStep && (key.indexOf('.rot.') !== -1 || key.indexOf('.blink.') !== -1 || key.indexOf('.talk.') !== -1);
     if (reduced || planted) bob = 0;
-    const breath = planted && !reduced ? Math.sin(nowMs / 1050 + aph) * 0.24 : 0;
+    const motionDt=Math.max(0,Math.min(100,nowMs-(b._speechAt||nowMs)));b._speechAt=nowMs;
+    const speechWant=b.speaking?1:0;
+    b._speechEase=(b._speechEase||0)+(speechWant-(b._speechEase||0))*(1-Math.exp(-motionDt/180));
+    // Uneven phrase accents and rests, never purported audio lip-sync. Deform about the planted feet.
+    const accent=Math.max(0,Math.sin(nowMs/410+aph)*Math.sin(nowMs/970+aph*.7));
+    const speech=planted&&!reduced?(b._speechEase||0)*accent:0;
+    b._renderSpeechAccent=speech;
+    const breath = planted && !reduced ? Math.sin(nowMs / 1050 + aph) * 0.12 - speech*.18 : 0;
     const breathScale = 1 + breath / Math.max(12, dh - pad);
     const drawHeight = dh * breathScale;
     const y = planted ? snap(b.py + GROUND_BITE - seatLift) - (dh - pad) * breathScale
@@ -605,7 +611,12 @@ const SPRITES = (() => {
     const prevQuality = ctx.imageSmoothingQuality;
     ctx.imageSmoothingEnabled = true;
     if ('imageSmoothingQuality' in ctx) ctx.imageSmoothingQuality = 'high';
-    try { ctx.drawImage(lightFrame(f, light), x, y, dw, drawHeight); }
+    try {
+      ctx.save();
+      if(speech){const foot=b.py+GROUND_BITE-seatLift;ctx.translate(0,foot);ctx.transform(1,0,speech*.009,1,0,0);ctx.translate(0,-foot);}
+      ctx.drawImage(lightFrame(f, light), x, y, dw, drawHeight);
+      ctx.restore();
+    }
     finally {
       ctx.imageSmoothingEnabled = prevSmooth;
       if ('imageSmoothingQuality' in ctx) ctx.imageSmoothingQuality = prevQuality;

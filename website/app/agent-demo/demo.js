@@ -54,6 +54,18 @@
     const option=Array.from(follow.options).find(o=>o.value===id);if(option)option.textContent=(App.agents().find(a=>a.id===id)?.name||id)+' · '+selected.name;
     if(follow.value===id){World.showSkinReview(false);panel.dataset.comparison='hidden';World.lockBody(id);liveSkin.value=selected.id;panel.dataset.liveSkin=selected.id;motionStatus.textContent=describeSkin(selected);}
   };
+  const speechStudy=document.createElement('details');
+  speechStudy.innerHTML='<summary>Talking pose close-up</summary><div style="margin:6px 0">Pose study · 4× view</div><canvas width="300" height="120" aria-label="Talking pose study" style="width:300px;max-width:100%;background:#182023;border:1px solid #54615b"></canvas>';
+  panel.append(speechStudy);const studyCanvas=speechStudy.querySelector('canvas'),studyCtx=studyCanvas.getContext('2d');let studyBody=null;
+  function drawSpeechStudy(now){
+    if(speechStudy.open&&panel.dataset.ready==='true'){
+      const item=catalogSkins.find(x=>x.id===liveSkin.value);
+      if(item&&studyBody?.skin!==item.renderSet)studyBody={id:'pose-study',skin:item.renderSet,px:37.5,py:27,dir:'south',state:'idle',aph:1.7};
+      if(studyBody){studyBody.speaking=now%4700<2900;studyCtx.clearRect(0,0,300,120);studyCtx.save();studyCtx.scale(4,4);SPRITES.drawBody(studyCtx,studyBody,now,{reducedMotion:false});studyCtx.restore();speechStudy.dataset.motion=JSON.stringify({skin:studyBody.skin,speaking:studyBody.speaking,accent:studyBody._renderSpeechAccent,standingHeight:studyBody._renderStandingHeight,groundGap:studyBody._renderGroundGap});}
+    }
+    requestAnimationFrame(drawSpeechStudy);
+  }
+  requestAnimationFrame(drawSpeechStudy);
   const timer=setInterval(async()=>{
     if(++tries>180){clearInterval(timer);panel.querySelector('#agent-demo-status').textContent='Station did not finish loading.';return;}
     if(!window.__STARNET_DEV__||typeof App==='undefined'||!App.currentAgent()||!World.dbg()||!SPRITES.ready)return;

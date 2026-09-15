@@ -1,0 +1,8 @@
+{
+  "cases": 570,
+  "skins": 38,
+  "maxMovingFacingError": 45,
+  "artificialStrideDistance": 0,
+  "speechFootDrift": 0,
+  "conversationOverlap": false
+}
