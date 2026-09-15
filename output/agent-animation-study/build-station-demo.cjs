@@ -39,6 +39,11 @@ fs.writeFileSync(path.join(demo,'sprites.js'),engine);
   fs.copyFileSync(path.join(front,'assets/agent-demo/frames',id,'rotations_south_0.png'),path.join(portraitDir,'rot_south.png'));
   fs.cpSync(portraitDir,path.join(root,'website/app/assets/sprites',set),{recursive:true});
  }
+ for(const base of [front,path.join(root,'website/app')]){
+  const file=path.join(base,'assets/sprites/manifest.json'),catalog=JSON.parse(fs.readFileSync(file));
+  for(const id of Object.keys(study.characters))catalog.sprites['industrial_'+id+'.rot.south']=['industrial_'+id+'/rot_south.png'];
+  fs.writeFileSync(file,JSON.stringify(catalog,null,2)+'\n');
+ }
  fs.writeFileSync(path.join(demo,'manifest.json'),JSON.stringify(original));
  for(const folder of ['agent-demo','assets/agent-demo','assets/industrial/remaster','assets/industrial/calibration','assets/industrial/approved-sheet','assets/industrial/projection-correction'])fs.cpSync(path.join(front,folder),path.join(root,'website/app',folder),{recursive:true});
  fs.copyFileSync(path.join(front,'agent-station-demo.html'),path.join(root,'website/app/agent-station-demo.html'));

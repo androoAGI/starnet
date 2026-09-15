@@ -6220,6 +6220,21 @@
       "station_minion/type_west_2.png",
       "station_minion/type_west_3.png",
       "station_minion/type_west_4.png"
+    ],
+    "industrial_ultron.rot.south": [
+      "industrial_ultron/rot_south.png"
+    ],
+    "industrial_skeleton.rot.south": [
+      "industrial_skeleton/rot_south.png"
+    ],
+    "industrial_plaguedoctor.rot.south": [
+      "industrial_plaguedoctor/rot_south.png"
+    ],
+    "industrial_secretagent.rot.south": [
+      "industrial_secretagent/rot_south.png"
+    ],
+    "industrial_voidwizard.rot.south": [
+      "industrial_voidwizard/rot_south.png"
     ]
   }
 }
