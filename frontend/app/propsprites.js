@@ -11443,7 +11443,7 @@ const PropSprites = (() => {
      Screens/lamps inside these rigid casings retain their real per-frame content. */
   const LIGHT_RESPONSE_TYPES = new Set(('desk desk2 console consoleL pixelrig bench crate boxes goldcrate safe vault rack rackV shelf ' +
     'war_intelcab quarters_lockerbank quarters_minifridge bookshelf stool chair couch booth recliner recliner_r ' +
-    'sidetable lowtable glasstable dinertable loungetable longtable dinerchair podchair plant bookstack toolbox').split(' '));
+    'sidetable lowtable glasstable dinertable loungetable longtable bridge_tacticaltable dinerchair podchair plant bookstack toolbox').split(' '));
   const RESPONSE_LIMIT = 96, RESPONSE_PIXELS = 262144, RESPONSE_SINGLE = 65536;
   const RESPONSE_SHADE = [8,10,18];
   const lightResponses = new Map();

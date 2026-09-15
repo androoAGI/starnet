@@ -4,7 +4,7 @@ const fs=require('node:fs'),sharp=require('sharp'),crypto=require('node:crypto')
 const root='frontend/assets/industrial/tactical-table-polish',docs='docs/station-remaster/tactical-table-polish';
 const generated='C:/Users/andro/.codex/generated_images/01a09e45-c8db-79c2-b990-4349e09fba9c';
 const hash=b=>crypto.createHash('sha256').update(b).digest('hex');
-const jobs=[['bridge_tacticaltable','3b4df84f-df27-4554-92e5-fb95fbdf7065','low-v2']];
+const jobs=[['bridge_tacticaltable','7a6dd2bc-7175-4f9d-ab9a-08a1382c4ad3','grounded-v3']];
 (async()=>{
  fs.mkdirSync(root+'/sources',{recursive:true});fs.mkdirSync(root+'/before',{recursive:true});fs.mkdirSync(docs,{recursive:true});
  const manifest=JSON.parse(fs.readFileSync('frontend/assets/industrial/projection-correction/manifest.json')),records=[];
