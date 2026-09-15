@@ -1646,6 +1646,23 @@ const World = (() => {
     panX = (cv.width - W * scale) / 2; panY = (cv.height - H * scale) / 2;
     fitW = cv.width; fitH = cv.height;   // remember the size this fit framed — resize() treats a degenerate-size fit as "never fit"
   }
+  // Room framing for the local composition review; no simulation/geometry edit.
+  function frameReviewRoom(id){
+    if(!cache||!geo||!station||!cv)return false;
+    const room=id&&station.serialize().rooms[id];
+    if(id&&!room)return false;
+    camLock=null;camLerp=null;camUserAt=performance.now();
+    if(!room){fitCamera();scale*=.90;panX=(cv.width-cache.W*scale)/2;panY=(cv.height-cache.H*scale)/2+40;}
+    else{
+      const r=room.rects,x1=Math.min(...r.map(v=>v.x1)),x2=Math.max(...r.map(v=>v.x2))+1;
+      const y1=Math.min(...r.map(v=>v.y1)),y2=Math.max(...r.map(v=>v.y2))+1;
+      const left=(x1-geo.origin.tx)*T-10,top=(y1-geo.origin.ty)*T-StationBake.WALL.up-8;
+      const w=(x2-x1)*T+20,h=(y2-y1)*T+StationBake.WALL.up+StationBake.WALL.skirt+16;
+      scale=clampz(Math.min(cv.width*.86/w,cv.height*.72/h),MINZ,MAXZ);
+      panX=cv.width/2-(left+w/2)*scale;panY=cv.height*.56-(top+h/2)*scale;
+    }
+    return true;
+  }
   function toCanvas(ev) {
     const r = cv.getBoundingClientRect();
     return { x: (ev.clientX - r.left) * (cv.width / r.width), y: (ev.clientY - r.top) * (cv.height / r.height) };
@@ -9721,7 +9738,7 @@ const World = (() => {
     pollFeed: () => pollFeedState(),
     pollShip: () => pollShipStats()
   });
-  return { init, rebake, crt: CRT, slagLog: () => (slaglog ? slaglog.recent() : []),
+  return { init, rebake, frameReviewRoom, crt: CRT, slagLog: () => (slaglog ? slaglog.recent() : []),
     // FEED TRUTH accessor (guided workflows): the exact server-proven state the NO FEED nag keys on —
     // REFIT's finish-the-line card reads THIS, never a parallel poll, so the two can never disagree.
     feedState: () => ({ known: feedState.known, fed: feedState.fed }),
