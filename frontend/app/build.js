@@ -1805,7 +1805,7 @@ const Build = (() => {
      always the card's own closing; opening always replaces whatever is up. */
   function cardRegister(el, closeFn) {
     el._refitClose = closeFn;
-    if (el.classList.contains('refit-workflow-editor')) {
+    if (el.classList.contains('refit-workflow-editor') || el.classList.contains('refit-preset-example')) {
       el.addEventListener('keydown', e => {
         if (e.key !== 'Tab') return;
         const fields = [...el.querySelectorAll('button,input,textarea,select,summary,[tabindex]')]
@@ -1851,6 +1851,10 @@ const Build = (() => {
     cardRegister(g, closeP); root.appendChild(g);
     g.querySelector('[data-workflow-close]').onclick = closeP;
     const status = g.querySelector('.station-build-status'), apply = g.querySelector('[data-use-build]');
+    if (currentPresetExample()) {
+      const setup = document.createElement('button'); setup.className='bb'; setup.textContent='SET UP CURRENT STUDIO';
+      setup.onclick=openPresetExample; g.querySelector('.station-build-actions').prepend(setup);
+    }
     const backupKey = 'starnet.layoutBackup.' + station.doc().meta.createdAt;
     let selected = null, armed = false;
     const backupButton = g.querySelector('[data-restore-build]');
@@ -1876,7 +1880,7 @@ const Build = (() => {
       button.onclick = () => {
         selected=item;armed=false;apply.disabled=false;apply.textContent='USE '+item.name;
         for(const b of g.querySelectorAll('[data-station-build]'))b.setAttribute('aria-pressed',b===button?'true':'false');
-        status.textContent=item.name+' · '+item.rooms+' '+(item.rooms===1?'room':'rooms')+' · '+doc.props.length+' props'+(bays?' · '+bays+' workflow '+(bays===1?'step':'steps')+' to assign':'')+'.';
+        status.textContent=item.id==='creative' ? 'Brief → Drafter → Reviewer → Finished announcement. After applying, choose the two agents and try a small sample.' : item.name+' · '+item.rooms+' '+(item.rooms===1?'room':'rooms')+' · '+doc.props.length+' props'+(bays?' · '+bays+' workflow '+(bays===1?'step':'steps')+' to assign':'')+'.';
       };
       g.querySelector('.station-build-grid').appendChild(button);
     }
@@ -1888,6 +1892,7 @@ const Build = (() => {
         localStorage.setItem(backupKey,JSON.stringify(station.serialize()));
         const result=station.replaceLayout(doc);if(!result.ok)throw Error(result.msg||result.error);
         fitCamera();closeP();sfx('click');
+        if (selected.id === 'creative') openPresetExample();
       }catch(e){armed=false;status.textContent='Layout unchanged: '+e.message;apply.textContent='USE '+selected.name;}
     };
     backupButton.onclick = () => {
@@ -1900,6 +1905,58 @@ const Build = (() => {
         fitCamera();closeP();
       }catch(e){status.textContent='Could not restore the previous layout: '+e.message;}
     };
+  }
+
+  function currentPresetExample() {
+    return typeof StationTemplates !== 'undefined' && StationTemplates.example
+      ? StationTemplates.example(station.serialize(),WorldModel,Pipeline) : null;
+  }
+  function openPresetExample() {
+    if (!root || !currentPresetExample()) return;
+    cardCloseAll();
+    const g = document.createElement('div');
+    g.className = 'refit-guide refit-preset-example';
+    g.setAttribute('role','dialog'); g.setAttribute('aria-modal','true'); g.setAttribute('aria-label','Set up Creative Studio');
+    g.innerHTML = '<div class="refit-guide-card"><header class="refit-prop-actions-head"><div><span class="ui-overline">WORKING EXAMPLE</span><h3>Creative Studio</h3></div><button class="bb" data-workflow-close>CLOSE</button></header><div data-example-body></div></div>';
+    let unsubscribe;
+    const closeP = () => { unsubscribe?.(); g.remove(); root?.querySelector('[data-build-group="workflow"]')?.focus(); };
+    cardRegister(g,closeP); root.appendChild(g); g.querySelector('[data-workflow-close]').onclick = closeP;
+    const refresh = () => {
+      if (!g.isConnected) return;
+      const e = currentPresetExample(); if (!e) return closeP();
+      const agents = (opts.agents && opts.agents()) || [];
+      const pending = !!finSampleRes?.pending;
+      const rosterOK = e.roles.length===2 && e.roles.every(r=>agents.some(a=>a.id===r.agentId));
+      const ready = e.ready && rosterOK;
+      const signature = JSON.stringify(station.serialize());
+      const sr = finSampleRes?.key===e.key && finSampleRes?.exampleSignature===signature ? finSampleRes : null;
+      const status = e.issue ? e.issue : !rosterOK ? 'Choose an agent for each role.' : !ready ? 'Each role needs a different agent and a clear route to the outbox.' : sr?.pending ? 'Sample in progress…' : sr?.view?.ok ? 'Sample completed · the harness confirmed delivery to the outbox.' : 'Configured · ready to try a sample.';
+      const body = g.querySelector('[data-example-body]');
+      body.innerHTML = '<p class="example-purpose">'+esc(e.purpose)+'</p><div class="example-flow" aria-label="Example flow"><span>Your brief</span><b>→</b><span>Drafter</span><b>→</b><span>Reviewer</span><b>→</b><span>Outbox</span></div>'+
+        '<h4>Choose who does each step</h4><div class="example-roles">'+e.roles.map((r,i)=>'<label class="example-role"><b>'+(i+1)+'. '+esc(r.name)+'</b><span>'+esc(r.description)+'</span><select class="refit-input" aria-label="'+esc(r.name)+' agent" data-example-agent="'+esc(r.propId)+'"'+(pending?' disabled':'')+'><option value="">Choose an agent</option>'+agents.map(a=>'<option value="'+esc(a.id)+'"'+(a.id===r.agentId?' selected':'')+'>'+esc(a.name||a.id)+'</option>').join('')+'</select></label>').join('')+'</div>'+
+        (agents.length<2?'<p class="example-note">This example needs two different agents. Recruit another agent from Crew, then return to Conveyors → Set up Creative Studio.</p>':'')+
+        '<p class="example-note">Assignments save when selected. The prepared instructions belong to the Bays; you can edit them by clicking those props.</p>'+
+        '<section class="example-sample"><h4>Try a small task</h4><p>'+esc(e.sample.replace(/^SAMPLE JOB: /,''))+'</p><p class="example-note">Runs the selected agents using their configured models. Normal model costs apply.</p><button class="bb refit-primary" data-example-run'+(!ready||pending?' disabled':'')+'>'+(pending?'SAMPLE IN PROGRESS…':sr?.view?.ok?'RUN SAMPLE AGAIN':'RUN SAMPLE TASK')+'</button></section>'+
+        '<p class="example-status" role="status">'+esc(status)+'</p>'+
+        (sr?.view ? '<div class="example-result">'+finSampleHTML(sr.view)+(sr.output?'<details><summary>Read the finished result</summary><pre>'+esc(sr.output)+'</pre></details>':'')+'</div>' : '')+
+        '<p class="example-note">To use this workflow afterward, open its Inbox to configure a schedule or connected source. The Outbox opens delivered work in the Logbook.</p>';
+      body.querySelectorAll('[data-example-agent]').forEach(select => { select.onchange = () => {
+        const propId = select.dataset.exampleAgent, aid = select.value;
+        if (aid && e.roles.some(r=>r.propId!==propId && r.agentId===aid)) {
+          select.value = e.roles.find(r=>r.propId===propId).agentId;
+          body.querySelector('.example-status').textContent = 'Choose a different agent for each role so the draft can hand off to its reviewer.'; return;
+        }
+        const result = station.assignPropAgent(propId,aid);
+        if (!result.ok) body.querySelector('.example-status').textContent = result.msg || 'Assignment could not be saved.';
+        else { refresh(); g.querySelector('[data-example-agent="'+propId+'"]')?.focus(); }
+      }; });
+      body.querySelector('[data-example-run]').onclick = () => {
+        const now = currentPresetExample();
+        if (!now?.ready || finSampleRes?.pending) return;
+        finRunSample({key:now.key},{text:now.sample,exampleSignature:JSON.stringify(station.serialize()),onUpdate:refresh});
+      };
+    };
+    unsubscribe = station.onChange(refresh); refresh();
   }
 
   /* ---------- first-use guide ---------- */
@@ -3416,7 +3473,10 @@ const Build = (() => {
       <button type="button" class="bb fl-step${sampleOn ? '' : ' off'}${sr && sr.view && sr.view.ok ? ' done' : ''}" data-act="sample" title="${esc(sampleTip)}">${esc(sampleTxt)}</button>
       ${sr && sr.view ? finSampleHTML(sr.view) : ''}`;
     finCardEl.querySelector('.fl-x').onclick = () => { finMark(station, c.key, 'dis'); sfx('click'); renderFinCard(); };
-    finCardEl.querySelector('[data-act="overview"]').onclick = () => { if (c.intakes.length) openFlowCard(c.intakes[0]); else if (c.bays.length) openStepCard(c.bays[0].propId); };
+    const example = currentPresetExample();
+    const overviewButton = finCardEl.querySelector('[data-act="overview"]');
+    if (example?.key === c.key) overviewButton.textContent = 'SET UP CREATIVE STUDIO';
+    overviewButton.onclick = () => { if (example?.key === c.key) openPresetExample(); else if (c.intakes.length) openFlowCard(c.intakes[0]); else if (c.bays.length) openStepCard(c.bays[0].propId); };
     const bCrew = finCardEl.querySelector('[data-act="crew"]');
     if (bCrew && !crewDone) bCrew.onclick = () => finFocusCrew(c);
     const bFeed = finCardEl.querySelector('[data-act="feed"]');
@@ -3484,19 +3544,21 @@ const Build = (() => {
     }, () => ({ refuse: 'line not posted — the old line was NOT run' }));
   }
   /* RUN-GATE-PURE-END */
-  function finRunSample(c) {
+  function finRunSample(c, options = {}) {
+    if (finSampleRes?.pending) return;
     sfx('click');
     const key = c.key;
-    finSampleRes = { key, stamp: Date.now(), pending: true, phase: 'post' };   // phase: 'post' (posting line…) → 'run' (running)
+    finSampleRes = { key, stamp: Date.now(), pending: true, phase: 'post', exampleSignature:options.exampleSignature };   // phase: 'post' (posting line…) → 'run' (running)
     finSig = ''; renderFinCard();
-    const settle = (view) => { finSampleRes = { key, stamp: Date.now(), view }; finSig = ''; if (running) renderFinCard(); sfx(view.ok ? 'chime' : 'bad'); };
+    options.onUpdate?.();
+    const settle = (view, response) => { finSampleRes = { key, stamp: Date.now(), view, exampleSignature:options.exampleSignature, output:response?.replies?.slice(-1)[0] || '' }; finSig = ''; if (running) renderFinCard(); options.onUpdate?.(); sfx(view.ok ? 'chime' : 'bad'); };
     const bad = reason => ({ ok: false, stages: [], usd: null, reply: '', reason });
     finPlanGate(c).then(gate => {
       if (gate && gate.refuse) { settle(bad(gate.refuse)); return; }
-      finSampleRes = { key, stamp: Date.now(), pending: true, phase: 'run' }; finSig = ''; if (running) renderFinCard();
+      finSampleRes = { key, stamp: Date.now(), pending: true, phase: 'run', exampleSignature:options.exampleSignature }; finSig = ''; if (running) renderFinCard(); options.onUpdate?.();
       try {
-        fetch(finApi('/api/routing/sample'), { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ line: key }) })
-          .then(r => r.json().catch(() => null).then(j => settle(sampleResultView(j, r.status, agentLabel))))
+        fetch(finApi('/api/routing/sample'), { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ line: key, ...(options.text ? {text:options.text} : {}) }) })
+          .then(r => r.json().catch(() => null).then(j => settle(sampleResultView(j, r.status, agentLabel),j)))
           .catch(() => settle(bad('sample failed — sidecar unreachable')));
       } catch (e) { settle(bad('sample failed — sidecar unreachable')); }
     });

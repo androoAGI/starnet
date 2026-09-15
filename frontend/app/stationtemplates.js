@@ -36,6 +36,40 @@ const StationTemplates = (() => {
     north: { x:0, y:-14, hall:{x1:7,y1:-3,x2:10,y2:-1} },
     south: { x:0, y:14, hall:{x1:7,y1:11,x2:10,y2:13} }
   };
+  const creativeExample = Object.freeze({
+    title: 'Creative Studio',
+    purpose: 'Turn a short creative brief into a draft, then have a second agent review it before it reaches the outbox.',
+    sample: 'SAMPLE JOB: Write a friendly launch announcement for a fictional community garden. Include a headline and three short sentences. Do not invent a date, location, or website. The reviewer should check those constraints and deliver the finished announcement.',
+    roles: [
+      { name:'Drafter', description:'Writes the first version from your brief and passes it to the reviewer.' },
+      { name:'Reviewer', description:'Checks the draft against your brief, improves it, and sends the finished version to the outbox.' }
+    ]
+  });
+  // Resolve roles from the real directed belts on an isolated copy, even before
+  // agents are assigned. Rearranging props never changes which step is first.
+  function example(doc, model, pipeline) {
+    if (doc.meta?.templateId !== 'creative') return null;
+    const live = model.create(structuredClone(doc)), geo = live.projectGeometry();
+    const inbox = live.props().find(p=>p.t==='intake' && p.label==='CREATIVE · DRAFT & REVIEW');
+    const comp = inbox && pipeline.lineComponents(geo).find(c=>c.intakes.includes(inbox.id));
+    const fail = issue => ({...creativeExample,issue,roles:[],ready:false,key:comp?.key});
+    if (!comp || comp.bays.length!==2 || comp.intakes.length!==1 || comp.outboxes.length!==1)
+      return fail('Reconnect the original Inbox, two Bays and Outbox to use this example. You can still edit a custom workflow normally.');
+    const probe = model.create(structuredClone(doc)), ids = comp.bays.map((b,i)=>'preset_probe_'+i);
+    comp.bays.forEach((b,i)=>probe.assignPropAgent(b.propId,ids[i]));
+    const shape = pipeline.compileRoutingPlan(probe.projectGeometry());
+    const first = ids.findIndex(id=>shape.reach[id]);
+    const next = first >= 0 ? shape.chains[ids[first]]?.next || [] : [];
+    const last = ids.indexOf(next[0]);
+    if (first < 0 || next.length!==1 || last < 0 || last===first || !shape.chains[ids[last]]?.outbox || shape.chains[ids[last]]?.next?.length)
+      return fail('The belts no longer form Inbox → Drafter → Reviewer → Outbox. Check their direction and connections.');
+    const roles = [first,last].map((i,n)=>({...creativeExample.roles[n],propId:comp.bays[i].propId,agentId:live.propById(comp.bays[i].propId).agentId || ''}));
+    const plan = pipeline.compileRoutingPlan(geo), [a,b] = roles.map(r=>r.agentId);
+    const missingCompute = roles.filter(r=>r.agentId && !live.bayObjects(r.agentId).includes('computer'));
+    const ready = !!(a && b && a!==b && !missingCompute.length && !plan.errors.length && plan.reach[a] && plan.chains[a]?.next?.length===1 && plan.chains[a].next[0]===b && plan.chains[b]?.outbox && !plan.chains[b]?.next?.length);
+    const issue = plan.errors.filter(e=>e.code!=='UNBOUND_BAY').map(e=>e.code).join(', ') || (missingCompute.length ? missingCompute.map(r=>r.name).join(' and ')+' needs computer access. Assign each agent their own workstation, then return here.' : '');
+    return {...creativeExample,roles,key:comp.key,ready,issue};
+  }
   function build(id, model, sprites, nextId) {
     const entry = catalog.find(c => c.id === id);
     if (!entry) throw new Error('Unknown station build');
@@ -82,6 +116,6 @@ const StationTemplates = (() => {
     }
     return doc;
   }
-  return { catalog: catalog.map(({wings,...entry}) => Object.freeze(entry)), build };
+  return { catalog: catalog.map(({wings,...entry}) => Object.freeze(entry)), build, example };
 })();
 if (typeof module !== 'undefined' && module.exports) module.exports = StationTemplates;

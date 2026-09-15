@@ -35,6 +35,12 @@ for(const P of [legacySprites,remasterContext.module.exports])for(const item of 
   }
   if(item.id==='creative') {
     const pipeline=require('../frontend/app/pipeline.js');
+    const untouched=JSON.stringify(doc);
+    const guide=T.example(doc,M,pipeline);
+    assert.equal(JSON.stringify(doc),untouched,'guide inspection never assigns agents or changes the input document');
+    assert.equal(guide.ready,false); assert.equal(guide.roles.length,2);
+    assert.deepEqual(guide.roles.map(r=>r.agentId),['','']);
+    assert.match(guide.sample,/fictional community garden/);
     const bays=s.props().filter(p=>p.t==='bay');
     assert.equal(bays.length,2);
     assert.match(bays[0].brief,/^Draft a response/);
@@ -46,6 +52,22 @@ for(const P of [legacySprites,remasterContext.module.exports])for(const item of 
     assert.equal(plan.reach.creative0,true,'creative: inbox feeds drafter');
     assert.deepEqual(plan.chains.creative0.next,['creative1'],'creative: draft hands off to review');
     assert.equal(plan.chains.creative1.outbox,true,'creative: reviewer sends to outbox');
+    const noComputer=T.example(s.serialize(),M,pipeline);
+    assert.equal(noComputer.ready,false,'two agents cannot share an unassigned computer');
+    assert.match(noComputer.issue,/computer access/);
+    const desks=s.props().filter(p=>p.t==='desk');
+    for (let i=0;i<2;i++) s.assignPropAgent(desks[i].id,'creative'+i);
+    const configured=T.example(s.serialize(),M,pipeline);
+    assert.equal(configured.ready,true,'guide readiness requires the actual compiled route');
+    assert.deepEqual(configured.roles.map(r=>r.agentId),['creative0','creative1']);
+    const duplicate=M.create(structuredClone(s.serialize()));
+    duplicate.assignPropAgent(bays[1].id,'creative0');
+    assert.equal(T.example(duplicate.serialize(),M,pipeline).ready,false,'one agent cannot impersonate both workflow stages');
+    const reordered=structuredClone(s.serialize()); reordered.props.reverse();
+    assert.deepEqual(T.example(reordered,M,pipeline).roles.map(r=>r.agentId),['creative0','creative1'],'role order follows directed routing, not saved array order');
+    const broken=M.create(structuredClone(s.serialize()));
+    broken.setBelt(28,2,'W'); broken.setBelt(29,2,'W'); broken.setBelt(30,2,'W');
+    assert.equal(T.example(broken.serialize(),M,pipeline).ready,false,'broken or reversed conveyor never claims ready');
     assert.equal(Object.keys(pipeline.liveTiles(plan)).length,8,'creative: all conveyor segments connected');
   }
   // Every room is reachable from the central room through the real projected graph.

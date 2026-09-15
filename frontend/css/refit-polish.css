@@ -103,6 +103,24 @@
 .refit-prop-action-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .refit-overlay .refit-prop-action-grid .bb { min-height: 44px; }
 .refit-overlay .refit-prop-actions .refit-prop-config { width: 100%; margin-top: 18px; }
+.refit-overlay .refit-preset-example .refit-guide-card { width: min(720px,94%); }
+.refit-preset-example h4 { margin: 20px 0 10px; color: var(--ph-bright); font-size: 20px; font-weight: 400; }
+.example-purpose { color: var(--text); font-size: 17px; }
+.example-flow { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; padding: 14px; border: 1px solid var(--refit-edge); border-radius: 10px; background: var(--refit-glass); font-size: 17px; color: var(--ph-bright); }
+.example-flow b { color: var(--ph-dim); font-weight: 400; }
+.example-roles { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.example-role { display: flex; flex-direction: column; gap: 9px; padding: 14px; border: 1px solid var(--refit-edge); border-radius: 10px; background: var(--refit-glass); }
+.example-role > b { font-weight: 400; font-size: 19px; color: var(--ph-bright); }
+.example-role > span { flex: 1; font-size: 15px; line-height: 1.4; }
+.refit-overlay .example-role select { width: 100%; appearance: none; padding-right: 25px; background: linear-gradient(45deg,transparent 50%,var(--ph) 50%) calc(100% - 14px) 50%/5px 5px no-repeat,linear-gradient(135deg,var(--ph) 50%,transparent 50%) calc(100% - 9px) 50%/5px 5px no-repeat,rgba(0,0,0,.18); }
+.refit-overlay .example-note { font-size: 13px; color: var(--ph-dim); line-height: 1.4; }
+.example-sample { margin-top: 18px; padding-top: 1px; border-top: 1px solid var(--refit-edge); }
+.example-sample > p { font-size: 16px; }
+.example-status { padding: 12px; border: 1px solid var(--refit-edge); border-radius: 8px; color: var(--ph-bright); }
+.example-result pre { white-space: pre-wrap; overflow-wrap: anywhere; font: inherit; font-size: 16px; line-height: 1.4; color: var(--text); }
+.example-result summary { cursor: pointer; padding: 12px 0; color: var(--ph-bright); }
+@media(max-width:640px) { .refit-overlay .refit-preset-example .refit-guide-card { padding: 18px; } }
+@media(max-width:600px) { .example-roles { grid-template-columns: 1fr; } .example-flow { justify-content: flex-start; font-size: 15px; } }
 .refit-overlay {
   --refit-glass: linear-gradient(125deg,rgba(var(--ph-bright-rgb),.09),rgba(var(--ph-rgb),.045) 48%,rgba(var(--ph-rgb),.015));
   --refit-sheet: color-mix(in srgb,var(--panel) 92%,transparent);
