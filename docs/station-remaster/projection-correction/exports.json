@@ -10294,19 +10294,19 @@
     {
       "id": "war_intelcab",
       "view": "s",
-      "source": "frontend/assets/industrial/capability-refresh/sources/war_intelcab.png",
-      "before": "frontend/assets/industrial/capability-refresh/before/war_intelcab.png",
-      "sourceSha256": "44fcd73c346d6fb6e07c6f7b6cf72176ad953fb9dc27379d06e89513156442d4",
-      "repoPath": "frontend/assets/industrial/capability-refresh/war_intelcab.png",
-      "outputSha256": "5ece3625250ca91050d5e95e972da063ca075ab468de8551d82e59cdd74e7c1c",
+      "source": "frontend/assets/industrial/capability-v2/sources/war_intelcab.png",
+      "before": "frontend/assets/industrial/capability-v2/before/war_intelcab.png",
+      "sourceSha256": "9038107a362619d6350cdfe957d7e2ca887cdc8da1f1b8bbc5e7354ccc72f305",
+      "repoPath": "frontend/assets/industrial/capability-v2/war_intelcab.png",
+      "outputSha256": "4f388de58644cf145e098098baaf81956c1a731ae13a2dbf7039378620064266",
       "sourceCrop": {
-        "left": 49,
-        "top": 63,
-        "width": 862,
-        "height": 1494
+        "left": 226,
+        "top": 96,
+        "width": 950,
+        "height": 930
       },
-      "sourceWidth": 862,
-      "sourceHeight": 1494,
+      "sourceWidth": 950,
+      "sourceHeight": 930,
       "footprint": {
         "w": 1,
         "h": 2
@@ -10320,38 +10320,38 @@
       "exposure": 1,
       "contact": {
         "x": 0.5,
-        "y": 0.999330655957162
+        "y": 1
       },
-      "retained": 1199820,
+      "retained": 835697,
       "verification": {
         "genuineAlpha": true,
         "rgbaMismatches": 0,
         "worldSize": [
           17,
-          29.46
+          16.64
         ],
-        "pixelsPerWorldPixel": 50.71
+        "pixelsPerWorldPixel": 55.88
       },
       "status": "generated redesign; live review pending",
-      "group": "capability-refresh",
+      "group": "capability-v2",
       "output": "frontend/assets/industrial/projection-correction/war_intelcab.png"
     },
     {
       "id": "comms_dish",
       "view": "s",
-      "source": "frontend/assets/industrial/capability-refresh/sources/comms_dish.png",
-      "before": "frontend/assets/industrial/capability-refresh/before/comms_dish.png",
-      "sourceSha256": "b6ed97a76eb450ec536c9b528c7bb444e5aa9b9e79de89dd82b51da42aef0aac",
-      "repoPath": "frontend/assets/industrial/capability-refresh/comms_dish.png",
-      "outputSha256": "e4ccdf1af872eab1b35d72c783ba0db13961047b61f059c5085f7a27ac741dca",
+      "source": "frontend/assets/industrial/capability-v2/sources/comms_dish.png",
+      "before": "frontend/assets/industrial/capability-v2/before/comms_dish.png",
+      "sourceSha256": "970bae4a5f9ba7ad36a238784c3b7ec9dbffaf0afd791b9f6159c9d3b54354f1",
+      "repoPath": "frontend/assets/industrial/capability-v2/comms_dish.png",
+      "outputSha256": "4c16b96d5f74172865523b0653082d41fca8dc1187d33dea1f130a575ad8de47",
       "sourceCrop": {
-        "left": 16,
-        "top": 16,
-        "width": 1137,
-        "height": 1287
+        "left": 271,
+        "top": 73,
+        "width": 777,
+        "height": 1039
       },
-      "sourceWidth": 1137,
-      "sourceHeight": 1287,
+      "sourceWidth": 777,
+      "sourceHeight": 1039,
       "footprint": {
         "w": 2,
         "h": 2
@@ -10365,38 +10365,38 @@
       "exposure": 1,
       "contact": {
         "x": 0.5,
-        "y": 0.9992229992229992
+        "y": 0.9990375360923965
       },
-      "retained": 1129224,
+      "retained": 657702,
       "verification": {
         "genuineAlpha": true,
         "rgbaMismatches": 0,
         "worldSize": [
-          20,
-          22.64
+          17.2,
+          23
         ],
-        "pixelsPerWorldPixel": 56.85
+        "pixelsPerWorldPixel": 45.17
       },
       "status": "generated redesign; live review pending",
-      "group": "capability-refresh",
+      "group": "capability-v2",
       "output": "frontend/assets/industrial/projection-correction/comms_dish.png"
     },
     {
       "id": "workbench",
       "view": "s",
-      "source": "frontend/assets/industrial/capability-refresh/sources/workbench.png",
-      "before": "frontend/assets/industrial/capability-refresh/before/workbench.png",
-      "sourceSha256": "2559929601ee5075b5a56c8ee1de790ca87edc7126554a224e08830fdcb9ab54",
-      "repoPath": "frontend/assets/industrial/capability-refresh/workbench.png",
-      "outputSha256": "f3f6bc0c15477fe04d9e04e53303b31a4d6b8220a83f34f8b115b8a99eb2725e",
+      "source": "frontend/assets/industrial/capability-v2/sources/workbench.png",
+      "before": "frontend/assets/industrial/capability-v2/before/workbench.png",
+      "sourceSha256": "d3866ee60a51a334c156cedc3f13d1dc84693252ead5920844073532b885366a",
+      "repoPath": "frontend/assets/industrial/capability-v2/workbench.png",
+      "outputSha256": "52c33e1e5697ae01fac5a868993c7efb0f3b45e5de96b4075922ab628065104d",
       "sourceCrop": {
-        "left": 6,
-        "top": 2,
-        "width": 1455,
-        "height": 1064
+        "left": 11,
+        "top": 49,
+        "width": 1515,
+        "height": 909
       },
-      "sourceWidth": 1455,
-      "sourceHeight": 1064,
+      "sourceWidth": 1515,
+      "sourceHeight": 909,
       "footprint": {
         "w": 2,
         "h": 1
@@ -10410,38 +10410,38 @@
       "exposure": 1,
       "contact": {
         "x": 0.5,
-        "y": 0.9990601503759399
+        "y": 0.9988998899889989
       },
-      "retained": 1181454,
+      "retained": 1041218,
       "verification": {
         "genuineAlpha": true,
         "rgbaMismatches": 0,
         "worldSize": [
           30,
-          21.94
+          18
         ],
-        "pixelsPerWorldPixel": 48.5
+        "pixelsPerWorldPixel": 50.5
       },
       "status": "generated redesign; live review pending",
-      "group": "capability-refresh",
+      "group": "capability-v2",
       "output": "frontend/assets/industrial/projection-correction/workbench.png"
     },
     {
       "id": "gigs_servercart",
       "view": "s",
-      "source": "frontend/assets/industrial/capability-refresh/sources/gigs_servercart.png",
-      "before": "frontend/assets/industrial/capability-refresh/before/gigs_servercart.png",
-      "sourceSha256": "67324c7c8f00e5c6a4ffd5d5709879b7070d636cbfcf50e78ebc6f71f70ce70a",
-      "repoPath": "frontend/assets/industrial/capability-refresh/gigs_servercart.png",
-      "outputSha256": "d5763f94dcb25a1a65bdbff978f7435d8a2b020341e60acb887c584b7d94499e",
+      "source": "frontend/assets/industrial/capability-v2/sources/gigs_servercart.png",
+      "before": "frontend/assets/industrial/capability-v2/before/gigs_servercart.png",
+      "sourceSha256": "8a789be7435eb6ad7fa2510f386936397b0a70252bc02040115105327e8d267d",
+      "repoPath": "frontend/assets/industrial/capability-v2/gigs_servercart.png",
+      "outputSha256": "c5f4fd180edb503b05ba8ece2d6907ac6473e565ec4227104873a1286d69e23f",
       "sourceCrop": {
-        "left": 114,
-        "top": 45,
-        "width": 952,
-        "height": 1238
+        "left": 135,
+        "top": 89,
+        "width": 1071,
+        "height": 1004
       },
-      "sourceWidth": 952,
-      "sourceHeight": 1238,
+      "sourceWidth": 1071,
+      "sourceHeight": 1004,
       "footprint": {
         "w": 1,
         "h": 1
@@ -10455,38 +10455,38 @@
       "exposure": 1,
       "contact": {
         "x": 0.5,
-        "y": 0.9991922455573505
+        "y": 0.999003984063745
       },
-      "retained": 979575,
+      "retained": 924904,
       "verification": {
         "genuineAlpha": true,
         "rgbaMismatches": 0,
         "worldSize": [
-          13.84,
-          18
+          16,
+          15
         ],
-        "pixelsPerWorldPixel": 68.78
+        "pixelsPerWorldPixel": 66.94
       },
       "status": "generated redesign; live review pending",
-      "group": "capability-refresh",
+      "group": "capability-v2",
       "output": "frontend/assets/industrial/projection-correction/gigs_servercart.png"
     },
     {
       "id": "studio",
       "view": "s",
-      "source": "frontend/assets/industrial/capability-refresh/sources/studio.png",
-      "before": "frontend/assets/industrial/capability-refresh/before/studio.png",
-      "sourceSha256": "2e4dc2b2a50b5a8787c130d0e2b861568d616db1b2d6d873adab7d0f0ffd8bc4",
-      "repoPath": "frontend/assets/industrial/capability-refresh/studio.png",
-      "outputSha256": "9d714253aed17e6e90bc97796bbc084f09c8b2a561a14932a71166f9798cc9eb",
+      "source": "frontend/assets/industrial/capability-v2/sources/studio.png",
+      "before": "frontend/assets/industrial/capability-v2/before/studio.png",
+      "sourceSha256": "c80efc01515675473efcda734932dba15ec80da9d0abee4148fb289093011b6c",
+      "repoPath": "frontend/assets/industrial/capability-v2/studio.png",
+      "outputSha256": "8dc7919e209f47a7cd73f476b8529131d1f2b9d1d5cd02639bbb9b3c310f86cf",
       "sourceCrop": {
-        "left": 24,
-        "top": 114,
-        "width": 1296,
-        "height": 958
+        "left": 57,
+        "top": 97,
+        "width": 1422,
+        "height": 856
       },
-      "sourceWidth": 1296,
-      "sourceHeight": 958,
+      "sourceWidth": 1422,
+      "sourceHeight": 856,
       "footprint": {
         "w": 2,
         "h": 2
@@ -10500,20 +10500,20 @@
       "exposure": 1,
       "contact": {
         "x": 0.5,
-        "y": 0.9989561586638831
+        "y": 0.9988317757009346
       },
-      "retained": 1092180,
+      "retained": 1064205,
       "verification": {
         "genuineAlpha": true,
         "rgbaMismatches": 0,
         "worldSize": [
           29,
-          21.44
+          17.46
         ],
-        "pixelsPerWorldPixel": 44.69
+        "pixelsPerWorldPixel": 49.03
       },
       "status": "generated redesign; live review pending",
-      "group": "capability-refresh",
+      "group": "capability-v2",
       "output": "frontend/assets/industrial/projection-correction/studio.png"
     }
   ]

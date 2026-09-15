@@ -93,7 +93,7 @@
     },
     {
       "id": "workbench",
-      "changedPixels": 126,
+      "changedPixels": 56,
       "escapedPixels": 0,
       "outsideSourceAlpha": 0,
       "activeIdleDifferent": true,
@@ -173,7 +173,7 @@
     },
     {
       "id": "comms_dish",
-      "changedPixels": 95,
+      "changedPixels": 52,
       "escapedPixels": 0,
       "outsideSourceAlpha": 0,
       "activeIdleDifferent": true,
@@ -197,7 +197,7 @@
     },
     {
       "id": "war_intelcab",
-      "changedPixels": 88,
+      "changedPixels": 63,
       "escapedPixels": 0,
       "outsideSourceAlpha": 0,
       "activeIdleDifferent": true,
@@ -221,7 +221,7 @@
     },
     {
       "id": "gigs_servercart",
-      "changedPixels": 172,
+      "changedPixels": 259,
       "escapedPixels": 0,
       "outsideSourceAlpha": 0,
       "activeIdleDifferent": true,
@@ -237,7 +237,7 @@
     },
     {
       "id": "studio",
-      "changedPixels": 296,
+      "changedPixels": 270,
       "escapedPixels": 0,
       "outsideSourceAlpha": 0,
       "activeIdleDifferent": true,

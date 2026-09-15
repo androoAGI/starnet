@@ -673,8 +673,8 @@
       "views": {
         "s": {
           "image": "workbench.png",
-          "sourceWidth": 1455,
-          "sourceHeight": 1064,
+          "sourceWidth": 1515,
+          "sourceHeight": 909,
           "footprint": {
             "w": 2,
             "h": 1
@@ -690,7 +690,7 @@
           "activity": "fired",
           "contact": {
             "x": 0.5,
-            "y": 0.9990601503759399
+            "y": 0.9988998899889989
           },
           "effects": false
         }
@@ -943,8 +943,8 @@
       "views": {
         "s": {
           "image": "comms_dish.png",
-          "sourceWidth": 1137,
-          "sourceHeight": 1287,
+          "sourceWidth": 777,
+          "sourceHeight": 1039,
           "footprint": {
             "w": 2,
             "h": 2
@@ -960,7 +960,7 @@
           "activity": "work",
           "contact": {
             "x": 0.5,
-            "y": 0.9992229992229992
+            "y": 0.9990375360923965
           },
           "effects": false
         }
@@ -1024,8 +1024,8 @@
       "views": {
         "s": {
           "image": "war_intelcab.png",
-          "sourceWidth": 862,
-          "sourceHeight": 1494,
+          "sourceWidth": 950,
+          "sourceHeight": 930,
           "footprint": {
             "w": 1,
             "h": 2
@@ -1041,7 +1041,7 @@
           "activity": "work",
           "contact": {
             "x": 0.5,
-            "y": 0.999330655957162
+            "y": 1
           },
           "effects": false
         }
@@ -1183,8 +1183,8 @@
       "views": {
         "s": {
           "image": "gigs_servercart.png",
-          "sourceWidth": 952,
-          "sourceHeight": 1238,
+          "sourceWidth": 1071,
+          "sourceHeight": 1004,
           "footprint": {
             "w": 1,
             "h": 1
@@ -1199,7 +1199,7 @@
           "exposure": 1,
           "contact": {
             "x": 0.5,
-            "y": 0.9991922455573505
+            "y": 0.999003984063745
           },
           "effects": false
         }
@@ -1236,8 +1236,8 @@
       "views": {
         "s": {
           "image": "studio.png",
-          "sourceWidth": 1296,
-          "sourceHeight": 958,
+          "sourceWidth": 1422,
+          "sourceHeight": 856,
           "footprint": {
             "w": 2,
             "h": 2
@@ -1252,7 +1252,7 @@
           "exposure": 1,
           "contact": {
             "x": 0.5,
-            "y": 0.9989561586638831
+            "y": 0.9988317757009346
           },
           "effects": false
         }
@@ -5806,27 +5806,27 @@
     {
       "id": "war_intelcab",
       "view": "s",
-      "group": "capability-refresh"
+      "group": "capability-v2"
     },
     {
       "id": "comms_dish",
       "view": "s",
-      "group": "capability-refresh"
+      "group": "capability-v2"
     },
     {
       "id": "workbench",
       "view": "s",
-      "group": "capability-refresh"
+      "group": "capability-v2"
     },
     {
       "id": "gigs_servercart",
       "view": "s",
-      "group": "capability-refresh"
+      "group": "capability-v2"
     },
     {
       "id": "studio",
       "view": "s",
-      "group": "capability-refresh"
+      "group": "capability-v2"
     }
   ]
 }
