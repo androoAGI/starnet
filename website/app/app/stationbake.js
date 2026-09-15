@@ -3713,7 +3713,18 @@ const StationBake = (() => {
         b.restore();
         for (let side = 0; side < 2; side++) {
           const edge = side ? x1 : x0;
-          for (let y = top; y <= foot; y++) {
+          const authored = industrial && typeof IndustrialTextures !== 'undefined' &&
+            typeof IndustrialTextures.doorReturn === 'function' &&
+            IndustrialTextures.doorReturn(b,edge,top,foot,reach,side,pal.base,capH);
+          if (authored) {
+            // The overlap mask follows the very same subpixel reveal silhouette.
+            for(let i=0;i<(foot-top+1)*6;i++) {
+              const y=top+i/6,h=Math.min(1/6,foot+1-y);
+              const w=1+reach*(1-Math.min(1,(y+h/2-top)/(foot-top)));
+              occlusion.rects.push([side?edge-w:edge,y,w,h]);
+            }
+          }
+          for (let y = top; !authored && y <= foot; y++) {
             const t = (y - top) / (foot - top), w = 1 + Math.round(reach * (1 - t));
             const x = side ? edge - w : edge;
             occlusion.rects.push([x, y, w, 1]);
@@ -3723,13 +3734,20 @@ const StationBake = (() => {
             if (w > 2) { b.fillStyle = industrial ? U.shade(pal.base, side ? 0.02 : -0.18) : shade(pal.face, side ? 0.22 : -0.03); b.fillRect(side ? inner + 1 : inner - 1, y, 1, 1); }
           }
           // The crown ends turn into the opening; never bridge over its centre.
-          for (let k = 0; k < capH; k++) {
+          if(authored) {
+            for(let i=0;i<capH*6;i++) {
+              const k=i/6,w=1+reach*(k+1/12)/capH,x=side?edge-w:edge;
+              occlusion.rects.push([x,top-capH+k,w,1/6]);
+              crownRects.push([x,top-capH+k,w,1/6]);
+            }
+          }
+          for (let k = 0; !authored && k < capH; k++) {
             const w = 1 + Math.round(reach * (k + 1) / capH), x = side ? edge - w : edge;
             occlusion.rects.push([x, top - capH + k, w, 1]);
             crown(b, x, top - capH + k, w, 1, pal.cap);
             crown(b, side ? x : edge + w - 1, top - capH + k, 1, 1, shade(pal.cap, 0.30));
           }
-          b.fillStyle = shade(pal.cap, -0.45); b.fillRect(side ? edge - reach - 1 : edge, top - 1, reach + 1, 1);
+          if(!authored) { b.fillStyle = shade(pal.cap, -0.45); b.fillRect(side ? edge - reach - 1 : edge, top - 1, reach + 1, 1); }
         }
         doorOcclusion.push(occlusion);
       }

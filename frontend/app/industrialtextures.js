@@ -191,6 +191,29 @@ const IndustrialTextures = (() => {
       ctx.drawImage(im,p/96*im.width,.13*im.height,n/96*im.width,.73*im.height,a,0,n,depth);a+=n;}
     ctx.restore();return true;
   }
+  // Map the authored steel mullion down a splayed doorway reveal. Subpixel
+  // slices retain the six-times wall bake resolution rather than pixel stairs.
+  function doorReturn(ctx,edge,top,foot,reach,side,base,capH=0) {
+    if(!enabled())return false;
+    const im=material('remaster/walls/viewport',base),height=foot-top+1;
+    if(height<=0)return false;
+    ctx.save();ctx.imageSmoothingEnabled=true;ctx.imageSmoothingQuality='high';
+    for(let i=0;i<height*6;i++) {
+      const y=top+i/6,h=Math.min(1/6,foot+1-y);
+      const t=Math.min(1,(y+h/2-top)/(foot-top));
+      const w=1+reach*(1-t),x=side?edge-w:edge;
+      ctx.drawImage(im,(side?.87:.03)*im.width,(.17+.58*(y-top)/height)*im.height,
+        .10*im.width,.58*h/height*im.height,x,y,w,h);
+      ctx.fillStyle=side?'rgba(0,0,0,0.13)':'rgba(0,0,0,0.27)';ctx.fillRect(x,y,w,h);
+    }
+    const cap=material('remaster/crown',base);
+    for(let i=0;i<capH*6;i++) {
+      const k=i/6,w=1+reach*(k+1/12)/capH,x=side?edge-w:edge;
+      ctx.drawImage(cap,.22*cap.width,(.13+.73*k/capH)*cap.height,
+        .18*cap.width,.73/capH/6*cap.height,x,top-capH+k,w,1/6);
+    }
+    ctx.restore();return true;
+  }
   // Four image slices surround the existing transparent sky opening. Never paint glass opaque.
   function viewportFrame(ctx,x,y,w,h,base) {
     if(!enabled())return false;
@@ -413,7 +436,7 @@ const IndustrialTextures = (() => {
     ctx.drawImage(im, x + (w - dw) / 2, y + h - dh, dw, dh);
     ctx.restore(); return true;
   }
-  return Object.freeze({ ready, enabled, isRemaster, lighting, detailContext, drawBase, floor, wall, wallStrip, wallPatch, crown, viewportFrame, shell, shellPlate, propPanel, workstation, workstationEmitter, chair, crate,
+  return Object.freeze({ ready, enabled, isRemaster, lighting, detailContext, drawBase, floor, wall, wallStrip, wallPatch, crown, doorReturn, viewportFrame, shell, shellPlate, propPanel, workstation, workstationEmitter, chair, crate,
     furniture, supportsWall: id => enabled() && wallIds.includes(id),
     status: () => ({ requested, loaded, failed: failed.slice(), assets: Object.keys(images) }) });
 })();

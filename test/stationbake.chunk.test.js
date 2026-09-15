@@ -437,7 +437,16 @@ for (let y = hall.y1; y <= hall.y2; y++) for (let x = hall.x1; x <= hall.x2; x++
 doorGeo.isCorridor = z => z === 'hall';
 doorGeo.canStep = (x, y, nx, ny) => doorGeo.zoneGrid[doorGeo.idx(x, y)] != null && doorGeo.zoneGrid[doorGeo.idx(nx, ny)] != null;
 detailCanvases.length = 0;
+const revealCalls=[];
+global.IndustrialTextures.doorReturn=(ctx,...args)=>{revealCalls.push(args);return true;};
 const remasterDoors = StationBake.bake(doorGeo).doorOccluders;
+A.ok(revealCalls.length>0 && revealCalls.length%2===0,'authored doorway path paints paired reveals');
+for(let i=0;i<revealCalls.length;i+=2) {
+  const left=revealCalls[i],right=revealCalls[i+1];
+  A.eq(left.slice(1,4),right.slice(1,4),'paired jambs share height and splay');
+  A.ok(right[0]-left[0]-2*(left[3]+1)>=6,'authored jambs preserve an open centre');
+}
+
 A.ok(remasterDoors.length > 0, 'real corridor throat produces a depth-sorted door occluder');
 A.ok(remasterDoors.every(d => detailCanvases.includes(d.image)), 'each remaster door occluder captures the dense art plate');
 global.IndustrialTextures.isRemaster = () => false;
