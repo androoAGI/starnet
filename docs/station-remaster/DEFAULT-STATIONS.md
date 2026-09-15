@@ -133,3 +133,26 @@ inspected in the live preview, observed the save acknowledgment, and verified
 the saved chair facings plus unchanged home/workroom furniture and conveyors.
 Seven-template tests and syntax/diff checks pass. The saved proof is
 `.dogfood/station-cozy/seating-saved.json`.
+
+## Creative Studio — September 15
+
+Refined Creative Studio into an L-shaped three-room build: approved home,
+wood-floored design studio to the north, and a dedicated draft/review room to
+the east. Every room remains 18×11. The studio has an easel, desk, reference
+shelves, drawers, plants, and a table with two inward-facing chairs. The review
+room includes a straight Inbox → Draft Bay → Review Bay → Outbox line with
+eight real conveyor tiles. Both step briefs are prefilled; agents remain
+unassigned. This prepares the workflow without claiming that work has run.
+
+Applied through the live picker on 18845 and inspected the layout and both
+step editors. Observed save acknowledgment and compared all saved rooms,
+furniture, step briefs, and conveyors to the remastered factory. The preview
+is left showing Creative Studio. Saved evidence:
+`.dogfood/station-creative/creative-saved.json`. No browser errors reported.
+
+Seven-template tests pass for classic and remastered catalogs, including the
+two unassigned-bay warnings, clean routing after test assignments, inbox
+delivery to the drafter, drafter-to-reviewer handoff, reviewer output, and all
+eight connected belt tiles. Worldmodel passes 536 assertions; syntax and diff
+checks pass. The existing full-gate failure above remains; it was not rerun.
+No merge, release, or real provider execution was performed.

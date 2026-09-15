@@ -33,6 +33,21 @@ for(const P of [legacySprites,remasterContext.module.exports])for(const item of 
     assert.equal(bound.reach['test-agent'],true,'cozy: inbox reaches assigned bay');
     assert.equal(Object.keys(pipeline.liveTiles(bound)).length,6,'cozy: both runs energized');
   }
+  if(item.id==='creative') {
+    const pipeline=require('../frontend/app/pipeline.js');
+    const bays=s.props().filter(p=>p.t==='bay');
+    assert.equal(bays.length,2);
+    assert.match(bays[0].brief,/^Draft a response/);
+    assert.match(bays[1].brief,/^Review the incoming draft/);
+    assert.deepEqual(pipeline.compileRoutingPlan(g).errors.map(e=>e.code),['UNBOUND_BAY','UNBOUND_BAY']);
+    bays.forEach((bay,i)=>assert.equal(s.assignPropAgent(bay.id,'creative'+i).ok,true));
+    const plan=pipeline.compileRoutingPlan(s.projectGeometry());
+    assert.deepEqual(plan.errors,[],'creative: configured line compiles cleanly');
+    assert.equal(plan.reach.creative0,true,'creative: inbox feeds drafter');
+    assert.deepEqual(plan.chains.creative0.next,['creative1'],'creative: draft hands off to review');
+    assert.equal(plan.chains.creative1.outbox,true,'creative: reviewer sends to outbox');
+    assert.equal(Object.keys(pipeline.liveTiles(plan)).length,8,'creative: all conveyor segments connected');
+  }
   // Every room is reachable from the central room through the real projected graph.
   const origin=[8-g.origin.tx,5-g.origin.ty];
   for(const r of s.rooms().filter(r=>r.kind!=='corridor')){
@@ -65,4 +80,4 @@ for(const P of [legacySprites,remasterContext.module.exports])for(const item of 
   const invalid=structuredClone(doc);invalid.props[0].x=999;
   const snapshot=current.serialize();assert.equal(current.replaceLayout(invalid).ok,false);assert.deepEqual(current.serialize(),snapshot);
 }
-console.log('station-templates: seven layouts, classic/remastered catalogs, approved home, connected cozy conveyors, clear entrances, prop access, ownership, undo/redo and persistence PASS');
+console.log('station-templates: seven layouts, classic/remastered catalogs, approved home, cozy and creative conveyor routing, clear entrances, prop access, ownership, undo/redo and persistence PASS');

@@ -6,7 +6,7 @@ const StationTemplates = (() => {
     { id: 'default', name: 'DEFAULT', rooms: 1, description: 'One open room. All five essentials, your workstation, and space to grow.', wings: [] },
     { id: 'retreat', name: 'QUIET RETREAT', rooms: 2, description: 'Your home station with a quiet library and lounge to the south.', wings: [['reading','south']] },
     { id: 'cozy', name: 'COZY WORKSHOP', rooms: 3, description: 'Warm wood floors, a furnished lounge, and an Inbox → Bay → Outbox conveyor workshop. Assign an agent to the bay to use the line.', wings: [['cozyWorkshop','north'],['cozyLounge','south']] },
-    { id: 'creative', name: 'CREATIVE STUDIO', rooms: 3, description: 'A writing and design studio on one side, a review room on the other.', wings: [['creative','west'],['review','east']] },
+    { id: 'creative', name: 'CREATIVE STUDIO', rooms: 3, description: 'A warm design studio and a review room with an Inbox → Draft → Review → Outbox conveyor. Assign agents to the two prepared steps.', wings: [['creative','north'],['creativeReview','east']] },
     { id: 'research', name: 'RESEARCH STATION', rooms: 3, description: 'An analysis lab to the north and a dedicated reference archive to the east.', wings: [['research','north'],['archive','east']] },
     { id: 'engineering', name: 'ENGINEERING STATION', rooms: 5, description: 'Workshop, analysis lab, review room, and quiet lounge around your home station.', wings: [['engineering','west'],['review','east'],['research','north'],['reading','south']] },
     { id: 'operations', name: 'OPERATIONS STATION', rooms: 5, description: 'Planning, communications, reference, and review rooms around a central home station.', wings: [['archive','west'],['comms','east'],['planning','north'],['review','south']] }
@@ -15,7 +15,14 @@ const StationTemplates = (() => {
     cozyWorkshop: { name: 'WORKROOM', kind: 'factory', floorStyle: 'walnut', floorMat: 'plank', blueprint: ['front_desk',3,1], props: [['plant',1,1],['plant',16,1],['desk',2,7],['industrial_drawerbank',12,7],['bookshelf',14,9]] },
     cozyLounge: { name: 'LOUNGE', kind: 'quarters', floorStyle: 'walnut', floorMat: 'plank', props: [['tv',2,1],['rug',1,2],['couch',1,5],['industrial_roundtable',11,4],['dinerchair',10,4,3],['dinerchair',13,4,1],['coffee',14,4],['bookshelf',12,1],['plant',16,1],['bunk',13,7],['plant',1,8]] },
     reading: { name: 'LIBRARY', kind: 'quarters', floorStyle: 'walnut', floorMat: 'plank', props: [['couch',1,1],['bookshelf',13,1],['plant',16,8],['industrial_roundtable',2,4]] },
-    creative: { name: 'STUDIO', kind: 'lab', floorStyle: 'hull', floorMat: 'resin', props: [['desk',3,1],['easel',11,1],['plant',16,1],['bookshelf',1,8],['industrial_drawerbank',11,8]] },
+    creative: { name: 'DESIGN STUDIO', kind: 'lab', floorStyle: 'walnut', floorMat: 'plank', props: [['desk',2,1],['easel',11,1],['plant',0,1],['plant',16,1],['bookshelf',1,8],['industrial_drawerbank',1,6],['industrial_roundtable',12,7],['dinerchair',11,7,3],['dinerchair',14,7,1]] },
+    creativeReview: { name: 'DRAFT & REVIEW', kind: 'hab', floorStyle: 'ash', floorMat: 'plank', props: [['desk',2,8],['industrial_roundtable',11,7],['dinerchair',10,7,3],['dinerchair',13,7,1],['bookshelf',15,8],['plant',16,5]], workflow: {
+      label: 'CREATIVE · DRAFT & REVIEW',
+      steps: [
+        'Draft a response to the incoming creative brief. Follow its audience, format, tone, and constraints. Make a complete first draft, flag assumptions, and pass the draft and original requirements to the reviewer.',
+        'Review the incoming draft against the original creative brief. Correct clarity, consistency, and unsupported claims while preserving the requested voice. Return the finished version and briefly flag anything that still needs a human decision.'
+      ]
+    } },
     review: { name: 'REVIEW', kind: 'hab', floorStyle: 'ash', floorMat: 'resin', props: [['desk',2,1],['whiteboard',11,0],['plant',16,1],['industrial_roundtable',7,4]] },
     research: { name: 'ANALYSIS', kind: 'lab', floorStyle: 'teal', floorMat: 'resin', props: [['desk',3,1],['research_samplecart',12,1],['plant',16,1],['bookshelf',2,8],['bookshelf',12,8]] },
     engineering: { name: 'WORKSHOP', kind: 'factory', floorStyle: 'hull', floorMat: 'tread', props: [['desk',3,1],['fabricator',11,1],['industrial_drawerbank',2,8],['crate',13,8]] },
@@ -48,6 +55,16 @@ const StationTemplates = (() => {
       if (r.blueprint) {
         const [blueprint,x,y] = r.blueprint;
         requireOK(station.stampBlueprint(blueprint,slot.x+x,slot.y+y));
+      }
+      if (r.workflow) {
+        // A straight two-step line leaves the room's middle and entrance open.
+        const nodes = [['intake',1],['bay',5],['bay',10],['outbox',15]].map(([t,x]) => {
+          const spec = sprites.spec(t);
+          return requireOK(station.addProp({t,x:slot.x+x,y:slot.y+1,w:spec.w,h:spec.h,block:true})).id;
+        });
+        for (const x of [3,4,7,8,9,12,13,14])requireOK(station.setBelt(slot.x+x,slot.y+2,'E'));
+        requireOK(station.setPropLabel(nodes[0],r.workflow.label));
+        r.workflow.steps.forEach((brief,i) => requireOK(station.setPropBrief(nodes[i+1],brief)));
       }
     });
     const doc = station.serialize();
