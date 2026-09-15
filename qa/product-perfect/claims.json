@@ -18,7 +18,7 @@
   "expectedClaimCount": 37,
   "releaseSurface": {
     "algorithm": "sha256",
-    "sourceCommit": "e594c5ad5ddf35db58587e35330a23c503b88639",
+    "sourceCommit": "7b8744257f083813a01a9cc414a993df19a8e82f",
     "pathSetSha256": "1d26a45a2a9aac628d8d2335638d02a6051d605c116824ae8d4c28390781a868",
     "files": [
       {
@@ -618,8 +618,8 @@
       },
       {
         "path": "frontend/app/projection-prop-effects.js",
-        "bytes": 42684,
-        "sha256": "c9dbe5ccba794cce81c893d81a99e17d6798ec0700fad308a72807a931338cbe"
+        "bytes": 42714,
+        "sha256": "1f73ed0286b2f8af91b55b53be485240c0f6db8e8e2100a341e48df8da11e26e"
       },
       {
         "path": "frontend/app/projects.js",
@@ -634,7 +634,7 @@
       {
         "path": "frontend/app/prop-catalog-data.js",
         "bytes": 128872,
-        "sha256": "4de744a82749d9a8355c9e9b0c6ccd86646b43352356da3de1fd1e9296ad5a08"
+        "sha256": "47977867ea0ee4f944969db2c258ec74ceff359761310d2c493452502dcc468a"
       },
       {
         "path": "frontend/app/prop-catalog-fixture.js",
@@ -818,8 +818,8 @@
       },
       {
         "path": "frontend/app/remaster-runtime-audit.js",
-        "bytes": 10021,
-        "sha256": "654e9e989e2dd3233dcff57afb6623b13ac6ad2347c4edb1a83521e75a4c5680"
+        "bytes": 10295,
+        "sha256": "a3f370c0e5ced687dfab2ec56fc10a6b59ceb2d81cb5f9e0c4cd244eb991fc99"
       },
       {
         "path": "frontend/app/resummonstore.js",
