@@ -91,6 +91,10 @@
     {
       "name": "camera-audit",
       "file": "docs/station-remaster/camera-audit/integration.json"
+    },
+    {
+      "name": "sharpness-restoration",
+      "file": "docs/station-remaster/sharpness-restoration/integration.json"
     }
   ]
 }

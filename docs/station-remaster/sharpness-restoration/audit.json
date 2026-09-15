@@ -1,0 +1,5163 @@
+{
+  "date": "2026-09-15",
+  "method": "184 source views inspected on eight labeled plates, seven low-resolution sources additionally inspected individually. Alpha bounds measured for every PNG. Source pixel budget uses the actual uniform fit; 6x is the supported camera maximum. Resolution is triage, not an automatic visual pass. Restored sources receive a separate in-station check. CRT/grain retained.",
+  "cacheDensity": 6,
+  "counts": {
+    "source-inspected": 177,
+    "restored": 7
+  },
+  "records": [
+    {
+      "id": "industrial_locker",
+      "view": "s",
+      "image": "industrial_locker.png",
+      "bounds": {
+        "x": 0,
+        "y": -12,
+        "width": 24,
+        "height": 24
+      },
+      "crop": {
+        "x": 0,
+        "y": 0,
+        "width": 292,
+        "height": 300
+      },
+      "body": {
+        "width": 23.36,
+        "height": 24
+      },
+      "sourceWidth": 292,
+      "sourceHeight": 300,
+      "sourcePixelsPerWorldPixel": 12.5,
+      "zoomLimit": 6,
+      "sourceExpansionAtMaxZoom": 1,
+      "status": "source-inspected",
+      "reason": "Contour, primary shapes and material boundaries inspected on the source contact sheet; no obvious baked blur found. This is not room/camera approval."
+    },
+    {
+      "id": "industrial_drawerbank",
+      "view": "s",
+      "image": "industrial_drawerbank.png",
+      "bounds": {
+        "x": 0,
+        "y": -3,
+        "width": 36,
+        "height": 15
+      },
+      "crop": {
+        "x": 0,
+        "y": 0,
+        "width": 521,
+        "height": 205
+      },
+      "body": {
+        "width": 36,
+        "height": 14.165067178502879
+      },
+      "sourceWidth": 521,
+      "sourceHeight": 205,
+      "sourcePixelsPerWorldPixel": 14.47,
+      "zoomLimit": 6,
+      "sourceExpansionAtMaxZoom": 1,
+      "status": "source-inspected",
+      "reason": "Contour, primary shapes and material boundaries inspected on the source contact sheet; no obvious baked blur found. This is not room/camera approval."
+    },
+    {
+      "id": "industrial_supplycart",
+      "view": "s",
+      "image": "industrial_supplycart.png",
+      "bounds": {
+        "x": 1,
+        "y": -11,
+        "width": 22,
+        "height": 23
+      },
+      "crop": {
+        "x": 0,
+        "y": 0,
+        "width": 319,
+        "height": 281
+      },
+      "body": {
+        "width": 22,
+        "height": 19.379310344827587
+      },
+      "sourceWidth": 319,
+      "sourceHeight": 281,
+      "sourcePixelsPerWorldPixel": 14.5,
+      "zoomLimit": 6,
+      "sourceExpansionAtMaxZoom": 1,
+      "status": "source-inspected",
+      "reason": "Contour, primary shapes and material boundaries inspected on the source contact sheet; no obvious baked blur found. This is not room/camera approval."
+    },
+    {
+      "id": "industrial_toolcaddy",
+      "view": "s",
+      "image": "industrial_toolcaddy.png",
+      "bounds": {
+        "x": 1,
+        "y": 2,
+        "width": 10,
+        "height": 10
+      },
+      "crop": {
+        "x": 0,
+        "y": 0,
+        "width": 248,
+        "height": 208
+      },
+      "body": {
+        "width": 10,
+        "height": 8.387096774193548
+      },
+      "sourceWidth": 248,
+      "sourceHeight": 208,
+      "sourcePixelsPerWorldPixel": 24.8,
+      "zoomLimit": 6,
+      "sourceExpansionAtMaxZoom": 1,
+      "status": "source-inspected",
+      "reason": "Contour, primary shapes and material boundaries inspected on the source contact sheet; no obvious baked blur found. This is not room/camera approval."
+    },
+    {
+      "id": "industrial_planter",
+      "view": "s",
+      "image": "industrial_planter.png",
+      "bounds": {
+        "x": 0,
+        "y": -8,
+        "width": 26,
+        "height": 20
+      },
+      "crop": {
+        "x": 0,
+        "y": 0,
+        "width": 401,
+        "height": 278
+      },
+      "body": {
+        "width": 26,
+        "height": 18.02493765586035
+      },
+      "sourceWidth": 401,
+      "sourceHeight": 278,
+      "sourcePixelsPerWorldPixel": 15.42,
+      "zoomLimit": 6,
+      "sourceExpansionAtMaxZoom": 1,
+      "status": "source-inspected",
+      "reason": "Contour, primary shapes and material boundaries inspected on the source contact sheet; no obvious baked blur found. This is not room/camera approval."
+    },
+    {
+      "id": "industrial_partition",
+      "view": "s",
+      "image": "industrial_partition.png",
+      "bounds": {
+        "x": 0,
+        "y": -9,
+        "width": 36,
+        "height": 21
+      },
+      "crop": {
+        "x": 0,
+        "y": 0,
+        "width": 529,
+        "height": 286
+      },
+      "body": {
+        "width": 36,
+        "height": 19.46313799621928
+      },
+      "sourceWidth": 529,
+      "sourceHeight": 286,
+      "sourcePixelsPerWorldPixel": 14.69,
+      "zoomLimit": 6,
+      "sourceExpansionAtMaxZoom": 1,
+      "status": "source-inspected",
+      "reason": "Contour, primary shapes and material boundaries inspected on the source contact sheet; no obvious baked blur found. This is not room/camera approval."
+    },
+    {
+      "id": "industrial_partition",
+      "view": "w",
+      "image": "industrial_partition-w.png",
+      "bounds": {
+        "x": -1.7714,
+        "y": -13,
+        "width": 15.5429,
+        "height": 48
+      },
+      "crop": {
+        "x": 0,
+        "y": 0,
+        "width": 177,
+        "height": 575
+      },
+      "body": {
+        "width": 14.775652173913045,
+        "height": 48.00000000000001
+      },
+      "sourceWidth": 177,
+      "sourceHeight": 575,
+      "sourcePixelsPerWorldPixel": 11.98,
+      "zoomLimit": 6,
+      "sourceExpansionAtMaxZoom": 1,
+      "status": "restored",
+      "reason": "Under-resolved source replaced with a generated fidelity restoration. Same world bounds and footprint. Compare before/after and inspect in Kepler."
+    },
+    {
+      "id": "industrial_partition",
+      "view": "e",
+      "image": "industrial_partition-e.png",
+      "bounds": {
+        "x": 2,
+        "y": -9,
+        "width": 8,
+        "height": 44
+      },
+      "crop": {
+        "x": 0,
+        "y": 0,
+        "width": 135,
+        "height": 607
+      },
+      "body": {
+        "width": 8,
+        "height": 35.970370370370375
+      },
+      "sourceWidth": 135,
+      "sourceHeight": 607,
+      "sourcePixelsPerWorldPixel": 16.88,
+      "zoomLimit": 6,
+      "sourceExpansionAtMaxZoom": 1,
+      "status": "source-inspected",
+      "reason": "Contour, primary shapes and material boundaries inspected on the source contact sheet; no obvious baked blur found. This is not room/camera approval."
+    },
+    {
+      "id": "industrial_bench",
+      "view": "s",
+      "image": "industrial_bench.png",
+      "bounds": {
+        "x": 0,
+        "y": 0,
+        "width": 36,
+        "height": 12
+      },
+      "crop": {
+        "x": 0,
+        "y": 0,
+        "width": 1328,
+        "height": 441
+      },
+      "body": {
+        "width": 36.00000000000001,
+        "height": 11.954819277108436
+      },
+      "sourceWidth": 1328,
+      "sourceHeight": 441,
+      "sourcePixelsPerWorldPixel": 36.89,
+      "zoomLimit": 6,
+      "sourceExpansionAtMaxZoom": 1,
+      "status": "source-inspected",
+      "reason": "Contour, primary shapes and material boundaries inspected on the source contact sheet; no obvious baked blur found. This is not room/camera approval."
+    },
+    {
+      "id": "industrial_roundtable",
+      "view": "s",
+      "image": "industrial_roundtable.png",
+      "bounds": {
+        "x": 0,
+        "y": -4,
+        "width": 24,
+        "height": 16
+      },
+      "crop": {
+        "x": 0,
+        "y": 0,
+        "width": 419,
+        "height": 295
+      },
+      "body": {
+        "width": 22.72542372881356,
+        "height": 16
+      },
+      "sourceWidth": 419,
+      "sourceHeight": 295,
+      "sourcePixelsPerWorldPixel": 18.44,
+      "zoomLimit": 6,
+      "sourceExpansionAtMaxZoom": 1,
+      "status": "source-inspected",
+      "reason": "Contour, primary shapes and material boundaries inspected on the source contact sheet; no obvious baked blur found. This is not room/camera approval."
+    },
+    {
+      "id": "industrial_servicecab",
+      "view": "s",
+      "image": "industrial_servicecab.png",
+      "bounds": {
+        "x": 0,
+        "y": -5,
+        "width": 12,
+        "height": 29
+      },
+      "crop": {
+        "x": 0,
+        "y": 0,
+        "width": 166,
+        "height": 444
+      },
+      "body": {
+        "width": 10.842342342342342,
+        "height": 29
+      },
+      "sourceWidth": 166,
+      "sourceHeight": 444,
+      "sourcePixelsPerWorldPixel": 15.31,
+      "zoomLimit": 6,
+      "sourceExpansionAtMaxZoom": 1,
+      "status": "source-inspected",
+      "reason": "Contour, primary shapes and material boundaries inspected on the source contact sheet; no obvious baked blur found. This is not room/camera approval."
+    },
+    {
+      "id": "industrial_wallpanel",
+      "view": "s",
+      "image": "industrial_wallpanel.png",
+      "bounds": {
+        "x": 0,
+        "y": -13,
+        "width": 24,
+        "height": 23
+      },
+      "crop": {
+        "x": 0,
+        "y": 0,
+        "width": 294,
+        "height": 252
+      },
+      "body": {
+        "width": 23.999999999999996,
+        "height": 20.57142857142857
+      },
+      "sourceWidth": 294,
+      "sourceHeight": 252,
+      "sourcePixelsPerWorldPixel": 12.25,
+      "zoomLimit": 6,
+      "sourceExpansionAtMaxZoom": 1,
+      "status": "source-inspected",
+      "reason": "Contour, primary shapes and material boundaries inspected on the source contact sheet; no obvious baked blur found. This is not room/camera approval."
+    },
+    {
+      "id": "industrial_floorvent",
+      "view": "s",
+      "image": "industrial_floorvent.png",
+      "bounds": {
+        "x": 1,
+        "y": 1,
+        "width": 22,
+        "height": 10
+      },
+      "crop": {
+        "x": 0,
+        "y": 0,
+        "width": 423,
+        "height": 173
+      },
+      "body": {
+        "width": 22,
+        "height": 8.997635933806146
+      },
+      "sourceWidth": 423,
+      "sourceHeight": 173,
+      "sourcePixelsPerWorldPixel": 19.23,
+      "zoomLimit": 6,
+      "sourceExpansionAtMaxZoom": 1,
+      "status": "source-inspected",
+      "reason": "Contour, primary shapes and material boundaries inspected on the source contact sheet; no obvious baked blur found. This is not room/camera approval."
+    },
+    {
+      "id": "industrial_cabletray",
+      "view": "s",
+      "image": "industrial_cabletray.png",
+      "bounds": {
+        "x": 0,
+        "y": 3,
+        "width": 36,
+        "height": 6
+      },
+      "crop": {
+        "x": 0,
+        "y": 0,
+        "width": 1133,
+        "height": 178
+      },
+      "body": {
+        "width": 36.00000000000001,
+        "height": 5.655781112091792
+      },
+      "sourceWidth": 1133,
+      "sourceHeight": 178,
+      "sourcePixelsPerWorldPixel": 31.47,
+      "zoomLimit": 6,
+      "sourceExpansionAtMaxZoom": 1,
+      "status": "source-inspected",
+      "reason": "Contour, primary shapes and material boundaries inspected on the source contact sheet; no obvious baked blur found. This is not room/camera approval."
+    },
+    {
+      "id": "desk",
+      "view": "s",
+      "image": "desk.png",
+      "bounds": {
+        "x": -1,
+        "y": -16.3956,
+        "width": 38,
+        "height": 28.3956
+      },
+      "crop": {
+        "x": 0,
+        "y": 0,
+        "width": 1207,
+        "height": 804
+      },
+      "body": {
+        "width": 38,
+        "height": 25.31234465617233
+      },
+      "sourceWidth": 1207,
+      "sourceHeight": 804,
+      "sourcePixelsPerWorldPixel": 31.76,
+      "zoomLimit": 6,
+      "sourceExpansionAtMaxZoom": 1,
+      "status": "restored",
+      "reason": "Under-resolved source replaced with a generated fidelity restoration. Same world bounds and footprint. Compare before/after and inspect in Kepler."
+    },
+    {
+      "id": "desk",
+      "view": "w",
+      "image": "desk-w.png",
+      "bounds": {
+        "x": -3,
+        "y": 9.2813,
+        "width": 18,
+        "height": 26.7188
+      },
+      "crop": {
+        "x": 0,
+        "y": 0,
+        "width": 128,
+        "height": 190
+      },
+      "body": {
+        "width": 18,
+        "height": 26.71875
+      },
+      "sourceWidth": 128,
+      "sourceHeight": 190,
+      "sourcePixelsPerWorldPixel": 7.11,
+      "zoomLimit": 6,
+      "sourceExpansionAtMaxZoom": 1,
+      "status": "source-inspected",
+      "reason": "Contour, primary shapes and material boundaries inspected on the source contact sheet; no obvious baked blur found. This is not room/camera approval."
+    },
+    {
+      "id": "desk",
+      "view": "n",
+      "image": "desk-n.png",
+      "bounds": {
+        "x": -2,
+        "y": -19.6981,
+        "width": 40,
+        "height": 31.6981
+      },
+      "crop": {
+        "x": 0,
+        "y": 0,
+        "width": 597,
+        "height": 469
+      },
+      "body": {
+        "width": 40,
+        "height": 31.423785594639863
+      },
+      "sourceWidth": 597,
+      "sourceHeight": 469,
+      "sourcePixelsPerWorldPixel": 14.93,
+      "zoomLimit": 6,
+      "sourceExpansionAtMaxZoom": 1,
+      "status": "restored",
+      "reason": "Under-resolved source replaced with a generated fidelity restoration. Same world bounds and footprint. Compare before/after and inspect in Kepler."
+    },
+    {
+      "id": "desk",
+      "view": "e",
+      "image": "desk-e.png",
+      "bounds": {
+        "x": -3,
+        "y": 11.2174,
+        "width": 18,
+        "height": 24.7826
+      },
+      "crop": {
+        "x": 0,
+        "y": 0,
+        "width": 138,
+        "height": 190
+      },
+      "body": {
+        "width": 17.999993684210526,
+        "height": 24.782600000000002
+      },
+      "sourceWidth": 138,
+      "sourceHeight": 190,
+      "sourcePixelsPerWorldPixel": 7.67,
+      "zoomLimit": 6,
+      "sourceExpansionAtMaxZoom": 1,
+      "status": "source-inspected",
+      "reason": "Contour, primary shapes and material boundaries inspected on the source contact sheet; no obvious baked blur found. This is not room/camera approval."
+    },
+    {
+      "id": "desk2",
+      "view": "s",
+      "image": "desk2.png",
+      "bounds": {
+        "x": -1,
+        "y": -11,
+        "width": 38,
+        "height": 23
+      },
+      "crop": {
+        "x": 0,
+        "y": 0,
+        "width": 687,
+        "height": 423
+      },
+      "body": {
+        "width": 37.354609929078016,
+        "height": 23
+      },
+      "sourceWidth": 687,
+      "sourceHeight": 423,
+      "sourcePixelsPerWorldPixel": 18.39,
+      "zoomLimit": 6,
+      "sourceExpansionAtMaxZoom": 1,
+      "status": "source-inspected",
+      "reason": "Contour, primary shapes and material boundaries inspected on the source contact sheet; no obvious baked blur found. This is not room/camera approval."
+    },
+    {
+      "id": "desk2",
+      "view": "w",
+      "image": "desk2-w.png",
+      "bounds": {
+        "x": -3,
+        "y": 13.0685,
+        "width": 18,
+        "height": 22.9315
+      },
+      "crop": {
+        "x": 0,
+        "y": 0,
+        "width": 146,
+        "height": 186
+      },
+      "body": {
+        "width": 17.999994623655912,
+        "height": 22.9315
+      },
+      "sourceWidth": 146,
+      "sourceHeight": 186,
+      "sourcePixelsPerWorldPixel": 8.11,
+      "zoomLimit": 6,
+      "sourceExpansionAtMaxZoom": 1,
+      "status": "source-inspected",
+      "reason": "Contour, primary shapes and material boundaries inspected on the source contact sheet; no obvious baked blur found. This is not room/camera approval."
+    },
+    {
+      "id": "desk2",
+      "view": "n",
+      "image": "desk2-n.png",
+      "bounds": {
+        "x": -2,
+        "y": -11,
+        "width": 40,
+        "height": 23
+      },
+      "crop": {
+        "x": 0,
+        "y": 0,
+        "width": 679,
+        "height": 411
+      },
+      "body": {
+        "width": 37.99756690997567,
+        "height": 23
+      },
+      "sourceWidth": 679,
+      "sourceHeight": 411,
+      "sourcePixelsPerWorldPixel": 17.87,
+      "zoomLimit": 6,
+      "sourceExpansionAtMaxZoom": 1,
+      "status": "source-inspected",
+      "reason": "Contour, primary shapes and material boundaries inspected on the source contact sheet; no obvious baked blur found. This is not room/camera approval."
+    },
+    {
+      "id": "desk2",
+      "view": "e",
+      "image": "desk2-e.png",
+      "bounds": {
+        "x": -3,
+        "y": -5,
+        "width": 18,
+        "height": 41
+      },
+      "crop": {
+        "x": 0,
+        "y": 0,
+        "width": 218,
+        "height": 529
+      },
+      "body": {
+        "width": 16.896030245746694,
+        "height": 41
+      },
+      "sourceWidth": 218,
+      "sourceHeight": 529,
+      "sourcePixelsPerWorldPixel": 12.9,
+      "zoomLimit": 6,
+      "sourceExpansionAtMaxZoom": 1,
+      "status": "source-inspected",
+      "reason": "Contour, primary shapes and material boundaries inspected on the source contact sheet; no obvious baked blur found. This is not room/camera approval."
+    },
+    {
+      "id": "console",
+      "view": "s",
+      "image": "console.png",
+      "bounds": {
+        "x": -3,
+        "y": -11,
+        "width": 28,
+        "height": 23
+      },
+      "crop": {
+        "x": 0,
+        "y": 0,
+        "width": 1009,
+        "height": 833
+      },
+      "body": {
+        "width": 27.859543817527012,
+        "height": 23
+      },
+      "sourceWidth": 1009,
+      "sourceHeight": 833,
+      "sourcePixelsPerWorldPixel": 36.22,
+      "zoomLimit": 6,
+      "sourceExpansionAtMaxZoom": 1,
+      "status": "source-inspected",
+      "reason": "Contour, primary shapes and material boundaries inspected on the source contact sheet; no obvious baked blur found. This is not room/camera approval."
+    },
+    {
+      "id": "consoleL",
+      "view": "s",
+      "image": "consoleL.png",
+      "bounds": {
+        "x": -3,
+        "y": -11,
+        "width": 40,
+        "height": 23
+      },
+      "crop": {
+        "x": 0,
+        "y": 0,
+        "width": 1308,
+        "height": 719
+      },
+      "body": {
+        "width": 39.99999999999999,
+        "height": 21.987767584097856
+      },
+      "sourceWidth": 1308,
+      "sourceHeight": 719,
+      "sourcePixelsPerWorldPixel": 32.7,
+      "zoomLimit": 6,
+      "sourceExpansionAtMaxZoom": 1,
+      "status": "source-inspected",
+      "reason": "Contour, primary shapes and material boundaries inspected on the source contact sheet; no obvious baked blur found. This is not room/camera approval."
+    },
+    {
+      "id": "pixelrig",
+      "view": "s",
+      "image": "pixelrig.png",
+      "bounds": {
+        "x": -1,
+        "y": -14,
+        "width": 30,
+        "height": 26
+      },
+      "crop": {
+        "x": 0,
+        "y": 0,
+        "width": 403,
+        "height": 338
+      },
+      "body": {
+        "width": 29.999999999999996,
+        "height": 25.161290322580644
+      },
+      "sourceWidth": 403,
+      "sourceHeight": 338,
+      "sourcePixelsPerWorldPixel": 13.43,
+      "zoomLimit": 6,
+      "sourceExpansionAtMaxZoom": 1,
+      "status": "source-inspected",
+      "reason": "Contour, primary shapes and material boundaries inspected on the source contact sheet; no obvious baked blur found. This is not room/camera approval."
+    },
+    {
+      "id": "bench",
+      "view": "s",
+      "image": "bench.png",
+      "bounds": {
+        "x": -1,
+        "y": -14,
+        "width": 54,
+        "height": 26
+      },
+      "crop": {
+        "x": 0,
+        "y": 0,
+        "width": 1534,
+        "height": 673
+      },
+      "body": {
+        "width": 54,
+        "height": 23.691003911342893
+      },
+      "sourceWidth": 1534,
+      "sourceHeight": 673,
+      "sourcePixelsPerWorldPixel": 28.41,
+      "zoomLimit": 6,
+      "sourceExpansionAtMaxZoom": 1,
+      "status": "source-inspected",
+      "reason": "Contour, primary shapes and material boundaries inspected on the source contact sheet; no obvious baked blur found. This is not room/camera approval."
+    },
+    {
+      "id": "workbench",
+      "view": "s",
+      "image": "workbench.png",
+      "bounds": {
+        "x": -1,
+        "y": -15,
+        "width": 30,
+        "height": 27
+      },
+      "crop": {
+        "x": 0,
+        "y": 0,
+        "width": 1202,
+        "height": 651
+      },
+      "body": {
+        "width": 30,
+        "height": 16.24792013311148
+      },
+      "sourceWidth": 1202,
+      "sourceHeight": 651,
+      "sourcePixelsPerWorldPixel": 40.07,
+      "zoomLimit": 6,
+      "sourceExpansionAtMaxZoom": 1,
+      "status": "source-inspected",
+      "reason": "Contour, primary shapes and material boundaries inspected on the source contact sheet; no obvious baked blur found. This is not room/camera approval."
+    },
+    {
+      "id": "intake",
+      "view": "s",
+      "image": "intake.png",
+      "bounds": {
+        "x": -1,
+        "y": -4,
+        "width": 30,
+        "height": 28
+      },
+      "crop": {
+        "x": 0,
+        "y": 0,
+        "width": 405,
+        "height": 406
+      },
+      "body": {
+        "width": 27.93103448275862,
+        "height": 28
+      },
+      "sourceWidth": 405,
+      "sourceHeight": 406,
+      "sourcePixelsPerWorldPixel": 14.5,
+      "zoomLimit": 6,
+      "sourceExpansionAtMaxZoom": 1,
+      "status": "source-inspected",
+      "reason": "Contour, primary shapes and material boundaries inspected on the source contact sheet; no obvious baked blur found. This is not room/camera approval."
+    },
+    {
+      "id": "bay",
+      "view": "s",
+      "image": "bay.png",
+      "bounds": {
+        "x": -1,
+        "y": -7,
+        "width": 30,
+        "height": 31
+      },
+      "crop": {
+        "x": 0,
+        "y": 0,
+        "width": 418,
+        "height": 396
+      },
+      "body": {
+        "width": 30,
+        "height": 28.42105263157895
+      },
+      "sourceWidth": 418,
+      "sourceHeight": 396,
+      "sourcePixelsPerWorldPixel": 13.93,
+      "zoomLimit": 6,
+      "sourceExpansionAtMaxZoom": 1,
+      "status": "source-inspected",
+      "reason": "Contour, primary shapes and material boundaries inspected on the source contact sheet; no obvious baked blur found. This is not room/camera approval."
+    },
+    {
+      "id": "filter",
+      "view": "s",
+      "image": "filter.png",
+      "bounds": {
+        "x": -1,
+        "y": -8,
+        "width": 14,
+        "height": 19
+      },
+      "crop": {
+        "x": 0,
+        "y": 0,
+        "width": 294,
+        "height": 331
+      },
+      "body": {
+        "width": 14,
+        "height": 15.761904761904761
+      },
+      "sourceWidth": 294,
+      "sourceHeight": 331,
+      "sourcePixelsPerWorldPixel": 21,
+      "zoomLimit": 6,
+      "sourceExpansionAtMaxZoom": 1,
+      "status": "source-inspected",
+      "reason": "Contour, primary shapes and material boundaries inspected on the source contact sheet; no obvious baked blur found. This is not room/camera approval."
+    },
+    {
+      "id": "merger",
+      "view": "s",
+      "image": "merger.png",
+      "bounds": {
+        "x": -2,
+        "y": 0,
+        "width": 16,
+        "height": 11
+      },
+      "crop": {
+        "x": 0,
+        "y": 0,
+        "width": 363,
+        "height": 213
+      },
+      "body": {
+        "width": 16,
+        "height": 9.388429752066116
+      },
+      "sourceWidth": 363,
+      "sourceHeight": 213,
+      "sourcePixelsPerWorldPixel": 22.69,
+      "zoomLimit": 6,
+      "sourceExpansionAtMaxZoom": 1,
+      "status": "source-inspected",
+      "reason": "Contour, primary shapes and material boundaries inspected on the source contact sheet; no obvious baked blur found. This is not room/camera approval."
+    },
+    {
+      "id": "splitter",
+      "view": "s",
+      "image": "splitter.png",
+      "bounds": {
+        "x": -1,
+        "y": 0,
+        "width": 15,
+        "height": 11
+      },
+      "crop": {
+        "x": 0,
+        "y": 0,
+        "width": 323,
+        "height": 212
+      },
+      "body": {
+        "width": 14.999999999999998,
+        "height": 9.845201238390091
+      },
+      "sourceWidth": 323,
+      "sourceHeight": 212,
+      "sourcePixelsPerWorldPixel": 21.53,
+      "zoomLimit": 6,
+      "sourceExpansionAtMaxZoom": 1,
+      "status": "source-inspected",
+      "reason": "Contour, primary shapes and material boundaries inspected on the source contact sheet; no obvious baked blur found. This is not room/camera approval."
+    },
+    {
+      "id": "joiner",
+      "view": "s",
+      "image": "joiner.png",
+      "bounds": {
+        "x": -2,
+        "y": 0,
+        "width": 16,
+        "height": 11
+      },
+      "crop": {
+        "x": 0,
+        "y": 0,
+        "width": 354,
+        "height": 225
+      },
+      "body": {
+        "width": 16,
+        "height": 10.169491525423728
+      },
+      "sourceWidth": 354,
+      "sourceHeight": 225,
+      "sourcePixelsPerWorldPixel": 22.13,
+      "zoomLimit": 6,
+      "sourceExpansionAtMaxZoom": 1,
+      "status": "source-inspected",
+      "reason": "Contour, primary shapes and material boundaries inspected on the source contact sheet; no obvious baked blur found. This is not room/camera approval."
+    },
+    {
+      "id": "loop",
+      "view": "s",
+      "image": "loop.png",
+      "bounds": {
+        "x": -1,
+        "y": -7,
+        "width": 15,
+        "height": 18
+      },
+      "crop": {
+        "x": 0,
+        "y": 0,
+        "width": 288,
+        "height": 345
+      },
+      "body": {
+        "width": 15,
+        "height": 17.96875
+      },
+      "sourceWidth": 288,
+      "sourceHeight": 345,
+      "sourcePixelsPerWorldPixel": 19.2,
+      "zoomLimit": 6,
+      "sourceExpansionAtMaxZoom": 1,
+      "status": "source-inspected",
+      "reason": "Contour, primary shapes and material boundaries inspected on the source contact sheet; no obvious baked blur found. This is not room/camera approval."
+    },
+    {
+      "id": "outbox",
+      "view": "s",
+      "image": "outbox.png",
+      "bounds": {
+        "x": -1,
+        "y": -8,
+        "width": 30,
+        "height": 32
+      },
+      "crop": {
+        "x": 0,
+        "y": 0,
+        "width": 421,
+        "height": 412
+      },
+      "body": {
+        "width": 30,
+        "height": 29.358669833729216
+      },
+      "sourceWidth": 421,
+      "sourceHeight": 412,
+      "sourcePixelsPerWorldPixel": 14.03,
+      "zoomLimit": 6,
+      "sourceExpansionAtMaxZoom": 1,
+      "status": "source-inspected",
+      "reason": "Contour, primary shapes and material boundaries inspected on the source contact sheet; no obvious baked blur found. This is not room/camera approval."
+    },
+    {
+      "id": "connector_portal",
+      "view": "s",
+      "image": "connector_portal.png",
+      "bounds": {
+        "x": 0,
+        "y": -7,
+        "width": 17,
+        "height": 31
+      },
+      "crop": {
+        "x": 0,
+        "y": 0,
+        "width": 924,
+        "height": 1626
+      },
+      "body": {
+        "width": 17,
+        "height": 29.91558441558442
+      },
+      "sourceWidth": 924,
+      "sourceHeight": 1626,
+      "sourcePixelsPerWorldPixel": 54.35,
+      "zoomLimit": 6,
+      "sourceExpansionAtMaxZoom": 1,
+      "status": "source-inspected",
+      "reason": "Contour, primary shapes and material boundaries inspected on the source contact sheet; no obvious baked blur found. This is not room/camera approval."
+    },
+    {
+      "id": "comms_dish",
+      "view": "s",
+      "image": "comms_dish.png",
+      "bounds": {
+        "x": 2,
+        "y": 1,
+        "width": 20,
+        "height": 23
+      },
+      "crop": {
+        "x": 0,
+        "y": 0,
+        "width": 661,
+        "height": 739
+      },
+      "body": {
+        "width": 20.000000000000004,
+        "height": 22.360060514372165
+      },
+      "sourceWidth": 661,
+      "sourceHeight": 739,
+      "sourcePixelsPerWorldPixel": 33.05,
+      "zoomLimit": 6,
+      "sourceExpansionAtMaxZoom": 1,
+      "status": "source-inspected",
+      "reason": "Contour, primary shapes and material boundaries inspected on the source contact sheet; no obvious baked blur found. This is not room/camera approval."
+    },
+    {
+      "id": "comms_uplink",
+      "view": "s",
+      "image": "comms_uplink.png",
+      "bounds": {
+        "x": 2,
+        "y": -11,
+        "width": 19,
+        "height": 35
+      },
+      "crop": {
+        "x": 0,
+        "y": 0,
+        "width": 244,
+        "height": 496
+      },
+      "body": {
+        "width": 17.217741935483872,
+        "height": 35
+      },
+      "sourceWidth": 244,
+      "sourceHeight": 496,
+      "sourcePixelsPerWorldPixel": 14.17,
+      "zoomLimit": 6,
+      "sourceExpansionAtMaxZoom": 1,
+      "status": "source-inspected",
+      "reason": "Contour, primary shapes and material boundaries inspected on the source contact sheet; no obvious baked blur found. This is not room/camera approval."
+    },
+    {
+      "id": "comms_beacon",
+      "view": "s",
+      "image": "comms_beacon.png",
+      "bounds": {
+        "x": 0,
+        "y": -2,
+        "width": 17,
+        "height": 26
+      },
+      "crop": {
+        "x": 0,
+        "y": 0,
+        "width": 272,
+        "height": 344
+      },
+      "body": {
+        "width": 17,
+        "height": 21.5
+      },
+      "sourceWidth": 272,
+      "sourceHeight": 344,
+      "sourcePixelsPerWorldPixel": 16,
+      "zoomLimit": 6,
+      "sourceExpansionAtMaxZoom": 1,
+      "status": "source-inspected",
+      "reason": "Contour, primary shapes and material boundaries inspected on the source contact sheet; no obvious baked blur found. This is not room/camera approval."
+    },
+    {
+      "id": "war_intelcab",
+      "view": "s",
+      "image": "war_intelcab.png",
+      "bounds": {
+        "x": 0,
+        "y": -7,
+        "width": 17,
+        "height": 31
+      },
+      "crop": {
+        "x": 0,
+        "y": 0,
+        "width": 825,
+        "height": 1491
+      },
+      "body": {
+        "width": 17,
+        "height": 30.723636363636366
+      },
+      "sourceWidth": 825,
+      "sourceHeight": 1491,
+      "sourcePixelsPerWorldPixel": 48.53,
+      "zoomLimit": 6,
+      "sourceExpansionAtMaxZoom": 1,
+      "status": "source-inspected",
+      "reason": "Contour, primary shapes and material boundaries inspected on the source contact sheet; no obvious baked blur found. This is not room/camera approval."
+    },
+    {
+      "id": "safe",
+      "view": "s",
+      "image": "safe.png",
+      "bounds": {
+        "x": -1,
+        "y": -8,
+        "width": 18,
+        "height": 32
+      },
+      "crop": {
+        "x": 0,
+        "y": 0,
+        "width": 203,
+        "height": 361
+      },
+      "body": {
+        "width": 17.994459833795013,
+        "height": 32
+      },
+      "sourceWidth": 203,
+      "sourceHeight": 361,
+      "sourcePixelsPerWorldPixel": 11.28,
+      "zoomLimit": 6,
+      "sourceExpansionAtMaxZoom": 1,
+      "status": "source-inspected",
+      "reason": "Contour, primary shapes and material boundaries inspected on the source contact sheet; no obvious baked blur found. This is not room/camera approval."
+    },
+    {
+      "id": "vault",
+      "view": "s",
+      "image": "vault.png",
+      "bounds": {
+        "x": -3,
+        "y": -5,
+        "width": 44,
+        "height": 29
+      },
+      "crop": {
+        "x": 0,
+        "y": 0,
+        "width": 459,
+        "height": 259
+      },
+      "body": {
+        "width": 44,
+        "height": 24.82788671023965
+      },
+      "sourceWidth": 459,
+      "sourceHeight": 259,
+      "sourcePixelsPerWorldPixel": 10.43,
+      "zoomLimit": 6,
+      "sourceExpansionAtMaxZoom": 1,
+      "status": "source-inspected",
+      "reason": "Contour, primary shapes and material boundaries inspected on the source contact sheet; no obvious baked blur found. This is not room/camera approval."
+    },
+    {
+      "id": "rack",
+      "view": "s",
+      "image": "rack.png",
+      "bounds": {
+        "x": 0,
+        "y": -14,
+        "width": 29,
+        "height": 26
+      },
+      "crop": {
+        "x": 0,
+        "y": 0,
+        "width": 342,
+        "height": 306
+      },
+      "body": {
+        "width": 29.000000000000004,
+        "height": 25.947368421052634
+      },
+      "sourceWidth": 342,
+      "sourceHeight": 306,
+      "sourcePixelsPerWorldPixel": 11.79,
+      "zoomLimit": 6,
+      "sourceExpansionAtMaxZoom": 1,
+      "status": "source-inspected",
+      "reason": "Contour, primary shapes and material boundaries inspected on the source contact sheet; no obvious baked blur found. This is not room/camera approval."
+    },
+    {
+      "id": "shelf",
+      "view": "s",
+      "image": "shelf.png",
+      "bounds": {
+        "x": 0,
+        "y": -14,
+        "width": 53,
+        "height": 26
+      },
+      "crop": {
+        "x": 0,
+        "y": 0,
+        "width": 529,
+        "height": 252
+      },
+      "body": {
+        "width": 53,
+        "height": 25.247637051039696
+      },
+      "sourceWidth": 529,
+      "sourceHeight": 252,
+      "sourcePixelsPerWorldPixel": 9.98,
+      "zoomLimit": 6,
+      "sourceExpansionAtMaxZoom": 1,
+      "status": "source-inspected",
+      "reason": "Contour, primary shapes and material boundaries inspected on the source contact sheet; no obvious baked blur found. This is not room/camera approval."
+    },
+    {
+      "id": "core",
+      "view": "s",
+      "image": "core.png",
+      "bounds": {
+        "x": 0,
+        "y": -7,
+        "width": 17,
+        "height": 31
+      },
+      "crop": {
+        "x": 0,
+        "y": 0,
+        "width": 209,
+        "height": 448
+      },
+      "body": {
+        "width": 14.462053571428573,
+        "height": 31
+      },
+      "sourceWidth": 209,
+      "sourceHeight": 448,
+      "sourcePixelsPerWorldPixel": 14.45,
+      "zoomLimit": 6,
+      "sourceExpansionAtMaxZoom": 1,
+      "status": "source-inspected",
+      "reason": "Contour, primary shapes and material boundaries inspected on the source contact sheet; no obvious baked blur found. This is not room/camera approval."
+    },
+    {
+      "id": "gigs_servercart",
+      "view": "s",
+      "image": "gigs_servercart.png",
+      "bounds": {
+        "x": 1,
+        "y": -6,
+        "width": 16,
+        "height": 18
+      },
+      "crop": {
+        "x": 0,
+        "y": 0,
+        "width": 289,
+        "height": 320
+      },
+      "body": {
+        "width": 16,
+        "height": 17.716262975778548
+      },
+      "sourceWidth": 289,
+      "sourceHeight": 320,
+      "sourcePixelsPerWorldPixel": 18.06,
+      "zoomLimit": 6,
+      "sourceExpansionAtMaxZoom": 1,
+      "status": "source-inspected",
+      "reason": "Contour, primary shapes and material boundaries inspected on the source contact sheet; no obvious baked blur found. This is not room/camera approval."
+    },
+    {
+      "id": "bridge_relaystack",
+      "view": "s",
+      "image": "bridge_relaystack.png",
+      "bounds": {
+        "x": 0,
+        "y": -8,
+        "width": 17,
+        "height": 32
+      },
+      "crop": {
+        "x": 0,
+        "y": 0,
+        "width": 293,
+        "height": 599
+      },
+      "body": {
+        "width": 15.652754590984975,
+        "height": 32
+      },
+      "sourceWidth": 293,
+      "sourceHeight": 599,
+      "sourcePixelsPerWorldPixel": 18.72,
+      "zoomLimit": 6,
+      "sourceExpansionAtMaxZoom": 1,
+      "status": "source-inspected",
+      "reason": "Contour, primary shapes and material boundaries inspected on the source contact sheet; no obvious baked blur found. This is not room/camera approval."
+    },
+    {
+      "id": "studio",
+      "view": "s",
+      "image": "studio.png",
+      "bounds": {
+        "x": 0,
+        "y": -6,
+        "width": 29,
+        "height": 30
+      },
+      "crop": {
+        "x": 0,
+        "y": 0,
+        "width": 350,
+        "height": 374
+      },
+      "body": {
+        "width": 28.074866310160427,
+        "height": 30
+      },
+      "sourceWidth": 350,
+      "sourceHeight": 374,
+      "sourcePixelsPerWorldPixel": 12.47,
+      "zoomLimit": 6,
+      "sourceExpansionAtMaxZoom": 1,
+      "status": "source-inspected",
+      "reason": "Contour, primary shapes and material boundaries inspected on the source contact sheet; no obvious baked blur found. This is not room/camera approval."
+    },
+    {
+      "id": "airlock",
+      "view": "s",
+      "image": "airlock.png",
+      "bounds": {
+        "x": -1,
+        "y": -1,
+        "width": 14,
+        "height": 14
+      },
+      "crop": {
+        "x": 0,
+        "y": 0,
+        "width": 218,
+        "height": 215
+      },
+      "body": {
+        "width": 14,
+        "height": 13.807339449541285
+      },
+      "sourceWidth": 218,
+      "sourceHeight": 215,
+      "sourcePixelsPerWorldPixel": 15.57,
+      "zoomLimit": 6,
+      "sourceExpansionAtMaxZoom": 1,
+      "status": "source-inspected",
+      "reason": "Contour, primary shapes and material boundaries inspected on the source contact sheet; no obvious baked blur found. This is not room/camera approval."
+    },
+    {
+      "id": "missionboard",
+      "view": "s",
+      "image": "missionboard.png",
+      "bounds": {
+        "x": -1,
+        "y": -13,
+        "width": 38,
+        "height": 25
+      },
+      "crop": {
+        "x": 0,
+        "y": 0,
+        "width": 393,
+        "height": 229
+      },
+      "body": {
+        "width": 37.99999999999999,
+        "height": 22.142493638676843
+      },
+      "sourceWidth": 393,
+      "sourceHeight": 229,
+      "sourcePixelsPerWorldPixel": 10.34,
+      "zoomLimit": 6,
+      "sourceExpansionAtMaxZoom": 1,
+      "status": "source-inspected",
+      "reason": "Contour, primary shapes and material boundaries inspected on the source contact sheet; no obvious baked blur found. This is not room/camera approval."
+    },
+    {
+      "id": "trophycase",
+      "view": "s",
+      "image": "trophycase.png",
+      "bounds": {
+        "x": -1,
+        "y": -6,
+        "width": 26,
+        "height": 30
+      },
+      "crop": {
+        "x": 0,
+        "y": 0,
+        "width": 307,
+        "height": 345
+      },
+      "body": {
+        "width": 26,
+        "height": 29.218241042345277
+      },
+      "sourceWidth": 307,
+      "sourceHeight": 345,
+      "sourcePixelsPerWorldPixel": 11.81,
+      "zoomLimit": 6,
+      "sourceExpansionAtMaxZoom": 1,
+      "status": "source-inspected",
+      "reason": "Contour, primary shapes and material boundaries inspected on the source contact sheet; no obvious baked blur found. This is not room/camera approval."
+    },
+    {
+      "id": "bridge_consolebank",
+      "view": "s",
+      "image": "bridge_consolebank.png",
+      "bounds": {
+        "x": 0,
+        "y": -21,
+        "width": 108,
+        "height": 33
+      },
+      "crop": {
+        "x": 0,
+        "y": 0,
+        "width": 702,
+        "height": 218
+      },
+      "body": {
+        "width": 106.26605504587154,
+        "height": 32.99999999999999
+      },
+      "sourceWidth": 702,
+      "sourceHeight": 218,
+      "sourcePixelsPerWorldPixel": 6.61,
+      "zoomLimit": 6,
+      "sourceExpansionAtMaxZoom": 1,
+      "status": "source-inspected",
+      "reason": "Contour, primary shapes and material boundaries inspected on the source contact sheet; no obvious baked blur found. This is not room/camera approval."
+    },
+    {
+      "id": "bridge_tacticaltable",
+      "view": "s",
+      "image": "bridge_tacticaltable.png",
+      "bounds": {
+        "x": 0,
+        "y": -7,
+        "width": 84,
+        "height": 55
+      },
+      "crop": {
+        "x": 0,
+        "y": 0,
+        "width": 1607,
+        "height": 901
+      },
+      "body": {
+        "width": 84,
+        "height": 47.09645301804605
+      },
+      "sourceWidth": 1607,
+      "sourceHeight": 901,
+      "sourcePixelsPerWorldPixel": 19.13,
+      "zoomLimit": 6,
+      "sourceExpansionAtMaxZoom": 1,
+      "status": "source-inspected",
+      "reason": "Contour, primary shapes and material boundaries inspected on the source contact sheet; no obvious baked blur found. This is not room/camera approval."
+    },
+    {
+      "id": "bridge_equipmentbay",
+      "view": "s",
+      "image": "bridge_equipmentbay.png",
+      "bounds": {
+        "x": 0,
+        "y": -7,
+        "width": 48,
+        "height": 19
+      },
+      "crop": {
+        "x": 0,
+        "y": 0,
+        "width": 1597,
+        "height": 559
+      },
+      "body": {
+        "width": 47.99999999999999,
+        "height": 16.80150281778334
+      },
+      "sourceWidth": 1597,
+      "sourceHeight": 559,
+      "sourcePixelsPerWorldPixel": 33.27,
+      "zoomLimit": 6,
+      "sourceExpansionAtMaxZoom": 1,
+      "status": "source-inspected",
+      "reason": "Contour, primary shapes and material boundaries inspected on the source contact sheet; no obvious baked blur found. This is not room/camera approval."
+    },
+    {
+      "id": "bridge_deckperimeter",
+      "view": "s",
+      "image": "bridge_deckperimeter.png",
+      "bounds": {
+        "x": 0,
+        "y": 1,
+        "width": 144,
+        "height": 94
+      },
+      "crop": {
+        "x": 0,
+        "y": 0,
+        "width": 1558,
+        "height": 980
+      },
+      "body": {
+        "width": 144,
+        "height": 90.57766367137356
+      },
+      "sourceWidth": 1558,
+      "sourceHeight": 980,
+      "sourcePixelsPerWorldPixel": 10.82,
+      "zoomLimit": 6,
+      "sourceExpansionAtMaxZoom": 1,
+      "status": "restored",
+      "reason": "Under-resolved source replaced with a generated fidelity restoration. Same world bounds and footprint. Compare before/after and inspect in Kepler."
+    },
+    {
+      "id": "bigscreen",
+      "view": "s",
+      "image": "bigscreen.png",
+      "bounds": {
+        "x": -1,
+        "y": -13,
+        "width": 98,
+        "height": 25
+      },
+      "crop": {
+        "x": 0,
+        "y": 0,
+        "width": 638,
+        "height": 167
+      },
+      "body": {
+        "width": 95.50898203592816,
+        "height": 25.000000000000004
+      },
+      "sourceWidth": 638,
+      "sourceHeight": 167,
+      "sourcePixelsPerWorldPixel": 6.68,
+      "zoomLimit": 6,
+      "sourceExpansionAtMaxZoom": 1,
+      "status": "source-inspected",
+      "reason": "Contour, primary shapes and material boundaries inspected on the source contact sheet; no obvious baked blur found. This is not room/camera approval."
+    },
+    {
+      "id": "holotable",
+      "view": "s",
+      "image": "holotable.png",
+      "bounds": {
+        "x": -1,
+        "y": -10,
+        "width": 50,
+        "height": 34
+      },
+      "crop": {
+        "x": 0,
+        "y": 0,
+        "width": 1488,
+        "height": 810
+      },
+      "body": {
+        "width": 50,
+        "height": 27.21774193548387
+      },
+      "sourceWidth": 1488,
+      "sourceHeight": 810,
+      "sourcePixelsPerWorldPixel": 29.76,
+      "zoomLimit": 6,
+      "sourceExpansionAtMaxZoom": 1,
+      "status": "source-inspected",
+      "reason": "Contour, primary shapes and material boundaries inspected on the source contact sheet; no obvious baked blur found. This is not room/camera approval."
+    },
+    {
+      "id": "screens",
+      "view": "s",
+      "image": "screens.png",
+      "bounds": {
+        "x": -1,
+        "y": -15,
+        "width": 26,
+        "height": 27
+      },
+      "crop": {
+        "x": 0,
+        "y": 0,
+        "width": 343,
+        "height": 306
+      },
+      "body": {
+        "width": 26,
+        "height": 23.19533527696793
+      },
+      "sourceWidth": 343,
+      "sourceHeight": 306,
+      "sourcePixelsPerWorldPixel": 13.19,
+      "zoomLimit": 6,
+      "sourceExpansionAtMaxZoom": 1,
+      "status": "source-inspected",
+      "reason": "Contour, primary shapes and material boundaries inspected on the source contact sheet; no obvious baked blur found. This is not room/camera approval."
+    },
+    {
+      "id": "tank",
+      "view": "s",
+      "image": "tank.png",
+      "bounds": {
+        "x": -1,
+        "y": -11,
+        "width": 27,
+        "height": 24
+      },
+      "crop": {
+        "x": 0,
+        "y": 0,
+        "width": 368,
+        "height": 326
+      },
+      "body": {
+        "width": 26.999999999999996,
+        "height": 23.918478260869563
+      },
+      "sourceWidth": 368,
+      "sourceHeight": 326,
+      "sourcePixelsPerWorldPixel": 13.63,
+      "zoomLimit": 6,
+      "sourceExpansionAtMaxZoom": 1,
+      "status": "source-inspected",
+      "reason": "Contour, primary shapes and material boundaries inspected on the source contact sheet; no obvious baked blur found. This is not room/camera approval."
+    },
+    {
+      "id": "whiteboard",
+      "view": "s",
+      "image": "whiteboard.png",
+      "bounds": {
+        "x": -1,
+        "y": -11,
+        "width": 50,
+        "height": 23
+      },
+      "crop": {
+        "x": 0,
+        "y": 0,
+        "width": 555,
+        "height": 247
+      },
+      "body": {
+        "width": 50.00000000000001,
+        "height": 22.252252252252255
+      },
+      "sourceWidth": 555,
+      "sourceHeight": 247,
+      "sourcePixelsPerWorldPixel": 11.1,
+      "zoomLimit": 6,
+      "sourceExpansionAtMaxZoom": 1,
+      "status": "source-inspected",
+      "reason": "Contour, primary shapes and material boundaries inspected on the source contact sheet; no obvious baked blur found. This is not room/camera approval."
+    },
+    {
+      "id": "ticker",
+      "view": "s",
+      "image": "ticker.png",
+      "bounds": {
+        "x": -1,
+        "y": -8,
+        "width": 50,
+        "height": 20
+      },
+      "crop": {
+        "x": 0,
+        "y": 0,
+        "width": 477,
+        "height": 214
+      },
+      "body": {
+        "width": 44.579439252336456,
+        "height": 20.000000000000004
+      },
+      "sourceWidth": 477,
+      "sourceHeight": 214,
+      "sourcePixelsPerWorldPixel": 10.7,
+      "zoomLimit": 6,
+      "sourceExpansionAtMaxZoom": 1,
+      "status": "source-inspected",
+      "reason": "Contour, primary shapes and material boundaries inspected on the source contact sheet; no obvious baked blur found. This is not room/camera approval."
+    },
+    {
+      "id": "chartwall",
+      "view": "s",
+      "image": "chartwall.png",
+      "bounds": {
+        "x": -1,
+        "y": -10,
+        "width": 38,
+        "height": 22
+      },
+      "crop": {
+        "x": 0,
+        "y": 0,
+        "width": 477,
+        "height": 232
+      },
+      "body": {
+        "width": 38,
+        "height": 18.48218029350105
+      },
+      "sourceWidth": 477,
+      "sourceHeight": 232,
+      "sourcePixelsPerWorldPixel": 12.55,
+      "zoomLimit": 6,
+      "sourceExpansionAtMaxZoom": 1,
+      "status": "source-inspected",
+      "reason": "Contour, primary shapes and material boundaries inspected on the source contact sheet; no obvious baked blur found. This is not room/camera approval."
+    },
+    {
+      "id": "wartable",
+      "view": "s",
+      "image": "wartable.png",
+      "bounds": {
+        "x": -1,
+        "y": -1,
+        "width": 66,
+        "height": 25
+      },
+      "crop": {
+        "x": 0,
+        "y": 0,
+        "width": 1981,
+        "height": 703
+      },
+      "body": {
+        "width": 66,
+        "height": 23.42150429076224
+      },
+      "sourceWidth": 1981,
+      "sourceHeight": 703,
+      "sourcePixelsPerWorldPixel": 30.02,
+      "zoomLimit": 6,
+      "sourceExpansionAtMaxZoom": 1,
+      "status": "source-inspected",
+      "reason": "Contour, primary shapes and material boundaries inspected on the source contact sheet; no obvious baked blur found. This is not room/camera approval."
+    },
+    {
+      "id": "calwall",
+      "view": "s",
+      "image": "calwall.png",
+      "bounds": {
+        "x": -1,
+        "y": -8,
+        "width": 74,
+        "height": 20
+      },
+      "crop": {
+        "x": 0,
+        "y": 0,
+        "width": 737,
+        "height": 205
+      },
+      "body": {
+        "width": 71.90243902439025,
+        "height": 20
+      },
+      "sourceWidth": 737,
+      "sourceHeight": 205,
+      "sourcePixelsPerWorldPixel": 10.25,
+      "zoomLimit": 6,
+      "sourceExpansionAtMaxZoom": 1,
+      "status": "source-inspected",
+      "reason": "Contour, primary shapes and material boundaries inspected on the source contact sheet; no obvious baked blur found. This is not room/camera approval."
+    },
+    {
+      "id": "bridge_tacscreen",
+      "view": "s",
+      "image": "bridge_tacscreen.png",
+      "bounds": {
+        "x": -1,
+        "y": -9,
+        "width": 26,
+        "height": 21
+      },
+      "crop": {
+        "x": 0,
+        "y": 0,
+        "width": 340,
+        "height": 269
+      },
+      "body": {
+        "width": 26.000000000000004,
+        "height": 20.57058823529412
+      },
+      "sourceWidth": 340,
+      "sourceHeight": 269,
+      "sourcePixelsPerWorldPixel": 13.08,
+      "zoomLimit": 6,
+      "sourceExpansionAtMaxZoom": 1,
+      "status": "source-inspected",
+      "reason": "Contour, primary shapes and material boundaries inspected on the source contact sheet; no obvious baked blur found. This is not room/camera approval."
+    },
+    {
+      "id": "bridge_dispatch_pylon",
+      "view": "s",
+      "image": "bridge_dispatch_pylon.png",
+      "bounds": {
+        "x": -2,
+        "y": -11,
+        "width": 19,
+        "height": 35
+      },
+      "crop": {
+        "x": 0,
+        "y": 0,
+        "width": 302,
+        "height": 573
+      },
+      "body": {
+        "width": 18.446771378708554,
+        "height": 35.00000000000001
+      },
+      "sourceWidth": 302,
+      "sourceHeight": 573,
+      "sourcePixelsPerWorldPixel": 16.37,
+      "zoomLimit": 6,
+      "sourceExpansionAtMaxZoom": 1,
+      "status": "source-inspected",
+      "reason": "Contour, primary shapes and material boundaries inspected on the source contact sheet; no obvious baked blur found. This is not room/camera approval."
+    },
+    {
+      "id": "bridge_orderqueue",
+      "view": "s",
+      "image": "bridge_orderqueue.png",
+      "bounds": {
+        "x": -3,
+        "y": -12,
+        "width": 28,
+        "height": 24
+      },
+      "crop": {
+        "x": 0,
+        "y": 0,
+        "width": 405,
+        "height": 335
+      },
+      "body": {
+        "width": 28.000000000000004,
+        "height": 23.160493827160497
+      },
+      "sourceWidth": 405,
+      "sourceHeight": 335,
+      "sourcePixelsPerWorldPixel": 14.46,
+      "zoomLimit": 6,
+      "sourceExpansionAtMaxZoom": 1,
+      "status": "source-inspected",
+      "reason": "Contour, primary shapes and material boundaries inspected on the source contact sheet; no obvious baked blur found. This is not room/camera approval."
+    },
+    {
+      "id": "war_pivotpanel",
+      "view": "s",
+      "image": "war_pivotpanel.png",
+      "bounds": {
+        "x": -1,
+        "y": -6,
+        "width": 26,
+        "height": 18
+      },
+      "crop": {
+        "x": 0,
+        "y": 0,
+        "width": 509,
+        "height": 351
+      },
+      "body": {
+        "width": 26,
+        "height": 17.929273084479373
+      },
+      "sourceWidth": 509,
+      "sourceHeight": 351,
+      "sourcePixelsPerWorldPixel": 19.58,
+      "zoomLimit": 6,
+      "sourceExpansionAtMaxZoom": 1,
+      "status": "source-inspected",
+      "reason": "Contour, primary shapes and material boundaries inspected on the source contact sheet; no obvious baked blur found. This is not room/camera approval."
+    },
+    {
+      "id": "war_threatcore",
+      "view": "s",
+      "image": "war_threatcore.png",
+      "bounds": {
+        "x": -1,
+        "y": -10,
+        "width": 18,
+        "height": 34
+      },
+      "crop": {
+        "x": 0,
+        "y": 0,
+        "width": 200,
+        "height": 388
+      },
+      "body": {
+        "width": 17.525773195876287,
+        "height": 34
+      },
+      "sourceWidth": 200,
+      "sourceHeight": 388,
+      "sourcePixelsPerWorldPixel": 11.41,
+      "zoomLimit": 6,
+      "sourceExpansionAtMaxZoom": 1,
+      "status": "source-inspected",
+      "reason": "Contour, primary shapes and material boundaries inspected on the source contact sheet; no obvious baked blur found. This is not room/camera approval."
+    },
+    {
+      "id": "fabricator",
+      "view": "s",
+      "image": "fabricator.png",
+      "bounds": {
+        "x": -3,
+        "y": -4,
+        "width": 44,
+        "height": 28
+      },
+      "crop": {
+        "x": 0,
+        "y": 0,
+        "width": 420,
+        "height": 274
+      },
+      "body": {
+        "width": 42.919708029197075,
+        "height": 27.999999999999996
+      },
+      "sourceWidth": 420,
+      "sourceHeight": 274,
+      "sourcePixelsPerWorldPixel": 9.79,
+      "zoomLimit": 6,
+      "sourceExpansionAtMaxZoom": 1,
+      "status": "source-inspected",
+      "reason": "Contour, primary shapes and material boundaries inspected on the source contact sheet; no obvious baked blur found. This is not room/camera approval."
+    },
+    {
+      "id": "vat",
+      "view": "s",
+      "image": "vat.png",
+      "bounds": {
+        "x": 0,
+        "y": -4,
+        "width": 41,
+        "height": 28
+      },
+      "crop": {
+        "x": 0,
+        "y": 0,
+        "width": 382,
+        "height": 278
+      },
+      "body": {
+        "width": 38.47482014388489,
+        "height": 28
+      },
+      "sourceWidth": 382,
+      "sourceHeight": 278,
+      "sourcePixelsPerWorldPixel": 9.93,
+      "zoomLimit": 6,
+      "sourceExpansionAtMaxZoom": 1,
+      "status": "source-inspected",
+      "reason": "Contour, primary shapes and material boundaries inspected on the source contact sheet; no obvious baked blur found. This is not room/camera approval."
+    },
+    {
+      "id": "easel",
+      "view": "s",
+      "image": "easel.png",
+      "bounds": {
+        "x": 1,
+        "y": -14,
+        "width": 34,
+        "height": 38
+      },
+      "crop": {
+        "x": 0,
+        "y": 0,
+        "width": 649,
+        "height": 748
+      },
+      "body": {
+        "width": 32.970588235294116,
+        "height": 37.99999999999999
+      },
+      "sourceWidth": 649,
+      "sourceHeight": 748,
+      "sourcePixelsPerWorldPixel": 19.68,
+      "zoomLimit": 6,
+      "sourceExpansionAtMaxZoom": 1,
+      "status": "source-inspected",
+      "reason": "Contour, primary shapes and material boundaries inspected on the source contact sheet; no obvious baked blur found. This is not room/camera approval."
+    },
+    {
+      "id": "tube",
+      "view": "s",
+      "image": "tube.png",
+      "bounds": {
+        "x": -1,
+        "y": -4,
+        "width": 26,
+        "height": 15
+      },
+      "crop": {
+        "x": 0,
+        "y": 0,
+        "width": 340,
+        "height": 200
+      },
+      "body": {
+        "width": 25.5,
+        "height": 15
+      },
+      "sourceWidth": 340,
+      "sourceHeight": 200,
+      "sourcePixelsPerWorldPixel": 13.33,
+      "zoomLimit": 6,
+      "sourceExpansionAtMaxZoom": 1,
+      "status": "source-inspected",
+      "reason": "Contour, primary shapes and material boundaries inspected on the source contact sheet; no obvious baked blur found. This is not room/camera approval."
+    },
+    {
+      "id": "research_corelens",
+      "view": "s",
+      "image": "research_corelens.png",
+      "bounds": {
+        "x": -2,
+        "y": -9,
+        "width": 20,
+        "height": 33
+      },
+      "crop": {
+        "x": 0,
+        "y": 0,
+        "width": 272,
+        "height": 363
+      },
+      "body": {
+        "width": 20,
+        "height": 26.691176470588236
+      },
+      "sourceWidth": 272,
+      "sourceHeight": 363,
+      "sourcePixelsPerWorldPixel": 13.6,
+      "zoomLimit": 6,
+      "sourceExpansionAtMaxZoom": 1,
+      "status": "source-inspected",
+      "reason": "Contour, primary shapes and material boundaries inspected on the source contact sheet; no obvious baked blur found. This is not room/camera approval."
+    },
+    {
+      "id": "research_trendpillar",
+      "view": "s",
+      "image": "research_trendpillar.png",
+      "bounds": {
+        "x": -2,
+        "y": -7,
+        "width": 20,
+        "height": 31
+      },
+      "crop": {
+        "x": 0,
+        "y": 0,
+        "width": 272,
+        "height": 362
+      },
+      "body": {
+        "width": 20,
+        "height": 26.61764705882353
+      },
+      "sourceWidth": 272,
+      "sourceHeight": 362,
+      "sourcePixelsPerWorldPixel": 13.6,
+      "zoomLimit": 6,
+      "sourceExpansionAtMaxZoom": 1,
+      "status": "source-inspected",
+      "reason": "Contour, primary shapes and material boundaries inspected on the source contact sheet; no obvious baked blur found. This is not room/camera approval."
+    },
+    {
+      "id": "research_samplecart",
+      "view": "s",
+      "image": "research_samplecart.png",
+      "bounds": {
+        "x": -1,
+        "y": -6,
+        "width": 28,
+        "height": 18
+      },
+      "crop": {
+        "x": 0,
+        "y": 0,
+        "width": 650,
+        "height": 459
+      },
+      "body": {
+        "width": 25.49019607843137,
+        "height": 18
+      },
+      "sourceWidth": 650,
+      "sourceHeight": 459,
+      "sourcePixelsPerWorldPixel": 25.5,
+      "zoomLimit": 6,
+      "sourceExpansionAtMaxZoom": 1,
+      "status": "source-inspected",
+      "reason": "Contour, primary shapes and material boundaries inspected on the source contact sheet; no obvious baked blur found. This is not room/camera approval."
+    },
+    {
+      "id": "research_papers",
+      "view": "s",
+      "image": "research_papers.png",
+      "bounds": {
+        "x": 1,
+        "y": 1,
+        "width": 20,
+        "height": 10
+      },
+      "crop": {
+        "x": 0,
+        "y": 0,
+        "width": 433,
+        "height": 241
+      },
+      "body": {
+        "width": 17.966804979253112,
+        "height": 10
+      },
+      "sourceWidth": 433,
+      "sourceHeight": 241,
+      "sourcePixelsPerWorldPixel": 24.1,
+      "zoomLimit": 6,
+      "sourceExpansionAtMaxZoom": 1,
+      "status": "source-inspected",
+      "reason": "Contour, primary shapes and material boundaries inspected on the source contact sheet; no obvious baked blur found. This is not room/camera approval."
+    },
+    {
+      "id": "etsy_threadrack",
+      "view": "s",
+      "image": "etsy_threadrack.png",
+      "bounds": {
+        "x": -1,
+        "y": -8,
+        "width": 26,
+        "height": 20
+      },
+      "crop": {
+        "x": 0,
+        "y": 0,
+        "width": 406,
+        "height": 314
+      },
+      "body": {
+        "width": 25.85987261146497,
+        "height": 20
+      },
+      "sourceWidth": 406,
+      "sourceHeight": 314,
+      "sourcePixelsPerWorldPixel": 15.7,
+      "zoomLimit": 6,
+      "sourceExpansionAtMaxZoom": 1,
+      "status": "source-inspected",
+      "reason": "Contour, primary shapes and material boundaries inspected on the source contact sheet; no obvious baked blur found. This is not room/camera approval."
+    },
+    {
+      "id": "etsy_dyevat",
+      "view": "s",
+      "image": "etsy_dyevat.png",
+      "bounds": {
+        "x": 0,
+        "y": -5,
+        "width": 29,
+        "height": 29
+      },
+      "crop": {
+        "x": 0,
+        "y": 0,
+        "width": 368,
+        "height": 308
+      },
+      "body": {
+        "width": 29,
+        "height": 24.271739130434785
+      },
+      "sourceWidth": 368,
+      "sourceHeight": 308,
+      "sourcePixelsPerWorldPixel": 12.69,
+      "zoomLimit": 6,
+      "sourceExpansionAtMaxZoom": 1,
+      "status": "source-inspected",
+      "reason": "Contour, primary shapes and material boundaries inspected on the source contact sheet; no obvious baked blur found. This is not room/camera approval."
+    },
+    {
+      "id": "etsy_kiln",
+      "view": "s",
+      "image": "etsy_kiln.png",
+      "bounds": {
+        "x": -1,
+        "y": -9,
+        "width": 30,
+        "height": 33
+      },
+      "crop": {
+        "x": 0,
+        "y": 0,
+        "width": 324,
+        "height": 374
+      },
+      "body": {
+        "width": 28.588235294117645,
+        "height": 33
+      },
+      "sourceWidth": 324,
+      "sourceHeight": 374,
+      "sourcePixelsPerWorldPixel": 11.33,
+      "zoomLimit": 6,
+      "sourceExpansionAtMaxZoom": 1,
+      "status": "source-inspected",
+      "reason": "Contour, primary shapes and material boundaries inspected on the source contact sheet; no obvious baked blur found. This is not room/camera approval."
+    },
+    {
+      "id": "etsy_packbot",
+      "view": "s",
+      "image": "etsy_packbot.png",
+      "bounds": {
+        "x": -1,
+        "y": -15,
+        "width": 30,
+        "height": 39
+      },
+      "crop": {
+        "x": 0,
+        "y": 0,
+        "width": 270,
+        "height": 358
+      },
+      "body": {
+        "width": 29.413407821229054,
+        "height": 39.00000000000001
+      },
+      "sourceWidth": 270,
+      "sourceHeight": 358,
+      "sourcePixelsPerWorldPixel": 9.18,
+      "zoomLimit": 6,
+      "sourceExpansionAtMaxZoom": 1,
+      "status": "source-inspected",
+      "reason": "Contour, primary shapes and material boundaries inspected on the source contact sheet; no obvious baked blur found. This is not room/camera approval."
+    },
+    {
+      "id": "rackV",
+      "view": "s",
+      "image": "rackV.png",
+      "bounds": {
+        "x": -1,
+        "y": -12,
+        "width": 14,
+        "height": 36
+      },
+      "crop": {
+        "x": 0,
+        "y": 0,
+        "width": 182,
+        "height": 453
+      },
+      "body": {
+        "width": 14,
+        "height": 34.84615384615385
+      },
+      "sourceWidth": 182,
+      "sourceHeight": 453,
+      "sourcePixelsPerWorldPixel": 13,
+      "zoomLimit": 6,
+      "sourceExpansionAtMaxZoom": 1,
+      "status": "source-inspected",
+      "reason": "Contour, primary shapes and material boundaries inspected on the source contact sheet; no obvious baked blur found. This is not room/camera approval."
+    },
+    {
+      "id": "crate",
+      "view": "s",
+      "image": "crate.png",
+      "bounds": {
+        "x": -1,
+        "y": -8.8,
+        "width": 26,
+        "height": 20.8
+      },
+      "crop": {
+        "x": 0,
+        "y": 0,
+        "width": 631,
+        "height": 463
+      },
+      "body": {
+        "width": 26,
+        "height": 19.077654516640255
+      },
+      "sourceWidth": 631,
+      "sourceHeight": 463,
+      "sourcePixelsPerWorldPixel": 24.27,
+      "zoomLimit": 6,
+      "sourceExpansionAtMaxZoom": 1,
+      "status": "restored",
+      "reason": "Under-resolved source replaced with a generated fidelity restoration. Same world bounds and footprint. Compare before/after and inspect in Kepler."
+    },
+    {
+      "id": "boxes",
+      "view": "s",
+      "image": "boxes.png",
+      "bounds": {
+        "x": 0,
+        "y": -1,
+        "width": 24,
+        "height": 13
+      },
+      "crop": {
+        "x": 0,
+        "y": 0,
+        "width": 314,
+        "height": 193
+      },
+      "body": {
+        "width": 21.150259067357513,
+        "height": 13
+      },
+      "sourceWidth": 314,
+      "sourceHeight": 193,
+      "sourcePixelsPerWorldPixel": 14.85,
+      "zoomLimit": 6,
+      "sourceExpansionAtMaxZoom": 1,
+      "status": "source-inspected",
+      "reason": "Contour, primary shapes and material boundaries inspected on the source contact sheet; no obvious baked blur found. This is not room/camera approval."
+    },
+    {
+      "id": "goldcrate",
+      "view": "s",
+      "image": "goldcrate.png",
+      "bounds": {
+        "x": -1,
+        "y": -10,
+        "width": 26,
+        "height": 22
+      },
+      "crop": {
+        "x": 0,
+        "y": 0,
+        "width": 312,
+        "height": 225
+      },
+      "body": {
+        "width": 26,
+        "height": 18.75
+      },
+      "sourceWidth": 312,
+      "sourceHeight": 225,
+      "sourcePixelsPerWorldPixel": 12,
+      "zoomLimit": 6,
+      "sourceExpansionAtMaxZoom": 1,
+      "status": "source-inspected",
+      "reason": "Contour, primary shapes and material boundaries inspected on the source contact sheet; no obvious baked blur found. This is not room/camera approval."
+    },
+    {
+      "id": "gigs_partsbin",
+      "view": "s",
+      "image": "gigs_partsbin.png",
+      "bounds": {
+        "x": -1,
+        "y": -7,
+        "width": 26,
+        "height": 19
+      },
+      "crop": {
+        "x": 0,
+        "y": 0,
+        "width": 312,
+        "height": 211
+      },
+      "body": {
+        "width": 26,
+        "height": 17.583333333333332
+      },
+      "sourceWidth": 312,
+      "sourceHeight": 211,
+      "sourcePixelsPerWorldPixel": 12,
+      "zoomLimit": 6,
+      "sourceExpansionAtMaxZoom": 1,
+      "status": "source-inspected",
+      "reason": "Contour, primary shapes and material boundaries inspected on the source contact sheet; no obvious baked blur found. This is not room/camera approval."
+    },
+    {
+      "id": "treasury_coinsorter",
+      "view": "s",
+      "image": "treasury_coinsorter.png",
+      "bounds": {
+        "x": -1,
+        "y": -3,
+        "width": 26,
+        "height": 15
+      },
+      "crop": {
+        "x": 0,
+        "y": 0,
+        "width": 578,
+        "height": 317
+      },
+      "body": {
+        "width": 26,
+        "height": 14.259515570934257
+      },
+      "sourceWidth": 578,
+      "sourceHeight": 317,
+      "sourcePixelsPerWorldPixel": 22.23,
+      "zoomLimit": 6,
+      "sourceExpansionAtMaxZoom": 1,
+      "status": "source-inspected",
+      "reason": "Contour, primary shapes and material boundaries inspected on the source contact sheet; no obvious baked blur found. This is not room/camera approval."
+    },
+    {
+      "id": "treasury_token_furnace",
+      "view": "s",
+      "image": "treasury_token_furnace.png",
+      "bounds": {
+        "x": -1,
+        "y": -7,
+        "width": 14,
+        "height": 31
+      },
+      "crop": {
+        "x": 0,
+        "y": 0,
+        "width": 197,
+        "height": 437
+      },
+      "body": {
+        "width": 13.97482837528604,
+        "height": 30.999999999999996
+      },
+      "sourceWidth": 197,
+      "sourceHeight": 437,
+      "sourcePixelsPerWorldPixel": 14.1,
+      "zoomLimit": 6,
+      "sourceExpansionAtMaxZoom": 1,
+      "status": "source-inspected",
+      "reason": "Contour, primary shapes and material boundaries inspected on the source contact sheet; no obvious baked blur found. This is not room/camera approval."
+    },
+    {
+      "id": "commswall",
+      "view": "s",
+      "image": "commswall.png",
+      "bounds": {
+        "x": -1,
+        "y": -13,
+        "width": 74,
+        "height": 23
+      },
+      "crop": {
+        "x": 0,
+        "y": 0,
+        "width": 646,
+        "height": 199
+      },
+      "body": {
+        "width": 74,
+        "height": 22.795665634674922
+      },
+      "sourceWidth": 646,
+      "sourceHeight": 199,
+      "sourcePixelsPerWorldPixel": 8.73,
+      "zoomLimit": 6,
+      "sourceExpansionAtMaxZoom": 1,
+      "status": "source-inspected",
+      "reason": "Contour, primary shapes and material boundaries inspected on the source contact sheet; no obvious baked blur found. This is not room/camera approval."
+    },
+    {
+      "id": "comms_inbox",
+      "view": "s",
+      "image": "comms_inbox.png",
+      "bounds": {
+        "x": -1,
+        "y": -8,
+        "width": 30,
+        "height": 20
+      },
+      "crop": {
+        "x": 0,
+        "y": 0,
+        "width": 457,
+        "height": 297
+      },
+      "body": {
+        "width": 30.000000000000004,
+        "height": 19.496717724288843
+      },
+      "sourceWidth": 457,
+      "sourceHeight": 297,
+      "sourcePixelsPerWorldPixel": 15.23,
+      "zoomLimit": 6,
+      "sourceExpansionAtMaxZoom": 1,
+      "status": "source-inspected",
+      "reason": "Contour, primary shapes and material boundaries inspected on the source contact sheet; no obvious baked blur found. This is not room/camera approval."
+    },
+    {
+      "id": "gigs_thumbwall",
+      "view": "s",
+      "image": "gigs_thumbwall.png",
+      "bounds": {
+        "x": -1,
+        "y": -6,
+        "width": 26,
+        "height": 18
+      },
+      "crop": {
+        "x": 0,
+        "y": 0,
+        "width": 372,
+        "height": 222
+      },
+      "body": {
+        "width": 25.999999999999996,
+        "height": 15.516129032258062
+      },
+      "sourceWidth": 372,
+      "sourceHeight": 222,
+      "sourcePixelsPerWorldPixel": 14.31,
+      "zoomLimit": 6,
+      "sourceExpansionAtMaxZoom": 1,
+      "status": "source-inspected",
+      "reason": "Contour, primary shapes and material boundaries inspected on the source contact sheet; no obvious baked blur found. This is not room/camera approval."
+    },
+    {
+      "id": "gigs_amp",
+      "view": "s",
+      "image": "gigs_amp.png",
+      "bounds": {
+        "x": -1,
+        "y": -7,
+        "width": 16,
+        "height": 20
+      },
+      "crop": {
+        "x": 0,
+        "y": 0,
+        "width": 225,
+        "height": 281
+      },
+      "body": {
+        "width": 16,
+        "height": 19.982222222222223
+      },
+      "sourceWidth": 225,
+      "sourceHeight": 281,
+      "sourcePixelsPerWorldPixel": 14.06,
+      "zoomLimit": 6,
+      "sourceExpansionAtMaxZoom": 1,
+      "status": "source-inspected",
+      "reason": "Contour, primary shapes and material boundaries inspected on the source contact sheet; no obvious baked blur found. This is not room/camera approval."
+    },
+    {
+      "id": "pub_publishpress",
+      "view": "s",
+      "image": "pub_publishpress.png",
+      "bounds": {
+        "x": -1,
+        "y": -8,
+        "width": 30,
+        "height": 32
+      },
+      "crop": {
+        "x": 0,
+        "y": 0,
+        "width": 435,
+        "height": 401
+      },
+      "body": {
+        "width": 30,
+        "height": 27.655172413793103
+      },
+      "sourceWidth": 435,
+      "sourceHeight": 401,
+      "sourcePixelsPerWorldPixel": 14.5,
+      "zoomLimit": 6,
+      "sourceExpansionAtMaxZoom": 1,
+      "status": "source-inspected",
+      "reason": "Contour, primary shapes and material boundaries inspected on the source contact sheet; no obvious baked blur found. This is not room/camera approval."
+    },
+    {
+      "id": "pub_outboundchute",
+      "view": "s",
+      "image": "pub_outboundchute.png",
+      "bounds": {
+        "x": -3,
+        "y": -11,
+        "width": 18,
+        "height": 35
+      },
+      "crop": {
+        "x": 0,
+        "y": 0,
+        "width": 428,
+        "height": 650
+      },
+      "body": {
+        "width": 18,
+        "height": 27.33644859813084
+      },
+      "sourceWidth": 428,
+      "sourceHeight": 650,
+      "sourcePixelsPerWorldPixel": 23.78,
+      "zoomLimit": 6,
+      "sourceExpansionAtMaxZoom": 1,
+      "status": "source-inspected",
+      "reason": "Contour, primary shapes and material boundaries inspected on the source contact sheet; no obvious baked blur found. This is not room/camera approval."
+    },
+    {
+      "id": "pub_mailpod",
+      "view": "s",
+      "image": "pub_mailpod.png",
+      "bounds": {
+        "x": -3,
+        "y": -10,
+        "width": 31,
+        "height": 22
+      },
+      "crop": {
+        "x": 0,
+        "y": 0,
+        "width": 727,
+        "height": 513
+      },
+      "body": {
+        "width": 31,
+        "height": 21.874828060522695
+      },
+      "sourceWidth": 727,
+      "sourceHeight": 513,
+      "sourcePixelsPerWorldPixel": 23.45,
+      "zoomLimit": 6,
+      "sourceExpansionAtMaxZoom": 1,
+      "status": "source-inspected",
+      "reason": "Contour, primary shapes and material boundaries inspected on the source contact sheet; no obvious baked blur found. This is not room/camera approval."
+    },
+    {
+      "id": "arc_indexwall",
+      "view": "s",
+      "image": "arc_indexwall.png",
+      "bounds": {
+        "x": -1,
+        "y": -13,
+        "width": 50,
+        "height": 23
+      },
+      "crop": {
+        "x": 0,
+        "y": 0,
+        "width": 532,
+        "height": 234
+      },
+      "body": {
+        "width": 50,
+        "height": 21.992481203007518
+      },
+      "sourceWidth": 532,
+      "sourceHeight": 234,
+      "sourcePixelsPerWorldPixel": 10.64,
+      "zoomLimit": 6,
+      "sourceExpansionAtMaxZoom": 1,
+      "status": "source-inspected",
+      "reason": "Contour, primary shapes and material boundaries inspected on the source contact sheet; no obvious baked blur found. This is not room/camera approval."
+    },
+    {
+      "id": "arc_microfiche",
+      "view": "s",
+      "image": "arc_microfiche.png",
+      "bounds": {
+        "x": -1,
+        "y": -12,
+        "width": 30,
+        "height": 24
+      },
+      "crop": {
+        "x": 0,
+        "y": 0,
+        "width": 338,
+        "height": 277
+      },
+      "body": {
+        "width": 29.285198555956683,
+        "height": 24.000000000000004
+      },
+      "sourceWidth": 338,
+      "sourceHeight": 277,
+      "sourcePixelsPerWorldPixel": 11.54,
+      "zoomLimit": 6,
+      "sourceExpansionAtMaxZoom": 1,
+      "status": "source-inspected",
+      "reason": "Contour, primary shapes and material boundaries inspected on the source contact sheet; no obvious baked blur found. This is not room/camera approval."
+    },
+    {
+      "id": "djbooth",
+      "view": "s",
+      "image": "djbooth.png",
+      "bounds": {
+        "x": -1,
+        "y": -5,
+        "width": 50,
+        "height": 29
+      },
+      "crop": {
+        "x": 0,
+        "y": 0,
+        "width": 849,
+        "height": 507
+      },
+      "body": {
+        "width": 48.562130177514796,
+        "height": 29
+      },
+      "sourceWidth": 849,
+      "sourceHeight": 507,
+      "sourcePixelsPerWorldPixel": 17.48,
+      "zoomLimit": 6,
+      "sourceExpansionAtMaxZoom": 1,
+      "status": "source-inspected",
+      "reason": "Contour, primary shapes and material boundaries inspected on the source contact sheet; no obvious baked blur found. This is not room/camera approval."
+    },
+    {
+      "id": "speaker",
+      "view": "s",
+      "image": "speaker.png",
+      "bounds": {
+        "x": 1,
+        "y": -3,
+        "width": 10,
+        "height": 15
+      },
+      "crop": {
+        "x": 0,
+        "y": 0,
+        "width": 231,
+        "height": 352
+      },
+      "body": {
+        "width": 9.84375,
+        "height": 15.000000000000002
+      },
+      "sourceWidth": 231,
+      "sourceHeight": 352,
+      "sourcePixelsPerWorldPixel": 23.47,
+      "zoomLimit": 6,
+      "sourceExpansionAtMaxZoom": 1,
+      "status": "source-inspected",
+      "reason": "Contour, primary shapes and material boundaries inspected on the source contact sheet; no obvious baked blur found. This is not room/camera approval."
+    },
+    {
+      "id": "bar",
+      "view": "s",
+      "image": "bar.png",
+      "bounds": {
+        "x": -1,
+        "y": -12,
+        "width": 50,
+        "height": 24
+      },
+      "crop": {
+        "x": 0,
+        "y": 0,
+        "width": 974,
+        "height": 499
+      },
+      "body": {
+        "width": 46.84569138276553,
+        "height": 24
+      },
+      "sourceWidth": 974,
+      "sourceHeight": 499,
+      "sourcePixelsPerWorldPixel": 20.79,
+      "zoomLimit": 6,
+      "sourceExpansionAtMaxZoom": 1,
+      "status": "source-inspected",
+      "reason": "Contour, primary shapes and material boundaries inspected on the source contact sheet; no obvious baked blur found. This is not room/camera approval."
+    },
+    {
+      "id": "tv",
+      "view": "s",
+      "image": "tv.png",
+      "bounds": {
+        "x": -1,
+        "y": -12,
+        "width": 38,
+        "height": 24
+      },
+      "crop": {
+        "x": 0,
+        "y": 0,
+        "width": 287,
+        "height": 216
+      },
+      "body": {
+        "width": 31.888888888888886,
+        "height": 24
+      },
+      "sourceWidth": 287,
+      "sourceHeight": 216,
+      "sourcePixelsPerWorldPixel": 9,
+      "zoomLimit": 6,
+      "sourceExpansionAtMaxZoom": 1,
+      "status": "source-inspected",
+      "reason": "Contour, primary shapes and material boundaries inspected on the source contact sheet; no obvious baked blur found. This is not room/camera approval."
+    },
+    {
+      "id": "couch",
+      "view": "s",
+      "image": "couch.png",
+      "bounds": {
+        "x": -1,
+        "y": -14,
+        "width": 62,
+        "height": 26
+      },
+      "crop": {
+        "x": 0,
+        "y": 0,
+        "width": 1859,
+        "height": 682
+      },
+      "body": {
+        "width": 62,
+        "height": 22.745562130177515
+      },
+      "sourceWidth": 1859,
+      "sourceHeight": 682,
+      "sourcePixelsPerWorldPixel": 29.98,
+      "zoomLimit": 6,
+      "sourceExpansionAtMaxZoom": 1,
+      "status": "source-inspected",
+      "reason": "Contour, primary shapes and material boundaries inspected on the source contact sheet; no obvious baked blur found. This is not room/camera approval."
+    },
+    {
+      "id": "arcade",
+      "view": "s",
+      "image": "arcade.png",
+      "bounds": {
+        "x": -1,
+        "y": -2,
+        "width": 14,
+        "height": 26
+      },
+      "crop": {
+        "x": 0,
+        "y": 0,
+        "width": 143,
+        "height": 326
+      },
+      "body": {
+        "width": 11.404907975460123,
+        "height": 26
+      },
+      "sourceWidth": 143,
+      "sourceHeight": 326,
+      "sourcePixelsPerWorldPixel": 12.54,
+      "zoomLimit": 6,
+      "sourceExpansionAtMaxZoom": 1,
+      "status": "source-inspected",
+      "reason": "Contour, primary shapes and material boundaries inspected on the source contact sheet; no obvious baked blur found. This is not room/camera approval."
+    },
+    {
+      "id": "arcade2",
+      "view": "s",
+      "image": "arcade2.png",
+      "bounds": {
+        "x": -1,
+        "y": -3,
+        "width": 14,
+        "height": 27
+      },
+      "crop": {
+        "x": 0,
+        "y": 0,
+        "width": 143,
+        "height": 326
+      },
+      "body": {
+        "width": 11.843558282208589,
+        "height": 26.999999999999996
+      },
+      "sourceWidth": 143,
+      "sourceHeight": 326,
+      "sourcePixelsPerWorldPixel": 12.07,
+      "zoomLimit": 6,
+      "sourceExpansionAtMaxZoom": 1,
+      "status": "source-inspected",
+      "reason": "Contour, primary shapes and material boundaries inspected on the source contact sheet; no obvious baked blur found. This is not room/camera approval."
+    },
+    {
+      "id": "jukebox",
+      "view": "s",
+      "image": "jukebox.png",
+      "bounds": {
+        "x": -1,
+        "y": -3,
+        "width": 18,
+        "height": 27
+      },
+      "crop": {
+        "x": 0,
+        "y": 0,
+        "width": 287,
+        "height": 383
+      },
+      "body": {
+        "width": 18,
+        "height": 24.020905923344948
+      },
+      "sourceWidth": 287,
+      "sourceHeight": 383,
+      "sourcePixelsPerWorldPixel": 15.94,
+      "zoomLimit": 6,
+      "sourceExpansionAtMaxZoom": 1,
+      "status": "source-inspected",
+      "reason": "Contour, primary shapes and material boundaries inspected on the source contact sheet; no obvious baked blur found. This is not room/camera approval."
+    },
+    {
+      "id": "bunk",
+      "view": "s",
+      "image": "bunk.png",
+      "bounds": {
+        "x": 0,
+        "y": -2,
+        "width": 24,
+        "height": 26
+      },
+      "crop": {
+        "x": 0,
+        "y": 0,
+        "width": 1139,
+        "height": 1188
+      },
+      "body": {
+        "width": 24,
+        "height": 25.032484635645304
+      },
+      "sourceWidth": 1139,
+      "sourceHeight": 1188,
+      "sourcePixelsPerWorldPixel": 47.46,
+      "zoomLimit": 6,
+      "sourceExpansionAtMaxZoom": 1,
+      "status": "source-inspected",
+      "reason": "Contour, primary shapes and material boundaries inspected on the source contact sheet; no obvious baked blur found. This is not room/camera approval."
+    },
+    {
+      "id": "quarters_pooltable",
+      "view": "s",
+      "image": "quarters_pooltable.png",
+      "bounds": {
+        "x": -1,
+        "y": -11,
+        "width": 50,
+        "height": 35
+      },
+      "crop": {
+        "x": 0,
+        "y": 0,
+        "width": 348,
+        "height": 239
+      },
+      "body": {
+        "width": 50,
+        "height": 34.339080459770116
+      },
+      "sourceWidth": 348,
+      "sourceHeight": 239,
+      "sourcePixelsPerWorldPixel": 6.96,
+      "zoomLimit": 6,
+      "sourceExpansionAtMaxZoom": 1,
+      "status": "source-inspected",
+      "reason": "Contour, primary shapes and material boundaries inspected on the source contact sheet; no obvious baked blur found. This is not room/camera approval."
+    },
+    {
+      "id": "quarters_vending",
+      "view": "s",
+      "image": "quarters_vending.png",
+      "bounds": {
+        "x": -2,
+        "y": -9,
+        "width": 17,
+        "height": 33
+      },
+      "crop": {
+        "x": 0,
+        "y": 0,
+        "width": 289,
+        "height": 465
+      },
+      "body": {
+        "width": 17,
+        "height": 27.352941176470587
+      },
+      "sourceWidth": 289,
+      "sourceHeight": 465,
+      "sourcePixelsPerWorldPixel": 17,
+      "zoomLimit": 6,
+      "sourceExpansionAtMaxZoom": 1,
+      "status": "source-inspected",
+      "reason": "Contour, primary shapes and material boundaries inspected on the source contact sheet; no obvious baked blur found. This is not room/camera approval."
+    },
+    {
+      "id": "quarters_lockerbank",
+      "view": "s",
+      "image": "quarters_lockerbank.png",
+      "bounds": {
+        "x": -1,
+        "y": -20,
+        "width": 38,
+        "height": 32
+      },
+      "crop": {
+        "x": 0,
+        "y": 0,
+        "width": 558,
+        "height": 495
+      },
+      "body": {
+        "width": 36.07272727272727,
+        "height": 32
+      },
+      "sourceWidth": 558,
+      "sourceHeight": 495,
+      "sourcePixelsPerWorldPixel": 15.47,
+      "zoomLimit": 6,
+      "sourceExpansionAtMaxZoom": 1,
+      "status": "source-inspected",
+      "reason": "Contour, primary shapes and material boundaries inspected on the source contact sheet; no obvious baked blur found. This is not room/camera approval."
+    },
+    {
+      "id": "quarters_minifridge",
+      "view": "s",
+      "image": "quarters_minifridge.png",
+      "bounds": {
+        "x": 1,
+        "y": -11,
+        "width": 11,
+        "height": 24
+      },
+      "crop": {
+        "x": 0,
+        "y": 0,
+        "width": 198,
+        "height": 328
+      },
+      "body": {
+        "width": 11,
+        "height": 18.22222222222222
+      },
+      "sourceWidth": 198,
+      "sourceHeight": 328,
+      "sourcePixelsPerWorldPixel": 18,
+      "zoomLimit": 6,
+      "sourceExpansionAtMaxZoom": 1,
+      "status": "source-inspected",
+      "reason": "Contour, primary shapes and material boundaries inspected on the source contact sheet; no obvious baked blur found. This is not room/camera approval."
+    },
+    {
+      "id": "coffee",
+      "view": "s",
+      "image": "coffee.png",
+      "bounds": {
+        "x": 2.5,
+        "y": 2,
+        "width": 7,
+        "height": 10
+      },
+      "crop": {
+        "x": 0,
+        "y": 0,
+        "width": 214,
+        "height": 313
+      },
+      "body": {
+        "width": 6.837060702875399,
+        "height": 10
+      },
+      "sourceWidth": 214,
+      "sourceHeight": 313,
+      "sourcePixelsPerWorldPixel": 31.3,
+      "zoomLimit": 6,
+      "sourceExpansionAtMaxZoom": 1,
+      "status": "source-inspected",
+      "reason": "Contour, primary shapes and material boundaries inspected on the source contact sheet; no obvious baked blur found. This is not room/camera approval."
+    },
+    {
+      "id": "plant",
+      "view": "s",
+      "image": "plant.png",
+      "bounds": {
+        "x": 1,
+        "y": -8,
+        "width": 10,
+        "height": 20
+      },
+      "crop": {
+        "x": 0,
+        "y": 0,
+        "width": 640,
+        "height": 1412
+      },
+      "body": {
+        "width": 9.065155807365441,
+        "height": 20.000000000000004
+      },
+      "sourceWidth": 640,
+      "sourceHeight": 1412,
+      "sourcePixelsPerWorldPixel": 70.6,
+      "zoomLimit": 6,
+      "sourceExpansionAtMaxZoom": 1,
+      "status": "source-inspected",
+      "reason": "Contour, primary shapes and material boundaries inspected on the source contact sheet; no obvious baked blur found. This is not room/camera approval."
+    },
+    {
+      "id": "rug",
+      "view": "s",
+      "image": "rug.png",
+      "bounds": {
+        "x": -1,
+        "y": 0,
+        "width": 50,
+        "height": 36
+      },
+      "crop": {
+        "x": 0,
+        "y": 0,
+        "width": 350,
+        "height": 228
+      },
+      "body": {
+        "width": 50,
+        "height": 32.57142857142857
+      },
+      "sourceWidth": 350,
+      "sourceHeight": 228,
+      "sourcePixelsPerWorldPixel": 7,
+      "zoomLimit": 6,
+      "sourceExpansionAtMaxZoom": 1,
+      "status": "source-inspected",
+      "reason": "Contour, primary shapes and material boundaries inspected on the source contact sheet; no obvious baked blur found. This is not room/camera approval."
+    },
+    {
+      "id": "rug_small",
+      "view": "s",
+      "image": "rug_small.png",
+      "bounds": {
+        "x": 0,
+        "y": -1,
+        "width": 36,
+        "height": 38
+      },
+      "crop": {
+        "x": 0,
+        "y": 0,
+        "width": 248,
+        "height": 228
+      },
+      "body": {
+        "width": 35.99999999999999,
+        "height": 33.096774193548384
+      },
+      "sourceWidth": 248,
+      "sourceHeight": 228,
+      "sourcePixelsPerWorldPixel": 6.89,
+      "zoomLimit": 6,
+      "sourceExpansionAtMaxZoom": 1,
+      "status": "source-inspected",
+      "reason": "Contour, primary shapes and material boundaries inspected on the source contact sheet; no obvious baked blur found. This is not room/camera approval."
+    },
+    {
+      "id": "rug_large",
+      "view": "s",
+      "image": "rug_large.png",
+      "bounds": {
+        "x": 0,
+        "y": 0,
+        "width": 60,
+        "height": 60
+      },
+      "crop": {
+        "x": 0,
+        "y": 0,
+        "width": 556,
+        "height": 535
+      },
+      "body": {
+        "width": 60,
+        "height": 57.73381294964029
+      },
+      "sourceWidth": 556,
+      "sourceHeight": 535,
+      "sourcePixelsPerWorldPixel": 9.27,
+      "zoomLimit": 6,
+      "sourceExpansionAtMaxZoom": 1,
+      "status": "restored",
+      "reason": "Under-resolved source replaced with a generated fidelity restoration. Same world bounds and footprint. Compare before/after and inspect in Kepler."
+    },
+    {
+      "id": "treasury_pnl_holo",
+      "view": "s",
+      "image": "treasury_pnl_holo.png",
+      "bounds": {
+        "x": 1,
+        "y": 5,
+        "width": 10,
+        "height": 5
+      },
+      "crop": {
+        "x": 0,
+        "y": 0,
+        "width": 322,
+        "height": 174
+      },
+      "body": {
+        "width": 9.252873563218392,
+        "height": 5.000000000000001
+      },
+      "sourceWidth": 322,
+      "sourceHeight": 174,
+      "sourcePixelsPerWorldPixel": 34.8,
+      "zoomLimit": 6,
+      "sourceExpansionAtMaxZoom": 1,
+      "status": "source-inspected",
+      "reason": "Contour, primary shapes and material boundaries inspected on the source contact sheet; no obvious baked blur found. This is not room/camera approval."
+    },
+    {
+      "id": "arc_floorlight",
+      "view": "s",
+      "image": "arc_floorlight.png",
+      "bounds": {
+        "x": 1,
+        "y": 2,
+        "width": 10,
+        "height": 10
+      },
+      "crop": {
+        "x": 0,
+        "y": 0,
+        "width": 175,
+        "height": 175
+      },
+      "body": {
+        "width": 10,
+        "height": 10
+      },
+      "sourceWidth": 175,
+      "sourceHeight": 175,
+      "sourcePixelsPerWorldPixel": 17.5,
+      "zoomLimit": 6,
+      "sourceExpansionAtMaxZoom": 1,
+      "status": "source-inspected",
+      "reason": "Contour, primary shapes and material boundaries inspected on the source contact sheet; no obvious baked blur found. This is not room/camera approval."
+    },
+    {
+      "id": "arc_ladder",
+      "view": "s",
+      "image": "arc_ladder.png",
+      "bounds": {
+        "x": 0,
+        "y": -8,
+        "width": 14,
+        "height": 19
+      },
+      "crop": {
+        "x": 0,
+        "y": 0,
+        "width": 331,
+        "height": 506
+      },
+      "body": {
+        "width": 12.428853754940711,
+        "height": 19
+      },
+      "sourceWidth": 331,
+      "sourceHeight": 506,
+      "sourcePixelsPerWorldPixel": 26.63,
+      "zoomLimit": 6,
+      "sourceExpansionAtMaxZoom": 1,
+      "status": "source-inspected",
+      "reason": "Contour, primary shapes and material boundaries inspected on the source contact sheet; no obvious baked blur found. This is not room/camera approval."
+    },
+    {
+      "id": "stool",
+      "view": "s",
+      "image": "stool.png",
+      "bounds": {
+        "x": 1,
+        "y": 0,
+        "width": 10,
+        "height": 11
+      },
+      "crop": {
+        "x": 0,
+        "y": 0,
+        "width": 400,
+        "height": 454
+      },
+      "body": {
+        "width": 9.691629955947137,
+        "height": 11
+      },
+      "sourceWidth": 400,
+      "sourceHeight": 454,
+      "sourcePixelsPerWorldPixel": 41.27,
+      "zoomLimit": 6,
+      "sourceExpansionAtMaxZoom": 1,
+      "status": "source-inspected",
+      "reason": "Contour, primary shapes and material boundaries inspected on the source contact sheet; no obvious baked blur found. This is not room/camera approval."
+    },
+    {
+      "id": "chair",
+      "view": "s",
+      "image": "chair.png",
+      "bounds": {
+        "x": 0,
+        "y": -5.7778,
+        "width": 12,
+        "height": 17.7778
+      },
+      "crop": {
+        "x": 0,
+        "y": 0,
+        "width": 457,
+        "height": 683
+      },
+      "body": {
+        "width": 11.89524831625183,
+        "height": 17.7778
+      },
+      "sourceWidth": 457,
+      "sourceHeight": 683,
+      "sourcePixelsPerWorldPixel": 38.42,
+      "zoomLimit": 6,
+      "sourceExpansionAtMaxZoom": 1,
+      "status": "restored",
+      "reason": "Under-resolved source replaced with a generated fidelity restoration. Same world bounds and footprint. Compare before/after and inspect in Kepler."
+    },
+    {
+      "id": "chair",
+      "view": "w",
+      "image": "chair-w.png",
+      "bounds": {
+        "x": 1,
+        "y": -4.0748,
+        "width": 10,
+        "height": 16.0748
+      },
+      "crop": {
+        "x": 0,
+        "y": 0,
+        "width": 107,
+        "height": 172
+      },
+      "body": {
+        "width": 10.000000000000002,
+        "height": 16.074766355140188
+      },
+      "sourceWidth": 107,
+      "sourceHeight": 172,
+      "sourcePixelsPerWorldPixel": 10.7,
+      "zoomLimit": 6,
+      "sourceExpansionAtMaxZoom": 1,
+      "status": "source-inspected",
+      "reason": "Contour, primary shapes and material boundaries inspected on the source contact sheet; no obvious baked blur found. This is not room/camera approval."
+    },
+    {
+      "id": "chair",
+      "view": "n",
+      "image": "chair-n.png",
+      "bounds": {
+        "x": 0,
+        "y": -6.0541,
+        "width": 12,
+        "height": 18.0541
+      },
+      "crop": {
+        "x": 0,
+        "y": 0,
+        "width": 111,
+        "height": 167
+      },
+      "body": {
+        "width": 12,
+        "height": 18.054054054054056
+      },
+      "sourceWidth": 111,
+      "sourceHeight": 167,
+      "sourcePixelsPerWorldPixel": 9.25,
+      "zoomLimit": 6,
+      "sourceExpansionAtMaxZoom": 1,
+      "status": "source-inspected",
+      "reason": "Contour, primary shapes and material boundaries inspected on the source contact sheet; no obvious baked blur found. This is not room/camera approval."
+    },
+    {
+      "id": "chair",
+      "view": "e",
+      "image": "chair-e.png",
+      "bounds": {
+        "x": 1,
+        "y": -3.8333,
+        "width": 10,
+        "height": 15.8333
+      },
+      "crop": {
+        "x": 0,
+        "y": 0,
+        "width": 108,
+        "height": 171
+      },
+      "body": {
+        "width": 9.99997894736842,
+        "height": 15.8333
+      },
+      "sourceWidth": 108,
+      "sourceHeight": 171,
+      "sourcePixelsPerWorldPixel": 10.8,
+      "zoomLimit": 6,
+      "sourceExpansionAtMaxZoom": 1,
+      "status": "source-inspected",
+      "reason": "Contour, primary shapes and material boundaries inspected on the source contact sheet; no obvious baked blur found. This is not room/camera approval."
+    },
+    {
+      "id": "sidetable",
+      "view": "s",
+      "image": "sidetable.png",
+      "bounds": {
+        "x": 0,
+        "y": -3,
+        "width": 12,
+        "height": 15
+      },
+      "crop": {
+        "x": 0,
+        "y": 0,
+        "width": 236,
+        "height": 311
+      },
+      "body": {
+        "width": 11.382636655948552,
+        "height": 14.999999999999998
+      },
+      "sourceWidth": 236,
+      "sourceHeight": 311,
+      "sourcePixelsPerWorldPixel": 20.73,
+      "zoomLimit": 6,
+      "sourceExpansionAtMaxZoom": 1,
+      "status": "source-inspected",
+      "reason": "Contour, primary shapes and material boundaries inspected on the source contact sheet; no obvious baked blur found. This is not room/camera approval."
+    },
+    {
+      "id": "lowtable",
+      "view": "s",
+      "image": "lowtable.png",
+      "bounds": {
+        "x": -1,
+        "y": -5,
+        "width": 38,
+        "height": 17
+      },
+      "crop": {
+        "x": 0,
+        "y": 0,
+        "width": 521,
+        "height": 214
+      },
+      "body": {
+        "width": 38,
+        "height": 15.608445297504797
+      },
+      "sourceWidth": 521,
+      "sourceHeight": 214,
+      "sourcePixelsPerWorldPixel": 13.71,
+      "zoomLimit": 6,
+      "sourceExpansionAtMaxZoom": 1,
+      "status": "source-inspected",
+      "reason": "Contour, primary shapes and material boundaries inspected on the source contact sheet; no obvious baked blur found. This is not room/camera approval."
+    },
+    {
+      "id": "lowtable",
+      "view": "e",
+      "image": "lowtable-e.png",
+      "bounds": {
+        "x": -2,
+        "y": 0,
+        "width": 16,
+        "height": 36
+      },
+      "crop": {
+        "x": 0,
+        "y": 0,
+        "width": 163,
+        "height": 304
+      },
+      "body": {
+        "width": 16,
+        "height": 29.840490797546014
+      },
+      "sourceWidth": 163,
+      "sourceHeight": 304,
+      "sourcePixelsPerWorldPixel": 10.19,
+      "zoomLimit": 6,
+      "sourceExpansionAtMaxZoom": 1,
+      "status": "source-inspected",
+      "reason": "Contour, primary shapes and material boundaries inspected on the source contact sheet; no obvious baked blur found. This is not room/camera approval."
+    },
+    {
+      "id": "glasstable",
+      "view": "s",
+      "image": "glasstable.png",
+      "bounds": {
+        "x": 0,
+        "y": -6,
+        "width": 36,
+        "height": 18
+      },
+      "crop": {
+        "x": 0,
+        "y": 0,
+        "width": 548,
+        "height": 216
+      },
+      "body": {
+        "width": 36,
+        "height": 14.189781021897812
+      },
+      "sourceWidth": 548,
+      "sourceHeight": 216,
+      "sourcePixelsPerWorldPixel": 15.22,
+      "zoomLimit": 6,
+      "sourceExpansionAtMaxZoom": 1,
+      "status": "source-inspected",
+      "reason": "Contour, primary shapes and material boundaries inspected on the source contact sheet; no obvious baked blur found. This is not room/camera approval."
+    },
+    {
+      "id": "glasstable",
+      "view": "e",
+      "image": "glasstable-e.png",
+      "bounds": {
+        "x": 0,
+        "y": 0,
+        "width": 12,
+        "height": 36
+      },
+      "crop": {
+        "x": 0,
+        "y": 0,
+        "width": 449,
+        "height": 1325
+      },
+      "body": {
+        "width": 12,
+        "height": 35.41202672605791
+      },
+      "sourceWidth": 449,
+      "sourceHeight": 1325,
+      "sourcePixelsPerWorldPixel": 37.42,
+      "zoomLimit": 6,
+      "sourceExpansionAtMaxZoom": 1,
+      "status": "source-inspected",
+      "reason": "Contour, primary shapes and material boundaries inspected on the source contact sheet; no obvious baked blur found. This is not room/camera approval."
+    },
+    {
+      "id": "dinertable",
+      "view": "s",
+      "image": "dinertable.png",
+      "bounds": {
+        "x": -1,
+        "y": 3,
+        "width": 38,
+        "height": 22
+      },
+      "crop": {
+        "x": 0,
+        "y": 0,
+        "width": 1237,
+        "height": 737
+      },
+      "body": {
+        "width": 36.92537313432836,
+        "height": 22
+      },
+      "sourceWidth": 1237,
+      "sourceHeight": 737,
+      "sourcePixelsPerWorldPixel": 33.5,
+      "zoomLimit": 6,
+      "sourceExpansionAtMaxZoom": 1,
+      "status": "source-inspected",
+      "reason": "Contour, primary shapes and material boundaries inspected on the source contact sheet; no obvious baked blur found. This is not room/camera approval."
+    },
+    {
+      "id": "dinertable",
+      "view": "e",
+      "image": "dinertable-e.png",
+      "bounds": {
+        "x": -1,
+        "y": 0,
+        "width": 26,
+        "height": 37
+      },
+      "crop": {
+        "x": 0,
+        "y": 0,
+        "width": 447,
+        "height": 679
+      },
+      "body": {
+        "width": 24.357879234167893,
+        "height": 37
+      },
+      "sourceWidth": 447,
+      "sourceHeight": 679,
+      "sourcePixelsPerWorldPixel": 18.35,
+      "zoomLimit": 6,
+      "sourceExpansionAtMaxZoom": 1,
+      "status": "source-inspected",
+      "reason": "Contour, primary shapes and material boundaries inspected on the source contact sheet; no obvious baked blur found. This is not room/camera approval."
+    },
+    {
+      "id": "guitar",
+      "view": "s",
+      "image": "guitar.png",
+      "bounds": {
+        "x": -1,
+        "y": -15,
+        "width": 14,
+        "height": 27
+      },
+      "crop": {
+        "x": 0,
+        "y": 0,
+        "width": 218,
+        "height": 444
+      },
+      "body": {
+        "width": 13.256756756756758,
+        "height": 27
+      },
+      "sourceWidth": 218,
+      "sourceHeight": 444,
+      "sourcePixelsPerWorldPixel": 16.44,
+      "zoomLimit": 6,
+      "sourceExpansionAtMaxZoom": 1,
+      "status": "source-inspected",
+      "reason": "Contour, primary shapes and material boundaries inspected on the source contact sheet; no obvious baked blur found. This is not room/camera approval."
+    },
+    {
+      "id": "booth",
+      "view": "s",
+      "image": "booth.png",
+      "bounds": {
+        "x": 0,
+        "y": -7,
+        "width": 24,
+        "height": 19
+      },
+      "crop": {
+        "x": 0,
+        "y": 0,
+        "width": 333,
+        "height": 295
+      },
+      "body": {
+        "width": 21.447457627118645,
+        "height": 19
+      },
+      "sourceWidth": 333,
+      "sourceHeight": 295,
+      "sourcePixelsPerWorldPixel": 15.53,
+      "zoomLimit": 6,
+      "sourceExpansionAtMaxZoom": 1,
+      "status": "source-inspected",
+      "reason": "Contour, primary shapes and material boundaries inspected on the source contact sheet; no obvious baked blur found. This is not room/camera approval."
+    },
+    {
+      "id": "booth",
+      "view": "w",
+      "image": "booth-w.png",
+      "bounds": {
+        "x": 0,
+        "y": -5,
+        "width": 12,
+        "height": 29
+      },
+      "crop": {
+        "x": 0,
+        "y": 0,
+        "width": 289,
+        "height": 646
+      },
+      "body": {
+        "width": 12.000000000000002,
+        "height": 26.82352941176471
+      },
+      "sourceWidth": 289,
+      "sourceHeight": 646,
+      "sourcePixelsPerWorldPixel": 24.08,
+      "zoomLimit": 6,
+      "sourceExpansionAtMaxZoom": 1,
+      "status": "source-inspected",
+      "reason": "Contour, primary shapes and material boundaries inspected on the source contact sheet; no obvious baked blur found. This is not room/camera approval."
+    },
+    {
+      "id": "booth",
+      "view": "e",
+      "image": "booth-e.png",
+      "bounds": {
+        "x": 0,
+        "y": -5,
+        "width": 12,
+        "height": 29
+      },
+      "crop": {
+        "x": 0,
+        "y": 0,
+        "width": 696,
+        "height": 1789
+      },
+      "body": {
+        "width": 11.282280603689212,
+        "height": 29
+      },
+      "sourceWidth": 696,
+      "sourceHeight": 1789,
+      "sourcePixelsPerWorldPixel": 61.69,
+      "zoomLimit": 6,
+      "sourceExpansionAtMaxZoom": 1,
+      "status": "source-inspected",
+      "reason": "Contour, primary shapes and material boundaries inspected on the source contact sheet; no obvious baked blur found. This is not room/camera approval."
+    },
+    {
+      "id": "dinerchair",
+      "view": "s",
+      "image": "dinerchair.png",
+      "bounds": {
+        "x": 1,
+        "y": -4,
+        "width": 11,
+        "height": 16
+      },
+      "crop": {
+        "x": 0,
+        "y": 0,
+        "width": 167,
+        "height": 311
+      },
+      "body": {
+        "width": 8.591639871382636,
+        "height": 16
+      },
+      "sourceWidth": 167,
+      "sourceHeight": 311,
+      "sourcePixelsPerWorldPixel": 19.44,
+      "zoomLimit": 6,
+      "sourceExpansionAtMaxZoom": 1,
+      "status": "source-inspected",
+      "reason": "Contour, primary shapes and material boundaries inspected on the source contact sheet; no obvious baked blur found. This is not room/camera approval."
+    },
+    {
+      "id": "dinerchair",
+      "view": "w",
+      "image": "dinerchair-w.png",
+      "bounds": {
+        "x": 0,
+        "y": -4,
+        "width": 11,
+        "height": 16
+      },
+      "crop": {
+        "x": 0,
+        "y": 0,
+        "width": 226,
+        "height": 359
+      },
+      "body": {
+        "width": 10.072423398328691,
+        "height": 16
+      },
+      "sourceWidth": 226,
+      "sourceHeight": 359,
+      "sourcePixelsPerWorldPixel": 22.44,
+      "zoomLimit": 6,
+      "sourceExpansionAtMaxZoom": 1,
+      "status": "source-inspected",
+      "reason": "Contour, primary shapes and material boundaries inspected on the source contact sheet; no obvious baked blur found. This is not room/camera approval."
+    },
+    {
+      "id": "dinerchair",
+      "view": "n",
+      "image": "dinerchair-n.png",
+      "bounds": {
+        "x": 1,
+        "y": -4,
+        "width": 11,
+        "height": 16
+      },
+      "crop": {
+        "x": 0,
+        "y": 0,
+        "width": 218,
+        "height": 300
+      },
+      "body": {
+        "width": 11,
+        "height": 15.137614678899084
+      },
+      "sourceWidth": 218,
+      "sourceHeight": 300,
+      "sourcePixelsPerWorldPixel": 19.82,
+      "zoomLimit": 6,
+      "sourceExpansionAtMaxZoom": 1,
+      "status": "source-inspected",
+      "reason": "Contour, primary shapes and material boundaries inspected on the source contact sheet; no obvious baked blur found. This is not room/camera approval."
+    },
+    {
+      "id": "dinerchair",
+      "view": "e",
+      "image": "dinerchair-e.png",
+      "bounds": {
+        "x": 1,
+        "y": -4,
+        "width": 11,
+        "height": 16
+      },
+      "crop": {
+        "x": 0,
+        "y": 0,
+        "width": 227,
+        "height": 359
+      },
+      "body": {
+        "width": 10.116991643454039,
+        "height": 16
+      },
+      "sourceWidth": 227,
+      "sourceHeight": 359,
+      "sourcePixelsPerWorldPixel": 22.44,
+      "zoomLimit": 6,
+      "sourceExpansionAtMaxZoom": 1,
+      "status": "source-inspected",
+      "reason": "Contour, primary shapes and material boundaries inspected on the source contact sheet; no obvious baked blur found. This is not room/camera approval."
+    },
+    {
+      "id": "podchair",
+      "view": "s",
+      "image": "podchair.png",
+      "bounds": {
+        "x": 1,
+        "y": -5,
+        "width": 10,
+        "height": 17
+      },
+      "crop": {
+        "x": 0,
+        "y": 0,
+        "width": 237,
+        "height": 323
+      },
+      "body": {
+        "width": 10,
+        "height": 13.628691983122362
+      },
+      "sourceWidth": 237,
+      "sourceHeight": 323,
+      "sourcePixelsPerWorldPixel": 23.7,
+      "zoomLimit": 6,
+      "sourceExpansionAtMaxZoom": 1,
+      "status": "source-inspected",
+      "reason": "Contour, primary shapes and material boundaries inspected on the source contact sheet; no obvious baked blur found. This is not room/camera approval."
+    },
+    {
+      "id": "podchair",
+      "view": "w",
+      "image": "podchair-w.png",
+      "bounds": {
+        "x": 0,
+        "y": -5,
+        "width": 11,
+        "height": 17
+      },
+      "crop": {
+        "x": 0,
+        "y": 0,
+        "width": 262,
+        "height": 384
+      },
+      "body": {
+        "width": 11,
+        "height": 16.12213740458015
+      },
+      "sourceWidth": 262,
+      "sourceHeight": 384,
+      "sourcePixelsPerWorldPixel": 23.82,
+      "zoomLimit": 6,
+      "sourceExpansionAtMaxZoom": 1,
+      "status": "source-inspected",
+      "reason": "Contour, primary shapes and material boundaries inspected on the source contact sheet; no obvious baked blur found. This is not room/camera approval."
+    },
+    {
+      "id": "podchair",
+      "view": "n",
+      "image": "podchair-n.png",
+      "bounds": {
+        "x": 1,
+        "y": -5,
+        "width": 10,
+        "height": 17
+      },
+      "crop": {
+        "x": 0,
+        "y": 0,
+        "width": 356,
+        "height": 650
+      },
+      "body": {
+        "width": 9.310769230769232,
+        "height": 17
+      },
+      "sourceWidth": 356,
+      "sourceHeight": 650,
+      "sourcePixelsPerWorldPixel": 38.24,
+      "zoomLimit": 6,
+      "sourceExpansionAtMaxZoom": 1,
+      "status": "source-inspected",
+      "reason": "Contour, primary shapes and material boundaries inspected on the source contact sheet; no obvious baked blur found. This is not room/camera approval."
+    },
+    {
+      "id": "podchair",
+      "view": "e",
+      "image": "podchair-e.png",
+      "bounds": {
+        "x": 1,
+        "y": -5,
+        "width": 11,
+        "height": 17
+      },
+      "crop": {
+        "x": 0,
+        "y": 0,
+        "width": 262,
+        "height": 386
+      },
+      "body": {
+        "width": 11,
+        "height": 16.206106870229007
+      },
+      "sourceWidth": 262,
+      "sourceHeight": 386,
+      "sourcePixelsPerWorldPixel": 23.82,
+      "zoomLimit": 6,
+      "sourceExpansionAtMaxZoom": 1,
+      "status": "source-inspected",
+      "reason": "Contour, primary shapes and material boundaries inspected on the source contact sheet; no obvious baked blur found. This is not room/camera approval."
+    },
+    {
+      "id": "loungetable",
+      "view": "s",
+      "image": "loungetable.png",
+      "bounds": {
+        "x": 0,
+        "y": -6,
+        "width": 24,
+        "height": 18
+      },
+      "crop": {
+        "x": 0,
+        "y": 0,
+        "width": 426,
+        "height": 212
+      },
+      "body": {
+        "width": 24,
+        "height": 11.943661971830986
+      },
+      "sourceWidth": 426,
+      "sourceHeight": 212,
+      "sourcePixelsPerWorldPixel": 17.75,
+      "zoomLimit": 6,
+      "sourceExpansionAtMaxZoom": 1,
+      "status": "source-inspected",
+      "reason": "Contour, primary shapes and material boundaries inspected on the source contact sheet; no obvious baked blur found. This is not room/camera approval."
+    },
+    {
+      "id": "loungetable",
+      "view": "e",
+      "image": "loungetable-e.png",
+      "bounds": {
+        "x": -1,
+        "y": 0,
+        "width": 14,
+        "height": 24
+      },
+      "crop": {
+        "x": 0,
+        "y": 0,
+        "width": 190,
+        "height": 264
+      },
+      "body": {
+        "width": 14.000000000000002,
+        "height": 19.45263157894737
+      },
+      "sourceWidth": 190,
+      "sourceHeight": 264,
+      "sourcePixelsPerWorldPixel": 13.57,
+      "zoomLimit": 6,
+      "sourceExpansionAtMaxZoom": 1,
+      "status": "source-inspected",
+      "reason": "Contour, primary shapes and material boundaries inspected on the source contact sheet; no obvious baked blur found. This is not room/camera approval."
+    },
+    {
+      "id": "longtable",
+      "view": "s",
+      "image": "longtable.png",
+      "bounds": {
+        "x": -1,
+        "y": -6,
+        "width": 38,
+        "height": 18
+      },
+      "crop": {
+        "x": 0,
+        "y": 0,
+        "width": 1738,
+        "height": 658
+      },
+      "body": {
+        "width": 38,
+        "height": 14.386651323360184
+      },
+      "sourceWidth": 1738,
+      "sourceHeight": 658,
+      "sourcePixelsPerWorldPixel": 45.74,
+      "zoomLimit": 6,
+      "sourceExpansionAtMaxZoom": 1,
+      "status": "source-inspected",
+      "reason": "Contour, primary shapes and material boundaries inspected on the source contact sheet; no obvious baked blur found. This is not room/camera approval."
+    },
+    {
+      "id": "longtable",
+      "view": "e",
+      "image": "longtable-e.png",
+      "bounds": {
+        "x": -2,
+        "y": 0,
+        "width": 16,
+        "height": 36
+      },
+      "crop": {
+        "x": 0,
+        "y": 0,
+        "width": 179,
+        "height": 380
+      },
+      "body": {
+        "width": 16,
+        "height": 33.96648044692738
+      },
+      "sourceWidth": 179,
+      "sourceHeight": 380,
+      "sourcePixelsPerWorldPixel": 11.19,
+      "zoomLimit": 6,
+      "sourceExpansionAtMaxZoom": 1,
+      "status": "source-inspected",
+      "reason": "Contour, primary shapes and material boundaries inspected on the source contact sheet; no obvious baked blur found. This is not room/camera approval."
+    },
+    {
+      "id": "lavalamp",
+      "view": "s",
+      "image": "lavalamp.png",
+      "bounds": {
+        "x": 2,
+        "y": -8,
+        "width": 8,
+        "height": 20
+      },
+      "crop": {
+        "x": 0,
+        "y": 0,
+        "width": 282,
+        "height": 658
+      },
+      "body": {
+        "width": 8,
+        "height": 18.666666666666668
+      },
+      "sourceWidth": 282,
+      "sourceHeight": 658,
+      "sourcePixelsPerWorldPixel": 35.25,
+      "zoomLimit": 6,
+      "sourceExpansionAtMaxZoom": 1,
+      "status": "source-inspected",
+      "reason": "Contour, primary shapes and material boundaries inspected on the source contact sheet; no obvious baked blur found. This is not room/camera approval."
+    },
+    {
+      "id": "crt_pile",
+      "view": "s",
+      "image": "crt_pile.png",
+      "bounds": {
+        "x": -1,
+        "y": -4,
+        "width": 12,
+        "height": 17
+      },
+      "crop": {
+        "x": 0,
+        "y": 0,
+        "width": 205,
+        "height": 309
+      },
+      "body": {
+        "width": 11.27831715210356,
+        "height": 17
+      },
+      "sourceWidth": 205,
+      "sourceHeight": 309,
+      "sourcePixelsPerWorldPixel": 18.18,
+      "zoomLimit": 6,
+      "sourceExpansionAtMaxZoom": 1,
+      "status": "source-inspected",
+      "reason": "Contour, primary shapes and material boundaries inspected on the source contact sheet; no obvious baked blur found. This is not room/camera approval."
+    },
+    {
+      "id": "cablerun",
+      "view": "s",
+      "image": "cablerun.png",
+      "bounds": {
+        "x": 0,
+        "y": 2,
+        "width": 24,
+        "height": 9
+      },
+      "crop": {
+        "x": 0,
+        "y": 0,
+        "width": 1135,
+        "height": 250
+      },
+      "body": {
+        "width": 24.000000000000004,
+        "height": 5.286343612334802
+      },
+      "sourceWidth": 1135,
+      "sourceHeight": 250,
+      "sourcePixelsPerWorldPixel": 47.29,
+      "zoomLimit": 6,
+      "sourceExpansionAtMaxZoom": 1,
+      "status": "source-inspected",
+      "reason": "Contour, primary shapes and material boundaries inspected on the source contact sheet; no obvious baked blur found. This is not room/camera approval."
+    },
+    {
+      "id": "hazardpad",
+      "view": "s",
+      "image": "hazardpad.png",
+      "bounds": {
+        "x": 1,
+        "y": 1,
+        "width": 22,
+        "height": 10
+      },
+      "crop": {
+        "x": 0,
+        "y": 0,
+        "width": 413,
+        "height": 177
+      },
+      "body": {
+        "width": 22,
+        "height": 9.428571428571429
+      },
+      "sourceWidth": 413,
+      "sourceHeight": 177,
+      "sourcePixelsPerWorldPixel": 18.77,
+      "zoomLimit": 6,
+      "sourceExpansionAtMaxZoom": 1,
+      "status": "source-inspected",
+      "reason": "Contour, primary shapes and material boundaries inspected on the source contact sheet; no obvious baked blur found. This is not room/camera approval."
+    },
+    {
+      "id": "tallplant",
+      "view": "s",
+      "image": "tallplant.png",
+      "bounds": {
+        "x": 1,
+        "y": -14,
+        "width": 13,
+        "height": 26
+      },
+      "crop": {
+        "x": 0,
+        "y": 0,
+        "width": 227,
+        "height": 435
+      },
+      "body": {
+        "width": 13.000000000000002,
+        "height": 24.911894273127757
+      },
+      "sourceWidth": 227,
+      "sourceHeight": 435,
+      "sourcePixelsPerWorldPixel": 17.46,
+      "zoomLimit": 6,
+      "sourceExpansionAtMaxZoom": 1,
+      "status": "source-inspected",
+      "reason": "Contour, primary shapes and material boundaries inspected on the source contact sheet; no obvious baked blur found. This is not room/camera approval."
+    },
+    {
+      "id": "terrarium",
+      "view": "s",
+      "image": "terrarium.png",
+      "bounds": {
+        "x": 0,
+        "y": -5,
+        "width": 11,
+        "height": 16
+      },
+      "crop": {
+        "x": 0,
+        "y": 0,
+        "width": 227,
+        "height": 367
+      },
+      "body": {
+        "width": 9.896457765667575,
+        "height": 16
+      },
+      "sourceWidth": 227,
+      "sourceHeight": 367,
+      "sourcePixelsPerWorldPixel": 22.94,
+      "zoomLimit": 6,
+      "sourceExpansionAtMaxZoom": 1,
+      "status": "source-inspected",
+      "reason": "Contour, primary shapes and material boundaries inspected on the source contact sheet; no obvious baked blur found. This is not room/camera approval."
+    },
+    {
+      "id": "holopet",
+      "view": "s",
+      "image": "holopet.png",
+      "bounds": {
+        "x": 3,
+        "y": -6,
+        "width": 6,
+        "height": 16
+      },
+      "crop": {
+        "x": 0,
+        "y": 0,
+        "width": 436,
+        "height": 1295
+      },
+      "body": {
+        "width": 5.386872586872586,
+        "height": 16
+      },
+      "sourceWidth": 436,
+      "sourceHeight": 1295,
+      "sourcePixelsPerWorldPixel": 80.94,
+      "zoomLimit": 6,
+      "sourceExpansionAtMaxZoom": 1,
+      "status": "source-inspected",
+      "reason": "Contour, primary shapes and material boundaries inspected on the source contact sheet; no obvious baked blur found. This is not room/camera approval."
+    },
+    {
+      "id": "plasmaglobe",
+      "view": "s",
+      "image": "plasmaglobe.png",
+      "bounds": {
+        "x": 1,
+        "y": -5,
+        "width": 9,
+        "height": 17
+      },
+      "crop": {
+        "x": 0,
+        "y": 0,
+        "width": 312,
+        "height": 656
+      },
+      "body": {
+        "width": 8.085365853658537,
+        "height": 17
+      },
+      "sourceWidth": 312,
+      "sourceHeight": 656,
+      "sourcePixelsPerWorldPixel": 38.59,
+      "zoomLimit": 6,
+      "sourceExpansionAtMaxZoom": 1,
+      "status": "source-inspected",
+      "reason": "Contour, primary shapes and material boundaries inspected on the source contact sheet; no obvious baked blur found. This is not room/camera approval."
+    },
+    {
+      "id": "gachapon",
+      "view": "s",
+      "image": "gachapon.png",
+      "bounds": {
+        "x": 0,
+        "y": -7,
+        "width": 11,
+        "height": 19
+      },
+      "crop": {
+        "x": 0,
+        "y": 0,
+        "width": 200,
+        "height": 316
+      },
+      "body": {
+        "width": 10.999999999999998,
+        "height": 17.38
+      },
+      "sourceWidth": 200,
+      "sourceHeight": 316,
+      "sourcePixelsPerWorldPixel": 18.18,
+      "zoomLimit": 6,
+      "sourceExpansionAtMaxZoom": 1,
+      "status": "source-inspected",
+      "reason": "Contour, primary shapes and material boundaries inspected on the source contact sheet; no obvious baked blur found. This is not room/camera approval."
+    },
+    {
+      "id": "monstera",
+      "view": "s",
+      "image": "monstera.png",
+      "bounds": {
+        "x": 0,
+        "y": -1,
+        "width": 12,
+        "height": 13
+      },
+      "crop": {
+        "x": 0,
+        "y": 0,
+        "width": 345,
+        "height": 377
+      },
+      "body": {
+        "width": 11.89655172413793,
+        "height": 13
+      },
+      "sourceWidth": 345,
+      "sourceHeight": 377,
+      "sourcePixelsPerWorldPixel": 29,
+      "zoomLimit": 6,
+      "sourceExpansionAtMaxZoom": 1,
+      "status": "source-inspected",
+      "reason": "Contour, primary shapes and material boundaries inspected on the source contact sheet; no obvious baked blur found. This is not room/camera approval."
+    },
+    {
+      "id": "mug",
+      "view": "s",
+      "image": "mug.png",
+      "bounds": {
+        "x": 4,
+        "y": 8,
+        "width": 4,
+        "height": 4
+      },
+      "crop": {
+        "x": 0,
+        "y": 0,
+        "width": 571,
+        "height": 520
+      },
+      "body": {
+        "width": 4,
+        "height": 3.642732049036778
+      },
+      "sourceWidth": 571,
+      "sourceHeight": 520,
+      "sourcePixelsPerWorldPixel": 142.75,
+      "zoomLimit": 6,
+      "sourceExpansionAtMaxZoom": 1,
+      "status": "source-inspected",
+      "reason": "Contour, primary shapes and material boundaries inspected on the source contact sheet; no obvious baked blur found. This is not room/camera approval."
+    },
+    {
+      "id": "bookstack",
+      "view": "s",
+      "image": "bookstack.png",
+      "bounds": {
+        "x": 0,
+        "y": 0,
+        "width": 12,
+        "height": 10
+      },
+      "crop": {
+        "x": 0,
+        "y": 0,
+        "width": 298,
+        "height": 260
+      },
+      "body": {
+        "width": 11.461538461538462,
+        "height": 10
+      },
+      "sourceWidth": 298,
+      "sourceHeight": 260,
+      "sourcePixelsPerWorldPixel": 26,
+      "zoomLimit": 6,
+      "sourceExpansionAtMaxZoom": 1,
+      "status": "source-inspected",
+      "reason": "Contour, primary shapes and material boundaries inspected on the source contact sheet; no obvious baked blur found. This is not room/camera approval."
+    },
+    {
+      "id": "desklamp",
+      "view": "s",
+      "image": "desklamp.png",
+      "bounds": {
+        "x": 0,
+        "y": 3,
+        "width": 12,
+        "height": 9
+      },
+      "crop": {
+        "x": 0,
+        "y": 0,
+        "width": 363,
+        "height": 252
+      },
+      "body": {
+        "width": 12,
+        "height": 8.330578512396695
+      },
+      "sourceWidth": 363,
+      "sourceHeight": 252,
+      "sourcePixelsPerWorldPixel": 30.25,
+      "zoomLimit": 6,
+      "sourceExpansionAtMaxZoom": 1,
+      "status": "source-inspected",
+      "reason": "Contour, primary shapes and material boundaries inspected on the source contact sheet; no obvious baked blur found. This is not room/camera approval."
+    },
+    {
+      "id": "radio",
+      "view": "s",
+      "image": "radio.png",
+      "bounds": {
+        "x": 1,
+        "y": 3,
+        "width": 10,
+        "height": 9
+      },
+      "crop": {
+        "x": 0,
+        "y": 0,
+        "width": 668,
+        "height": 547
+      },
+      "body": {
+        "width": 10,
+        "height": 8.188622754491018
+      },
+      "sourceWidth": 668,
+      "sourceHeight": 547,
+      "sourcePixelsPerWorldPixel": 66.8,
+      "zoomLimit": 6,
+      "sourceExpansionAtMaxZoom": 1,
+      "status": "source-inspected",
+      "reason": "Contour, primary shapes and material boundaries inspected on the source contact sheet; no obvious baked blur found. This is not room/camera approval."
+    },
+    {
+      "id": "toolbox",
+      "view": "s",
+      "image": "toolbox.png",
+      "bounds": {
+        "x": 1,
+        "y": 5,
+        "width": 10,
+        "height": 7
+      },
+      "crop": {
+        "x": 0,
+        "y": 0,
+        "width": 1275,
+        "height": 669
+      },
+      "body": {
+        "width": 10,
+        "height": 5.247058823529412
+      },
+      "sourceWidth": 1275,
+      "sourceHeight": 669,
+      "sourcePixelsPerWorldPixel": 127.5,
+      "zoomLimit": 6,
+      "sourceExpansionAtMaxZoom": 1,
+      "status": "source-inspected",
+      "reason": "Contour, primary shapes and material boundaries inspected on the source contact sheet; no obvious baked blur found. This is not room/camera approval."
+    },
+    {
+      "id": "figurine",
+      "view": "s",
+      "image": "figurine.png",
+      "bounds": {
+        "x": 1,
+        "y": 1,
+        "width": 10,
+        "height": 11
+      },
+      "crop": {
+        "x": 0,
+        "y": 0,
+        "width": 231,
+        "height": 277
+      },
+      "body": {
+        "width": 9.173285198555956,
+        "height": 10.999999999999998
+      },
+      "sourceWidth": 231,
+      "sourceHeight": 277,
+      "sourcePixelsPerWorldPixel": 25.18,
+      "zoomLimit": 6,
+      "sourceExpansionAtMaxZoom": 1,
+      "status": "source-inspected",
+      "reason": "Contour, primary shapes and material boundaries inspected on the source contact sheet; no obvious baked blur found. This is not room/camera approval."
+    },
+    {
+      "id": "deskterminal",
+      "view": "s",
+      "image": "deskterminal.png",
+      "bounds": {
+        "x": 0,
+        "y": 0,
+        "width": 12,
+        "height": 12
+      },
+      "crop": {
+        "x": 0,
+        "y": 0,
+        "width": 247,
+        "height": 243
+      },
+      "body": {
+        "width": 12,
+        "height": 11.805668016194332
+      },
+      "sourceWidth": 247,
+      "sourceHeight": 243,
+      "sourcePixelsPerWorldPixel": 20.58,
+      "zoomLimit": 6,
+      "sourceExpansionAtMaxZoom": 1,
+      "status": "source-inspected",
+      "reason": "Contour, primary shapes and material boundaries inspected on the source contact sheet; no obvious baked blur found. This is not room/camera approval."
+    },
+    {
+      "id": "modelship",
+      "view": "s",
+      "image": "modelship.png",
+      "bounds": {
+        "x": 2,
+        "y": 1,
+        "width": 20,
+        "height": 11
+      },
+      "crop": {
+        "x": 0,
+        "y": 0,
+        "width": 447,
+        "height": 225
+      },
+      "body": {
+        "width": 19.999999999999996,
+        "height": 10.06711409395973
+      },
+      "sourceWidth": 447,
+      "sourceHeight": 225,
+      "sourcePixelsPerWorldPixel": 22.35,
+      "zoomLimit": 6,
+      "sourceExpansionAtMaxZoom": 1,
+      "status": "source-inspected",
+      "reason": "Contour, primary shapes and material boundaries inspected on the source contact sheet; no obvious baked blur found. This is not room/camera approval."
+    },
+    {
+      "id": "steamvent",
+      "view": "s",
+      "image": "steamvent.png",
+      "bounds": {
+        "x": 0,
+        "y": 3,
+        "width": 12,
+        "height": 9
+      },
+      "crop": {
+        "x": 0,
+        "y": 0,
+        "width": 845,
+        "height": 473
+      },
+      "body": {
+        "width": 12,
+        "height": 6.717159763313609
+      },
+      "sourceWidth": 845,
+      "sourceHeight": 473,
+      "sourcePixelsPerWorldPixel": 70.42,
+      "zoomLimit": 6,
+      "sourceExpansionAtMaxZoom": 1,
+      "status": "source-inspected",
+      "reason": "Contour, primary shapes and material boundaries inspected on the source contact sheet; no obvious baked blur found. This is not room/camera approval."
+    },
+    {
+      "id": "fishtank",
+      "view": "s",
+      "image": "fishtank.png",
+      "bounds": {
+        "x": -1,
+        "y": -12,
+        "width": 26,
+        "height": 24
+      },
+      "crop": {
+        "x": 0,
+        "y": 0,
+        "width": 1065,
+        "height": 809
+      },
+      "body": {
+        "width": 26,
+        "height": 19.750234741784038
+      },
+      "sourceWidth": 1065,
+      "sourceHeight": 809,
+      "sourcePixelsPerWorldPixel": 40.96,
+      "zoomLimit": 6,
+      "sourceExpansionAtMaxZoom": 1,
+      "status": "source-inspected",
+      "reason": "Contour, primary shapes and material boundaries inspected on the source contact sheet; no obvious baked blur found. This is not room/camera approval."
+    },
+    {
+      "id": "pokertable",
+      "view": "s",
+      "image": "pokertable.png",
+      "bounds": {
+        "x": -1,
+        "y": -5,
+        "width": 50,
+        "height": 29
+      },
+      "crop": {
+        "x": 0,
+        "y": 0,
+        "width": 457,
+        "height": 283
+      },
+      "body": {
+        "width": 46.830388692579504,
+        "height": 28.999999999999996
+      },
+      "sourceWidth": 457,
+      "sourceHeight": 283,
+      "sourcePixelsPerWorldPixel": 9.76,
+      "zoomLimit": 6,
+      "sourceExpansionAtMaxZoom": 1,
+      "status": "source-inspected",
+      "reason": "Contour, primary shapes and material boundaries inspected on the source contact sheet; no obvious baked blur found. This is not room/camera approval."
+    },
+    {
+      "id": "bookshelf",
+      "view": "s",
+      "image": "bookshelf.png",
+      "bounds": {
+        "x": -1,
+        "y": -9,
+        "width": 26,
+        "height": 22
+      },
+      "crop": {
+        "x": 0,
+        "y": 0,
+        "width": 1125,
+        "height": 944
+      },
+      "body": {
+        "width": 26.000000000000004,
+        "height": 21.81688888888889
+      },
+      "sourceWidth": 1125,
+      "sourceHeight": 944,
+      "sourcePixelsPerWorldPixel": 43.27,
+      "zoomLimit": 6,
+      "sourceExpansionAtMaxZoom": 1,
+      "status": "source-inspected",
+      "reason": "Contour, primary shapes and material boundaries inspected on the source contact sheet; no obvious baked blur found. This is not room/camera approval."
+    },
+    {
+      "id": "beanbag",
+      "view": "s",
+      "image": "beanbag.png",
+      "bounds": {
+        "x": -1,
+        "y": 1,
+        "width": 14,
+        "height": 11
+      },
+      "crop": {
+        "x": 0,
+        "y": 0,
+        "width": 322,
+        "height": 273
+      },
+      "body": {
+        "width": 12.974358974358974,
+        "height": 11
+      },
+      "sourceWidth": 322,
+      "sourceHeight": 273,
+      "sourcePixelsPerWorldPixel": 24.82,
+      "zoomLimit": 6,
+      "sourceExpansionAtMaxZoom": 1,
+      "status": "source-inspected",
+      "reason": "Contour, primary shapes and material boundaries inspected on the source contact sheet; no obvious baked blur found. This is not room/camera approval."
+    },
+    {
+      "id": "pinball",
+      "view": "s",
+      "image": "pinball.png",
+      "bounds": {
+        "x": -1,
+        "y": -3,
+        "width": 16,
+        "height": 27
+      },
+      "crop": {
+        "x": 0,
+        "y": 0,
+        "width": 336,
+        "height": 567
+      },
+      "body": {
+        "width": 16,
+        "height": 27
+      },
+      "sourceWidth": 336,
+      "sourceHeight": 567,
+      "sourcePixelsPerWorldPixel": 21,
+      "zoomLimit": 6,
+      "sourceExpansionAtMaxZoom": 1,
+      "status": "source-inspected",
+      "reason": "Contour, primary shapes and material boundaries inspected on the source contact sheet; no obvious baked blur found. This is not room/camera approval."
+    },
+    {
+      "id": "cryopod",
+      "view": "s",
+      "image": "cryopod.png",
+      "bounds": {
+        "x": 0,
+        "y": -6,
+        "width": 12,
+        "height": 30
+      },
+      "crop": {
+        "x": 0,
+        "y": 0,
+        "width": 194,
+        "height": 456
+      },
+      "body": {
+        "width": 11.999999999999998,
+        "height": 28.20618556701031
+      },
+      "sourceWidth": 194,
+      "sourceHeight": 456,
+      "sourcePixelsPerWorldPixel": 16.17,
+      "zoomLimit": 6,
+      "sourceExpansionAtMaxZoom": 1,
+      "status": "source-inspected",
+      "reason": "Contour, primary shapes and material boundaries inspected on the source contact sheet; no obvious baked blur found. This is not room/camera approval."
+    },
+    {
+      "id": "incubator",
+      "view": "s",
+      "image": "incubator.png",
+      "bounds": {
+        "x": -1,
+        "y": -9,
+        "width": 14,
+        "height": 33
+      },
+      "crop": {
+        "x": 0,
+        "y": 0,
+        "width": 193,
+        "height": 477
+      },
+      "body": {
+        "width": 13.352201257861635,
+        "height": 33
+      },
+      "sourceWidth": 193,
+      "sourceHeight": 477,
+      "sourcePixelsPerWorldPixel": 14.45,
+      "zoomLimit": 6,
+      "sourceExpansionAtMaxZoom": 1,
+      "status": "source-inspected",
+      "reason": "Contour, primary shapes and material boundaries inspected on the source contact sheet; no obvious baked blur found. This is not room/camera approval."
+    },
+    {
+      "id": "telescope",
+      "view": "s",
+      "image": "telescope.png",
+      "bounds": {
+        "x": -3,
+        "y": -8,
+        "width": 19,
+        "height": 31
+      },
+      "crop": {
+        "x": 0,
+        "y": 0,
+        "width": 326,
+        "height": 372
+      },
+      "body": {
+        "width": 19,
+        "height": 21.680981595092025
+      },
+      "sourceWidth": 326,
+      "sourceHeight": 372,
+      "sourcePixelsPerWorldPixel": 17.16,
+      "zoomLimit": 6,
+      "sourceExpansionAtMaxZoom": 1,
+      "status": "source-inspected",
+      "reason": "Contour, primary shapes and material boundaries inspected on the source contact sheet; no obvious baked blur found. This is not room/camera approval."
+    },
+    {
+      "id": "telescope_r",
+      "view": "s",
+      "image": "telescope_r.png",
+      "bounds": {
+        "x": -4,
+        "y": -8,
+        "width": 19,
+        "height": 31
+      },
+      "crop": {
+        "x": 0,
+        "y": 0,
+        "width": 312,
+        "height": 374
+      },
+      "body": {
+        "width": 18.999999999999996,
+        "height": 22.775641025641022
+      },
+      "sourceWidth": 312,
+      "sourceHeight": 374,
+      "sourcePixelsPerWorldPixel": 16.42,
+      "zoomLimit": 6,
+      "sourceExpansionAtMaxZoom": 1,
+      "status": "source-inspected",
+      "reason": "Contour, primary shapes and material boundaries inspected on the source contact sheet; no obvious baked blur found. This is not room/camera approval."
+    },
+    {
+      "id": "camerarig",
+      "view": "s",
+      "image": "camerarig.png",
+      "bounds": {
+        "x": -1,
+        "y": -6,
+        "width": 15,
+        "height": 29
+      },
+      "crop": {
+        "x": 0,
+        "y": 0,
+        "width": 199,
+        "height": 339
+      },
+      "body": {
+        "width": 14.999999999999998,
+        "height": 25.552763819095475
+      },
+      "sourceWidth": 199,
+      "sourceHeight": 339,
+      "sourcePixelsPerWorldPixel": 13.27,
+      "zoomLimit": 6,
+      "sourceExpansionAtMaxZoom": 1,
+      "status": "source-inspected",
+      "reason": "Contour, primary shapes and material boundaries inspected on the source contact sheet; no obvious baked blur found. This is not room/camera approval."
+    },
+    {
+      "id": "camerarig_r",
+      "view": "s",
+      "image": "camerarig_r.png",
+      "bounds": {
+        "x": -2,
+        "y": -6,
+        "width": 15,
+        "height": 29
+      },
+      "crop": {
+        "x": 0,
+        "y": 0,
+        "width": 202,
+        "height": 339
+      },
+      "body": {
+        "width": 15,
+        "height": 25.173267326732674
+      },
+      "sourceWidth": 202,
+      "sourceHeight": 339,
+      "sourcePixelsPerWorldPixel": 13.47,
+      "zoomLimit": 6,
+      "sourceExpansionAtMaxZoom": 1,
+      "status": "source-inspected",
+      "reason": "Contour, primary shapes and material boundaries inspected on the source contact sheet; no obvious baked blur found. This is not room/camera approval."
+    },
+    {
+      "id": "weaponrack",
+      "view": "s",
+      "image": "weaponrack.png",
+      "bounds": {
+        "x": 1,
+        "y": -16,
+        "width": 34,
+        "height": 22
+      },
+      "crop": {
+        "x": 0,
+        "y": 0,
+        "width": 553,
+        "height": 384
+      },
+      "body": {
+        "width": 31.682291666666668,
+        "height": 22
+      },
+      "sourceWidth": 553,
+      "sourceHeight": 384,
+      "sourcePixelsPerWorldPixel": 17.45,
+      "zoomLimit": 6,
+      "sourceExpansionAtMaxZoom": 1,
+      "status": "source-inspected",
+      "reason": "Contour, primary shapes and material boundaries inspected on the source contact sheet; no obvious baked blur found. This is not room/camera approval."
+    },
+    {
+      "id": "weaponrack_r",
+      "view": "s",
+      "image": "weaponrack_r.png",
+      "bounds": {
+        "x": 1,
+        "y": -16,
+        "width": 34,
+        "height": 22
+      },
+      "crop": {
+        "x": 0,
+        "y": 0,
+        "width": 1126,
+        "height": 722
+      },
+      "body": {
+        "width": 34,
+        "height": 21.80106571936057
+      },
+      "sourceWidth": 1126,
+      "sourceHeight": 722,
+      "sourcePixelsPerWorldPixel": 33.12,
+      "zoomLimit": 6,
+      "sourceExpansionAtMaxZoom": 1,
+      "status": "source-inspected",
+      "reason": "Contour, primary shapes and material boundaries inspected on the source contact sheet; no obvious baked blur found. This is not room/camera approval."
+    },
+    {
+      "id": "punchbag",
+      "view": "s",
+      "image": "punchbag.png",
+      "bounds": {
+        "x": 0,
+        "y": -8,
+        "width": 12,
+        "height": 30
+      },
+      "crop": {
+        "x": 0,
+        "y": 0,
+        "width": 172,
+        "height": 416
+      },
+      "body": {
+        "width": 12,
+        "height": 29.023255813953487
+      },
+      "sourceWidth": 172,
+      "sourceHeight": 416,
+      "sourcePixelsPerWorldPixel": 14.33,
+      "zoomLimit": 6,
+      "sourceExpansionAtMaxZoom": 1,
+      "status": "source-inspected",
+      "reason": "Contour, primary shapes and material boundaries inspected on the source contact sheet; no obvious baked blur found. This is not room/camera approval."
+    },
+    {
+      "id": "punchbag_r",
+      "view": "s",
+      "image": "punchbag_r.png",
+      "bounds": {
+        "x": 0,
+        "y": -8,
+        "width": 12,
+        "height": 30
+      },
+      "crop": {
+        "x": 0,
+        "y": 0,
+        "width": 171,
+        "height": 417
+      },
+      "body": {
+        "width": 12,
+        "height": 29.26315789473684
+      },
+      "sourceWidth": 171,
+      "sourceHeight": 417,
+      "sourcePixelsPerWorldPixel": 14.25,
+      "zoomLimit": 6,
+      "sourceExpansionAtMaxZoom": 1,
+      "status": "source-inspected",
+      "reason": "Contour, primary shapes and material boundaries inspected on the source contact sheet; no obvious baked blur found. This is not room/camera approval."
+    },
+    {
+      "id": "benchpress",
+      "view": "s",
+      "image": "benchpress.png",
+      "bounds": {
+        "x": 1,
+        "y": -8,
+        "width": 36,
+        "height": 20
+      },
+      "crop": {
+        "x": 0,
+        "y": 0,
+        "width": 587,
+        "height": 344
+      },
+      "body": {
+        "width": 34.127906976744185,
+        "height": 20
+      },
+      "sourceWidth": 587,
+      "sourceHeight": 344,
+      "sourcePixelsPerWorldPixel": 17.2,
+      "zoomLimit": 6,
+      "sourceExpansionAtMaxZoom": 1,
+      "status": "source-inspected",
+      "reason": "Contour, primary shapes and material boundaries inspected on the source contact sheet; no obvious baked blur found. This is not room/camera approval."
+    },
+    {
+      "id": "benchpress_r",
+      "view": "s",
+      "image": "benchpress_r.png",
+      "bounds": {
+        "x": -1,
+        "y": -8,
+        "width": 36,
+        "height": 20
+      },
+      "crop": {
+        "x": 0,
+        "y": 0,
+        "width": 1572,
+        "height": 865
+      },
+      "body": {
+        "width": 36,
+        "height": 19.80916030534351
+      },
+      "sourceWidth": 1572,
+      "sourceHeight": 865,
+      "sourcePixelsPerWorldPixel": 43.67,
+      "zoomLimit": 6,
+      "sourceExpansionAtMaxZoom": 1,
+      "status": "source-inspected",
+      "reason": "Contour, primary shapes and material boundaries inspected on the source contact sheet; no obvious baked blur found. This is not room/camera approval."
+    },
+    {
+      "id": "recliner",
+      "view": "s",
+      "image": "recliner.png",
+      "bounds": {
+        "x": -3,
+        "y": -7,
+        "width": 17,
+        "height": 19
+      },
+      "crop": {
+        "x": 0,
+        "y": 0,
+        "width": 232,
+        "height": 258
+      },
+      "body": {
+        "width": 17,
+        "height": 18.905172413793107
+      },
+      "sourceWidth": 232,
+      "sourceHeight": 258,
+      "sourcePixelsPerWorldPixel": 13.65,
+      "zoomLimit": 6,
+      "sourceExpansionAtMaxZoom": 1,
+      "status": "source-inspected",
+      "reason": "Contour, primary shapes and material boundaries inspected on the source contact sheet; no obvious baked blur found. This is not room/camera approval."
+    },
+    {
+      "id": "recliner_r",
+      "view": "s",
+      "image": "recliner_r.png",
+      "bounds": {
+        "x": -2,
+        "y": -7,
+        "width": 17,
+        "height": 19
+      },
+      "crop": {
+        "x": 0,
+        "y": 0,
+        "width": 232,
+        "height": 259
+      },
+      "body": {
+        "width": 17,
+        "height": 18.97844827586207
+      },
+      "sourceWidth": 232,
+      "sourceHeight": 259,
+      "sourcePixelsPerWorldPixel": 13.65,
+      "zoomLimit": 6,
+      "sourceExpansionAtMaxZoom": 1,
+      "status": "source-inspected",
+      "reason": "Contour, primary shapes and material boundaries inspected on the source contact sheet; no obvious baked blur found. This is not room/camera approval."
+    }
+  ]
+}

@@ -11,6 +11,8 @@ const root='frontend/assets/industrial/projection-correction/',manifest=require(
   let l=info.width,t=info.height,r=-1,b=-1;
   for(let i=3;i<data.length;i+=4)if(data[i]){const n=(i-3)/4,x=n%info.width,y=Math.floor(n/info.width);l=Math.min(l,x);t=Math.min(t,y);r=Math.max(r,x);b=Math.max(b,y);}
   assert.deepEqual(entry.crop,{x:l,y:t,width:r-l+1,height:b-t+1});count++;
+  const sourceDensity=Math.max(entry.crop.width/v.bounds.width,entry.crop.height/v.bounds.height);
+  assert(sourceDensity>=6,id+':'+face+' source must support the 6x camera without upscaling');
  }
  assert.equal(Object.keys(geometry.views).length,count);
  console.log('PASS: '+count+' runtime alpha crops match source hashes and every nontransparent pixel.');

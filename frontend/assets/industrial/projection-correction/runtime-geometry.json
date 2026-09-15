@@ -75,14 +75,14 @@
     },
     "industrial_partition:w": {
       "image": "industrial_partition-w.png",
-      "width": 68,
-      "height": 210,
-      "sha256": "0ff75f57d40580ba039beaac275cd550590007bd72ba2a8a36597866a6571d23",
+      "width": 177,
+      "height": 575,
+      "sha256": "a2d731f1a2d76ed98706d6d9097b0e2cad588fe0a0f712ed5a5fbe08d338c2bb",
       "crop": {
         "x": 0,
         "y": 0,
-        "width": 68,
-        "height": 210
+        "width": 177,
+        "height": 575
       }
     },
     "industrial_partition:e": {
@@ -171,14 +171,14 @@
     },
     "desk:s": {
       "image": "desk.png",
-      "width": 91,
-      "height": 68,
-      "sha256": "49e35c9b58a2e1f4939ed1320e70e4f11a54b46afbe46661122638ddf7ca5fd4",
+      "width": 1207,
+      "height": 804,
+      "sha256": "ab17bcf9ff336e27e299c2dda54b9c63e916a761328ceaa00b083c15c719d657",
       "crop": {
         "x": 0,
         "y": 0,
-        "width": 91,
-        "height": 68
+        "width": 1207,
+        "height": 804
       }
     },
     "desk:w": {
@@ -195,14 +195,14 @@
     },
     "desk:n": {
       "image": "desk-n.png",
-      "width": 212,
-      "height": 168,
-      "sha256": "a052f0638859c7fb356c0d3f1ae3ff36461e89ba8dba4c8c2b61d5a269e5021b",
+      "width": 597,
+      "height": 469,
+      "sha256": "aba5a15e71fff142c85a8350b1247593b1f0ce26a754d96ff5f15a071988de54",
       "crop": {
         "x": 0,
         "y": 0,
-        "width": 212,
-        "height": 168
+        "width": 597,
+        "height": 469
       }
     },
     "desk:e": {
@@ -651,14 +651,14 @@
     },
     "bridge_deckperimeter:s": {
       "image": "bridge_deckperimeter.png",
-      "width": 401,
-      "height": 255,
-      "sha256": "e6ce8b5087bfbcd07de6a7e27dd4bc6c4299d55d621079f1fd711cde82790ba7",
+      "width": 1558,
+      "height": 980,
+      "sha256": "911d1ba2e047c25ccbd52c112c337691c048fdbd868a629a592cff03c0f46651",
       "crop": {
         "x": 0,
         "y": 0,
-        "width": 401,
-        "height": 255
+        "width": 1558,
+        "height": 980
       }
     },
     "bigscreen:s": {
@@ -987,14 +987,14 @@
     },
     "crate:s": {
       "image": "crate.png",
-      "width": 75,
-      "height": 60,
-      "sha256": "a4c596600f4c1c0bf0c2f4df0892a9f0c49b074dd91079b5926b0fd27cd0ba16",
+      "width": 631,
+      "height": 463,
+      "sha256": "ae75dd079239dda02ac680b40add65544e79e5de02147e207905fb805fb19495",
       "crop": {
         "x": 0,
         "y": 0,
-        "width": 75,
-        "height": 60
+        "width": 631,
+        "height": 463
       }
     },
     "boxes:s": {
@@ -1371,14 +1371,14 @@
     },
     "rug_large:s": {
       "image": "rug_large.png",
-      "width": 299,
-      "height": 281,
-      "sha256": "63fc2b2f236d6586f8336d99866660a6c191b0fab3a768ad9e4709140a3ec269",
+      "width": 556,
+      "height": 535,
+      "sha256": "a01f54025662613c7d1e9adc0bb21d88a21700aa8e24288eb85d959a7cbcf6f8",
       "crop": {
         "x": 0,
         "y": 0,
-        "width": 299,
-        "height": 281
+        "width": 556,
+        "height": 535
       }
     },
     "treasury_pnl_holo:s": {
@@ -1431,14 +1431,14 @@
     },
     "chair:s": {
       "image": "chair.png",
-      "width": 54,
-      "height": 80,
-      "sha256": "1c9257ded875c31688c9f759c424db2814ab707e36790db7793e20aac85c2d79",
+      "width": 457,
+      "height": 683,
+      "sha256": "865ff5517c06c037b6ead2e7a76ac9c990849a9738768b5acfacef261086e072",
       "crop": {
         "x": 0,
         "y": 0,
-        "width": 54,
-        "height": 80
+        "width": 457,
+        "height": 683
       }
     },
     "chair:w": {

@@ -1,0 +1,235 @@
+{
+  "records": [
+    {
+      "id": "desk",
+      "view": "s",
+      "before": "frontend/assets/industrial/sharpness-restoration/before/desk.png",
+      "source": "frontend/assets/industrial/sharpness-restoration/sources/desk.png",
+      "sourceSha256": "21be73775c2c77c1b8aa7612769d9d5cdc85dc263f7db6c21d1e04c3810329c7",
+      "repoPath": "frontend/assets/industrial/sharpness-restoration/desk.png",
+      "outputSha256": "ab17bcf9ff336e27e299c2dda54b9c63e916a761328ceaa00b083c15c719d657",
+      "sourceCrop": {
+        "left": 130,
+        "top": 134,
+        "width": 1207,
+        "height": 804
+      },
+      "sourceWidth": 1207,
+      "sourceHeight": 804,
+      "footprint": {
+        "w": 3,
+        "h": 1
+      },
+      "bounds": {
+        "x": -1,
+        "y": -16.3956,
+        "width": 38,
+        "height": 28.3956
+      },
+      "contact": {
+        "x": 0.5,
+        "y": 0.9987562189054726
+      },
+      "retained": 842130,
+      "status": "resolution restoration; original design and world bounds retained; owner review pending"
+    },
+    {
+      "id": "crate",
+      "view": "s",
+      "before": "frontend/assets/industrial/sharpness-restoration/before/crate.png",
+      "source": "frontend/assets/industrial/sharpness-restoration/sources/anchors.png",
+      "sourceSha256": "53edef25e468411f06de7281c78303a75a34e263eb820e182959cdab5e8f62ee",
+      "repoPath": "frontend/assets/industrial/sharpness-restoration/crate.png",
+      "outputSha256": "ae75dd079239dda02ac680b40add65544e79e5de02147e207905fb805fb19495",
+      "sourceCrop": {
+        "left": 73,
+        "top": 289,
+        "width": 631,
+        "height": 463
+      },
+      "sourceWidth": 631,
+      "sourceHeight": 463,
+      "footprint": {
+        "w": 2,
+        "h": 1
+      },
+      "bounds": {
+        "x": -1,
+        "y": -8.8,
+        "width": 26,
+        "height": 20.8
+      },
+      "contact": {
+        "x": 0.5,
+        "y": 1
+      },
+      "retained": 277226,
+      "status": "resolution restoration; original design and world bounds retained; owner review pending"
+    },
+    {
+      "id": "chair",
+      "view": "s",
+      "before": "frontend/assets/industrial/sharpness-restoration/before/chair.png",
+      "source": "frontend/assets/industrial/sharpness-restoration/sources/anchors.png",
+      "sourceSha256": "53edef25e468411f06de7281c78303a75a34e263eb820e182959cdab5e8f62ee",
+      "repoPath": "frontend/assets/industrial/sharpness-restoration/chair.png",
+      "outputSha256": "865ff5517c06c037b6ead2e7a76ac9c990849a9738768b5acfacef261086e072",
+      "sourceCrop": {
+        "left": 934,
+        "top": 164,
+        "width": 457,
+        "height": 683
+      },
+      "sourceWidth": 457,
+      "sourceHeight": 683,
+      "footprint": {
+        "w": 1,
+        "h": 1
+      },
+      "bounds": {
+        "x": 0,
+        "y": -5.7778,
+        "width": 12,
+        "height": 17.7778
+      },
+      "contact": {
+        "x": 0.5,
+        "y": 0.9985358711566618
+      },
+      "retained": 207166,
+      "status": "resolution restoration; original design and world bounds retained; owner review pending"
+    },
+    {
+      "id": "industrial_partition",
+      "view": "w",
+      "before": "frontend/assets/industrial/sharpness-restoration/before/industrial_partition-w.png",
+      "source": "frontend/assets/industrial/sharpness-restoration/sources/remaining.png",
+      "sourceSha256": "fc232f7c1b548056a3941d55ce4ff15375c72aa5d0b013c234e6a82d45dada10",
+      "repoPath": "frontend/assets/industrial/sharpness-restoration/industrial_partition-w.png",
+      "outputSha256": "a2d731f1a2d76ed98706d6d9097b0e2cad588fe0a0f712ed5a5fbe08d338c2bb",
+      "sourceCrop": {
+        "left": 204,
+        "top": 28,
+        "width": 177,
+        "height": 575
+      },
+      "sourceWidth": 177,
+      "sourceHeight": 575,
+      "footprint": {
+        "w": 1,
+        "h": 3
+      },
+      "bounds": {
+        "x": -1.7714,
+        "y": -13,
+        "width": 15.5429,
+        "height": 48
+      },
+      "contact": {
+        "x": 0.5,
+        "y": 0.9982608695652174
+      },
+      "retained": 75609,
+      "status": "resolution restoration; original design and world bounds retained; owner review pending"
+    },
+    {
+      "id": "desk",
+      "view": "n",
+      "before": "frontend/assets/industrial/sharpness-restoration/before/desk-n.png",
+      "source": "frontend/assets/industrial/sharpness-restoration/sources/remaining.png",
+      "sourceSha256": "fc232f7c1b548056a3941d55ce4ff15375c72aa5d0b013c234e6a82d45dada10",
+      "repoPath": "frontend/assets/industrial/sharpness-restoration/desk-n.png",
+      "outputSha256": "aba5a15e71fff142c85a8350b1247593b1f0ce26a754d96ff5f15a071988de54",
+      "sourceCrop": {
+        "left": 629,
+        "top": 101,
+        "width": 597,
+        "height": 469
+      },
+      "sourceWidth": 597,
+      "sourceHeight": 469,
+      "footprint": {
+        "w": 3,
+        "h": 1
+      },
+      "bounds": {
+        "x": -2,
+        "y": -19.6981,
+        "width": 40,
+        "height": 31.6981
+      },
+      "contact": {
+        "x": 0.5,
+        "y": 0.997867803837953
+      },
+      "retained": 213719,
+      "status": "resolution restoration; original design and world bounds retained; owner review pending"
+    },
+    {
+      "id": "rug_large",
+      "view": "s",
+      "before": "frontend/assets/industrial/sharpness-restoration/before/rug_large.png",
+      "source": "frontend/assets/industrial/sharpness-restoration/sources/remaining.png",
+      "sourceSha256": "fc232f7c1b548056a3941d55ce4ff15375c72aa5d0b013c234e6a82d45dada10",
+      "repoPath": "frontend/assets/industrial/sharpness-restoration/rug_large.png",
+      "outputSha256": "a01f54025662613c7d1e9adc0bb21d88a21700aa8e24288eb85d959a7cbcf6f8",
+      "sourceCrop": {
+        "left": 663,
+        "top": 659,
+        "width": 556,
+        "height": 535
+      },
+      "sourceWidth": 556,
+      "sourceHeight": 535,
+      "footprint": {
+        "w": 5,
+        "h": 5
+      },
+      "bounds": {
+        "x": 0,
+        "y": 0,
+        "width": 60,
+        "height": 60
+      },
+      "contact": {
+        "x": 0.5,
+        "y": 0.994392523364486
+      },
+      "retained": 295691,
+      "status": "resolution restoration; original design and world bounds retained; owner review pending"
+    },
+    {
+      "id": "bridge_deckperimeter",
+      "view": "s",
+      "before": "frontend/assets/industrial/sharpness-restoration/before/bridge_deckperimeter.png",
+      "source": "frontend/assets/industrial/sharpness-restoration/sources/perimeter.png",
+      "sourceSha256": "97d115bcab14f3fa4ba99df6125d1ef1a94c13715e6eaa5b3037b441a496fdb2",
+      "repoPath": "frontend/assets/industrial/sharpness-restoration/bridge_deckperimeter.png",
+      "outputSha256": "911d1ba2e047c25ccbd52c112c337691c048fdbd868a629a592cff03c0f46651",
+      "sourceCrop": {
+        "left": 7,
+        "top": 8,
+        "width": 1558,
+        "height": 980
+      },
+      "sourceWidth": 1558,
+      "sourceHeight": 980,
+      "footprint": {
+        "w": 12,
+        "h": 8
+      },
+      "bounds": {
+        "x": 0,
+        "y": 1,
+        "width": 144,
+        "height": 94
+      },
+      "contact": {
+        "x": 0.5,
+        "y": 0.9989795918367347
+      },
+      "retained": 345314,
+      "status": "resolution restoration; original design and world bounds retained; owner review pending"
+    }
+  ]
+}

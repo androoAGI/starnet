@@ -263,7 +263,7 @@
         "height": 28.3956
       },
       "status": "preserve-accepted",
-      "reason": "Owner-accepted anchor/view. Preserve."
+      "reason": "Owner-accepted design/camera; low-resolution extraction restored after the September 15 blur report. Sharpness candidate requires owner comparison."
     },
     {
       "id": "desk",
@@ -280,7 +280,7 @@
         "height": 26.7188
       },
       "status": "room-check",
-      "reason": "Keep accepted desk south intact. Compare additional views as a facing set at native scale before declaring them matched."
+      "reason": "Compare additional views against the accepted desk camera as a facing set at native scale before declaring them matched."
     },
     {
       "id": "desk",
@@ -297,7 +297,7 @@
         "height": 31.6981
       },
       "status": "room-check",
-      "reason": "Keep accepted desk south intact. Compare additional views as a facing set at native scale before declaring them matched."
+      "reason": "Compare additional views against the accepted desk camera as a facing set at native scale before declaring them matched."
     },
     {
       "id": "desk",
@@ -314,7 +314,7 @@
         "height": 24.7826
       },
       "status": "room-check",
-      "reason": "Keep accepted desk south intact. Compare additional views as a facing set at native scale before declaring them matched."
+      "reason": "Compare additional views against the accepted desk camera as a facing set at native scale before declaring them matched."
     },
     {
       "id": "desk2",
@@ -331,7 +331,7 @@
         "height": 23
       },
       "status": "room-check",
-      "reason": "Keep accepted desk south intact. Compare additional views as a facing set at native scale before declaring them matched."
+      "reason": "Compare additional views against the accepted desk camera as a facing set at native scale before declaring them matched."
     },
     {
       "id": "desk2",
@@ -348,7 +348,7 @@
         "height": 22.9315
       },
       "status": "room-check",
-      "reason": "Keep accepted desk south intact. Compare additional views as a facing set at native scale before declaring them matched."
+      "reason": "Compare additional views against the accepted desk camera as a facing set at native scale before declaring them matched."
     },
     {
       "id": "desk2",
@@ -365,7 +365,7 @@
         "height": 23
       },
       "status": "room-check",
-      "reason": "Keep accepted desk south intact. Compare additional views as a facing set at native scale before declaring them matched."
+      "reason": "Compare additional views against the accepted desk camera as a facing set at native scale before declaring them matched."
     },
     {
       "id": "desk2",
@@ -382,7 +382,7 @@
         "height": 41
       },
       "status": "room-check",
-      "reason": "Keep accepted desk south intact. Compare additional views as a facing set at native scale before declaring them matched."
+      "reason": "Compare additional views against the accepted desk camera as a facing set at native scale before declaring them matched."
     },
     {
       "id": "console",
@@ -1419,7 +1419,7 @@
         "height": 20.8
       },
       "status": "preserve-accepted",
-      "reason": "Owner-accepted anchor/view. Preserve."
+      "reason": "Owner-accepted design/camera; low-resolution extraction restored after the September 15 blur report. Sharpness candidate requires owner comparison."
     },
     {
       "id": "boxes",
@@ -2048,7 +2048,7 @@
         "height": 17.7778
       },
       "status": "preserve-accepted",
-      "reason": "Owner-accepted anchor/view. Preserve."
+      "reason": "Owner-accepted design/camera; low-resolution extraction restored after the September 15 blur report. Sharpness candidate requires owner comparison."
     },
     {
       "id": "chair",

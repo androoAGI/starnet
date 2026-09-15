@@ -1,5 +1,7 @@
 # StarNet approved prop art direction
 
+**September 15 sharpness correction:** the owner explicitly rejected the blur in the previously accepted south workstation while praising the lighting. The accepted designs/cameras remain references; their tiny sheet exports are not immutable. The sharpness-restoration group replaces seven under-resolved views, including desk south, crate and chair, with generated fidelity restorations inside the same world bounds and footprints. All 184 sources now support the 6x camera without source enlargement. This establishes sampling coverage, not blanket camera or owner approval. The CRT and approved lighting profile are retained; one weaker command back-wall fixture fills a gap in Kepler.
+
 ## Canonical visual reference
 
 **Follow-up owner review:** the projection-correction TV, two arcades and pool table are accepted; aquarium is improved. Preserve these. The previous couch was rejected because its visible seat depth/camera did not match the neighboring recliners. A replacement generated from both recliners has now been inspected in the saved lounge; owner acceptance remains pending. Do not treat the rejected rear-view couch as an accepted camera reference.

@@ -40,7 +40,7 @@ const envelopes={couch:{x:-1,y:-14,width:62,height:26},quarters_pooltable:{x:-1,
  }
  require('./projection-display-fit.cjs').apply(manifest,records);
  manifest.artSet='projection-correction-candidate';manifest.revisedViews=records.map(r=>({id:r.id,view:r.view||'s',group:r.group||'lounge'}));fs.writeFileSync(root+'/manifest.json',JSON.stringify(manifest,null,2)+'\n');fs.writeFileSync('docs/station-remaster/projection-correction/exports.json',JSON.stringify({version:1,records},null,2)+'\n');
- const revisedProps=[...new Set(records.map(r=>r.id))].sort(),unchangedAcceptedProps=['crate','desk','chair'];
+ const revisedProps=[...new Set(records.map(r=>r.id))].sort(),unchangedAcceptedProps=['crate','desk','chair'].filter(id=>!records.some(r=>r.id===id&&(r.view||'s')==='s'));
  fs.writeFileSync('docs/station-remaster/projection-correction/coverage.json',JSON.stringify({status:'candidate; visual owner acceptance separate',totalProps:Object.keys(manifest.props).length,revisedViewCount:records.length,revisedProps,unchangedAcceptedProps,remainingProps:Object.keys(manifest.props).filter(id=>!revisedProps.includes(id)&&!unchangedAcceptedProps.includes(id)).sort()},null,2)+'\n');
  console.log('Built '+records.length+' corrected views across '+revisedProps.length+' props.');
 })();

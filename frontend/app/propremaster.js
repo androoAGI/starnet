@@ -20,7 +20,9 @@ const PropRemaster = (() => {
   // The casing-only drafts remain accessible explicitly, never the default set.
   let draftReview=false,projectionReview=false;
   try{const query=new URLSearchParams(location.search);draftReview=query.get('propReview')==='skins';projectionReview=query.get('propSet')==='projection';}catch(_){}
-  const ROOT = 'assets/industrial/'+(draftReview?'props-v2/':projectionReview?'projection-correction/':'approved-sheet/'), DENSITY = 4, entries = new Map(), failures = [];
+  // Match the camera's 6x close-zoom limit. A 4x staging canvas softened even
+  // full-resolution sources before they reached the final CRT pass.
+  const ROOT = 'assets/industrial/'+(draftReview?'props-v2/':projectionReview?'projection-correction/':'approved-sheet/'), DENSITY = projectionReview ? 6 : 4, entries = new Map(), failures = [];
   let revision = 0, pixelBudget = 0;
   const MAX_PIXELS = 12 * 1024 * 1024;
   let measuredGeometry={};
@@ -359,6 +361,12 @@ const PropRemaster = (() => {
       if(queue.length>640)throw Error('too many authored views');
       let next=0;
       await Promise.all(Array.from({length:Math.min(4,queue.length)},async()=>{while(next<queue.length){const task=queue[next++];await prepare(...task);}}));
+      if(typeof document!=='undefined'&&document.documentElement){
+        document.documentElement.dataset.propRasterViews=String(entries.size);
+        document.documentElement.dataset.propRasterFailures=String(failures.length);
+        document.documentElement.dataset.propRasterDensity=String(DENSITY);
+        document.documentElement.dataset.propRasterPixels=String(pixelBudget);
+      }
     }catch(e){failures.push({view:'manifest',reason:String(e.message||e)});}
   })();
   function emitter(id,view='s',w,h){

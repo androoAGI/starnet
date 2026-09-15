@@ -142,6 +142,18 @@ function fixtureGeometry(dx = 0, dy = 0) {
   return f;
 }
 const fg = fixtureGeometry(), fixtures = Surface.planFixtures(fg), oldGrid = fg.zoneGrid.slice();
+const longFixtureRoom = g => ({...g, chamfers: [], zoneGrid:g.zoneGrid.map(z=>z==null?null:'left')});
+const infillGeometry = longFixtureRoom(fg);
+const infillBase = Surface.planFixtures(infillGeometry);
+const infilled = Surface.planFixtures(infillGeometry, { infillFixtures: true });
+A.ok(infilled.length > infillBase.length, 'projection infill adds restrained physical back-wall sources');
+for (const f of infillBase) A.eq(infilled.find(n => n.id === f.id), f, 'infill preserves every original fixture and its lighting');
+for (const f of infilled.filter(n => !infillBase.some(o => o.id === n.id))) {
+  A.ok(f.gain < .64 && f.r < 12*4.5, 'additional pools are smaller and weaker than original fixtures');
+  A.eq(Surface.zoneAt(infillGeometry, f.tileX, f.tileY-1), null, 'infill has real solid-wall housing');
+  A.ok(fg.walkable(Math.floor(f.x/12),Math.floor(f.y/12)), 'infill samples reachable deck');
+}
+A.eq(Surface.planFixtures(longFixtureRoom(fixtureGeometry(5,3)), {infillFixtures:true}).map(f=>f.id), infilled.map(f=>f.id), 'infill remains in the physical tile frame after bounds expansion');
 A.ok(fixtures.length >= 3 && fixtures.length <= 4, 'long room faces get a restrained practical-fixture rhythm');
 A.eq(Surface.planFixtures(fg), fixtures, 'fixture placement is deterministic');
 A.eq(fg.zoneGrid, oldGrid, 'fixture planning never mutates station geometry');

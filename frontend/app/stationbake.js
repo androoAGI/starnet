@@ -4976,7 +4976,7 @@ const StationBake = (() => {
 
     bakeRoomLighting(b);   // after the chamfers, so a rounded corner is lit like every other surface
     if (nextSurfaces() && WorldSurface.paintFixtures) wallFixtures = WorldSurface.paintFixtures(b, G,
-      { wallUp: WALL.up, corUp: WALL.corUp, viewport: { x: VX, y: VY, w: CW, h: CH } });
+      { wallUp: WALL.up, corUp: WALL.corUp, infillFixtures: projectionPresentation, viewport: { x: VX, y: VY, w: CW, h: CH } });
 
     // faint room name plates (the v7 floor-code stencil, generalized)
     b.font = "7px 'VT323','Courier New',monospace"; b.fillStyle = 'rgba(255,255,255,0.07)'; b.textAlign = 'left';

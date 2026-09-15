@@ -1,7 +1,7 @@
 {
   "status": "candidate; visual owner acceptance separate",
   "totalProps": 160,
-  "revisedViewCount": 173,
+  "revisedViewCount": 178,
   "revisedProps": [
     "airlock",
     "arc_floorlight",
@@ -34,6 +34,7 @@
     "calwall",
     "camerarig",
     "camerarig_r",
+    "chair",
     "chartwall",
     "coffee",
     "comms_beacon",
@@ -46,8 +47,10 @@
     "consoleL",
     "core",
     "couch",
+    "crate",
     "crt_pile",
     "cryopod",
+    "desk",
     "desk2",
     "desklamp",
     "deskterminal",
@@ -161,10 +164,6 @@
     "whiteboard",
     "workbench"
   ],
-  "unchangedAcceptedProps": [
-    "crate",
-    "desk",
-    "chair"
-  ],
+  "unchangedAcceptedProps": [],
   "remainingProps": []
 }

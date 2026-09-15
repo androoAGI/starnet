@@ -17,12 +17,12 @@ flag('boxes','Carton front faces dominate and stacked boxes use perspective conv
 flag('couch','Single south-facing image is used below the TV; a genuine north-facing back view is needed for that placement. Do not mirror vertically.','facing-gap');
 flag('plant tallplant monstera','Inspect foliage and pot contact beside crew at native size; irregular silhouettes prevent a confident camera judgment from a contact sheet.','room-check');
 flag('research_papers','Confirm intended mount/ground plane in a room: papers currently read as upright presentation cards.','room-check');
-flag('desk:w desk:n desk:e desk2','Keep accepted desk south intact. Compare additional views as a facing set at native scale before declaring them matched.','room-check');
+flag('desk:w desk:n desk:e desk2','Compare additional views against the accepted desk camera as a facing set at native scale before declaring them matched.','room-check');
 const fixed=new Set(['workbench:s','longtable:s','bridge_tacticaltable:s','toolbox:s']);
 const accepted=new Set(['crate:s','desk:s','chair:s','tv:s','arcade:s','arcade2:s','quarters_pooltable:s']);
 const records=Object.entries(m.props).flatMap(([id,p])=>Object.entries(p.views).map(([view,s])=>{
  const key=id+':'+view,n=notes[key]||notes[id];
- return {id,view,image:s.image,footprint:s.footprint,bounds:s.bounds,status:fixed.has(key)?'corrected-candidate':accepted.has(key)?'preserve-accepted':n?.status||'source-check',reason:fixed.has(key)?'Generated camera correction integrated and inspected in Kepler; owner acceptance pending.':accepted.has(key)?'Owner-accepted anchor/view. Preserve.':n?.reason||'No obvious camera conflict in source inspection. This is not an in-room or owner approval.'};
+ return {id,view,image:s.image,footprint:s.footprint,bounds:s.bounds,status:fixed.has(key)?'corrected-candidate':accepted.has(key)?'preserve-accepted':n?.status||'source-check',reason:fixed.has(key)?'Generated camera correction integrated and inspected in Kepler; owner acceptance pending.':['desk:s','crate:s','chair:s'].includes(key)?'Owner-accepted design/camera; low-resolution extraction restored after the September 15 blur report. Sharpness candidate requires owner comparison.':accepted.has(key)?'Owner-accepted anchor/view. Preserve.':n?.reason||'No obvious camera conflict in source inspection. This is not an in-room or owner approval.'};
 }));
 const counts={};for(const r of records)counts[r.status]=(counts[r.status]||0)+1;
 fs.writeFileSync('docs/station-remaster/camera-audit/audit.json',JSON.stringify({date:'2026-09-15',method:'Visual inspection of eight labeled source contact sheets, 184 exported views; four corrected views also inspected in Kepler. Geometry/placement checks are separate.',counts,records},null,2)+'\n');
