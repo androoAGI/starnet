@@ -754,17 +754,17 @@ const StationBake = (() => {
      rounding is the shared convention: the hull silhouette erase, the hull rim, the ambient-mask
      cut and the room's interior curve all use it, so concentric curves stay concentric per-pixel.
      Keyed on bake-pixel coords, so chunk↔monolithic parity holds. */
-  function eachCornerRow(kind, ax, ay, rad, fn) {
+  function eachCornerRow(kind, ax, ay, rad, fn, sample = 1) {
     const A = CORNER[kind];
     const ox = Math.round(A.cx ? ax - rad : ax), oy = Math.round(A.cy ? ay - rad : ay);
     const r = Math.round(rad);
     // how far the profile reaches out from the corner's centre line at vertical distance `ady` —
     // the shared crossing function, so this walk and bakeCornerCrown's cannot drift apart again.
     const reach = (ady) => cornerReach(r, ady);
-    for (let py = oy; py < oy + r; py++) {
-      const ady = Math.abs(py + 0.5 - ay);
-      const ex = ady >= r ? null : (A.cx ? Math.round(ax - reach(ady))
-                                         : Math.round(ax + reach(ady)));
+    for (let py = oy; py < oy + r; py += sample) {
+      const ady = Math.abs(py + sample / 2 - ay);
+      const ex = ady >= r ? null : (A.cx ? Math.round((ax - reach(ady)) / sample) * sample
+                                         : Math.round((ax + reach(ady)) / sample) * sample);
       fn(py, ex, ox, ox + r, A);
     }
   }
@@ -3302,11 +3302,11 @@ const StationBake = (() => {
      `deepRuns` are FRACTIONS of the face depth, not pixels: the face is ~23px deep at the top of the
      arc and a couple of px at its foot, and a rail pinned to an absolute depth would slide off the
      wall as it narrows. */
-  function cornerFaceSlice(put, pal, ed, strip, map, alongWorld, horiz, fixed, d0, len, step, s) {
+  function cornerFaceSlice(put, pal, ed, strip, map, alongWorld, horiz, fixed, d0, len, step, s, sample = 1) {
     if (len <= 0) return;
     const base = ed.glass ? U.shade(pal.base, -0.55) : pal.face;
     const spoke = !strip && ed.pitch > 0 && (((Math.round(s) % ed.pitch) + ed.pitch) % ed.pitch) === 0;
-    for (let i = 0; i < len; i++) {
+    for (let i = 0; i < len; i += sample) {
       let c;
       if (strip) {
         /* THE WALL'S OWN PIXELS, addressed in POLAR rather than per-slice.
@@ -3344,13 +3344,15 @@ const StationBake = (() => {
         else if (ed.speck && h2(fixed, i, 'wedge') % 3 === 0) c = U.shade(base, 0.16);
       }
       const px = d0 + step * i;
-      if (horiz) put(px, fixed, 1, 1, c, map); else put(fixed, px, 1, 1, c, map);
+      if (horiz) put(px, fixed, sample, sample, c, map); else put(fixed, px, sample, sample, c, map);
     }
   }
 
   // `shellEdge` is the owning room's exterior tone — the single pixel of shell outside the ring,
   // the arc's counterpart of the straight walls' outer hull band (see the note in bakeWalls).
   function bakeCornerCrown(b, pal, ed, strip, kind, X, Y, ax, ay, Rc, HR, capW, capFar, cy, record, shellEdge) {
+    const sample = remastered() && strip && strip.hi ? 1 / 8 : 1;
+    const snap = value => Math.round(value / sample) * sample;
     const A = CORNER[kind], phaseX = wallPhase('x'), phaseY = wallPhase('y');
     const outX = A.cx ? -1 : 1, outY = A.cy ? -1 : 1;      // which way is "away from the room"
     // the ring may hang past the tile into the VOID (that is where every wall's height lives) but
@@ -3376,8 +3378,8 @@ const StationBake = (() => {
          a mask that disagrees with the painter is the leaked-ambient class of bug. */
       for (let cx0 = x0; cx0 < x1; ) {
         const lim = nearerNorthTop(Math.floor(cx0 / T), ccy);
-        let cx1 = cx0 + 1;
-        while (cx1 < x1 && nearerNorthTop(Math.floor(cx1 / T), ccy) === lim) cx1++;
+        let cx1 = Math.min(x1, cx0 + sample);
+        while (cx1 < x1 && nearerNorthTop(Math.floor(cx1 / T), ccy) === lim) cx1 = Math.min(x1, cx1 + sample);
         const yEnd = Math.min(y1, lim);
         if (yEnd > y0) {
           b.fillStyle = c; b.fillRect(cx0, y0, cx1 - cx0, yEnd - y0);
@@ -3403,7 +3405,7 @@ const StationBake = (() => {
     const K = cornerExp() === 2 ? HR * Math.SQRT1_2 : HR * Math.pow(2, -1 / cornerExp());
     /* arc length of a point on the ring, measured from the corner's horizontal. Both duals feed the
        SAME measure, so the pattern runs unbroken across the 45° handoff between them. */
-    const sOf = (px, py) => HR * Math.atan2(Math.abs(py + 0.5 - cy), Math.abs(px + 0.5 - ax));
+    const sOf = (px, py) => HR * Math.atan2(Math.abs(py + sample / 2 - cy), Math.abs(px + 0.5 - ax));
     /* ...and the WORLD along-coordinate that arc length corresponds to. The arc's north end sits at
        x = ax and is where the straight north wall takes over, so alongWorld is anchored there and
        walks outward by arc length — which is what carries the wall's pattern round the bend at its
@@ -3440,26 +3442,26 @@ const StationBake = (() => {
        to it is wall face. Same centre and rounding convention as the deck cut itself, so the face
        stops exactly where the floor starts. */
     const deckXAt = py => {
-      const ady = Math.abs(py + 0.5 - ay);
+      const ady = Math.abs(py + sample / 2 - ay);
       if (ady >= Rc) return null;
       const d = cornerReach(Rc, ady);
-      return outX < 0 ? Math.round(ax - d) : Math.round(ax + d);
+      return outX < 0 ? snap(ax - d) : snap(ax + d);
     };
     const deckYAt = ix => {
-      const adx = Math.abs(ix + 0.5 - ax);
+      const adx = Math.abs(ix + sample / 2 - ax);
       if (adx >= Rc) return null;
       const d = cornerReach(Rc, adx);
-      return outY < 0 ? Math.round(ay - d) : Math.round(ay + d);
+      return outY < 0 ? snap(ay - d) : snap(ay + d);
     };
     // ROW dual — the steep stretch (and the vertical run below it), where the ring hands off to
     // the e/w wall. A row walk lays a HORIZONTAL span, which is ACROSS the outline only here.
-    for (let py = yLo; py < yHi; py++) {
-      const t = outY < 0 ? cy - (py + 0.5) : (py + 0.5) - cy;    // distance along the lift axis
+    for (let py = yLo; py < yHi; py += sample) {
+      const t = outY < 0 ? cy - (py + sample / 2) : (py + sample / 2) - cy;    // distance along the lift axis
       if (t >= HR) continue;                                      // past the top of the arc
       if (t > K) continue;                                        // shallow — the column dual owns it
       // below the arc's widest point the outline is simply the straight run at the e/w wall's edge
       const off = t <= 0 ? HR : cornerReach(HR, t);
-      const ex = outX < 0 ? Math.round(ax - off) : Math.round(ax + off) - 1;   // -1: see the half-open note above
+      const ex = outX < 0 ? snap(ax - off) : snap(ax + off) - sample;   // -1: see the half-open note above
       const w = crownEase(Math.max(0, t) / HR, capW, capFar);
       const dx = deckXAt(py), inner = dx == null ? (outX < 0 ? X + T : X - 1) : dx;
       /* THE ARC'S DEPTH MEASURE ENDS WITH THE ARC (2026-08-13).
@@ -3481,26 +3483,26 @@ const StationBake = (() => {
       const len = Math.max(0, onArc ? room : Math.min(room, FACEW));
       const map = onArc ? faceMap : ((px) => ({ a: py + phaseY, d: Math.abs(px - fs) }));
       if (outX < 0) {
-        put(ex, py, 1, 1, shellEdge);                                             // the shell's own edge
-        put(ex + 1, py, w, 1, pal.cap); put(ex + 1, py, 1, 1, lit);            // the lit top surface
+        put(ex, py, 1, sample, shellEdge);                                             // the shell's own edge
+        put(ex + 1, py, w, sample, pal.cap); put(ex + 1, py, 1, sample, lit);            // the lit top surface
         // face, down to the deck — depth 0 sits just inside the crown, so the material curves with it
-        cornerFaceSlice(putFace, pal, ed, strip, map, alongOf(ex, py), true, py, fs, len, 1, sOf(ex, py));
-        put(ex + 1 + w, py, 1, 1, seam);
+        cornerFaceSlice(putFace, pal, ed, strip, map, alongOf(ex, py), true, py, fs, len, 1, sOf(ex, py), sample);
+        put(ex + 1 + w, py, 1, sample, seam);
       } else {
         // the lit edge is the crown's OUTERMOST row, i.e. ex - 1 here — putting it on `ex` paints
         // over the shell edge and rules a near-white line along the station's own silhouette.
-        put(ex, py, 1, 1, shellEdge);
-        put(ex - w, py, w, 1, pal.cap); put(ex - 1, py, 1, 1, lit);
-        cornerFaceSlice(putFace, pal, ed, strip, map, alongOf(ex, py), true, py, fs, len, -1, sOf(ex, py));
-        put(ex - 1 - w, py, 1, 1, seam);
+        put(ex, py, 1, sample, shellEdge);
+        put(ex - w, py, w, sample, pal.cap); put(ex - 1, py, 1, sample, lit);
+        cornerFaceSlice(putFace, pal, ed, strip, map, alongOf(ex, py), true, py, fs, len, -1, sOf(ex, py), sample);
+        put(ex - 1 - w, py, 1, sample, seam);
       }
     }
     // COLUMN dual — the shallow stretch, where the ring hands off to the n/s wall.
-    for (let ix = xLo; ix < xHi; ix++) {
-      const adx = Math.abs(ix + 0.5 - ax);
+    for (let ix = xLo; ix < xHi; ix += sample) {
+      const adx = Math.abs(ix + sample / 2 - ax);
       if (adx >= K) continue;                                     // steep — the row dual owns it
       const s = cornerReach(HR, adx);
-      const ey = outY < 0 ? Math.round(cy - s) : Math.round(cy + s) - 1;       // -1: see the half-open note above
+      const ey = outY < 0 ? snap(cy - s) : snap(cy + s) - sample;       // -1: see the half-open note above
       const w = crownEase(s / HR, capW, capFar);
       const dy = deckYAt(ix), inner = dy == null ? (outY < 0 ? Y + T : Y - 1) : dy;
       /* A STANDING FACE IS ADDRESSED LIKE A STANDING FACE (2026-08-13).
@@ -3517,15 +3519,15 @@ const StationBake = (() => {
       const fsY = outY < 0 ? ey + 2 + w : ey - 2 - w;
       const cMap = cy === ay ? faceMap : ((px, py) => ({ a: px + phaseX, d: Math.abs(py - fsY) }));
       if (outY < 0) {
-        put(ix, ey, 1, 1, shellEdge);
-        put(ix, ey + 1, 1, w, pal.cap); put(ix, ey + 1, 1, 1, lit);
-        cornerFaceSlice(putFace, pal, ed, strip, cMap, alongOf(ix, ey), false, ix, ey + 2 + w, Math.max(0, inner - (ey + 2 + w)), 1, sOf(ix, ey));
-        put(ix, ey + 1 + w, 1, 1, seam);
+        put(ix, ey, sample, 1, shellEdge);
+        put(ix, ey + 1, sample, w, pal.cap); put(ix, ey + 1, sample, 1, lit);
+        cornerFaceSlice(putFace, pal, ed, strip, cMap, alongOf(ix, ey), false, ix, ey + 2 + w, Math.max(0, inner - (ey + 2 + w)), 1, sOf(ix, ey), sample);
+        put(ix, ey + 1 + w, sample, 1, seam);
       } else {
-        put(ix, ey, 1, 1, shellEdge);
-        put(ix, ey - w, 1, w, pal.cap); put(ix, ey - 1, 1, 1, lit);   // outermost crown row, not the shell edge
-        cornerFaceSlice(putFace, pal, ed, strip, cMap, alongOf(ix, ey), false, ix, ey - 2 - w, Math.max(0, (ey - 1 - w) - inner), -1, sOf(ix, ey));
-        put(ix, ey - 1 - w, 1, 1, seam);
+        put(ix, ey, sample, 1, shellEdge);
+        put(ix, ey - w, sample, w, pal.cap); put(ix, ey - 1, sample, 1, lit);   // outermost crown row, not the shell edge
+        cornerFaceSlice(putFace, pal, ed, strip, cMap, alongOf(ix, ey), false, ix, ey - 2 - w, Math.max(0, (ey - 1 - w) - inner), -1, sOf(ix, ey), sample);
+        put(ix, ey - 1 - w, sample, 1, seam);
       }
     }
   }
@@ -4817,6 +4819,8 @@ const StationBake = (() => {
          stops exactly where the wall starts. The face band TAPERS from the side wall's thickness at
          the side end of the arc to the north wall's NFACE at the north end, so the corner flows
          into whichever straight wall it meets instead of stepping. */
+      const fine = remastered() ? 1 / 8 : 1;
+      const snap = value => Math.round(value / fine) * fine;
       const Rc = T;                                  // THE chamfer radius — every layer uses this one
       const sgnX = A.cx ? -1 : 1, sgnY = A.cy ? -1 : 1;
       /* A NEARER WALL OWNS THE VOID IT STANDS IN — the same law bakeCornerCrown's `put` follows, and
@@ -4871,8 +4875,8 @@ const StationBake = (() => {
       const footAt = ady => sgnY < 0 ? 1 : Math.max(0, Math.min(1, sFoot + (1 - sFoot) * (1 - ady / Rc)));
       const aIn = Math.max(1, Rc - FACEW), bIn = Math.max(1, Rc - vFace);
       eachCornerRow(kind, ax, ay, Rc, (py, edge) => {
-        const ady = Math.abs(py + 0.5 - ay);
-        if (edge == null) { fill(X, py, T, 1, cHull); return; }       // row lies wholly outside the curve
+        const ady = Math.abs(py + fine / 2 - ay);
+        if (edge == null) { fill(X, py, T, fine, cHull); return; }       // row lies wholly outside the curve
         /* THE INNER BOUNDARY IS AN ELLIPSE, NOT A CIRCLE — this is the whole reason corners never
            quite met their walls. The deck's edge at a rounded corner has to land on TWO straight
            walls: x = Xroom + FACEW on the side wall (4px) and y = Yroom + NFACE on the north wall
@@ -4896,9 +4900,9 @@ const StationBake = (() => {
         const dxIn = !hasInner ? 0
                    : cn === 2 ? aIn * Math.sqrt(1 - ty * ty)
                               : aIn * Math.pow(1 - Math.pow(ty, cn), 1 / cn);
-        const inner = hasInner ? (sgnX < 0 ? Math.round(ax - dxIn) : Math.round(ax + dxIn))
+        const inner = hasInner ? (sgnX < 0 ? snap(ax - dxIn) : snap(ax + dxIn))
                                : (sgnX < 0 ? X + T : X);
-        const clamp = (x0, x1, c) => fill(Math.max(X, x0), py, Math.min(X + T, x1) - Math.max(X, x0), 1, c);
+        const clamp = (x0, x1, c) => fill(Math.max(X, x0), py, Math.min(X + T, x1) - Math.max(X, x0), fine, c);
         if (sgnX < 0) clamp(X, edge, cHull); else clamp(edge + 1, X + T, cHull);      // 1. cut the deck
         if (sgnX < 0) clamp(edge - 3, edge, outerBand); else clamp(edge + 1, edge + 4, outerBand);
         /* 2. the face: BODY, then a shadowed foot where it meets the deck. Deliberately NO lit top
@@ -4940,7 +4944,7 @@ const StationBake = (() => {
           }
           clamp(inner, inner + 1, outerBand);                                        // contact seam onto the deck
         }
-      });
+      }, fine);
       /* The inner boundary is nearly HORIZONTAL where it meets the north/south wall and nearly
          VERTICAL where it meets the side wall. A per-ROW walk lays exactly one seam pixel per row,
          which is right on the steep stretch but leaves the shallow one sparse — so against the
@@ -4948,25 +4952,25 @@ const StationBake = (() => {
          COLUMNS as well and lay the seam at the ellipse's y: the contact line is then continuous the
          whole way round and terminates on both straight walls' own seams. Same row/column duality
          the crown needed. */
-      for (let ix = X; ix < X + T; ix++) {
-        const adx = Math.abs(ix + 0.5 - ax);
+      for (let ix = X; ix < X + T; ix += fine) {
+        const adx = Math.abs(ix + fine / 2 - ax);
         if (adx >= aIn) continue;
         const dy = bIn * Math.sqrt(1 - (adx / aIn) * (adx / aIn));
-        const py = sgnY < 0 ? Math.round(ay - dy) : Math.round(ay + dy);
+        const py = sgnY < 0 ? snap(ay - dy) : snap(ay + dy);
         if (py < Y || py >= Y + T) continue;
         // same graded foot as the row pass, so the shallow stretch is shaded like the steep one —
         // and tapering the same way, or the column walk would put back the wall block the row walk
         // just stopped drawing (this is the SHALLOW stretch, i.e. the south end, so it carries most
         // of it).
-        const ff = footAt(Math.abs(py + 0.5 - ay));
+        const ff = footAt(Math.abs(py + fine / 2 - ay));
         if (ff > 0.001) {
           for (const [d0, k] of [[4, -0.24], [2, -0.40], [1, -0.58]]) {
             for (let j = 1; j <= Math.round(d0 * ff); j++) {
               const fy = sgnY < 0 ? py - j : py + j;
-              if (fy >= Y && fy < Y + T) fill(ix, fy, 1, 1, U.shade(cPal.face, k));
+              if (fy >= Y && fy < Y + T) fill(ix, fy, fine, 1, U.shade(cPal.face, k));
             }
           }
-          fill(ix, py, 1, 1, outerBand);
+          fill(ix, py, fine, 1, outerBand);
         }
       }
       const cZone = G.zoneGrid[G.idx(ccx, ccy)];
@@ -4981,8 +4985,8 @@ const StationBake = (() => {
         if (ex == null) return;
         // the rim belongs to the room the corner was cut from — the same rule the straight rim pass
         // follows. It was the literal pre-axis constant, so a clad room reverted to shell-grey here.
-        fill(A.cx ? ex : ex - 1, py, 2, 1, hullPal(cZone).rim);
-      });
+        fill(A.cx ? ex : ex - 1, py, 2, fine, hullPal(cZone).rim);
+      }, fine);
 
       /* THE CROWN RING carries the wall's lit top surface around the arc, so the bright line that
          defines a wall does not die at the corners — and on a TOP corner the SAME circle, centred

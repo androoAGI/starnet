@@ -11736,43 +11736,46 @@ const PropSprites = (() => {
     return { x, y, r: e.r, c: color, a: e.a * k * (phosphor?authoredScreen.power*1.35:1) };
   }
 
-  // Compact physical nameplates, painted after lighting for contrast. Geometry
-  // stays in station units: zooming out shrinks the tag together with its bay.
+  // Physical gantry plates: neutral steel, a restrained assignment accent and
+  // two-line names where needed. Never infer activity from an agent binding.
   const bayTextLayouts = new Map();
   function drawBayNames(props, scale, dpr) {
     if (!ctx || !props.length || !(scale > 0)) return;
-    const font = 7, pad = 1, h = 9;
     ctx.save();
     try {
       ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over';
-      ctx.font = font + "px 'VT323','Courier New',monospace";
-      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.shadowBlur = 0;
       for (const p of props) {
         if (!p.agentId) continue;
-        const name = String(p.dockName || String(p.agentId).replace(/^tg_/, '')).toUpperCase();
-        const maxWidth = Math.max(8, (p.w || 1) * TILE - pad * 2);
-        const key = name + '|' + maxWidth;
-        let layout = bayTextLayouts.get(key);
-        if (!layout) {
-          let text = name;
-          if (ctx.measureText(text).width > maxWidth) {
-            const chars = Array.from(text);
-            while (chars.length && ctx.measureText(chars.join('') + '…').width > maxWidth) chars.pop();
-            text = chars.join('') + '…';
+        const name = String(p.dockName || String(p.agentId).replace(/^tg_/, '')).replace(/\s+/g,' ').trim().toUpperCase();
+        const width = Math.max(12,(p.w || 1)*TILE-1), maxWidth=width-4;
+        const key=name+'|'+width;
+        let layout=bayTextLayouts.get(key);
+        if(!layout) {
+          let font=6;ctx.font=font+"px 'Arial',sans-serif";
+          let lines=[name];
+          if(ctx.measureText(name).width>maxWidth) {
+            font=4;ctx.font=font+"px 'Arial',sans-serif";
+            const chars=Array.from(name);let first='';
+            while(chars.length && ctx.measureText(first+chars[0]).width<=maxWidth)first+=chars.shift();
+            // Prefer a word boundary when it leaves a useful first line.
+            const split=Math.max(first.lastIndexOf(' '),first.lastIndexOf('-'));
+            if(split>first.length/2){chars.unshift(...Array.from(first.slice(split+1)));first=first.slice(0,split);}
+            let second=chars.join('').trim();
+            if(ctx.measureText(second).width>maxWidth){const tail=Array.from(second);while(tail.length&&ctx.measureText(tail.join('')+'…').width>maxWidth)tail.pop();second=tail.join('')+'…';}
+            lines=[first.trim(),second];
           }
-          layout = { text, width: ctx.measureText(text).width + pad * 2 };
-          if (bayTextLayouts.size >= 256) bayTextLayouts.clear();
-          bayTextLayouts.set(key, layout);
+          layout={font,lines};if(bayTextLayouts.size>=256)bayTextLayouts.clear();bayTextLayouts.set(key,layout);
         }
-        const x = (p.x + (p.w || 1) / 2) * TILE;
-        const anchor = p.y * TILE - (surfaceLift(p)) + 1;
-        const box = { x: x - layout.width / 2, y: anchor - h / 2, w: layout.width, h };
-        ctx.shadowBlur = 0;
-        ctx.fillStyle = '#0b1916'; ctx.fillRect(box.x, box.y, box.w, box.h);
-        ctx.strokeStyle = '#65c9ad'; ctx.lineWidth = 0.5;
-        ctx.strokeRect(box.x, box.y, box.w, box.h);
-        ctx.fillStyle = '#d6fff0'; ctx.shadowColor = '#5ad1b3'; ctx.shadowBlur = Math.min(scale, 2 * (dpr || 1));
-        ctx.fillText(layout.text, x, anchor);
+        const x=(p.x+(p.w||1)/2)*TILE,anchor=p.y*TILE-surfaceLift(p)+1,h=11;
+        const left=x-width/2,top=anchor-h/2;
+        ctx.fillStyle='#11191d';ctx.fillRect(left,top,width,h);
+        ctx.strokeStyle='#657077';ctx.lineWidth=.35;ctx.strokeRect(left,top,width,h);
+        ctx.strokeStyle='#28353c';ctx.strokeRect(left+.7,top+.7,width-1.4,h-1.4);
+        // A small cyan rail ties the plate to the station's screen language.
+        ctx.strokeStyle='#64a7af';ctx.lineWidth=.5;ctx.beginPath();ctx.moveTo(left+2,top+h-1.1);ctx.lineTo(left+width-2,top+h-1.1);ctx.stroke();
+        ctx.font=layout.font+"px 'Arial',sans-serif";ctx.fillStyle='#d4e0e3';
+        layout.lines.forEach((line,i)=>ctx.fillText(line,x,anchor+(i-(layout.lines.length-1)/2)*4.5-.25));
       }
     } finally { ctx.restore(); }
   }
