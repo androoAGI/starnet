@@ -13,7 +13,7 @@ const StationTemplates = (() => {
   ];
   const rooms = {
     cozyWorkshop: { name: 'WORKROOM', kind: 'factory', floorStyle: 'walnut', floorMat: 'plank', blueprint: ['front_desk',3,1], props: [['plant',1,1],['plant',16,1],['desk',2,7],['industrial_drawerbank',12,7],['bookshelf',14,9]] },
-    cozyLounge: { name: 'LOUNGE', kind: 'quarters', floorStyle: 'walnut', floorMat: 'plank', props: [['tv',2,0],['rug',1,1],['couch',1,5],['industrial_roundtable',11,4],['dinerchair',10,4,3],['dinerchair',13,4,1],['coffee',14,4],['bookshelf',12,1],['plant',16,1],['bunk',13,7],['plant',1,8]] },
+    cozyLounge: { name: 'LOUNGE', kind: 'quarters', floorStyle: 'walnut', floorMat: 'plank', props: [['tv',2,1],['rug',1,2],['couch',1,5],['industrial_roundtable',11,4],['dinerchair',10,4,3],['dinerchair',13,4,1],['coffee',14,4],['bookshelf',12,1],['plant',16,1],['bunk',13,7],['plant',1,8]] },
     reading: { name: 'LIBRARY', kind: 'quarters', floorStyle: 'walnut', floorMat: 'plank', props: [['couch',1,1],['bookshelf',13,1],['plant',16,8],['industrial_roundtable',2,4]] },
     creative: { name: 'STUDIO', kind: 'lab', floorStyle: 'hull', floorMat: 'resin', props: [['desk',3,1],['easel',11,1],['plant',16,1],['bookshelf',1,8],['industrial_drawerbank',11,8]] },
     review: { name: 'REVIEW', kind: 'hab', floorStyle: 'ash', floorMat: 'resin', props: [['desk',2,1],['whiteboard',11,0],['plant',16,1],['industrial_roundtable',7,4]] },

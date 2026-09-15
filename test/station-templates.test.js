@@ -51,7 +51,8 @@ for(const P of [legacySprites,remasterContext.module.exports])for(const item of 
       if(landing)for(const p of doc.props)assert.ok(!M.rectsHit(landing,{x1:p.x,y1:p.y,x2:p.x+p.w-1,y2:p.y+p.h-1}),item.id+': '+p.t+' clear of '+r.name+' doorway');
     }
   }
-  for(const p of doc.props)assert.ok(g.path(origin[0],origin[1],p.x-g.origin.tx,p.y+p.h-g.origin.ty),item.id+': reachable front of '+p.t);
+  // Floor decals are walkable; they do not have a furniture interaction edge.
+  for(const p of doc.props.filter(p=>!P.spec(p.t).flat))assert.ok(g.path(origin[0],origin[1],p.x-g.origin.tx,p.y+p.h-g.origin.ty),item.id+': reachable front of '+p.t);
   const current=M.create(M.starterDoc());current.ensureWorkstation('agent');current.ensureWorkstation('crew');
   const before=current.serialize(),identity=before.meta.createdAt;
   assert.equal(current.replaceLayout(doc).ok,true);
