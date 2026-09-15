@@ -2053,7 +2053,8 @@ const StationBake = (() => {
        thick bevelled edge — lit on top and the west, shaded on the east — that catches the ceiling light
        and separates it from its neighbour. Two tiles per segment. Painted over the recipe so every material
        reads as panels bolted to the frame; `wallDetail` scales it. */
-    if (!nextWall && DEPTH.wallDetail > 0.001) {   // generation II owns its panel framing
+    const authoredFrame=remastered() && typeof IndustrialTextures.supportsWall==='function' && IndustrialTextures.supportsWall(wallMatOf(e.z));
+    if (!nextWall && !authoredFrame && DEPTH.wallDetail > 0.001) {   // authored materials own their panel framing
       const seg = ((e.x % 2) + 2) % 2, wd = Math.max(0, DEPTH.wallDetail);
       const fr = shade(pal.face, 0.22 * wd), fd2 = shade(pal.face, -0.45 * wd), fx = shade(pal.face, -0.62 * wd);
       b.fillStyle = fr; b.fillRect(X, topY + 2, T, 1);                                 // lit top rail of the panel
