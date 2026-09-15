@@ -469,6 +469,7 @@ const World = (() => {
     if(b.odo==null)b.odo=0;
     if(t-(b.odoAt||0)>150)b.spd=0;
     b.odoAt=t;
+    b._gaitStart={x:b.px,y:b.py,odo:b.odo};b._strideBlocked=false;b._resolvedTravelHeading=null;
     const heading=d>1e-4?Math.atan2(dy,dx):b.faceA;
     const turn=angNorm(heading-b.faceA),remain=Math.abs(turn);
     const target=Math.min(TURN_RATE,Math.sqrt(2*TURN_ACCEL_A*remain));
@@ -486,6 +487,16 @@ const World = (() => {
     b.odo+=step;b._travelHeading=heading;b._travelStep=step;
     b.dir=b.faceDir=bucketDir(b.faceA,b.dir);
     return step;
+  }
+
+  function finishGait(b){
+    const start=b._gaitStart;if(!start)return;b._gaitStart=null;
+    const dx=b.px-start.x,dy=b.py-start.y,distance=Math.hypot(dx,dy);
+    const forward=dx*Math.cos(b._travelHeading)+dy*Math.sin(b._travelHeading);
+    // Separation runs after movement. A blocked/shoved body plants instead of cycling forward in reverse.
+    b._strideBlocked=distance<.001||forward<=.001;
+    b.odo=start.odo+(b._strideBlocked?0:distance);
+    if(!b._strideBlocked)b._resolvedTravelHeading=Math.atan2(dy,dx);
   }
 
   /* ================= furniture (ported v7 sprites.js F.desk / F.chair) ================= */
@@ -5819,6 +5830,7 @@ const World = (() => {
     // both committed this frame's positions — resolve any pair that ended up inside each other. Position
     // is the ONLY thing it touches, so it can't reorder or pre-empt a single decision made above it.
     separateBodies(now);
+    if(agent)finishGait(agent);for(const body of crew)finishGait(body);
   }
 
   /* ---------- render ----------

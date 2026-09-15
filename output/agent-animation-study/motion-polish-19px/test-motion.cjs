@@ -13,6 +13,12 @@ for(const skin of Object.keys(skins))for(const delta of [0,Math.PI/4,Math.PI/2,M
  for(let i=0;i<90;i++){time+=dt;const step=c.stepGait(b,Math.cos(heading)*100,Math.sin(heading)*100,100,28,false,dt);distance+=step;const dir=c.renderDir8(b,b.dir,false,time);const error=Math.abs(Math.atan2(Math.sin(angles[dir]-heading),Math.cos(angles[dir]-heading)))*180/Math.PI;if(step>.001){maxError=Math.max(maxError,error);assert(error<=73,skin+' faces away while travelling: '+error);}assert(Math.abs(b.odo-27-distance)<1e-7,'odometer includes non-travel');}
  const old=b.odo;time+=1000;c.stepGait(b,100,0,100,28,false,dt);assert(b.odo>=old,'walk restart resets stride phase');cases++;
 }
+
+for(const movement of [{x:-1,y:0,blocked:true},{x:0,y:0,blocked:true},{x:1,y:1,blocked:false}]){
+ const b={_gaitStart:{x:0,y:0,odo:20},px:movement.x,py:movement.y,_travelHeading:0,odo:24};c.finishGait(b);
+ assert.equal(b._strideBlocked,movement.blocked);assert.equal(b.odo,20+(movement.blocked?0:Math.hypot(movement.x,movement.y)));
+ if(!movement.blocked)assert.equal(b._resolvedTravelHeading,Math.atan2(movement.y,movement.x));
+}
 vm.runInContext(w.slice(w.indexOf('  function conversationWindow('),w.indexOf('  function myTurn(',w.indexOf('  function conversationWindow('))),c);
 for(const n of [2,3])for(let t=0;t<60000;t+=17){let speakers=0;for(let i=0;i<n;i++)speakers+=Number(c.myTurnN(t,i,n,1700,1150));assert(speakers<=1,'conversation overlaps');const win=c.conversationWindow(t,1700,1150);assert(win.speakEnd<win.end,'missing listening gap');}
 // Run the actual renderer with an instrumented drawing context: no generated images or world-state overrides.

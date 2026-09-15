@@ -365,7 +365,7 @@ const SPRITES = (() => {
   const ang = a => Math.atan2(Math.sin(a), Math.cos(a));
   function renderDir8(b, dir, glancing, nowMs) {
     // while walking (and not glancing) follow the true continuous heading; otherwise the game dir
-    const want = (!glancing && b.state === 'walk' && b.faceA != null) ? ang(b.faceA) : DIR8_A[dir];
+    const want = (!glancing && b.state === 'walk' && b.faceA != null) ? ang(b._resolvedTravelHeading ?? b.faceA) : DIR8_A[dir];
     if (want == null) return dir;
     const dt = Math.max(0, Math.min(100, nowMs - (b._rAt || 0)));   // clamp: first frame / tab-restore must not spin
     b._rAt = nowMs;
@@ -426,7 +426,7 @@ const SPRITES = (() => {
     if (meeting) {
       key = pick8(set, ['rot'], dir8, dir); fps = 4;
     } else if (b.state === 'walk') {
-      key = pick8(set, ['walk'], dir8, dir); fps = 10;
+      key = pick8(set, b._strideBlocked ? ['rot'] : ['walk'], dir8, dir); fps = 10;
     } else if (b.working && !glancing) {
       // Typing art is north-only on some skins: prefer a correctly facing sit/stand over a reversed worker.
       key = pick(set, b.sitting ? ['type', 'sit', 'rot'] : ['rot'], dir); fps = 6;
