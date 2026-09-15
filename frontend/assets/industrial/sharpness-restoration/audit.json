@@ -1476,16 +1476,16 @@
       "crop": {
         "x": 0,
         "y": 0,
-        "width": 1522,
-        "height": 677
+        "width": 1524,
+        "height": 823
       },
       "body": {
         "width": 84,
-        "height": 37.36399474375821
+        "height": 45.36220472440945
       },
-      "sourceWidth": 1522,
-      "sourceHeight": 677,
-      "sourcePixelsPerWorldPixel": 18.12,
+      "sourceWidth": 1524,
+      "sourceHeight": 823,
+      "sourcePixelsPerWorldPixel": 18.14,
       "zoomLimit": 6,
       "sourceExpansionAtMaxZoom": 1,
       "status": "source-inspected",

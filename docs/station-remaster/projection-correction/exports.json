@@ -10551,18 +10551,18 @@
       "id": "bridge_tacticaltable",
       "view": "s",
       "before": "frontend/assets/industrial/tactical-table-polish/before/bridge_tacticaltable.png",
-      "source": "frontend/assets/industrial/tactical-table-polish/sources/bridge_tacticaltable.png",
-      "sourceSha256": "3dd8ec399c11ae46e997d016654ae2271185c89ae95bed1cd7556a684c9c85cb",
+      "source": "frontend/assets/industrial/tactical-table-polish/sources/bridge_tacticaltable-low-v2.png",
+      "sourceSha256": "08131fb62f21d1bb9cfe8f0e69e2b3bf8820bfef56464fb44e1b479b5c38e657",
       "repoPath": "frontend/assets/industrial/tactical-table-polish/bridge_tacticaltable.png",
-      "outputSha256": "29ef9e43954796903dad23cb5b3cbdd9b85dce17aea2ee8bdb45f59e8fb96a1a",
+      "outputSha256": "fba48d89f6346418c30eeffa56b708820946e978ac918dd694e0b6650d74e4db",
       "sourceCrop": {
-        "left": 126,
-        "top": 106,
-        "width": 1522,
-        "height": 677
+        "left": 31,
+        "top": 78,
+        "width": 1524,
+        "height": 823
       },
-      "sourceWidth": 1522,
-      "sourceHeight": 677,
+      "sourceWidth": 1524,
+      "sourceHeight": 823,
       "footprint": {
         "w": 7,
         "h": 4
@@ -10576,9 +10576,9 @@
       "exposure": 1,
       "contact": {
         "x": 0.5,
-        "y": 0.9985228951255539
+        "y": 0.9987849331713244
       },
-      "retained": 628563,
+      "retained": 1041475,
       "status": "raised tactical table candidate; owner review pending",
       "group": "tactical-table-polish",
       "output": "frontend/assets/industrial/projection-correction/bridge_tacticaltable.png"
