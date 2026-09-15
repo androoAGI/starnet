@@ -124,3 +124,12 @@ in the model yields zero routing errors and energizes all six belt tiles.
 Worldmodel passes 536 assertions; blueprints pass 2,180. Syntax/diff checks
 pass and the live browser reports no errors. The full gate above was not
 rerun; no merge, release, or real provider job was performed.
+
+Cozy seating refinement: moved the couch away from the north wall and centered
+the TV against that wall across the rug. Moved the small table into the right
+half of the lounge and added two diner chairs facing inward (east/west authored
+views). Template furniture now accepts an optional facing. Applied and visually
+inspected in the live preview, observed the save acknowledgment, and verified
+the saved chair facings plus unchanged home/workroom furniture and conveyors.
+Seven-template tests and syntax/diff checks pass. The saved proof is
+`.dogfood/station-cozy/seating-saved.json`.

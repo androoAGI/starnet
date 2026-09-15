@@ -13,7 +13,7 @@ const StationTemplates = (() => {
   ];
   const rooms = {
     cozyWorkshop: { name: 'WORKROOM', kind: 'factory', floorStyle: 'walnut', floorMat: 'plank', blueprint: ['front_desk',3,1], props: [['plant',1,1],['plant',16,1],['desk',2,7],['industrial_drawerbank',12,7],['bookshelf',14,9]] },
-    cozyLounge: { name: 'LOUNGE', kind: 'quarters', floorStyle: 'walnut', floorMat: 'plank', props: [['couch',1,1],['rug',1,2],['industrial_roundtable',2,6],['coffee',5,6],['bookshelf',12,1],['plant',16,1],['bunk',13,7],['plant',1,8]] },
+    cozyLounge: { name: 'LOUNGE', kind: 'quarters', floorStyle: 'walnut', floorMat: 'plank', props: [['tv',2,0],['rug',1,1],['couch',1,5],['industrial_roundtable',11,4],['dinerchair',10,4,3],['dinerchair',13,4,1],['coffee',14,4],['bookshelf',12,1],['plant',16,1],['bunk',13,7],['plant',1,8]] },
     reading: { name: 'LIBRARY', kind: 'quarters', floorStyle: 'walnut', floorMat: 'plank', props: [['couch',1,1],['bookshelf',13,1],['plant',16,8],['industrial_roundtable',2,4]] },
     creative: { name: 'STUDIO', kind: 'lab', floorStyle: 'hull', floorMat: 'resin', props: [['desk',3,1],['easel',11,1],['plant',16,1],['bookshelf',1,8],['industrial_drawerbank',11,8]] },
     review: { name: 'REVIEW', kind: 'hab', floorStyle: 'ash', floorMat: 'resin', props: [['desk',2,1],['whiteboard',11,0],['plant',16,1],['industrial_roundtable',7,4]] },
@@ -40,10 +40,10 @@ const StationTemplates = (() => {
       requireOK(station.addRoom({kind:r.kind,name:r.name,floorStyle:r.floorStyle,floorMat:r.floorMat,
         rect:{x1:slot.x,y1:slot.y,x2:slot.x+17,y2:slot.y+10}}));
       requireOK(station.placeHallway({rect:slot.hall}));
-      for (const [t,x,y] of r.props) {
+      for (const [t,x,y,facing=0] of r.props) {
         const spec = sprites.spec(t);
         if (!spec) throw new Error('Missing station furniture: '+t);
-        requireOK(station.addProp({t,x:slot.x+x,y:slot.y+y,w:spec.w,h:spec.h,block:spec.blocks!==false}));
+        requireOK(station.addProp({t,x:slot.x+x,y:slot.y+y,w:spec.w,h:spec.h,r:facing,block:spec.blocks!==false}));
       }
       if (r.blueprint) {
         const [blueprint,x,y] = r.blueprint;
