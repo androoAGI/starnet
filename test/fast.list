@@ -788,3 +788,4 @@ test/arrival.test.js
 
 test/genesis-wake-credential.test.js
 test/dossier-growth-live.test.js
+test/industrial-shells.test.js
