@@ -11756,6 +11756,9 @@ const PropSprites = (() => {
           let lines=[name];
           if(ctx.measureText(name).width>maxWidth) {
             font=4;ctx.font=font+"px 'Arial',sans-serif";
+            if(!/[ -]/.test(name) && name.length<=12) {
+              while(font>3 && ctx.measureText(name).width>maxWidth){font-=.25;ctx.font=font+"px 'Arial',sans-serif";}
+            }
             const chars=Array.from(name);let first='';
             while(chars.length && ctx.measureText(first+chars[0]).width<=maxWidth)first+=chars.shift();
             // Prefer a word boundary when it leaves a useful first line.
