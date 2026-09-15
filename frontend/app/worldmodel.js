@@ -2459,16 +2459,16 @@ const WorldModel = (() => {
       doc.props = [
         // The five essentials are real floor grants. Keep the desk unassigned so
         // ensureWorkstation adopts it for the new Commander on the normal boot path.
-        // Every object backs onto the north wall. The centered workstation
-        // anchors a continuous equipment bank, with greenery at both ends.
+        // User-approved placement from the live station, 2026-09-15.
+        // Preserve this composition and the original 18 x 11 room footprint.
         { id: 'p' + doc._nid++, t: 'desk', x: 8, y: 1, w: 2, h: 1, block: true },
-        { id: 'p' + doc._nid++, t: 'war_intelcab', x: 2, y: 1, w: 1, h: 2, block: true },
-        { id: 'p' + doc._nid++, t: 'gigs_servercart', x: 3, y: 1, w: 1, h: 1, block: true },
-        { id: 'p' + doc._nid++, t: 'comms_dish', x: 14, y: 1, w: 2, h: 2, block: true },
-        { id: 'p' + doc._nid++, t: 'workbench', x: 5, y: 1, w: 2, h: 1, block: true },
-        { id: 'p' + doc._nid++, t: 'studio', x: 11, y: 1, w: 2, h: 2, block: true },
-        { id: 'p' + doc._nid++, t: 'plant', x: 0, y: 1, w: 1, h: 1, block: false },
-        { id: 'p' + doc._nid++, t: 'plant', x: 17, y: 1, w: 1, h: 1, block: false }
+        { id: 'p' + doc._nid++, t: 'war_intelcab', x: 1, y: 0, w: 1, h: 2, block: true },
+        { id: 'p' + doc._nid++, t: 'gigs_servercart', x: 1, y: 9, w: 1, h: 1, block: true },
+        { id: 'p' + doc._nid++, t: 'comms_dish', x: 14, y: 0, w: 2, h: 2, block: true },
+        { id: 'p' + doc._nid++, t: 'workbench', x: 3, y: 1, w: 2, h: 1, block: true },
+        { id: 'p' + doc._nid++, t: 'studio', x: 14, y: 8, w: 2, h: 2, block: true },
+        { id: 'p' + doc._nid++, t: 'plant', x: 0, y: 0, w: 1, h: 1, block: false },
+        { id: 'p' + doc._nid++, t: 'plant', x: 17, y: 0, w: 1, h: 1, block: false }
       ];
       return doc;
     },

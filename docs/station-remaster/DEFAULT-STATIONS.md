@@ -13,9 +13,11 @@ remaster at `2133aeb0a`. This is an isolated source preview, not an installed re
   Keep these dimensions for future layout refinements: the user explicitly rejected
   widening the default. Existing saved stations
   do not go through the new-station composition factory.
-- Every prop backs onto the north wall. The workstation and two
-  plants frame the two ends; files, memory, and terminal share the left
-  equipment bay; media and web share the right. The shallow foreground stays open.
+- The user-approved live arrangement is preserved in the default factory and
+  [approval fixture](../../test/fixtures/station-default-approved.json): desk at
+  (8,1), files at (1,0), workbench at (3,1), dish at (14,0), memory at (1,9),
+  media at (14,8), and plants at (0,0)/(17,0). Later approval supersedes the
+  earlier request to put all furniture along the back wall.
 - Template corridors connect to the rectangular footprint on all four sides.
   All six template layouts retain reachable rooms.
 - The latest projection-corrected prop art loads without a query parameter.
@@ -30,14 +32,17 @@ remaster at `2133aeb0a`. This is an isolated source preview, not an installed re
 
 | Build | Rooms (excluding corridors) | Intended use |
 | --- | ---: | --- |
-| Quiet Retreat | 2 | Solo work and a reading/rest room |
-| Creative Studio | 3 | Writing, design, media, and review |
-| Research Station | 3 | Investigation and a reference library |
-| Engineering Station | 5 | Implementation, review, research, and rest |
-| Operations Station | 5 | Planning, research, review, and reference |
+| Quiet Retreat | 2 | Home + library/lounge to the south |
+| Creative Studio | 3 | Home between a writing/design studio and review room |
+| Research Station | 3 | Home + northern analysis lab and eastern archive |
+| Engineering Station | 5 | Home + workshop, review, analysis, and lounge |
+| Operations Station | 5 | Home + archive, communications, planning, and review |
 
 All five essentials stay in the central room. Room names and furnishings suggest
 uses; templates do not hire agents, configure workflows, or imply running work.
+Every added room is also 18 × 11, with four or five furnishings and clear door
+approaches. Added desks follow the active catalog (three tiles wide with the
+remastered art); the approved existing home desk retains its saved footprint.
 Applying requires choosing a build and confirming the replacement. The previous
 layout is backed up in the current browser's local storage before replacement;
 failure to store that backup prevents the change. The picker can restore that
@@ -45,6 +50,16 @@ backup after reopening. REFIT also offers single-step Undo/Redo. Conversations a
 roster remain outside this layout operation; existing desk owners retain desks.
 
 ## Verification
+
+Preset completion: applied all five alternatives through the live picker,
+inspected each in the station, and compared each saved backend layout with its
+factory using the active remastered prop catalog. Counts were 12/17/18/25/26
+props for Retreat/Creative/Research/Engineering/Operations. No browser errors
+were reported. Receipts and saved layouts are in `.dogfood/station-presets/`.
+Restored the approved default afterward and verified its furniture/room against
+the pre-test snapshot. Model checks cover classic and remastered desk widths,
+approved-home preservation, room sizes, connected rooms, all prop approaches,
+clear entrances in added rooms, ownership, undo/redo, and persistence.
 
 Composition refinement: worldmodel passed 536 assertions and all six template
 connectivity/placement checks passed. Applied the revised default through the
