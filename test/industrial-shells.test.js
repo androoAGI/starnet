@@ -29,7 +29,7 @@ async function pack(missing = '', classic = false) {
 (async () => {
   const { textures: t, draws, ctx } = await pack();
   assert.equal(t.enabled(), true);
-  const ids = ['monocoque', 'timber', 'clapboard', 'shingle', 'brick', 'stone', 'stucco', 'curtain', 'hedge'];
+  const ids = ['monocoque', 'timber', 'clapboard', 'shingle', 'brick', 'stone', 'stucco', 'curtain', 'hedge', 'thermal', 'insulation', 'heatsink'];
   for (const id of ids) {
     assert.ok(t.status().assets.includes('shell-' + id), id + ' loads');
     assert.equal(t.shellPlate(ctx, 0, 0, 96, 96, id, '#403020'), true);
@@ -50,10 +50,36 @@ async function pack(missing = '', classic = false) {
   assert.equal(failed.textures.enabled(), true, 'optional failure preserves main pack');
   assert.equal(failed.textures.shellPlate(failed.ctx, 0, 0, 96, 96, 'brick'), false);
   assert.equal(failed.textures.shellPlate(failed.ctx, 0, 0, 96, 96, 'timber'), true);
+  for (const id of ['flightdeck', 'lunar', 'maggrid', 'habitat']) {
+    assert.equal(t.floor(ctx, 0, 0, 12, -1, -2, id, '#603020'), true);
+    const im = draws.at(-1).im;
+    assert.ok(im.tint[0] > im.tint[2], id + ' follows paint hue');
+    assert.equal(im.tint[3], 255);
+    assert.equal(draws.at(-1).args[0], im.width * 7 / 8, 'negative floor X wraps');
+    assert.equal(draws.at(-1).args[1], im.height * 6 / 8, 'negative floor Y wraps');
+    const missing = await pack('floor-' + id);
+    assert.equal(missing.textures.enabled(), true);
+    assert.equal(missing.textures.floor(missing.ctx, 0, 0, 12, 0, 0, id), false);
+  }
+  for (const id of ['pressure', 'radiator', 'utility', 'acoustic']) {
+    assert.equal(t.wall(ctx, 0, 0, 12, 30, -1, id, '#203060'), true);
+    const im = draws.at(-1).im;
+    assert.ok(im.tint[2] > im.tint[0], id + ' follows paint hue');
+    const strip = t.wallStrip(30, id, '#203060');
+    assert.equal(draws.at(-1).im, im, 'straight and corner faces use identical artwork');
+    assert.equal(t.wallStrip(30, id, '#203060'), strip, 'strip cache is reusable');
+    assert.notEqual(t.wallStrip(30, id, '#603020'), strip, 'paint owns a separate strip');
+    const missing = await pack('wall-' + id);
+    assert.equal(missing.textures.enabled(), true);
+    assert.equal(missing.textures.wall(missing.ctx, 0, 0, 12, 30, 0, id), false);
+    assert.equal(missing.textures.wallStrip(30, id), null);
+  }
+  assert.equal(t.wall(ctx, 0, 0, 12, 30, 0, 'viewport'), false, 'windows remain geometry-owned');
+  assert.equal(t.wallStrip(30, 'viewport'), null);
   const old = await pack('', true);
   assert.equal(old.textures.enabled(), false);
   assert.equal(old.textures.shellPlate(old.ctx, 0, 0, 96, 96, 'brick'), false);
   const core = await pack('floor');
   assert.equal(core.textures.enabled(), false, 'core asset failure preserves full classic fallback');
-  console.log('industrial-shells: loader, all nine materials, paint, relief, cache, failure isolation, classic PASS');
+  console.log('industrial-shells: loader, shells, floors and walls, paint, relief, cache, failure isolation, classic PASS');
 })().catch(error => { console.error(error); process.exitCode = 1; });
