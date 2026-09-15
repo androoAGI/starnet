@@ -18,8 +18,8 @@
   "expectedClaimCount": 37,
   "releaseSurface": {
     "algorithm": "sha256",
-    "sourceCommit": "ec7cd8cd606ab298ee4d41f958ea71dfc50fa97e",
-    "pathSetSha256": "c4ecd804a954875e8d12ca5ea636843f939f71a3641d787e31893e698663b9b1",
+    "sourceCommit": "95502157768fdf77ae6e4d0c70cae454fb11d194",
+    "pathSetSha256": "90d5146b4d0b5c89f766aa2966a81bc4d704b403cadbe92b22bbafbbc3682eb1",
     "files": [
       {
         "path": "INSTALL.md",
@@ -88,8 +88,8 @@
       },
       {
         "path": "frontend/agent-demo/demo.js",
-        "bytes": 3327,
-        "sha256": "bd1341ae4875cfa3498c2187bbcaee6051613c224115329f009bed15d81c87ca"
+        "bytes": 4572,
+        "sha256": "9840d9f66c65f56be0690c16947f3f80faf2aa9505f10b7d033f5c337cd4c85b"
       },
       {
         "path": "frontend/agent-demo/industrialtextures.js",
@@ -115,6 +115,11 @@
         "path": "frontend/agent-demo/propsprites.js",
         "bytes": 797840,
         "sha256": "695d2a932bacae8cb6377e6ab45d7fbf292fd8caaeef741763543a9d4838e8a5"
+      },
+      {
+        "path": "frontend/agent-demo/review-world.js",
+        "bytes": 738444,
+        "sha256": "65b0504b5be2aedde79bde3406ee8664c6700eac711b5864e082b056831aefa2"
       },
       {
         "path": "frontend/agent-demo/sprites.js",
@@ -148,8 +153,8 @@
       },
       {
         "path": "frontend/agent-station-demo.html",
-        "bytes": 86316,
-        "sha256": "c8b2259616dafa1fd1b4fb175a72c76a967556c1d36bea3f1c6318ede6a49ef1"
+        "bytes": 86330,
+        "sha256": "77a0c8c042bacab923b22cf93d8328af7bfd3aad35769c992bd69765310308c4"
       },
       {
         "path": "frontend/app/agentid.js",
