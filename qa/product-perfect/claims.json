@@ -18,7 +18,7 @@
   "expectedClaimCount": 37,
   "releaseSurface": {
     "algorithm": "sha256",
-    "sourceCommit": "7b8744257f083813a01a9cc414a993df19a8e82f",
+    "sourceCommit": "b8648b228f20867f790cb159840017022c67c3d1",
     "pathSetSha256": "1d26a45a2a9aac628d8d2335638d02a6051d605c116824ae8d4c28390781a868",
     "files": [
       {
@@ -618,8 +618,8 @@
       },
       {
         "path": "frontend/app/projection-prop-effects.js",
-        "bytes": 42714,
-        "sha256": "1f73ed0286b2f8af91b55b53be485240c0f6db8e8e2100a341e48df8da11e26e"
+        "bytes": 42668,
+        "sha256": "90b8f82656fab388b1f7f8dbd471912bfe76a6c31d6e27a83b29b7131acc2982"
       },
       {
         "path": "frontend/app/projects.js",
@@ -634,7 +634,7 @@
       {
         "path": "frontend/app/prop-catalog-data.js",
         "bytes": 128872,
-        "sha256": "47977867ea0ee4f944969db2c258ec74ceff359761310d2c493452502dcc468a"
+        "sha256": "2df4f44a0b68d0d6d47a18742277d4046a89b643e0aa3dd1cd79ef2819bd7431"
       },
       {
         "path": "frontend/app/prop-catalog-fixture.js",
