@@ -2673,14 +2673,15 @@ const World = (() => {
        decision, which only runs when the body is free to move. */
     releaseSeat();
     const w = couch.w || 1, h = couch.h || 1;
-    const lo = w >= 3 ? 1 : 0, hi = w >= 3 ? w - 2 : w - 1;   // skip an arm tile each end when wide
+    const vertical = !!((couch.r | 0) & 1), span = vertical ? h : w;
+    const lo = span >= 3 ? 1 : 0, hi = span >= 3 ? span - 2 : span - 1;   // skip an arm tile each end when wide
     const slots = [];
     for (let i = lo; i <= hi; i++) if (!occupiedSeats.has(couch.id + ':' + i)) slots.push(i);
     if (!slots.length) return false;                          // couch full → caller tries another couch
     const order = U.irnd(0, slots.length - 1);                // vary which cushion is taken
     for (let k = 0; k < slots.length; k++) {
       const slot = slots[(order + k) % slots.length];
-      const sx = couch.x + slot, sy = couch.y;                // the couch tile the agent will sit on
+      const sx = couch.x + (vertical ? 0 : slot), sy = couch.y + (vertical ? slot : 0);                // the couch tile the agent will sit on
       if (!tileInZone(zone, sx, sy)) continue;                // P1: the cushion the body RENDERS on must be in-zone (a wide couch can straddle a wall)
       for (const [dx, dy] of SEAT_NB) {
         const ax = sx + dx, ay = sy + dy;
@@ -2690,9 +2691,9 @@ const World = (() => {
         occupiedSeats.add(couch.id + ':' + slot); self.seatKey = couch.id + ':' + slot;
         const side = sideSeat(couch);
         const authoredLift=typeof PropRemaster!=='undefined'&&PropRemaster.enabled(couch.t)?PropRemaster.viewGeometry(couch.t,['s','w','n','e'][(couch.r|0)&3])?.spec.seatLift:0;
-        self.pendSeat = { px: (sx + 0.5) * T + (side ? side.dx : 0), py: (couch.y + h) * T - 2, lift: side ? side.lift : (Number.isFinite(authoredLift)?authoredLift:0),behindBack:!side&&authoredLift>0 };   // floor/sort anchor stays at the cushion front
+        self.pendSeat = { px: (sx + 0.5) * T + (side ? side.dx : 0), py: (vertical ? sy + 1 : couch.y + h) * T - 2, lift: side ? side.lift : (Number.isFinite(authoredLift)?authoredLift:0),behindBack:!side&&authoredLift>0 };   // floor/sort anchor stays at the cushion front
         self.goal = tvId ? 'lounge' : 'use'; self.usingProp = couch.id; self.watchProp = tvId || null;
-        self.useSit = true; self.useFace = side ? side.face : (faceDir || 'south');   // a profile chair points ONE way — see SIDE_SEAT
+        self.useSit = true; self.useFace = side ? side.face : (couch.r && PropAnchor.frontOf ? PropAnchor.frontOf(couch) : (faceDir || 'south'));   // a profile chair points ONE way — see SIDE_SEAT
         if (!self.target) arrive(now);                       // already adjacent → settle immediately
         return true;
       }
@@ -9865,7 +9866,8 @@ const World = (() => {
       const anchor=isWorkstationProp(p.t)?deskSeat(p):u&&PropAnchor.deriveAnchor(p,geo,{approach:useApproach(u,p),sit:!!u.sit,extra:blocked});
       const out={id:p.id,type:p.t,r:p.r||0,mirror:!!p.m,footprint:[p.w,p.h],canonical:[f.w,f.h],mount:station.mountOf(p),
         kind:u?.kind||null,workstation:isWorkstationProp(p.t),front:walkable(front),back:walkable(back),route:route?route.length:null,
-        anchor:anchor||null,side:sideSeat(p),flat:!!s.flat,interaction:'none',motion:{spd:b.spd,odo:b.odo,odoAge:performance.now()-(b.odoAt||0),paused:fnow<(b.pauseUntil||0),frozen:awakeFrozen,activity,bodies:allBodies().length}};
+        floorFront:front,anchor:anchor||null,side:sideSeat(p),flat:!!s.flat,interaction:'none',motion:{spd:b.spd,odo:b.odo,odoAge:performance.now()-(b.odoAt||0),paused:fnow<(b.pauseUntil||0),frozen:awakeFrozen,activity,bodies:allBodies().length}};
+      out.result={seated:!!b.seated,sitting:!!b.sitting,lying:!!b.lying,dir:b.dir,usingProp:b.usingProp||null,px:b.px,py:b.py,seatLift:b.seatLift||0,seatKey:b.seatKey||null};
       if(action==='inspect')return out;
       if(action==='use'&&isWorkstationProp(p.t)){
         // The generated working chair belongs to an assigned desk. Exercise
@@ -9881,14 +9883,15 @@ const World = (() => {
           out.destination=footOf(back.x,back.y);out.planned=setPathTo(back);return out;
         }
         let start=walkable(front)?front:anchor&&{x:anchor.tx,y:anchor.ty};
+        if(action==='live' && walkable({x:front.x,y:front.y+2}))start={x:front.x,y:front.y+2};
         if(start){const pt=footOf(start.x,start.y);b.px=pt.x;b.py=pt.y;}
         const zone={kind:'leash',cx:p.x,cy:p.y,r:Math.max(p.w,p.h)+8},now=performance.now();
         if(u?.kind==='seat'||u?.kind==='couch'){
           out.interaction='seat';out.planned=u.kind==='seat'?planSeat(now,p,zone):planCouchSit(now,p,null,'north',zone);
-          if(out.planned&&b.pendSeat){b.target=null;b.pathPts=null;arrive(now);}
+          if(action!=='live'&&out.planned&&b.pendSeat){b.target=null;b.pathPts=null;arrive(now);}
         }else if(u?.kind==='bed'){
           out.interaction='bed';out.planned=planBedSleep(now,p.id,zone);
-          if(out.planned&&b.pendSeat){b.target=null;b.pathPts=null;arrive(now);}
+          if(action!=='live'&&out.planned&&b.pendSeat){b.target=null;b.pathPts=null;arrive(now);}
         }else if(isWorkstationProp(p.t)&&anchor){
           out.interaction='workstation';const pt=seatFoot(anchor);b.px=pt.x;b.py=pt.y;stepCrewToSeat(b,anchor,16,now);out.planned=!!b.sitting;
         }else if(u&&anchor){

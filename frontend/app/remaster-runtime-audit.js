@@ -15,7 +15,8 @@
   const pause=ms=>new Promise(r=>setTimeout(r,ms));
   const button=(label,fn)=>{const b=document.createElement('button');b.textContent=label;b.onclick=()=>Promise.resolve(fn()).catch(e=>{out.textContent=e.stack||String(e);panel.dataset.state='error';});nav.append(b);return b;};
   const capabilityReview=new URLSearchParams(location.search).get('capabilityReview')==='1';
-  const reviewViews=capabilityReview?PropSprites.STARTER.map(id=>PropCatalogData.views.find(v=>v.id===id&&v.face==='s')).filter(Boolean):PropCatalogData.views;
+  const seatReview=new URLSearchParams(location.search).get('seatReview')==='1';
+  const reviewViews=seatReview?PropCatalogData.views.filter(v=>['seat','couch','bed'].includes(PropSprites.spec(v.id).use?.kind)):capabilityReview?PropSprites.STARTER.map(id=>PropCatalogData.views.find(v=>v.id===id&&v.face==='s')).filter(Boolean):PropCatalogData.views;
   const entries=()=>reviewViews.slice(page*6,page*6+6);
   const wallReview=document.createElement('select');wallReview.setAttribute('aria-label','Wall material review');
   for(const id of Object.keys(WorldModel.WALL_MATERIALS)){const o=document.createElement('option');o.value=id;o.textContent=id;wallReview.append(o);}nav.append(wallReview);
@@ -72,6 +73,33 @@
       }
     }
     page=0;await load();busy=false;last='Catalog complete: '+receipt.cases.length+' orientation/mirror cases, '+receipt.cases.filter(r=>r.issues.length).length+' with issues. Arrival is controlled; walking is reviewed separately.';publish();
+  });
+  button('Run sitting cycles',async()=>{
+    if(busy)return;busy=true;receipt.sitting=[];page=0;publish();
+    for(;page<pageSelect.options.length;page++)for(const mirror of [false,true]) {
+      await load(mirror);
+      for(const v of entries()) {
+        if(mirror&&!PropSprites.canMirror(v.id))continue;
+        const id='catalog-'+v.key,plan=World._dbgReviewProp(actor().id,id,'live');
+        if(!['seat','bed'].includes(plan.interaction))continue;
+        let state=null,elapsed=0;const began=performance.now();
+        while(performance.now()-began<12000){await pause(60);state=World._dbgReviewProp(actor().id,id);elapsed=performance.now()-began;if(state.result.seated||state.result.lying)break;}
+        const settled=!!(state.result.seated||state.result.lying),pose={...state.result};
+        last='Reviewing '+v.key+(mirror?' mirrored':'')+' · '+(settled?'seated':'FAILED arrival');publish();await pause(500);
+        const dest={x:plan.floorFront.x,y:plan.floorFront.y+2};
+        const leaving=World._dbgReviewWalk(actor().id,dest.x,dest.y);let left=null;const departure=performance.now();
+        do{await pause(60);left=World._dbgReviewProp(actor().id,id);}while(performance.now()-departure<8000&&Math.hypot(left.result.px-(dest.x*12+6),left.result.py-(dest.y*12+11))>1.1);
+        const issues=[];if(!plan.planned||!settled)issues.push('sit arrival failed');
+        if(pose.usingProp!==id)issues.push('wrong prop claim');
+        const prop=fixture.doc.props.find(p=>p.id===id),expected=plan.side?.face||(prop.r?PropAnchor.frontOf(prop):null);
+        if(expected&&plan.interaction==='seat'&&pose.dir!==expected)issues.push('seat facing mismatch');
+        if(!leaving||left.result.seated||left.result.lying||left.result.seatKey)issues.push('seat release failed');
+        if(Math.hypot(left.result.px-(dest.x*12+6),left.result.py-(dest.y*12+11))>1.1)issues.push('departure did not arrive');
+        receipt.sitting.push({key:v.key,mirror,kind:plan.interaction,planned:plan.planned,elapsed:Math.round(elapsed),pose,left:left.result,issues});
+        last='Sitting cycles: '+receipt.sitting.length+' · '+receipt.sitting.filter(c=>c.issues.length).length+' failures';publish();
+      }
+    }
+    busy=false;publish();
   });
   button('Kepler layout',async()=>{if(busy)return;World.loadStation(WorldModel.deserialize(original));await pause(400);World.frameReviewRoom('');last='Kepler: 47 props, three rooms and transfer gallery';publish();});
   button('Large layout',async()=>{
