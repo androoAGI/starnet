@@ -1,271 +1,271 @@
 {
-  "standingHeight": 20,
+  "standingHeight": 19,
   "skins": [
     {
       "id": "android",
       "skin": "blank",
       "name": "Cadet / Android",
       "stage": "pending",
-      "targetStandingHeight": 20
+      "targetStandingHeight": 19
     },
     {
       "id": "astronaut",
       "skin": "astronaut",
       "name": "Astronaut",
       "stage": "pending",
-      "targetStandingHeight": 20
+      "targetStandingHeight": 19
     },
     {
       "id": "robot",
       "skin": "robot",
       "name": "Robot",
       "stage": "pending",
-      "targetStandingHeight": 20
+      "targetStandingHeight": 19
     },
     {
       "id": "crthead",
       "skin": "crthead",
       "name": "CRT-head",
       "stage": "pending",
-      "targetStandingHeight": 20
+      "targetStandingHeight": 19
     },
     {
       "id": "alien",
       "skin": "alien",
       "name": "Alien",
       "stage": "pending",
-      "targetStandingHeight": 20
+      "targetStandingHeight": 19
     },
     {
       "id": "ultron",
       "skin": "ultron",
       "name": "Ultron Overseer",
       "stage": "animated-review",
-      "targetStandingHeight": 20
+      "targetStandingHeight": 19
     },
     {
       "id": "skeleton",
       "skin": "skeleton",
       "name": "Skeleton",
       "stage": "animated-review",
-      "targetStandingHeight": 20
+      "targetStandingHeight": 19
     },
     {
       "id": "plaguedoctor",
       "skin": "plaguedoctor",
       "name": "Plague Doctor",
       "stage": "animated-review",
-      "targetStandingHeight": 20
+      "targetStandingHeight": 19
     },
     {
       "id": "secretagent",
       "skin": "secretagent",
       "name": "Secret Agent",
       "stage": "animated-review",
-      "targetStandingHeight": 20
+      "targetStandingHeight": 19
     },
     {
       "id": "voidwizard",
       "skin": "voidwizard",
       "name": "Void Wizard",
       "stage": "animated-review",
-      "targetStandingHeight": 20
+      "targetStandingHeight": 19
     },
     {
       "id": "xenomorph",
       "skin": "xenomorph",
       "name": "Xenomorph",
       "stage": "pending",
-      "targetStandingHeight": 20
+      "targetStandingHeight": 19
     },
     {
       "id": "robocop",
       "skin": "robocop",
       "name": "Robocop",
       "stage": "pending",
-      "targetStandingHeight": 20
+      "targetStandingHeight": 19
     },
     {
       "id": "masterchief",
       "skin": "masterchief",
       "name": "Master Chief",
       "stage": "pending",
-      "targetStandingHeight": 20
+      "targetStandingHeight": 19
     },
     {
       "id": "grimreaper",
       "skin": "grimreaper",
       "name": "Grim Reaper",
       "stage": "pending",
-      "targetStandingHeight": 20
+      "targetStandingHeight": 19
     },
     {
       "id": "crewmate",
       "skin": "crewmate",
       "name": "Crewmate",
       "stage": "pending",
-      "targetStandingHeight": 20
+      "targetStandingHeight": 19
     },
     {
       "id": "bear",
       "skin": "bear",
       "name": "Teddy Bear",
       "stage": "front-review",
-      "targetStandingHeight": 20
+      "targetStandingHeight": 19
     },
     {
       "id": "pepe",
       "skin": "pepe",
       "name": "Pepe",
       "stage": "front-review",
-      "targetStandingHeight": 20
+      "targetStandingHeight": 19
     },
     {
       "id": "capybara",
       "skin": "capybara",
       "name": "Capybara",
       "stage": "pending",
-      "targetStandingHeight": 20
+      "targetStandingHeight": 19
     },
     {
       "id": "vaultboy",
       "skin": "vaultboy",
       "name": "Fallout 1 Vault Dweller",
       "stage": "front-review",
-      "targetStandingHeight": 20
+      "targetStandingHeight": 19
     },
     {
       "id": "station_minion",
       "skin": "station_minion",
       "name": "Station Minion",
       "stage": "pending",
-      "targetStandingHeight": 20
+      "targetStandingHeight": 19
     },
     {
       "id": "blank_blue",
       "skin": "blank_blue",
       "name": "Blue Cadet",
       "stage": "pending",
-      "targetStandingHeight": 20
+      "targetStandingHeight": 19
     },
     {
       "id": "blank_green",
       "skin": "blank_green",
       "name": "Green Cadet",
       "stage": "pending",
-      "targetStandingHeight": 20
+      "targetStandingHeight": 19
     },
     {
       "id": "blank_red",
       "skin": "blank_red",
       "name": "Red Cadet",
       "stage": "pending",
-      "targetStandingHeight": 20
+      "targetStandingHeight": 19
     },
     {
       "id": "blank_amber",
       "skin": "blank_amber",
       "name": "Amber Cadet",
       "stage": "pending",
-      "targetStandingHeight": 20
+      "targetStandingHeight": 19
     },
     {
       "id": "heisenberg",
       "skin": "heisenberg",
       "name": "Heisenberg",
       "stage": "pending",
-      "targetStandingHeight": 20
+      "targetStandingHeight": 19
     },
     {
       "id": "endoskeleton",
       "skin": "endoskeleton",
       "name": "Endoskeleton",
       "stage": "pending",
-      "targetStandingHeight": 20
+      "targetStandingHeight": 19
     },
     {
       "id": "ultrondroid",
       "skin": "ultrondroid",
       "name": "Ultron Droid",
       "stage": "pending",
-      "targetStandingHeight": 20
+      "targetStandingHeight": 19
     },
     {
       "id": "samaltman",
       "skin": "samaltman",
       "name": "Sam",
       "stage": "pending",
-      "targetStandingHeight": 20
+      "targetStandingHeight": 19
     },
     {
       "id": "dario",
       "skin": "dario",
       "name": "Dario",
       "stage": "pending",
-      "targetStandingHeight": 20
+      "targetStandingHeight": 19
     },
     {
       "id": "freddyfazbear",
       "skin": "freddyfazbear",
       "name": "Freddy",
       "stage": "pending",
-      "targetStandingHeight": 20
+      "targetStandingHeight": 19
     },
     {
       "id": "ghostface",
       "skin": "ghostface",
       "name": "Ghostface",
       "stage": "front-review",
-      "targetStandingHeight": 20
+      "targetStandingHeight": 19
     },
     {
       "id": "morpheus",
       "skin": "morpheus",
       "name": "Morpheus",
       "stage": "front-review",
-      "targetStandingHeight": 20
+      "targetStandingHeight": 19
     },
     {
       "id": "ricksanchez",
       "skin": "ricksanchez",
       "name": "Rick",
       "stage": "pending",
-      "targetStandingHeight": 20
+      "targetStandingHeight": 19
     },
     {
       "id": "ninjaturtle",
       "skin": "ninjaturtle",
       "name": "Ninja Turtle",
       "stage": "pending",
-      "targetStandingHeight": 20
+      "targetStandingHeight": 19
     },
     {
       "id": "minionchar",
       "skin": "minionchar",
       "name": "Minion",
       "stage": "pending",
-      "targetStandingHeight": 20
+      "targetStandingHeight": 19
     },
     {
       "id": "pikachu",
       "skin": "pikachu",
       "name": "Pikachu",
       "stage": "pending",
-      "targetStandingHeight": 20
+      "targetStandingHeight": 19
     },
     {
       "id": "caseyjones",
       "skin": "caseyjones",
       "name": "Casey Jones",
       "stage": "pending",
-      "targetStandingHeight": 20
+      "targetStandingHeight": 19
     },
     {
       "id": "finn",
       "skin": "finn",
       "name": "Finn",
       "stage": "pending",
-      "targetStandingHeight": 20
+      "targetStandingHeight": 19
     }
   ]
 }

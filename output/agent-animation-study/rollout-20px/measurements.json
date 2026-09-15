@@ -2,71 +2,71 @@
   "pepe-new": {
     "width": 40,
     "height": 76,
-    "worldHeight": 20,
-    "worldWidth": 10.526315789473685,
+    "worldHeight": 19,
+    "worldWidth": 10,
     "foot": 112
   },
   "pepe-earlier": {
     "width": 50,
     "height": 76,
-    "worldHeight": 20,
-    "worldWidth": 13.157894736842104,
+    "worldHeight": 19,
+    "worldWidth": 12.5,
     "foot": 112
   },
   "vaultboy-new": {
     "width": 36,
     "height": 76,
-    "worldHeight": 20,
-    "worldWidth": 9.473684210526315,
+    "worldHeight": 19,
+    "worldWidth": 9,
     "foot": 112
   },
   "vaultboy-earlier": {
     "width": 31,
     "height": 76,
-    "worldHeight": 20,
-    "worldWidth": 8.157894736842104,
+    "worldHeight": 19,
+    "worldWidth": 7.75,
     "foot": 112
   },
   "bear-new": {
     "width": 32,
     "height": 76,
-    "worldHeight": 20,
-    "worldWidth": 8.421052631578947,
+    "worldHeight": 19,
+    "worldWidth": 8,
     "foot": 112
   },
   "bear-earlier": {
     "width": 38,
     "height": 76,
-    "worldHeight": 20,
-    "worldWidth": 10,
+    "worldHeight": 19,
+    "worldWidth": 9.5,
     "foot": 112
   },
   "ghostface-new": {
     "width": 35,
     "height": 76,
-    "worldHeight": 20,
-    "worldWidth": 9.210526315789474,
+    "worldHeight": 19,
+    "worldWidth": 8.75,
     "foot": 112
   },
   "ghostface-earlier": {
     "width": 32,
     "height": 76,
-    "worldHeight": 20,
-    "worldWidth": 8.421052631578947,
+    "worldHeight": 19,
+    "worldWidth": 8,
     "foot": 112
   },
   "morpheus-new": {
     "width": 35,
     "height": 76,
-    "worldHeight": 20,
-    "worldWidth": 9.210526315789474,
+    "worldHeight": 19,
+    "worldWidth": 8.75,
     "foot": 112
   },
   "morpheus-earlier": {
     "width": 32,
     "height": 76,
-    "worldHeight": 20,
-    "worldWidth": 8.421052631578947,
+    "worldHeight": 19,
+    "worldWidth": 8,
     "foot": 112
   }
 }

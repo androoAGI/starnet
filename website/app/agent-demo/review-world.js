@@ -6175,7 +6175,7 @@ const World = (() => {
           const result=SPRITES.drawBody(ctx,b,0,{reducedMotion:true,light,skipGroundShadow:false});
           if(result){
             ctx.save();ctx.font='5px VT323';ctx.textAlign='center';ctx.fillStyle='#e4dab9';ctx.shadowColor='#000';ctx.shadowBlur=2;ctx.fillText(i?'REVISED':'CURRENT',f.x,f.y+5);ctx.restore();
-            const p=document.getElementById('agent-station-demo');if(p){p.dataset['reviewPose'+i]=b._pose;p.dataset.comparison=p.dataset.reviewPose0&&p.dataset.reviewPose1?'drawn':'loading';p.dataset.reviewHeight='20';p.dataset.reviewZoom=String(scale);p.dataset.reviewPos=JSON.stringify(spot);}
+            const p=document.getElementById('agent-station-demo');if(p){p.dataset['reviewPose'+i]=b._pose;p.dataset.comparison=p.dataset.reviewPose0&&p.dataset.reviewPose1?'drawn':'loading';p.dataset.reviewHeight='19';p.dataset.reviewZoom=String(scale);p.dataset.reviewPos=JSON.stringify(spot);}
           }
         }});
       });

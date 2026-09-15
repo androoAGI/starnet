@@ -7,7 +7,7 @@ async function pack(input,dest){
  const crop=await sharp(input).extract({left:l,top:t,width:r-l+1,height:b-t+1}).resize({height:76}).png().toBuffer(),m=await sharp(crop).metadata();
  assert(m.width<100,'Unexpected body width');fs.mkdirSync(path.dirname(dest),{recursive:true});
  await sharp({create:{width:144,height:144,channels:4,background:'#00000000'}}).composite([{input:crop,left:Math.floor((144-m.width)/2),top:36}]).png().toFile(dest);
- return{width:m.width,height:76,worldHeight:20,worldWidth:m.width*20/76,foot:112};
+ return{width:m.width,height:76,worldHeight:19,worldWidth:m.width*19/76,foot:112};
 }
 (async()=>{
  const inputs=JSON.parse(fs.readFileSync(out+'/inputs.json')),manifest=JSON.parse(fs.readFileSync('frontend/agent-demo/manifest.json')),metrics={},layers=[];
