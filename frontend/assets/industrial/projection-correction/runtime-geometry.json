@@ -315,14 +315,14 @@
     },
     "workbench:s": {
       "image": "workbench.png",
-      "width": 431,
-      "height": 395,
-      "sha256": "9f94ec6290bf4e12d98ec297a2767297d259a2744763d5c07490515eff394106",
+      "width": 1202,
+      "height": 651,
+      "sha256": "ee02c48f64f19ce7530f348219f1c635ed4cd62ab7fea9665ed1f54dad2c2abf",
       "crop": {
         "x": 0,
         "y": 0,
-        "width": 431,
-        "height": 395
+        "width": 1202,
+        "height": 651
       }
     },
     "intake:s": {
@@ -627,14 +627,14 @@
     },
     "bridge_tacticaltable:s": {
       "image": "bridge_tacticaltable.png",
-      "width": 1350,
-      "height": 898,
-      "sha256": "6f51ad3d61884f13b352f9a8eb909b2772e921591894b1335f156c28a033732a",
+      "width": 1607,
+      "height": 901,
+      "sha256": "9ddbba8ab0c0679ad8fefa77767e8b7b20ef4f8da18a40e6f1806fa16291ef35",
       "crop": {
         "x": 0,
         "y": 0,
-        "width": 1350,
-        "height": 898
+        "width": 1607,
+        "height": 901
       }
     },
     "bridge_equipmentbay:s": {
@@ -1731,14 +1731,14 @@
     },
     "longtable:s": {
       "image": "longtable.png",
-      "width": 595,
-      "height": 249,
-      "sha256": "5a487610f81f3002ae233c2e2f5ab15ac7b5e57423dfeda52df260055fb3a776",
+      "width": 1738,
+      "height": 658,
+      "sha256": "eecab611ec1f48ede26e0acba7b47b55f982fdc756ad19bd8900dc15c6a34acb",
       "crop": {
         "x": 0,
         "y": 0,
-        "width": 595,
-        "height": 249
+        "width": 1738,
+        "height": 658
       }
     },
     "longtable:e": {
@@ -1923,14 +1923,14 @@
     },
     "toolbox:s": {
       "image": "toolbox.png",
-      "width": 223,
-      "height": 188,
-      "sha256": "a72246746ae146ef74373148a8c61e80e4a098814ae3102262aeae4f6f7e3d6d",
+      "width": 1275,
+      "height": 669,
+      "sha256": "e384c75cce8ce56139256a8f1ccd4f36b69599efa6879bfc00a6c180be0c622d",
       "crop": {
         "x": 0,
         "y": 0,
-        "width": 223,
-        "height": 188
+        "width": 1275,
+        "height": 669
       }
     },
     "figurine:s": {

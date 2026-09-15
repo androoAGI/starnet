@@ -1,0 +1,3142 @@
+{
+  "date": "2026-09-15",
+  "method": "Visual inspection of eight labeled source contact sheets, 184 exported views; four corrected views also inspected in Kepler. Geometry/placement checks are separate.",
+  "counts": {
+    "source-check": 132,
+    "rebuild": 29,
+    "preserve-accepted": 7,
+    "room-check": 11,
+    "corrected-candidate": 4,
+    "facing-gap": 1
+  },
+  "records": [
+    {
+      "id": "industrial_locker",
+      "view": "s",
+      "image": "industrial_locker.png",
+      "footprint": {
+        "w": 2,
+        "h": 1
+      },
+      "bounds": {
+        "x": 0,
+        "y": -12,
+        "width": 24,
+        "height": 24
+      },
+      "status": "source-check",
+      "reason": "No obvious camera conflict in source inspection. This is not an in-room or owner approval."
+    },
+    {
+      "id": "industrial_drawerbank",
+      "view": "s",
+      "image": "industrial_drawerbank.png",
+      "footprint": {
+        "w": 3,
+        "h": 1
+      },
+      "bounds": {
+        "x": 0,
+        "y": -3,
+        "width": 36,
+        "height": 15
+      },
+      "status": "source-check",
+      "reason": "No obvious camera conflict in source inspection. This is not an in-room or owner approval."
+    },
+    {
+      "id": "industrial_supplycart",
+      "view": "s",
+      "image": "industrial_supplycart.png",
+      "footprint": {
+        "w": 2,
+        "h": 1
+      },
+      "bounds": {
+        "x": 1,
+        "y": -11,
+        "width": 22,
+        "height": 23
+      },
+      "status": "source-check",
+      "reason": "No obvious camera conflict in source inspection. This is not an in-room or owner approval."
+    },
+    {
+      "id": "industrial_toolcaddy",
+      "view": "s",
+      "image": "industrial_toolcaddy.png",
+      "footprint": {
+        "w": 1,
+        "h": 1
+      },
+      "bounds": {
+        "x": 1,
+        "y": 2,
+        "width": 10,
+        "height": 10
+      },
+      "status": "source-check",
+      "reason": "No obvious camera conflict in source inspection. This is not an in-room or owner approval."
+    },
+    {
+      "id": "industrial_planter",
+      "view": "s",
+      "image": "industrial_planter.png",
+      "footprint": {
+        "w": 2,
+        "h": 1
+      },
+      "bounds": {
+        "x": 0,
+        "y": -8,
+        "width": 26,
+        "height": 20
+      },
+      "status": "source-check",
+      "reason": "No obvious camera conflict in source inspection. This is not an in-room or owner approval."
+    },
+    {
+      "id": "industrial_partition",
+      "view": "s",
+      "image": "industrial_partition.png",
+      "footprint": {
+        "w": 3,
+        "h": 1
+      },
+      "bounds": {
+        "x": 0,
+        "y": -9,
+        "width": 36,
+        "height": 21
+      },
+      "status": "source-check",
+      "reason": "No obvious camera conflict in source inspection. This is not an in-room or owner approval."
+    },
+    {
+      "id": "industrial_partition",
+      "view": "w",
+      "image": "industrial_partition-w.png",
+      "footprint": {
+        "w": 1,
+        "h": 3
+      },
+      "bounds": {
+        "x": -1.7714,
+        "y": -13,
+        "width": 15.5429,
+        "height": 48
+      },
+      "status": "source-check",
+      "reason": "No obvious camera conflict in source inspection. This is not an in-room or owner approval."
+    },
+    {
+      "id": "industrial_partition",
+      "view": "e",
+      "image": "industrial_partition-e.png",
+      "footprint": {
+        "w": 1,
+        "h": 3
+      },
+      "bounds": {
+        "x": 2,
+        "y": -9,
+        "width": 8,
+        "height": 44
+      },
+      "status": "source-check",
+      "reason": "No obvious camera conflict in source inspection. This is not an in-room or owner approval."
+    },
+    {
+      "id": "industrial_bench",
+      "view": "s",
+      "image": "industrial_bench.png",
+      "footprint": {
+        "w": 3,
+        "h": 1
+      },
+      "bounds": {
+        "x": 0,
+        "y": 0,
+        "width": 36,
+        "height": 12
+      },
+      "status": "rebuild",
+      "reason": "Front-facing backrest dominates; expose more seat plane from the station camera."
+    },
+    {
+      "id": "industrial_roundtable",
+      "view": "s",
+      "image": "industrial_roundtable.png",
+      "footprint": {
+        "w": 2,
+        "h": 1
+      },
+      "bounds": {
+        "x": 0,
+        "y": -4,
+        "width": 24,
+        "height": 16
+      },
+      "status": "rebuild",
+      "reason": "Exposed pedestal/front mass is large relative to top plane; raise camera and shorten the visible underside."
+    },
+    {
+      "id": "industrial_servicecab",
+      "view": "s",
+      "image": "industrial_servicecab.png",
+      "footprint": {
+        "w": 1,
+        "h": 2
+      },
+      "bounds": {
+        "x": 0,
+        "y": -5,
+        "width": 12,
+        "height": 29
+      },
+      "status": "source-check",
+      "reason": "No obvious camera conflict in source inspection. This is not an in-room or owner approval."
+    },
+    {
+      "id": "industrial_wallpanel",
+      "view": "s",
+      "image": "industrial_wallpanel.png",
+      "footprint": {
+        "w": 2,
+        "h": 1
+      },
+      "bounds": {
+        "x": 0,
+        "y": -13,
+        "width": 24,
+        "height": 23
+      },
+      "status": "source-check",
+      "reason": "No obvious camera conflict in source inspection. This is not an in-room or owner approval."
+    },
+    {
+      "id": "industrial_floorvent",
+      "view": "s",
+      "image": "industrial_floorvent.png",
+      "footprint": {
+        "w": 2,
+        "h": 1
+      },
+      "bounds": {
+        "x": 1,
+        "y": 1,
+        "width": 22,
+        "height": 10
+      },
+      "status": "source-check",
+      "reason": "No obvious camera conflict in source inspection. This is not an in-room or owner approval."
+    },
+    {
+      "id": "industrial_cabletray",
+      "view": "s",
+      "image": "industrial_cabletray.png",
+      "footprint": {
+        "w": 3,
+        "h": 1
+      },
+      "bounds": {
+        "x": 0,
+        "y": 3,
+        "width": 36,
+        "height": 6
+      },
+      "status": "source-check",
+      "reason": "No obvious camera conflict in source inspection. This is not an in-room or owner approval."
+    },
+    {
+      "id": "desk",
+      "view": "s",
+      "image": "desk.png",
+      "footprint": {
+        "w": 3,
+        "h": 1
+      },
+      "bounds": {
+        "x": -1,
+        "y": -16.3956,
+        "width": 38,
+        "height": 28.3956
+      },
+      "status": "preserve-accepted",
+      "reason": "Owner-accepted anchor/view. Preserve."
+    },
+    {
+      "id": "desk",
+      "view": "w",
+      "image": "desk-w.png",
+      "footprint": {
+        "w": 1,
+        "h": 3
+      },
+      "bounds": {
+        "x": -3,
+        "y": 9.2813,
+        "width": 18,
+        "height": 26.7188
+      },
+      "status": "room-check",
+      "reason": "Keep accepted desk south intact. Compare additional views as a facing set at native scale before declaring them matched."
+    },
+    {
+      "id": "desk",
+      "view": "n",
+      "image": "desk-n.png",
+      "footprint": {
+        "w": 3,
+        "h": 1
+      },
+      "bounds": {
+        "x": -2,
+        "y": -19.6981,
+        "width": 40,
+        "height": 31.6981
+      },
+      "status": "room-check",
+      "reason": "Keep accepted desk south intact. Compare additional views as a facing set at native scale before declaring them matched."
+    },
+    {
+      "id": "desk",
+      "view": "e",
+      "image": "desk-e.png",
+      "footprint": {
+        "w": 1,
+        "h": 3
+      },
+      "bounds": {
+        "x": -3,
+        "y": 11.2174,
+        "width": 18,
+        "height": 24.7826
+      },
+      "status": "room-check",
+      "reason": "Keep accepted desk south intact. Compare additional views as a facing set at native scale before declaring them matched."
+    },
+    {
+      "id": "desk2",
+      "view": "s",
+      "image": "desk2.png",
+      "footprint": {
+        "w": 3,
+        "h": 1
+      },
+      "bounds": {
+        "x": -1,
+        "y": -11,
+        "width": 38,
+        "height": 23
+      },
+      "status": "room-check",
+      "reason": "Keep accepted desk south intact. Compare additional views as a facing set at native scale before declaring them matched."
+    },
+    {
+      "id": "desk2",
+      "view": "w",
+      "image": "desk2-w.png",
+      "footprint": {
+        "w": 1,
+        "h": 3
+      },
+      "bounds": {
+        "x": -3,
+        "y": 13.0685,
+        "width": 18,
+        "height": 22.9315
+      },
+      "status": "room-check",
+      "reason": "Keep accepted desk south intact. Compare additional views as a facing set at native scale before declaring them matched."
+    },
+    {
+      "id": "desk2",
+      "view": "n",
+      "image": "desk2-n.png",
+      "footprint": {
+        "w": 3,
+        "h": 1
+      },
+      "bounds": {
+        "x": -2,
+        "y": -11,
+        "width": 40,
+        "height": 23
+      },
+      "status": "room-check",
+      "reason": "Keep accepted desk south intact. Compare additional views as a facing set at native scale before declaring them matched."
+    },
+    {
+      "id": "desk2",
+      "view": "e",
+      "image": "desk2-e.png",
+      "footprint": {
+        "w": 1,
+        "h": 3
+      },
+      "bounds": {
+        "x": -3,
+        "y": -5,
+        "width": 18,
+        "height": 41
+      },
+      "status": "room-check",
+      "reason": "Keep accepted desk south intact. Compare additional views as a facing set at native scale before declaring them matched."
+    },
+    {
+      "id": "console",
+      "view": "s",
+      "image": "console.png",
+      "footprint": {
+        "w": 2,
+        "h": 1
+      },
+      "bounds": {
+        "x": -3,
+        "y": -11,
+        "width": 28,
+        "height": 23
+      },
+      "status": "source-check",
+      "reason": "No obvious camera conflict in source inspection. This is not an in-room or owner approval."
+    },
+    {
+      "id": "consoleL",
+      "view": "s",
+      "image": "consoleL.png",
+      "footprint": {
+        "w": 3,
+        "h": 1
+      },
+      "bounds": {
+        "x": -3,
+        "y": -11,
+        "width": 40,
+        "height": 23
+      },
+      "status": "source-check",
+      "reason": "No obvious camera conflict in source inspection. This is not an in-room or owner approval."
+    },
+    {
+      "id": "pixelrig",
+      "view": "s",
+      "image": "pixelrig.png",
+      "footprint": {
+        "w": 2,
+        "h": 1
+      },
+      "bounds": {
+        "x": -1,
+        "y": -14,
+        "width": 30,
+        "height": 26
+      },
+      "status": "rebuild",
+      "reason": "Near-frontal instrument panel and shallow control shelf; compare/rebuild against the accepted desk camera."
+    },
+    {
+      "id": "bench",
+      "view": "s",
+      "image": "bench.png",
+      "footprint": {
+        "w": 4,
+        "h": 1
+      },
+      "bounds": {
+        "x": -1,
+        "y": -14,
+        "width": 54,
+        "height": 26
+      },
+      "status": "rebuild",
+      "reason": "Table family: long visible legs/front apron and shallow top disagree with the corrected table. Re-author top depth and surface mounting together."
+    },
+    {
+      "id": "workbench",
+      "view": "s",
+      "image": "workbench.png",
+      "footprint": {
+        "w": 2,
+        "h": 1
+      },
+      "bounds": {
+        "x": -1,
+        "y": -15,
+        "width": 30,
+        "height": 27
+      },
+      "status": "corrected-candidate",
+      "reason": "Generated camera correction integrated and inspected in Kepler; owner acceptance pending."
+    },
+    {
+      "id": "intake",
+      "view": "s",
+      "image": "intake.png",
+      "footprint": {
+        "w": 2,
+        "h": 2
+      },
+      "bounds": {
+        "x": -1,
+        "y": -4,
+        "width": 30,
+        "height": 28
+      },
+      "status": "source-check",
+      "reason": "No obvious camera conflict in source inspection. This is not an in-room or owner approval."
+    },
+    {
+      "id": "bay",
+      "view": "s",
+      "image": "bay.png",
+      "footprint": {
+        "w": 2,
+        "h": 2
+      },
+      "bounds": {
+        "x": -1,
+        "y": -7,
+        "width": 30,
+        "height": 31
+      },
+      "status": "source-check",
+      "reason": "No obvious camera conflict in source inspection. This is not an in-room or owner approval."
+    },
+    {
+      "id": "filter",
+      "view": "s",
+      "image": "filter.png",
+      "footprint": {
+        "w": 1,
+        "h": 1
+      },
+      "bounds": {
+        "x": -1,
+        "y": -8,
+        "width": 14,
+        "height": 19
+      },
+      "status": "source-check",
+      "reason": "No obvious camera conflict in source inspection. This is not an in-room or owner approval."
+    },
+    {
+      "id": "merger",
+      "view": "s",
+      "image": "merger.png",
+      "footprint": {
+        "w": 1,
+        "h": 1
+      },
+      "bounds": {
+        "x": -2,
+        "y": 0,
+        "width": 16,
+        "height": 11
+      },
+      "status": "source-check",
+      "reason": "No obvious camera conflict in source inspection. This is not an in-room or owner approval."
+    },
+    {
+      "id": "splitter",
+      "view": "s",
+      "image": "splitter.png",
+      "footprint": {
+        "w": 1,
+        "h": 1
+      },
+      "bounds": {
+        "x": -1,
+        "y": 0,
+        "width": 15,
+        "height": 11
+      },
+      "status": "source-check",
+      "reason": "No obvious camera conflict in source inspection. This is not an in-room or owner approval."
+    },
+    {
+      "id": "joiner",
+      "view": "s",
+      "image": "joiner.png",
+      "footprint": {
+        "w": 1,
+        "h": 1
+      },
+      "bounds": {
+        "x": -2,
+        "y": 0,
+        "width": 16,
+        "height": 11
+      },
+      "status": "source-check",
+      "reason": "No obvious camera conflict in source inspection. This is not an in-room or owner approval."
+    },
+    {
+      "id": "loop",
+      "view": "s",
+      "image": "loop.png",
+      "footprint": {
+        "w": 1,
+        "h": 1
+      },
+      "bounds": {
+        "x": -1,
+        "y": -7,
+        "width": 15,
+        "height": 18
+      },
+      "status": "source-check",
+      "reason": "No obvious camera conflict in source inspection. This is not an in-room or owner approval."
+    },
+    {
+      "id": "outbox",
+      "view": "s",
+      "image": "outbox.png",
+      "footprint": {
+        "w": 2,
+        "h": 2
+      },
+      "bounds": {
+        "x": -1,
+        "y": -8,
+        "width": 30,
+        "height": 32
+      },
+      "status": "source-check",
+      "reason": "No obvious camera conflict in source inspection. This is not an in-room or owner approval."
+    },
+    {
+      "id": "connector_portal",
+      "view": "s",
+      "image": "connector_portal.png",
+      "footprint": {
+        "w": 1,
+        "h": 2
+      },
+      "bounds": {
+        "x": 0,
+        "y": -7,
+        "width": 17,
+        "height": 31
+      },
+      "status": "source-check",
+      "reason": "No obvious camera conflict in source inspection. This is not an in-room or owner approval."
+    },
+    {
+      "id": "comms_dish",
+      "view": "s",
+      "image": "comms_dish.png",
+      "footprint": {
+        "w": 2,
+        "h": 2
+      },
+      "bounds": {
+        "x": 2,
+        "y": 1,
+        "width": 20,
+        "height": 23
+      },
+      "status": "source-check",
+      "reason": "No obvious camera conflict in source inspection. This is not an in-room or owner approval."
+    },
+    {
+      "id": "comms_uplink",
+      "view": "s",
+      "image": "comms_uplink.png",
+      "footprint": {
+        "w": 2,
+        "h": 2
+      },
+      "bounds": {
+        "x": 2,
+        "y": -11,
+        "width": 19,
+        "height": 35
+      },
+      "status": "source-check",
+      "reason": "No obvious camera conflict in source inspection. This is not an in-room or owner approval."
+    },
+    {
+      "id": "comms_beacon",
+      "view": "s",
+      "image": "comms_beacon.png",
+      "footprint": {
+        "w": 1,
+        "h": 2
+      },
+      "bounds": {
+        "x": 0,
+        "y": -2,
+        "width": 17,
+        "height": 26
+      },
+      "status": "source-check",
+      "reason": "No obvious camera conflict in source inspection. This is not an in-room or owner approval."
+    },
+    {
+      "id": "war_intelcab",
+      "view": "s",
+      "image": "war_intelcab.png",
+      "footprint": {
+        "w": 1,
+        "h": 2
+      },
+      "bounds": {
+        "x": 0,
+        "y": -7,
+        "width": 17,
+        "height": 31
+      },
+      "status": "source-check",
+      "reason": "No obvious camera conflict in source inspection. This is not an in-room or owner approval."
+    },
+    {
+      "id": "safe",
+      "view": "s",
+      "image": "safe.png",
+      "footprint": {
+        "w": 1,
+        "h": 2
+      },
+      "bounds": {
+        "x": -1,
+        "y": -8,
+        "width": 18,
+        "height": 32
+      },
+      "status": "source-check",
+      "reason": "No obvious camera conflict in source inspection. This is not an in-room or owner approval."
+    },
+    {
+      "id": "vault",
+      "view": "s",
+      "image": "vault.png",
+      "footprint": {
+        "w": 3,
+        "h": 2
+      },
+      "bounds": {
+        "x": -3,
+        "y": -5,
+        "width": 44,
+        "height": 29
+      },
+      "status": "source-check",
+      "reason": "No obvious camera conflict in source inspection. This is not an in-room or owner approval."
+    },
+    {
+      "id": "rack",
+      "view": "s",
+      "image": "rack.png",
+      "footprint": {
+        "w": 2,
+        "h": 1
+      },
+      "bounds": {
+        "x": 0,
+        "y": -14,
+        "width": 29,
+        "height": 26
+      },
+      "status": "source-check",
+      "reason": "No obvious camera conflict in source inspection. This is not an in-room or owner approval."
+    },
+    {
+      "id": "shelf",
+      "view": "s",
+      "image": "shelf.png",
+      "footprint": {
+        "w": 4,
+        "h": 1
+      },
+      "bounds": {
+        "x": 0,
+        "y": -14,
+        "width": 53,
+        "height": 26
+      },
+      "status": "source-check",
+      "reason": "No obvious camera conflict in source inspection. This is not an in-room or owner approval."
+    },
+    {
+      "id": "core",
+      "view": "s",
+      "image": "core.png",
+      "footprint": {
+        "w": 1,
+        "h": 2
+      },
+      "bounds": {
+        "x": 0,
+        "y": -7,
+        "width": 17,
+        "height": 31
+      },
+      "status": "source-check",
+      "reason": "No obvious camera conflict in source inspection. This is not an in-room or owner approval."
+    },
+    {
+      "id": "gigs_servercart",
+      "view": "s",
+      "image": "gigs_servercart.png",
+      "footprint": {
+        "w": 1,
+        "h": 1
+      },
+      "bounds": {
+        "x": 1,
+        "y": -6,
+        "width": 16,
+        "height": 18
+      },
+      "status": "source-check",
+      "reason": "No obvious camera conflict in source inspection. This is not an in-room or owner approval."
+    },
+    {
+      "id": "bridge_relaystack",
+      "view": "s",
+      "image": "bridge_relaystack.png",
+      "footprint": {
+        "w": 1,
+        "h": 2
+      },
+      "bounds": {
+        "x": 0,
+        "y": -8,
+        "width": 17,
+        "height": 32
+      },
+      "status": "source-check",
+      "reason": "No obvious camera conflict in source inspection. This is not an in-room or owner approval."
+    },
+    {
+      "id": "studio",
+      "view": "s",
+      "image": "studio.png",
+      "footprint": {
+        "w": 2,
+        "h": 2
+      },
+      "bounds": {
+        "x": 0,
+        "y": -6,
+        "width": 29,
+        "height": 30
+      },
+      "status": "source-check",
+      "reason": "No obvious camera conflict in source inspection. This is not an in-room or owner approval."
+    },
+    {
+      "id": "airlock",
+      "view": "s",
+      "image": "airlock.png",
+      "footprint": {
+        "w": 1,
+        "h": 1
+      },
+      "bounds": {
+        "x": -1,
+        "y": -1,
+        "width": 14,
+        "height": 14
+      },
+      "status": "source-check",
+      "reason": "No obvious camera conflict in source inspection. This is not an in-room or owner approval."
+    },
+    {
+      "id": "missionboard",
+      "view": "s",
+      "image": "missionboard.png",
+      "footprint": {
+        "w": 3,
+        "h": 1
+      },
+      "bounds": {
+        "x": -1,
+        "y": -13,
+        "width": 38,
+        "height": 25
+      },
+      "status": "source-check",
+      "reason": "No obvious camera conflict in source inspection. This is not an in-room or owner approval."
+    },
+    {
+      "id": "trophycase",
+      "view": "s",
+      "image": "trophycase.png",
+      "footprint": {
+        "w": 2,
+        "h": 2
+      },
+      "bounds": {
+        "x": -1,
+        "y": -6,
+        "width": 26,
+        "height": 30
+      },
+      "status": "source-check",
+      "reason": "No obvious camera conflict in source inspection. This is not an in-room or owner approval."
+    },
+    {
+      "id": "bridge_consolebank",
+      "view": "s",
+      "image": "bridge_consolebank.png",
+      "footprint": {
+        "w": 9,
+        "h": 1
+      },
+      "bounds": {
+        "x": 0,
+        "y": -21,
+        "width": 108,
+        "height": 33
+      },
+      "status": "source-check",
+      "reason": "No obvious camera conflict in source inspection. This is not an in-room or owner approval."
+    },
+    {
+      "id": "bridge_tacticaltable",
+      "view": "s",
+      "image": "bridge_tacticaltable.png",
+      "footprint": {
+        "w": 7,
+        "h": 4
+      },
+      "bounds": {
+        "x": 0,
+        "y": -7,
+        "width": 84,
+        "height": 55
+      },
+      "status": "corrected-candidate",
+      "reason": "Generated camera correction integrated and inspected in Kepler; owner acceptance pending."
+    },
+    {
+      "id": "bridge_equipmentbay",
+      "view": "s",
+      "image": "bridge_equipmentbay.png",
+      "footprint": {
+        "w": 4,
+        "h": 1
+      },
+      "bounds": {
+        "x": 0,
+        "y": -7,
+        "width": 48,
+        "height": 19
+      },
+      "status": "source-check",
+      "reason": "No obvious camera conflict in source inspection. This is not an in-room or owner approval."
+    },
+    {
+      "id": "bridge_deckperimeter",
+      "view": "s",
+      "image": "bridge_deckperimeter.png",
+      "footprint": {
+        "w": 12,
+        "h": 8
+      },
+      "bounds": {
+        "x": 0,
+        "y": 1,
+        "width": 144,
+        "height": 94
+      },
+      "status": "source-check",
+      "reason": "No obvious camera conflict in source inspection. This is not an in-room or owner approval."
+    },
+    {
+      "id": "bigscreen",
+      "view": "s",
+      "image": "bigscreen.png",
+      "footprint": {
+        "w": 8,
+        "h": 1
+      },
+      "bounds": {
+        "x": -1,
+        "y": -13,
+        "width": 98,
+        "height": 25
+      },
+      "status": "source-check",
+      "reason": "No obvious camera conflict in source inspection. This is not an in-room or owner approval."
+    },
+    {
+      "id": "holotable",
+      "view": "s",
+      "image": "holotable.png",
+      "footprint": {
+        "w": 4,
+        "h": 2
+      },
+      "bounds": {
+        "x": -1,
+        "y": -10,
+        "width": 50,
+        "height": 34
+      },
+      "status": "rebuild",
+      "reason": "Exposed pedestal/front mass is large relative to top plane; raise camera and shorten the visible underside."
+    },
+    {
+      "id": "screens",
+      "view": "s",
+      "image": "screens.png",
+      "footprint": {
+        "w": 2,
+        "h": 1
+      },
+      "bounds": {
+        "x": -1,
+        "y": -15,
+        "width": 26,
+        "height": 27
+      },
+      "status": "source-check",
+      "reason": "No obvious camera conflict in source inspection. This is not an in-room or owner approval."
+    },
+    {
+      "id": "tank",
+      "view": "s",
+      "image": "tank.png",
+      "footprint": {
+        "w": 2,
+        "h": 1
+      },
+      "bounds": {
+        "x": -1,
+        "y": -11,
+        "width": 27,
+        "height": 24
+      },
+      "status": "source-check",
+      "reason": "No obvious camera conflict in source inspection. This is not an in-room or owner approval."
+    },
+    {
+      "id": "whiteboard",
+      "view": "s",
+      "image": "whiteboard.png",
+      "footprint": {
+        "w": 4,
+        "h": 1
+      },
+      "bounds": {
+        "x": -1,
+        "y": -11,
+        "width": 50,
+        "height": 23
+      },
+      "status": "source-check",
+      "reason": "No obvious camera conflict in source inspection. This is not an in-room or owner approval."
+    },
+    {
+      "id": "ticker",
+      "view": "s",
+      "image": "ticker.png",
+      "footprint": {
+        "w": 4,
+        "h": 1
+      },
+      "bounds": {
+        "x": -1,
+        "y": -8,
+        "width": 50,
+        "height": 20
+      },
+      "status": "source-check",
+      "reason": "No obvious camera conflict in source inspection. This is not an in-room or owner approval."
+    },
+    {
+      "id": "chartwall",
+      "view": "s",
+      "image": "chartwall.png",
+      "footprint": {
+        "w": 3,
+        "h": 1
+      },
+      "bounds": {
+        "x": -1,
+        "y": -10,
+        "width": 38,
+        "height": 22
+      },
+      "status": "source-check",
+      "reason": "No obvious camera conflict in source inspection. This is not an in-room or owner approval."
+    },
+    {
+      "id": "wartable",
+      "view": "s",
+      "image": "wartable.png",
+      "footprint": {
+        "w": 5,
+        "h": 2
+      },
+      "bounds": {
+        "x": -1,
+        "y": -1,
+        "width": 66,
+        "height": 25
+      },
+      "status": "source-check",
+      "reason": "No obvious camera conflict in source inspection. This is not an in-room or owner approval."
+    },
+    {
+      "id": "calwall",
+      "view": "s",
+      "image": "calwall.png",
+      "footprint": {
+        "w": 6,
+        "h": 1
+      },
+      "bounds": {
+        "x": -1,
+        "y": -8,
+        "width": 74,
+        "height": 20
+      },
+      "status": "source-check",
+      "reason": "No obvious camera conflict in source inspection. This is not an in-room or owner approval."
+    },
+    {
+      "id": "bridge_tacscreen",
+      "view": "s",
+      "image": "bridge_tacscreen.png",
+      "footprint": {
+        "w": 2,
+        "h": 1
+      },
+      "bounds": {
+        "x": -1,
+        "y": -9,
+        "width": 26,
+        "height": 21
+      },
+      "status": "source-check",
+      "reason": "No obvious camera conflict in source inspection. This is not an in-room or owner approval."
+    },
+    {
+      "id": "bridge_dispatch_pylon",
+      "view": "s",
+      "image": "bridge_dispatch_pylon.png",
+      "footprint": {
+        "w": 1,
+        "h": 2
+      },
+      "bounds": {
+        "x": -2,
+        "y": -11,
+        "width": 19,
+        "height": 35
+      },
+      "status": "source-check",
+      "reason": "No obvious camera conflict in source inspection. This is not an in-room or owner approval."
+    },
+    {
+      "id": "bridge_orderqueue",
+      "view": "s",
+      "image": "bridge_orderqueue.png",
+      "footprint": {
+        "w": 2,
+        "h": 1
+      },
+      "bounds": {
+        "x": -3,
+        "y": -12,
+        "width": 28,
+        "height": 24
+      },
+      "status": "source-check",
+      "reason": "No obvious camera conflict in source inspection. This is not an in-room or owner approval."
+    },
+    {
+      "id": "war_pivotpanel",
+      "view": "s",
+      "image": "war_pivotpanel.png",
+      "footprint": {
+        "w": 2,
+        "h": 1
+      },
+      "bounds": {
+        "x": -1,
+        "y": -6,
+        "width": 26,
+        "height": 18
+      },
+      "status": "source-check",
+      "reason": "No obvious camera conflict in source inspection. This is not an in-room or owner approval."
+    },
+    {
+      "id": "war_threatcore",
+      "view": "s",
+      "image": "war_threatcore.png",
+      "footprint": {
+        "w": 1,
+        "h": 2
+      },
+      "bounds": {
+        "x": -1,
+        "y": -10,
+        "width": 18,
+        "height": 34
+      },
+      "status": "source-check",
+      "reason": "No obvious camera conflict in source inspection. This is not an in-room or owner approval."
+    },
+    {
+      "id": "fabricator",
+      "view": "s",
+      "image": "fabricator.png",
+      "footprint": {
+        "w": 3,
+        "h": 2
+      },
+      "bounds": {
+        "x": -3,
+        "y": -4,
+        "width": 44,
+        "height": 28
+      },
+      "status": "source-check",
+      "reason": "No obvious camera conflict in source inspection. This is not an in-room or owner approval."
+    },
+    {
+      "id": "vat",
+      "view": "s",
+      "image": "vat.png",
+      "footprint": {
+        "w": 3,
+        "h": 2
+      },
+      "bounds": {
+        "x": 0,
+        "y": -4,
+        "width": 41,
+        "height": 28
+      },
+      "status": "source-check",
+      "reason": "No obvious camera conflict in source inspection. This is not an in-room or owner approval."
+    },
+    {
+      "id": "easel",
+      "view": "s",
+      "image": "easel.png",
+      "footprint": {
+        "w": 3,
+        "h": 2
+      },
+      "bounds": {
+        "x": 1,
+        "y": -14,
+        "width": 34,
+        "height": 38
+      },
+      "status": "source-check",
+      "reason": "No obvious camera conflict in source inspection. This is not an in-room or owner approval."
+    },
+    {
+      "id": "tube",
+      "view": "s",
+      "image": "tube.png",
+      "footprint": {
+        "w": 2,
+        "h": 1
+      },
+      "bounds": {
+        "x": -1,
+        "y": -4,
+        "width": 26,
+        "height": 15
+      },
+      "status": "source-check",
+      "reason": "No obvious camera conflict in source inspection. This is not an in-room or owner approval."
+    },
+    {
+      "id": "research_corelens",
+      "view": "s",
+      "image": "research_corelens.png",
+      "footprint": {
+        "w": 1,
+        "h": 2
+      },
+      "bounds": {
+        "x": -2,
+        "y": -9,
+        "width": 20,
+        "height": 33
+      },
+      "status": "source-check",
+      "reason": "No obvious camera conflict in source inspection. This is not an in-room or owner approval."
+    },
+    {
+      "id": "research_trendpillar",
+      "view": "s",
+      "image": "research_trendpillar.png",
+      "footprint": {
+        "w": 1,
+        "h": 2
+      },
+      "bounds": {
+        "x": -2,
+        "y": -7,
+        "width": 20,
+        "height": 31
+      },
+      "status": "source-check",
+      "reason": "No obvious camera conflict in source inspection. This is not an in-room or owner approval."
+    },
+    {
+      "id": "research_samplecart",
+      "view": "s",
+      "image": "research_samplecart.png",
+      "footprint": {
+        "w": 2,
+        "h": 1
+      },
+      "bounds": {
+        "x": -1,
+        "y": -6,
+        "width": 28,
+        "height": 18
+      },
+      "status": "source-check",
+      "reason": "No obvious camera conflict in source inspection. This is not an in-room or owner approval."
+    },
+    {
+      "id": "research_papers",
+      "view": "s",
+      "image": "research_papers.png",
+      "footprint": {
+        "w": 2,
+        "h": 1
+      },
+      "bounds": {
+        "x": 1,
+        "y": 1,
+        "width": 20,
+        "height": 10
+      },
+      "status": "room-check",
+      "reason": "Confirm intended mount/ground plane in a room: papers currently read as upright presentation cards."
+    },
+    {
+      "id": "etsy_threadrack",
+      "view": "s",
+      "image": "etsy_threadrack.png",
+      "footprint": {
+        "w": 2,
+        "h": 1
+      },
+      "bounds": {
+        "x": -1,
+        "y": -8,
+        "width": 26,
+        "height": 20
+      },
+      "status": "source-check",
+      "reason": "No obvious camera conflict in source inspection. This is not an in-room or owner approval."
+    },
+    {
+      "id": "etsy_dyevat",
+      "view": "s",
+      "image": "etsy_dyevat.png",
+      "footprint": {
+        "w": 2,
+        "h": 2
+      },
+      "bounds": {
+        "x": 0,
+        "y": -5,
+        "width": 29,
+        "height": 29
+      },
+      "status": "source-check",
+      "reason": "No obvious camera conflict in source inspection. This is not an in-room or owner approval."
+    },
+    {
+      "id": "etsy_kiln",
+      "view": "s",
+      "image": "etsy_kiln.png",
+      "footprint": {
+        "w": 2,
+        "h": 2
+      },
+      "bounds": {
+        "x": -1,
+        "y": -9,
+        "width": 30,
+        "height": 33
+      },
+      "status": "source-check",
+      "reason": "No obvious camera conflict in source inspection. This is not an in-room or owner approval."
+    },
+    {
+      "id": "etsy_packbot",
+      "view": "s",
+      "image": "etsy_packbot.png",
+      "footprint": {
+        "w": 2,
+        "h": 2
+      },
+      "bounds": {
+        "x": -1,
+        "y": -15,
+        "width": 30,
+        "height": 39
+      },
+      "status": "source-check",
+      "reason": "No obvious camera conflict in source inspection. This is not an in-room or owner approval."
+    },
+    {
+      "id": "rackV",
+      "view": "s",
+      "image": "rackV.png",
+      "footprint": {
+        "w": 1,
+        "h": 2
+      },
+      "bounds": {
+        "x": -1,
+        "y": -12,
+        "width": 14,
+        "height": 36
+      },
+      "status": "source-check",
+      "reason": "No obvious camera conflict in source inspection. This is not an in-room or owner approval."
+    },
+    {
+      "id": "crate",
+      "view": "s",
+      "image": "crate.png",
+      "footprint": {
+        "w": 2,
+        "h": 1
+      },
+      "bounds": {
+        "x": -1,
+        "y": -8.8,
+        "width": 26,
+        "height": 20.8
+      },
+      "status": "preserve-accepted",
+      "reason": "Owner-accepted anchor/view. Preserve."
+    },
+    {
+      "id": "boxes",
+      "view": "s",
+      "image": "boxes.png",
+      "footprint": {
+        "w": 2,
+        "h": 1
+      },
+      "bounds": {
+        "x": 0,
+        "y": -1,
+        "width": 24,
+        "height": 13
+      },
+      "status": "rebuild",
+      "reason": "Carton front faces dominate and stacked boxes use perspective convergence; match the approved crate projection."
+    },
+    {
+      "id": "goldcrate",
+      "view": "s",
+      "image": "goldcrate.png",
+      "footprint": {
+        "w": 2,
+        "h": 1
+      },
+      "bounds": {
+        "x": -1,
+        "y": -10,
+        "width": 26,
+        "height": 22
+      },
+      "status": "source-check",
+      "reason": "No obvious camera conflict in source inspection. This is not an in-room or owner approval."
+    },
+    {
+      "id": "gigs_partsbin",
+      "view": "s",
+      "image": "gigs_partsbin.png",
+      "footprint": {
+        "w": 2,
+        "h": 1
+      },
+      "bounds": {
+        "x": -1,
+        "y": -7,
+        "width": 26,
+        "height": 19
+      },
+      "status": "source-check",
+      "reason": "No obvious camera conflict in source inspection. This is not an in-room or owner approval."
+    },
+    {
+      "id": "treasury_coinsorter",
+      "view": "s",
+      "image": "treasury_coinsorter.png",
+      "footprint": {
+        "w": 2,
+        "h": 1
+      },
+      "bounds": {
+        "x": -1,
+        "y": -3,
+        "width": 26,
+        "height": 15
+      },
+      "status": "source-check",
+      "reason": "No obvious camera conflict in source inspection. This is not an in-room or owner approval."
+    },
+    {
+      "id": "treasury_token_furnace",
+      "view": "s",
+      "image": "treasury_token_furnace.png",
+      "footprint": {
+        "w": 1,
+        "h": 2
+      },
+      "bounds": {
+        "x": -1,
+        "y": -7,
+        "width": 14,
+        "height": 31
+      },
+      "status": "source-check",
+      "reason": "No obvious camera conflict in source inspection. This is not an in-room or owner approval."
+    },
+    {
+      "id": "commswall",
+      "view": "s",
+      "image": "commswall.png",
+      "footprint": {
+        "w": 6,
+        "h": 1
+      },
+      "bounds": {
+        "x": -1,
+        "y": -13,
+        "width": 74,
+        "height": 23
+      },
+      "status": "source-check",
+      "reason": "No obvious camera conflict in source inspection. This is not an in-room or owner approval."
+    },
+    {
+      "id": "comms_inbox",
+      "view": "s",
+      "image": "comms_inbox.png",
+      "footprint": {
+        "w": 2,
+        "h": 1
+      },
+      "bounds": {
+        "x": -1,
+        "y": -8,
+        "width": 30,
+        "height": 20
+      },
+      "status": "source-check",
+      "reason": "No obvious camera conflict in source inspection. This is not an in-room or owner approval."
+    },
+    {
+      "id": "gigs_thumbwall",
+      "view": "s",
+      "image": "gigs_thumbwall.png",
+      "footprint": {
+        "w": 2,
+        "h": 1
+      },
+      "bounds": {
+        "x": -1,
+        "y": -6,
+        "width": 26,
+        "height": 18
+      },
+      "status": "source-check",
+      "reason": "No obvious camera conflict in source inspection. This is not an in-room or owner approval."
+    },
+    {
+      "id": "gigs_amp",
+      "view": "s",
+      "image": "gigs_amp.png",
+      "footprint": {
+        "w": 1,
+        "h": 1
+      },
+      "bounds": {
+        "x": -1,
+        "y": -7,
+        "width": 16,
+        "height": 20
+      },
+      "status": "source-check",
+      "reason": "No obvious camera conflict in source inspection. This is not an in-room or owner approval."
+    },
+    {
+      "id": "pub_publishpress",
+      "view": "s",
+      "image": "pub_publishpress.png",
+      "footprint": {
+        "w": 2,
+        "h": 2
+      },
+      "bounds": {
+        "x": -1,
+        "y": -8,
+        "width": 30,
+        "height": 32
+      },
+      "status": "source-check",
+      "reason": "No obvious camera conflict in source inspection. This is not an in-room or owner approval."
+    },
+    {
+      "id": "pub_outboundchute",
+      "view": "s",
+      "image": "pub_outboundchute.png",
+      "footprint": {
+        "w": 1,
+        "h": 2
+      },
+      "bounds": {
+        "x": -3,
+        "y": -11,
+        "width": 18,
+        "height": 35
+      },
+      "status": "source-check",
+      "reason": "No obvious camera conflict in source inspection. This is not an in-room or owner approval."
+    },
+    {
+      "id": "pub_mailpod",
+      "view": "s",
+      "image": "pub_mailpod.png",
+      "footprint": {
+        "w": 2,
+        "h": 1
+      },
+      "bounds": {
+        "x": -3,
+        "y": -10,
+        "width": 31,
+        "height": 22
+      },
+      "status": "source-check",
+      "reason": "No obvious camera conflict in source inspection. This is not an in-room or owner approval."
+    },
+    {
+      "id": "arc_indexwall",
+      "view": "s",
+      "image": "arc_indexwall.png",
+      "footprint": {
+        "w": 4,
+        "h": 1
+      },
+      "bounds": {
+        "x": -1,
+        "y": -13,
+        "width": 50,
+        "height": 23
+      },
+      "status": "source-check",
+      "reason": "No obvious camera conflict in source inspection. This is not an in-room or owner approval."
+    },
+    {
+      "id": "arc_microfiche",
+      "view": "s",
+      "image": "arc_microfiche.png",
+      "footprint": {
+        "w": 2,
+        "h": 1
+      },
+      "bounds": {
+        "x": -1,
+        "y": -12,
+        "width": 30,
+        "height": 24
+      },
+      "status": "source-check",
+      "reason": "No obvious camera conflict in source inspection. This is not an in-room or owner approval."
+    },
+    {
+      "id": "djbooth",
+      "view": "s",
+      "image": "djbooth.png",
+      "footprint": {
+        "w": 4,
+        "h": 2
+      },
+      "bounds": {
+        "x": -1,
+        "y": -5,
+        "width": 50,
+        "height": 29
+      },
+      "status": "rebuild",
+      "reason": "Table family: long visible legs/front apron and shallow top disagree with the corrected table. Re-author top depth and surface mounting together."
+    },
+    {
+      "id": "speaker",
+      "view": "s",
+      "image": "speaker.png",
+      "footprint": {
+        "w": 1,
+        "h": 1
+      },
+      "bounds": {
+        "x": 1,
+        "y": -3,
+        "width": 10,
+        "height": 15
+      },
+      "status": "source-check",
+      "reason": "No obvious camera conflict in source inspection. This is not an in-room or owner approval."
+    },
+    {
+      "id": "bar",
+      "view": "s",
+      "image": "bar.png",
+      "footprint": {
+        "w": 4,
+        "h": 1
+      },
+      "bounds": {
+        "x": -1,
+        "y": -12,
+        "width": 50,
+        "height": 24
+      },
+      "status": "rebuild",
+      "reason": "Countertop is a thin strip above a tall front panel. Raise camera while preserving wall mounting and stool clearance."
+    },
+    {
+      "id": "tv",
+      "view": "s",
+      "image": "tv.png",
+      "footprint": {
+        "w": 3,
+        "h": 1
+      },
+      "bounds": {
+        "x": -1,
+        "y": -12,
+        "width": 38,
+        "height": 24
+      },
+      "status": "preserve-accepted",
+      "reason": "Owner-accepted anchor/view. Preserve."
+    },
+    {
+      "id": "couch",
+      "view": "s",
+      "image": "couch.png",
+      "footprint": {
+        "w": 5,
+        "h": 1
+      },
+      "bounds": {
+        "x": -1,
+        "y": -14,
+        "width": 62,
+        "height": 26
+      },
+      "status": "facing-gap",
+      "reason": "Single south-facing image is used below the TV; a genuine north-facing back view is needed for that placement. Do not mirror vertically."
+    },
+    {
+      "id": "arcade",
+      "view": "s",
+      "image": "arcade.png",
+      "footprint": {
+        "w": 1,
+        "h": 2
+      },
+      "bounds": {
+        "x": -1,
+        "y": -2,
+        "width": 14,
+        "height": 26
+      },
+      "status": "preserve-accepted",
+      "reason": "Owner-accepted anchor/view. Preserve."
+    },
+    {
+      "id": "arcade2",
+      "view": "s",
+      "image": "arcade2.png",
+      "footprint": {
+        "w": 1,
+        "h": 2
+      },
+      "bounds": {
+        "x": -1,
+        "y": -3,
+        "width": 14,
+        "height": 27
+      },
+      "status": "preserve-accepted",
+      "reason": "Owner-accepted anchor/view. Preserve."
+    },
+    {
+      "id": "jukebox",
+      "view": "s",
+      "image": "jukebox.png",
+      "footprint": {
+        "w": 1,
+        "h": 2
+      },
+      "bounds": {
+        "x": -1,
+        "y": -3,
+        "width": 18,
+        "height": 27
+      },
+      "status": "source-check",
+      "reason": "No obvious camera conflict in source inspection. This is not an in-room or owner approval."
+    },
+    {
+      "id": "bunk",
+      "view": "s",
+      "image": "bunk.png",
+      "footprint": {
+        "w": 2,
+        "h": 2
+      },
+      "bounds": {
+        "x": 0,
+        "y": -2,
+        "width": 24,
+        "height": 26
+      },
+      "status": "source-check",
+      "reason": "No obvious camera conflict in source inspection. This is not an in-room or owner approval."
+    },
+    {
+      "id": "quarters_pooltable",
+      "view": "s",
+      "image": "quarters_pooltable.png",
+      "footprint": {
+        "w": 4,
+        "h": 2
+      },
+      "bounds": {
+        "x": -1,
+        "y": -11,
+        "width": 50,
+        "height": 35
+      },
+      "status": "preserve-accepted",
+      "reason": "Owner-accepted anchor/view. Preserve."
+    },
+    {
+      "id": "quarters_vending",
+      "view": "s",
+      "image": "quarters_vending.png",
+      "footprint": {
+        "w": 1,
+        "h": 2
+      },
+      "bounds": {
+        "x": -2,
+        "y": -9,
+        "width": 17,
+        "height": 33
+      },
+      "status": "source-check",
+      "reason": "No obvious camera conflict in source inspection. This is not an in-room or owner approval."
+    },
+    {
+      "id": "quarters_lockerbank",
+      "view": "s",
+      "image": "quarters_lockerbank.png",
+      "footprint": {
+        "w": 3,
+        "h": 1
+      },
+      "bounds": {
+        "x": -1,
+        "y": -20,
+        "width": 38,
+        "height": 32
+      },
+      "status": "source-check",
+      "reason": "No obvious camera conflict in source inspection. This is not an in-room or owner approval."
+    },
+    {
+      "id": "quarters_minifridge",
+      "view": "s",
+      "image": "quarters_minifridge.png",
+      "footprint": {
+        "w": 1,
+        "h": 1
+      },
+      "bounds": {
+        "x": 1,
+        "y": -11,
+        "width": 11,
+        "height": 24
+      },
+      "status": "source-check",
+      "reason": "No obvious camera conflict in source inspection. This is not an in-room or owner approval."
+    },
+    {
+      "id": "coffee",
+      "view": "s",
+      "image": "coffee.png",
+      "footprint": {
+        "w": 1,
+        "h": 1
+      },
+      "bounds": {
+        "x": 2.5,
+        "y": 2,
+        "width": 7,
+        "height": 10
+      },
+      "status": "source-check",
+      "reason": "No obvious camera conflict in source inspection. This is not an in-room or owner approval."
+    },
+    {
+      "id": "plant",
+      "view": "s",
+      "image": "plant.png",
+      "footprint": {
+        "w": 1,
+        "h": 1
+      },
+      "bounds": {
+        "x": 1,
+        "y": -8,
+        "width": 10,
+        "height": 20
+      },
+      "status": "room-check",
+      "reason": "Inspect foliage and pot contact beside crew at native size; irregular silhouettes prevent a confident camera judgment from a contact sheet."
+    },
+    {
+      "id": "rug",
+      "view": "s",
+      "image": "rug.png",
+      "footprint": {
+        "w": 4,
+        "h": 3
+      },
+      "bounds": {
+        "x": -1,
+        "y": 0,
+        "width": 50,
+        "height": 36
+      },
+      "status": "source-check",
+      "reason": "No obvious camera conflict in source inspection. This is not an in-room or owner approval."
+    },
+    {
+      "id": "rug_small",
+      "view": "s",
+      "image": "rug_small.png",
+      "footprint": {
+        "w": 3,
+        "h": 3
+      },
+      "bounds": {
+        "x": 0,
+        "y": -1,
+        "width": 36,
+        "height": 38
+      },
+      "status": "source-check",
+      "reason": "No obvious camera conflict in source inspection. This is not an in-room or owner approval."
+    },
+    {
+      "id": "rug_large",
+      "view": "s",
+      "image": "rug_large.png",
+      "footprint": {
+        "w": 5,
+        "h": 5
+      },
+      "bounds": {
+        "x": 0,
+        "y": 0,
+        "width": 60,
+        "height": 60
+      },
+      "status": "source-check",
+      "reason": "No obvious camera conflict in source inspection. This is not an in-room or owner approval."
+    },
+    {
+      "id": "treasury_pnl_holo",
+      "view": "s",
+      "image": "treasury_pnl_holo.png",
+      "footprint": {
+        "w": 1,
+        "h": 1
+      },
+      "bounds": {
+        "x": 1,
+        "y": 5,
+        "width": 10,
+        "height": 5
+      },
+      "status": "source-check",
+      "reason": "No obvious camera conflict in source inspection. This is not an in-room or owner approval."
+    },
+    {
+      "id": "arc_floorlight",
+      "view": "s",
+      "image": "arc_floorlight.png",
+      "footprint": {
+        "w": 1,
+        "h": 1
+      },
+      "bounds": {
+        "x": 1,
+        "y": 2,
+        "width": 10,
+        "height": 10
+      },
+      "status": "source-check",
+      "reason": "No obvious camera conflict in source inspection. This is not an in-room or owner approval."
+    },
+    {
+      "id": "arc_ladder",
+      "view": "s",
+      "image": "arc_ladder.png",
+      "footprint": {
+        "w": 1,
+        "h": 1
+      },
+      "bounds": {
+        "x": 0,
+        "y": -8,
+        "width": 14,
+        "height": 19
+      },
+      "status": "source-check",
+      "reason": "No obvious camera conflict in source inspection. This is not an in-room or owner approval."
+    },
+    {
+      "id": "stool",
+      "view": "s",
+      "image": "stool.png",
+      "footprint": {
+        "w": 1,
+        "h": 1
+      },
+      "bounds": {
+        "x": 1,
+        "y": 0,
+        "width": 10,
+        "height": 11
+      },
+      "status": "rebuild",
+      "reason": "Large visible pedestal/underside relative to seat; compress the projected stem and compare with accepted chair."
+    },
+    {
+      "id": "chair",
+      "view": "s",
+      "image": "chair.png",
+      "footprint": {
+        "w": 1,
+        "h": 1
+      },
+      "bounds": {
+        "x": 0,
+        "y": -5.7778,
+        "width": 12,
+        "height": 17.7778
+      },
+      "status": "preserve-accepted",
+      "reason": "Owner-accepted anchor/view. Preserve."
+    },
+    {
+      "id": "chair",
+      "view": "w",
+      "image": "chair-w.png",
+      "footprint": {
+        "w": 1,
+        "h": 1
+      },
+      "bounds": {
+        "x": 1,
+        "y": -4.0748,
+        "width": 10,
+        "height": 16.0748
+      },
+      "status": "source-check",
+      "reason": "No obvious camera conflict in source inspection. This is not an in-room or owner approval."
+    },
+    {
+      "id": "chair",
+      "view": "n",
+      "image": "chair-n.png",
+      "footprint": {
+        "w": 1,
+        "h": 1
+      },
+      "bounds": {
+        "x": 0,
+        "y": -6.0541,
+        "width": 12,
+        "height": 18.0541
+      },
+      "status": "source-check",
+      "reason": "No obvious camera conflict in source inspection. This is not an in-room or owner approval."
+    },
+    {
+      "id": "chair",
+      "view": "e",
+      "image": "chair-e.png",
+      "footprint": {
+        "w": 1,
+        "h": 1
+      },
+      "bounds": {
+        "x": 1,
+        "y": -3.8333,
+        "width": 10,
+        "height": 15.8333
+      },
+      "status": "source-check",
+      "reason": "No obvious camera conflict in source inspection. This is not an in-room or owner approval."
+    },
+    {
+      "id": "sidetable",
+      "view": "s",
+      "image": "sidetable.png",
+      "footprint": {
+        "w": 1,
+        "h": 1
+      },
+      "bounds": {
+        "x": 0,
+        "y": -3,
+        "width": 12,
+        "height": 15
+      },
+      "status": "rebuild",
+      "reason": "Table family: long visible legs/front apron and shallow top disagree with the corrected table. Re-author top depth and surface mounting together."
+    },
+    {
+      "id": "lowtable",
+      "view": "s",
+      "image": "lowtable.png",
+      "footprint": {
+        "w": 3,
+        "h": 1
+      },
+      "bounds": {
+        "x": -1,
+        "y": -5,
+        "width": 38,
+        "height": 17
+      },
+      "status": "rebuild",
+      "reason": "Table family: long visible legs/front apron and shallow top disagree with the corrected table. Re-author top depth and surface mounting together."
+    },
+    {
+      "id": "lowtable",
+      "view": "e",
+      "image": "lowtable-e.png",
+      "footprint": {
+        "w": 1,
+        "h": 3
+      },
+      "bounds": {
+        "x": -2,
+        "y": 0,
+        "width": 16,
+        "height": 36
+      },
+      "status": "rebuild",
+      "reason": "Table family: long visible legs/front apron and shallow top disagree with the corrected table. Re-author top depth and surface mounting together."
+    },
+    {
+      "id": "glasstable",
+      "view": "s",
+      "image": "glasstable.png",
+      "footprint": {
+        "w": 3,
+        "h": 1
+      },
+      "bounds": {
+        "x": 0,
+        "y": -6,
+        "width": 36,
+        "height": 18
+      },
+      "status": "rebuild",
+      "reason": "Table family: long visible legs/front apron and shallow top disagree with the corrected table. Re-author top depth and surface mounting together."
+    },
+    {
+      "id": "glasstable",
+      "view": "e",
+      "image": "glasstable-e.png",
+      "footprint": {
+        "w": 1,
+        "h": 3
+      },
+      "bounds": {
+        "x": 0,
+        "y": 0,
+        "width": 12,
+        "height": 36
+      },
+      "status": "rebuild",
+      "reason": "Table family: long visible legs/front apron and shallow top disagree with the corrected table. Re-author top depth and surface mounting together."
+    },
+    {
+      "id": "dinertable",
+      "view": "s",
+      "image": "dinertable.png",
+      "footprint": {
+        "w": 3,
+        "h": 2
+      },
+      "bounds": {
+        "x": -1,
+        "y": 3,
+        "width": 38,
+        "height": 22
+      },
+      "status": "rebuild",
+      "reason": "Table family: long visible legs/front apron and shallow top disagree with the corrected table. Re-author top depth and surface mounting together."
+    },
+    {
+      "id": "dinertable",
+      "view": "e",
+      "image": "dinertable-e.png",
+      "footprint": {
+        "w": 2,
+        "h": 3
+      },
+      "bounds": {
+        "x": -1,
+        "y": 0,
+        "width": 26,
+        "height": 37
+      },
+      "status": "rebuild",
+      "reason": "Table family: long visible legs/front apron and shallow top disagree with the corrected table. Re-author top depth and surface mounting together."
+    },
+    {
+      "id": "guitar",
+      "view": "s",
+      "image": "guitar.png",
+      "footprint": {
+        "w": 1,
+        "h": 1
+      },
+      "bounds": {
+        "x": -1,
+        "y": -15,
+        "width": 14,
+        "height": 27
+      },
+      "status": "source-check",
+      "reason": "No obvious camera conflict in source inspection. This is not an in-room or owner approval."
+    },
+    {
+      "id": "booth",
+      "view": "s",
+      "image": "booth.png",
+      "footprint": {
+        "w": 2,
+        "h": 1
+      },
+      "bounds": {
+        "x": 0,
+        "y": -7,
+        "width": 24,
+        "height": 19
+      },
+      "status": "rebuild",
+      "reason": "Front-facing backrest dominates; expose more seat plane from the station camera."
+    },
+    {
+      "id": "booth",
+      "view": "w",
+      "image": "booth-w.png",
+      "footprint": {
+        "w": 1,
+        "h": 2
+      },
+      "bounds": {
+        "x": 0,
+        "y": -5,
+        "width": 12,
+        "height": 29
+      },
+      "status": "source-check",
+      "reason": "No obvious camera conflict in source inspection. This is not an in-room or owner approval."
+    },
+    {
+      "id": "booth",
+      "view": "e",
+      "image": "booth-e.png",
+      "footprint": {
+        "w": 1,
+        "h": 2
+      },
+      "bounds": {
+        "x": 0,
+        "y": -5,
+        "width": 12,
+        "height": 29
+      },
+      "status": "source-check",
+      "reason": "No obvious camera conflict in source inspection. This is not an in-room or owner approval."
+    },
+    {
+      "id": "dinerchair",
+      "view": "s",
+      "image": "dinerchair.png",
+      "footprint": {
+        "w": 1,
+        "h": 1
+      },
+      "bounds": {
+        "x": 1,
+        "y": -4,
+        "width": 11,
+        "height": 16
+      },
+      "status": "source-check",
+      "reason": "No obvious camera conflict in source inspection. This is not an in-room or owner approval."
+    },
+    {
+      "id": "dinerchair",
+      "view": "w",
+      "image": "dinerchair-w.png",
+      "footprint": {
+        "w": 1,
+        "h": 1
+      },
+      "bounds": {
+        "x": 0,
+        "y": -4,
+        "width": 11,
+        "height": 16
+      },
+      "status": "rebuild",
+      "reason": "Side views are nearly straight profiles; seat depth should agree with the elevated south/north views."
+    },
+    {
+      "id": "dinerchair",
+      "view": "n",
+      "image": "dinerchair-n.png",
+      "footprint": {
+        "w": 1,
+        "h": 1
+      },
+      "bounds": {
+        "x": 1,
+        "y": -4,
+        "width": 11,
+        "height": 16
+      },
+      "status": "source-check",
+      "reason": "No obvious camera conflict in source inspection. This is not an in-room or owner approval."
+    },
+    {
+      "id": "dinerchair",
+      "view": "e",
+      "image": "dinerchair-e.png",
+      "footprint": {
+        "w": 1,
+        "h": 1
+      },
+      "bounds": {
+        "x": 1,
+        "y": -4,
+        "width": 11,
+        "height": 16
+      },
+      "status": "rebuild",
+      "reason": "Side views are nearly straight profiles; seat depth should agree with the elevated south/north views."
+    },
+    {
+      "id": "podchair",
+      "view": "s",
+      "image": "podchair.png",
+      "footprint": {
+        "w": 1,
+        "h": 1
+      },
+      "bounds": {
+        "x": 1,
+        "y": -5,
+        "width": 10,
+        "height": 17
+      },
+      "status": "rebuild",
+      "reason": "Seat opening and shell retain a low product-view camera across facings; rebuild as one coherent facing set."
+    },
+    {
+      "id": "podchair",
+      "view": "w",
+      "image": "podchair-w.png",
+      "footprint": {
+        "w": 1,
+        "h": 1
+      },
+      "bounds": {
+        "x": 0,
+        "y": -5,
+        "width": 11,
+        "height": 17
+      },
+      "status": "rebuild",
+      "reason": "Seat opening and shell retain a low product-view camera across facings; rebuild as one coherent facing set."
+    },
+    {
+      "id": "podchair",
+      "view": "n",
+      "image": "podchair-n.png",
+      "footprint": {
+        "w": 1,
+        "h": 1
+      },
+      "bounds": {
+        "x": 1,
+        "y": -5,
+        "width": 10,
+        "height": 17
+      },
+      "status": "rebuild",
+      "reason": "Seat opening and shell retain a low product-view camera across facings; rebuild as one coherent facing set."
+    },
+    {
+      "id": "podchair",
+      "view": "e",
+      "image": "podchair-e.png",
+      "footprint": {
+        "w": 1,
+        "h": 1
+      },
+      "bounds": {
+        "x": 1,
+        "y": -5,
+        "width": 11,
+        "height": 17
+      },
+      "status": "rebuild",
+      "reason": "Seat opening and shell retain a low product-view camera across facings; rebuild as one coherent facing set."
+    },
+    {
+      "id": "loungetable",
+      "view": "s",
+      "image": "loungetable.png",
+      "footprint": {
+        "w": 2,
+        "h": 1
+      },
+      "bounds": {
+        "x": 0,
+        "y": -6,
+        "width": 24,
+        "height": 18
+      },
+      "status": "rebuild",
+      "reason": "Table family: long visible legs/front apron and shallow top disagree with the corrected table. Re-author top depth and surface mounting together."
+    },
+    {
+      "id": "loungetable",
+      "view": "e",
+      "image": "loungetable-e.png",
+      "footprint": {
+        "w": 1,
+        "h": 2
+      },
+      "bounds": {
+        "x": -1,
+        "y": 0,
+        "width": 14,
+        "height": 24
+      },
+      "status": "rebuild",
+      "reason": "Table family: long visible legs/front apron and shallow top disagree with the corrected table. Re-author top depth and surface mounting together."
+    },
+    {
+      "id": "longtable",
+      "view": "s",
+      "image": "longtable.png",
+      "footprint": {
+        "w": 3,
+        "h": 1
+      },
+      "bounds": {
+        "x": -1,
+        "y": -6,
+        "width": 38,
+        "height": 18
+      },
+      "status": "corrected-candidate",
+      "reason": "Generated camera correction integrated and inspected in Kepler; owner acceptance pending."
+    },
+    {
+      "id": "longtable",
+      "view": "e",
+      "image": "longtable-e.png",
+      "footprint": {
+        "w": 1,
+        "h": 3
+      },
+      "bounds": {
+        "x": -2,
+        "y": 0,
+        "width": 16,
+        "height": 36
+      },
+      "status": "rebuild",
+      "reason": "East view still uses the previous table camera; match the corrected south view without stretching or rotating its raster."
+    },
+    {
+      "id": "lavalamp",
+      "view": "s",
+      "image": "lavalamp.png",
+      "footprint": {
+        "w": 1,
+        "h": 1
+      },
+      "bounds": {
+        "x": 2,
+        "y": -8,
+        "width": 8,
+        "height": 20
+      },
+      "status": "source-check",
+      "reason": "No obvious camera conflict in source inspection. This is not an in-room or owner approval."
+    },
+    {
+      "id": "crt_pile",
+      "view": "s",
+      "image": "crt_pile.png",
+      "footprint": {
+        "w": 1,
+        "h": 1
+      },
+      "bounds": {
+        "x": -1,
+        "y": -4,
+        "width": 12,
+        "height": 17
+      },
+      "status": "source-check",
+      "reason": "No obvious camera conflict in source inspection. This is not an in-room or owner approval."
+    },
+    {
+      "id": "cablerun",
+      "view": "s",
+      "image": "cablerun.png",
+      "footprint": {
+        "w": 2,
+        "h": 1
+      },
+      "bounds": {
+        "x": 0,
+        "y": 2,
+        "width": 24,
+        "height": 9
+      },
+      "status": "source-check",
+      "reason": "No obvious camera conflict in source inspection. This is not an in-room or owner approval."
+    },
+    {
+      "id": "hazardpad",
+      "view": "s",
+      "image": "hazardpad.png",
+      "footprint": {
+        "w": 2,
+        "h": 1
+      },
+      "bounds": {
+        "x": 1,
+        "y": 1,
+        "width": 22,
+        "height": 10
+      },
+      "status": "source-check",
+      "reason": "No obvious camera conflict in source inspection. This is not an in-room or owner approval."
+    },
+    {
+      "id": "tallplant",
+      "view": "s",
+      "image": "tallplant.png",
+      "footprint": {
+        "w": 1,
+        "h": 1
+      },
+      "bounds": {
+        "x": 1,
+        "y": -14,
+        "width": 13,
+        "height": 26
+      },
+      "status": "room-check",
+      "reason": "Inspect foliage and pot contact beside crew at native size; irregular silhouettes prevent a confident camera judgment from a contact sheet."
+    },
+    {
+      "id": "terrarium",
+      "view": "s",
+      "image": "terrarium.png",
+      "footprint": {
+        "w": 1,
+        "h": 1
+      },
+      "bounds": {
+        "x": 0,
+        "y": -5,
+        "width": 11,
+        "height": 16
+      },
+      "status": "source-check",
+      "reason": "No obvious camera conflict in source inspection. This is not an in-room or owner approval."
+    },
+    {
+      "id": "holopet",
+      "view": "s",
+      "image": "holopet.png",
+      "footprint": {
+        "w": 1,
+        "h": 1
+      },
+      "bounds": {
+        "x": 3,
+        "y": -6,
+        "width": 6,
+        "height": 16
+      },
+      "status": "source-check",
+      "reason": "No obvious camera conflict in source inspection. This is not an in-room or owner approval."
+    },
+    {
+      "id": "plasmaglobe",
+      "view": "s",
+      "image": "plasmaglobe.png",
+      "footprint": {
+        "w": 1,
+        "h": 1
+      },
+      "bounds": {
+        "x": 1,
+        "y": -5,
+        "width": 9,
+        "height": 17
+      },
+      "status": "source-check",
+      "reason": "No obvious camera conflict in source inspection. This is not an in-room or owner approval."
+    },
+    {
+      "id": "gachapon",
+      "view": "s",
+      "image": "gachapon.png",
+      "footprint": {
+        "w": 1,
+        "h": 1
+      },
+      "bounds": {
+        "x": 0,
+        "y": -7,
+        "width": 11,
+        "height": 19
+      },
+      "status": "source-check",
+      "reason": "No obvious camera conflict in source inspection. This is not an in-room or owner approval."
+    },
+    {
+      "id": "monstera",
+      "view": "s",
+      "image": "monstera.png",
+      "footprint": {
+        "w": 1,
+        "h": 1
+      },
+      "bounds": {
+        "x": 0,
+        "y": -1,
+        "width": 12,
+        "height": 13
+      },
+      "status": "room-check",
+      "reason": "Inspect foliage and pot contact beside crew at native size; irregular silhouettes prevent a confident camera judgment from a contact sheet."
+    },
+    {
+      "id": "mug",
+      "view": "s",
+      "image": "mug.png",
+      "footprint": {
+        "w": 1,
+        "h": 1
+      },
+      "bounds": {
+        "x": 4,
+        "y": 8,
+        "width": 4,
+        "height": 4
+      },
+      "status": "source-check",
+      "reason": "No obvious camera conflict in source inspection. This is not an in-room or owner approval."
+    },
+    {
+      "id": "bookstack",
+      "view": "s",
+      "image": "bookstack.png",
+      "footprint": {
+        "w": 1,
+        "h": 1
+      },
+      "bounds": {
+        "x": 0,
+        "y": 0,
+        "width": 12,
+        "height": 10
+      },
+      "status": "source-check",
+      "reason": "No obvious camera conflict in source inspection. This is not an in-room or owner approval."
+    },
+    {
+      "id": "desklamp",
+      "view": "s",
+      "image": "desklamp.png",
+      "footprint": {
+        "w": 1,
+        "h": 1
+      },
+      "bounds": {
+        "x": 0,
+        "y": 3,
+        "width": 12,
+        "height": 9
+      },
+      "status": "source-check",
+      "reason": "No obvious camera conflict in source inspection. This is not an in-room or owner approval."
+    },
+    {
+      "id": "radio",
+      "view": "s",
+      "image": "radio.png",
+      "footprint": {
+        "w": 1,
+        "h": 1
+      },
+      "bounds": {
+        "x": 1,
+        "y": 3,
+        "width": 10,
+        "height": 9
+      },
+      "status": "source-check",
+      "reason": "No obvious camera conflict in source inspection. This is not an in-room or owner approval."
+    },
+    {
+      "id": "toolbox",
+      "view": "s",
+      "image": "toolbox.png",
+      "footprint": {
+        "w": 1,
+        "h": 1
+      },
+      "bounds": {
+        "x": 1,
+        "y": 5,
+        "width": 10,
+        "height": 7
+      },
+      "status": "corrected-candidate",
+      "reason": "Generated camera correction integrated and inspected in Kepler; owner acceptance pending."
+    },
+    {
+      "id": "figurine",
+      "view": "s",
+      "image": "figurine.png",
+      "footprint": {
+        "w": 1,
+        "h": 1
+      },
+      "bounds": {
+        "x": 1,
+        "y": 1,
+        "width": 10,
+        "height": 11
+      },
+      "status": "source-check",
+      "reason": "No obvious camera conflict in source inspection. This is not an in-room or owner approval."
+    },
+    {
+      "id": "deskterminal",
+      "view": "s",
+      "image": "deskterminal.png",
+      "footprint": {
+        "w": 1,
+        "h": 1
+      },
+      "bounds": {
+        "x": 0,
+        "y": 0,
+        "width": 12,
+        "height": 12
+      },
+      "status": "source-check",
+      "reason": "No obvious camera conflict in source inspection. This is not an in-room or owner approval."
+    },
+    {
+      "id": "modelship",
+      "view": "s",
+      "image": "modelship.png",
+      "footprint": {
+        "w": 2,
+        "h": 1
+      },
+      "bounds": {
+        "x": 2,
+        "y": 1,
+        "width": 20,
+        "height": 11
+      },
+      "status": "source-check",
+      "reason": "No obvious camera conflict in source inspection. This is not an in-room or owner approval."
+    },
+    {
+      "id": "steamvent",
+      "view": "s",
+      "image": "steamvent.png",
+      "footprint": {
+        "w": 1,
+        "h": 1
+      },
+      "bounds": {
+        "x": 0,
+        "y": 3,
+        "width": 12,
+        "height": 9
+      },
+      "status": "source-check",
+      "reason": "No obvious camera conflict in source inspection. This is not an in-room or owner approval."
+    },
+    {
+      "id": "fishtank",
+      "view": "s",
+      "image": "fishtank.png",
+      "footprint": {
+        "w": 2,
+        "h": 1
+      },
+      "bounds": {
+        "x": -1,
+        "y": -12,
+        "width": 26,
+        "height": 24
+      },
+      "status": "source-check",
+      "reason": "No obvious camera conflict in source inspection. This is not an in-room or owner approval."
+    },
+    {
+      "id": "pokertable",
+      "view": "s",
+      "image": "pokertable.png",
+      "footprint": {
+        "w": 4,
+        "h": 2
+      },
+      "bounds": {
+        "x": -1,
+        "y": -5,
+        "width": 50,
+        "height": 29
+      },
+      "status": "rebuild",
+      "reason": "Exposed pedestal/front mass is large relative to top plane; raise camera and shorten the visible underside."
+    },
+    {
+      "id": "bookshelf",
+      "view": "s",
+      "image": "bookshelf.png",
+      "footprint": {
+        "w": 2,
+        "h": 1
+      },
+      "bounds": {
+        "x": -1,
+        "y": -9,
+        "width": 26,
+        "height": 22
+      },
+      "status": "source-check",
+      "reason": "No obvious camera conflict in source inspection. This is not an in-room or owner approval."
+    },
+    {
+      "id": "beanbag",
+      "view": "s",
+      "image": "beanbag.png",
+      "footprint": {
+        "w": 1,
+        "h": 1
+      },
+      "bounds": {
+        "x": -1,
+        "y": 1,
+        "width": 14,
+        "height": 11
+      },
+      "status": "source-check",
+      "reason": "No obvious camera conflict in source inspection. This is not an in-room or owner approval."
+    },
+    {
+      "id": "pinball",
+      "view": "s",
+      "image": "pinball.png",
+      "footprint": {
+        "w": 1,
+        "h": 2
+      },
+      "bounds": {
+        "x": -1,
+        "y": -3,
+        "width": 16,
+        "height": 27
+      },
+      "status": "source-check",
+      "reason": "No obvious camera conflict in source inspection. This is not an in-room or owner approval."
+    },
+    {
+      "id": "cryopod",
+      "view": "s",
+      "image": "cryopod.png",
+      "footprint": {
+        "w": 1,
+        "h": 2
+      },
+      "bounds": {
+        "x": 0,
+        "y": -6,
+        "width": 12,
+        "height": 30
+      },
+      "status": "source-check",
+      "reason": "No obvious camera conflict in source inspection. This is not an in-room or owner approval."
+    },
+    {
+      "id": "incubator",
+      "view": "s",
+      "image": "incubator.png",
+      "footprint": {
+        "w": 1,
+        "h": 2
+      },
+      "bounds": {
+        "x": -1,
+        "y": -9,
+        "width": 14,
+        "height": 33
+      },
+      "status": "source-check",
+      "reason": "No obvious camera conflict in source inspection. This is not an in-room or owner approval."
+    },
+    {
+      "id": "telescope",
+      "view": "s",
+      "image": "telescope.png",
+      "footprint": {
+        "w": 1,
+        "h": 2
+      },
+      "bounds": {
+        "x": -3,
+        "y": -8,
+        "width": 19,
+        "height": 31
+      },
+      "status": "source-check",
+      "reason": "No obvious camera conflict in source inspection. This is not an in-room or owner approval."
+    },
+    {
+      "id": "telescope_r",
+      "view": "s",
+      "image": "telescope_r.png",
+      "footprint": {
+        "w": 1,
+        "h": 2
+      },
+      "bounds": {
+        "x": -4,
+        "y": -8,
+        "width": 19,
+        "height": 31
+      },
+      "status": "source-check",
+      "reason": "No obvious camera conflict in source inspection. This is not an in-room or owner approval."
+    },
+    {
+      "id": "camerarig",
+      "view": "s",
+      "image": "camerarig.png",
+      "footprint": {
+        "w": 1,
+        "h": 2
+      },
+      "bounds": {
+        "x": -1,
+        "y": -6,
+        "width": 15,
+        "height": 29
+      },
+      "status": "rebuild",
+      "reason": "Tripod is a flat frontal triangle with little separation in depth; use an elevated three-foot stance."
+    },
+    {
+      "id": "camerarig_r",
+      "view": "s",
+      "image": "camerarig_r.png",
+      "footprint": {
+        "w": 1,
+        "h": 2
+      },
+      "bounds": {
+        "x": -2,
+        "y": -6,
+        "width": 15,
+        "height": 29
+      },
+      "status": "rebuild",
+      "reason": "Tripod is a flat frontal triangle with little separation in depth; use an elevated three-foot stance."
+    },
+    {
+      "id": "weaponrack",
+      "view": "s",
+      "image": "weaponrack.png",
+      "footprint": {
+        "w": 3,
+        "h": 1
+      },
+      "bounds": {
+        "x": 1,
+        "y": -16,
+        "width": 34,
+        "height": 22
+      },
+      "status": "source-check",
+      "reason": "No obvious camera conflict in source inspection. This is not an in-room or owner approval."
+    },
+    {
+      "id": "weaponrack_r",
+      "view": "s",
+      "image": "weaponrack_r.png",
+      "footprint": {
+        "w": 3,
+        "h": 1
+      },
+      "bounds": {
+        "x": 1,
+        "y": -16,
+        "width": 34,
+        "height": 22
+      },
+      "status": "source-check",
+      "reason": "No obvious camera conflict in source inspection. This is not an in-room or owner approval."
+    },
+    {
+      "id": "punchbag",
+      "view": "s",
+      "image": "punchbag.png",
+      "footprint": {
+        "w": 1,
+        "h": 2
+      },
+      "bounds": {
+        "x": 0,
+        "y": -8,
+        "width": 12,
+        "height": 30
+      },
+      "status": "source-check",
+      "reason": "No obvious camera conflict in source inspection. This is not an in-room or owner approval."
+    },
+    {
+      "id": "punchbag_r",
+      "view": "s",
+      "image": "punchbag_r.png",
+      "footprint": {
+        "w": 1,
+        "h": 2
+      },
+      "bounds": {
+        "x": 0,
+        "y": -8,
+        "width": 12,
+        "height": 30
+      },
+      "status": "source-check",
+      "reason": "No obvious camera conflict in source inspection. This is not an in-room or owner approval."
+    },
+    {
+      "id": "benchpress",
+      "view": "s",
+      "image": "benchpress.png",
+      "footprint": {
+        "w": 3,
+        "h": 1
+      },
+      "bounds": {
+        "x": 1,
+        "y": -8,
+        "width": 36,
+        "height": 20
+      },
+      "status": "source-check",
+      "reason": "No obvious camera conflict in source inspection. This is not an in-room or owner approval."
+    },
+    {
+      "id": "benchpress_r",
+      "view": "s",
+      "image": "benchpress_r.png",
+      "footprint": {
+        "w": 3,
+        "h": 1
+      },
+      "bounds": {
+        "x": -1,
+        "y": -8,
+        "width": 36,
+        "height": 20
+      },
+      "status": "source-check",
+      "reason": "No obvious camera conflict in source inspection. This is not an in-room or owner approval."
+    },
+    {
+      "id": "recliner",
+      "view": "s",
+      "image": "recliner.png",
+      "footprint": {
+        "w": 1,
+        "h": 1
+      },
+      "bounds": {
+        "x": -3,
+        "y": -7,
+        "width": 17,
+        "height": 19
+      },
+      "status": "source-check",
+      "reason": "No obvious camera conflict in source inspection. This is not an in-room or owner approval."
+    },
+    {
+      "id": "recliner_r",
+      "view": "s",
+      "image": "recliner_r.png",
+      "footprint": {
+        "w": 1,
+        "h": 1
+      },
+      "bounds": {
+        "x": -2,
+        "y": -7,
+        "width": 17,
+        "height": 19
+      },
+      "status": "source-check",
+      "reason": "No obvious camera conflict in source inspection. This is not an in-room or owner approval."
+    }
+  ]
+}

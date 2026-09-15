@@ -471,7 +471,8 @@
             78,
             206,
             221
-          ]
+          ],
+          "idleOpacity": 0.88
         }
       ],
       "evidence": [
@@ -522,7 +523,8 @@
             78,
             206,
             221
-          ]
+          ],
+          "idleOpacity": 0.88
         },
         {
           "kind": "screen",
@@ -549,7 +551,8 @@
             78,
             206,
             221
-          ]
+          ],
+          "idleOpacity": 0.88
         }
       ],
       "evidence": [
@@ -600,7 +603,8 @@
             78,
             206,
             221
-          ]
+          ],
+          "idleOpacity": 0.88
         }
       ],
       "evidence": [
@@ -651,7 +655,8 @@
             78,
             206,
             221
-          ]
+          ],
+          "idleOpacity": 0.88
         },
         {
           "kind": "screen",
@@ -678,7 +683,8 @@
             78,
             206,
             221
-          ]
+          ],
+          "idleOpacity": 0.88
         }
       ],
       "evidence": [
@@ -700,28 +706,28 @@
       "reason": "Source-specific local state or decorative mechanism.",
       "inCurrentDemo": true,
       "image": "frontend/assets/industrial/projection-correction/workbench.png",
-      "sourceWidth": 431,
-      "sourceHeight": 395,
-      "sha256": "9f94ec6290bf4e12d98ec297a2767297d259a2744763d5c07490515eff394106",
+      "sourceWidth": 1202,
+      "sourceHeight": 651,
+      "sha256": "ee02c48f64f19ce7530f348219f1c635ed4cd62ab7fea9665ed1f54dad2c2abf",
       "regions": [
         {
           "kind": "result",
           "region": [
             [
-              0.23,
-              0.62
+              0.042,
+              0.84
             ],
             [
-              0.38,
-              0.62
+              0.064,
+              0.84
             ],
             [
-              0.38,
-              0.645
+              0.064,
+              0.864
             ],
             [
-              0.23,
-              0.645
+              0.042,
+              0.864
             ]
           ],
           "gate": "fired",
@@ -1578,7 +1584,8 @@
             78,
             206,
             221
-          ]
+          ],
+          "idleOpacity": 0.88
         },
         {
           "kind": "result",
@@ -1707,7 +1714,8 @@
             78,
             206,
             221
-          ]
+          ],
+          "idleOpacity": 0.88
         },
         {
           "kind": "result",
@@ -2286,7 +2294,8 @@
             233,
             103,
             134
-          ]
+          ],
+          "idleOpacity": 0.88
         },
         {
           "kind": "result",
@@ -2521,7 +2530,8 @@
             78,
             206,
             221
-          ]
+          ],
+          "idleOpacity": 0
         },
         {
           "kind": "screen",
@@ -2548,7 +2558,8 @@
             78,
             206,
             221
-          ]
+          ],
+          "idleOpacity": 0
         },
         {
           "kind": "screen",
@@ -2575,7 +2586,8 @@
             78,
             206,
             221
-          ]
+          ],
+          "idleOpacity": 0
         }
       ],
       "evidence": [
@@ -2597,28 +2609,44 @@
       "reason": "Source-specific local state or decorative mechanism.",
       "inCurrentDemo": false,
       "image": "frontend/assets/industrial/projection-correction/bridge_tacticaltable.png",
-      "sourceWidth": 1350,
-      "sourceHeight": 898,
-      "sha256": "6f51ad3d61884f13b352f9a8eb909b2772e921591894b1335f156c28a033732a",
+      "sourceWidth": 1607,
+      "sourceHeight": 901,
+      "sha256": "9ddbba8ab0c0679ad8fefa77767e8b7b20ef4f8da18a40e6f1806fa16291ef35",
       "regions": [
         {
           "kind": "screen",
           "region": [
             [
-              0.13,
-              0.22
+              0.17,
+              0.17
             ],
             [
-              0.85,
-              0.22
+              0.83,
+              0.17
             ],
             [
-              0.92,
-              0.6
+              0.89,
+              0.31
             ],
             [
-              0.08,
-              0.6
+              0.89,
+              0.64
+            ],
+            [
+              0.83,
+              0.78
+            ],
+            [
+              0.17,
+              0.78
+            ],
+            [
+              0.11,
+              0.64
+            ],
+            [
+              0.11,
+              0.31
             ]
           ],
           "gate": "occupied",
@@ -2626,7 +2654,8 @@
             78,
             206,
             221
-          ]
+          ],
+          "idleOpacity": 0
         }
       ],
       "evidence": [
@@ -2746,7 +2775,8 @@
             78,
             206,
             221
-          ]
+          ],
+          "idleOpacity": 0.88
         }
       ],
       "evidence": [
@@ -2797,7 +2827,8 @@
             78,
             206,
             221
-          ]
+          ],
+          "idleOpacity": 0.88
         }
       ],
       "evidence": [
@@ -2848,7 +2879,8 @@
             78,
             206,
             221
-          ]
+          ],
+          "idleOpacity": 0.88
         },
         {
           "kind": "screen",
@@ -2875,7 +2907,8 @@
             78,
             206,
             221
-          ]
+          ],
+          "idleOpacity": 0.88
         },
         {
           "kind": "screen",
@@ -2902,7 +2935,8 @@
             78,
             206,
             221
-          ]
+          ],
+          "idleOpacity": 0.88
         }
       ],
       "evidence": [
@@ -3030,7 +3064,8 @@
             144,
             224,
             81
-          ]
+          ],
+          "idleOpacity": 0.88
         }
       ],
       "evidence": [
@@ -3081,7 +3116,8 @@
             78,
             206,
             221
-          ]
+          ],
+          "idleOpacity": 0.88
         },
         {
           "kind": "screen",
@@ -3108,7 +3144,8 @@
             238,
             177,
             62
-          ]
+          ],
+          "idleOpacity": 0.88
         },
         {
           "kind": "screen",
@@ -3135,7 +3172,8 @@
             78,
             206,
             221
-          ]
+          ],
+          "idleOpacity": 0.88
         }
       ],
       "evidence": [
@@ -3186,7 +3224,8 @@
             233,
             103,
             134
-          ]
+          ],
+          "idleOpacity": 0.88
         }
       ],
       "evidence": [
@@ -3255,7 +3294,8 @@
             78,
             206,
             221
-          ]
+          ],
+          "idleOpacity": 0.88
         }
       ],
       "evidence": [
@@ -3357,7 +3397,8 @@
             78,
             206,
             221
-          ]
+          ],
+          "idleOpacity": 0.88
         },
         {
           "kind": "screen",
@@ -3384,7 +3425,8 @@
             78,
             206,
             221
-          ]
+          ],
+          "idleOpacity": 0.88
         },
         {
           "kind": "screen",
@@ -3411,7 +3453,8 @@
             78,
             206,
             221
-          ]
+          ],
+          "idleOpacity": 0.88
         }
       ],
       "evidence": [
@@ -3821,7 +3864,8 @@
             78,
             206,
             221
-          ]
+          ],
+          "idleOpacity": 0.88
         }
       ],
       "evidence": [
@@ -4411,7 +4455,8 @@
             144,
             224,
             81
-          ]
+          ],
+          "idleOpacity": 0.88
         }
       ],
       "evidence": [
@@ -4513,7 +4558,8 @@
             78,
             206,
             221
-          ]
+          ],
+          "idleOpacity": 0.88
         },
         {
           "kind": "screen",
@@ -4540,7 +4586,8 @@
             78,
             206,
             221
-          ]
+          ],
+          "idleOpacity": 0.88
         },
         {
           "kind": "screen",
@@ -4567,7 +4614,8 @@
             78,
             206,
             221
-          ]
+          ],
+          "idleOpacity": 0.88
         }
       ],
       "evidence": [
@@ -4618,7 +4666,8 @@
             78,
             206,
             221
-          ]
+          ],
+          "idleOpacity": 0.88
         },
         {
           "kind": "screen",
@@ -4645,7 +4694,8 @@
             78,
             206,
             221
-          ]
+          ],
+          "idleOpacity": 0.88
         },
         {
           "kind": "screen",
@@ -4672,7 +4722,8 @@
             78,
             206,
             221
-          ]
+          ],
+          "idleOpacity": 0.88
         }
       ],
       "evidence": [
@@ -4723,7 +4774,8 @@
             78,
             206,
             221
-          ]
+          ],
+          "idleOpacity": 0.88
         },
         {
           "kind": "screen",
@@ -4750,7 +4802,8 @@
             78,
             206,
             221
-          ]
+          ],
+          "idleOpacity": 0.88
         },
         {
           "kind": "screen",
@@ -4777,7 +4830,8 @@
             78,
             206,
             221
-          ]
+          ],
+          "idleOpacity": 0.88
         }
       ],
       "evidence": [
@@ -5077,7 +5131,8 @@
             78,
             206,
             221
-          ]
+          ],
+          "idleOpacity": 0.88
         }
       ],
       "evidence": [
@@ -5128,7 +5183,8 @@
             78,
             206,
             221
-          ]
+          ],
+          "idleOpacity": 0.88
         }
       ],
       "evidence": [
@@ -5248,7 +5304,8 @@
             78,
             206,
             221
-          ]
+          ],
+          "idleOpacity": 0.88
         }
       ],
       "evidence": [
@@ -5317,7 +5374,8 @@
             78,
             206,
             221
-          ]
+          ],
+          "idleOpacity": 0.88
         },
         {
           "kind": "result",
@@ -5395,7 +5453,8 @@
             233,
             103,
             134
-          ]
+          ],
+          "idleOpacity": 0.88
         },
         {
           "kind": "result",
@@ -5473,7 +5532,8 @@
             78,
             206,
             221
-          ]
+          ],
+          "idleOpacity": 0.88
         },
         {
           "kind": "lamp",
@@ -6434,9 +6494,9 @@
       "reason": "Seating/table body remains untouched; occupancy, sleep and mounting stay with existing body/foreground/surface owners.",
       "inCurrentDemo": false,
       "image": "frontend/assets/industrial/projection-correction/longtable.png",
-      "sourceWidth": 595,
-      "sourceHeight": 249,
-      "sha256": "5a487610f81f3002ae233c2e2f5ab15ac7b5e57423dfeda52df260055fb3a776",
+      "sourceWidth": 1738,
+      "sourceHeight": 658,
+      "sha256": "eecab611ec1f48ede26e0acba7b47b55f982fdc756ad19bd8900dc15c6a34acb",
       "regions": [],
       "evidence": [
         "frontend/app/propsprites.js:6015",
@@ -6576,7 +6636,8 @@
             78,
             206,
             221
-          ]
+          ],
+          "idleOpacity": 0.88
         },
         {
           "kind": "screen",
@@ -6603,7 +6664,8 @@
             78,
             206,
             221
-          ]
+          ],
+          "idleOpacity": 0.88
         }
       ],
       "evidence": [
@@ -6997,9 +7059,9 @@
       "reason": "Static authored contents or materials. No inferred activity, inventory, light or material animation.",
       "inCurrentDemo": false,
       "image": "frontend/assets/industrial/projection-correction/toolbox.png",
-      "sourceWidth": 223,
-      "sourceHeight": 188,
-      "sha256": "a72246746ae146ef74373148a8c61e80e4a098814ae3102262aeae4f6f7e3d6d",
+      "sourceWidth": 1275,
+      "sourceHeight": 669,
+      "sha256": "e384c75cce8ce56139256a8f1ccd4f36b69599efa6879bfc00a6c180be0c622d",
       "regions": [],
       "evidence": [
         "frontend/app/propsprites.js:9628",
@@ -7062,7 +7124,8 @@
             78,
             206,
             221
-          ]
+          ],
+          "idleOpacity": 0.88
         }
       ],
       "evidence": [
@@ -7356,7 +7419,8 @@
             78,
             206,
             221
-          ]
+          ],
+          "idleOpacity": 0.88
         },
         {
           "kind": "scan",

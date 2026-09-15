@@ -87,6 +87,10 @@
     {
       "name": "plants-decor",
       "file": "docs/station-remaster/catalog-crew-rest-4/exports.json"
+    },
+    {
+      "name": "camera-audit",
+      "file": "docs/station-remaster/camera-audit/integration.json"
     }
   ]
 }

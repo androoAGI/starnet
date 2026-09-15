@@ -2497,62 +2497,6 @@
     },
     {
       "id": "longtable",
-      "view": "s",
-      "image": "longtable.png",
-      "repoPath": "frontend/assets/industrial/catalog-tables/longtable.png",
-      "sourceWidth": 595,
-      "sourceHeight": 249,
-      "footprint": {
-        "w": 3,
-        "h": 1
-      },
-      "bounds": {
-        "x": -1,
-        "y": -6,
-        "width": 38,
-        "height": 18
-      },
-      "contact": {
-        "x": 0.5,
-        "y": 0.9879518072289156
-      },
-      "surfaceSupport": {
-        "space": "export-normalized",
-        "points": [
-          [
-            0.06050420168067227,
-            0.10441767068273092
-          ],
-          [
-            0.9428571428571428,
-            0.10441767068273092
-          ],
-          [
-            0.946218487394958,
-            0.42570281124497994
-          ],
-          [
-            0.05378151260504202,
-            0.42570281124497994
-          ]
-        ]
-      },
-      "source": "docs/station-remaster/catalog-tables/sheet-source.png",
-      "sourceSha256": "8f0681dc75687af8781d3e053b37913c6c458059f8d61b7f1cdd5e5f00ffb4cc",
-      "sourceCrop": {
-        "left": 91,
-        "top": 1084,
-        "width": 595,
-        "height": 249
-      },
-      "outputSha256": "5a487610f81f3002ae233c2e2f5ab15ac7b5e57423dfeda52df260055fb3a776",
-      "retained": 109443,
-      "status": "Source and geometry candidate; room placement requires review",
-      "group": "tables",
-      "output": "frontend/assets/industrial/projection-correction/longtable.png"
-    },
-    {
-      "id": "longtable",
       "view": "e",
       "image": "longtable-e.png",
       "repoPath": "frontend/assets/industrial/catalog-tables/longtable-e.png",
@@ -3755,78 +3699,6 @@
       "liveVerified": false,
       "group": "command",
       "retained": 960018
-    },
-    {
-      "id": "bridge_tacticaltable",
-      "view": "s",
-      "image": "bridge_tacticaltable.png",
-      "sourceWidth": 1350,
-      "sourceHeight": 898,
-      "bounds": {
-        "x": 0,
-        "y": -7,
-        "width": 84,
-        "height": 55
-      },
-      "footprint": {
-        "w": 7,
-        "h": 4
-      },
-      "contact": {
-        "x": 0.5,
-        "y": 0.9966592427616926
-      },
-      "actualUniformFit": {
-        "width": 82.6837416481069,
-        "height": 55
-      },
-      "aspectRatioError": -0.015669742284441734,
-      "source": "docs/station-remaster/catalog-command/bridge_tacticaltable-final-source.png",
-      "sourceSha256": "730120434a1ce8d44f74c8ed3cd1cca9bcae3cbbe5b442655659574ec5dc3e7c",
-      "output": "frontend/assets/industrial/projection-correction/bridge_tacticaltable.png",
-      "outputSha256": "6f51ad3d61884f13b352f9a8eb909b2772e921591894b1335f156c28a033732a",
-      "sourceRect": {
-        "x": 0,
-        "y": 0,
-        "width": 1550,
-        "height": 1014
-      },
-      "cropInCell": {
-        "left": 98,
-        "top": 42,
-        "width": 1350,
-        "height": 898
-      },
-      "sourceCrop": {
-        "left": 98,
-        "top": 42,
-        "width": 1350,
-        "height": 898
-      },
-      "width": 1350,
-      "height": 898,
-      "alphaBounds": {
-        "x": 0,
-        "y": 0,
-        "width": 1350,
-        "height": 898
-      },
-      "retainedPixels": 1019709,
-      "alphaResidueRemoved": 2838,
-      "coreThreshold": 180,
-      "edgeRadius": 3,
-      "opaqueCellEdgePixels": 0,
-      "rgbChanges": 0,
-      "retainedAlphaChanges": 0,
-      "alpha": {
-        "zero": 192591,
-        "partial": 1017725,
-        "opaque255": 1984,
-        "maxAlpha": 255
-      },
-      "liveVerified": false,
-      "group": "command",
-      "retained": 1019709
     },
     {
       "id": "airlock",
@@ -6837,78 +6709,6 @@
       "retained": 64138
     },
     {
-      "id": "toolbox",
-      "view": "s",
-      "image": "toolbox.png",
-      "sourceWidth": 223,
-      "sourceHeight": 188,
-      "bounds": {
-        "x": 0,
-        "y": 1,
-        "width": 12,
-        "height": 10
-      },
-      "footprint": {
-        "w": 1,
-        "h": 1
-      },
-      "contact": {
-        "x": 0.5,
-        "y": 0.9840425531914894
-      },
-      "actualUniformFit": {
-        "width": 11.861702127659575,
-        "height": 10
-      },
-      "aspectRatioError": -0.011524822695035408,
-      "source": "docs/station-remaster/catalog-storage-rest-1/sheet-v2-source.png",
-      "sourceSha256": "d5757ff2bc97d7ed1e812d5344960a8d44f490882a0b238d173c1c8cfd88f30e",
-      "output": "frontend/assets/industrial/projection-correction/toolbox.png",
-      "outputSha256": "a72246746ae146ef74373148a8c61e80e4a098814ae3102262aeae4f6f7e3d6d",
-      "sourceRect": {
-        "x": 650,
-        "y": 295,
-        "width": 663,
-        "height": 255
-      },
-      "cropInCell": {
-        "left": 169,
-        "top": 50,
-        "width": 223,
-        "height": 188
-      },
-      "sourceCrop": {
-        "left": 819,
-        "top": 345,
-        "width": 223,
-        "height": 188
-      },
-      "width": 223,
-      "height": 188,
-      "alphaBounds": {
-        "x": 0,
-        "y": 0,
-        "width": 223,
-        "height": 188
-      },
-      "retainedPixels": 36869,
-      "alphaResidueRemoved": 1656,
-      "coreThreshold": 180,
-      "edgeRadius": 3,
-      "opaqueCellEdgePixels": 0,
-      "rgbChanges": 0,
-      "retainedAlphaChanges": 0,
-      "alpha": {
-        "zero": 5055,
-        "partial": 36697,
-        "opaque255": 172,
-        "maxAlpha": 255
-      },
-      "liveVerified": false,
-      "group": "storage-carts",
-      "retained": 36869
-    },
-    {
       "id": "industrial_supplycart",
       "view": "s",
       "image": "industrial_supplycart.png",
@@ -7627,78 +7427,6 @@
       "liveVerified": false,
       "group": "cameras-work",
       "retained": 69139
-    },
-    {
-      "id": "workbench",
-      "view": "s",
-      "image": "workbench.png",
-      "sourceWidth": 431,
-      "sourceHeight": 395,
-      "bounds": {
-        "x": -1,
-        "y": -15,
-        "width": 30,
-        "height": 27
-      },
-      "footprint": {
-        "w": 2,
-        "h": 1
-      },
-      "contact": {
-        "x": 0.5,
-        "y": 0.9924050632911392
-      },
-      "actualUniformFit": {
-        "width": 29.46075949367089,
-        "height": 27
-      },
-      "aspectRatioError": -0.01797468354430376,
-      "source": "docs/station-remaster/catalog-storage-rest-4/sheet-v1-source.png",
-      "sourceSha256": "a60937dec2b0e2376ceb5519bcc809ae37144fe6c53feb938e327118d0be29c1",
-      "output": "frontend/assets/industrial/projection-correction/workbench.png",
-      "outputSha256": "9f94ec6290bf4e12d98ec297a2767297d259a2744763d5c07490515eff394106",
-      "sourceRect": {
-        "x": 0,
-        "y": 1010,
-        "width": 530,
-        "height": 443
-      },
-      "cropInCell": {
-        "left": 50,
-        "top": 19,
-        "width": 431,
-        "height": 395
-      },
-      "sourceCrop": {
-        "left": 50,
-        "top": 1029,
-        "width": 431,
-        "height": 395
-      },
-      "width": 431,
-      "height": 395,
-      "alphaBounds": {
-        "x": 0,
-        "y": 0,
-        "width": 431,
-        "height": 395
-      },
-      "retainedPixels": 133273,
-      "alphaResidueRemoved": 3998,
-      "coreThreshold": 180,
-      "edgeRadius": 3,
-      "opaqueCellEdgePixels": 0,
-      "rgbChanges": 0,
-      "retainedAlphaChanges": 0,
-      "alpha": {
-        "zero": 36972,
-        "partial": 132861,
-        "opaque255": 412,
-        "maxAlpha": 255
-      },
-      "liveVerified": false,
-      "group": "cameras-work",
-      "retained": 133273
     },
     {
       "id": "comms_inbox",
@@ -10568,6 +10296,164 @@
       "group": "plants-decor",
       "output": "frontend/assets/industrial/projection-correction/speaker.png",
       "retained": 74397
+    },
+    {
+      "id": "workbench",
+      "view": "s",
+      "source": "frontend/assets/industrial/camera-audit/sources/workbench-v2.png",
+      "sourceSha256": "ffe812da65dbfc29cd01d67bb29ccc0bcbe85a8dcab7bcd4affe000590ae6fb3",
+      "repoPath": "frontend/assets/industrial/camera-audit/workbench.png",
+      "outputSha256": "ee02c48f64f19ce7530f348219f1c635ed4cd62ab7fea9665ed1f54dad2c2abf",
+      "sourceCrop": {
+        "left": 192,
+        "top": 171,
+        "width": 1202,
+        "height": 651
+      },
+      "sourceWidth": 1202,
+      "sourceHeight": 651,
+      "footprint": {
+        "w": 2,
+        "h": 1
+      },
+      "bounds": {
+        "x": -1,
+        "y": -15,
+        "width": 30,
+        "height": 27
+      },
+      "contact": {
+        "x": 0.5,
+        "y": 0.9984639016897081
+      },
+      "retained": 724810,
+      "status": "camera correction candidate; inspect in station",
+      "exposure": 1.35,
+      "group": "camera-audit",
+      "output": "frontend/assets/industrial/projection-correction/workbench.png"
+    },
+    {
+      "id": "longtable",
+      "view": "s",
+      "source": "frontend/assets/industrial/camera-audit/sources/longtable.png",
+      "sourceSha256": "13a4e1bae22bb942be1317e4ef7941a781c778db100206eac88dc5a3dda00e0a",
+      "repoPath": "frontend/assets/industrial/camera-audit/longtable.png",
+      "outputSha256": "eecab611ec1f48ede26e0acba7b47b55f982fdc756ad19bd8900dc15c6a34acb",
+      "sourceCrop": {
+        "left": 44,
+        "top": 108,
+        "width": 1738,
+        "height": 658
+      },
+      "sourceWidth": 1738,
+      "sourceHeight": 658,
+      "footprint": {
+        "w": 3,
+        "h": 1
+      },
+      "bounds": {
+        "x": -1,
+        "y": -6,
+        "width": 38,
+        "height": 18
+      },
+      "contact": {
+        "x": 0.5,
+        "y": 0.9969604863221885
+      },
+      "retained": 1028093,
+      "status": "camera correction candidate; inspect in station",
+      "surfaceSupport": {
+        "space": "export-normalized",
+        "points": [
+          [
+            0.04,
+            0.06
+          ],
+          [
+            0.96,
+            0.06
+          ],
+          [
+            0.96,
+            0.74
+          ],
+          [
+            0.04,
+            0.74
+          ]
+        ]
+      },
+      "group": "camera-audit",
+      "output": "frontend/assets/industrial/projection-correction/longtable.png"
+    },
+    {
+      "id": "bridge_tacticaltable",
+      "view": "s",
+      "source": "frontend/assets/industrial/camera-audit/sources/bridge_tacticaltable-v2.png",
+      "sourceSha256": "55176b1f5e95a67b27a8344a0c74683b800bbb044a26aa3c76bd9197e199b628",
+      "repoPath": "frontend/assets/industrial/camera-audit/bridge_tacticaltable.png",
+      "outputSha256": "9ddbba8ab0c0679ad8fefa77767e8b7b20ef4f8da18a40e6f1806fa16291ef35",
+      "sourceCrop": {
+        "left": 3,
+        "top": 24,
+        "width": 1607,
+        "height": 901
+      },
+      "sourceWidth": 1607,
+      "sourceHeight": 901,
+      "footprint": {
+        "w": 7,
+        "h": 4
+      },
+      "bounds": {
+        "x": 0,
+        "y": -7,
+        "width": 84,
+        "height": 55
+      },
+      "contact": {
+        "x": 0.5,
+        "y": 0.9988901220865705
+      },
+      "retained": 1302404,
+      "status": "camera correction candidate; inspect in station",
+      "group": "camera-audit",
+      "output": "frontend/assets/industrial/projection-correction/bridge_tacticaltable.png"
+    },
+    {
+      "id": "toolbox",
+      "view": "s",
+      "source": "frontend/assets/industrial/camera-audit/sources/toolbox.png",
+      "sourceSha256": "776913da9c6cf179cd77a16e56d796562b199a8fa97c556ca36775e4e0f2cddb",
+      "repoPath": "frontend/assets/industrial/camera-audit/toolbox.png",
+      "outputSha256": "e384c75cce8ce56139256a8f1ccd4f36b69599efa6879bfc00a6c180be0c622d",
+      "sourceCrop": {
+        "left": 112,
+        "top": 177,
+        "width": 1275,
+        "height": 669
+      },
+      "sourceWidth": 1275,
+      "sourceHeight": 669,
+      "footprint": {
+        "w": 1,
+        "h": 1
+      },
+      "bounds": {
+        "x": 1,
+        "y": 5,
+        "width": 10,
+        "height": 7
+      },
+      "contact": {
+        "x": 0.5,
+        "y": 0.9985052316890882
+      },
+      "retained": 842911,
+      "status": "camera correction candidate; inspect in station",
+      "group": "camera-audit",
+      "output": "frontend/assets/industrial/projection-correction/toolbox.png"
     }
   ]
 }

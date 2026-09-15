@@ -1,0 +1,154 @@
+{
+  "records": [
+    {
+      "id": "workbench",
+      "view": "s",
+      "source": "frontend/assets/industrial/camera-audit/sources/workbench-v2.png",
+      "sourceSha256": "ffe812da65dbfc29cd01d67bb29ccc0bcbe85a8dcab7bcd4affe000590ae6fb3",
+      "repoPath": "frontend/assets/industrial/camera-audit/workbench.png",
+      "outputSha256": "ee02c48f64f19ce7530f348219f1c635ed4cd62ab7fea9665ed1f54dad2c2abf",
+      "sourceCrop": {
+        "left": 192,
+        "top": 171,
+        "width": 1202,
+        "height": 651
+      },
+      "sourceWidth": 1202,
+      "sourceHeight": 651,
+      "footprint": {
+        "w": 2,
+        "h": 1
+      },
+      "bounds": {
+        "x": -1,
+        "y": -15,
+        "width": 30,
+        "height": 27
+      },
+      "contact": {
+        "x": 0.5,
+        "y": 0.9984639016897081
+      },
+      "retained": 724810,
+      "status": "camera correction candidate; inspect in station",
+      "exposure": 1.35
+    },
+    {
+      "id": "longtable",
+      "view": "s",
+      "source": "frontend/assets/industrial/camera-audit/sources/longtable.png",
+      "sourceSha256": "13a4e1bae22bb942be1317e4ef7941a781c778db100206eac88dc5a3dda00e0a",
+      "repoPath": "frontend/assets/industrial/camera-audit/longtable.png",
+      "outputSha256": "eecab611ec1f48ede26e0acba7b47b55f982fdc756ad19bd8900dc15c6a34acb",
+      "sourceCrop": {
+        "left": 44,
+        "top": 108,
+        "width": 1738,
+        "height": 658
+      },
+      "sourceWidth": 1738,
+      "sourceHeight": 658,
+      "footprint": {
+        "w": 3,
+        "h": 1
+      },
+      "bounds": {
+        "x": -1,
+        "y": -6,
+        "width": 38,
+        "height": 18
+      },
+      "contact": {
+        "x": 0.5,
+        "y": 0.9969604863221885
+      },
+      "retained": 1028093,
+      "status": "camera correction candidate; inspect in station",
+      "surfaceSupport": {
+        "space": "export-normalized",
+        "points": [
+          [
+            0.04,
+            0.06
+          ],
+          [
+            0.96,
+            0.06
+          ],
+          [
+            0.96,
+            0.74
+          ],
+          [
+            0.04,
+            0.74
+          ]
+        ]
+      }
+    },
+    {
+      "id": "bridge_tacticaltable",
+      "view": "s",
+      "source": "frontend/assets/industrial/camera-audit/sources/bridge_tacticaltable-v2.png",
+      "sourceSha256": "55176b1f5e95a67b27a8344a0c74683b800bbb044a26aa3c76bd9197e199b628",
+      "repoPath": "frontend/assets/industrial/camera-audit/bridge_tacticaltable.png",
+      "outputSha256": "9ddbba8ab0c0679ad8fefa77767e8b7b20ef4f8da18a40e6f1806fa16291ef35",
+      "sourceCrop": {
+        "left": 3,
+        "top": 24,
+        "width": 1607,
+        "height": 901
+      },
+      "sourceWidth": 1607,
+      "sourceHeight": 901,
+      "footprint": {
+        "w": 7,
+        "h": 4
+      },
+      "bounds": {
+        "x": 0,
+        "y": -7,
+        "width": 84,
+        "height": 55
+      },
+      "contact": {
+        "x": 0.5,
+        "y": 0.9988901220865705
+      },
+      "retained": 1302404,
+      "status": "camera correction candidate; inspect in station"
+    },
+    {
+      "id": "toolbox",
+      "view": "s",
+      "source": "frontend/assets/industrial/camera-audit/sources/toolbox.png",
+      "sourceSha256": "776913da9c6cf179cd77a16e56d796562b199a8fa97c556ca36775e4e0f2cddb",
+      "repoPath": "frontend/assets/industrial/camera-audit/toolbox.png",
+      "outputSha256": "e384c75cce8ce56139256a8f1ccd4f36b69599efa6879bfc00a6c180be0c622d",
+      "sourceCrop": {
+        "left": 112,
+        "top": 177,
+        "width": 1275,
+        "height": 669
+      },
+      "sourceWidth": 1275,
+      "sourceHeight": 669,
+      "footprint": {
+        "w": 1,
+        "h": 1
+      },
+      "bounds": {
+        "x": 1,
+        "y": 5,
+        "width": 10,
+        "height": 7
+      },
+      "contact": {
+        "x": 0.5,
+        "y": 0.9985052316890882
+      },
+      "retained": 842911,
+      "status": "camera correction candidate; inspect in station"
+    }
+  ]
+}

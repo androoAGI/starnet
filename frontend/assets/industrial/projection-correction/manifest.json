@@ -658,8 +658,8 @@
       "views": {
         "s": {
           "image": "workbench.png",
-          "sourceWidth": 431,
-          "sourceHeight": 395,
+          "sourceWidth": 1202,
+          "sourceHeight": 651,
           "footprint": {
             "w": 2,
             "h": 1
@@ -671,11 +671,11 @@
             "height": 27
           },
           "mode": "approved",
-          "exposure": 1,
+          "exposure": 1.35,
           "activity": "fired",
           "contact": {
             "x": 0.5,
-            "y": 0.9924050632911392
+            "y": 0.9984639016897081
           },
           "effects": false
         }
@@ -1353,8 +1353,8 @@
       "views": {
         "s": {
           "image": "bridge_tacticaltable.png",
-          "sourceWidth": 1350,
-          "sourceHeight": 898,
+          "sourceWidth": 1607,
+          "sourceHeight": 901,
           "footprint": {
             "w": 7,
             "h": 4
@@ -1370,7 +1370,7 @@
           "screenPower": "occupied",
           "contact": {
             "x": 0.5,
-            "y": 0.9966592427616926
+            "y": 0.9988901220865705
           },
           "effects": false
         }
@@ -3832,8 +3832,8 @@
       "views": {
         "s": {
           "image": "longtable.png",
-          "sourceWidth": 595,
-          "sourceHeight": 249,
+          "sourceWidth": 1738,
+          "sourceHeight": 658,
           "footprint": {
             "w": 3,
             "h": 1
@@ -3850,26 +3850,26 @@
             "space": "export-normalized",
             "points": [
               [
-                0.06050420168067227,
-                0.10441767068273092
+                0.04,
+                0.06
               ],
               [
-                0.9428571428571428,
-                0.10441767068273092
+                0.96,
+                0.06
               ],
               [
-                0.946218487394958,
-                0.42570281124497994
+                0.96,
+                0.74
               ],
               [
-                0.05378151260504202,
-                0.42570281124497994
+                0.04,
+                0.74
               ]
             ]
           },
           "contact": {
             "x": 0.5,
-            "y": 0.9879518072289156
+            "y": 0.9969604863221885
           },
           "effects": false
         },
@@ -4288,23 +4288,23 @@
       "views": {
         "s": {
           "image": "toolbox.png",
-          "sourceWidth": 223,
-          "sourceHeight": 188,
+          "sourceWidth": 1275,
+          "sourceHeight": 669,
           "footprint": {
             "w": 1,
             "h": 1
           },
           "bounds": {
-            "x": 0,
-            "y": 1,
-            "width": 12,
-            "height": 10
+            "x": 1,
+            "y": 5,
+            "width": 10,
+            "height": 7
           },
           "mode": "approved",
           "exposure": 1,
           "contact": {
             "x": 0.5,
-            "y": 0.9840425531914894
+            "y": 0.9985052316890882
           },
           "effects": false
         }
@@ -5139,11 +5139,6 @@
     },
     {
       "id": "longtable",
-      "view": "s",
-      "group": "tables"
-    },
-    {
-      "id": "longtable",
       "view": "e",
       "group": "tables"
     },
@@ -5229,11 +5224,6 @@
     },
     {
       "id": "holotable",
-      "view": "s",
-      "group": "command"
-    },
-    {
-      "id": "bridge_tacticaltable",
       "view": "s",
       "group": "command"
     },
@@ -5503,11 +5493,6 @@
       "group": "storage-carts"
     },
     {
-      "id": "toolbox",
-      "view": "s",
-      "group": "storage-carts"
-    },
-    {
       "id": "industrial_supplycart",
       "view": "s",
       "group": "storage-carts"
@@ -5554,11 +5539,6 @@
     },
     {
       "id": "screens",
-      "view": "s",
-      "group": "cameras-work"
-    },
-    {
-      "id": "workbench",
       "view": "s",
       "group": "cameras-work"
     },
@@ -5776,6 +5756,26 @@
       "id": "speaker",
       "view": "s",
       "group": "plants-decor"
+    },
+    {
+      "id": "workbench",
+      "view": "s",
+      "group": "camera-audit"
+    },
+    {
+      "id": "longtable",
+      "view": "s",
+      "group": "camera-audit"
+    },
+    {
+      "id": "bridge_tacticaltable",
+      "view": "s",
+      "group": "camera-audit"
+    },
+    {
+      "id": "toolbox",
+      "view": "s",
+      "group": "camera-audit"
     }
   ]
 }
