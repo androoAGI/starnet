@@ -46,3 +46,7 @@ Avoid photographic microtexture, realistic fabric weave, dense scratches/rivets,
 ## Next production stages
 
 The opt-in projection-correction pass now contains 173 revised views across 157 props plus the three unchanged accepted anchors, covering all 160 catalog props. Each cohort was inspected in the running room fixture and the couch was inspected in the saved lounge. `projection-correction/coverage.json` records coverage; the README and cohort receipts record remaining proportion differences. This is generated-art coverage, not owner approval or full animation acceptance. Re-author functional/animation surfaces when source changes require it; do not infer that work from green loading checks. The new couch and catalog remain candidates for owner review.
+
+## September 15 capability approval
+
+The owner explicitly approved the five workstation-derived `capability-v2` replacements in the furnished station: “you nailed it … I love [it].” Preserve their elevated camera, restrained gray materials and functional shapes. The preceding `capability-refresh` set was rejected and must not be reused as a style reference. Gold framing is not a required style element. Capability-v2 full regression: 793 steps green (`dev/.scratch-workspace/capability-v2-test-fast.log`).

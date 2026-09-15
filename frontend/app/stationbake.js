@@ -193,6 +193,8 @@ const StationBake = (() => {
   // outer edge. Only the inner channel, panel joints and captive fixings change.
   function crownMachining(b, x, y, w, h, color, vertical = false) {
     if (!remastered()) return;
+    if (typeof IndustrialTextures !== 'undefined' && typeof IndustrialTextures.crown === 'function' && IndustrialTextures.crown(b,x,y,w,h,
+        (vertical?y:x)+wallPhase(vertical?'y':'x'),vertical,color)) return;
     const depth = vertical ? w : h, length = vertical ? h : w;
     if (depth < 3 || length <= 0) return;
     const mid = Math.floor(depth / 2), along = vertical ? y : x;
@@ -2216,6 +2218,10 @@ const StationBake = (() => {
     b.fillStyle = 'rgba(92,145,167,0.035)'; b.fillRect(X+1,gTop,T-1,gH);
     b.fillStyle = 'rgba(163,199,211,0.10)'; b.fillRect(X+1,gTop,1,gH);
     b.fillStyle = 'rgba(163,199,211,0.07)'; b.fillRect(X+2,gTop,T-3,1);
+    if (industrial && wd>0 && h>9 && typeof IndustrialTextures.viewportFrame==='function' &&
+        IndustrialTextures.viewportFrame(b,X,topY,T,h,pal.base)) {
+      wallFoot(b,body,X,footY,wd);return;
+    }
     // frame: bright sill under the glass, shaded head above, mullion at the tile seam
     b.fillStyle = shade(body, -0.40 * wd); b.fillRect(X, gTop - 1, T, 1);          // head shadow
     b.fillStyle = shade(body, 0.26 * wd); b.fillRect(X, gTop + gH, T, 2);          // lit sill
@@ -2265,6 +2271,7 @@ const StationBake = (() => {
      board pitch is 3px so it reads as narrower boards than the PLANK floor's, which stops a
      wainscot wall above a plank deck from looking like one continuous surface. */
   function wallWainscot(b, pal, X, topY, h, e, n, room, footY) {
+    if(remastered() && typeof IndustrialTextures.wall==='function' && IndustrialTextures.wall(b,X,topY,T,h,e.x+wallPhase('x')/T,'wainscot',pal.base,{detail:DEPTH.wallDetail}))return;
     const wd = wallDet();
     const industrial = remastered();
     const upper = industrial ? U.shade(pal.base, -0.24 * wd) : shade(pal.face, 0.10 * wd);
@@ -2292,6 +2299,7 @@ const StationBake = (() => {
   /* HEDGE — a living wall. Same principle as the TURF deck: NO lattice, no seams, no bevels; the
      read comes from dense blade scatter alone, darker toward the base where light doesn't reach. */
   function wallHedge(b, pal, X, topY, h, e, n, room, footY) {
+    if(remastered() && typeof IndustrialTextures.wall==='function' && IndustrialTextures.wall(b,X,topY,T,h,e.x+wallPhase('x')/T,'hedge',pal.base,{detail:DEPTH.wallDetail}))return;
     const wd = wallDet();
     // foliage lifts go through vivid() for the same reason the TURF deck's do: U.shade would take
     // the lit leaves toward white and the hedge would read as a grey bush.
@@ -2528,7 +2536,7 @@ const StationBake = (() => {
   function faceStrip(matId, pal, h) {
     // The same selected face must wrap onto side walls and corners. A pending
     // atlas (or a specialized native material) falls through to the real recipe.
-    if (nextSurfaces() && WorldSurface.WALLS.includes(matId) && typeof IndustrialTextures !== 'undefined' &&
+    if (nextSurfaces() && (WorldSurface.WALLS.includes(matId)||(typeof IndustrialTextures!=='undefined' && typeof IndustrialTextures.supportsWall==='function' && IndustrialTextures.supportsWall(matId))) && typeof IndustrialTextures !== 'undefined' &&
         IndustrialTextures && typeof IndustrialTextures.wallStrip === 'function') {
       const authored = IndustrialTextures.wallStrip(h, matId, pal.base, { detail: DEPTH.wallDetail });
       if (authored) return authored;

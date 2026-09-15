@@ -24,18 +24,18 @@ const IndustrialTextures = (() => {
   const detailTargets = new WeakMap(), wallStrips = new Map(), materials = new Map(), emitters = new Map();
   let loaded = false;
   const floorIds = 'spine alloy plate panel tile tread soft grate hex plank turf diamond resin ceramic cargo runner treadway meshway basalt parquet rubber slotted terrazzo octile'.split(' ');
-  const wallIds = 'bulkhead courses service plating ribbed panelled pipework'.split(' ');
+  const wallIds = 'bulkhead courses service plating ribbed panelled pipework viewport wainscot hedge'.split(' ');
   const names = ['floor', 'wall', 'shell', 'workstation', 'workstation-compact', 'chair-s', 'chair-e', 'chair-n',
     'tactical-table', 'console-bank', 'equipment-bay', 'deck-perimeter',
     ...floorIds.map(id => 'remaster/floors/' + id), ...wallIds.map(id => 'remaster/walls/' + id),
-    'remaster/shell', 'remaster/workstation-e', 'remaster/workstation-n', 'remaster/workstation-compact-n',
+    'remaster/shell', 'remaster/crown', 'remaster/workstation-e', 'remaster/workstation-n', 'remaster/workstation-compact-n',
     'calibration/crate'];
   // The references are already lit pictures. These measured albedo gains keep
   // the existing light simulation from applying a second exposure to the art.
   const gain = { floor: 1.25, wall: 1.65, shell: 2.05, workstation: 1.5, 'workstation-compact': 1.5,
     'chair-s': 1.3, 'chair-e': 1.3, 'chair-n': 1.3,
     'tactical-table': 1.5, 'console-bank': 1.5, 'equipment-bay': 1.5, 'deck-perimeter': 1.0,
-    'calibration/crate': 1.5 };
+    'calibration/crate': 1.5, 'remaster/crown': 2.0 };
   const ready = requested && typeof Image !== 'undefined' ? Promise.all(names.map(name => new Promise(resolve => {
     const img = new Image();
     img.onload = () => {
@@ -179,6 +179,28 @@ const IndustrialTextures = (() => {
     ctx.drawImage(im, mod(tx, period) * im.width / period, mod(ty, period) * im.height / period,
       im.width / period, im.height / period, X, Y, size, size);
     ctx.restore(); return true;
+  }
+  // Image-authored coping follows the native silhouette; phase is in world units.
+  function crown(ctx, x, y, width, height, phase, vertical, base) {
+    if (!enabled()) return false;
+    const im=material('remaster/crown',base),length=vertical?height:width,depth=vertical?width:height;
+    if(length<=0||depth<=0)return false;
+    ctx.save();ctx.imageSmoothingEnabled=true;ctx.imageSmoothingQuality='high';
+    if(vertical)ctx.transform(0,1,1,0,x,y);else ctx.transform(1,0,0,1,x,y);
+    for(let a=0;a<length;){const p=mod(phase+a,96),n=Math.min(length-a,96-p);
+      ctx.drawImage(im,p/96*im.width,.13*im.height,n/96*im.width,.73*im.height,a,0,n,depth);a+=n;}
+    ctx.restore();return true;
+  }
+  // Four image slices surround the existing transparent sky opening. Never paint glass opaque.
+  function viewportFrame(ctx,x,y,w,h,base) {
+    if(!enabled())return false;
+    const im=material('remaster/walls/viewport',base),sw=im.width,sh=im.height;
+    ctx.save();ctx.imageSmoothingEnabled=true;ctx.imageSmoothingQuality='high';
+    ctx.drawImage(im,0,0,sw,.17*sh,x,y,w,3);
+    ctx.drawImage(im,0,.75*sh,sw,.25*sh,x,y+h-6,w,6);
+    ctx.drawImage(im,0,.17*sh,.15*sw,.58*sh,x,y+3,1,h-9);
+    ctx.drawImage(im,.85*sw,.17*sh,.15*sw,.58*sh,x+w-.45,y+3,.45,h-9);
+    ctx.restore();return true;
   }
   function wall(ctx, X, Y, width, height, tx, id = 'bulkhead', base, opts) {
     if (!enabled()) return false;
@@ -391,8 +413,8 @@ const IndustrialTextures = (() => {
     ctx.drawImage(im, x + (w - dw) / 2, y + h - dh, dw, dh);
     ctx.restore(); return true;
   }
-  return Object.freeze({ ready, enabled, isRemaster, lighting, detailContext, drawBase, floor, wall, wallStrip, wallPatch, shell, shellPlate, propPanel, workstation, workstationEmitter, chair, crate,
-    furniture,
+  return Object.freeze({ ready, enabled, isRemaster, lighting, detailContext, drawBase, floor, wall, wallStrip, wallPatch, crown, viewportFrame, shell, shellPlate, propPanel, workstation, workstationEmitter, chair, crate,
+    furniture, supportsWall: id => enabled() && wallIds.includes(id),
     status: () => ({ requested, loaded, failed: failed.slice(), assets: Object.keys(images) }) });
 })();
 if (typeof module !== 'undefined' && module.exports) module.exports = IndustrialTextures;

@@ -1,0 +1,42 @@
+[
+  {
+    "id": "crown",
+    "args": {
+      "prompt": "Create a production game environment texture matching the supplied StarNet industrial wall and workstation references. Restrained charcoal gray steel, broad readable machined shapes, subtle weathering, crisp raster painting. No gold or brass, no photoreal micro-noise, no cartoon outline. Orthographic flat surface texture, no scene, no text, no perspective distortion. Fill entire image, edge-to-edge usable texture. A wide horizontal 4:1 seamless ceiling/wall coping strip viewed directly from above. Four connected broad flat charcoal steel cover plates with recessed center channel, gray beveled long edges, minimal dark joints and small recessed fasteners. Length edges tile seamlessly. It will render very thin: large simple readable construction, subdued gray highlights not bright silver.",
+      "referenced_image_paths": [
+        "C:/Users/andro/gen-trees/prop-coordination-0914/frontend/assets/industrial/remaster/walls/plating.png",
+        "C:/Users/andro/gen-trees/prop-coordination-0914/frontend/assets/industrial/projection-correction/desk.png"
+      ]
+    }
+  },
+  {
+    "id": "viewport",
+    "args": {
+      "prompt": "Create a production game environment texture matching the supplied StarNet industrial wall and workstation references. Restrained charcoal gray steel, broad readable machined shapes, subtle weathering, crisp raster painting. No gold or brass, no photoreal micro-noise, no cartoon outline. Orthographic flat surface texture, no scene, no text, no perspective distortion. Fill entire image, edge-to-edge usable texture. A square front-on spaceship viewport module. Machined charcoal steel frame: shallow lintel at top, heavier stepped sill across bottom, narrow structural uprights left and right. Middle is very dark plain glass with no stars, no scene. Frame about 12 percent side thickness, 12 percent top, 20 percent bottom. Convincing gray gaskets, layered steel reveals, recessed service joints. No lights.",
+      "referenced_image_paths": [
+        "C:/Users/andro/gen-trees/prop-coordination-0914/frontend/assets/industrial/remaster/walls/plating.png",
+        "C:/Users/andro/gen-trees/prop-coordination-0914/frontend/assets/industrial/projection-correction/desk.png"
+      ]
+    }
+  },
+  {
+    "id": "wainscot",
+    "args": {
+      "prompt": "Create a production game environment texture matching the supplied StarNet industrial wall and workstation references. Restrained charcoal gray steel, broad readable machined shapes, subtle weathering, crisp raster painting. No gold or brass, no photoreal micro-noise, no cartoon outline. Orthographic flat surface texture, no scene, no text, no perspective distortion. Fill entire image, edge-to-edge usable texture. A square seamless wall bay: upper 45 percent smooth muted charcoal gray wall panel, bottom 55 percent dark stained walnut vertical panels inside thin graphite steel framing, restrained horizontal chair rail across center. Understated crew quarters material, no gilding or ornament. Tile side to side.",
+      "referenced_image_paths": [
+        "C:/Users/andro/gen-trees/prop-coordination-0914/frontend/assets/industrial/remaster/walls/plating.png",
+        "C:/Users/andro/gen-trees/prop-coordination-0914/frontend/assets/industrial/projection-correction/desk.png"
+      ]
+    }
+  },
+  {
+    "id": "hedge",
+    "args": {
+      "prompt": "Create a production game environment texture matching the supplied StarNet industrial wall and workstation references. Restrained charcoal gray steel, broad readable machined shapes, subtle weathering, crisp raster painting. No gold or brass, no photoreal micro-noise, no cartoon outline. Orthographic flat surface texture, no scene, no text, no perspective distortion. Fill entire image, edge-to-edge usable texture. A square seamless living-wall bay of dark desaturated olive leaves in a recessed charcoal gray modular planting panel. Broad clustered foliage masses with restrained highlights, a narrow industrial frame and lower planter drainage lip. Game texture not photographic, no tiny leaf noise. Match station lighting/material contrast. Tile side to side.",
+      "referenced_image_paths": [
+        "C:/Users/andro/gen-trees/prop-coordination-0914/frontend/assets/industrial/remaster/walls/plating.png",
+        "C:/Users/andro/gen-trees/prop-coordination-0914/frontend/assets/industrial/projection-correction/desk.png"
+      ]
+    }
+  }
+]

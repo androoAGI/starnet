@@ -17,6 +17,8 @@
   const capabilityReview=new URLSearchParams(location.search).get('capabilityReview')==='1';
   const reviewViews=capabilityReview?PropSprites.STARTER.map(id=>PropCatalogData.views.find(v=>v.id===id&&v.face==='s')).filter(Boolean):PropCatalogData.views;
   const entries=()=>reviewViews.slice(page*6,page*6+6);
+  const wallReview=document.createElement('select');wallReview.setAttribute('aria-label','Wall material review');
+  for(const id of Object.keys(WorldModel.WALL_MATERIALS)){const o=document.createElement('option');o.value=id;o.textContent=id;wallReview.append(o);}nav.append(wallReview);
   const actor=()=>World.bodies().find(b=>b.hero);
   const publish=()=>{raw.textContent=JSON.stringify(receipt,null,2);panel.dataset.state=busy?'running':'ready';out.textContent=last;};
   const load=async(mirror=false)=>{
@@ -83,6 +85,11 @@
   });
   button('Overview',()=>{World.frameReviewRoom('');});
   button('Close view',()=>{const d=World.stationDoc();World.frameReviewRoom(fixture&&d.rooms[fixture.roomId]?fixture.roomId:d.order[0]);});
+  button('Inspect wall',async()=>{
+    if(busy)return;const d=JSON.parse(JSON.stringify(World.stationDoc())),id=fixture&&d.rooms[fixture.roomId]?fixture.roomId:d.order[0];
+    d.rooms[id].wallMat=wallReview.value;World.loadStation(WorldModel.deserialize(d));await pause(400);World.frameReviewRoom(id);World.setCinecamIdle(86400000);
+    receipt.structure={material:wallReview.value,texturePack:IndustrialTextures.status(),room:id};last='Wall review: '+wallReview.value+' · '+receipt.structure.texturePack.assets.length+' textures loaded · '+receipt.structure.texturePack.failed.length+' failures';publish();
+  });
   button('Measure 8 seconds',async()=>{
     if(busy)return;busy=true;last='Warming renderer for 2 seconds…';publish();await pause(2000);World._dbgReviewPerformance(true);last='Measuring actual World frame callbacks…';publish();await pause(8000);
     const p=World._dbgReviewPerformance(false),ms=p.samples.map(s=>s.ms).sort((a,b)=>a-b),gaps=p.samples.slice(1).map((s,i)=>s.t-p.samples[i].t).sort((a,b)=>a-b),q=(a,f)=>+(a[Math.min(a.length-1,Math.floor(a.length*f))]||0).toFixed(2);
