@@ -27,7 +27,7 @@ try {
   await sleep(1500);
   const receipt=await evalJS(cdp,`({station:World.stationDoc(),caps:World.heroCaps('agent').map(c=>c.objectType),art:PropRemaster.status()})`);
   assert.equal(receipt.station.order.length,1);
-  assert.equal(receipt.station.props.length,9);
+  assert.equal(receipt.station.props.length,11);
   for(const cap of ['cabinet','dish','workbench','notebook','studio'])assert.ok(receipt.caps.includes(cap),cap);
   assert.equal(receipt.station.props.filter(p=>p.t==='desk'&&p.agentId==='agent').length,1);
   assert.deepEqual(receipt.art.failures,[]);
@@ -59,7 +59,7 @@ try {
   await sleep(1000);
   await cdp.send('Page.reload');await sleep(3000);
   assert.equal(await evalJS(cdp,'World.stationDoc().meta.templateId'),'default');
-  assert.equal(await evalJS(cdp,'World.stationDoc().props.length'),9);
+  assert.equal(await evalJS(cdp,'World.stationDoc().props.length'),11);
   assert.equal((await evalJS(cdp,'CloudSave.flushForUpdate()')).ok,true);
   receipt.exceptions=diagnostics.exceptions;
   fs.writeFileSync(path.join(out,'receipt.json'),JSON.stringify(receipt,null,2));
