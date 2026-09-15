@@ -14,7 +14,9 @@
   const walkLabel=document.createElement('label'),walkAll=document.createElement('input');walkAll.type='checkbox';walkAll.checked=true;walkLabel.append(walkAll,' Walk every case');nav.append(walkLabel);
   const pause=ms=>new Promise(r=>setTimeout(r,ms));
   const button=(label,fn)=>{const b=document.createElement('button');b.textContent=label;b.onclick=()=>Promise.resolve(fn()).catch(e=>{out.textContent=e.stack||String(e);panel.dataset.state='error';});nav.append(b);return b;};
-  const entries=()=>PropCatalogData.views.slice(page*6,page*6+6);
+  const capabilityReview=new URLSearchParams(location.search).get('capabilityReview')==='1';
+  const reviewViews=capabilityReview?PropSprites.STARTER.map(id=>PropCatalogData.views.find(v=>v.id===id&&v.face==='s')).filter(Boolean):PropCatalogData.views;
+  const entries=()=>reviewViews.slice(page*6,page*6+6);
   const actor=()=>World.bodies().find(b=>b.hero);
   const publish=()=>{raw.textContent=JSON.stringify(receipt,null,2);panel.dataset.state=busy?'running':'ready';out.textContent=last;};
   const load=async(mirror=false)=>{
@@ -86,7 +88,7 @@
     const p=World._dbgReviewPerformance(false),ms=p.samples.map(s=>s.ms).sort((a,b)=>a-b),gaps=p.samples.slice(1).map((s,i)=>s.t-p.samples[i].t).sort((a,b)=>a-b),q=(a,f)=>+(a[Math.min(a.length-1,Math.floor(a.length*f))]||0).toFixed(2);
     const r={viewport:[innerWidth,innerHeight],dpr:devicePixelRatio,props:p.props,scale:+p.scale.toFixed(3),frames:p.samples.length,callbackMs:{p50:q(ms,.5),p95:q(ms,.95)},intervalMs:{p50:q(gaps,.5),p95:q(gaps,.95)},renderFaults:p.renderFaults,raster:PropRemaster.status().failures,renderer:World.renderStats(),canvas:p.canvas};receipt.performance.push(r);busy=false;last=JSON.stringify(r);publish();
   });
-  for(let i=0;i<Math.ceil(PropCatalogData.views.length/6);i++){const o=document.createElement('option');o.value=String(i);o.textContent='Room '+(i+1);pageSelect.append(o);}
+  for(let i=0;i<Math.ceil(reviewViews.length/6);i++){const o=document.createElement('option');o.value=String(i);o.textContent=capabilityReview?'Five capability props':'Room '+(i+1);pageSelect.append(o);}
   for(let n=0;n<150;n++){if(typeof World!=='undefined'&&World.stationDoc()&&actor())break;await pause(200);}
   original=JSON.parse(JSON.stringify(World.stationDoc()));await Promise.all([IndustrialTextures.ready,PropRemaster.ready]);await load();
 })().catch(e=>console.error('[remaster-audit]',e));

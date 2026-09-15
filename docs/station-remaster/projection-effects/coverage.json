@@ -706,28 +706,56 @@
       "reason": "Source-specific local state or decorative mechanism.",
       "inCurrentDemo": true,
       "image": "frontend/assets/industrial/projection-correction/workbench.png",
-      "sourceWidth": 1202,
-      "sourceHeight": 651,
-      "sha256": "ee02c48f64f19ce7530f348219f1c635ed4cd62ab7fea9665ed1f54dad2c2abf",
+      "sourceWidth": 1455,
+      "sourceHeight": 1064,
+      "sha256": "f3f6bc0c15477fe04d9e04e53303b31a4d6b8220a83f34f8b115b8a99eb2725e",
       "regions": [
+        {
+          "kind": "screen",
+          "region": [
+            [
+              0.158,
+              0.065
+            ],
+            [
+              0.383,
+              0.065
+            ],
+            [
+              0.383,
+              0.175
+            ],
+            [
+              0.158,
+              0.175
+            ]
+          ],
+          "gate": "work",
+          "colour": [
+            144,
+            224,
+            81
+          ],
+          "idleOpacity": 0.88
+        },
         {
           "kind": "result",
           "region": [
             [
-              0.042,
-              0.84
+              0.709,
+              0.633
             ],
             [
-              0.064,
-              0.84
+              0.728,
+              0.633
             ],
             [
-              0.064,
-              0.864
+              0.728,
+              0.659
             ],
             [
-              0.042,
-              0.864
+              0.709,
+              0.659
             ]
           ],
           "gate": "fired",
@@ -1500,32 +1528,28 @@
       "reason": "Source-specific local state or decorative mechanism.",
       "inCurrentDemo": false,
       "image": "frontend/assets/industrial/projection-correction/comms_dish.png",
-      "sourceWidth": 661,
-      "sourceHeight": 739,
-      "sha256": "06681ccb82906bdd64da6a1c81def5dbf85f8d89864bd5cd4f3b02d45e1fe7a0",
+      "sourceWidth": 1137,
+      "sourceHeight": 1287,
+      "sha256": "e4ccdf1af872eab1b35d72c783ba0db13961047b61f059c5085f7a27ac741dca",
       "regions": [
         {
           "kind": "lamp",
           "region": [
             [
-              0.614,
-              0.273
+              0.484,
+              0.226
             ],
             [
-              0.64,
-              0.278
+              0.512,
+              0.226
             ],
             [
-              0.658,
-              0.303
+              0.512,
+              0.257
             ],
             [
-              0.639,
-              0.319
-            ],
-            [
-              0.616,
-              0.302
+              0.484,
+              0.257
             ]
           ],
           "gate": "work",
@@ -1534,6 +1558,34 @@
             206,
             221
           ]
+        },
+        {
+          "kind": "screen",
+          "region": [
+            [
+              0.439,
+              0.731
+            ],
+            [
+              0.5589999999999999,
+              0.731
+            ],
+            [
+              0.5589999999999999,
+              0.769
+            ],
+            [
+              0.439,
+              0.769
+            ]
+          ],
+          "gate": "work",
+          "colour": [
+            78,
+            206,
+            221
+          ],
+          "idleOpacity": 0.88
         }
       ],
       "evidence": [
@@ -1685,28 +1737,28 @@
       "reason": "Source-specific local state or decorative mechanism.",
       "inCurrentDemo": true,
       "image": "frontend/assets/industrial/projection-correction/war_intelcab.png",
-      "sourceWidth": 825,
-      "sourceHeight": 1491,
-      "sha256": "17fe1ce1425063bdf63ddc4f14ada6d34e21aea4ce86a194f7496eb8856c54bb",
+      "sourceWidth": 862,
+      "sourceHeight": 1494,
+      "sha256": "5ece3625250ca91050d5e95e972da063ca075ab468de8551d82e59cdd74e7c1c",
       "regions": [
         {
           "kind": "screen",
           "region": [
             [
-              0.24,
-              0.29
+              0.205,
+              0.264
             ],
             [
-              0.73,
-              0.29
+              0.451,
+              0.264
             ],
             [
-              0.73,
-              0.47
+              0.451,
+              0.32
             ],
             [
-              0.24,
-              0.47
+              0.195,
+              0.32
             ]
           ],
           "gate": "work",
@@ -1721,20 +1773,20 @@
           "kind": "result",
           "region": [
             [
-              0.42,
-              0.53
+              0.52,
+              0.265
             ],
             [
-              0.51,
-              0.53
+              0.547,
+              0.265
             ],
             [
-              0.51,
-              0.547
+              0.547,
+              0.28300000000000003
             ],
             [
-              0.42,
-              0.547
+              0.52,
+              0.28300000000000003
             ]
           ],
           "gate": "fired",
@@ -2001,89 +2053,63 @@
       "reason": "Source-specific local state or decorative mechanism.",
       "inCurrentDemo": false,
       "image": "frontend/assets/industrial/projection-correction/gigs_servercart.png",
-      "sourceWidth": 289,
-      "sourceHeight": 320,
-      "sha256": "dfce99ae9de1a6795e24514bcc6d35f2c009a4dba0e40c1af92e2b6e0a4c1211",
+      "sourceWidth": 952,
+      "sourceHeight": 1238,
+      "sha256": "d5763f94dcb25a1a65bdbff978f7435d8a2b020341e60acb887c584b7d94499e",
       "regions": [
         {
-          "kind": "lamp",
+          "kind": "screen",
           "region": [
             [
-              0.765,
-              0.34
+              0.267,
+              0.161
             ],
             [
-              0.79,
-              0.34
+              0.627,
+              0.161
             ],
             [
-              0.79,
-              0.36000000000000004
+              0.627,
+              0.242
             ],
             [
-              0.765,
-              0.36000000000000004
+              0.267,
+              0.242
             ]
           ],
           "gate": "work",
           "colour": [
-            144,
-            224,
-            81
-          ]
+            78,
+            206,
+            221
+          ],
+          "idleOpacity": 0.88
         },
         {
-          "kind": "lamp",
+          "kind": "result",
           "region": [
             [
-              0.765,
-              0.49
+              0.715,
+              0.167
             ],
             [
-              0.79,
-              0.49
+              0.749,
+              0.167
             ],
             [
-              0.79,
-              0.51
+              0.749,
+              0.197
             ],
             [
-              0.765,
-              0.51
+              0.715,
+              0.197
             ]
           ],
-          "gate": "work",
+          "gate": "fired",
           "colour": [
-            144,
-            224,
-            81
-          ]
-        },
-        {
-          "kind": "lamp",
-          "region": [
-            [
-              0.765,
-              0.64
-            ],
-            [
-              0.79,
-              0.64
-            ],
-            [
-              0.79,
-              0.66
-            ],
-            [
-              0.765,
-              0.66
-            ]
-          ],
-          "gate": "work",
-          "colour": [
-            144,
-            224,
-            81
+            78,
+            206,
+            221
           ]
         }
       ],
@@ -2265,28 +2291,28 @@
       "reason": "Source-specific local state or decorative mechanism.",
       "inCurrentDemo": true,
       "image": "frontend/assets/industrial/projection-correction/studio.png",
-      "sourceWidth": 350,
-      "sourceHeight": 374,
-      "sha256": "7190c9bffc91d7c5ab58e7c183e640fa09f522b8be9c553096fe67fd9c9f3b3d",
+      "sourceWidth": 1296,
+      "sourceHeight": 958,
+      "sha256": "9d714253aed17e6e90bc97796bbc084f09c8b2a561a14932a71166f9798cc9eb",
       "regions": [
         {
           "kind": "screen",
           "region": [
             [
-              0.23,
-              0.185
+              0.3,
+              0.091
             ],
             [
-              0.76,
-              0.185
+              0.7,
+              0.091
             ],
             [
-              0.8,
-              0.46
+              0.7,
+              0.42600000000000005
             ],
             [
-              0.18,
-              0.46
+              0.3,
+              0.42600000000000005
             ]
           ],
           "gate": "work",
@@ -2301,20 +2327,20 @@
           "kind": "result",
           "region": [
             [
-              0.69,
-              0.65
+              0.824,
+              0.438
             ],
             [
-              0.7549999999999999,
-              0.65
+              0.859,
+              0.438
             ],
             [
-              0.7549999999999999,
-              0.6900000000000001
+              0.859,
+              0.458
             ],
             [
-              0.69,
-              0.6900000000000001
+              0.824,
+              0.458
             ]
           ],
           "gate": "fired",

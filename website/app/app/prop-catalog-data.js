@@ -5,7 +5,7 @@ const PropCatalogData = {
   "catalogTypes": 160,
   "supportedViews": 208,
   "source": "frontend/assets/industrial/projection-correction/manifest.json",
-  "sourceSha256": "370763a93e3215bebc59497de70495079dcdda35eb3c810a5050caa7c1517c5d",
+  "sourceSha256": "f54a4f75482b677488e9b8a31861ffff1891eae37ffd322646a84f3928021d1b",
   "categories": [
     {
       "id": "workstation",

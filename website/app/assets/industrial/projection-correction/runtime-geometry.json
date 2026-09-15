@@ -315,14 +315,14 @@
     },
     "workbench:s": {
       "image": "workbench.png",
-      "width": 1202,
-      "height": 651,
-      "sha256": "ee02c48f64f19ce7530f348219f1c635ed4cd62ab7fea9665ed1f54dad2c2abf",
+      "width": 1455,
+      "height": 1064,
+      "sha256": "f3f6bc0c15477fe04d9e04e53303b31a4d6b8220a83f34f8b115b8a99eb2725e",
       "crop": {
         "x": 0,
         "y": 0,
-        "width": 1202,
-        "height": 651
+        "width": 1455,
+        "height": 1064
       }
     },
     "intake:s": {
@@ -435,14 +435,14 @@
     },
     "comms_dish:s": {
       "image": "comms_dish.png",
-      "width": 661,
-      "height": 739,
-      "sha256": "06681ccb82906bdd64da6a1c81def5dbf85f8d89864bd5cd4f3b02d45e1fe7a0",
+      "width": 1137,
+      "height": 1287,
+      "sha256": "e4ccdf1af872eab1b35d72c783ba0db13961047b61f059c5085f7a27ac741dca",
       "crop": {
         "x": 0,
         "y": 0,
-        "width": 661,
-        "height": 739
+        "width": 1137,
+        "height": 1287
       }
     },
     "comms_uplink:s": {
@@ -471,14 +471,14 @@
     },
     "war_intelcab:s": {
       "image": "war_intelcab.png",
-      "width": 825,
-      "height": 1491,
-      "sha256": "17fe1ce1425063bdf63ddc4f14ada6d34e21aea4ce86a194f7496eb8856c54bb",
+      "width": 862,
+      "height": 1494,
+      "sha256": "5ece3625250ca91050d5e95e972da063ca075ab468de8551d82e59cdd74e7c1c",
       "crop": {
         "x": 0,
         "y": 0,
-        "width": 825,
-        "height": 1491
+        "width": 862,
+        "height": 1494
       }
     },
     "safe:s": {
@@ -543,14 +543,14 @@
     },
     "gigs_servercart:s": {
       "image": "gigs_servercart.png",
-      "width": 289,
-      "height": 320,
-      "sha256": "dfce99ae9de1a6795e24514bcc6d35f2c009a4dba0e40c1af92e2b6e0a4c1211",
+      "width": 952,
+      "height": 1238,
+      "sha256": "d5763f94dcb25a1a65bdbff978f7435d8a2b020341e60acb887c584b7d94499e",
       "crop": {
         "x": 0,
         "y": 0,
-        "width": 289,
-        "height": 320
+        "width": 952,
+        "height": 1238
       }
     },
     "bridge_relaystack:s": {
@@ -567,14 +567,14 @@
     },
     "studio:s": {
       "image": "studio.png",
-      "width": 350,
-      "height": 374,
-      "sha256": "7190c9bffc91d7c5ab58e7c183e640fa09f522b8be9c553096fe67fd9c9f3b3d",
+      "width": 1296,
+      "height": 958,
+      "sha256": "9d714253aed17e6e90bc97796bbc084f09c8b2a561a14932a71166f9798cc9eb",
       "crop": {
         "x": 0,
         "y": 0,
-        "width": 350,
-        "height": 374
+        "width": 1296,
+        "height": 958
       }
     },
     "airlock:s": {

@@ -673,8 +673,8 @@
       "views": {
         "s": {
           "image": "workbench.png",
-          "sourceWidth": 1202,
-          "sourceHeight": 651,
+          "sourceWidth": 1455,
+          "sourceHeight": 1064,
           "footprint": {
             "w": 2,
             "h": 1
@@ -686,11 +686,11 @@
             "height": 27
           },
           "mode": "approved",
-          "exposure": 1.35,
+          "exposure": 1,
           "activity": "fired",
           "contact": {
             "x": 0.5,
-            "y": 0.9984639016897081
+            "y": 0.9990601503759399
           },
           "effects": false
         }
@@ -943,8 +943,8 @@
       "views": {
         "s": {
           "image": "comms_dish.png",
-          "sourceWidth": 661,
-          "sourceHeight": 739,
+          "sourceWidth": 1137,
+          "sourceHeight": 1287,
           "footprint": {
             "w": 2,
             "h": 2
@@ -960,7 +960,7 @@
           "activity": "work",
           "contact": {
             "x": 0.5,
-            "y": 0.9959404600811907
+            "y": 0.9992229992229992
           },
           "effects": false
         }
@@ -1024,8 +1024,8 @@
       "views": {
         "s": {
           "image": "war_intelcab.png",
-          "sourceWidth": 825,
-          "sourceHeight": 1491,
+          "sourceWidth": 862,
+          "sourceHeight": 1494,
           "footprint": {
             "w": 1,
             "h": 2
@@ -1041,7 +1041,7 @@
           "activity": "work",
           "contact": {
             "x": 0.5,
-            "y": 0.9979879275653923
+            "y": 0.999330655957162
           },
           "effects": false
         }
@@ -1183,8 +1183,8 @@
       "views": {
         "s": {
           "image": "gigs_servercart.png",
-          "sourceWidth": 289,
-          "sourceHeight": 320,
+          "sourceWidth": 952,
+          "sourceHeight": 1238,
           "footprint": {
             "w": 1,
             "h": 1
@@ -1199,7 +1199,7 @@
           "exposure": 1,
           "contact": {
             "x": 0.5,
-            "y": 0.990625
+            "y": 0.9991922455573505
           },
           "effects": false
         }
@@ -1236,8 +1236,8 @@
       "views": {
         "s": {
           "image": "studio.png",
-          "sourceWidth": 350,
-          "sourceHeight": 374,
+          "sourceWidth": 1296,
+          "sourceHeight": 958,
           "footprint": {
             "w": 2,
             "h": 2
@@ -1252,7 +1252,7 @@
           "exposure": 1,
           "contact": {
             "x": 0.5,
-            "y": 0.9919786096256684
+            "y": 0.9989561586638831
           },
           "effects": false
         }
@@ -5044,11 +5044,6 @@
       "group": "storage"
     },
     {
-      "id": "war_intelcab",
-      "view": "s",
-      "group": "storage"
-    },
-    {
       "id": "safe",
       "view": "s",
       "group": "storage"
@@ -5449,22 +5444,12 @@
       "group": "comms-optics"
     },
     {
-      "id": "comms_dish",
-      "view": "s",
-      "group": "comms-optics"
-    },
-    {
       "id": "research_corelens",
       "view": "s",
       "group": "comms-optics"
     },
     {
       "id": "research_trendpillar",
-      "view": "s",
-      "group": "comms-optics"
-    },
-    {
-      "id": "studio",
       "view": "s",
       "group": "comms-optics"
     },
@@ -5505,11 +5490,6 @@
     },
     {
       "id": "industrial_toolcaddy",
-      "view": "s",
-      "group": "storage-carts"
-    },
-    {
-      "id": "gigs_servercart",
       "view": "s",
       "group": "storage-carts"
     },
@@ -5764,11 +5744,6 @@
       "group": "plants-decor"
     },
     {
-      "id": "workbench",
-      "view": "s",
-      "group": "camera-audit"
-    },
-    {
       "id": "longtable",
       "view": "s",
       "group": "camera-audit"
@@ -5827,6 +5802,31 @@
       "id": "bridge_tacticaltable",
       "view": "s",
       "group": "tactical-table-polish"
+    },
+    {
+      "id": "war_intelcab",
+      "view": "s",
+      "group": "capability-refresh"
+    },
+    {
+      "id": "comms_dish",
+      "view": "s",
+      "group": "capability-refresh"
+    },
+    {
+      "id": "workbench",
+      "view": "s",
+      "group": "capability-refresh"
+    },
+    {
+      "id": "gigs_servercart",
+      "view": "s",
+      "group": "capability-refresh"
+    },
+    {
+      "id": "studio",
+      "view": "s",
+      "group": "capability-refresh"
     }
   ]
 }

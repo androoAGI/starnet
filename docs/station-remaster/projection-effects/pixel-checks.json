@@ -45,7 +45,7 @@
     },
     {
       "id": "bridge_tacticaltable",
-      "changedPixels": 366,
+      "changedPixels": 350,
       "escapedPixels": 0,
       "outsideSourceAlpha": 0,
       "activeIdleDifferent": true,
@@ -93,7 +93,7 @@
     },
     {
       "id": "workbench",
-      "changedPixels": 170,
+      "changedPixels": 126,
       "escapedPixels": 0,
       "outsideSourceAlpha": 0,
       "activeIdleDifferent": true,
@@ -101,7 +101,7 @@
     },
     {
       "id": "intake",
-      "changedPixels": 92,
+      "changedPixels": 132,
       "escapedPixels": 0,
       "outsideSourceAlpha": 0,
       "activeIdleDifferent": true,
@@ -157,7 +157,7 @@
     },
     {
       "id": "outbox",
-      "changedPixels": 192,
+      "changedPixels": 200,
       "escapedPixels": 0,
       "outsideSourceAlpha": 0,
       "activeIdleDifferent": true,
@@ -173,7 +173,7 @@
     },
     {
       "id": "comms_dish",
-      "changedPixels": 70,
+      "changedPixels": 95,
       "escapedPixels": 0,
       "outsideSourceAlpha": 0,
       "activeIdleDifferent": true,
@@ -197,7 +197,7 @@
     },
     {
       "id": "war_intelcab",
-      "changedPixels": 238,
+      "changedPixels": 88,
       "escapedPixels": 0,
       "outsideSourceAlpha": 0,
       "activeIdleDifferent": true,
@@ -221,7 +221,7 @@
     },
     {
       "id": "gigs_servercart",
-      "changedPixels": 90,
+      "changedPixels": 172,
       "escapedPixels": 0,
       "outsideSourceAlpha": 0,
       "activeIdleDifferent": true,
@@ -237,7 +237,7 @@
     },
     {
       "id": "studio",
-      "changedPixels": 504,
+      "changedPixels": 296,
       "escapedPixels": 0,
       "outsideSourceAlpha": 0,
       "activeIdleDifferent": true,
