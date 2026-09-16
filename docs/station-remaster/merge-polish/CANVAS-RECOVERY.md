@@ -48,6 +48,13 @@ replaced by the targeted recovery above before delivery.
 It changes disposable raster buffers, not station contents. Raw measured receipt:
 `dev/.scratch-workspace/canvas-recovery-live.json`.
 
+Final material-restoration run on the smaller catalog fixture also passed all five
+cases: 230 / 108 / 1465 / 130 / 62 ms. The full-loss case wiped 88 material canvases,
+two native bake layers, four detail/LOD plates and five sky plates. The restored
+floor, wall and hull textures were inspected in the live screenshot. See
+`canvas-recovery-materials-live.json` and `canvas-recovery-restored.png` alongside
+this report. The `:18797` preview was refreshed and inspected at overview and close zoom.
+
 Focused checks: real-canvas projection/depth/recovery regression; existing canvas-loss
 contracts (44 assertions); IndustrialTextures contracts (398 assertions); JS syntax
 checks, texture-ready contracts (69 assertions), and mirrored frontend parity.
