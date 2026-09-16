@@ -3570,3 +3570,101 @@ ceiling; and installed-exe smoke is truthfully BLOCKED because no exact candidat
 and no installed candidate was listening on CDP. `qa:ready` must remain NOT READY until those receipts are
 green. No production account, valid third-party credential, merge to trunk, push, PR, deployment, or
 publication was performed.
+
+## MERGED — logo subtitle integration (agent/remove-logo-subtitle-0910)
+
+Removed the top-left AI-AGENT HARNESS subtitle from the app and demo. Merged 2710e6d33; pre-merge and post-merge fast gates both passed 763/763. Live seeded UI verified; installed desktop rebuild not performed.
+
+
+## MERGE CLAIM — 2026-09-11 backdrop performance (agent/backdrop-performance-0910)
+
+Owner-requested lag repair verified at source 2c041bbe6; candidate 61528ba95 adds the release-surface ledger and portable Windows canary proof. Fast 771/771, journeys 34/34 and visual regression 16/16 passed. This lane owns the next serialized integration merge from a625182bd and its post-merge fast gate. Official release pins remain 0.11.1; owner recovery is unconfirmed.
+
+**Backdrop performance merge complete:** 61528ba95 is integrated and pushed; post-merge fast 771/771 GREEN. The serialized merge claim above is released. Installed clean source 2c041bbe6 passed the documented scene, 4K, minimum-zoom and recovery checks. Owner retest and wider 0.11.2 release acceptance remain separate.
+
+
+## MERGE CLAIM — 2026-09-11 release final preparation (agent/release-0112-finalprep-0911)
+
+Candidate 7f6c7b005 repairs preflight smoke/soak evidence labeling, rejects invalid smoke status/times, and updates the release handoff. Pre-merge fast 771/771 GREEN; focused preflight 104 and ritual 64 assertions passed. This lane owns the next serialized merge from 61528ba95 and post-merge verification. Runtime inputs are unchanged; the 61528 source soak remains frozen and running separately.
+
+
+**Release final preparation merge complete:** 7f6c7b005 is integrated and pushed; the serialized merge claim above is released. Post-merge Guardian all seven gates GREEN (fast 771/771, HTTP 111/111, golden 16/16, audit 47/47, full journeys 139/139), fresh Beginner 6/6 and exact installed candidate smoke GREEN. Evidence-only commit 0c1f19886 is pushed on agent/release-0112-finalprep-0911 separately from the verified candidate. Seven customer P1 reports and separate installed/attended acceptance remain open. The previous afd1 source soak ended without a completion receipt; replacement frozen 61528 source soak started 2026-09-11 02:51 UTC, earliest finish 14:51 UTC / 10:51 a.m. EDT if uninterrupted. Keep release-0112-soak-61528, release-0112-finalprep-0911 and its dependency worktrees intact. No public release or version bump.
+
+
+## OWNER DECISION — 2026-09-11: 0.11.2 soak waiver
+
+Andrew explicitly directed: "we are once again going to waive our typical soak routine" and prioritized fixing update defects and ensuring smooth updates. The 12-hour source and 48-hour installed/attended soak duration requirements are WAIVED for 0.11.2 only. No elapsed-time wait is required. This supersedes the completion requirement and expected finish times in earlier notes; it is not inherited from 0.11.1. The owned replacement soak and its descendants were stopped after verifying process identity. Partial logs remain retained and are not PASS evidence. Concrete installer/update checks and evidence-backed bug dispositions remain separate.
+
+Focused update verification on unchanged installed 7f6c7b005: ten suites / 239 assertions PASS; native offline update-check failure and local HTTP 204 retry recovery PASS; verified recovery snapshot, frozen writes/readable unchanged state, cancellation and resumed save/roster writes PASS. No new product defect reproduced. Latest qa:ready: NOT READY — seven open customer P1 reports; all other readiness categories PASS. Official pins remain 0.11.1. Documentation/evidence pushed at aa2395409 on agent/release-0112-finalprep-0911; docs/releases/0.11.2/SOAK_WAIVER.md in that worktree/branch is the detailed handoff. Carry the owner waiver into final release notes. Integration remains the verified 7f6c7b005 candidate.
+
+
+## IN PROGRESS — 2026-09-11 combined provider and session-marker merge (agent/session-failed-marker-0910)
+
+Owner authorized syncing, combining, fresh gates and merge. The isolated lane contains provider logos/status alignment/StarNet animation and the flashing failure X. Trunk baseline 7f6c7b005; pre-merge gate running. This lane claims the next serialized integration merge and its post-merge gate. Existing NEXT/STATUS/Rooms edits are preserved. No installer rebuild or publication requested.
+
+
+**Combined provider/session-marker merge complete:** de06c1f22 contains both lanes. Combined pre-merge and post-merge fast gates passed 771/771; live combined UI passed. The serialized merge claim is released. Both worktrees remain for the owner preview; no installer build or publication performed.
+
+
+IN PROGRESS — release-0112-finalprep-0911: last-call verification for 0.11.2 including c9b6a67f8; owns release QA-controller/evidence integration after the frozen-source gates. Ordinary soak remains waived; no public release is authorized by this claim.
+
+
+COMPLETE — release-0112-finalprep-0911 last-call integration at 0e50fd6b6736ddb475ff52801af4cf477d290c15; c9b6a67f8 and its verification are included. Application/installer checks passed; eight earlier customer P1s and final release-freeze acceptance remain. Serialized merge claim released. See docs/releases/0.11.2/LAST_CALL.md.
+
+
+RELEASE FREEZE / MERGE CLAIM — release-0112-finalprep-0911: candidate bb9f0719d prepares 0.11.2, includes c9b6a67f8 and the reproduced paused-routine lifecycle repair. Exact-candidate CI fast 771/771 and secret-history are GREEN; full Guardian/HTTP and signed installer acceptance are in progress. This lane owns the next serialized release merge after the remaining gates pass. Preserve the owner soak waiver and eight unresolved customer P1s; no public release is implied by this claim.
+
+2026-09-11 08:56 UTC — COMPLETE: release-0112-finalprep-0911 merged/pushed frozen 0.11.2 candidate bb9f0719d9d632575670bc94228cfd72bb06f0ce. Post-merge CI fast/eval/security PASS; full Guardian seven gates GREEN (771 fast, 113 HTTP, 515 adversarial attacks, 16 goldens, 47 behavioral and 139 journey assertions), Beginner PASS, exact personal installed smoke 9/9 GREEN. Signed build 34577084632 and hosted installer acceptance 34579476189 PASS. Personal public 0.11.1 upgraded to signed 0.11.2 with full backups, 519 preservation checks after install and restart; left running normally. Paused-routine lifecycle repair passes 80 assertions on installed files and native tray is truthful idle. Final qa:ready NOT READY solely for eight unresolved customer P1 reports; ordinary soak waiver retained, no public tag/release/feed change. Evidence-only commit 0a7158fd0 pushed separately on agent/release-0112-finalprep-0911; all 20 committed receipt hashes and evidence secret lint PASS. Report: C:/Users/andro/gen-trees/release-0112-finalprep-0911/docs/releases/0.11.2/EXECUTION.md. Serialized merge claim released. Preserve frozen bb9 until the public-release decision; retain owned evidence worktrees and personal backup. Existing operational edits retained.
+
+IN PROGRESS — release-0112-finalprep-0911: owner authorized inclusion of 33c925797 and replacement of the personal 0.11.2 candidate. Frozen candidate 69baf91a5b2c22230f87e614da6a72882278bc6c contains the pointer repair, prior release evidence and updated notes. This lane claims the next serialized merge after fresh fast/HTTP gates; signed build 34629097326 and complete acceptance are running. Public release remains held on eight customer P1 reports; soak-duration waiver retained. Preserve candidate identity until verification finishes.
+
+2026-09-11 18:23 UTC — COMPLETE: requested 33c925797 included in frozen 0.11.2 candidate 69baf91a5b2c22230f87e614da6a72882278bc6c, merged/pushed. All seven Guardian gates GREEN; fast 771/771, HTTP 113/113, Beginner 6/6, post-merge fast/security/eval CI PASS. Signed build 34629097326 and hosted installer acceptance 34631356870 PASS. Personal rebuilt 0.11.2 installed and left running normally; signed exe b34852944e6853b2439eca5bde47b90669a1b786c71e48e6d5dece4f69baf4fc. Fresh closed backup retained; 26 crew, 141 props, 73 conversations preserved, 534 checks after install and restart PASS; installed smoke 9/9 and native movement/click/double-click/drag 10 checks PASS. Final qa:ready NOT READY for eight customer P1 records plus two earlier shared-ledger crowded-floor findings 0b802140 and 4692c89f. Those findings remain open: 14:00 UTC bb9 audit had 20/21 bodies; current fresh 1/2-body audit cannot resolve them. No public release/tag/feed change. Soak waiver retained. Evidence-only f72ed2d31 pushed separately on agent/release-0112-finalprep-0911; 24 committed receipt hashes and evidence secret lint PASS. Report: C:/Users/andro/gen-trees/release-0112-finalprep-0911/docs/releases/0.11.2/POINTER_CUT.md. Serialized merge claim released; retain frozen candidate, evidence worktrees and personal backups. Concurrent operational edits preserved.
+
+2026-09-11 19:12 UTC — Focused release closeout: release-0112-finalprep-0911 dismissed crowded-floor findings 0b802140 and 4692c89f as evidence-backed false positives. Two isolated 20-body live runs reproduced occupied-waypoint warnings while 412 / 406 gaze calls preserved movement; zero zone escapes; deliberate mutation detected and restored. Full traces, before/after findings and diagnostic retained in evidence-only f2eb5ae83, pushed separately; frozen release candidate remains 69baf91a5. Canonical qa:ready now fails only for eight historical customer P1 records. Fresh support/GitHub reads yielded no new affected-customer recovery; related source/installer repairs do not resolve unknown original causes. Personal 0.11.2 remains responding, exact candidate, 26 crew / 141 props / 73 conversations. No release tag/publication/feed change. Existing soak-duration waiver remains; publication with eight documented uncertainties still requires a distinct owner decision under RELEASE_DISPOSITION.md. Detailed closeout: C:/Users/andro/gen-trees/release-0112-finalprep-0911/docs/releases/0.11.2/CLOSEOUT.md. No integration merge performed; concurrent operational edits preserved.
+
+OWNER RELEASE DECISION — 2026-09-11: Andrew confirmed that engineering reproduction, repair and verification are sufficient for 0.11.2; affected-customer retesting is not required, and directed proceeding with the update after the documented eight-report review. Source-fixed records may close on our own before/after proof while recovery remains unconfirmed. Reports without an established cause remain tracked as uncertainty; no fabricated fixes or READY verdict. This explicitly supersedes the previous requirement to wait for customer confirmations. Proceed with the verified frozen 69baf91a5 release candidate and official signed release train; retain the separate soak-duration waiver. release-0112-finalprep-0911 owns this serialized release/tag operation; preserve source HEAD and concurrent operational edits.
+
+
+- 2026-09-11 FINAL COMPLETE: 0.11.2 published at 20:16:08 UTC, immutable source/tag 69baf91a5 (includes c9b6a67f8 and 33c925797). Official signed/notarized train 34639855021, exact draft clean install 34642893710, draft lifecycle 34642921798, public 0.11.1 -> 0.11.2 Update Center canary + lifecycle 34643340260, and source mirror 34643342855 all PASS. Personal PUBLIC installer installed and normally restarted: 534 preservation checks PASS twice, installed UI smoke 9/9 GREEN, current version/no pending update, normal sidecar identity verified. Five source-proven customer reports closed under owner engineering acceptance, GitHub #12/#13 completed; three uncorrelated investigations remain tracked follow-ups. Extended soak remains waived; raw aggregate readiness was not fabricated. Final evidence agent/release-0112-finalprep-0911 -> 92c0808a238954cb0435fabe5143b5740d733e64, exact-head fast 771/771 PASS. See docs/releases/0.11.2/PUBLIC_RELEASE.md and qa/evidence/0.11.2-public-release-0911/manifest.json. This supersedes earlier release-held/pending operational notes.
+
+
+- 2026-09-12T00:36:06.279Z COMPLETE: expanded 0.11.2 notes published to both GitHub releases and updater feed (66 entries, 10 sections, 382-commit/83-product-commit inventory). Public rendered pages, exact body/feed equality and all three download URLs PASS; installer/signature asset identities and every non-notes manifest field unchanged. Inline installed preview remains the existing 520-character limit. Original publication receipts retained; amended manifest SHA 1a6e12f65b842b44454cf3edd252497afd6bfab278104041d5e6fb9c5c0a6672. agent/release-0112-finalprep-0911 -> 1a6a9334639a0ad23dda3654ea6e012a2d1a390b; final fast 771/771 GREEN. Initial gate correctly detected stale RELEASE_NOTES content lock; only that hash/source was refreshed, claim verdicts unchanged, focused claims 64/64 PASS. See RELEASE_NOTES.md and docs/releases/0.11.2/NOTES_AUDIT.md; raw verification in owned .dogfood/release-0112-notes/. Existing operational edits preserved.
+
+
+IN PROGRESS — 2026-09-12 agent/curve-pointer-0912 owns the serialized merge from 1a6a93346 and post-merge fast gate. Owner approved the live preview. Source fix f8b60bef0; branch 619534f98; pre-merge fast 771/771 PASS. Preserve existing operational edits and the running preview.
+
+
+COMPLETE — 2026-09-12 agent/curve-pointer-0912 merged into feat/harness-backend at c7518352ff0b3d7d92dcde7ff22f769dbf52027a. Pre-merge and post-merge fast gates PASS 771/771; owner approved the live curve-aware hover/click preview. Serialized merge claim released. Existing operational edits preserved; preview/worktree retained. No installer rebuild or publication performed.
+
+
+IN PROGRESS — 2026-09-12 agent/browser-campaign-navigation-0912 owns the next serialized merge from c7518352f and its post-merge gates. Synced candidate 8b772ee51; pre-merge fast 771/771 PASS, HTTP completing, seeded browser card-to-note workflow PASS. Owner requested merging the fix. Preserve existing operational edits; no release requested.
+
+
+COMPLETE — 2026-09-12 agent/browser-campaign-navigation-0912 merged at a7ae9f23eedfe76e161b555e971bb195c17fe742. Pre/post fast 771/771 and HTTP 113/113 PASS; seeded browser card-to-note workflow PASS. Serialized merge claim released. Existing operational edits and owned evidence worktree retained. No push, installer rebuild or release.
+
+IN PROGRESS — 2026-09-12 agent/popup-refresh-0912 owns the next serialized merge from a7ae9f23e and post-merge fast gate. Owner approved compact speech bubbles and removal of receipt acknowledgments. Sync and fresh gates in progress; preserve existing operational edits. No installer rebuild or release requested.
+
+COMPLETE — 2026-09-12 agent/popup-refresh-0912 merged at 741fb9e0f27517fc7c28f11de5cf3fc80aecfe27. Pre/post fast gates PASS 771/771 using Node 24.19.0 with unchanged test limits. Approved compact popups and receipt acknowledgment removal are integrated; combined live geometry and four delivery paths PASS. Serialized merge claim released. Existing operational edits preserved; worktree retained for screenshot/evidence links. No push, installer rebuild or release.
+
+IN PROGRESS — journey-first-loop-0912 owns the serialized journey integration from fa85f521f and its post-merge gate. Owner authorized merge conditional on verification. Combined candidate d689de54f is under pre-merge test and live verification. Preserve existing documentation edits and the journey preview; no installer rebuild or release.
+
+JOURNEY MERGE CLAIM UPDATED — 2026-09-13: trunk advanced to 107c09ba4 during verification. journey-first-loop-0912 is syncing those additions and rerunning the combined gate; this lane still owns the next serialized integration merge and post-merge gate. Please preserve trunk during this window.
+
+JOURNEY MERGE COMPLETE — 2026-09-13: integrated at 2d81549483c1addad2349d51543bf378c783d242; pre/post fast gates 772/772 PASS and live journey checks passed. Prior journey integration claims are closed; reservation released after verification. Preview and evidence retained in journey-first-loop-0912.
+
+
+IN PROGRESS — 2026-09-14 agent/xp-status-0914 owns the next serialized XP repair merge from f1bae44d9 and its post-merge fast gate. Source 05a399cf0; synchronized candidate e064281ed. Live open-panel XP, skipped-rating recovery, restart persistence and Commander leveling verified; customer journeys 34/34 PASS; final fast gate in progress. Preserve existing operational edits. No installer rebuild or release.
+
+XP MERGE COMPLETE — 2026-09-14: agent/xp-status-0914 integrated at b39c17cb8. Pre/post fast gates 780/780 PASS; customer journeys 34/34 PASS; live XP and leveling verified. XP merge reservation released. Isolated test processes stopped; worktree retained for local evidence and customer follow-up. Source integration only; installer/customer recovery remains unverified.
+
+IN PROGRESS — 2026-09-15: agent/clearpath-unlink-0915 owns the next serialized account-unlink recovery merge from 5acf4640f and its post-merge fast gate. Synchronized candidate 5ab0d4db6 is under verification. Preserve existing operational edits; no installer rebuild or release.
+
+ACCOUNT UNLINK MERGE COMPLETE — 2026-09-15: agent/clearpath-unlink-0915 integrated at 90d6f0111. Synchronized pre/post fast gates PASS 783/783. Serialized merge reservation released. Worktree retained for investigation and gate receipts. Existing operational edits preserved; no installer rebuild, push or public release.
+
+IN PROGRESS — 2026-09-15: agent/response-audit-0915-7c2a owns the serialized response safety fast-forward from 90d6f0111. Production source passed fast 783/783, HTTP 117/117 and customer journeys 34/34; populated seeded and UI proof recorded. Preserve existing operational edits; no release requested.
+
+RESPONSE SAFETY MERGE COMPLETE — 2026-09-15: agent/response-audit-0915-7c2a fast-forwarded into feat/harness-backend at b4e99c0fb0d5bb49a1257394f5115a3da5cb5d68. Verified production source unchanged by integration; fast 783/783, HTTP 117/117, customer journeys 34/34 and seeded/UI proof recorded. Serialized merge reservation released. Existing operational edits and owned evidence worktree retained. Source fixes require a future installer release; no push or publication performed.
+
+DONE — station-default-0915 merged: code 6b05fa848, receipt 560d4b135; 808/808 fast checks passed before and after merge; live Build/presets/equipped tutorial/reload verified (2026-09-16).
+
+IN PROGRESS — 2026-09-16 agent/release-0120-final-0916 (Claude) owns the serialized 0.12.0 release integration from f0e8387ca: merges the 0.12.0 preparation lane (agent/release-0120-prep-0915: #18 rating origin, channel lead briefing, gaze proof, release docs), repairs the live audit for the pre-equipped default station and sectioned Build library, adds BootGuard shared-catalog retry (Mac/Windows specialties.js boot reports), replays saved-file rows on history render (customer clickable-files report), dispositions the open P1 customer records, blesses the remaster goldens, then runs the release ritual (bump 0.12.0 + notes + re-lock + post-bump gates), a local signed installer build with installed smoke and a lag/reliability measurement, and stages the draft train. Owner waived the 48-hour soak for 0.12.0 (docs/releases/0.12.0/SOAK_WAIVER.md). Please preserve trunk and its dirty operational notes during this window; no other serialized merge should land until this claim is released.
