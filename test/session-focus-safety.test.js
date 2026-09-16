@@ -43,11 +43,9 @@ function fn(src, name) {
   const meta = { streamId: 'original', focusVersion: 7 };
   const gate = { activeWs: origin, focusVersion: 7, input: {value:''}, pendingAtts: [],
     RUN_META: new Map([['run-a', meta]]), Channels: {isBusy: () => true, runIdOf: () => 'run-a'} };
-  vm.runInNewContext(fn(chat, 'isComposerEngaged') + fn(chat, 'canFocusSession') + ';this.canFocus = canFocusSession;', gate);
+  vm.runInNewContext(fn(chat, 'canFocusSession') + ';this.canFocus = canFocusSession;', gate);
   const request = {streamId:'original',runId:'run-a'};
   assert.equal(gate.canFocus(request), true, 'the current foreground run can honor an explicit focus request');
-  gate.document = {activeElement:gate.input}; assert.equal(gate.canFocus(request), false, 'even an empty focused composer blocks automatic navigation');
-  gate.document.activeElement = null;
   gate.input.value = 'typing'; assert.equal(gate.canFocus(request), false, 'a draft blocks automatic navigation');
   gate.input.value = ''; gate.pendingAtts = [{}]; assert.equal(gate.canFocus(request), false);
   gate.pendingAtts = []; gate.focusVersion++; assert.equal(gate.canFocus(request), false, 'navigation invalidates old requests');

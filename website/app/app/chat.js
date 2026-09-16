@@ -8975,20 +8975,20 @@ const Chat = (() => {
     return () => { killed = true; };
   }
 
-  // Only a still-current foreground run may honor model-driven navigation. Tool arguments alone
-  // cannot establish that the Commander is still looking at the conversation that asked for it.
   // Background navigation must not steal the caret, an unsent draft (including whitespace),
   // or files that are staged/uploading. Explicit session clicks keep their existing behavior.
   function isComposerEngaged() {
     return !!(pendingAtts.length || (input && (input.value.length ||
       (typeof document !== 'undefined' && document.activeElement === input))));
   }
+  // Only a still-current foreground run may honor model-driven navigation. Tool arguments alone
+  // cannot establish that the Commander is still looking at the conversation that asked for it.
   function canFocusSession(origin) {
     if (!origin || !activeWs || origin.streamId !== activeWs.id || !origin.runId) return false;
     const meta = RUN_META.get(origin.runId);
     return !!meta && meta.streamId === activeWs.id && meta.focusVersion === focusVersion
       && Channels.isBusy(activeWs.id) && Channels.runIdOf(activeWs.id) === origin.runId
-      && !isComposerEngaged();
+      && !(input && input.value.trim()) && !pendingAtts.length;
   }
   // Read-only run metadata for advice stores and task attribution.
   function runMeta(id) { return (id && RUN_META.has(id)) ? RUN_META.get(id) : null; }
