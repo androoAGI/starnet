@@ -18,7 +18,7 @@
   "expectedClaimCount": 37,
   "releaseSurface": {
     "algorithm": "sha256",
-    "sourceCommit": "fa7597cb1c8812bb900ebb8a02f861c638a90b94",
+    "sourceCommit": "53d572eb7ed7345689f7612d7d91480d09604765",
     "pathSetSha256": "7a0683b985d812421502830381422c3108a62af51a5244265282b959da58b038",
     "files": [
       {
@@ -113,18 +113,18 @@
       },
       {
         "path": "frontend/agent-demo/propsprites.js",
-        "bytes": 797840,
-        "sha256": "695d2a932bacae8cb6377e6ab45d7fbf292fd8caaeef741763543a9d4838e8a5"
+        "bytes": 798281,
+        "sha256": "b7157ec6e61eaa8b528bf72c788da1e5df70543c84ab372315b718ca2646313c"
       },
       {
         "path": "frontend/agent-demo/review-world.js",
-        "bytes": 743456,
-        "sha256": "51bfd3cea034326be31321896275505d8c6131988c66e9aab403e930e8f1d194"
+        "bytes": 743630,
+        "sha256": "e6be5ef4b329c59d23ed48957df13a8eaa620cd4a98bf7aa80573907b0b5d047"
       },
       {
         "path": "frontend/agent-demo/sprites.js",
-        "bytes": 43342,
-        "sha256": "46c094d5fba01383ac29d2f54fb6c362bb46a8b974162676827a28d901fb092e"
+        "bytes": 43911,
+        "sha256": "927a53fd1a7cda03b10593279325df74c5e2d2e027515f603ff4636bdbfa012b"
       },
       {
         "path": "frontend/agent-demo/stationbake.js",
@@ -773,8 +773,8 @@
       },
       {
         "path": "frontend/app/propsprites.js",
-        "bytes": 800954,
-        "sha256": "a43c58f40dd1a101764ab26aacbfc1c66288f99abfc244c7df018ea772b47296"
+        "bytes": 801395,
+        "sha256": "52c48c445c9e49ce46619a0411359eadda880a4980337500bf0a4f26f2df39ed"
       },
       {
         "path": "frontend/app/prospect.js",
@@ -1283,8 +1283,8 @@
       },
       {
         "path": "frontend/app/world.js",
-        "bytes": 754093,
-        "sha256": "2dee2cbc2983f4d6ff22fa9b1a2caeb5b9be14a620c37926aa936cc9e42b88f4"
+        "bytes": 754335,
+        "sha256": "c2cda8691bbcfba24057d4ea1e8963c73d51de5813b2346a690a42c9dd906fb7"
       },
       {
         "path": "frontend/app/worldlab.js",
@@ -1568,8 +1568,8 @@
       },
       {
         "path": "frontend/js/assets.js",
-        "bytes": 43339,
-        "sha256": "6056edc992a05e6738aeffcd8604b701049881a716b89e322777dbf389f5b175"
+        "bytes": 43908,
+        "sha256": "7b9d7bca77c2cd9bc7f45fe3ada74f26b7cd6049bd5baabe15ddab253f59acec"
       },
       {
         "path": "frontend/js/audio.js",
