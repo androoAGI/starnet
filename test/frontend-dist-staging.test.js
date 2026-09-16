@@ -65,6 +65,12 @@ const rd = (p) => fs.readFileSync(path.join(ROOT, p), 'utf8');
   }
   const tauri = JSON.parse(rd('src-tauri/tauri.conf.json'));
   A.eq(tauri.build.frontendDist, 'frontend-dist', 'tauri embeds the staged folder');
+  // the packaged sidecar serves the SAME staged copy as its `frontend` resource — the first 0.12.0 cut
+  // shipped a 1.5 GB installer because this resource still pointed at the full ../frontend tree.
+  A.eq(tauri.bundle.resources['frontend-dist'], 'frontend', 'the sidecar frontend resource is the staged copy (target name unchanged)');
+  A.ok(!('../frontend' in tauri.bundle.resources), 'the full frontend tree is never copied into the bundle as a resource');
+  A.eq(tauri.bundle.resources['../sidecar'], 'sidecar', 'sidecar resource unchanged');
+  A.eq(tauri.bundle.resources['../shared'], 'shared', 'shared resource unchanged');
   A.ok(/^src-tauri\/frontend-dist\/$/m.test(rd('.gitignore')), 'the staged folder is gitignored (generated, never committed, never makes a build dirty)');
   A.ok(/"frontend-dist",/.test(rd('src-tauri/build.rs')), 'build.rs reruns provenance when the staged folder changes');
 

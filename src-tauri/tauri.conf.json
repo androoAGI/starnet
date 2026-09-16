@@ -60,7 +60,7 @@
     },
     "resources": {
       "../sidecar": "sidecar",
-      "../frontend": "frontend",
+      "frontend-dist": "frontend",
       "../shared": "shared",
       "voice-deps/node_modules": "node_modules"
     }
