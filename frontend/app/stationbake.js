@@ -4288,6 +4288,22 @@ const StationBake = (() => {
     // rect index -> its group's index, so a group can be masked to the union of its footprints
     const groupOfRect = new Int32Array(rects.length).fill(-1);
     list.forEach((grp, gi) => { for (const r of grp.rects) { const i = rects.indexOf(r); if (i >= 0) groupOfRect[i] = gi; } });
+    // The ownership raster already proves which footprints contribute to this
+    // chunk. Do not allocate/render dense material plates that maskTo would
+    // erase completely. Keep the global silhouettes and corner ownership intact.
+    const visibleRects = tops && tops.map(columns => columns.some(y => y >= 0));
+    const visibleGroups = visibleRects && new Set(
+      visibleRects.flatMap((visible, i) => visible ? [groupOfRect[i]] : []));
+    const rectBounds = rects.map(() => ({ x: CW, y: CH2, right: 0, bottom: 0 }));
+    const groupBounds = list.map(() => ({ x: CW, y: CH2, right: 0, bottom: 0 }));
+    if (own) for (let y = 0; y < CH2; y++) for (let x = 0; x < CW; x++) {
+      const n = own[y * CW + x];
+      if (!n) continue;
+      for (const bounds of [rectBounds[n - 1], groupBounds[groupOfRect[n - 1]]]) {
+        bounds.x = Math.min(bounds.x, x); bounds.y = Math.min(bounds.y, y);
+        bounds.right = Math.max(bounds.right, x + 1); bounds.bottom = Math.max(bounds.bottom, y + 1);
+      }
+    }
     const maskTo = (ctx, keep) => {   // cut ctx back to the pixels `keep(rectIndex)` accepts
       const mask = tg.createImageData(CW, CH2), md = mask.data;
       for (let p = 0, q = 3; p < own.length; p++, q += 4) { const n = own[p]; if (n && keep(n - 1)) md[q] = 255; }
@@ -4298,16 +4314,21 @@ const StationBake = (() => {
     };
 
     list.forEach((grp, gi) => {
+      if (visibleGroups && !visibleGroups.has(gi)) return;
       const pal = hullPal(grp.z);
       const recipe = HULL_RECIPES[hullMatOf(grp.z)] || hullStation;
       const sil = sils[gi];
-      const shellContext = cv => {
+      const shellLayer = bounds => {
+        const cv = canvas(bounds.right - bounds.x, bounds.bottom - bounds.y);
         const g = cv.getContext('2d');
-        return typeof IndustrialTextures !== 'undefined'
-          ? IndustrialTextures.detailContext(g) : g;
+        g.translate(-bounds.x, -bounds.y);
+        return { cv, ctx: typeof IndustrialTextures !== 'undefined'
+          ? IndustrialTextures.detailContext(g, { width: CW, height: CH2 }) : g };
       };
-      const f = canvas(CW, CH2);
-      const fg = shellContext(f);
+      // Dense plates only need the extent surviving the ownership mask. Keep
+      // painter coordinates chunk-relative so textures and seams do not move.
+      const bounds = own ? groupBounds[gi] : { x: 0, y: 0, right: CW, bottom: CH2 };
+      const { cv: f, ctx: fg } = shellLayer(bounds);
       const stamp = (dy, c) => {
         tg.globalCompositeOperation = 'source-over';
         tg.clearRect(0, 0, CW, CH2); tg.drawImage(sil, 0, dy);
@@ -4327,18 +4348,19 @@ const StationBake = (() => {
            pixels it owns, so a room standing in front of another can no longer drag its neighbour's
            coursing down with it. Rendered to a scratch layer and folded in source-atop, because the
            marks must land only where this group's skirt already is. */
-        const marks = canvas(CW, CH2), mg = shellContext(marks);
+        const { cv: marks, ctx: mg } = shellLayer(bounds);
         mg.imageSmoothingEnabled = false;
         if (recipe.veins && own && tops) {
           for (let i = 0; i < rects.length; i++) {
-            if (groupOfRect[i] !== gi) continue;
-            const one = canvas(CW, CH2), og = shellContext(one);
+            if (groupOfRect[i] !== gi || !visibleRects[i]) continue;
+            const rb = rectBounds[i];
+            const { cv: one, ctx: og } = shellLayer(rb);
             og.imageSmoothingEnabled = false;
             // world-coord keying: the canvas' top-left is world (VX, VY - M), so a recipe adding
             // these offsets gets marks that land on the same world pixel in every chunk showing them
             recipe.veins(og, pal, CW, CH2, VX, VY - M, tops[i]);
             maskTo(og, k => k === i);
-            mg.drawImage(one, 0, 0);
+            mg.drawImage(one, rb.x, rb.y);
           }
         } else if (recipe.veins) {
           // headless / no getImageData: the pre-ownership behaviour, one anchor for the whole group
@@ -4346,11 +4368,11 @@ const StationBake = (() => {
         }
         panelSeam(mg, CW, CH2, VX, recipe.seam == null ? SHARED_SEAM : recipe.seam);
         fg.globalCompositeOperation = 'source-atop';
-        fg.drawImage(marks, 0, 0);
+        fg.drawImage(marks, bounds.x, bounds.y);
         fg.globalCompositeOperation = 'source-over';
       }
       b.globalCompositeOperation = 'destination-over';
-      b.drawImage(f, VX, VY - M);
+      b.drawImage(f, VX + bounds.x, VY - M + bounds.y);
       b.globalCompositeOperation = 'source-over';
     });
   }

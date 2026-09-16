@@ -9929,6 +9929,11 @@ const World = (() => {
     pollShip: () => pollShipStats()
   });
   return { init, rebake, frameReviewRoom, crt: CRT, slagLog: () => (slaglog ? slaglog.recent() : []),
+    // REFIT freezes this world and can display its already-painted station.
+    // Identity and both invalidation flags prevent borrowing another save or a
+    // pre-edit bake. The editor replaces its reference on its first real edit.
+    refitBake: st => st === station && !geoDirty && !bakeDirty && cache && geo
+      ? { cache, geo } : null,
     // FEED TRUTH accessor (guided workflows): the exact server-proven state the NO FEED nag keys on —
     // REFIT's finish-the-line card reads THIS, never a parallel poll, so the two can never disagree.
     feedState: () => ({ known: feedState.known, fed: feedState.fed }),

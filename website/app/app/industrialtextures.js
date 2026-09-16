@@ -112,9 +112,9 @@ const IndustrialTextures = (() => {
   // Tee the base painter into a denser art plate. The original canvas remains
   // the exact geometry/alpha/readback authority for lights, chunks and picking.
   // Only the final visible blit uses the denser plate; simulation units stay 12px.
-  function detailContext(ctx) {
+  function detailContext(ctx, referenceSize = ctx.canvas) {
     if (!enabled()) return ctx;
-    const source = ctx.canvas, scale = Math.min(6, 4096 / Math.max(source.width, source.height));
+    const source = ctx.canvas, scale = Math.min(6, 4096 / Math.max(referenceSize.width, referenceSize.height));
     if (scale < 1.5) return ctx;
     const cv = document.createElement('canvas'); cv.width = Math.ceil(source.width * scale); cv.height = Math.ceil(source.height * scale);
     const g = cv.getContext('2d'), transform = ctx.getTransform();
@@ -305,6 +305,14 @@ const IndustrialTextures = (() => {
     const target = enabled() && detailTargets.get(ctx);
     if (!target || !strip || !strip.hi) return;
     const { g, scale } = target, hi = strip.hi, step = 1 / Math.ceil(scale);
+    // Chunk baking visits the whole station. Reject a patch wholly outside its
+    // target before sampling thousands of texels which the canvas would clip.
+    // Only the axis-aligned positive transform is culled; other transforms keep
+    // the original painter and its sampling phase.
+    const mtx = g.getTransform();
+    if (mtx.b === 0 && mtx.c === 0 && mtx.a > 0 && mtx.d > 0 &&
+        ((x + w) * mtx.a + mtx.e < -1 || x * mtx.a + mtx.e > g.canvas.width + 1 ||
+         (y + h) * mtx.d + mtx.f < -1 || y * mtx.d + mtx.f > g.canvas.height + 1)) return;
     g.save(); g.beginPath(); g.rect(x, y, w, h); g.clip();
     for (let yy = y; yy < y + h - 1e-8; yy += step) for (let xx = x; xx < x + w - 1e-8; xx += step) {
       const m = map(xx + step / 2 - .5, yy + step / 2 - .5);

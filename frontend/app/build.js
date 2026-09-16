@@ -262,7 +262,10 @@ const Build = (() => {
       renderSelection();
       if (tool === 'prop') renderEquipmentInfo();
     });
-    bakeDirty = true; bakeDirtyRects = null; bakeDirtyRectsGlobal = false; planDirty = true;
+    const worldBake = opts.world && opts.world.refitBake && opts.world.refitBake(station);
+    cache = worldBake ? worldBake.cache : null;
+    cacheGeo = worldBake ? worldBake.geo : null;
+    bakeDirty = !worldBake; bakeDirtyRects = null; bakeDirtyRectsGlobal = false; bakeVisibleOnly = false; planDirty = true;
     frameFailures = 0;
     clearTimeout(frameRetryTimer); frameRetryTimer = 0;
     convey = (typeof Conveyor !== 'undefined') ? Conveyor.create({ onDeliver: onBuildDeliver, onAdvance: onBuildAdvance }) : null;
@@ -4763,11 +4766,13 @@ const Build = (() => {
 
   /* ---------- render loop ---------- */
   function rebake() {
-    cacheGeo = station.projectGeometry();
-    const visibleRect = visibleBakeRect(cacheGeo);
-    cache = StationBake.bakeIncremental
-      ? StationBake.bakeIncremental(cacheGeo, cache, bakeDirtyRects, { visibleRect, maxRetainedChunks: MAX_REFIT_CHUNKS, onlyMissingVisible: bakeVisibleOnly })
-      : StationBake.bake(cacheGeo);
+    if (bakeDirty || !cache) {
+      cacheGeo = station.projectGeometry();
+      const visibleRect = visibleBakeRect(cacheGeo);
+      cache = StationBake.bakeIncremental
+        ? StationBake.bakeIncremental(cacheGeo, cache, bakeDirtyRects, { visibleRect, maxRetainedChunks: MAX_REFIT_CHUNKS, onlyMissingVisible: bakeVisibleOnly })
+        : StationBake.bake(cacheGeo);
+    }
     /* recompile the routing plan ONLY when the floor actually changed (planDirty — set by station.onChange
        and open(), the two edit paths; world.js compileRouting is gated the same way via its geoDirty edit
        flag). rebake() ALSO runs on pure pans (frame() flips bakeDirty+bakeVisibleOnly when visible chunks
@@ -4888,7 +4893,7 @@ const Build = (() => {
     if (visibleRect && cache && StationBake.missingVisibleChunks && StationBake.missingVisibleChunks(cache, visibleRect).length) {
       bakeDirty = true; bakeVisibleOnly = true;
     }
-    if (bakeDirty || !cache) rebake();
+    if (bakeDirty || !cache || planDirty) rebake();
     // an armed first ride waits out the tutorial + the first-run card (.refit-firstrun, never .refit-guide)
     if (ridePending && !tutorialCoaching() && !(root && root.querySelector('.refit-firstrun'))) fireFirstRide();
     // finish-the-line card: slow re-derive (feed truth changes on the world's poll, not on edits) + per-frame pin
