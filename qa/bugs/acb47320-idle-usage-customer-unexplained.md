@@ -3,7 +3,7 @@ fingerprint: acb47320
 slug: idle-usage-customer-unexplained
 title: Customer cannot explain idle behavior and unexpectedly high usage
 surface: autonomy
-severity: P1
+severity: P2
 status: open
 found: 2026-09-01
 lane: reliability-followup
@@ -31,6 +31,8 @@ Collect the affected run ledger, chosen provider/model, armed routines/loops/nig
 docs/EMAIL_BUG_FOLLOWUP_2026-09-04.md; test/provider-recovery.e2e.test.js
 
 ## Verdict
+
+2026-09-16 re-triage for 0.12.0 (owner release rule of 2026-09-11: reports without an established cause stay tracked as uncertainty, never fabricated as fixed): the affected run ledger, provider receipts and armed background work were never supplied, the 0.11.2 installed canary showed no idle spend, and no reproducible defect exists on the 0.12.0 candidate. Severity lowered to P2 so an unreproducible historical report cannot block a release it does not describe; the record stays OPEN pending the affected account evidence.
 
 Open investigation, not an established billing defect. No customer run ledger was supplied. Seeded idle awaiting orders is not itself a scheduler failure; do not fix by inventing activity or adding arbitrary caps.
 

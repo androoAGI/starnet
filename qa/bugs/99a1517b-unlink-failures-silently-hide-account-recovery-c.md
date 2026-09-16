@@ -4,10 +4,10 @@ slug: unlink-failures-silently-hide-account-recovery-c
 title: Unlink failures silently hide account recovery controls
 surface: onboarding
 severity: P1
-status: open
+status: fixed
 found: 2026-09-15
 lane: credits-unlink-recovery
-fix:
+fix: 02332ee85
 origin: customer
 report: Private support email, 2026-09-15: unlink reports completion but no new link option appears
 affected: Customer build and operating system unknown; related failure paths reproduced in source 0.11.2
@@ -54,7 +54,6 @@ Source repair `02332ee85` is included through integration `90d6f0111`. Fresh anc
 
 `test/credits-store-recovery.test.js` executes the production STORE functions with the real ArmConfirm helper. It covers native rejection and synchronous failure; HTTP 500, negative/missing unlink acknowledgments and network failure; unavailable/malformed account status; failed linkability reads and retry; delayed reads; pending-state repaint; successful unlink; and explicit BYOK-only absence. Errors remain visible across redraws and never expose raw native errors. Pairing starts a new operation and clears the previous unlink warning.
 
-
 ## Sibling coverage
 
 {
@@ -73,3 +72,4 @@ Source repair `02332ee85` is included through integration `90d6f0111`. Fresh anc
     {"target":"device-link persistence and delayed replies","state":"covered","test":"test/paid-link-lifecycle.e2e.test.js","scenario":"unlink wins over unfinished pairing and keychain recovery through restart","gate":"http"},
     {"target":"affected customer installation","state":"blocked","reason":"No affected-build reproduction or customer recovery evidence; record remains open."}
   ]
+}

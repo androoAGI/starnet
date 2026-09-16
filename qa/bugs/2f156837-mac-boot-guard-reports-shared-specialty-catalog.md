@@ -4,10 +4,10 @@ slug: mac-boot-guard-reports-shared-specialty-catalog
 title: Mac boot guard reports shared specialty catalog load failure
 surface: onboarding
 severity: P1
-status: open
+status: fixed
 found: 2026-09-11
 lane: release-0112-finalprep-0911
-fix:
+fix: 788578969
 origin: customer
 report: support-2026-09-10-mac-shared-specialties
 affected: Mac WebKit; app version and failing origin not supplied
@@ -36,12 +36,13 @@ September 11 installed Windows candidate `7f6c7b005`: SharedSpecialties was load
 
 ## Verdict
 
+2026-09-16 source hardening for 0.12.0 (788578969): shared/specialties.js is the one boot script the desktop page fetches from the sidecar port, so an engine that answers late paints exactly this banner and RELOAD clears it. BootGuard now retries a failed shared/ catalog load with backoff (~27 s, the shell port-wait window) and, after a proven successful retry, reloads the page once (bounded to two auto-reloads per tab) so the parser-ordered modules bind the real catalog; only spent retries render the fatal banner, which now records the retry ledger for support. Covered by test/bootguard.test.js (retry success, exhaustion, reload budget, no retry for bundled app/ scripts) and proven live over CDP with a first request to /shared/specialties.js forced to fail. The original Mac origin and build remain uncorrelated; this closes the symptom class under the owner engineering-acceptance rule of 2026-09-11.
+
 Open pending the affected origin/build and Mac reproduction. Do not merge this symptom into eaaa3ec8 (native station data unreachable after relink) without evidence. Website-only record b3b8d28f includes a prior missing staged catalog, but a matching filename does not establish that this reporter used the website or that the same deployment was involved.
 
 ## Regression
 
 No exact before/after customer reproduction yet. Current Windows module loading passes. A cross-origin fetch probe is not equivalent to a classic script load; neither its CORS rejection nor a successful HTTP request alone establishes page boot health.
-
 
 ## Sibling coverage
 

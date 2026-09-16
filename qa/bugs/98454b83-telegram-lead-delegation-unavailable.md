@@ -4,10 +4,10 @@ slug: telegram-lead-delegation-unavailable
 title: Telegram-bound lead reports crew delegation unavailable
 surface: channels
 severity: P1
-status: open
+status: fixed
 found: 2026-09-11
 lane: release-0120-prep-0915
-fix:
+fix: 887210a7b
 origin: customer
 report: https://github.com/androoAGI/starnet/issues/14
 affected: v0.11.2 Windows, Telegram-bound orchestrator
