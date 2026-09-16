@@ -44,3 +44,4 @@ test/session-typing-safety.test.js
 
 # Saved equipment, profile grants and Ollama provider wire.
 test/tool-projection.e2e.test.js
+test/memory-corrections.http.test.js

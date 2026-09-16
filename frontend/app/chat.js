@@ -3999,7 +3999,8 @@ const Chat = (() => {
       slot.innerHTML = '';
       const item = document.createElement('div'); item.className = 'turnin-item';
       const kind = document.createElement('span'); kind.className = 'turnin-kind'; kind.textContent = KIND_TAG[prop.kind] || 'NOTE';
-      const text = document.createElement('span'); text.className = 'turnin-text'; text.textContent = prop.content;
+      const text = document.createElement('span'); text.className = 'turnin-text';
+      text.textContent = prop.replaceId ? 'Update remembered preference: “' + prop.previousBody + '” → “' + prop.content + '”' : prop.content;
       const btns = document.createElement('span'); btns.className = 'consent-btns';
       item.appendChild(kind); item.appendChild(text); item.appendChild(btns);
       slot.appendChild(item);

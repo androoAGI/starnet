@@ -587,6 +587,7 @@
     const _cg = limits.continueGuard;
     const CG_MAX = (_cg === false) ? 0 : (_cg && _cg.max != null ? _cg.max : 2);
     let cgUsed = 0;
+    let memorySaveNudges = 0, memoryWrites = 0;
     // Companion nudge budgets (same disable knob as the continuation guard — they are one family):
     //  · markup nudge — the turn's TEXT carried tool-call markup (scrubbed above; NEVER executed). Tell the
     //    model once that text markup is data and to make a REAL call. Bounded like CG.
@@ -1323,6 +1324,20 @@
         const text = String(acc.text || '');
         const empty = !text.trim();                                   // nothing usable produced
         const duplicate = !empty && priorAssistantText != null && text === priorAssistantText;   // a re-emitted prior turn
+        const claimsMemorySave = /(?:^|\n)\s*(?:Done[ —:,.-]+)?I(?:['’]ve| have)?\s+(?:saved|stored|remembered|updated)\b[^.!?\n]{0,100}\b(?:preference|instruction|correction|requirement|memory|design style)s?\b/i.test(text);
+        const canSaveMemory = tools.some(t => wireKey(t && ((t.function && t.function.name) || t.name)) === 'notebook_write');
+        if (claimsMemorySave && canSaveMemory && memoryWrites === 0) {
+          if (!graceUsed && memorySaveNudges < 2) {
+            memorySaveNudges++;
+            messages.push({ role: 'system', content: '<memory_receipt>You claimed a preference or correction was saved, but this run has no successful notebook write receipt. Use notebook_read and notebook_write to save or update the actual requirement now. For corrections use replaceId and previousBody; for approved reusable requirements pin within the intended scope. If it was already saved, verify it with a read and say it was already present; otherwise explicitly say it has not been saved. Do not repeat an unsupported save claim.</memory_receipt>' });
+            continue;
+          }
+          const explanation = 'The requested memory update is unverified: this run produced no successful notebook write receipt. The save claim above is not confirmed.';
+          assistant.content = text + '\n\n' + explanation;
+          emit('agent.token', {agentId,runId,delta:'\n\n'+explanation});
+          emit('agent.run.error', {agentId,runId,message:explanation,transient:false});
+          return end('error', {failureStage:'completion',failureCode:'memory_write_unverified'});
+        }
         // MARKUP NUDGE: the turn's text carried tool-call markup (scrubbed above, never executed). Point the
         // model at the real wire once — a model that meant to act re-emits the call properly; an echo of
         // quoted data just continues without it. Shares the continuation-guard disable knob and grace rule.
@@ -1349,7 +1364,14 @@
         // is a premature stop, not a delivery — nudge the model back to work instead of ending 'done' mid-task.
         // Never fires on a grace turn (that turn is CONTRACTED to be tool-free) and never past CG_MAX, so a
         // model that narrates forever still terminates through the normal end below.
-        if (!empty && !duplicate && !graceUsed && cgUsed < CG_MAX && tools.length > 0 && announcesIntent(text)) {
+        if (!empty && CG_MAX > 0 && tools.length > 0 && announcesIntent(text)) {
+          if (graceUsed || cgUsed >= CG_MAX) {
+            const explanation = 'Work is incomplete: the model kept announcing another action without making the tool call. The automatic continuation attempts have ended; no background work was started by these promises.';
+            assistant.content = text + '\n\n' + explanation;
+            emit('agent.token', { agentId, runId, delta: '\n\n' + explanation });
+            emit('agent.run.error', { agentId, runId, message: explanation, transient: false });
+            return end('error', { failureStage: 'completion', failureCode: 'incomplete_work' });
+          }
           cgUsed++;
           messages.push({ role: 'system', content: '<continuation>Your last message only ANNOUNCED an action but you called no tools — ending your reply without tool calls ends the run with the work not done. Do not narrate intentions. If work remains, make the actual tool call(s) NOW in this same turn. If you promised future or multi-day work, create the appropriate durable routine/task now when that tool is available; otherwise say plainly that no background work was started. If the task is truly complete, give your final answer without announcing further actions.</continuation>' });
           continue;
@@ -1468,6 +1490,10 @@
         return end('error', { failureStage: 'tool_boundary', failureCode: (e && e.fatalToRun) ? 'durability_boundary' : 'tool_dispatch_failure' });
       } finally { bookToolCosts(); }
       for (const r of results) messages.push(toolResultMsg(r.callId, r.isError, r.content));
+      for (const call of calls) {
+        const receipt = results.find(r => r.callId === call.id);
+        if (wireKey(call.name) === 'notebook_write' && receipt && !receipt.isError && /^(?:Saved|Updated) note "/.test(String(receipt.content))) memoryWrites++;
+      }
       const repairNote = failedCheckRepairNote(calls, results);
       if (repairNote) messages.push({ role: 'system', content: repairNote });
       if (calls.length === 1 && results.length === 1 && results[0].ok && !results[0].isError) {

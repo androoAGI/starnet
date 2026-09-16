@@ -423,7 +423,7 @@ A.eq(Reflect_.buildPrompt(MSGS, 4000, ['multi\nline   belief']).indexOf('- multi
   '…and every belief is one line, so it cannot add rows to the block');
 // the SAME set feeds the prompt and the filter — the model is told exactly what will be rejected
 const reflectSrc = read('sidecar/reflect.js');
-A.ok(/buildPrompt\(run\.messages, PROMPT_CAP, priorTexts\.slice\(\)\)/.test(reflectSrc),
+A.ok(/buildPrompt\(run\.messages, PROMPT_CAP, priorTexts\.slice\(\), existing\)/.test(reflectSrc),
   'reflect builds the prompt from the very list its post-hoc dedup uses');
 A.ok(reflectSrc.indexOf('for (const r of (Array.isArray(opts.existing)') < reflectSrc.indexOf('const prompt = buildPrompt('),
   '…which is why the prior set is now assembled BEFORE the call');

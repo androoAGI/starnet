@@ -108,7 +108,7 @@
   function recallLine(r) {
     if (!r) return '';
     const originalTitle = r.title != null ? String(r.title).trim() : '';
-    const provenance = r.confirmation === 'inferred' ? '[inferred, unconfirmed] ' : r.confirmation === 'user-confirmed' ? '[user-confirmed reference] ' : '';
+    const provenance = (/^[A-Za-z0-9_-]{1,80}$/.test(String(r.id || '')) ? '[' + r.id + '] ' : '') + (r.confirmation === 'inferred' ? '[inferred, unconfirmed] ' : r.confirmation === 'user-confirmed' ? '[user-confirmed reference] ' : '');
     const title = originalTitle;
     const raw = r.body != null ? r.body : (r.content != null ? r.content : '');
     const body = String(raw).replace(/\s+/g, ' ').trim();
@@ -236,7 +236,7 @@
     const rel = bm25(recs, query);   // shared lexical core — scores align with recs
     let scored = recs.map((r, i) => {
       const relevance = rel.scores[i];
-      const age = Math.max(0, now - (r.lastUsedAt || r.createdAt || r.ts || 0));
+      const age = Math.max(0, now - Math.max(r.lastUsedAt || 0, r.updatedAt || 0, r.createdAt || r.ts || 0));
       const recency = Math.pow(0.5, age / halfLife);        // 1 at age 0 → halves each half-life
       // time-decayed trust: an endorsement fades toward 0 the longer a belief goes un-reinforced (mirrors
       // memcore.decayTrust — keep in sync). Measured from the last memory.feedback, else creation. Recall stays
@@ -247,15 +247,22 @@
       // M-mem.2b: same-stream working memory floats up; global records always compete; OTHER streams stay
       // searchable (no boost, not filtered) — "global always-on, workstream-scoped, cross-stream searchable".
       const sameStream = (streamId && r.scope === 'stream' && r.streamId === streamId) ? 0.5 : 0;
-      const score = relevance + 0.5 * recency + 0.3 * trust + sameStream + (r.pinned ? 1000 : 0);   // pinned = hard top
-      return { r: r, i: i, score: score, relevance: relevance };
+      const projectKey = p => { const s = String(p || '').replace(/\\/g, '/').replace(/\/+$/, ''); return /^[a-z]:\//i.test(s) ? s.toLowerCase() : s; };
+      const sameProject = r.projectRoot && rankOpts.projectRoot && projectKey(r.projectRoot) === projectKey(rankOpts.projectRoot);
+      const pinnedHere = r.pinned && (r.scope !== 'stream' || (streamId && r.streamId === streamId) || sameProject);
+      const score = relevance + 0.5 * recency + 0.3 * trust + sameStream + (pinnedHere ? 1000 : 0);
+      const eligible = !(r.pinned && r.projectRoot) || sameProject || (!rankOpts.projectRoot && streamId && r.streamId === streamId);
+      return { r: r, i: i, score: score, relevance: relevance, pinnedHere: pinnedHere, eligible: eligible };
     });
+    // Approved project requirements are not generic facts for another project.
+    // Explicit notebook searches remain able to retrieve them (floor:false).
+    if (rankOpts.floor !== false) scored = scored.filter(s => s.eligible);
     // RELEVANCE FLOOR: under a query with at least one significant token, a record with ZERO term overlap is
     // dropped unless pinned — slice(0, k) alone injected 8 memories into EVERY run even at relevance 0. A
     // queryless turn (empty / image-only) keeps the recency+trust fallback untouched: the floor must never
     // empty recall for a legitimately generic turn. `floor:false` opts out for a caller whose own gate already
     // admitted the records (notebook.read's substring match — reordering there must never truncate).
-    if (rel.queried && rankOpts.floor !== false) scored = scored.filter(s => s.relevance > 0 || s.r.pinned);
+    if (rel.queried && rankOpts.floor !== false) scored = scored.filter(s => s.relevance > 0 || s.pinnedHere);
     scored.sort((a, b) => (b.score - a.score) || (a.i - b.i));   // deterministic: stable tiebreak by store order
     return scored.slice(0, k).map(s => s.r);
   }
@@ -269,7 +276,7 @@
   function compactionMemoryBlock(records, recentText, opts) {
     opts = opts || {};
     const now = typeof opts.now === 'number' ? opts.now : 0;
-    const ranked = rank(records, recentText || '', { now: now, k: opts.k || 5, streamId: opts.streamId || null });
+    const ranked = rank(records, recentText || '', { now: now, k: opts.k || 5, streamId: opts.streamId || null, projectRoot: opts.projectRoot || null });
     if (!ranked.length) return '';
     const rr = renderRecall(ranked, {
       limit: opts.limit || 800,

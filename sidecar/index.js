@@ -55,7 +55,7 @@ const docExtract = require('./tools/builtin/docextract.js').makeDocExtract({ inf
 // ...and the same idea for pixels: ONE sniffer shared by every producer that can hand the driving model an
 // image, so the `images` channel has more than a single caller (a channel with one caller is a special case).
 const imageWire = require('./tools/builtin/imagewire.js').makeImageWire({});
-const { makeNotebookTools } = require('./tools/builtin/notebook.js');
+const { makeNotebookTools, reviseRecord } = require('./tools/builtin/notebook.js');
 const { makeRecallTool } = require('./tools/builtin/recall.js');
 const { makeToolSearchTool } = require('./tools/builtin/toolsearch.js');   // tool.search: reach a granted-but-unadvertised (deferred) tool
 const CodeMode = require('./tools/builtin/code.js');                      // code.run: bounded JS composition over this run's read-only grants
@@ -2472,7 +2472,7 @@ async function runReflection(o) {
     let proposals = (out && out.proposals) || [];
     // CROSS-WIRE: reflect() already deduped THIS agent's own notebook declines; drop anything the Commander declined
     // in ANOTHER surface (a mined thread / a quest title / a study belief / a north star) so it isn't re-remembered.
-    if (proposals.length) { const dIdx = buildDeclinedIndex(agentId); proposals = proposals.filter(p => p && !dIdx.has(p.content)); }
+    if (proposals.length) { const dIdx = buildDeclinedIndex(agentId); proposals = proposals.filter(p => p && (p.replaceId || !dIdx.has(p.content))); }
     if (proposals.length) {
       // arm the cooldown ONLY when a beat actually fires — so a trivial/floored/all-deduped run (zero proposals)
       // never spends the window and blocks a following substantive run's turn-in (honours "always confirm").
@@ -2482,7 +2482,7 @@ async function runReflection(o) {
       // (credentials / PII / standing instructions) are NOT auto-saved — they still stash + emit memory.proposed
       // so the old Keep/Edit/Discard confirm deck fires for just those (rare-confirm).
       const highStakesProps = [], normalProps = [];
-      for (const p of proposals) (highStakes(p.content) ? highStakesProps : normalProps).push(p);
+      for (const p of proposals) (p.replaceId || highStakes(p.content) ? highStakesProps : normalProps).push(p);
 
       // auto-save the normal ones. Silent save = NEUTRAL trust (trustDelta 0): there was no user validation to
       // reward (the +2 keep bonus was the Commander confirming). Skills go to the skill library as before.
@@ -2497,7 +2497,8 @@ async function runReflection(o) {
       // prop_N id). The frontend fetches it via /api/memory/proposals — renders a passive receipt for saved:true
       // items and the Keep/Edit/Discard confirm deck for the rest. A single stash per runId (a second stashProposals
       // for the same runId would OVERWRITE the first — so merge here).
-      const pending = highStakesProps.map(p => ({ id: p.id, kind: p.kind, content: p.content, scope: p.scope || 'global', origin: origin }));
+      const pending = highStakesProps.map(p => ({ id: p.id, kind: p.kind, content: p.content, scope: p.scope || 'global', origin: origin,
+        ...(p.replaceId ? { replaceId: p.replaceId, previousBody: p.previousBody, streamId: p.streamId || null } : {}) }));
       const combined = saved.concat(pending);
       if (combined.length) stashProposals(agentId, runId, combined);
       // ...and queue the high-stakes half DURABLY. The in-memory stash serves the live receipt/deck render; this
@@ -15519,7 +15520,13 @@ async function runOnce(o) {
     classes: SPECIALIST_CLASSES,   // Class Loadouts S1: the summon-tool class list, composed from the shared catalog (no hardcoded prose)
     selfSystem: system,   // team.spawn clones the LEAD's OWN base identity into each ephemeral subagent (Meeseeks)
     taskContext: taskContextBlock,   // workers inherit settled task decisions without re-questioning the Commander
-    getTaskContext: () => taskBriefState ? commanderEvidenceContext(system || '', Object.assign({},taskContextInputs,{brief:taskBriefState.brief})) : taskContextBlock,
+    getTaskContext: () => {
+      const settled = taskBriefState ? commanderEvidenceContext(system || '', Object.assign({},taskContextInputs,{brief:taskBriefState.brief})) : taskContextBlock;
+      const notes = notebookStore.get('notebook:' + agentId);
+      const pinned = Array.isArray(notes) ? notes.filter(r => r && r.pinned) : [];
+      const recalled = renderRecall(rank(pinned, recentUserText(messages), { now: Date.now(), streamId, projectRoot: o.projectRoot || null }), { limit: 1500 });
+      return settled + (recalled.text ? '\n\n' + redact(recalled.text) : '');
+    },
     // A worker shares the LEAD's consent broker (see the `consent` note below), so its own roster APPROVAL clause is
     // the wrong one whenever the two postures differ. Hand orchestration the EFFECTIVE posture so the delegated
     // prompt states what will actually happen. A thunk read off the live roster: computed at dispatch time, and
@@ -16260,7 +16267,7 @@ async function runOnce(o) {
       // '' when nothing to preserve. Fail-open: a memory hiccup must never block the summary.
       try {
         const recs = notebookStore.get('notebook:' + agentId);
-        if (Array.isArray(recs) && recs.length) return compactionMemoryBlock(recs, transcript, { now: Date.now(), k: 5, limit: 800, streamId: o.streamId || null });
+        if (Array.isArray(recs) && recs.length) return compactionMemoryBlock(recs, transcript, { now: Date.now(), k: 5, limit: 800, streamId: o.streamId || null, projectRoot: o.projectRoot || null });
       } catch (_) {}
       return '';
     }
@@ -16770,7 +16777,7 @@ async function runOnce(o) {
       + (hasWebTools ? 'Ground every current factual claim in what web_search / web_fetch actually return, and cite the source URLs; ' : '')
       + 'do not invent facts, figures, or links. '
       + (hasWriteTools ? 'Save substantive deliverables (reports, code, notes) to your workspace with fs_write / fs_append. ' : '')
-      + (hasNotebookWrite ? 'Record durable facts you\'ll want later with notebook_write. ' : '')
+      + (hasNotebookWrite ? 'Save explicit preferences, corrections, and approved reusable design requirements with notebook_write before claiming they are remembered. Read an existing memory before correcting it; use replaceId and previousBody to update it rather than appending an opposite fact. Pin approved requirements within their intended scope, retain artifact/reference paths, and re-read approved artifacts before making variants. Current user instructions override recalled context. ' : '')
       + workDisciplineNote
       + (hasShellExec ? 'Do not guess Bash-style /c paths for Windows when the Commander gave you a real Windows path. ' : '')
       + (hasWriteTools ? 'Saving a file shows the Commander a quick one-click approval prompt — so just CALL the write tool when you are ready; do not ask permission in chat or claim you cannot save. If they decline, carry on without it. ' : '')
@@ -17054,8 +17061,8 @@ async function runOnce(o) {
   if (!internal) try {
     const stored = notebookStore.get('notebook:' + agentId);
     const recs = o.recovery ? [] : (Array.isArray(stored) ? stored : []);
-    const q = recentUserText(messages);   // last up-to-3 user turns (attachment turns flattened to THEIR text) — a bare "yes, do that" still ranks against the ask it answers
-    const ranked = rank(recs, q, { now: Date.now(), streamId });   // M-mem.2b: boost the active workstream's working memory
+    const q = recentUserText(convo);   // include restored conversation context on terse post-restart follow-ups
+    const ranked = rank(recs, q, { now: Date.now(), streamId, projectRoot: o.projectRoot || null });
     const recall = renderRecall(ranked, { limit: 1500 });
     if (recall.text) {
       msgs = injectRecall(msgs, redact(recall.text));   // §5.6 belt-and-suspenders: a legacy plaintext note can't reach the provider verbatim
@@ -20578,7 +20585,7 @@ async function writeMemoryRecord(agentId, prop, opts) {
   const runId = opts.runId || (prop && prop.sourceRunId) || '';
   const trustDelta = Number(opts.trustDelta) || 0;
   // skill-builder-gap: a proposal tagged kind:'skill' becomes a saved skill package, not a notebook note.
-  if (prop && prop.kind === 'skill') {
+  if (prop && prop.kind === 'skill' && !prop.replaceId) {
     const skillName = String(opts.skillName || skillNameFromReflection(content)).trim();
     const skillBody = String(opts.skillBody || content).trim();
     const summary = String(opts.summary || content).trim();
@@ -20594,12 +20601,25 @@ async function writeMemoryRecord(agentId, prop, opts) {
   let writtenId = null, rec = null;
   await notebookStore.update('notebook:' + agentId, (stored) => {
     const list = Array.isArray(stored) ? stored : [];
+    if (prop && prop.replaceId) {
+      if (!opts.userConfirmed) throw new Error('a proposed memory correction must be reviewed before replacing the existing belief');
+      const at = list.findIndex(r => r.id === prop.replaceId);
+      rec = reviseRecord(list[at], { previousBody: prop.previousBody, body: redact(content), runId, userConfirmed: true }, Date.now());
+      if (trustDelta) rec.trust = memcore.nextTrust(rec.trust, trustDelta);
+      list[at] = rec;
+      writtenId = rec.id;
+      return list;
+    }
+    const sameText = value => String(value || '').trim().toLowerCase() === content.toLowerCase();
+    if (list.some(r => r && (sameText(r.content != null ? r.content : r.body) ||
+        (Array.isArray(r.history) && r.history.some(h => h && sameText(h.body)))))) return undefined;
     writtenId = memcore.nextNoteId(list);   // collision-proof (positional length reuses a slot freed by forget)
     rec = recordFromProposal(prop || {}, { now: Date.now(), runId: runId || (prop && prop.sourceRunId), id: writtenId, content, origin: opts.origin, userConfirmed: opts.userConfirmed === true });
     if (trustDelta) rec.trust = memcore.nextTrust(rec.trust, trustDelta);   // M-mem.6: keep/edit seeds real trust; silent auto-save leaves it neutral
     list.push(rec);
     return list;
   });
+  if (!rec) return { ok: false, error: 'That text is already remembered or was superseded. Review the current memory and make an explicit correction instead.' };
   chanEmit('memory.write', { agentId, runId: runId || rec.sourceRunId || writtenId, id: writtenId, kind: rec.kind, scope: rec.scope });
   // HOOKS — on_memory_write, at the OTHER path that commits a record (the silent auto-save + the Keep/Edit
   // turn-in both land here, not in notebook.write). Both sites fire it or the event would be true only half
@@ -20700,10 +20720,11 @@ async function handleMemoryTurnin(req, res) {
   // keep/edit -> commit a real §5.2 record via the ONE write path (shared with silent auto-save). The keep/edit
   // verdict seeds real trust (fb.delta); a skill proposal becomes a saved skill instead of a note.
   const content = (verdict === 'edit' ? String(body.content != null ? body.content : prop.content) : prop.content).trim();
-  const w = await writeMemoryRecord(agentId, prop, {
+  let w;
+  try { w = await writeMemoryRecord(agentId, prop, {
     content, runId, trustDelta: fb.delta, origin: prop.origin, userConfirmed: true,   // the surface that PROPOSED it, not the one approving it
     skillName: body.skillName || body.name, skillBody: body.skillBody || body.body, summary: body.summary
-  });
+  }); } catch (e) { return json(409, { error: (e && e.message) || 'could not update that memory; reload and review its current text' }); }
   if (!w.ok) return json(400, { error: w.error || 'could not save that memory' });
   await takePending(agentId, runId, id);   // consume only after the kept bytes are durably accepted
   dropLive();
@@ -20767,7 +20788,8 @@ function servePending(req, res) {
     const rows = listPending(agent).map(p => redact({
       runId: p.runId || '', id: p.id || '', kind: p.kind || 'note',
       content: String(p.content || ''), scope: p.scope || 'global',
-      origin: p.origin || 'commander', createdAt: p.createdAt || 0
+      origin: p.origin || 'commander', createdAt: p.createdAt || 0,
+      ...(p.replaceId ? { replaceId: p.replaceId, previousBody: p.previousBody } : {})
     }));
     json(200, { agentId: agent, pending: rows });
   } catch (e) { json(500, readRouteFailure('memory.pending', e)); }   // an un-answered high-stakes deck must not vanish behind a 200-empty
@@ -20871,9 +20893,10 @@ function handleMemoryForget(req, res) {
    station may remember). POST persists { reflectEnabled?, reflectCooldownMs? } and applies LIVE (the reflect gate
    reads memoryConfig on every run). Cooldown clamps to a sane 0–1h so a typo can't wedge or spam the loop. ---- */
 function memoryScopeNote() {
-  return 'After a completed task, the station may propose short factual notes it learned about your work — always ' +
-    'shown for you to Keep, Edit or Discard first. Nothing is remembered without your say-so; a Discard is remembered ' +
-    'as "never propose this again". Turn reflection off to stop it proposing new memories entirely.';
+  return 'After a completed task, reflection may save ordinary factual notes with a receipt you can undo. ' +
+    'Sensitive beliefs and proposed changes to existing memories wait for Keep, Edit or Discard. ' +
+    'Direct notebook saves happen during the task. A Discard means "never propose this again". ' +
+    'Turning reflection off stops automatic reflection, but does not disable direct notebook saves.';
 }
 function handleMemoryConfigGet(req, res) {
   res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
