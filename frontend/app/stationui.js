@@ -1746,7 +1746,9 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
   // prompt — for the hero and for the last remaining agent. Wired in wireCommand.
   function agCommand(a) {
     const skins = (typeof DATA !== 'undefined' && DATA.SKINS) ? DATA.SKINS : {};
-    const cur = (a && a.skin && skins[a.skin]) ? a.skin : (typeof DATA !== 'undefined' ? DATA.DEFAULT_SKIN : '');
+    // A retired saved ID can alias an approved catalog entry without becoming an extra tile.
+    const cur = (a && a.skin && Object.keys(skins).find(id => skins[id] === skins[a.skin]))
+      || (typeof DATA !== 'undefined' ? DATA.DEFAULT_SKIN : '');
     const thumbs = Object.keys(skins).map(id => {
       const sk = skins[id];
       return '<button type="button" class="skin-thumb ag-skin-thumb' + (id === cur ? ' sel' : '') + '" data-skin="' + esc(id) + '" title="' + esc(sk.name || id) + '" aria-label="' + esc(sk.name || id) + '" aria-pressed="' + (id === cur ? 'true' : 'false') + '">' +

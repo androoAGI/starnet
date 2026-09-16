@@ -42,4 +42,15 @@ for (const selected of ['cadet', 'bear']) {
     'every unselected dossier skin is announced as unpressed');
 }
 
+// Existing stations can retain the retired Minion ID. Its approved replacement must still
+// announce exactly one selected tile, without silently rewriting the saved agent record.
+const production = vm.createContext({ access: { config: { crewCount: () => 26 } }, present: [], esc: String });
+vm.runInContext(fs.readFileSync(path.join(__dirname, '..', 'frontend/app/data-shim.js'), 'utf8'), production);
+const renderProduction = vm.runInContext(source.slice(start, end) + '\n agCommand;', production);
+const legacyAgent = { id: 'existing-agent', skin: 'minionchar' };
+const legacyHtml = renderProduction(legacyAgent);
+const selected = [...legacyHtml.matchAll(/data-skin="([^"]+)"[^>]*aria-pressed="true"/g)].map(m => m[1]);
+A.eq(selected, ['station_minion'], 'retired saved ID highlights its approved replacement');
+A.eq(legacyAgent.skin, 'minionchar', 'rendering the picker preserves the saved ID');
+A.ok(legacyHtml.includes('assets/sprites/approved_station_minion/rot_south.png'), 'replacement tile shows approved artwork');
 A.report('dossier-skin-accessibility.test');
