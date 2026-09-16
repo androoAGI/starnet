@@ -4,14 +4,16 @@
 One tracked file per bug under `qa/bugs/`; this is only the index. File a new bug with
 `node scripts/qa/bugs.mjs --new --title "..." --surface <surface>`.
 
-**2** open (open+claimed) of 154 total — 0 P0 · 0 P1 · 2 P2
+**4** open (open+claimed) of 156 total — 0 P0 · 2 P1 · 2 P2
 
 Engineering status is separate from delivery and customer recovery. Legacy rows without origin are not a customer census.
 
-User/owner reports: **71** · source fixed: **69** · installer verified: **6** · customer confirmed: **1** · still reported failing: **1** · recovery unconfirmed: **69**.
+User/owner reports: **73** · source fixed: **69** · installer verified: **6** · customer confirmed: **1** · still reported failing: **1** · recovery unconfirmed: **71**.
 
 | Report | Family | Source | Installer | Customer |
 | --- | --- | --- | --- | --- |
+| [Repeated promises without tool actions can end with done and no blocker explanation](bugs/b6f04205-repeated-promises-without-tool-actions-can-end-w.md) | premature-stops | open | unverified | unconfirmed |
+| [Preference corrections are discarded or leave contradictory memories active](bugs/f97e73fb-preference-corrections-are-discarded-or-leave-co.md) | memory-corrections | open | unverified | unconfirmed |
 | [Delegated specialist lacks connected MCP tools](bugs/acd9ecb4-delegated-specialist-lacks-connected-mcp-tools.md) | delegated-capabilities | fixed | verified | unconfirmed |
 | [Customer reports an ONCE routine absent from Active Routines](bugs/c2a6c3c8-once-routine-reported-missing.md) | durability-and-visibility | fixed | unverified | unconfirmed |
 | [Persisted E-STOP cannot be resumed from the desktop control](bugs/8f911536-persisted-e-stop-cannot-be-resumed-from-the-desk.md) | emergency-stop | fixed | unverified | unconfirmed |
@@ -93,6 +95,8 @@ User/owner reports: **71** · source fixed: **69** · installer verified: **6** 
 | P0 | fixed | safecell | [The Permissions panel's normalizeGrants regex drops every path: and mcp: standing grant — the ledger prints "No standing approvals yet" while the backend holds](bugs/7274ff21-the-permissions-panel-s-normalizegrants-regex-dr.md) | sweep/safecell | 6afeb9ee |
 | P0 | fixed | sessions | [An attachment-bearing user turn is dropped from the durable transcript and the PREVIOUS turn is written in its place — the string-only scan at index.js:11299 fa](bugs/e7dcb889-an-attachment-bearing-user-turn-is-dropped-from.md) | sweep/sessions | 6afeb9ee |
 | P0 | fixed | skills | [skill.view's hydrate-then-bump stores the RENDERED SKILL.md as the skill's body, so every view→persist cycle re-appends '## Setup' and '## Support Files' — unbo](bugs/c70f8965-skill-view-s-hydrate-then-bump-stores-the-render.md) | sweep/skills | 598ab4a4 |
+| P1 | open | autonomy | [Repeated promises without tool actions can end with done and no blocker explanation](bugs/b6f04205-repeated-promises-without-tool-actions-can-end-w.md) | agent/recall-report-0916 | — |
+| P1 | open | sessions | [Preference corrections are discarded or leave contradictory memories active](bugs/f97e73fb-preference-corrections-are-discarded-or-leave-co.md) | agent/recall-report-0916 | — |
 | P1 | fixed | autonomy | [Agent loop pause leaves cancelled iteration running and lease held](bugs/c66e8c39-agent-loop-pause-leaves-cancelled-iteration-runn.md) | agent/seam-audit-0912-b | b5c5cba75 |
 | P1 | fixed | autonomy | [cron-store's armAt never receives the host defaultTz, so a tz-less cron routine's FIRST nextRunAt is UTC-anchored while every later advance uses local — the mar](bugs/f47a1e3a-cron-store-s-armat-never-receives-the-host-defau.md) | sweep/autonomy | 226cec3c |
 | P1 | fixed | autonomy | [Delegated specialist lacks connected MCP tools](bugs/acd9ecb4-delegated-specialist-lacks-connected-mcp-tools.md) | release-0112-finalprep-0911 | 44c6b4952cd1e468f7caaf4d7ead804dc280cc40 |
@@ -246,10 +250,10 @@ User/owner reports: **71** · source fixed: **69** · installer verified: **6** 
 | Surface | Open |
 | --- | --- |
 | channels | 0 |
-| autonomy | 1 |
+| autonomy | 2 |
 | providers | 1 |
 | safecell | 0 |
-| sessions | 0 |
+| sessions | 1 |
 | skills | 0 |
 | onboarding | 0 |
 | world | 0 |
