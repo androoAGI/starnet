@@ -293,13 +293,15 @@ A.ok(/destination-in/.test(HULLSRC.slice(HULLSRC.indexOf('function bakeHullExtru
 // Both views of a station hull (top plate and hanging skirt) receive the same
 // resolved room palette, and unavailable art leaves the native shell complete.
 const beforeArt = sample('station', '#624a30');
+const beforeOtherArt = new Map(HULLS.filter(mid => mid !== 'station').map(mid => [mid, sample(mid, '#624a30')]));
 const hullArtCalls = [];
 global.IndustrialTextures = {
-  shellPlate(ctx, x, y, w, h, base) { hullArtCalls.push(['plate', base]); return false; },
-  shell(ctx, w, h, vx, vy, topOf, base) { hullArtCalls.push(['skirt', base]); return false; }
+  shellPlate(ctx, x, y, w, h, material, base) { hullArtCalls.push(['plate', base, material]); return false; },
+  shell(ctx, w, h, vx, vy, topOf, material, base) { hullArtCalls.push(['skirt', base, material]); return false; }
 };
 A.eq(sample('station', '#624a30'), beforeArt, 'declined shell art retains every native ring and skirt mark');
 A.eq(hullArtCalls.map(c => c[0]), ['plate', 'skirt'], 'station plate and skirt both request authored cladding');
+A.ok(hullArtCalls.every(c => c[2] === 'station'), 'station art is requested by material ID separately from its paint');
 A.ok(/^#[0-9a-f]{6}$/i.test(hullArtCalls[0][1]), 'shell art receives a real resolved palette colour');
 A.eq(hullArtCalls[0][1], hullArtCalls[1][1], 'ring and skirt use the identical selected shell palette');
 const warmHullPaint = hullArtCalls[0][1];
@@ -307,9 +309,13 @@ hullArtCalls.length = 0;
 sample('station', '#30628b');
 A.ok(hullArtCalls[0][1] !== warmHullPaint, 'recolouring the shell reaches the authored texture hooks');
 A.eq(hullArtCalls[0][1], hullArtCalls[1][1], 'recoloured ring and skirt still agree');
-hullArtCalls.length = 0;
-for (const mid of HULLS.filter(mid => mid !== 'station')) sample(mid, '#624a30');
-A.eq(hullArtCalls.length, 0, 'other shell materials retain their own recipes');
+const authoredShells = new Set(['monocoque', 'timber', 'clapboard', 'shingle', 'brick', 'stone', 'stucco', 'curtain', 'hedge', 'thermal', 'insulation', 'heatsink']);
+for (const mid of HULLS.filter(mid => mid !== 'station')) {
+  hullArtCalls.length = 0;
+  A.eq(sample(mid, '#624a30'), beforeOtherArt.get(mid), mid + ' retains its native recipe when optional art is unavailable');
+  A.eq(hullArtCalls.length, authoredShells.has(mid) ? 2 : 0, mid + ' requests both authored surfaces only when supported');
+  A.ok(hullArtCalls.every(c => c[2] === mid && /^#[0-9a-f]{6}$/i.test(c[1])), mid + ' keeps its own material ID and resolved paint');
+}
 delete global.IndustrialTextures;
 
 A.report('stationbake.hull');

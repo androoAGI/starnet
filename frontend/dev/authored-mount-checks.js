@@ -12,7 +12,9 @@
   jobs.push(load('mug:s','frontend/assets/industrial/batch03/storage/mug.png',{image:'mug.png',sourceWidth:1050,sourceHeight:1027,footprint:{w:1,h:1}},{x:4,y:8,width:4,height:4}));
   // The approved caddy remains an independent child body, with its real alpha
   // dimensions read once. Geometry reflects the root's previous authored view.
-  const manifest=await fetch('../assets/industrial/props-v3/manifest.json').then(r=>r.json());
+  const response=await fetch('../assets/industrial/props-v3/manifest.json');
+  if(!response.ok)throw new Error('Mount manifest HTTP '+response.status);
+  const manifest=await response.json();
   const caddy=manifest.props.industrial_toolcaddy.views.s;
   jobs.push(load('industrial_toolcaddy:s','frontend/assets/industrial/props-v3/'+caddy.image,caddy,caddy.bounds));
   await Promise.all(jobs);

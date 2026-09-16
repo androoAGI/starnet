@@ -82,7 +82,7 @@
       for (const p of rendered) ctx.strokeRect(p.x * 12, p.y * 12, p.w * 12, p.h * 12);
       ctx.restore();
     }
-    ctx.save(); ctx.font = '4px monospace'; ctx.fillStyle = '#dbd1ad';
+    ctx.save(); ctx.font = '4px VT323, monospace'; ctx.fillStyle = '#dbd1ad';
     room.subjects.forEach((s, i) => {
       const p = rendered.find(p => p.id === s.prop.id);
       if (p) ctx.fillText(String(selected.entries.indexOf(s.entry) + 1), p.x * 12, (p.y + p.h) * 12 + 6);

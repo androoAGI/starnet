@@ -340,7 +340,7 @@ const PropRemaster = (() => {
     if(id==='missionboard'&&state.pins>0)label=String(state.pins)+' quests';
     if(id==='trophycase'&&state.trophies>0)label=String(state.trophies)+' earned';
     if(id==='airlock'&&state.door)label=String(state.door).slice(0,16);
-    if(label){ctx.font='3px monospace';ctx.textAlign='center';ctx.fillStyle='#cbb985';ctx.fillText(label,x+e.spec.footprint.w*6,y+e.box.y+e.box.height+3);}
+    if(label){ctx.font='3px VT323, monospace';ctx.textAlign='center';ctx.fillStyle='#cbb985';ctx.fillText(label,x+e.spec.footprint.w*6,y+e.box.y+e.box.height+3);}
     const trigger=e.spec.activity,amount=trigger==='fired'?Math.max(0,Math.min(1,+state.fired||0)):trigger==='work'&&state.work?1:trigger==='ambient'?.3:0;
     if(amount&&!e.approved&&e.indicators){ctx.globalAlpha*=amount*(state.still?.45:.35+.15*Math.sin((+state.now||0)/280));ctx.drawImage(e.indicators[state.bad?1:0],x+e.frame.x,y+e.frame.y,e.body.width/DENSITY,e.body.height/DENSITY);}
   }
