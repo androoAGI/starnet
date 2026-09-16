@@ -1,3 +1,15 @@
+## 0.12.0 PREPARATION — 2026-09-15 (`agent/release-0120-prep-0915`)
+
+Owner requested preparation while the final overhaul merges remain in flight. Baseline
+`90d6f0111`; no merge reservation, version bump, installer or publication. Release scope,
+bug dispositions, draft notes and combined/upgrade acceptance live in
+[releases/0.12.0/PREPARATION.md](releases/0.12.0/PREPARATION.md). Two missing reports (#14,
+Telegram delegation; #17, local-model small talk) are imported as open investigations in
+this lane. Four new source-fixed reports still need installer proof. Canonical readiness
+is NOT READY; seven open P1 reports including imports plus two canonical P1 findings need
+disposition. Private support intake still needs a fresh read. Keep 0.11.2's soak waiver
+scoped to 0.11.2. See the preparation validation receipt for current test results.
+
 ## JOURNEY SWEEP — 2026-09-12 (`agent/journey-first-loop-0912`)
 
 Owner requested a sweep and polish. Reproduced two issues in the live seeded preview:

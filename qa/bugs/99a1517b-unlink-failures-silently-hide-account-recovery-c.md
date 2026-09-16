@@ -48,6 +48,10 @@ The independently reproduced UI error handling and stale-read defects are repair
 
 ## Regression
 
+### 0.12.0 preparation reconciliation — 2026-09-16
+
+Source repair `02332ee85` is included through integration `90d6f0111`. Fresh ancestry inspection confirms the preparation baseline contains it; the earlier lane-only wording is historical. This does not correlate the original customer machine or prove an installed update. Keep the report open and use `docs/releases/0.12.0/BUG_DISPOSITION.md` for remaining acceptance.
+
 `test/credits-store-recovery.test.js` executes the production STORE functions with the real ArmConfirm helper. It covers native rejection and synchronous failure; HTTP 500, negative/missing unlink acknowledgments and network failure; unavailable/malformed account status; failed linkability reads and retry; delayed reads; pending-state repaint; successful unlink; and explicit BYOK-only absence. Errors remain visible across redraws and never expose raw native errors. Pairing starts a new operation and clears the previous unlink warning.
 
 

@@ -45,6 +45,10 @@ Open pending exact customer correlation. Source improvement `dcbc2b941` fixes th
 
 ## Regression
 
+### 0.12.0 preparation reconciliation — 2026-09-16
+
+The earlier lane verdict's "not merged" statement is historical: source `dcbc2b941` is included through integration `a7ae9f23e` and is an ancestor of current baseline `90d6f0111`. This ancestry check establishes integration only. The report stays open for exact customer correlation; installer and recovery remain unverified/unconfirmed. See `docs/releases/0.12.0/BUG_DISPOSITION.md`.
+
 Before/after real Chromium coverage is in test/browser.gauntlet.e2e.test.js, registered in test/http.list. Browser tool/ref contracts remain in test/browser.test.js and test/browser.wait-recovery.test.js. Failed searches now describe unsupported semantics and bounded recovery without suggesting public-page use of browser.test_input.
 
 
