@@ -511,15 +511,18 @@
       "id": "pikachu",
       "skin": "pikachu",
       "name": "Pikachu",
-      "stage": "existing-art",
+      "stage": "approved-existing",
       "targetStandingHeight": 19,
       "walkFramesReady": false,
       "walkReady": false,
-      "complete": false,
+      "complete": true,
       "retainedOriginal": true,
       "sourceStandingHeight": 46,
       "readyForStation": true,
-      "renderSet": "pikachu"
+      "renderSet": "pikachu",
+      "acceptedExisting": true,
+      "approvedRelease": "v0.11.2",
+      "acceptanceNote": "User approved the existing v0.11.2 Pikachu set and its unique proportions; no new frames required."
     },
     {
       "id": "caseyjones",

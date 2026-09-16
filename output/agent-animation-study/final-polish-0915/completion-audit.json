@@ -1,9 +1,9 @@
 {
-  "scope": "38 skins, each with 8 standing views, 64 walking frames, 4 sitting views and 4 north-facing typing frames; file coverage, not a claim of visual perfection",
+  "scope": "38 skins: full new-style motion contract, except user-approved Pikachu v0.11.2 release set verified byte-for-byte; file coverage, not a claim of visual perfection",
   "ready": false,
-  "completeSets": 36,
+  "completeSets": 37,
   "totalSets": 38,
-  "missingFrames": 48,
+  "missingFrames": 8,
   "rows": [
     {
       "id": "android",
@@ -249,63 +249,9 @@
     {
       "id": "pikachu",
       "name": "Pikachu",
-      "complete": false,
-      "gaps": [
-        {
-          "track": "rot.south-east",
-          "expected": 1,
-          "available": 0,
-          "missing": 1
-        },
-        {
-          "track": "rot.north-east",
-          "expected": 1,
-          "available": 0,
-          "missing": 1
-        },
-        {
-          "track": "rot.north-west",
-          "expected": 1,
-          "available": 0,
-          "missing": 1
-        },
-        {
-          "track": "rot.south-west",
-          "expected": 1,
-          "available": 0,
-          "missing": 1
-        },
-        {
-          "track": "walk.south-east",
-          "expected": 8,
-          "available": 0,
-          "missing": 8
-        },
-        {
-          "track": "walk.north-east",
-          "expected": 8,
-          "available": 0,
-          "missing": 8
-        },
-        {
-          "track": "walk.north-west",
-          "expected": 8,
-          "available": 0,
-          "missing": 8
-        },
-        {
-          "track": "walk.south-west",
-          "expected": 8,
-          "available": 0,
-          "missing": 8
-        },
-        {
-          "track": "type.north",
-          "expected": 4,
-          "available": 0,
-          "missing": 4
-        }
-      ]
+      "complete": true,
+      "approvedRelease": "v0.11.2",
+      "gaps": []
     },
     {
       "id": "caseyjones",
