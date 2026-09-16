@@ -1,0 +1,32 @@
+{
+  "date": "2026-09-15",
+  "gates": [
+    {
+      "name": "fast",
+      "source": "a23f0e4d0822f1963fcca0d7e32705d79aaaba50",
+      "passed": 783,
+      "exitCode": 0,
+      "log": ".dogfood/final-fast.log",
+      "sha256": "c6553b07a5503b2bf4ca08dec4e0d77de0d7b3f64c553914e3e60942cd3020e6"
+    },
+    {
+      "name": "http",
+      "source": "bac8e824521c947dcbe2ce2ed9fdb98848baebf2",
+      "passed": 117,
+      "exitCode": 0,
+      "log": ".dogfood/final-http-utf8.log",
+      "sha256": "9d1595cbe32c7e8136c2947d4327faa0369dba23f08d48ddc8ce9aa5fc3bffdb"
+    },
+    {
+      "name": "customer-journeys",
+      "source": "bac8e824521c947dcbe2ce2ed9fdb98848baebf2",
+      "passed": 34,
+      "exitCode": 0,
+      "log": ".dogfood/customer-journeys.log",
+      "sha256": "8c5c425e1a988176269f992320ef13040972e3aa82cbd9cb216936111547a9b2"
+    }
+  ],
+  "sourceDelta": "a23f0e4d0..bac8e8245 changes only UTF-8 decoding in three HTTP test fixtures; production source identical",
+  "installerVerified": false,
+  "realModelLatencyMeasured": false
+}

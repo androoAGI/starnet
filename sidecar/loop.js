@@ -1080,6 +1080,8 @@
         let sawTruncation = false;
         try {
           const req = { model, messages, tools, signal, stream: true };
+          if (typeof o.isTask === 'boolean') req.isTask = o.isTask;
+          if (o.cacheSystemPrefix) req.cacheSystemPrefix = o.cacheSystemPrefix;
           for await (const ev of provider.stream(req)) {
             if (signal.aborted) break;
             if (ev.type === 'text') {

@@ -1,0 +1,156 @@
+{
+  "source": "bac8e824521c947dcbe2ce2ed9fdb98848baebf2",
+  "inference": "local controlled fixture; no real-model speed claim",
+  "results": [
+    {
+      "boot": 0,
+      "provider": "ollama",
+      "isTask": false,
+      "text": "hello",
+      "requestCount": 1,
+      "systemChars": 1854,
+      "maxTokens": 512,
+      "hasTools": false,
+      "end": {
+        "agentId": "agent",
+        "runId": "4bd3756a-3a56-4015-af0d-c5c817c372c0",
+        "reason": "done",
+        "turns": 1,
+        "usd": 0
+      },
+      "fixtureElapsedMs": 273
+    },
+    {
+      "boot": 0,
+      "provider": "ollama",
+      "isTask": false,
+      "text": "hello capped",
+      "requestCount": 1,
+      "systemChars": 1854,
+      "maxTokens": 512,
+      "hasTools": false,
+      "end": {
+        "agentId": "agent",
+        "runId": "969fa9de-6b99-4b1a-86a3-94c4f7fd7ddd",
+        "reason": "done",
+        "turns": 1,
+        "usd": 0,
+        "finishReason": "length"
+      },
+      "fixtureElapsedMs": 53
+    },
+    {
+      "boot": 0,
+      "provider": "ollama",
+      "isTask": true,
+      "text": "research the fixture",
+      "requestCount": 1,
+      "systemChars": 40893,
+      "maxTokens": 4096,
+      "hasTools": true,
+      "end": {
+        "agentId": "agent",
+        "runId": "731d9c0b-3a0c-419f-aa47-3c72c0658d04",
+        "reason": "done",
+        "turns": 1,
+        "usd": 0,
+        "completionVerdict": "not_assessed",
+        "effectVerdict": "no_observed_effects"
+      },
+      "fixtureElapsedMs": 84
+    },
+    {
+      "boot": 0,
+      "provider": "custom",
+      "isTask": false,
+      "text": "hello",
+      "requestCount": 1,
+      "systemChars": 1854,
+      "maxTokens": null,
+      "hasTools": false,
+      "end": {
+        "agentId": "agent",
+        "runId": "4dd59707-8cd0-42ec-992c-72fbc5e595c7",
+        "reason": "done",
+        "turns": 1,
+        "usd": 0
+      },
+      "fixtureElapsedMs": 48
+    },
+    {
+      "boot": 1,
+      "provider": "ollama",
+      "isTask": false,
+      "text": "hello",
+      "requestCount": 1,
+      "systemChars": 1854,
+      "maxTokens": 512,
+      "hasTools": false,
+      "end": {
+        "agentId": "agent",
+        "runId": "f2738673-7bbb-417a-a073-56b58a4974fa",
+        "reason": "done",
+        "turns": 0,
+        "usd": 0
+      },
+      "fixtureElapsedMs": 334
+    },
+    {
+      "boot": 1,
+      "provider": "ollama",
+      "isTask": false,
+      "text": "hello capped",
+      "requestCount": 1,
+      "systemChars": 1854,
+      "maxTokens": 512,
+      "hasTools": false,
+      "end": {
+        "agentId": "agent",
+        "runId": "3d580495-1423-4feb-b10f-9b7d2c3efce4",
+        "reason": "done",
+        "turns": 1,
+        "usd": 0,
+        "finishReason": "length"
+      },
+      "fixtureElapsedMs": 56
+    },
+    {
+      "boot": 1,
+      "provider": "ollama",
+      "isTask": true,
+      "text": "research the fixture",
+      "requestCount": 1,
+      "systemChars": 41136,
+      "maxTokens": 4096,
+      "hasTools": true,
+      "end": {
+        "agentId": "agent",
+        "runId": "5dfcec90-be1f-4c06-874b-9dc89584fdc5",
+        "reason": "done",
+        "turns": 0,
+        "usd": 0,
+        "completionVerdict": "not_assessed",
+        "effectVerdict": "no_observed_effects"
+      },
+      "fixtureElapsedMs": 77
+    },
+    {
+      "boot": 1,
+      "provider": "custom",
+      "isTask": false,
+      "text": "hello",
+      "requestCount": 1,
+      "systemChars": 1854,
+      "maxTokens": null,
+      "hasTools": false,
+      "end": {
+        "agentId": "agent",
+        "runId": "bc2545f1-b826-4e85-952f-3470de2ac5c0",
+        "reason": "done",
+        "turns": 0,
+        "usd": 0
+      },
+      "fixtureElapsedMs": 42
+    }
+  ]
+}

@@ -512,6 +512,9 @@
       // reply or a tool step; SKYNET_OLLAMA_MAX_TOKENS overrides it for stations that want more.
       maxOutputTokens: 4096,
       maxOutputTokensEnv: 'SKYNET_OLLAMA_MAX_TOKENS',
+      // A greeting gets a smaller ceiling; task and auxiliary requests keep the full allowance.
+      maxChatOutputTokens: 512,
+      maxChatOutputTokensEnv: 'SKYNET_OLLAMA_MAX_CHAT_TOKENS',
       order: 60
     },
     {
