@@ -1,0 +1,49 @@
+{
+  "recovery": [
+    {
+      "wiped": {
+        "bake": 0,
+        "detail": 3,
+        "materials": 0,
+        "sky": 0,
+        "ground": 0,
+        "probe": {
+          "x": 660,
+          "y": 457
+        }
+      },
+      "recovered": true,
+      "ms": 678
+    },
+    {
+      "wiped": {
+        "bake": 0,
+        "detail": 3,
+        "materials": 0,
+        "sky": 0,
+        "ground": 0,
+        "probe": {
+          "x": 660,
+          "y": 457
+        }
+      },
+      "recovered": true,
+      "ms": 1184
+    },
+    {
+      "wiped": {
+        "bake": 0,
+        "detail": 3,
+        "materials": 0,
+        "sky": 0,
+        "ground": 0,
+        "probe": {
+          "x": 660,
+          "y": 457
+        }
+      },
+      "recovered": true,
+      "ms": 1306
+    }
+  ]
+}

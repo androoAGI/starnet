@@ -1,0 +1,27 @@
+{
+  "recordedAt": "2026-09-16T04:21:42.600Z",
+  "merge": "4330361a8af9ffe7738074d676b1ee6dd3927e0c",
+  "testedCombinedSource": "5a224c66fc6342611e9f2f65f05a60ebfe2bd353",
+  "logs": [
+    {
+      "name": "remaster-merge-review-fast.log",
+      "sha256": "fbdafd294b7dc9a7c4f0bd96a4c12ddb78be4d47fd11b1ea5c1aa1e9cc9da847",
+      "summary": "run-fast-tests: OK — 804 step(s) green"
+    },
+    {
+      "name": "remaster-postmerge-fast.log",
+      "sha256": "5c976f11c6667fee85dec2681707053b993675552f7b16a7addfaacd23177bd7",
+      "summary": "[timeout] test:fast exceeded 900000ms; terminating process tree."
+    },
+    {
+      "name": "remaster-postmerge-journeys.log",
+      "sha256": "ccdb88e891d12817a54384db146a24f584185adaa03a45d702bdff54c68d1b8a",
+      "summary": "run-test-list: OK — 34 step(s) green"
+    },
+    {
+      "name": "remaster-combined-final-fast.log",
+      "sha256": "3f84f83cd7e397bdd155de56905636852868c7f1e1be49502200cceb3f0209c7",
+      "summary": "run-fast-tests: OK — 804 step(s) green"
+    }
+  ]
+}
