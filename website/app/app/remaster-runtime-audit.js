@@ -138,9 +138,9 @@
     if(busy)return;busy=true;receipt.doorways=[];
     const station=WorldModel.create();
     station.placeHallway({rect:{x1:7,y1:-5,x2:8,y2:-1}});
-    const g=station.projectGeometry(),root=station.doc().order[0];
+    const g=station.projectGeometry(StationBake.WALL),root=station.doc().order[0];
     World.loadStation(station);await pause(500);World.frameReviewRoom(root);World.setCinecamIdle(86400000);
-    const tile=(x,y)=>({x:x-g.origin.tx,y:y-g.origin.ty}),foot=t=>({x:t.x*12+6,y:t.y*12+11});
+    const tile=(x,y)=>({x:x-g.origin.tx,y:y-g.origin.ty}),foot=t=>g.footPoint(t.x,t.y);
     for(let round=0;round<3;round++)for(const side of [3,12])for(const reverse of [false,true]){
       const a=tile(7,-2),b=tile(side,0),start=reverse?b:a,end=reverse?a:b,p=foot(start),dest=foot(end),aid=actor().id;
       World._dbgTeleport(aid,p.x,p.y);const planned=World._dbgReviewWalk(aid,end.x,end.y),began=performance.now();
