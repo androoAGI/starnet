@@ -1,6 +1,6 @@
 'use strict';
 const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm');
-let Canvas;try{Canvas=require('@napi-rs/canvas');}catch{Canvas=require('C:/Users/andro/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules/@napi-rs/canvas');}
+const Canvas=require('@napi-rs/canvas');
 const makeCanvas=()=>Canvas.createCanvas(1,1);
 async function materials(){
   const allocated=[];

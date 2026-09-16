@@ -55,3 +55,24 @@ a55a1ed0705fa53763ee03600322ddb3afd35ce0:test/growth-rating-upgrade.e2e.test.js:
 # b4bcdac904f5574ee4541c0cfae5de400592ee69, not a credential. Verified the
 # historical JSON field and Git object. Ignore only this exact finding.
 a6f05c505b4e1b75fafbb320f302ba9ebd21cd73:qa/evidence/0.11.2-issues-12-13/verification.json:generic-api-key:8
+
+# Reviewed 2026-09-16: the literal sk-or-v1-rating-fixture is a deterministic
+# test value sent only to the rating test's 127.0.0.1 mock provider.
+da0658486766805a2cd3da2e4e4243081c108a11:test/growth-rating-upgrade.e2e.test.js:generic-api-key:29
+da0658486766805a2cd3da2e4e4243081c108a11:test/growth-rating-upgrade.e2e.test.js:generic-api-key:36
+
+# Reviewed 2026-09-16: generated image UUIDs in the Secret Agent art catalog
+# and its source PNG filename, not authentication credentials.
+ebe55d5fe24ee35804b554907d7564948c523a07:output/agent-animation-study/approved-motion/characters.json:generic-api-key:2
+95502157768fdf77ae6e4d0c70cae454fb11d194:output/agent-animation-study/readability-v1/README.md:generic-api-key:3
+87fd4e495fdf06871723990331b7b0c85ba69d2b:output/agent-animation-study/characters.json:generic-api-key:6
+
+# Reviewed 2026-09-16: industrial_partition-r1 and industrial_partition-r3
+# are image/rotation keys for the west/east partition artwork. Keep every
+# exception bound to its exact historical commit, file, rule and line.
+8d7b571ae30413fec1851cfae197b630dceafa36:docs/station-remaster/catalog-storage-rest-1/assignment-contracts.json:generic-api-key:2640
+8d7b571ae30413fec1851cfae197b630dceafa36:docs/station-remaster/catalog-storage-rest-1/assignment-contracts.json:generic-api-key:2656
+eef21c982c9cacd73e6db3e24baf5e2d798cbeee:dev/industrial-textures/coordinated-batch03-recipes.json:generic-api-key:292
+eef21c982c9cacd73e6db3e24baf5e2d798cbeee:dev/industrial-textures/coordinated-batch03-recipes.json:generic-api-key:356
+3d445dbcc5b3b927c1fe148d9ceca2dc11e0a075:dev/industrial-textures/prop-structure-manifest.json:generic-api-key:142
+3d445dbcc5b3b927c1fe148d9ceca2dc11e0a075:dev/industrial-textures/prop-structure-manifest.json:generic-api-key:158

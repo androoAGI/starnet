@@ -161,6 +161,7 @@
     "eval:skills": "node scripts/eval/skills.mjs"
   },
   "devDependencies": {
+    "@napi-rs/canvas": "0.1.100",
     "@tauri-apps/cli": "^2"
   },
   "dependencies": {
