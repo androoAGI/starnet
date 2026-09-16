@@ -4,10 +4,10 @@ slug: preference-corrections-are-discarded-or-leave-co
 title: Preference corrections are discarded or leave contradictory memories active
 surface: sessions
 severity: P1
-status: open
+status: fixed
 found: 2026-09-16
 lane: agent/recall-report-0916
-fix:
+fix: 3c8928e05
 origin: customer
 report: Anonymized customer complaint relayed by owner in local task on 2026-09-16
 affected: Customer version model and platform unknown; investigated source 87e10e1fe on Windows
@@ -45,13 +45,83 @@ The real tool's refusal is explicit, and its successful override receipt reflect
 
 ## Verdict
 
-Open. Correcting a known preference needs a provenance-preserving supersession path, including the reflection duplicate filter and retrieval filtering. Merely increasing recall size can expose more contradictions. User-confirmed project/design requirements also need reliable reuse within their intended scope; a fresh generic query cannot supply missing project context on its own.
+Source-fixed in 3c8928e05. Installer verification and customer recovery remain unverified/unconfirmed. This is a repair of the reproduced mechanisms, not proof of the customer's exact original conversation.
 
 ## Regression
 
-Baseline suites pass unchanged: `test/notebook.test.js` (117 assertions), `test/reflect.test.js` (114), `test/recall.test.js` (36). Their passing status does not cover semantic correction/supersession. No source fix, full gate, installer proof, or customer recovery is claimed.
-
+Before: near-duplicate filtering discarded a negated preference and distinct:true left both opposites active. After: replaceId plus exact previousBody updates one record atomically, archives the old text outside recall and rejects stale/disk-failed writes. Reflection routes corrections to reviewed replacement, preserving pending metadata over restart. Pinned requirements follow their stream or trusted project; global preferences remain separate, and delegated task context receives relevant pinned references. Seeded writes, review, restart, stale-review rejection and manual UI Keep are recorded in qa/evidence/recall-report-0916/verification.json. Project ranking/compaction have focused deterministic coverage; arbitrary model design fidelity is not claimed.
 
 ## Sibling coverage
 
-Follow-up coverage needed: direct notebook writes; reflection and declined-memory filtering; explicit user edits; same-stream versus new-stream recall; per-agent and delegated-worker context; COMMS receipts and memory panel; restart and persisted supersession; provider adapters. Only the standalone direct/reflection mechanisms and seeded HTTP recall described above were exercised. No UI behavior was verified.
+{
+  "adapters": [
+    {
+      "target": "OpenAI-compatible wire",
+      "state": "covered",
+      "test": "test/memory-corrections.http.test.js",
+      "scenario": "actual notebook write/update, reviewed reflection, missing write receipt, repeated promises",
+      "gate": "http"
+    },
+    {
+      "target": "provider-neutral agent loop",
+      "state": "covered",
+      "test": "test/continuation-guard.test.js",
+      "scenario": "duplicate/varied announcements, grace exhaustion, ordinary completion, unsupported save claims",
+      "gate": "fast"
+    },
+    {
+      "target": "commercial Anthropic, Codex, Gemini and other model behavior",
+      "state": "blocked",
+      "reason": "Shared loop/store behavior is tested; these specific commercial-model conversations and customer model settings are unavailable."
+    }
+  ],
+  "entrypoints": [
+    {
+      "target": "interactive /api/run and memory review API",
+      "state": "covered",
+      "test": "test/memory-corrections.http.test.js",
+      "scenario": "real writes, follow-up recall, reflection review and conflict rejection",
+      "gate": "http"
+    },
+    {
+      "target": "direct notebook and reflection producers",
+      "state": "covered",
+      "test": "test/memory-corrections.test.js",
+      "scenario": "replacement, stale write, write failure, archived text, update proposal, scoped pins and compaction context",
+      "gate": "fast"
+    },
+    {
+      "target": "Telegram/Discord, scheduled work and delegation",
+      "state": "blocked",
+      "reason": "They share the amended loop and memory primitives; specific reported channel/model journeys and delegated design output are not reproduced in this lane."
+    }
+  ],
+  "displays": [
+    {
+      "target": "seeded desktop web UI",
+      "state": "blocked",
+      "reason": "Manual live UI Keep/replacement observation is recorded in qa/evidence/recall-report-0916/verification.json; no automatic browser action is registered in the mandatory gates."
+    },
+    {
+      "target": "installed Windows/macOS/Linux UI",
+      "state": "blocked",
+      "reason": "No installer was rebuilt or tested in this source repair."
+    }
+  ],
+  "lifecycle": [
+    {
+      "target": "restart, durable review and stale updates",
+      "state": "covered",
+      "test": "test/memory-corrections.http.test.js",
+      "scenario": "pending correction survives restart, accepted replacement survives restart, newer edit rejects stale review without consuming it",
+      "gate": "http"
+    },
+    {
+      "target": "scope and compaction",
+      "state": "covered",
+      "test": "test/memory-corrections.test.js",
+      "scenario": "stream/global/project pin selection, other-project exclusion, explicit search and compaction preservation",
+      "gate": "fast"
+    }
+  ]
+}

@@ -1,0 +1,73 @@
+{
+  "source": "3c8928e05",
+  "baseline": "87e10e1fe",
+  "date": "2026-09-16",
+  "transport": "isolated dev/seed.js --keep with a deterministic local OpenAI-compatible provider; no commercial-model quality claim",
+  "before": {
+    "correctionCount": 1,
+    "overrideCount": 2,
+    "oppositePreferencesRecalledTogether": true,
+    "reflectedCorrection": [],
+    "repeatedPromiseEnd": "done",
+    "toolActions": 0
+  },
+  "after": {
+    "createEnd": "done",
+    "correctEnd": "done",
+    "reviewedReplacement": {
+      "runId": "bb2e1b5e-ec23-439e-8578-0fae795e7b9b",
+      "id": "prop_1",
+      "kind": "note",
+      "content": "User prefers square blue cards for Acme website design; approved reference is acme/reference.png",
+      "scope": "stream",
+      "origin": "commander",
+      "createdAt": 1789584325595,
+      "replaceId": "note_1",
+      "previousBody": "User does not prefer rounded purple cards for Acme website design"
+    },
+    "stopEnd": {
+      "agentId": "agent",
+      "runId": "e2e94137-d44b-4001-8c2c-f4840029e275",
+      "reason": "error",
+      "turns": 3,
+      "usd": 0
+    },
+    "stopExplanation": "Work is incomplete: the model kept announcing another action without making the tool call. The automatic continuation attempts have ended; no background work was started by these promises.",
+    "unsupportedSaveEnd": "error",
+    "unsupportedSaveExplanation": "The requested memory update is unverified: this run produced no successful notebook write receipt. The save claim above is not confirmed.",
+    "finalRecords": [
+      {
+        "id": "note_1",
+        "kind": "note",
+        "title": "Acme design",
+        "body": "User explicitly selected monochrome Acme cards",
+        "scope": "stream",
+        "streamId": "acme",
+        "sourceRunId": "504c086d-281d-4eb1-842e-3de3668d4d85",
+        "origin": "commander",
+        "createdAt": 1789584325006,
+        "lastUsedAt": 1789584329669,
+        "lastFeedbackAt": null,
+        "useCount": 1,
+        "trust": 0.3,
+        "pinned": true,
+        "effectiveTrust": 0.2999995896475227,
+        "revision": 2,
+        "updatedAt": 1789584327308,
+        "updatedSourceRunId": "bb2e1b5e-ec23-439e-8578-0fae795e7b9b"
+      }
+    ],
+    "restartAndStaleReviewAssertions": "PASS"
+  },
+  "ui": {
+    "kept": true,
+    "observedBefore": "One active pinned belief plus a pending old → new correction in Agent Dossier / MEMORY after restart.",
+    "action": "Clicked Keep in the real MEMORY panel.",
+    "observedAfter": "One pinned belief: User prefers square blue cards for Acme website design; approved reference is acme/reference.png. The pending card was removed."
+  },
+  "limitations": [
+    "Customer model/build/transcript unavailable; exact customer recovery unconfirmed.",
+    "No installer rebuild or installed-app validation.",
+    "Provider adapter quality, arbitrary natural-language save claims, and arbitrary visual design fidelity are not proven by deterministic fixtures."
+  ]
+}

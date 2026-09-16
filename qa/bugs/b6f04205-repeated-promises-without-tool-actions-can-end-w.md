@@ -4,10 +4,10 @@ slug: repeated-promises-without-tool-actions-can-end-w
 title: Repeated promises without tool actions can end with done and no blocker explanation
 surface: autonomy
 severity: P1
-status: open
+status: fixed
 found: 2026-09-16
 lane: agent/recall-report-0916
-fix:
+fix: 3c8928e05
 origin: customer
 report: Anonymized customer complaint relayed by owner in local task on 2026-09-16
 affected: Customer version model and platform unknown; investigated source 87e10e1fe on Windows
@@ -41,13 +41,83 @@ The backend DOES retain `no_observed_effects` and `not_assessed`; this finding d
 
 ## Verdict
 
-Open. Preserve bounded retries, but handle repeated/exhausted announcements as incomplete work with an explicit reason. Verify duplicate/grace behavior as well as ordinary nudge exhaustion. A model stop alone cannot establish task fulfillment.
+Source-fixed in 3c8928e05. Installer verification and customer recovery remain unverified/unconfirmed. This is a repair of the reproduced mechanisms, not proof of the customer's exact original conversation.
 
 ## Regression
 
-Baseline `test/continuation-guard.test.js` passes (28 assertions) and explicitly accepts the varied-announcement behavior. No source fix, full gate, installer proof, or customer recovery is claimed.
-
+Before: identical promises ended done with no tool calls. After: duplicate and varied promises receive bounded continuations, then an error with an explicit incomplete-work explanation; missing memory-write receipts similarly reject unsupported save claims. Existing real-completion and disabled-guard cases still pass. Seeded real HTTP proof and live UI memory review are recorded in qa/evidence/recall-report-0916/verification.json.
 
 ## Sibling coverage
 
-Follow-up coverage needed: all provider finish-reason adapters; duplicate replies and varied repeated announcements; continuation/grace exhaustion; task-brief lifecycle; error/cancel/output-limit endings; COMMS, Telegram/Discord and durable run history; restart/recovery. Only seeded HTTP and the unchanged standalone continuation suite were exercised. No UI behavior was verified.
+{
+  "adapters": [
+    {
+      "target": "OpenAI-compatible wire",
+      "state": "covered",
+      "test": "test/memory-corrections.http.test.js",
+      "scenario": "actual notebook write/update, reviewed reflection, missing write receipt, repeated promises",
+      "gate": "http"
+    },
+    {
+      "target": "provider-neutral agent loop",
+      "state": "covered",
+      "test": "test/continuation-guard.test.js",
+      "scenario": "duplicate/varied announcements, grace exhaustion, ordinary completion, unsupported save claims",
+      "gate": "fast"
+    },
+    {
+      "target": "commercial Anthropic, Codex, Gemini and other model behavior",
+      "state": "blocked",
+      "reason": "Shared loop/store behavior is tested; these specific commercial-model conversations and customer model settings are unavailable."
+    }
+  ],
+  "entrypoints": [
+    {
+      "target": "interactive /api/run and memory review API",
+      "state": "covered",
+      "test": "test/memory-corrections.http.test.js",
+      "scenario": "real writes, follow-up recall, reflection review and conflict rejection",
+      "gate": "http"
+    },
+    {
+      "target": "direct notebook and reflection producers",
+      "state": "covered",
+      "test": "test/memory-corrections.test.js",
+      "scenario": "replacement, stale write, write failure, archived text, update proposal, scoped pins and compaction context",
+      "gate": "fast"
+    },
+    {
+      "target": "Telegram/Discord, scheduled work and delegation",
+      "state": "blocked",
+      "reason": "They share the amended loop and memory primitives; specific reported channel/model journeys and delegated design output are not reproduced in this lane."
+    }
+  ],
+  "displays": [
+    {
+      "target": "seeded desktop web UI",
+      "state": "blocked",
+      "reason": "Manual live UI Keep/replacement observation is recorded in qa/evidence/recall-report-0916/verification.json; no automatic browser action is registered in the mandatory gates."
+    },
+    {
+      "target": "installed Windows/macOS/Linux UI",
+      "state": "blocked",
+      "reason": "No installer was rebuilt or tested in this source repair."
+    }
+  ],
+  "lifecycle": [
+    {
+      "target": "restart, durable review and stale updates",
+      "state": "covered",
+      "test": "test/memory-corrections.http.test.js",
+      "scenario": "pending correction survives restart, accepted replacement survives restart, newer edit rejects stale review without consuming it",
+      "gate": "http"
+    },
+    {
+      "target": "scope and compaction",
+      "state": "covered",
+      "test": "test/memory-corrections.test.js",
+      "scenario": "stream/global/project pin selection, other-project exclusion, explicit search and compaction preservation",
+      "gate": "fast"
+    }
+  ]
+}
