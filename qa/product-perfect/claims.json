@@ -18,7 +18,7 @@
   "expectedClaimCount": 37,
   "releaseSurface": {
     "algorithm": "sha256",
-    "sourceCommit": "ce97ac8daf7c832e976a31ad9e0ac11b030a77e7",
+    "sourceCommit": "4b8ffa51fd9092c7f44ea586ff0327b99fa5c23a",
     "pathSetSha256": "1d26a45a2a9aac628d8d2335638d02a6051d605c116824ae8d4c28390781a868",
     "files": [
       {
@@ -878,8 +878,8 @@
       },
       {
         "path": "frontend/app/skin-study-preview.js",
-        "bytes": 2487,
-        "sha256": "2c740a362dc222409904334d0d1e849109422537ac1167ca636a611043e50562"
+        "bytes": 2599,
+        "sha256": "060f5dd135f93f468aa93b404a480e4e354f7503b8a8ac81c650b612eea99e4b"
       },
       {
         "path": "frontend/app/skin-study-tone.js",
@@ -1173,8 +1173,8 @@
       },
       {
         "path": "frontend/app/world.js",
-        "bytes": 749759,
-        "sha256": "b8e8c91d3f12ac99902af5ec0c89d41eeac49b5c2ed745799001047cd8b79afd"
+        "bytes": 750651,
+        "sha256": "272e4dc132e308d42c7082ffa2cf971d69c0a8b375256028412f7ea3d4a332b9"
       },
       {
         "path": "frontend/app/worldlab.js",
@@ -1443,8 +1443,8 @@
       },
       {
         "path": "frontend/js/assets.js",
-        "bytes": 41654,
-        "sha256": "c6dd029e6ed2d9228defd7283072e1929d9a87da4adeaca60adebd201996e07a"
+        "bytes": 43130,
+        "sha256": "d8a98050fce59e314f17b00b2cf7dbc2271f9f752a7cf3217f4c6f9309708e4b"
       },
       {
         "path": "frontend/js/audio.js",
