@@ -317,7 +317,7 @@
         const filtered = !!(runFilter || project || kind || q.value || status.value);
         list.innerHTML = '<div class="dlv-empty">' + (filtered ? 'NO MATCHES.' : 'NOTHING HERE YET.') + '<br><span>' +
           (runFilter ? 'No recorded outputs from this step match this view. A completed run may have no files; use SHOW ALL WORK to return to the library.' : filtered ? 'Nothing in the library fits this view. Clear the filters to see everything.' : 'When a run creates or changes files, it lands here with the agent’s own name for it, the crew that worked on it, and the project it was for.') +
-          '</span></div>';
+          '</span>' + (filtered && !runFilter ? '<div><button class="bb sm" data-clear-filters>CLEAR FILTERS</button></div>' : '') + '</div>';
         return;
       }
       const now = Date.now();
@@ -402,6 +402,12 @@
     }
 
     list.addEventListener('click', async ev => {
+      if (ev.target.closest('button[data-clear-filters]')) {
+        clearTimeout(debounce);
+        q.value = ''; status.value = ''; project = ''; kind = '';
+        q.focus();
+        return load();
+      }
       const fileLink = ev.target.closest('a[data-file]');
       if (fileLink) return handleOpenClick(ev, rows, openState, say);
       const headBtn = ev.target.closest('.dlv-head');

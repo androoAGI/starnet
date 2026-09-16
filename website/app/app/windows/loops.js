@@ -74,7 +74,7 @@
     function wire() {
     const listEl = body.querySelector('#lp-list'), gateEl = body.querySelector('#lp-gate');
     const shapesEl = body.querySelector('#lp-shapes'), formEl = body.querySelector('#lp-form'), msgEl = body.querySelector('#lp-msg');
-    const post = (path, payload) => fetch(path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+    const post = (path, payload, signal) => fetch(path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload), signal });
 
     /* ---------- the live stepper: which stage of its cycle a loop is in RIGHT NOW ----------
        Derived only from server state. `running` means an iteration is genuinely in flight; a pending candidate
@@ -272,9 +272,18 @@
         '</div></div>';
     }
 
+    let refreshGeneration = 0;
+    let refreshing = false, refreshAgain = false;
+    const pendingControls = new Set();
+    const pendingVerdicts = new Set();
     async function refresh() {
+      if (refreshing) { refreshAgain = true; return; }
+      refreshing = true;
+      const generation = ++refreshGeneration;
       try {
         const j = await Harness.api.get('/api/loops');
+        if (generation !== refreshGeneration || !body.isConnected) return;
+        if (!j || !Array.isArray(j.loops)) throw new Error('invalid loops response');
         const loops = (j && j.loops) || [];
         // HONEST ARM STATE. `armed` is whether a timer is genuinely running — not whether loops exist. A halted
         // station must say so loudly, with the one-click lift, rather than showing loops that will never advance.
@@ -299,7 +308,43 @@
             : '<span class="dim">○ nothing to advance right now — every loop is waiting, paused or finished.</span>';
         } else gateEl.innerHTML = '';
 
-        if (loops.length) listEl.innerHTML = loops.map((l, i) => row(l).replace('<div class="mc-row"', '<div class="mc-row" style="--ci:' + i + '"')).join('');
+        if (loops.length) {
+          const existing = new Map(Array.from(listEl.querySelectorAll('.mc-row')).map(el => [el.dataset.id, el]));
+          if (!existing.size) listEl.replaceChildren();
+          for (const l of loops) {
+            const old = existing.get(l.id);
+            existing.delete(l.id);
+            const html = row(l);
+            if (old && old._rendered === html) continue;
+            const holder = document.createElement('div'); holder.innerHTML = html;
+            const next = holder.firstElementChild;
+            next._rendered = html;
+            if (old) {
+              const focused = old.contains(document.activeElement) ? document.activeElement : null;
+              const selection = focused && typeof focused.selectionStart === 'number' ? [focused.selectionStart, focused.selectionEnd] : null;
+              // Keep the actual editor node (selection, focus, draft) for surviving review identities.
+              for (const card of next.querySelectorAll('.lp-pend')) {
+                const previous = Array.from(old.querySelectorAll('.lp-pend')).find(el => el.dataset.n === card.dataset.n);
+                if (!previous) continue;
+                const why = previous.querySelector('.lp-why');
+                if (why) {
+                  const stacked = Number(card.querySelector('button[data-vact="reject"]').dataset.stacked) || 0;
+                  why.querySelector('.lp-why-cost').textContent = stacked > 0 ? 'also discards ' + stacked + ' built on top of this' : '';
+                  card.querySelector('.lp-why').replaceWith(why);
+                }
+              }
+              const folds = Array.from(old.querySelectorAll('details')).map(el => el.open);
+              next.querySelectorAll('details').forEach((el, i) => { el.open = !!folds[i]; });
+              old.replaceWith(next);
+              if (focused && next.contains(focused)) { focused.focus({ preventScroll: true }); if (selection) focused.setSelectionRange(...selection); }
+            } else listEl.appendChild(next);
+            if (pendingControls.has(l.id)) next.querySelectorAll('button[data-act]').forEach(el => { el.disabled = true; });
+            next.querySelectorAll('.lp-pend').forEach(card => {
+              if (pendingVerdicts.has(l.id + ':' + card.dataset.n)) card.querySelectorAll('button[data-vact]').forEach(el => { el.disabled = true; });
+            });
+          }
+          for (const old of existing.values()) old.remove();
+        }
         else {
           listEl.innerHTML = '<div class="empty-state"><span class="es-glyph">∞</span>' +
             '<b>NO LOOPS YET</b><span>A loop keeps working at one objective and stops for your verdict. Choose a workflow to define its goal and stopping condition.</span>' +
@@ -311,7 +356,13 @@
             const tab = body.querySelector('#con-tab-automation-loops-start'); if (tab) tab.click();
           });
         }
-      } catch (_) { listEl.innerHTML = '<div class="mc-detail">station offline — start it to manage loops.</div>'; }
+      } catch (_) {
+        if (generation !== refreshGeneration || !body.isConnected) return;
+        gateEl.textContent = 'Could not refresh loops — displayed state may be out of date. Retrying…';
+      } finally {
+        refreshing = false;
+        if (refreshAgain && body.isConnected) { refreshAgain = false; refresh(); }
+      }
     }
 
     // ---------- row + verdict actions ----------
@@ -340,12 +391,17 @@
         if (act === 'reject-cancel') { card.querySelector('.lp-why').hidden = true; sfx('click'); return; }
 
         const n = parseInt(vb.dataset.n, 10);
+        const verdictKey = id + ':' + n;
+        if (pendingVerdicts.has(verdictKey)) return;
+        pendingVerdicts.add(verdictKey);
         const verdict = act === 'approve' ? 'approved' : 'rejected';
         const note = verdict === 'rejected' ? ((card.querySelector('.lp-why-in') || {}).value || '') : undefined;
-        vb.disabled = true; sfx('click');
+        card.querySelectorAll('button[data-vact]').forEach(el => { el.disabled = true; }); sfx('click');
+        ++refreshGeneration;
         try {
-          const r = await (await post('/api/loops/verdict', { id, n, verdict, note })).json();
-          if (r && r.error) { notify(r.error, 'warn'); sfx('bad'); }
+          const response = await post('/api/loops/verdict', { id, n, verdict, note });
+          const r = await response.json();
+          if (!response.ok || !r || !r.ok) { notify((r && r.error) || 'could not record this review', 'warn'); sfx('bad'); }
           else {
             const cas = (r && r.cascaded && r.cascaded.length) || 0;
             /* SAY WHAT HAPPENED TO THE CODE, not just to the row. A rejection now really reverts the
@@ -362,6 +418,14 @@
             if (r && r.undoNote) notify(r.undoNote, 'warn');
           }
         } catch (_) { notify('could not reach the station', 'warn'); sfx('bad'); }
+        finally {
+          pendingVerdicts.delete(verdictKey); ++refreshGeneration;
+          listEl.querySelectorAll('.mc-row').forEach(el => {
+            if (el.dataset.id === id) el.querySelectorAll('.lp-pend').forEach(c => {
+              if (String(c.dataset.n) === String(n)) c.querySelectorAll('button[data-vact]').forEach(b => { b.disabled = false; });
+            });
+          });
+        }
         refresh(); return;
       }
 
@@ -377,8 +441,28 @@
         refresh(); return;
       }
       if (act === 'pause' || act === 'resume') {
+        if (pendingControls.has(id)) return;
+        pendingControls.add(id);
+        rowEl.querySelectorAll('button[data-act]').forEach(el => { el.disabled = true; });
+        ++refreshGeneration; // retire a read that predates this mutation
         sfx('click');
-        try { await post('/api/loops/control', { id, action: act }); } catch (_) {}
+        const controller = new AbortController(); let deadline;
+        try {
+          await Promise.race([
+            (async () => {
+              const response = await post('/api/loops/control', { id, action: act }, controller.signal);
+              const result = await response.json();
+              if (!response.ok || !result || !result.ok) throw new Error((result && result.error) || 'Could not ' + act + ' this loop');
+            })(),
+            new Promise((_, reject) => { deadline = setTimeout(() => { reject(new Error('No acknowledgement received. Refresh the loop state before retrying.')); controller.abort(); }, 15000); })
+          ]);
+          notify(act === 'pause' ? 'loop paused' : 'loop resumed', 'good');
+        } catch (error) { notify(error.message || 'could not reach the station', 'warn'); sfx('bad'); }
+        finally {
+          clearTimeout(deadline); ++refreshGeneration;
+          pendingControls.delete(id);
+          listEl.querySelectorAll('.mc-row').forEach(el => { if (el.dataset.id === id) el.querySelectorAll('button[data-act]').forEach(b => { b.disabled = false; }); });
+        }
         refresh(); return;
       }
     });
@@ -608,8 +692,7 @@
         } catch (_) { /* the pre-flight is a courtesy; never block creation on a station hiccup */ }
       }
 
-      const provider = (typeof Harness !== 'undefined' && Harness.getProv) ? Harness.getProv() : undefined;
-      const spec = tpl.buildSpec(t, values, Object.assign({}, extra, { provider: provider, workdir: extra.workdir || undefined }));
+      const spec = tpl.buildSpec(t, values, Object.assign({}, extra, { workdir: extra.workdir || undefined }));
       try {
         const r = await (await post('/api/loops', spec)).json();
         if (r && r.error) { msgEl.innerHTML = '<span style="color:var(--bad)">✕ ' + esc(r.error) + '</span>'; sfx('bad'); releaseStart(); return; }

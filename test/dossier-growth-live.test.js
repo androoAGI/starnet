@@ -1,0 +1,35 @@
+'use strict';
+const fs=require('node:fs'),path=require('node:path'),vm=require('node:vm');
+const A=require('./_assert.js'),Xp=require('../frontend/app/xp.js');
+const source=fs.readFileSync(path.join(__dirname,'../frontend/app/stationui.js'),'utf8');
+const agent={id:'agent',name:'NOVA',stats:Xp.fresh()},other={id:'scribe',name:'SCRIBE',stats:Xp.fresh()};
+let station=Xp.fresh(),replacements=0;
+const practice={text:'real loaded skillbase'};
+function surface(html){const node={html,practice:null,querySelector(){return this.practice||{replaceWith(child){node.practice=child;}}},replaceWith(next){replacements++;if(this===growth)growth=next;else brief=next;}};return node;}
+let growth=surface(''),brief=surface('');const level={textContent:''};
+growth.querySelector=()=>practice;
+const w={set innerHTML(value){throw new Error('must not rebuild the dossier and lose editors');},querySelector:s=>s==='.ag-growth'?growth:s==='.ag-hero .stat-grid'?brief:s==='.ag-lv'?level:null};
+const context={Xp,XpStore:{stationStats:()=>station},present:[agent,other],esc:String,
+ document:{createElement(){return {set innerHTML(html){this.firstElementChild=surface(html);}}}}};
+vm.createContext(context);
+for(const name of ['agGrowth(a)','agStats(a)','refreshGrowthLive(w, a)'])vm.runInContext(A.fnBody(source,'function '+name+' {'),context);
+context.refreshGrowthLive(w,agent);
+const initial=replacements;
+context.refreshGrowthLive(w,agent);
+A.eq(replacements,initial,'unchanged ticks retain the existing DOM');
+const approve={name:'memory.feedback',payload:{id:'work:one',reason:'work_great',delta:3}};
+agent.stats=Xp.applyEvent(agent.stats,approve).stats;station=Xp.applyEvent(station,approve).stats;
+context.refreshGrowthLive(w,agent);
+A.ok(growth.html.includes('30 total XP'),'an already-open panel paints XP without waiting for a level-up');
+A.ok(growth.html.includes('20 XP TO LV 2'),'the progress threshold follows the earned XP');
+A.ok(brief.html.includes('>1</div><div class="stat-lbl">KUDOS'),'BRIEF updates its positive rating count');
+A.eq(growth.practice,practice,'refresh preserves the already-loaded asynchronous skillbase node');
+const same=replacements;context.refreshGrowthLive(w,agent);A.eq(replacements,same,'another idle tick does not rebuild growth');
+agent.stats=Xp.applyEvent(agent.stats,{...approve,payload:{...approve.payload,id:'work:two'}}).stats;
+context.refreshGrowthLive(w,agent);
+A.eq(level.textContent,'Lv 2','the brief level follows the same XP curve');
+A.ok(growth.html.includes('60 total XP'),'level-up preserves the total XP readout');
+context.refreshGrowthLive(w,other);
+A.ok(growth.html.includes('SCRIBE')&&growth.html.includes('0 total XP'),'switching agents reads the selected agent only');
+A.ok(A.fnBody(source,'function refreshDossierLive()').includes('refreshGrowthLive(w, selected)'),'the production dossier tick invokes the growth refresh');
+A.report('dossier-growth-live.test');

@@ -1,0 +1,14 @@
+{
+  "recordedAt": "2026-09-13T06:47:38.577Z",
+  "before": "e73b4d8ef273f0e7459662b5007f1ca573b4c935",
+  "integratedSource": "9bf6de8208fa83d38175f2a093975cae4f12a10d",
+  "method": "fast-forward of verified owned branch",
+  "productDiffFromFastCandidate": "",
+  "preservedDirtyFiles": {
+    "docs/NEXT.md": "294fb4305df9738a6d4c08391b2f225a6fb8886a08d8b17ffc313da0d664703b",
+    "qa/STATUS.md": "3a107b4dce2665460a81bb2d6dbdc06b2f75ad8f59349f3fb88e7666d39dbd96",
+    "docs/HANDOFF_ROOMS_2026-09-04.md": "b4c7d97fa5ffa294aadf42b3d16c0c1d370522b2e057fe577d8df1b090baf853"
+  },
+  "postMergeStatus": "M docs/NEXT.md\n M qa/STATUS.md\n?? docs/HANDOFF_ROOMS_2026-09-04.md",
+  "qaStatusNote": "Existing uncommitted qa/STATUS.md belongs to another lane; digest recorded here to preserve ownership."
+}

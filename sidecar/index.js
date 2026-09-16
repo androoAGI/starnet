@@ -7315,6 +7315,9 @@ async function modelUpdateLoop(id, rawPatch) {
 async function modelControlLoop(id, action, reason) {
   if (loopReviewBusy(id)) throw new Error('Review in progress; retry when it finishes');
   if (!loopjobStore.getLoop(loopJobs, id)) throw new Error('no such loop');
+  if (!['pause', 'resume', 'stop'].includes(action)) throw new Error('unknown loop control');
+  // Settle the host-owned iteration before deriving the quiet state, exactly as the HTTP control does.
+  if (action !== 'resume') loopDriver.abortLease(id, reason || (action === 'stop' ? 'stopped by the Commander' : 'paused by the Commander'));
   const now = Date.now();
   let candidate;
   if (action === 'pause') candidate = loopjobStore.pauseLoop(loopJobs, id, reason || 'paused by the Commander', { now });
@@ -7322,10 +7325,6 @@ async function modelControlLoop(id, action, reason) {
   else if (action === 'stop') candidate = loopjobStore.stopLoop(loopJobs, id, reason, { now });
   else throw new Error('unknown loop control');
   commitLoops(candidate);
-  if (action !== 'resume') {
-    const lease = loopDriver.leases.get(id);
-    try { if (lease && lease.abort && typeof lease.abort.abort === 'function') lease.abort.abort(); } catch (_) {}
-  }
   armLoops(true);
   return modelLoopRow(id);
 }
@@ -7333,8 +7332,7 @@ async function modelControlLoop(id, action, reason) {
 async function modelRemoveLoop(id) {
   if (loopReviewBusy(id)) throw new Error('Review in progress; retry when it finishes');
   if (!loopjobStore.getLoop(loopJobs, id)) throw new Error('no such loop');
-  const lease = loopDriver.leases.get(id);
-  try { if (lease && lease.abort && typeof lease.abort.abort === 'function') lease.abort.abort(); } catch (_) {}
+  loopDriver.abortLease(id, 'removed by the Commander');
   commitLoops(loopjobStore.removeLoop(loopJobs, id));
   if (loopjobStore.getLoop(loopJobs, id)) throw new Error('loop durable read-back still contains the removed loop');
   if (!anyLiveLoop()) disarmLoops();
@@ -11910,6 +11908,7 @@ async function createCronJobFromSpec(body) {
     if (!String(body.prompt || '').trim() && !body.script) throw new Error('a routine needs a prompt (or a script)');
     if (body.script) cronScriptSpec({ id: 'validate', agentId, script: body.script, workdir: body.workdir, unattendedGrants: body.unattendedGrants });
     const mode = String(body.deliver || 'local');
+    if (String(body.deliver || 'local').trim() === 'local' && body.attachToSession && !(body.origin && (body.origin.sessionId || body.origin.streamId))) throw new Error('follow-up needs a captured session origin');
     if (mode === 'origin' && !(body.origin && (body.origin.target || (body.origin.channel && body.origin.chatId) || body.origin.sessionId || body.origin.streamId))) throw new Error('origin delivery needs a captured channel or session origin');
     if (mode.indexOf('targets:') === 0) for (const target of mode.slice(8).split(',').map(s => s.trim()).filter(Boolean)) if (!channelStore.getChatRecord(target)) throw new Error('unknown chat target ' + target);
     if (mode === 'all') { const map = channelStore.loadChatMap(); body.deliver = 'targets:' + Object.keys((map && map.chats) || {}).slice(0, 16).join(','); }
@@ -12005,6 +12004,7 @@ function handleCronUpdate(req, res) {
       }
       if (Object.prototype.hasOwnProperty.call(patch, 'workdir')) patch.workdir = cronCanonicalWorkdir(patch.workdir);
       const candidate = Object.assign({}, current, patch);
+      if (String(candidate.deliver || 'local').trim() === 'local' && candidate.attachToSession && !(candidate.origin && (candidate.origin.sessionId || candidate.origin.streamId))) throw new Error('follow-up needs a captured session origin');
       if (candidate.noAgent && !candidate.script) throw new Error('script-only routines require a script');
       if (candidate.script) cronScriptSpec(candidate);
     } catch (e) { return json(400, { error: (e && e.message) || String(e) }); }
@@ -12014,6 +12014,8 @@ function handleCronUpdate(req, res) {
       // G4.3: the full edit (updateJob + optional pause/resume) is ONE re-read-modify-write under the lock,
       // so it cannot clobber a concurrent advance and the pause/resume sees the just-updated job.
       await withCronWrite(jobs => {
+        const candidate = Object.assign({}, cronStore.getJob(jobs, id), patch);
+        if (String(candidate.deliver || 'local').trim() === 'local' && candidate.attachToSession && !(candidate.origin && (candidate.origin.sessionId || candidate.origin.streamId))) throw new Error('follow-up needs a captured session origin');
         let next = cronStore.updateJob(jobs, id, patch, { now: Date.now(), defaultTz: CRON_HOST_TZ });
         if (enabled === true) next = cronStore.resumeJob(next, id, { now: Date.now(), defaultTz: CRON_HOST_TZ });
         else if (enabled === false) next = cronStore.pauseJob(next, id);
@@ -15574,6 +15576,7 @@ async function runOnce(o) {
       if (gate.reason === 'declined') return { _declined: true, name: spec.name };
       const id = crypto.randomUUID();
       const schedule = parseCronScheduleOr400(spec.schedule, Date.now(), spec.timezone);
+      if (String(spec.deliver || 'local').trim() === 'local' && spec.attachToSession && !(spec.origin && (spec.origin.sessionId || spec.origin.streamId))) throw new Error('follow-up needs a captured session origin');
       const skillRefs = cronStringList(spec.skills, 8, /^[A-Za-z0-9_. -]{1,120}$/);
       for (const ref of skillRefs) if (!skillStore.view(spec.agentId, ref, { bump: false })) throw new Error('unknown runtime skill "' + ref + '" for ' + spec.agentId);
       const contextRefs = cronStringList(spec.contextFrom, 8, /^[A-Za-z0-9_-]{1,40}$/);
@@ -15627,7 +15630,11 @@ async function runOnce(o) {
       if (Object.prototype.hasOwnProperty.call(patch, 'schedule')) {
         next.schedule = parseCronScheduleOr400(patch.schedule, Date.now(), patch.timezone);
       }
-      await withCronWrite(jobs => cronStore.updateJob(jobs, id, next, { now: Date.now(), defaultTz: CRON_HOST_TZ }));
+      await withCronWrite(jobs => {
+        const candidate = Object.assign({}, cronStore.getJob(jobs, id), next);
+        if (String(candidate.deliver || 'local').trim() === 'local' && candidate.attachToSession && !(candidate.origin && (candidate.origin.sessionId || candidate.origin.streamId))) throw new Error('follow-up needs a captured session origin');
+        return cronStore.updateJob(jobs, id, next, { now: Date.now(), defaultTz: CRON_HOST_TZ });
+      });
       return cronStore.getJob(cronJobs, id);
     },
     removeRoutine: async (id) => {
@@ -16780,7 +16787,10 @@ async function runOnce(o) {
   // the browser pushed via /api/roster) AND SUMMON new specialists (team.summon). Only the lead gets this (it alone
   // gets the orchestrator object above); a non-lead worker stays byte-identical (empty) so it can never re-delegate.
   let teamNote = '';
-  if (o.lead) {
+  // CHAT DIET (2026-09-15, issue #17): a non-task turn ("hello", an ack, a question about the agent itself) has NO
+  // tools on the wire, so a briefing that says "call team.dispatch" would describe a capability the model does not
+  // have this turn. It also cost ~2.6KB of prefill on every greeting — on a 3B local model that is real seconds.
+  if (o.lead && isTask) {
     teamNote = '\n\n[ORCHESTRATION] You are the lead orchestrator. You can build and direct a crew for the Commander:';
     const lines = [];
     // S3: each crew line carries that specialist's EARNED track record when it has one (browser-computed,
@@ -16847,18 +16857,25 @@ async function runOnce(o) {
     // Class Loadouts S1: union the running agent's per-agent class SKILL PACKAGE (roster record) with the global
     // prefs — ADD-only (see catalog.compose). Still gated by the station gear + the budget; package composes first.
     const agentSkills = (rosterIdent && Array.isArray(rosterIdent.skills)) ? rosterIdent.skills : [];
-    skillBlock = skillsCatalog.compose(SKILL_LIBRARY, { overrides: skillPrefs.overrides(), placedTypes: skillPlacedTypes, agentSkills: agentSkills });
+    // CHAT DIET: recipes are for WORK. A greeting shipped ~12KB of skill bodies (5 library skills are default-on with
+    // no gear requirement) to every provider, and a 3B local model spent minutes re-reading them before saying hi.
+    skillBlock = isTask
+      ? skillsCatalog.compose(SKILL_LIBRARY, { overrides: skillPrefs.overrides(), placedTypes: skillPlacedTypes, agentSkills: agentSkills })
+      : '';
   } catch (_) { /* a skill-injection hiccup must never break a run */ }
   // STARNET OPERATOR MANUAL: how the station works, so the agent can guide a stuck Commander. Interactive
   // only (same gate as capsummary — a Commander is present to help and the build UI exists). Sits right
   // BEFORE the authoritative <capabilities_ground_truth>, which it defers to, so the two never disagree.
-  const manualBlock = (surface === 'interactive') ? starnetManual() : '';
+  // CHAT DIET: ~9KB. Gated on isTask too — a 'how do I …' question classifies as a task (classify.js defaults to
+  // task), so the manual still reaches the turns that need it; a bare greeting or ack does not pay for it.
+  const manualBlock = (isTask && surface === 'interactive') ? starnetManual() : '';
   const runtimeVersion = computeVersionSurface();
   const runtimeBlock = runtimeIdentityBlock({ provider: providerId, model, agentId, runId, surface, trigger, fallbackModels, harness: runtimeVersion.harness, app: runtimeVersion.app });
   // RUNTIME SKILL LIBRARY (skill-builder-gap): index the agent's own authored skills + preload any it invokes,
   // riding the same skill.view/skill.manage capability gate. Never breaks a run.
   try {
-    if (resolved.tools.indexOf('skill.view') >= 0) {
+    // CHAT DIET: the index exists so the model can CALL skill.view; on a non-task turn no tool is on the wire.
+    if (isTask && resolved.tools.indexOf('skill.view') >= 0) {
       const rs = runtimeSkills.composeIndex(skillStore.list(agentId), {
         budget: 6000,
         platform: process.platform,
@@ -16989,10 +17006,16 @@ async function runOnce(o) {
      A byte-stable constant, so it never shifts the cached system prefix. */
   const canName = !!(resolved && Array.isArray(resolved.tools) && resolved.tools.indexOf('deliverable_note') >= 0);
   const deliverableNote = canName ? DELIVERABLE_NOTE_CLAUSE : '';
-  const taskSystem = FinishLine.append((system || '') + runtimeBlock + toolNote + teamNote + manualBlock
+  /* PREFIX-CACHE ORDER (2026-09-15, issue #17): runtimeBlock carries the per-run 'Run id:' line. It used to sit
+     FIRST in the appended payload, so the ~25-40KB of byte-stable prose after it (briefing, manual, capabilities,
+     skills) began at a different byte on every turn — Anthropic/OpenRouter cache_control and llama.cpp's prefix
+     KV cache both missed from the run id onward, and a local model re-evaluated the whole prompt each message.
+     It now rides LAST, after every block that is stable across a session's turns, so the shared prefix survives.
+     Content is byte-identical; only the position moved. */
+  const taskSystem = FinishLine.append((system || '') + toolNote + teamNote + manualBlock
     + summarizeCapabilities(resolved, { surface, ownerTrusted, unrestrictedHost: unrestrictedHostNow() }) + skillBlock + runtimeSkillBlock
     + preloadedSkillBlock + serviceKeysBlock + taskIntentNote + directDomainBlock + journeyBlock
-    + deliverableNote, { isTask, internal, tools: resolved.tools });
+    + deliverableNote + runtimeBlock, { isTask, internal, tools: resolved.tools });
   const sys = internal
     ? (String(system || '') + evidenceBlock)
     : withQuests(taskSystem, questsBlock);   // ground-truth caps + task-context doctrine share the one final prompt seam
@@ -20324,7 +20347,8 @@ function serveTranscript(req, res) {
     if (!isAgentId(agent)) return json(403, { error: 'forbidden' });
     const stream = u.searchParams.get('stream') || 'global';
     const limit = Math.max(1, Math.min(500, Number(u.searchParams.get('limit')) || 200));
-    json(200, { stream, turns: transcriptStore.history(stream, { limit }) });
+    const sourceRunId = u.searchParams.get('runId') || '';
+    json(200, { stream, turns: transcriptStore.history(stream, { limit, sourceRunId }) });
   } catch (e) { json(500, readRouteFailure('transcript', e)); }   // broken ≠ empty: every reader gates on r.ok (autosessions/chat/returnstore)
 }
 

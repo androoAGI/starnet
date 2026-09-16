@@ -107,6 +107,7 @@ test/errorclass.test.js
 test/billing.test.js
 test/credits.test.js
 test/credits-link.test.js
+test/credits-store-recovery.test.js
 test/friendlyerror.test.js
 test/codexsignin.test.js
 test/oauthsignin.test.js
@@ -495,6 +496,7 @@ test/growthratings.test.js
 test/xp-upgrade.test.js
 test/dossier-reliability.test.js
 test/roster-track.test.js
+test/chat-prompt-diet.test.js
 test/returns.test.js
 test/outbox-window.test.js
 test/quest-log-window.test.js
@@ -520,6 +522,11 @@ test/cron-session-hydration.test.js
 test/loopjob.test.js
 test/loopjob-check.test.js
 test/loopjob-driver.test.js
+test/model-loop-control.test.js
+test/loop-review-controls.test.js
+test/routine-origin-race.test.js
+test/returnstore-recovery.test.js
+test/settings-save-failure.test.js
 test/loop-tools.test.js
 test/loopgit.test.js
 test/cron.oneshot.test.js
@@ -800,3 +807,8 @@ test/projection-load-geometry.test.js
 dev/industrial-textures/prop-catalog-review.test.cjs
 test/projection-depth-rendering.test.js
 test/remaster-physical-fit.test.js
+test/arrival.test.js
+
+test/genesis-wake-credential.test.js
+test/dossier-growth-live.test.js
+test/industrial-shells.test.js

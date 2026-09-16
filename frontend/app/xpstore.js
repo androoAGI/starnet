@@ -14,6 +14,7 @@ const XpStore = (() => {
   let persistFn = () => {};
   let credentialFn = () => {};   // S3: fired ONLY when an agent's coarse track record actually changes
   let wired = false;
+  let generation = 0;          // an async reply from a previous station must never credit its replacement
 
   // the real events that feed growth. Only explicit turn-in memory.feedback mints XP; operational events
   // update counters/milestones so the dossier still shows shipped work without leveling from chatter.
@@ -142,6 +143,7 @@ const XpStore = (() => {
     return {
       applied: !(ra.awards.duplicate && rs.awards.duplicate),
       agentApplied: !ra.awards.duplicate,
+      levelChanged: !!ra.awards.levelUp,
       credentialChanged: !!opts.credentialChanged,
       agentId: a.id || agentId
     };
@@ -187,9 +189,11 @@ const XpStore = (() => {
   }
 
   async function syncRunHistory(since, loader) {
+    const owner = generation;
     let snapshot;
     try { snapshot = await (loader ? loader(since) : loadRunHistory(since)); }
     catch (e) { console.warn('[xp] run history catch-up', e); return { applied: 0, failed: true }; }
+    if (owner !== generation) return { applied: 0, failed: true };
     const rows = snapshot && Array.isArray(snapshot.runs) ? snapshot.runs.slice() : [];
     const snapshotAt = snapshot && Number.isFinite(snapshot.snapshotAt) ? snapshot.snapshotAt : 0;
     if (!snapshotAt) return { applied: 0, failed: true };
@@ -259,33 +263,40 @@ const XpStore = (() => {
     throw new Error('rating history exceeded pagination bound');
   }
 
-  async function syncRatingHistory(since, loader) {
+  async function syncRatingHistory(since, loader, opts) {
+    const owner = generation;
     let snapshot;
     try { snapshot = await (loader ? loader(since) : loadRatingHistory(since)); }
     catch (e) { console.warn('[xp] rating history catch-up', e); return { applied: 0, failed: true }; }
-    const ratings = snapshot && Array.isArray(snapshot.ratings) ? snapshot.ratings.slice() : [];
+    if (owner !== generation) return { applied: 0, failed: true };
+    if (!snapshot || !Array.isArray(snapshot.ratings)) return { applied: 0, failed: true };
+    const ratings = snapshot.ratings.slice();
     const snapshotAt = snapshot && Number.isFinite(snapshot.snapshotAt) ? snapshot.snapshotAt : 0;
     if (!snapshotAt) return { applied: 0, failed: true };
     ratings.sort((a, b) => (Number(a && a.ts) || 0) - (Number(b && b.ts) || 0));
-    let applied = 0, credentialChanged = false;
+    let applied = 0, credentialChanged = false, levelChanged = false, liveApplied = false;
     const touched = new Set();
     for (const rating of ratings) for (const entry of ((rating && rating.entries) || [])) {
-      const result = onEvent('memory.feedback', entry, { silent: true, noPersist: true });
+      const result = onEvent('memory.feedback', entry, { silent: !(opts && opts.liveRunId === rating.runId), noPersist: true });
       if (!result || !result.applied) continue;
-      applied++; credentialChanged = credentialChanged || result.credentialChanged; touched.add(result.agentId);
+      applied++; credentialChanged = credentialChanged || result.credentialChanged;
+      liveApplied = liveApplied || !!(opts && opts.liveRunId === rating.runId);
+      levelChanged = levelChanged || result.levelChanged; touched.add(result.agentId);
     }
     station.ratingSyncAt = snapshotAt;
+    station.ratingSyncVersion = 2;
     for (const id of touched) { const a = resolveAgent(id); if (a) pushToWorld(a); }
     pushTopbar();
-    if (touched.size) refreshCrewLevel();
+    if (levelChanged) refreshCrewLevel();
     if (credentialChanged) { try { credentialFn(); } catch (_) {} }
     try { persistFn(); } catch (_) {}
-    return { applied, snapshotAt };
+    return { applied, liveApplied, snapshotAt };
   }
 
   // Persist the verdict first, then fold only the server-returned canonical entries. A duplicate may still
   // repair a browser projection that missed the original acknowledgement; Xp receipts make that replay safe.
   async function recordWorkRating(rating, fetchFn) {
+    const owner = generation;
     const post = fetchFn || (typeof fetch === 'function' ? fetch : null);
     if (!post) return { ok: false, error: 'rating service unavailable' };
     let res, body;
@@ -309,17 +320,26 @@ const XpStore = (() => {
       else if (status >= 500) error = 'The rating service could not save this rating — try again.';
       return { ok: false, error, status };
     }
-    let applied = false;
+    if (owner !== generation) return { ok: false, error: 'Station changed — reload the app before rating this work.' };
+    // Only a complete history snapshot can advance the checkpoint. An acknowledgement for this run
+    // says nothing about earlier ratings from another window. Fold those in order before this verdict,
+    // and celebrate only this click; historical catch-up remains quiet.
+    const since = Math.max(1, Number(station && station.ratingSyncAt) || 1);
+    const sync = await syncRatingHistory(since, floor => loadRatingHistory(floor, post), { liveRunId: body.rating.runId });
+    if (owner !== generation) return { ok: false, error: 'Station changed — reload the app before rating this work.' };
+    let applied = !!sync.liveApplied;
     for (const entry of body.rating.entries) {
       const result = onEvent('memory.feedback', entry, { noPersist: true });
       applied = !!(result && result.applied) || applied;
     }
-    station.ratingSyncAt = Math.max(Number(station.ratingSyncAt) || 0, Number(body.rating.ts) || 0);
+    // If history was temporarily unavailable, the acknowledged entry is still safe to apply above.
+    // Keep the old checkpoint so the next successful sync can recover everything we could not read.
     try { persistFn(); } catch (_) {}
     return { ok: true, duplicate: !!body.duplicate, applied, rating: body.rating };
   }
 
   function init(opts) {
+    const owner = ++generation;
     opts = opts || {};
     if (opts.getAgent) getAgent = opts.getAgent;
     if (opts.agents) allAgents = opts.agents;                  // S4: the whole registry, so a specialist's case is reconciled too
@@ -331,18 +351,27 @@ const XpStore = (() => {
     const a = resolveAgent('agent');
     if (a && !a.stats && typeof Xp !== 'undefined') a.stats = Xp.fresh();   // seed new OR migrated-but-empty agents
     reconcileTrophies();   // …then light whatever the record already earned, before anything renders it
-    pushToWorld(a);
+    let roster = [a];
+    try { roster = allAgents ? allAgents() : [a]; } catch (_) {}
+    for (const agent of (Array.isArray(roster) ? roster : [a])) if (agent) pushToWorld(agent);
     pushTopbar();
     if (!wired && typeof U !== 'undefined' && U.bus) {
       for (const n of FEED) U.bus.on(n, p => { try { onEvent(n, p); } catch (e) { console.warn('[xp]', n, e); } });
       wired = true;
     }
     const since = Number(opts.syncSince);
-    const ratingSince = Number(opts.syncRatingsSince);
+    let ratingSince = Number(opts.syncRatingsSince);
+    // Repair checkpoints written by the old per-acknowledgement scheme. Replaying is safe while
+    // every consumer retains its complete dedupe history. At the receipt cap, preserve the existing
+    // floor: older evicted acknowledgements cannot be distinguished from missing credit safely.
+    const completeReceipts = [station].concat(Array.isArray(roster) ? roster.map(agent => agent && agent.stats) : [])
+      .every(stats => !stats || !stats.receipts || !Array.isArray(stats.receipts.feedback) || stats.receipts.feedback.length < Xp.RECEIPT_CAP);
+    if (station && station.ratingSyncVersion !== 2 && completeReceipts && Number.isFinite(ratingSince) && ratingSince > 0) ratingSince = 1;
     if (station && Number.isFinite(since) && since > 0 && !Number.isFinite(Number(station.runSyncAt))) station.runSyncAt = since;
     if (station && Number.isFinite(ratingSince) && ratingSince > 0 && !Number.isFinite(Number(station.ratingSyncAt))) station.ratingSyncAt = ratingSince;
     const runSync = Number.isFinite(since) && since > 0 ? syncRunHistory(since, opts.loadRuns) : Promise.resolve({ applied: 0, skipped: true });
     return runSync.then(run => {
+      if (owner !== generation) return { applied: 0, failed: true };
       const ratingSync = Number.isFinite(ratingSince) && ratingSince > 0
         ? syncRatingHistory(ratingSince, opts.loadRatings)
         : Promise.resolve({ applied: 0, skipped: true });

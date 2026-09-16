@@ -128,6 +128,7 @@ const oldHero = mkLegacy('agent', 'OVERSEER');
 const oldSpec = mkLegacy('scribe', 'SCRIBE');
 const oldRoster = new Map([['agent', oldHero], ['scribe', oldSpec]]);
 const noticesBefore = notices.length, broadcastsBefore = broadcasts.length, sfxBefore = sfx;
+const worldBeforeRestore = world.setXp.length;
 
 XpStore.init({
   getAgent: (id) => oldRoster.get(id || 'agent') || null,
@@ -140,6 +141,7 @@ A.ok(oldHero.stats.milestones.indexOf('still_here') !== -1, 'boot lights the bad
 A.ok(oldHero.stats.milestones.indexOf('hands_on') !== -1, 'boot lights HANDS ON off the tool-call record it already had');
 A.eq(oldHero.stats.milestones.indexOf('workhorse'), -1, 'boot lights only what was EARNED — 8 tasks is not 25');
 A.ok(oldSpec.stats.milestones.indexOf('still_here') !== -1, 'a SPECIALIST case is reconciled too, not just the hero');
+A.ok(world.setXp.slice(worldBeforeRestore).some(row=>row.agentId==='scribe'&&row.xp.level===1),'boot seeds the restored specialist world level without waiting for another run');
 A.ok((XpStore.stationStats().milestones || []).indexOf('workhorse') !== -1, 'the station rollup is reconciled off its own record (40 tasks)');
 A.eq(oldHero.stats.xp, 0, 'the backfill mints no XP');
 A.eq(notices.length, noticesBefore, 'the backfill is SILENT — no gold toast for work done weeks ago');
@@ -225,14 +227,14 @@ Promise.resolve(catchup).then(async summary => {
     { agentId: 'scribe', id: 'work:rated-1', runId: 'rated-1', delta: 4, reason: 'work_great', size: 'large' }
   ] };
   const beforeRatedXp = catchSpec.stats.xp;
-  const recorded = await XpStore.recordWorkRating({ runId: 'rated-1', verdict: 'great', entries: canonical.entries }, async () => ({
-    ok: true, json: async () => ({ ok: true, duplicate: false, rating: canonical })
+  const recorded = await XpStore.recordWorkRating({ runId: 'rated-1', verdict: 'great', entries: canonical.entries }, async (url, opts) => ({
+    ok: true, json: async () => opts.method === 'POST' ? ({ ok: true, duplicate: false, rating: canonical }) : ({ratings:[canonical],snapshotAt:1101})
   }));
   A.ok(recorded.ok && recorded.applied, 'live XP folds only after the durable rating endpoint acknowledges it');
   A.eq(catchSpec.stats.xp - beforeRatedXp, 40, 'server-canonical verdict ignores the legacy size bucket');
-  A.eq(XpStore.stationStats().ratingSyncAt, 1100, 'live rating advances the dedicated ledger watermark');
-  const replayed = await XpStore.recordWorkRating({ runId: 'rated-1', verdict: 'miss', entries: canonical.entries }, async () => ({
-    ok: true, json: async () => ({ ok: true, duplicate: true, rating: canonical })
+  A.eq(XpStore.stationStats().ratingSyncAt, 1101, 'only a complete ledger snapshot advances the rating watermark');
+  const replayed = await XpStore.recordWorkRating({ runId: 'rated-1', verdict: 'miss', entries: canonical.entries }, async (url, opts) => ({
+    ok: true, json: async () => opts.method === 'POST' ? ({ ok: true, duplicate: true, rating: canonical }) : ({ratings:[canonical],snapshotAt:1101})
   }));
   A.eq(replayed.applied, false, 'same-tab canonical duplicate cannot mint XP twice');
 
@@ -269,5 +271,47 @@ Promise.resolve(catchup).then(async summary => {
   });
   A.eq(rollbackSpec.stats.xp, 40, 'boot replay repairs XP lost from a stale or rolled-back browser save');
   A.eq(XpStore.stationStats().ratingSyncAt, 1200, 'successful rating replay checkpoints the server snapshot');
+
+  const baseline = JSON.parse(JSON.stringify(XpStore.stationStats()));
+  delete baseline.ratingSyncVersion;
+  baseline.ratingSyncAt = 9000; // old acknowledgement checkpoint skipped a different window's verdict
+  const missing = {runId:'missing',ts:1300,verdict:'great',entries:[{agentId:'scribe',id:'work:missing',delta:3,reason:'work_great'}]};
+  let floor;
+  await XpStore.init({getAgent:id=>rollbackRoster.get(id||'agent'),agents:()=>Array.from(rollbackRoster.values()),station:baseline,
+    syncRatingsSince:9000,loadRatings:async since=>{floor=since;return {ratings:[canonical,missing],snapshotAt:9100};}});
+  A.eq(floor,1,'pre-fix checkpoints replay the retained ledger once to recover missing credit');
+  A.eq(rollbackSpec.stats.xp,70,'migration restores only the missing award, without duplicating existing XP');
+  A.eq(XpStore.stationStats().ratingSyncVersion,2,'successful recovery records the repaired checkpoint format');
+  const restoredXp=rollbackSpec.stats.xp;
+  await XpStore.init({getAgent:id=>rollbackRoster.get(id||'agent'),agents:()=>Array.from(rollbackRoster.values()),station:XpStore.stationStats(),
+    syncRatingsSince:9100,loadRatings:async since=>{floor=since;return {ratings:[],snapshotAt:9200};}});
+  A.eq(floor,9100,'subsequent boots use the complete checkpoint rather than replaying forever');
+  A.eq(rollbackSpec.stats.xp,restoredXp,'repeat boot preserves XP');
+  const checkpoint=XpStore.stationStats().ratingSyncAt;
+  const lastWarn=console.warn;console.warn=()=>{};
+  const fallback=await XpStore.recordWorkRating({runId:'history-offline',verdict:'great'},async(url,opts)=>{
+    if(opts.method!=='POST') throw new Error('history temporarily offline');
+    return {ok:true,json:async()=>({ok:true,rating:{runId:'history-offline',ts:9300,entries:[{agentId:'scribe',id:'work:history-offline',delta:3,reason:'work_great'}]}})};
+  });
+  console.warn=lastWarn;
+  A.ok(fallback.ok&&fallback.applied,'an acknowledged verdict still awards XP when the history read is unavailable');
+  A.eq(XpStore.stationStats().ratingSyncAt,checkpoint,'a single acknowledgement never skips unread ratings after a failed catch-up');
+  const capped=Xp.fresh();capped.ratingSyncAt=9500;capped.receipts.feedback=Array.from({length:Xp.RECEIPT_CAP},(_,i)=>'old-'+i);
+  await XpStore.init({getAgent:id=>rollbackRoster.get(id||'agent'),agents:()=>Array.from(rollbackRoster.values()),station:capped,
+    syncRatingsSince:9500,loadRatings:async since=>{floor=since;return {ratings:[],snapshotAt:9600};}});
+  A.eq(floor,9500,'migration never replays evicted receipts that could mint old XP twice');
+  let releaseRun,releaseRatings,releasePost;
+  const pendingRun=XpStore.syncRunHistory(1,()=>new Promise(resolve=>{releaseRun=resolve;}));
+  const pendingRatings=XpStore.syncRatingHistory(1,()=>new Promise(resolve=>{releaseRatings=resolve;}));
+  const pendingPost=XpStore.recordWorkRating({runId:'old-station',verdict:'great'},()=>new Promise(resolve=>{releasePost=resolve;}));
+  const replacement={id:'agent',name:'New station',stats:Xp.fresh()};
+  await XpStore.init({getAgent:()=>replacement,agents:()=>[replacement],station:Xp.fresh()});
+  releaseRun({snapshotAt:10000,runs:[{runId:'old-station',agentId:'agent',reason:'done',ts:9999}]});
+  releaseRatings({snapshotAt:10000,ratings:[missing]});
+  releasePost({ok:true,json:async()=>({ok:true,rating:{runId:'old-station',ts:9999,entries:[{agentId:'agent',id:'work:old-station',delta:3,reason:'work_great'}]}})});
+  const abandoned=await Promise.all([pendingRun,pendingRatings,pendingPost]);
+  A.ok(abandoned[0].failed&&abandoned[1].failed&&!abandoned[2].ok,'old async run, history and rating replies are rejected after replacing the station');
+  A.eq(replacement.stats.xp,0,'the new station inherits no old XP');
+  A.eq(replacement.stats.counters.runs,undefined,'the new station inherits no old completed runs');
   A.report('xpstore.test');
 }).catch(err => { console.error(err); process.exitCode = 1; });

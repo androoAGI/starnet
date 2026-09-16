@@ -1116,7 +1116,19 @@ const Harness = (() => {
                            only on network failure or a non-JSON body. body defaults to {}.
      Streaming responses (/api/run, /api/cron/run) and Response-shape consumers must NOT use this. */
   const api = {
-    get: path => fetch(path, { cache: 'no-store' }).then(r => { if (!r.ok) throw new Error('http ' + r.status); return r.json(); }),
+    get: async (path, options) => {
+      const controller = new AbortController();
+      const signal = options && options.signal;
+      const abort = () => controller.abort();
+      if (signal) { if (signal.aborted) abort(); else signal.addEventListener('abort', abort, { once: true }); }
+      let deadline;
+      try {
+        return await Promise.race([
+          fetch(path, { cache: 'no-store', signal: controller.signal }).then(r => { if (!r.ok) throw new Error('http ' + r.status); return r.json(); }),
+          new Promise((_, reject) => { deadline = setTimeout(() => { reject(new Error('The station took too long to respond. Please retry.')); abort(); }, 15000); })
+        ]);
+      } finally { clearTimeout(deadline); if (signal) signal.removeEventListener('abort', abort); }
+    },
     post: (path, body) => fetch(path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body == null ? {} : body) })
       .then(r => r.json().then(j => ({ ok: r.ok, status: r.status, j }))),
     del: path => fetch(path, { method: 'DELETE' })

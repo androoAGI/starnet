@@ -8,11 +8,11 @@
 'use strict';
 const QuerySpine = (() => {
   const resources = new Map();
-  let getJson = path => {
+  let getJson = (path, options) => {
     if (typeof Harness === 'undefined' || !Harness.api || typeof Harness.api.get !== 'function') {
       return Promise.reject(new Error('Harness.api.get unavailable'));
     }
-    return Harness.api.get(path);
+    return Harness.api.get(path, options);
   };
   let now = () => Date.now();
   let armInterval = (fn, ms) => setInterval(fn, ms);
@@ -30,6 +30,7 @@ const QuerySpine = (() => {
         path: String(spec.path),
         ttlMs: positiveMs(spec.ttlMs),
         pollMs: positiveMs(spec.pollMs),
+        timeoutMs: positiveMs(spec.timeoutMs) || 15000,
         validate: typeof spec.validate === 'function' ? spec.validate : null,
         hasData: false,
         data: undefined,
@@ -90,13 +91,21 @@ const QuerySpine = (() => {
     if (!force && fresh) return Promise.resolve(snapshotOf(r));
     if (r.inFlight) {
       if (r.inFlightGeneration === r.generation) return r.inFlight;
-      return r.inFlight.catch(() => {}).then(() => request(key, force));
+      // A newer generation owns its own request; an obsolete transport cannot block recovery.
     }
 
     const generation = r.generation;
+    const controller = new AbortController();
+    let deadline;
     let p;
     p = Promise.resolve()
-      .then(() => getJson(r.path))
+      .then(() => Promise.race([
+        getJson(r.path, { signal: controller.signal }),
+        new Promise((_, reject) => { deadline = setTimeout(() => {
+          reject(new Error('Timed out reading ' + r.key + '; retry to refresh'));
+          controller.abort();
+        }, r.timeoutMs); })
+      ]))
       .then(data => {
         if (r.validate && !r.validate(data)) throw new Error('invalid response for ' + r.key);
         if (r.generation !== generation) return data;
@@ -116,6 +125,7 @@ const QuerySpine = (() => {
         throw err;
       })
       .finally(() => {
+        clearTimeout(deadline);
         if (r.inFlight === p) r.inFlight = null;
         notify(r);
       })

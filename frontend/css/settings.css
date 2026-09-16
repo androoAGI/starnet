@@ -1,5 +1,5 @@
 /* Settings: shared glass language, scoped to this console and its expanded controls. */
-.settings-console .con-pane { padding: 22px; }
+.settings-console .con-pane { padding: 22px; container: settings-pane / inline-size; }
 .settings-console .con-sec-desc { font-size: 16px; line-height: 1.5; margin-bottom: 20px; }
 .settings-console.sn-menu .con-rail-list { padding: 8px; gap: 4px; }
 .settings-console.sn-menu .con-rail-item { flex: 0 0 auto; min-height: 36px; grid-template-columns: 16px minmax(0,1fr); gap: 8px; padding: 8px 10px; margin: 0; border-radius: 7px; background: transparent; font-size: 14px; line-height: 1.25; }
@@ -45,7 +45,7 @@
 .settings-console .settings-toggle-row input[type="checkbox"]:checked::after { left: 17px; transform: none; background: var(--ph-bright); }
 .settings-console .settings-toggle-row:has(input:disabled) { opacity: .55; cursor: default; }
 .settings-console :is(button,input,select,textarea):focus-visible { outline: 2px solid var(--ph); outline-offset: 3px; }
-.settings-console .prov-list { display: grid; gap: 12px; }
+.settings-console .prov-list { display: grid; gap: 12px; container: settings-providers / inline-size; }
 .settings-console .prov-card { display: grid; grid-template-columns: minmax(0,1fr) auto; align-items: center; gap: 10px; padding: 14px; border: 1px solid rgba(var(--ph-rgb), .2); border-radius: 10px; background: rgba(var(--ph-rgb), .025); box-shadow: none; animation: none; }
 .settings-console .prov-select { min-width: 0; padding: 0; display: grid; grid-template-columns: 10px minmax(0,1fr); gap: 8px 10px; text-align: left; align-items: start; background: transparent; border: 0; }
 .settings-console .prov-name { font-size: 19px; line-height: 1.3; }
@@ -121,11 +121,18 @@
 .settings-console .prov-logo-starnet { width:122px; height:21px; }
 .settings-console [data-provider="starnet"] .prov-name { font-size:14px; letter-spacing:1.5px; }
 .settings-console [data-act="credits-store"] { border-color:var(--ph); color:var(--ph-bright); background:rgba(var(--ph-rgb),.13); box-shadow:inset 0 1px 0 rgba(var(--ph-bright-rgb),.16),0 0 12px rgba(var(--ph-rgb),.1); }
-@media(max-width:720px) {
+/* The console shares the desktop with CREW and COMMS. Viewport breakpoints
+   miss its narrow reading pane, especially with enlarged interface text. */
+@container settings-providers (max-width:480px) {
   .settings-console .prov-card { grid-template-columns:minmax(0,1fr); gap:10px; }
   .settings-console .prov-select { grid-column:1; grid-row:1; }
   .settings-console .prov-addkey { grid-column:1; grid-row:2; justify-self:start; margin-left:42px; }
   .settings-console .prov-stat,.settings-console .prov-card:not(:has(.prov-addkey)) .prov-stat { grid-column:1; grid-row:3; justify-content:flex-start; text-align:left; padding-left:42px; }
   .settings-console [data-provider="starnet"] :is(.prov-addkey,.prov-stat) { margin-left:0; padding-left:0; }
+}
+@container settings-pane (max-width:340px) {
+  .settings-console .settings-group { padding:14px; }
+  .settings-console :is(#budget-form,#tm-form,#adv-form) > .set-row { grid-template-columns:minmax(0,1fr); gap:6px; }
+  .settings-console .set-slider { grid-template-columns:82px minmax(0,1fr) 40px; gap:8px; }
 }
 @media(prefers-reduced-motion:reduce) { .settings-console .prov-card[data-provider="starnet"]::before { animation:none; } }

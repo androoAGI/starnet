@@ -1,0 +1,8 @@
+{
+  "failHistory": false,
+  "failSettings": false,
+  "runReads": 12,
+  "transcriptReads": [
+    "repair-outbox-A"
+  ]
+}

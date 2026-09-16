@@ -41,7 +41,7 @@
     commander:    'you — the person who directs the station, grants authority, and judges its work.',
     work:         'tasks, deliverables, recipes, routines, loops, and quests gathered under one dock.',
     build:        'the dock for equipping agents, shaping the floor, and connecting outside abilities.',
-    system:       'the dock for the manual, settings, updates, restore points, history, and alerts.',
+    system:       'the dock for the manual, settings, updates, and notifications. Agent history and restore points live in each agent’s Record tab.',
     workstream:   'the saved conversation behind a COMMS session; planned task conversations also appear as cards on the TASK BOARD.',
     orchestrator: 'the lead agent you talk to first — new agents inherit its model unless you pick another.',
     overseer:     'the station itself — it holds shared gear that any specialist can draw on.',

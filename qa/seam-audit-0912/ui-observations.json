@@ -1,0 +1,36 @@
+{
+  "source": "091d6e7f3",
+  "method": "cua_repl interactions and read-only DOM observations; observations transcribed from tool results",
+  "directApp": "http://127.0.0.1:19427",
+  "controlledProxy": "http://127.0.0.1:19428",
+  "observations": [
+    {
+      "id": "routine-follow-up",
+      "beforeSave": { "checked": true },
+      "afterSave": "Name and prompt cleared. Notification says saved, but scheduling is off.",
+      "backendProof": "probe-results.json: attachToSession:true, deliver:local, origin:null, preflight missing-session-origin",
+      "restart": "Owned seeded sidecar was stopped and restarted with --keep; the same probe and saved job ID passed afterward. Scheduler deliberately remained disabled."
+    },
+    {
+      "id": "loop-review-draft-reset",
+      "fixture": "One synthetic candidate supplied by fault-proxy.cjs; unchanged real app loop UI",
+      "before": {"value":"Keep this rejection explanation while I think.","hidden":false},
+      "afterNextPoll": {"value":"","hidden":true},
+      "relatedObservation": "Two control clicks encountered detached nodes while the four-second poll replaced the list."
+    },
+    {
+      "id": "loop-pause-error-hidden",
+      "fixture": "Proxy responds HTTP 409 with Review in progress; retry when it finishes",
+      "requestRecorded": {"id":"audit-loop","action":"pause"},
+      "after": {"gate":"● loops running — they advance when you rule on their work.","notifications":"","pausePresent":true}
+    },
+    {
+      "id": "session-draft-control-case",
+      "original": "Audit original session",
+      "draft": "Draft only for Audit original session",
+      "newSessionDraft": "",
+      "switchBackDraft": "Draft only for Audit original session",
+      "verdict": "No session-switch draft loss reproduced."
+    }
+  ]
+}

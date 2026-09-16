@@ -177,15 +177,28 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
     return blank();
   }
   let store = load();
-  function save() { try { localStorage.setItem(KEY, JSON.stringify(store)); } catch (_) {} }
+  let lastSaveOk = true;
+  function save() {
+    try { localStorage.setItem(KEY, JSON.stringify(store)); lastSaveOk = true; return true; }
+    catch (_) {
+      const wasSaved = lastSaveOk; lastSaveOk = false;
+      if (wasSaved) try { notify('Could not save local settings. Changes may be lost when you restart.', 'warn'); } catch (_) {}
+      return false;
+    }
+  }
   const uid = p => p + Date.now().toString(36) + Math.floor(Math.random() * 1e4).toString(36);
 
   // brief "✓ saved" flash for an instant-save section (theme/appearance/notifications) so every section answers
   // "did that stick?" — the same .msg.ok idiom the SAVE-button sections use, auto-cleared after a moment.
-  function flashSaved(elm, text) {
+  function flashSaved(elm, text, independentSave) {
     if (!elm) return;
-    elm.textContent = text || '✓ saved'; elm.className = 'msg ok';
     clearTimeout(elm._flashTimer);
+    if (!independentSave && !lastSaveOk) {
+      elm.textContent = 'Could not save — changes apply for this session. Change a setting to retry.';
+      elm.className = 'msg bad';
+      return;
+    }
+    elm.textContent = text || '✓ saved'; elm.className = 'msg ok';
     elm._flashTimer = setTimeout(() => { if (elm.isConnected) { elm.textContent = ''; elm.className = 'msg'; } }, 1600);
   }
 
@@ -1792,7 +1805,7 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
       '<div class="gx-well"><span class="gx-lbl">Positive feedback</span><span class="v">' + g.positiveFeedback + '</span></div>' +
       // what a level actually MEANS (UX sweep 2026-07-15): honest — levels gate nothing (sandbox law);
       // they are the agent's proven track record from work you rated well.
-      '<div class="gx-row gx-dim" style="font-size:11px;margin-top:4px;">Earn XP from completed work and feedback. Levels celebrate progress; every capability is available from the start.</div>' +
+      '<div class="gx-row gx-dim" style="font-size:11px;margin-top:4px;">Rate completed work “nailed it” to earn XP. Positive turn-in feedback earns XP too. Levels celebrate progress; every capability is available from the start.</div>' +
       '</div>';
 
     const confnum = g.known ? (g.confidence + '<span style="font-size:18px;color:var(--ph-dim);">%</span>') : '—';
@@ -3122,6 +3135,37 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
     pctx.drawImage(buf, minX, minY, sw, sh,
       Math.round((cv.width - dw) / 2), Math.round(cv.height - padBot - dh), dw, dh);
   }
+  // Refresh only read-only growth surfaces. Rebuilding the dossier would discard CONFIG/MEMORY drafts.
+  function refreshGrowthLive(w, a) {
+    if (!a || typeof Xp === 'undefined') return;
+    const station = typeof XpStore !== 'undefined' ? XpStore.stationStats() : null;
+    const view = stats => stats ? [Xp.compute(stats), stats.counters] : null;
+    const key = JSON.stringify([a.id, view(a.stats), view(station), present.length]);
+    const growth = w.querySelector('.ag-growth');
+    if (growth && growth._growthKey !== key) {
+      const holder = document.createElement('div');
+      holder.innerHTML = agGrowth(a);
+      const next = holder.firstElementChild;
+      if (next) {
+        // The skillbase has its own asynchronous loader; keep its live node and pending response intact.
+        const practice = growth.querySelector('#gx-practice');
+        const placeholder = next.querySelector('#gx-practice');
+        if (practice && placeholder) placeholder.replaceWith(practice);
+        next._growthKey = key;
+        growth.replaceWith(next);
+      }
+    }
+    const stats = w.querySelector('.ag-hero .stat-grid');
+    const html = stats ? agStats(a) : '';
+    if (stats && stats._growthHtml !== html) {
+      const holder = document.createElement('div'); holder.innerHTML = html;
+      const next = holder.firstElementChild;
+      if (next) { next._growthHtml = html; stats.replaceWith(next); }
+    }
+    const level = w.querySelector('.ag-lv');
+    if (level && a.stats) level.textContent = 'Lv ' + Xp.compute(a.stats).level;
+  }
+
   // BRIEF live telemetry, painted in place (no DOM rebuild → open CONFIG/MEMORY editors are never wiped).
   // Touches only: the hero status dot + role line (agHead), and the roster idle/working hints (railTop). Every
   // lookup is scoped to the open dossier window and no-ops if the node isn't there (e.g. mid-rename, retab).
@@ -3130,6 +3174,7 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
     const act = activity();
     const dn = linkDown();   // E2: keep the live-painted status honest — link gone → OFFLINE, not ONLINE
     const selected = present[sel] || null;
+    refreshGrowthLive(w, selected);
     const selectedLive = !!(selected && agentLive(selected.id));
     let focusedId = '';
     try { focusedId = (typeof App !== 'undefined' && App.currentAgent && App.currentAgent() || {}).id || ''; } catch (_) {}
@@ -4989,6 +5034,7 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
   // a credits backend is configured, so an UNconfigured install renders NOTHING here (no dead STORE, no fake balance
   // — the honesty law). Balance + history are read from the adapter; PURCHASE opens the external buy page.
   let _creditsLinkPoll = null, _creditsLinkPollBusy = false, _creditsLinkGeneration = 0;
+  let _creditsStoreGeneration = 0, _creditsUnlinkPending = false, _creditsUnlinkError = '';
   function stopLinkPoll() {
     _creditsLinkGeneration++;
     _creditsLinkPollBusy = false;
@@ -4998,25 +5044,52 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
   function wireCredits(body) {
     const host = body.querySelector('#credits-store');
     if (!host) return;
+    const generation = ++_creditsStoreGeneration;
+    const current = () => generation === _creditsStoreGeneration && host.isConnected !== false;
     stopLinkPoll();        // any in-flight link poll from a prior render is stale now
-    host.innerHTML = '';   // stay empty until we KNOW credits are configured (or linkable)
+    if (_creditsUnlinkPending) {
+      host.innerHTML = '<h4 class="ms-h">STORE <span class="dim">— managed credits</span></h4>' +
+        '<p class="set-about" role="status">Unlinking this station…</p>';
+      return Promise.resolve();
+    }
+    host.innerHTML = '<p class="set-about" role="status">Checking your account connection…</p>';
     // /api/credits 404s when credits are unconfigured — that is the honesty law, not an error, and
     // api.get throws on any non-2xx. Catching to {configured:false} keeps the 404 on the normal path.
-    Harness.api.get('/api/credits').catch(() => ({ configured: false }))
+    return Harness.api.get('/api/credits').catch(error => {
+      if (/http 404\b/.test(String(error && error.message || error))) return { configured: false };
+      throw error;
+    })
       .then(j => {
+        if (!current()) return;
+        if (!j || typeof j.configured !== 'boolean') throw new Error('invalid credits status');
         if (j && j.configured) return renderCreditsConfigured(body, host, j);
         // unconfigured → is this station LINKABLE (STARNET_CLOUD_URL wired)? If so, offer LINK STATION. Otherwise
         // render NOTHING (honesty law: a bare BYOK install shows no STORE surface at all).
-        return Harness.api.get('/api/credits/linkable').catch(() => ({ available: false }))
+        return Harness.api.get('/api/credits/linkable')
           .then(lk => {
-            if (lk && lk.available) renderCreditsLinkCard(body, host,
+            if (!current()) return;
+            if (lk && lk.available === true) renderCreditsLinkCard(body, host,
               lk.reason === 'link_revoked'
                 ? 'This station’s previous link was removed from your account. Link it again to reconnect your balance.'
                 : '');
-          })
-          .catch(() => {});
+            else if (lk && lk.available === false && lk.cloud === false && !_creditsUnlinkError) host.innerHTML = '';
+            else renderCreditsUnavailable(body, host);
+          });
       })
-      .catch(() => {});   // sidecar offline / not configured → leave the STORE absent
+      .catch(() => { if (current()) renderCreditsUnavailable(body, host); });
+  }
+
+  function creditsUnlinkErrorMarkup() {
+    return _creditsUnlinkError
+      ? '<p class="msg bad" role="alert">' + esc(_creditsUnlinkError) + '</p>' : '';
+  }
+
+  function renderCreditsUnavailable(body, host) {
+    host.innerHTML = '<h4 class="ms-h">STORE <span class="dim">— managed credits</span></h4>' +
+      creditsUnlinkErrorMarkup() +
+      '<p class="set-about" role="alert">Could not check your account connection. Retry to load your balance or linking options.</p>' +
+      '<button class="bb sm" id="credits-retry">↻ RETRY</button>';
+    host.querySelector('#credits-retry').addEventListener('click', () => { sfx('click'); wireCredits(body); });
   }
 
   // A ledger entry's own name for itself. The backend sends `label` for rows that are not model calls
@@ -5077,6 +5150,7 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
       : 'This station runs on <b>managed credits</b> — a prepaid balance the operator tops up, so your agents can work without you bringing your own provider key. Each run reserves up to your <b>PER RUN</b> budget and refunds whatever it doesn’t spend. You can always switch to your own key under API KEYS above.';
     host.innerHTML =
       '<h4 class="ms-h">STORE <span class="dim">— managed credits</span></h4>' +
+      creditsUnlinkErrorMarkup() +
       '<p class="set-about">' + about + '</p>' +
       (j.linkSaved && j.accountId ? '<div class="set-row"><span class="dim">ACCOUNT</span><span class="dim" style="margin-left:auto">' + esc(String(j.accountId)) + '</span></div>' : '') +
       creditsPlanRows(j) +
@@ -5105,23 +5179,45 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
     // this station never does. ArmConfirm keeps the decision inside the world.
     const unlink = host.querySelector('#credits-unlink');
     const doUnlink = () => {
-      unlink.disabled = true;
+      if (_creditsUnlinkPending) return;
+      _creditsUnlinkPending = true;
+      _creditsUnlinkError = '';
+      wireCredits(body);  // retire older reads and keep progress visible through Settings repaints
       // BOTH halves have to go: the sidecar owns the file, only the shell can reach the keychain.
       // Clearing the keychain first means a failure there is visible before we report "unlinked" —
       // leaving a money-spending credential behind while claiming it is gone would be the exact
       // dishonesty delete_credential_honest exists to prevent.
       const kcInvoke = tauriInvoke();
       const forgetKeychain = kcInvoke
-        ? kcInvoke('harness_clear_credits_token').then(() => true).catch(() => false)
+        ? Promise.resolve().then(() => kcInvoke('harness_clear_credits_token')).then(() => true).catch(() => false)
         : Promise.resolve(true);
-      forgetKeychain
-        .then(ok => { if (!ok && kcInvoke) throw new Error('keychain unlink failed'); return Harness.api.post('/api/credits/unlink', {}); })
+      let stage = 'keychain';
+      return forgetKeychain
+        .then(ok => {
+          if (!ok && kcInvoke) throw new Error('keychain unlink failed');
+          stage = 'station';
+          return Harness.api.post('/api/credits/unlink', {});
+        })
+        .then(r => {
+          // api.post resolves HTTP errors. Neither HTTP 200 alone nor a missing payload proves unlink.
+          if (!r || !r.ok || !r.j || r.j.ok !== true || r.j.unlinked !== true) throw new Error('unlink not confirmed');
+          stage = 'refresh';
+        })
         // Symmetric to the link path: a station that just gave up its credential must stop reporting
         // that it can run on credits, or STARNET stays selectable and every run fails at admission.
         .then(() => (H() && H().refreshCreditsConfigured) ? H().refreshCreditsConfigured() : null)
         .then(() => refreshCreditsProvider())
-        .then(() => { scheduleSettingsRepaint(); wireCredits(body); })
-        .catch(() => wireCredits(body));
+        .then(() => { _creditsUnlinkPending = false; scheduleSettingsRepaint(); wireCredits(body); })
+        .catch(() => {
+          _creditsUnlinkPending = false;
+          _creditsUnlinkError = stage === 'keychain'
+            ? 'Could not clear the saved account credential. Unlink was not completed. Try UNLINK again; if it still fails, fully quit and reopen StarNet.'
+            : stage === 'station'
+              ? 'Could not confirm that unlink completed. Refresh the account connection, then retry UNLINK if it is still linked.'
+              : 'Unlink completed, but the account display could not refresh. Retry to load the linking options.';
+          scheduleSettingsRepaint();
+          wireCredits(body);
+        });
     };
     if (unlink) {
       if (typeof ArmConfirm !== 'undefined' && ArmConfirm.wire) {
@@ -5153,6 +5249,7 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
   function renderCreditsLinkCard(body, host, note) {
     host.innerHTML =
       '<h4 class="ms-h">STORE <span class="dim">— managed credits</span></h4>' +
+      creditsUnlinkErrorMarkup() +
       '<p class="set-about">Link this station to your <b>StarNet account</b> to run agents on managed credits — no provider key needed. You will confirm a short code in your browser.</p>' +
       (note ? '<div class="set-row" style="color:var(--gold,#e8c15a)">' + esc(note) + '</div>' : '') +
       '<div class="mc-acts"><button class="bb sm" id="credits-link">🔗 LINK STATION</button></div>' +
@@ -5164,6 +5261,7 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
 
   // Ask the sidecar for a pairing code, then show it + poll until the user confirms on the site.
   function startCreditsLink(body, host) {
+    _creditsUnlinkError = '';  // the user has begun a new account-link attempt
     stopLinkPoll();
     const generation = _creditsLinkGeneration;
     const state = host.querySelector('#credits-link-state');
@@ -6480,7 +6578,7 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
           const real = !!(st && st.enabled);
           ev.target.checked = real;
           if (real !== desired) notify('Launch at login could not be ' + (desired ? 'enabled' : 'disabled') + ' on this system.', 'warn');
-          else flashSaved(appMsg());
+          else flashSaved(appMsg(), undefined, true);
         }).catch(err => {
           ev.target.checked = !desired;
           notify('Launch at login failed: ' + ((err && err.message) || err), 'warn');
@@ -6498,7 +6596,7 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
             ev.target.checked = real;
             ev.target.disabled = false;
             if (real !== desired) notify(label + ' could not be ' + (desired ? 'enabled' : 'disabled') + ' on this system.', 'warn');
-            else flashSaved(appMsg());
+            else flashSaved(appMsg(), undefined, true);
             paintLife();
           }).catch(err => {
             ev.target.checked = !desired;
@@ -7472,7 +7570,7 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
       onConfirm: () => {
         const n = store.notifs.length;
         store.notifs = []; save(); badges(); rerender('notifs'); sfx('bad');
-        flashSaved(host.querySelector('#notifs-msg'), '✓ cleared ' + n + ' notification' + (n === 1 ? '' : 's'));
+        flashSaved(host.querySelector('#notifs-msg'), '✓ cleared ' + n + ' notification' + (n === 1 ? '' : 's'), true);
       }
     });
   }

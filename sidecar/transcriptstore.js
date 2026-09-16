@@ -323,17 +323,18 @@
       o = o || {};
       const limit = num(o.limit) > 0 ? num(o.limit) : cap;
       const want = normStream(streamId);
+      const sourceRunId = String(o.sourceRunId || '');
       // Segmented hosts retain lifetime rows outside the bounded RAM working set. Ask the
       // durable index/segments first so an old, idle conversation still resumes exactly.
       if (typeof io.history === 'function') {
         try {
-          const found = io.history(want, { limit });
+          const found = io.history(want, { limit, sourceRunId });
           if (Array.isArray(found)) return found.map(r => Object.assign({}, r));
         } catch (e) { failNote('transcript.io', e); }
       }
       const out = [];
       for (let i = rows.length - 1; i >= 0 && out.length < limit; i--) {
-        if (rows[i].streamId === want) out.push(Object.assign({}, rows[i]));
+        if (rows[i].streamId === want && (!sourceRunId || rows[i].sourceRunId === sourceRunId)) out.push(Object.assign({}, rows[i]));
       }
       out.reverse();   // newest-first scan -> chronological for replay
       return out;

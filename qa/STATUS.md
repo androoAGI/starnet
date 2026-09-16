@@ -2841,3 +2841,5 @@ Every first-time StarNet-subscription desktop user: link → shell adopts the to
 - 2026-09-12 — Command bridge: agent/industrial-textures-0912 integrated at f56aebb6e; pre/post-merge test:fast 772/772 green; live placement, undo, save/restart and 309-tile navigation verified. [Receipt](../docs/industrial-textures/VERIFICATION.md).
 
 - 2026-09-13 — industrial minion: agent/industrial-textures-0912 → trunk 0b35b46e9; test:fast pre/post integration PASS (772/772 each); NOVA Station Minion selected, saved and reloaded live; 96-frame native renderer proof and prompts in docs/industrial-textures/MINION.md. Verification receipts retained in this preview worktree while another integration holds the trunk Git lock.
+
+2026-09-13: agent/onboarding-conversation-0912 -> trunk b1f78e09d; conversational interview, first-task handoff, cinematic arrival, credential routing, and phosphor skip control merged. Branch and post-merge npm run test:fast PASS 774/774; frontend-only delta, HTTP gate not required. Existing uncommitted documentation preserved.
