@@ -1,0 +1,53 @@
+{
+  "baseline": false,
+  "transport": "controlled local fixtures; no paid model",
+  "source": "50791280bd428d0c3bee9681e41f105489ef5dcb",
+  "liveDraft": {
+    "selected": "ws_mu4ewhwx3v8e",
+    "draft": "Keep this draft in the original session",
+    "focused": true,
+    "attachments": 0
+  },
+  "focusedEmpty": {
+    "selected": "ws_mu4ewhwx3v8e",
+    "draft": "",
+    "focused": true,
+    "attachments": 0
+  },
+  "polls": {
+    "selected": "ws_mu4ewhwx3v8e",
+    "draft": "Draft survives a poll too",
+    "focused": false,
+    "attachments": 0
+  },
+  "attachment": {
+    "selected": "ws_mu4ewhwx3v8e",
+    "draft": "",
+    "focused": false,
+    "attachments": 1
+  },
+  "nextSend": {
+    "stream": "ws_mu4ewhwx3v8e",
+    "originalHasTurn": true,
+    "deliveryHasTurn": false
+  },
+  "explicitReview": true,
+  "connector": {
+    "selected": "ws_mu4ewhwx3v8e",
+    "draft": "New typing while the connector was checked",
+    "focused": true,
+    "attachments": 0,
+    "result": false,
+    "handoffRetained": true
+  },
+  "retry": {
+    "result": true,
+    "selected": true,
+    "cleared": true,
+    "runs": 2
+  },
+  "reload": {
+    "historyKept": true
+  },
+  "errors": []
+}

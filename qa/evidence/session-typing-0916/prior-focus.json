@@ -1,0 +1,36 @@
+{
+  "delayedReply": {
+    "selected": true,
+    "draft": "Draft for the reading session",
+    "bindingPreserved": true
+  },
+  "replyFollowup": {
+    "selectedSessionReceived": true,
+    "callSessionReceived": false
+  },
+  "currentRequest": {
+    "accepted": true,
+    "selected": true
+  },
+  "backgroundRequest": {
+    "refused": true,
+    "createRefused": true,
+    "noPartialCreate": true,
+    "selected": true,
+    "draft": "Draft kept through background commands"
+  },
+  "returnToOldRun": {
+    "refused": true
+  },
+  "currentDraft": {
+    "refused": true,
+    "draft": "Unsent follow-up"
+  },
+  "uploadNavigation": {
+    "selected": true,
+    "draft": "Keep this separate draft",
+    "crossPosted": false,
+    "submitted": false
+  },
+  "errors": []
+}

@@ -1,0 +1,27 @@
+{
+  "candidate": "50791280bd428d0c3bee9681e41f105489ef5dcb",
+  "baseline": "87e10e1fe",
+  "gates": [
+    {
+      "name": "fast",
+      "steps": 812,
+      "exitCode": 0,
+      "log": ".dogfood/final-fast.log",
+      "sha256": "09a7400f9e58a8e6bd1cf975898e142a802b3b5a0b1d8977bbcc4d1981f9e76a"
+    },
+    {
+      "name": "customer-journeys",
+      "steps": 35,
+      "exitCode": 0,
+      "log": ".dogfood/final-customer-journeys.log",
+      "sha256": "f68932da8d55a038da28d50fa3cfe9fc2d3076d99ba245936f6a1f93e9136052"
+    }
+  ],
+  "live": [
+    "after.json",
+    "prior-focus.json"
+  ],
+  "httpGate": "Not required: no sidecar, route or packaging source changes. Registered customer journeys include HTTP regression suites.",
+  "installerVerified": false,
+  "customerRecoveryConfirmed": false
+}
