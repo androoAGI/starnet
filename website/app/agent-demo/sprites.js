@@ -373,7 +373,8 @@ const SPRITES = (() => {
   const ang = a => Math.atan2(Math.sin(a), Math.cos(a));
   function renderDir8(b, dir, glancing, nowMs) {
     // while walking (and not glancing) follow the true continuous heading; otherwise the game dir
-    const want = (!glancing && b.state === 'walk' && b.faceA != null) ? ang(b._resolvedTravelHeading ?? b.faceA) : DIR8_A[dir];
+    const travel = b._resolvedTravelHeading ?? b.faceA;
+    const want = (!glancing && b.state === 'walk' && travel != null) ? ang(travel) : DIR8_A[dir];
     if (want == null) return dir;
     const dt = Math.max(0, Math.min(100, nowMs - (b._rAt || 0)));   // clamp: first frame / tab-restore must not spin
     b._rAt = nowMs;
@@ -394,7 +395,7 @@ const SPRITES = (() => {
       b._turnAng = (b._turnAng || 0) + swept;
     }
     const cur = b._rD8;
-    if (cur && DIR8_A[cur] != null && Math.abs(ang(b._rA - DIR8_A[cur])) < Math.PI / 8 + DIR8_HYST) return cur;
+    if (b.state !== 'walk' && cur && DIR8_A[cur] != null && Math.abs(ang(b._rA - DIR8_A[cur])) < Math.PI / 8 + DIR8_HYST) return cur;
     let best = dir, bd = Infinity;
     for (const d in DIR8_A) {
       const t = Math.abs(ang(b._rA - DIR8_A[d]));

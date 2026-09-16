@@ -1,5 +1,6 @@
 {
   "cases": 555,
+  "headingCases": 106560,
   "skins": 37,
   "maxMovingFacingError": 45,
   "artificialStrideDistance": 0,
