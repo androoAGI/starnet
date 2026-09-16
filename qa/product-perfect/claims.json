@@ -18,8 +18,8 @@
   "expectedClaimCount": 37,
   "releaseSurface": {
     "algorithm": "sha256",
-    "sourceCommit": "8637c9d8d4ef5280c6fe0a4d5a228d4bbe207db2",
-    "pathSetSha256": "1d26a45a2a9aac628d8d2335638d02a6051d605c116824ae8d4c28390781a868",
+    "sourceCommit": "d50f3f603b6751827d89d1e15819065d3bc61ea0",
+    "pathSetSha256": "d78adcafc2e7df8e2bf528f419468d3310c97a59a7cfdc8a808709c92953854f",
     "files": [
       {
         "path": "INSTALL.md",
@@ -68,8 +68,8 @@
       },
       {
         "path": "frontend/app/app.js",
-        "bytes": 382261,
-        "sha256": "8345904feb80642c5a4f86cec11e0c2f0d8bcb6067030cc9678bcb45803f1074"
+        "bytes": 382703,
+        "sha256": "3f88d3fed263978ae87b9c7133d3b6143eb9bfda3e3daad144e95a02ae65c0df"
       },
       {
         "path": "frontend/app/approved-sheet-effects.js",
@@ -428,8 +428,8 @@
       },
       {
         "path": "frontend/app/industrialtextures.js",
-        "bytes": 26171,
-        "sha256": "46dd8b66700a22453f483e758311f6b48a0ecef4e1eacfc00a6712c2505de5df"
+        "bytes": 29262,
+        "sha256": "be337f59925d3201cfd39b6edcd25dc6dec07636425ce65d4652b33c9f83e874"
       },
       {
         "path": "frontend/app/intake.js",
@@ -823,8 +823,8 @@
       },
       {
         "path": "frontend/app/remaster-runtime-audit.js",
-        "bytes": 13630,
-        "sha256": "76107f7164f20509cc595d7b8dd09754f6c26f0dba1bf41bc2a3f552ed6598dc"
+        "bytes": 16074,
+        "sha256": "4af9e860af70ba60e6e636e396efcf5a5a9742275f50fed950824497bd9ca622"
       },
       {
         "path": "frontend/app/resummonstore.js",
@@ -923,8 +923,8 @@
       },
       {
         "path": "frontend/app/stationbake.js",
-        "bytes": 358700,
-        "sha256": "6874d13438a9a989ffb2206413b0aacb2c66057c585179ecd7415bb5b96da3ce"
+        "bytes": 361563,
+        "sha256": "6542df112d5601bd76ade23c87c31043c7b2b8bce63b90d368ae6e42efdb9df0"
       },
       {
         "path": "frontend/app/stationcommands.js",
@@ -1178,8 +1178,8 @@
       },
       {
         "path": "frontend/app/world.js",
-        "bytes": 750651,
-        "sha256": "272e4dc132e308d42c7082ffa2cf971d69c0a8b375256028412f7ea3d4a332b9"
+        "bytes": 753988,
+        "sha256": "1fb8db083cae59ae3a9f139a1491970f5a973c80cbe04fd8470c182559c34eac"
       },
       {
         "path": "frontend/app/worldlab.js",
@@ -1188,13 +1188,13 @@
       },
       {
         "path": "frontend/app/worldlight.js",
-        "bytes": 35404,
-        "sha256": "57417b89beb72da0dec7c1fc34ab082e2d2bb76170d0b07ee8e0d1f7d075b655"
+        "bytes": 35818,
+        "sha256": "c095ff3c1efdbcaab4b19ea2f10af79b6c3a11a1dd10b6b42577201e5a8f84b7"
       },
       {
         "path": "frontend/app/worldmodel.js",
-        "bytes": 159814,
-        "sha256": "6df6ca40c27c218663d8c8e0175d00b812361bcbbaa9ebc5680d99c1d4115831"
+        "bytes": 162180,
+        "sha256": "b29c25636298d09bad392f52808ec96812298ed9e5bc3a5357f8c09cdbe7db2c"
       },
       {
         "path": "frontend/app/worldrenderer.js",
@@ -1203,8 +1203,8 @@
       },
       {
         "path": "frontend/app/worldsurface.js",
-        "bytes": 36144,
-        "sha256": "a7b5f3e84ed4989249478c87b4e5bf4e24c32c1d6949083669bdd55e394bb837"
+        "bytes": 38406,
+        "sha256": "78a93375a184be75454d5e7b0c2a296fcfb86b1d6b9ba3a3e99c12dc8cbb2b15"
       },
       {
         "path": "frontend/app/xp.js",
@@ -1225,6 +1225,21 @@
         "path": "frontend/approved-prop-check.html",
         "bytes": 3962,
         "sha256": "cf9940f3d15777c5604905720f504efdb8e0ec1ff321767377daac3a2a78b3e0"
+      },
+      {
+        "path": "frontend/assets/industrial/shell-clean-preview.html",
+        "bytes": 5027,
+        "sha256": "3306f4c401165b3c19fc7bfe9e99328e28e90fc4e16c5d6d1d53e4f8e58eeb02"
+      },
+      {
+        "path": "frontend/assets/industrial/shell-variants/preview.html",
+        "bytes": 2371,
+        "sha256": "de3b4e9f81e8b21fecfc1459f22267ff479340e78fdc7c5c586cf86061ede616"
+      },
+      {
+        "path": "frontend/assets/industrial/space-preview.html",
+        "bytes": 5143,
+        "sha256": "7173f264bff88961612acc96b76c8ecaa40e1cbc9c0414aa4ca23b796397a8b6"
       },
       {
         "path": "frontend/authored-machine-review.html",
@@ -1438,8 +1453,8 @@
       },
       {
         "path": "frontend/index.html",
-        "bytes": 86440,
-        "sha256": "3ea6cd6a991a46a50983b653e4eea3f904447b6e6ac1b09ba437f7ad485679d7"
+        "bytes": 86479,
+        "sha256": "bc5ce78f58ccc82af417451e25b6ab1ff571f7862e60990b3edb8e222c965f3f"
       },
       {
         "path": "frontend/js/arcade.js",
