@@ -13,3 +13,5 @@ Live verification used the seeded app on port 18797 with `propSet=projection&ski
 The regression in `test/remaster-physical-fit.test.js` verifies opaque bounds, glow exclusion, translation, mounting lift, cached measurements and unavailable-art fallback. This is not an exhaustive visual review of every prop orientation.
 
 Full gate output is retained locally at `dev/.scratch-workspace/prop-selection-test-fast.log`.
+
+Result: `npm run test:fast` exited 0 with `793 step(s) green`. The updated bug register also passed its standalone validation after the evidence record was added.
