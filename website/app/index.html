@@ -763,8 +763,12 @@
 <script src="app/spacebg.js"></script><!-- THE VOID: shared deep-space backdrop (dense starfield + nebulas) — one sky for world.js AND build.js so REFIT never jumps the stars -->
 <script src="app/terrain.js"></script><!-- THE GROUND: world-space ground layer for a LANDED station — pans AND zooms with the world (a backdrop must not), drawn under the station bake -->
 <script src="app/industrialtextures.js"></script>
-<script src="app/propremaster.js"></script>
-<script src="app/propsprites.js"></script>
+<script src="app/authored-prop-content.js"></script>
+<script src="app/authored-service-content.js"></script>
+<script src="app/authored-prop-motion.js"></script>
+<script src="app/authored-machine-config.js"></script>
+<script src="app/approved-sheet-effects.js"></script><script src="app/projection-prop-effects.js"></script><script src="app/propremaster.js"></script>
+<script src="app/authored-surface-mounts.js"></script><script src="app/propsprites.js"></script>
 <script src="app/propsearch.js"></script><!-- pure REFIT palette search matcher (flat lookup across all 120 props, both tiers) -->
 <script src="app/conveyor.js"></script>
 <script src="app/pipeline.js"></script>
@@ -775,6 +779,7 @@
 <script src="app/data-shim.js"></script>
 <script src="app/skinstage.js"></script>
 <script src="js/sprite-load-plan.js"></script>
+<script src="app/skin-study-tone.js"></script><script src="app/skin-study-preview.js"></script>
 <script src="js/assets.js"></script>
 <script src="app/harness.js"></script>
 <script src="app/queryspine.js"></script><!-- keyed Harness.api GET state: in-flight dedupe, last-good truth, TTL + subscriber-owned polling; MUST load before cron consumers -->
@@ -830,6 +835,7 @@
 <script src="app/worldsurface.js"></script>
 <script src="app/worldlight.js"></script>
 <script src="app/worldrenderer.js"></script>
+<script src="app/arrival.js"></script>
 <script src="app/world.js"></script>
 <script src="app/testapi.js"></script><!-- DEV-only: window.__SKYNET_TEST__ (inert unless __STARNET_DEV__) -->
 <script src="app/classify.js"></script>
@@ -904,8 +910,12 @@ document.write('<script src="' + ((window.__STARNET_API__ || '') + '/shared/spec
 <script src="app/worldmodel.js"></script>
 <script src="app/stationbake.js"></script>
 <script src="app/crtlab.js"></script><!-- DEV-only CRT/lighting tuning panel; inert unless ?crtlab is in the URL -->
+<script src="app/projection-audit-panel.js"></script>
+<script src="app/kepler-showcase.js"></script>
+<script src="app/prop-catalog-review.js"></script>
 
 <script src="app/equipmenthelp.js"></script>
+<script src="app/stationtemplates.js"></script>
 <script src="app/build.js"></script>
 <script src="app/save.js"></script>
 <script src="app/cloudsavecore.js"></script><!-- pure retry/health brain (unit-tested); MUST load before cloudsave.js -->

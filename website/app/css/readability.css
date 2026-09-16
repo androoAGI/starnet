@@ -99,6 +99,22 @@ body #terms .set-theme { padding-block: 5px; }
 body #terms .set-bd-name { line-height: 1.2; white-space: normal; }
 body #terms .set-bd { min-height: 65px; }
 body #terms :is(.cf-body,.cf-editarea) { overflow-wrap: anywhere; }
+/* Secondary consoles use the same label/detail hierarchy as COMMS and the
+   shared window roles. These named roles escaped the earlier reading floor. */
+body #terms :is(.settings-jumps button,.con-intent,.cc-filter) {
+  font-size: var(--sn-type-control) !important; line-height: 1.35;
+}
+body #terms .ab-route-title { font-size: var(--sn-type-section) !important; }
+body #terms .ab-router-grid { grid-template-columns: repeat(auto-fit, minmax(min(100%, 268px), 1fr)); }
+body #terms :is(.settings-choice-help,.settings-toggle-copy .dim,.set-sub-d,
+ .prov-ep,.prov-stat-t,.key-meta,.ns-k,.sn-menu-nav-note,.sn-menu-note,.sp-tz) {
+  font-size: var(--sn-type-meta) !important; line-height: 1.45;
+}
+body #terms :is(.settings-choice-help,.settings-toggle-copy .dim,.set-sub-d,
+ .prov-ep,.key-meta,.sn-menu-nav-note,.sn-menu-note,.sp-tz) { color: var(--text); }
+body #terms .settings-jumps button { color: var(--text); }
+body #terms .settings-jumps button:hover { color: var(--ph-bright); }
+body #terms .sn-menu select.key-input { padding-right: 28px; }
 /* Build tools: keep compact dimensions, but give their captions real text sizes. */
 body .refit-dock :is(.refit-toolset-label,.refit-section-label,.refit-category-label,.refit-hint-keys,
  .refit-searchnote,.refit-propcat small,.refit-placement-note,.refit-core-status,.refit-access-chip span,

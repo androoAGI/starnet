@@ -34,6 +34,8 @@ const PitchStore = (() => {
     if (raw && typeof raw === 'object' && raw.pitched) s.pitched = true;
     if (raw && typeof raw === 'object' && raw.starterDone) s.starterDone = true;   // the tour-close floor fired once already
     if (raw && typeof raw === 'object' && typeof raw.firstMove === 'string' && raw.firstMove) s.firstMove = raw.firstMove;   // V3 B10: the interview-grabbed first move (survives reload)
+    if (raw && raw.handoffPending) s.handoffPending = true;
+    if (raw && typeof raw.handoffDraft === 'string') s.handoffDraft = raw.handoffDraft;
     return s;
   }
 
@@ -241,6 +243,72 @@ const PitchStore = (() => {
     } catch (_) { return false; }
   }
 
+  // A durable first-task review. Merely displaying it never spends the handoff.
+  // Interview proposals and edits survive a tour/reload; nothing runs until Start.
+  async function offerHandoff(opts) {
+    if (!ready() || firing || typeof Dialogue === 'undefined' || !Dialogue.node) return null;
+    if (typeof Chat !== 'undefined' && Chat.isBusy && Chat.isBusy()) return null;
+    if (state.starterDone && !state.handoffPending) return null;
+    firing = true;
+    const session = state;
+    state.handoffPending = true;
+    if (state.handoffDraft == null) state.handoffDraft = state.firstMove || '';
+    save();
+    try {
+      Dialogue.open({ name: deps.getName ? deps.getName() : 'AGENT' });
+      let note = '';
+      while (state === session && state.handoffPending) {
+        const purpose = deps.getPurpose ? String(deps.getPurpose() || '').trim() : '';
+        if (Dialogue.setStage) Dialogue.setStage('YOUR FIRST TASK', 'From getting acquainted to working together');
+        const lines = note || (state.handoffDraft
+          ? 'here’s the first task we can begin with. change anything you like, then start when you’re ready.'
+          : (purpose ? 'your direction: ' + purpose + '\n\nwhat would you like us to work on first?' : 'what would you like us to make, learn, or figure out first?'));
+        const pick = await Dialogue.node({ lines: [{ text: lines, cps: 60, holdAfter: 0 }],
+          allowCustom: true, customFirst: true, customValue: state.handoffDraft,
+          customPlaceholder: 'Describe the first thing you want to work on…', submitLabel: 'Start this task →',
+          onCustomInput: text => { if (state === session) { state.handoffDraft = text; save(); } },
+          options: [
+            { label: 'Help me choose a first task', value: 'help', help: true },
+            ...(opts && opts.tour ? [{ label: 'Show me around first', value: 'tour', open: true }] : []),
+            { label: 'I’ll explore on my own', value: 'explore', skip: true }
+          ] });
+        if (state !== session || !pick) return null;
+        if (pick.custom && String(pick.value || '').trim()) {
+          state.handoffDraft = String(pick.value).trim(); save();
+          return { action: 'start', task: state.handoffDraft };
+        }
+        if (pick.value === 'tour') return { action: 'tour' };
+        if (pick.skip) { state.handoffPending = false; state.starterDone = true; save(); return { action: 'explore' }; }
+        if (pick.help) {
+          note = 'tell me something you’re curious about, something you’re making, or something you’d like help with. a rough idea is enough.';
+          if (typeof Harness !== 'undefined' && Harness.chat && Harness.configured && Harness.configured()) {
+            let timer;
+            try {
+              const result = await Promise.race([
+                Harness.chat({ system: deps.getSystem ? deps.getSystem() : '', messages: [{ role: 'user', content: Pitch.buildStarterDirective({ capabilities: deps.getCaps ? deps.getCaps() : [], purpose, draft: state.handoffDraft }) }], agentId: 'agent', isTask: false, placed: [], internal: true, evidence: true }),
+                new Promise(resolve => { timer = setTimeout(() => resolve(null), 12000); })
+              ]);
+              if (state !== session) return null;
+              const proposed = result && !result.error && Pitch.parseStarter(result.text);
+              if (proposed) { state.handoffDraft = proposed.move; save(); note = (proposed.why || 'one possible starting point.') + ' edit the task below to make it yours.'; }
+            } catch (_) {} finally { clearTimeout(timer); }
+          }
+        }
+      }
+      return null;
+    } finally { if (state === session) firing = false; }
+  }
+  function startHandoff(task) {
+    if (!ready() || !String(task || '').trim()) return false;
+    const sent = !(typeof Chat !== 'undefined' && Chat.isBusy && Chat.isBusy()) &&
+      !(typeof Harness !== 'undefined' && Harness.configured && !Harness.configured()) &&
+      deps.launchDirective && deps.launchDirective(task);
+    if (sent) { state.handoffPending = false; state.starterDone = true; delete state.firstMove; save(); }
+    else if (typeof Chat !== 'undefined' && Chat.prefill) Chat.prefill(task);
+    return !!sent;
+  }
+  function handoffPending() { return !!(state && state.handoffPending); }
+
   // S2: a brand-new hero re-earns its First Pitch. Drop the self-persisted flag (Save.clear() only wipes the
   // main save envelope; this store owns its own key, like curiositystore).
   function reset() { state = (typeof Pitch !== 'undefined') ? Pitch.fresh() : { v: 1, pitched: false }; firing = false; try { localStorage.removeItem(KEY); } catch (_) {} }
@@ -249,7 +317,7 @@ const PitchStore = (() => {
   function done() { return !!(state && state.pitched); }
 
   // _-prefixed handles are exposed for the deterministic node test (harmless in the browser).
-  return { init, reset, onRunEnd, done, offerAtHandoff, offerStarter, armFirstMove, _decide: decide, _fire: fire, _state: () => state };
+  return { init, reset, onRunEnd, done, offerAtHandoff, offerStarter, armFirstMove, offerHandoff, startHandoff, handoffPending, _decide: decide, _fire: fire, _state: () => state };
 })();
 
 if (typeof module !== 'undefined' && module.exports) module.exports = { PitchStore };

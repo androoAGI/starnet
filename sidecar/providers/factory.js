@@ -37,6 +37,15 @@
     return rateLimits;
   }
 
+  function resolveMaxOutputTokens(profile) {
+    if (!profile) return 0;
+    const envName = String(profile.maxOutputTokensEnv || '');
+    const fromEnv = (envName && typeof process !== 'undefined' && process.env) ? Math.floor(Number(process.env[envName])) : 0;
+    if (fromEnv > 0) return fromEnv;
+    const declared = Math.floor(Number(profile.maxOutputTokens));
+    return declared > 0 ? declared : 0;
+  }
+
   function selectProvider(opts) {
     opts = opts || {};
     const id = registry.normalizeProviderId(opts.provider, registry.DEFAULT_PROVIDER_ID);
@@ -104,6 +113,8 @@
         // Local runtimes may need to load a model before returning headers. Hosted providers retain the
         // shared 30s connect ceiling; only profiles that prove a different need override it.
         connectTimeoutMs: profile.connectTimeoutMs,
+        // Output ceiling: only profiles that declare one (Ollama) send max_tokens; an env override wins.
+        maxTokens: resolveMaxOutputTokens(profile),
         defaultContext: opts.defaultContext,
         headers: mergedHeaders
       });

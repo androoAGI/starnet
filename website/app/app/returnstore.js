@@ -16,29 +16,33 @@ const ReturnStore = (() => {
   let fired = false;    // ONE digest per page session (anti-nag) — survives enterGame re-entry
   let hbTimer = 0;
   let wired = false;    // unload stamp wired once
+  let recoveryTimer = 0, recoveryGeneration = 0;
 
   function load() { try { const raw = localStorage.getItem(KEY); return raw ? JSON.parse(raw) : null; } catch (_) { return null; } }
-  function save() { try { if (state) localStorage.setItem(KEY, JSON.stringify(state)); } catch (_) {} }
+  function save() { try { if (state) localStorage.setItem(KEY, JSON.stringify(state)); return true; } catch (_) { return false; } }
   const ready = () => typeof Returns !== 'undefined' && !!state;
 
   function beat() { if (!ready()) return; state = Returns.heartbeat(state, Date.now()); save(); }
 
   // fetch this station's run history (ALL agents — cron routines run on crew too) + the routine
-  // catalogue, then compose the digest rows. Fail-open: any error -> [] (the beat just doesn't fire).
-  async function composeRows(sinceMs) {
+  // A failed or partial history read must reject: empty work and unread work are different states.
+  async function composeRows(sinceMs, ranges, signal) {
     let runs = [];
-    try {
+    const readHistory = (url, options) => fetch(url, Object.assign({}, options, { signal }));
       if (typeof XpStore !== 'undefined' && XpStore.loadRunHistory) {
-        runs = (await XpStore.loadRunHistory(sinceMs)).runs || [];
+        const snapshot = await XpStore.loadRunHistory(sinceMs, readHistory);
+        if (!snapshot || !Array.isArray(snapshot.runs)) throw new Error('invalid run history');
+        runs = snapshot.runs;
       } else {
-        const r = await fetch('/api/runs?agent=*&limit=500&since=' + encodeURIComponent(sinceMs), { cache: 'no-store' });
-        if (!r.ok) return [];
-        runs = (await r.json()).runs || [];
+        const r = await readHistory('/api/runs?agent=*&limit=500&since=' + encodeURIComponent(sinceMs), { cache: 'no-store' });
+        if (!r.ok) throw new Error('run history unavailable');
+        const body = await r.json();
+        if (!Array.isArray(body.runs) || body.nextCursor) throw new Error('incomplete run history');
+        runs = body.runs;
       }
-    } catch (_) { return []; }
     // the away boundary is the PREVIOUS session's stamp — the live state has already heartbeat-ed
     // to "now", so it MUST be passed explicitly (returns.test locks this regression).
-    const rows = Returns.unattended(state, runs, sinceMs);
+    const rows = Returns.unattended(state, runs, sinceMs).filter(row => ranges.some(r => row.ts > r.since && row.ts <= r.until));
     if (!rows.length) return rows;
     try {
       const q = (typeof QuerySpine !== 'undefined' && QuerySpine.get) ? await QuerySpine.get('cron') : null;
@@ -58,16 +62,35 @@ const ReturnStore = (() => {
     return rows;
   }
 
-  async function maybeDigest(sinceMs) {
-    if (fired || !ready()) return;
-    const rows = await composeRows(sinceMs);
-    if (!rows.length) return;                       // NEVER an empty digest
-    fired = true;                                   // one per session, even if the beat is later dismissed
+  async function maybeDigest() {
+    if (!ready() || !state.awayRanges.length) return;
+    const generation = recoveryGeneration;
+    const ranges = state.awayRanges.slice();
+    const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
+    let deadline, rows;
+    try {
+      rows = await Promise.race([
+        composeRows(ranges.reduce((since, r) => Math.min(since, r.since), Infinity), ranges, controller && controller.signal),
+        new Promise((_, reject) => { deadline = setTimeout(() => reject(new Error('run history timed out')), 15000); })
+      ]);
+    } catch (_) {
+      if (generation === recoveryGeneration) recoveryTimer = setTimeout(maybeDigest, HEARTBEAT_MS);
+      return;
+    } finally { clearTimeout(deadline); if (controller) controller.abort(); }
+    if (generation !== recoveryGeneration || !ready()) return;
     // The API is newest-first, but the OUTBOX is FIFO. Crate every row oldest-first; only the visible
     // digest below is capped, so the other completed runs remain rateable instead of disappearing.
-    state = Returns.fold(state, rows.slice().sort((a, b) => (+a.ts || 0) - (+b.ts || 0))); save();
+    state = Returns.fold(state, rows.slice().sort((a, b) => (+a.ts || 0) - (+b.ts || 0)));
+    state.awayRanges = [];
+    if (!save()) {
+      state.awayRanges = ranges;
+      recoveryTimer = setTimeout(maybeDigest, HEARTBEAT_MS);
+      return;
+    }
     // an already-open OUTBOX window re-renders with the fresh crates (no-op when closed)
     try { if (typeof StationUI !== 'undefined' && StationUI.rerender) StationUI.rerender('outbox'); } catch (_) {}
+    if (!rows.length || fired) return;
+    fired = true;
     if (typeof Chat !== 'undefined' && Chat.awayDigest) Chat.awayDigest(rows.slice(0, Returns.DIGEST_CAP), { onRated: resolve, openWork: openWork });
   }
 
@@ -77,9 +100,11 @@ const ReturnStore = (() => {
      SECOND session has an honest baseline — it just never fires the beat. */
   function init(opts) {
     opts = opts || {};
+    if (state && hbTimer) return; // enterGame re-entry is not a second closed interval
     state = (typeof Returns !== 'undefined') ? Returns.hydrate(load()) : null;
     if (!state) return;
     const awaySince = state.lastSeenAt;             // 0 on the first-ever session -> engine digests nothing
+    if (opts.enabled !== false && awaySince > 0) state.awayRanges.push({ since: awaySince, until: Date.now() });
     beat();                                          // we are attended NOW
     if (hbTimer) clearInterval(hbTimer);
     hbTimer = setInterval(beat, HEARTBEAT_MS);
@@ -87,7 +112,7 @@ const ReturnStore = (() => {
       wired = true;
       try { window.addEventListener('beforeunload', beat); } catch (_) {}
     }
-    if (opts.enabled !== false) setTimeout(() => { maybeDigest(awaySince); }, DIGEST_DELAY_MS);
+    if (opts.enabled !== false) recoveryTimer = setTimeout(maybeDigest, DIGEST_DELAY_MS);
   }
 
   // ---- attendance truth (item #5): a simple, provable read surface UI can consume ----
@@ -181,7 +206,10 @@ const ReturnStore = (() => {
   }
 
   // S2/new-hero: a fresh Commander inherits no prior pending crates or attendance trail.
-  function reset() { state = null; fired = false; try { localStorage.removeItem(KEY); } catch (_) {} }
+  function reset() {
+    ++recoveryGeneration; clearTimeout(recoveryTimer); clearInterval(hbTimer); hbTimer = 0;
+    state = null; fired = false; try { localStorage.removeItem(KEY); } catch (_) {}
+  }
 
   return { init, pendingCount, pendingRows, reviewNext, resolve, foldRow, reset, lastSeen, isAttended, outboxLine, openWork };
 })();

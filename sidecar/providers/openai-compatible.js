@@ -19,7 +19,7 @@
   // error text names one of these, we drop it and retry — the request still means the same thing without
   // them. `tools` is deliberately NOT in this list: silently removing tools would let a task run proceed
   // without the capability it needs (the run must fail honestly instead).
-  const DROPPABLE_PARAMS = ['stream_options', 'parallel_tool_calls', 'tool_choice', 'reasoning_effort'];
+  const DROPPABLE_PARAMS = ['stream_options', 'parallel_tool_calls', 'tool_choice', 'reasoning_effort', 'max_tokens'];
   // The chat-completions wire accepts this effort scale; StarNet's wider scale (xhigh/max) clamps into it.
   const WIRE_EFFORTS = ['minimal', 'low', 'medium', 'high'];
   function wireEffort(value) {
@@ -137,6 +137,12 @@
     // /models responses). Both stay null/off unless the profile asserts them — capability claims must
     // come from somewhere provable, never be assumed.
     const sendReasoningEffort = opts.sendReasoningEffort === true;
+    // OUTPUT CEILING (2026-09-15, issue #17): this adapter never capped output, so an endpoint with no ceiling of
+    // its own (Ollama) ran to end-of-sequence — a 3B local model typed for ten minutes. Off unless the PROFILE opts
+    // in (factory: profile.maxOutputTokens) or the caller passes max_tokens explicitly; hosted endpoints that
+    // reject the legacy param name still self-heal through DROPPABLE_PARAMS.
+    const configuredMaxTokens = Number(opts.maxTokens);
+    const maxTokens = Number.isFinite(configuredMaxTokens) && configuredMaxTokens > 0 ? Math.floor(configuredMaxTokens) : 0;
     // Error identity: HTTP failures name the PROVIDER when the factory supplies a label. A raw
     // "openai-compatible http 401" mid-run carried no provider identity, so the frontend's recovery
     // classifier couldn't route a dead grok/kimi sign-in to its ⏼ RECONNECT door — users got the
@@ -202,6 +208,9 @@
       const skip = p => !!(dropped && dropped.has(p));
       const body = { model: req.model, messages: provider.preserveClaudeContinuations(provider.repairToolPairs(req.messages || []), req.model), stream: true };
       if (includeUsage && !skip('stream_options')) body.stream_options = { include_usage: true };
+      const explicitMax = Math.floor(Number(req.max_tokens || req.maxTokens || 0)) || 0;
+      const outputCap = explicitMax > 0 ? explicitMax : maxTokens;
+      if (outputCap > 0 && !skip('max_tokens')) body.max_tokens = outputCap;
       if (req.tools && req.tools.length) {
         body.tools = req.tools;
         if (!skip('tool_choice')) body.tool_choice = 'auto';

@@ -507,6 +507,11 @@
       // Ollama loads the model (and a potentially large context allocation) before response headers.
       // A first local run can therefore be healthy but silent for well beyond the hosted 30s ceiling.
       connectTimeoutMs: 300000,
+      // Ollama's OpenAI-compatible wire has no output ceiling of its own: with max_tokens unset a small local
+      // model runs to end-of-sequence (issue #17: a 3B model typed for ten minutes). 4096 is generous for a
+      // reply or a tool step; SKYNET_OLLAMA_MAX_TOKENS overrides it for stations that want more.
+      maxOutputTokens: 4096,
+      maxOutputTokensEnv: 'SKYNET_OLLAMA_MAX_TOKENS',
       order: 60
     },
     {

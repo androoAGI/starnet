@@ -1,19 +1,11 @@
 /* STARNET — tutorial.js : THE FIRST COMMAND + coachmarks + Field Manual (diegetic onboarding, P0–P3).
 
-   The mind that just woke up (onboarding.js) keeps talking — and teaches the Commander the ONE
-   real loop. It opens with the KIT-OUT: the floor is REAL, so a fresh station is compute-only and the
-   Commander must PLACE the capability gear (cabinet→FILES · dish→WEB · workbench→TERMINAL · server→
-   MEMORY) — each placement genuinely hands the agent that power (heroCaps → the run's real tools). Most
-   beats speak in COMMS (Chat.typeLine); the placement guidance is a floating coach bubble over REFIT
-   (which covers COMMS). Choices are Chat.choices.
-
-   Honest by mandate (this serves the polish-audit through-line "make the one real loop visible +
-   shrink what lies"): it names the crew as echoes, never fakes a number, and — crucially — only runs
-   the first real job AFTER the Commander has placed the CABINET, so the file write+read (fs.write +
-   fs.read, fs.write consent-gated) executes against tools that ACTUALLY EXIST. A fresh station grants
-   none of these out of the box (the moat — sidecar/capability/office.js + capgate F1), so the kit-out
-   is what makes the consent→execute→prove demo true instead of an app-lie. The bus-timed beats
-   (agent.run.start / permission.prompt / agent.run.end) then narrate the genuine run, never a sim.
+   The default station starts furnished with five essential capability props. The
+   optional tour explains the workstation, reads the actual equipment in the agent's
+   scope, and offers a real file task. It never asks for duplicate prop placements.
+   Existing edited stations are described from their current floor, not from the
+   starter template. Runtime access and provider availability remain separate facts.
+   Bus-timed beats narrate agent.run.start / permission.prompt / agent.run.end.
 
    Lifecycle: fires once, right after the awakening lands (app.js passes Onboarding.start({ taught })).
    Fully skippable; a self-owned localStorage flag (starnet.tutorial.v1) means it never repeats.
@@ -89,6 +81,8 @@ const Tutorial = (() => {
   // one-shot latches so a repeated bus event can never double-narrate a beat
   let sawStart = false, sawPermission = false, sawEnd = false, sawDeny = false;
   let cleanRunId = null;   // the demo run's id — captured ONLY on a clean, un-denied finish (it gates the handoff pitch)
+  let demoActive = false, demoAgentId = null, demoRunId = null;
+  const demoPrompts = new Set();
   let stallTimer = null;   // failsafe: if the real run never reaches the bus (sidecar down / bad key), narrate honestly instead of freezing
   // THE KIT-OUT (the floor is REAL): the first lesson is the moat — the Commander PLACES the capability gear
   // (cabinet→FILES · dish→WEB · workbench→TERMINAL · server→MEMORY) and each placement hands the agent a genuine
@@ -162,12 +156,9 @@ const Tutorial = (() => {
      The in-panel dialogue outs (res.skip → finishUp) remain the bail path — no-gating holds. */
 
   /* ================= THE FIRST COMMAND ================= */
-  // The demo is fs.write + fs.read — but the fresh station is COMPUTE-ONLY (the moat: web/files/terminal must be
-  // PLACED, see sidecar/capability/office.js + capgate F1). So the FIRST lesson is the kit-out: the Commander
-  // places the real capability gear, the agent genuinely gains files (heroCaps → fs.read/fs.write), and ONLY THEN
-  // does this run — so the walk → consent → execute → prove loop is real, never an app-lie. fs.write requires
-  // consent, so the Commander still sees the genuine consent gate; placing the CABINET first is what makes it true.
-  const TASK = 'write the line "starnet online" to a file called hello.txt, then read it back and show me';
+  // The file task is offered when the actual floor has file equipment. The real
+  // preflight, permission settings and run events govern what happens next.
+  const TASK = 'create a new file called starnet-welcome.txt containing "starnet online", then read it back and show me. If that file already exists, read it without changing it.';
 
   // the capability gear the kit-out walks through, in order. `grant` is the power-word grantLabelForProp returns
   // when its prop lands; `prop` is the catalog id we point at. The display LABEL and the CATEGORY tab are resolved
@@ -198,13 +189,16 @@ const Tutorial = (() => {
     agentName = (opts && opts.name) || agentName;
     replayMode = !!(opts && opts.replay);
     active = true; finished = false; sawStart = sawPermission = sawEnd = sawDeny = false; cleanRunId = null;   // C1: un-latch finishUp for this fresh run (it's symmetric with the saw-flags; without it a prior agent's completed lesson left finishUp a no-op)
+    demoActive = false; demoRunId = null; demoAgentId = null; demoPrompts.clear();
     kitMode = false; kitComplete = false; kitWasOpen = false; kitNeeded = null;
     wireBus();
     // The handoff from the awakening: the DIALOGUE panel is already open (onboarding's closeOut left it up).
     // Offer the tour EXPLICITLY — a clear "SHOW ME AROUND" vs "dive in myself" choice, not a buried chip. This
     // kills the old rhetorical "where do we begin?" self-answer the Commander found confusing.
-    if (!hasDialogue()) { finishUp(true); return; }   // no panel → don't trap the Commander in a half-built tour
-    Dialogue.open({ name: agentName });
+    if (!hasDialogue()) { finishOrientation(); return; }
+    if (replayMode) { beatShowAround(); return; }
+    if (typeof PitchStore !== 'undefined' && PitchStore.offerHandoff) { presentHandoff(true); return; }
+    Dialogue.open({ name: agentName, tour: true });
     if (Dialogue.setStage) Dialogue.setStage('FIRST TASK', 'Your station is ready');
     Dialogue.node({
       lines: [seg('let’s take one real burden off your list. give me notes, messages, or an approved folder and i’ll make a useful draft you can review. you can also take the optional station tour.', 44, 0)],
@@ -217,61 +211,91 @@ const Tutorial = (() => {
     }).then(res => {
       if (!active) return;
       if (res.value === 'platforms') {
-        finishUp(true, true);
+        finishOrientation(true);
         showPlatformConnections();
         return;
       }
       if (res.value === 'value') {
         // A concrete first task owns the handoff: do not overlay the connector pitch or a second coach.
-        finishUp(true, true);
+        finishOrientation(true);
         if (FirstValue.open() === false && hasChat()) Chat.localLine('open RECIPES to choose a useful first task. the optional tool tour is still in the field manual.');
         return;
       }
-      if (res.skip) return finishUp(true);
+      if (res.skip) return finishOrientation();
       beatShowAround();
     });
   }
 
-  /* Optional equipment tour. The walk illustrates the workstation, not a tool-access check.
-     Profiles and Full Access may already supply tools, so never narrate a fabricated failed attempt. */
+  async function presentHandoff(tour) {
+    const result = await PitchStore.offerHandoff({ tour });
+    if (!result) { if (active) finishUp(true, true); return; }
+    if (result.action === 'tour') { beatShowAround(); return; }
+    if (active) finishUp(true, true);
+    else { state.firstCommandDone = true; state.briefDismissed = true; save(); if (hasDialogue() && Dialogue.isOpen()) Dialogue.close(); }
+    if (result.action === 'start') {
+      if (!PitchStore.startHandoff(result.task) && hasChat()) Chat.localLine('your task is saved. check your model connection or finish the current run, then send it from COMMS.');
+    } else if (hasChat()) Chat.localLine('the station is yours. type in COMMS whenever you want to begin. the tour and connection guides are in the field manual.');
+  }
+
+  /* Orientation describes the real station without manufacturing a task/activity state. */
   function beatShowAround() {
     if (!active) return;
-    if (hasDialogue()) Dialogue.close();                 // clear COMMS so the walk + the agent are fully visible
-    try { if (typeof World !== 'undefined' && World.setActivity) World.setActivity('task'); } catch (_) {}   // send the hero to its desk (pure roleplay — emits no run, claims no work)
     try { if (typeof World !== 'undefined' && World.camPushIn) World.camPushIn(); } catch (_) {}
-    rpWalkPoll(0);
+    rpArrived();   // The tour must not manufacture a WORKING state or wait for a pretend run.
   }
-  function rpWalkPoll(tries) {
-    if (!active) return;
-    let arrived = false;
-    try { const d = (typeof World !== 'undefined' && World.dbg) ? World.dbg() : null; arrived = !!(d && d.goal === 'work' && d.sitting); } catch (_) {}
-    if (arrived || tries > 60) return rpArrived();        // ~6s failsafe @100ms — never freeze waiting on the walk
-    setTimeout(() => rpWalkPoll(tries + 1), 100);
-  }
-  async function rpArrived() {
-    if (!active) return;
-    if (hasDialogue()) Dialogue.open({ name: agentName });
-    try { World.say('my desk.'); } catch (_) {}
-    await dsay('this is my workstation. start by telling me what you want done in COMMS. you don’t need to build a conveyor for a normal task.', 44, 360);
+  function rpArrived() {
     if (!active) return;
     try { if (World.truthPulse) World.truthPulse(); World.say('tools for the task.'); } catch (_) {}
-    await dsay('props with ability badges provide tools, like files, web or a terminal. decoration changes how the station looks.', 44, 360);
-    if (!active) return;
-    await dsay('you only need the abilities your work uses. ABILITIES shows my current access — your settings may already provide the tools without extra props.', 44, 280);
-    if (!active) return;
     beatKitInvite();
+  }
+  function equipmentInScope() {
+    try {
+      const caps = World.heroCaps(typeof App !== 'undefined' && App.heroId ? App.heroId() : 'agent');
+      return Array.isArray(caps) ? caps.map(c => c && (c.objectType || c)) : null;
+    } catch (_) { return null; }
   }
   function beatKitInvite() {
     if (!active) return;
-    if (!hasDialogue()) return beatKitIntro();
-    Dialogue.open({ name: agentName });
+    if (!hasDialogue()) return finishOrientation();
+    // heroCaps is room-scoped for an assigned agent, not a station-wide inventory.
+    const caps = equipmentInScope();
+    const purposes = { cabinet: 'FILES — read and write files', dish: 'WEB — search and browse', workbench: 'TERMINAL — run commands and checks', notebook: 'MEMORY — save and retrieve notes', studio: 'MEDIA — create and analyze images' };
+    const placed = Object.keys(purposes).filter(c => caps && caps.includes(c));
+    const summary = caps === null ? 'i couldn’t read the equipment in my area. check BUILD › ABILITIES for current access.'
+      : placed.length === 5 ? 'all five essentials are already placed in my area.'
+      : placed.length ? 'here’s the equipment currently in my area. this station has been customized; you can start with what’s here.'
+      : 'there’s no essential equipment in my area. you can still chat with me; BUILD › ABILITIES shows current access.';
+    Dialogue.open({ name: agentName, tour: true });
+    if (Dialogue.setStage) Dialogue.setStage('QUICK TOUR · 1 OF 2', 'Your equipment');
     Dialogue.node({
-      lines: [seg('want to try placing equipment? this optional tour demonstrates four abilities. matching badges are alternatives — you don’t need every prop, and you can stop whenever you like.', 44, 0)],
+      lines: [seg(summary + '\n' + placed.map(c => purposes[c]).join('\n') + '\n\nEquipment supports these tools. Connected services and your access settings determine what can run.', 64, 0)],
+      options: [{ label: 'NEXT · USING YOUR STATION', value: 'next' }, { label: 'Finish tour', value: 'done', skip: true }]
+    }).then(res => { if (!active) return; if (res.skip) return finishOrientation(); beatStationUse(); });
+  }
+  function beatStationUse() {
+    if (!active || !hasDialogue()) return;
+    const caps = equipmentInScope();
+    if (Dialogue.setStage) Dialogue.setStage('QUICK TOUR · 2 OF 2', 'Start with a task');
+    Dialogue.node({
+      lines: [seg('Ask for work in COMMS. Review the reply and files.\nBUILD › REFIT STATION: pick a prop, click a clear tile. Press Esc to cancel. Select a placed prop to move it.\nPresets furnish rooms. Conveyors are optional for passing work between agents.', 64, 0)],
       options: [
-        { label: '▸ TRY THE EQUIPMENT TOUR', value: 'go' },
-        { label: 'I’ll explore on my own', value: 'skip', skip: true }
+        ...(typeof FirstValue !== 'undefined' ? [{ label: '▸ CHOOSE MY FIRST TASK', value: 'value' }] : []),
+        ...(caps && caps.includes('cabinet') ? [{ label: 'TRY A SMALL FILE EXAMPLE', value: 'demo' }] : []),
+        { label: 'Finish tour · I’ll type in COMMS', value: 'done', skip: true }
       ]
-    }).then(res => { if (!active) return; if (res.skip) return finishUp(true); beatKitIntro(); });
+    }).then(res => {
+      if (!active) return;
+      if (res.value === 'demo') return beatCommand();
+      finishOrientation(res.value === 'value');
+      if (res.value === 'value' && FirstValue.open() === false && hasChat()) Chat.localLine('type your first task in COMMS whenever you’re ready.');
+    });
+  }
+  function finishOrientation(quiet) {
+    // A finished orientation must not spawn a placement checklist, connector pitch and coachmark.
+    // Replay preserves existing progress and preferences.
+    if (!replayMode) state.briefDismissed = true;
+    finishUp(false, true);
+    if (!quiet && hasChat()) Chat.localLine('you’re ready to start. type a task in COMMS. replay this tour any time in SYSTEM › FIELD MANUAL.');
   }
 
   /* ---- THE KIT-OUT: a guided, GLOW-DRIVEN placement loop. One self-rescheduling tick (kitTick) is the whole
@@ -472,21 +496,34 @@ const Tutorial = (() => {
     dsay('you can add equipment in REFIT whenever a task needs it. for now, tell me what you want done in COMMS.', 44, 320).then(() => finishUp(false));
   }
 
-  // THE OPTIONAL DEMO — the real fs.write + fs.read loop, now that the agent is genuinely equipped. The panel
-  // CLOSES so the real run (the consent gate, the tool lines) is visible in COMMS; the bus-timed beats narrate
-  // the genuine run, never a sim. Reached only from beatFullyEquipped, so the Commander already opted in — no
-  // extra chip, straight to the run.
+  // Explicitly chosen file example. COMMS owns actual tool output and access prompts.
   function beatCommand() {
     if (!active) return;
     if (hasDialogue()) Dialogue.close();                 // reveal COMMS so the real loop is watchable
     demoPreflight().then(ready => {
       if (!active) return;
       if (!ready.ok) return beatSidecarDown(ready.why);  // can't actually run → own it in words, no scary error, no 8s freeze
+      if (Chat.isBusy && Chat.isBusy()) {
+        Chat.localLine('COMMS already has work in progress. finish or stop that task before trying the file example.');
+        return finishOrientation(true);
+      }
       spotlight('#chat-panel');
       say([
-        seg('watch, then. i’ll use the files you just gave me — write a line, read it back — right here on your machine.', 46, 380),
-        seg('  and watch me stop to ask before i touch anything. heading to my station now.', 46, 0)
-      ], () => { clearSpot(); if (typeof Chat.send === 'function') Chat.send(TASK); armStall(); });   // hand off to the REAL loop (+ a failsafe if it never reaches the bus)
+        seg('this example asks me to create starnet-welcome.txt and read it back. an existing file will be left unchanged.', 52, 280),
+        seg('  you may see an approval prompt depending on your access settings. review the tool activity and result in COMMS.', 52, 0)
+      ], () => {
+        clearSpot();
+        if (!active) return;
+        demoAgentId = (typeof App !== 'undefined' && App.currentAgent && App.currentAgent() || {}).id || (typeof App !== 'undefined' && App.heroId ? App.heroId() : 'agent');
+        demoActive = true;
+        armStall();
+        Promise.resolve().then(() => Chat.send(TASK)).catch(() => {
+          if (active && demoActive && !sawStart) {
+            Chat.localLine('the example could not start. check the message in COMMS before retrying.');
+            finishOrientation(true);
+          }
+        });
+      });
     });
   }
   // the demo is a REAL run — only attempt it when it can actually land: a configured brain AND a reachable sidecar.
@@ -510,9 +547,9 @@ const Tutorial = (() => {
   function beatSidecarDown(why) {
     if (!active) return;
     const line = (why === 'brain')
-      ? 'one honest thing before i fake anything: i don’t have a brain wired up yet — no model or key set — so i can’t actually run this. set one in CONNECT, then point me at a real job and watch the loop for real.'
-      : 'and… i can’t reach my own hands yet. the local sidecar — the thing that actually runs me (`npm start`) — isn’t answering, so nothing ran and i won’t pretend it did. start it up, then give me a real job and watch the whole loop.';
-    say([seg(line, 44, 480)], beatGauge);
+      ? 'the file example hasn’t started. choose a model in COMMS and check its connection in SYSTEM › SETTINGS, then try again. adding more equipment won’t fix a model connection.'
+      : 'the file example hasn’t started because the local service isn’t responding. reconnect or restart StarNet, then try again. your station does not need rebuilding.';
+    say([seg(line, 52, 0)], () => finishOrientation(true));
   }
   /* ---- the kit-out spotlight: a coach bubble PINNED to a safe zone (.tut-coach.kit — so it can never cover the
      control it points at, the old "guidance covers the buttons" bug) + a pulsing ring on the exact target + an
@@ -583,15 +620,27 @@ const Tutorial = (() => {
   function wireBus() {
     if (wired || typeof U === 'undefined' || !U.bus) return;
     wired = true;
-    U.bus.on('agent.run.start', () => { if (active && !sawStart) { sawStart = true; clearStall(); onRunStart(); } });
-    U.bus.on('permission.prompt', () => { tickBrief('approve'); if (active && !sawPermission) { sawPermission = true; onPermission(); } });
-    U.bus.on('permission.response', p => { if (active && p && p.decision === 'deny') sawDeny = true; });   // so onRunEnd narrates a Deny honestly, never "i ran it and showed you the result"
+    U.bus.on('agent.run.start', p => {
+      if (active && demoActive && !sawStart && p && p.agentId === demoAgentId && p.runId) {
+        demoRunId = p.runId; sawStart = true; clearStall(); onRunStart();
+      }
+    });
+    U.bus.on('permission.prompt', p => {
+      if (active && demoActive && sawStart && !sawEnd && p && p.agentId === demoAgentId) {
+        demoPrompts.add(p.promptId);
+        if (!sawPermission) { sawPermission = true; onPermission(); }
+      }
+    });
+    U.bus.on('permission.response', p => {
+      if (p && ['once', 'always', 'full'].includes(p.decision)) tickBrief('approve');
+      if (active && demoActive && p && demoPrompts.has(p.promptId) && p.decision === 'deny') sawDeny = true;
+    });
     // FIRST-STEPS "give a command" tracks any CLEAN run (tutorial or not) — outside the active guard so it keeps
     // working for the whole session; gated on reason==='done' so an errored run no longer falsely ticks it.
     // The NARRATION (onRunEnd) is separate, active-guarded, and branches on the real outcome.
     U.bus.on('agent.run.end', p => {
       if (p && p.reason === 'done') tickBrief('command');
-      if (active && !sawEnd) { sawEnd = true; clearStall(); onRunEnd(p); }
+      if (active && demoActive && demoRunId && p && p.runId === demoRunId && !sawEnd) { sawEnd = true; demoActive = false; clearStall(); onRunEnd(p); }
     });
   }
   function clearStall() { if (stallTimer) { clearTimeout(stallTimer); stallTimer = null; } }
@@ -604,25 +653,21 @@ const Tutorial = (() => {
       stallTimer = null;
       if (!active || sawStart || sawEnd) return;
       sawEnd = true;   // latch so a very-late bus event can't double-narrate
-      say([
-        seg('huh — i didn’t actually move. i can’t reach my own hands yet.', 44, 420),
-        seg('  the sidecar isn’t running, or the key’s off — so nothing ran, and i won’t pretend it did. start it up and tap me again. here’s the rest in words for now:', 44, 0)
-      ], beatGauge);
+      say([seg('i haven’t received a start confirmation for the example. check COMMS for its status before retrying.', 52, 0)], () => finishOrientation(true));
     }, 8000);
   }
 
   // the agent is now walking to the desk (chat.js set World.setActivity('task') the instant the chip fired)
   function onRunStart() {
     if (!active) return;
-    say([seg('there i go. that desk is where i actually go to work — for real, on your machine. this isn’t a cutscene.', 44, 0)]);
+    say([seg('the task has started. follow its tool activity and result in COMMS.', 52, 0)]);
   }
   // the real consent prompt has just appeared in COMMS (harness emits on the bus around when chat.js draws the row).
   // Copy avoids spatial words ("below") so it stays correct under trunk's pinned-reply COMMS ordering after a sync.
   function onPermission() {
     if (!active) return;
     say([
-      seg('stop — see that prompt? before i touch anything that matters, it surfaces right here and waits for you.', 44, 360),
-      seg('  approve once, always, or kill it. that pause is your hand on the switch. go ahead — approve it.', 44, 0)
+      seg('this action needs your decision. read what it will do, then approve it or deny it. you can finish the tour either way.', 52, 0)
     ]);
   }
   // wrap-up: tell the TRUTH about what actually happened. agent.run.end fires for done/stop/limit/error, and a
@@ -633,18 +678,15 @@ const Tutorial = (() => {
     const reason = p && p.reason;
     let line;
     if (sawDeny) {
-      line = 'and you killed it — good. that wasn’t for show: your “deny” stuck, nothing got written, and the run stopped cold. that pause is your hand on the switch, every time.';
+      line = 'your denied action was blocked. review COMMS for any steps completed before that decision.';
     } else if (reason === 'done') {
       cleanRunId = (p && p.runId) || null;   // a clean, un-denied demo run — the ONLY ticket to the handoff pitch
-      const did = sawPermission
-        ? 'i walked over, asked your permission first, ran it, and showed you the result instead of just claiming it.'
-        : 'i walked over, ran it right here on your machine, and showed you the result instead of just claiming it.';
-      line = 'and… done. that was the whole loop, for real: ' + did;
+      line = 'the run finished. check the file contents and tool results in COMMS to confirm the example did what you asked.';
     } else {
       // the run reached the desk but didn't finish clean (error / stopped / limit) — never claim a result we don't have.
-      line = 'and… that one didn’t land — it errored out before it finished. that’s the honest part: it’s real, so real things can fail sometimes. the loop’s still the loop — ask, i work, i prove it, you stay in control.';
+      line = 'the example ended before a completed result was confirmed. COMMS shows why it stopped and any steps that ran.';
     }
-    setTimeout(() => { if (active) say([seg(line, 42, 600)], beatGauge); }, 500);
+    setTimeout(() => { if (active) say([seg(line, 52, 0)], () => finishOrientation()); }, 500);
   }
   // every post-run beat early-outs on !active, so a "skip intro" mid-run halts the chain cleanly
   function beatGauge() {
@@ -680,6 +722,7 @@ const Tutorial = (() => {
       // (dialogue-open guard); this is the tour handing it the stage deliberately at its close. Falls back to
       // the classic close whenever the pitch can't land (skipped/denied/failed demo, cold dossier, no brain,
       // model hiccup) — the tour never stalls on it, and the un-fired pitch stays armed for a later real task.
+      if (!replayMode && typeof PitchStore !== 'undefined' && PitchStore.offerHandoff) { finishUp(false); return; }
       const classicClose = () => {
         if (!active) return;
         // (the WORK-dock orientation lives in beatWork() just before this — don't repeat it here.)
@@ -705,12 +748,10 @@ const Tutorial = (() => {
 
   function finishUp(skipped, valueHandoff) {
     if (finished) return; finished = true;        // idempotent: a late START-COMMANDING click after a skip can't re-run this
-    active = false; kitMode = false; clearStall(); clearSpot(); clearCoach();
+    active = false; demoActive = false; kitMode = false; clearStall(); clearSpot(); clearCoach();
     clearKitTimers();   // drop the kit-out poll + flash + ready timers if they bailed mid-placement
     if (typeof Dialogue !== 'undefined' && Dialogue.isOpen && Dialogue.isOpen()) Dialogue.close();   // reveal COMMS — the tour is over
-    // release the roleplay sit (the tour walked the hero to its desk via setActivity('task')); only when no
-    // REAL run drove it (a demo's post-run state is owned by the harness — don't yank it).
-    if (!sawStart) { try { if (typeof World !== 'undefined' && World.setActivity) World.setActivity('idle'); } catch (_) {} }
+    // The current tour never changes activity: actual runs retain ownership of the floor state.
     state.firstCommandDone = true;
     if (skipped && !replayMode) state.briefDismissed = true;     // replay never rewrites the saved first-steps preference
     save();
@@ -720,25 +761,9 @@ const Tutorial = (() => {
       if (hasChat()) Chat.localLine(skipped ? 'quick tour closed — your progress is unchanged.' : 'quick tour complete — your progress is unchanged.');
       return;
     }
-    if (skipped) { if (hasChat()) Chat.localLine('right. i’m here when you need me — just type. the field manual’s in the bottom bar when you want it.'); }
-    else { sfx('level'); if (!state.briefDismissed && !state.briefComplete) setTimeout(showBrief, 600); }   // hand them the first-steps map
-    // THE FLOOR — the tour NEVER ends in silence, the skip path included. Two guaranteed beats, both
-    // one-shot: (1) the station offers one concrete first move (PitchStore.offerStarter — generated from
-    // the dossier when the brain is live, the quest-log pointer when it isn't; moot if the handoff pitch
-    // already delivered), and (2) a coachmark points at the quest log itself — the map says NOTHING glowed
-    // at tour end, so a skipper never even learned quests exist. Anchored on the always-visible WORK dock
-    // button (never a hidden menu item — the dock-menu spotlight trap).
-    // LANE 2 (2026-08-22): "Connect your world" — ONE beat between the checklist and the starter pitch. It
-    // reads the dossier GOALS and offers ≤3 connectors by topic; a pick routes into the EXISTING catalog
-    // sign-in (no new window, no new visual language). The starter pitch waits for the answer because COMMS
-    // chips are ONE layer — Chat.choices() clears any prior row, so firing both at once would eat the offer.
-    // Replay never runs it (progress unchanged) and a missing Chat/sidecar falls straight through.
-    const afterConnect = () => {
-      if (typeof PitchStore !== 'undefined' && PitchStore.offerStarter) PitchStore.offerStarter();
-      showCoach('quests', '.bb-group[data-group="work"] .bb-grp',
-        'your next moves are pinned under ▤ WORK ▸ ⚑ QUESTS — real progress, tracked as quests. the same dock holds ❒ RECIPES (ready-made jobs), ☑ TASKS (where running work lives) and ∞ AUTOMATION (routines & loops — standing work). nothing in there is ever gated.');
-    };
-    setTimeout(() => beatConnect(afterConnect), skipped ? 900 : 1400);
+    // Return to the same first task after the optional tour. Setup help stays in the manual.
+    if (typeof PitchStore !== 'undefined' && PitchStore.offerHandoff) presentHandoff(false);
+    else if (hasChat()) Chat.localLine('ready when you are. type your first task in COMMS.');
   }
 
   function goalTexts() {
@@ -861,6 +886,10 @@ const Tutorial = (() => {
   function showCoach(key, anchorSel, text, opts) {
     opts = opts || {};
     if (active || seen(key)) return;     // never during the First Command; once ever
+    // Build Mode owns its contextual instructions. Keep progress hooks, but don't
+    // interrupt browsing or placement with a second explanation and a dismiss button.
+    if ((['build','prop','belt','connector'].includes(key) || key.startsWith('wf-'))
+      && document.querySelector('.refit-overlay')) return;
     // don't paint over an open panel (e.g. the Field Manual) — defer (not marked seen) until it's closed.
     // EXCEPT a one-shot whose trigger never re-fires (level-up): show it over the panel rather than lose it forever.
     // Same rule for REFIT's first-run card (.refit-firstrun): it now waits for the tour to finish, so the very
@@ -1235,11 +1264,10 @@ const Tutorial = (() => {
     return active;
   }
 
-  /* lifecycle entry from app.js enterGame: arm the bus ticks (even for skippers/returners) and, for a
-     returning user mid-progress, re-offer the first-steps map. Fresh users get it from finishUp instead. */
+  /* Keep earned progress tracking for returning users without resurfacing the old placement checklist. */
   function onEnterGame() {
     wireBus();
-    if (state.firstCommandDone && !state.briefDismissed && !state.briefComplete) setTimeout(showBrief, 900);
+    if (typeof PitchStore !== 'undefined' && PitchStore.handoffPending && PitchStore.handoffPending()) setTimeout(() => { if (!active && !(typeof Onboarding !== 'undefined' && Onboarding.isRunning()) && !(hasDialogue() && Dialogue.isOpen())) presentHandoff(false); }, 900);
     if (state.firstCommandDone) watchConnectors(1);   // a connector wired since last visit ticks the step from the read-back
   }
 

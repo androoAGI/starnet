@@ -196,6 +196,8 @@ const Tutorial = (() => {
     // Offer the tour EXPLICITLY — a clear "SHOW ME AROUND" vs "dive in myself" choice, not a buried chip. This
     // kills the old rhetorical "where do we begin?" self-answer the Commander found confusing.
     if (!hasDialogue()) { finishOrientation(); return; }
+    if (replayMode) { beatShowAround(); return; }
+    if (typeof PitchStore !== 'undefined' && PitchStore.offerHandoff) { presentHandoff(true); return; }
     Dialogue.open({ name: agentName, tour: true });
     if (Dialogue.setStage) Dialogue.setStage('FIRST TASK', 'Your station is ready');
     Dialogue.node({
@@ -224,8 +226,18 @@ const Tutorial = (() => {
     });
   }
 
-  /* Optional equipment tour. The walk illustrates the workstation, not a tool-access check.
-     Profiles and Full Access may already supply tools, so never narrate a fabricated failed attempt. */
+  async function presentHandoff(tour) {
+    const result = await PitchStore.offerHandoff({ tour });
+    if (!result) { if (active) finishUp(true, true); return; }
+    if (result.action === 'tour') { beatShowAround(); return; }
+    if (active) finishUp(true, true);
+    else { state.firstCommandDone = true; state.briefDismissed = true; save(); if (hasDialogue() && Dialogue.isOpen()) Dialogue.close(); }
+    if (result.action === 'start') {
+      if (!PitchStore.startHandoff(result.task) && hasChat()) Chat.localLine('your task is saved. check your model connection or finish the current run, then send it from COMMS.');
+    } else if (hasChat()) Chat.localLine('the station is yours. type in COMMS whenever you want to begin. the tour and connection guides are in the field manual.');
+  }
+
+  /* Orientation describes the real station without manufacturing a task/activity state. */
   function beatShowAround() {
     if (!active) return;
     try { if (typeof World !== 'undefined' && World.camPushIn) World.camPushIn(); } catch (_) {}
@@ -233,7 +245,6 @@ const Tutorial = (() => {
   }
   function rpArrived() {
     if (!active) return;
-    if (hasDialogue()) Dialogue.open({ name: agentName, tour: true });
     try { if (World.truthPulse) World.truthPulse(); World.say('tools for the task.'); } catch (_) {}
     beatKitInvite();
   }
@@ -711,6 +722,7 @@ const Tutorial = (() => {
       // (dialogue-open guard); this is the tour handing it the stage deliberately at its close. Falls back to
       // the classic close whenever the pitch can't land (skipped/denied/failed demo, cold dossier, no brain,
       // model hiccup) — the tour never stalls on it, and the un-fired pitch stays armed for a later real task.
+      if (!replayMode && typeof PitchStore !== 'undefined' && PitchStore.offerHandoff) { finishUp(false); return; }
       const classicClose = () => {
         if (!active) return;
         // (the WORK-dock orientation lives in beatWork() just before this — don't repeat it here.)
@@ -749,25 +761,9 @@ const Tutorial = (() => {
       if (hasChat()) Chat.localLine(skipped ? 'quick tour closed — your progress is unchanged.' : 'quick tour complete — your progress is unchanged.');
       return;
     }
-    if (skipped) { if (hasChat()) Chat.localLine('right. i’m here when you need me — just type. the field manual’s in the bottom bar when you want it.'); }
-    else { sfx('level'); if (!state.briefDismissed && !state.briefComplete) setTimeout(showBrief, 600); }   // hand them the first-steps map
-    // THE FLOOR — the tour NEVER ends in silence, the skip path included. Two guaranteed beats, both
-    // one-shot: (1) the station offers one concrete first move (PitchStore.offerStarter — generated from
-    // the dossier when the brain is live, the quest-log pointer when it isn't; moot if the handoff pitch
-    // already delivered), and (2) a coachmark points at the quest log itself — the map says NOTHING glowed
-    // at tour end, so a skipper never even learned quests exist. Anchored on the always-visible WORK dock
-    // button (never a hidden menu item — the dock-menu spotlight trap).
-    // LANE 2 (2026-08-22): "Connect your world" — ONE beat between the checklist and the starter pitch. It
-    // reads the dossier GOALS and offers ≤3 connectors by topic; a pick routes into the EXISTING catalog
-    // sign-in (no new window, no new visual language). The starter pitch waits for the answer because COMMS
-    // chips are ONE layer — Chat.choices() clears any prior row, so firing both at once would eat the offer.
-    // Replay never runs it (progress unchanged) and a missing Chat/sidecar falls straight through.
-    const afterConnect = () => {
-      if (typeof PitchStore !== 'undefined' && PitchStore.offerStarter) PitchStore.offerStarter();
-      showCoach('quests', '.bb-group[data-group="work"] .bb-grp',
-        'your next moves are pinned under ▤ WORK ▸ ⚑ QUESTS — real progress, tracked as quests. the same dock holds ❒ RECIPES (ready-made jobs), ☑ TASKS (where running work lives) and ∞ AUTOMATION (routines & loops — standing work). nothing in there is ever gated.');
-    };
-    setTimeout(() => beatConnect(afterConnect), skipped ? 900 : 1400);
+    // Return to the same first task after the optional tour. Setup help stays in the manual.
+    if (typeof PitchStore !== 'undefined' && PitchStore.offerHandoff) presentHandoff(false);
+    else if (hasChat()) Chat.localLine('ready when you are. type your first task in COMMS.');
   }
 
   function goalTexts() {
@@ -1271,6 +1267,7 @@ const Tutorial = (() => {
   /* Keep earned progress tracking for returning users without resurfacing the old placement checklist. */
   function onEnterGame() {
     wireBus();
+    if (typeof PitchStore !== 'undefined' && PitchStore.handoffPending && PitchStore.handoffPending()) setTimeout(() => { if (!active && !(typeof Onboarding !== 'undefined' && Onboarding.isRunning()) && !(hasDialogue() && Dialogue.isOpen())) presentHandoff(false); }, 900);
     if (state.firstCommandDone) watchConnectors(1);   // a connector wired since last visit ticks the step from the read-back
   }
 

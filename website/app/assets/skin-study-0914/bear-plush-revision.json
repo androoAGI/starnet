@@ -1,0 +1,14 @@
+{
+  "characters": [
+    {
+      "id": "bear",
+      "characterId": "612ca6a2-0e9d-469d-aeff-ab43dbc83dde",
+      "rotations": {
+        "south": "https://backblaze.pixellab.ai/file/pixellab-characters/1ff7d2cf-cfe6-44f9-9533-9eea41eb05cb/612ca6a2-0e9d-469d-aeff-ab43dbc83dde/rotations/south.png?t=1789366165",
+        "east": "https://backblaze.pixellab.ai/file/pixellab-characters/1ff7d2cf-cfe6-44f9-9533-9eea41eb05cb/612ca6a2-0e9d-469d-aeff-ab43dbc83dde/rotations/east.png?t=1789366165",
+        "north": "https://backblaze.pixellab.ai/file/pixellab-characters/1ff7d2cf-cfe6-44f9-9533-9eea41eb05cb/612ca6a2-0e9d-469d-aeff-ab43dbc83dde/rotations/north.png?t=1789366165",
+        "west": "https://backblaze.pixellab.ai/file/pixellab-characters/1ff7d2cf-cfe6-44f9-9533-9eea41eb05cb/612ca6a2-0e9d-469d-aeff-ab43dbc83dde/rotations/west.png?t=1789366165"
+      }
+    }
+  ]
+}

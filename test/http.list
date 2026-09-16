@@ -1,5 +1,6 @@
 # Sidecar/HTTP integration gate. Run in order by scripts/run-test-list.mjs; one isolated Node process per line.
 test/provider-recovery.e2e.test.js
+test/seam-audit-recovery.http.test.js
 test/customer-journey.e2e.test.js
 test/group-sessions.http.test.js
 test/tool-model-fallback.e2e.test.js
@@ -89,6 +90,7 @@ test/skills.gate.http.test.js
 test/skill-exchange.http.test.js
 test/skills.gate.prompt.e2e.test.js
 test/roster-track.e2e.test.js
+test/chat-prompt-diet.e2e.test.js
 test/routes-coverage.http.test.js
 test/atlas-events.emit.e2e.test.js
 test/openai-compat.e2e.test.js

@@ -56,7 +56,7 @@ function fixture(caps = essentials, configured = false) {
   assert.equal(full.state().briefDismissed, true, 'no gear-placement checklist after orientation');
   assert.equal(full.timers.size, 0, 'no delayed connector pitches or build coachmarks');
   assert.equal(full.activityChanges(), 0, 'tour cannot manufacture WORKING or override a real run with IDLE');
-  full.replay(); await full.choose('skip');
+  full.replay(); await full.choose('done');
   assert.equal(full.state().brief.command, true, 'replay preserves earned progress');
 
   for (const caps of [['dish'], [], null]) {

@@ -18,13 +18,13 @@
 'use strict';
 
 const WorldSurface = (() => {
-  const VERSION = 5;
+  const VERSION = 6;
   const CELL = 12;
   const MATERIALS = Object.freeze([
     'spine', 'alloy', 'plate', 'panel', 'tile', 'tread', 'soft', 'grate', 'hex',
-    'plank', 'turf', 'diamond', 'resin', 'ceramic', 'cargo', 'runner', 'treadway', 'meshway', 'basalt', 'parquet', 'rubber', 'slotted', 'terrazzo', 'octile'
+    'plank', 'turf', 'diamond', 'resin', 'ceramic', 'cargo', 'runner', 'treadway', 'meshway', 'basalt', 'parquet', 'rubber', 'slotted', 'terrazzo', 'octile', 'flightdeck', 'lunar', 'maggrid', 'habitat'
   ]);
-  const WALLS = Object.freeze(['bulkhead', 'courses', 'service', 'plating', 'ribbed', 'panelled', 'pipework']);
+  const WALLS = Object.freeze(['bulkhead', 'courses', 'service', 'plating', 'ribbed', 'panelled', 'pipework', 'pressure', 'radiator', 'utility', 'acoustic']);
   const materialSet = new Set(MATERIALS), wallSet = new Set(WALLS);
   const palettes = new Map();
   const remastered = () => typeof IndustrialTextures !== 'undefined' && IndustrialTextures &&
@@ -131,6 +131,27 @@ const WorldSurface = (() => {
     p(0, 0, CELL, CELL, pal.base);
     if (!d) return true;
 
+    if (['flightdeck', 'lunar', 'maggrid', 'habitat'].includes(mat)) {
+      const slab = mat === 'lunar', width = slab ? 48 : 24, height = 24;
+      const { lx, ly, seed } = floorPanel(p, pal, wx, wy, width, height, { stagger: slab, bolts: mat === 'flightdeck' });
+      if (mat === 'flightdeck') {
+        p(-lx, -ly, 4, 4, pal.recess); p(1 - lx, 1 - ly, 2, 2, pal.metal);
+        p(20 - lx, 20 - ly, 4, 4, pal.recess);
+      } else if (mat === 'maggrid') {
+        for (const x of [3, 6, 17, 20]) { p(x - lx, 2 - ly, 1, 20, pal.metal); }
+        p(3 - lx, 10 - ly, 4, 2, pal.recess); p(17 - lx, 10 - ly, 4, 2, pal.recess);
+      } else if (mat === 'habitat') {
+        p(2 - lx, 2 - ly, 20, 20, pal.base);
+        p(-lx, -ly, 3, 3, pal.shade);
+        p(10 - lx, 15 - ly, 1, 1, pal.fine);
+      } else {
+        for (let i = 0; i < 10; i++) {
+          const n = hash(seed, i, 291);
+          p(3 + n % 42 - lx, 3 + (n >>> 10) % 18 - ly, 1 + (n >>> 20) % 2, 1, i % 3 ? pal.soft : pal.fine);
+        }
+      }
+      return true;
+    }
     if (mat === 'spine' || mat === 'alloy') {
       // Broad flush sheets, not bevelled access hatches. A one-pixel seal owns
       // each shared joint; the surface never acquires a raised perimeter frame.
@@ -376,6 +397,31 @@ const WorldSurface = (() => {
     };
     p(0, 0, CELL, h, pal.shade);
     if (!d) return true;
+    if (['pressure', 'radiator', 'utility', 'acoustic'].includes(material)) {
+      const lx = mod(wx, material === 'acoustic' ? 8 : 12);
+      p(0, 0, CELL, h, pal.base);
+      p(0, 0, CELL, 2, pal.recess); p(0, 2, CELL, 1, pal.edge);
+      p(0, h - 4, CELL, 4, pal.shade); p(0, h - 4, CELL, 1, pal.metal);
+      p(-lx, 3, 1, h - 7, pal.recess); p(1 - lx, 3, 1, h - 7, pal.fine);
+      if (material === 'pressure') {
+        p(3 - lx, 5, 7, 1, pal.fine); p(3 - lx, 6, 1, h - 12, pal.soft);
+        p(9 - lx, h - 11, 1, 3, pal.metal);
+      } else if (material === 'radiator') {
+        for (let x = 3; x < 10; x += 3) {
+          p(x - lx, 4, 2, h - 9, pal.deep); p(x - lx, 4, 1, h - 9, pal.metal);
+        }
+      } else if (material === 'utility') {
+        for (const y of [h - 10, h - 7]) {
+          p(0, y, CELL, 2, pal.recess); p(0, y, CELL, 1, pal.metal);
+        }
+        p(8 - lx, 8, 2, 3, pal.shade);
+      } else {
+        p(2 - lx, 4, 5, h - 9, pal.raised);
+        p(2 - lx, Math.floor(h / 2), 5, 1, pal.recess);
+        p(3 - lx, 6, 1, Math.max(1, Math.floor(h / 2) - 8), pal.fine);
+      }
+      return true;
+    }
     const belt = Math.max(5, Math.round(h * 0.64)), foot = Math.max(belt + 2, h - 5);
     // Four-tile period also matches the geometry renderer's face-strip cache:
     // its side/corner sampling must see the same frame as the straight face.
@@ -518,6 +564,13 @@ const WorldSurface = (() => {
         // Pitch is fixed in the signed physical tile frame. A bounds expansion
         // therefore does not slide the existing lamps or their illumination.
         let selected = candidates.filter(c => mod(c.tx + ox, 6) === 3);
+        // One smaller infill practical per 18 physical tiles adds back-wall
+        // coverage without moving or brightening the existing six-tile rhythm.
+        if (opts.infillFixtures && !corridor && length >= 12) {
+          const infill = candidates.filter(c => mod(c.tx + ox, 18) === 6 &&
+            selected.some(p => p.tx < c.tx) && selected.some(p => p.tx > c.tx));
+          selected = selected.concat(infill.map(c => ({ ...c, infill: true }))).sort((a,b) => a.tx-b.tx);
+        }
         if (corridor) selected = [];  // one practical fixture, only on a long hall
         if (!selected.length) selected = [candidates[Math.floor(candidates.length / 2)]];
         for (const c of selected) {
@@ -540,7 +593,7 @@ const WorldSurface = (() => {
           output.push({
             id: 'wall:' + (c.tx + ox) + ',' + (y + oy), kind: 'wall-fixture', zone: z,
             x: c.anchor.tx * T + T / 2, y: c.anchor.ty * T + T / 2,
-            r: T * (corridor ? 4.5 : taskLamp ? 5.8 : 6.5), rgb, gain: corridor ? 0.64 : taskLamp ? 1.16 : 0.82,
+            r: T * (c.infill ? 4.1 : corridor ? 4.5 : taskLamp ? 5.8 : 6.5), rgb, gain: c.infill ? 0.48 : corridor ? 0.64 : taskLamp ? 1.16 : 0.82,
             fixtureX, fixtureY, tileX: c.tx, tileY: y,
             emitX: fixtureX, emitY: fixtureY + 2.5, normalX: 0, normalY: 1,
             base: geo.wallBaseOf ? geo.wallBaseOf(z) : '#3a3b41'

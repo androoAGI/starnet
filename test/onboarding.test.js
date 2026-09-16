@@ -18,28 +18,8 @@ const src = fs.readFileSync(path.join(__dirname, '../frontend/app/onboarding.js'
 
 /* ---------- every dossierDim beat targets a real dossier dimension (no silent-drop typo) ---------- */
 const dimRefs = [...src.matchAll(/dossierDim:\s*'([^']+)'/g)].map(m => m[1]);
-A.ok(dimRefs.length > 0, 'the awakening has at least one dossier-dimension beat');
+A.ok(!/dossierDim: 'pain'|dossierDim: 'ambition'/.test(src), 'fixed pain and year questionnaire is retired');
 for (const k of dimRefs) A.ok(D.DIM_KEYS.indexOf(k) >= 0, 'awakening dossierDim "' + k + '" is a real dossier dimension');
-
-/* ---------- each dossier-writing beat (pain, ambition): present, dossier-authored (no .md doc), skippable ---------- */
-// bound a beat's object literal by the NEXT beat marker (dossierDim: or field:) so a per-beat check can't bleed
-// into a sibling beat as more dossierDim beats are added.
-function beatSeg(key) {
-  const start = src.indexOf("dossierDim: '" + key + "'");
-  if (start < 0) return '';
-  const rest = src.slice(start + 1);
-  const nexts = [rest.indexOf('dossierDim:'), rest.indexOf('field:')].filter(i => i >= 0);
-  const seg = src.slice(start, nexts.length ? start + 1 + Math.min(...nexts) : src.length);
-  // strip line comments — a neighbouring beat's prose (e.g. a comment mentioning "build:()=>null") must NOT
-  // satisfy a code check, or the per-beat guard silently stops guarding (caught by the Slice 7 sweep).
-  return seg.replace(/\/\/[^\n]*/g, '');
-}
-for (const key of ['pain', 'ambition']) {
-  A.ok(dimRefs.indexOf(key) >= 0, 'the awakening extracts the ' + key + ' dimension');
-  const seg = beatSeg(key);
-  A.ok(/build:\s*\(\)\s*=>\s*null/.test(seg), 'the ' + key + ' beat seeds no .md doc (build:()=>null) — it writes the dossier directly');
-  A.ok(/optional:\s*true/.test(seg), 'the ' + key + ' beat is optional/skippable (never traps the Commander on it)');
-}
 
 /* ---------- startQuestions routes a dossierDim answer straight to the station-wide dossier ---------- */
 A.ok(/s\.dossierDim\b[\s\S]{0,200}DossierStore\.upsert\(s\.dossierDim/.test(src),
@@ -78,14 +58,13 @@ A.ok(/isTask:\s*false,\s*placed:\s*\[\],\s*internal:\s*true/.test(src),
   'the awakening\'s live-mind call is reason-only (placed:[]) and internal (no bus run events)');
 // purpose.md ALWAYS lands: when the synthesized read can't (no brain / timeout / unparseable / nothing shared),
 // the classic required mission question runs instead — the ceremony can never end without a mission.
-A.ok(/function fallbackPurposeStep\(\)[\s\S]{0,400}field:\s*'purpose'/.test(src),
+A.ok(/function fallbackPurposeStep\(opening = false\)[\s\S]{0,400}field:\s*'purpose'/.test(src),
   'the classic purpose question survives as fallbackPurposeStep (field: purpose)');
 A.ok(/if\s*\(!purposeDone\)\s*\{[\s\S]{0,120}askStep\(fallbackPurposeStep\(\)\)/.test(src),
   'runLeadMeeting falls back to the required mission question when the live read did not land');
 // the follow-up answer becomes context.md (the doc identity seeds from) — the broad context question is gone
 // from the lead path, but the doc it authored still gets written when the Commander answers the follow-up.
-A.ok(/commit\(\{\s*context:\s*aboutT\s*\}\)/.test(src),
-  'the follow-up answer is committed as context.md');
+A.ok(/commit\(\{ context: conversation\.map/.test(src), 'exact conversation is committed as context');
 // the synthesis' one direct dossier write targets a REAL dimension (same silent-drop guard as the beats above).
 const directDims = [...src.matchAll(/DossierStore\.upsert\('([^']+)'/g)].map(m => m[1]);
 for (const k of directDims) A.ok(D.DIM_KEYS.indexOf(k) >= 0, 'direct dossier write "' + k + '" targets a real dossier dimension');
@@ -122,52 +101,12 @@ A.ok(/saved in your dossier, where you can review and change them/.test(src),
 A.ok(/your answers help me choose work that matters to you/.test(src),
   'the interview explains how sharing context helps without pressuring the user');
 
-/* ---------- V3: the YEAR dig (B6) — the live mind reacts + asks once, and the answer is KEPT ---------- */
-// the year beat gets the listened-to treatment: a generated ack + ONE follow-up that makes it concrete.
-A.ok(/llmCall\(WakeMind\.buildYearReply\(/.test(src),
-  'the year answer gets a live-mind reply (buildYearReply), not just a canned ack');
-A.ok(/mindWait\([^)]*parseYearReply[^)]*AMBITION_PATTER/.test(src),
-  'the year reply waits with patience patter, bounded by the reply ceiling');
-// the follow-up answer becomes a SECOND ambition belief — the concrete shape of the year-outcome —
-// so the dossier keeps the real version, not just the headline.
-A.ok(/DossierStore\.upsert\('ambition',\s*\{\s*text:\s*dreamT/.test(src),
-  'the year follow-up answer is kept as a second ambition belief (dreamT)');
-// and it feeds the synthesized read, so the self-authored mission is built from the richest version.
-A.ok(/buildSynthesis\(\{[^}]*dream:\s*dreamT/.test(src),
-  'the dug year detail rides into the synthesis (dream: dreamT)');
-
-/* ---------- V3 arc locks (docs/ONBOARDING_V3_PLAN.md §3) ---------- */
-// B1 the fork: depth is the Commander's call — the loose path is a first-class chip, recorded as a SEED
-// note (it must never convince the readiness gate the station knows anyone).
-A.ok(/label: 'A few personal questions', value: 'loose'/.test(src), 'the fork offers the loose path as a first-class choice');
-A.ok(/Chose to be figured out through the work[\s\S]{0,120}weight:\s*'seed'/.test(src),
-  'the loose choice is recorded as a seed note, never grounded evidence');
-// B2 the day question: PLAIN-QUESTION LAW (2026-07-20) — literal, single-reading, extraction-first.
-A.ok(/what does a typical day look like for you\? what do you spend most of your time doing\?/.test(src),
-  'the identity question asks plainly what they do and where their time goes');
-A.ok(/I run my own business/.test(src) && /which parts of it do you personally spend the most time on\?/.test(src),
-  'the business chip steers directly to the two facts the field needs (what it is + where their time goes)');
-// B3 the dig: generated off their exact words; a quiet mind SKIPS it (no canned fake-listening dig).
-A.ok(/llmCall\(WakeMind\.buildDigReply\(\{\s*tuesday:\s*tuesdayT/.test(src),
-  'the dig is generated from the actual tuesday answer');
-// B6 the year: the signature question, with the honest no-idea out recorded as a seed note.
-A.ok(/say i work for you for a year\. free\. tireless\./.test(src), 'the year question is the signature ask');
-A.ok(/Direction open — wants the station to help discover what to build\.[\s\S]{0,80}weight:\s*'seed'/.test(src),
-  'the no-idea-yet out lands as a seed note (LOW-BY-CHOICE, hunt mode inherits)');
-// B4 cadence (2026-08-03): every scripted pain steer also surfaces HOW OFTEN — the fact that turns a
-// chore into a routine. The generated ask carries the same instruction in wakemind's buildPainReply.
-A.ok(/how often does that trip happen\?/.test(src) && /how often do you end up sending it\?/.test(src) && /how often does the hunt happen\?/.test(src),
-  'all three scripted pain steers fold cadence into the ask');
-A.ok(/and how often it comes back\.'/.test(src), 'the dig-personalized pain steer folds cadence in too');
-// B4b the stack (2026-08-03): a plain direct question — honestly askable on a quiet mind — whose answer
-// lands verbatim as a stated `stack` belief (the dim the COMMANDER panel renders as "Stack & tools").
-A.ok(/dossierDim:\s*'stack'/.test(src) && /which apps or tools does that actually happen in\? name them\./.test(src),
-  'the stack question exists and writes through the dossier chokepoint');
-A.ok(/if \(!loose && painT\) \{[\s\S]{0,400}dossierDim:\s*'stack'/.test(src),
-  'the stack ask is deep-path only and grounded on a given pain (never a cold non sequitur)');
-// B5 loose honesty (2026-08-03): the fork promises "two small ones" — so loose asks exactly pain + year.
-A.ok(/let lostT = '';\s*\n\s*if \(!loose\) \{/.test(src.replace(/\r/g, '')),
-  'lost-time is deep-path only, keeping the two-small-ones promise true');
+/* Conversation replaces the fixed personal-question sequence. */
+A.ok(/what made you want to set up an agent/.test(src), 'the opener asks why they came');
+A.ok(/Help me figure that out/.test(src), 'uncertainty has a first-class help path');
+A.ok(/openingAnswer.help/.test(src) && /helpRequested: true/.test(src), 'help is context, not a made-up personal answer');
+A.ok(/buildDigReply/.test(src) && /conversation, name: NAME/.test(src), 'each follow-up sees the whole conversation');
+A.ok(/!reply.ask \|\| followupsLeft <= 0/.test(src), 'model completion and budget both stop questioning');
 // B7 the mirror: offers are generated (possibility-space teaching); a grab arms the proof beat.
 A.ok(/llmCall\(WakeMind\.buildMirror\(/.test(src), 'the mirror offers are generated, never canned');
 A.ok(/World\.heroCaps\('agent'\)/.test(src) && /capabilities:\s*liveCaps/.test(src),
@@ -185,7 +124,7 @@ A.ok(/World\.heroCaps\('agent'\)/.test(src) && /capabilities:\s*liveCaps/.test(s
   A.eq(caps, [{ id: 'dish', label: 'WEB' }, { id: 'cabinet', label: 'FILES' }],
     'the mirror unwraps World.heroCaps {objectType} records before resolving their power labels');
 }
-A.ok(/stack:\s*stackT/.test(src), 'the stated stack rides into the mirror/year/synthesis contexts');
+A.ok(/const mirrorCtx = \{ tuesday: tuesdayT, dig: digT/.test(src), 'the mirror sees motivation and follow-up answers');
 A.ok(/PitchStore\.armFirstMove\(grabbedMove\)/.test(src),
   'a grabbed offer arms the post-tour first move (the one below-gate starter allowed)');
 // B8 thin honesty: a loose/empty run synthesizes with thin:true and its purpose lands as a SEED belief.
@@ -199,7 +138,7 @@ A.ok(/weight:\s*'synth'\s*\}\);\s*\}\s*\}/.test(src.replace(/\r/g, '')) || /upse
 /* ---------- S5: brain-before-interview (plan §8) ---------- */
 // a keyless wake gets NO fake interview: the honest holding line, the required scripted beats, and a
 // persisted IOU the first live-brain session pays via one gentle offer (spent on OFFER — never a nag).
-A.ok(/if \(!brainReady\(\) \|\| birthFailed\) \{[\s\S]{0,900}setDeferred\(\);[\s\S]{0,300}fallbackPurposeStep\(\)/.test(src),
+A.ok(/if \(!brainReady\(\) \|\| birthFailed\) \{[\s\S]{0,900}setDeferred\(\);[\s\S]{0,300}fallbackPurposeStep\(true\)/.test(src),
   'a keyless OR dead-wire meeting banks the IOU and still lands purpose.md (no fake deep interview)');
 A.ok(/PROVEN, NOT ASSUMED/.test(src),
   'the live-wire proof doctrine is stated at the gate (the birth call is the preflight)');
@@ -255,21 +194,9 @@ A.ok(/else if \(!opts\.wake\)[\s\S]{0,700}reignite\(\)/.test(src),
     'the re-wake never replays the flood/contact/mandate birth monologue');
 }
 
-/* ---------- THE BENCH + ADAPTIVE FOLLOW-UPS + THE INK (Andrew 2026-08-05) ---------- */
-// B4c the bench: a plain direct question about the projects actually in flight — honestly askable on a
-// quiet mind — whose answer lands verbatim as a stated `goals` belief through askStep's chokepoint.
-A.ok(/dossierDim:\s*'goals'[\s\S]{0,200}what are you actually building or working on right now\?/.test(src),
-  'the bench question exists and writes through the dossier chokepoint');
-A.ok(/let projT = '', benchT = '';\s*\n\s*if \(!loose\) \{/.test(src), 'the bench ask is deep-path only');
-A.ok(/projects:\s*projT/.test(src) && /bench:\s*benchT/.test(src), 'the bench rides into the year/mirror/synthesis contexts');
-// the follow-up wallet: generated digs are budget-gated at EVERY site (dig/pain/bench/year), so the
-// mind's judgment (ASK: NONE) plus the wallet keep depth adaptive without blowing the runtime.
-A.ok(/const FOLLOWUP_BUDGET = \d/.test(src), 'the follow-up budget exists');
-{
-  const gates = (src.match(/followupsLeft > 0/g) || []).length;
-  const spends = (src.match(/followupsLeft--/g) || []).length;
-  A.ok(gates >= 4 && spends >= 4, 'all four generated-follow-up sites are wallet-gated and spend on use (' + gates + '/' + spends + ')');
-}
+/* Adaptive question budget and truthful memory receipts. */
+A.ok(/const FOLLOWUP_BUDGET = 3/.test(src), 'deeper interview has at most three follow-ups');
+A.ok(/followupsLeft = loose \? 1 : FOLLOWUP_BUDGET/.test(src), 'short interview has at most one follow-up');
 // the ink: every REAL dossier write beside the ceremony shows its receipt — and only real writes do.
 A.ok(/function ink\(dim, text\)/.test(src) && /Dialogue\.ink\(/.test(src), 'the ink helper exists and drives Dialogue.ink');
 A.ok(/DossierStore\.upsert\(s\.dossierDim[\s\S]{0,120}ink\(s\.dossierDim, text\)/.test(src),

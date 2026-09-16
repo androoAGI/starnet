@@ -126,12 +126,14 @@ async function main() {
   for(const id of Surface.MATERIALS) {
     const d=draw(api,'floor',0,0,12,0,0,id);
     const paths=[...d.image.paths]; equal(paths.length,1,id+' floor samples one authored source');
-    ok(paths[0].endsWith('/remaster/floors/'+id+'.png'),id+' selection loads its own floor art'); floorPaths.add(paths[0]);
+    const asset = ['flightdeck','lunar','maggrid','habitat'].includes(id) ? '/floor-'+id+'.png' : '/remaster/floors/'+id+'.png';
+    ok(paths[0].endsWith(asset),id+' selection loads its own floor art'); floorPaths.add(paths[0]);
   }
   for(const id of Surface.WALLS) {
     const d=draw(api,'wall',0,0,12,39,0,id);
     const paths=[...d.image.paths]; equal(paths.length,1,id+' wall samples one authored source');
-    ok(paths[0].endsWith('/remaster/walls/'+id+'.png'),id+' selection loads its own wall art'); wallPaths.add(paths[0]);
+    const asset = ['pressure','radiator','utility','acoustic'].includes(id) ? '/wall-'+id+'.png' : '/remaster/walls/'+id+'.png';
+    ok(paths[0].endsWith(asset),id+' selection loads its own wall art'); wallPaths.add(paths[0]);
   }
   equal(floorPaths.size,Surface.MATERIALS.length,'no floor selection silently shares a fallback image');
   equal(wallPaths.size,Surface.WALLS.length,'no wall selection silently shares a fallback image');
@@ -146,7 +148,8 @@ async function main() {
   equal(noPaint.draws.length,0,'failed pack leaves every native surface untouched');
   for (const url of pending.requests) {
     const broken=load({fail:url}); await broken.finish();
-    equal(broken.api.enabled(),false,'failure of '+url+' keeps the complete station native');
+    const optional = /\/(?:shell-|floor-|wall-)/.test(url);
+    equal(broken.api.enabled(),optional,'failure of '+url+' preserves optional-material isolation and the core pack contract');
     equal(broken.api.status().failed.length,1,'individual asset failure remains visible in loader status');
   }
   equal(api.floor(c,0,0,12,0,0,'hex','#555555',{detail:0}),false,'flat floor control declines textured art');

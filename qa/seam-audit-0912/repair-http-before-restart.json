@@ -1,0 +1,32 @@
+{
+  "at": "2026-09-13T04:21:52.441Z",
+  "phase": "before-restart",
+  "job": {
+    "id": "3a63b709-8ebc-4816-9fdb-70982b8d0b32",
+    "deliver": "local",
+    "attachToSession": true,
+    "origin": {
+      "target": null,
+      "channel": null,
+      "chatId": null,
+      "threadId": null,
+      "sessionId": "ws_mtz9adphb15o",
+      "streamId": "ws_mtz9adphb15o",
+      "sessionTitle": "Audit original session"
+    },
+    "provider": null
+  },
+  "invalidCreate": {
+    "status": 400,
+    "body": {
+      "error": "follow-up needs a captured session origin"
+    }
+  },
+  "invalidUpdate": {
+    "status": 400,
+    "body": {
+      "error": "follow-up needs a captured session origin"
+    }
+  },
+  "rejectedUpdatePreservedOrigin": true
+}

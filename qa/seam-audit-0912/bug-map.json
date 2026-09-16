@@ -1,0 +1,47 @@
+[
+  {
+    "id": "A1",
+    "fingerprint": "6b655b46",
+    "file": "qa/bugs/6b655b46-startup-history-read-failure-skips-away-work-rev.md"
+  },
+  {
+    "id": "A2",
+    "fingerprint": "c66e8c39",
+    "file": "qa/bugs/c66e8c39-agent-loop-pause-leaves-cancelled-iteration-runn.md"
+  },
+  {
+    "id": "A3",
+    "fingerprint": "962032ba",
+    "file": "qa/bugs/962032ba-routine-follow-up-checkbox-saves-an-unusable-ses.md"
+  },
+  {
+    "id": "A4",
+    "fingerprint": "a496d1c7",
+    "file": "qa/bugs/a496d1c7-routine-form-provider-overrides-its-selected-age.md"
+  },
+  {
+    "id": "A5",
+    "fingerprint": "2b5b18a3",
+    "file": "qa/bugs/2b5b18a3-loop-polling-erases-the-rejection-explanation-be.md"
+  },
+  {
+    "id": "A6",
+    "fingerprint": "32fd08b2",
+    "file": "qa/bugs/32fd08b2-loop-pause-and-resume-discard-refused-control-re.md"
+  },
+  {
+    "id": "A7",
+    "fingerprint": "ecb3df69",
+    "file": "qa/bugs/ecb3df69-outbox-run-review-can-display-another-run-answer.md"
+  },
+  {
+    "id": "A8",
+    "fingerprint": "476c4f01",
+    "file": "qa/bugs/476c4f01-local-settings-save-failure-still-permits-saved.md"
+  },
+  {
+    "id": "A9",
+    "fingerprint": "c095c750",
+    "file": "qa/bugs/c095c750-shared-query-refresh-cannot-retire-a-stalled-pre.md"
+  }
+]

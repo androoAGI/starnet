@@ -221,8 +221,12 @@ const WorldModel = (() => {
     slotted:  { label: 'SLOTTED',  pitch: [3, 2], suggest: 'corridor' },
     terrazzo: { label: 'TERRAZZO', pitch: [4, 4], suggest: 'hull' },
     octile:   { label: 'OCTILE',   pitch: [2, 2], suggest: 'sterile' },
+    flightdeck: { label: 'FLIGHT DECK', pitch: [2, 2], suggest: 'hull' },
+    lunar: { label: 'LUNAR', pitch: [4, 2], suggest: 'ash' },
+    maggrid: { label: 'MAG GRID', pitch: [2, 2], suggest: 'corridor' },
+    habitat: { label: 'HABITAT', pitch: [2, 2], suggest: 'bone' },
   };
-  const MAT_ORDER = ['spine', 'alloy', 'runner', 'treadway', 'meshway', 'plate', 'diamond', 'cargo', 'panel', 'tile', 'ceramic', 'resin', 'tread', 'soft', 'grate', 'hex', 'plank', 'turf', 'basalt', 'parquet', 'rubber', 'slotted', 'terrazzo', 'octile'];
+  const MAT_ORDER = ['spine', 'alloy', 'runner', 'treadway', 'meshway', 'plate', 'diamond', 'cargo', 'panel', 'tile', 'ceramic', 'resin', 'tread', 'soft', 'grate', 'hex', 'plank', 'turf', 'basalt', 'parquet', 'rubber', 'slotted', 'terrazzo', 'octile', 'flightdeck', 'lunar', 'maggrid', 'habitat'];
 
   /* the WALL material catalog — the deck's opposite number. Walls carry the same two axes as the
      floor (hue × recipe) and read from the same FLOOR_STYLES hue catalog, because a room should be
@@ -244,8 +248,12 @@ const WorldModel = (() => {
     pipework: { label: 'PIPEWORK', suggest: null },
     wainscot: { label: 'WAINSCOT', suggest: 'walnut' },
     hedge:    { label: 'HEDGE',    suggest: 'fern' },
+    pressure: { label: 'PRESSURE', suggest: 'bone' },
+    radiator: { label: 'RADIATOR', suggest: 'hull' },
+    utility: { label: 'UTILITY', suggest: 'cobalt' },
+    acoustic: { label: 'PADDED', suggest: 'ash' },
   };
-  const WALL_ORDER = ['bulkhead', 'courses', 'service', 'plating', 'ribbed', 'panelled', 'viewport', 'pipework', 'wainscot', 'hedge'];
+  const WALL_ORDER = ['bulkhead', 'courses', 'service', 'plating', 'ribbed', 'panelled', 'viewport', 'pipework', 'wainscot', 'hedge', 'pressure', 'radiator', 'utility', 'acoustic'];
 
   /* the HULL material catalog — THE THIRD SURFACE AXIS (2026-08-05, Andrew, circling the outside
      edges of five rooms in a screenshot: "the outer walls are not customizable... for users who
@@ -280,7 +288,12 @@ const WorldModel = (() => {
     curtain:   { label: 'CURTAIN',   suggest: 'indigo', blurb: 'glass curtain wall + mullions — the tower' },
     hedge:     { label: 'HEDGE',     suggest: 'fern',   blurb: 'clipped hedge — the garden wall' },
   };
-  const HULL_ORDER = ['station', 'monocoque', 'timber', 'clapboard', 'shingle', 'brick', 'stone', 'stucco', 'curtain', 'hedge'];
+  Object.assign(HULL_MATERIALS, {
+    thermal: { label: 'THERMAL', suggest: 'bone', blurb: 'clean ceramic thermal shield with broad staggered panels' },
+    insulation: { label: 'INSULATION', suggest: 'amber', blurb: 'quilted orbital insulation with restrained foil folds' },
+    heatsink: { label: 'HEATSINK', suggest: 'hull', blurb: 'radiator fins between calm graphite cladding panels' }
+  });
+  const HULL_ORDER = ['station', 'monocoque', 'timber', 'clapboard', 'shingle', 'brick', 'stone', 'stucco', 'curtain', 'hedge', 'thermal', 'insulation', 'heatsink'];
 
   /* room categories — a capability-zone label + a default floor (hue + material). kind drives
      nothing behavioural yet (capability mapping is a later pass); it tags the zone + seeds the
@@ -1746,6 +1759,37 @@ const WorldModel = (() => {
       return { ok: true };
     }
 
+    // Whole-layout changes use the same single-step history and invalidation as
+    // ordinary REFIT edits. Assemble and validate before touching the live doc.
+    function replaceLayout(layout) {
+      if (!layout || layout.schema !== 'starnet.station' || !Array.isArray(layout.props) || !layout.rooms) return fail('BAD_LAYOUT');
+      const candidate = migrate(clone(layout));
+      if (!candidate.order.length || new Set(candidate.props.map(p => p.id)).size !== candidate.props.length) return fail('BAD_LAYOUT');
+      const probe = makeStation(clone(candidate));
+      for (const rid of candidate.order) {
+        const room = candidate.rooms[rid];
+        if (!room.rects.length || room.rects.some(r => ![r.x1,r.y1,r.x2,r.y2].every(Number.isFinite))) return fail('BAD_LAYOUT');
+        const placed = probe.canPlaceRoom(room.rects, room.kind, rid);
+        if (!placed.ok) return placed;
+      }
+      for (const p of candidate.props) {
+        const placed = probe.canPlaceProp(p.t,p.x,p.y,p.w,p.h,p.id);
+        if (!placed.ok) return placed;
+      }
+      const next = makeStation(candidate);
+      const owners = [...new Set(doc.props.filter(p => p.agentId).map(p => p.agentId))];
+      for (const aid of owners) {
+        const placed = next.ensureWorkstation(aid);
+        if (!placed.ok) return placed;
+      }
+      const prepared = next.serialize();
+      prepared.meta.createdAt = doc.meta.createdAt;
+      snapshot();
+      restore(prepared);
+      emit([], {global:true});
+      return {ok:true};
+    }
+
     function undo() {
       if (!undoStack.length) return fail('NOTHING', 'nothing to undo');
       redoStack.push(snap());
@@ -2336,7 +2380,7 @@ const WorldModel = (() => {
       // agent-bay binding queries
       propsByType, propsByAgent, pipelineEdges, setPipelineEdges, addPipelineEdge, removePipelineEdge, agentRoomId, bayObjects,
       capForProp: t => CAP_PROP_MAP[t] || null,   // a prop type's capability objectType (single source for the UI)
-      undo, redo, canUndo, canRedo,
+      undo, redo, canUndo, canRedo, replaceLayout,
       // projection + io
       projectGeometry, serialize, onChange,
     };
@@ -2420,13 +2464,24 @@ const WorldModel = (() => {
     starterDoc() {
       const doc = freshDoc();
       const room = doc.rooms[doc.meta.spawnRoomId];
-      room.rects = [{ x1: 0, y1: 0, x2: 13, y2: 8 }];
-      room.name = 'HAB-01';
+      room.rects = [{ x1: 0, y1: 0, x2: 17, y2: 10 }];
+      room.name = 'HOME';
+      room.floorMat = 'resin';
+      room.wallMat = 'panelled';
       room.hullStyle = 'bone';
       doc.props = [
-        { id: 'p' + doc._nid++, t: 'crate', x: 1, y: 1, w: 2, h: 1, block: true },
-        { id: 'p' + doc._nid++, t: 'rackV', x: 11, y: 1, w: 1, h: 2, block: true },
-        { id: 'p' + doc._nid++, t: 'plant', x: 11, y: 6, w: 1, h: 1, block: false }
+        // The five essentials are real floor grants. Keep the desk unassigned so
+        // ensureWorkstation adopts it for the new Commander on the normal boot path.
+        // User-approved placement from the live station, 2026-09-15.
+        // Preserve this composition and the original 18 x 11 room footprint.
+        { id: 'p' + doc._nid++, t: 'desk', x: 8, y: 1, w: 2, h: 1, block: true },
+        { id: 'p' + doc._nid++, t: 'war_intelcab', x: 1, y: 0, w: 1, h: 2, block: true },
+        { id: 'p' + doc._nid++, t: 'gigs_servercart', x: 1, y: 9, w: 1, h: 1, block: true },
+        { id: 'p' + doc._nid++, t: 'comms_dish', x: 14, y: 0, w: 2, h: 2, block: true },
+        { id: 'p' + doc._nid++, t: 'workbench', x: 3, y: 1, w: 2, h: 1, block: true },
+        { id: 'p' + doc._nid++, t: 'studio', x: 14, y: 8, w: 2, h: 2, block: true },
+        { id: 'p' + doc._nid++, t: 'plant', x: 0, y: 0, w: 1, h: 1, block: false },
+        { id: 'p' + doc._nid++, t: 'plant', x: 17, y: 0, w: 1, h: 1, block: false }
       ];
       return doc;
     },

@@ -92,7 +92,7 @@ const WorldRenderer = (() => {
   }
   function create(options) {
     options = options || {};
-    let geometry = null, baked = null, lighting = null, frame = null, preparedLight = null;
+    let geometry = null, baked = null, lighting = null, frame = null, preparedLight = null, presentationFixtures = [];
     let frames = 0, rebuilds = 0, entityCount = 0, lastStart = 0, startedAt = 0;
     let elapsed = [], durations = [], lightDurations = [], lightingMs = 0;
     const push = (array, value) => { array.push(value); if (array.length > FRAME_WINDOW) array.shift(); };
@@ -105,6 +105,18 @@ const WorldRenderer = (() => {
       lastStart = timestamp;
       if (frame.geo !== geometry || frame.cache !== baked) {
         geometry = frame.geo; baked = frame.cache; rebuilds++;
+        const projection = typeof PropRemaster !== 'undefined' && PropRemaster.isProjection();
+        const fill = baked.lamps || baked.flickers || [], practical = baked.wallFixtures || [];
+        // The old virtual room samples and wall lamps had equal energy. Give
+        // physical housings the key light and retain a softer interior fill.
+        presentationFixtures = projection ? fill.map(l => Object.assign({}, l, {
+          gain: (l.gain == null || Math.abs(l.gain - .22) < .000001 ? 1 : l.gain) * .62,
+          r: l.r * .90
+        })).concat(practical.map(l => {
+          const kind = geometry.kindOf && geometry.kindOf(l.zone);
+          const rgb = kind === 'bridge' || kind === 'lab' ? '194,220,246' : kind === 'quarters' ? '255,191,119' : '255,214,157';
+          return Object.assign({}, l, { rgb, r: l.r * 1.12, gain: (l.gain == null ? 1 : l.gain) * 1.5 });
+        })) : fill.concat(practical);
         if (canLight()) {
           if (!lighting) lighting = WorldLight.create({ quality: 'high', wallAmbient: .16, fixtureTint: .16, propTint: .48 });
           if (typeof IndustrialTextures !== 'undefined' && IndustrialTextures.enabled() && lighting.configure)
@@ -133,7 +145,7 @@ const WorldRenderer = (() => {
     }
     function prepareLight(lights, params) {
       if (!lighting || classic) return false;
-      preparedLight = Object.assign({ lights: lights || [], fixtures: (baked.lamps || baked.flickers || []).concat(baked.wallFixtures || []), fixtureGain: .79,
+      preparedLight = Object.assign({ lights: lights || [], fixtures: presentationFixtures, fixtureGain: .79,
         now: frame.now, reducedMotion: !!frame.reducedMotion }, params || {});
       // Prepare before the depth pass: a CRT that stops working must stop lighting
       // its operator and casting a shadow in this very frame, including after rebake.

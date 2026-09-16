@@ -1,0 +1,80 @@
+{
+  "source": "091d6e7f3",
+  "results": [
+    {
+      "id": "loop-agent-pause",
+      "evidence": {
+        "state": "paused",
+        "iteration": "running",
+        "leases": 1,
+        "claim": 1700006400000
+      },
+      "kind": "unchanged-source reproduction"
+    },
+    {
+      "id": "loop-ui-cancellation-reference",
+      "iteration": "cancelled",
+      "leases": 0
+    },
+    {
+      "id": "away-read-failure-loses-recovery-boundary",
+      "first": {
+        "v": 1,
+        "lastSeenAt": 3000,
+        "pending": [],
+        "digested": []
+      },
+      "second": {
+        "v": 1,
+        "lastSeenAt": 4000,
+        "pending": [],
+        "digested": []
+      },
+      "runTimestamp": 2000,
+      "requests": 2,
+      "kind": "unchanged-source two-boot reproduction"
+    },
+    {
+      "id": "routine-follow-up-without-origin",
+      "kind": "live UI save + live API read + actual preflight function",
+      "job": {
+        "id": "4f382935-65a1-44ca-8bf4-88241cffbec5",
+        "name": "Audit follow-up enabled",
+        "deliver": "local",
+        "attachToSession": true,
+        "origin": null
+      },
+      "preflight": {
+        "ok": false,
+        "code": "missing-session-origin",
+        "reason": "session delivery has no captured session; re-save the routine from the intended session"
+      }
+    },
+    {
+      "id": "query-refresh-waits-on-hung-predecessor",
+      "calls": 1,
+      "pending": true,
+      "kind": "unchanged-source stalled-transport reproduction; no wall-clock timeout in Harness.api.get"
+    },
+    {
+      "id": "outbox-output-attributed-to-wrong-run",
+      "run": "A",
+      "ask": "RUN A request",
+      "output": "RUN B answer",
+      "kind": "unchanged rendering block with two-run transcript fixture; not a live paid run"
+    },
+    {
+      "id": "settings-save-failure-swallowed",
+      "threw": false,
+      "kind": "unchanged save function with failed localStorage; callers flashSaved unconditionally (source inspection), not live disk-full proof"
+    },
+    {
+      "id": "routine-station-provider-overrides-selected-agent",
+      "agentProvider": "codex",
+      "uiStationProvider": "openrouter",
+      "resolvedFromUi": "openrouter",
+      "resolvedWithoutOverride": "codex",
+      "kind": "actual resolver + inspected UI request path; multi-provider live dispatch unverified"
+    }
+  ]
+}

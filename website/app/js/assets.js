@@ -50,6 +50,7 @@ const SPRITES = (() => {
      ultron keeps more of his source size so he towers over the crew. */
   const SCALE = { ultron: 0.60 };   // skins read their scale from DATA.SKINS; ULTRON is special
   function drawScaleFor(setName) {
+    if(typeof SkinStudy!=='undefined'&&SkinStudy.scale(setName))return SkinStudy.scale(setName);
     return SCALE[setName] || (DATA.SKINS[setName] && DATA.SKINS[setName].scale) || 2 / 3;
   }
   /* The set drawBody will resolve for this body, and the scale it will draw at. Exported (bodyScale)
@@ -57,6 +58,7 @@ const SPRITES = (() => {
      still, not a floor body — has to cancel this scale out exactly. Re-deriving it in the UI would drift
      the moment ULTRON, a new set, or the DATA.SKINS fallback changed; asking the engine cannot. */
   function setForBody(b) {
+    const study=typeof SkinStudy!=='undefined'&&SkinStudy.setFor(b);if(study)return study;
     return (b && b.id === 'ULTRON') ? 'ultron'
       : ((DATA.SKINS[b && b.skin] && DATA.SKINS[b.skin].set) || DATA.SKINS[DATA.DEFAULT_SKIN].set);
   }
@@ -402,8 +404,7 @@ const SPRITES = (() => {
   function drawBody(ctx, b, nowMs, appearance) {
     const reduced = !!(appearance && appearance.reducedMotion);
     const light = bodyLight(appearance && appearance.light);
-    const set = b.id === 'ULTRON' ? 'ultron'
-      : ((DATA.SKINS[b.skin] && DATA.SKINS[b.skin].set) || DATA.SKINS[DATA.DEFAULT_SKIN].set);
+    const set = setForBody(b);
     if (!loadedSets.has(set)) { loadSet(set); return null; }
     const glancing = b.glance && b.glance.until > nowMs;   // brief look-up: overrides facing & typing
     const meeting = b.meet && b.meet.until > nowMs;        // hallway chat: stand still, face partner
@@ -490,6 +491,9 @@ const SPRITES = (() => {
       }
     }
 
+    // A local study contains standing directions only. Never mix legacy animation into its body.
+    const studyFrame=typeof SkinStudy!=='undefined'&&SkinStudy.frame(set,dir);
+    if(studyFrame){key=set+'.rot.'+dir;bob=0;turnStep=false;}
     // life-like idle blink: while standing on a 'rot' pose, briefly shut the eyes.
     // staggered per-agent via b.phase so the crew doesn't blink in unison.
     // keyed off the RESOLVED key's own direction (may be a diagonal): swapping to a cardinal
@@ -561,7 +565,7 @@ const SPRITES = (() => {
     const seatLift = (b.sitting && b.seatLift && key.indexOf('.sit.') !== -1) ? b.seatLift : 0;
     // perched: anchor by THIS sit frame's own bottom padding (getTrackPad), not the standing footPad —
     // sets whose sit master carries extra empty rows below the tucked legs (skeleton) otherwise float.
-    const pad = (seatLift ? getTrackPad(key) : getFootPad(set)) * sc;
+    const pad = (studyFrame ? studyFrame.height-1-studyFrame.bottom : (seatLift ? getTrackPad(key) : getFootPad(set))) * sc;
     // Quiet standing breath changes the torso's height by less than a quarter world unit while
     // its measured foot line stays fixed. Existing walk/pivot, furniture, sleep, talk and gesture
     // tracks own their motion. Portraits keep their established framing. Omitting appearance
@@ -600,13 +604,13 @@ const SPRITES = (() => {
     const prevQuality = ctx.imageSmoothingQuality;
     ctx.imageSmoothingEnabled = true;
     if ('imageSmoothingQuality' in ctx) ctx.imageSmoothingQuality = 'high';
-    try { ctx.drawImage(lightFrame(f, light), x, y, dw, drawHeight); }
+    try { ctx.drawImage(lightFrame(studyFrame&&typeof SkinStudyTone!=='undefined'?SkinStudyTone.frame(f):f, light), x, y, dw, drawHeight); }
     finally {
       ctx.imageSmoothingEnabled = prevSmooth;
       if ('imageSmoothingQuality' in ctx) ctx.imageSmoothingQuality = prevQuality;
     }
     // geometry for overlays (alert icon, bubble, selection box) — top of the visible body
-    return { top: y + Math.round(drawHeight * 0.22), w: Math.round(dw * 0.6), h: drawHeight };
+    return { top: studyFrame ? y+studyFrame.top*sc : y + Math.round(drawHeight * 0.22), w: Math.round(dw * 0.6), h: drawHeight };
   }
 
   /* loading */
@@ -660,7 +664,15 @@ const SPRITES = (() => {
       const resp = await fetch('assets/sprites/manifest.json', { cache: 'no-store' });
       if (!resp.ok) return;
       const man = await resp.json();
+      if(typeof SkinStudy!=='undefined')await SkinStudy.install(man);
       tracksBySet = SpriteLoadPlan.groupTracks(man.sprites);
+      if(typeof SkinStudy!=='undefined'&&SkinStudy.enabled){
+        const loaded=await Promise.all(SkinStudy.sets.map(loadSet));
+        const count=SkinStudy.sets.reduce((n,set)=>n+['south','east','north','west'].filter(dir=>frames[set+'.rot.'+dir]?.length).length,0);
+        ready=loaded.every(Boolean)&&count===SkinStudy.sets.length*4;loading=false;
+        const panel=document.querySelector('#skin-study-preview');if(panel){panel.dataset.ready=String(ready);panel.dataset.loaded=String(count);if(!ready)panel.append(' · Some skin images failed to load');}
+        return;
+      }
       // ready when the DEFAULT skin's base pose loaded (the old `minion` astronaut set
       // was retired in favour of DATA.SKINS — gating on it left ready=false forever, so
       // every body fell through to the procedural fallback regardless of picked skin).

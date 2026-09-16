@@ -371,10 +371,11 @@ function makeSegmentedTranscriptIo(opts) {
   }
   function history(streamId, options) {
     const limit = Math.max(1, num(options && options.limit) || 400);
+    const runId = String((options && options.sourceRunId) || '');
     const out = [];
     for (const meta of relevantSegments(streamId, true)) {
       const rows = readRows(meta.number);
-      for (let i = rows.length - 1; i >= 0 && out.length < limit; i--) if (rows[i].streamId === streamId) out.push(rows[i]);
+      for (let i = rows.length - 1; i >= 0 && out.length < limit; i--) if (rows[i].streamId === streamId && (!runId || rows[i].sourceRunId === runId)) out.push(rows[i]);
       if (out.length >= limit) break;
     }
     return out.reverse().map(publicRow);

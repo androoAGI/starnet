@@ -1,0 +1,85 @@
+{
+  "status": "review-candidates",
+  "generator": "PixelLab standard",
+  "briefs": [
+    [
+      "android",
+      "Default android",
+      "An eerie faceless station android, ivory ceramic shell over graphite articulated joints, subtle seams, compact oval head with a narrow dark optical slit, believable pelvis shoulders knees and hands, lightly worn edges. Preserve the simple white android identity."
+    ],
+    [
+      "astronaut",
+      "Astronaut",
+      "A station astronaut wearing a muted burnt orange pressure suit, compact round helmet with smoked black glass visor and a subtle reflected highlight, ivory collar ring, realistic fabric folds, integrated life support pack, dark gloves and practical boots. Preserve orange astronaut identity."
+    ],
+    [
+      "robot",
+      "Robot",
+      "An industrial bipedal service robot, brushed gunmetal chassis, small rectangular head with recessed cyan optical sensor, articulated mechanical joints and pistons, compact torso with one inset service panel, practical hands and stable feet. Preserve grey cyan robot identity."
+    ],
+    [
+      "crthead",
+      "CRT-head",
+      "A humanoid station technician with a compact vintage CRT monitor for a head, olive grey metal casing and curved dark green phosphor screen with faint scanline glow, navy work coveralls, utility belt, realistic fabric folds, slim gloves and work boots. Preserve CRT head identity without oversized cartoon television."
+    ],
+    [
+      "alien",
+      "Alien",
+      "A slender eerie extraterrestrial station crew member, muted sage green skin, elongated modestly enlarged smooth head, small glossy dark almond eyes, narrow shoulders and long natural limbs, graphite fitted station utility suit with olive panels and practical boots. Preserve green alien identity without cute oversized head."
+    ]
+  ],
+  "characters": [
+    {
+      "id": "android",
+      "characterId": "10bbaff1-a906-433f-a654-7415d42bf2f2",
+      "rotations": {
+        "south": "https://backblaze.pixellab.ai/file/pixellab-characters/1ff7d2cf-cfe6-44f9-9533-9eea41eb05cb/10bbaff1-a906-433f-a654-7415d42bf2f2/rotations/south.png?t=1789360570",
+        "east": "https://backblaze.pixellab.ai/file/pixellab-characters/1ff7d2cf-cfe6-44f9-9533-9eea41eb05cb/10bbaff1-a906-433f-a654-7415d42bf2f2/rotations/east.png?t=1789360570",
+        "north": "https://backblaze.pixellab.ai/file/pixellab-characters/1ff7d2cf-cfe6-44f9-9533-9eea41eb05cb/10bbaff1-a906-433f-a654-7415d42bf2f2/rotations/north.png?t=1789360570",
+        "west": "https://backblaze.pixellab.ai/file/pixellab-characters/1ff7d2cf-cfe6-44f9-9533-9eea41eb05cb/10bbaff1-a906-433f-a654-7415d42bf2f2/rotations/west.png?t=1789360570"
+      }
+    },
+    {
+      "id": "astronaut",
+      "characterId": "7fb34e84-7614-4cb3-932d-9a17509f14d5",
+      "rotations": {
+        "south": "https://backblaze.pixellab.ai/file/pixellab-characters/1ff7d2cf-cfe6-44f9-9533-9eea41eb05cb/7fb34e84-7614-4cb3-932d-9a17509f14d5/rotations/south.png?t=1789360396",
+        "east": "https://backblaze.pixellab.ai/file/pixellab-characters/1ff7d2cf-cfe6-44f9-9533-9eea41eb05cb/7fb34e84-7614-4cb3-932d-9a17509f14d5/rotations/east.png?t=1789360396",
+        "north": "https://backblaze.pixellab.ai/file/pixellab-characters/1ff7d2cf-cfe6-44f9-9533-9eea41eb05cb/7fb34e84-7614-4cb3-932d-9a17509f14d5/rotations/north.png?t=1789360396",
+        "west": "https://backblaze.pixellab.ai/file/pixellab-characters/1ff7d2cf-cfe6-44f9-9533-9eea41eb05cb/7fb34e84-7614-4cb3-932d-9a17509f14d5/rotations/west.png?t=1789360396"
+      }
+    },
+    {
+      "id": "robot",
+      "characterId": "e8fe4d38-ae97-4be2-a9b8-e0772030649e",
+      "rotations": {
+        "south": "https://backblaze.pixellab.ai/file/pixellab-characters/1ff7d2cf-cfe6-44f9-9533-9eea41eb05cb/e8fe4d38-ae97-4be2-a9b8-e0772030649e/rotations/south.png?t=1789360391",
+        "east": "https://backblaze.pixellab.ai/file/pixellab-characters/1ff7d2cf-cfe6-44f9-9533-9eea41eb05cb/e8fe4d38-ae97-4be2-a9b8-e0772030649e/rotations/east.png?t=1789360391",
+        "north": "https://backblaze.pixellab.ai/file/pixellab-characters/1ff7d2cf-cfe6-44f9-9533-9eea41eb05cb/e8fe4d38-ae97-4be2-a9b8-e0772030649e/rotations/north.png?t=1789360391",
+        "west": "https://backblaze.pixellab.ai/file/pixellab-characters/1ff7d2cf-cfe6-44f9-9533-9eea41eb05cb/e8fe4d38-ae97-4be2-a9b8-e0772030649e/rotations/west.png?t=1789360391"
+      }
+    },
+    {
+      "id": "crthead",
+      "characterId": "fcffa1df-5de5-4b5a-bf7c-4d021d3925c3",
+      "rotations": {
+        "south": "https://backblaze.pixellab.ai/file/pixellab-characters/1ff7d2cf-cfe6-44f9-9533-9eea41eb05cb/fcffa1df-5de5-4b5a-bf7c-4d021d3925c3/rotations/south.png?t=1789360410",
+        "east": "https://backblaze.pixellab.ai/file/pixellab-characters/1ff7d2cf-cfe6-44f9-9533-9eea41eb05cb/fcffa1df-5de5-4b5a-bf7c-4d021d3925c3/rotations/east.png?t=1789360410",
+        "north": "https://backblaze.pixellab.ai/file/pixellab-characters/1ff7d2cf-cfe6-44f9-9533-9eea41eb05cb/fcffa1df-5de5-4b5a-bf7c-4d021d3925c3/rotations/north.png?t=1789360410",
+        "west": "https://backblaze.pixellab.ai/file/pixellab-characters/1ff7d2cf-cfe6-44f9-9533-9eea41eb05cb/fcffa1df-5de5-4b5a-bf7c-4d021d3925c3/rotations/west.png?t=1789360410"
+      }
+    },
+    {
+      "id": "alien",
+      "characterId": "41cc86ac-af8e-436b-99c4-fb7e43bec72e",
+      "rotations": {
+        "south": "https://backblaze.pixellab.ai/file/pixellab-characters/1ff7d2cf-cfe6-44f9-9533-9eea41eb05cb/41cc86ac-af8e-436b-99c4-fb7e43bec72e/rotations/south.png?t=1789360357",
+        "east": "https://backblaze.pixellab.ai/file/pixellab-characters/1ff7d2cf-cfe6-44f9-9533-9eea41eb05cb/41cc86ac-af8e-436b-99c4-fb7e43bec72e/rotations/east.png?t=1789360357",
+        "north": "https://backblaze.pixellab.ai/file/pixellab-characters/1ff7d2cf-cfe6-44f9-9533-9eea41eb05cb/41cc86ac-af8e-436b-99c4-fb7e43bec72e/rotations/north.png?t=1789360357",
+        "west": "https://backblaze.pixellab.ai/file/pixellab-characters/1ff7d2cf-cfe6-44f9-9533-9eea41eb05cb/41cc86ac-af8e-436b-99c4-fb7e43bec72e/rotations/west.png?t=1789360357"
+      }
+    }
+  ],
+  "supersededAndroidCharacterId": "c53c5d6c-e7b4-4cbf-a086-7508aeb3dae6",
+  "androidRevisionBrief": "Small faceless ivory ceramic head, one thin black visor slit, no skull features, head one sixth of full body height, adult proportions and graphite mechanical joints."
+}

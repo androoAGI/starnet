@@ -1,0 +1,10 @@
+{
+  "id": "android",
+  "characterId": "10bbaff1-a906-433f-a654-7415d42bf2f2",
+  "rotations": {
+    "south": "https://backblaze.pixellab.ai/file/pixellab-characters/1ff7d2cf-cfe6-44f9-9533-9eea41eb05cb/10bbaff1-a906-433f-a654-7415d42bf2f2/rotations/south.png?t=1789360570",
+    "east": "https://backblaze.pixellab.ai/file/pixellab-characters/1ff7d2cf-cfe6-44f9-9533-9eea41eb05cb/10bbaff1-a906-433f-a654-7415d42bf2f2/rotations/east.png?t=1789360570",
+    "north": "https://backblaze.pixellab.ai/file/pixellab-characters/1ff7d2cf-cfe6-44f9-9533-9eea41eb05cb/10bbaff1-a906-433f-a654-7415d42bf2f2/rotations/north.png?t=1789360570",
+    "west": "https://backblaze.pixellab.ai/file/pixellab-characters/1ff7d2cf-cfe6-44f9-9533-9eea41eb05cb/10bbaff1-a906-433f-a654-7415d42bf2f2/rotations/west.png?t=1789360570"
+  }
+}
