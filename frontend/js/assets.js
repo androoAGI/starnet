@@ -596,7 +596,7 @@ const SPRITES = (() => {
     // tracks own their motion. Portraits keep their established framing. Omitting appearance
     // preserves the original three-argument renderer until the caller opts into local lighting.
     const planted = !!appearance && !b.noShadow && !b.seated && !b.sitting && !b.sleeping
-      && b.state !== 'sleep' && b.state !== 'walk' && !b.working
+      && b.state !== 'sleep' && b.state !== 'walk' && !b.working && (!b.speaking || isReviewSet(set))
       && !meeting && !glancing && !turnStep && (key.indexOf('.rot.') !== -1 || key.indexOf('.blink.') !== -1 || key.indexOf('.talk.') !== -1);
     if (reduced || planted) bob = 0;
     const motionDt=Math.max(0,Math.min(100,nowMs-(b._speechAt||nowMs)));b._speechAt=nowMs;
@@ -640,10 +640,9 @@ const SPRITES = (() => {
     ctx.imageSmoothingEnabled = true;
     if ('imageSmoothingQuality' in ctx) ctx.imageSmoothingQuality = 'high';
     try {
-      ctx.save();
-      if(speech){const foot=b.py+GROUND_BITE-seatLift;ctx.translate(0,foot);ctx.transform(1,0,speech*.009,1,0,0);ctx.translate(0,-foot);}
+      if(speech){ctx.save();const foot=b.py+GROUND_BITE-seatLift;ctx.translate(0,foot);ctx.transform(1,0,speech*.009,1,0,0);ctx.translate(0,-foot);}
       ctx.drawImage(lightFrame(f, light), x, y, dw, drawHeight);
-      ctx.restore();
+      if(speech)ctx.restore();
     }
     finally {
       ctx.imageSmoothingEnabled = prevSmooth;

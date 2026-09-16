@@ -18,5 +18,8 @@ let renderer=read('frontend/agent-demo/sprites.js');
 renderer=renderer.replace("return (b && b.id === 'ULTRON') ? 'approved_ultron'", "const study=typeof SkinStudy!=='undefined'&&SkinStudy.setFor(b);if(study)return study;\n    return (b && b.id === 'ULTRON') ? 'ultron'");
 renderer=renderer.replace("fetch('agent-demo/manifest.json'", "fetch('assets/sprites/manifest.json'");
 renderer=renderer.replace('tracksBySet = SpriteLoadPlan.groupTracks(man.sprites);',"if(typeof SkinStudy!=='undefined')await SkinStudy.install(man);\n      tracksBySet = SpriteLoadPlan.groupTracks(man.sprites);");
+renderer=renderer.replace("&& b.state !== 'sleep' && b.state !== 'walk' && !b.working\n", "&& b.state !== 'sleep' && b.state !== 'walk' && !b.working && (!b.speaking || isReviewSet(set))\n");
+renderer=renderer.replace('      ctx.save();\n      if(speech){const foot=', '      if(speech){ctx.save();const foot=');
+renderer=renderer.replace('      ctx.restore();\n    }\n    finally {\n      ctx.imageSmoothingEnabled', '      if(speech)ctx.restore();\n    }\n    finally {\n      ctx.imageSmoothingEnabled');
 fs.writeFileSync(path.join(root,'frontend/js/assets.js'),renderer);
 console.log(JSON.stringify({skins:sets.size,frames:count,tracks:Object.keys(sprites).length}));
