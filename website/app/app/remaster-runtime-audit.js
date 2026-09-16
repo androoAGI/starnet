@@ -2,6 +2,28 @@
    Uses a separately seeded sidecar. Never appears in the normal showcase. */
 'use strict';
 (async()=>{
+  if(['127.0.0.1','localhost'].includes(location.hostname)&&new URLSearchParams(location.search).get('worldPerf')==='1'){
+    const panel=document.createElement('div');panel.id='world-perf';panel.style.cssText='position:fixed;right:12px;top:80px;z-index:99999;padding:8px;background:#101b20;color:#c6d8dc;border:1px solid #647a80;max-width:600px;font:12px monospace';
+    const button=document.createElement('button');button.className='bb';button.textContent='Measure frame performance';
+    const overview=document.createElement('button');overview.className='bb';overview.textContent='Frame full station';overview.onclick=()=>{World.setCinecamIdle(86400000);World.frameReviewRoom('');};
+    const recover=document.createElement('button');recover.className='bb';recover.textContent='Verify recovery';recover.onclick=async()=>{
+      recover.disabled=true;const results=[];World.setCinecamIdle(86400000);
+      try{for(let i=0;i<3;i++){
+        const before=World._dbgCanvasLoss(),wiped=World._dbgLoseCanvases('lod'),began=performance.now();let after;
+        do{await new Promise(r=>setTimeout(r,50));after=World._dbgCanvasLoss();}while(after.recoveries===before.recoveries&&performance.now()-began<5000);
+        results.push({wiped,recovered:after.recoveries>before.recoveries&&!after.blank,ms:Math.round(performance.now()-began)});
+      }out.textContent=JSON.stringify({recovery:results},null,2);}finally{recover.disabled=false;}
+    };
+    const out=document.createElement('pre');out.id='world-perf-result';out.style.cssText='white-space:pre-wrap;max-height:60vh;overflow:auto';panel.append(button,overview,recover,out);document.body.append(panel);
+    button.onclick=async()=>{
+      button.disabled=true;out.textContent='Measuring 10 seconds…';World.setCinecamIdle(86400000);World._dbgReviewPerformance(true);
+      await new Promise(r=>setTimeout(r,10000));const p=World._dbgReviewPerformance(false),q=(a,f)=>{a.sort((a,b)=>a-b);return +(a[Math.min(a.length-1,Math.floor(a.length*f))]||0).toFixed(2);};
+      const times=p.samples.map(s=>s.ms),gaps=p.samples.slice(1).map((s,i)=>s.t-p.samples[i].t),parts={};
+      for(const k of Object.keys(p.samples[0]?.parts||{}))parts[k]={median:q(p.samples.map(s=>s.parts[k]||0),.5),p95:q(p.samples.map(s=>s.parts[k]||0),.95)};
+      out.textContent=JSON.stringify({frames:p.samples.length,canvas:p.canvas,props:p.props,scale:p.scale,crt:p.crtBackend,probes:p.probeBackend,frameMs:{median:q(times,.5),p95:q(times,.95)},intervalMs:{median:q(gaps,.5),p95:q(gaps,.95)},parts,renderer:World.renderStats()},null,2);button.disabled=false;
+    };
+    return;
+  }
   if(!['127.0.0.1','localhost'].includes(location.hostname)||new URLSearchParams(location.search).get('remasterAudit')!=='1')return;
   for(const file of ['prop-catalog-data.js','prop-catalog-fixture.js'])await new Promise((resolve,reject)=>{const s=document.createElement('script');s.src='app/'+file;s.onload=resolve;s.onerror=reject;document.head.append(s);});
   const panel=document.createElement('aside');panel.id='runtime-audit';

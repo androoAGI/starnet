@@ -27,15 +27,20 @@ async function materials(){
   const world=fs.readFileSync('frontend/app/world.js','utf8');
   const watchdog=world.slice(world.indexOf('  let bakeProbe = null;'),world.indexOf('  /* ---------- STAGE CONTEXT LOSS'));
   let rebuilt=0;
-  const lossScope={document:{createElement:makeCanvas},IndustrialTextures:api,cache:{baseCv:base},bakeDirty:false,console:{warn(){}},
+  let probeReads=0;
+  const lossScope={performance:{now:()=>100},document:{createElement(){const c=makeCanvas(),ctx=c.getContext('2d'),read=ctx.getImageData.bind(ctx);ctx.getImageData=(...args)=>{probeReads++;return read(...args);};return c;}},IndustrialTextures:api,cache:{baseCv:base},cv:null,stageProbeOff:true,bakeDirty:false,console:{warn(){}},
     rebake(){rebuilt++;g.fillStyle='#ff0000';g.fillRect(0,0,64,64);lossScope.recordBakeProbe();}};
-  vm.runInNewContext(watchdog+'\nthis.recordBakeProbe=recordBakeProbe;this.blank=bakeWentBlank;this.watch=watchCanvasLoss;',lossScope);
+  vm.runInNewContext(watchdog+'\nthis.recordBakeProbe=recordBakeProbe;this.blank=bakeWentBlank;this.watch=watchCanvasLoss;this.batch=prepareProbeBatch;this.endBatch=()=>{probeBatch=null;};',lossScope);
   lossScope.recordBakeProbe();assert.equal(lossScope.blank(),false);
+  const readsBefore=probeReads;lossScope.batch();
+  assert.equal(probeReads-readsBefore,1,'all cached station layers share one pixel readback');
+  assert.equal(lossScope.blank(),false);assert.equal(probeReads-readsBefore,1,'watchdog reuses the batch without extra GPU readbacks');lossScope.endBatch();
   const levels=api.baseLayers(base);assert(levels.length>1,'zoom reductions exist');
   const low=levels.at(-1);low.getContext('2d').clearRect(0,0,low.width,low.height);
   assert.equal(base.getContext('2d').getImageData(32,32,1,1).data[3],255,'native bake survives: old watchdog missed this');
+  lossScope.batch();
   assert.equal(lossScope.blank(),true,'blank overview plate detected independently');
-  lossScope.watch(1000);assert.equal(rebuilt,0,'LOD loss does not rebuild entire station');assert.equal(lossScope.blank(),false,'recovery replaces damaged zoom chain');
+  lossScope.watch(1000);lossScope.endBatch();assert.equal(rebuilt,0,'LOD loss does not rebuild entire station');assert.equal(lossScope.blank(),false,'recovery replaces damaged zoom chain');
   ctx.clearRect(0,0,400,400);api.drawBase(ctx,base);assert(ctx.getImageData(32,32,1,1).data[3]>0,'recovered station actually renders');
   for(let i=0;i<3;i++){
     // Restore a fresh detail plate as a normal rebake would.
@@ -62,6 +67,26 @@ async function materials(){
   assert.equal(tg.getImageData(6,6,1,1).data[3],0,'lost material caches would paint an empty rebake');
   api.restoreMaterials();api.floor(tg,0,0,12,0,0,'plate');
   assert.equal(tg.getImageData(6,6,1,1).data[3],255,'original image restores material and derived tint caches');
+  // Browser async path: no GPU readback inside the frame, stale snapshots cannot
+  // invalidate a fresh bake, and a stuck encoder retains a bounded backstop.
+  let fakeNow=100,closedBitmaps=0;const callbacks=[];
+  lossScope.performance.now=()=>fakeNow;
+  const originalCreate=lossScope.document.createElement;
+  lossScope.document.createElement=()=>{const c=originalCreate();c.toBlob=cb=>{const bytes=c.toBuffer('image/png');callbacks.push(()=>cb(bytes));};return c;};
+  lossScope.createImageBitmap=async bytes=>{const im=await Canvas.loadImage(bytes);im.close=()=>closedBitmaps++;return im;};
+  vm.runInNewContext('probeAtlas=null;probeAtlasCtx=null;',lossScope);
+  lossScope.cache.baseCv=base;g=api.detailContext(base.getContext('2d'));g.fillRect(0,0,64,64);lossScope.recordBakeProbe();
+  let count=probeReads;lossScope.batch();assert.equal(probeReads,count,'async snapshot does not synchronously read GPU pixels');
+  await callbacks.shift()();assert.equal(closedBitmaps,1,'decoded probe bitmap is released');
+  lossScope.batch();assert.equal(lossScope.blank(),false);lossScope.endBatch();
+  lossScope.batch();lossScope.recordBakeProbe();count=probeReads;
+  await callbacks.shift()();assert.equal(probeReads,count,'stale pre-rebake result is discarded before readback');
+  lossScope.batch();count=probeReads;fakeNow+=1100;lossScope.batch();
+  assert.equal(probeReads,count+1,'hung async snapshot falls back once instead of disabling recovery');lossScope.endBatch();
+  await callbacks.shift()();
+
+  count=probeReads;lossScope.batch();assert.equal(probeReads,count,'late successful encoder resumes asynchronous checks');
+  await callbacks.shift()();lossScope.batch();lossScope.endBatch();
 
   const props=fs.readFileSync('frontend/app/propsprites.js','utf8'),start=props.indexOf('  function contactShadow('),end=props.indexOf('  function projectedShadow(',start);
   assert(start>0&&end>start);

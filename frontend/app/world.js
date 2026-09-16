@@ -704,6 +704,8 @@ const World = (() => {
      watchdog simply stays inert rather than rebaking a legitimately empty frame forever. */
   function recordBakeProbe() {
     bakeProbe = null;
+    probeBatch = null; // a newly painted bake must never inherit pre-recovery samples
+    probeEpoch++; completedProbeBatch = null; pendingProbe = null;
     detailProbes = new WeakMap();
     if (probeOff || !cache || !cache.baseCv) return;
     const c = cache.baseCv, W = c.width, H = c.height;
@@ -727,7 +729,67 @@ const World = (() => {
      read THAT. Loss detection is unchanged: a zeroed/dead source blits transparent, and 'copy'
      compositing means a stale opaque probe pixel can never mask a fresh loss. */
   let sentinelCv = null, sentinelCtx = null;
+  let probeAtlas = null, probeAtlasCtx = null, probeBatch = null;
+  let probeEpoch = 0, pendingProbe = null, completedProbeBatch = null, probeAsyncFailed = false, timedOutProbe = null;
+  function prepareProbeBatch() {
+    if(completedProbeBatch){probeBatch=completedProbeBatch;completedProbeBatch=null;return;}
+    const now=performance.now(),timedOut=pendingProbe&&now-pendingProbe.started>1000;
+    if(pendingProbe&&!timedOut)return;
+    if(timedOut){probeAsyncFailed=true;timedOutProbe=pendingProbe;} // at most one stuck encoder job
+    pendingProbe=null;
+    const requests=[];
+    if (cache && cache.baseCv && bakeProbe && !probeOff) {
+      const base=cache.baseCv;requests.push([base,bakeProbe.x,bakeProbe.y]);
+      if(typeof IndustrialTextures!=='undefined'&&IndustrialTextures.baseLayers)for(const layer of IndustrialTextures.baseLayers(base)){
+        const known=detailProbes.get(layer);
+        if(known)requests.push([layer,known.x,known.y]);
+        else for(const [fx,fy] of [[bakeProbe.x/base.width,bakeProbe.y/base.height],[.5,.5],[.3,.3],[.7,.3],[.3,.7],[.7,.7]])
+          requests.push([layer,Math.min(layer.width-1,Math.floor(fx*layer.width)),Math.min(layer.height-1,Math.floor(fy*layer.height))]);
+      }
+    }
+    if(cv && !stageProbeOff)requests.push([cv,0,0]);
+    if(!requests.length)return;
+    try {
+      // Assemble on the GPU first. Reading each plate separately serializes the
+      // GPU pipeline several times and caused visible quarter-second hitches.
+      // Reusing an exported canvas can make Chromium migrate it to CPU storage.
+      // Keep each tiny staging strip fresh so copying GPU sources stays GPU-side.
+      if(!probeAsyncFailed || !probeAtlasCtx || probeAtlasCtx.isContextLost?.()){
+        probeAtlas=document.createElement('canvas');probeAtlasCtx=probeAtlas.getContext('2d');
+      }
+      if(probeAtlas.width!==requests.length||probeAtlas.height!==1){probeAtlas.width=requests.length;probeAtlas.height=1;}
+      probeAtlasCtx.clearRect(0,0,requests.length,1);
+      for(let i=0;i<requests.length;i++){const [c,x,y]=requests[i];probeAtlasCtx.drawImage(c,x,y,1,1,i,0,1,1);}
+      const read = image => {
+        if(!sentinelCtx){sentinelCv=document.createElement('canvas');sentinelCtx=sentinelCv.getContext('2d',{willReadFrequently:true});}
+        if(sentinelCv.width!==requests.length||sentinelCv.height!==1){sentinelCv.width=requests.length;sentinelCv.height=1;}
+        sentinelCtx.globalCompositeOperation='copy';sentinelCtx.drawImage(image,0,0);
+        const rgba=sentinelCtx.getImageData(0,0,requests.length,1).data,batch=new Map();
+        requests.forEach(([c,x,y],i)=>{if(!batch.has(c))batch.set(c,new Map());batch.get(c).set(x+','+y,rgba[i*4+3]);});
+        return batch;
+      };
+      if(!probeAsyncFailed && probeAtlas.toBlob && typeof createImageBitmap==='function'){
+        const job={started:now,epoch:probeEpoch};pendingProbe=job;
+        // Encoding the tiny alpha strip requests an asynchronous readback. The
+        // animation callback never waits for queued GPU work to complete.
+        probeAtlas.toBlob(async blob=>{
+          let bitmap;
+          try {
+            if(!blob)throw Error('probe snapshot unavailable');
+            bitmap=await createImageBitmap(blob);
+            if(pendingProbe===job&&job.epoch===probeEpoch)completedProbeBatch=read(bitmap);
+          }catch(_){/* timeout uses the synchronous backstop if graphics remain unavailable */}
+          finally{
+            if(bitmap){bitmap.close();if(timedOutProbe===job){timedOutProbe=null;probeAsyncFailed=false;}}
+            if(pendingProbe===job&&completedProbeBatch)pendingProbe=null;
+          }
+        });
+      }else probeBatch=read(probeAtlas);
+    } catch(_){probeBatch=null;}
+  }
   function readAlpha1(src, x, y) {   // alpha 0-255 of src's (x,y); throws propagate to the caller's existing taint/loss handling
+    const batch=probeBatch&&probeBatch.get(src),key=x+','+y;
+    if(batch&&batch.has(key))return batch.get(key);
     if (!sentinelCtx) {
       sentinelCv = document.createElement('canvas'); sentinelCv.width = 1; sentinelCv.height = 1;
       sentinelCtx = sentinelCv.getContext('2d', { willReadFrequently: true });
@@ -5933,9 +5995,15 @@ const World = (() => {
     else { ctx.fillStyle = '#040302'; ctx.fillRect(0, 0, cv.width, cv.height); }
   }
   const reviewPerformance = { enabled:false, samples:[] };
+  let reviewParts = null, reviewStamp = 0;
+  function reviewMark(name) {
+    if (!reviewParts) return;
+    const t=performance.now();reviewParts[name]=(reviewParts[name]||0)+t-reviewStamp;reviewStamp=t;
+  }
   function frame(now) {
     if (running) raf = requestAnimationFrame(frame);   // schedule next frame FIRST — a throw below can't kill the loop
     const reviewStart=reviewPerformance.enabled?performance.now():0;
+    reviewParts=reviewPerformance.enabled?{}:null;reviewStamp=reviewStart;
     try {
       frameBody(now);
       if (renderFaults) { renderFaults = 0; lastFaultMsg = ''; }   // a clean frame clears the fault state
@@ -5945,7 +6013,8 @@ const World = (() => {
       if (msg !== lastFaultMsg) { lastFaultMsg = msg; try { console.error('[world] render frame threw (x' + renderFaults + '):', e); } catch (_) {} }
       if (renderFaults >= RENDER_FAULT_LIMIT) { try { drawRenderFault(); } catch (_) {} }
     } finally {
-      if(reviewPerformance.enabled && reviewPerformance.samples.length<3600)reviewPerformance.samples.push({t:now,ms:performance.now()-reviewStart});
+      if(reviewPerformance.enabled && reviewPerformance.samples.length<3600)reviewPerformance.samples.push({t:now,ms:performance.now()-reviewStart,parts:reviewParts});
+      reviewParts=null;
     }
   }
 
@@ -6072,10 +6141,15 @@ const World = (() => {
     }
     if (geoDirty) rederive();
     if (bakeDirty || !cache) rebake();
-    watchCanvasLoss(now);   // a zeroed bake plate heals here, BEFORE it can paint a black station
-    if (bakeDirty || !cache) rebake();
-    watchStageLoss(now);    // a DEAD stage context heals here too — the rest of this frame draws onto the replacement
+    if(now-lastProbeAt>=PROBE_MS||now-lastStageProbeAt>=PROBE_MS)prepareProbeBatch();
+    if(probeBatch)try {
+      watchCanvasLoss(now);   // a zeroed bake plate heals here, BEFORE it can paint a black station
+      if (bakeDirty || !cache) rebake();
+      watchStageLoss(now);    // a DEAD stage context heals here too — the rest of this frame draws onto the replacement
+    } finally {probeBatch=null;}
+    reviewMark('recovery');
     tick(dt, now);
+    reviewMark('simulation');
 
     ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.imageSmoothingEnabled = false;
     if (!cache) {
@@ -6306,10 +6380,12 @@ const World = (() => {
     /* THE SHADOW PASS — every standing prop's cast shadow, on the deck (over the rugs), before any item
        paints. One pass rather than per-item so a shadow can never land on a neighbour's body: the props
        and bodies are y-sorted and paint OVER this. The synthetic auto-desk casts one too. */
+    reviewMark('sceneSetup');
     if (sceneRenderer) sceneRenderer.prepareLight(propLights, { ambient: StationBake.LIGHT.ambient, emission: CRT.emit });
     drawPropShadows();
     if (sceneRenderer) sceneRenderer.drawGrounding(ctx, [agent, ...crew].filter(b => b && !b.unplaced && !b.seated && !b.lying)
       .map(b => ({ x: bodyPosX(b), y: bodyPosY(b), width: 7, height: 20, opacity: .16 })));
+    reviewMark('shadows');
     if (sceneRenderer) {
       sceneRenderer.drawEntities(ctx, items);
     } else {
@@ -6322,6 +6398,7 @@ const World = (() => {
     drawQueueJam(now);   // the live backlog as a physical jam of waiting crates at the INTAKE (world-space, under the lightmap)
     drawShippedPallet(now);   // SHIPPED TODAY: completed jobs stack as product crates at the OUTBOX (server-truth count)
 
+    reviewMark('entities');
     const nextLight = sceneRenderer && sceneRenderer.drawLight(ctx, propLights, { ambient: StationBake.LIGHT.ambient, emission: CRT.emit });
     if (!nextLight) {
       ctx.drawImage(cache.lightCv, 0, 0);
@@ -6332,6 +6409,7 @@ const World = (() => {
         drawPropLights(now, propLights);
       } finally { ctx.restore(); }
     }
+    reviewMark('lighting');
     drawNavLights(now);   // small running lights on validated exterior armour mounts
     if (!(sceneRenderer && sceneRenderer.drawAtmosphere(ctx, { dust: CRT.dust }))) drawDust(now);
     drawDeskFlashes(now);   // G0.4/G0.8: red distress strobe over a desk whose run just died (additive, with the glows)
@@ -6383,8 +6461,10 @@ const World = (() => {
     // (station growth headline now lives in the top bar's STATION chip — see xpstore.pushTopbar)
     drawBloom(now); // phosphor bloom: the bright things in the frame haze outward (screen-space, before the warp so it bows with the picture)
     drawCurve(now); // barrel-warp the whole feed IN-CANVAS — the original (dot-matrix-era) curve, no dots
+    reviewMark('postProcess');
     drawCRT(now);   // scanlines + fade, painted in-canvas at device-px OVER the warped feed (no moiré)
     paintStageHeartbeat();   // the frame's last act: the one opaque pixel a dead stage context cannot fake (see watchStageLoss)
+    reviewMark('static');
     updateCameraHud(now);
     if (sceneRenderer) sceneRenderer.finish();
     // NOTE: the next rAF is scheduled by the frame() crash-guard wrapper, BEFORE this body runs — never here.
@@ -9953,7 +10033,7 @@ const World = (() => {
     _dbgReviewPerformance: enabled => {
       const samples=reviewPerformance.samples.slice();
       if(typeof enabled==='boolean'){reviewPerformance.enabled=enabled;reviewPerformance.samples=[];}
-      return {samples,renderFaults,props:geo?.props.length||0,scale,canvas:cv?[cv.width,cv.height]:null};
+      return {samples,renderFaults,props:geo?.props.length||0,scale,canvas:cv?[cv.width,cv.height]:null,crtBackend:_glFailed?'cpu':_glReady?'webgl':'uninitialized',probeBackend:probeAsyncFailed?'sync-backstop':'async'};
     },
     // Local catalog audit: real geometry, routing, approach, claim and arrival
     // functions. Actor positioning/arrival are controlled fixture setup, not

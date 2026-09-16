@@ -1,0 +1,126 @@
+{
+  "frames": 447,
+  "canvas": [
+    588,
+    572
+  ],
+  "props": 159,
+  "scale": 0.45,
+  "crt": "webgl",
+  "probes": "async",
+  "frameMs": {
+    "median": 9.3,
+    "p95": 14.3
+  },
+  "intervalMs": {
+    "median": 20.8,
+    "p95": 37.5
+  },
+  "parts": {
+    "recovery": {
+      "median": 0,
+      "p95": 0.1
+    },
+    "simulation": {
+      "median": 0.3,
+      "p95": 0.5
+    },
+    "sceneSetup": {
+      "median": 2.4,
+      "p95": 3.2
+    },
+    "shadows": {
+      "median": 1.2,
+      "p95": 1.8
+    },
+    "entities": {
+      "median": 3.4,
+      "p95": 5.5
+    },
+    "lighting": {
+      "median": 0.1,
+      "p95": 0.2
+    },
+    "postProcess": {
+      "median": 1.7,
+      "p95": 2.2
+    },
+    "static": {
+      "median": 0,
+      "p95": 0.1
+    }
+  },
+  "renderer": {
+    "generation": "II",
+    "frames": 1152,
+    "rebuilds": 3,
+    "entities": 219,
+    "frameIntervalMedianMs": 20.9,
+    "frameIntervalP95Ms": 37.6,
+    "renderMedianMs": 9.4,
+    "renderP95Ms": 11.8,
+    "lightingMedianMs": 0.1,
+    "samples": 120,
+    "viewport": {
+      "x": 6.666666666666666,
+      "y": -267.53333333333325,
+      "w": 1306.6666666666667,
+      "h": 1271.111111111111
+    },
+    "appearance": {
+      "crew": {
+        "cachedFrames": 128,
+        "limit": 128,
+        "builds": 8003
+      },
+      "props": {
+        "builds": 105,
+        "hits": 80535,
+        "evictions": 0,
+        "failures": 0,
+        "draws": 80640,
+        "entries": 52,
+        "pixels": 184096,
+        "bytes": 736384,
+        "maxEntries": 96,
+        "maxPixels": 262144,
+        "maxBytes": 1048576,
+        "maxSinglePixels": 65536,
+        "supportedTypes": 36
+      }
+    },
+    "lighting": {
+      "geometryRevision": 3,
+      "staticBuilds": 3,
+      "dynamicBuilds": 50,
+      "visibilityBuilds": 772,
+      "frames": 1152,
+      "preparations": 1152,
+      "beamBuilds": 96,
+      "lastBuildMs": 0.1,
+      "droppedSources": 0,
+      "supported": true,
+      "contextLosses": 0,
+      "contextRecoveries": 0,
+      "configRevision": 3,
+      "sampleCacheHits": 29952,
+      "sampleCacheMisses": 110592,
+      "sampleCacheEvictions": 0,
+      "sampleCacheInvalidations": 1158,
+      "quality": "high",
+      "width": 1320,
+      "height": 914,
+      "resolution": 1,
+      "segments": 116,
+      "sources": 206,
+      "cachedStamps": 238,
+      "areaSamples": 5,
+      "sampleCacheSize": 96,
+      "sampleCacheLimit": 512,
+      "shafts": 32,
+      "ambient": 0.6,
+      "cacheBytes": 41339872,
+      "disposed": false
+    }
+  }
+}
