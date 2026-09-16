@@ -166,6 +166,7 @@
       id: r.id || '', kind: r.kind || 'note',
       title: String(r.title || ''), body: String(text || ''),
       scope: r.scope || 'global', streamId: r.streamId || null,
+      ...(r.projectRoot ? { projectRoot: r.projectRoot } : {}),
       sourceRunId: r.sourceRunId || null,
       // an untagged legacy record predates unattended memory, so it can only have come from the Commander's own
       // COMMS run — 'commander' is the honest default, not a guess.
@@ -175,6 +176,7 @@
       useCount: r.useCount || 0, trust: trust, pinned: !!r.pinned
     };
     if (now != null) out.effectiveTrust = decayTrust(trust, r.lastFeedbackAt || r.createdAt || r.ts || 0, now);
+    if (r.revision) { out.revision = r.revision; out.updatedAt = r.updatedAt; out.updatedSourceRunId = r.updatedSourceRunId; }
     return out;
   }
 

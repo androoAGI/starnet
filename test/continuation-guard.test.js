@@ -80,7 +80,9 @@ const run = (provider, extra) => runAgentLoop(Object.assign({
       textTurn('I will fix the pointer lock next.')   // third announce: budget spent -> ends
     ]);
     const res = await run(provider);
-    A.eq(res.reason, 'done', 'a narrate-forever run still terminates');
+    A.eq(res.reason, 'error', 'a narrate-forever run ends as incomplete, never done');
+    A.eq(res.failureCode, 'incomplete_work', 'durable failure identifies the exhausted continuation');
+    A.ok(/Work is incomplete/.test(res.text), 'the final transcript explains the stop');
     A.eq(provider.callCount(), 3, 'exactly CG_MAX(2) extra turns, not an unbounded spin');
     const nudges = res.messages.filter(m => m.role === 'system' && /<continuation>/.test(m.content));
     A.eq(nudges.length, 2, 'nudge budget is exactly 2 per run');
@@ -115,12 +117,35 @@ const run = (provider, extra) => runAgentLoop(Object.assign({
     // turn0: tool (hits maxIters:1) -> grace turn announces instead of answering -> must still END, not loop
     const provider = scripted([toolTurn(0), textTurn('Let me read one more file now.')]);
     const res = await run(provider, { limits: { maxIters: 1 } });
-    A.eq(res.reason, 'done', 'grace turn ends the run even when it narrates');
+    A.eq(res.reason, 'error', 'an announcement on the grace turn cannot assert completion');
     A.eq(provider.callCount(), 2, 'no continuation nudge after grace');
     const nudges = res.messages.filter(m => m.role === 'system' && /<continuation>/.test(m.content));
     A.eq(nudges.length, 0, 'guard is suppressed on the grace turn');
   }
 
+  {
+    const provider = scripted([textTurn("I'll work on that.")]);
+    const s = setup();
+    const res = await run(provider, { emit: s.emit });
+    A.eq(provider.callCount(), 3, 'identical promises consume the bounded continuation budget');
+    A.eq(res.reason, 'error', 'duplicate detection cannot turn an unfulfilled promise into done');
+    A.ok(/Work is incomplete/.test(res.text), 'duplicate exhaustion explains why it stopped');
+    A.ok(s.seq.some(e => e.name === 'agent.run.error'), 'the error reaches the normal UI/channel seam');
+  }
+  {
+    const provider = scripted([textTurn("I've saved your design preferences.")]);
+    const res = await run(provider, {tools:[{name:'notebook_write',schema:{type:'object'}}]});
+    A.eq(res.reason, 'error', 'unsupported save claims cannot pass as done');
+    A.eq(res.failureCode, 'memory_write_unverified', 'missing save receipt is a specific failure');
+    A.eq(provider.callCount(), 3, 'save verification has bounded retries');
+    A.ok(/not confirmed/.test(res.text), 'the final reply corrects the unsupported save claim');
+  }
+  {
+    const provider = scripted([textTurn('The example says "I saved your preferences." It is quoted text.')]);
+    const res = await run(provider, {tools:[{name:'notebook_write',schema:{type:'object'}}]});
+    A.eq(res.reason, 'done', 'quoted save examples are not first-person receipts');
+    A.eq(provider.callCount(), 1, 'quoted examples do not trigger verification');
+  }
   console.log('continuation-guard.test: OK');
   // report() settles the assertion counter. The .catch below only fires on a THROWN error, so
   // without this every one of the assertions above could fail and the file would still exit 0.

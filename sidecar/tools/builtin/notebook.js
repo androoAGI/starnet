@@ -15,6 +15,27 @@
 })(typeof globalThis !== 'undefined' ? globalThis : this, function () {
   'use strict';
 
+  // Compare against the version the caller actually read. A later edit must never be
+  // overwritten by a stale correction; archive prior text outside active recall.
+  function reviseRecord(record, change, now) {
+    if (!record) throw new Error('no such memory — read your notebook before correcting it');
+    const previous = String(record.content != null ? record.content : record.body || '');
+    if (typeof change.previousBody !== 'string' || change.previousBody !== previous) {
+      throw new Error('memory changed since it was read — read it again and retry the correction with its current previousBody');
+    }
+    const history = (Array.isArray(record.history) ? record.history : []).concat([{
+      title: record.title || '', body: previous, sourceRunId: record.updatedSourceRunId || record.sourceRunId || null,
+      revision: record.revision || 0, replacedAt: now
+    }]);
+    return Object.assign({}, record, {
+      title: change.title == null ? record.title : change.title,
+      body: change.body, content: change.body, updatedAt: now,
+      updatedSourceRunId: change.runId || null, revision: (record.revision || 0) + 1, history,
+      confirmation: change.userConfirmed ? 'user-confirmed' : 'inferred', authority: 'reference-only',
+      trust: 0, lastFeedbackAt: null, lastUsedAt: null, useCount: 0
+    });
+  }
+
   function makeNotebookTools(deps) {
     deps = deps || {};
     const store = deps.store;
@@ -109,39 +130,60 @@
         'SKIP: trivia, task progress, completed-work logs, PR/issue/commit ids, anything that will be stale within a week (that is not memory). ' +
         "WRITE STYLE: a declarative fact, not an instruction to yourself — 'User prefers concise replies' is right; 'Always reply concisely' is wrong " +
         '(an imperative gets re-read in a later session as a standing order and can override the user). Reusable procedures belong in a skill, not memory. ' +
-        'A fact you already hold is not saved twice: a save that comes back "already known" shows you the entry you already have — do not reword and retry it.',
+        'CORRECTIONS: read the existing entry, then use replaceId and its exact previousBody to update it in place. Never use distinct:true for a correction; that leaves the obsolete belief active. ' +
+        'APPROVED REQUIREMENTS: save explicit reusable preferences and approved design requirements with pinned:true so they stay in context even on short follow-ups. Include the approved artifact/reference path and concrete style constraints; read the artifact again before producing a variant. ' +
+        'Use scope:stream for project/task requirements (an anchored trusted project is captured by the host); scope:global only for preferences the user wants across projects. Current instructions always win. ' +
+        'Say saved/updated only after this tool confirms the write. A fact you already hold is not saved twice: "already known" means no write occurred.',
       schema: {
         type: 'object', required: ['title', 'body'],
         properties: {
           title: { type: 'string' },
           body: { type: 'string' },
-          distinct: { type: 'boolean', description: 'Only after an "already known" reply: set true when you have read the existing entry and judged this a genuinely different fact.' }
+          distinct: { type: 'boolean', description: 'Only for a genuinely separate fact, never a correction to an existing fact.' },
+          replaceId: { type: 'string', description: 'Existing note id to correct in place instead of appending a contradictory entry.' },
+          previousBody: { type: 'string', description: 'Exact current body from notebook.read; required with replaceId to prevent overwriting a newer edit.' },
+          pinned: { type: 'boolean', description: 'Keep an explicit reusable preference or approved requirement in context within its scope.' },
+          scope: { type: 'string', enum: ['stream', 'global'], description: 'stream for this project/task, global only for user preferences applying across projects.' }
         }
       },
       run: async (args, ctx) => {
         const aid = (ctx && ctx.agentId) || 'agent';
         const runId = ctx && ctx.runId ? String(ctx.runId) : null;   // provenance source (B1 Cortex seam)
         const streamId = ctx && ctx.streamId ? String(ctx.streamId) : null;   // M-mem.2b: the run's workstream
-        const scope = streamId ? 'stream' : 'global';                         // a note jotted in a stream is its working memory
+        const scope = args.scope || (streamId ? 'stream' : 'global');
+        if (scope === 'stream' && !streamId) throw new Error('stream memory requires an active stream');
+        if (scope !== 'stream' && scope !== 'global') throw new Error('scope must be stream or global');
         const now = clock.now();
         // §5.2 record minted INSIDE the lock against the re-read list, so the id is collision-proof even if a
         // concurrent run/UI write changed the notebook since this run started (P1).
         let note = null, dupe = null;
         const overridden = !!(args && args.distinct);   // the agent SAW the near-dupe and judged this fact different
         await updateNotes(aid, (list) => {
+          if (args.replaceId) {
+            const at = list.findIndex(n => n.id === args.replaceId);
+            note = reviseRecord(list[at], {
+              previousBody: args.previousBody, title: redact(String(args.title)), body: redact(String(args.body)), runId
+            }, now);
+            if (args.scope) { note.scope = scope; note.streamId = scope === 'stream' ? streamId : null; note.projectRoot = scope === 'stream' ? ((ctx && ctx.projectRoot) || null) : null; }
+            if (typeof args.pinned === 'boolean') note.pinned = args.pinned;
+            list[at] = note;
+            return list;
+          }
           const text = String(args.title) + ' ' + String(args.body);
           // the near-dupe check runs INSIDE the lock against the RE-READ list — outside it, two concurrent runs
           // saving the same belief would both see a clean notebook and both append.
-          dupe = overridden ? null : findSimilar(list, text, { threshold: DUPE_THRESHOLD });
+          dupe = list.find(n => Array.isArray(n.history) && n.history.some(h => h && String(h.body).trim() === String(args.body).trim())) ||
+            (overridden ? null : findSimilar(list, text, { threshold: DUPE_THRESHOLD }));
           if (dupe) return undefined;   // nothing to write — skip the store write entirely
           note = {
             id: nextId(list), kind: 'note',
             title: redact(String(args.title)), body: redact(String(args.body)),   // §5.6: scrub secrets before they persist
-            scope: scope, streamId: streamId, sourceRunId: runId,
+            scope: scope, streamId: scope === 'stream' ? streamId : null, sourceRunId: runId,
+            projectRoot: scope === 'stream' ? ((ctx && ctx.projectRoot) || null) : null,
             // which SURFACE formed this belief (memcore.originOf, injected on the run's tool ctx). Unattended runs
             // can write memory now, so the Commander must be able to tell a channel-learned fact from their own.
             origin: (ctx && ctx.origin) ? String(ctx.origin) : 'commander',
-            createdAt: now, ts: now, lastUsedAt: null, useCount: 0, trust: 0, pinned: false
+            createdAt: now, ts: now, lastUsedAt: null, useCount: 0, trust: 0, pinned: args.pinned === true
           };
           list.push(note);
           return list;
@@ -155,8 +197,8 @@
           return {
             content: 'Not saved — you already remember something very close:\n[' + dupe.id + '] ' + String(dupe.title || '') + ': ' + held + '\n\n' +
               'If that is the SAME belief, you are done — do not reword and retry. If this is genuinely a different fact ' +
-              '(or a correction that should replace it), call notebook.write again with distinct:true and say in your reply ' +
-              'which entry the Commander may want to edit.',
+              ', use distinct:true. If this is a CORRECTION, call notebook.write with replaceId:"' + dupe.id +
+              '" and the exact current previousBody from notebook.read. That updates the existing entry; distinct:true does not.',
             summary: 'already known (' + dupe.id + ')'
           };
         }
@@ -175,7 +217,7 @@
           if (ctx.room) d.room = ctx.room;
           ctx.emit('deliverable', d);
         }
-        return { content: 'Saved note "' + note.title + '" (' + note.id + ').', summary: 'wrote ' + note.id };
+        return { content: (args.replaceId ? 'Updated' : 'Saved') + ' note "' + note.title + '" (' + note.id + ').' + (args.replaceId ? ' The previous text is archived and is no longer active recall.' : ''), summary: (args.replaceId ? 'updated ' : 'wrote ') + note.id };
       }
     };
 
@@ -279,5 +321,5 @@
     };
   }
 
-  return { makeNotebookTools };
+  return { makeNotebookTools, reviseRecord };
 });

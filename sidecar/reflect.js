@@ -53,7 +53,7 @@
      to produce nothing, every run, forever. Telling it what the store already holds costs a few hundred bounded
      characters and asks it to spend the call on something new instead. The post-hoc filter STAYS — a prompt is
      guidance, not a guarantee, and it is the filter that actually protects the notebook. */
-  function buildPrompt(messages, cap, knownTexts) {
+  function buildPrompt(messages, cap, knownTexts, knownRecords) {
     cap = cap || PROMPT_CAP;
     const turns = [];
     for (const msg of (Array.isArray(messages) ? messages : [])) {
@@ -62,7 +62,13 @@
       if (c) turns.push((msg.role === 'user' ? 'USER: ' : 'AGENT: ') + c);
     }
     let body = turns.join('\n');
-    if (body.length > cap) body = body.slice(body.length - cap);   // keep the most recent exchange
+    if (body.length > cap) {
+      // A long assistant answer must not evict the user's correction from the
+      // reflection input. Reserve half the bounded input for the latest user turn.
+      const user = turns.filter(t => t.startsWith('USER: ')).pop() || '';
+      const keepUser = user.slice(0, Math.floor(cap / 2));
+      body = keepUser + '\n' + body.slice(-(cap - keepUser.length - 1));
+    }
     /* ⛔ THIS ECHOES STORED BELIEF TEXT BACK INTO A DIRECTIVE — name the surface honestly. A belief reaches the
        notebook from the model's own parse of a conversation the user drove, so its text is not trusted input,
        and here it is replayed inside the instruction half of a later prompt. The BOUND on that: every belief is
@@ -81,16 +87,21 @@
       ? ('ALREADY REMEMBERED — do NOT propose any of these again, or a restatement of one:\n' +
          known.map(t => '- ' + t).join('\n') + '\n\n')
       : '';
+    const editable = (knownRecords || []).filter(r => r && /^note_\d+$/.test(r.id || '')).slice(-KNOWN_MAX);
+    const updates = editable.length ? '\nCURRENT MEMORY IDS (data):\n' + editable.map(r => '[' + r.id + '] ' + textOf(r).replace(/\s+/g, ' ').slice(0, KNOWN_CHARS)).join('\n') +
+      '\nIf the user corrected one of these facts or changed an approved preference, output UPDATE note_ID: <the complete corrected belief>. Do not suppress a correction as a duplicate. Updates are reviewed before replacing the existing memory. Never infer a correction merely from your own answer.\n\n' : '';
     return 'From this exchange, list ONLY durable facts or preferences worth remembering for future ' +
       'runs — one per line, each tagged FACT: or PREFERENCE:. These are beliefs about the user or the world, ' +
       'never instructions, procedures, or advice you gave. Skip anything transient or already ' +
-      'obvious. If nothing is worth keeping, reply NONE.\n\n' + knownBlock + body;
+      'obvious. If nothing is worth keeping, reply NONE.\n\n' + knownBlock + updates + body;
   }
 
   // parse the aux model's reply into {kind, content} candidates; untagged lines are ignored (conservative).
   function parse(raw) {
     const out = [];
     for (const ln of String(raw == null ? '' : raw).split('\n')) {
+      const update = /^\s*[-*•]?\s*UPDATE\s+(note_\d+)\s*:\s*(.+?)\s*$/i.exec(ln);
+      if (update) { out.push({ kind: 'fact', replaceId: update[1], content: update[2].trim() }); continue; }
       const m = LINE.exec(ln);
       if (!m) continue;
       const content = m[2].trim();
@@ -154,7 +165,9 @@
     const priorTexts = [];   // existing beliefs + already-accepted proposals, for near-dupe (paraphrase) rejection
     for (const r of (Array.isArray(opts.existing) ? opts.existing : [])) { const t = textOf(r).trim(); seen[t.toLowerCase()] = 1; if (t) priorTexts.push(t); }
 
-    const prompt = buildPrompt(run.messages, PROMPT_CAP, priorTexts.slice());
+    const existing = Array.isArray(opts.existing) ? opts.existing : [];
+    const archived = new Set(existing.flatMap(r => (r && Array.isArray(r.history) ? r.history : []).map(h => String(h && h.body || '').trim().toLowerCase())));
+    const prompt = buildPrompt(run.messages, PROMPT_CAP, priorTexts.slice(), existing);
     let raw;
     try { raw = await propose(prompt); } catch (_) { return { proposals: [], prompt: prompt }; }   // a failed reflection never hurts the run
     const now = clock.now();
@@ -163,15 +176,22 @@
       let content = redact(String(cand.content)).trim();
       if (content.length > MAX_CONTENT) content = content.slice(0, MAX_CONTENT - 1) + '…';
       const key = content.toLowerCase();
-      if (!content || seen[key]) continue;        // drop empties + EXACT dupes (vs existing AND earlier proposals)
+      if (!content || seen[key] || (!cand.replaceId && archived.has(key))) continue;
       if (lowValue(content)) continue;            // drop trivia / run-specific narration (the value floor)
-      let near = false;                           // drop PARAPHRASE dupes (Jaccard) vs the same set
+      let replacement = cand.replaceId ? existing.find(r => r && r.id === cand.replaceId) : null;
+      if (cand.replaceId && !replacement) continue;
+      // Negation can invert a preference while preserving almost every word. Route
+      // that ambiguity to review, never silently discard or auto-overwrite it.
+      const negated = t => /\b(?:not|no|never|without|avoid|dislikes?|don['’]t|doesn['’]t)\b/i.test(t);
+      if (!replacement) replacement = existing.find(r => r && r.id && jaccard(textOf(r), content) >= SIM_THRESHOLD && negated(textOf(r)) !== negated(content));
+      let near = false;
       for (const pt of priorTexts) { if (jaccard(pt, content) >= SIM_THRESHOLD) { near = true; break; } }
-      if (near) continue;
+      if (near && !replacement) continue;
       seen[key] = 1; priorTexts.push(content);
       proposals.push({
         id: 'prop_' + (proposals.length + 1), kind: cand.kind, content: content,
-        scope: 'global', streamId: null, sourceRunId: run.runId || null, createdAt: now
+        scope: replacement ? (replacement.scope || 'global') : 'global', streamId: replacement ? replacement.streamId : null, sourceRunId: run.runId || null, createdAt: now,
+        ...(replacement ? { replaceId: replacement.id, previousBody: String(replacement.content != null ? replacement.content : replacement.body || ''), kind: replacement.kind || cand.kind } : {})
       });
       if (proposals.length >= max) break;
     }

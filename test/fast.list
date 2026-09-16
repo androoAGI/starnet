@@ -22,6 +22,7 @@ test/live-doctor-ui.test.js
 test/report-0110-regressions.test.js
 test/outbound-failure-diagnosability.test.js
 test/reflect.test.js
+test/memory-corrections.test.js
 test/memcore.test.js
 test/cost.test.js
 test/spend.test.js

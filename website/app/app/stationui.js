@@ -2023,7 +2023,7 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
       // night shift, a channel message) can raise a credential/PII/standing-instruction belief; it is neither kept
       // nor dropped until the Commander rules on it, and it waits HERE across restarts. Hidden until non-empty.
       '<div class="gx-sec" id="mc-pending-sec" style="display:none;"><span class="gx-ref gold">?</span><span class="gx-title">Awaiting your decision</span><span class="gx-tag" id="mc-pending-count"></span></div>' +
-      '<div class="mc-note" id="mc-pending-note" style="display:none;">Sensitive beliefs raised while you were away — <b>nothing here is remembered yet</b>. <b>Keep</b> to save one &middot; <b>Discard</b> to reject it for good.</div>' +
+      '<div class="mc-note" id="mc-pending-note" style="display:none;">Proposed memories and corrections — <b>these changes have not been applied</b>. <b>Keep</b> to apply one &middot; <b>Discard</b> to reject it.</div>' +
       '<div id="mc-pending-list" class="mc-list"></div>' +
       // ▤ not "M": the ref chip is a marker, and every other one in the dossier is a glyph. A bare letter reads as
       // a code the reader is expected to already know (which is exactly what GROWTH's retired A/B/B2/B3 were).
@@ -2073,7 +2073,7 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
     const tag = mkEl('span', 'turnin-kind'); tag.textContent = MEM_KIND[p.kind] || 'NOTE'; head.appendChild(tag);
     const org = originChip(p.origin); if (org) head.appendChild(org);
     card.appendChild(head);
-    const bodyEl = mkEl('div', 'mc-body'); bodyEl.textContent = p.content || '(empty)'; card.appendChild(bodyEl);   // textContent — never interpreted
+    const bodyEl = mkEl('div', 'mc-body'); bodyEl.textContent = p.replaceId ? 'Update remembered preference: “' + p.previousBody + '” → “' + p.content + '”' : (p.content || '(empty)'); card.appendChild(bodyEl);
     const meta = mkEl('div', 'mc-meta');
     const prov = mkEl('span', 'mc-prov');
     const when = p.createdAt ? new Date(p.createdAt).toLocaleDateString() : '—';
@@ -2192,7 +2192,7 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
     if (rec.kind === 'note' && rec.title) { const t = mkEl('span', 'mc-rectitle'); t.textContent = rec.title; head.appendChild(t); }
     if (rec.scope === 'stream' && rec.streamId) {   // M-mem.2b: working memory scoped to a workstream
       const wsT = (typeof Workstreams !== 'undefined' && Workstreams.get) ? ((Workstreams.get(rec.streamId) || {}).title || null) : null;
-      const sc = mkEl('span', 'mc-scope'); sc.textContent = '⊂ ' + (wsT || 'workstream'); sc.title = 'working memory — scoped to this workstream (still cross-stream searchable)'; head.appendChild(sc);
+      const sc = mkEl('span', 'mc-scope'); sc.textContent = '⊂ ' + (rec.projectRoot ? 'project' : (wsT || 'workstream')); sc.title = rec.projectRoot ? 'pinned requirements also follow this trusted project: ' + rec.projectRoot : 'working memory — scoped to this workstream (still cross-stream searchable)'; head.appendChild(sc);
     }
     const org = originChip(rec.origin); if (org) head.appendChild(org);   // only when it was NOT the Commander's own run
     if (rec.pinned) { const p = mkEl('span', 'mc-pinflag'); p.textContent = '★ pinned'; head.appendChild(p); }
