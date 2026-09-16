@@ -69,6 +69,7 @@ const { makeStationTools } = require('../../sidecar/tools/builtin/station.js');
     assert.equal(proof.replyFollowup.callSessionReceived,false);
 
     const foreground=await start('Focus proof foreground');
+    await page.locator('#chat-input').evaluate(e=>e.blur()); // an untouched, unfocused composer may honor the foreground request
     const opened=await tools.focusTool.run({session:ids.a},foreground);
     proof.currentRequest={accepted:!opened.content.startsWith('REFUSED:'),selected:await page.evaluate(id=>Workstreams.activeId()===id,ids.a)};
     assert.deepEqual(proof.currentRequest,{accepted:true,selected:true});

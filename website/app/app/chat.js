@@ -6648,6 +6648,7 @@ const Chat = (() => {
   async function continueConnectorTask(streamId) {
     const ws = Workstreams.get(streamId), h = Workstreams.connectorHandoff(streamId);
     if (!ws || !h || connectorContinuing.has(streamId) || Channels.isBusy(streamId)) return false;
+    const continuationFocusVersion = focusVersion;
     connectorContinuing.add(streamId);
     try {
       let j = await Harness.api.get('/api/connectors');
@@ -6660,6 +6661,12 @@ const Chat = (() => {
       if (!c || c.state !== 'up' || !c.enabled || c.authRequired) throw new Error('Connect ' + h.connectorId + ' before continuing.');
       if (h.toolName && !(c.tools || []).includes(h.toolName)) throw new Error('This connection does not offer the operation the task requested. Inspect its tools in ABILITIES.');
       if (Workstreams.connectorHandoff(streamId) !== h || Channels.isBusy(streamId)) return false;
+      // Checking/refreshing a connection yields to the Commander. A later response must not
+      // override new navigation, typing, or an attachment; leave the handoff available to retry.
+      if (focusVersion !== continuationFocusVersion || isComposerEngaged() || Workstreams.get(streamId) !== ws) {
+        if (typeof StationUI !== 'undefined') StationUI.notify('Connection checked. Continue the task when you are ready.', 'info');
+        return false;
+      }
       App.openWorkstream(streamId);
       Workstreams.setConnectorHandoff(streamId, null);
       App.persist();
@@ -8970,12 +8977,18 @@ const Chat = (() => {
 
   // Only a still-current foreground run may honor model-driven navigation. Tool arguments alone
   // cannot establish that the Commander is still looking at the conversation that asked for it.
+  // Background navigation must not steal the caret, an unsent draft (including whitespace),
+  // or files that are staged/uploading. Explicit session clicks keep their existing behavior.
+  function isComposerEngaged() {
+    return !!(pendingAtts.length || (input && (input.value.length ||
+      (typeof document !== 'undefined' && document.activeElement === input))));
+  }
   function canFocusSession(origin) {
     if (!origin || !activeWs || origin.streamId !== activeWs.id || !origin.runId) return false;
     const meta = RUN_META.get(origin.runId);
     return !!meta && meta.streamId === activeWs.id && meta.focusVersion === focusVersion
       && Channels.isBusy(activeWs.id) && Channels.runIdOf(activeWs.id) === origin.runId
-      && !(input && input.value.trim()) && !pendingAtts.length;
+      && !isComposerEngaged();
   }
   // Read-only run metadata for advice stores and task attribution.
   function runMeta(id) { return (id && RUN_META.has(id)) ? RUN_META.get(id) : null; }
@@ -8983,5 +8996,5 @@ const Chat = (() => {
   // only" gate maybeStandaloneRate uses — so a pure-chat run is never bottle-offered. Used by App.runBottleInfo (R5).
   function runDidWork(id) { const w = id ? runWork.get(id) : null; return !!(w && ((w.toolsOk || 0) >= 1 || (w.delivered || 0) >= 1)); }
 
-  return { init, load, send, refreshStarters, sendOrQueue, continueConnectorTask, stopActive, status, localLine, broadcast, renderProse, setSystem, getHistory, contextRef, abort, isBusy, beatBusy: skillBeatBusy, beginInterview, endInterview, echoUser, prefill, autoGrowInput, choices, clearChoices, retireDeskPrompt, typeLine, nudge, clearNudge, offerCuriosity, offerFork, planGoalPath, briefingReceipt, canFocusSession, runMeta, runDidWork, awayDigest, awayReview, awayRate, sampleCard, workshopReturn, refreshIdBar: renderIdBar, refreshGroupControls: updateControls, refreshAgentIdentity, setRosterStatus, askBudgetSpent, spendAsk };
+  return { init, load, send, refreshStarters, sendOrQueue, continueConnectorTask, stopActive, status, localLine, broadcast, renderProse, setSystem, getHistory, contextRef, abort, isBusy, beatBusy: skillBeatBusy, beginInterview, endInterview, echoUser, prefill, autoGrowInput, choices, clearChoices, retireDeskPrompt, typeLine, nudge, clearNudge, offerCuriosity, offerFork, planGoalPath, briefingReceipt, isComposerEngaged, canFocusSession, runMeta, runDidWork, awayDigest, awayReview, awayRate, sampleCard, workshopReturn, refreshIdBar: renderIdBar, refreshGroupControls: updateControls, refreshAgentIdentity, setRosterStatus, askBudgetSpent, spendAsk };
 })();
