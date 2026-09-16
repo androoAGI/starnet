@@ -460,33 +460,43 @@ const World = (() => {
      `lastLeg` brakes into the FINAL stop only; intermediate waypoints are taken at pace so the body doesn't
      stutter at every corner. dx,dy = the vector it is stepping along, d = its length. */
   function stepGait(b, dx, dy, d, top, lastLeg, dt) {
-    if (b.faceA == null || b.dir !== b.faceDir) b.faceA = DIR_A[b.dir] != null ? DIR_A[b.dir] : Math.PI / 2;
-    const t = (typeof performance !== 'undefined' ? performance.now() : Date.now());
-    if (b.odo == null || t - (b.odoAt || 0) > 150) { b.odo = 0; b.spd = 0; }   // wasn't walking last frame → a NEW walk
-    b.odoAt = t;
-    const want = lastLeg ? Math.min(top, Math.sqrt(Math.max(0, d) * 2 * ACCEL)) : top;
-    const rate = ACCEL * dt / 1000, cur = b.spd || 0;
-    b.spd = cur < want ? Math.min(want, cur + rate) : Math.max(want, cur - rate);
-    const step = Math.min(d, b.spd * dt / 1000);
-    if (d > 1e-4) {
-      const turn = angNorm(Math.atan2(dy, dx) - b.faceA);
-      const s = dt / 1000, remain = Math.abs(turn);
-      // Angular ACCELERATION, not a flat rate — the same easing the linear speed gets above. A
-      // constant slew made a cornering body read as a turntable: it pivoted at a machine-perfect
-      // rate while its legs stood still. Brake term arrives at the heading at rest.
-      const target = Math.min(TURN_RATE, Math.sqrt(2 * TURN_ACCEL_A * remain));
-      const curW = b.angW || 0;
-      b.angW = curW < target ? Math.min(target, curW + TURN_ACCEL_A * s)
-                             : Math.max(target, curW - TURN_ACCEL_A * s);
-      const swept = Math.min(remain, b.angW * s);
-      b.faceA = angNorm(b.faceA + Math.sign(turn) * swept);
-      // The feet also travel when the body pivots — they sweep an arc about the stance centre. Adding
-      // that arc to the stride odometer keeps the legs cycling through a corner instead of freezing
-      // mid-stride while the sprite rotates, which is what made cornering look like sliding.
-      b.odo += step + swept * TURN_FOOT_R;
-    }
-    b.dir = b.faceDir = bucketDir(b.faceA, b.dir);
+    // Art height controls rendering, not travel speed: 19 px skins share the normal station pace.
+    const seconds=Math.max(0,Math.min(100,dt))/1000;
+    const accel=ACCEL;
+    if(b.faceA==null||b.dir!==b.faceDir)b.faceA=DIR_A[b.dir]??Math.PI/2;
+    const t=typeof performance!=='undefined'?performance.now():Date.now();
+    if(b.odo==null)b.odo=0;
+    if(t-(b.odoAt||0)>150)b.spd=0;
+    b.odoAt=t;
+    b._gaitStart ||= {x:b.px,y:b.py,odo:b.odo};b._strideBlocked=false;b._resolvedTravelHeading=null;
+    const heading=d>1e-4?Math.atan2(dy,dx):b.faceA;
+    const turn=angNorm(heading-b.faceA),remain=Math.abs(turn);
+    const target=Math.min(TURN_RATE,Math.sqrt(2*TURN_ACCEL_A*remain));
+    const curW=b.angW||0;
+    b.angW=curW<target?Math.min(target,curW+TURN_ACCEL_A*seconds):Math.max(target,curW-TURN_ACCEL_A*seconds);
+    b.faceA=angNorm(b.faceA+Math.sign(turn)*Math.min(remain,b.angW*seconds));
+    // Turn before travelling backwards. Gentle corners retain momentum; sharp turns plant first.
+    const error=Math.abs(angNorm(heading-b.faceA));
+    const alignment=error>=Math.PI/4?0:Math.cos(error*2)**2;
+    const want=(lastLeg?Math.min(top,Math.sqrt(Math.max(0,d)*2*accel)):top)*alignment;
+    const cur=b.spd||0,rate=accel*seconds;
+    b.spd=cur<want?Math.min(want,cur+rate):Math.max(want,cur-rate);
+    // Speed already eases with alignment. Applying it twice makes every corner drag.
+    const step=error>=Math.PI/4?0:Math.min(d,b.spd*seconds);
+    // Only translation advances the stride. Rotation used to add almost an entire fake cycle.
+    b.odo+=step;b._travelHeading=heading;b._travelStep=step;
+    b.dir=b.faceDir=bucketDir(b.faceA,b.dir);
     return step;
+  }
+
+  function finishGait(b){
+    const start=b._gaitStart;if(!start)return;b._gaitStart=null;
+    const dx=b.px-start.x,dy=b.py-start.y,distance=Math.hypot(dx,dy);
+    const forward=dx*Math.cos(b._travelHeading)+dy*Math.sin(b._travelHeading);
+    // Separation runs after movement. A blocked/shoved body plants instead of cycling forward in reverse.
+    b._strideBlocked=!(b._travelStep>0)||distance<.001||forward<=.001;
+    b.odo=start.odo+(b._strideBlocked?0:distance);
+    if(!b._strideBlocked)b._resolvedTravelHeading=Math.atan2(dy,dx);
   }
 
   /* ================= furniture (ported v7 sprites.js F.desk / F.chair) ================= */
@@ -2660,6 +2670,10 @@ const World = (() => {
               chair's value, because the cushion sits barely above the near arm's crown. */
   const SIDE_SEAT = { recliner: { face: 'west', dx: -2, lift: 2 }, recliner_r: { face: 'east', dx: 2, lift: 2 } };
   const sideSeat = p => {
+    if(p?.t==='booth' && ((p.r|0)&1)) {
+      const face=PropAnchor.frontOf(p);
+      return {face,dx:face==='west'?-2:2,lift:2};
+    }
     const side=p&&SIDE_SEAT[p.t];
     if(!side)return null;
     return p.m ? {...side,face:side.face==='west'?'east':'west',dx:-side.dx} : side;
@@ -5645,6 +5659,7 @@ const World = (() => {
   function curiositySay() { /* silenced by design — the stillness is the point */ }
 
   function tick(dt, now) {
+    for(const body of [agent,...crew].filter(Boolean)){body._gaitStart={x:body.px,y:body.py,odo:body.odo||0};body._travelStep=0;body._resolvedTravelHeading=null;}
     if (!agent || agent.unplaced || !geo || awakeFrozen) return;   // frozen during the awakening: the newborn holds still, facing the Commander
     self = agent;                                                  // B1: the hero tick runs with self===agent (engine core reads the current body via self) — byte-identical hero path
     if (!agent.lastTaskAt) agent.lastTaskAt = now;                 // anchor downtime at the first live tick
@@ -5813,6 +5828,7 @@ const World = (() => {
     // both committed this frame's positions — resolve any pair that ended up inside each other. Position
     // is the ONLY thing it touches, so it can't reorder or pre-empt a single decision made above it.
     separateBodies(now);
+    if(agent)finishGait(agent);for(const body of crew)finishGait(body);
   }
 
   /* ---------- render ----------
@@ -9898,6 +9914,7 @@ const World = (() => {
           out.interaction='approach';out.planned=setPathTo({x:anchor.tx,y:anchor.ty});
           if(out.planned){b.goal='use';b.usingProp=p.id;b.useFace=anchor.face;b.useSit=!!anchor.sit;b.target=null;b.pathPts=null;const pt=footOf(anchor.tx,anchor.ty);b.px=pt.x;b.py=pt.y;arrive(now);}
         }
+        if(action==='use' && b.seated)b.useUntil=now+60000; // manual visual review holds the real pose
         out.result={seated:!!b.seated,sitting:!!b.sitting,lying:!!b.lying,dir:b.dir,usingProp:b.usingProp||null,px:b.px,py:b.py,seatLift:b.seatLift||0};
         return out;
       }finally{self=keep;}
