@@ -18,8 +18,8 @@
   "expectedClaimCount": 37,
   "releaseSurface": {
     "algorithm": "sha256",
-    "sourceCommit": "782913784ab21dcb9cade3397c5a7610135196c8",
-    "pathSetSha256": "9e378403804c37f467ab12ee929e8f226c14b82b77364fcfe9992b50a4f4bb6a",
+    "sourceCommit": "d6060da051c2edb34287e3283acc482adbe1942e",
+    "pathSetSha256": "d78adcafc2e7df8e2bf528f419468d3310c97a59a7cfdc8a808709c92953854f",
     "files": [
       {
         "path": "INSTALL.md",
@@ -55,106 +55,6 @@
         "path": "docs/RELEASE_NOTES_v1.0.0_DRAFT.md",
         "bytes": 4243,
         "sha256": "1f981a7fe9210642e22318fbf2632213a0ab51433c958ca31063bc6d429b8d41"
-      },
-      {
-        "path": "frontend/agent-demo/approved-sheet-effects.js",
-        "bytes": 10178,
-        "sha256": "85f2264d5e9d09a898d70bfecf07102da014b976e4f294229d59511b4bb0fafb"
-      },
-      {
-        "path": "frontend/agent-demo/authored-machine-config.js",
-        "bytes": 2206,
-        "sha256": "4de79510c4070ab9cc017855e07cb969043fec93348cf33fcddab6db3cffd281"
-      },
-      {
-        "path": "frontend/agent-demo/authored-prop-content.js",
-        "bytes": 12206,
-        "sha256": "12ad2b34e4aa25f17be4522aacc06009223baf89295116b00f1dce590dbe1c70"
-      },
-      {
-        "path": "frontend/agent-demo/authored-prop-motion.js",
-        "bytes": 10670,
-        "sha256": "bc0205d216b2a99202fc6ff8999783dd637259a8af5876ae1ea2953b332a0130"
-      },
-      {
-        "path": "frontend/agent-demo/authored-service-content.js",
-        "bytes": 13157,
-        "sha256": "d802d94301a6b93b7bfbad1a9b924c05f5058613941e10a21aef481438da3c3e"
-      },
-      {
-        "path": "frontend/agent-demo/authored-surface-mounts.js",
-        "bytes": 7602,
-        "sha256": "d2bffa57ca297d34c957e26409be43785912ef192483c2f3d8481b3bebc5ef6f"
-      },
-      {
-        "path": "frontend/agent-demo/demo.js",
-        "bytes": 14223,
-        "sha256": "c9025b4c0e43b4489145f7b602bd140a0988d0fb8f34a2d010542647ecd65df2"
-      },
-      {
-        "path": "frontend/agent-demo/industrialtextures.js",
-        "bytes": 23168,
-        "sha256": "bf244d1b9434a505e13ff0cb7c3d390e4f768fe95cf3b4b6d7e9d466ae3d7928"
-      },
-      {
-        "path": "frontend/agent-demo/projection-prop-effects.js",
-        "bytes": 41547,
-        "sha256": "1e3129b3f9f7d562a01eb72376f932b2e4a35faf07684f0220463909ec318003"
-      },
-      {
-        "path": "frontend/agent-demo/proportion-review.js",
-        "bytes": 4500,
-        "sha256": "27d85b0558d1ddd73747041023dd48176f1bd852368ca621240c99a33576b1be"
-      },
-      {
-        "path": "frontend/agent-demo/propremaster.js",
-        "bytes": 29916,
-        "sha256": "c6b8f423e293c63c9c28303397d8a48da49c5422888db17fc66c81c6aadf334b"
-      },
-      {
-        "path": "frontend/agent-demo/propsprites.js",
-        "bytes": 797840,
-        "sha256": "695d2a932bacae8cb6377e6ab45d7fbf292fd8caaeef741763543a9d4838e8a5"
-      },
-      {
-        "path": "frontend/agent-demo/review-world.js",
-        "bytes": 743456,
-        "sha256": "51bfd3cea034326be31321896275505d8c6131988c66e9aab403e930e8f1d194"
-      },
-      {
-        "path": "frontend/agent-demo/sprites.js",
-        "bytes": 43342,
-        "sha256": "46c094d5fba01383ac29d2f54fb6c362bb46a8b974162676827a28d901fb092e"
-      },
-      {
-        "path": "frontend/agent-demo/stationbake.js",
-        "bytes": 355760,
-        "sha256": "5e1e1b12ac515b9f653a9c13df04e5b7a9bf66374c7fcf42e3d558806c95f4a8"
-      },
-      {
-        "path": "frontend/agent-demo/worldsurface.js",
-        "bytes": 35615,
-        "sha256": "f463a5f3869e4264dff4c636d06c7c76d7ea04a8ee960cc5c08645087685f7ec"
-      },
-      {
-        "path": "frontend/agent-motion-review.html",
-        "bytes": 4800,
-        "sha256": "9cd3d6651f6ffebc046afb46db1025891f16c4f1b3890bfe97d100cb16b5fc9b"
-      },
-      {
-        "path": "frontend/agent-motion-review.js",
-        "bytes": 8514,
-        "sha256": "6853cf0d75a2afc0bb78d91d4426d224c8b8997cd7bbe91bd5e6cd52673eff61"
-      },
-      {
-        "path": "frontend/agent-proportion-review.html",
-        "bytes": 4278,
-        "sha256": "2c84ed00bf088a981a41f976d9bba3f23e2a644fd01f3c6854ce0961163b0c80"
-      },
-      {
-        "path": "frontend/agent-station-demo.html",
-        "bytes": 86330,
-        "sha256": "77a0c8c042bacab923b22cf93d8328af7bfd3aad35769c992bd69765310308c4"
       },
       {
         "path": "frontend/app/agentid.js",
@@ -1023,8 +923,8 @@
       },
       {
         "path": "frontend/app/stationbake.js",
-        "bytes": 361563,
-        "sha256": "6542df112d5601bd76ade23c87c31043c7b2b8bce63b90d368ae6e42efdb9df0"
+        "bytes": 362004,
+        "sha256": "f709f68ad67f7a31fc0016f39ac76c3f0d0636b86102fbc3b1cf47aaf1a81cf3"
       },
       {
         "path": "frontend/app/stationcommands.js",
@@ -1563,8 +1463,8 @@
       },
       {
         "path": "frontend/js/assets.js",
-        "bytes": 43339,
-        "sha256": "6056edc992a05e6738aeffcd8604b701049881a716b89e322777dbf389f5b175"
+        "bytes": 43170,
+        "sha256": "3f80bd54cda64077acf42be9a3315d596a6316e35fb2006c7d8793700db384ed"
       },
       {
         "path": "frontend/js/audio.js",
@@ -1630,16 +1530,6 @@
         "path": "frontend/prop-style-review.html",
         "bytes": 6101,
         "sha256": "4cd6de478e38bedc5b1a79b20a16fc764fb8c410beb84d6f2be8315596cd0187"
-      },
-      {
-        "path": "frontend/skin-review-0914.html",
-        "bytes": 4226,
-        "sha256": "d332895ca33ec3d62430f11827cd3288e8d85547d82c98b1a6ca60ba9f557351"
-      },
-      {
-        "path": "frontend/skin-review-0914.js",
-        "bytes": 8745,
-        "sha256": "b542a9825aa46c8fde92cf80a6ccf45b2bef4143f6068821a2c504acdaefe7af"
       }
     ]
   },
