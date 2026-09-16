@@ -2687,6 +2687,7 @@ const World = (() => {
               chair's value, because the cushion sits barely above the near arm's crown. */
   const SIDE_SEAT = { recliner: { face: 'west', dx: -2, lift: 2 }, recliner_r: { face: 'east', dx: 2, lift: 2 } };
   const sideSeat = p => (p && SIDE_SEAT[p.t]) || null;
+  const remasteredCouch = p => p?.t === 'couch' && !p.r && typeof PropRemaster !== 'undefined' && PropRemaster.enabled('couch');
   function planCouchSit(now, couch, tvId, faceDir, zone) {
     /* STALE-CLAIM RULE: drop whatever seat this body still holds BEFORE claiming a new one. Committing to a
        new destination means it is leaving the old seat regardless, and an inherited `pendSeat` is worse than
@@ -6117,7 +6118,7 @@ const World = (() => {
         // comes back over the body as the seat-front overlay below, so the sitter shows through the
         // middle of the chair instead of being buried under all 19px of it (SIDE_SEAT).
         const sitterSide = sitter ? sideSeat(p) : null;
-        let sy = sitter ? sitter.seatPy + (sitterUse && sitterUse.kind === 'couch' && !sitterSide ? 1 : -1) : (p.y + (p.h || 1)) * T;
+        let sy = sitter ? sitter.seatPy + (sitterUse && sitterUse.kind === 'couch' && !remasteredCouch(p) && !sitterSide ? 1 : -1) : (p.y + (p.h || 1)) * T;
         // MOUNT LIFT, resolved per FRAME rather than stored on the prop: a table-top prop only rides the
         // table while the table is actually under it. Reclaim the table and the prop drops back to the
         // deck instead of floating — which is why no saved station ever needs migrating for this.
@@ -6148,7 +6149,7 @@ const World = (() => {
         // turned view's pad front is a different set of rows and a stale copy would ghost a second
         // seat. `!p.r` guards every route below, including the side-seat one: a profile recliner is
         // never turned, so this costs it nothing.)
-        if (sitter && PropSprites.drawSeatFront && !p.r && ((sitterUse && sitterUse.kind === 'seat') || sitterSide))
+        if (sitter && PropSprites.drawSeatFront && !p.r && ((sitterUse && sitterUse.kind === 'seat') || sitterSide || remasteredCouch(p)))
           items.push({ y: sitter.seatPy + 0.5, draw: () => PropSprites.drawSeatFront(dp) });
         // the COVERS, after the body (bodySortY puts a sleeper at sy + 0.5). Keyed off the same live
         // `sleeper` read as the base pass, so the quilt is never held back with nobody under it.

@@ -2722,6 +2722,7 @@ const World = (() => {
     if(!side)return null;
     return p.m ? {...side,face:side.face==='west'?'east':'west',dx:-side.dx} : side;
   };
+  const remasteredCouch = p => p?.t === 'couch' && !p.r && typeof PropRemaster !== 'undefined' && PropRemaster.enabled('couch');
   function planCouchSit(now, couch, tvId, faceDir, zone) {
     /* STALE-CLAIM RULE: drop whatever seat this body still holds BEFORE claiming a new one. Committing to a
        new destination means it is leaving the old seat regardless, and an inherited `pendSeat` is worse than
@@ -2749,9 +2750,9 @@ const World = (() => {
         occupiedSeats.add(couch.id + ':' + slot); self.seatKey = couch.id + ':' + slot;
         const side = sideSeat(couch);
         const authoredLift=typeof PropRemaster!=='undefined'&&PropRemaster.enabled(couch.t)?PropRemaster.viewGeometry(couch.t,['s','w','n','e'][(couch.r|0)&3])?.spec.seatLift:0;
-        self.pendSeat = { px: (sx + 0.5) * T + (side ? side.dx : 0), py: (vertical ? sy + 1 : couch.y + h) * T - 2, lift: side ? side.lift : (Number.isFinite(authoredLift)?authoredLift:0),behindBack:!side&&authoredLift>0 };   // floor/sort anchor stays at the cushion front
+        self.pendSeat = { px: (sx + 0.5) * T + (side ? side.dx : 0), py: (vertical ? sy + 1 : couch.y + h) * T - 2, lift: side ? side.lift : (remasteredCouch(couch) ? 2 : (Number.isFinite(authoredLift)?authoredLift:0)),behindBack:!side&&authoredLift>0 };   // floor/sort anchor stays at the cushion front
         self.goal = tvId ? 'lounge' : 'use'; self.usingProp = couch.id; self.watchProp = tvId || null;
-        self.useSit = true; self.useFace = side ? side.face : (couch.r && PropAnchor.frontOf ? PropAnchor.frontOf(couch) : (faceDir || 'south'));   // a profile chair points ONE way — see SIDE_SEAT
+        self.useSit = true; self.useFace = side ? side.face : (remasteredCouch(couch) ? 'north' : (couch.r && PropAnchor.frontOf ? PropAnchor.frontOf(couch) : (faceDir || 'south')));   // a profile chair points ONE way — see SIDE_SEAT
         if (!self.target) arrive(now);                       // already adjacent → settle immediately
         return true;
       }
@@ -6166,7 +6167,7 @@ const World = (() => {
         // comes back over the body as the seat-front overlay below, so the sitter shows through the
         // middle of the chair instead of being buried under all 19px of it (SIDE_SEAT).
         const sitterSide = sitter ? sideSeat(p) : null;
-        let sy = sitter ? sitter.seatPy + (sitterUse && sitterUse.kind === 'couch' && !sitterSide ? 1 : -1) : (p.y + (p.h || 1)) * T;
+        let sy = sitter ? sitter.seatPy + (sitterUse && sitterUse.kind === 'couch' && !remasteredCouch(p) && !sitterSide ? 1 : -1) : (p.y + (p.h || 1)) * T;
         // MOUNT LIFT, resolved per FRAME rather than stored on the prop: a table-top prop only rides the
         // table while the table is actually under it. Reclaim the table and the prop drops back to the
         // deck instead of floating — which is why no saved station ever needs migrating for this.
@@ -6199,7 +6200,7 @@ const World = (() => {
         // turned view's pad front is a different set of rows and a stale copy would ghost a second
         // seat. `!p.r` guards every route below, including the side-seat one: a profile recliner is
         // never turned, so this costs it nothing.)
-        if (sitter && PropSprites.drawSeatFront && !p.r && ((sitterUse && sitterUse.kind === 'seat') || sitterSide))
+        if (sitter && PropSprites.drawSeatFront && !p.r && ((sitterUse && sitterUse.kind === 'seat') || sitterSide || remasteredCouch(p)))
           items.push({ y: sitter.seatPy + 0.5, draw: () => PropSprites.drawSeatFront(dp) });
         // the COVERS, after the body (bodySortY puts a sleeper at sy + 0.5). Keyed off the same live
         // `sleeper` read as the base pass, so the quilt is never held back with nobody under it.
