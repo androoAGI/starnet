@@ -65,6 +65,23 @@ function startMockOpenRouter() {
              messages the model answers plainly, or the run would loop forever. */
           const msgs = (parsed && parsed.messages) || [];
           const lastUser = [...msgs].reverse().find(m => m && m.role === 'user');
+          const parityTask = /delegate telegram parity/i.test(String((lastUser && lastUser.content) || ''));
+          const parityWorker = /return worker parity proof/i.test(String((lastUser && lastUser.content) || ''));
+          if (parityTask) {
+            const lastUserIndex = msgs.lastIndexOf(lastUser);
+            const currentTools = msgs.slice(lastUserIndex + 1).filter(m => m && m.role === 'tool');
+            const hasResult = currentTools.some(m => /WORKER_PARITY_OK/.test(JSON.stringify(m)));
+            if (!hasResult) {
+              const settle = currentTools.length === 0;
+              const name = settle ? 'brief_proceed' : 'team_dispatch';
+              const args = settle ? { objective: 'Delegate the parity task to the named specialist' }
+                : { workers: [{ agentId: 'parity_worker', prompt: 'Return worker parity proof: WORKER_PARITY_OK' }] };
+              res.write('data: ' + JSON.stringify({ choices: [{ delta: { tool_calls: [{ index: 0, id: 'parity_' + currentTools.length, type: 'function', function: { name, arguments: JSON.stringify(args) } }] } }] }) + '\n\n');
+              res.write('data: ' + JSON.stringify({ choices: [{ delta: {}, finish_reason: 'tool_calls' }] }) + '\n\n');
+              res.end('data: [DONE]\n\n');
+              return;
+            }
+          }
           if (/run telegram shell proof/i.test(String((lastUser && lastUser.content) || '')) && !msgs.some(m => m && m.role === 'tool')) {
             // A task-shaped request first settles the same Task Brief that a desktop run settles. This proves
             // owner parity through the genuine task pipeline rather than bypassing unrelated task semantics.
@@ -89,7 +106,8 @@ function startMockOpenRouter() {
             res.end();
             return;
           }
-          res.write('data: ' + JSON.stringify({ choices: [{ delta: { content: 'Telegram answer' } }] }) + '\n\n');
+          const answer = parityWorker ? 'WORKER_PARITY_OK' : parityTask ? 'DELEGATION_PARITY_DONE' : 'Telegram answer';
+          res.write('data: ' + JSON.stringify({ choices: [{ delta: { content: answer } }] }) + '\n\n');
           if (gate.armed) {
             gate.armed = false;   // hold only the FIRST completion after arming
             await new Promise(r => { gate._release = r; if (gate._startedResolve) gate._startedResolve(); });
@@ -392,9 +410,66 @@ async function waitUntil(fn, ms, label) {
     A.ok(shellWire.indexOf('verify_run') >= 0, 'owner Telegram run advertises verify_run to the provider');
     A.ok(shellWire.indexOf('spotify_play') >= 0, 'owner Telegram run advertises media control to the provider');
     A.ok(shellWire.indexOf('team_dispatch') >= 0, 'owner Telegram run advertises task delegation to the provider');
+    const shellSystem = String((shellReqs[0].messages.find(m => m.role === 'system') || {}).content || '');
+    A.ok(shellSystem.includes('[ORCHESTRATION]'), 'owner Telegram task receives the crew briefing for its advertised delegation tools');
     const shellToolMessages = shellReqs.flatMap(r => (r.messages || []).filter(m => m && m.role === 'tool'));
     A.ok(shellToolMessages.some(m => /TELEGRAM_SHELL_OK/.test(JSON.stringify(m))),
       'the shell output returns through the real tool loop before the agent replies: ' + JSON.stringify(shellToolMessages));
+
+    // Same named lead and specialist through desktop and owner Telegram; a wire tool
+    // alone is not proof that the worker ran or that its result reached the parent.
+    const parityHeaders = () => ({ 'Content-Type': 'application/json', 'X-StarNet-Token': token, Origin: B });
+    const parityRoster = await fetch(B + '/api/roster', { method: 'POST', headers: parityHeaders(), body: JSON.stringify({ agents: [
+      { agentId: 'parity_lead', system: 'Lead parity crew', name: 'Parity Lead', model: 'test/model' },
+      { agentId: 'parity_worker', system: 'Return the requested marker.', name: 'Parity Worker', model: 'test/model' }
+    ] }) });
+    A.eq(parityRoster.status, 200, 'parity lead and specialist roster saved');
+    const checkParity = (start, label) => {
+      const reqs = llm.requests.slice(start);
+      const leads = reqs.filter(r => String((r.messages.find(m => m.role === 'system') || {}).content || '').includes('[ORCHESTRATION]'));
+      A.ok(leads.some(r => String(r.messages[0].content).includes('Agent id: parity_lead')), label + ': the same saved lead identity handles the task');
+      A.ok(leads.some(r => JSON.stringify(r.messages[0]).includes('parity_worker (Parity Worker)')), label + ': briefing names the saved specialist');
+      A.ok(reqs.some(r => (r.messages || []).some(m => m.role === 'tool' && /WORKER_PARITY_OK/.test(JSON.stringify(m)))), label + ': worker result returned through the real tool loop');
+      const worker = reqs.find(r => (r.messages || []).some(m => m.role === 'user' && /return worker parity proof/i.test(String(m.content))));
+      A.ok(!!worker, label + ': specialist made a real provider call');
+      A.ok(worker && !(worker.tools || []).some(t => t.function?.name === 'team_dispatch'), label + ': worker cannot recursively delegate');
+      A.ok(worker && !String(worker.messages[0].content).includes('[ORCHESTRATION]'), label + ': worker gets no lead briefing');
+    };
+    const desktopStart = llm.requests.length;
+    const desktopParity = await fetch(B + '/api/run', { method: 'POST', headers: parityHeaders(), signal: AbortSignal.timeout(30000), body: JSON.stringify({
+      key: 'sk-or-v1-test', model: 'test/model', agentId: 'parity_lead', isTask: true,
+      messages: [{ role: 'user', content: 'delegate telegram parity' }]
+    }) });
+    const parityReader = desktopParity.body.getReader(), parityDecoder = new TextDecoder();
+    let desktopParityStream = '', parityBuffer = '', parityRunId = null;
+    for (;;) {
+      const { value, done } = await parityReader.read();
+      if (done) break;
+      const text = parityDecoder.decode(value, { stream: true });
+      desktopParityStream += text; parityBuffer += text;
+      let newline;
+      while ((newline = parityBuffer.indexOf('\n')) >= 0) {
+        const line = parityBuffer.slice(0, newline).trim(); parityBuffer = parityBuffer.slice(newline + 1);
+        let ev; try { ev = JSON.parse(line); } catch (_) { continue; }
+        if (ev.name === 'agent.run.start') parityRunId = ev.payload.runId;
+        if (ev.name === 'permission.prompt') {
+          const approved = await fetch(B + '/api/consent', { method: 'POST', headers: parityHeaders(),
+            body: JSON.stringify({ runId: parityRunId, promptId: ev.payload.promptId, decision: 'once' }) });
+          A.eq(approved.status, 200, 'desktop parity dispatch receives explicit test approval');
+        }
+      }
+    }
+    A.ok(desktopParityStream.includes('DELEGATION_PARITY_DONE'), 'desktop delegation completes');
+    checkParity(desktopStart, 'desktop');
+    tg.pushText(4246, 99, '/talk parity_lead');
+    await waitUntil(() => tg.sends.some(s => String(s.chat_id) === '4246'), 8000, 'Telegram lead binding');
+    const telegramParity = async label => {
+      const start = llm.requests.length, sent = tg.sends.length;
+      tg.pushText(4246, 99, 'delegate telegram parity');
+      await waitUntil(() => tg.sends.slice(sent).some(s => String(s.chat_id) === '4246' && /DELEGATION_PARITY_DONE/.test(String(s.text))), 15000, label);
+      checkParity(start, label);
+    };
+    await telegramParity('owner Telegram');
 
     const proofChat = 4245;
     tg.pushText(proofChat, 99, '/telegramproof');
@@ -606,6 +681,7 @@ async function waitUntil(fn, ms, label) {
     const restartedStatus = await (await fetch(B + '/api/channels/telegram/status', { headers: { 'X-StarNet-Token': token, Origin: B } })).json();
     A.eq(restartedStatus.configured, true, 'restart resolves the saved Telegram token without user input');
     A.eq(restartedStatus.durable, true, 'restart reports the saved Telegram token has a durable home');
+    await telegramParity('owner Telegram after restart');
 
     /* ---- REACHABILITY IS A HEARTBEAT, NOT A HANDLE -------------------------------------------------
        listTargets derived `connected` from the mere existence of the composition-root handle, and that handle

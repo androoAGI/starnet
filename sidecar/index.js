@@ -16790,7 +16790,9 @@ async function runOnce(o) {
   // CHAT DIET (2026-09-15, issue #17): a non-task turn ("hello", an ack, a question about the agent itself) has NO
   // tools on the wire, so a briefing that says "call team.dispatch" would describe a capability the model does not
   // have this turn. It also cost ~2.6KB of prefill on every greeting — on a 3B local model that is real seconds.
-  if (o.lead && isTask) {
+  // Describe the granted tools, not the caller's desktop-only lead flag. Trusted owner
+  // channel tasks receive orchestration above; workers and disabled toolsets do not.
+  if (isTask && resolved.tools.includes('team.dispatch')) {
     teamNote = '\n\n[ORCHESTRATION] You are the lead orchestrator. You can build and direct a crew for the Commander:';
     const lines = [];
     // S3: each crew line carries that specialist's EARNED track record when it has one (browser-computed,
