@@ -4,11 +4,11 @@
 One tracked file per bug under `qa/bugs/`; this is only the index. File a new bug with
 `node scripts/qa/bugs.mjs --new --title "..." --surface <surface>`.
 
-**2** open (open+claimed) of 153 total — 0 P0 · 0 P1 · 2 P2
+**2** open (open+claimed) of 154 total — 0 P0 · 0 P1 · 2 P2
 
 Engineering status is separate from delivery and customer recovery. Legacy rows without origin are not a customer census.
 
-User/owner reports: **70** · source fixed: **68** · installer verified: **6** · customer confirmed: **1** · still reported failing: **1** · recovery unconfirmed: **68**.
+User/owner reports: **71** · source fixed: **69** · installer verified: **6** · customer confirmed: **1** · still reported failing: **1** · recovery unconfirmed: **69**.
 
 | Report | Family | Source | Installer | Customer |
 | --- | --- | --- | --- | --- |
@@ -22,6 +22,7 @@ User/owner reports: **70** · source fixed: **68** · installer verified: **6** 
 | [Google account connection asks customers for developer credentials](bugs/e5d4b743-google-account-connection-asks-customers-for-dev.md) | google-sign-in | fixed | unverified | unconfirmed |
 | [Mac boot guard reports shared specialty catalog load failure](bugs/2f156837-mac-boot-guard-reports-shared-specialty-catalog.md) | boot-integrity | fixed | unverified | unconfirmed |
 | [Mac paid onboarding becomes unreachable after reload and relink](bugs/eaaa3ec8-mac-onboarding-unreachable-after-link.md) | recovery-truth | fixed | unverified | unconfirmed |
+| [Stored OpenAI API key silently outranks a live ChatGPT sign-in at Wake](bugs/f46a1875-stored-openai-api-key-silently-outranks-a-live-c.md) | genesis-provider-credential-selection | fixed | unverified | unconfirmed |
 | [Unlink failures silently hide account recovery controls](bugs/99a1517b-unlink-failures-silently-hide-account-recovery-c.md) | recovery-truth | fixed | unverified | unconfirmed |
 | [Wake mistakes DEV configuration for an OpenAI API credential](bugs/32f959e0-wake-mistakes-dev-configuration-for-an-openai-ap.md) | genesis-provider-credential-selection | fixed | unverified | unconfirmed |
 | [Valid BYOK wake is blocked by an empty managed wallet](bugs/2b6d70fb-byok-blocked-by-empty-managed-wallet.md) | execution-configuration | fixed | unverified | unconfirmed |
@@ -110,6 +111,7 @@ User/owner reports: **70** · source fixed: **68** · installer verified: **6** 
 | P1 | fixed | onboarding | [Google account connection asks customers for developer credentials](bugs/e5d4b743-google-account-connection-asks-customers-for-dev.md) | agent/google-account-signin | cb8385c56 |
 | P1 | fixed | onboarding | [Mac boot guard reports shared specialty catalog load failure](bugs/2f156837-mac-boot-guard-reports-shared-specialty-catalog.md) | release-0112-finalprep-0911 | 788578969 |
 | P1 | fixed | onboarding | [Mac paid onboarding becomes unreachable after reload and relink](bugs/eaaa3ec8-mac-onboarding-unreachable-after-link.md) | reliability-followup | c364e991d8d9c0c4d446c9978b8d31c33fcbe09d |
+| P1 | fixed | onboarding | [Stored OpenAI API key silently outranks a live ChatGPT sign-in at Wake](bugs/f46a1875-stored-openai-api-key-silently-outranks-a-live-c.md) | agent/codex-wins-wake | f7e050e6f |
 | P1 | fixed | onboarding | [Unlink failures silently hide account recovery controls](bugs/99a1517b-unlink-failures-silently-hide-account-recovery-c.md) | credits-unlink-recovery | 02332ee85 |
 | P1 | fixed | onboarding | [Wake mistakes DEV configuration for an OpenAI API credential](bugs/32f959e0-wake-mistakes-dev-configuration-for-an-openai-ap.md) | onboarding-conversation-0912 | 0250793ac |
 | P1 | fixed | providers | [Valid BYOK wake is blocked by an empty managed wallet](bugs/2b6d70fb-byok-blocked-by-empty-managed-wallet.md) | reliability-followup | 5b5f50a1d |
