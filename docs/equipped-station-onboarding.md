@@ -43,4 +43,15 @@ The integrated renderer tests now include the real surface-mount helper and the 
 - `npm run test:http`: PASS, all 116 steps, including the real Creative Studio sample-job harness test. Log: `.dogfood/build-interactions/sweep-http.log`. The later reload fix touches frontend persistence only; its concurrency/unload/refusal tests also passed.
 - Final `npm run test:fast`: PASS, all 806 steps, exit 0; ran 22:06–22:16 EDT on 2026-09-15. Includes the previously failing claims, tutorial, lighting, shell, font, and fetch-truth checks. Log: `.dogfood/build-interactions/sweep-fast-final.log`; process receipt: `.dogfood/build-interactions/sweep-fast-result.json`.
 - Website mirror check and strict JSON/no-BOM checks passed.
-- No branch-to-trunk merge has been performed. Trunk has unrelated uncommitted handoff/queue edits; these remain untouched. Recheck trunk's SHA and serialize integration before merging. A new trunk commit requires another synchronization and gate pass.
+- This earlier handoff was superseded by the September 16 integration below.
+
+## Final integration — 2026-09-16
+
+Merged current graphics trunk `67eb99bdf6605eadb82e385d8285acebc4e17916` into the isolated station worktree, retaining the spacious browse-first Build library alongside trunk's inline object controls and updated authored artwork. Escape now cancels a selected object or click-to-move before leaving Build Mode. The audit preserves both batched immutable-blob reads and bounded UTF-8 streaming checks.
+
+- Candidate and actual integration SHA: `6b05fa8486be91c424d196f6a8218fe49cad7ee0`. `feat/harness-backend` fast-forwarded to this commit; unrelated dirty queue, QA and handoff files were preserved.
+- Pre-merge `npm run test:fast`: PASS, 808/808 steps, exit 0, 00:59–01:10 EDT. Receipt: `.dogfood/build-interactions/merge-final-result.json`; log: `.dogfood/build-interactions/merge-final-fast.log`.
+- 166 integrated scripts passed syntax checks. Build selection handlers are defined once. The 808-step manifest has no duplicate commands. Website mirror includes 11,895 frontend files. No sidecar or shared-contract diff from current trunk; the earlier 116-step HTTP proof remains applicable to this lane.
+- Live at port 18845: larger three-column prop library, seven presets, inline prop actions, Move then Escape returning to selection without leaving Build Mode, and unchanged layout after browsing presets. The two-step quick tour explicitly lists the five installed essentials, explains optional conveyors, and finishes with the agent idle. Reload returns ONLINE without restarting onboarding or displaying a save-conflict warning. Preview frontend exactly matches merged trunk.
+- The first full gate attempt stopped on a key-shaped string in an agent-created temporary copy of an existing QA note. That redundant copy was removed; evidence lint and the complete rerun passed. The source QA note was not changed.
+- Post-merge `npm run test:fast`: PASS on the integration tree, 808/808 steps, exit 0, 01:11–01:23 EDT. Receipt: `.dogfood/build-interactions/postmerge-result.json`; log: `.dogfood/build-interactions/postmerge-fast.log`. The following receipt commit changes documentation only.
