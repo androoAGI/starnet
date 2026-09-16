@@ -1,0 +1,61 @@
+{
+  "id": "outbox",
+  "status": "exported-awaiting-owner-live-review",
+  "source": "sources/outbox.png",
+  "sourceSha256": "5c76ff83134e7dc0d9bd6b49f8705440c64adef1fd13c4d3dfb94a9211d245b5",
+  "sourceWidth": 1214,
+  "sourceHeight": 1296,
+  "image": "outbox.png",
+  "sourceOutputWidth": 1095,
+  "sourceOutputHeight": 1139,
+  "crop": {
+    "left": 60,
+    "top": 76,
+    "width": 1095,
+    "height": 1139
+  },
+  "channels": 4,
+  "transparentPixels": 143178,
+  "opaquePixels": 1104027,
+  "partialPixels": 0,
+  "backgroundPixelsRemoved": 469317,
+  "subjectRgbChanges": 0,
+  "outputSha256": "107516ce47eada8b9c662b67399c8fdaf2da28c560d060f478912a70ca03f92a",
+  "holeSeeds": [],
+  "maskMethod": "Connected saturated-magenta flood fill, including key-only enclosed components. Alpha-only edits; uniform crop; no RGB recolor.",
+  "view": "s",
+  "footprint": {
+    "w": 2,
+    "h": 2
+  },
+  "bounds": {
+    "x": -1,
+    "y": -8,
+    "width": 30,
+    "height": 32
+  },
+  "tilePixels": 12,
+  "contact": {
+    "x": 14,
+    "y": 24
+  },
+  "anchorContract": "No leisure seat anchor. Footprint is the placement/pathfinding rectangle; upright visual rise is independent of the reserved box.",
+  "originalLight": {
+    "c": [
+      255,
+      170,
+      80
+    ],
+    "r": 22,
+    "a": 0.08,
+    "m": "steady",
+    "y": 0.45
+  },
+  "originalAnimationTriggers": [
+    "Real reply delivery flashes for 600 ms after the outbound crate reaches the chute.",
+    "ReturnStore pending count renders uncollected result crates (capped visible stack and count).",
+    "Autonomous sprite clock animation is present in the sampled default state; cosmetic motion is not evidence of provider work, route decisions or external state."
+  ],
+  "artMode": "static complete art; existing state/lighting integration remains owner decision",
+  "liveIntegrated": false
+}

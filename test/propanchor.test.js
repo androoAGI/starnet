@@ -138,4 +138,7 @@ A.eq(PropSprites.spec('bunk').use.sit, false, 'bed is stand-beside (SEAT LAW —
 A.ok(!(PropSprites.spec('desk').use), 'work desk is NOT a leisure prop (no use descriptor)');
 A.ok(!(PropSprites.spec('crate').use), 'storage crate is NOT a leisure prop');
 
+for(const [r,face] of [[0,'south'],[1,'east'],[2,'north'],[3,'west']]){
+  A.eq(PA.frontOf({r,m:true}),face,'mirrored facing '+r+' follows horizontal artwork flip');
+}
 A.report('propanchor.test');

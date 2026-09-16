@@ -1,0 +1,214 @@
+{
+  "version": 1,
+  "status": "candidate-not-integrated",
+  "records": [
+    {
+      "id": "benchpress",
+      "view": "s",
+      "image": "frontend/assets/industrial/catalog-crew-rest-2/benchpress.png",
+      "sourceWidth": 587,
+      "sourceHeight": 344,
+      "bounds": {
+        "x": 1,
+        "y": -8,
+        "width": 36,
+        "height": 20
+      },
+      "footprint": {
+        "w": 3,
+        "h": 1
+      },
+      "contact": {
+        "x": 0.5,
+        "y": 0.9898255813953488,
+        "space": "exported-image-normalized",
+        "targetWorld": {
+          "x": 18,
+          "y": 12
+        }
+      }
+    },
+    {
+      "id": "benchpress_r",
+      "view": "s",
+      "image": "frontend/assets/industrial/catalog-crew-rest-2/benchpress_r.png",
+      "sourceWidth": 1572,
+      "sourceHeight": 865,
+      "bounds": {
+        "x": -1,
+        "y": -8,
+        "width": 36,
+        "height": 20
+      },
+      "footprint": {
+        "w": 3,
+        "h": 1
+      },
+      "contact": {
+        "x": 0.5,
+        "y": 0.9959537572254336,
+        "space": "exported-image-normalized",
+        "targetWorld": {
+          "x": 18,
+          "y": 12
+        }
+      }
+    },
+    {
+      "id": "punchbag",
+      "view": "s",
+      "image": "frontend/assets/industrial/catalog-crew-rest-2/punchbag.png",
+      "sourceWidth": 172,
+      "sourceHeight": 416,
+      "bounds": {
+        "x": 0,
+        "y": -8,
+        "width": 12,
+        "height": 30
+      },
+      "footprint": {
+        "w": 1,
+        "h": 2
+      },
+      "contact": {
+        "x": 0.5,
+        "y": 0.9915865384615384,
+        "space": "exported-image-normalized",
+        "targetWorld": {
+          "x": 6,
+          "y": 24
+        }
+      }
+    },
+    {
+      "id": "punchbag_r",
+      "view": "s",
+      "image": "frontend/assets/industrial/catalog-crew-rest-2/punchbag_r.png",
+      "sourceWidth": 171,
+      "sourceHeight": 417,
+      "bounds": {
+        "x": 0,
+        "y": -8,
+        "width": 12,
+        "height": 30
+      },
+      "footprint": {
+        "w": 1,
+        "h": 2
+      },
+      "contact": {
+        "x": 0.5,
+        "y": 0.9916067146282974,
+        "space": "exported-image-normalized",
+        "targetWorld": {
+          "x": 6,
+          "y": 24
+        }
+      }
+    },
+    {
+      "id": "weaponrack",
+      "view": "s",
+      "image": "frontend/assets/industrial/catalog-crew-rest-2/weaponrack.png",
+      "sourceWidth": 553,
+      "sourceHeight": 384,
+      "bounds": {
+        "x": 1,
+        "y": -16,
+        "width": 34,
+        "height": 22
+      },
+      "footprint": {
+        "w": 3,
+        "h": 1
+      },
+      "contact": {
+        "x": 0.5,
+        "y": 0.9908854166666666,
+        "space": "exported-image-normalized",
+        "targetWorld": {
+          "x": 18,
+          "y": 12
+        }
+      }
+    },
+    {
+      "id": "weaponrack_r",
+      "view": "s",
+      "image": "frontend/assets/industrial/catalog-crew-rest-2/weaponrack_r.png",
+      "sourceWidth": 1126,
+      "sourceHeight": 722,
+      "bounds": {
+        "x": 1,
+        "y": -16,
+        "width": 34,
+        "height": 22
+      },
+      "footprint": {
+        "w": 3,
+        "h": 1
+      },
+      "contact": {
+        "x": 0.5,
+        "y": 0.9951523545706371,
+        "space": "exported-image-normalized",
+        "targetWorld": {
+          "x": 18,
+          "y": 12
+        }
+      }
+    },
+    {
+      "id": "pinball",
+      "view": "s",
+      "image": "frontend/assets/industrial/catalog-crew-rest-2/pinball.png",
+      "sourceWidth": 336,
+      "sourceHeight": 567,
+      "bounds": {
+        "x": -1,
+        "y": -3,
+        "width": 16,
+        "height": 27
+      },
+      "footprint": {
+        "w": 1,
+        "h": 2
+      },
+      "contact": {
+        "x": 0.5,
+        "y": 0.9938271604938271,
+        "space": "exported-image-normalized",
+        "targetWorld": {
+          "x": 6,
+          "y": 24
+        }
+      }
+    },
+    {
+      "id": "gachapon",
+      "view": "s",
+      "image": "frontend/assets/industrial/catalog-crew-rest-2/gachapon.png",
+      "sourceWidth": 200,
+      "sourceHeight": 316,
+      "bounds": {
+        "x": 0,
+        "y": -7,
+        "width": 11,
+        "height": 19
+      },
+      "footprint": {
+        "w": 1,
+        "h": 1
+      },
+      "contact": {
+        "x": 0.5,
+        "y": 0.9889240506329114,
+        "space": "exported-image-normalized",
+        "targetWorld": {
+          "x": 6,
+          "y": 12
+        }
+      }
+    }
+  ]
+}

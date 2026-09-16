@@ -1,0 +1,149 @@
+{
+  "version": 1,
+  "cells": [
+    {
+      "id": "bar",
+      "view": "s",
+      "bounds": {
+        "x": -1,
+        "y": -12,
+        "width": 50,
+        "height": 24
+      },
+      "footprint": {
+        "w": 4,
+        "h": 1
+      },
+      "nativeGuide": {
+        "path": "C:\\Users\\andro\\gen-trees\\industrial-textures-0912\\dev\\.scratch-workspace\\prop-structure\\bar.png",
+        "sha256": "aac7ee224d209bd175dbc9f2b1b5f586dda75cdff035da0f343bfbec16a8678c"
+      }
+    },
+    {
+      "id": "industrial_roundtable",
+      "view": "s",
+      "bounds": {
+        "x": 0,
+        "y": -4,
+        "width": 24,
+        "height": 16
+      },
+      "footprint": {
+        "w": 2,
+        "h": 1
+      },
+      "nativeGuide": {
+        "path": "C:\\Users\\andro\\gen-trees\\industrial-textures-0912\\dev\\.scratch-workspace\\prop-structure\\industrial_roundtable.png",
+        "sha256": "fe97a64893eaa626064538716af22c098aa51ae7b3647e0949673eb47f186b73"
+      }
+    },
+    {
+      "id": "sidetable",
+      "view": "s",
+      "bounds": {
+        "x": 0,
+        "y": -3,
+        "width": 12,
+        "height": 15
+      },
+      "footprint": {
+        "w": 1,
+        "h": 1
+      },
+      "nativeGuide": {
+        "path": "C:\\Users\\andro\\gen-trees\\industrial-textures-0912\\dev\\.scratch-workspace\\prop-structure\\sidetable.png",
+        "sha256": "4e626d87806214b088d8aa763b2a78206d1bea85e03868e1a2e3df859aec9de2"
+      }
+    },
+    {
+      "id": "stool",
+      "view": "s",
+      "bounds": {
+        "x": 1,
+        "y": 0,
+        "width": 10,
+        "height": 11
+      },
+      "footprint": {
+        "w": 1,
+        "h": 1
+      },
+      "nativeGuide": {
+        "path": "C:\\Users\\andro\\gen-trees\\industrial-textures-0912\\dev\\.scratch-workspace\\prop-structure\\stool.png",
+        "sha256": "a697c7edc848e69b678a28e9f97c117f8905567589c81ee0fa639d6fcf6404ed"
+      }
+    },
+    {
+      "id": "pokertable",
+      "view": "s",
+      "bounds": {
+        "x": -1,
+        "y": -5,
+        "width": 50,
+        "height": 29
+      },
+      "footprint": {
+        "w": 4,
+        "h": 2
+      },
+      "nativeGuide": {
+        "path": "C:\\Users\\andro\\gen-trees\\industrial-textures-0912\\dev\\.scratch-workspace\\prop-structure\\pokertable.png",
+        "sha256": "5bb469e497093be28ca0e143f9fdda7b4449a7f4679a2bd85faedade2cc7a806"
+      }
+    },
+    {
+      "id": "djbooth",
+      "view": "s",
+      "bounds": {
+        "x": -1,
+        "y": -5,
+        "width": 50,
+        "height": 29
+      },
+      "footprint": {
+        "w": 4,
+        "h": 2
+      },
+      "nativeGuide": {
+        "path": "C:\\Users\\andro\\gen-trees\\industrial-textures-0912\\dev\\.scratch-workspace\\prop-structure\\djbooth.png",
+        "sha256": "2273fae60385d3183b632d539e82aa9cac36f2bc87f39209e648b08a961eaf8c"
+      }
+    },
+    {
+      "id": "quarters_lockerbank",
+      "view": "s",
+      "bounds": {
+        "x": -1,
+        "y": -20,
+        "width": 38,
+        "height": 32
+      },
+      "footprint": {
+        "w": 3,
+        "h": 1
+      },
+      "nativeGuide": {
+        "path": "C:\\Users\\andro\\gen-trees\\industrial-textures-0912\\dev\\.scratch-workspace\\prop-structure\\quarters_lockerbank.png",
+        "sha256": "9f03e2df37b92bf01b961f8b6086780c62ea143ed8b34dbf6949e72fd7a4287f"
+      }
+    },
+    {
+      "id": "trophycase",
+      "view": "s",
+      "bounds": {
+        "x": -1,
+        "y": -6,
+        "width": 26,
+        "height": 30
+      },
+      "footprint": {
+        "w": 2,
+        "h": 2
+      },
+      "nativeGuide": {
+        "path": "C:\\Users\\andro\\gen-trees\\industrial-textures-0912\\dev\\.scratch-workspace\\prop-structure\\trophycase.png",
+        "sha256": "fef685ddaf935f6e07c7db02f2a4a6719e8bcb71ad1c59404bbee187ac9138e9"
+      }
+    }
+  ]
+}

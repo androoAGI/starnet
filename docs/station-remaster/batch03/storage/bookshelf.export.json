@@ -1,0 +1,49 @@
+{
+  "id": "bookshelf",
+  "status": "exported-awaiting-owner-live-review",
+  "source": "sources/bookshelf.png",
+  "sourceSha256": "95a39e4c0866a3510b8c33b5cf724e4b07697cdd2fc51dcdcd905bc6652e315c",
+  "sourceWidth": 1363,
+  "sourceHeight": 1154,
+  "image": "bookshelf.png",
+  "sourceOutputWidth": 1279,
+  "sourceOutputHeight": 979,
+  "crop": {
+    "left": 42,
+    "top": 87,
+    "width": 1279,
+    "height": 979
+  },
+  "channels": 4,
+  "transparentPixels": 111818,
+  "opaquePixels": 1140323,
+  "partialPixels": 0,
+  "backgroundPixelsRemoved": 432579,
+  "subjectRgbChanges": 0,
+  "outputSha256": "e285427a3debc3c0df7671149658ccf08f5afca84eba73e1a605fd1fef4daaf5",
+  "holeSeeds": [],
+  "maskMethod": "Connected saturated-magenta flood fill, including key-only enclosed components. Alpha-only edits; uniform crop; no RGB recolor.",
+  "view": "s",
+  "footprint": {
+    "w": 2,
+    "h": 1
+  },
+  "bounds": {
+    "x": -1,
+    "y": -9,
+    "width": 26,
+    "height": 22
+  },
+  "tilePixels": 12,
+  "contact": {
+    "x": 12,
+    "y": 13
+  },
+  "anchorContract": "PropAnchor derives reachable edge approach; useApproach rotates relative preference with r. Preserve standing leisure action unless special planner supplies a real body anchor.",
+  "originalLight": null,
+  "originalAnimationTriggers": [
+    "Actual leisure usingProp / watchProp can set work on this prop; body approach and use animation follow leisureUse. In the baseline draw work expression this leisure trigger directly checks the hero, not a separate crew leisure flag."
+  ],
+  "artMode": "static complete art; existing state/lighting integration remains owner decision",
+  "liveIntegrated": false
+}

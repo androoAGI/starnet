@@ -1,0 +1,65 @@
+{
+  "id": "connector_portal",
+  "status": "exported-awaiting-owner-live-review",
+  "source": "sources/connector_portal.png",
+  "sourceSha256": "9f68bf1be00ffd1422117a6523623dcfc8c2f7a3d969610aa183840da81e98e5",
+  "sourceWidth": 929,
+  "sourceHeight": 1693,
+  "image": "connector_portal.png",
+  "sourceOutputWidth": 602,
+  "sourceOutputHeight": 1622,
+  "crop": {
+    "left": 159,
+    "top": 29,
+    "width": 602,
+    "height": 1622
+  },
+  "channels": 4,
+  "transparentPixels": 225709,
+  "opaquePixels": 750735,
+  "partialPixels": 0,
+  "backgroundPixelsRemoved": 822062,
+  "subjectRgbChanges": 0,
+  "outputSha256": "386e0125f0b9c39dcdc3cf454c6df1ce1d6c96dc9d00c7768e90bc11f3ee0c8f",
+  "holeSeeds": [
+    [
+      640,
+      229
+    ]
+  ],
+  "maskMethod": "Connected saturated-magenta flood fill, including key-only enclosed components. Alpha-only edits; uniform crop; no RGB recolor.",
+  "view": "s",
+  "footprint": {
+    "w": 1,
+    "h": 2
+  },
+  "bounds": {
+    "x": 0,
+    "y": -7,
+    "width": 17,
+    "height": 31
+  },
+  "tilePixels": 12,
+  "contact": {
+    "x": 8.5,
+    "y": 24
+  },
+  "anchorContract": "No leisure seat anchor. Footprint is the placement/pathfinding rectangle; upright visual rise is independent of the reserved box.",
+  "originalLight": {
+    "c": [
+      120,
+      220,
+      255
+    ],
+    "r": 22,
+    "a": 0.12,
+    "m": "pulse",
+    "y": 0.35
+  },
+  "originalAnimationTriggers": [
+    "Successful /api/connectors poll supplies bound server state and toolCount; removed servers clear on successful reconciliation.",
+    "Real mcp__<connector>__* calls pulse that bound connector for 900 ms."
+  ],
+  "artMode": "static complete art; existing state/lighting integration remains owner decision",
+  "liveIntegrated": false
+}

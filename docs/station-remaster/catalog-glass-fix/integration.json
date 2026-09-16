@@ -1,0 +1,89 @@
+{
+  "version": 1,
+  "records": [
+    {
+      "id": "glasstable",
+      "view": "e",
+      "image": "glasstable-e.png",
+      "repoPath": "frontend/assets/industrial/catalog-glass-fix/glasstable-e.png",
+      "sourceWidth": 449,
+      "sourceHeight": 1325,
+      "footprint": {
+        "w": 1,
+        "h": 3
+      },
+      "bounds": {
+        "x": 0,
+        "y": 0,
+        "width": 12,
+        "height": 36
+      },
+      "contact": {
+        "x": 0.5,
+        "y": 0.9977358490566037
+      },
+      "mode": "approved",
+      "effects": false,
+      "surfaceSupport": {
+        "space": "export-normalized",
+        "points": [
+          [
+            0.22494432071269488,
+            0.047547169811320754
+          ],
+          [
+            0.7728285077951003,
+            0.047547169811320754
+          ],
+          [
+            0.8084632516703786,
+            0.7766037735849056
+          ],
+          [
+            0.20044543429844097,
+            0.7766037735849056
+          ]
+        ]
+      },
+      "source": "docs/station-remaster/catalog-glass-fix/selected-source.png",
+      "sourceSha256": "df5ea713e3e152f37d93d843a4bbc45c5bb6aa53590c8688d3ff70d3567f362d",
+      "outputSha256": "d654a7882d3576a721393d15156b6ec6c6f94e97ae72de9fce95d534a8476903",
+      "sourceROI": {
+        "left": 0,
+        "top": 0,
+        "width": 1041,
+        "height": 1511
+      },
+      "sourceCrop": {
+        "left": 297,
+        "top": 57,
+        "width": 449,
+        "height": 1325
+      },
+      "actualFit": {
+        "x": 0,
+        "y": 0.6681514476614723,
+        "width": 12,
+        "height": 35.41202672605791
+      },
+      "opaqueBoundsInSource": {
+        "x": 300,
+        "y": 60,
+        "width": 443,
+        "height": 1319
+      },
+      "opaqueWidthHeightRatio": 0.33586050037907506,
+      "opaqueHeightWidthRatio": 2.9774266365688487,
+      "verification": {
+        "retained": 515487,
+        "transparent": 79438,
+        "removedAlpha": 5292,
+        "allRGBMismatches": 0,
+        "retainedRGBAMismatches": 0,
+        "glassRGBAMismatches": 0,
+        "glassPixels": 250939
+      },
+      "status": "source/crop/game-scale/usable pane inspected; root owns live mounting verification"
+    }
+  ]
+}

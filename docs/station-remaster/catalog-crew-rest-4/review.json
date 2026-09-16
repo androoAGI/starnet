@@ -1,0 +1,46 @@
+{
+  "version": 1,
+  "inspected": [
+    "all originals",
+    "4x native world comparison",
+    "thin leafedges",
+    "jellyfish tentacles and completeemitter"
+  ],
+  "checks": {
+    "separatorCorePixelsWithin3": 0,
+    "sourceCorePixels": 687547,
+    "combinedExportCorePixels": 687547,
+    "retainedRGBAChanges": 0
+  },
+  "minorFitResiduals": [
+    {
+      "id": "terrarium",
+      "underfill": {
+        "x": 0.8996779786970523,
+        "y": 1
+      }
+    },
+    {
+      "id": "plasmaglobe",
+      "underfill": {
+        "x": 0.8983739837398372,
+        "y": 1
+      }
+    },
+    {
+      "id": "holopet",
+      "underfill": {
+        "x": 0.8978120978120977,
+        "y": 1
+      }
+    }
+  ],
+  "functionalNotes": {
+    "holopet": "Native jellyfish projection with clearairgap andflatdeckemitter. No physicalstalk; retain walkover. Runtime bob/dropout should excludeemitter.",
+    "plasmaglobe": "Retarget plasma effects insideneworb.",
+    "lavalamp": "Retarget waxmotion insideglass.",
+    "terrarium": "Static moss/rocks, noexternalfog.",
+    "plants": "Natural foliage kept static; all sourcecore leaves preserved."
+  },
+  "liveAccepted": false
+}

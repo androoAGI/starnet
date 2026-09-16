@@ -1,0 +1,809 @@
+{
+  "cases": [
+    {
+      "id": "catalog-war_intelcab:s",
+      "type": "war_intelcab",
+      "r": 0,
+      "mirror": false,
+      "footprint": [
+        1,
+        2
+      ],
+      "canonical": [
+        1,
+        2
+      ],
+      "mount": null,
+      "kind": null,
+      "workstation": false,
+      "front": true,
+      "back": true,
+      "route": 3,
+      "anchor": null,
+      "side": null,
+      "flat": false,
+      "interaction": "none",
+      "motion": {
+        "spd": 22.129999999998255,
+        "odo": 73.42357834367667,
+        "odoAge": 1.199999988079071,
+        "paused": false,
+        "frozen": false,
+        "activity": "idle",
+        "bodies": 1
+      },
+      "result": {
+        "seated": false,
+        "sitting": false,
+        "lying": false,
+        "dir": "west",
+        "usingProp": null,
+        "px": 66,
+        "py": 143,
+        "seatLift": 0
+      },
+      "walk": {
+        "arrived": true,
+        "distance": 1,
+        "ms": 2367,
+        "samples": 56,
+        "maxStep": 2.24,
+        "motion": {
+          "spd": 22.129999999998255,
+          "odo": 73.42357834367667,
+          "odoAge": 1.0999999940395355,
+          "paused": false,
+          "frozen": false,
+          "activity": "idle",
+          "bodies": 1
+        },
+        "destination": {
+          "x": 66,
+          "y": 107
+        },
+        "end": {
+          "px": 67,
+          "py": 107,
+          "goal": "wander",
+          "moving": true,
+          "target": {
+            "tile": {
+              "x": 5,
+              "y": 8
+            },
+            "x": 66,
+            "y": 107
+          },
+          "zone": {
+            "kind": "room",
+            "rect": {
+              "x1": 3,
+              "y1": 3,
+              "x2": 34,
+              "y2": 28
+            },
+            "roam": {
+              "cx": 18,
+              "cy": 5,
+              "r": 14,
+              "rects": [
+                {
+                  "x1": 3,
+                  "y1": 3,
+                  "x2": 34,
+                  "y2": 28
+                }
+              ]
+            }
+          },
+          "state": "walk"
+        }
+      },
+      "key": "war_intelcab:s",
+      "placementConflicts": [],
+      "assetFailures": [],
+      "issues": []
+    },
+    {
+      "id": "catalog-comms_dish:s",
+      "type": "comms_dish",
+      "r": 0,
+      "mirror": false,
+      "footprint": [
+        2,
+        2
+      ],
+      "canonical": [
+        2,
+        2
+      ],
+      "mount": null,
+      "kind": null,
+      "workstation": false,
+      "front": true,
+      "back": true,
+      "route": 3,
+      "anchor": null,
+      "side": null,
+      "flat": false,
+      "interaction": "none",
+      "motion": {
+        "spd": 19.65472651237343,
+        "odo": 73.7537708500596,
+        "odoAge": 5.5,
+        "paused": false,
+        "frozen": false,
+        "activity": "idle",
+        "bodies": 1
+      },
+      "result": {
+        "seated": false,
+        "sitting": false,
+        "lying": false,
+        "dir": "west",
+        "usingProp": null,
+        "px": 186,
+        "py": 143,
+        "seatLift": 0
+      },
+      "walk": {
+        "arrived": true,
+        "distance": 0,
+        "ms": 2227,
+        "samples": 53,
+        "maxStep": 2.24,
+        "motion": {
+          "spd": 19.65472651237343,
+          "odo": 73.7537708500596,
+          "odoAge": 5.5,
+          "paused": false,
+          "frozen": false,
+          "activity": "idle",
+          "bodies": 1
+        },
+        "destination": {
+          "x": 186,
+          "y": 107
+        },
+        "end": {
+          "px": 186,
+          "py": 107,
+          "goal": "wander",
+          "moving": false,
+          "target": null,
+          "zone": {
+            "kind": "room",
+            "rect": {
+              "x1": 3,
+              "y1": 3,
+              "x2": 34,
+              "y2": 28
+            },
+            "roam": {
+              "cx": 18,
+              "cy": 5,
+              "r": 14,
+              "rects": [
+                {
+                  "x1": 3,
+                  "y1": 3,
+                  "x2": 34,
+                  "y2": 28
+                }
+              ]
+            }
+          },
+          "state": "idle"
+        }
+      },
+      "key": "comms_dish:s",
+      "placementConflicts": [],
+      "assetFailures": [],
+      "issues": []
+    },
+    {
+      "id": "catalog-workbench:s",
+      "type": "workbench",
+      "r": 0,
+      "mirror": false,
+      "footprint": [
+        2,
+        1
+      ],
+      "canonical": [
+        2,
+        1
+      ],
+      "mount": null,
+      "kind": null,
+      "workstation": false,
+      "front": true,
+      "back": true,
+      "route": 3,
+      "anchor": null,
+      "side": null,
+      "flat": false,
+      "interaction": "none",
+      "motion": {
+        "spd": 19.244601635039317,
+        "odo": 61.71344602148581,
+        "odoAge": 5.800000011920929,
+        "paused": false,
+        "frozen": false,
+        "activity": "idle",
+        "bodies": 1
+      },
+      "result": {
+        "seated": false,
+        "sitting": false,
+        "lying": false,
+        "dir": "west",
+        "usingProp": null,
+        "px": 294,
+        "py": 131,
+        "seatLift": 0
+      },
+      "walk": {
+        "arrived": true,
+        "distance": 0,
+        "ms": 1954,
+        "samples": 46,
+        "maxStep": 2.24,
+        "motion": {
+          "spd": 19.244601635039317,
+          "odo": 61.71344602148581,
+          "odoAge": 5.800000011920929,
+          "paused": false,
+          "frozen": false,
+          "activity": "idle",
+          "bodies": 1
+        },
+        "destination": {
+          "x": 294,
+          "y": 107
+        },
+        "end": {
+          "px": 294,
+          "py": 107,
+          "goal": "wander",
+          "moving": false,
+          "target": null,
+          "zone": {
+            "kind": "room",
+            "rect": {
+              "x1": 3,
+              "y1": 3,
+              "x2": 34,
+              "y2": 28
+            },
+            "roam": {
+              "cx": 18,
+              "cy": 5,
+              "r": 14,
+              "rects": [
+                {
+                  "x1": 3,
+                  "y1": 3,
+                  "x2": 34,
+                  "y2": 28
+                }
+              ]
+            }
+          },
+          "state": "idle"
+        }
+      },
+      "key": "workbench:s",
+      "placementConflicts": [],
+      "assetFailures": [],
+      "issues": []
+    },
+    {
+      "id": "catalog-gigs_servercart:s",
+      "type": "gigs_servercart",
+      "r": 0,
+      "mirror": false,
+      "footprint": [
+        1,
+        1
+      ],
+      "canonical": [
+        1,
+        1
+      ],
+      "mount": null,
+      "kind": null,
+      "workstation": false,
+      "front": true,
+      "back": true,
+      "route": 3,
+      "anchor": null,
+      "side": null,
+      "flat": false,
+      "interaction": "none",
+      "motion": {
+        "spd": 19.4110536393253,
+        "odo": 61.85483698955668,
+        "odoAge": 22.200000002980232,
+        "paused": false,
+        "frozen": false,
+        "activity": "idle",
+        "bodies": 1
+      },
+      "result": {
+        "seated": false,
+        "sitting": false,
+        "lying": false,
+        "dir": "west",
+        "usingProp": null,
+        "px": 66,
+        "py": 215,
+        "seatLift": 0
+      },
+      "walk": {
+        "arrived": true,
+        "distance": 0,
+        "ms": 1831,
+        "samples": 44,
+        "maxStep": 2,
+        "motion": {
+          "spd": 19.4110536393253,
+          "odo": 61.85483698955668,
+          "odoAge": 22.200000002980232,
+          "paused": false,
+          "frozen": false,
+          "activity": "idle",
+          "bodies": 1
+        },
+        "destination": {
+          "x": 66,
+          "y": 191
+        },
+        "end": {
+          "px": 66,
+          "py": 191,
+          "goal": "wander",
+          "moving": false,
+          "target": null,
+          "zone": {
+            "kind": "room",
+            "rect": {
+              "x1": 3,
+              "y1": 3,
+              "x2": 34,
+              "y2": 28
+            },
+            "roam": {
+              "cx": 18,
+              "cy": 5,
+              "r": 14,
+              "rects": [
+                {
+                  "x1": 3,
+                  "y1": 3,
+                  "x2": 34,
+                  "y2": 28
+                }
+              ]
+            }
+          },
+          "state": "idle"
+        }
+      },
+      "key": "gigs_servercart:s",
+      "placementConflicts": [],
+      "assetFailures": [],
+      "issues": []
+    },
+    {
+      "id": "catalog-studio:s",
+      "type": "studio",
+      "r": 0,
+      "mirror": false,
+      "footprint": [
+        2,
+        2
+      ],
+      "canonical": [
+        2,
+        2
+      ],
+      "mount": null,
+      "kind": null,
+      "workstation": false,
+      "front": true,
+      "back": true,
+      "route": 3,
+      "anchor": null,
+      "side": null,
+      "flat": false,
+      "interaction": "none",
+      "motion": {
+        "spd": 20.953742762026916,
+        "odo": 73.73109841281031,
+        "odoAge": 1.6000000089406967,
+        "paused": false,
+        "frozen": false,
+        "activity": "idle",
+        "bodies": 1
+      },
+      "result": {
+        "seated": false,
+        "sitting": false,
+        "lying": false,
+        "dir": "west",
+        "usingProp": null,
+        "px": 186,
+        "py": 227,
+        "seatLift": 0
+      },
+      "walk": {
+        "arrived": true,
+        "distance": 1,
+        "ms": 2320,
+        "samples": 55,
+        "maxStep": 2.24,
+        "motion": {
+          "spd": 20.953742762026916,
+          "odo": 73.73109841281031,
+          "odoAge": 1.5,
+          "paused": false,
+          "frozen": false,
+          "activity": "idle",
+          "bodies": 1
+        },
+        "destination": {
+          "x": 186,
+          "y": 191
+        },
+        "end": {
+          "px": 187,
+          "py": 191,
+          "goal": "wander",
+          "moving": true,
+          "target": {
+            "tile": {
+              "x": 15,
+              "y": 15
+            },
+            "x": 186,
+            "y": 191
+          },
+          "zone": {
+            "kind": "room",
+            "rect": {
+              "x1": 3,
+              "y1": 3,
+              "x2": 34,
+              "y2": 28
+            },
+            "roam": {
+              "cx": 18,
+              "cy": 5,
+              "r": 14,
+              "rects": [
+                {
+                  "x1": 3,
+                  "y1": 3,
+                  "x2": 34,
+                  "y2": 28
+                }
+              ]
+            }
+          },
+          "state": "walk"
+        }
+      },
+      "key": "studio:s",
+      "placementConflicts": [],
+      "assetFailures": [],
+      "issues": []
+    },
+    {
+      "id": "catalog-war_intelcab:s",
+      "type": "war_intelcab",
+      "r": 0,
+      "mirror": true,
+      "footprint": [
+        1,
+        2
+      ],
+      "canonical": [
+        1,
+        2
+      ],
+      "mount": null,
+      "kind": null,
+      "workstation": false,
+      "front": true,
+      "back": true,
+      "route": 3,
+      "anchor": null,
+      "side": null,
+      "flat": false,
+      "interaction": "none",
+      "motion": {
+        "spd": 19.66117745558843,
+        "odo": 73.75089111431562,
+        "odoAge": 1.5,
+        "paused": false,
+        "frozen": false,
+        "activity": "idle",
+        "bodies": 1
+      },
+      "result": {
+        "seated": false,
+        "sitting": false,
+        "lying": false,
+        "dir": "west",
+        "usingProp": null,
+        "px": 66,
+        "py": 143,
+        "seatLift": 0
+      },
+      "walk": {
+        "arrived": true,
+        "distance": 1,
+        "ms": 2376,
+        "samples": 56,
+        "maxStep": 2.24,
+        "motion": {
+          "spd": 19.66117745558843,
+          "odo": 73.75089111431562,
+          "odoAge": 1.4000000059604645,
+          "paused": false,
+          "frozen": false,
+          "activity": "idle",
+          "bodies": 1
+        },
+        "destination": {
+          "x": 66,
+          "y": 107
+        },
+        "end": {
+          "px": 67,
+          "py": 107,
+          "goal": "wander",
+          "moving": true,
+          "target": {
+            "tile": {
+              "x": 5,
+              "y": 8
+            },
+            "x": 66,
+            "y": 107
+          },
+          "zone": {
+            "kind": "room",
+            "rect": {
+              "x1": 3,
+              "y1": 3,
+              "x2": 34,
+              "y2": 28
+            },
+            "roam": {
+              "cx": 18,
+              "cy": 5,
+              "r": 14,
+              "rects": [
+                {
+                  "x1": 3,
+                  "y1": 3,
+                  "x2": 34,
+                  "y2": 28
+                }
+              ]
+            }
+          },
+          "state": "walk"
+        }
+      },
+      "key": "war_intelcab:s:mirror",
+      "placementConflicts": [],
+      "assetFailures": [],
+      "issues": []
+    },
+    {
+      "id": "catalog-workbench:s",
+      "type": "workbench",
+      "r": 0,
+      "mirror": true,
+      "footprint": [
+        2,
+        1
+      ],
+      "canonical": [
+        2,
+        1
+      ],
+      "mount": null,
+      "kind": null,
+      "workstation": false,
+      "front": true,
+      "back": true,
+      "route": 3,
+      "anchor": null,
+      "side": null,
+      "flat": false,
+      "interaction": "none",
+      "motion": {
+        "spd": 19.358329078169138,
+        "odo": 61.74240413749988,
+        "odoAge": 10.600000008940697,
+        "paused": false,
+        "frozen": false,
+        "activity": "idle",
+        "bodies": 1
+      },
+      "result": {
+        "seated": false,
+        "sitting": false,
+        "lying": false,
+        "dir": "west",
+        "usingProp": null,
+        "px": 294,
+        "py": 131,
+        "seatLift": 0
+      },
+      "walk": {
+        "arrived": true,
+        "distance": 0,
+        "ms": 1888,
+        "samples": 45,
+        "maxStep": 2,
+        "motion": {
+          "spd": 19.358329078169138,
+          "odo": 61.74240413749988,
+          "odoAge": 10.600000008940697,
+          "paused": false,
+          "frozen": false,
+          "activity": "idle",
+          "bodies": 1
+        },
+        "destination": {
+          "x": 294,
+          "y": 107
+        },
+        "end": {
+          "px": 294,
+          "py": 107,
+          "goal": "wander",
+          "moving": false,
+          "target": null,
+          "zone": {
+            "kind": "room",
+            "rect": {
+              "x1": 3,
+              "y1": 3,
+              "x2": 34,
+              "y2": 28
+            },
+            "roam": {
+              "cx": 18,
+              "cy": 5,
+              "r": 14,
+              "rects": [
+                {
+                  "x1": 3,
+                  "y1": 3,
+                  "x2": 34,
+                  "y2": 28
+                }
+              ]
+            }
+          },
+          "state": "idle"
+        }
+      },
+      "key": "workbench:s:mirror",
+      "placementConflicts": [],
+      "assetFailures": [],
+      "issues": []
+    },
+    {
+      "id": "catalog-gigs_servercart:s",
+      "type": "gigs_servercart",
+      "r": 0,
+      "mirror": true,
+      "footprint": [
+        1,
+        1
+      ],
+      "canonical": [
+        1,
+        1
+      ],
+      "mount": null,
+      "kind": null,
+      "workstation": false,
+      "front": true,
+      "back": true,
+      "route": 3,
+      "anchor": null,
+      "side": null,
+      "flat": false,
+      "interaction": "none",
+      "motion": {
+        "spd": 21.790826961780134,
+        "odo": 61.41421544860056,
+        "odoAge": 1.0999999940395355,
+        "paused": false,
+        "frozen": false,
+        "activity": "idle",
+        "bodies": 1
+      },
+      "result": {
+        "seated": false,
+        "sitting": false,
+        "lying": false,
+        "dir": "west",
+        "usingProp": null,
+        "px": 66,
+        "py": 215,
+        "seatLift": 0
+      },
+      "walk": {
+        "arrived": true,
+        "distance": 1,
+        "ms": 1837,
+        "samples": 43,
+        "maxStep": 2.24,
+        "motion": {
+          "spd": 21.790826961780134,
+          "odo": 61.41421544860056,
+          "odoAge": 1,
+          "paused": false,
+          "frozen": false,
+          "activity": "idle",
+          "bodies": 1
+        },
+        "destination": {
+          "x": 66,
+          "y": 191
+        },
+        "end": {
+          "px": 67,
+          "py": 191,
+          "goal": "wander",
+          "moving": true,
+          "target": {
+            "tile": {
+              "x": 5,
+              "y": 15
+            },
+            "x": 66,
+            "y": 191
+          },
+          "zone": {
+            "kind": "room",
+            "rect": {
+              "x1": 3,
+              "y1": 3,
+              "x2": 34,
+              "y2": 28
+            },
+            "roam": {
+              "cx": 18,
+              "cy": 5,
+              "r": 14,
+              "rects": [
+                {
+                  "x1": 3,
+                  "y1": 3,
+                  "x2": 34,
+                  "y2": 28
+                }
+              ]
+            }
+          },
+          "state": "walk"
+        }
+      },
+      "key": "gigs_servercart:s:mirror",
+      "placementConflicts": [],
+      "assetFailures": [],
+      "issues": []
+    }
+  ],
+  "performance": []
+}

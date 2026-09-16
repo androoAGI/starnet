@@ -1,0 +1,5 @@
+Eight complete south-view art candidates: boxes, gigs_partsbin, goldcrate, toolbox, industrial_supplycart, industrial_toolcaddy, gigs_servercart, vault. Source v2 selected after one physical-width correction. Sources and native 1x/2x/4x contact sheet visually inspected. Complete independent silhouettes and top planes; boxes are cardboard, handheld caddy has no wheels, cart wheels intact.
+
+All output RGB and retained alpha compare exactly with corresponding intact source crops. Opaque cell edges zero. No resizing of output PNGs. Native world bounds remain unchanged. Residual aspect mismatch is recorded numerically in integration.json: some silhouettes remain up to 19.2% wider than the nominal envelope; uniform fit therefore leaves corresponding vertical space. These are production art candidates for parent room review, not claimed live accepted. Tiny details naturally collapse at native 10–26px widths.
+
+The assignment-contracts.json captures all 33 assigned native functions and directional envelopes. build-catalog-storage-rest-1-export.cjs independently reproduces this batch; the separate script generator is optional for later batch scripts.

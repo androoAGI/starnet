@@ -1,0 +1,30 @@
+'use strict';
+const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm');
+const fx=require('../frontend/app/projection-prop-effects.js');
+const screenIds=fx.ids.filter(id=>fx.classify(id,'s')?.effects.some(e=>e.kind==='screen'));
+for(const id of screenIds){
+  const on=fx.screenEmission(id,'s',{occupied:true,work:true,live:true});
+  assert(on&&on.power===1,id+' emits when its display is on');
+  assert(on.x>=0&&on.x<=1&&on.y>=0&&on.y<=1,id+' source stays inside the image');
+  const idle=fx.screenEmission(id,'s',{occupied:false,work:false,live:false});
+  assert(idle.power>=0&&idle.power<=on.power,id+' standby never exceeds active light');
+}
+assert.equal(fx.screenEmission('bridge_tacticaltable','s',{}).power,1,'visible static glass emits without fabricating occupancy');
+assert(fx.screenEmission('bridge_consolebank','s',{}).x>.4,'multi-screen bank emits from combined display area');
+assert(fx.screenEmission('console','s',{occupied:false,work:true}).power<.2,'explicit empty seat overrides work');
+assert.equal(fx.screenEmission('crate','s',{}),null,'unlit materials are not screens');
+assert.equal(fx.screenEmission('bridge_tacticaltable','e',{}),null,'missing angle does not invent a screen');
+const remaster={ready:{then(){}},emitter:()=>null,screenEmission(id,view,w,h,state){const p=fx.screenEmission(id,view,state);return p?{...p,x:p.x*w,y:p.y*h,screenEmission:true}:null;}};
+const context=vm.createContext({module:{exports:{}},console,U:{hash:()=>1,shade:c=>c},PropRemaster:remaster});
+vm.runInContext(fs.readFileSync(require.resolve('../frontend/app/propsprites.js'),'utf8'),context);
+const props=context.module.exports;
+const table={t:'bridge_tacticaltable',x:5,y:6,w:7,h:4};
+assert(props.lightOf(table,false,true,{}).a>0,'unoccupied visible tactical screen reaches world-light collection');
+const missingLegacy={t:'treasury_coinsorter',x:2,y:3,w:2,h:2};
+assert(!props.EMIT.treasury_coinsorter,'fixture exercises the legacy-list gap');
+assert(props.lightOf(missingLegacy,true,true,{work:true}).a>0,'screen omitted from legacy EMIT still lights');
+const consoleProp={t:'console',x:2,y:3,w:2,h:2};
+assert(props.lightOf(consoleProp,false,true,{occupied:false}).a<props.lightOf(consoleProp,true,true,{occupied:true}).a,'standby spill follows visible dimming');
+remaster.screenEmission=()=>({x:12,y:6,c:[0,0,0],power:0,screenEmission:true});
+assert.equal(props.lightOf(consoleProp,true,true,{occupied:true}),null,'fully dark screen cannot illuminate its surroundings');
+console.log('PASS: '+screenIds.length+' screen props, standby power, combined origins, missing legacy emitter and dark-screen suppression.');

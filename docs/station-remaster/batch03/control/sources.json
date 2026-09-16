@@ -1,0 +1,92 @@
+[
+  {
+    "id": "studio",
+    "source": "docs/station-remaster/batch03/control/studio-source.png",
+    "generated": "C:\\Users\\andro\\.codex\\generated_images\\01a09e45-c8db-79c2-b990-4349e09fba9c\\exec-089f72e2-edc6-40dc-acaa-c0aac410a5bf.png",
+    "backgroundMode": "magenta",
+    "seeds": []
+  },
+  {
+    "id": "airlock",
+    "source": "docs/station-remaster/batch03/control/airlock-source.png",
+    "generated": "C:\\Users\\andro\\.codex\\generated_images\\01a09e45-c8db-79c2-b990-4349e09fba9c\\exec-043af029-3171-408c-ad93-27be0e881539.png",
+    "backgroundMode": "magenta",
+    "seeds": [
+      [
+        620,
+        610
+      ]
+    ]
+  },
+  {
+    "id": "bigscreen",
+    "source": "docs/station-remaster/batch03/control/bigscreen-source.png",
+    "generated": "C:\\Users\\andro\\.codex\\generated_images\\01a09e45-c8db-79c2-b990-4349e09fba9c\\exec-03b770c7-0e1c-4694-affe-26b004a72736.png",
+    "backgroundMode": "magenta",
+    "seeds": []
+  },
+  {
+    "id": "holotable",
+    "source": "docs/station-remaster/batch03/control/holotable-source.png",
+    "generated": "C:\\Users\\andro\\.codex\\generated_images\\01a09e45-c8db-79c2-b990-4349e09fba9c\\exec-e5c9b9aa-386a-4966-872a-c3b9856df4c9.png",
+    "backgroundMode": "magenta",
+    "seeds": []
+  },
+  {
+    "id": "ticker",
+    "source": "docs/station-remaster/batch03/control/ticker-source.png",
+    "generated": "C:\\Users\\andro\\.codex\\generated_images\\01a09e45-c8db-79c2-b990-4349e09fba9c\\exec-8f76ffe1-26aa-4e66-a3ed-b45f8a3075d1.png",
+    "backgroundMode": "magenta",
+    "seeds": []
+  },
+  {
+    "id": "wartable",
+    "source": "docs/station-remaster/batch03/control/wartable-source.png",
+    "generated": "C:\\Users\\andro\\.codex\\generated_images\\01a09e45-c8db-79c2-b990-4349e09fba9c\\exec-7cc2d31e-0dc7-4c3a-a225-8d82744f5db9.png",
+    "backgroundMode": "magenta",
+    "seeds": []
+  },
+  {
+    "id": "bridge_tacscreen",
+    "source": "docs/station-remaster/batch03/control/bridge_tacscreen-source.png",
+    "generated": "C:\\Users\\andro\\.codex\\generated_images\\01a09e45-c8db-79c2-b990-4349e09fba9c\\exec-e8012a38-237f-44aa-ae06-eaf0f9f14db0.png",
+    "backgroundMode": "magenta",
+    "seeds": []
+  },
+  {
+    "id": "bridge_dispatch_pylon",
+    "source": "docs/station-remaster/batch03/control/bridge_dispatch_pylon-source.png",
+    "generated": "C:\\Users\\andro\\.codex\\generated_images\\01a09e45-c8db-79c2-b990-4349e09fba9c\\exec-771d02f4-86fd-454a-ae5a-66fb23f2c209.png",
+    "backgroundMode": "magenta",
+    "seeds": []
+  },
+  {
+    "id": "bridge_orderqueue",
+    "source": "docs/station-remaster/batch03/control/bridge_orderqueue-source.png",
+    "generated": "C:\\Users\\andro\\.codex\\generated_images\\01a09e45-c8db-79c2-b990-4349e09fba9c\\exec-6a85b573-2a4a-42b4-9b8f-a5ad4d2fc7ea.png",
+    "backgroundMode": "magenta",
+    "seeds": []
+  },
+  {
+    "id": "war_pivotpanel",
+    "source": "docs/station-remaster/batch03/control/war_pivotpanel-source.png",
+    "generated": "C:\\Users\\andro\\.codex\\generated_images\\01a09e45-c8db-79c2-b990-4349e09fba9c\\exec-f1f3c7d3-27a2-4560-b58f-146c74dbf48b.png",
+    "backgroundMode": "magenta",
+    "seeds": []
+  },
+  {
+    "id": "war_threatcore",
+    "source": "docs/station-remaster/batch03/control/war_threatcore-source.png",
+    "generated": "C:\\Users\\andro\\.codex\\generated_images\\01a09e45-c8db-79c2-b990-4349e09fba9c\\exec-1d62dd96-7f89-44d6-90a4-1ed7bd5f5c54.png",
+    "backgroundMode": "magenta",
+    "seeds": []
+  },
+  {
+    "id": "screens",
+    "source": "docs/station-remaster/batch03/control/screens-source.png",
+    "generated": "C:\\Users\\andro\\.codex\\generated_images\\01a09e45-c8db-79c2-b990-4349e09fba9c\\exec-08964e8d-6284-40ee-ba15-e8293791661b.png",
+    "initialGenerated": "C:\\Users\\andro\\.codex\\generated_images\\01a09e45-c8db-79c2-b990-4349e09fba9c\\exec-3cbccdb7-87dc-4a39-ab7c-268af44ff7b4.png",
+    "backgroundMode": "magenta",
+    "seeds": []
+  }
+]

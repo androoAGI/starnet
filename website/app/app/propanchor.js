@@ -50,7 +50,10 @@ const PropAnchor = (() => {
     for (let i = (r | 0) & 3; i > 0; i--) s = CW[s] || s;
     return s;
   }
-  const frontOf = prop => turnSide('south', prop && prop.r);
+  const frontOf = prop => {
+    const face=turnSide('south',prop&&prop.r);
+    return prop&&prop.m ? (face==='west'?'east':face==='east'?'west':face) : face;
+  };
 
   /* CENTRE-OUT ordering of one edge's tiles. deriveAnchor used to take sideTiles' first walkable tile,
      which is always the WEST-most one — so on a 2-wide workstation the chair (and the body sitting in

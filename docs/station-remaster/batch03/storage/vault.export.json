@@ -1,0 +1,50 @@
+{
+  "id": "vault",
+  "status": "exported-awaiting-owner-live-review",
+  "source": "sources/vault.png",
+  "sourceSha256": "948d6375303267a64eec5d6716c4930e14295f922706e24a28896b803daff18a",
+  "sourceWidth": 1544,
+  "sourceHeight": 1019,
+  "image": "vault.png",
+  "sourceOutputWidth": 1448,
+  "sourceOutputHeight": 895,
+  "crop": {
+    "left": 48,
+    "top": 62,
+    "width": 1448,
+    "height": 895
+  },
+  "channels": 4,
+  "transparentPixels": 110801,
+  "opaquePixels": 1185159,
+  "partialPixels": 0,
+  "backgroundPixelsRemoved": 388177,
+  "subjectRgbChanges": 0,
+  "outputSha256": "194d4832bf3d517cd2017edf3d272c27ebacf0941bcce467f39bd919400fa4e6",
+  "holeSeeds": [],
+  "maskMethod": "Connected saturated-magenta flood fill, including key-only enclosed components. Alpha-only edits; uniform crop; no RGB recolor.",
+  "view": "s",
+  "footprint": {
+    "w": 3,
+    "h": 2
+  },
+  "bounds": {
+    "x": -3,
+    "y": -5,
+    "width": 44,
+    "height": 29
+  },
+  "tilePixels": 12,
+  "contact": {
+    "x": 19,
+    "y": 24
+  },
+  "anchorContract": "No leisure seat anchor. Footprint is the placement/pathfinding rectangle; upright visual rise is independent of the reserved box.",
+  "originalLight": null,
+  "originalAnimationTriggers": [
+    "Real fs.* tool completion chooses the granting prop instance and overlays a 900 ms success accent or red failure surge.",
+    "Autonomous sprite clock animation is present in the sampled default state; cosmetic motion is not evidence of provider work, route decisions or external state."
+  ],
+  "artMode": "static complete art; existing state/lighting integration remains owner decision",
+  "liveIntegrated": false
+}

@@ -1,0 +1,214 @@
+{
+  "version": 1,
+  "status": "candidate-not-integrated",
+  "records": [
+    {
+      "id": "bookstack",
+      "view": "s",
+      "image": "frontend/assets/industrial/catalog-crew-rest-3/bookstack.png",
+      "sourceWidth": 298,
+      "sourceHeight": 260,
+      "bounds": {
+        "x": 0,
+        "y": 0,
+        "width": 12,
+        "height": 10
+      },
+      "footprint": {
+        "w": 1,
+        "h": 1
+      },
+      "contact": {
+        "x": 0.5,
+        "y": 0.9903846153846154,
+        "space": "exported-image-normalized",
+        "targetWorld": {
+          "x": 6,
+          "y": 12
+        }
+      }
+    },
+    {
+      "id": "desklamp",
+      "view": "s",
+      "image": "frontend/assets/industrial/catalog-crew-rest-3/desklamp.png",
+      "sourceWidth": 363,
+      "sourceHeight": 252,
+      "bounds": {
+        "x": 0,
+        "y": 3,
+        "width": 12,
+        "height": 9
+      },
+      "footprint": {
+        "w": 1,
+        "h": 1
+      },
+      "contact": {
+        "x": 0.5,
+        "y": 0.9861111111111112,
+        "space": "exported-image-normalized",
+        "targetWorld": {
+          "x": 6,
+          "y": 12
+        }
+      }
+    },
+    {
+      "id": "figurine",
+      "view": "s",
+      "image": "frontend/assets/industrial/catalog-crew-rest-3/figurine.png",
+      "sourceWidth": 231,
+      "sourceHeight": 277,
+      "bounds": {
+        "x": 1,
+        "y": 1,
+        "width": 10,
+        "height": 11
+      },
+      "footprint": {
+        "w": 1,
+        "h": 1
+      },
+      "contact": {
+        "x": 0.5,
+        "y": 0.9873646209386282,
+        "space": "exported-image-normalized",
+        "targetWorld": {
+          "x": 6,
+          "y": 12
+        }
+      }
+    },
+    {
+      "id": "modelship",
+      "view": "s",
+      "image": "frontend/assets/industrial/catalog-crew-rest-3/modelship.png",
+      "sourceWidth": 447,
+      "sourceHeight": 225,
+      "bounds": {
+        "x": 2,
+        "y": 1,
+        "width": 20,
+        "height": 11
+      },
+      "footprint": {
+        "w": 2,
+        "h": 1
+      },
+      "contact": {
+        "x": 0.5,
+        "y": 0.9844444444444445,
+        "space": "exported-image-normalized",
+        "targetWorld": {
+          "x": 12,
+          "y": 12
+        }
+      }
+    },
+    {
+      "id": "mug",
+      "view": "s",
+      "image": "frontend/assets/industrial/catalog-crew-rest-3/mug.png",
+      "sourceWidth": 571,
+      "sourceHeight": 520,
+      "bounds": {
+        "x": 1,
+        "y": 2,
+        "width": 10,
+        "height": 9
+      },
+      "footprint": {
+        "w": 1,
+        "h": 1
+      },
+      "contact": {
+        "x": 0.5,
+        "y": 0.9932692307692308,
+        "space": "exported-image-normalized",
+        "targetWorld": {
+          "x": 6,
+          "y": 12
+        }
+      }
+    },
+    {
+      "id": "radio",
+      "view": "s",
+      "image": "frontend/assets/industrial/catalog-crew-rest-3/radio.png",
+      "sourceWidth": 668,
+      "sourceHeight": 547,
+      "bounds": {
+        "x": 1,
+        "y": 3,
+        "width": 10,
+        "height": 9
+      },
+      "footprint": {
+        "w": 1,
+        "h": 1
+      },
+      "contact": {
+        "x": 0.5,
+        "y": 0.993601462522852,
+        "space": "exported-image-normalized",
+        "targetWorld": {
+          "x": 6,
+          "y": 12
+        }
+      }
+    },
+    {
+      "id": "guitar",
+      "view": "s",
+      "image": "frontend/assets/industrial/catalog-crew-rest-3/guitar.png",
+      "sourceWidth": 218,
+      "sourceHeight": 444,
+      "bounds": {
+        "x": -1,
+        "y": -15,
+        "width": 14,
+        "height": 27
+      },
+      "footprint": {
+        "w": 1,
+        "h": 1
+      },
+      "contact": {
+        "x": 0.5,
+        "y": 0.9921171171171171,
+        "space": "exported-image-normalized",
+        "targetWorld": {
+          "x": 6,
+          "y": 12
+        }
+      }
+    },
+    {
+      "id": "easel",
+      "view": "s",
+      "image": "frontend/assets/industrial/catalog-crew-rest-3/easel.png",
+      "sourceWidth": 649,
+      "sourceHeight": 748,
+      "bounds": {
+        "x": 1,
+        "y": -14,
+        "width": 34,
+        "height": 38
+      },
+      "footprint": {
+        "w": 3,
+        "h": 2
+      },
+      "contact": {
+        "x": 0.5,
+        "y": 0.9953208556149733,
+        "space": "exported-image-normalized",
+        "targetWorld": {
+          "x": 18,
+          "y": 24
+        }
+      }
+    }
+  ]
+}

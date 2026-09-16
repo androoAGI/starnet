@@ -1,0 +1,4066 @@
+[
+  {
+    "id": "arc_ladder",
+    "structure": {
+      "label": "LADDER",
+      "family": "decor",
+      "flat": false,
+      "views": {
+        "s": {
+          "key": "arc_ladder",
+          "r": 0,
+          "image": "arc_ladder.png",
+          "footprint": {
+            "w": 1,
+            "h": 1
+          },
+          "bounds": {
+            "x": 0,
+            "y": -8,
+            "width": 14,
+            "height": 19
+          },
+          "guide": "dev/.scratch-workspace/prop-structure/arc_ladder.png"
+        }
+      }
+    },
+    "inventory": {
+      "id": "arc_ladder",
+      "label": "LADDER",
+      "family": "decor",
+      "tier": "cosmetic",
+      "oldConcept": "LADDER",
+      "classicBox": {
+        "w": 1,
+        "h": 1
+      },
+      "remasterBox": {
+        "w": 1,
+        "h": 1
+      },
+      "tilePixels": 12,
+      "orientation": {
+        "facings": [
+          {
+            "r": 0,
+            "front": "south",
+            "w": 1,
+            "h": 1,
+            "type": "authored-view"
+          }
+        ],
+        "canMirror": true,
+        "classicFacings": [
+          0
+        ]
+      },
+      "geometry": {
+        "blocks": false,
+        "flat": false,
+        "tableSurface": false,
+        "requiredMount": null,
+        "optionalSurfaceMount": false,
+        "surfaceRisePixels": 8
+      },
+      "assignedWorkstation": false,
+      "leisureUse": null,
+      "capabilityObjectType": null,
+      "animatedCatalogFlag": true,
+      "light": null,
+      "sampledAnimation": {
+        "remaster": {
+          "idleFrameVariants": 1,
+          "workFrameVariants": 1,
+          "respondsToWorkFlag": false,
+          "opaqueBoundsRelativeToFootprint": {
+            "x": 0,
+            "y": -8,
+            "w": 14,
+            "h": 19,
+            "alphaThreshold": 160
+          }
+        },
+        "classic": {
+          "idleFrameVariants": 1,
+          "workFrameVariants": 1,
+          "respondsToWorkFlag": false,
+          "opaqueBoundsRelativeToFootprint": {
+            "x": 0,
+            "y": -8,
+            "w": 14,
+            "h": 19,
+            "alphaThreshold": 160
+          }
+        }
+      },
+      "art": {
+        "implementation": "native-procedural-construction",
+        "assets": [],
+        "detailStatus": "Industrial palette/construction pass exists; no individually authored remaster raster silhouette yet.",
+        "completion": "baseline-audited; comprehensive prop pass not accepted"
+      },
+      "liveAnimationTriggers": [
+        "No direct event-driven or sampled default sprite animation. Preserve static art; no invented status or progress."
+      ],
+      "anchorContract": "No leisure seat anchor. Footprint is the placement/pathfinding rectangle; upright visual rise is independent of the reserved box.",
+      "directionalArtNeed": "South-only at baseline. For free placement, author side/rear projections rather than rotate the elevation; preserve upright box unless footprint is genuine plan.",
+      "sourceEvidence": {
+        "catalog": "frontend/app/propsprites.js:10878",
+        "geometry": "frontend/app/propsprites.js:11006",
+        "drawState": "frontend/app/propsprites.js:11279",
+        "liveWorld": "frontend/app/world.js:6029"
+      }
+    }
+  },
+  {
+    "id": "arc_microfiche",
+    "structure": {
+      "label": "MICROFICHE",
+      "family": "comms",
+      "flat": false,
+      "views": {
+        "s": {
+          "key": "arc_microfiche",
+          "r": 0,
+          "image": "arc_microfiche.png",
+          "footprint": {
+            "w": 2,
+            "h": 1
+          },
+          "bounds": {
+            "x": -1,
+            "y": -12,
+            "width": 30,
+            "height": 24
+          },
+          "guide": "dev/.scratch-workspace/prop-structure/arc_microfiche.png"
+        }
+      }
+    },
+    "inventory": {
+      "id": "arc_microfiche",
+      "label": "MICROFICHE",
+      "family": "comms",
+      "tier": "cosmetic",
+      "oldConcept": "MICROFICHE",
+      "classicBox": {
+        "w": 2,
+        "h": 1
+      },
+      "remasterBox": {
+        "w": 2,
+        "h": 1
+      },
+      "tilePixels": 12,
+      "orientation": {
+        "facings": [
+          {
+            "r": 0,
+            "front": "south",
+            "w": 2,
+            "h": 1,
+            "type": "authored-view"
+          }
+        ],
+        "canMirror": true,
+        "classicFacings": [
+          0
+        ]
+      },
+      "geometry": {
+        "blocks": true,
+        "flat": false,
+        "tableSurface": false,
+        "requiredMount": null,
+        "optionalSurfaceMount": false,
+        "surfaceRisePixels": 8
+      },
+      "assignedWorkstation": false,
+      "leisureUse": null,
+      "capabilityObjectType": null,
+      "animatedCatalogFlag": true,
+      "light": {
+        "c": [
+          140,
+          255,
+          190
+        ],
+        "r": 18,
+        "a": 0.1,
+        "m": "screen",
+        "y": 0.4
+      },
+      "sampledAnimation": {
+        "remaster": {
+          "idleFrameVariants": 9,
+          "workFrameVariants": 9,
+          "respondsToWorkFlag": true,
+          "opaqueBoundsRelativeToFootprint": {
+            "x": -1,
+            "y": -12,
+            "w": 30,
+            "h": 24,
+            "alphaThreshold": 160
+          }
+        },
+        "classic": {
+          "idleFrameVariants": 9,
+          "workFrameVariants": 9,
+          "respondsToWorkFlag": true,
+          "opaqueBoundsRelativeToFootprint": {
+            "x": -1,
+            "y": -12,
+            "w": 30,
+            "h": 24,
+            "alphaThreshold": 160
+          }
+        }
+      },
+      "art": {
+        "implementation": "native-procedural-construction",
+        "assets": [],
+        "detailStatus": "Industrial palette/construction pass exists; no individually authored remaster raster silhouette yet.",
+        "completion": "baseline-audited; comprehensive prop pass not accepted"
+      },
+      "liveAnimationTriggers": [
+        "Autonomous sprite clock animation is present in the sampled default state; cosmetic motion is not evidence of provider work, route decisions or external state."
+      ],
+      "anchorContract": "No leisure seat anchor. Footprint is the placement/pathfinding rectangle; upright visual rise is independent of the reserved box.",
+      "directionalArtNeed": "South-only at baseline. For free placement, author side/rear projections rather than rotate the elevation; preserve upright box unless footprint is genuine plan.",
+      "sourceEvidence": {
+        "catalog": "frontend/app/propsprites.js:10842",
+        "geometry": "frontend/app/propsprites.js:11006",
+        "drawState": "frontend/app/propsprites.js:11279",
+        "liveWorld": "frontend/app/world.js:6029"
+      }
+    }
+  },
+  {
+    "id": "boxes",
+    "structure": {
+      "label": "BOXES",
+      "family": "storage",
+      "flat": false,
+      "views": {
+        "s": {
+          "key": "boxes",
+          "r": 0,
+          "image": "boxes.png",
+          "footprint": {
+            "w": 2,
+            "h": 1
+          },
+          "bounds": {
+            "x": 0,
+            "y": -1,
+            "width": 24,
+            "height": 13
+          },
+          "guide": "dev/.scratch-workspace/prop-structure/boxes.png"
+        }
+      }
+    },
+    "inventory": {
+      "id": "boxes",
+      "label": "BOXES",
+      "family": "storage",
+      "tier": "cosmetic",
+      "oldConcept": "BOXES",
+      "classicBox": {
+        "w": 2,
+        "h": 1
+      },
+      "remasterBox": {
+        "w": 2,
+        "h": 1
+      },
+      "tilePixels": 12,
+      "orientation": {
+        "facings": [
+          {
+            "r": 0,
+            "front": "south",
+            "w": 2,
+            "h": 1,
+            "type": "authored-view"
+          }
+        ],
+        "canMirror": true,
+        "classicFacings": [
+          0
+        ]
+      },
+      "geometry": {
+        "blocks": true,
+        "flat": false,
+        "tableSurface": false,
+        "requiredMount": null,
+        "optionalSurfaceMount": true,
+        "surfaceRisePixels": 8
+      },
+      "assignedWorkstation": false,
+      "leisureUse": null,
+      "capabilityObjectType": null,
+      "animatedCatalogFlag": true,
+      "light": null,
+      "sampledAnimation": {
+        "remaster": {
+          "idleFrameVariants": 1,
+          "workFrameVariants": 1,
+          "respondsToWorkFlag": false,
+          "opaqueBoundsRelativeToFootprint": {
+            "x": 0,
+            "y": -1,
+            "w": 24,
+            "h": 13,
+            "alphaThreshold": 160
+          }
+        },
+        "classic": {
+          "idleFrameVariants": 1,
+          "workFrameVariants": 1,
+          "respondsToWorkFlag": false,
+          "opaqueBoundsRelativeToFootprint": {
+            "x": 0,
+            "y": -1,
+            "w": 24,
+            "h": 13,
+            "alphaThreshold": 160
+          }
+        }
+      },
+      "art": {
+        "implementation": "native-procedural-construction",
+        "assets": [],
+        "detailStatus": "Industrial palette/construction pass exists; no individually authored remaster raster silhouette yet.",
+        "completion": "baseline-audited; comprehensive prop pass not accepted"
+      },
+      "liveAnimationTriggers": [
+        "No direct event-driven or sampled default sprite animation. Preserve static art; no invented status or progress."
+      ],
+      "anchorContract": "Can sit on bare deck or valid table; table mount lifts contact origin exactly 8 world pixels.",
+      "directionalArtNeed": "South-only at baseline. For free placement, author side/rear projections rather than rotate the elevation; preserve upright box unless footprint is genuine plan.",
+      "sourceEvidence": {
+        "catalog": "frontend/app/propsprites.js:10824",
+        "geometry": "frontend/app/propsprites.js:11006",
+        "drawState": "frontend/app/propsprites.js:11279",
+        "liveWorld": "frontend/app/world.js:6029"
+      }
+    }
+  },
+  {
+    "id": "bridge_dispatch_pylon",
+    "structure": {
+      "label": "DISPATCH PYLON",
+      "family": "screens",
+      "flat": false,
+      "views": {
+        "s": {
+          "key": "bridge_dispatch_pylon",
+          "r": 0,
+          "image": "bridge_dispatch_pylon.png",
+          "footprint": {
+            "w": 1,
+            "h": 2
+          },
+          "bounds": {
+            "x": -2,
+            "y": -11,
+            "width": 19,
+            "height": 35
+          },
+          "guide": "dev/.scratch-workspace/prop-structure/bridge_dispatch_pylon.png"
+        }
+      }
+    },
+    "inventory": {
+      "id": "bridge_dispatch_pylon",
+      "label": "DISPATCH PYLON",
+      "family": "screens",
+      "tier": "cosmetic",
+      "oldConcept": "DISPATCH PYLON",
+      "classicBox": {
+        "w": 1,
+        "h": 2
+      },
+      "remasterBox": {
+        "w": 1,
+        "h": 2
+      },
+      "tilePixels": 12,
+      "orientation": {
+        "facings": [
+          {
+            "r": 0,
+            "front": "south",
+            "w": 1,
+            "h": 2,
+            "type": "authored-view"
+          }
+        ],
+        "canMirror": true,
+        "classicFacings": [
+          0
+        ]
+      },
+      "geometry": {
+        "blocks": true,
+        "flat": false,
+        "tableSurface": false,
+        "requiredMount": null,
+        "optionalSurfaceMount": false,
+        "surfaceRisePixels": 8
+      },
+      "assignedWorkstation": false,
+      "leisureUse": null,
+      "capabilityObjectType": null,
+      "animatedCatalogFlag": true,
+      "light": {
+        "c": [
+          255,
+          190,
+          110
+        ],
+        "r": 22,
+        "a": 0.12,
+        "m": "pulse",
+        "y": 0.3
+      },
+      "sampledAnimation": {
+        "remaster": {
+          "idleFrameVariants": 9,
+          "workFrameVariants": 9,
+          "respondsToWorkFlag": true,
+          "opaqueBoundsRelativeToFootprint": {
+            "x": -2,
+            "y": -11,
+            "w": 19,
+            "h": 35,
+            "alphaThreshold": 160
+          }
+        },
+        "classic": {
+          "idleFrameVariants": 9,
+          "workFrameVariants": 9,
+          "respondsToWorkFlag": true,
+          "opaqueBoundsRelativeToFootprint": {
+            "x": -2,
+            "y": -11,
+            "w": 19,
+            "h": 35,
+            "alphaThreshold": 160
+          }
+        }
+      },
+      "art": {
+        "implementation": "native-procedural-construction",
+        "assets": [],
+        "detailStatus": "Industrial palette/construction pass exists; no individually authored remaster raster silhouette yet.",
+        "completion": "baseline-audited; comprehensive prop pass not accepted"
+      },
+      "liveAnimationTriggers": [
+        "Autonomous sprite clock animation is present in the sampled default state; cosmetic motion is not evidence of provider work, route decisions or external state."
+      ],
+      "anchorContract": "No leisure seat anchor. Footprint is the placement/pathfinding rectangle; upright visual rise is independent of the reserved box.",
+      "directionalArtNeed": "South-only at baseline. For free placement, author side/rear projections rather than rotate the elevation; preserve upright box unless footprint is genuine plan.",
+      "sourceEvidence": {
+        "catalog": "frontend/app/propsprites.js:10804",
+        "geometry": "frontend/app/propsprites.js:11006",
+        "drawState": "frontend/app/propsprites.js:11279",
+        "liveWorld": "frontend/app/world.js:6029"
+      }
+    }
+  },
+  {
+    "id": "bridge_orderqueue",
+    "structure": {
+      "label": "ORDER QUEUE",
+      "family": "screens",
+      "flat": false,
+      "views": {
+        "s": {
+          "key": "bridge_orderqueue",
+          "r": 0,
+          "image": "bridge_orderqueue.png",
+          "footprint": {
+            "w": 2,
+            "h": 1
+          },
+          "bounds": {
+            "x": -3,
+            "y": -12,
+            "width": 28,
+            "height": 24
+          },
+          "guide": "dev/.scratch-workspace/prop-structure/bridge_orderqueue.png"
+        }
+      }
+    },
+    "inventory": {
+      "id": "bridge_orderqueue",
+      "label": "ORDER QUEUE",
+      "family": "screens",
+      "tier": "cosmetic",
+      "oldConcept": "ORDER QUEUE",
+      "classicBox": {
+        "w": 2,
+        "h": 1
+      },
+      "remasterBox": {
+        "w": 2,
+        "h": 1
+      },
+      "tilePixels": 12,
+      "orientation": {
+        "facings": [
+          {
+            "r": 0,
+            "front": "south",
+            "w": 2,
+            "h": 1,
+            "type": "authored-view"
+          }
+        ],
+        "canMirror": false,
+        "classicFacings": [
+          0
+        ]
+      },
+      "geometry": {
+        "blocks": true,
+        "flat": false,
+        "tableSurface": false,
+        "requiredMount": null,
+        "optionalSurfaceMount": false,
+        "surfaceRisePixels": 8
+      },
+      "assignedWorkstation": false,
+      "leisureUse": null,
+      "capabilityObjectType": null,
+      "animatedCatalogFlag": true,
+      "light": {
+        "c": [
+          255,
+          190,
+          110
+        ],
+        "r": 22,
+        "a": 0.1,
+        "m": "screen",
+        "y": 0.35
+      },
+      "sampledAnimation": {
+        "remaster": {
+          "idleFrameVariants": 9,
+          "workFrameVariants": 9,
+          "respondsToWorkFlag": true,
+          "opaqueBoundsRelativeToFootprint": {
+            "x": -3,
+            "y": -12,
+            "w": 28,
+            "h": 24,
+            "alphaThreshold": 160
+          }
+        },
+        "classic": {
+          "idleFrameVariants": 9,
+          "workFrameVariants": 9,
+          "respondsToWorkFlag": true,
+          "opaqueBoundsRelativeToFootprint": {
+            "x": -3,
+            "y": -12,
+            "w": 28,
+            "h": 24,
+            "alphaThreshold": 160
+          }
+        }
+      },
+      "art": {
+        "implementation": "native-procedural-construction",
+        "assets": [],
+        "detailStatus": "Industrial palette/construction pass exists; no individually authored remaster raster silhouette yet.",
+        "completion": "baseline-audited; comprehensive prop pass not accepted"
+      },
+      "liveAnimationTriggers": [
+        "Autonomous sprite clock animation is present in the sampled default state; cosmetic motion is not evidence of provider work, route decisions or external state."
+      ],
+      "anchorContract": "No leisure seat anchor. Footprint is the placement/pathfinding rectangle; upright visual rise is independent of the reserved box.",
+      "directionalArtNeed": "South-only at baseline. For free placement, author side/rear projections rather than rotate the elevation; preserve upright box unless footprint is genuine plan.",
+      "sourceEvidence": {
+        "catalog": "frontend/app/propsprites.js:10805",
+        "geometry": "frontend/app/propsprites.js:11006",
+        "drawState": "frontend/app/propsprites.js:11279",
+        "liveWorld": "frontend/app/world.js:6029"
+      }
+    }
+  },
+  {
+    "id": "bridge_relaystack",
+    "structure": {
+      "label": "RELAY STACK",
+      "family": "capability",
+      "description": "CAPABILITY — gives the agent in this room long-term memory AND its skill library (a notebook it recalls facts from, and where it saves & reloads reusable skills).",
+      "flat": false,
+      "views": {
+        "s": {
+          "key": "bridge_relaystack",
+          "r": 0,
+          "image": "bridge_relaystack.png",
+          "footprint": {
+            "w": 1,
+            "h": 2
+          },
+          "bounds": {
+            "x": 0,
+            "y": -8,
+            "width": 17,
+            "height": 32
+          },
+          "guide": "dev/.scratch-workspace/prop-structure/bridge_relaystack.png"
+        }
+      }
+    },
+    "inventory": {
+      "id": "bridge_relaystack",
+      "label": "RELAY STACK",
+      "family": "capability",
+      "tier": "functional",
+      "oldConcept": "CAPABILITY — gives the agent in this room long-term memory AND its skill library (a notebook it recalls facts from, and where it saves & reloads reusable skills).",
+      "classicBox": {
+        "w": 1,
+        "h": 2
+      },
+      "remasterBox": {
+        "w": 1,
+        "h": 2
+      },
+      "tilePixels": 12,
+      "orientation": {
+        "facings": [
+          {
+            "r": 0,
+            "front": "south",
+            "w": 1,
+            "h": 2,
+            "type": "authored-view"
+          }
+        ],
+        "canMirror": true,
+        "classicFacings": [
+          0
+        ]
+      },
+      "geometry": {
+        "blocks": true,
+        "flat": false,
+        "tableSurface": false,
+        "requiredMount": null,
+        "optionalSurfaceMount": false,
+        "surfaceRisePixels": 8
+      },
+      "assignedWorkstation": false,
+      "leisureUse": null,
+      "capabilityObjectType": "notebook",
+      "animatedCatalogFlag": true,
+      "light": {
+        "c": [
+          120,
+          200,
+          255
+        ],
+        "r": 20,
+        "a": 0.1,
+        "m": "screen",
+        "y": 0.3
+      },
+      "sampledAnimation": {
+        "remaster": {
+          "idleFrameVariants": 9,
+          "workFrameVariants": 9,
+          "respondsToWorkFlag": true,
+          "opaqueBoundsRelativeToFootprint": {
+            "x": 0,
+            "y": -8,
+            "w": 17,
+            "h": 32,
+            "alphaThreshold": 160
+          }
+        },
+        "classic": {
+          "idleFrameVariants": 9,
+          "workFrameVariants": 9,
+          "respondsToWorkFlag": true,
+          "opaqueBoundsRelativeToFootprint": {
+            "x": 0,
+            "y": -8,
+            "w": 17,
+            "h": 32,
+            "alphaThreshold": 160
+          }
+        }
+      },
+      "art": {
+        "implementation": "native-procedural-construction",
+        "assets": [],
+        "detailStatus": "Industrial palette/construction pass exists; no individually authored remaster raster silhouette yet.",
+        "completion": "baseline-audited; comprehensive prop pass not accepted"
+      },
+      "liveAnimationTriggers": [
+        "Real notebook.*, skill.*, recall_conversation, widget.get, widget.set tool completion chooses the granting prop instance and overlays a 900 ms success accent or red failure surge.",
+        "Autonomous sprite clock animation is present in the sampled default state; cosmetic motion is not evidence of provider work, route decisions or external state."
+      ],
+      "anchorContract": "No leisure seat anchor. Footprint is the placement/pathfinding rectangle; upright visual rise is independent of the reserved box.",
+      "directionalArtNeed": "South-only at baseline. For free placement, author side/rear projections rather than rotate the elevation; preserve upright box unless footprint is genuine plan.",
+      "sourceEvidence": {
+        "catalog": "frontend/app/propsprites.js:10778",
+        "geometry": "frontend/app/propsprites.js:11006",
+        "drawState": "frontend/app/propsprites.js:11279",
+        "liveWorld": "frontend/app/world.js:6029"
+      }
+    }
+  },
+  {
+    "id": "bridge_tacscreen",
+    "structure": {
+      "label": "TAC SCREEN",
+      "family": "screens",
+      "flat": false,
+      "views": {
+        "s": {
+          "key": "bridge_tacscreen",
+          "r": 0,
+          "image": "bridge_tacscreen.png",
+          "footprint": {
+            "w": 2,
+            "h": 1
+          },
+          "bounds": {
+            "x": -1,
+            "y": -9,
+            "width": 26,
+            "height": 21
+          },
+          "guide": "dev/.scratch-workspace/prop-structure/bridge_tacscreen.png"
+        }
+      }
+    },
+    "inventory": {
+      "id": "bridge_tacscreen",
+      "label": "TAC SCREEN",
+      "family": "screens",
+      "tier": "cosmetic",
+      "oldConcept": "TAC SCREEN",
+      "classicBox": {
+        "w": 2,
+        "h": 1
+      },
+      "remasterBox": {
+        "w": 2,
+        "h": 1
+      },
+      "tilePixels": 12,
+      "orientation": {
+        "facings": [
+          {
+            "r": 0,
+            "front": "south",
+            "w": 2,
+            "h": 1,
+            "type": "authored-view"
+          }
+        ],
+        "canMirror": false,
+        "classicFacings": [
+          0
+        ]
+      },
+      "geometry": {
+        "blocks": false,
+        "flat": false,
+        "tableSurface": false,
+        "requiredMount": null,
+        "optionalSurfaceMount": false,
+        "surfaceRisePixels": 8
+      },
+      "assignedWorkstation": false,
+      "leisureUse": null,
+      "capabilityObjectType": null,
+      "animatedCatalogFlag": true,
+      "light": {
+        "c": [
+          110,
+          190,
+          255
+        ],
+        "r": 24,
+        "a": 0.12,
+        "m": "screen",
+        "y": 0.35
+      },
+      "sampledAnimation": {
+        "remaster": {
+          "idleFrameVariants": 9,
+          "workFrameVariants": 9,
+          "respondsToWorkFlag": true,
+          "opaqueBoundsRelativeToFootprint": {
+            "x": -1,
+            "y": -9,
+            "w": 26,
+            "h": 21,
+            "alphaThreshold": 160
+          }
+        },
+        "classic": {
+          "idleFrameVariants": 9,
+          "workFrameVariants": 9,
+          "respondsToWorkFlag": true,
+          "opaqueBoundsRelativeToFootprint": {
+            "x": -1,
+            "y": -9,
+            "w": 26,
+            "h": 21,
+            "alphaThreshold": 160
+          }
+        }
+      },
+      "art": {
+        "implementation": "native-procedural-construction",
+        "assets": [],
+        "detailStatus": "Industrial palette/construction pass exists; no individually authored remaster raster silhouette yet.",
+        "completion": "baseline-audited; comprehensive prop pass not accepted"
+      },
+      "liveAnimationTriggers": [
+        "Autonomous sprite clock animation is present in the sampled default state; cosmetic motion is not evidence of provider work, route decisions or external state."
+      ],
+      "anchorContract": "No leisure seat anchor. Footprint is the placement/pathfinding rectangle; upright visual rise is independent of the reserved box.",
+      "directionalArtNeed": "South-only at baseline. For free placement, author side/rear projections rather than rotate the elevation; preserve upright box unless footprint is genuine plan.",
+      "sourceEvidence": {
+        "catalog": "frontend/app/propsprites.js:10803",
+        "geometry": "frontend/app/propsprites.js:11006",
+        "drawState": "frontend/app/propsprites.js:11279",
+        "liveWorld": "frontend/app/world.js:6029"
+      }
+    }
+  },
+  {
+    "id": "calwall",
+    "structure": {
+      "label": "CAL WALL",
+      "family": "screens",
+      "flat": false,
+      "views": {
+        "s": {
+          "key": "calwall",
+          "r": 0,
+          "image": "calwall.png",
+          "footprint": {
+            "w": 6,
+            "h": 1
+          },
+          "bounds": {
+            "x": -1,
+            "y": -8,
+            "width": 74,
+            "height": 20
+          },
+          "guide": "dev/.scratch-workspace/prop-structure/calwall.png"
+        }
+      }
+    },
+    "inventory": {
+      "id": "calwall",
+      "label": "CAL WALL",
+      "family": "screens",
+      "tier": "cosmetic",
+      "oldConcept": "CAL WALL",
+      "classicBox": {
+        "w": 6,
+        "h": 1
+      },
+      "remasterBox": {
+        "w": 6,
+        "h": 1
+      },
+      "tilePixels": 12,
+      "orientation": {
+        "facings": [
+          {
+            "r": 0,
+            "front": "south",
+            "w": 6,
+            "h": 1,
+            "type": "authored-view"
+          }
+        ],
+        "canMirror": false,
+        "classicFacings": [
+          0
+        ]
+      },
+      "geometry": {
+        "blocks": false,
+        "flat": false,
+        "tableSurface": false,
+        "requiredMount": null,
+        "optionalSurfaceMount": false,
+        "surfaceRisePixels": 8
+      },
+      "assignedWorkstation": false,
+      "leisureUse": null,
+      "capabilityObjectType": null,
+      "animatedCatalogFlag": true,
+      "light": {
+        "c": [
+          110,
+          190,
+          255
+        ],
+        "r": 30,
+        "a": 0.1,
+        "m": "screen",
+        "y": 0.35
+      },
+      "sampledAnimation": {
+        "remaster": {
+          "idleFrameVariants": 9,
+          "workFrameVariants": 9,
+          "respondsToWorkFlag": true,
+          "opaqueBoundsRelativeToFootprint": {
+            "x": -1,
+            "y": -8,
+            "w": 74,
+            "h": 20,
+            "alphaThreshold": 160
+          }
+        },
+        "classic": {
+          "idleFrameVariants": 9,
+          "workFrameVariants": 9,
+          "respondsToWorkFlag": true,
+          "opaqueBoundsRelativeToFootprint": {
+            "x": -1,
+            "y": -8,
+            "w": 74,
+            "h": 20,
+            "alphaThreshold": 160
+          }
+        }
+      },
+      "art": {
+        "implementation": "native-procedural-construction",
+        "assets": [],
+        "detailStatus": "Industrial palette/construction pass exists; no individually authored remaster raster silhouette yet.",
+        "completion": "baseline-audited; comprehensive prop pass not accepted"
+      },
+      "liveAnimationTriggers": [
+        "Autonomous sprite clock animation is present in the sampled default state; cosmetic motion is not evidence of provider work, route decisions or external state."
+      ],
+      "anchorContract": "No leisure seat anchor. Footprint is the placement/pathfinding rectangle; upright visual rise is independent of the reserved box.",
+      "directionalArtNeed": "South-only at baseline. For free placement, author side/rear projections rather than rotate the elevation; preserve upright box unless footprint is genuine plan.",
+      "sourceEvidence": {
+        "catalog": "frontend/app/propsprites.js:10802",
+        "geometry": "frontend/app/propsprites.js:11006",
+        "drawState": "frontend/app/propsprites.js:11279",
+        "liveWorld": "frontend/app/world.js:6029"
+      }
+    }
+  },
+  {
+    "id": "camerarig",
+    "structure": {
+      "label": "CAMERA RIG ‹",
+      "family": "decor",
+      "flat": false,
+      "views": {
+        "s": {
+          "key": "camerarig",
+          "r": 0,
+          "image": "camerarig.png",
+          "footprint": {
+            "w": 1,
+            "h": 2
+          },
+          "bounds": {
+            "x": -1,
+            "y": -6,
+            "width": 15,
+            "height": 29
+          },
+          "guide": "dev/.scratch-workspace/prop-structure/camerarig.png"
+        }
+      }
+    },
+    "inventory": {
+      "id": "camerarig",
+      "label": "CAMERA RIG ‹",
+      "family": "decor",
+      "tier": "cosmetic",
+      "oldConcept": "CAMERA RIG ‹",
+      "classicBox": {
+        "w": 1,
+        "h": 2
+      },
+      "remasterBox": {
+        "w": 1,
+        "h": 2
+      },
+      "tilePixels": 12,
+      "orientation": {
+        "facings": [
+          {
+            "r": 0,
+            "front": "south",
+            "w": 1,
+            "h": 2,
+            "type": "authored-view"
+          }
+        ],
+        "canMirror": true,
+        "classicFacings": [
+          0
+        ]
+      },
+      "geometry": {
+        "blocks": true,
+        "flat": false,
+        "tableSurface": false,
+        "requiredMount": null,
+        "optionalSurfaceMount": false,
+        "surfaceRisePixels": 8
+      },
+      "assignedWorkstation": false,
+      "leisureUse": null,
+      "capabilityObjectType": null,
+      "animatedCatalogFlag": true,
+      "light": null,
+      "sampledAnimation": {
+        "remaster": {
+          "idleFrameVariants": 2,
+          "workFrameVariants": 2,
+          "respondsToWorkFlag": false,
+          "opaqueBoundsRelativeToFootprint": {
+            "x": -1,
+            "y": -6,
+            "w": 15,
+            "h": 29,
+            "alphaThreshold": 160
+          }
+        },
+        "classic": {
+          "idleFrameVariants": 2,
+          "workFrameVariants": 2,
+          "respondsToWorkFlag": false,
+          "opaqueBoundsRelativeToFootprint": {
+            "x": -1,
+            "y": -6,
+            "w": 15,
+            "h": 29,
+            "alphaThreshold": 160
+          }
+        }
+      },
+      "art": {
+        "implementation": "native-procedural-construction",
+        "assets": [],
+        "detailStatus": "Industrial palette/construction pass exists; no individually authored remaster raster silhouette yet.",
+        "completion": "baseline-audited; comprehensive prop pass not accepted"
+      },
+      "liveAnimationTriggers": [
+        "Autonomous sprite clock animation is present in the sampled default state; cosmetic motion is not evidence of provider work, route decisions or external state."
+      ],
+      "anchorContract": "No leisure seat anchor. Footprint is the placement/pathfinding rectangle; upright visual rise is independent of the reserved box.",
+      "directionalArtNeed": "South-only at baseline. For free placement, author side/rear projections rather than rotate the elevation; preserve upright box unless footprint is genuine plan.",
+      "sourceEvidence": {
+        "catalog": "frontend/app/propsprites.js:10943",
+        "geometry": "frontend/app/propsprites.js:11006",
+        "drawState": "frontend/app/propsprites.js:11279",
+        "liveWorld": "frontend/app/world.js:6029"
+      }
+    }
+  },
+  {
+    "id": "camerarig_r",
+    "structure": {
+      "label": "CAMERA RIG ›",
+      "family": "decor",
+      "flat": false,
+      "views": {
+        "s": {
+          "key": "camerarig_r",
+          "r": 0,
+          "image": "camerarig_r.png",
+          "footprint": {
+            "w": 1,
+            "h": 2
+          },
+          "bounds": {
+            "x": -2,
+            "y": -6,
+            "width": 15,
+            "height": 29
+          },
+          "guide": "dev/.scratch-workspace/prop-structure/camerarig_r.png"
+        }
+      }
+    },
+    "inventory": {
+      "id": "camerarig_r",
+      "label": "CAMERA RIG ›",
+      "family": "decor",
+      "tier": "cosmetic",
+      "oldConcept": "CAMERA RIG ›",
+      "classicBox": {
+        "w": 1,
+        "h": 2
+      },
+      "remasterBox": {
+        "w": 1,
+        "h": 2
+      },
+      "tilePixels": 12,
+      "orientation": {
+        "facings": [
+          {
+            "r": 0,
+            "front": "south",
+            "w": 1,
+            "h": 2,
+            "type": "authored-view"
+          }
+        ],
+        "canMirror": true,
+        "classicFacings": [
+          0
+        ]
+      },
+      "geometry": {
+        "blocks": true,
+        "flat": false,
+        "tableSurface": false,
+        "requiredMount": null,
+        "optionalSurfaceMount": false,
+        "surfaceRisePixels": 8
+      },
+      "assignedWorkstation": false,
+      "leisureUse": null,
+      "capabilityObjectType": null,
+      "animatedCatalogFlag": true,
+      "light": null,
+      "sampledAnimation": {
+        "remaster": {
+          "idleFrameVariants": 2,
+          "workFrameVariants": 2,
+          "respondsToWorkFlag": false,
+          "opaqueBoundsRelativeToFootprint": {
+            "x": -2,
+            "y": -6,
+            "w": 15,
+            "h": 29,
+            "alphaThreshold": 160
+          }
+        },
+        "classic": {
+          "idleFrameVariants": 2,
+          "workFrameVariants": 2,
+          "respondsToWorkFlag": false,
+          "opaqueBoundsRelativeToFootprint": {
+            "x": -2,
+            "y": -6,
+            "w": 15,
+            "h": 29,
+            "alphaThreshold": 160
+          }
+        }
+      },
+      "art": {
+        "implementation": "native-procedural-construction",
+        "assets": [],
+        "detailStatus": "Industrial palette/construction pass exists; no individually authored remaster raster silhouette yet.",
+        "completion": "baseline-audited; comprehensive prop pass not accepted"
+      },
+      "liveAnimationTriggers": [
+        "Autonomous sprite clock animation is present in the sampled default state; cosmetic motion is not evidence of provider work, route decisions or external state."
+      ],
+      "anchorContract": "No leisure seat anchor. Footprint is the placement/pathfinding rectangle; upright visual rise is independent of the reserved box.",
+      "directionalArtNeed": "South-only at baseline. For free placement, author side/rear projections rather than rotate the elevation; preserve upright box unless footprint is genuine plan.",
+      "sourceEvidence": {
+        "catalog": "frontend/app/propsprites.js:10944",
+        "geometry": "frontend/app/propsprites.js:11006",
+        "drawState": "frontend/app/propsprites.js:11279",
+        "liveWorld": "frontend/app/world.js:6029"
+      }
+    }
+  },
+  {
+    "id": "chartwall",
+    "structure": {
+      "label": "CHART WALL",
+      "family": "screens",
+      "flat": false,
+      "views": {
+        "s": {
+          "key": "chartwall",
+          "r": 0,
+          "image": "chartwall.png",
+          "footprint": {
+            "w": 3,
+            "h": 1
+          },
+          "bounds": {
+            "x": -1,
+            "y": -10,
+            "width": 38,
+            "height": 22
+          },
+          "guide": "dev/.scratch-workspace/prop-structure/chartwall.png"
+        }
+      }
+    },
+    "inventory": {
+      "id": "chartwall",
+      "label": "CHART WALL",
+      "family": "screens",
+      "tier": "cosmetic",
+      "oldConcept": "CHART WALL",
+      "classicBox": {
+        "w": 3,
+        "h": 1
+      },
+      "remasterBox": {
+        "w": 3,
+        "h": 1
+      },
+      "tilePixels": 12,
+      "orientation": {
+        "facings": [
+          {
+            "r": 0,
+            "front": "south",
+            "w": 3,
+            "h": 1,
+            "type": "authored-view"
+          }
+        ],
+        "canMirror": false,
+        "classicFacings": [
+          0
+        ]
+      },
+      "geometry": {
+        "blocks": false,
+        "flat": false,
+        "tableSurface": false,
+        "requiredMount": null,
+        "optionalSurfaceMount": false,
+        "surfaceRisePixels": 8
+      },
+      "assignedWorkstation": false,
+      "leisureUse": null,
+      "capabilityObjectType": null,
+      "animatedCatalogFlag": true,
+      "light": {
+        "c": [
+          110,
+          190,
+          255
+        ],
+        "r": 26,
+        "a": 0.1,
+        "m": "screen",
+        "y": 0.35
+      },
+      "sampledAnimation": {
+        "remaster": {
+          "idleFrameVariants": 8,
+          "workFrameVariants": 9,
+          "respondsToWorkFlag": true,
+          "opaqueBoundsRelativeToFootprint": {
+            "x": -1,
+            "y": -10,
+            "w": 38,
+            "h": 22,
+            "alphaThreshold": 160
+          }
+        },
+        "classic": {
+          "idleFrameVariants": 8,
+          "workFrameVariants": 9,
+          "respondsToWorkFlag": true,
+          "opaqueBoundsRelativeToFootprint": {
+            "x": -1,
+            "y": -10,
+            "w": 38,
+            "h": 22,
+            "alphaThreshold": 160
+          }
+        }
+      },
+      "art": {
+        "implementation": "native-procedural-construction",
+        "assets": [],
+        "detailStatus": "Industrial palette/construction pass exists; no individually authored remaster raster silhouette yet.",
+        "completion": "baseline-audited; comprehensive prop pass not accepted"
+      },
+      "liveAnimationTriggers": [
+        "Autonomous sprite clock animation is present in the sampled default state; cosmetic motion is not evidence of provider work, route decisions or external state."
+      ],
+      "anchorContract": "No leisure seat anchor. Footprint is the placement/pathfinding rectangle; upright visual rise is independent of the reserved box.",
+      "directionalArtNeed": "South-only at baseline. For free placement, author side/rear projections rather than rotate the elevation; preserve upright box unless footprint is genuine plan.",
+      "sourceEvidence": {
+        "catalog": "frontend/app/propsprites.js:10800",
+        "geometry": "frontend/app/propsprites.js:11006",
+        "drawState": "frontend/app/propsprites.js:11279",
+        "liveWorld": "frontend/app/world.js:6029"
+      }
+    }
+  },
+  {
+    "id": "comms_inbox",
+    "structure": {
+      "label": "INBOX",
+      "family": "comms",
+      "flat": false,
+      "views": {
+        "s": {
+          "key": "comms_inbox",
+          "r": 0,
+          "image": "comms_inbox.png",
+          "footprint": {
+            "w": 2,
+            "h": 1
+          },
+          "bounds": {
+            "x": -1,
+            "y": -8,
+            "width": 30,
+            "height": 20
+          },
+          "guide": "dev/.scratch-workspace/prop-structure/comms_inbox.png"
+        }
+      }
+    },
+    "inventory": {
+      "id": "comms_inbox",
+      "label": "INBOX",
+      "family": "comms",
+      "tier": "cosmetic",
+      "oldConcept": "INBOX",
+      "classicBox": {
+        "w": 2,
+        "h": 1
+      },
+      "remasterBox": {
+        "w": 2,
+        "h": 1
+      },
+      "tilePixels": 12,
+      "orientation": {
+        "facings": [
+          {
+            "r": 0,
+            "front": "south",
+            "w": 2,
+            "h": 1,
+            "type": "authored-view"
+          }
+        ],
+        "canMirror": true,
+        "classicFacings": [
+          0
+        ]
+      },
+      "geometry": {
+        "blocks": true,
+        "flat": false,
+        "tableSurface": false,
+        "requiredMount": null,
+        "optionalSurfaceMount": false,
+        "surfaceRisePixels": 8
+      },
+      "assignedWorkstation": false,
+      "leisureUse": null,
+      "capabilityObjectType": null,
+      "animatedCatalogFlag": true,
+      "light": {
+        "c": [
+          255,
+          190,
+          110
+        ],
+        "r": 16,
+        "a": 0.06,
+        "m": "steady",
+        "y": 0.4
+      },
+      "sampledAnimation": {
+        "remaster": {
+          "idleFrameVariants": 9,
+          "workFrameVariants": 9,
+          "respondsToWorkFlag": true,
+          "opaqueBoundsRelativeToFootprint": {
+            "x": -1,
+            "y": -8,
+            "w": 30,
+            "h": 20,
+            "alphaThreshold": 160
+          }
+        },
+        "classic": {
+          "idleFrameVariants": 9,
+          "workFrameVariants": 9,
+          "respondsToWorkFlag": true,
+          "opaqueBoundsRelativeToFootprint": {
+            "x": -1,
+            "y": -8,
+            "w": 30,
+            "h": 20,
+            "alphaThreshold": 160
+          }
+        }
+      },
+      "art": {
+        "implementation": "native-procedural-construction",
+        "assets": [],
+        "detailStatus": "Industrial palette/construction pass exists; no individually authored remaster raster silhouette yet.",
+        "completion": "baseline-audited; comprehensive prop pass not accepted"
+      },
+      "liveAnimationTriggers": [
+        "Autonomous sprite clock animation is present in the sampled default state; cosmetic motion is not evidence of provider work, route decisions or external state."
+      ],
+      "anchorContract": "No leisure seat anchor. Footprint is the placement/pathfinding rectangle; upright visual rise is independent of the reserved box.",
+      "directionalArtNeed": "South-only at baseline. For free placement, author side/rear projections rather than rotate the elevation; preserve upright box unless footprint is genuine plan.",
+      "sourceEvidence": {
+        "catalog": "frontend/app/propsprites.js:10835",
+        "geometry": "frontend/app/propsprites.js:11006",
+        "drawState": "frontend/app/propsprites.js:11279",
+        "liveWorld": "frontend/app/world.js:6029"
+      }
+    }
+  },
+  {
+    "id": "commswall",
+    "structure": {
+      "label": "COMMS WALL",
+      "family": "comms",
+      "flat": false,
+      "views": {
+        "s": {
+          "key": "commswall",
+          "r": 0,
+          "image": "commswall.png",
+          "footprint": {
+            "w": 6,
+            "h": 1
+          },
+          "bounds": {
+            "x": -1,
+            "y": -13,
+            "width": 74,
+            "height": 23
+          },
+          "guide": "dev/.scratch-workspace/prop-structure/commswall.png"
+        }
+      }
+    },
+    "inventory": {
+      "id": "commswall",
+      "label": "COMMS WALL",
+      "family": "comms",
+      "tier": "cosmetic",
+      "oldConcept": "COMMS WALL",
+      "classicBox": {
+        "w": 6,
+        "h": 1
+      },
+      "remasterBox": {
+        "w": 6,
+        "h": 1
+      },
+      "tilePixels": 12,
+      "orientation": {
+        "facings": [
+          {
+            "r": 0,
+            "front": "south",
+            "w": 6,
+            "h": 1,
+            "type": "authored-view"
+          }
+        ],
+        "canMirror": true,
+        "classicFacings": [
+          0
+        ]
+      },
+      "geometry": {
+        "blocks": false,
+        "flat": false,
+        "tableSurface": false,
+        "requiredMount": null,
+        "optionalSurfaceMount": false,
+        "surfaceRisePixels": 8
+      },
+      "assignedWorkstation": false,
+      "leisureUse": null,
+      "capabilityObjectType": null,
+      "animatedCatalogFlag": true,
+      "light": {
+        "c": [
+          110,
+          190,
+          255
+        ],
+        "r": 42,
+        "a": 0.1,
+        "m": "screen",
+        "y": 0.35
+      },
+      "sampledAnimation": {
+        "remaster": {
+          "idleFrameVariants": 9,
+          "workFrameVariants": 9,
+          "respondsToWorkFlag": true,
+          "opaqueBoundsRelativeToFootprint": {
+            "x": -1,
+            "y": -13,
+            "w": 74,
+            "h": 23,
+            "alphaThreshold": 160
+          }
+        },
+        "classic": {
+          "idleFrameVariants": 9,
+          "workFrameVariants": 9,
+          "respondsToWorkFlag": true,
+          "opaqueBoundsRelativeToFootprint": {
+            "x": -1,
+            "y": -13,
+            "w": 74,
+            "h": 23,
+            "alphaThreshold": 160
+          }
+        }
+      },
+      "art": {
+        "implementation": "native-procedural-construction",
+        "assets": [],
+        "detailStatus": "Industrial palette/construction pass exists; no individually authored remaster raster silhouette yet.",
+        "completion": "baseline-audited; comprehensive prop pass not accepted"
+      },
+      "liveAnimationTriggers": [
+        "Autonomous sprite clock animation is present in the sampled default state; cosmetic motion is not evidence of provider work, route decisions or external state."
+      ],
+      "anchorContract": "No leisure seat anchor. Footprint is the placement/pathfinding rectangle; upright visual rise is independent of the reserved box.",
+      "directionalArtNeed": "South-only at baseline. For free placement, author side/rear projections rather than rotate the elevation; preserve upright box unless footprint is genuine plan.",
+      "sourceEvidence": {
+        "catalog": "frontend/app/propsprites.js:10834",
+        "geometry": "frontend/app/propsprites.js:11006",
+        "drawState": "frontend/app/propsprites.js:11279",
+        "liveWorld": "frontend/app/world.js:6029"
+      }
+    }
+  },
+  {
+    "id": "crt_pile",
+    "structure": {
+      "label": "CRT PILE",
+      "family": "decor",
+      "flat": false,
+      "views": {
+        "s": {
+          "key": "crt_pile",
+          "r": 0,
+          "image": "crt_pile.png",
+          "footprint": {
+            "w": 1,
+            "h": 1
+          },
+          "bounds": {
+            "x": -1,
+            "y": -4,
+            "width": 12,
+            "height": 17
+          },
+          "guide": "dev/.scratch-workspace/prop-structure/crt_pile.png"
+        }
+      }
+    },
+    "inventory": {
+      "id": "crt_pile",
+      "label": "CRT PILE",
+      "family": "decor",
+      "tier": "cosmetic",
+      "oldConcept": "CRT PILE",
+      "classicBox": {
+        "w": 1,
+        "h": 1
+      },
+      "remasterBox": {
+        "w": 1,
+        "h": 1
+      },
+      "tilePixels": 12,
+      "orientation": {
+        "facings": [
+          {
+            "r": 0,
+            "front": "south",
+            "w": 1,
+            "h": 1,
+            "type": "authored-view"
+          }
+        ],
+        "canMirror": true,
+        "classicFacings": [
+          0
+        ]
+      },
+      "geometry": {
+        "blocks": true,
+        "flat": false,
+        "tableSurface": false,
+        "requiredMount": null,
+        "optionalSurfaceMount": true,
+        "surfaceRisePixels": 8
+      },
+      "assignedWorkstation": false,
+      "leisureUse": null,
+      "capabilityObjectType": null,
+      "animatedCatalogFlag": true,
+      "light": {
+        "c": [
+          98,
+          255,
+          158
+        ],
+        "r": 14,
+        "a": 0.06,
+        "m": "screen",
+        "y": 0.4
+      },
+      "sampledAnimation": {
+        "remaster": {
+          "idleFrameVariants": 2,
+          "workFrameVariants": 2,
+          "respondsToWorkFlag": false,
+          "opaqueBoundsRelativeToFootprint": {
+            "x": -1,
+            "y": -4,
+            "w": 12,
+            "h": 17,
+            "alphaThreshold": 160
+          }
+        },
+        "classic": {
+          "idleFrameVariants": 2,
+          "workFrameVariants": 2,
+          "respondsToWorkFlag": false,
+          "opaqueBoundsRelativeToFootprint": {
+            "x": -1,
+            "y": -4,
+            "w": 12,
+            "h": 17,
+            "alphaThreshold": 160
+          }
+        }
+      },
+      "art": {
+        "implementation": "native-procedural-construction",
+        "assets": [],
+        "detailStatus": "Industrial palette/construction pass exists; no individually authored remaster raster silhouette yet.",
+        "completion": "baseline-audited; comprehensive prop pass not accepted"
+      },
+      "liveAnimationTriggers": [
+        "Autonomous sprite clock animation is present in the sampled default state; cosmetic motion is not evidence of provider work, route decisions or external state."
+      ],
+      "anchorContract": "Can sit on bare deck or valid table; table mount lifts contact origin exactly 8 world pixels.",
+      "directionalArtNeed": "South-only at baseline. For free placement, author side/rear projections rather than rotate the elevation; preserve upright box unless footprint is genuine plan.",
+      "sourceEvidence": {
+        "catalog": "frontend/app/propsprites.js:10907",
+        "geometry": "frontend/app/propsprites.js:11006",
+        "drawState": "frontend/app/propsprites.js:11279",
+        "liveWorld": "frontend/app/world.js:6029"
+      }
+    }
+  },
+  {
+    "id": "desk2",
+    "structure": {
+      "label": "DESK ×2",
+      "family": "workstation",
+      "description": "WORKSTATION — assign an agent here and it walks over and sits to work whenever it gets a task.",
+      "flat": false,
+      "views": {
+        "s": {
+          "key": "desk2",
+          "r": 0,
+          "image": "desk2.png",
+          "footprint": {
+            "w": 3,
+            "h": 1
+          },
+          "bounds": {
+            "x": -1,
+            "y": -11,
+            "width": 38,
+            "height": 23
+          },
+          "guide": "dev/.scratch-workspace/prop-structure/desk2.png"
+        },
+        "w": {
+          "key": "desk2-r1",
+          "r": 1,
+          "image": "desk2-r1.png",
+          "footprint": {
+            "w": 1,
+            "h": 3
+          },
+          "bounds": {
+            "x": -3,
+            "y": -5,
+            "width": 18,
+            "height": 41
+          },
+          "guide": "dev/.scratch-workspace/prop-structure/desk2-r1.png"
+        },
+        "n": {
+          "key": "desk2-r2",
+          "r": 2,
+          "image": "desk2-r2.png",
+          "footprint": {
+            "w": 3,
+            "h": 1
+          },
+          "bounds": {
+            "x": -2,
+            "y": -11,
+            "width": 40,
+            "height": 23
+          },
+          "guide": "dev/.scratch-workspace/prop-structure/desk2-r2.png"
+        },
+        "e": {
+          "key": "desk2-r3",
+          "r": 3,
+          "image": "desk2-r3.png",
+          "footprint": {
+            "w": 1,
+            "h": 3
+          },
+          "bounds": {
+            "x": -3,
+            "y": -5,
+            "width": 18,
+            "height": 41
+          },
+          "guide": "dev/.scratch-workspace/prop-structure/desk2-r3.png"
+        }
+      }
+    },
+    "inventory": {
+      "id": "desk2",
+      "label": "DESK ×2",
+      "family": "workstation",
+      "tier": "functional",
+      "oldConcept": "WORKSTATION — assign an agent here and it walks over and sits to work whenever it gets a task.",
+      "classicBox": {
+        "w": 2,
+        "h": 1
+      },
+      "remasterBox": {
+        "w": 3,
+        "h": 1
+      },
+      "tilePixels": 12,
+      "orientation": {
+        "facings": [
+          {
+            "r": 0,
+            "front": "south",
+            "w": 3,
+            "h": 1,
+            "type": "authored-view"
+          },
+          {
+            "r": 1,
+            "front": "west",
+            "w": 1,
+            "h": 3,
+            "type": "mirrored-authored-view"
+          },
+          {
+            "r": 2,
+            "front": "north",
+            "w": 3,
+            "h": 1,
+            "type": "authored-view"
+          },
+          {
+            "r": 3,
+            "front": "east",
+            "w": 1,
+            "h": 3,
+            "type": "authored-view"
+          }
+        ],
+        "canMirror": true,
+        "classicFacings": [
+          0
+        ]
+      },
+      "geometry": {
+        "blocks": true,
+        "flat": false,
+        "tableSurface": false,
+        "requiredMount": null,
+        "optionalSurfaceMount": false,
+        "surfaceRisePixels": 8
+      },
+      "assignedWorkstation": true,
+      "leisureUse": null,
+      "capabilityObjectType": "computer",
+      "animatedCatalogFlag": true,
+      "light": {
+        "c": [
+          98,
+          255,
+          158
+        ],
+        "r": 28,
+        "a": 0.18,
+        "m": "screen",
+        "work": 1,
+        "y": 0.25
+      },
+      "sampledAnimation": {
+        "remaster": {
+          "idleFrameVariants": 1,
+          "workFrameVariants": 1,
+          "respondsToWorkFlag": false,
+          "opaqueBoundsRelativeToFootprint": {
+            "x": -1,
+            "y": -11,
+            "w": 38,
+            "h": 23,
+            "alphaThreshold": 160
+          }
+        },
+        "classic": {
+          "idleFrameVariants": 1,
+          "workFrameVariants": 9,
+          "respondsToWorkFlag": true,
+          "opaqueBoundsRelativeToFootprint": {
+            "x": -1,
+            "y": -15,
+            "w": 30,
+            "h": 27,
+            "alphaThreshold": 160
+          }
+        }
+      },
+      "art": {
+        "implementation": "authored-reference-raster",
+        "assets": [
+          "frontend/assets/industrial/workstation.png",
+          "frontend/assets/industrial/workstation-compact.png",
+          "frontend/assets/industrial/remaster/workstation-e.png",
+          "frontend/assets/industrial/remaster/workstation-n.png",
+          "frontend/assets/industrial/remaster/workstation-compact-n.png"
+        ],
+        "detailStatus": "Reference-derived silhouette exists; exact dimensions, state masks and views still require final acceptance.",
+        "completion": "baseline-audited; comprehensive prop pass not accepted"
+      },
+      "liveAnimationTriggers": [
+        "world.workstationLit: assigned hero.working or assigned crew.working with compute eligibility; real token/tool heat and only a published progress fraction. At this baseline this is work-state gating, not strict physical occupancy."
+      ],
+      "anchorContract": "deskSeat: adjacent walkable center-out approach; desk/desk2 respect remaster facing, others stay south. Fractional render center shifts at most half a tile; separate generated seatchair.",
+      "directionalArtNeed": "Keep offered authored projections and mirror semantics. Verify contact, standing height, occlusion and seat/mount geometry in every offered facing.",
+      "sourceEvidence": {
+        "catalog": "frontend/app/propsprites.js:10742",
+        "geometry": "frontend/app/propsprites.js:11006",
+        "drawState": "frontend/app/propsprites.js:11279",
+        "liveWorld": "frontend/app/world.js:6029"
+      }
+    }
+  },
+  {
+    "id": "deskterminal",
+    "structure": {
+      "label": "TERMINAL",
+      "family": "decor",
+      "flat": false,
+      "views": {
+        "s": {
+          "key": "deskterminal",
+          "r": 0,
+          "image": "deskterminal.png",
+          "footprint": {
+            "w": 1,
+            "h": 1
+          },
+          "bounds": {
+            "x": 0,
+            "y": 0,
+            "width": 12,
+            "height": 12
+          },
+          "guide": "dev/.scratch-workspace/prop-structure/deskterminal.png"
+        }
+      }
+    },
+    "inventory": {
+      "id": "deskterminal",
+      "label": "TERMINAL",
+      "family": "decor",
+      "tier": "cosmetic",
+      "oldConcept": "TERMINAL",
+      "classicBox": {
+        "w": 1,
+        "h": 1
+      },
+      "remasterBox": {
+        "w": 1,
+        "h": 1
+      },
+      "tilePixels": 12,
+      "orientation": {
+        "facings": [
+          {
+            "r": 0,
+            "front": "south",
+            "w": 1,
+            "h": 1,
+            "type": "authored-view"
+          }
+        ],
+        "canMirror": true,
+        "classicFacings": [
+          0
+        ]
+      },
+      "geometry": {
+        "blocks": false,
+        "flat": false,
+        "tableSurface": false,
+        "requiredMount": null,
+        "optionalSurfaceMount": true,
+        "surfaceRisePixels": 8
+      },
+      "assignedWorkstation": false,
+      "leisureUse": null,
+      "capabilityObjectType": null,
+      "animatedCatalogFlag": true,
+      "light": {
+        "c": [
+          98,
+          255,
+          158
+        ],
+        "r": 18,
+        "a": 0.1,
+        "m": "screen",
+        "y": 0.35
+      },
+      "sampledAnimation": {
+        "remaster": {
+          "idleFrameVariants": 9,
+          "workFrameVariants": 9,
+          "respondsToWorkFlag": true,
+          "opaqueBoundsRelativeToFootprint": {
+            "x": 0,
+            "y": 0,
+            "w": 12,
+            "h": 12,
+            "alphaThreshold": 160
+          }
+        },
+        "classic": {
+          "idleFrameVariants": 9,
+          "workFrameVariants": 9,
+          "respondsToWorkFlag": true,
+          "opaqueBoundsRelativeToFootprint": {
+            "x": 0,
+            "y": 0,
+            "w": 12,
+            "h": 12,
+            "alphaThreshold": 160
+          }
+        }
+      },
+      "art": {
+        "implementation": "native-procedural-construction",
+        "assets": [],
+        "detailStatus": "Industrial palette/construction pass exists; no individually authored remaster raster silhouette yet.",
+        "completion": "baseline-audited; comprehensive prop pass not accepted"
+      },
+      "liveAnimationTriggers": [
+        "Autonomous sprite clock animation is present in the sampled default state; cosmetic motion is not evidence of provider work, route decisions or external state."
+      ],
+      "anchorContract": "Can sit on bare deck or valid table; table mount lifts contact origin exactly 8 world pixels.",
+      "directionalArtNeed": "South-only at baseline. For free placement, author side/rear projections rather than rotate the elevation; preserve upright box unless footprint is genuine plan.",
+      "sourceEvidence": {
+        "catalog": "frontend/app/propsprites.js:10926",
+        "geometry": "frontend/app/propsprites.js:11006",
+        "drawState": "frontend/app/propsprites.js:11279",
+        "liveWorld": "frontend/app/world.js:6029"
+      }
+    }
+  },
+  {
+    "id": "gigs_amp",
+    "structure": {
+      "label": "AMP",
+      "family": "comms",
+      "flat": false,
+      "views": {
+        "s": {
+          "key": "gigs_amp",
+          "r": 0,
+          "image": "gigs_amp.png",
+          "footprint": {
+            "w": 1,
+            "h": 1
+          },
+          "bounds": {
+            "x": -1,
+            "y": -7,
+            "width": 16,
+            "height": 20
+          },
+          "guide": "dev/.scratch-workspace/prop-structure/gigs_amp.png"
+        }
+      }
+    },
+    "inventory": {
+      "id": "gigs_amp",
+      "label": "AMP",
+      "family": "comms",
+      "tier": "cosmetic",
+      "oldConcept": "AMP",
+      "classicBox": {
+        "w": 1,
+        "h": 1
+      },
+      "remasterBox": {
+        "w": 1,
+        "h": 1
+      },
+      "tilePixels": 12,
+      "orientation": {
+        "facings": [
+          {
+            "r": 0,
+            "front": "south",
+            "w": 1,
+            "h": 1,
+            "type": "authored-view"
+          }
+        ],
+        "canMirror": false,
+        "classicFacings": [
+          0
+        ]
+      },
+      "geometry": {
+        "blocks": true,
+        "flat": false,
+        "tableSurface": false,
+        "requiredMount": null,
+        "optionalSurfaceMount": true,
+        "surfaceRisePixels": 8
+      },
+      "assignedWorkstation": false,
+      "leisureUse": null,
+      "capabilityObjectType": null,
+      "animatedCatalogFlag": true,
+      "light": {
+        "c": [
+          255,
+          120,
+          120
+        ],
+        "r": 14,
+        "a": 0.08,
+        "m": "pulse",
+        "y": 0.4
+      },
+      "sampledAnimation": {
+        "remaster": {
+          "idleFrameVariants": 9,
+          "workFrameVariants": 9,
+          "respondsToWorkFlag": true,
+          "opaqueBoundsRelativeToFootprint": {
+            "x": -1,
+            "y": -7,
+            "w": 16,
+            "h": 20,
+            "alphaThreshold": 160
+          }
+        },
+        "classic": {
+          "idleFrameVariants": 9,
+          "workFrameVariants": 9,
+          "respondsToWorkFlag": true,
+          "opaqueBoundsRelativeToFootprint": {
+            "x": -1,
+            "y": -7,
+            "w": 16,
+            "h": 20,
+            "alphaThreshold": 160
+          }
+        }
+      },
+      "art": {
+        "implementation": "native-procedural-construction",
+        "assets": [],
+        "detailStatus": "Industrial palette/construction pass exists; no individually authored remaster raster silhouette yet.",
+        "completion": "baseline-audited; comprehensive prop pass not accepted"
+      },
+      "liveAnimationTriggers": [
+        "Autonomous sprite clock animation is present in the sampled default state; cosmetic motion is not evidence of provider work, route decisions or external state."
+      ],
+      "anchorContract": "Can sit on bare deck or valid table; table mount lifts contact origin exactly 8 world pixels.",
+      "directionalArtNeed": "South-only at baseline. For free placement, author side/rear projections rather than rotate the elevation; preserve upright box unless footprint is genuine plan.",
+      "sourceEvidence": {
+        "catalog": "frontend/app/propsprites.js:10837",
+        "geometry": "frontend/app/propsprites.js:11006",
+        "drawState": "frontend/app/propsprites.js:11279",
+        "liveWorld": "frontend/app/world.js:6029"
+      }
+    }
+  },
+  {
+    "id": "gigs_partsbin",
+    "structure": {
+      "label": "PARTS BIN",
+      "family": "storage",
+      "flat": false,
+      "views": {
+        "s": {
+          "key": "gigs_partsbin",
+          "r": 0,
+          "image": "gigs_partsbin.png",
+          "footprint": {
+            "w": 2,
+            "h": 1
+          },
+          "bounds": {
+            "x": -1,
+            "y": -7,
+            "width": 26,
+            "height": 19
+          },
+          "guide": "dev/.scratch-workspace/prop-structure/gigs_partsbin.png"
+        }
+      }
+    },
+    "inventory": {
+      "id": "gigs_partsbin",
+      "label": "PARTS BIN",
+      "family": "storage",
+      "tier": "cosmetic",
+      "oldConcept": "PARTS BIN",
+      "classicBox": {
+        "w": 2,
+        "h": 1
+      },
+      "remasterBox": {
+        "w": 2,
+        "h": 1
+      },
+      "tilePixels": 12,
+      "orientation": {
+        "facings": [
+          {
+            "r": 0,
+            "front": "south",
+            "w": 2,
+            "h": 1,
+            "type": "authored-view"
+          }
+        ],
+        "canMirror": true,
+        "classicFacings": [
+          0
+        ]
+      },
+      "geometry": {
+        "blocks": true,
+        "flat": false,
+        "tableSurface": false,
+        "requiredMount": null,
+        "optionalSurfaceMount": true,
+        "surfaceRisePixels": 8
+      },
+      "assignedWorkstation": false,
+      "leisureUse": null,
+      "capabilityObjectType": null,
+      "animatedCatalogFlag": true,
+      "light": null,
+      "sampledAnimation": {
+        "remaster": {
+          "idleFrameVariants": 2,
+          "workFrameVariants": 2,
+          "respondsToWorkFlag": false,
+          "opaqueBoundsRelativeToFootprint": {
+            "x": -1,
+            "y": -7,
+            "w": 26,
+            "h": 19,
+            "alphaThreshold": 160
+          }
+        },
+        "classic": {
+          "idleFrameVariants": 2,
+          "workFrameVariants": 2,
+          "respondsToWorkFlag": false,
+          "opaqueBoundsRelativeToFootprint": {
+            "x": -1,
+            "y": -7,
+            "w": 26,
+            "h": 19,
+            "alphaThreshold": 160
+          }
+        }
+      },
+      "art": {
+        "implementation": "native-procedural-construction",
+        "assets": [],
+        "detailStatus": "Industrial palette/construction pass exists; no individually authored remaster raster silhouette yet.",
+        "completion": "baseline-audited; comprehensive prop pass not accepted"
+      },
+      "liveAnimationTriggers": [
+        "Autonomous sprite clock animation is present in the sampled default state; cosmetic motion is not evidence of provider work, route decisions or external state."
+      ],
+      "anchorContract": "Can sit on bare deck or valid table; table mount lifts contact origin exactly 8 world pixels.",
+      "directionalArtNeed": "South-only at baseline. For free placement, author side/rear projections rather than rotate the elevation; preserve upright box unless footprint is genuine plan.",
+      "sourceEvidence": {
+        "catalog": "frontend/app/propsprites.js:10830",
+        "geometry": "frontend/app/propsprites.js:11006",
+        "drawState": "frontend/app/propsprites.js:11279",
+        "liveWorld": "frontend/app/world.js:6029"
+      }
+    }
+  },
+  {
+    "id": "gigs_servercart",
+    "structure": {
+      "label": "SERVER CART",
+      "family": "capability",
+      "description": "CAPABILITY — gives the agent in this room long-term memory AND its skill library (a notebook it recalls facts from, and where it saves & reloads reusable skills).",
+      "flat": false,
+      "views": {
+        "s": {
+          "key": "gigs_servercart",
+          "r": 0,
+          "image": "gigs_servercart.png",
+          "footprint": {
+            "w": 1,
+            "h": 1
+          },
+          "bounds": {
+            "x": 1,
+            "y": -6,
+            "width": 16,
+            "height": 18
+          },
+          "guide": "dev/.scratch-workspace/prop-structure/gigs_servercart.png"
+        }
+      }
+    },
+    "inventory": {
+      "id": "gigs_servercart",
+      "label": "SERVER CART",
+      "family": "capability",
+      "tier": "functional",
+      "oldConcept": "CAPABILITY — gives the agent in this room long-term memory AND its skill library (a notebook it recalls facts from, and where it saves & reloads reusable skills).",
+      "classicBox": {
+        "w": 1,
+        "h": 1
+      },
+      "remasterBox": {
+        "w": 1,
+        "h": 1
+      },
+      "tilePixels": 12,
+      "orientation": {
+        "facings": [
+          {
+            "r": 0,
+            "front": "south",
+            "w": 1,
+            "h": 1,
+            "type": "authored-view"
+          }
+        ],
+        "canMirror": true,
+        "classicFacings": [
+          0
+        ]
+      },
+      "geometry": {
+        "blocks": true,
+        "flat": false,
+        "tableSurface": false,
+        "requiredMount": null,
+        "optionalSurfaceMount": false,
+        "surfaceRisePixels": 8
+      },
+      "assignedWorkstation": false,
+      "leisureUse": null,
+      "capabilityObjectType": "notebook",
+      "animatedCatalogFlag": true,
+      "light": {
+        "c": [
+          120,
+          255,
+          180
+        ],
+        "r": 14,
+        "a": 0.08,
+        "m": "screen",
+        "y": 0.4
+      },
+      "sampledAnimation": {
+        "remaster": {
+          "idleFrameVariants": 5,
+          "workFrameVariants": 5,
+          "respondsToWorkFlag": true,
+          "opaqueBoundsRelativeToFootprint": {
+            "x": 1,
+            "y": -6,
+            "w": 16,
+            "h": 18,
+            "alphaThreshold": 160
+          }
+        },
+        "classic": {
+          "idleFrameVariants": 5,
+          "workFrameVariants": 5,
+          "respondsToWorkFlag": true,
+          "opaqueBoundsRelativeToFootprint": {
+            "x": 1,
+            "y": -6,
+            "w": 16,
+            "h": 18,
+            "alphaThreshold": 160
+          }
+        }
+      },
+      "art": {
+        "implementation": "native-procedural-construction",
+        "assets": [],
+        "detailStatus": "Industrial palette/construction pass exists; no individually authored remaster raster silhouette yet.",
+        "completion": "baseline-audited; comprehensive prop pass not accepted"
+      },
+      "liveAnimationTriggers": [
+        "Real notebook.*, skill.*, recall_conversation, widget.get, widget.set tool completion chooses the granting prop instance and overlays a 900 ms success accent or red failure surge.",
+        "Autonomous sprite clock animation is present in the sampled default state; cosmetic motion is not evidence of provider work, route decisions or external state."
+      ],
+      "anchorContract": "No leisure seat anchor. Footprint is the placement/pathfinding rectangle; upright visual rise is independent of the reserved box.",
+      "directionalArtNeed": "South-only at baseline. For free placement, author side/rear projections rather than rotate the elevation; preserve upright box unless footprint is genuine plan.",
+      "sourceEvidence": {
+        "catalog": "frontend/app/propsprites.js:10777",
+        "geometry": "frontend/app/propsprites.js:11006",
+        "drawState": "frontend/app/propsprites.js:11279",
+        "liveWorld": "frontend/app/world.js:6029"
+      }
+    }
+  },
+  {
+    "id": "gigs_thumbwall",
+    "structure": {
+      "label": "THUMB WALL",
+      "family": "comms",
+      "flat": false,
+      "views": {
+        "s": {
+          "key": "gigs_thumbwall",
+          "r": 0,
+          "image": "gigs_thumbwall.png",
+          "footprint": {
+            "w": 2,
+            "h": 1
+          },
+          "bounds": {
+            "x": -1,
+            "y": -6,
+            "width": 26,
+            "height": 18
+          },
+          "guide": "dev/.scratch-workspace/prop-structure/gigs_thumbwall.png"
+        }
+      }
+    },
+    "inventory": {
+      "id": "gigs_thumbwall",
+      "label": "THUMB WALL",
+      "family": "comms",
+      "tier": "cosmetic",
+      "oldConcept": "THUMB WALL",
+      "classicBox": {
+        "w": 2,
+        "h": 1
+      },
+      "remasterBox": {
+        "w": 2,
+        "h": 1
+      },
+      "tilePixels": 12,
+      "orientation": {
+        "facings": [
+          {
+            "r": 0,
+            "front": "south",
+            "w": 2,
+            "h": 1,
+            "type": "authored-view"
+          }
+        ],
+        "canMirror": false,
+        "classicFacings": [
+          0
+        ]
+      },
+      "geometry": {
+        "blocks": false,
+        "flat": false,
+        "tableSurface": false,
+        "requiredMount": null,
+        "optionalSurfaceMount": false,
+        "surfaceRisePixels": 8
+      },
+      "assignedWorkstation": false,
+      "leisureUse": null,
+      "capabilityObjectType": null,
+      "animatedCatalogFlag": true,
+      "light": {
+        "c": [
+          255,
+          150,
+          200
+        ],
+        "r": 20,
+        "a": 0.08,
+        "m": "screen",
+        "y": 0.35
+      },
+      "sampledAnimation": {
+        "remaster": {
+          "idleFrameVariants": 2,
+          "workFrameVariants": 2,
+          "respondsToWorkFlag": true,
+          "opaqueBoundsRelativeToFootprint": {
+            "x": -1,
+            "y": -6,
+            "w": 26,
+            "h": 18,
+            "alphaThreshold": 160
+          }
+        },
+        "classic": {
+          "idleFrameVariants": 2,
+          "workFrameVariants": 2,
+          "respondsToWorkFlag": true,
+          "opaqueBoundsRelativeToFootprint": {
+            "x": -1,
+            "y": -6,
+            "w": 26,
+            "h": 18,
+            "alphaThreshold": 160
+          }
+        }
+      },
+      "art": {
+        "implementation": "native-procedural-construction",
+        "assets": [],
+        "detailStatus": "Industrial palette/construction pass exists; no individually authored remaster raster silhouette yet.",
+        "completion": "baseline-audited; comprehensive prop pass not accepted"
+      },
+      "liveAnimationTriggers": [
+        "Autonomous sprite clock animation is present in the sampled default state; cosmetic motion is not evidence of provider work, route decisions or external state."
+      ],
+      "anchorContract": "No leisure seat anchor. Footprint is the placement/pathfinding rectangle; upright visual rise is independent of the reserved box.",
+      "directionalArtNeed": "South-only at baseline. For free placement, author side/rear projections rather than rotate the elevation; preserve upright box unless footprint is genuine plan.",
+      "sourceEvidence": {
+        "catalog": "frontend/app/propsprites.js:10836",
+        "geometry": "frontend/app/propsprites.js:11006",
+        "drawState": "frontend/app/propsprites.js:11279",
+        "liveWorld": "frontend/app/world.js:6029"
+      }
+    }
+  },
+  {
+    "id": "goldcrate",
+    "structure": {
+      "label": "GOLD CRATE",
+      "family": "storage",
+      "flat": false,
+      "views": {
+        "s": {
+          "key": "goldcrate",
+          "r": 0,
+          "image": "goldcrate.png",
+          "footprint": {
+            "w": 2,
+            "h": 1
+          },
+          "bounds": {
+            "x": -1,
+            "y": -10,
+            "width": 26,
+            "height": 22
+          },
+          "guide": "dev/.scratch-workspace/prop-structure/goldcrate.png"
+        }
+      }
+    },
+    "inventory": {
+      "id": "goldcrate",
+      "label": "GOLD CRATE",
+      "family": "storage",
+      "tier": "cosmetic",
+      "oldConcept": "GOLD CRATE",
+      "classicBox": {
+        "w": 2,
+        "h": 1
+      },
+      "remasterBox": {
+        "w": 2,
+        "h": 1
+      },
+      "tilePixels": 12,
+      "orientation": {
+        "facings": [
+          {
+            "r": 0,
+            "front": "south",
+            "w": 2,
+            "h": 1,
+            "type": "authored-view"
+          }
+        ],
+        "canMirror": true,
+        "classicFacings": [
+          0
+        ]
+      },
+      "geometry": {
+        "blocks": true,
+        "flat": false,
+        "tableSurface": false,
+        "requiredMount": null,
+        "optionalSurfaceMount": false,
+        "surfaceRisePixels": 8
+      },
+      "assignedWorkstation": false,
+      "leisureUse": null,
+      "capabilityObjectType": null,
+      "animatedCatalogFlag": true,
+      "light": {
+        "c": [
+          255,
+          214,
+          120
+        ],
+        "r": 14,
+        "a": 0.06,
+        "m": "steady",
+        "y": 0.4
+      },
+      "sampledAnimation": {
+        "remaster": {
+          "idleFrameVariants": 1,
+          "workFrameVariants": 1,
+          "respondsToWorkFlag": false,
+          "opaqueBoundsRelativeToFootprint": {
+            "x": -1,
+            "y": -10,
+            "w": 26,
+            "h": 22,
+            "alphaThreshold": 160
+          }
+        },
+        "classic": {
+          "idleFrameVariants": 1,
+          "workFrameVariants": 1,
+          "respondsToWorkFlag": false,
+          "opaqueBoundsRelativeToFootprint": {
+            "x": -1,
+            "y": -10,
+            "w": 26,
+            "h": 22,
+            "alphaThreshold": 160
+          }
+        }
+      },
+      "art": {
+        "implementation": "native-procedural-construction",
+        "assets": [],
+        "detailStatus": "Industrial palette/construction pass exists; no individually authored remaster raster silhouette yet.",
+        "completion": "baseline-audited; comprehensive prop pass not accepted"
+      },
+      "liveAnimationTriggers": [
+        "No direct event-driven or sampled default sprite animation. Preserve static art; no invented status or progress."
+      ],
+      "anchorContract": "No leisure seat anchor. Footprint is the placement/pathfinding rectangle; upright visual rise is independent of the reserved box.",
+      "directionalArtNeed": "South-only at baseline. For free placement, author side/rear projections rather than rotate the elevation; preserve upright box unless footprint is genuine plan.",
+      "sourceEvidence": {
+        "catalog": "frontend/app/propsprites.js:10825",
+        "geometry": "frontend/app/propsprites.js:11006",
+        "drawState": "frontend/app/propsprites.js:11279",
+        "liveWorld": "frontend/app/world.js:6029"
+      }
+    }
+  },
+  {
+    "id": "industrial_partition",
+    "structure": {
+      "label": "MODULAR PARTITION",
+      "family": "decor",
+      "flat": false,
+      "views": {
+        "s": {
+          "key": "industrial_partition",
+          "r": 0,
+          "image": "industrial_partition.png",
+          "footprint": {
+            "w": 3,
+            "h": 1
+          },
+          "bounds": {
+            "x": 0,
+            "y": -9,
+            "width": 36,
+            "height": 21
+          },
+          "guide": "dev/.scratch-workspace/prop-structure/industrial_partition.png"
+        },
+        "w": {
+          "key": "industrial_partition-r1",
+          "r": 1,
+          "image": "industrial_partition-r1.png",
+          "footprint": {
+            "w": 1,
+            "h": 3
+          },
+          "bounds": {
+            "x": 2,
+            "y": -9,
+            "width": 8,
+            "height": 44
+          },
+          "guide": "dev/.scratch-workspace/prop-structure/industrial_partition-r1.png"
+        },
+        "e": {
+          "key": "industrial_partition-r3",
+          "r": 3,
+          "image": "industrial_partition-r3.png",
+          "footprint": {
+            "w": 1,
+            "h": 3
+          },
+          "bounds": {
+            "x": 2,
+            "y": -9,
+            "width": 8,
+            "height": 44
+          },
+          "guide": "dev/.scratch-workspace/prop-structure/industrial_partition-r3.png"
+        }
+      }
+    },
+    "inventory": {
+      "id": "industrial_partition",
+      "label": "MODULAR PARTITION",
+      "family": "decor",
+      "tier": "cosmetic",
+      "oldConcept": "MODULAR PARTITION",
+      "classicBox": {
+        "w": 3,
+        "h": 1
+      },
+      "remasterBox": {
+        "w": 3,
+        "h": 1
+      },
+      "tilePixels": 12,
+      "orientation": {
+        "facings": [
+          {
+            "r": 0,
+            "front": "south",
+            "w": 3,
+            "h": 1,
+            "type": "authored-view"
+          },
+          {
+            "r": 1,
+            "front": "west",
+            "w": 1,
+            "h": 3,
+            "type": "mirrored-authored-view"
+          },
+          {
+            "r": 3,
+            "front": "east",
+            "w": 1,
+            "h": 3,
+            "type": "authored-view"
+          }
+        ],
+        "canMirror": true,
+        "classicFacings": [
+          0,
+          1,
+          3
+        ]
+      },
+      "geometry": {
+        "blocks": true,
+        "flat": false,
+        "tableSurface": false,
+        "requiredMount": null,
+        "optionalSurfaceMount": false,
+        "surfaceRisePixels": 8
+      },
+      "assignedWorkstation": false,
+      "leisureUse": null,
+      "capabilityObjectType": null,
+      "animatedCatalogFlag": false,
+      "light": null,
+      "sampledAnimation": {
+        "remaster": {
+          "idleFrameVariants": 1,
+          "workFrameVariants": 1,
+          "respondsToWorkFlag": false,
+          "opaqueBoundsRelativeToFootprint": {
+            "x": 0,
+            "y": -9,
+            "w": 36,
+            "h": 21,
+            "alphaThreshold": 160
+          }
+        },
+        "classic": {
+          "idleFrameVariants": 1,
+          "workFrameVariants": 1,
+          "respondsToWorkFlag": false,
+          "opaqueBoundsRelativeToFootprint": {
+            "x": 0,
+            "y": -9,
+            "w": 36,
+            "h": 21,
+            "alphaThreshold": 160
+          }
+        }
+      },
+      "art": {
+        "implementation": "native-procedural-construction",
+        "assets": [],
+        "detailStatus": "Industrial palette/construction pass exists; no individually authored remaster raster silhouette yet.",
+        "completion": "baseline-audited; comprehensive prop pass not accepted"
+      },
+      "liveAnimationTriggers": [
+        "No direct event-driven or sampled default sprite animation. Preserve static art; no invented status or progress."
+      ],
+      "anchorContract": "No leisure seat anchor. Footprint is the placement/pathfinding rectangle; upright visual rise is independent of the reserved box.",
+      "directionalArtNeed": "Keep offered authored projections and mirror semantics. Verify contact, standing height, occlusion and seat/mount geometry in every offered facing.",
+      "sourceEvidence": {
+        "catalog": "frontend/app/propsprites.js:10731",
+        "geometry": "frontend/app/propsprites.js:11006",
+        "drawState": "frontend/app/propsprites.js:11279",
+        "liveWorld": "frontend/app/world.js:6029"
+      }
+    }
+  },
+  {
+    "id": "industrial_supplycart",
+    "structure": {
+      "label": "SUPPLY TROLLEY",
+      "family": "decor",
+      "flat": false,
+      "views": {
+        "s": {
+          "key": "industrial_supplycart",
+          "r": 0,
+          "image": "industrial_supplycart.png",
+          "footprint": {
+            "w": 2,
+            "h": 1
+          },
+          "bounds": {
+            "x": 1,
+            "y": -11,
+            "width": 22,
+            "height": 23
+          },
+          "guide": "dev/.scratch-workspace/prop-structure/industrial_supplycart.png"
+        }
+      }
+    },
+    "inventory": {
+      "id": "industrial_supplycart",
+      "label": "SUPPLY TROLLEY",
+      "family": "decor",
+      "tier": "cosmetic",
+      "oldConcept": "SUPPLY TROLLEY",
+      "classicBox": {
+        "w": 2,
+        "h": 1
+      },
+      "remasterBox": {
+        "w": 2,
+        "h": 1
+      },
+      "tilePixels": 12,
+      "orientation": {
+        "facings": [
+          {
+            "r": 0,
+            "front": "south",
+            "w": 2,
+            "h": 1,
+            "type": "authored-view"
+          }
+        ],
+        "canMirror": true,
+        "classicFacings": [
+          0
+        ]
+      },
+      "geometry": {
+        "blocks": true,
+        "flat": false,
+        "tableSurface": false,
+        "requiredMount": null,
+        "optionalSurfaceMount": false,
+        "surfaceRisePixels": 8
+      },
+      "assignedWorkstation": false,
+      "leisureUse": null,
+      "capabilityObjectType": null,
+      "animatedCatalogFlag": false,
+      "light": null,
+      "sampledAnimation": {
+        "remaster": {
+          "idleFrameVariants": 1,
+          "workFrameVariants": 1,
+          "respondsToWorkFlag": false,
+          "opaqueBoundsRelativeToFootprint": {
+            "x": 1,
+            "y": -11,
+            "w": 22,
+            "h": 23,
+            "alphaThreshold": 160
+          }
+        },
+        "classic": {
+          "idleFrameVariants": 1,
+          "workFrameVariants": 1,
+          "respondsToWorkFlag": false,
+          "opaqueBoundsRelativeToFootprint": {
+            "x": 1,
+            "y": -11,
+            "w": 22,
+            "h": 23,
+            "alphaThreshold": 160
+          }
+        }
+      },
+      "art": {
+        "implementation": "native-procedural-construction",
+        "assets": [],
+        "detailStatus": "Industrial palette/construction pass exists; no individually authored remaster raster silhouette yet.",
+        "completion": "baseline-audited; comprehensive prop pass not accepted"
+      },
+      "liveAnimationTriggers": [
+        "No direct event-driven or sampled default sprite animation. Preserve static art; no invented status or progress."
+      ],
+      "anchorContract": "No leisure seat anchor. Footprint is the placement/pathfinding rectangle; upright visual rise is independent of the reserved box.",
+      "directionalArtNeed": "South-only at baseline. For free placement, author side/rear projections rather than rotate the elevation; preserve upright box unless footprint is genuine plan.",
+      "sourceEvidence": {
+        "catalog": "frontend/app/propsprites.js:10728",
+        "geometry": "frontend/app/propsprites.js:11006",
+        "drawState": "frontend/app/propsprites.js:11279",
+        "liveWorld": "frontend/app/world.js:6029"
+      }
+    }
+  },
+  {
+    "id": "industrial_toolcaddy",
+    "structure": {
+      "label": "TOOL CADDY",
+      "family": "decor",
+      "flat": false,
+      "views": {
+        "s": {
+          "key": "industrial_toolcaddy",
+          "r": 0,
+          "image": "industrial_toolcaddy.png",
+          "footprint": {
+            "w": 1,
+            "h": 1
+          },
+          "bounds": {
+            "x": 1,
+            "y": 2,
+            "width": 10,
+            "height": 10
+          },
+          "guide": "dev/.scratch-workspace/prop-structure/industrial_toolcaddy.png"
+        }
+      }
+    },
+    "inventory": {
+      "id": "industrial_toolcaddy",
+      "label": "TOOL CADDY",
+      "family": "decor",
+      "tier": "cosmetic",
+      "oldConcept": "TOOL CADDY",
+      "classicBox": {
+        "w": 1,
+        "h": 1
+      },
+      "remasterBox": {
+        "w": 1,
+        "h": 1
+      },
+      "tilePixels": 12,
+      "orientation": {
+        "facings": [
+          {
+            "r": 0,
+            "front": "south",
+            "w": 1,
+            "h": 1,
+            "type": "authored-view"
+          }
+        ],
+        "canMirror": true,
+        "classicFacings": [
+          0
+        ]
+      },
+      "geometry": {
+        "blocks": false,
+        "flat": false,
+        "tableSurface": false,
+        "requiredMount": null,
+        "optionalSurfaceMount": true,
+        "surfaceRisePixels": 8
+      },
+      "assignedWorkstation": false,
+      "leisureUse": null,
+      "capabilityObjectType": null,
+      "animatedCatalogFlag": false,
+      "light": null,
+      "sampledAnimation": {
+        "remaster": {
+          "idleFrameVariants": 1,
+          "workFrameVariants": 1,
+          "respondsToWorkFlag": false,
+          "opaqueBoundsRelativeToFootprint": {
+            "x": 1,
+            "y": 2,
+            "w": 10,
+            "h": 10,
+            "alphaThreshold": 160
+          }
+        },
+        "classic": {
+          "idleFrameVariants": 1,
+          "workFrameVariants": 1,
+          "respondsToWorkFlag": false,
+          "opaqueBoundsRelativeToFootprint": {
+            "x": 1,
+            "y": 2,
+            "w": 10,
+            "h": 10,
+            "alphaThreshold": 160
+          }
+        }
+      },
+      "art": {
+        "implementation": "native-procedural-construction",
+        "assets": [],
+        "detailStatus": "Industrial palette/construction pass exists; no individually authored remaster raster silhouette yet.",
+        "completion": "baseline-audited; comprehensive prop pass not accepted"
+      },
+      "liveAnimationTriggers": [
+        "No direct event-driven or sampled default sprite animation. Preserve static art; no invented status or progress."
+      ],
+      "anchorContract": "Can sit on bare deck or valid table; table mount lifts contact origin exactly 8 world pixels.",
+      "directionalArtNeed": "South-only at baseline. For free placement, author side/rear projections rather than rotate the elevation; preserve upright box unless footprint is genuine plan.",
+      "sourceEvidence": {
+        "catalog": "frontend/app/propsprites.js:10729",
+        "geometry": "frontend/app/propsprites.js:11006",
+        "drawState": "frontend/app/propsprites.js:11279",
+        "liveWorld": "frontend/app/world.js:6029"
+      }
+    }
+  },
+  {
+    "id": "industrial_wallpanel",
+    "structure": {
+      "label": "SERVICE PANEL",
+      "family": "decor",
+      "flat": false,
+      "views": {
+        "s": {
+          "key": "industrial_wallpanel",
+          "r": 0,
+          "image": "industrial_wallpanel.png",
+          "footprint": {
+            "w": 2,
+            "h": 1
+          },
+          "bounds": {
+            "x": 0,
+            "y": -13,
+            "width": 24,
+            "height": 23
+          },
+          "guide": "dev/.scratch-workspace/prop-structure/industrial_wallpanel.png"
+        }
+      }
+    },
+    "inventory": {
+      "id": "industrial_wallpanel",
+      "label": "SERVICE PANEL",
+      "family": "decor",
+      "tier": "cosmetic",
+      "oldConcept": "SERVICE PANEL",
+      "classicBox": {
+        "w": 2,
+        "h": 1
+      },
+      "remasterBox": {
+        "w": 2,
+        "h": 1
+      },
+      "tilePixels": 12,
+      "orientation": {
+        "facings": [
+          {
+            "r": 0,
+            "front": "south",
+            "w": 2,
+            "h": 1,
+            "type": "authored-view"
+          }
+        ],
+        "canMirror": true,
+        "classicFacings": [
+          0
+        ]
+      },
+      "geometry": {
+        "blocks": false,
+        "flat": false,
+        "tableSurface": false,
+        "requiredMount": "wall",
+        "optionalSurfaceMount": false,
+        "surfaceRisePixels": 8
+      },
+      "assignedWorkstation": false,
+      "leisureUse": null,
+      "capabilityObjectType": null,
+      "animatedCatalogFlag": false,
+      "light": null,
+      "sampledAnimation": {
+        "remaster": {
+          "idleFrameVariants": 1,
+          "workFrameVariants": 1,
+          "respondsToWorkFlag": false,
+          "opaqueBoundsRelativeToFootprint": {
+            "x": 0,
+            "y": -13,
+            "w": 24,
+            "h": 23,
+            "alphaThreshold": 160
+          }
+        },
+        "classic": {
+          "idleFrameVariants": 1,
+          "workFrameVariants": 1,
+          "respondsToWorkFlag": false,
+          "opaqueBoundsRelativeToFootprint": {
+            "x": 0,
+            "y": -13,
+            "w": 24,
+            "h": 23,
+            "alphaThreshold": 160
+          }
+        }
+      },
+      "art": {
+        "implementation": "native-procedural-construction",
+        "assets": [],
+        "detailStatus": "Industrial palette/construction pass exists; no individually authored remaster raster silhouette yet.",
+        "completion": "baseline-audited; comprehensive prop pass not accepted"
+      },
+      "liveAnimationTriggers": [
+        "No direct event-driven or sampled default sprite animation. Preserve static art; no invented status or progress."
+      ],
+      "anchorContract": "Wall-host placement; preserve host test and contact line.",
+      "directionalArtNeed": "Author wall-specific profiles only for supported mounting walls; never rotate an upright panel bitmap.",
+      "sourceEvidence": {
+        "catalog": "frontend/app/propsprites.js:10735",
+        "geometry": "frontend/app/propsprites.js:11006",
+        "drawState": "frontend/app/propsprites.js:11279",
+        "liveWorld": "frontend/app/world.js:6029"
+      }
+    }
+  },
+  {
+    "id": "missionboard",
+    "structure": {
+      "label": "MISSION BOARD",
+      "family": "command",
+      "description": "MISSION BOARD — the quest log made physical. Every pinned card is a real open quest; click the board to read them. It suggests, never gates.",
+      "flat": false,
+      "views": {
+        "s": {
+          "key": "missionboard",
+          "r": 0,
+          "image": "missionboard.png",
+          "footprint": {
+            "w": 3,
+            "h": 1
+          },
+          "bounds": {
+            "x": -1,
+            "y": -13,
+            "width": 38,
+            "height": 25
+          },
+          "guide": "dev/.scratch-workspace/prop-structure/missionboard.png"
+        }
+      }
+    },
+    "inventory": {
+      "id": "missionboard",
+      "label": "MISSION BOARD",
+      "family": "command",
+      "tier": "functional",
+      "oldConcept": "MISSION BOARD — the quest log made physical. Every pinned card is a real open quest; click the board to read them. It suggests, never gates.",
+      "classicBox": {
+        "w": 3,
+        "h": 1
+      },
+      "remasterBox": {
+        "w": 3,
+        "h": 1
+      },
+      "tilePixels": 12,
+      "orientation": {
+        "facings": [
+          {
+            "r": 0,
+            "front": "south",
+            "w": 3,
+            "h": 1,
+            "type": "authored-view"
+          }
+        ],
+        "canMirror": false,
+        "classicFacings": [
+          0
+        ]
+      },
+      "geometry": {
+        "blocks": false,
+        "flat": false,
+        "tableSurface": false,
+        "requiredMount": null,
+        "optionalSurfaceMount": false,
+        "surfaceRisePixels": 8
+      },
+      "assignedWorkstation": false,
+      "leisureUse": null,
+      "capabilityObjectType": null,
+      "animatedCatalogFlag": true,
+      "light": {
+        "c": [
+          255,
+          214,
+          150
+        ],
+        "r": 28,
+        "a": 0.08,
+        "m": "steady",
+        "y": 0.3
+      },
+      "sampledAnimation": {
+        "remaster": {
+          "idleFrameVariants": 2,
+          "workFrameVariants": 2,
+          "respondsToWorkFlag": false,
+          "opaqueBoundsRelativeToFootprint": {
+            "x": -1,
+            "y": -13,
+            "w": 38,
+            "h": 25,
+            "alphaThreshold": 160
+          }
+        },
+        "classic": {
+          "idleFrameVariants": 2,
+          "workFrameVariants": 2,
+          "respondsToWorkFlag": false,
+          "opaqueBoundsRelativeToFootprint": {
+            "x": -1,
+            "y": -13,
+            "w": 38,
+            "h": 25,
+            "alphaThreshold": 160
+          }
+        }
+      },
+      "art": {
+        "implementation": "native-procedural-construction",
+        "assets": [],
+        "detailStatus": "Industrial palette/construction pass exists; no individually authored remaster raster silhouette yet.",
+        "completion": "baseline-audited; comprehensive prop pass not accepted"
+      },
+      "liveAnimationTriggers": [
+        "Real open quest count, station-gap flag, routine jam flag and pending autojob proposal count drive pins and warnings.",
+        "Autonomous sprite clock animation is present in the sampled default state; cosmetic motion is not evidence of provider work, route decisions or external state."
+      ],
+      "anchorContract": "No leisure seat anchor. Footprint is the placement/pathfinding rectangle; upright visual rise is independent of the reserved box.",
+      "directionalArtNeed": "South-only at baseline. For free placement, author side/rear projections rather than rotate the elevation; preserve upright box unless footprint is genuine plan.",
+      "sourceEvidence": {
+        "catalog": "frontend/app/propsprites.js:10785",
+        "geometry": "frontend/app/propsprites.js:11006",
+        "drawState": "frontend/app/propsprites.js:11279",
+        "liveWorld": "frontend/app/world.js:6029"
+      }
+    }
+  },
+  {
+    "id": "research_papers",
+    "structure": {
+      "label": "PAPERS",
+      "family": "lab",
+      "flat": false,
+      "views": {
+        "s": {
+          "key": "research_papers",
+          "r": 0,
+          "image": "research_papers.png",
+          "footprint": {
+            "w": 2,
+            "h": 1
+          },
+          "bounds": {
+            "x": 1,
+            "y": 1,
+            "width": 20,
+            "height": 10
+          },
+          "guide": "dev/.scratch-workspace/prop-structure/research_papers.png"
+        }
+      }
+    },
+    "inventory": {
+      "id": "research_papers",
+      "label": "PAPERS",
+      "family": "lab",
+      "tier": "cosmetic",
+      "oldConcept": "PAPERS",
+      "classicBox": {
+        "w": 2,
+        "h": 1
+      },
+      "remasterBox": {
+        "w": 2,
+        "h": 1
+      },
+      "tilePixels": 12,
+      "orientation": {
+        "facings": [
+          {
+            "r": 0,
+            "front": "south",
+            "w": 2,
+            "h": 1,
+            "type": "authored-view"
+          }
+        ],
+        "canMirror": true,
+        "classicFacings": [
+          0
+        ]
+      },
+      "geometry": {
+        "blocks": false,
+        "flat": false,
+        "tableSurface": false,
+        "requiredMount": null,
+        "optionalSurfaceMount": true,
+        "surfaceRisePixels": 8
+      },
+      "assignedWorkstation": false,
+      "leisureUse": null,
+      "capabilityObjectType": null,
+      "animatedCatalogFlag": true,
+      "light": null,
+      "sampledAnimation": {
+        "remaster": {
+          "idleFrameVariants": 4,
+          "workFrameVariants": 4,
+          "respondsToWorkFlag": true,
+          "opaqueBoundsRelativeToFootprint": {
+            "x": 1,
+            "y": 1,
+            "w": 20,
+            "h": 10,
+            "alphaThreshold": 160
+          }
+        },
+        "classic": {
+          "idleFrameVariants": 4,
+          "workFrameVariants": 4,
+          "respondsToWorkFlag": true,
+          "opaqueBoundsRelativeToFootprint": {
+            "x": 1,
+            "y": 1,
+            "w": 20,
+            "h": 10,
+            "alphaThreshold": 160
+          }
+        }
+      },
+      "art": {
+        "implementation": "native-procedural-construction",
+        "assets": [],
+        "detailStatus": "Industrial palette/construction pass exists; no individually authored remaster raster silhouette yet.",
+        "completion": "baseline-audited; comprehensive prop pass not accepted"
+      },
+      "liveAnimationTriggers": [
+        "Autonomous sprite clock animation is present in the sampled default state; cosmetic motion is not evidence of provider work, route decisions or external state."
+      ],
+      "anchorContract": "Can sit on bare deck or valid table; table mount lifts contact origin exactly 8 world pixels.",
+      "directionalArtNeed": "South-only at baseline. For free placement, author side/rear projections rather than rotate the elevation; preserve upright box unless footprint is genuine plan.",
+      "sourceEvidence": {
+        "catalog": "frontend/app/propsprites.js:10816",
+        "geometry": "frontend/app/propsprites.js:11006",
+        "drawState": "frontend/app/propsprites.js:11279",
+        "liveWorld": "frontend/app/world.js:6029"
+      }
+    }
+  },
+  {
+    "id": "screens",
+    "structure": {
+      "label": "SCREENS",
+      "family": "screens",
+      "flat": false,
+      "views": {
+        "s": {
+          "key": "screens",
+          "r": 0,
+          "image": "screens.png",
+          "footprint": {
+            "w": 2,
+            "h": 1
+          },
+          "bounds": {
+            "x": -1,
+            "y": -15,
+            "width": 26,
+            "height": 27
+          },
+          "guide": "dev/.scratch-workspace/prop-structure/screens.png"
+        }
+      }
+    },
+    "inventory": {
+      "id": "screens",
+      "label": "SCREENS",
+      "family": "screens",
+      "tier": "cosmetic",
+      "oldConcept": "SCREENS",
+      "classicBox": {
+        "w": 2,
+        "h": 1
+      },
+      "remasterBox": {
+        "w": 2,
+        "h": 1
+      },
+      "tilePixels": 12,
+      "orientation": {
+        "facings": [
+          {
+            "r": 0,
+            "front": "south",
+            "w": 2,
+            "h": 1,
+            "type": "authored-view"
+          }
+        ],
+        "canMirror": true,
+        "classicFacings": [
+          0
+        ]
+      },
+      "geometry": {
+        "blocks": false,
+        "flat": false,
+        "tableSurface": false,
+        "requiredMount": null,
+        "optionalSurfaceMount": false,
+        "surfaceRisePixels": 8
+      },
+      "assignedWorkstation": false,
+      "leisureUse": null,
+      "capabilityObjectType": null,
+      "animatedCatalogFlag": true,
+      "light": {
+        "c": [
+          110,
+          190,
+          255
+        ],
+        "r": 24,
+        "a": 0.12,
+        "m": "screen",
+        "y": 0.35
+      },
+      "sampledAnimation": {
+        "remaster": {
+          "idleFrameVariants": 9,
+          "workFrameVariants": 9,
+          "respondsToWorkFlag": true,
+          "opaqueBoundsRelativeToFootprint": {
+            "x": -1,
+            "y": -15,
+            "w": 26,
+            "h": 27,
+            "alphaThreshold": 160
+          }
+        },
+        "classic": {
+          "idleFrameVariants": 9,
+          "workFrameVariants": 9,
+          "respondsToWorkFlag": true,
+          "opaqueBoundsRelativeToFootprint": {
+            "x": -1,
+            "y": -15,
+            "w": 26,
+            "h": 27,
+            "alphaThreshold": 160
+          }
+        }
+      },
+      "art": {
+        "implementation": "native-procedural-construction",
+        "assets": [],
+        "detailStatus": "Industrial palette/construction pass exists; no individually authored remaster raster silhouette yet.",
+        "completion": "baseline-audited; comprehensive prop pass not accepted"
+      },
+      "liveAnimationTriggers": [
+        "Autonomous sprite clock animation is present in the sampled default state; cosmetic motion is not evidence of provider work, route decisions or external state."
+      ],
+      "anchorContract": "No leisure seat anchor. Footprint is the placement/pathfinding rectangle; upright visual rise is independent of the reserved box.",
+      "directionalArtNeed": "South-only at baseline. For free placement, author side/rear projections rather than rotate the elevation; preserve upright box unless footprint is genuine plan.",
+      "sourceEvidence": {
+        "catalog": "frontend/app/propsprites.js:10796",
+        "geometry": "frontend/app/propsprites.js:11006",
+        "drawState": "frontend/app/propsprites.js:11279",
+        "liveWorld": "frontend/app/world.js:6029"
+      }
+    }
+  },
+  {
+    "id": "ticker",
+    "structure": {
+      "label": "TICKER",
+      "family": "screens",
+      "flat": false,
+      "views": {
+        "s": {
+          "key": "ticker",
+          "r": 0,
+          "image": "ticker.png",
+          "footprint": {
+            "w": 4,
+            "h": 1
+          },
+          "bounds": {
+            "x": -1,
+            "y": -8,
+            "width": 50,
+            "height": 20
+          },
+          "guide": "dev/.scratch-workspace/prop-structure/ticker.png"
+        }
+      }
+    },
+    "inventory": {
+      "id": "ticker",
+      "label": "TICKER",
+      "family": "screens",
+      "tier": "cosmetic",
+      "oldConcept": "TICKER",
+      "classicBox": {
+        "w": 4,
+        "h": 1
+      },
+      "remasterBox": {
+        "w": 4,
+        "h": 1
+      },
+      "tilePixels": 12,
+      "orientation": {
+        "facings": [
+          {
+            "r": 0,
+            "front": "south",
+            "w": 4,
+            "h": 1,
+            "type": "authored-view"
+          }
+        ],
+        "canMirror": false,
+        "classicFacings": [
+          0
+        ]
+      },
+      "geometry": {
+        "blocks": false,
+        "flat": false,
+        "tableSurface": false,
+        "requiredMount": null,
+        "optionalSurfaceMount": false,
+        "surfaceRisePixels": 8
+      },
+      "assignedWorkstation": false,
+      "leisureUse": null,
+      "capabilityObjectType": null,
+      "animatedCatalogFlag": true,
+      "light": {
+        "c": [
+          255,
+          190,
+          110
+        ],
+        "r": 26,
+        "a": 0.1,
+        "m": "screen",
+        "y": 0.35
+      },
+      "sampledAnimation": {
+        "remaster": {
+          "idleFrameVariants": 9,
+          "workFrameVariants": 9,
+          "respondsToWorkFlag": true,
+          "opaqueBoundsRelativeToFootprint": {
+            "x": -1,
+            "y": -8,
+            "w": 50,
+            "h": 20,
+            "alphaThreshold": 160
+          }
+        },
+        "classic": {
+          "idleFrameVariants": 9,
+          "workFrameVariants": 9,
+          "respondsToWorkFlag": true,
+          "opaqueBoundsRelativeToFootprint": {
+            "x": -1,
+            "y": -8,
+            "w": 50,
+            "h": 20,
+            "alphaThreshold": 160
+          }
+        }
+      },
+      "art": {
+        "implementation": "native-procedural-construction",
+        "assets": [],
+        "detailStatus": "Industrial palette/construction pass exists; no individually authored remaster raster silhouette yet.",
+        "completion": "baseline-audited; comprehensive prop pass not accepted"
+      },
+      "liveAnimationTriggers": [
+        "Autonomous sprite clock animation is present in the sampled default state; cosmetic motion is not evidence of provider work, route decisions or external state."
+      ],
+      "anchorContract": "No leisure seat anchor. Footprint is the placement/pathfinding rectangle; upright visual rise is independent of the reserved box.",
+      "directionalArtNeed": "South-only at baseline. For free placement, author side/rear projections rather than rotate the elevation; preserve upright box unless footprint is genuine plan.",
+      "sourceEvidence": {
+        "catalog": "frontend/app/propsprites.js:10799",
+        "geometry": "frontend/app/propsprites.js:11006",
+        "drawState": "frontend/app/propsprites.js:11279",
+        "liveWorld": "frontend/app/world.js:6029"
+      }
+    }
+  },
+  {
+    "id": "toolbox",
+    "structure": {
+      "label": "TOOLBOX",
+      "family": "decor",
+      "flat": false,
+      "views": {
+        "s": {
+          "key": "toolbox",
+          "r": 0,
+          "image": "toolbox.png",
+          "footprint": {
+            "w": 1,
+            "h": 1
+          },
+          "bounds": {
+            "x": 0,
+            "y": 1,
+            "width": 12,
+            "height": 10
+          },
+          "guide": "dev/.scratch-workspace/prop-structure/toolbox.png"
+        }
+      }
+    },
+    "inventory": {
+      "id": "toolbox",
+      "label": "TOOLBOX",
+      "family": "decor",
+      "tier": "cosmetic",
+      "oldConcept": "TOOLBOX",
+      "classicBox": {
+        "w": 1,
+        "h": 1
+      },
+      "remasterBox": {
+        "w": 1,
+        "h": 1
+      },
+      "tilePixels": 12,
+      "orientation": {
+        "facings": [
+          {
+            "r": 0,
+            "front": "south",
+            "w": 1,
+            "h": 1,
+            "type": "authored-view"
+          }
+        ],
+        "canMirror": true,
+        "classicFacings": [
+          0
+        ]
+      },
+      "geometry": {
+        "blocks": false,
+        "flat": false,
+        "tableSurface": false,
+        "requiredMount": null,
+        "optionalSurfaceMount": true,
+        "surfaceRisePixels": 8
+      },
+      "assignedWorkstation": false,
+      "leisureUse": null,
+      "capabilityObjectType": null,
+      "animatedCatalogFlag": false,
+      "light": null,
+      "sampledAnimation": {
+        "remaster": {
+          "idleFrameVariants": 1,
+          "workFrameVariants": 1,
+          "respondsToWorkFlag": false,
+          "opaqueBoundsRelativeToFootprint": {
+            "x": 0,
+            "y": 1,
+            "w": 12,
+            "h": 10,
+            "alphaThreshold": 160
+          }
+        },
+        "classic": {
+          "idleFrameVariants": 1,
+          "workFrameVariants": 1,
+          "respondsToWorkFlag": false,
+          "opaqueBoundsRelativeToFootprint": {
+            "x": 0,
+            "y": 1,
+            "w": 12,
+            "h": 10,
+            "alphaThreshold": 160
+          }
+        }
+      },
+      "art": {
+        "implementation": "native-procedural-construction",
+        "assets": [],
+        "detailStatus": "Industrial palette/construction pass exists; no individually authored remaster raster silhouette yet.",
+        "completion": "baseline-audited; comprehensive prop pass not accepted"
+      },
+      "liveAnimationTriggers": [
+        "No direct event-driven or sampled default sprite animation. Preserve static art; no invented status or progress."
+      ],
+      "anchorContract": "Can sit on bare deck or valid table; table mount lifts contact origin exactly 8 world pixels.",
+      "directionalArtNeed": "South-only at baseline. For free placement, author side/rear projections rather than rotate the elevation; preserve upright box unless footprint is genuine plan.",
+      "sourceEvidence": {
+        "catalog": "frontend/app/propsprites.js:10924",
+        "geometry": "frontend/app/propsprites.js:11006",
+        "drawState": "frontend/app/propsprites.js:11279",
+        "liveWorld": "frontend/app/world.js:6029"
+      }
+    }
+  },
+  {
+    "id": "vault",
+    "structure": {
+      "label": "VAULT",
+      "family": "capability",
+      "description": "CAPABILITY — gives the agent in this room file access (read & write its own files).",
+      "flat": false,
+      "views": {
+        "s": {
+          "key": "vault",
+          "r": 0,
+          "image": "vault.png",
+          "footprint": {
+            "w": 3,
+            "h": 2
+          },
+          "bounds": {
+            "x": -3,
+            "y": -5,
+            "width": 44,
+            "height": 29
+          },
+          "guide": "dev/.scratch-workspace/prop-structure/vault.png"
+        }
+      }
+    },
+    "inventory": {
+      "id": "vault",
+      "label": "VAULT",
+      "family": "capability",
+      "tier": "functional",
+      "oldConcept": "CAPABILITY — gives the agent in this room file access (read & write its own files).",
+      "classicBox": {
+        "w": 3,
+        "h": 2
+      },
+      "remasterBox": {
+        "w": 3,
+        "h": 2
+      },
+      "tilePixels": 12,
+      "orientation": {
+        "facings": [
+          {
+            "r": 0,
+            "front": "south",
+            "w": 3,
+            "h": 2,
+            "type": "authored-view"
+          }
+        ],
+        "canMirror": false,
+        "classicFacings": [
+          0
+        ]
+      },
+      "geometry": {
+        "blocks": true,
+        "flat": false,
+        "tableSurface": false,
+        "requiredMount": null,
+        "optionalSurfaceMount": false,
+        "surfaceRisePixels": 8
+      },
+      "assignedWorkstation": false,
+      "leisureUse": null,
+      "capabilityObjectType": "cabinet",
+      "animatedCatalogFlag": true,
+      "light": null,
+      "sampledAnimation": {
+        "remaster": {
+          "idleFrameVariants": 9,
+          "workFrameVariants": 9,
+          "respondsToWorkFlag": true,
+          "opaqueBoundsRelativeToFootprint": {
+            "x": -3,
+            "y": -5,
+            "w": 44,
+            "h": 29,
+            "alphaThreshold": 160
+          }
+        },
+        "classic": {
+          "idleFrameVariants": 9,
+          "workFrameVariants": 9,
+          "respondsToWorkFlag": true,
+          "opaqueBoundsRelativeToFootprint": {
+            "x": -3,
+            "y": -5,
+            "w": 44,
+            "h": 29,
+            "alphaThreshold": 160
+          }
+        }
+      },
+      "art": {
+        "implementation": "native-procedural-construction",
+        "assets": [],
+        "detailStatus": "Industrial palette/construction pass exists; no individually authored remaster raster silhouette yet.",
+        "completion": "baseline-audited; comprehensive prop pass not accepted"
+      },
+      "liveAnimationTriggers": [
+        "Real fs.* tool completion chooses the granting prop instance and overlays a 900 ms success accent or red failure surge.",
+        "Autonomous sprite clock animation is present in the sampled default state; cosmetic motion is not evidence of provider work, route decisions or external state."
+      ],
+      "anchorContract": "No leisure seat anchor. Footprint is the placement/pathfinding rectangle; upright visual rise is independent of the reserved box.",
+      "directionalArtNeed": "South-only at baseline. For free placement, author side/rear projections rather than rotate the elevation; preserve upright box unless footprint is genuine plan.",
+      "sourceEvidence": {
+        "catalog": "frontend/app/propsprites.js:10773",
+        "geometry": "frontend/app/propsprites.js:11006",
+        "drawState": "frontend/app/propsprites.js:11279",
+        "liveWorld": "frontend/app/world.js:6029"
+      }
+    }
+  },
+  {
+    "id": "whiteboard",
+    "structure": {
+      "label": "WHITEBOARD",
+      "family": "screens",
+      "flat": false,
+      "views": {
+        "s": {
+          "key": "whiteboard",
+          "r": 0,
+          "image": "whiteboard.png",
+          "footprint": {
+            "w": 4,
+            "h": 1
+          },
+          "bounds": {
+            "x": -1,
+            "y": -11,
+            "width": 50,
+            "height": 23
+          },
+          "guide": "dev/.scratch-workspace/prop-structure/whiteboard.png"
+        }
+      }
+    },
+    "inventory": {
+      "id": "whiteboard",
+      "label": "WHITEBOARD",
+      "family": "screens",
+      "tier": "cosmetic",
+      "oldConcept": "WHITEBOARD",
+      "classicBox": {
+        "w": 4,
+        "h": 1
+      },
+      "remasterBox": {
+        "w": 4,
+        "h": 1
+      },
+      "tilePixels": 12,
+      "orientation": {
+        "facings": [
+          {
+            "r": 0,
+            "front": "south",
+            "w": 4,
+            "h": 1,
+            "type": "authored-view"
+          }
+        ],
+        "canMirror": true,
+        "classicFacings": [
+          0
+        ]
+      },
+      "geometry": {
+        "blocks": false,
+        "flat": false,
+        "tableSurface": false,
+        "requiredMount": null,
+        "optionalSurfaceMount": false,
+        "surfaceRisePixels": 8
+      },
+      "assignedWorkstation": false,
+      "leisureUse": null,
+      "capabilityObjectType": null,
+      "animatedCatalogFlag": true,
+      "light": null,
+      "sampledAnimation": {
+        "remaster": {
+          "idleFrameVariants": 1,
+          "workFrameVariants": 1,
+          "respondsToWorkFlag": false,
+          "opaqueBoundsRelativeToFootprint": {
+            "x": -1,
+            "y": -11,
+            "w": 50,
+            "h": 23,
+            "alphaThreshold": 160
+          }
+        },
+        "classic": {
+          "idleFrameVariants": 1,
+          "workFrameVariants": 1,
+          "respondsToWorkFlag": false,
+          "opaqueBoundsRelativeToFootprint": {
+            "x": -1,
+            "y": -11,
+            "w": 50,
+            "h": 23,
+            "alphaThreshold": 160
+          }
+        }
+      },
+      "art": {
+        "implementation": "native-procedural-construction",
+        "assets": [],
+        "detailStatus": "Industrial palette/construction pass exists; no individually authored remaster raster silhouette yet.",
+        "completion": "baseline-audited; comprehensive prop pass not accepted"
+      },
+      "liveAnimationTriggers": [
+        "No direct event-driven or sampled default sprite animation. Preserve static art; no invented status or progress."
+      ],
+      "anchorContract": "No leisure seat anchor. Footprint is the placement/pathfinding rectangle; upright visual rise is independent of the reserved box.",
+      "directionalArtNeed": "South-only at baseline. For free placement, author side/rear projections rather than rotate the elevation; preserve upright box unless footprint is genuine plan.",
+      "sourceEvidence": {
+        "catalog": "frontend/app/propsprites.js:10798",
+        "geometry": "frontend/app/propsprites.js:11006",
+        "drawState": "frontend/app/propsprites.js:11279",
+        "liveWorld": "frontend/app/world.js:6029"
+      }
+    }
+  },
+  {
+    "id": "workbench",
+    "structure": {
+      "label": "WORKBENCH",
+      "family": "workstation",
+      "description": "WORKBENCH — grants the room's agent shell + verify, so it can run and test real code. Pair it with a workstation in the same room.",
+      "flat": false,
+      "views": {
+        "s": {
+          "key": "workbench",
+          "r": 0,
+          "image": "workbench.png",
+          "footprint": {
+            "w": 2,
+            "h": 1
+          },
+          "bounds": {
+            "x": -1,
+            "y": -15,
+            "width": 30,
+            "height": 27
+          },
+          "guide": "dev/.scratch-workspace/prop-structure/workbench.png"
+        }
+      }
+    },
+    "inventory": {
+      "id": "workbench",
+      "label": "WORKBENCH",
+      "family": "workstation",
+      "tier": "functional",
+      "oldConcept": "WORKBENCH — grants the room's agent shell + verify, so it can run and test real code. Pair it with a workstation in the same room.",
+      "classicBox": {
+        "w": 2,
+        "h": 1
+      },
+      "remasterBox": {
+        "w": 2,
+        "h": 1
+      },
+      "tilePixels": 12,
+      "orientation": {
+        "facings": [
+          {
+            "r": 0,
+            "front": "south",
+            "w": 2,
+            "h": 1,
+            "type": "authored-view"
+          }
+        ],
+        "canMirror": true,
+        "classicFacings": [
+          0
+        ]
+      },
+      "geometry": {
+        "blocks": true,
+        "flat": false,
+        "tableSurface": false,
+        "requiredMount": null,
+        "optionalSurfaceMount": false,
+        "surfaceRisePixels": 8
+      },
+      "assignedWorkstation": false,
+      "leisureUse": null,
+      "capabilityObjectType": "workbench",
+      "animatedCatalogFlag": true,
+      "light": {
+        "c": [
+          255,
+          200,
+          120
+        ],
+        "r": 22,
+        "a": 0.1,
+        "m": "screen",
+        "work": 1,
+        "y": 0.3
+      },
+      "sampledAnimation": {
+        "remaster": {
+          "idleFrameVariants": 1,
+          "workFrameVariants": 1,
+          "respondsToWorkFlag": true,
+          "opaqueBoundsRelativeToFootprint": {
+            "x": -1,
+            "y": -15,
+            "w": 30,
+            "h": 27,
+            "alphaThreshold": 160
+          }
+        },
+        "classic": {
+          "idleFrameVariants": 1,
+          "workFrameVariants": 1,
+          "respondsToWorkFlag": true,
+          "opaqueBoundsRelativeToFootprint": {
+            "x": -1,
+            "y": -15,
+            "w": 30,
+            "h": 27,
+            "alphaThreshold": 160
+          }
+        }
+      },
+      "art": {
+        "implementation": "native-procedural-construction",
+        "assets": [],
+        "detailStatus": "Industrial palette/construction pass exists; no individually authored remaster raster silhouette yet.",
+        "completion": "baseline-audited; comprehensive prop pass not accepted"
+      },
+      "liveAnimationTriggers": [
+        "shell.exec / verify.result resolve the acting room’s workbench instance; 900 ms success pulse or distinct red failed verification."
+      ],
+      "anchorContract": "No leisure seat anchor. Footprint is the placement/pathfinding rectangle; upright visual rise is independent of the reserved box.",
+      "directionalArtNeed": "South-only at baseline. For free placement, author side/rear projections rather than rotate the elevation; preserve upright box unless footprint is genuine plan.",
+      "sourceEvidence": {
+        "catalog": "frontend/app/propsprites.js:10747",
+        "geometry": "frontend/app/propsprites.js:11006",
+        "drawState": "frontend/app/propsprites.js:11279",
+        "liveWorld": "frontend/app/world.js:6029"
+      }
+    }
+  }
+]

@@ -1,0 +1,615 @@
+{
+  "id": "gigs_servercart",
+  "measurement": "Manually inspected conservative source-surface regions, mapped with uniform bottom-centered PropRemaster fit; not live verified.",
+  "sourceDimensions": {
+    "width": 1182,
+    "height": 1330
+  },
+  "crop": {
+    "left": 99,
+    "top": 78,
+    "width": 984,
+    "height": 1192
+  },
+  "sourceSha256": "f2333835c4eb4b06421a62cbe9027ca5887040ca1c27c9b32c7d0eb3fcf00be8",
+  "outputSha256": "0d9b43368c59eda5fe6b6e12c04cf482799e124e8bb298a77af713fce422f5ef",
+  "footprint": {
+    "w": 1,
+    "h": 1
+  },
+  "worldEnvelope": {
+    "x": 1,
+    "y": -6,
+    "width": 16,
+    "height": 18
+  },
+  "tilePixels": 12,
+  "uniformScale": 0.015100671140939598,
+  "contact": {
+    "x": 9,
+    "y": 12
+  },
+  "supportedViews": {
+    "facings": [
+      {
+        "r": 0,
+        "front": "south",
+        "w": 1,
+        "h": 1,
+        "type": "authored-view"
+      }
+    ],
+    "canMirror": true,
+    "classicFacings": [
+      0
+    ]
+  },
+  "geometry": {
+    "blocks": true,
+    "flat": false,
+    "tableSurface": false,
+    "requiredMount": null,
+    "optionalSurfaceMount": false,
+    "surfaceRisePixels": 8
+  },
+  "originalAnimationTriggers": [
+    "Real notebook.*, skill.*, recall_conversation, widget.get, widget.set tool completion chooses the granting prop instance and overlays a 900 ms success accent or red failure surge.",
+    "Autonomous sprite clock animation is present in the sampled default state; cosmetic motion is not evidence of provider work, route decisions or external state."
+  ],
+  "integrationNote": "Actual notebook.*, skill.*, recall_conversation, widget.get/set completion drives memory capability cues. Three blank readouts and unlit status stacks. Preserve cart handle and castors.",
+  "regions": {
+    "topReadout": {
+      "sourcePixels": [
+        [
+          691,
+          462
+        ],
+        [
+          832,
+          462
+        ],
+        [
+          832,
+          480
+        ],
+        [
+          691,
+          480
+        ]
+      ],
+      "sourceNormalized": [
+        [
+          0.584602,
+          0.347368
+        ],
+        [
+          0.703892,
+          0.347368
+        ],
+        [
+          0.703892,
+          0.360902
+        ],
+        [
+          0.584602,
+          0.360902
+        ]
+      ],
+      "exportPixels": [
+        [
+          592,
+          384
+        ],
+        [
+          733,
+          384
+        ],
+        [
+          733,
+          402
+        ],
+        [
+          592,
+          402
+        ]
+      ],
+      "exportNormalized": [
+        [
+          0.601626,
+          0.322148
+        ],
+        [
+          0.744919,
+          0.322148
+        ],
+        [
+          0.744919,
+          0.337248
+        ],
+        [
+          0.601626,
+          0.337248
+        ]
+      ],
+      "worldPixels": [
+        [
+          10.510067,
+          -0.201342
+        ],
+        [
+          12.639262,
+          -0.201342
+        ],
+        [
+          12.639262,
+          0.07047
+        ],
+        [
+          10.510067,
+          0.07047
+        ]
+      ]
+    },
+    "middleReadout": {
+      "sourcePixels": [
+        [
+          691,
+          625
+        ],
+        [
+          832,
+          625
+        ],
+        [
+          832,
+          644
+        ],
+        [
+          691,
+          644
+        ]
+      ],
+      "sourceNormalized": [
+        [
+          0.584602,
+          0.469925
+        ],
+        [
+          0.703892,
+          0.469925
+        ],
+        [
+          0.703892,
+          0.484211
+        ],
+        [
+          0.584602,
+          0.484211
+        ]
+      ],
+      "exportPixels": [
+        [
+          592,
+          547
+        ],
+        [
+          733,
+          547
+        ],
+        [
+          733,
+          566
+        ],
+        [
+          592,
+          566
+        ]
+      ],
+      "exportNormalized": [
+        [
+          0.601626,
+          0.458893
+        ],
+        [
+          0.744919,
+          0.458893
+        ],
+        [
+          0.744919,
+          0.474832
+        ],
+        [
+          0.601626,
+          0.474832
+        ]
+      ],
+      "worldPixels": [
+        [
+          10.510067,
+          2.260067
+        ],
+        [
+          12.639262,
+          2.260067
+        ],
+        [
+          12.639262,
+          2.54698
+        ],
+        [
+          10.510067,
+          2.54698
+        ]
+      ]
+    },
+    "bottomReadout": {
+      "sourcePixels": [
+        [
+          691,
+          790
+        ],
+        [
+          832,
+          790
+        ],
+        [
+          832,
+          808
+        ],
+        [
+          691,
+          808
+        ]
+      ],
+      "sourceNormalized": [
+        [
+          0.584602,
+          0.593985
+        ],
+        [
+          0.703892,
+          0.593985
+        ],
+        [
+          0.703892,
+          0.607519
+        ],
+        [
+          0.584602,
+          0.607519
+        ]
+      ],
+      "exportPixels": [
+        [
+          592,
+          712
+        ],
+        [
+          733,
+          712
+        ],
+        [
+          733,
+          730
+        ],
+        [
+          592,
+          730
+        ]
+      ],
+      "exportNormalized": [
+        [
+          0.601626,
+          0.597315
+        ],
+        [
+          0.744919,
+          0.597315
+        ],
+        [
+          0.744919,
+          0.612416
+        ],
+        [
+          0.601626,
+          0.612416
+        ]
+      ],
+      "worldPixels": [
+        [
+          10.510067,
+          4.751678
+        ],
+        [
+          12.639262,
+          4.751678
+        ],
+        [
+          12.639262,
+          5.02349
+        ],
+        [
+          10.510067,
+          5.02349
+        ]
+      ]
+    },
+    "topStatusStack": {
+      "sourcePixels": [
+        [
+          869,
+          455
+        ],
+        [
+          882,
+          455
+        ],
+        [
+          882,
+          528
+        ],
+        [
+          869,
+          528
+        ]
+      ],
+      "sourceNormalized": [
+        [
+          0.735195,
+          0.342105
+        ],
+        [
+          0.746193,
+          0.342105
+        ],
+        [
+          0.746193,
+          0.396992
+        ],
+        [
+          0.735195,
+          0.396992
+        ]
+      ],
+      "exportPixels": [
+        [
+          770,
+          377
+        ],
+        [
+          783,
+          377
+        ],
+        [
+          783,
+          450
+        ],
+        [
+          770,
+          450
+        ]
+      ],
+      "exportNormalized": [
+        [
+          0.78252,
+          0.316275
+        ],
+        [
+          0.795732,
+          0.316275
+        ],
+        [
+          0.795732,
+          0.377517
+        ],
+        [
+          0.78252,
+          0.377517
+        ]
+      ],
+      "worldPixels": [
+        [
+          13.197987,
+          -0.307047
+        ],
+        [
+          13.394295,
+          -0.307047
+        ],
+        [
+          13.394295,
+          0.795302
+        ],
+        [
+          13.197987,
+          0.795302
+        ]
+      ]
+    },
+    "middleStatusStack": {
+      "sourcePixels": [
+        [
+          869,
+          619
+        ],
+        [
+          882,
+          619
+        ],
+        [
+          882,
+          694
+        ],
+        [
+          869,
+          694
+        ]
+      ],
+      "sourceNormalized": [
+        [
+          0.735195,
+          0.465414
+        ],
+        [
+          0.746193,
+          0.465414
+        ],
+        [
+          0.746193,
+          0.521805
+        ],
+        [
+          0.735195,
+          0.521805
+        ]
+      ],
+      "exportPixels": [
+        [
+          770,
+          541
+        ],
+        [
+          783,
+          541
+        ],
+        [
+          783,
+          616
+        ],
+        [
+          770,
+          616
+        ]
+      ],
+      "exportNormalized": [
+        [
+          0.78252,
+          0.453859
+        ],
+        [
+          0.795732,
+          0.453859
+        ],
+        [
+          0.795732,
+          0.516779
+        ],
+        [
+          0.78252,
+          0.516779
+        ]
+      ],
+      "worldPixels": [
+        [
+          13.197987,
+          2.169463
+        ],
+        [
+          13.394295,
+          2.169463
+        ],
+        [
+          13.394295,
+          3.302013
+        ],
+        [
+          13.197987,
+          3.302013
+        ]
+      ]
+    },
+    "bottomStatusStack": {
+      "sourcePixels": [
+        [
+          869,
+          785
+        ],
+        [
+          882,
+          785
+        ],
+        [
+          882,
+          860
+        ],
+        [
+          869,
+          860
+        ]
+      ],
+      "sourceNormalized": [
+        [
+          0.735195,
+          0.590226
+        ],
+        [
+          0.746193,
+          0.590226
+        ],
+        [
+          0.746193,
+          0.646617
+        ],
+        [
+          0.735195,
+          0.646617
+        ]
+      ],
+      "exportPixels": [
+        [
+          770,
+          707
+        ],
+        [
+          783,
+          707
+        ],
+        [
+          783,
+          782
+        ],
+        [
+          770,
+          782
+        ]
+      ],
+      "exportNormalized": [
+        [
+          0.78252,
+          0.593121
+        ],
+        [
+          0.795732,
+          0.593121
+        ],
+        [
+          0.795732,
+          0.65604
+        ],
+        [
+          0.78252,
+          0.65604
+        ]
+      ],
+      "worldPixels": [
+        [
+          13.197987,
+          4.676174
+        ],
+        [
+          13.394295,
+          4.676174
+        ],
+        [
+          13.394295,
+          5.808725
+        ],
+        [
+          13.197987,
+          5.808725
+        ]
+      ]
+    }
+  },
+  "liveIntegrated": false
+}

@@ -1,0 +1,11 @@
+{
+  "id": "gigs_partsbin",
+  "prompt": "Generate ONE entirely new complete standalone StarNet prop sprite, no atlas. References: first workstation for fixed high overhead oblique SOUTH camera and mature illustrated game-art construction; second wooden bookshelf is primary PAINTED style anchor. Horizontal front edges, never isometric diamonds, no rotated bitmap. Full silhouette and feet framed with margin. Crafted 2D hand-painted strategy-game rendering, crisp angular planes, controlled dark edge separations, 3–5 broad painted tones per material, few deliberate highlights, selective purposeful detail. No photographic surface grain, fibers, scratches, PBR studio gloss, noise or excessive bolts. Mature detailed station art, not flat icon or cartoony toy. Material variety appropriate to purpose, don't copy workstation metal onto everything. Flat uniform pure magenta #ff00ff background, including all empty silhouette gaps; NO magenta materials on object. No floor, cast shadow, halo, text, watermark, humans, adjacent props. All lights unlit colored lenses unless requested decorative playfield. A broad open divided parts organizer tray, aspect26:19,2x1 footprint. Sage green molded tray with slanted front lips and four deep separate compartments. First holds three large gray fasteners, second two copper collars, third two cream electrical plugs, fourth three muted blue rectangular components. Discrete countable material shapes with plain cream label strips, no text. Visible compartment floors and thick dividers from high overhead. Rubber foot pads; no floor or table. Optional tabletop object.",
+  "referencedImagePaths": [
+    "C:/Users/andro/gen-trees/industrial-textures-0912/frontend/assets/industrial/workstation.png",
+    "C:/Users/andro/gen-trees/prop-storage-0914/docs/station-remaster/batch03/storage/sources/bookshelf.png"
+  ],
+  "generatedSource": "C:\\Users\\andro\\.codex\\generated_images\\01a09e47-65ec-7a71-b4a1-4847c19fc477\\exec-d086b785-96b4-4c32-8da4-823d39a8355c.png",
+  "tool": "image_gen",
+  "styleAcceptance": "working calibration, not user acceptance"
+}

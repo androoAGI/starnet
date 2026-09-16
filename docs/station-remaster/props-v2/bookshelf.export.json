@@ -1,0 +1,15 @@
+{
+  "id": "bookshelf",
+  "source": "C:/Users/andro/.codex/generated_images/01a09c6e-42f0-7c90-bc97-768d6754278f/exec-a523f3fd-33ac-4d63-b594-8ec64a172524.png",
+  "sourceWidth": 1364,
+  "sourceHeight": 1153,
+  "crop": {
+    "left": 5,
+    "top": 7,
+    "width": 1355,
+    "height": 1138
+  },
+  "sourceAlpha": true,
+  "subjectRgbChanges": 0,
+  "output": "frontend/assets/industrial/props-v2/bookshelf.png"
+}

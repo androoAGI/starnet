@@ -1,0 +1,15 @@
+{
+  "id": "couch",
+  "source": "C:/Users/andro/.codex/generated_images/01a09c6e-42f0-7c90-bc97-768d6754278f/exec-9f73f3e2-1403-4c8d-b2c8-d4f17f498d49.png",
+  "sourceWidth": 2170,
+  "sourceHeight": 725,
+  "crop": {
+    "left": 16,
+    "top": 30,
+    "width": 2138,
+    "height": 649
+  },
+  "sourceAlpha": false,
+  "subjectRgbChanges": 0,
+  "output": "frontend/assets/industrial/props-v2/couch.png"
+}

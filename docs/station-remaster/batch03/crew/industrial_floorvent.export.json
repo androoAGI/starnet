@@ -1,0 +1,110 @@
+{
+  "id": "industrial_floorvent",
+  "nativeId": "industrial_floorvent",
+  "view": "s",
+  "footprint": {
+    "w": 2,
+    "h": 1
+  },
+  "bounds": {
+    "x": 1,
+    "y": 1,
+    "width": 22,
+    "height": 10
+  },
+  "geometry": {
+    "blocks": false,
+    "flat": true,
+    "tableSurface": false,
+    "requiredMount": null,
+    "optionalSurfaceMount": false,
+    "surfaceRisePixels": 8
+  },
+  "orientation": {
+    "facings": [
+      {
+        "r": 0,
+        "front": "south",
+        "w": 2,
+        "h": 1,
+        "type": "authored-view"
+      },
+      {
+        "r": 1,
+        "front": "west",
+        "w": 1,
+        "h": 2,
+        "type": "flat-plan-transform"
+      },
+      {
+        "r": 2,
+        "front": "north",
+        "w": 2,
+        "h": 1,
+        "type": "flat-plan-transform"
+      },
+      {
+        "r": 3,
+        "front": "east",
+        "w": 1,
+        "h": 2,
+        "type": "flat-plan-transform"
+      }
+    ],
+    "canMirror": true,
+    "classicFacings": [
+      0,
+      1,
+      2,
+      3
+    ]
+  },
+  "anchorContract": "Flat floor pass beneath bodies and other props; no body, seat, mount or collision.",
+  "sourceAnimation": {
+    "idleFrameVariants": 1,
+    "workFrameVariants": 1,
+    "respondsToWorkFlag": false,
+    "opaqueBoundsRelativeToFootprint": {
+      "x": 1,
+      "y": 1,
+      "w": 22,
+      "h": 10,
+      "alphaThreshold": 160
+    }
+  },
+  "tilePixels": 12,
+  "floorContact": {
+    "y": 12,
+    "x": 12
+  },
+  "visualBottomContact": {
+    "y": 11,
+    "x": 12
+  },
+  "status": "art-draft-integration-pending",
+  "backgroundThreshold": 235,
+  "holeSeeds": [],
+  "references": [
+    "workstation.png:camera-design",
+    "calibration/crate.png:metal-color",
+    "batch03/crew/industrial_bench-source.png:painted-style"
+  ],
+  "alphaCutoff": 160,
+  "sourceWidth": 1860,
+  "sourceHeight": 846,
+  "sourceSha256": "039162fc80215f4fc571447fb9cc9f24923fe485a7b4e123e270c68c0fe1d52e",
+  "output": "frontend/assets/industrial/batch03/crew/industrial_floorvent.png",
+  "crop": {
+    "left": 47,
+    "top": 83,
+    "width": 1767,
+    "height": 677
+  },
+  "transparentPixels": 29474,
+  "opaquePixels": 1166785,
+  "partialPixels": 0,
+  "backgroundPixelsRemoved": 406775,
+  "subjectRgbChanges": 0,
+  "outputSha256": "703664d6440b6ef85f1675f0f44dfe240830d7d20b9338297decb0c502f89f90",
+  "liveIntegrated": false
+}

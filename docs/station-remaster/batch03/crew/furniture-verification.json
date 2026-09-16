@@ -1,0 +1,665 @@
+{
+  "count": 26,
+  "expectedViews": 26,
+  "allPassed": true,
+  "liveVerified": false,
+  "rows": [
+    {
+      "id": "quarters_lockerbank",
+      "passed": true,
+      "size": [
+        1286,
+        981
+      ],
+      "alphaValues": [
+        0,
+        255
+      ],
+      "sourceHash": "2934bc8167c2bc18e3d508ef4224564e8d6634ded023f980ebc6f1889fa22b5f",
+      "outputHash": "edf308ad7edf8c011873fb5480a91ec1f8f1271b8de3a07858197e85952657b9",
+      "regionNames": [
+        "accessFaces"
+      ],
+      "fitWorldPixels": {
+        "x": -1.0,
+        "y": -16.98755832037325,
+        "width": 38.0,
+        "height": 28.98755832037325,
+        "bottom": 12.0
+      }
+    },
+    {
+      "id": "glasstable",
+      "passed": true,
+      "size": [
+        1706,
+        513
+      ],
+      "alphaValues": [
+        0,
+        255
+      ],
+      "sourceHash": "a9174b0ae4092754cf51afa3ff12b336e228e1bd334fae6e4b710580a4934dcc",
+      "outputHash": "4c5bb258ff59ba139fb100f4fd4aa2ce8bf0c90e8a04794e92004f42be4c97dd",
+      "regionNames": [
+        "tableSupport",
+        "nearSupportEdge"
+      ],
+      "fitWorldPixels": {
+        "x": 0.0,
+        "y": 1.1746776084407973,
+        "width": 36.0,
+        "height": 10.825322391559203,
+        "bottom": 12.0
+      }
+    },
+    {
+      "id": "dinertable",
+      "passed": true,
+      "size": [
+        1584,
+        787
+      ],
+      "alphaValues": [
+        0,
+        255
+      ],
+      "sourceHash": "957a96b5910c0781557bad52975116a2de72846ac4e0424b9d06f17ed0decae5",
+      "outputHash": "dd0d73b53527d0fb4875097c6dcbc2773c53850cb01dcb7cef83a4b58e412b70",
+      "regionNames": [
+        "tableSupport",
+        "nearSupportEdge"
+      ],
+      "fitWorldPixels": {
+        "x": -1.0,
+        "y": 6.119949494949495,
+        "width": 38.0,
+        "height": 18.880050505050505,
+        "bottom": 25.0
+      }
+    },
+    {
+      "id": "loungetable",
+      "passed": true,
+      "size": [
+        1414,
+        608
+      ],
+      "alphaValues": [
+        0,
+        255
+      ],
+      "sourceHash": "bc91fee06ddc32e72a31f0a91e6fa3ef2e1370db2875195d2e4015db1852d35c",
+      "outputHash": "8ff07738bfc4208769cae579d1481ff386d7c9bd55088afc0a66e8863d1af464",
+      "regionNames": [
+        "tableSupport",
+        "nearSupportEdge"
+      ],
+      "fitWorldPixels": {
+        "x": 0.0,
+        "y": 1.680339462517681,
+        "width": 24.0,
+        "height": 10.319660537482319,
+        "bottom": 12.0
+      }
+    },
+    {
+      "id": "booth",
+      "passed": true,
+      "size": [
+        1392,
+        606
+      ],
+      "alphaValues": [
+        0,
+        255
+      ],
+      "sourceHash": "e5072bd96a468af709e2c2667952bb65737bcecd2298627241f8afd38ac05acb",
+      "outputHash": "8628b934e7c02c2558ad97346f8cf2599ee21be15083e29ea978599c47c6b274",
+      "regionNames": [
+        "backOcclusion"
+      ],
+      "fitWorldPixels": {
+        "x": 0.0,
+        "y": 1.5517241379310338,
+        "width": 24.0,
+        "height": 10.448275862068966,
+        "bottom": 12.0
+      }
+    },
+    {
+      "id": "dinerchair",
+      "passed": true,
+      "size": [
+        626,
+        1283
+      ],
+      "alphaValues": [
+        0,
+        255
+      ],
+      "sourceHash": "f013c3d781c0ec17a965c54c50b7c495834c71e4f36764fcaf292602e7df6904",
+      "outputHash": "ad8a304c5415a7fee47be4fb84cf5ec326911d4370e0061f8d171be14ec04a7a",
+      "regionNames": [
+        "seatSupport",
+        "nearSupportEdge",
+        "backRest"
+      ],
+      "fitWorldPixels": {
+        "x": 2.5966484801247076,
+        "y": -4.0,
+        "width": 7.806703039750585,
+        "height": 16.0,
+        "bottom": 12.0
+      }
+    },
+    {
+      "id": "podchair",
+      "passed": true,
+      "size": [
+        896,
+        1357
+      ],
+      "alphaValues": [
+        0,
+        255
+      ],
+      "sourceHash": "c9d1e24251bf8dfaea91dbe88a3ccf488ddbc7a3ae9b047964a2f1d454e5a923",
+      "outputHash": "dfd792efe8760df4d6c03af59ef4870c489eceda9f1cc7a77a4242c26aa501f6",
+      "regionNames": [
+        "seatSupport",
+        "nearSupportEdge",
+        "nearRimOcclusion"
+      ],
+      "fitWorldPixels": {
+        "x": 1.0,
+        "y": -3.1450892857142865,
+        "width": 10.0,
+        "height": 15.145089285714286,
+        "bottom": 12.0
+      }
+    },
+    {
+      "id": "longtable",
+      "passed": true,
+      "size": [
+        1762,
+        645
+      ],
+      "alphaValues": [
+        0,
+        255
+      ],
+      "sourceHash": "0faad2110a985364ca6e52a4f0de787714faf8b37b44a39a90adee99fa08a442",
+      "outputHash": "5cba6e531d62d3ea55ee40cf8c04b1771a2c7166d62b739f6fcda17279dbc64f",
+      "regionNames": [
+        "tableSupport",
+        "nearSupportEdge"
+      ],
+      "fitWorldPixels": {
+        "x": -1.0,
+        "y": -1.9103291713961408,
+        "width": 38.0,
+        "height": 13.91032917139614,
+        "bottom": 12.0
+      }
+    },
+    {
+      "id": "glasstable-r3",
+      "passed": true,
+      "size": [
+        686,
+        1775
+      ],
+      "alphaValues": [
+        0,
+        255
+      ],
+      "sourceHash": "3d6b6076968371141cee98a54b839d828a9d650f519afa79eeeabd6b12db6a4a",
+      "outputHash": "2ea807ffd99482d5d07dbcb23f434dca4b93962d52100764783a40436537d6df",
+      "regionNames": [
+        "tableSupport",
+        "nearSupportEdge"
+      ],
+      "fitWorldPixels": {
+        "x": 0.0,
+        "y": 4.950437317784257,
+        "width": 12.0,
+        "height": 31.049562682215743,
+        "bottom": 36.0
+      }
+    },
+    {
+      "id": "dinertable-r3",
+      "passed": true,
+      "size": [
+        901,
+        1378
+      ],
+      "alphaValues": [
+        0,
+        255
+      ],
+      "sourceHash": "bf6c8de2f981e86f623ce82b0f15f9c778077def1e7fe65e7648fc4f42561307",
+      "outputHash": "fc5c0475318f548acfdc440b5c640f1f2ee0d614804d5bee7cf14774f8ce922c",
+      "regionNames": [
+        "tableSupport",
+        "nearSupportEdge"
+      ],
+      "fitWorldPixels": {
+        "x": -0.0961538461538467,
+        "y": 0.0,
+        "width": 24.192307692307693,
+        "height": 37.0,
+        "bottom": 37.0
+      }
+    },
+    {
+      "id": "loungetable-r3",
+      "passed": true,
+      "size": [
+        843,
+        1417
+      ],
+      "alphaValues": [
+        0,
+        255
+      ],
+      "sourceHash": "22d5274d1cf9f0f5c08b0a2687484028255d2ab39a8cc91559435a3bfb1a1c47",
+      "outputHash": "2f417d8bad9f1ebfda4a6fb5271c79b7a43d5e19eeaea9a2eeaa8fb003a1d9f3",
+      "regionNames": [
+        "tableSupport",
+        "nearSupportEdge"
+      ],
+      "fitWorldPixels": {
+        "x": -0.9999999999999991,
+        "y": 0.4673784104389114,
+        "width": 13.999999999999998,
+        "height": 23.53262158956109,
+        "bottom": 24.0
+      }
+    },
+    {
+      "id": "longtable-r3",
+      "passed": true,
+      "size": [
+        789,
+        1611
+      ],
+      "alphaValues": [
+        0,
+        255
+      ],
+      "sourceHash": "d99ef906dabbffdb7c1693c681dc29172639e4955c2c907a431f9c0a3db27bc4",
+      "outputHash": "f717f6428b9e63a93ee6f29926593c1795f702c69e6691e5034cb2a8cb2c669f",
+      "regionNames": [
+        "tableSupport",
+        "nearSupportEdge"
+      ],
+      "fitWorldPixels": {
+        "x": -1.9999999999999991,
+        "y": 3.3307984790874556,
+        "width": 15.999999999999998,
+        "height": 32.669201520912544,
+        "bottom": 36.0
+      }
+    },
+    {
+      "id": "dinerchair-r1",
+      "passed": true,
+      "size": [
+        773,
+        1311
+      ],
+      "alphaValues": [
+        0,
+        255
+      ],
+      "sourceHash": "589d21dad77f9ca063e289b8dc6cef88c5bd8f93e5f1fbd5305e5700896be3ef",
+      "outputHash": "0be27c75e660b876b5bbffae8535d09dc61ad299c736b8ab081061975900ca6c",
+      "regionNames": [
+        "seatSupport",
+        "nearSupportEdge"
+      ],
+      "fitWorldPixels": {
+        "x": 0.7829900839054158,
+        "y": -4.0,
+        "width": 9.434019832189168,
+        "height": 16.0,
+        "bottom": 12.0
+      }
+    },
+    {
+      "id": "dinerchair-r2",
+      "passed": true,
+      "size": [
+        685,
+        1277
+      ],
+      "alphaValues": [
+        0,
+        255
+      ],
+      "sourceHash": "b15039055bbe04ac7820e3b2ac06d3d939a03d22132ce0daaf05e738e5df698b",
+      "outputHash": "e5cf90ba1e2bbecbcb67382c7c2eaadffb2c8d82737f2121007fd6c13a5da9ca",
+      "regionNames": [
+        "visibleSeatSliver",
+        "backOcclusion"
+      ],
+      "fitWorldPixels": {
+        "x": 2.208692247454972,
+        "y": -4.0,
+        "width": 8.582615505090056,
+        "height": 16.0,
+        "bottom": 12.0
+      }
+    },
+    {
+      "id": "dinerchair-r3",
+      "passed": true,
+      "size": [
+        750,
+        1327
+      ],
+      "alphaValues": [
+        0,
+        255
+      ],
+      "sourceHash": "ee4fd37101a6f4c0c658eeaa6f2ed5510d0eca35198541159a8d97d566e0d2d4",
+      "outputHash": "30175e80d02c9e13bc599428054b705a8c8ae588a61e0684e810f850756aa4be",
+      "regionNames": [
+        "seatSupport",
+        "nearSupportEdge"
+      ],
+      "fitWorldPixels": {
+        "x": 1.9785229841748304,
+        "y": -4.0,
+        "width": 9.04295403165034,
+        "height": 16.0,
+        "bottom": 12.0
+      }
+    },
+    {
+      "id": "booth-r3",
+      "passed": true,
+      "size": [
+        672,
+        1692
+      ],
+      "alphaValues": [
+        0,
+        255
+      ],
+      "sourceHash": "6ab42503f7d85118277253c052c9643c387dcf14fa643f2c7074516c8cc79576",
+      "outputHash": "a85a3e117ad74f9e78f7f23c6b94739aa232feaf1b677882b1ccefee7c450610",
+      "regionNames": [
+        "seatSupport",
+        "backOcclusion",
+        "nearArmOcclusion"
+      ],
+      "fitWorldPixels": {
+        "x": 0.24113475177304977,
+        "y": -5.0,
+        "width": 11.5177304964539,
+        "height": 29.0,
+        "bottom": 24.0
+      }
+    },
+    {
+      "id": "podchair-r1",
+      "passed": true,
+      "size": [
+        917,
+        1444
+      ],
+      "alphaValues": [
+        0,
+        255
+      ],
+      "sourceHash": "4ef6f05865df95365ba8142d3e81db03b7ceb22119a167732e5379b870eef2ec",
+      "outputHash": "139ef44b6334686b701ed55ff81230b4c79a62b86a0e6ba304e171c3a4f75cd4",
+      "regionNames": [
+        "seatSupport",
+        "nearRimOcclusion"
+      ],
+      "fitWorldPixels": {
+        "x": 0.10214681440443218,
+        "y": -5.0,
+        "width": 10.795706371191136,
+        "height": 17.0,
+        "bottom": 12.0
+      }
+    },
+    {
+      "id": "podchair-r2",
+      "passed": true,
+      "size": [
+        898,
+        1342
+      ],
+      "alphaValues": [
+        0,
+        255
+      ],
+      "sourceHash": "9a7b40159c2e75e8f7e929088ffbd3534760df2ce0a26620116965a73b62effe",
+      "outputHash": "2482cbde722e505e293d5c6fb817d7065d00efe134c01134161ac4ca4ee2d7c4",
+      "regionNames": [
+        "backOcclusion"
+      ],
+      "fitWorldPixels": {
+        "x": 1.0,
+        "y": -2.9443207126948767,
+        "width": 10.0,
+        "height": 14.944320712694877,
+        "bottom": 12.0
+      }
+    },
+    {
+      "id": "podchair-r3",
+      "passed": true,
+      "size": [
+        921,
+        1390
+      ],
+      "alphaValues": [
+        0,
+        255
+      ],
+      "sourceHash": "ef0f4d98007bd17508756740660eb445afd78d100a6b4b5d976eddce7fb3070d",
+      "outputHash": "562e4c62215f476b018379e9edc7e819c388121129b283e532f1ad5e392a8e9b",
+      "regionNames": [
+        "seatSupport",
+        "nearRimOcclusion"
+      ],
+      "fitWorldPixels": {
+        "x": 1.0,
+        "y": -4.601520086862106,
+        "width": 11.0,
+        "height": 16.601520086862106,
+        "bottom": 12.0
+      }
+    },
+    {
+      "id": "booth-r1",
+      "passed": true,
+      "size": [
+        610,
+        1673
+      ],
+      "alphaValues": [
+        0,
+        255
+      ],
+      "sourceHash": "3c07f5df601614f4a19cb96fa10f52f2b76f8293852ef348ce6f1e359070c35d",
+      "outputHash": "37172383f62b9f42f84254dd989b1e56b7babbe37cfd1be3a0e6087224200d5f",
+      "regionNames": [
+        "seatSupport",
+        "backOcclusion",
+        "nearArmOcclusion"
+      ],
+      "fitWorldPixels": {
+        "x": 0.7130902570233113,
+        "y": -5.0000000000000036,
+        "width": 10.573819485953377,
+        "height": 29.000000000000004,
+        "bottom": 24.0
+      }
+    },
+    {
+      "id": "punchbag",
+      "passed": true,
+      "size": [
+        815,
+        1437
+      ],
+      "alphaValues": [
+        0,
+        255
+      ],
+      "sourceHash": "477a603cfed900445824fed79a7a0d11cc724f29cbcb35b048b2fb42bb69a733",
+      "outputHash": "7f4e79f9deb9b8f5c413c221a8c7bbf3e91a2f2c800d76150f40ff3dc64002de",
+      "regionNames": [
+        "swingPivot",
+        "movingBagAndChain",
+        "bagBody"
+      ],
+      "fitWorldPixels": {
+        "x": 0.0,
+        "y": 0.8417177914110425,
+        "width": 12.0,
+        "height": 21.158282208588957,
+        "bottom": 22.0
+      }
+    },
+    {
+      "id": "benchpress",
+      "passed": true,
+      "size": [
+        1564,
+        677
+      ],
+      "alphaValues": [
+        0,
+        255
+      ],
+      "sourceHash": "27eb9d78ac014d9dbe325b064f93a46756273908b00980e0e8d796adb62bdd57",
+      "outputHash": "6df4315a6a0736fdac8ea18ceb4f83f4f4d6e04d179131ce7fc08bd943266f0a",
+      "regionNames": [
+        "bodyPadSupport",
+        "headPadSupport",
+        "barbellAxis"
+      ],
+      "fitWorldPixels": {
+        "x": 1.0,
+        "y": -3.5831202046035813,
+        "width": 36.0,
+        "height": 15.583120204603581,
+        "bottom": 12.0
+      }
+    },
+    {
+      "id": "recliner",
+      "passed": true,
+      "size": [
+        1083,
+        1112
+      ],
+      "alphaValues": [
+        0,
+        255
+      ],
+      "sourceHash": "d006a1a0b172194f1c9b3388a59eb643afe217d0efa7c97a661d4aeafa3b29e9",
+      "outputHash": "51ba59d0a05c788a04e9fc6b6378a0306adc11a566cecd1f47d048bf62ba24c0",
+      "regionNames": [
+        "seatSupport",
+        "nearArmOcclusion",
+        "nearArmCrown"
+      ],
+      "fitWorldPixels": {
+        "x": -3.0,
+        "y": -5.455216989843027,
+        "width": 17.0,
+        "height": 17.455216989843027,
+        "bottom": 12.0
+      }
+    },
+    {
+      "id": "punchbag_r",
+      "passed": true,
+      "size": [
+        832,
+        1438
+      ],
+      "alphaValues": [
+        0,
+        255
+      ],
+      "sourceHash": "4bc7bb7c089f15d87d7952a8c9c9540b435b1a0104737b5abef156253976ce81",
+      "outputHash": "46a5f45af4f4c97a49c184a2ec1546b77a6a65703d844dceb6c76f260ab67134",
+      "regionNames": [
+        "swingPivot",
+        "movingBagAndChain",
+        "bagBody"
+      ],
+      "fitWorldPixels": {
+        "x": 0.0,
+        "y": 1.2596153846153832,
+        "width": 12.0,
+        "height": 20.740384615384617,
+        "bottom": 22.0
+      }
+    },
+    {
+      "id": "benchpress_r",
+      "passed": true,
+      "size": [
+        1584,
+        692
+      ],
+      "alphaValues": [
+        0,
+        255
+      ],
+      "sourceHash": "9231efdc97be7c2c03619ff133f4b02054b706b138953fecfdbe8887d363d9c5",
+      "outputHash": "68a24f6132cadd424c7ff922fdb9d7edad1233337fcfd2501e96f33ef7188ffe",
+      "regionNames": [
+        "bodyPadSupport",
+        "headPadSupport",
+        "barbellAxis"
+      ],
+      "fitWorldPixels": {
+        "x": -1.0,
+        "y": -3.7272727272727284,
+        "width": 36.0,
+        "height": 15.727272727272728,
+        "bottom": 12.0
+      }
+    },
+    {
+      "id": "recliner_r",
+      "passed": true,
+      "size": [
+        1090,
+        1115
+      ],
+      "alphaValues": [
+        0,
+        255
+      ],
+      "sourceHash": "b41aeb86033094982d7891bf98d58c02433b38f3d30aafc14489ae2c3c8e404b",
+      "outputHash": "58a124f023cbe4aa1f33b2670f07b3b77af429d55beceecee8d33bfd32238e05",
+      "regionNames": [
+        "seatSupport",
+        "nearArmOcclusion",
+        "nearArmCrown"
+      ],
+      "fitWorldPixels": {
+        "x": -2.0,
+        "y": -5.389908256880734,
+        "width": 17.0,
+        "height": 17.389908256880734,
+        "bottom": 12.0
+      }
+    }
+  ]
+}

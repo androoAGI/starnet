@@ -1,0 +1,38 @@
+{
+  "id": "boxes",
+  "source": "C:/Users/andro/.codex/generated_images/01a09c6e-ef28-70a0-bd8b-b60f1a9b9f92/exec-a62c7c09-d675-4ab0-a745-c0ace47671be.png",
+  "sourceWidth": 1703,
+  "sourceHeight": 924,
+  "crop": {
+    "left": 1,
+    "top": 3,
+    "width": 1700,
+    "height": 919
+  },
+  "sourceAlpha": false,
+  "subjectRgbChanges": 0,
+  "output": "frontend/assets/industrial/props-v2/boxes.png",
+  "native": {
+    "key": "boxes",
+    "r": 0,
+    "image": "boxes.png",
+    "footprint": {
+      "w": 2,
+      "h": 1
+    },
+    "bounds": {
+      "x": 0,
+      "y": -1,
+      "width": 24,
+      "height": 13
+    },
+    "guide": "dev/.scratch-workspace/prop-structure/boxes.png"
+  },
+  "aspectError": 0.0019949220166846082,
+  "verification": {
+    "nativeDecode": true,
+    "retainedPixels": 1227620,
+    "transparentPixels": 334680,
+    "changedRgb": 0
+  }
+}

@@ -1,0 +1,204 @@
+{
+  "id": "glasstable",
+  "nativeId": "glasstable",
+  "view": "s",
+  "footprint": {
+    "w": 3,
+    "h": 1
+  },
+  "bounds": {
+    "x": 0,
+    "y": -6,
+    "width": 36,
+    "height": 18
+  },
+  "geometry": {
+    "blocks": true,
+    "flat": false,
+    "tableSurface": true,
+    "requiredMount": null,
+    "optionalSurfaceMount": false,
+    "surfaceRisePixels": 8
+  },
+  "orientation": {
+    "facings": [
+      {
+        "r": 0,
+        "front": "south",
+        "w": 3,
+        "h": 1,
+        "type": "authored-view"
+      },
+      {
+        "r": 3,
+        "front": "east",
+        "w": 1,
+        "h": 3,
+        "type": "authored-view"
+      }
+    ],
+    "canMirror": true,
+    "classicFacings": [
+      0,
+      3
+    ]
+  },
+  "anchorContract": "No leisure seat anchor. Footprint is the placement/pathfinding rectangle; upright visual rise is independent of the reserved box.",
+  "sourceAnimation": {
+    "idleFrameVariants": 1,
+    "workFrameVariants": 1,
+    "respondsToWorkFlag": false,
+    "opaqueBoundsRelativeToFootprint": {
+      "x": 0,
+      "y": -6,
+      "w": 36,
+      "h": 18,
+      "alphaThreshold": 160
+    }
+  },
+  "tilePixels": 12,
+  "floorContact": {
+    "x": 18,
+    "y": 12
+  },
+  "visualBottomContact": {
+    "x": 18,
+    "y": 12
+  },
+  "status": "art-draft-integration-pending",
+  "backgroundThreshold": 235,
+  "holeSeeds": [
+    [
+      500,
+      490
+    ]
+  ],
+  "authoredGeometry": {
+    "method": "Manual visual annotation of painted source geometry; approximate edges, not live validated. Normalized coordinates refer to final tight alpha crop, not full original canvas.",
+    "fitWorldPixels": {
+      "x": 0.0,
+      "y": 1.1746776084407973,
+      "width": 36.0,
+      "height": 10.825322391559203,
+      "bottom": 12.0
+    },
+    "regions": {
+      "tableSupport": {
+        "cropNormalized": [
+          [
+            0.09,
+            0.075
+          ],
+          [
+            0.9,
+            0.075
+          ],
+          [
+            0.931,
+            0.367
+          ],
+          [
+            0.069,
+            0.367
+          ]
+        ],
+        "sourcePixels": [
+          [
+            187.54,
+            225.47
+          ],
+          [
+            1569.4,
+            225.47
+          ],
+          [
+            1622.29,
+            375.27
+          ],
+          [
+            151.71,
+            375.27
+          ]
+        ],
+        "sourceNormalized": [
+          [
+            0.105716,
+            0.2542
+          ],
+          [
+            0.884667,
+            0.2542
+          ],
+          [
+            0.914479,
+            0.423079
+          ],
+          [
+            0.085521,
+            0.423079
+          ]
+        ],
+        "worldPixels": [
+          [
+            3.24,
+            1.9866
+          ],
+          [
+            32.4,
+            1.9866
+          ],
+          [
+            33.516,
+            5.1476
+          ],
+          [
+            2.484,
+            5.1476
+          ]
+        ]
+      },
+      "nearSupportEdge": {
+        "cropNormalized": [
+          [
+            0.069,
+            0.367
+          ],
+          [
+            0.931,
+            0.367
+          ]
+        ],
+        "sourcePixels": [
+          [
+            151.71,
+            375.27
+          ],
+          [
+            1622.29,
+            375.27
+          ]
+        ],
+        "sourceNormalized": [
+          [
+            0.085521,
+            0.423079
+          ],
+          [
+            0.914479,
+            0.423079
+          ]
+        ],
+        "worldPixels": [
+          [
+            2.484,
+            5.1476
+          ],
+          [
+            33.516,
+            5.1476
+          ]
+        ]
+      }
+    }
+  }
+}

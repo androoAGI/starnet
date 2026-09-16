@@ -1,0 +1,235 @@
+{
+  "version": 1,
+  "cells": [
+    {
+      "id": "plant",
+      "view": "s",
+      "bounds": {
+        "x": 1,
+        "y": -8,
+        "width": 10,
+        "height": 20
+      },
+      "footprint": {
+        "w": 1,
+        "h": 1
+      },
+      "nativeGuide": {
+        "path": "C:\\Users\\andro\\gen-trees\\industrial-textures-0912\\dev\\.scratch-workspace\\prop-structure\\plant.png",
+        "sha256": "a55a410afe59b04ed14957b05d7d790440aec71b715203c4a366a593df510ab6"
+      },
+      "rect": {
+        "left": 0,
+        "top": 0,
+        "width": 675,
+        "height": 1448
+      },
+      "source": "docs\\station-remaster\\catalog-crew-rest-4\\sources\\plant-holopet-repair.png",
+      "sourceSha256": "4c347abddea3d8cd2311011c68b37de4bafbab55f8404e4f7f7257d7bad116b8",
+      "separation": {
+        "side": "left",
+        "breakY": 600,
+        "upperX": 630,
+        "lowerX": 670,
+        "endY": 1000
+      }
+    },
+    {
+      "id": "tallplant",
+      "view": "s",
+      "bounds": {
+        "x": 1,
+        "y": -14,
+        "width": 13,
+        "height": 26
+      },
+      "footprint": {
+        "w": 1,
+        "h": 1
+      },
+      "nativeGuide": {
+        "path": "C:\\Users\\andro\\gen-trees\\industrial-textures-0912\\dev\\.scratch-workspace\\prop-structure\\tallplant.png",
+        "sha256": "137a70a7a49271d4e10076a593a65a838408176e99731c4ea160b1da41c374b2"
+      },
+      "rect": {
+        "left": 390,
+        "top": 0,
+        "width": 370,
+        "height": 515
+      }
+    },
+    {
+      "id": "monstera",
+      "view": "s",
+      "bounds": {
+        "x": 0,
+        "y": -1,
+        "width": 12,
+        "height": 13
+      },
+      "footprint": {
+        "w": 1,
+        "h": 1
+      },
+      "nativeGuide": {
+        "path": "C:\\Users\\andro\\gen-trees\\industrial-textures-0912\\dev\\.scratch-workspace\\prop-structure\\monstera.png",
+        "sha256": "de48094375b37eb9955fa39bc487bda2443bad7e5dbb3a339f73dd0bbe3ce010"
+      },
+      "rect": {
+        "left": 760,
+        "top": 0,
+        "width": 400,
+        "height": 515
+      }
+    },
+    {
+      "id": "terrarium",
+      "view": "s",
+      "bounds": {
+        "x": 0,
+        "y": -5,
+        "width": 11,
+        "height": 16
+      },
+      "footprint": {
+        "w": 1,
+        "h": 1
+      },
+      "nativeGuide": {
+        "path": "C:\\Users\\andro\\gen-trees\\industrial-textures-0912\\dev\\.scratch-workspace\\prop-structure\\terrarium.png",
+        "sha256": "b0fff8361cd16aaeba13e3225cd23744b965de74136519371c9a8f5a2f12cf60"
+      },
+      "rect": {
+        "left": 1160,
+        "top": 0,
+        "width": 376,
+        "height": 515
+      }
+    },
+    {
+      "id": "lavalamp",
+      "view": "s",
+      "bounds": {
+        "x": 2,
+        "y": -8,
+        "width": 8,
+        "height": 20
+      },
+      "footprint": {
+        "w": 1,
+        "h": 1
+      },
+      "nativeGuide": {
+        "path": "C:\\Users\\andro\\gen-trees\\industrial-textures-0912\\dev\\.scratch-workspace\\prop-structure\\lavalamp.png",
+        "sha256": "a836aebdd0f37cb36c210b96fffb30d781ff151580f4ba953b5b117522a67fbd"
+      },
+      "rect": {
+        "left": 535,
+        "top": 0,
+        "width": 551,
+        "height": 730
+      },
+      "source": "docs\\station-remaster\\catalog-crew-rest-4\\sources\\repair.png",
+      "sourceSha256": "a1985b17c62d45f6d2e234991155649f7cf5321dd858cfc2e39256e5fb6dca90"
+    },
+    {
+      "id": "plasmaglobe",
+      "view": "s",
+      "bounds": {
+        "x": 1,
+        "y": -5,
+        "width": 9,
+        "height": 17
+      },
+      "footprint": {
+        "w": 1,
+        "h": 1
+      },
+      "nativeGuide": {
+        "path": "C:\\Users\\andro\\gen-trees\\industrial-textures-0912\\dev\\.scratch-workspace\\prop-structure\\plasmaglobe.png",
+        "sha256": "e9d41ff8c3b2c0ce6817c84832614344b6cea9a8e91c3b159e97d182edad5449"
+      },
+      "rect": {
+        "left": 0,
+        "top": 730,
+        "width": 535,
+        "height": 718
+      },
+      "source": "docs\\station-remaster\\catalog-crew-rest-4\\sources\\repair.png",
+      "sourceSha256": "a1985b17c62d45f6d2e234991155649f7cf5321dd858cfc2e39256e5fb6dca90"
+    },
+    {
+      "id": "holopet",
+      "view": "s",
+      "bounds": {
+        "x": 3,
+        "y": -6,
+        "width": 6,
+        "height": 16
+      },
+      "footprint": {
+        "w": 1,
+        "h": 1
+      },
+      "nativeGuide": {
+        "path": "C:\\Users\\andro\\gen-trees\\industrial-textures-0912\\dev\\.scratch-workspace\\prop-structure\\holopet.png",
+        "sha256": "eece87703bc6dfd25e3479b860fd63b5afcc8dfdcc9146dffc897cb6d8042ee0"
+      },
+      "rect": {
+        "left": 625,
+        "top": 0,
+        "width": 461,
+        "height": 1448
+      },
+      "source": "docs\\station-remaster\\catalog-crew-rest-4\\sources\\plant-holopet-repair.png",
+      "sourceSha256": "4c347abddea3d8cd2311011c68b37de4bafbab55f8404e4f7f7257d7bad116b8",
+      "separation": {
+        "side": "right",
+        "breakY": 600,
+        "upperX": 630,
+        "lowerX": 670,
+        "endY": 1000
+      }
+    },
+    {
+      "id": "speaker",
+      "view": "s",
+      "bounds": {
+        "x": 1,
+        "y": -3,
+        "width": 10,
+        "height": 15
+      },
+      "footprint": {
+        "w": 1,
+        "h": 1
+      },
+      "nativeGuide": {
+        "path": "C:\\Users\\andro\\gen-trees\\industrial-textures-0912\\dev\\.scratch-workspace\\prop-structure\\speaker.png",
+        "sha256": "49ffb55bf80b7847df8e2ddeff7e78230bc544659db52e453be77bf5359a22fe"
+      },
+      "rect": {
+        "left": 1160,
+        "top": 515,
+        "width": 376,
+        "height": 509
+      }
+    }
+  ],
+  "source": "docs\\station-remaster\\catalog-crew-rest-4\\sources\\sheet.png",
+  "sourceSha256": "9879459b690c46e9bc7c2e0a05e68f2f611635cfcb2a8cf1006fcc2837d8d9b5",
+  "refs": [
+    {
+      "path": "C:\\Users\\andro\\gen-trees\\prop-coordination-0914\\frontend\\assets\\industrial\\projection-correction\\crate.png",
+      "sha256": "a4c596600f4c1c0bf0c2f4df0892a9f0c49b074dd91079b5926b0fd27cd0ba16"
+    },
+    {
+      "path": "C:\\Users\\andro\\gen-trees\\prop-coordination-0914\\frontend\\assets\\industrial\\projection-correction\\desk.png",
+      "sha256": "49e35c9b58a2e1f4939ed1320e70e4f11a54b46afbe46661122638ddf7ca5fd4"
+    },
+    {
+      "path": "C:\\Users\\andro\\gen-trees\\prop-coordination-0914\\frontend\\assets\\industrial\\projection-correction\\chair.png",
+      "sha256": "1c9257ded875c31688c9f759c424db2814ab707e36790db7793e20aac85c2d79"
+    }
+  ]
+}

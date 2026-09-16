@@ -159,8 +159,8 @@
         },
         "w": {
           "image": "industrial_partition-w.png",
-          "sourceWidth": 68,
-          "sourceHeight": 210,
+          "sourceWidth": 177,
+          "sourceHeight": 575,
           "footprint": {
             "w": 1,
             "h": 3
@@ -172,7 +172,12 @@
             "height": 48
           },
           "mode": "approved",
-          "exposure": 1
+          "exposure": 1,
+          "contact": {
+            "x": 0.5,
+            "y": 0.9982608695652174
+          },
+          "effects": false
         },
         "e": {
           "image": "industrial_partition-e.png",
@@ -379,8 +384,8 @@
       "views": {
         "s": {
           "image": "desk.png",
-          "sourceWidth": 91,
-          "sourceHeight": 68,
+          "sourceWidth": 1207,
+          "sourceHeight": 804,
           "footprint": {
             "w": 3,
             "h": 1
@@ -393,7 +398,12 @@
           },
           "mode": "approved",
           "exposure": 1,
-          "screenPower": "occupied"
+          "screenPower": "occupied",
+          "contact": {
+            "x": 0.5,
+            "y": 0.9987562189054726
+          },
+          "effects": false
         },
         "w": {
           "image": "desk-w.png",
@@ -416,8 +426,8 @@
         },
         "n": {
           "image": "desk-n.png",
-          "sourceWidth": 212,
-          "sourceHeight": 168,
+          "sourceWidth": 597,
+          "sourceHeight": 469,
           "footprint": {
             "w": 3,
             "h": 1
@@ -430,7 +440,12 @@
           },
           "mode": "approved",
           "exposure": 1,
-          "embeddedSeat": true
+          "embeddedSeat": true,
+          "contact": {
+            "x": 0.5,
+            "y": 0.997867803837953
+          },
+          "effects": false
         },
         "e": {
           "image": "desk-e.png",
@@ -658,8 +673,8 @@
       "views": {
         "s": {
           "image": "workbench.png",
-          "sourceWidth": 431,
-          "sourceHeight": 395,
+          "sourceWidth": 1515,
+          "sourceHeight": 909,
           "footprint": {
             "w": 2,
             "h": 1
@@ -675,7 +690,7 @@
           "activity": "fired",
           "contact": {
             "x": 0.5,
-            "y": 0.9924050632911392
+            "y": 0.9988998899889989
           },
           "effects": false
         }
@@ -685,8 +700,8 @@
       "views": {
         "s": {
           "image": "intake.png",
-          "sourceWidth": 405,
-          "sourceHeight": 406,
+          "sourceWidth": 1214,
+          "sourceHeight": 976,
           "footprint": {
             "w": 2,
             "h": 2
@@ -698,11 +713,11 @@
             "height": 28
           },
           "mode": "approved",
-          "exposure": 1,
+          "exposure": 1.12,
           "activity": "work",
           "contact": {
             "x": 0.5,
-            "y": 0.9926108374384236
+            "y": 0.9989754098360656
           },
           "effects": false
         }
@@ -873,8 +888,8 @@
       "views": {
         "s": {
           "image": "outbox.png",
-          "sourceWidth": 421,
-          "sourceHeight": 412,
+          "sourceWidth": 1206,
+          "sourceHeight": 1014,
           "footprint": {
             "w": 2,
             "h": 2
@@ -886,11 +901,11 @@
             "height": 32
           },
           "mode": "approved",
-          "exposure": 1,
+          "exposure": 1.12,
           "activity": "work",
           "contact": {
             "x": 0.5,
-            "y": 0.9951456310679612
+            "y": 0.9990138067061144
           },
           "effects": false
         }
@@ -928,8 +943,8 @@
       "views": {
         "s": {
           "image": "comms_dish.png",
-          "sourceWidth": 661,
-          "sourceHeight": 739,
+          "sourceWidth": 777,
+          "sourceHeight": 1039,
           "footprint": {
             "w": 2,
             "h": 2
@@ -945,7 +960,7 @@
           "activity": "work",
           "contact": {
             "x": 0.5,
-            "y": 0.9959404600811907
+            "y": 0.9990375360923965
           },
           "effects": false
         }
@@ -1009,8 +1024,8 @@
       "views": {
         "s": {
           "image": "war_intelcab.png",
-          "sourceWidth": 825,
-          "sourceHeight": 1491,
+          "sourceWidth": 950,
+          "sourceHeight": 930,
           "footprint": {
             "w": 1,
             "h": 2
@@ -1026,7 +1041,7 @@
           "activity": "work",
           "contact": {
             "x": 0.5,
-            "y": 0.9979879275653923
+            "y": 1
           },
           "effects": false
         }
@@ -1168,8 +1183,8 @@
       "views": {
         "s": {
           "image": "gigs_servercart.png",
-          "sourceWidth": 289,
-          "sourceHeight": 320,
+          "sourceWidth": 1071,
+          "sourceHeight": 1004,
           "footprint": {
             "w": 1,
             "h": 1
@@ -1184,7 +1199,7 @@
           "exposure": 1,
           "contact": {
             "x": 0.5,
-            "y": 0.990625
+            "y": 0.999003984063745
           },
           "effects": false
         }
@@ -1221,8 +1236,8 @@
       "views": {
         "s": {
           "image": "studio.png",
-          "sourceWidth": 350,
-          "sourceHeight": 374,
+          "sourceWidth": 1422,
+          "sourceHeight": 856,
           "footprint": {
             "w": 2,
             "h": 2
@@ -1237,7 +1252,7 @@
           "exposure": 1,
           "contact": {
             "x": 0.5,
-            "y": 0.9919786096256684
+            "y": 0.9988317757009346
           },
           "effects": false
         }
@@ -1353,24 +1368,24 @@
       "views": {
         "s": {
           "image": "bridge_tacticaltable.png",
-          "sourceWidth": 1350,
-          "sourceHeight": 898,
+          "sourceWidth": 1614,
+          "sourceHeight": 825,
           "footprint": {
-            "w": 7,
-            "h": 4
+            "w": 5,
+            "h": 3
           },
           "bounds": {
-            "x": 0,
-            "y": -7,
-            "width": 84,
-            "height": 55
+            "x": 5,
+            "y": 8,
+            "width": 50,
+            "height": 28
           },
           "mode": "approved",
           "exposure": 1,
           "screenPower": "occupied",
           "contact": {
             "x": 0.5,
-            "y": 0.9966592427616926
+            "y": 0.9987878787878788
           },
           "effects": false
         }
@@ -1406,8 +1421,8 @@
       "views": {
         "s": {
           "image": "bridge_deckperimeter.png",
-          "sourceWidth": 401,
-          "sourceHeight": 255,
+          "sourceWidth": 1558,
+          "sourceHeight": 980,
           "footprint": {
             "w": 12,
             "h": 8
@@ -1422,7 +1437,7 @@
           "exposure": 1,
           "contact": {
             "x": 0.5,
-            "y": 0.9882352941176471
+            "y": 0.9989795918367347
           },
           "effects": false
         }
@@ -2147,8 +2162,8 @@
       "views": {
         "s": {
           "image": "crate.png",
-          "sourceWidth": 75,
-          "sourceHeight": 60,
+          "sourceWidth": 631,
+          "sourceHeight": 463,
           "footprint": {
             "w": 2,
             "h": 1
@@ -2160,7 +2175,12 @@
             "height": 20.8
           },
           "mode": "approved",
-          "exposure": 1
+          "exposure": 1,
+          "contact": {
+            "x": 0.5,
+            "y": 1
+          },
+          "effects": false
         }
       }
     },
@@ -2661,7 +2681,8 @@
             "x": 0.5,
             "y": 0.9970674486803519
           },
-          "effects": false
+          "effects": false,
+          "seatLift": 6
         }
       }
     },
@@ -2985,8 +3006,8 @@
       "views": {
         "s": {
           "image": "rug_large.png",
-          "sourceWidth": 299,
-          "sourceHeight": 281,
+          "sourceWidth": 556,
+          "sourceHeight": 535,
           "footprint": {
             "w": 5,
             "h": 5
@@ -3001,7 +3022,7 @@
           "exposure": 1,
           "contact": {
             "x": 0.5,
-            "y": 0.9893238434163701
+            "y": 0.994392523364486
           },
           "effects": false
         }
@@ -3115,8 +3136,8 @@
       "views": {
         "s": {
           "image": "chair.png",
-          "sourceWidth": 54,
-          "sourceHeight": 80,
+          "sourceWidth": 457,
+          "sourceHeight": 683,
           "footprint": {
             "w": 1,
             "h": 1
@@ -3128,7 +3149,12 @@
             "height": 17.7778
           },
           "mode": "approved",
-          "exposure": 1
+          "exposure": 1,
+          "contact": {
+            "x": 0.5,
+            "y": 0.9985358711566618
+          },
+          "effects": false
         },
         "w": {
           "image": "chair-w.png",
@@ -3832,8 +3858,8 @@
       "views": {
         "s": {
           "image": "longtable.png",
-          "sourceWidth": 595,
-          "sourceHeight": 249,
+          "sourceWidth": 1738,
+          "sourceHeight": 658,
           "footprint": {
             "w": 3,
             "h": 1
@@ -3850,26 +3876,26 @@
             "space": "export-normalized",
             "points": [
               [
-                0.06050420168067227,
-                0.10441767068273092
+                0.04,
+                0.06
               ],
               [
-                0.9428571428571428,
-                0.10441767068273092
+                0.96,
+                0.06
               ],
               [
-                0.946218487394958,
-                0.42570281124497994
+                0.96,
+                0.74
               ],
               [
-                0.05378151260504202,
-                0.42570281124497994
+                0.04,
+                0.74
               ]
             ]
           },
           "contact": {
             "x": 0.5,
-            "y": 0.9879518072289156
+            "y": 0.9969604863221885
           },
           "effects": false
         },
@@ -4288,23 +4314,23 @@
       "views": {
         "s": {
           "image": "toolbox.png",
-          "sourceWidth": 223,
-          "sourceHeight": 188,
+          "sourceWidth": 1275,
+          "sourceHeight": 669,
           "footprint": {
             "w": 1,
             "h": 1
           },
           "bounds": {
-            "x": 0,
-            "y": 1,
-            "width": 12,
-            "height": 10
+            "x": 1,
+            "y": 5,
+            "width": 10,
+            "height": 7
           },
           "mode": "approved",
           "exposure": 1,
           "contact": {
             "x": 0.5,
-            "y": 0.9840425531914894
+            "y": 0.9985052316890882
           },
           "effects": false
         }
@@ -4978,11 +5004,6 @@
       "group": "utility"
     },
     {
-      "id": "intake",
-      "view": "s",
-      "group": "utility"
-    },
-    {
       "id": "core",
       "view": "s",
       "group": "utility"
@@ -5019,11 +5040,6 @@
     },
     {
       "id": "rack",
-      "view": "s",
-      "group": "storage"
-    },
-    {
-      "id": "war_intelcab",
       "view": "s",
       "group": "storage"
     },
@@ -5139,11 +5155,6 @@
     },
     {
       "id": "longtable",
-      "view": "s",
-      "group": "tables"
-    },
-    {
-      "id": "longtable",
       "view": "e",
       "group": "tables"
     },
@@ -5233,11 +5244,6 @@
       "group": "command"
     },
     {
-      "id": "bridge_tacticaltable",
-      "view": "s",
-      "group": "command"
-    },
-    {
       "id": "airlock",
       "view": "s",
       "group": "floor"
@@ -5274,16 +5280,6 @@
     },
     {
       "id": "rug_small",
-      "view": "s",
-      "group": "floor"
-    },
-    {
-      "id": "rug_large",
-      "view": "s",
-      "group": "floor"
-    },
-    {
-      "id": "bridge_deckperimeter",
       "view": "s",
       "group": "floor"
     },
@@ -5354,11 +5350,6 @@
     },
     {
       "id": "splitter",
-      "view": "s",
-      "group": "workflow"
-    },
-    {
-      "id": "outbox",
       "view": "s",
       "group": "workflow"
     },
@@ -5453,22 +5444,12 @@
       "group": "comms-optics"
     },
     {
-      "id": "comms_dish",
-      "view": "s",
-      "group": "comms-optics"
-    },
-    {
       "id": "research_corelens",
       "view": "s",
       "group": "comms-optics"
     },
     {
       "id": "research_trendpillar",
-      "view": "s",
-      "group": "comms-optics"
-    },
-    {
-      "id": "studio",
       "view": "s",
       "group": "comms-optics"
     },
@@ -5503,22 +5484,12 @@
       "group": "storage-carts"
     },
     {
-      "id": "toolbox",
-      "view": "s",
-      "group": "storage-carts"
-    },
-    {
       "id": "industrial_supplycart",
       "view": "s",
       "group": "storage-carts"
     },
     {
       "id": "industrial_toolcaddy",
-      "view": "s",
-      "group": "storage-carts"
-    },
-    {
-      "id": "gigs_servercart",
       "view": "s",
       "group": "storage-carts"
     },
@@ -5554,11 +5525,6 @@
     },
     {
       "id": "screens",
-      "view": "s",
-      "group": "cameras-work"
-    },
-    {
-      "id": "workbench",
       "view": "s",
       "group": "cameras-work"
     },
@@ -5776,6 +5742,91 @@
       "id": "speaker",
       "view": "s",
       "group": "plants-decor"
+    },
+    {
+      "id": "longtable",
+      "view": "s",
+      "group": "camera-audit"
+    },
+    {
+      "id": "toolbox",
+      "view": "s",
+      "group": "camera-audit"
+    },
+    {
+      "id": "desk",
+      "view": "s",
+      "group": "sharpness-restoration"
+    },
+    {
+      "id": "crate",
+      "view": "s",
+      "group": "sharpness-restoration"
+    },
+    {
+      "id": "chair",
+      "view": "s",
+      "group": "sharpness-restoration"
+    },
+    {
+      "id": "industrial_partition",
+      "view": "w",
+      "group": "sharpness-restoration"
+    },
+    {
+      "id": "desk",
+      "view": "n",
+      "group": "sharpness-restoration"
+    },
+    {
+      "id": "rug_large",
+      "view": "s",
+      "group": "sharpness-restoration"
+    },
+    {
+      "id": "bridge_deckperimeter",
+      "view": "s",
+      "group": "sharpness-restoration"
+    },
+    {
+      "id": "intake",
+      "view": "s",
+      "group": "dispatch-polish"
+    },
+    {
+      "id": "outbox",
+      "view": "s",
+      "group": "dispatch-polish"
+    },
+    {
+      "id": "bridge_tacticaltable",
+      "view": "s",
+      "group": "tactical-table-polish"
+    },
+    {
+      "id": "war_intelcab",
+      "view": "s",
+      "group": "capability-v2"
+    },
+    {
+      "id": "comms_dish",
+      "view": "s",
+      "group": "capability-v2"
+    },
+    {
+      "id": "workbench",
+      "view": "s",
+      "group": "capability-v2"
+    },
+    {
+      "id": "gigs_servercart",
+      "view": "s",
+      "group": "capability-v2"
+    },
+    {
+      "id": "studio",
+      "view": "s",
+      "group": "capability-v2"
     }
   ]
 }

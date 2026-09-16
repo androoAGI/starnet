@@ -1,0 +1,29 @@
+[
+  {
+    "file": "couch.png",
+    "mode": "RGB",
+    "width": 2207,
+    "height": 712,
+    "hasAlpha": false,
+    "transparentPixels": 0,
+    "sha256": "9e2a350fe495229495e7e44d6766e42c7672939c007126e780cd76ab0329bceb"
+  },
+  {
+    "file": "lowtable-r3.png",
+    "mode": "RGB",
+    "width": 836,
+    "height": 1881,
+    "hasAlpha": false,
+    "transparentPixels": 0,
+    "sha256": "f57212b1e341d210b0f49d2e791946c2188bfa9079226ef92f6dafc941535460"
+  },
+  {
+    "file": "lowtable.png",
+    "mode": "RGB",
+    "width": 1875,
+    "height": 839,
+    "hasAlpha": false,
+    "transparentPixels": 0,
+    "sha256": "e477197b5a28d0d9d37a931a78de49dd6912de043f40496ff96863e833f22239"
+  }
+]

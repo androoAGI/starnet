@@ -1,0 +1,110 @@
+{
+  "id": "etsy_threadrack",
+  "status": "exported-awaiting-owner-live-review",
+  "source": "sources/etsy_threadrack.png",
+  "sourceSha256": "168d746e98126bdc52ef49434599be9be2f2e8ee30bdf9f5014fcbdbfc36e0cb",
+  "sourceWidth": 1430,
+  "sourceHeight": 1100,
+  "image": "etsy_threadrack.png",
+  "sourceOutputWidth": 1284,
+  "sourceOutputHeight": 836,
+  "crop": {
+    "left": 74,
+    "top": 141,
+    "width": 1284,
+    "height": 836
+  },
+  "channels": 4,
+  "transparentPixels": 295255,
+  "opaquePixels": 778169,
+  "partialPixels": 0,
+  "backgroundPixelsRemoved": 794831,
+  "subjectRgbChanges": 0,
+  "outputSha256": "31531f03269da69e089a03ae9decfdf79610b3f54284624e1a0900a348e6aa29",
+  "holeSeeds": [
+    [
+      197,
+      378
+    ],
+    [
+      429,
+      378
+    ],
+    [
+      686,
+      378
+    ],
+    [
+      948,
+      378
+    ],
+    [
+      1207,
+      378
+    ],
+    [
+      405,
+      527
+    ],
+    [
+      681,
+      527
+    ],
+    [
+      952,
+      527
+    ],
+    [
+      196,
+      528
+    ],
+    [
+      1226,
+      528
+    ],
+    [
+      187,
+      697
+    ],
+    [
+      409,
+      697
+    ],
+    [
+      684,
+      697
+    ],
+    [
+      954,
+      697
+    ],
+    [
+      1226,
+      697
+    ]
+  ],
+  "maskMethod": "Connected saturated-magenta flood fill, including key-only enclosed components. Alpha-only edits; uniform crop; no RGB recolor.",
+  "view": "s",
+  "footprint": {
+    "w": 2,
+    "h": 1
+  },
+  "bounds": {
+    "x": -1,
+    "y": -8,
+    "width": 26,
+    "height": 20
+  },
+  "tilePixels": 12,
+  "contact": {
+    "x": 12,
+    "y": 12
+  },
+  "anchorContract": "No leisure seat anchor. Footprint is the placement/pathfinding rectangle; upright visual rise is independent of the reserved box.",
+  "originalLight": null,
+  "originalAnimationTriggers": [
+    "Autonomous sprite clock animation is present in the sampled default state; cosmetic motion is not evidence of provider work, route decisions or external state."
+  ],
+  "artMode": "static complete art; existing state/lighting integration remains owner decision",
+  "liveIntegrated": false
+}

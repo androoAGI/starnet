@@ -1,0 +1,24 @@
+{
+  "generator": "built-in image_gen",
+  "attempts": [
+    {
+      "id": "gigs_partsbin",
+      "prompt": "Use case: style-transfer. Production StarNet prop sprite. IMAGE 1 is the EXACT native STRUCTURE and camera guide: preserve its silhouette, width:height proportion, relative component sizes, their positions, baseline, and directly front-facing overhead-oblique angle. The pixelated guide is only a structure map; refine it into finished art. IMAGE 2 is the APPROVED CRATE: match its cool charcoal steel, broad readable panels, modest bevels, quiet restrained scuffing and selective pale metal edge highlights. IMAGE 3 shows the station atmosphere. Prioritize the crate's restrained construction, NOT the bridge's density.\n\nSame station-aligned parallel camera: horizontal edges stay horizontal, vertical supports vertical, shallow top planes visible directly above the front, NO diagonal isometric yaw, no perspective vanishing point. Keep the native prop recognizable at its actual tiny game size. Do not add busy greebles, gold decoration, repeated bolts everywhere, extra compartments or redesign the silhouette. Material hues only where the actual object needs them. All screens/status glass dark and unlit, ready for native runtime animation. Single complete isolated object with real transparent RGBA background, including empty gaps. No floor, cast shadow, text, border or backdrop; don't paint a checkerboard. Finish the requested object only.\n\nSUBJECT: PARTS BIN: low wide open steel tray seen from above/front with exactly FOUR equal deep compartments. First has three muted green clips, second two cyan couplers, third three brass fasteners, fourth two violet cells; separate countable parts. Thin dividers, each well's lit front sill, one slanted front with a pale label strip, small feet. Do not turn contents into glowing screens. Preserve guide shape and part positions. Visible total WIDTH:HEIGHT exactly26:19 (1.368), excluding transparent padding.",
+      "references": [
+        "C:/Users/andro/gen-trees/prop-remaster-art-a-0913/dev/.scratch-workspace/prop-structure/gigs_partsbin.png",
+        "C:/Users/andro/gen-trees/prop-remaster-art-a-0913/frontend/assets/industrial/calibration/crate.png",
+        "C:/Users/andro/gen-trees/prop-remaster-art-a-0913/docs/station-remaster/bridge-reference.png"
+      ]
+    },
+    {
+      "id": "gigs_partsbin",
+      "attempt": 2,
+      "prompt": "PRECISE STRUCTURE-PRESERVING SPRITE REMASTER. Image1 is the exact structure/camera guide to refine. Image2 is approved material/style. Image3 atmosphere only. Render the same object preserving every major component position and its original silhouette envelope, NOT an illustration loosely inspired by it.\n\nCRITICAL FRAMING: copy the source guide's tight crop. The prop silhouette must reach essentially ALL FOUR image edges (within1% each edge); only clipped corners and genuinely empty spaces are transparent. DO NOT add broad top/bottom padding. Image canvas WIDTH:HEIGHT must equal the exact visible sprite envelope ratio below, so the final alpha-trimmed shape has the same ratio. The prop must not be squashed flatter, made taller or narrower to fit a decorative composition. Parallel front-on overheadoblique view identical toguide, no isometric yaw and no side-perspective.\n\nCool charcoal steel broad plates and restrained wear as approvedcrate. Simple meaningful parts; no decorativegreebles, no rows ofunneededbolts, no thick brass armor. Material-functioncolorsonly. Screens/lensesdark/off withjust glassreflection, no animation burned in. TransparentRGBA outsideactualobject, no paintedcheckerboard or floor/shadow/text.\nSUBJECT: Four-compartment open steel parts bin. First bay three green clips, secondtwo cyan couplers, thirdthree brass fasteners, fourthtwo violet cells; colored solid parts not lights. Label on slanted front, lowfeet. Nativevisiblegeometry26pxwide19pxtall. EXACT silhouette ratio1.36842. Upperrim0..15%height, deepopencompartments15..65%, frontlip/label65..83%, groundedbase83..100%. Earlier attempts became too wide and shallow.",
+      "references": [
+        "C:/Users/andro/gen-trees/prop-remaster-art-a-0913/dev/.scratch-workspace/prop-structure/gigs_partsbin.png",
+        "C:/Users/andro/gen-trees/prop-remaster-art-a-0913/frontend/assets/industrial/calibration/crate.png",
+        "C:/Users/andro/gen-trees/prop-remaster-art-a-0913/docs/station-remaster/bridge-reference.png"
+      ]
+    }
+  ]
+}

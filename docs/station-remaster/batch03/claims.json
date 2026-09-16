@@ -1,0 +1,166 @@
+{
+  "newSections": [
+    {
+      "section": "infrastructure",
+      "lane": "crew",
+      "label": "Infrastructure",
+      "ids": [
+        "industrial_partition",
+        "industrial_servicecab",
+        "industrial_wallpanel",
+        "industrial_floorvent",
+        "industrial_cabletray"
+      ]
+    },
+    {
+      "section": "publication",
+      "lane": "storage",
+      "label": "Publication",
+      "ids": [
+        "outbox",
+        "connector_portal",
+        "pub_publishpress",
+        "pub_outboundchute",
+        "pub_mailpod"
+      ]
+    },
+    {
+      "section": "transport",
+      "lane": "utility",
+      "label": "Transport",
+      "ids": [
+        "intake",
+        "bay",
+        "merger",
+        "splitter",
+        "joiner",
+        "loop"
+      ]
+    },
+    {
+      "section": "habitat",
+      "lane": "habitat",
+      "label": "Habitat",
+      "ids": [
+        "rug",
+        "rug_small",
+        "rug_large",
+        "arc_floorlight",
+        "arc_ladder",
+        "cablerun",
+        "hazardpad",
+        "steamvent"
+      ]
+    },
+    {
+      "section": "leisure",
+      "lane": "storage",
+      "label": "Leisure & media",
+      "ids": [
+        "djbooth",
+        "speaker",
+        "tv",
+        "arcade",
+        "arcade2",
+        "jukebox",
+        "gigs_thumbwall",
+        "gigs_amp",
+        "pinball",
+        "gachapon",
+        "holopet",
+        "deskterminal"
+      ]
+    },
+    {
+      "section": "furniture",
+      "lane": "crew",
+      "label": "Furniture & fitness",
+      "ids": [
+        "quarters_lockerbank",
+        "glasstable",
+        "dinertable",
+        "booth",
+        "dinerchair",
+        "podchair",
+        "loungetable",
+        "longtable",
+        "punchbag",
+        "punchbag_r",
+        "benchpress",
+        "benchpress_r",
+        "recliner",
+        "recliner_r"
+      ]
+    },
+    {
+      "section": "treasury",
+      "lane": "storage",
+      "label": "Storage & treasury",
+      "ids": [
+        "safe",
+        "vault",
+        "shelf",
+        "gigs_servercart",
+        "goldcrate",
+        "gigs_partsbin",
+        "treasury_coinsorter",
+        "treasury_token_furnace",
+        "treasury_pnl_holo",
+        "crt_pile"
+      ]
+    },
+    {
+      "section": "instruments",
+      "lane": "utility",
+      "label": "Instruments",
+      "ids": [
+        "telescope",
+        "telescope_r",
+        "camerarig",
+        "camerarig_r",
+        "weaponrack",
+        "weaponrack_r"
+      ]
+    },
+    {
+      "section": "control",
+      "lane": "control",
+      "label": "Control room",
+      "ids": [
+        "studio",
+        "airlock",
+        "bigscreen",
+        "holotable",
+        "screens",
+        "ticker",
+        "wartable",
+        "bridge_tacscreen",
+        "bridge_dispatch_pylon",
+        "bridge_orderqueue",
+        "war_pivotpanel",
+        "war_threatcore"
+      ]
+    }
+  ],
+  "ownerReserved": [
+    "pixelrig",
+    "bench",
+    "workbench",
+    "rack",
+    "rackV",
+    "core",
+    "comms_dish",
+    "comms_uplink",
+    "comms_beacon",
+    "commswall",
+    "bridge_relaystack",
+    "war_intelcab",
+    "fabricator",
+    "vat",
+    "tube",
+    "research_corelens",
+    "research_trendpillar",
+    "etsy_packbot"
+  ],
+  "note": "Claims only, never completion or runtime acceptance. Earlier44 repaints are separate and do not increase unique coverage."
+}

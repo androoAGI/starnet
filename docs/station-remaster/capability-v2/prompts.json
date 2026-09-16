@@ -1,0 +1,47 @@
+[
+  {
+    "id": "war_intelcab",
+    "args": {
+      "referenced_image_paths": [
+        "C:/Users/andro/gen-trees/prop-coordination-0914/frontend/assets/industrial/projection-correction/desk.png"
+      ],
+      "prompt": "Use the supplied workstation sprite as the DIRECT edit/style template. Create one replacement game prop that belongs to exactly this same sprite set. Copy its exact elevated orthographic camera: horizontal width axis, depth recedes straight up the image, no diagonal yaw, clearly visible top planes, modest front faces. Copy its painted pixel-cluster texture, squared crisp edge rendering, desaturated industrial gray material and subdued tonal shading. This is a tiny in-game prop, not a product illustration. No smooth cartoon outlines, no vector shapes, no photoreal microdetail. No gold trim, brass corners, ornamental framing or bronze highlights. Small steel edge highlights only. Keep silhouette economical and details few but purposeful. Genuine transparent background. No floor, no text, no label, no cast shadow outside the object. Whole single prop fully visible. A practical gray steel FILE ARCHIVE CABINET, three file drawers with plain recessed steel handles, small dark teal access display. Match the workstation's gray panels exactly. Elevated camera must show the cabinet top clearly, about one quarter of its visible vertical extent, and three short front drawers below. Low stocky cabinet, not a tall safe. Compact recessed feet."
+    }
+  },
+  {
+    "id": "comms_dish",
+    "args": {
+      "referenced_image_paths": [
+        "C:/Users/andro/gen-trees/prop-coordination-0914/frontend/assets/industrial/projection-correction/desk.png"
+      ],
+      "prompt": "Use the supplied workstation sprite as the DIRECT edit/style template. Create one replacement game prop that belongs to exactly this same sprite set. Copy its exact elevated orthographic camera: horizontal width axis, depth recedes straight up the image, no diagonal yaw, clearly visible top planes, modest front faces. Copy its painted pixel-cluster texture, squared crisp edge rendering, desaturated industrial gray material and subdued tonal shading. This is a tiny in-game prop, not a product illustration. No smooth cartoon outlines, no vector shapes, no photoreal microdetail. No gold trim, brass corners, ornamental framing or bronze highlights. Small steel edge highlights only. Keep silhouette economical and details few but purposeful. Genuine transparent background. No floor, no text, no label, no cast shadow outside the object. Whole single prop fully visible. A small practical COMMUNICATIONS DISH on a low squat gray steel mounting stand. Dull pale gray concave bowl, simple central receiver, three subtle radial seams. Bowl tilted upward as seen from the same elevated camera as workstation. Broad visible top of rectangular base, short support behind bowl. No decorative rings, no giant circular buttons, no gold. A tiny cyan status slit on base."
+    }
+  },
+  {
+    "id": "workbench",
+    "args": {
+      "referenced_image_paths": [
+        "C:/Users/andro/gen-trees/prop-coordination-0914/frontend/assets/industrial/projection-correction/desk.png"
+      ],
+      "prompt": "Use the supplied workstation sprite as the DIRECT edit/style template. Create one replacement game prop that belongs to exactly this same sprite set. Copy its exact elevated orthographic camera: horizontal width axis, depth recedes straight up the image, no diagonal yaw, clearly visible top planes, modest front faces. Copy its painted pixel-cluster texture, squared crisp edge rendering, desaturated industrial gray material and subdued tonal shading. This is a tiny in-game prop, not a product illustration. No smooth cartoon outlines, no vector shapes, no photoreal microdetail. No gold trim, brass corners, ornamental framing or bronze highlights. Small steel edge highlights only. Keep silhouette economical and details few but purposeful. Genuine transparent background. No floor, no text, no label, no cast shadow outside the object. Whole single prop fully visible. Transform the workstation into a practical ENGINEERING WORKBENCH. Preserve workstation camera, width, depth, low silhouette and gray metal legs. Replace the large monitor and keyboard with an open muted worn gray-brown wooden tabletop, small diagnostic display at rear left, one steel wrench and a small vise at right. The top must be deep and clearly visible from above exactly as the keyboard deck reference. Short strong legs visible below front apron with open knee gap. Restrained functional furniture, not a chunky cartoon bench. No gold anywhere."
+    }
+  },
+  {
+    "id": "gigs_servercart",
+    "args": {
+      "referenced_image_paths": [
+        "C:/Users/andro/gen-trees/prop-coordination-0914/frontend/assets/industrial/projection-correction/desk.png"
+      ],
+      "prompt": "Use the supplied workstation sprite as the DIRECT edit/style template. Create one replacement game prop that belongs to exactly this same sprite set. Copy its exact elevated orthographic camera: horizontal width axis, depth recedes straight up the image, no diagonal yaw, clearly visible top planes, modest front faces. Copy its painted pixel-cluster texture, squared crisp edge rendering, desaturated industrial gray material and subdued tonal shading. This is a tiny in-game prop, not a product illustration. No smooth cartoon outlines, no vector shapes, no photoreal microdetail. No gold trim, brass corners, ornamental framing or bronze highlights. Small steel edge highlights only. Keep silhouette economical and details few but purposeful. Genuine transparent background. No floor, no text, no label, no cast shadow outside the object. Whole single prop fully visible. A compact MEMORY SERVER CART in exactly the workstation gray steel material. Two slim dark server drawers stacked in a low square rolling chassis, visible top deck occupying a third of the silhouette, four short caster wheels. A narrow inset cyan status screen and a few broad ventilation slots. No blue toy modules, no gold handles, no tall upright cabinet; compact waist-high equipment with believable top-down perspective."
+    }
+  },
+  {
+    "id": "studio",
+    "args": {
+      "referenced_image_paths": [
+        "C:/Users/andro/gen-trees/prop-coordination-0914/frontend/assets/industrial/projection-correction/desk.png"
+      ],
+      "prompt": "Use the supplied workstation sprite as the DIRECT edit/style template. Create one replacement game prop that belongs to exactly this same sprite set. Copy its exact elevated orthographic camera: horizontal width axis, depth recedes straight up the image, no diagonal yaw, clearly visible top planes, modest front faces. Copy its painted pixel-cluster texture, squared crisp edge rendering, desaturated industrial gray material and subdued tonal shading. This is a tiny in-game prop, not a product illustration. No smooth cartoon outlines, no vector shapes, no photoreal microdetail. No gold trim, brass corners, ornamental framing or bronze highlights. Small steel edge highlights only. Keep silhouette economical and details few but purposeful. Genuine transparent background. No floor, no text, no label, no cast shadow outside the object. Whole single prop fully visible. Transform workstation into a compact IMAGE/MEDIA STUDIO TERMINAL. Preserve reference desk's camera angle, base proportions and steel material. One medium screen in a thin gray housing with restrained muted cyan image thumbnail, small editing pad instead of keyboard, small lens/scanner integrated at right, flat output slot in front apron. Modest short feet. No cream cartoon housing, no gold frame, no bright cartridge decorations. Looks like real media equipment from same manufacturer as workstation, same pixel clustering and surface finish."
+    }
+  }
+]

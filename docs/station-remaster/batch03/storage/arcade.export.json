@@ -1,0 +1,59 @@
+{
+  "id": "arcade",
+  "status": "exported-awaiting-owner-live-review",
+  "source": "sources/arcade.png",
+  "sourceSha256": "bf8c79291179e89203f24f5af6ba8d1b968e7ea40921b96aa06b40a3f0a88fd1",
+  "sourceWidth": 918,
+  "sourceHeight": 1713,
+  "image": "arcade.png",
+  "sourceOutputWidth": 737,
+  "sourceOutputHeight": 1610,
+  "crop": {
+    "left": 89,
+    "top": 40,
+    "width": 737,
+    "height": 1610
+  },
+  "channels": 4,
+  "transparentPixels": 120963,
+  "opaquePixels": 1065607,
+  "partialPixels": 0,
+  "backgroundPixelsRemoved": 506927,
+  "subjectRgbChanges": 0,
+  "outputSha256": "dbd442b59c74c981a36f0a01415b2627ad32211e7c693bdb89a6b4368a8041a5",
+  "holeSeeds": [],
+  "maskMethod": "Connected saturated-magenta flood fill, including key-only enclosed components. Alpha-only edits; uniform crop; no RGB recolor.",
+  "view": "s",
+  "footprint": {
+    "w": 1,
+    "h": 2
+  },
+  "bounds": {
+    "x": -1,
+    "y": -2,
+    "width": 14,
+    "height": 26
+  },
+  "tilePixels": 12,
+  "contact": {
+    "x": 6,
+    "y": 24
+  },
+  "anchorContract": "PropAnchor derives reachable edge approach; useApproach rotates relative preference with r. Preserve standing leisure action unless special planner supplies a real body anchor.",
+  "originalLight": {
+    "c": [
+      255,
+      120,
+      200
+    ],
+    "r": 22,
+    "a": 0.14,
+    "m": "screen",
+    "y": 0.3
+  },
+  "originalAnimationTriggers": [
+    "Actual leisure usingProp / watchProp can set work on this prop; body approach and use animation follow leisureUse. In the baseline draw work expression this leisure trigger directly checks the hero, not a separate crew leisure flag."
+  ],
+  "artMode": "static complete art; existing state/lighting integration remains owner decision",
+  "liveIntegrated": false
+}

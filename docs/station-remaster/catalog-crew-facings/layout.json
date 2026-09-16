@@ -1,0 +1,217 @@
+{
+  "version": 1,
+  "source": "docs\\station-remaster\\catalog-crew-facings\\sources\\sheet.png",
+  "sourceSha256": "1fc7962b3a247f1f62a4c52dc20a0fca41f375a8fff149710d3b89493a6196e0",
+  "refs": [
+    {
+      "id": "dinerchair",
+      "path": "frontend\\assets\\industrial\\catalog-crew\\dinerchair.png",
+      "sha256": "aaed440b4f9e3eec27ab2a22315e57c517639dd67858be632631344157c97e11"
+    },
+    {
+      "id": "podchair",
+      "path": "frontend\\assets\\industrial\\catalog-crew\\podchair.png",
+      "sha256": "706927fb51caaf597e79fbd95d2ac872c118e7e08873b571ea00ed8ccc6590a3"
+    },
+    {
+      "id": "booth",
+      "path": "frontend\\assets\\industrial\\catalog-crew\\booth.png",
+      "sha256": "357b75e172ae7e7fb8cf46c5e00bc276f2949c5c66aea010f9ad79c60a7d4cef"
+    },
+    {
+      "id": "dinertable",
+      "path": "frontend\\assets\\industrial\\catalog-crew\\dinertable.png",
+      "sha256": "362375703cea48e3dfad67015b64767b39fbac4409e3756308ed269a1e8ce007"
+    }
+  ],
+  "cells": [
+    {
+      "id": "dinerchair",
+      "view": "w",
+      "rect": {
+        "left": 0,
+        "top": 0,
+        "width": 341,
+        "height": 425
+      },
+      "bounds": {
+        "x": 0,
+        "y": -4,
+        "width": 11,
+        "height": 16
+      },
+      "footprint": {
+        "w": 1,
+        "h": 1
+      }
+    },
+    {
+      "id": "dinerchair",
+      "view": "n",
+      "rect": {
+        "left": 341,
+        "top": 0,
+        "width": 342,
+        "height": 425
+      },
+      "bounds": {
+        "x": 1,
+        "y": -4,
+        "width": 11,
+        "height": 16
+      },
+      "footprint": {
+        "w": 1,
+        "h": 1
+      }
+    },
+    {
+      "id": "dinerchair",
+      "view": "e",
+      "rect": {
+        "left": 683,
+        "top": 0,
+        "width": 341,
+        "height": 425
+      },
+      "bounds": {
+        "x": 1,
+        "y": -4,
+        "width": 11,
+        "height": 16
+      },
+      "footprint": {
+        "w": 1,
+        "h": 1
+      }
+    },
+    {
+      "id": "podchair",
+      "view": "w",
+      "rect": {
+        "left": 0,
+        "top": 425,
+        "width": 341,
+        "height": 435
+      },
+      "bounds": {
+        "x": 0,
+        "y": -5,
+        "width": 11,
+        "height": 17
+      },
+      "footprint": {
+        "w": 1,
+        "h": 1
+      }
+    },
+    {
+      "id": "podchair",
+      "view": "n",
+      "rect": {
+        "left": 0,
+        "top": 0,
+        "width": 510,
+        "height": 690
+      },
+      "bounds": {
+        "x": 1,
+        "y": -5,
+        "width": 10,
+        "height": 17
+      },
+      "footprint": {
+        "w": 1,
+        "h": 1
+      },
+      "source": "docs\\station-remaster\\catalog-crew-facings\\sources\\repair.png",
+      "sourceSha256": "9adc7d3a840c574c5031cb07218b4affd823af360f1dd22f7dbb6e0ba764428a"
+    },
+    {
+      "id": "podchair",
+      "view": "e",
+      "rect": {
+        "left": 683,
+        "top": 425,
+        "width": 341,
+        "height": 435
+      },
+      "bounds": {
+        "x": 1,
+        "y": -5,
+        "width": 11,
+        "height": 17
+      },
+      "footprint": {
+        "w": 1,
+        "h": 1
+      }
+    },
+    {
+      "id": "booth",
+      "view": "w",
+      "rect": {
+        "left": 510,
+        "top": 0,
+        "width": 561,
+        "height": 690
+      },
+      "bounds": {
+        "x": 0,
+        "y": -5,
+        "width": 12,
+        "height": 29
+      },
+      "footprint": {
+        "w": 1,
+        "h": 2
+      },
+      "source": "docs\\station-remaster\\catalog-crew-facings\\sources\\repair.png",
+      "sourceSha256": "9adc7d3a840c574c5031cb07218b4affd823af360f1dd22f7dbb6e0ba764428a"
+    },
+    {
+      "id": "booth",
+      "view": "e",
+      "rect": {
+        "left": 0,
+        "top": 0,
+        "width": 839,
+        "height": 1875
+      },
+      "bounds": {
+        "x": 0,
+        "y": -5,
+        "width": 12,
+        "height": 29
+      },
+      "footprint": {
+        "w": 1,
+        "h": 2
+      },
+      "source": "docs\\station-remaster\\catalog-crew-facings\\sources\\booth-e-repair.png",
+      "sourceSha256": "0294c1d232d617911ab959fabe329d4d1a76e38a9dea36312e20b30e79fe2c4d"
+    },
+    {
+      "id": "dinertable",
+      "view": "e",
+      "rect": {
+        "left": 510,
+        "top": 690,
+        "width": 561,
+        "height": 779
+      },
+      "bounds": {
+        "x": -1,
+        "y": 0,
+        "width": 26,
+        "height": 37
+      },
+      "footprint": {
+        "w": 2,
+        "h": 3
+      },
+      "source": "docs\\station-remaster\\catalog-crew-facings\\sources\\repair.png",
+      "sourceSha256": "9adc7d3a840c574c5031cb07218b4affd823af360f1dd22f7dbb6e0ba764428a"
+    }
+  ]
+}

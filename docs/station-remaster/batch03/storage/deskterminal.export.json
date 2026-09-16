@@ -1,0 +1,59 @@
+{
+  "id": "deskterminal",
+  "status": "exported-awaiting-owner-live-review",
+  "source": "sources/deskterminal.png",
+  "sourceSha256": "2df37eaa82b2acf24d17661b124ce2f1d89954da26a82ee94ca2c4fe57ad8ddb",
+  "sourceWidth": 1254,
+  "sourceHeight": 1254,
+  "image": "deskterminal.png",
+  "sourceOutputWidth": 1131,
+  "sourceOutputHeight": 1059,
+  "crop": {
+    "left": 62,
+    "top": 98,
+    "width": 1131,
+    "height": 1059
+  },
+  "channels": 4,
+  "transparentPixels": 197446,
+  "opaquePixels": 1000283,
+  "partialPixels": 0,
+  "backgroundPixelsRemoved": 572233,
+  "subjectRgbChanges": 0,
+  "outputSha256": "ed537d209c24c2fcfcc5ce6c742285d0434359463e321745cf81c722e35e19ff",
+  "holeSeeds": [],
+  "maskMethod": "Connected saturated-magenta flood fill, including key-only enclosed components. Alpha-only edits; uniform crop; no RGB recolor.",
+  "view": "s",
+  "footprint": {
+    "w": 1,
+    "h": 1
+  },
+  "bounds": {
+    "x": 0,
+    "y": 0,
+    "width": 12,
+    "height": 12
+  },
+  "tilePixels": 12,
+  "contact": {
+    "x": 6,
+    "y": 12
+  },
+  "anchorContract": "Can sit on bare deck or valid table; table mount lifts contact origin exactly 8 world pixels.",
+  "originalLight": {
+    "c": [
+      98,
+      255,
+      158
+    ],
+    "r": 18,
+    "a": 0.1,
+    "m": "screen",
+    "y": 0.35
+  },
+  "originalAnimationTriggers": [
+    "Autonomous sprite clock animation is present in the sampled default state; cosmetic motion is not evidence of provider work, route decisions or external state."
+  ],
+  "artMode": "static complete art; existing state/lighting integration remains owner decision",
+  "liveIntegrated": false
+}

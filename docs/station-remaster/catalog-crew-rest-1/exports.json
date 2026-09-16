@@ -1,0 +1,576 @@
+{
+  "version": 1,
+  "count": 8,
+  "scope": "Assigned catalog rest cohort; supported views from native contracts.",
+  "method": "Generated RGBA source preserved. Alpha>=180 core with radius3 preserves nearby original edge RGBA; remove detached fog/alpha1. Tight crop only, no RGB or retained alpha modification.",
+  "refs": [
+    {
+      "path": "C:\\Users\\andro\\gen-trees\\prop-coordination-0914\\frontend\\assets\\industrial\\projection-correction\\crate.png",
+      "sha256": "a4c596600f4c1c0bf0c2f4df0892a9f0c49b074dd91079b5926b0fd27cd0ba16"
+    },
+    {
+      "path": "C:\\Users\\andro\\gen-trees\\prop-coordination-0914\\frontend\\assets\\industrial\\projection-correction\\desk.png",
+      "sha256": "49e35c9b58a2e1f4939ed1320e70e4f11a54b46afbe46661122638ddf7ca5fd4"
+    },
+    {
+      "path": "C:\\Users\\andro\\gen-trees\\prop-coordination-0914\\frontend\\assets\\industrial\\projection-correction\\chair.png",
+      "sha256": "1c9257ded875c31688c9f759c424db2814ab707e36790db7793e20aac85c2d79"
+    }
+  ],
+  "records": [
+    {
+      "id": "bar",
+      "view": "s",
+      "image": "frontend/assets/industrial/catalog-crew-rest-1/bar.png",
+      "sourceWidth": 974,
+      "sourceHeight": 499,
+      "bounds": {
+        "x": -1,
+        "y": -12,
+        "width": 50,
+        "height": 24
+      },
+      "footprint": {
+        "w": 4,
+        "h": 1
+      },
+      "contact": {
+        "x": 0.5,
+        "y": 0.9929859719438878,
+        "space": "exported-image-normalized",
+        "targetWorld": {
+          "x": 24,
+          "y": 12
+        }
+      },
+      "fit": {
+        "x": 0.577154308617235,
+        "y": -12,
+        "width": 46.84569138276553,
+        "height": 24
+      },
+      "underfill": {
+        "x": 0.9369138276553106,
+        "y": 1
+      },
+      "source": "docs\\station-remaster\\catalog-crew-rest-1\\sources\\repair.png",
+      "sourceSha256": "d669c4a8e99ec4594213653285af861876b5f2d391818deb4aa0621f63e52c59",
+      "sourceCrop": {
+        "left": 8,
+        "top": 22,
+        "width": 974,
+        "height": 499
+      },
+      "outputSha256": "01c68e030bc796dc9575531e589f238d5ac1845717ab718bd32e55819d68f49c",
+      "alphaBounds": {
+        "x": 0,
+        "y": 0,
+        "width": 974,
+        "height": 499
+      },
+      "alphaCounts": {
+        "transparent": 85085,
+        "partial": 399270,
+        "opaque": 1671
+      },
+      "maxSourceAlpha": 255,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "removedFogPixels": 3164,
+      "retainedRgbChanges": 0,
+      "retainedAlphaChanges": 0,
+      "opaqueCellEdgePixels": 0,
+      "liveAccepted": false
+    },
+    {
+      "id": "industrial_roundtable",
+      "view": "s",
+      "image": "frontend/assets/industrial/catalog-crew-rest-1/industrial_roundtable.png",
+      "sourceWidth": 419,
+      "sourceHeight": 295,
+      "bounds": {
+        "x": 0,
+        "y": -4,
+        "width": 24,
+        "height": 16
+      },
+      "footprint": {
+        "w": 2,
+        "h": 1
+      },
+      "surfaceSupport": {
+        "space": "export-normalized",
+        "points": [
+          [
+            0.1980907,
+            0.1762712
+          ],
+          [
+            0.7995227,
+            0.1762712
+          ],
+          [
+            0.7995227,
+            0.440678
+          ],
+          [
+            0.1980907,
+            0.440678
+          ]
+        ]
+      },
+      "contact": {
+        "x": 0.5,
+        "y": 0.988135593220339,
+        "space": "exported-image-normalized",
+        "targetWorld": {
+          "x": 12,
+          "y": 12
+        }
+      },
+      "fit": {
+        "x": 0.6372881355932201,
+        "y": -4,
+        "width": 22.72542372881356,
+        "height": 16
+      },
+      "underfill": {
+        "x": 0.9468926553672317,
+        "y": 1
+      },
+      "source": "docs\\station-remaster\\catalog-crew-rest-1\\sources\\sheet.png",
+      "sourceSha256": "bfa8cb5c831e1e72c2e3e481d4466d493e63f177a80ba447e29b517bb5b4368b",
+      "sourceCrop": {
+        "left": 490,
+        "top": 151,
+        "width": 419,
+        "height": 295
+      },
+      "outputSha256": "d3dbac6f8c95df5f3db87b8ba327c427a33d1953560315bfe4e40a2b0aaccfce",
+      "alphaBounds": {
+        "x": 0,
+        "y": 0,
+        "width": 419,
+        "height": 295
+      },
+      "alphaCounts": {
+        "transparent": 41918,
+        "partial": 81655,
+        "opaque": 32
+      },
+      "maxSourceAlpha": 255,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "removedFogPixels": 2462,
+      "retainedRgbChanges": 0,
+      "retainedAlphaChanges": 0,
+      "opaqueCellEdgePixels": 0,
+      "liveAccepted": false
+    },
+    {
+      "id": "sidetable",
+      "view": "s",
+      "image": "frontend/assets/industrial/catalog-crew-rest-1/sidetable.png",
+      "sourceWidth": 236,
+      "sourceHeight": 311,
+      "bounds": {
+        "x": 0,
+        "y": -3,
+        "width": 12,
+        "height": 15
+      },
+      "footprint": {
+        "w": 1,
+        "h": 1
+      },
+      "surfaceSupport": {
+        "space": "export-normalized",
+        "points": [
+          [
+            0.0932203,
+            0.0353698
+          ],
+          [
+            0.9025424,
+            0.0353698
+          ],
+          [
+            0.9279661,
+            0.4533762
+          ],
+          [
+            0.0720339,
+            0.4533762
+          ]
+        ]
+      },
+      "contact": {
+        "x": 0.5,
+        "y": 0.9919614147909968,
+        "space": "exported-image-normalized",
+        "targetWorld": {
+          "x": 6,
+          "y": 12
+        }
+      },
+      "fit": {
+        "x": 0.30868167202572394,
+        "y": -2.9999999999999982,
+        "width": 11.382636655948552,
+        "height": 14.999999999999998
+      },
+      "underfill": {
+        "x": 0.9485530546623794,
+        "y": 0.9999999999999999
+      },
+      "source": "docs\\station-remaster\\catalog-crew-rest-1\\sources\\sheet.png",
+      "sourceSha256": "bfa8cb5c831e1e72c2e3e481d4466d493e63f177a80ba447e29b517bb5b4368b",
+      "sourceCrop": {
+        "left": 948,
+        "top": 139,
+        "width": 236,
+        "height": 311
+      },
+      "outputSha256": "521647f8007b07f0b3d8898ed4cadc371bb6a9a430a35f5261a529b65bc13616",
+      "alphaBounds": {
+        "x": 0,
+        "y": 0,
+        "width": 236,
+        "height": 311
+      },
+      "alphaCounts": {
+        "transparent": 22368,
+        "partial": 50854,
+        "opaque": 174
+      },
+      "maxSourceAlpha": 255,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "removedFogPixels": 2476,
+      "retainedRgbChanges": 0,
+      "retainedAlphaChanges": 0,
+      "opaqueCellEdgePixels": 0,
+      "liveAccepted": false
+    },
+    {
+      "id": "stool",
+      "view": "s",
+      "image": "frontend/assets/industrial/catalog-crew-rest-1/stool.png",
+      "sourceWidth": 400,
+      "sourceHeight": 454,
+      "bounds": {
+        "x": 1,
+        "y": 0,
+        "width": 10,
+        "height": 11
+      },
+      "footprint": {
+        "w": 1,
+        "h": 1
+      },
+      "contact": {
+        "x": 0.5,
+        "y": 0.9922907488986784,
+        "space": "exported-image-normalized",
+        "targetWorld": {
+          "x": 6,
+          "y": 12
+        }
+      },
+      "fit": {
+        "x": 1.1541850220264314,
+        "y": 0,
+        "width": 9.691629955947137,
+        "height": 11
+      },
+      "underfill": {
+        "x": 0.9691629955947137,
+        "y": 1
+      },
+      "source": "docs\\station-remaster\\catalog-crew-rest-1\\sources\\repair.png",
+      "sourceSha256": "d669c4a8e99ec4594213653285af861876b5f2d391818deb4aa0621f63e52c59",
+      "sourceCrop": {
+        "left": 1017,
+        "top": 67,
+        "width": 400,
+        "height": 454
+      },
+      "outputSha256": "83b51f81da85db8ce4d0b35f2d0e1942734f087c77d1f85abe5cbc450b65e050",
+      "alphaBounds": {
+        "x": 0,
+        "y": 0,
+        "width": 400,
+        "height": 454
+      },
+      "alphaCounts": {
+        "transparent": 57210,
+        "partial": 124012,
+        "opaque": 378
+      },
+      "maxSourceAlpha": 255,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "removedFogPixels": 2290,
+      "retainedRgbChanges": 0,
+      "retainedAlphaChanges": 0,
+      "opaqueCellEdgePixels": 0,
+      "liveAccepted": false
+    },
+    {
+      "id": "pokertable",
+      "view": "s",
+      "image": "frontend/assets/industrial/catalog-crew-rest-1/pokertable.png",
+      "sourceWidth": 457,
+      "sourceHeight": 283,
+      "bounds": {
+        "x": -1,
+        "y": -5,
+        "width": 50,
+        "height": 29
+      },
+      "footprint": {
+        "w": 4,
+        "h": 2
+      },
+      "contact": {
+        "x": 0.5,
+        "y": 0.9876325088339223,
+        "space": "exported-image-normalized",
+        "targetWorld": {
+          "x": 24,
+          "y": 24
+        }
+      },
+      "fit": {
+        "x": 0.5848056537102444,
+        "y": -5.0000000000000036,
+        "width": 46.83038869257951,
+        "height": 29.000000000000004
+      },
+      "underfill": {
+        "x": 0.9366077738515902,
+        "y": 1.0000000000000002
+      },
+      "source": "docs\\station-remaster\\catalog-crew-rest-1\\sources\\sheet.png",
+      "sourceSha256": "bfa8cb5c831e1e72c2e3e481d4466d493e63f177a80ba447e29b517bb5b4368b",
+      "sourceCrop": {
+        "left": 29,
+        "top": 566,
+        "width": 457,
+        "height": 283
+      },
+      "outputSha256": "e05a20907b7bf17b357a65c6d77ee74202608a852b41dfd8cbd3f119e7d890be",
+      "alphaBounds": {
+        "x": 0,
+        "y": 0,
+        "width": 457,
+        "height": 283
+      },
+      "alphaCounts": {
+        "transparent": 32559,
+        "partial": 96694,
+        "opaque": 78
+      },
+      "maxSourceAlpha": 255,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "removedFogPixels": 1662,
+      "retainedRgbChanges": 0,
+      "retainedAlphaChanges": 0,
+      "opaqueCellEdgePixels": 0,
+      "liveAccepted": false
+    },
+    {
+      "id": "djbooth",
+      "view": "s",
+      "image": "frontend/assets/industrial/catalog-crew-rest-1/djbooth.png",
+      "sourceWidth": 849,
+      "sourceHeight": 507,
+      "bounds": {
+        "x": -1,
+        "y": -5,
+        "width": 50,
+        "height": 29
+      },
+      "footprint": {
+        "w": 4,
+        "h": 2
+      },
+      "contact": {
+        "x": 0.5,
+        "y": 0.9930966469428008,
+        "space": "exported-image-normalized",
+        "targetWorld": {
+          "x": 24,
+          "y": 24
+        }
+      },
+      "fit": {
+        "x": -0.2810650887573978,
+        "y": -5,
+        "width": 48.562130177514796,
+        "height": 29
+      },
+      "underfill": {
+        "x": 0.9712426035502959,
+        "y": 1
+      },
+      "source": "docs\\station-remaster\\catalog-crew-rest-1\\sources\\repair.png",
+      "sourceSha256": "d669c4a8e99ec4594213653285af861876b5f2d391818deb4aa0621f63e52c59",
+      "sourceCrop": {
+        "left": 8,
+        "top": 549,
+        "width": 849,
+        "height": 507
+      },
+      "outputSha256": "9c2b783eb3a9477139954952ad6d874847755fef68eb57fab8b610ff7d79f7a4",
+      "alphaBounds": {
+        "x": 0,
+        "y": 0,
+        "width": 849,
+        "height": 507
+      },
+      "alphaCounts": {
+        "transparent": 69775,
+        "partial": 359922,
+        "opaque": 746
+      },
+      "maxSourceAlpha": 255,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "removedFogPixels": 2573,
+      "retainedRgbChanges": 0,
+      "retainedAlphaChanges": 0,
+      "opaqueCellEdgePixels": 0,
+      "liveAccepted": false
+    },
+    {
+      "id": "quarters_lockerbank",
+      "view": "s",
+      "image": "frontend/assets/industrial/catalog-crew-rest-1/quarters_lockerbank.png",
+      "sourceWidth": 558,
+      "sourceHeight": 495,
+      "bounds": {
+        "x": -1,
+        "y": -20,
+        "width": 38,
+        "height": 32
+      },
+      "footprint": {
+        "w": 3,
+        "h": 1
+      },
+      "contact": {
+        "x": 0.5,
+        "y": 0.9929292929292929,
+        "space": "exported-image-normalized",
+        "targetWorld": {
+          "x": 18,
+          "y": 12
+        }
+      },
+      "fit": {
+        "x": -0.036363636363635266,
+        "y": -20,
+        "width": 36.07272727272727,
+        "height": 32
+      },
+      "underfill": {
+        "x": 0.9492822966507176,
+        "y": 1
+      },
+      "source": "docs\\station-remaster\\catalog-crew-rest-1\\sources\\repair.png",
+      "sourceSha256": "d669c4a8e99ec4594213653285af861876b5f2d391818deb4aa0621f63e52c59",
+      "sourceCrop": {
+        "left": 872,
+        "top": 561,
+        "width": 558,
+        "height": 495
+      },
+      "outputSha256": "ee94e36598847f9ef394b0571f47bc8f1bfc9278dc242ea9d24bf925af38be8c",
+      "alphaBounds": {
+        "x": 0,
+        "y": 0,
+        "width": 558,
+        "height": 495
+      },
+      "alphaCounts": {
+        "transparent": 15533,
+        "partial": 260207,
+        "opaque": 470
+      },
+      "maxSourceAlpha": 255,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "removedFogPixels": 3064,
+      "retainedRgbChanges": 0,
+      "retainedAlphaChanges": 0,
+      "opaqueCellEdgePixels": 0,
+      "liveAccepted": false
+    },
+    {
+      "id": "trophycase",
+      "view": "s",
+      "image": "frontend/assets/industrial/catalog-crew-rest-1/trophycase.png",
+      "sourceWidth": 307,
+      "sourceHeight": 345,
+      "bounds": {
+        "x": -1,
+        "y": -6,
+        "width": 26,
+        "height": 30
+      },
+      "footprint": {
+        "w": 2,
+        "h": 2
+      },
+      "contact": {
+        "x": 0.5,
+        "y": 0.9927536231884058,
+        "space": "exported-image-normalized",
+        "targetWorld": {
+          "x": 12,
+          "y": 24
+        }
+      },
+      "fit": {
+        "x": -1,
+        "y": -5.2182410423452765,
+        "width": 26,
+        "height": 29.218241042345277
+      },
+      "underfill": {
+        "x": 1,
+        "y": 0.9739413680781759
+      },
+      "source": "docs\\station-remaster\\catalog-crew-rest-1\\sources\\sheet.png",
+      "sourceSha256": "bfa8cb5c831e1e72c2e3e481d4466d493e63f177a80ba447e29b517bb5b4368b",
+      "sourceCrop": {
+        "left": 1248,
+        "top": 521,
+        "width": 307,
+        "height": 345
+      },
+      "outputSha256": "f94bbe031f81b0cc5c6074016185e8ad84024d43426b8e80812907b3ab47a955",
+      "alphaBounds": {
+        "x": 0,
+        "y": 0,
+        "width": 307,
+        "height": 345
+      },
+      "alphaCounts": {
+        "transparent": 3177,
+        "partial": 102677,
+        "opaque": 61
+      },
+      "maxSourceAlpha": 255,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "removedFogPixels": 2067,
+      "retainedRgbChanges": 0,
+      "retainedAlphaChanges": 0,
+      "opaqueCellEdgePixels": 0,
+      "liveAccepted": false
+    }
+  ]
+}

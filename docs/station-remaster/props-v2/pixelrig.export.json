@@ -1,0 +1,15 @@
+{
+  "id": "pixelrig",
+  "source": "C:\\Users\\andro\\.codex\\generated_images\\01a0976c-e264-7f13-a581-78c904716b14\\exec-80b00f44-76d7-4eb2-8813-0fa49309c1e8.png",
+  "sourceWidth": 1347,
+  "sourceHeight": 1168,
+  "crop": {
+    "left": 0,
+    "top": 0,
+    "width": 1347,
+    "height": 1167
+  },
+  "sourceAlpha": false,
+  "subjectRgbChanges": 0,
+  "output": "frontend/assets/industrial/props-v2/pixelrig.png"
+}

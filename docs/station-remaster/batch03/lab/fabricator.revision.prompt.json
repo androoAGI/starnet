@@ -1,0 +1,5 @@
+{
+  "id": "fabricator",
+  "prompt": "Produce an animation-ready blank-body version of this exact StarNet fabricator. Remove ONLY the cutting/sewing carriage including its top carriage block, vertical needle assembly and the black flexible cable that travels from carriage to right support. Restore the rail as a complete continuous empty horizontal rail and restore the cloth/deck behind the removed head. Keep the cloth roll, rollers, whole new frame and camera exactly. The rail will receive a separate moving carriage sprite. Do not add any new machine heads, objects, text or lights. Preserve the mature controlled painted craft, transparent alpha through the large gantry opening and around the feet, no checkerboard or backdrop. Return the complete full blank machine body with original framing.",
+  "referenced_image": "C:\\Users\\andro\\.codex\\generated_images\\01a0976c-e264-7f13-a581-78c904716b14\\exec-1006920c-dd8c-41b2-a80f-2a29085b2283.png"
+}

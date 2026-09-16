@@ -1,0 +1,128 @@
+[
+  {
+    "id": "comms_dish",
+    "footprint": {
+      "w": 2,
+      "h": 2
+    },
+    "bounds": {
+      "x": 2,
+      "y": 1,
+      "width": 20,
+      "height": 23
+    },
+    "actualUniformFit": {
+      "x": 2.912946428571429,
+      "y": 1,
+      "width": 18.174107142857142,
+      "height": 23
+    },
+    "sourceRgbChanges": 0,
+    "sourceOnly": true
+  },
+  {
+    "id": "comms_uplink",
+    "footprint": {
+      "w": 2,
+      "h": 2
+    },
+    "bounds": {
+      "x": 2,
+      "y": -11,
+      "width": 19,
+      "height": 35
+    },
+    "actualUniformFit": {
+      "x": 3.510289634146342,
+      "y": -11,
+      "width": 15.979420731707316,
+      "height": 35
+    },
+    "sourceRgbChanges": 0,
+    "sourceOnly": true
+  },
+  {
+    "id": "comms_beacon",
+    "footprint": {
+      "w": 1,
+      "h": 2
+    },
+    "bounds": {
+      "x": 0,
+      "y": -2,
+      "width": 17,
+      "height": 26
+    },
+    "actualUniformFit": {
+      "x": 0,
+      "y": 0.08030803080308146,
+      "width": 17,
+      "height": 23.91969196919692
+    },
+    "sourceRgbChanges": 0,
+    "sourceOnly": true
+  },
+  {
+    "id": "commswall",
+    "footprint": {
+      "w": 6,
+      "h": 1
+    },
+    "bounds": {
+      "x": -1,
+      "y": -13,
+      "width": 74,
+      "height": 23
+    },
+    "actualUniformFit": {
+      "x": -1,
+      "y": -7.488349976224441,
+      "width": 74,
+      "height": 17.48834997622444
+    },
+    "sourceRgbChanges": 0,
+    "sourceOnly": true
+  },
+  {
+    "id": "bridge_relaystack",
+    "footprint": {
+      "w": 1,
+      "h": 2
+    },
+    "bounds": {
+      "x": 0,
+      "y": -8,
+      "width": 17,
+      "height": 32
+    },
+    "actualUniformFit": {
+      "x": 0.1474239602731231,
+      "y": -8,
+      "width": 16.705152079453754,
+      "height": 32
+    },
+    "sourceRgbChanges": 0,
+    "sourceOnly": true
+  },
+  {
+    "id": "war_intelcab",
+    "footprint": {
+      "w": 1,
+      "h": 2
+    },
+    "bounds": {
+      "x": 0,
+      "y": -7,
+      "width": 17,
+      "height": 31
+    },
+    "actualUniformFit": {
+      "x": 0.6785494775660732,
+      "y": -6.9999999999999964,
+      "width": 15.642901044867854,
+      "height": 30.999999999999996
+    },
+    "sourceRgbChanges": 0,
+    "sourceOnly": true
+  }
+]

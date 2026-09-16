@@ -1,0 +1,32 @@
+{
+  "id": "industrial_drawerbank",
+  "source": "C:/Users/andro/.codex/generated_images/01a09c6e-ef28-70a0-bd8b-b60f1a9b9f92/exec-6d95b34b-f5c6-4020-800d-852147058ac9.png",
+  "sourceWidth": 1942,
+  "sourceHeight": 809,
+  "crop": {
+    "left": 1,
+    "top": 6,
+    "width": 1940,
+    "height": 776
+  },
+  "sourceAlpha": false,
+  "subjectRgbChanges": 0,
+  "output": "frontend/assets/industrial/props-v2/industrial_drawerbank.png",
+  "native": {
+    "key": "industrial_drawerbank",
+    "r": 0,
+    "image": "industrial_drawerbank.png",
+    "footprint": {
+      "w": 3,
+      "h": 1
+    },
+    "bounds": {
+      "x": 0,
+      "y": -3,
+      "width": 36,
+      "height": 15
+    },
+    "guide": "dev/.scratch-workspace/prop-structure/industrial_drawerbank.png"
+  },
+  "aspectError": 0.04166666666666674
+}

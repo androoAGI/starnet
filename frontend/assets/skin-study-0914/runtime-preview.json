@@ -1,0 +1,1297 @@
+{
+  "status": "Four standing directions only; no walk or seated animation",
+  "skins": [
+    {
+      "id": "alien",
+      "scale": 0.18,
+      "views": {
+        "south": {
+          "width": 136,
+          "height": 136,
+          "top": 19,
+          "bottom": 118,
+          "sha256": "68221f1f9be585fbc7e6508e6d81b6216c154418cd10ad9a957a09089eabeddc"
+        },
+        "east": {
+          "width": 136,
+          "height": 136,
+          "top": 21,
+          "bottom": 120,
+          "sha256": "03c29e1c515052a3dc7117313f9e0423b1df3f75714df66eb17779541b8b6229"
+        },
+        "north": {
+          "width": 136,
+          "height": 136,
+          "top": 20,
+          "bottom": 118,
+          "sha256": "46629646f92c31fb4df240db27b5e2cbb1b2bd26bcaca888ea01eb34dc259599"
+        },
+        "west": {
+          "width": 136,
+          "height": 136,
+          "top": 22,
+          "bottom": 121,
+          "sha256": "510c41fc883362ca8dbdb1f01777fab8323d35505fdfc8244cf8f25e7d6dcd51"
+        }
+      }
+    },
+    {
+      "id": "android",
+      "scale": 0.18556701030927836,
+      "views": {
+        "south": {
+          "width": 136,
+          "height": 136,
+          "top": 22,
+          "bottom": 117,
+          "sha256": "c4985b7ba35419b45bf5e1fd8cd37d228001f879faddbd999abf38f888e52db9"
+        },
+        "east": {
+          "width": 136,
+          "height": 136,
+          "top": 24,
+          "bottom": 119,
+          "sha256": "6ee85ea651750fd367da8f912017058fdd5439afb176085ba4ac7c71b470d56f"
+        },
+        "north": {
+          "width": 136,
+          "height": 136,
+          "top": 22,
+          "bottom": 118,
+          "sha256": "7e290bd60eaf64e7d2ceafb78069b6f96f8de081d9a90abe4a0011ff9cd7719b"
+        },
+        "west": {
+          "width": 136,
+          "height": 136,
+          "top": 25,
+          "bottom": 119,
+          "sha256": "38b8cb85b297eaf9897e2b808697245e8df932c8c677e0687da18c79e86519ab"
+        }
+      }
+    },
+    {
+      "id": "astronaut",
+      "scale": 0.18947368421052632,
+      "views": {
+        "south": {
+          "width": 136,
+          "height": 136,
+          "top": 24,
+          "bottom": 115,
+          "sha256": "3de798094733fb25739f42ee5356dc95559c1c1300aaa9172ee07256b96a9fec"
+        },
+        "east": {
+          "width": 136,
+          "height": 136,
+          "top": 25,
+          "bottom": 119,
+          "sha256": "5eef0c50c5807655b48eadf0cdbe7127bdbda336110e4dc50863f4f0f940c443"
+        },
+        "north": {
+          "width": 136,
+          "height": 136,
+          "top": 25,
+          "bottom": 118,
+          "sha256": "7fe1a0028229cc8e9e124b97a02baaff8307946f2d6e81e211cfa1cd7239f260"
+        },
+        "west": {
+          "width": 136,
+          "height": 136,
+          "top": 26,
+          "bottom": 120,
+          "sha256": "7368d43cd594a423d9de34fd287f2bcb31137572bd9e8fe6081d94ece73a65b7"
+        }
+      }
+    },
+    {
+      "id": "bear",
+      "scale": 0.17307692307692307,
+      "views": {
+        "south": {
+          "width": 136,
+          "height": 136,
+          "top": 16,
+          "bottom": 119,
+          "sha256": "74cb90459570c5e6bc03b81616ab4d56f8029a8436285983863009a81df19fc9"
+        },
+        "east": {
+          "width": 136,
+          "height": 136,
+          "top": 18,
+          "bottom": 120,
+          "sha256": "c6f674f9e9948a326c59c9f08e303d15337332b2ca3a59cd2b533908ef4d5dba"
+        },
+        "north": {
+          "width": 136,
+          "height": 136,
+          "top": 18,
+          "bottom": 121,
+          "sha256": "08df12d8001c3f723f8d1d59042619e317060aca509fd2385b17d5670fde2353"
+        },
+        "west": {
+          "width": 136,
+          "height": 136,
+          "top": 19,
+          "bottom": 122,
+          "sha256": "03c24f2300354c43ad035f8c6e225317eb21c056d2b018bc899f60aa2bf453e1"
+        }
+      }
+    },
+    {
+      "id": "blank_amber",
+      "scale": 0.1956521739130435,
+      "views": {
+        "south": {
+          "width": 136,
+          "height": 136,
+          "top": 26,
+          "bottom": 117,
+          "sha256": "12f9ac64e5183ed896b0ae9c13ffc6befcfb88937b4ab7282e530411b068c60c"
+        },
+        "east": {
+          "width": 136,
+          "height": 136,
+          "top": 28,
+          "bottom": 118,
+          "sha256": "0ae82bef8070eaa03be1cebc0e131f5217b44cc9237b05b959ff6a41226fefba"
+        },
+        "north": {
+          "width": 136,
+          "height": 136,
+          "top": 27,
+          "bottom": 116,
+          "sha256": "f08f96f7f7c966395bf48da4e2cdf18dea45c943a0e216969609a4a985ff30f2"
+        },
+        "west": {
+          "width": 136,
+          "height": 136,
+          "top": 28,
+          "bottom": 118,
+          "sha256": "db33daff9d3e08ce8d4e01dd4871a88b2bcd74ce5af3b3bd36b6be2c31a7175e"
+        }
+      }
+    },
+    {
+      "id": "blank_blue",
+      "scale": 0.18556701030927836,
+      "views": {
+        "south": {
+          "width": 136,
+          "height": 136,
+          "top": 21,
+          "bottom": 117,
+          "sha256": "40e8fb43f0d382f8c25b2dee7ebde40eb358505ade8f36e11df28086f8967768"
+        },
+        "east": {
+          "width": 136,
+          "height": 136,
+          "top": 23,
+          "bottom": 119,
+          "sha256": "90d2ffdb671b44668f0781dcbe749e6d453e7be0d56012c39060cd87f3d81e79"
+        },
+        "north": {
+          "width": 136,
+          "height": 136,
+          "top": 23,
+          "bottom": 117,
+          "sha256": "78983b8f2b63d1f71b879dd13d400bed581fd804d348fbbdd2de2ec1a968c2a2"
+        },
+        "west": {
+          "width": 136,
+          "height": 136,
+          "top": 24,
+          "bottom": 119,
+          "sha256": "4b61461f4ac44895b655b257292567fbad0e39b220190298bfe66be7c13bea5a"
+        }
+      }
+    },
+    {
+      "id": "blank_green",
+      "scale": 0.18556701030927836,
+      "views": {
+        "south": {
+          "width": 136,
+          "height": 136,
+          "top": 21,
+          "bottom": 117,
+          "sha256": "e39bfea6e155175cc693d85024b3d3e8399eb315037ce636bed1f22911103883"
+        },
+        "east": {
+          "width": 136,
+          "height": 136,
+          "top": 23,
+          "bottom": 119,
+          "sha256": "9cac26372ba46e0ef554cb990507308ac0d05b8fb86203f3004118213a6c0adf"
+        },
+        "north": {
+          "width": 136,
+          "height": 136,
+          "top": 21,
+          "bottom": 117,
+          "sha256": "370eb848fa3bbcc4a55ffdbe4858fe015a8e39b567476dc8b010088f2a7ac2eb"
+        },
+        "west": {
+          "width": 136,
+          "height": 136,
+          "top": 23,
+          "bottom": 119,
+          "sha256": "f426c28928392952ce45ef452945dd779d093b2b62ff0e8b835f5bd14ca245c0"
+        }
+      }
+    },
+    {
+      "id": "blank_red",
+      "scale": 0.18181818181818182,
+      "views": {
+        "south": {
+          "width": 136,
+          "height": 136,
+          "top": 20,
+          "bottom": 117,
+          "sha256": "2dd91d3409a586945db19485823880885eee757d3d2ccd5e96ffc54dbb555cc6"
+        },
+        "east": {
+          "width": 136,
+          "height": 136,
+          "top": 21,
+          "bottom": 119,
+          "sha256": "59e3824504101906c7147bcbafc91b1487e4c102d1dd28ac0988eecc4e7e19a6"
+        },
+        "north": {
+          "width": 136,
+          "height": 136,
+          "top": 20,
+          "bottom": 117,
+          "sha256": "e6908253e96f6617faa8891f4f9476f956581b1df02d204be0ec28732247762a"
+        },
+        "west": {
+          "width": 136,
+          "height": 136,
+          "top": 22,
+          "bottom": 119,
+          "sha256": "de603ba7564cc35cf18e895d33582fa6ed6ad2eadff14df6f4692a3005ac143e"
+        }
+      }
+    },
+    {
+      "id": "capybara",
+      "scale": 0.2,
+      "views": {
+        "south": {
+          "width": 136,
+          "height": 136,
+          "top": 20,
+          "bottom": 105,
+          "sha256": "8cdb06451590b6726dfca121414b13d83a7555fac83c06ae4b4972ed45274f07"
+        },
+        "east": {
+          "width": 136,
+          "height": 136,
+          "top": 21,
+          "bottom": 110,
+          "sha256": "d810cf652b24268ce6939e9311cfc8749f31eddaf6ce682fdf16fcb9a85dc926"
+        },
+        "north": {
+          "width": 136,
+          "height": 136,
+          "top": 21,
+          "bottom": 107,
+          "sha256": "e4900cd4e152d9dda0f6bc49ac09f16705e67813d84162a8e12d2c4a42e62dd9"
+        },
+        "west": {
+          "width": 136,
+          "height": 136,
+          "top": 22,
+          "bottom": 111,
+          "sha256": "12ed5089770afde3bddb89b0e354540e220039287dc4b701b47627d53172cb42"
+        }
+      }
+    },
+    {
+      "id": "caseyjones",
+      "scale": 0.2,
+      "views": {
+        "south": {
+          "width": 136,
+          "height": 136,
+          "top": 29,
+          "bottom": 115,
+          "sha256": "4b0fcf2cf44e8f9a7e55262859f081e8a0e58cc95ad8e2bc35f89c3d668c87e2"
+        },
+        "east": {
+          "width": 136,
+          "height": 136,
+          "top": 30,
+          "bottom": 119,
+          "sha256": "053f0d4881a5ad79eac6cd84065288e477b68c1fd7059106bd0db889949f9013"
+        },
+        "north": {
+          "width": 136,
+          "height": 136,
+          "top": 28,
+          "bottom": 117,
+          "sha256": "6bf3939661ef158a6e04e37188eaaeff2fb70d04e510335b0a2dd604c955e96c"
+        },
+        "west": {
+          "width": 136,
+          "height": 136,
+          "top": 31,
+          "bottom": 118,
+          "sha256": "162573324b11f9e7704c0b911dc21f94a174649ffdf63d685753ba60d847eec5"
+        }
+      }
+    },
+    {
+      "id": "crewmate",
+      "scale": 0.18,
+      "views": {
+        "south": {
+          "width": 136,
+          "height": 136,
+          "top": 20,
+          "bottom": 119,
+          "sha256": "40a168622e177e6e0d65070b67a1fa09f9881cffde9a6c6767ce6d59e1700ee7"
+        },
+        "east": {
+          "width": 136,
+          "height": 136,
+          "top": 21,
+          "bottom": 120,
+          "sha256": "87f47d978f309f509e4a3a607b60e836d086f1ac8223815c20edece2f5f9bced"
+        },
+        "north": {
+          "width": 136,
+          "height": 136,
+          "top": 21,
+          "bottom": 118,
+          "sha256": "6d6a3beca69051124380a643c68da75830348194162f363bf3cab6d55f262f90"
+        },
+        "west": {
+          "width": 136,
+          "height": 136,
+          "top": 21,
+          "bottom": 120,
+          "sha256": "15be1016de0e47116f7c86d596d82aa803ec161993edf67b77fa2351448778de"
+        }
+      }
+    },
+    {
+      "id": "crthead",
+      "scale": 0.18,
+      "views": {
+        "south": {
+          "width": 136,
+          "height": 136,
+          "top": 23,
+          "bottom": 121,
+          "sha256": "45a8e952a46e1c18279eea286bdb7b7b4527747e781861e5f3d59620baea7430"
+        },
+        "east": {
+          "width": 136,
+          "height": 136,
+          "top": 25,
+          "bottom": 124,
+          "sha256": "00d944189ce28bc4129fec8944ef75deda8eb46c4c1865df5553e209c53f00f9"
+        },
+        "north": {
+          "width": 136,
+          "height": 136,
+          "top": 24,
+          "bottom": 119,
+          "sha256": "57ea7ca091974b84572c3adbd48fde4db4cb440d203041abc0c4f00b43879bba"
+        },
+        "west": {
+          "width": 136,
+          "height": 136,
+          "top": 26,
+          "bottom": 124,
+          "sha256": "90f1f72143b594de0772dbb9a653a16649faad5a5ae9de90a4757e054e10957e"
+        }
+      }
+    },
+    {
+      "id": "dario",
+      "scale": 0.1875,
+      "views": {
+        "south": {
+          "width": 136,
+          "height": 136,
+          "top": 21,
+          "bottom": 116,
+          "sha256": "d9907fbe7ab2a31b4eba5b7be0f92e0655280a101fc075094cd33e5603e4f88c"
+        },
+        "east": {
+          "width": 136,
+          "height": 136,
+          "top": 23,
+          "bottom": 117,
+          "sha256": "442f17500c78953728c0e7c2f311c8256fba81db2da629e871945d52b996e6fa"
+        },
+        "north": {
+          "width": 136,
+          "height": 136,
+          "top": 22,
+          "bottom": 116,
+          "sha256": "dba95ebfd8ba641a1dedbe81da55a02aa0118ad67d5b0bb6cd0ad4cd41e7f0ec"
+        },
+        "west": {
+          "width": 136,
+          "height": 136,
+          "top": 23,
+          "bottom": 117,
+          "sha256": "ece39285fcb50155c9433a384af5ef2690a1fe7a6492952dcefabb370c1bf196"
+        }
+      }
+    },
+    {
+      "id": "endoskeleton",
+      "scale": 0.20454545454545456,
+      "views": {
+        "south": {
+          "width": 136,
+          "height": 136,
+          "top": 29,
+          "bottom": 115,
+          "sha256": "674156d1e3ab881e635eb4e1199dde4b093defa17cdd6229eb967d001fa8665c"
+        },
+        "east": {
+          "width": 136,
+          "height": 136,
+          "top": 30,
+          "bottom": 117,
+          "sha256": "71e243e32a9c9dc1006a4d413b5c4267208034e0e358be9cb9fb3d66711d6519"
+        },
+        "north": {
+          "width": 136,
+          "height": 136,
+          "top": 29,
+          "bottom": 115,
+          "sha256": "8943403318dd55af53f773dc16a3a697d80ab37315a984afd6481237d203d390"
+        },
+        "west": {
+          "width": 136,
+          "height": 136,
+          "top": 30,
+          "bottom": 117,
+          "sha256": "b1a46934298f1324382413bfeee73f865a1e6982a8bc55e255568b78d669d468"
+        }
+      }
+    },
+    {
+      "id": "finn",
+      "scale": 0.18947368421052632,
+      "views": {
+        "south": {
+          "width": 136,
+          "height": 136,
+          "top": 26,
+          "bottom": 118,
+          "sha256": "d24676c5fb6dcfdbf76f1a92d71d6fc7a424451cacd86379b145d1631eb25538"
+        },
+        "east": {
+          "width": 136,
+          "height": 136,
+          "top": 26,
+          "bottom": 120,
+          "sha256": "ad246156ec502d82bffd769981e23e60f0e68141314ac9df6ba8c0ad69cb061f"
+        },
+        "north": {
+          "width": 136,
+          "height": 136,
+          "top": 26,
+          "bottom": 118,
+          "sha256": "0b1fa32f929aa4949a67d12af93877d5c4510d38ed907ceb17cb7f13e0a6bc91"
+        },
+        "west": {
+          "width": 136,
+          "height": 136,
+          "top": 27,
+          "bottom": 120,
+          "sha256": "8fd5ab6cd4ef163c8b6500236670b8b79bf95ddcf4cbb217d22ab13e4f468276"
+        }
+      }
+    },
+    {
+      "id": "freddyfazbear",
+      "scale": 0.16822429906542055,
+      "views": {
+        "south": {
+          "width": 136,
+          "height": 136,
+          "top": 12,
+          "bottom": 117,
+          "sha256": "fe869b307de5a4791c46b1ddd21882cd607dbc05afb51bb9efdab54563c11375"
+        },
+        "east": {
+          "width": 136,
+          "height": 136,
+          "top": 12,
+          "bottom": 118,
+          "sha256": "d94e8d84c0cb7d13c6ef1cd11750b4575da7c44c0894b919cb0f9adbf6c5d5e4"
+        },
+        "north": {
+          "width": 136,
+          "height": 136,
+          "top": 11,
+          "bottom": 116,
+          "sha256": "8ca6b3e69b36bc3e2e249948373548ff276d446b90d62e1ccf27fb070145fb60"
+        },
+        "west": {
+          "width": 136,
+          "height": 136,
+          "top": 12,
+          "bottom": 118,
+          "sha256": "c4909806ad79ecc825d2db4b2f53f13ecd2c3b44fa0c684c98f00c022a962fbb"
+        }
+      }
+    },
+    {
+      "id": "ghostface",
+      "scale": 0.1875,
+      "views": {
+        "south": {
+          "width": 136,
+          "height": 136,
+          "top": 24,
+          "bottom": 119,
+          "sha256": "0216e475d16ec10d232bcac062521194586a707678757f97b57db3880c897b44"
+        },
+        "east": {
+          "width": 136,
+          "height": 136,
+          "top": 26,
+          "bottom": 120,
+          "sha256": "e268404381163f7861056a926ef8ab8b589ab60a9627e3ea49af2cb437208c9f"
+        },
+        "north": {
+          "width": 136,
+          "height": 136,
+          "top": 26,
+          "bottom": 119,
+          "sha256": "17698383848994b951e922f341aa1326f6ae7403e18dd66a1daed54d66fb61e2"
+        },
+        "west": {
+          "width": 136,
+          "height": 136,
+          "top": 27,
+          "bottom": 120,
+          "sha256": "c45bb1a9049fc92be0e68bd0417700ece06197816158bd08a477028c32a9137c"
+        }
+      }
+    },
+    {
+      "id": "grimreaper",
+      "scale": 0.1651376146788991,
+      "views": {
+        "south": {
+          "width": 136,
+          "height": 136,
+          "top": 13,
+          "bottom": 116,
+          "sha256": "faa3b0378acc2be2bf9cda4a6367210acb3a027541bfe4d430220eb44465282e"
+        },
+        "east": {
+          "width": 136,
+          "height": 136,
+          "top": 12,
+          "bottom": 120,
+          "sha256": "d0e10ec829593bef87acdd0f239a43d3fe0e6f1e4ec25829b02a0d2c397a3084"
+        },
+        "north": {
+          "width": 136,
+          "height": 136,
+          "top": 11,
+          "bottom": 117,
+          "sha256": "6160735b7e6032dcf538976832f125ea89b36d824bcdad5919f8ebb0711a8a4a"
+        },
+        "west": {
+          "width": 136,
+          "height": 136,
+          "top": 12,
+          "bottom": 120,
+          "sha256": "0782246c3a10a851db1853057c7cbc2e3fa23311ba22c797249053717080ebdb"
+        }
+      }
+    },
+    {
+      "id": "heisenberg",
+      "scale": 0.18181818181818182,
+      "views": {
+        "south": {
+          "width": 136,
+          "height": 136,
+          "top": 20,
+          "bottom": 115,
+          "sha256": "f65c56f0c206ed06f0b743fbb1627fdb2253aacdab4145baa462f912a9bd1c7b"
+        },
+        "east": {
+          "width": 136,
+          "height": 136,
+          "top": 20,
+          "bottom": 118,
+          "sha256": "b96ae918d8985d205b183cc95c8ddf4be1b147a22522a2dbefe2cce3a3a199da"
+        },
+        "north": {
+          "width": 136,
+          "height": 136,
+          "top": 18,
+          "bottom": 116,
+          "sha256": "f04f2aa0cd6e507c2e92ebe84077713db0905a1f28473e49ce16e038de888bbe"
+        },
+        "west": {
+          "width": 136,
+          "height": 136,
+          "top": 20,
+          "bottom": 118,
+          "sha256": "fab8895780fb1757d0dd7429393e72665e207ed647467707f9bfd3412f66d7f3"
+        }
+      }
+    },
+    {
+      "id": "masterchief",
+      "scale": 0.1978021978021978,
+      "views": {
+        "south": {
+          "width": 136,
+          "height": 136,
+          "top": 28,
+          "bottom": 117,
+          "sha256": "cd9956f602dee150001c55331be537c66403a6d026e97e96f857b90a8dee4c38"
+        },
+        "east": {
+          "width": 136,
+          "height": 136,
+          "top": 28,
+          "bottom": 118,
+          "sha256": "aecae2e823d5d47f5146223efa399af9c74ef183da7e3e0d9b29a249f1ad497c"
+        },
+        "north": {
+          "width": 136,
+          "height": 136,
+          "top": 27,
+          "bottom": 117,
+          "sha256": "a164c6d8e639b811c15808e11939b4c8169743a246e93af4132ab58fc649e5ed"
+        },
+        "west": {
+          "width": 136,
+          "height": 136,
+          "top": 28,
+          "bottom": 118,
+          "sha256": "ca8b9a91099c1af006db325dccf6a872f0254c86f314ed19ac7d4600ce2b0bbd"
+        }
+      }
+    },
+    {
+      "id": "minionchar",
+      "scale": 0.17307692307692307,
+      "views": {
+        "south": {
+          "width": 136,
+          "height": 136,
+          "top": 11,
+          "bottom": 114,
+          "sha256": "1c49a115bc109edb91cfe5660a28df77fdd801fac06bba8cb61ae71418cbfaa6"
+        },
+        "east": {
+          "width": 136,
+          "height": 136,
+          "top": 16,
+          "bottom": 116,
+          "sha256": "f2136dd311979ff4f5b54060846bf7a113c71f11e332e2046ddd7ac2c7ffced5"
+        },
+        "north": {
+          "width": 136,
+          "height": 136,
+          "top": 12,
+          "bottom": 114,
+          "sha256": "02ac4d704dd18b7c50b9b4f7ebd73bfe1bd09f8dac4132c4b83b89f8e805c981"
+        },
+        "west": {
+          "width": 136,
+          "height": 136,
+          "top": 16,
+          "bottom": 116,
+          "sha256": "09806cb55ee448fa1886f9182f180bd5e0f95394b1b1ae8c7d863a41b8b4ee23"
+        }
+      }
+    },
+    {
+      "id": "morpheus",
+      "scale": 0.20224719101123595,
+      "views": {
+        "south": {
+          "width": 136,
+          "height": 136,
+          "top": 28,
+          "bottom": 116,
+          "sha256": "368889eb894ebaae74e40bb8f2a11413b19b24ac1ed12b0f6c34d0919af8fc81"
+        },
+        "east": {
+          "width": 136,
+          "height": 136,
+          "top": 30,
+          "bottom": 117,
+          "sha256": "4c1c8f96c3d75c28697f07a6b669a329397148b341edcdb2becc7217d0543ad3"
+        },
+        "north": {
+          "width": 136,
+          "height": 136,
+          "top": 28,
+          "bottom": 115,
+          "sha256": "c3190112349741092a06e5d4b98bc3a484c9ef1651eea77fdbbe8b7fb0daf045"
+        },
+        "west": {
+          "width": 136,
+          "height": 136,
+          "top": 30,
+          "bottom": 116,
+          "sha256": "91e1c5fcef7214b10824d61389d46611840399315771d413041dda4d0e369e13"
+        }
+      }
+    },
+    {
+      "id": "ninjaturtle",
+      "scale": 0.20454545454545456,
+      "views": {
+        "south": {
+          "width": 136,
+          "height": 136,
+          "top": 32,
+          "bottom": 115,
+          "sha256": "bfc583a4f786d026fe0d0760c1fd3a859cf900a61abb6f9879b55836d716444a"
+        },
+        "east": {
+          "width": 136,
+          "height": 136,
+          "top": 32,
+          "bottom": 118,
+          "sha256": "fff69cb8e9597582ebdda5b73932544b1de1a1d9ec06ed8ee2921210a553318a"
+        },
+        "north": {
+          "width": 136,
+          "height": 136,
+          "top": 31,
+          "bottom": 116,
+          "sha256": "e213e448923db78370851f73d633e6e4fe888fbef139a03962a5aa74b6e07a95"
+        },
+        "west": {
+          "width": 136,
+          "height": 136,
+          "top": 32,
+          "bottom": 119,
+          "sha256": "e17d47be51154796f768ef680dd2e1db315585f316591737a67ca5e18a0f8703"
+        }
+      }
+    },
+    {
+      "id": "pepe",
+      "scale": 0.20689655172413793,
+      "views": {
+        "south": {
+          "width": 96,
+          "height": 96,
+          "top": 5,
+          "bottom": 90,
+          "sha256": "00530824fd7482ec3551bd53baaf0f6412daeb4da159f1eff46914ebd78e5839"
+        },
+        "east": {
+          "width": 96,
+          "height": 96,
+          "top": 5,
+          "bottom": 90,
+          "sha256": "25f348ce9386309e3e6f77432cbdaa9e309aafdce974b69b67d46e9fb68829ec"
+        },
+        "north": {
+          "width": 96,
+          "height": 96,
+          "top": 5,
+          "bottom": 89,
+          "sha256": "880d5d27e41053095b8fad905e0f2efbb87be2524ca75103577fb79319ad5cfe"
+        },
+        "west": {
+          "width": 96,
+          "height": 96,
+          "top": 5,
+          "bottom": 91,
+          "sha256": "5394dbb59e95d7c9ff8303c36f1ad056cd19bf96dfb82d167b934749ebca3cc2"
+        }
+      }
+    },
+    {
+      "id": "pikachu",
+      "scale": 0.2,
+      "views": {
+        "south": {
+          "width": 96,
+          "height": 96,
+          "top": 2,
+          "bottom": 91,
+          "sha256": "094a3ea4c336e76da6787b6ca545ef9d9549cae0b647a86d9c4d1678209f8671"
+        },
+        "east": {
+          "width": 96,
+          "height": 96,
+          "top": 3,
+          "bottom": 91,
+          "sha256": "7027cb1fb95a84ffbfa1d71433a26010fd46312ef9357126fb75f6e87f3d0188"
+        },
+        "north": {
+          "width": 96,
+          "height": 96,
+          "top": 4,
+          "bottom": 89,
+          "sha256": "7ce383b13f831900b8bcb37a7e01f37959889e2da2b2cb3bc9ce4385e21d9dd2"
+        },
+        "west": {
+          "width": 96,
+          "height": 96,
+          "top": 2,
+          "bottom": 91,
+          "sha256": "b91388a87823db086807134748faf974cf13bf058af315e2013ebe741758c3cb"
+        }
+      }
+    },
+    {
+      "id": "plaguedoctor",
+      "scale": 0.17142857142857143,
+      "views": {
+        "south": {
+          "width": 136,
+          "height": 136,
+          "top": 15,
+          "bottom": 119,
+          "sha256": "dc5caadd05e61aac2a53e5626d5fde1fdb7af0805b41482da2460ea64d2e38ee"
+        },
+        "east": {
+          "width": 136,
+          "height": 136,
+          "top": 17,
+          "bottom": 120,
+          "sha256": "aa70a6918cad60ba43abd3a48753c03707b95843481e8b115abcad6a967ead89"
+        },
+        "north": {
+          "width": 136,
+          "height": 136,
+          "top": 15,
+          "bottom": 118,
+          "sha256": "fdb90c5d3cca463ea66f3d3243d6a14aa55bcbfe966b30788b13f080b934a57f"
+        },
+        "west": {
+          "width": 136,
+          "height": 136,
+          "top": 17,
+          "bottom": 120,
+          "sha256": "e4926b7eb99633d7cddac7c3c7d35c0e6ec9fbb8489f0c9dd93f374f7948f0e8"
+        }
+      }
+    },
+    {
+      "id": "ricksanchez",
+      "scale": 0.1875,
+      "views": {
+        "south": {
+          "width": 136,
+          "height": 136,
+          "top": 24,
+          "bottom": 117,
+          "sha256": "a3cae76d3cb374d9d103adf9857f958db87c868cdf6fef8b9b866978087b4d61"
+        },
+        "east": {
+          "width": 136,
+          "height": 136,
+          "top": 25,
+          "bottom": 119,
+          "sha256": "6a42e45fb66138e63d1a8ae2501537989991670e93e0085f7f2a50b4ad1c09a4"
+        },
+        "north": {
+          "width": 136,
+          "height": 136,
+          "top": 22,
+          "bottom": 117,
+          "sha256": "9e64427279bf470f22a016fac3a2a44b6da206e707ab5471c4a1bac932029d48"
+        },
+        "west": {
+          "width": 136,
+          "height": 136,
+          "top": 24,
+          "bottom": 119,
+          "sha256": "7f6a488857e6d91e913174ce64d22a7f395156ec8a7875a458c34039ff1d86b9"
+        }
+      }
+    },
+    {
+      "id": "robocop",
+      "scale": 0.1956521739130435,
+      "views": {
+        "south": {
+          "width": 136,
+          "height": 136,
+          "top": 25,
+          "bottom": 115,
+          "sha256": "b357c448430b0b98a59acbbb4de7156fa7a7647ffe6f3bed17119515da5fcd14"
+        },
+        "east": {
+          "width": 136,
+          "height": 136,
+          "top": 27,
+          "bottom": 118,
+          "sha256": "7beb01e21f382cd9ac5f08c75d130e3c8c72089940a0821119b53c0ac5b3c19f"
+        },
+        "north": {
+          "width": 136,
+          "height": 136,
+          "top": 25,
+          "bottom": 116,
+          "sha256": "2b4bcacf3b45b3fa1652bd7548dc6e66afeb7af955dfa3ff00ecacd4c6be9f45"
+        },
+        "west": {
+          "width": 136,
+          "height": 136,
+          "top": 27,
+          "bottom": 118,
+          "sha256": "de0f7cd71508d15b2b3c6f63468c59265b7246b14da14f9037d194ef9f305368"
+        }
+      }
+    },
+    {
+      "id": "robot",
+      "scale": 0.1875,
+      "views": {
+        "south": {
+          "width": 136,
+          "height": 136,
+          "top": 23,
+          "bottom": 118,
+          "sha256": "af2a8be4ba922c84112b487e1aa3e805fb6c1ec2dea190d8f68bc13bbf4c37d5"
+        },
+        "east": {
+          "width": 136,
+          "height": 136,
+          "top": 25,
+          "bottom": 119,
+          "sha256": "f50a97a5caee5d833fc2954581b33d1ea903c1d199e95c733e2215e48f295f78"
+        },
+        "north": {
+          "width": 136,
+          "height": 136,
+          "top": 25,
+          "bottom": 119,
+          "sha256": "93c853552a74150db0971f93b3049527d88ef31b0c6392962f71634a00e2e9e4"
+        },
+        "west": {
+          "width": 136,
+          "height": 136,
+          "top": 26,
+          "bottom": 120,
+          "sha256": "d97276a3e4147c4901407f4a3004d912fd28c62e7f50b0c74d84425f48ac529b"
+        }
+      }
+    },
+    {
+      "id": "samaltman",
+      "scale": 0.18556701030927836,
+      "views": {
+        "south": {
+          "width": 136,
+          "height": 136,
+          "top": 22,
+          "bottom": 117,
+          "sha256": "7f70a77a42efd9e127e1cd935e93f6e3d56f4e359e4e08ad3ade1e1097512f79"
+        },
+        "east": {
+          "width": 136,
+          "height": 136,
+          "top": 22,
+          "bottom": 118,
+          "sha256": "b533d9782c4d6949bc2a380e2d8c05a591107d250be0d5801e03a89bcd98d491"
+        },
+        "north": {
+          "width": 136,
+          "height": 136,
+          "top": 24,
+          "bottom": 116,
+          "sha256": "12c4760dad0afd160aed246a086bf19028696b4d1336082d30a59f0c82668836"
+        },
+        "west": {
+          "width": 136,
+          "height": 136,
+          "top": 23,
+          "bottom": 118,
+          "sha256": "2171ea0519da468f67198ec7e8fd9ef676b05289abb384b4f542e6ba5ca5966e"
+        }
+      }
+    },
+    {
+      "id": "secretagent",
+      "scale": 0.18556701030927836,
+      "views": {
+        "south": {
+          "width": 136,
+          "height": 136,
+          "top": 23,
+          "bottom": 117,
+          "sha256": "e2367ddc026a16c7c118a00b2b10a2f2fb0e5a7fe81414563c1473d87b6e7e1a"
+        },
+        "east": {
+          "width": 136,
+          "height": 136,
+          "top": 23,
+          "bottom": 119,
+          "sha256": "6737933f5bd414e4979ea739d904db970fc1a5cdb1c93440e315c3b0e01c499e"
+        },
+        "north": {
+          "width": 136,
+          "height": 136,
+          "top": 22,
+          "bottom": 117,
+          "sha256": "e90db23e2192c038669ad304db4ef50ecde4c4152d2aecb6a8fa69b383780da0"
+        },
+        "west": {
+          "width": 136,
+          "height": 136,
+          "top": 23,
+          "bottom": 119,
+          "sha256": "87dfdbb8d2aa887336d1cb74191eb2e1a7c2915e1959a2649a09842917676c29"
+        }
+      }
+    },
+    {
+      "id": "skeleton",
+      "scale": 0.2,
+      "views": {
+        "south": {
+          "width": 136,
+          "height": 136,
+          "top": 28,
+          "bottom": 116,
+          "sha256": "f292a90aca090ef7efe17ed0718f9e0030b8cf917f8ee1d88b6e631191b51f69"
+        },
+        "east": {
+          "width": 136,
+          "height": 136,
+          "top": 29,
+          "bottom": 118,
+          "sha256": "d3a99dc4b2d8f26607529657b8ab8d05a7aa48e1ff508b18273b50abdc9f9fbb"
+        },
+        "north": {
+          "width": 136,
+          "height": 136,
+          "top": 27,
+          "bottom": 116,
+          "sha256": "da93c60a80648234d354b8b60789075cc9d1dfef7b9e14ec34c09d83c69ed771"
+        },
+        "west": {
+          "width": 136,
+          "height": 136,
+          "top": 29,
+          "bottom": 118,
+          "sha256": "7a6c6c8bbe5ea5e2848ac51ac36bd684de2dc94c99f5b8ba6451e407ae8ce26b"
+        }
+      }
+    },
+    {
+      "id": "station_minion",
+      "scale": 0.20224719101123595,
+      "views": {
+        "south": {
+          "width": 136,
+          "height": 136,
+          "top": 30,
+          "bottom": 118,
+          "sha256": "69ef59742afb849c29245fd5d6506dd123e6ff158163c4a84cae3fe290ef785b"
+        },
+        "east": {
+          "width": 136,
+          "height": 136,
+          "top": 31,
+          "bottom": 119,
+          "sha256": "ee84464175d482c0c855ceadd1b3584fa36f8c6b7ea741341f641ed040ed60a7"
+        },
+        "north": {
+          "width": 136,
+          "height": 136,
+          "top": 30,
+          "bottom": 117,
+          "sha256": "3c0c011f4c714ed5cea65f2e01cdbfbd416360a7efba0596889cb2bb86e07b1f"
+        },
+        "west": {
+          "width": 136,
+          "height": 136,
+          "top": 31,
+          "bottom": 119,
+          "sha256": "efa7cddc5abd04cf94344d951b7c336f9acb37dc23bc2b1cab11b3fd79e73df4"
+        }
+      }
+    },
+    {
+      "id": "ultron",
+      "scale": 0.2808988764044944,
+      "views": {
+        "south": {
+          "width": 136,
+          "height": 136,
+          "top": 28,
+          "bottom": 116,
+          "sha256": "0dc19698e9f4e29e72ae3acccab43f142901123747311badf4559dfc5de2e9aa"
+        },
+        "east": {
+          "width": 136,
+          "height": 136,
+          "top": 30,
+          "bottom": 118,
+          "sha256": "06bacdbf41b6cdee5568b808b027b7148d2d8eee8c8601fe010e5a86a88bb87e"
+        },
+        "north": {
+          "width": 136,
+          "height": 136,
+          "top": 29,
+          "bottom": 117,
+          "sha256": "106b85fc23fb36e932bdc594583d1e02fcabcd8d80f00a34248b819639962271"
+        },
+        "west": {
+          "width": 136,
+          "height": 136,
+          "top": 30,
+          "bottom": 118,
+          "sha256": "43c89100720a1b9d4fd645795cb71212005fc08134b12e3f45d899e2330f1eaf"
+        }
+      }
+    },
+    {
+      "id": "ultrondroid",
+      "scale": 0.2,
+      "views": {
+        "south": {
+          "width": 136,
+          "height": 136,
+          "top": 28,
+          "bottom": 117,
+          "sha256": "c3239f24eb592ad419afab72eccf5d0105fc2d5526c31a6ba5ccfa6f22402a9c"
+        },
+        "east": {
+          "width": 136,
+          "height": 136,
+          "top": 29,
+          "bottom": 118,
+          "sha256": "9c59984076a42ca4a8cee659b0ec7df82394b2d30a5f451f6ffc482c7fa78423"
+        },
+        "north": {
+          "width": 136,
+          "height": 136,
+          "top": 28,
+          "bottom": 117,
+          "sha256": "bb5e8c3f85e228a58d4153c65e43640df5002b87d1e98cc8b6e004a5bc18065b"
+        },
+        "west": {
+          "width": 136,
+          "height": 136,
+          "top": 29,
+          "bottom": 118,
+          "sha256": "c161ea26e6581fc19ecf2898f6a7525d3ee2d5360be87012a3a00e7956725098"
+        }
+      }
+    },
+    {
+      "id": "vaultboy",
+      "scale": 0.1956521739130435,
+      "views": {
+        "south": {
+          "width": 136,
+          "height": 136,
+          "top": 25,
+          "bottom": 115,
+          "sha256": "84d95bfed241fd63b5aab3dc175bd46a6f69cc5322c0bf5c1e153d57846f384e"
+        },
+        "east": {
+          "width": 136,
+          "height": 136,
+          "top": 26,
+          "bottom": 117,
+          "sha256": "27cefc47a799c7440af0cf87497bff9c18b8a0d7dd0a694fc127d9b5e0e5d44e"
+        },
+        "north": {
+          "width": 136,
+          "height": 136,
+          "top": 25,
+          "bottom": 115,
+          "sha256": "bc93a163aa60d038439cdc7af881af78a55b8f907d8f5367da6539c2a20eeb94"
+        },
+        "west": {
+          "width": 136,
+          "height": 136,
+          "top": 26,
+          "bottom": 117,
+          "sha256": "35d4332a5b1ecb41657d9c77eb1b7a49679132cd713558a445e41a24d0278c7f"
+        }
+      }
+    },
+    {
+      "id": "voidwizard",
+      "scale": 0.1651376146788991,
+      "views": {
+        "south": {
+          "width": 136,
+          "height": 136,
+          "top": 12,
+          "bottom": 117,
+          "sha256": "cdfde69ee3712be2ef6c82edf2571fea1957ed3b1bb9a14b029a0d3674048633"
+        },
+        "east": {
+          "width": 136,
+          "height": 136,
+          "top": 14,
+          "bottom": 121,
+          "sha256": "6818f377da4cf1b7584224998668187aa89ca0cbc8a188e4a1b932169dd5b273"
+        },
+        "north": {
+          "width": 136,
+          "height": 136,
+          "top": 12,
+          "bottom": 120,
+          "sha256": "8f74015b6b47e2f2a311cf6fe4bf61382ce5c2f8159dde8cd7a8c6e9a305fcc5"
+        },
+        "west": {
+          "width": 136,
+          "height": 136,
+          "top": 13,
+          "bottom": 121,
+          "sha256": "47fa1aa0e608ef8e27682bf5a847b6561b0b4be5ae8df769c679fe4343ddc2ef"
+        }
+      }
+    },
+    {
+      "id": "xenomorph",
+      "scale": 0.1836734693877551,
+      "views": {
+        "south": {
+          "width": 136,
+          "height": 136,
+          "top": 19,
+          "bottom": 116,
+          "sha256": "493e5284d3889da4c23af70eb20897b6daed6495375c95319b143d7beed441cf"
+        },
+        "east": {
+          "width": 136,
+          "height": 136,
+          "top": 24,
+          "bottom": 117,
+          "sha256": "8ccbb554ce182fe2ec06d4eca60ef78b5f63b4d130aadd88c0e141ad70e9b6b5"
+        },
+        "north": {
+          "width": 136,
+          "height": 136,
+          "top": 19,
+          "bottom": 115,
+          "sha256": "6584f6e066530405ee1c29f92b46c9a65aad786abc7ebc091eed76e52b117f7a"
+        },
+        "west": {
+          "width": 136,
+          "height": 136,
+          "top": 24,
+          "bottom": 117,
+          "sha256": "174e894e9008ff1fbb481470e2f8a5f4bda68a84e9ad59806522aa963a25c99d"
+        }
+      }
+    }
+  ]
+}

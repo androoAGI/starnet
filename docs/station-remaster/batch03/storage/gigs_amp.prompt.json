@@ -1,0 +1,11 @@
+{
+  "id": "gigs_amp",
+  "prompt": "Generate ONE entirely new complete standalone StarNet prop sprite, no atlas. References: first workstation for fixed high overhead oblique SOUTH camera and mature illustrated game-art construction; second wooden bookshelf is primary PAINTED style anchor. Horizontal front edges, never isometric diamonds, no rotated bitmap. Full silhouette and feet framed with margin. Crafted 2D hand-painted strategy-game rendering, crisp angular planes, controlled dark edge separations, 3–5 broad painted tones per material, few deliberate highlights, selective purposeful detail. No photographic surface grain, fibers, scratches, PBR studio gloss, noise or excessive bolts. Mature detailed station art, not flat icon or cartoony toy. Material variety appropriate to purpose, don't copy workstation metal onto everything. Flat uniform pure magenta #ff00ff background, including all empty silhouette gaps; NO magenta materials on object. No floor, cast shadow, halo, text, watermark, humans, adjacent props. All lights unlit colored lenses unless requested decorative playfield. A portable musician guitar amplifier, aspect16:20,1x1 footprint. Deep desaturated petrol-blue fabric-covered cabinet, ochre/tan cloth grille simplified into broad crosshatch strokes, cream top control rail with five dark knobs, curved brown leather carry handle across top, rubber corner protectors and short feet. A dark small meter pane and unlit red lens on control rail. Real functional amplifier silhouette, no armored crate appearance or microtexture.",
+  "referencedImagePaths": [
+    "C:/Users/andro/gen-trees/industrial-textures-0912/frontend/assets/industrial/workstation.png",
+    "C:/Users/andro/gen-trees/prop-storage-0914/docs/station-remaster/batch03/storage/sources/bookshelf.png"
+  ],
+  "generatedSource": "C:\\Users\\andro\\.codex\\generated_images\\01a09e47-65ec-7a71-b4a1-4847c19fc477\\exec-ff4dfc2c-250b-4ebc-abd3-e0d639f39e8c.png",
+  "tool": "image_gen",
+  "styleAcceptance": "working calibration, not user acceptance"
+}

@@ -1,0 +1,216 @@
+{
+  "version": 1,
+  "method": "User-authorized connected background extraction (declared key color); native alpha retained; original RGB preserved",
+  "records": [
+    {
+      "id": "rug",
+      "source": "docs/station-remaster/batch03/habitat/rug-source.png",
+      "backgroundMode": "magenta",
+      "seeds": [],
+      "generated": "C:\\Users\\andro\\.codex\\generated_images\\01a09e45-c8db-79c2-b990-4349e09fba9c\\exec-ab79cf23-80b3-4b93-b196-d102209d5240.png",
+      "output": "frontend/assets/industrial/batch03/habitat/rug.png",
+      "sourceWidth": 1478,
+      "sourceHeight": 1064,
+      "crop": {
+        "left": 15,
+        "top": 82,
+        "width": 1448,
+        "height": 871
+      },
+      "sourceSha256": "33425076fc7f5abf25271c9d183a842f45c855560286d8be9932d8628d53c633",
+      "outputSha256": "beb5381e2b77f33d9ba11716a13377b801492d9bfc6a7f0f9f17949142671911",
+      "channels": 4,
+      "transparentPixels": 23103,
+      "opaquePixels": 1238105,
+      "partialPixels": 0,
+      "subjectRgbChanges": 0
+    },
+    {
+      "id": "rug_small",
+      "source": "docs/station-remaster/batch03/habitat/rug_small-source.png",
+      "backgroundMode": "magenta",
+      "seeds": [],
+      "generated": "C:\\Users\\andro\\.codex\\generated_images\\01a09e45-c8db-79c2-b990-4349e09fba9c\\exec-7e056c9c-2e08-4e81-81ad-606b63f53136.png",
+      "output": "frontend/assets/industrial/batch03/habitat/rug_small.png",
+      "sourceWidth": 1219,
+      "sourceHeight": 1290,
+      "crop": {
+        "left": 41,
+        "top": 21,
+        "width": 1137,
+        "height": 1221
+      },
+      "sourceSha256": "3f78c2b049fdc87491798a360cdf629eb550b9d0bd9a88279ec700663fad7bfc",
+      "outputSha256": "11b748ce144b8400bbe85f5fb737a0a2aaef68b7e2c02391b814dea00b32fd49",
+      "channels": 4,
+      "transparentPixels": 40513,
+      "opaquePixels": 1347764,
+      "partialPixels": 0,
+      "subjectRgbChanges": 0
+    },
+    {
+      "id": "rug_large",
+      "source": "docs/station-remaster/batch03/habitat/rug_large-source.png",
+      "backgroundMode": "magenta",
+      "seeds": [],
+      "generated": "C:\\Users\\andro\\.codex\\generated_images\\01a09e45-c8db-79c2-b990-4349e09fba9c\\exec-08d008c9-986b-4f37-8357-3501bc16a45a.png",
+      "output": "frontend/assets/industrial/batch03/habitat/rug_large.png",
+      "sourceWidth": 1254,
+      "sourceHeight": 1254,
+      "crop": {
+        "left": 24,
+        "top": 23,
+        "width": 1206,
+        "height": 1181
+      },
+      "sourceSha256": "008f9141b500701890c304d1c1526a2d09e33b53774117723315299e5cd59a82",
+      "outputSha256": "4833b6a895140eea978a594efaed699d8f102ab6e71872a08f0f7b591f60dbc4",
+      "channels": 4,
+      "transparentPixels": 2372,
+      "opaquePixels": 1421914,
+      "partialPixels": 0,
+      "subjectRgbChanges": 0
+    },
+    {
+      "id": "arc_floorlight",
+      "source": "docs/station-remaster/batch03/habitat/arc_floorlight-source.png",
+      "backgroundMode": "magenta",
+      "seeds": [],
+      "generated": "C:\\Users\\andro\\.codex\\generated_images\\01a09e45-c8db-79c2-b990-4349e09fba9c\\exec-f1e88386-b314-4cf7-963a-8b986604cd0a.png",
+      "output": "frontend/assets/industrial/batch03/habitat/arc_floorlight.png",
+      "sourceWidth": 1254,
+      "sourceHeight": 1254,
+      "crop": {
+        "left": 200,
+        "top": 42,
+        "width": 855,
+        "height": 1158
+      },
+      "sourceSha256": "fb84d468ab87146c9a3e231b43e8af8604da43541e16108efecf4477436ebfbd",
+      "outputSha256": "43d2db807a4c409ed949b99bc48cdd4dd75863cfdbd99fdd30315f0b26c7ae1b",
+      "channels": 4,
+      "transparentPixels": 256928,
+      "opaquePixels": 733162,
+      "partialPixels": 0,
+      "subjectRgbChanges": 0
+    },
+    {
+      "id": "arc_ladder",
+      "source": "docs/station-remaster/batch03/habitat/arc_ladder-source.png",
+      "backgroundMode": "magenta",
+      "seeds": [
+        [
+          550,
+          400
+        ],
+        [
+          550,
+          800
+        ],
+        [
+          817,
+          395
+        ],
+        [
+          259,
+          396
+        ],
+        [
+          800,
+          724
+        ],
+        [
+          276,
+          725
+        ]
+      ],
+      "generated": "C:\\Users\\andro\\.codex\\generated_images\\01a09e45-c8db-79c2-b990-4349e09fba9c\\exec-6bb3957f-9386-43e4-b64f-ddad87fd9301.png",
+      "output": "frontend/assets/industrial/batch03/habitat/arc_ladder.png",
+      "sourceWidth": 1076,
+      "sourceHeight": 1462,
+      "crop": {
+        "left": 16,
+        "top": 14,
+        "width": 1044,
+        "height": 1400
+      },
+      "sourceSha256": "89f3fa1d2b0ec789ae57aea77af5b9a104459bc76fad0ca1f0e22009ea9ff7b7",
+      "outputSha256": "9191ebcd181116d51cfab4ad4e90fa22220326ecceac73f58ec39c89797b443f",
+      "channels": 4,
+      "transparentPixels": 726962,
+      "opaquePixels": 734638,
+      "partialPixels": 0,
+      "subjectRgbChanges": 0
+    },
+    {
+      "id": "cablerun",
+      "source": "docs/station-remaster/batch03/habitat/cablerun-source.png",
+      "backgroundMode": "magenta",
+      "seeds": [],
+      "generated": "C:\\Users\\andro\\.codex\\generated_images\\01a09e45-c8db-79c2-b990-4349e09fba9c\\exec-2b7857ff-1099-430c-bea8-9f9ccefa5cb2.png",
+      "output": "frontend/assets/industrial/batch03/habitat/cablerun.png",
+      "sourceWidth": 2046,
+      "sourceHeight": 768,
+      "crop": {
+        "left": 27,
+        "top": 161,
+        "width": 1993,
+        "height": 429
+      },
+      "sourceSha256": "c6c668dc062a7b12bccb39f7e3e85165444a7b21cea3281c815d00af8b5673a0",
+      "outputSha256": "92d0b2865dc9bd58a65f2331cf516bc3ba22411a702eaaad240c7e2e9333647c",
+      "channels": 4,
+      "transparentPixels": 124115,
+      "opaquePixels": 730882,
+      "partialPixels": 0,
+      "subjectRgbChanges": 0
+    },
+    {
+      "id": "hazardpad",
+      "source": "docs/station-remaster/batch03/habitat/hazardpad-keyed-source.png",
+      "backgroundMode": "magenta",
+      "seeds": [],
+      "generated": "C:\\Users\\andro\\.codex\\generated_images\\01a09e45-c8db-79c2-b990-4349e09fba9c\\exec-f67d1659-4249-4ca8-ac56-46b2bc395220.png",
+      "initialSource": "docs/station-remaster/batch03/habitat/hazardpad-source.png",
+      "output": "frontend/assets/industrial/batch03/habitat/hazardpad.png",
+      "sourceWidth": 1860,
+      "sourceHeight": 846,
+      "crop": {
+        "left": 60,
+        "top": 81,
+        "width": 1740,
+        "height": 683
+      },
+      "sourceSha256": "682ca9fb6a561eb426de16ff7e99b6f5cb7a060d6082429ab50b823c4b51162a",
+      "outputSha256": "ba6135bf428c9e05c25dc84a9ee58cd8f15bfb6b30a07c14e4afa4021780dd80",
+      "channels": 4,
+      "transparentPixels": 6333,
+      "opaquePixels": 1182087,
+      "partialPixels": 0,
+      "subjectRgbChanges": 0
+    },
+    {
+      "id": "steamvent",
+      "source": "docs/station-remaster/batch03/habitat/steamvent-source.png",
+      "backgroundMode": "magenta",
+      "seeds": [],
+      "generated": "C:\\Users\\andro\\.codex\\generated_images\\01a09e45-c8db-79c2-b990-4349e09fba9c\\exec-b4770d6c-fea7-476c-915b-7198a9acdc54.png",
+      "output": "frontend/assets/industrial/batch03/habitat/steamvent.png",
+      "sourceWidth": 1448,
+      "sourceHeight": 1086,
+      "crop": {
+        "left": 120,
+        "top": 24,
+        "width": 1209,
+        "height": 1025
+      },
+      "sourceSha256": "c5261f387452ed63c56ee284487c25803b1b772ed5fcdcbc6f19e82708566eec",
+      "outputSha256": "940a4161bddf981ebc5b698aa15a0eeda78fed36c8066f1b3b70e96d871fbcc9",
+      "channels": 4,
+      "transparentPixels": 273595,
+      "opaquePixels": 965630,
+      "partialPixels": 0,
+      "subjectRgbChanges": 0
+    }
+  ]
+}

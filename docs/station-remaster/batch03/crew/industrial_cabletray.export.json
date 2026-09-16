@@ -1,0 +1,109 @@
+{
+  "id": "industrial_cabletray",
+  "nativeId": "industrial_cabletray",
+  "view": "s",
+  "footprint": {
+    "w": 3,
+    "h": 1
+  },
+  "bounds": {
+    "x": 0,
+    "y": 3,
+    "width": 36,
+    "height": 6
+  },
+  "geometry": {
+    "blocks": false,
+    "flat": true,
+    "tableSurface": false,
+    "requiredMount": null,
+    "optionalSurfaceMount": false,
+    "surfaceRisePixels": 8
+  },
+  "orientation": {
+    "facings": [
+      {
+        "r": 0,
+        "front": "south",
+        "w": 3,
+        "h": 1,
+        "type": "authored-view"
+      },
+      {
+        "r": 1,
+        "front": "west",
+        "w": 1,
+        "h": 3,
+        "type": "flat-plan-transform"
+      },
+      {
+        "r": 2,
+        "front": "north",
+        "w": 3,
+        "h": 1,
+        "type": "flat-plan-transform"
+      },
+      {
+        "r": 3,
+        "front": "east",
+        "w": 1,
+        "h": 3,
+        "type": "flat-plan-transform"
+      }
+    ],
+    "canMirror": true,
+    "classicFacings": [
+      0,
+      1,
+      2,
+      3
+    ]
+  },
+  "anchorContract": "Flat floor pass beneath bodies and other props; no body, seat, mount or collision.",
+  "sourceAnimation": {
+    "idleFrameVariants": 1,
+    "workFrameVariants": 1,
+    "respondsToWorkFlag": false,
+    "opaqueBoundsRelativeToFootprint": {
+      "x": 0,
+      "y": 3,
+      "w": 36,
+      "h": 6,
+      "alphaThreshold": 160
+    }
+  },
+  "tilePixels": 12,
+  "floorContact": {
+    "y": 12,
+    "x": 18
+  },
+  "visualBottomContact": {
+    "y": 9,
+    "x": 18
+  },
+  "status": "art-draft-integration-pending",
+  "backgroundThreshold": 235,
+  "holeSeeds": [],
+  "references": [
+    "workstation.png:camera-design",
+    "calibration/crate.png:metal-color",
+    "batch03/crew/industrial_bench-source.png:painted-style"
+  ],
+  "sourceWidth": 2172,
+  "sourceHeight": 724,
+  "sourceSha256": "61cee5a56e0c4cff993678775c6a6c769ea173542d4528ca9e131c2548950e38",
+  "output": "frontend/assets/industrial/batch03/crew/industrial_cabletray.png",
+  "crop": {
+    "left": 22,
+    "top": 185,
+    "width": 2122,
+    "height": 331
+  },
+  "transparentPixels": 3318,
+  "opaquePixels": 699064,
+  "partialPixels": 0,
+  "backgroundPixelsRemoved": 873464,
+  "subjectRgbChanges": 0,
+  "outputSha256": "12e285f926a935f03152485b7528aa6e65abcf000aa10596b06e3976124daa31",
+  "liveIntegrated": false
+}

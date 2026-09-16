@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>StarNet · Full catalog room review</title>
+<script>if(new URLSearchParams(location.search).get('propSet')!=='projection'){const u=new URL(location.href);u.searchParams.set('propSet','projection');location.replace(u);}</script>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#0b1215;color:#cbd0c5;font:14px ui-monospace,monospace}header{padding:20px 24px;border-bottom:1px solid #3b4949}h1{margin:0 0 10px;font-size:21px;font-weight:500;color:#c9b681}p{max-width:100ch;line-height:1.5;color:#aab6af;margin:8px 0}nav,.controls{display:flex;gap:10px;flex-wrap:wrap;align-items:end;margin-top:14px}label{display:grid;gap:5px;font-size:12px;color:#aab6af}button,a,select,input{appearance:none;border:1px solid #4d6260;background:#1b2b2e;color:#d0d4c6;padding:9px 12px;font:inherit;border-radius:2px}button,a{cursor:pointer}button:disabled{opacity:.45;cursor:default}button[aria-pressed=true]{border-color:#b9a46d;color:#f0d7a2}select{padding-right:30px;background-image:linear-gradient(45deg,transparent 50%,#a9bdb8 50%),linear-gradient(135deg,#a9bdb8 50%,transparent 50%);background-position:calc(100% - 15px) 50%,calc(100% - 10px) 50%;background-size:5px 5px;background-repeat:no-repeat}input{max-width:230px}button:focus-visible,a:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid #71c6bd;outline-offset:3px}main{padding:18px 24px}.viewport{overflow:auto;border:1px solid #3b4949;background:#080e11;max-height:65vh}canvas{display:block;margin:auto;max-width:none;image-rendering:auto}output{display:block;white-space:pre-wrap;line-height:1.5;margin:14px 0}#coverage{color:#b6cbbc}.warning{color:#e9b88a}#entries{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:8px;margin-top:12px}#entries article{padding:12px;background:#132024;border-left:2px solid #53635b}#entries strong{color:#d7c597}#entries p{font-size:12px;margin-bottom:0}.muted{color:#8ca29a}details{margin-top:16px}#diagnostics{white-space:pre-wrap;overflow-wrap:anywhere;font-size:12px}a{text-decoration:none}
+</style></head><body>
+<header><h1>STARNET / FULL CATALOG ROOM REVIEW</h1>
+<p>Compare size, facing, and materials against the workstation, chair, crate, and crew. Preview controls affect these temporary rooms only.</p>
+<nav aria-label="Catalog filters">
+<label>Category<select id="category"><option value="">All categories</option></select></label>
+<label>Find prop<input id="search" type="search" placeholder="Name or ID"></label>
+<label>Direction<select id="facing"><option value="">All supported</option><option value="s">South</option><option value="w">West</option><option value="n">North</option><option value="e">East</option></select></label>
+<label>Placement<select id="mount"><option value="">All placements</option><option value="floor">Floor</option><option value="wall">North wall</option><option value="surface">On a table</option><option value="decal">Floor decal</option></select></label>
+<a href="/?propSet=projection">Saved station</a></nav>
+<div class="controls"><button id="previous">Previous room</button><span id="page">—</span><button id="next">Next room</button>
+<button id="power" aria-pressed="false">Fixture state: idle</button><button id="motion" aria-pressed="false">Motion: frozen</button><button id="outlines" aria-pressed="false">Show footprints</button>
+<label>World scale<select id="scale"><option value="fit" selected>Fit whole room</option><option value="1">1 display px / world px</option><option value="2">2 display px / world px</option><option value="3">3 display px / world px</option><option value="4">4 display px / world px</option></select></label></div>
+<output id="coverage" aria-live="polite">Loading catalog…</output></header>
+<main><div class="viewport"><canvas id="prop-catalog-fixture" aria-label="Six catalog views in a furnished station room"></canvas></div>
+<output id="report" aria-live="polite">Loading art…</output><section id="entries" aria-label="Props in this room"></section>
+<details><summary>Placement and asset diagnostics</summary><pre id="diagnostics"></pre></details></main>
+<script src="js/util.js"></script><script src="app/industrialtextures.js"></script>
+<script src="app/authored-prop-content.js"></script><script src="app/authored-service-content.js"></script><script src="app/authored-prop-motion.js"></script><script src="app/authored-machine-config.js"></script><script src="app/approved-sheet-effects.js"></script><script src="app/projection-prop-effects.js"></script><script src="app/propremaster.js"></script>
+<script src="app/authored-surface-mounts.js"></script><script src="app/propsprites.js"></script><script src="app/data-shim.js"></script><script src="js/sprite-load-plan.js"></script><script src="js/assets.js"></script>
+<script src="app/worldsurface.js"></script><script src="app/worldrenderer.js"></script><script src="app/worldmodel.js"></script><script src="app/stationbake.js"></script>
+<script src="app/prop-catalog-data.js"></script><script src="app/prop-catalog-fixture.js"></script><script src="app/prop-catalog-review.js"></script>
+</body></html>

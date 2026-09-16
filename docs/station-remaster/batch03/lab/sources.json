@@ -1,0 +1,56 @@
+[
+  {
+    "id": "fabricator",
+    "source": "docs/station-remaster/batch03/lab/fabricator.source.png",
+    "original": "C:\\Users\\andro\\.codex\\generated_images\\01a0976c-e264-7f13-a581-78c904716b14\\exec-6a2d9fee-7c8d-4294-9043-9a9994251b3b.png",
+    "neutralMin": 80,
+    "seeds": [
+      [
+        600,
+        350
+      ]
+    ]
+  },
+  {
+    "id": "vat",
+    "source": "docs/station-remaster/batch03/lab/vat.source.png",
+    "original": "C:\\Users\\andro\\.codex\\generated_images\\01a0976c-e264-7f13-a581-78c904716b14\\exec-9b79d0b7-ad7a-4e76-921e-508498a7e28a.png",
+    "neutralMin": 80,
+    "seeds": []
+  },
+  {
+    "id": "tube",
+    "source": "docs/station-remaster/batch03/lab/tube.source.png",
+    "original": "C:\\Users\\andro\\.codex\\generated_images\\01a0976c-e264-7f13-a581-78c904716b14\\exec-ca3438f3-ecf0-4193-b478-d6cdbcd59cd2.png",
+    "neutralMin": 80,
+    "seeds": []
+  },
+  {
+    "id": "research_corelens",
+    "source": "docs/station-remaster/batch03/lab/research_corelens.source.png",
+    "original": "C:\\Users\\andro\\.codex\\generated_images\\01a0976c-e264-7f13-a581-78c904716b14\\exec-971a5db9-9401-42cc-8d0c-40ab4468af28.png",
+    "neutralMin": 80,
+    "seeds": []
+  },
+  {
+    "id": "research_trendpillar",
+    "source": "docs/station-remaster/batch03/lab/research_trendpillar.source.png",
+    "original": "C:\\Users\\andro\\.codex\\generated_images\\01a0976c-e264-7f13-a581-78c904716b14\\exec-91d62ffa-ab56-4122-a2a4-8c84c3eb2cc4.png",
+    "neutralMin": 80,
+    "seeds": []
+  },
+  {
+    "id": "etsy_packbot",
+    "source": "docs/station-remaster/batch03/lab/etsy_packbot.source.png",
+    "original": "C:\\Users\\andro\\.codex\\generated_images\\01a0976c-e264-7f13-a581-78c904716b14\\exec-60f52d03-d43a-420d-b3fb-32a1dd96cc60.png",
+    "neutralMin": 80,
+    "seeds": []
+  },
+  {
+    "id": "fabricator_carriage",
+    "source": "docs/station-remaster/batch03/lab/fabricator_carriage.source.png",
+    "original": "C:\\Users\\andro\\.codex\\generated_images\\01a0976c-e264-7f13-a581-78c904716b14\\exec-6dbc17dd-7ced-435e-a29f-fc791b33d559.png",
+    "neutralMin": 80,
+    "seeds": []
+  }
+]

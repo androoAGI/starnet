@@ -1,0 +1,3532 @@
+{
+  "version": 1,
+  "master": "frontend/assets/industrial/complete-sheet/starnet-props-full-sheet.png",
+  "masterSha256": "e68ef0d3711e9164a3aff5333b98522ed6fdcb4bc7654929e333cb2ff2b97ea9",
+  "styleAuthority": "docs/station-remaster/STYLE_LOCK.md",
+  "indexing": "row and col are ZERO-BASED; displayRow and displayColumn are ONE-BASED.",
+  "reviewMethod": "All160 visible cells inspected on full approved master and five enlarged two-row strips. Identity described from artwork, then compared with requested order and native structure/inventory. No assumption that prompt was obeyed.",
+  "usableDefinition": "Usable means approved cell can serve as this canonical identity subject to listed caveats. It does not prove facing, occupancy, motion, collision, alpha extraction or live integration. False flags a concrete direct-use mismatch.",
+  "runtimeVerified": false,
+  "props": {
+    "industrial_locker": {
+      "row": 0,
+      "col": 0,
+      "displayRow": 1,
+      "displayColumn": 1,
+      "identity": "Tall double-door locker with cyan status strip",
+      "usable": true,
+      "classification": "identity-match",
+      "notes": [
+        "Visible form matches the requested identity; no exact duplicate or missing object observed in this cell."
+      ],
+      "canonicalFootprint": {
+        "w": 2,
+        "h": 1
+      },
+      "nativeViews": [
+        "s"
+      ],
+      "missingNativeViews": [],
+      "liveVerified": false
+    },
+    "industrial_drawerbank": {
+      "row": 0,
+      "col": 1,
+      "displayRow": 1,
+      "displayColumn": 2,
+      "identity": "Low dark bank of brass-handled drawers",
+      "usable": true,
+      "classification": "identity-match",
+      "notes": [
+        "Visible form matches the requested identity; no exact duplicate or missing object observed in this cell."
+      ],
+      "canonicalFootprint": {
+        "w": 3,
+        "h": 1
+      },
+      "nativeViews": [
+        "s"
+      ],
+      "missingNativeViews": [],
+      "liveVerified": false
+    },
+    "industrial_supplycart": {
+      "row": 0,
+      "col": 2,
+      "displayRow": 1,
+      "displayColumn": 3,
+      "identity": "Wheeled equipment cart with framed shelves",
+      "usable": true,
+      "classification": "identity-match",
+      "notes": [
+        "Visible form matches the requested identity; no exact duplicate or missing object observed in this cell."
+      ],
+      "canonicalFootprint": {
+        "w": 2,
+        "h": 1
+      },
+      "nativeViews": [
+        "s"
+      ],
+      "missingNativeViews": [],
+      "liveVerified": false
+    },
+    "industrial_toolcaddy": {
+      "row": 0,
+      "col": 3,
+      "displayRow": 1,
+      "displayColumn": 4,
+      "identity": "Open sloped wheeled caddy containing hand tools",
+      "usable": true,
+      "classification": "identity-match",
+      "notes": [
+        "Visible form matches the requested identity; no exact duplicate or missing object observed in this cell."
+      ],
+      "canonicalFootprint": {
+        "w": 1,
+        "h": 1
+      },
+      "nativeViews": [
+        "s"
+      ],
+      "missingNativeViews": [],
+      "liveVerified": false
+    },
+    "industrial_planter": {
+      "row": 0,
+      "col": 4,
+      "displayRow": 1,
+      "displayColumn": 5,
+      "identity": "Broad-leaf plant in pale cylindrical pot",
+      "usable": true,
+      "classification": "identity-match",
+      "notes": [
+        "Visible form matches the requested identity; no exact duplicate or missing object observed in this cell."
+      ],
+      "canonicalFootprint": {
+        "w": 2,
+        "h": 1
+      },
+      "nativeViews": [
+        "s"
+      ],
+      "missingNativeViews": [],
+      "liveVerified": false
+    },
+    "industrial_partition": {
+      "row": 0,
+      "col": 5,
+      "displayRow": 1,
+      "displayColumn": 6,
+      "identity": "Dark framed upright partition seen obliquely",
+      "usable": true,
+      "classification": "identity-match",
+      "notes": [
+        "Visible form matches the requested identity; no exact duplicate or missing object observed in this cell.",
+        "One primary view in approved sheet; native w/e projections are absent. Author matching views; never rotate upright bitmap or reuse front screen for back."
+      ],
+      "canonicalFootprint": {
+        "w": 3,
+        "h": 1
+      },
+      "nativeViews": [
+        "s",
+        "w",
+        "e"
+      ],
+      "missingNativeViews": [
+        "w",
+        "e"
+      ],
+      "liveVerified": false
+    },
+    "industrial_bench": {
+      "row": 0,
+      "col": 6,
+      "displayRow": 1,
+      "displayColumn": 7,
+      "identity": "Low blue upholstered backless bench",
+      "usable": true,
+      "classification": "identity-match",
+      "notes": [
+        "Visible form matches the requested identity; no exact duplicate or missing object observed in this cell."
+      ],
+      "canonicalFootprint": {
+        "w": 3,
+        "h": 1
+      },
+      "nativeViews": [
+        "s"
+      ],
+      "missingNativeViews": [],
+      "liveVerified": false
+    },
+    "industrial_roundtable": {
+      "row": 0,
+      "col": 7,
+      "displayRow": 1,
+      "displayColumn": 8,
+      "identity": "Round walnut pedestal table",
+      "usable": true,
+      "classification": "geometry-caution",
+      "notes": [
+        "Top shown nearly circular from camera; native shallow table envelope may need alpha-fit/contact review."
+      ],
+      "canonicalFootprint": {
+        "w": 2,
+        "h": 1
+      },
+      "nativeViews": [
+        "s"
+      ],
+      "missingNativeViews": [],
+      "liveVerified": false
+    },
+    "industrial_servicecab": {
+      "row": 0,
+      "col": 8,
+      "displayRow": 1,
+      "displayColumn": 9,
+      "identity": "Short double-door service cabinet",
+      "usable": true,
+      "classification": "identity-match",
+      "notes": [
+        "Visible form matches the requested identity; no exact duplicate or missing object observed in this cell."
+      ],
+      "canonicalFootprint": {
+        "w": 1,
+        "h": 2
+      },
+      "nativeViews": [
+        "s"
+      ],
+      "missingNativeViews": [],
+      "liveVerified": false
+    },
+    "industrial_wallpanel": {
+      "row": 0,
+      "col": 9,
+      "displayRow": 1,
+      "displayColumn": 10,
+      "identity": "Narrow upright electronic wall panel",
+      "usable": true,
+      "classification": "identity-match",
+      "notes": [
+        "Visible form matches the requested identity; no exact duplicate or missing object observed in this cell."
+      ],
+      "canonicalFootprint": {
+        "w": 2,
+        "h": 1
+      },
+      "nativeViews": [
+        "s"
+      ],
+      "missingNativeViews": [],
+      "liveVerified": false
+    },
+    "industrial_floorvent": {
+      "row": 0,
+      "col": 10,
+      "displayRow": 1,
+      "displayColumn": 11,
+      "identity": "Square dark grille presented as a front-facing plate",
+      "usable": false,
+      "classification": "geometry-mismatch",
+      "notes": [
+        "Native flat floor grille2x1; square upright-looking plate cannot fill22x10 envelope without shrink or stretch. Repair flat projection.",
+        "Flat floor pass is nonblocking; sheet cell size is not floor footprint."
+      ],
+      "canonicalFootprint": {
+        "w": 2,
+        "h": 1
+      },
+      "nativeViews": [
+        "s"
+      ],
+      "missingNativeViews": [],
+      "liveVerified": false,
+      "repairCandidate": "repair-sheet-source.png cell 1"
+    },
+    "industrial_cabletray": {
+      "row": 0,
+      "col": 11,
+      "displayRow": 1,
+      "displayColumn": 12,
+      "identity": "Three-section open rail rack/channel with upright crossbars",
+      "usable": false,
+      "classification": "geometry-mismatch",
+      "notes": [
+        "Native flat3x1 floor channel,36x6 envelope. Image reads standing rack/ladder and is far too deep. Repair flat shallow channel.",
+        "Flat floor pass is nonblocking; sheet cell size is not floor footprint."
+      ],
+      "canonicalFootprint": {
+        "w": 3,
+        "h": 1
+      },
+      "nativeViews": [
+        "s"
+      ],
+      "missingNativeViews": [],
+      "liveVerified": false,
+      "repairCandidate": "repair-sheet-source.png cell 2"
+    },
+    "desk": {
+      "row": 0,
+      "col": 12,
+      "displayRow": 1,
+      "displayColumn": 13,
+      "identity": "Wide single-screen industrial workstation with broad console",
+      "usable": true,
+      "classification": "native-facing-caution",
+      "notes": [
+        "Single south-facing workstation only; native w/n/e views absent. Rear-facing placement must not reuse visible front screens by bitmap rotation. Seat chair must remain runtime separate.",
+        "One primary view in approved sheet; native w/n/e projections are absent. Author matching views; never rotate upright bitmap or reuse front screen for back.",
+        "Assigned workstation: source is not proof of separate chair/body anchor or real running-state display."
+      ],
+      "canonicalFootprint": {
+        "w": 3,
+        "h": 1
+      },
+      "nativeViews": [
+        "s",
+        "w",
+        "n",
+        "e"
+      ],
+      "missingNativeViews": [
+        "w",
+        "n",
+        "e"
+      ],
+      "liveVerified": false
+    },
+    "desk2": {
+      "row": 0,
+      "col": 13,
+      "displayRow": 1,
+      "displayColumn": 14,
+      "identity": "Narrower workstation with one raised cyan monitor",
+      "usable": true,
+      "classification": "identity-and-facing-caution",
+      "notes": [
+        "Appears narrower single-screen desk rather than doubled station; plausible variant but not visual proof of native38x23 width. Native w/n/e missing.",
+        "One primary view in approved sheet; native w/n/e projections are absent. Author matching views; never rotate upright bitmap or reuse front screen for back.",
+        "Assigned workstation: source is not proof of separate chair/body anchor or real running-state display."
+      ],
+      "canonicalFootprint": {
+        "w": 3,
+        "h": 1
+      },
+      "nativeViews": [
+        "s",
+        "w",
+        "n",
+        "e"
+      ],
+      "missingNativeViews": [
+        "w",
+        "n",
+        "e"
+      ],
+      "liveVerified": false
+    },
+    "console": {
+      "row": 0,
+      "col": 14,
+      "displayRow": 1,
+      "displayColumn": 15,
+      "identity": "Wide twin-screen straight control desk",
+      "usable": true,
+      "classification": "identity-match",
+      "notes": [
+        "Visible form matches the requested identity; no exact duplicate or missing object observed in this cell.",
+        "Assigned workstation: source is not proof of separate chair/body anchor or real running-state display."
+      ],
+      "canonicalFootprint": {
+        "w": 2,
+        "h": 1
+      },
+      "nativeViews": [
+        "s"
+      ],
+      "missingNativeViews": [],
+      "liveVerified": false
+    },
+    "consoleL": {
+      "row": 0,
+      "col": 15,
+      "displayRow": 1,
+      "displayColumn": 16,
+      "identity": "Three-sided angled corner console",
+      "usable": true,
+      "classification": "identity-match",
+      "notes": [
+        "Visible form matches the requested identity; no exact duplicate or missing object observed in this cell.",
+        "Assigned workstation: source is not proof of separate chair/body anchor or real running-state display."
+      ],
+      "canonicalFootprint": {
+        "w": 3,
+        "h": 1
+      },
+      "nativeViews": [
+        "s"
+      ],
+      "missingNativeViews": [],
+      "liveVerified": false
+    },
+    "pixelrig": {
+      "row": 1,
+      "col": 0,
+      "displayRow": 2,
+      "displayColumn": 1,
+      "identity": "Angled monitor desk with separately visible wheeled office chair",
+      "usable": true,
+      "classification": "baked-chair-caution",
+      "notes": [
+        "Includes an office chair inside source cell; native assigned workstation renders a separate seatchair/body. Prevent doubled chairs; full sprite cannot be assumed to be desk-only.",
+        "Assigned workstation: source is not proof of separate chair/body anchor or real running-state display."
+      ],
+      "canonicalFootprint": {
+        "w": 2,
+        "h": 1
+      },
+      "nativeViews": [
+        "s"
+      ],
+      "missingNativeViews": [],
+      "liveVerified": false
+    },
+    "bench": {
+      "row": 1,
+      "col": 1,
+      "displayRow": 2,
+      "displayColumn": 2,
+      "identity": "Workbench table with hand tools across top/back",
+      "usable": true,
+      "classification": "identity-match",
+      "notes": [
+        "Visible form matches the requested identity; no exact duplicate or missing object observed in this cell.",
+        "Assigned workstation: source is not proof of separate chair/body anchor or real running-state display."
+      ],
+      "canonicalFootprint": {
+        "w": 4,
+        "h": 1
+      },
+      "nativeViews": [
+        "s"
+      ],
+      "missingNativeViews": [],
+      "liveVerified": false
+    },
+    "workbench": {
+      "row": 1,
+      "col": 2,
+      "displayRow": 2,
+      "displayColumn": 3,
+      "identity": "Dark mechanic workbench with upright tool backboard",
+      "usable": true,
+      "classification": "identity-match",
+      "notes": [
+        "Visible form matches the requested identity; no exact duplicate or missing object observed in this cell."
+      ],
+      "canonicalFootprint": {
+        "w": 2,
+        "h": 1
+      },
+      "nativeViews": [
+        "s"
+      ],
+      "missingNativeViews": [],
+      "liveVerified": false
+    },
+    "intake": {
+      "row": 1,
+      "col": 3,
+      "displayRow": 2,
+      "displayColumn": 4,
+      "identity": "Narrow raised conveyor ramp",
+      "usable": true,
+      "classification": "identity-match",
+      "notes": [
+        "Visible form matches the requested identity; no exact duplicate or missing object observed in this cell."
+      ],
+      "canonicalFootprint": {
+        "w": 2,
+        "h": 2
+      },
+      "nativeViews": [
+        "s"
+      ],
+      "missingNativeViews": [],
+      "liveVerified": false
+    },
+    "bay": {
+      "row": 1,
+      "col": 4,
+      "displayRow": 2,
+      "displayColumn": 5,
+      "identity": "Boxed hazard-striped loading gate and conveyor mouth",
+      "usable": true,
+      "classification": "identity-match",
+      "notes": [
+        "Visible form matches the requested identity; no exact duplicate or missing object observed in this cell."
+      ],
+      "canonicalFootprint": {
+        "w": 2,
+        "h": 2
+      },
+      "nativeViews": [
+        "s"
+      ],
+      "missingNativeViews": [],
+      "liveVerified": false
+    },
+    "filter": {
+      "row": 1,
+      "col": 5,
+      "displayRow": 2,
+      "displayColumn": 6,
+      "identity": "Cyan cylindrical filter vessel",
+      "usable": true,
+      "classification": "identity-match",
+      "notes": [
+        "Visible form matches the requested identity; no exact duplicate or missing object observed in this cell."
+      ],
+      "canonicalFootprint": {
+        "w": 1,
+        "h": 1
+      },
+      "nativeViews": [
+        "s"
+      ],
+      "missingNativeViews": [],
+      "liveVerified": false
+    },
+    "merger": {
+      "row": 1,
+      "col": 6,
+      "displayRow": 2,
+      "displayColumn": 7,
+      "identity": "Y-shaped three-branch conveyor junction",
+      "usable": true,
+      "classification": "identity-match",
+      "notes": [
+        "Visible form matches the requested identity; no exact duplicate or missing object observed in this cell."
+      ],
+      "canonicalFootprint": {
+        "w": 1,
+        "h": 1
+      },
+      "nativeViews": [
+        "s"
+      ],
+      "missingNativeViews": [],
+      "liveVerified": false
+    },
+    "splitter": {
+      "row": 1,
+      "col": 7,
+      "displayRow": 2,
+      "displayColumn": 8,
+      "identity": "Three-way broad conveyor splitter junction",
+      "usable": true,
+      "classification": "identity-match",
+      "notes": [
+        "Visible form matches the requested identity; no exact duplicate or missing object observed in this cell."
+      ],
+      "canonicalFootprint": {
+        "w": 1,
+        "h": 1
+      },
+      "nativeViews": [
+        "s"
+      ],
+      "missingNativeViews": [],
+      "liveVerified": false
+    },
+    "joiner": {
+      "row": 1,
+      "col": 8,
+      "displayRow": 2,
+      "displayColumn": 9,
+      "identity": "Short cross-shaped conveyor junction",
+      "usable": true,
+      "classification": "identity-match",
+      "notes": [
+        "Visible form matches the requested identity; no exact duplicate or missing object observed in this cell."
+      ],
+      "canonicalFootprint": {
+        "w": 1,
+        "h": 1
+      },
+      "nativeViews": [
+        "s"
+      ],
+      "missingNativeViews": [],
+      "liveVerified": false
+    },
+    "loop": {
+      "row": 1,
+      "col": 9,
+      "displayRow": 2,
+      "displayColumn": 10,
+      "identity": "Rounded rectangular loop conveyor ring",
+      "usable": true,
+      "classification": "identity-match",
+      "notes": [
+        "Visible form matches the requested identity; no exact duplicate or missing object observed in this cell."
+      ],
+      "canonicalFootprint": {
+        "w": 1,
+        "h": 1
+      },
+      "nativeViews": [
+        "s"
+      ],
+      "missingNativeViews": [],
+      "liveVerified": false
+    },
+    "outbox": {
+      "row": 1,
+      "col": 10,
+      "displayRow": 2,
+      "displayColumn": 11,
+      "identity": "Open framed chute/bay with sidewalls and lower tray",
+      "usable": true,
+      "classification": "identity-match",
+      "notes": [
+        "Visible form matches the requested identity; no exact duplicate or missing object observed in this cell."
+      ],
+      "canonicalFootprint": {
+        "w": 2,
+        "h": 2
+      },
+      "nativeViews": [
+        "s"
+      ],
+      "missingNativeViews": [],
+      "liveVerified": false
+    },
+    "connector_portal": {
+      "row": 1,
+      "col": 11,
+      "displayRow": 2,
+      "displayColumn": 12,
+      "identity": "Dark portal housing with bright cyan circular center",
+      "usable": true,
+      "classification": "identity-match",
+      "notes": [
+        "Visible form matches the requested identity; no exact duplicate or missing object observed in this cell."
+      ],
+      "canonicalFootprint": {
+        "w": 1,
+        "h": 2
+      },
+      "nativeViews": [
+        "s"
+      ],
+      "missingNativeViews": [],
+      "liveVerified": false
+    },
+    "comms_dish": {
+      "row": 1,
+      "col": 12,
+      "displayRow": 2,
+      "displayColumn": 13,
+      "identity": "Angled parabolic dish on low cylindrical base",
+      "usable": true,
+      "classification": "identity-match",
+      "notes": [
+        "Visible form matches the requested identity; no exact duplicate or missing object observed in this cell."
+      ],
+      "canonicalFootprint": {
+        "w": 2,
+        "h": 2
+      },
+      "nativeViews": [
+        "s"
+      ],
+      "missingNativeViews": [],
+      "liveVerified": false
+    },
+    "comms_uplink": {
+      "row": 1,
+      "col": 13,
+      "displayRow": 2,
+      "displayColumn": 14,
+      "identity": "Small dish above upright control pedestal",
+      "usable": true,
+      "classification": "identity-match",
+      "notes": [
+        "Visible form matches the requested identity; no exact duplicate or missing object observed in this cell."
+      ],
+      "canonicalFootprint": {
+        "w": 2,
+        "h": 2
+      },
+      "nativeViews": [
+        "s"
+      ],
+      "missingNativeViews": [],
+      "liveVerified": false
+    },
+    "comms_beacon": {
+      "row": 1,
+      "col": 14,
+      "displayRow": 2,
+      "displayColumn": 15,
+      "identity": "Thin cyan beacon mast on dark footing",
+      "usable": true,
+      "classification": "identity-match",
+      "notes": [
+        "Visible form matches the requested identity; no exact duplicate or missing object observed in this cell."
+      ],
+      "canonicalFootprint": {
+        "w": 1,
+        "h": 2
+      },
+      "nativeViews": [
+        "s"
+      ],
+      "missingNativeViews": [],
+      "liveVerified": false
+    },
+    "war_intelcab": {
+      "row": 1,
+      "col": 15,
+      "displayRow": 2,
+      "displayColumn": 16,
+      "identity": "Broad cabinet with cyan monitor panes and switches",
+      "usable": true,
+      "classification": "identity-match",
+      "notes": [
+        "Visible form matches the requested identity; no exact duplicate or missing object observed in this cell."
+      ],
+      "canonicalFootprint": {
+        "w": 1,
+        "h": 2
+      },
+      "nativeViews": [
+        "s"
+      ],
+      "missingNativeViews": [],
+      "liveVerified": false
+    },
+    "safe": {
+      "row": 2,
+      "col": 0,
+      "displayRow": 3,
+      "displayColumn": 1,
+      "identity": "Compact dark safe with small red plate and knob",
+      "usable": true,
+      "classification": "identity-match",
+      "notes": [
+        "Visible form matches the requested identity; no exact duplicate or missing object observed in this cell."
+      ],
+      "canonicalFootprint": {
+        "w": 1,
+        "h": 2
+      },
+      "nativeViews": [
+        "s"
+      ],
+      "missingNativeViews": [],
+      "liveVerified": false
+    },
+    "vault": {
+      "row": 2,
+      "col": 1,
+      "displayRow": 3,
+      "displayColumn": 2,
+      "identity": "Large square safe with circular wheel door",
+      "usable": true,
+      "classification": "identity-match",
+      "notes": [
+        "Visible form matches the requested identity; no exact duplicate or missing object observed in this cell."
+      ],
+      "canonicalFootprint": {
+        "w": 3,
+        "h": 2
+      },
+      "nativeViews": [
+        "s"
+      ],
+      "missingNativeViews": [],
+      "liveVerified": false
+    },
+    "rack": {
+      "row": 2,
+      "col": 2,
+      "displayRow": 3,
+      "displayColumn": 3,
+      "identity": "Tall server rack with colored horizontal module rows",
+      "usable": true,
+      "classification": "identity-match",
+      "notes": [
+        "Visible form matches the requested identity; no exact duplicate or missing object observed in this cell."
+      ],
+      "canonicalFootprint": {
+        "w": 2,
+        "h": 1
+      },
+      "nativeViews": [
+        "s"
+      ],
+      "missingNativeViews": [],
+      "liveVerified": false
+    },
+    "shelf": {
+      "row": 2,
+      "col": 3,
+      "displayRow": 3,
+      "displayColumn": 4,
+      "identity": "Short open shelves of cases and canisters",
+      "usable": true,
+      "classification": "identity-match",
+      "notes": [
+        "Visible form matches the requested identity; no exact duplicate or missing object observed in this cell."
+      ],
+      "canonicalFootprint": {
+        "w": 4,
+        "h": 1
+      },
+      "nativeViews": [
+        "s"
+      ],
+      "missingNativeViews": [],
+      "liveVerified": false
+    },
+    "core": {
+      "row": 2,
+      "col": 4,
+      "displayRow": 3,
+      "displayColumn": 5,
+      "identity": "Large cyan illuminated cylindrical core vessel",
+      "usable": true,
+      "classification": "identity-match",
+      "notes": [
+        "Visible form matches the requested identity; no exact duplicate or missing object observed in this cell."
+      ],
+      "canonicalFootprint": {
+        "w": 1,
+        "h": 2
+      },
+      "nativeViews": [
+        "s"
+      ],
+      "missingNativeViews": [],
+      "liveVerified": false
+    },
+    "gigs_servercart": {
+      "row": 2,
+      "col": 5,
+      "displayRow": 3,
+      "displayColumn": 6,
+      "identity": "Wheeled cart carrying one raised laptop-like terminal",
+      "usable": true,
+      "classification": "identity-caution",
+      "notes": [
+        "Wheeled terminal cart, not exposed server blades; memory capability identity can remain through real trigger mapping, not fabricated blade animation."
+      ],
+      "canonicalFootprint": {
+        "w": 1,
+        "h": 1
+      },
+      "nativeViews": [
+        "s"
+      ],
+      "missingNativeViews": [],
+      "liveVerified": false
+    },
+    "bridge_relaystack": {
+      "row": 2,
+      "col": 6,
+      "displayRow": 3,
+      "displayColumn": 7,
+      "identity": "Cluster of antenna-like relay towers on common base",
+      "usable": true,
+      "classification": "identity-match",
+      "notes": [
+        "Visible form matches the requested identity; no exact duplicate or missing object observed in this cell."
+      ],
+      "canonicalFootprint": {
+        "w": 1,
+        "h": 2
+      },
+      "nativeViews": [
+        "s"
+      ],
+      "missingNativeViews": [],
+      "liveVerified": false
+    },
+    "studio": {
+      "row": 2,
+      "col": 7,
+      "displayRow": 3,
+      "displayColumn": 8,
+      "identity": "Monitor workstation with articulated desk lamp",
+      "usable": true,
+      "classification": "identity-match",
+      "notes": [
+        "Visible form matches the requested identity; no exact duplicate or missing object observed in this cell."
+      ],
+      "canonicalFootprint": {
+        "w": 2,
+        "h": 2
+      },
+      "nativeViews": [
+        "s"
+      ],
+      "missingNativeViews": [],
+      "liveVerified": false
+    },
+    "airlock": {
+      "row": 2,
+      "col": 8,
+      "displayRow": 3,
+      "displayColumn": 9,
+      "identity": "Heavy paired hazard-striped airlock doors",
+      "usable": true,
+      "classification": "identity-match",
+      "notes": [
+        "Visible form matches the requested identity; no exact duplicate or missing object observed in this cell."
+      ],
+      "canonicalFootprint": {
+        "w": 1,
+        "h": 1
+      },
+      "nativeViews": [
+        "s"
+      ],
+      "missingNativeViews": [],
+      "liveVerified": false
+    },
+    "missionboard": {
+      "row": 2,
+      "col": 9,
+      "displayRow": 3,
+      "displayColumn": 10,
+      "identity": "Framed cork board with many pinned paper cards",
+      "usable": true,
+      "classification": "baked-live-content",
+      "notes": [
+        "Pinned cards visible; real open quest/proposal counts require separate content region/occlusion, not fixed card counts."
+      ],
+      "canonicalFootprint": {
+        "w": 3,
+        "h": 1
+      },
+      "nativeViews": [
+        "s"
+      ],
+      "missingNativeViews": [],
+      "liveVerified": false
+    },
+    "trophycase": {
+      "row": 2,
+      "col": 10,
+      "displayRow": 3,
+      "displayColumn": 11,
+      "identity": "Glass-front case with two gold trophies",
+      "usable": true,
+      "classification": "baked-live-content",
+      "notes": [
+        "Two trophies already visible. Runtime earned trophy count cannot be represented honestly by treating full baked art as an empty case."
+      ],
+      "canonicalFootprint": {
+        "w": 2,
+        "h": 2
+      },
+      "nativeViews": [
+        "s"
+      ],
+      "missingNativeViews": [],
+      "liveVerified": false
+    },
+    "bridge_consolebank": {
+      "row": 2,
+      "col": 11,
+      "displayRow": 3,
+      "displayColumn": 12,
+      "identity": "Wide cyan console bank",
+      "usable": true,
+      "classification": "identity-match",
+      "notes": [
+        "Visible form matches the requested identity; no exact duplicate or missing object observed in this cell."
+      ],
+      "canonicalFootprint": {
+        "w": 9,
+        "h": 1
+      },
+      "nativeViews": [
+        "s"
+      ],
+      "missingNativeViews": [],
+      "liveVerified": false
+    },
+    "bridge_tacticaltable": {
+      "row": 2,
+      "col": 12,
+      "displayRow": 3,
+      "displayColumn": 13,
+      "identity": "Low octagonal glowing tactical surface",
+      "usable": true,
+      "classification": "identity-match",
+      "notes": [
+        "Visible form matches the requested identity; no exact duplicate or missing object observed in this cell."
+      ],
+      "canonicalFootprint": {
+        "w": 7,
+        "h": 4
+      },
+      "nativeViews": [
+        "s"
+      ],
+      "missingNativeViews": [],
+      "liveVerified": false
+    },
+    "bridge_equipmentbay": {
+      "row": 2,
+      "col": 13,
+      "displayRow": 3,
+      "displayColumn": 14,
+      "identity": "Tall cyan terminal/equipment tower",
+      "usable": true,
+      "classification": "identity-match",
+      "notes": [
+        "Visible form matches the requested identity; no exact duplicate or missing object observed in this cell."
+      ],
+      "canonicalFootprint": {
+        "w": 4,
+        "h": 1
+      },
+      "nativeViews": [
+        "s"
+      ],
+      "missingNativeViews": [],
+      "liveVerified": false
+    },
+    "bridge_deckperimeter": {
+      "row": 2,
+      "col": 14,
+      "displayRow": 3,
+      "displayColumn": 15,
+      "identity": "U-shaped low railing perimeter",
+      "usable": true,
+      "classification": "identity-match",
+      "notes": [
+        "Visible form matches the requested identity; no exact duplicate or missing object observed in this cell.",
+        "Flat floor pass is nonblocking; sheet cell size is not floor footprint."
+      ],
+      "canonicalFootprint": {
+        "w": 12,
+        "h": 8
+      },
+      "nativeViews": [
+        "s"
+      ],
+      "missingNativeViews": [],
+      "liveVerified": false
+    },
+    "bigscreen": {
+      "row": 2,
+      "col": 15,
+      "displayRow": 3,
+      "displayColumn": 16,
+      "identity": "Wide framed cyan wall screen",
+      "usable": true,
+      "classification": "identity-match",
+      "notes": [
+        "Visible form matches the requested identity; no exact duplicate or missing object observed in this cell."
+      ],
+      "canonicalFootprint": {
+        "w": 8,
+        "h": 1
+      },
+      "nativeViews": [
+        "s"
+      ],
+      "missingNativeViews": [],
+      "liveVerified": false
+    },
+    "holotable": {
+      "row": 3,
+      "col": 0,
+      "displayRow": 4,
+      "displayColumn": 1,
+      "identity": "Low table projecting a cyan globe",
+      "usable": true,
+      "classification": "identity-match",
+      "notes": [
+        "Visible form matches the requested identity; no exact duplicate or missing object observed in this cell."
+      ],
+      "canonicalFootprint": {
+        "w": 4,
+        "h": 2
+      },
+      "nativeViews": [
+        "s"
+      ],
+      "missingNativeViews": [],
+      "liveVerified": false
+    },
+    "screens": {
+      "row": 3,
+      "col": 1,
+      "displayRow": 4,
+      "displayColumn": 2,
+      "identity": "Two offset screens on articulated stand",
+      "usable": true,
+      "classification": "identity-match",
+      "notes": [
+        "Visible form matches the requested identity; no exact duplicate or missing object observed in this cell."
+      ],
+      "canonicalFootprint": {
+        "w": 2,
+        "h": 1
+      },
+      "nativeViews": [
+        "s"
+      ],
+      "missingNativeViews": [],
+      "liveVerified": false
+    },
+    "tank": {
+      "row": 3,
+      "col": 2,
+      "displayRow": 4,
+      "displayColumn": 3,
+      "identity": "Closed dark cylindrical storage tank",
+      "usable": true,
+      "classification": "identity-caution",
+      "notes": [
+        "Closed storage cylinder; no exposed liquid window. Usable tank identity, but don't assume internal animated water region."
+      ],
+      "canonicalFootprint": {
+        "w": 2,
+        "h": 1
+      },
+      "nativeViews": [
+        "s"
+      ],
+      "missingNativeViews": [],
+      "liveVerified": false
+    },
+    "whiteboard": {
+      "row": 3,
+      "col": 3,
+      "displayRow": 4,
+      "displayColumn": 4,
+      "identity": "Freestanding whiteboard with sketched markings",
+      "usable": true,
+      "classification": "identity-match",
+      "notes": [
+        "Visible form matches the requested identity; no exact duplicate or missing object observed in this cell."
+      ],
+      "canonicalFootprint": {
+        "w": 4,
+        "h": 1
+      },
+      "nativeViews": [
+        "s"
+      ],
+      "missingNativeViews": [],
+      "liveVerified": false
+    },
+    "ticker": {
+      "row": 3,
+      "col": 4,
+      "displayRow": 4,
+      "displayColumn": 5,
+      "identity": "Thin horizontal electronic ticker strip",
+      "usable": true,
+      "classification": "identity-match",
+      "notes": [
+        "Visible form matches the requested identity; no exact duplicate or missing object observed in this cell."
+      ],
+      "canonicalFootprint": {
+        "w": 4,
+        "h": 1
+      },
+      "nativeViews": [
+        "s"
+      ],
+      "missingNativeViews": [],
+      "liveVerified": false
+    },
+    "chartwall": {
+      "row": 3,
+      "col": 5,
+      "displayRow": 4,
+      "displayColumn": 6,
+      "identity": "Broad cyan chart display with baked rising bars",
+      "usable": true,
+      "classification": "baked-display-content",
+      "notes": [
+        "Bars are artwork, not real metrics."
+      ],
+      "canonicalFootprint": {
+        "w": 3,
+        "h": 1
+      },
+      "nativeViews": [
+        "s"
+      ],
+      "missingNativeViews": [],
+      "liveVerified": false
+    },
+    "wartable": {
+      "row": 3,
+      "col": 6,
+      "displayRow": 4,
+      "displayColumn": 7,
+      "identity": "Low octagonal map table with many map marks",
+      "usable": true,
+      "classification": "identity-match",
+      "notes": [
+        "Visible form matches the requested identity; no exact duplicate or missing object observed in this cell."
+      ],
+      "canonicalFootprint": {
+        "w": 5,
+        "h": 2
+      },
+      "nativeViews": [
+        "s"
+      ],
+      "missingNativeViews": [],
+      "liveVerified": false
+    },
+    "calwall": {
+      "row": 3,
+      "col": 7,
+      "displayRow": 4,
+      "displayColumn": 8,
+      "identity": "Framed cream calendar grid",
+      "usable": true,
+      "classification": "identity-match",
+      "notes": [
+        "Visible form matches the requested identity; no exact duplicate or missing object observed in this cell."
+      ],
+      "canonicalFootprint": {
+        "w": 6,
+        "h": 1
+      },
+      "nativeViews": [
+        "s"
+      ],
+      "missingNativeViews": [],
+      "liveVerified": false
+    },
+    "bridge_tacscreen": {
+      "row": 3,
+      "col": 8,
+      "displayRow": 4,
+      "displayColumn": 9,
+      "identity": "Wide cyan map/radar screen",
+      "usable": true,
+      "classification": "identity-match",
+      "notes": [
+        "Visible form matches the requested identity; no exact duplicate or missing object observed in this cell."
+      ],
+      "canonicalFootprint": {
+        "w": 2,
+        "h": 1
+      },
+      "nativeViews": [
+        "s"
+      ],
+      "missingNativeViews": [],
+      "liveVerified": false
+    },
+    "bridge_dispatch_pylon": {
+      "row": 3,
+      "col": 9,
+      "displayRow": 4,
+      "displayColumn": 10,
+      "identity": "Tall narrow cyan dispatch pylon",
+      "usable": true,
+      "classification": "identity-match",
+      "notes": [
+        "Visible form matches the requested identity; no exact duplicate or missing object observed in this cell."
+      ],
+      "canonicalFootprint": {
+        "w": 1,
+        "h": 2
+      },
+      "nativeViews": [
+        "s"
+      ],
+      "missingNativeViews": [],
+      "liveVerified": false
+    },
+    "bridge_orderqueue": {
+      "row": 3,
+      "col": 10,
+      "displayRow": 4,
+      "displayColumn": 11,
+      "identity": "Compact stacked order displays on console stand",
+      "usable": true,
+      "classification": "identity-match",
+      "notes": [
+        "Visible form matches the requested identity; no exact duplicate or missing object observed in this cell."
+      ],
+      "canonicalFootprint": {
+        "w": 2,
+        "h": 1
+      },
+      "nativeViews": [
+        "s"
+      ],
+      "missingNativeViews": [],
+      "liveVerified": false
+    },
+    "war_pivotpanel": {
+      "row": 3,
+      "col": 11,
+      "displayRow": 4,
+      "displayColumn": 12,
+      "identity": "Dark blank framed divider/panel seen from side",
+      "usable": true,
+      "classification": "content-caution",
+      "notes": [
+        "Dark blank panel is plausible pivoted view; facing nearly edge-on, not an active cyan display."
+      ],
+      "canonicalFootprint": {
+        "w": 2,
+        "h": 1
+      },
+      "nativeViews": [
+        "s"
+      ],
+      "missingNativeViews": [],
+      "liveVerified": false
+    },
+    "war_threatcore": {
+      "row": 3,
+      "col": 12,
+      "displayRow": 4,
+      "displayColumn": 13,
+      "identity": "Square red glowing circular threat device",
+      "usable": true,
+      "classification": "identity-match",
+      "notes": [
+        "Visible form matches the requested identity; no exact duplicate or missing object observed in this cell."
+      ],
+      "canonicalFootprint": {
+        "w": 1,
+        "h": 2
+      },
+      "nativeViews": [
+        "s"
+      ],
+      "missingNativeViews": [],
+      "liveVerified": false
+    },
+    "fabricator": {
+      "row": 3,
+      "col": 13,
+      "displayRow": 4,
+      "displayColumn": 14,
+      "identity": "Dark compact machine with recessed feed/output face",
+      "usable": true,
+      "classification": "identity-match",
+      "notes": [
+        "Visible form matches the requested identity; no exact duplicate or missing object observed in this cell."
+      ],
+      "canonicalFootprint": {
+        "w": 3,
+        "h": 2
+      },
+      "nativeViews": [
+        "s"
+      ],
+      "missingNativeViews": [],
+      "liveVerified": false
+    },
+    "vat": {
+      "row": 3,
+      "col": 14,
+      "displayRow": 4,
+      "displayColumn": 15,
+      "identity": "Sealed cylindrical cyan vat with domed lattice cap",
+      "usable": true,
+      "classification": "identity-caution",
+      "notes": [
+        "Sealed cyan vessel rather than open vat; usable industrial-vat variant, preserve native effect opening deliberately."
+      ],
+      "canonicalFootprint": {
+        "w": 3,
+        "h": 2
+      },
+      "nativeViews": [
+        "s"
+      ],
+      "missingNativeViews": [],
+      "liveVerified": false
+    },
+    "easel": {
+      "row": 3,
+      "col": 15,
+      "displayRow": 4,
+      "displayColumn": 16,
+      "identity": "Wood easel holding detailed paper drawing",
+      "usable": true,
+      "classification": "identity-match",
+      "notes": [
+        "Visible form matches the requested identity; no exact duplicate or missing object observed in this cell."
+      ],
+      "canonicalFootprint": {
+        "w": 3,
+        "h": 2
+      },
+      "nativeViews": [
+        "s"
+      ],
+      "missingNativeViews": [],
+      "liveVerified": false
+    },
+    "tube": {
+      "row": 4,
+      "col": 0,
+      "displayRow": 5,
+      "displayColumn": 1,
+      "identity": "Cyan upright chamber with humanoid silhouette inside",
+      "usable": true,
+      "classification": "baked-occupant-caution",
+      "notes": [
+        "Contains humanoid silhouette. It is decorative artwork, not evidence of a real contained agent."
+      ],
+      "canonicalFootprint": {
+        "w": 2,
+        "h": 1
+      },
+      "nativeViews": [
+        "s"
+      ],
+      "missingNativeViews": [],
+      "liveVerified": false
+    },
+    "research_corelens": {
+      "row": 4,
+      "col": 1,
+      "displayRow": 5,
+      "displayColumn": 2,
+      "identity": "Round cyan lens in compact dark casing",
+      "usable": true,
+      "classification": "identity-match",
+      "notes": [
+        "Visible form matches the requested identity; no exact duplicate or missing object observed in this cell."
+      ],
+      "canonicalFootprint": {
+        "w": 1,
+        "h": 2
+      },
+      "nativeViews": [
+        "s"
+      ],
+      "missingNativeViews": [],
+      "liveVerified": false
+    },
+    "research_trendpillar": {
+      "row": 4,
+      "col": 2,
+      "displayRow": 5,
+      "displayColumn": 3,
+      "identity": "Tall narrow screen with cyan bar chart",
+      "usable": true,
+      "classification": "baked-display-content",
+      "notes": [
+        "Fixed cyan bars are cosmetic, not measured trends."
+      ],
+      "canonicalFootprint": {
+        "w": 1,
+        "h": 2
+      },
+      "nativeViews": [
+        "s"
+      ],
+      "missingNativeViews": [],
+      "liveVerified": false
+    },
+    "research_samplecart": {
+      "row": 4,
+      "col": 3,
+      "displayRow": 5,
+      "displayColumn": 4,
+      "identity": "Low rolling tray with upright colored sample vials",
+      "usable": true,
+      "classification": "identity-match",
+      "notes": [
+        "Visible form matches the requested identity; no exact duplicate or missing object observed in this cell."
+      ],
+      "canonicalFootprint": {
+        "w": 2,
+        "h": 1
+      },
+      "nativeViews": [
+        "s"
+      ],
+      "missingNativeViews": [],
+      "liveVerified": false
+    },
+    "research_papers": {
+      "row": 4,
+      "col": 4,
+      "displayRow": 5,
+      "displayColumn": 5,
+      "identity": "Large stack of loose white papers",
+      "usable": true,
+      "classification": "identity-match",
+      "notes": [
+        "Visible form matches the requested identity; no exact duplicate or missing object observed in this cell."
+      ],
+      "canonicalFootprint": {
+        "w": 2,
+        "h": 1
+      },
+      "nativeViews": [
+        "s"
+      ],
+      "missingNativeViews": [],
+      "liveVerified": false
+    },
+    "etsy_threadrack": {
+      "row": 4,
+      "col": 5,
+      "displayRow": 5,
+      "displayColumn": 6,
+      "identity": "Three-tier rack of colored bottle/spool-like cylinders",
+      "usable": true,
+      "classification": "identity-caution",
+      "notes": [
+        "Colored cylinders resemble bottles or capped canisters more than obvious wound thread. Ambiguous at native sheet resolution; preserve approved cell pending function check, not mandatory repair."
+      ],
+      "canonicalFootprint": {
+        "w": 2,
+        "h": 1
+      },
+      "nativeViews": [
+        "s"
+      ],
+      "missingNativeViews": [],
+      "liveVerified": false
+    },
+    "etsy_dyevat": {
+      "row": 4,
+      "col": 6,
+      "displayRow": 5,
+      "displayColumn": 7,
+      "identity": "Open cylindrical dye vessel with purple illuminated contents",
+      "usable": true,
+      "classification": "identity-match",
+      "notes": [
+        "Visible form matches the requested identity; no exact duplicate or missing object observed in this cell."
+      ],
+      "canonicalFootprint": {
+        "w": 2,
+        "h": 2
+      },
+      "nativeViews": [
+        "s"
+      ],
+      "missingNativeViews": [],
+      "liveVerified": false
+    },
+    "etsy_kiln": {
+      "row": 4,
+      "col": 7,
+      "displayRow": 5,
+      "displayColumn": 8,
+      "identity": "Small furnace/kiln with orange fire opening",
+      "usable": true,
+      "classification": "identity-match",
+      "notes": [
+        "Visible form matches the requested identity; no exact duplicate or missing object observed in this cell."
+      ],
+      "canonicalFootprint": {
+        "w": 2,
+        "h": 2
+      },
+      "nativeViews": [
+        "s"
+      ],
+      "missingNativeViews": [],
+      "liveVerified": false
+    },
+    "etsy_packbot": {
+      "row": 4,
+      "col": 8,
+      "displayRow": 5,
+      "displayColumn": 9,
+      "identity": "Articulated robot arm holding cardboard box",
+      "usable": true,
+      "classification": "identity-match",
+      "notes": [
+        "Visible form matches the requested identity; no exact duplicate or missing object observed in this cell."
+      ],
+      "canonicalFootprint": {
+        "w": 2,
+        "h": 2
+      },
+      "nativeViews": [
+        "s"
+      ],
+      "missingNativeViews": [],
+      "liveVerified": false
+    },
+    "rackV": {
+      "row": 4,
+      "col": 9,
+      "displayRow": 5,
+      "displayColumn": 10,
+      "identity": "Tall open narrow hardware shelf rack",
+      "usable": true,
+      "classification": "identity-caution",
+      "notes": [
+        "Open shelf rack rather than electronics cabinet; still valid generic storage rack, ensure1x2 tall footprint uses authored aspect."
+      ],
+      "canonicalFootprint": {
+        "w": 1,
+        "h": 2
+      },
+      "nativeViews": [
+        "s"
+      ],
+      "missingNativeViews": [],
+      "liveVerified": false
+    },
+    "crate": {
+      "row": 4,
+      "col": 10,
+      "displayRow": 5,
+      "displayColumn": 11,
+      "identity": "Closed low dark chest/crate",
+      "usable": true,
+      "classification": "identity-match",
+      "notes": [
+        "Visible form matches the requested identity; no exact duplicate or missing object observed in this cell."
+      ],
+      "canonicalFootprint": {
+        "w": 2,
+        "h": 1
+      },
+      "nativeViews": [
+        "s"
+      ],
+      "missingNativeViews": [],
+      "liveVerified": false
+    },
+    "boxes": {
+      "row": 4,
+      "col": 11,
+      "displayRow": 5,
+      "displayColumn": 12,
+      "identity": "Group of three cardboard boxes",
+      "usable": true,
+      "classification": "identity-match",
+      "notes": [
+        "Visible form matches the requested identity; no exact duplicate or missing object observed in this cell."
+      ],
+      "canonicalFootprint": {
+        "w": 2,
+        "h": 1
+      },
+      "nativeViews": [
+        "s"
+      ],
+      "missingNativeViews": [],
+      "liveVerified": false
+    },
+    "goldcrate": {
+      "row": 4,
+      "col": 12,
+      "displayRow": 5,
+      "displayColumn": 13,
+      "identity": "Bright brass/gold armored chest with cyan lower plate",
+      "usable": true,
+      "classification": "material-caution",
+      "notes": [
+        "Master uses bright gold body rather than earlier dark chest. Approved master takes precedence; cyan badge must not imply actual balance."
+      ],
+      "canonicalFootprint": {
+        "w": 2,
+        "h": 1
+      },
+      "nativeViews": [
+        "s"
+      ],
+      "missingNativeViews": [],
+      "liveVerified": false
+    },
+    "gigs_partsbin": {
+      "row": 4,
+      "col": 13,
+      "displayRow": 5,
+      "displayColumn": 14,
+      "identity": "Two-compartment open bin with fasteners and parts",
+      "usable": true,
+      "classification": "identity-match",
+      "notes": [
+        "Visible form matches the requested identity; no exact duplicate or missing object observed in this cell."
+      ],
+      "canonicalFootprint": {
+        "w": 2,
+        "h": 1
+      },
+      "nativeViews": [
+        "s"
+      ],
+      "missingNativeViews": [],
+      "liveVerified": false
+    },
+    "treasury_coinsorter": {
+      "row": 4,
+      "col": 14,
+      "displayRow": 5,
+      "displayColumn": 15,
+      "identity": "Pair of upright narrow dark cabinet machines",
+      "usable": false,
+      "classification": "identity-mismatch",
+      "notes": [
+        "Cell shows two upright cabinets with fan-like top panels; no clear open sorting bay or coin path. Native low2x1 sorter requires open bay/counter. Repair low sorting machine."
+      ],
+      "canonicalFootprint": {
+        "w": 2,
+        "h": 1
+      },
+      "nativeViews": [
+        "s"
+      ],
+      "missingNativeViews": [],
+      "liveVerified": false,
+      "repairCandidate": "repair-sheet-source.png cell 6"
+    },
+    "treasury_token_furnace": {
+      "row": 4,
+      "col": 15,
+      "displayRow": 5,
+      "displayColumn": 16,
+      "identity": "Tall wide furnace with orange fire opening",
+      "usable": true,
+      "classification": "identity-match",
+      "notes": [
+        "Visible form matches the requested identity; no exact duplicate or missing object observed in this cell."
+      ],
+      "canonicalFootprint": {
+        "w": 1,
+        "h": 2
+      },
+      "nativeViews": [
+        "s"
+      ],
+      "missingNativeViews": [],
+      "liveVerified": false
+    },
+    "commswall": {
+      "row": 5,
+      "col": 0,
+      "displayRow": 6,
+      "displayColumn": 1,
+      "identity": "Broad wall communications panel with dark primary pane and small controls",
+      "usable": true,
+      "classification": "identity-match",
+      "notes": [
+        "Visible form matches the requested identity; no exact duplicate or missing object observed in this cell."
+      ],
+      "canonicalFootprint": {
+        "w": 6,
+        "h": 1
+      },
+      "nativeViews": [
+        "s"
+      ],
+      "missingNativeViews": [],
+      "liveVerified": false
+    },
+    "comms_inbox": {
+      "row": 5,
+      "col": 1,
+      "displayRow": 6,
+      "displayColumn": 2,
+      "identity": "Shallow cabinet of amber horizontal inbox slots",
+      "usable": true,
+      "classification": "identity-match",
+      "notes": [
+        "Visible form matches the requested identity; no exact duplicate or missing object observed in this cell."
+      ],
+      "canonicalFootprint": {
+        "w": 2,
+        "h": 1
+      },
+      "nativeViews": [
+        "s"
+      ],
+      "missingNativeViews": [],
+      "liveVerified": false
+    },
+    "gigs_thumbwall": {
+      "row": 5,
+      "col": 2,
+      "displayRow": 6,
+      "displayColumn": 3,
+      "identity": "Narrow framed board with clipped pictures and cards",
+      "usable": true,
+      "classification": "identity-match",
+      "notes": [
+        "Visible form matches the requested identity; no exact duplicate or missing object observed in this cell."
+      ],
+      "canonicalFootprint": {
+        "w": 2,
+        "h": 1
+      },
+      "nativeViews": [
+        "s"
+      ],
+      "missingNativeViews": [],
+      "liveVerified": false
+    },
+    "gigs_amp": {
+      "row": 5,
+      "col": 3,
+      "displayRow": 6,
+      "displayColumn": 4,
+      "identity": "Black guitar amplifier with grille and handle",
+      "usable": true,
+      "classification": "identity-match",
+      "notes": [
+        "Visible form matches the requested identity; no exact duplicate or missing object observed in this cell."
+      ],
+      "canonicalFootprint": {
+        "w": 1,
+        "h": 1
+      },
+      "nativeViews": [
+        "s"
+      ],
+      "missingNativeViews": [],
+      "liveVerified": false
+    },
+    "pub_publishpress": {
+      "row": 5,
+      "col": 4,
+      "displayRow": 6,
+      "displayColumn": 5,
+      "identity": "Framed wheeled printing/processing unit",
+      "usable": true,
+      "classification": "identity-match",
+      "notes": [
+        "Visible form matches the requested identity; no exact duplicate or missing object observed in this cell."
+      ],
+      "canonicalFootprint": {
+        "w": 2,
+        "h": 2
+      },
+      "nativeViews": [
+        "s"
+      ],
+      "missingNativeViews": [],
+      "liveVerified": false
+    },
+    "pub_outboundchute": {
+      "row": 5,
+      "col": 5,
+      "displayRow": 6,
+      "displayColumn": 6,
+      "identity": "Narrow dark outbound chute with projecting ramp",
+      "usable": true,
+      "classification": "identity-match",
+      "notes": [
+        "Visible form matches the requested identity; no exact duplicate or missing object observed in this cell."
+      ],
+      "canonicalFootprint": {
+        "w": 1,
+        "h": 2
+      },
+      "nativeViews": [
+        "s"
+      ],
+      "missingNativeViews": [],
+      "liveVerified": false
+    },
+    "pub_mailpod": {
+      "row": 5,
+      "col": 6,
+      "displayRow": 6,
+      "displayColumn": 7,
+      "identity": "Single silver upright lockbox/mail slot cabinet",
+      "usable": false,
+      "classification": "identity-and-envelope-mismatch",
+      "notes": [
+        "Single upright lockbox with small slot; native2x1 twin pneumatic receiving bays not visually present. Repair low twin-socket receiver."
+      ],
+      "canonicalFootprint": {
+        "w": 2,
+        "h": 1
+      },
+      "nativeViews": [
+        "s"
+      ],
+      "missingNativeViews": [],
+      "liveVerified": false,
+      "repairCandidate": "repair-sheet-source.png cell 7"
+    },
+    "arc_indexwall": {
+      "row": 5,
+      "col": 7,
+      "displayRow": 6,
+      "displayColumn": 8,
+      "identity": "Square grid of small amber archive drawers",
+      "usable": true,
+      "classification": "identity-match",
+      "notes": [
+        "Visible form matches the requested identity; no exact duplicate or missing object observed in this cell."
+      ],
+      "canonicalFootprint": {
+        "w": 4,
+        "h": 1
+      },
+      "nativeViews": [
+        "s"
+      ],
+      "missingNativeViews": [],
+      "liveVerified": false
+    },
+    "arc_microfiche": {
+      "row": 5,
+      "col": 8,
+      "displayRow": 6,
+      "displayColumn": 9,
+      "identity": "Small cyan microfiche-like reader workstation",
+      "usable": true,
+      "classification": "identity-match",
+      "notes": [
+        "Visible form matches the requested identity; no exact duplicate or missing object observed in this cell."
+      ],
+      "canonicalFootprint": {
+        "w": 2,
+        "h": 1
+      },
+      "nativeViews": [
+        "s"
+      ],
+      "missingNativeViews": [],
+      "liveVerified": false
+    },
+    "djbooth": {
+      "row": 5,
+      "col": 9,
+      "displayRow": 6,
+      "displayColumn": 10,
+      "identity": "Wide two-platter DJ console",
+      "usable": true,
+      "classification": "identity-match",
+      "notes": [
+        "Visible form matches the requested identity; no exact duplicate or missing object observed in this cell."
+      ],
+      "canonicalFootprint": {
+        "w": 4,
+        "h": 2
+      },
+      "nativeViews": [
+        "s"
+      ],
+      "missingNativeViews": [],
+      "liveVerified": false
+    },
+    "speaker": {
+      "row": 5,
+      "col": 10,
+      "displayRow": 6,
+      "displayColumn": 11,
+      "identity": "Tall two-driver dark speaker",
+      "usable": true,
+      "classification": "identity-match",
+      "notes": [
+        "Visible form matches the requested identity; no exact duplicate or missing object observed in this cell."
+      ],
+      "canonicalFootprint": {
+        "w": 1,
+        "h": 1
+      },
+      "nativeViews": [
+        "s"
+      ],
+      "missingNativeViews": [],
+      "liveVerified": false
+    },
+    "bar": {
+      "row": 5,
+      "col": 11,
+      "displayRow": 6,
+      "displayColumn": 12,
+      "identity": "Curved wood bar with bottles and three fixed red stools",
+      "usable": true,
+      "classification": "baked-seating-caution",
+      "notes": [
+        "Three stools are baked below bar. Native standing leisure approach may put a body through these visible seats; preserve approved art but verify collision/approach separately."
+      ],
+      "canonicalFootprint": {
+        "w": 4,
+        "h": 1
+      },
+      "nativeViews": [
+        "s"
+      ],
+      "missingNativeViews": [],
+      "liveVerified": false
+    },
+    "tv": {
+      "row": 5,
+      "col": 12,
+      "displayRow": 6,
+      "displayColumn": 13,
+      "identity": "Thin blue TV on low feet angled slightly",
+      "usable": true,
+      "classification": "identity-match",
+      "notes": [
+        "Visible form matches the requested identity; no exact duplicate or missing object observed in this cell."
+      ],
+      "canonicalFootprint": {
+        "w": 3,
+        "h": 1
+      },
+      "nativeViews": [
+        "s"
+      ],
+      "missingNativeViews": [],
+      "liveVerified": false
+    },
+    "couch": {
+      "row": 5,
+      "col": 13,
+      "displayRow": 6,
+      "displayColumn": 14,
+      "identity": "Wide blue three-seat couch facing viewer",
+      "usable": true,
+      "classification": "native-fit-caution",
+      "notes": [
+        "Recognizable front-facing3-cushion couch, but image aspect much taller than native62x20 envelope. Uniform fit leaves broad unused width; cushion/body contact needs explicit layout QA, never stretch. No back/side view in this cell."
+      ],
+      "canonicalFootprint": {
+        "w": 5,
+        "h": 1
+      },
+      "nativeViews": [
+        "s"
+      ],
+      "missingNativeViews": [],
+      "liveVerified": false
+    },
+    "arcade": {
+      "row": 5,
+      "col": 14,
+      "displayRow": 6,
+      "displayColumn": 15,
+      "identity": "Tall yellow-trimmed arcade cabinet",
+      "usable": true,
+      "classification": "identity-match",
+      "notes": [
+        "Visible form matches the requested identity; no exact duplicate or missing object observed in this cell."
+      ],
+      "canonicalFootprint": {
+        "w": 1,
+        "h": 2
+      },
+      "nativeViews": [
+        "s"
+      ],
+      "missingNativeViews": [],
+      "liveVerified": false
+    },
+    "arcade2": {
+      "row": 5,
+      "col": 15,
+      "displayRow": 6,
+      "displayColumn": 16,
+      "identity": "Tall red-trimmed arcade cabinet",
+      "usable": true,
+      "classification": "identity-match",
+      "notes": [
+        "Visible form matches the requested identity; no exact duplicate or missing object observed in this cell."
+      ],
+      "canonicalFootprint": {
+        "w": 1,
+        "h": 2
+      },
+      "nativeViews": [
+        "s"
+      ],
+      "missingNativeViews": [],
+      "liveVerified": false
+    },
+    "jukebox": {
+      "row": 6,
+      "col": 0,
+      "displayRow": 7,
+      "displayColumn": 1,
+      "identity": "Orange-lit retro jukebox",
+      "usable": true,
+      "classification": "identity-match",
+      "notes": [
+        "Visible form matches the requested identity; no exact duplicate or missing object observed in this cell."
+      ],
+      "canonicalFootprint": {
+        "w": 1,
+        "h": 2
+      },
+      "nativeViews": [
+        "s"
+      ],
+      "missingNativeViews": [],
+      "liveVerified": false
+    },
+    "bunk": {
+      "row": 6,
+      "col": 1,
+      "displayRow": 7,
+      "displayColumn": 2,
+      "identity": "Two-tier bunk bed with pale mattresses",
+      "usable": true,
+      "classification": "identity-match",
+      "notes": [
+        "Visible form matches the requested identity; no exact duplicate or missing object observed in this cell."
+      ],
+      "canonicalFootprint": {
+        "w": 2,
+        "h": 2
+      },
+      "nativeViews": [
+        "s"
+      ],
+      "missingNativeViews": [],
+      "liveVerified": false
+    },
+    "quarters_pooltable": {
+      "row": 6,
+      "col": 2,
+      "displayRow": 7,
+      "displayColumn": 3,
+      "identity": "Green pool table with balls and cue",
+      "usable": true,
+      "classification": "identity-match",
+      "notes": [
+        "Visible form matches the requested identity; no exact duplicate or missing object observed in this cell."
+      ],
+      "canonicalFootprint": {
+        "w": 4,
+        "h": 2
+      },
+      "nativeViews": [
+        "s"
+      ],
+      "missingNativeViews": [],
+      "liveVerified": false
+    },
+    "quarters_vending": {
+      "row": 6,
+      "col": 3,
+      "displayRow": 7,
+      "displayColumn": 4,
+      "identity": "Tall vending cabinet with colored stock buttons",
+      "usable": true,
+      "classification": "identity-match",
+      "notes": [
+        "Visible form matches the requested identity; no exact duplicate or missing object observed in this cell."
+      ],
+      "canonicalFootprint": {
+        "w": 1,
+        "h": 2
+      },
+      "nativeViews": [
+        "s"
+      ],
+      "missingNativeViews": [],
+      "liveVerified": false
+    },
+    "quarters_lockerbank": {
+      "row": 6,
+      "col": 4,
+      "displayRow": 7,
+      "displayColumn": 5,
+      "identity": "Three-door gray locker bank",
+      "usable": true,
+      "classification": "identity-match",
+      "notes": [
+        "Visible form matches the requested identity; no exact duplicate or missing object observed in this cell."
+      ],
+      "canonicalFootprint": {
+        "w": 3,
+        "h": 1
+      },
+      "nativeViews": [
+        "s"
+      ],
+      "missingNativeViews": [],
+      "liveVerified": false
+    },
+    "quarters_minifridge": {
+      "row": 6,
+      "col": 5,
+      "displayRow": 7,
+      "displayColumn": 6,
+      "identity": "Single short gray fridge",
+      "usable": true,
+      "classification": "identity-match",
+      "notes": [
+        "Visible form matches the requested identity; no exact duplicate or missing object observed in this cell."
+      ],
+      "canonicalFootprint": {
+        "w": 1,
+        "h": 1
+      },
+      "nativeViews": [
+        "s"
+      ],
+      "missingNativeViews": [],
+      "liveVerified": false
+    },
+    "coffee": {
+      "row": 6,
+      "col": 6,
+      "displayRow": 7,
+      "displayColumn": 7,
+      "identity": "Dark coffee machine with mug under spout",
+      "usable": true,
+      "classification": "identity-match",
+      "notes": [
+        "Visible form matches the requested identity; no exact duplicate or missing object observed in this cell."
+      ],
+      "canonicalFootprint": {
+        "w": 1,
+        "h": 1
+      },
+      "nativeViews": [
+        "s"
+      ],
+      "missingNativeViews": [],
+      "liveVerified": false
+    },
+    "plant": {
+      "row": 6,
+      "col": 7,
+      "displayRow": 7,
+      "displayColumn": 8,
+      "identity": "Green leafy plant in pale pot",
+      "usable": true,
+      "classification": "identity-match",
+      "notes": [
+        "Visible form matches the requested identity; no exact duplicate or missing object observed in this cell."
+      ],
+      "canonicalFootprint": {
+        "w": 1,
+        "h": 1
+      },
+      "nativeViews": [
+        "s"
+      ],
+      "missingNativeViews": [],
+      "liveVerified": false
+    },
+    "rug": {
+      "row": 6,
+      "col": 8,
+      "displayRow": 7,
+      "displayColumn": 9,
+      "identity": "Medium blue rectangular bordered rug",
+      "usable": true,
+      "classification": "floor-camera-caution",
+      "notes": [
+        "Top-down rectangle is usable floor art; align native floor plane, don't render as upright panel.",
+        "Flat floor pass is nonblocking; sheet cell size is not floor footprint."
+      ],
+      "canonicalFootprint": {
+        "w": 4,
+        "h": 3
+      },
+      "nativeViews": [
+        "s"
+      ],
+      "missingNativeViews": [],
+      "liveVerified": false
+    },
+    "rug_small": {
+      "row": 6,
+      "col": 9,
+      "displayRow": 7,
+      "displayColumn": 10,
+      "identity": "Small red rectangular bordered rug",
+      "usable": true,
+      "classification": "floor-camera-caution",
+      "notes": [
+        "Top-down rectangle; native dimensions differ from sheet cell size.",
+        "Flat floor pass is nonblocking; sheet cell size is not floor footprint."
+      ],
+      "canonicalFootprint": {
+        "w": 3,
+        "h": 3
+      },
+      "nativeViews": [
+        "s"
+      ],
+      "missingNativeViews": [],
+      "liveVerified": false
+    },
+    "rug_large": {
+      "row": 6,
+      "col": 10,
+      "displayRow": 7,
+      "displayColumn": 11,
+      "identity": "Larger red rectangular bordered rug",
+      "usable": true,
+      "classification": "floor-camera-caution",
+      "notes": [
+        "Top-down rectangle; native dimensions differ from sheet cell size.",
+        "Flat floor pass is nonblocking; sheet cell size is not floor footprint."
+      ],
+      "canonicalFootprint": {
+        "w": 5,
+        "h": 5
+      },
+      "nativeViews": [
+        "s"
+      ],
+      "missingNativeViews": [],
+      "liveVerified": false
+    },
+    "treasury_pnl_holo": {
+      "row": 6,
+      "col": 11,
+      "displayRow": 7,
+      "displayColumn": 12,
+      "identity": "Cyan globe hologram on tall solid dark pedestal",
+      "usable": false,
+      "classification": "identity-and-support-mismatch",
+      "notes": [
+        "Baked globe on solid tall pedestal repeats holotable motif; native is nonblocking flush disk with chart projection. Cannot map whole art into10x5 opaque envelope. Repair disk; chart must be separate runtime layer."
+      ],
+      "canonicalFootprint": {
+        "w": 1,
+        "h": 1
+      },
+      "nativeViews": [
+        "s"
+      ],
+      "missingNativeViews": [],
+      "liveVerified": false,
+      "repairCandidate": "repair-sheet-source.png cell 5"
+    },
+    "arc_floorlight": {
+      "row": 6,
+      "col": 12,
+      "displayRow": 7,
+      "displayColumn": 13,
+      "identity": "Slender warm tube floor lamp",
+      "usable": true,
+      "classification": "identity-match",
+      "notes": [
+        "Visible form matches the requested identity; no exact duplicate or missing object observed in this cell."
+      ],
+      "canonicalFootprint": {
+        "w": 1,
+        "h": 1
+      },
+      "nativeViews": [
+        "s"
+      ],
+      "missingNativeViews": [],
+      "liveVerified": false
+    },
+    "arc_ladder": {
+      "row": 6,
+      "col": 13,
+      "displayRow": 7,
+      "displayColumn": 14,
+      "identity": "Tall ladder leaning/front view",
+      "usable": true,
+      "classification": "identity-match",
+      "notes": [
+        "Visible form matches the requested identity; no exact duplicate or missing object observed in this cell."
+      ],
+      "canonicalFootprint": {
+        "w": 1,
+        "h": 1
+      },
+      "nativeViews": [
+        "s"
+      ],
+      "missingNativeViews": [],
+      "liveVerified": false
+    },
+    "stool": {
+      "row": 6,
+      "col": 14,
+      "displayRow": 7,
+      "displayColumn": 15,
+      "identity": "Small round blue stool",
+      "usable": true,
+      "classification": "identity-match",
+      "notes": [
+        "Visible form matches the requested identity; no exact duplicate or missing object observed in this cell."
+      ],
+      "canonicalFootprint": {
+        "w": 1,
+        "h": 1
+      },
+      "nativeViews": [
+        "s"
+      ],
+      "missingNativeViews": [],
+      "liveVerified": false
+    },
+    "chair": {
+      "row": 6,
+      "col": 15,
+      "displayRow": 7,
+      "displayColumn": 16,
+      "identity": "Blue swivel office chair facing viewer",
+      "usable": true,
+      "classification": "identity-match",
+      "notes": [
+        "Visible form matches the requested identity; no exact duplicate or missing object observed in this cell.",
+        "One primary view in approved sheet; native w/n/e projections are absent. Author matching views; never rotate upright bitmap or reuse front screen for back."
+      ],
+      "canonicalFootprint": {
+        "w": 1,
+        "h": 1
+      },
+      "nativeViews": [
+        "s",
+        "w",
+        "n",
+        "e"
+      ],
+      "missingNativeViews": [
+        "w",
+        "n",
+        "e"
+      ],
+      "liveVerified": false
+    },
+    "sidetable": {
+      "row": 7,
+      "col": 0,
+      "displayRow": 8,
+      "displayColumn": 1,
+      "identity": "Small round wooden side table with potted plant on top",
+      "usable": false,
+      "classification": "baked-extra-object",
+      "notes": [
+        "Native usable tableSurface=true; plant consumes surface and will collide visually with mounted objects. Repair empty table."
+      ],
+      "canonicalFootprint": {
+        "w": 1,
+        "h": 1
+      },
+      "nativeViews": [
+        "s"
+      ],
+      "missingNativeViews": [],
+      "liveVerified": false,
+      "repairCandidate": "repair-sheet-source.png cell 3"
+    },
+    "lowtable": {
+      "row": 7,
+      "col": 1,
+      "displayRow": 8,
+      "displayColumn": 2,
+      "identity": "Bare rectangular low wooden table",
+      "usable": true,
+      "classification": "identity-match",
+      "notes": [
+        "Visible form matches the requested identity; no exact duplicate or missing object observed in this cell.",
+        "One primary view in approved sheet; native e projections are absent. Author matching views; never rotate upright bitmap or reuse front screen for back."
+      ],
+      "canonicalFootprint": {
+        "w": 3,
+        "h": 1
+      },
+      "nativeViews": [
+        "s",
+        "e"
+      ],
+      "missingNativeViews": [
+        "e"
+      ],
+      "liveVerified": false
+    },
+    "glasstable": {
+      "row": 7,
+      "col": 2,
+      "displayRow": 8,
+      "displayColumn": 3,
+      "identity": "Pale-blue glass rectangular table with four legs",
+      "usable": true,
+      "classification": "identity-match",
+      "notes": [
+        "Visible form matches the requested identity; no exact duplicate or missing object observed in this cell.",
+        "One primary view in approved sheet; native e projections are absent. Author matching views; never rotate upright bitmap or reuse front screen for back."
+      ],
+      "canonicalFootprint": {
+        "w": 3,
+        "h": 1
+      },
+      "nativeViews": [
+        "s",
+        "e"
+      ],
+      "missingNativeViews": [
+        "e"
+      ],
+      "liveVerified": false
+    },
+    "dinertable": {
+      "row": 7,
+      "col": 3,
+      "displayRow": 8,
+      "displayColumn": 4,
+      "identity": "Square pale tabletop with two attached red chairs",
+      "usable": true,
+      "classification": "identity-match",
+      "notes": [
+        "Visible form matches the requested identity; no exact duplicate or missing object observed in this cell.",
+        "One primary view in approved sheet; native e projections are absent. Author matching views; never rotate upright bitmap or reuse front screen for back."
+      ],
+      "canonicalFootprint": {
+        "w": 3,
+        "h": 2
+      },
+      "nativeViews": [
+        "s",
+        "e"
+      ],
+      "missingNativeViews": [
+        "e"
+      ],
+      "liveVerified": false
+    },
+    "guitar": {
+      "row": 7,
+      "col": 4,
+      "displayRow": 8,
+      "displayColumn": 5,
+      "identity": "Wood acoustic guitar leaning upright",
+      "usable": true,
+      "classification": "identity-match",
+      "notes": [
+        "Visible form matches the requested identity; no exact duplicate or missing object observed in this cell."
+      ],
+      "canonicalFootprint": {
+        "w": 1,
+        "h": 1
+      },
+      "nativeViews": [
+        "s"
+      ],
+      "missingNativeViews": [],
+      "liveVerified": false
+    },
+    "booth": {
+      "row": 7,
+      "col": 5,
+      "displayRow": 8,
+      "displayColumn": 6,
+      "identity": "Red two-seat diner bench/booth",
+      "usable": true,
+      "classification": "identity-match",
+      "notes": [
+        "Visible form matches the requested identity; no exact duplicate or missing object observed in this cell.",
+        "One primary view in approved sheet; native w/e projections are absent. Author matching views; never rotate upright bitmap or reuse front screen for back."
+      ],
+      "canonicalFootprint": {
+        "w": 2,
+        "h": 1
+      },
+      "nativeViews": [
+        "s",
+        "w",
+        "e"
+      ],
+      "missingNativeViews": [
+        "w",
+        "e"
+      ],
+      "liveVerified": false
+    },
+    "dinerchair": {
+      "row": 7,
+      "col": 6,
+      "displayRow": 8,
+      "displayColumn": 7,
+      "identity": "Single red diner chair",
+      "usable": true,
+      "classification": "identity-match",
+      "notes": [
+        "Visible form matches the requested identity; no exact duplicate or missing object observed in this cell.",
+        "One primary view in approved sheet; native w/n/e projections are absent. Author matching views; never rotate upright bitmap or reuse front screen for back."
+      ],
+      "canonicalFootprint": {
+        "w": 1,
+        "h": 1
+      },
+      "nativeViews": [
+        "s",
+        "w",
+        "n",
+        "e"
+      ],
+      "missingNativeViews": [
+        "w",
+        "n",
+        "e"
+      ],
+      "liveVerified": false
+    },
+    "podchair": {
+      "row": 7,
+      "col": 7,
+      "displayRow": 8,
+      "displayColumn": 8,
+      "identity": "Dark egg/pod chair with red cushion",
+      "usable": true,
+      "classification": "identity-match",
+      "notes": [
+        "Visible form matches the requested identity; no exact duplicate or missing object observed in this cell.",
+        "One primary view in approved sheet; native w/n/e projections are absent. Author matching views; never rotate upright bitmap or reuse front screen for back."
+      ],
+      "canonicalFootprint": {
+        "w": 1,
+        "h": 1
+      },
+      "nativeViews": [
+        "s",
+        "w",
+        "n",
+        "e"
+      ],
+      "missingNativeViews": [
+        "w",
+        "n",
+        "e"
+      ],
+      "liveVerified": false
+    },
+    "loungetable": {
+      "row": 7,
+      "col": 8,
+      "displayRow": 8,
+      "displayColumn": 9,
+      "identity": "Round low wooden lounge table",
+      "usable": true,
+      "classification": "identity-match",
+      "notes": [
+        "Visible form matches the requested identity; no exact duplicate or missing object observed in this cell.",
+        "One primary view in approved sheet; native e projections are absent. Author matching views; never rotate upright bitmap or reuse front screen for back."
+      ],
+      "canonicalFootprint": {
+        "w": 2,
+        "h": 1
+      },
+      "nativeViews": [
+        "s",
+        "e"
+      ],
+      "missingNativeViews": [
+        "e"
+      ],
+      "liveVerified": false
+    },
+    "longtable": {
+      "row": 7,
+      "col": 9,
+      "displayRow": 8,
+      "displayColumn": 10,
+      "identity": "Long wooden table with multiple attached surrounding chairs",
+      "usable": false,
+      "classification": "baked-extra-seating",
+      "notes": [
+        "Native bare tableSurface=true; sheet includes multiple chairs absent from collision/seat contract. Repair table-only silhouette.",
+        "One primary view in approved sheet; native e projections are absent. Author matching views; never rotate upright bitmap or reuse front screen for back."
+      ],
+      "canonicalFootprint": {
+        "w": 3,
+        "h": 1
+      },
+      "nativeViews": [
+        "s",
+        "e"
+      ],
+      "missingNativeViews": [
+        "e"
+      ],
+      "liveVerified": false,
+      "repairCandidate": "repair-sheet-source.png cell 4"
+    },
+    "lavalamp": {
+      "row": 7,
+      "col": 10,
+      "displayRow": 8,
+      "displayColumn": 11,
+      "identity": "Red-orange lava lamp on dark base",
+      "usable": true,
+      "classification": "identity-match",
+      "notes": [
+        "Visible form matches the requested identity; no exact duplicate or missing object observed in this cell."
+      ],
+      "canonicalFootprint": {
+        "w": 1,
+        "h": 1
+      },
+      "nativeViews": [
+        "s"
+      ],
+      "missingNativeViews": [],
+      "liveVerified": false
+    },
+    "crt_pile": {
+      "row": 7,
+      "col": 11,
+      "displayRow": 8,
+      "displayColumn": 12,
+      "identity": "Cluster of three old cyan CRT monitors",
+      "usable": true,
+      "classification": "identity-match",
+      "notes": [
+        "Visible form matches the requested identity; no exact duplicate or missing object observed in this cell."
+      ],
+      "canonicalFootprint": {
+        "w": 1,
+        "h": 1
+      },
+      "nativeViews": [
+        "s"
+      ],
+      "missingNativeViews": [],
+      "liveVerified": false
+    },
+    "cablerun": {
+      "row": 7,
+      "col": 12,
+      "displayRow": 8,
+      "displayColumn": 13,
+      "identity": "Bundle of dark cable conduits on cross braces",
+      "usable": true,
+      "classification": "identity-match",
+      "notes": [
+        "Visible form matches the requested identity; no exact duplicate or missing object observed in this cell.",
+        "Flat floor pass is nonblocking; sheet cell size is not floor footprint."
+      ],
+      "canonicalFootprint": {
+        "w": 2,
+        "h": 1
+      },
+      "nativeViews": [
+        "s"
+      ],
+      "missingNativeViews": [],
+      "liveVerified": false
+    },
+    "hazardpad": {
+      "row": 7,
+      "col": 13,
+      "displayRow": 8,
+      "displayColumn": 14,
+      "identity": "Square black/yellow hazard panel presented as flat rectangle",
+      "usable": true,
+      "classification": "floor-camera-caution",
+      "notes": [
+        "Square hazard plate reads front-on/plan; verify floor mapping and native footprint, not upright height.",
+        "Flat floor pass is nonblocking; sheet cell size is not floor footprint."
+      ],
+      "canonicalFootprint": {
+        "w": 2,
+        "h": 1
+      },
+      "nativeViews": [
+        "s"
+      ],
+      "missingNativeViews": [],
+      "liveVerified": false
+    },
+    "tallplant": {
+      "row": 7,
+      "col": 14,
+      "displayRow": 8,
+      "displayColumn": 15,
+      "identity": "Tall leafy plant in pale pot",
+      "usable": true,
+      "classification": "identity-match",
+      "notes": [
+        "Visible form matches the requested identity; no exact duplicate or missing object observed in this cell."
+      ],
+      "canonicalFootprint": {
+        "w": 1,
+        "h": 1
+      },
+      "nativeViews": [
+        "s"
+      ],
+      "missingNativeViews": [],
+      "liveVerified": false
+    },
+    "terrarium": {
+      "row": 7,
+      "col": 15,
+      "displayRow": 8,
+      "displayColumn": 16,
+      "identity": "Round glass terrarium bowl with plants",
+      "usable": true,
+      "classification": "identity-match",
+      "notes": [
+        "Visible form matches the requested identity; no exact duplicate or missing object observed in this cell."
+      ],
+      "canonicalFootprint": {
+        "w": 1,
+        "h": 1
+      },
+      "nativeViews": [
+        "s"
+      ],
+      "missingNativeViews": [],
+      "liveVerified": false
+    },
+    "holopet": {
+      "row": 8,
+      "col": 0,
+      "displayRow": 9,
+      "displayColumn": 1,
+      "identity": "Cyan holographic small animal on raised octagonal projector base",
+      "usable": false,
+      "classification": "support-and-layer-caution",
+      "notes": [
+        "Pet motif clear, but base is visibly raised while native walk-over emitter is flush. Isolate emitter/projection or deliberately resolve support before live acceptance. Do not globally shrink projection to base bounds."
+      ],
+      "canonicalFootprint": {
+        "w": 1,
+        "h": 1
+      },
+      "nativeViews": [
+        "s"
+      ],
+      "missingNativeViews": [],
+      "liveVerified": false
+    },
+    "plasmaglobe": {
+      "row": 8,
+      "col": 1,
+      "displayRow": 9,
+      "displayColumn": 2,
+      "identity": "Purple plasma globe on black round base",
+      "usable": true,
+      "classification": "identity-match",
+      "notes": [
+        "Visible form matches the requested identity; no exact duplicate or missing object observed in this cell."
+      ],
+      "canonicalFootprint": {
+        "w": 1,
+        "h": 1
+      },
+      "nativeViews": [
+        "s"
+      ],
+      "missingNativeViews": [],
+      "liveVerified": false
+    },
+    "gachapon": {
+      "row": 8,
+      "col": 2,
+      "displayRow": 9,
+      "displayColumn": 3,
+      "identity": "Tall square window capsule/prize dispenser with coin controls",
+      "usable": true,
+      "classification": "identity-caution",
+      "notes": [
+        "Looks like square-front prize/capsule dispenser rather than round globe machine, but colored window stock and coin control make identity plausible. Keep as candidate; do not call it a duplicate vending machine without closer gameplay review."
+      ],
+      "canonicalFootprint": {
+        "w": 1,
+        "h": 1
+      },
+      "nativeViews": [
+        "s"
+      ],
+      "missingNativeViews": [],
+      "liveVerified": false
+    },
+    "monstera": {
+      "row": 8,
+      "col": 3,
+      "displayRow": 9,
+      "displayColumn": 4,
+      "identity": "Wide split-leaf monstera in pale pot",
+      "usable": true,
+      "classification": "identity-match",
+      "notes": [
+        "Visible form matches the requested identity; no exact duplicate or missing object observed in this cell."
+      ],
+      "canonicalFootprint": {
+        "w": 1,
+        "h": 1
+      },
+      "nativeViews": [
+        "s"
+      ],
+      "missingNativeViews": [],
+      "liveVerified": false
+    },
+    "mug": {
+      "row": 8,
+      "col": 4,
+      "displayRow": 9,
+      "displayColumn": 5,
+      "identity": "Pale ceramic mug filled with dark liquid",
+      "usable": true,
+      "classification": "identity-match",
+      "notes": [
+        "Visible form matches the requested identity; no exact duplicate or missing object observed in this cell."
+      ],
+      "canonicalFootprint": {
+        "w": 1,
+        "h": 1
+      },
+      "nativeViews": [
+        "s"
+      ],
+      "missingNativeViews": [],
+      "liveVerified": false
+    },
+    "bookstack": {
+      "row": 8,
+      "col": 5,
+      "displayRow": 9,
+      "displayColumn": 6,
+      "identity": "Stack of five colored hardcover books",
+      "usable": true,
+      "classification": "identity-match",
+      "notes": [
+        "Visible form matches the requested identity; no exact duplicate or missing object observed in this cell."
+      ],
+      "canonicalFootprint": {
+        "w": 1,
+        "h": 1
+      },
+      "nativeViews": [
+        "s"
+      ],
+      "missingNativeViews": [],
+      "liveVerified": false
+    },
+    "desklamp": {
+      "row": 8,
+      "col": 6,
+      "displayRow": 9,
+      "displayColumn": 7,
+      "identity": "Black angled articulated desk lamp",
+      "usable": true,
+      "classification": "identity-match",
+      "notes": [
+        "Visible form matches the requested identity; no exact duplicate or missing object observed in this cell."
+      ],
+      "canonicalFootprint": {
+        "w": 1,
+        "h": 1
+      },
+      "nativeViews": [
+        "s"
+      ],
+      "missingNativeViews": [],
+      "liveVerified": false
+    },
+    "radio": {
+      "row": 8,
+      "col": 7,
+      "displayRow": 9,
+      "displayColumn": 8,
+      "identity": "Brown portable radio with handle",
+      "usable": true,
+      "classification": "identity-match",
+      "notes": [
+        "Visible form matches the requested identity; no exact duplicate or missing object observed in this cell."
+      ],
+      "canonicalFootprint": {
+        "w": 1,
+        "h": 1
+      },
+      "nativeViews": [
+        "s"
+      ],
+      "missingNativeViews": [],
+      "liveVerified": false
+    },
+    "toolbox": {
+      "row": 8,
+      "col": 8,
+      "displayRow": 9,
+      "displayColumn": 9,
+      "identity": "Red handled toolbox",
+      "usable": true,
+      "classification": "identity-match",
+      "notes": [
+        "Visible form matches the requested identity; no exact duplicate or missing object observed in this cell."
+      ],
+      "canonicalFootprint": {
+        "w": 1,
+        "h": 1
+      },
+      "nativeViews": [
+        "s"
+      ],
+      "missingNativeViews": [],
+      "liveVerified": false
+    },
+    "figurine": {
+      "row": 8,
+      "col": 9,
+      "displayRow": 9,
+      "displayColumn": 10,
+      "identity": "Dark humanoid figurine on circular plinth",
+      "usable": true,
+      "classification": "identity-match",
+      "notes": [
+        "Visible form matches the requested identity; no exact duplicate or missing object observed in this cell."
+      ],
+      "canonicalFootprint": {
+        "w": 1,
+        "h": 1
+      },
+      "nativeViews": [
+        "s"
+      ],
+      "missingNativeViews": [],
+      "liveVerified": false
+    },
+    "deskterminal": {
+      "row": 8,
+      "col": 10,
+      "displayRow": 9,
+      "displayColumn": 11,
+      "identity": "Low cyan-screen desktop terminal",
+      "usable": true,
+      "classification": "identity-match",
+      "notes": [
+        "Visible form matches the requested identity; no exact duplicate or missing object observed in this cell."
+      ],
+      "canonicalFootprint": {
+        "w": 1,
+        "h": 1
+      },
+      "nativeViews": [
+        "s"
+      ],
+      "missingNativeViews": [],
+      "liveVerified": false
+    },
+    "modelship": {
+      "row": 8,
+      "col": 11,
+      "displayRow": 9,
+      "displayColumn": 12,
+      "identity": "Small gray/red spacecraft on stand",
+      "usable": true,
+      "classification": "identity-match",
+      "notes": [
+        "Visible form matches the requested identity; no exact duplicate or missing object observed in this cell."
+      ],
+      "canonicalFootprint": {
+        "w": 2,
+        "h": 1
+      },
+      "nativeViews": [
+        "s"
+      ],
+      "missingNativeViews": [],
+      "liveVerified": false
+    },
+    "steamvent": {
+      "row": 8,
+      "col": 12,
+      "displayRow": 9,
+      "displayColumn": 13,
+      "identity": "Dark vent with tall white steam plume",
+      "usable": true,
+      "classification": "identity-match",
+      "notes": [
+        "Visible form matches the requested identity; no exact duplicate or missing object observed in this cell."
+      ],
+      "canonicalFootprint": {
+        "w": 1,
+        "h": 1
+      },
+      "nativeViews": [
+        "s"
+      ],
+      "missingNativeViews": [],
+      "liveVerified": false
+    },
+    "fishtank": {
+      "row": 8,
+      "col": 13,
+      "displayRow": 9,
+      "displayColumn": 14,
+      "identity": "Rectangular aquarium with fish and plants",
+      "usable": true,
+      "classification": "identity-match",
+      "notes": [
+        "Visible form matches the requested identity; no exact duplicate or missing object observed in this cell."
+      ],
+      "canonicalFootprint": {
+        "w": 2,
+        "h": 1
+      },
+      "nativeViews": [
+        "s"
+      ],
+      "missingNativeViews": [],
+      "liveVerified": false
+    },
+    "pokertable": {
+      "row": 8,
+      "col": 14,
+      "displayRow": 9,
+      "displayColumn": 15,
+      "identity": "Green oval poker table with cards/chips",
+      "usable": true,
+      "classification": "identity-match",
+      "notes": [
+        "Visible form matches the requested identity; no exact duplicate or missing object observed in this cell."
+      ],
+      "canonicalFootprint": {
+        "w": 4,
+        "h": 2
+      },
+      "nativeViews": [
+        "s"
+      ],
+      "missingNativeViews": [],
+      "liveVerified": false
+    },
+    "bookshelf": {
+      "row": 8,
+      "col": 15,
+      "displayRow": 9,
+      "displayColumn": 16,
+      "identity": "Tall brown bookcase with colored books and tiny plant on top",
+      "usable": true,
+      "classification": "baked-extra-object",
+      "notes": [
+        "Bookcase identity clear; small pot on top adds height and may reduce books at native26x22 fit. Not a required repair for non-stackable shelf, but don't infer tallplant from it."
+      ],
+      "canonicalFootprint": {
+        "w": 2,
+        "h": 1
+      },
+      "nativeViews": [
+        "s"
+      ],
+      "missingNativeViews": [],
+      "liveVerified": false
+    },
+    "beanbag": {
+      "row": 9,
+      "col": 0,
+      "displayRow": 10,
+      "displayColumn": 1,
+      "identity": "Dark blue round beanbag",
+      "usable": true,
+      "classification": "identity-match",
+      "notes": [
+        "Visible form matches the requested identity; no exact duplicate or missing object observed in this cell."
+      ],
+      "canonicalFootprint": {
+        "w": 1,
+        "h": 1
+      },
+      "nativeViews": [
+        "s"
+      ],
+      "missingNativeViews": [],
+      "liveVerified": false
+    },
+    "pinball": {
+      "row": 9,
+      "col": 1,
+      "displayRow": 10,
+      "displayColumn": 2,
+      "identity": "Tall slender pinball cabinet with sloping colorful playfield",
+      "usable": true,
+      "classification": "identity-match",
+      "notes": [
+        "Visible form matches the requested identity; no exact duplicate or missing object observed in this cell."
+      ],
+      "canonicalFootprint": {
+        "w": 1,
+        "h": 2
+      },
+      "nativeViews": [
+        "s"
+      ],
+      "missingNativeViews": [],
+      "liveVerified": false
+    },
+    "cryopod": {
+      "row": 9,
+      "col": 2,
+      "displayRow": 10,
+      "displayColumn": 3,
+      "identity": "Pale gray pod containing blue humanoid silhouette",
+      "usable": true,
+      "classification": "baked-occupant-caution",
+      "notes": [
+        "Contains humanoid silhouette; runtime sleeper/occupancy must replace or mask it, otherwise falsely appears occupied."
+      ],
+      "canonicalFootprint": {
+        "w": 1,
+        "h": 2
+      },
+      "nativeViews": [
+        "s"
+      ],
+      "missingNativeViews": [],
+      "liveVerified": false
+    },
+    "incubator": {
+      "row": 9,
+      "col": 3,
+      "displayRow": 10,
+      "displayColumn": 4,
+      "identity": "Small dark incubator with orange illuminated interior",
+      "usable": true,
+      "classification": "identity-match",
+      "notes": [
+        "Visible form matches the requested identity; no exact duplicate or missing object observed in this cell."
+      ],
+      "canonicalFootprint": {
+        "w": 1,
+        "h": 2
+      },
+      "nativeViews": [
+        "s"
+      ],
+      "missingNativeViews": [],
+      "liveVerified": false
+    },
+    "telescope": {
+      "row": 9,
+      "col": 4,
+      "displayRow": 10,
+      "displayColumn": 5,
+      "identity": "Long telescope tilted upward on tripod",
+      "usable": true,
+      "classification": "identity-match",
+      "notes": [
+        "Visible form matches the requested identity; no exact duplicate or missing object observed in this cell."
+      ],
+      "canonicalFootprint": {
+        "w": 1,
+        "h": 2
+      },
+      "nativeViews": [
+        "s"
+      ],
+      "missingNativeViews": [],
+      "liveVerified": false
+    },
+    "telescope_r": {
+      "row": 9,
+      "col": 5,
+      "displayRow": 10,
+      "displayColumn": 6,
+      "identity": "Shorter horizontal telescope on tripod facing right",
+      "usable": true,
+      "classification": "facing-caution",
+      "notes": [
+        "Rightward horizontal telescope differs from steeply elevated left cell; not just authored90-degree camera rotation. Need native facing alignment."
+      ],
+      "canonicalFootprint": {
+        "w": 1,
+        "h": 2
+      },
+      "nativeViews": [
+        "s"
+      ],
+      "missingNativeViews": [],
+      "liveVerified": false
+    },
+    "camerarig": {
+      "row": 9,
+      "col": 6,
+      "displayRow": 10,
+      "displayColumn": 7,
+      "identity": "Small upright camera mounted on tall tripod",
+      "usable": true,
+      "classification": "facing-caution",
+      "notes": [
+        "Small front-facing camera; paired cell is horizontal side view. Verify intended west/east direction rather than assuming suffix means bitmap rotate."
+      ],
+      "canonicalFootprint": {
+        "w": 1,
+        "h": 2
+      },
+      "nativeViews": [
+        "s"
+      ],
+      "missingNativeViews": [],
+      "liveVerified": false
+    },
+    "camerarig_r": {
+      "row": 9,
+      "col": 7,
+      "displayRow": 10,
+      "displayColumn": 8,
+      "identity": "Horizontal video camera on tripod facing right",
+      "usable": true,
+      "classification": "facing-caution",
+      "notes": [
+        "Camera lens faces right in side view; verify native directional contract."
+      ],
+      "canonicalFootprint": {
+        "w": 1,
+        "h": 2
+      },
+      "nativeViews": [
+        "s"
+      ],
+      "missingNativeViews": [],
+      "liveVerified": false
+    },
+    "weaponrack": {
+      "row": 9,
+      "col": 8,
+      "displayRow": 10,
+      "displayColumn": 9,
+      "identity": "Broad wall-like rack with long weapons",
+      "usable": true,
+      "classification": "identity-match",
+      "notes": [
+        "Visible form matches the requested identity; no exact duplicate or missing object observed in this cell."
+      ],
+      "canonicalFootprint": {
+        "w": 3,
+        "h": 1
+      },
+      "nativeViews": [
+        "s"
+      ],
+      "missingNativeViews": [],
+      "liveVerified": false
+    },
+    "weaponrack_r": {
+      "row": 9,
+      "col": 9,
+      "displayRow": 10,
+      "displayColumn": 10,
+      "identity": "Narrow weapon rack with several long weapons",
+      "usable": true,
+      "classification": "facing-caution",
+      "notes": [
+        "Narrow rack is still largely front-facing. May satisfy narrow projection silhouette but does not prove true side/back view."
+      ],
+      "canonicalFootprint": {
+        "w": 3,
+        "h": 1
+      },
+      "nativeViews": [
+        "s"
+      ],
+      "missingNativeViews": [],
+      "liveVerified": false
+    },
+    "punchbag": {
+      "row": 9,
+      "col": 10,
+      "displayRow": 10,
+      "displayColumn": 11,
+      "identity": "Red freestanding hanging-style punch bag on base",
+      "usable": true,
+      "classification": "identity-match",
+      "notes": [
+        "Visible form matches the requested identity; no exact duplicate or missing object observed in this cell."
+      ],
+      "canonicalFootprint": {
+        "w": 1,
+        "h": 2
+      },
+      "nativeViews": [
+        "s"
+      ],
+      "missingNativeViews": [],
+      "liveVerified": false
+    },
+    "punchbag_r": {
+      "row": 9,
+      "col": 11,
+      "displayRow": 10,
+      "displayColumn": 12,
+      "identity": "Narrow dark/red freestanding bag on base",
+      "usable": true,
+      "classification": "facing-caution",
+      "notes": [
+        "Nearly same frontal cylindrical silhouette as punchbag, so direction cannot be visually proven. Native support/approach orientation still matters."
+      ],
+      "canonicalFootprint": {
+        "w": 1,
+        "h": 2
+      },
+      "nativeViews": [
+        "s"
+      ],
+      "missingNativeViews": [],
+      "liveVerified": false
+    },
+    "benchpress": {
+      "row": 9,
+      "col": 12,
+      "displayRow": 10,
+      "displayColumn": 13,
+      "identity": "Front view benchpress with wide loaded barbell",
+      "usable": true,
+      "classification": "facing-caution",
+      "notes": [
+        "Front equipment view; athlete/body anchor and bench fore/aft relation need separate check."
+      ],
+      "canonicalFootprint": {
+        "w": 3,
+        "h": 1
+      },
+      "nativeViews": [
+        "s"
+      ],
+      "missingNativeViews": [],
+      "liveVerified": false
+    },
+    "benchpress_r": {
+      "row": 9,
+      "col": 13,
+      "displayRow": 10,
+      "displayColumn": 14,
+      "identity": "Side profile benchpress with vertical rack and horizontal bench",
+      "usable": true,
+      "classification": "facing-caution",
+      "notes": [
+        "Side equipment view is visibly distinct; verify bar/bench coordinates for native rotated workout body."
+      ],
+      "canonicalFootprint": {
+        "w": 3,
+        "h": 1
+      },
+      "nativeViews": [
+        "s"
+      ],
+      "missingNativeViews": [],
+      "liveVerified": false
+    },
+    "recliner": {
+      "row": 9,
+      "col": 14,
+      "displayRow": 10,
+      "displayColumn": 15,
+      "identity": "Brown padded armchair viewed nearly front-on",
+      "usable": false,
+      "classification": "facing-mismatch",
+      "notes": [
+        "Native fixed left-side sitting contract; cell is frontal armchair, so left-facing body anchor/near-arm overlay is incompatible. Repair left-facing side view."
+      ],
+      "canonicalFootprint": {
+        "w": 1,
+        "h": 1
+      },
+      "nativeViews": [
+        "s"
+      ],
+      "missingNativeViews": [],
+      "liveVerified": false,
+      "repairCandidate": "repair-sheet-source.png cell 8"
+    },
+    "recliner_r": {
+      "row": 9,
+      "col": 15,
+      "displayRow": 10,
+      "displayColumn": 16,
+      "identity": "Brown padded recliner/chair viewed in right-facing side profile",
+      "usable": true,
+      "classification": "facing-caution",
+      "notes": [
+        "Right-facing side profile plausible; native east-side seat and near-arm overlap must be calibrated, not mirrored frontal chair."
+      ],
+      "canonicalFootprint": {
+        "w": 1,
+        "h": 1
+      },
+      "nativeViews": [
+        "s"
+      ],
+      "missingNativeViews": [],
+      "liveVerified": false
+    }
+  },
+  "summary": {
+    "reviewed": 160,
+    "usableIdentityCandidates": 151,
+    "directUseMismatchIds": [
+      "industrial_floorvent",
+      "industrial_cabletray",
+      "treasury_coinsorter",
+      "pub_mailpod",
+      "treasury_pnl_holo",
+      "sidetable",
+      "longtable",
+      "holopet",
+      "recliner"
+    ],
+    "repairSheetIds": [
+      "industrial_floorvent",
+      "industrial_cabletray",
+      "sidetable",
+      "longtable",
+      "treasury_pnl_holo",
+      "treasury_coinsorter",
+      "pub_mailpod",
+      "recliner"
+    ],
+    "unrepairedSupportIssue": [
+      "holopet: raised projector plinth conflicts with walk-over disk; separate projection/base or repair support before full live acceptance."
+    ],
+    "duplicates": {
+      "exactDuplicatesObserved": [],
+      "nearRepeatedMotifs": [
+        [
+          "industrial_planter",
+          "plant",
+          "tallplant"
+        ],
+        [
+          "filter",
+          "core",
+          "vat"
+        ],
+        [
+          "holotable",
+          "treasury_pnl_holo"
+        ],
+        [
+          "pub_mailpod",
+          "quarters_minifridge"
+        ]
+      ],
+      "note": "These are visually similar motifs, not proof of identical pixels. Most remain distinct canonical assets."
+    },
+    "primaryFurnitureRisks": [
+      "couch frontal3-cushion aspect is much taller than62x20 native envelope; preserve aspect and calibrate cushion/body placement.",
+      "desk/desk2 lack native rear and side projections; desk2 single-screen narrow silhouette differs from wide native footprint.",
+      "pixelrig bakes an office chair; native workstation uses separate seatchair.",
+      "sidetable bakes plant; longtable bakes chairs and needs both bare primary and matching east-facing table.",
+      "recliner primary is frontal while native fixed left-side seat expects side profile; repair candidate supplies left profile.",
+      "bookshelf includes top plant; non-stackable so usable identity, but fitted height reduces book detail."
+    ],
+    "dynamicContentRisks": [
+      "trophycase baked trophies and missionboard baked pins cannot stand in for actual earned/open counts.",
+      "cryopod/tube baked humanoid silhouettes must not be used as evidence of real occupancy.",
+      "Screen charts, orange furnaces, cyan projections and contents are authored appearance, not backend state."
+    ],
+    "approvalScope": "Master style is approved. Repair sheet is a matching candidate inspected against master, not separately user-approved or integrated."
+  }
+}

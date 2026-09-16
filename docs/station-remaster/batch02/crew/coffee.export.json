@@ -1,0 +1,60 @@
+{
+  "sourceAnimation": {
+    "idleFrameVariants": 8,
+    "workFrameVariants": 8,
+    "respondsToWorkFlag": false,
+    "opaqueBoundsRelativeToFootprint": {
+      "x": -1,
+      "y": -6,
+      "w": 13,
+      "h": 18,
+      "alphaThreshold": 160
+    }
+  },
+  "bounds": {
+    "y": -6,
+    "width": 13,
+    "height": 18,
+    "x": -1
+  },
+  "id": "coffee",
+  "geometry": {
+    "blocks": false,
+    "flat": false,
+    "tableSurface": false,
+    "requiredMount": null,
+    "optionalSurfaceMount": true,
+    "surfaceRisePixels": 8
+  },
+  "floorContact": {
+    "x": 6,
+    "y": 12
+  },
+  "backgroundThreshold": 235,
+  "tilePixels": 12,
+  "status": "art-draft-integration-pending",
+  "view": "s",
+  "footprint": {
+    "w": 1,
+    "h": 1
+  },
+  "anchorContract": "PropAnchor derives reachable edge approach; useApproach rotates relative preference with r. Preserve standing leisure action unless special planner supplies a real body anchor.",
+  "holeSeeds": [],
+  "sourceWidth": 1067,
+  "sourceHeight": 1474,
+  "sourceSha256": "4a6f659d9ce237df082c1f0acfbee1584f628f9b4ff24d3c2ddff149f4381716",
+  "output": "frontend/assets/industrial/batch02/crew/coffee.png",
+  "crop": {
+    "left": 178,
+    "top": 35,
+    "width": 726,
+    "height": 1379
+  },
+  "transparentPixels": 172909,
+  "opaquePixels": 828245,
+  "partialPixels": 0,
+  "backgroundPixelsRemoved": 744513,
+  "subjectRgbChanges": 0,
+  "outputSha256": "48cbbf8d67db4020dd92a6b70561447b1b66db10e361d39edf27a530fdfa1e41",
+  "liveIntegrated": false
+}

@@ -1,0 +1,437 @@
+{
+  "version": 1,
+  "records": [
+    {
+      "id": "comms_beacon",
+      "view": "s",
+      "image": "comms_beacon.png",
+      "repoPath": "frontend/assets/industrial/catalog-utility-rest-3/comms_beacon.png",
+      "sourceWidth": 272,
+      "sourceHeight": 344,
+      "footprint": {
+        "w": 1,
+        "h": 2
+      },
+      "bounds": {
+        "x": 0,
+        "y": -2,
+        "width": 17,
+        "height": 26
+      },
+      "contact": {
+        "x": 0.5,
+        "y": 0.9912790697674418
+      },
+      "mode": "approved",
+      "effects": false,
+      "source": "docs/station-remaster/catalog-utility-rest-3/sheet-source.png",
+      "sourceSha256": "1b8fd3c95f80db8ff1d32238b096eddabbe6bee099ac4368eb0728598ae893d7",
+      "outputSha256": "f0ef11b2bad78ff11a4e364f609fd34ed41807c6d3f87e8e2004c1651e4a1110",
+      "sourceROI": {
+        "left": 55,
+        "top": 110,
+        "width": 300,
+        "height": 380
+      },
+      "sourceCrop": {
+        "left": 70,
+        "top": 127,
+        "width": 272,
+        "height": 344
+      },
+      "actualFit": {
+        "x": 0,
+        "y": 2.6875,
+        "width": 17,
+        "height": 21.5
+      },
+      "verification": {
+        "transparent": 21849,
+        "retained": 71719,
+        "removedAlpha": 2403,
+        "retainedRGBAMismatches": 0,
+        "allRGBMismatches": 0,
+        "widthFraction": 1
+      },
+      "status": "source and game-scale candidate reviewed; not live integrated; image-specific effect regions need remapping"
+    },
+    {
+      "id": "comms_dish",
+      "view": "s",
+      "image": "comms_dish.png",
+      "repoPath": "frontend/assets/industrial/catalog-utility-rest-3/comms_dish.png",
+      "sourceWidth": 661,
+      "sourceHeight": 739,
+      "footprint": {
+        "w": 2,
+        "h": 2
+      },
+      "bounds": {
+        "x": 2,
+        "y": 1,
+        "width": 20,
+        "height": 23
+      },
+      "contact": {
+        "x": 0.5,
+        "y": 0.9959404600811907
+      },
+      "mode": "approved",
+      "effects": false,
+      "source": "docs/station-remaster/catalog-utility-rest-3/correction-source.png",
+      "sourceSha256": "4cebb4642439b36c477675700c78fe0595c9c8e8d7061bc64f4b615cbd5d9006",
+      "outputSha256": "06681ccb82906bdd64da6a1c81def5dbf85f8d89864bd5cd4f3b02d45e1fe7a0",
+      "sourceROI": {
+        "left": 75,
+        "top": 65,
+        "width": 695,
+        "height": 785
+      },
+      "sourceCrop": {
+        "left": 93,
+        "top": 84,
+        "width": 661,
+        "height": 739
+      },
+      "actualFit": {
+        "x": 2,
+        "y": 1.730711,
+        "width": 20,
+        "height": 22.360061
+      },
+      "verification": {
+        "transparent": 102477,
+        "retained": 386002,
+        "removedAlpha": 1991,
+        "retainedRGBAMismatches": 0,
+        "allRGBMismatches": 0,
+        "widthFraction": 1
+      },
+      "status": "source and game-scale candidate reviewed; not live integrated; image-specific effect regions need remapping"
+    },
+    {
+      "id": "research_corelens",
+      "view": "s",
+      "image": "research_corelens.png",
+      "repoPath": "frontend/assets/industrial/catalog-utility-rest-3/research_corelens.png",
+      "sourceWidth": 272,
+      "sourceHeight": 363,
+      "footprint": {
+        "w": 1,
+        "h": 2
+      },
+      "bounds": {
+        "x": -2,
+        "y": -9,
+        "width": 20,
+        "height": 33
+      },
+      "contact": {
+        "x": 0.5,
+        "y": 0.9917355371900827
+      },
+      "mode": "approved",
+      "effects": false,
+      "source": "docs/station-remaster/catalog-utility-rest-3/sheet-source.png",
+      "sourceSha256": "1b8fd3c95f80db8ff1d32238b096eddabbe6bee099ac4368eb0728598ae893d7",
+      "outputSha256": "7682006af5dda549c4ac55fe2810290f1c55ae1df54e477931a3fc98b165f47a",
+      "sourceROI": {
+        "left": 825,
+        "top": 105,
+        "width": 300,
+        "height": 390
+      },
+      "sourceCrop": {
+        "left": 836,
+        "top": 118,
+        "width": 272,
+        "height": 363
+      },
+      "actualFit": {
+        "x": -2,
+        "y": -2.470588,
+        "width": 20,
+        "height": 26.691176
+      },
+      "verification": {
+        "transparent": 26205,
+        "retained": 72531,
+        "removedAlpha": 3440,
+        "retainedRGBAMismatches": 0,
+        "allRGBMismatches": 0,
+        "widthFraction": 1
+      },
+      "status": "source and game-scale candidate reviewed; not live integrated; image-specific effect regions need remapping"
+    },
+    {
+      "id": "research_trendpillar",
+      "view": "s",
+      "image": "research_trendpillar.png",
+      "repoPath": "frontend/assets/industrial/catalog-utility-rest-3/research_trendpillar.png",
+      "sourceWidth": 272,
+      "sourceHeight": 362,
+      "footprint": {
+        "w": 1,
+        "h": 2
+      },
+      "bounds": {
+        "x": -2,
+        "y": -7,
+        "width": 20,
+        "height": 31
+      },
+      "contact": {
+        "x": 0.5,
+        "y": 0.9917127071823204
+      },
+      "mode": "approved",
+      "effects": false,
+      "source": "docs/station-remaster/catalog-utility-rest-3/sheet-source.png",
+      "sourceSha256": "1b8fd3c95f80db8ff1d32238b096eddabbe6bee099ac4368eb0728598ae893d7",
+      "outputSha256": "07a6a1950f9ea43569776a00e71f9a94b0b9ef6ab41e9f390a8b70c852a4c815",
+      "sourceROI": {
+        "left": 1200,
+        "top": 100,
+        "width": 300,
+        "height": 395
+      },
+      "sourceCrop": {
+        "left": 1215,
+        "top": 118,
+        "width": 272,
+        "height": 362
+      },
+      "actualFit": {
+        "x": -2,
+        "y": -2.397059,
+        "width": 20,
+        "height": 26.617647
+      },
+      "verification": {
+        "transparent": 18379,
+        "retained": 80085,
+        "removedAlpha": 2235,
+        "retainedRGBAMismatches": 0,
+        "allRGBMismatches": 0,
+        "widthFraction": 1
+      },
+      "status": "source and game-scale candidate reviewed; not live integrated; image-specific effect regions need remapping"
+    },
+    {
+      "id": "studio",
+      "view": "s",
+      "image": "studio.png",
+      "repoPath": "frontend/assets/industrial/catalog-utility-rest-3/studio.png",
+      "sourceWidth": 350,
+      "sourceHeight": 374,
+      "footprint": {
+        "w": 2,
+        "h": 2
+      },
+      "bounds": {
+        "x": 0,
+        "y": -6,
+        "width": 29,
+        "height": 30
+      },
+      "contact": {
+        "x": 0.5,
+        "y": 0.9919786096256684
+      },
+      "mode": "approved",
+      "effects": false,
+      "source": "docs/station-remaster/catalog-utility-rest-3/sheet-source.png",
+      "sourceSha256": "1b8fd3c95f80db8ff1d32238b096eddabbe6bee099ac4368eb0728598ae893d7",
+      "outputSha256": "7190c9bffc91d7c5ab58e7c183e640fa09f522b8be9c553096fe67fd9c9f3b3d",
+      "sourceROI": {
+        "left": 25,
+        "top": 550,
+        "width": 380,
+        "height": 400
+      },
+      "sourceCrop": {
+        "left": 34,
+        "top": 564,
+        "width": 350,
+        "height": 374
+      },
+      "actualFit": {
+        "x": 0.462567,
+        "y": -5.759358,
+        "width": 28.074866,
+        "height": 30
+      },
+      "verification": {
+        "transparent": 9653,
+        "retained": 121247,
+        "removedAlpha": 2863,
+        "retainedRGBAMismatches": 0,
+        "allRGBMismatches": 0,
+        "widthFraction": 0.968099
+      },
+      "status": "source and game-scale candidate reviewed; not live integrated; image-specific effect regions need remapping"
+    },
+    {
+      "id": "telescope",
+      "view": "s",
+      "image": "telescope.png",
+      "repoPath": "frontend/assets/industrial/catalog-utility-rest-3/telescope.png",
+      "sourceWidth": 326,
+      "sourceHeight": 372,
+      "footprint": {
+        "w": 1,
+        "h": 2
+      },
+      "bounds": {
+        "x": -3,
+        "y": -8,
+        "width": 19,
+        "height": 31
+      },
+      "contact": {
+        "x": 0.5,
+        "y": 0.9919354838709677
+      },
+      "mode": "approved",
+      "effects": false,
+      "source": "docs/station-remaster/catalog-utility-rest-3/sheet-source.png",
+      "sourceSha256": "1b8fd3c95f80db8ff1d32238b096eddabbe6bee099ac4368eb0728598ae893d7",
+      "outputSha256": "7c5d3c5df92c09015b4be5e0ca40f983ab3364305cdc085e0444bd52fd9ef290",
+      "sourceROI": {
+        "left": 415,
+        "top": 550,
+        "width": 350,
+        "height": 400
+      },
+      "sourceCrop": {
+        "left": 424,
+        "top": 562,
+        "width": 326,
+        "height": 372
+      },
+      "actualFit": {
+        "x": -3,
+        "y": 1.493865,
+        "width": 19,
+        "height": 21.680982
+      },
+      "verification": {
+        "transparent": 68986,
+        "retained": 52286,
+        "removedAlpha": 5442,
+        "retainedRGBAMismatches": 0,
+        "allRGBMismatches": 0,
+        "widthFraction": 1
+      },
+      "status": "source and game-scale candidate reviewed; not live integrated; image-specific effect regions need remapping"
+    },
+    {
+      "id": "telescope_r",
+      "view": "s",
+      "image": "telescope_r.png",
+      "repoPath": "frontend/assets/industrial/catalog-utility-rest-3/telescope_r.png",
+      "sourceWidth": 312,
+      "sourceHeight": 374,
+      "footprint": {
+        "w": 1,
+        "h": 2
+      },
+      "bounds": {
+        "x": -4,
+        "y": -8,
+        "width": 19,
+        "height": 31
+      },
+      "contact": {
+        "x": 0.5,
+        "y": 0.9919786096256684
+      },
+      "mode": "approved",
+      "effects": false,
+      "source": "docs/station-remaster/catalog-utility-rest-3/sheet-source.png",
+      "sourceSha256": "1b8fd3c95f80db8ff1d32238b096eddabbe6bee099ac4368eb0728598ae893d7",
+      "outputSha256": "8056a91ccaf95812463c7bd1144fe28de6e962ae31262c7167f490a40ba04d33",
+      "sourceROI": {
+        "left": 800,
+        "top": 550,
+        "width": 340,
+        "height": 400
+      },
+      "sourceCrop": {
+        "left": 815,
+        "top": 564,
+        "width": 312,
+        "height": 374
+      },
+      "actualFit": {
+        "x": -4,
+        "y": 0.407051,
+        "width": 19,
+        "height": 22.775641
+      },
+      "verification": {
+        "transparent": 65484,
+        "retained": 51204,
+        "removedAlpha": 4729,
+        "retainedRGBAMismatches": 0,
+        "allRGBMismatches": 0,
+        "widthFraction": 1
+      },
+      "status": "source and game-scale candidate reviewed; not live integrated; image-specific effect regions need remapping"
+    },
+    {
+      "id": "steamvent",
+      "view": "s",
+      "image": "steamvent.png",
+      "repoPath": "frontend/assets/industrial/catalog-utility-rest-3/steamvent.png",
+      "sourceWidth": 845,
+      "sourceHeight": 473,
+      "footprint": {
+        "w": 1,
+        "h": 1
+      },
+      "bounds": {
+        "x": 0,
+        "y": 3,
+        "width": 12,
+        "height": 9
+      },
+      "contact": {
+        "x": 0.5,
+        "y": 0.9936575052854123
+      },
+      "mode": "approved",
+      "effects": false,
+      "source": "docs/station-remaster/catalog-utility-rest-3/correction-source.png",
+      "sourceSha256": "4cebb4642439b36c477675700c78fe0595c9c8e8d7061bc64f4b615cbd5d9006",
+      "outputSha256": "c4a0ffd900317965fb51f0ffabe94a8e44e432974df94d4105790c9005dde3a3",
+      "sourceROI": {
+        "left": 810,
+        "top": 340,
+        "width": 865,
+        "height": 490
+      },
+      "sourceCrop": {
+        "left": 821,
+        "top": 353,
+        "width": 845,
+        "height": 473
+      },
+      "actualFit": {
+        "x": 0,
+        "y": 5.325444,
+        "width": 12,
+        "height": 6.71716
+      },
+      "verification": {
+        "transparent": 74578,
+        "retained": 325107,
+        "removedAlpha": 6574,
+        "retainedRGBAMismatches": 0,
+        "allRGBMismatches": 0,
+        "widthFraction": 1
+      },
+      "status": "source and game-scale candidate reviewed; not live integrated; image-specific effect regions need remapping"
+    }
+  ]
+}

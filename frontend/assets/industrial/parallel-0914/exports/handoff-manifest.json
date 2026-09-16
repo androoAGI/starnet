@@ -1,0 +1,206 @@
+{
+  "version": 1,
+  "status": "alpha-exports-verified-live-integration-pending",
+  "tilePixels": 12,
+  "props": {
+    "bookshelf": {
+      "views": {
+        "s": {
+          "image": "bookshelf.png",
+          "sourceWidth": 1242,
+          "sourceHeight": 983,
+          "footprint": {
+            "w": 2,
+            "h": 1
+          },
+          "bounds": {
+            "x": -1,
+            "y": -9,
+            "width": 26,
+            "height": 22
+          },
+          "originalSource": "frontend/assets/industrial/parallel-0914/storage/bookshelf.png",
+          "crop": {
+            "left": 62,
+            "top": 83,
+            "width": 1242,
+            "height": 983
+          },
+          "sourceRegionTransform": "Subtract crop.left and crop.top from original source pixel coordinates; no resampling.",
+          "requiresRuntimeIntegration": false,
+          "liveVerified": false
+        }
+      }
+    },
+    "boxes": {
+      "views": {
+        "s": {
+          "image": "boxes.png",
+          "sourceWidth": 1596,
+          "sourceHeight": 685,
+          "footprint": {
+            "w": 2,
+            "h": 1
+          },
+          "bounds": {
+            "x": 0,
+            "y": -1,
+            "width": 24,
+            "height": 13
+          },
+          "originalSource": "frontend/assets/industrial/parallel-0914/storage/boxes.png",
+          "crop": {
+            "left": 54,
+            "top": 128,
+            "width": 1596,
+            "height": 685
+          },
+          "sourceRegionTransform": "Subtract crop.left and crop.top from original source pixel coordinates; no resampling.",
+          "requiresRuntimeIntegration": false,
+          "liveVerified": false
+        }
+      }
+    },
+    "couch": {
+      "views": {
+        "s": {
+          "image": "couch.png",
+          "sourceWidth": 2147,
+          "sourceHeight": 527,
+          "footprint": {
+            "w": 5,
+            "h": 1
+          },
+          "bounds": {
+            "x": -1,
+            "y": -8,
+            "width": 62,
+            "height": 20
+          },
+          "originalSource": "frontend/assets/industrial/parallel-0914/crew/couch.png",
+          "crop": {
+            "left": 31,
+            "top": 97,
+            "width": 2147,
+            "height": 527
+          },
+          "sourceRegionTransform": "Subtract crop.left and crop.top from original source pixel coordinates; no resampling.",
+          "requiresRuntimeIntegration": false,
+          "liveVerified": false
+        }
+      }
+    },
+    "lowtable": {
+      "views": {
+        "s": {
+          "image": "lowtable.png",
+          "sourceWidth": 1783,
+          "sourceHeight": 620,
+          "footprint": {
+            "w": 3,
+            "h": 1
+          },
+          "bounds": {
+            "x": -1,
+            "y": -5,
+            "width": 38,
+            "height": 17
+          },
+          "originalSource": "frontend/assets/industrial/parallel-0914/crew/lowtable.png",
+          "crop": {
+            "left": 46,
+            "top": 108,
+            "width": 1783,
+            "height": 620
+          },
+          "sourceRegionTransform": "Subtract crop.left and crop.top from original source pixel coordinates; no resampling.",
+          "requiresRuntimeIntegration": false,
+          "liveVerified": false
+        },
+        "e": {
+          "image": "lowtable-r3.png",
+          "sourceWidth": 637,
+          "sourceHeight": 1684,
+          "footprint": {
+            "w": 1,
+            "h": 3
+          },
+          "bounds": {
+            "x": -2,
+            "y": 0,
+            "width": 16,
+            "height": 36
+          },
+          "originalSource": "frontend/assets/industrial/parallel-0914/crew/lowtable-r3.png",
+          "crop": {
+            "left": 100,
+            "top": 69,
+            "width": 637,
+            "height": 1684
+          },
+          "sourceRegionTransform": "Subtract crop.left and crop.top from original source pixel coordinates; no resampling.",
+          "requiresRuntimeIntegration": false,
+          "liveVerified": false
+        }
+      }
+    },
+    "filter": {
+      "views": {
+        "s": {
+          "image": "filter.png",
+          "sourceWidth": 995,
+          "sourceHeight": 1141,
+          "footprint": {
+            "w": 1,
+            "h": 1
+          },
+          "bounds": {
+            "x": -1,
+            "y": -8,
+            "width": 14,
+            "height": 19
+          },
+          "originalSource": "frontend/assets/industrial/parallel-0914/utility/filter.png",
+          "crop": {
+            "left": 41,
+            "top": 160,
+            "width": 995,
+            "height": 1141
+          },
+          "sourceRegionTransform": "Subtract crop.left and crop.top from original source pixel coordinates; no resampling.",
+          "requiresRuntimeIntegration": true,
+          "liveVerified": false
+        }
+      }
+    },
+    "tank": {
+      "views": {
+        "s": {
+          "image": "tank.png",
+          "sourceWidth": 1251,
+          "sourceHeight": 968,
+          "footprint": {
+            "w": 2,
+            "h": 1
+          },
+          "bounds": {
+            "x": -1,
+            "y": -11,
+            "width": 27,
+            "height": 24
+          },
+          "originalSource": "docs/station-remaster/parallel-0914/utility/tank-source.png",
+          "crop": {
+            "left": 42,
+            "top": 94,
+            "width": 1251,
+            "height": 968
+          },
+          "sourceRegionTransform": "Subtract crop.left and crop.top from original source pixel coordinates; no resampling.",
+          "requiresRuntimeIntegration": true,
+          "liveVerified": false
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,61 @@
+{
+  "version": 1,
+  "tool": "built-in image_gen",
+  "authorization": "User authorized alpha-only packaging and uniform size-proof resizing",
+  "records": [
+    {
+      "id": "coffee",
+      "source": "docs/station-remaster/scale-calibration/utility/originals/coffee.png",
+      "sourceSha256": "72364a326133e4b0a2933495112e67ce325536f219ad9ea12f31dcfc7e3be9fc",
+      "sourceWidth": 1049,
+      "sourceHeight": 1499,
+      "output": "frontend/assets/industrial/scale-calibration/utility/coffee.png",
+      "outputSha256": "57634b735d1d3573c88b0019e5c793fe4a2c1987e5467ba3800171debcc6eed4",
+      "crop": {
+        "left": 67,
+        "top": 14,
+        "width": 917,
+        "height": 1419
+      },
+      "alphaOneResiduePixelsRemoved": 9114,
+      "retainedRgbChanges": 0,
+      "method": "Original generated RGBA preserved except alpha=1 dust cleared to0; uniform crop, no RGB edit, no stretch; full source preserved",
+      "bounds": {
+        "width": 13,
+        "height": 18
+      },
+      "fit": {
+        "width": 11.632135306553911,
+        "height": 18
+      },
+      "sourceAspect": 0.6462297392529951
+    },
+    {
+      "id": "monstera",
+      "source": "docs/station-remaster/scale-calibration/utility/originals/monstera.png",
+      "sourceSha256": "73859319e5babbd06e9bd2dee9cdbb2c31078b7975310a9ca0f30fed76b0affa",
+      "sourceWidth": 1205,
+      "sourceHeight": 1305,
+      "output": "frontend/assets/industrial/scale-calibration/utility/monstera.png",
+      "outputSha256": "1730edc043cc4f69405e3d30e0e77974005f2aa049368ac6a5481ff65fba8f7c",
+      "crop": {
+        "left": 187,
+        "top": 113,
+        "width": 872,
+        "height": 1025
+      },
+      "alphaOneResiduePixelsRemoved": 4403,
+      "retainedRgbChanges": 0,
+      "method": "Original generated RGBA preserved except alpha=1 dust cleared to0; uniform crop, no RGB edit, no stretch; full source preserved",
+      "bounds": {
+        "width": 12,
+        "height": 13
+      },
+      "fit": {
+        "width": 11.059512195121952,
+        "height": 13
+      },
+      "sourceAspect": 0.8507317073170731
+    }
+  ]
+}

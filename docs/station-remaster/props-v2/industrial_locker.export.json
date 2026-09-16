@@ -1,0 +1,32 @@
+{
+  "id": "industrial_locker",
+  "source": "C:/Users/andro/.codex/generated_images/01a09c6e-ef28-70a0-bd8b-b60f1a9b9f92/exec-209d8b77-a8ac-40d5-a045-990285d44899.png",
+  "sourceWidth": 1254,
+  "sourceHeight": 1254,
+  "crop": {
+    "left": 50,
+    "top": 70,
+    "width": 1155,
+    "height": 1127
+  },
+  "sourceAlpha": true,
+  "subjectRgbChanges": 0,
+  "output": "frontend/assets/industrial/props-v2/industrial_locker.png",
+  "native": {
+    "key": "industrial_locker",
+    "r": 0,
+    "image": "industrial_locker.png",
+    "footprint": {
+      "w": 2,
+      "h": 1
+    },
+    "bounds": {
+      "x": 0,
+      "y": -12,
+      "width": 24,
+      "height": 24
+    },
+    "guide": "dev/.scratch-workspace/prop-structure/industrial_locker.png"
+  },
+  "aspectError": 0.024844720496894457
+}

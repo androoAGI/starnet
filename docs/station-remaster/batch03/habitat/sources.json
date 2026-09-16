@@ -1,0 +1,84 @@
+[
+  {
+    "id": "rug",
+    "source": "docs/station-remaster/batch03/habitat/rug-source.png",
+    "backgroundMode": "magenta",
+    "seeds": [],
+    "generated": "C:\\Users\\andro\\.codex\\generated_images\\01a09e45-c8db-79c2-b990-4349e09fba9c\\exec-ab79cf23-80b3-4b93-b196-d102209d5240.png"
+  },
+  {
+    "id": "rug_small",
+    "source": "docs/station-remaster/batch03/habitat/rug_small-source.png",
+    "backgroundMode": "magenta",
+    "seeds": [],
+    "generated": "C:\\Users\\andro\\.codex\\generated_images\\01a09e45-c8db-79c2-b990-4349e09fba9c\\exec-7e056c9c-2e08-4e81-81ad-606b63f53136.png"
+  },
+  {
+    "id": "rug_large",
+    "source": "docs/station-remaster/batch03/habitat/rug_large-source.png",
+    "backgroundMode": "magenta",
+    "seeds": [],
+    "generated": "C:\\Users\\andro\\.codex\\generated_images\\01a09e45-c8db-79c2-b990-4349e09fba9c\\exec-08d008c9-986b-4f37-8357-3501bc16a45a.png"
+  },
+  {
+    "id": "arc_floorlight",
+    "source": "docs/station-remaster/batch03/habitat/arc_floorlight-source.png",
+    "backgroundMode": "magenta",
+    "seeds": [],
+    "generated": "C:\\Users\\andro\\.codex\\generated_images\\01a09e45-c8db-79c2-b990-4349e09fba9c\\exec-f1e88386-b314-4cf7-963a-8b986604cd0a.png"
+  },
+  {
+    "id": "arc_ladder",
+    "source": "docs/station-remaster/batch03/habitat/arc_ladder-source.png",
+    "backgroundMode": "magenta",
+    "seeds": [
+      [
+        550,
+        400
+      ],
+      [
+        550,
+        800
+      ],
+      [
+        817,
+        395
+      ],
+      [
+        259,
+        396
+      ],
+      [
+        800,
+        724
+      ],
+      [
+        276,
+        725
+      ]
+    ],
+    "generated": "C:\\Users\\andro\\.codex\\generated_images\\01a09e45-c8db-79c2-b990-4349e09fba9c\\exec-6bb3957f-9386-43e4-b64f-ddad87fd9301.png"
+  },
+  {
+    "id": "cablerun",
+    "source": "docs/station-remaster/batch03/habitat/cablerun-source.png",
+    "backgroundMode": "magenta",
+    "seeds": [],
+    "generated": "C:\\Users\\andro\\.codex\\generated_images\\01a09e45-c8db-79c2-b990-4349e09fba9c\\exec-2b7857ff-1099-430c-bea8-9f9ccefa5cb2.png"
+  },
+  {
+    "id": "hazardpad",
+    "source": "docs/station-remaster/batch03/habitat/hazardpad-keyed-source.png",
+    "backgroundMode": "magenta",
+    "seeds": [],
+    "generated": "C:\\Users\\andro\\.codex\\generated_images\\01a09e45-c8db-79c2-b990-4349e09fba9c\\exec-f67d1659-4249-4ca8-ac56-46b2bc395220.png",
+    "initialSource": "docs/station-remaster/batch03/habitat/hazardpad-source.png"
+  },
+  {
+    "id": "steamvent",
+    "source": "docs/station-remaster/batch03/habitat/steamvent-source.png",
+    "backgroundMode": "magenta",
+    "seeds": [],
+    "generated": "C:\\Users\\andro\\.codex\\generated_images\\01a09e45-c8db-79c2-b990-4349e09fba9c\\exec-b4770d6c-fea7-476c-915b-7198a9acdc54.png"
+  }
+]
