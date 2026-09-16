@@ -6,9 +6,9 @@ const vm = require('node:vm');
 const source = fs.readFileSync(require.resolve('../frontend/app/tutorial.js'), 'utf8');
 const essentials = ['cabinet', 'dish', 'workbench', 'notebook', 'studio'];
 
-function fixture(caps = essentials, configured = false) {
+function fixture(caps = essentials, configured = false, handoff = false) {
   const nodes = [], lines = [], events = {}, timers = new Map(), sent = [];
-  let pick, timerId = 0, valueOpens = 0, open = false, activityChanges = 0;
+  let pick, timerId = 0, valueOpens = 0, open = false, activityChanges = 0, handoffOffers = 0;
   let saved = JSON.stringify({ v: 1, firstCommandDone: false, brief: {}, seen: {} });
   const context = vm.createContext({
     console, Promise, AbortController,
@@ -19,6 +19,7 @@ function fixture(caps = essentials, configured = false) {
     World: { heroCaps() { if (caps === null) throw Error('unavailable'); return caps.map(objectType => ({ objectType })); }, setActivity() { activityChanges++; }, say() {} },
     Build: { open() { throw Error('tour must not open Build'); }, requisition() { throw Error('tour must not place props'); } },
     FirstValue: { open() { valueOpens++; return true; } },
+    ...(handoff ? { PitchStore: { handoffPending: () => true, offerHandoff() { handoffOffers++; return handoffOffers === 1 ? Promise.resolve({ action: 'tour' }) : new Promise(() => {}); } } } : {}),
     Harness: { getModel: () => configured ? 'test-model' : '', getProv: () => 'openrouter', configured: () => configured },
     fetch: async () => ({ ok: true, text: async () => 'ok' }),
     Chat: { typeLine(segs, done) { lines.push(segs.map(s => s.text).join('')); if (done) done(); }, localLine(t) { lines.push(t); }, choices() {}, send(t) { sent.push(t); }, isBusy: () => false },
@@ -31,7 +32,7 @@ function fixture(caps = essentials, configured = false) {
   const flush = async () => { for (let i = 0; i < 16; i++) await Promise.resolve(); };
   return {
     nodes, lines, sent, timers, events,
-    state: () => JSON.parse(saved), valueOpens: () => valueOpens, activityChanges: () => activityChanges,
+    state: () => JSON.parse(saved), valueOpens: () => valueOpens, activityChanges: () => activityChanges, handoffOffers: () => handoffOffers,
     start: () => vm.runInContext('Tutorial.firstCommand({ name: "NOVA" })', context),
     replay: () => vm.runInContext('Tutorial.firstCommand({ name: "NOVA", replay: true })', context),
     async choose(value) { const option = nodes.at(-1).options.find(o => o.value === value); assert.ok(option, 'visible option ' + value); pick(option); await flush(); },
@@ -101,5 +102,11 @@ function fixture(caps = essentials, configured = false) {
   const stalled = fixture(essentials, true); stalled.start(); await stalled.choose('tour'); await stalled.choose('next'); await stalled.choose('demo'); await stalled.fire(8000);
   assert.ok(stalled.lines.some(l => l.includes('haven’t received a start confirmation')));
   assert.equal(stalled.state().firstCommandDone, true);
+  const returning = fixture(essentials, false, true); returning.start(); await returning.flush();
+  await returning.choose('next');
+  assert.equal(returning.nodes.at(-1).options.some(o => o.value === 'value'), false, 'a pending first task is not replaced by a different form');
+  await returning.choose('handoff');
+  assert.equal(returning.handoffOffers(), 2, 'tour returns to the existing saved first-task handoff');
+  assert.equal(returning.valueOpens(), 0); assert.equal(returning.sent.length, 0, 'returning never auto-starts the saved task');
   console.log('tutorial-equipped-station: equipped/edited/unavailable floors, optional handoffs, quiet completion and demo event ownership PASS');
 })().catch(e => { console.error(e); process.exitCode = 1; });

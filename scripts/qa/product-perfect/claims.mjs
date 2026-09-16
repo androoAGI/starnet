@@ -177,6 +177,7 @@ export function resolveCandidateCommit(repoRoot = REPO_ROOT, candidate = 'HEAD')
 
 const TRACKED_AT_COMMIT = new Map();
 const BLOB_AT_COMMIT = new Map();
+const BLOB_BY_OID = new Map();
 
 export function trackedPathsAtCommit(repoRoot = REPO_ROOT, candidateCommit = 'HEAD') {
   const commit = resolveCandidateCommit(repoRoot, candidateCommit);
@@ -193,7 +194,8 @@ function readAtCommit(repoRoot, candidateCommit, relative) {
   const safe = safeRelative(relative);
   const key = path.resolve(repoRoot) + '\0' + commit + '\0' + safe;
   if (!BLOB_AT_COMMIT.has(key)) preloadAtCommit(repoRoot, commit, [safe]);
-  return Buffer.from(BLOB_AT_COMMIT.get(key));
+  // Internal readers only hash/search/parse these bytes; they never mutate them.
+  return BLOB_AT_COMMIT.get(key);
 }
 
 function preloadAtCommit(repoRoot, candidateCommit, relativePaths) {
@@ -230,13 +232,23 @@ function preloadAtCommit(repoRoot, candidateCommit, relativePaths) {
       if (header !== row.header) throw new Error('git cat-file payload disagrees with size record for ' + row.relative);
       const start = lineEnd + 1, end = start + row.size;
       if (end >= output.length || output[end] !== 0x0a) throw new Error('git cat-file returned truncated bytes for ' + row.relative);
-      BLOB_AT_COMMIT.set(root + '\0' + commit + '\0' + row.relative, Buffer.from(output.subarray(start, end)));
+      const bytes = Buffer.from(output.subarray(start, end));
+      BLOB_BY_OID.set(row.oid, bytes);
+      BLOB_AT_COMMIT.set(root + '\0' + commit + '\0' + row.relative, bytes);
       offset = end + 1;
     }
     if (offset !== output.length) throw new Error('git cat-file batch returned unexpected trailing bytes');
   };
   let batch = [], bytes = 0;
   for (const row of rows) {
+    // Every path is still resolved by Git above. Identical immutable objects can
+    // share bytes across candidate commits and temporary comparator repositories.
+    const cached = BLOB_BY_OID.get(row.oid);
+    if (cached) {
+      if (cached.length !== row.size) throw new Error('git blob size changed for ' + row.relative);
+      BLOB_AT_COMMIT.set(root + '\0' + commit + '\0' + row.relative, cached);
+      continue;
+    }
     if (batch.length && bytes + row.bytes > BATCH_BYTES) { readBatch(batch); batch = []; bytes = 0; }
     batch.push(row); bytes += row.bytes;
   }

@@ -82,6 +82,7 @@ const Tutorial = (() => {
   let sawStart = false, sawPermission = false, sawEnd = false, sawDeny = false;
   let cleanRunId = null;   // the demo run's id — captured ONLY on a clean, un-denied finish (it gates the handoff pitch)
   let demoActive = false, demoAgentId = null, demoRunId = null;
+  let resumeFirstTask = false;
   const demoPrompts = new Set();
   let stallTimer = null;   // failsafe: if the real run never reaches the bus (sidecar down / bad key), narrate honestly instead of freezing
   // THE KIT-OUT (the floor is REAL): the first lesson is the moat — the Commander PLACES the capability gear
@@ -190,6 +191,7 @@ const Tutorial = (() => {
     replayMode = !!(opts && opts.replay);
     active = true; finished = false; sawStart = sawPermission = sawEnd = sawDeny = false; cleanRunId = null;   // C1: un-latch finishUp for this fresh run (it's symmetric with the saw-flags; without it a prior agent's completed lesson left finishUp a no-op)
     demoActive = false; demoRunId = null; demoAgentId = null; demoPrompts.clear();
+    resumeFirstTask = false;
     kitMode = false; kitComplete = false; kitWasOpen = false; kitNeeded = null;
     wireBus();
     // The handoff from the awakening: the DIALOGUE panel is already open (onboarding's closeOut left it up).
@@ -229,7 +231,7 @@ const Tutorial = (() => {
   async function presentHandoff(tour) {
     const result = await PitchStore.offerHandoff({ tour });
     if (!result) { if (active) finishUp(true, true); return; }
-    if (result.action === 'tour') { beatShowAround(); return; }
+    if (result.action === 'tour') { resumeFirstTask = true; beatShowAround(); return; }
     if (active) finishUp(true, true);
     else { state.firstCommandDone = true; state.briefDismissed = true; save(); if (hasDialogue() && Dialogue.isOpen()) Dialogue.close(); }
     if (result.action === 'start') {
@@ -269,7 +271,7 @@ const Tutorial = (() => {
     if (Dialogue.setStage) Dialogue.setStage('QUICK TOUR · 1 OF 2', 'Your equipment');
     Dialogue.node({
       lines: [seg(summary + '\n' + placed.map(c => purposes[c]).join('\n') + '\n\nEquipment supports these tools. Connected services and your access settings determine what can run.', 64, 0)],
-      options: [{ label: 'NEXT · USING YOUR STATION', value: 'next' }, { label: 'Finish tour', value: 'done', skip: true }]
+      options: [{ label: 'NEXT · USING YOUR STATION', value: 'next' }, { label: resumeFirstTask ? 'Back to my first task' : 'Finish tour', value: 'done', skip: true }]
     }).then(res => { if (!active) return; if (res.skip) return finishOrientation(); beatStationUse(); });
   }
   function beatStationUse() {
@@ -279,9 +281,10 @@ const Tutorial = (() => {
     Dialogue.node({
       lines: [seg('Ask for work in COMMS. Review the reply and files.\nBUILD › REFIT STATION: pick a prop, click a clear tile. Press Esc to cancel. Select a placed prop to move it.\nPresets furnish rooms. Conveyors are optional for passing work between agents.', 64, 0)],
       options: [
-        ...(typeof FirstValue !== 'undefined' ? [{ label: '▸ CHOOSE MY FIRST TASK', value: 'value' }] : []),
+        ...(resumeFirstTask ? [{ label: '▸ CONTINUE MY FIRST TASK', value: 'handoff' }]
+          : typeof FirstValue !== 'undefined' ? [{ label: '▸ CHOOSE MY FIRST TASK', value: 'value' }] : []),
         ...(caps && caps.includes('cabinet') ? [{ label: 'TRY A SMALL FILE EXAMPLE', value: 'demo' }] : []),
-        { label: 'Finish tour · I’ll type in COMMS', value: 'done', skip: true }
+        ...(!resumeFirstTask ? [{ label: 'Finish tour · I’ll type in COMMS', value: 'done', skip: true }] : [])
       ]
     }).then(res => {
       if (!active) return;
@@ -293,8 +296,11 @@ const Tutorial = (() => {
   function finishOrientation(quiet) {
     // A finished orientation must not spawn a placement checklist, connector pitch and coachmark.
     // Replay preserves existing progress and preferences.
+    const returnToTask = resumeFirstTask && typeof PitchStore !== 'undefined' && PitchStore.handoffPending && PitchStore.handoffPending();
+    resumeFirstTask = false;
     if (!replayMode) state.briefDismissed = true;
     finishUp(false, true);
+    if (returnToTask) { presentHandoff(false); return; }
     if (!quiet && hasChat()) Chat.localLine('you’re ready to start. type a task in COMMS. replay this tour any time in SYSTEM › FIELD MANUAL.');
   }
 
