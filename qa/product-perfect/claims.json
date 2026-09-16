@@ -18,7 +18,7 @@
   "expectedClaimCount": 37,
   "releaseSurface": {
     "algorithm": "sha256",
-    "sourceCommit": "53d572eb7ed7345689f7612d7d91480d09604765",
+    "sourceCommit": "edb3d02dfd4d08d2cb307bb23c3336fbfdd19d5e",
     "pathSetSha256": "7a0683b985d812421502830381422c3108a62af51a5244265282b959da58b038",
     "files": [
       {
@@ -528,8 +528,8 @@
       },
       {
         "path": "frontend/app/industrialtextures.js",
-        "bytes": 29297,
-        "sha256": "dee6a3d97c5791b5c428cd0ef164381c4208b4c87da712267febd67f7ff45d98"
+        "bytes": 30927,
+        "sha256": "d03c49ced8634fd75975fd81bd51394dbb6c9e939a9a69a07c8e39fd5a083eb7"
       },
       {
         "path": "frontend/app/intake.js",
@@ -923,8 +923,8 @@
       },
       {
         "path": "frontend/app/remaster-runtime-audit.js",
-        "bytes": 16074,
-        "sha256": "4af9e860af70ba60e6e636e396efcf5a5a9742275f50fed950824497bd9ca622"
+        "bytes": 19613,
+        "sha256": "a54c60bec93f019e6ea877aee6f8cad40e7fc882d8949effad48426e5aa7dd9b"
       },
       {
         "path": "frontend/app/resummonstore.js",
@@ -1283,8 +1283,8 @@
       },
       {
         "path": "frontend/app/world.js",
-        "bytes": 754335,
-        "sha256": "c2cda8691bbcfba24057d4ea1e8963c73d51de5813b2346a690a42c9dd906fb7"
+        "bytes": 761551,
+        "sha256": "98b7af32457d030b620900f924f6e210fb936439173013f480a7f76755331004"
       },
       {
         "path": "frontend/app/worldlab.js",
