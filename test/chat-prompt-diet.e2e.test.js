@@ -31,6 +31,7 @@ function startMockOpenRouter() {
         return;
       }
       if (req.url.indexOf('/chat/completions') >= 0) {
+        req.setEncoding('utf8');
         let body = ''; req.on('data', d => { body += d; }); req.on('end', () => {
           const request = JSON.parse(body);
           requests.push(request);

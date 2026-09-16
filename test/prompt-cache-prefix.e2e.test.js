@@ -7,6 +7,7 @@ const text = content => typeof content === 'string' ? content : (content || []).
 (async () => {
   const bodies = [];
   const upstream = http.createServer(async (req, res) => {
+    req.setEncoding('utf8'); // decode across chunk boundaries; prompts/tools contain multibyte text
     let raw = ''; for await (const part of req) raw += part;
     if (!raw) { res.setHeader('Content-Type', 'application/json'); return res.end(JSON.stringify({data:[]})); }
     const body = JSON.parse(raw);

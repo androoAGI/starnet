@@ -11,6 +11,7 @@ const { isTaskDirective } = require('../frontend/app/classify.js');
 (async () => {
   const wires = [];
   const upstream = http.createServer(async (req, res) => {
+    req.setEncoding('utf8');
     let raw = ''; for await (const chunk of req) raw += chunk;
     if (!raw) return res.end(JSON.stringify({ data: [{ id: 'fixture-model', context_length: 128000, supported_parameters: ['tools'] }] }));
     const body = JSON.parse(raw);
