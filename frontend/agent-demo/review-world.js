@@ -6992,7 +6992,9 @@ const World = (() => {
       if (!geom && !(typeof SPRITES !== 'undefined' && SPRITES.loading)) drawFallback(now, who);
       // Expose observed render frames/positions for development verification only.
       if(geom && window.__STARNET_DEV__){
-        const evidence=demoWalkEvidence[who.id]||(demoWalkEvidence[who.id]={frames:new Set(),poses:new Set(),origin:null,distance:0});
+        // A review skin change starts fresh evidence; frames from the previous skin aren't coverage.
+        if(demoWalkEvidence[who.id]?.skin!==who.skin)demoWalkEvidence[who.id]={skin:who.skin,frames:new Set(),poses:new Set(),origin:null,distance:0};
+        const evidence=demoWalkEvidence[who.id];
         if(who.state==='walk'&&who._pose&&who._pose.includes('.walk.')){evidence.frames.add(who._pose+':'+who._renderFrame);evidence.poses.add(who._pose);if(!evidence.origin)evidence.origin={x:who.px,y:who.py};evidence.distance=Math.max(evidence.distance,Math.hypot(who.px-evidence.origin.x,who.py-evidence.origin.y));}
         if(who._renderTravelError!=null){
           evidence.maxFacingError=Math.max(evidence.maxFacingError||0,who._renderTravelError);

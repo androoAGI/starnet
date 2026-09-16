@@ -92,9 +92,9 @@ const SPRITES = (() => {
   /* ---------- how far one walk CYCLE carries the body ----------
      The walk is distance-phased, so this number decides whether the feet plant or skate: if the
      body covers more ground per cycle than the animation's legs actually swing, every foot slides.
-     It used to be `drawnHeight × 0.56` for everyone, which assumes every character's legs swing the
-     same fraction of its height. They don't — measured across the roster the true figure lands
-     between 0.58 and 1.0 of that, so most skins were over-striding by about a third.
+     A shared short cycle makes long-legged skins take hurried steps. Estimate their extra foot
+     separation relative to the standing side view, retaining the established fallback for robes,
+     tails and small silhouettes where the foot-band measurement is unreliable.
      Derive it per set instead, from the set's OWN side view: at full extension the span across the
      foot band is one step (leading foot to trailing foot), and a cycle is two steps. Side views
      only — front and back foreshorten the swing to nothing.
@@ -142,9 +142,12 @@ const SPRITES = (() => {
       for (const f of side) { const g = bandGap(f); if (g && g > widest) widest = g; }
       // a real stride has to open the feet WIDER than standing; below that there is no swing to read
       if (idle && widest && widest - idle >= 3) {
-        const measured = 2 * widest * sc;
-        // never trust the measurement past a sane window — a stray pixel must not halve the gait
-        out = Math.max(fallback * 0.5, Math.min(fallback, measured));
+        // Remove the stationary boot width: only the extra separation represents leg travel.
+        // The old ceiling forced every approved skin back to the same short, hurried cycle.
+        const measured = 2 * (widest - idle) * sc;
+        out = isReviewSet(set)
+          ? Math.max(fallback, Math.min(visibleHeight * sc, measured))
+          : Math.max(fallback * 0.5, Math.min(fallback, 2 * widest * sc));
       }
     }
     return (cycleCache[cacheKey] = out);
@@ -155,6 +158,11 @@ const SPRITES = (() => {
      legs — anchoring skeleton's sit by its standing pad hung the body in the air above the stool pad
      (Andrew, 2026-08-10). Measured once per key from the frame that will actually be drawn. */
   const trackPad = {};
+  const framePads = new WeakMap();
+  function getFramePad(frame) {
+    if (!framePads.has(frame)) framePads.set(frame, measureFootPad(frame));
+    return framePads.get(frame);
+  }
   function getTrackPad(key) {
     if (trackPad[key] != null) return trackPad[key];
     const fr = frames[key];
@@ -520,9 +528,8 @@ const SPRITES = (() => {
     // it 0.88-1.17x and the hero (34 u/s) outruns the crew (28 u/s), so one cycle length could never fit them all.
     //
     // The cycle DISTANCE is DERIVED per set, never hardcoded, so it stays correct for any skin without retuning:
-    // stride length scales with leg length (≈ the character's DRAWN height), divided by however many walk frames
-    // that set actually ships. Both vary today — ULTRON walks in 4 frames at 0.60 scale while the other 38 sets
-    // use 6 frames at 0.36-0.425 — and a future skin with a different frame count or size is handled for free.
+    // stride length scales with the character's visible leg swing, divided by the number of walk frames
+    // that set actually ships. Transparent master-image packing is excluded from the measurement.
     // Do NOT replace this with a constant units-per-frame: that silently over-spins short or oversized sets.
     // Every other state keeps the clock; those aren't locomotion.
     const sc = drawScaleFor(set);
@@ -558,7 +565,6 @@ const SPRITES = (() => {
     // lift separated an 18px body from its shadow by one sixth of its visible height.
     const sourceHeight = isReviewSet(set) ? 76 : DATA.SKINS[set]?.sourceStandingHeight;
     const GROUND_BITE = sourceHeight ? -0.25 : -3;
-    b._renderGroundGap = -GROUND_BITE;
     b._renderStandingHeight = sourceHeight ? sourceHeight * sc : null;
     // SEAT LIFT: a body seated on a raised single-tile seat (stool/chair) draws its pixels this many px
     // higher so the hips land on the seat pad — world.js's planSeat measured it off the prop art. The
@@ -569,7 +575,10 @@ const SPRITES = (() => {
     const seatLift = (b.sitting && b.seatLift && /\.(sit|type)\./.test(key)) ? b.seatLift : 0;
     // perched: anchor by THIS sit frame's own bottom padding (getTrackPad), not the standing footPad —
     // sets whose sit master carries extra empty rows below the tucked legs (skeleton) otherwise float.
-    const pad = (seatLift ? getTrackPad(key) : getFootPad(set)) * sc;
+    // Walking masters have slightly different packing below their boots. A set-wide idle
+    // pad made those differences into floor penetration and floating during the cycle.
+    const walking = key.includes('.walk.') && !turnStep;
+    const pad = (walking ? getFramePad(f) : seatLift ? getTrackPad(key) : getFootPad(set)) * sc;
     // Quiet standing breath changes the torso's height by less than a quarter world unit while
     // its measured foot line stays fixed. Existing walk/pivot, furniture, sleep, talk and gesture
     // tracks own their motion. Portraits keep their established framing. Omitting appearance
@@ -590,6 +599,9 @@ const SPRITES = (() => {
     const drawHeight = dh * breathScale;
     const y = planted ? snap(b.py + GROUND_BITE - seatLift) - (dh - pad) * breathScale
       : snap(b.py - dh + GROUND_BITE + bob + pad - seatLift);
+    // Report the rendered pixel boundary, including snapping and authored margins.
+    b._renderGroundGap = b.py - (y + (dh - getFramePad(f) * sc) * breathScale);
+    b._renderCycleUnits = cycleUnitsFor(set, sc, f.height);
     // the pool's outer half-width, taken from the body's DRAWN footprint. Masters carry side
     // padding, so this lands well under dw/2 — a pool wider than the boots reads as a puddle.
     const shR = Math.max(4.5, dw * 0.21);

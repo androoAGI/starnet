@@ -1,0 +1,349 @@
+{
+  "skins": 38,
+  "walkingFrames": 2400,
+  "height": 19,
+  "rows": [
+    {
+      "id": "android",
+      "frames": 64,
+      "cycleUnits": 16.5,
+      "cyclesPerSecondAt28": 1.696969696969697,
+      "minGap": 0.12999999999999545,
+      "maxGap": 0.12999999999999545,
+      "previousFootDrift": 1
+    },
+    {
+      "id": "astronaut",
+      "frames": 64,
+      "cycleUnits": 16.5,
+      "cyclesPerSecondAt28": 1.696969696969697,
+      "minGap": 0.12999999999999545,
+      "maxGap": 0.12999999999999545,
+      "previousFootDrift": 1
+    },
+    {
+      "id": "robot",
+      "frames": 64,
+      "cycleUnits": 14,
+      "cyclesPerSecondAt28": 2,
+      "minGap": 0.12999999999999545,
+      "maxGap": 0.12999999999999545,
+      "previousFootDrift": 1.25
+    },
+    {
+      "id": "crthead",
+      "frames": 64,
+      "cycleUnits": 13.5,
+      "cyclesPerSecondAt28": 2.074074074074074,
+      "minGap": 0.12999999999999545,
+      "maxGap": 0.12999999999999545,
+      "previousFootDrift": 1.25
+    },
+    {
+      "id": "alien",
+      "frames": 64,
+      "cycleUnits": 14,
+      "cyclesPerSecondAt28": 2,
+      "minGap": 0.12999999999999545,
+      "maxGap": 0.12999999999999545,
+      "previousFootDrift": 1.25
+    },
+    {
+      "id": "ultron",
+      "frames": 64,
+      "cycleUnits": 15,
+      "cyclesPerSecondAt28": 1.8666666666666667,
+      "minGap": 0.12999999999999545,
+      "maxGap": 0.12999999999999545,
+      "previousFootDrift": 1.25
+    },
+    {
+      "id": "skeleton",
+      "frames": 64,
+      "cycleUnits": 14,
+      "cyclesPerSecondAt28": 2,
+      "minGap": 0.12999999999999545,
+      "maxGap": 0.12999999999999545,
+      "previousFootDrift": 1.25
+    },
+    {
+      "id": "plaguedoctor",
+      "frames": 64,
+      "cycleUnits": 10.64,
+      "cyclesPerSecondAt28": 2.631578947368421,
+      "minGap": 0.12999999999999545,
+      "maxGap": 0.12999999999999545,
+      "previousFootDrift": 0.5
+    },
+    {
+      "id": "secretagent",
+      "frames": 64,
+      "cycleUnits": 16,
+      "cyclesPerSecondAt28": 1.75,
+      "minGap": 0.12999999999999545,
+      "maxGap": 0.12999999999999545,
+      "previousFootDrift": 1.25
+    },
+    {
+      "id": "voidwizard",
+      "frames": 64,
+      "cycleUnits": 14,
+      "cyclesPerSecondAt28": 2,
+      "minGap": 0.12999999999999545,
+      "maxGap": 0.12999999999999545,
+      "previousFootDrift": 0.75
+    },
+    {
+      "id": "xenomorph",
+      "frames": 64,
+      "cycleUnits": 10.64,
+      "cyclesPerSecondAt28": 2.631578947368421,
+      "minGap": 0.12999999999999545,
+      "maxGap": 0.12999999999999545,
+      "previousFootDrift": 0.75
+    },
+    {
+      "id": "robocop",
+      "frames": 64,
+      "cycleUnits": 12,
+      "cyclesPerSecondAt28": 2.3333333333333335,
+      "minGap": 0.12999999999999545,
+      "maxGap": 0.12999999999999545,
+      "previousFootDrift": 1
+    },
+    {
+      "id": "masterchief",
+      "frames": 64,
+      "cycleUnits": 14.5,
+      "cyclesPerSecondAt28": 1.9310344827586208,
+      "minGap": 0.12999999999999545,
+      "maxGap": 0.12999999999999545,
+      "previousFootDrift": 1.25
+    },
+    {
+      "id": "grimreaper",
+      "frames": 64,
+      "cycleUnits": 10.64,
+      "cyclesPerSecondAt28": 2.631578947368421,
+      "minGap": 0.12999999999999545,
+      "maxGap": 0.12999999999999545,
+      "previousFootDrift": 0.5
+    },
+    {
+      "id": "crewmate",
+      "frames": 64,
+      "cycleUnits": 13.5,
+      "cyclesPerSecondAt28": 2.074074074074074,
+      "minGap": 0.12999999999999545,
+      "maxGap": 0.12999999999999545,
+      "previousFootDrift": 0.75
+    },
+    {
+      "id": "bear",
+      "frames": 64,
+      "cycleUnits": 13.5,
+      "cyclesPerSecondAt28": 2.074074074074074,
+      "minGap": 0.12999999999999545,
+      "maxGap": 0.12999999999999545,
+      "previousFootDrift": 1
+    },
+    {
+      "id": "pepe",
+      "frames": 64,
+      "cycleUnits": 10.64,
+      "cyclesPerSecondAt28": 2.631578947368421,
+      "minGap": 0.12999999999999545,
+      "maxGap": 0.12999999999999545,
+      "previousFootDrift": 1.5
+    },
+    {
+      "id": "capybara",
+      "frames": 64,
+      "cycleUnits": 15,
+      "cyclesPerSecondAt28": 1.8666666666666667,
+      "minGap": 0.12999999999999545,
+      "maxGap": 0.12999999999999545,
+      "previousFootDrift": 2
+    },
+    {
+      "id": "vaultboy",
+      "frames": 64,
+      "cycleUnits": 12,
+      "cyclesPerSecondAt28": 2.3333333333333335,
+      "minGap": 0.12999999999999545,
+      "maxGap": 0.12999999999999545,
+      "previousFootDrift": 1.75
+    },
+    {
+      "id": "station_minion",
+      "frames": 64,
+      "cycleUnits": 17.5,
+      "cyclesPerSecondAt28": 1.6,
+      "minGap": 0.12999999999999545,
+      "maxGap": 0.12999999999999545,
+      "previousFootDrift": 1.25
+    },
+    {
+      "id": "blank_blue",
+      "frames": 64,
+      "cycleUnits": 14.5,
+      "cyclesPerSecondAt28": 1.9310344827586208,
+      "minGap": 0.12999999999999545,
+      "maxGap": 0.12999999999999545,
+      "previousFootDrift": 1
+    },
+    {
+      "id": "blank_green",
+      "frames": 64,
+      "cycleUnits": 14.5,
+      "cyclesPerSecondAt28": 1.9310344827586208,
+      "minGap": 0.12999999999999545,
+      "maxGap": 0.12999999999999545,
+      "previousFootDrift": 1
+    },
+    {
+      "id": "blank_red",
+      "frames": 64,
+      "cycleUnits": 15,
+      "cyclesPerSecondAt28": 1.8666666666666667,
+      "minGap": 0.12999999999999545,
+      "maxGap": 0.12999999999999545,
+      "previousFootDrift": 0.25
+    },
+    {
+      "id": "blank_amber",
+      "frames": 64,
+      "cycleUnits": 15.5,
+      "cyclesPerSecondAt28": 1.8064516129032258,
+      "minGap": 0.12999999999999545,
+      "maxGap": 0.12999999999999545,
+      "previousFootDrift": 0.5
+    },
+    {
+      "id": "heisenberg",
+      "frames": 64,
+      "cycleUnits": 10.64,
+      "cyclesPerSecondAt28": 2.631578947368421,
+      "minGap": 0.12999999999999545,
+      "maxGap": 0.12999999999999545,
+      "previousFootDrift": 0
+    },
+    {
+      "id": "endoskeleton",
+      "frames": 64,
+      "cycleUnits": 16.5,
+      "cyclesPerSecondAt28": 1.696969696969697,
+      "minGap": 0.12999999999999545,
+      "maxGap": 0.12999999999999545,
+      "previousFootDrift": 0.75
+    },
+    {
+      "id": "ultrondroid",
+      "frames": 64,
+      "cycleUnits": 16.5,
+      "cyclesPerSecondAt28": 1.696969696969697,
+      "minGap": 0.12999999999999545,
+      "maxGap": 0.12999999999999545,
+      "previousFootDrift": 0.5
+    },
+    {
+      "id": "samaltman",
+      "frames": 64,
+      "cycleUnits": 11.5,
+      "cyclesPerSecondAt28": 2.4347826086956523,
+      "minGap": 0.12999999999999545,
+      "maxGap": 0.12999999999999545,
+      "previousFootDrift": 1
+    },
+    {
+      "id": "dario",
+      "frames": 64,
+      "cycleUnits": 14,
+      "cyclesPerSecondAt28": 2,
+      "minGap": 0.12999999999999545,
+      "maxGap": 0.12999999999999545,
+      "previousFootDrift": 1.75
+    },
+    {
+      "id": "freddyfazbear",
+      "frames": 64,
+      "cycleUnits": 17,
+      "cyclesPerSecondAt28": 1.6470588235294117,
+      "minGap": 0.12999999999999545,
+      "maxGap": 0.12999999999999545,
+      "previousFootDrift": 0.75
+    },
+    {
+      "id": "ghostface",
+      "frames": 64,
+      "cycleUnits": 10.64,
+      "cyclesPerSecondAt28": 2.631578947368421,
+      "minGap": 0.12999999999999545,
+      "maxGap": 0.12999999999999545,
+      "previousFootDrift": 1.25
+    },
+    {
+      "id": "morpheus",
+      "frames": 64,
+      "cycleUnits": 11,
+      "cyclesPerSecondAt28": 2.5454545454545454,
+      "minGap": 0.12999999999999545,
+      "maxGap": 0.12999999999999545,
+      "previousFootDrift": 0.75
+    },
+    {
+      "id": "ricksanchez",
+      "frames": 64,
+      "cycleUnits": 10.64,
+      "cyclesPerSecondAt28": 2.631578947368421,
+      "minGap": 0.141627906976737,
+      "maxGap": 0.141627906976737,
+      "previousFootDrift": 0
+    },
+    {
+      "id": "ninjaturtle",
+      "frames": 64,
+      "cycleUnits": 15.5,
+      "cyclesPerSecondAt28": 1.8064516129032258,
+      "minGap": 0.12999999999999545,
+      "maxGap": 0.12999999999999545,
+      "previousFootDrift": 1
+    },
+    {
+      "id": "minionchar",
+      "frames": 64,
+      "cycleUnits": 10.64,
+      "cyclesPerSecondAt28": 2.631578947368421,
+      "minGap": 0.15439024390243716,
+      "maxGap": 0.15439024390243716,
+      "previousFootDrift": 0
+    },
+    {
+      "id": "pikachu",
+      "frames": 32,
+      "cycleUnits": 10.64,
+      "cyclesPerSecondAt28": 2.631578947368421,
+      "minGap": 0.12999999999999545,
+      "maxGap": 0.12999999999999545,
+      "previousFootDrift": 0
+    },
+    {
+      "id": "caseyjones",
+      "frames": 64,
+      "cycleUnits": 15,
+      "cyclesPerSecondAt28": 1.8666666666666667,
+      "minGap": 0.12999999999999545,
+      "maxGap": 0.12999999999999545,
+      "previousFootDrift": 0.5
+    },
+    {
+      "id": "finn",
+      "frames": 64,
+      "cycleUnits": 12,
+      "cyclesPerSecondAt28": 2.3333333333333335,
+      "minGap": 0.12999999999999545,
+      "maxGap": 0.12999999999999545,
+      "previousFootDrift": 1.75
+    }
+  ]
+}

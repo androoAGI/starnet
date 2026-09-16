@@ -24,7 +24,7 @@ vm.runInContext(w.slice(w.indexOf('  function conversationWindow('),w.indexOf(' 
 for(const n of [2,3])for(let t=0;t<60000;t+=17){let speakers=0;for(let i=0;i<n;i++)speakers+=Number(c.myTurnN(t,i,n,1700,1150));assert(speakers<=1,'conversation overlaps');const win=c.conversationWindow(t,1700,1150);assert(win.speakEnd<win.end,'missing listening gap');}
 // Run the actual renderer with an instrumented drawing context: no generated images or world-state overrides.
 const fake={width:144,height:144},frames={'approved_finn.rot.south':[fake]};
-Object.assign(c,{frames,setForBody:b=>b.skin,loadedSets:new Set(['approved_finn']),loadSet:()=>{},bodyLight:()=>null,pick:()=> 'approved_finn.rot.south',pick8:()=> 'approved_finn.rot.south',isReviewSet:()=>true,tintFrames:()=>[fake],drawScaleFor:()=>.25,cycleUnitsFor:()=>10,getFootPad:()=>32,getTrackPad:()=>32,groundShadow:()=>{},lightFrame:f=>f});
+Object.assign(c,{frames,setForBody:b=>b.skin,loadedSets:new Set(['approved_finn']),loadSet:()=>{},bodyLight:()=>null,pick:()=> 'approved_finn.rot.south',pick8:()=> 'approved_finn.rot.south',isReviewSet:()=>true,tintFrames:()=>[fake],drawScaleFor:()=>.25,cycleUnitsFor:()=>10,getFootPad:()=>32,getTrackPad:()=>32,getFramePad:()=>32,groundShadow:()=>{},lightFrame:f=>f});
 vm.runInContext(s.slice(s.indexOf('  function drawBody('),s.indexOf('  /* loading */')),c);
 let feet=[];const ctx={getTransform:()=>({a:4}),save(){},restore(){},translate(){},transform(){},drawImage(f,x,y,width,height){feet.push(y+height*(112/144));}};
 const b={skin:'approved_finn',id:'test',px:50,py:50,dir:'south',state:'idle',speaking:true,aph:1.7};let accents=[];
