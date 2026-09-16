@@ -1777,7 +1777,7 @@ const WorldModel = (() => {
     const canRedo = () => redoStack.length > 0;
 
     /* ---------- projection → the v7 MAP-shaped geometry the bake consumes ---------- */
-    function projectGeometry() {
+    function projectGeometry(walls = {}) {
       const b = bounds();
       const ox = b.minTx - MARGIN, oy = b.minTy - MARGIN;       // world → local offset
       const COLS = (b.maxTx - b.minTx) + 1 + MARGIN * 2;
@@ -1950,8 +1950,59 @@ const WorldModel = (() => {
         if(zoneGrid[idx(x,y)]==null)continue;
         wallClearance[idx(x,y)]=(!canStep(x,y,x,y-1)?1:0)|(!canStep(x,y,x-1,y)?2:0)|(!canStep(x,y,x+1,y)?4:0);
       }
+      // The raised doorway returns occupy the corridor ABOVE the room seam.
+      // Keep a sprite-width lane through that silhouette, not just a legal foot
+      // tile. In a two-tile hall the anchors move inward; no floor tile is removed.
+      const mouthLanes = [];
+      const wallUp = Number.isFinite(walls.up) ? Math.max(0, Math.round(walls.up)) : 30;
+      const capH = Number.isFinite(walls.capH) ? Math.max(2, Math.round(walls.capH)) : 4;
+      const at = (x,y) => x<0||y<0||x>=COLS||y>=ROWS ? null : zoneGrid[idx(x,y)];
+      const seam = (x,y) => {
+        const a=at(x,y-1),b=at(x,y);
+        return a===b ? 0 : a==null||b==null ? 2 : canStep(x,y-1,x,y) ? 1 : 2;
+      };
+      if (wallUp >= 4) for(let y=1;y<ROWS;y++) for(let x=0;x<COLS;x++) {
+        if(seam(x,y)!==1)continue;
+        let end=x;while(end+1<COLS&&seam(end+1,y)===1)end++;
+        let left=0,right=0;
+        for(let c=x-1;c>=0&&seam(c,y)===2;c--)left++;
+        for(let c=end+1;c<COLS&&seam(c,y)===2;c++)right++;
+        // Same architectural doorway rule as StationBake.classifyJoins.
+        if(left&&right&&end-x+1<left+right)for(let a=x;a<=end;a++) {
+          const room=at(a,y);
+          if(isCorridor(room)||!isCorridor(at(a,y-1)))continue;
+          let b=a;while(b<end&&at(b+1,y)===room&&isCorridor(at(b+1,y-1)))b++;
+          const x0=a*TILE,x1=(b+1)*TILE;
+          const reach=Math.min(6,Math.max(1,Math.floor((x1-x0-8)/2)));
+          const inset=Math.min((x1-x0)/2-.5,reach+1+4.5);
+          mouthLanes.push({x0,x1,top:y*TILE-wallUp-capH,bottom:y*TILE+10,left:x0+inset,right:x1-inset});
+          a=b;
+        }
+        x=end;
+      }
+      function footPoint(x,y) {
+        let px=x*TILE+TILE/2;const py=y*TILE+TILE-1;
+        for(const m of mouthLanes)if(px>=m.x0&&px<m.x1&&py>=m.top-TILE&&py<=m.bottom+TILE)
+          px=Math.max(m.left,Math.min(m.right,px));
+        return {x:px,y:py};
+      }
+      function clearMouths(ax,ay,bx,by) {
+        for(const m of mouthLanes) {
+          let lo=0,hi=1;
+          const dy=by-ay;
+          if(Math.abs(dy)<1e-10){if(ay<m.top||ay>m.bottom)continue;}
+          else {const a=(m.top-ay)/dy,b=(m.bottom-ay)/dy;lo=Math.max(0,Math.min(a,b));hi=Math.min(1,Math.max(a,b));if(lo>hi)continue;}
+          const a=ax+(bx-ax)*lo,b=ax+(bx-ax)*hi;
+          // Only this opening owns the interval. Its shoulders are already
+          // rejected by the tile/face checks below.
+          if(Math.max(a,b)<m.x0||Math.min(a,b)>m.x1)continue;
+          if(Math.min(a,b)<m.left-1e-8||Math.max(a,b)>m.right+1e-8)return false;
+        }
+        return true;
+      }
       function segmentClear(ax, ay, bx, by, extra, physical = false) {
         if (![ax, ay, bx, by].every(Number.isFinite)) return false;
+        if (physical && !clearMouths(ax*TILE, ay*TILE, bx*TILE, by*TILE)) return false;
         const x0 = Math.floor(ax), y0 = Math.floor(ay), x1 = Math.floor(bx), y1 = Math.floor(by);
         let x = x0, y = y0;
         const dx = Math.abs(bx - ax), dy = Math.abs(by - ay);
@@ -1992,9 +2043,9 @@ const WorldModel = (() => {
         return guard > 0 && walkable(x1, y1, extra) && clearFace(x1,y1,entered,1);
       }
       function losClear(x0, y0, x1, y1, extra) {
-        const fy = 1 - 1 / TILE;
+        const a=footPoint(x0,y0),b=footPoint(x1,y1);
         return segmentClear(x0 + .5, y0 + .5, x1 + .5, y1 + .5, extra)
-          && segmentClear(x0 + .5, y0 + fy, x1 + .5, y1 + fy, extra, true);
+          && segmentClear(a.x/TILE,a.y/TILE,b.x/TILE,b.y/TILE,extra,true);
       }
       // Pixel-space companion for actual starts, corner lookahead and body nudges.
       const clearFootSegment = (ax, ay, bx, by, extra) => segmentClear(ax / TILE, ay / TILE, bx / TILE, by / TILE, extra, true);
@@ -2029,6 +2080,8 @@ const WorldModel = (() => {
             if (nx < 0 || ny < 0 || nx >= COLS || ny >= ROWS) continue;
             const ni = idx(nx, ny);
             if (prev[ni] !== -1 || !walkable(nx, ny, extra) || !canStep(cx, cy, nx, ny)) continue;
+            const a=footPoint(cx,cy),b=footPoint(nx,ny);
+            if(!clearFootSegment(a.x,a.y,b.x,b.y,extra))continue;
             prev[ni] = cur; q.push(ni);
           }
         }
@@ -2043,7 +2096,7 @@ const WorldModel = (() => {
         TILE, COLS, ROWS, W: COLS * TILE, H: ROWS * TILE + HULL_PAD,
         origin: { tx: ox, ty: oy },
         allRects, zones, ROOM_IDS, isCorridor, chamfers, windows: [], props: propsLocal, belts: beltsLocal,
-        doorDefs, zoneGrid, idx, canStep, baseColorOf, walkable, path, clearFootSegment, blockedTiles,
+        doorDefs, zoneGrid, idx, canStep, baseColorOf, walkable, path, clearFootSegment, footPoint, blockedTiles,
         nameOf: id => (doc.rooms[id] ? doc.rooms[id].name : ''),
         kindOf: id => (doc.rooms[id] ? doc.rooms[id].kind : null),
         matOf: id => matOfRoom(doc.rooms[id]),   // effective deck material (override, else kind default)
