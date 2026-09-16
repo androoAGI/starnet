@@ -38,3 +38,20 @@ The canonical ledger's two P1s are `9dc2a1df` (zoned body outside containment) a
 ## Intake refresh before freeze
 
 Read all GitHub issues updated since the public 0.11.2 publication, including closed issues; deduplicate support-email copies by symptom. Import new reports with origin, affected artifact, evidence, adapter/entry/display/lifecycle gaps. Capture a timestamped sanitized intake receipt. Private support mail has not been freshly searched in this preparation session; this remains explicit intake work.
+
+## 2026-09-16 dispositions on the integrated 0.12.0 candidate (agent/release-0120-final-0916)
+
+Applied under the owner engineering-acceptance rule of 2026-09-11 (source-proven records close on our own before/after proof; uncorrelated reports stay tracked, never fabricated). Register validated; generated index regenerated.
+
+| Record | Disposition | Proof |
+| --- | --- | --- |
+| `99a1517b` unlink hides recovery controls | **fixed** — `02332ee85` (integrated `90d6f0111`) | `test/credits-store-recovery.test.js`; seeded unlink → LINK STATION → pairing verified in the lane; customer machine uncorrelated |
+| `305a9e3d` campaign cards undiscoverable | **fixed** — `dcbc2b941` (integrated `a7ae9f23e`) | 105-assertion real-Chromium gauntlet in the HTTP gate; authenticated Whop page remains an explicit gap |
+| `98454b83` #14 Telegram lead delegation | **fixed** — `887210a7b` | 82-assertion desktop + Telegram dispatch parity through a real sidecar, including restart |
+| `a76b93c4` #17 local-model small talk | **fixed** — `5acf4640f` | prompt-diet unit + sidecar regressions (7 + 23 assertions); no real llama3.2:3b timing (Ollama is not installed on the build host) |
+| `09f0e9fa` #18 rating in scheduled conversations | **fixed** — `da0658486` | 57-assertion routine → interactive reply → rating → restart campaign; live seeded rating control |
+| `2f156837` Mac boot guard shared catalog | **fixed** — `788578969` (hardening) | BootGuard retries the sidecar-served catalog with backoff and reloads once after a proven load; 82 vm assertions + live CDP proof (first request refused → retry → reload → 35 builtins, no banner; all refused → banner after 5 retries). Original Mac origin/build still uncorrelated |
+| `acb47320` idle / unexplained usage | **open, re-triaged P2** | no affected run ledger or provider receipts were ever supplied; no reproducible defect on the candidate |
+| `fd9c4b4d` managed Sonnet 400 (v0.10.13) | **open, re-triaged P2** | historical, gateway diagnostic gap repaired and redeployed 2026-09-06, reporter replied positively 2026-09-10; needs a fresh sanitized correlation |
+
+New customer concern folded into this candidate without a prior record: the 2026-09-14 hotspot-user report item 4 (“can't send clickable files anymore, sends a text path”) — the ▤ saved / ▤ made rows were live-only; `8d4f3f5ca` replays them on history render (source lock `test/comms-deliverable-replay.test.js`, live CDP reload proof). Items 2–3 of that report were the transcript-scramble bug already merged in `f1bae44d9`; item 1 (a 10 s connect ceiling) has no source in any shipped build (default 30 s) and remains a question for the reporter (version + provider + any `SKYNET_PROVIDER_CONNECT_MS` override).
