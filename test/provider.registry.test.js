@@ -179,7 +179,7 @@ module.exports = (async () => {
   A.eq(factory.getProviderProfile('ollama').maxOutputTokens, 4096, 'Ollama profile declares a 4096-token output ceiling');
   A.eq(factory.getProviderProfile('openai').maxOutputTokens, undefined, 'hosted OpenAI-compatible profiles declare no ceiling');
   {
-    const wireFor = async (id, env) => {
+    const wireFor = async (id, env, isTask) => {
       const prev = process.env.SKYNET_OLLAMA_MAX_TOKENS;
       if (env == null) delete process.env.SKYNET_OLLAMA_MAX_TOKENS; else process.env.SKYNET_OLLAMA_MAX_TOKENS = env;
       try {
@@ -188,7 +188,7 @@ module.exports = (async () => {
           if (init && init.method === 'POST') { wire = JSON.parse(init.body); return new Response('data: [DONE]\n\n', { status: 200, headers: { 'Content-Type': 'text/event-stream' } }); }
           return new Response(JSON.stringify({ data: [] }), { status: 200 });
         } });
-        for await (const _ of p.stream({ model: 'm', messages: [{ role: 'user', content: 'hi' }] })) { /* drain */ }
+        for await (const _ of p.stream({ model: 'm', messages: [{ role: 'user', content: 'hi' }], isTask })) { /* drain */ }
         return wire;
       } finally {
         if (prev == null) delete process.env.SKYNET_OLLAMA_MAX_TOKENS; else process.env.SKYNET_OLLAMA_MAX_TOKENS = prev;
@@ -197,6 +197,10 @@ module.exports = (async () => {
     A.eq((await wireFor('ollama')).max_tokens, 4096, 'an Ollama run carries the profile ceiling as max_tokens');
     A.eq((await wireFor('ollama', '8192')).max_tokens, 8192, 'SKYNET_OLLAMA_MAX_TOKENS overrides the declared ceiling');
     A.eq((await wireFor('ollama', 'junk')).max_tokens, 4096, 'a junk override falls back to the declared ceiling');
+    A.eq((await wireFor('ollama', 'Infinity')).max_tokens, 4096, 'a non-finite environment override retains the ceiling');
+    A.eq((await wireFor('ollama', null, false)).max_tokens, 512, 'an explicitly casual Ollama turn uses 512 tokens');
+    A.eq((await wireFor('ollama', null, true)).max_tokens, 4096, 'an Ollama task retains 4096 tokens');
+    A.eq((await wireFor('deepseek', null, false)).max_tokens, undefined, 'hosted casual chat gets no new cap');
     A.eq((await wireFor('deepseek')).max_tokens, undefined, 'a hosted OpenAI-compatible run sends no max_tokens');
   }
 

@@ -91,6 +91,7 @@ test/skill-exchange.http.test.js
 test/skills.gate.prompt.e2e.test.js
 test/roster-track.e2e.test.js
 test/chat-prompt-diet.e2e.test.js
+test/casual-response-safety.e2e.test.js
 test/routes-coverage.http.test.js
 test/atlas-events.emit.e2e.test.js
 test/openai-compat.e2e.test.js

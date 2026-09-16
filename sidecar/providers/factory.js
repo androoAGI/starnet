@@ -37,13 +37,13 @@
     return rateLimits;
   }
 
-  function resolveMaxOutputTokens(profile) {
+  function resolveMaxOutputTokens(profile, field = 'maxOutputTokens') {
     if (!profile) return 0;
-    const envName = String(profile.maxOutputTokensEnv || '');
+    const envName = String(profile[field + 'Env'] || '');
     const fromEnv = (envName && typeof process !== 'undefined' && process.env) ? Math.floor(Number(process.env[envName])) : 0;
-    if (fromEnv > 0) return fromEnv;
-    const declared = Math.floor(Number(profile.maxOutputTokens));
-    return declared > 0 ? declared : 0;
+    if (Number.isFinite(fromEnv) && fromEnv > 0) return fromEnv;
+    const declared = Math.floor(Number(profile[field]));
+    return Number.isFinite(declared) && declared > 0 ? declared : 0;
   }
 
   function selectProvider(opts) {
@@ -147,6 +147,7 @@
         connectTimeoutMs: profile.connectTimeoutMs,
         // Output ceiling: only profiles that declare one (Ollama) send max_tokens; an env override wins.
         maxTokens: resolveMaxOutputTokens(profile),
+        maxChatTokens: resolveMaxOutputTokens(profile, 'maxChatOutputTokens'),
         defaultContext: opts.defaultContext,
         headers: mergedHeaders
       });
