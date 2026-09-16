@@ -39,8 +39,8 @@ The integrated renderer tests now include the real surface-mount helper and the 
 
 ### Gate receipts and handoff
 
-- Final gate candidate: recorded in `.dogfood/build-interactions/sweep-fast-result.json`; includes persistence fix `5f498be97` and the subsequent renderer/test cleanup.
+- Final code gate candidate: `86afcfc6403ae2750732c6169bf110ef1ace98be`; includes persistence fix `5f498be97` and renderer/test cleanup `4ceb99166`. The following receipt-only documentation commit does not change tested code.
 - `npm run test:http`: PASS, all 116 steps, including the real Creative Studio sample-job harness test. Log: `.dogfood/build-interactions/sweep-http.log`. The later reload fix touches frontend persistence only; its concurrency/unload/refusal tests also passed.
-- Final `npm run test:fast`: pending. Log: `.dogfood/build-interactions/sweep-fast-final.log`.
+- Final `npm run test:fast`: PASS, all 806 steps, exit 0; ran 22:06–22:16 EDT on 2026-09-15. Includes the previously failing claims, tutorial, lighting, shell, font, and fetch-truth checks. Log: `.dogfood/build-interactions/sweep-fast-final.log`; process receipt: `.dogfood/build-interactions/sweep-fast-result.json`.
 - Website mirror check and strict JSON/no-BOM checks passed.
 - No branch-to-trunk merge has been performed. Trunk has unrelated uncommitted handoff/queue edits; these remain untouched. Recheck trunk's SHA and serialize integration before merging. A new trunk commit requires another synchronization and gate pass.
