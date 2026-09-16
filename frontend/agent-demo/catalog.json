@@ -494,20 +494,6 @@
       "renderSet": "approved_ninjaturtle"
     },
     {
-      "id": "minionchar",
-      "skin": "minionchar",
-      "name": "Minion",
-      "stage": "existing-art",
-      "targetStandingHeight": 19,
-      "walkFramesReady": false,
-      "walkReady": false,
-      "complete": false,
-      "retainedOriginal": true,
-      "sourceStandingHeight": 41,
-      "readyForStation": true,
-      "renderSet": "minionchar"
-    },
-    {
       "id": "pikachu",
       "skin": "pikachu",
       "name": "Pikachu",

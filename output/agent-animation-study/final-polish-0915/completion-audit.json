@@ -1,9 +1,9 @@
 {
-  "scope": "38 skins: full new-style motion contract, except user-approved Pikachu v0.11.2 release set verified byte-for-byte; file coverage, not a claim of visual perfection",
-  "ready": false,
+  "scope": "37 selected skins (completed Station Minion retained; unfinished duplicate excluded): full new-style motion contract, except user-approved Pikachu v0.11.2 release set verified byte-for-byte; file coverage, not a claim of visual perfection",
+  "ready": true,
   "completeSets": 37,
-  "totalSets": 38,
-  "missingFrames": 8,
+  "totalSets": 37,
+  "missingFrames": 0,
   "rows": [
     {
       "id": "android",
@@ -208,43 +208,6 @@
       "name": "Ninja Turtle",
       "complete": true,
       "gaps": []
-    },
-    {
-      "id": "minionchar",
-      "name": "Minion",
-      "complete": false,
-      "gaps": [
-        {
-          "track": "sit.south",
-          "expected": 1,
-          "available": 0,
-          "missing": 1
-        },
-        {
-          "track": "sit.east",
-          "expected": 1,
-          "available": 0,
-          "missing": 1
-        },
-        {
-          "track": "sit.north",
-          "expected": 1,
-          "available": 0,
-          "missing": 1
-        },
-        {
-          "track": "sit.west",
-          "expected": 1,
-          "available": 0,
-          "missing": 1
-        },
-        {
-          "track": "type.north",
-          "expected": 4,
-          "available": 0,
-          "missing": 4
-        }
-      ]
     },
     {
       "id": "pikachu",

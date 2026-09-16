@@ -56,6 +56,20 @@
     const option=Array.from(follow.options).find(o=>o.value===id);if(option)option.textContent=(App.agents().find(a=>a.id===id)?.name||id)+' · '+selected.name;
     if(follow.value===id){World.showSkinReview(false);panel.dataset.comparison='hidden';World.lockBody(id);liveSkin.value=selected.id;panel.dataset.liveSkin=selected.id;motionStatus.textContent=describeSkin(selected);}
   };
+  const workStudy=document.createElement('button');workStudy.className='bb';workStudy.textContent='Preview at workstation';
+  const workNote=document.createElement('div');workNote.style.marginTop='5px';
+  liveLabel.append(workStudy,workNote);let reviewingWork=false;
+  const stopWorkStudy=()=>{World.showWorkPoseReview(false);reviewingWork=false;workStudy.textContent='Preview at workstation';workNote.textContent='';delete panel.dataset.workPose;};
+  workStudy.onclick=()=>{
+    if(reviewingWork){stopWorkStudy();World.lockBody(panel.querySelector('select').value);return;}
+    const item=catalogSkins.find(x=>x.id===liveSkin.value);
+    reviewingWork=!!item&&World.showWorkPoseReview(true,panel.querySelector('select').value,item.renderSet);
+    workStudy.textContent=reviewingWork?'Return to live movement':'Preview at workstation';
+    workNote.textContent=reviewingWork?'Workstation pose preview · visual only · no task running':'No workstation available for preview.';
+  };
+  liveSkin.addEventListener('change',stopWorkStudy);panel.querySelector('select').addEventListener('change',stopWorkStudy);
+  nextGroup.addEventListener('click',stopWorkStudy);cadets.addEventListener('click',stopWorkStudy);
+  compare.addEventListener('click',stopWorkStudy);panel.querySelector('input').addEventListener('input',stopWorkStudy);
   const speechStudy=document.createElement('details');
   speechStudy.innerHTML='<summary>Talking pose close-up</summary><div style="margin:6px 0">Pose study · 4× view</div><canvas width="300" height="120" aria-label="Talking pose study" style="width:300px;max-width:100%;background:#182023;border:1px solid #54615b"></canvas>';
   panel.append(speechStudy);const studyCanvas=speechStudy.querySelector('canvas'),studyCtx=studyCanvas.getContext('2d');let studyBody=null;

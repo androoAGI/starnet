@@ -1,7 +1,7 @@
 {
   "standingHeight": 19,
   "redesigned": 36,
-  "retained": 2,
+  "retained": 1,
   "rows": [
     {
       "id": "android",
@@ -376,11 +376,6 @@
       "typingFrames": 4,
       "minWalkHeight": 74,
       "maxWalkHeight": 78
-    },
-    {
-      "id": "minionchar",
-      "status": "existing art",
-      "standingHeight": 19
     },
     {
       "id": "pikachu",

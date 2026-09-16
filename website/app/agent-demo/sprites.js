@@ -583,7 +583,10 @@ const SPRITES = (() => {
     // SPRITE rises, the shadow pool remains on the deck under the stool where light actually lands.
     // Gated on the RESOLVED track actually being a sit pose: a set with no sit frames (minionchar,
     // 2026-08-10) falls back to rot/stand, and lifting a STANDING body onto the pad reads as levitation.
-    const seatLift = (b.sitting && b.seatLift && /\.(sit|type)\./.test(key)) ? b.seatLift : 0;
+    // Industrial workstation backrests are tall: place the compact seated body on the cushion,
+    // exposing its head above the backrest while the chair occludes the lap. Floor scale stays 19 px.
+    const workstationLift = isReviewSet(set) && b.sitting && !b.seated && (b.working || b.goal === 'work') ? 7 : 0;
+    const seatLift = b.sitting && /\.(sit|type)\./.test(key) ? (b.seatLift || workstationLift) : 0;
     // perched: anchor by THIS sit frame's own bottom padding (getTrackPad), not the standing footPad —
     // sets whose sit master carries extra empty rows below the tucked legs (skeleton) otherwise float.
     // Walking masters have slightly different packing below their boots. A set-wide idle

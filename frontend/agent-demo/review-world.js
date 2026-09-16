@@ -1583,6 +1583,22 @@ const World = (() => {
   // This file is an isolated snapshot for the development art review entry only.
   // Mannequins are render-only: never roster members, tasks, or persisted station objects.
   let skinReview = null;
+  let workPoseReview = null;
+  function showWorkPoseReview(enabled, id, skin) {
+    if (!window.__STARNET_DEV__ || !geo || !agent || !cache) return false;
+    workPoseReview = null;
+    if (!enabled) return true;
+    const desk = deskPropFor(id) || (geo.props || []).find(p => isWorkstationProp(p.t));
+    const anchor = desk && deskSeat(desk);
+    if (!anchor) return false;
+    const foot = seatFoot(anchor);
+    workPoseReview = {id, deskId:desk.id, body:{id:'work-pose-study',skin,px:foot.x,py:foot.y,dir:anchor.face,
+      state:'idle',sitting:true,working:true,aph:0}};
+    skinReview=null;camLock=null;camAnim=null;camUserAt=fnow;
+    const z=4;
+    camLerp={scale:z,panX:cv.width*.60-foot.x*z,panY:cv.height*.55-foot.y*z};
+    return true;
+  }
   const demoMotionEvidence={},demoWalkEvidence={};let demoMotionEvidenceAt=0;
   function showSkinReview(enabled, zoom, id='secretagent') {
     if (!window.__STARNET_DEV__ || !geo || !agent || !cache) return false;
@@ -6181,8 +6197,19 @@ const World = (() => {
       return bed ? { y: (bed.y + (bed.h || 1)) * T + 0.5, draw: () => drawSleeper(now, b, bed) }
                  : { y: fallbackY, draw: () => drawAgent(now, b) };
     };
-    if (agent && !agent.unplaced) items.push(bodyItem(agent, rposY()));
-    for (const b of crew) items.push(bodyItem(b, (b.seated ? b.seatPy : b.py)));   // the other agents, at their bays (seated → sort by the cushion pos like the hero's rposY, so a couch-lounging crew body tucks just behind the back-facing couch panel, head over the cap)
+    if (agent && !agent.unplaced && workPoseReview?.id !== agent.id) items.push(bodyItem(agent, rposY()));
+    for (const b of crew) if (workPoseReview?.id !== b.id) items.push(bodyItem(b, (b.seated ? b.seatPy : b.py)));   // the other agents, at their bays (seated → sort by the cushion pos like the hero's rposY, so a couch-lounging crew body tucks just behind the back-facing couch panel, head over the cap)
+    if (workPoseReview) {
+      camUserAt=now;
+      const b=workPoseReview.body;
+      items.push({y:b.py,draw:()=>{
+        const light=sceneRenderer && sceneRenderer.sampleLight(b.px,b.py);
+        SPRITES.drawBody(ctx,b,now,{reducedMotion:reduceMotion(),light});
+        const panel=document.getElementById('agent-station-demo');
+        if(panel)panel.dataset.workPose=JSON.stringify({skin:b.skin,pose:b._pose,frame:b._renderFrame,
+          standingHeight:b._renderStandingHeight,x:b.px,y:b.py,direction:b.dir,desk:workPoseReview.deskId,visualStudy:true});
+      }});
+    }
     if (skinReview) {
       camUserAt=now; // Keep the idle camera director from leaving an explicit art comparison.
       const spot=skinReview.spot;
@@ -9701,7 +9728,7 @@ const World = (() => {
       const errors = (routingPlan && routingPlan.errors ? routingPlan.errors : []).filter(e => !e.warn);
       return planPoster.flush().then(s => Object.assign({ errors: errors, hash: routingPlan ? routingPlan.hash : null }, s));
     },
-    showSkinReview, loadStation, spawn, spawnAgent, despawnAgent, setSkin, relabel, setActivityFor, agentRunsLive, dropRun: noteRunEnd, focusBody, lockBody, cameraMode, setCinecamIdle, setChatFocus, chatFocusPing, start, stop, setActivity, wakeIn, beginAwakening, playArrival, cancelArrival, setWakeProgress, igniteSpark, armKindle, kindleHold, camPushIn, camCreep, camPunch, camPullBack, awakenTurn, truthPulse, beginFlood, collapseFlood, endAwakening, releaseAwakening, say, focusAgent, getActivity: () => activity, getUse: () => (agent ? agent.usingProp : null), setOnClick, setOnArcade, setOnOutbox, setOnMissionBoard, setOnTrophyCase, setOnBayAssign, setOnIntakeFeed, setOnIntakeSample, refit, pauseBridge, resumeBridge, linkState, _dbgSeedRun, _dbgAgeRun, _dbgReconcile, _dbgSweep, _dbgLinkState, _dbgDropBridge, _dbgCurveState, _dbgLoseCurveContext, _dbgLoseCanvases, _dbgCanvasLoss, _dbgKillStageContext, _dbgStageState, _dbgBeltLegibility, _dbgPropClientPoint, _dbgSleep, _dbgUseProp, _dbgArrive, _dbgLeisure,
+    showSkinReview, showWorkPoseReview, loadStation, spawn, spawnAgent, despawnAgent, setSkin, relabel, setActivityFor, agentRunsLive, dropRun: noteRunEnd, focusBody, lockBody, cameraMode, setCinecamIdle, setChatFocus, chatFocusPing, start, stop, setActivity, wakeIn, beginAwakening, playArrival, cancelArrival, setWakeProgress, igniteSpark, armKindle, kindleHold, camPushIn, camCreep, camPunch, camPullBack, awakenTurn, truthPulse, beginFlood, collapseFlood, endAwakening, releaseAwakening, say, focusAgent, getActivity: () => activity, getUse: () => (agent ? agent.usingProp : null), setOnClick, setOnArcade, setOnOutbox, setOnMissionBoard, setOnTrophyCase, setOnBayAssign, setOnIntakeFeed, setOnIntakeSample, refit, pauseBridge, resumeBridge, linkState, _dbgSeedRun, _dbgAgeRun, _dbgReconcile, _dbgSweep, _dbgLinkState, _dbgDropBridge, _dbgCurveState, _dbgLoseCurveContext, _dbgLoseCanvases, _dbgCanvasLoss, _dbgKillStageContext, _dbgStageState, _dbgBeltLegibility, _dbgPropClientPoint, _dbgSleep, _dbgUseProp, _dbgArrive, _dbgLeisure,
     // AGENT GROWTH: XpStore pushes pre-computed Xp.compute() snapshots here; pulseLevelUp fires
     // the addressed body's gold ring. The colony headline is the top-bar STATION chip.
     setXp: (agentId, a) => {

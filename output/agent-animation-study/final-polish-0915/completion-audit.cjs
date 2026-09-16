@@ -32,7 +32,7 @@ const rows = catalog.map(skin => {
   return {id: skin.id, name: skin.name, complete: gaps.length === 0, approvedRelease: skin.acceptedExisting ? skin.approvedRelease : undefined, gaps};
 });
 const result = {
-  scope: '38 skins: full new-style motion contract, except user-approved Pikachu v0.11.2 release set verified byte-for-byte; file coverage, not a claim of visual perfection',
+  scope: '37 selected skins (completed Station Minion retained; unfinished duplicate excluded): full new-style motion contract, except user-approved Pikachu v0.11.2 release set verified byte-for-byte; file coverage, not a claim of visual perfection',
   ready: rows.every(row => row.complete),
   completeSets: rows.filter(row => row.complete).length,
   totalSets: rows.length,

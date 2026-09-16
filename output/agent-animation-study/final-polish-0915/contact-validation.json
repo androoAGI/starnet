@@ -1,6 +1,6 @@
 {
-  "skins": 38,
-  "walkingFrames": 2400,
+  "skins": 37,
+  "walkingFrames": 2336,
   "height": 19,
   "cardinalCases": 360,
   "maxCardinalError": 45,
@@ -310,15 +310,6 @@
       "minGap": 0.12999999999999545,
       "maxGap": 0.12999999999999545,
       "previousFootDrift": 1
-    },
-    {
-      "id": "minionchar",
-      "frames": 64,
-      "cycleUnits": 10.64,
-      "cyclesPerSecondAt28": 2.631578947368421,
-      "minGap": 0.15439024390243716,
-      "maxGap": 0.15439024390243716,
-      "previousFootDrift": 0
     },
     {
       "id": "pikachu",
