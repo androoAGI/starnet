@@ -241,5 +241,25 @@ module.exports = (async () => {
     for await(const e of p.stream({messages:[]})) {}
     A.eq(count,2,'failed activation can recover');
   }
+  {
+    let release, started, requests = 0;
+    const refreshing = new Promise(resolve => { started = resolve; });
+    const token = new Promise(resolve => { release = resolve; });
+    const p = factory.selectProvider({ provider: 'codex', tokenProvider: () => { started(); return token; }, fetch: async () => {
+      requests++; return new Response('data: {"type":"response.completed","response":{}}\n\n');
+    } });
+    const abort = new AbortController();
+    const run = (async () => { for await (const _ of p.stream({ messages: [], signal: abort.signal })) {} return 'stopped'; })();
+    await refreshing;
+    abort.abort();
+    let timer;
+    const settled = await Promise.race([run, new Promise(resolve => { timer = setTimeout(() => resolve('still waiting'), 500); })]);
+    clearTimeout(timer);
+    A.eq(settled, 'stopped', 'Stop does not wait for an already-running fallback token refresh');
+    release('fresh'); await run;
+    A.eq(requests, 0, 'cancelled activation never sends inference after refresh finishes');
+    for await (const _ of p.stream({ messages: [] })) {}
+    A.eq(requests, 1, 'successful background refresh remains usable by a later caller');
+  }
   A.report('provider.registry.test');
 })();

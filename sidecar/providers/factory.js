@@ -74,7 +74,21 @@
       if (metadata.listModels) deferred.listModels = async (...args) => (await activate()).listModels(...args);
       deferred.stream = async function* (req) {
         if (req && req.signal && req.signal.aborted) return;
-        const provider = await activate();
+        // Token refresh can be shared/cached independently of this run. Let Stop release this
+        // caller immediately without cancelling a refresh another caller may still need.
+        const signal = req && req.signal;
+        let provider;
+        if (signal) {
+          let cancel;
+          const cancelled = new Promise(resolve => {
+            cancel = () => resolve(null);
+            signal.addEventListener('abort', cancel, { once: true });
+            if (signal.aborted) cancel();
+          });
+          try { provider = await Promise.race([activate(), cancelled]); }
+          finally { signal.removeEventListener('abort', cancel); }
+        } else provider = await activate();
+        if (!provider) return;
         if (req && req.signal && req.signal.aborted) return;
         yield* provider.stream(req);
       };

@@ -54,6 +54,7 @@ const { isTaskDirective } = require('../frontend/app/classify.js');
     assert.ok(!small.messages[0].content.includes('[ORCHESTRATION]'));
     for (const text of ['thanks', 'how are you today']) assert.equal((await run(text)).max_tokens, 512);
     assert.equal((await run('hello', { agentId: 'worker' })).max_tokens, 512, 'worker small talk has the same cap');
+    assert.equal((await run('hello', { internal: true })).max_tokens, 4096, 'internal auxiliary work retains its original allowance');
     const hosted = await run('hello', { provider: 'custom' });
     assert.equal(hosted.max_tokens, undefined, 'custom/hosted requests receive no local-model output cap');
     const history = [{ role: 'user', content: 'Remember the report code AZURE-739.' }, { role: 'assistant', content: 'The report code is AZURE-739.' }, { role: 'user', content: 'hello' }];

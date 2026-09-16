@@ -17207,7 +17207,8 @@ async function runOnce(o) {
       loopEmit('agent.run.end', {agentId, runId, reason:'done', turns:0, usd:0});
       result = {reason:'done', turns:0, usd:0, messages:msgs.concat([{role:'assistant', content:text}])};
     } else result = await runAgentLoop({
-      messages: msgs, provider, emit: loopEmit, cost, tools: o.outputOnly ? [] : toolDefs, dispatch, capCtx, isTask,
+      messages: msgs, provider, emit: loopEmit, cost, tools: o.outputOnly ? [] : toolDefs, dispatch, capCtx,
+      isTask: internal ? undefined : isTask,
       cacheSystemPrefix: !internal && !o.recovery ? cacheSystemPrefix : '',
       drainToolCosts: () => pendingMediaCosts.splice(0),
       acceptanceProbe,
@@ -17238,7 +17239,7 @@ async function runOnce(o) {
         maxIters: o.outputOnly ? 1 : runMaxIters, maxCostUsd: runCapUsd, failureRecovery: (o.recovery || o.outputOnly) ? false : undefined,
         // A capped greeting must not become five paid generations. Task replies retain normal
         // continuation, including brief answers promoted to tasks by a pending clarification.
-        outputContinuation: !isTask ? false : undefined,
+        outputContinuation: !isTask && !internal ? false : undefined,
         grace: o.outputOnly ? false : undefined, refundMax: o.outputOnly ? 0 : undefined,
         // unpriced-token seatbelt: metered API-key providers only — a subscription/OAuth/unmetered run bills nothing
         maxUnpricedTokens: (providerUnmetered || usingCodex || usingDeviceOAuth) ? Infinity : CAPS.maxUnpricedTokens
