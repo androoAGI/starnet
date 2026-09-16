@@ -32,7 +32,11 @@ try {
     return { origin:location.origin, shell, sidecar:v, textures:IndustrialTextures.status(),
       props:PropRemaster.status(), enabledProp:PropRemaster.enabled('desk','s'),
       revision:document.documentElement.dataset.textureRevision,
-      viewport:{width:innerWidth,height:innerHeight,dpr:devicePixelRatio}, camera:World.cameraDbg() };
+      viewport:{width:innerWidth,height:innerHeight,dpr:devicePixelRatio}, camera:World.cameraDbg(),
+      sprites:{ preview:SkinStudy.enabled, catalog:Object.entries(DATA.SKINS).map(([id,s])=>({id,...s})),
+        agents:App.agents().map(a=>({id:a.id,skin:a.skin,set:SPRITES.setForBody(a),scale:SPRITES.bodyScale(a)})),
+        bodies:World.bodies().map(b=>({id:b.id,pose:b.pose})),
+        portraits:[...document.querySelectorAll('[data-portrait-set]')].map(n=>({set:n.dataset.portraitSet,visible:!n.hidden,loaded:n.complete&&n.naturalWidth>0}))} };
   })()`);
   assert.ok(['http://tauri.localhost', 'https://tauri.localhost', 'tauri://localhost'].includes(identity.origin));
   assert.equal(identity.shell.sha, head);
@@ -46,6 +50,19 @@ try {
   assert.deepEqual(identity.props.failures, []);
   assert.ok(identity.props.views.length > 100 && identity.enabledProp);
   assert.equal(identity.revision, 'bridge-remaster');
+  assert.equal(identity.sprites.preview, false, 'installed proof must not opt into a review mode');
+  assert.equal(identity.sprites.catalog.length, 37);
+  const selected = JSON.parse(fs.readFileSync('frontend/assets/skin-study-0914/runtime-motion.json'));
+  for (const skin of selected.skins) {
+    const live = identity.sprites.catalog.find(s=>s.id===skin.skin);
+    assert.equal(live?.set, skin.renderSet, skin.skin + ' production catalog');
+    assert.equal(live.scale, selected.standingHeight/skin.sourceStandingHeight);
+  }
+  const approved = set => set === 'pikachu' || set.startsWith('approved_');
+  assert.ok(identity.sprites.agents.length > 0 && identity.sprites.agents.every(a=>approved(a.set)));
+  const drawn = identity.sprites.bodies.filter(b=>b.pose);
+  assert.ok(drawn.length > 0 && drawn.every(b=>approved(b.pose.split('.')[0])), 'actual floor draw tracks use selected art');
+  assert.ok(identity.sprites.portraits.length > 0 && identity.sprites.portraits.every(p=>approved(p.set)&&p.loaded&&p.visible), 'visible portraits use selected art');
   await capture(c, out, 'installed-remaster');
   await evalJS(c, `(()=>{
     const p=window.__releaseGraphics={frames:[],longTasks:[],errors:[],last:null,active:true};

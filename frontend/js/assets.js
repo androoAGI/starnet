@@ -50,7 +50,8 @@ const SPRITES = (() => {
      ultron keeps more of his source size so he towers over the crew. */
   const SCALE = { ultron: 0.60 };   // skins read their scale from DATA.SKINS; ULTRON is special
   function drawScaleFor(setName) {
-    return SCALE[setName] || (DATA.SKINS[setName] && DATA.SKINS[setName].scale) || 2 / 3;
+    const skin = DATA.SKINS[setName] || Object.values(DATA.SKINS).find(s => s.set === setName);
+    return (skin && skin.scale) || SCALE[setName] || 2 / 3;
   }
   /* The set drawBody will resolve for this body, and the scale it will draw at. Exported (bodyScale)
      because a surface that wants the master at its NATIVE resolution — the dossier portrait, which is a
@@ -58,7 +59,7 @@ const SPRITES = (() => {
      the moment ULTRON, a new set, or the DATA.SKINS fallback changed; asking the engine cannot. */
   function setForBody(b) {
     const study=typeof SkinStudy!=='undefined'&&SkinStudy.setFor(b);if(study)return study;
-    return (b && b.id === 'ULTRON') ? 'ultron'
+    return (b && b.id === 'ULTRON') ? (DATA.SKINS.ultron?.set || 'ultron')
       : ((DATA.SKINS[b && b.skin] && DATA.SKINS[b.skin].set) || DATA.SKINS[DATA.DEFAULT_SKIN].set);
   }
   function bodyScale(b) { return drawScaleFor(setForBody(b)); }
@@ -734,8 +735,9 @@ const SPRITES = (() => {
         ready = true;
         loading = false;
       }
-      const startup = Promise.all([loadSet(defSet), loadSet('ultron')]).then(() => {
-        if (frames[defSet + '.rot.south'] || frames['ultron.rot.south'] || Object.keys(frames).length) ready = true;
+      const leaderSet = setForBody({ id: 'ULTRON' });
+      const startup = Promise.all([loadSet(defSet), loadSet(leaderSet)]).then(() => {
+        if (frames[defSet + '.rot.south'] || frames[leaderSet + '.rot.south'] || Object.keys(frames).length) ready = true;
         console.log('[SPRITES] startup sets loaded:', Array.from(loadedSets).join(', '), '—', Object.keys(frames).length, 'animation tracks');
       });
       if (!ready) await startup;
@@ -743,6 +745,6 @@ const SPRITES = (() => {
     finally { loading = false; }
   }
 
-  return { init, drawBody, groundShadow, ensureSkin, isSkinReady, bodyScale, bodyAppearanceStats,
+  return { init, drawBody, groundShadow, ensureSkin, isSkinReady, bodyScale, bodyAppearanceStats, setForBody,
     get ready() { return ready; }, get loading() { return loading; } };
 })();

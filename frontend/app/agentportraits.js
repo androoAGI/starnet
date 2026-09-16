@@ -29,7 +29,7 @@ const AgentPortraits = (() => {
   function paint(img, agent) {
     if (!img) return;
     const skins = typeof DATA !== 'undefined' ? DATA.SKINS : null;
-    const skin = agent && skins && (skins[agent.skin] || skins[DATA.DEFAULT_SKIN]);
+    const skin = agent && skins && ((agent.id === 'ULTRON' && skins.ultron) || skins[agent.skin] || skins[DATA.DEFAULT_SKIN]);
     const set = skin && skin.set;
     if (!set) { delete img.dataset.portraitSet; img.hidden = true; return; }
     if (img.dataset.portraitSet === set) return;

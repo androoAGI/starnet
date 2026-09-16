@@ -12,6 +12,14 @@ The current source baseline is `1cbd6384d`, which also includes the subsequent C
 
 ## Acceptance still to earn
 
+### Second activation gap: agent sprites
+
+The installed intermediate build still rendered legacy agent sets and portraits. The sprite lane was merged, but its complete motion manifest and roster were installed only by the localhost `?skinSet=study` review hook. Git ancestry alone did not detect this. Evidence: `.dogfood/release-recovery/sprites-before.json` from the real Tauri origin.
+
+Production now maps the existing saved skin IDs to all 37 selected sets and ships their complete motion tracks in the canonical sprite manifest. The retained Pikachu stays selected; the retired duplicate `minionchar` remains readable as the approved Station Minion without becoming an extra picker choice. Portraits, first-paint preload, lazy loading, leader loading, and scale resolution follow the production selection. No saved agent records are rewritten. The preview remains an optional review surface.
+
+The production renderer regression verifies selected bytes/order for every track, all four walking directions, measured ground contact, existing skin IDs, and default/leader resolution. Installed acceptance now also requires selected catalog mappings, actual world draw tracks, and loaded portraits with preview mode disabled. Neither previous installer is the complete release candidate.
+
 The combined lane now includes the typing/focus repair through `50791280b`, merged as `97325c2fe`, and the subsequent trunk operational digest. Website deploy staging uses the same corrected runtime-art filter as the installer. `scripts/qa/installed-graphics.mjs` requires exact shell/sidecar/executable identities and enabled graphics before collecting visible frame timing, engine-health latency, panel responsiveness and render errors. Its receipt is measured evidence on this machine, not a cross-hardware performance guarantee.
 
 The first recovery build is `725664380009a5e609b77a0a44f2efaa9b942948`. It is an intermediate graphics verification artifact, not the final combined release. The final installer must be rebuilt after the combined-source gates and source lock.
