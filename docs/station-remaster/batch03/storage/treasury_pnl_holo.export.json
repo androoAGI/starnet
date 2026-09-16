@@ -1,0 +1,59 @@
+{
+  "id": "treasury_pnl_holo",
+  "status": "exported-awaiting-owner-live-review",
+  "source": "sources/treasury_pnl_holo.png",
+  "sourceSha256": "c949e216b38f6d66ed41794ea8a91b02521aa0f5f5a290120e224a308167e02b",
+  "sourceWidth": 1774,
+  "sourceHeight": 887,
+  "image": "treasury_pnl_holo.png",
+  "sourceOutputWidth": 1322,
+  "sourceOutputHeight": 471,
+  "crop": {
+    "left": 226,
+    "top": 205,
+    "width": 1322,
+    "height": 471
+  },
+  "channels": 4,
+  "transparentPixels": 117537,
+  "opaquePixels": 505125,
+  "partialPixels": 0,
+  "backgroundPixelsRemoved": 1068413,
+  "subjectRgbChanges": 0,
+  "outputSha256": "4f39007954e5ca081d9aa9f33991eb58988b3d2cc7230eff22b43fe0825a74b9",
+  "holeSeeds": [],
+  "maskMethod": "Connected saturated-magenta flood fill, including key-only enclosed components. Alpha-only edits; uniform crop; no RGB recolor.",
+  "view": "s",
+  "footprint": {
+    "w": 1,
+    "h": 1
+  },
+  "bounds": {
+    "x": 1,
+    "y": 5,
+    "width": 10,
+    "height": 5
+  },
+  "tilePixels": 12,
+  "contact": {
+    "x": 6,
+    "y": 10
+  },
+  "anchorContract": "No leisure seat anchor. Footprint is the placement/pathfinding rectangle; upright visual rise is independent of the reserved box.",
+  "originalLight": {
+    "c": [
+      120,
+      255,
+      180
+    ],
+    "r": 18,
+    "a": 0.12,
+    "m": "screen",
+    "y": 0.35
+  },
+  "originalAnimationTriggers": [
+    "Autonomous sprite clock animation is present in the sampled default state; cosmetic motion is not evidence of provider work, route decisions or external state."
+  ],
+  "artMode": "static complete art; existing state/lighting integration remains owner decision",
+  "liveIntegrated": false
+}

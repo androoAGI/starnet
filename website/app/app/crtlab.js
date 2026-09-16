@@ -26,6 +26,9 @@
      silhouette it is pinned to. Add a WALL knob, add it here. */
   const WALL_DEFAULTS = { up: 30, corUp: 30, skirt: 40, side: 7, capH: 4, sideCap: 5, hullLit: 0.70, hullVoid: 0.34 };
   const DEPTH_DEFAULTS = { wallShadow: 0.5, sheen: 0.14, cornerAO: 0.55, dither: 0.12, floorWear: 0.55, floorDetail: 1, deckSeam: 0.38, wallDetail: 1, poolAlbedo: 1, edgeAO: 1, southFoot: 0 };
+  if(new URLSearchParams(location.search).get('propSet')==='projection'){
+    Object.assign(WALL_DEFAULTS,{hullLit:.52,hullVoid:.24});Object.assign(LIGHT_DEFAULTS,{room:.60,pool:.96,reach:1.5});
+  }
   // TUBE APERTURE — the CSS glass vignette over the feed (app.css :root --tube-*). NOT the barrel warp:
   // `curve` bows the picture, these dim its outer band, and they move independently. Seeded from the live
   // custom properties at build time so opening the lab can never itself change the shipped look.
@@ -114,6 +117,7 @@
     label.style.cssText = 'flex:0 0 62px;font-size:11px;opacity:.85;';
     const input = document.createElement('input');
     input.type = 'range'; input.min = min; input.max = max; input.step = step;
+    input.setAttribute('aria-label',key);
     input.value = (target()[key] != null ? target()[key] : 0);
     input.style.cssText = 'flex:1;min-width:0;accent-color:#ffaa33;';
     const val = document.createElement('span');
@@ -257,7 +261,7 @@
 
     section(body, 'WALL HEIGHT (re-bakes)');
     sliders.push(buildSlider(body, wall, 'up', 0, 36, 1, scheduleRebake));      // room north face rise
-    sliders.push(buildSlider(body, wall, 'corUp', 0, 24, 1, scheduleRebake));   // corridor north face rise
+    sliders.push(buildSlider(body, wall, 'corUp', 0, 48, 1, scheduleRebake));   // include the shipped 30px corridor face without clamping the readout
     sliders.push(buildSlider(body, wall, 'skirt', 6, 44, 1, scheduleRebake));   // hull drop below the station
     sliders.push(buildSlider(body, wall, 'side', 4, 7, 1, scheduleRebake));     // e/w wall band width — 7 is the hull's own reach (`pad`); past it the wall juts out of the station silhouette
     sliders.push(buildSlider(body, wall, 'sideCap', 2, 6, 1, scheduleRebake));  // lit top surface of the e/w/s walls — the crown ring's width
@@ -267,6 +271,10 @@
     if (industrial()) {
       section(body, 'INDUSTRIAL MATERIAL LIGHT');
       sliders.push(buildSlider(body, industrial, 'fixtureTint', 0, .3, .01, scheduleRebake));
+      sliders.push(buildSlider(body, industrial, 'ambientLift', 0, .2, .01, scheduleRebake));
+      sliders.push(buildSlider(body, industrial, 'floorGain', .65, 1.2, .01, scheduleRebake));
+      sliders.push(buildSlider(body, industrial, 'wallGain', .65, 1.2, .01, scheduleRebake));
+      sliders.push(buildSlider(body, industrial, 'contact', 0, .6, .01, scheduleRebake));
     }
     section(body, 'PRESETS');
     const presetWrap = document.createElement('div');
@@ -304,7 +312,13 @@
 
   function ready() { return W() && W().crt && SB() && SB().LIGHT; }
   function boot(tries) {
-    if (ready()) { build(); return; }
+    if (ready()) {
+      build();
+      // Asset readiness applies the authored-material CRT profile asynchronously.
+      // Keep the sliders in sync with the same live values shown in the receipt.
+      if(typeof IndustrialTextures!=='undefined')IndustrialTextures.ready.then(()=>setTimeout(syncAll,0));
+      return;
+    }
     if (tries <= 0) { console.warn('[crtlab] World/StationBake not ready'); return; }
     setTimeout(() => boot(tries - 1), 200);
   }

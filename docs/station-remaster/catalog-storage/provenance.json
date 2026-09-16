@@ -1,0 +1,75 @@
+{
+  "version": 1,
+  "tool": "image_gen built-in",
+  "primaryProjectionReferences": [
+    {
+      "path": "frontend/assets/industrial/projection-correction/tv.png",
+      "sha256": "6e3e8c7a1b30b32df65141c957373e477b323c575202b4c0598443b47eb3d36c"
+    },
+    {
+      "path": "frontend/assets/industrial/projection-correction/arcade.png",
+      "sha256": "079391010c468d92355bfa220fbb59e9f12f5097a9ee22137f5b442ce84fff01"
+    },
+    {
+      "path": "frontend/assets/industrial/approved-sheet/crate.png",
+      "sha256": "a4c596600f4c1c0bf0c2f4df0892a9f0c49b074dd91079b5926b0fd27cd0ba16"
+    }
+  ],
+  "secondaryMaterialReference": {
+    "path": "frontend/assets/industrial/complete-sheet/starnet-props-full-sheet.png",
+    "sha256": "e68ef0d3711e9164a3aff5333b98522ed6fdcb4bc7654929e333cb2ff2b97ea9"
+  },
+  "sources": [
+    {
+      "source": "docs/station-remaster/catalog-storage/sheet-v1-source.png",
+      "sha256": "e74b7fd81b642c5f5e8432b6824fd714371c7760d9bc4a1b46f230c67d21ea63",
+      "prompt": "docs/station-remaster/catalog-storage/sheet-v1.prompt.txt",
+      "generatedOriginalPath": "C:/Users/andro/.codex/generated_images/01a09e47-65ec-7a71-b4a1-4847c19fc477/exec-88b182e9-47fe-4432-9862-2d5de574f3b6.png",
+      "selectedFor": [
+        "industrial_locker",
+        "rack"
+      ]
+    },
+    {
+      "source": "docs/station-remaster/catalog-storage/sheet-v2-source.png",
+      "sha256": "ec040667f18096b23ceb1f068ba68b37b7760185bb73ce22bbc067607179dcd8",
+      "prompt": "docs/station-remaster/catalog-storage/sheet-v2.prompt.txt",
+      "generatedOriginalPath": "C:/Users/andro/.codex/generated_images/01a09e47-65ec-7a71-b4a1-4847c19fc477/exec-9045f147-9b50-41a3-99f3-e478b8b608e8.png",
+      "selectedFor": [
+        "shelf",
+        "industrial_drawerbank",
+        "arc_indexwall",
+        "safe"
+      ]
+    },
+    {
+      "source": "docs/station-remaster/catalog-storage/bookshelf-source.png",
+      "sha256": "143f9ca94e3c94163c36af142877cce487fe105b5fb114dc5f853aac14ed7764",
+      "prompt": "docs/station-remaster/catalog-storage/bookshelf.prompt.txt",
+      "generatedOriginalPath": "C:/Users/andro/.codex/generated_images/01a09e47-65ec-7a71-b4a1-4847c19fc477/exec-a750bab1-9ca0-411a-baae-855ca4961833.png",
+      "selectedFor": [
+        "bookshelf"
+      ]
+    },
+    {
+      "source": "docs/station-remaster/catalog-storage/war_intelcab-source.png",
+      "sha256": "99fc341104cb5828bfc32bcacf797848816183efd42f84ec31bd0876814d8db0",
+      "prompt": "docs/station-remaster/catalog-storage/war_intelcab.prompt.txt",
+      "generatedOriginalPath": "C:/Users/andro/.codex/generated_images/01a09e47-65ec-7a71-b4a1-4847c19fc477/exec-5d38bfbf-cb73-4cb4-8509-f9cb16aa4235.png",
+      "selectedFor": []
+    },
+    {
+      "source": "docs/station-remaster/catalog-storage/war_intelcab-v2-source.png",
+      "sha256": "05eee954df3d34344b6aca38ee6e4bd910df09d4bfc7aa8c7bbb001b01476390",
+      "prompt": "docs/station-remaster/catalog-storage/war_intelcab-v2.prompt.txt",
+      "generatedOriginalPath": "C:/Users/andro/.codex/generated_images/01a09e47-65ec-7a71-b4a1-4847c19fc477/exec-514d13aa-bebe-4fb3-ba9c-2b00368e9ad5.png",
+      "selectedFor": [
+        "war_intelcab"
+      ]
+    }
+  ],
+  "sourceHistory": "Two authored sheets; bookshelf and intelligence cabinet then individually re-authored to correct measured silhouette proportions. Select first-sheet locker/rack to preserve clear gutters. All originals retained.",
+  "nativeGeometry": "Native structure guide PNGs referenced by manifest were absent at parent paths; audited exact native footprints/standing rectangles used. No procedural replacement art.",
+  "verification": "All sources visually inspected. Eight final PNGs compared bytewise at decoded pixels to respective source crops: zero RGB changes and zero retained-alpha changes. Alpha180 body radius3 fringe packaging. No opaque region-edge pixels. Game-size contact sheet inspected at1x/2x/4x native fit. No source stretched, no native bounds inflated.",
+  "runtimeAccepted": false
+}

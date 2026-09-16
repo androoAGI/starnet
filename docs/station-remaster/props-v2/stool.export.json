@@ -1,0 +1,15 @@
+{
+  "id": "stool",
+  "source": "C:/Users/andro/.codex/generated_images/01a09c6e-42f0-7c90-bc97-768d6754278f/exec-99c02854-07f2-4463-a4b9-20bac65e0d2e.png",
+  "sourceWidth": 1195,
+  "sourceHeight": 1316,
+  "crop": {
+    "left": 2,
+    "top": 3,
+    "width": 1192,
+    "height": 1308
+  },
+  "sourceAlpha": false,
+  "subjectRgbChanges": 0,
+  "output": "frontend/assets/industrial/props-v2/stool.png"
+}

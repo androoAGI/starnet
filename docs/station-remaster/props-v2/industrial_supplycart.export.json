@@ -1,0 +1,47 @@
+{
+  "id": "industrial_supplycart",
+  "source": "C:/Users/andro/.codex/generated_images/01a09c6e-ef28-70a0-bd8b-b60f1a9b9f92/exec-eb17742b-e55d-4823-8680-5d495fe41a7a.png",
+  "sourceWidth": 1226,
+  "sourceHeight": 1283,
+  "crop": {
+    "left": 2,
+    "top": 0,
+    "width": 1220,
+    "height": 1283
+  },
+  "sourceAlpha": false,
+  "subjectRgbChanges": 0,
+  "output": "frontend/assets/industrial/props-v2/industrial_supplycart.png",
+  "interiorMatte": {
+    "normalizedSeeds": [
+      [
+        0.5,
+        0.56
+      ]
+    ],
+    "pixels": 116675
+  },
+  "native": {
+    "key": "industrial_supplycart",
+    "r": 0,
+    "image": "industrial_supplycart.png",
+    "footprint": {
+      "w": 2,
+      "h": 1
+    },
+    "bounds": {
+      "x": 1,
+      "y": -11,
+      "width": 22,
+      "height": 23
+    },
+    "guide": "dev/.scratch-workspace/prop-structure/industrial_supplycart.png"
+  },
+  "aspectError": 0.005881102529582738,
+  "verification": {
+    "nativeDecode": true,
+    "retainedPixels": 1065312,
+    "transparentPixels": 499948,
+    "changedRgb": 0
+  }
+}

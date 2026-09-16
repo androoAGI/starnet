@@ -70,6 +70,7 @@ function fakeCtx(canvas) {
   const fillValue = () => state.globalCompositeOperation === 'destination-out' ? 0 : styleHash(state.fillStyle);
   const strokeValue = () => styleHash(state.strokeStyle);
   return {
+    canvas,
     get fillStyle() { return state.fillStyle; }, set fillStyle(v) { state.fillStyle = v; },
     get strokeStyle() { return state.strokeStyle; }, set strokeStyle(v) { state.strokeStyle = v; },
     get lineWidth() { return state.lineWidth; }, set lineWidth(v) { state.lineWidth = v; },
@@ -346,4 +347,115 @@ for (const n of [1, 2]) {
   }
 }
 StationBake.WALL.up=savedUp;StationBake.SHAPE.cornerN=savedN;
+
+// A complete bake must carry the same selected material and paint to the north
+// face, side strip and curved corners. Geometry remains owned by StationBake.
+global.WorldSurface = require('../frontend/app/worldsurface.js');
+function textureGeo(material, base) {
+  const TILE = 12, COLS = 27, ROWS = 27, zoneGrid = Array(COLS * ROWS).fill(null);
+  const idx = (x, y) => y * COLS + x, r = { z: 'r1', x1: 4, y1: 6, x2: 20, y2: 18 };
+  for (let y = r.y1; y <= r.y2; y++) for (let x = r.x1; x <= r.x2; x++) zoneGrid[idx(x, y)] = 'r1';
+  return { TILE, COLS, ROWS, W: COLS * TILE, H: ROWS * TILE, origin: { tx: -13, ty: -17 },
+    allRects: [r], zones: { r1: r }, ROOM_IDS: ['r1'], windows: [], doorDefs: [], zoneGrid, idx,
+    chamfers: [[r.x1, r.y1, 'tl'], [r.x2, r.y1, 'tr'], [r.x1, r.y2, 'bl'], [r.x2, r.y2, 'br']],
+    isCorridor: () => false, canStep: (x, y, nx, ny) => zoneGrid[idx(x, y)] === zoneGrid[idx(nx, ny)],
+    baseColorOf: () => '#30343a', wallBaseOf: () => base, wallMatOf: () => material,
+    nameOf: () => 'MATERIAL FIXTURE', kindOf: () => 'hab' };
+}
+const declinedGeo = textureGeo('panelled', '#476a91');
+const nativeTextureBase = StationBake.bake(declinedGeo).baseCv;
+const wallArtCalls = [], stripArtCalls = [], patchArtCalls = [], detailCanvases = [];
+let acceptStrip = false, denseStrip = false;
+global.IndustrialTextures = {
+  enabled: () => true, detailContext: ctx => { detailCanvases.push(ctx.canvas); return ctx; }, floor: () => false, shell: () => false,
+  shellPlate: () => false, drawBase: () => false,
+  wall(ctx, x, y, w, h, tx, material, base, opts) {
+    wallArtCalls.push({ material, base, opts, tx }); return false;
+  },
+  wallPatch(ctx, x, y, w, h, strip, map) { patchArtCalls.push({ x, y, w, h, ...map(x + w / 2, y + h / 2) }); },
+  wallStrip(h, material, base, opts) {
+    stripArtCalls.push({ material, base, opts, h });
+    if (!acceptStrip) return null;
+    const d = new Uint8ClampedArray(48 * h * 4), n = parseInt(base.slice(1), 16);
+    for (let i = 0; i < d.length; i += 4) { d[i] = n >>> 16; d[i + 1] = (n >>> 8) & 255; d[i + 2] = n & 255; d[i + 3] = 255; }
+    return { d, w: 48, h, x0: 0, ...(denseStrip ? { hi: {} } : {}) };
+  }
+};
+A.eq(pixelDiff(StationBake.bake(declinedGeo).baseCv, nativeTextureBase), 0,
+  'unavailable texture strip preserves the complete native bake and selected wall colour');
+acceptStrip = true;
+for (const mat of WorldSurface.WALLS) {
+  for (const color of ['#476a91', '#946747']) {
+    wallArtCalls.length = 0; stripArtCalls.length = 0;
+    const tg = textureGeo(mat, color), previousGrid = tg.zoneGrid.slice();
+    const result = StationBake.bake(tg);
+    A.ok(wallArtCalls.length > 0 && wallArtCalls.every(c => c.material === mat && c.base === color), mat + ' north face retains the selected paint');
+    A.ok(stripArtCalls.length > 4 && stripArtCalls.every(c => c.material === mat && c.base === color && c.opts.detail === StationBake.DEPTH.wallDetail), mat + ' side walls and all four corners request that same selected finish');
+    A.eq(tg.zoneGrid, previousGrid, mat + ' atlas selection never changes station geometry');
+    A.eq([result.W, result.H], [tg.W, tg.H], mat + ' atlas selection keeps station proportions');
+  }
+}
+for (const mat of ['viewport', 'wainscot', 'hedge']) {
+  stripArtCalls.length = 0; wallArtCalls.length = 0;
+  StationBake.bake(textureGeo(mat, '#476a91'));
+  A.eq(stripArtCalls.length, 0, mat + ' specialized corners are never replaced by the generic atlas');
+  A.eq(wallArtCalls.length, 0, mat + ' specialized straight faces keep their own native geometry');
+}
+
+// Signed physical coordinates must survive a west/north bounds expansion for
+// every projection of the wall, including fractional high-detail corner samples.
+global.IndustrialTextures.isRemaster = () => true;
+denseStrip = true;
+function movedTextureGeo(dx, dy) {
+  const g = textureGeo('bulkhead', '#476a91'), r = g.allRects[0];
+  g.origin.tx -= dx; g.origin.ty -= dy;
+  r.x1 += dx; r.x2 += dx; r.y1 += dy; r.y2 += dy;
+  g.zoneGrid.fill(null);
+  for (let y = r.y1; y <= r.y2; y++) for (let x = r.x1; x <= r.x2; x++) g.zoneGrid[g.idx(x, y)] = 'r1';
+  g.chamfers = [[r.x1, r.y1, 'tl'], [r.x2, r.y1, 'tr'], [r.x1, r.y2, 'bl'], [r.x2, r.y2, 'br']];
+  return g;
+}
+function wallAddresses(g) {
+  wallArtCalls.length = 0; patchArtCalls.length = 0;
+  StationBake.bake(g);
+  return { straight: wallArtCalls.map(c => c.tx), projected: patchArtCalls.map(c => ({
+    x: c.x + g.origin.tx * 12, y: c.y + g.origin.ty * 12, w: c.w, h: c.h,
+    a: Math.round(c.a * 1e6) / 1e6, d: Math.round(c.d * 1e6) / 1e6
+  })) };
+}
+const oldWallAddresses = wallAddresses(movedTextureGeo(0, 0));
+A.ok(oldWallAddresses.straight.some(x => x < 0), 'remaster north faces receive signed physical tile coordinates');
+A.ok(oldWallAddresses.projected.length > 100, 'side and all curved wall faces use the shared high-detail strip');
+A.ok(oldWallAddresses.projected.some(p => p.w < 1 || p.h < 1), 'remaster corner surface is sampled below the old whole-pixel grid');
+A.eq(wallAddresses(movedTextureGeo(3, 2)), oldWallAddresses, 'growing station bounds preserves every straight, side and corner texture address');
+
+// Door occluders keep their exact old depth/clip geometry, while capturing the
+// same high-detail plate used by the adjacent wall instead of a blurred copy.
+const doorGeo = textureGeo('bulkhead', '#476a91');
+const hall = { z: 'hall', x1: 10, x2: 12, y1: 2, y2: 5 };
+doorGeo.allRects.push(hall); doorGeo.zones.hall = hall;
+for (let y = hall.y1; y <= hall.y2; y++) for (let x = hall.x1; x <= hall.x2; x++) doorGeo.zoneGrid[doorGeo.idx(x, y)] = 'hall';
+doorGeo.isCorridor = z => z === 'hall';
+doorGeo.canStep = (x, y, nx, ny) => doorGeo.zoneGrid[doorGeo.idx(x, y)] != null && doorGeo.zoneGrid[doorGeo.idx(nx, ny)] != null;
+detailCanvases.length = 0;
+const revealCalls=[];
+global.IndustrialTextures.doorReturn=(ctx,...args)=>{revealCalls.push(args);return true;};
+const remasterDoors = StationBake.bake(doorGeo).doorOccluders;
+A.ok(revealCalls.length>0 && revealCalls.length%2===0,'authored doorway path paints paired reveals');
+for(let i=0;i<revealCalls.length;i+=2) {
+  const left=revealCalls[i],right=revealCalls[i+1];
+  A.eq(left.slice(1,4),right.slice(1,4),'paired jambs share height and splay');
+  A.ok(right[0]-left[0]-2*(left[3]+1)>=6,'authored jambs preserve an open centre');
+}
+
+A.ok(remasterDoors.length > 0, 'real corridor throat produces a depth-sorted door occluder');
+A.ok(remasterDoors.every(d => detailCanvases.includes(d.image)), 'each remaster door occluder captures the dense art plate');
+global.IndustrialTextures.isRemaster = () => false;
+const classicDoors = StationBake.bake(doorGeo).doorOccluders;
+const doorGeometry = d => ({ x: d.x, y: d.y, w: d.w, h: d.h, sortY: d.sortY });
+A.eq(remasterDoors.map(doorGeometry), classicDoors.map(doorGeometry), 'remaster preserves every door occluder footprint and depth anchor');
+
+delete global.IndustrialTextures;
+delete global.WorldSurface;
+
 A.report('stationbake.chunk');

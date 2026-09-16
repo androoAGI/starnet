@@ -1,0 +1,5 @@
+Exactly3 isolated corrected gameprops, one row of3, genuineRGBA transparentbackground andcleargutters. Preserve suppliedobjects design/material/rendering andfixedoverheadcamera, onlycorrectshapeproportions. Fullsilhouettes, nofloor/shadow/text.
+LEFT reference1 MUG: makecream/rustbandmugbody SHORTER by20% while keepingwidth/largevisibleopenrim/RIGHTC-handle. Completebodyincludinghandle width:height10:9=1.11, squatcoffeemug nottalltankard. No steam.
+MIDDLE reference2 RADIO: makedarkwoodradiocabinet22% TALLER withwidthunchanged, knobsandspeaker/dialscaleaccordingly. Entirewidth:height10:9=1.11, nearlysquare; topplane stillvisible, blackgrilleLEFT amberanalogdialRIGHT. Noantenna.
+RIGHT reference3 EASEL: WIDEN creamcanvas, timberframeandsplayedlegs by20% keepingheightunchanged. Wholeobject34:38=.895. Mastvisibleabove, brush/palette shelf, paintedbuststudy stayssimple. Overheadupperedgesvisible, no monitors or people.
+No newaccessories/designchanges. Broadpaintedplanes matchingrefs, noadditionalmicrotexture.

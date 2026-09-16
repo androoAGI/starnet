@@ -297,6 +297,14 @@ sampler.prepare(sampleFrame);
 A.eq(sampler.sample(65, 30).strength, 0, 'a sealed door never reuses illumination cached through the old opening');
 sampler.configure({ sampleCacheLimit: 0 }); sampler.prepare(sampleFrame); sampler.sample(35, 30);
 A.eq(sampler.stats().sampleCacheSize, 0, 'cache can be disabled for comparison without changing light evaluation');
+sampler.configure({ emission: 1 });sampler.prepare(sampleFrame);
+const preparedCount=sampler.stats().preparations;
+sampler.render(output);
+A.eq(sampler.stats().preparations,preparedCount,'composite reuses sources already prepared for the depth pass');
+sampler.configure({ emission: .4 });sampler.render(output);
+A.eq(sampler.stats().preparations,preparedCount+1,'configuration changes still refresh a previously prepared composite');
+sampler.render(output,sampleFrame);
+A.eq(sampler.stats().preparations,preparedCount+2,'explicit frame refresh remains supported');
 sampler.dispose();
 A.eq(sampler.stats().sampleCacheSize, 0, 'dispose releases all sample descriptors');
 

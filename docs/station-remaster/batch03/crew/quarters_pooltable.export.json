@@ -1,0 +1,70 @@
+{
+  "sourceAnimation": {
+    "idleFrameVariants": 8,
+    "workFrameVariants": 8,
+    "respondsToWorkFlag": false,
+    "opaqueBoundsRelativeToFootprint": {
+      "x": -1,
+      "y": -17,
+      "w": 50,
+      "h": 41,
+      "alphaThreshold": 160
+    }
+  },
+  "bounds": {
+    "y": -17,
+    "width": 50,
+    "height": 41,
+    "x": -1
+  },
+  "id": "quarters_pooltable",
+  "geometry": {
+    "blocks": true,
+    "flat": false,
+    "tableSurface": false,
+    "requiredMount": null,
+    "optionalSurfaceMount": false,
+    "surfaceRisePixels": 8
+  },
+  "floorContact": {
+    "x": 24,
+    "y": 24
+  },
+  "backgroundThreshold": 235,
+  "tilePixels": 12,
+  "status": "art-draft-integration-pending",
+  "view": "s",
+  "footprint": {
+    "w": 4,
+    "h": 2
+  },
+  "anchorContract": "PropAnchor derives reachable edge approach; useApproach rotates relative preference with r. Preserve standing leisure action unless special planner supplies a real body anchor.",
+  "holeSeeds": [
+    [
+      500,
+      790
+    ],
+    [
+      900,
+      790
+    ]
+  ],
+  "purpose": "Empty illustrated felt for live ball overlay; based on clean pool source",
+  "sourceWidth": 1386,
+  "sourceHeight": 1135,
+  "sourceSha256": "b9f7683323be6dc54127adf012b461b13fdf906a1ce0272d0d4361e77281bb5d",
+  "output": "frontend/assets/industrial/batch03/crew/quarters_pooltable.png",
+  "crop": {
+    "left": 57,
+    "top": 124,
+    "width": 1273,
+    "height": 846
+  },
+  "transparentPixels": 170205,
+  "opaquePixels": 906753,
+  "partialPixels": 0,
+  "backgroundPixelsRemoved": 666357,
+  "subjectRgbChanges": 0,
+  "outputSha256": "fe250fa2f9c97823de17754bc669e93113207540632a4040ba262c1ee5925f02",
+  "liveIntegrated": false
+}

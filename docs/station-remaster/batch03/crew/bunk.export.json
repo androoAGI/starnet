@@ -1,0 +1,60 @@
+{
+  "sourceAnimation": {
+    "idleFrameVariants": 1,
+    "workFrameVariants": 1,
+    "respondsToWorkFlag": false,
+    "opaqueBoundsRelativeToFootprint": {
+      "x": 0,
+      "y": -2,
+      "w": 24,
+      "h": 26,
+      "alphaThreshold": 160
+    }
+  },
+  "bounds": {
+    "y": -2,
+    "width": 24,
+    "height": 26,
+    "x": 0
+  },
+  "id": "bunk",
+  "geometry": {
+    "blocks": true,
+    "flat": false,
+    "tableSurface": false,
+    "requiredMount": null,
+    "optionalSurfaceMount": false,
+    "surfaceRisePixels": 8
+  },
+  "floorContact": {
+    "x": 12,
+    "y": 24
+  },
+  "backgroundThreshold": 235,
+  "tilePixels": 12,
+  "status": "art-draft-integration-pending",
+  "view": "s",
+  "footprint": {
+    "w": 2,
+    "h": 2
+  },
+  "anchorContract": "planBedSleep: separate mattress claim and lying pose; frame/pillow below body, quilt above.",
+  "holeSeeds": [],
+  "sourceWidth": 1204,
+  "sourceHeight": 1306,
+  "sourceSha256": "c36f3cdf879f5d38d6ea2b76bff66b713ce852b69815e4e868168c3467288977",
+  "output": "frontend/assets/industrial/batch03/crew/bunk.png",
+  "crop": {
+    "left": 39,
+    "top": 69,
+    "width": 1123,
+    "height": 1145
+  },
+  "transparentPixels": 196561,
+  "opaquePixels": 1089274,
+  "partialPixels": 0,
+  "backgroundPixelsRemoved": 483150,
+  "subjectRgbChanges": 0,
+  "outputSha256": "a5ad18bfb5ca8153b0b0b4f158355572092afdddf22dba041731ad4d9a1af59a",
+  "liveIntegrated": false
+}

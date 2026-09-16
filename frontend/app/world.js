@@ -35,6 +35,7 @@ const World = (() => {
   let routingNags = null;                        // [{x,y,w,h,label,warn}] in-world callouts mirroring the compiler's errors
   let feedState = { known: false, fed: true };   // server-proven "something feeds the intake" truth (channels/cron); fed=true until proven otherwise
   let feedNagOn = false;                         // a NO FEED nag is showing → the intake becomes clickable (→ CHANNELS)
+  let selectedRoutingTile = null;                // explicit canvas selection; full routing instructions never open on hover
 
   /* ---------- canvas + camera ---------- */
   let cv, ctx, raf = 0, last = 0, fnow = 0, running = false, ro = null, listenersBound = false;   // listenersBound: init() can run again per new agent — bind canvas/window/doc handlers + the SSE bridge ONCE
@@ -460,33 +461,43 @@ const World = (() => {
      `lastLeg` brakes into the FINAL stop only; intermediate waypoints are taken at pace so the body doesn't
      stutter at every corner. dx,dy = the vector it is stepping along, d = its length. */
   function stepGait(b, dx, dy, d, top, lastLeg, dt) {
-    if (b.faceA == null || b.dir !== b.faceDir) b.faceA = DIR_A[b.dir] != null ? DIR_A[b.dir] : Math.PI / 2;
-    const t = (typeof performance !== 'undefined' ? performance.now() : Date.now());
-    if (b.odo == null || t - (b.odoAt || 0) > 150) { b.odo = 0; b.spd = 0; }   // wasn't walking last frame → a NEW walk
-    b.odoAt = t;
-    const want = lastLeg ? Math.min(top, Math.sqrt(Math.max(0, d) * 2 * ACCEL)) : top;
-    const rate = ACCEL * dt / 1000, cur = b.spd || 0;
-    b.spd = cur < want ? Math.min(want, cur + rate) : Math.max(want, cur - rate);
-    const step = Math.min(d, b.spd * dt / 1000);
-    if (d > 1e-4) {
-      const turn = angNorm(Math.atan2(dy, dx) - b.faceA);
-      const s = dt / 1000, remain = Math.abs(turn);
-      // Angular ACCELERATION, not a flat rate — the same easing the linear speed gets above. A
-      // constant slew made a cornering body read as a turntable: it pivoted at a machine-perfect
-      // rate while its legs stood still. Brake term arrives at the heading at rest.
-      const target = Math.min(TURN_RATE, Math.sqrt(2 * TURN_ACCEL_A * remain));
-      const curW = b.angW || 0;
-      b.angW = curW < target ? Math.min(target, curW + TURN_ACCEL_A * s)
-                             : Math.max(target, curW - TURN_ACCEL_A * s);
-      const swept = Math.min(remain, b.angW * s);
-      b.faceA = angNorm(b.faceA + Math.sign(turn) * swept);
-      // The feet also travel when the body pivots — they sweep an arc about the stance centre. Adding
-      // that arc to the stride odometer keeps the legs cycling through a corner instead of freezing
-      // mid-stride while the sprite rotates, which is what made cornering look like sliding.
-      b.odo += step + swept * TURN_FOOT_R;
-    }
-    b.dir = b.faceDir = bucketDir(b.faceA, b.dir);
+    // Art height controls rendering, not travel speed: 19 px skins share the normal station pace.
+    const seconds=Math.max(0,Math.min(100,dt))/1000;
+    const accel=ACCEL;
+    if(b.faceA==null||b.dir!==b.faceDir)b.faceA=DIR_A[b.dir]??Math.PI/2;
+    const t=typeof performance!=='undefined'?performance.now():Date.now();
+    if(b.odo==null)b.odo=0;
+    if(t-(b.odoAt||0)>150)b.spd=0;
+    b.odoAt=t;
+    b._gaitStart ||= {x:b.px,y:b.py,odo:b.odo};b._strideBlocked=false;b._resolvedTravelHeading=null;
+    const heading=d>1e-4?Math.atan2(dy,dx):b.faceA;
+    const turn=angNorm(heading-b.faceA),remain=Math.abs(turn);
+    const target=Math.min(TURN_RATE,Math.sqrt(2*TURN_ACCEL_A*remain));
+    const curW=b.angW||0;
+    b.angW=curW<target?Math.min(target,curW+TURN_ACCEL_A*seconds):Math.max(target,curW-TURN_ACCEL_A*seconds);
+    b.faceA=angNorm(b.faceA+Math.sign(turn)*Math.min(remain,b.angW*seconds));
+    // Turn before travelling backwards. Gentle corners retain momentum; sharp turns plant first.
+    const error=Math.abs(angNorm(heading-b.faceA));
+    const alignment=error>=Math.PI/4?0:Math.cos(error*2)**2;
+    const want=(lastLeg?Math.min(top,Math.sqrt(Math.max(0,d)*2*accel)):top)*alignment;
+    const cur=b.spd||0,rate=accel*seconds;
+    b.spd=cur<want?Math.min(want,cur+rate):Math.max(want,cur-rate);
+    // Speed already eases with alignment. Applying it twice makes every corner drag.
+    const step=error>=Math.PI/4?0:Math.min(d,b.spd*seconds);
+    // Only translation advances the stride. Rotation used to add almost an entire fake cycle.
+    b.odo+=step;b._travelHeading=heading;b._travelStep=step;
+    b.dir=b.faceDir=bucketDir(b.faceA,b.dir);
     return step;
+  }
+
+  function finishGait(b){
+    const start=b._gaitStart;if(!start)return;b._gaitStart=null;
+    const dx=b.px-start.x,dy=b.py-start.y,distance=Math.hypot(dx,dy);
+    const forward=dx*Math.cos(b._travelHeading)+dy*Math.sin(b._travelHeading);
+    // Separation runs after movement. A blocked/shoved body plants instead of cycling forward in reverse.
+    b._strideBlocked=!(b._travelStep>0)||distance<.001||forward<=.001;
+    b.odo=start.odo+(b._strideBlocked?0:distance);
+    if(!b._strideBlocked)b._resolvedTravelHeading=Math.atan2(dy,dx);
   }
 
   /* ================= furniture (ported v7 sprites.js F.desk / F.chair) ================= */
@@ -885,6 +896,21 @@ const World = (() => {
     return computeOkFor(p.agentId);
   }
 
+  // Physical presence powers the remastered glass independently of backend work.
+  // An assigned agent walking, waiting or seated elsewhere must not wake this CRT.
+  function bodyAtWorkstationSeat(body, at) {
+    if (!body || body.unplaced || !body.sitting || body.state === 'walk' || body.target || !at) return false;
+    const foot = seatFoot(at);
+    return Number.isFinite(body.px) && Number.isFinite(body.py) &&
+      Math.hypot(body.px-foot.x, body.py-foot.y) <= 1;
+  }
+  function workstationOccupied(p) {
+    if (!p.agentId || !isWorkstationProp(p.t)) return false;
+    const body = agent && p.agentId === agent.id ? agent : crew.find(b => b.agentId === p.agentId);
+    const home = deskPropFor(p.agentId);
+    return !!(home && home.id === p.id && bodyAtWorkstationSeat(body, deskSeat(p)));
+  }
+
   // the workstation: the hero's ASSIGNED desk if it placed one, else a 2-wide desk on the spawn room's north wall.
   function placeDesk() {
     blocked = new Set();
@@ -893,7 +919,7 @@ const World = (() => {
     //    Uses the SAME desk+seat resolver as crew (deskPropFor/deskSeat) so the hero & crew seat identically.
     const home = agent && deskPropFor(agent.id), hs = home && deskSeat(home);
     if (home && hs) {
-      desk = { tx: home.x, ty: home.y, w: home.w || 1, h: home.h || 1 }; seat = { tx: hs.tx, ty: hs.ty, cx: hs.cx };
+      desk = { tx: home.x, ty: home.y, w: home.w || 1, h: home.h || 1 }; seat = { tx: hs.tx, ty: hs.ty, cx: hs.cx, cy: hs.cy, face: hs.face };
       deskPropId = home.id; deskFace = hs.face;
       for (let dx = 0; dx < (desk.w || 1); dx++) for (let dy = 0; dy < (desk.h || 1); dy++) blocked.add((desk.tx + dx) + ',' + (desk.ty + dy));
       return;   // the placed prop + its chair are drawn by the render loop (skip the synthetic desk/chair)
@@ -907,6 +933,20 @@ const World = (() => {
     desk = { tx: dtx, ty: dty, w: 2, h: 1 };
     seat = { tx: dtx, ty: Math.min(dty + 1, z.y2), cx: dtx + 0.5 };   // 2-wide desk -> centre sits on the tile seam
     blocked.add(dtx + ',' + dty); blocked.add((dtx + 1) + ',' + dty);
+  }
+  // Artwork readiness changes the available desk front, not station geometry. Refresh
+  // the hero's cached seat without rederiving the floor or interrupting unrelated trips.
+  function refreshWorkstationSeats() {
+    if (!geo || !station) return;
+    const previous = seat;
+    placeDesk();
+    const same = previous === seat || (previous && seat
+      && ['tx', 'ty', 'cx', 'cy', 'face'].every(k => previous[k] === seat[k]));
+    if (!agent || agent.goal !== 'work' || same) return;
+    // The old chair may already have been reached while images were loading. Leave
+    // the body where it is and let the existing work loop walk to the new front.
+    agent.pathPts = null; agent.target = null; agent.sitting = false;
+    agent.state = 'idle'; agent.workRetryAt = 0;
   }
   // walk the hero to its work seat (wait in place if unreachable) + enter the 'work' goal — the shared "now sit
   // and work" step, reached EITHER straight from on-duty OR after the conveyor-fetch leg below.
@@ -1222,7 +1262,9 @@ const World = (() => {
     } catch (e) {}
     if (typeof IndustrialTextures !== 'undefined') IndustrialTextures.ready.then(() => {
       if (IndustrialTextures.enabled()) {
-        Object.assign(CRT, { scan: .05, grain: .07, dust: .10, film: .12, curve: .02 });
+        // Keep the shipped v0.11.2 PHOSPHOR treatment for these PNG props too.
+        // Asset readiness must not reduce static, film, scanlines or curvature.
+        refreshWorkstationSeats();
         bakeDirty = true; redrawNow();
       }
     });
@@ -1328,6 +1370,8 @@ const World = (() => {
       if (wasDrag) return;
       const wp = toWorld(ev);
       if (!wp) return;
+      const selectedNag = (routingNags || []).find(n => wp.x >= n.x * T && wp.x < (n.x + n.w) * T && wp.y >= n.y * T - 10 && wp.y < (n.y + n.h) * T + 2);
+      selectedRoutingTile = selectedNag ? selectedNag.x + ',' + selectedNag.y : null;
       // Every body that raises the agent hover nameplate is also a real dossier target. Pass its stable
       // roster id through the click seam so a specialist opens ITS dossier instead of falling through or
       // reusing the Overseer's index. The greeting remains hero-only: crew clicks open a panel, not a hero line.
@@ -1651,6 +1695,23 @@ const World = (() => {
     scale = clampz(Math.min(cv.width / W, cv.height / H), MINZ, MAXZ);
     panX = (cv.width - W * scale) / 2; panY = (cv.height - H * scale) / 2;
     fitW = cv.width; fitH = cv.height;   // remember the size this fit framed — resize() treats a degenerate-size fit as "never fit"
+  }
+  // Room framing for the local composition review; no simulation/geometry edit.
+  function frameReviewRoom(id){
+    if(!cache||!geo||!station||!cv)return false;
+    const room=id&&station.serialize().rooms[id];
+    if(id&&!room)return false;
+    camLock=null;camLerp=null;camUserAt=performance.now();
+    if(!room){fitCamera();scale=Math.min(scale*.90,cv.height*.76/cache.H);panX=(cv.width-cache.W*scale)/2;panY=cv.height*.57-cache.H*scale/2;}
+    else{
+      const r=room.rects,x1=Math.min(...r.map(v=>v.x1)),x2=Math.max(...r.map(v=>v.x2))+1;
+      const y1=Math.min(...r.map(v=>v.y1)),y2=Math.max(...r.map(v=>v.y2))+1;
+      const left=(x1-geo.origin.tx)*T-10,top=(y1-geo.origin.ty)*T-StationBake.WALL.up-8;
+      const w=(x2-x1)*T+20,h=(y2-y1)*T+StationBake.WALL.up+StationBake.WALL.skirt+16;
+      scale=clampz(Math.min(cv.width*.86/w,cv.height*.72/h),MINZ,MAXZ);
+      panX=cv.width/2-(left+w/2)*scale;panY=cv.height*.56-(top+h/2)*scale;
+    }
+    return true;
   }
   function toCanvas(ev) {
     const r = cv.getBoundingClientRect();
@@ -2457,8 +2518,9 @@ const World = (() => {
      unturned prop (r absent) resolves byte-identically to the pre-rotation behaviour. */
   function useApproach(use, p) {
     const want = (use && use.approach) || 'south';
-    if (want === 'auto' || !p || !p.r) return want;
-    return PropAnchor.turnSide ? PropAnchor.turnSide(want, p.r) : want;
+    if (want === 'auto' || !p) return want;
+    const face=p.r&&PropAnchor.turnSide?PropAnchor.turnSide(want,p.r):want;
+    return p.m?(face==='west'?'east':face==='east'?'west':face):face;
   }
   // FLOOR DECAL? (catalog `flat` — rug / cable run / hazard pad). Deck paint with zero rise: it renders
   // in its own pass UNDER every body and prop, because a decal y-sorted with the bodies buries whoever
@@ -2495,26 +2557,38 @@ const World = (() => {
     for (const p of geo.props) if (p.agentId === aid && isWorkstationProp(p.t)) return p;
     return null;
   }
-  // the chair tile in front of a workstation: the south-front approach tile (PropAnchor falls back to other
-  // sides if the front is walled), facing INTO the desk — mirrors the hero's seat one row below its desk.
+  // Remastered desk views carry a real front. Legacy and unavailable views keep the
+  // south-facing seat contract, even when a save retains a remaster-mode rotation.
   function deskSeat(prop) {
     if (typeof PropAnchor === 'undefined' || !geo || !prop) return null;
-    const a = PropAnchor.deriveAnchor(prop, geo, { approach: 'south', sit: true, extra: blocked });
-    // `cx` = the FRACTIONAL tile x that centres a 1-tile chair on the desk. PropAnchor picks the nearest
-    // walkable WHOLE tile (pathing needs one), but an even-width desk's centre line falls on a tile
-    // boundary — a 2-wide desk seated at either tile sits 6px off-centre, which is exactly the "chair is
-    // stuck on the left" report. Only the RENDER + the final foot snap use cx; the walk target stays tx.
-    return a ? { tx: a.tx, ty: a.ty, face: a.face, cx: seatCx(prop, a.tx) } : null;
+    const r = (prop.r | 0) & 3;
+    const remaster = typeof IndustrialTextures !== 'undefined' && IndustrialTextures.isRemaster && IndustrialTextures.isRemaster();
+    const turned = remaster && (prop.t === 'desk' || prop.t === 'desk2') && typeof PropSprites !== 'undefined'
+      && PropSprites.facings && PropSprites.facings(prop.t).includes(r);
+    const effective = !turned && r ? Object.assign({}, prop, { r: 0 }) : prop;
+    const a = PropAnchor.deriveAnchor(effective, geo, { approach: turned ? 'front' : 'south', sit: true, extra: blocked });
+    if (!a) return null;
+    const s = { tx: a.tx, ty: a.ty, face: a.face, cx: seatCx(prop, a.tx) };
+    if (turned && (a.face === 'east' || a.face === 'west')) {
+      s.cx = a.tx;
+      s.cy = seatCy(prop, a.ty);
+    }
+    return s;
   }
-  // centre a 1-wide seat under a prop, but never drift further than one tile from the walkable anchor
-  // (a desk whose middle is walled off keeps its chair at the tile the body can actually reach).
+  // Fractional centres are render/foot anchors only; pathfinding keeps the actual
+  // walkable tile. Never centre more than half a tile away from that safe anchor.
   function seatCx(prop, tx) {
     const c = prop.x + ((prop.w || 1) / 2) - 0.5;
     return Math.abs(c - tx) <= 0.5 ? c : tx;
   }
-  // where a seated body's foot lands: the seat's centred x, its tile's y. A function declaration (not a
-  // const) because callers above this line run before it in source order.
-  function seatFoot(s) { return { x: ((s.cx == null ? s.tx : s.cx) + 0.5) * T, y: s.ty * T + T - 1 }; }
+  function seatCy(prop, ty) {
+    const c = prop.y + ((prop.h || 1) / 2) - 0.5;
+    return Math.abs(c - ty) <= 0.5 ? c : ty;
+  }
+  function seatFoot(s) {
+    return { x: ((s.cx == null ? s.tx : s.cx) + 0.5) * T,
+      y: (s.cy == null ? s.ty : s.cy) * T + T - 1 };
+  }
 
   /* ---------- capability-prop resolution (G0.1: which prop does a firing tool light?) ----------
      geo.props are in the bake's LOCAL frame; station.roomAt speaks WORLD tiles — geo.origin bridges them. */
@@ -2564,7 +2638,7 @@ const World = (() => {
   function releaseSeat() {
     if (!self) return;
     if (self.seatKey) occupiedSeats.delete(self.seatKey);
-    self.seatKey = null; self.seated = false; self.pendSeat = null; self.barJoinUntil = 0; self.seatLift = 0;
+    self.seatKey = null; self.seated = false; self.pendSeat = null; self.barJoinUntil = 0; self.seatLift = 0;self.seatBehindBack=false;
     self.lying = false;   // out of the seat is out of the BED: the covers pose dies with the claim
   }
   /* on arrival, snap the render position onto the claimed stool/chair/couch/bed anchor (logical pos stays
@@ -2573,8 +2647,8 @@ const World = (() => {
      the first arrival, so a second arrive() for the same goal (the engine can re-run it; the dev harness
      does) would otherwise stand a sleeper up out of a mattress it still holds the claim to. */
   function takeSeat() {
-    if (self.seatKey && self.pendSeat) { self.seated = true; self.seatPx = self.pendSeat.px; self.seatPy = self.pendSeat.py; self.seatLift = self.pendSeat.lift || 0; self.pendSeat = null; }
-    else if (!(self.lying && self.seatKey)) { self.seated = false; self.seatLift = 0; }
+    if (self.seatKey && self.pendSeat) { self.seated = true; self.seatPx = self.pendSeat.px; self.seatPy = self.pendSeat.py; self.seatLift = self.pendSeat.lift || 0;self.seatBehindBack=!!self.pendSeat.behindBack; self.pendSeat = null; }
+    else if (!(self.lying && self.seatKey)) { self.seated = false; self.seatLift = 0;self.seatBehindBack=false; }
   }
   /* B2: drop ANY body's idle/leisure latch (couch cushion claim + the engine goal bookkeeping) when a task SEIZES
      it — the crew analogue of the hero summon-seize's releaseSeat()+goal-clear (tick ~1614). Without this, a crew
@@ -2584,7 +2658,7 @@ const World = (() => {
   function seizeFromIdle(b) {
     if (!b) return;
     if (b.seatKey) occupiedSeats.delete(b.seatKey);
-    b.seatKey = null; b.seated = false; b.pendSeat = null; b.barJoinUntil = 0; b.seatLift = 0; b.lying = false;   // seized out of bed too
+    b.seatKey = null; b.seated = false; b.pendSeat = null; b.barJoinUntil = 0; b.seatLift = 0;b.seatBehindBack=false; b.lying = false;   // seized out of bed too
     b.goal = null; b.usingProp = null; b.watchProp = null; b.studyKey = null; b.quirkKind = null; b.stilling = false;
     b.useBeat = null; setTalking(b, false);   // a seized body is not mid-leisure and is not talking to anyone
     b.pauseUntil = 0; b.pauseLook = null; b.idleUntil = 0;
@@ -2639,7 +2713,15 @@ const World = (() => {
               the sit frame's OWN bottom padding — so all 36 skins land on the cushion. 2px, the
               chair's value, because the cushion sits barely above the near arm's crown. */
   const SIDE_SEAT = { recliner: { face: 'west', dx: -2, lift: 2 }, recliner_r: { face: 'east', dx: 2, lift: 2 } };
-  const sideSeat = p => (p && SIDE_SEAT[p.t]) || null;
+  const sideSeat = p => {
+    if(p?.t==='booth' && ((p.r|0)&1)) {
+      const face=PropAnchor.frontOf(p);
+      return {face,dx:face==='west'?-2:2,lift:2};
+    }
+    const side=p&&SIDE_SEAT[p.t];
+    if(!side)return null;
+    return p.m ? {...side,face:side.face==='west'?'east':'west',dx:-side.dx} : side;
+  };
   function planCouchSit(now, couch, tvId, faceDir, zone) {
     /* STALE-CLAIM RULE: drop whatever seat this body still holds BEFORE claiming a new one. Committing to a
        new destination means it is leaving the old seat regardless, and an inherited `pendSeat` is worse than
@@ -2649,14 +2731,15 @@ const World = (() => {
        decision, which only runs when the body is free to move. */
     releaseSeat();
     const w = couch.w || 1, h = couch.h || 1;
-    const lo = w >= 3 ? 1 : 0, hi = w >= 3 ? w - 2 : w - 1;   // skip an arm tile each end when wide
+    const vertical = !!((couch.r | 0) & 1), span = vertical ? h : w;
+    const lo = span >= 3 ? 1 : 0, hi = span >= 3 ? span - 2 : span - 1;   // skip an arm tile each end when wide
     const slots = [];
     for (let i = lo; i <= hi; i++) if (!occupiedSeats.has(couch.id + ':' + i)) slots.push(i);
     if (!slots.length) return false;                          // couch full → caller tries another couch
     const order = U.irnd(0, slots.length - 1);                // vary which cushion is taken
     for (let k = 0; k < slots.length; k++) {
       const slot = slots[(order + k) % slots.length];
-      const sx = couch.x + slot, sy = couch.y;                // the couch tile the agent will sit on
+      const sx = couch.x + (vertical ? 0 : slot), sy = couch.y + (vertical ? slot : 0);                // the couch tile the agent will sit on
       if (!tileInZone(zone, sx, sy)) continue;                // P1: the cushion the body RENDERS on must be in-zone (a wide couch can straddle a wall)
       for (const [dx, dy] of SEAT_NB) {
         const ax = sx + dx, ay = sy + dy;
@@ -2665,9 +2748,10 @@ const World = (() => {
         if (!setPathTo({ x: ax, y: ay })) continue;
         occupiedSeats.add(couch.id + ':' + slot); self.seatKey = couch.id + ':' + slot;
         const side = sideSeat(couch);
-        self.pendSeat = { px: (sx + 0.5) * T + (side ? side.dx : 0), py: (couch.y + h) * T - 2, lift: side ? side.lift : 0 };   // render foot at the cushion front
+        const authoredLift=typeof PropRemaster!=='undefined'&&PropRemaster.enabled(couch.t)?PropRemaster.viewGeometry(couch.t,['s','w','n','e'][(couch.r|0)&3])?.spec.seatLift:0;
+        self.pendSeat = { px: (sx + 0.5) * T + (side ? side.dx : 0), py: (vertical ? sy + 1 : couch.y + h) * T - 2, lift: side ? side.lift : (Number.isFinite(authoredLift)?authoredLift:0),behindBack:!side&&authoredLift>0 };   // floor/sort anchor stays at the cushion front
         self.goal = tvId ? 'lounge' : 'use'; self.usingProp = couch.id; self.watchProp = tvId || null;
-        self.useSit = true; self.useFace = side ? side.face : (faceDir || 'south');   // a profile chair points ONE way — see SIDE_SEAT
+        self.useSit = true; self.useFace = side ? side.face : (couch.r && PropAnchor.frontOf ? PropAnchor.frontOf(couch) : (faceDir || 'south'));   // a profile chair points ONE way — see SIDE_SEAT
         if (!self.target) arrive(now);                       // already adjacent → settle immediately
         return true;
       }
@@ -5230,11 +5314,11 @@ const World = (() => {
     const p = geo.props.find(q => q.id === b.usingProp);
     return (p && (propUse(p) || {}).kind === 'bed') ? p : null;
   }
-  function planBedSleep(now) {
+  function planBedSleep(now, reviewBedId = null, reviewZone = null) {
     if (!geo || !geo.props || !geo.props.length) return false;
     releaseSeat();                                             // STALE-CLAIM RULE (see planCouchSit)
-    const zone = zoneFor(self);
-    const beds = geo.props.filter(p => { const u = propUse(p); return u && u.kind === 'bed'; });
+    const zone = reviewZone || zoneFor(self);
+    const beds = geo.props.filter(p => { const u = propUse(p); return u && u.kind === 'bed' && (!reviewBedId || p.id===reviewBedId); });
     if (!beds.length) return false;
     const order = U.irnd(0, beds.length - 1);
     for (let k = 0; k < beds.length; k++) {
@@ -5619,6 +5703,7 @@ const World = (() => {
   function curiositySay() { /* silenced by design — the stillness is the point */ }
 
   function tick(dt, now) {
+    for(const body of [agent,...crew].filter(Boolean)){body._gaitStart={x:body.px,y:body.py,odo:body.odo||0};body._travelStep=0;body._resolvedTravelHeading=null;}
     if (!agent || agent.unplaced || !geo || awakeFrozen) return;   // frozen during the awakening: the newborn holds still, facing the Commander
     self = agent;                                                  // B1: the hero tick runs with self===agent (engine core reads the current body via self) — byte-identical hero path
     if (!agent.lastTaskAt) agent.lastTaskAt = now;                 // anchor downtime at the first live tick
@@ -5787,6 +5872,7 @@ const World = (() => {
     // both committed this frame's positions — resolve any pair that ended up inside each other. Position
     // is the ONLY thing it touches, so it can't reorder or pre-empt a single decision made above it.
     separateBodies(now);
+    if(agent)finishGait(agent);for(const body of crew)finishGait(body);
   }
 
   /* ---------- render ----------
@@ -5814,8 +5900,10 @@ const World = (() => {
     if (typeof SpaceBG !== 'undefined') SpaceBG.draw(ctx, cv.width, cv.height, now, cam);
     else { ctx.fillStyle = '#040302'; ctx.fillRect(0, 0, cv.width, cv.height); }
   }
+  const reviewPerformance = { enabled:false, samples:[] };
   function frame(now) {
     if (running) raf = requestAnimationFrame(frame);   // schedule next frame FIRST — a throw below can't kill the loop
+    const reviewStart=reviewPerformance.enabled?performance.now():0;
     try {
       frameBody(now);
       if (renderFaults) { renderFaults = 0; lastFaultMsg = ''; }   // a clean frame clears the fault state
@@ -5824,6 +5912,8 @@ const World = (() => {
       const msg = (e && e.message) || String(e);
       if (msg !== lastFaultMsg) { lastFaultMsg = msg; try { console.error('[world] render frame threw (x' + renderFaults + '):', e); } catch (_) {} }
       if (renderFaults >= RENDER_FAULT_LIMIT) { try { drawRenderFault(); } catch (_) {} }
+    } finally {
+      if(reviewPerformance.enabled && reviewPerformance.samples.length<3600)reviewPerformance.samples.push({t:now,ms:performance.now()-reviewStart});
     }
   }
 
@@ -5855,6 +5945,12 @@ const World = (() => {
       (y+h+pad)*scale+panY>=0 && (y-pad)*scale+panY<=cv.height;
   }
 
+  // Door occluders share the base material's detail plate, then re-enter the
+  // same painter order. The original canvas remains the geometry/fallback source.
+  function drawDoorSurface(ctx, d) {
+    if (!(typeof IndustrialTextures !== 'undefined' && typeof IndustrialTextures.drawBase === 'function'
+      && IndustrialTextures.drawBase(ctx, d.image, d.x, d.y))) ctx.drawImage(d.image, d.x, d.y);
+  }
   function drawLitProp(p, work, live) {
     PropSprites.draw(p, work, live);
     if (!sceneRenderer || !PropSprites.canLightResponse || !PropSprites.canLightResponse(p)) return;
@@ -6020,6 +6116,15 @@ const World = (() => {
     // placeable props (furniture) — drawn over the bake, y-sorted with agents, under the lightmap
     if (geo && geo.props && geo.props.length && typeof PropSprites !== 'undefined') {
       PropSprites.setCtx(ctx); PropSprites.setNow(now);
+      if(PropSprites.setSurfaceLayout)PropSprites.setSurfaceLayout(geo.props);
+      const leisureProps = new Set();
+      for (const body of [agent, ...crew]) if (body) { if (body.usingProp) leisureProps.add(body.usingProp); if (body.watchProp) leisureProps.add(body.watchProp); }
+      // Scan only a real transport item occupying a filter's tile. Ghost/tutorial
+      // projections and agent work elsewhere cannot make the optical reader scan.
+      const scanningTiles = new Set();
+      if (convey && convey.peekBoxes && typeof PropRemaster !== 'undefined' && PropRemaster.enabled('filter')) {
+        for (const box of convey.peekBoxes()) if (!(box.sink > 0)) scanningTiles.add(box.x + ':' + box.y);
+      }
       if (PropSprites.setOutboxCrates) PropSprites.setOutboxCrates(returnCrates());   // G2.3: uncollected while-away work stacks on the chute
       if (PropSprites.setMissionPins) { const mp = missionPinCounts(now); PropSprites.setMissionPins(mp[0], mp[1], mp[2], mp[3]); maybePinProposal(now, mp[3]); }   // G1b/G1c: open quests pin to the MISSION BOARD; a station-gap keeps it breathing; a jammed routine flags an amber JAM stub; G4: pending proposals + the walk-and-pin body
       if (PropSprites.setTrophyCount) PropSprites.setTrophyCount(trophyCount(now));   // G3b: earned trophies stand behind glass in the TROPHY CASE
@@ -6037,11 +6142,15 @@ const World = (() => {
         // and everything else — props, crates, bodies — is drawn ON them. Decals carry no seat/mount/live
         // state (no `use` row, nothing stands on them), so this branch skips work the decal cannot use.
         if (isFlatProp(p.t)) { decals.push(p); continue; }
-        const work = (p.t === 'outbox' && outboxLit) || (p.t === 'bay' && bayLit(p, now)) || workstationLit(p) || !!(agent && (agent.usingProp === p.id || agent.watchProp === p.id));
+        const work = (p.t === 'outbox' && outboxLit) || (p.t === 'bay' && bayLit(p, now)) || workstationLit(p) || leisureProps.has(p.id);
         // G0.2/G0.3 live desk truth: a LIT assigned workstation carries its agent's real activity heat
         // (token/tool-driven, heatFor) + a task-progress fraction ONLY when a real one was published
         // (deskProgFor — a live harness run has none and renders none).
-        const live = (p.agentId && workstationLit(p)) ? { heat: heatFor(p.agentId), prog: deskProgFor(p.agentId) } : null;
+        let live = (p.agentId && workstationLit(p)) ? { heat: heatFor(p.agentId), prog: deskProgFor(p.agentId) } : null;
+        if (isWorkstationProp(p.t)) live = Object.assign({ heat: 0, prog: null }, live, {
+          occupied: workstationOccupied(p), still: reduceMotion()
+        });
+        if (p.t === 'filter') live = Object.assign({}, live, { scanning: scanningTiles.has(p.x + ':' + p.y), still: reduceMotion() });
         // A stool/chair sorts just BEHIND its sitter; a couch sorts just IN FRONT so the tall sofa back
         // occludes the sitter's lower body. Beds/beanbags never set `seated` and never enter this branch.
         // A BODY IS IN THIS BED (lyingBed): the bed paints in TWO passes around it — frame + pillow under
@@ -6062,10 +6171,12 @@ const World = (() => {
         // table while the table is actually under it. Reclaim the table and the prop drops back to the
         // deck instead of floating — which is why no saved station ever needs migrating for this.
         const mounted = (station && station.mountOf) ? station.mountOf(p) : null;
-        // a table-top object must draw AFTER its table: both occupy the same tiles, so their sort keys are
-        // equal and array order would decide it — which is whichever the player happened to place first
-        if (mounted === 'surface') sy += 0.5;
         let dp = mounted ? Object.assign({}, p, { mount: mounted }) : p;
+        // A far-row child on a deep table must sort after the WHOLE host, not just its own row.
+        if (mounted === 'surface') {
+          const placement = PropSprites.surfacePlacement ? PropSprites.surfacePlacement(dp) : null;
+          sy = placement && placement.authored && Number.isFinite(placement.sortY) ? placement.sortY : sy + 0.5;
+        }
         // a bound BAY's gantry plate carries its agent's NAME, resolved live from the body roster each
         // frame (never persisted — the doc keeps only agentId, so renames and reassignment stay truthful)
         if (p.t === 'bay' && p.agentId) {
@@ -6078,7 +6189,7 @@ const World = (() => {
         if (sleeper) dp = Object.assign(dp === p ? Object.assign({}, p) : dp, { sleeper: true });
         items.push({ y: sy, draw: () => { if (propOnScreen(dp)) drawLitProp(dp, work, live); } });
         if (PropSprites.lightOf) {
-          const lt = PropSprites.lightOf(dp, work, reduceMotion());
+          const lt = PropSprites.lightOf(dp, work, reduceMotion(), live);
           if (lt) propLights.push(Object.assign({}, lt, { originX: (p.x + (p.w || 1) / 2) * T, originY: (p.y + (p.h || 1) / 2) * T }));
         }
         // SEAT-FRONT SLIVER: a stool/chair's pad front rim redraws just IN FRONT of its (lifted) sitter,
@@ -6094,15 +6205,16 @@ const World = (() => {
         // `sleeper` read as the base pass, so the quilt is never held back with nobody under it.
         if (sleeper && PropSprites.drawOver) items.push({ y: sy + 0.75, draw: () => PropSprites.drawOver(dp) });
         // an ASSIGNED workstation is the hero's desk with another name: give it the same chair, in front,
-        // y-sorted exactly like the hero's (one row below the desk) so its agent reads as sitting IN it. Scoped
+        // y-sorted at the same fractional anchor as its agent so the body sits in it. Scoped
         // to assigned PCs so a decorative/unmanned console keeps its existing look and the chair only ever
         // appears where an agent will actually sit (chair + sitter stay in lockstep — see stepCrewToSeat).
-        if (p.agentId && isWorkstationProp(p.t)) { const s = deskSeat(p); if (s) items.push({ y: (s.ty + 1) * T, draw: () => drawSeatChair(s.tx, s.ty, s.cx) }); }
+        const embeddedSeat=typeof PropRemaster!=='undefined'&&PropRemaster.viewGeometry(p.t,['s','w','n','e'][(p.r|0)&3])?.spec.embeddedSeat;
+        if (p.agentId && isWorkstationProp(p.t) && !embeddedSeat) { const s = deskSeat(p); if (s) items.push({ y: seatFoot(s).y + 1, draw: () => drawSeatChair(s.tx, s.ty, s.cx, s.cy, s.face) }); }
       }
     }
     // one chair art everywhere: seats route through the canonical prop renderer (old F_chair = fallback)
-    function drawSeatChair(tx, ty, cx) {
-      const sx = (cx == null ? tx : cx);   // fractional x centres the chair on an even-width desk
+    function drawSeatChair(tx, ty, cx, cy, face) {
+      const sx = (cx == null ? tx : cx), sy = (cy == null ? ty : cy);
       /* A WORKSTATION SEAT USES ITS OWN ART. 'seatchair' is the glow-up chair; it is not in the CATALOG,
          so the PLACEABLE chair prop keeps its shipped art. Falls back to 'chair' if absent, which is what
          every station saved before this existed still renders. */
@@ -6110,24 +6222,30 @@ const World = (() => {
                   : (typeof PropSprites !== 'undefined' && PropSprites.has('chair')) ? 'chair' : null;
       if (seatT) {
         PropSprites.setCtx(ctx); PropSprites.setNow(now);
-        drawLitProp({ t: seatT, x: sx, y: ty, w: 1, h: 1 }, false);
-      } else F_chair(sx * T, ty * T);
+        const chair = { t: seatT, x: sx, y: sy, w: 1, h: 1 };
+        if (typeof IndustrialTextures !== 'undefined' && IndustrialTextures.isRemaster && IndustrialTextures.isRemaster()) {
+          const r = { south: 0, west: 1, north: 2, east: 3 }[face || 'north'];
+          if (r != null) chair.r = r;
+        }
+        drawLitProp(chair, false);
+      } else F_chair(sx * T, sy * T);
     }
     if (desk && !deskPropId) items.push({ y: (desk.ty + desk.h) * T, draw: () => {   // skip the synthetic desk when a PLACED workstation prop is the hero's desk (the prop draws itself)
       // one desk art everywhere: the synthetic auto-desk routes through the canonical prop renderer,
       // carrying the truthful G0.2/G0.3 live data (heat + published progress) into the prop desk
       const work = !!(agent && agent.working);
-      const live = work ? { heat: heatFor(agent.id), prog: deskProgFor(agent.id) } : null;
+      const live = { heat: work ? heatFor(agent.id) : 0, prog: work ? deskProgFor(agent.id) : null,
+        occupied: bodyAtWorkstationSeat(agent, seat), still: reduceMotion() };
       if (typeof PropSprites !== 'undefined' && PropSprites.has('desk')) {
         PropSprites.setCtx(ctx); PropSprites.setNow(now);
         drawLitProp({ t: 'desk', x: desk.tx, y: desk.ty, w: desk.w, h: desk.h }, work, live);
       } else F_desk(desk.tx * T, desk.ty * T, desk.w * T, desk.h * T, { x: desk.tx, work, heat: live ? live.heat : 0, prog: live ? live.prog : null });
     } });
     if (desk && !deskPropId && typeof PropSprites !== 'undefined' && PropSprites.lightOf) {   // the auto-desk's CRT lights the deck while the hero works, like any placed workstation
-      const lt = PropSprites.lightOf({ t: 'desk', x: desk.tx, y: desk.ty, w: desk.w, h: desk.h }, !!(agent && agent.working), reduceMotion());
+      const lt = PropSprites.lightOf({ t: 'desk', x: desk.tx, y: desk.ty, w: desk.w, h: desk.h }, !!(agent && agent.working), reduceMotion(), { occupied: bodyAtWorkstationSeat(agent, seat) });
       if (lt) propLights.push(Object.assign({}, lt, { originX: (desk.tx + desk.w / 2) * T, originY: (desk.ty + desk.h / 2) * T }));
     }
-    if (seat && !deskPropId) items.push({ y: (seat.ty + 1) * T, draw: () => drawSeatChair(seat.tx, seat.ty, seat.cx) });
+    if (seat && !deskPropId) items.push({ y: seatFoot(seat).y + 1, draw: () => drawSeatChair(seat.tx, seat.ty, seat.cx, seat.cy, deskFace) });
   // a PLACED hero desk's chair is drawn by the workstation loop above; draw here only for the synthetic auto-desk
     /* a body dormant IN a bed sorts INSIDE its bed — after the frame + pillow, before the quilt — which
        is the whole two-pass trick. Everything else keeps the old key exactly (cushion pos when seated,
@@ -6145,7 +6263,7 @@ const World = (() => {
     for (const d of cache.doorOccluders || []) {
       if ((d.x + d.w) * scale + panX < 0 || d.x * scale + panX > cv.width ||
           (d.y + d.h) * scale + panY < 0 || d.y * scale + panY > cv.height) continue;
-      items.push({ y: d.sortY, draw: () => ctx.drawImage(d.image, d.x, d.y) });
+      items.push({ y: d.sortY, draw: () => drawDoorSurface(ctx, d) });
     }
     // THE FLOOR PASS — every decal, in doc order, before anything that stands on the deck. This is what
     // lets a body walk across a rug: the rug is already down when the sorted items paint over it.
@@ -7538,18 +7656,83 @@ const World = (() => {
   // amber (warn) / red (blocker) corner brackets + a one-line instruction over the broken piece, gently pulsing
   // label collision (2026-07-11): neighboring nags on one row — or two nags on the SAME prop (e.g.
   // BAY_NOT_FED + NO COMPUTE) — used to print on a shared baseline and mash into garble. Each label
-  // claims a box; a collider steps UP one line at a time until it fits. Rebuilt per draw call.
-  function placeNagLabel(placed, cx, y, w, h) {
-    const hits = b => cx - w / 2 < b.x + b.w && cx + w / 2 > b.x && y < b.y + b.h && y + h > b.y;
-    let guard = 24;
-    while (guard-- > 0 && placed.some(hits)) y -= h + 1;
-    placed.push({ x: cx - w / 2, y, w, h });
-    return y;
+  // claims a bounded box. Overview aggregates by room; selection reveals full detail.
+  // Pure layout: low zoom aggregates actual findings; selection retains their exact
+  // wording. Bounds are a real room rectangle intersected with the visible canvas.
+  function layoutRoutingNagLabels(nags, options) {
+    const { tile, zoom, viewport, containerFor, selected, measure } = options;
+    const groups = new Map(), result = [], pad = 2, line = 9;
+    const intersect = (a, b) => ({ x: Math.max(a.x, b.x), y: Math.max(a.y, b.y),
+      w: Math.min(a.x + a.w, b.x + b.w) - Math.max(a.x, b.x),
+      h: Math.min(a.y + a.h, b.y + b.h) - Math.max(a.y, b.y) });
+    const overlap = (a, b) => a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
+    const fitText = (text, width) => {
+      const chars = Array.from(text);
+      if (measure(text) <= width) return text;
+      while (chars.length && measure(chars.join('') + '…') > width) chars.pop();
+      return measure('…') <= width ? chars.join('') + '…' : '';
+    };
+    for (const n of nags) {
+      const prop = { x: n.x * tile, y: n.y * tile, w: n.w * tile, h: n.h * tile };
+      if (!overlap(prop, viewport)) continue;
+      const key = n.x + ',' + n.y, detail = key === selected;
+      const room = containerFor(n) || prop;
+      const bounds = intersect(room, viewport);
+      const groupKey = detail ? 'selected:' + key : zoom < 1.5 ? JSON.stringify(room) : key;
+      let group = groups.get(groupKey);
+      if (!group) groups.set(groupKey, group = { nags: [], prop, bounds, detail });
+      group.nags.push(n);
+    }
+    // Reserve selected detail first. It may use the available screen when a tiny
+    // prop/room cannot contain its full instruction; other labels stay on deck.
+    for (const g of [...groups.values()].sort((a, b) => Number(b.detail) - Number(a.detail))) {
+      const bounds = g.detail ? viewport : g.bounds;
+      const unit = g.detail ? Math.max(1, 1.5 / zoom) : 1;
+      const rowHeight = line * unit, padding = pad * unit;
+      const widthOf = text => measure(text) * unit;
+      if (bounds.w < 12 || bounds.h < rowHeight + padding * 2) continue;
+      const maxWidth = Math.min(bounds.w - padding * 2, g.detail ? 240 / zoom : zoom < 1.5 ? 80 : 96);
+      if (maxWidth < widthOf('M')) continue;
+      let lines;
+      if (g.detail) {
+        lines = [];
+        for (const n of g.nags) {
+          let row = '';
+          // Character wrapping also handles user-authored roles without spaces.
+          for (const char of Array.from(n.label)) {
+            if (row && widthOf(row + char) > maxWidth) { lines.push(row); row = ''; }
+            row += char;
+          }
+          if (row) lines.push(row);
+        }
+      } else {
+        const text = zoom < 1.5 ? g.nags.length + (g.nags.length === 1 ? ' ISSUE' : ' ISSUES')
+          : g.nags[0].label.split(' — ')[0] + (g.nags.length > 1 ? ' +' + (g.nags.length - 1) : '');
+        lines = [fitText(text, maxWidth)];
+      }
+      const capacity = Math.max(1, Math.floor((bounds.h - padding * 2) / rowHeight));
+      // Extreme authored descriptions keep their full text in the existing REFIT
+      // selection card. The on-canvas detail explicitly indicates truncation.
+      if (lines.length > capacity) lines = lines.slice(0, capacity - 1).concat([fitText('… SELECT IN REFIT', maxWidth / unit)]);
+      const w = Math.min(bounds.w, Math.max(...lines.map(widthOf)) + padding * 2), h = lines.length * rowHeight + padding * 2;
+      const x = Math.max(bounds.x, Math.min(bounds.x + bounds.w - w, g.prop.x + g.prop.w / 2 - w / 2));
+      let y = Math.max(bounds.y, Math.min(bounds.y + bounds.h - h, g.prop.y - h - 2));
+      let box = { x, y, w, h };
+      if (result.some(b => overlap(box, b))) {
+        let found = false;
+        for (y = bounds.y; y + h <= bounds.y + bounds.h; y += rowHeight + 1) {
+          box = { x, y, w, h };
+          if (!result.some(b => overlap(box, b))) { found = true; break; }
+        }
+        if (!found) continue; // the prop's warning brackets remain, even in a full room
+      }
+      result.push({ ...box, lines, font: 8 * unit, padding, rowHeight, detail: g.detail, count: g.nags.length, warn: g.nags.every(n => n.warn) });
+    }
+    return result;
   }
   function drawRoutingNags(now) {
     if (!routingNags || !routingNags.length) return;
     const pulse = 0.55 + 0.35 * Math.sin(now / 280);
-    const placed = [];
     for (const n of routingNags) {
       const X = n.x * T, Y = n.y * T, Wd = n.w * T, Hd = n.h * T;
       const col = n.warn ? '#ffbe3c' : '#ff5046';
@@ -7563,13 +7746,30 @@ const World = (() => {
       ctx.moveTo(X + .5, Y + Hd - .5 - L); ctx.lineTo(X + .5, Y + Hd - .5); ctx.lineTo(X + .5 + L, Y + Hd - .5);
       ctx.moveTo(X + Wd - .5, Y + Hd - .5 - L); ctx.lineTo(X + Wd - .5, Y + Hd - .5); ctx.lineTo(X + Wd - .5 - L, Y + Hd - .5);
       ctx.stroke();
-      ctx.font = NAG_FONT; ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
-      ctx.shadowBlur = 3; ctx.shadowColor = col; ctx.fillStyle = col;
-      // alphabetic baseline at y: label box spans roughly [y-8, y] (8px VT323)
-      const ly = placeNagLabel(placed, X + Wd / 2, Y - 3 - 8, ctx.measureText(n.label).width, 9);
-      ctx.fillText(n.label, X + Wd / 2, ly + 8);
       ctx.restore();
     }
+    ctx.save();
+    ctx.font = NAG_FONT; ctx.textAlign = 'left'; ctx.textBaseline = 'top';
+    const viewport = { x: (4 - panX) / scale, y: (4 - panY) / scale,
+      w: Math.max(0, (cv.width - 8) / scale), h: Math.max(0, (cv.height - 8) / scale) };
+    const labels = layoutRoutingNagLabels(routingNags, {
+      tile: T, zoom: scale / (window.devicePixelRatio || 1), viewport, selected: selectedRoutingTile,
+      measure: text => ctx.measureText(text).width,
+      containerFor: n => {
+        const id = roomOfLocalTile(n.x, n.y), room = id && station.roomById && station.roomById(id);
+        const ox = geo.origin.tx, oy = geo.origin.ty;
+        const r = room && room.rects.find(r => n.x + ox >= r.x1 && n.x + ox <= r.x2 && n.y + oy >= r.y1 && n.y + oy <= r.y2);
+        return r ? { x: (r.x1 - ox) * T + 2, y: (r.y1 - oy) * T + 2,
+          w: (r.x2 - r.x1 + 1) * T - 4, h: (r.y2 - r.y1 + 1) * T - 4 } : null;
+      }
+    });
+    for (const box of labels) {
+      ctx.shadowBlur = 0; ctx.fillStyle = '#111812'; ctx.fillRect(box.x, box.y, box.w, box.h);
+      ctx.fillStyle = box.warn ? '#ffbe3c' : '#ff5046'; ctx.shadowColor = ctx.fillStyle; ctx.shadowBlur = 2;
+      ctx.font = box.font + "px 'VT323','Courier New',monospace";
+      box.lines.forEach((text, i) => ctx.fillText(text, box.x + box.padding, box.y + box.padding + i * box.rowHeight));
+    }
+    ctx.restore();
   }
   // the hover-glance tag over a clickable OUTBOX: crates pending → "N TO REVIEW — CLICK"; pallet only →
   // the LOGBOOK click-through. Names what the stacked boxes ARE and what the click does (the 2026-07-16
@@ -8033,7 +8233,7 @@ const World = (() => {
     // means "a complete route runs here" and a cold line always means the chain is incomplete
     beltLiveSet = (routingPlan && Pipeline.liveTiles) ? Pipeline.liveTiles(routingPlan) : null;
     beltTileSet = new Set(((geo && geo.belts) || []).map(b => b.x + ',' + b.y));
-    routeTagCache = null; hoverBeltTile = null;   // the floor changed — every cached hover answer is stale
+    routeTagCache = null; hoverBeltTile = null; selectedRoutingTile = null;   // the floor changed — cached positions and answers are stale
     routingNags = buildRoutingNags();
     /* GHOST PROJECTION (Phase 3): re-derive its route data from the SAME plan + geometry this
        recompile produced. The live world runs it too (not just REFIT): between REFIT sessions this
@@ -9608,7 +9808,7 @@ const World = (() => {
     pollFeed: () => pollFeedState(),
     pollShip: () => pollShipStats()
   });
-  return { init, rebake, crt: CRT, slagLog: () => (slaglog ? slaglog.recent() : []),
+  return { init, rebake, frameReviewRoom, crt: CRT, slagLog: () => (slaglog ? slaglog.recent() : []),
     // FEED TRUTH accessor (guided workflows): the exact server-proven state the NO FEED nag keys on —
     // REFIT's finish-the-line card reads THIS, never a parallel poll, so the two can never disagree.
     feedState: () => ({ known: feedState.known, fed: feedState.fed }),
@@ -9689,6 +9889,83 @@ const World = (() => {
     // TEST/DEBUG ONLY — containment harness: raw-place a body (bypassing every walkable-checked picker)
     // so the per-tick containment backstop (containBody / hero ensureAgentValid) is provable live.
     _dbgTeleport: (aid, px, py) => { const b = bodyForAgent(aid); if (!b) return false; b.pathPts = null; b.target = null; b.sitting = false; b.seated = false; b.px = +px; b.py = +py; return true; },
+    // Local review controls use the real navigation path, including obstacle clearance.
+    _dbgReviewWalk: (aid, tx, ty) => {
+      const b=bodyForAgent(aid);if(!b||!geo||!Number.isInteger(tx)||!Number.isInteger(ty))return false;
+      const keep=self;self=b;
+      try{releaseSeat();b.sitting=false;b.seated=false;b.usingProp=null;b.goal='wander';return setPathTo({x:tx,y:ty});}
+      finally{self=keep;}
+    },
+    _dbgReviewSeat: (aid, propId) => {
+      const b=bodyForAgent(aid),p=geo&&geo.props.find(p=>p.id===propId);
+      const kind=p&&propUse(p)?.kind;if(!b||!p||!['seat','couch'].includes(kind))return false;
+      // Fixture scope: let the borrowed actor review a seat outside its usual roam radius.
+      // Occupancy, collision, approach path, arrival and rendering remain the real mechanisms.
+      const keep=self;self=b;
+      try{
+        releaseSeat();b.sitting=false;b.seated=false;b.pathPts=null;b.target=null;
+        for(const [dx,dy] of SEAT_NB){if(geo.walkable(p.x+dx,p.y+dy,blocked)){const f=footOf(p.x+dx,p.y+dy);b.px=f.x;b.py=f.y;break;}}
+        const zone={kind:'leash',cx:p.x,cy:p.y,r:Math.max(p.w,p.h)+4};
+        const now=performance.now(),ok=kind==='couch'?planCouchSit(now,p,null,'north',zone):planSeat(now,p,zone);
+        if(ok&&b.pendSeat)arrive(now); // already-adjacent plans may have arrived themselves
+        return ok;
+      }finally{self=keep;}
+    },
+    _dbgReviewPerformance: enabled => {
+      const samples=reviewPerformance.samples.slice();
+      if(typeof enabled==='boolean'){reviewPerformance.enabled=enabled;reviewPerformance.samples=[];}
+      return {samples,renderFaults,props:geo?.props.length||0,scale,canvas:cv?[cv.width,cv.height]:null};
+    },
+    // Local catalog audit: real geometry, routing, approach, claim and arrival
+    // functions. Actor positioning/arrival are controlled fixture setup, not
+    // evidence that the idle scheduler selected these props autonomously.
+    _dbgReviewProp: (aid, propId, action='inspect') => {
+      const b=bodyForAgent(aid),p=geo?.props.find(p=>p.id===propId);
+      if(!b||!p)return null;
+      const s=PropSprites.spec(p.t),u=propUse(p),f=PropSprites.footprintAt(p.t,p.r||0);
+      const front={x:Math.floor(p.x+p.w/2),y:p.y+p.h},back={x:front.x,y:p.y-1};
+      const walkable=q=>geo.walkable(q.x,q.y,blocked);
+      const route=walkable(front)&&walkable(back)?geo.path(front.x,front.y,back.x,back.y,blocked):null;
+      const anchor=isWorkstationProp(p.t)?deskSeat(p):u&&PropAnchor.deriveAnchor(p,geo,{approach:useApproach(u,p),sit:!!u.sit,extra:blocked});
+      const out={id:p.id,type:p.t,r:p.r||0,mirror:!!p.m,footprint:[p.w,p.h],canonical:[f.w,f.h],mount:station.mountOf(p),
+        kind:u?.kind||null,workstation:isWorkstationProp(p.t),front:walkable(front),back:walkable(back),route:route?route.length:null,
+        floorFront:front,anchor:anchor||null,side:sideSeat(p),flat:!!s.flat,interaction:'none',motion:{spd:b.spd,odo:b.odo,odoAge:performance.now()-(b.odoAt||0),paused:fnow<(b.pauseUntil||0),frozen:awakeFrozen,activity,bodies:allBodies().length}};
+      out.result={seated:!!b.seated,sitting:!!b.sitting,lying:!!b.lying,dir:b.dir,usingProp:b.usingProp||null,px:b.px,py:b.py,seatLift:b.seatLift||0,seatKey:b.seatKey||null};
+      if(action==='inspect')return out;
+      if(action==='use'&&isWorkstationProp(p.t)){
+        // The generated working chair belongs to an assigned desk. Exercise
+        // that real ownership path so the fixture never sits on a bare tile.
+        for(const q of geo.props)if(q.agentId===aid&&isWorkstationProp(q.t))station.assignPropAgent(q.id,'');
+        station.assignPropAgent(p.id,aid);rederive();
+      }
+      const keep=self;self=b;
+      try{
+        releaseSeat();seizeFromIdle(b);b.sitting=false;b.seated=false;b.lying=false;b.pathPts=null;b.target=null;b.goal=null;b.usingProp=null;
+        if(action==='walk' && route){
+          Object.assign(b,{px:footOf(front.x,front.y).x,py:footOf(front.x,front.y).y,goal:'wander',idleUntil:performance.now()+60000});
+          out.destination=footOf(back.x,back.y);out.planned=setPathTo(back);return out;
+        }
+        let start=walkable(front)?front:anchor&&{x:anchor.tx,y:anchor.ty};
+        if(action==='live' && walkable({x:front.x,y:front.y+2}))start={x:front.x,y:front.y+2};
+        if(start){const pt=footOf(start.x,start.y);b.px=pt.x;b.py=pt.y;}
+        const zone={kind:'leash',cx:p.x,cy:p.y,r:Math.max(p.w,p.h)+8},now=performance.now();
+        if(u?.kind==='seat'||u?.kind==='couch'){
+          out.interaction='seat';out.planned=u.kind==='seat'?planSeat(now,p,zone):planCouchSit(now,p,null,'north',zone);
+          if(action!=='live'&&out.planned&&b.pendSeat){b.target=null;b.pathPts=null;arrive(now);}
+        }else if(u?.kind==='bed'){
+          out.interaction='bed';out.planned=planBedSleep(now,p.id,zone);
+          if(action!=='live'&&out.planned&&b.pendSeat){b.target=null;b.pathPts=null;arrive(now);}
+        }else if(isWorkstationProp(p.t)&&anchor){
+          out.interaction='workstation';const pt=seatFoot(anchor);b.px=pt.x;b.py=pt.y;stepCrewToSeat(b,anchor,16,now);out.planned=!!b.sitting;
+        }else if(u&&anchor){
+          out.interaction='approach';out.planned=setPathTo({x:anchor.tx,y:anchor.ty});
+          if(out.planned){b.goal='use';b.usingProp=p.id;b.useFace=anchor.face;b.useSit=!!anchor.sit;b.target=null;b.pathPts=null;const pt=footOf(anchor.tx,anchor.ty);b.px=pt.x;b.py=pt.y;arrive(now);}
+        }
+        if(action==='use' && b.seated)b.useUntil=now+60000; // manual visual review holds the real pose
+        out.result={seated:!!b.seated,sitting:!!b.sitting,lying:!!b.lying,dir:b.dir,usingProp:b.usingProp||null,px:b.px,py:b.py,seatLift:b.seatLift||0};
+        return out;
+      }finally{self=keep;}
+    },
     // TEST/DEBUG ONLY — read the huddle SELECTION counters (see huddleStats). Answers "why was there
     // no trio" without a second instrumented build: planned vs. how many candidates each huddle saw
     // vs. roll vs. tile failure. Read-only snapshot; the caller cannot mutate the live object.

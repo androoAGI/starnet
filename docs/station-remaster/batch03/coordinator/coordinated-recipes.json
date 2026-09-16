@@ -1,0 +1,2359 @@
+{
+  "version": 1,
+  "coordinateSpace": "normalized exported PNG; engineAlphaNormalized is normalized tight-alpha crop",
+  "regionsAreLiveVerified": false,
+  "props": {
+    "studio": {
+      "views": {
+        "s": {
+          "image": "frontend/assets/industrial/batch03/control/studio.png",
+          "outputSha256": "2f9d5168d65918c0dc51a72ca0019511ba9a1c1d4e76f5f05a776be37ea1a5b0",
+          "width": 1179,
+          "height": 1234,
+          "alphaBounds": {
+            "x": 0,
+            "y": 0,
+            "width": 1179,
+            "height": 1234
+          },
+          "mode": "pulse",
+          "palette": [
+            255,
+            106,
+            213
+          ],
+          "originalTrigger": {
+            "kind": "actual-capability-result",
+            "condition": "pulseProp(instanceId, studio, ok) supplies fired and bad for 900ms",
+            "evidence": [
+              "frontend/app/propsprites.js:3043",
+              "frontend/app/propsprites.js:11184",
+              "frontend/app/propsprites.js:11218"
+            ]
+          },
+          "functionalCapabilitiesPreserved": true,
+          "intentionalStatic": null,
+          "behavior": "900ms result pulse on the media preview from real tool completion; red on failure.",
+          "integrationRequirements": [
+            "Preserve image/voice capability grant and per-instance pulseProp result; no success loop on a timer.",
+            "Optional faint preview under f.work remains magenta; result pulse must override failure correctly."
+          ],
+          "engineAlphaNormalized": {
+            "motion": {
+              "region": [
+                [
+                  0.21240458015267177,
+                  0.16025121555915722
+                ],
+                [
+                  0.7980534351145039,
+                  0.16025121555915722
+                ],
+                [
+                  0.7980534351145039,
+                  0.3989262560777958
+                ],
+                [
+                  0.21240458015267177,
+                  0.3989262560777958
+                ]
+              ],
+              "colour": [
+                255,
+                106,
+                213
+              ],
+              "trigger": "fired",
+              "failureColour": [
+                255,
+                92,
+                92
+              ],
+              "durationMs": 900
+            },
+            "regions": {
+              "preview": [
+                [
+                  0.21240458015267177,
+                  0.16025121555915722
+                ],
+                [
+                  0.7980534351145039,
+                  0.16025121555915722
+                ],
+                [
+                  0.7980534351145039,
+                  0.3989262560777958
+                ],
+                [
+                  0.21240458015267177,
+                  0.3989262560777958
+                ]
+              ]
+            }
+          },
+          "nativeLight": {
+            "c": [
+              255,
+              106,
+              213
+            ],
+            "r": 30,
+            "a": 0.16,
+            "m": "pulse",
+            "y": 0.4
+          },
+          "regions": {
+            "preview": [
+              [
+                0.21240458015267177,
+                0.16025121555915722
+              ],
+              [
+                0.7980534351145039,
+                0.16025121555915722
+              ],
+              [
+                0.7980534351145039,
+                0.3989262560777958
+              ],
+              [
+                0.21240458015267177,
+                0.3989262560777958
+              ]
+            ]
+          },
+          "motion": {
+            "region": [
+              [
+                0.21240458015267177,
+                0.16025121555915722
+              ],
+              [
+                0.7980534351145039,
+                0.16025121555915722
+              ],
+              [
+                0.7980534351145039,
+                0.3989262560777958
+              ],
+              [
+                0.21240458015267177,
+                0.3989262560777958
+              ]
+            ],
+            "colour": [
+              255,
+              106,
+              213
+            ],
+            "trigger": "fired",
+            "failureColour": [
+              255,
+              92,
+              92
+            ],
+            "durationMs": 900
+          }
+        }
+      }
+    },
+    "bigscreen": {
+      "views": {
+        "s": {
+          "image": "frontend/assets/industrial/batch03/control/bigscreen.png",
+          "outputSha256": "14fa364268005215b0b69d61da3d9c03c62f25d9b02e2379a5b65ed43a2469d0",
+          "width": 2107,
+          "height": 473,
+          "alphaBounds": {
+            "x": 0,
+            "y": 0,
+            "width": 2107,
+            "height": 473
+          },
+          "mode": "screen",
+          "palette": [
+            70,
+            185,
+            200
+          ],
+          "originalTrigger": {
+            "kind": "ambient-clock-with-work-gain",
+            "condition": "Native F.bigscreen uses now for idle motion and f.work for intensity; do not replace with unconditional off when unoccupied",
+            "evidence": [
+              "frontend/app/propsprites.js:678"
+            ]
+          },
+          "functionalCapabilitiesPreserved": true,
+          "intentionalStatic": null,
+          "behavior": "Decorative low-gain phosphor waveform and refresh band while idle, increased brightness/amplitude with f.work.",
+          "integrationRequirements": [
+            "Generalized screen renderer must use explicit region polygons/palette for dark glass; current cyan-pixel-only phosphor and occupied-only activation would lose idle behavior."
+          ],
+          "engineAlphaNormalized": {
+            "screenRegions": [
+              [
+                [
+                  0.038416706217370665,
+                  0.20775475687103595
+                ],
+                [
+                  0.9620579022306597,
+                  0.20775475687103595
+                ],
+                [
+                  0.9620579022306597,
+                  0.6746046511627907
+                ],
+                [
+                  0.038416706217370665,
+                  0.6746046511627907
+                ]
+              ]
+            ],
+            "regions": {
+              "screen": [
+                [
+                  0.038416706217370665,
+                  0.20775475687103595
+                ],
+                [
+                  0.9620579022306597,
+                  0.20775475687103595
+                ],
+                [
+                  0.9620579022306597,
+                  0.6746046511627907
+                ],
+                [
+                  0.038416706217370665,
+                  0.6746046511627907
+                ]
+              ]
+            }
+          },
+          "nativeLight": {
+            "c": [
+              110,
+              190,
+              255
+            ],
+            "r": 46,
+            "a": 0.12,
+            "m": "screen",
+            "y": 0.4
+          },
+          "regions": {
+            "screen": [
+              [
+                0.038416706217370665,
+                0.20775475687103595
+              ],
+              [
+                0.9620579022306597,
+                0.20775475687103595
+              ],
+              [
+                0.9620579022306597,
+                0.6746046511627907
+              ],
+              [
+                0.038416706217370665,
+                0.6746046511627907
+              ]
+            ]
+          },
+          "screenRegions": [
+            [
+              [
+                0.038416706217370665,
+                0.20775475687103595
+              ],
+              [
+                0.9620579022306597,
+                0.20775475687103595
+              ],
+              [
+                0.9620579022306597,
+                0.6746046511627907
+              ],
+              [
+                0.038416706217370665,
+                0.6746046511627907
+              ]
+            ]
+          ],
+          "screenBehavior": {
+            "kind": "waveform",
+            "idleGain": 0.35,
+            "workGain": 1,
+            "workInput": "work",
+            "dataSemantics": "decorative-only; no numeric/live assertions",
+            "palette": [
+              70,
+              185,
+              200
+            ]
+          }
+        }
+      }
+    },
+    "holotable": {
+      "views": {
+        "s": {
+          "image": "frontend/assets/industrial/batch03/control/holotable.png",
+          "outputSha256": "0cb0c136531c1d55737740c3295b8426f36dbdf222538a6805bdee65c133eb8c",
+          "width": 1492,
+          "height": 744,
+          "alphaBounds": {
+            "x": 0,
+            "y": 0,
+            "width": 1492,
+            "height": 744
+          },
+          "mode": "projection",
+          "palette": [
+            120,
+            200,
+            255
+          ],
+          "originalTrigger": {
+            "kind": "ambient-clock-with-work-gain",
+            "condition": "Native F.holotable uses now for idle motion and f.work for intensity; do not replace with unconditional off when unoccupied",
+            "evidence": [
+              "frontend/app/propsprites.js:863"
+            ]
+          },
+          "functionalCapabilitiesPreserved": true,
+          "intentionalStatic": null,
+          "behavior": "A translucent station wireframe and orbiting blip above the emitter well; ambient low intensity and f.work gain.",
+          "integrationRequirements": [
+            "Requires new projection layer with frame expansion above emitter. A flat screen pulse does not preserve the hologram."
+          ],
+          "engineAlphaNormalized": {
+            "motion": {
+              "region": [
+                [
+                  0.15305630026809652,
+                  0.1050725806451613
+                ],
+                [
+                  0.8442345844504021,
+                  0.1050725806451613
+                ],
+                [
+                  0.8676816353887399,
+                  0.3468951612903226
+                ],
+                [
+                  0.1316481233243968,
+                  0.3468951612903226
+                ]
+              ],
+              "origin": [
+                0.4991551608579088,
+                0.22598387096774195
+              ],
+              "colour": [
+                120,
+                200,
+                255
+              ],
+              "trigger": "ambient",
+              "riseWorldPixels": 8,
+              "periodMs": 4000
+            },
+            "regions": {
+              "projectionSurface": [
+                [
+                  0.15305630026809652,
+                  0.1050725806451613
+                ],
+                [
+                  0.8442345844504021,
+                  0.1050725806451613
+                ],
+                [
+                  0.8676816353887399,
+                  0.3468951612903226
+                ],
+                [
+                  0.1316481233243968,
+                  0.3468951612903226
+                ]
+              ]
+            }
+          },
+          "nativeLight": {
+            "c": [
+              120,
+              200,
+              255
+            ],
+            "r": 30,
+            "a": 0.14,
+            "m": "screen",
+            "y": 0.45
+          },
+          "regions": {
+            "projectionSurface": [
+              [
+                0.15305630026809652,
+                0.1050725806451613
+              ],
+              [
+                0.8442345844504021,
+                0.1050725806451613
+              ],
+              [
+                0.8676816353887399,
+                0.3468951612903226
+              ],
+              [
+                0.1316481233243968,
+                0.3468951612903226
+              ]
+            ]
+          },
+          "motion": {
+            "region": [
+              [
+                0.15305630026809652,
+                0.1050725806451613
+              ],
+              [
+                0.8442345844504021,
+                0.1050725806451613
+              ],
+              [
+                0.8676816353887399,
+                0.3468951612903226
+              ],
+              [
+                0.1316481233243968,
+                0.3468951612903226
+              ]
+            ],
+            "origin": [
+              0.4991551608579088,
+              0.22598387096774195
+            ],
+            "colour": [
+              120,
+              200,
+              255
+            ],
+            "trigger": "ambient",
+            "riseWorldPixels": 8,
+            "periodMs": 4000
+          }
+        }
+      }
+    },
+    "screens": {
+      "views": {
+        "s": {
+          "image": "frontend/assets/industrial/batch03/control/screens.png",
+          "outputSha256": "e856c656fe2e29c4275ad7331c3c4ed806815d7f5d9c5323aff087dba81497bb",
+          "width": 1019,
+          "height": 1100,
+          "alphaBounds": {
+            "x": 0,
+            "y": 0,
+            "width": 1019,
+            "height": 1100
+          },
+          "mode": "screen",
+          "palette": [
+            70,
+            185,
+            200
+          ],
+          "originalTrigger": {
+            "kind": "ambient-clock-with-work-gain",
+            "condition": "Native F.screens uses now for idle motion and f.work for intensity; do not replace with unconditional off when unoccupied",
+            "evidence": [
+              "frontend/app/propsprites.js:941"
+            ]
+          },
+          "functionalCapabilitiesPreserved": true,
+          "intentionalStatic": null,
+          "behavior": "Two distinct decorative displays: upper status bars and lower waveform/diagnostics; idle low gain, f.work brighter.",
+          "integrationRequirements": [
+            "Generalized screen renderer must use explicit region polygons/palette for dark glass; current cyan-pixel-only phosphor and occupied-only activation would lose idle behavior."
+          ],
+          "engineAlphaNormalized": {
+            "screenRegions": [
+              [
+                [
+                  0.11685574092247303,
+                  0.0627
+                ],
+                [
+                  0.8899813542688911,
+                  0.0627
+                ],
+                [
+                  0.8899813542688911,
+                  0.31367727272727275
+                ],
+                [
+                  0.11685574092247303,
+                  0.31367727272727275
+                ]
+              ],
+              [
+                [
+                  0.11559862610402356,
+                  0.4821109090909091
+                ],
+                [
+                  0.8874671246319923,
+                  0.4821109090909091
+                ],
+                [
+                  0.8874671246319923,
+                  0.7431272727272726
+                ],
+                [
+                  0.11559862610402356,
+                  0.7431272727272726
+                ]
+              ]
+            ],
+            "regions": {
+              "upper": [
+                [
+                  0.11685574092247303,
+                  0.0627
+                ],
+                [
+                  0.8899813542688911,
+                  0.0627
+                ],
+                [
+                  0.8899813542688911,
+                  0.31367727272727275
+                ],
+                [
+                  0.11685574092247303,
+                  0.31367727272727275
+                ]
+              ],
+              "lower": [
+                [
+                  0.11559862610402356,
+                  0.4821109090909091
+                ],
+                [
+                  0.8874671246319923,
+                  0.4821109090909091
+                ],
+                [
+                  0.8874671246319923,
+                  0.7431272727272726
+                ],
+                [
+                  0.11559862610402356,
+                  0.7431272727272726
+                ]
+              ]
+            }
+          },
+          "nativeLight": {
+            "c": [
+              110,
+              190,
+              255
+            ],
+            "r": 24,
+            "a": 0.12,
+            "m": "screen",
+            "y": 0.35
+          },
+          "regions": {
+            "upper": [
+              [
+                0.11685574092247303,
+                0.0627
+              ],
+              [
+                0.8899813542688911,
+                0.0627
+              ],
+              [
+                0.8899813542688911,
+                0.31367727272727275
+              ],
+              [
+                0.11685574092247303,
+                0.31367727272727275
+              ]
+            ],
+            "lower": [
+              [
+                0.11559862610402356,
+                0.4821109090909091
+              ],
+              [
+                0.8874671246319923,
+                0.4821109090909091
+              ],
+              [
+                0.8874671246319923,
+                0.7431272727272726
+              ],
+              [
+                0.11559862610402356,
+                0.7431272727272726
+              ]
+            ]
+          },
+          "screenRegions": [
+            [
+              [
+                0.11685574092247303,
+                0.0627
+              ],
+              [
+                0.8899813542688911,
+                0.0627
+              ],
+              [
+                0.8899813542688911,
+                0.31367727272727275
+              ],
+              [
+                0.11685574092247303,
+                0.31367727272727275
+              ]
+            ],
+            [
+              [
+                0.11559862610402356,
+                0.4821109090909091
+              ],
+              [
+                0.8874671246319923,
+                0.4821109090909091
+              ],
+              [
+                0.8874671246319923,
+                0.7431272727272726
+              ],
+              [
+                0.11559862610402356,
+                0.7431272727272726
+              ]
+            ]
+          ],
+          "screenBehavior": {
+            "kind": "diagnostics",
+            "idleGain": 0.35,
+            "workGain": 1,
+            "workInput": "work",
+            "dataSemantics": "decorative-only; no numeric/live assertions",
+            "palette": [
+              70,
+              185,
+              200
+            ]
+          }
+        }
+      }
+    },
+    "ticker": {
+      "views": {
+        "s": {
+          "image": "frontend/assets/industrial/batch03/control/ticker.png",
+          "outputSha256": "b3fdd41f5785dfe2c71e9f7c65f6b406ee652d015a5028e4c0bf8e95db037638",
+          "width": 1955,
+          "height": 497,
+          "alphaBounds": {
+            "x": 0,
+            "y": 0,
+            "width": 1955,
+            "height": 497
+          },
+          "mode": "screen",
+          "palette": [
+            232,
+            185,
+            98
+          ],
+          "originalTrigger": {
+            "kind": "ambient-clock-with-work-gain",
+            "condition": "Native F.ticker uses now for idle motion and f.work for intensity; do not replace with unconditional off when unoccupied",
+            "evidence": [
+              "frontend/app/propsprites.js:4014"
+            ]
+          },
+          "functionalCapabilitiesPreserved": true,
+          "intentionalStatic": null,
+          "behavior": "Horizontal dot-matrix crawl clipped to the new letterbox. Decorative glyphs only; no fabricated market values or real task claims.",
+          "integrationRequirements": [
+            "Generalized screen renderer must use explicit region polygons/palette for dark glass; current cyan-pixel-only phosphor and occupied-only activation would lose idle behavior."
+          ],
+          "engineAlphaNormalized": {
+            "screenRegions": [
+              [
+                [
+                  0.09528542199488492,
+                  0.28091951710261576
+                ],
+                [
+                  0.9047145780051151,
+                  0.28091951710261576
+                ],
+                [
+                  0.9047145780051151,
+                  0.6064164989939637
+                ],
+                [
+                  0.09528542199488492,
+                  0.6064164989939637
+                ]
+              ]
+            ],
+            "regions": {
+              "tickerBand": [
+                [
+                  0.09528542199488492,
+                  0.28091951710261576
+                ],
+                [
+                  0.9047145780051151,
+                  0.28091951710261576
+                ],
+                [
+                  0.9047145780051151,
+                  0.6064164989939637
+                ],
+                [
+                  0.09528542199488492,
+                  0.6064164989939637
+                ]
+              ]
+            }
+          },
+          "nativeLight": {
+            "c": [
+              255,
+              190,
+              110
+            ],
+            "r": 26,
+            "a": 0.1,
+            "m": "screen",
+            "y": 0.35
+          },
+          "regions": {
+            "tickerBand": [
+              [
+                0.09528542199488492,
+                0.28091951710261576
+              ],
+              [
+                0.9047145780051151,
+                0.28091951710261576
+              ],
+              [
+                0.9047145780051151,
+                0.6064164989939637
+              ],
+              [
+                0.09528542199488492,
+                0.6064164989939637
+              ]
+            ]
+          },
+          "screenRegions": [
+            [
+              [
+                0.09528542199488492,
+                0.28091951710261576
+              ],
+              [
+                0.9047145780051151,
+                0.28091951710261576
+              ],
+              [
+                0.9047145780051151,
+                0.6064164989939637
+              ],
+              [
+                0.09528542199488492,
+                0.6064164989939637
+              ]
+            ]
+          ],
+          "screenBehavior": {
+            "kind": "dot-matrix-crawl",
+            "idleGain": 0.35,
+            "workGain": 1,
+            "workInput": "work",
+            "dataSemantics": "decorative-only; no numeric/live assertions",
+            "palette": [
+              232,
+              185,
+              98
+            ]
+          }
+        }
+      }
+    },
+    "wartable": {
+      "views": {
+        "s": {
+          "image": "frontend/assets/industrial/batch03/control/wartable.png",
+          "outputSha256": "9797781caf6b8a8c62bcb07f8365c0303e407094fb22037c5ea2373500a01eab",
+          "width": 2008,
+          "height": 522,
+          "alphaBounds": {
+            "x": 0,
+            "y": 0,
+            "width": 2008,
+            "height": 522
+          },
+          "mode": "screen",
+          "palette": [
+            210,
+            98,
+            123
+          ],
+          "originalTrigger": {
+            "kind": "ambient-clock-with-work-gain",
+            "condition": "Native F.wartable uses now for idle motion and f.work for intensity; do not replace with unconditional off when unoccupied",
+            "evidence": [
+              "frontend/app/propsprites.js:4336"
+            ]
+          },
+          "functionalCapabilitiesPreserved": true,
+          "intentionalStatic": null,
+          "behavior": "Thin map grid, sweep and sparse plotted contacts on the felt inset. Cosmetic map, with f.work increasing gain; never a fabricated actual threat report.",
+          "integrationRequirements": [
+            "Generalized screen renderer must use explicit region polygons/palette for dark glass; current cyan-pixel-only phosphor and occupied-only activation would lose idle behavior."
+          ],
+          "engineAlphaNormalized": {
+            "screenRegions": [
+              [
+                [
+                  0.13504980079681275,
+                  0.10563218390804595
+                ],
+                [
+                  0.8725493027888446,
+                  0.10563218390804595
+                ],
+                [
+                  0.9293580677290837,
+                  0.31859770114942526
+                ],
+                [
+                  0.07113994023904383,
+                  0.31859770114942526
+                ]
+              ]
+            ],
+            "regions": {
+              "planningSurface": [
+                [
+                  0.13504980079681275,
+                  0.10563218390804595
+                ],
+                [
+                  0.8725493027888446,
+                  0.10563218390804595
+                ],
+                [
+                  0.9293580677290837,
+                  0.31859770114942526
+                ],
+                [
+                  0.07113994023904383,
+                  0.31859770114942526
+                ]
+              ]
+            }
+          },
+          "nativeLight": {
+            "c": [
+              120,
+              200,
+              255
+            ],
+            "r": 34,
+            "a": 0.12,
+            "m": "screen",
+            "y": 0.45
+          },
+          "regions": {
+            "planningSurface": [
+              [
+                0.13504980079681275,
+                0.10563218390804595
+              ],
+              [
+                0.8725493027888446,
+                0.10563218390804595
+              ],
+              [
+                0.9293580677290837,
+                0.31859770114942526
+              ],
+              [
+                0.07113994023904383,
+                0.31859770114942526
+              ]
+            ]
+          },
+          "screenRegions": [
+            [
+              [
+                0.13504980079681275,
+                0.10563218390804595
+              ],
+              [
+                0.8725493027888446,
+                0.10563218390804595
+              ],
+              [
+                0.9293580677290837,
+                0.31859770114942526
+              ],
+              [
+                0.07113994023904383,
+                0.31859770114942526
+              ]
+            ]
+          ],
+          "screenBehavior": {
+            "kind": "tactical-map",
+            "idleGain": 0.35,
+            "workGain": 1,
+            "workInput": "work",
+            "dataSemantics": "decorative-only; no numeric/live assertions",
+            "palette": [
+              210,
+              98,
+              123
+            ]
+          }
+        }
+      }
+    },
+    "bridge_tacscreen": {
+      "views": {
+        "s": {
+          "image": "frontend/assets/industrial/batch03/control/bridge_tacscreen.png",
+          "outputSha256": "aa2e482c7a47ddee634876c9997517cb4934cff9cfa049a74d73929c8eca733d",
+          "width": 1314,
+          "height": 911,
+          "alphaBounds": {
+            "x": 0,
+            "y": 0,
+            "width": 1314,
+            "height": 911
+          },
+          "mode": "screen",
+          "palette": [
+            216,
+            100,
+            96
+          ],
+          "originalTrigger": {
+            "kind": "ambient-clock-with-work-gain",
+            "condition": "Native F.bridge_tacscreen uses now for idle motion and f.work for intensity; do not replace with unconditional off when unoccupied",
+            "evidence": [
+              "frontend/app/propsprites.js:6903"
+            ]
+          },
+          "functionalCapabilitiesPreserved": true,
+          "intentionalStatic": null,
+          "behavior": "Pulsing thin tactical wireframe with three drifting readout bars, preserving bridge instrument identity; f.work gain.",
+          "integrationRequirements": [
+            "Generalized screen renderer must use explicit region polygons/palette for dark glass; current cyan-pixel-only phosphor and occupied-only activation would lose idle behavior."
+          ],
+          "engineAlphaNormalized": {
+            "screenRegions": [
+              [
+                [
+                  0.13665753424657534,
+                  0.1728298572996707
+                ],
+                [
+                  0.8633424657534247,
+                  0.1728298572996707
+                ],
+                [
+                  0.8633424657534247,
+                  0.5996300768386388
+                ],
+                [
+                  0.13665753424657534,
+                  0.5996300768386388
+                ]
+              ]
+            ],
+            "regions": {
+              "screen": [
+                [
+                  0.13665753424657534,
+                  0.1728298572996707
+                ],
+                [
+                  0.8633424657534247,
+                  0.1728298572996707
+                ],
+                [
+                  0.8633424657534247,
+                  0.5996300768386388
+                ],
+                [
+                  0.13665753424657534,
+                  0.5996300768386388
+                ]
+              ]
+            }
+          },
+          "nativeLight": {
+            "c": [
+              110,
+              190,
+              255
+            ],
+            "r": 24,
+            "a": 0.12,
+            "m": "screen",
+            "y": 0.35
+          },
+          "regions": {
+            "screen": [
+              [
+                0.13665753424657534,
+                0.1728298572996707
+              ],
+              [
+                0.8633424657534247,
+                0.1728298572996707
+              ],
+              [
+                0.8633424657534247,
+                0.5996300768386388
+              ],
+              [
+                0.13665753424657534,
+                0.5996300768386388
+              ]
+            ]
+          },
+          "screenRegions": [
+            [
+              [
+                0.13665753424657534,
+                0.1728298572996707
+              ],
+              [
+                0.8633424657534247,
+                0.1728298572996707
+              ],
+              [
+                0.8633424657534247,
+                0.5996300768386388
+              ],
+              [
+                0.13665753424657534,
+                0.5996300768386388
+              ]
+            ]
+          ],
+          "screenBehavior": {
+            "kind": "wireframe-readout",
+            "idleGain": 0.35,
+            "workGain": 1,
+            "workInput": "work",
+            "dataSemantics": "decorative-only; no numeric/live assertions",
+            "palette": [
+              216,
+              100,
+              96
+            ]
+          }
+        }
+      }
+    },
+    "bridge_dispatch_pylon": {
+      "views": {
+        "s": {
+          "image": "frontend/assets/industrial/batch03/control/bridge_dispatch_pylon.png",
+          "outputSha256": "3718d8ffe92cc84082ca15c91b600bbfc8496c67ba901a620b3d4707ea8e3d9e",
+          "width": 693,
+          "height": 1519,
+          "alphaBounds": {
+            "x": 0,
+            "y": 0,
+            "width": 693,
+            "height": 1519
+          },
+          "mode": "screen",
+          "palette": [
+            232,
+            185,
+            98
+          ],
+          "originalTrigger": {
+            "kind": "ambient-clock-with-work-gain",
+            "condition": "Native F.bridge_dispatch_pylon uses now for idle motion and f.work for intensity; do not replace with unconditional off when unoccupied",
+            "evidence": [
+              "frontend/app/propsprites.js:7042"
+            ]
+          },
+          "functionalCapabilitiesPreserved": true,
+          "intentionalStatic": null,
+          "behavior": "A continuous vertical dispatch trace and traveling highlight within the new upper display, low rectangular indicator below; ambient idle with f.work gain.",
+          "integrationRequirements": [
+            "Generalized screen renderer must use explicit region polygons/palette for dark glass; current cyan-pixel-only phosphor and occupied-only activation would lose idle behavior."
+          ],
+          "engineAlphaNormalized": {
+            "screenRegions": [
+              [
+                [
+                  0.25294083694083697,
+                  0.11746280447662935
+                ],
+                [
+                  0.7516075036075036,
+                  0.11746280447662935
+                ],
+                [
+                  0.7516075036075036,
+                  0.28329295589203424
+                ],
+                [
+                  0.25294083694083697,
+                  0.28329295589203424
+                ]
+              ],
+              [
+                [
+                  0.3476075036075036,
+                  0.37741277156023706
+                ],
+                [
+                  0.6596075036075035,
+                  0.37741277156023706
+                ],
+                [
+                  0.6596075036075035,
+                  0.40094272547728765
+                ],
+                [
+                  0.3476075036075036,
+                  0.40094272547728765
+                ]
+              ]
+            ],
+            "regions": {
+              "screen": [
+                [
+                  0.25294083694083697,
+                  0.11746280447662935
+                ],
+                [
+                  0.7516075036075036,
+                  0.11746280447662935
+                ],
+                [
+                  0.7516075036075036,
+                  0.28329295589203424
+                ],
+                [
+                  0.25294083694083697,
+                  0.28329295589203424
+                ]
+              ],
+              "indicator": [
+                [
+                  0.3476075036075036,
+                  0.37741277156023706
+                ],
+                [
+                  0.6596075036075035,
+                  0.37741277156023706
+                ],
+                [
+                  0.6596075036075035,
+                  0.40094272547728765
+                ],
+                [
+                  0.3476075036075036,
+                  0.40094272547728765
+                ]
+              ]
+            }
+          },
+          "nativeLight": {
+            "c": [
+              255,
+              190,
+              110
+            ],
+            "r": 22,
+            "a": 0.12,
+            "m": "pulse",
+            "y": 0.3
+          },
+          "regions": {
+            "screen": [
+              [
+                0.25294083694083697,
+                0.11746280447662935
+              ],
+              [
+                0.7516075036075036,
+                0.11746280447662935
+              ],
+              [
+                0.7516075036075036,
+                0.28329295589203424
+              ],
+              [
+                0.25294083694083697,
+                0.28329295589203424
+              ]
+            ],
+            "indicator": [
+              [
+                0.3476075036075036,
+                0.37741277156023706
+              ],
+              [
+                0.6596075036075035,
+                0.37741277156023706
+              ],
+              [
+                0.6596075036075035,
+                0.40094272547728765
+              ],
+              [
+                0.3476075036075036,
+                0.40094272547728765
+              ]
+            ]
+          },
+          "screenRegions": [
+            [
+              [
+                0.25294083694083697,
+                0.11746280447662935
+              ],
+              [
+                0.7516075036075036,
+                0.11746280447662935
+              ],
+              [
+                0.7516075036075036,
+                0.28329295589203424
+              ],
+              [
+                0.25294083694083697,
+                0.28329295589203424
+              ]
+            ],
+            [
+              [
+                0.3476075036075036,
+                0.37741277156023706
+              ],
+              [
+                0.6596075036075035,
+                0.37741277156023706
+              ],
+              [
+                0.6596075036075035,
+                0.40094272547728765
+              ],
+              [
+                0.3476075036075036,
+                0.40094272547728765
+              ]
+            ]
+          ],
+          "screenBehavior": {
+            "kind": "dispatch-sweep",
+            "idleGain": 0.35,
+            "workGain": 1,
+            "workInput": "work",
+            "dataSemantics": "decorative-only; no numeric/live assertions",
+            "palette": [
+              232,
+              185,
+              98
+            ]
+          }
+        }
+      }
+    },
+    "bridge_orderqueue": {
+      "views": {
+        "s": {
+          "image": "frontend/assets/industrial/batch03/control/bridge_orderqueue.png",
+          "outputSha256": "789186ab7f0578ec36fdadb76dd27e32a8485ec018e4ceaa1ce3b6cafa783949",
+          "width": 1311,
+          "height": 920,
+          "alphaBounds": {
+            "x": 0,
+            "y": 0,
+            "width": 1311,
+            "height": 920
+          },
+          "mode": "screen",
+          "palette": [
+            232,
+            185,
+            98
+          ],
+          "originalTrigger": {
+            "kind": "ambient-clock-with-work-gain",
+            "condition": "Native F.bridge_orderqueue uses now for idle motion and f.work for intensity; do not replace with unconditional off when unoccupied",
+            "evidence": [
+              "frontend/app/propsprites.js:7102"
+            ]
+          },
+          "functionalCapabilitiesPreserved": true,
+          "intentionalStatic": null,
+          "behavior": "Card-shaped line groups rise/cycle through the three new display rows. Native cosmetic queue animation; f.work changes rate/gain. Do not label rows as real order counts without actual data.",
+          "integrationRequirements": [
+            "Generalized screen renderer must use explicit region polygons/palette for dark glass; current cyan-pixel-only phosphor and occupied-only activation would lose idle behavior."
+          ],
+          "engineAlphaNormalized": {
+            "screenRegions": [
+              [
+                [
+                  0.14238749046529367,
+                  0.2328336956521739
+                ],
+                [
+                  0.8617467581998475,
+                  0.2328336956521739
+                ],
+                [
+                  0.8617467581998475,
+                  0.3438858695652174
+                ],
+                [
+                  0.14238749046529367,
+                  0.3438858695652174
+                ]
+              ],
+              [
+                [
+                  0.14238749046529367,
+                  0.43474673913043477
+                ],
+                [
+                  0.8617467581998475,
+                  0.43474673913043477
+                ],
+                [
+                  0.8617467581998475,
+                  0.5495847826086957
+                ],
+                [
+                  0.14238749046529367,
+                  0.5495847826086957
+                ]
+              ],
+              [
+                [
+                  0.14238749046529367,
+                  0.6429695652173913
+                ],
+                [
+                  0.8617467581998475,
+                  0.6429695652173913
+                ],
+                [
+                  0.8617467581998475,
+                  0.7540217391304347
+                ],
+                [
+                  0.14238749046529367,
+                  0.7540217391304347
+                ]
+              ]
+            ],
+            "regions": {
+              "topRow": [
+                [
+                  0.14238749046529367,
+                  0.2328336956521739
+                ],
+                [
+                  0.8617467581998475,
+                  0.2328336956521739
+                ],
+                [
+                  0.8617467581998475,
+                  0.3438858695652174
+                ],
+                [
+                  0.14238749046529367,
+                  0.3438858695652174
+                ]
+              ],
+              "middleRow": [
+                [
+                  0.14238749046529367,
+                  0.43474673913043477
+                ],
+                [
+                  0.8617467581998475,
+                  0.43474673913043477
+                ],
+                [
+                  0.8617467581998475,
+                  0.5495847826086957
+                ],
+                [
+                  0.14238749046529367,
+                  0.5495847826086957
+                ]
+              ],
+              "bottomRow": [
+                [
+                  0.14238749046529367,
+                  0.6429695652173913
+                ],
+                [
+                  0.8617467581998475,
+                  0.6429695652173913
+                ],
+                [
+                  0.8617467581998475,
+                  0.7540217391304347
+                ],
+                [
+                  0.14238749046529367,
+                  0.7540217391304347
+                ]
+              ]
+            }
+          },
+          "nativeLight": {
+            "c": [
+              255,
+              190,
+              110
+            ],
+            "r": 22,
+            "a": 0.1,
+            "m": "screen",
+            "y": 0.35
+          },
+          "regions": {
+            "topRow": [
+              [
+                0.14238749046529367,
+                0.2328336956521739
+              ],
+              [
+                0.8617467581998475,
+                0.2328336956521739
+              ],
+              [
+                0.8617467581998475,
+                0.3438858695652174
+              ],
+              [
+                0.14238749046529367,
+                0.3438858695652174
+              ]
+            ],
+            "middleRow": [
+              [
+                0.14238749046529367,
+                0.43474673913043477
+              ],
+              [
+                0.8617467581998475,
+                0.43474673913043477
+              ],
+              [
+                0.8617467581998475,
+                0.5495847826086957
+              ],
+              [
+                0.14238749046529367,
+                0.5495847826086957
+              ]
+            ],
+            "bottomRow": [
+              [
+                0.14238749046529367,
+                0.6429695652173913
+              ],
+              [
+                0.8617467581998475,
+                0.6429695652173913
+              ],
+              [
+                0.8617467581998475,
+                0.7540217391304347
+              ],
+              [
+                0.14238749046529367,
+                0.7540217391304347
+              ]
+            ]
+          },
+          "screenRegions": [
+            [
+              [
+                0.14238749046529367,
+                0.2328336956521739
+              ],
+              [
+                0.8617467581998475,
+                0.2328336956521739
+              ],
+              [
+                0.8617467581998475,
+                0.3438858695652174
+              ],
+              [
+                0.14238749046529367,
+                0.3438858695652174
+              ]
+            ],
+            [
+              [
+                0.14238749046529367,
+                0.43474673913043477
+              ],
+              [
+                0.8617467581998475,
+                0.43474673913043477
+              ],
+              [
+                0.8617467581998475,
+                0.5495847826086957
+              ],
+              [
+                0.14238749046529367,
+                0.5495847826086957
+              ]
+            ],
+            [
+              [
+                0.14238749046529367,
+                0.6429695652173913
+              ],
+              [
+                0.8617467581998475,
+                0.6429695652173913
+              ],
+              [
+                0.8617467581998475,
+                0.7540217391304347
+              ],
+              [
+                0.14238749046529367,
+                0.7540217391304347
+              ]
+            ]
+          ],
+          "screenBehavior": {
+            "kind": "queue-card-cycle",
+            "idleGain": 0.35,
+            "workGain": 1,
+            "workInput": "work",
+            "dataSemantics": "decorative-only; no numeric/live assertions",
+            "palette": [
+              232,
+              185,
+              98
+            ]
+          }
+        }
+      }
+    },
+    "war_pivotpanel": {
+      "views": {
+        "s": {
+          "image": "frontend/assets/industrial/batch03/control/war_pivotpanel.png",
+          "outputSha256": "79c81b064d9e74e3dcf53dcb79ddab6cba95f78007425d2f0192dae4b37d4ed4",
+          "width": 1432,
+          "height": 818,
+          "alphaBounds": {
+            "x": 0,
+            "y": 0,
+            "width": 1432,
+            "height": 818
+          },
+          "mode": "screen",
+          "palette": [
+            238,
+            190,
+            113
+          ],
+          "originalTrigger": {
+            "kind": "ambient-clock-with-work-gain",
+            "condition": "Native F.war_pivotpanel uses now for idle motion and f.work for intensity; do not replace with unconditional off when unoccupied",
+            "evidence": [
+              "frontend/app/propsprites.js:8447"
+            ]
+          },
+          "functionalCapabilitiesPreserved": true,
+          "intentionalStatic": null,
+          "behavior": "Two gently contrasted bright-field halves with a central seam and drifting scanline, clipped inside the single new glass face.",
+          "integrationRequirements": [
+            "Generalized screen renderer must use explicit region polygons/palette for dark glass; current cyan-pixel-only phosphor and occupied-only activation would lose idle behavior."
+          ],
+          "engineAlphaNormalized": {
+            "screenRegions": [
+              [
+                [
+                  0.19566201117318435,
+                  0.10666992665036674
+                ],
+                [
+                  0.8032849162011174,
+                  0.10666992665036674
+                ],
+                [
+                  0.8180279329608939,
+                  0.5274400977995111
+                ],
+                [
+                  0.17881284916201118,
+                  0.5274400977995111
+                ]
+              ]
+            ],
+            "regions": {
+              "screen": [
+                [
+                  0.19566201117318435,
+                  0.10666992665036674
+                ],
+                [
+                  0.8032849162011174,
+                  0.10666992665036674
+                ],
+                [
+                  0.8180279329608939,
+                  0.5274400977995111
+                ],
+                [
+                  0.17881284916201118,
+                  0.5274400977995111
+                ]
+              ]
+            }
+          },
+          "nativeLight": {
+            "c": [
+              110,
+              190,
+              255
+            ],
+            "r": 22,
+            "a": 0.1,
+            "m": "screen",
+            "y": 0.35
+          },
+          "regions": {
+            "screen": [
+              [
+                0.19566201117318435,
+                0.10666992665036674
+              ],
+              [
+                0.8032849162011174,
+                0.10666992665036674
+              ],
+              [
+                0.8180279329608939,
+                0.5274400977995111
+              ],
+              [
+                0.17881284916201118,
+                0.5274400977995111
+              ]
+            ]
+          },
+          "screenRegions": [
+            [
+              [
+                0.19566201117318435,
+                0.10666992665036674
+              ],
+              [
+                0.8032849162011174,
+                0.10666992665036674
+              ],
+              [
+                0.8180279329608939,
+                0.5274400977995111
+              ],
+              [
+                0.17881284916201118,
+                0.5274400977995111
+              ]
+            ]
+          ],
+          "screenBehavior": {
+            "kind": "split-field-scan",
+            "idleGain": 0.35,
+            "workGain": 1,
+            "workInput": "work",
+            "dataSemantics": "decorative-only; no numeric/live assertions",
+            "palette": [
+              238,
+              190,
+              113
+            ]
+          }
+        }
+      }
+    },
+    "war_threatcore": {
+      "views": {
+        "s": {
+          "image": "frontend/assets/industrial/batch03/control/war_threatcore.png",
+          "outputSha256": "f9656b137af99ba90fb27f9c575155e591768f593e7710a151e66219b66a7f38",
+          "width": 660,
+          "height": 1580,
+          "alphaBounds": {
+            "x": 0,
+            "y": 0,
+            "width": 660,
+            "height": 1580
+          },
+          "mode": "screen",
+          "palette": [
+            226,
+            90,
+            80
+          ],
+          "originalTrigger": {
+            "kind": "ambient-clock-with-work-gain",
+            "condition": "Native F.war_threatcore uses now for idle motion and f.work for intensity; do not replace with unconditional off when unoccupied",
+            "evidence": [
+              "frontend/app/propsprites.js:8597"
+            ]
+          },
+          "functionalCapabilitiesPreserved": true,
+          "intentionalStatic": null,
+          "behavior": "Discrete horizontal light segments climbing bottom-up inside the chamber; retain segmented-meter identity. f.work may change visual gain; never invent a numeric risk level.",
+          "integrationRequirements": [
+            "Generalized screen renderer must use explicit region polygons/palette for dark glass; current cyan-pixel-only phosphor and occupied-only activation would lose idle behavior."
+          ],
+          "engineAlphaNormalized": {
+            "screenRegions": [
+              [
+                [
+                  0.370109090909091,
+                  0.12438734177215188
+                ],
+                [
+                  0.6326545454545455,
+                  0.12438734177215188
+                ],
+                [
+                  0.6326545454545455,
+                  0.6666835443037975
+                ],
+                [
+                  0.370109090909091,
+                  0.6666835443037975
+                ]
+              ]
+            ],
+            "regions": {
+              "energyChamber": [
+                [
+                  0.370109090909091,
+                  0.12438734177215188
+                ],
+                [
+                  0.6326545454545455,
+                  0.12438734177215188
+                ],
+                [
+                  0.6326545454545455,
+                  0.6666835443037975
+                ],
+                [
+                  0.370109090909091,
+                  0.6666835443037975
+                ]
+              ]
+            }
+          },
+          "nativeLight": {
+            "c": [
+              255,
+              90,
+              80
+            ],
+            "r": 26,
+            "a": 0.14,
+            "m": "pulse",
+            "y": 0.3
+          },
+          "regions": {
+            "energyChamber": [
+              [
+                0.370109090909091,
+                0.12438734177215188
+              ],
+              [
+                0.6326545454545455,
+                0.12438734177215188
+              ],
+              [
+                0.6326545454545455,
+                0.6666835443037975
+              ],
+              [
+                0.370109090909091,
+                0.6666835443037975
+              ]
+            ]
+          },
+          "screenRegions": [
+            [
+              [
+                0.370109090909091,
+                0.12438734177215188
+              ],
+              [
+                0.6326545454545455,
+                0.12438734177215188
+              ],
+              [
+                0.6326545454545455,
+                0.6666835443037975
+              ],
+              [
+                0.370109090909091,
+                0.6666835443037975
+              ]
+            ]
+          ],
+          "screenBehavior": {
+            "kind": "segmented-meter",
+            "idleGain": 0.35,
+            "workGain": 1,
+            "workInput": "work",
+            "dataSemantics": "decorative-only; no numeric/live assertions",
+            "palette": [
+              226,
+              90,
+              80
+            ]
+          }
+        }
+      }
+    },
+    "rug": {
+      "views": {
+        "s": {
+          "image": "frontend/assets/industrial/batch03/habitat/rug.png",
+          "outputSha256": "beb5381e2b77f33d9ba11716a13377b801492d9bfc6a7f0f9f17949142671911",
+          "width": 1448,
+          "height": 871,
+          "alphaBounds": {
+            "x": 0,
+            "y": 0,
+            "width": 1448,
+            "height": 871
+          },
+          "mode": "static",
+          "palette": null,
+          "originalTrigger": {
+            "kind": "static-intent",
+            "condition": "No internal animation; preserve external light/leisure/placement contracts",
+            "evidence": [
+              "frontend/app/propsprites.js:5513"
+            ]
+          },
+          "functionalCapabilitiesPreserved": true,
+          "intentionalStatic": "Woven floor pattern is intentionally static; native sampled frames are identical.",
+          "behavior": "Woven floor pattern is intentionally static; native sampled frames are identical.",
+          "integrationRequirements": [],
+          "engineAlphaNormalized": {
+            "regions": {}
+          },
+          "nativeLight": null,
+          "regions": {},
+          "flatPlanTurns": [
+            0,
+            1,
+            2,
+            3
+          ]
+        }
+      }
+    },
+    "rug_small": {
+      "views": {
+        "s": {
+          "image": "frontend/assets/industrial/batch03/habitat/rug_small.png",
+          "outputSha256": "11b748ce144b8400bbe85f5fb737a0a2aaef68b7e2c02391b814dea00b32fd49",
+          "width": 1137,
+          "height": 1221,
+          "alphaBounds": {
+            "x": 0,
+            "y": 0,
+            "width": 1137,
+            "height": 1221
+          },
+          "mode": "static",
+          "palette": null,
+          "originalTrigger": {
+            "kind": "static-intent",
+            "condition": "No internal animation; preserve external light/leisure/placement contracts",
+            "evidence": [
+              "frontend/app/propsprites.js:5574"
+            ]
+          },
+          "functionalCapabilitiesPreserved": true,
+          "intentionalStatic": "Woven floor pattern is intentionally static; native sampled frames are identical.",
+          "behavior": "Woven floor pattern is intentionally static; native sampled frames are identical.",
+          "integrationRequirements": [],
+          "engineAlphaNormalized": {
+            "regions": {}
+          },
+          "nativeLight": null,
+          "regions": {},
+          "flatPlanTurns": [
+            0,
+            1,
+            2,
+            3
+          ]
+        }
+      }
+    },
+    "rug_large": {
+      "views": {
+        "s": {
+          "image": "frontend/assets/industrial/batch03/habitat/rug_large.png",
+          "outputSha256": "4833b6a895140eea978a594efaed699d8f102ab6e71872a08f0f7b591f60dbc4",
+          "width": 1206,
+          "height": 1181,
+          "alphaBounds": {
+            "x": 0,
+            "y": 0,
+            "width": 1206,
+            "height": 1181
+          },
+          "mode": "static",
+          "palette": null,
+          "originalTrigger": {
+            "kind": "static-intent",
+            "condition": "No internal animation; preserve external light/leisure/placement contracts",
+            "evidence": [
+              "frontend/app/propsprites.js:5637"
+            ]
+          },
+          "functionalCapabilitiesPreserved": true,
+          "intentionalStatic": "Woven floor pattern is intentionally static; native sampled frames are identical.",
+          "behavior": "Woven floor pattern is intentionally static; native sampled frames are identical.",
+          "integrationRequirements": [],
+          "engineAlphaNormalized": {
+            "regions": {}
+          },
+          "nativeLight": null,
+          "regions": {},
+          "flatPlanTurns": [
+            0,
+            1,
+            2,
+            3
+          ]
+        }
+      }
+    },
+    "arc_ladder": {
+      "views": {
+        "s": {
+          "image": "frontend/assets/industrial/batch03/habitat/arc_ladder.png",
+          "outputSha256": "9191ebcd181116d51cfab4ad4e90fa22220326ecceac73f58ec39c89797b443f",
+          "width": 1044,
+          "height": 1400,
+          "alphaBounds": {
+            "x": 0,
+            "y": 0,
+            "width": 1044,
+            "height": 1400
+          },
+          "mode": "static",
+          "palette": null,
+          "originalTrigger": {
+            "kind": "static-intent",
+            "condition": "No internal animation; preserve external light/leisure/placement contracts",
+            "evidence": [
+              "frontend/app/propsprites.js:9084"
+            ]
+          },
+          "functionalCapabilitiesPreserved": true,
+          "intentionalStatic": "Wood steps and rails are static; preserve nonblocking placement and feet contact.",
+          "behavior": "Wood steps and rails are static; preserve nonblocking placement and feet contact.",
+          "integrationRequirements": [],
+          "engineAlphaNormalized": {
+            "regions": {}
+          },
+          "nativeLight": null,
+          "regions": {},
+          "flatPlanTurns": [
+            0
+          ]
+        }
+      }
+    },
+    "hazardpad": {
+      "views": {
+        "s": {
+          "image": "frontend/assets/industrial/batch03/habitat/hazardpad.png",
+          "outputSha256": "ba6135bf428c9e05c25dc84a9ee58cd8f15bfb6b30a07c14e4afa4021780dd80",
+          "width": 1740,
+          "height": 683,
+          "alphaBounds": {
+            "x": 0,
+            "y": 0,
+            "width": 1740,
+            "height": 683
+          },
+          "mode": "static",
+          "palette": null,
+          "originalTrigger": {
+            "kind": "static-intent",
+            "condition": "No internal animation; preserve external light/leisure/placement contracts",
+            "evidence": [
+              "frontend/app/propsprites.js:1751"
+            ]
+          },
+          "functionalCapabilitiesPreserved": true,
+          "intentionalStatic": "Rubber floor caution pattern is static; no native meaningful animation.",
+          "behavior": "Rubber floor caution pattern is static; no native meaningful animation.",
+          "integrationRequirements": [],
+          "engineAlphaNormalized": {
+            "regions": {}
+          },
+          "nativeLight": null,
+          "regions": {},
+          "flatPlanTurns": [
+            0,
+            1,
+            2,
+            3
+          ]
+        }
+      }
+    },
+    "cablerun": {
+      "views": {
+        "s": {
+          "image": "frontend/assets/industrial/batch03/habitat/cablerun.png",
+          "outputSha256": "92d0b2865dc9bd58a65f2331cf516bc3ba22411a702eaaad240c7e2e9333647c",
+          "width": 1993,
+          "height": 429,
+          "alphaBounds": {
+            "x": 0,
+            "y": 0,
+            "width": 1993,
+            "height": 429
+          },
+          "mode": "static",
+          "palette": null,
+          "originalTrigger": {
+            "kind": "static-intent",
+            "condition": "No internal animation; preserve external light/leisure/placement contracts",
+            "evidence": [
+              "frontend/app/propsprites.js:1717"
+            ]
+          },
+          "functionalCapabilitiesPreserved": true,
+          "intentionalStatic": "Rare incidental stray-spark decoration intentionally removed for quieter illustrated cables; no work or telemetry semantics attached to the old blink.",
+          "behavior": "Rare incidental stray-spark decoration intentionally removed for quieter illustrated cables; no work or telemetry semantics attached to the old blink.",
+          "integrationRequirements": [],
+          "engineAlphaNormalized": {
+            "regions": {}
+          },
+          "nativeLight": null,
+          "regions": {},
+          "flatPlanTurns": [
+            0,
+            1,
+            2,
+            3
+          ]
+        }
+      }
+    },
+    "arc_floorlight": {
+      "views": {
+        "s": {
+          "image": "frontend/assets/industrial/batch03/habitat/arc_floorlight.png",
+          "outputSha256": "43d2db807a4c409ed949b99bc48cdd4dd75863cfdbd99fdd30315f0b26c7ae1b",
+          "width": 855,
+          "height": 1158,
+          "alphaBounds": {
+            "x": 0,
+            "y": 0,
+            "width": 855,
+            "height": 1158
+          },
+          "mode": "static",
+          "palette": [
+            255,
+            220,
+            170
+          ],
+          "originalTrigger": {
+            "kind": "static-intent",
+            "condition": "No internal animation; preserve external light/leisure/placement contracts",
+            "evidence": [
+              "frontend/app/propsprites.js:9053"
+            ]
+          },
+          "functionalCapabilitiesPreserved": true,
+          "intentionalStatic": "Aisle light is steady by native design, not breathing or work-driven. Preserve independent warm ground light.",
+          "behavior": "Aisle light is steady by native design, not breathing or work-driven. Preserve independent warm ground light.",
+          "integrationRequirements": [
+            "Native passability remains nonblocking; this new lantern silhouette has visible rise. Verify walk-over/body layering or recess its visual placement before live acceptance."
+          ],
+          "engineAlphaNormalized": {
+            "regions": {
+              "lensLeft": [
+                [
+                  0.234,
+                  0.35
+                ],
+                [
+                  0.441,
+                  0.35
+                ],
+                [
+                  0.441,
+                  0.69
+                ],
+                [
+                  0.234,
+                  0.69
+                ]
+              ],
+              "lensRight": [
+                [
+                  0.558,
+                  0.35
+                ],
+                [
+                  0.765,
+                  0.35
+                ],
+                [
+                  0.765,
+                  0.69
+                ],
+                [
+                  0.558,
+                  0.69
+                ]
+              ],
+              "lightOrigin": [
+                [
+                  0.4994152046783626,
+                  0.5734024179620034
+                ]
+              ]
+            }
+          },
+          "nativeLight": {
+            "c": [
+              255,
+              220,
+              170
+            ],
+            "r": 36,
+            "a": 0.24,
+            "m": "steady",
+            "y": 0.2
+          },
+          "regions": {
+            "lensLeft": [
+              [
+                0.234,
+                0.35
+              ],
+              [
+                0.441,
+                0.35
+              ],
+              [
+                0.441,
+                0.69
+              ],
+              [
+                0.234,
+                0.69
+              ]
+            ],
+            "lensRight": [
+              [
+                0.558,
+                0.35
+              ],
+              [
+                0.765,
+                0.35
+              ],
+              [
+                0.765,
+                0.69
+              ],
+              [
+                0.558,
+                0.69
+              ]
+            ],
+            "lightOrigin": [
+              [
+                0.4994152046783626,
+                0.5734024179620034
+              ]
+            ]
+          },
+          "flatPlanTurns": [
+            0
+          ]
+        }
+      }
+    },
+    "steamvent": {
+      "views": {
+        "s": {
+          "image": "frontend/assets/industrial/batch03/habitat/steamvent.png",
+          "outputSha256": "940a4161bddf981ebc5b698aa15a0eeda78fed36c8066f1b3b70e96d871fbcc9",
+          "width": 1209,
+          "height": 1025,
+          "alphaBounds": {
+            "x": 0,
+            "y": 0,
+            "width": 1209,
+            "height": 1025
+          },
+          "mode": "steam",
+          "palette": [
+            207,
+            224,
+            228
+          ],
+          "originalTrigger": {
+            "kind": "ambient-clock",
+            "condition": "clock cycle only; ignore f.work",
+            "evidence": [
+              "frontend/app/propsprites.js:10501"
+            ]
+          },
+          "functionalCapabilitiesPreserved": true,
+          "intentionalStatic": null,
+          "behavior": "Ambient steam cycle rises from the opening, with 3400ms period and 78% duty; f.work does not gate it.",
+          "integrationRequirements": [
+            "Native steam vent is a flush walk-over fixture. New collar has visible rise; verify nonblocking floor/body layering before accepting integration."
+          ],
+          "engineAlphaNormalized": {
+            "motion": {
+              "origin": [
+                0.49793217535153017,
+                0.16585365853658537
+              ],
+              "colour": [
+                207,
+                224,
+                228
+              ],
+              "trigger": "ambient",
+              "rise": 11,
+              "periodMs": 3400,
+              "duty": 0.78
+            },
+            "regions": {
+              "steamMouth": [
+                [
+                  0.2729528535980149,
+                  0.10341463414634146
+                ],
+                [
+                  0.7113316790736146,
+                  0.10341463414634146
+                ],
+                [
+                  0.727874276261373,
+                  0.2302439024390244
+                ],
+                [
+                  0.26468155500413565,
+                  0.2302439024390244
+                ]
+              ]
+            }
+          },
+          "nativeLight": {
+            "c": [
+              255,
+              170,
+              120
+            ],
+            "r": 12,
+            "a": 0.05,
+            "m": "fire",
+            "y": 0.5
+          },
+          "regions": {
+            "steamMouth": [
+              [
+                0.2729528535980149,
+                0.10341463414634146
+              ],
+              [
+                0.7113316790736146,
+                0.10341463414634146
+              ],
+              [
+                0.727874276261373,
+                0.2302439024390244
+              ],
+              [
+                0.26468155500413565,
+                0.2302439024390244
+              ]
+            ]
+          },
+          "motion": {
+            "origin": [
+              0.49793217535153017,
+              0.16585365853658537
+            ],
+            "colour": [
+              207,
+              224,
+              228
+            ],
+            "trigger": "ambient",
+            "rise": 11,
+            "periodMs": 3400,
+            "duty": 0.78
+          },
+          "flatPlanTurns": [
+            0
+          ]
+        }
+      }
+    }
+  }
+}

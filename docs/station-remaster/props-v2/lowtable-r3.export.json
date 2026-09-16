@@ -1,0 +1,15 @@
+{
+  "id": "lowtable-r3",
+  "source": "C:/Users/andro/.codex/generated_images/01a09c6e-42f0-7c90-bc97-768d6754278f/exec-578d99ee-bf5a-4686-b75a-b6bd637e62b2.png",
+  "sourceWidth": 836,
+  "sourceHeight": 1881,
+  "crop": {
+    "left": 50,
+    "top": 53,
+    "width": 737,
+    "height": 1723
+  },
+  "sourceAlpha": false,
+  "subjectRgbChanges": 0,
+  "output": "frontend/assets/industrial/props-v2/lowtable-r3.png"
+}

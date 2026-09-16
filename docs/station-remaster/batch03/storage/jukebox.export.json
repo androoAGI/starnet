@@ -1,0 +1,61 @@
+{
+  "id": "jukebox",
+  "status": "exported-awaiting-owner-live-review",
+  "source": "sources/jukebox.png",
+  "sourceSha256": "8055ef2b1aeac84c6ab18146da112dbe40132722080584ae320aba260a627d4f",
+  "sourceWidth": 1024,
+  "sourceHeight": 1536,
+  "image": "jukebox.png",
+  "sourceOutputWidth": 783,
+  "sourceOutputHeight": 1395,
+  "crop": {
+    "left": 121,
+    "top": 30,
+    "width": 783,
+    "height": 1395
+  },
+  "channels": 4,
+  "transparentPixels": 128803,
+  "opaquePixels": 963482,
+  "partialPixels": 0,
+  "backgroundPixelsRemoved": 609382,
+  "subjectRgbChanges": 0,
+  "outputSha256": "d341279c214635f8591aea5b3a0de9495b36500a40918ef8c55ccaabf4aa6132",
+  "holeSeeds": [],
+  "maskMethod": "Connected saturated-magenta flood fill, including key-only enclosed components. Alpha-only edits; uniform crop; no RGB recolor.",
+  "view": "s",
+  "footprint": {
+    "w": 1,
+    "h": 2
+  },
+  "bounds": {
+    "x": -1,
+    "y": -3,
+    "width": 18,
+    "height": 27
+  },
+  "tilePixels": 12,
+  "contact": {
+    "x": 8,
+    "y": 24
+  },
+  "anchorContract": "PropAnchor derives reachable edge approach; useApproach rotates relative preference with r. Preserve standing leisure action unless special planner supplies a real body anchor.",
+  "originalLight": {
+    "c": [
+      255,
+      180,
+      80
+    ],
+    "r": 22,
+    "a": 0.12,
+    "m": "pulse",
+    "y": 0.35
+  },
+  "originalAnimationTriggers": [
+    "/api/spotify/status connected:true powers lamps, disc and bubble chase; disconnected is dark. This is actual Spotify capability despite its cosmetic catalog tier.",
+    "Real spotify_* tool completion chooses the granting prop instance and overlays a 900 ms success accent or red failure surge.",
+    "Actual leisure usingProp / watchProp can set work on this prop; body approach and use animation follow leisureUse. In the baseline draw work expression this leisure trigger directly checks the hero, not a separate crew leisure flag."
+  ],
+  "artMode": "static complete art; existing state/lighting integration remains owner decision",
+  "liveIntegrated": false
+}

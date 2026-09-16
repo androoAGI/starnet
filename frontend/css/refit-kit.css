@@ -144,6 +144,12 @@
 .refit-propworkspace.show-details .refit-equipment-info { display: block; max-height: calc(140px * var(--sn-unzoom,1)); overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; }
 .refit-propworkspace .refit-placement-note { display: none; }
 .refit-dock :is(button,input,select,summary):focus-visible { outline: 2px solid var(--ph-bright); outline-offset: 2px; }
+.refit-selection { display:grid; gap:7px; padding:12px; border-block:1px solid var(--gold); background:var(--panel); flex-shrink:0; }
+.refit-selection[hidden] { display:none; }
+.refit-selection > span { font-size:12px; color:var(--muted); }
+.refit-selection-actions { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:5px; }
+.refit-selection-actions .bb { min-height:30px; padding:5px; }
+.refit-overlay.has-selection[data-tool="select"] #refit-option-section { display:none; }
 .refit-finline { max-height: calc(100vh * var(--sn-unzoom,1) - 150px); overflow-y: auto; }
 @container (max-width: 270px) {
   .refit-propcat small, .refit-tool .refit-key { display: none; }
@@ -151,6 +157,11 @@
   .refit-hint-keys { display: none; }
 }
 @media (max-width: 1100px) { .refit-dock { top: 88px; } }
+.refit-position{font-size:12px;color:var(--muted,#ad9b79)}
+.refit-object-finder{width:100%;min-height:38px;padding:8px;color:var(--text,#e6d5a5);background:var(--panel,#16130d);border:1px solid var(--border,#746546);font:inherit}
+.refit-position summary{cursor:pointer;padding:5px 0}
+.refit-position label{display:inline-flex;gap:5px;align-items:center;margin:6px 8px 6px 0}
+.refit-position input{width:70px;background:#16130d;color:#e6d5a5;border:1px solid #746546;padding:5px}
 @media (max-height: 740px) {
   .refit-dock .refit-tool { min-height: 25px; padding-top: 3px; padding-bottom: 3px; }
 }

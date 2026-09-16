@@ -1,0 +1,68 @@
+{
+  "id": "easel",
+  "status": "exported-awaiting-owner-live-review",
+  "source": "sources/easel.png",
+  "sourceSha256": "bad540618ca848cd76d6ccb5e3ffc304c9cdd77d632d10afe09373259223f5a2",
+  "sourceWidth": 1184,
+  "sourceHeight": 1328,
+  "image": "easel.png",
+  "sourceOutputWidth": 671,
+  "sourceOutputHeight": 1268,
+  "crop": {
+    "left": 257,
+    "top": 23,
+    "width": 671,
+    "height": 1268
+  },
+  "channels": 4,
+  "transparentPixels": 405358,
+  "opaquePixels": 445470,
+  "partialPixels": 0,
+  "backgroundPixelsRemoved": 1126882,
+  "subjectRgbChanges": 0,
+  "outputSha256": "549f703bc641394344ca53321bb56d39bf70140d000950f2f53cb16a75973a5d",
+  "holeSeeds": [
+    [
+      426,
+      813
+    ],
+    [
+      615,
+      814
+    ]
+  ],
+  "maskMethod": "Connected saturated-magenta flood fill, including key-only enclosed components. Alpha-only edits; uniform crop; no RGB recolor.",
+  "view": "s",
+  "footprint": {
+    "w": 3,
+    "h": 2
+  },
+  "bounds": {
+    "x": 1,
+    "y": -14,
+    "width": 34,
+    "height": 38
+  },
+  "tilePixels": 12,
+  "contact": {
+    "x": 18,
+    "y": 24
+  },
+  "anchorContract": "No leisure seat anchor. Footprint is the placement/pathfinding rectangle; upright visual rise is independent of the reserved box.",
+  "originalLight": {
+    "c": [
+      255,
+      214,
+      150
+    ],
+    "r": 16,
+    "a": 0.05,
+    "m": "steady",
+    "y": 0.4
+  },
+  "originalAnimationTriggers": [
+    "Autonomous sprite clock animation is present in the sampled default state; cosmetic motion is not evidence of provider work, route decisions or external state."
+  ],
+  "artMode": "static complete art; existing state/lighting integration remains owner decision",
+  "liveIntegrated": false
+}

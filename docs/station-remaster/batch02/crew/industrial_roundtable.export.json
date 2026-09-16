@@ -1,0 +1,72 @@
+{
+  "sourceAnimation": {
+    "idleFrameVariants": 1,
+    "workFrameVariants": 1,
+    "respondsToWorkFlag": false,
+    "opaqueBoundsRelativeToFootprint": {
+      "x": 0,
+      "y": -4,
+      "w": 24,
+      "h": 16,
+      "alphaThreshold": 160
+    }
+  },
+  "bounds": {
+    "y": -4,
+    "width": 24,
+    "height": 16,
+    "x": 0
+  },
+  "id": "industrial_roundtable",
+  "geometry": {
+    "blocks": true,
+    "flat": false,
+    "tableSurface": true,
+    "requiredMount": null,
+    "optionalSurfaceMount": false,
+    "surfaceRisePixels": 8
+  },
+  "floorContact": {
+    "x": 12,
+    "y": 12
+  },
+  "backgroundThreshold": 235,
+  "tilePixels": 12,
+  "status": "art-draft-integration-pending",
+  "view": "s",
+  "footprint": {
+    "w": 2,
+    "h": 1
+  },
+  "anchorContract": "No leisure seat anchor. Footprint is the placement/pathfinding rectangle; upright visual rise is independent of the reserved box.",
+  "holeSeeds": [],
+  "proportionReview": {
+    "sourceNearSurfaceRimY": 500,
+    "sourceFootY": 966,
+    "sourceTopY": 25,
+    "cropWidth": 1374,
+    "cropHeight": 941,
+    "uniformFitWorldWidth": 23.36,
+    "uniformFitWorldNearSurfaceRimY": 4.08,
+    "worldFloorY": 12,
+    "topEllipseDepthOverWidth": 0.346,
+    "note": "Reauthored ellipse and pedestal; no bitmap stretching. Near top rim now ~y4 for SURFACE_RISE8."
+  },
+  "sourceWidth": 1536,
+  "sourceHeight": 1024,
+  "sourceSha256": "0f0e117ddadca3852e41fae5d5c0e98512dc442ec8931b8f64246d5fc4a11257",
+  "output": "frontend/assets/industrial/batch02/crew/industrial_roundtable.png",
+  "crop": {
+    "left": 81,
+    "top": 25,
+    "width": 1374,
+    "height": 941
+  },
+  "transparentPixels": 532402,
+  "opaquePixels": 760532,
+  "partialPixels": 0,
+  "backgroundPixelsRemoved": 812332,
+  "subjectRgbChanges": 0,
+  "outputSha256": "0548f3adab9984e6df35d23489e6a89de240ec0087d4156a9ad9b2a45f9e466d",
+  "liveIntegrated": false
+}

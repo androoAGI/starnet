@@ -1,0 +1,33 @@
+{
+  "id": "beanbag",
+  "asset": "beanbag",
+  "tool": "built-in image_gen",
+  "variant": "s",
+  "status": "generated candidate; root actual-scale review pending",
+  "native": {
+    "key": "beanbag",
+    "r": 0,
+    "image": "beanbag.png",
+    "footprint": {
+      "w": 1,
+      "h": 1
+    },
+    "bounds": {
+      "x": -1,
+      "y": 1,
+      "width": 14,
+      "height": 11
+    },
+    "guide": "dev/.scratch-workspace/prop-structure/beanbag.png"
+  },
+  "references": [
+    "dev/.scratch-workspace/prop-structure/beanbag.png",
+    "frontend/assets/industrial/calibration/crate.png",
+    "docs/station-remaster/bridge-reference.png"
+  ],
+  "ratioDeviationPercent": 1.689,
+  "aspectTolerancePercent": 8,
+  "aspectPass": true,
+  "rgbRepaint": false,
+  "runtimeIntegrated": false
+}

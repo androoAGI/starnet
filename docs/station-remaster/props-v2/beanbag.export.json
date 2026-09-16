@@ -1,0 +1,15 @@
+{
+  "id": "beanbag",
+  "source": "C:/Users/andro/.codex/generated_images/01a09c6e-42f0-7c90-bc97-768d6754278f/exec-2064edc4-3422-4fd6-bee9-9b0079029a86.png",
+  "sourceWidth": 1415,
+  "sourceHeight": 1111,
+  "crop": {
+    "left": 1,
+    "top": 8,
+    "width": 1412,
+    "height": 1091
+  },
+  "sourceAlpha": false,
+  "subjectRgbChanges": 0,
+  "output": "frontend/assets/industrial/props-v2/beanbag.png"
+}

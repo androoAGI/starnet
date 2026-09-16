@@ -1,0 +1,48 @@
+{
+  "version": 1,
+  "generator": "Codex built-in image_gen",
+  "sources": [
+    {
+      "toolOutput": "C:/Users/andro/.codex/generated_images/01a09e48-0877-7203-a53f-4b137e36d69a/exec-f01b53ae-9235-4115-b216-14c044302bc0.png",
+      "preserved": "docs/station-remaster/catalog-machinery/sheet-source.png",
+      "prompt": "sheet.prompt.txt",
+      "selected": [
+        "tube",
+        "cryopod",
+        "comms_uplink"
+      ]
+    },
+    {
+      "toolOutput": "C:/Users/andro/.codex/generated_images/01a09e48-0877-7203-a53f-4b137e36d69a/exec-f7b6c327-c19c-4a04-8eeb-dbdf2c7b9d36.png",
+      "preserved": "docs/station-remaster/catalog-machinery/proportions-source.png",
+      "prompt": "proportions.prompt.txt",
+      "selected": [
+        "tank",
+        "fabricator",
+        "vat",
+        "industrial_servicecab",
+        "incubator"
+      ]
+    }
+  ],
+  "references": [
+    {
+      "id": "crate",
+      "path": "C:/Users/andro/gen-trees/prop-coordination-0914/frontend/assets/industrial/projection-correction/crate.png",
+      "sha256": "a4c596600f4c1c0bf0c2f4df0892a9f0c49b074dd91079b5926b0fd27cd0ba16",
+      "role": "accepted camera and material reference"
+    },
+    {
+      "id": "arcade",
+      "path": "C:/Users/andro/gen-trees/prop-coordination-0914/frontend/assets/industrial/projection-correction/arcade.png",
+      "sha256": "079391010c468d92355bfa220fbb59e9f12f5097a9ee22137f5b442ce84fff01",
+      "role": "accepted camera and material reference"
+    },
+    {
+      "id": "quarters_pooltable",
+      "path": "C:/Users/andro/gen-trees/prop-coordination-0914/frontend/assets/industrial/projection-correction/quarters_pooltable.png",
+      "sha256": "6fca3b889d28186dc4cc20bd7634628d3fa06cb4bfb1db226f5d68f8adab872d",
+      "role": "accepted camera and material reference"
+    }
+  ]
+}

@@ -1,0 +1,15 @@
+{
+  "id": "speaker",
+  "source": "C:/Users/andro/.codex/generated_images/01a09c6e-42f0-7c90-bc97-768d6754278f/exec-a4e022b8-ca24-4d83-b14a-5762cdf63b13.png",
+  "sourceWidth": 1024,
+  "sourceHeight": 1536,
+  "crop": {
+    "left": 74,
+    "top": 89,
+    "width": 876,
+    "height": 1337
+  },
+  "sourceAlpha": false,
+  "subjectRgbChanges": 0,
+  "output": "frontend/assets/industrial/props-v2/speaker.png"
+}

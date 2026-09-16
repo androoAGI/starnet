@@ -1,0 +1,59 @@
+{
+  "id": "djbooth",
+  "status": "exported-awaiting-owner-live-review",
+  "source": "sources/djbooth.png",
+  "sourceSha256": "9e4433b6e2f41c1935ad4976e5bbd27d89721c9f2bb6557c6514f760c4177246",
+  "sourceWidth": 1647,
+  "sourceHeight": 955,
+  "image": "djbooth.png",
+  "sourceOutputWidth": 1562,
+  "sourceOutputHeight": 701,
+  "crop": {
+    "left": 42,
+    "top": 136,
+    "width": 1562,
+    "height": 701
+  },
+  "channels": 4,
+  "transparentPixels": 145847,
+  "opaquePixels": 949115,
+  "partialPixels": 0,
+  "backgroundPixelsRemoved": 623770,
+  "subjectRgbChanges": 0,
+  "outputSha256": "254522569c74605e43b90234d57e487d6184efcf1458c0db9ecb80cac8446c78",
+  "holeSeeds": [],
+  "maskMethod": "Connected saturated-magenta flood fill, including key-only enclosed components. Alpha-only edits; uniform crop; no RGB recolor.",
+  "view": "s",
+  "footprint": {
+    "w": 4,
+    "h": 2
+  },
+  "bounds": {
+    "x": -1,
+    "y": -5,
+    "width": 50,
+    "height": 29
+  },
+  "tilePixels": 12,
+  "contact": {
+    "x": 24,
+    "y": 24
+  },
+  "anchorContract": "PropAnchor derives reachable edge approach; useApproach rotates relative preference with r. Preserve standing leisure action unless special planner supplies a real body anchor.",
+  "originalLight": {
+    "c": [
+      255,
+      90,
+      190
+    ],
+    "r": 30,
+    "a": 0.12,
+    "m": "pulse",
+    "y": 0.4
+  },
+  "originalAnimationTriggers": [
+    "Actual leisure usingProp / watchProp can set work on this prop; body approach and use animation follow leisureUse. In the baseline draw work expression this leisure trigger directly checks the hero, not a separate crew leisure flag."
+  ],
+  "artMode": "static complete art; existing state/lighting integration remains owner decision",
+  "liveIntegrated": false
+}

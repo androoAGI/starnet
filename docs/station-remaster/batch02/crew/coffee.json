@@ -1,0 +1,43 @@
+{
+  "sourceAnimation": {
+    "idleFrameVariants": 8,
+    "workFrameVariants": 8,
+    "respondsToWorkFlag": false,
+    "opaqueBoundsRelativeToFootprint": {
+      "x": -1,
+      "y": -6,
+      "w": 13,
+      "h": 18,
+      "alphaThreshold": 160
+    }
+  },
+  "bounds": {
+    "y": -6,
+    "width": 13,
+    "height": 18,
+    "x": -1
+  },
+  "id": "coffee",
+  "geometry": {
+    "blocks": false,
+    "flat": false,
+    "tableSurface": false,
+    "requiredMount": null,
+    "optionalSurfaceMount": true,
+    "surfaceRisePixels": 8
+  },
+  "floorContact": {
+    "x": 6,
+    "y": 12
+  },
+  "backgroundThreshold": 235,
+  "tilePixels": 12,
+  "status": "art-draft-integration-pending",
+  "view": "s",
+  "footprint": {
+    "w": 1,
+    "h": 1
+  },
+  "anchorContract": "PropAnchor derives reachable edge approach; useApproach rotates relative preference with r. Preserve standing leisure action unless special planner supplies a real body anchor.",
+  "holeSeeds": []
+}

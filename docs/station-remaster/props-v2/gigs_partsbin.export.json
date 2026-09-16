@@ -1,0 +1,32 @@
+{
+  "id": "gigs_partsbin",
+  "source": "C:/Users/andro/.codex/generated_images/01a09c6e-ef28-70a0-bd8b-b60f1a9b9f92/exec-0debed09-aa9b-454b-a4b0-75f3325c82b8.png",
+  "sourceWidth": 1465,
+  "sourceHeight": 1073,
+  "crop": {
+    "left": 0,
+    "top": 27,
+    "width": 1465,
+    "height": 1021
+  },
+  "sourceAlpha": false,
+  "subjectRgbChanges": 0,
+  "output": "frontend/assets/industrial/props-v2/gigs_partsbin.png",
+  "native": {
+    "key": "gigs_partsbin",
+    "r": 0,
+    "image": "gigs_partsbin.png",
+    "footprint": {
+      "w": 2,
+      "h": 1
+    },
+    "bounds": {
+      "x": -1,
+      "y": -7,
+      "width": 26,
+      "height": 19
+    },
+    "guide": "dev/.scratch-workspace/prop-structure/gigs_partsbin.png"
+  },
+  "aspectError": 0.048557221426956954
+}

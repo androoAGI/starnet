@@ -1,0 +1,5289 @@
+{
+  "version": 1,
+  "source": "frontend/assets/industrial/complete-sheet/starnet-props-full-sheet.png",
+  "sourceSha256": "e68ef0d3711e9164a3aff5333b98522ed6fdcb4bc7654929e333cb2ff2b97ea9",
+  "count": 160,
+  "method": "Original RGB and retained alpha preserved; remove alpha=1 and soft detached background haze farther than3 pixels from opaque body (8 for emissive props). Tight crop per visually ordered cell. No repainting, recoloring, stretching or generated replacements.",
+  "records": [
+    {
+      "id": "industrial_locker",
+      "row": 0,
+      "col": 0,
+      "output": "frontend/assets/industrial/approved-sheet/industrial_locker.png",
+      "sourceRect": {
+        "left": 0,
+        "top": 0,
+        "width": 109,
+        "height": 120
+      },
+      "cropInCell": {
+        "left": 41,
+        "top": 29,
+        "width": 55,
+        "height": 83
+      },
+      "sourceCrop": {
+        "left": 41,
+        "top": 29,
+        "width": 55,
+        "height": 83
+      },
+      "width": 55,
+      "height": 83,
+      "outputSha256": "46f1ac07c56df477d548de3f2458a71715210b88eaee065f0ed00c41ce7661f0",
+      "retainedPixels": 4249,
+      "alphaResidueRemoved": 458,
+      "retainedRgbChanges": 0,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "opaqueCellEdgePixels": 0
+    },
+    {
+      "id": "industrial_drawerbank",
+      "row": 0,
+      "col": 1,
+      "output": "frontend/assets/industrial/approved-sheet/industrial_drawerbank.png",
+      "sourceRect": {
+        "left": 109,
+        "top": 0,
+        "width": 91,
+        "height": 120
+      },
+      "cropInCell": {
+        "left": 15,
+        "top": 37,
+        "width": 63,
+        "height": 68
+      },
+      "sourceCrop": {
+        "left": 124,
+        "top": 37,
+        "width": 63,
+        "height": 68
+      },
+      "width": 63,
+      "height": 68,
+      "outputSha256": "76c394d7bafdaeba4058f426c3f7b5aa0621a1e3392762f1d1ca465090b8ddd8",
+      "retainedPixels": 3906,
+      "alphaResidueRemoved": 733,
+      "retainedRgbChanges": 0,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "opaqueCellEdgePixels": 0
+    },
+    {
+      "id": "industrial_supplycart",
+      "row": 0,
+      "col": 2,
+      "output": "frontend/assets/industrial/approved-sheet/industrial_supplycart.png",
+      "sourceRect": {
+        "left": 200,
+        "top": 0,
+        "width": 92,
+        "height": 120
+      },
+      "cropInCell": {
+        "left": 8,
+        "top": 35,
+        "width": 75,
+        "height": 77
+      },
+      "sourceCrop": {
+        "left": 208,
+        "top": 35,
+        "width": 75,
+        "height": 77
+      },
+      "width": 75,
+      "height": 77,
+      "outputSha256": "1a1859ba521ea7fadeba8b61682b326193d4aa2d7b8b44c36824a6c39180f3e5",
+      "retainedPixels": 4637,
+      "alphaResidueRemoved": 988,
+      "retainedRgbChanges": 0,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "opaqueCellEdgePixels": 0
+    },
+    {
+      "id": "industrial_toolcaddy",
+      "row": 0,
+      "col": 3,
+      "output": "frontend/assets/industrial/approved-sheet/industrial_toolcaddy.png",
+      "sourceRect": {
+        "left": 292,
+        "top": 0,
+        "width": 94,
+        "height": 120
+      },
+      "cropInCell": {
+        "left": 13,
+        "top": 38,
+        "width": 79,
+        "height": 76
+      },
+      "sourceCrop": {
+        "left": 305,
+        "top": 38,
+        "width": 79,
+        "height": 76
+      },
+      "width": 79,
+      "height": 76,
+      "outputSha256": "1d909264e0f91f9befa4492ce6ffd1fc46af28040c1005a4f5492268c2974afd",
+      "retainedPixels": 4322,
+      "alphaResidueRemoved": 936,
+      "retainedRgbChanges": 0,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "opaqueCellEdgePixels": 0
+    },
+    {
+      "id": "industrial_planter",
+      "row": 0,
+      "col": 4,
+      "output": "frontend/assets/industrial/approved-sheet/industrial_planter.png",
+      "sourceRect": {
+        "left": 386,
+        "top": 0,
+        "width": 93,
+        "height": 120
+      },
+      "cropInCell": {
+        "left": 17,
+        "top": 31,
+        "width": 62,
+        "height": 79
+      },
+      "sourceCrop": {
+        "left": 403,
+        "top": 31,
+        "width": 62,
+        "height": 79
+      },
+      "width": 62,
+      "height": 79,
+      "outputSha256": "42145026d184bdb04569c482298da70fb1b63804c98581f67cafca645b151481",
+      "retainedPixels": 3295,
+      "alphaResidueRemoved": 734,
+      "retainedRgbChanges": 0,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "opaqueCellEdgePixels": 0
+    },
+    {
+      "id": "industrial_partition",
+      "row": 0,
+      "col": 5,
+      "output": "frontend/assets/industrial/approved-sheet/industrial_partition.png",
+      "sourceRect": {
+        "left": 479,
+        "top": 0,
+        "width": 93,
+        "height": 120
+      },
+      "cropInCell": {
+        "left": 12,
+        "top": 31,
+        "width": 80,
+        "height": 86
+      },
+      "sourceCrop": {
+        "left": 491,
+        "top": 31,
+        "width": 80,
+        "height": 86
+      },
+      "width": 80,
+      "height": 86,
+      "outputSha256": "837da3c5a92326daca5738b890367930d3304c14b5f16c40b10305335f69d5b0",
+      "retainedPixels": 4945,
+      "alphaResidueRemoved": 621,
+      "retainedRgbChanges": 0,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "opaqueCellEdgePixels": 0
+    },
+    {
+      "id": "industrial_bench",
+      "row": 0,
+      "col": 6,
+      "output": "frontend/assets/industrial/approved-sheet/industrial_bench.png",
+      "sourceRect": {
+        "left": 572,
+        "top": 0,
+        "width": 106,
+        "height": 120
+      },
+      "cropInCell": {
+        "left": 18,
+        "top": 50,
+        "width": 88,
+        "height": 54
+      },
+      "sourceCrop": {
+        "left": 590,
+        "top": 50,
+        "width": 88,
+        "height": 54
+      },
+      "width": 88,
+      "height": 54,
+      "outputSha256": "1724b783ced180fa1f2926111ee88e809bbe1f7f47d6c62c8f1726af5f276264",
+      "retainedPixels": 4055,
+      "alphaResidueRemoved": 876,
+      "retainedRgbChanges": 0,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "opaqueCellEdgePixels": 0
+    },
+    {
+      "id": "industrial_roundtable",
+      "row": 0,
+      "col": 7,
+      "output": "frontend/assets/industrial/approved-sheet/industrial_roundtable.png",
+      "sourceRect": {
+        "left": 678,
+        "top": 0,
+        "width": 84,
+        "height": 120
+      },
+      "cropInCell": {
+        "left": 18,
+        "top": 40,
+        "width": 64,
+        "height": 69
+      },
+      "sourceCrop": {
+        "left": 696,
+        "top": 40,
+        "width": 64,
+        "height": 69
+      },
+      "width": 64,
+      "height": 69,
+      "outputSha256": "f25e457cfca4bf02bcc3dc6e0eb5c359a4039a4dfe80befea80d3efab058b4aa",
+      "retainedPixels": 3161,
+      "alphaResidueRemoved": 1010,
+      "retainedRgbChanges": 0,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "opaqueCellEdgePixels": 0
+    },
+    {
+      "id": "industrial_servicecab",
+      "row": 0,
+      "col": 8,
+      "output": "frontend/assets/industrial/approved-sheet/industrial_servicecab.png",
+      "sourceRect": {
+        "left": 762,
+        "top": 0,
+        "width": 97,
+        "height": 120
+      },
+      "cropInCell": {
+        "left": 17,
+        "top": 37,
+        "width": 69,
+        "height": 70
+      },
+      "sourceCrop": {
+        "left": 779,
+        "top": 37,
+        "width": 69,
+        "height": 70
+      },
+      "width": 69,
+      "height": 70,
+      "outputSha256": "4564f3ca2238e8e886193df9747cfb3f21e7e25161cb8cfd91d1563e57bce9fb",
+      "retainedPixels": 4215,
+      "alphaResidueRemoved": 532,
+      "retainedRgbChanges": 0,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "opaqueCellEdgePixels": 0
+    },
+    {
+      "id": "industrial_wallpanel",
+      "row": 0,
+      "col": 9,
+      "output": "frontend/assets/industrial/approved-sheet/industrial_wallpanel.png",
+      "sourceRect": {
+        "left": 859,
+        "top": 0,
+        "width": 97,
+        "height": 120
+      },
+      "cropInCell": {
+        "left": 28,
+        "top": 38,
+        "width": 52,
+        "height": 67
+      },
+      "sourceCrop": {
+        "left": 887,
+        "top": 38,
+        "width": 52,
+        "height": 67
+      },
+      "width": 52,
+      "height": 67,
+      "outputSha256": "53f5dd175e035b7e0a458c199fde52978a9b2145593d9e4fee893fd7c20758b8",
+      "retainedPixels": 3217,
+      "alphaResidueRemoved": 767,
+      "retainedRgbChanges": 0,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "opaqueCellEdgePixels": 0
+    },
+    {
+      "id": "industrial_floorvent",
+      "row": 0,
+      "col": 10,
+      "output": "frontend/assets/industrial/approved-sheet/industrial_floorvent.png",
+      "sourceRect": {
+        "left": 956,
+        "top": 0,
+        "width": 96,
+        "height": 120
+      },
+      "cropInCell": {
+        "left": 12,
+        "top": 50,
+        "width": 65,
+        "height": 54
+      },
+      "sourceCrop": {
+        "left": 968,
+        "top": 50,
+        "width": 65,
+        "height": 54
+      },
+      "width": 65,
+      "height": 54,
+      "outputSha256": "fcc38892bb1b91572f122e35a35cc9185534c1ca1fbae468d0198d7b1ca9c133",
+      "retainedPixels": 3366,
+      "alphaResidueRemoved": 762,
+      "retainedRgbChanges": 0,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "opaqueCellEdgePixels": 0
+    },
+    {
+      "id": "industrial_cabletray",
+      "row": 0,
+      "col": 11,
+      "output": "frontend/assets/industrial/approved-sheet/industrial_cabletray.png",
+      "sourceRect": {
+        "left": 1052,
+        "top": 0,
+        "width": 96,
+        "height": 120
+      },
+      "cropInCell": {
+        "left": 6,
+        "top": 48,
+        "width": 72,
+        "height": 52
+      },
+      "sourceCrop": {
+        "left": 1058,
+        "top": 48,
+        "width": 72,
+        "height": 52
+      },
+      "width": 72,
+      "height": 52,
+      "outputSha256": "313243359093c75fed648ac5d1f1787bf042323b8aa4a757938d8206b09aad77",
+      "retainedPixels": 3407,
+      "alphaResidueRemoved": 1102,
+      "retainedRgbChanges": 0,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "opaqueCellEdgePixels": 0
+    },
+    {
+      "id": "desk",
+      "row": 0,
+      "col": 12,
+      "output": "frontend/assets/industrial/approved-sheet/desk.png",
+      "sourceRect": {
+        "left": 1148,
+        "top": 0,
+        "width": 95,
+        "height": 120
+      },
+      "cropInCell": {
+        "left": 0,
+        "top": 39,
+        "width": 91,
+        "height": 68
+      },
+      "sourceCrop": {
+        "left": 1148,
+        "top": 39,
+        "width": 91,
+        "height": 68
+      },
+      "width": 91,
+      "height": 68,
+      "outputSha256": "49e35c9b58a2e1f4939ed1320e70e4f11a54b46afbe46661122638ddf7ca5fd4",
+      "retainedPixels": 5335,
+      "alphaResidueRemoved": 1082,
+      "retainedRgbChanges": 0,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "opaqueCellEdgePixels": 0
+    },
+    {
+      "id": "desk2",
+      "row": 0,
+      "col": 13,
+      "output": "frontend/assets/industrial/approved-sheet/desk2.png",
+      "sourceRect": {
+        "left": 1243,
+        "top": 0,
+        "width": 94,
+        "height": 120
+      },
+      "cropInCell": {
+        "left": 8,
+        "top": 37,
+        "width": 74,
+        "height": 71
+      },
+      "sourceCrop": {
+        "left": 1251,
+        "top": 37,
+        "width": 74,
+        "height": 71
+      },
+      "width": 74,
+      "height": 71,
+      "outputSha256": "ddfa301af6029b8bd95c96ae3e1236752a29382da065d4af5a3430892da74ce3",
+      "retainedPixels": 4236,
+      "alphaResidueRemoved": 1930,
+      "retainedRgbChanges": 0,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "opaqueCellEdgePixels": 0
+    },
+    {
+      "id": "console",
+      "row": 0,
+      "col": 14,
+      "output": "frontend/assets/industrial/approved-sheet/console.png",
+      "sourceRect": {
+        "left": 1337,
+        "top": 0,
+        "width": 97,
+        "height": 120
+      },
+      "cropInCell": {
+        "left": 0,
+        "top": 41,
+        "width": 88,
+        "height": 59
+      },
+      "sourceCrop": {
+        "left": 1337,
+        "top": 41,
+        "width": 88,
+        "height": 59
+      },
+      "width": 88,
+      "height": 59,
+      "outputSha256": "b65fa47b7d44b53dbbccd6bd63fbe293e11e8cb2c874974c71c0a2364c40fc9f",
+      "retainedPixels": 4535,
+      "alphaResidueRemoved": 1029,
+      "retainedRgbChanges": 0,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "opaqueCellEdgePixels": 0
+    },
+    {
+      "id": "consoleL",
+      "row": 0,
+      "col": 15,
+      "output": "frontend/assets/industrial/approved-sheet/consoleL.png",
+      "sourceRect": {
+        "left": 1434,
+        "top": 0,
+        "width": 102,
+        "height": 120
+      },
+      "cropInCell": {
+        "left": 0,
+        "top": 41,
+        "width": 86,
+        "height": 63
+      },
+      "sourceCrop": {
+        "left": 1434,
+        "top": 41,
+        "width": 86,
+        "height": 63
+      },
+      "width": 86,
+      "height": 63,
+      "outputSha256": "a0ae08922171da676e719ac5fb881fe1334b813ca953159388fddf1984becbef",
+      "retainedPixels": 4013,
+      "alphaResidueRemoved": 425,
+      "retainedRgbChanges": 0,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "opaqueCellEdgePixels": 0
+    },
+    {
+      "id": "pixelrig",
+      "row": 1,
+      "col": 0,
+      "output": "frontend/assets/industrial/approved-sheet/pixelrig.png",
+      "sourceRect": {
+        "left": 0,
+        "top": 120,
+        "width": 109,
+        "height": 107
+      },
+      "cropInCell": {
+        "left": 25,
+        "top": 9,
+        "width": 74,
+        "height": 89
+      },
+      "sourceCrop": {
+        "left": 25,
+        "top": 129,
+        "width": 74,
+        "height": 89
+      },
+      "width": 74,
+      "height": 89,
+      "outputSha256": "dd35249659001f7737cc250c8124fab103b0a97c142524ca03413a4bc9ddac64",
+      "retainedPixels": 4553,
+      "alphaResidueRemoved": 828,
+      "retainedRgbChanges": 0,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "opaqueCellEdgePixels": 0
+    },
+    {
+      "id": "bench",
+      "row": 1,
+      "col": 1,
+      "output": "frontend/assets/industrial/approved-sheet/bench.png",
+      "sourceRect": {
+        "left": 109,
+        "top": 120,
+        "width": 91,
+        "height": 107
+      },
+      "cropInCell": {
+        "left": 1,
+        "top": 20,
+        "width": 87,
+        "height": 66
+      },
+      "sourceCrop": {
+        "left": 110,
+        "top": 140,
+        "width": 87,
+        "height": 66
+      },
+      "width": 87,
+      "height": 66,
+      "outputSha256": "198428f21f81990088dc99c8a17f3afd94b7a127fab70ede4bbdea95b240422e",
+      "retainedPixels": 4839,
+      "alphaResidueRemoved": 629,
+      "retainedRgbChanges": 0,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "opaqueCellEdgePixels": 0
+    },
+    {
+      "id": "workbench",
+      "row": 1,
+      "col": 2,
+      "output": "frontend/assets/industrial/approved-sheet/workbench.png",
+      "sourceRect": {
+        "left": 200,
+        "top": 120,
+        "width": 92,
+        "height": 107
+      },
+      "cropInCell": {
+        "left": 6,
+        "top": 12,
+        "width": 86,
+        "height": 76
+      },
+      "sourceCrop": {
+        "left": 206,
+        "top": 132,
+        "width": 86,
+        "height": 76
+      },
+      "width": 86,
+      "height": 76,
+      "outputSha256": "57437e9ad775823f10a84e3c03c1a5fd355f9857874fbd491e7f2048ee3f0e99",
+      "retainedPixels": 5745,
+      "alphaResidueRemoved": 1007,
+      "retainedRgbChanges": 0,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "opaqueCellEdgePixels": 0
+    },
+    {
+      "id": "intake",
+      "row": 1,
+      "col": 3,
+      "output": "frontend/assets/industrial/approved-sheet/intake.png",
+      "sourceRect": {
+        "left": 292,
+        "top": 120,
+        "width": 94,
+        "height": 107
+      },
+      "cropInCell": {
+        "left": 11,
+        "top": 15,
+        "width": 81,
+        "height": 77
+      },
+      "sourceCrop": {
+        "left": 303,
+        "top": 135,
+        "width": 81,
+        "height": 77
+      },
+      "width": 81,
+      "height": 77,
+      "outputSha256": "1e1de1e454cc2e96fc6c799bf29306aeee00987138c025a8896db98d6def5c72",
+      "retainedPixels": 3915,
+      "alphaResidueRemoved": 841,
+      "retainedRgbChanges": 0,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "opaqueCellEdgePixels": 0
+    },
+    {
+      "id": "bay",
+      "row": 1,
+      "col": 4,
+      "output": "frontend/assets/industrial/approved-sheet/bay.png",
+      "sourceRect": {
+        "left": 386,
+        "top": 120,
+        "width": 93,
+        "height": 107
+      },
+      "cropInCell": {
+        "left": 10,
+        "top": 8,
+        "width": 82,
+        "height": 87
+      },
+      "sourceCrop": {
+        "left": 396,
+        "top": 128,
+        "width": 82,
+        "height": 87
+      },
+      "width": 82,
+      "height": 87,
+      "outputSha256": "2bbd8b27dab300d2f52eac787460213f29fc03a0f4b1d8891c568fd81fa38509",
+      "retainedPixels": 6209,
+      "alphaResidueRemoved": 765,
+      "retainedRgbChanges": 0,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "opaqueCellEdgePixels": 0
+    },
+    {
+      "id": "filter",
+      "row": 1,
+      "col": 5,
+      "output": "frontend/assets/industrial/approved-sheet/filter.png",
+      "sourceRect": {
+        "left": 479,
+        "top": 120,
+        "width": 93,
+        "height": 107
+      },
+      "cropInCell": {
+        "left": 18,
+        "top": 8,
+        "width": 64,
+        "height": 92
+      },
+      "sourceCrop": {
+        "left": 497,
+        "top": 128,
+        "width": 64,
+        "height": 92
+      },
+      "width": 64,
+      "height": 92,
+      "outputSha256": "f05093320ecc8b01e48c0211466d3c9eade97bb03e205d61976aaee3c62b2caa",
+      "retainedPixels": 4668,
+      "alphaResidueRemoved": 948,
+      "retainedRgbChanges": 0,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "opaqueCellEdgePixels": 0
+    },
+    {
+      "id": "merger",
+      "row": 1,
+      "col": 6,
+      "output": "frontend/assets/industrial/approved-sheet/merger.png",
+      "sourceRect": {
+        "left": 572,
+        "top": 120,
+        "width": 97,
+        "height": 105
+      },
+      "cropInCell": {
+        "left": 6,
+        "top": 10,
+        "width": 91,
+        "height": 80
+      },
+      "sourceCrop": {
+        "left": 578,
+        "top": 130,
+        "width": 91,
+        "height": 80
+      },
+      "width": 91,
+      "height": 80,
+      "outputSha256": "120cc2c24f7b4947805e11b8cbe1d770aecb7f919db96a19a434ffecb0e5e0bb",
+      "retainedPixels": 4738,
+      "alphaResidueRemoved": 1036,
+      "retainedRgbChanges": 0,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "opaqueCellEdgePixels": 0
+    },
+    {
+      "id": "splitter",
+      "row": 1,
+      "col": 7,
+      "output": "frontend/assets/industrial/approved-sheet/splitter.png",
+      "sourceRect": {
+        "left": 669,
+        "top": 120,
+        "width": 98,
+        "height": 107
+      },
+      "cropInCell": {
+        "left": 7,
+        "top": 10,
+        "width": 91,
+        "height": 80
+      },
+      "sourceCrop": {
+        "left": 676,
+        "top": 130,
+        "width": 91,
+        "height": 80
+      },
+      "width": 91,
+      "height": 80,
+      "outputSha256": "b1d6f56e4d956070f88ad137a61466c75bf7c5b558293fc906f69dff9ee8cf78",
+      "retainedPixels": 5147,
+      "alphaResidueRemoved": 986,
+      "retainedRgbChanges": 0,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "opaqueCellEdgePixels": 0
+    },
+    {
+      "id": "joiner",
+      "row": 1,
+      "col": 8,
+      "output": "frontend/assets/industrial/approved-sheet/joiner.png",
+      "sourceRect": {
+        "left": 767,
+        "top": 120,
+        "width": 92,
+        "height": 107
+      },
+      "cropInCell": {
+        "left": 11,
+        "top": 15,
+        "width": 81,
+        "height": 76
+      },
+      "sourceCrop": {
+        "left": 778,
+        "top": 135,
+        "width": 81,
+        "height": 76
+      },
+      "width": 81,
+      "height": 76,
+      "outputSha256": "4ffeb570919470b2bce61f8a025d388b67213644c50acdf1e56dca54227dc394",
+      "retainedPixels": 4634,
+      "alphaResidueRemoved": 1004,
+      "retainedRgbChanges": 0,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "opaqueCellEdgePixels": 0
+    },
+    {
+      "id": "loop",
+      "row": 1,
+      "col": 9,
+      "output": "frontend/assets/industrial/approved-sheet/loop.png",
+      "sourceRect": {
+        "left": 859,
+        "top": 120,
+        "width": 97,
+        "height": 107
+      },
+      "cropInCell": {
+        "left": 9,
+        "top": 18,
+        "width": 84,
+        "height": 73
+      },
+      "sourceCrop": {
+        "left": 868,
+        "top": 138,
+        "width": 84,
+        "height": 73
+      },
+      "width": 84,
+      "height": 73,
+      "outputSha256": "b67f86eb5830c1b0f3cdfab9c60fb40e52c36a5fca5b1e4bbc9bcca290b79a6e",
+      "retainedPixels": 5410,
+      "alphaResidueRemoved": 1305,
+      "retainedRgbChanges": 0,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "opaqueCellEdgePixels": 0
+    },
+    {
+      "id": "outbox",
+      "row": 1,
+      "col": 10,
+      "output": "frontend/assets/industrial/approved-sheet/outbox.png",
+      "sourceRect": {
+        "left": 956,
+        "top": 120,
+        "width": 96,
+        "height": 107
+      },
+      "cropInCell": {
+        "left": 12,
+        "top": 11,
+        "width": 67,
+        "height": 82
+      },
+      "sourceCrop": {
+        "left": 968,
+        "top": 131,
+        "width": 67,
+        "height": 82
+      },
+      "width": 67,
+      "height": 82,
+      "outputSha256": "330d95f06c74fc0749ee71c61231c6eb8e43bc5d29f044d5c5c841125c6ec3b5",
+      "retainedPixels": 4810,
+      "alphaResidueRemoved": 1632,
+      "retainedRgbChanges": 0,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "opaqueCellEdgePixels": 0
+    },
+    {
+      "id": "connector_portal",
+      "row": 1,
+      "col": 11,
+      "output": "frontend/assets/industrial/approved-sheet/connector_portal.png",
+      "sourceRect": {
+        "left": 1052,
+        "top": 120,
+        "width": 96,
+        "height": 107
+      },
+      "cropInCell": {
+        "left": 6,
+        "top": 9,
+        "width": 76,
+        "height": 84
+      },
+      "sourceCrop": {
+        "left": 1058,
+        "top": 129,
+        "width": 76,
+        "height": 84
+      },
+      "width": 76,
+      "height": 84,
+      "outputSha256": "54ed26d13b9ef7975d71426243556046dc1c33125846edc2c4ed2117085622ba",
+      "retainedPixels": 5316,
+      "alphaResidueRemoved": 927,
+      "retainedRgbChanges": 0,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "opaqueCellEdgePixels": 0
+    },
+    {
+      "id": "comms_dish",
+      "row": 1,
+      "col": 12,
+      "output": "frontend/assets/industrial/approved-sheet/comms_dish.png",
+      "sourceRect": {
+        "left": 1148,
+        "top": 120,
+        "width": 95,
+        "height": 107
+      },
+      "cropInCell": {
+        "left": 6,
+        "top": 10,
+        "width": 67,
+        "height": 86
+      },
+      "sourceCrop": {
+        "left": 1154,
+        "top": 130,
+        "width": 67,
+        "height": 86
+      },
+      "width": 67,
+      "height": 86,
+      "outputSha256": "64523a2998342a908b03520883012e068bef2ca7c582ed3f103987bba2546b0a",
+      "retainedPixels": 4280,
+      "alphaResidueRemoved": 461,
+      "retainedRgbChanges": 0,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "opaqueCellEdgePixels": 0
+    },
+    {
+      "id": "comms_uplink",
+      "row": 1,
+      "col": 13,
+      "output": "frontend/assets/industrial/approved-sheet/comms_uplink.png",
+      "sourceRect": {
+        "left": 1243,
+        "top": 120,
+        "width": 94,
+        "height": 107
+      },
+      "cropInCell": {
+        "left": 13,
+        "top": 0,
+        "width": 62,
+        "height": 96
+      },
+      "sourceCrop": {
+        "left": 1256,
+        "top": 120,
+        "width": 62,
+        "height": 96
+      },
+      "width": 62,
+      "height": 96,
+      "outputSha256": "504359382153668a90e3b223ede2ded39acb6dfd114390c090ac2ae5bf4d85ed",
+      "retainedPixels": 4446,
+      "alphaResidueRemoved": 711,
+      "retainedRgbChanges": 0,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "opaqueCellEdgePixels": 0
+    },
+    {
+      "id": "comms_beacon",
+      "row": 1,
+      "col": 14,
+      "output": "frontend/assets/industrial/approved-sheet/comms_beacon.png",
+      "sourceRect": {
+        "left": 1337,
+        "top": 120,
+        "width": 97,
+        "height": 107
+      },
+      "cropInCell": {
+        "left": 25,
+        "top": 2,
+        "width": 47,
+        "height": 94
+      },
+      "sourceCrop": {
+        "left": 1362,
+        "top": 122,
+        "width": 47,
+        "height": 94
+      },
+      "width": 47,
+      "height": 94,
+      "outputSha256": "f9bbfdc243298793d5713092f058d9685d066aed796837b118f484f7d64e2a52",
+      "retainedPixels": 2589,
+      "alphaResidueRemoved": 1004,
+      "retainedRgbChanges": 0,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "opaqueCellEdgePixels": 0
+    },
+    {
+      "id": "war_intelcab",
+      "row": 1,
+      "col": 15,
+      "output": "frontend/assets/industrial/approved-sheet/war_intelcab.png",
+      "sourceRect": {
+        "left": 1434,
+        "top": 120,
+        "width": 102,
+        "height": 107
+      },
+      "cropInCell": {
+        "left": 0,
+        "top": 17,
+        "width": 85,
+        "height": 75
+      },
+      "sourceCrop": {
+        "left": 1434,
+        "top": 137,
+        "width": 85,
+        "height": 75
+      },
+      "width": 85,
+      "height": 75,
+      "outputSha256": "1f91a375abe22570cf4143e61237c7c5981d8e224b09a1a4358b8e0f41795e2f",
+      "retainedPixels": 6020,
+      "alphaResidueRemoved": 641,
+      "retainedRgbChanges": 0,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "opaqueCellEdgePixels": 0
+    },
+    {
+      "id": "safe",
+      "row": 2,
+      "col": 0,
+      "output": "frontend/assets/industrial/approved-sheet/safe.png",
+      "sourceRect": {
+        "left": 0,
+        "top": 227,
+        "width": 109,
+        "height": 105
+      },
+      "cropInCell": {
+        "left": 32,
+        "top": 4,
+        "width": 66,
+        "height": 86
+      },
+      "sourceCrop": {
+        "left": 32,
+        "top": 231,
+        "width": 66,
+        "height": 86
+      },
+      "width": 66,
+      "height": 86,
+      "outputSha256": "7201067ef8d671e540aea5902346d1ffc25b01f5203d50cf955d215f2473b6fa",
+      "retainedPixels": 5312,
+      "alphaResidueRemoved": 982,
+      "retainedRgbChanges": 0,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "opaqueCellEdgePixels": 0
+    },
+    {
+      "id": "vault",
+      "row": 2,
+      "col": 1,
+      "output": "frontend/assets/industrial/approved-sheet/vault.png",
+      "sourceRect": {
+        "left": 109,
+        "top": 227,
+        "width": 91,
+        "height": 105
+      },
+      "cropInCell": {
+        "left": 8,
+        "top": 10,
+        "width": 77,
+        "height": 80
+      },
+      "sourceCrop": {
+        "left": 117,
+        "top": 237,
+        "width": 77,
+        "height": 80
+      },
+      "width": 77,
+      "height": 80,
+      "outputSha256": "00f44a87ee49d8a4ce0e9ee08449229775f67b9e77669b5321e2a27daa77fbb8",
+      "retainedPixels": 5596,
+      "alphaResidueRemoved": 951,
+      "retainedRgbChanges": 0,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "opaqueCellEdgePixels": 0
+    },
+    {
+      "id": "rack",
+      "row": 2,
+      "col": 2,
+      "output": "frontend/assets/industrial/approved-sheet/rack.png",
+      "sourceRect": {
+        "left": 200,
+        "top": 227,
+        "width": 92,
+        "height": 105
+      },
+      "cropInCell": {
+        "left": 15,
+        "top": 2,
+        "width": 68,
+        "height": 92
+      },
+      "sourceCrop": {
+        "left": 215,
+        "top": 229,
+        "width": 68,
+        "height": 92
+      },
+      "width": 68,
+      "height": 92,
+      "outputSha256": "1f0629f8360e4563a164080a9e501b45c54c7de70d85b60310b616c3b508a494",
+      "retainedPixels": 5870,
+      "alphaResidueRemoved": 1324,
+      "retainedRgbChanges": 0,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "opaqueCellEdgePixels": 0
+    },
+    {
+      "id": "shelf",
+      "row": 2,
+      "col": 3,
+      "output": "frontend/assets/industrial/approved-sheet/shelf.png",
+      "sourceRect": {
+        "left": 292,
+        "top": 227,
+        "width": 94,
+        "height": 105
+      },
+      "cropInCell": {
+        "left": 10,
+        "top": 13,
+        "width": 79,
+        "height": 75
+      },
+      "sourceCrop": {
+        "left": 302,
+        "top": 240,
+        "width": 79,
+        "height": 75
+      },
+      "width": 79,
+      "height": 75,
+      "outputSha256": "10de96e47d2865fff8017a4e6828088738dd02cfe83e2dd9756b591b15af3df8",
+      "retainedPixels": 5557,
+      "alphaResidueRemoved": 905,
+      "retainedRgbChanges": 0,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "opaqueCellEdgePixels": 0
+    },
+    {
+      "id": "core",
+      "row": 2,
+      "col": 4,
+      "output": "frontend/assets/industrial/approved-sheet/core.png",
+      "sourceRect": {
+        "left": 386,
+        "top": 227,
+        "width": 93,
+        "height": 105
+      },
+      "cropInCell": {
+        "left": 6,
+        "top": 0,
+        "width": 85,
+        "height": 98
+      },
+      "sourceCrop": {
+        "left": 392,
+        "top": 227,
+        "width": 85,
+        "height": 98
+      },
+      "width": 85,
+      "height": 98,
+      "outputSha256": "cb64ee225035c8275c69788a06dbb35855dc00bf66335540bfc8e64f8de243ff",
+      "retainedPixels": 6471,
+      "alphaResidueRemoved": 764,
+      "retainedRgbChanges": 0,
+      "coreThreshold": 180,
+      "edgeRadius": 8,
+      "opaqueCellEdgePixels": 0
+    },
+    {
+      "id": "gigs_servercart",
+      "row": 2,
+      "col": 5,
+      "output": "frontend/assets/industrial/approved-sheet/gigs_servercart.png",
+      "sourceRect": {
+        "left": 479,
+        "top": 227,
+        "width": 93,
+        "height": 105
+      },
+      "cropInCell": {
+        "left": 17,
+        "top": 12,
+        "width": 65,
+        "height": 85
+      },
+      "sourceCrop": {
+        "left": 496,
+        "top": 239,
+        "width": 65,
+        "height": 85
+      },
+      "width": 65,
+      "height": 85,
+      "outputSha256": "8c7986679b4b88dd7854fee6e18fcf43183e8f0f6e82478999e3ca6237b9b0b4",
+      "retainedPixels": 3752,
+      "alphaResidueRemoved": 648,
+      "retainedRgbChanges": 0,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "opaqueCellEdgePixels": 0
+    },
+    {
+      "id": "bridge_relaystack",
+      "row": 2,
+      "col": 6,
+      "output": "frontend/assets/industrial/approved-sheet/bridge_relaystack.png",
+      "sourceRect": {
+        "left": 572,
+        "top": 225,
+        "width": 95,
+        "height": 107
+      },
+      "cropInCell": {
+        "left": 17,
+        "top": 1,
+        "width": 60,
+        "height": 100
+      },
+      "sourceCrop": {
+        "left": 589,
+        "top": 226,
+        "width": 60,
+        "height": 100
+      },
+      "width": 60,
+      "height": 100,
+      "outputSha256": "d13fd308d8abf888871d89e95adb5e946e54a02eadf4fd3d0f41b133c37d58de",
+      "retainedPixels": 4067,
+      "alphaResidueRemoved": 848,
+      "retainedRgbChanges": 0,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "opaqueCellEdgePixels": 0
+    },
+    {
+      "id": "studio",
+      "row": 2,
+      "col": 7,
+      "output": "frontend/assets/industrial/approved-sheet/studio.png",
+      "sourceRect": {
+        "left": 667,
+        "top": 227,
+        "width": 95,
+        "height": 105
+      },
+      "cropInCell": {
+        "left": 4,
+        "top": 13,
+        "width": 89,
+        "height": 82
+      },
+      "sourceCrop": {
+        "left": 671,
+        "top": 240,
+        "width": 89,
+        "height": 82
+      },
+      "width": 89,
+      "height": 82,
+      "outputSha256": "13f92160b1f9718241f7a2c4d8cc8d10eaa170610b7f3dff2dd6939477412b29",
+      "retainedPixels": 5260,
+      "alphaResidueRemoved": 819,
+      "retainedRgbChanges": 0,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "opaqueCellEdgePixels": 0
+    },
+    {
+      "id": "airlock",
+      "row": 2,
+      "col": 8,
+      "output": "frontend/assets/industrial/approved-sheet/airlock.png",
+      "sourceRect": {
+        "left": 762,
+        "top": 227,
+        "width": 98,
+        "height": 105
+      },
+      "cropInCell": {
+        "left": 11,
+        "top": 9,
+        "width": 87,
+        "height": 85
+      },
+      "sourceCrop": {
+        "left": 773,
+        "top": 236,
+        "width": 87,
+        "height": 85
+      },
+      "width": 87,
+      "height": 85,
+      "outputSha256": "44c20a4f6a86f7e756a21d118b7a17ddafea0ef6912efab6ec05c378b50dc836",
+      "retainedPixels": 6780,
+      "alphaResidueRemoved": 1259,
+      "retainedRgbChanges": 0,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "opaqueCellEdgePixels": 0
+    },
+    {
+      "id": "missionboard",
+      "row": 2,
+      "col": 9,
+      "output": "frontend/assets/industrial/approved-sheet/missionboard.png",
+      "sourceRect": {
+        "left": 860,
+        "top": 227,
+        "width": 96,
+        "height": 105
+      },
+      "cropInCell": {
+        "left": 9,
+        "top": 17,
+        "width": 84,
+        "height": 70
+      },
+      "sourceCrop": {
+        "left": 869,
+        "top": 244,
+        "width": 84,
+        "height": 70
+      },
+      "width": 84,
+      "height": 70,
+      "outputSha256": "9e3f948e2881c938fd92241c53c3af074b9e5765e7a81e8d582afa1d6e723ba5",
+      "retainedPixels": 5531,
+      "alphaResidueRemoved": 1323,
+      "retainedRgbChanges": 0,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "opaqueCellEdgePixels": 0
+    },
+    {
+      "id": "trophycase",
+      "row": 2,
+      "col": 10,
+      "output": "frontend/assets/industrial/approved-sheet/trophycase.png",
+      "sourceRect": {
+        "left": 956,
+        "top": 227,
+        "width": 89,
+        "height": 105
+      },
+      "cropInCell": {
+        "left": 5,
+        "top": 9,
+        "width": 75,
+        "height": 85
+      },
+      "sourceCrop": {
+        "left": 961,
+        "top": 236,
+        "width": 75,
+        "height": 85
+      },
+      "width": 75,
+      "height": 85,
+      "outputSha256": "24e81a571efd3d2db9d8cdb63b146e10f318f55561c11ed4331be6bedf6df6c8",
+      "retainedPixels": 6022,
+      "alphaResidueRemoved": 1203,
+      "retainedRgbChanges": 0,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "opaqueCellEdgePixels": 0
+    },
+    {
+      "id": "bridge_consolebank",
+      "row": 2,
+      "col": 11,
+      "output": "frontend/assets/industrial/approved-sheet/bridge_consolebank.png",
+      "sourceRect": {
+        "left": 1045,
+        "top": 227,
+        "width": 103,
+        "height": 105
+      },
+      "cropInCell": {
+        "left": 0,
+        "top": 21,
+        "width": 99,
+        "height": 66
+      },
+      "sourceCrop": {
+        "left": 1045,
+        "top": 248,
+        "width": 99,
+        "height": 66
+      },
+      "width": 99,
+      "height": 66,
+      "outputSha256": "0ce75ec423b5d3e862f4e6e7f077f0d0e07028e5d1da1a043bf41504184b9410",
+      "retainedPixels": 5477,
+      "alphaResidueRemoved": 1131,
+      "retainedRgbChanges": 0,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "opaqueCellEdgePixels": 0
+    },
+    {
+      "id": "bridge_tacticaltable",
+      "row": 2,
+      "col": 12,
+      "output": "frontend/assets/industrial/approved-sheet/bridge_tacticaltable.png",
+      "sourceRect": {
+        "left": 1148,
+        "top": 227,
+        "width": 95,
+        "height": 105
+      },
+      "cropInCell": {
+        "left": 2,
+        "top": 19,
+        "width": 87,
+        "height": 72
+      },
+      "sourceCrop": {
+        "left": 1150,
+        "top": 246,
+        "width": 87,
+        "height": 72
+      },
+      "width": 87,
+      "height": 72,
+      "outputSha256": "b7cf8d4ed9df79726a150d4afdc2d858a4b4ea6008016edc03552612dd4fe04a",
+      "retainedPixels": 5046,
+      "alphaResidueRemoved": 865,
+      "retainedRgbChanges": 0,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "opaqueCellEdgePixels": 0
+    },
+    {
+      "id": "bridge_equipmentbay",
+      "row": 2,
+      "col": 13,
+      "output": "frontend/assets/industrial/approved-sheet/bridge_equipmentbay.png",
+      "sourceRect": {
+        "left": 1243,
+        "top": 227,
+        "width": 92,
+        "height": 105
+      },
+      "cropInCell": {
+        "left": 7,
+        "top": 10,
+        "width": 74,
+        "height": 79
+      },
+      "sourceCrop": {
+        "left": 1250,
+        "top": 237,
+        "width": 74,
+        "height": 79
+      },
+      "width": 74,
+      "height": 79,
+      "outputSha256": "5a345861e8036d36b763771ab7697b3307c97d0a04ba31a8efa45d003700a559",
+      "retainedPixels": 4906,
+      "alphaResidueRemoved": 1322,
+      "retainedRgbChanges": 0,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "opaqueCellEdgePixels": 0
+    },
+    {
+      "id": "bridge_deckperimeter",
+      "row": 2,
+      "col": 14,
+      "output": "frontend/assets/industrial/approved-sheet/bridge_deckperimeter.png",
+      "sourceRect": {
+        "left": 1335,
+        "top": 227,
+        "width": 99,
+        "height": 105
+      },
+      "cropInCell": {
+        "left": 0,
+        "top": 31,
+        "width": 89,
+        "height": 50
+      },
+      "sourceCrop": {
+        "left": 1335,
+        "top": 258,
+        "width": 89,
+        "height": 50
+      },
+      "width": 89,
+      "height": 50,
+      "outputSha256": "764c74f34c50095d6a05cb00251f017ef72c17baf6cd99bf9f4a047aa23012c8",
+      "retainedPixels": 3413,
+      "alphaResidueRemoved": 1141,
+      "retainedRgbChanges": 0,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "opaqueCellEdgePixels": 0
+    },
+    {
+      "id": "bigscreen",
+      "row": 2,
+      "col": 15,
+      "output": "frontend/assets/industrial/approved-sheet/bigscreen.png",
+      "sourceRect": {
+        "left": 1434,
+        "top": 227,
+        "width": 102,
+        "height": 104
+      },
+      "cropInCell": {
+        "left": 0,
+        "top": 13,
+        "width": 84,
+        "height": 74
+      },
+      "sourceCrop": {
+        "left": 1434,
+        "top": 240,
+        "width": 84,
+        "height": 74
+      },
+      "width": 84,
+      "height": 74,
+      "outputSha256": "b22a720b07e1cf1db3dc2358ac7804571adccbcd1805ef2d3e99020ab1f30d8e",
+      "retainedPixels": 5633,
+      "alphaResidueRemoved": 710,
+      "retainedRgbChanges": 0,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "opaqueCellEdgePixels": 0
+    },
+    {
+      "id": "holotable",
+      "row": 3,
+      "col": 0,
+      "output": "frontend/assets/industrial/approved-sheet/holotable.png",
+      "sourceRect": {
+        "left": 0,
+        "top": 332,
+        "width": 109,
+        "height": 107
+      },
+      "cropInCell": {
+        "left": 17,
+        "top": 4,
+        "width": 82,
+        "height": 90
+      },
+      "sourceCrop": {
+        "left": 17,
+        "top": 336,
+        "width": 82,
+        "height": 90
+      },
+      "width": 82,
+      "height": 90,
+      "outputSha256": "e54de20687e61aa20e6fd5986a37175cc3d3d0262b260b72831d65e41af97792",
+      "retainedPixels": 5401,
+      "alphaResidueRemoved": 846,
+      "retainedRgbChanges": 0,
+      "coreThreshold": 180,
+      "edgeRadius": 8,
+      "opaqueCellEdgePixels": 0
+    },
+    {
+      "id": "screens",
+      "row": 3,
+      "col": 1,
+      "output": "frontend/assets/industrial/approved-sheet/screens.png",
+      "sourceRect": {
+        "left": 109,
+        "top": 332,
+        "width": 91,
+        "height": 107
+      },
+      "cropInCell": {
+        "left": 6,
+        "top": 7,
+        "width": 85,
+        "height": 86
+      },
+      "sourceCrop": {
+        "left": 115,
+        "top": 339,
+        "width": 85,
+        "height": 86
+      },
+      "width": 85,
+      "height": 86,
+      "outputSha256": "553f1d41eee05ae7a8147e9c44fe4b90f05b33b368ded05af1f0687491ae749b",
+      "retainedPixels": 5456,
+      "alphaResidueRemoved": 1061,
+      "retainedRgbChanges": 0,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "opaqueCellEdgePixels": 0
+    },
+    {
+      "id": "tank",
+      "row": 3,
+      "col": 2,
+      "output": "frontend/assets/industrial/approved-sheet/tank.png",
+      "sourceRect": {
+        "left": 200,
+        "top": 332,
+        "width": 92,
+        "height": 107
+      },
+      "cropInCell": {
+        "left": 19,
+        "top": 3,
+        "width": 63,
+        "height": 95
+      },
+      "sourceCrop": {
+        "left": 219,
+        "top": 335,
+        "width": 63,
+        "height": 95
+      },
+      "width": 63,
+      "height": 95,
+      "outputSha256": "2f5a2518eb85438e4e053050b5017deca3b666376877cc9e4749ed1604a7b244",
+      "retainedPixels": 4536,
+      "alphaResidueRemoved": 943,
+      "retainedRgbChanges": 0,
+      "coreThreshold": 180,
+      "edgeRadius": 8,
+      "opaqueCellEdgePixels": 0
+    },
+    {
+      "id": "whiteboard",
+      "row": 3,
+      "col": 3,
+      "output": "frontend/assets/industrial/approved-sheet/whiteboard.png",
+      "sourceRect": {
+        "left": 292,
+        "top": 332,
+        "width": 94,
+        "height": 107
+      },
+      "cropInCell": {
+        "left": 6,
+        "top": 23,
+        "width": 82,
+        "height": 67
+      },
+      "sourceCrop": {
+        "left": 298,
+        "top": 355,
+        "width": 82,
+        "height": 67
+      },
+      "width": 82,
+      "height": 67,
+      "outputSha256": "de1c61846e92766f77994f1e60527de597c5709d32e065ed47b6a0516de217d1",
+      "retainedPixels": 4658,
+      "alphaResidueRemoved": 1295,
+      "retainedRgbChanges": 0,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "opaqueCellEdgePixels": 0
+    },
+    {
+      "id": "ticker",
+      "row": 3,
+      "col": 4,
+      "output": "frontend/assets/industrial/approved-sheet/ticker.png",
+      "sourceRect": {
+        "left": 386,
+        "top": 332,
+        "width": 93,
+        "height": 107
+      },
+      "cropInCell": {
+        "left": 2,
+        "top": 42,
+        "width": 86,
+        "height": 27
+      },
+      "sourceCrop": {
+        "left": 388,
+        "top": 374,
+        "width": 86,
+        "height": 27
+      },
+      "width": 86,
+      "height": 27,
+      "outputSha256": "cc322dc2f46031e01268400bd84ae396a81d50dbc498f86b48da22d2a9040b06",
+      "retainedPixels": 2184,
+      "alphaResidueRemoved": 763,
+      "retainedRgbChanges": 0,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "opaqueCellEdgePixels": 0
+    },
+    {
+      "id": "chartwall",
+      "row": 3,
+      "col": 5,
+      "output": "frontend/assets/industrial/approved-sheet/chartwall.png",
+      "sourceRect": {
+        "left": 479,
+        "top": 332,
+        "width": 93,
+        "height": 107
+      },
+      "cropInCell": {
+        "left": 3,
+        "top": 24,
+        "width": 89,
+        "height": 60
+      },
+      "sourceCrop": {
+        "left": 482,
+        "top": 356,
+        "width": 89,
+        "height": 60
+      },
+      "width": 89,
+      "height": 60,
+      "outputSha256": "37feffafa0752b7773656e9ff4d3ad77368e670fdda6b30c915596b84b1b44f1",
+      "retainedPixels": 5102,
+      "alphaResidueRemoved": 782,
+      "retainedRgbChanges": 0,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "opaqueCellEdgePixels": 0
+    },
+    {
+      "id": "wartable",
+      "row": 3,
+      "col": 6,
+      "output": "frontend/assets/industrial/approved-sheet/wartable.png",
+      "sourceRect": {
+        "left": 567,
+        "top": 332,
+        "width": 105,
+        "height": 107
+      },
+      "cropInCell": {
+        "left": 14,
+        "top": 20,
+        "width": 89,
+        "height": 70
+      },
+      "sourceCrop": {
+        "left": 581,
+        "top": 352,
+        "width": 89,
+        "height": 70
+      },
+      "width": 89,
+      "height": 70,
+      "outputSha256": "9880d9a92e8ca94b0ae7be60c0e2b67109edd12797b012e74c939a427fae60a9",
+      "retainedPixels": 5380,
+      "alphaResidueRemoved": 1580,
+      "retainedRgbChanges": 0,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "opaqueCellEdgePixels": 0
+    },
+    {
+      "id": "calwall",
+      "row": 3,
+      "col": 7,
+      "output": "frontend/assets/industrial/approved-sheet/calwall.png",
+      "sourceRect": {
+        "left": 667,
+        "top": 332,
+        "width": 95,
+        "height": 107
+      },
+      "cropInCell": {
+        "left": 17,
+        "top": 17,
+        "width": 78,
+        "height": 72
+      },
+      "sourceCrop": {
+        "left": 684,
+        "top": 349,
+        "width": 78,
+        "height": 72
+      },
+      "width": 78,
+      "height": 72,
+      "outputSha256": "f89122e596a95c7f369ac1463a586292218e081d50420fb69a3f26e5b0f6bf9b",
+      "retainedPixels": 5328,
+      "alphaResidueRemoved": 1169,
+      "retainedRgbChanges": 0,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "opaqueCellEdgePixels": 0
+    },
+    {
+      "id": "bridge_tacscreen",
+      "row": 3,
+      "col": 8,
+      "output": "frontend/assets/industrial/approved-sheet/bridge_tacscreen.png",
+      "sourceRect": {
+        "left": 762,
+        "top": 332,
+        "width": 99,
+        "height": 107
+      },
+      "cropInCell": {
+        "left": 13,
+        "top": 21,
+        "width": 86,
+        "height": 67
+      },
+      "sourceCrop": {
+        "left": 775,
+        "top": 353,
+        "width": 86,
+        "height": 67
+      },
+      "width": 86,
+      "height": 67,
+      "outputSha256": "093f8b366d76c99d3a3c70af80781c1dcb22c5a7c527deb4a3b30131783e5d38",
+      "retainedPixels": 5114,
+      "alphaResidueRemoved": 1453,
+      "retainedRgbChanges": 0,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "opaqueCellEdgePixels": 0
+    },
+    {
+      "id": "bridge_dispatch_pylon",
+      "row": 3,
+      "col": 9,
+      "output": "frontend/assets/industrial/approved-sheet/bridge_dispatch_pylon.png",
+      "sourceRect": {
+        "left": 861,
+        "top": 332,
+        "width": 95,
+        "height": 107
+      },
+      "cropInCell": {
+        "left": 26,
+        "top": 4,
+        "width": 48,
+        "height": 96
+      },
+      "sourceCrop": {
+        "left": 887,
+        "top": 336,
+        "width": 48,
+        "height": 96
+      },
+      "width": 48,
+      "height": 96,
+      "outputSha256": "149eb288a6f73de86cd27683feb343fc172cfc888d94bffc0df1d03cfa7e5e70",
+      "retainedPixels": 3477,
+      "alphaResidueRemoved": 758,
+      "retainedRgbChanges": 0,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "opaqueCellEdgePixels": 0
+    },
+    {
+      "id": "bridge_orderqueue",
+      "row": 3,
+      "col": 10,
+      "output": "frontend/assets/industrial/approved-sheet/bridge_orderqueue.png",
+      "sourceRect": {
+        "left": 956,
+        "top": 332,
+        "width": 96,
+        "height": 107
+      },
+      "cropInCell": {
+        "left": 9,
+        "top": 25,
+        "width": 70,
+        "height": 72
+      },
+      "sourceCrop": {
+        "left": 965,
+        "top": 357,
+        "width": 70,
+        "height": 72
+      },
+      "width": 70,
+      "height": 72,
+      "outputSha256": "6565800f7f2c87f663c0779eb39bab0f3abed8f155f488e4df9866b156a48df8",
+      "retainedPixels": 4409,
+      "alphaResidueRemoved": 933,
+      "retainedRgbChanges": 0,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "opaqueCellEdgePixels": 0
+    },
+    {
+      "id": "war_pivotpanel",
+      "row": 3,
+      "col": 11,
+      "output": "frontend/assets/industrial/approved-sheet/war_pivotpanel.png",
+      "sourceRect": {
+        "left": 1052,
+        "top": 332,
+        "width": 96,
+        "height": 107
+      },
+      "cropInCell": {
+        "left": 11,
+        "top": 10,
+        "width": 63,
+        "height": 90
+      },
+      "sourceCrop": {
+        "left": 1063,
+        "top": 342,
+        "width": 63,
+        "height": 90
+      },
+      "width": 63,
+      "height": 90,
+      "outputSha256": "95e49358a378b1fcc2ebcaedc07299d174d0c8414bac0134cc0fb7b20d3b33b8",
+      "retainedPixels": 4297,
+      "alphaResidueRemoved": 619,
+      "retainedRgbChanges": 0,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "opaqueCellEdgePixels": 0
+    },
+    {
+      "id": "war_threatcore",
+      "row": 3,
+      "col": 12,
+      "output": "frontend/assets/industrial/approved-sheet/war_threatcore.png",
+      "sourceRect": {
+        "left": 1148,
+        "top": 332,
+        "width": 95,
+        "height": 107
+      },
+      "cropInCell": {
+        "left": 3,
+        "top": 8,
+        "width": 80,
+        "height": 87
+      },
+      "sourceCrop": {
+        "left": 1151,
+        "top": 340,
+        "width": 80,
+        "height": 87
+      },
+      "width": 80,
+      "height": 87,
+      "outputSha256": "faa57de9694f389df505041eab28280b830bcf65ce4728ca2226c62aa34d8c73",
+      "retainedPixels": 6024,
+      "alphaResidueRemoved": 921,
+      "retainedRgbChanges": 0,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "opaqueCellEdgePixels": 0
+    },
+    {
+      "id": "fabricator",
+      "row": 3,
+      "col": 13,
+      "output": "frontend/assets/industrial/approved-sheet/fabricator.png",
+      "sourceRect": {
+        "left": 1243,
+        "top": 332,
+        "width": 94,
+        "height": 107
+      },
+      "cropInCell": {
+        "left": 4,
+        "top": 10,
+        "width": 81,
+        "height": 82
+      },
+      "sourceCrop": {
+        "left": 1247,
+        "top": 342,
+        "width": 81,
+        "height": 82
+      },
+      "width": 81,
+      "height": 82,
+      "outputSha256": "372eccb70297db2a633035e8203719a5cec026e0069ba2dfd0e7c2d881c60f26",
+      "retainedPixels": 5417,
+      "alphaResidueRemoved": 896,
+      "retainedRgbChanges": 0,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "opaqueCellEdgePixels": 0
+    },
+    {
+      "id": "vat",
+      "row": 3,
+      "col": 14,
+      "output": "frontend/assets/industrial/approved-sheet/vat.png",
+      "sourceRect": {
+        "left": 1337,
+        "top": 332,
+        "width": 97,
+        "height": 107
+      },
+      "cropInCell": {
+        "left": 9,
+        "top": 0,
+        "width": 72,
+        "height": 104
+      },
+      "sourceCrop": {
+        "left": 1346,
+        "top": 332,
+        "width": 72,
+        "height": 104
+      },
+      "width": 72,
+      "height": 104,
+      "outputSha256": "840cd869e4c32b8b6e1856e9ab288149eb27589dc3f13120b20c23841e6e359e",
+      "retainedPixels": 6123,
+      "alphaResidueRemoved": 653,
+      "retainedRgbChanges": 0,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "opaqueCellEdgePixels": 0
+    },
+    {
+      "id": "easel",
+      "row": 3,
+      "col": 15,
+      "output": "frontend/assets/industrial/approved-sheet/easel.png",
+      "sourceRect": {
+        "left": 1434,
+        "top": 331,
+        "width": 102,
+        "height": 108
+      },
+      "cropInCell": {
+        "left": 15,
+        "top": 0,
+        "width": 58,
+        "height": 101
+      },
+      "sourceCrop": {
+        "left": 1449,
+        "top": 331,
+        "width": 58,
+        "height": 101
+      },
+      "width": 58,
+      "height": 101,
+      "outputSha256": "f42e09315a79414dc0d89e174e4c29469bfddd2aa0f7171391973459825f18da",
+      "retainedPixels": 3733,
+      "alphaResidueRemoved": 798,
+      "retainedRgbChanges": 0,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "opaqueCellEdgePixels": 0
+    },
+    {
+      "id": "tube",
+      "row": 4,
+      "col": 0,
+      "output": "frontend/assets/industrial/approved-sheet/tube.png",
+      "sourceRect": {
+        "left": 0,
+        "top": 439,
+        "width": 109,
+        "height": 109
+      },
+      "cropInCell": {
+        "left": 31,
+        "top": 7,
+        "width": 55,
+        "height": 100
+      },
+      "sourceCrop": {
+        "left": 31,
+        "top": 446,
+        "width": 55,
+        "height": 100
+      },
+      "width": 55,
+      "height": 100,
+      "outputSha256": "896d8b0776662f7690ef085f097ec9c05c0c5221553a6ab65e19a840b1b03678",
+      "retainedPixels": 4343,
+      "alphaResidueRemoved": 407,
+      "retainedRgbChanges": 0,
+      "coreThreshold": 180,
+      "edgeRadius": 8,
+      "opaqueCellEdgePixels": 0
+    },
+    {
+      "id": "research_corelens",
+      "row": 4,
+      "col": 1,
+      "output": "frontend/assets/industrial/approved-sheet/research_corelens.png",
+      "sourceRect": {
+        "left": 109,
+        "top": 439,
+        "width": 91,
+        "height": 109
+      },
+      "cropInCell": {
+        "left": 9,
+        "top": 7,
+        "width": 70,
+        "height": 95
+      },
+      "sourceCrop": {
+        "left": 118,
+        "top": 446,
+        "width": 70,
+        "height": 95
+      },
+      "width": 70,
+      "height": 95,
+      "outputSha256": "06d6f9e46ab7ccbc057999f11094cfc5b41076f35fd11b8c8192c19c39693e3b",
+      "retainedPixels": 5432,
+      "alphaResidueRemoved": 838,
+      "retainedRgbChanges": 0,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "opaqueCellEdgePixels": 0
+    },
+    {
+      "id": "research_trendpillar",
+      "row": 4,
+      "col": 2,
+      "output": "frontend/assets/industrial/approved-sheet/research_trendpillar.png",
+      "sourceRect": {
+        "left": 200,
+        "top": 439,
+        "width": 92,
+        "height": 109
+      },
+      "cropInCell": {
+        "left": 18,
+        "top": 8,
+        "width": 54,
+        "height": 93
+      },
+      "sourceCrop": {
+        "left": 218,
+        "top": 447,
+        "width": 54,
+        "height": 93
+      },
+      "width": 54,
+      "height": 93,
+      "outputSha256": "c7b5d505d8de7ad4339eb240b96ad2379ed9b4a7f0e73645dc9d5c831048de21",
+      "retainedPixels": 3940,
+      "alphaResidueRemoved": 737,
+      "retainedRgbChanges": 0,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "opaqueCellEdgePixels": 0
+    },
+    {
+      "id": "research_samplecart",
+      "row": 4,
+      "col": 3,
+      "output": "frontend/assets/industrial/approved-sheet/research_samplecart.png",
+      "sourceRect": {
+        "left": 292,
+        "top": 439,
+        "width": 94,
+        "height": 109
+      },
+      "cropInCell": {
+        "left": 5,
+        "top": 26,
+        "width": 82,
+        "height": 72
+      },
+      "sourceCrop": {
+        "left": 297,
+        "top": 465,
+        "width": 82,
+        "height": 72
+      },
+      "width": 82,
+      "height": 72,
+      "outputSha256": "f6b99639eef67b5aa3de612e55d4ca1f8a71a74c6f7d6a09795eb36742b89497",
+      "retainedPixels": 4150,
+      "alphaResidueRemoved": 1016,
+      "retainedRgbChanges": 0,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "opaqueCellEdgePixels": 0
+    },
+    {
+      "id": "research_papers",
+      "row": 4,
+      "col": 4,
+      "output": "frontend/assets/industrial/approved-sheet/research_papers.png",
+      "sourceRect": {
+        "left": 386,
+        "top": 439,
+        "width": 93,
+        "height": 109
+      },
+      "cropInCell": {
+        "left": 9,
+        "top": 23,
+        "width": 72,
+        "height": 68
+      },
+      "sourceCrop": {
+        "left": 395,
+        "top": 462,
+        "width": 72,
+        "height": 68
+      },
+      "width": 72,
+      "height": 68,
+      "outputSha256": "2922448d7ecb45e06e78ded985c7e8d69c617720f0e639c30b1431710816e9c4",
+      "retainedPixels": 3798,
+      "alphaResidueRemoved": 928,
+      "retainedRgbChanges": 0,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "opaqueCellEdgePixels": 0
+    },
+    {
+      "id": "etsy_threadrack",
+      "row": 4,
+      "col": 5,
+      "output": "frontend/assets/industrial/approved-sheet/etsy_threadrack.png",
+      "sourceRect": {
+        "left": 479,
+        "top": 439,
+        "width": 93,
+        "height": 109
+      },
+      "cropInCell": {
+        "left": 5,
+        "top": 17,
+        "width": 85,
+        "height": 79
+      },
+      "sourceCrop": {
+        "left": 484,
+        "top": 456,
+        "width": 85,
+        "height": 79
+      },
+      "width": 85,
+      "height": 79,
+      "outputSha256": "3090d5ff84b8c5ce2c12146588f6dc291135f786a6f8e3b895c46655e702e8b1",
+      "retainedPixels": 6069,
+      "alphaResidueRemoved": 1098,
+      "retainedRgbChanges": 0,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "opaqueCellEdgePixels": 0
+    },
+    {
+      "id": "etsy_dyevat",
+      "row": 4,
+      "col": 6,
+      "output": "frontend/assets/industrial/approved-sheet/etsy_dyevat.png",
+      "sourceRect": {
+        "left": 572,
+        "top": 439,
+        "width": 95,
+        "height": 109
+      },
+      "cropInCell": {
+        "left": 12,
+        "top": 10,
+        "width": 77,
+        "height": 91
+      },
+      "sourceCrop": {
+        "left": 584,
+        "top": 449,
+        "width": 77,
+        "height": 91
+      },
+      "width": 77,
+      "height": 91,
+      "outputSha256": "6a1976a9978514453d60203f2efc6f297e690b698054fe7b96051841b5e068ec",
+      "retainedPixels": 5030,
+      "alphaResidueRemoved": 1331,
+      "retainedRgbChanges": 0,
+      "coreThreshold": 180,
+      "edgeRadius": 8,
+      "opaqueCellEdgePixels": 0
+    },
+    {
+      "id": "etsy_kiln",
+      "row": 4,
+      "col": 7,
+      "output": "frontend/assets/industrial/approved-sheet/etsy_kiln.png",
+      "sourceRect": {
+        "left": 667,
+        "top": 439,
+        "width": 95,
+        "height": 109
+      },
+      "cropInCell": {
+        "left": 12,
+        "top": 10,
+        "width": 83,
+        "height": 91
+      },
+      "sourceCrop": {
+        "left": 679,
+        "top": 449,
+        "width": 83,
+        "height": 91
+      },
+      "width": 83,
+      "height": 91,
+      "outputSha256": "189071e4c4ac9847d259a5f034939a146302e5401118b26c2edc9d64e6e6e973",
+      "retainedPixels": 6114,
+      "alphaResidueRemoved": 765,
+      "retainedRgbChanges": 0,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "opaqueCellEdgePixels": 0
+    },
+    {
+      "id": "etsy_packbot",
+      "row": 4,
+      "col": 8,
+      "output": "frontend/assets/industrial/approved-sheet/etsy_packbot.png",
+      "sourceRect": {
+        "left": 762,
+        "top": 439,
+        "width": 97,
+        "height": 109
+      },
+      "cropInCell": {
+        "left": 14,
+        "top": 11,
+        "width": 83,
+        "height": 93
+      },
+      "sourceCrop": {
+        "left": 776,
+        "top": 450,
+        "width": 83,
+        "height": 93
+      },
+      "width": 83,
+      "height": 93,
+      "outputSha256": "44d8506649383aea57e723d8435469d8dcf0e5da4f89d7b16812b5a537a234fc",
+      "retainedPixels": 5330,
+      "alphaResidueRemoved": 1694,
+      "retainedRgbChanges": 0,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "opaqueCellEdgePixels": 0
+    },
+    {
+      "id": "rackV",
+      "row": 4,
+      "col": 9,
+      "output": "frontend/assets/industrial/approved-sheet/rackV.png",
+      "sourceRect": {
+        "left": 859,
+        "top": 439,
+        "width": 97,
+        "height": 109
+      },
+      "cropInCell": {
+        "left": 23,
+        "top": 19,
+        "width": 72,
+        "height": 82
+      },
+      "sourceCrop": {
+        "left": 882,
+        "top": 458,
+        "width": 72,
+        "height": 82
+      },
+      "width": 72,
+      "height": 82,
+      "outputSha256": "a3466f499ce9f00dd17047d534564ffd0a079eeb4cf5e09e8e05251442ed3874",
+      "retainedPixels": 5366,
+      "alphaResidueRemoved": 726,
+      "retainedRgbChanges": 0,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "opaqueCellEdgePixels": 0
+    },
+    {
+      "id": "crate",
+      "row": 4,
+      "col": 10,
+      "output": "frontend/assets/industrial/approved-sheet/crate.png",
+      "sourceRect": {
+        "left": 956,
+        "top": 439,
+        "width": 96,
+        "height": 109
+      },
+      "cropInCell": {
+        "left": 12,
+        "top": 29,
+        "width": 75,
+        "height": 60
+      },
+      "sourceCrop": {
+        "left": 968,
+        "top": 468,
+        "width": 75,
+        "height": 60
+      },
+      "width": 75,
+      "height": 60,
+      "outputSha256": "a4c596600f4c1c0bf0c2f4df0892a9f0c49b074dd91079b5926b0fd27cd0ba16",
+      "retainedPixels": 4198,
+      "alphaResidueRemoved": 1245,
+      "retainedRgbChanges": 0,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "opaqueCellEdgePixels": 0
+    },
+    {
+      "id": "boxes",
+      "row": 4,
+      "col": 11,
+      "output": "frontend/assets/industrial/approved-sheet/boxes.png",
+      "sourceRect": {
+        "left": 1052,
+        "top": 439,
+        "width": 96,
+        "height": 109
+      },
+      "cropInCell": {
+        "left": 7,
+        "top": 29,
+        "width": 77,
+        "height": 64
+      },
+      "sourceCrop": {
+        "left": 1059,
+        "top": 468,
+        "width": 77,
+        "height": 64
+      },
+      "width": 77,
+      "height": 64,
+      "outputSha256": "9d8bebc4a0b719665945be4bab55c5342fedd38d7e7a61533dbba7fe9f27a8ad",
+      "retainedPixels": 4018,
+      "alphaResidueRemoved": 811,
+      "retainedRgbChanges": 0,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "opaqueCellEdgePixels": 0
+    },
+    {
+      "id": "goldcrate",
+      "row": 4,
+      "col": 12,
+      "output": "frontend/assets/industrial/approved-sheet/goldcrate.png",
+      "sourceRect": {
+        "left": 1148,
+        "top": 439,
+        "width": 95,
+        "height": 109
+      },
+      "cropInCell": {
+        "left": 5,
+        "top": 28,
+        "width": 83,
+        "height": 65
+      },
+      "sourceCrop": {
+        "left": 1153,
+        "top": 467,
+        "width": 83,
+        "height": 65
+      },
+      "width": 83,
+      "height": 65,
+      "outputSha256": "c116c1a34f4d7c0a33672ff5d8d462d1663b7b70501e4a3e72b89dc6c6b415b7",
+      "retainedPixels": 4772,
+      "alphaResidueRemoved": 497,
+      "retainedRgbChanges": 0,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "opaqueCellEdgePixels": 0
+    },
+    {
+      "id": "gigs_partsbin",
+      "row": 4,
+      "col": 13,
+      "output": "frontend/assets/industrial/approved-sheet/gigs_partsbin.png",
+      "sourceRect": {
+        "left": 1243,
+        "top": 439,
+        "width": 94,
+        "height": 109
+      },
+      "cropInCell": {
+        "left": 4,
+        "top": 27,
+        "width": 82,
+        "height": 65
+      },
+      "sourceCrop": {
+        "left": 1247,
+        "top": 466,
+        "width": 82,
+        "height": 65
+      },
+      "width": 82,
+      "height": 65,
+      "outputSha256": "87d1e312d2fe9741eb2a6ab7de3aa86a5a4084660e94b3d899f30e0d47709cb5",
+      "retainedPixels": 4861,
+      "alphaResidueRemoved": 464,
+      "retainedRgbChanges": 0,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "opaqueCellEdgePixels": 0
+    },
+    {
+      "id": "treasury_coinsorter",
+      "row": 4,
+      "col": 14,
+      "output": "frontend/assets/industrial/approved-sheet/treasury_coinsorter.png",
+      "sourceRect": {
+        "left": 1337,
+        "top": 439,
+        "width": 97,
+        "height": 109
+      },
+      "cropInCell": {
+        "left": 3,
+        "top": 13,
+        "width": 84,
+        "height": 86
+      },
+      "sourceCrop": {
+        "left": 1340,
+        "top": 452,
+        "width": 84,
+        "height": 86
+      },
+      "width": 84,
+      "height": 86,
+      "outputSha256": "28078510f9bb0b9a76a268065ddbebef72cdf947a9574c53ffe7461964cf9dc4",
+      "retainedPixels": 5899,
+      "alphaResidueRemoved": 1053,
+      "retainedRgbChanges": 0,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "opaqueCellEdgePixels": 0
+    },
+    {
+      "id": "treasury_token_furnace",
+      "row": 4,
+      "col": 15,
+      "output": "frontend/assets/industrial/approved-sheet/treasury_token_furnace.png",
+      "sourceRect": {
+        "left": 1434,
+        "top": 439,
+        "width": 102,
+        "height": 109
+      },
+      "cropInCell": {
+        "left": 3,
+        "top": 18,
+        "width": 83,
+        "height": 81
+      },
+      "sourceCrop": {
+        "left": 1437,
+        "top": 457,
+        "width": 83,
+        "height": 81
+      },
+      "width": 83,
+      "height": 81,
+      "outputSha256": "55b59b51de1d64145033b3dee2085310e63a1ba72ab584cfabc08cb98d102c9d",
+      "retainedPixels": 5761,
+      "alphaResidueRemoved": 864,
+      "retainedRgbChanges": 0,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "opaqueCellEdgePixels": 0
+    },
+    {
+      "id": "commswall",
+      "row": 5,
+      "col": 0,
+      "output": "frontend/assets/industrial/approved-sheet/commswall.png",
+      "sourceRect": {
+        "left": 0,
+        "top": 548,
+        "width": 109,
+        "height": 105
+      },
+      "cropInCell": {
+        "left": 24,
+        "top": 18,
+        "width": 70,
+        "height": 69
+      },
+      "sourceCrop": {
+        "left": 24,
+        "top": 566,
+        "width": 70,
+        "height": 69
+      },
+      "width": 70,
+      "height": 69,
+      "outputSha256": "2672536d43266e180f4c718d5e7a4bd3d33570467a90249a1bdbde566743c35b",
+      "retainedPixels": 4530,
+      "alphaResidueRemoved": 1026,
+      "retainedRgbChanges": 0,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "opaqueCellEdgePixels": 0
+    },
+    {
+      "id": "comms_inbox",
+      "row": 5,
+      "col": 1,
+      "output": "frontend/assets/industrial/approved-sheet/comms_inbox.png",
+      "sourceRect": {
+        "left": 109,
+        "top": 548,
+        "width": 91,
+        "height": 105
+      },
+      "cropInCell": {
+        "left": 1,
+        "top": 15,
+        "width": 77,
+        "height": 75
+      },
+      "sourceCrop": {
+        "left": 110,
+        "top": 563,
+        "width": 77,
+        "height": 75
+      },
+      "width": 77,
+      "height": 75,
+      "outputSha256": "344bdcb2414004235ddadc17144b094f8bb4ed1b3a7b770008c8f89422097b0f",
+      "retainedPixels": 5332,
+      "alphaResidueRemoved": 913,
+      "retainedRgbChanges": 0,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "opaqueCellEdgePixels": 0
+    },
+    {
+      "id": "gigs_thumbwall",
+      "row": 5,
+      "col": 2,
+      "output": "frontend/assets/industrial/approved-sheet/gigs_thumbwall.png",
+      "sourceRect": {
+        "left": 200,
+        "top": 548,
+        "width": 92,
+        "height": 105
+      },
+      "cropInCell": {
+        "left": 8,
+        "top": 15,
+        "width": 75,
+        "height": 75
+      },
+      "sourceCrop": {
+        "left": 208,
+        "top": 563,
+        "width": 75,
+        "height": 75
+      },
+      "width": 75,
+      "height": 75,
+      "outputSha256": "008077f0409ccf140fef8b6e1fb891b3cbb5e3b5a4cabfd5946a7a50d0fa7319",
+      "retainedPixels": 5022,
+      "alphaResidueRemoved": 1381,
+      "retainedRgbChanges": 0,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "opaqueCellEdgePixels": 0
+    },
+    {
+      "id": "gigs_amp",
+      "row": 5,
+      "col": 3,
+      "output": "frontend/assets/industrial/approved-sheet/gigs_amp.png",
+      "sourceRect": {
+        "left": 292,
+        "top": 548,
+        "width": 94,
+        "height": 105
+      },
+      "cropInCell": {
+        "left": 8,
+        "top": 18,
+        "width": 77,
+        "height": 74
+      },
+      "sourceCrop": {
+        "left": 300,
+        "top": 566,
+        "width": 77,
+        "height": 74
+      },
+      "width": 77,
+      "height": 74,
+      "outputSha256": "dce8433b08a3075e36374f19c5b834883bf96473f6fcd9e13f95faec1436aa17",
+      "retainedPixels": 5336,
+      "alphaResidueRemoved": 1081,
+      "retainedRgbChanges": 0,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "opaqueCellEdgePixels": 0
+    },
+    {
+      "id": "pub_publishpress",
+      "row": 5,
+      "col": 4,
+      "output": "frontend/assets/industrial/approved-sheet/pub_publishpress.png",
+      "sourceRect": {
+        "left": 386,
+        "top": 548,
+        "width": 93,
+        "height": 105
+      },
+      "cropInCell": {
+        "left": 7,
+        "top": 3,
+        "width": 84,
+        "height": 91
+      },
+      "sourceCrop": {
+        "left": 393,
+        "top": 551,
+        "width": 84,
+        "height": 91
+      },
+      "width": 84,
+      "height": 91,
+      "outputSha256": "218138a7526b34cef8d0930c3f58f1ac171b03c311db645ebff13ebbdc6b649d",
+      "retainedPixels": 6344,
+      "alphaResidueRemoved": 1027,
+      "retainedRgbChanges": 0,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "opaqueCellEdgePixels": 0
+    },
+    {
+      "id": "pub_outboundchute",
+      "row": 5,
+      "col": 5,
+      "output": "frontend/assets/industrial/approved-sheet/pub_outboundchute.png",
+      "sourceRect": {
+        "left": 479,
+        "top": 548,
+        "width": 93,
+        "height": 105
+      },
+      "cropInCell": {
+        "left": 16,
+        "top": 12,
+        "width": 64,
+        "height": 87
+      },
+      "sourceCrop": {
+        "left": 495,
+        "top": 560,
+        "width": 64,
+        "height": 87
+      },
+      "width": 64,
+      "height": 87,
+      "outputSha256": "fda869e187afcc57c8b25ee660dee66dedd61ba7a79717ae4be40148b46f349d",
+      "retainedPixels": 4135,
+      "alphaResidueRemoved": 564,
+      "retainedRgbChanges": 0,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "opaqueCellEdgePixels": 0
+    },
+    {
+      "id": "pub_mailpod",
+      "row": 5,
+      "col": 6,
+      "output": "frontend/assets/industrial/approved-sheet/pub_mailpod.png",
+      "sourceRect": {
+        "left": 572,
+        "top": 548,
+        "width": 95,
+        "height": 105
+      },
+      "cropInCell": {
+        "left": 14,
+        "top": 7,
+        "width": 61,
+        "height": 86
+      },
+      "sourceCrop": {
+        "left": 586,
+        "top": 555,
+        "width": 61,
+        "height": 86
+      },
+      "width": 61,
+      "height": 86,
+      "outputSha256": "d176ea95671a283ac3f354bac8a013cd32b7a188a2d1ab494abbf86f39b02a3d",
+      "retainedPixels": 4820,
+      "alphaResidueRemoved": 809,
+      "retainedRgbChanges": 0,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "opaqueCellEdgePixels": 0
+    },
+    {
+      "id": "arc_indexwall",
+      "row": 5,
+      "col": 7,
+      "output": "frontend/assets/industrial/approved-sheet/arc_indexwall.png",
+      "sourceRect": {
+        "left": 667,
+        "top": 548,
+        "width": 95,
+        "height": 105
+      },
+      "cropInCell": {
+        "left": 4,
+        "top": 14,
+        "width": 82,
+        "height": 74
+      },
+      "sourceCrop": {
+        "left": 671,
+        "top": 562,
+        "width": 82,
+        "height": 74
+      },
+      "width": 82,
+      "height": 74,
+      "outputSha256": "f4d233b698fa676ea809c02c3d1940ad9b5e8501435c32441e847c6cb02bb0cd",
+      "retainedPixels": 5787,
+      "alphaResidueRemoved": 807,
+      "retainedRgbChanges": 0,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "opaqueCellEdgePixels": 0
+    },
+    {
+      "id": "arc_microfiche",
+      "row": 5,
+      "col": 8,
+      "output": "frontend/assets/industrial/approved-sheet/arc_microfiche.png",
+      "sourceRect": {
+        "left": 762,
+        "top": 548,
+        "width": 97,
+        "height": 105
+      },
+      "cropInCell": {
+        "left": 14,
+        "top": 18,
+        "width": 75,
+        "height": 77
+      },
+      "sourceCrop": {
+        "left": 776,
+        "top": 566,
+        "width": 75,
+        "height": 77
+      },
+      "width": 75,
+      "height": 77,
+      "outputSha256": "ab32d8e395fcefd4df13a050a2de4aad911aa6cd1f8ee2666e19e31eff8884a3",
+      "retainedPixels": 4678,
+      "alphaResidueRemoved": 1047,
+      "retainedRgbChanges": 0,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "opaqueCellEdgePixels": 0
+    },
+    {
+      "id": "djbooth",
+      "row": 5,
+      "col": 9,
+      "output": "frontend/assets/industrial/approved-sheet/djbooth.png",
+      "sourceRect": {
+        "left": 859,
+        "top": 548,
+        "width": 101,
+        "height": 105
+      },
+      "cropInCell": {
+        "left": 1,
+        "top": 25,
+        "width": 100,
+        "height": 67
+      },
+      "sourceCrop": {
+        "left": 860,
+        "top": 573,
+        "width": 100,
+        "height": 67
+      },
+      "width": 100,
+      "height": 67,
+      "outputSha256": "23e4f2ea7721e54ccabe7c6c40929f6006ec0412b3865c8b8fdcc6ddbda726dd",
+      "retainedPixels": 5924,
+      "alphaResidueRemoved": 541,
+      "retainedRgbChanges": 0,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "opaqueCellEdgePixels": 0
+    },
+    {
+      "id": "speaker",
+      "row": 5,
+      "col": 10,
+      "output": "frontend/assets/industrial/approved-sheet/speaker.png",
+      "sourceRect": {
+        "left": 960,
+        "top": 548,
+        "width": 87,
+        "height": 105
+      },
+      "cropInCell": {
+        "left": 21,
+        "top": 14,
+        "width": 48,
+        "height": 75
+      },
+      "sourceCrop": {
+        "left": 981,
+        "top": 562,
+        "width": 48,
+        "height": 75
+      },
+      "width": 48,
+      "height": 75,
+      "outputSha256": "02aadfed8d2504f9fdd6fbea01f3aecaba5f1dd65a7609cae96ec6e7ca0d8986",
+      "retainedPixels": 3332,
+      "alphaResidueRemoved": 1335,
+      "retainedRgbChanges": 0,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "opaqueCellEdgePixels": 0
+    },
+    {
+      "id": "bar",
+      "row": 5,
+      "col": 11,
+      "output": "frontend/assets/industrial/approved-sheet/bar.png",
+      "sourceRect": {
+        "left": 1047,
+        "top": 548,
+        "width": 101,
+        "height": 105
+      },
+      "cropInCell": {
+        "left": 0,
+        "top": 14,
+        "width": 100,
+        "height": 86
+      },
+      "sourceCrop": {
+        "left": 1047,
+        "top": 562,
+        "width": 100,
+        "height": 86
+      },
+      "width": 100,
+      "height": 86,
+      "outputSha256": "bd8ee612a0de3ee5f765e0068a9974bf1b2fc29453e689dd180dd6947b8a238a",
+      "retainedPixels": 6840,
+      "alphaResidueRemoved": 1569,
+      "retainedRgbChanges": 0,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "opaqueCellEdgePixels": 0
+    },
+    {
+      "id": "tv",
+      "row": 5,
+      "col": 12,
+      "output": "frontend/assets/industrial/approved-sheet/tv.png",
+      "sourceRect": {
+        "left": 1148,
+        "top": 548,
+        "width": 89,
+        "height": 105
+      },
+      "cropInCell": {
+        "left": 10,
+        "top": 14,
+        "width": 67,
+        "height": 78
+      },
+      "sourceCrop": {
+        "left": 1158,
+        "top": 562,
+        "width": 67,
+        "height": 78
+      },
+      "width": 67,
+      "height": 78,
+      "outputSha256": "0e6c822781fbfe707ddf7b8048fd1b9e26bb814e93327f9b64419952dd0f832b",
+      "retainedPixels": 4150,
+      "alphaResidueRemoved": 1825,
+      "retainedRgbChanges": 0,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "opaqueCellEdgePixels": 0
+    },
+    {
+      "id": "couch",
+      "row": 5,
+      "col": 13,
+      "output": "frontend/assets/industrial/approved-sheet/couch.png",
+      "sourceRect": {
+        "left": 1232,
+        "top": 548,
+        "width": 120,
+        "height": 105
+      },
+      "cropInCell": {
+        "left": 4,
+        "top": 28,
+        "width": 113,
+        "height": 67
+      },
+      "sourceCrop": {
+        "left": 1236,
+        "top": 576,
+        "width": 113,
+        "height": 67
+      },
+      "width": 113,
+      "height": 67,
+      "outputSha256": "6c2552025a8ee5dd8a0d41cf4c9961978015b24d8ac4630fbeeb046a9483952b",
+      "retainedPixels": 6712,
+      "alphaResidueRemoved": 703,
+      "retainedRgbChanges": 0,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "opaqueCellEdgePixels": 0
+    },
+    {
+      "id": "arcade",
+      "row": 5,
+      "col": 14,
+      "output": "frontend/assets/industrial/approved-sheet/arcade.png",
+      "sourceRect": {
+        "left": 1347,
+        "top": 548,
+        "width": 87,
+        "height": 105
+      },
+      "cropInCell": {
+        "left": 19,
+        "top": 2,
+        "width": 52,
+        "height": 90
+      },
+      "sourceCrop": {
+        "left": 1366,
+        "top": 550,
+        "width": 52,
+        "height": 90
+      },
+      "width": 52,
+      "height": 90,
+      "outputSha256": "7bc3d2cabc10e56e6d9b93c280fa2a916dace908af80a988c178863d124fc09a",
+      "retainedPixels": 4406,
+      "alphaResidueRemoved": 1573,
+      "retainedRgbChanges": 0,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "opaqueCellEdgePixels": 0
+    },
+    {
+      "id": "arcade2",
+      "row": 5,
+      "col": 15,
+      "output": "frontend/assets/industrial/approved-sheet/arcade2.png",
+      "sourceRect": {
+        "left": 1434,
+        "top": 548,
+        "width": 102,
+        "height": 105
+      },
+      "cropInCell": {
+        "left": 17,
+        "top": 2,
+        "width": 51,
+        "height": 90
+      },
+      "sourceCrop": {
+        "left": 1451,
+        "top": 550,
+        "width": 51,
+        "height": 90
+      },
+      "width": 51,
+      "height": 90,
+      "outputSha256": "5de5d785fe1484f3fd3be5e61ff4e335b4394a4b4e62ae3c60b891540428826b",
+      "retainedPixels": 4337,
+      "alphaResidueRemoved": 736,
+      "retainedRgbChanges": 0,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "opaqueCellEdgePixels": 0
+    },
+    {
+      "id": "jukebox",
+      "row": 6,
+      "col": 0,
+      "output": "frontend/assets/industrial/approved-sheet/jukebox.png",
+      "sourceRect": {
+        "left": 0,
+        "top": 653,
+        "width": 109,
+        "height": 106
+      },
+      "cropInCell": {
+        "left": 27,
+        "top": 8,
+        "width": 66,
+        "height": 90
+      },
+      "sourceCrop": {
+        "left": 27,
+        "top": 661,
+        "width": 66,
+        "height": 90
+      },
+      "width": 66,
+      "height": 90,
+      "outputSha256": "3926525e98b2e330e1ce59888d806ad82437647b5ab78bca154799fc5cced176",
+      "retainedPixels": 5199,
+      "alphaResidueRemoved": 692,
+      "retainedRgbChanges": 0,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "opaqueCellEdgePixels": 0
+    },
+    {
+      "id": "bunk",
+      "row": 6,
+      "col": 1,
+      "output": "frontend/assets/industrial/approved-sheet/bunk.png",
+      "sourceRect": {
+        "left": 109,
+        "top": 653,
+        "width": 91,
+        "height": 106
+      },
+      "cropInCell": {
+        "left": 1,
+        "top": 11,
+        "width": 82,
+        "height": 87
+      },
+      "sourceCrop": {
+        "left": 110,
+        "top": 664,
+        "width": 82,
+        "height": 87
+      },
+      "width": 82,
+      "height": 87,
+      "outputSha256": "f1d15dc7a370cdbbd846b721f0080356f092cc233fdb237a574a0cd89457d3e4",
+      "retainedPixels": 6173,
+      "alphaResidueRemoved": 735,
+      "retainedRgbChanges": 0,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "opaqueCellEdgePixels": 0
+    },
+    {
+      "id": "quarters_pooltable",
+      "row": 6,
+      "col": 2,
+      "output": "frontend/assets/industrial/approved-sheet/quarters_pooltable.png",
+      "sourceRect": {
+        "left": 195,
+        "top": 653,
+        "width": 112,
+        "height": 106
+      },
+      "cropInCell": {
+        "left": 5,
+        "top": 29,
+        "width": 105,
+        "height": 68
+      },
+      "sourceCrop": {
+        "left": 200,
+        "top": 682,
+        "width": 105,
+        "height": 68
+      },
+      "width": 105,
+      "height": 68,
+      "outputSha256": "5b0e0fe6a69ce008382f2ede8987af9c43f056347b2f221e351e1069779b2d86",
+      "retainedPixels": 6026,
+      "alphaResidueRemoved": 1766,
+      "retainedRgbChanges": 0,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "opaqueCellEdgePixels": 0
+    },
+    {
+      "id": "quarters_vending",
+      "row": 6,
+      "col": 3,
+      "output": "frontend/assets/industrial/approved-sheet/quarters_vending.png",
+      "sourceRect": {
+        "left": 302,
+        "top": 653,
+        "width": 84,
+        "height": 106
+      },
+      "cropInCell": {
+        "left": 13,
+        "top": 8,
+        "width": 54,
+        "height": 91
+      },
+      "sourceCrop": {
+        "left": 315,
+        "top": 661,
+        "width": 54,
+        "height": 91
+      },
+      "width": 54,
+      "height": 91,
+      "outputSha256": "f2b9ad8082fb5b79dd9ce0d8d278696148a6c72f330bb5fbd4a4a3e32694900e",
+      "retainedPixels": 4605,
+      "alphaResidueRemoved": 1155,
+      "retainedRgbChanges": 0,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "opaqueCellEdgePixels": 0
+    },
+    {
+      "id": "quarters_lockerbank",
+      "row": 6,
+      "col": 4,
+      "output": "frontend/assets/industrial/approved-sheet/quarters_lockerbank.png",
+      "sourceRect": {
+        "left": 386,
+        "top": 653,
+        "width": 93,
+        "height": 106
+      },
+      "cropInCell": {
+        "left": 4,
+        "top": 12,
+        "width": 89,
+        "height": 80
+      },
+      "sourceCrop": {
+        "left": 390,
+        "top": 665,
+        "width": 89,
+        "height": 80
+      },
+      "width": 89,
+      "height": 80,
+      "outputSha256": "77a01e19fbdc614271e2eedf848eab50caf3f9af2110f86599bd5e3e2fd7fb43",
+      "retainedPixels": 6831,
+      "alphaResidueRemoved": 1161,
+      "retainedRgbChanges": 0,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "opaqueCellEdgePixels": 0
+    },
+    {
+      "id": "quarters_minifridge",
+      "row": 6,
+      "col": 5,
+      "output": "frontend/assets/industrial/approved-sheet/quarters_minifridge.png",
+      "sourceRect": {
+        "left": 479,
+        "top": 653,
+        "width": 93,
+        "height": 106
+      },
+      "cropInCell": {
+        "left": 21,
+        "top": 17,
+        "width": 53,
+        "height": 75
+      },
+      "sourceCrop": {
+        "left": 500,
+        "top": 670,
+        "width": 53,
+        "height": 75
+      },
+      "width": 53,
+      "height": 75,
+      "outputSha256": "8c0ddfabc9e80bee5b5d1f65e7f323b7af1d715c81a5fad6f617c51544dbbc54",
+      "retainedPixels": 3704,
+      "alphaResidueRemoved": 929,
+      "retainedRgbChanges": 0,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "opaqueCellEdgePixels": 0
+    },
+    {
+      "id": "coffee",
+      "row": 6,
+      "col": 6,
+      "output": "frontend/assets/industrial/approved-sheet/coffee.png",
+      "sourceRect": {
+        "left": 572,
+        "top": 653,
+        "width": 95,
+        "height": 106
+      },
+      "cropInCell": {
+        "left": 17,
+        "top": 11,
+        "width": 56,
+        "height": 85
+      },
+      "sourceCrop": {
+        "left": 589,
+        "top": 664,
+        "width": 56,
+        "height": 85
+      },
+      "width": 56,
+      "height": 85,
+      "outputSha256": "90cee0bc4be8ac5842578aed6a3d75da1e8217a1d397a23be2fcf7ba65b55935",
+      "retainedPixels": 4327,
+      "alphaResidueRemoved": 388,
+      "retainedRgbChanges": 0,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "opaqueCellEdgePixels": 0
+    },
+    {
+      "id": "plant",
+      "row": 6,
+      "col": 7,
+      "output": "frontend/assets/industrial/approved-sheet/plant.png",
+      "sourceRect": {
+        "left": 667,
+        "top": 653,
+        "width": 95,
+        "height": 106
+      },
+      "cropInCell": {
+        "left": 16,
+        "top": 16,
+        "width": 65,
+        "height": 78
+      },
+      "sourceCrop": {
+        "left": 683,
+        "top": 669,
+        "width": 65,
+        "height": 78
+      },
+      "width": 65,
+      "height": 78,
+      "outputSha256": "de3b983d0f8e18c50ee5d1db7e4bd5247cf04fe30581939b2c1e01e6d0ab09ce",
+      "retainedPixels": 3315,
+      "alphaResidueRemoved": 595,
+      "retainedRgbChanges": 0,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "opaqueCellEdgePixels": 0
+    },
+    {
+      "id": "rug",
+      "row": 6,
+      "col": 8,
+      "output": "frontend/assets/industrial/approved-sheet/rug.png",
+      "sourceRect": {
+        "left": 762,
+        "top": 653,
+        "width": 104,
+        "height": 106
+      },
+      "cropInCell": {
+        "left": 8,
+        "top": 31,
+        "width": 96,
+        "height": 59
+      },
+      "sourceCrop": {
+        "left": 770,
+        "top": 684,
+        "width": 96,
+        "height": 59
+      },
+      "width": 96,
+      "height": 59,
+      "outputSha256": "f2edf8c2ace9353ee6c67ef749a7cc8541e6cc6283d9b61abc349e1705c8f411",
+      "retainedPixels": 5245,
+      "alphaResidueRemoved": 622,
+      "retainedRgbChanges": 0,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "opaqueCellEdgePixels": 0
+    },
+    {
+      "id": "rug_small",
+      "row": 6,
+      "col": 9,
+      "output": "frontend/assets/industrial/approved-sheet/rug_small.png",
+      "sourceRect": {
+        "left": 866,
+        "top": 653,
+        "width": 90,
+        "height": 106
+      },
+      "cropInCell": {
+        "left": 14,
+        "top": 36,
+        "width": 65,
+        "height": 49
+      },
+      "sourceCrop": {
+        "left": 880,
+        "top": 689,
+        "width": 65,
+        "height": 49
+      },
+      "width": 65,
+      "height": 49,
+      "outputSha256": "e9db91fd2e19f2bb1be971f6eea5d8460cbbf5556d406b9784ca2a194bb6f59c",
+      "retainedPixels": 2856,
+      "alphaResidueRemoved": 406,
+      "retainedRgbChanges": 0,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "opaqueCellEdgePixels": 0
+    },
+    {
+      "id": "rug_large",
+      "row": 6,
+      "col": 10,
+      "output": "frontend/assets/industrial/approved-sheet/rug_large.png",
+      "sourceRect": {
+        "left": 956,
+        "top": 653,
+        "width": 101,
+        "height": 106
+      },
+      "cropInCell": {
+        "left": 2,
+        "top": 28,
+        "width": 99,
+        "height": 65
+      },
+      "sourceCrop": {
+        "left": 958,
+        "top": 681,
+        "width": 99,
+        "height": 65
+      },
+      "width": 99,
+      "height": 65,
+      "outputSha256": "9de83fa5e5f4dcc393e0cd2e0466597611965d52a8c5b2f98407e71ced64ae1d",
+      "retainedPixels": 6256,
+      "alphaResidueRemoved": 1102,
+      "retainedRgbChanges": 0,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "opaqueCellEdgePixels": 0
+    },
+    {
+      "id": "treasury_pnl_holo",
+      "row": 6,
+      "col": 11,
+      "output": "frontend/assets/industrial/approved-sheet/treasury_pnl_holo.png",
+      "sourceRect": {
+        "left": 1057,
+        "top": 653,
+        "width": 91,
+        "height": 106
+      },
+      "cropInCell": {
+        "left": 20,
+        "top": 13,
+        "width": 62,
+        "height": 81
+      },
+      "sourceCrop": {
+        "left": 1077,
+        "top": 666,
+        "width": 62,
+        "height": 81
+      },
+      "width": 62,
+      "height": 81,
+      "outputSha256": "c6f7508fe1985c4df7fa45358fd07f7ee3e0f0acb0ee6f87eff1ee9ef46c4ce9",
+      "retainedPixels": 3698,
+      "alphaResidueRemoved": 883,
+      "retainedRgbChanges": 0,
+      "coreThreshold": 180,
+      "edgeRadius": 8,
+      "opaqueCellEdgePixels": 0
+    },
+    {
+      "id": "arc_floorlight",
+      "row": 6,
+      "col": 12,
+      "output": "frontend/assets/industrial/approved-sheet/arc_floorlight.png",
+      "sourceRect": {
+        "left": 1148,
+        "top": 653,
+        "width": 95,
+        "height": 106
+      },
+      "cropInCell": {
+        "left": 34,
+        "top": 12,
+        "width": 33,
+        "height": 79
+      },
+      "sourceCrop": {
+        "left": 1182,
+        "top": 665,
+        "width": 33,
+        "height": 79
+      },
+      "width": 33,
+      "height": 79,
+      "outputSha256": "a2fea4a7be3a48db9083b34b3a13e4b2b19a2b5cc844286beb34e6acbeb8ce65",
+      "retainedPixels": 1807,
+      "alphaResidueRemoved": 729,
+      "retainedRgbChanges": 0,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "opaqueCellEdgePixels": 0
+    },
+    {
+      "id": "arc_ladder",
+      "row": 6,
+      "col": 13,
+      "output": "frontend/assets/industrial/approved-sheet/arc_ladder.png",
+      "sourceRect": {
+        "left": 1243,
+        "top": 653,
+        "width": 94,
+        "height": 106
+      },
+      "cropInCell": {
+        "left": 26,
+        "top": 13,
+        "width": 41,
+        "height": 82
+      },
+      "sourceCrop": {
+        "left": 1269,
+        "top": 666,
+        "width": 41,
+        "height": 82
+      },
+      "width": 41,
+      "height": 82,
+      "outputSha256": "8539525337c2b4269a9fde68c559baebad1bc17645eb9622f7f42b7fe1411733",
+      "retainedPixels": 2985,
+      "alphaResidueRemoved": 792,
+      "retainedRgbChanges": 0,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "opaqueCellEdgePixels": 0
+    },
+    {
+      "id": "stool",
+      "row": 6,
+      "col": 14,
+      "output": "frontend/assets/industrial/approved-sheet/stool.png",
+      "sourceRect": {
+        "left": 1337,
+        "top": 653,
+        "width": 97,
+        "height": 106
+      },
+      "cropInCell": {
+        "left": 22,
+        "top": 30,
+        "width": 48,
+        "height": 57
+      },
+      "sourceCrop": {
+        "left": 1359,
+        "top": 683,
+        "width": 48,
+        "height": 57
+      },
+      "width": 48,
+      "height": 57,
+      "outputSha256": "71dff90905cff953465fb89f2ac5e565344fd82aa51a41b84807f545c8389530",
+      "retainedPixels": 2128,
+      "alphaResidueRemoved": 587,
+      "retainedRgbChanges": 0,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "opaqueCellEdgePixels": 0
+    },
+    {
+      "id": "chair",
+      "row": 6,
+      "col": 15,
+      "output": "frontend/assets/industrial/approved-sheet/chair.png",
+      "sourceRect": {
+        "left": 1434,
+        "top": 653,
+        "width": 102,
+        "height": 106
+      },
+      "cropInCell": {
+        "left": 16,
+        "top": 17,
+        "width": 54,
+        "height": 80
+      },
+      "sourceCrop": {
+        "left": 1450,
+        "top": 670,
+        "width": 54,
+        "height": 80
+      },
+      "width": 54,
+      "height": 80,
+      "outputSha256": "1c9257ded875c31688c9f759c424db2814ab707e36790db7793e20aac85c2d79",
+      "retainedPixels": 3152,
+      "alphaResidueRemoved": 785,
+      "retainedRgbChanges": 0,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "opaqueCellEdgePixels": 0
+    },
+    {
+      "id": "sidetable",
+      "row": 7,
+      "col": 0,
+      "output": "frontend/assets/industrial/approved-sheet/sidetable.png",
+      "sourceRect": {
+        "left": 0,
+        "top": 759,
+        "width": 109,
+        "height": 91
+      },
+      "cropInCell": {
+        "left": 34,
+        "top": 16,
+        "width": 57,
+        "height": 71
+      },
+      "sourceCrop": {
+        "left": 34,
+        "top": 775,
+        "width": 57,
+        "height": 71
+      },
+      "width": 57,
+      "height": 71,
+      "outputSha256": "9002bd00ea599569fdac9f78b028eef0df2e5cc69b850622de64758377aab768",
+      "retainedPixels": 2774,
+      "alphaResidueRemoved": 1285,
+      "retainedRgbChanges": 0,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "opaqueCellEdgePixels": 0
+    },
+    {
+      "id": "lowtable",
+      "row": 7,
+      "col": 1,
+      "output": "frontend/assets/industrial/approved-sheet/lowtable.png",
+      "sourceRect": {
+        "left": 109,
+        "top": 759,
+        "width": 91,
+        "height": 91
+      },
+      "cropInCell": {
+        "left": 0,
+        "top": 33,
+        "width": 86,
+        "height": 51
+      },
+      "sourceCrop": {
+        "left": 109,
+        "top": 792,
+        "width": 86,
+        "height": 51
+      },
+      "width": 86,
+      "height": 51,
+      "outputSha256": "213ab8626b32f601fba0fcf086c1df7d11d2e92b0d2a42ad007f97609e5146ca",
+      "retainedPixels": 3478,
+      "alphaResidueRemoved": 1043,
+      "retainedRgbChanges": 0,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "opaqueCellEdgePixels": 0
+    },
+    {
+      "id": "glasstable",
+      "row": 7,
+      "col": 2,
+      "output": "frontend/assets/industrial/approved-sheet/glasstable.png",
+      "sourceRect": {
+        "left": 200,
+        "top": 759,
+        "width": 92,
+        "height": 91
+      },
+      "cropInCell": {
+        "left": 8,
+        "top": 31,
+        "width": 81,
+        "height": 53
+      },
+      "sourceCrop": {
+        "left": 208,
+        "top": 790,
+        "width": 81,
+        "height": 53
+      },
+      "width": 81,
+      "height": 53,
+      "outputSha256": "2951efc70bff35db3edee284b73bdcbe5b93f8f60776f7a97845da3b8068f0cb",
+      "retainedPixels": 3259,
+      "alphaResidueRemoved": 1583,
+      "retainedRgbChanges": 0,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "opaqueCellEdgePixels": 0
+    },
+    {
+      "id": "dinertable",
+      "row": 7,
+      "col": 3,
+      "output": "frontend/assets/industrial/approved-sheet/dinertable.png",
+      "sourceRect": {
+        "left": 292,
+        "top": 759,
+        "width": 96,
+        "height": 91
+      },
+      "cropInCell": {
+        "left": 7,
+        "top": 19,
+        "width": 89,
+        "height": 67
+      },
+      "sourceCrop": {
+        "left": 299,
+        "top": 778,
+        "width": 89,
+        "height": 67
+      },
+      "width": 89,
+      "height": 67,
+      "outputSha256": "72999f393916c43026b779b817bf64970c0e0ca561549fb0a2370c5bd7001dda",
+      "retainedPixels": 4857,
+      "alphaResidueRemoved": 1233,
+      "retainedRgbChanges": 0,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "opaqueCellEdgePixels": 0
+    },
+    {
+      "id": "guitar",
+      "row": 7,
+      "col": 4,
+      "output": "frontend/assets/industrial/approved-sheet/guitar.png",
+      "sourceRect": {
+        "left": 388,
+        "top": 759,
+        "width": 91,
+        "height": 97
+      },
+      "cropInCell": {
+        "left": 20,
+        "top": 9,
+        "width": 44,
+        "height": 88
+      },
+      "sourceCrop": {
+        "left": 408,
+        "top": 768,
+        "width": 44,
+        "height": 88
+      },
+      "width": 44,
+      "height": 88,
+      "outputSha256": "024855fa6e0c6ba13025c0a910a1b794db35b2a3fc75bc583bdf656d604476d4",
+      "retainedPixels": 2303,
+      "alphaResidueRemoved": 586,
+      "retainedRgbChanges": 0,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "opaqueCellEdgePixels": 0
+    },
+    {
+      "id": "booth",
+      "row": 7,
+      "col": 5,
+      "output": "frontend/assets/industrial/approved-sheet/booth.png",
+      "sourceRect": {
+        "left": 479,
+        "top": 759,
+        "width": 93,
+        "height": 91
+      },
+      "cropInCell": {
+        "left": 3,
+        "top": 17,
+        "width": 86,
+        "height": 66
+      },
+      "sourceCrop": {
+        "left": 482,
+        "top": 776,
+        "width": 86,
+        "height": 66
+      },
+      "width": 86,
+      "height": 66,
+      "outputSha256": "8305a5b5521e774c3678a0c7a991230aa157c98d94defe9578559a83ddee5314",
+      "retainedPixels": 5250,
+      "alphaResidueRemoved": 1207,
+      "retainedRgbChanges": 0,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "opaqueCellEdgePixels": 0
+    },
+    {
+      "id": "dinerchair",
+      "row": 7,
+      "col": 6,
+      "output": "frontend/assets/industrial/approved-sheet/dinerchair.png",
+      "sourceRect": {
+        "left": 572,
+        "top": 759,
+        "width": 95,
+        "height": 91
+      },
+      "cropInCell": {
+        "left": 24,
+        "top": 17,
+        "width": 48,
+        "height": 69
+      },
+      "sourceCrop": {
+        "left": 596,
+        "top": 776,
+        "width": 48,
+        "height": 69
+      },
+      "width": 48,
+      "height": 69,
+      "outputSha256": "94ff7b645328935bb9c82fddade75e06513c3978a45ec0d5304a4070f55a9a0b",
+      "retainedPixels": 2654,
+      "alphaResidueRemoved": 639,
+      "retainedRgbChanges": 0,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "opaqueCellEdgePixels": 0
+    },
+    {
+      "id": "podchair",
+      "row": 7,
+      "col": 7,
+      "output": "frontend/assets/industrial/approved-sheet/podchair.png",
+      "sourceRect": {
+        "left": 667,
+        "top": 759,
+        "width": 95,
+        "height": 91
+      },
+      "cropInCell": {
+        "left": 6,
+        "top": 8,
+        "width": 76,
+        "height": 83
+      },
+      "sourceCrop": {
+        "left": 673,
+        "top": 767,
+        "width": 76,
+        "height": 83
+      },
+      "width": 76,
+      "height": 83,
+      "outputSha256": "751043f710ad6000dfd01e19f72ef5a4df7c40a4fbc5dd6093d7940daf8dcce1",
+      "retainedPixels": 4751,
+      "alphaResidueRemoved": 564,
+      "retainedRgbChanges": 0,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "opaqueCellEdgePixels": 0
+    },
+    {
+      "id": "loungetable",
+      "row": 7,
+      "col": 8,
+      "output": "frontend/assets/industrial/approved-sheet/loungetable.png",
+      "sourceRect": {
+        "left": 762,
+        "top": 759,
+        "width": 97,
+        "height": 91
+      },
+      "cropInCell": {
+        "left": 11,
+        "top": 24,
+        "width": 78,
+        "height": 56
+      },
+      "sourceCrop": {
+        "left": 773,
+        "top": 783,
+        "width": 78,
+        "height": 56
+      },
+      "width": 78,
+      "height": 56,
+      "outputSha256": "f75e50930edebaeb4390d6ae58a83c441baaa921797dcf24a28f76c0ed5cee02",
+      "retainedPixels": 3386,
+      "alphaResidueRemoved": 869,
+      "retainedRgbChanges": 0,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "opaqueCellEdgePixels": 0
+    },
+    {
+      "id": "longtable",
+      "row": 7,
+      "col": 9,
+      "output": "frontend/assets/industrial/approved-sheet/longtable.png",
+      "sourceRect": {
+        "left": 859,
+        "top": 759,
+        "width": 102,
+        "height": 91
+      },
+      "cropInCell": {
+        "left": 3,
+        "top": 16,
+        "width": 99,
+        "height": 75
+      },
+      "sourceCrop": {
+        "left": 862,
+        "top": 775,
+        "width": 99,
+        "height": 75
+      },
+      "width": 99,
+      "height": 75,
+      "outputSha256": "8e09ee6288da62305f0d9a632e98e9cf0206cccc5a0f11254f145e7fbad2218a",
+      "retainedPixels": 5887,
+      "alphaResidueRemoved": 768,
+      "retainedRgbChanges": 0,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "opaqueCellEdgePixels": 0
+    },
+    {
+      "id": "lavalamp",
+      "row": 7,
+      "col": 10,
+      "output": "frontend/assets/industrial/approved-sheet/lavalamp.png",
+      "sourceRect": {
+        "left": 961,
+        "top": 759,
+        "width": 88,
+        "height": 91
+      },
+      "cropInCell": {
+        "left": 31,
+        "top": 12,
+        "width": 33,
+        "height": 76
+      },
+      "sourceCrop": {
+        "left": 992,
+        "top": 771,
+        "width": 33,
+        "height": 76
+      },
+      "width": 33,
+      "height": 76,
+      "outputSha256": "62d0ec0492ce5a220d1c36f5854076db94fb7f042e45cc4988aa0da0c52ac0dd",
+      "retainedPixels": 1840,
+      "alphaResidueRemoved": 699,
+      "retainedRgbChanges": 0,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "opaqueCellEdgePixels": 0
+    },
+    {
+      "id": "crt_pile",
+      "row": 7,
+      "col": 11,
+      "output": "frontend/assets/industrial/approved-sheet/crt_pile.png",
+      "sourceRect": {
+        "left": 1049,
+        "top": 759,
+        "width": 99,
+        "height": 91
+      },
+      "cropInCell": {
+        "left": 0,
+        "top": 11,
+        "width": 99,
+        "height": 79
+      },
+      "sourceCrop": {
+        "left": 1049,
+        "top": 770,
+        "width": 99,
+        "height": 79
+      },
+      "width": 99,
+      "height": 79,
+      "outputSha256": "f98010a3048895d89391d41484e61cae87980f5d1181ed056bea1dfbd860d6eb",
+      "retainedPixels": 5993,
+      "alphaResidueRemoved": 608,
+      "retainedRgbChanges": 0,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "opaqueCellEdgePixels": 0
+    },
+    {
+      "id": "cablerun",
+      "row": 7,
+      "col": 12,
+      "output": "frontend/assets/industrial/approved-sheet/cablerun.png",
+      "sourceRect": {
+        "left": 1148,
+        "top": 759,
+        "width": 95,
+        "height": 89
+      },
+      "cropInCell": {
+        "left": 11,
+        "top": 28,
+        "width": 77,
+        "height": 50
+      },
+      "sourceCrop": {
+        "left": 1159,
+        "top": 787,
+        "width": 77,
+        "height": 50
+      },
+      "width": 77,
+      "height": 50,
+      "outputSha256": "3778a9eb13d32a0271ce7cb06b3b18940dbf263adf5bc11e12f7942a45bcaa4a",
+      "retainedPixels": 2888,
+      "alphaResidueRemoved": 1147,
+      "retainedRgbChanges": 0,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "opaqueCellEdgePixels": 0
+    },
+    {
+      "id": "hazardpad",
+      "row": 7,
+      "col": 13,
+      "output": "frontend/assets/industrial/approved-sheet/hazardpad.png",
+      "sourceRect": {
+        "left": 1243,
+        "top": 759,
+        "width": 94,
+        "height": 91
+      },
+      "cropInCell": {
+        "left": 7,
+        "top": 19,
+        "width": 78,
+        "height": 65
+      },
+      "sourceCrop": {
+        "left": 1250,
+        "top": 778,
+        "width": 78,
+        "height": 65
+      },
+      "width": 78,
+      "height": 65,
+      "outputSha256": "4d9622fdd82e0093bc1a038c2271e32af67a1b80b9b10215de7af151d87fd9e5",
+      "retainedPixels": 4872,
+      "alphaResidueRemoved": 968,
+      "retainedRgbChanges": 0,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "opaqueCellEdgePixels": 0
+    },
+    {
+      "id": "tallplant",
+      "row": 7,
+      "col": 14,
+      "output": "frontend/assets/industrial/approved-sheet/tallplant.png",
+      "sourceRect": {
+        "left": 1337,
+        "top": 759,
+        "width": 97,
+        "height": 91
+      },
+      "cropInCell": {
+        "left": 11,
+        "top": 1,
+        "width": 66,
+        "height": 90
+      },
+      "sourceCrop": {
+        "left": 1348,
+        "top": 760,
+        "width": 66,
+        "height": 90
+      },
+      "width": 66,
+      "height": 90,
+      "outputSha256": "5db7e1c2ff3f566205c826f0597665933e6746e462bce6b8a7a8d622bfb46a78",
+      "retainedPixels": 3472,
+      "alphaResidueRemoved": 756,
+      "retainedRgbChanges": 0,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "opaqueCellEdgePixels": 0
+    },
+    {
+      "id": "terrarium",
+      "row": 7,
+      "col": 15,
+      "output": "frontend/assets/industrial/approved-sheet/terrarium.png",
+      "sourceRect": {
+        "left": 1434,
+        "top": 759,
+        "width": 102,
+        "height": 91
+      },
+      "cropInCell": {
+        "left": 9,
+        "top": 10,
+        "width": 63,
+        "height": 71
+      },
+      "sourceCrop": {
+        "left": 1443,
+        "top": 769,
+        "width": 63,
+        "height": 71
+      },
+      "width": 63,
+      "height": 71,
+      "outputSha256": "69784993385d29ae683295d202558a88880dd3d463383072d8483e9725452310",
+      "retainedPixels": 3437,
+      "alphaResidueRemoved": 618,
+      "retainedRgbChanges": 0,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "opaqueCellEdgePixels": 0
+    },
+    {
+      "id": "holopet",
+      "row": 8,
+      "col": 0,
+      "output": "frontend/assets/industrial/approved-sheet/holopet.png",
+      "sourceRect": {
+        "left": 0,
+        "top": 850,
+        "width": 109,
+        "height": 84
+      },
+      "cropInCell": {
+        "left": 27,
+        "top": 5,
+        "width": 69,
+        "height": 77
+      },
+      "sourceCrop": {
+        "left": 27,
+        "top": 855,
+        "width": 69,
+        "height": 77
+      },
+      "width": 69,
+      "height": 77,
+      "outputSha256": "1b0b2d877dcdcb4b532810e662aac06d98508d578fbccecbe2689d22af85e745",
+      "retainedPixels": 3966,
+      "alphaResidueRemoved": 829,
+      "retainedRgbChanges": 0,
+      "coreThreshold": 180,
+      "edgeRadius": 8,
+      "opaqueCellEdgePixels": 0
+    },
+    {
+      "id": "plasmaglobe",
+      "row": 8,
+      "col": 1,
+      "output": "frontend/assets/industrial/approved-sheet/plasmaglobe.png",
+      "sourceRect": {
+        "left": 109,
+        "top": 850,
+        "width": 91,
+        "height": 84
+      },
+      "cropInCell": {
+        "left": 20,
+        "top": 11,
+        "width": 50,
+        "height": 73
+      },
+      "sourceCrop": {
+        "left": 129,
+        "top": 861,
+        "width": 50,
+        "height": 73
+      },
+      "width": 50,
+      "height": 73,
+      "outputSha256": "0fd0d44515d4c8897bf5baebdd928cd65e88ea3ecabec1641e5f6e1402c31eae",
+      "retainedPixels": 2796,
+      "alphaResidueRemoved": 479,
+      "retainedRgbChanges": 0,
+      "coreThreshold": 180,
+      "edgeRadius": 8,
+      "opaqueCellEdgePixels": 0
+    },
+    {
+      "id": "gachapon",
+      "row": 8,
+      "col": 2,
+      "output": "frontend/assets/industrial/approved-sheet/gachapon.png",
+      "sourceRect": {
+        "left": 200,
+        "top": 850,
+        "width": 92,
+        "height": 84
+      },
+      "cropInCell": {
+        "left": 24,
+        "top": 4,
+        "width": 51,
+        "height": 80
+      },
+      "sourceCrop": {
+        "left": 224,
+        "top": 854,
+        "width": 51,
+        "height": 80
+      },
+      "width": 51,
+      "height": 80,
+      "outputSha256": "25b82eb2377ac0516c0b4b6cbe7e344cccc186d3b8102709f3c5039c82e1be74",
+      "retainedPixels": 3730,
+      "alphaResidueRemoved": 361,
+      "retainedRgbChanges": 0,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "opaqueCellEdgePixels": 0
+    },
+    {
+      "id": "monstera",
+      "row": 8,
+      "col": 3,
+      "output": "frontend/assets/industrial/approved-sheet/monstera.png",
+      "sourceRect": {
+        "left": 292,
+        "top": 850,
+        "width": 94,
+        "height": 84
+      },
+      "cropInCell": {
+        "left": 14,
+        "top": 8,
+        "width": 71,
+        "height": 74
+      },
+      "sourceCrop": {
+        "left": 306,
+        "top": 858,
+        "width": 71,
+        "height": 74
+      },
+      "width": 71,
+      "height": 74,
+      "outputSha256": "7370bc795e321faad3d09f38edb96a274f57b5846a64cc1dd8551cd5f977f837",
+      "retainedPixels": 3825,
+      "alphaResidueRemoved": 1380,
+      "retainedRgbChanges": 0,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "opaqueCellEdgePixels": 0
+    },
+    {
+      "id": "mug",
+      "row": 8,
+      "col": 4,
+      "output": "frontend/assets/industrial/approved-sheet/mug.png",
+      "sourceRect": {
+        "left": 386,
+        "top": 856,
+        "width": 93,
+        "height": 78
+      },
+      "cropInCell": {
+        "left": 31,
+        "top": 15,
+        "width": 50,
+        "height": 53
+      },
+      "sourceCrop": {
+        "left": 417,
+        "top": 871,
+        "width": 50,
+        "height": 53
+      },
+      "width": 50,
+      "height": 53,
+      "outputSha256": "92bef7198eb81456e61eaa197c2a97933dfa704a14c0212c385198692e481b48",
+      "retainedPixels": 2063,
+      "alphaResidueRemoved": 553,
+      "retainedRgbChanges": 0,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "opaqueCellEdgePixels": 0
+    },
+    {
+      "id": "bookstack",
+      "row": 8,
+      "col": 5,
+      "output": "frontend/assets/industrial/approved-sheet/bookstack.png",
+      "sourceRect": {
+        "left": 479,
+        "top": 850,
+        "width": 93,
+        "height": 84
+      },
+      "cropInCell": {
+        "left": 14,
+        "top": 19,
+        "width": 74,
+        "height": 64
+      },
+      "sourceCrop": {
+        "left": 493,
+        "top": 869,
+        "width": 74,
+        "height": 64
+      },
+      "width": 74,
+      "height": 64,
+      "outputSha256": "f03d3e101287342ca6a11686bd9eb4b89286fc18acdf24ba54340940be557a26",
+      "retainedPixels": 3361,
+      "alphaResidueRemoved": 676,
+      "retainedRgbChanges": 0,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "opaqueCellEdgePixels": 0
+    },
+    {
+      "id": "desklamp",
+      "row": 8,
+      "col": 6,
+      "output": "frontend/assets/industrial/approved-sheet/desklamp.png",
+      "sourceRect": {
+        "left": 572,
+        "top": 850,
+        "width": 95,
+        "height": 84
+      },
+      "cropInCell": {
+        "left": 27,
+        "top": 16,
+        "width": 56,
+        "height": 65
+      },
+      "sourceCrop": {
+        "left": 599,
+        "top": 866,
+        "width": 56,
+        "height": 65
+      },
+      "width": 56,
+      "height": 65,
+      "outputSha256": "5e5f31a94a3d817ac7ac9dd7f059f2082dc35178ba6b967c5b0f95e8ffcb7fa3",
+      "retainedPixels": 1870,
+      "alphaResidueRemoved": 636,
+      "retainedRgbChanges": 0,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "opaqueCellEdgePixels": 0
+    },
+    {
+      "id": "radio",
+      "row": 8,
+      "col": 7,
+      "output": "frontend/assets/industrial/approved-sheet/radio.png",
+      "sourceRect": {
+        "left": 667,
+        "top": 850,
+        "width": 95,
+        "height": 84
+      },
+      "cropInCell": {
+        "left": 14,
+        "top": 23,
+        "width": 72,
+        "height": 55
+      },
+      "sourceCrop": {
+        "left": 681,
+        "top": 873,
+        "width": 72,
+        "height": 55
+      },
+      "width": 72,
+      "height": 55,
+      "outputSha256": "6355000455b403162db8dd36f698d574755039932588a9fe222ef648055dce26",
+      "retainedPixels": 3512,
+      "alphaResidueRemoved": 332,
+      "retainedRgbChanges": 0,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "opaqueCellEdgePixels": 0
+    },
+    {
+      "id": "toolbox",
+      "row": 8,
+      "col": 8,
+      "output": "frontend/assets/industrial/approved-sheet/toolbox.png",
+      "sourceRect": {
+        "left": 762,
+        "top": 850,
+        "width": 97,
+        "height": 84
+      },
+      "cropInCell": {
+        "left": 13,
+        "top": 28,
+        "width": 77,
+        "height": 49
+      },
+      "sourceCrop": {
+        "left": 775,
+        "top": 878,
+        "width": 77,
+        "height": 49
+      },
+      "width": 77,
+      "height": 49,
+      "outputSha256": "7bbb6d8cc39133d665e8bd564bdd5f1a4dc1d3c9928f4212de346c1a099d2b4a",
+      "retainedPixels": 3448,
+      "alphaResidueRemoved": 593,
+      "retainedRgbChanges": 0,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "opaqueCellEdgePixels": 0
+    },
+    {
+      "id": "figurine",
+      "row": 8,
+      "col": 9,
+      "output": "frontend/assets/industrial/approved-sheet/figurine.png",
+      "sourceRect": {
+        "left": 859,
+        "top": 850,
+        "width": 97,
+        "height": 84
+      },
+      "cropInCell": {
+        "left": 28,
+        "top": 12,
+        "width": 45,
+        "height": 72
+      },
+      "sourceCrop": {
+        "left": 887,
+        "top": 862,
+        "width": 45,
+        "height": 72
+      },
+      "width": 45,
+      "height": 72,
+      "outputSha256": "51379bee1daf10aa14abe4feaba10a6c3bb2276a1aac582a5aeb34505d1215e3",
+      "retainedPixels": 1902,
+      "alphaResidueRemoved": 303,
+      "retainedRgbChanges": 0,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "opaqueCellEdgePixels": 0
+    },
+    {
+      "id": "deskterminal",
+      "row": 8,
+      "col": 10,
+      "output": "frontend/assets/industrial/approved-sheet/deskterminal.png",
+      "sourceRect": {
+        "left": 956,
+        "top": 850,
+        "width": 96,
+        "height": 84
+      },
+      "cropInCell": {
+        "left": 7,
+        "top": 11,
+        "width": 83,
+        "height": 73
+      },
+      "sourceCrop": {
+        "left": 963,
+        "top": 861,
+        "width": 83,
+        "height": 73
+      },
+      "width": 83,
+      "height": 73,
+      "outputSha256": "f9557fffc74222c4ba92a363baf8a6a9fe3b11427ef1e2b63b1ea9975b12e6ed",
+      "retainedPixels": 4625,
+      "alphaResidueRemoved": 730,
+      "retainedRgbChanges": 0,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "opaqueCellEdgePixels": 0
+    },
+    {
+      "id": "modelship",
+      "row": 8,
+      "col": 11,
+      "output": "frontend/assets/industrial/approved-sheet/modelship.png",
+      "sourceRect": {
+        "left": 1052,
+        "top": 850,
+        "width": 96,
+        "height": 84
+      },
+      "cropInCell": {
+        "left": 6,
+        "top": 18,
+        "width": 87,
+        "height": 60
+      },
+      "sourceCrop": {
+        "left": 1058,
+        "top": 868,
+        "width": 87,
+        "height": 60
+      },
+      "width": 87,
+      "height": 60,
+      "outputSha256": "15798aca784524d133c6a0ffc4b15978dc43c2140d3480377aca00d0030760ad",
+      "retainedPixels": 2841,
+      "alphaResidueRemoved": 1013,
+      "retainedRgbChanges": 0,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "opaqueCellEdgePixels": 0
+    },
+    {
+      "id": "steamvent",
+      "row": 8,
+      "col": 12,
+      "output": "frontend/assets/industrial/approved-sheet/steamvent.png",
+      "sourceRect": {
+        "left": 1148,
+        "top": 848,
+        "width": 95,
+        "height": 86
+      },
+      "cropInCell": {
+        "left": 20,
+        "top": 0,
+        "width": 58,
+        "height": 86
+      },
+      "sourceCrop": {
+        "left": 1168,
+        "top": 848,
+        "width": 58,
+        "height": 86
+      },
+      "width": 58,
+      "height": 86,
+      "outputSha256": "6374b713dae02090a3aa6dfe5bdaad9ea81bb88e9f75eea024adbf1ec23997f3",
+      "retainedPixels": 3479,
+      "alphaResidueRemoved": 994,
+      "retainedRgbChanges": 0,
+      "coreThreshold": 180,
+      "edgeRadius": 8,
+      "opaqueCellEdgePixels": 0
+    },
+    {
+      "id": "fishtank",
+      "row": 8,
+      "col": 13,
+      "output": "frontend/assets/industrial/approved-sheet/fishtank.png",
+      "sourceRect": {
+        "left": 1243,
+        "top": 850,
+        "width": 94,
+        "height": 84
+      },
+      "cropInCell": {
+        "left": 0,
+        "top": 17,
+        "width": 84,
+        "height": 66
+      },
+      "sourceCrop": {
+        "left": 1243,
+        "top": 867,
+        "width": 84,
+        "height": 66
+      },
+      "width": 84,
+      "height": 66,
+      "outputSha256": "c3bebbd6f3e52353d4b9c0724808f23b9d813df7e0de1a9f5de292ffd194f6a9",
+      "retainedPixels": 5204,
+      "alphaResidueRemoved": 598,
+      "retainedRgbChanges": 0,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "opaqueCellEdgePixels": 0
+    },
+    {
+      "id": "pokertable",
+      "row": 8,
+      "col": 14,
+      "output": "frontend/assets/industrial/approved-sheet/pokertable.png",
+      "sourceRect": {
+        "left": 1337,
+        "top": 850,
+        "width": 97,
+        "height": 84
+      },
+      "cropInCell": {
+        "left": 3,
+        "top": 24,
+        "width": 93,
+        "height": 56
+      },
+      "sourceCrop": {
+        "left": 1340,
+        "top": 874,
+        "width": 93,
+        "height": 56
+      },
+      "width": 93,
+      "height": 56,
+      "outputSha256": "abb669d3ea8b8cc70542571f0afdd81716a923139bf29616d0e4700aeae61b24",
+      "retainedPixels": 4041,
+      "alphaResidueRemoved": 1052,
+      "retainedRgbChanges": 0,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "opaqueCellEdgePixels": 0
+    },
+    {
+      "id": "bookshelf",
+      "row": 8,
+      "col": 15,
+      "output": "frontend/assets/industrial/approved-sheet/bookshelf.png",
+      "sourceRect": {
+        "left": 1434,
+        "top": 850,
+        "width": 102,
+        "height": 84
+      },
+      "cropInCell": {
+        "left": 12,
+        "top": 0,
+        "width": 71,
+        "height": 83
+      },
+      "sourceCrop": {
+        "left": 1446,
+        "top": 850,
+        "width": 71,
+        "height": 83
+      },
+      "width": 71,
+      "height": 83,
+      "outputSha256": "41906bd080885cd565fa4b19df306e0d26785b3116137af0fd5638cb4b8d253c",
+      "retainedPixels": 5138,
+      "alphaResidueRemoved": 827,
+      "retainedRgbChanges": 0,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "opaqueCellEdgePixels": 0
+    },
+    {
+      "id": "beanbag",
+      "row": 9,
+      "col": 0,
+      "output": "frontend/assets/industrial/approved-sheet/beanbag.png",
+      "sourceRect": {
+        "left": 0,
+        "top": 934,
+        "width": 109,
+        "height": 90
+      },
+      "cropInCell": {
+        "left": 25,
+        "top": 17,
+        "width": 72,
+        "height": 58
+      },
+      "sourceCrop": {
+        "left": 25,
+        "top": 951,
+        "width": 72,
+        "height": 58
+      },
+      "width": 72,
+      "height": 58,
+      "outputSha256": "91acb23f7d4462180d9eefcb5ef7cb65b6989253f87e12b2eb1ed21f4522c531",
+      "retainedPixels": 3255,
+      "alphaResidueRemoved": 442,
+      "retainedRgbChanges": 0,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "opaqueCellEdgePixels": 0
+    },
+    {
+      "id": "pinball",
+      "row": 9,
+      "col": 1,
+      "output": "frontend/assets/industrial/approved-sheet/pinball.png",
+      "sourceRect": {
+        "left": 109,
+        "top": 934,
+        "width": 91,
+        "height": 90
+      },
+      "cropInCell": {
+        "left": 21,
+        "top": 0,
+        "width": 47,
+        "height": 81
+      },
+      "sourceCrop": {
+        "left": 130,
+        "top": 934,
+        "width": 47,
+        "height": 81
+      },
+      "width": 47,
+      "height": 81,
+      "outputSha256": "08d9a41190f73f5f19707448c94e2ac6e97ebf9b2c4bbf56a3191b75af0e0d22",
+      "retainedPixels": 3078,
+      "alphaResidueRemoved": 592,
+      "retainedRgbChanges": 0,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "opaqueCellEdgePixels": 0
+    },
+    {
+      "id": "cryopod",
+      "row": 9,
+      "col": 2,
+      "output": "frontend/assets/industrial/approved-sheet/cryopod.png",
+      "sourceRect": {
+        "left": 200,
+        "top": 934,
+        "width": 92,
+        "height": 90
+      },
+      "cropInCell": {
+        "left": 19,
+        "top": 2,
+        "width": 68,
+        "height": 80
+      },
+      "sourceCrop": {
+        "left": 219,
+        "top": 936,
+        "width": 68,
+        "height": 80
+      },
+      "width": 68,
+      "height": 80,
+      "outputSha256": "5330f79e842123024abce629506e1293b28a451609f398eb5de9c7078aa1bcfe",
+      "retainedPixels": 4049,
+      "alphaResidueRemoved": 861,
+      "retainedRgbChanges": 0,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "opaqueCellEdgePixels": 0
+    },
+    {
+      "id": "incubator",
+      "row": 9,
+      "col": 3,
+      "output": "frontend/assets/industrial/approved-sheet/incubator.png",
+      "sourceRect": {
+        "left": 292,
+        "top": 934,
+        "width": 94,
+        "height": 90
+      },
+      "cropInCell": {
+        "left": 19,
+        "top": 1,
+        "width": 71,
+        "height": 81
+      },
+      "sourceCrop": {
+        "left": 311,
+        "top": 935,
+        "width": 71,
+        "height": 81
+      },
+      "width": 71,
+      "height": 81,
+      "outputSha256": "04f12b873adb7895dd21ca59f27e882d0f4ade280f5e42c2c593ec7025d10d3d",
+      "retainedPixels": 4100,
+      "alphaResidueRemoved": 712,
+      "retainedRgbChanges": 0,
+      "coreThreshold": 180,
+      "edgeRadius": 8,
+      "opaqueCellEdgePixels": 0
+    },
+    {
+      "id": "telescope",
+      "row": 9,
+      "col": 4,
+      "output": "frontend/assets/industrial/approved-sheet/telescope.png",
+      "sourceRect": {
+        "left": 386,
+        "top": 934,
+        "width": 93,
+        "height": 90
+      },
+      "cropInCell": {
+        "left": 24,
+        "top": 0,
+        "width": 51,
+        "height": 78
+      },
+      "sourceCrop": {
+        "left": 410,
+        "top": 934,
+        "width": 51,
+        "height": 78
+      },
+      "width": 51,
+      "height": 78,
+      "outputSha256": "b6dc6e21c3895575cc3ca49fa9534b68c98d82a0d59367ce90641cfe8c37cfad",
+      "retainedPixels": 2400,
+      "alphaResidueRemoved": 462,
+      "retainedRgbChanges": 0,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "opaqueCellEdgePixels": 0
+    },
+    {
+      "id": "telescope_r",
+      "row": 9,
+      "col": 5,
+      "output": "frontend/assets/industrial/approved-sheet/telescope_r.png",
+      "sourceRect": {
+        "left": 479,
+        "top": 934,
+        "width": 93,
+        "height": 90
+      },
+      "cropInCell": {
+        "left": 25,
+        "top": 12,
+        "width": 57,
+        "height": 67
+      },
+      "sourceCrop": {
+        "left": 504,
+        "top": 946,
+        "width": 57,
+        "height": 67
+      },
+      "width": 57,
+      "height": 67,
+      "outputSha256": "19a524c518a782d85bdb7c228f5e6c54b932ea9c03991ef8e736745e0dff4d56",
+      "retainedPixels": 2120,
+      "alphaResidueRemoved": 492,
+      "retainedRgbChanges": 0,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "opaqueCellEdgePixels": 0
+    },
+    {
+      "id": "camerarig",
+      "row": 9,
+      "col": 6,
+      "output": "frontend/assets/industrial/approved-sheet/camerarig.png",
+      "sourceRect": {
+        "left": 572,
+        "top": 934,
+        "width": 95,
+        "height": 90
+      },
+      "cropInCell": {
+        "left": 28,
+        "top": 1,
+        "width": 53,
+        "height": 78
+      },
+      "sourceCrop": {
+        "left": 600,
+        "top": 935,
+        "width": 53,
+        "height": 78
+      },
+      "width": 53,
+      "height": 78,
+      "outputSha256": "d118caf8e029dd011ebf2e19a5607e9cba0942ca1ebb3ad0d211f164f5bdf854",
+      "retainedPixels": 2208,
+      "alphaResidueRemoved": 824,
+      "retainedRgbChanges": 0,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "opaqueCellEdgePixels": 0
+    },
+    {
+      "id": "camerarig_r",
+      "row": 9,
+      "col": 7,
+      "output": "frontend/assets/industrial/approved-sheet/camerarig_r.png",
+      "sourceRect": {
+        "left": 667,
+        "top": 934,
+        "width": 95,
+        "height": 90
+      },
+      "cropInCell": {
+        "left": 19,
+        "top": 5,
+        "width": 51,
+        "height": 74
+      },
+      "sourceCrop": {
+        "left": 686,
+        "top": 939,
+        "width": 51,
+        "height": 74
+      },
+      "width": 51,
+      "height": 74,
+      "outputSha256": "1c6a486558cabfd54df15e9b88d1d10d84f5cc5f3488a56bfed02a3f70b4bd06",
+      "retainedPixels": 2434,
+      "alphaResidueRemoved": 615,
+      "retainedRgbChanges": 0,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "opaqueCellEdgePixels": 0
+    },
+    {
+      "id": "weaponrack",
+      "row": 9,
+      "col": 8,
+      "output": "frontend/assets/industrial/approved-sheet/weaponrack.png",
+      "sourceRect": {
+        "left": 762,
+        "top": 934,
+        "width": 97,
+        "height": 90
+      },
+      "cropInCell": {
+        "left": 11,
+        "top": 4,
+        "width": 77,
+        "height": 72
+      },
+      "sourceCrop": {
+        "left": 773,
+        "top": 938,
+        "width": 77,
+        "height": 72
+      },
+      "width": 77,
+      "height": 72,
+      "outputSha256": "6ef69dd1a504d8ce20d7f35e739f808ade822e3f16b418ca32ae15c3e40ebcd6",
+      "retainedPixels": 5041,
+      "alphaResidueRemoved": 603,
+      "retainedRgbChanges": 0,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "opaqueCellEdgePixels": 0
+    },
+    {
+      "id": "weaponrack_r",
+      "row": 9,
+      "col": 9,
+      "output": "frontend/assets/industrial/approved-sheet/weaponrack_r.png",
+      "sourceRect": {
+        "left": 859,
+        "top": 934,
+        "width": 97,
+        "height": 90
+      },
+      "cropInCell": {
+        "left": 31,
+        "top": 7,
+        "width": 50,
+        "height": 70
+      },
+      "sourceCrop": {
+        "left": 890,
+        "top": 941,
+        "width": 50,
+        "height": 70
+      },
+      "width": 50,
+      "height": 70,
+      "outputSha256": "a915f3c8bf822b382cad31fa93cb33179f5be204acabe99c8db70b826e32282f",
+      "retainedPixels": 3054,
+      "alphaResidueRemoved": 629,
+      "retainedRgbChanges": 0,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "opaqueCellEdgePixels": 0
+    },
+    {
+      "id": "punchbag",
+      "row": 9,
+      "col": 10,
+      "output": "frontend/assets/industrial/approved-sheet/punchbag.png",
+      "sourceRect": {
+        "left": 956,
+        "top": 934,
+        "width": 96,
+        "height": 90
+      },
+      "cropInCell": {
+        "left": 29,
+        "top": 2,
+        "width": 33,
+        "height": 78
+      },
+      "sourceCrop": {
+        "left": 985,
+        "top": 936,
+        "width": 33,
+        "height": 78
+      },
+      "width": 33,
+      "height": 78,
+      "outputSha256": "f54fc041f554e23be389dd56c330af2af1b0134e31af6778db27a4c526794963",
+      "retainedPixels": 1866,
+      "alphaResidueRemoved": 525,
+      "retainedRgbChanges": 0,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "opaqueCellEdgePixels": 0
+    },
+    {
+      "id": "punchbag_r",
+      "row": 9,
+      "col": 11,
+      "output": "frontend/assets/industrial/approved-sheet/punchbag_r.png",
+      "sourceRect": {
+        "left": 1052,
+        "top": 934,
+        "width": 91,
+        "height": 90
+      },
+      "cropInCell": {
+        "left": 17,
+        "top": 3,
+        "width": 30,
+        "height": 78
+      },
+      "sourceCrop": {
+        "left": 1069,
+        "top": 937,
+        "width": 30,
+        "height": 78
+      },
+      "width": 30,
+      "height": 78,
+      "outputSha256": "91131ac6157a0ee7ed2692feda975ca7ab21e072def9591d06c8cfa4b27d423e",
+      "retainedPixels": 1880,
+      "alphaResidueRemoved": 577,
+      "retainedRgbChanges": 0,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "opaqueCellEdgePixels": 0
+    },
+    {
+      "id": "benchpress",
+      "row": 9,
+      "col": 12,
+      "output": "frontend/assets/industrial/approved-sheet/benchpress.png",
+      "sourceRect": {
+        "left": 1143,
+        "top": 934,
+        "width": 101,
+        "height": 90
+      },
+      "cropInCell": {
+        "left": 0,
+        "top": 11,
+        "width": 101,
+        "height": 70
+      },
+      "sourceCrop": {
+        "left": 1143,
+        "top": 945,
+        "width": 101,
+        "height": 70
+      },
+      "width": 101,
+      "height": 70,
+      "outputSha256": "ab232f522ab5615c40f06c56c222c43ccfd6fd1628723f52518a69d67ef31094",
+      "retainedPixels": 3849,
+      "alphaResidueRemoved": 1110,
+      "retainedRgbChanges": 0,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "opaqueCellEdgePixels": 0
+    },
+    {
+      "id": "benchpress_r",
+      "row": 9,
+      "col": 13,
+      "output": "frontend/assets/industrial/approved-sheet/benchpress_r.png",
+      "sourceRect": {
+        "left": 1244,
+        "top": 934,
+        "width": 93,
+        "height": 90
+      },
+      "cropInCell": {
+        "left": 9,
+        "top": 10,
+        "width": 57,
+        "height": 70
+      },
+      "sourceCrop": {
+        "left": 1253,
+        "top": 944,
+        "width": 57,
+        "height": 70
+      },
+      "width": 57,
+      "height": 70,
+      "outputSha256": "44bcfdaff2c4e92c38c7c1c089938be8582ec5bdd272812bb971e14644daa356",
+      "retainedPixels": 2052,
+      "alphaResidueRemoved": 638,
+      "retainedRgbChanges": 0,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "opaqueCellEdgePixels": 0
+    },
+    {
+      "id": "recliner",
+      "row": 9,
+      "col": 14,
+      "output": "frontend/assets/industrial/approved-sheet/recliner.png",
+      "sourceRect": {
+        "left": 1337,
+        "top": 934,
+        "width": 97,
+        "height": 90
+      },
+      "cropInCell": {
+        "left": 9,
+        "top": 9,
+        "width": 61,
+        "height": 69
+      },
+      "sourceCrop": {
+        "left": 1346,
+        "top": 943,
+        "width": 61,
+        "height": 69
+      },
+      "width": 61,
+      "height": 69,
+      "outputSha256": "6d33cee4727bc4e3bdb92b66a8f07e9acf1fb895c344527c01bd599f787d9660",
+      "retainedPixels": 3437,
+      "alphaResidueRemoved": 524,
+      "retainedRgbChanges": 0,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "opaqueCellEdgePixels": 0
+    },
+    {
+      "id": "recliner_r",
+      "row": 9,
+      "col": 15,
+      "output": "frontend/assets/industrial/approved-sheet/recliner_r.png",
+      "sourceRect": {
+        "left": 1434,
+        "top": 934,
+        "width": 102,
+        "height": 90
+      },
+      "cropInCell": {
+        "left": 12,
+        "top": 9,
+        "width": 67,
+        "height": 65
+      },
+      "sourceCrop": {
+        "left": 1446,
+        "top": 943,
+        "width": 67,
+        "height": 65
+      },
+      "width": 67,
+      "height": 65,
+      "outputSha256": "7b2b1b8ad35b7b1bb95d736b8896bd808c533ef18fcbb94afa1b25ed08c5d825",
+      "retainedPixels": 2775,
+      "alphaResidueRemoved": 338,
+      "retainedRgbChanges": 0,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "opaqueCellEdgePixels": 0
+    }
+  ]
+}

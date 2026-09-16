@@ -1,0 +1,219 @@
+{
+  "version": 1,
+  "cells": [
+    {
+      "id": "bookstack",
+      "view": "s",
+      "bounds": {
+        "x": 0,
+        "y": 0,
+        "width": 12,
+        "height": 10
+      },
+      "footprint": {
+        "w": 1,
+        "h": 1
+      },
+      "nativeGuide": {
+        "path": "C:\\Users\\andro\\gen-trees\\industrial-textures-0912\\dev\\.scratch-workspace\\prop-structure\\bookstack.png",
+        "sha256": "2d7278c034be7a2ee9b8e1782fa0ff3f6fd74d3d01dac2ab16e9be8bf308c8e2"
+      },
+      "rect": {
+        "left": 0,
+        "top": 0,
+        "width": 360,
+        "height": 450
+      }
+    },
+    {
+      "id": "desklamp",
+      "view": "s",
+      "bounds": {
+        "x": 0,
+        "y": 3,
+        "width": 12,
+        "height": 9
+      },
+      "footprint": {
+        "w": 1,
+        "h": 1
+      },
+      "nativeGuide": {
+        "path": "C:\\Users\\andro\\gen-trees\\industrial-textures-0912\\dev\\.scratch-workspace\\prop-structure\\desklamp.png",
+        "sha256": "4aad738d967e1dde1ea0a06a1e4dec19356a0d3efe868f3365ba325b2624988f"
+      },
+      "rect": {
+        "left": 360,
+        "top": 0,
+        "width": 420,
+        "height": 450
+      }
+    },
+    {
+      "id": "figurine",
+      "view": "s",
+      "bounds": {
+        "x": 1,
+        "y": 1,
+        "width": 10,
+        "height": 11
+      },
+      "footprint": {
+        "w": 1,
+        "h": 1
+      },
+      "nativeGuide": {
+        "path": "C:\\Users\\andro\\gen-trees\\industrial-textures-0912\\dev\\.scratch-workspace\\prop-structure\\figurine.png",
+        "sha256": "114f60ba3462d93b0f80ec7dfcc0ffa941a512dc13add829e4cffff5abb676f2"
+      },
+      "rect": {
+        "left": 780,
+        "top": 0,
+        "width": 280,
+        "height": 450
+      }
+    },
+    {
+      "id": "modelship",
+      "view": "s",
+      "bounds": {
+        "x": 2,
+        "y": 1,
+        "width": 20,
+        "height": 11
+      },
+      "footprint": {
+        "w": 2,
+        "h": 1
+      },
+      "nativeGuide": {
+        "path": "C:\\Users\\andro\\gen-trees\\industrial-textures-0912\\dev\\.scratch-workspace\\prop-structure\\modelship.png",
+        "sha256": "9bfb45c5224a03098f5c8dcfca8f7fafa30b214da71d97d9ad24ab0c27acb6fc"
+      },
+      "rect": {
+        "left": 1060,
+        "top": 0,
+        "width": 476,
+        "height": 450
+      }
+    },
+    {
+      "id": "mug",
+      "view": "s",
+      "bounds": {
+        "x": 1,
+        "y": 2,
+        "width": 10,
+        "height": 9
+      },
+      "footprint": {
+        "w": 1,
+        "h": 1
+      },
+      "nativeGuide": {
+        "path": "C:\\Users\\andro\\gen-trees\\industrial-textures-0912\\dev\\.scratch-workspace\\prop-structure\\mug.png",
+        "sha256": "6a3a4dc992af5b94d93de94f7cbf5f38438662c85687ef6e86e2f1e6e8868462"
+      },
+      "rect": {
+        "left": 0,
+        "top": 0,
+        "width": 625,
+        "height": 786
+      },
+      "source": "docs\\station-remaster\\catalog-crew-rest-3\\sources\\repair.png",
+      "sourceSha256": "c3922dcc4f4efed0384e92958289f8055c1dde97653512f8658090e6f34fddad"
+    },
+    {
+      "id": "radio",
+      "view": "s",
+      "bounds": {
+        "x": 1,
+        "y": 3,
+        "width": 10,
+        "height": 9
+      },
+      "footprint": {
+        "w": 1,
+        "h": 1
+      },
+      "nativeGuide": {
+        "path": "C:\\Users\\andro\\gen-trees\\industrial-textures-0912\\dev\\.scratch-workspace\\prop-structure\\radio.png",
+        "sha256": "092fb29045c15e08d770de07b543df7f5ba25213924c0e9222b877d13b2be8f4"
+      },
+      "rect": {
+        "left": 625,
+        "top": 0,
+        "width": 705,
+        "height": 786
+      },
+      "source": "docs\\station-remaster\\catalog-crew-rest-3\\sources\\repair.png",
+      "sourceSha256": "c3922dcc4f4efed0384e92958289f8055c1dde97653512f8658090e6f34fddad"
+    },
+    {
+      "id": "guitar",
+      "view": "s",
+      "bounds": {
+        "x": -1,
+        "y": -15,
+        "width": 14,
+        "height": 27
+      },
+      "footprint": {
+        "w": 1,
+        "h": 1
+      },
+      "nativeGuide": {
+        "path": "C:\\Users\\andro\\gen-trees\\industrial-textures-0912\\dev\\.scratch-workspace\\prop-structure\\guitar.png",
+        "sha256": "38281c07f659d6023f22d698cda01ed17a116dcebad72df6f17743f77e6433a5"
+      },
+      "rect": {
+        "left": 780,
+        "top": 450,
+        "width": 280,
+        "height": 574
+      }
+    },
+    {
+      "id": "easel",
+      "view": "s",
+      "bounds": {
+        "x": 1,
+        "y": -14,
+        "width": 34,
+        "height": 38
+      },
+      "footprint": {
+        "w": 3,
+        "h": 2
+      },
+      "nativeGuide": {
+        "path": "C:\\Users\\andro\\gen-trees\\industrial-textures-0912\\dev\\.scratch-workspace\\prop-structure\\easel.png",
+        "sha256": "660da634eaa4f22f506d2c8ff5943c6bd09f952c49e17c8b3254b8325f88822c"
+      },
+      "rect": {
+        "left": 1330,
+        "top": 0,
+        "width": 671,
+        "height": 786
+      },
+      "source": "docs\\station-remaster\\catalog-crew-rest-3\\sources\\repair.png",
+      "sourceSha256": "c3922dcc4f4efed0384e92958289f8055c1dde97653512f8658090e6f34fddad"
+    }
+  ],
+  "source": "docs\\station-remaster\\catalog-crew-rest-3\\sources\\sheet.png",
+  "sourceSha256": "b9da8ce5f21c3154583bb6bde480fdcb443501d85ba000a37d8e9ba9e25788b5",
+  "refs": [
+    {
+      "path": "C:\\Users\\andro\\gen-trees\\prop-coordination-0914\\frontend\\assets\\industrial\\projection-correction\\crate.png",
+      "sha256": "a4c596600f4c1c0bf0c2f4df0892a9f0c49b074dd91079b5926b0fd27cd0ba16"
+    },
+    {
+      "path": "C:\\Users\\andro\\gen-trees\\prop-coordination-0914\\frontend\\assets\\industrial\\projection-correction\\desk.png",
+      "sha256": "49e35c9b58a2e1f4939ed1320e70e4f11a54b46afbe46661122638ddf7ca5fd4"
+    },
+    {
+      "path": "C:\\Users\\andro\\gen-trees\\prop-coordination-0914\\frontend\\assets\\industrial\\projection-correction\\chair.png",
+      "sha256": "1c9257ded875c31688c9f759c424db2814ab707e36790db7793e20aac85c2d79"
+    }
+  ]
+}

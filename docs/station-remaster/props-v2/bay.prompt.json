@@ -1,0 +1,33 @@
+{
+  "id": "bay",
+  "prompt": "Use case: style-transfer. Make ONE finished transparent-background StarNet game prop from image 1, which is the binding ORIGINAL GEOMETRY GUIDE. Image 2 is the approved crate: use its restrained dark cool steel, broad readable plates, crisp worn bevels, very sparse warm brass catches, and subtle aged metal surface. Image 3 is station context only. Keep the guide’s precise overall silhouette/aspect, camera elevation, straight-on orthographic alignment, top-face depth, feet, open gaps, and every component/screen location. Reconstruct the coarse guide into refined painted game sprite detail; do not preserve giant pixel blocks. No new appendages, no taller/wider body, no perspective yaw or isometric diamond. Match the crate material density: broad clear forms, not ornate busy machinery. Functional glass MUST be smoked-black/OFF with no bright graphics; existing game code provides the exact animated pixels there. Keep dark glass rectangles in precisely their guide positions and sizes. Finish for tiny in-game legibility, not product photography. Entire single prop visible with tight balanced transparent margin; true transparent alpha, NO floor, ground/shadow scene, labels, text, humans, border, checkerboard illustration or second object.\nSubject details: A small upright conveyor processing bay. Keep the two narrow rear towers rising on left and right, central recessed black square bay window, tiny amber line of contacts under it, shallow lower slotted processing drawer and ground skids. Preserve the open U shape between the two top uprights; do not add a roof across it.\nGeometry calibration: the complete opaque prop occupies 30 units wide by 31 units high. Keep its isolated SUBJECT width:height ratio exactly 0.9677, within 5%, before any margin; never make its body taller or wider. Preserve every original internal component position ratio. IMPORTANT: leave generous 10% fully transparent margin around ALL FOUR SIDES so no object edge is cut off. The guide is cropped tightly for measurement, but your output must not crop the object.",
+  "source": "C:\\Users\\andro\\.codex\\generated_images\\01a09c6d-7ce8-7071-b2c5-8b947d23d158\\exec-e0f749fe-06b1-4b69-a4a1-d9ab836c3213.png",
+  "tool": "built-in image_gen",
+  "references": [
+    {
+      "role": "binding geometry",
+      "path": "C:/Users/andro/gen-trees/industrial-textures-0912/dev/.scratch-workspace/prop-structure/bay.png"
+    },
+    {
+      "role": "approved material",
+      "path": "C:/Users/andro/gen-trees/industrial-textures-0912/frontend/assets/industrial/calibration/crate.png"
+    },
+    {
+      "role": "station context",
+      "path": "C:/Users/andro/Downloads/bridge.png"
+    }
+  ],
+  "nativeBounds": {
+    "x": -1,
+    "y": -7,
+    "width": 30,
+    "height": 31
+  },
+  "croppedAspectRatio": 0.9133211678832117,
+  "aspectDrift": 0.05623479318734792,
+  "review": {
+    "geometry": "Within 8 percent native crop ratio; no edge clipping",
+    "material": "Approved crate dark steel reference",
+    "liveApp": false
+  }
+}

@@ -1,0 +1,31 @@
+<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Authored service content fixture</title>
+<style>
+@font-face{font-family:VT323;src:url('../assets/fonts/vt323.woff2')}
+*{box-sizing:border-box}body{margin:0;padding:20px;background:#131c1b;color:#d5d8c5;font:16px monospace}h1{font-size:22px}p{max-width:1100px;line-height:1.45}button{background:#283a34;border:1px solid #627167;color:#dedec3;padding:9px 13px;font:inherit;cursor:pointer}button[aria-pressed=true]{background:#635437}nav{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0}#gallery{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}.prop{padding:9px;background:#1c2926;border:1px solid #36483e}.prop h2{font-size:14px}canvas{display:block;width:100%;height:auto}.prop[hidden]{display:none}pre{white-space:pre-wrap;font-size:12px;color:#a7bca9}#report{max-height:600px;overflow:auto}
+</style>
+<h1>Service content / labeled development scenarios</h1>
+<p>These are fixture inputs, not harness claims. Connection powers the jukebox without implying music playback. Activity moves empty machinery; branch decisions, loop tallies and publication cargo are absent. Airlock shape follows its saved door value.</p>
+<nav aria-label="Scenario"><button id="idle" aria-pressed="false">Idle fixture</button><button id="active" aria-pressed="true">Active fixture</button><button id="jammed" aria-pressed="false">Jammed fixture</button><button id="still" aria-pressed="true">Reduced motion: on</button><button id="fade" aria-pressed="false">Opacity: full</button><button id="check">Run pixel checks</button></nav>
+<nav aria-label="Prop family"><button id="priority" aria-pressed="true">Priority services</button><button id="publication" aria-pressed="false">Publication</button><button id="transport" aria-pressed="false">Transport</button></nav>
+<div id="gallery"></div><pre id="report">Loading painted sources…</pre>
+<script src="../app/authored-service-content.js"></script><script src="authored-service-checks.js"></script><script>
+'use strict';
+const groups={priority:['outbox','connector_portal','jukebox','airlock'],publication:['pub_publishpress','pub_outboundchute','pub_mailpod'],transport:['intake','bay','merger','splitter','joiner','loop']};
+const states={idle:{crates:0,door:'open'},active:{crates:4,bound:true,state:'online',fired:.7,live:true,door:'closed',work:true,scanning:true,agentId:'fixture-agent',dockName:'Fixture agent'},jammed:{crates:19,bound:true,state:'error',fired:0,live:false,door:'jammed',work:true,agentId:'fixture-agent',dockName:'Fixture agent'}};
+let mode='active',group='priority',still=true,fade=false;const cards=[],bodies={};
+for(const [family,ids]of Object.entries(groups))for(const id of ids){
+  const el=document.createElement('section');el.className='prop';el.hidden=family!==group;const title=document.createElement('h2');title.textContent=id.replaceAll('_',' ').toUpperCase();el.append(title);
+  const cv=document.createElement('canvas');cv.width=410;cv.height=465;el.append(cv);document.querySelector('#gallery').append(el);
+  const scene=document.createElement('canvas');scene.width=cv.width;scene.height=cv.height;
+  const im=new Image(),folder=id==='airlock'?'control':family==='transport'?'utility':'storage';im.src='../assets/industrial/batch03/'+folder+'/'+id+'.png';bodies[id]=im;cards.push({id,family,im,cv,scene,el});
+}
+function frame(now){for(const {id,im,cv,scene,el}of cards){if(el.hidden||!im.complete||!im.naturalWidth)continue;const g=cv.getContext('2d'),sg=scene.getContext('2d');g.clearRect(0,0,cv.width,cv.height);sg.clearRect(0,0,scene.width,scene.height);const scale=Math.min((cv.width-20)/im.width,(cv.height-20)/im.height),box={x:(cv.width-im.width*scale)/2,y:(cv.height-im.height*scale)/2,width:im.width*scale,height:im.height*scale};sg.drawImage(im,box.x,box.y,box.width,box.height);AuthoredServiceContent.draw(sg,id,box,{...states[mode],still,now});g.save();g.globalAlpha=fade?.35:1;g.drawImage(scene,0,0);g.restore();}requestAnimationFrame(frame);}
+function report(){document.querySelector('#report').textContent=JSON.stringify({fixture:true,mode,state:states[mode],group,still,opacity:fade?.35:1,loaded:cards.filter(c=>c.im.complete&&c.im.naturalWidth).map(c=>c.id)},null,2);}
+for(const key of Object.keys(states))document.getElementById(key).onclick=()=>{mode=key;for(const k of Object.keys(states))document.getElementById(k).setAttribute('aria-pressed',String(k===mode));report();};
+for(const key of Object.keys(groups))document.getElementById(key).onclick=()=>{group=key;for(const k of Object.keys(groups))document.getElementById(k).setAttribute('aria-pressed',String(k===group));for(const c of cards)c.el.hidden=c.family!==group;report();};
+document.getElementById('still').onclick=()=>{still=!still;const b=document.getElementById('still');b.setAttribute('aria-pressed',String(still));b.textContent='Reduced motion: '+(still?'on':'off');report();};
+document.getElementById('fade').onclick=()=>{fade=!fade;const b=document.getElementById('fade');b.setAttribute('aria-pressed',String(fade));b.textContent='Opacity: '+(fade?'35%':'full');report();};
+document.getElementById('check').onclick=()=>document.getElementById('report').textContent=JSON.stringify(runAuthoredServicePixelChecks(bodies),null,2);
+Promise.all(cards.map(c=>c.im.decode())).then(()=>document.fonts.ready).then(()=>{report();requestAnimationFrame(frame);}).catch(e=>document.querySelector('#report').textContent=String(e));
+</script></html>

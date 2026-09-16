@@ -1,0 +1,68 @@
+{
+  "id": "industrial_wallpanel",
+  "nativeId": "industrial_wallpanel",
+  "view": "s",
+  "footprint": {
+    "w": 2,
+    "h": 1
+  },
+  "bounds": {
+    "x": 0,
+    "y": -13,
+    "width": 24,
+    "height": 23
+  },
+  "geometry": {
+    "blocks": false,
+    "flat": false,
+    "tableSurface": false,
+    "requiredMount": "wall",
+    "optionalSurfaceMount": false,
+    "surfaceRisePixels": 8
+  },
+  "orientation": {
+    "facings": [
+      {
+        "r": 0,
+        "front": "south",
+        "w": 2,
+        "h": 1,
+        "type": "authored-view"
+      }
+    ],
+    "canMirror": true,
+    "classicFacings": [
+      0
+    ]
+  },
+  "anchorContract": "Wall-host placement; preserve host test and contact line.",
+  "sourceAnimation": {
+    "idleFrameVariants": 1,
+    "workFrameVariants": 1,
+    "respondsToWorkFlag": false,
+    "opaqueBoundsRelativeToFootprint": {
+      "x": 0,
+      "y": -13,
+      "w": 24,
+      "h": 23,
+      "alphaThreshold": 160
+    }
+  },
+  "tilePixels": 12,
+  "floorContact": {
+    "y": 12,
+    "x": 12
+  },
+  "visualBottomContact": {
+    "y": 10,
+    "x": 12
+  },
+  "status": "art-draft-integration-pending",
+  "backgroundThreshold": 190,
+  "holeSeeds": [],
+  "references": [
+    "workstation.png:camera-design",
+    "calibration/crate.png:metal-color",
+    "batch03/crew/industrial_bench-source.png:painted-style"
+  ]
+}

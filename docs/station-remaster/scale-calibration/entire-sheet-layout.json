@@ -1,0 +1,807 @@
+{
+  "purpose": "Requested generation layout; cell identity must be checked against resulting artwork before runtime use",
+  "columns": 16,
+  "rows": 10,
+  "props": [
+    {
+      "id": "industrial_locker",
+      "row": 0,
+      "column": 0
+    },
+    {
+      "id": "industrial_drawerbank",
+      "row": 0,
+      "column": 1
+    },
+    {
+      "id": "industrial_supplycart",
+      "row": 0,
+      "column": 2
+    },
+    {
+      "id": "industrial_toolcaddy",
+      "row": 0,
+      "column": 3
+    },
+    {
+      "id": "industrial_planter",
+      "row": 0,
+      "column": 4
+    },
+    {
+      "id": "industrial_partition",
+      "row": 0,
+      "column": 5
+    },
+    {
+      "id": "industrial_bench",
+      "row": 0,
+      "column": 6
+    },
+    {
+      "id": "industrial_roundtable",
+      "row": 0,
+      "column": 7
+    },
+    {
+      "id": "industrial_servicecab",
+      "row": 0,
+      "column": 8
+    },
+    {
+      "id": "industrial_wallpanel",
+      "row": 0,
+      "column": 9
+    },
+    {
+      "id": "industrial_floorvent",
+      "row": 0,
+      "column": 10
+    },
+    {
+      "id": "industrial_cabletray",
+      "row": 0,
+      "column": 11
+    },
+    {
+      "id": "desk",
+      "row": 0,
+      "column": 12
+    },
+    {
+      "id": "desk2",
+      "row": 0,
+      "column": 13
+    },
+    {
+      "id": "console",
+      "row": 0,
+      "column": 14
+    },
+    {
+      "id": "consoleL",
+      "row": 0,
+      "column": 15
+    },
+    {
+      "id": "pixelrig",
+      "row": 1,
+      "column": 0
+    },
+    {
+      "id": "bench",
+      "row": 1,
+      "column": 1
+    },
+    {
+      "id": "workbench",
+      "row": 1,
+      "column": 2
+    },
+    {
+      "id": "intake",
+      "row": 1,
+      "column": 3
+    },
+    {
+      "id": "bay",
+      "row": 1,
+      "column": 4
+    },
+    {
+      "id": "filter",
+      "row": 1,
+      "column": 5
+    },
+    {
+      "id": "merger",
+      "row": 1,
+      "column": 6
+    },
+    {
+      "id": "splitter",
+      "row": 1,
+      "column": 7
+    },
+    {
+      "id": "joiner",
+      "row": 1,
+      "column": 8
+    },
+    {
+      "id": "loop",
+      "row": 1,
+      "column": 9
+    },
+    {
+      "id": "outbox",
+      "row": 1,
+      "column": 10
+    },
+    {
+      "id": "connector_portal",
+      "row": 1,
+      "column": 11
+    },
+    {
+      "id": "comms_dish",
+      "row": 1,
+      "column": 12
+    },
+    {
+      "id": "comms_uplink",
+      "row": 1,
+      "column": 13
+    },
+    {
+      "id": "comms_beacon",
+      "row": 1,
+      "column": 14
+    },
+    {
+      "id": "war_intelcab",
+      "row": 1,
+      "column": 15
+    },
+    {
+      "id": "safe",
+      "row": 2,
+      "column": 0
+    },
+    {
+      "id": "vault",
+      "row": 2,
+      "column": 1
+    },
+    {
+      "id": "rack",
+      "row": 2,
+      "column": 2
+    },
+    {
+      "id": "shelf",
+      "row": 2,
+      "column": 3
+    },
+    {
+      "id": "core",
+      "row": 2,
+      "column": 4
+    },
+    {
+      "id": "gigs_servercart",
+      "row": 2,
+      "column": 5
+    },
+    {
+      "id": "bridge_relaystack",
+      "row": 2,
+      "column": 6
+    },
+    {
+      "id": "studio",
+      "row": 2,
+      "column": 7
+    },
+    {
+      "id": "airlock",
+      "row": 2,
+      "column": 8
+    },
+    {
+      "id": "missionboard",
+      "row": 2,
+      "column": 9
+    },
+    {
+      "id": "trophycase",
+      "row": 2,
+      "column": 10
+    },
+    {
+      "id": "bridge_consolebank",
+      "row": 2,
+      "column": 11
+    },
+    {
+      "id": "bridge_tacticaltable",
+      "row": 2,
+      "column": 12
+    },
+    {
+      "id": "bridge_equipmentbay",
+      "row": 2,
+      "column": 13
+    },
+    {
+      "id": "bridge_deckperimeter",
+      "row": 2,
+      "column": 14
+    },
+    {
+      "id": "bigscreen",
+      "row": 2,
+      "column": 15
+    },
+    {
+      "id": "holotable",
+      "row": 3,
+      "column": 0
+    },
+    {
+      "id": "screens",
+      "row": 3,
+      "column": 1
+    },
+    {
+      "id": "tank",
+      "row": 3,
+      "column": 2
+    },
+    {
+      "id": "whiteboard",
+      "row": 3,
+      "column": 3
+    },
+    {
+      "id": "ticker",
+      "row": 3,
+      "column": 4
+    },
+    {
+      "id": "chartwall",
+      "row": 3,
+      "column": 5
+    },
+    {
+      "id": "wartable",
+      "row": 3,
+      "column": 6
+    },
+    {
+      "id": "calwall",
+      "row": 3,
+      "column": 7
+    },
+    {
+      "id": "bridge_tacscreen",
+      "row": 3,
+      "column": 8
+    },
+    {
+      "id": "bridge_dispatch_pylon",
+      "row": 3,
+      "column": 9
+    },
+    {
+      "id": "bridge_orderqueue",
+      "row": 3,
+      "column": 10
+    },
+    {
+      "id": "war_pivotpanel",
+      "row": 3,
+      "column": 11
+    },
+    {
+      "id": "war_threatcore",
+      "row": 3,
+      "column": 12
+    },
+    {
+      "id": "fabricator",
+      "row": 3,
+      "column": 13
+    },
+    {
+      "id": "vat",
+      "row": 3,
+      "column": 14
+    },
+    {
+      "id": "easel",
+      "row": 3,
+      "column": 15
+    },
+    {
+      "id": "tube",
+      "row": 4,
+      "column": 0
+    },
+    {
+      "id": "research_corelens",
+      "row": 4,
+      "column": 1
+    },
+    {
+      "id": "research_trendpillar",
+      "row": 4,
+      "column": 2
+    },
+    {
+      "id": "research_samplecart",
+      "row": 4,
+      "column": 3
+    },
+    {
+      "id": "research_papers",
+      "row": 4,
+      "column": 4
+    },
+    {
+      "id": "etsy_threadrack",
+      "row": 4,
+      "column": 5
+    },
+    {
+      "id": "etsy_dyevat",
+      "row": 4,
+      "column": 6
+    },
+    {
+      "id": "etsy_kiln",
+      "row": 4,
+      "column": 7
+    },
+    {
+      "id": "etsy_packbot",
+      "row": 4,
+      "column": 8
+    },
+    {
+      "id": "rackV",
+      "row": 4,
+      "column": 9
+    },
+    {
+      "id": "crate",
+      "row": 4,
+      "column": 10
+    },
+    {
+      "id": "boxes",
+      "row": 4,
+      "column": 11
+    },
+    {
+      "id": "goldcrate",
+      "row": 4,
+      "column": 12
+    },
+    {
+      "id": "gigs_partsbin",
+      "row": 4,
+      "column": 13
+    },
+    {
+      "id": "treasury_coinsorter",
+      "row": 4,
+      "column": 14
+    },
+    {
+      "id": "treasury_token_furnace",
+      "row": 4,
+      "column": 15
+    },
+    {
+      "id": "commswall",
+      "row": 5,
+      "column": 0
+    },
+    {
+      "id": "comms_inbox",
+      "row": 5,
+      "column": 1
+    },
+    {
+      "id": "gigs_thumbwall",
+      "row": 5,
+      "column": 2
+    },
+    {
+      "id": "gigs_amp",
+      "row": 5,
+      "column": 3
+    },
+    {
+      "id": "pub_publishpress",
+      "row": 5,
+      "column": 4
+    },
+    {
+      "id": "pub_outboundchute",
+      "row": 5,
+      "column": 5
+    },
+    {
+      "id": "pub_mailpod",
+      "row": 5,
+      "column": 6
+    },
+    {
+      "id": "arc_indexwall",
+      "row": 5,
+      "column": 7
+    },
+    {
+      "id": "arc_microfiche",
+      "row": 5,
+      "column": 8
+    },
+    {
+      "id": "djbooth",
+      "row": 5,
+      "column": 9
+    },
+    {
+      "id": "speaker",
+      "row": 5,
+      "column": 10
+    },
+    {
+      "id": "bar",
+      "row": 5,
+      "column": 11
+    },
+    {
+      "id": "tv",
+      "row": 5,
+      "column": 12
+    },
+    {
+      "id": "couch",
+      "row": 5,
+      "column": 13
+    },
+    {
+      "id": "arcade",
+      "row": 5,
+      "column": 14
+    },
+    {
+      "id": "arcade2",
+      "row": 5,
+      "column": 15
+    },
+    {
+      "id": "jukebox",
+      "row": 6,
+      "column": 0
+    },
+    {
+      "id": "bunk",
+      "row": 6,
+      "column": 1
+    },
+    {
+      "id": "quarters_pooltable",
+      "row": 6,
+      "column": 2
+    },
+    {
+      "id": "quarters_vending",
+      "row": 6,
+      "column": 3
+    },
+    {
+      "id": "quarters_lockerbank",
+      "row": 6,
+      "column": 4
+    },
+    {
+      "id": "quarters_minifridge",
+      "row": 6,
+      "column": 5
+    },
+    {
+      "id": "coffee",
+      "row": 6,
+      "column": 6
+    },
+    {
+      "id": "plant",
+      "row": 6,
+      "column": 7
+    },
+    {
+      "id": "rug",
+      "row": 6,
+      "column": 8
+    },
+    {
+      "id": "rug_small",
+      "row": 6,
+      "column": 9
+    },
+    {
+      "id": "rug_large",
+      "row": 6,
+      "column": 10
+    },
+    {
+      "id": "treasury_pnl_holo",
+      "row": 6,
+      "column": 11
+    },
+    {
+      "id": "arc_floorlight",
+      "row": 6,
+      "column": 12
+    },
+    {
+      "id": "arc_ladder",
+      "row": 6,
+      "column": 13
+    },
+    {
+      "id": "stool",
+      "row": 6,
+      "column": 14
+    },
+    {
+      "id": "chair",
+      "row": 6,
+      "column": 15
+    },
+    {
+      "id": "sidetable",
+      "row": 7,
+      "column": 0
+    },
+    {
+      "id": "lowtable",
+      "row": 7,
+      "column": 1
+    },
+    {
+      "id": "glasstable",
+      "row": 7,
+      "column": 2
+    },
+    {
+      "id": "dinertable",
+      "row": 7,
+      "column": 3
+    },
+    {
+      "id": "guitar",
+      "row": 7,
+      "column": 4
+    },
+    {
+      "id": "booth",
+      "row": 7,
+      "column": 5
+    },
+    {
+      "id": "dinerchair",
+      "row": 7,
+      "column": 6
+    },
+    {
+      "id": "podchair",
+      "row": 7,
+      "column": 7
+    },
+    {
+      "id": "loungetable",
+      "row": 7,
+      "column": 8
+    },
+    {
+      "id": "longtable",
+      "row": 7,
+      "column": 9
+    },
+    {
+      "id": "lavalamp",
+      "row": 7,
+      "column": 10
+    },
+    {
+      "id": "crt_pile",
+      "row": 7,
+      "column": 11
+    },
+    {
+      "id": "cablerun",
+      "row": 7,
+      "column": 12
+    },
+    {
+      "id": "hazardpad",
+      "row": 7,
+      "column": 13
+    },
+    {
+      "id": "tallplant",
+      "row": 7,
+      "column": 14
+    },
+    {
+      "id": "terrarium",
+      "row": 7,
+      "column": 15
+    },
+    {
+      "id": "holopet",
+      "row": 8,
+      "column": 0
+    },
+    {
+      "id": "plasmaglobe",
+      "row": 8,
+      "column": 1
+    },
+    {
+      "id": "gachapon",
+      "row": 8,
+      "column": 2
+    },
+    {
+      "id": "monstera",
+      "row": 8,
+      "column": 3
+    },
+    {
+      "id": "mug",
+      "row": 8,
+      "column": 4
+    },
+    {
+      "id": "bookstack",
+      "row": 8,
+      "column": 5
+    },
+    {
+      "id": "desklamp",
+      "row": 8,
+      "column": 6
+    },
+    {
+      "id": "radio",
+      "row": 8,
+      "column": 7
+    },
+    {
+      "id": "toolbox",
+      "row": 8,
+      "column": 8
+    },
+    {
+      "id": "figurine",
+      "row": 8,
+      "column": 9
+    },
+    {
+      "id": "deskterminal",
+      "row": 8,
+      "column": 10
+    },
+    {
+      "id": "modelship",
+      "row": 8,
+      "column": 11
+    },
+    {
+      "id": "steamvent",
+      "row": 8,
+      "column": 12
+    },
+    {
+      "id": "fishtank",
+      "row": 8,
+      "column": 13
+    },
+    {
+      "id": "pokertable",
+      "row": 8,
+      "column": 14
+    },
+    {
+      "id": "bookshelf",
+      "row": 8,
+      "column": 15
+    },
+    {
+      "id": "beanbag",
+      "row": 9,
+      "column": 0
+    },
+    {
+      "id": "pinball",
+      "row": 9,
+      "column": 1
+    },
+    {
+      "id": "cryopod",
+      "row": 9,
+      "column": 2
+    },
+    {
+      "id": "incubator",
+      "row": 9,
+      "column": 3
+    },
+    {
+      "id": "telescope",
+      "row": 9,
+      "column": 4
+    },
+    {
+      "id": "telescope_r",
+      "row": 9,
+      "column": 5
+    },
+    {
+      "id": "camerarig",
+      "row": 9,
+      "column": 6
+    },
+    {
+      "id": "camerarig_r",
+      "row": 9,
+      "column": 7
+    },
+    {
+      "id": "weaponrack",
+      "row": 9,
+      "column": 8
+    },
+    {
+      "id": "weaponrack_r",
+      "row": 9,
+      "column": 9
+    },
+    {
+      "id": "punchbag",
+      "row": 9,
+      "column": 10
+    },
+    {
+      "id": "punchbag_r",
+      "row": 9,
+      "column": 11
+    },
+    {
+      "id": "benchpress",
+      "row": 9,
+      "column": 12
+    },
+    {
+      "id": "benchpress_r",
+      "row": 9,
+      "column": 13
+    },
+    {
+      "id": "recliner",
+      "row": 9,
+      "column": 14
+    },
+    {
+      "id": "recliner_r",
+      "row": 9,
+      "column": 15
+    }
+  ]
+}

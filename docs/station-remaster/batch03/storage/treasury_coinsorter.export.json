@@ -1,0 +1,49 @@
+{
+  "id": "treasury_coinsorter",
+  "status": "exported-awaiting-owner-live-review",
+  "source": "sources/treasury_coinsorter.png",
+  "sourceSha256": "acc70ca66f84c9ba0f6ed3c1c421b6d7195f9f40a83a6c45686c72540d843a33",
+  "sourceWidth": 1649,
+  "sourceHeight": 954,
+  "image": "treasury_coinsorter.png",
+  "sourceOutputWidth": 1584,
+  "sourceOutputHeight": 816,
+  "crop": {
+    "left": 34,
+    "top": 65,
+    "width": 1584,
+    "height": 816
+  },
+  "channels": 4,
+  "transparentPixels": 295953,
+  "opaquePixels": 996591,
+  "partialPixels": 0,
+  "backgroundPixelsRemoved": 576555,
+  "subjectRgbChanges": 0,
+  "outputSha256": "167f81b0edeeaeda42e7166e2cb1cfccf8f800fa8d380583d5a0df7c95bc4ece",
+  "holeSeeds": [],
+  "maskMethod": "Connected saturated-magenta flood fill, including key-only enclosed components. Alpha-only edits; uniform crop; no RGB recolor.",
+  "view": "s",
+  "footprint": {
+    "w": 2,
+    "h": 1
+  },
+  "bounds": {
+    "x": -1,
+    "y": -3,
+    "width": 26,
+    "height": 15
+  },
+  "tilePixels": 12,
+  "contact": {
+    "x": 12,
+    "y": 12
+  },
+  "anchorContract": "No leisure seat anchor. Footprint is the placement/pathfinding rectangle; upright visual rise is independent of the reserved box.",
+  "originalLight": null,
+  "originalAnimationTriggers": [
+    "Autonomous sprite clock animation is present in the sampled default state; cosmetic motion is not evidence of provider work, route decisions or external state."
+  ],
+  "artMode": "static complete art; existing state/lighting integration remains owner decision",
+  "liveIntegrated": false
+}

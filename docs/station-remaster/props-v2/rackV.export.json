@@ -1,0 +1,32 @@
+{
+  "id": "rackV",
+  "source": "C:/Users/andro/.codex/generated_images/01a09c6e-ef28-70a0-bd8b-b60f1a9b9f92/exec-6ec58cff-2715-491e-a60d-622151c008d6.png",
+  "sourceWidth": 782,
+  "sourceHeight": 2011,
+  "crop": {
+    "left": 29,
+    "top": 20,
+    "width": 725,
+    "height": 1971
+  },
+  "sourceAlpha": false,
+  "subjectRgbChanges": 0,
+  "output": "frontend/assets/industrial/props-v2/rackV.png",
+  "native": {
+    "key": "rackV",
+    "r": 0,
+    "image": "rackV.png",
+    "footprint": {
+      "w": 1,
+      "h": 2
+    },
+    "bounds": {
+      "x": -1,
+      "y": -12,
+      "width": 14,
+      "height": 36
+    },
+    "guide": "dev/.scratch-workspace/prop-structure/rackV.png"
+  },
+  "aspectError": 0.054142204827136386
+}

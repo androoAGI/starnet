@@ -1,0 +1,49 @@
+{
+  "id": "modelship",
+  "status": "exported-awaiting-owner-live-review",
+  "source": "sources/modelship.png",
+  "sourceSha256": "72dafde70468a2dfa69c1de44bbef967d42bd3513c938e336c41376f4f4d95de",
+  "sourceWidth": 1691,
+  "sourceHeight": 930,
+  "image": "modelship.png",
+  "sourceOutputWidth": 1284,
+  "sourceOutputHeight": 749,
+  "crop": {
+    "left": 186,
+    "top": 62,
+    "width": 1284,
+    "height": 749
+  },
+  "channels": 4,
+  "transparentPixels": 365494,
+  "opaquePixels": 596222,
+  "partialPixels": 0,
+  "backgroundPixelsRemoved": 976408,
+  "subjectRgbChanges": 0,
+  "outputSha256": "9fb08f8ee2c057fad95a5af7ef9d80ef48f7205d6c579bb20d1cd7522d0a29db",
+  "holeSeeds": [],
+  "maskMethod": "Connected saturated-magenta flood fill, including key-only enclosed components. Alpha-only edits; uniform crop; no RGB recolor.",
+  "view": "s",
+  "footprint": {
+    "w": 2,
+    "h": 1
+  },
+  "bounds": {
+    "x": 2,
+    "y": 1,
+    "width": 20,
+    "height": 11
+  },
+  "tilePixels": 12,
+  "contact": {
+    "x": 12,
+    "y": 12
+  },
+  "anchorContract": "Can sit on bare deck or valid table; table mount lifts contact origin exactly 8 world pixels.",
+  "originalLight": null,
+  "originalAnimationTriggers": [
+    "Autonomous sprite clock animation is present in the sampled default state; cosmetic motion is not evidence of provider work, route decisions or external state."
+  ],
+  "artMode": "static complete art; existing state/lighting integration remains owner decision",
+  "liveIntegrated": false
+}

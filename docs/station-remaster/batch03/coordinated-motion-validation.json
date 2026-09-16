@@ -1,0 +1,903 @@
+{
+  "recipeIds": 64,
+  "complete": true,
+  "allAvailableHashesDimensionsAlphaAndNormalizedRegionsValid": true,
+  "receipts": [
+    {
+      "id": "studio",
+      "view": "s",
+      "image": "frontend/assets/industrial/batch03/control/studio.png",
+      "outputSha256": "2f9d5168d65918c0dc51a72ca0019511ba9a1c1d4e76f5f05a776be37ea1a5b0",
+      "alphaBounds": {
+        "x": 0,
+        "y": 0,
+        "width": 1179,
+        "height": 1234
+      },
+      "mode": "pulse",
+      "validated": true
+    },
+    {
+      "id": "bigscreen",
+      "view": "s",
+      "image": "frontend/assets/industrial/batch03/control/bigscreen.png",
+      "outputSha256": "14fa364268005215b0b69d61da3d9c03c62f25d9b02e2379a5b65ed43a2469d0",
+      "alphaBounds": {
+        "x": 0,
+        "y": 0,
+        "width": 2107,
+        "height": 473
+      },
+      "mode": "screen",
+      "validated": true
+    },
+    {
+      "id": "holotable",
+      "view": "s",
+      "image": "frontend/assets/industrial/batch03/control/holotable.png",
+      "outputSha256": "0cb0c136531c1d55737740c3295b8426f36dbdf222538a6805bdee65c133eb8c",
+      "alphaBounds": {
+        "x": 0,
+        "y": 0,
+        "width": 1492,
+        "height": 744
+      },
+      "mode": "projection",
+      "validated": true
+    },
+    {
+      "id": "screens",
+      "view": "s",
+      "image": "frontend/assets/industrial/batch03/control/screens.png",
+      "outputSha256": "e856c656fe2e29c4275ad7331c3c4ed806815d7f5d9c5323aff087dba81497bb",
+      "alphaBounds": {
+        "x": 0,
+        "y": 0,
+        "width": 1019,
+        "height": 1100
+      },
+      "mode": "screen",
+      "validated": true
+    },
+    {
+      "id": "ticker",
+      "view": "s",
+      "image": "frontend/assets/industrial/batch03/control/ticker.png",
+      "outputSha256": "b3fdd41f5785dfe2c71e9f7c65f6b406ee652d015a5028e4c0bf8e95db037638",
+      "alphaBounds": {
+        "x": 0,
+        "y": 0,
+        "width": 1955,
+        "height": 497
+      },
+      "mode": "screen",
+      "validated": true
+    },
+    {
+      "id": "wartable",
+      "view": "s",
+      "image": "frontend/assets/industrial/batch03/control/wartable.png",
+      "outputSha256": "9797781caf6b8a8c62bcb07f8365c0303e407094fb22037c5ea2373500a01eab",
+      "alphaBounds": {
+        "x": 0,
+        "y": 0,
+        "width": 2008,
+        "height": 522
+      },
+      "mode": "screen",
+      "validated": true
+    },
+    {
+      "id": "bridge_tacscreen",
+      "view": "s",
+      "image": "frontend/assets/industrial/batch03/control/bridge_tacscreen.png",
+      "outputSha256": "aa2e482c7a47ddee634876c9997517cb4934cff9cfa049a74d73929c8eca733d",
+      "alphaBounds": {
+        "x": 0,
+        "y": 0,
+        "width": 1314,
+        "height": 911
+      },
+      "mode": "screen",
+      "validated": true
+    },
+    {
+      "id": "bridge_dispatch_pylon",
+      "view": "s",
+      "image": "frontend/assets/industrial/batch03/control/bridge_dispatch_pylon.png",
+      "outputSha256": "3718d8ffe92cc84082ca15c91b600bbfc8496c67ba901a620b3d4707ea8e3d9e",
+      "alphaBounds": {
+        "x": 0,
+        "y": 0,
+        "width": 693,
+        "height": 1519
+      },
+      "mode": "screen",
+      "validated": true
+    },
+    {
+      "id": "bridge_orderqueue",
+      "view": "s",
+      "image": "frontend/assets/industrial/batch03/control/bridge_orderqueue.png",
+      "outputSha256": "789186ab7f0578ec36fdadb76dd27e32a8485ec018e4ceaa1ce3b6cafa783949",
+      "alphaBounds": {
+        "x": 0,
+        "y": 0,
+        "width": 1311,
+        "height": 920
+      },
+      "mode": "screen",
+      "validated": true
+    },
+    {
+      "id": "war_pivotpanel",
+      "view": "s",
+      "image": "frontend/assets/industrial/batch03/control/war_pivotpanel.png",
+      "outputSha256": "79c81b064d9e74e3dcf53dcb79ddab6cba95f78007425d2f0192dae4b37d4ed4",
+      "alphaBounds": {
+        "x": 0,
+        "y": 0,
+        "width": 1432,
+        "height": 818
+      },
+      "mode": "screen",
+      "validated": true
+    },
+    {
+      "id": "war_threatcore",
+      "view": "s",
+      "image": "frontend/assets/industrial/batch03/control/war_threatcore.png",
+      "outputSha256": "f9656b137af99ba90fb27f9c575155e591768f593e7710a151e66219b66a7f38",
+      "alphaBounds": {
+        "x": 0,
+        "y": 0,
+        "width": 660,
+        "height": 1580
+      },
+      "mode": "screen",
+      "validated": true
+    },
+    {
+      "id": "rug",
+      "view": "s",
+      "image": "frontend/assets/industrial/batch03/habitat/rug.png",
+      "outputSha256": "beb5381e2b77f33d9ba11716a13377b801492d9bfc6a7f0f9f17949142671911",
+      "alphaBounds": {
+        "x": 0,
+        "y": 0,
+        "width": 1448,
+        "height": 871
+      },
+      "mode": "static",
+      "validated": true
+    },
+    {
+      "id": "rug_small",
+      "view": "s",
+      "image": "frontend/assets/industrial/batch03/habitat/rug_small.png",
+      "outputSha256": "11b748ce144b8400bbe85f5fb737a0a2aaef68b7e2c02391b814dea00b32fd49",
+      "alphaBounds": {
+        "x": 0,
+        "y": 0,
+        "width": 1137,
+        "height": 1221
+      },
+      "mode": "static",
+      "validated": true
+    },
+    {
+      "id": "rug_large",
+      "view": "s",
+      "image": "frontend/assets/industrial/batch03/habitat/rug_large.png",
+      "outputSha256": "4833b6a895140eea978a594efaed699d8f102ab6e71872a08f0f7b591f60dbc4",
+      "alphaBounds": {
+        "x": 0,
+        "y": 0,
+        "width": 1206,
+        "height": 1181
+      },
+      "mode": "static",
+      "validated": true
+    },
+    {
+      "id": "arc_ladder",
+      "view": "s",
+      "image": "frontend/assets/industrial/batch03/habitat/arc_ladder.png",
+      "outputSha256": "9191ebcd181116d51cfab4ad4e90fa22220326ecceac73f58ec39c89797b443f",
+      "alphaBounds": {
+        "x": 0,
+        "y": 0,
+        "width": 1044,
+        "height": 1400
+      },
+      "mode": "static",
+      "validated": true
+    },
+    {
+      "id": "hazardpad",
+      "view": "s",
+      "image": "frontend/assets/industrial/batch03/habitat/hazardpad.png",
+      "outputSha256": "ba6135bf428c9e05c25dc84a9ee58cd8f15bfb6b30a07c14e4afa4021780dd80",
+      "alphaBounds": {
+        "x": 0,
+        "y": 0,
+        "width": 1740,
+        "height": 683
+      },
+      "mode": "static",
+      "validated": true
+    },
+    {
+      "id": "cablerun",
+      "view": "s",
+      "image": "frontend/assets/industrial/batch03/habitat/cablerun.png",
+      "outputSha256": "92d0b2865dc9bd58a65f2331cf516bc3ba22411a702eaaad240c7e2e9333647c",
+      "alphaBounds": {
+        "x": 0,
+        "y": 0,
+        "width": 1993,
+        "height": 429
+      },
+      "mode": "static",
+      "validated": true
+    },
+    {
+      "id": "arc_floorlight",
+      "view": "s",
+      "image": "frontend/assets/industrial/batch03/habitat/arc_floorlight.png",
+      "outputSha256": "43d2db807a4c409ed949b99bc48cdd4dd75863cfdbd99fdd30315f0b26c7ae1b",
+      "alphaBounds": {
+        "x": 0,
+        "y": 0,
+        "width": 855,
+        "height": 1158
+      },
+      "mode": "static",
+      "validated": true
+    },
+    {
+      "id": "steamvent",
+      "view": "s",
+      "image": "frontend/assets/industrial/batch03/habitat/steamvent.png",
+      "outputSha256": "940a4161bddf981ebc5b698aa15a0eeda78fed36c8066f1b3b70e96d871fbcc9",
+      "alphaBounds": {
+        "x": 0,
+        "y": 0,
+        "width": 1209,
+        "height": 1025
+      },
+      "mode": "steam",
+      "validated": true
+    },
+    {
+      "id": "djbooth",
+      "view": "s",
+      "image": "frontend/assets/industrial/batch03/storage/djbooth.png",
+      "outputSha256": "254522569c74605e43b90234d57e487d6184efcf1458c0db9ecb80cac8446c78",
+      "alphaBounds": {
+        "x": 0,
+        "y": 0,
+        "width": 1562,
+        "height": 701
+      },
+      "mode": "dj-equalizer",
+      "validated": true
+    },
+    {
+      "id": "speaker",
+      "view": "s",
+      "image": "frontend/assets/industrial/batch03/storage/speaker.png",
+      "outputSha256": "389038d1d5ce1b6c8af50dd6f1e5bc517351d60ff891c73ca012ee76eaff0367",
+      "alphaBounds": {
+        "x": 0,
+        "y": 0,
+        "width": 774,
+        "height": 1297
+      },
+      "mode": "speaker-cone",
+      "validated": true
+    },
+    {
+      "id": "tv",
+      "view": "s",
+      "image": "frontend/assets/industrial/batch03/storage/tv.png",
+      "outputSha256": "f0bc5e6157fdf78c54ebf0ced49c9abcedd46c36daadb2f87f73ac14b4b862c7",
+      "alphaBounds": {
+        "x": 0,
+        "y": 0,
+        "width": 1467,
+        "height": 767
+      },
+      "mode": "ambient-tv-content",
+      "validated": true
+    },
+    {
+      "id": "arcade",
+      "view": "s",
+      "image": "frontend/assets/industrial/batch03/storage/arcade.png",
+      "outputSha256": "dbd442b59c74c981a36f0a01415b2627ad32211e7c693bdb89a6b4368a8041a5",
+      "alphaBounds": {
+        "x": 0,
+        "y": 0,
+        "width": 737,
+        "height": 1610
+      },
+      "mode": "leisure-game-content",
+      "validated": true
+    },
+    {
+      "id": "arcade2",
+      "view": "s",
+      "image": "frontend/assets/industrial/batch03/storage/arcade2.png",
+      "outputSha256": "5bba2038556f09baec64a9ffb7b82c7aed9175f5b3388a54e5020c705ceae08c",
+      "alphaBounds": {
+        "x": 0,
+        "y": 0,
+        "width": 766,
+        "height": 1543
+      },
+      "mode": "leisure-game-content",
+      "validated": true
+    },
+    {
+      "id": "gigs_thumbwall",
+      "view": "s",
+      "image": "frontend/assets/industrial/batch03/storage/gigs_thumbwall.png",
+      "outputSha256": "f2753b6675fe7fc45aa6d7e5cbd4b5cbfb2a06fd4b499114906a597eae038977",
+      "alphaBounds": {
+        "x": 0,
+        "y": 0,
+        "width": 1411,
+        "height": 812
+      },
+      "mode": "pulse",
+      "validated": true
+    },
+    {
+      "id": "gigs_amp",
+      "view": "s",
+      "image": "frontend/assets/industrial/batch03/storage/gigs_amp.png",
+      "outputSha256": "0c59603b77f2abfdc9efe774192085e8b4e76b4a633f33306b87b072eb74116b",
+      "alphaBounds": {
+        "x": 0,
+        "y": 0,
+        "width": 1017,
+        "height": 1192
+      },
+      "mode": "amp-excursion",
+      "validated": true
+    },
+    {
+      "id": "pinball",
+      "view": "s",
+      "image": "frontend/assets/industrial/batch03/storage/pinball.png",
+      "outputSha256": "b750070e381da650c06af1539d5fea23b12b555cf8fcca41c9f07ead25d0928c",
+      "alphaBounds": {
+        "x": 0,
+        "y": 0,
+        "width": 737,
+        "height": 1566
+      },
+      "mode": "pinball-playfield",
+      "validated": true
+    },
+    {
+      "id": "gachapon",
+      "view": "s",
+      "image": "frontend/assets/industrial/batch03/storage/gachapon.png",
+      "outputSha256": "a7b8b893af0d90a69adafb111b4f1bcc5688c4295e1a0af11a9498bf474d6046",
+      "alphaBounds": {
+        "x": 0,
+        "y": 0,
+        "width": 718,
+        "height": 1488
+      },
+      "mode": "capsule-drop",
+      "validated": true
+    },
+    {
+      "id": "holopet",
+      "view": "s",
+      "image": "frontend/assets/industrial/batch03/storage/holopet.png",
+      "outputSha256": "6d65bfdc7e90fb73422c602ee77755864b6913edf219789fe88b4cd0a242d2ec",
+      "alphaBounds": {
+        "x": 0,
+        "y": 0,
+        "width": 671,
+        "height": 1740
+      },
+      "mode": "separated-hologram",
+      "validated": true
+    },
+    {
+      "id": "deskterminal",
+      "view": "s",
+      "image": "frontend/assets/industrial/batch03/storage/deskterminal.png",
+      "outputSha256": "ed537d209c24c2fcfcc5ce6c742285d0434359463e321745cf81c722e35e19ff",
+      "alphaBounds": {
+        "x": 0,
+        "y": 0,
+        "width": 1131,
+        "height": 1059
+      },
+      "mode": "ambient-terminal-content",
+      "validated": true
+    },
+    {
+      "id": "safe",
+      "view": "s",
+      "image": "frontend/assets/industrial/batch03/storage/safe.png",
+      "outputSha256": "ab45278b5d48d5b319a9d01d57456df0889d47b569ea6b403e9a1b80937cac70",
+      "alphaBounds": {
+        "x": 0,
+        "y": 0,
+        "width": 720,
+        "height": 1505
+      },
+      "mode": "capability-cues",
+      "validated": true
+    },
+    {
+      "id": "vault",
+      "view": "s",
+      "image": "frontend/assets/industrial/batch03/storage/vault.png",
+      "outputSha256": "194d4832bf3d517cd2017edf3d272c27ebacf0941bcce467f39bd919400fa4e6",
+      "alphaBounds": {
+        "x": 0,
+        "y": 0,
+        "width": 1448,
+        "height": 895
+      },
+      "mode": "capability-cues",
+      "validated": true
+    },
+    {
+      "id": "shelf",
+      "view": "s",
+      "image": "frontend/assets/industrial/batch03/storage/shelf.png",
+      "outputSha256": "2db1bf09a0d0c82c5d551ef431c9392b705e0a2168779e94e93265c276293667",
+      "alphaBounds": {
+        "x": 0,
+        "y": 0,
+        "width": 1717,
+        "height": 706
+      },
+      "mode": "capability-cues",
+      "validated": true
+    },
+    {
+      "id": "gigs_servercart",
+      "view": "s",
+      "image": "frontend/assets/industrial/batch03/storage/gigs_servercart.png",
+      "outputSha256": "0d9b43368c59eda5fe6b6e12c04cf482799e124e8bb298a77af713fce422f5ef",
+      "alphaBounds": {
+        "x": 0,
+        "y": 0,
+        "width": 984,
+        "height": 1192
+      },
+      "mode": "capability-cues",
+      "validated": true
+    },
+    {
+      "id": "goldcrate",
+      "view": "s",
+      "image": "frontend/assets/industrial/batch03/storage/goldcrate.png",
+      "outputSha256": "bd090ba17450ae0df4c4f367b2e6ac6f16d5d9cbb5ed311956b5c04c562c8133",
+      "alphaBounds": {
+        "x": 0,
+        "y": 0,
+        "width": 1280,
+        "height": 885
+      },
+      "mode": "static",
+      "validated": true
+    },
+    {
+      "id": "gigs_partsbin",
+      "view": "s",
+      "image": "frontend/assets/industrial/batch03/storage/gigs_partsbin.png",
+      "outputSha256": "367e56abc9ada1a92a863847a895e82fabb9612aa477a12a14548db7e12b736e",
+      "alphaBounds": {
+        "x": 0,
+        "y": 0,
+        "width": 1410,
+        "height": 719
+      },
+      "mode": "pulse",
+      "validated": true
+    },
+    {
+      "id": "treasury_coinsorter",
+      "view": "s",
+      "image": "frontend/assets/industrial/batch03/storage/treasury_coinsorter.png",
+      "outputSha256": "167f81b0edeeaeda42e7166e2cb1cfccf8f800fa8d380583d5a0df7c95bc4ece",
+      "alphaBounds": {
+        "x": 0,
+        "y": 0,
+        "width": 1584,
+        "height": 816
+      },
+      "mode": "coin-sorter",
+      "validated": true
+    },
+    {
+      "id": "treasury_token_furnace",
+      "view": "s",
+      "image": "frontend/assets/industrial/batch03/storage/treasury_token_furnace.png",
+      "outputSha256": "eaa6150a099c0a11d62c8780233a088e7cd867c18cdce65e3b7ba06115602639",
+      "alphaBounds": {
+        "x": 0,
+        "y": 0,
+        "width": 805,
+        "height": 1540
+      },
+      "mode": "contained-fire",
+      "validated": true
+    },
+    {
+      "id": "treasury_pnl_holo",
+      "view": "s",
+      "image": "frontend/assets/industrial/batch03/storage/treasury_pnl_holo.png",
+      "outputSha256": "4f39007954e5ca081d9aa9f33991eb58988b3d2cc7230eff22b43fe0825a74b9",
+      "alphaBounds": {
+        "x": 0,
+        "y": 0,
+        "width": 1322,
+        "height": 471
+      },
+      "mode": "projected-chart",
+      "validated": true
+    },
+    {
+      "id": "crt_pile",
+      "view": "s",
+      "image": "frontend/assets/industrial/batch03/storage/crt_pile.png",
+      "outputSha256": "3758079158d874903890e7970516e6895d3f37da1f95c70dd306c9743dd8d559",
+      "alphaBounds": {
+        "x": 0,
+        "y": 0,
+        "width": 818,
+        "height": 1047
+      },
+      "mode": "ambient-static-screen",
+      "validated": true
+    },
+    {
+      "id": "industrial_planter",
+      "view": "s",
+      "image": "frontend/assets/industrial/batch03/utility/industrial_planter.png",
+      "outputSha256": "20702ead904c798b595e6cd89acb40bc6aee17e04cf3b1c9b852c91ad0d13603",
+      "alphaBounds": {
+        "x": 26,
+        "y": 96,
+        "width": 1379,
+        "height": 800
+      },
+      "mode": "static",
+      "validated": true
+    },
+    {
+      "id": "tallplant",
+      "view": "s",
+      "image": "frontend/assets/industrial/batch03/utility/tallplant.png",
+      "outputSha256": "0a954344173bf3dcb92242b50fd3cf111a0333718ba95d5453bdd50ee4119ce3",
+      "alphaBounds": {
+        "x": 116,
+        "y": 17,
+        "width": 664,
+        "height": 1731
+      },
+      "mode": "static",
+      "validated": true
+    },
+    {
+      "id": "monstera",
+      "view": "s",
+      "image": "frontend/assets/industrial/batch03/utility/monstera.png",
+      "outputSha256": "a72776ff73fe4d9fdabb8c3d46df9b5028e75978e3b0d7c3c74175f3f0a33b47",
+      "alphaBounds": {
+        "x": 22,
+        "y": 7,
+        "width": 1165,
+        "height": 1255
+      },
+      "mode": "static",
+      "validated": true
+    },
+    {
+      "id": "terrarium",
+      "view": "s",
+      "image": "frontend/assets/industrial/batch03/utility/terrarium.png",
+      "outputSha256": "b591ddaa41c4086e90b3ef493684e238572d976d441591503f0acfc242579094",
+      "alphaBounds": {
+        "x": 184,
+        "y": 30,
+        "width": 672,
+        "height": 1434
+      },
+      "mode": "biological-spores",
+      "validated": true
+    },
+    {
+      "id": "fishtank",
+      "view": "s",
+      "image": "frontend/assets/industrial/batch03/utility/fishtank.png",
+      "outputSha256": "063b2807b5ed711a94fb640e294055168f85e398ddb73a42197636d7fb72be0f",
+      "alphaBounds": {
+        "x": 139,
+        "y": 55,
+        "width": 1026,
+        "height": 1077
+      },
+      "mode": "aquarium",
+      "validated": true
+    },
+    {
+      "id": "lavalamp",
+      "view": "s",
+      "image": "frontend/assets/industrial/batch03/utility/lavalamp.png",
+      "outputSha256": "0e7d65f917ffbf36808fb82912c2dcc71c5c1187caf03811138e0d98bdfff2db",
+      "alphaBounds": {
+        "x": 117,
+        "y": 22,
+        "width": 559,
+        "height": 1931
+      },
+      "mode": "lava-wax",
+      "validated": true
+    },
+    {
+      "id": "plasmaglobe",
+      "view": "s",
+      "image": "frontend/assets/industrial/batch03/utility/plasmaglobe.png",
+      "outputSha256": "e02e107a72ba6ba83b78334c4b7017bc332dcdfe15ae34865506974d33d460ac",
+      "alphaBounds": {
+        "x": 34,
+        "y": 22,
+        "width": 845,
+        "height": 1622
+      },
+      "mode": "plasma-arcs",
+      "validated": true
+    },
+    {
+      "id": "etsy_dyevat",
+      "view": "s",
+      "image": "frontend/assets/industrial/batch03/utility/etsy_dyevat.png",
+      "outputSha256": "9a02967d2f1eeaf212349208e61342e191afec1ae2ed3a5ecf5a7945a6051269",
+      "alphaBounds": {
+        "x": 107,
+        "y": 4,
+        "width": 1032,
+        "height": 1179
+      },
+      "mode": "water",
+      "validated": true
+    },
+    {
+      "id": "etsy_kiln",
+      "view": "s",
+      "image": "frontend/assets/industrial/batch03/utility/etsy_kiln.png",
+      "outputSha256": "3b00448deefa5a1e28293d8980e9aec73531876de2a7c4b365911f54922fc1b7",
+      "alphaBounds": {
+        "x": 97,
+        "y": 36,
+        "width": 1029,
+        "height": 1214
+      },
+      "mode": "kiln-heat",
+      "validated": true
+    },
+    {
+      "id": "research_samplecart",
+      "view": "s",
+      "image": "frontend/assets/industrial/batch03/utility/research_samplecart.png",
+      "outputSha256": "c44ecf5fd17775f839c6cdb7a9c6041ed714ecc0544d5d381046aaa6e01b5272",
+      "alphaBounds": {
+        "x": 120,
+        "y": 29,
+        "width": 1280,
+        "height": 923
+      },
+      "mode": "pulse",
+      "validated": true
+    },
+    {
+      "id": "incubator",
+      "view": "s",
+      "image": "frontend/assets/industrial/batch03/utility/incubator.png",
+      "outputSha256": "8665cd1f6c7771bc79e2a032abd8fbb5166b689c2e0adb1ed845def723b1de31",
+      "alphaBounds": {
+        "x": 130,
+        "y": 19,
+        "width": 554,
+        "height": 1797
+      },
+      "mode": "culture-column",
+      "validated": true
+    },
+    {
+      "id": "cryopod",
+      "view": "s",
+      "image": "frontend/assets/industrial/batch03/utility/cryopod.png",
+      "outputSha256": "0eccdbab2db8bd4a74c5de635e093e73679c0cff437ebfab8c10072a569e779e",
+      "alphaBounds": {
+        "x": 61,
+        "y": 25,
+        "width": 670,
+        "height": 1865
+      },
+      "mode": "pulse",
+      "validated": true
+    },
+    {
+      "id": "bookshelf",
+      "view": "s",
+      "image": "frontend/assets/industrial/batch03/storage/bookshelf.png",
+      "outputSha256": "e285427a3debc3c0df7671149658ccf08f5afca84eba73e1a605fd1fef4daaf5",
+      "alphaBounds": {
+        "x": 0,
+        "y": 0,
+        "width": 1279,
+        "height": 979
+      },
+      "mode": "static",
+      "validated": true
+    },
+    {
+      "id": "bookstack",
+      "view": "s",
+      "image": "frontend/assets/industrial/batch03/storage/bookstack.png",
+      "outputSha256": "4696f250b7da85a66b41fb18e202db3ce7dc99e43dc6842c6906e3a0c6ff9da6",
+      "alphaBounds": {
+        "x": 0,
+        "y": 0,
+        "width": 1162,
+        "height": 930
+      },
+      "mode": "static",
+      "validated": true
+    },
+    {
+      "id": "mug",
+      "view": "s",
+      "image": "frontend/assets/industrial/batch03/storage/mug.png",
+      "outputSha256": "1af0e806f672e1390a3304b535bd7e13982f3b7f2858b4b27c20d0cc424070e0",
+      "alphaBounds": {
+        "x": 0,
+        "y": 0,
+        "width": 1050,
+        "height": 1027
+      },
+      "mode": "steam",
+      "validated": true
+    },
+    {
+      "id": "radio",
+      "view": "s",
+      "image": "frontend/assets/industrial/batch03/storage/radio.png",
+      "outputSha256": "cc8752c8e346989a022c50b0cf64711251054f3df3605e068eda33cfd3bb4c18",
+      "alphaBounds": {
+        "x": 0,
+        "y": 0,
+        "width": 1226,
+        "height": 950
+      },
+      "mode": "screen",
+      "validated": true
+    },
+    {
+      "id": "guitar",
+      "view": "s",
+      "image": "frontend/assets/industrial/batch03/storage/guitar.png",
+      "outputSha256": "598bd161ee937061d300d6c21ca8fa6af12efde3e09a8e8d87d5369433f9a363",
+      "alphaBounds": {
+        "x": 0,
+        "y": 0,
+        "width": 588,
+        "height": 1624
+      },
+      "mode": "static",
+      "validated": true
+    },
+    {
+      "id": "figurine",
+      "view": "s",
+      "image": "frontend/assets/industrial/batch03/storage/figurine.png",
+      "outputSha256": "530675aa02c58720172111e8b95f2ab86c38a9b1061390f9b21ecb59bade611d",
+      "alphaBounds": {
+        "x": 0,
+        "y": 0,
+        "width": 669,
+        "height": 1103
+      },
+      "mode": "static",
+      "validated": true
+    },
+    {
+      "id": "modelship",
+      "view": "s",
+      "image": "frontend/assets/industrial/batch03/storage/modelship.png",
+      "outputSha256": "9fb08f8ee2c057fad95a5af7ef9d80ef48f7205d6c579bb20d1cd7522d0a29db",
+      "alphaBounds": {
+        "x": 0,
+        "y": 0,
+        "width": 1284,
+        "height": 749
+      },
+      "mode": "pulse",
+      "validated": true
+    },
+    {
+      "id": "toolbox",
+      "view": "s",
+      "image": "frontend/assets/industrial/batch03/storage/toolbox.png",
+      "outputSha256": "d1453a168ee3851d20805909047ef6745952f927479a538a0452bbe9f2f258cf",
+      "alphaBounds": {
+        "x": 0,
+        "y": 0,
+        "width": 1255,
+        "height": 695
+      },
+      "mode": "static",
+      "validated": true
+    },
+    {
+      "id": "desklamp",
+      "view": "s",
+      "image": "frontend/assets/industrial/batch03/storage/desklamp.png",
+      "outputSha256": "a7e20fe99936ba5b847ffd560dbe17dc78c27a1854d345f9786fc213bd069c4e",
+      "alphaBounds": {
+        "x": 0,
+        "y": 0,
+        "width": 1033,
+        "height": 956
+      },
+      "mode": "static",
+      "validated": true
+    },
+    {
+      "id": "research_papers",
+      "view": "s",
+      "image": "frontend/assets/industrial/batch03/storage/research_papers.png",
+      "outputSha256": "28e84f602e7248254e15c8e8f51743e1c91ffbd2e9b8c0e2c53f576654ce42a3",
+      "alphaBounds": {
+        "x": 0,
+        "y": 0,
+        "width": 1702,
+        "height": 602
+      },
+      "mode": "sheet-feed",
+      "validated": true
+    },
+    {
+      "id": "etsy_threadrack",
+      "view": "s",
+      "image": "frontend/assets/industrial/batch03/storage/etsy_threadrack.png",
+      "outputSha256": "c8e3e860fe082a645fc712adb4a951f2588b7b3d5093b2c9029b60dcc7536411",
+      "alphaBounds": {
+        "x": 0,
+        "y": 0,
+        "width": 1296,
+        "height": 842
+      },
+      "mode": "thread-feed",
+      "validated": true
+    },
+    {
+      "id": "easel",
+      "view": "s",
+      "image": "frontend/assets/industrial/batch03/storage/easel.png",
+      "outputSha256": "549f703bc641394344ca53321bb56d39bf70140d000950f2f53cb16a75973a5d",
+      "alphaBounds": {
+        "x": 0,
+        "y": 0,
+        "width": 671,
+        "height": 1268
+      },
+      "mode": "paint-reveal",
+      "validated": true
+    }
+  ]
+}

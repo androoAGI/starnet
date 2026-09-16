@@ -1,0 +1,15 @@
+{
+  "id": "sidetable",
+  "source": "C:/Users/andro/.codex/generated_images/01a09c6e-42f0-7c90-bc97-768d6754278f/exec-0c85d574-7ec0-45f8-9556-00a8af679f66.png",
+  "sourceWidth": 1122,
+  "sourceHeight": 1402,
+  "crop": {
+    "left": 77,
+    "top": 108,
+    "width": 969,
+    "height": 1164
+  },
+  "sourceAlpha": true,
+  "subjectRgbChanges": 0,
+  "output": "frontend/assets/industrial/props-v2/sidetable.png"
+}

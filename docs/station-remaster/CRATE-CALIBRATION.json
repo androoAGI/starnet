@@ -1,0 +1,25 @@
+{
+  "source": "exec-a9064103-d69b-4226-91e6-a2ec078f9804.png",
+  "sourceDimensions": [
+    1355,
+    1160
+  ],
+  "crop": {
+    "left": 45,
+    "top": 50,
+    "width": 1264,
+    "height": 1026
+  },
+  "opaquePixels": 1226942,
+  "subjectRgbChanges": 0,
+  "nativeBody": {
+    "width": 26,
+    "height": 21,
+    "contactHeight": 22,
+    "footprint": [
+      24,
+      12
+    ]
+  },
+  "fit": "Uniform scale limited to width+2 and height+10; bottom at footprint ground edge. No bitmap rotation."
+}

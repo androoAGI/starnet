@@ -156,6 +156,35 @@ async function load(search, broken = false) {
     assert.deepEqual(output.getContext('2d').getImageData(0,0,60,48).data,
       northView.getContext('2d').getImageData(0,0,60,48).data,'nested shell retains detailed art and mask');
   }
+
+  const crypto = require('node:crypto'), fingerprints = new Set();
+  for (const id of 'spine alloy plate panel tile tread soft grate hex plank turf diamond resin ceramic cargo runner treadway meshway basalt parquet rubber slotted terrazzo octile'.split(' ')) {
+    const c = createCanvas(96,96), g = c.getContext('2d');
+    for(let y=0;y<8;y++) for(let x=0;x<8;x++) pack.floor(g,x*12,y*12,12,x,y,id,'#383838');
+    fingerprints.add(crypto.createHash('sha256').update(c.getContext('2d').getImageData(0,0,96,96).data).digest('hex'));
+  }
+  assert.equal(fingerprints.size,24,'all 24 floor recipes remain visibly distinct with the real PNGs');
+  const wallPrints = new Set();
+  for(const id of 'bulkhead courses service plating ribbed panelled pipework'.split(' ')) {
+    const c=createCanvas(48,39), g=c.getContext('2d');
+    for(let x=0;x<4;x++) pack.wall(g,x*12,0,12,39,x,id,'#383838');
+    wallPrints.add(crypto.createHash('sha256').update(g.getImageData(0,0,48,39).data).digest('hex'));
+  }
+  assert.equal(wallPrints.size,7,'all seven real wall constructions remain distinct');
+  for(const length of [24,36])for(const facing of ['s','e','n']){
+    const side=facing==='e',w=side?12:length,h=side?length:12,draws=[];
+    pack.workstation({save(){},restore(){},drawImage(...a){draws.push(a);}},0,0,w,h,facing);
+    const [im,x,y,dw,dh]=draws[0];
+    assert.ok(Math.abs(dw/dh-im.width/im.height)<1e-8,'authored '+facing+' aspect preserved');
+    assert.ok(Math.abs(y+dh-h)<1e-8,'authored '+facing+' grounded');
+    assert.ok(dw*(side?.75:facing==='n'&&length===36?.92:1)<=w+2+1e-8,'actual cabinet stays inside footprint and lip');
+    if(side)assert.ok(dh>=h+5,'side view retains physical depth and standing rise');
+    else assert.ok(dh>=23 && dh<=23.5,'front and rear retain standing height');
+    const emission=pack.workstationEmitter(0,0,w,h,facing);
+    if(facing==='n')assert.equal(emission,null);
+    else assert.ok(emission && emission.x>=x && emission.x<=x+dw && emission.y>=y && emission.y<=y+dh,'screen source lies on actual sprite');
+  }
+
   console.log(JSON.stringify({ assets: pack.status(), alphaSamples: samples, chairOrientations: 8,
     seatFrontPixelMatch: 'PASS', workstationAspect: 'PASS', floorContact: 'PASS',
     wallGeometry: 'PASS', shellDetailAndMasks: 'PASS', wallContinuityMeanError: +(error/count).toFixed(2),

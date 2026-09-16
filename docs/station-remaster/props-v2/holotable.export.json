@@ -1,0 +1,15 @@
+{
+  "id": "holotable",
+  "source": "C:\\Users\\andro\\.codex\\generated_images\\01a0976c-e264-7f13-a581-78c904716b14\\exec-dc77502e-d756-4e1a-819d-28d21892342b.png",
+  "sourceWidth": 1521,
+  "sourceHeight": 1034,
+  "crop": {
+    "left": 3,
+    "top": 0,
+    "width": 1515,
+    "height": 1034
+  },
+  "sourceAlpha": false,
+  "subjectRgbChanges": 0,
+  "output": "frontend/assets/industrial/props-v2/holotable.png"
+}

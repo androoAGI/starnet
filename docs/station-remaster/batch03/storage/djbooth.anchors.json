@@ -1,0 +1,616 @@
+{
+  "id": "djbooth",
+  "measurement": "Conservative manually inspected source regions, normalized to full source and cropped final; world conversion uses uniform bottom-centered fit. Owner must verify live.",
+  "sourceDimensions": {
+    "width": 1647,
+    "height": 955
+  },
+  "crop": {
+    "left": 42,
+    "top": 136,
+    "width": 1562,
+    "height": 701
+  },
+  "footprint": {
+    "w": 4,
+    "h": 2
+  },
+  "worldEnvelope": {
+    "x": -1,
+    "y": -5,
+    "width": 50,
+    "height": 29
+  },
+  "uniformScale": 0.03201024327784891,
+  "contact": {
+    "x": 24,
+    "y": 24
+  },
+  "supportedViews": {
+    "facings": [
+      {
+        "r": 0,
+        "front": "south",
+        "w": 4,
+        "h": 2,
+        "type": "authored-view"
+      }
+    ],
+    "canMirror": true,
+    "classicFacings": [
+      0
+    ]
+  },
+  "geometry": {
+    "blocks": true,
+    "flat": false,
+    "tableSurface": false,
+    "requiredMount": null,
+    "optionalSurfaceMount": false,
+    "surfaceRisePixels": 8
+  },
+  "leisureUse": {
+    "kind": "dj",
+    "sit": false,
+    "approach": "south"
+  },
+  "originalAnimationTriggers": [
+    "Actual leisure usingProp / watchProp can set work on this prop; body approach and use animation follow leisureUse. In the baseline draw work expression this leisure trigger directly checks the hero, not a separate crew leisure flag."
+  ],
+  "integrationNote": "Platters parked; use leisure work for spin/accent and readout spectrum. Rotate only extracted platter component, never full upright bitmap.",
+  "regions": {
+    "leftPlatter": {
+      "sourcePixels": [
+        [
+          260,
+          259
+        ],
+        [
+          553,
+          259
+        ],
+        [
+          553,
+          439
+        ],
+        [
+          260,
+          439
+        ]
+      ],
+      "exportPixels": [
+        [
+          218,
+          123
+        ],
+        [
+          511,
+          123
+        ],
+        [
+          511,
+          303
+        ],
+        [
+          218,
+          303
+        ]
+      ],
+      "worldPixels": [
+        [
+          5.978233,
+          5.498079
+        ],
+        [
+          15.357234,
+          5.498079
+        ],
+        [
+          15.357234,
+          11.259923
+        ],
+        [
+          5.978233,
+          11.259923
+        ]
+      ],
+      "sourceNormalized": [
+        [
+          0.157863,
+          0.271204
+        ],
+        [
+          0.335762,
+          0.271204
+        ],
+        [
+          0.335762,
+          0.459686
+        ],
+        [
+          0.157863,
+          0.459686
+        ]
+      ],
+      "exportNormalized": [
+        [
+          0.139565,
+          0.175464
+        ],
+        [
+          0.327145,
+          0.175464
+        ],
+        [
+          0.327145,
+          0.43224
+        ],
+        [
+          0.139565,
+          0.43224
+        ]
+      ]
+    },
+    "rightPlatter": {
+      "sourcePixels": [
+        [
+          1078,
+          259
+        ],
+        [
+          1390,
+          259
+        ],
+        [
+          1390,
+          440
+        ],
+        [
+          1078,
+          440
+        ]
+      ],
+      "exportPixels": [
+        [
+          1036,
+          123
+        ],
+        [
+          1348,
+          123
+        ],
+        [
+          1348,
+          304
+        ],
+        [
+          1036,
+          304
+        ]
+      ],
+      "worldPixels": [
+        [
+          32.162612,
+          5.498079
+        ],
+        [
+          42.149808,
+          5.498079
+        ],
+        [
+          42.149808,
+          11.291933
+        ],
+        [
+          32.162612,
+          11.291933
+        ]
+      ],
+      "sourceNormalized": [
+        [
+          0.654523,
+          0.271204
+        ],
+        [
+          0.843959,
+          0.271204
+        ],
+        [
+          0.843959,
+          0.460733
+        ],
+        [
+          0.654523,
+          0.460733
+        ]
+      ],
+      "exportNormalized": [
+        [
+          0.663252,
+          0.175464
+        ],
+        [
+          0.862996,
+          0.175464
+        ],
+        [
+          0.862996,
+          0.433666
+        ],
+        [
+          0.663252,
+          0.433666
+        ]
+      ]
+    },
+    "equalizer": {
+      "sourcePixels": [
+        [
+          721,
+          207
+        ],
+        [
+          923,
+          207
+        ],
+        [
+          923,
+          235
+        ],
+        [
+          721,
+          235
+        ]
+      ],
+      "exportPixels": [
+        [
+          679,
+          71
+        ],
+        [
+          881,
+          71
+        ],
+        [
+          881,
+          99
+        ],
+        [
+          679,
+          99
+        ]
+      ],
+      "worldPixels": [
+        [
+          20.734955,
+          3.833547
+        ],
+        [
+          27.201024,
+          3.833547
+        ],
+        [
+          27.201024,
+          4.729834
+        ],
+        [
+          20.734955,
+          4.729834
+        ]
+      ],
+      "sourceNormalized": [
+        [
+          0.437766,
+          0.216754
+        ],
+        [
+          0.560413,
+          0.216754
+        ],
+        [
+          0.560413,
+          0.246073
+        ],
+        [
+          0.437766,
+          0.246073
+        ]
+      ],
+      "exportNormalized": [
+        [
+          0.434699,
+          0.101284
+        ],
+        [
+          0.56402,
+          0.101284
+        ],
+        [
+          0.56402,
+          0.141227
+        ],
+        [
+          0.434699,
+          0.141227
+        ]
+      ]
+    },
+    "leftReadout": {
+      "sourcePixels": [
+        [
+          518,
+          216
+        ],
+        [
+          612,
+          216
+        ],
+        [
+          612,
+          233
+        ],
+        [
+          518,
+          233
+        ]
+      ],
+      "exportPixels": [
+        [
+          476,
+          80
+        ],
+        [
+          570,
+          80
+        ],
+        [
+          570,
+          97
+        ],
+        [
+          476,
+          97
+        ]
+      ],
+      "worldPixels": [
+        [
+          14.236876,
+          4.121639
+        ],
+        [
+          17.245839,
+          4.121639
+        ],
+        [
+          17.245839,
+          4.665813
+        ],
+        [
+          14.236876,
+          4.665813
+        ]
+      ],
+      "sourceNormalized": [
+        [
+          0.314511,
+          0.226178
+        ],
+        [
+          0.371585,
+          0.226178
+        ],
+        [
+          0.371585,
+          0.243979
+        ],
+        [
+          0.314511,
+          0.243979
+        ]
+      ],
+      "exportNormalized": [
+        [
+          0.304738,
+          0.114123
+        ],
+        [
+          0.364917,
+          0.114123
+        ],
+        [
+          0.364917,
+          0.138374
+        ],
+        [
+          0.304738,
+          0.138374
+        ]
+      ]
+    },
+    "rightReadout": {
+      "sourcePixels": [
+        [
+          1047,
+          216
+        ],
+        [
+          1132,
+          216
+        ],
+        [
+          1132,
+          232
+        ],
+        [
+          1047,
+          232
+        ]
+      ],
+      "exportPixels": [
+        [
+          1005,
+          80
+        ],
+        [
+          1090,
+          80
+        ],
+        [
+          1090,
+          96
+        ],
+        [
+          1005,
+          96
+        ]
+      ],
+      "worldPixels": [
+        [
+          31.170294,
+          4.121639
+        ],
+        [
+          33.891165,
+          4.121639
+        ],
+        [
+          33.891165,
+          4.633803
+        ],
+        [
+          31.170294,
+          4.633803
+        ]
+      ],
+      "sourceNormalized": [
+        [
+          0.635701,
+          0.226178
+        ],
+        [
+          0.68731,
+          0.226178
+        ],
+        [
+          0.68731,
+          0.242932
+        ],
+        [
+          0.635701,
+          0.242932
+        ]
+      ],
+      "exportNormalized": [
+        [
+          0.643406,
+          0.114123
+        ],
+        [
+          0.697823,
+          0.114123
+        ],
+        [
+          0.697823,
+          0.136947
+        ],
+        [
+          0.643406,
+          0.136947
+        ]
+      ]
+    },
+    "mixer": {
+      "sourcePixels": [
+        [
+          651,
+          249
+        ],
+        [
+          985,
+          249
+        ],
+        [
+          985,
+          483
+        ],
+        [
+          651,
+          483
+        ]
+      ],
+      "exportPixels": [
+        [
+          609,
+          113
+        ],
+        [
+          943,
+          113
+        ],
+        [
+          943,
+          347
+        ],
+        [
+          609,
+          347
+        ]
+      ],
+      "worldPixels": [
+        [
+          18.494238,
+          5.177977
+        ],
+        [
+          29.185659,
+          5.177977
+        ],
+        [
+          29.185659,
+          12.668374
+        ],
+        [
+          18.494238,
+          12.668374
+        ]
+      ],
+      "sourceNormalized": [
+        [
+          0.395264,
+          0.260733
+        ],
+        [
+          0.598057,
+          0.260733
+        ],
+        [
+          0.598057,
+          0.505759
+        ],
+        [
+          0.395264,
+          0.505759
+        ]
+      ],
+      "exportNormalized": [
+        [
+          0.389885,
+          0.161198
+        ],
+        [
+          0.603713,
+          0.161198
+        ],
+        [
+          0.603713,
+          0.495007
+        ],
+        [
+          0.389885,
+          0.495007
+        ]
+      ]
+    }
+  },
+  "liveIntegrated": false
+}

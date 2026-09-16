@@ -1,0 +1,562 @@
+{
+  "version": 1,
+  "artSet": "catalog-storage-rest-1-candidate",
+  "integrationRoot": "frontend/assets/industrial/catalog-storage-rest-1/",
+  "count": 8,
+  "method": "Same alpha core threshold180 and Euclidean radius3 as approved sheet extraction. All original RGB and retained alpha preserved; only detached translucent background alpha removed. Tight crop; no resizing, repainting or recoloring.",
+  "sourcesPreserved": true,
+  "records": [
+    {
+      "id": "boxes",
+      "view": "s",
+      "image": "boxes.png",
+      "sourceWidth": 314,
+      "sourceHeight": 193,
+      "bounds": {
+        "x": 0,
+        "y": -1,
+        "width": 24,
+        "height": 13
+      },
+      "footprint": {
+        "w": 2,
+        "h": 1
+      },
+      "contact": {
+        "y": 0.9844559585492227
+      },
+      "actualUniformFit": {
+        "width": 21.150259067357513,
+        "height": 13
+      },
+      "aspectRatioError": -0.11873920552677031,
+      "source": "docs/station-remaster/catalog-storage-rest-1/sheet-v2-source.png",
+      "sourceSha256": "d5757ff2bc97d7ed1e812d5344960a8d44f490882a0b238d173c1c8cfd88f30e",
+      "output": "frontend/assets/industrial/catalog-storage-rest-1/boxes.png",
+      "outputSha256": "7782bddbfb84ac0878a98516698a13d231d554e6ee8330d00abacccdb7deacb3",
+      "sourceRect": {
+        "x": 0,
+        "y": 0,
+        "width": 650,
+        "height": 295
+      },
+      "cropInCell": {
+        "left": 186,
+        "top": 69,
+        "width": 314,
+        "height": 193
+      },
+      "sourceCrop": {
+        "left": 186,
+        "top": 69,
+        "width": 314,
+        "height": 193
+      },
+      "width": 314,
+      "height": 193,
+      "alphaBounds": {
+        "x": 0,
+        "y": 0,
+        "width": 314,
+        "height": 193
+      },
+      "retainedPixels": 48332,
+      "alphaResidueRemoved": 2192,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "opaqueCellEdgePixels": 0,
+      "rgbChanges": 0,
+      "retainedAlphaChanges": 0,
+      "alpha": {
+        "zero": 12270,
+        "partial": 48120,
+        "opaque255": 212,
+        "maxAlpha": 255
+      },
+      "liveVerified": false
+    },
+    {
+      "id": "gigs_partsbin",
+      "view": "s",
+      "image": "gigs_partsbin.png",
+      "sourceWidth": 312,
+      "sourceHeight": 211,
+      "bounds": {
+        "x": -1,
+        "y": -7,
+        "width": 26,
+        "height": 19
+      },
+      "footprint": {
+        "w": 2,
+        "h": 1
+      },
+      "contact": {
+        "y": 0.985781990521327
+      },
+      "actualUniformFit": {
+        "width": 26,
+        "height": 17.583333333333332
+      },
+      "aspectRatioError": 0.08056872037914675,
+      "source": "docs/station-remaster/catalog-storage-rest-1/sheet-v2-source.png",
+      "sourceSha256": "d5757ff2bc97d7ed1e812d5344960a8d44f490882a0b238d173c1c8cfd88f30e",
+      "output": "frontend/assets/industrial/catalog-storage-rest-1/gigs_partsbin.png",
+      "outputSha256": "3cecb553e23d27870d7db21936407bedd6c14986911b2be5aa40b8278f00649b",
+      "sourceRect": {
+        "x": 650,
+        "y": 0,
+        "width": 663,
+        "height": 295
+      },
+      "cropInCell": {
+        "left": 124,
+        "top": 62,
+        "width": 312,
+        "height": 211
+      },
+      "sourceCrop": {
+        "left": 774,
+        "top": 62,
+        "width": 312,
+        "height": 211
+      },
+      "width": 312,
+      "height": 211,
+      "alphaBounds": {
+        "x": 0,
+        "y": 0,
+        "width": 312,
+        "height": 211
+      },
+      "retainedPixels": 56800,
+      "alphaResidueRemoved": 1464,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "opaqueCellEdgePixels": 0,
+      "rgbChanges": 0,
+      "retainedAlphaChanges": 0,
+      "alpha": {
+        "zero": 9032,
+        "partial": 56716,
+        "opaque255": 84,
+        "maxAlpha": 255
+      },
+      "liveVerified": false
+    },
+    {
+      "id": "goldcrate",
+      "view": "s",
+      "image": "goldcrate.png",
+      "sourceWidth": 312,
+      "sourceHeight": 225,
+      "bounds": {
+        "x": -1,
+        "y": -10,
+        "width": 26,
+        "height": 22
+      },
+      "footprint": {
+        "w": 2,
+        "h": 1
+      },
+      "contact": {
+        "y": 0.9866666666666667
+      },
+      "actualUniformFit": {
+        "width": 26,
+        "height": 18.75
+      },
+      "aspectRatioError": 0.17333333333333334,
+      "source": "docs/station-remaster/catalog-storage-rest-1/sheet-v2-source.png",
+      "sourceSha256": "d5757ff2bc97d7ed1e812d5344960a8d44f490882a0b238d173c1c8cfd88f30e",
+      "output": "frontend/assets/industrial/catalog-storage-rest-1/goldcrate.png",
+      "outputSha256": "fb3e10ed65d6f5e5b0315349f8e43c39b31038240b09dfd3bfc782c452648320",
+      "sourceRect": {
+        "x": 0,
+        "y": 295,
+        "width": 650,
+        "height": 255
+      },
+      "cropInCell": {
+        "left": 189,
+        "top": 18,
+        "width": 312,
+        "height": 225
+      },
+      "sourceCrop": {
+        "left": 189,
+        "top": 313,
+        "width": 312,
+        "height": 225
+      },
+      "width": 312,
+      "height": 225,
+      "alphaBounds": {
+        "x": 0,
+        "y": 0,
+        "width": 312,
+        "height": 225
+      },
+      "retainedPixels": 64138,
+      "alphaResidueRemoved": 2435,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "opaqueCellEdgePixels": 0,
+      "rgbChanges": 0,
+      "retainedAlphaChanges": 0,
+      "alpha": {
+        "zero": 6062,
+        "partial": 64005,
+        "opaque255": 133,
+        "maxAlpha": 255
+      },
+      "liveVerified": false
+    },
+    {
+      "id": "toolbox",
+      "view": "s",
+      "image": "toolbox.png",
+      "sourceWidth": 223,
+      "sourceHeight": 188,
+      "bounds": {
+        "x": 0,
+        "y": 1,
+        "width": 12,
+        "height": 10
+      },
+      "footprint": {
+        "w": 1,
+        "h": 1
+      },
+      "contact": {
+        "y": 0.9840425531914894
+      },
+      "actualUniformFit": {
+        "width": 11.861702127659575,
+        "height": 10
+      },
+      "aspectRatioError": -0.011524822695035408,
+      "source": "docs/station-remaster/catalog-storage-rest-1/sheet-v2-source.png",
+      "sourceSha256": "d5757ff2bc97d7ed1e812d5344960a8d44f490882a0b238d173c1c8cfd88f30e",
+      "output": "frontend/assets/industrial/catalog-storage-rest-1/toolbox.png",
+      "outputSha256": "a72246746ae146ef74373148a8c61e80e4a098814ae3102262aeae4f6f7e3d6d",
+      "sourceRect": {
+        "x": 650,
+        "y": 295,
+        "width": 663,
+        "height": 255
+      },
+      "cropInCell": {
+        "left": 169,
+        "top": 50,
+        "width": 223,
+        "height": 188
+      },
+      "sourceCrop": {
+        "left": 819,
+        "top": 345,
+        "width": 223,
+        "height": 188
+      },
+      "width": 223,
+      "height": 188,
+      "alphaBounds": {
+        "x": 0,
+        "y": 0,
+        "width": 223,
+        "height": 188
+      },
+      "retainedPixels": 36869,
+      "alphaResidueRemoved": 1656,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "opaqueCellEdgePixels": 0,
+      "rgbChanges": 0,
+      "retainedAlphaChanges": 0,
+      "alpha": {
+        "zero": 5055,
+        "partial": 36697,
+        "opaque255": 172,
+        "maxAlpha": 255
+      },
+      "liveVerified": false
+    },
+    {
+      "id": "industrial_supplycart",
+      "view": "s",
+      "image": "industrial_supplycart.png",
+      "sourceWidth": 319,
+      "sourceHeight": 281,
+      "bounds": {
+        "x": 1,
+        "y": -11,
+        "width": 22,
+        "height": 23
+      },
+      "footprint": {
+        "w": 2,
+        "h": 1
+      },
+      "contact": {
+        "y": 0.9893238434163701
+      },
+      "actualUniformFit": {
+        "width": 22,
+        "height": 19.379310344827587
+      },
+      "aspectRatioError": 0.18683274021352303,
+      "source": "docs/station-remaster/catalog-storage-rest-1/sheet-v2-source.png",
+      "sourceSha256": "d5757ff2bc97d7ed1e812d5344960a8d44f490882a0b238d173c1c8cfd88f30e",
+      "output": "frontend/assets/industrial/catalog-storage-rest-1/industrial_supplycart.png",
+      "outputSha256": "6a8ce03fab3f30500646a190490f4f13d8a60666f809d1489d757abcd57106f5",
+      "sourceRect": {
+        "x": 0,
+        "y": 550,
+        "width": 650,
+        "height": 287
+      },
+      "cropInCell": {
+        "left": 189,
+        "top": 6,
+        "width": 319,
+        "height": 281
+      },
+      "sourceCrop": {
+        "left": 189,
+        "top": 556,
+        "width": 319,
+        "height": 281
+      },
+      "width": 319,
+      "height": 281,
+      "alphaBounds": {
+        "x": 0,
+        "y": 0,
+        "width": 319,
+        "height": 281
+      },
+      "retainedPixels": 64741,
+      "alphaResidueRemoved": 2887,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "opaqueCellEdgePixels": 0,
+      "rgbChanges": 0,
+      "retainedAlphaChanges": 0,
+      "alpha": {
+        "zero": 24898,
+        "partial": 64527,
+        "opaque255": 214,
+        "maxAlpha": 255
+      },
+      "liveVerified": false
+    },
+    {
+      "id": "industrial_toolcaddy",
+      "view": "s",
+      "image": "industrial_toolcaddy.png",
+      "sourceWidth": 248,
+      "sourceHeight": 208,
+      "bounds": {
+        "x": 1,
+        "y": 2,
+        "width": 10,
+        "height": 10
+      },
+      "footprint": {
+        "w": 1,
+        "h": 1
+      },
+      "contact": {
+        "y": 0.9855769230769231
+      },
+      "actualUniformFit": {
+        "width": 10,
+        "height": 8.387096774193548
+      },
+      "aspectRatioError": 0.1923076923076923,
+      "source": "docs/station-remaster/catalog-storage-rest-1/sheet-v2-source.png",
+      "sourceSha256": "d5757ff2bc97d7ed1e812d5344960a8d44f490882a0b238d173c1c8cfd88f30e",
+      "output": "frontend/assets/industrial/catalog-storage-rest-1/industrial_toolcaddy.png",
+      "outputSha256": "fcb4942d0b6f95d1efcab6c94232474381e458032d14edb29d89aebc088e065c",
+      "sourceRect": {
+        "x": 650,
+        "y": 550,
+        "width": 663,
+        "height": 287
+      },
+      "cropInCell": {
+        "left": 154,
+        "top": 62,
+        "width": 248,
+        "height": 208
+      },
+      "sourceCrop": {
+        "left": 804,
+        "top": 612,
+        "width": 248,
+        "height": 208
+      },
+      "width": 248,
+      "height": 208,
+      "alphaBounds": {
+        "x": 0,
+        "y": 0,
+        "width": 248,
+        "height": 208
+      },
+      "retainedPixels": 41284,
+      "alphaResidueRemoved": 2057,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "opaqueCellEdgePixels": 0,
+      "rgbChanges": 0,
+      "retainedAlphaChanges": 0,
+      "alpha": {
+        "zero": 10300,
+        "partial": 41000,
+        "opaque255": 284,
+        "maxAlpha": 255
+      },
+      "liveVerified": false
+    },
+    {
+      "id": "gigs_servercart",
+      "view": "s",
+      "image": "gigs_servercart.png",
+      "sourceWidth": 289,
+      "sourceHeight": 320,
+      "bounds": {
+        "x": 1,
+        "y": -6,
+        "width": 16,
+        "height": 18
+      },
+      "footprint": {
+        "w": 1,
+        "h": 1
+      },
+      "contact": {
+        "y": 0.990625
+      },
+      "actualUniformFit": {
+        "width": 16,
+        "height": 17.716262975778548
+      },
+      "aspectRatioError": 0.01601562500000009,
+      "source": "docs/station-remaster/catalog-storage-rest-1/sheet-v2-source.png",
+      "sourceSha256": "d5757ff2bc97d7ed1e812d5344960a8d44f490882a0b238d173c1c8cfd88f30e",
+      "output": "frontend/assets/industrial/catalog-storage-rest-1/gigs_servercart.png",
+      "outputSha256": "dfce99ae9de1a6795e24514bcc6d35f2c009a4dba0e40c1af92e2b6e0a4c1211",
+      "sourceRect": {
+        "x": 0,
+        "y": 837,
+        "width": 650,
+        "height": 361
+      },
+      "cropInCell": {
+        "left": 184,
+        "top": 2,
+        "width": 289,
+        "height": 320
+      },
+      "sourceCrop": {
+        "left": 184,
+        "top": 839,
+        "width": 289,
+        "height": 320
+      },
+      "width": 289,
+      "height": 320,
+      "alphaBounds": {
+        "x": 0,
+        "y": 0,
+        "width": 289,
+        "height": 320
+      },
+      "retainedPixels": 73450,
+      "alphaResidueRemoved": 2774,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "opaqueCellEdgePixels": 0,
+      "rgbChanges": 0,
+      "retainedAlphaChanges": 0,
+      "alpha": {
+        "zero": 19030,
+        "partial": 73134,
+        "opaque255": 316,
+        "maxAlpha": 255
+      },
+      "liveVerified": false
+    },
+    {
+      "id": "vault",
+      "view": "s",
+      "image": "vault.png",
+      "sourceWidth": 459,
+      "sourceHeight": 259,
+      "bounds": {
+        "x": -3,
+        "y": -5,
+        "width": 44,
+        "height": 29
+      },
+      "footprint": {
+        "w": 3,
+        "h": 2
+      },
+      "contact": {
+        "y": 0.9884169884169884
+      },
+      "actualUniformFit": {
+        "width": 44,
+        "height": 24.82788671023965
+      },
+      "aspectRatioError": 0.16804141804141803,
+      "source": "docs/station-remaster/catalog-storage-rest-1/sheet-v2-source.png",
+      "sourceSha256": "d5757ff2bc97d7ed1e812d5344960a8d44f490882a0b238d173c1c8cfd88f30e",
+      "output": "frontend/assets/industrial/catalog-storage-rest-1/vault.png",
+      "outputSha256": "c2a75370627461a72ce0c20427da75c85bd33a4710996c48180eb6b8362c5f9c",
+      "sourceRect": {
+        "x": 650,
+        "y": 837,
+        "width": 663,
+        "height": 361
+      },
+      "cropInCell": {
+        "left": 38,
+        "top": 40,
+        "width": 459,
+        "height": 259
+      },
+      "sourceCrop": {
+        "left": 688,
+        "top": 877,
+        "width": 459,
+        "height": 259
+      },
+      "width": 459,
+      "height": 259,
+      "alphaBounds": {
+        "x": 0,
+        "y": 0,
+        "width": 459,
+        "height": 259
+      },
+      "retainedPixels": 109125,
+      "alphaResidueRemoved": 3012,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "opaqueCellEdgePixels": 0,
+      "rgbChanges": 0,
+      "retainedAlphaChanges": 0,
+      "alpha": {
+        "zero": 9756,
+        "partial": 108992,
+        "opaque255": 133,
+        "maxAlpha": 255
+      },
+      "liveVerified": false
+    }
+  ]
+}

@@ -1,0 +1,375 @@
+{
+  "version": 1,
+  "records": [
+    {
+      "id": "airlock",
+      "view": "s",
+      "image": "airlock.png",
+      "repoPath": "frontend/assets/industrial/catalog-floor/airlock.png",
+      "sourceWidth": 218,
+      "sourceHeight": 215,
+      "footprint": {
+        "w": 1,
+        "h": 1
+      },
+      "bounds": {
+        "x": -1,
+        "y": -1,
+        "width": 14,
+        "height": 14
+      },
+      "contact": {
+        "x": 0.5,
+        "y": 0.986046511627907
+      },
+      "actualFit": {
+        "width": 14,
+        "height": 13.807339449541285
+      },
+      "source": "docs/station-remaster/catalog-floor/sheet-source.png",
+      "sourceSha256": "e88ce751d4371dd831bd9c0904beab19a87b447d0f3f7f79d00f1a4c49ed5cf6",
+      "outputSha256": "debacfd80937a3620fdb553fc4c41790854c74c71e6982963e2849b1d3b46cfb",
+      "sourceCrop": {
+        "left": 186,
+        "top": 86,
+        "width": 218,
+        "height": 215
+      },
+      "retained": 38920,
+      "status": "candidate; retained source RGBA, native floor footprint, uniform fit"
+    },
+    {
+      "id": "arc_floorlight",
+      "view": "s",
+      "image": "arc_floorlight.png",
+      "repoPath": "frontend/assets/industrial/catalog-floor/arc_floorlight.png",
+      "sourceWidth": 175,
+      "sourceHeight": 175,
+      "footprint": {
+        "w": 1,
+        "h": 1
+      },
+      "bounds": {
+        "x": 1,
+        "y": 2,
+        "width": 10,
+        "height": 10
+      },
+      "contact": {
+        "x": 0.5,
+        "y": 0.9942857142857143
+      },
+      "actualFit": {
+        "width": 10,
+        "height": 10
+      },
+      "source": "docs/station-remaster/catalog-floor/sheet-source.png",
+      "sourceSha256": "e88ce751d4371dd831bd9c0904beab19a87b447d0f3f7f79d00f1a4c49ed5cf6",
+      "outputSha256": "ec1a963a2096031b70296d3188dbcc3bee6b026c659cb4cae27994b3f4811eb9",
+      "sourceCrop": {
+        "left": 685,
+        "top": 101,
+        "width": 175,
+        "height": 175
+      },
+      "retained": 23835,
+      "status": "candidate; retained source RGBA, native floor footprint, uniform fit"
+    },
+    {
+      "id": "cablerun",
+      "view": "s",
+      "image": "cablerun.png",
+      "repoPath": "frontend/assets/industrial/catalog-floor/cablerun.png",
+      "sourceWidth": 1135,
+      "sourceHeight": 250,
+      "footprint": {
+        "w": 2,
+        "h": 1
+      },
+      "bounds": {
+        "x": 0,
+        "y": 2,
+        "width": 24,
+        "height": 9
+      },
+      "contact": {
+        "x": 0.5,
+        "y": 0.992
+      },
+      "actualFit": {
+        "width": 24,
+        "height": 5.286343612334802
+      },
+      "source": "docs/station-remaster/catalog-floor/cables-source.png",
+      "sourceSha256": "cfee594b977556737294fd14482ed4b4f3cb18ec554b81889eeca996745eee15",
+      "outputSha256": "f949a26e4d9c8a4129656b401625e93369eb63c5ab88e95dc0aa1a460d8ae3fe",
+      "sourceCrop": {
+        "left": 32,
+        "top": 380,
+        "width": 1135,
+        "height": 250
+      },
+      "retained": 183163,
+      "status": "candidate; retained source RGBA, native floor footprint, uniform fit"
+    },
+    {
+      "id": "hazardpad",
+      "view": "s",
+      "image": "hazardpad.png",
+      "repoPath": "frontend/assets/industrial/catalog-floor/hazardpad.png",
+      "sourceWidth": 413,
+      "sourceHeight": 177,
+      "footprint": {
+        "w": 2,
+        "h": 1
+      },
+      "bounds": {
+        "x": 1,
+        "y": 1,
+        "width": 22,
+        "height": 10
+      },
+      "contact": {
+        "x": 0.5,
+        "y": 0.9830508474576272
+      },
+      "actualFit": {
+        "width": 22,
+        "height": 9.428571428571429
+      },
+      "source": "docs/station-remaster/catalog-floor/sheet-source.png",
+      "sourceSha256": "e88ce751d4371dd831bd9c0904beab19a87b447d0f3f7f79d00f1a4c49ed5cf6",
+      "outputSha256": "91e997a13856176ec829f99569b46bdbd45bbc4199c71922c4bb17f336f428c6",
+      "sourceCrop": {
+        "left": 585,
+        "top": 376,
+        "width": 413,
+        "height": 177
+      },
+      "retained": 72082,
+      "status": "candidate; retained source RGBA, native floor footprint, uniform fit"
+    },
+    {
+      "id": "industrial_cabletray",
+      "view": "s",
+      "image": "industrial_cabletray.png",
+      "repoPath": "frontend/assets/industrial/catalog-floor/industrial_cabletray.png",
+      "sourceWidth": 1133,
+      "sourceHeight": 178,
+      "footprint": {
+        "w": 3,
+        "h": 1
+      },
+      "bounds": {
+        "x": 0,
+        "y": 3,
+        "width": 36,
+        "height": 6
+      },
+      "contact": {
+        "x": 0.5,
+        "y": 0.9831460674157303
+      },
+      "actualFit": {
+        "width": 36,
+        "height": 5.655781112091791
+      },
+      "source": "docs/station-remaster/catalog-floor/cables-source.png",
+      "sourceSha256": "cfee594b977556737294fd14482ed4b4f3cb18ec554b81889eeca996745eee15",
+      "outputSha256": "68fa45018c20c5a71a3ae8f3566ca7f52b2fe8ac4af913ed42f0e7608e4f304b",
+      "sourceCrop": {
+        "left": 33,
+        "top": 858,
+        "width": 1133,
+        "height": 178
+      },
+      "retained": 199243,
+      "status": "candidate; retained source RGBA, native floor footprint, uniform fit"
+    },
+    {
+      "id": "industrial_floorvent",
+      "view": "s",
+      "image": "industrial_floorvent.png",
+      "repoPath": "frontend/assets/industrial/catalog-floor/industrial_floorvent.png",
+      "sourceWidth": 423,
+      "sourceHeight": 173,
+      "footprint": {
+        "w": 2,
+        "h": 1
+      },
+      "bounds": {
+        "x": 1,
+        "y": 1,
+        "width": 22,
+        "height": 10
+      },
+      "contact": {
+        "x": 0.5,
+        "y": 0.9826589595375722
+      },
+      "actualFit": {
+        "width": 22,
+        "height": 8.997635933806146
+      },
+      "source": "docs/station-remaster/catalog-floor/sheet-source.png",
+      "sourceSha256": "e88ce751d4371dd831bd9c0904beab19a87b447d0f3f7f79d00f1a4c49ed5cf6",
+      "outputSha256": "1f2ed30538c55eaaa1b76df0212c4588dacf26baf9c80f25f16fee2ce8103efe",
+      "sourceCrop": {
+        "left": 577,
+        "top": 623,
+        "width": 423,
+        "height": 173
+      },
+      "retained": 71811,
+      "status": "candidate; retained source RGBA, native floor footprint, uniform fit"
+    },
+    {
+      "id": "rug",
+      "view": "s",
+      "image": "rug.png",
+      "repoPath": "frontend/assets/industrial/catalog-floor/rug.png",
+      "sourceWidth": 350,
+      "sourceHeight": 228,
+      "footprint": {
+        "w": 4,
+        "h": 3
+      },
+      "bounds": {
+        "x": -1,
+        "y": 0,
+        "width": 50,
+        "height": 36
+      },
+      "contact": {
+        "x": 0.5,
+        "y": 0.9868421052631579
+      },
+      "actualFit": {
+        "width": 50,
+        "height": 32.57142857142857
+      },
+      "source": "docs/station-remaster/catalog-floor/sheet-source.png",
+      "sourceSha256": "e88ce751d4371dd831bd9c0904beab19a87b447d0f3f7f79d00f1a4c49ed5cf6",
+      "outputSha256": "0d0acf0d0b733bf51df5f00aaf45148ee1a64a5d7e7c3742da99d7a0f2eb76ad",
+      "sourceCrop": {
+        "left": 120,
+        "top": 857,
+        "width": 350,
+        "height": 228
+      },
+      "retained": 78871,
+      "status": "candidate; retained source RGBA, native floor footprint, uniform fit"
+    },
+    {
+      "id": "rug_small",
+      "view": "s",
+      "image": "rug_small.png",
+      "repoPath": "frontend/assets/industrial/catalog-floor/rug_small.png",
+      "sourceWidth": 248,
+      "sourceHeight": 228,
+      "footprint": {
+        "w": 3,
+        "h": 3
+      },
+      "bounds": {
+        "x": 0,
+        "y": -1,
+        "width": 36,
+        "height": 38
+      },
+      "contact": {
+        "x": 0.5,
+        "y": 0.9868421052631579
+      },
+      "actualFit": {
+        "width": 36,
+        "height": 33.09677419354839
+      },
+      "source": "docs/station-remaster/catalog-floor/sheet-source.png",
+      "sourceSha256": "e88ce751d4371dd831bd9c0904beab19a87b447d0f3f7f79d00f1a4c49ed5cf6",
+      "outputSha256": "b8d1e86b67b547b92d9e5f9c8efa4496095ec89eee373468838317da4905a398",
+      "sourceCrop": {
+        "left": 663,
+        "top": 858,
+        "width": 248,
+        "height": 228
+      },
+      "retained": 55491,
+      "status": "candidate; retained source RGBA, native floor footprint, uniform fit"
+    },
+    {
+      "id": "rug_large",
+      "view": "s",
+      "image": "rug_large.png",
+      "repoPath": "frontend/assets/industrial/catalog-floor/rug_large.png",
+      "sourceWidth": 299,
+      "sourceHeight": 281,
+      "footprint": {
+        "w": 5,
+        "h": 5
+      },
+      "bounds": {
+        "x": 0,
+        "y": 0,
+        "width": 60,
+        "height": 60
+      },
+      "contact": {
+        "x": 0.5,
+        "y": 0.9893238434163701
+      },
+      "actualFit": {
+        "width": 60,
+        "height": 56.38795986622074
+      },
+      "source": "docs/station-remaster/catalog-floor/sheet-source.png",
+      "sourceSha256": "e88ce751d4371dd831bd9c0904beab19a87b447d0f3f7f79d00f1a4c49ed5cf6",
+      "outputSha256": "63fc2b2f236d6586f8336d99866660a6c191b0fab3a768ad9e4709140a3ec269",
+      "sourceCrop": {
+        "left": 146,
+        "top": 1117,
+        "width": 299,
+        "height": 281
+      },
+      "retained": 82933,
+      "status": "candidate; retained source RGBA, native floor footprint, uniform fit"
+    },
+    {
+      "id": "bridge_deckperimeter",
+      "view": "s",
+      "image": "bridge_deckperimeter.png",
+      "repoPath": "frontend/assets/industrial/catalog-floor/bridge_deckperimeter.png",
+      "sourceWidth": 401,
+      "sourceHeight": 255,
+      "footprint": {
+        "w": 12,
+        "h": 8
+      },
+      "bounds": {
+        "x": 0,
+        "y": 1,
+        "width": 144,
+        "height": 94
+      },
+      "contact": {
+        "x": 0.5,
+        "y": 0.9882352941176471
+      },
+      "actualFit": {
+        "width": 144,
+        "height": 91.571072319202
+      },
+      "source": "docs/station-remaster/catalog-floor/sheet-source.png",
+      "sourceSha256": "e88ce751d4371dd831bd9c0904beab19a87b447d0f3f7f79d00f1a4c49ed5cf6",
+      "outputSha256": "e6ce8b5087bfbcd07de6a7e27dd4bc6c4299d55d621079f1fd711cde82790ba7",
+      "sourceCrop": {
+        "left": 588,
+        "top": 1133,
+        "width": 401,
+        "height": 255
+      },
+      "retained": 24065,
+      "status": "candidate; retained source RGBA, native floor footprint, uniform fit"
+    }
+  ]
+}

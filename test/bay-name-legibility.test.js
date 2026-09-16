@@ -16,7 +16,7 @@ const bay = { t: 'bay', x: 10, y: 10, w: 2, h: 2, agentId: 'agent-one', dockName
 for (const dpr of [1, 1.25, 2]) for (const zoom of [.5, 1, 2, 4, 8]) {
   const out = paint([bay], zoom, dpr);
   assert.equal(out.text.map(t => t.s).join(''), 'ULTRON', 'the sixth character is not silently discarded');
-  assert.equal(out.text[0].fontPx, 7 * zoom / dpr, 'the physical tag shrinks with the bay; there is no screen-size floor');
+  assert.equal(out.text[0].fontPx, 6 * zoom / dpr, 'the physical tag shrinks with the bay; there is no screen-size floor');
   assert.deepEqual(out.boxes, paint([bay], 1).boxes, 'zoom and DPI never enlarge or move the tag in station space');
 }
 assert.equal(paint([{ ...bay, dockName: 'Nova' }], 2).text[0].s, 'NOVA', 'rename reads current roster projection');
@@ -28,8 +28,10 @@ for (let i = 0; i < nearby.boxes.length; i++) for (let j = i + 1; j < nearby.box
   const a = nearby.boxes[i], b = nearby.boxes[j];
   assert.ok(a.x + a.w <= b.x || b.x + b.w <= a.x || a.y + a.h <= b.y || b.y + b.h <= a.y, 'adjacent names do not overprint');
 }
+const crew = paint([{ ...bay, dockName: 'CREW-NEON' }], 2);
+assert.deepEqual(crew.text.map(t=>t.s), ['NEON'], 'bay shows the agent name without the crew prefix');
 const long = paint([{ ...bay, dockName: 'A very long research specialist name that cannot fit on a bay' }], 1);
-assert.equal(long.text.length, 1); assert.ok(long.text[0].s.endsWith('…'), 'overlong names stay on one compact line with an honest ellipsis');
+assert.equal(long.text.length, 2); assert.ok(long.text[1].s.endsWith('…'), 'overlong names use two bounded lines with an honest ellipsis');
 assert.ok(long.boxes[0].w <= bay.w * PS.TILE, 'a tag never grows wider than its bay');
 assert.equal(long.boxes[0].h, paint([bay], 1).boxes[0].h, 'long names never grow a taller card');
-console.log('bay-name-legibility: compact tags, proportional zoom/DPI, rename, binding, fixed anchors and bounded long names PASS');
+console.log('bay-name-legibility: framed two-line plates, proportional zoom/DPI, rename, binding, fixed anchors and bounded long names PASS');

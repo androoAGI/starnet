@@ -1,0 +1,14 @@
+{
+  "characters": [
+    {
+      "id": "pepe",
+      "characterId": "5ac025a2-9508-4bbe-8eff-d706fdad1d6f",
+      "rotations": {
+        "south": "https://backblaze.pixellab.ai/file/pixellab-characters/1ff7d2cf-cfe6-44f9-9533-9eea41eb05cb/5ac025a2-9508-4bbe-8eff-d706fdad1d6f/rotations/south.png?t=1789365947",
+        "east": "https://backblaze.pixellab.ai/file/pixellab-characters/1ff7d2cf-cfe6-44f9-9533-9eea41eb05cb/5ac025a2-9508-4bbe-8eff-d706fdad1d6f/rotations/east.png?t=1789365947",
+        "north": "https://backblaze.pixellab.ai/file/pixellab-characters/1ff7d2cf-cfe6-44f9-9533-9eea41eb05cb/5ac025a2-9508-4bbe-8eff-d706fdad1d6f/rotations/north.png?t=1789365947",
+        "west": "https://backblaze.pixellab.ai/file/pixellab-characters/1ff7d2cf-cfe6-44f9-9533-9eea41eb05cb/5ac025a2-9508-4bbe-8eff-d706fdad1d6f/rotations/west.png?t=1789365947"
+      }
+    }
+  ]
+}

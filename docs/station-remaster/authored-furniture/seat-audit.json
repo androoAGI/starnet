@@ -1,0 +1,514 @@
+[
+  {
+    "id": "dinerchair",
+    "fit": {
+      "x": 2.5966484801247076,
+      "y": -4,
+      "width": 7.806703039750585,
+      "height": 16
+    },
+    "inheritedBodyAnchors": [
+      {
+        "x": 6,
+        "y": 11,
+        "face": "south",
+        "lift": 0
+      }
+    ],
+    "authoredRegions": {
+      "seatSupport": [
+        [
+          3.4944,
+          1.84
+        ],
+        [
+          9.5446,
+          1.84
+        ],
+        [
+          9.8569,
+          5.904
+        ],
+        [
+          3.1041,
+          5.904
+        ]
+      ],
+      "nearSupportEdge": [
+        [
+          3.1041,
+          5.904
+        ],
+        [
+          9.8569,
+          5.904
+        ]
+      ],
+      "backRest": [
+        [
+          3.3773,
+          -3.6
+        ],
+        [
+          9.5446,
+          -3.6
+        ],
+        [
+          9.5446,
+          0.4
+        ],
+        [
+          3.3773,
+          0.4
+        ]
+      ]
+    },
+    "fixture": "Actual SPRITES.drawBody. New foreground masks shown for inspection; not a production seat fix."
+  },
+  {
+    "id": "podchair",
+    "fit": {
+      "x": 1,
+      "y": -3.1450892857142865,
+      "width": 10,
+      "height": 15.145089285714286
+    },
+    "inheritedBodyAnchors": [
+      {
+        "x": 6,
+        "y": 11,
+        "face": "south",
+        "lift": 0
+      }
+    ],
+    "authoredRegions": {
+      "seatSupport": [
+        [
+          4,
+          3.5187
+        ],
+        [
+          7.9,
+          3.5187
+        ],
+        [
+          9,
+          5.1847
+        ],
+        [
+          3,
+          5.1847
+        ]
+      ],
+      "nearSupportEdge": [
+        [
+          3,
+          5.1847
+        ],
+        [
+          9,
+          5.1847
+        ]
+      ],
+      "nearRimOcclusion": [
+        [
+          2.6,
+          6.2449
+        ],
+        [
+          9.4,
+          6.2449
+        ],
+        [
+          9.2,
+          8.5166
+        ],
+        [
+          2.8,
+          8.5166
+        ]
+      ]
+    },
+    "fixture": "Actual SPRITES.drawBody. New foreground masks shown for inspection; not a production seat fix."
+  },
+  {
+    "id": "recliner",
+    "fit": {
+      "x": -3,
+      "y": -5.455216989843027,
+      "width": 17,
+      "height": 17.455216989843027
+    },
+    "inheritedBodyAnchors": [
+      {
+        "x": 4,
+        "y": 10,
+        "face": "west",
+        "lift": 2
+      }
+    ],
+    "authoredRegions": {
+      "seatSupport": [
+        [
+          -1.181,
+          3.5866
+        ],
+        [
+          7.268,
+          3.5866
+        ],
+        [
+          7.54,
+          4.5815
+        ],
+        [
+          -1.657,
+          4.5815
+        ]
+      ],
+      "nearArmOcclusion": [
+        [
+          -2.915,
+          4.7386
+        ],
+        [
+          10.566,
+          4.7386
+        ],
+        [
+          10.787,
+          10.5861
+        ],
+        [
+          -2.575,
+          10.5861
+        ]
+      ],
+      "nearArmCrown": [
+        [
+          -2.405,
+          4.7386
+        ],
+        [
+          10.566,
+          4.7386
+        ],
+        [
+          10.566,
+          5.7161
+        ],
+        [
+          -2.915,
+          5.7161
+        ]
+      ]
+    },
+    "fixture": "Actual SPRITES.drawBody. New foreground masks shown for inspection; not a production seat fix."
+  },
+  {
+    "id": "recliner_r",
+    "fit": {
+      "x": -2,
+      "y": -5.389908256880734,
+      "width": 17,
+      "height": 17.389908256880734
+    },
+    "inheritedBodyAnchors": [
+      {
+        "x": 8,
+        "y": 10,
+        "face": "east",
+        "lift": 2
+      }
+    ],
+    "authoredRegions": {
+      "seatSupport": [
+        [
+          5.004,
+          3.5659
+        ],
+        [
+          13.708,
+          3.5659
+        ],
+        [
+          14.082,
+          4.6093
+        ],
+        [
+          4.647,
+          4.6093
+        ]
+      ],
+      "nearArmOcclusion": [
+        [
+          1.4,
+          4.6962
+        ],
+        [
+          14.83,
+          4.6962
+        ],
+        [
+          14.83,
+          10.6088
+        ],
+        [
+          1.74,
+          10.6088
+        ]
+      ],
+      "nearArmCrown": [
+        [
+          1.91,
+          4.6962
+        ],
+        [
+          14.49,
+          4.6962
+        ],
+        [
+          14.83,
+          5.7918
+        ],
+        [
+          1.4,
+          5.7918
+        ]
+      ]
+    },
+    "fixture": "Actual SPRITES.drawBody. New foreground masks shown for inspection; not a production seat fix."
+  },
+  {
+    "id": "booth",
+    "fit": {
+      "x": 0,
+      "y": 1.5517241379310338,
+      "width": 24,
+      "height": 10.448275862068966
+    },
+    "inheritedBodyAnchors": [
+      {
+        "x": 6,
+        "y": 10,
+        "face": "south",
+        "lift": 0
+      },
+      {
+        "x": 18,
+        "y": 10,
+        "face": "south",
+        "lift": 0
+      }
+    ],
+    "authoredRegions": {
+      "backOcclusion": [
+        [
+          1.44,
+          1.9174
+        ],
+        [
+          22.56,
+          1.9174
+        ],
+        [
+          22.56,
+          10.2238
+        ],
+        [
+          1.44,
+          10.2238
+        ]
+      ]
+    },
+    "fixture": "Actual SPRITES.drawBody. New foreground masks shown for inspection; not a production seat fix."
+  },
+  {
+    "id": "booth-r1",
+    "fit": {
+      "x": 0.7130902570233113,
+      "y": -5.0000000000000036,
+      "width": 10.573819485953377,
+      "height": 29.000000000000004
+    },
+    "inheritedBodyAnchors": [
+      {
+        "x": 6,
+        "y": 22,
+        "face": "west",
+        "lift": 0
+      }
+    ],
+    "authoredRegions": {
+      "seatSupport": [
+        [
+          [
+            2.3732,
+            2.018
+          ],
+          [
+            6.3807,
+            2.018
+          ],
+          [
+            6.6873,
+            7.731
+          ],
+          [
+            2.0877,
+            7.731
+          ]
+        ],
+        [
+          [
+            1.6013,
+            8.601
+          ],
+          [
+            6.6344,
+            8.601
+          ],
+          [
+            7.0574,
+            15.532
+          ],
+          [
+            1.3792,
+            15.532
+          ]
+        ]
+      ],
+      "backOcclusion": [
+        [
+          7.3746,
+          -4.42
+        ],
+        [
+          9.1721,
+          -4.42
+        ],
+        [
+          10.864,
+          10.08
+        ],
+        [
+          7.7975,
+          15.3
+        ]
+      ],
+      "nearArmOcclusion": [
+        [
+          0.9774,
+          16.199
+        ],
+        [
+          11.1812,
+          16.199
+        ],
+        [
+          11.1812,
+          21.97
+        ],
+        [
+          0.9774,
+          21.97
+        ]
+      ]
+    },
+    "fixture": "Actual SPRITES.drawBody. New foreground masks shown for inspection; not a production seat fix."
+  },
+  {
+    "id": "booth-r3",
+    "fit": {
+      "x": 0.24113475177304977,
+      "y": -5,
+      "width": 11.5177304964539,
+      "height": 29
+    },
+    "inheritedBodyAnchors": [
+      {
+        "x": 6,
+        "y": 22,
+        "face": "east",
+        "lift": 0
+      }
+    ],
+    "authoredRegions": {
+      "seatSupport": [
+        [
+          [
+            5.8848,
+            1.67
+          ],
+          [
+            9.6857,
+            1.67
+          ],
+          [
+            9.916,
+            6.977
+          ],
+          [
+            5.6545,
+            6.977
+          ]
+        ],
+        [
+          [
+            5.5163,
+            7.905
+          ],
+          [
+            9.916,
+            7.905
+          ],
+          [
+            10.3537,
+            15.3
+          ],
+          [
+            5.1362,
+            15.3
+          ]
+        ]
+      ],
+      "backOcclusion": [
+        [
+          3.1206,
+          -4.13
+        ],
+        [
+          5.4241,
+          -4.13
+        ],
+        [
+          5.1362,
+          15.3
+        ],
+        [
+          1.6233,
+          10.66
+        ]
+      ],
+      "nearArmOcclusion": [
+        [
+          0.5291,
+          15.735
+        ],
+        [
+          11.6437,
+          15.735
+        ],
+        [
+          11.6437,
+          21.883
+        ],
+        [
+          0.5291,
+          21.883
+        ]
+      ]
+    },
+    "fixture": "Actual SPRITES.drawBody. New foreground masks shown for inspection; not a production seat fix."
+  }
+]

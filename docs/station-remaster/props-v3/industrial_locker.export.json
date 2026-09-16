@@ -1,0 +1,15 @@
+{
+  "id": "industrial_locker",
+  "source": "C:\\Users\\andro\\.codex\\generated_images\\01a0976c-e264-7f13-a581-78c904716b14\\exec-4276637e-7a1a-4618-984e-e420ff3abee3.png",
+  "sourceWidth": 1392,
+  "sourceHeight": 1130,
+  "crop": {
+    "left": 128,
+    "top": 8,
+    "width": 1135,
+    "height": 1069
+  },
+  "sourceAlpha": false,
+  "subjectRgbChanges": 0,
+  "output": "frontend/assets/industrial/props-v3/industrial_locker.png"
+}

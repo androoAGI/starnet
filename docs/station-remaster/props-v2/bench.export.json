@@ -1,0 +1,15 @@
+{
+  "id": "bench",
+  "source": "C:\\Users\\andro\\.codex\\generated_images\\01a09c6d-7ce8-7071-b2c5-8b947d23d158\\exec-79593aca-90d4-476a-ae67-6ad465df49f2.png",
+  "sourceWidth": 1809,
+  "sourceHeight": 869,
+  "crop": {
+    "left": 26,
+    "top": 22,
+    "width": 1751,
+    "height": 800
+  },
+  "sourceAlpha": false,
+  "subjectRgbChanges": 0,
+  "output": "frontend/assets/industrial/props-v2/bench.png"
+}

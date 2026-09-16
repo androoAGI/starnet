@@ -1,0 +1,5 @@
+'use strict';
+const fs=require('node:fs'),sharp=require('sharp');
+const root='frontend/assets/industrial/scale-calibration/';
+const inputs=[['couch','coordinator/couch.png',{w:5,h:1},{x:-1,y:-12,width:62,height:24}],['bookshelf','storage/bookshelf.png',{w:2,h:1},{x:-1,y:-10,width:26,height:22}],['coffee','utility/coffee.png',{w:1,h:1},{x:-1,y:-6,width:13,height:18}],['monstera','utility/monstera.png',{w:1,h:1},{x:0,y:-1,width:12,height:13}]];
+(async()=>{const props={};for(const[id,file,footprint,bounds]of inputs){if(!fs.existsSync(root+file))continue;const m=await sharp(root+file).metadata();fs.copyFileSync(root+file,root+id+'.png');props[id]={views:{s:{image:id+'.png',sourceWidth:m.width,sourceHeight:m.height,footprint,bounds,exposure:1,mode:id==='coffee'?'steam':'static',...(id==='coffee'?{motion:{origin:[.493,.668],rise:2.4,trigger:'work'}}:{})}}};}fs.writeFileSync(root+'manifest.json',JSON.stringify({version:1,scope:'Opt-in final-size calibration. Not normal catalog promotion.',props},null,2)+'\n');console.log(JSON.stringify({ids:Object.keys(props)}));})();

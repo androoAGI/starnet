@@ -1,0 +1,15 @@
+{
+  "id": "whiteboard",
+  "source": "C:\\Users\\andro\\.codex\\generated_images\\01a0976c-e264-7f13-a581-78c904716b14\\exec-657efead-280a-4ded-9639-4e49174a7334.png",
+  "sourceWidth": 1849,
+  "sourceHeight": 851,
+  "crop": {
+    "left": 11,
+    "top": 22,
+    "width": 1827,
+    "height": 812
+  },
+  "sourceAlpha": false,
+  "subjectRgbChanges": 0,
+  "output": "frontend/assets/industrial/props-v2/whiteboard.png"
+}

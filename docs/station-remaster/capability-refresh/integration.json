@@ -1,0 +1,219 @@
+{
+  "records": [
+    {
+      "id": "war_intelcab",
+      "view": "s",
+      "source": "frontend/assets/industrial/capability-refresh/sources/war_intelcab.png",
+      "before": "frontend/assets/industrial/capability-refresh/before/war_intelcab.png",
+      "sourceSha256": "44fcd73c346d6fb6e07c6f7b6cf72176ad953fb9dc27379d06e89513156442d4",
+      "repoPath": "frontend/assets/industrial/capability-refresh/war_intelcab.png",
+      "outputSha256": "5ece3625250ca91050d5e95e972da063ca075ab468de8551d82e59cdd74e7c1c",
+      "sourceCrop": {
+        "left": 49,
+        "top": 63,
+        "width": 862,
+        "height": 1494
+      },
+      "sourceWidth": 862,
+      "sourceHeight": 1494,
+      "footprint": {
+        "w": 1,
+        "h": 2
+      },
+      "bounds": {
+        "x": 0,
+        "y": -7,
+        "width": 17,
+        "height": 31
+      },
+      "exposure": 1,
+      "contact": {
+        "x": 0.5,
+        "y": 0.999330655957162
+      },
+      "retained": 1199820,
+      "verification": {
+        "genuineAlpha": true,
+        "rgbaMismatches": 0,
+        "worldSize": [
+          17,
+          29.46
+        ],
+        "pixelsPerWorldPixel": 50.71
+      },
+      "status": "generated redesign; live review pending"
+    },
+    {
+      "id": "comms_dish",
+      "view": "s",
+      "source": "frontend/assets/industrial/capability-refresh/sources/comms_dish.png",
+      "before": "frontend/assets/industrial/capability-refresh/before/comms_dish.png",
+      "sourceSha256": "b6ed97a76eb450ec536c9b528c7bb444e5aa9b9e79de89dd82b51da42aef0aac",
+      "repoPath": "frontend/assets/industrial/capability-refresh/comms_dish.png",
+      "outputSha256": "e4ccdf1af872eab1b35d72c783ba0db13961047b61f059c5085f7a27ac741dca",
+      "sourceCrop": {
+        "left": 16,
+        "top": 16,
+        "width": 1137,
+        "height": 1287
+      },
+      "sourceWidth": 1137,
+      "sourceHeight": 1287,
+      "footprint": {
+        "w": 2,
+        "h": 2
+      },
+      "bounds": {
+        "x": 2,
+        "y": 1,
+        "width": 20,
+        "height": 23
+      },
+      "exposure": 1,
+      "contact": {
+        "x": 0.5,
+        "y": 0.9992229992229992
+      },
+      "retained": 1129224,
+      "verification": {
+        "genuineAlpha": true,
+        "rgbaMismatches": 0,
+        "worldSize": [
+          20,
+          22.64
+        ],
+        "pixelsPerWorldPixel": 56.85
+      },
+      "status": "generated redesign; live review pending"
+    },
+    {
+      "id": "workbench",
+      "view": "s",
+      "source": "frontend/assets/industrial/capability-refresh/sources/workbench.png",
+      "before": "frontend/assets/industrial/capability-refresh/before/workbench.png",
+      "sourceSha256": "2559929601ee5075b5a56c8ee1de790ca87edc7126554a224e08830fdcb9ab54",
+      "repoPath": "frontend/assets/industrial/capability-refresh/workbench.png",
+      "outputSha256": "f3f6bc0c15477fe04d9e04e53303b31a4d6b8220a83f34f8b115b8a99eb2725e",
+      "sourceCrop": {
+        "left": 6,
+        "top": 2,
+        "width": 1455,
+        "height": 1064
+      },
+      "sourceWidth": 1455,
+      "sourceHeight": 1064,
+      "footprint": {
+        "w": 2,
+        "h": 1
+      },
+      "bounds": {
+        "x": -1,
+        "y": -15,
+        "width": 30,
+        "height": 27
+      },
+      "exposure": 1,
+      "contact": {
+        "x": 0.5,
+        "y": 0.9990601503759399
+      },
+      "retained": 1181454,
+      "verification": {
+        "genuineAlpha": true,
+        "rgbaMismatches": 0,
+        "worldSize": [
+          30,
+          21.94
+        ],
+        "pixelsPerWorldPixel": 48.5
+      },
+      "status": "generated redesign; live review pending"
+    },
+    {
+      "id": "gigs_servercart",
+      "view": "s",
+      "source": "frontend/assets/industrial/capability-refresh/sources/gigs_servercart.png",
+      "before": "frontend/assets/industrial/capability-refresh/before/gigs_servercart.png",
+      "sourceSha256": "67324c7c8f00e5c6a4ffd5d5709879b7070d636cbfcf50e78ebc6f71f70ce70a",
+      "repoPath": "frontend/assets/industrial/capability-refresh/gigs_servercart.png",
+      "outputSha256": "d5763f94dcb25a1a65bdbff978f7435d8a2b020341e60acb887c584b7d94499e",
+      "sourceCrop": {
+        "left": 114,
+        "top": 45,
+        "width": 952,
+        "height": 1238
+      },
+      "sourceWidth": 952,
+      "sourceHeight": 1238,
+      "footprint": {
+        "w": 1,
+        "h": 1
+      },
+      "bounds": {
+        "x": 1,
+        "y": -6,
+        "width": 16,
+        "height": 18
+      },
+      "exposure": 1,
+      "contact": {
+        "x": 0.5,
+        "y": 0.9991922455573505
+      },
+      "retained": 979575,
+      "verification": {
+        "genuineAlpha": true,
+        "rgbaMismatches": 0,
+        "worldSize": [
+          13.84,
+          18
+        ],
+        "pixelsPerWorldPixel": 68.78
+      },
+      "status": "generated redesign; live review pending"
+    },
+    {
+      "id": "studio",
+      "view": "s",
+      "source": "frontend/assets/industrial/capability-refresh/sources/studio.png",
+      "before": "frontend/assets/industrial/capability-refresh/before/studio.png",
+      "sourceSha256": "2e4dc2b2a50b5a8787c130d0e2b861568d616db1b2d6d873adab7d0f0ffd8bc4",
+      "repoPath": "frontend/assets/industrial/capability-refresh/studio.png",
+      "outputSha256": "9d714253aed17e6e90bc97796bbc084f09c8b2a561a14932a71166f9798cc9eb",
+      "sourceCrop": {
+        "left": 24,
+        "top": 114,
+        "width": 1296,
+        "height": 958
+      },
+      "sourceWidth": 1296,
+      "sourceHeight": 958,
+      "footprint": {
+        "w": 2,
+        "h": 2
+      },
+      "bounds": {
+        "x": 0,
+        "y": -6,
+        "width": 29,
+        "height": 30
+      },
+      "exposure": 1,
+      "contact": {
+        "x": 0.5,
+        "y": 0.9989561586638831
+      },
+      "retained": 1092180,
+      "verification": {
+        "genuineAlpha": true,
+        "rgbaMismatches": 0,
+        "worldSize": [
+          29,
+          21.44
+        ],
+        "pixelsPerWorldPixel": 44.69
+      },
+      "status": "generated redesign; live review pending"
+    }
+  ]
+}

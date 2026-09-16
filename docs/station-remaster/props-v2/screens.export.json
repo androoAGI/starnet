@@ -1,0 +1,15 @@
+{
+  "id": "screens",
+  "source": "C:\\Users\\andro\\.codex\\generated_images\\01a0976c-e264-7f13-a581-78c904716b14\\exec-3ccfb2ba-9771-4c8d-8787-e12ebd452425.png",
+  "sourceWidth": 1231,
+  "sourceHeight": 1278,
+  "crop": {
+    "left": 38,
+    "top": 38,
+    "width": 1155,
+    "height": 1172
+  },
+  "sourceAlpha": true,
+  "subjectRgbChanges": 0,
+  "output": "frontend/assets/industrial/props-v2/screens.png"
+}

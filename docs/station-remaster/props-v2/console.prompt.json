@@ -1,0 +1,10 @@
+{
+  "tool": "built-in image_gen",
+  "prompt": "Use case: style-transfer. Production game prop sprite remaster for StarNet. Image1 is the EXACT original structure and projection guide; preserve silhouette, geometry, camera and relative sizes. Image2 approved crate is the MATERIAL AND DETAIL STANDARD. Image3 approved station is context only. Subject: a compact single operator console. Broad black blank screen at upper left, small dark status panel upper right, sloped keyboard in middle, open knee space below, four short feet. Same outline and placement of all major parts as first image. Replace coarse pixel blocks with the same cool worn charcoal steel, restrained edge wear, broad readable panels and recessed seams as approved crate. Do not embellish the silhouette. The sprite will be only 28-40 world pixels wide: keep few large readable features, no tiny busy greebles. Fixed orthographic high overhead oblique view from directly south; horizontal edges stay exactly horizontal, no visible left/right side yaw, no isometric diamond, no perspective convergence. Match the first image's top/front depth proportions precisely. Dark unlit glass for runtime animation. No room, floor, drop shadow, text or labels. One isolated prop only, centered, narrow even margin on a truly transparent alpha background, not a checkerboard.",
+  "source": "C:\\Users\\andro\\.codex\\generated_images\\01a0976c-e264-7f13-a581-78c904716b14\\exec-f13db44d-c99f-4d83-87b0-b65db2b72782.png",
+  "referenceGuide": "dev/.scratch-workspace/prop-structure/console.png",
+  "styleReferences": [
+    "frontend/assets/industrial/calibration/crate.png",
+    "docs/station-remaster/bridge-reference.png"
+  ]
+}

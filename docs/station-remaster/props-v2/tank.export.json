@@ -1,0 +1,15 @@
+{
+  "id": "tank",
+  "source": "C:\\Users\\andro\\.codex\\generated_images\\01a0976c-e264-7f13-a581-78c904716b14\\exec-c6151b0f-8596-4c8e-9602-3c54165a3534.png",
+  "sourceWidth": 1330,
+  "sourceHeight": 1182,
+  "crop": {
+    "left": 15,
+    "top": 24,
+    "width": 1300,
+    "height": 1104
+  },
+  "sourceAlpha": false,
+  "subjectRgbChanges": 0,
+  "output": "frontend/assets/industrial/props-v2/tank.png"
+}

@@ -1,0 +1,14 @@
+{
+  "generator": "built-in image_gen",
+  "attempts": [
+    {
+      "id": "treasury_token_furnace",
+      "prompt": "PRECISE STRUCTURE-PRESERVING SPRITE REMASTER. Image1 is exact native structure/camera; Image2 approvedcrate material/style; Image3 station atmosphere only. Refine image1 into finished art without moving its major shapes. Same cool charcoal steel, broad readable plates, restrained scuffing and paleedge catches as crate. Keep object-specific natural materials/colors. No fancy additional armor/greebles/golddecoration; no cartoon simplification.\n\nCRITICAL: exact silhouette envelope WIDTH:HEIGHT stated below. Copy nativeguide tightcrop, objectreaches all4edges within1% each, no large top/bottom margins. Emptygaps andcutcorners transparent. Preserve dominanttop/front planeheights fromguide, internalcomponentpositions and originalphysical identity. Parallel front-on overheadoblique camera: horizontaledges horizontal, verticalsvertical, NOisometricyaw or sideperspective. Allscreens dark/off fornativeanimation; no syntheticglow/effects. TrueRGBA transparentbackground; no paintedchecker/floor/shadow/text.\n\nSUBJECT: TOKEN FURNACE: tall heavycastironbody witha shortflue onrightcrown andsmalltokenhopper leftcrown. Largefrontfirebox mouth behindfourhorizontalgratebars, solidnarrowdoor leaf ajarleft withhandle; bottomcoinchute andsmallbrass plinthband. Native14×31 envelope, ratio0.45161. Fireboxinterior dormantdarkoliveblack, no bakedflames/glow; runtimewillanimate. Preserve recognizablesquat furnacecolumn, noextramonitors.",
+      "references": [
+        "C:/Users/andro/gen-trees/prop-remaster-art-a-0913/dev/.scratch-workspace/prop-structure/treasury_token_furnace.png",
+        "C:/Users/andro/gen-trees/prop-remaster-art-a-0913/frontend/assets/industrial/calibration/crate.png",
+        "C:/Users/andro/gen-trees/prop-remaster-art-a-0913/docs/station-remaster/bridge-reference.png"
+      ]
+    }
+  ]
+}

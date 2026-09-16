@@ -28,7 +28,7 @@ DATA.SKINS = {
   robot:      { name: 'Robot',      set: 'robot',      scale: 0.385 },
   vaultboy:   { name: 'Vault Boy',  set: 'vaultboy',   scale: 0.376 },
   blank:       { name: 'Cadet',       set: 'blank',       scale: 0.385 },
-  station_minion: { name: 'Station Minion', set: 'station_minion', scale: 0.385 },
+  station_minion: { name: 'Clean Cadet', set: 'station_minion', scale: 0.385 },
   blank_blue:  { name: 'Blank Blue',  set: 'blank_blue',  scale: 0.385 },
   blank_green: { name: 'Blank Green', set: 'blank_green', scale: 0.385 },
   blank_red:   { name: 'Blank Red',   set: 'blank_red',   scale: 0.385 },

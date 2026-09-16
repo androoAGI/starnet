@@ -1,0 +1,23 @@
+{
+  "version": 1,
+  "inspected": [
+    "complete generated originals",
+    "fit-qa.png at4x world scale"
+  ],
+  "checks": "8/8 >=90% native envelope dimensions, retained RGBA unchanged, genuine alpha, source core not cut.",
+  "facing": {
+    "benchpress": "Head/rack left, pad extends right",
+    "benchpress_r": "Head/rack right, pad extends left",
+    "punchbag": "Mast right, bag left",
+    "punchbag_r": "Mast left, bag right",
+    "weaponrack": "Barrels left, woodstocks right",
+    "weaponrack_r": "Barrels right, woodstocks left"
+  },
+  "integrationRequirements": [
+    "Weapon racks are WALL mounted; contact.x/y describes bottom of exported frame, not floor. Native body bottom y6; footprint is nonblocking.",
+    "Retarget punchbag chain/pivot to new source if runtime swing enabled.",
+    "Benchpress seat/support and lifting motion require in-room anchor check.",
+    "Pinball playfield content and machine controls need runtime effects retargeting."
+  ],
+  "liveAccepted": false
+}

@@ -1,0 +1,14 @@
+{
+  "generator": "built-in image_gen",
+  "attempts": [
+    {
+      "id": "industrial_supplycart",
+      "prompt": "PRECISE STRUCTURE-PRESERVING SPRITE REMASTER. Image1 is exact native structure/camera; Image2 approvedcrate material/style; Image3 station atmosphere only. Refine image1 into finished art without moving its major shapes. Same cool charcoal steel, broad readable plates, restrained scuffing and paleedge catches as crate. Keep object-specific natural materials/colors. No fancy additional armor/greebles/golddecoration; no cartoon simplification.\n\nCRITICAL: exact silhouette envelope WIDTH:HEIGHT stated below. Copy nativeguide tightcrop, objectreaches all4edges within1% each, no large top/bottom margins. Emptygaps andcutcorners transparent. Preserve dominanttop/front planeheights fromguide, internalcomponentpositions and originalphysical identity. Parallel front-on overheadoblique camera: horizontaledges horizontal, verticalsvertical, NOisometricyaw or sideperspective. Allscreens dark/off fornativeanimation; no syntheticglow/effects. TrueRGBA transparentbackground; no paintedchecker/floor/shadow/text.\n\nSUBJECT: SUPPLY TROLLEY: compacttwo-tieropen utilitycart. Twoflatshallowmetaltrays stacked, tinycastorsandthinverticalframe. One smallbox atupperlefttray, one flat brown packetupperright; narrow pushhandle rises onrightshoulder. Native22×23envelope ratio0.95652, near-square. Clear transparentgap between trays, nofilledcabinetfaces oradded largefrontdrawers. Exact guidecomponent positions.",
+      "references": [
+        "C:/Users/andro/gen-trees/prop-remaster-art-a-0913/dev/.scratch-workspace/prop-structure/industrial_supplycart.png",
+        "C:/Users/andro/gen-trees/prop-remaster-art-a-0913/frontend/assets/industrial/calibration/crate.png",
+        "C:/Users/andro/gen-trees/prop-remaster-art-a-0913/docs/station-remaster/bridge-reference.png"
+      ]
+    }
+  ]
+}

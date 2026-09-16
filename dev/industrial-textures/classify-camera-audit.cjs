@@ -1,0 +1,30 @@
+'use strict';
+const fs=require('node:fs');
+const m=JSON.parse(fs.readFileSync('frontend/assets/industrial/projection-correction/manifest.json'));
+const notes={};
+function flag(ids,reason,status='rebuild'){for(const id of ids.split(' '))notes[id]={status,reason};}
+flag('industrial_roundtable holotable pokertable','Exposed pedestal/front mass is large relative to top plane; raise camera and shorten the visible underside.');
+flag('bench djbooth sidetable lowtable glasstable dinertable loungetable','Table family: long visible legs/front apron and shallow top disagree with the corrected table. Re-author top depth and surface mounting together.');
+flag('longtable:e','East view still uses the previous table camera; match the corrected south view without stretching or rotating its raster.');
+flag('pixelrig','Near-frontal instrument panel and shallow control shelf; compare/rebuild against the accepted desk camera.');
+flag('bar','Countertop is a thin strip above a tall front panel. Raise camera while preserving wall mounting and stool clearance.');
+flag('stool','Large visible pedestal/underside relative to seat; compress the projected stem and compare with accepted chair.');
+flag('industrial_bench booth:s','Front-facing backrest dominates; expose more seat plane from the station camera.');
+flag('podchair','Seat opening and shell retain a low product-view camera across facings; rebuild as one coherent facing set.');
+flag('dinerchair:w dinerchair:e','Side views are nearly straight profiles; seat depth should agree with the elevated south/north views.');
+flag('camerarig camerarig_r','Tripod is a flat frontal triangle with little separation in depth; use an elevated three-foot stance.');
+flag('boxes','Carton front faces dominate and stacked boxes use perspective convergence; match the approved crate projection.');
+flag('couch','Single south-facing image is used below the TV; a genuine north-facing back view is needed for that placement. Do not mirror vertically.','facing-gap');
+flag('plant tallplant monstera','Inspect foliage and pot contact beside crew at native size; irregular silhouettes prevent a confident camera judgment from a contact sheet.','room-check');
+flag('research_papers','Confirm intended mount/ground plane in a room: papers currently read as upright presentation cards.','room-check');
+flag('desk:w desk:n desk:e desk2','Compare additional views against the accepted desk camera as a facing set at native scale before declaring them matched.','room-check');
+const fixed=new Set(['workbench:s','longtable:s','bridge_tacticaltable:s','toolbox:s']);
+const accepted=new Set(['crate:s','desk:s','chair:s','tv:s','arcade:s','arcade2:s','quarters_pooltable:s']);
+const records=Object.entries(m.props).flatMap(([id,p])=>Object.entries(p.views).map(([view,s])=>{
+ const key=id+':'+view,n=notes[key]||notes[id];
+ return {id,view,image:s.image,footprint:s.footprint,bounds:s.bounds,status:fixed.has(key)?'corrected-candidate':accepted.has(key)?'preserve-accepted':n?.status||'source-check',reason:fixed.has(key)?'Generated camera correction integrated and inspected in Kepler; owner acceptance pending.':['desk:s','crate:s','chair:s'].includes(key)?'Owner-accepted design/camera; low-resolution extraction restored after the September 15 blur report. Sharpness candidate requires owner comparison.':accepted.has(key)?'Owner-accepted anchor/view. Preserve.':n?.reason||'No obvious camera conflict in source inspection. This is not an in-room or owner approval.'};
+}));
+const counts={};for(const r of records)counts[r.status]=(counts[r.status]||0)+1;
+fs.writeFileSync('docs/station-remaster/camera-audit/audit.json',JSON.stringify({date:'2026-09-15',method:'Visual inspection of eight labeled source contact sheets, 184 exported views; four corrected views also inspected in Kepler. Geometry/placement checks are separate.',counts,records},null,2)+'\n');
+console.log(counts);
+fs.copyFileSync('docs/station-remaster/camera-audit/audit.json','frontend/assets/industrial/camera-audit/audit.json');

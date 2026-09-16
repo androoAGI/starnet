@@ -1,0 +1,183 @@
+{
+  "id": "booth",
+  "nativeId": "booth",
+  "view": "s",
+  "footprint": {
+    "w": 2,
+    "h": 1
+  },
+  "bounds": {
+    "x": 0,
+    "y": -7,
+    "width": 24,
+    "height": 19
+  },
+  "geometry": {
+    "blocks": true,
+    "flat": false,
+    "tableSurface": false,
+    "requiredMount": null,
+    "optionalSurfaceMount": false,
+    "surfaceRisePixels": 8
+  },
+  "orientation": {
+    "facings": [
+      {
+        "r": 0,
+        "front": "south",
+        "w": 2,
+        "h": 1,
+        "type": "authored-view"
+      },
+      {
+        "r": 1,
+        "front": "west",
+        "w": 1,
+        "h": 2,
+        "type": "mirrored-authored-view"
+      },
+      {
+        "r": 3,
+        "front": "east",
+        "w": 1,
+        "h": 2,
+        "type": "authored-view"
+      }
+    ],
+    "canMirror": true,
+    "classicFacings": [
+      0,
+      1,
+      3
+    ]
+  },
+  "anchorContract": "planCouchSit: actual cushion claims despite generic sit:false; body foot is cushion front at bottom minus 2 px; wide sofa reserves arms and y-sorts sofa back in front. Turned booth seating must be rechecked before promising all angles.",
+  "sourceAnimation": {
+    "idleFrameVariants": 1,
+    "workFrameVariants": 1,
+    "respondsToWorkFlag": false,
+    "opaqueBoundsRelativeToFootprint": {
+      "x": 0,
+      "y": -7,
+      "w": 24,
+      "h": 19,
+      "alphaThreshold": 160
+    }
+  },
+  "tilePixels": 12,
+  "floorContact": {
+    "x": 12,
+    "y": 12
+  },
+  "visualBottomContact": {
+    "x": 12,
+    "y": 12
+  },
+  "status": "art-draft-integration-pending",
+  "backgroundThreshold": 235,
+  "holeSeeds": [],
+  "seatGeometryNote": "Seat support is hidden behind rear backrest. Preserve native claims at world (6,10) and (18,10); backOcclusion polygon is visible back surface, not seat.",
+  "sourceWidth": 1448,
+  "sourceHeight": 1086,
+  "sourceSha256": "e5072bd96a468af709e2c2667952bb65737bcecd2298627241f8afd38ac05acb",
+  "output": "frontend/assets/industrial/batch03/crew/booth.png",
+  "crop": {
+    "left": 28,
+    "top": 244,
+    "width": 1392,
+    "height": 606
+  },
+  "transparentPixels": 118222,
+  "opaquePixels": 725330,
+  "partialPixels": 0,
+  "backgroundPixelsRemoved": 847198,
+  "subjectRgbChanges": 0,
+  "outputSha256": "8628b934e7c02c2558ad97346f8cf2599ee21be15083e29ea978599c47c6b274",
+  "liveIntegrated": false,
+  "authoredGeometry": {
+    "method": "Manual visual annotation of painted source geometry; approximate edges, not live validated. Normalized coordinates refer to final tight alpha crop, not full original canvas.",
+    "fitWorldPixels": {
+      "x": 0.0,
+      "y": 1.5517241379310338,
+      "width": 24.0,
+      "height": 10.448275862068966,
+      "bottom": 12.0
+    },
+    "regions": {
+      "backOcclusion": {
+        "cropNormalized": [
+          [
+            0.06,
+            0.035
+          ],
+          [
+            0.94,
+            0.035
+          ],
+          [
+            0.94,
+            0.83
+          ],
+          [
+            0.06,
+            0.83
+          ]
+        ],
+        "sourcePixels": [
+          [
+            111.52,
+            265.21
+          ],
+          [
+            1336.48,
+            265.21
+          ],
+          [
+            1336.48,
+            746.98
+          ],
+          [
+            111.52,
+            746.98
+          ]
+        ],
+        "sourceNormalized": [
+          [
+            0.077017,
+            0.244208
+          ],
+          [
+            0.922983,
+            0.244208
+          ],
+          [
+            0.922983,
+            0.687827
+          ],
+          [
+            0.077017,
+            0.687827
+          ]
+        ],
+        "worldPixels": [
+          [
+            1.44,
+            1.9174
+          ],
+          [
+            22.56,
+            1.9174
+          ],
+          [
+            22.56,
+            10.2238
+          ],
+          [
+            1.44,
+            10.2238
+          ]
+        ]
+      }
+    }
+  }
+}

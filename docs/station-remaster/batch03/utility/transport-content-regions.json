@@ -1,0 +1,511 @@
+{
+  "coordinateSpace": "Normalized original full source canvas [x,y,w,h] or point [x,y]. Estimates for owner placement/motion integration, not tested runtime masks. No bitmap rotation. Actual harness route configuration remains authority.",
+  "props": {
+    "intake": {
+      "ports": [
+        {
+          "name": "east output",
+          "edge": "E",
+          "point": [
+            0.975,
+            0.555
+          ]
+        }
+      ],
+      "emptyRegions": [
+        {
+          "name": "hopper interior",
+          "rect": [
+            0.16,
+            0.065,
+            0.46,
+            0.345
+          ]
+        },
+        {
+          "name": "east roller tongue",
+          "rect": [
+            0.705,
+            0.5,
+            0.27,
+            0.105
+          ]
+        }
+      ],
+      "motion": [
+        {
+          "name": "feed roller",
+          "rect": [
+            0.22,
+            0.59,
+            0.34,
+            0.09
+          ],
+          "behavior": "Only owner-triggered feed motion; never bake a parcel."
+        },
+        {
+          "name": "indicator",
+          "rect": [
+            0.65,
+            0.68,
+            0.045,
+            0.045
+          ],
+          "behavior": "Runtime state only."
+        }
+      ]
+    },
+    "bay": {
+      "ports": [
+        {
+          "name": "west connection",
+          "edge": "W",
+          "point": [
+            0.065,
+            0.51
+          ]
+        },
+        {
+          "name": "east connection",
+          "edge": "E",
+          "point": [
+            0.935,
+            0.51
+          ]
+        }
+      ],
+      "emptyRegions": [
+        {
+          "name": "central berth",
+          "rect": [
+            0.275,
+            0.34,
+            0.45,
+            0.33
+          ]
+        }
+      ],
+      "motion": [
+        {
+          "name": "nameplate",
+          "rect": [
+            0.304,
+            0.09,
+            0.393,
+            0.059
+          ],
+          "behavior": "Resolved live dock name and binding only; blank base."
+        },
+        {
+          "name": "west rollers",
+          "rect": [
+            0.09,
+            0.365,
+            0.15,
+            0.29
+          ],
+          "behavior": "Parcel transfer only."
+        },
+        {
+          "name": "east rollers",
+          "rect": [
+            0.76,
+            0.365,
+            0.14,
+            0.29
+          ],
+          "behavior": "Parcel transfer only."
+        }
+      ]
+    },
+    "merger": {
+      "ports": [
+        {
+          "name": "west upper in",
+          "edge": "W",
+          "point": [
+            0.04,
+            0.18
+          ]
+        },
+        {
+          "name": "west lower in",
+          "edge": "W",
+          "point": [
+            0.04,
+            0.72
+          ]
+        },
+        {
+          "name": "east out",
+          "edge": "E",
+          "point": [
+            0.96,
+            0.455
+          ]
+        }
+      ],
+      "emptyRegions": [
+        {
+          "name": "upper channel",
+          "polygon": [
+            [
+              0.04,
+              0.12
+            ],
+            [
+              0.3,
+              0.12
+            ],
+            [
+              0.45,
+              0.31
+            ],
+            [
+              0.68,
+              0.4
+            ],
+            [
+              0.96,
+              0.4
+            ],
+            [
+              0.96,
+              0.53
+            ],
+            [
+              0.64,
+              0.53
+            ],
+            [
+              0.34,
+              0.31
+            ],
+            [
+              0.04,
+              0.25
+            ]
+          ]
+        },
+        {
+          "name": "lower channel",
+          "polygon": [
+            [
+              0.04,
+              0.66
+            ],
+            [
+              0.3,
+              0.66
+            ],
+            [
+              0.45,
+              0.57
+            ],
+            [
+              0.65,
+              0.5
+            ],
+            [
+              0.7,
+              0.53
+            ],
+            [
+              0.4,
+              0.7
+            ],
+            [
+              0.3,
+              0.79
+            ],
+            [
+              0.04,
+              0.79
+            ]
+          ]
+        }
+      ],
+      "motion": [
+        {
+          "name": "all rollers",
+          "rect": [
+            0.03,
+            0.1,
+            0.94,
+            0.7
+          ],
+          "behavior": "Route work through; never combine jobs or show fictional merge."
+        }
+      ]
+    },
+    "splitter": {
+      "ports": [
+        {
+          "name": "west in",
+          "edge": "W",
+          "point": [
+            0.05,
+            0.47
+          ]
+        },
+        {
+          "name": "east upper out",
+          "edge": "E",
+          "point": [
+            0.95,
+            0.22
+          ]
+        },
+        {
+          "name": "east lower out",
+          "edge": "E",
+          "point": [
+            0.95,
+            0.71
+          ]
+        }
+      ],
+      "emptyRegions": [
+        {
+          "name": "open fork",
+          "polygon": [
+            [
+              0.05,
+              0.4
+            ],
+            [
+              0.47,
+              0.37
+            ],
+            [
+              0.7,
+              0.14
+            ],
+            [
+              0.95,
+              0.14
+            ],
+            [
+              0.95,
+              0.28
+            ],
+            [
+              0.75,
+              0.28
+            ],
+            [
+              0.59,
+              0.47
+            ],
+            [
+              0.76,
+              0.63
+            ],
+            [
+              0.95,
+              0.63
+            ],
+            [
+              0.95,
+              0.78
+            ],
+            [
+              0.68,
+              0.78
+            ],
+            [
+              0.47,
+              0.58
+            ],
+            [
+              0.05,
+              0.55
+            ]
+          ]
+        }
+      ],
+      "motion": [
+        {
+          "name": "deflector pivot",
+          "rect": [
+            0.52,
+            0.41,
+            0.09,
+            0.12
+          ],
+          "behavior": "Only actual chosen output/round robin state; neutral base."
+        },
+        {
+          "name": "side actuator",
+          "rect": [
+            0.5,
+            0.72,
+            0.14,
+            0.18
+          ],
+          "behavior": "Coordinate with actual switch motion."
+        }
+      ]
+    },
+    "joiner": {
+      "ports": [
+        {
+          "name": "west upper in",
+          "edge": "W",
+          "point": [
+            0.04,
+            0.24
+          ]
+        },
+        {
+          "name": "west lower in",
+          "edge": "W",
+          "point": [
+            0.04,
+            0.65
+          ]
+        },
+        {
+          "name": "east out",
+          "edge": "E",
+          "point": [
+            0.955,
+            0.45
+          ]
+        }
+      ],
+      "emptyRegions": [
+        {
+          "name": "upper holding tray",
+          "rect": [
+            0.27,
+            0.19,
+            0.18,
+            0.14
+          ]
+        },
+        {
+          "name": "lower holding tray",
+          "rect": [
+            0.27,
+            0.6,
+            0.18,
+            0.14
+          ]
+        },
+        {
+          "name": "merged output",
+          "rect": [
+            0.62,
+            0.4,
+            0.33,
+            0.12
+          ]
+        }
+      ],
+      "motion": [
+        {
+          "name": "upper stop socket",
+          "rect": [
+            0.546,
+            0.357,
+            0.04,
+            0.06
+          ],
+          "behavior": "Raise/lower pin only from real join hold state."
+        },
+        {
+          "name": "lower stop socket",
+          "rect": [
+            0.546,
+            0.487,
+            0.04,
+            0.06
+          ],
+          "behavior": "Raise/lower pin only from real join hold state."
+        },
+        {
+          "name": "latch actuator",
+          "rect": [
+            0.55,
+            0.69,
+            0.16,
+            0.11
+          ],
+          "behavior": "Real barrier completion/timeout state."
+        }
+      ]
+    },
+    "loop": {
+      "ports": [
+        {
+          "name": "west in",
+          "edge": "W",
+          "point": [
+            0.028,
+            0.53
+          ]
+        },
+        {
+          "name": "DONE east upper",
+          "edge": "E",
+          "point": [
+            0.97,
+            0.4
+          ]
+        },
+        {
+          "name": "BACK east lower",
+          "edge": "E",
+          "point": [
+            0.97,
+            0.68
+          ]
+        }
+      ],
+      "emptyRegions": [
+        {
+          "name": "empty fork deck",
+          "rect": [
+            0.045,
+            0.36,
+            0.9,
+            0.37
+          ]
+        }
+      ],
+      "motion": [
+        {
+          "name": "tally display",
+          "rect": [
+            0.462,
+            0.08,
+            0.075,
+            0.072
+          ],
+          "behavior": "Real iteration count only, blank base."
+        },
+        {
+          "name": "four tally lamps",
+          "rect": [
+            0.452,
+            0.168,
+            0.105,
+            0.075
+          ],
+          "behavior": "Real iteration/cap state only; base unlit."
+        },
+        {
+          "name": "deflector island",
+          "rect": [
+            0.49,
+            0.45,
+            0.16,
+            0.12
+          ],
+          "behavior": "Actual selected BACK/DONE route only."
+        }
+      ]
+    }
+  }
+}

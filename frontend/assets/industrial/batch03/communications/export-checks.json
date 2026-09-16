@@ -1,0 +1,161 @@
+{
+  "version": 1,
+  "method": "User-authorized connected neutral-background extraction; original RGB preserved",
+  "records": [
+    {
+      "id": "comms_dish",
+      "source": "docs/station-remaster/batch03/communications/comms_dish.source.png",
+      "original": "C:\\Users\\andro\\.codex\\generated_images\\01a0976c-e264-7f13-a581-78c904716b14\\exec-c189bcf6-0f20-410e-b76e-cb2e70132023.png",
+      "neutralMin": 80,
+      "seeds": [],
+      "output": "frontend/assets/industrial/batch03/communications/comms_dish.png",
+      "sourceWidth": 1169,
+      "sourceHeight": 1345,
+      "crop": {
+        "left": 137,
+        "top": 98,
+        "width": 885,
+        "height": 1120
+      },
+      "sourceSha256": "cef4f34aff33e89a488ec5e03c82b77f89b3b230ebd5886b7de99e9d97a4bce0",
+      "outputSha256": "2672f308f91474d91c053eb97d9fbab6afbd1724d5e7b3d95439a6e9641764d6",
+      "channels": 4,
+      "transparentPixels": 233125,
+      "opaquePixels": 758075,
+      "partialPixels": 0,
+      "subjectRgbChanges": 0
+    },
+    {
+      "id": "comms_uplink",
+      "source": "docs/station-remaster/batch03/communications/comms_uplink.source.png",
+      "original": "C:\\Users\\andro\\.codex\\generated_images\\01a0976c-e264-7f13-a581-78c904716b14\\exec-3843bbaa-9bb1-40ce-8be5-3c5d099e5832.png",
+      "neutralMin": 80,
+      "seeds": [
+        [
+          450,
+          652
+        ],
+        [
+          472,
+          809
+        ],
+        [
+          425,
+          920
+        ],
+        [
+          435,
+          1090
+        ]
+      ],
+      "output": "frontend/assets/industrial/batch03/communications/comms_uplink.png",
+      "sourceWidth": 925,
+      "sourceHeight": 1701,
+      "crop": {
+        "left": 163,
+        "top": 239,
+        "width": 599,
+        "height": 1312
+      },
+      "sourceSha256": "302d06dd5b1d0ad2dfdf3ea944e72d22ce941a860df0f69b74bc8f0973b892d2",
+      "outputSha256": "60fa6b380c6ecaba75b1ec051b0bf8f2496de92f0c08bf5904f620baa6bea631",
+      "channels": 4,
+      "transparentPixels": 416752,
+      "opaquePixels": 369136,
+      "partialPixels": 0,
+      "subjectRgbChanges": 0
+    },
+    {
+      "id": "comms_beacon",
+      "source": "docs/station-remaster/batch03/communications/comms_beacon.source.png",
+      "original": "C:\\Users\\andro\\.codex\\generated_images\\01a0976c-e264-7f13-a581-78c904716b14\\exec-d55d3407-5c4b-4325-a9ce-8112243f67e6.png",
+      "neutralMin": 80,
+      "seeds": [],
+      "output": "frontend/assets/industrial/batch03/communications/comms_beacon.png",
+      "sourceWidth": 1013,
+      "sourceHeight": 1552,
+      "crop": {
+        "left": 52,
+        "top": 108,
+        "width": 909,
+        "height": 1279
+      },
+      "sourceSha256": "aa1147e4d4b6abb7a3fe343ea752e5b4fa4e75d8195cafbce90f381e72fc29a4",
+      "outputSha256": "858334f2c95daead2c7dc216628e08a3862908a8341377002194e35ede51862b",
+      "channels": 4,
+      "transparentPixels": 229451,
+      "opaquePixels": 392,
+      "partialPixels": 932768,
+      "subjectRgbChanges": 0
+    },
+    {
+      "id": "commswall",
+      "source": "docs/station-remaster/batch03/communications/commswall.source.png",
+      "original": "C:\\Users\\andro\\.codex\\generated_images\\01a0976c-e264-7f13-a581-78c904716b14\\exec-31b8c26c-89c5-45ce-9231-855454e2b0fc.png",
+      "neutralMin": 80,
+      "seeds": [],
+      "output": "frontend/assets/industrial/batch03/communications/commswall.png",
+      "sourceWidth": 2178,
+      "sourceHeight": 722,
+      "crop": {
+        "left": 38,
+        "top": 98,
+        "width": 2103,
+        "height": 497
+      },
+      "sourceSha256": "42e84450193cafd22e4c7153773c47e2b21528f70128a9cc4e268ba5b47f3ee6",
+      "outputSha256": "9b2524540e2fc14f692a9ae106d7586eaf7d26a8ed7cedddbc34d16e9243b46e",
+      "channels": 4,
+      "transparentPixels": 121267,
+      "opaquePixels": 2117,
+      "partialPixels": 921807,
+      "subjectRgbChanges": 0
+    },
+    {
+      "id": "bridge_relaystack",
+      "source": "docs/station-remaster/batch03/communications/bridge_relaystack.source.png",
+      "original": "C:\\Users\\andro\\.codex\\generated_images\\01a0976c-e264-7f13-a581-78c904716b14\\exec-7e2bc05b-d491-47d2-b7a4-21061e09cb93.png",
+      "neutralMin": 80,
+      "seeds": [],
+      "output": "frontend/assets/industrial/batch03/communications/bridge_relaystack.png",
+      "sourceWidth": 914,
+      "sourceHeight": 1721,
+      "crop": {
+        "left": 37,
+        "top": 67,
+        "width": 841,
+        "height": 1611
+      },
+      "sourceSha256": "73b848f60bfd0a57a7a12684b7cf9d4a732363a0417854273f70278b7d5d6a2e",
+      "outputSha256": "b0fd3108785befa7c372504a19544072999a2d1c01a403e8a0120a74c9fc95e3",
+      "channels": 4,
+      "transparentPixels": 343940,
+      "opaquePixels": 1406,
+      "partialPixels": 1009505,
+      "subjectRgbChanges": 0
+    },
+    {
+      "id": "war_intelcab",
+      "source": "docs/station-remaster/batch03/communications/war_intelcab.source.png",
+      "original": "C:\\Users\\andro\\.codex\\generated_images\\01a0976c-e264-7f13-a581-78c904716b14\\exec-3066bc09-296c-4fa6-88bb-fe14c4c6481e.png",
+      "neutralMin": 80,
+      "seeds": [],
+      "output": "frontend/assets/industrial/batch03/communications/war_intelcab.png",
+      "sourceWidth": 926,
+      "sourceHeight": 1698,
+      "crop": {
+        "left": 41,
+        "top": 0,
+        "width": 821,
+        "height": 1627
+      },
+      "sourceSha256": "962fbe2da178fd1671d90271f5953b94f25a938f149e8d19d3d9303477e7c467",
+      "outputSha256": "a23f94de2de6b6fd0eefc401d9949e5e67e970eb39ca0ee6e49d63c0912a75e6",
+      "channels": 4,
+      "transparentPixels": 225068,
+      "opaquePixels": 367,
+      "partialPixels": 1110332,
+      "subjectRgbChanges": 0
+    }
+  ]
+}

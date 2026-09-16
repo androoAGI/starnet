@@ -1,0 +1,15 @@
+{
+  "id": "tv",
+  "source": "C:/Users/andro/.codex/generated_images/01a09c6e-42f0-7c90-bc97-768d6754278f/exec-b3237fbd-7999-41b4-84e1-c00094824299.png",
+  "sourceWidth": 1578,
+  "sourceHeight": 997,
+  "crop": {
+    "left": 4,
+    "top": 3,
+    "width": 1571,
+    "height": 990
+  },
+  "sourceAlpha": false,
+  "subjectRgbChanges": 0,
+  "output": "frontend/assets/industrial/props-v2/tv.png"
+}

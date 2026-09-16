@@ -1,0 +1,60 @@
+{
+  "sourceAnimation": {
+    "idleFrameVariants": 9,
+    "workFrameVariants": 9,
+    "respondsToWorkFlag": true,
+    "opaqueBoundsRelativeToFootprint": {
+      "x": -2,
+      "y": -9,
+      "w": 17,
+      "h": 33,
+      "alphaThreshold": 160
+    }
+  },
+  "bounds": {
+    "y": -9,
+    "width": 17,
+    "height": 33,
+    "x": -2
+  },
+  "id": "quarters_vending",
+  "geometry": {
+    "blocks": true,
+    "flat": false,
+    "tableSurface": false,
+    "requiredMount": null,
+    "optionalSurfaceMount": false,
+    "surfaceRisePixels": 8
+  },
+  "floorContact": {
+    "x": 6,
+    "y": 24
+  },
+  "backgroundThreshold": 235,
+  "tilePixels": 12,
+  "status": "art-draft-integration-pending",
+  "view": "s",
+  "footprint": {
+    "w": 1,
+    "h": 2
+  },
+  "anchorContract": "PropAnchor derives reachable edge approach; useApproach rotates relative preference with r. Preserve standing leisure action unless special planner supplies a real body anchor.",
+  "holeSeeds": [],
+  "sourceWidth": 901,
+  "sourceHeight": 1746,
+  "sourceSha256": "c55622e3a0d706d879ec8538008944666ea6795c9ea59fa9d9fdd08066a5957d",
+  "output": "frontend/assets/industrial/batch03/crew/quarters_vending.png",
+  "crop": {
+    "left": 116,
+    "top": 120,
+    "width": 670,
+    "height": 1502
+  },
+  "transparentPixels": 34740,
+  "opaquePixels": 971600,
+  "partialPixels": 0,
+  "backgroundPixelsRemoved": 601546,
+  "subjectRgbChanges": 0,
+  "outputSha256": "5fb34ea221beb85c6289f9eed2b7b7b586ae3eb110ade375f1710a2529af3756",
+  "liveIntegrated": false
+}
