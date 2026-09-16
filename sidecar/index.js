@@ -17400,7 +17400,7 @@ async function runOnce(o) {
         }
       }
       const runEndedAt = Date.now();
-      runStore.record({ runId, parentRunId: o.parentRunId || '', agentId, provider: activeProviderId, reason: ((result && result.reason) || 'done'), clarifying: taskQuestionAsked, turns: finalTurns, tokens: finalTokens, usd: finalUsd, title: title, streamId: o.streamId || '', sessionTitle: o.sessionTitle || '', deliveryPrompt: o.sessionPrompt || '', deliveryText, recipeId: o.recipeId || '', projectRoot: o.projectRoot || '', deliverable: deliverableNotes.take(runId), model: finalModel, reasoningEffort, unmetered: runUnmetered && mediaUsd === 0, artifacts: execution.artifactList(), toolsOk: execution.toolsOk(), toolTrace: execution.toolTraceList(), failureStage: execution.failureStage(), failureCode: execution.failureCode(), uncertainMutations: execution.uncertainMutations(), completionEvidence: finalCompletionEvidence, recoveryAttempts: execution.recoveryAttempts(), startedAt: runStartedAt, endedAt: runEndedAt, durationMs: runEndedAt - runStartedAt, identityFallback, internal });   // execution terminal stays separate from the neutral Task Brief outcome used by progression
+      runStore.record({ runId, parentRunId: o.parentRunId || '', agentId, provider: activeProviderId, reason: ((result && result.reason) || 'done'), clarifying: taskQuestionAsked, turns: finalTurns, tokens: finalTokens, usd: finalUsd, title: title, streamId: o.streamId || '', sessionTitle: o.sessionTitle || '', deliveryPrompt: o.sessionPrompt || '', deliveryText, recipeId: o.recipeId || '', projectRoot: o.projectRoot || '', deliverable: deliverableNotes.take(runId), model: finalModel, reasoningEffort, unmetered: runUnmetered && mediaUsd === 0, artifacts: execution.artifactList(), toolsOk: execution.toolsOk(), toolTrace: execution.toolTraceList(), failureStage: execution.failureStage(), failureCode: execution.failureCode(), uncertainMutations: execution.uncertainMutations(), completionEvidence: finalCompletionEvidence, recoveryAttempts: execution.recoveryAttempts(), startedAt: runStartedAt, endedAt: runEndedAt, durationMs: runEndedAt - runStartedAt, identityFallback, internal, surface });   // execution terminal stays separate from the neutral Task Brief outcome used by progression
 
       // P0.1/H1.1: persist the full DIALOGUE (not just the outcome) — a durable server-side transcript for EVERY
       // run, incl. headless ones (cron/Telegram/delegated). Append the triggering user directive, then EVERY new
@@ -19890,11 +19890,13 @@ async function handleGrowthRatings(req, res) {
   if (Math.max(1, Math.floor(Number(body.epoch) || 1)) !== epoch) return json(409, { ok: false, error: 'station generation changed; reload before rating' });
   const allRows = runStore.all();
   const lead = allRows.find(r => r && r.runId === runId);
-  if (!lead || lead.internal || contextpack.isInternalStream(lead.streamId)) return json(404, { ok: false, error: 'rateable run not found' });
+  if (!lead) return json(404, { ok: false, error: 'rateable run not found' });
+  if (lead.internal) return json(409, { ok: false, error: 'internal run cannot be rated' });
+  if (isInternalRun(lead)) return json(409, { ok: false, error: lead.surface === 'autonomous' ? 'non-interactive run cannot be rated' : 'run origin unavailable for rating' });
   if (lead.clarifying || !new Set(['done', 'max_iters', 'budget', 'refusal']).has(String(lead.reason || ''))) {
     return json(409, { ok: false, error: 'run did not produce rateable agent work' });
   }
-  const children = allRows.filter(row => row && row.parentRunId === runId && !row.internal && !contextpack.isInternalStream(row.streamId));
+  const children = allRows.filter(row => row && row.parentRunId === runId && !isInternalRun(row));
   const canonical = deriveGrowthRating(lead, children, body.verdict);
   if (!canonical) return json(400, { ok: false, error: 'invalid rating verdict' });
   canonical.epoch = epoch;
@@ -19970,10 +19972,15 @@ function withRunChildren(row, allRows) {
     .map(withRunTruth);
   return out;
 }
+function isInternalRun(row) {
+  // A Commander can continue a scheduled conversation. Its stream prefix describes
+  // the conversation, while the host-recorded surface describes this particular run.
+  // Legacy rows lack that evidence; retain their conservative prefix classification.
+  return !!row.internal || (row.surface !== 'interactive' && contextpack.isInternalStream(row.streamId));
+}
 function withRunTruth(row) {
   const out = Object.assign({}, row);
-  // Rows written before the explicit marker existed still carry canonical internal stream prefixes.
-  out.internal = !!out.internal || contextpack.isInternalStream(out.streamId);
+  out.internal = isInternalRun(out);
   return out;
 }
 /* GOLDEN-RUN DRIFT (2026-08-22): every recipe's latest run compared against its own good history, computed from
