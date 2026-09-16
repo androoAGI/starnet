@@ -25,6 +25,7 @@ const PropCatalogFixture = (() => {
     };
     const add = (id, x, y, r, key) => {
       const f = native(id, r), p = { id: key, t: id, x, y, w: f.w, h: f.h, r };
+      if(P.spec(id).blocks===false)p.block=false;
       props.push(p); return p;
     };
     const wall = entries.filter(v => v.placement === 'wall'), floor = entries.filter(v => v.placement !== 'wall');

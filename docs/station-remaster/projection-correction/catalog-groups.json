@@ -103,6 +103,14 @@
     {
       "name": "tactical-table-polish",
       "file": "docs/station-remaster/tactical-table-polish/integration.json"
+    },
+    {
+      "name": "capability-refresh",
+      "file": "docs/station-remaster/capability-refresh/integration.json"
+    },
+    {
+      "name": "capability-v2",
+      "file": "docs/station-remaster/capability-v2/integration.json"
     }
   ]
 }

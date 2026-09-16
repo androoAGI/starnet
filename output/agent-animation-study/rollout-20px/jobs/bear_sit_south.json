@@ -1,0 +1,14 @@
+{
+  "id": "bear",
+  "track": "sit",
+  "dir": "south",
+  "promptOverride": "Sit down fully on an invisible chair facing south. Lower the hips substantially until the seated silhouette is only three quarters of its standing height. Thighs point directly toward the camera and are foreshortened, knees bend at right angles, shins point down, feet below knees. Keep original head and torso size. Hands rest together in front of the belly with elbows tucked at waist. This is visibly seated, not standing, not straight legs. Preserve teddy fur and face. No chair, desk, floor or shadow.",
+  "request": "id: 742bff30-1239-4455-83b3-79a8c5843173\njob_id: 742bff30-1239-4455-83b3-79a8c5843173\ndescription: Sit down fully on an invisible chair facing south. Lower the hips substantially until the seated silhouette is only three quarters of its standing height. Thighs point directly toward the camera and are foreshortened, knees bend at right angles, shins point down, feet below knees. Keep original head and torso size. Hands rest together in front of the belly with elbows tucked at waist. This is visibly seated, not standing, not straight legs. Preserve teddy fur and face. No chair, desk, floor or shadow.\nframes: 4\nsize: 96x96px\ntransparent: True\ncost: 2 generations\nstatus: processing (~1-5 min)\n\nhint: get_image(job_id=\"742bff30-1239-4455-83b3-79a8c5843173\")",
+  "job": "742bff30-1239-4455-83b3-79a8c5843173",
+  "source": "output/agent-animation-study/rollout-20px/full-motion/bear/refs/south.png",
+  "result": "status: completed\nid: 742bff30-1239-4455-83b3-79a8c5843173\njob_id: 742bff30-1239-4455-83b3-79a8c5843173\nframes: 5\ndownload: https://api.pixellab.ai/mcp/images/742bff30-1239-4455-83b3-79a8c5843173/download?index=0 ... ?index=4\n(1 more frames not shown — fetch them from the download URLs above)",
+  "done": true,
+  "packed": true,
+  "lastRaw": "output/agent-animation-study/rollout-20px/full-motion/bear/minimax/sit-south/742bff30-1239-4455-83b3-79a8c5843173/4.png",
+  "frameCount": 5
+}

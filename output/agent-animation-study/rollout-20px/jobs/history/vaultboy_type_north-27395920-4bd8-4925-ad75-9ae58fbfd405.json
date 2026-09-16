@@ -1,0 +1,13 @@
+{
+  "id": "vaultboy",
+  "track": "type",
+  "dir": "north",
+  "request": "id: 27395920-4bd8-4925-ad75-9ae58fbfd405\njob_id: 27395920-4bd8-4925-ad75-9ae58fbfd405\ndescription: A subtle seamless seated typing loop, facing north throughout. Remain in this exact seated pose with hips, torso, head and feet fixed. Only hands and forearms alternate tiny typing movements at desk height. Preserve exact outfit, silhouette and pixel art. No standing up, turning, chair, desk, keyboard, floor, shadow or other object.\nframes: 4\nsize: 96x96px\ntransparent: True\ncost: 2 generations\nstatus: processing (~1-5 min)\n\nhint: get_image(job_id=\"27395920-4bd8-4925-ad75-9ae58fbfd405\")",
+  "job": "27395920-4bd8-4925-ad75-9ae58fbfd405",
+  "source": "output/agent-animation-study/rollout-20px/full-motion/vaultboy/minimax/sit-north/e7bc642d-c033-4514-a8ee-788a396387ac/4.png",
+  "result": "status: completed\nid: 27395920-4bd8-4925-ad75-9ae58fbfd405\njob_id: 27395920-4bd8-4925-ad75-9ae58fbfd405\nframes: 5\ndownload: https://api.pixellab.ai/mcp/images/27395920-4bd8-4925-ad75-9ae58fbfd405/download?index=0 ... ?index=4\n(1 more frames not shown — fetch them from the download URLs above)",
+  "done": true,
+  "packed": true,
+  "lastRaw": "output/agent-animation-study/rollout-20px/full-motion/vaultboy/minimax/type-north/27395920-4bd8-4925-ad75-9ae58fbfd405/4.png",
+  "frameCount": 5
+}

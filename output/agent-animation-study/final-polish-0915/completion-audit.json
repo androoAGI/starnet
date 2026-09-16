@@ -1,0 +1,232 @@
+{
+  "scope": "37 selected skins (completed Station Minion retained; unfinished duplicate excluded): full new-style motion contract, except user-approved Pikachu v0.11.2 release set verified byte-for-byte; file coverage, not a claim of visual perfection",
+  "ready": true,
+  "completeSets": 37,
+  "totalSets": 37,
+  "missingFrames": 0,
+  "rows": [
+    {
+      "id": "android",
+      "name": "Silver Cadet",
+      "complete": true,
+      "gaps": []
+    },
+    {
+      "id": "astronaut",
+      "name": "Astronaut",
+      "complete": true,
+      "gaps": []
+    },
+    {
+      "id": "robot",
+      "name": "Robot",
+      "complete": true,
+      "gaps": []
+    },
+    {
+      "id": "crthead",
+      "name": "CRT-head",
+      "complete": true,
+      "gaps": []
+    },
+    {
+      "id": "alien",
+      "name": "Alien",
+      "complete": true,
+      "gaps": []
+    },
+    {
+      "id": "ultron",
+      "name": "Ultron Overseer",
+      "complete": true,
+      "gaps": []
+    },
+    {
+      "id": "skeleton",
+      "name": "Skeleton",
+      "complete": true,
+      "gaps": []
+    },
+    {
+      "id": "plaguedoctor",
+      "name": "Plague Doctor",
+      "complete": true,
+      "gaps": []
+    },
+    {
+      "id": "secretagent",
+      "name": "Secret Agent",
+      "complete": true,
+      "gaps": []
+    },
+    {
+      "id": "voidwizard",
+      "name": "Void Wizard",
+      "complete": true,
+      "gaps": []
+    },
+    {
+      "id": "xenomorph",
+      "name": "Xenomorph",
+      "complete": true,
+      "gaps": []
+    },
+    {
+      "id": "robocop",
+      "name": "Robocop",
+      "complete": true,
+      "gaps": []
+    },
+    {
+      "id": "masterchief",
+      "name": "Master Chief",
+      "complete": true,
+      "gaps": []
+    },
+    {
+      "id": "grimreaper",
+      "name": "Grim Reaper",
+      "complete": true,
+      "gaps": []
+    },
+    {
+      "id": "crewmate",
+      "name": "Crewmate",
+      "complete": true,
+      "gaps": []
+    },
+    {
+      "id": "bear",
+      "name": "Teddy Bear",
+      "complete": true,
+      "gaps": []
+    },
+    {
+      "id": "pepe",
+      "name": "Pepe",
+      "complete": true,
+      "gaps": []
+    },
+    {
+      "id": "capybara",
+      "name": "Capybara",
+      "complete": true,
+      "gaps": []
+    },
+    {
+      "id": "vaultboy",
+      "name": "Fallout 1 Vault Dweller",
+      "complete": true,
+      "gaps": []
+    },
+    {
+      "id": "station_minion",
+      "name": "Station Minion",
+      "complete": true,
+      "gaps": []
+    },
+    {
+      "id": "blank_blue",
+      "name": "Blue Cadet",
+      "complete": true,
+      "gaps": []
+    },
+    {
+      "id": "blank_green",
+      "name": "Green Cadet",
+      "complete": true,
+      "gaps": []
+    },
+    {
+      "id": "blank_red",
+      "name": "Red Cadet",
+      "complete": true,
+      "gaps": []
+    },
+    {
+      "id": "blank_amber",
+      "name": "Amber Cadet",
+      "complete": true,
+      "gaps": []
+    },
+    {
+      "id": "heisenberg",
+      "name": "Heisenberg",
+      "complete": true,
+      "gaps": []
+    },
+    {
+      "id": "endoskeleton",
+      "name": "Endoskeleton",
+      "complete": true,
+      "gaps": []
+    },
+    {
+      "id": "ultrondroid",
+      "name": "Ultron Droid",
+      "complete": true,
+      "gaps": []
+    },
+    {
+      "id": "samaltman",
+      "name": "Sam",
+      "complete": true,
+      "gaps": []
+    },
+    {
+      "id": "dario",
+      "name": "Dario",
+      "complete": true,
+      "gaps": []
+    },
+    {
+      "id": "freddyfazbear",
+      "name": "Freddy",
+      "complete": true,
+      "gaps": []
+    },
+    {
+      "id": "ghostface",
+      "name": "Ghostface",
+      "complete": true,
+      "gaps": []
+    },
+    {
+      "id": "morpheus",
+      "name": "Morpheus",
+      "complete": true,
+      "gaps": []
+    },
+    {
+      "id": "ricksanchez",
+      "name": "Rick",
+      "complete": true,
+      "gaps": []
+    },
+    {
+      "id": "ninjaturtle",
+      "name": "Ninja Turtle",
+      "complete": true,
+      "gaps": []
+    },
+    {
+      "id": "pikachu",
+      "name": "Pikachu",
+      "complete": true,
+      "approvedRelease": "v0.11.2",
+      "gaps": []
+    },
+    {
+      "id": "caseyjones",
+      "name": "Casey Jones",
+      "complete": true,
+      "gaps": []
+    },
+    {
+      "id": "finn",
+      "name": "Finn",
+      "complete": true,
+      "gaps": []
+    }
+  ]
+}

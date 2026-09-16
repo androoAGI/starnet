@@ -1,0 +1,15 @@
+{
+  "id": "blank_amber",
+  "track": "walk",
+  "dir": "south",
+  "pinLast": true,
+  "promptOverride": "A seamless two-step walk in place facing directly south. Keep the gold robot head completely rigid and unchanged, smooth continuous pixel outline without speckles or protrusions. Alternate planted feet, restrained arm swing, steady torso. Preserve exact golden armor, proportions and head direction. No turns, jumps, props or shadow. Return to original stance.",
+  "request": "id: ed3895d4-6f53-44f9-9abf-fb120733056c\njob_id: ed3895d4-6f53-44f9-9abf-fb120733056c\ndescription: A seamless two-step walk in place facing directly south. Keep the gold robot head completely rigid and unchanged, smooth continuous pixel outline without speckles or protrusions. Alternate planted feet, restrained arm swing, steady torso. Preserve exact golden armor, proportions and head direction. No turns, jumps, props or shadow. Return to original stance.\nframes: 8\nsize: 96x96px\ntransparent: True\nlast_frame: yes (animating toward it)\ncost: 2 generations\nstatus: processing (~1-5 min)\n\nhint: get_image(job_id=\"ed3895d4-6f53-44f9-9abf-fb120733056c\")",
+  "job": "ed3895d4-6f53-44f9-9abf-fb120733056c",
+  "source": "output/agent-animation-study/rollout-20px/full-motion/blank_amber/refs/south.png",
+  "result": "status: completed\nid: ed3895d4-6f53-44f9-9abf-fb120733056c\njob_id: ed3895d4-6f53-44f9-9abf-fb120733056c\nframes: 9\ndownload: https://api.pixellab.ai/mcp/images/ed3895d4-6f53-44f9-9abf-fb120733056c/download?index=0 ... ?index=8\n(5 more frames not shown — fetch them from the download URLs above)",
+  "done": true,
+  "packed": true,
+  "lastRaw": "output/agent-animation-study/rollout-20px/full-motion/blank_amber/minimax/walk-south/ed3895d4-6f53-44f9-9abf-fb120733056c/8.png",
+  "frameCount": 9
+}

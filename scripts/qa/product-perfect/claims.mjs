@@ -491,6 +491,41 @@ function verificationPaths(ledger, allTracked) {
 
 // Git snapshot buffers are immutable. Cache only search booleans, never decoded artwork;
 // injected readers stay uncached so a changed fixture cannot inherit an earlier verdict.
+function observeCheck(bytes, check) {
+  const needles = check.kind === 'contains' ? [check.needle] : check.needles.map(n => text(n).toLowerCase());
+  // Non-ASCII case folding can depend on adjacent letters (e.g. final sigma).
+  // Keep the original whole-string semantics for that uncommon check shape.
+  if (needles.some(n => /[^\x00-\x7f]/.test(n))) {
+    const value = bytes.toString('utf8');
+    const contents = check.kind === 'absent' ? value.toLowerCase() : value;
+    return needles.map(n => contents.includes(n));
+  }
+  const found = needles.map(() => false), decoder = new TextDecoder('utf-8');
+  const overlap = Math.max(0, ...needles.map(n => n.length - 1));
+  let tail = '';
+  // Texture packs are in prefix scopes too. Decode bounded chunks, once per
+  // check, rather than allocating a whole-asset lowercase string per needle.
+  for (let offset = 0; offset < bytes.length || offset === 0; offset += 1024 * 1024) {
+    const end = Math.min(bytes.length, offset + 1024 * 1024);
+    let chunk = decoder.decode(bytes.subarray(offset, end), { stream: end < bytes.length });
+    if (check.kind === 'absent') chunk = chunk.toLowerCase();
+    const contents = tail + chunk;
+    needles.forEach((needle, i) => { if (!found[i] && contents.includes(needle)) found[i] = true; });
+    if (found.every(Boolean)) break;
+    tail = overlap ? contents.slice(-overlap) : '';
+  }
+  return found;
+}
+function verifyCheck(check, bytes, label, errors, target, hits) {
+  const key = JSON.stringify([check.kind, check.needle, check.needles]);
+  let found = hits.get(key);
+  if (!found) { found = observeCheck(Buffer.isBuffer(bytes) ? bytes : Buffer.from(bytes), check); hits.set(key, found); }
+  if (check.kind === 'contains' && !found[0]) errors.push(label + ' locator missing in ' + target + ': ' + JSON.stringify(check.needle));
+  if (check.kind === 'absent') for (const [i, needle] of check.needles.entries()) {
+    if (found[i]) errors.push(label + ' absence escaped in ' + target + ': ' + JSON.stringify(needle));
+  }
+}
+
 const CHECKS_BY_BLOB = new WeakMap();
 export function verifyAuthorityChecks(requests, readFile, errors, allTracked, immutable = false) {
   const byTarget = new Map();
@@ -511,21 +546,7 @@ export function verifyAuthorityChecks(requests, readFile, errors, allTracked, im
     }
     const cacheable = immutable && Buffer.isBuffer(bytes);
     const hits = cacheable && CHECKS_BY_BLOB.get(bytes) || new Map();
-    let contents, lower;
-    const matches = (needle, folded) => {
-      const key = JSON.stringify([folded, needle]);
-      if (hits.has(key)) return hits.get(key);
-      if (contents === undefined) contents = Buffer.isBuffer(bytes) ? bytes.toString('utf8') : Buffer.from(bytes).toString('utf8');
-      if (folded && lower === undefined) lower = contents.toLowerCase();
-      const result = (folded ? lower : contents).includes(folded ? text(needle).toLowerCase() : needle);
-      hits.set(key, result); return result;
-    };
-    for (const { check, label } of checks) {
-      if (check.kind === 'contains' && !matches(check.needle, false)) errors.push(label + ' locator missing in ' + target + ': ' + JSON.stringify(check.needle));
-      if (check.kind === 'absent') for (const needle of check.needles) {
-        if (matches(needle, true)) errors.push(label + ' absence escaped in ' + target + ': ' + JSON.stringify(needle));
-      }
-    }
+    for (const { check, label } of checks) verifyCheck(check, bytes, label, errors, target, hits);
     if (cacheable) CHECKS_BY_BLOB.set(bytes, hits);
   }
 }

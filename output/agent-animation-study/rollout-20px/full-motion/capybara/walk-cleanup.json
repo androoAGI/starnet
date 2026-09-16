@@ -1,0 +1,16 @@
+{
+  "source": "output/agent-animation-study/rollout-20px/capybara-south-clean-source.png",
+  "tool": "built-in ImageGen",
+  "edit": "Remove magenta arm-edge corruption from eight front walking frames",
+  "singleScale": 0.28733459357277885,
+  "files": [
+    "../agent-demo/approved-motion/capybara/walk_south_clean_0.png",
+    "../agent-demo/approved-motion/capybara/walk_south_clean_1.png",
+    "../agent-demo/approved-motion/capybara/walk_south_clean_2.png",
+    "../agent-demo/approved-motion/capybara/walk_south_clean_3.png",
+    "../agent-demo/approved-motion/capybara/walk_south_clean_4.png",
+    "../agent-demo/approved-motion/capybara/walk_south_clean_5.png",
+    "../agent-demo/approved-motion/capybara/walk_south_clean_6.png",
+    "../agent-demo/approved-motion/capybara/walk_south_clean_7.png"
+  ]
+}

@@ -6,7 +6,7 @@ const source = fs.readFileSync(require.resolve('../frontend/app/build.js'),'utf8
 const between = (start,end) => source.slice(source.indexOf(start),source.indexOf(end,source.indexOf(start)));
 function fixture() {
   const s = {tool:'prop',buildGroup:'props',drag:null,dragPid:null,connectFrom:null,dupe:null,hoverPropId:'placed',propType:'chair',propRot:0,propMir:0,
-    edits:0,releases:0,closed:0,focused:false,
+    edits:0,releases:0,closed:0,focused:false,selectedPropId:null,movingPropId:null,
     root:{querySelectorAll:()=>[],querySelector:()=>null},
     window:{matchMedia:()=>({matches:false})}, BUILD_GROUPS:[['props','Props',['prop']],['workflow','Conveyors',['line','belt']]],
     station:{propById:()=>({id:'placed',t:'chair',r:0,x:0,y:0,w:1,h:1})},
@@ -14,7 +14,7 @@ function fixture() {
     orientEv:()=>({}), canTurn:()=>true, canFlip:()=>true, nextFace:(t,r,d)=>(r+d)&3,
     propBox:()=>({w:1,h:1}), propLabel:t=>t, cardTop:()=>null,
     hideTip(){},hidePropCard(){},toggleKit(){},renderPalette(){},repaintIcons(){},setHint(){},setCursor(){},renderFinCard(){},frameBlueprint(){},fitCamera(){},sfx(){},
-    renderPropPreview(){},renderEquipmentInfo(){},flashTip(){},pushFlash(){},feedback(){}
+    renderPropPreview(){},renderEquipmentInfo(){},renderSelection(){},flashTip(){},pushFlash(){},feedback(){}
   };
   s.station.faceProp=()=>{s.edits++;return{ok:true};}; s.station.mirrorProp=s.station.faceProp;
   s.cv.releasePointerCapture=()=>s.releases++;
@@ -36,12 +36,13 @@ function fixture() {
   s.tool='select'; s.turnUnderCursor(1); s.flipUnderCursor();
   assert.equal(s.edits,2,'hover rotation and mirroring still work while browsing');
 }
-for (const state of [{tool:'move',drag:{mode:'propmove'},dragPid:7},{tool:'belt',connectFrom:'inbox'},{tool:'dupe',dupe:{type:'prop'}}]) {
+for (const state of [{tool:'move',drag:{mode:'propmove'},dragPid:7},{tool:'belt',connectFrom:'inbox'},{tool:'dupe',dupe:{type:'prop'}},{tool:'select',selectedPropId:'placed'},{tool:'move',movingPropId:'placed'}]) {
   const s=Object.assign(fixture(),state);
   s.onKey({key:'Escape',target:null});
   assert.equal(s.tool,'select','one Escape returns to browsing');
   assert.equal(s.drag,null); assert.equal(s.connectFrom,null); assert.equal(s.dupe,null);
   assert.equal(s.dragPid,null); assert.equal(s.closed,0,'cancel does not exit the editor');
+  assert.equal(s.selectedPropId,null); assert.equal(s.movingPropId,null);
   if(state.dragPid) assert.equal(s.releases,1,'cancel releases the captured pointer');
 }
 {

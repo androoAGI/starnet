@@ -177,6 +177,10 @@ const PropRemaster = (() => {
         if(emitter){const cx=emitter.region.reduce((n,p)=>n+p[0],0)/emitter.region.length,cy=emitter.region.reduce((n,p)=>n+p[1],0)/emitter.region.length;
           projectionEmitter={x:box.x+(cx*v.sourceWidth-crop.x)/crop.width*box.width,y:box.y+(cy*v.sourceHeight-crop.y)/crop.height*box.height};}}
       const entry={spec:v,body,mask,live,screen,motion,foreground,composed,approved,indicators,projectionHandled,projection,projectionEmitter,frame,box,crop,lost:false};
+      // One byte per prepared pixel; pointer picking never reads a canvas in-frame.
+      const pickPixels=body.getContext('2d').getImageData(0,0,pw,ph).data;
+      entry.pickAlpha=new Uint8Array(pw*ph);
+      for(let i=0;i<entry.pickAlpha.length;i++)entry.pickAlpha[i]=pickPixels[i*4+3];
       for(const plane of [body,mask,live,foreground,composed,screen&&screen.off,...(motion||[])])if(plane&&plane.addEventListener)
         plane.addEventListener('contextlost',()=>{entry.lost=true;if(entry.projection)ProjectionPropEffects.dispose(entry.projection);},{once:true});
       pixelBudget+=cost;entries.set(key,entry);revision++;
@@ -340,7 +344,7 @@ const PropRemaster = (() => {
     if(id==='missionboard'&&state.pins>0)label=String(state.pins)+' quests';
     if(id==='trophycase'&&state.trophies>0)label=String(state.trophies)+' earned';
     if(id==='airlock'&&state.door)label=String(state.door).slice(0,16);
-    if(label){ctx.font='3px VT323, monospace';ctx.textAlign='center';ctx.fillStyle='#cbb985';ctx.fillText(label,x+e.spec.footprint.w*6,y+e.box.y+e.box.height+3);}
+    if(label){ctx.font='3px VT323,monospace';ctx.textAlign='center';ctx.fillStyle='#cbb985';ctx.fillText(label,x+e.spec.footprint.w*6,y+e.box.y+e.box.height+3);}
     const trigger=e.spec.activity,amount=trigger==='fired'?Math.max(0,Math.min(1,+state.fired||0)):trigger==='work'&&state.work?1:trigger==='ambient'?.3:0;
     if(amount&&!e.approved&&e.indicators){ctx.globalAlpha*=amount*(state.still?.45:.35+.15*Math.sin((+state.now||0)/280));ctx.drawImage(e.indicators[state.bad?1:0],x+e.frame.x,y+e.frame.y,e.body.width/DENSITY,e.body.height/DENSITY);}
   }
@@ -393,7 +397,13 @@ const PropRemaster = (() => {
     const e=enabled(id,view)&&entries.get(id+':'+view);
     return !e||e.lost?null:{box:{...e.box},crop:{...e.crop},spec:{...e.spec},surfaceSupport:e.spec.surfaceSupport};
   }
-  return Object.freeze({ready,enabled,draw,drawForeground,emitter,screenEmission,viewGeometry,isProjection:()=>projectionReview,revision:()=>revision,
+  function hitTest(id,view,x,y,w,h){
+    const e=enabled(id,view)&&entries.get(id+':'+view);
+    if(!e||e.lost||w!==e.spec.footprint.w*12||h!==e.spec.footprint.h*12)return null;
+    const px=Math.floor((x-e.frame.x)*DENSITY),py=Math.floor((y-e.frame.y)*DENSITY);
+    return px>=0&&py>=0&&px<e.body.width&&py<e.body.height&&e.pickAlpha[py*e.body.width+px]>=24;
+  }
+  return Object.freeze({ready,enabled,draw,drawForeground,emitter,screenEmission,viewGeometry,hitTest,isProjection:()=>projectionReview,revision:()=>revision,
     status:()=>({views:Array.from(entries.keys()),failures:failures.slice(),pixels:pixelBudget}),
     // Pure contracts exposed for deterministic headless geometry validation.
     validate,fit});

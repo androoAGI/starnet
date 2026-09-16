@@ -20,10 +20,12 @@ function createPreset(P,M){
     const p={id,t,x,y,w:f.w,h:f.h,r,...extra};if(s.blocks===false)p.block=false;props.push(p);return p;
   }
   add('command-wall','bridge_consolebank',22,0);
-  add('command-desk','desk',18,4,0,{agentId:'agent'});add('command-chair','chair',19,6);
-  add('navigation-desk','desk',32,4);add('navigation-chair','chair',33,6);
-  add('chart-table','bridge_tacticaltable',23,8);
-  add('chart-left','chair',21,10,3);add('chart-right','chair',31,10,1);
+  // The assigned command desk supplies its own working chair at its real seat anchor.
+  add('command-desk','desk',18,4,0,{agentId:'agent'});
+  add('navigation-desk','desk',32,4);add('navigation-chair','chair',33,5,2);
+  const compact=P.spec('bridge_tacticaltable').w===5;
+  add('chart-table','bridge_tacticaltable',compact?24:23,compact?9:8);
+  add('chart-left','chair',compact?23:21,10,3);add('chart-right','chair',compact?29:31,10,1);
   add('command-green-left','industrial_planter',16,2);add('command-green-right','industrial_planter',35,2);
   add('command-rack-left','rackV',16,10);add('command-rack-right','rackV',36,10);
   add('command-storage','industrial_drawerbank',32,13);
@@ -49,7 +51,7 @@ function createPreset(P,M){
   add('lounge-aquarium','fishtank',50,22);
   add('lounge-billiards','quarters_pooltable',46,28);
   add('lounge-tv','tv',35,29);add('lounge-table','glasstable',35,32);
-  add('lounge-sofa','couch',34,35);add('lounge-seat-left','recliner',32,33);add('lounge-seat-right','recliner_r',40,33);
+  add('lounge-sofa','couch',34,35);add('lounge-seat-left','recliner',40,33);add('lounge-seat-right','recliner_r',32,33);
   add('lounge-books','bookshelf',44,36);add('lounge-coffee-table','longtable',48,36);add('lounge-coffee','coffee',49,36);
   add('lounge-green-one','tallplant',32,36);add('lounge-green-two','industrial_planter',49,25);
   const station=M.deserialize(doc),violations=[];

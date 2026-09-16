@@ -1,0 +1,15 @@
+{
+  "id": "pepe",
+  "track": "type",
+  "dir": "north",
+  "rejectedJob": "c974e601-f634-4cd7-971d-71da912c6f37",
+  "reason": "Rear seated pose must keep knees and elbows close, hands forward.",
+  "request": "id: b18a4e76-8819-4b16-8140-7520c087f085\njob_id: b18a4e76-8819-4b16-8140-7520c087f085\ndescription: A subtle seamless seated typing loop, facing north throughout. Remain in this exact seated pose with hips, torso, head and feet fixed. Elbows stay tucked beside the waist. Only hands and forearms alternate tiny typing movements forward at desk height. Preserve exact outfit, silhouette and pixel art. No standing up, turning, chair, desk, keyboard, floor, shadow or other object.\nframes: 4\nsize: 96x96px\ntransparent: True\ncost: 2 generations\nstatus: processing (~1-5 min)\n\nhint: get_image(job_id=\"b18a4e76-8819-4b16-8140-7520c087f085\")",
+  "job": "b18a4e76-8819-4b16-8140-7520c087f085",
+  "source": "output/agent-animation-study/rollout-20px/full-motion/pepe/minimax/sit-north/acdd3334-67f4-4a77-b2a3-d17135de21c1/4.png",
+  "result": "status: completed\nid: b18a4e76-8819-4b16-8140-7520c087f085\njob_id: b18a4e76-8819-4b16-8140-7520c087f085\nframes: 5\ndownload: https://api.pixellab.ai/mcp/images/b18a4e76-8819-4b16-8140-7520c087f085/download?index=0 ... ?index=4\n(1 more frames not shown — fetch them from the download URLs above)",
+  "done": true,
+  "packed": true,
+  "lastRaw": "output/agent-animation-study/rollout-20px/full-motion/pepe/minimax/type-north/b18a4e76-8819-4b16-8140-7520c087f085/4.png",
+  "frameCount": 5
+}

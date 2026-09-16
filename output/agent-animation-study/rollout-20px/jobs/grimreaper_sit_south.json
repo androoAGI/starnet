@@ -1,0 +1,14 @@
+{
+  "id": "grimreaper",
+  "track": "sit",
+  "dir": "south",
+  "promptOverride": "Sit on an invisible chair facing south. Lower hips, bend knees, torso and hood upright. Both upper arms stay pressed against the ribs, elbows at the waist. Forearms point directly forward toward camera, heavily foreshortened; hands stay in front of abdomen, within the width of the shoulders. No sideways arms or wide T pose. Compact seated posture, preserve the dark robe, skull face and scythe. No new objects, no visible furniture, no floor or shadow.",
+  "request": "id: fed8bb0a-9c75-4a48-bf78-5c93973f9f62\njob_id: fed8bb0a-9c75-4a48-bf78-5c93973f9f62\ndescription: Sit on an invisible chair facing south. Lower hips, bend knees, torso and hood upright. Both upper arms stay pressed against the ribs, elbows at the waist. Forearms point directly forward toward camera, heavily foreshortened; hands stay in front of abdomen, within the width of the shoulders. No sideways arms or wide T pose. Compact seated posture, preserve the dark robe, skull face and scythe. No new objects, no visible furniture, no floor or shadow.\nframes: 4\nsize: 96x96px\ntransparent: True\ncost: 2 generations\nstatus: processing (~1-5 min)\n\nhint: get_image(job_id=\"fed8bb0a-9c75-4a48-bf78-5c93973f9f62\")",
+  "job": "fed8bb0a-9c75-4a48-bf78-5c93973f9f62",
+  "source": "output/agent-animation-study/rollout-20px/full-motion/grimreaper/refs/south.png",
+  "result": "status: completed\nid: fed8bb0a-9c75-4a48-bf78-5c93973f9f62\njob_id: fed8bb0a-9c75-4a48-bf78-5c93973f9f62\nframes: 5\ndownload: https://api.pixellab.ai/mcp/images/fed8bb0a-9c75-4a48-bf78-5c93973f9f62/download?index=0 ... ?index=4\n(1 more frames not shown — fetch them from the download URLs above)",
+  "done": true,
+  "packed": true,
+  "lastRaw": "output/agent-animation-study/rollout-20px/full-motion/grimreaper/minimax/sit-south/fed8bb0a-9c75-4a48-bf78-5c93973f9f62/4.png",
+  "frameCount": 5
+}

@@ -1,0 +1,188 @@
+{
+  "a": [
+    {
+      "file": "front.png",
+      "width": 29,
+      "height": 76,
+      "foot": 112
+    },
+    {
+      "file": "walk-0.png",
+      "width": 29,
+      "height": 76,
+      "foot": 112
+    },
+    {
+      "file": "walk-1.png",
+      "width": 30,
+      "height": 76,
+      "foot": 112
+    },
+    {
+      "file": "walk-2.png",
+      "width": 33,
+      "height": 77,
+      "foot": 112
+    },
+    {
+      "file": "walk-3.png",
+      "width": 32,
+      "height": 79,
+      "foot": 112
+    },
+    {
+      "file": "walk-4.png",
+      "width": 30,
+      "height": 79,
+      "foot": 112
+    },
+    {
+      "file": "walk-5.png",
+      "width": 31,
+      "height": 80,
+      "foot": 112
+    },
+    {
+      "file": "walk-6.png",
+      "width": 32,
+      "height": 79,
+      "foot": 112
+    },
+    {
+      "file": "walk-7.png",
+      "width": 30,
+      "height": 78,
+      "foot": 112
+    },
+    {
+      "file": "walk-8.png",
+      "width": 29,
+      "height": 76,
+      "foot": 112
+    }
+  ],
+  "b": [
+    {
+      "file": "front.png",
+      "width": 34,
+      "height": 76,
+      "foot": 112
+    },
+    {
+      "file": "walk-0.png",
+      "width": 34,
+      "height": 76,
+      "foot": 112
+    },
+    {
+      "file": "walk-1.png",
+      "width": 32,
+      "height": 77,
+      "foot": 112
+    },
+    {
+      "file": "walk-2.png",
+      "width": 32,
+      "height": 78,
+      "foot": 111
+    },
+    {
+      "file": "walk-3.png",
+      "width": 32,
+      "height": 78,
+      "foot": 110
+    },
+    {
+      "file": "walk-4.png",
+      "width": 32,
+      "height": 79,
+      "foot": 109
+    },
+    {
+      "file": "walk-5.png",
+      "width": 32,
+      "height": 79,
+      "foot": 110
+    },
+    {
+      "file": "walk-6.png",
+      "width": 32,
+      "height": 78,
+      "foot": 111
+    },
+    {
+      "file": "walk-7.png",
+      "width": 32,
+      "height": 78,
+      "foot": 112
+    },
+    {
+      "file": "walk-8.png",
+      "width": 34,
+      "height": 76,
+      "foot": 112
+    }
+  ],
+  "c": [
+    {
+      "file": "front.png",
+      "width": 36,
+      "height": 76,
+      "foot": 112
+    },
+    {
+      "file": "walk-0.png",
+      "width": 36,
+      "height": 76,
+      "foot": 112
+    },
+    {
+      "file": "walk-1.png",
+      "width": 36,
+      "height": 75,
+      "foot": 110
+    },
+    {
+      "file": "walk-2.png",
+      "width": 36,
+      "height": 74,
+      "foot": 107
+    },
+    {
+      "file": "walk-3.png",
+      "width": 35,
+      "height": 78,
+      "foot": 110
+    },
+    {
+      "file": "walk-4.png",
+      "width": 32,
+      "height": 80,
+      "foot": 112
+    },
+    {
+      "file": "walk-5.png",
+      "width": 32,
+      "height": 78,
+      "foot": 111
+    },
+    {
+      "file": "walk-6.png",
+      "width": 33,
+      "height": 73,
+      "foot": 107
+    },
+    {
+      "file": "walk-7.png",
+      "width": 34,
+      "height": 73,
+      "foot": 108
+    },
+    {
+      "file": "walk-8.png",
+      "width": 36,
+      "height": 76,
+      "foot": 112
+    }
+  ]
+}

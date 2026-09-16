@@ -100,4 +100,34 @@ if(src.includes('function invalidateRefitLeisure(')){
  A.eq(draw(false).fallback,1,'missing detail plate falls back to the original doorway canvas');
  A.eq(draw(null).fallback,1,'classic doorway draw remains available without a texture module');
 }
+// An authored sofa perch changes only the displayed sitter height, never floor/sort contact.
+{
+ const run=remaster=>Function('PropRemaster','geo',`
+ const self={},T=12,U={irnd:()=>0},occupiedSeats=new Set(),blocked=new Set(),SEAT_NB=[[0,1]],sideSeat=()=>null;
+ const releaseSeat=()=>{},tileInZone=()=>true,setPathTo=()=>{self.target={};return true;},arrive=()=>{};
+ ${fn('planCouchSit')}
+ const p={id:'c',t:'couch',x:4,y:5,w:5,h:1};planCouchSit(0,p,null,'north',{});return self;
+ `)(remaster,{walkable:()=>true});
+ const native=run({enabled:()=>false}),authored=run({enabled:()=>true,viewGeometry:()=>({spec:{seatLift:6}})});
+ A.eq(authored.pendSeat.py,native.pendSeat.py,'authored couch retains its floor/sort anchor');
+ A.eq(authored.pendSeat.px,native.pendSeat.px,'authored couch retains its cushion claim');
+ A.eq(authored.pendSeat.lift,6,'authored cushion lifts the sitter above the taller back');
+ A.eq(native.pendSeat.lift,0,'classic couch retains its original perch');
+}
+// Rotated booth cushions run along depth, and mirrored views face their real front.
+{
+ const PA=require('../frontend/app/propanchor');
+ const run=Function('PropAnchor','p','slot',`
+ const self={},T=12,U={irnd:()=>slot},occupiedSeats=new Set(),blocked=new Set(),SEAT_NB=[[0,1],[1,0]],sideSeat=()=>null;
+ const releaseSeat=()=>{},tileInZone=()=>true,setPathTo=()=>{self.target={};return true;},arrive=()=>{};
+ const geo={walkable:()=>true};
+ ${fn('planCouchSit')}
+ planCouchSit(0,p,null,'north',{});return self;`);
+ for(const r of [1,3])for(const m of [false,true])for(const slot of [0,1]) {
+   const p={id:'booth',t:'booth',x:4,y:5,w:1,h:2,r,m},b=run(PA,p,slot);
+   A.eq(b.useFace,PA.frontOf(p),'rotated/mirrored booth faces its authored front');
+   A.eq(b.pendSeat.px,54,'vertical booth stays on its cushion column');
+   A.eq(b.pendSeat.py,(6+slot)*12-2,'vertical booth reserves the matching depth cushion');
+ }
+}
 A.report('world-seat-recovery');

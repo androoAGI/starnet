@@ -1,0 +1,22 @@
+{
+  "candidate": "ec49c89b9",
+  "integration": "b4e99c0fb0d5bb49a1257394f5115a3da5cb5d68",
+  "recordedAt": "2026-09-16T03:30:01.849Z",
+  "logs": [
+    {
+      "name": "remaster-merge-polish-final-fast.log",
+      "sha256": "1b07c02bb73f839c3eedc0043e63353018f292540464da07c3ad111418e56f41",
+      "summary": "run-fast-tests: OK — 804 step(s) green"
+    },
+    {
+      "name": "remaster-merge-polish-http.log",
+      "sha256": "b7f9e2b93d239b4cbc98b2313df36a5cb848e68a6751a128f0e024ac85ee8ed4",
+      "summary": "run-test-list: OK — 117 step(s) green"
+    },
+    {
+      "name": "remaster-merge-polish-final-journeys.log",
+      "sha256": "f98c51fd3c811f721cad80d0a813393692d89b484d78d9eea66871b0577aa724",
+      "summary": "run-test-list: OK — 34 step(s) green"
+    }
+  ]
+}

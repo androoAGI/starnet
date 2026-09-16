@@ -13,7 +13,7 @@
   // The approved caddy remains an independent child body, with its real alpha
   // dimensions read once. Geometry reflects the root's previous authored view.
   const response=await fetch('../assets/industrial/props-v3/manifest.json');
-  if(!response.ok)throw new Error('Mount manifest HTTP '+response.status);
+  if(!response.ok)throw Error('Mount manifest HTTP '+response.status);
   const manifest=await response.json();
   const caddy=manifest.props.industrial_toolcaddy.views.s;
   jobs.push(load('industrial_toolcaddy:s','frontend/assets/industrial/props-v3/'+caddy.image,caddy,caddy.bounds));

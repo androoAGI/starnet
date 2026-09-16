@@ -1,0 +1,15 @@
+{
+  "id": "robocop",
+  "track": "walk",
+  "dir": "east",
+  "promptOverride": "A seamless two-step walk in place, strictly facing DIRECTION in every frame. Alternate feet with modest opposite arm swing, one planted foot. Preserve the exact silver armored helmet and facial visor without speckles. Both legs remain fully silver armored with black joints; never turn an entire leg black or remove armor. Keep exact body proportions, colors and head direction. No turns, no objects, no jumping.",
+  "pinLast": true,
+  "request": "id: 439476e0-e3a4-42a7-b487-590e0f09fd65\njob_id: 439476e0-e3a4-42a7-b487-590e0f09fd65\ndescription: A seamless two-step walk in place, strictly facing east in every frame. Alternate feet with modest opposite arm swing, one planted foot. Preserve the exact silver armored helmet and facial visor without speckles. Both legs remain fully silver armored with black joints; never turn an entire leg black or remove armor. Keep exact body proportions, colors and head direction. No turns, no objects, no jumping.\nframes: 8\nsize: 96x96px\ntransparent: True\nlast_frame: yes (animating toward it)\ncost: 2 generations\nstatus: processing (~1-5 min)\n\nhint: get_image(job_id=\"439476e0-e3a4-42a7-b487-590e0f09fd65\")",
+  "job": "439476e0-e3a4-42a7-b487-590e0f09fd65",
+  "source": "output/agent-animation-study/rollout-20px/full-motion/robocop/refs/east.png",
+  "result": "status: completed\nid: 439476e0-e3a4-42a7-b487-590e0f09fd65\njob_id: 439476e0-e3a4-42a7-b487-590e0f09fd65\nframes: 9\ndownload: https://api.pixellab.ai/mcp/images/439476e0-e3a4-42a7-b487-590e0f09fd65/download?index=0 ... ?index=8\n(5 more frames not shown — fetch them from the download URLs above)",
+  "done": true,
+  "packed": true,
+  "lastRaw": "output/agent-animation-study/rollout-20px/full-motion/robocop/minimax/walk-east/439476e0-e3a4-42a7-b487-590e0f09fd65/8.png",
+  "frameCount": 9
+}

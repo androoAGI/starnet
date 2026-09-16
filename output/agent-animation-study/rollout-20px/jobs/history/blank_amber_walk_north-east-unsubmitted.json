@@ -1,0 +1,7 @@
+{
+  "id": "blank_amber",
+  "track": "walk",
+  "dir": "north-east",
+  "request": "error: rate limit exceeded (10/10 jobs)\n\nhint: wait for a job to finish, then retry",
+  "source": "output/agent-animation-study/rollout-20px/full-motion/blank_amber/refs/north-east.png"
+}

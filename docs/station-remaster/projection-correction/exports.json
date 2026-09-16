@@ -174,7 +174,8 @@
         "width": 62,
         "height": 26
       },
-      "status": "projection candidate; requires in-station visual review"
+      "status": "projection candidate; requires in-station visual review",
+      "seatLift": 6
     },
     {
       "id": "fishtank",
@@ -1033,51 +1034,6 @@
       "liveVerified": false,
       "group": "storage",
       "retained": 95811
-    },
-    {
-      "id": "war_intelcab",
-      "view": "s",
-      "source": "frontend/assets/industrial/capability-v2/sources/war_intelcab.png",
-      "before": "frontend/assets/industrial/capability-v2/before/war_intelcab.png",
-      "sourceSha256": "9038107a362619d6350cdfe957d7e2ca887cdc8da1f1b8bbc5e7354ccc72f305",
-      "repoPath": "frontend/assets/industrial/capability-v2/war_intelcab.png",
-      "outputSha256": "4f388de58644cf145e098098baaf81956c1a731ae13a2dbf7039378620064266",
-      "sourceCrop": {
-        "left": 226,
-        "top": 96,
-        "width": 950,
-        "height": 930
-      },
-      "sourceWidth": 950,
-      "sourceHeight": 930,
-      "footprint": {
-        "w": 1,
-        "h": 2
-      },
-      "bounds": {
-        "x": 0,
-        "y": -7,
-        "width": 17,
-        "height": 31
-      },
-      "exposure": 1,
-      "contact": {
-        "x": 0.5,
-        "y": 1
-      },
-      "retained": 835697,
-      "verification": {
-        "genuineAlpha": true,
-        "rgbaMismatches": 0,
-        "worldSize": [
-          17,
-          16.64
-        ],
-        "pixelsPerWorldPixel": 55.88
-      },
-      "status": "generated redesign; live review pending",
-      "group": "capability-v2",
-      "output": "frontend/assets/industrial/projection-correction/war_intelcab.png"
     },
     {
       "id": "safe",
@@ -5876,51 +5832,6 @@
       "retained": 71719
     },
     {
-      "id": "comms_dish",
-      "view": "s",
-      "source": "frontend/assets/industrial/capability-v2/sources/comms_dish.png",
-      "before": "frontend/assets/industrial/capability-v2/before/comms_dish.png",
-      "sourceSha256": "970bae4a5f9ba7ad36a238784c3b7ec9dbffaf0afd791b9f6159c9d3b54354f1",
-      "repoPath": "frontend/assets/industrial/capability-v2/comms_dish.png",
-      "outputSha256": "4c16b96d5f74172865523b0653082d41fca8dc1187d33dea1f130a575ad8de47",
-      "sourceCrop": {
-        "left": 271,
-        "top": 73,
-        "width": 777,
-        "height": 1039
-      },
-      "sourceWidth": 777,
-      "sourceHeight": 1039,
-      "footprint": {
-        "w": 2,
-        "h": 2
-      },
-      "bounds": {
-        "x": 2,
-        "y": 1,
-        "width": 20,
-        "height": 23
-      },
-      "exposure": 1,
-      "contact": {
-        "x": 0.5,
-        "y": 0.9990375360923965
-      },
-      "retained": 657702,
-      "verification": {
-        "genuineAlpha": true,
-        "rgbaMismatches": 0,
-        "worldSize": [
-          17.2,
-          23
-        ],
-        "pixelsPerWorldPixel": 45.17
-      },
-      "status": "generated redesign; live review pending",
-      "group": "capability-v2",
-      "output": "frontend/assets/industrial/projection-correction/comms_dish.png"
-    },
-    {
       "id": "research_corelens",
       "view": "s",
       "image": "research_corelens.png",
@@ -6033,51 +5944,6 @@
       "group": "comms-optics",
       "output": "frontend/assets/industrial/projection-correction/research_trendpillar.png",
       "retained": 80085
-    },
-    {
-      "id": "studio",
-      "view": "s",
-      "source": "frontend/assets/industrial/capability-v2/sources/studio.png",
-      "before": "frontend/assets/industrial/capability-v2/before/studio.png",
-      "sourceSha256": "c80efc01515675473efcda734932dba15ec80da9d0abee4148fb289093011b6c",
-      "repoPath": "frontend/assets/industrial/capability-v2/studio.png",
-      "outputSha256": "8dc7919e209f47a7cd73f476b8529131d1f2b9d1d5cd02639bbb9b3c310f86cf",
-      "sourceCrop": {
-        "left": 57,
-        "top": 97,
-        "width": 1422,
-        "height": 856
-      },
-      "sourceWidth": 1422,
-      "sourceHeight": 856,
-      "footprint": {
-        "w": 2,
-        "h": 2
-      },
-      "bounds": {
-        "x": 0,
-        "y": -6,
-        "width": 29,
-        "height": 30
-      },
-      "exposure": 1,
-      "contact": {
-        "x": 0.5,
-        "y": 0.9988317757009346
-      },
-      "retained": 1064205,
-      "verification": {
-        "genuineAlpha": true,
-        "rgbaMismatches": 0,
-        "worldSize": [
-          29,
-          17.46
-        ],
-        "pixelsPerWorldPixel": 49.03
-      },
-      "status": "generated redesign; live review pending",
-      "group": "capability-v2",
-      "output": "frontend/assets/industrial/projection-correction/studio.png"
     },
     {
       "id": "telescope",
@@ -6609,51 +6475,6 @@
       "liveVerified": false,
       "group": "storage-carts",
       "retained": 41284
-    },
-    {
-      "id": "gigs_servercart",
-      "view": "s",
-      "source": "frontend/assets/industrial/capability-v2/sources/gigs_servercart.png",
-      "before": "frontend/assets/industrial/capability-v2/before/gigs_servercart.png",
-      "sourceSha256": "8a789be7435eb6ad7fa2510f386936397b0a70252bc02040115105327e8d267d",
-      "repoPath": "frontend/assets/industrial/capability-v2/gigs_servercart.png",
-      "outputSha256": "c5f4fd180edb503b05ba8ece2d6907ac6473e565ec4227104873a1286d69e23f",
-      "sourceCrop": {
-        "left": 135,
-        "top": 89,
-        "width": 1071,
-        "height": 1004
-      },
-      "sourceWidth": 1071,
-      "sourceHeight": 1004,
-      "footprint": {
-        "w": 1,
-        "h": 1
-      },
-      "bounds": {
-        "x": 1,
-        "y": -6,
-        "width": 16,
-        "height": 18
-      },
-      "exposure": 1,
-      "contact": {
-        "x": 0.5,
-        "y": 0.999003984063745
-      },
-      "retained": 924904,
-      "verification": {
-        "genuineAlpha": true,
-        "rgbaMismatches": 0,
-        "worldSize": [
-          16,
-          15
-        ],
-        "pixelsPerWorldPixel": 66.94
-      },
-      "status": "generated redesign; live review pending",
-      "group": "capability-v2",
-      "output": "frontend/assets/industrial/projection-correction/gigs_servercart.png"
     },
     {
       "id": "vault",
@@ -10029,51 +9850,6 @@
       "retained": 74397
     },
     {
-      "id": "workbench",
-      "view": "s",
-      "source": "frontend/assets/industrial/capability-v2/sources/workbench.png",
-      "before": "frontend/assets/industrial/capability-v2/before/workbench.png",
-      "sourceSha256": "d3866ee60a51a334c156cedc3f13d1dc84693252ead5920844073532b885366a",
-      "repoPath": "frontend/assets/industrial/capability-v2/workbench.png",
-      "outputSha256": "52c33e1e5697ae01fac5a868993c7efb0f3b45e5de96b4075922ab628065104d",
-      "sourceCrop": {
-        "left": 11,
-        "top": 49,
-        "width": 1515,
-        "height": 909
-      },
-      "sourceWidth": 1515,
-      "sourceHeight": 909,
-      "footprint": {
-        "w": 2,
-        "h": 1
-      },
-      "bounds": {
-        "x": -1,
-        "y": -15,
-        "width": 30,
-        "height": 27
-      },
-      "exposure": 1,
-      "contact": {
-        "x": 0.5,
-        "y": 0.9988998899889989
-      },
-      "retained": 1041218,
-      "verification": {
-        "genuineAlpha": true,
-        "rgbaMismatches": 0,
-        "worldSize": [
-          30,
-          18
-        ],
-        "pixelsPerWorldPixel": 50.5
-      },
-      "status": "generated redesign; live review pending",
-      "group": "capability-v2",
-      "output": "frontend/assets/industrial/projection-correction/workbench.png"
-    },
-    {
       "id": "longtable",
       "view": "s",
       "source": "frontend/assets/industrial/camera-audit/sources/longtable.png",
@@ -10496,12 +10272,12 @@
       "sourceWidth": 1614,
       "sourceHeight": 825,
       "footprint": {
-        "w": 7,
-        "h": 4
+        "w": 5,
+        "h": 3
       },
       "bounds": {
-        "x": 17,
-        "y": 20,
+        "x": 5,
+        "y": 8,
         "width": 50,
         "height": 28
       },
@@ -10514,6 +10290,231 @@
       "status": "restored hexagonal style with thinner rim; owner review pending",
       "group": "tactical-table-polish",
       "output": "frontend/assets/industrial/projection-correction/bridge_tacticaltable.png"
+    },
+    {
+      "id": "war_intelcab",
+      "view": "s",
+      "source": "frontend/assets/industrial/capability-v2/sources/war_intelcab.png",
+      "before": "frontend/assets/industrial/capability-v2/before/war_intelcab.png",
+      "sourceSha256": "9038107a362619d6350cdfe957d7e2ca887cdc8da1f1b8bbc5e7354ccc72f305",
+      "repoPath": "frontend/assets/industrial/capability-v2/war_intelcab.png",
+      "outputSha256": "4f388de58644cf145e098098baaf81956c1a731ae13a2dbf7039378620064266",
+      "sourceCrop": {
+        "left": 226,
+        "top": 96,
+        "width": 950,
+        "height": 930
+      },
+      "sourceWidth": 950,
+      "sourceHeight": 930,
+      "footprint": {
+        "w": 1,
+        "h": 2
+      },
+      "bounds": {
+        "x": 0,
+        "y": -7,
+        "width": 17,
+        "height": 31
+      },
+      "exposure": 1,
+      "contact": {
+        "x": 0.5,
+        "y": 1
+      },
+      "retained": 835697,
+      "verification": {
+        "genuineAlpha": true,
+        "rgbaMismatches": 0,
+        "worldSize": [
+          17,
+          16.64
+        ],
+        "pixelsPerWorldPixel": 55.88
+      },
+      "status": "generated redesign; live review pending",
+      "group": "capability-v2",
+      "output": "frontend/assets/industrial/projection-correction/war_intelcab.png"
+    },
+    {
+      "id": "comms_dish",
+      "view": "s",
+      "source": "frontend/assets/industrial/capability-v2/sources/comms_dish.png",
+      "before": "frontend/assets/industrial/capability-v2/before/comms_dish.png",
+      "sourceSha256": "970bae4a5f9ba7ad36a238784c3b7ec9dbffaf0afd791b9f6159c9d3b54354f1",
+      "repoPath": "frontend/assets/industrial/capability-v2/comms_dish.png",
+      "outputSha256": "4c16b96d5f74172865523b0653082d41fca8dc1187d33dea1f130a575ad8de47",
+      "sourceCrop": {
+        "left": 271,
+        "top": 73,
+        "width": 777,
+        "height": 1039
+      },
+      "sourceWidth": 777,
+      "sourceHeight": 1039,
+      "footprint": {
+        "w": 2,
+        "h": 2
+      },
+      "bounds": {
+        "x": 2,
+        "y": 1,
+        "width": 20,
+        "height": 23
+      },
+      "exposure": 1,
+      "contact": {
+        "x": 0.5,
+        "y": 0.9990375360923965
+      },
+      "retained": 657702,
+      "verification": {
+        "genuineAlpha": true,
+        "rgbaMismatches": 0,
+        "worldSize": [
+          17.2,
+          23
+        ],
+        "pixelsPerWorldPixel": 45.17
+      },
+      "status": "generated redesign; live review pending",
+      "group": "capability-v2",
+      "output": "frontend/assets/industrial/projection-correction/comms_dish.png"
+    },
+    {
+      "id": "workbench",
+      "view": "s",
+      "source": "frontend/assets/industrial/capability-v2/sources/workbench.png",
+      "before": "frontend/assets/industrial/capability-v2/before/workbench.png",
+      "sourceSha256": "d3866ee60a51a334c156cedc3f13d1dc84693252ead5920844073532b885366a",
+      "repoPath": "frontend/assets/industrial/capability-v2/workbench.png",
+      "outputSha256": "52c33e1e5697ae01fac5a868993c7efb0f3b45e5de96b4075922ab628065104d",
+      "sourceCrop": {
+        "left": 11,
+        "top": 49,
+        "width": 1515,
+        "height": 909
+      },
+      "sourceWidth": 1515,
+      "sourceHeight": 909,
+      "footprint": {
+        "w": 2,
+        "h": 1
+      },
+      "bounds": {
+        "x": -1,
+        "y": -15,
+        "width": 30,
+        "height": 27
+      },
+      "exposure": 1,
+      "contact": {
+        "x": 0.5,
+        "y": 0.9988998899889989
+      },
+      "retained": 1041218,
+      "verification": {
+        "genuineAlpha": true,
+        "rgbaMismatches": 0,
+        "worldSize": [
+          30,
+          18
+        ],
+        "pixelsPerWorldPixel": 50.5
+      },
+      "status": "generated redesign; live review pending",
+      "group": "capability-v2",
+      "output": "frontend/assets/industrial/projection-correction/workbench.png"
+    },
+    {
+      "id": "gigs_servercart",
+      "view": "s",
+      "source": "frontend/assets/industrial/capability-v2/sources/gigs_servercart.png",
+      "before": "frontend/assets/industrial/capability-v2/before/gigs_servercart.png",
+      "sourceSha256": "8a789be7435eb6ad7fa2510f386936397b0a70252bc02040115105327e8d267d",
+      "repoPath": "frontend/assets/industrial/capability-v2/gigs_servercart.png",
+      "outputSha256": "c5f4fd180edb503b05ba8ece2d6907ac6473e565ec4227104873a1286d69e23f",
+      "sourceCrop": {
+        "left": 135,
+        "top": 89,
+        "width": 1071,
+        "height": 1004
+      },
+      "sourceWidth": 1071,
+      "sourceHeight": 1004,
+      "footprint": {
+        "w": 1,
+        "h": 1
+      },
+      "bounds": {
+        "x": 1,
+        "y": -6,
+        "width": 16,
+        "height": 18
+      },
+      "exposure": 1,
+      "contact": {
+        "x": 0.5,
+        "y": 0.999003984063745
+      },
+      "retained": 924904,
+      "verification": {
+        "genuineAlpha": true,
+        "rgbaMismatches": 0,
+        "worldSize": [
+          16,
+          15
+        ],
+        "pixelsPerWorldPixel": 66.94
+      },
+      "status": "generated redesign; live review pending",
+      "group": "capability-v2",
+      "output": "frontend/assets/industrial/projection-correction/gigs_servercart.png"
+    },
+    {
+      "id": "studio",
+      "view": "s",
+      "source": "frontend/assets/industrial/capability-v2/sources/studio.png",
+      "before": "frontend/assets/industrial/capability-v2/before/studio.png",
+      "sourceSha256": "c80efc01515675473efcda734932dba15ec80da9d0abee4148fb289093011b6c",
+      "repoPath": "frontend/assets/industrial/capability-v2/studio.png",
+      "outputSha256": "8dc7919e209f47a7cd73f476b8529131d1f2b9d1d5cd02639bbb9b3c310f86cf",
+      "sourceCrop": {
+        "left": 57,
+        "top": 97,
+        "width": 1422,
+        "height": 856
+      },
+      "sourceWidth": 1422,
+      "sourceHeight": 856,
+      "footprint": {
+        "w": 2,
+        "h": 2
+      },
+      "bounds": {
+        "x": 0,
+        "y": -6,
+        "width": 29,
+        "height": 30
+      },
+      "exposure": 1,
+      "contact": {
+        "x": 0.5,
+        "y": 0.9988317757009346
+      },
+      "retained": 1064205,
+      "verification": {
+        "genuineAlpha": true,
+        "rgbaMismatches": 0,
+        "worldSize": [
+          29,
+          17.46
+        ],
+        "pixelsPerWorldPixel": 49.03
+      },
+      "status": "generated redesign; live review pending",
+      "group": "capability-v2",
+      "output": "frontend/assets/industrial/projection-correction/studio.png"
     }
   ]
 }

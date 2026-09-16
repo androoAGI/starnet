@@ -222,6 +222,35 @@ async function main() {
   equal(classicReview.api.crate(canvas().getContext('2d'),0,0,24,12),false,'classic never adopts review art');
   const failedReview=load({review:true,fail:'calibration/crate.png'});await failedReview.finish();
   equal(failedReview.api.crate(canvas().getContext('2d'),0,0,24,12),false,'failed review retains complete fallback');
+  for(const id of ['wainscot','hedge']) {
+    ok(api.supportsWall(id),'specialized wall has authored coverage: '+id);
+    const d=draw(api,'wall',0,0,12,33,0,id);
+    ok([...d.image.paths].some(p=>p.endsWith('/walls/'+id+'.png')),id+' uses its own artwork instead of bulkhead fallback');
+    ok(api.wallStrip(33,id).hi,'specialized side/corner strip retains high resolution: '+id);
+  }
+  const windowPlate=canvas(40,45);
+  equal(api.wall(windowPlate.getContext('2d'),4,4,24,33,0,'viewport'),false,'viewport never paints an opaque wall across the live sky');
+  equal(api.wallStrip(33,'viewport'),null,'viewport leaves side glass to its dedicated frame painter');
+  ok(api.viewportFrame(windowPlate.getContext('2d'),4,4,24,33),'authored window frame draws');
+  for(let y=7;y<31;y++)for(let x=5;x<27;x++)assert.equal(windowPlate.pixels[(y*40+x)*4+3],0,'frame must leave live sky transparent');
+  checks++;
+  const doorway=canvas(40,60), dg=doorway.getContext('2d');
+  ok(api.doorReturn(dg,4,8,45,6,0,undefined,4),'left reveal uses authored framing');
+  ok(api.doorReturn(dg,28,8,45,6,1,undefined,4),'right reveal uses authored framing');
+  ok(doorway.paths.has('assets/industrial/remaster/walls/viewport.png'),'reveal uses matching steel frame');
+  ok(doorway.paths.has('assets/industrial/remaster/crown.png'),'return cap uses matching coping');
+  for(let y=4;y<46;y++)for(let x=11;x<21;x++)assert.equal(doorway.pixels[(y*40+x)*4+3],0,'mouth centre stays open');checks++;
+  const faces=doorway.draws.filter(d=>[...d.image.paths].some(p=>p.endsWith('/walls/viewport.png')));
+  ok(faces.every(d=>d.dh<=1/6+1e-8),'reveals retain subpixel detail instead of native row steps');
+  near(faces[0].dw,faces[faces.length/2].dw,'opposite jambs use matching widths');
+  ok(faces[0].dw>faces[faces.length/2-1].dw,'reveal recedes toward the floor');
+  const untouched=canvas(40,60);
+  equal(classic.api.doorReturn(untouched.getContext('2d'),4,8,45,6,0,undefined,4),false,'classic retains doorway art');
+  equal(untouched.draws.length,0,'declined doorway never partially paints');
+  const cap=canvas(120,8);api.crown(cap.getContext('2d'),0,0,120,4,-6,false);
+  ok(cap.paths.has('assets/industrial/remaster/crown.png'),'ridge uses authored coping texture');
+  equal(cap.draws.reduce((n,d)=>n+d.dw,0),120,'crown wraps negative world phase without dropping length');
+  equal(classic.api.supportsWall('viewport'),false,'classic keeps specialized fallback geometry');
   console.log('industrialtextures: OK ('+checks+' public-contract assertions; synthetic canvas assets, live artwork not assessed)');
 }
 main().catch(error=>{console.error(error);process.exitCode=1;});

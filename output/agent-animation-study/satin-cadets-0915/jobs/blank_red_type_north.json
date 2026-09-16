@@ -1,0 +1,13 @@
+{
+  "id": "blank_red",
+  "track": "type",
+  "dir": "north",
+  "request": "id: 3a044d56-3f2d-492b-abae-6e0017db03cd\njob_id: 3a044d56-3f2d-492b-abae-6e0017db03cd\ndescription: Subtle seamless seated typing loop facing north throughout. Keep hips, torso, head and feet fixed in this EXACT seated pose. Elbows tucked at waist; only hands and forearms alternate tiny typing motions forward at desk height. No standing, turning, chair, desk, keyboard, shadow or objects. Preserve exact faceless spherical head, continuous rounded limbs, proportions, color and crisp pixel-cluster shading. No eyes, mouth, armor, joints or smooth gradients. Preserve muted satin colors, restrained highlights, plain torso and cylindrical limbs. No muscle definition or bright gloss.\nframes: 4\nsize: 96x96px\ntransparent: True\ncost: 2 generations\nstatus: processing (~1-5 min)\n\nhint: get_image(job_id=\"3a044d56-3f2d-492b-abae-6e0017db03cd\")",
+  "job": "3a044d56-3f2d-492b-abae-6e0017db03cd",
+  "source": "output/agent-animation-study/satin-cadets-0915/full-motion/blank_red/minimax/sit-north/e13ddaf4-f4b4-424a-82ae-0df01d16ad45/4.png",
+  "result": "status: completed\nid: 3a044d56-3f2d-492b-abae-6e0017db03cd\njob_id: 3a044d56-3f2d-492b-abae-6e0017db03cd\nframes: 5\ndownload: https://api.pixellab.ai/mcp/images/3a044d56-3f2d-492b-abae-6e0017db03cd/download?index=0 ... ?index=4\n(1 more frames not shown — fetch them from the download URLs above)",
+  "done": true,
+  "packed": true,
+  "lastRaw": "output/agent-animation-study/satin-cadets-0915/full-motion/blank_red/minimax/type-north/3a044d56-3f2d-492b-abae-6e0017db03cd/4.png",
+  "frameCount": 5
+}

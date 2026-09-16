@@ -1,0 +1,13 @@
+{
+  "id": "blank_green",
+  "track": "walk",
+  "dir": "east",
+  "request": "id: 403314fb-552c-4006-8cff-02c3fe343a89\njob_id: 403314fb-552c-4006-8cff-02c3fe343a89\ndescription: A seamless two-step walk in place, facing east throughout. Alternate left foot contact, passing pose, right foot contact, passing pose. One foot always carries weight on the same baseline. Opposite arm swings. The body stays upright and centered; head stays steady, only tiny shoulder counter-rotation. Preserve exact input body size, shape, clothing, leg colors and pixel style. No turns, no jump, no both-feet lift, no objects and no ground shadow. Return to the original facing and neutral stance in the last frame; do not rotate the torso toward the camera during the step.\nframes: 8\nsize: 96x96px\ntransparent: True\ncost: 2 generations\nstatus: processing (~1-5 min)\n\nhint: get_image(job_id=\"403314fb-552c-4006-8cff-02c3fe343a89\")",
+  "job": "403314fb-552c-4006-8cff-02c3fe343a89",
+  "source": "output/agent-animation-study/rollout-20px/full-motion/blank_green/refs/east.png",
+  "result": "status: completed\nid: 403314fb-552c-4006-8cff-02c3fe343a89\njob_id: 403314fb-552c-4006-8cff-02c3fe343a89\nframes: 9\ndownload: https://api.pixellab.ai/mcp/images/403314fb-552c-4006-8cff-02c3fe343a89/download?index=0 ... ?index=8\n(5 more frames not shown — fetch them from the download URLs above)",
+  "done": true,
+  "packed": true,
+  "lastRaw": "output/agent-animation-study/rollout-20px/full-motion/blank_green/minimax/walk-east/403314fb-552c-4006-8cff-02c3fe343a89/8.png",
+  "frameCount": 9
+}

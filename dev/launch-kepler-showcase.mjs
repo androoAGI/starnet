@@ -8,6 +8,7 @@ const scratch=resolve('dev/.scratch-workspace/kepler-showcase');
 if(!existsSync(scratch)){
   materializeSeedWorkspace(scratch,{key:'',fullAccess:false});
   globalThis.IndustrialTextures={enabled:()=>true,isRemaster:()=>true,ready:Promise.resolve()};
+  globalThis.PropRemaster={isProjection:()=>true,enabled:()=>false,revision:()=>0,ready:Promise.resolve()};
   const P=require('../frontend/app/propsprites.js'),M=require('../frontend/app/worldmodel.js');
   await IndustrialTextures.ready;
   const {doc,station}=require('./kepler-showcase.cjs').createPreset(P,M);

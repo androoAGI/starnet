@@ -1,0 +1,86 @@
+{
+  "id": "ricksanchez",
+  "name": "Rick Sanchez",
+  "dir": "north-west",
+  "source": "C:/Users/andro/gen-trees/sprite-reimagine-0914/output/agent-animation-study/remaining-motion-0915/full-motion/ricksanchez/refs/north-west.png",
+  "prompt": "Animate the supplied existing Rick Sanchez pixel-art game sprite walking IN PLACE. Preserve this exact design, outfit, identity, proportions, palette, camera angle and north-west facing in EVERY frame. Do not turn toward the camera or away from the input angle. Output EXACTLY EIGHT full-body frames on transparent background in a strict FOUR-COLUMN TWO-ROW grid, read left to right across the first row then the second. All eight equal square cells, generous empty padding, no labels/grid/scene/shadow. One seamless complete TWO-STEP gait: frame 1 left foot forward contact and right arm forward; 2 weight settling; 3 right foot passing; 4 right foot swinging forward; 5 right foot forward contact and left arm forward; 6 weight settling; 7 left foot passing; 8 left foot swinging forward toward frame 1. Consistent small natural steps, relaxed counter-swinging arms and steady head. Center torso in the same position, one supporting foot touches the same baseline in each cell. No sliding whole sprite within a cell, no duplicated endpoint, no hopping, no running, no exaggerated limbs. Keep readable crisp pixel clusters; no smooth painted shading.",
+  "generated": "C:\\Users\\andro\\.codex\\generated_images\\01a09e2a-59d9-7333-ae0c-3d07653ddb14\\exec-67eb91df-595d-4651-8954-16f0a18e4119.png",
+  "sheet": "C:/Users/andro/gen-trees/sprite-reimagine-0914/output/agent-animation-study/remaining-motion-0915/ricksanchez_walk_north-west.png",
+  "method": "built-in ImageGen",
+  "status": "generated",
+  "selected": [
+    "walk_north-west_0.png",
+    "walk_north-west_1.png",
+    "walk_north-west_2.png",
+    "walk_north-west_3.png",
+    "walk_north-west_4.png",
+    "walk_north-west_5.png",
+    "walk_north-west_6.png",
+    "walk_north-west_7.png"
+  ],
+  "packed": true,
+  "scale": 0.23030303030303031,
+  "bounds": [
+    {
+      "left": 137,
+      "top": 63,
+      "width": 153,
+      "height": 329
+    },
+    {
+      "left": 155,
+      "top": 63,
+      "width": 131,
+      "height": 329
+    },
+    {
+      "left": 145,
+      "top": 63,
+      "width": 152,
+      "height": 329
+    },
+    {
+      "left": 136,
+      "top": 63,
+      "width": 155,
+      "height": 329
+    },
+    {
+      "left": 136,
+      "top": 62,
+      "width": 154,
+      "height": 323
+    },
+    {
+      "left": 145,
+      "top": 62,
+      "width": 141,
+      "height": 329
+    },
+    {
+      "left": 136,
+      "top": 62,
+      "width": 155,
+      "height": 329
+    },
+    {
+      "left": 136,
+      "top": 62,
+      "width": 155,
+      "height": 330
+    }
+  ],
+  "inputHashes": {
+    "output/agent-animation-study/remaining-motion-0915/full-motion/ricksanchez/refs/north-west.png": "3f22103d5542e003fe95d1b8501ee4116d6b2129f08c473404370a73384ec9ed"
+  },
+  "selectedHashes": {
+    "walk_north-west_0.png": "b641ccb09d392d3f3c00794b019589c92a302021e35360713d6127d11b39ff54",
+    "walk_north-west_1.png": "41e5bb3a3442811a431bf43c3d254bde31c7828b3963983fdcfdef2e5ee244ce",
+    "walk_north-west_2.png": "f99163939c1bb3a9490ad7a12f12979d2f71fc4bfabfee00908b1fd7df25c4f2",
+    "walk_north-west_3.png": "cf6ff658dbed24f1a7fee94825696d42f0b8c120adb5d9e11f1433447e98d23c",
+    "walk_north-west_4.png": "8ded4b39b180c178f2539056cdeb7aef83f912122b3b8372b1cb4c3a3c7060f8",
+    "walk_north-west_5.png": "5a2e6155fa4bac563425bf9d1ab76e989174d443a804ac77c656ec1d82574b4a",
+    "walk_north-west_6.png": "62c67499d2538cbc64279e9c87e2e8a937cd17103e3ee4a9ab391adc4201d79b",
+    "walk_north-west_7.png": "df4e37a8f1e490ac865f373de5ec989e66af82a0d4074d9445b8d556815cf604"
+  }
+}

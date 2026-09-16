@@ -13,7 +13,7 @@ try {
  const result=await evalJS(cdp,`(async()=>{
   await IndustrialTextures.ready;
   const status=IndustrialTextures.status(); if(!status.loaded||status.failed.length) throw Error(JSON.stringify(status));
-  const defs=[['hull','thermal','bone'],['hull','insulation','amber'],['hull','heatsink','hull'],['floor','flightdeck','hull'],['floor','lunar','ash'],['floor','maggrid','corridor'],['floor','habitat','bone'],['wall','pressure','bone'],['wall','radiator','hull'],['wall','utility','cobalt'],['wall','acoustic','ash']];
+  const defs=[['hull','thermal'],['hull','insulation'],['hull','heatsink'],['floor','flightdeck'],['floor','lunar'],['floor','maggrid'],['floor','habitat'],['wall','pressure'],['wall','radiator'],['wall','utility'],['wall','acoustic']].map(([axis,id])=>[axis,id,WorldModel[axis==='hull'?'HULL_MATERIALS':axis==='floor'?'FLOOR_MATERIALS':'WALL_MATERIALS'][id].suggest]);
   const cv=document.createElement('canvas'); cv.width=1000; cv.height=defs.length*150;
   const g=cv.getContext('2d');g.fillStyle='#10171e';g.fillRect(0,0,cv.width,cv.height);
   const samples=[];

@@ -4,7 +4,7 @@
  await SPRITES.init();await SPRITES.ensureSkin('station_minion');
  const query=new URLSearchParams(location.search),newOnly=query.get('set')==='new',projection=query.get('propSet')==='projection';
  let reviewManifest=null;
- if(projection){const response=await fetch('assets/industrial/projection-correction/manifest.json');if(!response.ok)throw new Error('Projection manifest HTTP '+response.status);reviewManifest=await response.json();}
+ if(projection){const response=await fetch('assets/industrial/projection-correction/manifest.json');if(!response.ok)throw Error('Projection manifest HTTP '+response.status);reviewManifest=await response.json();}
  const revised=new Set((reviewManifest?.revisedViews||[]).map(v=>v.id));
  if(projection){for(const a of document.querySelectorAll('nav a')){const url=new URL(a.href);url.searchParams.set('propSet','projection');a.href=url.href;}document.querySelector('#scope').textContent='Full catalog with projection corrections. Fixed 2× world scale; the crate and crew show physical size.';}
  const cards=[],main=document.querySelector('#catalog'),search=document.querySelector('#search'),family=document.querySelector('#family');let work=false,facing=0,placement=false;

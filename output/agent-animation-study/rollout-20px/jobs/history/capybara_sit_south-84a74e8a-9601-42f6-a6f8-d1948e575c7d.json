@@ -1,0 +1,13 @@
+{
+  "id": "capybara",
+  "track": "sit",
+  "dir": "south",
+  "request": "id: 84a74e8a-9601-42f6-a6f8-d1948e575c7d\njob_id: 84a74e8a-9601-42f6-a6f8-d1948e575c7d\ndescription: The character lowers into a seated pose on an invisible chair, facing south throughout. Hips move down, thighs extend forward, knees bend and remain hip-width apart, with feet below knees. Torso stays upright, head stays same size. Elbows stay tucked beside the waist and hands reach forward at desk height. End fully seated with a compact silhouette, not arms stretched sideways. Do not draw a chair, desk, keyboard, floor, shadow or any object. Preserve the exact character design and pixel art.\nframes: 4\nsize: 96x96px\ntransparent: True\ncost: 2 generations\nstatus: processing (~1-5 min)\n\nhint: get_image(job_id=\"84a74e8a-9601-42f6-a6f8-d1948e575c7d\")",
+  "job": "84a74e8a-9601-42f6-a6f8-d1948e575c7d",
+  "source": "output/agent-animation-study/rollout-20px/full-motion/capybara/refs/south.png",
+  "result": "status: completed\nid: 84a74e8a-9601-42f6-a6f8-d1948e575c7d\njob_id: 84a74e8a-9601-42f6-a6f8-d1948e575c7d\nframes: 5\ndownload: https://api.pixellab.ai/mcp/images/84a74e8a-9601-42f6-a6f8-d1948e575c7d/download?index=0 ... ?index=4\n(1 more frames not shown — fetch them from the download URLs above)",
+  "done": true,
+  "packed": true,
+  "lastRaw": "output/agent-animation-study/rollout-20px/full-motion/capybara/minimax/sit-south/84a74e8a-9601-42f6-a6f8-d1948e575c7d/4.png",
+  "frameCount": 5
+}

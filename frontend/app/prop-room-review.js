@@ -6,7 +6,7 @@
  groups['crew-facings']=['dinerchair:w','dinerchair:n','dinerchair:e','podchair:w','podchair:n','podchair:e','booth:w','booth:e','dinertable:e'];
  groups.command=['console','consoleL','bench','bridge_consolebank','bridge_equipmentbay','bigscreen','holotable','bridge_tacticaltable'];
  const response=await fetch('assets/industrial/'+(new URLSearchParams(location.search).get('propSet')==='projection'?'projection-correction':'approved-sheet')+'/manifest.json');
- if(!response.ok)throw new Error('Prop manifest HTTP '+response.status);
+ if(!response.ok)throw Error('Prop manifest HTTP '+response.status);
  const manifest=await response.json(),revised=new Set((manifest.revisedViews||[]).map(v=>v.id+':'+v.view));
  for(const entry of manifest.revisedViews||[]){if(['lounge','glass-depth','crew-facings','utility','storage','crew','tables','machinery','command'].includes(entry.group))continue;(groups[entry.group]||(groups[entry.group]=[])).push(entry.id+(entry.view==='s'?'':':'+entry.view));}
  groups['mirrored-facings']=['desk2:w','industrial_partition:w'];

@@ -120,8 +120,8 @@ const sep = A.fnBody(src, 'function separateBodies(');
 A.ok(sep && sep.length < 5500, 'separateBodies body scanned cleanly');
 A.ok(/const PERSONAL_TILES = 0\.8;/.test(src), 'personal space is UNDER one tile, so adjacent-tile beats (huddle/border/the gathering ring) are untouched by construction');
 const tickFn = A.fnBody(src, 'function tick(dt, now)');
-A.ok(/separateBodies\(now\);\s*\n\s*\}$/.test(tickFn),
-  'separation is the LAST thing in the tick — after stepCrew AND the hero walk block have both committed this frame');
+A.ok(/separateBodies\(now\);\s*if\(agent\)finishGait\(agent\);for\(const body of crew\)finishGait\(body\);\s*\}$/.test(tickFn),
+  'separation is the final position change; gait measurement follows resolved displacement');
 A.ok(/const anchored = b => !!\(b\.sitting \|\| b\.seated\);/.test(sep),
   'ONLY a seated body is an anchor — a social/gather exemption would skip separation for the whole walk in, which is exactly when two bodies cross (caught live by dev/bodyphysics.mjs)');
 A.ok(/if \(pa && pb\) continue;/.test(sep), 'two anchored bodies are left alone rather than fought over');

@@ -6220,6 +6220,129 @@
       "station_minion/type_west_2.png",
       "station_minion/type_west_3.png",
       "station_minion/type_west_4.png"
+    ],
+    "industrial_ultron.rot.south": [
+      "industrial_ultron/rot_south.png"
+    ],
+    "industrial_skeleton.rot.south": [
+      "industrial_skeleton/rot_south.png"
+    ],
+    "industrial_plaguedoctor.rot.south": [
+      "industrial_plaguedoctor/rot_south.png"
+    ],
+    "industrial_secretagent.rot.south": [
+      "industrial_secretagent/rot_south.png"
+    ],
+    "industrial_voidwizard.rot.south": [
+      "industrial_voidwizard/rot_south.png"
+    ],
+    "approved_secretagent.rot.south": [
+      "approved_secretagent/rot_south.png"
+    ],
+    "approved_ultron.rot.south": [
+      "approved_ultron/rot_south.png"
+    ],
+    "approved_skeleton.rot.south": [
+      "approved_skeleton/rot_south.png"
+    ],
+    "approved_plaguedoctor.rot.south": [
+      "approved_plaguedoctor/rot_south.png"
+    ],
+    "approved_voidwizard.rot.south": [
+      "approved_voidwizard/rot_south.png"
+    ],
+    "approved_pepe.rot.south": [
+      "approved_pepe/rot_south.png"
+    ],
+    "approved_vaultboy.rot.south": [
+      "approved_vaultboy/rot_south.png"
+    ],
+    "approved_bear.rot.south": [
+      "approved_bear/rot_south.png"
+    ],
+    "approved_ghostface.rot.south": [
+      "approved_ghostface/rot_south.png"
+    ],
+    "approved_morpheus.rot.south": [
+      "approved_morpheus/rot_south.png"
+    ],
+    "approved_android.rot.south": [
+      "approved_android/rot_south.png"
+    ],
+    "approved_astronaut.rot.south": [
+      "approved_astronaut/rot_south.png"
+    ],
+    "approved_robot.rot.south": [
+      "approved_robot/rot_south.png"
+    ],
+    "approved_crthead.rot.south": [
+      "approved_crthead/rot_south.png"
+    ],
+    "approved_alien.rot.south": [
+      "approved_alien/rot_south.png"
+    ],
+    "approved_xenomorph.rot.south": [
+      "approved_xenomorph/rot_south.png"
+    ],
+    "approved_robocop.rot.south": [
+      "approved_robocop/rot_south.png"
+    ],
+    "approved_grimreaper.rot.south": [
+      "approved_grimreaper/rot_south.png"
+    ],
+    "approved_masterchief.rot.south": [
+      "approved_masterchief/rot_south.png"
+    ],
+    "approved_crewmate.rot.south": [
+      "approved_crewmate/rot_south.png"
+    ],
+    "approved_station_minion.rot.south": [
+      "approved_station_minion/rot_south.png"
+    ],
+    "approved_blank_blue.rot.south": [
+      "approved_blank_blue/rot_south.png"
+    ],
+    "approved_blank_green.rot.south": [
+      "approved_blank_green/rot_south.png"
+    ],
+    "approved_blank_red.rot.south": [
+      "approved_blank_red/rot_south.png"
+    ],
+    "approved_capybara.rot.south": [
+      "approved_capybara/rot_south.png"
+    ],
+    "approved_blank_amber.rot.south": [
+      "approved_blank_amber/rot_south.png"
+    ],
+    "approved_endoskeleton.rot.south": [
+      "approved_endoskeleton/rot_south.png"
+    ],
+    "approved_samaltman.rot.south": [
+      "approved_samaltman/rot_south.png"
+    ],
+    "approved_dario.rot.south": [
+      "approved_dario/rot_south.png"
+    ],
+    "approved_ultrondroid.rot.south": [
+      "approved_ultrondroid/rot_south.png"
+    ],
+    "approved_freddyfazbear.rot.south": [
+      "approved_freddyfazbear/rot_south.png"
+    ],
+    "approved_ninjaturtle.rot.south": [
+      "approved_ninjaturtle/rot_south.png"
+    ],
+    "approved_caseyjones.rot.south": [
+      "approved_caseyjones/rot_south.png"
+    ],
+    "approved_finn.rot.south": [
+      "approved_finn/rot_south.png"
+    ],
+    "approved_heisenberg.rot.south": [
+      "approved_heisenberg/rot_south.png"
+    ],
+    "approved_ricksanchez.rot.south": [
+      "approved_ricksanchez/rot_south.png"
     ]
   }
 }

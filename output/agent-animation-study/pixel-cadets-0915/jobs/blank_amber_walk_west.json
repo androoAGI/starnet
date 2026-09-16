@@ -1,0 +1,15 @@
+{
+  "id": "blank_amber",
+  "track": "walk",
+  "dir": "west",
+  "request": "id: cb97afc1-f897-4b01-842a-272263d6616c\njob_id: cb97afc1-f897-4b01-842a-272263d6616c\ndescription: Seamless two-step walk IN PLACE facing west throughout. Alternate left foot contact, passing pose, right foot contact, passing pose, with opposite arm swing. One foot supports weight at the original baseline. Upright centered body, steady head, tiny shoulder counter-rotation. End in the original neutral facing stance. No turns, jumps, floating, ground shadow or objects. Preserve exact input proportions, size, colors and crisp clustered PIXEL ART shading. Featureless round head, smooth continuous rounded limbs. No eyes, mouth, holes, armor, clothing, mechanical joints, extra detail or glossy smoothing.\nframes: 8\nsize: 96x96px\ntransparent: True\ncost: 2 generations\nstatus: processing (~1-5 min)\n\nhint: get_image(job_id=\"cb97afc1-f897-4b01-842a-272263d6616c\")",
+  "job": "cb97afc1-f897-4b01-842a-272263d6616c",
+  "source": "output/agent-animation-study/pixel-cadets-0915/full-motion/blank_amber/refs/west.png",
+  "attempts": 1,
+  "failed": false,
+  "result": "status: completed\nid: cb97afc1-f897-4b01-842a-272263d6616c\njob_id: cb97afc1-f897-4b01-842a-272263d6616c\nframes: 9\ndownload: https://api.pixellab.ai/mcp/images/cb97afc1-f897-4b01-842a-272263d6616c/download?index=0 ... ?index=8\n(5 more frames not shown — fetch them from the download URLs above)",
+  "done": true,
+  "packed": true,
+  "lastRaw": "output/agent-animation-study/pixel-cadets-0915/full-motion/blank_amber/minimax/walk-west/cb97afc1-f897-4b01-842a-272263d6616c/8.png",
+  "frameCount": 9
+}

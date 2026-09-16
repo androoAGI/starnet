@@ -1,0 +1,47 @@
+{
+  "url": "http://127.0.0.1:18814/agent-station-demo.html?propSet=projection",
+  "method": "CUA browser inspection of the running seeded station; screenshots and rendered data-motion attributes",
+  "standingHeight": 19,
+  "allCadetColorsLoaded": true,
+  "browserErrors": [],
+  "cadets": [
+    {
+      "id": "android",
+      "observedWalkFrames": 32,
+      "backwardFrames": 0,
+      "maxFacingError": 9.3
+    },
+    {
+      "id": "blank_blue",
+      "observedWalkFrames": 56,
+      "backwardFrames": 0,
+      "maxFacingError": 14
+    },
+    {
+      "id": "blank_green",
+      "observedWalkFrames": 32,
+      "backwardFrames": 0,
+      "maxFacingError": 4.8
+    },
+    {
+      "id": "blank_red",
+      "observedWalkFrames": 32,
+      "backwardFrames": 0,
+      "maxFacingError": 11.6
+    },
+    {
+      "id": "blank_amber",
+      "observedWalkFrames": 40,
+      "backwardFrames": 0,
+      "maxFacingError": 26.6
+    }
+  ],
+  "groundGap": 0.25,
+  "nonCadetPaceObserved": {
+    "skin": "alien",
+    "speed": 25.48,
+    "backwardFrames": 0
+  },
+  "motionCasesPassed": 570,
+  "paceSkinCasesPassed": 38
+}

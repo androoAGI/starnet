@@ -1,0 +1,1 @@
+Paused following user feedback: initial chrome fronts are too smooth and do not match the approved agent proportions. Do not resume run-motion.mjs or publish this batch. Revise fronts with existing agents as proportion references and more visible pixel shading. Eight already submitted animation jobs may finish remotely; they are obsolete and must not be published.

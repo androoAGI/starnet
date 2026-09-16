@@ -1,0 +1,86 @@
+{
+  "id": "heisenberg",
+  "name": "Heisenberg",
+  "dir": "south-west",
+  "source": "C:/Users/andro/gen-trees/sprite-reimagine-0914/output/agent-animation-study/remaining-motion-0915/full-motion/heisenberg/refs/south-west.png",
+  "prompt": "Animate the supplied existing Heisenberg pixel-art game sprite walking IN PLACE. Preserve this exact design, outfit, identity, proportions, palette, camera angle and south-west facing in EVERY frame. Do not turn toward the camera or away from the input angle. Output EXACTLY EIGHT full-body frames on transparent background in a strict FOUR-COLUMN TWO-ROW grid, read left to right across the first row then the second. All eight equal square cells, generous empty padding, no labels/grid/scene/shadow. One seamless complete TWO-STEP gait: frame 1 left foot forward contact and right arm forward; 2 weight settling; 3 right foot passing; 4 right foot swinging forward; 5 right foot forward contact and left arm forward; 6 weight settling; 7 left foot passing; 8 left foot swinging forward toward frame 1. Consistent small natural steps, relaxed counter-swinging arms and steady head. Center torso in the same position, one supporting foot touches the same baseline in each cell. No sliding whole sprite within a cell, no duplicated endpoint, no hopping, no running, no exaggerated limbs. Keep readable crisp pixel clusters; no smooth painted shading. The output must have a real transparent alpha channel. No black backdrop, brown glow, halo or gradient behind the pixels.",
+  "generated": "C:\\Users\\andro\\.codex\\generated_images\\01a09e2a-59d9-7333-ae0c-3d07653ddb14\\exec-59a263f2-9404-4856-8e18-c87cf391b566.png",
+  "sheet": "C:/Users/andro/gen-trees/sprite-reimagine-0914/output/agent-animation-study/remaining-motion-0915/heisenberg-walk-south-west.png",
+  "method": "built-in ImageGen",
+  "status": "generated",
+  "selected": [
+    "walk_south-west_0.png",
+    "walk_south-west_1.png",
+    "walk_south-west_2.png",
+    "walk_south-west_3.png",
+    "walk_south-west_4.png",
+    "walk_south-west_5.png",
+    "walk_south-west_6.png",
+    "walk_south-west_7.png"
+  ],
+  "packed": true,
+  "scale": 0.22551928783382788,
+  "bounds": [
+    {
+      "left": 151,
+      "top": 65,
+      "width": 168,
+      "height": 337
+    },
+    {
+      "left": 151,
+      "top": 65,
+      "width": 160,
+      "height": 337
+    },
+    {
+      "left": 141,
+      "top": 65,
+      "width": 167,
+      "height": 337
+    },
+    {
+      "left": 138,
+      "top": 65,
+      "width": 176,
+      "height": 323
+    },
+    {
+      "left": 140,
+      "top": 61,
+      "width": 178,
+      "height": 336
+    },
+    {
+      "left": 141,
+      "top": 61,
+      "width": 170,
+      "height": 336
+    },
+    {
+      "left": 140,
+      "top": 61,
+      "width": 172,
+      "height": 336
+    },
+    {
+      "left": 139,
+      "top": 61,
+      "width": 178,
+      "height": 330
+    }
+  ],
+  "inputHashes": {
+    "output/agent-animation-study/remaining-motion-0915/full-motion/heisenberg/refs/south-west.png": "62712348e8b03eca678599afed419ea14eabf23877767a6ee5ca3eec97795c93"
+  },
+  "selectedHashes": {
+    "walk_south-west_0.png": "628fcdc007efbf31016913aed0a60f553ad913014be3f34eb435d695de12d9ae",
+    "walk_south-west_1.png": "69b65551c31539962ba8a104d8757cbd17be98392b14565e0062b757f14c0ccc",
+    "walk_south-west_2.png": "eed0cd3ae6ff583e60d7e7f2343478394abdb4b56bdee5c17388adafd2399c7d",
+    "walk_south-west_3.png": "e56d6b4d749710ef07d078aaaabf220b84e334ef944c49d24ec21fc9435eba54",
+    "walk_south-west_4.png": "7dc88f708a8e25b6dadd9dfa279ded830398d6fa188c0b180d559141ce0b9f08",
+    "walk_south-west_5.png": "aef7c0656e9e70eda804de58c4a3a900e7a17dccf133c8a383ccadda0943788a",
+    "walk_south-west_6.png": "17ab019b30221fa1165eb54fadc21f4cb7c4543ee63f83ec11eead3e418a5c4d",
+    "walk_south-west_7.png": "539f25eff46cb62c11368d7f11447dcd07c746c96d4e2364bcaf28be93b38ed5"
+  }
+}

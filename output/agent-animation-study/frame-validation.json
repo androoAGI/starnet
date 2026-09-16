@@ -1,0 +1,1541 @@
+{
+  "date": "2026-09-15T02:29:33.706Z",
+  "characters": {
+    "ultron": {
+      "frames": 159,
+      "tracks": {
+        "rotations": {
+          "east": {
+            "frames": 1,
+            "unique": 1,
+            "sizes": [
+              "96x96"
+            ],
+            "edgePixels": 0,
+            "minY": 11,
+            "maxY": 87
+          },
+          "north-east": {
+            "frames": 1,
+            "unique": 1,
+            "sizes": [
+              "96x96"
+            ],
+            "edgePixels": 0,
+            "minY": 11,
+            "maxY": 87
+          },
+          "north-west": {
+            "frames": 1,
+            "unique": 1,
+            "sizes": [
+              "96x96"
+            ],
+            "edgePixels": 0,
+            "minY": 11,
+            "maxY": 87
+          },
+          "north": {
+            "frames": 1,
+            "unique": 1,
+            "sizes": [
+              "96x96"
+            ],
+            "edgePixels": 0,
+            "minY": 11,
+            "maxY": 87
+          },
+          "south-east": {
+            "frames": 1,
+            "unique": 1,
+            "sizes": [
+              "96x96"
+            ],
+            "edgePixels": 0,
+            "minY": 11,
+            "maxY": 87
+          },
+          "south-west": {
+            "frames": 1,
+            "unique": 1,
+            "sizes": [
+              "96x96"
+            ],
+            "edgePixels": 0,
+            "minY": 11,
+            "maxY": 87
+          },
+          "south": {
+            "frames": 1,
+            "unique": 1,
+            "sizes": [
+              "96x96"
+            ],
+            "edgePixels": 0,
+            "minY": 12,
+            "maxY": 87
+          },
+          "west": {
+            "frames": 1,
+            "unique": 1,
+            "sizes": [
+              "96x96"
+            ],
+            "edgePixels": 0,
+            "minY": 12,
+            "maxY": 87
+          }
+        },
+        "walk": {
+          "east": {
+            "frames": 9,
+            "unique": 9,
+            "sizes": [
+              "96x112"
+            ],
+            "edgePixels": 0,
+            "minY": 19,
+            "maxY": 95
+          },
+          "north": {
+            "frames": 9,
+            "unique": 9,
+            "sizes": [
+              "96x112"
+            ],
+            "edgePixels": 0,
+            "minY": 16,
+            "maxY": 95
+          },
+          "north-east": {
+            "frames": 9,
+            "unique": 8,
+            "sizes": [
+              "96x112"
+            ],
+            "edgePixels": 0,
+            "minY": 17,
+            "maxY": 95
+          },
+          "north-west": {
+            "frames": 9,
+            "unique": 8,
+            "sizes": [
+              "96x112"
+            ],
+            "edgePixels": 0,
+            "minY": 19,
+            "maxY": 95
+          },
+          "south": {
+            "frames": 9,
+            "unique": 8,
+            "sizes": [
+              "96x116"
+            ],
+            "edgePixels": 0,
+            "minY": 17,
+            "maxY": 97
+          },
+          "south-east": {
+            "frames": 9,
+            "unique": 8,
+            "sizes": [
+              "96x112"
+            ],
+            "edgePixels": 0,
+            "minY": 18,
+            "maxY": 95
+          },
+          "south-west": {
+            "frames": 9,
+            "unique": 9,
+            "sizes": [
+              "96x112"
+            ],
+            "edgePixels": 0,
+            "minY": 19,
+            "maxY": 95
+          },
+          "west": {
+            "frames": 9,
+            "unique": 8,
+            "sizes": [
+              "96x112"
+            ],
+            "edgePixels": 0,
+            "minY": 20,
+            "maxY": 95
+          }
+        },
+        "idle": {
+          "east": {
+            "frames": 4,
+            "unique": 4,
+            "sizes": [
+              "96x96"
+            ],
+            "edgePixels": 0,
+            "minY": 12,
+            "maxY": 87
+          },
+          "north": {
+            "frames": 4,
+            "unique": 4,
+            "sizes": [
+              "96x96"
+            ],
+            "edgePixels": 0,
+            "minY": 11,
+            "maxY": 85
+          },
+          "south": {
+            "frames": 4,
+            "unique": 4,
+            "sizes": [
+              "96x96"
+            ],
+            "edgePixels": 0,
+            "minY": 12,
+            "maxY": 87
+          },
+          "west": {
+            "frames": 4,
+            "unique": 4,
+            "sizes": [
+              "96x96"
+            ],
+            "edgePixels": 0,
+            "minY": 13,
+            "maxY": 87
+          }
+        },
+        "gesture": {
+          "east": {
+            "frames": 9,
+            "unique": 9,
+            "sizes": [
+              "112x112"
+            ],
+            "edgePixels": 0,
+            "minY": 19,
+            "maxY": 95
+          },
+          "north": {
+            "frames": 9,
+            "unique": 9,
+            "sizes": [
+              "112x112"
+            ],
+            "edgePixels": 0,
+            "minY": 19,
+            "maxY": 95
+          },
+          "south": {
+            "frames": 9,
+            "unique": 9,
+            "sizes": [
+              "112x112"
+            ],
+            "edgePixels": 0,
+            "minY": 19,
+            "maxY": 95
+          },
+          "west": {
+            "frames": 9,
+            "unique": 9,
+            "sizes": [
+              "112x112"
+            ],
+            "edgePixels": 0,
+            "minY": 20,
+            "maxY": 95
+          }
+        },
+        "sit": {
+          "east": {
+            "frames": 5,
+            "unique": 5,
+            "sizes": [
+              "112x112"
+            ],
+            "edgePixels": 0,
+            "minY": 19,
+            "maxY": 95
+          },
+          "north": {
+            "frames": 5,
+            "unique": 5,
+            "sizes": [
+              "112x112"
+            ],
+            "edgePixels": 0,
+            "minY": 19,
+            "maxY": 95
+          },
+          "south": {
+            "frames": 5,
+            "unique": 5,
+            "sizes": [
+              "112x112"
+            ],
+            "edgePixels": 0,
+            "minY": 20,
+            "maxY": 95
+          },
+          "west": {
+            "frames": 5,
+            "unique": 5,
+            "sizes": [
+              "112x112"
+            ],
+            "edgePixels": 0,
+            "minY": 20,
+            "maxY": 95
+          }
+        },
+        "type": {
+          "north": {
+            "frames": 7,
+            "unique": 7,
+            "sizes": [
+              "112x112"
+            ],
+            "edgePixels": 0,
+            "minY": 26,
+            "maxY": 95
+          }
+        }
+      }
+    },
+    "skeleton": {
+      "frames": 159,
+      "tracks": {
+        "rotations": {
+          "east": {
+            "frames": 1,
+            "unique": 1,
+            "sizes": [
+              "96x96"
+            ],
+            "edgePixels": 0,
+            "minY": 13,
+            "maxY": 88
+          },
+          "north-east": {
+            "frames": 1,
+            "unique": 1,
+            "sizes": [
+              "96x96"
+            ],
+            "edgePixels": 0,
+            "minY": 12,
+            "maxY": 88
+          },
+          "north-west": {
+            "frames": 1,
+            "unique": 1,
+            "sizes": [
+              "96x96"
+            ],
+            "edgePixels": 0,
+            "minY": 13,
+            "maxY": 88
+          },
+          "north": {
+            "frames": 1,
+            "unique": 1,
+            "sizes": [
+              "96x96"
+            ],
+            "edgePixels": 0,
+            "minY": 12,
+            "maxY": 87
+          },
+          "south-east": {
+            "frames": 1,
+            "unique": 1,
+            "sizes": [
+              "96x96"
+            ],
+            "edgePixels": 0,
+            "minY": 13,
+            "maxY": 88
+          },
+          "south-west": {
+            "frames": 1,
+            "unique": 1,
+            "sizes": [
+              "96x96"
+            ],
+            "edgePixels": 0,
+            "minY": 13,
+            "maxY": 88
+          },
+          "south": {
+            "frames": 1,
+            "unique": 1,
+            "sizes": [
+              "96x96"
+            ],
+            "edgePixels": 0,
+            "minY": 12,
+            "maxY": 87
+          },
+          "west": {
+            "frames": 1,
+            "unique": 1,
+            "sizes": [
+              "96x96"
+            ],
+            "edgePixels": 0,
+            "minY": 13,
+            "maxY": 88
+          }
+        },
+        "walk": {
+          "east": {
+            "frames": 9,
+            "unique": 8,
+            "sizes": [
+              "96x116"
+            ],
+            "edgePixels": 0,
+            "minY": 22,
+            "maxY": 98
+          },
+          "north": {
+            "frames": 9,
+            "unique": 9,
+            "sizes": [
+              "96x112"
+            ],
+            "edgePixels": 0,
+            "minY": 17,
+            "maxY": 95
+          },
+          "north-east": {
+            "frames": 9,
+            "unique": 8,
+            "sizes": [
+              "96x116"
+            ],
+            "edgePixels": 0,
+            "minY": 20,
+            "maxY": 98
+          },
+          "north-west": {
+            "frames": 9,
+            "unique": 8,
+            "sizes": [
+              "96x116"
+            ],
+            "edgePixels": 0,
+            "minY": 22,
+            "maxY": 98
+          },
+          "south": {
+            "frames": 9,
+            "unique": 8,
+            "sizes": [
+              "96x112"
+            ],
+            "edgePixels": 0,
+            "minY": 16,
+            "maxY": 95
+          },
+          "south-east": {
+            "frames": 9,
+            "unique": 9,
+            "sizes": [
+              "96x116"
+            ],
+            "edgePixels": 0,
+            "minY": 22,
+            "maxY": 98
+          },
+          "south-west": {
+            "frames": 9,
+            "unique": 8,
+            "sizes": [
+              "96x120"
+            ],
+            "edgePixels": 0,
+            "minY": 23,
+            "maxY": 101
+          },
+          "west": {
+            "frames": 9,
+            "unique": 8,
+            "sizes": [
+              "96x116"
+            ],
+            "edgePixels": 0,
+            "minY": 22,
+            "maxY": 98
+          }
+        },
+        "idle": {
+          "east": {
+            "frames": 4,
+            "unique": 4,
+            "sizes": [
+              "96x96"
+            ],
+            "edgePixels": 0,
+            "minY": 13,
+            "maxY": 88
+          },
+          "north": {
+            "frames": 4,
+            "unique": 4,
+            "sizes": [
+              "96x96"
+            ],
+            "edgePixels": 0,
+            "minY": 11,
+            "maxY": 86
+          },
+          "south": {
+            "frames": 4,
+            "unique": 4,
+            "sizes": [
+              "96x96"
+            ],
+            "edgePixels": 0,
+            "minY": 14,
+            "maxY": 87
+          },
+          "west": {
+            "frames": 4,
+            "unique": 4,
+            "sizes": [
+              "96x96"
+            ],
+            "edgePixels": 0,
+            "minY": 14,
+            "maxY": 88
+          }
+        },
+        "gesture": {
+          "east": {
+            "frames": 9,
+            "unique": 9,
+            "sizes": [
+              "116x116"
+            ],
+            "edgePixels": 0,
+            "minY": 23,
+            "maxY": 98
+          },
+          "north": {
+            "frames": 9,
+            "unique": 9,
+            "sizes": [
+              "112x112"
+            ],
+            "edgePixels": 0,
+            "minY": 18,
+            "maxY": 95
+          },
+          "south": {
+            "frames": 9,
+            "unique": 9,
+            "sizes": [
+              "112x112"
+            ],
+            "edgePixels": 0,
+            "minY": 18,
+            "maxY": 95
+          },
+          "west": {
+            "frames": 9,
+            "unique": 9,
+            "sizes": [
+              "116x116"
+            ],
+            "edgePixels": 0,
+            "minY": 23,
+            "maxY": 99
+          }
+        },
+        "sit": {
+          "east": {
+            "frames": 5,
+            "unique": 5,
+            "sizes": [
+              "116x116"
+            ],
+            "edgePixels": 0,
+            "minY": 23,
+            "maxY": 98
+          },
+          "north": {
+            "frames": 5,
+            "unique": 5,
+            "sizes": [
+              "112x112"
+            ],
+            "edgePixels": 0,
+            "minY": 18,
+            "maxY": 95
+          },
+          "south": {
+            "frames": 5,
+            "unique": 5,
+            "sizes": [
+              "112x112"
+            ],
+            "edgePixels": 0,
+            "minY": 20,
+            "maxY": 95
+          },
+          "west": {
+            "frames": 5,
+            "unique": 5,
+            "sizes": [
+              "116x116"
+            ],
+            "edgePixels": 0,
+            "minY": 23,
+            "maxY": 98
+          }
+        },
+        "type": {
+          "north": {
+            "frames": 7,
+            "unique": 7,
+            "sizes": [
+              "112x112"
+            ],
+            "edgePixels": 0,
+            "minY": 25,
+            "maxY": 95
+          }
+        }
+      }
+    },
+    "plaguedoctor": {
+      "frames": 159,
+      "tracks": {
+        "rotations": {
+          "east": {
+            "frames": 1,
+            "unique": 1,
+            "sizes": [
+              "96x96"
+            ],
+            "edgePixels": 0,
+            "minY": 12,
+            "maxY": 87
+          },
+          "north-east": {
+            "frames": 1,
+            "unique": 1,
+            "sizes": [
+              "96x96"
+            ],
+            "edgePixels": 0,
+            "minY": 12,
+            "maxY": 87
+          },
+          "north-west": {
+            "frames": 1,
+            "unique": 1,
+            "sizes": [
+              "96x96"
+            ],
+            "edgePixels": 0,
+            "minY": 12,
+            "maxY": 87
+          },
+          "north": {
+            "frames": 1,
+            "unique": 1,
+            "sizes": [
+              "96x96"
+            ],
+            "edgePixels": 0,
+            "minY": 11,
+            "maxY": 87
+          },
+          "south-east": {
+            "frames": 1,
+            "unique": 1,
+            "sizes": [
+              "96x96"
+            ],
+            "edgePixels": 0,
+            "minY": 12,
+            "maxY": 88
+          },
+          "south-west": {
+            "frames": 1,
+            "unique": 1,
+            "sizes": [
+              "96x96"
+            ],
+            "edgePixels": 0,
+            "minY": 12,
+            "maxY": 88
+          },
+          "south": {
+            "frames": 1,
+            "unique": 1,
+            "sizes": [
+              "96x96"
+            ],
+            "edgePixels": 0,
+            "minY": 12,
+            "maxY": 87
+          },
+          "west": {
+            "frames": 1,
+            "unique": 1,
+            "sizes": [
+              "96x96"
+            ],
+            "edgePixels": 0,
+            "minY": 11,
+            "maxY": 87
+          }
+        },
+        "walk": {
+          "east": {
+            "frames": 9,
+            "unique": 8,
+            "sizes": [
+              "96x112"
+            ],
+            "edgePixels": 0,
+            "minY": 20,
+            "maxY": 95
+          },
+          "north": {
+            "frames": 9,
+            "unique": 8,
+            "sizes": [
+              "96x112"
+            ],
+            "edgePixels": 0,
+            "minY": 16,
+            "maxY": 95
+          },
+          "north-east": {
+            "frames": 9,
+            "unique": 8,
+            "sizes": [
+              "96x112"
+            ],
+            "edgePixels": 0,
+            "minY": 19,
+            "maxY": 95
+          },
+          "north-west": {
+            "frames": 9,
+            "unique": 8,
+            "sizes": [
+              "96x116"
+            ],
+            "edgePixels": 0,
+            "minY": 21,
+            "maxY": 98
+          },
+          "south": {
+            "frames": 9,
+            "unique": 8,
+            "sizes": [
+              "96x112"
+            ],
+            "edgePixels": 0,
+            "minY": 17,
+            "maxY": 95
+          },
+          "south-east": {
+            "frames": 9,
+            "unique": 8,
+            "sizes": [
+              "96x116"
+            ],
+            "edgePixels": 0,
+            "minY": 20,
+            "maxY": 98
+          },
+          "south-west": {
+            "frames": 9,
+            "unique": 8,
+            "sizes": [
+              "96x120"
+            ],
+            "edgePixels": 0,
+            "minY": 24,
+            "maxY": 101
+          },
+          "west": {
+            "frames": 9,
+            "unique": 8,
+            "sizes": [
+              "96x116"
+            ],
+            "edgePixels": 0,
+            "minY": 20,
+            "maxY": 98
+          }
+        },
+        "idle": {
+          "east": {
+            "frames": 4,
+            "unique": 4,
+            "sizes": [
+              "96x96"
+            ],
+            "edgePixels": 0,
+            "minY": 12,
+            "maxY": 87
+          },
+          "north": {
+            "frames": 4,
+            "unique": 4,
+            "sizes": [
+              "96x96"
+            ],
+            "edgePixels": 0,
+            "minY": 11,
+            "maxY": 85
+          },
+          "south": {
+            "frames": 4,
+            "unique": 4,
+            "sizes": [
+              "96x96"
+            ],
+            "edgePixels": 0,
+            "minY": 12,
+            "maxY": 87
+          },
+          "west": {
+            "frames": 4,
+            "unique": 4,
+            "sizes": [
+              "96x96"
+            ],
+            "edgePixels": 0,
+            "minY": 12,
+            "maxY": 88
+          }
+        },
+        "gesture": {
+          "east": {
+            "frames": 9,
+            "unique": 9,
+            "sizes": [
+              "112x112"
+            ],
+            "edgePixels": 0,
+            "minY": 19,
+            "maxY": 95
+          },
+          "north": {
+            "frames": 9,
+            "unique": 9,
+            "sizes": [
+              "112x112"
+            ],
+            "edgePixels": 0,
+            "minY": 18,
+            "maxY": 95
+          },
+          "south": {
+            "frames": 9,
+            "unique": 9,
+            "sizes": [
+              "112x112"
+            ],
+            "edgePixels": 0,
+            "minY": 17,
+            "maxY": 95
+          },
+          "west": {
+            "frames": 9,
+            "unique": 9,
+            "sizes": [
+              "112x112"
+            ],
+            "edgePixels": 0,
+            "minY": 18,
+            "maxY": 95
+          }
+        },
+        "sit": {
+          "east": {
+            "frames": 5,
+            "unique": 5,
+            "sizes": [
+              "112x112"
+            ],
+            "edgePixels": 0,
+            "minY": 20,
+            "maxY": 95
+          },
+          "north": {
+            "frames": 5,
+            "unique": 5,
+            "sizes": [
+              "112x112"
+            ],
+            "edgePixels": 0,
+            "minY": 15,
+            "maxY": 95
+          },
+          "south": {
+            "frames": 5,
+            "unique": 5,
+            "sizes": [
+              "112x112"
+            ],
+            "edgePixels": 0,
+            "minY": 20,
+            "maxY": 95
+          },
+          "west": {
+            "frames": 5,
+            "unique": 5,
+            "sizes": [
+              "112x112"
+            ],
+            "edgePixels": 0,
+            "minY": 19,
+            "maxY": 95
+          }
+        },
+        "type": {
+          "north": {
+            "frames": 7,
+            "unique": 7,
+            "sizes": [
+              "112x112"
+            ],
+            "edgePixels": 0,
+            "minY": 18,
+            "maxY": 91
+          }
+        }
+      }
+    },
+    "secretagent": {
+      "frames": 159,
+      "tracks": {
+        "rotations": {
+          "east": {
+            "frames": 1,
+            "unique": 1,
+            "sizes": [
+              "96x96"
+            ],
+            "edgePixels": 0,
+            "minY": 10,
+            "maxY": 87
+          },
+          "north-east": {
+            "frames": 1,
+            "unique": 1,
+            "sizes": [
+              "96x96"
+            ],
+            "edgePixels": 0,
+            "minY": 10,
+            "maxY": 87
+          },
+          "north-west": {
+            "frames": 1,
+            "unique": 1,
+            "sizes": [
+              "96x96"
+            ],
+            "edgePixels": 0,
+            "minY": 10,
+            "maxY": 87
+          },
+          "north": {
+            "frames": 1,
+            "unique": 1,
+            "sizes": [
+              "96x96"
+            ],
+            "edgePixels": 0,
+            "minY": 11,
+            "maxY": 87
+          },
+          "south-east": {
+            "frames": 1,
+            "unique": 1,
+            "sizes": [
+              "96x96"
+            ],
+            "edgePixels": 0,
+            "minY": 11,
+            "maxY": 87
+          },
+          "south-west": {
+            "frames": 1,
+            "unique": 1,
+            "sizes": [
+              "96x96"
+            ],
+            "edgePixels": 0,
+            "minY": 11,
+            "maxY": 87
+          },
+          "south": {
+            "frames": 1,
+            "unique": 1,
+            "sizes": [
+              "96x96"
+            ],
+            "edgePixels": 0,
+            "minY": 12,
+            "maxY": 87
+          },
+          "west": {
+            "frames": 1,
+            "unique": 1,
+            "sizes": [
+              "96x96"
+            ],
+            "edgePixels": 0,
+            "minY": 10,
+            "maxY": 87
+          }
+        },
+        "walk": {
+          "east": {
+            "frames": 9,
+            "unique": 8,
+            "sizes": [
+              "96x112"
+            ],
+            "edgePixels": 0,
+            "minY": 18,
+            "maxY": 95
+          },
+          "north": {
+            "frames": 9,
+            "unique": 8,
+            "sizes": [
+              "96x120"
+            ],
+            "edgePixels": 0,
+            "minY": 18,
+            "maxY": 99
+          },
+          "north-east": {
+            "frames": 9,
+            "unique": 8,
+            "sizes": [
+              "96x112"
+            ],
+            "edgePixels": 0,
+            "minY": 17,
+            "maxY": 95
+          },
+          "north-west": {
+            "frames": 9,
+            "unique": 8,
+            "sizes": [
+              "96x112"
+            ],
+            "edgePixels": 0,
+            "minY": 18,
+            "maxY": 95
+          },
+          "south": {
+            "frames": 9,
+            "unique": 8,
+            "sizes": [
+              "96x112"
+            ],
+            "edgePixels": 0,
+            "minY": 17,
+            "maxY": 95
+          },
+          "south-east": {
+            "frames": 9,
+            "unique": 9,
+            "sizes": [
+              "96x116"
+            ],
+            "edgePixels": 0,
+            "minY": 21,
+            "maxY": 98
+          },
+          "south-west": {
+            "frames": 9,
+            "unique": 8,
+            "sizes": [
+              "96x112"
+            ],
+            "edgePixels": 0,
+            "minY": 19,
+            "maxY": 95
+          },
+          "west": {
+            "frames": 9,
+            "unique": 8,
+            "sizes": [
+              "96x112"
+            ],
+            "edgePixels": 0,
+            "minY": 18,
+            "maxY": 95
+          }
+        },
+        "idle": {
+          "east": {
+            "frames": 4,
+            "unique": 4,
+            "sizes": [
+              "96x96"
+            ],
+            "edgePixels": 0,
+            "minY": 10,
+            "maxY": 87
+          },
+          "north": {
+            "frames": 4,
+            "unique": 4,
+            "sizes": [
+              "96x96"
+            ],
+            "edgePixels": 0,
+            "minY": 11,
+            "maxY": 85
+          },
+          "south": {
+            "frames": 4,
+            "unique": 4,
+            "sizes": [
+              "96x96"
+            ],
+            "edgePixels": 0,
+            "minY": 11,
+            "maxY": 86
+          },
+          "west": {
+            "frames": 4,
+            "unique": 4,
+            "sizes": [
+              "96x96"
+            ],
+            "edgePixels": 0,
+            "minY": 11,
+            "maxY": 87
+          }
+        },
+        "gesture": {
+          "east": {
+            "frames": 9,
+            "unique": 9,
+            "sizes": [
+              "112x112"
+            ],
+            "edgePixels": 0,
+            "minY": 18,
+            "maxY": 95
+          },
+          "north": {
+            "frames": 9,
+            "unique": 9,
+            "sizes": [
+              "112x112"
+            ],
+            "edgePixels": 0,
+            "minY": 18,
+            "maxY": 95
+          },
+          "south": {
+            "frames": 9,
+            "unique": 9,
+            "sizes": [
+              "112x112"
+            ],
+            "edgePixels": 0,
+            "minY": 16,
+            "maxY": 95
+          },
+          "west": {
+            "frames": 9,
+            "unique": 9,
+            "sizes": [
+              "112x112"
+            ],
+            "edgePixels": 0,
+            "minY": 18,
+            "maxY": 95
+          }
+        },
+        "sit": {
+          "east": {
+            "frames": 5,
+            "unique": 5,
+            "sizes": [
+              "112x112"
+            ],
+            "edgePixels": 0,
+            "minY": 18,
+            "maxY": 95
+          },
+          "north": {
+            "frames": 5,
+            "unique": 5,
+            "sizes": [
+              "112x112"
+            ],
+            "edgePixels": 0,
+            "minY": 19,
+            "maxY": 97
+          },
+          "south": {
+            "frames": 5,
+            "unique": 5,
+            "sizes": [
+              "112x112"
+            ],
+            "edgePixels": 0,
+            "minY": 20,
+            "maxY": 95
+          },
+          "west": {
+            "frames": 5,
+            "unique": 5,
+            "sizes": [
+              "112x112"
+            ],
+            "edgePixels": 0,
+            "minY": 18,
+            "maxY": 96
+          }
+        },
+        "type": {
+          "north": {
+            "frames": 7,
+            "unique": 7,
+            "sizes": [
+              "112x120"
+            ],
+            "edgePixels": 0,
+            "minY": 35,
+            "maxY": 101
+          }
+        }
+      }
+    },
+    "voidwizard": {
+      "frames": 159,
+      "tracks": {
+        "rotations": {
+          "east": {
+            "frames": 1,
+            "unique": 1,
+            "sizes": [
+              "96x96"
+            ],
+            "edgePixels": 0,
+            "minY": 12,
+            "maxY": 87
+          },
+          "north-east": {
+            "frames": 1,
+            "unique": 1,
+            "sizes": [
+              "96x96"
+            ],
+            "edgePixels": 0,
+            "minY": 11,
+            "maxY": 86
+          },
+          "north-west": {
+            "frames": 1,
+            "unique": 1,
+            "sizes": [
+              "96x96"
+            ],
+            "edgePixels": 0,
+            "minY": 11,
+            "maxY": 86
+          },
+          "north": {
+            "frames": 1,
+            "unique": 1,
+            "sizes": [
+              "96x96"
+            ],
+            "edgePixels": 0,
+            "minY": 13,
+            "maxY": 88
+          },
+          "south-east": {
+            "frames": 1,
+            "unique": 1,
+            "sizes": [
+              "96x96"
+            ],
+            "edgePixels": 0,
+            "minY": 11,
+            "maxY": 87
+          },
+          "south-west": {
+            "frames": 1,
+            "unique": 1,
+            "sizes": [
+              "96x96"
+            ],
+            "edgePixels": 0,
+            "minY": 11,
+            "maxY": 87
+          },
+          "south": {
+            "frames": 1,
+            "unique": 1,
+            "sizes": [
+              "96x96"
+            ],
+            "edgePixels": 0,
+            "minY": 12,
+            "maxY": 87
+          },
+          "west": {
+            "frames": 1,
+            "unique": 1,
+            "sizes": [
+              "96x96"
+            ],
+            "edgePixels": 0,
+            "minY": 12,
+            "maxY": 87
+          }
+        },
+        "walk": {
+          "east": {
+            "frames": 9,
+            "unique": 8,
+            "sizes": [
+              "96x112"
+            ],
+            "edgePixels": 0,
+            "minY": 20,
+            "maxY": 95
+          },
+          "north": {
+            "frames": 9,
+            "unique": 8,
+            "sizes": [
+              "96x116"
+            ],
+            "edgePixels": 0,
+            "minY": 19,
+            "maxY": 98
+          },
+          "north-east": {
+            "frames": 9,
+            "unique": 8,
+            "sizes": [
+              "96x112"
+            ],
+            "edgePixels": 0,
+            "minY": 17,
+            "maxY": 94
+          },
+          "north-west": {
+            "frames": 9,
+            "unique": 8,
+            "sizes": [
+              "96x112"
+            ],
+            "edgePixels": 0,
+            "minY": 17,
+            "maxY": 94
+          },
+          "south": {
+            "frames": 9,
+            "unique": 8,
+            "sizes": [
+              "96x112"
+            ],
+            "edgePixels": 0,
+            "minY": 16,
+            "maxY": 95
+          },
+          "south-east": {
+            "frames": 9,
+            "unique": 8,
+            "sizes": [
+              "96x112"
+            ],
+            "edgePixels": 0,
+            "minY": 18,
+            "maxY": 95
+          },
+          "south-west": {
+            "frames": 9,
+            "unique": 8,
+            "sizes": [
+              "96x112"
+            ],
+            "edgePixels": 0,
+            "minY": 17,
+            "maxY": 95
+          },
+          "west": {
+            "frames": 9,
+            "unique": 8,
+            "sizes": [
+              "96x112"
+            ],
+            "edgePixels": 0,
+            "minY": 20,
+            "maxY": 95
+          }
+        },
+        "idle": {
+          "east": {
+            "frames": 4,
+            "unique": 4,
+            "sizes": [
+              "96x96"
+            ],
+            "edgePixels": 0,
+            "minY": 13,
+            "maxY": 87
+          },
+          "north": {
+            "frames": 4,
+            "unique": 4,
+            "sizes": [
+              "96x96"
+            ],
+            "edgePixels": 0,
+            "minY": 13,
+            "maxY": 87
+          },
+          "south": {
+            "frames": 4,
+            "unique": 4,
+            "sizes": [
+              "96x96"
+            ],
+            "edgePixels": 0,
+            "minY": 12,
+            "maxY": 86
+          },
+          "west": {
+            "frames": 4,
+            "unique": 4,
+            "sizes": [
+              "96x96"
+            ],
+            "edgePixels": 0,
+            "minY": 12,
+            "maxY": 87
+          }
+        },
+        "gesture": {
+          "east": {
+            "frames": 9,
+            "unique": 9,
+            "sizes": [
+              "112x112"
+            ],
+            "edgePixels": 0,
+            "minY": 18,
+            "maxY": 95
+          },
+          "north": {
+            "frames": 9,
+            "unique": 9,
+            "sizes": [
+              "116x116"
+            ],
+            "edgePixels": 0,
+            "minY": 22,
+            "maxY": 98
+          },
+          "south": {
+            "frames": 9,
+            "unique": 9,
+            "sizes": [
+              "112x112"
+            ],
+            "edgePixels": 0,
+            "minY": 18,
+            "maxY": 95
+          },
+          "west": {
+            "frames": 9,
+            "unique": 9,
+            "sizes": [
+              "112x112"
+            ],
+            "edgePixels": 0,
+            "minY": 20,
+            "maxY": 95
+          }
+        },
+        "sit": {
+          "east": {
+            "frames": 5,
+            "unique": 5,
+            "sizes": [
+              "112x112"
+            ],
+            "edgePixels": 0,
+            "minY": 20,
+            "maxY": 95
+          },
+          "north": {
+            "frames": 5,
+            "unique": 5,
+            "sizes": [
+              "116x116"
+            ],
+            "edgePixels": 0,
+            "minY": 15,
+            "maxY": 98
+          },
+          "south": {
+            "frames": 5,
+            "unique": 5,
+            "sizes": [
+              "112x112"
+            ],
+            "edgePixels": 0,
+            "minY": 20,
+            "maxY": 95
+          },
+          "west": {
+            "frames": 5,
+            "unique": 5,
+            "sizes": [
+              "112x112"
+            ],
+            "edgePixels": 0,
+            "minY": 20,
+            "maxY": 95
+          }
+        },
+        "type": {
+          "north": {
+            "frames": 7,
+            "unique": 7,
+            "sizes": [
+              "116x120"
+            ],
+            "edgePixels": 0,
+            "minY": 18,
+            "maxY": 100
+          }
+        }
+      }
+    }
+  },
+  "issues": []
+}

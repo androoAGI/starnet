@@ -1,0 +1,434 @@
+[
+  {
+    "file": "C:\\Users\\andro\\gen-trees\\sprite-reimagine-0914\\frontend\\assets\\agent-demo\\approved-motion\\xenomorph\\rot_south.png",
+    "height": 76,
+    "foot": 112,
+    "width": 48
+  },
+  {
+    "file": "C:\\Users\\andro\\gen-trees\\sprite-reimagine-0914\\frontend\\assets\\agent-demo\\approved-motion\\xenomorph\\rot_south-east.png",
+    "height": 76,
+    "foot": 112,
+    "width": 30
+  },
+  {
+    "file": "C:\\Users\\andro\\gen-trees\\sprite-reimagine-0914\\frontend\\assets\\agent-demo\\approved-motion\\xenomorph\\rot_east.png",
+    "height": 76,
+    "foot": 112,
+    "width": 40
+  },
+  {
+    "file": "C:\\Users\\andro\\gen-trees\\sprite-reimagine-0914\\frontend\\assets\\agent-demo\\approved-motion\\xenomorph\\rot_north-east.png",
+    "height": 76,
+    "foot": 112,
+    "width": 53
+  },
+  {
+    "file": "C:\\Users\\andro\\gen-trees\\sprite-reimagine-0914\\frontend\\assets\\agent-demo\\approved-motion\\xenomorph\\rot_north.png",
+    "height": 76,
+    "foot": 112,
+    "width": 50
+  },
+  {
+    "file": "C:\\Users\\andro\\gen-trees\\sprite-reimagine-0914\\frontend\\assets\\agent-demo\\approved-motion\\xenomorph\\rot_north-west.png",
+    "height": 76,
+    "foot": 112,
+    "width": 29
+  },
+  {
+    "file": "C:\\Users\\andro\\gen-trees\\sprite-reimagine-0914\\frontend\\assets\\agent-demo\\approved-motion\\xenomorph\\rot_west.png",
+    "height": 76,
+    "foot": 112,
+    "width": 42
+  },
+  {
+    "file": "C:\\Users\\andro\\gen-trees\\sprite-reimagine-0914\\frontend\\assets\\agent-demo\\approved-motion\\xenomorph\\rot_south-west.png",
+    "height": 76,
+    "foot": 112,
+    "width": 54
+  },
+  {
+    "file": "C:\\Users\\andro\\gen-trees\\sprite-reimagine-0914\\frontend\\assets\\agent-demo\\approved-motion\\xenomorph\\walk_south_1.png",
+    "height": 77,
+    "foot": 112,
+    "width": 48
+  },
+  {
+    "file": "C:\\Users\\andro\\gen-trees\\sprite-reimagine-0914\\frontend\\assets\\agent-demo\\approved-motion\\xenomorph\\walk_south_2.png",
+    "height": 78,
+    "foot": 111,
+    "width": 46
+  },
+  {
+    "file": "C:\\Users\\andro\\gen-trees\\sprite-reimagine-0914\\frontend\\assets\\agent-demo\\approved-motion\\xenomorph\\walk_south_3.png",
+    "height": 78,
+    "foot": 111,
+    "width": 44
+  },
+  {
+    "file": "C:\\Users\\andro\\gen-trees\\sprite-reimagine-0914\\frontend\\assets\\agent-demo\\approved-motion\\xenomorph\\walk_south_4.png",
+    "height": 76,
+    "foot": 111,
+    "width": 44
+  },
+  {
+    "file": "C:\\Users\\andro\\gen-trees\\sprite-reimagine-0914\\frontend\\assets\\agent-demo\\approved-motion\\xenomorph\\walk_south_5.png",
+    "height": 76,
+    "foot": 112,
+    "width": 44
+  },
+  {
+    "file": "C:\\Users\\andro\\gen-trees\\sprite-reimagine-0914\\frontend\\assets\\agent-demo\\approved-motion\\xenomorph\\walk_south_6.png",
+    "height": 78,
+    "foot": 112,
+    "width": 44
+  },
+  {
+    "file": "C:\\Users\\andro\\gen-trees\\sprite-reimagine-0914\\frontend\\assets\\agent-demo\\approved-motion\\xenomorph\\walk_south_7.png",
+    "height": 78,
+    "foot": 111,
+    "width": 46
+  },
+  {
+    "file": "C:\\Users\\andro\\gen-trees\\sprite-reimagine-0914\\frontend\\assets\\agent-demo\\approved-motion\\xenomorph\\walk_south_8.png",
+    "height": 76,
+    "foot": 110,
+    "width": 48
+  },
+  {
+    "file": "C:\\Users\\andro\\gen-trees\\sprite-reimagine-0914\\frontend\\assets\\agent-demo\\approved-motion\\xenomorph\\walk_south-east_1.png",
+    "height": 76,
+    "foot": 111,
+    "width": 34
+  },
+  {
+    "file": "C:\\Users\\andro\\gen-trees\\sprite-reimagine-0914\\frontend\\assets\\agent-demo\\approved-motion\\xenomorph\\walk_south-east_2.png",
+    "height": 76,
+    "foot": 110,
+    "width": 37
+  },
+  {
+    "file": "C:\\Users\\andro\\gen-trees\\sprite-reimagine-0914\\frontend\\assets\\agent-demo\\approved-motion\\xenomorph\\walk_south-east_3.png",
+    "height": 75,
+    "foot": 110,
+    "width": 39
+  },
+  {
+    "file": "C:\\Users\\andro\\gen-trees\\sprite-reimagine-0914\\frontend\\assets\\agent-demo\\approved-motion\\xenomorph\\walk_south-east_4.png",
+    "height": 74,
+    "foot": 110,
+    "width": 39
+  },
+  {
+    "file": "C:\\Users\\andro\\gen-trees\\sprite-reimagine-0914\\frontend\\assets\\agent-demo\\approved-motion\\xenomorph\\walk_south-east_5.png",
+    "height": 76,
+    "foot": 112,
+    "width": 34
+  },
+  {
+    "file": "C:\\Users\\andro\\gen-trees\\sprite-reimagine-0914\\frontend\\assets\\agent-demo\\approved-motion\\xenomorph\\walk_south-east_6.png",
+    "height": 77,
+    "foot": 112,
+    "width": 28
+  },
+  {
+    "file": "C:\\Users\\andro\\gen-trees\\sprite-reimagine-0914\\frontend\\assets\\agent-demo\\approved-motion\\xenomorph\\walk_south-east_7.png",
+    "height": 77,
+    "foot": 111,
+    "width": 28
+  },
+  {
+    "file": "C:\\Users\\andro\\gen-trees\\sprite-reimagine-0914\\frontend\\assets\\agent-demo\\approved-motion\\xenomorph\\walk_south-east_8.png",
+    "height": 76,
+    "foot": 111,
+    "width": 28
+  },
+  {
+    "file": "C:\\Users\\andro\\gen-trees\\sprite-reimagine-0914\\frontend\\assets\\agent-demo\\approved-motion\\xenomorph\\walk_east_1.png",
+    "height": 77,
+    "foot": 112,
+    "width": 33
+  },
+  {
+    "file": "C:\\Users\\andro\\gen-trees\\sprite-reimagine-0914\\frontend\\assets\\agent-demo\\approved-motion\\xenomorph\\walk_east_2.png",
+    "height": 77,
+    "foot": 111,
+    "width": 37
+  },
+  {
+    "file": "C:\\Users\\andro\\gen-trees\\sprite-reimagine-0914\\frontend\\assets\\agent-demo\\approved-motion\\xenomorph\\walk_east_3.png",
+    "height": 76,
+    "foot": 110,
+    "width": 41
+  },
+  {
+    "file": "C:\\Users\\andro\\gen-trees\\sprite-reimagine-0914\\frontend\\assets\\agent-demo\\approved-motion\\xenomorph\\walk_east_4.png",
+    "height": 75,
+    "foot": 110,
+    "width": 46
+  },
+  {
+    "file": "C:\\Users\\andro\\gen-trees\\sprite-reimagine-0914\\frontend\\assets\\agent-demo\\approved-motion\\xenomorph\\walk_east_5.png",
+    "height": 74,
+    "foot": 110,
+    "width": 50
+  },
+  {
+    "file": "C:\\Users\\andro\\gen-trees\\sprite-reimagine-0914\\frontend\\assets\\agent-demo\\approved-motion\\xenomorph\\walk_east_6.png",
+    "height": 74,
+    "foot": 110,
+    "width": 44
+  },
+  {
+    "file": "C:\\Users\\andro\\gen-trees\\sprite-reimagine-0914\\frontend\\assets\\agent-demo\\approved-motion\\xenomorph\\walk_east_7.png",
+    "height": 75,
+    "foot": 110,
+    "width": 40
+  },
+  {
+    "file": "C:\\Users\\andro\\gen-trees\\sprite-reimagine-0914\\frontend\\assets\\agent-demo\\approved-motion\\xenomorph\\walk_east_8.png",
+    "height": 75,
+    "foot": 109,
+    "width": 34
+  },
+  {
+    "file": "C:\\Users\\andro\\gen-trees\\sprite-reimagine-0914\\frontend\\assets\\agent-demo\\approved-motion\\xenomorph\\walk_north-east_1.png",
+    "height": 77,
+    "foot": 112,
+    "width": 53
+  },
+  {
+    "file": "C:\\Users\\andro\\gen-trees\\sprite-reimagine-0914\\frontend\\assets\\agent-demo\\approved-motion\\xenomorph\\walk_north-east_2.png",
+    "height": 78,
+    "foot": 112,
+    "width": 53
+  },
+  {
+    "file": "C:\\Users\\andro\\gen-trees\\sprite-reimagine-0914\\frontend\\assets\\agent-demo\\approved-motion\\xenomorph\\walk_north-east_3.png",
+    "height": 78,
+    "foot": 112,
+    "width": 53
+  },
+  {
+    "file": "C:\\Users\\andro\\gen-trees\\sprite-reimagine-0914\\frontend\\assets\\agent-demo\\approved-motion\\xenomorph\\walk_north-east_4.png",
+    "height": 78,
+    "foot": 112,
+    "width": 54
+  },
+  {
+    "file": "C:\\Users\\andro\\gen-trees\\sprite-reimagine-0914\\frontend\\assets\\agent-demo\\approved-motion\\xenomorph\\walk_north-east_5.png",
+    "height": 77,
+    "foot": 112,
+    "width": 53
+  },
+  {
+    "file": "C:\\Users\\andro\\gen-trees\\sprite-reimagine-0914\\frontend\\assets\\agent-demo\\approved-motion\\xenomorph\\walk_north-east_6.png",
+    "height": 74,
+    "foot": 110,
+    "width": 53
+  },
+  {
+    "file": "C:\\Users\\andro\\gen-trees\\sprite-reimagine-0914\\frontend\\assets\\agent-demo\\approved-motion\\xenomorph\\walk_north-east_7.png",
+    "height": 75,
+    "foot": 110,
+    "width": 53
+  },
+  {
+    "file": "C:\\Users\\andro\\gen-trees\\sprite-reimagine-0914\\frontend\\assets\\agent-demo\\approved-motion\\xenomorph\\walk_north-east_8.png",
+    "height": 76,
+    "foot": 110,
+    "width": 53
+  },
+  {
+    "file": "C:\\Users\\andro\\gen-trees\\sprite-reimagine-0914\\frontend\\assets\\agent-demo\\approved-motion\\xenomorph\\walk_north_1.png",
+    "height": 77,
+    "foot": 112,
+    "width": 51
+  },
+  {
+    "file": "C:\\Users\\andro\\gen-trees\\sprite-reimagine-0914\\frontend\\assets\\agent-demo\\approved-motion\\xenomorph\\walk_north_2.png",
+    "height": 78,
+    "foot": 112,
+    "width": 53
+  },
+  {
+    "file": "C:\\Users\\andro\\gen-trees\\sprite-reimagine-0914\\frontend\\assets\\agent-demo\\approved-motion\\xenomorph\\walk_north_3.png",
+    "height": 78,
+    "foot": 112,
+    "width": 54
+  },
+  {
+    "file": "C:\\Users\\andro\\gen-trees\\sprite-reimagine-0914\\frontend\\assets\\agent-demo\\approved-motion\\xenomorph\\walk_north_4.png",
+    "height": 75,
+    "foot": 111,
+    "width": 55
+  },
+  {
+    "file": "C:\\Users\\andro\\gen-trees\\sprite-reimagine-0914\\frontend\\assets\\agent-demo\\approved-motion\\xenomorph\\walk_north_5.png",
+    "height": 75,
+    "foot": 111,
+    "width": 53
+  },
+  {
+    "file": "C:\\Users\\andro\\gen-trees\\sprite-reimagine-0914\\frontend\\assets\\agent-demo\\approved-motion\\xenomorph\\walk_north_6.png",
+    "height": 76,
+    "foot": 111,
+    "width": 51
+  },
+  {
+    "file": "C:\\Users\\andro\\gen-trees\\sprite-reimagine-0914\\frontend\\assets\\agent-demo\\approved-motion\\xenomorph\\walk_north_7.png",
+    "height": 77,
+    "foot": 111,
+    "width": 50
+  },
+  {
+    "file": "C:\\Users\\andro\\gen-trees\\sprite-reimagine-0914\\frontend\\assets\\agent-demo\\approved-motion\\xenomorph\\walk_north_8.png",
+    "height": 78,
+    "foot": 112,
+    "width": 48
+  },
+  {
+    "file": "C:\\Users\\andro\\gen-trees\\sprite-reimagine-0914\\frontend\\assets\\agent-demo\\approved-motion\\xenomorph\\walk_north-west_1.png",
+    "height": 76,
+    "foot": 111,
+    "width": 29
+  },
+  {
+    "file": "C:\\Users\\andro\\gen-trees\\sprite-reimagine-0914\\frontend\\assets\\agent-demo\\approved-motion\\xenomorph\\walk_north-west_2.png",
+    "height": 77,
+    "foot": 111,
+    "width": 31
+  },
+  {
+    "file": "C:\\Users\\andro\\gen-trees\\sprite-reimagine-0914\\frontend\\assets\\agent-demo\\approved-motion\\xenomorph\\walk_north-west_3.png",
+    "height": 77,
+    "foot": 110,
+    "width": 33
+  },
+  {
+    "file": "C:\\Users\\andro\\gen-trees\\sprite-reimagine-0914\\frontend\\assets\\agent-demo\\approved-motion\\xenomorph\\walk_north-west_4.png",
+    "height": 76,
+    "foot": 111,
+    "width": 33
+  },
+  {
+    "file": "C:\\Users\\andro\\gen-trees\\sprite-reimagine-0914\\frontend\\assets\\agent-demo\\approved-motion\\xenomorph\\walk_north-west_5.png",
+    "height": 76,
+    "foot": 112,
+    "width": 34
+  },
+  {
+    "file": "C:\\Users\\andro\\gen-trees\\sprite-reimagine-0914\\frontend\\assets\\agent-demo\\approved-motion\\xenomorph\\walk_north-west_6.png",
+    "height": 76,
+    "foot": 112,
+    "width": 35
+  },
+  {
+    "file": "C:\\Users\\andro\\gen-trees\\sprite-reimagine-0914\\frontend\\assets\\agent-demo\\approved-motion\\xenomorph\\walk_north-west_7.png",
+    "height": 76,
+    "foot": 111,
+    "width": 33
+  },
+  {
+    "file": "C:\\Users\\andro\\gen-trees\\sprite-reimagine-0914\\frontend\\assets\\agent-demo\\approved-motion\\xenomorph\\walk_north-west_8.png",
+    "height": 77,
+    "foot": 111,
+    "width": 31
+  },
+  {
+    "file": "C:\\Users\\andro\\gen-trees\\sprite-reimagine-0914\\frontend\\assets\\agent-demo\\approved-motion\\xenomorph\\walk_west_1.png",
+    "height": 77,
+    "foot": 112,
+    "width": 42
+  },
+  {
+    "file": "C:\\Users\\andro\\gen-trees\\sprite-reimagine-0914\\frontend\\assets\\agent-demo\\approved-motion\\xenomorph\\walk_west_2.png",
+    "height": 77,
+    "foot": 111,
+    "width": 42
+  },
+  {
+    "file": "C:\\Users\\andro\\gen-trees\\sprite-reimagine-0914\\frontend\\assets\\agent-demo\\approved-motion\\xenomorph\\walk_west_3.png",
+    "height": 78,
+    "foot": 111,
+    "width": 42
+  },
+  {
+    "file": "C:\\Users\\andro\\gen-trees\\sprite-reimagine-0914\\frontend\\assets\\agent-demo\\approved-motion\\xenomorph\\walk_west_4.png",
+    "height": 77,
+    "foot": 111,
+    "width": 42
+  },
+  {
+    "file": "C:\\Users\\andro\\gen-trees\\sprite-reimagine-0914\\frontend\\assets\\agent-demo\\approved-motion\\xenomorph\\walk_west_5.png",
+    "height": 76,
+    "foot": 112,
+    "width": 42
+  },
+  {
+    "file": "C:\\Users\\andro\\gen-trees\\sprite-reimagine-0914\\frontend\\assets\\agent-demo\\approved-motion\\xenomorph\\walk_west_6.png",
+    "height": 75,
+    "foot": 111,
+    "width": 42
+  },
+  {
+    "file": "C:\\Users\\andro\\gen-trees\\sprite-reimagine-0914\\frontend\\assets\\agent-demo\\approved-motion\\xenomorph\\walk_west_7.png",
+    "height": 75,
+    "foot": 110,
+    "width": 42
+  },
+  {
+    "file": "C:\\Users\\andro\\gen-trees\\sprite-reimagine-0914\\frontend\\assets\\agent-demo\\approved-motion\\xenomorph\\walk_west_8.png",
+    "height": 77,
+    "foot": 110,
+    "width": 42
+  },
+  {
+    "file": "C:\\Users\\andro\\gen-trees\\sprite-reimagine-0914\\frontend\\assets\\agent-demo\\approved-motion\\xenomorph\\walk_south-west_1.png",
+    "height": 77,
+    "foot": 112,
+    "width": 54
+  },
+  {
+    "file": "C:\\Users\\andro\\gen-trees\\sprite-reimagine-0914\\frontend\\assets\\agent-demo\\approved-motion\\xenomorph\\walk_south-west_2.png",
+    "height": 78,
+    "foot": 112,
+    "width": 54
+  },
+  {
+    "file": "C:\\Users\\andro\\gen-trees\\sprite-reimagine-0914\\frontend\\assets\\agent-demo\\approved-motion\\xenomorph\\walk_south-west_3.png",
+    "height": 79,
+    "foot": 112,
+    "width": 55
+  },
+  {
+    "file": "C:\\Users\\andro\\gen-trees\\sprite-reimagine-0914\\frontend\\assets\\agent-demo\\approved-motion\\xenomorph\\walk_south-west_4.png",
+    "height": 77,
+    "foot": 111,
+    "width": 54
+  },
+  {
+    "file": "C:\\Users\\andro\\gen-trees\\sprite-reimagine-0914\\frontend\\assets\\agent-demo\\approved-motion\\xenomorph\\walk_south-west_5.png",
+    "height": 76,
+    "foot": 111,
+    "width": 54
+  },
+  {
+    "file": "C:\\Users\\andro\\gen-trees\\sprite-reimagine-0914\\frontend\\assets\\agent-demo\\approved-motion\\xenomorph\\walk_south-west_6.png",
+    "height": 75,
+    "foot": 111,
+    "width": 54
+  },
+  {
+    "file": "C:\\Users\\andro\\gen-trees\\sprite-reimagine-0914\\frontend\\assets\\agent-demo\\approved-motion\\xenomorph\\walk_south-west_7.png",
+    "height": 76,
+    "foot": 111,
+    "width": 54
+  },
+  {
+    "file": "C:\\Users\\andro\\gen-trees\\sprite-reimagine-0914\\frontend\\assets\\agent-demo\\approved-motion\\xenomorph\\walk_south-west_8.png",
+    "height": 77,
+    "foot": 111,
+    "width": 54
+  }
+]

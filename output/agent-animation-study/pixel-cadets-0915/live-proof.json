@@ -1,0 +1,16 @@
+{
+  "date": "2026-09-15",
+  "url": "http://127.0.0.1:18814/agent-station-demo.html?propSet=projection",
+  "method": "CUA screenshots and rendered data-motion attributes after publishing, reload and Cadet colors selection",
+  "standingHeight": 19,
+  "browserErrors": [],
+  "observations": [
+    {"skin":"android","walkFramesObserved":41,"maxFacingError":27.1,"backwardFrames":0},
+    {"skin":"blank_blue","walkFramesObserved":40,"maxFacingError":11.3,"backwardFrames":0},
+    {"skin":"blank_green","walkFramesObserved":48,"maxFacingError":18.4,"backwardFrames":0},
+    {"skin":"blank_red","walkFramesObserved":40,"maxFacingError":11.8,"backwardFrames":0},
+    {"skin":"blank_amber","walkFramesObserved":40,"maxFacingError":18.4,"backwardFrames":0}
+  ],
+  "speechPose": {"skin":"approved_android","standingHeight":19,"groundGap":0.25},
+  "limits": "Live observation sampled normal station movement; all directional, seated and typing artwork was additionally inspected in the 400-frame contact sheets. Full test gate recorded separately."
+}

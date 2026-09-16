@@ -1,0 +1,14 @@
+{
+  "url": "http://127.0.0.1:18814/agent-station-demo.html?propSet=projection",
+  "method": "Actual station draw telemetry, reset when each body changed skin",
+  "standingHeight": 19,
+  "groundGap": 0.25,
+  "browserErrors": [],
+  "skins": [
+    {"id":"bear","walkFramesObserved":64,"walkDirectionsObserved":8,"walkDistance":101.23},
+    {"id":"pepe","walkFramesObserved":64,"walkDirectionsObserved":8,"walkDistance":145},
+    {"id":"vaultboy","walkFramesObserved":64,"walkDirectionsObserved":8,"walkDistance":93.42},
+    {"id":"ghostface","walkFramesObserved":64,"walkDirectionsObserved":8,"walkDistance":106.37},
+    {"id":"morpheus","walkFramesObserved":64,"walkDirectionsObserved":8,"walkDistance":122.38}
+  ]
+}

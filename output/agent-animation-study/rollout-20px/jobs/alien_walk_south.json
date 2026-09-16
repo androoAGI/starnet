@@ -1,0 +1,16 @@
+{
+  "id": "alien",
+  "track": "walk",
+  "dir": "south",
+  "pinLast": true,
+  "rejectedJob": "eb33e485-109a-488f-addc-95c6280d7177",
+  "promptOverride": "A seamless two-step walk in place, facing south throughout. Alternate left foot contact, passing pose, right foot contact, passing pose. One foot always carries weight on the same baseline. Opposite arm swings. The body stays upright and centered; head stays steady, only tiny shoulder counter-rotation. Preserve exact input body size, shape, clothing, leg colors and pixel style. No turns, no jump, no both-feet lift, no objects and no ground shadow. Keep the exact smooth sage-green face and unchanged calm black almond-shaped eyes in every frame. No facial expression changes, markings, dots, speckles or color flicker.",
+  "request": "id: cb05f5ae-bb85-4952-ac70-10e096e26c2a\njob_id: cb05f5ae-bb85-4952-ac70-10e096e26c2a\ndescription: A seamless two-step walk in place, facing south throughout. Alternate left foot contact, passing pose, right foot contact, passing pose. One foot always carries weight on the same baseline. Opposite arm swings. The body stays upright and centered; head stays steady, only tiny shoulder counter-rotation. Preserve exact input body size, shape, clothing, leg colors and pixel style. No turns, no jump, no both-feet lift, no objects and no ground shadow. Keep the exact smooth sage-green face and unchanged calm black almond-shaped eyes in every frame. No facial expression changes, markings, dots, speckles or color flicker.\nframes: 8\nsize: 96x96px\ntransparent: True\nlast_frame: yes (animating toward it)\ncost: 2 generations\nstatus: processing (~1-5 min)\n\nhint: get_image(job_id=\"cb05f5ae-bb85-4952-ac70-10e096e26c2a\")",
+  "job": "cb05f5ae-bb85-4952-ac70-10e096e26c2a",
+  "source": "output/agent-animation-study/rollout-20px/full-motion/alien/refs/south.png",
+  "result": "status: completed\nid: cb05f5ae-bb85-4952-ac70-10e096e26c2a\njob_id: cb05f5ae-bb85-4952-ac70-10e096e26c2a\nframes: 9\ndownload: https://api.pixellab.ai/mcp/images/cb05f5ae-bb85-4952-ac70-10e096e26c2a/download?index=0 ... ?index=8\n(5 more frames not shown — fetch them from the download URLs above)",
+  "done": true,
+  "packed": true,
+  "lastRaw": "output/agent-animation-study/rollout-20px/full-motion/alien/minimax/walk-south/cb05f5ae-bb85-4952-ac70-10e096e26c2a/8.png",
+  "frameCount": 9
+}

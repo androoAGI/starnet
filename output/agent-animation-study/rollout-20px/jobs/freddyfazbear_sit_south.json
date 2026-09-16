@@ -1,0 +1,14 @@
+{
+  "id": "freddyfazbear",
+  "track": "sit",
+  "dir": "south",
+  "promptOverride": "Lower into a clearly seated front-facing pose. Keep both feet planted on the original baseline. Move the entire upper body, head and hips DOWN by about 15 pixels without shrinking them. Bend both knees 90 degrees: thighs extend horizontally toward camera and are foreshortened, knees level with hips, shins vertical below knees. Upper legs must not remain vertical. Torso upright, hands together in front of belly, elbows tucked. End fully sitting on an invisible chair, visibly shorter than standing. Preserve Freddy bear face, hat, brown mechanical suit and exact pixel style. Do not draw a chair, floor, shadow or any new objects.",
+  "request": "id: 4496f4ff-9044-4150-a747-3c24d38f609b\njob_id: 4496f4ff-9044-4150-a747-3c24d38f609b\ndescription: Lower into a clearly seated front-facing pose. Keep both feet planted on the original baseline. Move the entire upper body, head and hips DOWN by about 15 pixels without shrinking them. Bend both knees 90 degrees: thighs extend horizontally toward camera and are foreshortened, knees level with hips, shins vertical below knees. Upper legs must not remain vertical. Torso upright, hands together in front of belly, elbows tucked. End fully sitting on an invisible chair, visibly shorter than standing. Preserve Freddy bear face, hat, brown mechanical suit and exact pixel style. Do not draw a chair, floor, shadow or any new objects.\nframes: 4\nsize: 96x96px\ntransparent: True\ncost: 2 generations\nstatus: processing (~1-5 min)\n\nhint: get_image(job_id=\"4496f4ff-9044-4150-a747-3c24d38f609b\")",
+  "job": "4496f4ff-9044-4150-a747-3c24d38f609b",
+  "source": "output/agent-animation-study/rollout-20px/full-motion/freddyfazbear/refs/south.png",
+  "result": "status: completed\nid: 4496f4ff-9044-4150-a747-3c24d38f609b\njob_id: 4496f4ff-9044-4150-a747-3c24d38f609b\nframes: 5\ndownload: https://api.pixellab.ai/mcp/images/4496f4ff-9044-4150-a747-3c24d38f609b/download?index=0 ... ?index=4\n(1 more frames not shown — fetch them from the download URLs above)",
+  "done": true,
+  "packed": true,
+  "lastRaw": "output/agent-animation-study/rollout-20px/full-motion/freddyfazbear/minimax/sit-south/4496f4ff-9044-4150-a747-3c24d38f609b/4.png",
+  "frameCount": 5
+}

@@ -5,7 +5,7 @@
  const start=performance.now();
  await Promise.all([IndustrialTextures.ready,PropRemaster.ready]);
  const panel=document.createElement('aside');panel.id='projection-audit';panel.setAttribute('aria-label','Projection verification');
- panel.style.cssText='position:fixed;z-index:999999;right:12px;bottom:44px;max-width:360px;padding:12px;background:#091214ef;border:1px solid #746546;color:#d7c89d;font:12px VT323, monospace';
+ panel.style.cssText='position:fixed;z-index:999999;right:12px;bottom:44px;max-width:360px;padding:12px;background:#091214ef;border:1px solid #746546;color:#d7c89d;font:12px VT323,monospace';
  const report=document.createElement('output'),button=document.createElement('button');
  button.textContent='Measure frame cadence';button.className='bb';button.style.cssText='background:#172124;color:#ded5b6;border:1px solid #746546;padding:6px;margin-top:8px';
  const status=PropRemaster.status();

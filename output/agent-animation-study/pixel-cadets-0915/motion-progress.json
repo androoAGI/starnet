@@ -1,0 +1,13 @@
+{
+  "total": 65,
+  "packed": 65,
+  "active": 0,
+  "failed": [],
+  "completedSkins": [
+    "android",
+    "blank_blue",
+    "blank_green",
+    "blank_red",
+    "blank_amber"
+  ]
+}

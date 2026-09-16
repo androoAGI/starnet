@@ -1,0 +1,5 @@
+const fs=require('fs'),path=require('path'),sharp=require('sharp');
+const base='output/agent-animation-study/pixel-cadets-0915',dirs=['south','south-east','east','north-east','north','north-west','west','south-west'];
+(async()=>{const id=process.argv[2];if(!/^[a-z_]+$/.test(id))throw Error('Invalid id');const layers=[],m=JSON.parse(fs.readFileSync(base+'/manifest.json')).sprites;
+for(let y=0;y<11;y++)for(let x=0;x<8;x++){let file;if(y===0)file=base+'/packed/'+id+'/rot_'+dirs[x]+'.png';else {let key,index=x;if(y<=8)key='walk.'+dirs[y-1];else if(y===9&&x<4){key='sit.'+['south','east','north','west'][x];index=0;}else if(y===10&&x<4)key='type.north';else continue;const rel=m['approved_'+id+'.'+key]?.[index];if(!rel)continue;file=base+'/packed/'+id+'/'+path.basename(rel);}if(!fs.existsSync(file))continue;layers.push({input:await sharp(file).extract({left:24,top:24,width:96,height:96}).png().toBuffer(),left:x*96,top:y*96});}
+await sharp({create:{width:768,height:1056,channels:4,background:'#344047'}}).composite(layers).png().toFile(base+'/full-motion/'+id+'/contact.png');console.log({id,frames:layers.length});})();

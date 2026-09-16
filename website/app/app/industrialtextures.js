@@ -24,11 +24,11 @@ const IndustrialTextures = (() => {
   const detailTargets = new WeakMap(), wallStrips = new Map(), materials = new Map(), emitters = new Map();
   let loaded = false;
   const floorIds = 'spine alloy plate panel tile tread soft grate hex plank turf diamond resin ceramic cargo runner treadway meshway basalt parquet rubber slotted terrazzo octile'.split(' ');
-  const wallIds = 'bulkhead courses service plating ribbed panelled pipework'.split(' ');
+  const wallIds = 'bulkhead courses service plating ribbed panelled pipework viewport wainscot hedge'.split(' ');
   const names = ['floor', 'wall', 'shell', 'workstation', 'workstation-compact', 'chair-s', 'chair-e', 'chair-n',
     'tactical-table', 'console-bank', 'equipment-bay', 'deck-perimeter',
     ...floorIds.map(id => 'remaster/floors/' + id), ...wallIds.map(id => 'remaster/walls/' + id),
-    'remaster/shell', 'remaster/workstation-e', 'remaster/workstation-n', 'remaster/workstation-compact-n',
+    'remaster/shell', 'remaster/crown', 'remaster/workstation-e', 'remaster/workstation-n', 'remaster/workstation-compact-n',
     'calibration/crate'];
   const shellMaterials = ['monocoque', 'timber', 'clapboard', 'shingle', 'brick', 'stone', 'stucco', 'curtain', 'hedge', 'thermal', 'insulation', 'heatsink'];
   const floorMaterials = ['flightdeck', 'lunar', 'maggrid', 'habitat'];
@@ -41,7 +41,7 @@ const IndustrialTextures = (() => {
   const gain = { floor: 1.25, wall: 1.65, shell: 2.05, workstation: 1.5, 'workstation-compact': 1.5,
     'chair-s': 1.3, 'chair-e': 1.3, 'chair-n': 1.3,
     'tactical-table': 1.5, 'console-bank': 1.5, 'equipment-bay': 1.5, 'deck-perimeter': 1.0,
-    'calibration/crate': 1.5 };
+    'calibration/crate': 1.5, 'remaster/crown': 2.0 };
   const ready = requested && typeof Image !== 'undefined' ? Promise.all([...names, ...shellNames, ...surfaceNames].map(name => new Promise(resolve => {
     const img = new Image();
     img.onload = () => {
@@ -155,7 +155,10 @@ const IndustrialTextures = (() => {
       // six-to-one sample makes rivets and cable ribs alias at overview zoom.
       // Each level keeps the same world rectangle and premultiplied alpha.
       const m=ctx.getTransform(), density=Math.max(Math.hypot(m.a,m.b),Math.hypot(m.c,m.d));
-      const target=Math.max(.25,density), baseDensity=hi.width/cv.width;
+      // At distant zoom the architecture needs broad planes, not every rivet.
+      // Prefilter only the baked environment; props, crew and lights retain detail.
+      const distanceDetail=.60+.40*Math.max(0,Math.min(1,(density-1.4)/1.1));
+      const target=Math.max(.25,density*distanceDetail), baseDensity=hi.width/cv.width;
       let chain=platePyramids.get(hi);
       if(!chain){chain=[hi];platePyramids.set(hi,chain);}
       let level=0;
@@ -186,8 +189,54 @@ const IndustrialTextures = (() => {
       im.width / period, im.height / period, X, Y, size, size);
     ctx.restore(); return true;
   }
+  // Image-authored coping follows the native silhouette; phase is in world units.
+  function crown(ctx, x, y, width, height, phase, vertical, base) {
+    if (!enabled()) return false;
+    const im=material('remaster/crown',base),length=vertical?height:width,depth=vertical?width:height;
+    if(length<=0||depth<=0)return false;
+    ctx.save();ctx.imageSmoothingEnabled=true;ctx.imageSmoothingQuality='high';
+    if(vertical)ctx.transform(0,1,1,0,x,y);else ctx.transform(1,0,0,1,x,y);
+    for(let a=0;a<length;){const p=mod(phase+a,96),n=Math.min(length-a,96-p);
+      ctx.drawImage(im,p/96*im.width,.13*im.height,n/96*im.width,.73*im.height,a,0,n,depth);a+=n;}
+    ctx.restore();return true;
+  }
+  // Map the authored steel mullion down a splayed doorway reveal. Subpixel
+  // slices retain the six-times wall bake resolution rather than pixel stairs.
+  function doorReturn(ctx,edge,top,foot,reach,side,base,capH=0) {
+    if(!enabled())return false;
+    const im=material('remaster/walls/viewport',base),height=foot-top+1;
+    if(height<=0)return false;
+    ctx.save();ctx.imageSmoothingEnabled=true;ctx.imageSmoothingQuality='high';
+    for(let i=0;i<height*6;i++) {
+      const y=top+i/6,h=Math.min(1/6,foot+1-y);
+      const t=Math.min(1,(y+h/2-top)/(foot-top));
+      const w=1+reach*(1-t),x=side?edge-w:edge;
+      ctx.drawImage(im,(side?.87:.03)*im.width,(.17+.58*(y-top)/height)*im.height,
+        .10*im.width,.58*h/height*im.height,x,y,w,h);
+      ctx.fillStyle=side?'rgba(0,0,0,0.13)':'rgba(0,0,0,0.27)';ctx.fillRect(x,y,w,h);
+    }
+    const cap=material('remaster/crown',base);
+    for(let i=0;i<capH*6;i++) {
+      const k=i/6,w=1+reach*(k+1/12)/capH,x=side?edge-w:edge;
+      ctx.drawImage(cap,.22*cap.width,(.13+.73*k/capH)*cap.height,
+        .18*cap.width,.73/capH/6*cap.height,x,top-capH+k,w,1/6);
+    }
+    ctx.restore();return true;
+  }
+  // Four image slices surround the existing transparent sky opening. Never paint glass opaque.
+  function viewportFrame(ctx,x,y,w,h,base) {
+    if(!enabled())return false;
+    const im=material('remaster/walls/viewport',base),sw=im.width,sh=im.height;
+    ctx.save();ctx.imageSmoothingEnabled=true;ctx.imageSmoothingQuality='high';
+    ctx.drawImage(im,0,0,sw,.17*sh,x,y,w,3);
+    ctx.drawImage(im,0,.75*sh,sw,.25*sh,x,y+h-6,w,6);
+    ctx.drawImage(im,0,.17*sh,.15*sw,.58*sh,x,y+3,1,h-9);
+    ctx.drawImage(im,.85*sw,.17*sh,.15*sw,.58*sh,x+w-.45,y+3,.45,h-9);
+    ctx.restore();return true;
+  }
   function wall(ctx, X, Y, width, height, tx, id = 'bulkhead', base, opts) {
     if (!enabled()) return false;
+    if (id === 'viewport') return false; // glass and its authored frame have a separate painter
     if (opts && opts.detail === 0) return false;
     const im = wallImage(id, base);
     if (!im) return false;
@@ -203,6 +252,7 @@ const IndustrialTextures = (() => {
   }
   function wallStrip(height, id = 'bulkhead', base, opts) {
     if (!enabled()) return null;
+    if (id === 'viewport') return null;
     if (opts && opts.detail === 0) return null;
     const key = [height, id, base || '', opts && opts.detail,projectionReview?lighting.wallGain:1].join(':');
     if (wallStrips.has(key)) return wallStrips.get(key);
@@ -434,8 +484,8 @@ const IndustrialTextures = (() => {
     ctx.drawImage(im, x + (w - dw) / 2, y + h - dh, dw, dh);
     ctx.restore(); return true;
   }
-  return Object.freeze({ ready, enabled, isRemaster, lighting, detailContext, drawBase, floor, wall, wallStrip, wallPatch, shell, shellPlate, propPanel, workstation, workstationEmitter, chair, crate,
-    furniture,
+  return Object.freeze({ ready, enabled, isRemaster, lighting, detailContext, drawBase, floor, wall, wallStrip, wallPatch, crown, doorReturn, viewportFrame, shell, shellPlate, propPanel, workstation, workstationEmitter, chair, crate,
+    furniture, supportsWall: id => enabled() && (wallIds.includes(id)||wallMaterials.includes(id)),
     status: () => ({ requested, loaded, failed: failed.slice(), assets: Object.keys(images) }) });
 })();
 if (typeof module !== 'undefined' && module.exports) module.exports = IndustrialTextures;

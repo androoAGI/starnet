@@ -1,0 +1,15 @@
+{
+  "id": "vaultboy",
+  "track": "type",
+  "dir": "north",
+  "rejectedJob": "27395920-4bd8-4925-ad75-9ae58fbfd405",
+  "reason": "Rear seated pose must keep knees and elbows close, hands forward.",
+  "request": "id: 0bf69634-0f93-4233-b342-0407345a6a7b\njob_id: 0bf69634-0f93-4233-b342-0407345a6a7b\ndescription: A subtle seamless seated typing loop, facing north throughout. Remain in this exact seated pose with hips, torso, head and feet fixed. Elbows stay tucked beside the waist. Only hands and forearms alternate tiny typing movements forward at desk height. Preserve exact outfit, silhouette and pixel art. No standing up, turning, chair, desk, keyboard, floor, shadow or other object.\nframes: 4\nsize: 96x96px\ntransparent: True\ncost: 2 generations\nstatus: processing (~1-5 min)\n\nhint: get_image(job_id=\"0bf69634-0f93-4233-b342-0407345a6a7b\")",
+  "job": "0bf69634-0f93-4233-b342-0407345a6a7b",
+  "source": "output/agent-animation-study/rollout-20px/full-motion/vaultboy/minimax/sit-north/889bb2d3-fbd0-4648-aa54-9f4153591620/4.png",
+  "result": "status: completed\nid: 0bf69634-0f93-4233-b342-0407345a6a7b\njob_id: 0bf69634-0f93-4233-b342-0407345a6a7b\nframes: 5\ndownload: https://api.pixellab.ai/mcp/images/0bf69634-0f93-4233-b342-0407345a6a7b/download?index=0 ... ?index=4\n(1 more frames not shown — fetch them from the download URLs above)",
+  "done": true,
+  "packed": true,
+  "lastRaw": "output/agent-animation-study/rollout-20px/full-motion/vaultboy/minimax/type-north/0bf69634-0f93-4233-b342-0407345a6a7b/4.png",
+  "frameCount": 5
+}

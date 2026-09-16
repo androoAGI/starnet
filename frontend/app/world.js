@@ -461,33 +461,43 @@ const World = (() => {
      `lastLeg` brakes into the FINAL stop only; intermediate waypoints are taken at pace so the body doesn't
      stutter at every corner. dx,dy = the vector it is stepping along, d = its length. */
   function stepGait(b, dx, dy, d, top, lastLeg, dt) {
-    if (b.faceA == null || b.dir !== b.faceDir) b.faceA = DIR_A[b.dir] != null ? DIR_A[b.dir] : Math.PI / 2;
-    const t = (typeof performance !== 'undefined' ? performance.now() : Date.now());
-    if (b.odo == null || t - (b.odoAt || 0) > 150) { b.odo = 0; b.spd = 0; }   // wasn't walking last frame → a NEW walk
-    b.odoAt = t;
-    const want = lastLeg ? Math.min(top, Math.sqrt(Math.max(0, d) * 2 * ACCEL)) : top;
-    const rate = ACCEL * dt / 1000, cur = b.spd || 0;
-    b.spd = cur < want ? Math.min(want, cur + rate) : Math.max(want, cur - rate);
-    const step = Math.min(d, b.spd * dt / 1000);
-    if (d > 1e-4) {
-      const turn = angNorm(Math.atan2(dy, dx) - b.faceA);
-      const s = dt / 1000, remain = Math.abs(turn);
-      // Angular ACCELERATION, not a flat rate — the same easing the linear speed gets above. A
-      // constant slew made a cornering body read as a turntable: it pivoted at a machine-perfect
-      // rate while its legs stood still. Brake term arrives at the heading at rest.
-      const target = Math.min(TURN_RATE, Math.sqrt(2 * TURN_ACCEL_A * remain));
-      const curW = b.angW || 0;
-      b.angW = curW < target ? Math.min(target, curW + TURN_ACCEL_A * s)
-                             : Math.max(target, curW - TURN_ACCEL_A * s);
-      const swept = Math.min(remain, b.angW * s);
-      b.faceA = angNorm(b.faceA + Math.sign(turn) * swept);
-      // The feet also travel when the body pivots — they sweep an arc about the stance centre. Adding
-      // that arc to the stride odometer keeps the legs cycling through a corner instead of freezing
-      // mid-stride while the sprite rotates, which is what made cornering look like sliding.
-      b.odo += step + swept * TURN_FOOT_R;
-    }
-    b.dir = b.faceDir = bucketDir(b.faceA, b.dir);
+    // Art height controls rendering, not travel speed: 19 px skins share the normal station pace.
+    const seconds=Math.max(0,Math.min(100,dt))/1000;
+    const accel=ACCEL;
+    if(b.faceA==null||b.dir!==b.faceDir)b.faceA=DIR_A[b.dir]??Math.PI/2;
+    const t=typeof performance!=='undefined'?performance.now():Date.now();
+    if(b.odo==null)b.odo=0;
+    if(t-(b.odoAt||0)>150)b.spd=0;
+    b.odoAt=t;
+    b._gaitStart ||= {x:b.px,y:b.py,odo:b.odo};b._strideBlocked=false;b._resolvedTravelHeading=null;
+    const heading=d>1e-4?Math.atan2(dy,dx):b.faceA;
+    const turn=angNorm(heading-b.faceA),remain=Math.abs(turn);
+    const target=Math.min(TURN_RATE,Math.sqrt(2*TURN_ACCEL_A*remain));
+    const curW=b.angW||0;
+    b.angW=curW<target?Math.min(target,curW+TURN_ACCEL_A*seconds):Math.max(target,curW-TURN_ACCEL_A*seconds);
+    b.faceA=angNorm(b.faceA+Math.sign(turn)*Math.min(remain,b.angW*seconds));
+    // Turn before travelling backwards. Gentle corners retain momentum; sharp turns plant first.
+    const error=Math.abs(angNorm(heading-b.faceA));
+    const alignment=error>=Math.PI/4?0:Math.cos(error*2)**2;
+    const want=(lastLeg?Math.min(top,Math.sqrt(Math.max(0,d)*2*accel)):top)*alignment;
+    const cur=b.spd||0,rate=accel*seconds;
+    b.spd=cur<want?Math.min(want,cur+rate):Math.max(want,cur-rate);
+    // Speed already eases with alignment. Applying it twice makes every corner drag.
+    const step=error>=Math.PI/4?0:Math.min(d,b.spd*seconds);
+    // Only translation advances the stride. Rotation used to add almost an entire fake cycle.
+    b.odo+=step;b._travelHeading=heading;b._travelStep=step;
+    b.dir=b.faceDir=bucketDir(b.faceA,b.dir);
     return step;
+  }
+
+  function finishGait(b){
+    const start=b._gaitStart;if(!start)return;b._gaitStart=null;
+    const dx=b.px-start.x,dy=b.py-start.y,distance=Math.hypot(dx,dy);
+    const forward=dx*Math.cos(b._travelHeading)+dy*Math.sin(b._travelHeading);
+    // Separation runs after movement. A blocked/shoved body plants instead of cycling forward in reverse.
+    b._strideBlocked=!(b._travelStep>0)||distance<.001||forward<=.001;
+    b.odo=start.odo+(b._strideBlocked?0:distance);
+    if(!b._strideBlocked)b._resolvedTravelHeading=Math.atan2(dy,dx);
   }
 
   /* ================= furniture (ported v7 sprites.js F.desk / F.chair) ================= */
@@ -1692,7 +1702,7 @@ const World = (() => {
     const room=id&&station.serialize().rooms[id];
     if(id&&!room)return false;
     camLock=null;camLerp=null;camUserAt=performance.now();
-    if(!room){fitCamera();scale*=.90;panX=(cv.width-cache.W*scale)/2;panY=(cv.height-cache.H*scale)/2+40;}
+    if(!room){fitCamera();scale=Math.min(scale*.90,cv.height*.76/cache.H);panX=(cv.width-cache.W*scale)/2;panY=cv.height*.57-cache.H*scale/2;}
     else{
       const r=room.rects,x1=Math.min(...r.map(v=>v.x1)),x2=Math.max(...r.map(v=>v.x2))+1;
       const y1=Math.min(...r.map(v=>v.y1)),y2=Math.max(...r.map(v=>v.y2))+1;
@@ -2508,8 +2518,9 @@ const World = (() => {
      unturned prop (r absent) resolves byte-identically to the pre-rotation behaviour. */
   function useApproach(use, p) {
     const want = (use && use.approach) || 'south';
-    if (want === 'auto' || !p || !p.r) return want;
-    return PropAnchor.turnSide ? PropAnchor.turnSide(want, p.r) : want;
+    if (want === 'auto' || !p) return want;
+    const face=p.r&&PropAnchor.turnSide?PropAnchor.turnSide(want,p.r):want;
+    return p.m?(face==='west'?'east':face==='east'?'west':face):face;
   }
   // FLOOR DECAL? (catalog `flat` — rug / cable run / hazard pad). Deck paint with zero rise: it renders
   // in its own pass UNDER every body and prop, because a decal y-sorted with the bodies buries whoever
@@ -2627,7 +2638,7 @@ const World = (() => {
   function releaseSeat() {
     if (!self) return;
     if (self.seatKey) occupiedSeats.delete(self.seatKey);
-    self.seatKey = null; self.seated = false; self.pendSeat = null; self.barJoinUntil = 0; self.seatLift = 0;
+    self.seatKey = null; self.seated = false; self.pendSeat = null; self.barJoinUntil = 0; self.seatLift = 0;self.seatBehindBack=false;
     self.lying = false;   // out of the seat is out of the BED: the covers pose dies with the claim
   }
   /* on arrival, snap the render position onto the claimed stool/chair/couch/bed anchor (logical pos stays
@@ -2636,8 +2647,8 @@ const World = (() => {
      the first arrival, so a second arrive() for the same goal (the engine can re-run it; the dev harness
      does) would otherwise stand a sleeper up out of a mattress it still holds the claim to. */
   function takeSeat() {
-    if (self.seatKey && self.pendSeat) { self.seated = true; self.seatPx = self.pendSeat.px; self.seatPy = self.pendSeat.py; self.seatLift = self.pendSeat.lift || 0; self.pendSeat = null; }
-    else if (!(self.lying && self.seatKey)) { self.seated = false; self.seatLift = 0; }
+    if (self.seatKey && self.pendSeat) { self.seated = true; self.seatPx = self.pendSeat.px; self.seatPy = self.pendSeat.py; self.seatLift = self.pendSeat.lift || 0;self.seatBehindBack=!!self.pendSeat.behindBack; self.pendSeat = null; }
+    else if (!(self.lying && self.seatKey)) { self.seated = false; self.seatLift = 0;self.seatBehindBack=false; }
   }
   /* B2: drop ANY body's idle/leisure latch (couch cushion claim + the engine goal bookkeeping) when a task SEIZES
      it — the crew analogue of the hero summon-seize's releaseSeat()+goal-clear (tick ~1614). Without this, a crew
@@ -2647,7 +2658,7 @@ const World = (() => {
   function seizeFromIdle(b) {
     if (!b) return;
     if (b.seatKey) occupiedSeats.delete(b.seatKey);
-    b.seatKey = null; b.seated = false; b.pendSeat = null; b.barJoinUntil = 0; b.seatLift = 0; b.lying = false;   // seized out of bed too
+    b.seatKey = null; b.seated = false; b.pendSeat = null; b.barJoinUntil = 0; b.seatLift = 0;b.seatBehindBack=false; b.lying = false;   // seized out of bed too
     b.goal = null; b.usingProp = null; b.watchProp = null; b.studyKey = null; b.quirkKind = null; b.stilling = false;
     b.useBeat = null; setTalking(b, false);   // a seized body is not mid-leisure and is not talking to anyone
     b.pauseUntil = 0; b.pauseLook = null; b.idleUntil = 0;
@@ -2702,7 +2713,15 @@ const World = (() => {
               the sit frame's OWN bottom padding — so all 36 skins land on the cushion. 2px, the
               chair's value, because the cushion sits barely above the near arm's crown. */
   const SIDE_SEAT = { recliner: { face: 'west', dx: -2, lift: 2 }, recliner_r: { face: 'east', dx: 2, lift: 2 } };
-  const sideSeat = p => (p && SIDE_SEAT[p.t]) || null;
+  const sideSeat = p => {
+    if(p?.t==='booth' && ((p.r|0)&1)) {
+      const face=PropAnchor.frontOf(p);
+      return {face,dx:face==='west'?-2:2,lift:2};
+    }
+    const side=p&&SIDE_SEAT[p.t];
+    if(!side)return null;
+    return p.m ? {...side,face:side.face==='west'?'east':'west',dx:-side.dx} : side;
+  };
   function planCouchSit(now, couch, tvId, faceDir, zone) {
     /* STALE-CLAIM RULE: drop whatever seat this body still holds BEFORE claiming a new one. Committing to a
        new destination means it is leaving the old seat regardless, and an inherited `pendSeat` is worse than
@@ -2712,14 +2731,15 @@ const World = (() => {
        decision, which only runs when the body is free to move. */
     releaseSeat();
     const w = couch.w || 1, h = couch.h || 1;
-    const lo = w >= 3 ? 1 : 0, hi = w >= 3 ? w - 2 : w - 1;   // skip an arm tile each end when wide
+    const vertical = !!((couch.r | 0) & 1), span = vertical ? h : w;
+    const lo = span >= 3 ? 1 : 0, hi = span >= 3 ? span - 2 : span - 1;   // skip an arm tile each end when wide
     const slots = [];
     for (let i = lo; i <= hi; i++) if (!occupiedSeats.has(couch.id + ':' + i)) slots.push(i);
     if (!slots.length) return false;                          // couch full → caller tries another couch
     const order = U.irnd(0, slots.length - 1);                // vary which cushion is taken
     for (let k = 0; k < slots.length; k++) {
       const slot = slots[(order + k) % slots.length];
-      const sx = couch.x + slot, sy = couch.y;                // the couch tile the agent will sit on
+      const sx = couch.x + (vertical ? 0 : slot), sy = couch.y + (vertical ? slot : 0);                // the couch tile the agent will sit on
       if (!tileInZone(zone, sx, sy)) continue;                // P1: the cushion the body RENDERS on must be in-zone (a wide couch can straddle a wall)
       for (const [dx, dy] of SEAT_NB) {
         const ax = sx + dx, ay = sy + dy;
@@ -2728,9 +2748,10 @@ const World = (() => {
         if (!setPathTo({ x: ax, y: ay })) continue;
         occupiedSeats.add(couch.id + ':' + slot); self.seatKey = couch.id + ':' + slot;
         const side = sideSeat(couch);
-        self.pendSeat = { px: (sx + 0.5) * T + (side ? side.dx : 0), py: (couch.y + h) * T - 2, lift: side ? side.lift : 0 };   // render foot at the cushion front
+        const authoredLift=typeof PropRemaster!=='undefined'&&PropRemaster.enabled(couch.t)?PropRemaster.viewGeometry(couch.t,['s','w','n','e'][(couch.r|0)&3])?.spec.seatLift:0;
+        self.pendSeat = { px: (sx + 0.5) * T + (side ? side.dx : 0), py: (vertical ? sy + 1 : couch.y + h) * T - 2, lift: side ? side.lift : (Number.isFinite(authoredLift)?authoredLift:0),behindBack:!side&&authoredLift>0 };   // floor/sort anchor stays at the cushion front
         self.goal = tvId ? 'lounge' : 'use'; self.usingProp = couch.id; self.watchProp = tvId || null;
-        self.useSit = true; self.useFace = side ? side.face : (faceDir || 'south');   // a profile chair points ONE way — see SIDE_SEAT
+        self.useSit = true; self.useFace = side ? side.face : (couch.r && PropAnchor.frontOf ? PropAnchor.frontOf(couch) : (faceDir || 'south'));   // a profile chair points ONE way — see SIDE_SEAT
         if (!self.target) arrive(now);                       // already adjacent → settle immediately
         return true;
       }
@@ -5293,11 +5314,11 @@ const World = (() => {
     const p = geo.props.find(q => q.id === b.usingProp);
     return (p && (propUse(p) || {}).kind === 'bed') ? p : null;
   }
-  function planBedSleep(now) {
+  function planBedSleep(now, reviewBedId = null, reviewZone = null) {
     if (!geo || !geo.props || !geo.props.length) return false;
     releaseSeat();                                             // STALE-CLAIM RULE (see planCouchSit)
-    const zone = zoneFor(self);
-    const beds = geo.props.filter(p => { const u = propUse(p); return u && u.kind === 'bed'; });
+    const zone = reviewZone || zoneFor(self);
+    const beds = geo.props.filter(p => { const u = propUse(p); return u && u.kind === 'bed' && (!reviewBedId || p.id===reviewBedId); });
     if (!beds.length) return false;
     const order = U.irnd(0, beds.length - 1);
     for (let k = 0; k < beds.length; k++) {
@@ -5682,6 +5703,7 @@ const World = (() => {
   function curiositySay() { /* silenced by design — the stillness is the point */ }
 
   function tick(dt, now) {
+    for(const body of [agent,...crew].filter(Boolean)){body._gaitStart={x:body.px,y:body.py,odo:body.odo||0};body._travelStep=0;body._resolvedTravelHeading=null;}
     if (!agent || agent.unplaced || !geo || awakeFrozen) return;   // frozen during the awakening: the newborn holds still, facing the Commander
     self = agent;                                                  // B1: the hero tick runs with self===agent (engine core reads the current body via self) — byte-identical hero path
     if (!agent.lastTaskAt) agent.lastTaskAt = now;                 // anchor downtime at the first live tick
@@ -5850,6 +5872,7 @@ const World = (() => {
     // both committed this frame's positions — resolve any pair that ended up inside each other. Position
     // is the ONLY thing it touches, so it can't reorder or pre-empt a single decision made above it.
     separateBodies(now);
+    if(agent)finishGait(agent);for(const body of crew)finishGait(body);
   }
 
   /* ---------- render ----------
@@ -5877,8 +5900,10 @@ const World = (() => {
     if (typeof SpaceBG !== 'undefined') SpaceBG.draw(ctx, cv.width, cv.height, now, cam);
     else { ctx.fillStyle = '#040302'; ctx.fillRect(0, 0, cv.width, cv.height); }
   }
+  const reviewPerformance = { enabled:false, samples:[] };
   function frame(now) {
     if (running) raf = requestAnimationFrame(frame);   // schedule next frame FIRST — a throw below can't kill the loop
+    const reviewStart=reviewPerformance.enabled?performance.now():0;
     try {
       frameBody(now);
       if (renderFaults) { renderFaults = 0; lastFaultMsg = ''; }   // a clean frame clears the fault state
@@ -5887,6 +5912,8 @@ const World = (() => {
       const msg = (e && e.message) || String(e);
       if (msg !== lastFaultMsg) { lastFaultMsg = msg; try { console.error('[world] render frame threw (x' + renderFaults + '):', e); } catch (_) {} }
       if (renderFaults >= RENDER_FAULT_LIMIT) { try { drawRenderFault(); } catch (_) {} }
+    } finally {
+      if(reviewPerformance.enabled && reviewPerformance.samples.length<3600)reviewPerformance.samples.push({t:now,ms:performance.now()-reviewStart});
     }
   }
 
@@ -9862,6 +9889,83 @@ const World = (() => {
     // TEST/DEBUG ONLY — containment harness: raw-place a body (bypassing every walkable-checked picker)
     // so the per-tick containment backstop (containBody / hero ensureAgentValid) is provable live.
     _dbgTeleport: (aid, px, py) => { const b = bodyForAgent(aid); if (!b) return false; b.pathPts = null; b.target = null; b.sitting = false; b.seated = false; b.px = +px; b.py = +py; return true; },
+    // Local review controls use the real navigation path, including obstacle clearance.
+    _dbgReviewWalk: (aid, tx, ty) => {
+      const b=bodyForAgent(aid);if(!b||!geo||!Number.isInteger(tx)||!Number.isInteger(ty))return false;
+      const keep=self;self=b;
+      try{releaseSeat();b.sitting=false;b.seated=false;b.usingProp=null;b.goal='wander';return setPathTo({x:tx,y:ty});}
+      finally{self=keep;}
+    },
+    _dbgReviewSeat: (aid, propId) => {
+      const b=bodyForAgent(aid),p=geo&&geo.props.find(p=>p.id===propId);
+      const kind=p&&propUse(p)?.kind;if(!b||!p||!['seat','couch'].includes(kind))return false;
+      // Fixture scope: let the borrowed actor review a seat outside its usual roam radius.
+      // Occupancy, collision, approach path, arrival and rendering remain the real mechanisms.
+      const keep=self;self=b;
+      try{
+        releaseSeat();b.sitting=false;b.seated=false;b.pathPts=null;b.target=null;
+        for(const [dx,dy] of SEAT_NB){if(geo.walkable(p.x+dx,p.y+dy,blocked)){const f=footOf(p.x+dx,p.y+dy);b.px=f.x;b.py=f.y;break;}}
+        const zone={kind:'leash',cx:p.x,cy:p.y,r:Math.max(p.w,p.h)+4};
+        const now=performance.now(),ok=kind==='couch'?planCouchSit(now,p,null,'north',zone):planSeat(now,p,zone);
+        if(ok&&b.pendSeat)arrive(now); // already-adjacent plans may have arrived themselves
+        return ok;
+      }finally{self=keep;}
+    },
+    _dbgReviewPerformance: enabled => {
+      const samples=reviewPerformance.samples.slice();
+      if(typeof enabled==='boolean'){reviewPerformance.enabled=enabled;reviewPerformance.samples=[];}
+      return {samples,renderFaults,props:geo?.props.length||0,scale,canvas:cv?[cv.width,cv.height]:null};
+    },
+    // Local catalog audit: real geometry, routing, approach, claim and arrival
+    // functions. Actor positioning/arrival are controlled fixture setup, not
+    // evidence that the idle scheduler selected these props autonomously.
+    _dbgReviewProp: (aid, propId, action='inspect') => {
+      const b=bodyForAgent(aid),p=geo?.props.find(p=>p.id===propId);
+      if(!b||!p)return null;
+      const s=PropSprites.spec(p.t),u=propUse(p),f=PropSprites.footprintAt(p.t,p.r||0);
+      const front={x:Math.floor(p.x+p.w/2),y:p.y+p.h},back={x:front.x,y:p.y-1};
+      const walkable=q=>geo.walkable(q.x,q.y,blocked);
+      const route=walkable(front)&&walkable(back)?geo.path(front.x,front.y,back.x,back.y,blocked):null;
+      const anchor=isWorkstationProp(p.t)?deskSeat(p):u&&PropAnchor.deriveAnchor(p,geo,{approach:useApproach(u,p),sit:!!u.sit,extra:blocked});
+      const out={id:p.id,type:p.t,r:p.r||0,mirror:!!p.m,footprint:[p.w,p.h],canonical:[f.w,f.h],mount:station.mountOf(p),
+        kind:u?.kind||null,workstation:isWorkstationProp(p.t),front:walkable(front),back:walkable(back),route:route?route.length:null,
+        floorFront:front,anchor:anchor||null,side:sideSeat(p),flat:!!s.flat,interaction:'none',motion:{spd:b.spd,odo:b.odo,odoAge:performance.now()-(b.odoAt||0),paused:fnow<(b.pauseUntil||0),frozen:awakeFrozen,activity,bodies:allBodies().length}};
+      out.result={seated:!!b.seated,sitting:!!b.sitting,lying:!!b.lying,dir:b.dir,usingProp:b.usingProp||null,px:b.px,py:b.py,seatLift:b.seatLift||0,seatKey:b.seatKey||null};
+      if(action==='inspect')return out;
+      if(action==='use'&&isWorkstationProp(p.t)){
+        // The generated working chair belongs to an assigned desk. Exercise
+        // that real ownership path so the fixture never sits on a bare tile.
+        for(const q of geo.props)if(q.agentId===aid&&isWorkstationProp(q.t))station.assignPropAgent(q.id,'');
+        station.assignPropAgent(p.id,aid);rederive();
+      }
+      const keep=self;self=b;
+      try{
+        releaseSeat();seizeFromIdle(b);b.sitting=false;b.seated=false;b.lying=false;b.pathPts=null;b.target=null;b.goal=null;b.usingProp=null;
+        if(action==='walk' && route){
+          Object.assign(b,{px:footOf(front.x,front.y).x,py:footOf(front.x,front.y).y,goal:'wander',idleUntil:performance.now()+60000});
+          out.destination=footOf(back.x,back.y);out.planned=setPathTo(back);return out;
+        }
+        let start=walkable(front)?front:anchor&&{x:anchor.tx,y:anchor.ty};
+        if(action==='live' && walkable({x:front.x,y:front.y+2}))start={x:front.x,y:front.y+2};
+        if(start){const pt=footOf(start.x,start.y);b.px=pt.x;b.py=pt.y;}
+        const zone={kind:'leash',cx:p.x,cy:p.y,r:Math.max(p.w,p.h)+8},now=performance.now();
+        if(u?.kind==='seat'||u?.kind==='couch'){
+          out.interaction='seat';out.planned=u.kind==='seat'?planSeat(now,p,zone):planCouchSit(now,p,null,'north',zone);
+          if(action!=='live'&&out.planned&&b.pendSeat){b.target=null;b.pathPts=null;arrive(now);}
+        }else if(u?.kind==='bed'){
+          out.interaction='bed';out.planned=planBedSleep(now,p.id,zone);
+          if(action!=='live'&&out.planned&&b.pendSeat){b.target=null;b.pathPts=null;arrive(now);}
+        }else if(isWorkstationProp(p.t)&&anchor){
+          out.interaction='workstation';const pt=seatFoot(anchor);b.px=pt.x;b.py=pt.y;stepCrewToSeat(b,anchor,16,now);out.planned=!!b.sitting;
+        }else if(u&&anchor){
+          out.interaction='approach';out.planned=setPathTo({x:anchor.tx,y:anchor.ty});
+          if(out.planned){b.goal='use';b.usingProp=p.id;b.useFace=anchor.face;b.useSit=!!anchor.sit;b.target=null;b.pathPts=null;const pt=footOf(anchor.tx,anchor.ty);b.px=pt.x;b.py=pt.y;arrive(now);}
+        }
+        if(action==='use' && b.seated)b.useUntil=now+60000; // manual visual review holds the real pose
+        out.result={seated:!!b.seated,sitting:!!b.sitting,lying:!!b.lying,dir:b.dir,usingProp:b.usingProp||null,px:b.px,py:b.py,seatLift:b.seatLift||0};
+        return out;
+      }finally{self=keep;}
+    },
     // TEST/DEBUG ONLY — read the huddle SELECTION counters (see huddleStats). Answers "why was there
     // no trio" without a second instrumented build: planned vs. how many candidates each huddle saw
     // vs. roll vs. tile failure. Read-only snapshot; the caller cannot mutate the live object.

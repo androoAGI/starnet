@@ -1,0 +1,13 @@
+{
+  "id": "morpheus",
+  "track": "walk",
+  "dir": "north-east",
+  "request": "id: 7ea224da-c7c5-4ccf-9d67-f4c61bd41949\njob_id: 7ea224da-c7c5-4ccf-9d67-f4c61bd41949\ndescription: A seamless two-step walk in place, facing north-east throughout. Alternate left foot contact, passing pose, right foot contact, passing pose. One foot always carries weight on the same baseline. Opposite arm swings. The body stays upright and centered; head stays steady, only tiny shoulder counter-rotation. Preserve exact input body size, shape, clothing, leg colors and pixel style. No turns, no jump, no both-feet lift, no objects and no ground shadow.\nframes: 8\nsize: 96x96px\ntransparent: True\ncost: 2 generations\nstatus: processing (~1-5 min)\n\nhint: get_image(job_id=\"7ea224da-c7c5-4ccf-9d67-f4c61bd41949\")",
+  "job": "7ea224da-c7c5-4ccf-9d67-f4c61bd41949",
+  "source": "output/agent-animation-study/rollout-20px/full-motion/morpheus/refs/north-east.png",
+  "result": "status: completed\nid: 7ea224da-c7c5-4ccf-9d67-f4c61bd41949\njob_id: 7ea224da-c7c5-4ccf-9d67-f4c61bd41949\nframes: 9\ndownload: https://api.pixellab.ai/mcp/images/7ea224da-c7c5-4ccf-9d67-f4c61bd41949/download?index=0 ... ?index=8\n(5 more frames not shown — fetch them from the download URLs above)",
+  "done": true,
+  "packed": true,
+  "lastRaw": "output/agent-animation-study/rollout-20px/full-motion/morpheus/minimax/walk-north-east/7ea224da-c7c5-4ccf-9d67-f4c61bd41949/8.png",
+  "frameCount": 9
+}

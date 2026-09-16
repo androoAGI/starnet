@@ -1,0 +1,84 @@
+{
+  "id": "alien",
+  "dir": "south-east",
+  "track": "walk",
+  "source": "C:/Users/andro/gen-trees/sprite-reimagine-0914/frontend/assets/agent-demo/approved-motion/alien/rot_south-east.png",
+  "prompt": "Create a production pixel-art eight-frame walking animation sprite sheet of this exact gray-green alien in weathered charcoal station coveralls. Reference is the exact design, proportions, pixel texture, and facing to preserve. Eight evenly spaced cells in exactly four columns and two rows, reading order left to right then second row. Transparent alpha background, no shadows, no text, no grid. Full body in every cell with equal generous margin. Character faces 45 degrees toward viewer and screen right, BOTH eyes visible with the far eye narrower throughout EVERY frame. No body/head turns within cycle. A compact natural two-step walk IN THE DIRECTION THE CHEST FACES, never lateral stepping, sideways shuffling, or a profile walk pasted onto a front-facing body. Small shoulder counterrotation, arms swing front/back beside torso. Feet alternate contact, down, passing, up for left then right step. For front-facing view, forward motion is foreshortened: boots stay beneath their respective hips, one boot slightly lower/larger while other slightly higher/smaller. Legs never scissor sideways or spread wide. Diagonal views maintain a true three-quarter torso, do not drift to profile. Short restrained stride, no hunched pose, no long stretched legs. Match the exact reference silhouette height and slender normal proportions. Every cell contains the SAME character at same scale, lighting from upper left, fixed pelvis center. Crisp coarse pixel clusters matching reference, no smooth rendered appearance.",
+  "generated": "C:\\Users\\andro\\.codex\\generated_images\\01a09e2a-59d9-7333-ae0c-3d07653ddb14\\exec-2c60a8fd-f2e3-45fa-ad20-c7a81e212873.png",
+  "sheet": "C:/Users/andro/gen-trees/sprite-reimagine-0914/output/agent-animation-study/final-direction-audit/alien-south-east.png",
+  "selected": [
+    "walk_south-east_0.png",
+    "walk_south-east_1.png",
+    "walk_south-east_2.png",
+    "walk_south-east_3.png",
+    "walk_south-east_4.png",
+    "walk_south-east_5.png",
+    "walk_south-east_6.png",
+    "walk_south-east_7.png"
+  ],
+  "packed": true,
+  "scale": 0.22485207100591717,
+  "bounds": [
+    {
+      "left": 128,
+      "top": 109,
+      "width": 154,
+      "height": 336
+    },
+    {
+      "left": 129,
+      "top": 106,
+      "width": 152,
+      "height": 338
+    },
+    {
+      "left": 125,
+      "top": 107,
+      "width": 157,
+      "height": 338
+    },
+    {
+      "left": 127,
+      "top": 107,
+      "width": 150,
+      "height": 338
+    },
+    {
+      "left": 131,
+      "top": 103,
+      "width": 151,
+      "height": 337
+    },
+    {
+      "left": 128,
+      "top": 105,
+      "width": 153,
+      "height": 332
+    },
+    {
+      "left": 128,
+      "top": 105,
+      "width": 149,
+      "height": 336
+    },
+    {
+      "left": 123,
+      "top": 105,
+      "width": 158,
+      "height": 337
+    }
+  ],
+  "inputHashes": {
+    "frontend/assets/agent-demo/approved-motion/alien/rot_south-east.png": "8efa33f239d333fe5602285242f5f61922be600fcd7a8c8a80f95444a279d17f"
+  },
+  "selectedHashes": {
+    "walk_south-east_0.png": "20dd3bd35749c4841076518b3141fb5f63b1c86898d917eabbff7e1187921487",
+    "walk_south-east_1.png": "093fa7ae9d4b73e58a2890cb2c85167f6844cfec4599ea0897f81882fc8d54d7",
+    "walk_south-east_2.png": "12917f22944492c61ca376602e144282c9a665bfee53b7247b1b011382e7efe9",
+    "walk_south-east_3.png": "b14532cf42c5bccc1589b3b0abcaaec00010b5951094afce860fbfd46ae8c044",
+    "walk_south-east_4.png": "99600efa301430456fc290741ec452eac24c153cdaf2f82334eef0f526c30333",
+    "walk_south-east_5.png": "0da0773f52fcb15b561c0c8ae5f04e571d96bce17c24c3537427c4bad0998184",
+    "walk_south-east_6.png": "83467f4b4626870306b5a564a8a14cb4cb28316c4adcf124ba1a8053fc14576e",
+    "walk_south-east_7.png": "7c1400d9ebdf313543df06a1db8b06349e4515e50d2bf9db34f1ca2d5e16d1d0"
+  }
+}

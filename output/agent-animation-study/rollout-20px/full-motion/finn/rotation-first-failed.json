@@ -1,0 +1,10 @@
+{
+  "id": "finn",
+  "skin": "finn",
+  "name": "Finn",
+  "stage": "pending",
+  "targetStandingHeight": 19,
+  "request": "id: 632e3738-0c2a-4bc4-b776-64f908f199df\nname: StarNet 19px industrial finn\nmode: v3 reference (2 generations, 8 directions)\nbody: humanoid\nsize: 96x96px\nview: low top-down\nstyle: from reference image (outline/detail hints ignored)\nstatus: processing (~3-5 min)\n\nhint: get_character(character_id=\"632e3738-0c2a-4bc4-b776-64f908f199df\")",
+  "characterId": "632e3738-0c2a-4bc4-b776-64f908f199df",
+  "detail": "status: failed\nid: 632e3738-0c2a-4bc4-b776-64f908f199df\nname: StarNet 19px industrial finn\nerror: Generation failed: Model in folder 'loras' with filename <path> not found.\n\nhint: create_character(description=\"Rotate this exact Finn sprite into eight directions. Preserv\") to retry"
+}

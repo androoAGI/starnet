@@ -1,0 +1,5 @@
+{
+  "walkApproved": true,
+  "seatsApproved": true,
+  "notes": "Corrected bare-fur rotations and rebuilt walks inspected: no hip equipment remains. Seated and typing passed. One final south walk cleanup requested for purple paw pixels. Final selected frames inspected: ImageGen south-walk cleanup removes purple edges with consistent scale; all directions free of invented equipment."
+}

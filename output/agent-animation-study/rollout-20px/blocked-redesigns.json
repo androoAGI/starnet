@@ -1,0 +1,30 @@
+[
+  {
+    "id": "heisenberg",
+    "skin": "heisenberg",
+    "sourceStandingHeight": 46,
+    "scale": 0.41304347826086957,
+    "reason": "image generation failed: http 400 Bad Request: Some(\"{\\n  \\\"error\\\": {\\n    \\\"message\\\": \\\"Your request was rejected by the safety system. If you believe this is an error, contact us at help.openai.com and include the request ID 4d395cd0-d411-451f-a158-565affedfa26.\\\",\\n    \\\"type\\\": \\\"image_generation_user_error\\\",\\n    \\\"param\\\": null,\\n    \\\"code\\\": \\\"moderation_blocked\\\",\\n    \\\"moderation_details\\\": {\\n      \\\"moderation_stage\\\": \\\"input\\\",\\n      \\\"categories\\\": [\\n        \\\"public-figure\\\"\\n      ]\\n    }\\n  }\\n}\")"
+  },
+  {
+    "id": "ricksanchez",
+    "skin": "ricksanchez",
+    "sourceStandingHeight": 43,
+    "scale": 0.4418604651162791,
+    "reason": "image generation failed: http 400 Bad Request: Some(\"{\\n  \\\"error\\\": {\\n    \\\"message\\\": \\\"Your request was rejected by the safety system. If you believe this is an error, contact us at help.openai.com and include the request ID 91bea6d5-f313-4f62-9171-ddf113db5ff4.\\\",\\n    \\\"type\\\": \\\"image_generation_user_error\\\",\\n    \\\"param\\\": null,\\n    \\\"code\\\": \\\"moderation_blocked\\\",\\n    \\\"moderation_details\\\": {\\n      \\\"moderation_stage\\\": \\\"output\\\",\\n      \\\"categories\\\": [\\n        \\\"other\\\"\\n      ]\\n    }\\n  }\\n}\")"
+  },
+  {
+    "id": "minionchar",
+    "skin": "minionchar",
+    "sourceStandingHeight": 41,
+    "scale": 0.4634146341463415,
+    "reason": "image generation failed: http 400 Bad Request: Some(\"{\\n  \\\"error\\\": {\\n    \\\"message\\\": \\\"Your request was rejected by the safety system. If you believe this is an error, contact us at help.openai.com and include the request ID fbbed38b-0fe2-4c1c-a5d6-8a0333f18321.\\\",\\n    \\\"type\\\": \\\"image_generation_user_error\\\",\\n    \\\"param\\\": null,\\n    \\\"code\\\": \\\"moderation_blocked\\\",\\n    \\\"moderation_details\\\": {\\n      \\\"moderation_stage\\\": \\\"output\\\",\\n      \\\"categories\\\": [\\n        \\\"other\\\"\\n      ]\\n    }\\n  }\\n}\")"
+  },
+  {
+    "id": "pikachu",
+    "skin": "pikachu",
+    "sourceStandingHeight": 46,
+    "scale": 0.41304347826086957,
+    "reason": "image generation failed: http 400 Bad Request: Some(\"{\\n  \\\"error\\\": {\\n    \\\"message\\\": \\\"Your request was rejected by the safety system. If you believe this is an error, contact us at help.openai.com and include the request ID c95cb7fc-dc42-4528-a046-d19574cc9f91.\\\",\\n    \\\"type\\\": \\\"image_generation_user_error\\\",\\n    \\\"param\\\": null,\\n    \\\"code\\\": \\\"moderation_blocked\\\",\\n    \\\"moderation_details\\\": {\\n      \\\"moderation_stage\\\": \\\"output\\\",\\n      \\\"categories\\\": [\\n        \\\"other\\\"\\n      ]\\n    }\\n  }\\n}\")"
+  }
+]

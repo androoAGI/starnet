@@ -1,5 +1,7 @@
 # Cleaner shell materials
 
+Revision notice: brick, thermal shielding and floors were reworked after visual feedback. Current artwork and exact replacement prompts are documented in [MATERIAL-REVISIONS.md](MATERIAL-REVISIONS.md). The original prompts below describe the earlier generation.
+
 Generated with the built-in imagegen tool, September 15, 2026. Original output PNGs retained without image postprocessing. Existing shell IDs now use these textures in the industrial pack, with the original procedural recipes retained for classic mode or missing assets. Saved paint colours are applied to normalized texture luminance at runtime; the station's contour mask and exposure still own shell geometry and depth. Full originals are 1254 × 1254; tinted runtime tiles are cached at 576 × 576 (at most 24 colour/material combinations).
 
 The clean/simple directions are monocoque plate, clapboard siding, stucco and the additional `shell-variants/slate-courses.png` study. `shell.png` remains the current industrial station default. No saved material IDs change.

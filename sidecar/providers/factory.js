@@ -37,17 +37,63 @@
     return rateLimits;
   }
 
-  function resolveMaxOutputTokens(profile) {
+  function resolveMaxOutputTokens(profile, field = 'maxOutputTokens') {
     if (!profile) return 0;
-    const envName = String(profile.maxOutputTokensEnv || '');
+    const envName = String(profile[field + 'Env'] || '');
     const fromEnv = (envName && typeof process !== 'undefined' && process.env) ? Math.floor(Number(process.env[envName])) : 0;
-    if (fromEnv > 0) return fromEnv;
-    const declared = Math.floor(Number(profile.maxOutputTokens));
-    return declared > 0 ? declared : 0;
+    if (Number.isFinite(fromEnv) && fromEnv > 0) return fromEnv;
+    const declared = Math.floor(Number(profile[field]));
+    return Number.isFinite(declared) && declared > 0 ? declared : 0;
   }
 
   function selectProvider(opts) {
     opts = opts || {};
+    // Configured OAuth fallbacks need metadata at admission, but authentication only if used.
+    // Cache a successful activation for this run. Failed activation stays retryable, and a
+    // cancelled caller never starts refresh/inference. No credential is shared across wrappers.
+    if (typeof opts.tokenProvider === 'function') {
+      const base = Object.assign({}, opts); delete base.tokenProvider;
+      const metadata = selectProvider(base);
+      let active = null, live = null;
+      const activate = () => {
+        if (!active) {
+          active = Promise.resolve().then(() => opts.tokenProvider()).then(token => {
+            live = selectProvider(Object.assign({}, base, { token, headers: typeof opts.headersProvider === 'function' ? opts.headersProvider() : base.headers }));
+            return live;
+          });
+          active.catch(() => { active = null; });
+        }
+        return active;
+      };
+      const deferred = Object.assign({}, metadata);
+      // After activation, metadata must follow the same adapter/catalog as inference.
+      // Otherwise a freshly discovered context window or reasoning setting would stay stale.
+      for (const name of Object.keys(metadata)) {
+        if (typeof metadata[name] === 'function') deferred[name] = (...args) => (live || metadata)[name](...args);
+      }
+      if (metadata.listModels) deferred.listModels = async (...args) => (await activate()).listModels(...args);
+      deferred.stream = async function* (req) {
+        if (req && req.signal && req.signal.aborted) return;
+        // Token refresh can be shared/cached independently of this run. Let Stop release this
+        // caller immediately without cancelling a refresh another caller may still need.
+        const signal = req && req.signal;
+        let provider;
+        if (signal) {
+          let cancel;
+          const cancelled = new Promise(resolve => {
+            cancel = () => resolve(null);
+            signal.addEventListener('abort', cancel, { once: true });
+            if (signal.aborted) cancel();
+          });
+          try { provider = await Promise.race([activate(), cancelled]); }
+          finally { signal.removeEventListener('abort', cancel); }
+        } else provider = await activate();
+        if (!provider) return;
+        if (req && req.signal && req.signal.aborted) return;
+        yield* provider.stream(req);
+      };
+      return deferred;
+    }
     const id = registry.normalizeProviderId(opts.provider, registry.DEFAULT_PROVIDER_ID);
     const profile = registry.getProviderProfile(id);
     if (!profile) throw new Error('unknown provider: ' + (opts.provider || ''));
@@ -115,6 +161,7 @@
         connectTimeoutMs: profile.connectTimeoutMs,
         // Output ceiling: only profiles that declare one (Ollama) send max_tokens; an env override wins.
         maxTokens: resolveMaxOutputTokens(profile),
+        maxChatTokens: resolveMaxOutputTokens(profile, 'maxChatOutputTokens'),
         defaultContext: opts.defaultContext,
         headers: mergedHeaders
       });

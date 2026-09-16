@@ -1,0 +1,13 @@
+{
+  "source": "bac8e824521c947dcbe2ce2ed9fdb98848baebf2",
+  "environment": "Populated dev/seed.js --keep station; controlled local provider; in-app browser",
+  "observations": [
+    "Hosted hello rendered RUN COMPLETE and Hello, Commander.",
+    "Ollama hello capped rendered CUT SHORT, partial text and say continue guidance.",
+    "Capped foreground request sent once with max_tokens 512.",
+    "Reload retained COMMANDER hello, NOVA reply, COMMANDER hello capped, NOVA reply in that order.",
+    "Background Ollama goal decomposition retained max_tokens 4096."
+  ],
+  "realModelLatencyMeasured": false,
+  "personalWorkspaceUsed": false
+}

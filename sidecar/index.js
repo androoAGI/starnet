@@ -16190,13 +16190,9 @@ async function runOnce(o) {
     if (fbManaged !== managedRun) continue;
     let fbProvider;
     if (providerUsesCodex(fbProviderId)) {
-      let fbToken;
-      try { fbToken = await ensureCodexAccessToken(); } catch (_) { continue; }
-      fbProvider = selectProvider({ provider: fbProviderId, fetch: globalThis.fetch, token: fbToken, renewToken: forceRefreshCodexAccessToken, baseUrl: fbBaseUrl, reasoningEffort });
+      fbProvider = selectProvider({ provider: fbProviderId, fetch: globalThis.fetch, tokenProvider: ensureCodexAccessToken, renewToken: forceRefreshCodexAccessToken, baseUrl: fbBaseUrl, reasoningEffort });
     } else if (providerUsesDeviceOAuth(fbProviderId)) {
-      let fbToken;
-      try { fbToken = await ensureOAuthAccessToken(fbProviderId); } catch (_) { continue; }
-      fbProvider = selectProvider({ provider: fbProviderId, fetch: globalThis.fetch, token: fbToken, headers: oauthInferenceHeaders(fbProviderId), baseUrl: fbBaseUrl, reasoningEffort });
+      fbProvider = selectProvider({ provider: fbProviderId, fetch: globalThis.fetch, tokenProvider: () => ensureOAuthAccessToken(fbProviderId), headersProvider: () => oauthInferenceHeaders(fbProviderId), baseUrl: fbBaseUrl, reasoningEffort });
     } else {
       fbProvider = selectProvider({ provider: fbProviderId, fetch: globalThis.fetch, key: fbKey, baseUrl: fbBaseUrl, reasoningEffort });
     }
@@ -17006,14 +17002,12 @@ async function runOnce(o) {
      A byte-stable constant, so it never shifts the cached system prefix. */
   const canName = !!(resolved && Array.isArray(resolved.tools) && resolved.tools.indexOf('deliverable_note') >= 0);
   const deliverableNote = canName ? DELIVERABLE_NOTE_CLAUSE : '';
-  /* PREFIX-CACHE ORDER (2026-09-15, issue #17): runtimeBlock carries the per-run 'Run id:' line. It used to sit
-     FIRST in the appended payload, so the ~25-40KB of byte-stable prose after it (briefing, manual, capabilities,
-     skills) began at a different byte on every turn — Anthropic/OpenRouter cache_control and llama.cpp's prefix
-     KV cache both missed from the run id onward, and a local model re-evaluated the whole prompt each message.
-     It now rides LAST, after every block that is stable across a session's turns, so the shared prefix survives.
-     Content is byte-identical; only the position moved. */
-  const taskSystem = FinishLine.append((system || '') + toolNote + teamNote + manualBlock
-    + summarizeCapabilities(resolved, { surface, ownerTrusted, unrestrictedHost: unrestrictedHostNow() }) + skillBlock + runtimeSkillBlock
+  // Cache only the reusable prefix across runs. All task-specific context still follows verbatim;
+  // the explicit Claude boundary precedes changing context, while runtime identity remains last
+  // for generic providers that automatically reuse matching prefixes.
+  const cacheSystemPrefix = (system || '') + toolNote + teamNote + manualBlock
+    + summarizeCapabilities(resolved, { surface, ownerTrusted, unrestrictedHost: unrestrictedHostNow() }) + skillBlock;
+  const taskSystem = FinishLine.append(cacheSystemPrefix + runtimeSkillBlock
     + preloadedSkillBlock + serviceKeysBlock + taskIntentNote + directDomainBlock + journeyBlock
     + deliverableNote + runtimeBlock, { isTask, internal, tools: resolved.tools });
   const sys = internal
@@ -17214,6 +17208,8 @@ async function runOnce(o) {
       result = {reason:'done', turns:0, usd:0, messages:msgs.concat([{role:'assistant', content:text}])};
     } else result = await runAgentLoop({
       messages: msgs, provider, emit: loopEmit, cost, tools: o.outputOnly ? [] : toolDefs, dispatch, capCtx,
+      isTask: internal ? undefined : isTask,
+      cacheSystemPrefix: !internal && !o.recovery ? cacheSystemPrefix : '',
       drainToolCosts: () => pendingMediaCosts.splice(0),
       acceptanceProbe,
       // Granted but unadvertised: held out of the request until tool.search reveals one (see loop.js).
@@ -17241,6 +17237,9 @@ async function runOnce(o) {
       // operator's narrowly authorized continuation and make the recovery non-idempotent.
       limits: {
         maxIters: o.outputOnly ? 1 : runMaxIters, maxCostUsd: runCapUsd, failureRecovery: (o.recovery || o.outputOnly) ? false : undefined,
+        // A capped greeting must not become five paid generations. Task replies retain normal
+        // continuation, including brief answers promoted to tasks by a pending clarification.
+        outputContinuation: !isTask && !internal ? false : undefined,
         grace: o.outputOnly ? false : undefined, refundMax: o.outputOnly ? 0 : undefined,
         // unpriced-token seatbelt: metered API-key providers only — a subscription/OAuth/unmetered run bills nothing
         maxUnpricedTokens: (providerUnmetered || usingCodex || usingDeviceOAuth) ? Infinity : CAPS.maxUnpricedTokens
@@ -20920,7 +20919,8 @@ async function serveStatic(req, res) {
     const abs = path.resolve(FRONTEND, rel);
     if (abs !== FRONTEND && abs.indexOf(FRONTEND + path.sep) !== 0) { res.writeHead(403); return res.end('forbidden'); }
     let data = await fsp.readFile(abs);
-    if (abs.toLowerCase() === path.resolve(FRONTEND, 'index.html').toLowerCase()) {
+    if (abs.toLowerCase() === path.resolve(FRONTEND, 'index.html').toLowerCase() ||
+        (DEV_MODE && abs.toLowerCase() === path.resolve(FRONTEND, 'agent-station-demo.html').toLowerCase())) {
       let boot = '<script>window.__STARNET_API_TOKEN__=' + JSON.stringify(API_TOKEN) + ';';
       // DEV fast-path: hand the page a model + provider hint so a fresh origin auto-resumes the seeded
       // save with no setup. No secret crosses here — the key stays server-side in runtimeKey.

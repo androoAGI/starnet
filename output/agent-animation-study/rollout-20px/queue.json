@@ -1,0 +1,1787 @@
+[
+  {
+    "id": "pepe",
+    "track": "sit",
+    "dir": "south"
+  },
+  {
+    "id": "pepe",
+    "track": "sit",
+    "dir": "east"
+  },
+  {
+    "id": "pepe",
+    "track": "sit",
+    "dir": "north"
+  },
+  {
+    "id": "pepe",
+    "track": "sit",
+    "dir": "west"
+  },
+  {
+    "id": "pepe",
+    "track": "type",
+    "dir": "north"
+  },
+  {
+    "id": "vaultboy",
+    "track": "walk",
+    "dir": "south"
+  },
+  {
+    "id": "vaultboy",
+    "track": "sit",
+    "dir": "south"
+  },
+  {
+    "id": "vaultboy",
+    "track": "sit",
+    "dir": "east"
+  },
+  {
+    "id": "vaultboy",
+    "track": "sit",
+    "dir": "north"
+  },
+  {
+    "id": "vaultboy",
+    "track": "sit",
+    "dir": "west"
+  },
+  {
+    "id": "vaultboy",
+    "track": "type",
+    "dir": "north"
+  },
+  {
+    "id": "bear",
+    "track": "walk",
+    "dir": "south"
+  },
+  {
+    "id": "bear",
+    "track": "walk",
+    "dir": "east"
+  },
+  {
+    "id": "bear",
+    "track": "walk",
+    "dir": "north-west"
+  },
+  {
+    "id": "bear",
+    "track": "sit",
+    "dir": "south"
+  },
+  {
+    "id": "bear",
+    "track": "sit",
+    "dir": "east"
+  },
+  {
+    "id": "bear",
+    "track": "sit",
+    "dir": "north"
+  },
+  {
+    "id": "bear",
+    "track": "sit",
+    "dir": "west"
+  },
+  {
+    "id": "bear",
+    "track": "type",
+    "dir": "north"
+  },
+  {
+    "id": "ghostface",
+    "track": "walk",
+    "dir": "south"
+  },
+  {
+    "id": "ghostface",
+    "track": "walk",
+    "dir": "south-east"
+  },
+  {
+    "id": "ghostface",
+    "track": "walk",
+    "dir": "east"
+  },
+  {
+    "id": "ghostface",
+    "track": "walk",
+    "dir": "north-east"
+  },
+  {
+    "id": "ghostface",
+    "track": "walk",
+    "dir": "north"
+  },
+  {
+    "id": "ghostface",
+    "track": "walk",
+    "dir": "north-west"
+  },
+  {
+    "id": "ghostface",
+    "track": "walk",
+    "dir": "west"
+  },
+  {
+    "id": "ghostface",
+    "track": "walk",
+    "dir": "south-west"
+  },
+  {
+    "id": "ghostface",
+    "track": "sit",
+    "dir": "south"
+  },
+  {
+    "id": "ghostface",
+    "track": "sit",
+    "dir": "east"
+  },
+  {
+    "id": "ghostface",
+    "track": "sit",
+    "dir": "north"
+  },
+  {
+    "id": "ghostface",
+    "track": "sit",
+    "dir": "west"
+  },
+  {
+    "id": "ghostface",
+    "track": "type",
+    "dir": "north"
+  },
+  {
+    "id": "morpheus",
+    "track": "walk",
+    "dir": "south"
+  },
+  {
+    "id": "morpheus",
+    "track": "walk",
+    "dir": "south-east"
+  },
+  {
+    "id": "morpheus",
+    "track": "walk",
+    "dir": "east"
+  },
+  {
+    "id": "morpheus",
+    "track": "walk",
+    "dir": "north-east"
+  },
+  {
+    "id": "morpheus",
+    "track": "walk",
+    "dir": "north"
+  },
+  {
+    "id": "morpheus",
+    "track": "walk",
+    "dir": "north-west"
+  },
+  {
+    "id": "morpheus",
+    "track": "walk",
+    "dir": "west"
+  },
+  {
+    "id": "morpheus",
+    "track": "walk",
+    "dir": "south-west"
+  },
+  {
+    "id": "morpheus",
+    "track": "sit",
+    "dir": "south"
+  },
+  {
+    "id": "morpheus",
+    "track": "sit",
+    "dir": "east"
+  },
+  {
+    "id": "morpheus",
+    "track": "sit",
+    "dir": "north"
+  },
+  {
+    "id": "morpheus",
+    "track": "sit",
+    "dir": "west"
+  },
+  {
+    "id": "morpheus",
+    "track": "type",
+    "dir": "north"
+  },
+  {
+    "id": "android",
+    "track": "walk",
+    "dir": "south"
+  },
+  {
+    "id": "android",
+    "track": "walk",
+    "dir": "south-east"
+  },
+  {
+    "id": "android",
+    "track": "walk",
+    "dir": "east"
+  },
+  {
+    "id": "android",
+    "track": "walk",
+    "dir": "north-east"
+  },
+  {
+    "id": "android",
+    "track": "walk",
+    "dir": "north"
+  },
+  {
+    "id": "android",
+    "track": "walk",
+    "dir": "north-west"
+  },
+  {
+    "id": "android",
+    "track": "walk",
+    "dir": "west"
+  },
+  {
+    "id": "android",
+    "track": "walk",
+    "dir": "south-west"
+  },
+  {
+    "id": "android",
+    "track": "sit",
+    "dir": "south"
+  },
+  {
+    "id": "android",
+    "track": "sit",
+    "dir": "east"
+  },
+  {
+    "id": "android",
+    "track": "sit",
+    "dir": "north"
+  },
+  {
+    "id": "android",
+    "track": "sit",
+    "dir": "west"
+  },
+  {
+    "id": "android",
+    "track": "type",
+    "dir": "north"
+  },
+  {
+    "id": "astronaut",
+    "track": "walk",
+    "dir": "south"
+  },
+  {
+    "id": "astronaut",
+    "track": "walk",
+    "dir": "south-east"
+  },
+  {
+    "id": "astronaut",
+    "track": "walk",
+    "dir": "east"
+  },
+  {
+    "id": "astronaut",
+    "track": "walk",
+    "dir": "north-east"
+  },
+  {
+    "id": "astronaut",
+    "track": "walk",
+    "dir": "north"
+  },
+  {
+    "id": "astronaut",
+    "track": "walk",
+    "dir": "north-west"
+  },
+  {
+    "id": "astronaut",
+    "track": "walk",
+    "dir": "west"
+  },
+  {
+    "id": "astronaut",
+    "track": "walk",
+    "dir": "south-west"
+  },
+  {
+    "id": "astronaut",
+    "track": "sit",
+    "dir": "south"
+  },
+  {
+    "id": "astronaut",
+    "track": "sit",
+    "dir": "east"
+  },
+  {
+    "id": "astronaut",
+    "track": "sit",
+    "dir": "north"
+  },
+  {
+    "id": "astronaut",
+    "track": "sit",
+    "dir": "west"
+  },
+  {
+    "id": "astronaut",
+    "track": "type",
+    "dir": "north"
+  },
+  {
+    "id": "robot",
+    "track": "walk",
+    "dir": "south"
+  },
+  {
+    "id": "robot",
+    "track": "walk",
+    "dir": "south-east"
+  },
+  {
+    "id": "robot",
+    "track": "walk",
+    "dir": "east"
+  },
+  {
+    "id": "robot",
+    "track": "walk",
+    "dir": "north-east"
+  },
+  {
+    "id": "robot",
+    "track": "walk",
+    "dir": "north"
+  },
+  {
+    "id": "robot",
+    "track": "walk",
+    "dir": "north-west"
+  },
+  {
+    "id": "robot",
+    "track": "walk",
+    "dir": "west"
+  },
+  {
+    "id": "robot",
+    "track": "walk",
+    "dir": "south-west"
+  },
+  {
+    "id": "robot",
+    "track": "sit",
+    "dir": "south"
+  },
+  {
+    "id": "robot",
+    "track": "sit",
+    "dir": "east"
+  },
+  {
+    "id": "robot",
+    "track": "sit",
+    "dir": "north"
+  },
+  {
+    "id": "robot",
+    "track": "sit",
+    "dir": "west"
+  },
+  {
+    "id": "robot",
+    "track": "type",
+    "dir": "north"
+  },
+  {
+    "id": "crthead",
+    "track": "walk",
+    "dir": "south"
+  },
+  {
+    "id": "crthead",
+    "track": "walk",
+    "dir": "south-east"
+  },
+  {
+    "id": "crthead",
+    "track": "walk",
+    "dir": "east"
+  },
+  {
+    "id": "crthead",
+    "track": "walk",
+    "dir": "north-east"
+  },
+  {
+    "id": "crthead",
+    "track": "walk",
+    "dir": "north"
+  },
+  {
+    "id": "crthead",
+    "track": "walk",
+    "dir": "north-west"
+  },
+  {
+    "id": "crthead",
+    "track": "walk",
+    "dir": "west"
+  },
+  {
+    "id": "crthead",
+    "track": "walk",
+    "dir": "south-west"
+  },
+  {
+    "id": "crthead",
+    "track": "sit",
+    "dir": "south"
+  },
+  {
+    "id": "crthead",
+    "track": "sit",
+    "dir": "east"
+  },
+  {
+    "id": "crthead",
+    "track": "sit",
+    "dir": "north"
+  },
+  {
+    "id": "crthead",
+    "track": "sit",
+    "dir": "west"
+  },
+  {
+    "id": "crthead",
+    "track": "type",
+    "dir": "north"
+  },
+  {
+    "id": "alien",
+    "track": "walk",
+    "dir": "south"
+  },
+  {
+    "id": "alien",
+    "track": "walk",
+    "dir": "south-east"
+  },
+  {
+    "id": "alien",
+    "track": "walk",
+    "dir": "east"
+  },
+  {
+    "id": "alien",
+    "track": "walk",
+    "dir": "north-east"
+  },
+  {
+    "id": "alien",
+    "track": "walk",
+    "dir": "north"
+  },
+  {
+    "id": "alien",
+    "track": "walk",
+    "dir": "north-west"
+  },
+  {
+    "id": "alien",
+    "track": "walk",
+    "dir": "west"
+  },
+  {
+    "id": "alien",
+    "track": "walk",
+    "dir": "south-west"
+  },
+  {
+    "id": "alien",
+    "track": "sit",
+    "dir": "south"
+  },
+  {
+    "id": "alien",
+    "track": "sit",
+    "dir": "east"
+  },
+  {
+    "id": "alien",
+    "track": "sit",
+    "dir": "north"
+  },
+  {
+    "id": "alien",
+    "track": "sit",
+    "dir": "west"
+  },
+  {
+    "id": "alien",
+    "track": "type",
+    "dir": "north"
+  },
+  {
+    "id": "xenomorph",
+    "track": "walk",
+    "dir": "south"
+  },
+  {
+    "id": "xenomorph",
+    "track": "walk",
+    "dir": "south-east"
+  },
+  {
+    "id": "xenomorph",
+    "track": "walk",
+    "dir": "east"
+  },
+  {
+    "id": "xenomorph",
+    "track": "walk",
+    "dir": "north-east"
+  },
+  {
+    "id": "xenomorph",
+    "track": "walk",
+    "dir": "north"
+  },
+  {
+    "id": "xenomorph",
+    "track": "walk",
+    "dir": "north-west"
+  },
+  {
+    "id": "xenomorph",
+    "track": "walk",
+    "dir": "west"
+  },
+  {
+    "id": "xenomorph",
+    "track": "walk",
+    "dir": "south-west"
+  },
+  {
+    "id": "xenomorph",
+    "track": "sit",
+    "dir": "south"
+  },
+  {
+    "id": "xenomorph",
+    "track": "sit",
+    "dir": "east"
+  },
+  {
+    "id": "xenomorph",
+    "track": "sit",
+    "dir": "north"
+  },
+  {
+    "id": "xenomorph",
+    "track": "sit",
+    "dir": "west"
+  },
+  {
+    "id": "xenomorph",
+    "track": "type",
+    "dir": "north"
+  },
+  {
+    "id": "robocop",
+    "track": "walk",
+    "dir": "south"
+  },
+  {
+    "id": "robocop",
+    "track": "walk",
+    "dir": "south-east"
+  },
+  {
+    "id": "robocop",
+    "track": "walk",
+    "dir": "east"
+  },
+  {
+    "id": "robocop",
+    "track": "walk",
+    "dir": "north-east"
+  },
+  {
+    "id": "robocop",
+    "track": "walk",
+    "dir": "north"
+  },
+  {
+    "id": "robocop",
+    "track": "walk",
+    "dir": "north-west"
+  },
+  {
+    "id": "robocop",
+    "track": "walk",
+    "dir": "west"
+  },
+  {
+    "id": "robocop",
+    "track": "walk",
+    "dir": "south-west"
+  },
+  {
+    "id": "robocop",
+    "track": "sit",
+    "dir": "south"
+  },
+  {
+    "id": "robocop",
+    "track": "sit",
+    "dir": "east"
+  },
+  {
+    "id": "robocop",
+    "track": "sit",
+    "dir": "north"
+  },
+  {
+    "id": "robocop",
+    "track": "sit",
+    "dir": "west"
+  },
+  {
+    "id": "robocop",
+    "track": "type",
+    "dir": "north"
+  },
+  {
+    "id": "masterchief",
+    "track": "walk",
+    "dir": "south"
+  },
+  {
+    "id": "masterchief",
+    "track": "walk",
+    "dir": "south-east"
+  },
+  {
+    "id": "masterchief",
+    "track": "walk",
+    "dir": "east"
+  },
+  {
+    "id": "masterchief",
+    "track": "walk",
+    "dir": "north-east"
+  },
+  {
+    "id": "masterchief",
+    "track": "walk",
+    "dir": "north"
+  },
+  {
+    "id": "masterchief",
+    "track": "walk",
+    "dir": "north-west"
+  },
+  {
+    "id": "masterchief",
+    "track": "walk",
+    "dir": "west"
+  },
+  {
+    "id": "masterchief",
+    "track": "walk",
+    "dir": "south-west"
+  },
+  {
+    "id": "masterchief",
+    "track": "sit",
+    "dir": "south"
+  },
+  {
+    "id": "masterchief",
+    "track": "sit",
+    "dir": "east"
+  },
+  {
+    "id": "masterchief",
+    "track": "sit",
+    "dir": "north"
+  },
+  {
+    "id": "masterchief",
+    "track": "sit",
+    "dir": "west"
+  },
+  {
+    "id": "masterchief",
+    "track": "type",
+    "dir": "north"
+  },
+  {
+    "id": "grimreaper",
+    "track": "walk",
+    "dir": "south"
+  },
+  {
+    "id": "grimreaper",
+    "track": "walk",
+    "dir": "south-east"
+  },
+  {
+    "id": "grimreaper",
+    "track": "walk",
+    "dir": "east"
+  },
+  {
+    "id": "grimreaper",
+    "track": "walk",
+    "dir": "north-east"
+  },
+  {
+    "id": "grimreaper",
+    "track": "walk",
+    "dir": "north"
+  },
+  {
+    "id": "grimreaper",
+    "track": "walk",
+    "dir": "north-west"
+  },
+  {
+    "id": "grimreaper",
+    "track": "walk",
+    "dir": "west"
+  },
+  {
+    "id": "grimreaper",
+    "track": "walk",
+    "dir": "south-west"
+  },
+  {
+    "id": "grimreaper",
+    "track": "sit",
+    "dir": "south"
+  },
+  {
+    "id": "grimreaper",
+    "track": "sit",
+    "dir": "east"
+  },
+  {
+    "id": "grimreaper",
+    "track": "sit",
+    "dir": "north"
+  },
+  {
+    "id": "grimreaper",
+    "track": "sit",
+    "dir": "west"
+  },
+  {
+    "id": "grimreaper",
+    "track": "type",
+    "dir": "north"
+  },
+  {
+    "id": "crewmate",
+    "track": "walk",
+    "dir": "south"
+  },
+  {
+    "id": "crewmate",
+    "track": "walk",
+    "dir": "south-east"
+  },
+  {
+    "id": "crewmate",
+    "track": "walk",
+    "dir": "east"
+  },
+  {
+    "id": "crewmate",
+    "track": "walk",
+    "dir": "north-east"
+  },
+  {
+    "id": "crewmate",
+    "track": "walk",
+    "dir": "north"
+  },
+  {
+    "id": "crewmate",
+    "track": "walk",
+    "dir": "north-west"
+  },
+  {
+    "id": "crewmate",
+    "track": "walk",
+    "dir": "west"
+  },
+  {
+    "id": "crewmate",
+    "track": "walk",
+    "dir": "south-west"
+  },
+  {
+    "id": "crewmate",
+    "track": "sit",
+    "dir": "south"
+  },
+  {
+    "id": "crewmate",
+    "track": "sit",
+    "dir": "east"
+  },
+  {
+    "id": "crewmate",
+    "track": "sit",
+    "dir": "north"
+  },
+  {
+    "id": "crewmate",
+    "track": "sit",
+    "dir": "west"
+  },
+  {
+    "id": "crewmate",
+    "track": "type",
+    "dir": "north"
+  },
+  {
+    "id": "capybara",
+    "track": "walk",
+    "dir": "south"
+  },
+  {
+    "id": "capybara",
+    "track": "walk",
+    "dir": "south-east"
+  },
+  {
+    "id": "capybara",
+    "track": "walk",
+    "dir": "east"
+  },
+  {
+    "id": "capybara",
+    "track": "walk",
+    "dir": "north-east"
+  },
+  {
+    "id": "capybara",
+    "track": "walk",
+    "dir": "north"
+  },
+  {
+    "id": "capybara",
+    "track": "walk",
+    "dir": "north-west"
+  },
+  {
+    "id": "capybara",
+    "track": "walk",
+    "dir": "west"
+  },
+  {
+    "id": "capybara",
+    "track": "walk",
+    "dir": "south-west"
+  },
+  {
+    "id": "capybara",
+    "track": "sit",
+    "dir": "south"
+  },
+  {
+    "id": "capybara",
+    "track": "sit",
+    "dir": "east"
+  },
+  {
+    "id": "capybara",
+    "track": "sit",
+    "dir": "north"
+  },
+  {
+    "id": "capybara",
+    "track": "sit",
+    "dir": "west"
+  },
+  {
+    "id": "capybara",
+    "track": "type",
+    "dir": "north"
+  },
+  {
+    "id": "station_minion",
+    "track": "walk",
+    "dir": "south"
+  },
+  {
+    "id": "station_minion",
+    "track": "walk",
+    "dir": "south-east"
+  },
+  {
+    "id": "station_minion",
+    "track": "walk",
+    "dir": "east"
+  },
+  {
+    "id": "station_minion",
+    "track": "walk",
+    "dir": "north-east"
+  },
+  {
+    "id": "station_minion",
+    "track": "walk",
+    "dir": "north"
+  },
+  {
+    "id": "station_minion",
+    "track": "walk",
+    "dir": "north-west"
+  },
+  {
+    "id": "station_minion",
+    "track": "walk",
+    "dir": "west"
+  },
+  {
+    "id": "station_minion",
+    "track": "walk",
+    "dir": "south-west"
+  },
+  {
+    "id": "station_minion",
+    "track": "sit",
+    "dir": "south"
+  },
+  {
+    "id": "station_minion",
+    "track": "sit",
+    "dir": "east"
+  },
+  {
+    "id": "station_minion",
+    "track": "sit",
+    "dir": "north"
+  },
+  {
+    "id": "station_minion",
+    "track": "sit",
+    "dir": "west"
+  },
+  {
+    "id": "station_minion",
+    "track": "type",
+    "dir": "north"
+  },
+  {
+    "id": "blank_blue",
+    "track": "walk",
+    "dir": "south"
+  },
+  {
+    "id": "blank_blue",
+    "track": "walk",
+    "dir": "south-east"
+  },
+  {
+    "id": "blank_blue",
+    "track": "walk",
+    "dir": "east"
+  },
+  {
+    "id": "blank_blue",
+    "track": "walk",
+    "dir": "north-east"
+  },
+  {
+    "id": "blank_blue",
+    "track": "walk",
+    "dir": "north"
+  },
+  {
+    "id": "blank_blue",
+    "track": "walk",
+    "dir": "north-west"
+  },
+  {
+    "id": "blank_blue",
+    "track": "walk",
+    "dir": "west"
+  },
+  {
+    "id": "blank_blue",
+    "track": "walk",
+    "dir": "south-west"
+  },
+  {
+    "id": "blank_blue",
+    "track": "sit",
+    "dir": "south"
+  },
+  {
+    "id": "blank_blue",
+    "track": "sit",
+    "dir": "east"
+  },
+  {
+    "id": "blank_blue",
+    "track": "sit",
+    "dir": "north"
+  },
+  {
+    "id": "blank_blue",
+    "track": "sit",
+    "dir": "west"
+  },
+  {
+    "id": "blank_blue",
+    "track": "type",
+    "dir": "north"
+  },
+  {
+    "id": "blank_green",
+    "track": "walk",
+    "dir": "south"
+  },
+  {
+    "id": "blank_green",
+    "track": "walk",
+    "dir": "south-east"
+  },
+  {
+    "id": "blank_green",
+    "track": "walk",
+    "dir": "east"
+  },
+  {
+    "id": "blank_green",
+    "track": "walk",
+    "dir": "north-east"
+  },
+  {
+    "id": "blank_green",
+    "track": "walk",
+    "dir": "north"
+  },
+  {
+    "id": "blank_green",
+    "track": "walk",
+    "dir": "north-west"
+  },
+  {
+    "id": "blank_green",
+    "track": "walk",
+    "dir": "west"
+  },
+  {
+    "id": "blank_green",
+    "track": "walk",
+    "dir": "south-west"
+  },
+  {
+    "id": "blank_green",
+    "track": "sit",
+    "dir": "south"
+  },
+  {
+    "id": "blank_green",
+    "track": "sit",
+    "dir": "east"
+  },
+  {
+    "id": "blank_green",
+    "track": "sit",
+    "dir": "north"
+  },
+  {
+    "id": "blank_green",
+    "track": "sit",
+    "dir": "west"
+  },
+  {
+    "id": "blank_green",
+    "track": "type",
+    "dir": "north"
+  },
+  {
+    "id": "blank_red",
+    "track": "walk",
+    "dir": "south"
+  },
+  {
+    "id": "blank_red",
+    "track": "walk",
+    "dir": "south-east"
+  },
+  {
+    "id": "blank_red",
+    "track": "walk",
+    "dir": "east"
+  },
+  {
+    "id": "blank_red",
+    "track": "walk",
+    "dir": "north-east"
+  },
+  {
+    "id": "blank_red",
+    "track": "walk",
+    "dir": "north"
+  },
+  {
+    "id": "blank_red",
+    "track": "walk",
+    "dir": "north-west"
+  },
+  {
+    "id": "blank_red",
+    "track": "walk",
+    "dir": "west"
+  },
+  {
+    "id": "blank_red",
+    "track": "walk",
+    "dir": "south-west"
+  },
+  {
+    "id": "blank_red",
+    "track": "sit",
+    "dir": "south"
+  },
+  {
+    "id": "blank_red",
+    "track": "sit",
+    "dir": "east"
+  },
+  {
+    "id": "blank_red",
+    "track": "sit",
+    "dir": "north"
+  },
+  {
+    "id": "blank_red",
+    "track": "sit",
+    "dir": "west"
+  },
+  {
+    "id": "blank_red",
+    "track": "type",
+    "dir": "north"
+  },
+  {
+    "id": "blank_amber",
+    "track": "walk",
+    "dir": "south"
+  },
+  {
+    "id": "blank_amber",
+    "track": "walk",
+    "dir": "south-east"
+  },
+  {
+    "id": "blank_amber",
+    "track": "walk",
+    "dir": "east"
+  },
+  {
+    "id": "blank_amber",
+    "track": "walk",
+    "dir": "north-east"
+  },
+  {
+    "id": "blank_amber",
+    "track": "walk",
+    "dir": "north"
+  },
+  {
+    "id": "blank_amber",
+    "track": "walk",
+    "dir": "north-west"
+  },
+  {
+    "id": "blank_amber",
+    "track": "walk",
+    "dir": "west"
+  },
+  {
+    "id": "blank_amber",
+    "track": "walk",
+    "dir": "south-west"
+  },
+  {
+    "id": "blank_amber",
+    "track": "sit",
+    "dir": "south"
+  },
+  {
+    "id": "blank_amber",
+    "track": "sit",
+    "dir": "east"
+  },
+  {
+    "id": "blank_amber",
+    "track": "sit",
+    "dir": "north"
+  },
+  {
+    "id": "blank_amber",
+    "track": "sit",
+    "dir": "west"
+  },
+  {
+    "id": "blank_amber",
+    "track": "type",
+    "dir": "north"
+  },
+  {
+    "id": "endoskeleton",
+    "track": "walk",
+    "dir": "south"
+  },
+  {
+    "id": "endoskeleton",
+    "track": "walk",
+    "dir": "south-east"
+  },
+  {
+    "id": "endoskeleton",
+    "track": "walk",
+    "dir": "east"
+  },
+  {
+    "id": "endoskeleton",
+    "track": "walk",
+    "dir": "north-east"
+  },
+  {
+    "id": "endoskeleton",
+    "track": "walk",
+    "dir": "north"
+  },
+  {
+    "id": "endoskeleton",
+    "track": "walk",
+    "dir": "north-west"
+  },
+  {
+    "id": "endoskeleton",
+    "track": "walk",
+    "dir": "west"
+  },
+  {
+    "id": "endoskeleton",
+    "track": "walk",
+    "dir": "south-west"
+  },
+  {
+    "id": "endoskeleton",
+    "track": "sit",
+    "dir": "south"
+  },
+  {
+    "id": "endoskeleton",
+    "track": "sit",
+    "dir": "east"
+  },
+  {
+    "id": "endoskeleton",
+    "track": "sit",
+    "dir": "north"
+  },
+  {
+    "id": "endoskeleton",
+    "track": "sit",
+    "dir": "west"
+  },
+  {
+    "id": "endoskeleton",
+    "track": "type",
+    "dir": "north"
+  },
+  {
+    "id": "ultrondroid",
+    "track": "walk",
+    "dir": "south"
+  },
+  {
+    "id": "ultrondroid",
+    "track": "walk",
+    "dir": "south-east"
+  },
+  {
+    "id": "ultrondroid",
+    "track": "walk",
+    "dir": "east"
+  },
+  {
+    "id": "ultrondroid",
+    "track": "walk",
+    "dir": "north-east"
+  },
+  {
+    "id": "ultrondroid",
+    "track": "walk",
+    "dir": "north"
+  },
+  {
+    "id": "ultrondroid",
+    "track": "walk",
+    "dir": "north-west"
+  },
+  {
+    "id": "ultrondroid",
+    "track": "walk",
+    "dir": "west"
+  },
+  {
+    "id": "ultrondroid",
+    "track": "walk",
+    "dir": "south-west"
+  },
+  {
+    "id": "ultrondroid",
+    "track": "sit",
+    "dir": "south"
+  },
+  {
+    "id": "ultrondroid",
+    "track": "sit",
+    "dir": "east"
+  },
+  {
+    "id": "ultrondroid",
+    "track": "sit",
+    "dir": "north"
+  },
+  {
+    "id": "ultrondroid",
+    "track": "sit",
+    "dir": "west"
+  },
+  {
+    "id": "ultrondroid",
+    "track": "type",
+    "dir": "north"
+  },
+  {
+    "id": "samaltman",
+    "track": "walk",
+    "dir": "south"
+  },
+  {
+    "id": "samaltman",
+    "track": "walk",
+    "dir": "south-east"
+  },
+  {
+    "id": "samaltman",
+    "track": "walk",
+    "dir": "east"
+  },
+  {
+    "id": "samaltman",
+    "track": "walk",
+    "dir": "north-east"
+  },
+  {
+    "id": "samaltman",
+    "track": "walk",
+    "dir": "north"
+  },
+  {
+    "id": "samaltman",
+    "track": "walk",
+    "dir": "north-west"
+  },
+  {
+    "id": "samaltman",
+    "track": "walk",
+    "dir": "west"
+  },
+  {
+    "id": "samaltman",
+    "track": "walk",
+    "dir": "south-west"
+  },
+  {
+    "id": "samaltman",
+    "track": "sit",
+    "dir": "south"
+  },
+  {
+    "id": "samaltman",
+    "track": "sit",
+    "dir": "east"
+  },
+  {
+    "id": "samaltman",
+    "track": "sit",
+    "dir": "north"
+  },
+  {
+    "id": "samaltman",
+    "track": "sit",
+    "dir": "west"
+  },
+  {
+    "id": "samaltman",
+    "track": "type",
+    "dir": "north"
+  },
+  {
+    "id": "dario",
+    "track": "walk",
+    "dir": "south"
+  },
+  {
+    "id": "dario",
+    "track": "walk",
+    "dir": "south-east"
+  },
+  {
+    "id": "dario",
+    "track": "walk",
+    "dir": "east"
+  },
+  {
+    "id": "dario",
+    "track": "walk",
+    "dir": "north-east"
+  },
+  {
+    "id": "dario",
+    "track": "walk",
+    "dir": "north"
+  },
+  {
+    "id": "dario",
+    "track": "walk",
+    "dir": "north-west"
+  },
+  {
+    "id": "dario",
+    "track": "walk",
+    "dir": "west"
+  },
+  {
+    "id": "dario",
+    "track": "walk",
+    "dir": "south-west"
+  },
+  {
+    "id": "dario",
+    "track": "sit",
+    "dir": "south"
+  },
+  {
+    "id": "dario",
+    "track": "sit",
+    "dir": "east"
+  },
+  {
+    "id": "dario",
+    "track": "sit",
+    "dir": "north"
+  },
+  {
+    "id": "dario",
+    "track": "sit",
+    "dir": "west"
+  },
+  {
+    "id": "dario",
+    "track": "type",
+    "dir": "north"
+  },
+  {
+    "id": "freddyfazbear",
+    "track": "walk",
+    "dir": "south"
+  },
+  {
+    "id": "freddyfazbear",
+    "track": "walk",
+    "dir": "south-east"
+  },
+  {
+    "id": "freddyfazbear",
+    "track": "walk",
+    "dir": "east"
+  },
+  {
+    "id": "freddyfazbear",
+    "track": "walk",
+    "dir": "north-east"
+  },
+  {
+    "id": "freddyfazbear",
+    "track": "walk",
+    "dir": "north"
+  },
+  {
+    "id": "freddyfazbear",
+    "track": "walk",
+    "dir": "north-west"
+  },
+  {
+    "id": "freddyfazbear",
+    "track": "walk",
+    "dir": "west"
+  },
+  {
+    "id": "freddyfazbear",
+    "track": "walk",
+    "dir": "south-west"
+  },
+  {
+    "id": "freddyfazbear",
+    "track": "sit",
+    "dir": "south"
+  },
+  {
+    "id": "freddyfazbear",
+    "track": "sit",
+    "dir": "east"
+  },
+  {
+    "id": "freddyfazbear",
+    "track": "sit",
+    "dir": "north"
+  },
+  {
+    "id": "freddyfazbear",
+    "track": "sit",
+    "dir": "west"
+  },
+  {
+    "id": "freddyfazbear",
+    "track": "type",
+    "dir": "north"
+  },
+  {
+    "id": "ninjaturtle",
+    "track": "walk",
+    "dir": "south"
+  },
+  {
+    "id": "ninjaturtle",
+    "track": "walk",
+    "dir": "south-east"
+  },
+  {
+    "id": "ninjaturtle",
+    "track": "walk",
+    "dir": "east"
+  },
+  {
+    "id": "ninjaturtle",
+    "track": "walk",
+    "dir": "north-east"
+  },
+  {
+    "id": "ninjaturtle",
+    "track": "walk",
+    "dir": "north"
+  },
+  {
+    "id": "ninjaturtle",
+    "track": "walk",
+    "dir": "north-west"
+  },
+  {
+    "id": "ninjaturtle",
+    "track": "walk",
+    "dir": "west"
+  },
+  {
+    "id": "ninjaturtle",
+    "track": "walk",
+    "dir": "south-west"
+  },
+  {
+    "id": "ninjaturtle",
+    "track": "sit",
+    "dir": "south"
+  },
+  {
+    "id": "ninjaturtle",
+    "track": "sit",
+    "dir": "east"
+  },
+  {
+    "id": "ninjaturtle",
+    "track": "sit",
+    "dir": "north"
+  },
+  {
+    "id": "ninjaturtle",
+    "track": "sit",
+    "dir": "west"
+  },
+  {
+    "id": "ninjaturtle",
+    "track": "type",
+    "dir": "north"
+  },
+  {
+    "id": "caseyjones",
+    "track": "walk",
+    "dir": "south"
+  },
+  {
+    "id": "caseyjones",
+    "track": "walk",
+    "dir": "south-east"
+  },
+  {
+    "id": "caseyjones",
+    "track": "walk",
+    "dir": "east"
+  },
+  {
+    "id": "caseyjones",
+    "track": "walk",
+    "dir": "north-east"
+  },
+  {
+    "id": "caseyjones",
+    "track": "walk",
+    "dir": "north"
+  },
+  {
+    "id": "caseyjones",
+    "track": "walk",
+    "dir": "north-west"
+  },
+  {
+    "id": "caseyjones",
+    "track": "walk",
+    "dir": "west"
+  },
+  {
+    "id": "caseyjones",
+    "track": "walk",
+    "dir": "south-west"
+  },
+  {
+    "id": "caseyjones",
+    "track": "sit",
+    "dir": "south"
+  },
+  {
+    "id": "caseyjones",
+    "track": "sit",
+    "dir": "east"
+  },
+  {
+    "id": "caseyjones",
+    "track": "sit",
+    "dir": "north"
+  },
+  {
+    "id": "caseyjones",
+    "track": "sit",
+    "dir": "west"
+  },
+  {
+    "id": "caseyjones",
+    "track": "type",
+    "dir": "north"
+  },
+  {
+    "id": "finn",
+    "track": "walk",
+    "dir": "south"
+  },
+  {
+    "id": "finn",
+    "track": "walk",
+    "dir": "south-east"
+  },
+  {
+    "id": "finn",
+    "track": "walk",
+    "dir": "east"
+  },
+  {
+    "id": "finn",
+    "track": "walk",
+    "dir": "north-east"
+  },
+  {
+    "id": "finn",
+    "track": "walk",
+    "dir": "north"
+  },
+  {
+    "id": "finn",
+    "track": "walk",
+    "dir": "north-west"
+  },
+  {
+    "id": "finn",
+    "track": "walk",
+    "dir": "west"
+  },
+  {
+    "id": "finn",
+    "track": "walk",
+    "dir": "south-west"
+  },
+  {
+    "id": "finn",
+    "track": "sit",
+    "dir": "south"
+  },
+  {
+    "id": "finn",
+    "track": "sit",
+    "dir": "east"
+  },
+  {
+    "id": "finn",
+    "track": "sit",
+    "dir": "north"
+  },
+  {
+    "id": "finn",
+    "track": "sit",
+    "dir": "west"
+  },
+  {
+    "id": "finn",
+    "track": "type",
+    "dir": "north"
+  }
+]

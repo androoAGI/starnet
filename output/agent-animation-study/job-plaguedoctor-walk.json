@@ -1,0 +1,28 @@
+{
+  "name": "plaguedoctor",
+  "kind": "walk",
+  "args": {
+    "character_id": "b3fe6acd-7249-4a23-95a6-824d10540947",
+    "template_animation_id": "walk",
+    "animation_name": "walk",
+    "directions": [
+      "south",
+      "east",
+      "north",
+      "west",
+      "south-east",
+      "north-east",
+      "north-west",
+      "south-west"
+    ]
+  },
+  "result": {
+    "content": [
+      {
+        "type": "text",
+        "text": "character: b3fe6acd-7249-4a23-95a6-824d10540947\nanimation: walk\ndirections: south, east, north, west, south-east, north-east, north-west, south-west (8 jobs)\ngroup: 3940cde4-bdc3-4d4e-be39-3581f16802c2\neta: ~2-4 min\nadd more directions to this group: animate_character(character_id=\"b3fe6acd-7249-4a23-95a6-824d10540947\", template_animation_id=\"walk\", animation_group_id=\"3940cde4-bdc3-4d4e-be39-3581f16802c2\", directions=[...])\n\nhint: get_character(character_id=\"b3fe6acd-7249-4a23-95a6-824d10540947\")\nif poor: delete_animation(character_id=\"b3fe6acd-7249-4a23-95a6-824d10540947\", animation_type=\"...\") then retry with mode=\"v3\""
+      }
+    ],
+    "isError": false
+  }
+}

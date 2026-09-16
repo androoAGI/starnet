@@ -7,7 +7,7 @@ severity: P1
 status: fixed
 found: 2026-09-10
 lane: doorway-occlusion-0910
-fix: a22f780e3
+fix: d50f3f603
 origin: owner
 report: Owner report in Codex on 2026-09-09: agents walk behind walls near hallway doors and openings
 affected: Reported build unknown; reproduced against 0.11.1 source at 83c896e7d
@@ -28,11 +28,13 @@ Build two rooms connected by an east/west hallway and a third room connected by 
 
 ## Evidence
 
+Owner reported a south-entry recurrence during remaster merge preparation. The earlier fix checked logical floor but allowed early turns inside the nine-pixel north wall face. d50f3f603 adds continuous visible-face clearance, including side walls, to the actual-foot path and corner guard. Live receipt: docs/station-remaster/merge-polish/doorway-live.json (12/12 arrivals, zero north-face crossings). test/path-smoothing.test.js now passes 27 assertions including premature south-entry turns and reverse traversal.
+
 Live seeded app at localhost:9294, source 83c896e7d: 1,600 deterministic route pairs produced 588 invalid rendered-foot segments. The same live model probe after the source repair produced zero. The prior route smoother checked tile centres while world.js footOf anchors feet at y*T+T-1. Early waypoint handoffs also cut unvalidated corners. Updated test/path-smoothing.test.js passes 22 assertions including real world helper execution.
 
 ## Verdict
 
-Source-fixed by a22f780e3. The path checker uses actual feet; early turns require a clear segment; off-anchor starts realign within their tile; separation cannot cross a wall or invalidate a remaining leg. Installed build and reporter recovery remain unverified.
+Original logical-seam repair: a22f780e3. Visible wall-face recurrence source-fixed by d50f3f603. The path checker uses actual feet; early turns require a clear segment outside the raised face; off-anchor starts realign within their tile; separation cannot cross a wall or invalidate a remaining leg. Installed build and reporter recovery remain unverified.
 
 ## Regression
 

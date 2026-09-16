@@ -1,0 +1,9 @@
+{
+  "content": [
+    {
+      "type": "text",
+      "text": "error: need 1 job slots but only 0 available (10/10 used)\n\nhint: wait for jobs to finish (~30-60s each), then retry"
+    }
+  ],
+  "isError": true
+}

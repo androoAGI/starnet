@@ -1,0 +1,15 @@
+{
+  "id": "blank_blue",
+  "track": "walk",
+  "dir": "south-west",
+  "pinLast": true,
+  "promptOverride": "A seamless two-step walk in place facing south-west throughout. Keep the exact clean blue robot helmet and black visor rigid and unchanged, no protruding pixels or speckles. Alternate foot contact with modest arm swing, one foot planted. Preserve armor colors and proportions; return to original stance. No turns, jumps, props or shadow.",
+  "request": "id: 999a9a46-7d64-4ad9-981c-d48cdc472bfa\njob_id: 999a9a46-7d64-4ad9-981c-d48cdc472bfa\ndescription: A seamless two-step walk in place facing south-west throughout. Keep the exact clean blue robot helmet and black visor rigid and unchanged, no protruding pixels or speckles. Alternate foot contact with modest arm swing, one foot planted. Preserve armor colors and proportions; return to original stance. No turns, jumps, props or shadow.\nframes: 8\nsize: 96x96px\ntransparent: True\nlast_frame: yes (animating toward it)\ncost: 2 generations\nstatus: processing (~1-5 min)\n\nhint: get_image(job_id=\"999a9a46-7d64-4ad9-981c-d48cdc472bfa\")",
+  "job": "999a9a46-7d64-4ad9-981c-d48cdc472bfa",
+  "source": "output/agent-animation-study/rollout-20px/full-motion/blank_blue/refs/south-west.png",
+  "result": "status: completed\nid: 999a9a46-7d64-4ad9-981c-d48cdc472bfa\njob_id: 999a9a46-7d64-4ad9-981c-d48cdc472bfa\nframes: 9\ndownload: https://api.pixellab.ai/mcp/images/999a9a46-7d64-4ad9-981c-d48cdc472bfa/download?index=0 ... ?index=8\n(5 more frames not shown — fetch them from the download URLs above)",
+  "done": true,
+  "packed": true,
+  "lastRaw": "output/agent-animation-study/rollout-20px/full-motion/blank_blue/minimax/walk-south-west/999a9a46-7d64-4ad9-981c-d48cdc472bfa/8.png",
+  "frameCount": 9
+}

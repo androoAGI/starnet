@@ -1,0 +1,13 @@
+{
+  "id": "android",
+  "track": "walk",
+  "dir": "south-west",
+  "request": "id: 19ec8538-fb93-4ad9-a4e1-f0b3788b6c45\njob_id: 19ec8538-fb93-4ad9-a4e1-f0b3788b6c45\ndescription: A seamless two-step walk in place, facing south-west throughout. Alternate left foot contact, passing pose, right foot contact, passing pose. One foot always carries weight on the same baseline. Opposite arm swings. The body stays upright and centered; head stays steady, only tiny shoulder counter-rotation. Preserve exact input body size, shape, clothing, leg colors and pixel style. No turns, no jump, no both-feet lift, no objects and no ground shadow.\nframes: 8\nsize: 96x96px\ntransparent: True\ncost: 2 generations\nstatus: processing (~1-5 min)\n\nhint: get_image(job_id=\"19ec8538-fb93-4ad9-a4e1-f0b3788b6c45\")",
+  "job": "19ec8538-fb93-4ad9-a4e1-f0b3788b6c45",
+  "source": "output/agent-animation-study/rollout-20px/full-motion/android/refs/south-west.png",
+  "result": "status: completed\nid: 19ec8538-fb93-4ad9-a4e1-f0b3788b6c45\njob_id: 19ec8538-fb93-4ad9-a4e1-f0b3788b6c45\nframes: 9\ndownload: https://api.pixellab.ai/mcp/images/19ec8538-fb93-4ad9-a4e1-f0b3788b6c45/download?index=0 ... ?index=8\n(5 more frames not shown — fetch them from the download URLs above)",
+  "done": true,
+  "packed": true,
+  "lastRaw": "output/agent-animation-study/rollout-20px/full-motion/android/minimax/walk-south-west/19ec8538-fb93-4ad9-a4e1-f0b3788b6c45/8.png",
+  "frameCount": 9
+}

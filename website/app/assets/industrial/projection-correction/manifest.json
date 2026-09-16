@@ -1371,12 +1371,12 @@
           "sourceWidth": 1614,
           "sourceHeight": 825,
           "footprint": {
-            "w": 7,
-            "h": 4
+            "w": 5,
+            "h": 3
           },
           "bounds": {
-            "x": 17,
-            "y": 20,
+            "x": 5,
+            "y": 8,
             "width": 50,
             "height": 28
           },
@@ -2681,7 +2681,8 @@
             "x": 0.5,
             "y": 0.9970674486803519
           },
-          "effects": false
+          "effects": false,
+          "seatLift": 6
         }
       }
     },
@@ -5043,11 +5044,6 @@
       "group": "storage"
     },
     {
-      "id": "war_intelcab",
-      "view": "s",
-      "group": "storage"
-    },
-    {
       "id": "safe",
       "view": "s",
       "group": "storage"
@@ -5448,22 +5444,12 @@
       "group": "comms-optics"
     },
     {
-      "id": "comms_dish",
-      "view": "s",
-      "group": "comms-optics"
-    },
-    {
       "id": "research_corelens",
       "view": "s",
       "group": "comms-optics"
     },
     {
       "id": "research_trendpillar",
-      "view": "s",
-      "group": "comms-optics"
-    },
-    {
-      "id": "studio",
       "view": "s",
       "group": "comms-optics"
     },
@@ -5504,11 +5490,6 @@
     },
     {
       "id": "industrial_toolcaddy",
-      "view": "s",
-      "group": "storage-carts"
-    },
-    {
-      "id": "gigs_servercart",
       "view": "s",
       "group": "storage-carts"
     },
@@ -5763,11 +5744,6 @@
       "group": "plants-decor"
     },
     {
-      "id": "workbench",
-      "view": "s",
-      "group": "camera-audit"
-    },
-    {
       "id": "longtable",
       "view": "s",
       "group": "camera-audit"
@@ -5826,6 +5802,31 @@
       "id": "bridge_tacticaltable",
       "view": "s",
       "group": "tactical-table-polish"
+    },
+    {
+      "id": "war_intelcab",
+      "view": "s",
+      "group": "capability-v2"
+    },
+    {
+      "id": "comms_dish",
+      "view": "s",
+      "group": "capability-v2"
+    },
+    {
+      "id": "workbench",
+      "view": "s",
+      "group": "capability-v2"
+    },
+    {
+      "id": "gigs_servercart",
+      "view": "s",
+      "group": "capability-v2"
+    },
+    {
+      "id": "studio",
+      "view": "s",
+      "group": "capability-v2"
     }
   ]
 }

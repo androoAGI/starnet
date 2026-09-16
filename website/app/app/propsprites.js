@@ -11001,7 +11001,10 @@ const PropSprites = (() => {
     screens: 'SCREENS', lab: 'LAB', storage: 'STORAGE', comms: 'COMMS', lounge: 'LOUNGE', decor: 'DECOR',
   };
 
-  const spec = id => BY_ID[id] || null;
+  const compactTactical = Object.assign({}, BY_ID.bridge_tacticaltable, { w:5, h:3,
+    footprintMigration:{from:{w:7,h:4},to:{w:5,h:3},dx:1,dy:1} });
+  const projectionCatalog = () => typeof PropRemaster !== 'undefined' && typeof PropRemaster.isProjection==='function' && PropRemaster.isProjection();
+  const spec = id => id === 'bridge_tacticaltable' && projectionCatalog() ? compactTactical : BY_ID[id] || null;
   const has = id => !!F[id];
 
   /* ---- ORIENTATION eligibility + AUTHORED TURNED VIEWS ---------------------------------------
@@ -11229,6 +11232,30 @@ const PropSprites = (() => {
   const OVER = {
     bunk: (X, Y, W, H, o) => bunkQuilt(X, Y, W, H, true, o.now),
   };
+  function hitTest(f,x,y) {
+    if(typeof PropRemaster==='undefined'||!PropRemaster.hitTest)return null;
+    const w=(f.w||1)*TILE,h=(f.h||1)*TILE;
+    let lx=x-f.x*TILE;const ly=y-f.y*TILE+surfaceLift(f);
+    if(canMirror(f.t)&&f.m)lx=w-lx;
+    return PropRemaster.hitTest(f.t,['s','w','n','e'][(f.r|0)&3],lx,ly,w,h);
+  }
+  // Build-mode outlines follow the same oriented silhouette as the rendered prop.
+  // Tile occupancy stays a separate contract; transparent packing is not artwork.
+  const selectionMasks = new WeakMap();
+  function selectionBounds(f) {
+    const mask=shadowMask(f);if(!mask)return null;
+    let bounds=selectionMasks.get(mask);
+    if(bounds===undefined){
+      const pixels=mask.getContext('2d').getImageData(0,0,mask.width,mask.height).data;
+      let left=mask.width,top=mask.height,right=-1,bottom=-1;
+      for(let y=0;y<mask.height;y++)for(let x=0;x<mask.width;x++)if(pixels[(y*mask.width+x)*4+3]>=128){
+        left=Math.min(left,x);right=Math.max(right,x);top=Math.min(top,y);bottom=Math.max(bottom,y);
+      }
+      bounds=right<left?null:{x:left-16,y:top-48,width:right-left+1,height:bottom-top+1};
+      selectionMasks.set(mask,bounds);
+    }
+    return bounds?{x:f.x*TILE+bounds.x,y:f.y*TILE-surfaceLift(f)+bounds.y,width:bounds.width,height:bounds.height}:null;
+  }
   function hasOver(t) { return !!OVER[t]; }
   function drawOver(f) {
     const fn = OVER[f && f.t]; if (!fn) return;
@@ -11726,43 +11753,49 @@ const PropSprites = (() => {
     return { x, y, r: e.r, c: color, a: e.a * k * (phosphor?authoredScreen.power*1.35:1) };
   }
 
-  // Compact physical nameplates, painted after lighting for contrast. Geometry
-  // stays in station units: zooming out shrinks the tag together with its bay.
+  // Physical gantry plates: neutral steel, a restrained assignment accent and
+  // two-line names where needed. Never infer activity from an agent binding.
   const bayTextLayouts = new Map();
   function drawBayNames(props, scale, dpr) {
     if (!ctx || !props.length || !(scale > 0)) return;
-    const font = 7, pad = 1, h = 9;
     ctx.save();
     try {
       ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over';
-      ctx.font = font + "px 'VT323','Courier New',monospace";
-      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.shadowBlur = 0;
       for (const p of props) {
         if (!p.agentId) continue;
-        const name = String(p.dockName || String(p.agentId).replace(/^tg_/, '')).toUpperCase();
-        const maxWidth = Math.max(8, (p.w || 1) * TILE - pad * 2);
-        const key = name + '|' + maxWidth;
-        let layout = bayTextLayouts.get(key);
-        if (!layout) {
-          let text = name;
-          if (ctx.measureText(text).width > maxWidth) {
-            const chars = Array.from(text);
-            while (chars.length && ctx.measureText(chars.join('') + '…').width > maxWidth) chars.pop();
-            text = chars.join('') + '…';
+        const name = String(p.dockName || String(p.agentId).replace(/^tg_/, '')).replace(/\s+/g,' ').trim().replace(/^crew[\s_-]+(?=\S)/i,'').toUpperCase();
+        const width = Math.max(12,(p.w || 1)*TILE-1), maxWidth=width-4;
+        const key=name+'|'+width;
+        let layout=bayTextLayouts.get(key);
+        if(!layout) {
+          let font=6;ctx.font=font+"px 'VT323','Courier New',monospace";
+          let lines=[name];
+          if(ctx.measureText(name).width>maxWidth) {
+            font=4;ctx.font=font+"px 'VT323','Courier New',monospace";
+            if(!/[ -]/.test(name) && name.length<=12) {
+              while(font>3 && ctx.measureText(name).width>maxWidth){font-=.25;ctx.font=font+"px 'VT323','Courier New',monospace";}
+            }
+            const chars=Array.from(name);let first='';
+            while(chars.length && ctx.measureText(first+chars[0]).width<=maxWidth)first+=chars.shift();
+            // Prefer a word boundary when it leaves a useful first line.
+            const split=Math.max(first.lastIndexOf(' '),first.lastIndexOf('-'));
+            if(split>0){chars.unshift(...Array.from(first.slice(split+1)));first=first.slice(0,split);}
+            let second=chars.join('').trim();
+            if(ctx.measureText(second).width>maxWidth){const tail=Array.from(second);while(tail.length&&ctx.measureText(tail.join('')+'…').width>maxWidth)tail.pop();second=tail.join('')+'…';}
+            lines=second?[first.trim(),second]:[first.trim()];
           }
-          layout = { text, width: ctx.measureText(text).width + pad * 2 };
-          if (bayTextLayouts.size >= 256) bayTextLayouts.clear();
-          bayTextLayouts.set(key, layout);
+          layout={font,lines};if(bayTextLayouts.size>=256)bayTextLayouts.clear();bayTextLayouts.set(key,layout);
         }
-        const x = (p.x + (p.w || 1) / 2) * TILE;
-        const anchor = p.y * TILE - (surfaceLift(p)) + 1;
-        const box = { x: x - layout.width / 2, y: anchor - h / 2, w: layout.width, h };
-        ctx.shadowBlur = 0;
-        ctx.fillStyle = '#0b1916'; ctx.fillRect(box.x, box.y, box.w, box.h);
-        ctx.strokeStyle = '#65c9ad'; ctx.lineWidth = 0.5;
-        ctx.strokeRect(box.x, box.y, box.w, box.h);
-        ctx.fillStyle = '#d6fff0'; ctx.shadowColor = '#5ad1b3'; ctx.shadowBlur = Math.min(scale, 2 * (dpr || 1));
-        ctx.fillText(layout.text, x, anchor);
+        const x=(p.x+(p.w||1)/2)*TILE,anchor=p.y*TILE-surfaceLift(p)+1,h=11;
+        const left=x-width/2,top=anchor-h/2;
+        ctx.fillStyle='#11191d';ctx.fillRect(left,top,width,h);
+        ctx.strokeStyle='#657077';ctx.lineWidth=.35;ctx.strokeRect(left,top,width,h);
+        ctx.strokeStyle='#28353c';ctx.strokeRect(left+.7,top+.7,width-1.4,h-1.4);
+        // A small cyan rail ties the plate to the station's screen language.
+        ctx.strokeStyle='#64a7af';ctx.lineWidth=.5;ctx.beginPath();ctx.moveTo(left+2,top+h-1.1);ctx.lineTo(left+width-2,top+h-1.1);ctx.stroke();
+        ctx.font=layout.font+"px 'VT323','Courier New',monospace";ctx.fillStyle='#d4e0e3';
+        layout.lines.forEach((line,i)=>ctx.fillText(line,x,anchor+(i-(layout.lines.length-1)/2)*4.5-.25));
       }
     } finally { ctx.restore(); }
   }
@@ -11819,7 +11852,7 @@ const PropSprites = (() => {
   }
 
   return {
-    setSurfaceLayout,
+    setSurfaceLayout, hitTest, selectionBounds,
     surfacePlacement,
     setCtx(c) { ctx = c; },
     setNow(t) { now = t; },
@@ -11827,7 +11860,7 @@ const PropSprites = (() => {
     // value is DIALLED on a real deck and copied back into the constant, never guessed.
     setChroma(k) { CHROMA = (k == null ? 1 : +k) || 1; _cboost.clear(); },
     getChroma: () => CHROMA,
-    draw, drawBayNames, drawOver, hasOver, drawSeatFront, CATALOG, CATS, spec, has, TILE,
+    draw, drawBayNames, drawOver, hasOver, drawSeatFront, get CATALOG(){return projectionCatalog()?CATALOG.map(c=>spec(c.id)):CATALOG;}, CATS, spec, has, TILE,
     drawShadow, lightOf, EMIT, canLightResponse, drawLightResponse, lightResponseStats, invalidateLightResponse,
     // ORIENTATION: what each prop's art can honestly do, and the box it covers once turned. The
     // builder asks BEFORE offering an R/M affordance — never an input that produces broken art.

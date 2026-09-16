@@ -22,7 +22,7 @@ const jobs=[['bridge_tacticaltable','44ac680d-0b14-47d2-ac91-c7e575aad227','hex-
   const old=manifest.props[id].views.s;
   // The former 84x55 display box made this bigger than two desks. Keep the
   // saved floor anchor, but author a compact 50x28 visual envelope beside them.
-  records.push({id,view:'s',before,source,sourceSha256:hash(bytes),repoPath,outputSha256:hash(out),sourceCrop:crop,sourceWidth:crop.width,sourceHeight:crop.height,footprint:old.footprint,bounds:{x:17,y:20,width:50,height:28},exposure:1,contact:{x:.5,y:(foot+1-top)/crop.height},retained,status:'restored hexagonal style with thinner rim; owner review pending'});
+  records.push({id,view:'s',before,source,sourceSha256:hash(bytes),repoPath,outputSha256:hash(out),sourceCrop:crop,sourceWidth:crop.width,sourceHeight:crop.height,footprint:{w:5,h:3},bounds:{x:5,y:8,width:50,height:28},exposure:1,contact:{x:.5,y:(foot+1-top)/crop.height},retained,status:'restored hexagonal style with thinner rim; owner review pending'});
   console.log(id,crop);
  }
  fs.writeFileSync(docs+'/integration.json',JSON.stringify({records},null,2)+'\n');

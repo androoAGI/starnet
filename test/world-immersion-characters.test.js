@@ -176,7 +176,7 @@ test('reduced motion freezes decorative breath/gesture/spill without inventing o
   assert.equal(worker._pose, 'blank.type.north');
   assert.notEqual(work1.frame.image, work2.frame.image, 'working still follows its real typing track');
   assert.deepEqual(Object.keys(worker).filter(k => !Object.hasOwn(body({ working: true, sitting: true, dir: 'north' }), k)).sort(),
-    ['_pose', '_rA', '_rAt', '_rD8', '_rW', '_turnAng'], 'only established render telemetry is added');
+    ['_pose', '_rA', '_rAt', '_rD8', '_rW', '_renderCycleUnits', '_renderFrame', '_renderGroundGap', '_renderSpeechAccent', '_renderStandingHeight', '_renderTravelError', '_speechAt', '_speechEase', '_turnAng'], 'only render telemetry and speech interpolation state are added');
   const spill1 = draw(sprites, body({ id: 'ULTRON' }), 1000, { reducedMotion: true }).ctx.ellipses;
   const spill2 = draw(sprites, body({ id: 'ULTRON' }), 2200, { reducedMotion: true }).ctx.ellipses;
   assert.deepEqual(spill1, spill2, 'leader spill stops pulsing under reduced motion');

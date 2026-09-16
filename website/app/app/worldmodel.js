@@ -222,9 +222,9 @@ const WorldModel = (() => {
     terrazzo: { label: 'TERRAZZO', pitch: [4, 4], suggest: 'hull' },
     octile:   { label: 'OCTILE',   pitch: [2, 2], suggest: 'sterile' },
     flightdeck: { label: 'FLIGHT DECK', pitch: [2, 2], suggest: 'hull' },
-    lunar: { label: 'LUNAR', pitch: [4, 2], suggest: 'ash' },
+    lunar: { label: 'LUNAR', pitch: [4, 2], suggest: 'sterile' },
     maggrid: { label: 'MAG GRID', pitch: [2, 2], suggest: 'corridor' },
-    habitat: { label: 'HABITAT', pitch: [2, 2], suggest: 'bone' },
+    habitat: { label: 'HABITAT', pitch: [2, 2], suggest: 'corridor' },
   };
   const MAT_ORDER = ['spine', 'alloy', 'runner', 'treadway', 'meshway', 'plate', 'diamond', 'cargo', 'panel', 'tile', 'ceramic', 'resin', 'tread', 'soft', 'grate', 'hex', 'plank', 'turf', 'basalt', 'parquet', 'rubber', 'slotted', 'terrazzo', 'octile', 'flightdeck', 'lunar', 'maggrid', 'habitat'];
 
@@ -282,14 +282,14 @@ const WorldModel = (() => {
     timber:    { label: 'TIMBER',    suggest: 'walnut', blurb: 'stacked log courses — the cabin' },
     clapboard: { label: 'CLAPBOARD', suggest: 'ash',    blurb: 'lapped siding boards — the farmhouse' },
     shingle:   { label: 'SHINGLE',   suggest: 'oak',    blurb: 'overlapping shingles — a pitched roof from above' },
-    brick:     { label: 'BRICK',     suggest: 'rust',   blurb: 'staggered courses + mortar — the townhouse' },
+    brick:     { label: 'BRICK',     suggest: 'ember',  blurb: 'narrow fired-clay masonry with dark recessed mortar' },
     stone:     { label: 'STONE',     suggest: 'ash',    blurb: 'irregular rubble masonry — the cottage' },
     stucco:    { label: 'STUCCO',    suggest: 'amber',  blurb: 'rendered plaster + corner quoins — adobe' },
     curtain:   { label: 'CURTAIN',   suggest: 'indigo', blurb: 'glass curtain wall + mullions — the tower' },
     hedge:     { label: 'HEDGE',     suggest: 'fern',   blurb: 'clipped hedge — the garden wall' },
   };
   Object.assign(HULL_MATERIALS, {
-    thermal: { label: 'THERMAL', suggest: 'bone', blurb: 'clean ceramic thermal shield with broad staggered panels' },
+    thermal: { label: 'THERMAL', suggest: 'hull', blurb: 'dark carbon thermal shielding with interlocking armor panels' },
     insulation: { label: 'INSULATION', suggest: 'amber', blurb: 'quilted orbital insulation with restrained foil folds' },
     heatsink: { label: 'HEATSINK', suggest: 'hull', blurb: 'radiator fins between calm graphite cladding panels' }
   });
@@ -1972,7 +1972,16 @@ const WorldModel = (() => {
       // Validate both the logical tile-centre route and the rendered foot route.
       // world.js footOf uses (x + .5, y + 1 - 1/TILE), so a centre-only
       // shortcut can cross a wall beside a doorway even when its BFS is legal.
-      function segmentClear(ax, ay, bx, by, extra) {
+      // The visible wall face occupies part of an otherwise walkable edge tile.
+      // A foot may enter through an open north doorway, but may only turn beside
+      // it after clearing the 9px wall face (5px in corridors). Keep this finer
+      // clearance separate from floor occupancy so existing narrow halls survive.
+      const wallClearance = new Uint8Array(COLS * ROWS);
+      for(let y=0;y<ROWS;y++)for(let x=0;x<COLS;x++){
+        if(zoneGrid[idx(x,y)]==null)continue;
+        wallClearance[idx(x,y)]=(!canStep(x,y,x,y-1)?1:0)|(!canStep(x,y,x-1,y)?2:0)|(!canStep(x,y,x+1,y)?4:0);
+      }
+      function segmentClear(ax, ay, bx, by, extra, physical = false) {
         if (![ax, ay, bx, by].every(Number.isFinite)) return false;
         const x0 = Math.floor(ax), y0 = Math.floor(ay), x1 = Math.floor(bx), y1 = Math.floor(by);
         let x = x0, y = y0;
@@ -1981,9 +1990,22 @@ const WorldModel = (() => {
         const stepX = dx ? 1 / dx : Infinity, stepY = dy ? 1 / dy : Infinity;
         let nextX = dx ? (xi > 0 ? x + 1 - ax : ax - x) / dx : Infinity;
         let nextY = dy ? (yi > 0 ? y + 1 - ay : ay - y) / dy : Infinity;
+        let entered=0;
+        const clearFace=(x,y,from,to)=>{
+          if(!physical)return true;
+          const flags=wallClearance[idx(x,y)];if(!flags)return true;
+          const cor=isCorridor(zoneGrid[idx(x,y)]),side=((cor?2:4)+.5)/TILE,north=((cor?5:9)+.5)/TILE;
+          const xa=ax+(bx-ax)*from-x,xb=ax+(bx-ax)*to-x,ya=ay+(by-ay)*from-y,yb=ay+(by-ay)*to-y;
+          return (!(flags&1)||Math.min(ya,yb)>=north-1e-8)
+            && (!(flags&2)||Math.min(xa,xb)>=side-1e-8)
+            && (!(flags&4)||Math.max(xa,xb)<=1-side+1e-8);
+        };
         let guard = Math.abs(x1 - x0) + Math.abs(y1 - y0) + 1;
         while ((x !== x1 || y !== y1) && guard-- > 0) {
           if (!walkable(x, y, extra)) return false;
+          const leaving=Math.min(1,nextX,nextY);
+          if(!clearFace(x,y,entered,leaving))return false;
+          entered=leaving;
           if (nextX < nextY - 1e-10) {
             if (!walkable(x + xi, y, extra) || !canStep(x, y, x + xi, y)) return false;
             x += xi; nextX += stepX;
@@ -1998,15 +2020,15 @@ const WorldModel = (() => {
             x += xi; y += yi; nextX += stepX; nextY += stepY;
           }
         }
-        return guard > 0 && walkable(x1, y1, extra);
+        return guard > 0 && walkable(x1, y1, extra) && clearFace(x1,y1,entered,1);
       }
       function losClear(x0, y0, x1, y1, extra) {
         const fy = 1 - 1 / TILE;
         return segmentClear(x0 + .5, y0 + .5, x1 + .5, y1 + .5, extra)
-          && segmentClear(x0 + .5, y0 + fy, x1 + .5, y1 + fy, extra);
+          && segmentClear(x0 + .5, y0 + fy, x1 + .5, y1 + fy, extra, true);
       }
       // Pixel-space companion for actual starts, corner lookahead and body nudges.
-      const clearFootSegment = (ax, ay, bx, by, extra) => segmentClear(ax / TILE, ay / TILE, bx / TILE, by / TILE, extra);
+      const clearFootSegment = (ax, ay, bx, by, extra) => segmentClear(ax / TILE, ay / TILE, bx / TILE, by / TILE, extra, true);
       function smoothPath(pts, sx, sy, extra) {
         if (!pts || pts.length < 3) return pts;
         const out = [];
@@ -2430,6 +2452,15 @@ const WorldModel = (() => {
     if (propRules) doc.props = doc.props.filter(p => !(p && typeof p.t === 'string') || !!propRules(p.t));
     doc.props = doc.props.filter(p => p && typeof p === 'object' && typeof p.t === 'string')
       .map(p => { const o = { id: p.id || null, t: p.t, x: p.x | 0, y: p.y | 0, w: Math.max(1, p.w | 0 || 1), h: Math.max(1, p.h | 0 || 1) }; if (p.block === false && !LEGACY_WALKABLE_DOCKS[p.t]) o.block = false; if (typeof p.agentId === 'string' && p.agentId) o.agentId = p.agentId; const r0 = cleanRot(p.r); if (r0) o.r = r0; if (p.m) o.m = 1; if (typeof p.role === 'string' && p.role) o.role = p.role.slice(0, 24); if (typeof p.brief === 'string' && p.brief.trim()) o.brief = p.brief.slice(0, 2000); if (typeof p.label === 'string' && p.label.trim()) o.label = p.label.slice(0, 48); if (p.t === 'intake' && p.limits && typeof p.limits === 'object') { const nl = normalizeLimits(p.limits); if (nl) o.limits = { maxHops: nl.maxHops, maxUsdPerMessage: nl.maxUsdPerMessage, maxUsdPerDay: nl.maxUsdPerDay }; } applyJunctionCfg(o, p); if (cleanDoor(p.door)) o.door = p.door; if (typeof p.connectorId === 'string' && p.connectorId.trim()) o.connectorId = p.connectorId.trim(); return o; });
+    // Explicit, pack-owned shrinking only. Keep the rendered centre and floor line;
+    // never enlarge obstacles or reinterpret a custom saved size. Idempotent on reload.
+    for (const p of doc.props) {
+      const m = propRules && propRules(p.t)?.footprintMigration;
+        if (!m || !m.from || !m.to || (p.r|0) !== 0 || p.w !== m.from.w || p.h !== m.from.h) continue;
+      if (![m.to.w,m.to.h,m.dx,m.dy].every(Number.isInteger) || m.to.w<1 || m.to.h<1 ||
+          m.dx<0 || m.dy<0 || m.dx+m.to.w>p.w || m.dy+m.to.h>p.h) continue;
+      p.x+=m.dx;p.y+=m.dy;p.w=m.to.w;p.h=m.to.h;
+    }
     // belts are additive (v1 docs predate them); keep only well-formed "int,int" -> E|W|N|S entries.
     if (!doc.belts || typeof doc.belts !== 'object' || Array.isArray(doc.belts)) doc.belts = {};
     else { const clean = {}; for (const k in doc.belts) { const d = doc.belts[k]; if (/^-?\d+,-?\d+$/.test(k) && (d === 'E' || d === 'W' || d === 'N' || d === 'S')) clean[k] = d; } doc.belts = clean; }

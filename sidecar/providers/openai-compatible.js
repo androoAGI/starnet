@@ -143,6 +143,8 @@
     // reject the legacy param name still self-heal through DROPPABLE_PARAMS.
     const configuredMaxTokens = Number(opts.maxTokens);
     const maxTokens = Number.isFinite(configuredMaxTokens) && configuredMaxTokens > 0 ? Math.floor(configuredMaxTokens) : 0;
+    const configuredChatTokens = Number(opts.maxChatTokens);
+    const maxChatTokens = Number.isFinite(configuredChatTokens) && configuredChatTokens > 0 ? Math.floor(configuredChatTokens) : 0;
     // Error identity: HTTP failures name the PROVIDER when the factory supplies a label. A raw
     // "openai-compatible http 401" mid-run carried no provider identity, so the frontend's recovery
     // classifier couldn't route a dead grok/kimi sign-in to its ⏼ RECONNECT door — users got the
@@ -209,7 +211,11 @@
       const body = { model: req.model, messages: provider.preserveClaudeContinuations(provider.repairToolPairs(req.messages || []), req.model), stream: true };
       if (includeUsage && !skip('stream_options')) body.stream_options = { include_usage: true };
       const explicitMax = Math.floor(Number(req.max_tokens || req.maxTokens || 0)) || 0;
-      const outputCap = explicitMax > 0 ? explicitMax : maxTokens;
+      // Only the host's explicit casual-turn classification selects this cap. No-tool auxiliary
+      // calls (summaries, reviews) and real tasks must never inherit the small-talk allowance.
+      const defaultCap = req.isTask === false && maxChatTokens > 0
+        ? Math.min(maxTokens || maxChatTokens, maxChatTokens) : maxTokens;
+      const outputCap = Number.isFinite(explicitMax) && explicitMax > 0 ? explicitMax : defaultCap;
       if (outputCap > 0 && !skip('max_tokens')) body.max_tokens = outputCap;
       if (req.tools && req.tools.length) {
         body.tools = req.tools;
