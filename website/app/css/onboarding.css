@@ -12,6 +12,12 @@
 .fnv-ink { min-height:0; display:none; }
 .fnv-ink.show { display:block; }
 .fnv-opts { gap:9px; }
+/* Quick tour: keep Next / Finish reachable even when COMMS is short. Only the lesson scrolls. */
+.fnv-dialogue.fnv-tour { overflow:hidden; padding:14px 18px; gap:8px; }
+.fnv-tour .fnv-speaker { font-size:18px; padding-bottom:5px; }
+.fnv-tour .fnv-line { flex:1 1 auto; min-height:0; overflow-y:auto; display:block; font-size:18px; line-height:1.35; padding-right:8px; }
+.fnv-tour .fnv-opts { flex-shrink:0; gap:5px; }
+.fnv-tour .fnv-opt { padding:7px 10px; }
 .fnv-opt { padding:12px; font-size:17px; line-height:1.3; border-radius:8px; text-shadow:none; }
 .fnv-opt-l { overflow-wrap:anywhere; }
 .fnv-more { align-self:flex-start; border:1px solid var(--ph-dim); border-radius:7px; background:var(--ph-faint); color:var(--ph-bright); font:inherit; font-size:17px; letter-spacing:0; padding:10px 16px; cursor:pointer; }

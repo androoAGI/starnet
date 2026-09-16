@@ -177,6 +177,7 @@ export function resolveCandidateCommit(repoRoot = REPO_ROOT, candidate = 'HEAD')
 
 const TRACKED_AT_COMMIT = new Map();
 const BLOB_AT_COMMIT = new Map();
+const BLOB_BY_OID = new Map();
 
 export function trackedPathsAtCommit(repoRoot = REPO_ROOT, candidateCommit = 'HEAD') {
   const commit = resolveCandidateCommit(repoRoot, candidateCommit);
@@ -193,7 +194,8 @@ function readAtCommit(repoRoot, candidateCommit, relative) {
   const safe = safeRelative(relative);
   const key = path.resolve(repoRoot) + '\0' + commit + '\0' + safe;
   if (!BLOB_AT_COMMIT.has(key)) preloadAtCommit(repoRoot, commit, [safe]);
-  return Buffer.from(BLOB_AT_COMMIT.get(key));
+  // Internal readers only hash/search/parse these bytes; they never mutate them.
+  return BLOB_AT_COMMIT.get(key);
 }
 
 function preloadAtCommit(repoRoot, candidateCommit, relativePaths) {
@@ -230,13 +232,23 @@ function preloadAtCommit(repoRoot, candidateCommit, relativePaths) {
       if (header !== row.header) throw new Error('git cat-file payload disagrees with size record for ' + row.relative);
       const start = lineEnd + 1, end = start + row.size;
       if (end >= output.length || output[end] !== 0x0a) throw new Error('git cat-file returned truncated bytes for ' + row.relative);
-      BLOB_AT_COMMIT.set(root + '\0' + commit + '\0' + row.relative, Buffer.from(output.subarray(start, end)));
+      const bytes = Buffer.from(output.subarray(start, end));
+      BLOB_BY_OID.set(row.oid, bytes);
+      BLOB_AT_COMMIT.set(root + '\0' + commit + '\0' + row.relative, bytes);
       offset = end + 1;
     }
     if (offset !== output.length) throw new Error('git cat-file batch returned unexpected trailing bytes');
   };
   let batch = [], bytes = 0;
   for (const row of rows) {
+    // Every path is still resolved by Git above. Identical immutable objects can
+    // share bytes across candidate commits and temporary comparator repositories.
+    const cached = BLOB_BY_OID.get(row.oid);
+    if (cached) {
+      if (cached.length !== row.size) throw new Error('git blob size changed for ' + row.relative);
+      BLOB_AT_COMMIT.set(root + '\0' + commit + '\0' + row.relative, cached);
+      continue;
+    }
     if (batch.length && bytes + row.bytes > BATCH_BYTES) { readBatch(batch); batch = []; bytes = 0; }
     batch.push(row); bytes += row.bytes;
   }
@@ -477,9 +489,8 @@ function verificationPaths(ledger, allTracked) {
   return sortedUnique(paths);
 }
 
-// Cache observations only for immutable candidate blobs. Injected readers always
-// run afresh, including tests which introduce an absence escape into the bytes.
-const CHECK_OBSERVATIONS = new Map();
+// Git snapshot buffers are immutable. Cache only search booleans, never decoded artwork;
+// injected readers stay uncached so a changed fixture cannot inherit an earlier verdict.
 function observeCheck(bytes, check) {
   const needles = check.kind === 'contains' ? [check.needle] : check.needles.map(n => text(n).toLowerCase());
   // Non-ASCII case folding can depend on adjacent letters (e.g. final sigma).
@@ -505,28 +516,38 @@ function observeCheck(bytes, check) {
   }
   return found;
 }
-function verifyCheck(check, readFile, label, errors, allTracked, immutableKey = null) {
-  const targets = checkTargets(check, allTracked);
-  if (!targets.length) { errors.push(label + ' scope matched no tracked files'); return; }
-  for (const target of targets) {
-    let found;
-    const cacheKey = immutableKey && JSON.stringify([immutableKey, target, check.kind, check.needle, check.needles]);
-    try {
-      found = cacheKey && CHECK_OBSERVATIONS.get(cacheKey);
-      if (!found) {
-        found = observeCheck(Buffer.from(readFile(target)), check);
-        if (cacheKey) CHECK_OBSERVATIONS.set(cacheKey, found);
-      }
+function verifyCheck(check, bytes, label, errors, target, hits) {
+  const key = JSON.stringify([check.kind, check.needle, check.needles]);
+  let found = hits.get(key);
+  if (!found) { found = observeCheck(Buffer.isBuffer(bytes) ? bytes : Buffer.from(bytes), check); hits.set(key, found); }
+  if (check.kind === 'contains' && !found[0]) errors.push(label + ' locator missing in ' + target + ': ' + JSON.stringify(check.needle));
+  if (check.kind === 'absent') for (const [i, needle] of check.needles.entries()) {
+    if (found[i]) errors.push(label + ' absence escaped in ' + target + ': ' + JSON.stringify(needle));
+  }
+}
+
+const CHECKS_BY_BLOB = new WeakMap();
+export function verifyAuthorityChecks(requests, readFile, errors, allTracked, immutable = false) {
+  const byTarget = new Map();
+  for (const { check, label } of requests) {
+    const targets = checkTargets(check, allTracked);
+    if (!targets.length) errors.push(label + ' scope matched no tracked files');
+    for (const target of targets) {
+      if (!byTarget.has(target)) byTarget.set(target, []);
+      byTarget.get(target).push({ check, label });
     }
-    catch (error) { errors.push(label + ' unreadable ' + target + ': ' + error.message); continue; }
-    if (check.kind === 'contains' && !found[0]) {
-      errors.push(label + ' locator missing in ' + target + ': ' + JSON.stringify(check.needle));
+  }
+  for (const [target, checks] of byTarget) {
+    let bytes;
+    try { bytes = readFile(target); }
+    catch (error) {
+      for (const { label } of checks) errors.push(label + ' unreadable ' + target + ': ' + error.message);
+      continue;
     }
-    if (check.kind === 'absent') {
-      for (const [i, needle] of check.needles.entries()) {
-        if (found[i]) errors.push(label + ' absence escaped in ' + target + ': ' + JSON.stringify(needle));
-      }
-    }
+    const cacheable = immutable && Buffer.isBuffer(bytes);
+    const hits = cacheable && CHECKS_BY_BLOB.get(bytes) || new Map();
+    for (const { check, label } of checks) verifyCheck(check, bytes, label, errors, target, hits);
+    if (cacheable) CHECKS_BY_BLOB.set(bytes, hits);
   }
 }
 
@@ -620,8 +641,6 @@ export function inspectClaimsAuthority(options = {}) {
   const readFile = options.readFile || (candidateCommit
     ? (relative => readAtCommit(repoRoot, candidateCommit, relative))
     : (relative => defaultRead(repoRoot, relative)));
-  const verify = (check, label, reasons, paths) => verifyCheck(check, readFile, label, reasons, paths,
-    !options.readFile && candidateCommit ? repoRoot + '\0' + candidateCommit : null);
   let allTracked = [];
   try {
     allTracked = options.trackedPaths
@@ -651,18 +670,21 @@ export function inspectClaimsAuthority(options = {}) {
       }
     }
     const locked = new Set(lockedPaths);
+    const checks = [];
+    const verifyCheck = (check, _readFile, label) => checks.push({ check, label });
     for (const claim of ledger.claims) {
       for (let index = 0; index < claim.surfaceLocators.length; index += 1) {
         const locator = claim.surfaceLocators[index];
         const label = claim.id + '.surfaceLocators[' + index + ']';
         if (!locked.has(locator.path)) planningReasons.push(label + ' is outside the locked release surface: ' + locator.path);
-        verify({ kind: 'contains', path: locator.path, needle: locator.needle }, label, planningReasons, allTracked);
+        verifyCheck({ kind: 'contains', path: locator.path, needle: locator.needle }, readFile, label, planningReasons, allTracked);
       }
-      claim.authorityChecks.forEach((check, index) => verify(check, claim.id + '.authorityChecks[' + index + ']', planningReasons, allTracked));
-      if (claim.disposition === 'EXPERIMENTAL') verify(claim.experimentalLabel.check, claim.id + '.experimentalLabel', planningReasons, allTracked);
+      claim.authorityChecks.forEach((check, index) => verifyCheck(check, readFile, claim.id + '.authorityChecks[' + index + ']', planningReasons, allTracked));
+      if (claim.disposition === 'EXPERIMENTAL') verifyCheck(claim.experimentalLabel.check, readFile, claim.id + '.experimentalLabel', planningReasons, allTracked);
     }
-    for (const row of ledger.waveVerdicts) row.authorityChecks.forEach((check, index) => verify(check, row.id + '.authorityChecks[' + index + ']', planningReasons, allTracked));
-    for (const row of ledger.doNotRebuild) row.authorityChecks.forEach((check, index) => verify(check, row.id + '.authorityChecks[' + index + ']', planningReasons, allTracked));
+    for (const row of ledger.waveVerdicts) row.authorityChecks.forEach((check, index) => verifyCheck(check, readFile, row.id + '.authorityChecks[' + index + ']', planningReasons, allTracked));
+    for (const row of ledger.doNotRebuild) row.authorityChecks.forEach((check, index) => verifyCheck(check, readFile, row.id + '.authorityChecks[' + index + ']', planningReasons, allTracked));
+    verifyAuthorityChecks(checks, readFile, planningReasons, allTracked, !options.readFile && !!candidateCommit);
   }
 
   const uniquePlanningReasons = sortedUnique(planningReasons);

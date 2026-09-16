@@ -1759,6 +1759,37 @@ const WorldModel = (() => {
       return { ok: true };
     }
 
+    // Whole-layout changes use the same single-step history and invalidation as
+    // ordinary REFIT edits. Assemble and validate before touching the live doc.
+    function replaceLayout(layout) {
+      if (!layout || layout.schema !== 'starnet.station' || !Array.isArray(layout.props) || !layout.rooms) return fail('BAD_LAYOUT');
+      const candidate = migrate(clone(layout));
+      if (!candidate.order.length || new Set(candidate.props.map(p => p.id)).size !== candidate.props.length) return fail('BAD_LAYOUT');
+      const probe = makeStation(clone(candidate));
+      for (const rid of candidate.order) {
+        const room = candidate.rooms[rid];
+        if (!room.rects.length || room.rects.some(r => ![r.x1,r.y1,r.x2,r.y2].every(Number.isFinite))) return fail('BAD_LAYOUT');
+        const placed = probe.canPlaceRoom(room.rects, room.kind, rid);
+        if (!placed.ok) return placed;
+      }
+      for (const p of candidate.props) {
+        const placed = probe.canPlaceProp(p.t,p.x,p.y,p.w,p.h,p.id);
+        if (!placed.ok) return placed;
+      }
+      const next = makeStation(candidate);
+      const owners = [...new Set(doc.props.filter(p => p.agentId).map(p => p.agentId))];
+      for (const aid of owners) {
+        const placed = next.ensureWorkstation(aid);
+        if (!placed.ok) return placed;
+      }
+      const prepared = next.serialize();
+      prepared.meta.createdAt = doc.meta.createdAt;
+      snapshot();
+      restore(prepared);
+      emit([], {global:true});
+      return {ok:true};
+    }
+
     function undo() {
       if (!undoStack.length) return fail('NOTHING', 'nothing to undo');
       redoStack.push(snap());
@@ -2424,7 +2455,7 @@ const WorldModel = (() => {
       // agent-bay binding queries
       propsByType, propsByAgent, pipelineEdges, setPipelineEdges, addPipelineEdge, removePipelineEdge, agentRoomId, bayObjects,
       capForProp: t => CAP_PROP_MAP[t] || null,   // a prop type's capability objectType (single source for the UI)
-      undo, redo, canUndo, canRedo,
+      undo, redo, canUndo, canRedo, replaceLayout,
       // projection + io
       projectGeometry, serialize, onChange,
     };
@@ -2517,13 +2548,24 @@ const WorldModel = (() => {
     starterDoc() {
       const doc = freshDoc();
       const room = doc.rooms[doc.meta.spawnRoomId];
-      room.rects = [{ x1: 0, y1: 0, x2: 13, y2: 8 }];
-      room.name = 'HAB-01';
+      room.rects = [{ x1: 0, y1: 0, x2: 17, y2: 10 }];
+      room.name = 'HOME';
+      room.floorMat = 'resin';
+      room.wallMat = 'panelled';
       room.hullStyle = 'bone';
       doc.props = [
-        { id: 'p' + doc._nid++, t: 'crate', x: 1, y: 1, w: 2, h: 1, block: true },
-        { id: 'p' + doc._nid++, t: 'rackV', x: 11, y: 1, w: 1, h: 2, block: true },
-        { id: 'p' + doc._nid++, t: 'plant', x: 11, y: 6, w: 1, h: 1, block: false }
+        // The five essentials are real floor grants. Keep the desk unassigned so
+        // ensureWorkstation adopts it for the new Commander on the normal boot path.
+        // User-approved placement from the live station, 2026-09-15.
+        // Preserve this composition and the original 18 x 11 room footprint.
+        { id: 'p' + doc._nid++, t: 'desk', x: 8, y: 1, w: 2, h: 1, block: true },
+        { id: 'p' + doc._nid++, t: 'war_intelcab', x: 1, y: 0, w: 1, h: 2, block: true },
+        { id: 'p' + doc._nid++, t: 'gigs_servercart', x: 1, y: 9, w: 1, h: 1, block: true },
+        { id: 'p' + doc._nid++, t: 'comms_dish', x: 14, y: 0, w: 2, h: 2, block: true },
+        { id: 'p' + doc._nid++, t: 'workbench', x: 3, y: 1, w: 2, h: 1, block: true },
+        { id: 'p' + doc._nid++, t: 'studio', x: 14, y: 8, w: 2, h: 2, block: true },
+        { id: 'p' + doc._nid++, t: 'plant', x: 0, y: 0, w: 1, h: 1, block: false },
+        { id: 'p' + doc._nid++, t: 'plant', x: 17, y: 0, w: 1, h: 1, block: false }
       ];
       return doc;
     },
