@@ -1,0 +1,39 @@
+{
+  "url": "http://127.0.0.1:18814/agent-station-demo.html?propSet=projection",
+  "standingHeight": 19,
+  "groundGap": 0.25,
+  "browserErrors": [],
+  "source": "Actual rendered data-motion telemetry; station screenshot inspected",
+  "skins": [
+    {
+      "id": "caseyjones",
+      "walkFrames": 49,
+      "directions": 7,
+      "walkDistance": 76.94
+    },
+    {
+      "id": "finn",
+      "walkFrames": 54,
+      "directions": 7,
+      "walkDistance": 65.72
+    },
+    {
+      "id": "heisenberg",
+      "walkFrames": 62,
+      "directions": 8,
+      "walkDistance": 80.5
+    },
+    {
+      "id": "ricksanchez",
+      "walkFrames": 32,
+      "directions": 6,
+      "walkDistance": 43.27
+    },
+    {
+      "id": "minionchar",
+      "walkFrames": 61,
+      "directions": 8,
+      "walkDistance": 80.22
+    }
+  ]
+}

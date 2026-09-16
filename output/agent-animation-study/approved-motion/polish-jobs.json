@@ -1,0 +1,234 @@
+[
+  {
+    "id": "secretagent",
+    "dir": "south-east",
+    "job": "4cc72661-b674-4f52-be16-615fa148389f",
+    "result": "status: completed\nid: 4cc72661-b674-4f52-be16-615fa148389f\njob_id: 4cc72661-b674-4f52-be16-615fa148389f\nframes: 9\ndownload: https://api.pixellab.ai/mcp/images/4cc72661-b674-4f52-be16-615fa148389f/download?index=0 ... ?index=8\n(5 more frames not shown — fetch them from the download URLs above)",
+    "done": true,
+    "approved": true
+  },
+  {
+    "id": "secretagent",
+    "dir": "east",
+    "job": "01bc5944-4926-45ac-b1e0-e87a98b75649",
+    "result": "status: completed\nid: 01bc5944-4926-45ac-b1e0-e87a98b75649\njob_id: 01bc5944-4926-45ac-b1e0-e87a98b75649\nframes: 9\ndownload: https://api.pixellab.ai/mcp/images/01bc5944-4926-45ac-b1e0-e87a98b75649/download?index=0 ... ?index=8\n(5 more frames not shown — fetch them from the download URLs above)",
+    "done": true,
+    "approved": true
+  },
+  {
+    "id": "secretagent",
+    "dir": "north-east",
+    "job": "86b245f0-6521-4e40-9c13-8b937d082f5c",
+    "result": "status: completed\nid: 86b245f0-6521-4e40-9c13-8b937d082f5c\njob_id: 86b245f0-6521-4e40-9c13-8b937d082f5c\nframes: 9\ndownload: https://api.pixellab.ai/mcp/images/86b245f0-6521-4e40-9c13-8b937d082f5c/download?index=0 ... ?index=8\n(5 more frames not shown — fetch them from the download URLs above)",
+    "done": true,
+    "approved": true
+  },
+  {
+    "id": "secretagent",
+    "dir": "north-west",
+    "job": "9d79fad6-48be-4e23-9e5c-098160a83e4b",
+    "result": "status: completed\nid: 9d79fad6-48be-4e23-9e5c-098160a83e4b\njob_id: 9d79fad6-48be-4e23-9e5c-098160a83e4b\nframes: 9\ndownload: https://api.pixellab.ai/mcp/images/9d79fad6-48be-4e23-9e5c-098160a83e4b/download?index=0 ... ?index=8\n(5 more frames not shown — fetch them from the download URLs above)",
+    "done": true,
+    "approved": true
+  },
+  {
+    "id": "secretagent",
+    "dir": "west",
+    "job": "dcea2524-2acc-4b09-a484-86f20685e49f",
+    "result": "status: completed\nid: dcea2524-2acc-4b09-a484-86f20685e49f\njob_id: dcea2524-2acc-4b09-a484-86f20685e49f\nframes: 9\ndownload: https://api.pixellab.ai/mcp/images/dcea2524-2acc-4b09-a484-86f20685e49f/download?index=0 ... ?index=8\n(5 more frames not shown — fetch them from the download URLs above)",
+    "done": true,
+    "approved": true
+  },
+  {
+    "id": "secretagent",
+    "dir": "south-west",
+    "job": "47652054-9b18-4c55-90f0-527f72b9fa64",
+    "result": "status: completed\nid: 47652054-9b18-4c55-90f0-527f72b9fa64\njob_id: 47652054-9b18-4c55-90f0-527f72b9fa64\nframes: 9\ndownload: https://api.pixellab.ai/mcp/images/47652054-9b18-4c55-90f0-527f72b9fa64/download?index=0 ... ?index=8\n(5 more frames not shown — fetch them from the download URLs above)",
+    "done": true,
+    "approved": true
+  },
+  {
+    "id": "ultron",
+    "dir": "south-east",
+    "job": "506a8a0b-7532-4530-9d06-046fabfc82e7",
+    "result": "status: completed\nid: 506a8a0b-7532-4530-9d06-046fabfc82e7\njob_id: 506a8a0b-7532-4530-9d06-046fabfc82e7\nframes: 9\ndownload: https://api.pixellab.ai/mcp/images/506a8a0b-7532-4530-9d06-046fabfc82e7/download?index=0 ... ?index=8\n(5 more frames not shown — fetch them from the download URLs above)",
+    "done": true,
+    "approved": true
+  },
+  {
+    "id": "ultron",
+    "dir": "east",
+    "job": "ef2c8dc6-b813-422a-b65c-d239f47d6625",
+    "result": "status: completed\nid: ef2c8dc6-b813-422a-b65c-d239f47d6625\njob_id: ef2c8dc6-b813-422a-b65c-d239f47d6625\nframes: 9\ndownload: https://api.pixellab.ai/mcp/images/ef2c8dc6-b813-422a-b65c-d239f47d6625/download?index=0 ... ?index=8\n(5 more frames not shown — fetch them from the download URLs above)",
+    "done": true,
+    "approved": true
+  },
+  {
+    "id": "ultron",
+    "dir": "north-east",
+    "job": "43bac73b-f2a8-446c-9fb5-418c1c4f1f92",
+    "result": "status: completed\nid: 43bac73b-f2a8-446c-9fb5-418c1c4f1f92\njob_id: 43bac73b-f2a8-446c-9fb5-418c1c4f1f92\nframes: 9\ndownload: https://api.pixellab.ai/mcp/images/43bac73b-f2a8-446c-9fb5-418c1c4f1f92/download?index=0 ... ?index=8\n(5 more frames not shown — fetch them from the download URLs above)",
+    "done": true,
+    "approved": true
+  },
+  {
+    "id": "ultron",
+    "dir": "north-west",
+    "job": "de1713c5-1077-4ebd-8894-97f063121f9a",
+    "result": "status: completed\nid: de1713c5-1077-4ebd-8894-97f063121f9a\njob_id: de1713c5-1077-4ebd-8894-97f063121f9a\nframes: 9\ndownload: https://api.pixellab.ai/mcp/images/de1713c5-1077-4ebd-8894-97f063121f9a/download?index=0 ... ?index=8\n(5 more frames not shown — fetch them from the download URLs above)",
+    "done": true,
+    "approved": true
+  },
+  {
+    "id": "ultron",
+    "dir": "west",
+    "job": "449b663f-1035-465a-963e-e7695ad7f3c4",
+    "result": "status: completed\nid: 449b663f-1035-465a-963e-e7695ad7f3c4\njob_id: 449b663f-1035-465a-963e-e7695ad7f3c4\nframes: 9\ndownload: https://api.pixellab.ai/mcp/images/449b663f-1035-465a-963e-e7695ad7f3c4/download?index=0 ... ?index=8\n(5 more frames not shown — fetch them from the download URLs above)",
+    "done": true,
+    "approved": true
+  },
+  {
+    "id": "ultron",
+    "dir": "south-west",
+    "job": "7ffb7d85-91f2-41cd-b61d-86080ae20278",
+    "result": "status: completed\nid: 7ffb7d85-91f2-41cd-b61d-86080ae20278\njob_id: 7ffb7d85-91f2-41cd-b61d-86080ae20278\nframes: 9\ndownload: https://api.pixellab.ai/mcp/images/7ffb7d85-91f2-41cd-b61d-86080ae20278/download?index=0 ... ?index=8\n(5 more frames not shown — fetch them from the download URLs above)",
+    "done": true,
+    "approved": true
+  },
+  {
+    "id": "skeleton",
+    "dir": "south-east",
+    "job": "66b3df08-aa7f-4c6c-a9bb-29287f63e02f",
+    "result": "status: completed\nid: 66b3df08-aa7f-4c6c-a9bb-29287f63e02f\njob_id: 66b3df08-aa7f-4c6c-a9bb-29287f63e02f\nframes: 9\ndownload: https://api.pixellab.ai/mcp/images/66b3df08-aa7f-4c6c-a9bb-29287f63e02f/download?index=0 ... ?index=8\n(5 more frames not shown — fetch them from the download URLs above)",
+    "done": true,
+    "approved": true
+  },
+  {
+    "id": "skeleton",
+    "dir": "east",
+    "job": "36f22892-3f75-4a61-9347-c061eddde4e1",
+    "result": "status: completed\nid: 36f22892-3f75-4a61-9347-c061eddde4e1\njob_id: 36f22892-3f75-4a61-9347-c061eddde4e1\nframes: 9\ndownload: https://api.pixellab.ai/mcp/images/36f22892-3f75-4a61-9347-c061eddde4e1/download?index=0 ... ?index=8\n(5 more frames not shown — fetch them from the download URLs above)",
+    "done": true,
+    "approved": true
+  },
+  {
+    "id": "skeleton",
+    "dir": "north-east",
+    "job": "94cb8b6a-5173-48a0-82ca-0eee9a8f4e22",
+    "result": "status: completed\nid: 94cb8b6a-5173-48a0-82ca-0eee9a8f4e22\njob_id: 94cb8b6a-5173-48a0-82ca-0eee9a8f4e22\nframes: 9\ndownload: https://api.pixellab.ai/mcp/images/94cb8b6a-5173-48a0-82ca-0eee9a8f4e22/download?index=0 ... ?index=8\n(5 more frames not shown — fetch them from the download URLs above)",
+    "done": true,
+    "approved": true
+  },
+  {
+    "id": "skeleton",
+    "dir": "north-west",
+    "job": "45cb6d58-7fc9-4137-ace0-2542a33de5f7",
+    "result": "status: completed\nid: 45cb6d58-7fc9-4137-ace0-2542a33de5f7\njob_id: 45cb6d58-7fc9-4137-ace0-2542a33de5f7\nframes: 9\ndownload: https://api.pixellab.ai/mcp/images/45cb6d58-7fc9-4137-ace0-2542a33de5f7/download?index=0 ... ?index=8\n(5 more frames not shown — fetch them from the download URLs above)",
+    "done": true,
+    "approved": true
+  },
+  {
+    "id": "skeleton",
+    "dir": "south-west",
+    "job": "6a7e6b8a-c878-42da-9bd1-4fe820ebe828",
+    "result": "status: completed\nid: 6a7e6b8a-c878-42da-9bd1-4fe820ebe828\njob_id: 6a7e6b8a-c878-42da-9bd1-4fe820ebe828\nframes: 9\ndownload: https://api.pixellab.ai/mcp/images/6a7e6b8a-c878-42da-9bd1-4fe820ebe828/download?index=0 ... ?index=8\n(5 more frames not shown — fetch them from the download URLs above)",
+    "done": true,
+    "approved": true
+  },
+  {
+    "id": "plaguedoctor",
+    "dir": "south-east",
+    "job": "2bfb6361-0132-45ec-a457-a19570f4e3f0",
+    "result": "status: completed\nid: 2bfb6361-0132-45ec-a457-a19570f4e3f0\njob_id: 2bfb6361-0132-45ec-a457-a19570f4e3f0\nframes: 9\ndownload: https://api.pixellab.ai/mcp/images/2bfb6361-0132-45ec-a457-a19570f4e3f0/download?index=0 ... ?index=8\n(5 more frames not shown — fetch them from the download URLs above)",
+    "done": true,
+    "approved": true
+  },
+  {
+    "id": "plaguedoctor",
+    "dir": "east",
+    "job": "00d2fc21-30ff-4293-81a0-338a489d5e1a",
+    "result": "status: completed\nid: 00d2fc21-30ff-4293-81a0-338a489d5e1a\njob_id: 00d2fc21-30ff-4293-81a0-338a489d5e1a\nframes: 9\ndownload: https://api.pixellab.ai/mcp/images/00d2fc21-30ff-4293-81a0-338a489d5e1a/download?index=0 ... ?index=8\n(5 more frames not shown — fetch them from the download URLs above)",
+    "done": true,
+    "approved": true
+  },
+  {
+    "id": "plaguedoctor",
+    "dir": "north-east",
+    "job": "ab92326a-de3e-45a5-9233-d8dd8d0dafa1",
+    "result": "status: completed\nid: ab92326a-de3e-45a5-9233-d8dd8d0dafa1\njob_id: ab92326a-de3e-45a5-9233-d8dd8d0dafa1\nframes: 9\ndownload: https://api.pixellab.ai/mcp/images/ab92326a-de3e-45a5-9233-d8dd8d0dafa1/download?index=0 ... ?index=8\n(5 more frames not shown — fetch them from the download URLs above)",
+    "done": true,
+    "approved": true
+  },
+  {
+    "id": "plaguedoctor",
+    "dir": "north-west",
+    "job": "461e0c4f-15d4-40d0-9c7f-a15e40805e6f",
+    "result": "status: completed\nid: 461e0c4f-15d4-40d0-9c7f-a15e40805e6f\njob_id: 461e0c4f-15d4-40d0-9c7f-a15e40805e6f\nframes: 9\ndownload: https://api.pixellab.ai/mcp/images/461e0c4f-15d4-40d0-9c7f-a15e40805e6f/download?index=0 ... ?index=8\n(5 more frames not shown — fetch them from the download URLs above)",
+    "done": true,
+    "approved": true
+  },
+  {
+    "id": "plaguedoctor",
+    "dir": "west",
+    "job": "4604dd81-96d0-4d79-94ac-42694452e142",
+    "result": "status: completed\nid: 4604dd81-96d0-4d79-94ac-42694452e142\njob_id: 4604dd81-96d0-4d79-94ac-42694452e142\nframes: 9\ndownload: https://api.pixellab.ai/mcp/images/4604dd81-96d0-4d79-94ac-42694452e142/download?index=0 ... ?index=8\n(5 more frames not shown — fetch them from the download URLs above)",
+    "done": true,
+    "approved": true
+  },
+  {
+    "id": "plaguedoctor",
+    "dir": "south-west",
+    "job": "12d2fe65-f9f8-49d0-ab77-8a69cadbd873",
+    "result": "status: completed\nid: 12d2fe65-f9f8-49d0-ab77-8a69cadbd873\njob_id: 12d2fe65-f9f8-49d0-ab77-8a69cadbd873\nframes: 9\ndownload: https://api.pixellab.ai/mcp/images/12d2fe65-f9f8-49d0-ab77-8a69cadbd873/download?index=0 ... ?index=8\n(5 more frames not shown — fetch them from the download URLs above)",
+    "done": true,
+    "approved": true
+  },
+  {
+    "id": "voidwizard",
+    "dir": "south-east",
+    "job": "cf00980a-1098-4ff5-b333-dcb1cce14189",
+    "result": "status: completed\nid: cf00980a-1098-4ff5-b333-dcb1cce14189\njob_id: cf00980a-1098-4ff5-b333-dcb1cce14189\nframes: 9\ndownload: https://api.pixellab.ai/mcp/images/cf00980a-1098-4ff5-b333-dcb1cce14189/download?index=0 ... ?index=8\n(5 more frames not shown — fetch them from the download URLs above)",
+    "done": true,
+    "approved": true
+  },
+  {
+    "id": "voidwizard",
+    "dir": "east",
+    "job": "d042a47f-f93e-44a0-81c2-a0cbeec28dd7",
+    "result": "status: completed\nid: d042a47f-f93e-44a0-81c2-a0cbeec28dd7\njob_id: d042a47f-f93e-44a0-81c2-a0cbeec28dd7\nframes: 9\ndownload: https://api.pixellab.ai/mcp/images/d042a47f-f93e-44a0-81c2-a0cbeec28dd7/download?index=0 ... ?index=8\n(5 more frames not shown — fetch them from the download URLs above)",
+    "done": true,
+    "approved": true
+  },
+  {
+    "id": "voidwizard",
+    "dir": "north-east",
+    "job": "3521e937-1137-45f1-8064-49b0baa2f1f4",
+    "result": "status: completed\nid: 3521e937-1137-45f1-8064-49b0baa2f1f4\njob_id: 3521e937-1137-45f1-8064-49b0baa2f1f4\nframes: 9\ndownload: https://api.pixellab.ai/mcp/images/3521e937-1137-45f1-8064-49b0baa2f1f4/download?index=0 ... ?index=8\n(5 more frames not shown — fetch them from the download URLs above)",
+    "done": true,
+    "approved": true
+  },
+  {
+    "id": "voidwizard",
+    "dir": "north-west",
+    "job": "c0132e27-b8f3-46dd-9bdd-d76306c4124b",
+    "result": "status: completed\nid: c0132e27-b8f3-46dd-9bdd-d76306c4124b\njob_id: c0132e27-b8f3-46dd-9bdd-d76306c4124b\nframes: 9\ndownload: https://api.pixellab.ai/mcp/images/c0132e27-b8f3-46dd-9bdd-d76306c4124b/download?index=0 ... ?index=8\n(5 more frames not shown — fetch them from the download URLs above)",
+    "done": true,
+    "approved": true
+  },
+  {
+    "id": "voidwizard",
+    "dir": "west",
+    "job": "d1cbae77-7e6f-40b6-ac0d-c2577c1aecf5",
+    "result": "status: completed\nid: d1cbae77-7e6f-40b6-ac0d-c2577c1aecf5\njob_id: d1cbae77-7e6f-40b6-ac0d-c2577c1aecf5\nframes: 9\ndownload: https://api.pixellab.ai/mcp/images/d1cbae77-7e6f-40b6-ac0d-c2577c1aecf5/download?index=0 ... ?index=8\n(5 more frames not shown — fetch them from the download URLs above)",
+    "done": true,
+    "approved": true
+  },
+  {
+    "id": "voidwizard",
+    "dir": "south-west",
+    "job": "db2f57c1-4257-4d45-841f-0c35e773bd53",
+    "result": "status: completed\nid: db2f57c1-4257-4d45-841f-0c35e773bd53\njob_id: db2f57c1-4257-4d45-841f-0c35e773bd53\nframes: 9\ndownload: https://api.pixellab.ai/mcp/images/db2f57c1-4257-4d45-841f-0c35e773bd53/download?index=0 ... ?index=8\n(5 more frames not shown — fetch them from the download URLs above)",
+    "done": true,
+    "approved": true
+  }
+]

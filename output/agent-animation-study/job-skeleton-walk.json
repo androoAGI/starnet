@@ -1,0 +1,28 @@
+{
+  "name": "skeleton",
+  "kind": "walk",
+  "args": {
+    "character_id": "e22fffaa-53ed-46e0-87d1-985e86a6cdd4",
+    "template_animation_id": "walk",
+    "animation_name": "walk",
+    "directions": [
+      "south",
+      "east",
+      "north",
+      "west",
+      "south-east",
+      "north-east",
+      "north-west",
+      "south-west"
+    ]
+  },
+  "result": {
+    "content": [
+      {
+        "type": "text",
+        "text": "character: e22fffaa-53ed-46e0-87d1-985e86a6cdd4\nanimation: walk\ndirections: south, east, north, west, south-east, north-east, north-west, south-west (8 jobs)\ngroup: 79ab43b5-b6fc-4de1-a5cc-89f88fa342e2\neta: ~2-4 min\nadd more directions to this group: animate_character(character_id=\"e22fffaa-53ed-46e0-87d1-985e86a6cdd4\", template_animation_id=\"walk\", animation_group_id=\"79ab43b5-b6fc-4de1-a5cc-89f88fa342e2\", directions=[...])\n\nhint: get_character(character_id=\"e22fffaa-53ed-46e0-87d1-985e86a6cdd4\")\nif poor: delete_animation(character_id=\"e22fffaa-53ed-46e0-87d1-985e86a6cdd4\", animation_type=\"...\") then retry with mode=\"v3\""
+      }
+    ],
+    "isError": false
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "id": "robocop",
+  "track": "sit",
+  "dir": "south",
+  "request": "id: d609d340-dcc5-4cb9-b343-012875f3862e\njob_id: d609d340-dcc5-4cb9-b343-012875f3862e\ndescription: The character lowers into a seated pose on an invisible chair, facing south throughout. Hips move down, thighs extend forward, knees bend and remain hip-width apart, with feet below knees. Torso stays upright, head stays same size. Elbows stay tucked beside the waist and hands reach forward at desk height. End fully seated with a compact silhouette, not arms stretched sideways. Do not draw a chair, desk, keyboard, floor, shadow or any object. Preserve the exact character design and pixel art.\nframes: 4\nsize: 96x96px\ntransparent: True\ncost: 2 generations\nstatus: processing (~1-5 min)\n\nhint: get_image(job_id=\"d609d340-dcc5-4cb9-b343-012875f3862e\")",
+  "job": "d609d340-dcc5-4cb9-b343-012875f3862e",
+  "source": "output/agent-animation-study/rollout-20px/full-motion/robocop/refs/south.png",
+  "result": "status: completed\nid: d609d340-dcc5-4cb9-b343-012875f3862e\njob_id: d609d340-dcc5-4cb9-b343-012875f3862e\nframes: 5\ndownload: https://api.pixellab.ai/mcp/images/d609d340-dcc5-4cb9-b343-012875f3862e/download?index=0 ... ?index=4\n(1 more frames not shown — fetch them from the download URLs above)",
+  "done": true,
+  "packed": true,
+  "lastRaw": "output/agent-animation-study/rollout-20px/full-motion/robocop/minimax/sit-south/d609d340-dcc5-4cb9-b343-012875f3862e/4.png",
+  "frameCount": 5
+}

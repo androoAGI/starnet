@@ -1,0 +1,13 @@
+{
+  "id": "crthead",
+  "track": "sit",
+  "dir": "east",
+  "request": "id: f7748e60-9252-477d-bf6d-7f52d6415822\njob_id: f7748e60-9252-477d-bf6d-7f52d6415822\ndescription: The character lowers into a seated pose on an invisible chair, facing east throughout. Hips move down, thighs extend forward, knees bend and remain hip-width apart, with feet below knees. Torso stays upright, head stays same size. Elbows stay tucked beside the waist and hands reach forward at desk height. End fully seated with a compact silhouette, not arms stretched sideways. Do not draw a chair, desk, keyboard, floor, shadow or any object. Preserve the exact character design and pixel art.\nframes: 4\nsize: 96x96px\ntransparent: True\ncost: 2 generations\nstatus: processing (~1-5 min)\n\nhint: get_image(job_id=\"f7748e60-9252-477d-bf6d-7f52d6415822\")",
+  "job": "f7748e60-9252-477d-bf6d-7f52d6415822",
+  "source": "output/agent-animation-study/rollout-20px/full-motion/crthead/refs/east.png",
+  "result": "status: completed\nid: f7748e60-9252-477d-bf6d-7f52d6415822\njob_id: f7748e60-9252-477d-bf6d-7f52d6415822\nframes: 5\ndownload: https://api.pixellab.ai/mcp/images/f7748e60-9252-477d-bf6d-7f52d6415822/download?index=0 ... ?index=4\n(1 more frames not shown — fetch them from the download URLs above)",
+  "done": true,
+  "packed": true,
+  "lastRaw": "output/agent-animation-study/rollout-20px/full-motion/crthead/minimax/sit-east/f7748e60-9252-477d-bf6d-7f52d6415822/4.png",
+  "frameCount": 5
+}

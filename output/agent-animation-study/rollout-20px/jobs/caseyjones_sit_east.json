@@ -1,0 +1,13 @@
+{
+  "id": "caseyjones",
+  "track": "sit",
+  "dir": "east",
+  "request": "id: 95ea86c5-0808-4a41-b89c-68ca2f17b1cf\njob_id: 95ea86c5-0808-4a41-b89c-68ca2f17b1cf\ndescription: Sit down fully on an invisible chair facing east. Lower hips substantially until the seated silhouette is three quarters of standing height. Thighs extend forward in the facing direction, knees bend at right angles, shins point down and feet remain below knees. Keep original head and torso size, torso upright. Elbows stay tucked against ribs at waist, hands reach together forward at desk height inside shoulder width. For south view the thighs and forearms are foreshortened toward camera. Visibly seated, not standing with straight legs. Preserve exact character, clothing and colors. No chair, desk, keyboard, floor, shadow or new objects.\nframes: 4\nsize: 96x96px\ntransparent: True\ncost: 2 generations\nstatus: processing (~1-5 min)\n\nhint: get_image(job_id=\"95ea86c5-0808-4a41-b89c-68ca2f17b1cf\")",
+  "job": "95ea86c5-0808-4a41-b89c-68ca2f17b1cf",
+  "source": "output/agent-animation-study/rollout-20px/full-motion/caseyjones/refs/east.png",
+  "result": "status: completed\nid: 95ea86c5-0808-4a41-b89c-68ca2f17b1cf\njob_id: 95ea86c5-0808-4a41-b89c-68ca2f17b1cf\nframes: 5\ndownload: https://api.pixellab.ai/mcp/images/95ea86c5-0808-4a41-b89c-68ca2f17b1cf/download?index=0 ... ?index=4\n(1 more frames not shown — fetch them from the download URLs above)",
+  "done": true,
+  "packed": true,
+  "lastRaw": "output/agent-animation-study/rollout-20px/full-motion/caseyjones/minimax/sit-east/95ea86c5-0808-4a41-b89c-68ca2f17b1cf/4.png",
+  "frameCount": 5
+}

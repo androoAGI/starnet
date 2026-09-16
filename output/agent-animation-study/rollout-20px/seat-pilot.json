@@ -1,0 +1,7 @@
+{
+  "id": "pepe",
+  "dir": "east",
+  "track": "sit",
+  "request": "id: 04d4a1d7-09d2-4afe-b535-c5337ed9ac28\njob_id: 04d4a1d7-09d2-4afe-b535-c5337ed9ac28\ndescription: The character lowers into a seated pose on an invisible chair, facing east throughout. Hips move down, thighs extend horizontally forward, knees bend to a clear right angle and feet stay below the knees. Torso stays upright, head stays same size. Arms reach forward at desk height. End fully seated. Do not draw a chair, desk, keyboard, floor, shadow or any object. Preserve the exact character design and pixel art.\nframes: 4\nsize: 96x96px\ntransparent: True\ncost: 2 generations\nstatus: processing (~1-5 min)\n\nhint: get_image(job_id=\"04d4a1d7-09d2-4afe-b535-c5337ed9ac28\")",
+  "job": "04d4a1d7-09d2-4afe-b535-c5337ed9ac28"
+}

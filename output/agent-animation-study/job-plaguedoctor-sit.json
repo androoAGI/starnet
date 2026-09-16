@@ -1,0 +1,26 @@
+{
+  "name": "plaguedoctor",
+  "kind": "sit",
+  "args": {
+    "character_id": "b3fe6acd-7249-4a23-95a6-824d10540947",
+    "mode": "v3",
+    "animation_name": "sit",
+    "action_description": "From standing, smoothly lower into seated position with thighs forward, knees bent, upright torso, hands held forward. End seated and hold seated pose. No furniture, no chair, no desk, nothing added. Preserve costume, body size and camera.",
+    "frame_count": 4,
+    "directions": [
+      "south",
+      "east",
+      "north",
+      "west"
+    ]
+  },
+  "result": {
+    "content": [
+      {
+        "type": "text",
+        "text": "character: b3fe6acd-7249-4a23-95a6-824d10540947\nanimation: v3 custom (From standing, smoothly lower into seated position with thighs forward, knees bent, upright torso, hands held forward. End seated and hold seated pose. No furniture, no chair, no desk, nothing added. Preserve costume, body size and camera.)\ndirections: south, east, north, west (4 jobs)\ngroup: bfd800bb-0a3e-449e-9cda-ef90e830fd8c\nframes: 5 (1 reference + 4 animated)\ncost: 4 generations (1/dir x 4)\neta: ~30-60s/direction\n\nhint: get_character(character_id=\"b3fe6acd-7249-4a23-95a6-824d10540947\")\nadd more directions to this group: animate_character(character_id=\"b3fe6acd-7249-4a23-95a6-824d10540947\", action_description=\"From standing, smoothly lower into seated position with thighs forward, knees bent, upright torso, hands held forward. End seated and hold seated pose. No furniture, no chair, no desk, nothing added. Preserve costume, body size and camera.\", animation_group_id=\"bfd800bb-0a3e-449e-9cda-ef90e830fd8c\", directions=[...])"
+      }
+    ],
+    "isError": false
+  }
+}

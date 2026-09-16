@@ -1,0 +1,5 @@
+const fs=require('fs'),path=require('path');
+const root=path.resolve(__dirname,'../../frontend/assets/agent-animation-0914'),manifest=JSON.parse(fs.readFileSync(path.join(root,'manifest.json'))),dest=path.join(__dirname,'industrial-five-frames');
+const validation=JSON.parse(fs.readFileSync(path.join(__dirname,'frame-validation.json')));if(validation.issues.length)throw new Error('Frame validation has unresolved issues: '+validation.issues.join(', '));
+fs.mkdirSync(dest,{recursive:true});for(const c of Object.values(manifest.characters))for(const dirs of Object.values(c.tracks))for(const files of Object.values(dirs))for(const file of files){const target=path.join(dest,file);fs.mkdirSync(path.dirname(target),{recursive:true});fs.copyFileSync(path.join(root,file),target);}
+fs.copyFileSync(path.join(root,'manifest.json'),path.join(dest,'manifest.json'));fs.copyFileSync(path.join(__dirname,'README.md'),path.join(dest,'README.md'));fs.copyFileSync(path.join(__dirname,'frame-validation.json'),path.join(dest,'frame-validation.json'));console.log(dest);

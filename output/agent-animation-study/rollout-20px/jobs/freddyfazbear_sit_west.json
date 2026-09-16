@@ -1,0 +1,13 @@
+{
+  "id": "freddyfazbear",
+  "track": "sit",
+  "dir": "west",
+  "request": "id: 1c8b4fb8-e22c-40cd-8fe8-6bec2cb11357\njob_id: 1c8b4fb8-e22c-40cd-8fe8-6bec2cb11357\ndescription: Sit down fully on an invisible chair facing west. Lower hips substantially until the seated silhouette is three quarters of standing height. Thighs extend forward in the facing direction, knees bend at right angles, shins point down and feet remain below knees. Keep original head and torso size, torso upright. Elbows stay tucked against ribs at waist, hands reach together forward at desk height inside shoulder width. For south view the thighs and forearms are foreshortened toward camera. Visibly seated, not standing with straight legs. Preserve exact character, clothing and colors. No chair, desk, keyboard, floor, shadow or new objects.\nframes: 4\nsize: 96x96px\ntransparent: True\ncost: 2 generations\nstatus: processing (~1-5 min)\n\nhint: get_image(job_id=\"1c8b4fb8-e22c-40cd-8fe8-6bec2cb11357\")",
+  "job": "1c8b4fb8-e22c-40cd-8fe8-6bec2cb11357",
+  "source": "output/agent-animation-study/rollout-20px/full-motion/freddyfazbear/refs/west.png",
+  "result": "status: completed\nid: 1c8b4fb8-e22c-40cd-8fe8-6bec2cb11357\njob_id: 1c8b4fb8-e22c-40cd-8fe8-6bec2cb11357\nframes: 5\ndownload: https://api.pixellab.ai/mcp/images/1c8b4fb8-e22c-40cd-8fe8-6bec2cb11357/download?index=0 ... ?index=4\n(1 more frames not shown — fetch them from the download URLs above)",
+  "done": true,
+  "packed": true,
+  "lastRaw": "output/agent-animation-study/rollout-20px/full-motion/freddyfazbear/minimax/sit-west/1c8b4fb8-e22c-40cd-8fe8-6bec2cb11357/4.png",
+  "frameCount": 5
+}

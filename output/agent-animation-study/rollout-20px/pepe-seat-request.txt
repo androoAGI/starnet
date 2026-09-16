@@ -1,0 +1,10 @@
+character: 102ce2d9-4e6b-4ec7-999f-10d89544009f
+animation: v3 custom (Four frames of a looping SEATED desk-working pose. Start already fully seated, torso upright, thighs forward horizontally, knees bent, feet below knees. Hands held at desk height with tiny alternating typing finger movement. Remain fully seated in every frame, no standing up or sitting-down transition. Preserve exact character identity, head size, outfit and pixel art. Transparent background, character only: do not draw any chair, desk, keyboard, floor, shadow or other object.)
+directions: south, east, north, west (4 jobs)
+group: 375f782b-d37b-4362-b37b-3379c1f661b4
+frames: 4 (reference stripped, keep_first_frame=false)
+cost: 4 generations (1/dir x 4)
+eta: ~30-60s/direction
+
+hint: get_character(character_id="102ce2d9-4e6b-4ec7-999f-10d89544009f")
+add more directions to this group: animate_character(character_id="102ce2d9-4e6b-4ec7-999f-10d89544009f", action_description="Four frames of a looping SEATED desk-working pose. Start already fully seated, torso upright, thighs forward horizontally, knees bent, feet below knees. Hands held at desk height with tiny alternating typing finger movement. Remain fully seated in every frame, no standing up or sitting-down transition. Preserve exact character identity, head size, outfit and pixel art. Transparent background, character only: do not draw any chair, desk, keyboard, floor, shadow or other object.", animation_group_id="375f782b-d37b-4362-b37b-3379c1f661b4", directions=[...])

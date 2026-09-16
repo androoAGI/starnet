@@ -1,0 +1,28 @@
+{
+  "name": "voidwizard",
+  "kind": "walk",
+  "args": {
+    "character_id": "9cf4346e-1033-4f9b-9aa7-06c9b4831d6d",
+    "template_animation_id": "walk",
+    "animation_name": "walk",
+    "directions": [
+      "south",
+      "east",
+      "north",
+      "west",
+      "south-east",
+      "north-east",
+      "north-west",
+      "south-west"
+    ]
+  },
+  "result": {
+    "content": [
+      {
+        "type": "text",
+        "text": "character: 9cf4346e-1033-4f9b-9aa7-06c9b4831d6d\nanimation: walk\ndirections: south, east, north, west, south-east, north-east, north-west, south-west (8 jobs)\ngroup: 52f11a39-0769-4e5b-8a7a-91512337ff17\neta: ~2-4 min\nadd more directions to this group: animate_character(character_id=\"9cf4346e-1033-4f9b-9aa7-06c9b4831d6d\", template_animation_id=\"walk\", animation_group_id=\"52f11a39-0769-4e5b-8a7a-91512337ff17\", directions=[...])\n\nhint: get_character(character_id=\"9cf4346e-1033-4f9b-9aa7-06c9b4831d6d\")\nif poor: delete_animation(character_id=\"9cf4346e-1033-4f9b-9aa7-06c9b4831d6d\", animation_type=\"...\") then retry with mode=\"v3\""
+      }
+    ],
+    "isError": false
+  }
+}

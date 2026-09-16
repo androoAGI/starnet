@@ -926,8 +926,19 @@ A.eq(JSON.stringify(WM.deserialize({ rooms: {}, order: [], props: [], edges: [{ 
 
 {
   const starter = WM.create(WM.starterDoc());
+  const PS = require('../frontend/app/propsprites.js');
+  for (const type of PS.STARTER) {
+    A.eq(starter.props().filter(p => p.t === type).length, 1, 'fresh station includes exactly one ' + type);
+  }
+  const construction = WM.create({ ...WM.starterDoc(), props: [] });
+  for (const prop of starter.props()) {
+    const spec = PS.spec(prop.t);
+    A.eq([prop.w, prop.h], [spec.w, spec.h], prop.t + ' uses its catalog footprint');
+    A.ok(construction.addProp(prop).ok, prop.t + ' fits without overlapping another starter prop');
+  }
   const desk = starter.ensureWorkstation('agent');
   A.ok(desk.ok, 'composed starter has an approachable real agent desk');
+  A.eq(starter.props().filter(p => p.t === 'desk').length, 1, 'boot adopts the prepared desk without adding another');
   A.ok(starter.canPlaceProp('intake', 4, 4, 2, 2).ok, 'starter leaves the central workflow lane free');
   const restored = WM.deserialize(JSON.parse(JSON.stringify(starter.serialize())));
   A.eq(restored.props().length, starter.props().length, 'starter furniture survives a save round-trip without duplicates');

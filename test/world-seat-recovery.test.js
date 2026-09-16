@@ -105,13 +105,14 @@ if(src.includes('function invalidateRefitLeisure(')){
  const run=remaster=>Function('PropRemaster','geo',`
  const self={},T=12,U={irnd:()=>0},occupiedSeats=new Set(),blocked=new Set(),SEAT_NB=[[0,1]],sideSeat=()=>null;
  const releaseSeat=()=>{},tileInZone=()=>true,setPathTo=()=>{self.target={};return true;},arrive=()=>{};
+ ${src.match(/  const remasteredCouch = [^\n]+/)[0]}
  ${fn('planCouchSit')}
  const p={id:'c',t:'couch',x:4,y:5,w:5,h:1};planCouchSit(0,p,null,'north',{});return self;
  `)(remaster,{walkable:()=>true});
  const native=run({enabled:()=>false}),authored=run({enabled:()=>true,viewGeometry:()=>({spec:{seatLift:6}})});
  A.eq(authored.pendSeat.py,native.pendSeat.py,'authored couch retains its floor/sort anchor');
  A.eq(authored.pendSeat.px,native.pendSeat.px,'authored couch retains its cushion claim');
- A.eq(authored.pendSeat.lift,6,'authored cushion lifts the sitter above the taller back');
+ A.eq(authored.pendSeat.lift,2,'layered couch anchors the sitter on the cushion');
  A.eq(native.pendSeat.lift,0,'classic couch retains its original perch');
 }
 // Rotated booth cushions run along depth, and mirrored views face their real front.
@@ -121,6 +122,7 @@ if(src.includes('function invalidateRefitLeisure(')){
  const self={},T=12,U={irnd:()=>slot},occupiedSeats=new Set(),blocked=new Set(),SEAT_NB=[[0,1],[1,0]],sideSeat=()=>null;
  const releaseSeat=()=>{},tileInZone=()=>true,setPathTo=()=>{self.target={};return true;},arrive=()=>{};
  const geo={walkable:()=>true};
+ ${src.match(/  const remasteredCouch = [^\n]+/)[0]}
  ${fn('planCouchSit')}
  planCouchSit(0,p,null,'north',{});return self;`);
  for(const r of [1,3])for(const m of [false,true])for(const slot of [0,1]) {

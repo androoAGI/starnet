@@ -1,0 +1,14 @@
+[
+  {
+    "id": "minionchar",
+    "operation": "Missing diagonal animation views from existing approved sprite",
+    "reason": "Image service output moderation: other",
+    "requestId": "44183cd6-0368-4d39-9bf3-1c0b5fa6acb8"
+  },
+  {
+    "id": "pikachu",
+    "operation": "Missing diagonal animation views from existing approved sprite",
+    "reason": "Image service output moderation: other",
+    "requestId": "29c6bd58-d11d-4a68-8698-00c22968e1ee"
+  }
+]

@@ -409,6 +409,7 @@ test/questledgerstore.test.js
 test/kitout.test.js
 test/coach-dodge.test.js
 test/tutorial-connect-beat.test.js
+test/tutorial-equipped-station.test.js
 test/field-manual-accessibility.test.js
 test/class-loadouts.test.js
 test/intent-offer.test.js
@@ -598,6 +599,7 @@ test/chain.test.js
 test/chain.join-loop.test.js
 test/chain.limits.test.js
 test/refit-card-stack.test.js
+test/refit-flow-polish.test.js
 test/refit-junction-cards.test.js
 test/refit-footprint.test.js
 test/refit-run-gate.test.js
@@ -791,6 +793,7 @@ test/prop-industrial-remaster.test.js
 test/industrialtextures.test.js
 test/world-texture-ready.test.js
 test/qa-claims-blob-batch.test.js
+test/qa-claims-search-batch.test.js
 test/workstation-screen-state.test.js
 test/prop-remaster-contract.test.js
 test/authored-prop-content.test.js
@@ -806,6 +809,7 @@ test/projection-prop-effects.test.js
 test/projection-load-geometry.test.js
 dev/industrial-textures/prop-catalog-review.test.cjs
 test/projection-depth-rendering.test.js
+test/station-templates.test.js
 test/remaster-physical-fit.test.js
 test/arrival.test.js
 

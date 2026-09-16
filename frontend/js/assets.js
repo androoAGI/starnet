@@ -374,7 +374,8 @@ const SPRITES = (() => {
   const ang = a => Math.atan2(Math.sin(a), Math.cos(a));
   function renderDir8(b, dir, glancing, nowMs) {
     // while walking (and not glancing) follow the true continuous heading; otherwise the game dir
-    const want = (!glancing && b.state === 'walk' && b.faceA != null) ? ang(b._resolvedTravelHeading ?? b.faceA) : DIR8_A[dir];
+    const travel = b._resolvedTravelHeading ?? b.faceA;
+    const want = (!glancing && b.state === 'walk' && travel != null) ? ang(travel) : DIR8_A[dir];
     if (want == null) return dir;
     const dt = Math.max(0, Math.min(100, nowMs - (b._rAt || 0)));   // clamp: first frame / tab-restore must not spin
     b._rAt = nowMs;
@@ -395,7 +396,7 @@ const SPRITES = (() => {
       b._turnAng = (b._turnAng || 0) + swept;
     }
     const cur = b._rD8;
-    if (cur && DIR8_A[cur] != null && Math.abs(ang(b._rA - DIR8_A[cur])) < Math.PI / 8 + DIR8_HYST) return cur;
+    if (b.state !== 'walk' && cur && DIR8_A[cur] != null && Math.abs(ang(b._rA - DIR8_A[cur])) < Math.PI / 8 + DIR8_HYST) return cur;
     let best = dir, bd = Infinity;
     for (const d in DIR8_A) {
       const t = Math.abs(ang(b._rA - DIR8_A[d]));
@@ -584,7 +585,8 @@ const SPRITES = (() => {
     // SPRITE rises, the shadow pool remains on the deck under the stool where light actually lands.
     // Gated on the RESOLVED track actually being a sit pose: a set with no sit frames (minionchar,
     // 2026-08-10) falls back to rot/stand, and lifting a STANDING body onto the pad reads as levitation.
-    const seatLift = (b.sitting && b.seatLift && /\.(sit|type)\./.test(key)) ? b.seatLift : 0;
+    const workstationLift = isReviewSet(set) && b.sitting && !b.seated && (b.working || b.goal === 'work') ? 7 : 0;
+    const seatLift = b.sitting && /\.(sit|type)\./.test(key) ? (b.seatLift || workstationLift) : 0;
     // perched: anchor by THIS sit frame's own bottom padding (getTrackPad), not the standing footPad —
     // sets whose sit master carries extra empty rows below the tucked legs (skeleton) otherwise float.
     // Walking masters have slightly different packing below their boots. A set-wide idle
@@ -641,7 +643,19 @@ const SPRITES = (() => {
     if ('imageSmoothingQuality' in ctx) ctx.imageSmoothingQuality = 'high';
     try {
       if(speech){ctx.save();const foot=b.py+GROUND_BITE-seatLift;ctx.translate(0,foot);ctx.transform(1,0,speech*.009,1,0,0);ctx.translate(0,-foot);}
+      // Rear-facing desk poses tuck their shins beneath the console. The chair
+      // occludes the torso, but its open caster base must not reveal sprite boots.
+      const tuckDeskFeet = b.sitting && !b.seated && (b.working || b.goal === 'work')
+        && /\.(sit|type)\.north$/.test(key);
+      if (tuckDeskFeet) {
+        ctx.save();
+        const floor = y + (dh - getFramePad(f) * sc) * breathScale;
+        ctx.beginPath();
+        ctx.rect(x - 1, y - 1, dw + 2, Math.max(0, floor - y - 5));
+        ctx.clip();
+      }
       ctx.drawImage(lightFrame(f, light), x, y, dw, drawHeight);
+      if (tuckDeskFeet) ctx.restore();
       if(speech)ctx.restore();
     }
     finally {

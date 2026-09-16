@@ -1,0 +1,15 @@
+{
+  "id": "blank_green",
+  "track": "sit",
+  "dir": "south",
+  "request": "id: 694e849a-d390-4f1e-8775-6cd2a60a81ff\njob_id: 694e849a-d390-4f1e-8775-6cd2a60a81ff\ndescription: Sit down fully on an invisible chair facing south throughout. Lower hips to three quarters standing height, thighs forward, knees bent right angles, shins down, feet below knees. Upright torso, unchanged head and torso size. Elbows tucked at waist, hands forward at desk height within shoulder width. South view thighs foreshortened toward camera. No chair, desk, keyboard, floor, shadow or objects. Preserve exact faceless spherical head, continuous rounded limbs, proportions, color and crisp pixel-cluster shading. No eyes, mouth, armor, joints or smooth gradients.\nframes: 4\nsize: 96x96px\ntransparent: True\ncost: 2 generations\nstatus: processing (~1-5 min)\n\nhint: get_image(job_id=\"694e849a-d390-4f1e-8775-6cd2a60a81ff\")",
+  "job": "694e849a-d390-4f1e-8775-6cd2a60a81ff",
+  "source": "output/agent-animation-study/pixel-cadets-0915/full-motion/blank_green/refs/south.png",
+  "attempts": 1,
+  "failed": false,
+  "result": "status: completed\nid: 694e849a-d390-4f1e-8775-6cd2a60a81ff\njob_id: 694e849a-d390-4f1e-8775-6cd2a60a81ff\nframes: 5\ndownload: https://api.pixellab.ai/mcp/images/694e849a-d390-4f1e-8775-6cd2a60a81ff/download?index=0 ... ?index=4\n(1 more frames not shown — fetch them from the download URLs above)",
+  "done": true,
+  "packed": true,
+  "lastRaw": "output/agent-animation-study/pixel-cadets-0915/full-motion/blank_green/minimax/sit-south/694e849a-d390-4f1e-8775-6cd2a60a81ff/4.png",
+  "frameCount": 5
+}

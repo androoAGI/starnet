@@ -1,0 +1,15 @@
+{
+  "id": "android",
+  "track": "walk",
+  "dir": "south-west",
+  "pinLast": true,
+  "promptOverride": "Seamless two-step walk in place facing SOUTH-WEST, a THREE-QUARTER FRONT view. Keep the torso facing diagonally toward camera and left exactly like input throughout every frame. Both front shoulders remain visible; never become a side profile. Alternate left and right leg steps with opposite arm swing and knees flexing. Feet contact original baseline, head steady, body centered and upright. End at exact input neutral pose. Keep exact proportions, faceless sphere head, silver color and crisp pixel shading. No turning, jumping, objects, shadow or new details.",
+  "request": "id: c9dd1ec9-e679-4286-900d-93faf2abeadf\njob_id: c9dd1ec9-e679-4286-900d-93faf2abeadf\ndescription: Seamless two-step walk in place facing SOUTH-WEST, a THREE-QUARTER FRONT view. Keep the torso facing diagonally toward camera and left exactly like input throughout every frame. Both front shoulders remain visible; never become a side profile. Alternate left and right leg steps with opposite arm swing and knees flexing. Feet contact original baseline, head steady, body centered and upright. End at exact input neutral pose. Keep exact proportions, faceless sphere head, silver color and crisp pixel shading. No turning, jumping, objects, shadow or new details.\nframes: 8\nsize: 96x96px\ntransparent: True\nlast_frame: yes (animating toward it)\ncost: 2 generations\nstatus: processing (~1-5 min)\n\nhint: get_image(job_id=\"c9dd1ec9-e679-4286-900d-93faf2abeadf\")",
+  "job": "c9dd1ec9-e679-4286-900d-93faf2abeadf",
+  "source": "output/agent-animation-study/pixel-cadets-0915/full-motion/android/refs/south-west.png",
+  "result": "status: completed\nid: c9dd1ec9-e679-4286-900d-93faf2abeadf\njob_id: c9dd1ec9-e679-4286-900d-93faf2abeadf\nframes: 9\ndownload: https://api.pixellab.ai/mcp/images/c9dd1ec9-e679-4286-900d-93faf2abeadf/download?index=0 ... ?index=8\n(5 more frames not shown — fetch them from the download URLs above)",
+  "done": true,
+  "packed": true,
+  "lastRaw": "output/agent-animation-study/pixel-cadets-0915/full-motion/android/minimax/walk-south-west/c9dd1ec9-e679-4286-900d-93faf2abeadf/8.png",
+  "frameCount": 9
+}

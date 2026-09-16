@@ -1,0 +1,26 @@
+{
+  "name": "skeleton",
+  "kind": "sit",
+  "args": {
+    "character_id": "e22fffaa-53ed-46e0-87d1-985e86a6cdd4",
+    "mode": "v3",
+    "animation_name": "sit",
+    "action_description": "From standing, smoothly lower into seated position with thighs forward, knees bent, upright torso, hands held forward. End seated and hold seated pose. No furniture, no chair, no desk, nothing added. Preserve costume, body size and camera.",
+    "frame_count": 4,
+    "directions": [
+      "south",
+      "east",
+      "north",
+      "west"
+    ]
+  },
+  "result": {
+    "content": [
+      {
+        "type": "text",
+        "text": "character: e22fffaa-53ed-46e0-87d1-985e86a6cdd4\nanimation: v3 custom (From standing, smoothly lower into seated position with thighs forward, knees bent, upright torso, hands held forward. End seated and hold seated pose. No furniture, no chair, no desk, nothing added. Preserve costume, body size and camera.)\ndirections: south, east, north, west (4 jobs)\ngroup: 876c7638-8e9a-4b5a-904a-d37bc958a875\nframes: 5 (1 reference + 4 animated)\ncost: 4 generations (1/dir x 4)\neta: ~30-60s/direction\n\nhint: get_character(character_id=\"e22fffaa-53ed-46e0-87d1-985e86a6cdd4\")\nadd more directions to this group: animate_character(character_id=\"e22fffaa-53ed-46e0-87d1-985e86a6cdd4\", action_description=\"From standing, smoothly lower into seated position with thighs forward, knees bent, upright torso, hands held forward. End seated and hold seated pose. No furniture, no chair, no desk, nothing added. Preserve costume, body size and camera.\", animation_group_id=\"876c7638-8e9a-4b5a-904a-d37bc958a875\", directions=[...])"
+      }
+    ],
+    "isError": false
+  }
+}

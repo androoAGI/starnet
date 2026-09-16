@@ -39,6 +39,14 @@ class RecordingContext {
     this.gradients.push(gradient); return gradient;
   }
   fillRect(...args) { this.fills.push({ args, composite: this.globalCompositeOperation, style: this.fillStyle }); }
+  save() {
+    (this.states ||= []).push({ globalAlpha: this.globalAlpha, fillStyle: this.fillStyle,
+      globalCompositeOperation: this.globalCompositeOperation, imageSmoothingEnabled: this.imageSmoothingEnabled,
+      imageSmoothingQuality: this.imageSmoothingQuality });
+  }
+  restore() { Object.assign(this, this.states.pop()); }
+  rect(...args) { (this.rects ||= []).push(args); }
+  clip() { this.clipCount = (this.clipCount || 0) + 1; }
   beginPath() {}
   ellipse(...args) { this.ellipses.push({ args, alpha: this.globalAlpha, color: this.fillStyle }); }
   fill() {}

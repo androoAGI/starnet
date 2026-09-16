@@ -11272,6 +11272,13 @@ const PropSprites = (() => {
     const lift = surfaceLift(f);
     const x = f.x * TILE, y = f.y * TILE - lift;
     const r = RAMP.steel;
+    // The occupied couch is a sandwich: cushions, sitter, then the near backrest.
+    // Its authored near rail starts halfway down the 26px remastered bounds.
+    if (f.t === 'couch' && typeof PropRemaster !== 'undefined' && PropRemaster.enabled('couch')) {
+      ctx.save(); ctx.beginPath(); ctx.rect(x - 1, y + 1, (f.w || 5) * TILE + 2, TILE + 1); ctx.clip();
+      try { draw(f, false); } finally { ctx.restore(); }
+      return;
+    }
     if (f.t === 'stool' && typeof PropRemaster !== 'undefined' && PropRemaster.enabled('stool')) {
       // Redraw the same authored near rim around the sitter; the seat anchor is unchanged.
       ctx.save(); ctx.beginPath(); ctx.rect(x+2,y+3,8,3); ctx.clip();

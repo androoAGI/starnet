@@ -1,0 +1,12 @@
+{
+  "tool": "built-in image_gen",
+  "reference": "C:/Users/andro/Downloads/IMG_5378(1).png",
+  "prompt": "Use case: stylized-concept. Asset: a single transparent-background full-body game character sprite for StarNet. Reference image: the attached screenshot is ONLY a silhouette/material reference; ignore every interface element, text, floor, and shadow. Reimagine a cadet as the simple glossy faceless metallic person in that reference: a perfectly round sphere head, very short neck, gently squared rounded torso, simple rounded tubular arms, rounded mitten ends without fingers, two separate medium-length rounded legs with subtle foot ends. Absolutely no eyes, mouth, ears, hair, clothing, armor, equipment, joints, seams, insignia, or robot plating. Match the reference's charming simple early-2000s 3D messenger-icon figure, not a robot skeleton or a muscular mannequin. Moderately compact natural silhouette, head about one fifth of total height, body width including arms roughly half its height, neither long-legged nor squat. Upright neutral standing front view, camera slightly above looking down around 20 degrees, both arms relaxed beside torso with small clear gaps, legs comfortably separated. Glossy polished COLOR material with broad white upper-left reflections and deep colored midtones, soft secondary reflections, crisp silhouette. Render as finely resolved retro pre-rendered game sprite, coherent pixel-like shading, not a flat vector icon. It must remain readable at 19 pixels tall in a top-down station. One character centered with generous empty margin on true transparent background. No cast shadow, no ground, no text, no grid. Full figure visible, feet aligned.",
+  "colors": {
+    "android": "neutral dark silver chrome",
+    "blank_blue": "rich cobalt blue chrome",
+    "blank_green": "emerald green chrome like the reference",
+    "blank_red": "deep ruby red chrome",
+    "blank_amber": "warm amber-gold chrome"
+  }
+}

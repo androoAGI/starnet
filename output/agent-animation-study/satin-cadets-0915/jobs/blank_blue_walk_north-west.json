@@ -1,0 +1,15 @@
+{
+  "id": "blank_blue",
+  "track": "walk",
+  "dir": "north-west",
+  "pinLast": true,
+  "promptOverride": "Animate only the arms and legs walking IN PLACE. Keep torso and head LOCKED at the EXACT input north-west angle in ALL frames. Do not rotate the character or camera. Fixed perspective and shoulder width. Subtle natural alternating left and right steps and opposite arm swing, one full cycle. End at exact input stance. Keep head height steady, short steps, planted feet. Pure monochrome blue material from input: absolutely no yellow, gold, white bands, wristbands, accessories or new markings. Preserve exact silhouette proportions, simple faceless head, plain cylindrical limbs and muted pixel shading. No turns, side-profile changes, extra objects or shadow.",
+  "request": "id: 8a4cbbff-ad0a-4951-b043-e2b15551723d\njob_id: 8a4cbbff-ad0a-4951-b043-e2b15551723d\ndescription: Animate only the arms and legs walking IN PLACE. Keep torso and head LOCKED at the EXACT input north-west angle in ALL frames. Do not rotate the character or camera. Fixed perspective and shoulder width. Subtle natural alternating left and right steps and opposite arm swing, one full cycle. End at exact input stance. Keep head height steady, short steps, planted feet. Pure monochrome blue material from input: absolutely no yellow, gold, white bands, wristbands, accessories or new markings. Preserve exact silhouette proportions, simple faceless head, plain cylindrical limbs and muted pixel shading. No turns, side-profile changes, extra objects or shadow.\nframes: 8\nsize: 96x96px\ntransparent: True\nlast_frame: yes (animating toward it)\ncost: 2 generations\nstatus: processing (~1-5 min)\n\nhint: get_image(job_id=\"8a4cbbff-ad0a-4951-b043-e2b15551723d\")",
+  "job": "8a4cbbff-ad0a-4951-b043-e2b15551723d",
+  "source": "output/agent-animation-study/satin-cadets-0915/full-motion/blank_blue/refs/north-west.png",
+  "result": "status: completed\nid: 8a4cbbff-ad0a-4951-b043-e2b15551723d\njob_id: 8a4cbbff-ad0a-4951-b043-e2b15551723d\nframes: 9\ndownload: https://api.pixellab.ai/mcp/images/8a4cbbff-ad0a-4951-b043-e2b15551723d/download?index=0 ... ?index=8\n(5 more frames not shown — fetch them from the download URLs above)",
+  "done": true,
+  "packed": true,
+  "lastRaw": "output/agent-animation-study/satin-cadets-0915/full-motion/blank_blue/minimax/walk-north-west/8a4cbbff-ad0a-4951-b043-e2b15551723d/8.png",
+  "frameCount": 9
+}

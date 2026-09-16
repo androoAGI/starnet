@@ -1,0 +1,26 @@
+{
+  "name": "plaguedoctor",
+  "dir": "west",
+  "args": {
+    "character_id": "b3fe6acd-7249-4a23-95a6-824d10540947",
+    "mode": "v3",
+    "animation_name": "walk-fixed",
+    "action_description": "LEFT SIDE profile, facing screen left. The same left-facing profile stays visible in EVERY frame. Animate one clear complete WALKING CYCLE IN PLACE: left foot steps forward while right foot passes back, then right foot steps forward while left passes back. Bend alternating knees, lift each foot slightly, opposite arms swing naturally close to body. Keep facing EXACTLY as the supplied image throughout. NO turning or rotation, NO changing camera angle, NO traveling across canvas, NO spreading both arms sideways. End in the exact supplied pose for a seamless loop. Preserve original body size, anatomy and outfit.",
+    "frame_count": 8,
+    "directions": [
+      "west"
+    ],
+    "custom_start_frame_url": "https://backblaze.pixellab.ai/file/pixellab-characters/1ff7d2cf-cfe6-44f9-9533-9eea41eb05cb/b3fe6acd-7249-4a23-95a6-824d10540947/rotations/west.png?t=1789436529",
+    "end_frame_url": "https://backblaze.pixellab.ai/file/pixellab-characters/1ff7d2cf-cfe6-44f9-9533-9eea41eb05cb/b3fe6acd-7249-4a23-95a6-824d10540947/rotations/west.png?t=1789436529",
+    "keep_first_frame": true
+  },
+  "result": {
+    "content": [
+      {
+        "type": "text",
+        "text": "character: b3fe6acd-7249-4a23-95a6-824d10540947\nanimation: v3 custom (LEFT SIDE profile, facing screen left. The same left-facing profile stays visible in EVERY frame. Animate one clear complete WALKING CYCLE IN PLACE: left foot steps forward while right foot passes back, then right foot steps forward while left passes back. Bend alternating knees, lift each foot slightly, opposite arms swing naturally close to body. Keep facing EXACTLY as the supplied image throughout. NO turning or rotation, NO changing camera angle, NO traveling across canvas, NO spreading both arms sideways. End in the exact supplied pose for a seamless loop. Preserve original body size, anatomy and outfit.)\ndirections: west (1 jobs)\ngroup: b11c55b8-87e8-4112-b567-7f959aa97d37\nframes: 9 (1 reference + 8 animated)\ncost: 2 generations (2/dir x 1)\neta: ~30-60s/direction\n\nhint: get_character(character_id=\"b3fe6acd-7249-4a23-95a6-824d10540947\")\nadd more directions to this group: animate_character(character_id=\"b3fe6acd-7249-4a23-95a6-824d10540947\", action_description=\"LEFT SIDE profile, facing screen left. The same left-facing profile stays visible in EVERY frame. Animate one clear complete WALKING CYCLE IN PLACE: left foot steps forward while right foot passes back, then right foot steps forward while left passes back. Bend alternating knees, lift each foot slightly, opposite arms swing naturally close to body. Keep facing EXACTLY as the supplied image throughout. NO turning or rotation, NO changing camera angle, NO traveling across canvas, NO spreading both arms sideways. End in the exact supplied pose for a seamless loop. Preserve original body size, anatomy and outfit.\", animation_group_id=\"b11c55b8-87e8-4112-b567-7f959aa97d37\", directions=[...])"
+      }
+    ],
+    "isError": false
+  }
+}

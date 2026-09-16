@@ -1,0 +1,26 @@
+{
+  "name": "skeleton",
+  "kind": "gesture",
+  "args": {
+    "character_id": "e22fffaa-53ed-46e0-87d1-985e86a6cdd4",
+    "mode": "v3",
+    "animation_name": "gesture",
+    "action_description": "Standing still, brief natural conversational hand gesture: lift one forearm and open the hand to explain something, then lower it to the original neutral idle pose. Feet planted, no body rotation or change of scale, no props.",
+    "frame_count": 8,
+    "directions": [
+      "south",
+      "east",
+      "north",
+      "west"
+    ]
+  },
+  "result": {
+    "content": [
+      {
+        "type": "text",
+        "text": "character: e22fffaa-53ed-46e0-87d1-985e86a6cdd4\nanimation: v3 custom (Standing still, brief natural conversational hand gesture: lift one forearm and open the hand to explain something, then lower it to the original neutral idle pose. Feet planted, no body rotation or change of scale, no props.)\ndirections: south, east, north, west (4 jobs)\ngroup: 0937bab6-5205-4915-a47d-a76e95802af5\nframes: 9 (1 reference + 8 animated)\ncost: 8 generations (2/dir x 4)\neta: ~30-60s/direction\n\nhint: get_character(character_id=\"e22fffaa-53ed-46e0-87d1-985e86a6cdd4\")\nadd more directions to this group: animate_character(character_id=\"e22fffaa-53ed-46e0-87d1-985e86a6cdd4\", action_description=\"Standing still, brief natural conversational hand gesture: lift one forearm and open the hand to explain something, then lower it to the original neutral idle pose. Feet planted, no body rotation or change of scale, no props.\", animation_group_id=\"0937bab6-5205-4915-a47d-a76e95802af5\", directions=[...])"
+      }
+    ],
+    "isError": false
+  }
+}

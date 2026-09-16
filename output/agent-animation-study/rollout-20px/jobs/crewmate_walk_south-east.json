@@ -1,0 +1,15 @@
+{
+  "id": "crewmate",
+  "track": "walk",
+  "dir": "south-east",
+  "pinLast": true,
+  "promptOverride": "A seamless two-step walk in place facing south-east throughout. Head and blue visor stay completely rigid and unchanged with a clean red helmet outline, no speckles. Alternate planted feet and modest opposite arm swing. Preserve exact body shape and suit colors. No turns, jumps or objects.",
+  "request": "id: 79f77835-71c1-465b-b5a6-3035a4d83e55\njob_id: 79f77835-71c1-465b-b5a6-3035a4d83e55\ndescription: A seamless two-step walk in place facing south-east throughout. Head and blue visor stay completely rigid and unchanged with a clean red helmet outline, no speckles. Alternate planted feet and modest opposite arm swing. Preserve exact body shape and suit colors. No turns, jumps or objects.\nframes: 8\nsize: 96x96px\ntransparent: True\nlast_frame: yes (animating toward it)\ncost: 2 generations\nstatus: processing (~1-5 min)\n\nhint: get_image(job_id=\"79f77835-71c1-465b-b5a6-3035a4d83e55\")",
+  "job": "79f77835-71c1-465b-b5a6-3035a4d83e55",
+  "source": "output/agent-animation-study/rollout-20px/full-motion/crewmate/refs/south-east.png",
+  "result": "status: completed\nid: 79f77835-71c1-465b-b5a6-3035a4d83e55\njob_id: 79f77835-71c1-465b-b5a6-3035a4d83e55\nframes: 9\ndownload: https://api.pixellab.ai/mcp/images/79f77835-71c1-465b-b5a6-3035a4d83e55/download?index=0 ... ?index=8\n(5 more frames not shown — fetch them from the download URLs above)",
+  "done": true,
+  "packed": true,
+  "lastRaw": "output/agent-animation-study/rollout-20px/full-motion/crewmate/minimax/walk-south-east/79f77835-71c1-465b-b5a6-3035a4d83e55/8.png",
+  "frameCount": 9
+}

@@ -1,0 +1,15 @@
+{
+  "id": "android",
+  "track": "walk",
+  "dir": "north-east",
+  "pinLast": true,
+  "promptOverride": "Seamless two-step walk in place facing NORTH-EAST, a THREE-QUARTER REAR view. Keep the torso facing diagonally away and right exactly like the input throughout every frame. Both shoulders remain visible from behind; never become a side profile. Alternate left and right leg steps with opposite arm swing and knees flexing. Feet contact original baseline, head steady, body centered and upright. End at exact input neutral pose. Keep exact proportions, faceless sphere head, silver color and crisp pixel shading. No turning, jumping, objects, shadow or new details.",
+  "request": "id: b0de63d8-10ae-4c3b-9bbe-1b82ff0c2d45\njob_id: b0de63d8-10ae-4c3b-9bbe-1b82ff0c2d45\ndescription: Seamless two-step walk in place facing NORTH-EAST, a THREE-QUARTER REAR view. Keep the torso facing diagonally away and right exactly like the input throughout every frame. Both shoulders remain visible from behind; never become a side profile. Alternate left and right leg steps with opposite arm swing and knees flexing. Feet contact original baseline, head steady, body centered and upright. End at exact input neutral pose. Keep exact proportions, faceless sphere head, silver color and crisp pixel shading. No turning, jumping, objects, shadow or new details.\nframes: 8\nsize: 96x96px\ntransparent: True\nlast_frame: yes (animating toward it)\ncost: 2 generations\nstatus: processing (~1-5 min)\n\nhint: get_image(job_id=\"b0de63d8-10ae-4c3b-9bbe-1b82ff0c2d45\")",
+  "job": "b0de63d8-10ae-4c3b-9bbe-1b82ff0c2d45",
+  "source": "output/agent-animation-study/pixel-cadets-0915/full-motion/android/refs/north-east.png",
+  "result": "status: completed\nid: b0de63d8-10ae-4c3b-9bbe-1b82ff0c2d45\njob_id: b0de63d8-10ae-4c3b-9bbe-1b82ff0c2d45\nframes: 9\ndownload: https://api.pixellab.ai/mcp/images/b0de63d8-10ae-4c3b-9bbe-1b82ff0c2d45/download?index=0 ... ?index=8\n(5 more frames not shown — fetch them from the download URLs above)",
+  "done": true,
+  "packed": true,
+  "lastRaw": "output/agent-animation-study/pixel-cadets-0915/full-motion/android/minimax/walk-north-east/b0de63d8-10ae-4c3b-9bbe-1b82ff0c2d45/8.png",
+  "frameCount": 9
+}

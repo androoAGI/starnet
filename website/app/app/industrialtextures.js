@@ -11,7 +11,7 @@ const IndustrialTextures = (() => {
     const query = new URLSearchParams(location.search);
     requested = query.get('textures') !== 'classic';
     crateReview = query.get('propReview') === 'crate';
-    projectionReview = query.get('propSet') === 'projection';
+    projectionReview = query.get('textures') !== 'classic' && query.get('propReview') !== 'skins' && query.get('propSet') !== 'approved';
   } catch (_) {}
   const images = {}, originals = {}, failed = [];
   // Exposed to the existing CRT lab for a live, reproducible material review.
@@ -214,8 +214,9 @@ const IndustrialTextures = (() => {
   function floor(ctx, X, Y, size, tx, ty, id = 'plate', base, opts) {
     if (!enabled()) return false;
     if (opts && opts.detail === 0) return false;
-    const im = floorMaterials.includes(id) ? materialImage('floor-' + id, base, 1.25) : material('remaster/floors/' + (floorIds.includes(id) ? id : 'plate'), base), period = 8;
-    if(!im)return false;
+    const im = floorMaterials.includes(id) ? materialImage('floor-' + id, base, 1.25) : material('remaster/floors/' + (floorIds.includes(id) ? id : 'plate'), base);
+    if (!im) return false;
+    const period = 8;
     ctx.save(); ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high';
     ctx.drawImage(im, mod(tx, period) * im.width / period, mod(ty, period) * im.height / period,
       im.width / period, im.height / period, X, Y, size, size);
@@ -270,13 +271,17 @@ const IndustrialTextures = (() => {
     if (!enabled()) return false;
     if (id === 'viewport') return false; // glass and its authored frame have a separate painter
     if (opts && opts.detail === 0) return false;
-    const im = wallMaterials.includes(id) ? materialImage('wall-' + id, base, 1.65) : material('remaster/walls/' + (wallIds.includes(id) ? id : 'bulkhead'), base);
-    if(!im)return false;
+    const im = wallImage(id, base);
+    if (!im) return false;
     // One structural bay spans four game tiles. This matches the side/corner
     // face-strip period, so the same material wraps without an extra seam.
     ctx.save(); ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high';
     ctx.drawImage(im, mod(tx, 4) * im.width / 4, 0, im.width / 4, im.height, X, Y, width, height);
     ctx.restore(); return true;
+  }
+  function wallImage(id, base) {
+    if (id === 'viewport') return null;
+    return wallMaterials.includes(id) ? materialImage('wall-' + id, base, 1.65) : material('remaster/walls/' + (wallIds.includes(id) ? id : 'bulkhead'), base);
   }
   function wallStrip(height, id = 'bulkhead', base, opts) {
     if (!enabled()) return null;
@@ -284,8 +289,8 @@ const IndustrialTextures = (() => {
     if (opts && opts.detail === 0) return null;
     const key = [height, id, base || '', opts && opts.detail,projectionReview?lighting.wallGain:1].join(':');
     if (wallStrips.has(key)) return wallStrips.get(key);
-    const im = wallMaterials.includes(id) ? materialImage('wall-' + id, base, 1.65) : material('remaster/walls/' + (wallIds.includes(id) ? id : 'bulkhead'), base);
-    if(!im)return null;
+    const im = wallImage(id, base);
+    if (!im) return null;
     const render = scale => {
       const cv = document.createElement('canvas'); cv.width = 48 * scale; cv.height = height * scale;
       const g = cv.getContext('2d'); g.imageSmoothingEnabled = true; g.imageSmoothingQuality = 'high';
@@ -293,7 +298,7 @@ const IndustrialTextures = (() => {
       return { d: g.getImageData(0, 0, cv.width, cv.height).data, w: cv.width, h: cv.height };
     };
     const strip = { ...render(1), x0: 0, hi: { ...render(6), scale: 6 } };
-    if (wallStrips.size > 128) wallStrips.clear();
+    if (wallStrips.size >= 64) wallStrips.delete(wallStrips.keys().next().value);
     wallStrips.set(key, strip); return strip;
   }
   function wallPatch(ctx, x, y, w, h, strip, map) {
@@ -311,10 +316,9 @@ const IndustrialTextures = (() => {
     }
     g.restore();
   }
-  const materialTexture = base => material('remaster/shell',base);
-  function shellImage(material, base) {
-    if (material === 'station') return materialTexture(base);
-    return materialImage('shell-' + material, base, 2.05);
+  function shellImage(id, base) {
+    if (id === 'station') return material('remaster/shell', base);
+    return materialImage('shell-' + id, base, 2.05);
   }
   function materialImage(name, base, exposure) {
     const im = images[name];
@@ -342,8 +346,8 @@ const IndustrialTextures = (() => {
   }
   function shell(ctx, width, height, vx, vy, topOf, material = 'station', base = null) {
     if (!enabled()) return false;
-    const im = shellImage(material,base), period = 96;
-    if(!im)return false;
+    const im = shellImage(material, base), period = 96;
+    if (!im) return false;
     ctx.save(); ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high';
     // Sample each column relative to its actual contour top. The geometry's
     // alpha mask and exposure pass still clip and shade the resulting cladding.

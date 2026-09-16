@@ -134,9 +134,9 @@ A.ok(/const side = sideSeat\(couch\);\s*\n\s*if \(side && dirToward\(cx, cy, bes
 
 const draw = src.slice(src.indexOf('const sitter = (agent && agent.seated'), src.indexOf('// the COVERS, after the body'));
 A.ok(/const sitterSide = sitter \? sideSeat\(p\) : null;/.test(draw), 'the y-sort pass knows whether the prop under the sitter is a profile seat');
-A.ok(/sitter\.seatPy \+ \(sitterUse && sitterUse\.kind === 'couch' && !sitterSide \? 1 : -1\)/.test(draw),
-  'a profile seat sorts BEHIND its sitter (a stool\'s rule); every other couch still sorts in front');
-A.ok(/\(\(sitterUse && sitterUse\.kind === 'seat'\) \|\| sitterSide\)/.test(draw),
+A.ok(/sitter\.seatPy \+ \(sitterUse && sitterUse\.kind === 'couch' && !remasteredCouch\(p\) && !sitterSide \? 1 : -1\)/.test(draw),
+  'a profile seat sorts BEHIND its sitter (a stool\'s rule); classic couches still sort in front; remastered couch uses a foreground layer');
+A.ok(/\(\(sitterUse && sitterUse\.kind === 'seat'\) \|\| sitterSide \|\| remasteredCouch\(p\)\)/.test(draw),
   'and its near arm comes back over the sitter through the same seat-front overlay the stool uses');
 
 A.report('recliner-side-seat');

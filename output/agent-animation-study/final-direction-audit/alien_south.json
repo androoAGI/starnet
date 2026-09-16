@@ -1,0 +1,84 @@
+{
+  "id": "alien",
+  "dir": "south",
+  "track": "walk",
+  "source": "C:/Users/andro/gen-trees/sprite-reimagine-0914/frontend/assets/agent-demo/approved-motion/alien/rot_south.png",
+  "prompt": "Create a production pixel-art eight-frame walking animation sprite sheet of this exact gray-green alien in weathered charcoal station coveralls. Reference is the exact design, proportions, pixel texture, and facing to preserve. Eight evenly spaced cells in exactly four columns and two rows, reading order left to right then second row. Transparent alpha background, no shadows, no text, no grid. Full body in every cell with equal generous margin. Character faces straight toward viewer, both eyes and both shoulders equally visible throughout EVERY frame. No body/head turns within cycle. A compact natural two-step walk IN THE DIRECTION THE CHEST FACES, never lateral stepping, sideways shuffling, or a profile walk pasted onto a front-facing body. Small shoulder counterrotation, arms swing front/back beside torso. Feet alternate contact, down, passing, up for left then right step. For front-facing view, forward motion is foreshortened: boots stay beneath their respective hips, one boot slightly lower/larger while other slightly higher/smaller. Legs never scissor sideways or spread wide. Diagonal views maintain a true three-quarter torso, do not drift to profile. Short restrained stride, no hunched pose, no long stretched legs. Match the exact reference silhouette height and slender normal proportions. Every cell contains the SAME character at same scale, lighting from upper left, fixed pelvis center. Crisp coarse pixel clusters matching reference, no smooth rendered appearance.",
+  "generated": "C:\\Users\\andro\\.codex\\generated_images\\01a09e2a-59d9-7333-ae0c-3d07653ddb14\\exec-db0b96ac-27da-4870-81ac-d455d390a7cc.png",
+  "sheet": "C:/Users/andro/gen-trees/sprite-reimagine-0914/output/agent-animation-study/final-direction-audit/alien-south.png",
+  "selected": [
+    "walk_south_0.png",
+    "walk_south_1.png",
+    "walk_south_2.png",
+    "walk_south_3.png",
+    "walk_south_4.png",
+    "walk_south_5.png",
+    "walk_south_6.png",
+    "walk_south_7.png"
+  ],
+  "packed": true,
+  "scale": 0.21052631578947367,
+  "bounds": [
+    {
+      "left": 138,
+      "top": 60,
+      "width": 164,
+      "height": 351
+    },
+    {
+      "left": 141,
+      "top": 60,
+      "width": 162,
+      "height": 356
+    },
+    {
+      "left": 140,
+      "top": 59,
+      "width": 163,
+      "height": 361
+    },
+    {
+      "left": 139,
+      "top": 60,
+      "width": 166,
+      "height": 356
+    },
+    {
+      "left": 139,
+      "top": 59,
+      "width": 163,
+      "height": 348
+    },
+    {
+      "left": 140,
+      "top": 59,
+      "width": 161,
+      "height": 348
+    },
+    {
+      "left": 140,
+      "top": 59,
+      "width": 163,
+      "height": 353
+    },
+    {
+      "left": 139,
+      "top": 59,
+      "width": 163,
+      "height": 348
+    }
+  ],
+  "inputHashes": {
+    "frontend/assets/agent-demo/approved-motion/alien/rot_south.png": "98711a49d352a33fe863ce851e8b338e260c2bf81ca7e02f9b3f292a05e075c5"
+  },
+  "selectedHashes": {
+    "walk_south_0.png": "687c283e320b99d8fe4d4fc672dc56de944c8feec768e71fd22da2a3dc09e836",
+    "walk_south_1.png": "fe745852e066baa38563c10f2fdcb00b7f738cfb5cde333be39e298e9f35c21c",
+    "walk_south_2.png": "83fde43a9d9fa3182807627145869269ebec850359c0b01983a61855da1a7717",
+    "walk_south_3.png": "770a8b31e7d21bcb868995bcda05dde0e4da0363fa5a720d09c681beb9e476cc",
+    "walk_south_4.png": "17c72268b299e44b5b979e0bddd2e188e5475e112bd23fc81e309dc37d2835ee",
+    "walk_south_5.png": "f1a753cf597ab5eea1b0dbd92797e77b763fe18593d50d142d0dc6710bf58147",
+    "walk_south_6.png": "f728b00b0d09e2d22ecc93d7c90babee42590cf13ad9e2bb4aa78b473002c48d",
+    "walk_south_7.png": "bfee36ae995fd31dddf5fb07ced9761fd16376016ffa727fc35eb941065756fe"
+  }
+}
