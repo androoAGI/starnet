@@ -2716,6 +2716,10 @@ const App = (() => {
       }
       return false;
     }
+    // Which credential the wire test is about to ride, in the Commander's words — the merged OPENAI card has
+    // two doors (ChatGPT sign-in vs API key) and a dead-wire error that doesn't name the door sends people
+    // re-signing-in to ChatGPT when the request never left on it.
+    let wireVia = '';
     if (pickedProvider === 'starnet') {
       // MONEY TRUTH MUST BE FRESH AT THE DECISION. The screen's painted balance can predate a purchase or a
       // relink; using that cached $0 here stranded a funded customer even though /v1/balance already held the
@@ -2734,11 +2738,12 @@ const App = (() => {
     } else if (isOAuthProviderId(pickedProvider)) {
       if (!oauthConnected[pickedProvider]) { msg.textContent = 'sign in with ' + OAUTH_GENESIS[pickedProvider].name + ' first, or switch to OpenRouter.'; return false; }
       Harness.setModel(model); Harness.setProv(pickedProvider);
-    } else if (pickedProvider === 'openai' && !el('in-key').value.trim() && !(Harness.hasStoredCredential && Harness.hasStoredCredential('openai')) && codexConnected) {
-      // THE MERGED OPENAI CARD, ChatGPT half: no key typed, no stored OpenAI credential, but a LIVE ChatGPT
-      // sign-in — the sign-in IS the credential, so this wake rides the codex path. A typed key always wins
-      // (explicit beats ambient) and falls through to the key branch below.
+    } else if (pickedProvider === 'openai' && !el('in-key').value.trim() && codexConnected) {
+      // MERGED OPENAI CARD, ChatGPT half: a LIVE sign-in with no key TYPED rides codex. A typed key wins
+      // (explicit beats ambient); a key merely STORED does NOT — the green card is what the Commander sees,
+      // this screen can't remove a stored key, and it stranded a Plus subscriber on an API 429 (09-16).
       Harness.setModel(model); Harness.setProv('codex');
+      wireVia = 'your ChatGPT sign-in';
     } else {
       const key = el('in-key').value.trim();
       if (providerNeedsBaseUrl(pickedProvider)) {
@@ -2771,6 +2776,7 @@ const App = (() => {
       // setKey is async in desktop (writes the keychain + pushes it to the sidecar); await so the run has it.
       if (key) await (Harness.validateAndSetKey ? Harness.validateAndSetKey(key, pickedProvider) : Harness.setKey(key, pickedProvider));
       Harness.setModel(model); Harness.setProv(pickedProvider);
+      if (pickedProvider === 'openai') wireVia = key ? 'the OpenAI API key you typed' : 'the OpenAI API key stored on this station';
     }
 
     // V3 LAW — THE WIRE IS PROVEN AT THE DOOR (Andrew, 2026-07-19): the awakening AUTHORS this agent's whole
@@ -2793,7 +2799,7 @@ const App = (() => {
         refreshStarnetGenesisStatus();
         return false;
       }
-      msg.textContent = 'your model didn’t answer — ' + wire.why + '. fix it here, then WAKE again; the awakening won’t start on a dead wire.';
+      msg.textContent = 'your model didn’t answer' + (wireVia ? ' (via ' + wireVia + ')' : '') + ' — ' + wire.why + '. fix it here, then WAKE again; the awakening won’t start on a dead wire.';
       return false;
     }
     msg.textContent = '';
