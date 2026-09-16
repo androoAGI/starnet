@@ -18,7 +18,7 @@
   "expectedClaimCount": 37,
   "releaseSurface": {
     "algorithm": "sha256",
-    "sourceCommit": "e11330481a09ffcb265e8e31c05cd886077c4d43",
+    "sourceCommit": "8d4f3f5ca08ce72ad70fb7bdd619446fb26dde4e",
     "pathSetSha256": "7a0683b985d812421502830381422c3108a62af51a5244265282b959da58b038",
     "files": [
       {
@@ -303,8 +303,8 @@
       },
       {
         "path": "frontend/app/bootguard.js",
-        "bytes": 11868,
-        "sha256": "9e1cf5a495345aa8a8ee3825dc3cc9d0e73344e47d48c90a67c20b00aa4b086a"
+        "bytes": 17091,
+        "sha256": "1cf1b8da3c3bb9951e647639446be065f2d114b0420a1110bba6afcdbb0e90ac"
       },
       {
         "path": "frontend/app/bottlestore.js",
@@ -323,8 +323,8 @@
       },
       {
         "path": "frontend/app/chat.js",
-        "bytes": 650002,
-        "sha256": "df1a5b45fd6485da894de9f2112b8749d6306cb53419b706843187ad8cefb95d"
+        "bytes": 652145,
+        "sha256": "72cea63b05db7e3ab916fb8625dcb6fc877c141b7faa19e47d7e3deae3146f3a"
       },
       {
         "path": "frontend/app/chatresize.js",
@@ -1318,8 +1318,8 @@
       },
       {
         "path": "frontend/app/xpstore.js",
-        "bytes": 23724,
-        "sha256": "e8209bb05d8e41cba564296ce87e91da06177f2fb4f1a42b879e6a52eb39dfe5"
+        "bytes": 24384,
+        "sha256": "54dc4bdd930e8337a992f90cb2d84640378993dbb14b7ee779d5bacdfe6772fb"
       },
       {
         "path": "frontend/app/zones.js",
