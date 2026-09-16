@@ -18,7 +18,7 @@
   "expectedClaimCount": 37,
   "releaseSurface": {
     "algorithm": "sha256",
-    "sourceCommit": "975dcbe05e09e1fe37789bc04a326bf0c1983dcc",
+    "sourceCommit": "f6eb219500a06730f7b959416914131fccea0586",
     "pathSetSha256": "90d5146b4d0b5c89f766aa2966a81bc4d704b403cadbe92b22bbafbbc3682eb1",
     "files": [
       {
@@ -88,8 +88,8 @@
       },
       {
         "path": "frontend/agent-demo/demo.js",
-        "bytes": 12775,
-        "sha256": "645ef59f75f53ced14b25421b04e031c4ca6ff3c611704dd5efe179630d65ddf"
+        "bytes": 12897,
+        "sha256": "e7d2a1bc9ad65210b3a324b75d3f067489af21ad0e9d140543293f36c8596b09"
       },
       {
         "path": "frontend/agent-demo/industrialtextures.js",
