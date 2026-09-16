@@ -24,6 +24,8 @@ All 70 previously recorded customer/owner fix commits were verified as ancestors
 
 ## Still-open investigations
 
+September 16 release interruption: owner-reported REFIT entry freeze is recorded as `bf3be27e`. Source fix `15ac83ceb` passes the copied 33-footprint/141-prop station entry, edit and undo probe. The installed candidate remains blocked until rebuilt-installation verification resolves the P1 machine finding. Repeated Task Board openings were caused by the release QA runner; its panel-driving loop has been removed. Performance observation is now passive.
+
 | Report | Disposition | Evidence needed to close |
 | --- | --- | --- |
 | `acb47320` unexplained idle usage | Open P2; no claim of a reproduced billing defect or recovery | Affected account/run ledger matched to armed routines, loops, night shift and provider receipts. Candidate tests cannot explain an unavailable historical bill. |
