@@ -17,6 +17,11 @@ A.eq(fs.existsSync(path.join(staged, 'pricing.html')), PRICING_LIVE,
 A.ok(fs.existsSync(path.join(staged, '404.html')), 'staged artifact carries a real not-found page');
 A.eq(fs.existsSync(path.join(staged, 'app', 'assets', 'sprites', '_assembly')), false, 'sprite assembly sources are absent from deploy artifact');
 A.ok(fs.existsSync(path.join(staged, 'app', 'index.html')), 'staged artifact retains the embedded app');
+A.ok(fs.existsSync(path.join(staged, 'app/assets/industrial/calibration/crate.png')), 'required calibration texture ships so the remaster remains enabled');
+A.ok(fs.existsSync(path.join(staged, 'app/assets/industrial/projection-correction/manifest.json')), 'default remastered prop manifest ships');
+for (const folder of ['batch02', 'batch03', 'props-v2', 'props-v3', 'camera-audit']) {
+  A.eq(fs.existsSync(path.join(staged, 'app/assets/industrial', folder)), false, 'review art is excluded from website upload: ' + folder);
+}
 const stagedApp = fs.readFileSync(path.join(staged, 'app', 'index.html'));
 const stagedEmbed = fs.readFileSync(path.join(staged, 'app', 'embed.htm'));
 A.ok(stagedEmbed.equals(stagedApp), 'staged artifact carries a unique dashboard-upload-safe embed entry');

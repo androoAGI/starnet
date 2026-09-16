@@ -30,6 +30,7 @@
 import { readdirSync, mkdirSync, copyFileSync, rmSync, statSync, existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { join, dirname, resolve, relative, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { shouldStage } from './stage-frontend-dist.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const SRC = join(ROOT, 'website');
@@ -97,7 +98,10 @@ function walk(dir, acc = []) {
 }
 
 const all = walk(SRC);
-const isHeldBack = f => HELD_BACK.has(f) || HELD_BACK_PREFIXES.some(prefix => f.startsWith(prefix));
+// The generated source mirror stays verbatim. Its deploy artifact uses the same
+// runtime-art rule as the desktop, including the required calibration texture.
+const isHeldBack = f => HELD_BACK.has(f) || HELD_BACK_PREFIXES.some(prefix => f.startsWith(prefix)) ||
+  (f.startsWith('app/') && !shouldStage(f.slice(4)));
 const held = all.filter(isHeldBack);
 const shipping = all.filter(f => !isHeldBack(f));
 

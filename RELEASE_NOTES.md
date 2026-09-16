@@ -1,6 +1,6 @@
 # StarNet v0.12.0
 
-Released September 16, 2026. This update remasters the station itself: industrial materials, a redesigned command bridge, a furnished default station with every essential ability already installed, a browsable Build library, remastered agent skins with grounded walk cycles, and an onboarding that goes from what you want to do straight to a first useful task. It also repairs the customer-reported update, boot, rating, delegation and conversation-history problems reported since 0.11.2.
+This update remasters the station itself: industrial materials, a redesigned command bridge, a furnished default station with every essential ability already installed, a browsable Build library, remastered agent skins with grounded walk cycles, and an onboarding that goes from what you want to do straight to a first useful task. It includes fixes and hardening for customer-reported update, boot, rating, delegation and conversation-history problems reported since 0.11.2.
 
 These notes cover the changes shipped since **0.11.2**.
 
@@ -33,6 +33,7 @@ These notes cover the changes shipped since **0.11.2**.
 
 - **Boot guard self-heals a slow engine:** if the desktop window loads before the station engine answers, the shared catalog is retried with backoff and the page reloads once on success instead of painting "STATION FAILED TO BOOT" (the shared/specialties.js reports on Mac and Windows). A genuinely broken file still shows the banner, now with the retry ledger for support.
 - **Account unlink recovery:** unlink and status-read failures stay visible with a retry and a working LINK STATION path instead of silently hiding the controls.
+- **ChatGPT sign-in at setup:** a live ChatGPT sign-in takes precedence over an old saved OpenAI API key when the key field is blank. A key you explicitly type still selects the API route, and connection errors identify the route used.
 - **Browser element discovery:** the internal browser now finds JavaScript-driven cards, ARIA targets and open-shadow controls (the campaign-listing report).
 - **Telegram and channel leads** receive the crew briefing matching the delegation tools they were actually granted; workers cannot delegate recursively.
 - **Local models:** small-talk turns omit task-only prompt material and per-run ids ride last in the prompt so caches survive; Ollama output has a configurable ceiling and capped casual replies stop without automatic continuation.
@@ -43,4 +44,5 @@ These notes cover the changes shipped since **0.11.2**.
 
 - Existing stations keep their layout, props, crew, conversations, routines, goals and settings. The furnished presets never replace a saved station; they are applied only from Build and can be restored.
 - Update from SYSTEM → SETTINGS → UPDATE CENTER, or download the installer for Windows or macOS from the release page. The desktop shell clears the stale WebView cache automatically on a version change.
-- The customary 48-hour installed soak was waived by the owner for this release; in its place the signed Windows candidate passed the installed smoke, the scripted scale soak and an installed reliability/lag measurement recorded in docs/releases/0.12.0.
+- The installer is substantially larger than 0.11.2 because it includes the new station and character artwork. Review-only art is excluded; the textures needed to enable the remaster are included.
+- The customary 48-hour attended soak was waived for this release. Candidate-specific installed smoke, scripted reliability and responsiveness receipts are recorded with the release preparation evidence.

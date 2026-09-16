@@ -1,3 +1,9 @@
+## 0.12.0 INSTALLER RECOVERY — 2026-09-16 (`agent/release-0120-prep-0915`)
+
+Owner requested the complete overhaul installer and customer-issue preparation, stopping before publication. The prior release-lane merge reservation is released: its changes reached trunk through `fd55ee2b2`, and its two remaining bundle-note commits are incorporated here. The installed candidate reproduced native graphics fallback because packaging omitted calibration/crate. Correction `d1848af00` restores the required texture; the regression executes the production loader. See [RECOVERY.md](releases/0.12.0/RECOVERY.md) and [bug dispositions](releases/0.12.0/BUG_DISPOSITION.md). Build, installed proof and final combined gates remain in progress. Include the active session-typing lane before freeze. These notes do not authorize publication.
+
+The preparation notes below are historical snapshots; their unmerged/readiness counts are superseded by the recovery record and fresh machine receipts.
+
 ## 0.12.0 PREPARATION — 2026-09-15 (`agent/release-0120-prep-0915`)
 
 Owner requested preparation while the final overhaul merges remain in flight. Baseline
