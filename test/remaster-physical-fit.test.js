@@ -48,3 +48,18 @@ assert.deepEqual(bounds({x:4,y:5,w:5,h:3,mount:true}),{x:53,y:62,width:50,height
 assert.equal(reads,1,'repeated selection reuses the rendered-mask measurement');
 assert.equal(bounds({empty:true}),null,'unavailable artwork falls back to tile selection');
 console.log('PASS: selection follows visible alpha, translated/mounted art, cached measurement and unavailable-art fallback.');
+// A real multi-room fixture must retain its existing placement/routing metadata
+// through the remaster save path. Only the explicitly versioned table migration
+// may change a placement; repeated loads must never drift coordinates.
+const legacyLayout=require('./fixtures/prop-layout-geometry.json');
+const legacyBytes=JSON.stringify(legacyLayout);
+M.setPropRules(null);const nativeSave=M.deserialize(legacyLayout).serialize();
+M.setPropRules(id=>P.spec(id));const upgradedSave=M.deserialize(nativeSave).serialize();
+const nativeDoc=typeof nativeSave==='string'?JSON.parse(nativeSave):nativeSave;
+const upgradedDoc=typeof upgradedSave==='string'?JSON.parse(upgradedSave):upgradedSave;
+for(const key of ['rooms','order','belts','edges','meta'])assert.deepEqual(upgradedDoc[key],nativeDoc[key],'upgrade preserves '+key);
+for(const before of nativeDoc.props){const after=upgradedDoc.props.find(p=>p.id===before.id);assert(after,'no saved prop disappears');if(before.t!=='bridge_tacticaltable')assert.deepEqual(after,before,'unchanged saved placement '+before.id);}
+assert.deepEqual(M.deserialize(upgradedSave).serialize(),upgradedSave,'second load does not move or relabel anything');
+assert.equal(JSON.stringify(legacyLayout),legacyBytes,'upgrade never mutates the source document');
+M.setPropRules(null);
+console.log('PASS: legacy multi-room save retains room, placement, routing and agent assignment metadata with an idempotent remaster load.');

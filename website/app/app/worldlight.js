@@ -213,7 +213,7 @@ const WorldLight = (() => {
     let interiorPath = null, interiorMask = null, surfaceMask = null, surfaceChunks = [];
     let baseDark = null, baseGlow = null, frameDark = null, frameGlow = null;
     let fixtureKey = '', frameKey = '', fixtureLights = [], currentLights = [], stampPixels = 0, disposed = false;
-    let preparedFrame = null, preparedLights = [];
+    let preparedFrame = null, preparedLights = [], preparedConfigRevision = -1;
     const stamps = new Map(), canvasWatches = new Map(), lostCanvases = new Set(), samples = new Map();
     let sampleKey = null;
     let resourcesDirty = false, retryResourcesAt = 0;
@@ -485,6 +485,7 @@ const WorldLight = (() => {
         '|fixtures:' + exact(fixtureLights) + '|props:' + exact(preparedLights);
       if (nextSampleKey !== sampleKey) { invalidateSamples(); sampleKey = nextSampleKey; }
       metrics.droppedSources = Math.max(0, sourceFixtures.length - fixtureLights.length) + Math.max(0, sourceProps.length - preparedLights.length);
+      preparedConfigRevision = metrics.configRevision;
       metrics.preparations++; return true;
     }
 
@@ -494,7 +495,10 @@ const WorldLight = (() => {
       // invalidates all geometry-dependent caches and their normalized sources.
       const nextFrame = frame === undefined ? preparedFrame || {} : frame;
       const started = clock(); if (!ensureResources()) return false;
-      prepare(nextFrame);
+      // World prepares before drawing bodies so their lighting is current.
+      // Reuse those exact normalized sources for the composite pass. Recovery
+      // clears preparedFrame; explicit frames and config changes still refresh.
+      if(frame !== undefined || !preparedFrame || preparedConfigRevision !== metrics.configRevision)prepare(nextFrame);
       const fixtures = fixtureLights, lights = preparedLights;
       const fk = signature(fixtures) + '|' + config.ambient + ',' + config.ambientLift + ',' + config.wallAmbient + ',' + config.fixtureTint + ',' + config.shafts;
       if (fk !== fixtureKey) { rebuildStatic(fixtures); fixtureKey = fk; frameKey = ''; }

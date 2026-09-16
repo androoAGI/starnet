@@ -1941,7 +1941,16 @@ const WorldModel = (() => {
       // Validate both the logical tile-centre route and the rendered foot route.
       // world.js footOf uses (x + .5, y + 1 - 1/TILE), so a centre-only
       // shortcut can cross a wall beside a doorway even when its BFS is legal.
-      function segmentClear(ax, ay, bx, by, extra) {
+      // The visible wall face occupies part of an otherwise walkable edge tile.
+      // A foot may enter through an open north doorway, but may only turn beside
+      // it after clearing the 9px wall face (5px in corridors). Keep this finer
+      // clearance separate from floor occupancy so existing narrow halls survive.
+      const wallClearance = new Uint8Array(COLS * ROWS);
+      for(let y=0;y<ROWS;y++)for(let x=0;x<COLS;x++){
+        if(zoneGrid[idx(x,y)]==null)continue;
+        wallClearance[idx(x,y)]=(!canStep(x,y,x,y-1)?1:0)|(!canStep(x,y,x-1,y)?2:0)|(!canStep(x,y,x+1,y)?4:0);
+      }
+      function segmentClear(ax, ay, bx, by, extra, physical = false) {
         if (![ax, ay, bx, by].every(Number.isFinite)) return false;
         const x0 = Math.floor(ax), y0 = Math.floor(ay), x1 = Math.floor(bx), y1 = Math.floor(by);
         let x = x0, y = y0;
@@ -1950,9 +1959,22 @@ const WorldModel = (() => {
         const stepX = dx ? 1 / dx : Infinity, stepY = dy ? 1 / dy : Infinity;
         let nextX = dx ? (xi > 0 ? x + 1 - ax : ax - x) / dx : Infinity;
         let nextY = dy ? (yi > 0 ? y + 1 - ay : ay - y) / dy : Infinity;
+        let entered=0;
+        const clearFace=(x,y,from,to)=>{
+          if(!physical)return true;
+          const flags=wallClearance[idx(x,y)];if(!flags)return true;
+          const cor=isCorridor(zoneGrid[idx(x,y)]),side=((cor?2:4)+.5)/TILE,north=((cor?5:9)+.5)/TILE;
+          const xa=ax+(bx-ax)*from-x,xb=ax+(bx-ax)*to-x,ya=ay+(by-ay)*from-y,yb=ay+(by-ay)*to-y;
+          return (!(flags&1)||Math.min(ya,yb)>=north-1e-8)
+            && (!(flags&2)||Math.min(xa,xb)>=side-1e-8)
+            && (!(flags&4)||Math.max(xa,xb)<=1-side+1e-8);
+        };
         let guard = Math.abs(x1 - x0) + Math.abs(y1 - y0) + 1;
         while ((x !== x1 || y !== y1) && guard-- > 0) {
           if (!walkable(x, y, extra)) return false;
+          const leaving=Math.min(1,nextX,nextY);
+          if(!clearFace(x,y,entered,leaving))return false;
+          entered=leaving;
           if (nextX < nextY - 1e-10) {
             if (!walkable(x + xi, y, extra) || !canStep(x, y, x + xi, y)) return false;
             x += xi; nextX += stepX;
@@ -1967,15 +1989,15 @@ const WorldModel = (() => {
             x += xi; y += yi; nextX += stepX; nextY += stepY;
           }
         }
-        return guard > 0 && walkable(x1, y1, extra);
+        return guard > 0 && walkable(x1, y1, extra) && clearFace(x1,y1,entered,1);
       }
       function losClear(x0, y0, x1, y1, extra) {
         const fy = 1 - 1 / TILE;
         return segmentClear(x0 + .5, y0 + .5, x1 + .5, y1 + .5, extra)
-          && segmentClear(x0 + .5, y0 + fy, x1 + .5, y1 + fy, extra);
+          && segmentClear(x0 + .5, y0 + fy, x1 + .5, y1 + fy, extra, true);
       }
       // Pixel-space companion for actual starts, corner lookahead and body nudges.
-      const clearFootSegment = (ax, ay, bx, by, extra) => segmentClear(ax / TILE, ay / TILE, bx / TILE, by / TILE, extra);
+      const clearFootSegment = (ax, ay, bx, by, extra) => segmentClear(ax / TILE, ay / TILE, bx / TILE, by / TILE, extra, true);
       function smoothPath(pts, sx, sy, extra) {
         if (!pts || pts.length < 3) return pts;
         const out = [];

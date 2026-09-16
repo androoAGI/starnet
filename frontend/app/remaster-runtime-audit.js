@@ -112,11 +112,45 @@
     d.meta={...d.meta,spawnRoomId:d.order[0],trunkRoomId:d.order[0]};World.loadStation(WorldModel.deserialize(d));await pause(500);World.frameReviewRoom('');last='Large layout: '+d.props.length+' props, '+d.order.length+' room regions, '+Object.keys(d.belts).length+' belt tiles. Four separated Kepler modules.';publish();
   });
   button('Overview',()=>{World.frameReviewRoom('');});
+  button('Doorway walk regression',async()=>{
+    if(busy)return;busy=true;receipt.doorways=[];
+    const station=WorldModel.create();
+    station.placeHallway({rect:{x1:7,y1:-5,x2:8,y2:-1}});
+    const g=station.projectGeometry(),root=station.doc().order[0];
+    World.loadStation(station);await pause(500);World.frameReviewRoom(root);World.setCinecamIdle(86400000);
+    const tile=(x,y)=>({x:x-g.origin.tx,y:y-g.origin.ty}),foot=t=>({x:t.x*12+6,y:t.y*12+11});
+    for(let round=0;round<3;round++)for(const side of [3,12])for(const reverse of [false,true]){
+      const a=tile(7,-2),b=tile(side,0),start=reverse?b:a,end=reverse?a:b,p=foot(start),dest=foot(end),aid=actor().id;
+      World._dbgTeleport(aid,p.x,p.y);const planned=World._dbgReviewWalk(aid,end.x,end.y),began=performance.now();
+      let samples=0,inWall=0,arrived=false;
+      do{
+        await pause(16);const body=actor();samples++;
+        // Independent visual check against the known north wall shoulders,
+        // not the pathfinder's own clearance predicate. Body snapshots round px.
+        const wx=body.px/12+g.origin.tx,wy=body.py/12+g.origin.ty;
+        if(wy>=0&&wy<9/12&&(wx<7||wx>9))inWall++;
+        arrived=Math.hypot(body.px-dest.x,body.py-dest.y)<1.5;
+      }while(!arrived&&performance.now()-began<15000);
+      receipt.doorways.push({round,side,reverse,planned,arrived,inWall,samples,ms:Math.round(performance.now()-began)});
+      last='Doorway walks: '+receipt.doorways.length+' / 12 · '+receipt.doorways.filter(c=>!c.arrived||c.inWall).length+' failures';publish();
+    }
+    busy=false;publish();
+  });
   button('Close view',()=>{const d=World.stationDoc();World.frameReviewRoom(fixture&&d.rooms[fixture.roomId]?fixture.roomId:d.order[0]);});
   button('Inspect wall',async()=>{
     if(busy)return;const d=JSON.parse(JSON.stringify(World.stationDoc())),id=fixture&&d.rooms[fixture.roomId]?fixture.roomId:d.order[0];
     d.rooms[id].wallMat=wallReview.value;World.loadStation(WorldModel.deserialize(d));await pause(400);World.frameReviewRoom(id);World.setCinecamIdle(86400000);
     receipt.structure={material:wallReview.value,texturePack:IndustrialTextures.status(),room:id};last='Wall review: '+wallReview.value+' · '+receipt.structure.texturePack.assets.length+' textures loaded · '+receipt.structure.texturePack.failed.length+' failures';publish();
+  });
+  button('Measure 2 minute soak',async()=>{
+    if(busy)return;busy=true;receipt.soak=[];
+    for(let i=0;i<6;i++){
+      World._dbgReviewPerformance(true);last='Soak window '+(i+1)+' / 6 (20 seconds each)';publish();await pause(20000);
+      const p=World._dbgReviewPerformance(false),times=p.samples.map(s=>s.ms).sort((a,b)=>a-b),gaps=p.samples.slice(1).map((s,j)=>s.t-p.samples[j].t).sort((a,b)=>a-b);
+      const q=(a,f)=>+(a[Math.min(a.length-1,Math.floor(a.length*f))]||0).toFixed(2);
+      receipt.soak.push({window:i+1,frames:p.samples.length,props:p.props,canvas:p.canvas,scale:p.scale,callbackP95:q(times,.95),intervalP95:q(gaps,.95),renderFaults:p.renderFaults,raster:PropRemaster.status(),renderer:World.renderStats()});
+    }
+    busy=false;last='Two-minute soak complete · '+receipt.soak.length+' measured windows';publish();
   });
   button('Measure 8 seconds',async()=>{
     if(busy)return;busy=true;last='Warming renderer for 2 seconds…';publish();await pause(2000);World._dbgReviewPerformance(true);last='Measuring actual World frame callbacks…';publish();await pause(8000);
