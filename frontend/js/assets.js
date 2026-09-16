@@ -643,7 +643,19 @@ const SPRITES = (() => {
     if ('imageSmoothingQuality' in ctx) ctx.imageSmoothingQuality = 'high';
     try {
       if(speech){ctx.save();const foot=b.py+GROUND_BITE-seatLift;ctx.translate(0,foot);ctx.transform(1,0,speech*.009,1,0,0);ctx.translate(0,-foot);}
+      // Rear-facing desk poses tuck their shins beneath the console. The chair
+      // occludes the torso, but its open caster base must not reveal sprite boots.
+      const tuckDeskFeet = b.sitting && !b.seated && (b.working || b.goal === 'work')
+        && /\.(sit|type)\.north$/.test(key);
+      if (tuckDeskFeet) {
+        ctx.save();
+        const floor = y + (dh - getFramePad(f) * sc) * breathScale;
+        ctx.beginPath();
+        ctx.rect(x - 1, y - 1, dw + 2, Math.max(0, floor - y - 5));
+        ctx.clip();
+      }
       ctx.drawImage(lightFrame(f, light), x, y, dw, drawHeight);
+      if (tuckDeskFeet) ctx.restore();
       if(speech)ctx.restore();
     }
     finally {
