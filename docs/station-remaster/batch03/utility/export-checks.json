@@ -1,0 +1,1021 @@
+{
+  "version": 1,
+  "authorization": "User explicitly proceeded with deterministic exporter 2026-09-14",
+  "method": "Light-neutral flood fill with inspected enclosed-hole seeds; original RGB and canvas preserved",
+  "records": [
+    {
+      "id": "monstera",
+      "minNeutral": 100,
+      "maxChroma": 25,
+      "seeds": [
+        [
+          473,
+          131
+        ],
+        [
+          772,
+          187
+        ],
+        [
+          831,
+          230
+        ],
+        [
+          585,
+          304
+        ],
+        [
+          728,
+          357
+        ],
+        [
+          140,
+          362
+        ],
+        [
+          690,
+          424
+        ],
+        [
+          1029,
+          434
+        ],
+        [
+          657,
+          438
+        ],
+        [
+          211,
+          441
+        ],
+        [
+          160,
+          444
+        ],
+        [
+          333,
+          493
+        ],
+        [
+          359,
+          503
+        ],
+        [
+          1042,
+          522
+        ],
+        [
+          127,
+          538
+        ],
+        [
+          184,
+          568
+        ],
+        [
+          919,
+          606
+        ],
+        [
+          1064,
+          613
+        ],
+        [
+          994,
+          654
+        ],
+        [
+          1093,
+          708
+        ],
+        [
+          342,
+          793
+        ],
+        [
+          960,
+          845
+        ],
+        [
+          330,
+          872
+        ],
+        [
+          310,
+          980
+        ]
+      ],
+      "source": "docs/station-remaster/batch03/utility/sources/monstera.png",
+      "sourceSha256": "aa4f8213d221a2e668cb3fba872b240018fd3358a9df9e1ca82b838bb7c4bc56",
+      "sourceWidth": 1205,
+      "sourceHeight": 1306,
+      "output": "frontend/assets/industrial/batch03/utility/monstera.png",
+      "canvasPreserved": true,
+      "alphaBounds": {
+        "x": 22,
+        "y": 7,
+        "width": 1165,
+        "height": 1255
+      },
+      "channels": 4,
+      "transparentPixels": 701831,
+      "opaquePixels": 871899,
+      "partialPixels": 0,
+      "backgroundPixelsRemoved": 701831,
+      "islandPixelsRemoved": 0,
+      "subjectRgbChanges": 0,
+      "outputSha256": "a72776ff73fe4d9fdabb8c3d46df9b5028e75978e3b0d7c3c74175f3f0a33b47"
+    },
+    {
+      "id": "industrial_planter",
+      "seeds": [],
+      "source": "docs/station-remaster/batch03/utility/sources/industrial_planter.png",
+      "sourceSha256": "136a75ee9eaf2bcefad6c5a0bf17d618ce4e154a60a050ea9880d487fd19dd86",
+      "sourceWidth": 1430,
+      "sourceHeight": 1100,
+      "output": "frontend/assets/industrial/batch03/utility/industrial_planter.png",
+      "canvasPreserved": true,
+      "alphaBounds": {
+        "x": 26,
+        "y": 96,
+        "width": 1379,
+        "height": 800
+      },
+      "channels": 4,
+      "transparentPixels": 763915,
+      "opaquePixels": 809085,
+      "partialPixels": 0,
+      "backgroundPixelsRemoved": 763897,
+      "islandPixelsRemoved": 18,
+      "subjectRgbChanges": 0,
+      "outputSha256": "20702ead904c798b595e6cd89acb40bc6aee17e04cf3b1c9b852c91ad0d13603"
+    },
+    {
+      "id": "terrarium",
+      "seeds": [],
+      "source": "docs/station-remaster/batch03/utility/sources/terrarium.png",
+      "sourceSha256": "0e05e942177ee15544e17982be8730102b20f0d08229361105e3cdbdd470ce05",
+      "sourceWidth": 1039,
+      "sourceHeight": 1514,
+      "output": "frontend/assets/industrial/batch03/utility/terrarium.png",
+      "canvasPreserved": true,
+      "alphaBounds": {
+        "x": 184,
+        "y": 30,
+        "width": 672,
+        "height": 1434
+      },
+      "channels": 4,
+      "transparentPixels": 700701,
+      "opaquePixels": 872345,
+      "partialPixels": 0,
+      "backgroundPixelsRemoved": 700701,
+      "islandPixelsRemoved": 0,
+      "subjectRgbChanges": 0,
+      "outputSha256": "b591ddaa41c4086e90b3ef493684e238572d976d441591503f0acfc242579094"
+    },
+    {
+      "id": "tallplant",
+      "seeds": [
+        [
+          544,
+          243
+        ],
+        [
+          347,
+          245
+        ],
+        [
+          322,
+          296
+        ],
+        [
+          539,
+          330
+        ],
+        [
+          544,
+          379
+        ],
+        [
+          594,
+          415
+        ],
+        [
+          575,
+          440
+        ],
+        [
+          573,
+          504
+        ],
+        [
+          410,
+          530
+        ],
+        [
+          368,
+          534
+        ],
+        [
+          516,
+          538
+        ],
+        [
+          515,
+          565
+        ],
+        [
+          532,
+          633
+        ],
+        [
+          554,
+          634
+        ],
+        [
+          553,
+          664
+        ],
+        [
+          503,
+          668
+        ],
+        [
+          518,
+          724
+        ],
+        [
+          285,
+          731
+        ],
+        [
+          479,
+          767
+        ],
+        [
+          490,
+          813
+        ],
+        [
+          336,
+          838
+        ],
+        [
+          472,
+          838
+        ],
+        [
+          425,
+          849
+        ],
+        [
+          322,
+          858
+        ],
+        [
+          619,
+          865
+        ],
+        [
+          636,
+          877
+        ],
+        [
+          473,
+          887
+        ],
+        [
+          366,
+          906
+        ],
+        [
+          593,
+          910
+        ],
+        [
+          587,
+          943
+        ],
+        [
+          323,
+          966
+        ],
+        [
+          488,
+          984
+        ],
+        [
+          506,
+          1048
+        ],
+        [
+          366,
+          1114
+        ],
+        [
+          378,
+          1186
+        ],
+        [
+          531,
+          1247
+        ]
+      ],
+      "source": "docs/station-remaster/batch03/utility/sources/tallplant.png",
+      "sourceSha256": "72eb2bb135793e74e374b303eaf982a72ddf1ba9d78e27591b89e348d4dd96ac",
+      "sourceWidth": 887,
+      "sourceHeight": 1774,
+      "output": "frontend/assets/industrial/batch03/utility/tallplant.png",
+      "canvasPreserved": true,
+      "alphaBounds": {
+        "x": 116,
+        "y": 17,
+        "width": 664,
+        "height": 1731
+      },
+      "channels": 4,
+      "transparentPixels": 1001610,
+      "opaquePixels": 571928,
+      "partialPixels": 0,
+      "backgroundPixelsRemoved": 1001581,
+      "islandPixelsRemoved": 29,
+      "subjectRgbChanges": 0,
+      "outputSha256": "0a954344173bf3dcb92242b50fd3cf111a0333718ba95d5453bdd50ee4119ce3"
+    },
+    {
+      "id": "fishtank",
+      "seeds": [],
+      "source": "docs/station-remaster/batch03/utility/sources/fishtank.png",
+      "sourceSha256": "52e01b274b15fe8853b0cf4fc38b744fe072259ff421725ed52f7922cae4bd77",
+      "sourceWidth": 1306,
+      "sourceHeight": 1205,
+      "output": "frontend/assets/industrial/batch03/utility/fishtank.png",
+      "canvasPreserved": true,
+      "alphaBounds": {
+        "x": 139,
+        "y": 55,
+        "width": 1026,
+        "height": 1077
+      },
+      "channels": 4,
+      "transparentPixels": 544927,
+      "opaquePixels": 1028803,
+      "partialPixels": 0,
+      "backgroundPixelsRemoved": 544927,
+      "islandPixelsRemoved": 0,
+      "subjectRgbChanges": 0,
+      "outputSha256": "063b2807b5ed711a94fb640e294055168f85e398ddb73a42197636d7fb72be0f"
+    },
+    {
+      "id": "lavalamp",
+      "seeds": [],
+      "source": "docs/station-remaster/batch03/utility/sources/lavalamp.png",
+      "sourceSha256": "d6e4b4087b315ac8abc8c99a23e03b5bd9dc31c51bc52ba5b67d6ec1855e99a3",
+      "sourceWidth": 793,
+      "sourceHeight": 1983,
+      "output": "frontend/assets/industrial/batch03/utility/lavalamp.png",
+      "canvasPreserved": true,
+      "alphaBounds": {
+        "x": 117,
+        "y": 22,
+        "width": 559,
+        "height": 1931
+      },
+      "channels": 4,
+      "transparentPixels": 805412,
+      "opaquePixels": 767107,
+      "partialPixels": 0,
+      "backgroundPixelsRemoved": 805412,
+      "islandPixelsRemoved": 0,
+      "subjectRgbChanges": 0,
+      "outputSha256": "0e7d65f917ffbf36808fb82912c2dcc71c5c1187caf03811138e0d98bdfff2db"
+    },
+    {
+      "id": "plasmaglobe",
+      "seeds": [],
+      "source": "docs/station-remaster/batch03/utility/sources/plasmaglobe.png",
+      "sourceSha256": "496d2ffe1570c9e179d569c6c9f14ebb8114e2a9ebf6790107c91722c9ae4803",
+      "sourceWidth": 913,
+      "sourceHeight": 1723,
+      "output": "frontend/assets/industrial/batch03/utility/plasmaglobe.png",
+      "canvasPreserved": true,
+      "alphaBounds": {
+        "x": 34,
+        "y": 22,
+        "width": 845,
+        "height": 1622
+      },
+      "channels": 4,
+      "transparentPixels": 539645,
+      "opaquePixels": 1033454,
+      "partialPixels": 0,
+      "backgroundPixelsRemoved": 539645,
+      "islandPixelsRemoved": 0,
+      "subjectRgbChanges": 0,
+      "outputSha256": "e02e107a72ba6ba83b78334c4b7017bc332dcdfe15ae34865506974d33d460ac"
+    },
+    {
+      "id": "etsy_dyevat",
+      "seeds": [],
+      "maxChroma": 15,
+      "source": "docs/station-remaster/batch03/utility/sources/etsy_dyevat.png",
+      "sourceSha256": "9e23edc939d7180d23ad37c7e84b80f5b849e2bcde8187ab00a8cee521f511aa",
+      "sourceWidth": 1254,
+      "sourceHeight": 1254,
+      "output": "frontend/assets/industrial/batch03/utility/etsy_dyevat.png",
+      "canvasPreserved": true,
+      "alphaBounds": {
+        "x": 107,
+        "y": 4,
+        "width": 1032,
+        "height": 1179
+      },
+      "channels": 4,
+      "transparentPixels": 565832,
+      "opaquePixels": 1006684,
+      "partialPixels": 0,
+      "backgroundPixelsRemoved": 565789,
+      "islandPixelsRemoved": 43,
+      "subjectRgbChanges": 0,
+      "outputSha256": "9a02967d2f1eeaf212349208e61342e191afec1ae2ed3a5ecf5a7945a6051269"
+    },
+    {
+      "id": "etsy_kiln",
+      "seeds": [
+        [
+          1032,
+          900
+        ]
+      ],
+      "maxChroma": 15,
+      "source": "docs/station-remaster/batch03/utility/sources/etsy_kiln.png",
+      "sourceSha256": "cb4464d6c710522ae2e7857a3851cd353297d076e437b8b455020331217ef3ee",
+      "sourceWidth": 1197,
+      "sourceHeight": 1315,
+      "output": "frontend/assets/industrial/batch03/utility/etsy_kiln.png",
+      "canvasPreserved": true,
+      "alphaBounds": {
+        "x": 97,
+        "y": 36,
+        "width": 1029,
+        "height": 1214
+      },
+      "channels": 4,
+      "transparentPixels": 555905,
+      "opaquePixels": 1018150,
+      "partialPixels": 0,
+      "backgroundPixelsRemoved": 555905,
+      "islandPixelsRemoved": 0,
+      "subjectRgbChanges": 0,
+      "outputSha256": "3b00448deefa5a1e28293d8980e9aec73531876de2a7c4b365911f54922fc1b7"
+    },
+    {
+      "id": "research_samplecart",
+      "seeds": [
+        [
+          211,
+          149
+        ],
+        [
+          1097,
+          103
+        ],
+        [
+          334,
+          103
+        ],
+        [
+          629,
+          103
+        ],
+        [
+          868,
+          103
+        ]
+      ],
+      "maxChroma": 15,
+      "source": "docs/station-remaster/batch03/utility/sources/research_samplecart.png",
+      "sourceSha256": "417f332881db82322c2a9b759d51decc9f04722e2c032b990351536190ae17e0",
+      "sourceWidth": 1564,
+      "sourceHeight": 1006,
+      "output": "frontend/assets/industrial/batch03/utility/research_samplecart.png",
+      "canvasPreserved": true,
+      "alphaBounds": {
+        "x": 120,
+        "y": 29,
+        "width": 1280,
+        "height": 923
+      },
+      "channels": 4,
+      "transparentPixels": 728290,
+      "opaquePixels": 845094,
+      "partialPixels": 0,
+      "backgroundPixelsRemoved": 728290,
+      "islandPixelsRemoved": 0,
+      "subjectRgbChanges": 0,
+      "outputSha256": "c44ecf5fd17775f839c6cdb7a9c6041ed714ecc0544d5d381046aaa6e01b5272"
+    },
+    {
+      "id": "incubator",
+      "seeds": [
+        [
+          491,
+          96
+        ],
+        [
+          604,
+          1260
+        ],
+        [
+          198,
+          1278
+        ],
+        [
+          610,
+          1568
+        ],
+        [
+          202,
+          1571
+        ]
+      ],
+      "maxChroma": 15,
+      "source": "docs/station-remaster/batch03/utility/sources/incubator.png",
+      "sourceSha256": "1849641c72478133763c7d608e68db3a82998c185a5de5de9d0fd87b3df7e988",
+      "sourceWidth": 818,
+      "sourceHeight": 1923,
+      "output": "frontend/assets/industrial/batch03/utility/incubator.png",
+      "canvasPreserved": true,
+      "alphaBounds": {
+        "x": 130,
+        "y": 19,
+        "width": 554,
+        "height": 1797
+      },
+      "channels": 4,
+      "transparentPixels": 848406,
+      "opaquePixels": 724608,
+      "partialPixels": 0,
+      "backgroundPixelsRemoved": 848406,
+      "islandPixelsRemoved": 0,
+      "subjectRgbChanges": 0,
+      "outputSha256": "8665cd1f6c7771bc79e2a032abd8fbb5166b689c2e0adb1ed845def723b1de31"
+    },
+    {
+      "id": "cryopod",
+      "seeds": [
+        [
+          128,
+          1480
+        ],
+        [
+          664,
+          1481
+        ]
+      ],
+      "maxChroma": 15,
+      "source": "docs/station-remaster/batch03/utility/sources/cryopod.png",
+      "sourceSha256": "34728b41d5b08769614edbb30399c464fdc49eb955587657a4dc445f9bb9ff72",
+      "sourceWidth": 793,
+      "sourceHeight": 1983,
+      "output": "frontend/assets/industrial/batch03/utility/cryopod.png",
+      "canvasPreserved": true,
+      "alphaBounds": {
+        "x": 61,
+        "y": 25,
+        "width": 670,
+        "height": 1865
+      },
+      "channels": 4,
+      "transparentPixels": 461326,
+      "opaquePixels": 1111193,
+      "partialPixels": 0,
+      "backgroundPixelsRemoved": 461326,
+      "islandPixelsRemoved": 0,
+      "subjectRgbChanges": 0,
+      "outputSha256": "0eccdbab2db8bd4a74c5de635e093e73679c0cff437ebfab8c10072a569e779e"
+    },
+    {
+      "id": "intake",
+      "seeds": [],
+      "maxChroma": 15,
+      "source": "docs/station-remaster/batch03/utility/sources/intake.png",
+      "sourceSha256": "73469d91b31537c519db92f7377e1b48da8860cf7f1a8cbffe025a08276de81f",
+      "sourceWidth": 1298,
+      "sourceHeight": 1212,
+      "output": "frontend/assets/industrial/batch03/utility/intake.png",
+      "canvasPreserved": true,
+      "alphaBounds": {
+        "x": 17,
+        "y": 13,
+        "width": 1265,
+        "height": 1180
+      },
+      "channels": 4,
+      "transparentPixels": 532781,
+      "opaquePixels": 1040395,
+      "partialPixels": 0,
+      "backgroundPixelsRemoved": 532781,
+      "islandPixelsRemoved": 0,
+      "subjectRgbChanges": 0,
+      "outputSha256": "05c94d79e01fe2e420eacc5f02684e8ea2c3cae681a93fe1bbfd38bb832f6b3b"
+    },
+    {
+      "id": "merger",
+      "seeds": [],
+      "maxChroma": 15,
+      "source": "docs/station-remaster/batch03/utility/sources/merger.png",
+      "sourceSha256": "39c36beab14648e6f2a5b9f0b47c3b4974cd5118c4a1bc4486926fd1a469ba92",
+      "sourceWidth": 1512,
+      "sourceHeight": 1040,
+      "output": "frontend/assets/industrial/batch03/utility/merger.png",
+      "canvasPreserved": true,
+      "alphaBounds": {
+        "x": 26,
+        "y": 31,
+        "width": 1460,
+        "height": 929
+      },
+      "channels": 4,
+      "transparentPixels": 751090,
+      "opaquePixels": 821390,
+      "partialPixels": 0,
+      "backgroundPixelsRemoved": 751090,
+      "islandPixelsRemoved": 0,
+      "subjectRgbChanges": 0,
+      "outputSha256": "da07e96a6a64f95e4db1e622f7dfb92cc3622f03e36fb148b5ce24e1e11db5db"
+    },
+    {
+      "id": "splitter",
+      "seeds": [],
+      "maxChroma": 15,
+      "source": "docs/station-remaster/batch03/utility/sources/splitter.png",
+      "sourceSha256": "386fecd304f1fdca111551e9d1da2bb8cd1d8ba592d5d0831d881789f10a987c",
+      "sourceWidth": 1464,
+      "sourceHeight": 1075,
+      "output": "frontend/assets/industrial/batch03/utility/splitter.png",
+      "canvasPreserved": true,
+      "alphaBounds": {
+        "x": 24,
+        "y": 16,
+        "width": 1417,
+        "height": 1027
+      },
+      "channels": 4,
+      "transparentPixels": 714324,
+      "opaquePixels": 859476,
+      "partialPixels": 0,
+      "backgroundPixelsRemoved": 714324,
+      "islandPixelsRemoved": 0,
+      "subjectRgbChanges": 0,
+      "outputSha256": "388d4307db1d717bca132d8309826ce7227d2c87017897954c28f27232025970"
+    },
+    {
+      "id": "joiner",
+      "seeds": [],
+      "maxChroma": 15,
+      "source": "docs/station-remaster/batch03/utility/sources/joiner.png",
+      "sourceSha256": "f3b0760b08aa09a44815c50a3648733988ba0986497d155e7f265e30a539d127",
+      "sourceWidth": 1511,
+      "sourceHeight": 1041,
+      "output": "frontend/assets/industrial/batch03/utility/joiner.png",
+      "canvasPreserved": true,
+      "alphaBounds": {
+        "x": 30,
+        "y": 59,
+        "width": 1451,
+        "height": 911
+      },
+      "channels": 4,
+      "transparentPixels": 667472,
+      "opaquePixels": 905479,
+      "partialPixels": 0,
+      "backgroundPixelsRemoved": 667472,
+      "islandPixelsRemoved": 0,
+      "subjectRgbChanges": 0,
+      "outputSha256": "3bf5428b39a425bfeb1dbe710026a6ffa7477b1046528dc3cbe496c4c9f46faa"
+    },
+    {
+      "id": "loop",
+      "seeds": [],
+      "maxChroma": 15,
+      "source": "docs/station-remaster/batch03/utility/sources/loop.png",
+      "sourceSha256": "252cdb9222b511939327665a8627508e53adb9cd437f57662dfb67f4f14b3d54",
+      "sourceWidth": 1145,
+      "sourceHeight": 1374,
+      "output": "frontend/assets/industrial/batch03/utility/loop.png",
+      "canvasPreserved": true,
+      "alphaBounds": {
+        "x": 12,
+        "y": 8,
+        "width": 1120,
+        "height": 1334
+      },
+      "channels": 4,
+      "transparentPixels": 760249,
+      "opaquePixels": 812981,
+      "partialPixels": 0,
+      "backgroundPixelsRemoved": 760249,
+      "islandPixelsRemoved": 0,
+      "subjectRgbChanges": 0,
+      "outputSha256": "0f985d7919581b1ecc475b60ea98e54246cddc39cc181043a622455af92f24c5"
+    },
+    {
+      "id": "bay",
+      "seeds": [
+        [
+          514,
+          209
+        ],
+        [
+          335,
+          200
+        ],
+        [
+          881,
+          200
+        ]
+      ],
+      "maxChroma": 15,
+      "source": "docs/station-remaster/batch03/utility/sources/bay.png",
+      "sourceSha256": "1f483b5b96ff93f0fa4c4f50200d44a84f08558f76617129f729ab554f6c2df0",
+      "sourceWidth": 1232,
+      "sourceHeight": 1277,
+      "output": "frontend/assets/industrial/batch03/utility/bay.png",
+      "canvasPreserved": true,
+      "alphaBounds": {
+        "x": 3,
+        "y": 27,
+        "width": 1226,
+        "height": 1200
+      },
+      "channels": 4,
+      "transparentPixels": 527418,
+      "opaquePixels": 1045846,
+      "partialPixels": 0,
+      "backgroundPixelsRemoved": 527418,
+      "islandPixelsRemoved": 0,
+      "subjectRgbChanges": 0,
+      "outputSha256": "d3c7c023004b2a294c8187fb89c983129c873e423a42f21435a444c3c82c09ef"
+    },
+    {
+      "id": "telescope",
+      "seeds": [
+        [
+          546,
+          810
+        ],
+        [
+          456,
+          810
+        ],
+        [
+          521,
+          526
+        ],
+        [
+          300,
+          369
+        ]
+      ],
+      "maxChroma": 15,
+      "source": "docs/station-remaster/batch03/utility/sources/telescope.png",
+      "sourceSha256": "102f4462faafa30a052326be7b95805c2fe58bfcbf90f14e43c18df6a0c51cae",
+      "sourceWidth": 982,
+      "sourceHeight": 1602,
+      "output": "frontend/assets/industrial/batch03/utility/telescope.png",
+      "canvasPreserved": true,
+      "alphaBounds": {
+        "x": 32,
+        "y": 3,
+        "width": 926,
+        "height": 1540
+      },
+      "channels": 4,
+      "transparentPixels": 1100486,
+      "opaquePixels": 472678,
+      "partialPixels": 0,
+      "backgroundPixelsRemoved": 1100486,
+      "islandPixelsRemoved": 0,
+      "subjectRgbChanges": 0,
+      "outputSha256": "342717e5d8851043d330e63725488fc3c3eb7b3b27f54bac39fb5eff400f0d29"
+    },
+    {
+      "id": "telescope_r",
+      "seeds": [
+        [
+          493,
+          781
+        ],
+        [
+          406,
+          780
+        ],
+        [
+          429,
+          507
+        ],
+        [
+          670,
+          370
+        ]
+      ],
+      "maxChroma": 15,
+      "source": "docs/station-remaster/batch03/utility/sources/telescope_r.png",
+      "sourceSha256": "2d353ac23d87f36d53e5977b7375265ab528c07a22cb1ce4c7d0ce376d3929ea",
+      "sourceWidth": 979,
+      "sourceHeight": 1606,
+      "output": "frontend/assets/industrial/batch03/utility/telescope_r.png",
+      "canvasPreserved": true,
+      "alphaBounds": {
+        "x": 40,
+        "y": 6,
+        "width": 893,
+        "height": 1514
+      },
+      "channels": 4,
+      "transparentPixels": 1102476,
+      "opaquePixels": 469798,
+      "partialPixels": 0,
+      "backgroundPixelsRemoved": 1102476,
+      "islandPixelsRemoved": 0,
+      "subjectRgbChanges": 0,
+      "outputSha256": "daf380fd03bcad28110e4ee97994a3fab71f56106cbc52ec2ce85e9f01bfffec"
+    },
+    {
+      "id": "camerarig",
+      "seeds": [
+        [
+          413,
+          738
+        ],
+        [
+          508,
+          738
+        ],
+        [
+          593,
+          93
+        ],
+        [
+          578,
+          541
+        ],
+        [
+          577,
+          419
+        ],
+        [
+          682,
+          1055
+        ],
+        [
+          782,
+          1383
+        ],
+        [
+          570,
+          684
+        ],
+        [
+          609,
+          839
+        ]
+      ],
+      "maxChroma": 15,
+      "source": "docs/station-remaster/batch03/utility/sources/camerarig.png",
+      "sourceSha256": "bd7799b01474b56492e159f89bcb3cf840bd962d398ff4d9ce91d7582ee97129",
+      "sourceWidth": 903,
+      "sourceHeight": 1742,
+      "output": "frontend/assets/industrial/batch03/utility/camerarig.png",
+      "canvasPreserved": true,
+      "alphaBounds": {
+        "x": 15,
+        "y": 38,
+        "width": 872,
+        "height": 1635
+      },
+      "channels": 4,
+      "transparentPixels": 1014368,
+      "opaquePixels": 558658,
+      "partialPixels": 0,
+      "backgroundPixelsRemoved": 1014368,
+      "islandPixelsRemoved": 0,
+      "subjectRgbChanges": 0,
+      "outputSha256": "ffa99bc652a09fbb2236a51b5a6b52a4b65fd9ccfac4e2e08ce2d31573dd99f1"
+    },
+    {
+      "id": "weaponrack",
+      "seeds": [],
+      "maxChroma": 15,
+      "source": "docs/station-remaster/batch03/utility/sources/weaponrack.png",
+      "sourceSha256": "3b7d66799dac70114f948c293128b35fa2ddc8d9e96344c4f17304b87ec88fec",
+      "sourceWidth": 1559,
+      "sourceHeight": 1009,
+      "output": "frontend/assets/industrial/batch03/utility/weaponrack.png",
+      "canvasPreserved": true,
+      "alphaBounds": {
+        "x": 5,
+        "y": 125,
+        "width": 1549,
+        "height": 759
+      },
+      "channels": 4,
+      "transparentPixels": 480726,
+      "opaquePixels": 1092305,
+      "partialPixels": 0,
+      "backgroundPixelsRemoved": 480726,
+      "islandPixelsRemoved": 0,
+      "subjectRgbChanges": 0,
+      "outputSha256": "e8ad55a3b54d09063c352661838d2e788f3135ec453e2d63678c4846c5c22190"
+    },
+    {
+      "id": "weaponrack_r",
+      "seeds": [],
+      "maxChroma": 15,
+      "source": "docs/station-remaster/batch03/utility/sources/weaponrack_r.png",
+      "sourceSha256": "91e8b4d9910349f9a8ac0b1523b03137c9cd44848a2eef236df9fc685b7fc066",
+      "sourceWidth": 1559,
+      "sourceHeight": 1009,
+      "output": "frontend/assets/industrial/batch03/utility/weaponrack_r.png",
+      "canvasPreserved": true,
+      "alphaBounds": {
+        "x": 5,
+        "y": 123,
+        "width": 1549,
+        "height": 761
+      },
+      "channels": 4,
+      "transparentPixels": 480691,
+      "opaquePixels": 1092340,
+      "partialPixels": 0,
+      "backgroundPixelsRemoved": 480691,
+      "islandPixelsRemoved": 0,
+      "subjectRgbChanges": 0,
+      "outputSha256": "00e4f55c22b1452b10072423cf02a253484f9caeb29d1394f5d8173c1825289b"
+    },
+    {
+      "id": "camerarig_r",
+      "seeds": [
+        [
+          479,
+          708
+        ],
+        [
+          392,
+          707
+        ],
+        [
+          332,
+          508
+        ],
+        [
+          311,
+          88
+        ],
+        [
+          330,
+          404
+        ],
+        [
+          292,
+          799
+        ],
+        [
+          222,
+          1023
+        ],
+        [
+          115,
+          1361
+        ],
+        [
+          335,
+          655
+        ]
+      ],
+      "maxChroma": 15,
+      "source": "docs/station-remaster/batch03/utility/sources/camerarig_r.png",
+      "sourceSha256": "d0b9644c0fb2b36d588b4fa019a2fa44ba81f279af277381e10316fd0ea107c4",
+      "sourceWidth": 903,
+      "sourceHeight": 1742,
+      "output": "frontend/assets/industrial/batch03/utility/camerarig_r.png",
+      "canvasPreserved": true,
+      "alphaBounds": {
+        "x": 25,
+        "y": 36,
+        "width": 859,
+        "height": 1614
+      },
+      "channels": 4,
+      "transparentPixels": 1040592,
+      "opaquePixels": 532434,
+      "partialPixels": 0,
+      "backgroundPixelsRemoved": 1040592,
+      "islandPixelsRemoved": 0,
+      "subjectRgbChanges": 0,
+      "outputSha256": "db30d9599e4259f2e1055e84fc1b37602563a68d872677df7f438021591c55e0"
+    }
+  ]
+}

@@ -155,7 +155,9 @@ let reanchor=null;
 for(const a of cells) {
   for(const dest of cells.slice(0,100)) {
     const pts=path(a.x,a.y,dest.x,dest.y,null);if(!pts||!pts.length)continue;
-    const b={px:a.x*12+.3,py:a.y*12+.3};runtime.startBodyPath(b,pts);
+    const b={px:a.x*12+.3,py:a.y*12+.3};
+    if(!geo.clearFootSegment(b.px,b.py,b.px,b.py,null))continue;
+    runtime.startBodyPath(b,pts);
     if(b.pathPts.length>pts.length) {reanchor={a,b,pts};break;}
   }
   if(reanchor)break;
@@ -170,4 +172,17 @@ if(reanchor){
   const walker={px:a.x*12+6,py:a.y*12+11,target:{x:pts[0].x*12+6,y:pts[0].y*12+11}};
   A.eq(runtime.nudgeBody(walker,b.px-walker.px,b.py-walker.py),false,'a legal-floor nudge cannot invalidate the remaining doorway leg');
 }
+// A southbound arrival may be on a logical room tile while still inside the
+// raised north face. It must clear the face before turning behind its shoulder.
+const local=(x,y)=>({x:x-geo.origin.tx,y:y-geo.origin.ty});
+const mouth=local(25,16),shoulder=local(27,16);
+const early={x:(mouth.x+.5)*12,y:mouth.y*12+4};
+const late={x:early.x,y:mouth.y*12+11};
+const destination={x:(shoulder.x+.5)*12,y:shoulder.y*12+11};
+A.ok(geo.walkable(mouth.x,mouth.y)&&geo.walkable(shoulder.x,shoulder.y),'doorway and wall-edge floor tiles remain walkable');
+A.eq(geo.clearFootSegment(early.x,early.y,destination.x,destination.y),false,'south entry cannot turn through the visible wall face');
+A.eq(geo.clearFootSegment(late.x,late.y,destination.x,destination.y),true,'south entry can turn once feet clear the wall');
+A.eq(geo.clearFootSegment(destination.x,destination.y,early.x,early.y),false,'reverse traversal cannot cut the same shoulder');
+const edge=local(30,8);
+A.eq(geo.clearFootSegment(edge.x*12+11,edge.y*12+11,edge.x*12+11,edge.y*12+11),false,'east wall face is not floor clearance');
 A.report('path-smoothing');

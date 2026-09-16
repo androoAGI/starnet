@@ -1,0 +1,6 @@
+Geometry repair: one2x2 sheet of4 supplied exact gameprops, transparentRGBA, nofloor/shadow/labels. Preserve design, materials, overheadcamera, top-plane depth, lighting. Redesign WIDTHS, do not crop or stretch bitmap.
+TopLeft reference1 BAR: broaden full counter and attached bottleshelf by44%, heightunchanged. Completebody width:height2.08. Broad low woodbar50x24. Keep shelf supported, brass nosing, no added stools.
+TopRight reference2 STOOL: SHORTEN gasstem and lowerbase separation byabout20%, widen oval cushion andbase~8%. Completebody ratio10:11=.91, squat teal adjustable stool notbarstool. Seat near rim at~45% fullheight.
+BottomLeft reference3 DJBOOTH: broaden full deck, EQhousing, legs andplumfascia by30%, sameheight. Completebody50:29=1.72. Two turntables spreadwider withmixer between, showwide top plane.
+BottomRight reference4 LOCKERBANK: widenthree lockerdoorbays andtopcap by25% sameheight. Completebody38:32=1.19. Centerdoorajar, threedoorsexactly, topsvisible.
+Allcomplete silhouettes withcleargutters. Noextraobjects. Sameillustratedindustrialart, noaddedmicrotexture.

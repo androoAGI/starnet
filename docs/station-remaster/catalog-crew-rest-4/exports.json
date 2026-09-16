@@ -1,0 +1,548 @@
+{
+  "version": 1,
+  "count": 8,
+  "scope": "Assigned catalog rest cohort; supported views from native contracts.",
+  "method": "Generated RGBA source preserved. Alpha>=180 core with radius3 preserves nearby original edge RGBA; remove detached fog/alpha1. Tight crop only, no RGB or retained alpha modification.",
+  "refs": [
+    {
+      "path": "C:\\Users\\andro\\gen-trees\\prop-coordination-0914\\frontend\\assets\\industrial\\projection-correction\\crate.png",
+      "sha256": "a4c596600f4c1c0bf0c2f4df0892a9f0c49b074dd91079b5926b0fd27cd0ba16"
+    },
+    {
+      "path": "C:\\Users\\andro\\gen-trees\\prop-coordination-0914\\frontend\\assets\\industrial\\projection-correction\\desk.png",
+      "sha256": "49e35c9b58a2e1f4939ed1320e70e4f11a54b46afbe46661122638ddf7ca5fd4"
+    },
+    {
+      "path": "C:\\Users\\andro\\gen-trees\\prop-coordination-0914\\frontend\\assets\\industrial\\projection-correction\\chair.png",
+      "sha256": "1c9257ded875c31688c9f759c424db2814ab707e36790db7793e20aac85c2d79"
+    }
+  ],
+  "records": [
+    {
+      "id": "plant",
+      "view": "s",
+      "image": "frontend/assets/industrial/catalog-crew-rest-4/plant.png",
+      "sourceWidth": 640,
+      "sourceHeight": 1412,
+      "bounds": {
+        "x": 1,
+        "y": -8,
+        "width": 10,
+        "height": 20
+      },
+      "footprint": {
+        "w": 1,
+        "h": 1
+      },
+      "contact": {
+        "x": 0.5,
+        "y": 0.9975212464589235,
+        "space": "exported-image-normalized",
+        "targetWorld": {
+          "x": 6,
+          "y": 12
+        }
+      },
+      "fit": {
+        "x": 1.4674220963172804,
+        "y": -8,
+        "width": 9.06515580736544,
+        "height": 20
+      },
+      "underfill": {
+        "x": 0.9065155807365439,
+        "y": 1
+      },
+      "sourceSeparation": {
+        "side": "left",
+        "breakY": 600,
+        "upperX": 630,
+        "lowerX": 670,
+        "endY": 1000
+      },
+      "source": "docs\\station-remaster\\catalog-crew-rest-4\\sources\\plant-holopet-repair.png",
+      "sourceSha256": "4c347abddea3d8cd2311011c68b37de4bafbab55f8404e4f7f7257d7bad116b8",
+      "sourceCrop": {
+        "left": 10,
+        "top": 15,
+        "width": 640,
+        "height": 1412
+      },
+      "outputSha256": "cd139153fd94f1b9ecf64aabd7d90b492798d3e4d7df92ee78caa2f2398a8bdf",
+      "alphaBounds": {
+        "x": 0,
+        "y": 0,
+        "width": 640,
+        "height": 1412
+      },
+      "alphaCounts": {
+        "transparent": 405520,
+        "partial": 496379,
+        "opaque": 1781
+      },
+      "maxSourceAlpha": 255,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "removedFogPixels": 13732,
+      "retainedRgbChanges": 0,
+      "retainedAlphaChanges": 0,
+      "opaqueCellEdgePixels": 0,
+      "liveAccepted": false
+    },
+    {
+      "id": "tallplant",
+      "view": "s",
+      "image": "frontend/assets/industrial/catalog-crew-rest-4/tallplant.png",
+      "sourceWidth": 227,
+      "sourceHeight": 435,
+      "bounds": {
+        "x": 1,
+        "y": -14,
+        "width": 13,
+        "height": 26
+      },
+      "footprint": {
+        "w": 1,
+        "h": 1
+      },
+      "contact": {
+        "x": 0.5,
+        "y": 0.9942528735632183,
+        "space": "exported-image-normalized",
+        "targetWorld": {
+          "x": 6,
+          "y": 12
+        }
+      },
+      "fit": {
+        "x": 1,
+        "y": -12.911894273127754,
+        "width": 13,
+        "height": 24.911894273127754
+      },
+      "underfill": {
+        "x": 1,
+        "y": 0.9581497797356828
+      },
+      "source": "docs\\station-remaster\\catalog-crew-rest-4\\sources\\sheet.png",
+      "sourceSha256": "9879459b690c46e9bc7c2e0a05e68f2f611635cfcb2a8cf1006fcc2837d8d9b5",
+      "sourceCrop": {
+        "left": 455,
+        "top": 61,
+        "width": 227,
+        "height": 435
+      },
+      "outputSha256": "4c82c40a0b12ec78455654e4b894345eb0ec64d4f8a7da6cba24e6ab1dd4b1c1",
+      "alphaBounds": {
+        "x": 0,
+        "y": 0,
+        "width": 227,
+        "height": 435
+      },
+      "alphaCounts": {
+        "transparent": 43999,
+        "partial": 54746,
+        "opaque": 0
+      },
+      "maxSourceAlpha": 254,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "removedFogPixels": 3778,
+      "retainedRgbChanges": 0,
+      "retainedAlphaChanges": 0,
+      "opaqueCellEdgePixels": 0,
+      "liveAccepted": false
+    },
+    {
+      "id": "monstera",
+      "view": "s",
+      "image": "frontend/assets/industrial/catalog-crew-rest-4/monstera.png",
+      "sourceWidth": 345,
+      "sourceHeight": 377,
+      "bounds": {
+        "x": 0,
+        "y": -1,
+        "width": 12,
+        "height": 13
+      },
+      "footprint": {
+        "w": 1,
+        "h": 1
+      },
+      "contact": {
+        "x": 0.5,
+        "y": 0.9907161803713528,
+        "space": "exported-image-normalized",
+        "targetWorld": {
+          "x": 6,
+          "y": 12
+        }
+      },
+      "fit": {
+        "x": 0.0517241379310347,
+        "y": -1,
+        "width": 11.89655172413793,
+        "height": 13
+      },
+      "underfill": {
+        "x": 0.9913793103448275,
+        "y": 1
+      },
+      "source": "docs\\station-remaster\\catalog-crew-rest-4\\sources\\sheet.png",
+      "sourceSha256": "9879459b690c46e9bc7c2e0a05e68f2f611635cfcb2a8cf1006fcc2837d8d9b5",
+      "sourceCrop": {
+        "left": 780,
+        "top": 112,
+        "width": 345,
+        "height": 377
+      },
+      "outputSha256": "3c6a11b106d73cb925173f09a7959f373a51b5f2ebf8bfe2afe4d015794e9c4d",
+      "alphaBounds": {
+        "x": 0,
+        "y": 0,
+        "width": 345,
+        "height": 377
+      },
+      "alphaCounts": {
+        "transparent": 52873,
+        "partial": 77192,
+        "opaque": 0
+      },
+      "maxSourceAlpha": 254,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "removedFogPixels": 6700,
+      "retainedRgbChanges": 0,
+      "retainedAlphaChanges": 0,
+      "opaqueCellEdgePixels": 0,
+      "liveAccepted": false
+    },
+    {
+      "id": "terrarium",
+      "view": "s",
+      "image": "frontend/assets/industrial/catalog-crew-rest-4/terrarium.png",
+      "sourceWidth": 227,
+      "sourceHeight": 367,
+      "bounds": {
+        "x": 0,
+        "y": -5,
+        "width": 11,
+        "height": 16
+      },
+      "footprint": {
+        "w": 1,
+        "h": 1
+      },
+      "contact": {
+        "x": 0.5,
+        "y": 0.9904632152588556,
+        "space": "exported-image-normalized",
+        "targetWorld": {
+          "x": 6,
+          "y": 12
+        }
+      },
+      "fit": {
+        "x": 0.5517711171662123,
+        "y": -5,
+        "width": 9.896457765667575,
+        "height": 16
+      },
+      "underfill": {
+        "x": 0.8996779786970523,
+        "y": 1
+      },
+      "source": "docs\\station-remaster\\catalog-crew-rest-4\\sources\\sheet.png",
+      "sourceSha256": "9879459b690c46e9bc7c2e0a05e68f2f611635cfcb2a8cf1006fcc2837d8d9b5",
+      "sourceCrop": {
+        "left": 1230,
+        "top": 123,
+        "width": 227,
+        "height": 367
+      },
+      "outputSha256": "ec8e6377e836116f7a9796a032ae98126568b7d9452ae0dfa7e5c347fa61547b",
+      "alphaBounds": {
+        "x": 0,
+        "y": 0,
+        "width": 227,
+        "height": 367
+      },
+      "alphaCounts": {
+        "transparent": 6820,
+        "partial": 76489,
+        "opaque": 0
+      },
+      "maxSourceAlpha": 254,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "removedFogPixels": 2061,
+      "retainedRgbChanges": 0,
+      "retainedAlphaChanges": 0,
+      "opaqueCellEdgePixels": 0,
+      "liveAccepted": false
+    },
+    {
+      "id": "lavalamp",
+      "view": "s",
+      "image": "frontend/assets/industrial/catalog-crew-rest-4/lavalamp.png",
+      "sourceWidth": 282,
+      "sourceHeight": 658,
+      "bounds": {
+        "x": 2,
+        "y": -8,
+        "width": 8,
+        "height": 20
+      },
+      "footprint": {
+        "w": 1,
+        "h": 1
+      },
+      "contact": {
+        "x": 0.5,
+        "y": 0.9946808510638298,
+        "space": "exported-image-normalized",
+        "targetWorld": {
+          "x": 6,
+          "y": 12
+        }
+      },
+      "fit": {
+        "x": 2,
+        "y": -6.666666666666668,
+        "width": 8,
+        "height": 18.666666666666668
+      },
+      "underfill": {
+        "x": 1,
+        "y": 0.9333333333333333
+      },
+      "source": "docs\\station-remaster\\catalog-crew-rest-4\\sources\\repair.png",
+      "sourceSha256": "a1985b17c62d45f6d2e234991155649f7cf5321dd858cfc2e39256e5fb6dca90",
+      "sourceCrop": {
+        "left": 615,
+        "top": 61,
+        "width": 282,
+        "height": 658
+      },
+      "outputSha256": "e9edb437ac96161620650a2de950adc3669d4f356d8257007615e1fb32d7ec40",
+      "alphaBounds": {
+        "x": 0,
+        "y": 0,
+        "width": 282,
+        "height": 658
+      },
+      "alphaCounts": {
+        "transparent": 50146,
+        "partial": 135249,
+        "opaque": 161
+      },
+      "maxSourceAlpha": 255,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "removedFogPixels": 2882,
+      "retainedRgbChanges": 0,
+      "retainedAlphaChanges": 0,
+      "opaqueCellEdgePixels": 0,
+      "liveAccepted": false
+    },
+    {
+      "id": "plasmaglobe",
+      "view": "s",
+      "image": "frontend/assets/industrial/catalog-crew-rest-4/plasmaglobe.png",
+      "sourceWidth": 312,
+      "sourceHeight": 656,
+      "bounds": {
+        "x": 1,
+        "y": -5,
+        "width": 9,
+        "height": 17
+      },
+      "footprint": {
+        "w": 1,
+        "h": 1
+      },
+      "contact": {
+        "x": 0.5,
+        "y": 0.9946646341463414,
+        "space": "exported-image-normalized",
+        "targetWorld": {
+          "x": 6,
+          "y": 12
+        }
+      },
+      "fit": {
+        "x": 1.4573170731707323,
+        "y": -5,
+        "width": 8.085365853658535,
+        "height": 17
+      },
+      "underfill": {
+        "x": 0.8983739837398372,
+        "y": 1
+      },
+      "source": "docs\\station-remaster\\catalog-crew-rest-4\\sources\\repair.png",
+      "sourceSha256": "a1985b17c62d45f6d2e234991155649f7cf5321dd858cfc2e39256e5fb6dca90",
+      "sourceCrop": {
+        "left": 158,
+        "top": 746,
+        "width": 312,
+        "height": 656
+      },
+      "outputSha256": "6b2cf54c59d1cf0e6a3cfabcdaafb12088cb3ef2bda15570ddb02278578c912d",
+      "alphaBounds": {
+        "x": 0,
+        "y": 0,
+        "width": 312,
+        "height": 656
+      },
+      "alphaCounts": {
+        "transparent": 75049,
+        "partial": 129439,
+        "opaque": 184
+      },
+      "maxSourceAlpha": 255,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "removedFogPixels": 2969,
+      "retainedRgbChanges": 0,
+      "retainedAlphaChanges": 0,
+      "opaqueCellEdgePixels": 0,
+      "liveAccepted": false
+    },
+    {
+      "id": "holopet",
+      "view": "s",
+      "image": "frontend/assets/industrial/catalog-crew-rest-4/holopet.png",
+      "sourceWidth": 436,
+      "sourceHeight": 1295,
+      "bounds": {
+        "x": 3,
+        "y": -6,
+        "width": 6,
+        "height": 16
+      },
+      "footprint": {
+        "w": 1,
+        "h": 1
+      },
+      "contact": {
+        "x": 0.5,
+        "y": 0.9972972972972973,
+        "space": "exported-image-normalized",
+        "targetWorld": {
+          "x": 6,
+          "y": 12
+        }
+      },
+      "fit": {
+        "x": 3.306563706563707,
+        "y": -6,
+        "width": 5.386872586872586,
+        "height": 16
+      },
+      "underfill": {
+        "x": 0.8978120978120977,
+        "y": 1
+      },
+      "sourceSeparation": {
+        "side": "right",
+        "breakY": 600,
+        "upperX": 630,
+        "lowerX": 670,
+        "endY": 1000
+      },
+      "source": "docs\\station-remaster\\catalog-crew-rest-4\\sources\\plant-holopet-repair.png",
+      "sourceSha256": "4c347abddea3d8cd2311011c68b37de4bafbab55f8404e4f7f7257d7bad116b8",
+      "sourceCrop": {
+        "left": 639,
+        "top": 126,
+        "width": 436,
+        "height": 1295
+      },
+      "outputSha256": "5c64731f815767a4d7352303ab817d1ed07b6f126610add56703543eb13dff94",
+      "alphaBounds": {
+        "x": 0,
+        "y": 0,
+        "width": 436,
+        "height": 1295
+      },
+      "alphaCounts": {
+        "transparent": 348432,
+        "partial": 215123,
+        "opaque": 1065
+      },
+      "maxSourceAlpha": 255,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "removedFogPixels": 6567,
+      "retainedRgbChanges": 0,
+      "retainedAlphaChanges": 0,
+      "opaqueCellEdgePixels": 0,
+      "liveAccepted": false
+    },
+    {
+      "id": "speaker",
+      "view": "s",
+      "image": "frontend/assets/industrial/catalog-crew-rest-4/speaker.png",
+      "sourceWidth": 231,
+      "sourceHeight": 352,
+      "bounds": {
+        "x": 1,
+        "y": -3,
+        "width": 10,
+        "height": 15
+      },
+      "footprint": {
+        "w": 1,
+        "h": 1
+      },
+      "contact": {
+        "x": 0.5,
+        "y": 0.9900568181818182,
+        "space": "exported-image-normalized",
+        "targetWorld": {
+          "x": 6,
+          "y": 12
+        }
+      },
+      "fit": {
+        "x": 1.078125,
+        "y": -2.9999999999999982,
+        "width": 9.84375,
+        "height": 14.999999999999998
+      },
+      "underfill": {
+        "x": 0.984375,
+        "y": 0.9999999999999999
+      },
+      "source": "docs\\station-remaster\\catalog-crew-rest-4\\sources\\sheet.png",
+      "sourceSha256": "9879459b690c46e9bc7c2e0a05e68f2f611635cfcb2a8cf1006fcc2837d8d9b5",
+      "sourceCrop": {
+        "left": 1226,
+        "top": 581,
+        "width": 231,
+        "height": 352
+      },
+      "outputSha256": "4626b07e94a15badee4a7e97fbf80ac22994f4d87ffc35e4dbe3050140771039",
+      "alphaBounds": {
+        "x": 0,
+        "y": 0,
+        "width": 231,
+        "height": 352
+      },
+      "alphaCounts": {
+        "transparent": 6915,
+        "partial": 74397,
+        "opaque": 0
+      },
+      "maxSourceAlpha": 254,
+      "coreThreshold": 180,
+      "edgeRadius": 3,
+      "removedFogPixels": 1988,
+      "retainedRgbChanges": 0,
+      "retainedAlphaChanges": 0,
+      "opaqueCellEdgePixels": 0,
+      "liveAccepted": false
+    }
+  ]
+}

@@ -73,6 +73,22 @@ live.prepareLight([], {});
 assert.equal(live.sampleLight(12, 12).sources, 0, 'stopped work removes illumination before the next sprite');
 live.dispose();
 assert.equal(live.sampleLight(12, 12), null);
+// A projection lighting profile may rebalance existing sources, never add or
+// relocate fixtures or mutate the authoritative bake shared by other consumers.
+scope.PropRemaster = { isProjection: () => true };
+const shaped = scope.module.exports.create();
+const roomGeo = { TILE: 12, kindOf: id => id === 'bridge' ? 'bridge' : 'quarters' };
+const roomBake = { W: 120, H: 120, lamps: [{ x: 20, y: 30, r: 50, gain: .22 }],
+  wallFixtures: [{ x: 40, y: 12, r: 60, gain: .82, zone: 'bridge' }, { x: 80, y: 12, r: 60, zone: 'quarters' }] };
+const savedBake = JSON.stringify(roomBake);
+shaped.begin({ now: 30, geo: roomGeo, cache: roomBake });shaped.prepareLight([], {});
+assert.equal(prepared.fixtures.length, 3);
+assert.deepEqual(Array.from(prepared.fixtures, l => [l.x, l.y]), [[20,30],[40,12],[80,12]]);
+assert.ok(prepared.fixtures[0].gain < prepared.fixtures[1].gain, 'physical housing is the key, room samples the fill');
+assert.notEqual(prepared.fixtures[1].rgb, prepared.fixtures[2].rgb, 'command and lounge keep different light temperatures');
+assert.equal(JSON.stringify(roomBake), savedBake, 'bake source geometry is unchanged');
+assert.equal(prepared.lights.length, 0, 'room lighting does not invent active prop lights');
+shaped.dispose();
 const classicScope = { module: { exports: {} }, URLSearchParams, location: { search: '?world=classic' },
   WorldLight: { create() { throw new Error('classic must not initialize replacement light'); } } };
 vm.runInNewContext(fs.readFileSync(require.resolve('../frontend/app/worldrenderer.js'), 'utf8'), classicScope);

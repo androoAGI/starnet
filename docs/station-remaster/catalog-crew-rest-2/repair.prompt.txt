@@ -1,0 +1,7 @@
+Targeted5-sprite geometry repair sheet, three columns by2 rows, bottomrightcell empty. Use supplied exactfive objects, preserve their fixedoverheadcamera/colour/design and mechanicalparts, noflatbitmaprotation. No shadows/floor/text, genuineRGBA, cleargutters.
+TopLeft reference1 BENCHPRESS headandweightbarLEFT: extendlonghorizontal paddedbench andsupportframe by15% overallwidth, heightunchanged. Complete36:20=1.8; lowrackandvisiblepadtop unchanged.
+TopMiddle reference2 BENCHPRESS headandweightbarRIGHT: same15% widening, oppositefacing, exactsamegeometry aspartner. Nopeople.
+TopRight reference5 PINBALL: widenplayfieldandcabinet by10%, unchangedheight, morevisibleoverheadplayfield; complete16:27=.593. Tallnorthsouthplayfield, backboxatTOP, feetbelow.
+BottomLeft reference3 WEAPONRACK barrelsLEFT: widenlandscape wallframe andrifles by18%, sameheight. Entireframe34:22=1.545. Two horizontalrifles, onebladebelow, NOlegs. Maintainweapondetails coarse.
+BottomMiddle reference4 WEAPONRACK barrelsRIGHT: same18%widening, samephysicalsizeaspartner, lightingstilltopleft.
+Noadditionalobjects. Keepcroppablefullsilhouettes, nofragmentcutoff.

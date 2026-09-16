@@ -1,0 +1,371 @@
+{
+  "schemaVersion": 1,
+  "camera": "south-facing overhead oblique parallel; ground axes horizontal/vertical, verticals vertical",
+  "preparation": "Source RGB subject pixels preserved. Generator returned opaque checkerboard; only connected bright-neutral exterior and explicit open-gap mattes removed. No repainting, resizing, gamma, sharpening or generated-body transformation.",
+  "assets": [
+    {
+      "id": "war_intelcab",
+      "file": "frontend/assets/industrial/props/war_intelcab-s.png",
+      "sourceFile": "exec-b9346611-6cfa-42c5-8048-fe4275a8ae12.png",
+      "sourceDimensions": [
+        1060,
+        1484
+      ],
+      "sourceHasAlpha": false,
+      "crop": [
+        199,
+        44,
+        662,
+        1373
+      ],
+      "dimensions": [
+        662,
+        1373
+      ],
+      "transparentPixelCount": 720642,
+      "footprintTiles": [
+        1,
+        2
+      ],
+      "mount": "floor",
+      "recommendedDisplayHeightWorldPx": 29,
+      "recommendedDisplayWidthWorldPx": 14,
+      "groundContactBBox": [
+        0.028701,
+        0.951202,
+        0.915408,
+        0.999272
+      ],
+      "anchor": [
+        0.5,
+        1
+      ],
+      "screens": [
+        {
+          "name": "status-channel",
+          "polygon": [
+            [
+              0.765861,
+              0.226511
+            ],
+            [
+              0.879154,
+              0.226511
+            ],
+            [
+              0.879154,
+              0.776402
+            ],
+            [
+              0.765861,
+              0.776402
+            ]
+          ],
+          "initialState": "off"
+        },
+        {
+          "name": "cap-status",
+          "polygon": [
+            [
+              0.320242,
+              0.124545
+            ],
+            [
+              0.675227,
+              0.124545
+            ],
+            [
+              0.675227,
+              0.136198
+            ],
+            [
+              0.320242,
+              0.136198
+            ]
+          ],
+          "initialState": "off"
+        }
+      ],
+      "sha256": "944fac7ecfff34e00af909f61f888feeb74889bab2d5d1fdbe5d03eb88c17b0c",
+      "verification": {
+        "nativeDecode": true,
+        "opaquePixels": 852398,
+        "transparentPixels": 56528,
+        "changedOpaqueRgbPixels": 0
+      }
+    },
+    {
+      "id": "gigs_servercart",
+      "file": "frontend/assets/industrial/props/gigs_servercart-s.png",
+      "sourceFile": "exec-55a9ccea-0fb7-417f-9bed-59e67adc9e31.png",
+      "sourceDimensions": [
+        1040,
+        1512
+      ],
+      "sourceHasAlpha": false,
+      "crop": [
+        102,
+        58,
+        836,
+        1347
+      ],
+      "dimensions": [
+        836,
+        1347
+      ],
+      "transparentPixelCount": 706719,
+      "footprintTiles": [
+        1,
+        1
+      ],
+      "mount": "floor",
+      "recommendedDisplayHeightWorldPx": 19.33,
+      "recommendedDisplayWidthWorldPx": 12,
+      "groundContactBBox": [
+        0.058612,
+        0.953229,
+        0.940191,
+        1
+      ],
+      "anchor": [
+        0.5,
+        1
+      ],
+      "screens": [
+        {
+          "name": "blade-1",
+          "polygon": [
+            [
+              0.655502,
+              0.469191
+            ],
+            [
+              0.681818,
+              0.469191
+            ],
+            [
+              0.681818,
+              0.482554
+            ],
+            [
+              0.655502,
+              0.482554
+            ]
+          ],
+          "initialState": "off"
+        },
+        {
+          "name": "blade-2",
+          "polygon": [
+            [
+              0.655502,
+              0.584261
+            ],
+            [
+              0.681818,
+              0.584261
+            ],
+            [
+              0.681818,
+              0.597624
+            ],
+            [
+              0.655502,
+              0.597624
+            ]
+          ],
+          "initialState": "off"
+        },
+        {
+          "name": "blade-3",
+          "polygon": [
+            [
+              0.655502,
+              0.699332
+            ],
+            [
+              0.681818,
+              0.699332
+            ],
+            [
+              0.681818,
+              0.712695
+            ],
+            [
+              0.655502,
+              0.712695
+            ]
+          ],
+          "initialState": "off"
+        }
+      ],
+      "sha256": "808ff25eb11a3922e5ad1b8e883d48faf25474b730d4149af3914f3c9ae93646",
+      "verification": {
+        "nativeDecode": true,
+        "opaquePixels": 865761,
+        "transparentPixels": 260331,
+        "changedOpaqueRgbPixels": 0
+      }
+    },
+    {
+      "id": "industrial_wallpanel",
+      "file": "frontend/assets/industrial/props/industrial_wallpanel-s.png",
+      "sourceFile": "exec-ce6ee71b-252f-41d8-b9e6-b32497f3662f.png",
+      "sourceDimensions": [
+        1510,
+        1041
+      ],
+      "sourceHasAlpha": false,
+      "crop": [
+        39,
+        96,
+        1433,
+        817
+      ],
+      "dimensions": [
+        1433,
+        817
+      ],
+      "transparentPixelCount": 444211,
+      "footprintTiles": [
+        2,
+        1
+      ],
+      "mount": "wall",
+      "recommendedDisplayHeightWorldPx": 13.68,
+      "recommendedDisplayWidthWorldPx": 24,
+      "groundContactBBox": [
+        0.00977,
+        0.973072,
+        0.988137,
+        0.996328
+      ],
+      "anchor": [
+        0.498953,
+        1
+      ],
+      "screens": [
+        {
+          "name": "diagnostic",
+          "polygon": [
+            [
+              0.789951,
+              0.237454
+            ],
+            [
+              0.8709,
+              0.237454
+            ],
+            [
+              0.8709,
+              0.44186
+            ],
+            [
+              0.789951,
+              0.44186
+            ]
+          ],
+          "initialState": "off"
+        }
+      ],
+      "sha256": "049ae7303e730728330e5423729730f2c38e2ad61b26765ed865894fff0aef13",
+      "verification": {
+        "nativeDecode": true,
+        "opaquePixels": 1127699,
+        "transparentPixels": 43062,
+        "changedOpaqueRgbPixels": 0
+      }
+    },
+    {
+      "id": "workbench",
+      "file": "frontend/assets/industrial/props/workbench-s.png",
+      "sourceFile": "exec-10239748-0b4f-44e9-acff-1bf256be385b.png",
+      "sourceDimensions": [
+        1429,
+        1101
+      ],
+      "sourceHasAlpha": false,
+      "crop": [
+        35,
+        38,
+        1359,
+        1015
+      ],
+      "dimensions": [
+        1359,
+        1015
+      ],
+      "transparentPixelCount": 450560,
+      "footprintTiles": [
+        2,
+        1
+      ],
+      "mount": "floor",
+      "recommendedDisplayHeightWorldPx": 19.42,
+      "recommendedDisplayWidthWorldPx": 26,
+      "groundContactBBox": [
+        0.046358,
+        0.948768,
+        0.95585,
+        1
+      ],
+      "anchor": [
+        0.501104,
+        1
+      ],
+      "screens": [
+        {
+          "name": "test-meter",
+          "polygon": [
+            [
+              0.765269,
+              0.416749
+            ],
+            [
+              0.81089,
+              0.416749
+            ],
+            [
+              0.812362,
+              0.450246
+            ],
+            [
+              0.767476,
+              0.450246
+            ]
+          ],
+          "initialState": "off"
+        },
+        {
+          "name": "work-status",
+          "polygon": [
+            [
+              0.380427,
+              0.655172
+            ],
+            [
+              0.620309,
+              0.655172
+            ],
+            [
+              0.620309,
+              0.674877
+            ],
+            [
+              0.380427,
+              0.674877
+            ]
+          ],
+          "initialState": "off"
+        }
+      ],
+      "sha256": "ef28f0fdd081ed55f4c30126c7f868c843164ae562007efce0264755837fb1c4",
+      "verification": {
+        "nativeDecode": true,
+        "opaquePixels": 1122769,
+        "transparentPixels": 256616,
+        "changedOpaqueRgbPixels": 0
+      }
+    }
+  ]
+}

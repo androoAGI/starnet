@@ -1,0 +1,4105 @@
+{
+  "version": 1,
+  "source": "Original procedural industrial geometry; existing approved raster props retained",
+  "props": {
+    "industrial_locker": {
+      "label": "MODULAR LOCKER",
+      "family": "storage",
+      "flat": false,
+      "views": {
+        "s": {
+          "key": "industrial_locker",
+          "r": 0,
+          "image": "industrial_locker.png",
+          "footprint": {
+            "w": 2,
+            "h": 1
+          },
+          "bounds": {
+            "x": 0,
+            "y": -12,
+            "width": 24,
+            "height": 24
+          },
+          "guide": "dev/.scratch-workspace/prop-structure/industrial_locker.png"
+        }
+      }
+    },
+    "industrial_drawerbank": {
+      "label": "DRAWER BANK",
+      "family": "storage",
+      "flat": false,
+      "views": {
+        "s": {
+          "key": "industrial_drawerbank",
+          "r": 0,
+          "image": "industrial_drawerbank.png",
+          "footprint": {
+            "w": 3,
+            "h": 1
+          },
+          "bounds": {
+            "x": 0,
+            "y": -3,
+            "width": 36,
+            "height": 15
+          },
+          "guide": "dev/.scratch-workspace/prop-structure/industrial_drawerbank.png"
+        }
+      }
+    },
+    "industrial_supplycart": {
+      "label": "SUPPLY TROLLEY",
+      "family": "decor",
+      "flat": false,
+      "views": {
+        "s": {
+          "key": "industrial_supplycart",
+          "r": 0,
+          "image": "industrial_supplycart.png",
+          "footprint": {
+            "w": 2,
+            "h": 1
+          },
+          "bounds": {
+            "x": 1,
+            "y": -11,
+            "width": 22,
+            "height": 23
+          },
+          "guide": "dev/.scratch-workspace/prop-structure/industrial_supplycart.png"
+        }
+      }
+    },
+    "industrial_toolcaddy": {
+      "label": "TOOL CADDY",
+      "family": "decor",
+      "flat": false,
+      "views": {
+        "s": {
+          "key": "industrial_toolcaddy",
+          "r": 0,
+          "image": "industrial_toolcaddy.png",
+          "footprint": {
+            "w": 1,
+            "h": 1
+          },
+          "bounds": {
+            "x": 1,
+            "y": 2,
+            "width": 10,
+            "height": 10
+          },
+          "guide": "dev/.scratch-workspace/prop-structure/industrial_toolcaddy.png"
+        }
+      }
+    },
+    "industrial_planter": {
+      "label": "PLANTER TROUGH",
+      "family": "decor",
+      "flat": false,
+      "views": {
+        "s": {
+          "key": "industrial_planter",
+          "r": 0,
+          "image": "industrial_planter.png",
+          "footprint": {
+            "w": 2,
+            "h": 1
+          },
+          "bounds": {
+            "x": 0,
+            "y": -8,
+            "width": 26,
+            "height": 20
+          },
+          "guide": "dev/.scratch-workspace/prop-structure/industrial_planter.png"
+        }
+      }
+    },
+    "industrial_partition": {
+      "label": "MODULAR PARTITION",
+      "family": "decor",
+      "flat": false,
+      "views": {
+        "s": {
+          "key": "industrial_partition",
+          "r": 0,
+          "image": "industrial_partition.png",
+          "footprint": {
+            "w": 3,
+            "h": 1
+          },
+          "bounds": {
+            "x": 0,
+            "y": -9,
+            "width": 36,
+            "height": 21
+          },
+          "guide": "dev/.scratch-workspace/prop-structure/industrial_partition.png"
+        },
+        "w": {
+          "key": "industrial_partition-r1",
+          "r": 1,
+          "image": "industrial_partition-r1.png",
+          "footprint": {
+            "w": 1,
+            "h": 3
+          },
+          "bounds": {
+            "x": 2,
+            "y": -9,
+            "width": 8,
+            "height": 44
+          },
+          "guide": "dev/.scratch-workspace/prop-structure/industrial_partition-r1.png"
+        },
+        "e": {
+          "key": "industrial_partition-r3",
+          "r": 3,
+          "image": "industrial_partition-r3.png",
+          "footprint": {
+            "w": 1,
+            "h": 3
+          },
+          "bounds": {
+            "x": 2,
+            "y": -9,
+            "width": 8,
+            "height": 44
+          },
+          "guide": "dev/.scratch-workspace/prop-structure/industrial_partition-r3.png"
+        }
+      }
+    },
+    "industrial_bench": {
+      "label": "CREW BENCH",
+      "family": "lounge",
+      "flat": false,
+      "views": {
+        "s": {
+          "key": "industrial_bench",
+          "r": 0,
+          "image": "industrial_bench.png",
+          "footprint": {
+            "w": 3,
+            "h": 1
+          },
+          "bounds": {
+            "x": 0,
+            "y": 0,
+            "width": 36,
+            "height": 12
+          },
+          "guide": "dev/.scratch-workspace/prop-structure/industrial_bench.png"
+        }
+      }
+    },
+    "industrial_roundtable": {
+      "label": "PEDESTAL TABLE",
+      "family": "decor",
+      "flat": false,
+      "views": {
+        "s": {
+          "key": "industrial_roundtable",
+          "r": 0,
+          "image": "industrial_roundtable.png",
+          "footprint": {
+            "w": 2,
+            "h": 1
+          },
+          "bounds": {
+            "x": 0,
+            "y": -4,
+            "width": 24,
+            "height": 16
+          },
+          "guide": "dev/.scratch-workspace/prop-structure/industrial_roundtable.png"
+        }
+      }
+    },
+    "industrial_servicecab": {
+      "label": "SERVICE CABINET",
+      "family": "decor",
+      "flat": false,
+      "views": {
+        "s": {
+          "key": "industrial_servicecab",
+          "r": 0,
+          "image": "industrial_servicecab.png",
+          "footprint": {
+            "w": 1,
+            "h": 2
+          },
+          "bounds": {
+            "x": 0,
+            "y": -5,
+            "width": 12,
+            "height": 29
+          },
+          "guide": "dev/.scratch-workspace/prop-structure/industrial_servicecab.png"
+        }
+      }
+    },
+    "industrial_wallpanel": {
+      "label": "SERVICE PANEL",
+      "family": "decor",
+      "flat": false,
+      "views": {
+        "s": {
+          "key": "industrial_wallpanel",
+          "r": 0,
+          "image": "industrial_wallpanel.png",
+          "footprint": {
+            "w": 2,
+            "h": 1
+          },
+          "bounds": {
+            "x": 0,
+            "y": -13,
+            "width": 24,
+            "height": 23
+          },
+          "guide": "dev/.scratch-workspace/prop-structure/industrial_wallpanel.png"
+        }
+      }
+    },
+    "industrial_floorvent": {
+      "label": "FLUSH GRILLE",
+      "family": "decor",
+      "flat": true,
+      "views": {
+        "s": {
+          "key": "industrial_floorvent",
+          "r": 0,
+          "image": "industrial_floorvent.png",
+          "footprint": {
+            "w": 2,
+            "h": 1
+          },
+          "bounds": {
+            "x": 1,
+            "y": 1,
+            "width": 22,
+            "height": 10
+          },
+          "guide": "dev/.scratch-workspace/prop-structure/industrial_floorvent.png"
+        }
+      }
+    },
+    "industrial_cabletray": {
+      "label": "CABLE CHANNEL",
+      "family": "decor",
+      "flat": true,
+      "views": {
+        "s": {
+          "key": "industrial_cabletray",
+          "r": 0,
+          "image": "industrial_cabletray.png",
+          "footprint": {
+            "w": 3,
+            "h": 1
+          },
+          "bounds": {
+            "x": 0,
+            "y": 3,
+            "width": 36,
+            "height": 6
+          },
+          "guide": "dev/.scratch-workspace/prop-structure/industrial_cabletray.png"
+        }
+      }
+    },
+    "desk": {
+      "label": "DESK",
+      "family": "workstation",
+      "description": "WORKSTATION — assign an agent here and it walks over and sits to work whenever it gets a task.",
+      "flat": false,
+      "views": {
+        "s": {
+          "key": "desk",
+          "r": 0,
+          "image": "desk.png",
+          "footprint": {
+            "w": 3,
+            "h": 1
+          },
+          "bounds": {
+            "x": -1,
+            "y": -11,
+            "width": 38,
+            "height": 23
+          },
+          "guide": "dev/.scratch-workspace/prop-structure/desk.png"
+        },
+        "w": {
+          "key": "desk-r1",
+          "r": 1,
+          "image": "desk-r1.png",
+          "footprint": {
+            "w": 1,
+            "h": 3
+          },
+          "bounds": {
+            "x": -3,
+            "y": -5,
+            "width": 18,
+            "height": 41
+          },
+          "guide": "dev/.scratch-workspace/prop-structure/desk-r1.png"
+        },
+        "n": {
+          "key": "desk-r2",
+          "r": 2,
+          "image": "desk-r2.png",
+          "footprint": {
+            "w": 3,
+            "h": 1
+          },
+          "bounds": {
+            "x": -2,
+            "y": -11,
+            "width": 40,
+            "height": 23
+          },
+          "guide": "dev/.scratch-workspace/prop-structure/desk-r2.png"
+        },
+        "e": {
+          "key": "desk-r3",
+          "r": 3,
+          "image": "desk-r3.png",
+          "footprint": {
+            "w": 1,
+            "h": 3
+          },
+          "bounds": {
+            "x": -3,
+            "y": -5,
+            "width": 18,
+            "height": 41
+          },
+          "guide": "dev/.scratch-workspace/prop-structure/desk-r3.png"
+        }
+      }
+    },
+    "desk2": {
+      "label": "DESK ×2",
+      "family": "workstation",
+      "description": "WORKSTATION — assign an agent here and it walks over and sits to work whenever it gets a task.",
+      "flat": false,
+      "views": {
+        "s": {
+          "key": "desk2",
+          "r": 0,
+          "image": "desk2.png",
+          "footprint": {
+            "w": 3,
+            "h": 1
+          },
+          "bounds": {
+            "x": -1,
+            "y": -11,
+            "width": 38,
+            "height": 23
+          },
+          "guide": "dev/.scratch-workspace/prop-structure/desk2.png"
+        },
+        "w": {
+          "key": "desk2-r1",
+          "r": 1,
+          "image": "desk2-r1.png",
+          "footprint": {
+            "w": 1,
+            "h": 3
+          },
+          "bounds": {
+            "x": -3,
+            "y": -5,
+            "width": 18,
+            "height": 41
+          },
+          "guide": "dev/.scratch-workspace/prop-structure/desk2-r1.png"
+        },
+        "n": {
+          "key": "desk2-r2",
+          "r": 2,
+          "image": "desk2-r2.png",
+          "footprint": {
+            "w": 3,
+            "h": 1
+          },
+          "bounds": {
+            "x": -2,
+            "y": -11,
+            "width": 40,
+            "height": 23
+          },
+          "guide": "dev/.scratch-workspace/prop-structure/desk2-r2.png"
+        },
+        "e": {
+          "key": "desk2-r3",
+          "r": 3,
+          "image": "desk2-r3.png",
+          "footprint": {
+            "w": 1,
+            "h": 3
+          },
+          "bounds": {
+            "x": -3,
+            "y": -5,
+            "width": 18,
+            "height": 41
+          },
+          "guide": "dev/.scratch-workspace/prop-structure/desk2-r3.png"
+        }
+      }
+    },
+    "console": {
+      "label": "CONSOLE",
+      "family": "workstation",
+      "description": "WORKSTATION — assign an agent here and it walks over and sits to work whenever it gets a task.",
+      "flat": false,
+      "views": {
+        "s": {
+          "key": "console",
+          "r": 0,
+          "image": "console.png",
+          "footprint": {
+            "w": 2,
+            "h": 1
+          },
+          "bounds": {
+            "x": -3,
+            "y": -11,
+            "width": 28,
+            "height": 23
+          },
+          "guide": "dev/.scratch-workspace/prop-structure/console.png"
+        }
+      }
+    },
+    "consoleL": {
+      "label": "CONSOLE L",
+      "family": "workstation",
+      "description": "WORKSTATION — assign an agent here and it walks over and sits to work whenever it gets a task.",
+      "flat": false,
+      "views": {
+        "s": {
+          "key": "consoleL",
+          "r": 0,
+          "image": "consoleL.png",
+          "footprint": {
+            "w": 3,
+            "h": 1
+          },
+          "bounds": {
+            "x": -3,
+            "y": -11,
+            "width": 40,
+            "height": 23
+          },
+          "guide": "dev/.scratch-workspace/prop-structure/consoleL.png"
+        }
+      }
+    },
+    "pixelrig": {
+      "label": "PIXEL RIG",
+      "family": "workstation",
+      "description": "WORKSTATION — assign an agent here and it walks over and sits to work whenever it gets a task.",
+      "flat": false,
+      "views": {
+        "s": {
+          "key": "pixelrig",
+          "r": 0,
+          "image": "pixelrig.png",
+          "footprint": {
+            "w": 2,
+            "h": 1
+          },
+          "bounds": {
+            "x": -1,
+            "y": -14,
+            "width": 30,
+            "height": 26
+          },
+          "guide": "dev/.scratch-workspace/prop-structure/pixelrig.png"
+        }
+      }
+    },
+    "bench": {
+      "label": "BENCH",
+      "family": "workstation",
+      "description": "WORKSTATION — assign an agent here and it walks over and sits to work whenever it gets a task.",
+      "flat": false,
+      "views": {
+        "s": {
+          "key": "bench",
+          "r": 0,
+          "image": "bench.png",
+          "footprint": {
+            "w": 4,
+            "h": 1
+          },
+          "bounds": {
+            "x": -1,
+            "y": -14,
+            "width": 54,
+            "height": 26
+          },
+          "guide": "dev/.scratch-workspace/prop-structure/bench.png"
+        }
+      }
+    },
+    "workbench": {
+      "label": "WORKBENCH",
+      "family": "workstation",
+      "description": "WORKBENCH — grants the room's agent shell + verify, so it can run and test real code. Pair it with a workstation in the same room.",
+      "flat": false,
+      "views": {
+        "s": {
+          "key": "workbench",
+          "r": 0,
+          "image": "workbench.png",
+          "footprint": {
+            "w": 2,
+            "h": 1
+          },
+          "bounds": {
+            "x": -1,
+            "y": -15,
+            "width": 30,
+            "height": 27
+          },
+          "guide": "dev/.scratch-workspace/prop-structure/workbench.png"
+        }
+      }
+    },
+    "intake": {
+      "label": "INBOX",
+      "family": "workflow",
+      "description": "Your floor is a flowchart — work arrives at the INBOX, every BAY is an agent doing one step, and the belts you draw are the order the work flows. OUTSIDE work (a DM, a routine) arrives here and drops onto a belt. Orders you give in COMMS skip it — they land straight at the agent's BAY. You don't need one for an agent to work — a BAY alone is enough; the inbox is for watching outside work ride in.",
+      "flat": false,
+      "views": {
+        "s": {
+          "key": "intake",
+          "r": 0,
+          "image": "intake.png",
+          "footprint": {
+            "w": 2,
+            "h": 2
+          },
+          "bounds": {
+            "x": -1,
+            "y": -4,
+            "width": 30,
+            "height": 28
+          },
+          "guide": "dev/.scratch-workspace/prop-structure/intake.png"
+        }
+      }
+    },
+    "bay": {
+      "label": "BAY",
+      "family": "workflow",
+      "description": "BAY — the agent dock. Click it, assign an agent — done: work for that agent lands here, no belts required. Add belts to watch work ride in from an INBOX (and finished work ride out to an OUTBOX). The props in its room become its powers.",
+      "flat": false,
+      "views": {
+        "s": {
+          "key": "bay",
+          "r": 0,
+          "image": "bay.png",
+          "footprint": {
+            "w": 2,
+            "h": 2
+          },
+          "bounds": {
+            "x": -1,
+            "y": -7,
+            "width": 30,
+            "height": 31
+          },
+          "guide": "dev/.scratch-workspace/prop-structure/bay.png"
+        }
+      }
+    },
+    "filter": {
+      "label": "FILTER",
+      "family": "workflow",
+      "description": "FILTER — sorts UNADDRESSED work by its content, sending each kind down a different belt lane. Work already bound to an agent rides straight home past it. Click it to set the routes.",
+      "flat": false,
+      "views": {
+        "s": {
+          "key": "filter",
+          "r": 0,
+          "image": "filter.png",
+          "footprint": {
+            "w": 1,
+            "h": 1
+          },
+          "bounds": {
+            "x": -1,
+            "y": -8,
+            "width": 14,
+            "height": 19
+          },
+          "guide": "dev/.scratch-workspace/prop-structure/filter.png"
+        }
+      }
+    },
+    "merger": {
+      "label": "MERGER",
+      "family": "workflow",
+      "description": "MERGER — a lane funnel: several belt lanes converge into one, and every crate rides straight on (K in, K out). It tidies the lanes — it never combines the jobs riding them; each still runs on its own. Nothing to configure.",
+      "flat": false,
+      "views": {
+        "s": {
+          "key": "merger",
+          "r": 0,
+          "image": "merger.png",
+          "footprint": {
+            "w": 1,
+            "h": 1
+          },
+          "bounds": {
+            "x": -2,
+            "y": 0,
+            "width": 16,
+            "height": 11
+          },
+          "guide": "dev/.scratch-workspace/prop-structure/merger.png"
+        }
+      }
+    },
+    "splitter": {
+      "label": "SPLITTER",
+      "family": "workflow",
+      "description": "SPLITTER — fans one work stream across its lanes to run several agents in parallel (load-balance).",
+      "flat": false,
+      "views": {
+        "s": {
+          "key": "splitter",
+          "r": 0,
+          "image": "splitter.png",
+          "footprint": {
+            "w": 1,
+            "h": 1
+          },
+          "bounds": {
+            "x": -1,
+            "y": 0,
+            "width": 15,
+            "height": 11
+          },
+          "guide": "dev/.scratch-workspace/prop-structure/splitter.png"
+        }
+      }
+    },
+    "joiner": {
+      "label": "JOINER",
+      "family": "workflow",
+      "description": "JOINER — the fan-in barrier. Every lane feeding it is a branch of the same job: it HOLDS each branch's result until all of them have arrived (or 10 minutes pass), then sends ONE merged crate on, each branch's output clearly labelled. Draw a SPLITTER upstream and its lanes run in parallel instead of taking turns.",
+      "flat": false,
+      "views": {
+        "s": {
+          "key": "joiner",
+          "r": 0,
+          "image": "joiner.png",
+          "footprint": {
+            "w": 1,
+            "h": 1
+          },
+          "bounds": {
+            "x": -2,
+            "y": 0,
+            "width": 16,
+            "height": 11
+          },
+          "guide": "dev/.scratch-workspace/prop-structure/joiner.png"
+        }
+      }
+    },
+    "loop": {
+      "label": "LOOP",
+      "family": "workflow",
+      "description": "LOOP — the gate that makes a cycle legal. Belt its BACK lane to an upstream dock and its DONE lane onward: work goes round again (up to 5 passes by default, 20 at most), then leaves on DONE. Spend stays inside the line's dollar cap. Any cycle without a LOOP is still refused.",
+      "flat": false,
+      "views": {
+        "s": {
+          "key": "loop",
+          "r": 0,
+          "image": "loop.png",
+          "footprint": {
+            "w": 1,
+            "h": 1
+          },
+          "bounds": {
+            "x": -1,
+            "y": -7,
+            "width": 15,
+            "height": 18
+          },
+          "guide": "dev/.scratch-workspace/prop-structure/loop.png"
+        }
+      }
+    },
+    "outbox": {
+      "label": "OUTBOX",
+      "family": "workflow",
+      "description": "OUTBOX — the dispatch chute where an agent's finished reply leaves the station. Click it to read and rate every finished run waiting for you.",
+      "flat": false,
+      "views": {
+        "s": {
+          "key": "outbox",
+          "r": 0,
+          "image": "outbox.png",
+          "footprint": {
+            "w": 2,
+            "h": 2
+          },
+          "bounds": {
+            "x": -1,
+            "y": -8,
+            "width": 30,
+            "height": 32
+          },
+          "guide": "dev/.scratch-workspace/prop-structure/outbox.png"
+        }
+      }
+    },
+    "connector_portal": {
+      "label": "CONNECTOR",
+      "family": "capability",
+      "description": "CONNECTOR — bind an MCP server here to grant the room's agent that server's live tools. Click it to bind one.",
+      "flat": false,
+      "views": {
+        "s": {
+          "key": "connector_portal",
+          "r": 0,
+          "image": "connector_portal.png",
+          "footprint": {
+            "w": 1,
+            "h": 2
+          },
+          "bounds": {
+            "x": 0,
+            "y": -7,
+            "width": 17,
+            "height": 31
+          },
+          "guide": "dev/.scratch-workspace/prop-structure/connector_portal.png"
+        }
+      }
+    },
+    "comms_dish": {
+      "label": "DISH",
+      "family": "capability",
+      "description": "CAPABILITY — gives the agent in this room web access (live search & fetch).",
+      "flat": false,
+      "views": {
+        "s": {
+          "key": "comms_dish",
+          "r": 0,
+          "image": "comms_dish.png",
+          "footprint": {
+            "w": 2,
+            "h": 2
+          },
+          "bounds": {
+            "x": 2,
+            "y": 1,
+            "width": 20,
+            "height": 23
+          },
+          "guide": "dev/.scratch-workspace/prop-structure/comms_dish.png"
+        }
+      }
+    },
+    "comms_uplink": {
+      "label": "UPLINK",
+      "family": "capability",
+      "description": "CAPABILITY — gives the agent in this room web access (live search & fetch).",
+      "flat": false,
+      "views": {
+        "s": {
+          "key": "comms_uplink",
+          "r": 0,
+          "image": "comms_uplink.png",
+          "footprint": {
+            "w": 2,
+            "h": 2
+          },
+          "bounds": {
+            "x": 2,
+            "y": -11,
+            "width": 19,
+            "height": 35
+          },
+          "guide": "dev/.scratch-workspace/prop-structure/comms_uplink.png"
+        }
+      }
+    },
+    "comms_beacon": {
+      "label": "BEACON",
+      "family": "capability",
+      "description": "CAPABILITY — gives the agent in this room web access (live search & fetch).",
+      "flat": false,
+      "views": {
+        "s": {
+          "key": "comms_beacon",
+          "r": 0,
+          "image": "comms_beacon.png",
+          "footprint": {
+            "w": 1,
+            "h": 2
+          },
+          "bounds": {
+            "x": 0,
+            "y": -2,
+            "width": 17,
+            "height": 26
+          },
+          "guide": "dev/.scratch-workspace/prop-structure/comms_beacon.png"
+        }
+      }
+    },
+    "war_intelcab": {
+      "label": "INTEL CAB",
+      "family": "capability",
+      "description": "CAPABILITY — gives the agent in this room file access (read & write its own files).",
+      "flat": false,
+      "views": {
+        "s": {
+          "key": "war_intelcab",
+          "r": 0,
+          "image": "war_intelcab.png",
+          "footprint": {
+            "w": 1,
+            "h": 2
+          },
+          "bounds": {
+            "x": 0,
+            "y": -7,
+            "width": 17,
+            "height": 31
+          },
+          "guide": "dev/.scratch-workspace/prop-structure/war_intelcab.png"
+        }
+      }
+    },
+    "safe": {
+      "label": "SAFE",
+      "family": "capability",
+      "description": "CAPABILITY — gives the agent in this room file access (read & write its own files).",
+      "flat": false,
+      "views": {
+        "s": {
+          "key": "safe",
+          "r": 0,
+          "image": "safe.png",
+          "footprint": {
+            "w": 1,
+            "h": 2
+          },
+          "bounds": {
+            "x": -1,
+            "y": -8,
+            "width": 18,
+            "height": 32
+          },
+          "guide": "dev/.scratch-workspace/prop-structure/safe.png"
+        }
+      }
+    },
+    "vault": {
+      "label": "VAULT",
+      "family": "capability",
+      "description": "CAPABILITY — gives the agent in this room file access (read & write its own files).",
+      "flat": false,
+      "views": {
+        "s": {
+          "key": "vault",
+          "r": 0,
+          "image": "vault.png",
+          "footprint": {
+            "w": 3,
+            "h": 2
+          },
+          "bounds": {
+            "x": -3,
+            "y": -5,
+            "width": 44,
+            "height": 29
+          },
+          "guide": "dev/.scratch-workspace/prop-structure/vault.png"
+        }
+      }
+    },
+    "rack": {
+      "label": "RACK",
+      "family": "capability",
+      "description": "CAPABILITY — gives the agent in this room file access (read & write its own files).",
+      "flat": false,
+      "views": {
+        "s": {
+          "key": "rack",
+          "r": 0,
+          "image": "rack.png",
+          "footprint": {
+            "w": 2,
+            "h": 1
+          },
+          "bounds": {
+            "x": 0,
+            "y": -14,
+            "width": 29,
+            "height": 26
+          },
+          "guide": "dev/.scratch-workspace/prop-structure/rack.png"
+        }
+      }
+    },
+    "shelf": {
+      "label": "SHELF",
+      "family": "capability",
+      "description": "CAPABILITY — gives the agent in this room file access (read & write its own files).",
+      "flat": false,
+      "views": {
+        "s": {
+          "key": "shelf",
+          "r": 0,
+          "image": "shelf.png",
+          "footprint": {
+            "w": 4,
+            "h": 1
+          },
+          "bounds": {
+            "x": 0,
+            "y": -14,
+            "width": 53,
+            "height": 26
+          },
+          "guide": "dev/.scratch-workspace/prop-structure/shelf.png"
+        }
+      }
+    },
+    "core": {
+      "label": "CORE",
+      "family": "capability",
+      "description": "CAPABILITY — gives the agent in this room long-term memory AND its skill library (a notebook it recalls facts from, and where it saves & reloads reusable skills).",
+      "flat": false,
+      "views": {
+        "s": {
+          "key": "core",
+          "r": 0,
+          "image": "core.png",
+          "footprint": {
+            "w": 1,
+            "h": 2
+          },
+          "bounds": {
+            "x": 0,
+            "y": -7,
+            "width": 17,
+            "height": 31
+          },
+          "guide": "dev/.scratch-workspace/prop-structure/core.png"
+        }
+      }
+    },
+    "gigs_servercart": {
+      "label": "SERVER CART",
+      "family": "capability",
+      "description": "CAPABILITY — gives the agent in this room long-term memory AND its skill library (a notebook it recalls facts from, and where it saves & reloads reusable skills).",
+      "flat": false,
+      "views": {
+        "s": {
+          "key": "gigs_servercart",
+          "r": 0,
+          "image": "gigs_servercart.png",
+          "footprint": {
+            "w": 1,
+            "h": 1
+          },
+          "bounds": {
+            "x": 1,
+            "y": -6,
+            "width": 16,
+            "height": 18
+          },
+          "guide": "dev/.scratch-workspace/prop-structure/gigs_servercart.png"
+        }
+      }
+    },
+    "bridge_relaystack": {
+      "label": "RELAY STACK",
+      "family": "capability",
+      "description": "CAPABILITY — gives the agent in this room long-term memory AND its skill library (a notebook it recalls facts from, and where it saves & reloads reusable skills).",
+      "flat": false,
+      "views": {
+        "s": {
+          "key": "bridge_relaystack",
+          "r": 0,
+          "image": "bridge_relaystack.png",
+          "footprint": {
+            "w": 1,
+            "h": 2
+          },
+          "bounds": {
+            "x": 0,
+            "y": -8,
+            "width": 17,
+            "height": 32
+          },
+          "guide": "dev/.scratch-workspace/prop-structure/bridge_relaystack.png"
+        }
+      }
+    },
+    "studio": {
+      "label": "STUDIO",
+      "family": "capability",
+      "description": "CAPABILITY — gives the agent in this room a media studio (generate & analyze images). It glows magenta while an image renders.",
+      "flat": false,
+      "views": {
+        "s": {
+          "key": "studio",
+          "r": 0,
+          "image": "studio.png",
+          "footprint": {
+            "w": 2,
+            "h": 2
+          },
+          "bounds": {
+            "x": 0,
+            "y": -6,
+            "width": 29,
+            "height": 30
+          },
+          "guide": "dev/.scratch-workspace/prop-structure/studio.png"
+        }
+      }
+    },
+    "airlock": {
+      "label": "AIRLOCK",
+      "family": "isolation",
+      "description": "AIRLOCK — seals a room on the floor (a staging / merge gate); the agent's body can't path in or out. Click to cycle open / sealed / jammed.",
+      "flat": false,
+      "views": {
+        "s": {
+          "key": "airlock",
+          "r": 0,
+          "image": "airlock.png",
+          "footprint": {
+            "w": 1,
+            "h": 1
+          },
+          "bounds": {
+            "x": -1,
+            "y": -1,
+            "width": 14,
+            "height": 14
+          },
+          "guide": "dev/.scratch-workspace/prop-structure/airlock.png"
+        }
+      }
+    },
+    "missionboard": {
+      "label": "MISSION BOARD",
+      "family": "command",
+      "description": "MISSION BOARD — the quest log made physical. Every pinned card is a real open quest; click the board to read them. It suggests, never gates.",
+      "flat": false,
+      "views": {
+        "s": {
+          "key": "missionboard",
+          "r": 0,
+          "image": "missionboard.png",
+          "footprint": {
+            "w": 3,
+            "h": 1
+          },
+          "bounds": {
+            "x": -1,
+            "y": -13,
+            "width": 38,
+            "height": 25
+          },
+          "guide": "dev/.scratch-workspace/prop-structure/missionboard.png"
+        }
+      }
+    },
+    "trophycase": {
+      "label": "TROPHY CASE",
+      "family": "command",
+      "description": "TROPHY CASE — the station's real achievements made permanent. Earned milestones, completed quests, and your living tools stand behind glass; click to open the case. It grants nothing — it remembers.",
+      "flat": false,
+      "views": {
+        "s": {
+          "key": "trophycase",
+          "r": 0,
+          "image": "trophycase.png",
+          "footprint": {
+            "w": 2,
+            "h": 2
+          },
+          "bounds": {
+            "x": -1,
+            "y": -6,
+            "width": 26,
+            "height": 30
+          },
+          "guide": "dev/.scratch-workspace/prop-structure/trophycase.png"
+        }
+      }
+    },
+    "bridge_consolebank": {
+      "label": "BRIDGE CONSOLE BANK",
+      "family": "screens",
+      "description": "Decorative instrument bank with cyan navigation displays. Fits against a north wall; grants no tools.",
+      "flat": false,
+      "views": {
+        "s": {
+          "key": "bridge_consolebank",
+          "r": 0,
+          "image": "bridge_consolebank.png",
+          "footprint": {
+            "w": 9,
+            "h": 1
+          },
+          "bounds": {
+            "x": 0,
+            "y": -21,
+            "width": 108,
+            "height": 33
+          },
+          "guide": "dev/.scratch-workspace/prop-structure/bridge_consolebank.png"
+        }
+      }
+    },
+    "bridge_tacticaltable": {
+      "label": "TACTICAL TABLE",
+      "family": "screens",
+      "description": "Decorative octagonal navigation table in worn steel and dark cyan glass.",
+      "flat": false,
+      "views": {
+        "s": {
+          "key": "bridge_tacticaltable",
+          "r": 0,
+          "image": "bridge_tacticaltable.png",
+          "footprint": {
+            "w": 7,
+            "h": 4
+          },
+          "bounds": {
+            "x": 0,
+            "y": -7,
+            "width": 84,
+            "height": 55
+          },
+          "guide": "dev/.scratch-workspace/prop-structure/bridge_tacticaltable.png"
+        }
+      }
+    },
+    "bridge_equipmentbay": {
+      "label": "EQUIPMENT BAY",
+      "family": "storage",
+      "description": "Decorative armored equipment cabinet with brass handles and recessed instruments.",
+      "flat": false,
+      "views": {
+        "s": {
+          "key": "bridge_equipmentbay",
+          "r": 0,
+          "image": "bridge_equipmentbay.png",
+          "footprint": {
+            "w": 4,
+            "h": 1
+          },
+          "bounds": {
+            "x": 0,
+            "y": -7,
+            "width": 48,
+            "height": 19
+          },
+          "guide": "dev/.scratch-workspace/prop-structure/bridge_equipmentbay.png"
+        }
+      }
+    },
+    "bridge_deckperimeter": {
+      "label": "DECK PERIMETER",
+      "family": "decor",
+      "description": "Worn hazard perimeter painted on the deck. Walkable; furniture may stand inside or across it.",
+      "flat": true,
+      "views": {
+        "s": {
+          "key": "bridge_deckperimeter",
+          "r": 0,
+          "image": "bridge_deckperimeter.png",
+          "footprint": {
+            "w": 12,
+            "h": 8
+          },
+          "bounds": {
+            "x": 0,
+            "y": 1,
+            "width": 144,
+            "height": 94
+          },
+          "guide": "dev/.scratch-workspace/prop-structure/bridge_deckperimeter.png"
+        }
+      }
+    },
+    "bigscreen": {
+      "label": "BIG SCREEN",
+      "family": "screens",
+      "flat": false,
+      "views": {
+        "s": {
+          "key": "bigscreen",
+          "r": 0,
+          "image": "bigscreen.png",
+          "footprint": {
+            "w": 8,
+            "h": 1
+          },
+          "bounds": {
+            "x": -1,
+            "y": -13,
+            "width": 98,
+            "height": 25
+          },
+          "guide": "dev/.scratch-workspace/prop-structure/bigscreen.png"
+        }
+      }
+    },
+    "holotable": {
+      "label": "HOLOTABLE",
+      "family": "screens",
+      "flat": false,
+      "views": {
+        "s": {
+          "key": "holotable",
+          "r": 0,
+          "image": "holotable.png",
+          "footprint": {
+            "w": 4,
+            "h": 2
+          },
+          "bounds": {
+            "x": -1,
+            "y": -10,
+            "width": 50,
+            "height": 34
+          },
+          "guide": "dev/.scratch-workspace/prop-structure/holotable.png"
+        }
+      }
+    },
+    "screens": {
+      "label": "SCREENS",
+      "family": "screens",
+      "flat": false,
+      "views": {
+        "s": {
+          "key": "screens",
+          "r": 0,
+          "image": "screens.png",
+          "footprint": {
+            "w": 2,
+            "h": 1
+          },
+          "bounds": {
+            "x": -1,
+            "y": -15,
+            "width": 26,
+            "height": 27
+          },
+          "guide": "dev/.scratch-workspace/prop-structure/screens.png"
+        }
+      }
+    },
+    "tank": {
+      "label": "TANK",
+      "family": "screens",
+      "flat": false,
+      "views": {
+        "s": {
+          "key": "tank",
+          "r": 0,
+          "image": "tank.png",
+          "footprint": {
+            "w": 2,
+            "h": 1
+          },
+          "bounds": {
+            "x": -1,
+            "y": -11,
+            "width": 27,
+            "height": 24
+          },
+          "guide": "dev/.scratch-workspace/prop-structure/tank.png"
+        }
+      }
+    },
+    "whiteboard": {
+      "label": "WHITEBOARD",
+      "family": "screens",
+      "flat": false,
+      "views": {
+        "s": {
+          "key": "whiteboard",
+          "r": 0,
+          "image": "whiteboard.png",
+          "footprint": {
+            "w": 4,
+            "h": 1
+          },
+          "bounds": {
+            "x": -1,
+            "y": -11,
+            "width": 50,
+            "height": 23
+          },
+          "guide": "dev/.scratch-workspace/prop-structure/whiteboard.png"
+        }
+      }
+    },
+    "ticker": {
+      "label": "TICKER",
+      "family": "screens",
+      "flat": false,
+      "views": {
+        "s": {
+          "key": "ticker",
+          "r": 0,
+          "image": "ticker.png",
+          "footprint": {
+            "w": 4,
+            "h": 1
+          },
+          "bounds": {
+            "x": -1,
+            "y": -8,
+            "width": 50,
+            "height": 20
+          },
+          "guide": "dev/.scratch-workspace/prop-structure/ticker.png"
+        }
+      }
+    },
+    "chartwall": {
+      "label": "CHART WALL",
+      "family": "screens",
+      "flat": false,
+      "views": {
+        "s": {
+          "key": "chartwall",
+          "r": 0,
+          "image": "chartwall.png",
+          "footprint": {
+            "w": 3,
+            "h": 1
+          },
+          "bounds": {
+            "x": -1,
+            "y": -10,
+            "width": 38,
+            "height": 22
+          },
+          "guide": "dev/.scratch-workspace/prop-structure/chartwall.png"
+        }
+      }
+    },
+    "wartable": {
+      "label": "WAR TABLE",
+      "family": "screens",
+      "flat": false,
+      "views": {
+        "s": {
+          "key": "wartable",
+          "r": 0,
+          "image": "wartable.png",
+          "footprint": {
+            "w": 5,
+            "h": 2
+          },
+          "bounds": {
+            "x": -1,
+            "y": -1,
+            "width": 66,
+            "height": 25
+          },
+          "guide": "dev/.scratch-workspace/prop-structure/wartable.png"
+        }
+      }
+    },
+    "calwall": {
+      "label": "CAL WALL",
+      "family": "screens",
+      "flat": false,
+      "views": {
+        "s": {
+          "key": "calwall",
+          "r": 0,
+          "image": "calwall.png",
+          "footprint": {
+            "w": 6,
+            "h": 1
+          },
+          "bounds": {
+            "x": -1,
+            "y": -8,
+            "width": 74,
+            "height": 20
+          },
+          "guide": "dev/.scratch-workspace/prop-structure/calwall.png"
+        }
+      }
+    },
+    "bridge_tacscreen": {
+      "label": "TAC SCREEN",
+      "family": "screens",
+      "flat": false,
+      "views": {
+        "s": {
+          "key": "bridge_tacscreen",
+          "r": 0,
+          "image": "bridge_tacscreen.png",
+          "footprint": {
+            "w": 2,
+            "h": 1
+          },
+          "bounds": {
+            "x": -1,
+            "y": -9,
+            "width": 26,
+            "height": 21
+          },
+          "guide": "dev/.scratch-workspace/prop-structure/bridge_tacscreen.png"
+        }
+      }
+    },
+    "bridge_dispatch_pylon": {
+      "label": "DISPATCH PYLON",
+      "family": "screens",
+      "flat": false,
+      "views": {
+        "s": {
+          "key": "bridge_dispatch_pylon",
+          "r": 0,
+          "image": "bridge_dispatch_pylon.png",
+          "footprint": {
+            "w": 1,
+            "h": 2
+          },
+          "bounds": {
+            "x": -2,
+            "y": -11,
+            "width": 19,
+            "height": 35
+          },
+          "guide": "dev/.scratch-workspace/prop-structure/bridge_dispatch_pylon.png"
+        }
+      }
+    },
+    "bridge_orderqueue": {
+      "label": "ORDER QUEUE",
+      "family": "screens",
+      "flat": false,
+      "views": {
+        "s": {
+          "key": "bridge_orderqueue",
+          "r": 0,
+          "image": "bridge_orderqueue.png",
+          "footprint": {
+            "w": 2,
+            "h": 1
+          },
+          "bounds": {
+            "x": -3,
+            "y": -12,
+            "width": 28,
+            "height": 24
+          },
+          "guide": "dev/.scratch-workspace/prop-structure/bridge_orderqueue.png"
+        }
+      }
+    },
+    "war_pivotpanel": {
+      "label": "PIVOT PANEL",
+      "family": "screens",
+      "flat": false,
+      "views": {
+        "s": {
+          "key": "war_pivotpanel",
+          "r": 0,
+          "image": "war_pivotpanel.png",
+          "footprint": {
+            "w": 2,
+            "h": 1
+          },
+          "bounds": {
+            "x": -1,
+            "y": -6,
+            "width": 26,
+            "height": 18
+          },
+          "guide": "dev/.scratch-workspace/prop-structure/war_pivotpanel.png"
+        }
+      }
+    },
+    "war_threatcore": {
+      "label": "THREAT CORE",
+      "family": "screens",
+      "flat": false,
+      "views": {
+        "s": {
+          "key": "war_threatcore",
+          "r": 0,
+          "image": "war_threatcore.png",
+          "footprint": {
+            "w": 1,
+            "h": 2
+          },
+          "bounds": {
+            "x": -1,
+            "y": -10,
+            "width": 18,
+            "height": 34
+          },
+          "guide": "dev/.scratch-workspace/prop-structure/war_threatcore.png"
+        }
+      }
+    },
+    "fabricator": {
+      "label": "FABRICATOR",
+      "family": "lab",
+      "flat": false,
+      "views": {
+        "s": {
+          "key": "fabricator",
+          "r": 0,
+          "image": "fabricator.png",
+          "footprint": {
+            "w": 3,
+            "h": 2
+          },
+          "bounds": {
+            "x": -3,
+            "y": -4,
+            "width": 44,
+            "height": 28
+          },
+          "guide": "dev/.scratch-workspace/prop-structure/fabricator.png"
+        }
+      }
+    },
+    "vat": {
+      "label": "VAT",
+      "family": "lab",
+      "flat": false,
+      "views": {
+        "s": {
+          "key": "vat",
+          "r": 0,
+          "image": "vat.png",
+          "footprint": {
+            "w": 3,
+            "h": 2
+          },
+          "bounds": {
+            "x": 0,
+            "y": -4,
+            "width": 41,
+            "height": 28
+          },
+          "guide": "dev/.scratch-workspace/prop-structure/vat.png"
+        }
+      }
+    },
+    "easel": {
+      "label": "EASEL",
+      "family": "lab",
+      "flat": false,
+      "views": {
+        "s": {
+          "key": "easel",
+          "r": 0,
+          "image": "easel.png",
+          "footprint": {
+            "w": 3,
+            "h": 2
+          },
+          "bounds": {
+            "x": 1,
+            "y": -14,
+            "width": 34,
+            "height": 38
+          },
+          "guide": "dev/.scratch-workspace/prop-structure/easel.png"
+        }
+      }
+    },
+    "tube": {
+      "label": "TUBE",
+      "family": "lab",
+      "flat": false,
+      "views": {
+        "s": {
+          "key": "tube",
+          "r": 0,
+          "image": "tube.png",
+          "footprint": {
+            "w": 2,
+            "h": 1
+          },
+          "bounds": {
+            "x": -1,
+            "y": -4,
+            "width": 26,
+            "height": 15
+          },
+          "guide": "dev/.scratch-workspace/prop-structure/tube.png"
+        }
+      }
+    },
+    "research_corelens": {
+      "label": "CORE LENS",
+      "family": "lab",
+      "flat": false,
+      "views": {
+        "s": {
+          "key": "research_corelens",
+          "r": 0,
+          "image": "research_corelens.png",
+          "footprint": {
+            "w": 1,
+            "h": 2
+          },
+          "bounds": {
+            "x": -2,
+            "y": -9,
+            "width": 20,
+            "height": 33
+          },
+          "guide": "dev/.scratch-workspace/prop-structure/research_corelens.png"
+        }
+      }
+    },
+    "research_trendpillar": {
+      "label": "TREND PILLAR",
+      "family": "lab",
+      "flat": false,
+      "views": {
+        "s": {
+          "key": "research_trendpillar",
+          "r": 0,
+          "image": "research_trendpillar.png",
+          "footprint": {
+            "w": 1,
+            "h": 2
+          },
+          "bounds": {
+            "x": -2,
+            "y": -7,
+            "width": 20,
+            "height": 31
+          },
+          "guide": "dev/.scratch-workspace/prop-structure/research_trendpillar.png"
+        }
+      }
+    },
+    "research_samplecart": {
+      "label": "SAMPLE CART",
+      "family": "lab",
+      "flat": false,
+      "views": {
+        "s": {
+          "key": "research_samplecart",
+          "r": 0,
+          "image": "research_samplecart.png",
+          "footprint": {
+            "w": 2,
+            "h": 1
+          },
+          "bounds": {
+            "x": -1,
+            "y": -6,
+            "width": 28,
+            "height": 18
+          },
+          "guide": "dev/.scratch-workspace/prop-structure/research_samplecart.png"
+        }
+      }
+    },
+    "research_papers": {
+      "label": "PAPERS",
+      "family": "lab",
+      "flat": false,
+      "views": {
+        "s": {
+          "key": "research_papers",
+          "r": 0,
+          "image": "research_papers.png",
+          "footprint": {
+            "w": 2,
+            "h": 1
+          },
+          "bounds": {
+            "x": 1,
+            "y": 1,
+            "width": 20,
+            "height": 10
+          },
+          "guide": "dev/.scratch-workspace/prop-structure/research_papers.png"
+        }
+      }
+    },
+    "etsy_threadrack": {
+      "label": "THREAD RACK",
+      "family": "lab",
+      "flat": false,
+      "views": {
+        "s": {
+          "key": "etsy_threadrack",
+          "r": 0,
+          "image": "etsy_threadrack.png",
+          "footprint": {
+            "w": 2,
+            "h": 1
+          },
+          "bounds": {
+            "x": -1,
+            "y": -8,
+            "width": 26,
+            "height": 20
+          },
+          "guide": "dev/.scratch-workspace/prop-structure/etsy_threadrack.png"
+        }
+      }
+    },
+    "etsy_dyevat": {
+      "label": "DYE VAT",
+      "family": "lab",
+      "flat": false,
+      "views": {
+        "s": {
+          "key": "etsy_dyevat",
+          "r": 0,
+          "image": "etsy_dyevat.png",
+          "footprint": {
+            "w": 2,
+            "h": 2
+          },
+          "bounds": {
+            "x": 0,
+            "y": -5,
+            "width": 29,
+            "height": 29
+          },
+          "guide": "dev/.scratch-workspace/prop-structure/etsy_dyevat.png"
+        }
+      }
+    },
+    "etsy_kiln": {
+      "label": "KILN",
+      "family": "lab",
+      "flat": false,
+      "views": {
+        "s": {
+          "key": "etsy_kiln",
+          "r": 0,
+          "image": "etsy_kiln.png",
+          "footprint": {
+            "w": 2,
+            "h": 2
+          },
+          "bounds": {
+            "x": -1,
+            "y": -9,
+            "width": 30,
+            "height": 33
+          },
+          "guide": "dev/.scratch-workspace/prop-structure/etsy_kiln.png"
+        }
+      }
+    },
+    "etsy_packbot": {
+      "label": "PACK BOT",
+      "family": "lab",
+      "flat": false,
+      "views": {
+        "s": {
+          "key": "etsy_packbot",
+          "r": 0,
+          "image": "etsy_packbot.png",
+          "footprint": {
+            "w": 2,
+            "h": 2
+          },
+          "bounds": {
+            "x": -1,
+            "y": -15,
+            "width": 30,
+            "height": 39
+          },
+          "guide": "dev/.scratch-workspace/prop-structure/etsy_packbot.png"
+        }
+      }
+    },
+    "rackV": {
+      "label": "RACK V",
+      "family": "storage",
+      "flat": false,
+      "views": {
+        "s": {
+          "key": "rackV",
+          "r": 0,
+          "image": "rackV.png",
+          "footprint": {
+            "w": 1,
+            "h": 2
+          },
+          "bounds": {
+            "x": -1,
+            "y": -12,
+            "width": 14,
+            "height": 36
+          },
+          "guide": "dev/.scratch-workspace/prop-structure/rackV.png"
+        }
+      }
+    },
+    "crate": {
+      "label": "CRATE",
+      "family": "storage",
+      "flat": false,
+      "views": {
+        "s": {
+          "key": "crate",
+          "r": 0,
+          "image": "crate.png",
+          "footprint": {
+            "w": 2,
+            "h": 1
+          },
+          "bounds": {
+            "x": -1,
+            "y": -10,
+            "width": 26,
+            "height": 22
+          },
+          "guide": "dev/.scratch-workspace/prop-structure/crate.png"
+        }
+      }
+    },
+    "boxes": {
+      "label": "BOXES",
+      "family": "storage",
+      "flat": false,
+      "views": {
+        "s": {
+          "key": "boxes",
+          "r": 0,
+          "image": "boxes.png",
+          "footprint": {
+            "w": 2,
+            "h": 1
+          },
+          "bounds": {
+            "x": 0,
+            "y": -1,
+            "width": 24,
+            "height": 13
+          },
+          "guide": "dev/.scratch-workspace/prop-structure/boxes.png"
+        }
+      }
+    },
+    "goldcrate": {
+      "label": "GOLD CRATE",
+      "family": "storage",
+      "flat": false,
+      "views": {
+        "s": {
+          "key": "goldcrate",
+          "r": 0,
+          "image": "goldcrate.png",
+          "footprint": {
+            "w": 2,
+            "h": 1
+          },
+          "bounds": {
+            "x": -1,
+            "y": -10,
+            "width": 26,
+            "height": 22
+          },
+          "guide": "dev/.scratch-workspace/prop-structure/goldcrate.png"
+        }
+      }
+    },
+    "gigs_partsbin": {
+      "label": "PARTS BIN",
+      "family": "storage",
+      "flat": false,
+      "views": {
+        "s": {
+          "key": "gigs_partsbin",
+          "r": 0,
+          "image": "gigs_partsbin.png",
+          "footprint": {
+            "w": 2,
+            "h": 1
+          },
+          "bounds": {
+            "x": -1,
+            "y": -7,
+            "width": 26,
+            "height": 19
+          },
+          "guide": "dev/.scratch-workspace/prop-structure/gigs_partsbin.png"
+        }
+      }
+    },
+    "treasury_coinsorter": {
+      "label": "COIN SORTER",
+      "family": "storage",
+      "flat": false,
+      "views": {
+        "s": {
+          "key": "treasury_coinsorter",
+          "r": 0,
+          "image": "treasury_coinsorter.png",
+          "footprint": {
+            "w": 2,
+            "h": 1
+          },
+          "bounds": {
+            "x": -1,
+            "y": -3,
+            "width": 26,
+            "height": 15
+          },
+          "guide": "dev/.scratch-workspace/prop-structure/treasury_coinsorter.png"
+        }
+      }
+    },
+    "treasury_token_furnace": {
+      "label": "TOKEN FURNACE",
+      "family": "storage",
+      "flat": false,
+      "views": {
+        "s": {
+          "key": "treasury_token_furnace",
+          "r": 0,
+          "image": "treasury_token_furnace.png",
+          "footprint": {
+            "w": 1,
+            "h": 2
+          },
+          "bounds": {
+            "x": -1,
+            "y": -7,
+            "width": 14,
+            "height": 31
+          },
+          "guide": "dev/.scratch-workspace/prop-structure/treasury_token_furnace.png"
+        }
+      }
+    },
+    "commswall": {
+      "label": "COMMS WALL",
+      "family": "comms",
+      "flat": false,
+      "views": {
+        "s": {
+          "key": "commswall",
+          "r": 0,
+          "image": "commswall.png",
+          "footprint": {
+            "w": 6,
+            "h": 1
+          },
+          "bounds": {
+            "x": -1,
+            "y": -13,
+            "width": 74,
+            "height": 23
+          },
+          "guide": "dev/.scratch-workspace/prop-structure/commswall.png"
+        }
+      }
+    },
+    "comms_inbox": {
+      "label": "INBOX",
+      "family": "comms",
+      "flat": false,
+      "views": {
+        "s": {
+          "key": "comms_inbox",
+          "r": 0,
+          "image": "comms_inbox.png",
+          "footprint": {
+            "w": 2,
+            "h": 1
+          },
+          "bounds": {
+            "x": -1,
+            "y": -8,
+            "width": 30,
+            "height": 20
+          },
+          "guide": "dev/.scratch-workspace/prop-structure/comms_inbox.png"
+        }
+      }
+    },
+    "gigs_thumbwall": {
+      "label": "THUMB WALL",
+      "family": "comms",
+      "flat": false,
+      "views": {
+        "s": {
+          "key": "gigs_thumbwall",
+          "r": 0,
+          "image": "gigs_thumbwall.png",
+          "footprint": {
+            "w": 2,
+            "h": 1
+          },
+          "bounds": {
+            "x": -1,
+            "y": -6,
+            "width": 26,
+            "height": 18
+          },
+          "guide": "dev/.scratch-workspace/prop-structure/gigs_thumbwall.png"
+        }
+      }
+    },
+    "gigs_amp": {
+      "label": "AMP",
+      "family": "comms",
+      "flat": false,
+      "views": {
+        "s": {
+          "key": "gigs_amp",
+          "r": 0,
+          "image": "gigs_amp.png",
+          "footprint": {
+            "w": 1,
+            "h": 1
+          },
+          "bounds": {
+            "x": -1,
+            "y": -7,
+            "width": 16,
+            "height": 20
+          },
+          "guide": "dev/.scratch-workspace/prop-structure/gigs_amp.png"
+        }
+      }
+    },
+    "pub_publishpress": {
+      "label": "PUBLISH PRESS",
+      "family": "comms",
+      "flat": false,
+      "views": {
+        "s": {
+          "key": "pub_publishpress",
+          "r": 0,
+          "image": "pub_publishpress.png",
+          "footprint": {
+            "w": 2,
+            "h": 2
+          },
+          "bounds": {
+            "x": -1,
+            "y": -8,
+            "width": 30,
+            "height": 32
+          },
+          "guide": "dev/.scratch-workspace/prop-structure/pub_publishpress.png"
+        }
+      }
+    },
+    "pub_outboundchute": {
+      "label": "OUTBOUND CHUTE",
+      "family": "comms",
+      "flat": false,
+      "views": {
+        "s": {
+          "key": "pub_outboundchute",
+          "r": 0,
+          "image": "pub_outboundchute.png",
+          "footprint": {
+            "w": 1,
+            "h": 2
+          },
+          "bounds": {
+            "x": -3,
+            "y": -11,
+            "width": 18,
+            "height": 35
+          },
+          "guide": "dev/.scratch-workspace/prop-structure/pub_outboundchute.png"
+        }
+      }
+    },
+    "pub_mailpod": {
+      "label": "MAIL POD",
+      "family": "comms",
+      "flat": false,
+      "views": {
+        "s": {
+          "key": "pub_mailpod",
+          "r": 0,
+          "image": "pub_mailpod.png",
+          "footprint": {
+            "w": 2,
+            "h": 1
+          },
+          "bounds": {
+            "x": -3,
+            "y": -10,
+            "width": 31,
+            "height": 22
+          },
+          "guide": "dev/.scratch-workspace/prop-structure/pub_mailpod.png"
+        }
+      }
+    },
+    "arc_indexwall": {
+      "label": "INDEX WALL",
+      "family": "comms",
+      "flat": false,
+      "views": {
+        "s": {
+          "key": "arc_indexwall",
+          "r": 0,
+          "image": "arc_indexwall.png",
+          "footprint": {
+            "w": 4,
+            "h": 1
+          },
+          "bounds": {
+            "x": -1,
+            "y": -13,
+            "width": 50,
+            "height": 23
+          },
+          "guide": "dev/.scratch-workspace/prop-structure/arc_indexwall.png"
+        }
+      }
+    },
+    "arc_microfiche": {
+      "label": "MICROFICHE",
+      "family": "comms",
+      "flat": false,
+      "views": {
+        "s": {
+          "key": "arc_microfiche",
+          "r": 0,
+          "image": "arc_microfiche.png",
+          "footprint": {
+            "w": 2,
+            "h": 1
+          },
+          "bounds": {
+            "x": -1,
+            "y": -12,
+            "width": 30,
+            "height": 24
+          },
+          "guide": "dev/.scratch-workspace/prop-structure/arc_microfiche.png"
+        }
+      }
+    },
+    "djbooth": {
+      "label": "DJ BOOTH",
+      "family": "lounge",
+      "flat": false,
+      "views": {
+        "s": {
+          "key": "djbooth",
+          "r": 0,
+          "image": "djbooth.png",
+          "footprint": {
+            "w": 4,
+            "h": 2
+          },
+          "bounds": {
+            "x": -1,
+            "y": -5,
+            "width": 50,
+            "height": 29
+          },
+          "guide": "dev/.scratch-workspace/prop-structure/djbooth.png"
+        }
+      }
+    },
+    "speaker": {
+      "label": "SPEAKER",
+      "family": "lounge",
+      "flat": false,
+      "views": {
+        "s": {
+          "key": "speaker",
+          "r": 0,
+          "image": "speaker.png",
+          "footprint": {
+            "w": 1,
+            "h": 1
+          },
+          "bounds": {
+            "x": 1,
+            "y": -3,
+            "width": 10,
+            "height": 15
+          },
+          "guide": "dev/.scratch-workspace/prop-structure/speaker.png"
+        }
+      }
+    },
+    "bar": {
+      "label": "BAR",
+      "family": "lounge",
+      "flat": false,
+      "views": {
+        "s": {
+          "key": "bar",
+          "r": 0,
+          "image": "bar.png",
+          "footprint": {
+            "w": 4,
+            "h": 1
+          },
+          "bounds": {
+            "x": -1,
+            "y": -12,
+            "width": 50,
+            "height": 24
+          },
+          "guide": "dev/.scratch-workspace/prop-structure/bar.png"
+        }
+      }
+    },
+    "tv": {
+      "label": "TV",
+      "family": "lounge",
+      "flat": false,
+      "views": {
+        "s": {
+          "key": "tv",
+          "r": 0,
+          "image": "tv.png",
+          "footprint": {
+            "w": 3,
+            "h": 1
+          },
+          "bounds": {
+            "x": -1,
+            "y": -12,
+            "width": 38,
+            "height": 24
+          },
+          "guide": "dev/.scratch-workspace/prop-structure/tv.png"
+        }
+      }
+    },
+    "couch": {
+      "label": "COUCH",
+      "family": "lounge",
+      "flat": false,
+      "views": {
+        "s": {
+          "key": "couch",
+          "r": 0,
+          "image": "couch.png",
+          "footprint": {
+            "w": 5,
+            "h": 1
+          },
+          "bounds": {
+            "x": -1,
+            "y": -8,
+            "width": 62,
+            "height": 20
+          },
+          "guide": "dev/.scratch-workspace/prop-structure/couch.png"
+        }
+      }
+    },
+    "arcade": {
+      "label": "ARCADE",
+      "family": "lounge",
+      "flat": false,
+      "views": {
+        "s": {
+          "key": "arcade",
+          "r": 0,
+          "image": "arcade.png",
+          "footprint": {
+            "w": 1,
+            "h": 2
+          },
+          "bounds": {
+            "x": -1,
+            "y": -2,
+            "width": 14,
+            "height": 26
+          },
+          "guide": "dev/.scratch-workspace/prop-structure/arcade.png"
+        }
+      }
+    },
+    "arcade2": {
+      "label": "ARCADE II",
+      "family": "lounge",
+      "flat": false,
+      "views": {
+        "s": {
+          "key": "arcade2",
+          "r": 0,
+          "image": "arcade2.png",
+          "footprint": {
+            "w": 1,
+            "h": 2
+          },
+          "bounds": {
+            "x": -1,
+            "y": -2,
+            "width": 14,
+            "height": 27
+          },
+          "guide": "dev/.scratch-workspace/prop-structure/arcade2.png"
+        }
+      }
+    },
+    "jukebox": {
+      "label": "JUKEBOX",
+      "family": "lounge",
+      "flat": false,
+      "views": {
+        "s": {
+          "key": "jukebox",
+          "r": 0,
+          "image": "jukebox.png",
+          "footprint": {
+            "w": 1,
+            "h": 2
+          },
+          "bounds": {
+            "x": -1,
+            "y": -3,
+            "width": 18,
+            "height": 27
+          },
+          "guide": "dev/.scratch-workspace/prop-structure/jukebox.png"
+        }
+      }
+    },
+    "bunk": {
+      "label": "BED",
+      "family": "lounge",
+      "flat": false,
+      "views": {
+        "s": {
+          "key": "bunk",
+          "r": 0,
+          "image": "bunk.png",
+          "footprint": {
+            "w": 2,
+            "h": 2
+          },
+          "bounds": {
+            "x": 0,
+            "y": -2,
+            "width": 24,
+            "height": 26
+          },
+          "guide": "dev/.scratch-workspace/prop-structure/bunk.png"
+        }
+      }
+    },
+    "quarters_pooltable": {
+      "label": "POOL TABLE",
+      "family": "lounge",
+      "flat": false,
+      "views": {
+        "s": {
+          "key": "quarters_pooltable",
+          "r": 0,
+          "image": "quarters_pooltable.png",
+          "footprint": {
+            "w": 4,
+            "h": 2
+          },
+          "bounds": {
+            "x": -1,
+            "y": -17,
+            "width": 50,
+            "height": 41
+          },
+          "guide": "dev/.scratch-workspace/prop-structure/quarters_pooltable.png"
+        }
+      }
+    },
+    "quarters_vending": {
+      "label": "VENDING",
+      "family": "lounge",
+      "flat": false,
+      "views": {
+        "s": {
+          "key": "quarters_vending",
+          "r": 0,
+          "image": "quarters_vending.png",
+          "footprint": {
+            "w": 1,
+            "h": 2
+          },
+          "bounds": {
+            "x": -2,
+            "y": -9,
+            "width": 17,
+            "height": 33
+          },
+          "guide": "dev/.scratch-workspace/prop-structure/quarters_vending.png"
+        }
+      }
+    },
+    "quarters_lockerbank": {
+      "label": "LOCKERS",
+      "family": "lounge",
+      "flat": false,
+      "views": {
+        "s": {
+          "key": "quarters_lockerbank",
+          "r": 0,
+          "image": "quarters_lockerbank.png",
+          "footprint": {
+            "w": 3,
+            "h": 1
+          },
+          "bounds": {
+            "x": -1,
+            "y": -20,
+            "width": 38,
+            "height": 32
+          },
+          "guide": "dev/.scratch-workspace/prop-structure/quarters_lockerbank.png"
+        }
+      }
+    },
+    "quarters_minifridge": {
+      "label": "MINIFRIDGE",
+      "family": "lounge",
+      "flat": false,
+      "views": {
+        "s": {
+          "key": "quarters_minifridge",
+          "r": 0,
+          "image": "quarters_minifridge.png",
+          "footprint": {
+            "w": 1,
+            "h": 1
+          },
+          "bounds": {
+            "x": 1,
+            "y": -11,
+            "width": 11,
+            "height": 24
+          },
+          "guide": "dev/.scratch-workspace/prop-structure/quarters_minifridge.png"
+        }
+      }
+    },
+    "coffee": {
+      "label": "COFFEE",
+      "family": "decor",
+      "flat": false,
+      "views": {
+        "s": {
+          "key": "coffee",
+          "r": 0,
+          "image": "coffee.png",
+          "footprint": {
+            "w": 1,
+            "h": 1
+          },
+          "bounds": {
+            "x": -1,
+            "y": -6,
+            "width": 13,
+            "height": 18
+          },
+          "guide": "dev/.scratch-workspace/prop-structure/coffee.png"
+        }
+      }
+    },
+    "plant": {
+      "label": "PLANT",
+      "family": "decor",
+      "flat": false,
+      "views": {
+        "s": {
+          "key": "plant",
+          "r": 0,
+          "image": "plant.png",
+          "footprint": {
+            "w": 1,
+            "h": 1
+          },
+          "bounds": {
+            "x": 1,
+            "y": -8,
+            "width": 10,
+            "height": 20
+          },
+          "guide": "dev/.scratch-workspace/prop-structure/plant.png"
+        }
+      }
+    },
+    "rug": {
+      "label": "RUG",
+      "family": "decor",
+      "flat": true,
+      "views": {
+        "s": {
+          "key": "rug",
+          "r": 0,
+          "image": "rug.png",
+          "footprint": {
+            "w": 4,
+            "h": 3
+          },
+          "bounds": {
+            "x": -1,
+            "y": 0,
+            "width": 50,
+            "height": 36
+          },
+          "guide": "dev/.scratch-workspace/prop-structure/rug.png"
+        }
+      }
+    },
+    "rug_small": {
+      "label": "SMALL RUG",
+      "family": "decor",
+      "flat": true,
+      "views": {
+        "s": {
+          "key": "rug_small",
+          "r": 0,
+          "image": "rug_small.png",
+          "footprint": {
+            "w": 3,
+            "h": 3
+          },
+          "bounds": {
+            "x": 0,
+            "y": -1,
+            "width": 36,
+            "height": 38
+          },
+          "guide": "dev/.scratch-workspace/prop-structure/rug_small.png"
+        }
+      }
+    },
+    "rug_large": {
+      "label": "LARGE RUG",
+      "family": "decor",
+      "flat": true,
+      "views": {
+        "s": {
+          "key": "rug_large",
+          "r": 0,
+          "image": "rug_large.png",
+          "footprint": {
+            "w": 5,
+            "h": 5
+          },
+          "bounds": {
+            "x": 0,
+            "y": 0,
+            "width": 60,
+            "height": 60
+          },
+          "guide": "dev/.scratch-workspace/prop-structure/rug_large.png"
+        }
+      }
+    },
+    "treasury_pnl_holo": {
+      "label": "PNL HOLO",
+      "family": "decor",
+      "flat": false,
+      "views": {
+        "s": {
+          "key": "treasury_pnl_holo",
+          "r": 0,
+          "image": "treasury_pnl_holo.png",
+          "footprint": {
+            "w": 1,
+            "h": 1
+          },
+          "bounds": {
+            "x": 1,
+            "y": 5,
+            "width": 10,
+            "height": 5
+          },
+          "guide": "dev/.scratch-workspace/prop-structure/treasury_pnl_holo.png"
+        }
+      }
+    },
+    "arc_floorlight": {
+      "label": "FLOOR LIGHT",
+      "family": "decor",
+      "flat": false,
+      "views": {
+        "s": {
+          "key": "arc_floorlight",
+          "r": 0,
+          "image": "arc_floorlight.png",
+          "footprint": {
+            "w": 1,
+            "h": 1
+          },
+          "bounds": {
+            "x": 1,
+            "y": 2,
+            "width": 10,
+            "height": 10
+          },
+          "guide": "dev/.scratch-workspace/prop-structure/arc_floorlight.png"
+        }
+      }
+    },
+    "arc_ladder": {
+      "label": "LADDER",
+      "family": "decor",
+      "flat": false,
+      "views": {
+        "s": {
+          "key": "arc_ladder",
+          "r": 0,
+          "image": "arc_ladder.png",
+          "footprint": {
+            "w": 1,
+            "h": 1
+          },
+          "bounds": {
+            "x": 0,
+            "y": -8,
+            "width": 14,
+            "height": 19
+          },
+          "guide": "dev/.scratch-workspace/prop-structure/arc_ladder.png"
+        }
+      }
+    },
+    "stool": {
+      "label": "STOOL",
+      "family": "decor",
+      "flat": false,
+      "views": {
+        "s": {
+          "key": "stool",
+          "r": 0,
+          "image": "stool.png",
+          "footprint": {
+            "w": 1,
+            "h": 1
+          },
+          "bounds": {
+            "x": 1,
+            "y": 0,
+            "width": 10,
+            "height": 11
+          },
+          "guide": "dev/.scratch-workspace/prop-structure/stool.png"
+        }
+      }
+    },
+    "chair": {
+      "label": "CHAIR",
+      "family": "decor",
+      "flat": false,
+      "views": {
+        "s": {
+          "key": "chair",
+          "r": 0,
+          "image": "chair.png",
+          "footprint": {
+            "w": 1,
+            "h": 1
+          },
+          "bounds": {
+            "x": 0,
+            "y": -4,
+            "width": 12,
+            "height": 16
+          },
+          "guide": "dev/.scratch-workspace/prop-structure/chair.png"
+        },
+        "w": {
+          "key": "chair-r1",
+          "r": 1,
+          "image": "chair-r1.png",
+          "footprint": {
+            "w": 1,
+            "h": 1
+          },
+          "bounds": {
+            "x": 1,
+            "y": -4,
+            "width": 10,
+            "height": 16
+          },
+          "guide": "dev/.scratch-workspace/prop-structure/chair-r1.png"
+        },
+        "n": {
+          "key": "chair-r2",
+          "r": 2,
+          "image": "chair-r2.png",
+          "footprint": {
+            "w": 1,
+            "h": 1
+          },
+          "bounds": {
+            "x": 0,
+            "y": -4,
+            "width": 12,
+            "height": 16
+          },
+          "guide": "dev/.scratch-workspace/prop-structure/chair-r2.png"
+        },
+        "e": {
+          "key": "chair-r3",
+          "r": 3,
+          "image": "chair-r3.png",
+          "footprint": {
+            "w": 1,
+            "h": 1
+          },
+          "bounds": {
+            "x": 1,
+            "y": -4,
+            "width": 10,
+            "height": 16
+          },
+          "guide": "dev/.scratch-workspace/prop-structure/chair-r3.png"
+        }
+      }
+    },
+    "sidetable": {
+      "label": "SIDE TABLE",
+      "family": "decor",
+      "flat": false,
+      "views": {
+        "s": {
+          "key": "sidetable",
+          "r": 0,
+          "image": "sidetable.png",
+          "footprint": {
+            "w": 1,
+            "h": 1
+          },
+          "bounds": {
+            "x": 0,
+            "y": -3,
+            "width": 12,
+            "height": 15
+          },
+          "guide": "dev/.scratch-workspace/prop-structure/sidetable.png"
+        }
+      }
+    },
+    "lowtable": {
+      "label": "LOW TABLE",
+      "family": "decor",
+      "flat": false,
+      "views": {
+        "s": {
+          "key": "lowtable",
+          "r": 0,
+          "image": "lowtable.png",
+          "footprint": {
+            "w": 3,
+            "h": 1
+          },
+          "bounds": {
+            "x": -1,
+            "y": -5,
+            "width": 38,
+            "height": 17
+          },
+          "guide": "dev/.scratch-workspace/prop-structure/lowtable.png"
+        },
+        "e": {
+          "key": "lowtable-r3",
+          "r": 3,
+          "image": "lowtable-r3.png",
+          "footprint": {
+            "w": 1,
+            "h": 3
+          },
+          "bounds": {
+            "x": -2,
+            "y": 0,
+            "width": 16,
+            "height": 36
+          },
+          "guide": "dev/.scratch-workspace/prop-structure/lowtable-r3.png"
+        }
+      }
+    },
+    "glasstable": {
+      "label": "GLASS TABLE",
+      "family": "decor",
+      "flat": false,
+      "views": {
+        "s": {
+          "key": "glasstable",
+          "r": 0,
+          "image": "glasstable.png",
+          "footprint": {
+            "w": 3,
+            "h": 1
+          },
+          "bounds": {
+            "x": 0,
+            "y": -6,
+            "width": 36,
+            "height": 18
+          },
+          "guide": "dev/.scratch-workspace/prop-structure/glasstable.png"
+        },
+        "e": {
+          "key": "glasstable-r3",
+          "r": 3,
+          "image": "glasstable-r3.png",
+          "footprint": {
+            "w": 1,
+            "h": 3
+          },
+          "bounds": {
+            "x": 0,
+            "y": 0,
+            "width": 12,
+            "height": 36
+          },
+          "guide": "dev/.scratch-workspace/prop-structure/glasstable-r3.png"
+        }
+      }
+    },
+    "dinertable": {
+      "label": "DINER TABLE",
+      "family": "decor",
+      "flat": false,
+      "views": {
+        "s": {
+          "key": "dinertable",
+          "r": 0,
+          "image": "dinertable.png",
+          "footprint": {
+            "w": 3,
+            "h": 2
+          },
+          "bounds": {
+            "x": -1,
+            "y": 3,
+            "width": 38,
+            "height": 22
+          },
+          "guide": "dev/.scratch-workspace/prop-structure/dinertable.png"
+        },
+        "e": {
+          "key": "dinertable-r3",
+          "r": 3,
+          "image": "dinertable-r3.png",
+          "footprint": {
+            "w": 2,
+            "h": 3
+          },
+          "bounds": {
+            "x": -1,
+            "y": 0,
+            "width": 26,
+            "height": 37
+          },
+          "guide": "dev/.scratch-workspace/prop-structure/dinertable-r3.png"
+        }
+      }
+    },
+    "guitar": {
+      "label": "GUITAR",
+      "family": "decor",
+      "flat": false,
+      "views": {
+        "s": {
+          "key": "guitar",
+          "r": 0,
+          "image": "guitar.png",
+          "footprint": {
+            "w": 1,
+            "h": 1
+          },
+          "bounds": {
+            "x": -1,
+            "y": -15,
+            "width": 14,
+            "height": 27
+          },
+          "guide": "dev/.scratch-workspace/prop-structure/guitar.png"
+        }
+      }
+    },
+    "booth": {
+      "label": "BOOTH",
+      "family": "decor",
+      "flat": false,
+      "views": {
+        "s": {
+          "key": "booth",
+          "r": 0,
+          "image": "booth.png",
+          "footprint": {
+            "w": 2,
+            "h": 1
+          },
+          "bounds": {
+            "x": 0,
+            "y": -7,
+            "width": 24,
+            "height": 19
+          },
+          "guide": "dev/.scratch-workspace/prop-structure/booth.png"
+        },
+        "w": {
+          "key": "booth-r1",
+          "r": 1,
+          "image": "booth-r1.png",
+          "footprint": {
+            "w": 1,
+            "h": 2
+          },
+          "bounds": {
+            "x": 0,
+            "y": -5,
+            "width": 12,
+            "height": 29
+          },
+          "guide": "dev/.scratch-workspace/prop-structure/booth-r1.png"
+        },
+        "e": {
+          "key": "booth-r3",
+          "r": 3,
+          "image": "booth-r3.png",
+          "footprint": {
+            "w": 1,
+            "h": 2
+          },
+          "bounds": {
+            "x": 0,
+            "y": -5,
+            "width": 12,
+            "height": 29
+          },
+          "guide": "dev/.scratch-workspace/prop-structure/booth-r3.png"
+        }
+      }
+    },
+    "dinerchair": {
+      "label": "DINER CHAIR",
+      "family": "decor",
+      "flat": false,
+      "views": {
+        "s": {
+          "key": "dinerchair",
+          "r": 0,
+          "image": "dinerchair.png",
+          "footprint": {
+            "w": 1,
+            "h": 1
+          },
+          "bounds": {
+            "x": 1,
+            "y": -4,
+            "width": 11,
+            "height": 16
+          },
+          "guide": "dev/.scratch-workspace/prop-structure/dinerchair.png"
+        },
+        "w": {
+          "key": "dinerchair-r1",
+          "r": 1,
+          "image": "dinerchair-r1.png",
+          "footprint": {
+            "w": 1,
+            "h": 1
+          },
+          "bounds": {
+            "x": 0,
+            "y": -4,
+            "width": 11,
+            "height": 16
+          },
+          "guide": "dev/.scratch-workspace/prop-structure/dinerchair-r1.png"
+        },
+        "n": {
+          "key": "dinerchair-r2",
+          "r": 2,
+          "image": "dinerchair-r2.png",
+          "footprint": {
+            "w": 1,
+            "h": 1
+          },
+          "bounds": {
+            "x": 1,
+            "y": -4,
+            "width": 11,
+            "height": 16
+          },
+          "guide": "dev/.scratch-workspace/prop-structure/dinerchair-r2.png"
+        },
+        "e": {
+          "key": "dinerchair-r3",
+          "r": 3,
+          "image": "dinerchair-r3.png",
+          "footprint": {
+            "w": 1,
+            "h": 1
+          },
+          "bounds": {
+            "x": 1,
+            "y": -4,
+            "width": 11,
+            "height": 16
+          },
+          "guide": "dev/.scratch-workspace/prop-structure/dinerchair-r3.png"
+        }
+      }
+    },
+    "podchair": {
+      "label": "POD CHAIR",
+      "family": "decor",
+      "flat": false,
+      "views": {
+        "s": {
+          "key": "podchair",
+          "r": 0,
+          "image": "podchair.png",
+          "footprint": {
+            "w": 1,
+            "h": 1
+          },
+          "bounds": {
+            "x": 1,
+            "y": -5,
+            "width": 10,
+            "height": 17
+          },
+          "guide": "dev/.scratch-workspace/prop-structure/podchair.png"
+        },
+        "w": {
+          "key": "podchair-r1",
+          "r": 1,
+          "image": "podchair-r1.png",
+          "footprint": {
+            "w": 1,
+            "h": 1
+          },
+          "bounds": {
+            "x": 0,
+            "y": -5,
+            "width": 11,
+            "height": 17
+          },
+          "guide": "dev/.scratch-workspace/prop-structure/podchair-r1.png"
+        },
+        "n": {
+          "key": "podchair-r2",
+          "r": 2,
+          "image": "podchair-r2.png",
+          "footprint": {
+            "w": 1,
+            "h": 1
+          },
+          "bounds": {
+            "x": 1,
+            "y": -5,
+            "width": 10,
+            "height": 17
+          },
+          "guide": "dev/.scratch-workspace/prop-structure/podchair-r2.png"
+        },
+        "e": {
+          "key": "podchair-r3",
+          "r": 3,
+          "image": "podchair-r3.png",
+          "footprint": {
+            "w": 1,
+            "h": 1
+          },
+          "bounds": {
+            "x": 1,
+            "y": -5,
+            "width": 11,
+            "height": 17
+          },
+          "guide": "dev/.scratch-workspace/prop-structure/podchair-r3.png"
+        }
+      }
+    },
+    "loungetable": {
+      "label": "LOUNGE TABLE",
+      "family": "decor",
+      "flat": false,
+      "views": {
+        "s": {
+          "key": "loungetable",
+          "r": 0,
+          "image": "loungetable.png",
+          "footprint": {
+            "w": 2,
+            "h": 1
+          },
+          "bounds": {
+            "x": 0,
+            "y": -6,
+            "width": 24,
+            "height": 18
+          },
+          "guide": "dev/.scratch-workspace/prop-structure/loungetable.png"
+        },
+        "e": {
+          "key": "loungetable-r3",
+          "r": 3,
+          "image": "loungetable-r3.png",
+          "footprint": {
+            "w": 1,
+            "h": 2
+          },
+          "bounds": {
+            "x": -1,
+            "y": 0,
+            "width": 14,
+            "height": 24
+          },
+          "guide": "dev/.scratch-workspace/prop-structure/loungetable-r3.png"
+        }
+      }
+    },
+    "longtable": {
+      "label": "LONG TABLE",
+      "family": "decor",
+      "flat": false,
+      "views": {
+        "s": {
+          "key": "longtable",
+          "r": 0,
+          "image": "longtable.png",
+          "footprint": {
+            "w": 3,
+            "h": 1
+          },
+          "bounds": {
+            "x": -1,
+            "y": -6,
+            "width": 38,
+            "height": 18
+          },
+          "guide": "dev/.scratch-workspace/prop-structure/longtable.png"
+        },
+        "e": {
+          "key": "longtable-r3",
+          "r": 3,
+          "image": "longtable-r3.png",
+          "footprint": {
+            "w": 1,
+            "h": 3
+          },
+          "bounds": {
+            "x": -2,
+            "y": 0,
+            "width": 16,
+            "height": 36
+          },
+          "guide": "dev/.scratch-workspace/prop-structure/longtable-r3.png"
+        }
+      }
+    },
+    "lavalamp": {
+      "label": "LAVA LAMP",
+      "family": "decor",
+      "flat": false,
+      "views": {
+        "s": {
+          "key": "lavalamp",
+          "r": 0,
+          "image": "lavalamp.png",
+          "footprint": {
+            "w": 1,
+            "h": 1
+          },
+          "bounds": {
+            "x": 2,
+            "y": -8,
+            "width": 8,
+            "height": 20
+          },
+          "guide": "dev/.scratch-workspace/prop-structure/lavalamp.png"
+        }
+      }
+    },
+    "crt_pile": {
+      "label": "CRT PILE",
+      "family": "decor",
+      "flat": false,
+      "views": {
+        "s": {
+          "key": "crt_pile",
+          "r": 0,
+          "image": "crt_pile.png",
+          "footprint": {
+            "w": 1,
+            "h": 1
+          },
+          "bounds": {
+            "x": -1,
+            "y": -4,
+            "width": 12,
+            "height": 17
+          },
+          "guide": "dev/.scratch-workspace/prop-structure/crt_pile.png"
+        }
+      }
+    },
+    "cablerun": {
+      "label": "CABLE RUN",
+      "family": "decor",
+      "flat": true,
+      "views": {
+        "s": {
+          "key": "cablerun",
+          "r": 0,
+          "image": "cablerun.png",
+          "footprint": {
+            "w": 2,
+            "h": 1
+          },
+          "bounds": {
+            "x": 0,
+            "y": 2,
+            "width": 24,
+            "height": 9
+          },
+          "guide": "dev/.scratch-workspace/prop-structure/cablerun.png"
+        }
+      }
+    },
+    "hazardpad": {
+      "label": "HAZARD PAD",
+      "family": "decor",
+      "flat": true,
+      "views": {
+        "s": {
+          "key": "hazardpad",
+          "r": 0,
+          "image": "hazardpad.png",
+          "footprint": {
+            "w": 2,
+            "h": 1
+          },
+          "bounds": {
+            "x": 1,
+            "y": 1,
+            "width": 22,
+            "height": 10
+          },
+          "guide": "dev/.scratch-workspace/prop-structure/hazardpad.png"
+        }
+      }
+    },
+    "tallplant": {
+      "label": "TALL PLANT",
+      "family": "decor",
+      "flat": false,
+      "views": {
+        "s": {
+          "key": "tallplant",
+          "r": 0,
+          "image": "tallplant.png",
+          "footprint": {
+            "w": 1,
+            "h": 1
+          },
+          "bounds": {
+            "x": 1,
+            "y": -14,
+            "width": 13,
+            "height": 26
+          },
+          "guide": "dev/.scratch-workspace/prop-structure/tallplant.png"
+        }
+      }
+    },
+    "terrarium": {
+      "label": "TERRARIUM",
+      "family": "decor",
+      "flat": false,
+      "views": {
+        "s": {
+          "key": "terrarium",
+          "r": 0,
+          "image": "terrarium.png",
+          "footprint": {
+            "w": 1,
+            "h": 1
+          },
+          "bounds": {
+            "x": 0,
+            "y": -5,
+            "width": 11,
+            "height": 16
+          },
+          "guide": "dev/.scratch-workspace/prop-structure/terrarium.png"
+        }
+      }
+    },
+    "holopet": {
+      "label": "HOLO PET",
+      "family": "decor",
+      "flat": false,
+      "views": {
+        "s": {
+          "key": "holopet",
+          "r": 0,
+          "image": "holopet.png",
+          "footprint": {
+            "w": 1,
+            "h": 1
+          },
+          "bounds": {
+            "x": 3,
+            "y": -6,
+            "width": 6,
+            "height": 16
+          },
+          "guide": "dev/.scratch-workspace/prop-structure/holopet.png"
+        }
+      }
+    },
+    "plasmaglobe": {
+      "label": "PLASMA GLOBE",
+      "family": "decor",
+      "flat": false,
+      "views": {
+        "s": {
+          "key": "plasmaglobe",
+          "r": 0,
+          "image": "plasmaglobe.png",
+          "footprint": {
+            "w": 1,
+            "h": 1
+          },
+          "bounds": {
+            "x": 1,
+            "y": -5,
+            "width": 9,
+            "height": 17
+          },
+          "guide": "dev/.scratch-workspace/prop-structure/plasmaglobe.png"
+        }
+      }
+    },
+    "gachapon": {
+      "label": "GACHAPON",
+      "family": "decor",
+      "flat": false,
+      "views": {
+        "s": {
+          "key": "gachapon",
+          "r": 0,
+          "image": "gachapon.png",
+          "footprint": {
+            "w": 1,
+            "h": 1
+          },
+          "bounds": {
+            "x": 0,
+            "y": -7,
+            "width": 11,
+            "height": 19
+          },
+          "guide": "dev/.scratch-workspace/prop-structure/gachapon.png"
+        }
+      }
+    },
+    "monstera": {
+      "label": "MONSTERA",
+      "family": "decor",
+      "flat": false,
+      "views": {
+        "s": {
+          "key": "monstera",
+          "r": 0,
+          "image": "monstera.png",
+          "footprint": {
+            "w": 1,
+            "h": 1
+          },
+          "bounds": {
+            "x": 0,
+            "y": -1,
+            "width": 12,
+            "height": 13
+          },
+          "guide": "dev/.scratch-workspace/prop-structure/monstera.png"
+        }
+      }
+    },
+    "mug": {
+      "label": "MUG",
+      "family": "decor",
+      "flat": false,
+      "views": {
+        "s": {
+          "key": "mug",
+          "r": 0,
+          "image": "mug.png",
+          "footprint": {
+            "w": 1,
+            "h": 1
+          },
+          "bounds": {
+            "x": 1,
+            "y": 2,
+            "width": 10,
+            "height": 9
+          },
+          "guide": "dev/.scratch-workspace/prop-structure/mug.png"
+        }
+      }
+    },
+    "bookstack": {
+      "label": "BOOKS",
+      "family": "decor",
+      "flat": false,
+      "views": {
+        "s": {
+          "key": "bookstack",
+          "r": 0,
+          "image": "bookstack.png",
+          "footprint": {
+            "w": 1,
+            "h": 1
+          },
+          "bounds": {
+            "x": 0,
+            "y": 0,
+            "width": 12,
+            "height": 10
+          },
+          "guide": "dev/.scratch-workspace/prop-structure/bookstack.png"
+        }
+      }
+    },
+    "desklamp": {
+      "label": "DESK LAMP",
+      "family": "decor",
+      "flat": false,
+      "views": {
+        "s": {
+          "key": "desklamp",
+          "r": 0,
+          "image": "desklamp.png",
+          "footprint": {
+            "w": 1,
+            "h": 1
+          },
+          "bounds": {
+            "x": 0,
+            "y": 3,
+            "width": 12,
+            "height": 9
+          },
+          "guide": "dev/.scratch-workspace/prop-structure/desklamp.png"
+        }
+      }
+    },
+    "radio": {
+      "label": "RADIO",
+      "family": "decor",
+      "flat": false,
+      "views": {
+        "s": {
+          "key": "radio",
+          "r": 0,
+          "image": "radio.png",
+          "footprint": {
+            "w": 1,
+            "h": 1
+          },
+          "bounds": {
+            "x": 1,
+            "y": 3,
+            "width": 10,
+            "height": 9
+          },
+          "guide": "dev/.scratch-workspace/prop-structure/radio.png"
+        }
+      }
+    },
+    "toolbox": {
+      "label": "TOOLBOX",
+      "family": "decor",
+      "flat": false,
+      "views": {
+        "s": {
+          "key": "toolbox",
+          "r": 0,
+          "image": "toolbox.png",
+          "footprint": {
+            "w": 1,
+            "h": 1
+          },
+          "bounds": {
+            "x": 0,
+            "y": 1,
+            "width": 12,
+            "height": 10
+          },
+          "guide": "dev/.scratch-workspace/prop-structure/toolbox.png"
+        }
+      }
+    },
+    "figurine": {
+      "label": "FIGURINE",
+      "family": "decor",
+      "flat": false,
+      "views": {
+        "s": {
+          "key": "figurine",
+          "r": 0,
+          "image": "figurine.png",
+          "footprint": {
+            "w": 1,
+            "h": 1
+          },
+          "bounds": {
+            "x": 1,
+            "y": 1,
+            "width": 10,
+            "height": 11
+          },
+          "guide": "dev/.scratch-workspace/prop-structure/figurine.png"
+        }
+      }
+    },
+    "deskterminal": {
+      "label": "TERMINAL",
+      "family": "decor",
+      "flat": false,
+      "views": {
+        "s": {
+          "key": "deskterminal",
+          "r": 0,
+          "image": "deskterminal.png",
+          "footprint": {
+            "w": 1,
+            "h": 1
+          },
+          "bounds": {
+            "x": 0,
+            "y": 0,
+            "width": 12,
+            "height": 12
+          },
+          "guide": "dev/.scratch-workspace/prop-structure/deskterminal.png"
+        }
+      }
+    },
+    "modelship": {
+      "label": "MODEL SHIP",
+      "family": "decor",
+      "flat": false,
+      "views": {
+        "s": {
+          "key": "modelship",
+          "r": 0,
+          "image": "modelship.png",
+          "footprint": {
+            "w": 2,
+            "h": 1
+          },
+          "bounds": {
+            "x": 2,
+            "y": 1,
+            "width": 20,
+            "height": 11
+          },
+          "guide": "dev/.scratch-workspace/prop-structure/modelship.png"
+        }
+      }
+    },
+    "steamvent": {
+      "label": "STEAM VENT",
+      "family": "decor",
+      "flat": false,
+      "views": {
+        "s": {
+          "key": "steamvent",
+          "r": 0,
+          "image": "steamvent.png",
+          "footprint": {
+            "w": 1,
+            "h": 1
+          },
+          "bounds": {
+            "x": 0,
+            "y": 3,
+            "width": 12,
+            "height": 9
+          },
+          "guide": "dev/.scratch-workspace/prop-structure/steamvent.png"
+        }
+      }
+    },
+    "fishtank": {
+      "label": "FISH TANK",
+      "family": "lounge",
+      "flat": false,
+      "views": {
+        "s": {
+          "key": "fishtank",
+          "r": 0,
+          "image": "fishtank.png",
+          "footprint": {
+            "w": 2,
+            "h": 1
+          },
+          "bounds": {
+            "x": -1,
+            "y": -12,
+            "width": 26,
+            "height": 24
+          },
+          "guide": "dev/.scratch-workspace/prop-structure/fishtank.png"
+        }
+      }
+    },
+    "pokertable": {
+      "label": "POKER TABLE",
+      "family": "lounge",
+      "flat": false,
+      "views": {
+        "s": {
+          "key": "pokertable",
+          "r": 0,
+          "image": "pokertable.png",
+          "footprint": {
+            "w": 4,
+            "h": 2
+          },
+          "bounds": {
+            "x": -1,
+            "y": -5,
+            "width": 50,
+            "height": 29
+          },
+          "guide": "dev/.scratch-workspace/prop-structure/pokertable.png"
+        }
+      }
+    },
+    "bookshelf": {
+      "label": "BOOKSHELF",
+      "family": "lounge",
+      "flat": false,
+      "views": {
+        "s": {
+          "key": "bookshelf",
+          "r": 0,
+          "image": "bookshelf.png",
+          "footprint": {
+            "w": 2,
+            "h": 1
+          },
+          "bounds": {
+            "x": -1,
+            "y": -9,
+            "width": 26,
+            "height": 22
+          },
+          "guide": "dev/.scratch-workspace/prop-structure/bookshelf.png"
+        }
+      }
+    },
+    "beanbag": {
+      "label": "BEANBAG",
+      "family": "lounge",
+      "flat": false,
+      "views": {
+        "s": {
+          "key": "beanbag",
+          "r": 0,
+          "image": "beanbag.png",
+          "footprint": {
+            "w": 1,
+            "h": 1
+          },
+          "bounds": {
+            "x": -1,
+            "y": 1,
+            "width": 14,
+            "height": 11
+          },
+          "guide": "dev/.scratch-workspace/prop-structure/beanbag.png"
+        }
+      }
+    },
+    "pinball": {
+      "label": "PINBALL",
+      "family": "lounge",
+      "flat": false,
+      "views": {
+        "s": {
+          "key": "pinball",
+          "r": 0,
+          "image": "pinball.png",
+          "footprint": {
+            "w": 1,
+            "h": 2
+          },
+          "bounds": {
+            "x": -1,
+            "y": -3,
+            "width": 16,
+            "height": 27
+          },
+          "guide": "dev/.scratch-workspace/prop-structure/pinball.png"
+        }
+      }
+    },
+    "cryopod": {
+      "label": "CRYO POD",
+      "family": "decor",
+      "flat": false,
+      "views": {
+        "s": {
+          "key": "cryopod",
+          "r": 0,
+          "image": "cryopod.png",
+          "footprint": {
+            "w": 1,
+            "h": 2
+          },
+          "bounds": {
+            "x": 0,
+            "y": -6,
+            "width": 12,
+            "height": 30
+          },
+          "guide": "dev/.scratch-workspace/prop-structure/cryopod.png"
+        }
+      }
+    },
+    "incubator": {
+      "label": "INCUBATOR",
+      "family": "decor",
+      "flat": false,
+      "views": {
+        "s": {
+          "key": "incubator",
+          "r": 0,
+          "image": "incubator.png",
+          "footprint": {
+            "w": 1,
+            "h": 2
+          },
+          "bounds": {
+            "x": -1,
+            "y": -9,
+            "width": 14,
+            "height": 33
+          },
+          "guide": "dev/.scratch-workspace/prop-structure/incubator.png"
+        }
+      }
+    },
+    "telescope": {
+      "label": "TELESCOPE ›",
+      "family": "decor",
+      "flat": false,
+      "views": {
+        "s": {
+          "key": "telescope",
+          "r": 0,
+          "image": "telescope.png",
+          "footprint": {
+            "w": 1,
+            "h": 2
+          },
+          "bounds": {
+            "x": -3,
+            "y": -8,
+            "width": 19,
+            "height": 31
+          },
+          "guide": "dev/.scratch-workspace/prop-structure/telescope.png"
+        }
+      }
+    },
+    "telescope_r": {
+      "label": "TELESCOPE ‹",
+      "family": "decor",
+      "flat": false,
+      "views": {
+        "s": {
+          "key": "telescope_r",
+          "r": 0,
+          "image": "telescope_r.png",
+          "footprint": {
+            "w": 1,
+            "h": 2
+          },
+          "bounds": {
+            "x": -4,
+            "y": -8,
+            "width": 19,
+            "height": 31
+          },
+          "guide": "dev/.scratch-workspace/prop-structure/telescope_r.png"
+        }
+      }
+    },
+    "camerarig": {
+      "label": "CAMERA RIG ‹",
+      "family": "decor",
+      "flat": false,
+      "views": {
+        "s": {
+          "key": "camerarig",
+          "r": 0,
+          "image": "camerarig.png",
+          "footprint": {
+            "w": 1,
+            "h": 2
+          },
+          "bounds": {
+            "x": -1,
+            "y": -6,
+            "width": 15,
+            "height": 29
+          },
+          "guide": "dev/.scratch-workspace/prop-structure/camerarig.png"
+        }
+      }
+    },
+    "camerarig_r": {
+      "label": "CAMERA RIG ›",
+      "family": "decor",
+      "flat": false,
+      "views": {
+        "s": {
+          "key": "camerarig_r",
+          "r": 0,
+          "image": "camerarig_r.png",
+          "footprint": {
+            "w": 1,
+            "h": 2
+          },
+          "bounds": {
+            "x": -2,
+            "y": -6,
+            "width": 15,
+            "height": 29
+          },
+          "guide": "dev/.scratch-workspace/prop-structure/camerarig_r.png"
+        }
+      }
+    },
+    "weaponrack": {
+      "label": "WEAPON RACK ‹",
+      "family": "decor",
+      "flat": false,
+      "views": {
+        "s": {
+          "key": "weaponrack",
+          "r": 0,
+          "image": "weaponrack.png",
+          "footprint": {
+            "w": 3,
+            "h": 1
+          },
+          "bounds": {
+            "x": 1,
+            "y": -16,
+            "width": 34,
+            "height": 22
+          },
+          "guide": "dev/.scratch-workspace/prop-structure/weaponrack.png"
+        }
+      }
+    },
+    "weaponrack_r": {
+      "label": "WEAPON RACK ›",
+      "family": "decor",
+      "flat": false,
+      "views": {
+        "s": {
+          "key": "weaponrack_r",
+          "r": 0,
+          "image": "weaponrack_r.png",
+          "footprint": {
+            "w": 3,
+            "h": 1
+          },
+          "bounds": {
+            "x": 1,
+            "y": -16,
+            "width": 34,
+            "height": 22
+          },
+          "guide": "dev/.scratch-workspace/prop-structure/weaponrack_r.png"
+        }
+      }
+    },
+    "punchbag": {
+      "label": "HEAVY BAG ‹",
+      "family": "decor",
+      "flat": false,
+      "views": {
+        "s": {
+          "key": "punchbag",
+          "r": 0,
+          "image": "punchbag.png",
+          "footprint": {
+            "w": 1,
+            "h": 2
+          },
+          "bounds": {
+            "x": 0,
+            "y": -8,
+            "width": 12,
+            "height": 30
+          },
+          "guide": "dev/.scratch-workspace/prop-structure/punchbag.png"
+        }
+      }
+    },
+    "punchbag_r": {
+      "label": "HEAVY BAG ›",
+      "family": "decor",
+      "flat": false,
+      "views": {
+        "s": {
+          "key": "punchbag_r",
+          "r": 0,
+          "image": "punchbag_r.png",
+          "footprint": {
+            "w": 1,
+            "h": 2
+          },
+          "bounds": {
+            "x": 0,
+            "y": -8,
+            "width": 12,
+            "height": 30
+          },
+          "guide": "dev/.scratch-workspace/prop-structure/punchbag_r.png"
+        }
+      }
+    },
+    "benchpress": {
+      "label": "BENCH PRESS ‹",
+      "family": "decor",
+      "flat": false,
+      "views": {
+        "s": {
+          "key": "benchpress",
+          "r": 0,
+          "image": "benchpress.png",
+          "footprint": {
+            "w": 3,
+            "h": 1
+          },
+          "bounds": {
+            "x": 1,
+            "y": -8,
+            "width": 36,
+            "height": 20
+          },
+          "guide": "dev/.scratch-workspace/prop-structure/benchpress.png"
+        }
+      }
+    },
+    "benchpress_r": {
+      "label": "BENCH PRESS ›",
+      "family": "decor",
+      "flat": false,
+      "views": {
+        "s": {
+          "key": "benchpress_r",
+          "r": 0,
+          "image": "benchpress_r.png",
+          "footprint": {
+            "w": 3,
+            "h": 1
+          },
+          "bounds": {
+            "x": -1,
+            "y": -8,
+            "width": 36,
+            "height": 20
+          },
+          "guide": "dev/.scratch-workspace/prop-structure/benchpress_r.png"
+        }
+      }
+    },
+    "recliner": {
+      "label": "RECLINER ‹ LEFT",
+      "family": "lounge",
+      "flat": false,
+      "views": {
+        "s": {
+          "key": "recliner",
+          "r": 0,
+          "image": "recliner.png",
+          "footprint": {
+            "w": 1,
+            "h": 1
+          },
+          "bounds": {
+            "x": -3,
+            "y": -7,
+            "width": 17,
+            "height": 19
+          },
+          "guide": "dev/.scratch-workspace/prop-structure/recliner.png"
+        }
+      }
+    },
+    "recliner_r": {
+      "label": "RECLINER RIGHT ›",
+      "family": "lounge",
+      "flat": false,
+      "views": {
+        "s": {
+          "key": "recliner_r",
+          "r": 0,
+          "image": "recliner_r.png",
+          "footprint": {
+            "w": 1,
+            "h": 1
+          },
+          "bounds": {
+            "x": -2,
+            "y": -7,
+            "width": 17,
+            "height": 19
+          },
+          "guide": "dev/.scratch-workspace/prop-structure/recliner_r.png"
+        }
+      }
+    }
+  }
+}

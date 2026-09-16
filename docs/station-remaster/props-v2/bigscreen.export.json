@@ -1,0 +1,15 @@
+{
+  "id": "bigscreen",
+  "source": "C:\\Users\\andro\\.codex\\generated_images\\01a0976c-e264-7f13-a581-78c904716b14\\exec-3d3df69e-97c5-4db8-95cf-0d1dcb94f849.png",
+  "sourceWidth": 2170,
+  "sourceHeight": 725,
+  "crop": {
+    "left": 0,
+    "top": 88,
+    "width": 2170,
+    "height": 553
+  },
+  "sourceAlpha": false,
+  "subjectRgbChanges": 0,
+  "output": "frontend/assets/industrial/props-v2/bigscreen.png"
+}

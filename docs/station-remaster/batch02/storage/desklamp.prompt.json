@@ -1,0 +1,11 @@
+{
+  "id": "desklamp",
+  "tool": "built-in image_gen",
+  "prompt": "Use case: stylized-concept. Generate ONE complete finely rendered realistic StarNet game prop sprite, isolated centered intact with margin. References are CAMERA AND DETAIL QUALITY ONLY. DO NOT transfer armored metal, hazard stripes, bolted casing or mechanical forms onto naturally wood, paper, ceramic or fabric objects. New material variety is essential. Fixed high overhead oblique camera from due south, front horizontal, zero yaw, depth recedes straight up page; see tops and fronts, no isometric diagonal. Gentle material wear, physically convincing construction, clear readable silhouette at small game scale, fine authored illustration detail not pixel-block style or cartoon. Soft upper-left light, no glow, NO CAST SHADOW or floor or plinth unless subject requires an integral stand. Plain perfectly flat saturated magenta #ff00ff backdrop for reliable masking; no magenta object details, no checkerboard, no environment, no text or watermark. Subject: A small squat adjustable DESK LAMP with pale sage-green painted enamel shade and weighted oval base, silhouette proportion 12:9. Short bent gooseneck holds a broad downturned dome shade to the left of base center; exposed cream inner shade but bulb OFF. Warm brass hinge and tiny black switch, tactile vintage functional lamp. Intact compact sideways arc silhouette; negative gap inside neck reveals solid magenta. No light beam, no cast shadow.",
+  "references": [
+    "C:/Users/andro/gen-trees/industrial-textures-0912/frontend/assets/industrial/workstation.png",
+    "C:/Users/andro/Downloads/bridge.png"
+  ],
+  "originalPath": "C:\\Users\\andro\\.codex\\generated_images\\01a09e47-65ec-7a71-b4a1-4847c19fc477\\exec-3ee539e3-bd03-4460-af8d-de0bd3994049.png",
+  "materialDirection": "User requested diverse natural materials; references constrain camera/detail only."
+}

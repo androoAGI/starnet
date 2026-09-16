@@ -1,0 +1,60 @@
+{
+  "id": "holopet",
+  "status": "exported-awaiting-owner-live-review",
+  "source": "sources/holopet.png",
+  "sourceSha256": "750ed7845770b50185fb261a8b8945a64f5b258e83794cc9a1ab1a41583fd910",
+  "sourceWidth": 768,
+  "sourceHeight": 2048,
+  "image": "holopet.png",
+  "sourceOutputWidth": 671,
+  "sourceOutputHeight": 1740,
+  "crop": {
+    "left": 70,
+    "top": 181,
+    "width": 671,
+    "height": 1740
+  },
+  "channels": 4,
+  "transparentPixels": 600383,
+  "opaquePixels": 567157,
+  "partialPixels": 0,
+  "backgroundPixelsRemoved": 1005707,
+  "subjectRgbChanges": 0,
+  "outputSha256": "6d65bfdc7e90fb73422c602ee77755864b6913edf219789fe88b4cd0a242d2ec",
+  "holeSeeds": [],
+  "maskMethod": "Connected saturated-magenta flood fill, including key-only enclosed components. Alpha-only edits; uniform crop; no RGB recolor.",
+  "view": "s",
+  "footprint": {
+    "w": 1,
+    "h": 1
+  },
+  "bounds": {
+    "x": 3,
+    "y": -6,
+    "width": 6,
+    "height": 16
+  },
+  "tilePixels": 12,
+  "contact": {
+    "x": 6,
+    "y": 10
+  },
+  "anchorContract": "PropAnchor derives reachable edge approach; useApproach rotates relative preference with r. Preserve standing leisure action unless special planner supplies a real body anchor.",
+  "originalLight": {
+    "c": [
+      120,
+      255,
+      220
+    ],
+    "r": 16,
+    "a": 0.12,
+    "m": "pulse",
+    "y": 0.4
+  },
+  "originalAnimationTriggers": [
+    "Actual leisure usingProp / watchProp can set work on this prop; body approach and use animation follow leisureUse. In the baseline draw work expression this leisure trigger directly checks the hero, not a separate crew leisure flag.",
+    "Autonomous sprite clock animation is present in the sampled default state; cosmetic motion is not evidence of provider work, route decisions or external state."
+  ],
+  "artMode": "static complete art; existing state/lighting integration remains owner decision",
+  "liveIntegrated": false
+}

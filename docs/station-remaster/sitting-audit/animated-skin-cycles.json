@@ -1,0 +1,1266 @@
+{
+  "cases": [],
+  "performance": [],
+  "sitting": [
+    {
+      "key": "industrial_bench:s",
+      "mirror": false,
+      "kind": "seat",
+      "planned": true,
+      "elapsed": 1267,
+      "pose": {
+        "seated": true,
+        "sitting": true,
+        "lying": false,
+        "dir": "north",
+        "usingProp": "catalog-industrial_bench:s",
+        "px": 78,
+        "py": 119,
+        "seatLift": 0,
+        "seatKey": "catalog-industrial_bench:s:1"
+      },
+      "left": {
+        "seated": false,
+        "sitting": false,
+        "lying": false,
+        "dir": "south",
+        "usingProp": null,
+        "px": 78,
+        "py": 143,
+        "seatLift": 0,
+        "seatKey": null
+      },
+      "issues": []
+    },
+    {
+      "key": "couch:s",
+      "mirror": false,
+      "kind": "seat",
+      "planned": true,
+      "elapsed": 1274,
+      "pose": {
+        "seated": true,
+        "sitting": true,
+        "lying": false,
+        "dir": "north",
+        "usingProp": "catalog-couch:s",
+        "px": 186,
+        "py": 119,
+        "seatLift": 6,
+        "seatKey": "catalog-couch:s:1"
+      },
+      "left": {
+        "seated": false,
+        "sitting": false,
+        "lying": false,
+        "dir": "south",
+        "usingProp": null,
+        "px": 198,
+        "py": 143,
+        "seatLift": 0,
+        "seatKey": null
+      },
+      "issues": []
+    },
+    {
+      "key": "bunk:s",
+      "mirror": false,
+      "kind": "bed",
+      "planned": true,
+      "elapsed": 3624,
+      "pose": {
+        "seated": true,
+        "sitting": false,
+        "lying": true,
+        "dir": "south",
+        "usingProp": "catalog-bunk:s",
+        "px": 282,
+        "py": 95,
+        "seatLift": 0,
+        "seatKey": "catalog-bunk:s:0"
+      },
+      "left": {
+        "seated": false,
+        "sitting": false,
+        "lying": false,
+        "dir": "south",
+        "usingProp": null,
+        "px": 294,
+        "py": 155,
+        "seatLift": 0,
+        "seatKey": null
+      },
+      "issues": []
+    },
+    {
+      "key": "stool:s",
+      "mirror": false,
+      "kind": "seat",
+      "planned": true,
+      "elapsed": 1326,
+      "pose": {
+        "seated": true,
+        "sitting": true,
+        "lying": false,
+        "dir": "south",
+        "usingProp": "catalog-stool:s",
+        "px": 66,
+        "py": 203,
+        "seatLift": 4,
+        "seatKey": "catalog-stool:s:0"
+      },
+      "left": {
+        "seated": false,
+        "sitting": false,
+        "lying": false,
+        "dir": "south",
+        "usingProp": null,
+        "px": 66,
+        "py": 227,
+        "seatLift": 0,
+        "seatKey": null
+      },
+      "issues": []
+    },
+    {
+      "key": "chair:s",
+      "mirror": false,
+      "kind": "seat",
+      "planned": true,
+      "elapsed": 1198,
+      "pose": {
+        "seated": true,
+        "sitting": true,
+        "lying": false,
+        "dir": "south",
+        "usingProp": "catalog-chair:s",
+        "px": 174,
+        "py": 203,
+        "seatLift": 2,
+        "seatKey": "catalog-chair:s:0"
+      },
+      "left": {
+        "seated": false,
+        "sitting": false,
+        "lying": false,
+        "dir": "south",
+        "usingProp": null,
+        "px": 174,
+        "py": 227,
+        "seatLift": 0,
+        "seatKey": null
+      },
+      "issues": []
+    },
+    {
+      "key": "chair:w",
+      "mirror": false,
+      "kind": "seat",
+      "planned": true,
+      "elapsed": 1797,
+      "pose": {
+        "seated": true,
+        "sitting": true,
+        "lying": false,
+        "dir": "west",
+        "usingProp": "catalog-chair:w",
+        "px": 282,
+        "py": 203,
+        "seatLift": 2,
+        "seatKey": "catalog-chair:w:0"
+      },
+      "left": {
+        "seated": false,
+        "sitting": false,
+        "lying": false,
+        "dir": "south",
+        "usingProp": null,
+        "px": 282,
+        "py": 227,
+        "seatLift": 0,
+        "seatKey": null
+      },
+      "issues": []
+    },
+    {
+      "key": "industrial_bench:s",
+      "mirror": true,
+      "kind": "seat",
+      "planned": true,
+      "elapsed": 1294,
+      "pose": {
+        "seated": true,
+        "sitting": true,
+        "lying": false,
+        "dir": "north",
+        "usingProp": "catalog-industrial_bench:s",
+        "px": 78,
+        "py": 119,
+        "seatLift": 0,
+        "seatKey": "catalog-industrial_bench:s:1"
+      },
+      "left": {
+        "seated": false,
+        "sitting": false,
+        "lying": false,
+        "dir": "south",
+        "usingProp": null,
+        "px": 78,
+        "py": 143,
+        "seatLift": 0,
+        "seatKey": null
+      },
+      "issues": []
+    },
+    {
+      "key": "couch:s",
+      "mirror": true,
+      "kind": "seat",
+      "planned": true,
+      "elapsed": 1227,
+      "pose": {
+        "seated": true,
+        "sitting": true,
+        "lying": false,
+        "dir": "north",
+        "usingProp": "catalog-couch:s",
+        "px": 186,
+        "py": 119,
+        "seatLift": 6,
+        "seatKey": "catalog-couch:s:1"
+      },
+      "left": {
+        "seated": false,
+        "sitting": false,
+        "lying": false,
+        "dir": "south",
+        "usingProp": null,
+        "px": 198,
+        "py": 143,
+        "seatLift": 0,
+        "seatKey": null
+      },
+      "issues": []
+    },
+    {
+      "key": "bunk:s",
+      "mirror": true,
+      "kind": "bed",
+      "planned": true,
+      "elapsed": 3584,
+      "pose": {
+        "seated": true,
+        "sitting": false,
+        "lying": true,
+        "dir": "south",
+        "usingProp": "catalog-bunk:s",
+        "px": 282,
+        "py": 95,
+        "seatLift": 0,
+        "seatKey": "catalog-bunk:s:0"
+      },
+      "left": {
+        "seated": false,
+        "sitting": false,
+        "lying": false,
+        "dir": "south",
+        "usingProp": null,
+        "px": 294.3928742302118,
+        "py": 154.1253117101257,
+        "seatLift": 0,
+        "seatKey": null
+      },
+      "issues": []
+    },
+    {
+      "key": "stool:s",
+      "mirror": true,
+      "kind": "seat",
+      "planned": true,
+      "elapsed": 1195,
+      "pose": {
+        "seated": true,
+        "sitting": true,
+        "lying": false,
+        "dir": "south",
+        "usingProp": "catalog-stool:s",
+        "px": 66,
+        "py": 203,
+        "seatLift": 4,
+        "seatKey": "catalog-stool:s:0"
+      },
+      "left": {
+        "seated": false,
+        "sitting": false,
+        "lying": false,
+        "dir": "south",
+        "usingProp": null,
+        "px": 66,
+        "py": 227,
+        "seatLift": 0,
+        "seatKey": null
+      },
+      "issues": []
+    },
+    {
+      "key": "chair:s",
+      "mirror": true,
+      "kind": "seat",
+      "planned": true,
+      "elapsed": 1210,
+      "pose": {
+        "seated": true,
+        "sitting": true,
+        "lying": false,
+        "dir": "south",
+        "usingProp": "catalog-chair:s",
+        "px": 174,
+        "py": 203,
+        "seatLift": 2,
+        "seatKey": "catalog-chair:s:0"
+      },
+      "left": {
+        "seated": false,
+        "sitting": false,
+        "lying": false,
+        "dir": "south",
+        "usingProp": null,
+        "px": 174,
+        "py": 227,
+        "seatLift": 0,
+        "seatKey": null
+      },
+      "issues": []
+    },
+    {
+      "key": "chair:w",
+      "mirror": true,
+      "kind": "seat",
+      "planned": true,
+      "elapsed": 1375,
+      "pose": {
+        "seated": true,
+        "sitting": true,
+        "lying": false,
+        "dir": "east",
+        "usingProp": "catalog-chair:w",
+        "px": 282,
+        "py": 203,
+        "seatLift": 2,
+        "seatKey": "catalog-chair:w:0"
+      },
+      "left": {
+        "seated": false,
+        "sitting": false,
+        "lying": false,
+        "dir": "south",
+        "usingProp": null,
+        "px": 282,
+        "py": 227,
+        "seatLift": 0,
+        "seatKey": null
+      },
+      "issues": []
+    },
+    {
+      "key": "chair:n",
+      "mirror": false,
+      "kind": "seat",
+      "planned": true,
+      "elapsed": 1157,
+      "pose": {
+        "seated": true,
+        "sitting": true,
+        "lying": false,
+        "dir": "north",
+        "usingProp": "catalog-chair:n",
+        "px": 66,
+        "py": 119,
+        "seatLift": 2,
+        "seatKey": "catalog-chair:n:0"
+      },
+      "left": {
+        "seated": false,
+        "sitting": false,
+        "lying": false,
+        "dir": "south",
+        "usingProp": null,
+        "px": 66,
+        "py": 143,
+        "seatLift": 0,
+        "seatKey": null
+      },
+      "issues": []
+    },
+    {
+      "key": "chair:e",
+      "mirror": false,
+      "kind": "seat",
+      "planned": true,
+      "elapsed": 1279,
+      "pose": {
+        "seated": true,
+        "sitting": true,
+        "lying": false,
+        "dir": "east",
+        "usingProp": "catalog-chair:e",
+        "px": 174,
+        "py": 119,
+        "seatLift": 2,
+        "seatKey": "catalog-chair:e:0"
+      },
+      "left": {
+        "seated": false,
+        "sitting": false,
+        "lying": false,
+        "dir": "south",
+        "usingProp": null,
+        "px": 174,
+        "py": 143,
+        "seatLift": 0,
+        "seatKey": null
+      },
+      "issues": []
+    },
+    {
+      "key": "booth:s",
+      "mirror": false,
+      "kind": "seat",
+      "planned": true,
+      "elapsed": 1263,
+      "pose": {
+        "seated": true,
+        "sitting": true,
+        "lying": false,
+        "dir": "north",
+        "usingProp": "catalog-booth:s",
+        "px": 282,
+        "py": 119,
+        "seatLift": 0,
+        "seatKey": "catalog-booth:s:0"
+      },
+      "left": {
+        "seated": false,
+        "sitting": false,
+        "lying": false,
+        "dir": "south",
+        "usingProp": null,
+        "px": 294,
+        "py": 143,
+        "seatLift": 0,
+        "seatKey": null
+      },
+      "issues": []
+    },
+    {
+      "key": "booth:w",
+      "mirror": false,
+      "kind": "seat",
+      "planned": true,
+      "elapsed": 1139,
+      "pose": {
+        "seated": true,
+        "sitting": true,
+        "lying": false,
+        "dir": "west",
+        "usingProp": "catalog-booth:w",
+        "px": 66,
+        "py": 203,
+        "seatLift": 2,
+        "seatKey": "catalog-booth:w:1"
+      },
+      "left": {
+        "seated": false,
+        "sitting": false,
+        "lying": false,
+        "dir": "south",
+        "usingProp": null,
+        "px": 66,
+        "py": 227,
+        "seatLift": 0,
+        "seatKey": null
+      },
+      "issues": []
+    },
+    {
+      "key": "booth:e",
+      "mirror": false,
+      "kind": "seat",
+      "planned": true,
+      "elapsed": 2969,
+      "pose": {
+        "seated": true,
+        "sitting": true,
+        "lying": false,
+        "dir": "east",
+        "usingProp": "catalog-booth:e",
+        "px": 174,
+        "py": 167,
+        "seatLift": 2,
+        "seatKey": "catalog-booth:e:0"
+      },
+      "left": {
+        "seated": false,
+        "sitting": false,
+        "lying": false,
+        "dir": "south",
+        "usingProp": null,
+        "px": 174.44267988229072,
+        "py": 226.01425891696297,
+        "seatLift": 0,
+        "seatKey": null
+      },
+      "issues": []
+    },
+    {
+      "key": "dinerchair:s",
+      "mirror": false,
+      "kind": "seat",
+      "planned": true,
+      "elapsed": 1269,
+      "pose": {
+        "seated": true,
+        "sitting": true,
+        "lying": false,
+        "dir": "south",
+        "usingProp": "catalog-dinerchair:s",
+        "px": 282,
+        "py": 191,
+        "seatLift": 0,
+        "seatKey": "catalog-dinerchair:s:0"
+      },
+      "left": {
+        "seated": false,
+        "sitting": false,
+        "lying": false,
+        "dir": "south",
+        "usingProp": null,
+        "px": 282,
+        "py": 215,
+        "seatLift": 0,
+        "seatKey": null
+      },
+      "issues": []
+    },
+    {
+      "key": "chair:n",
+      "mirror": true,
+      "kind": "seat",
+      "planned": true,
+      "elapsed": 1165,
+      "pose": {
+        "seated": true,
+        "sitting": true,
+        "lying": false,
+        "dir": "north",
+        "usingProp": "catalog-chair:n",
+        "px": 66,
+        "py": 119,
+        "seatLift": 2,
+        "seatKey": "catalog-chair:n:0"
+      },
+      "left": {
+        "seated": false,
+        "sitting": false,
+        "lying": false,
+        "dir": "south",
+        "usingProp": null,
+        "px": 66,
+        "py": 143,
+        "seatLift": 0,
+        "seatKey": null
+      },
+      "issues": []
+    },
+    {
+      "key": "chair:e",
+      "mirror": true,
+      "kind": "seat",
+      "planned": true,
+      "elapsed": 1298,
+      "pose": {
+        "seated": true,
+        "sitting": true,
+        "lying": false,
+        "dir": "west",
+        "usingProp": "catalog-chair:e",
+        "px": 174,
+        "py": 119,
+        "seatLift": 2,
+        "seatKey": "catalog-chair:e:0"
+      },
+      "left": {
+        "seated": false,
+        "sitting": false,
+        "lying": false,
+        "dir": "south",
+        "usingProp": null,
+        "px": 174,
+        "py": 142.04052837269393,
+        "seatLift": 0,
+        "seatKey": null
+      },
+      "issues": []
+    },
+    {
+      "key": "booth:s",
+      "mirror": true,
+      "kind": "seat",
+      "planned": true,
+      "elapsed": 1345,
+      "pose": {
+        "seated": true,
+        "sitting": true,
+        "lying": false,
+        "dir": "north",
+        "usingProp": "catalog-booth:s",
+        "px": 294,
+        "py": 119,
+        "seatLift": 0,
+        "seatKey": "catalog-booth:s:1"
+      },
+      "left": {
+        "seated": false,
+        "sitting": false,
+        "lying": false,
+        "dir": "south",
+        "usingProp": null,
+        "px": 294,
+        "py": 142.0023087446033,
+        "seatLift": 0,
+        "seatKey": null
+      },
+      "issues": []
+    },
+    {
+      "key": "booth:w",
+      "mirror": true,
+      "kind": "seat",
+      "planned": true,
+      "elapsed": 3030,
+      "pose": {
+        "seated": true,
+        "sitting": true,
+        "lying": false,
+        "dir": "east",
+        "usingProp": "catalog-booth:w",
+        "px": 66,
+        "py": 167,
+        "seatLift": 2,
+        "seatKey": "catalog-booth:w:0"
+      },
+      "left": {
+        "seated": false,
+        "sitting": false,
+        "lying": false,
+        "dir": "south",
+        "usingProp": null,
+        "px": 66,
+        "py": 227,
+        "seatLift": 0,
+        "seatKey": null
+      },
+      "issues": []
+    },
+    {
+      "key": "booth:e",
+      "mirror": true,
+      "kind": "seat",
+      "planned": true,
+      "elapsed": 1267,
+      "pose": {
+        "seated": true,
+        "sitting": true,
+        "lying": false,
+        "dir": "west",
+        "usingProp": "catalog-booth:e",
+        "px": 174,
+        "py": 203,
+        "seatLift": 2,
+        "seatKey": "catalog-booth:e:1"
+      },
+      "left": {
+        "seated": false,
+        "sitting": false,
+        "lying": false,
+        "dir": "south",
+        "usingProp": null,
+        "px": 174,
+        "py": 226.04750545945714,
+        "seatLift": 0,
+        "seatKey": null
+      },
+      "issues": []
+    },
+    {
+      "key": "dinerchair:s",
+      "mirror": true,
+      "kind": "seat",
+      "planned": true,
+      "elapsed": 1137,
+      "pose": {
+        "seated": true,
+        "sitting": true,
+        "lying": false,
+        "dir": "south",
+        "usingProp": "catalog-dinerchair:s",
+        "px": 282,
+        "py": 191,
+        "seatLift": 0,
+        "seatKey": "catalog-dinerchair:s:0"
+      },
+      "left": {
+        "seated": false,
+        "sitting": false,
+        "lying": false,
+        "dir": "south",
+        "usingProp": null,
+        "px": 282,
+        "py": 214.08036421935182,
+        "seatLift": 0,
+        "seatKey": null
+      },
+      "issues": []
+    },
+    {
+      "key": "dinerchair:w",
+      "mirror": false,
+      "kind": "seat",
+      "planned": true,
+      "elapsed": 1254,
+      "pose": {
+        "seated": true,
+        "sitting": true,
+        "lying": false,
+        "dir": "west",
+        "usingProp": "catalog-dinerchair:w",
+        "px": 66,
+        "py": 119,
+        "seatLift": 0,
+        "seatKey": "catalog-dinerchair:w:0"
+      },
+      "left": {
+        "seated": false,
+        "sitting": false,
+        "lying": false,
+        "dir": "south",
+        "usingProp": null,
+        "px": 66,
+        "py": 143,
+        "seatLift": 0,
+        "seatKey": null
+      },
+      "issues": []
+    },
+    {
+      "key": "dinerchair:n",
+      "mirror": false,
+      "kind": "seat",
+      "planned": true,
+      "elapsed": 1234,
+      "pose": {
+        "seated": true,
+        "sitting": true,
+        "lying": false,
+        "dir": "north",
+        "usingProp": "catalog-dinerchair:n",
+        "px": 174,
+        "py": 119,
+        "seatLift": 0,
+        "seatKey": "catalog-dinerchair:n:0"
+      },
+      "left": {
+        "seated": false,
+        "sitting": false,
+        "lying": false,
+        "dir": "south",
+        "usingProp": null,
+        "px": 174,
+        "py": 143,
+        "seatLift": 0,
+        "seatKey": null
+      },
+      "issues": []
+    },
+    {
+      "key": "dinerchair:e",
+      "mirror": false,
+      "kind": "seat",
+      "planned": true,
+      "elapsed": 1341,
+      "pose": {
+        "seated": true,
+        "sitting": true,
+        "lying": false,
+        "dir": "east",
+        "usingProp": "catalog-dinerchair:e",
+        "px": 282,
+        "py": 119,
+        "seatLift": 0,
+        "seatKey": "catalog-dinerchair:e:0"
+      },
+      "left": {
+        "seated": false,
+        "sitting": false,
+        "lying": false,
+        "dir": "south",
+        "usingProp": null,
+        "px": 282,
+        "py": 143,
+        "seatLift": 0,
+        "seatKey": null
+      },
+      "issues": []
+    },
+    {
+      "key": "podchair:s",
+      "mirror": false,
+      "kind": "seat",
+      "planned": true,
+      "elapsed": 1285,
+      "pose": {
+        "seated": true,
+        "sitting": true,
+        "lying": false,
+        "dir": "south",
+        "usingProp": "catalog-podchair:s",
+        "px": 66,
+        "py": 191,
+        "seatLift": 0,
+        "seatKey": "catalog-podchair:s:0"
+      },
+      "left": {
+        "seated": false,
+        "sitting": false,
+        "lying": false,
+        "dir": "south",
+        "usingProp": null,
+        "px": 66,
+        "py": 215,
+        "seatLift": 0,
+        "seatKey": null
+      },
+      "issues": []
+    },
+    {
+      "key": "podchair:w",
+      "mirror": false,
+      "kind": "seat",
+      "planned": true,
+      "elapsed": 1343,
+      "pose": {
+        "seated": true,
+        "sitting": true,
+        "lying": false,
+        "dir": "west",
+        "usingProp": "catalog-podchair:w",
+        "px": 174,
+        "py": 191,
+        "seatLift": 0,
+        "seatKey": "catalog-podchair:w:0"
+      },
+      "left": {
+        "seated": false,
+        "sitting": false,
+        "lying": false,
+        "dir": "south",
+        "usingProp": null,
+        "px": 174,
+        "py": 215,
+        "seatLift": 0,
+        "seatKey": null
+      },
+      "issues": []
+    },
+    {
+      "key": "podchair:n",
+      "mirror": false,
+      "kind": "seat",
+      "planned": true,
+      "elapsed": 1323,
+      "pose": {
+        "seated": true,
+        "sitting": true,
+        "lying": false,
+        "dir": "north",
+        "usingProp": "catalog-podchair:n",
+        "px": 282,
+        "py": 191,
+        "seatLift": 0,
+        "seatKey": "catalog-podchair:n:0"
+      },
+      "left": {
+        "seated": false,
+        "sitting": false,
+        "lying": false,
+        "dir": "south",
+        "usingProp": null,
+        "px": 282,
+        "py": 214.11717877326512,
+        "seatLift": 0,
+        "seatKey": null
+      },
+      "issues": []
+    },
+    {
+      "key": "dinerchair:w",
+      "mirror": true,
+      "kind": "seat",
+      "planned": true,
+      "elapsed": 790,
+      "pose": {
+        "seated": true,
+        "sitting": true,
+        "lying": false,
+        "dir": "east",
+        "usingProp": "catalog-dinerchair:w",
+        "px": 66,
+        "py": 119,
+        "seatLift": 0,
+        "seatKey": "catalog-dinerchair:w:0"
+      },
+      "left": {
+        "seated": false,
+        "sitting": false,
+        "lying": false,
+        "dir": "south",
+        "usingProp": null,
+        "px": 66,
+        "py": 143,
+        "seatLift": 0,
+        "seatKey": null
+      },
+      "issues": []
+    },
+    {
+      "key": "dinerchair:n",
+      "mirror": true,
+      "kind": "seat",
+      "planned": true,
+      "elapsed": 1712,
+      "pose": {
+        "seated": true,
+        "sitting": true,
+        "lying": false,
+        "dir": "north",
+        "usingProp": "catalog-dinerchair:n",
+        "px": 174,
+        "py": 119,
+        "seatLift": 0,
+        "seatKey": "catalog-dinerchair:n:0"
+      },
+      "left": {
+        "seated": false,
+        "sitting": false,
+        "lying": false,
+        "dir": "south",
+        "usingProp": null,
+        "px": 174,
+        "py": 143,
+        "seatLift": 0,
+        "seatKey": null
+      },
+      "issues": []
+    },
+    {
+      "key": "dinerchair:e",
+      "mirror": true,
+      "kind": "seat",
+      "planned": true,
+      "elapsed": 1297,
+      "pose": {
+        "seated": true,
+        "sitting": true,
+        "lying": false,
+        "dir": "west",
+        "usingProp": "catalog-dinerchair:e",
+        "px": 282,
+        "py": 119,
+        "seatLift": 0,
+        "seatKey": "catalog-dinerchair:e:0"
+      },
+      "left": {
+        "seated": false,
+        "sitting": false,
+        "lying": false,
+        "dir": "south",
+        "usingProp": null,
+        "px": 282,
+        "py": 143,
+        "seatLift": 0,
+        "seatKey": null
+      },
+      "issues": []
+    },
+    {
+      "key": "podchair:s",
+      "mirror": true,
+      "kind": "seat",
+      "planned": true,
+      "elapsed": 1171,
+      "pose": {
+        "seated": true,
+        "sitting": true,
+        "lying": false,
+        "dir": "south",
+        "usingProp": "catalog-podchair:s",
+        "px": 66,
+        "py": 191,
+        "seatLift": 0,
+        "seatKey": "catalog-podchair:s:0"
+      },
+      "left": {
+        "seated": false,
+        "sitting": false,
+        "lying": false,
+        "dir": "south",
+        "usingProp": null,
+        "px": 66,
+        "py": 214.5393715146952,
+        "seatLift": 0,
+        "seatKey": null
+      },
+      "issues": []
+    },
+    {
+      "key": "podchair:w",
+      "mirror": true,
+      "kind": "seat",
+      "planned": true,
+      "elapsed": 1362,
+      "pose": {
+        "seated": true,
+        "sitting": true,
+        "lying": false,
+        "dir": "east",
+        "usingProp": "catalog-podchair:w",
+        "px": 174,
+        "py": 191,
+        "seatLift": 0,
+        "seatKey": "catalog-podchair:w:0"
+      },
+      "left": {
+        "seated": false,
+        "sitting": false,
+        "lying": false,
+        "dir": "south",
+        "usingProp": null,
+        "px": 174,
+        "py": 213.99557963283792,
+        "seatLift": 0,
+        "seatKey": null
+      },
+      "issues": []
+    },
+    {
+      "key": "podchair:n",
+      "mirror": true,
+      "kind": "seat",
+      "planned": true,
+      "elapsed": 1095,
+      "pose": {
+        "seated": true,
+        "sitting": true,
+        "lying": false,
+        "dir": "north",
+        "usingProp": "catalog-podchair:n",
+        "px": 282,
+        "py": 191,
+        "seatLift": 0,
+        "seatKey": "catalog-podchair:n:0"
+      },
+      "left": {
+        "seated": false,
+        "sitting": false,
+        "lying": false,
+        "dir": "south",
+        "usingProp": null,
+        "px": 282,
+        "py": 215,
+        "seatLift": 0,
+        "seatKey": null
+      },
+      "issues": []
+    },
+    {
+      "key": "podchair:e",
+      "mirror": false,
+      "kind": "seat",
+      "planned": true,
+      "elapsed": 1164,
+      "pose": {
+        "seated": true,
+        "sitting": true,
+        "lying": false,
+        "dir": "east",
+        "usingProp": "catalog-podchair:e",
+        "px": 66,
+        "py": 119,
+        "seatLift": 0,
+        "seatKey": "catalog-podchair:e:0"
+      },
+      "left": {
+        "seated": false,
+        "sitting": false,
+        "lying": false,
+        "dir": "south",
+        "usingProp": null,
+        "px": 66,
+        "py": 143,
+        "seatLift": 0,
+        "seatKey": null
+      },
+      "issues": []
+    },
+    {
+      "key": "recliner:s",
+      "mirror": false,
+      "kind": "seat",
+      "planned": true,
+      "elapsed": 1413,
+      "pose": {
+        "seated": true,
+        "sitting": true,
+        "lying": false,
+        "dir": "west",
+        "usingProp": "catalog-recliner:s",
+        "px": 174,
+        "py": 119,
+        "seatLift": 2,
+        "seatKey": "catalog-recliner:s:0"
+      },
+      "left": {
+        "seated": false,
+        "sitting": false,
+        "lying": false,
+        "dir": "south",
+        "usingProp": null,
+        "px": 174,
+        "py": 143,
+        "seatLift": 0,
+        "seatKey": null
+      },
+      "issues": []
+    },
+    {
+      "key": "recliner_r:s",
+      "mirror": false,
+      "kind": "seat",
+      "planned": true,
+      "elapsed": 1208,
+      "pose": {
+        "seated": true,
+        "sitting": true,
+        "lying": false,
+        "dir": "east",
+        "usingProp": "catalog-recliner_r:s",
+        "px": 282,
+        "py": 119,
+        "seatLift": 2,
+        "seatKey": "catalog-recliner_r:s:0"
+      },
+      "left": {
+        "seated": false,
+        "sitting": false,
+        "lying": false,
+        "dir": "south",
+        "usingProp": null,
+        "px": 282,
+        "py": 143,
+        "seatLift": 0,
+        "seatKey": null
+      },
+      "issues": []
+    },
+    {
+      "key": "podchair:e",
+      "mirror": true,
+      "kind": "seat",
+      "planned": true,
+      "elapsed": 1086,
+      "pose": {
+        "seated": true,
+        "sitting": true,
+        "lying": false,
+        "dir": "west",
+        "usingProp": "catalog-podchair:e",
+        "px": 66,
+        "py": 119,
+        "seatLift": 0,
+        "seatKey": "catalog-podchair:e:0"
+      },
+      "left": {
+        "seated": false,
+        "sitting": false,
+        "lying": false,
+        "dir": "south",
+        "usingProp": null,
+        "px": 66,
+        "py": 143,
+        "seatLift": 0,
+        "seatKey": null
+      },
+      "issues": []
+    },
+    {
+      "key": "recliner:s",
+      "mirror": true,
+      "kind": "seat",
+      "planned": true,
+      "elapsed": 1156,
+      "pose": {
+        "seated": true,
+        "sitting": true,
+        "lying": false,
+        "dir": "east",
+        "usingProp": "catalog-recliner:s",
+        "px": 174,
+        "py": 119,
+        "seatLift": 2,
+        "seatKey": "catalog-recliner:s:0"
+      },
+      "left": {
+        "seated": false,
+        "sitting": false,
+        "lying": false,
+        "dir": "south",
+        "usingProp": null,
+        "px": 174,
+        "py": 143,
+        "seatLift": 0,
+        "seatKey": null
+      },
+      "issues": []
+    },
+    {
+      "key": "recliner_r:s",
+      "mirror": true,
+      "kind": "seat",
+      "planned": true,
+      "elapsed": 1268,
+      "pose": {
+        "seated": true,
+        "sitting": true,
+        "lying": false,
+        "dir": "west",
+        "usingProp": "catalog-recliner_r:s",
+        "px": 282,
+        "py": 119,
+        "seatLift": 2,
+        "seatKey": "catalog-recliner_r:s:0"
+      },
+      "left": {
+        "seated": false,
+        "sitting": false,
+        "lying": false,
+        "dir": "south",
+        "usingProp": null,
+        "px": 282,
+        "py": 141.98089408497032,
+        "seatLift": 0,
+        "seatKey": null
+      },
+      "issues": []
+    }
+  ]
+}

@@ -1,0 +1,86 @@
+{
+  "version": 1,
+  "lane": "crew",
+  "branch": "agent/prop-crew-0914",
+  "baseCommit": "d4d40a318",
+  "status": "design-candidates-alpha-failed-not-integrated",
+  "generator": "built-in image_gen",
+  "tilePixels": 12,
+  "sourcePreserved": true,
+  "postprocessing": "None; asset PNGs are byte-for-byte generated originals.",
+  "references": [
+    "C:/Users/andro/gen-trees/industrial-textures-0912/frontend/assets/industrial/calibration/crate.png",
+    "C:/Users/andro/gen-trees/industrial-textures-0912/frontend/assets/industrial/workstation.png",
+    "C:/Users/andro/Downloads/bridge.png",
+    "C:/Users/andro/Downloads/ChatGPT Image Sep 12, 2026, 04_58_34 PM.png"
+  ],
+  "referenceUse": "All references inspected. First three supplied to couch and south table generation. East table supplied south table output, crate and workstation. Armory inspected for context only.",
+  "assetRoot": "frontend/assets/industrial/parallel-0914/crew/",
+  "props": {
+    "couch": {
+      "views": {
+        "s": {
+          "image": "couch.png",
+          "sourceWidth": 2207,
+          "sourceHeight": 712,
+          "footprint": {"w": 5, "h": 1},
+          "bounds": {"x": -1, "y": -8, "width": 62, "height": 20},
+          "mode": "static",
+          "floorContactWorld": {"x": 30, "y": 12},
+          "viewNote": "Catalog south/r0 key, but physical BACK of couch faces viewer. Sofa faces north away from viewer.",
+          "seatAnchorsWorld": [{"x": 18, "y": 10}, {"x": 30, "y": 10}, {"x": 42, "y": 10}],
+          "seatSort": "Existing world sorts couch rear panel one world pixel in front of sitter; preserve this.",
+          "prompt": "couch.prompt.txt",
+          "generatedSource": "C:/Users/andro/.codex/generated_images/01a09e47-a768-7a70-87ec-8fbeb6b521f7/exec-b9e563cf-beb5-4661-baec-783c2a864e29.png",
+          "alphaStatus": "FAIL: RGB painted checkerboard; not runtime ready"
+        }
+      }
+    },
+    "lowtable": {
+      "views": {
+        "s": {
+          "image": "lowtable.png",
+          "sourceWidth": 1875,
+          "sourceHeight": 839,
+          "footprint": {"w": 3, "h": 1},
+          "bounds": {"x": -1, "y": -5, "width": 38, "height": 17},
+          "mode": "static",
+          "floorContactWorld": {"x": 18, "y": 12},
+          "surfaceRisePixels": 8,
+          "nativeNearTopEdgeY": 3,
+          "prompt": "lowtable.prompt.txt",
+          "generatedSource": "C:/Users/andro/.codex/generated_images/01a09e47-a768-7a70-87ec-8fbeb6b521f7/exec-b6a45d01-fc55-4dc1-958f-485bf44c6811.png",
+          "alphaStatus": "FAIL: RGB painted checkerboard; not runtime ready"
+        },
+        "e": {
+          "image": "lowtable-r3.png",
+          "sourceWidth": 836,
+          "sourceHeight": 1881,
+          "footprint": {"w": 1, "h": 3},
+          "bounds": {"x": -2, "y": 0, "width": 16, "height": 36},
+          "mode": "static",
+          "floorContactWorld": {"x": 6, "y": 36},
+          "surfaceRisePixels": 8,
+          "nativeNearTopEdgeY": 27,
+          "prompt": "lowtable-r3.prompt.txt",
+          "generatedSource": "C:/Users/andro/.codex/generated_images/01a09e47-a768-7a70-87ec-8fbeb6b521f7/exec-ce11e596-a1a1-4348-8814-bc5f2dc8d847.png",
+          "alphaStatus": "FAIL: RGB painted checkerboard; not runtime ready",
+          "viewNote": "Separately authored longitudinal overhead oblique view; no bitmap rotation. Minor perspective taper should be reviewed in station."
+        }
+      }
+    }
+  },
+  "failedExtractionAttempt": {
+    "prop": "couch",
+    "prompt": "couch-alpha-attempt.prompt.txt",
+    "generatedSource": "C:/Users/andro/.codex/generated_images/01a09e47-a768-7a70-87ec-8fbeb6b521f7/exec-85bd00fe-09ba-46f8-b231-676a6221f86c.png",
+    "outcome": "Still RGB with painted checkerboard; not selected. Original design retained."
+  },
+  "verification": {
+    "nativeInspection": "All three designs visually inspected; couch back view and table shared material language confirmed.",
+    "alpha": "FAIL all three candidates; see image-audit.json",
+    "liveIntegrated": false,
+    "testFast": "Not run: unintegrated art-only candidate handoff, per parent; owner gate required at integration.",
+    "remaining": ["Authorized alpha export and alpha/edge QA", "Uniform alpha-bound fit with intact aspect ratio", "Live sofa sitter occlusion and mounted-table surface proof", "Owner review and runtime integration gate"]
+  }
+}

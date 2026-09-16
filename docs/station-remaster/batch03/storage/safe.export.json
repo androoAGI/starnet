@@ -1,0 +1,50 @@
+{
+  "id": "safe",
+  "status": "exported-awaiting-owner-live-review",
+  "source": "sources/safe.png",
+  "sourceSha256": "627cf2f7c29b9a930afc35cfa11233c956584dfc33fabf2e0d907d743bbfeba9",
+  "sourceWidth": 940,
+  "sourceHeight": 1672,
+  "image": "safe.png",
+  "sourceOutputWidth": 720,
+  "sourceOutputHeight": 1505,
+  "crop": {
+    "left": 110,
+    "top": 78,
+    "width": 720,
+    "height": 1505
+  },
+  "channels": 4,
+  "transparentPixels": 92741,
+  "opaquePixels": 990859,
+  "partialPixels": 0,
+  "backgroundPixelsRemoved": 580821,
+  "subjectRgbChanges": 0,
+  "outputSha256": "ab45278b5d48d5b319a9d01d57456df0889d47b569ea6b403e9a1b80937cac70",
+  "holeSeeds": [],
+  "maskMethod": "Connected saturated-magenta flood fill, including key-only enclosed components. Alpha-only edits; uniform crop; no RGB recolor.",
+  "view": "s",
+  "footprint": {
+    "w": 1,
+    "h": 2
+  },
+  "bounds": {
+    "x": -1,
+    "y": -8,
+    "width": 18,
+    "height": 32
+  },
+  "tilePixels": 12,
+  "contact": {
+    "x": 8,
+    "y": 24
+  },
+  "anchorContract": "No leisure seat anchor. Footprint is the placement/pathfinding rectangle; upright visual rise is independent of the reserved box.",
+  "originalLight": null,
+  "originalAnimationTriggers": [
+    "Real fs.* tool completion chooses the granting prop instance and overlays a 900 ms success accent or red failure surge.",
+    "Autonomous sprite clock animation is present in the sampled default state; cosmetic motion is not evidence of provider work, route decisions or external state."
+  ],
+  "artMode": "static complete art; existing state/lighting integration remains owner decision",
+  "liveIntegrated": false
+}

@@ -1,0 +1,248 @@
+{
+  "id": "arcade",
+  "measurement": "Conservative manually inspected source regions, normalized to full source and cropped final; world conversion uses uniform bottom-centered fit. Owner must verify live.",
+  "sourceDimensions": {
+    "width": 918,
+    "height": 1713
+  },
+  "crop": {
+    "left": 89,
+    "top": 40,
+    "width": 737,
+    "height": 1610
+  },
+  "footprint": {
+    "w": 1,
+    "h": 2
+  },
+  "worldEnvelope": {
+    "x": -1,
+    "y": -2,
+    "width": 14,
+    "height": 26
+  },
+  "uniformScale": 0.016149068322981366,
+  "contact": {
+    "x": 6,
+    "y": 24
+  },
+  "supportedViews": {
+    "facings": [
+      {
+        "r": 0,
+        "front": "south",
+        "w": 1,
+        "h": 2,
+        "type": "authored-view"
+      }
+    ],
+    "canMirror": true,
+    "classicFacings": [
+      0
+    ]
+  },
+  "geometry": {
+    "blocks": true,
+    "flat": false,
+    "tableSurface": false,
+    "requiredMount": null,
+    "optionalSurfaceMount": false,
+    "surfaceRisePixels": 8
+  },
+  "leisureUse": {
+    "kind": "arcade",
+    "sit": false,
+    "approach": "south"
+  },
+  "originalAnimationTriggers": [
+    "Actual leisure usingProp / watchProp can set work on this prop; body approach and use animation follow leisureUse. In the baseline draw work expression this leisure trigger directly checks the hero, not a separate crew leisure flag."
+  ],
+  "integrationNote": "Blank game screen for leisure-driven decorative gameplay; no provider telemetry.",
+  "regions": {
+    "screen": {
+      "sourcePixels": [
+        [
+          283,
+          411
+        ],
+        [
+          635,
+          411
+        ],
+        [
+          635,
+          633
+        ],
+        [
+          283,
+          633
+        ]
+      ],
+      "exportPixels": [
+        [
+          194,
+          371
+        ],
+        [
+          546,
+          371
+        ],
+        [
+          546,
+          593
+        ],
+        [
+          194,
+          593
+        ]
+      ],
+      "worldPixels": [
+        [
+          3.181988,
+          3.991304
+        ],
+        [
+          8.86646,
+          3.991304
+        ],
+        [
+          8.86646,
+          7.576398
+        ],
+        [
+          3.181988,
+          7.576398
+        ]
+      ],
+      "sourceNormalized": [
+        [
+          0.308279,
+          0.23993
+        ],
+        [
+          0.691721,
+          0.23993
+        ],
+        [
+          0.691721,
+          0.369527
+        ],
+        [
+          0.308279,
+          0.369527
+        ]
+      ],
+      "exportNormalized": [
+        [
+          0.263229,
+          0.230435
+        ],
+        [
+          0.740841,
+          0.230435
+        ],
+        [
+          0.740841,
+          0.368323
+        ],
+        [
+          0.263229,
+          0.368323
+        ]
+      ]
+    },
+    "joystick": {
+      "sourcePixels": [
+        [
+          280,
+          716
+        ],
+        [
+          338,
+          716
+        ],
+        [
+          338,
+          814
+        ],
+        [
+          280,
+          814
+        ]
+      ],
+      "exportPixels": [
+        [
+          191,
+          676
+        ],
+        [
+          249,
+          676
+        ],
+        [
+          249,
+          774
+        ],
+        [
+          191,
+          774
+        ]
+      ],
+      "worldPixels": [
+        [
+          3.13354,
+          8.91677
+        ],
+        [
+          4.070186,
+          8.91677
+        ],
+        [
+          4.070186,
+          10.499379
+        ],
+        [
+          3.13354,
+          10.499379
+        ]
+      ],
+      "sourceNormalized": [
+        [
+          0.305011,
+          0.41798
+        ],
+        [
+          0.368192,
+          0.41798
+        ],
+        [
+          0.368192,
+          0.47519
+        ],
+        [
+          0.305011,
+          0.47519
+        ]
+      ],
+      "exportNormalized": [
+        [
+          0.259159,
+          0.419876
+        ],
+        [
+          0.337856,
+          0.419876
+        ],
+        [
+          0.337856,
+          0.480745
+        ],
+        [
+          0.259159,
+          0.480745
+        ]
+      ]
+    }
+  },
+  "liveIntegrated": false
+}

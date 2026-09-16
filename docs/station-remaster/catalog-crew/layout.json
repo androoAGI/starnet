@@ -1,0 +1,226 @@
+{
+  "version": 1,
+  "source": "docs/station-remaster/catalog-crew/sources/sheet.png",
+  "sourceSha256": "3c869bbebe5b1b1b5e273f0ccbe9b75bbd112fdec971cbd814cc90818f118178",
+  "columns": 4,
+  "rows": 2,
+  "refs": [
+    {
+      "id": "couch",
+      "path": "C:\\Users\\andro\\gen-trees\\prop-coordination-0914\\frontend\\assets\\industrial\\projection-correction\\couch.png",
+      "sha256": "c802cfc380ee9b173e0a1be75c17dd01471bd4cfed4071fab8369cae3ae0fd97",
+      "width": 1859,
+      "height": 682
+    },
+    {
+      "id": "recliner",
+      "path": "C:\\Users\\andro\\gen-trees\\prop-coordination-0914\\frontend\\assets\\industrial\\projection-correction\\recliner.png",
+      "sha256": "0f7e7d44ff021cb05b59f9079ffdc0b2fb0adc150c3e93a8c739101b5fcf24d1",
+      "width": 232,
+      "height": 258
+    },
+    {
+      "id": "crate",
+      "path": "C:\\Users\\andro\\gen-trees\\prop-coordination-0914\\frontend\\assets\\industrial\\projection-correction\\crate.png",
+      "sha256": "a4c596600f4c1c0bf0c2f4df0892a9f0c49b074dd91079b5926b0fd27cd0ba16",
+      "width": 75,
+      "height": 60
+    },
+    {
+      "id": "quarters_pooltable",
+      "path": "C:\\Users\\andro\\gen-trees\\prop-coordination-0914\\frontend\\assets\\industrial\\projection-correction\\quarters_pooltable.png",
+      "sha256": "6fca3b889d28186dc4cc20bd7634628d3fa06cb4bfb1db226f5d68f8adab872d",
+      "width": 348,
+      "height": 239
+    }
+  ],
+  "cells": [
+    {
+      "id": "industrial_bench",
+      "view": "s",
+      "rect": {
+        "left": 0,
+        "top": 0,
+        "width": 2172,
+        "height": 724
+      },
+      "bounds": {
+        "x": 0,
+        "y": 0,
+        "width": 36,
+        "height": 12
+      },
+      "footprint": {
+        "w": 3,
+        "h": 1
+      },
+      "otherSupportedViewsUnchanged": [],
+      "source": "docs/station-remaster/catalog-crew/sources/industrial_bench-width-4.png",
+      "sourceSha256": "d0f5b2034865c6e77ed4446d98a6beb0f07b24e25c07ab260946556e260773c8"
+    },
+    {
+      "id": "dinerchair",
+      "view": "s",
+      "rect": {
+        "left": 500,
+        "top": 0,
+        "width": 240,
+        "height": 480
+      },
+      "bounds": {
+        "x": 1,
+        "y": -4,
+        "width": 11,
+        "height": 16
+      },
+      "footprint": {
+        "w": 1,
+        "h": 1
+      },
+      "otherSupportedViewsUnchanged": [
+        "w",
+        "n",
+        "e"
+      ]
+    },
+    {
+      "id": "dinertable",
+      "view": "s",
+      "rect": {
+        "left": 0,
+        "top": 0,
+        "width": 1649,
+        "height": 954
+      },
+      "bounds": {
+        "x": -1,
+        "y": 3,
+        "width": 38,
+        "height": 22
+      },
+      "footprint": {
+        "w": 3,
+        "h": 2
+      },
+      "otherSupportedViewsUnchanged": [
+        "e"
+      ],
+      "source": "docs/station-remaster/catalog-crew/sources/dinertable-width-2.png",
+      "sourceSha256": "e44c28bc43640d264ca709b531125e46d4917508ed4052f4be5b515d6ebefce1"
+    },
+    {
+      "id": "booth",
+      "view": "s",
+      "rect": {
+        "left": 1150,
+        "top": 0,
+        "width": 386,
+        "height": 480
+      },
+      "bounds": {
+        "x": 0,
+        "y": -7,
+        "width": 24,
+        "height": 19
+      },
+      "footprint": {
+        "w": 2,
+        "h": 1
+      },
+      "otherSupportedViewsUnchanged": [
+        "w",
+        "e"
+      ]
+    },
+    {
+      "id": "podchair",
+      "view": "s",
+      "rect": {
+        "left": 0,
+        "top": 480,
+        "width": 350,
+        "height": 544
+      },
+      "bounds": {
+        "x": 1,
+        "y": -5,
+        "width": 10,
+        "height": 17
+      },
+      "footprint": {
+        "w": 1,
+        "h": 1
+      },
+      "otherSupportedViewsUnchanged": [
+        "w",
+        "n",
+        "e"
+      ]
+    },
+    {
+      "id": "beanbag",
+      "view": "s",
+      "rect": {
+        "left": 350,
+        "top": 480,
+        "width": 400,
+        "height": 544
+      },
+      "bounds": {
+        "x": -1,
+        "y": 1,
+        "width": 14,
+        "height": 11
+      },
+      "footprint": {
+        "w": 1,
+        "h": 1
+      },
+      "otherSupportedViewsUnchanged": []
+    },
+    {
+      "id": "bunk",
+      "view": "s",
+      "rect": {
+        "left": 0,
+        "top": 0,
+        "width": 1205,
+        "height": 1306
+      },
+      "bounds": {
+        "x": 0,
+        "y": -2,
+        "width": 24,
+        "height": 26
+      },
+      "footprint": {
+        "w": 2,
+        "h": 2
+      },
+      "otherSupportedViewsUnchanged": [],
+      "source": "docs/station-remaster/catalog-crew/sources/bunk-width-1.png",
+      "sourceSha256": "fb906d3b596888824c8f341f7a1620dbf0077186f99248e4d97dd7279ba15481"
+    },
+    {
+      "id": "industrial_planter",
+      "view": "s",
+      "rect": {
+        "left": 1100,
+        "top": 480,
+        "width": 436,
+        "height": 544
+      },
+      "bounds": {
+        "x": 0,
+        "y": -8,
+        "width": 26,
+        "height": 20
+      },
+      "footprint": {
+        "w": 2,
+        "h": 1
+      },
+      "otherSupportedViewsUnchanged": []
+    }
+  ]
+}

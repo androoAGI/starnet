@@ -1,0 +1,11 @@
+{
+  "tool": "built-in image_gen",
+  "prompt": "docs/station-remaster/scale-calibration/entire-sheet.prompt.txt",
+  "output": "frontend/assets/industrial/complete-sheet/starnet-props-full-sheet.png",
+  "width": 1536,
+  "height": 1024,
+  "hasAlpha": true,
+  "sha256": "e68ef0d3711e9164a3aff5333b98522ed6fdcb4bc7654929e333cb2ff2b97ea9",
+  "sourceCopiedUnchanged": true,
+  "runtimeIntegrated": false
+}

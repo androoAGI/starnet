@@ -1,0 +1,26 @@
+<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Authored prop content — fixture</title>
+<style>
+@font-face{font-family:VT323;src:url('../assets/fonts/vt323.woff2')}
+*{box-sizing:border-box}body{margin:0;padding:24px;background:#141b19;color:#dedcca;font:17px monospace}h1{font-size:23px}p{max-width:1100px;line-height:1.5}
+button{background:#283a31;color:#e3d6b3;border:1px solid #72755a;padding:10px 17px;font:inherit;cursor:pointer}button[aria-pressed=true]{background:#675432}nav{display:flex;gap:10px;flex-wrap:wrap}
+#gallery{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:22px;margin-top:24px}.prop{padding:14px;background:#1d2622;border:1px solid #3a473c}.wide{grid-column:1/-1}canvas{max-width:100%;height:auto;display:block}h2{font-size:16px;letter-spacing:.1em}#report{white-space:pre-wrap;font-size:14px;color:#b5c3a5}
+</style>
+<h1>Painted prop content / development fixture</h1>
+<p>Every scenario below is labeled fixture data. The live renderer receives the same count fields from the quest and trophy stores. The inbox remains empty without identified messages; the calendar has no bookings and the reader shows an optical alignment pattern.</p>
+<nav><button id="empty" aria-pressed="false">Empty</button><button id="populated" aria-pressed="true">Populated fixture</button><button id="overflow" aria-pressed="false">Overflow fixture</button><button id="still" aria-pressed="true">Reduced motion: on</button><button id="alpha" aria-pressed="false">Opacity: full</button><button id="check">Run pixel checks</button></nav>
+<div id="gallery"></div><pre id="report">Loading original painted bodies…</pre>
+<script src="../app/authored-prop-content.js"></script><script src="authored-content-checks.js"></script><script>
+'use strict';
+const ids=['missionboard','trophycase','comms_inbox','arc_microfiche','calwall'],cards=[];
+let mode='populated',still=true,fade=false,start=performance.now();
+const states={empty:{},populated:{pins:2,proposals:1,hot:true,jam:true,trophies:4,journeyStage:2},overflow:{pins:28,proposals:7,hot:true,jam:true,trophies:33,journeyStage:9}};
+for(const id of ids){const el=document.createElement('section');el.className='prop'+(id==='calwall'?' wide':'');const h=document.createElement('h2');h.textContent=id.replaceAll('_',' ').toUpperCase();el.append(h);const cv=document.createElement('canvas');cv.width=id==='calwall'?1160:550;cv.height=id==='trophycase'?560:id==='calwall'?355:390;el.append(cv);document.querySelector('#gallery').append(el);const scene=document.createElement('canvas');scene.width=cv.width;scene.height=cv.height;const im=new Image();im.src='../assets/industrial/batch03/coordinator/'+id+'.png';cards.push({id,cv,scene,im,el});}
+function frame(now){for(const {id,cv,scene,im}of cards){if(!im.complete||!im.naturalWidth)continue;const g=cv.getContext('2d'),sg=scene.getContext('2d');g.clearRect(0,0,cv.width,cv.height);sg.clearRect(0,0,scene.width,scene.height);const fit=Math.min((cv.width-24)/im.width,(cv.height-24)/im.height),box={x:(cv.width-im.width*fit)/2,y:(cv.height-im.height*fit)/2,width:im.width*fit,height:im.height*fit};sg.drawImage(im,box.x,box.y,box.width,box.height);AuthoredPropContent.draw(sg,id,box,{...states[mode],still,now:now-start});g.save();g.globalAlpha=fade?.35:1;g.drawImage(scene,0,0);g.restore();}requestAnimationFrame(frame);}
+function report(){document.querySelector('#report').textContent=JSON.stringify({fixture:true,mode,state:states[mode],still,opacity:fade?.35:1,inboxMessageFeed:'absent — trays intentionally empty',calendar:'decorative empty form',microfiche:'decorative optical alignment',loaded:cards.filter(c=>c.im.complete&&c.im.naturalWidth).map(c=>c.id)},null,2);}
+for(const id of ['empty','populated','overflow'])document.getElementById(id).onclick=()=>{mode=id;for(const key of ['empty','populated','overflow'])document.getElementById(key).setAttribute('aria-pressed',String(key===id));report();};
+document.getElementById('still').onclick=()=>{still=!still;const b=document.getElementById('still');b.setAttribute('aria-pressed',String(still));b.textContent='Reduced motion: '+(still?'on':'off');report();};
+document.getElementById('alpha').onclick=()=>{fade=!fade;const b=document.getElementById('alpha');b.setAttribute('aria-pressed',String(fade));b.textContent='Opacity: '+(fade?'35%':'full');report();};
+document.getElementById('check').onclick=()=>{const result=runAuthoredContentPixelChecks();document.querySelector('#report').textContent=JSON.stringify(result,null,2);};
+Promise.all(cards.map(c=>c.im.decode())).then(()=>{report();requestAnimationFrame(frame);}).catch(e=>document.querySelector('#report').textContent=String(e));
+</script></html>

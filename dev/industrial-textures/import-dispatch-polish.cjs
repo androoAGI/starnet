@@ -1,0 +1,30 @@
+'use strict';
+// Crop transparent margins only. New machine bodies remain generated raster art.
+const fs=require('node:fs'),sharp=require('sharp'),crypto=require('node:crypto');
+const root='frontend/assets/industrial/dispatch-polish',docs='docs/station-remaster/dispatch-polish';
+const generated='C:/Users/andro/.codex/generated_images/01a09e45-c8db-79c2-b990-4349e09fba9c';
+const hash=b=>crypto.createHash('sha256').update(b).digest('hex');
+const jobs=[['intake','c7de9e7f-92e6-4b13-9333-1ca5e8739440','v2'],['outbox','c0f0b0ca-742f-472d-9caa-81ee64a550a4','v2']];
+(async()=>{
+ fs.mkdirSync(root+'/sources',{recursive:true});fs.mkdirSync(root+'/before',{recursive:true});fs.mkdirSync(docs,{recursive:true});
+ const manifest=JSON.parse(fs.readFileSync('frontend/assets/industrial/projection-correction/manifest.json')),records=[];
+ for(const[id,key,version]of jobs){
+  const source=root+'/sources/'+id+(version?'-'+version:'')+'.png',before=root+'/before/'+id+'.png';
+  if(!fs.existsSync(source))fs.copyFileSync(generated+'/exec-'+key+'.png',source);
+  if(!fs.existsSync(before))fs.copyFileSync('frontend/assets/industrial/projection-correction/'+id+'.png',before);
+  const bytes=fs.readFileSync(source),{data,info}=await sharp(bytes).ensureAlpha().raw().toBuffer({resolveWithObject:true});
+  let left=info.width,top=info.height,right=-1,bottom=-1,foot=-1;
+  for(let y=0;y<info.height;y++)for(let x=0;x<info.width;x++){const a=data[(y*info.width+x)*4+3];if(a>8){left=Math.min(left,x);top=Math.min(top,y);right=Math.max(right,x);bottom=Math.max(bottom,y);}if(a>=180)foot=Math.max(foot,y);}
+  if(foot<0)throw Error('No opaque machine '+id);
+  const crop={left,top,width:right-left+1,height:bottom-top+1};let retained=0;
+  for(let y=top;y<=bottom;y++)for(let x=left;x<=right;x++)if(data[(y*info.width+x)*4+3])retained++;
+  const out=await sharp(bytes).extract(crop).png().toBuffer(),repoPath=root+'/'+id+'.png';fs.writeFileSync(repoPath,out);
+  const old=manifest.props[id].views.s;
+  records.push({id,view:'s',before,source,sourceSha256:hash(bytes),repoPath,outputSha256:hash(out),sourceCrop:crop,sourceWidth:crop.width,sourceHeight:crop.height,footprint:old.footprint,bounds:old.bounds,exposure:1.12,contact:{x:.5,y:(foot+1-top)/crop.height},retained,status:'redesigned machine candidate; inspect floor contact and belt handoff live'});
+  console.log(id,crop);
+ }
+ fs.writeFileSync(docs+'/integration.json',JSON.stringify({records},null,2)+'\n');
+ const gp='docs/station-remaster/projection-correction/catalog-groups.json',groups=JSON.parse(fs.readFileSync(gp));
+ if(!groups.groups.some(g=>g.name==='dispatch-polish'))groups.groups.push({name:'dispatch-polish',file:docs+'/integration.json'});
+ fs.writeFileSync(gp,JSON.stringify(groups,null,2)+'\n');
+})();

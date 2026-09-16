@@ -1,0 +1,34 @@
+{
+  "id": "coffee",
+  "asset": "coffee",
+  "tool": "built-in image_gen",
+  "variant": "s",
+  "status": "generated candidate; root actual-scale review pending",
+  "native": {
+    "key": "coffee",
+    "r": 0,
+    "image": "coffee.png",
+    "footprint": {
+      "w": 1,
+      "h": 1
+    },
+    "bounds": {
+      "x": -1,
+      "y": -6,
+      "width": 13,
+      "height": 18
+    },
+    "guide": "dev/.scratch-workspace/prop-structure/coffee.png"
+  },
+  "references": [
+    "dev/.scratch-workspace/prop-structure/coffee.png",
+    "frontend/assets/industrial/calibration/crate.png",
+    "docs/station-remaster/bridge-reference.png"
+  ],
+  "source": "Original native geometry plus approved crate and bridge; no previously rejected prop family art used",
+  "ratioDeviationPercent": -6.234,
+  "aspectTolerancePercent": 8,
+  "aspectPass": true,
+  "rgbRepaint": false,
+  "runtimeIntegrated": false
+}

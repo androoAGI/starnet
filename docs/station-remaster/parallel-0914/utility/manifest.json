@@ -1,0 +1,223 @@
+{
+  "schemaVersion": 1,
+  "lane": "utility",
+  "status": "art candidates; not live integrated or user accepted",
+  "tool": "built-in image_gen",
+  "workspace": "C:/Users/andro/gen-trees/prop-utility-0914",
+  "baseCommit": "d4d40a318",
+  "tilePixels": 12,
+  "referenceRoot": "C:/Users/andro/gen-trees/industrial-textures-0912",
+  "references": [
+    "C:/Users/andro/gen-trees/industrial-textures-0912/frontend/assets/industrial/calibration/crate.png",
+    "C:/Users/andro/gen-trees/industrial-textures-0912/frontend/assets/industrial/workstation.png",
+    "C:/Users/andro/gen-trees/industrial-textures-0912/docs/station-remaster/bridge-reference.png"
+  ],
+  "exportPolicy": "Original aspect and canvas retained. No recolor, compositing, rotation, or stretch. RGB source originals preserved. Imagegen tank background-extraction produced RGBA with faint peripheral alpha noise; cleanup required before any-alpha-bbox runtime fit.",
+  "props": {
+    "filter": {
+      "file": "frontend/assets/industrial/parallel-0914/utility/filter.png",
+      "source": "docs/station-remaster/parallel-0914/utility/filter-source.png",
+      "sourceWidth": 1076,
+      "sourceHeight": 1462,
+      "mode": "RGB",
+      "alphaStatus": "FAILED: baked checkerboard; must not wire to runtime until exported",
+      "facings": [
+        "s"
+      ],
+      "rotation": 0,
+      "canMirror": false,
+      "footprint": {
+        "w": 1,
+        "h": 1
+      },
+      "blocks": false,
+      "desiredWorldEnvelope": {
+        "x": -1,
+        "y": -8,
+        "width": 14,
+        "height": 19
+      },
+      "floorContact": {
+        "world": [
+          6,
+          11
+        ],
+        "sourcePixelsApprox": [
+          538,
+          1298
+        ],
+        "definition": "midpoint of front feet floor line"
+      },
+      "seatAnchors": [],
+      "interactionAnchors": {
+        "kind": "whole prop click opens content routing configuration; no seated use; no new positional trigger",
+        "worldCenter": [
+          6,
+          6
+        ]
+      },
+      "routingContract": "Content sorting for unaddressed work; existing agent-addressed work passes through. No artwork rotation and no invented directional route state.",
+      "artConcept": "Raised optical reader bridge over short roller lane, split service housings, newly authored violet optical aperture and controls.",
+      "authoredRegionsSourcePixels": [
+        {
+          "name": "reader optical glass",
+          "rect": [
+            450,
+            414,
+            177,
+            65
+          ],
+          "motion": "scan detail only when explicitly bound or labeled cosmetic; do not infer routing decisions"
+        },
+        {
+          "name": "empty roller channel",
+          "rect": [
+            395,
+            650,
+            310,
+            106
+          ],
+          "motion": "roller motion potential; real packet positions remain runtime-owned"
+        },
+        {
+          "name": "left control block",
+          "rect": [
+            172,
+            582,
+            65,
+            155
+          ],
+          "motion": "authored state lenses; route color requires real route mapping"
+        },
+        {
+          "name": "right control block",
+          "rect": [
+            841,
+            580,
+            66,
+            156
+          ],
+          "motion": "authored state lenses; route color requires real route mapping"
+        }
+      ],
+      "animationStatus": "UNRESOLVED: static source contains complete new graphics; owner must author animation/state masks and mapping. Never composite old procedural display."
+    },
+    "tank": {
+      "file": "frontend/assets/industrial/parallel-0914/utility/tank.png",
+      "source": "docs/station-remaster/parallel-0914/utility/tank-source.png",
+      "sourceWidth": 1331,
+      "sourceHeight": 1182,
+      "mode": "RGBA",
+      "alphaStatus": "Actual transparency; faint peripheral alpha dust must be cleaned or threshold handled by owner before integration",
+      "facings": [
+        "s"
+      ],
+      "rotation": 0,
+      "footprint": {
+        "w": 2,
+        "h": 1
+      },
+      "blocks": true,
+      "desiredWorldEnvelope": {
+        "x": -1,
+        "y": -11,
+        "width": 27,
+        "height": 24
+      },
+      "floorContact": {
+        "world": [
+          12,
+          12
+        ],
+        "sourcePixelsApprox": [
+          660,
+          1062
+        ],
+        "definition": "midpoint of forward foot contact; align with uniform scale after cleaned alpha bbox"
+      },
+      "seatAnchors": [],
+      "interactionAnchors": [],
+      "artConcept": "Physical illuminated water specimen vessel with branching mineral, rounded glass, heavy clamps and compact asymmetrical pump; no display or scanlines.",
+      "authoredRegionsSourcePixels": [
+        {
+          "name": "practical underwater rim lamp",
+          "rect": [
+            477,
+            318,
+            202,
+            22
+          ],
+          "motion": "cosmetic light only; not occupied-screen mode"
+        },
+        {
+          "name": "left bubble corridor",
+          "rect": [
+            250,
+            500,
+            95,
+            240
+          ],
+          "motion": "potential upward cosmetic bubbles bounded by glass"
+        },
+        {
+          "name": "right bubble corridor",
+          "rect": [
+            810,
+            510,
+            100,
+            230
+          ],
+          "motion": "potential upward cosmetic bubbles bounded by glass"
+        },
+        {
+          "name": "lower caustic pool",
+          "polygon": [
+            [
+              156,
+              707
+            ],
+            [
+              970,
+              707
+            ],
+            [
+              975,
+              775
+            ],
+            [
+              900,
+              794
+            ],
+            [
+              225,
+              794
+            ],
+            [
+              152,
+              760
+            ]
+          ],
+          "motion": "subtle reflected water caustics; avoid mineral and structural hardware"
+        },
+        {
+          "name": "mineral specimen",
+          "rect": [
+            442,
+            507,
+            273,
+            245
+          ],
+          "motion": "fixed physical mounted specimen; no diagnostic graph"
+        }
+      ],
+      "animationStatus": "UNRESOLVED: animation not wired. Water/bubble motion cosmetic only, never indicates provider work or process health. Do not use occupancy screenBeam for water."
+    }
+  },
+  "verification": {
+    "sourceVisual": "Both designs inspected full-resolution; new authored geometry and consistent crate finish. Source role and camera inspected. No old procedural image inputs.",
+    "alpha": "Pillow mode/histogram/bounds inspected; tank RGBA and filter RGB reported in asset-checks.json",
+    "gameScale": "Not live verified. Small game-scale readability and footprint overlap require owner review.",
+    "testFast": "Not run for unintegrated art-only lane per parent instruction; integration owner gate pending",
+    "live": "No runtime integration, no owner workspace changes, no save modifications"
+  }
+}

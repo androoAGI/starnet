@@ -1,0 +1,28 @@
+{
+  "version": 1,
+  "generator": "Codex built-in image_gen",
+  "intent": "One user-requested production sheet, eight complete new props",
+  "originalToolOutput": "C:/Users/andro/.codex/generated_images/01a09e48-0877-7203-a53f-4b137e36d69a/exec-1e3cafcd-67e2-4ed2-bd0e-4e32f53b1c4c.png",
+  "preservedSource": "docs/station-remaster/catalog-utility/sheet-source.png",
+  "prompt": "docs/station-remaster/catalog-utility/sheet.prompt.txt",
+  "references": [
+    {
+      "id": "tv",
+      "path": "C:/Users/andro/gen-trees/prop-coordination-0914/frontend/assets/industrial/projection-correction/tv.png",
+      "sha256": "6e3e8c7a1b30b32df65141c957373e477b323c575202b4c0598443b47eb3d36c",
+      "role": "accepted camera and material reference; not an edit target"
+    },
+    {
+      "id": "arcade",
+      "path": "C:/Users/andro/gen-trees/prop-coordination-0914/frontend/assets/industrial/projection-correction/arcade.png",
+      "sha256": "079391010c468d92355bfa220fbb59e9f12f5097a9ee22137f5b442ce84fff01",
+      "role": "accepted camera and material reference; not an edit target"
+    },
+    {
+      "id": "crate",
+      "path": "C:/Users/andro/gen-trees/prop-coordination-0914/frontend/assets/industrial/projection-correction/crate.png",
+      "sha256": "a4c596600f4c1c0bf0c2f4df0892a9f0c49b074dd91079b5926b0fd27cd0ba16",
+      "role": "accepted camera and material reference; not an edit target"
+    }
+  ]
+}

@@ -1,0 +1,246 @@
+{
+  "id": "crt_pile",
+  "measurement": "Manually inspected conservative source-surface regions, mapped with uniform bottom-centered PropRemaster fit; not live verified.",
+  "sourceDimensions": {
+    "width": 1319,
+    "height": 1192
+  },
+  "crop": {
+    "left": 253,
+    "top": 57,
+    "width": 818,
+    "height": 1047
+  },
+  "sourceSha256": "501f92eae373a029423ce8ccf96863b898ba72019d97438dddf7cfe9986909d3",
+  "outputSha256": "3758079158d874903890e7970516e6895d3f37da1f95c70dd306c9743dd8d559",
+  "footprint": {
+    "w": 1,
+    "h": 1
+  },
+  "worldEnvelope": {
+    "x": -1,
+    "y": -4,
+    "width": 12,
+    "height": 17
+  },
+  "tilePixels": 12,
+  "uniformScale": 0.014669926650366748,
+  "contact": {
+    "x": 5,
+    "y": 13
+  },
+  "supportedViews": {
+    "facings": [
+      {
+        "r": 0,
+        "front": "south",
+        "w": 1,
+        "h": 1,
+        "type": "authored-view"
+      }
+    ],
+    "canMirror": true,
+    "classicFacings": [
+      0
+    ]
+  },
+  "geometry": {
+    "blocks": true,
+    "flat": false,
+    "tableSurface": false,
+    "requiredMount": null,
+    "optionalSurfaceMount": true,
+    "surfaceRisePixels": 8
+  },
+  "originalAnimationTriggers": [
+    "Autonomous sprite clock animation is present in the sampled default state; cosmetic motion is not evidence of provider work, route decisions or external state."
+  ],
+  "integrationNote": "Two shells with overhanging top monitor. Lower screen dead; upper screen accepts cosmetic static. Optional tabletop mount rises8. No fake task telemetry.",
+  "regions": {
+    "upperScreen": {
+      "sourcePixels": [
+        [
+          375,
+          345
+        ],
+        [
+          676,
+          345
+        ],
+        [
+          676,
+          539
+        ],
+        [
+          375,
+          539
+        ]
+      ],
+      "sourceNormalized": [
+        [
+          0.284306,
+          0.28943
+        ],
+        [
+          0.512509,
+          0.28943
+        ],
+        [
+          0.512509,
+          0.452181
+        ],
+        [
+          0.284306,
+          0.452181
+        ]
+      ],
+      "exportPixels": [
+        [
+          122,
+          288
+        ],
+        [
+          423,
+          288
+        ],
+        [
+          423,
+          482
+        ],
+        [
+          122,
+          482
+        ]
+      ],
+      "exportNormalized": [
+        [
+          0.149144,
+          0.275072
+        ],
+        [
+          0.517115,
+          0.275072
+        ],
+        [
+          0.517115,
+          0.460363
+        ],
+        [
+          0.149144,
+          0.460363
+        ]
+      ],
+      "worldPixels": [
+        [
+          0.789731,
+          1.865526
+        ],
+        [
+          5.205379,
+          1.865526
+        ],
+        [
+          5.205379,
+          4.711491
+        ],
+        [
+          0.789731,
+          4.711491
+        ]
+      ]
+    },
+    "lowerScreen": {
+      "sourcePixels": [
+        [
+          425,
+          738
+        ],
+        [
+          854,
+          738
+        ],
+        [
+          854,
+          961
+        ],
+        [
+          425,
+          961
+        ]
+      ],
+      "sourceNormalized": [
+        [
+          0.322214,
+          0.619128
+        ],
+        [
+          0.64746,
+          0.619128
+        ],
+        [
+          0.64746,
+          0.806208
+        ],
+        [
+          0.322214,
+          0.806208
+        ]
+      ],
+      "exportPixels": [
+        [
+          172,
+          681
+        ],
+        [
+          601,
+          681
+        ],
+        [
+          601,
+          904
+        ],
+        [
+          172,
+          904
+        ]
+      ],
+      "exportNormalized": [
+        [
+          0.210269,
+          0.65043
+        ],
+        [
+          0.734719,
+          0.65043
+        ],
+        [
+          0.734719,
+          0.863419
+        ],
+        [
+          0.210269,
+          0.863419
+        ]
+      ],
+      "worldPixels": [
+        [
+          1.523227,
+          7.630807
+        ],
+        [
+          7.816626,
+          7.630807
+        ],
+        [
+          7.816626,
+          10.9022
+        ],
+        [
+          1.523227,
+          10.9022
+        ]
+      ]
+    }
+  },
+  "liveIntegrated": false
+}

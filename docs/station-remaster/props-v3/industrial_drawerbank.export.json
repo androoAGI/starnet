@@ -1,0 +1,16 @@
+{
+  "id": "industrial_drawerbank",
+  "source": "C:\\Users\\andro\\.codex\\generated_images\\01a0976c-e264-7f13-a581-78c904716b14\\exec-3ecc3a4a-d36d-4195-9194-82ca50aff891.png",
+  "sourceWidth": 1942,
+  "sourceHeight": 809,
+  "crop": {
+    "left": 19,
+    "top": 78,
+    "width": 1904,
+    "height": 653
+  },
+  "sourceAlpha": false,
+  "transparentSeeds": [],
+  "subjectRgbChanges": 0,
+  "output": "frontend/assets/industrial/props-v3/industrial_drawerbank.png"
+}

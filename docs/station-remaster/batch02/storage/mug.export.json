@@ -1,0 +1,54 @@
+{
+  "id": "mug",
+  "status": "exported-awaiting-owner-live-review",
+  "source": "sources/mug.png",
+  "sourceSha256": "6a4a3743f0849c405812acb5b0c54013270863c4223b5b6a48c3df4a17931d86",
+  "sourceWidth": 1322,
+  "sourceHeight": 1190,
+  "image": "mug.png",
+  "sourceOutputWidth": 1034,
+  "sourceOutputHeight": 1008,
+  "crop": {
+    "left": 174,
+    "top": 79,
+    "width": 1034,
+    "height": 1008
+  },
+  "channels": 4,
+  "transparentPixels": 309499,
+  "opaquePixels": 732773,
+  "partialPixels": 0,
+  "backgroundPixelsRemoved": 840407,
+  "subjectRgbChanges": 0,
+  "outputSha256": "e7042cfe48ad0aa294d9d64d0dc22f09670cb9e9590e1a0cdaaaa2a410a465f9",
+  "holeSeeds": [
+    [
+      1019,
+      472
+    ]
+  ],
+  "maskMethod": "Connected saturated-magenta flood fill, including key-only enclosed components. Alpha-only edits; uniform crop; no RGB recolor.",
+  "view": "s",
+  "footprint": {
+    "w": 1,
+    "h": 1
+  },
+  "bounds": {
+    "x": 1,
+    "y": 2,
+    "width": 10,
+    "height": 9
+  },
+  "tilePixels": 12,
+  "contact": {
+    "x": 6,
+    "y": 11
+  },
+  "anchorContract": "Can sit on bare deck or valid table; table mount lifts contact origin exactly 8 world pixels.",
+  "originalLight": null,
+  "originalAnimationTriggers": [
+    "Autonomous sprite clock animation is present in the sampled default state; cosmetic motion is not evidence of provider work, route decisions or external state."
+  ],
+  "artMode": "static complete art; existing state/lighting integration remains owner decision",
+  "liveIntegrated": false
+}

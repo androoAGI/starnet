@@ -1,0 +1,77 @@
+{
+  "version": 1,
+  "scope": "Opt-in final-size calibration. Not normal catalog promotion.",
+  "props": {
+    "couch": {
+      "views": {
+        "s": {
+          "image": "couch.png",
+          "sourceWidth": 1303,
+          "sourceHeight": 488,
+          "footprint": {
+            "w": 5,
+            "h": 1
+          },
+          "bounds": {
+            "x": -1,
+            "y": -12,
+            "width": 62,
+            "height": 24
+          },
+          "exposure": 1,
+          "mode": "static"
+        }
+      }
+    },
+    "coffee": {
+      "views": {
+        "s": {
+          "image": "coffee.png",
+          "sourceWidth": 917,
+          "sourceHeight": 1419,
+          "footprint": {
+            "w": 1,
+            "h": 1
+          },
+          "bounds": {
+            "x": -1,
+            "y": -6,
+            "width": 13,
+            "height": 18
+          },
+          "exposure": 1,
+          "mode": "steam",
+          "motion": {
+            "origin": [
+              0.493,
+              0.668
+            ],
+            "rise": 2.4,
+            "trigger": "work"
+          }
+        }
+      }
+    },
+    "monstera": {
+      "views": {
+        "s": {
+          "image": "monstera.png",
+          "sourceWidth": 872,
+          "sourceHeight": 1025,
+          "footprint": {
+            "w": 1,
+            "h": 1
+          },
+          "bounds": {
+            "x": 0,
+            "y": -1,
+            "width": 12,
+            "height": 13
+          },
+          "exposure": 1,
+          "mode": "static"
+        }
+      }
+    }
+  }
+}

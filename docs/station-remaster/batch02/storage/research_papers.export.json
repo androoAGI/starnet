@@ -1,0 +1,82 @@
+{
+  "id": "research_papers",
+  "status": "exported-awaiting-owner-live-review",
+  "source": "sources/research_papers.png",
+  "sourceSha256": "e9606693a282a7d59e0a6a621a00ff69d1b2b4ac559f6d96e15683037fb27108",
+  "sourceWidth": 1774,
+  "sourceHeight": 887,
+  "image": "research_papers.png",
+  "sourceOutputWidth": 1696,
+  "sourceOutputHeight": 595,
+  "crop": {
+    "left": 44,
+    "top": 136,
+    "width": 1696,
+    "height": 595
+  },
+  "channels": 4,
+  "transparentPixels": 192577,
+  "opaquePixels": 816543,
+  "partialPixels": 0,
+  "backgroundPixelsRemoved": 756995,
+  "subjectRgbChanges": 0,
+  "outputSha256": "d7d884b5e5ac90bbdae4cbd88d3b04ebec28f32c25c6bac4c67d3299c1312b17",
+  "holeSeeds": [
+    [
+      881,
+      634
+    ],
+    [
+      582,
+      643
+    ],
+    [
+      608,
+      661
+    ],
+    [
+      583,
+      672
+    ],
+    [
+      758,
+      686
+    ],
+    [
+      770,
+      688
+    ],
+    [
+      531,
+      690
+    ],
+    [
+      674,
+      691
+    ]
+  ],
+  "maskMethod": "Connected saturated-magenta flood fill, including key-only enclosed components. Alpha-only edits; uniform crop; no RGB recolor.",
+  "view": "s",
+  "footprint": {
+    "w": 2,
+    "h": 1
+  },
+  "bounds": {
+    "x": 1,
+    "y": 1,
+    "width": 20,
+    "height": 10
+  },
+  "tilePixels": 12,
+  "contact": {
+    "x": 11,
+    "y": 11
+  },
+  "anchorContract": "Can sit on bare deck or valid table; table mount lifts contact origin exactly 8 world pixels.",
+  "originalLight": null,
+  "originalAnimationTriggers": [
+    "Autonomous sprite clock animation is present in the sampled default state; cosmetic motion is not evidence of provider work, route decisions or external state."
+  ],
+  "artMode": "static complete art; existing state/lighting integration remains owner decision",
+  "liveIntegrated": false
+}

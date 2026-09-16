@@ -142,6 +142,18 @@ function fixtureGeometry(dx = 0, dy = 0) {
   return f;
 }
 const fg = fixtureGeometry(), fixtures = Surface.planFixtures(fg), oldGrid = fg.zoneGrid.slice();
+const longFixtureRoom = g => ({...g, chamfers: [], zoneGrid:g.zoneGrid.map(z=>z==null?null:'left')});
+const infillGeometry = longFixtureRoom(fg);
+const infillBase = Surface.planFixtures(infillGeometry);
+const infilled = Surface.planFixtures(infillGeometry, { infillFixtures: true });
+A.ok(infilled.length > infillBase.length, 'projection infill adds restrained physical back-wall sources');
+for (const f of infillBase) A.eq(infilled.find(n => n.id === f.id), f, 'infill preserves every original fixture and its lighting');
+for (const f of infilled.filter(n => !infillBase.some(o => o.id === n.id))) {
+  A.ok(f.gain < .64 && f.r < 12*4.5, 'additional pools are smaller and weaker than original fixtures');
+  A.eq(Surface.zoneAt(infillGeometry, f.tileX, f.tileY-1), null, 'infill has real solid-wall housing');
+  A.ok(fg.walkable(Math.floor(f.x/12),Math.floor(f.y/12)), 'infill samples reachable deck');
+}
+A.eq(Surface.planFixtures(longFixtureRoom(fixtureGeometry(5,3)), {infillFixtures:true}).map(f=>f.id), infilled.map(f=>f.id), 'infill remains in the physical tile frame after bounds expansion');
 A.ok(fixtures.length >= 3 && fixtures.length <= 4, 'long room faces get a restrained practical-fixture rhythm');
 A.eq(Surface.planFixtures(fg), fixtures, 'fixture placement is deterministic');
 A.eq(fg.zoneGrid, oldGrid, 'fixture planning never mutates station geometry');
@@ -251,4 +263,75 @@ for (const material of ['ribbed', 'panelled']) {
   A.eq([px(6, 27), px(6, 30), px(6, 33)], Array(3).fill(wallPixel('shade')), material + ' lower wall is a material face rather than a broad dark cast band');
   A.eq(px(6, 38), wallPixel('deep'), material + ' retains its exact floor-contact row');
 }
+
+// An installed art pack must receive each selected finish and paint, rather than
+// silently replacing every surface with its one global image. The stub paints
+// only the selected colour, making acceptance vs native overpainting observable.
+const floorFallback = new Map(Surface.MATERIALS.map(mat => [mat, Array.from(patch(mat).pixels)]));
+const wallPatch = mat => {
+  const cv = canvas(48, 39);
+  for (let x = 0; x < 4; x++) Surface.paintWallTile(cv.getContext('2d'), mat, '#2b3340', x * 12, 0, 12, 39, x - 3);
+  return Array.from(cv.pixels);
+};
+const wallFallback = new Map(Surface.WALLS.map(mat => [mat, wallPatch(mat)]));
+const artCalls = [], selectedPaint = '#65879b', artOptions = { detail: 0.6 };
+global.IndustrialTextures = {
+  floor(ctx, x, y, size, tx, ty, mat, base, opts) {
+    artCalls.push(['floor', x, y, size, tx, ty, mat, base, opts]);
+    ctx.fillStyle = base; ctx.fillRect(x, y, size, size); return true;
+  },
+  wall(ctx, x, y, w, h, tx, mat, base, opts) {
+    artCalls.push(['wall', x, y, w, h, tx, mat, base, opts]);
+    ctx.fillStyle = base; ctx.fillRect(x, y, w, h); return true;
+  }
+};
+for (const mat of Surface.MATERIALS) {
+  const cv = canvas(18, 18);
+  Surface.paintFloorTile(cv.getContext('2d'), mat, selectedPaint, 0, 0, 18, -17, -9, artOptions);
+  A.eq(artCalls.pop(), ['floor', 0, 0, 18, -17, -9, mat, selectedPaint, artOptions], mat + ' art receives selected paint, finish, detail and signed physical address');
+  A.eq(new Set(cv.pixels).size, 1, mat + ' accepted art is not covered by the native recipe');
+  A.eq(cv.pixels[0], (0xff000000 | parseInt(selectedPaint.slice(1), 16)) >>> 0, mat + ' selected paint reaches the surface');
+}
+for (const mat of Surface.WALLS) {
+  const cv = canvas(18, 39);
+  Surface.paintWallTile(cv.getContext('2d'), mat, selectedPaint, 0, 0, 18, 39, -13, artOptions);
+  A.eq(artCalls.pop(), ['wall', 0, 0, 18, 39, -13, mat, selectedPaint, artOptions], mat + ' wall art receives its own selected palette and phase');
+  A.eq(cv.pixels[0], (0xff000000 | parseInt(selectedPaint.slice(1), 16)) >>> 0, mat + ' accepted wall art keeps the chosen colour');
+}
+for (const mat of ['viewport', 'wainscot', 'hedge', 'unknown']) {
+  const cv = canvas(12, 39);
+  A.eq(Surface.paintWallTile(cv.getContext('2d'), mat, selectedPaint, 0, 0, 12, 39, 0), false, mat + ' retains specialized geometry with an art pack installed');
+  A.eq(artCalls.length, 0, mat + ' cannot be claimed by the generic wall atlas');
+  A.ok(cv.pixels.every(p => p === 0), mat + ' handoff does not paint over the specialized face');
+}
+Surface.paintFloorTile(canvas(12, 12).getContext('2d'), 'unknown', selectedPaint, 0, 0, 12, -2, -3);
+A.eq(artCalls.pop().slice(6, 8), ['plate', selectedPaint], 'unknown floor keeps the same explicit plate fallback through the art adapter');
+for (const unavailable of [null, {}, { floor: () => false, wall: () => false }]) {
+  global.IndustrialTextures = unavailable;
+  for (const mat of Surface.MATERIALS)
+    A.eq(Array.from(patch(mat).pixels), floorFallback.get(mat), mat + ' native floor survives missing, pending or declined texture hooks');
+  for (const mat of Surface.WALLS)
+    A.eq(wallPatch(mat), wallFallback.get(mat), mat + ' native wall survives missing, pending or declined texture hooks');
+}
+delete global.IndustrialTextures;
+
+
+// Industrial fixture housings may change their cladding but must never invent
+// or recolour a light source, move the lens, or expand the housing footprint.
+global.IndustrialTextures = { isRemaster: () => true };
+const industrialFixtures = canvas(fg.W, fg.H);
+A.eq(Surface.paintFixtures(industrialFixtures.getContext('2d'), fg), fixtures, 'industrial fixtures preserve every authoritative source record');
+A.ok(Array.from(industrialFixtures.pixels).join(',') !== Array.from(painted.pixels).join(','), 'industrial fixture hardware has its own cast-metal housing');
+for (const f of fixtures) {
+  A.eq(industrialFixtures.pixels[(f.fixtureY + 2) * fg.W + f.fixtureX], painted.pixels[(f.fixtureY + 2) * fg.W + f.fixtureX], 'industrial lens stays on its exact source anchor with unchanged source colour');
+}
+A.ok(industrialFixtures.getContext('2d').marks.every(([x, y, w, h]) => fixtures.some(f =>
+  x >= f.fixtureX - 5 && x + w <= f.fixtureX + 5 && y >= f.fixtureY - 2 && y + h <= f.fixtureY + 6)),
+  'industrial mount and brass fasteners remain inside the existing housing bounds');
+global.IndustrialTextures.isRemaster = () => false;
+const classicFixtures = canvas(fg.W, fg.H);
+Surface.paintFixtures(classicFixtures.getContext('2d'), fg);
+A.eq(Array.from(classicFixtures.pixels), Array.from(painted.pixels), 'classic fixture artwork is byte-for-byte unchanged');
+delete global.IndustrialTextures;
+
 A.report('worldsurface');

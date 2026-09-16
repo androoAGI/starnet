@@ -133,4 +133,69 @@ uninstall();
   }
 }
 
+/* ---- authored deep-table depth must reach BOTH draw-order consumers ---- */
+{
+  const vm = require('node:vm');
+  const read = file => fs.readFileSync(path.join(__dirname, '../frontend/app', file), 'utf8');
+  let geometryReady = true;
+  const context = {
+    AuthoredSurfaceMounts: require('../frontend/app/authored-surface-mounts.js'),
+    PropRemaster: {
+      ready: { then() {} },
+      viewGeometry: (id, view) => geometryReady && id === 'glasstable' && view === 'e' ? {
+        box: { x: 0, y: 0, width: 12, height: 36 },
+        spec: { sourceWidth: 100, sourceHeight: 100, footprint: { w: 1, h: 3 } },
+        surfaceSupport: [[0, 0.1], [1, 0.1], [1, 0.8], [0, 0.8]]
+      } : null
+    }
+  };
+  vm.runInNewContext(read('propsprites.js') + '\nthis.api = PropSprites;', context);
+  const sprites = context.api;
+  A.eq(typeof sprites.surfacePlacement, 'function', 'public sprite API exposes the same placement used for lifting');
+
+  // Execute the real world depth block and real builder sorting function, not a copied sort formula.
+  const world = read('world.js');
+  const start = world.indexOf('        let sy = sitter ?');
+  const end = world.indexOf('// a bound BAY', start);
+  A.ok(start > 0 && end > start, 'world depth block is located');
+  const worldKey = Function('p', 'station', 'PropSprites', `
+    const T=12, sitter=null, sitterUse=null, sitterSide=null;
+    ${world.slice(start, end)}
+    return sy;
+  `);
+  const build = read('build.js');
+  const builder = Function('station', 'PropSprites', `
+    let mountVer=0, geoVer=1, mountOrder=null, mountMap=null;
+    ${A.fnBody(build, 'function propDrawOrder(')}
+    return list => { geoVer++; return propDrawOrder(list); };
+  `);
+
+  for (const offset of [0, 19]) {
+    const host = { id: 'deep-table', t: 'glasstable', x: 4, y: offset, w: 1, h: 3, r: 3 };
+    const far = { id: 'far', t: 'mug', x: 4, y: offset, w: 1, h: 1 };
+    const near = { ...far, id: 'near', y: offset + 2 };
+    const station = { mountOf: p => p.id === host.id ? null : 'surface' };
+    const order = builder(station, sprites);
+    const list = [near, far, host], before = JSON.stringify(list);
+    sprites.setSurfaceLayout(list);
+    const placement = sprites.surfacePlacement({ ...far, mount: 'surface' });
+    A.ok(placement.authored, 'far row has a valid authored support plane');
+    A.ok((far.y + far.h) * 12 + 0.5 < (host.y + host.h) * 12,
+      'regression fixture: old child-row offset paints the far child underneath its deep host');
+    const sorted = list.slice().sort((a, b) => worldKey(a, station, sprites) - worldKey(b, station, sprites));
+    A.eq(sorted.map(p => p.id), ['deep-table', 'far', 'near'], 'world paints entire host before both rows of mounted children');
+    A.eq(worldKey(far, station, sprites), placement.sortY, 'world consumes resolver pixel depth exactly');
+    A.eq(order(list).map(p => p.id), ['deep-table', 'far', 'near'], 'builder converts authored pixel depth into its tile sort units');
+    A.eq(JSON.stringify(list), before, 'render sorting never mutates physical coordinates, mount fields or saved array order');
+    A.eq(sprites.surfacePlacement(far), null, 'unmounted props do not acquire render placement from footprint overlap alone');
+
+    geometryReady = false;
+    A.eq(worldKey(far, station, sprites), (far.y + 1) * 12 + 0.5, 'world retains legacy half-pixel offset without authored geometry');
+    A.eq(order(list).map(p => p.id), ['far', 'deep-table', 'near'], 'builder retains legacy half-tile offset without authored geometry');
+    geometryReady = true;
+    const floorStation = { mountOf: () => null };
+    A.eq(worldKey(far, floorStation, sprites), (far.y + 1) * 12, 'reclaimed host stops assigning mounted depth immediately');
+  }
+}
+
 A.report('prop-mount');

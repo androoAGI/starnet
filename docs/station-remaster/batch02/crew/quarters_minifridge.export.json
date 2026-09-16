@@ -1,0 +1,60 @@
+{
+  "sourceAnimation": {
+    "idleFrameVariants": 2,
+    "workFrameVariants": 2,
+    "respondsToWorkFlag": false,
+    "opaqueBoundsRelativeToFootprint": {
+      "x": 1,
+      "y": -11,
+      "w": 11,
+      "h": 24,
+      "alphaThreshold": 160
+    }
+  },
+  "bounds": {
+    "y": -11,
+    "width": 11,
+    "height": 24,
+    "x": 1
+  },
+  "id": "quarters_minifridge",
+  "geometry": {
+    "blocks": true,
+    "flat": false,
+    "tableSurface": false,
+    "requiredMount": null,
+    "optionalSurfaceMount": false,
+    "surfaceRisePixels": 8
+  },
+  "floorContact": {
+    "x": 6,
+    "y": 12
+  },
+  "backgroundThreshold": 235,
+  "tilePixels": 12,
+  "status": "art-draft-integration-pending",
+  "view": "s",
+  "footprint": {
+    "w": 1,
+    "h": 1
+  },
+  "anchorContract": "PropAnchor derives reachable edge approach; useApproach rotates relative preference with r. Preserve standing leisure action unless special planner supplies a real body anchor.",
+  "holeSeeds": [],
+  "sourceWidth": 849,
+  "sourceHeight": 1852,
+  "sourceSha256": "426023fd23d0dd04a7966cd09c788b20663d24b841fc27d6d2f1a6c857eee43f",
+  "output": "frontend/assets/industrial/batch02/crew/quarters_minifridge.png",
+  "crop": {
+    "left": 69,
+    "top": 130,
+    "width": 712,
+    "height": 1565
+  },
+  "transparentPixels": 39992,
+  "opaquePixels": 1074288,
+  "partialPixels": 0,
+  "backgroundPixelsRemoved": 498060,
+  "subjectRgbChanges": 0,
+  "outputSha256": "9edcd3abbf9c4520a65f98587d0ae81c9c2180fa5952e75baeeb39643b30197e",
+  "liveIntegrated": false
+}

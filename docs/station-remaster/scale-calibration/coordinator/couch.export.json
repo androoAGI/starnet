@@ -1,0 +1,18 @@
+{
+  "source": "docs/station-remaster/scale-calibration/coordinator/couch.source.png",
+  "output": "frontend/assets/industrial/scale-calibration/coordinator/couch.png",
+  "sourceSha256": "f8f9c56bf557c6c8a4234472dc3a05b4e01fe2cb759b599f06f61a0f62d11a25",
+  "outputSha256": "c45a26d009ea732947be82ee1486c2dbd9b32ede920896a0bb76f919fd706290",
+  "sourceWidth": 1853,
+  "sourceHeight": 849,
+  "crop": {
+    "left": 275,
+    "top": 182,
+    "width": 1303,
+    "height": 488
+  },
+  "alphaDustCleared": 4049,
+  "alphaThreshold": 1,
+  "rgbEdits": false,
+  "scope": "Remove only alpha=1 residue then tight crop; generated alpha>=2 and retained RGB unchanged."
+}

@@ -1,0 +1,15 @@
+{
+  "characters": [
+    {
+      "id": "capybara",
+      "characterId": "ec5d3b97-de8a-4568-8968-a84549ad5535",
+      "rotations": {
+        "south": "https://backblaze.pixellab.ai/file/pixellab-characters/1ff7d2cf-cfe6-44f9-9533-9eea41eb05cb/ec5d3b97-de8a-4568-8968-a84549ad5535/rotations/south.png?t=1789363829",
+        "east": "https://backblaze.pixellab.ai/file/pixellab-characters/1ff7d2cf-cfe6-44f9-9533-9eea41eb05cb/ec5d3b97-de8a-4568-8968-a84549ad5535/rotations/east.png?t=1789363829",
+        "north": "https://backblaze.pixellab.ai/file/pixellab-characters/1ff7d2cf-cfe6-44f9-9533-9eea41eb05cb/ec5d3b97-de8a-4568-8968-a84549ad5535/rotations/north.png?t=1789363829",
+        "west": "https://backblaze.pixellab.ai/file/pixellab-characters/1ff7d2cf-cfe6-44f9-9533-9eea41eb05cb/ec5d3b97-de8a-4568-8968-a84549ad5535/rotations/west.png?t=1789363829"
+      }
+    }
+  ],
+  "reason": "Restore capybara broad blunt muzzle, tiny rounded ears, and short stocky limbs."
+}

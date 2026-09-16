@@ -1,0 +1,54 @@
+{
+  "id": "toolbox",
+  "status": "exported-awaiting-owner-live-review",
+  "source": "sources/toolbox.png",
+  "sourceSha256": "44c2420bf5db4159eaeb528a9994a37d43b4a00be9b0ba688da412c32f3a0be0",
+  "sourceWidth": 1374,
+  "sourceHeight": 1145,
+  "image": "toolbox.png",
+  "sourceOutputWidth": 1252,
+  "sourceOutputHeight": 694,
+  "crop": {
+    "left": 61,
+    "top": 203,
+    "width": 1252,
+    "height": 694
+  },
+  "channels": 4,
+  "transparentPixels": 66479,
+  "opaquePixels": 802409,
+  "partialPixels": 0,
+  "backgroundPixelsRemoved": 770821,
+  "subjectRgbChanges": 0,
+  "outputSha256": "3b09b57b611c0a6bf4904d3b613e15d6b434cad8afee97f571b60eef434146d5",
+  "holeSeeds": [
+    [
+      1263,
+      515
+    ]
+  ],
+  "maskMethod": "Connected saturated-magenta flood fill, including key-only enclosed components. Alpha-only edits; uniform crop; no RGB recolor.",
+  "view": "s",
+  "footprint": {
+    "w": 1,
+    "h": 1
+  },
+  "bounds": {
+    "x": 0,
+    "y": 1,
+    "width": 12,
+    "height": 10
+  },
+  "tilePixels": 12,
+  "contact": {
+    "x": 6,
+    "y": 11
+  },
+  "anchorContract": "Can sit on bare deck or valid table; table mount lifts contact origin exactly 8 world pixels.",
+  "originalLight": null,
+  "originalAnimationTriggers": [
+    "No direct event-driven or sampled default sprite animation. Preserve static art; no invented status or progress."
+  ],
+  "artMode": "static complete art; existing state/lighting integration remains owner decision",
+  "liveIntegrated": false
+}

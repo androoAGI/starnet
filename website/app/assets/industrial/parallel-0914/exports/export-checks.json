@@ -1,0 +1,171 @@
+{
+  "version": 1,
+  "authorization": "User proceeded with existing exporter after explicit request, 2026-09-14",
+  "method": "Existing light-neutral connected flood fill; preserved RGB; uniform crop only",
+  "records": [
+    {
+      "id": "bookshelf",
+      "source": "frontend/assets/industrial/parallel-0914/storage/bookshelf.png",
+      "seeds": [],
+      "sourceSha256": "e84e60d414ca6844f1abfd55caa627d29402d1c1afba679ef9d9458e087e0260",
+      "sourceWidth": 1364,
+      "sourceHeight": 1153,
+      "output": "frontend/assets/industrial/parallel-0914/exports/bookshelf.png",
+      "crop": {
+        "left": 62,
+        "top": 83,
+        "width": 1242,
+        "height": 983
+      },
+      "channels": 4,
+      "transparentPixels": 125274,
+      "opaquePixels": 1095612,
+      "partialPixels": 0,
+      "backgroundPixelsRemoved": 477080,
+      "subjectRgbChanges": 0,
+      "outputSha256": "a1541090c53a00c21c8b307b79e5d8d38c99a5331f08e31fac7313a4ead570cf"
+    },
+    {
+      "id": "boxes",
+      "source": "frontend/assets/industrial/parallel-0914/storage/boxes.png",
+      "seeds": [],
+      "sourceSha256": "988195378dcc5f3ea72f00d9e2ba5db6b754feb5102e09ff8c18a0c54f15bb73",
+      "sourceWidth": 1704,
+      "sourceHeight": 923,
+      "output": "frontend/assets/industrial/parallel-0914/exports/boxes.png",
+      "crop": {
+        "left": 54,
+        "top": 128,
+        "width": 1596,
+        "height": 685
+      },
+      "channels": 4,
+      "transparentPixels": 242152,
+      "opaquePixels": 851108,
+      "partialPixels": 0,
+      "backgroundPixelsRemoved": 721684,
+      "subjectRgbChanges": 0,
+      "outputSha256": "05890689d7b8135e10c6281a12cd9d7f84797c0bf596e218d4441cc2d64bd430"
+    },
+    {
+      "id": "couch",
+      "source": "frontend/assets/industrial/parallel-0914/crew/couch.png",
+      "seeds": [],
+      "sourceSha256": "9e2a350fe495229495e7e44d6766e42c7672939c007126e780cd76ab0329bceb",
+      "sourceWidth": 2207,
+      "sourceHeight": 712,
+      "output": "frontend/assets/industrial/parallel-0914/exports/couch.png",
+      "crop": {
+        "left": 31,
+        "top": 97,
+        "width": 2147,
+        "height": 527
+      },
+      "channels": 4,
+      "transparentPixels": 174219,
+      "opaquePixels": 957250,
+      "partialPixels": 0,
+      "backgroundPixelsRemoved": 614134,
+      "subjectRgbChanges": 0,
+      "outputSha256": "e386bb7cb9a89e42605a0b9503033f350a8894ddf826ff1f58caf13a33ae646b"
+    },
+    {
+      "id": "lowtable",
+      "source": "frontend/assets/industrial/parallel-0914/crew/lowtable.png",
+      "seeds": [
+        [
+          950,
+          500
+        ]
+      ],
+      "sourceSha256": "e477197b5a28d0d9d37a931a78de49dd6912de043f40496ff96863e833f22239",
+      "sourceWidth": 1875,
+      "sourceHeight": 839,
+      "output": "frontend/assets/industrial/parallel-0914/exports/lowtable.png",
+      "crop": {
+        "left": 46,
+        "top": 108,
+        "width": 1783,
+        "height": 620
+      },
+      "channels": 4,
+      "transparentPixels": 173598,
+      "opaquePixels": 931862,
+      "partialPixels": 0,
+      "backgroundPixelsRemoved": 641263,
+      "subjectRgbChanges": 0,
+      "outputSha256": "eba90a2ee2c3e773e01e5d235a8b5f5c829b5a6f572ef4ae0882a28af233ca65"
+    },
+    {
+      "id": "lowtable-r3",
+      "source": "frontend/assets/industrial/parallel-0914/crew/lowtable-r3.png",
+      "seeds": [],
+      "sourceSha256": "f57212b1e341d210b0f49d2e791946c2188bfa9079226ef92f6dafc941535460",
+      "sourceWidth": 836,
+      "sourceHeight": 1881,
+      "output": "frontend/assets/industrial/parallel-0914/exports/lowtable-r3.png",
+      "crop": {
+        "left": 100,
+        "top": 69,
+        "width": 637,
+        "height": 1684
+      },
+      "channels": 4,
+      "transparentPixels": 142935,
+      "opaquePixels": 929773,
+      "partialPixels": 0,
+      "backgroundPixelsRemoved": 642743,
+      "subjectRgbChanges": 0,
+      "outputSha256": "c08b11195caf5a6b620c8017f18aff10aeb35b16b368fd089a692984c41537a4"
+    },
+    {
+      "id": "filter",
+      "source": "frontend/assets/industrial/parallel-0914/utility/filter.png",
+      "seeds": [
+        [
+          540,
+          580
+        ]
+      ],
+      "sourceSha256": "e1ee77ad89a2cae220c865e74bb4d51da0d25a0a4b61eca86978dcbc2a4753fc",
+      "sourceWidth": 1076,
+      "sourceHeight": 1462,
+      "output": "frontend/assets/industrial/parallel-0914/exports/filter.png",
+      "crop": {
+        "left": 41,
+        "top": 160,
+        "width": 995,
+        "height": 1141
+      },
+      "channels": 4,
+      "transparentPixels": 263736,
+      "opaquePixels": 871559,
+      "partialPixels": 0,
+      "backgroundPixelsRemoved": 701553,
+      "subjectRgbChanges": 0,
+      "outputSha256": "6dadbe171bdf509434b6739c9d475fd04abffd8462ffde6c73a55584f55e1305"
+    },
+    {
+      "id": "tank",
+      "source": "docs/station-remaster/parallel-0914/utility/tank-source.png",
+      "seeds": [],
+      "sourceSha256": "7d4865520d5137af52a300cd1d32b4930323f142a87e2c2ac4abe3c4920eec95",
+      "sourceWidth": 1331,
+      "sourceHeight": 1182,
+      "output": "frontend/assets/industrial/parallel-0914/exports/tank.png",
+      "crop": {
+        "left": 42,
+        "top": 94,
+        "width": 1251,
+        "height": 968
+      },
+      "channels": 4,
+      "transparentPixels": 132781,
+      "opaquePixels": 1078187,
+      "partialPixels": 0,
+      "backgroundPixelsRemoved": 495055,
+      "subjectRgbChanges": 0,
+      "outputSha256": "c0a8eeb85f7d64b3779ae735eda5d78fe01e07f9e3dc7be8f1fbd593787951b9"
+    }
+  ]
+}

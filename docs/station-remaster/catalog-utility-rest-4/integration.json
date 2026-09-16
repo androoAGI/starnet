@@ -1,0 +1,329 @@
+{
+  "version": 1,
+  "records": [
+    {
+      "id": "treasury_coinsorter",
+      "view": "s",
+      "image": "treasury_coinsorter.png",
+      "repoPath": "frontend/assets/industrial/catalog-utility-rest-4/treasury_coinsorter.png",
+      "sourceWidth": 578,
+      "sourceHeight": 317,
+      "footprint": {
+        "w": 2,
+        "h": 1
+      },
+      "bounds": {
+        "x": -1,
+        "y": -3,
+        "width": 26,
+        "height": 15
+      },
+      "contact": {
+        "x": 0.5,
+        "y": 0.9936908517350158
+      },
+      "mode": "approved",
+      "effects": false,
+      "source": "docs/station-remaster/catalog-utility-rest-4/sheet-source.png",
+      "sourceSha256": "5cde18178c6617c7b23d71d0c5bda8793ed67534f202a31dca3aed140760db71",
+      "outputSha256": "c85789cddb9fff30c368d13a8c90f00ccb565a9b1be32f9eadc0793514b3ebb0",
+      "sourceROI": {
+        "left": 40,
+        "top": 125,
+        "width": 610,
+        "height": 360
+      },
+      "sourceCrop": {
+        "left": 58,
+        "top": 144,
+        "width": 578,
+        "height": 317
+      },
+      "actualFit": {
+        "x": -1,
+        "y": -2.16955,
+        "width": 26,
+        "height": 14.259516
+      },
+      "verification": {
+        "transparent": 21364,
+        "retained": 161862,
+        "removedAlpha": 3050,
+        "retainedRGBAMismatches": 0,
+        "allRGBMismatches": 0,
+        "widthFraction": 1
+      },
+      "status": "source and game-scale candidate reviewed; not live integrated; image-specific effect regions need remapping"
+    },
+    {
+      "id": "treasury_pnl_holo",
+      "view": "s",
+      "image": "treasury_pnl_holo.png",
+      "repoPath": "frontend/assets/industrial/catalog-utility-rest-4/treasury_pnl_holo.png",
+      "sourceWidth": 322,
+      "sourceHeight": 174,
+      "footprint": {
+        "w": 1,
+        "h": 1
+      },
+      "bounds": {
+        "x": 1,
+        "y": 5,
+        "width": 10,
+        "height": 5
+      },
+      "contact": {
+        "x": 0.5,
+        "y": 0.9885057471264368
+      },
+      "mode": "approved",
+      "effects": false,
+      "source": "docs/station-remaster/catalog-utility-rest-4/sheet-source.png",
+      "sourceSha256": "5cde18178c6617c7b23d71d0c5bda8793ed67534f202a31dca3aed140760db71",
+      "outputSha256": "1dd220465ca88fc60181a40cc5b58080f8c9ab701f790006565884f807bfe203",
+      "sourceROI": {
+        "left": 750,
+        "top": 270,
+        "width": 365,
+        "height": 210
+      },
+      "sourceCrop": {
+        "left": 774,
+        "top": 288,
+        "width": 322,
+        "height": 174
+      },
+      "actualFit": {
+        "x": 1.373563,
+        "y": 5.057471,
+        "width": 9.252874,
+        "height": 5
+      },
+      "verification": {
+        "transparent": 8605,
+        "retained": 47423,
+        "removedAlpha": 1342,
+        "retainedRGBAMismatches": 0,
+        "allRGBMismatches": 0,
+        "widthFraction": 0.925287
+      },
+      "status": "source and game-scale candidate reviewed; not live integrated; image-specific effect regions need remapping"
+    },
+    {
+      "id": "treasury_token_furnace",
+      "view": "s",
+      "image": "treasury_token_furnace.png",
+      "repoPath": "frontend/assets/industrial/catalog-utility-rest-4/treasury_token_furnace.png",
+      "sourceWidth": 197,
+      "sourceHeight": 437,
+      "footprint": {
+        "w": 1,
+        "h": 2
+      },
+      "bounds": {
+        "x": -1,
+        "y": -7,
+        "width": 14,
+        "height": 31
+      },
+      "contact": {
+        "x": 0.5,
+        "y": 0.9931350114416476
+      },
+      "mode": "approved",
+      "effects": false,
+      "source": "docs/station-remaster/catalog-utility-rest-4/sheet-source.png",
+      "sourceSha256": "5cde18178c6617c7b23d71d0c5bda8793ed67534f202a31dca3aed140760db71",
+      "outputSha256": "5160109986c8bb3643a2d370a4424974228223a55f49ab85238086c4d65a1c30",
+      "sourceROI": {
+        "left": 1235,
+        "top": 30,
+        "width": 240,
+        "height": 465
+      },
+      "sourceCrop": {
+        "left": 1256,
+        "top": 50,
+        "width": 197,
+        "height": 437
+      },
+      "actualFit": {
+        "x": -0.987414,
+        "y": -6.787185,
+        "width": 13.974828,
+        "height": 31
+      },
+      "verification": {
+        "transparent": 16924,
+        "retained": 69165,
+        "removedAlpha": 1750,
+        "retainedRGBAMismatches": 0,
+        "allRGBMismatches": 0,
+        "widthFraction": 0.998202
+      },
+      "status": "source and game-scale candidate reviewed; not live integrated; image-specific effect regions need remapping"
+    },
+    {
+      "id": "war_pivotpanel",
+      "view": "s",
+      "image": "war_pivotpanel.png",
+      "repoPath": "frontend/assets/industrial/catalog-utility-rest-4/war_pivotpanel.png",
+      "sourceWidth": 509,
+      "sourceHeight": 351,
+      "footprint": {
+        "w": 2,
+        "h": 1
+      },
+      "bounds": {
+        "x": -1,
+        "y": -6,
+        "width": 26,
+        "height": 18
+      },
+      "contact": {
+        "x": 0.5,
+        "y": 0.9914529914529915
+      },
+      "mode": "approved",
+      "effects": false,
+      "source": "docs/station-remaster/catalog-utility-rest-4/sheet-source.png",
+      "sourceSha256": "5cde18178c6617c7b23d71d0c5bda8793ed67534f202a31dca3aed140760db71",
+      "outputSha256": "77a5cbe8b65af843c3d1b80e737d1d2d84741869fc24af719664d350691899b5",
+      "sourceROI": {
+        "left": 15,
+        "top": 555,
+        "width": 535,
+        "height": 395
+      },
+      "sourceCrop": {
+        "left": 31,
+        "top": 578,
+        "width": 509,
+        "height": 351
+      },
+      "actualFit": {
+        "x": -1,
+        "y": -5.776031,
+        "width": 26,
+        "height": 17.929273
+      },
+      "verification": {
+        "transparent": 50763,
+        "retained": 127896,
+        "removedAlpha": 4386,
+        "retainedRGBAMismatches": 0,
+        "allRGBMismatches": 0,
+        "widthFraction": 1
+      },
+      "status": "source and game-scale candidate reviewed; not live integrated; image-specific effect regions need remapping"
+    },
+    {
+      "id": "war_threatcore",
+      "view": "s",
+      "image": "war_threatcore.png",
+      "repoPath": "frontend/assets/industrial/catalog-utility-rest-4/war_threatcore.png",
+      "sourceWidth": 200,
+      "sourceHeight": 388,
+      "footprint": {
+        "w": 1,
+        "h": 2
+      },
+      "bounds": {
+        "x": -1,
+        "y": -10,
+        "width": 18,
+        "height": 34
+      },
+      "contact": {
+        "x": 0.5,
+        "y": 0.9922680412371134
+      },
+      "mode": "approved",
+      "effects": false,
+      "source": "docs/station-remaster/catalog-utility-rest-4/sheet-source.png",
+      "sourceSha256": "5cde18178c6617c7b23d71d0c5bda8793ed67534f202a31dca3aed140760db71",
+      "outputSha256": "9e7b73aa1b12b03ecfa00e48dc914333b7e47365427e44cf7d02b0e1086a3763",
+      "sourceROI": {
+        "left": 555,
+        "top": 535,
+        "width": 225,
+        "height": 425
+      },
+      "sourceCrop": {
+        "left": 568,
+        "top": 557,
+        "width": 200,
+        "height": 388
+      },
+      "actualFit": {
+        "x": -0.762887,
+        "y": -9.737113,
+        "width": 17.525773,
+        "height": 34
+      },
+      "verification": {
+        "transparent": 21696,
+        "retained": 55904,
+        "removedAlpha": 1932,
+        "retainedRGBAMismatches": 0,
+        "allRGBMismatches": 0,
+        "widthFraction": 0.973654
+      },
+      "status": "source and game-scale candidate reviewed; not live integrated; image-specific effect regions need remapping"
+    },
+    {
+      "id": "wartable",
+      "view": "s",
+      "image": "wartable.png",
+      "repoPath": "frontend/assets/industrial/catalog-utility-rest-4/wartable.png",
+      "sourceWidth": 1981,
+      "sourceHeight": 703,
+      "footprint": {
+        "w": 5,
+        "h": 2
+      },
+      "bounds": {
+        "x": -1,
+        "y": -1,
+        "width": 66,
+        "height": 25
+      },
+      "contact": {
+        "x": 0.5,
+        "y": 0.9971550497866287
+      },
+      "mode": "approved",
+      "effects": false,
+      "source": "docs/station-remaster/catalog-utility-rest-4/table-depth-source.png",
+      "sourceSha256": "ba15044aeb49fad5047dd5eb1e1a736dbe3a239f2282aabc72abcfb066853f62",
+      "outputSha256": "32de70511393483186505919f789a437c32bb7d833f76861caaabe023923d989",
+      "sourceROI": {
+        "left": 0,
+        "top": 0,
+        "width": 2042,
+        "height": 770
+      },
+      "sourceCrop": {
+        "left": 31,
+        "top": 37,
+        "width": 1981,
+        "height": 703
+      },
+      "actualFit": {
+        "x": -1,
+        "y": 0.645129,
+        "width": 66,
+        "height": 23.421504
+      },
+      "verification": {
+        "transparent": 196334,
+        "retained": 1196309,
+        "removedAlpha": 3474,
+        "retainedRGBAMismatches": 0,
+        "allRGBMismatches": 0,
+        "widthFraction": 1
+      },
+      "status": "source and game-scale candidate reviewed; not live integrated; image-specific effect regions need remapping"
+    }
+  ]
+}

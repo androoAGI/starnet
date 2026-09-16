@@ -1,0 +1,420 @@
+{
+  "instances": 159,
+  "distinctTypes": 53,
+  "totalCatalogTypes": 160,
+  "missingTypes": [
+    "industrial_supplycart",
+    "industrial_toolcaddy",
+    "industrial_partition",
+    "industrial_bench",
+    "industrial_roundtable",
+    "industrial_wallpanel",
+    "industrial_floorvent",
+    "industrial_cabletray",
+    "console",
+    "consoleL",
+    "pixelrig",
+    "bench",
+    "merger",
+    "joiner",
+    "loop",
+    "connector_portal",
+    "comms_dish",
+    "comms_beacon",
+    "safe",
+    "vault",
+    "rack",
+    "shelf",
+    "core",
+    "gigs_servercart",
+    "airlock",
+    "missionboard",
+    "trophycase",
+    "bridge_consolebank",
+    "bridge_tacticaltable",
+    "bridge_equipmentbay",
+    "bridge_deckperimeter",
+    "bigscreen",
+    "holotable",
+    "tank",
+    "whiteboard",
+    "ticker",
+    "chartwall",
+    "wartable",
+    "calwall",
+    "bridge_tacscreen",
+    "bridge_dispatch_pylon",
+    "bridge_orderqueue",
+    "war_pivotpanel",
+    "war_threatcore",
+    "fabricator",
+    "vat",
+    "easel",
+    "tube",
+    "research_corelens",
+    "research_trendpillar",
+    "research_samplecart",
+    "research_papers",
+    "etsy_threadrack",
+    "etsy_dyevat",
+    "etsy_kiln",
+    "etsy_packbot",
+    "boxes",
+    "goldcrate",
+    "gigs_partsbin",
+    "treasury_coinsorter",
+    "treasury_token_furnace",
+    "commswall",
+    "comms_inbox",
+    "gigs_thumbwall",
+    "gigs_amp",
+    "pub_publishpress",
+    "pub_outboundchute",
+    "pub_mailpod",
+    "arc_indexwall",
+    "arc_microfiche",
+    "bunk",
+    "quarters_lockerbank",
+    "rug_small",
+    "treasury_pnl_holo",
+    "arc_floorlight",
+    "arc_ladder",
+    "sidetable",
+    "podchair",
+    "loungetable",
+    "longtable",
+    "lavalamp",
+    "crt_pile",
+    "cablerun",
+    "hazardpad",
+    "tallplant",
+    "terrarium",
+    "holopet",
+    "plasmaglobe",
+    "monstera",
+    "mug",
+    "bookstack",
+    "desklamp",
+    "radio",
+    "figurine",
+    "deskterminal",
+    "modelship",
+    "steamvent",
+    "beanbag",
+    "cryopod",
+    "incubator",
+    "telescope_r",
+    "camerarig",
+    "weaponrack",
+    "weaponrack_r",
+    "punchbag_r",
+    "benchpress_r",
+    "recliner"
+  ],
+  "sizeFallbacks": 23,
+  "sizeFallbacksByType": {
+    "desk": 23
+  },
+  "mismatches": [
+    {
+      "id": "p2",
+      "type": "desk",
+      "face": "s",
+      "saved": [
+        2,
+        1
+      ],
+      "required": [
+        3,
+        1
+      ]
+    },
+    {
+      "id": "p171",
+      "type": "desk",
+      "face": "s",
+      "saved": [
+        2,
+        1
+      ],
+      "required": [
+        3,
+        1
+      ]
+    },
+    {
+      "id": "p174",
+      "type": "desk",
+      "face": "s",
+      "saved": [
+        2,
+        1
+      ],
+      "required": [
+        3,
+        1
+      ]
+    },
+    {
+      "id": "p175",
+      "type": "desk",
+      "face": "s",
+      "saved": [
+        2,
+        1
+      ],
+      "required": [
+        3,
+        1
+      ]
+    },
+    {
+      "id": "p177",
+      "type": "desk",
+      "face": "s",
+      "saved": [
+        2,
+        1
+      ],
+      "required": [
+        3,
+        1
+      ]
+    },
+    {
+      "id": "p178",
+      "type": "desk",
+      "face": "s",
+      "saved": [
+        2,
+        1
+      ],
+      "required": [
+        3,
+        1
+      ]
+    },
+    {
+      "id": "p179",
+      "type": "desk",
+      "face": "s",
+      "saved": [
+        2,
+        1
+      ],
+      "required": [
+        3,
+        1
+      ]
+    },
+    {
+      "id": "p180",
+      "type": "desk",
+      "face": "s",
+      "saved": [
+        2,
+        1
+      ],
+      "required": [
+        3,
+        1
+      ]
+    },
+    {
+      "id": "p181",
+      "type": "desk",
+      "face": "s",
+      "saved": [
+        2,
+        1
+      ],
+      "required": [
+        3,
+        1
+      ]
+    },
+    {
+      "id": "p182",
+      "type": "desk",
+      "face": "s",
+      "saved": [
+        2,
+        1
+      ],
+      "required": [
+        3,
+        1
+      ]
+    },
+    {
+      "id": "p183",
+      "type": "desk",
+      "face": "s",
+      "saved": [
+        2,
+        1
+      ],
+      "required": [
+        3,
+        1
+      ]
+    },
+    {
+      "id": "p184",
+      "type": "desk",
+      "face": "s",
+      "saved": [
+        2,
+        1
+      ],
+      "required": [
+        3,
+        1
+      ]
+    },
+    {
+      "id": "p185",
+      "type": "desk",
+      "face": "s",
+      "saved": [
+        2,
+        1
+      ],
+      "required": [
+        3,
+        1
+      ]
+    },
+    {
+      "id": "p186",
+      "type": "desk",
+      "face": "s",
+      "saved": [
+        2,
+        1
+      ],
+      "required": [
+        3,
+        1
+      ]
+    },
+    {
+      "id": "p187",
+      "type": "desk",
+      "face": "s",
+      "saved": [
+        2,
+        1
+      ],
+      "required": [
+        3,
+        1
+      ]
+    },
+    {
+      "id": "p188",
+      "type": "desk",
+      "face": "s",
+      "saved": [
+        2,
+        1
+      ],
+      "required": [
+        3,
+        1
+      ]
+    },
+    {
+      "id": "p189",
+      "type": "desk",
+      "face": "s",
+      "saved": [
+        2,
+        1
+      ],
+      "required": [
+        3,
+        1
+      ]
+    },
+    {
+      "id": "p190",
+      "type": "desk",
+      "face": "s",
+      "saved": [
+        2,
+        1
+      ],
+      "required": [
+        3,
+        1
+      ]
+    },
+    {
+      "id": "p191",
+      "type": "desk",
+      "face": "s",
+      "saved": [
+        2,
+        1
+      ],
+      "required": [
+        3,
+        1
+      ]
+    },
+    {
+      "id": "p192",
+      "type": "desk",
+      "face": "s",
+      "saved": [
+        2,
+        1
+      ],
+      "required": [
+        3,
+        1
+      ]
+    },
+    {
+      "id": "p193",
+      "type": "desk",
+      "face": "s",
+      "saved": [
+        2,
+        1
+      ],
+      "required": [
+        3,
+        1
+      ]
+    },
+    {
+      "id": "p194",
+      "type": "desk",
+      "face": "s",
+      "saved": [
+        2,
+        1
+      ],
+      "required": [
+        3,
+        1
+      ]
+    },
+    {
+      "id": "p195",
+      "type": "desk",
+      "face": "s",
+      "saved": [
+        2,
+        1
+      ],
+      "required": [
+        3,
+        1
+      ]
+    }
+  ],
+  "unsupportedRotations": []
+}

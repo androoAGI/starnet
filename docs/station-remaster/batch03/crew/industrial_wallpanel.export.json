@@ -1,0 +1,85 @@
+{
+  "id": "industrial_wallpanel",
+  "nativeId": "industrial_wallpanel",
+  "view": "s",
+  "footprint": {
+    "w": 2,
+    "h": 1
+  },
+  "bounds": {
+    "x": 0,
+    "y": -13,
+    "width": 24,
+    "height": 23
+  },
+  "geometry": {
+    "blocks": false,
+    "flat": false,
+    "tableSurface": false,
+    "requiredMount": "wall",
+    "optionalSurfaceMount": false,
+    "surfaceRisePixels": 8
+  },
+  "orientation": {
+    "facings": [
+      {
+        "r": 0,
+        "front": "south",
+        "w": 2,
+        "h": 1,
+        "type": "authored-view"
+      }
+    ],
+    "canMirror": true,
+    "classicFacings": [
+      0
+    ]
+  },
+  "anchorContract": "Wall-host placement; preserve host test and contact line.",
+  "sourceAnimation": {
+    "idleFrameVariants": 1,
+    "workFrameVariants": 1,
+    "respondsToWorkFlag": false,
+    "opaqueBoundsRelativeToFootprint": {
+      "x": 0,
+      "y": -13,
+      "w": 24,
+      "h": 23,
+      "alphaThreshold": 160
+    }
+  },
+  "tilePixels": 12,
+  "floorContact": {
+    "y": 12,
+    "x": 12
+  },
+  "visualBottomContact": {
+    "y": 10,
+    "x": 12
+  },
+  "status": "art-draft-integration-pending",
+  "backgroundThreshold": 190,
+  "holeSeeds": [],
+  "references": [
+    "workstation.png:camera-design",
+    "calibration/crate.png:metal-color",
+    "batch03/crew/industrial_bench-source.png:painted-style"
+  ],
+  "sourceWidth": 1281,
+  "sourceHeight": 1228,
+  "sourceSha256": "cae1e8b4efa2392b04aa46c9b2a8efb549fa8164a97417a896b3e0f37e357e69",
+  "output": "frontend/assets/industrial/batch03/crew/industrial_wallpanel.png",
+  "crop": {
+    "left": 20,
+    "top": 83,
+    "width": 1239,
+    "height": 1066
+  },
+  "transparentPixels": 85134,
+  "opaquePixels": 1235640,
+  "partialPixels": 0,
+  "backgroundPixelsRemoved": 337428,
+  "subjectRgbChanges": 0,
+  "outputSha256": "19ec21b641367f79ed5d33f1acf1e3ed844602684c01579829ca7ae1d36e172f",
+  "liveIntegrated": false
+}

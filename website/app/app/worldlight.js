@@ -213,7 +213,7 @@ const WorldLight = (() => {
     let interiorPath = null, interiorMask = null, surfaceMask = null, surfaceChunks = [];
     let baseDark = null, baseGlow = null, frameDark = null, frameGlow = null;
     let fixtureKey = '', frameKey = '', fixtureLights = [], currentLights = [], stampPixels = 0, disposed = false;
-    let preparedFrame = null, preparedLights = [];
+    let preparedFrame = null, preparedLights = [], preparedConfigRevision = -1;
     const stamps = new Map(), canvasWatches = new Map(), lostCanvases = new Set(), samples = new Map();
     let sampleKey = null;
     let resourcesDirty = false, retryResourcesAt = 0;
@@ -439,7 +439,7 @@ const WorldLight = (() => {
       const d = reset(baseDark), glow = reset(baseGlow), wall = clamp(finite(config.wallAmbient, 0.28), 0, 0.8);
       // Existing LOW/MEDIUM/HIGH room settings are .82/.72/.62. Their ordering
       // survives, with a new readable floor: .70/.64/.58 rather than crushed black.
-      const ambient = clamp(0.208 + finite(config.ambient, 0.82) * 0.6, 0, 0.9);
+      const ambient = clamp(0.208 + finite(config.ambient, 0.82) * 0.6 - clamp(finite(config.ambientLift, 0), 0, .2), 0, 0.9);
       // The silhouette owns the exterior shade. Empty space remains transparent.
       if (hasSurface() && wall > 0) {
         if (surfaceMask) d.drawImage(surfaceMask, 0, 0, width, height);
@@ -485,6 +485,7 @@ const WorldLight = (() => {
         '|fixtures:' + exact(fixtureLights) + '|props:' + exact(preparedLights);
       if (nextSampleKey !== sampleKey) { invalidateSamples(); sampleKey = nextSampleKey; }
       metrics.droppedSources = Math.max(0, sourceFixtures.length - fixtureLights.length) + Math.max(0, sourceProps.length - preparedLights.length);
+      preparedConfigRevision = metrics.configRevision;
       metrics.preparations++; return true;
     }
 
@@ -494,9 +495,12 @@ const WorldLight = (() => {
       // invalidates all geometry-dependent caches and their normalized sources.
       const nextFrame = frame === undefined ? preparedFrame || {} : frame;
       const started = clock(); if (!ensureResources()) return false;
-      prepare(nextFrame);
+      // World prepares before drawing bodies so their lighting is current.
+      // Reuse those exact normalized sources for the composite pass. Recovery
+      // clears preparedFrame; explicit frames and config changes still refresh.
+      if(frame !== undefined || !preparedFrame || preparedConfigRevision !== metrics.configRevision)prepare(nextFrame);
       const fixtures = fixtureLights, lights = preparedLights;
-      const fk = signature(fixtures) + '|' + config.ambient + ',' + config.wallAmbient + ',' + config.fixtureTint + ',' + config.shafts;
+      const fk = signature(fixtures) + '|' + config.ambient + ',' + config.ambientLift + ',' + config.wallAmbient + ',' + config.fixtureTint + ',' + config.shafts;
       if (fk !== fixtureKey) { rebuildStatic(fixtures); fixtureKey = fk; frameKey = ''; }
       const dk = signature(lights) + '|' + finite(config.propLift, 0.65) + '|' + finite(config.propTint, 1);
       if (dk !== frameKey) {
@@ -587,7 +591,7 @@ const WorldLight = (() => {
         segments: segments.length, sources: currentLights.length, cachedStamps: stamps.size, areaSamples: QUALITY[quality].areaSamples,
         sampleCacheSize: samples.size, sampleCacheLimit: sampleLimit(),
         shafts: fixtureLights.filter(l => l.beam && l.beam.strength > 0 && config.shafts > 0).length,
-        ambient: clamp(0.208 + finite(config.ambient, 0.82) * 0.6, 0, 0.9),
+        ambient: clamp(0.208 + finite(config.ambient, 0.82) * 0.6 - clamp(finite(config.ambientLift, 0), 0, .2), 0, 0.9),
         cacheBytes: 4 * stampPixels + (baseDark ? baseDark.width * baseDark.height * 16 : 0), disposed }) };
   }
   return { create, buildSegments, visibilityPolygon, visibleAt, visibilityFraction, emitterOrigins,

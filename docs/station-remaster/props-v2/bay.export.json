@@ -1,0 +1,15 @@
+{
+  "id": "bay",
+  "source": "C:\\Users\\andro\\.codex\\generated_images\\01a09c6d-7ce8-7071-b2c5-8b947d23d158\\exec-e0f749fe-06b1-4b69-a4a1-d9ab836c3213.png",
+  "sourceWidth": 1234,
+  "sourceHeight": 1275,
+  "crop": {
+    "left": 111,
+    "top": 84,
+    "width": 1001,
+    "height": 1096
+  },
+  "sourceAlpha": false,
+  "subjectRgbChanges": 0,
+  "output": "frontend/assets/industrial/props-v2/bay.png"
+}

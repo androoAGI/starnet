@@ -1,0 +1,12 @@
+{
+  "id": "grimreaper",
+  "characterId": "81ee5ca9-fe1b-4d72-ac21-02ec87d3a271",
+  "replacesCharacterId": "a38e3541-420b-4b5a-b367-37765a0cc4e1",
+  "reason": "Restore unmistakable curved horizontal scythe blade and charcoal cloth.",
+  "rotations": {
+    "south": "https://backblaze.pixellab.ai/file/pixellab-characters/1ff7d2cf-cfe6-44f9-9533-9eea41eb05cb/81ee5ca9-fe1b-4d72-ac21-02ec87d3a271/rotations/south.png?t=1789362789",
+    "east": "https://backblaze.pixellab.ai/file/pixellab-characters/1ff7d2cf-cfe6-44f9-9533-9eea41eb05cb/81ee5ca9-fe1b-4d72-ac21-02ec87d3a271/rotations/east.png?t=1789362789",
+    "north": "https://backblaze.pixellab.ai/file/pixellab-characters/1ff7d2cf-cfe6-44f9-9533-9eea41eb05cb/81ee5ca9-fe1b-4d72-ac21-02ec87d3a271/rotations/north.png?t=1789362789",
+    "west": "https://backblaze.pixellab.ai/file/pixellab-characters/1ff7d2cf-cfe6-44f9-9533-9eea41eb05cb/81ee5ca9-fe1b-4d72-ac21-02ec87d3a271/rotations/west.png?t=1789362789"
+  }
+}

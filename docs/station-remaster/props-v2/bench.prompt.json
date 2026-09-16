@@ -1,0 +1,33 @@
+{
+  "id": "bench",
+  "prompt": "Use case: style-transfer. Make ONE finished transparent-background StarNet game prop from image 1, which is the binding ORIGINAL GEOMETRY GUIDE. Image 2 is the approved crate: use its restrained dark cool steel, broad readable plates, crisp worn bevels, very sparse warm brass catches, and subtle aged metal surface. Image 3 is station context only. Keep the guide’s precise overall silhouette/aspect, camera elevation, straight-on orthographic alignment, top-face depth, feet, open gaps, and every component/screen location. Reconstruct the coarse guide into refined painted game sprite detail; do not preserve giant pixel blocks. No new appendages, no taller/wider body, no perspective yaw or isometric diamond. Match the crate material density: broad clear forms, not ornate busy machinery. Functional glass MUST be smoked-black/OFF with no bright graphics; existing game code provides the exact animated pixels there. Keep dark glass rectangles in precisely their guide positions and sizes. Finish for tiny in-game legibility, not product photography. Entire single prop visible with tight balanced transparent margin; true transparent alpha, NO floor, ground/shadow scene, labels, text, humans, border, checkerboard illustration or second object.\nSubject details: A low wide engineering electronics bench. Preserve large upright dark monitor at upper left, smaller rectangular instrument at upper right, three horizontal workstation bays, thin tabletop rail and two widely spaced supporting legs. Original prop is WIDE and LOW; do not turn it into a tall cabinet. Preserve checker/key area on the left and the right instrument slot.",
+  "source": "C:\\Users\\andro\\.codex\\generated_images\\01a09c6d-7ce8-7071-b2c5-8b947d23d158\\exec-79593aca-90d4-476a-ae67-6ad465df49f2.png",
+  "tool": "built-in image_gen",
+  "references": [
+    {
+      "role": "binding geometry",
+      "path": "C:/Users/andro/gen-trees/industrial-textures-0912/dev/.scratch-workspace/prop-structure/bench.png"
+    },
+    {
+      "role": "approved material",
+      "path": "C:/Users/andro/gen-trees/industrial-textures-0912/frontend/assets/industrial/calibration/crate.png"
+    },
+    {
+      "role": "station context",
+      "path": "C:/Users/andro/Downloads/bridge.png"
+    }
+  ],
+  "nativeBounds": {
+    "x": -1,
+    "y": -14,
+    "width": 54,
+    "height": 26
+  },
+  "croppedAspectRatio": 2.18875,
+  "aspectDrift": 0.0538425925925925,
+  "review": {
+    "geometry": "Within 8 percent native crop ratio; no edge clipping",
+    "material": "Approved crate dark steel reference",
+    "liveApp": false
+  }
+}

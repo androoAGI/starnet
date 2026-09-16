@@ -1,0 +1,15 @@
+{
+  "id": "filter",
+  "source": "C:\\Users\\andro\\.codex\\generated_images\\01a09c6d-7ce8-7071-b2c5-8b947d23d158\\exec-70755e37-de7a-4a7b-87d4-0c5b1fb538da.png",
+  "sourceWidth": 1076,
+  "sourceHeight": 1462,
+  "crop": {
+    "left": 64,
+    "top": 110,
+    "width": 949,
+    "height": 1241
+  },
+  "sourceAlpha": false,
+  "subjectRgbChanges": 0,
+  "output": "frontend/assets/industrial/props-v2/filter.png"
+}

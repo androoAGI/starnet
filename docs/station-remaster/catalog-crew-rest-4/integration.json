@@ -1,0 +1,214 @@
+{
+  "version": 1,
+  "status": "candidate-not-integrated",
+  "records": [
+    {
+      "id": "plant",
+      "view": "s",
+      "image": "frontend/assets/industrial/catalog-crew-rest-4/plant.png",
+      "sourceWidth": 640,
+      "sourceHeight": 1412,
+      "bounds": {
+        "x": 1,
+        "y": -8,
+        "width": 10,
+        "height": 20
+      },
+      "footprint": {
+        "w": 1,
+        "h": 1
+      },
+      "contact": {
+        "x": 0.5,
+        "y": 0.9975212464589235,
+        "space": "exported-image-normalized",
+        "targetWorld": {
+          "x": 6,
+          "y": 12
+        }
+      }
+    },
+    {
+      "id": "tallplant",
+      "view": "s",
+      "image": "frontend/assets/industrial/catalog-crew-rest-4/tallplant.png",
+      "sourceWidth": 227,
+      "sourceHeight": 435,
+      "bounds": {
+        "x": 1,
+        "y": -14,
+        "width": 13,
+        "height": 26
+      },
+      "footprint": {
+        "w": 1,
+        "h": 1
+      },
+      "contact": {
+        "x": 0.5,
+        "y": 0.9942528735632183,
+        "space": "exported-image-normalized",
+        "targetWorld": {
+          "x": 6,
+          "y": 12
+        }
+      }
+    },
+    {
+      "id": "monstera",
+      "view": "s",
+      "image": "frontend/assets/industrial/catalog-crew-rest-4/monstera.png",
+      "sourceWidth": 345,
+      "sourceHeight": 377,
+      "bounds": {
+        "x": 0,
+        "y": -1,
+        "width": 12,
+        "height": 13
+      },
+      "footprint": {
+        "w": 1,
+        "h": 1
+      },
+      "contact": {
+        "x": 0.5,
+        "y": 0.9907161803713528,
+        "space": "exported-image-normalized",
+        "targetWorld": {
+          "x": 6,
+          "y": 12
+        }
+      }
+    },
+    {
+      "id": "terrarium",
+      "view": "s",
+      "image": "frontend/assets/industrial/catalog-crew-rest-4/terrarium.png",
+      "sourceWidth": 227,
+      "sourceHeight": 367,
+      "bounds": {
+        "x": 0,
+        "y": -5,
+        "width": 11,
+        "height": 16
+      },
+      "footprint": {
+        "w": 1,
+        "h": 1
+      },
+      "contact": {
+        "x": 0.5,
+        "y": 0.9904632152588556,
+        "space": "exported-image-normalized",
+        "targetWorld": {
+          "x": 6,
+          "y": 12
+        }
+      }
+    },
+    {
+      "id": "lavalamp",
+      "view": "s",
+      "image": "frontend/assets/industrial/catalog-crew-rest-4/lavalamp.png",
+      "sourceWidth": 282,
+      "sourceHeight": 658,
+      "bounds": {
+        "x": 2,
+        "y": -8,
+        "width": 8,
+        "height": 20
+      },
+      "footprint": {
+        "w": 1,
+        "h": 1
+      },
+      "contact": {
+        "x": 0.5,
+        "y": 0.9946808510638298,
+        "space": "exported-image-normalized",
+        "targetWorld": {
+          "x": 6,
+          "y": 12
+        }
+      }
+    },
+    {
+      "id": "plasmaglobe",
+      "view": "s",
+      "image": "frontend/assets/industrial/catalog-crew-rest-4/plasmaglobe.png",
+      "sourceWidth": 312,
+      "sourceHeight": 656,
+      "bounds": {
+        "x": 1,
+        "y": -5,
+        "width": 9,
+        "height": 17
+      },
+      "footprint": {
+        "w": 1,
+        "h": 1
+      },
+      "contact": {
+        "x": 0.5,
+        "y": 0.9946646341463414,
+        "space": "exported-image-normalized",
+        "targetWorld": {
+          "x": 6,
+          "y": 12
+        }
+      }
+    },
+    {
+      "id": "holopet",
+      "view": "s",
+      "image": "frontend/assets/industrial/catalog-crew-rest-4/holopet.png",
+      "sourceWidth": 436,
+      "sourceHeight": 1295,
+      "bounds": {
+        "x": 3,
+        "y": -6,
+        "width": 6,
+        "height": 16
+      },
+      "footprint": {
+        "w": 1,
+        "h": 1
+      },
+      "contact": {
+        "x": 0.5,
+        "y": 0.9972972972972973,
+        "space": "exported-image-normalized",
+        "targetWorld": {
+          "x": 6,
+          "y": 12
+        }
+      }
+    },
+    {
+      "id": "speaker",
+      "view": "s",
+      "image": "frontend/assets/industrial/catalog-crew-rest-4/speaker.png",
+      "sourceWidth": 231,
+      "sourceHeight": 352,
+      "bounds": {
+        "x": 1,
+        "y": -3,
+        "width": 10,
+        "height": 15
+      },
+      "footprint": {
+        "w": 1,
+        "h": 1
+      },
+      "contact": {
+        "x": 0.5,
+        "y": 0.9900568181818182,
+        "space": "exported-image-normalized",
+        "targetWorld": {
+          "x": 6,
+          "y": 12
+        }
+      }
+    }
+  ]
+}

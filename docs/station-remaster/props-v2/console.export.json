@@ -1,0 +1,15 @@
+{
+  "id": "console",
+  "source": "C:\\Users\\andro\\.codex\\generated_images\\01a0976c-e264-7f13-a581-78c904716b14\\exec-f13db44d-c99f-4d83-87b0-b65db2b72782.png",
+  "sourceWidth": 1385,
+  "sourceHeight": 1136,
+  "crop": {
+    "left": 94,
+    "top": 30,
+    "width": 1204,
+    "height": 1075
+  },
+  "sourceAlpha": false,
+  "subjectRgbChanges": 0,
+  "output": "frontend/assets/industrial/props-v2/console.png"
+}

@@ -1,0 +1,87 @@
+{
+  "tracks": 24,
+  "frames": 96,
+  "scale": 0.385,
+  "receipts": [
+    {
+      "state": "idle",
+      "dir": "south",
+      "distinctRenders": 1
+    },
+    {
+      "state": "idle",
+      "dir": "east",
+      "distinctRenders": 1
+    },
+    {
+      "state": "idle",
+      "dir": "north",
+      "distinctRenders": 1
+    },
+    {
+      "state": "idle",
+      "dir": "west",
+      "distinctRenders": 1
+    },
+    {
+      "state": "walk",
+      "dir": "south",
+      "distinctRenders": 3
+    },
+    {
+      "state": "walk",
+      "dir": "east",
+      "distinctRenders": 3
+    },
+    {
+      "state": "walk",
+      "dir": "north",
+      "distinctRenders": 3
+    },
+    {
+      "state": "walk",
+      "dir": "west",
+      "distinctRenders": 3
+    },
+    {
+      "state": "sit",
+      "dir": "south",
+      "distinctRenders": 1
+    },
+    {
+      "state": "sit",
+      "dir": "east",
+      "distinctRenders": 1
+    },
+    {
+      "state": "sit",
+      "dir": "north",
+      "distinctRenders": 1
+    },
+    {
+      "state": "sit",
+      "dir": "west",
+      "distinctRenders": 1
+    },
+    {
+      "state": "type",
+      "dir": "south",
+      "distinctRenders": 5
+    },
+    {
+      "state": "type",
+      "dir": "east",
+      "distinctRenders": 5
+    },
+    {
+      "state": "type",
+      "dir": "north",
+      "distinctRenders": 5
+    },
+    {
+      "state": "type",
+      "dir": "west",
+      "distinctRenders": 5
+    }
+  ]
+}

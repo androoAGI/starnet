@@ -1,0 +1,321 @@
+{
+  "id": "outbox",
+  "measurement": "Conservative manual visual selection inside inspected source surfaces; conversion uses PropRemaster.fit uniform bottom-centered mapping. Owner must verify live.",
+  "footprint": {
+    "w": 2,
+    "h": 2
+  },
+  "worldEnvelope": {
+    "x": -1,
+    "y": -8,
+    "width": 30,
+    "height": 32
+  },
+  "uniformScale": 0.0273972602739726,
+  "renderedArtBox": {
+    "x": -1,
+    "y": -7.205479452054792,
+    "width": 30,
+    "height": 31.205479452054792
+  },
+  "contact": {
+    "x": 14,
+    "y": 24
+  },
+  "regions": {
+    "receivingMouth": {
+      "sourcePixels": [
+        [
+          375,
+          180
+        ],
+        [
+          832,
+          180
+        ],
+        [
+          832,
+          505
+        ],
+        [
+          375,
+          505
+        ]
+      ],
+      "exportPixels": [
+        [
+          315,
+          104
+        ],
+        [
+          772,
+          104
+        ],
+        [
+          772,
+          429
+        ],
+        [
+          315,
+          429
+        ]
+      ],
+      "worldPixels": [
+        [
+          7.63,
+          -4.356
+        ],
+        [
+          20.151,
+          -4.356
+        ],
+        [
+          20.151,
+          4.548
+        ],
+        [
+          7.63,
+          4.548
+        ]
+      ],
+      "sourceNormalized": [
+        [
+          0.308896,
+          0.138889
+        ],
+        [
+          0.685338,
+          0.138889
+        ],
+        [
+          0.685338,
+          0.38966
+        ],
+        [
+          0.308896,
+          0.38966
+        ]
+      ],
+      "exportNormalized": [
+        [
+          0.287671,
+          0.091308
+        ],
+        [
+          0.705023,
+          0.091308
+        ],
+        [
+          0.705023,
+          0.376646
+        ],
+        [
+          0.287671,
+          0.376646
+        ]
+      ]
+    },
+    "conveyorCargoSurface": {
+      "sourcePixels": [
+        [
+          420,
+          625
+        ],
+        [
+          785,
+          625
+        ],
+        [
+          805,
+          1005
+        ],
+        [
+          398,
+          1005
+        ]
+      ],
+      "exportPixels": [
+        [
+          360,
+          549
+        ],
+        [
+          725,
+          549
+        ],
+        [
+          745,
+          929
+        ],
+        [
+          338,
+          929
+        ]
+      ],
+      "worldPixels": [
+        [
+          8.863,
+          7.836
+        ],
+        [
+          18.863,
+          7.836
+        ],
+        [
+          19.411,
+          18.247
+        ],
+        [
+          8.26,
+          18.247
+        ]
+      ],
+      "sourceNormalized": [
+        [
+          0.345964,
+          0.482253
+        ],
+        [
+          0.646623,
+          0.482253
+        ],
+        [
+          0.663097,
+          0.775463
+        ],
+        [
+          0.327842,
+          0.775463
+        ]
+      ],
+      "exportNormalized": [
+        [
+          0.328767,
+          0.482002
+        ],
+        [
+          0.6621,
+          0.482002
+        ],
+        [
+          0.680365,
+          0.815628
+        ],
+        [
+          0.308676,
+          0.815628
+        ]
+      ]
+    },
+    "statusPlate": {
+      "sourcePixels": [
+        [
+          966,
+          359
+        ],
+        [
+          1080,
+          359
+        ],
+        [
+          1080,
+          409
+        ],
+        [
+          966,
+          409
+        ]
+      ],
+      "exportPixels": [
+        [
+          906,
+          283
+        ],
+        [
+          1020,
+          283
+        ],
+        [
+          1020,
+          333
+        ],
+        [
+          906,
+          333
+        ]
+      ],
+      "worldPixels": [
+        [
+          23.822,
+          0.548
+        ],
+        [
+          26.945,
+          0.548
+        ],
+        [
+          26.945,
+          1.918
+        ],
+        [
+          23.822,
+          1.918
+        ]
+      ],
+      "sourceNormalized": [
+        [
+          0.795717,
+          0.277006
+        ],
+        [
+          0.889621,
+          0.277006
+        ],
+        [
+          0.889621,
+          0.315586
+        ],
+        [
+          0.795717,
+          0.315586
+        ]
+      ],
+      "exportNormalized": [
+        [
+          0.827397,
+          0.248464
+        ],
+        [
+          0.931507,
+          0.248464
+        ],
+        [
+          0.931507,
+          0.292362
+        ],
+        [
+          0.827397,
+          0.292362
+        ]
+      ]
+    }
+  },
+  "liveIntegrated": false,
+  "existingWorldCargoContract": {
+    "shippedPalletOrigin": {
+      "x": 12,
+      "y": 30
+    },
+    "note": "world.js draws shipped pallet from real known done count at footprint center and bottom+6. Preserve separately; generated art includes no floor pallet or finished crates."
+  },
+  "sourceDimensions": {
+    "width": 1214,
+    "height": 1296
+  },
+  "crop": {
+    "left": 60,
+    "top": 76,
+    "width": 1095,
+    "height": 1139
+  }
+}

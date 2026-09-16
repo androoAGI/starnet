@@ -1,0 +1,33 @@
+{
+  "id": "bookshelf",
+  "tool": "built-in image_gen",
+  "variant": "s",
+  "status": "generated candidate; root actual-scale review pending",
+  "native": {
+    "key": "bookshelf",
+    "r": 0,
+    "image": "bookshelf.png",
+    "footprint": {
+      "w": 2,
+      "h": 1
+    },
+    "bounds": {
+      "x": -1,
+      "y": -9,
+      "width": 26,
+      "height": 22
+    },
+    "guide": "dev/.scratch-workspace/prop-structure/bookshelf.png"
+  },
+  "references": [
+    "dev/.scratch-workspace/prop-structure/bookshelf.png",
+    "frontend/assets/industrial/calibration/crate.png",
+    "docs/station-remaster/bridge-reference.png"
+  ],
+  "source": "Original native geometry plus approved crate and bridge; no rejected drafts used",
+  "ratioDeviationPercent": 0.75,
+  "aspectTolerancePercent": 8,
+  "aspectPass": true,
+  "rgbRepaint": null,
+  "runtimeIntegrated": null
+}

@@ -1,0 +1,437 @@
+{
+  "fixtureOnly": true,
+  "types": 160,
+  "directions": 208,
+  "states": [
+    "idle",
+    "powered-fixture"
+  ],
+  "rooms": [
+    {
+      "keys": [
+        "industrial_locker:s",
+        "industrial_drawerbank:s",
+        "industrial_supplycart:s",
+        "industrial_toolcaddy:s",
+        "industrial_planter:s",
+        "industrial_partition:s"
+      ],
+      "mounts": 1,
+      "rendered": 6
+    },
+    {
+      "keys": [
+        "industrial_partition:w",
+        "industrial_partition:e",
+        "industrial_bench:s",
+        "industrial_roundtable:s",
+        "industrial_servicecab:s",
+        "industrial_wallpanel:s"
+      ],
+      "mounts": 0,
+      "rendered": 12
+    },
+    {
+      "keys": [
+        "industrial_floorvent:s",
+        "industrial_floorvent:w",
+        "industrial_floorvent:n",
+        "industrial_floorvent:e",
+        "industrial_cabletray:s",
+        "industrial_cabletray:w"
+      ],
+      "mounts": 0,
+      "rendered": 18
+    },
+    {
+      "keys": [
+        "industrial_cabletray:n",
+        "industrial_cabletray:e",
+        "desk:s",
+        "desk:w",
+        "desk:n",
+        "desk:e"
+      ],
+      "mounts": 0,
+      "rendered": 24
+    },
+    {
+      "keys": [
+        "desk2:s",
+        "desk2:w",
+        "desk2:n",
+        "desk2:e",
+        "console:s",
+        "consoleL:s"
+      ],
+      "mounts": 0,
+      "rendered": 30
+    },
+    {
+      "keys": [
+        "pixelrig:s",
+        "bench:s",
+        "workbench:s",
+        "intake:s",
+        "bay:s",
+        "filter:s"
+      ],
+      "mounts": 0,
+      "rendered": 36
+    },
+    {
+      "keys": [
+        "merger:s",
+        "splitter:s",
+        "joiner:s",
+        "loop:s",
+        "outbox:s",
+        "connector_portal:s"
+      ],
+      "mounts": 0,
+      "rendered": 42
+    },
+    {
+      "keys": [
+        "comms_dish:s",
+        "comms_uplink:s",
+        "comms_beacon:s",
+        "war_intelcab:s",
+        "safe:s",
+        "vault:s"
+      ],
+      "mounts": 0,
+      "rendered": 48
+    },
+    {
+      "keys": [
+        "rack:s",
+        "shelf:s",
+        "core:s",
+        "gigs_servercart:s",
+        "bridge_relaystack:s",
+        "studio:s"
+      ],
+      "mounts": 0,
+      "rendered": 54
+    },
+    {
+      "keys": [
+        "airlock:s",
+        "missionboard:s",
+        "trophycase:s",
+        "bridge_consolebank:s",
+        "bridge_tacticaltable:s",
+        "bridge_equipmentbay:s"
+      ],
+      "mounts": 0,
+      "rendered": 60
+    },
+    {
+      "keys": [
+        "bridge_deckperimeter:s",
+        "bridge_deckperimeter:w",
+        "bridge_deckperimeter:n",
+        "bridge_deckperimeter:e",
+        "bigscreen:s",
+        "holotable:s"
+      ],
+      "mounts": 0,
+      "rendered": 66
+    },
+    {
+      "keys": [
+        "screens:s",
+        "tank:s",
+        "whiteboard:s",
+        "ticker:s",
+        "chartwall:s",
+        "wartable:s"
+      ],
+      "mounts": 0,
+      "rendered": 72
+    },
+    {
+      "keys": [
+        "calwall:s",
+        "bridge_tacscreen:s",
+        "bridge_dispatch_pylon:s",
+        "bridge_orderqueue:s",
+        "war_pivotpanel:s",
+        "war_threatcore:s"
+      ],
+      "mounts": 0,
+      "rendered": 78
+    },
+    {
+      "keys": [
+        "fabricator:s",
+        "vat:s",
+        "easel:s",
+        "tube:s",
+        "research_corelens:s",
+        "research_trendpillar:s"
+      ],
+      "mounts": 0,
+      "rendered": 84
+    },
+    {
+      "keys": [
+        "research_samplecart:s",
+        "research_papers:s",
+        "etsy_threadrack:s",
+        "etsy_dyevat:s",
+        "etsy_kiln:s",
+        "etsy_packbot:s"
+      ],
+      "mounts": 1,
+      "rendered": 90
+    },
+    {
+      "keys": [
+        "rackV:s",
+        "crate:s",
+        "boxes:s",
+        "goldcrate:s",
+        "gigs_partsbin:s",
+        "treasury_coinsorter:s"
+      ],
+      "mounts": 2,
+      "rendered": 96
+    },
+    {
+      "keys": [
+        "treasury_token_furnace:s",
+        "commswall:s",
+        "comms_inbox:s",
+        "gigs_thumbwall:s",
+        "gigs_amp:s",
+        "pub_publishpress:s"
+      ],
+      "mounts": 1,
+      "rendered": 102
+    },
+    {
+      "keys": [
+        "pub_outboundchute:s",
+        "pub_mailpod:s",
+        "arc_indexwall:s",
+        "arc_microfiche:s",
+        "djbooth:s",
+        "speaker:s"
+      ],
+      "mounts": 1,
+      "rendered": 108
+    },
+    {
+      "keys": [
+        "bar:s",
+        "tv:s",
+        "couch:s",
+        "arcade:s",
+        "arcade2:s",
+        "jukebox:s"
+      ],
+      "mounts": 0,
+      "rendered": 114
+    },
+    {
+      "keys": [
+        "bunk:s",
+        "quarters_pooltable:s",
+        "quarters_vending:s",
+        "quarters_lockerbank:s",
+        "quarters_minifridge:s",
+        "coffee:s"
+      ],
+      "mounts": 1,
+      "rendered": 120
+    },
+    {
+      "keys": [
+        "plant:s",
+        "rug:s",
+        "rug:w",
+        "rug:n",
+        "rug:e",
+        "rug_small:s"
+      ],
+      "mounts": 1,
+      "rendered": 126
+    },
+    {
+      "keys": [
+        "rug_small:w",
+        "rug_small:n",
+        "rug_small:e",
+        "rug_large:s",
+        "rug_large:w",
+        "rug_large:n"
+      ],
+      "mounts": 0,
+      "rendered": 132
+    },
+    {
+      "keys": [
+        "rug_large:e",
+        "treasury_pnl_holo:s",
+        "arc_floorlight:s",
+        "arc_ladder:s",
+        "stool:s",
+        "chair:s"
+      ],
+      "mounts": 0,
+      "rendered": 138
+    },
+    {
+      "keys": [
+        "chair:w",
+        "chair:n",
+        "chair:e",
+        "sidetable:s",
+        "lowtable:s",
+        "lowtable:e"
+      ],
+      "mounts": 0,
+      "rendered": 144
+    },
+    {
+      "keys": [
+        "glasstable:s",
+        "glasstable:e",
+        "dinertable:s",
+        "dinertable:e",
+        "guitar:s",
+        "booth:s"
+      ],
+      "mounts": 0,
+      "rendered": 150
+    },
+    {
+      "keys": [
+        "booth:w",
+        "booth:e",
+        "dinerchair:s",
+        "dinerchair:w",
+        "dinerchair:n",
+        "dinerchair:e"
+      ],
+      "mounts": 0,
+      "rendered": 156
+    },
+    {
+      "keys": [
+        "podchair:s",
+        "podchair:w",
+        "podchair:n",
+        "podchair:e",
+        "loungetable:s",
+        "loungetable:e"
+      ],
+      "mounts": 0,
+      "rendered": 162
+    },
+    {
+      "keys": [
+        "longtable:s",
+        "longtable:e",
+        "lavalamp:s",
+        "crt_pile:s",
+        "cablerun:s",
+        "cablerun:w"
+      ],
+      "mounts": 2,
+      "rendered": 168
+    },
+    {
+      "keys": [
+        "cablerun:n",
+        "cablerun:e",
+        "hazardpad:s",
+        "hazardpad:w",
+        "hazardpad:n",
+        "hazardpad:e"
+      ],
+      "mounts": 0,
+      "rendered": 174
+    },
+    {
+      "keys": [
+        "tallplant:s",
+        "terrarium:s",
+        "holopet:s",
+        "plasmaglobe:s",
+        "gachapon:s",
+        "monstera:s"
+      ],
+      "mounts": 1,
+      "rendered": 180
+    },
+    {
+      "keys": [
+        "mug:s",
+        "bookstack:s",
+        "desklamp:s",
+        "radio:s",
+        "toolbox:s",
+        "figurine:s"
+      ],
+      "mounts": 6,
+      "rendered": 186
+    },
+    {
+      "keys": [
+        "deskterminal:s",
+        "modelship:s",
+        "steamvent:s",
+        "fishtank:s",
+        "pokertable:s",
+        "bookshelf:s"
+      ],
+      "mounts": 2,
+      "rendered": 192
+    },
+    {
+      "keys": [
+        "beanbag:s",
+        "pinball:s",
+        "cryopod:s",
+        "incubator:s",
+        "telescope:s",
+        "telescope_r:s"
+      ],
+      "mounts": 0,
+      "rendered": 198
+    },
+    {
+      "keys": [
+        "camerarig:s",
+        "camerarig_r:s",
+        "weaponrack:s",
+        "weaponrack_r:s",
+        "punchbag:s",
+        "punchbag_r:s"
+      ],
+      "mounts": 0,
+      "rendered": 204
+    },
+    {
+      "keys": [
+        "benchpress:s",
+        "benchpress_r:s",
+        "recliner:s",
+        "recliner_r:s"
+      ],
+      "mounts": 0,
+      "rendered": 208
+    }
+  ],
+  "pixel": [
+    33,
+    28,
+    23,
+    255
+  ],
+  "exceptions": [],
+  "savedStationAcceptance": false
+}

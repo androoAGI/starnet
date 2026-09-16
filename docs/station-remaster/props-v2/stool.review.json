@@ -1,0 +1,34 @@
+{
+  "id": "stool",
+  "asset": "stool",
+  "tool": "built-in image_gen",
+  "variant": "s",
+  "status": "generated candidate; root actual-scale review pending",
+  "native": {
+    "key": "stool",
+    "r": 0,
+    "image": "stool.png",
+    "footprint": {
+      "w": 1,
+      "h": 1
+    },
+    "bounds": {
+      "x": 1,
+      "y": 0,
+      "width": 10,
+      "height": 11
+    },
+    "guide": "dev/.scratch-workspace/prop-structure/stool.png"
+  },
+  "references": [
+    "dev/.scratch-workspace/prop-structure/stool.png",
+    "frontend/assets/industrial/calibration/crate.png",
+    "docs/station-remaster/bridge-reference.png"
+  ],
+  "ratioDeviationPercent": 0.245,
+  "aspectTolerancePercent": 8,
+  "aspectPass": true,
+  "rgbRepaint": false,
+  "runtimeIntegrated": false,
+  "animationNotes": "Original seat center and pedestal base preserved; retain native seat-body anchor and sitting behavior."
+}

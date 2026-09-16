@@ -1,0 +1,16 @@
+Edit the attached eight-prop transparent sprite sheet to correct FIVE silhouette proportions only. Keep mature painted raster style and all object identities and overhead straight-south camera. References2 and3 reinforce accepted crate and pool-table perspective. Preserve transparent background, all inter-object gutters, no text, 4 columns x2 rows arrangement.
+
+The sheet currently has five too-tall/narrow silhouettes which become too small when uniformly fitted in the game. This is a REAL shape redesign: widen the corresponding hardware and lower its front walls, redraw proportions cleanly. Do not simply geometrically stretch existing pixels. No new microdetails.
+TOP ROW:
+Column1 tank: redesign squat body to total silhouette width/height1.20, including pump and feet. Currently near1.00; make the water vessel20% broader or its side wall lower. Keep substantial elliptical top cap and visible teal water.
+Column2 pneumatic tube: preserve current form.
+Column3 apparel fabricator: make entire silhouette width/height1.65. Wider horizontal workbed and rail, reduced front base height. Includes cloth feed and output hopper. No extra tall gantry.
+Column4 wax vat: make entire silhouette width/height1.55. Broad amber wax opening dominates, short front wall, candle tray stays attached at front. Includes feet. Wider, lower basin; not a tall drum.
+
+BOTTOM ROW:
+Column1 service cabinet: total silhouette width/height0.45 (height only2.22 times width). Currently too pencil-thin at0.30. Increase door/body width approximately45% without increasing height; keep tall closed olive enamel cabinet with simple handle and short louver. The top plane must remain clearly visible.
+Column2 cryopod: preserve current form and proportions.
+Column3 green incubator: total silhouette width/height0.46 (height2.17 times width). Increase glass-column/body width approximately25%, keep total height and compact pedestal. Maintain green liquid and suspended dark organic specimen.
+Column4 communications lattice uplink: preserve current form and actual transparent gaps.
+
+These are target TOTAL bounding silhouettes; maintain them including caps, feet, handles and trays. No object cropped or touching neighboring objects. The corrected tank/fabricator/vat must read broad and low. Service cabinet and incubator remain upright with substantial top caps, just wide enough to fit their physical game envelopes without shrinking.

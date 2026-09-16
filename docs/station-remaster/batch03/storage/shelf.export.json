@@ -1,0 +1,50 @@
+{
+  "id": "shelf",
+  "status": "exported-awaiting-owner-live-review",
+  "source": "sources/shelf.png",
+  "sourceSha256": "6d105cacc142b298fe994f357c02cab2cb334dc93a5a9b66876715351fa3cbc0",
+  "sourceWidth": 1793,
+  "sourceHeight": 877,
+  "image": "shelf.png",
+  "sourceOutputWidth": 1717,
+  "sourceOutputHeight": 706,
+  "crop": {
+    "left": 38,
+    "top": 99,
+    "width": 1717,
+    "height": 706
+  },
+  "channels": 4,
+  "transparentPixels": 178257,
+  "opaquePixels": 1033945,
+  "partialPixels": 0,
+  "backgroundPixelsRemoved": 538516,
+  "subjectRgbChanges": 0,
+  "outputSha256": "2db1bf09a0d0c82c5d551ef431c9392b705e0a2168779e94e93265c276293667",
+  "holeSeeds": [],
+  "maskMethod": "Connected saturated-magenta flood fill, including key-only enclosed components. Alpha-only edits; uniform crop; no RGB recolor.",
+  "view": "s",
+  "footprint": {
+    "w": 4,
+    "h": 1
+  },
+  "bounds": {
+    "x": 0,
+    "y": -14,
+    "width": 53,
+    "height": 26
+  },
+  "tilePixels": 12,
+  "contact": {
+    "x": 26.5,
+    "y": 12
+  },
+  "anchorContract": "No leisure seat anchor. Footprint is the placement/pathfinding rectangle; upright visual rise is independent of the reserved box.",
+  "originalLight": null,
+  "originalAnimationTriggers": [
+    "Real fs.* tool completion chooses the granting prop instance and overlays a 900 ms success accent or red failure surge.",
+    "Autonomous sprite clock animation is present in the sampled default state; cosmetic motion is not evidence of provider work, route decisions or external state."
+  ],
+  "artMode": "static complete art; existing state/lighting integration remains owner decision",
+  "liveIntegrated": false
+}

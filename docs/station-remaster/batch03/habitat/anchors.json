@@ -1,0 +1,461 @@
+[
+  {
+    "id": "rug",
+    "source": "docs/station-remaster/batch03/habitat/rug-source.png",
+    "crop": {
+      "left": 15,
+      "top": 82,
+      "width": 1448,
+      "height": 871
+    },
+    "bounds": {
+      "x": -1,
+      "y": 0,
+      "width": 50,
+      "height": 36
+    },
+    "fit": {
+      "x": -1,
+      "y": 5.924033149171269,
+      "width": 50,
+      "height": 30.07596685082873
+    },
+    "flat": true,
+    "contract": "Flat floor pass beneath bodies and other props; no body, seat, mount or collision.",
+    "light": null,
+    "animation": [
+      "No direct event-driven or sampled default sprite animation. Preserve static art; no invented status or progress."
+    ],
+    "regions": {}
+  },
+  {
+    "id": "rug_small",
+    "source": "docs/station-remaster/batch03/habitat/rug_small-source.png",
+    "crop": {
+      "left": 41,
+      "top": 21,
+      "width": 1137,
+      "height": 1221
+    },
+    "bounds": {
+      "x": 0,
+      "y": -1,
+      "width": 36,
+      "height": 38
+    },
+    "fit": {
+      "x": 0.3071253071253075,
+      "y": -1,
+      "width": 35.385749385749385,
+      "height": 38
+    },
+    "flat": true,
+    "contract": "Flat floor pass beneath bodies and other props; no body, seat, mount or collision.",
+    "light": null,
+    "animation": [
+      "No direct event-driven or sampled default sprite animation. Preserve static art; no invented status or progress."
+    ],
+    "regions": {}
+  },
+  {
+    "id": "rug_large",
+    "source": "docs/station-remaster/batch03/habitat/rug_large-source.png",
+    "crop": {
+      "left": 24,
+      "top": 23,
+      "width": 1206,
+      "height": 1181
+    },
+    "bounds": {
+      "x": 0,
+      "y": 0,
+      "width": 60,
+      "height": 60
+    },
+    "fit": {
+      "x": 0,
+      "y": 1.2437810945273569,
+      "width": 60,
+      "height": 58.75621890547264
+    },
+    "flat": true,
+    "contract": "Flat floor pass beneath bodies and other props; no body, seat, mount or collision.",
+    "light": null,
+    "animation": [
+      "No direct event-driven or sampled default sprite animation. Preserve static art; no invented status or progress."
+    ],
+    "regions": {}
+  },
+  {
+    "id": "arc_floorlight",
+    "source": "docs/station-remaster/batch03/habitat/arc_floorlight-source.png",
+    "crop": {
+      "left": 200,
+      "top": 42,
+      "width": 855,
+      "height": 1158
+    },
+    "bounds": {
+      "x": 1,
+      "y": 2,
+      "width": 10,
+      "height": 10
+    },
+    "fit": {
+      "x": 2.3082901554404147,
+      "y": 2,
+      "width": 7.383419689119171,
+      "height": 10
+    },
+    "flat": false,
+    "contract": "No leisure seat anchor. Footprint is the placement/pathfinding rectangle; upright visual rise is independent of the reserved box.",
+    "light": {
+      "c": [
+        255,
+        220,
+        170
+      ],
+      "r": 36,
+      "a": 0.24,
+      "m": "steady",
+      "y": 0.2
+    },
+    "animation": [
+      "No direct event-driven or sampled default sprite animation. Preserve static art; no invented status or progress."
+    ],
+    "regions": {
+      "lampCenter": {
+        "sourcePixels": [
+          [
+            627,
+            706
+          ]
+        ],
+        "exportNormalized": [
+          [
+            0.4994152046783626,
+            0.5734024179620034
+          ]
+        ],
+        "sourceNormalized": [
+          [
+            0.5,
+            0.5629984051036683
+          ]
+        ],
+        "worldPixels": [
+          [
+            5.995682210708118,
+            7.734024179620034
+          ]
+        ],
+        "qualification": "Manual approximate content guide; validate in running station."
+      }
+    }
+  },
+  {
+    "id": "arc_ladder",
+    "source": "docs/station-remaster/batch03/habitat/arc_ladder-source.png",
+    "crop": {
+      "left": 16,
+      "top": 14,
+      "width": 1044,
+      "height": 1400
+    },
+    "bounds": {
+      "x": 0,
+      "y": -8,
+      "width": 14,
+      "height": 19
+    },
+    "fit": {
+      "x": 0,
+      "y": -7.773946360153257,
+      "width": 14,
+      "height": 18.773946360153257
+    },
+    "flat": false,
+    "contract": "No leisure seat anchor. Footprint is the placement/pathfinding rectangle; upright visual rise is independent of the reserved box.",
+    "light": null,
+    "animation": [
+      "No direct event-driven or sampled default sprite animation. Preserve static art; no invented status or progress."
+    ],
+    "regions": {}
+  },
+  {
+    "id": "cablerun",
+    "source": "docs/station-remaster/batch03/habitat/cablerun-source.png",
+    "crop": {
+      "left": 27,
+      "top": 161,
+      "width": 1993,
+      "height": 429
+    },
+    "bounds": {
+      "x": 0,
+      "y": 2,
+      "width": 24,
+      "height": 9
+    },
+    "fit": {
+      "x": 0,
+      "y": 5.833918715504265,
+      "width": 24,
+      "height": 5.166081284495735
+    },
+    "flat": true,
+    "contract": "Flat floor pass beneath bodies and other props; no body, seat, mount or collision.",
+    "light": null,
+    "animation": [
+      "Autonomous sprite clock animation is present in the sampled default state; cosmetic motion is not evidence of provider work, route decisions or external state."
+    ],
+    "regions": {
+      "cosmeticCablePulse": {
+        "sourcePixels": [
+          [
+            193,
+            198
+          ],
+          [
+            834,
+            198
+          ],
+          [
+            834,
+            257
+          ],
+          [
+            193,
+            257
+          ]
+        ],
+        "exportNormalized": [
+          [
+            0.08329152032112393,
+            0.08624708624708624
+          ],
+          [
+            0.4049172102358254,
+            0.08624708624708624
+          ],
+          [
+            0.4049172102358254,
+            0.22377622377622378
+          ],
+          [
+            0.08329152032112393,
+            0.22377622377622378
+          ]
+        ],
+        "sourceNormalized": [
+          [
+            0.09433040078201368,
+            0.2578125
+          ],
+          [
+            0.40762463343108507,
+            0.2578125
+          ],
+          [
+            0.40762463343108507,
+            0.3346354166666667
+          ],
+          [
+            0.09433040078201368,
+            0.3346354166666667
+          ]
+        ],
+        "worldPixels": [
+          [
+            1.9989964877069744,
+            6.279478173607627
+          ],
+          [
+            9.71801304565981,
+            6.279478173607627
+          ],
+          [
+            9.71801304565981,
+            6.9899648770697445
+          ],
+          [
+            1.9989964877069744,
+            6.9899648770697445
+          ]
+        ],
+        "qualification": "Manual approximate content guide; validate in running station."
+      }
+    }
+  },
+  {
+    "id": "hazardpad",
+    "source": "docs/station-remaster/batch03/habitat/hazardpad-keyed-source.png",
+    "crop": {
+      "left": 60,
+      "top": 81,
+      "width": 1740,
+      "height": 683
+    },
+    "bounds": {
+      "x": 1,
+      "y": 1,
+      "width": 22,
+      "height": 10
+    },
+    "fit": {
+      "x": 1,
+      "y": 2.3643678160919546,
+      "width": 22,
+      "height": 8.635632183908045
+    },
+    "flat": true,
+    "contract": "Flat floor pass beneath bodies and other props; no body, seat, mount or collision.",
+    "light": null,
+    "animation": [
+      "No direct event-driven or sampled default sprite animation. Preserve static art; no invented status or progress."
+    ],
+    "regions": {}
+  },
+  {
+    "id": "steamvent",
+    "source": "docs/station-remaster/batch03/habitat/steamvent-source.png",
+    "crop": {
+      "left": 120,
+      "top": 24,
+      "width": 1209,
+      "height": 1025
+    },
+    "bounds": {
+      "x": 0,
+      "y": 3,
+      "width": 12,
+      "height": 9
+    },
+    "fit": {
+      "x": 0.6921951219512188,
+      "y": 3,
+      "width": 10.615609756097562,
+      "height": 9
+    },
+    "flat": false,
+    "contract": "No leisure seat anchor. Footprint is the placement/pathfinding rectangle; upright visual rise is independent of the reserved box.",
+    "light": {
+      "c": [
+        255,
+        170,
+        120
+      ],
+      "r": 12,
+      "a": 0.05,
+      "m": "fire",
+      "y": 0.5
+    },
+    "animation": [
+      "Autonomous sprite clock animation is present in the sampled default state; cosmetic motion is not evidence of provider work, route decisions or external state."
+    ],
+    "regions": {
+      "steamMouth": {
+        "sourcePixels": [
+          [
+            450,
+            130
+          ],
+          [
+            980,
+            130
+          ],
+          [
+            1000,
+            260
+          ],
+          [
+            440,
+            260
+          ]
+        ],
+        "exportNormalized": [
+          [
+            0.2729528535980149,
+            0.10341463414634146
+          ],
+          [
+            0.7113316790736146,
+            0.10341463414634146
+          ],
+          [
+            0.727874276261373,
+            0.2302439024390244
+          ],
+          [
+            0.26468155500413565,
+            0.2302439024390244
+          ]
+        ],
+        "sourceNormalized": [
+          [
+            0.31077348066298344,
+            0.11970534069981584
+          ],
+          [
+            0.6767955801104972,
+            0.11970534069981584
+          ],
+          [
+            0.6906077348066298,
+            0.23941068139963168
+          ],
+          [
+            0.30386740331491713,
+            0.23941068139963168
+          ]
+        ],
+        "worldPixels": [
+          [
+            3.5897560975609752,
+            3.930731707317073
+          ],
+          [
+            8.24341463414634,
+            3.930731707317073
+          ],
+          [
+            8.419024390243901,
+            5.07219512195122
+          ],
+          [
+            3.5019512195121947,
+            5.07219512195122
+          ]
+        ],
+        "qualification": "Manual approximate content guide; validate in running station."
+      },
+      "emitter": {
+        "sourcePixels": [
+          [
+            722,
+            194
+          ]
+        ],
+        "exportNormalized": [
+          [
+            0.49793217535153017,
+            0.16585365853658537
+          ]
+        ],
+        "sourceNormalized": [
+          [
+            0.4986187845303867,
+            0.17863720073664824
+          ]
+        ],
+        "worldPixels": [
+          [
+            5.978048780487804,
+            4.492682926829269
+          ]
+        ],
+        "qualification": "Manual approximate content guide; validate in running station."
+      }
+    }
+  }
+]

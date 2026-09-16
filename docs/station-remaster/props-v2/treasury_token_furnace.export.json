@@ -1,0 +1,38 @@
+{
+  "id": "treasury_token_furnace",
+  "source": "C:/Users/andro/.codex/generated_images/01a09c6e-ef28-70a0-bd8b-b60f1a9b9f92/exec-d570cfb1-e56a-450c-89c0-328b31d24668.png",
+  "sourceWidth": 842,
+  "sourceHeight": 1868,
+  "crop": {
+    "left": 0,
+    "top": 0,
+    "width": 842,
+    "height": 1868
+  },
+  "sourceAlpha": false,
+  "subjectRgbChanges": 0,
+  "output": "frontend/assets/industrial/props-v2/treasury_token_furnace.png",
+  "native": {
+    "key": "treasury_token_furnace",
+    "r": 0,
+    "image": "treasury_token_furnace.png",
+    "footprint": {
+      "w": 1,
+      "h": 2
+    },
+    "bounds": {
+      "x": -1,
+      "y": -7,
+      "width": 14,
+      "height": 31
+    },
+    "guide": "dev/.scratch-workspace/prop-structure/treasury_token_furnace.png"
+  },
+  "aspectError": 0.0019118996635055785,
+  "verification": {
+    "nativeDecode": true,
+    "retainedPixels": 1428245,
+    "transparentPixels": 144611,
+    "changedRgb": 0
+  }
+}

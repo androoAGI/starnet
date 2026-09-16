@@ -1,0 +1,1824 @@
+{
+  "regionsAreLiveVerified": false,
+  "records": [
+    {
+      "id": "studio",
+      "source": "docs/station-remaster/batch03/control/studio-source.png",
+      "output": "frontend/assets/industrial/batch03/control/studio.png",
+      "sourceSha256": "ac1587a5f1b0511f71848b0a68aee3e7b88df779e907425fc9d1b2babc829b2c",
+      "outputSha256": "2f9d5168d65918c0dc51a72ca0019511ba9a1c1d4e76f5f05a776be37ea1a5b0",
+      "crop": {
+        "left": 27,
+        "top": 19,
+        "width": 1179,
+        "height": 1234
+      },
+      "bounds": {
+        "x": 0,
+        "y": -6,
+        "width": 29,
+        "height": 30
+      },
+      "fit": {
+        "x": 0.16855753646677485,
+        "y": -6,
+        "width": 28.66288492706645,
+        "height": 30
+      },
+      "flat": false,
+      "contract": "No leisure seat anchor. Footprint is the placement/pathfinding rectangle; upright visual rise is independent of the reserved box.",
+      "light": {
+        "c": [
+          255,
+          106,
+          213
+        ],
+        "r": 30,
+        "a": 0.16,
+        "m": "pulse",
+        "y": 0.4
+      },
+      "animation": [
+        "Real image_*, voice_generate tool completion chooses the granting prop instance and overlays a 900 ms success accent or red failure surge."
+      ],
+      "regions": {
+        "preview": {
+          "sourceNormalized": [
+            [
+              0.225,
+              0.17
+            ],
+            [
+              0.785,
+              0.17
+            ],
+            [
+              0.785,
+              0.401
+            ],
+            [
+              0.225,
+              0.401
+            ]
+          ],
+          "sourcePixels": [
+            [
+              277.425,
+              216.75000000000003
+            ],
+            [
+              967.9050000000001,
+              216.75000000000003
+            ],
+            [
+              967.9050000000001,
+              511.27500000000003
+            ],
+            [
+              277.425,
+              511.27500000000003
+            ]
+          ],
+          "exportNormalized": [
+            [
+              0.21240458015267177,
+              0.16025121555915722
+            ],
+            [
+              0.7980534351145039,
+              0.16025121555915722
+            ],
+            [
+              0.7980534351145039,
+              0.3989262560777958
+            ],
+            [
+              0.21240458015267177,
+              0.3989262560777958
+            ]
+          ],
+          "worldPixels": [
+            [
+              6.256685575364669,
+              -1.1924635332252826
+            ],
+            [
+              23.043071312803892,
+              -1.1924635332252826
+            ],
+            [
+              23.043071312803892,
+              5.967787682333874
+            ],
+            [
+              6.256685575364669,
+              5.967787682333874
+            ]
+          ],
+          "qualification": "Manual approximate content guide; validate in running station."
+        },
+        "tablet": {
+          "sourceNormalized": [
+            [
+              0.3,
+              0.48
+            ],
+            [
+              0.7,
+              0.48
+            ],
+            [
+              0.723,
+              0.546
+            ],
+            [
+              0.278,
+              0.546
+            ]
+          ],
+          "sourcePixels": [
+            [
+              369.9,
+              612
+            ],
+            [
+              863.0999999999999,
+              612
+            ],
+            [
+              891.459,
+              696.1500000000001
+            ],
+            [
+              342.77400000000006,
+              696.1500000000001
+            ]
+          ],
+          "exportNormalized": [
+            [
+              0.2908396946564885,
+              0.4805510534846029
+            ],
+            [
+              0.7091603053435114,
+              0.4805510534846029
+            ],
+            [
+              0.7332137404580152,
+              0.548743922204214
+            ],
+            [
+              0.26783206106870233,
+              0.548743922204214
+            ]
+          ],
+          "worldPixels": [
+            [
+              8.504862236628849,
+              8.416531604538088
+            ],
+            [
+              20.49513776337115,
+              8.416531604538088
+            ],
+            [
+              21.184578606158833,
+              10.46231766612642
+            ],
+            [
+              7.845397082658025,
+              10.46231766612642
+            ]
+          ],
+          "qualification": "Manual approximate content guide; validate in running station."
+        }
+      }
+    },
+    {
+      "id": "airlock",
+      "source": "docs/station-remaster/batch03/control/airlock-source.png",
+      "output": "frontend/assets/industrial/batch03/control/airlock.png",
+      "sourceSha256": "90bb03a2498fe703c965f328d90811b355474d82dd370025df83a6d67038015c",
+      "outputSha256": "d9324c2cc05335e0ce3dd674456e7e1b035547030ef2704e5a8173876067039a",
+      "crop": {
+        "left": 39,
+        "top": 39,
+        "width": 1176,
+        "height": 1132
+      },
+      "bounds": {
+        "x": -1,
+        "y": -1,
+        "width": 14,
+        "height": 14
+      },
+      "fit": {
+        "x": -1,
+        "y": -0.4761904761904763,
+        "width": 14,
+        "height": 13.476190476190476
+      },
+      "flat": false,
+      "contract": "No leisure seat anchor. Footprint is the placement/pathfinding rectangle; upright visual rise is independent of the reserved box.",
+      "light": {
+        "c": [
+          255,
+          90,
+          70
+        ],
+        "r": 18,
+        "a": 0.1,
+        "m": "pulse",
+        "y": 0.5
+      },
+      "animation": [
+        "Saved live door state selects open, closed or jammed iris geometry; jam sparks use the frame clock.",
+        "Autonomous sprite clock animation is present in the sampled default state; cosmetic motion is not evidence of provider work, route decisions or external state."
+      ],
+      "regions": {
+        "iris": {
+          "sourceNormalized": [
+            [
+              0.245,
+              0.243
+            ],
+            [
+              0.755,
+              0.243
+            ],
+            [
+              0.755,
+              0.734
+            ],
+            [
+              0.245,
+              0.734
+            ]
+          ],
+          "sourcePixels": [
+            [
+              307.23,
+              304.722
+            ],
+            [
+              946.77,
+              304.722
+            ],
+            [
+              946.77,
+              920.436
+            ],
+            [
+              307.23,
+              920.436
+            ]
+          ],
+          "exportNormalized": [
+            [
+              0.22808673469387758,
+              0.23473674911660775
+            ],
+            [
+              0.7719132653061225,
+              0.23473674911660775
+            ],
+            [
+              0.7719132653061225,
+              0.7786537102473499
+            ],
+            [
+              0.22808673469387758,
+              0.7786537102473499
+            ]
+          ],
+          "worldPixels": [
+            [
+              2.193214285714286,
+              2.6871666666666663
+            ],
+            [
+              9.806785714285713,
+              2.6871666666666663
+            ],
+            [
+              9.806785714285713,
+              10.017095238095237
+            ],
+            [
+              2.193214285714286,
+              10.017095238095237
+            ]
+          ],
+          "qualification": "Manual approximate content guide; validate in running station."
+        },
+        "irisCenter": {
+          "sourceNormalized": [
+            [
+              0.5,
+              0.485
+            ]
+          ],
+          "sourcePixels": [
+            [
+              627,
+              608.1899999999999
+            ]
+          ],
+          "exportNormalized": [
+            [
+              0.5,
+              0.5028180212014134
+            ]
+          ],
+          "worldPixels": [
+            [
+              6,
+              6.299880952380951
+            ]
+          ],
+          "qualification": "Manual approximate content guide; validate in running station."
+        }
+      }
+    },
+    {
+      "id": "bigscreen",
+      "source": "docs/station-remaster/batch03/control/bigscreen-source.png",
+      "output": "frontend/assets/industrial/batch03/control/bigscreen.png",
+      "sourceSha256": "80bacb95f2e87b66a35a463a61ce2dfab3c5b6517203f6df90dd82a103ac0271",
+      "outputSha256": "14fa364268005215b0b69d61da3d9c03c62f25d9b02e2379a5b65ed43a2469d0",
+      "crop": {
+        "left": 32,
+        "top": 124,
+        "width": 2107,
+        "height": 473
+      },
+      "bounds": {
+        "x": -1,
+        "y": -13,
+        "width": 98,
+        "height": 25
+      },
+      "fit": {
+        "x": -1,
+        "y": -10,
+        "width": 98,
+        "height": 22
+      },
+      "flat": false,
+      "contract": "No leisure seat anchor. Footprint is the placement/pathfinding rectangle; upright visual rise is independent of the reserved box.",
+      "light": {
+        "c": [
+          110,
+          190,
+          255
+        ],
+        "r": 46,
+        "a": 0.12,
+        "m": "screen",
+        "y": 0.4
+      },
+      "animation": [
+        "Autonomous sprite clock animation is present in the sampled default state; cosmetic motion is not evidence of provider work, route decisions or external state."
+      ],
+      "regions": {
+        "screen": {
+          "sourceNormalized": [
+            [
+              0.052,
+              0.307
+            ],
+            [
+              0.948,
+              0.307
+            ],
+            [
+              0.948,
+              0.612
+            ],
+            [
+              0.052,
+              0.612
+            ]
+          ],
+          "sourcePixels": [
+            [
+              112.94399999999999,
+              222.268
+            ],
+            [
+              2059.056,
+              222.268
+            ],
+            [
+              2059.056,
+              443.08799999999997
+            ],
+            [
+              112.94399999999999,
+              443.08799999999997
+            ]
+          ],
+          "exportNormalized": [
+            [
+              0.038416706217370665,
+              0.20775475687103595
+            ],
+            [
+              0.9620579022306597,
+              0.20775475687103595
+            ],
+            [
+              0.9620579022306597,
+              0.6746046511627907
+            ],
+            [
+              0.038416706217370665,
+              0.6746046511627907
+            ]
+          ],
+          "worldPixels": [
+            [
+              2.764837209302325,
+              -5.429395348837209
+            ],
+            [
+              93.28167441860465,
+              -5.429395348837209
+            ],
+            [
+              93.28167441860465,
+              4.841302325581394
+            ],
+            [
+              2.764837209302325,
+              4.841302325581394
+            ]
+          ],
+          "qualification": "Manual approximate content guide; validate in running station."
+        }
+      }
+    },
+    {
+      "id": "holotable",
+      "source": "docs/station-remaster/batch03/control/holotable-source.png",
+      "output": "frontend/assets/industrial/batch03/control/holotable.png",
+      "sourceSha256": "4d9064278fba1270ec30e82d56284a5b60751e76fc15c8a163388750dac8f4c9",
+      "outputSha256": "0cb0c136531c1d55737740c3295b8426f36dbdf222538a6805bdee65c133eb8c",
+      "crop": {
+        "left": 15,
+        "top": 140,
+        "width": 1492,
+        "height": 744
+      },
+      "bounds": {
+        "x": -1,
+        "y": -10,
+        "width": 50,
+        "height": 34
+      },
+      "fit": {
+        "x": -1,
+        "y": -0.9329758713136727,
+        "width": 50,
+        "height": 24.932975871313673
+      },
+      "flat": false,
+      "contract": "No leisure seat anchor. Footprint is the placement/pathfinding rectangle; upright visual rise is independent of the reserved box.",
+      "light": {
+        "c": [
+          120,
+          200,
+          255
+        ],
+        "r": 30,
+        "a": 0.14,
+        "m": "screen",
+        "y": 0.45
+      },
+      "animation": [
+        "Autonomous sprite clock animation is present in the sampled default state; cosmetic motion is not evidence of provider work, route decisions or external state."
+      ],
+      "regions": {
+        "projectionSurface": {
+          "sourceNormalized": [
+            [
+              0.16,
+              0.211
+            ],
+            [
+              0.838,
+              0.211
+            ],
+            [
+              0.861,
+              0.385
+            ],
+            [
+              0.139,
+              0.385
+            ]
+          ],
+          "sourcePixels": [
+            [
+              243.36,
+              218.174
+            ],
+            [
+              1274.598,
+              218.174
+            ],
+            [
+              1309.581,
+              398.09000000000003
+            ],
+            [
+              211.419,
+              398.09000000000003
+            ]
+          ],
+          "exportNormalized": [
+            [
+              0.15305630026809652,
+              0.1050725806451613
+            ],
+            [
+              0.8442345844504021,
+              0.1050725806451613
+            ],
+            [
+              0.8676816353887399,
+              0.3468951612903226
+            ],
+            [
+              0.1316481233243968,
+              0.3468951612903226
+            ]
+          ],
+          "worldPixels": [
+            [
+              6.652815013404827,
+              1.686796246648794
+            ],
+            [
+              41.211729222520106,
+              1.686796246648794
+            ],
+            [
+              42.384081769436996,
+              7.716152815013407
+            ],
+            [
+              5.582406166219839,
+              7.716152815013407
+            ]
+          ],
+          "qualification": "Manual approximate content guide; validate in running station."
+        }
+      }
+    },
+    {
+      "id": "ticker",
+      "source": "docs/station-remaster/batch03/control/ticker-source.png",
+      "output": "frontend/assets/industrial/batch03/control/ticker.png",
+      "sourceSha256": "016ef16751f79c689d9250160385149a7de35c9d5c7ea7d1c25b6909595ac351",
+      "outputSha256": "b3fdd41f5785dfe2c71e9f7c65f6b406ee652d015a5028e4c0bf8e95db037638",
+      "crop": {
+        "left": 14,
+        "top": 153,
+        "width": 1955,
+        "height": 497
+      },
+      "bounds": {
+        "x": -1,
+        "y": -8,
+        "width": 50,
+        "height": 20
+      },
+      "fit": {
+        "x": -1,
+        "y": -0.710997442455243,
+        "width": 50,
+        "height": 12.710997442455243
+      },
+      "flat": false,
+      "contract": "No leisure seat anchor. Footprint is the placement/pathfinding rectangle; upright visual rise is independent of the reserved box.",
+      "light": {
+        "c": [
+          255,
+          190,
+          110
+        ],
+        "r": 26,
+        "a": 0.1,
+        "m": "screen",
+        "y": 0.35
+      },
+      "animation": [
+        "Autonomous sprite clock animation is present in the sampled default state; cosmetic motion is not evidence of provider work, route decisions or external state."
+      ],
+      "regions": {
+        "tickerBand": {
+          "sourceNormalized": [
+            [
+              0.101,
+              0.369
+            ],
+            [
+              0.899,
+              0.369
+            ],
+            [
+              0.899,
+              0.573
+            ],
+            [
+              0.101,
+              0.573
+            ]
+          ],
+          "sourcePixels": [
+            [
+              200.28300000000002,
+              292.617
+            ],
+            [
+              1782.717,
+              292.617
+            ],
+            [
+              1782.717,
+              454.38899999999995
+            ],
+            [
+              200.28300000000002,
+              454.38899999999995
+            ]
+          ],
+          "exportNormalized": [
+            [
+              0.09528542199488492,
+              0.28091951710261576
+            ],
+            [
+              0.9047145780051151,
+              0.28091951710261576
+            ],
+            [
+              0.9047145780051151,
+              0.6064164989939637
+            ],
+            [
+              0.09528542199488492,
+              0.6064164989939637
+            ]
+          ],
+          "worldPixels": [
+            [
+              3.7642710997442457,
+              2.8597698209718674
+            ],
+            [
+              44.23572890025576,
+              2.8597698209718674
+            ],
+            [
+              44.23572890025576,
+              6.997161125319692
+            ],
+            [
+              3.7642710997442457,
+              6.997161125319692
+            ]
+          ],
+          "qualification": "Manual approximate content guide; validate in running station."
+        }
+      }
+    },
+    {
+      "id": "wartable",
+      "source": "docs/station-remaster/batch03/control/wartable-source.png",
+      "output": "frontend/assets/industrial/batch03/control/wartable.png",
+      "sourceSha256": "5637c94a6e7a6c827283240c95f99f9d093e8ddf933d42d292674a2da7548f7e",
+      "outputSha256": "9797781caf6b8a8c62bcb07f8365c0303e407094fb22037c5ea2373500a01eab",
+      "crop": {
+        "left": 14,
+        "top": 134,
+        "width": 2008,
+        "height": 522
+      },
+      "bounds": {
+        "x": -1,
+        "y": -1,
+        "width": 66,
+        "height": 25
+      },
+      "fit": {
+        "x": -1,
+        "y": 6.842629482071715,
+        "width": 66,
+        "height": 17.157370517928285
+      },
+      "flat": false,
+      "contract": "No leisure seat anchor. Footprint is the placement/pathfinding rectangle; upright visual rise is independent of the reserved box.",
+      "light": {
+        "c": [
+          120,
+          200,
+          255
+        ],
+        "r": 34,
+        "a": 0.12,
+        "m": "screen",
+        "y": 0.45
+      },
+      "animation": [
+        "Autonomous sprite clock animation is present in the sampled default state; cosmetic motion is not evidence of provider work, route decisions or external state."
+      ],
+      "regions": {
+        "planningSurface": {
+          "sourceNormalized": [
+            [
+              0.14,
+              0.245
+            ],
+            [
+              0.867,
+              0.245
+            ],
+            [
+              0.923,
+              0.389
+            ],
+            [
+              0.077,
+              0.389
+            ]
+          ],
+          "sourcePixels": [
+            [
+              285.18,
+              189.14
+            ],
+            [
+              1766.079,
+              189.14
+            ],
+            [
+              1880.151,
+              300.308
+            ],
+            [
+              156.849,
+              300.308
+            ]
+          ],
+          "exportNormalized": [
+            [
+              0.13504980079681275,
+              0.10563218390804595
+            ],
+            [
+              0.8725493027888446,
+              0.10563218390804595
+            ],
+            [
+              0.9293580677290837,
+              0.31859770114942526
+            ],
+            [
+              0.07113994023904383,
+              0.31859770114942526
+            ]
+          ],
+          "worldPixels": [
+            [
+              7.913286852589641,
+              8.655000000000001
+            ],
+            [
+              56.58825398406374,
+              8.655000000000001
+            ],
+            [
+              60.33763247011952,
+              12.308928286852591
+            ],
+            [
+              3.695236055776892,
+              12.308928286852591
+            ]
+          ],
+          "qualification": "Manual approximate content guide; validate in running station."
+        }
+      }
+    },
+    {
+      "id": "bridge_tacscreen",
+      "source": "docs/station-remaster/batch03/control/bridge_tacscreen-source.png",
+      "output": "frontend/assets/industrial/batch03/control/bridge_tacscreen.png",
+      "sourceSha256": "4cb0cae48e3031433d72a627d7e4455fddb3fdb176219282f477be313aaf68fe",
+      "outputSha256": "aa2e482c7a47ddee634876c9997517cb4934cff9cfa049a74d73929c8eca733d",
+      "crop": {
+        "left": 41,
+        "top": 95,
+        "width": 1314,
+        "height": 911
+      },
+      "bounds": {
+        "x": -1,
+        "y": -9,
+        "width": 26,
+        "height": 21
+      },
+      "fit": {
+        "x": -1,
+        "y": -6.025875190258752,
+        "width": 26,
+        "height": 18.025875190258752
+      },
+      "flat": false,
+      "contract": "No leisure seat anchor. Footprint is the placement/pathfinding rectangle; upright visual rise is independent of the reserved box.",
+      "light": {
+        "c": [
+          110,
+          190,
+          255
+        ],
+        "r": 24,
+        "a": 0.12,
+        "m": "screen",
+        "y": 0.35
+      },
+      "animation": [
+        "Autonomous sprite clock animation is present in the sampled default state; cosmetic motion is not evidence of provider work, route decisions or external state."
+      ],
+      "regions": {
+        "screen": {
+          "sourceNormalized": [
+            [
+              0.158,
+              0.224
+            ],
+            [
+              0.842,
+              0.224
+            ],
+            [
+              0.842,
+              0.569
+            ],
+            [
+              0.158,
+              0.569
+            ]
+          ],
+          "sourcePixels": [
+            [
+              220.568,
+              252.448
+            ],
+            [
+              1175.432,
+              252.448
+            ],
+            [
+              1175.432,
+              641.2629999999999
+            ],
+            [
+              220.568,
+              641.2629999999999
+            ]
+          ],
+          "exportNormalized": [
+            [
+              0.13665753424657534,
+              0.1728298572996707
+            ],
+            [
+              0.8633424657534247,
+              0.1728298572996707
+            ],
+            [
+              0.8633424657534247,
+              0.5996300768386388
+            ],
+            [
+              0.13665753424657534,
+              0.5996300768386388
+            ]
+          ],
+          "worldPixels": [
+            [
+              2.553095890410959,
+              -2.9104657534246576
+            ],
+            [
+              21.446904109589042,
+              -2.9104657534246576
+            ],
+            [
+              21.446904109589042,
+              4.782981735159815
+            ],
+            [
+              2.553095890410959,
+              4.782981735159815
+            ]
+          ],
+          "qualification": "Manual approximate content guide; validate in running station."
+        }
+      }
+    },
+    {
+      "id": "bridge_dispatch_pylon",
+      "source": "docs/station-remaster/batch03/control/bridge_dispatch_pylon-source.png",
+      "output": "frontend/assets/industrial/batch03/control/bridge_dispatch_pylon.png",
+      "sourceSha256": "a05b14d33fc8c4bf1a76f718046ec27243e7e1f603600608920703e7306653f0",
+      "outputSha256": "3718d8ffe92cc84082ca15c91b600bbfc8496c67ba901a620b3d4707ea8e3d9e",
+      "crop": {
+        "left": 113,
+        "top": 99,
+        "width": 693,
+        "height": 1519
+      },
+      "bounds": {
+        "x": -2,
+        "y": -11,
+        "width": 19,
+        "height": 35
+      },
+      "fit": {
+        "x": -0.48387096774193594,
+        "y": -11,
+        "width": 15.967741935483872,
+        "height": 35
+      },
+      "flat": false,
+      "contract": "No leisure seat anchor. Footprint is the placement/pathfinding rectangle; upright visual rise is independent of the reserved box.",
+      "light": {
+        "c": [
+          255,
+          190,
+          110
+        ],
+        "r": 22,
+        "a": 0.12,
+        "m": "pulse",
+        "y": 0.3
+      },
+      "animation": [
+        "Autonomous sprite clock animation is present in the sampled default state; cosmetic motion is not evidence of provider work, route decisions or external state."
+      ],
+      "regions": {
+        "screen": {
+          "sourceNormalized": [
+            [
+              0.312,
+              0.163
+            ],
+            [
+              0.686,
+              0.163
+            ],
+            [
+              0.686,
+              0.311
+            ],
+            [
+              0.312,
+              0.311
+            ]
+          ],
+          "sourcePixels": [
+            [
+              288.288,
+              277.426
+            ],
+            [
+              633.864,
+              277.426
+            ],
+            [
+              633.864,
+              529.322
+            ],
+            [
+              288.288,
+              529.322
+            ]
+          ],
+          "exportNormalized": [
+            [
+              0.25294083694083697,
+              0.11746280447662935
+            ],
+            [
+              0.7516075036075036,
+              0.11746280447662935
+            ],
+            [
+              0.7516075036075036,
+              0.28329295589203424
+            ],
+            [
+              0.25294083694083697,
+              0.28329295589203424
+            ]
+          ],
+          "worldPixels": [
+            [
+              3.555023041474654,
+              -6.888801843317973
+            ],
+            [
+              11.517603686635946,
+              -6.888801843317973
+            ],
+            [
+              11.517603686635946,
+              -1.0847465437788006
+            ],
+            [
+              3.555023041474654,
+              -1.0847465437788006
+            ]
+          ],
+          "qualification": "Manual approximate content guide; validate in running station."
+        },
+        "indicator": {
+          "sourceNormalized": [
+            [
+              0.383,
+              0.395
+            ],
+            [
+              0.617,
+              0.395
+            ],
+            [
+              0.617,
+              0.416
+            ],
+            [
+              0.383,
+              0.416
+            ]
+          ],
+          "sourcePixels": [
+            [
+              353.892,
+              672.2900000000001
+            ],
+            [
+              570.108,
+              672.2900000000001
+            ],
+            [
+              570.108,
+              708.0319999999999
+            ],
+            [
+              353.892,
+              708.0319999999999
+            ]
+          ],
+          "exportNormalized": [
+            [
+              0.3476075036075036,
+              0.37741277156023706
+            ],
+            [
+              0.6596075036075035,
+              0.37741277156023706
+            ],
+            [
+              0.6596075036075035,
+              0.40094272547728765
+            ],
+            [
+              0.3476075036075036,
+              0.40094272547728765
+            ]
+          ],
+          "worldPixels": [
+            [
+              5.066635944700461,
+              2.209447004608297
+            ],
+            [
+              10.048571428571428,
+              2.209447004608297
+            ],
+            [
+              10.048571428571428,
+              3.032995391705068
+            ],
+            [
+              5.066635944700461,
+              3.032995391705068
+            ]
+          ],
+          "qualification": "Manual approximate content guide; validate in running station."
+        }
+      }
+    },
+    {
+      "id": "bridge_orderqueue",
+      "source": "docs/station-remaster/batch03/control/bridge_orderqueue-source.png",
+      "output": "frontend/assets/industrial/batch03/control/bridge_orderqueue.png",
+      "sourceSha256": "ed07d18e49ad1103d145e62af0545ac980b4cc29134c1e82ac574e2b70cf5c4a",
+      "outputSha256": "789186ab7f0578ec36fdadb76dd27e32a8485ec018e4ceaa1ce3b6cafa783949",
+      "crop": {
+        "left": 22,
+        "top": 119,
+        "width": 1311,
+        "height": 920
+      },
+      "bounds": {
+        "x": -3,
+        "y": -12,
+        "width": 28,
+        "height": 24
+      },
+      "fit": {
+        "x": -3,
+        "y": -7.6491228070175445,
+        "width": 28,
+        "height": 19.649122807017545
+      },
+      "flat": false,
+      "contract": "No leisure seat anchor. Footprint is the placement/pathfinding rectangle; upright visual rise is independent of the reserved box.",
+      "light": {
+        "c": [
+          255,
+          190,
+          110
+        ],
+        "r": 22,
+        "a": 0.1,
+        "m": "screen",
+        "y": 0.35
+      },
+      "animation": [
+        "Autonomous sprite clock animation is present in the sampled default state; cosmetic motion is not evidence of provider work, route decisions or external state."
+      ],
+      "regions": {
+        "topRow": {
+          "sourceNormalized": [
+            [
+              0.154,
+              0.287
+            ],
+            [
+              0.85,
+              0.287
+            ],
+            [
+              0.85,
+              0.375
+            ],
+            [
+              0.154,
+              0.375
+            ]
+          ],
+          "sourcePixels": [
+            [
+              208.67,
+              333.207
+            ],
+            [
+              1151.75,
+              333.207
+            ],
+            [
+              1151.75,
+              435.375
+            ],
+            [
+              208.67,
+              435.375
+            ]
+          ],
+          "exportNormalized": [
+            [
+              0.14238749046529367,
+              0.2328336956521739
+            ],
+            [
+              0.8617467581998475,
+              0.2328336956521739
+            ],
+            [
+              0.8617467581998475,
+              0.3438858695652174
+            ],
+            [
+              0.14238749046529367,
+              0.3438858695652174
+            ]
+          ],
+          "worldPixels": [
+            [
+              0.9868497330282224,
+              -3.0741449275362323
+            ],
+            [
+              21.128909229595727,
+              -3.0741449275362323
+            ],
+            [
+              21.128909229595727,
+              -0.8920671243325708
+            ],
+            [
+              0.9868497330282224,
+              -0.8920671243325708
+            ]
+          ],
+          "qualification": "Manual approximate content guide; validate in running station."
+        },
+        "middleRow": {
+          "sourceNormalized": [
+            [
+              0.154,
+              0.447
+            ],
+            [
+              0.85,
+              0.447
+            ],
+            [
+              0.85,
+              0.538
+            ],
+            [
+              0.154,
+              0.538
+            ]
+          ],
+          "sourcePixels": [
+            [
+              208.67,
+              518.967
+            ],
+            [
+              1151.75,
+              518.967
+            ],
+            [
+              1151.75,
+              624.618
+            ],
+            [
+              208.67,
+              624.618
+            ]
+          ],
+          "exportNormalized": [
+            [
+              0.14238749046529367,
+              0.43474673913043477
+            ],
+            [
+              0.8617467581998475,
+              0.43474673913043477
+            ],
+            [
+              0.8617467581998475,
+              0.5495847826086957
+            ],
+            [
+              0.14238749046529367,
+              0.5495847826086957
+            ]
+          ],
+          "worldPixels": [
+            [
+              0.9868497330282224,
+              0.8932692601067878
+            ],
+            [
+              21.128909229595727,
+              0.8932692601067878
+            ],
+            [
+              21.128909229595727,
+              3.1497360793287577
+            ],
+            [
+              0.9868497330282224,
+              3.1497360793287577
+            ]
+          ],
+          "qualification": "Manual approximate content guide; validate in running station."
+        },
+        "bottomRow": {
+          "sourceNormalized": [
+            [
+              0.154,
+              0.612
+            ],
+            [
+              0.85,
+              0.612
+            ],
+            [
+              0.85,
+              0.7
+            ],
+            [
+              0.154,
+              0.7
+            ]
+          ],
+          "sourcePixels": [
+            [
+              208.67,
+              710.532
+            ],
+            [
+              1151.75,
+              710.532
+            ],
+            [
+              1151.75,
+              812.6999999999999
+            ],
+            [
+              208.67,
+              812.6999999999999
+            ]
+          ],
+          "exportNormalized": [
+            [
+              0.14238749046529367,
+              0.6429695652173913
+            ],
+            [
+              0.8617467581998475,
+              0.6429695652173913
+            ],
+            [
+              0.8617467581998475,
+              0.7540217391304347
+            ],
+            [
+              0.14238749046529367,
+              0.7540217391304347
+            ]
+          ],
+          "worldPixels": [
+            [
+              0.9868497330282224,
+              4.984665141113654
+            ],
+            [
+              21.128909229595727,
+              4.984665141113654
+            ],
+            [
+              21.128909229595727,
+              7.166742944317313
+            ],
+            [
+              0.9868497330282224,
+              7.166742944317313
+            ]
+          ],
+          "qualification": "Manual approximate content guide; validate in running station."
+        }
+      }
+    },
+    {
+      "id": "war_pivotpanel",
+      "source": "docs/station-remaster/batch03/control/war_pivotpanel-source.png",
+      "output": "frontend/assets/industrial/batch03/control/war_pivotpanel.png",
+      "sourceSha256": "c045add39201a5a990a26bce7d3215e363ef657d318dcd150d0b038b08bc21e3",
+      "outputSha256": "79c81b064d9e74e3dcf53dcb79ddab6cba95f78007425d2f0192dae4b37d4ed4",
+      "crop": {
+        "left": 38,
+        "top": 113,
+        "width": 1432,
+        "height": 818
+      },
+      "bounds": {
+        "x": -1,
+        "y": -6,
+        "width": 26,
+        "height": 18
+      },
+      "fit": {
+        "x": -1.0000000000000018,
+        "y": -2.851955307262571,
+        "width": 26.000000000000004,
+        "height": 14.851955307262571
+      },
+      "flat": false,
+      "contract": "No leisure seat anchor. Footprint is the placement/pathfinding rectangle; upright visual rise is independent of the reserved box.",
+      "light": {
+        "c": [
+          110,
+          190,
+          255
+        ],
+        "r": 22,
+        "a": 0.1,
+        "m": "screen",
+        "y": 0.35
+      },
+      "animation": [
+        "Autonomous sprite clock animation is present in the sampled default state; cosmetic motion is not evidence of provider work, route decisions or external state."
+      ],
+      "regions": {
+        "screen": {
+          "sourceNormalized": [
+            [
+              0.211,
+              0.192
+            ],
+            [
+              0.788,
+              0.192
+            ],
+            [
+              0.802,
+              0.522
+            ],
+            [
+              0.195,
+              0.522
+            ]
+          ],
+          "sourcePixels": [
+            [
+              318.188,
+              200.256
+            ],
+            [
+              1188.304,
+              200.256
+            ],
+            [
+              1209.4160000000002,
+              544.446
+            ],
+            [
+              294.06,
+              544.446
+            ]
+          ],
+          "exportNormalized": [
+            [
+              0.19566201117318435,
+              0.10666992665036674
+            ],
+            [
+              0.8032849162011174,
+              0.10666992665036674
+            ],
+            [
+              0.8180279329608939,
+              0.5274400977995111
+            ],
+            [
+              0.17881284916201118,
+              0.5274400977995111
+            ]
+          ],
+          "worldPixels": [
+            [
+              4.087212290502792,
+              -1.2676983240223476
+            ],
+            [
+              19.88540782122905,
+              -1.2676983240223476
+            ],
+            [
+              20.268726256983243,
+              4.981561452513966
+            ],
+            [
+              3.649134078212289,
+              4.981561452513966
+            ]
+          ],
+          "qualification": "Manual approximate content guide; validate in running station."
+        }
+      }
+    },
+    {
+      "id": "war_threatcore",
+      "source": "docs/station-remaster/batch03/control/war_threatcore-source.png",
+      "output": "frontend/assets/industrial/batch03/control/war_threatcore.png",
+      "sourceSha256": "34c18d74c91e2d022ecb8f06898d54015830469db5d132a7bee244ab209e39be",
+      "outputSha256": "f9656b137af99ba90fb27f9c575155e591768f593e7710a151e66219b66a7f38",
+      "crop": {
+        "left": 126,
+        "top": 50,
+        "width": 660,
+        "height": 1580
+      },
+      "bounds": {
+        "x": -1,
+        "y": -10,
+        "width": 18,
+        "height": 34
+      },
+      "fit": {
+        "x": 0.8987341772151902,
+        "y": -10,
+        "width": 14.20253164556962,
+        "height": 34
+      },
+      "flat": false,
+      "contract": "No leisure seat anchor. Footprint is the placement/pathfinding rectangle; upright visual rise is independent of the reserved box.",
+      "light": {
+        "c": [
+          255,
+          90,
+          80
+        ],
+        "r": 26,
+        "a": 0.14,
+        "m": "pulse",
+        "y": 0.3
+      },
+      "animation": [
+        "Autonomous sprite clock animation is present in the sampled default state; cosmetic motion is not evidence of provider work, route decisions or external state."
+      ],
+      "regions": {
+        "energyChamber": {
+          "sourceNormalized": [
+            [
+              0.406,
+              0.143
+            ],
+            [
+              0.596,
+              0.143
+            ],
+            [
+              0.596,
+              0.64
+            ],
+            [
+              0.406,
+              0.64
+            ]
+          ],
+          "sourcePixels": [
+            [
+              370.27200000000005,
+              246.53199999999998
+            ],
+            [
+              543.552,
+              246.53199999999998
+            ],
+            [
+              543.552,
+              1103.3600000000001
+            ],
+            [
+              370.27200000000005,
+              1103.3600000000001
+            ]
+          ],
+          "exportNormalized": [
+            [
+              0.370109090909091,
+              0.12438734177215188
+            ],
+            [
+              0.6326545454545455,
+              0.12438734177215188
+            ],
+            [
+              0.6326545454545455,
+              0.6666835443037975
+            ],
+            [
+              0.370109090909091,
+              0.6666835443037975
+            ]
+          ],
+          "worldPixels": [
+            [
+              6.155220253164559,
+              -5.770830379746836
+            ],
+            [
+              9.884030379746836,
+              -5.770830379746836
+            ],
+            [
+              9.884030379746836,
+              12.667240506329115
+            ],
+            [
+              6.155220253164559,
+              12.667240506329115
+            ]
+          ],
+          "qualification": "Manual approximate content guide; validate in running station."
+        }
+      }
+    },
+    {
+      "id": "screens",
+      "source": "docs/station-remaster/batch03/control/screens-source.png",
+      "output": "frontend/assets/industrial/batch03/control/screens.png",
+      "sourceSha256": "34e07b455319f11064f119b680fa4d976c0a85e52cd9bd1cafb2d7be2c9174b5",
+      "outputSha256": "e856c656fe2e29c4275ad7331c3c4ed806815d7f5d9c5323aff087dba81497bb",
+      "crop": {
+        "left": 132,
+        "top": 66,
+        "width": 1019,
+        "height": 1100
+      },
+      "bounds": {
+        "x": -1,
+        "y": -15,
+        "width": 26,
+        "height": 27
+      },
+      "fit": {
+        "x": -0.5059090909090909,
+        "y": -15,
+        "width": 25.01181818181818,
+        "height": 27
+      },
+      "flat": false,
+      "contract": "No leisure seat anchor. Footprint is the placement/pathfinding rectangle; upright visual rise is independent of the reserved box.",
+      "light": {
+        "c": [
+          110,
+          190,
+          255
+        ],
+        "r": 24,
+        "a": 0.12,
+        "m": "screen",
+        "y": 0.35
+      },
+      "animation": [
+        "Autonomous sprite clock animation is present in the sampled default state; cosmetic motion is not evidence of provider work, route decisions or external state."
+      ],
+      "regions": {
+        "upper": {
+          "sourceNormalized": [
+            [
+              0.196,
+              0.11
+            ],
+            [
+              0.811,
+              0.11
+            ],
+            [
+              0.811,
+              0.335
+            ],
+            [
+              0.196,
+              0.335
+            ]
+          ],
+          "sourcePixels": [
+            [
+              251.07600000000002,
+              134.97
+            ],
+            [
+              1038.891,
+              134.97
+            ],
+            [
+              1038.891,
+              411.045
+            ],
+            [
+              251.07600000000002,
+              411.045
+            ]
+          ],
+          "exportNormalized": [
+            [
+              0.11685574092247303,
+              0.0627
+            ],
+            [
+              0.8899813542688911,
+              0.0627
+            ],
+            [
+              0.8899813542688911,
+              0.31367727272727275
+            ],
+            [
+              0.11685574092247303,
+              0.31367727272727275
+            ]
+          ],
+          "worldPixels": [
+            [
+              2.416865454545455,
+              -13.3071
+            ],
+            [
+              21.75414272727273,
+              -13.3071
+            ],
+            [
+              21.75414272727273,
+              -6.530713636363636
+            ],
+            [
+              2.416865454545455,
+              -6.530713636363636
+            ]
+          ],
+          "qualification": "Manual approximate content guide; validate in running station."
+        },
+        "lower": {
+          "sourceNormalized": [
+            [
+              0.195,
+              0.486
+            ],
+            [
+              0.809,
+              0.486
+            ],
+            [
+              0.809,
+              0.72
+            ],
+            [
+              0.195,
+              0.72
+            ]
+          ],
+          "sourcePixels": [
+            [
+              249.79500000000002,
+              596.322
+            ],
+            [
+              1036.3290000000002,
+              596.322
+            ],
+            [
+              1036.3290000000002,
+              883.4399999999999
+            ],
+            [
+              249.79500000000002,
+              883.4399999999999
+            ]
+          ],
+          "exportNormalized": [
+            [
+              0.11559862610402356,
+              0.4821109090909091
+            ],
+            [
+              0.8874671246319923,
+              0.4821109090909091
+            ],
+            [
+              0.8874671246319923,
+              0.7431272727272726
+            ],
+            [
+              0.11559862610402356,
+              0.7431272727272726
+            ]
+          ],
+          "worldPixels": [
+            [
+              2.3854227272727275,
+              -1.9830054545454558
+            ],
+            [
+              21.691257272727277,
+              -1.9830054545454558
+            ],
+            [
+              21.691257272727277,
+              5.064436363636361
+            ],
+            [
+              2.3854227272727275,
+              5.064436363636361
+            ]
+          ],
+          "qualification": "Manual approximate content guide; validate in running station."
+        }
+      }
+    }
+  ]
+}

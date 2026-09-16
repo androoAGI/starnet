@@ -1,0 +1,77 @@
+{
+  "sourceAnimation": {
+    "idleFrameVariants": 1,
+    "workFrameVariants": 1,
+    "respondsToWorkFlag": false,
+    "opaqueBoundsRelativeToFootprint": {
+      "x": 1,
+      "y": 0,
+      "w": 10,
+      "h": 11,
+      "alphaThreshold": 160
+    }
+  },
+  "bounds": {
+    "y": 0,
+    "width": 10,
+    "height": 11,
+    "x": 1
+  },
+  "id": "stool",
+  "geometry": {
+    "blocks": true,
+    "flat": false,
+    "tableSurface": false,
+    "requiredMount": null,
+    "optionalSurfaceMount": false,
+    "surfaceRisePixels": 8
+  },
+  "floorContact": {
+    "x": 6,
+    "y": 12
+  },
+  "backgroundThreshold": 235,
+  "tilePixels": 12,
+  "status": "art-draft-integration-pending",
+  "view": "s",
+  "footprint": {
+    "w": 1,
+    "h": 1
+  },
+  "anchorContract": "planSeat: one occupant claim, walk to an adjacent tile, render on the seat tile at bottom minus 1 px plus per-type seat lift; explicit rotated facing beats counter inference.",
+  "holeSeeds": [
+    [
+      600,
+      470
+    ],
+    [
+      600,
+      720
+    ]
+  ],
+  "proportionReview": {
+    "visibleSourceSeatNearRimY": 400,
+    "visibleSourceFootY": 1147,
+    "cropHeight": 990,
+    "uniformFitWorldSeatNearRimY": 2.7,
+    "worldFeetY": 11,
+    "note": "Near rim now at y2.7 vs native y3; source projection reauthored, no stretching."
+  },
+  "sourceWidth": 1197,
+  "sourceHeight": 1315,
+  "sourceSha256": "1e9e3d03295dee9291df5ce39a236ea0061ed29cd7e1d13b00fe89f23a8dcfc0",
+  "output": "frontend/assets/industrial/batch02/crew/stool.png",
+  "crop": {
+    "left": 204,
+    "top": 157,
+    "width": 790,
+    "height": 990
+  },
+  "transparentPixels": 316784,
+  "opaquePixels": 465316,
+  "partialPixels": 0,
+  "backgroundPixelsRemoved": 1108739,
+  "subjectRgbChanges": 0,
+  "outputSha256": "b70e2b261f26cb84bc9dc09f8f47159b48b9e6fcedd112c2f0f4b860a2b2fd63",
+  "liveIntegrated": false
+}

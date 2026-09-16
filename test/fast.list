@@ -287,6 +287,7 @@ test/qa-closer.test.js
 test/qa-ready.test.js
 test/qa-product-perfect.test.js
 test/qa-product-perfect-claims.test.js
+test/qa-claims-streaming.test.js
 test/website-pricing-hold.test.js
 test/website-docs-navigation.test.js
 test/genesis-starnet-link.test.js
@@ -786,6 +787,26 @@ test/cloudsave-concurrency.test.js
 test/sprite-direction-details.test.js
 test/chat-history-reconcile.test.js
 
+test/prop-industrial-remaster.test.js
+test/industrialtextures.test.js
+test/world-texture-ready.test.js
+test/qa-claims-blob-batch.test.js
+test/workstation-screen-state.test.js
+test/prop-remaster-contract.test.js
+test/authored-prop-content.test.js
+test/authored-prop-motion.test.js
+test/authored-machine-config.test.js
+test/authored-service-content.test.js
+test/coordinated-prop-recipes.test.js
+test/routing-label-layout.test.js
+test/prop-layout-polish.test.js
+test/skin-study-tone.test.js
+test/skin-study-preview.test.js
+test/projection-prop-effects.test.js
+test/projection-load-geometry.test.js
+dev/industrial-textures/prop-catalog-review.test.cjs
+test/projection-depth-rendering.test.js
+test/remaster-physical-fit.test.js
 test/arrival.test.js
 
 test/genesis-wake-credential.test.js

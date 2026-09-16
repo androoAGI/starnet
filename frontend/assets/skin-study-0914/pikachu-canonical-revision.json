@@ -1,0 +1,14 @@
+{
+  "characters": [
+    {
+      "id": "pikachu",
+      "characterId": "ce0c26cb-f228-44f4-baf7-1e07d5f75f67",
+      "rotations": {
+        "south": "https://backblaze.pixellab.ai/file/pixellab-characters/1ff7d2cf-cfe6-44f9-9533-9eea41eb05cb/ce0c26cb-f228-44f4-baf7-1e07d5f75f67/rotations/south.png?t=1789366062",
+        "east": "https://backblaze.pixellab.ai/file/pixellab-characters/1ff7d2cf-cfe6-44f9-9533-9eea41eb05cb/ce0c26cb-f228-44f4-baf7-1e07d5f75f67/rotations/east.png?t=1789366062",
+        "north": "https://backblaze.pixellab.ai/file/pixellab-characters/1ff7d2cf-cfe6-44f9-9533-9eea41eb05cb/ce0c26cb-f228-44f4-baf7-1e07d5f75f67/rotations/north.png?t=1789366062",
+        "west": "https://backblaze.pixellab.ai/file/pixellab-characters/1ff7d2cf-cfe6-44f9-9533-9eea41eb05cb/ce0c26cb-f228-44f4-baf7-1e07d5f75f67/rotations/west.png?t=1789366062"
+      }
+    }
+  ]
+}

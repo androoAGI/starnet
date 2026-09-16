@@ -1,0 +1,1145 @@
+{
+  "version": 1,
+  "scope": "Eight requested props audited: six native surfaces, ten reviewed source views across supported south/east directions; two excluded non-surfaces. No pending repairs in this mapping.",
+  "coordinateSystem": "[u,v] normalized to full decoded approved-sheet PNG; x=u*width, y=v*height. TL/TR are image far-left/far-right; BR/BL are near-right/near-left. All audited alpha bounds equal full image bounds. Verify image hash before using anchors. Source geometry is authored per view; no bitmap rotation.",
+  "nativeContract": {
+    "tilePixels": 12,
+    "surfaceRiseWorldPixels": 8,
+    "rule": "All six hosts have one-tile-deep SOUTH catalog footprints. Authored e views for four tables swap that footprint to1xN through native surface reTiles logic; those deep side views remain real native hosts. These points locate artwork only and do not change collision, mount flags, leisure or lift.",
+    "source": "frontend/app/propsprites.js:10893"
+  },
+  "integrationRequirements": [
+    "Map support points through actual rendered alpha-crop/world fit, including any approved furniture height cap; never assume raw cell size is world geometry.",
+    "The four-corner regions are conservative mount-support envelopes. Round tables have a larger visible top outside the quad; avoid unsupported outer-corner mounts.",
+    "Inspect mounted props at actual game scale after applying mapping. This file is source-image QA, not live mount acceptance.",
+    "Side e maps to native r=3 in viewAt, not r=1. SIDE_SYMMETRIC exposes only one authored side; do not create unsupported opposite/rear projections.",
+    "Repaired sidetable and longtable replace prior occupied source art; source hashes now refer to unoccupied tabletops."
+  ],
+  "props": {
+    "industrial_roundtable": {
+      "nativeSurface": true,
+      "footprint": {
+        "w": 2,
+        "h": 1
+      },
+      "nativeEvidence": [
+        "frontend/app/propsprites.js:10734"
+      ],
+      "views": {
+        "s": {
+          "status": "reviewed-primary-source",
+          "image": "frontend/assets/industrial/approved-sheet/industrial_roundtable.png",
+          "outputSha256": "f25e457cfca4bf02bcc3dc6e0eb5c359a4039a4dfe80befea80d3efab058b4aa",
+          "width": 64,
+          "height": 69,
+          "pointOrder": [
+            "TL",
+            "TR",
+            "BR",
+            "BL"
+          ],
+          "points": [
+            [
+              0.234375,
+              0.1884058
+            ],
+            [
+              0.75,
+              0.1884058
+            ],
+            [
+              0.765625,
+              0.6231884
+            ],
+            [
+              0.21875,
+              0.6231884
+            ]
+          ],
+          "pixelPoints": [
+            [
+              15,
+              13
+            ],
+            [
+              48,
+              13
+            ],
+            [
+              49,
+              43
+            ],
+            [
+              14,
+              43
+            ]
+          ],
+          "topPlaneContour": [
+            [
+              0.484375,
+              0.0724638
+            ],
+            [
+              0.6875,
+              0.115942
+            ],
+            [
+              0.828125,
+              0.2318841
+            ],
+            [
+              0.90625,
+              0.4057971
+            ],
+            [
+              0.828125,
+              0.5942029
+            ],
+            [
+              0.6875,
+              0.6956522
+            ],
+            [
+              0.484375,
+              0.7391304
+            ],
+            [
+              0.28125,
+              0.6811594
+            ],
+            [
+              0.140625,
+              0.5652174
+            ],
+            [
+              0.078125,
+              0.3913043
+            ],
+            [
+              0.15625,
+              0.2173913
+            ],
+            [
+              0.3125,
+              0.1014493
+            ]
+          ],
+          "shape": "round",
+          "meaning": "Conservative INSCRIBED support quad on round/oval top. Not the rectangular bounding box of the circle; unsupported corner positions are excluded.",
+          "occludedByFixedContent": false
+        }
+      }
+    },
+    "lowtable": {
+      "nativeSurface": true,
+      "footprint": {
+        "w": 3,
+        "h": 1
+      },
+      "nativeEvidence": [
+        "frontend/app/propsprites.js:10891"
+      ],
+      "views": {
+        "s": {
+          "status": "reviewed-primary-source",
+          "image": "frontend/assets/industrial/approved-sheet/lowtable.png",
+          "outputSha256": "213ab8626b32f601fba0fcf086c1df7d11d2e92b0d2a42ad007f97609e5146ca",
+          "width": 86,
+          "height": 51,
+          "pointOrder": [
+            "TL",
+            "TR",
+            "BR",
+            "BL"
+          ],
+          "points": [
+            [
+              0.1046512,
+              0.1176471
+            ],
+            [
+              0.8953488,
+              0.1176471
+            ],
+            [
+              0.9069767,
+              0.5294118
+            ],
+            [
+              0.0813953,
+              0.5294118
+            ]
+          ],
+          "pixelPoints": [
+            [
+              9,
+              6
+            ],
+            [
+              77,
+              6
+            ],
+            [
+              78,
+              27
+            ],
+            [
+              7,
+              27
+            ]
+          ],
+          "topPlaneContour": [
+            [
+              0.1046512,
+              0.0980392
+            ],
+            [
+              0.8953488,
+              0.0980392
+            ],
+            [
+              0.9302326,
+              0.1764706
+            ],
+            [
+              0.9302326,
+              0.5098039
+            ],
+            [
+              0.8837209,
+              0.5882353
+            ],
+            [
+              0.0813953,
+              0.5882353
+            ],
+            [
+              0.0581395,
+              0.5098039
+            ],
+            [
+              0.0697674,
+              0.1960784
+            ]
+          ],
+          "shape": "rectangle",
+          "meaning": "Inset mount-support quad within visible top plane, excluding bevel and apron.",
+          "occludedByFixedContent": false
+        },
+        "e": {
+          "status": "reviewed-authored-side-source",
+          "image": "frontend/assets/industrial/approved-sheet/lowtable-e.png",
+          "outputSha256": "5c241d2d9df57763188170b4445e8fa00379951511157d9914298985aa6d4269",
+          "width": 88,
+          "height": 177,
+          "alphaBounds": {
+            "x": 0,
+            "y": 0,
+            "width": 88,
+            "height": 177
+          },
+          "pointOrder": [
+            "TL",
+            "TR",
+            "BR",
+            "BL"
+          ],
+          "points": [
+            [
+              0.1704545,
+              0.0564972
+            ],
+            [
+              0.8068182,
+              0.0564972
+            ],
+            [
+              0.8522727,
+              0.6723164
+            ],
+            [
+              0.1363636,
+              0.6723164
+            ]
+          ],
+          "pixelPoints": [
+            [
+              15,
+              10
+            ],
+            [
+              71,
+              10
+            ],
+            [
+              75,
+              119
+            ],
+            [
+              12,
+              119
+            ]
+          ],
+          "topPlaneContour": [
+            [
+              0.1931818,
+              0.0338983
+            ],
+            [
+              0.7727273,
+              0.0338983
+            ],
+            [
+              0.8636364,
+              0.0734463
+            ],
+            [
+              0.8863636,
+              0.6723164
+            ],
+            [
+              0.7954545,
+              0.7118644
+            ],
+            [
+              0.125,
+              0.7118644
+            ],
+            [
+              0.0795455,
+              0.6723164
+            ],
+            [
+              0.125,
+              0.079096
+            ]
+          ],
+          "shape": "rectangle",
+          "meaning": "Inset mount-support quad within visible top plane, excluding bevel and apron.",
+          "occludedByFixedContent": false,
+          "nativeFacing": {
+            "r": 3,
+            "key": "e",
+            "swappedFootprint": {
+              "w": 1,
+              "h": 3
+            },
+            "evidence": [
+              "frontend/app/propsprites.js:11063",
+              "frontend/app/propsprites.js:11073",
+              "frontend/app/propsprites.js:11129",
+              "frontend/app/propsprites.js:11136"
+            ]
+          }
+        }
+      }
+    },
+    "glasstable": {
+      "nativeSurface": true,
+      "footprint": {
+        "w": 3,
+        "h": 1
+      },
+      "nativeEvidence": [
+        "frontend/app/propsprites.js:10892"
+      ],
+      "views": {
+        "s": {
+          "status": "reviewed-primary-source",
+          "image": "frontend/assets/industrial/approved-sheet/glasstable.png",
+          "outputSha256": "2951efc70bff35db3edee284b73bdcbe5b93f8f60776f7a97845da3b8068f0cb",
+          "width": 81,
+          "height": 53,
+          "pointOrder": [
+            "TL",
+            "TR",
+            "BR",
+            "BL"
+          ],
+          "points": [
+            [
+              0.1111111,
+              0.1132075
+            ],
+            [
+              0.8765432,
+              0.1132075
+            ],
+            [
+              0.9012346,
+              0.490566
+            ],
+            [
+              0.0864198,
+              0.490566
+            ]
+          ],
+          "pixelPoints": [
+            [
+              9,
+              6
+            ],
+            [
+              71,
+              6
+            ],
+            [
+              73,
+              26
+            ],
+            [
+              7,
+              26
+            ]
+          ],
+          "topPlaneContour": [
+            [
+              0.1111111,
+              0.0943396
+            ],
+            [
+              0.8765432,
+              0.0943396
+            ],
+            [
+              0.9259259,
+              0.1509434
+            ],
+            [
+              0.9259259,
+              0.509434
+            ],
+            [
+              0.8765432,
+              0.5660377
+            ],
+            [
+              0.0864198,
+              0.5660377
+            ],
+            [
+              0.0617284,
+              0.509434
+            ],
+            [
+              0.0740741,
+              0.1698113
+            ]
+          ],
+          "shape": "rectangle",
+          "meaning": "Inset mount-support quad within visible top plane, excluding bevel and apron.",
+          "occludedByFixedContent": false
+        },
+        "e": {
+          "status": "reviewed-authored-side-source",
+          "image": "frontend/assets/industrial/approved-sheet/glasstable-e.png",
+          "outputSha256": "c0c50ba069ca5c39aaf6751d50c53f2f54d7f3135ef71a9e74cf380275aa6cf9",
+          "width": 95,
+          "height": 176,
+          "alphaBounds": {
+            "x": 0,
+            "y": 0,
+            "width": 95,
+            "height": 176
+          },
+          "pointOrder": [
+            "TL",
+            "TR",
+            "BR",
+            "BL"
+          ],
+          "points": [
+            [
+              0.1894737,
+              0.0795455
+            ],
+            [
+              0.8105263,
+              0.0795455
+            ],
+            [
+              0.8105263,
+              0.6136364
+            ],
+            [
+              0.1894737,
+              0.6136364
+            ]
+          ],
+          "pixelPoints": [
+            [
+              18,
+              14
+            ],
+            [
+              77,
+              14
+            ],
+            [
+              77,
+              108
+            ],
+            [
+              18,
+              108
+            ]
+          ],
+          "topPlaneContour": [
+            [
+              0.1894737,
+              0.0625
+            ],
+            [
+              0.7894737,
+              0.0625
+            ],
+            [
+              0.8736842,
+              0.1022727
+            ],
+            [
+              0.8631579,
+              0.6193182
+            ],
+            [
+              0.7894737,
+              0.6647727
+            ],
+            [
+              0.1789474,
+              0.6647727
+            ],
+            [
+              0.1052632,
+              0.6193182
+            ],
+            [
+              0.1157895,
+              0.1079545
+            ]
+          ],
+          "shape": "rectangle",
+          "meaning": "Inset mount-support quad within visible top plane, excluding bevel and apron.",
+          "occludedByFixedContent": false,
+          "nativeFacing": {
+            "r": 3,
+            "key": "e",
+            "swappedFootprint": {
+              "w": 1,
+              "h": 3
+            },
+            "evidence": [
+              "frontend/app/propsprites.js:11063",
+              "frontend/app/propsprites.js:11073",
+              "frontend/app/propsprites.js:11129",
+              "frontend/app/propsprites.js:11136"
+            ]
+          }
+        }
+      }
+    },
+    "loungetable": {
+      "nativeSurface": true,
+      "footprint": {
+        "w": 2,
+        "h": 1
+      },
+      "nativeEvidence": [
+        "frontend/app/propsprites.js:10904"
+      ],
+      "views": {
+        "s": {
+          "status": "reviewed-primary-source",
+          "image": "frontend/assets/industrial/approved-sheet/loungetable.png",
+          "outputSha256": "f75e50930edebaeb4390d6ae58a83c441baaa921797dcf24a28f76c0ed5cee02",
+          "width": 78,
+          "height": 56,
+          "pointOrder": [
+            "TL",
+            "TR",
+            "BR",
+            "BL"
+          ],
+          "points": [
+            [
+              0.2564103,
+              0.1785714
+            ],
+            [
+              0.7435897,
+              0.1785714
+            ],
+            [
+              0.7692308,
+              0.6071429
+            ],
+            [
+              0.2307692,
+              0.6071429
+            ]
+          ],
+          "pixelPoints": [
+            [
+              20,
+              10
+            ],
+            [
+              58,
+              10
+            ],
+            [
+              60,
+              34
+            ],
+            [
+              18,
+              34
+            ]
+          ],
+          "topPlaneContour": [
+            [
+              0.5,
+              0.0892857
+            ],
+            [
+              0.7051282,
+              0.125
+            ],
+            [
+              0.8589744,
+              0.2678571
+            ],
+            [
+              0.9230769,
+              0.4285714
+            ],
+            [
+              0.8589744,
+              0.6071429
+            ],
+            [
+              0.7307692,
+              0.7142857
+            ],
+            [
+              0.4871795,
+              0.7678571
+            ],
+            [
+              0.2692308,
+              0.7142857
+            ],
+            [
+              0.1153846,
+              0.5892857
+            ],
+            [
+              0.0769231,
+              0.4107143
+            ],
+            [
+              0.1538462,
+              0.25
+            ],
+            [
+              0.3076923,
+              0.125
+            ]
+          ],
+          "shape": "oval",
+          "meaning": "Conservative INSCRIBED support quad on round/oval top. Not the rectangular bounding box of the circle; unsupported corner positions are excluded.",
+          "occludedByFixedContent": false
+        },
+        "e": {
+          "status": "reviewed-authored-side-source",
+          "image": "frontend/assets/industrial/approved-sheet/loungetable-e.png",
+          "outputSha256": "22fb604ebd332bdec71c60254868a6f79b7b00add734929a36eb5cc75af56e32",
+          "width": 114,
+          "height": 167,
+          "alphaBounds": {
+            "x": 0,
+            "y": 0,
+            "width": 114,
+            "height": 167
+          },
+          "pointOrder": [
+            "TL",
+            "TR",
+            "BR",
+            "BL"
+          ],
+          "points": [
+            [
+              0.2982456,
+              0.1437126
+            ],
+            [
+              0.7017544,
+              0.1437126
+            ],
+            [
+              0.7807018,
+              0.6646707
+            ],
+            [
+              0.2105263,
+              0.6646707
+            ]
+          ],
+          "pixelPoints": [
+            [
+              34,
+              24
+            ],
+            [
+              80,
+              24
+            ],
+            [
+              89,
+              111
+            ],
+            [
+              24,
+              111
+            ]
+          ],
+          "topPlaneContour": [
+            [
+              0.5,
+              0.0479042
+            ],
+            [
+              0.6929825,
+              0.1017964
+            ],
+            [
+              0.8421053,
+              0.2634731
+            ],
+            [
+              0.9035088,
+              0.4491018
+            ],
+            [
+              0.8421053,
+              0.6347305
+            ],
+            [
+              0.7105263,
+              0.748503
+            ],
+            [
+              0.5087719,
+              0.8143713
+            ],
+            [
+              0.2807018,
+              0.754491
+            ],
+            [
+              0.1315789,
+              0.6227545
+            ],
+            [
+              0.0789474,
+              0.4371257
+            ],
+            [
+              0.1491228,
+              0.245509
+            ],
+            [
+              0.3070175,
+              0.0898204
+            ]
+          ],
+          "shape": "oval",
+          "meaning": "Conservative inscribed support quad on round/oval top; excludes unsupported outer corners.",
+          "occludedByFixedContent": false,
+          "nativeFacing": {
+            "r": 3,
+            "key": "e",
+            "swappedFootprint": {
+              "w": 1,
+              "h": 2
+            },
+            "evidence": [
+              "frontend/app/propsprites.js:11063",
+              "frontend/app/propsprites.js:11073",
+              "frontend/app/propsprites.js:11129",
+              "frontend/app/propsprites.js:11136"
+            ]
+          }
+        }
+      }
+    },
+    "sidetable": {
+      "nativeSurface": true,
+      "footprint": {
+        "w": 1,
+        "h": 1
+      },
+      "nativeEvidence": [
+        "frontend/app/propsprites.js:10888"
+      ],
+      "views": {
+        "s": {
+          "status": "reviewed-repaired-primary-source",
+          "image": "frontend/assets/industrial/approved-sheet/sidetable.png",
+          "outputSha256": "6237868cfd2df133e31b2360a6764c6b35c5a2b29c2d47a2e4119a691231ee7d",
+          "width": 173,
+          "height": 203,
+          "alphaBounds": {
+            "x": 0,
+            "y": 0,
+            "width": 173,
+            "height": 203
+          },
+          "pointOrder": [
+            "TL",
+            "TR",
+            "BR",
+            "BL"
+          ],
+          "points": [
+            [
+              0.2485549,
+              0.1330049
+            ],
+            [
+              0.7398844,
+              0.1330049
+            ],
+            [
+              0.7861272,
+              0.4926108
+            ],
+            [
+              0.2138728,
+              0.4926108
+            ]
+          ],
+          "pixelPoints": [
+            [
+              43,
+              27
+            ],
+            [
+              128,
+              27
+            ],
+            [
+              136,
+              100
+            ],
+            [
+              37,
+              100
+            ]
+          ],
+          "topPlaneContour": [
+            [
+              0.5028902,
+              0.0541872
+            ],
+            [
+              0.716763,
+              0.0935961
+            ],
+            [
+              0.8728324,
+              0.2019704
+            ],
+            [
+              0.9248555,
+              0.3399015
+            ],
+            [
+              0.8323699,
+              0.5024631
+            ],
+            [
+              0.6300578,
+              0.5862069
+            ],
+            [
+              0.4104046,
+              0.591133
+            ],
+            [
+              0.1849711,
+              0.5123153
+            ],
+            [
+              0.0751445,
+              0.3743842
+            ],
+            [
+              0.0924855,
+              0.2216749
+            ],
+            [
+              0.2427746,
+              0.1034483
+            ]
+          ],
+          "shape": "round",
+          "meaning": "Conservative inscribed support quad on round/oval top; excludes unsupported outer corners.",
+          "occludedByFixedContent": false,
+          "nativeFacing": {
+            "r": 0,
+            "key": "s"
+          }
+        }
+      }
+    },
+    "longtable": {
+      "nativeSurface": true,
+      "footprint": {
+        "w": 3,
+        "h": 1
+      },
+      "nativeEvidence": [
+        "frontend/app/propsprites.js:10905"
+      ],
+      "views": {
+        "s": {
+          "status": "reviewed-repaired-primary-source",
+          "image": "frontend/assets/industrial/approved-sheet/longtable.png",
+          "outputSha256": "24513a547387a625fbf2fe91209c27e69a9721b643e06a5c315b0db31b5a3dd3",
+          "width": 384,
+          "height": 202,
+          "alphaBounds": {
+            "x": 0,
+            "y": 0,
+            "width": 384,
+            "height": 202
+          },
+          "pointOrder": [
+            "TL",
+            "TR",
+            "BR",
+            "BL"
+          ],
+          "points": [
+            [
+              0.0494792,
+              0.0841584
+            ],
+            [
+              0.9479167,
+              0.0841584
+            ],
+            [
+              0.9479167,
+              0.5891089
+            ],
+            [
+              0.0494792,
+              0.5891089
+            ]
+          ],
+          "pixelPoints": [
+            [
+              19,
+              17
+            ],
+            [
+              364,
+              17
+            ],
+            [
+              364,
+              119
+            ],
+            [
+              19,
+              119
+            ]
+          ],
+          "topPlaneContour": [
+            [
+              0.0598958,
+              0.049505
+            ],
+            [
+              0.9270833,
+              0.049505
+            ],
+            [
+              0.9713542,
+              0.1237624
+            ],
+            [
+              0.9713542,
+              0.5594059
+            ],
+            [
+              0.9348958,
+              0.6287129
+            ],
+            [
+              0.0625,
+              0.6287129
+            ],
+            [
+              0.0260417,
+              0.5693069
+            ],
+            [
+              0.0260417,
+              0.1336634
+            ]
+          ],
+          "shape": "rectangle",
+          "meaning": "Inset mount-support quad within visible top plane, excluding bevel and apron.",
+          "occludedByFixedContent": false,
+          "nativeFacing": {
+            "r": 0,
+            "key": "s"
+          }
+        },
+        "e": {
+          "status": "reviewed-authored-side-source",
+          "image": "frontend/assets/industrial/approved-sheet/longtable-e.png",
+          "outputSha256": "a5fff5fcd41986123f2819957fb42efa607c81b906a2db21121689de8afc7cc4",
+          "width": 474,
+          "height": 1371,
+          "alphaBounds": {
+            "x": 0,
+            "y": 0,
+            "width": 474,
+            "height": 1371
+          },
+          "pointOrder": [
+            "TL",
+            "TR",
+            "BR",
+            "BL"
+          ],
+          "points": [
+            [
+              0.1371308,
+              0.0255288
+            ],
+            [
+              0.8544304,
+              0.0255288
+            ],
+            [
+              0.9113924,
+              0.8533917
+            ],
+            [
+              0.0843882,
+              0.8533917
+            ]
+          ],
+          "pixelPoints": [
+            [
+              65,
+              35
+            ],
+            [
+              405,
+              35
+            ],
+            [
+              432,
+              1170
+            ],
+            [
+              40,
+              1170
+            ]
+          ],
+          "topPlaneContour": [
+            [
+              0.1666667,
+              0.0131291
+            ],
+            [
+              0.8164557,
+              0.0131291
+            ],
+            [
+              0.8924051,
+              0.0328228
+            ],
+            [
+              0.9451477,
+              0.8388038
+            ],
+            [
+              0.9113924,
+              0.8643326
+            ],
+            [
+              0.8544304,
+              0.8760029
+            ],
+            [
+              0.1181435,
+              0.8760029
+            ],
+            [
+              0.0611814,
+              0.8606856
+            ],
+            [
+              0.0485232,
+              0.8424508
+            ],
+            [
+              0.0991561,
+              0.0342815
+            ]
+          ],
+          "shape": "rectangle",
+          "meaning": "Inset mount-support quad within visible top plane, excluding bevel and apron.",
+          "occludedByFixedContent": false,
+          "nativeFacing": {
+            "r": 3,
+            "key": "e",
+            "swappedFootprint": {
+              "w": 1,
+              "h": 3
+            },
+            "evidence": [
+              "frontend/app/propsprites.js:11063",
+              "frontend/app/propsprites.js:11073",
+              "frontend/app/propsprites.js:11129",
+              "frontend/app/propsprites.js:11136"
+            ]
+          }
+        }
+      }
+    },
+    "dinertable": {
+      "nativeSurface": false,
+      "footprint": {
+        "w": 3,
+        "h": 2
+      },
+      "nativeEvidence": [
+        "frontend/app/propsprites.js:10893",
+        "frontend/app/propsprites.js:10899"
+      ],
+      "views": {},
+      "reason": "Native catalog explicitly prohibits surface mounting because the fixed 8-world-pixel rise cannot align both rows of a 3x2 host. Do not infer support eligibility from appearance."
+    },
+    "industrial_bench": {
+      "nativeSurface": false,
+      "footprint": {
+        "w": 3,
+        "h": 1
+      },
+      "nativeEvidence": [
+        "frontend/app/propsprites.js:10733"
+      ],
+      "views": {},
+      "reason": "Crew seating bench, no surface:true catalog flag. Preserve its leisure interaction; do not register it as a mount host."
+    }
+  }
+}

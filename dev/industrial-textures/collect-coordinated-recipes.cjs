@@ -1,0 +1,28 @@
+'use strict';
+const fs=require('fs'),sharp=require('sharp'),crypto=require('crypto');
+const files=['coordinator/coordinated-recipes.json','storage/coordinated-recipes.json','utility/coordinated-recipes.json','crew/accessory-motion-recipes.json'].map(p=>'docs/station-remaster/batch03/'+p);
+const normPoint=(p,label)=>{if(!Array.isArray(p)||p.length!==2||p.some(n=>!Number.isFinite(n)||n<0||n>1))throw Error('Invalid normalized point '+label+':'+JSON.stringify(p));};
+const poly=(p,label)=>{if(!Array.isArray(p)||p.length<1)throw Error('Invalid polygon '+label);for(const x of p)normPoint(x,label);};
+const checkMotion=(m,label)=>{if(m==null)return;if(typeof m!=='object'||Array.isArray(m))throw Error('Motion must be an object '+label);if(m.region)poly(m.region,label+'.region');if(m.origin)normPoint(m.origin,label+'.origin');if(m.path)poly(m.path,label+'.path');if(m.colour&&(!Array.isArray(m.colour)||m.colour.length!==3||m.colour.some(n=>!Number.isFinite(n)||n<0||n>255)))throw Error('Invalid RGB '+label);for(const [i,layer]of(m.layers||[]).entries())checkMotion(layer,label+'.layers.'+i);};
+(async()=>{const props={},receipts=[],inputs=[],missingInputs=[];
+for(const file of files){if(!fs.existsSync(file)){missingInputs.push(file);continue;}const data=JSON.parse(fs.readFileSync(file));inputs.push(file);
+for(const [id,entry]of Object.entries(data.props)){if(props[id])throw Error('Duplicate recipe '+id);
+for(const [view,v]of Object.entries(entry.views)){const bytes=fs.readFileSync(v.image),hash=crypto.createHash('sha256').update(bytes).digest('hex');if(hash!==v.outputSha256)throw Error('Hash mismatch '+id);const {data:rgba,info}=await sharp(bytes).ensureAlpha().raw().toBuffer({resolveWithObject:true});if(info.width!==v.width||info.height!==v.height)throw Error('Dimensions '+id);let l=info.width,t=info.height,r=-1,b=-1;for(let i=3;i<rgba.length;i+=4)if(rgba[i]){const p=(i-3)/4,x=p%info.width,y=Math.floor(p/info.width);l=Math.min(l,x);r=Math.max(r,x);t=Math.min(t,y);b=Math.max(b,y);}const actual={x:l,y:t,width:r-l+1,height:b-t+1};if(Object.keys(actual).some(k=>actual[k]!==v.alphaBounds[k]))throw Error('Alpha crop '+id);
+for(const [key,p]of Object.entries(v.regions||{}))poly(p,id+'.'+key);
+for(const p of v.screenRegions||[])poly(p,id+'.screenRegions');
+checkMotion(v.motion,id+'.motion');
+for(const [key,p]of Object.entries(v.engineAlphaNormalized?.regions||{}))if(Array.isArray(p))poly(p,id+'.engine.'+key);
+for(const p of v.engineAlphaNormalized?.screenRegions||[])poly(p,id+'.engine.screen');
+checkMotion(v.engineAlphaNormalized?.motion,id+'.engine.motion');
+const alphaPoint=p=>[(p[0]*v.width-actual.x)/actual.width,(p[1]*v.height-actual.y)/actual.height];
+const matchPoint=(p,q,label)=>{normPoint(q,label);const a=alphaPoint(p);if(a.some((n,i)=>Math.abs(n-q[i])>0.000003))throw Error('Alpha coordinate mismatch '+label);};
+const matchPoly=(p,q,label)=>{if(!Array.isArray(q)||p.length!==q.length)throw Error('Missing matching alpha polygon '+label);p.forEach((pt,i)=>matchPoint(pt,q[i],label));};
+for(const [key,p]of Object.entries(v.regions||{}))matchPoly(p,v.engineAlphaNormalized?.regions?.[key],id+'.'+key);
+for(const [i,p]of(v.screenRegions||[]).entries())matchPoly(p,v.engineAlphaNormalized?.screenRegions?.[i],id+'.screen.'+i);
+if(v.motion?.region)matchPoly(v.motion.region,v.engineAlphaNormalized?.motion?.region,id+'.motion');if(v.motion?.origin)matchPoint(v.motion.origin,v.engineAlphaNormalized?.motion?.origin,id+'.origin');
+receipts.push({id,view,image:v.image,outputSha256:hash,alphaBounds:actual,mode:v.mode,validated:true});
+}props[id]={...entry,recipeSource:file};}}
+const result={version:1,coordinateSpace:'All primary polygons/origins normalize the exported PNG. engineAlphaNormalized normalizes its tight nonzero-alpha rectangle for PropRemaster box coordinates.',expectedIds:64,recipeIds:Object.keys(props).length,missingInputs,complete:missingInputs.length===0&&Object.keys(props).length===64,liveVerified:false,integrationOwner:'Original station texture task',excludedOwnership:['airlock','jukebox','outbox','connector_portal','pub_publishpress','pub_outboundchute','pub_mailpod','intake','bay','merger','splitter','joiner','loop','missionboard','trophycase','comms_inbox','calwall','arc_microfiche'],inputs,props};
+fs.writeFileSync('docs/station-remaster/batch03/coordinated-motion-recipes.json',JSON.stringify(result,null,2)+'\n');
+fs.writeFileSync('docs/station-remaster/batch03/coordinated-motion-validation.json',JSON.stringify({recipeIds:result.recipeIds,complete:result.complete,allAvailableHashesDimensionsAlphaAndNormalizedRegionsValid:true,receipts},null,2)+'\n');console.log(JSON.stringify({recipeIds:result.recipeIds,complete:result.complete,modes:[...new Set(receipts.map(r=>r.mode))],missingInputs}));
+})().catch(e=>{console.error(e);process.exitCode=1;});

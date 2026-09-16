@@ -1,0 +1,4 @@
+One sheet of TWO isolated widegameprops, stacked vertically withcleargutter, genuinealpha. Preserve supplied exactobjects/rendering/camera. NO extra objectorlabels.
+TOP reference1 right-facing BENCHPRESS: increase its WIDTH by20% while heightunchanged. Extend longpad andframeLEFTWARD awayfromrackatRIGHT. Weightplates/rack remain sameheight. Wholebody mustwidth:height1.8. Low horizontal bench withvisibletop andshortposts, no person.
+BOTTOM reference2 right-facing WEAPONRACK: increase frame andweapons WIDTH by12%, sameheight. Wholeframe width:height1.55. Two horizontalrifles barrelsRIGHT stocksLEFT, bladebelow. Wallhung nofeet, keepdarkmetal/woodaccents.
+This is redrawngeometry, no bitmapstretch or rotation. Fullsilhouettes ontransparentbackground, noexternalshadows.
