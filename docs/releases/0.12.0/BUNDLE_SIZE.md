@@ -41,10 +41,18 @@ the voice deps. The browser/dev sidecar still serves the full `frontend/` tree, 
 are untouched. `test/frontend-dist-staging.test.js` locks the rule to the runtime roots, checks every
 image the shipped projection manifest names is staged, and pins the build wiring.
 
-| Measure | after the fix |
+**Second finding (same day):** with the staged embed the executable dropped to 268 MB, yet the first
+signed installer still weighed 1,568,318,690 bytes (1.5 GB). `bundle.resources` ALSO copied the full
+`../frontend` tree as the sidecar's `frontend` resource (the packaged sidecar serves it for browser-mirror
+mode), so the calibration art rode along a second way. `fd55ee2b2` points that resource at the staged
+copy (`"frontend-dist": "frontend"`, target name unchanged, so `sidecar/index.js`'s
+`path.resolve(__dirname, '..', 'frontend')` still resolves) and the staging test now refuses a
+`../frontend` resource.
+
+| Measure | after both fixes |
 | --- | --- |
 | staged frontend | 11,225 files / 266 MB (dropped 670 files / 954 MB) |
-| `skynet-desktop.exe` | EXE_SIZE |
+| `skynet-desktop.exe` | 268 MB (was 926 MB) |
 | `StarNet_0.12.0_x64-setup.exe` | INSTALLER_SIZE |
 
 The installer is still larger than 0.11.2 (130 MB): the remaster's runtime art is ~200 MB of PNG that
