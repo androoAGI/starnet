@@ -293,6 +293,7 @@ test/genesis-starnet-link.test.js
 test/qa-product-perfect-provenance.test.js
 test/qa-cartographer.test.js
 test/golden.test.js
+test/audit-gaze-proof.test.js
 test/qa-beginner.test.js
 test/qa-installed-first-run.test.js
 test/qa-installed-link-transport.test.js
