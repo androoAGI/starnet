@@ -15,9 +15,10 @@
  *   · `assets/industrial/projection-correction/` — propremaster.js default ROOT (DENSITY 6) + manifest
  *   · `assets/industrial/complete-sheet/`        — referenced by projection-correction/manifest.json
  *   · `assets/industrial/approved-sheet/`        — propremaster.js `?propSet=approved` / classic fallback
+ *   · `assets/industrial/calibration/`           — crate.png is required by industrialtextures.js
  *   · every other frontend path unchanged (sprites, brand, fonts, sfx, app/, css/, js/, review pages)
  * Anything else under `assets/industrial/<dir>/` (batch02, batch03, props-v2, props-v3, catalog-*,
- * camera-audit, calibration, scale-calibration, parallel-0914, capability-*, tactical-table-polish,
+ * camera-audit, scale-calibration, parallel-0914, capability-*, tactical-table-polish,
  * sharpness-restoration, …) is calibration/review material consumed by tests and review pages only.
  * The browser/dev sidecar keeps serving the full `frontend/` tree, so nothing changes outside the
  * packaged desktop app.
@@ -35,7 +36,7 @@ export const SRC = join(ROOT, 'frontend');
 export const DEST = join(ROOT, 'src-tauri', 'frontend-dist');
 
 // industrial subfolders the runtime requests (see header). Root-level files under assets/industrial always ship.
-export const KEEP_INDUSTRIAL = Object.freeze(['projection-correction', 'remaster', 'complete-sheet', 'approved-sheet']);
+export const KEEP_INDUSTRIAL = Object.freeze(['projection-correction', 'remaster', 'complete-sheet', 'approved-sheet', 'calibration']);
 
 /** Should this frontend-relative path (posix separators) be staged into the bundle? */
 export function shouldStage(rel) {

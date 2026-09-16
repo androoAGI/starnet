@@ -5,6 +5,7 @@
 'use strict';
 const fs = require('node:fs');
 const path = require('node:path');
+const vm = require('node:vm');
 const A = require('./_assert.js');
 
 const ROOT = path.join(__dirname, '..');
@@ -14,8 +15,36 @@ const rd = (p) => fs.readFileSync(path.join(ROOT, p), 'utf8');
   const mod = await import(require('node:url').pathToFileURL(path.join(ROOT, 'scripts', 'stage-frontend-dist.mjs')).href);
   const { shouldStage, KEEP_INDUSTRIAL } = mod;
 
+  // Execute the production loader: its URLs are assembled from names and cannot
+  // be discovered by grepping only complete path literals. Missing calibration/crate
+  // disabled the entire remaster in the first 0.12.0 installer.
+  async function loadPack(accept) {
+    const requested = [];
+    class Image {
+      constructor() { this.width = this.height = 1; }
+      set src(url) {
+        requested.push(url);
+        queueMicrotask(() => {
+          if (accept(url) && fs.existsSync(path.join(ROOT, 'frontend', url))) this.onload();
+          else this.onerror();
+        });
+      }
+    }
+    const context = vm.createContext({ Image, URLSearchParams, location: { search: '' },
+      document: { documentElement: { dataset: {} }, createElement: () => ({ getContext: () => ({ drawImage() {} }) }) } });
+    vm.runInContext(rd('frontend/app/industrialtextures.js') + '\nthis.pack = IndustrialTextures;', context);
+    await context.pack.ready;
+    return { status: context.pack.status(), enabled: context.pack.isRemaster(), requested };
+  }
+  const packaged = await loadPack(shouldStage);
+  A.ok(packaged.enabled, 'production graphics loader enables the remaster using only staged assets: ' + packaged.status.failed.join(', '));
+  A.eq(Array.from(packaged.status.failed), [], 'every dynamically requested production texture exists and ships');
+  for (const asset of packaged.requested) A.ok(shouldStage(asset), 'runtime texture request ships: ' + asset);
+  const missingCrate = await loadPack(url => shouldStage(url) && !url.endsWith('/calibration/crate.png'));
+  A.ok(!missingCrate.enabled && missingCrate.status.failed.includes('calibration/crate'), 'regression probe catches the original installer-wide fallback');
+
   // ---- 1. the rule: everything ships except industrial subfolders the runtime never loads from ----
-  A.eq(KEEP_INDUSTRIAL.slice().sort(), ['approved-sheet', 'complete-sheet', 'projection-correction', 'remaster'], 'the kept industrial folders are exactly the runtime roots');
+  A.eq(KEEP_INDUSTRIAL.slice().sort(), ['approved-sheet', 'calibration', 'complete-sheet', 'projection-correction', 'remaster'], 'the kept industrial folders are exactly the runtime roots');
   for (const p of ['index.html', 'app/chat.js', 'css/app.css', 'assets/sprites/manifest.json', 'assets/brand/starnet-logo.png', 'assets/fonts/vt323.woff2', 'assets/sfx/click.wav', 'prop-catalog-review.html']) {
     A.ok(shouldStage(p), 'ships verbatim: ' + p);
   }
