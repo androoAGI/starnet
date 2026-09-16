@@ -219,13 +219,15 @@ async function main() {
   equal(classicReview.api.crate(canvas().getContext('2d'),0,0,24,12),false,'classic never adopts review art');
   const failedReview=load({review:true,fail:'calibration/crate.png'});await failedReview.finish();
   equal(failedReview.api.crate(canvas().getContext('2d'),0,0,24,12),false,'failed review retains complete fallback');
-  for(const id of ['viewport','wainscot','hedge']) {
+  for(const id of ['wainscot','hedge']) {
     ok(api.supportsWall(id),'specialized wall has authored coverage: '+id);
     const d=draw(api,'wall',0,0,12,33,0,id);
     ok([...d.image.paths].some(p=>p.endsWith('/walls/'+id+'.png')),id+' uses its own artwork instead of bulkhead fallback');
     ok(api.wallStrip(33,id).hi,'specialized side/corner strip retains high resolution: '+id);
   }
   const windowPlate=canvas(40,45);
+  equal(api.wall(windowPlate.getContext('2d'),4,4,24,33,0,'viewport'),false,'viewport never paints an opaque wall across the live sky');
+  equal(api.wallStrip(33,'viewport'),null,'viewport leaves side glass to its dedicated frame painter');
   ok(api.viewportFrame(windowPlate.getContext('2d'),4,4,24,33),'authored window frame draws');
   for(let y=7;y<31;y++)for(let x=5;x<27;x++)assert.equal(windowPlate.pixels[(y*40+x)*4+3],0,'frame must leave live sky transparent');
   checks++;
