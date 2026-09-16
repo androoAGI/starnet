@@ -17241,6 +17241,9 @@ async function runOnce(o) {
       // operator's narrowly authorized continuation and make the recovery non-idempotent.
       limits: {
         maxIters: o.outputOnly ? 1 : runMaxIters, maxCostUsd: runCapUsd, failureRecovery: (o.recovery || o.outputOnly) ? false : undefined,
+        // A capped greeting must not become five paid generations. Task replies retain normal
+        // continuation, including brief answers promoted to tasks by a pending clarification.
+        outputContinuation: !isTask ? false : undefined,
         grace: o.outputOnly ? false : undefined, refundMax: o.outputOnly ? 0 : undefined,
         // unpriced-token seatbelt: metered API-key providers only — a subscription/OAuth/unmetered run bills nothing
         maxUnpricedTokens: (providerUnmetered || usingCodex || usingDeviceOAuth) ? Infinity : CAPS.maxUnpricedTokens

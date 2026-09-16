@@ -32,10 +32,15 @@ function startMockOpenRouter() {
       }
       if (req.url.indexOf('/chat/completions') >= 0) {
         let body = ''; req.on('data', d => { body += d; }); req.on('end', () => {
-          try { requests.push(JSON.parse(body)); } catch (_) {}
+          const request = JSON.parse(body);
+          requests.push(request);
+          const latestUser = (request.messages || []).filter(m => m.role === 'user').at(-1);
+          const cappedChat = latestUser && latestUser.content === 'hello cap regression';
+          const cappedTask = latestUser && latestUser.content === 'write cap regression'
+            && !(request.messages || []).some(m => String(m.content).includes('<output_continuation>'));
           res.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache' });
           res.write('data: ' + JSON.stringify({ choices: [{ delta: { content: 'ok' } }] }) + '\n\n');
-          res.write('data: ' + JSON.stringify({ choices: [{ delta: {}, finish_reason: 'stop' }], usage: { prompt_tokens: 4, completion_tokens: 1, total_tokens: 5 } }) + '\n\n');
+          res.write('data: ' + JSON.stringify({ choices: [{ delta: {}, finish_reason: cappedChat || cappedTask ? 'length' : 'stop' }], usage: { prompt_tokens: 4, completion_tokens: 1, total_tokens: 5 } }) + '\n\n');
           res.write('data: [DONE]\n\n');
           res.end();
         });
@@ -86,14 +91,14 @@ function boot(port, env, attemptsLeft) {
       const r = await fetch(B + '/api/run', { method: 'POST', headers: hdr,
         body: JSON.stringify({ key: 'sk-or-v1-diet-fake', model: 'test/model', agentId: 'agent', isTask, surface: 'interactive', messages: [{ role: 'user', content: text }] }) });
       A.eq(r.status, 200, 'POST /api/run streams (200) for isTask=' + isTask);
-      const rd = r.body.getReader(); while (true) { const { done } = await rd.read(); if (done) break; }
+      const events = await r.text();
       await new Promise(res => setTimeout(res, 250));
       const reqs = mock.requests.slice(start);
       const systems = reqs.map(q => ((((q || {}).messages || [])[0] || {}).content) || '');
       // the run's own request is the longest system prompt in the window (aux passes are shorter or absent)
       const system = systems.sort((a, b) => b.length - a.length)[0] || '';
       const tools = reqs.map(q => (q && Array.isArray(q.tools)) ? q.tools.length : 0);
-      return { system, tools: Math.max.apply(null, tools.concat([0])) };
+      return { system, events, requests: reqs, tools: Math.max.apply(null, tools.concat([0])) };
     };
 
     const chat = await run(false, 'hello');
@@ -126,6 +131,15 @@ function boot(port, env, attemptsLeft) {
     A.ok(iRuntime > task.system.indexOf('<capabilities_ground_truth>'), 'task: [RUNTIME] comes after the capabilities block');
     A.ok(iRuntime > task.system.lastIndexOf('### '), 'task: [RUNTIME] comes after the last skill recipe');
     A.eq((task.system.match(/Run id: /g) || []).length, 1, 'task: exactly one run id line');
+
+    // A per-request ceiling must not trigger four more generations of a greeting. Real tasks still
+    // need semantic continuation to finish an answer or reissue a cut-off tool call.
+    const cappedChat = await run(false, 'hello cap regression');
+    A.eq(cappedChat.requests.length, 1, 'a capped casual reply stops after one generation');
+    A.ok(cappedChat.events.includes('"finishReason":"length"'), 'the partial reply retains its output-limit status');
+    A.ok(cappedChat.events.includes('"delta":"ok"'), 'the partial reply is retained in the live stream');
+    const cappedTask = await run(true, 'write cap regression');
+    A.ok(cappedTask.requests.some(q => q.messages.some(m => String(m.content).includes('<output_continuation>'))), 'real tasks retain semantic continuation');
   } finally {
     try { child.kill(); } catch (_) {}
     try { mock.server.close(); } catch (_) {}
