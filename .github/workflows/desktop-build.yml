@@ -113,6 +113,7 @@ jobs:
         run: |
           node scripts/prepare-node.mjs ${{ matrix.target }}
           node scripts/stage-voice-deps.mjs --target ${{ matrix.target }}
+          node scripts/stage-frontend-dist.mjs
 
       # Manual builds may intentionally be unsigned, but a build that has Apple signing
       # credentials must prepare the same nested native closure as the public train. A

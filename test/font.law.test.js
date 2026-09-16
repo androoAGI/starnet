@@ -82,6 +82,9 @@ const tauri = JSON.parse(rd('src-tauri/tauri.conf.json'));
 const csp = (tauri.app && tauri.app.security && tauri.app.security.csp) || '';
 A.ok(csp, 'the desktop shell declares a CSP');
 A.ok(!/fonts\.googleapis\.com|fonts\.gstatic\.com/.test(csp), 'the desktop CSP permits no font CDN — a regression fails loudly instead of silently going to the network');
-A.eq(tauri.build.frontendDist, '../frontend', 'the desktop webview serves the real frontend (not the legacy src-tauri/dist splash, which is not VT323)');
+// 2026-09-16: the webview embeds the STAGED copy of the real frontend (scripts/stage-frontend-dist.mjs:
+// frontend/ minus the industrial review/source art) — never the legacy src-tauri/dist splash, which is not VT323.
+A.eq(tauri.build.frontendDist, 'frontend-dist', 'the desktop webview serves the staged real frontend (not the legacy src-tauri/dist splash, which is not VT323)');
+A.ok(/"desktop:build":\s*"[^"]*stage-frontend-dist\.mjs[^"]*tauri build"/.test(rd('package.json')), 'desktop:build stages the frontend before tauri build, so the embedded copy is never stale');
 
 A.report('font.law.test');
