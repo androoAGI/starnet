@@ -18,7 +18,7 @@
   "expectedClaimCount": 37,
   "releaseSurface": {
     "algorithm": "sha256",
-    "sourceCommit": "5f498be97445e808d8d8162836ebed04291c028f",
+    "sourceCommit": "4ceb991664cffaeadd979920e190514f997b6985",
     "pathSetSha256": "5637b80b3c43c79d485ca54febe89fb09431fbd2c0be9d14b165f8271aa7884e",
     "files": [
       {
@@ -108,8 +108,8 @@
       },
       {
         "path": "frontend/app/authored-machine-review.js",
-        "bytes": 3885,
-        "sha256": "b755a823bfb04e632d3bea34e7bb14c3b763445ab56fe23c058c96358ec2daf4"
+        "bytes": 3879,
+        "sha256": "08fab4c0c2da6a532a6a2d5dad84cb40592096cd0b12c3e73e109dac5646a4bf"
       },
       {
         "path": "frontend/app/authored-prop-content.js",
@@ -463,8 +463,8 @@
       },
       {
         "path": "frontend/app/kepler-showcase.js",
-        "bytes": 2305,
-        "sha256": "86405cf4bcc229a8f2ad8a1cb40ac3793de3778c41befb821953b9c2a090e142"
+        "bytes": 2319,
+        "sha256": "5fca279f86135e109ff92318111feb211245c9d0b96782b38eab4d79d1ea2662"
       },
       {
         "path": "frontend/app/keycta.js",
@@ -618,8 +618,8 @@
       },
       {
         "path": "frontend/app/projection-audit-panel.js",
-        "bytes": 2414,
-        "sha256": "4d3e183cf6f4bfe50f2bf5dbb5d67f9eef1585da2c18502114f708eed764692c"
+        "bytes": 2421,
+        "sha256": "10c6765f22efc7cb6368b92a42678adb312e551106bdbf7e2012b9dbc384ef99"
       },
       {
         "path": "frontend/app/projection-prop-effects.js",
@@ -633,8 +633,8 @@
       },
       {
         "path": "frontend/app/prop-atlas.js",
-        "bytes": 6661,
-        "sha256": "39e9a10e2679b09176a1ce8f5acd7c857c238c179473dd4951bc0ff52103e685"
+        "bytes": 6781,
+        "sha256": "50bbaaf424f913d15c32e0ab9cf308fb3c8dab9394998d8ca1aeba5cdd9fe634"
       },
       {
         "path": "frontend/app/prop-catalog-data.js",
@@ -648,13 +648,13 @@
       },
       {
         "path": "frontend/app/prop-catalog-review.js",
-        "bytes": 9290,
-        "sha256": "7379f93e23d3cbb112c9652d77b7097c33aea9dc86eb1e7db77a4ee835734fb7"
+        "bytes": 9297,
+        "sha256": "e6173f58ea38ab9690877980c8a37f11ad77c960cfa1dfb25ce04cff7786b139"
       },
       {
         "path": "frontend/app/prop-room-review.js",
-        "bytes": 6760,
-        "sha256": "f479637ce750e07625e63608a55eec3c21762a42f7cd098b04b62a3c875a220e"
+        "bytes": 6858,
+        "sha256": "76973c79c7ee31a2153c617137308631a30058ef2d8fe4078e3aac17644fbe73"
       },
       {
         "path": "frontend/app/propanchor.js",
@@ -663,8 +663,8 @@
       },
       {
         "path": "frontend/app/propremaster.js",
-        "bytes": 31043,
-        "sha256": "7deb85b87a8a29032a21267a2a98c874053e4b42678c31275b784693b108a6d7"
+        "bytes": 31050,
+        "sha256": "8f5ea67456580ac66c2cffdd1d687f23f57d680fdd9d85f3f5d7cff78d0aab3b"
       },
       {
         "path": "frontend/app/propsearch.js",
@@ -878,8 +878,8 @@
       },
       {
         "path": "frontend/app/skin-study-preview.js",
-        "bytes": 2481,
-        "sha256": "f4520cc4014a4530774e241e62924459edc0f2335f67251bca0a5d209ceaeae2"
+        "bytes": 2488,
+        "sha256": "625148f6369c4b63c6e42ea758e59d7863f2be433a0c01b31d4fe49f75dbabe9"
       },
       {
         "path": "frontend/app/skin-study-tone.js",
@@ -1428,8 +1428,8 @@
       },
       {
         "path": "frontend/dev/authored-mount-checks.js",
-        "bytes": 4998,
-        "sha256": "1ad4ff1a7fe678b03fed782393e26c9276b925deab8bbf5cadc0ec629ae22c28"
+        "bytes": 5095,
+        "sha256": "914c59fb5158b88bb5f780978226ba1ab1b38ab8b5fd90603781f0afc7323710"
       },
       {
         "path": "frontend/dev/authored-mount-fixture.html",
