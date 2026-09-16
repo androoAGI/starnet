@@ -1,0 +1,126 @@
+{
+  "cases": [],
+  "performance": [],
+  "doorways": [
+    {
+      "round": 0,
+      "side": 3,
+      "reverse": false,
+      "planned": true,
+      "arrived": true,
+      "inWall": 0,
+      "samples": 184,
+      "ms": 3093
+    },
+    {
+      "round": 0,
+      "side": 3,
+      "reverse": true,
+      "planned": true,
+      "arrived": true,
+      "inWall": 0,
+      "samples": 178,
+      "ms": 3009
+    },
+    {
+      "round": 0,
+      "side": 12,
+      "reverse": false,
+      "planned": true,
+      "arrived": true,
+      "inWall": 0,
+      "samples": 192,
+      "ms": 3214
+    },
+    {
+      "round": 0,
+      "side": 12,
+      "reverse": true,
+      "planned": true,
+      "arrived": true,
+      "inWall": 0,
+      "samples": 201,
+      "ms": 3388
+    },
+    {
+      "round": 1,
+      "side": 3,
+      "reverse": false,
+      "planned": true,
+      "arrived": true,
+      "inWall": 0,
+      "samples": 183,
+      "ms": 3088
+    },
+    {
+      "round": 1,
+      "side": 3,
+      "reverse": true,
+      "planned": true,
+      "arrived": true,
+      "inWall": 0,
+      "samples": 171,
+      "ms": 2913
+    },
+    {
+      "round": 1,
+      "side": 12,
+      "reverse": false,
+      "planned": true,
+      "arrived": true,
+      "inWall": 0,
+      "samples": 193,
+      "ms": 3251
+    },
+    {
+      "round": 1,
+      "side": 12,
+      "reverse": true,
+      "planned": true,
+      "arrived": true,
+      "inWall": 0,
+      "samples": 206,
+      "ms": 3463
+    },
+    {
+      "round": 2,
+      "side": 3,
+      "reverse": false,
+      "planned": true,
+      "arrived": true,
+      "inWall": 0,
+      "samples": 196,
+      "ms": 3300
+    },
+    {
+      "round": 2,
+      "side": 3,
+      "reverse": true,
+      "planned": true,
+      "arrived": true,
+      "inWall": 0,
+      "samples": 184,
+      "ms": 3089
+    },
+    {
+      "round": 2,
+      "side": 12,
+      "reverse": false,
+      "planned": true,
+      "arrived": true,
+      "inWall": 0,
+      "samples": 183,
+      "ms": 3090
+    },
+    {
+      "round": 2,
+      "side": 12,
+      "reverse": true,
+      "planned": true,
+      "arrived": true,
+      "inWall": 0,
+      "samples": 205,
+      "ms": 3456
+    }
+  ]
+}
