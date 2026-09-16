@@ -18,7 +18,7 @@
   "expectedClaimCount": 37,
   "releaseSurface": {
     "algorithm": "sha256",
-    "sourceCommit": "346377c0b6888e6673fb84e21e90d64c0a447796",
+    "sourceCommit": "2b4b10c1bd044a43ffe6985029fa3b4a0a902cb0",
     "pathSetSha256": "bab9a009d72da26d3f09788b23df27fbaf063140c6d8e030b7e1df4b8fa69b0c",
     "files": [
       {
@@ -1103,8 +1103,8 @@
       },
       {
         "path": "frontend/app/xpstore.js",
-        "bytes": 23724,
-        "sha256": "e8209bb05d8e41cba564296ce87e91da06177f2fb4f1a42b879e6a52eb39dfe5"
+        "bytes": 24384,
+        "sha256": "54dc4bdd930e8337a992f90cb2d84640378993dbb14b7ee779d5bacdfe6772fb"
       },
       {
         "path": "frontend/app/zones.js",
