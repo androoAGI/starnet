@@ -31,3 +31,20 @@ assert.equal(scope.pick('table','s',1,0,24,24),false,'gap between feet is not se
 assert.equal(scope.pick('table','s',0,0,12,12),null,'custom footprint uses native picking fallback');
 entry.lost=true;assert.equal(scope.pick('table','s',0,0,24,24),null,'lost cache falls back');
 console.log('PASS: pack-scoped physical resize, saved centre/contact, freed tiles, undo/redo, reload, custom saves and alpha picking.');
+// Selection bounds use rendered alpha, independently of the reserved floor tiles.
+const spriteSource=fs.readFileSync('frontend/app/propsprites.js','utf8');
+const selectionStart=spriteSource.indexOf('  const selectionMasks = new WeakMap();');
+const selectionEnd=spriteSource.indexOf('  function hasOver(',selectionStart);
+let reads=0;
+const pixels=new Uint8ClampedArray(96*100*4);
+for(let y=56;y<76;y++)for(let x=21;x<71;x++)pixels[(y*96+x)*4+3]=255;
+pixels[3]=64; // glow must not extend the selection border
+const mask={width:96,height:100,getContext:()=>({getImageData:()=>{reads++;return{data:pixels};}})};
+const selectionScope={TILE:12,shadowMask:f=>f.empty?null:mask,surfaceLift:f=>f.mount?6:0};
+vm.runInNewContext(spriteSource.slice(selectionStart,selectionEnd)+';this.bounds=selectionBounds;',selectionScope);
+const bounds=f=>JSON.parse(JSON.stringify(selectionScope.bounds(f)));
+assert.deepEqual(bounds({x:2,y:3,w:5,h:3}),{x:29,y:44,width:50,height:20},'opaque artwork excludes packing and glow');
+assert.deepEqual(bounds({x:4,y:5,w:5,h:3,mount:true}),{x:53,y:62,width:50,height:20},'moving and mounting preserve the art offset');
+assert.equal(reads,1,'repeated selection reuses the rendered-mask measurement');
+assert.equal(bounds({empty:true}),null,'unavailable artwork falls back to tile selection');
+console.log('PASS: selection follows visible alpha, translated/mounted art, cached measurement and unavailable-art fallback.');

@@ -5364,20 +5364,31 @@ const Build = (() => {
     });
   }
 
+  function propSelectionRect(p,t) {
+    const mount=station.mountOf?station.mountOf(p):null;
+    return (PropSprites.selectionBounds&&PropSprites.selectionBounds(mount?{...p,mount}:p))
+      || {x:p.x*t,y:p.y*t,width:p.w*t,height:p.h*t};
+  }
+  function drawPropSelection(p,t,color,footprint=true) {
+    const b=propSelectionRect(p,t),pad=1/zoom;
+    ctx.save();ctx.strokeStyle=color;
+    if(footprint){
+      ctx.globalAlpha=.22;ctx.lineWidth=1/zoom;ctx.setLineDash([2/zoom,3/zoom]);
+      ctx.strokeRect(p.x*t,p.y*t,p.w*t,p.h*t);ctx.setLineDash([]);ctx.globalAlpha=1;
+    }
+    ctx.lineWidth=1.5/zoom;ctx.strokeRect(b.x-pad,b.y-pad,b.width+pad*2,b.height+pad*2);ctx.restore();
+  }
   function drawHover(t) {
     const selected=selectedPropId&&station.propById(selectedPropId);
     if(selected){
-      ctx.save();ctx.strokeStyle='rgba(244,200,112,.9)';ctx.lineWidth=1.5/zoom;
-      ctx.strokeRect(selected.x*t,selected.y*t,selected.w*t,selected.h*t);ctx.restore();
+      drawPropSelection(selected,t,'rgba(244,200,112,.9)');
     }
     if (drag) return;
     // a hovered prop (select/move/reclaim) outlines on top of any room outline
     if ((tool === 'select' || tool === 'move' || tool === 'reclaim' || (tool === 'dupe' && !dupe)) && hoverPropId) {
       const p = station.propById(hoverPropId);
       if (p) {
-        ctx.lineWidth = 1.5 / zoom;
-        ctx.strokeStyle = tool === 'reclaim' ? 'rgba(255,92,77,0.95)' : 'rgba(120,220,255,0.95)';
-        ctx.strokeRect(p.x * t + 1, p.y * t + 1, p.w * t - 2, p.h * t - 2);
+        drawPropSelection(p,t,tool === 'reclaim' ? 'rgba(255,92,77,0.95)' : 'rgba(120,220,255,0.95)');
         return;
       }
     }
@@ -5660,9 +5671,10 @@ const Build = (() => {
       for (const r of g.rects) {
         const X = r.x1 * t, Y = r.y1 * t, Wd = (r.x2 - r.x1 + 1) * t, Hd = (r.y2 - r.y1 + 1) * t;
         ctx.fillStyle = fill; ctx.fillRect(X, Y, Wd, Hd);
-        ctx.strokeStyle = line; ctx.strokeRect(X + 0.5 / zoom, Y + 0.5 / zoom, Wd - 1 / zoom, Hd - 1 / zoom);
+        if(!preview){ctx.strokeStyle = line; ctx.strokeRect(X + 0.5 / zoom, Y + 0.5 / zoom, Wd - 1 / zoom, Hd - 1 / zoom);}
       }
-      for (const r of g.rects) ghostReticle(t, r, line);
+      if(preview)drawPropSelection(preview,t,line);
+      else for (const r of g.rects) ghostReticle(t, r, line);
     }
     // belt: draw flow arrows along the run so the direction reads at a glance
     if (g.belt) {

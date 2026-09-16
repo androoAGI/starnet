@@ -11239,6 +11239,23 @@ const PropSprites = (() => {
     if(canMirror(f.t)&&f.m)lx=w-lx;
     return PropRemaster.hitTest(f.t,['s','w','n','e'][(f.r|0)&3],lx,ly,w,h);
   }
+  // Build-mode outlines follow the same oriented silhouette as the rendered prop.
+  // Tile occupancy stays a separate contract; transparent packing is not artwork.
+  const selectionMasks = new WeakMap();
+  function selectionBounds(f) {
+    const mask=shadowMask(f);if(!mask)return null;
+    let bounds=selectionMasks.get(mask);
+    if(bounds===undefined){
+      const pixels=mask.getContext('2d').getImageData(0,0,mask.width,mask.height).data;
+      let left=mask.width,top=mask.height,right=-1,bottom=-1;
+      for(let y=0;y<mask.height;y++)for(let x=0;x<mask.width;x++)if(pixels[(y*mask.width+x)*4+3]>=128){
+        left=Math.min(left,x);right=Math.max(right,x);top=Math.min(top,y);bottom=Math.max(bottom,y);
+      }
+      bounds=right<left?null:{x:left-16,y:top-48,width:right-left+1,height:bottom-top+1};
+      selectionMasks.set(mask,bounds);
+    }
+    return bounds?{x:f.x*TILE+bounds.x,y:f.y*TILE-surfaceLift(f)+bounds.y,width:bounds.width,height:bounds.height}:null;
+  }
   function hasOver(t) { return !!OVER[t]; }
   function drawOver(f) {
     const fn = OVER[f && f.t]; if (!fn) return;
@@ -11835,7 +11852,7 @@ const PropSprites = (() => {
   }
 
   return {
-    setSurfaceLayout, hitTest,
+    setSurfaceLayout, hitTest, selectionBounds,
     surfacePlacement,
     setCtx(c) { ctx = c; },
     setNow(t) { now = t; },
